@@ -146,7 +146,19 @@
               </div>
             </div>
             
-            <!-- Slat 4: Settings (Double Black) -->
+            <!-- Slat 4: Content Manager (Blue) -->
+            <div class="menu-slat slat-blue" id="menu-content-manager">
+              <div class="slat-snow-cap"></div>
+              <div class="slat-box-left">
+                <span class="menu-symbol symbol-circle"></span>
+              </div>
+              <div class="slat-text">Content Manager</div>
+              <div class="slat-box-right">
+                <span class="slat-arrow">➔</span>
+              </div>
+            </div>
+
+            <!-- Slat 5: Settings (Double Black) -->
             <div class="menu-slat slat-black" id="menu-settings">
               <div class="slat-snow-cap"></div>
               <div class="slat-box-left">
@@ -161,7 +173,7 @@
               </div>
             </div>
             
-            <!-- Slat 5: Exit Game (Orange) -->
+            <!-- Slat 6: Exit Game (Orange) -->
             <div class="menu-slat slat-orange" id="menu-exit">
               <div class="slat-snow-cap"></div>
               <div class="slat-box-left">
@@ -261,16 +273,44 @@
 
           <!-- Right Panel: Leaflet Map -->
           <div class="gis-map-panel">
+            <div class="gis-size-selector" id="gis-size-selector">
+              <span class="size-selector-label">Area Size</span>
+              <button class="size-btn" data-size="2000">2 km</button>
+              <button class="size-btn active" data-size="4000">4 km</button>
+              <button class="size-btn" data-size="8000">8 km</button>
+            </div>
             <div id="gis-map" class="gis-map"></div>
             <div class="gis-map-footer">
-              <span id="map-status-text" class="map-status-text">Pan & zoom to select a 4km × 4km area</span>
-              <button id="btn-ingest-data" class="gis-ingest-btn disabled" disabled>Download Terrain & Start</button>
+              <div class="gis-map-footer-info">
+                <span id="map-status-text" class="map-status-text">Click or drag the box to choose an area</span>
+                <div id="gis-progress-container" class="gis-progress-container hidden">
+                  <div id="gis-progress-fill" class="gis-progress-fill"></div>
+                </div>
+              </div>
+              <button id="btn-ingest-data" class="gis-ingest-btn" disabled>Download Terrain & Start</button>
             </div>
           </div>
         </div>
 
         <!-- Back to Menu button -->
         <button id="gis-back-btn" class="gis-back-btn">← Back to Menu</button>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- Content Manager (Hidden by Default)          -->
+      <!-- ============================================ -->
+      <div id="content-manager-container" class="view-container hidden">
+        <div class="content-manager-layout">
+          <h2 class="gis-panel-title">Content Manager</h2>
+          <p class="gis-panel-subtitle">Terrain data downloaded or saved on this machine</p>
+
+          <div class="content-list" id="content-list">
+            <!-- Rows are generated dynamically from terrainStorageClient.listTerrains() -->
+          </div>
+        </div>
+
+        <!-- Back to Menu button -->
+        <button id="content-manager-back-btn" class="gis-back-btn">← Back to Menu</button>
       </div>
 
       <!-- ============================================ -->

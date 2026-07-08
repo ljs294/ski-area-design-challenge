@@ -1,5 +1,6 @@
-import type { GameState, ResortNode, Lift, Trail, Skier, ActiveTool } from './types';
-import { getInterpolatedHeight } from './terrain';
+import type { GameState, ResortNode, Lift, Trail, Skier, ActiveTool, TerrainDB } from './types';
+import { computeHillshade } from './hillshade';
+import { drawContours } from './contours';
 
 export interface Camera {
   x: number;
@@ -7,16 +8,83 @@ export interface Camera {
   zoom: number;
 }
 
+const MAP_SIZE = 2000; // Physical dimensions of the map area, in game-world units
+
 /**
  * Main renderer class for drawing the mountain simulation onto the 2D HTML5 canvas.
  */
 export class GameRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  
+  private terrainLayer: HTMLCanvasElement | null = null;
+  private terrainLayerKey: string | null = null;
+
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
+  }
+
+  /**
+   * Precompute the hillshade + contour composite for the given terrain onto
+   * an offscreen canvas. Call this once when terrain changes (e.g. right
+   * after ingest, before entering the game view) — NOT per frame.
+   */
+  public setTerrain(terrain: TerrainDB | null): void {
+    if (!terrain) {
+      this.terrainLayer = null;
+      this.terrainLayerKey = null;
+      return;
+    }
+    if (this.terrainLayerKey === terrain.key) return; // already cached
+
+    this.terrainLayer = this.buildTerrainLayer(terrain);
+    this.terrainLayerKey = terrain.key;
+  }
+
+  private buildTerrainLayer(terrain: TerrainDB): HTMLCanvasElement {
+    const layer = document.createElement('canvas');
+    layer.width = MAP_SIZE;
+    layer.height = MAP_SIZE;
+    const lctx = layer.getContext('2d')!;
+
+    // 1. Flat base fill
+    lctx.fillStyle = '#f4f3ec';
+    lctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+
+    // 2. Hillshade — computed at native display-grid resolution, then
+    // scaled up in a single drawImage call.
+    const cellSizeMeters = terrain.areaSizeMeters / (terrain.displayGridSize - 1);
+    const shade = computeHillshade(terrain.displayHeights, terrain.displayGridSize, cellSizeMeters);
+
+    const shadeCanvas = document.createElement('canvas');
+    shadeCanvas.width = terrain.displayGridSize;
+    shadeCanvas.height = terrain.displayGridSize;
+    const sctx = shadeCanvas.getContext('2d')!;
+    const imageData = sctx.createImageData(terrain.displayGridSize, terrain.displayGridSize);
+    for (let i = 0; i < shade.length; i++) {
+      const gray = Math.round(shade[i] * 255);
+      imageData.data[i * 4] = gray;
+      imageData.data[i * 4 + 1] = gray;
+      imageData.data[i * 4 + 2] = gray;
+      imageData.data[i * 4 + 3] = 255;
+    }
+    sctx.putImageData(imageData, 0, 0);
+
+    lctx.save();
+    lctx.globalCompositeOperation = 'multiply';
+    lctx.globalAlpha = 0.4;
+    lctx.drawImage(shadeCanvas, 0, 0, MAP_SIZE, MAP_SIZE);
+    lctx.restore();
+
+    // 3. Contour isolines on top
+    drawContours(lctx, terrain.displayHeights, terrain.displayGridSize, MAP_SIZE);
+
+    // 4. Outer boundary
+    lctx.strokeStyle = 'rgba(42, 42, 42, 0.15)';
+    lctx.lineWidth = 1;
+    lctx.strokeRect(0, 0, MAP_SIZE, MAP_SIZE);
+
+    return layer;
   }
 
   /**
@@ -34,8 +102,8 @@ export class GameRenderer {
     const width = this.canvas.width;
     const height = this.canvas.height;
 
-    // Clear canvas with dark space background
-    ctx.fillStyle = '#0b0c10';
+    // Clear canvas with the cream backdrop (visible when panned/zoomed past the terrain layer bounds)
+    ctx.fillStyle = '#eae8de';
     ctx.fillRect(0, 0, width, height);
 
     ctx.save();
@@ -44,9 +112,11 @@ export class GameRenderer {
     ctx.translate(camera.x, camera.y);
     ctx.scale(camera.zoom, camera.zoom);
 
-    // 1. Draw Topographic Contours (3D terrain projected to 2D map)
-    if (state.terrain) {
-      this.drawTopography(state.terrain.heights, state.terrain.gridSize);
+    // 1. Draw the precomputed terrain layer (hillshade + contours), or an
+    // empty placeholder grid if no terrain has been ingested yet.
+    this.setTerrain(state.terrain);
+    if (this.terrainLayer) {
+      ctx.drawImage(this.terrainLayer, 0, 0);
     } else {
       this.drawEmptyGrid();
     }
@@ -71,81 +141,16 @@ export class GameRenderer {
     ctx.restore();
   }
 
-  /**
-   * Draw topographic isoline contours based on the 3D elevation database
-   */
-  private drawTopography(heights: number[], gridSize: number): void {
-    const ctx = this.ctx;
-    const mapSize = 2000; // Physical dimensions of map area
-    const sampleSize = 60; // Grid cells to scan for drawing isolines
-    const interval = 40; // Isoline interval in meters
-    const primaryInterval = 200; // Brighter index contour lines
-
-    ctx.lineWidth = 1;
-    
-    // Draw outer boundary boundary
-    ctx.strokeStyle = 'rgba(99, 102, 241, 0.15)';
-    ctx.strokeRect(0, 0, mapSize, mapSize);
-
-    // Draw contour lines
-    ctx.beginPath();
-    for (let r = 0; r < sampleSize; r++) {
-      const v = r / sampleSize;
-      const y = v * mapSize;
-      
-      for (let c = 0; c < sampleSize; c++) {
-        const u = c / sampleSize;
-        const x = u * mapSize;
-
-        const h = getInterpolatedHeight(u, v, heights, gridSize);
-        
-        // Check horizontal neighbor
-        if (c < sampleSize - 1) {
-          const u_next = (c + 1) / sampleSize;
-          const h_right = getInterpolatedHeight(u_next, v, heights, gridSize);
-          
-          if (Math.floor(h / interval) !== Math.floor(h_right / interval)) {
-            const crossVal = Math.floor(Math.max(h, h_right) / interval) * interval;
-            const isPrimary = crossVal % primaryInterval === 0;
-            
-            ctx.strokeStyle = isPrimary ? 'rgba(99, 102, 241, 0.16)' : 'rgba(99, 102, 241, 0.05)';
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + mapSize / sampleSize, y);
-            ctx.stroke();
-          }
-        }
-
-        // Check vertical neighbor
-        if (r < sampleSize - 1) {
-          const v_next = (r + 1) / sampleSize;
-          const h_down = getInterpolatedHeight(u, v_next, heights, gridSize);
-          
-          if (Math.floor(h / interval) !== Math.floor(h_down / interval)) {
-            const crossVal = Math.floor(Math.max(h, h_down) / interval) * interval;
-            const isPrimary = crossVal % primaryInterval === 0;
-            
-            ctx.strokeStyle = isPrimary ? 'rgba(99, 102, 241, 0.16)' : 'rgba(99, 102, 241, 0.05)';
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x, y + mapSize / sampleSize);
-            ctx.stroke();
-          }
-        }
-      }
-    }
-  }
-
   private drawEmptyGrid(): void {
     const ctx = this.ctx;
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.strokeStyle = 'rgba(42, 42, 42, 0.05)';
     ctx.lineWidth = 1;
-    for (let i = 0; i <= 2000; i += 100) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 2000); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(2000, i); ctx.stroke();
+    for (let i = 0; i <= MAP_SIZE; i += 100) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, MAP_SIZE); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(MAP_SIZE, i); ctx.stroke();
     }
-    
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+
+    ctx.fillStyle = 'rgba(42, 42, 42, 0.3)';
     ctx.font = '14px Outfit';
     ctx.textAlign = 'center';
     ctx.fillText('No Terrain Ingested. Click "Ingest Custom Mountain" below to load map.', 1000, 1000);

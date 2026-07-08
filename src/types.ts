@@ -11,16 +11,40 @@ export interface ClimateProfile {
   monthly: ClimateMonth[];
 }
 
-export interface TerrainDB {
-  latitude: number;
-  longitude: number;
-  widthMeters: number;
-  heightMeters: number;
-  gridSize: number; // resolution of grid, e.g. 50
-  heights: number[]; // 1D array representing 2D grid: heights[row * gridSize + col]
-  climate: ClimateProfile;
+export type AreaSizeMeters = 2000 | 4000 | 8000;
+
+// Persisted shape — written to disk exactly as-is. Only the raw sampled grid
+// is stored; the display grid is always recomputed on load (deterministic,
+// cheap, and avoids multi-megabyte save files).
+export interface TerrainRecord {
+  schemaVersion: 2;
+  key: string; // stable slug, see terrainStorageClient.ts
   mountainName: string;
+  latitude: number; // center
+  longitude: number; // center
+  areaSizeMeters: AreaSizeMeters;
+  sampleGridSize: number; // fixed 64
+  sampleHeights: number[]; // row-major, sampleGridSize^2, meters
+  climate: ClimateProfile;
+  sourceType: 'live' | 'preset' | 'preset-real';
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
 }
+
+// Runtime shape used by GameState/renderer — a TerrainRecord plus the
+// bicubic-upscaled display grid built by terrainIngest.ts after download/load.
+export interface TerrainDB extends TerrainRecord {
+  displayGridSize: number; // fixed 512
+  displayHeights: number[]; // bicubic-upscaled, row-major, displayGridSize^2
+  widthMeters: number; // = areaSizeMeters
+  heightMeters: number; // = areaSizeMeters
+}
+
+// Lightweight listing entry (no height data) for a future "Load Game" screen.
+export type TerrainSummary = Pick<
+  TerrainRecord,
+  'key' | 'mountainName' | 'latitude' | 'longitude' | 'areaSizeMeters' | 'sourceType' | 'createdAt' | 'updatedAt'
+>;
 
 export type NodeType = 'entrance' | 'peak' | 'intersection' | 'lodge' | 'lift_terminal';
 

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
+import { registerTerrainStorageHandlers } from './ipcTerrainStorage';
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
@@ -32,6 +33,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  registerTerrainStorageHandlers();
   createWindow();
 
   app.on('activate', () => {

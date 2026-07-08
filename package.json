@@ -8,16 +8,20 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "package": "tsc && vite build && electron-builder"
+    "package": "tsc && vite build && electron-builder",
+    "test": "vitest run",
+    "download-preset": "tsx scripts/downloadPresetTerrain.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
     "electron": "^43.1.0",
     "electron-builder": "^26.15.3",
     "electron-packager": "^17.1.2",
+    "tsx": "^4.23.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
-    "vite-plugin-electron": "^1.1.0"
+    "vite-plugin-electron": "^1.1.0",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",

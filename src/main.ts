@@ -1,9 +1,11 @@
 import './style.css';
-import { TerrainManager, NA_MOUNTAIN_PRESETS } from './terrain';
+import { GisSelector } from './gisSelector';
+import { ContentManager } from './contentManager';
+import { NA_MOUNTAIN_PRESETS } from './mountainPresets';
 import { GameRenderer } from './renderer';
 import type { Camera } from './renderer';
 import { SimulationEngine } from './simulation';
-import type { GameState, TerrainDB, ActiveTool } from './types';
+import type { AreaSizeMeters, GameState, TerrainDB, ActiveTool } from './types';
 
 // Safely import Electron IPC if running inside the Electron shell
 let ipcRenderer: any = null;
@@ -17,13 +19,14 @@ try {
 // ========================
 // View State Machine
 // ========================
-type ViewState = 'menu' | 'selection' | 'game';
+type ViewState = 'menu' | 'selection' | 'content-manager' | 'game';
 let currentView: ViewState = 'menu';
 
 // ========================
 // Game Globals
 // ========================
-let terrainManager: TerrainManager | null = null;
+let gisSelector: GisSelector | null = null;
+let contentManager: ContentManager | null = null;
 let gameRenderer: GameRenderer | null = null;
 let gameState: GameState | null = null;
 let camera: Camera = { x: 0, y: 0, zoom: 1 };
@@ -51,11 +54,13 @@ function showView(view: ViewState) {
   const bgArt = document.getElementById('background-artwork');
   const snowPile = document.getElementById('snow-pile');
   const gis = document.getElementById('gis-selector-container');
+  const contentManagerEl = document.getElementById('content-manager-container');
   const game = document.getElementById('game-ui-container');
 
   // Hide everything first
   splash?.classList.add('hidden');
   gis?.classList.add('hidden');
+  contentManagerEl?.classList.add('hidden');
   game?.classList.add('hidden');
   if (bgImage) bgImage.style.display = 'none';
   if (bgArt) bgArt.style.display = 'none';
@@ -71,7 +76,7 @@ function showView(view: ViewState) {
       if (bgArt) bgArt.style.display = 'block';
     }
     if (snowPile) snowPile.style.display = 'block';
-    
+
     // Stop the game loop if running
     if (animFrameId !== null) {
       cancelAnimationFrame(animFrameId);
@@ -81,6 +86,15 @@ function showView(view: ViewState) {
     gis?.classList.remove('hidden');
     // Initialize Leaflet map (first time only)
     initGISMap();
+  } else if (view === 'content-manager') {
+    contentManagerEl?.classList.remove('hidden');
+    if (!contentManager) {
+      contentManager = new ContentManager((data: TerrainDB) => {
+        gameState = createDefaultGameState(data);
+        showView('game');
+      });
+    }
+    contentManager.refresh();
   } else if (view === 'game') {
     game?.classList.remove('hidden');
     // Start the game loop
@@ -136,26 +150,19 @@ let gisMapInitialized = false;
 
 function initGISMap() {
   if (gisMapInitialized) {
-    // Map already created; just invalidate size for re-layout
-    setTimeout(() => {
-      if (terrainManager) {
-        // Force Leaflet to recalculate dimensions
-        const mapEl = document.getElementById('gis-map');
-        if (mapEl) {
-          (mapEl as any)._leaflet_id = (mapEl as any)._leaflet_id; // no-op to avoid ts warning
-        }
-      }
-    }, 100);
+    // Map already created; just invalidate size for re-layout since its
+    // container was hidden (display:none) while another view was active.
+    setTimeout(() => gisSelector?.refreshSize(), 100);
     return;
   }
 
-  terrainManager = new TerrainManager((data: TerrainDB) => {
+  gisSelector = new GisSelector((data: TerrainDB) => {
     // Terrain ingested! Transition to game
     gameState = createDefaultGameState(data);
     showView('game');
   });
 
-  terrainManager.initMap('gis-map');
+  gisSelector.initMap('gis-map');
   gisMapInitialized = true;
 }
 
@@ -181,13 +188,13 @@ function populatePresetCards() {
     `;
 
     card.addEventListener('click', () => {
-      if (!terrainManager) {
-        terrainManager = new TerrainManager((data: TerrainDB) => {
+      if (!gisSelector) {
+        gisSelector = new GisSelector((data: TerrainDB) => {
           gameState = createDefaultGameState(data);
           showView('game');
         });
       }
-      terrainManager.loadPresetMountain(preset.id);
+      gisSelector.loadPresetMountain(preset.id).catch((e) => console.error('Failed to load preset:', e));
     });
 
     grid.appendChild(card);
@@ -400,6 +407,14 @@ window.addEventListener('DOMContentLoaded', () => {
     alert('Feature coming soon: Load saved files');
   });
 
+  document.getElementById('menu-content-manager')?.addEventListener('click', () => {
+    showView('content-manager');
+  });
+
+  document.getElementById('content-manager-back-btn')?.addEventListener('click', () => {
+    showView('menu');
+  });
+
   // Settings Modal controls
   const settingsModal = document.getElementById('settings-modal');
   
@@ -428,24 +443,30 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('gis-search-btn')?.addEventListener('click', () => {
     const input = document.getElementById('gis-search-input') as HTMLInputElement;
-    if (input && terrainManager) {
-      terrainManager.searchLocation(input.value);
+    if (input && gisSelector) {
+      gisSelector.searchLocation(input.value);
     }
   });
 
   document.getElementById('gis-search-input')?.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       const input = document.getElementById('gis-search-input') as HTMLInputElement;
-      if (input && terrainManager) {
-        terrainManager.searchLocation(input.value);
+      if (input && gisSelector) {
+        gisSelector.searchLocation(input.value);
       }
     }
   });
 
   document.getElementById('btn-ingest-data')?.addEventListener('click', () => {
-    if (terrainManager) {
-      terrainManager.downloadActiveTerrain();
-    }
+    gisSelector?.downloadSelectedArea();
+  });
+
+  // ---- GIS Selector: Area Size Presets ----
+  document.querySelectorAll('.size-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const size = Number(btn.getAttribute('data-size')) as AreaSizeMeters;
+      gisSelector?.setSize(size);
+    });
   });
 
   // ---- Game Toolbar: Tool Buttons ----
