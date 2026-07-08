@@ -1,0 +1,808 @@
+/* Mountain Planner - Rebranded Splash Menu Style (Subway Builder Inspired) */
+
+:root {
+  --bg-color: #f4f3ec;        /* Cream matte background default */
+  --text-color: #2a2a2a;      /* Slate charcoal text */
+  --text-muted: #8e8d88;      /* Faded gray-brown */
+  
+  /* NSAA standard trail difficulty colors */
+  --color-green: #0fa968;     /* Green Circle */
+  --color-blue: #2a6cd1;      /* Blue Square */
+  --color-black: #2a2a2a;     /* Black Diamond */
+  --color-orange: #f97316;    /* Orange Terrain Park */
+  
+  --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
+  
+  /* Transitions */
+  --season-transition: background 1s ease, opacity 1.2s ease, fill 1s ease, stroke 1s ease;
+}
+
+/* Seasonal variables injected based on body class */
+body.season-winter {
+  --bg-sky: linear-gradient(to bottom, #a2c8ec 0%, #e6eff7 55%, #f4f3ec 90%);
+  --sun-color: #ffcf33;
+  --sun-opacity: 1;
+  --mountain-color: rgba(42, 42, 42, 0.04);
+  --snow-opacity: 1;
+  --lift-color: rgba(42, 42, 42, 0.08);
+  --snow-height: 105px;
+  --slope-color: rgba(255, 255, 255, 0.55);
+  --ground-color-back: #ffffff;
+  --ground-color-front: #ffffff;
+}
+
+body.season-spring {
+  --bg-sky: linear-gradient(to bottom, #bce4d8 0%, #ecf7f4 60%, #f4f3ec 90%);
+  --sun-color: #ffe066;
+  --sun-opacity: 0.95;
+  --mountain-color: rgba(15, 169, 104, 0.05);
+  --snow-opacity: 1;
+  --lift-color: rgba(15, 169, 104, 0.09);
+  --snow-height: 80px;
+  --slope-color: rgba(15, 169, 104, 0.25);
+  --ground-color-back: #a7f3d0;
+  --ground-color-front: #6ee7b7;
+}
+
+body.season-summer {
+  --bg-sky: linear-gradient(to bottom, #fed7aa 0%, #fffbeb 60%, #f4f3ec 90%);
+  --sun-color: #f59e0b;
+  --sun-opacity: 1;
+  --mountain-color: rgba(42, 42, 42, 0.04);
+  --snow-opacity: 1;
+  --lift-color: rgba(42, 42, 42, 0.07);
+  --snow-height: 75px;
+  --slope-color: rgba(15, 169, 104, 0.18);
+  --ground-color-back: #059669;
+  --ground-color-front: #10b981;
+}
+
+body.season-autumn {
+  --bg-sky: linear-gradient(to bottom, #fca5a5 0%, #fef2f2 60%, #fcf7f2 90%);
+  --sun-color: #ea580c;
+  --sun-opacity: 0.9;
+  --mountain-color: rgba(120, 53, 4, 0.05);
+  --snow-opacity: 1;
+  --lift-color: rgba(120, 53, 4, 0.08);
+  --snow-height: 80px;
+  --slope-color: rgba(120, 53, 4, 0.15);
+  --ground-color-back: #d97706;
+  --ground-color-front: #b45309;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-sky);
+  color: var(--text-color);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  transition: var(--season-transition);
+}
+
+body {
+  background-color: var(--bg-sky);
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Background scaling image container */
+#background-image-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#bg-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 45%;
+  image-rendering: auto;
+}
+
+/* Dynamic Seasonal CSS Color Shift filters (guarantees pixel-for-pixel composition alignment) */
+.filter-summer {
+  filter: saturate(1.2) hue-rotate(-2deg);
+}
+
+.filter-summer-night {
+  filter: saturate(1.15) hue-rotate(-2deg);
+}
+
+.filter-autumn {
+  filter: hue-rotate(240deg) saturate(1.4) brightness(0.95);
+}
+
+.filter-autumn-night {
+  filter: hue-rotate(240deg) saturate(1.2) brightness(0.85);
+}
+
+/* Background minimalist mountain and lift line art */
+#background-artwork {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  display: none;
+}
+
+/* Theme Toggles and visibility */
+body.theme-poster #background-image-container {
+  display: block;
+}
+body.theme-poster #background-artwork {
+  display: none !important;
+}
+
+body.theme-minimalist #background-image-container {
+  display: none !important;
+}
+body.theme-minimalist #background-artwork {
+  display: block;
+}
+
+#bg-sun {
+  fill: var(--sun-color);
+  opacity: var(--sun-opacity);
+  transition: var(--season-transition);
+}
+
+.mountain-outline {
+  stroke: var(--mountain-color);
+  fill: none;
+  transition: var(--season-transition);
+}
+
+.outline-back {
+  opacity: 0.7;
+}
+
+#bg-ski-slopes path {
+  stroke: var(--slope-color);
+  fill: none;
+  transition: var(--season-transition);
+}
+
+#bg-chairlift .lift-cable, 
+#bg-chairlift .lift-tower line, 
+#bg-chairlift .lift-chair line, 
+#bg-chairlift .lift-chair path {
+  stroke: var(--lift-color);
+  fill: none;
+  transition: var(--season-transition);
+}
+
+/* Bottom snow drifts */
+#snow-pile {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: var(--snow-height);
+  z-index: 8;
+  pointer-events: none;
+  opacity: var(--snow-opacity);
+  transition: var(--season-transition), height 1s ease;
+  filter: drop-shadow(0 -2px 10px rgba(0, 0, 0, 0.02));
+}
+
+#snow-pile svg {
+  width: 100%;
+  height: 100%;
+}
+
+.snow-drift-back {
+  fill: var(--ground-color-back);
+  transition: var(--season-transition);
+}
+
+.snow-drift-front {
+  fill: var(--ground-color-front);
+  transition: var(--season-transition);
+}
+
+/* Center splash menu container */
+#splash-container {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 520px;
+  height: 545px;
+  padding: 25px 20px;
+  text-align: center;
+}
+
+/* Logo and Title area */
+.logo-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.mountain-logo {
+  width: 70px;
+  height: auto;
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.05));
+  opacity: 0.85;
+}
+
+.mountain-logo path, .mountain-logo line {
+  stroke: #ffffff;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  transition: stroke 0.3s, filter 0.3s;
+}
+
+.game-title {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #ffffff;
+  text-transform: uppercase;
+  margin-top: 10px;
+  border-bottom: 2.5px solid #ffffff;
+  padding-bottom: 8px;
+  width: 360px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  transition: color 0.3s, border-color 0.3s, text-shadow 0.3s;
+}
+
+/* Minimalist theme typography overrides */
+body.theme-minimalist .mountain-logo path, 
+body.theme-minimalist .mountain-logo line {
+  stroke: var(--text-color);
+  filter: none;
+}
+
+body.theme-minimalist .game-title {
+  color: var(--text-color);
+  border-bottom: 2.5px solid var(--text-color);
+  text-shadow: none;
+}
+
+body.theme-minimalist .splash-footer {
+  color: var(--text-muted);
+  text-shadow: none;
+}
+
+/* Ski Trail Signpost Container */
+.signpost-container {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  padding: 0 10px;
+  display: flex;
+  justify-content: center;
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.18));
+}
+
+/* Vertical mounting posts behind signs */
+.signpost-post {
+  position: absolute;
+  top: -20px;
+  bottom: -60px; /* Extends down behind the ground drifts */
+  width: 8px;
+  background-color: #4a3c31; /* Dark timber color */
+  border-radius: 2px;
+  z-index: 1;
+  opacity: 0.95;
+  box-shadow: 
+    inset 1px 0 0 rgba(255,255,255,0.05),
+    inset -1px 0 0 rgba(0,0,0,0.25),
+    2px 2px 5px rgba(0,0,0,0.1);
+}
+
+.left-post {
+  left: 60px;
+}
+
+.right-post {
+  right: 60px;
+}
+
+/* Slat stack */
+.signpost-menu {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Slat Header (Timber Cap) */
+.menu-header-sign {
+  width: 100%;
+  height: 38px;
+  background-color: #2b2520; /* Dark rustic timber cap */
+  border: 1.5px solid #3c322a;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 
+    0 3px 6px rgba(0,0,0,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.header-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #eae6df; /* Warm timber off-white */
+  letter-spacing: 3px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+
+/* Individual Trail Slat */
+.menu-slat {
+  width: 100%;
+  height: 48px;
+  border-radius: 5px;
+  padding: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: relative;
+}
+
+/* Snow Cap on top of each slat (Cozy winter feel) */
+.slat-snow-cap {
+  position: absolute;
+  top: -4px;
+  left: 12px;
+  right: 12px;
+  height: 6px;
+  background-color: #ffffff;
+  border-radius: 6px 6px 3px 3px;
+  z-index: 12;
+  pointer-events: none;
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: opacity 0.8s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.8s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Multi-layered organic drifts effect */
+.slat-snow-cap::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 20px;
+  width: 12px;
+  height: 5px;
+  background-color: #ffffff;
+  border-radius: 0 0 4px 4px;
+}
+
+.slat-snow-cap::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 35px;
+  width: 16px;
+  height: 6px;
+  background-color: #ffffff;
+  border-radius: 0 0 5px 5px;
+}
+
+body.season-winter .slat-snow-cap {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+/* Solid desaturated opaque pastel slat colors (blended with background to block posts behind them) */
+.slat-green {
+  background-color: var(--color-green);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.slat-blue {
+  background-color: var(--color-blue);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.slat-black {
+  background-color: #1f2937;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.slat-orange {
+  background-color: var(--color-orange);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Slat center text */
+.slat-text {
+  flex-grow: 1;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #ffffff;
+  letter-spacing: 2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.3s;
+}
+
+/* Square white boxes on left and right ends of sign */
+.slat-box-left, .slat-box-right {
+  width: 38px;
+  height: 38px;
+  background-color: #ffffff;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: transform 0.3s;
+}
+
+/* Left Symbol formatting inside white box */
+.menu-symbol {
+  display: inline-block;
+  transform: scale(1.1);
+}
+
+.symbol-circle {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background-color: var(--color-green);
+}
+
+.symbol-square {
+  width: 12px;
+  height: 12px;
+  background-color: var(--color-blue);
+}
+
+.symbol-diamond {
+  width: 10px;
+  height: 10px;
+  background-color: var(--color-black);
+  transform: rotate(45deg);
+}
+
+.symbol-double-diamond {
+  display: flex;
+  gap: 2.5px;
+  align-items: center;
+  justify-content: center;
+}
+
+.symbol-double-diamond .diamond-sub {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-black);
+  transform: rotate(45deg);
+}
+
+.symbol-terrain-park {
+  width: 19px;
+  height: 11px;
+  background-color: var(--color-orange);
+  border-radius: 3.5px;
+}
+
+/* Right Arrow formatting inside white box */
+.slat-arrow {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-color);
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Slat Hover Tactile animations */
+.menu-slat:hover {
+  transform: scale(1.025);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+}
+
+/* Hover highlights */
+.slat-green:hover { background-color: #12c077; border-color: rgba(255, 255, 255, 0.35); }
+.slat-blue:hover { background-color: #3b7ee8; border-color: rgba(255, 255, 255, 0.35); }
+.slat-black:hover { background-color: #374151; border-color: rgba(255, 255, 255, 0.35); }
+.slat-orange:hover { background-color: #fa822b; border-color: rgba(255, 255, 255, 0.35); }
+
+.menu-slat:hover .slat-arrow {
+  transform: scale(1.2);
+}
+
+.menu-slat:hover .slat-text {
+  transform: scale(1.02);
+}
+
+/* Settings Modal Overlay */
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 100;
+  background-color: rgba(244, 243, 236, 0.55);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+  opacity: 1;
+}
+
+.modal-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+  display: flex !important; /* Keep flex context but hide it via opacity/pointers */
+}
+
+/* Settings Panel (Minimalist and Opaque) */
+.settings-panel {
+  background-color: #f4f3ec;
+  border: 1.5px solid rgba(42, 42, 42, 0.1);
+  border-radius: 8px;
+  width: 420px;
+  padding: 35px 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  transform: scale(1);
+  transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.modal-overlay.hidden .settings-panel {
+  transform: scale(0.9);
+}
+
+.settings-title {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--text-color);
+  border-bottom: 2px solid var(--text-color);
+  padding-bottom: 6px;
+  width: 100%;
+  text-align: center;
+}
+
+.settings-body {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Setting row */
+.setting-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.setting-label {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+/* Style selector and season toggle selector groups */
+.style-selector, .season-toggle-selector, .season-selector, .display-mode-selector {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+
+.style-btn, .season-toggle-btn, .season-btn, .display-btn {
+  background-color: #ffffff;
+  border: 1px solid rgba(42, 42, 42, 0.12);
+  color: var(--text-color);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+  flex-grow: 1;
+}
+
+.style-btn:hover, .season-toggle-btn:hover, .season-btn:hover, .display-btn:hover {
+  background-color: #faf9f6;
+  border-color: rgba(42, 42, 42, 0.25);
+}
+
+.style-btn.active, .season-toggle-btn.active, .season-btn.active, .display-btn.active {
+  background-color: var(--text-color);
+  color: #ffffff;
+  border-color: var(--text-color);
+}
+
+
+/* Close button styled as a mini sign */
+.settings-close-btn {
+  width: 100%;
+  height: 38px;
+  background-color: var(--text-color);
+  border-radius: 4px;
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.close-text {
+  flex-grow: 1;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #ffffff;
+  letter-spacing: 1.5px;
+}
+
+.close-arrow {
+  font-size: 16px;
+  color: #ffffff;
+}
+
+.settings-close-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Footer layout */
+.splash-footer {
+  font-size: 10px;
+  color: #ffffff;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  margin-top: 10px;
+}
+
+/* Settings Row Disabled state (when minimalist is selected) */
+.setting-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  filter: grayscale(0.5);
+  transition: all 0.3s ease;
+}
+
+/* Minimalist Flat Background overrides */
+body.theme-minimalist.mode-light {
+  background-color: #f9f9fb !important;
+  background-image: none !important;
+}
+
+body.theme-minimalist.mode-dark {
+  background-color: #111827 !important;
+  background-image: none !important;
+}
+
+/* Dark Mode settings modal overrides */
+body.mode-dark .settings-panel {
+  background-color: rgba(31, 41, 55, 0.85); /* dark charcoal glass */
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+body.mode-dark .setting-label {
+  color: #9ca3af;
+}
+
+body.mode-dark .settings-title {
+  color: #ffffff;
+  border-bottom: 2px solid #ffffff;
+}
+
+body.mode-dark .season-btn, 
+body.mode-dark .style-btn, 
+body.mode-dark .display-btn, 
+body.mode-dark .season-toggle-btn {
+  background-color: #374151;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+body.mode-dark .season-btn:hover, 
+body.mode-dark .style-btn:hover, 
+body.mode-dark .display-btn:hover, 
+body.mode-dark .season-toggle-btn:hover {
+  background-color: #4b5563;
+}
+
+body.mode-dark .season-btn.active, 
+body.mode-dark .style-btn.active, 
+body.mode-dark .display-btn.active, 
+body.mode-dark .season-toggle-btn.active {
+  background-color: #ffffff;
+  color: #111827;
+  border-color: #ffffff;
+}
+
+body.mode-dark .settings-close-btn {
+  background-color: #ffffff;
+  border-color: #ffffff;
+}
+
+body.mode-dark .close-text {
+  color: #111827;
+}
+
+body.mode-dark .close-arrow {
+  color: #111827;
+}
+
+/* If minimalist dark mode, title should be white since background is pure black */
+body.theme-minimalist.mode-dark .game-title {
+  color: #ffffff;
+  border-bottom: 2.5px solid #ffffff;
+  text-shadow: none;
+}
+
+body.theme-minimalist.mode-dark .mountain-logo path, 
+body.theme-minimalist.mode-dark .mountain-logo line {
+  stroke: #ffffff;
+  filter: none;
+}
+
+body.theme-minimalist.mode-dark .splash-footer {
+  color: rgba(255, 255, 255, 0.4);
+  text-shadow: none;
+}
+
+/* In minimalist mode, hide bottom ground drifts completely */
+body.theme-minimalist #snow-pile {
+  display: none !important;
+}
