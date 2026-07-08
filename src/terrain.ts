@@ -2,6 +2,66 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { TerrainDB, ClimateProfile, ClimateMonth } from './types';
 
+// --- Curated North American Mountain Presets ---
+export interface MountainPreset {
+  id: string;
+  name: string;
+  state: string;       // State or Province
+  country: string;
+  latitude: number;
+  longitude: number;
+  minAltitude: number; // meters
+  maxAltitude: number; // meters
+  description: string;
+}
+
+export const NA_MOUNTAIN_PRESETS: MountainPreset[] = [
+  {
+    id: 'whistler',
+    name: 'Whistler Blackcomb',
+    state: 'BC',
+    country: 'Canada',
+    latitude: 50.1163,
+    longitude: -122.9574,
+    minAltitude: 653,
+    maxAltitude: 2284,
+    description: 'Massive vertical drop, legendary powder, and over 200 marked runs across two mountains.'
+  },
+  {
+    id: 'vail',
+    name: 'Vail Mountain',
+    state: 'CO',
+    country: 'USA',
+    latitude: 39.6061,
+    longitude: -106.3550,
+    minAltitude: 2476,
+    maxAltitude: 3527,
+    description: 'Iconic back bowls, expansive groomed terrain, and high-altitude Colorado snow.'
+  },
+  {
+    id: 'stowe',
+    name: 'Stowe Mountain Resort',
+    state: 'VT',
+    country: 'USA',
+    latitude: 44.5302,
+    longitude: -72.7806,
+    minAltitude: 390,
+    maxAltitude: 1340,
+    description: 'Classic New England skiing with narrow trails, icy conditions, and challenging terrain.'
+  },
+  {
+    id: 'palisades',
+    name: 'Palisades Tahoe',
+    state: 'CA',
+    country: 'USA',
+    latitude: 39.1962,
+    longitude: -120.2351,
+    minAltitude: 1890,
+    maxAltitude: 2760,
+    description: 'Host of the 1960 Winter Olympics. Steep chutes, open bowls, and Sierra cement snow.'
+  }
+];
+
 // Bounding box size: 4km (approximately 0.036 degrees latitude)
 const BOX_LAT_SIZE = 0.036;
 
@@ -177,7 +237,10 @@ export class TerrainManager {
     if (!query || !this.map) return false;
     
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+      // Restrict search to North America using viewbox (lon_min, lat_min, lon_max, lat_max)
+      const viewbox = '-170,15,-50,75';
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${viewbox}&bounded=1`;
+      const response = await fetch(url);
       const results = await response.json();
       
       if (results && results.length > 0) {
@@ -211,7 +274,7 @@ export class TerrainManager {
     const southWest = bounds.getSouthWest();
     const northEast = bounds.getNorthEast();
     
-    // We fetch a 20x20 grid to avoid URL limits and API throttling
+    // We fetch a 20x20 grid
     const resolution = 20;
     const latitudes: number[] = [];
     const longitudes: number[] = [];
@@ -231,20 +294,40 @@ export class TerrainManager {
       }
     }
     
-    // Call the free Open-Meteo Elevation API
+    // Call the free Open-Meteo Elevation API in batches to avoid URL length limits
     try {
-      // Batch coordinate call
-      const latString = latitudes.join(',');
-      const lonString = longitudes.join(',');
-      const response = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${latString}&longitude=${lonString}`);
-      const data = await response.json();
-      
-      if (data && data.elevation) {
-        const rawHeights: number[] = data.elevation;
+      const BATCH_SIZE = 100; // Stay well within URL length limits
+      const allElevations: number[] = [];
+      const totalBatches = Math.ceil(latitudes.length / BATCH_SIZE);
+
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        const start = batchIdx * BATCH_SIZE;
+        const end = Math.min(start + BATCH_SIZE, latitudes.length);
         
+        const latBatch = latitudes.slice(start, end);
+        const lonBatch = longitudes.slice(start, end);
+        
+        const latString = latBatch.join(',');
+        const lonString = lonBatch.join(',');
+        
+        if (statusText) {
+          statusText.innerText = `Downloading elevation data... (${batchIdx + 1}/${totalBatches})`;
+        }
+
+        const response = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${latString}&longitude=${lonString}`);
+        const data = await response.json();
+        
+        if (data && data.elevation) {
+          allElevations.push(...data.elevation);
+        } else {
+          throw new Error(`Invalid elevation API response for batch ${batchIdx + 1}`);
+        }
+      }
+      
+      if (allElevations.length === latitudes.length) {
         // Calculate average altitude to anchor the climate profile
-        const sum = rawHeights.reduce((a, b) => a + b, 0);
-        const avgAlt = sum / rawHeights.length;
+        const sum = allElevations.reduce((a, b) => a + b, 0);
+        const avgAlt = sum / allElevations.length;
         
         // Generate name based on search query or lat/lon
         const center = this.map.getCenter();
@@ -258,7 +341,7 @@ export class TerrainManager {
           widthMeters: 4000,
           heightMeters: 4000,
           gridSize: resolution,
-          heights: rawHeights,
+          heights: allElevations,
           climate,
           mountainName
         };
@@ -269,7 +352,7 @@ export class TerrainManager {
         if (statusText) statusText.innerText = 'Download successful!';
         this.onDataIngestedCallback(terrainDB);
       } else {
-        throw new Error('Invalid elevation API response');
+        throw new Error('Elevation count mismatch');
       }
     } catch (e) {
       console.error(e);
@@ -282,37 +365,28 @@ export class TerrainManager {
   }
 
   // Pre-packaged offline maps to support offline play
-  public loadPresetMountain(preset: 'chamonix' | 'aspen'): void {
-    let lat = 0, lon = 0, name = '';
-    let flatHeights: number[] = [];
-    
-    if (preset === 'chamonix') {
-      lat = 45.9227;
-      lon = 6.8685;
-      name = 'Chamonix-Mont-Blanc';
-      // Procedural height grid peaking in center
-      flatHeights = this.generateProceduralHeights(1030, 2400, 20); 
-    } else {
-      lat = 39.1866;
-      lon = -106.8182;
-      name = 'Aspen Mountain';
-      // Procedural ridge height grid
-      flatHeights = this.generateProceduralHeights(2400, 3418, 20);
+  public loadPresetMountain(presetId: string): void {
+    const preset = NA_MOUNTAIN_PRESETS.find(p => p.id === presetId);
+    if (!preset) {
+      console.error(`Unknown preset: ${presetId}`);
+      return;
     }
+
+    const flatHeights = this.generateProceduralHeights(preset.minAltitude, preset.maxAltitude, 20);
     
     const sum = flatHeights.reduce((a, b) => a + b, 0);
     const avgAlt = sum / flatHeights.length;
-    const climate = generateProceduralClimate(lat, avgAlt);
+    const climate = generateProceduralClimate(preset.latitude, avgAlt);
     
     const terrainDB: TerrainDB = {
-      latitude: lat,
-      longitude: lon,
+      latitude: preset.latitude,
+      longitude: preset.longitude,
       widthMeters: 4000,
       heightMeters: 4000,
       gridSize: 20,
       heights: flatHeights,
       climate,
-      mountainName: name
+      mountainName: preset.name
     };
     
     this.saveTerrainToIndexedDB(terrainDB);
