@@ -19,8 +19,10 @@ function createWindow() {
     resizable: true,
     backgroundColor: '#f4f3ec', // Subway Builder cream-beige matte background
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false, // Direct access to ipcRenderer in main.ts
+      // v1 map app is a pure web renderer (MapLibre + React) — no Node or IPC
+      // in the renderer, so we run with Chromium's safe defaults.
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   });
 

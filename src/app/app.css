@@ -1,0 +1,268 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+
+.map-root {
+  position: absolute;
+  inset: 0;
+}
+
+.layer-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 8px 14px 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+  min-width: 150px;
+}
+
+.layer-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 16px;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+.layer-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #555;
+}
+
+.layer-panel-chevron {
+  color: #888;
+  font-size: 11px;
+}
+
+.layer-panel-body {
+  margin-top: 8px;
+}
+
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.layer-row input {
+  cursor: pointer;
+}
+
+.layer-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #999;
+  margin: 8px 0 3px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* --- Place search (top-center) --- */
+.search-box {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 6px 8px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.search-input {
+  width: 220px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: #2b6cff;
+}
+
+.search-btn {
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid #2b6cff;
+  background: #2b6cff;
+  color: #fff;
+  cursor: pointer;
+}
+
+.search-btn:disabled {
+  background: #a8bfe8;
+  border-color: #a8bfe8;
+}
+
+.search-msg {
+  font-size: 12px;
+  color: #c0392b;
+  padding-right: 4px;
+}
+
+/* --- Legend (inside the panel, for the active overlay only) --- */
+.legend {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.legend-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #777;
+  margin-bottom: 5px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex: 0 0 auto;
+}
+
+/* --- Site picker control (top-right) --- */
+.site-control {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 8px 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.site-control-wide {
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 210px;
+}
+
+.site-hint {
+  font-size: 12px;
+  color: #555;
+  padding: 2px 0;
+}
+
+.site-dims {
+  font-size: 13px;
+  font-weight: 600;
+  color: #234;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+}
+
+.site-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.site-btn {
+  flex: 1;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  color: #234;
+  cursor: pointer;
+}
+
+.site-btn:hover {
+  background: #f2f4f7;
+}
+
+.site-btn-primary {
+  background: #2b6cff;
+  border-color: #2b6cff;
+  color: #fff;
+}
+
+.site-btn-primary:hover {
+  background: #1f5be0;
+}
+
+.site-btn-primary:disabled {
+  background: #a8bfe8;
+  border-color: #a8bfe8;
+  cursor: default;
+}
+
+/* --- Cursor readout (lower-left) --- */
+.cursor-readout {
+  position: absolute;
+  left: 12px;
+  bottom: 24px;
+  z-index: 10;
+  background: rgba(28, 30, 33, 0.82);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: 130px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+.readout-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.readout-label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.readout-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}

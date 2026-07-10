@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>Ski Area Design Challenge</title>
+  </head>
+  <body class="season-winter theme-poster">
+    <div id="app">
+      <!-- High-Resolution Background Image Container (Hardware Accelerated scaling) -->
+      <div id="background-image-container">
+        <img id="bg-image" src="/ski_village_background.png" alt="Ski Area Background" />
+      </div>
+
+      <!-- Minimalist Background Vector Art (Original Line Art) -->
+      <div id="background-artwork">
+        <svg viewBox="0 0 1000 600" preserveAspectRatio="xMidYMax slice" width="100%" height="100%">
+          <!-- Bluebird Sun -->
+          <circle id="bg-sun" cx="800" cy="120" r="45" />
+
+          <!-- Mountain Ridge Outlines -->
+          <path class="mountain-outline outline-back" d="M-100,500 Q200,380 450,420 T950,220 L1100,250 L1100,700 L-100,700 Z" fill="none" stroke-width="2" />
+          
+          <!-- Minimalist Ski Slopes/Trails drawn on background mountains -->
+          <g id="bg-ski-slopes">
+            <path d="M220,400 Q210,430 225,460 T215,510 T230,550" stroke-width="1.2" />
+            <path d="M225,460 Q250,480 245,520 T260,560" stroke-width="1" />
+            
+            <path d="M450,420 L440,450 Q430,485 445,515 T435,565 T450,590" stroke-width="1.5" />
+            <path d="M440,450 Q475,480 465,520 T485,570" stroke-width="1.2" />
+            <path d="M465,520 Q445,540 455,565" stroke-width="1" />
+            
+            <path d="M800,230 L785,270 Q765,305 775,345 T755,420 T770,490" stroke-width="1.5" />
+            <path d="M785,270 Q815,305 805,355 T825,430" stroke-width="1.2" />
+            <path d="M805,355 Q785,380 795,410 T785,460" stroke-width="1" />
+          </g>
+
+          <path class="mountain-outline outline-front" d="M-50,600 Q300,480 600,520 T1050,380 L1100,390 L1100,700 L-50,700 Z" fill="none" stroke-width="1.5" />
+          
+          <!-- Chairlift System -->
+          <g id="bg-chairlift">
+            <line x1="150" y1="480" x2="850" y2="250" class="lift-cable" stroke-width="1.5" />
+            
+            <!-- Towers -->
+            <g class="lift-tower">
+              <line x1="300" y1="435" x2="300" y2="520" stroke-width="1.5" />
+              <line x1="290" y1="435" x2="310" y2="435" stroke-width="1.5" />
+            </g>
+            <g class="lift-tower">
+              <line x1="550" y1="352" x2="550" y2="480" stroke-width="1.5" />
+              <line x1="540" y1="352" x2="560" y2="352" stroke-width="1.5" />
+            </g>
+            <g class="lift-tower">
+              <line x1="800" y1="264" x2="800" y2="320" stroke-width="1.5" />
+              <line x1="790" y1="264" x2="810" y2="264" stroke-width="1.5" />
+            </g>
+
+            <!-- Chairs -->
+            <g class="lift-chair" transform="translate(225, 453)">
+              <line x1="0" y1="0" x2="0" y2="8" stroke-width="1" />
+              <path d="M-4,8 L4,8 L4,11 L-4,11 Z" fill="none" stroke-width="1" />
+            </g>
+            <g class="lift-chair" transform="translate(425, 388)">
+              <line x1="0" y1="0" x2="0" y2="8" stroke-width="1" />
+              <path d="M-4,8 L4,8 L4,11 L-4,11 Z" fill="none" stroke-width="1" />
+            </g>
+            <g class="lift-chair" transform="translate(685, 301)">
+              <line x1="0" y1="0" x2="0" y2="8" stroke-width="1" />
+              <path d="M-4,8 L4,8 L4,11 L-4,11 Z" fill="none" stroke-width="1" />
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Snow Pile / Drifts at the bottom of the viewport -->
+      <div id="snow-pile">
+        <svg viewBox="0 0 1000 100" preserveAspectRatio="none" width="100%" height="100%">
+          <path class="snow-drift-back" d="M-50,60 Q200,25 450,50 T1050,35 L1050,110 L-50,110 Z" />
+          <path class="snow-drift-front" d="M-50,75 Q300,50 650,70 T1050,60 L1050,110 L-50,110 Z" />
+        </svg>
+      </div>
+
+      <!-- Main Splash Screen -->
+      <div id="splash-container">
+        <!-- Logo & Title -->
+        <div class="logo-area">
+          <svg class="mountain-logo" viewBox="0 0 100 80">
+            <path d="M10,70 L50,20 L90,70 Z" fill="none" stroke-width="3" stroke-linejoin="round" />
+            <path d="M35,70 L60,40 L85,70 Z" fill="none" stroke-width="2" stroke-linejoin="round" />
+            <line x1="5" y1="70" x2="95" y2="70" stroke-width="3" />
+          </svg>
+          <h1 class="game-title">ski area design challenge</h1>
+        </div>
+
+        <!-- Ski Trail Signs Container -->
+        <div class="signpost-container">
+          <!-- Behind posts -->
+          <div class="signpost-post left-post"></div>
+          <div class="signpost-post right-post"></div>
+          
+          <nav class="signpost-menu">
+            <!-- Slat Header (Timber Cap) -->
+            <div class="menu-header-sign">
+              <span class="slat-snow-cap"></span>
+              <span class="header-title">Resort Directory</span>
+            </div>
+            
+            <!-- Slat 1: New Resort (Green) -->
+            <div class="menu-slat slat-green" id="menu-new-game">
+              <div class="slat-snow-cap"></div>
+              <div class="slat-box-left">
+                <span class="menu-symbol symbol-circle"></span>
+              </div>
+              <div class="slat-text">New Resort</div>
+              <div class="slat-box-right">
+                <span class="slat-arrow">➔</span>
+              </div>
+            </div>
+            
+            <!-- Slat 2: Select Region (Blue) -->
+            <div class="menu-slat slat-blue" id="menu-select-map">
+              <div class="slat-snow-cap"></div>
+              <div class="slat-box-left">
+                <span class="menu-symbol symbol-square"></span>
+              </div>
+              <div class="slat-text">Select Region (GIS)</div>
+              <div class="slat-box-right">
+                <span class="slat-arrow">➔</span>
+              </div>
+            </div>
+            
+            <!-- Slat 3: Load Save File (Black) -->
+            <div class="menu-slat slat-black" id="menu-load-game">
+              <div class="slat-snow-cap"></div>
+              <div class="slat-box-left">
+                <span class="menu-symbol symbol-diamond"></span>
+              </div>
+              <div class="slat-text">Load Save File</div>
+              <div class="slat-box-right">
+                <span class="slat-arrow">➔</span>
+              </div>
+            </div>
+            
+            <!-- Slat 4: Content Manager (Blue) -->
+            <div class="menu-slat slat-blue" id="menu-content-manager">
+              <div class="slat-snow-cap"></div>
+              <div class="slat-box-left">
+                <span class="menu-symbol symbol-circle"></span>
+              </div>
+              <div class="slat-text">Content Manager</div>
+              <div class="slat-box-right">
+                <span class="slat-arrow">➔</span>
+              </div>
+            </div>
+
+            <!-- Slat 5: Settings (Double Black) -->
+            <div class="menu-slat slat-black" id="menu-settings">
+              <div class="slat-snow-cap"></div>
+              <div class="slat-box-left">
+                <span class="menu-symbol symbol-double-diamond">
+                  <span class="diamond-sub"></span>
+                  <span class="diamond-sub"></span>
+                </span>
+              </div>
+              <div class="slat-text">Settings</div>
+              <div class="slat-box-right">
+                <span class="slat-arrow">➔</span>
+              </div>
+            </div>
+            
+            <!-- Slat 6: Exit Game (Orange) -->
+            <div class="menu-slat slat-orange" id="menu-exit">
+              <div class="slat-snow-cap"></div>
+              <div class="slat-box-left">
+                <span class="menu-symbol symbol-terrain-park"></span>
+              </div>
+              <div class="slat-text">Exit Game</div>
+              <div class="slat-box-right">
+                <span class="slat-arrow">➔</span>
+              </div>
+            </div>
+          </nav>
+        </div>
+
+        <!-- Footer -->
+        <footer class="splash-footer">
+          <span>v1.0.0 &bull; Luke Small &copy; 2026</span>
+        </footer>
+      </div>
+
+      <!-- Minimalist Settings Modal Container (Hidden by Default) -->
+      <div id="settings-modal" class="modal-overlay hidden">
+        <div class="settings-panel">
+          <h2 class="settings-title">settings</h2>
+          
+          <div class="settings-body">
+            <!-- Background Theme selector -->
+            <div class="setting-row">
+              <label class="setting-label">Background Art Style</label>
+              <div class="style-selector">
+                <button class="style-btn active" data-style="poster">Travel Poster</button>
+                <button class="style-btn" data-style="minimalist">Minimalist Vector</button>
+              </div>
+            </div>
+
+            <!-- Display Mode Selector (Light/Dark/System) -->
+            <div class="setting-row">
+              <label class="setting-label">Display Mode</label>
+              <div class="display-mode-selector">
+                <button class="display-btn active" data-mode="light">Light Mode</button>
+                <button class="display-btn" data-mode="dark">Dark Mode</button>
+                <button class="display-btn" data-mode="system">System Default</button>
+              </div>
+            </div>
+
+            <!-- Season Toggle setting -->
+            <div class="setting-row" id="season-toggle-setting-row">
+              <label class="setting-label">Seasonal Backgrounds</label>
+              <div class="season-toggle-selector">
+                <button class="season-toggle-btn active" data-season-toggle="on">Enabled</button>
+                <button class="season-toggle-btn" data-season-toggle="off">Disabled (Winter Lock)</button>
+              </div>
+            </div>
+
+            <!-- Season Choice setting -->
+            <div class="setting-row" id="season-setting-row">
+              <label class="setting-label">Home Screen Season</label>
+              <div class="season-selector">
+                <button class="season-btn active" data-season="winter">Winter</button>
+                <button class="season-btn" data-season="spring">Spring</button>
+                <button class="season-btn" data-season="summer">Summer</button>
+                <button class="season-btn" data-season="autumn">Autumn</button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Back button styled as a mini slat sign -->
+          <div class="settings-close-btn" id="settings-close">
+            <span class="close-text">Close Settings</span>
+            <span class="close-arrow">➔</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- GIS Mountain Selector (Hidden by Default)    -->
+      <!-- ============================================ -->
+      <div id="gis-selector-container" class="view-container hidden">
+        <div class="gis-layout">
+          <!-- Left Panel: Curated Presets -->
+          <div class="gis-presets-panel">
+            <h2 class="gis-panel-title">Choose Your Mountain</h2>
+            <p class="gis-panel-subtitle">Select a curated resort or find your own on the map</p>
+            
+            <div class="preset-cards-grid" id="preset-cards-grid">
+              <!-- Cards are generated dynamically from NA_MOUNTAIN_PRESETS -->
+            </div>
+
+            <div class="gis-divider">
+              <span class="divider-text">— or search the map —</span>
+            </div>
+
+            <div class="gis-search-row">
+              <input type="text" id="gis-search-input" class="gis-search-input" placeholder="Search North America..." />
+              <button id="gis-search-btn" class="gis-search-btn">Search</button>
+            </div>
+          </div>
+
+          <!-- Right Panel: Leaflet Map -->
+          <div class="gis-map-panel">
+            <div class="gis-size-selector" id="gis-size-selector">
+              <span class="size-selector-label">Area Size</span>
+              <button class="size-btn" data-size="2000">2 km</button>
+              <button class="size-btn active" data-size="4000">4 km</button>
+              <button class="size-btn" data-size="8000">8 km</button>
+            </div>
+            <div id="gis-map" class="gis-map"></div>
+            <div class="gis-map-footer">
+              <div class="gis-map-footer-info">
+                <span id="map-status-text" class="map-status-text">Click or drag the box to choose an area</span>
+                <div id="gis-progress-container" class="gis-progress-container hidden">
+                  <div id="gis-progress-fill" class="gis-progress-fill"></div>
+                </div>
+              </div>
+              <button id="btn-ingest-data" class="gis-ingest-btn" disabled>Download Terrain & Start</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Back to Menu button -->
+        <button id="gis-back-btn" class="gis-back-btn">← Back to Menu</button>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- Content Manager (Hidden by Default)          -->
+      <!-- ============================================ -->
+      <div id="content-manager-container" class="view-container hidden">
+        <div class="content-manager-layout">
+          <h2 class="gis-panel-title">Content Manager</h2>
+          <p class="gis-panel-subtitle">Terrain data downloaded or saved on this machine</p>
+
+          <div class="content-list" id="content-list">
+            <!-- Rows are generated dynamically from terrainStorageClient.listTerrains() -->
+          </div>
+        </div>
+
+        <!-- Back to Menu button -->
+        <button id="content-manager-back-btn" class="gis-back-btn">← Back to Menu</button>
+      </div>
+
+      <!-- ============================================ -->
+      <!-- Active Game UI (Hidden by Default)           -->
+      <!-- ============================================ -->
+      <div id="game-ui-container" class="view-container hidden">
+        <button id="btn-quit-to-menu" class="quit-btn" title="Back to Menu">✕ Menu</button>
+        <span id="hud-resort-name" class="resort-name-label"></span>
+        <canvas id="game-canvas"></canvas>
+        <div id="game-status-bar" class="game-status-bar">
+          <span id="status-elevation">Elevation: —</span>
+          <span id="status-contour-interval">Contours: —</span>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
