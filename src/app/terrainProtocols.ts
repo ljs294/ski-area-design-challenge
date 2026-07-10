@@ -138,13 +138,13 @@ function toPngArrayBuffer(img: ImageData): Promise<ArrayBuffer> {
 
 const OVERLAY_ALPHA = 150; // ~0.59
 
-/** Avalanche ramp bands (upper bound exclusive). <27° is transparent. */
+/** Ski-run difficulty bands by slope angle (upper bound exclusive). <6° is too
+ * flat to ski and stays transparent. */
 const SLOPE_BANDS: { max: number; rgb: [number, number, number]; label: string }[] = [
-  { max: 30, rgb: [255, 235, 59], label: '27–29°' }, // yellow
-  { max: 32, rgb: [255, 152, 0], label: '30–31°' }, // orange
-  { max: 35, rgb: [229, 57, 53], label: '32–34°' }, // red
-  { max: 46, rgb: [142, 36, 170], label: '35–45°' }, // purple
-  { max: Infinity, rgb: [20, 20, 20], label: '≥46°' }, // black
+  { max: 16, rgb: [67, 160, 71], label: 'Green · 6–15°' }, // easiest
+  { max: 24, rgb: [30, 136, 229], label: 'Blue · 16–23°' }, // intermediate
+  { max: 37, rgb: [33, 33, 33], label: 'Black · 24–36°' }, // advanced
+  { max: Infinity, rgb: [211, 47, 47], label: 'Red · ≥37°' }, // expert
 ];
 
 /** 8-point compass sectors, index 0 = N, clockwise. */
@@ -170,9 +170,9 @@ export const ASPECT_LEGEND = ASPECT_SECTORS.map((c, i) => ({
   color: `rgb(${c[0]}, ${c[1]}, ${c[2]})`,
 }));
 
-/** Avalanche ramp: transparent <27, yellow, orange, red, purple, black. */
+/** Ski grading: transparent <6 (too flat), then green, blue, black, red. */
 function slopeColor(deg: number, out: [number, number, number, number]): void {
-  if (deg < 27) { out[3] = 0; return; }
+  if (deg < 6) { out[3] = 0; return; }
   for (const b of SLOPE_BANDS) {
     if (deg < b.max) {
       out[0] = b.rgb[0]; out[1] = b.rgb[1]; out[2] = b.rgb[2]; out[3] = OVERLAY_ALPHA;
