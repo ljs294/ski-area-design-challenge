@@ -25,4 +25,5 @@ dist-ssr
 
 # Build outputs
 dist-electron
+dist-web
 release
