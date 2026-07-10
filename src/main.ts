@@ -2,10 +2,12 @@ import './style.css';
 import { GisSelector } from './gisSelector';
 import { ContentManager } from './contentManager';
 import { NA_MOUNTAIN_PRESETS } from './mountainPresets';
-import { GameRenderer } from './renderer';
+import { GameRenderer, MAP_SIZE } from './renderer';
 import type { Camera } from './renderer';
-import { SimulationEngine } from './simulation';
-import type { AreaSizeMeters, GameState, TerrainDB, ActiveTool } from './types';
+import { CONTOUR_TIERS, pickActiveTier } from './contours';
+import type { AreaSizeMeters, TerrainDB } from './types';
+
+const METERS_TO_FEET = 3.280839895;
 
 // Safely import Electron IPC if running inside the Electron shell
 let ipcRenderer: any = null;
@@ -20,7 +22,6 @@ try {
 // View State Machine
 // ========================
 type ViewState = 'menu' | 'selection' | 'content-manager' | 'game';
-let currentView: ViewState = 'menu';
 
 // ========================
 // Game Globals
@@ -28,27 +29,20 @@ let currentView: ViewState = 'menu';
 let gisSelector: GisSelector | null = null;
 let contentManager: ContentManager | null = null;
 let gameRenderer: GameRenderer | null = null;
-let gameState: GameState | null = null;
+let currentTerrain: TerrainDB | null = null;
 let camera: Camera = { x: 0, y: 0, zoom: 1 };
-let animFrameId: number | null = null;
 
 // Canvas interaction state
-let isDragging = false;
 let isPanning = false;
-let dragStartWorld: { x: number; y: number } | null = null;
-let currentMouseWorld: { x: number; y: number } | null = null;
 let panStartMouse: { x: number; y: number } | null = null;
 let panStartCamera: { x: number; y: number } | null = null;
-let hoveredId: string | null = null;
-let selectedId: string | null = null;
+let lastMouseScreen: { x: number; y: number } | null = null;
 
 // ========================
 // Utility Functions
 // ========================
 
 function showView(view: ViewState) {
-  currentView = view;
-  
   const splash = document.getElementById('splash-container');
   const bgImage = document.getElementById('background-image-container');
   const bgArt = document.getElementById('background-artwork');
@@ -76,12 +70,6 @@ function showView(view: ViewState) {
       if (bgArt) bgArt.style.display = 'block';
     }
     if (snowPile) snowPile.style.display = 'block';
-
-    // Stop the game loop if running
-    if (animFrameId !== null) {
-      cancelAnimationFrame(animFrameId);
-      animFrameId = null;
-    }
   } else if (view === 'selection') {
     gis?.classList.remove('hidden');
     // Initialize Leaflet map (first time only)
@@ -90,16 +78,14 @@ function showView(view: ViewState) {
     contentManagerEl?.classList.remove('hidden');
     if (!contentManager) {
       contentManager = new ContentManager((data: TerrainDB) => {
-        gameState = createDefaultGameState(data);
+        currentTerrain = data;
         showView('game');
       });
     }
     contentManager.refresh();
   } else if (view === 'game') {
     game?.classList.remove('hidden');
-    // Start the game loop
     initGameCanvas();
-    startGameLoop();
   }
 }
 
@@ -107,38 +93,6 @@ function screenToWorld(screenX: number, screenY: number): { x: number; y: number
   return {
     x: (screenX - camera.x) / camera.zoom,
     y: (screenY - camera.y) / camera.zoom
-  };
-}
-
-function createDefaultGameState(terrain: TerrainDB): GameState {
-  return {
-    cash: 50000,
-    nodes: [
-      {
-        id: 'entrance-1',
-        name: 'Main Base Area',
-        type: 'entrance',
-        x: 1000,
-        y: 1800,
-        z: 0
-      }
-    ],
-    lifts: [],
-    trails: [],
-    skiers: [],
-    timeSpeed: 1,
-    gameTimeMinutes: 480, // 8:00 AM
-    gameMonth: 0, // January
-    gameDay: 1,
-    temperature: 28,
-    windSpeed: 12,
-    isSnowing: false,
-    groomerCount: 1,
-    patrolCount: 1,
-    ticketPrice: 50,
-    activeTool: 'select',
-    terrain,
-    ledger: { revenue: 0, expenses: 0, net: 0 }
   };
 }
 
@@ -158,7 +112,7 @@ function initGISMap() {
 
   gisSelector = new GisSelector((data: TerrainDB) => {
     // Terrain ingested! Transition to game
-    gameState = createDefaultGameState(data);
+    currentTerrain = data;
     showView('game');
   });
 
@@ -190,7 +144,7 @@ function populatePresetCards() {
     card.addEventListener('click', () => {
       if (!gisSelector) {
         gisSelector = new GisSelector((data: TerrainDB) => {
-          gameState = createDefaultGameState(data);
+          currentTerrain = data;
           showView('game');
         });
       }
@@ -202,86 +156,73 @@ function populatePresetCards() {
 }
 
 // ========================
-// Game Canvas & Loop
+// Game Canvas — simple pan/zoom terrain viewer
 // ========================
 
+let gameCanvas: HTMLCanvasElement | null = null;
+
+function render() {
+  if (!gameCanvas || !gameRenderer) return;
+  gameRenderer.draw(currentTerrain, camera);
+  updateContourIntervalReadout();
+}
+
 function initGameCanvas() {
+  const nameEl = document.getElementById('hud-resort-name');
+  if (nameEl) nameEl.textContent = currentTerrain?.mountainName || '';
+
+  if (gameCanvas) {
+    // Already initialized — just resize/recenter for the (possibly new) terrain.
+    resizeGameCanvas();
+    render();
+    return;
+  }
+
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
   if (!canvas) return;
-
-  // Size the canvas to fill the available area
-  const resizeCanvas = () => {
-    const container = document.getElementById('game-ui-container');
-    if (!container) return;
-    const hud = document.getElementById('game-hud');
-    const toolbar = document.getElementById('game-toolbar');
-    const hudH = hud?.offsetHeight || 0;
-    const toolbarH = toolbar?.offsetHeight || 0;
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight - hudH - toolbarH;
-  };
-  
-  resizeCanvas();
-  window.addEventListener('resize', resizeCanvas);
-
-  // Center the camera on the terrain
-  camera = {
-    x: canvas.width / 2 - 1000,
-    y: canvas.height / 2 - 1000,
-    zoom: 0.5
-  };
-
+  gameCanvas = canvas;
   gameRenderer = new GameRenderer(canvas);
 
-  // ---- Canvas Mouse Events ----
-
-  canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
-      // Middle click or Shift+Left: start panning
-      isPanning = true;
-      panStartMouse = { x: e.clientX, y: e.clientY };
-      panStartCamera = { x: camera.x, y: camera.y };
-      canvas.style.cursor = 'grabbing';
-      return;
-    }
-
-    if (e.button === 0 && gameState) {
-      const rect = canvas.getBoundingClientRect();
-      const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-
-      if (gameState.activeTool !== 'select') {
-        isDragging = true;
-        dragStartWorld = world;
-        currentMouseWorld = world;
-      }
-    }
+  resizeGameCanvas();
+  window.addEventListener('resize', () => {
+    resizeGameCanvas();
+    render();
+    if (lastMouseScreen) updateElevationReadout(screenToWorld(lastMouseScreen.x, lastMouseScreen.y));
   });
 
-  canvas.addEventListener('mousemove', (e) => {
+  // ---- Pan (left-drag) & zoom (wheel) ----
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    isPanning = true;
+    panStartMouse = { x: e.clientX, y: e.clientY };
+    panStartCamera = { x: camera.x, y: camera.y };
+  });
+
+  window.addEventListener('mousemove', (e) => {
     if (isPanning && panStartMouse && panStartCamera) {
       camera.x = panStartCamera.x + (e.clientX - panStartMouse.x);
       camera.y = panStartCamera.y + (e.clientY - panStartMouse.y);
-      return;
+      render();
     }
 
     const rect = canvas.getBoundingClientRect();
-    const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-    currentMouseWorld = world;
-  });
-
-  canvas.addEventListener('mouseup', (_e) => {
-    if (isPanning) {
-      isPanning = false;
-      canvas.style.cursor = 'crosshair';
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+      lastMouseScreen = null;
+      updateElevationReadout(null);
       return;
     }
+    lastMouseScreen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    updateElevationReadout(screenToWorld(lastMouseScreen.x, lastMouseScreen.y));
+  });
 
-    if (isDragging && dragStartWorld && currentMouseWorld && gameState) {
-      // Placement completed — create the entity
-      // (For now this is a stub; full placement logic comes in a later phase)
-      isDragging = false;
-      dragStartWorld = null;
-    }
+  canvas.addEventListener('mouseleave', () => {
+    lastMouseScreen = null;
+    updateElevationReadout(null);
+  });
+
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
   });
 
   canvas.addEventListener('wheel', (e) => {
@@ -290,7 +231,9 @@ function initGameCanvas() {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    // Proportional to scroll magnitude so a bigger wheel/trackpad gesture
+    // zooms further in one event, not just a fixed step per event.
+    const zoomFactor = Math.exp(-e.deltaY * 0.001);
     const newZoom = Math.max(0.15, Math.min(5, camera.zoom * zoomFactor));
 
     // Zoom toward the mouse cursor
@@ -299,94 +242,49 @@ function initGameCanvas() {
     const worldAfter = screenToWorld(mouseX, mouseY);
     camera.x += (worldAfter.x - worldBefore.x) * camera.zoom;
     camera.y += (worldAfter.y - worldBefore.y) * camera.zoom;
+    lastMouseScreen = { x: mouseX, y: mouseY };
+    updateElevationReadout(screenToWorld(mouseX, mouseY));
+    render();
   }, { passive: false });
+
+  render();
 }
 
-function startGameLoop() {
-  if (animFrameId !== null) cancelAnimationFrame(animFrameId);
+function updateElevationReadout(world: { x: number; y: number } | null) {
+  const elevationEl = document.getElementById('status-elevation');
+  if (!elevationEl) return;
 
-  function loop() {
-    if (currentView !== 'game' || !gameState || !gameRenderer) return;
-
-    // Run simulation ticks
-    const alerts = SimulationEngine.tick(gameState);
-
-    // Show alerts
-    if (alerts.length > 0) {
-      showAlerts(alerts);
-    }
-
-    // Update HUD
-    updateHUD();
-
-    // Draw
-    gameRenderer.draw(
-      gameState,
-      camera,
-      hoveredId,
-      selectedId,
-      isDragging ? dragStartWorld : null,
-      isDragging ? currentMouseWorld : null
-    );
-
-    animFrameId = requestAnimationFrame(loop);
+  const elevationMeters = world ? gameRenderer?.elevationAt(world.x, world.y) : null;
+  if (elevationMeters == null) {
+    elevationEl.textContent = 'Elevation: —';
+    return;
   }
-
-  animFrameId = requestAnimationFrame(loop);
+  const feet = Math.round(elevationMeters * METERS_TO_FEET);
+  elevationEl.textContent = `Elevation: ${feet.toLocaleString()} ft`;
 }
 
-function updateHUD() {
-  if (!gameState) return;
-
-  const nameEl = document.getElementById('hud-resort-name');
-  const cashEl = document.getElementById('hud-cash');
-  const timeEl = document.getElementById('hud-time');
-  const dateEl = document.getElementById('hud-date');
-  const tempEl = document.getElementById('hud-temp');
-  const windEl = document.getElementById('hud-wind');
-  const skiersEl = document.getElementById('hud-skiers');
-
-  if (nameEl) nameEl.textContent = gameState.terrain?.mountainName || '—';
-  if (cashEl) cashEl.textContent = `$${gameState.cash.toLocaleString()}`;
-
-  // Time format
-  if (timeEl) {
-    const hours = Math.floor(gameState.gameTimeMinutes / 60);
-    const mins = Math.floor(gameState.gameTimeMinutes % 60);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const h12 = hours > 12 ? hours - 12 : hours;
-    timeEl.textContent = `${h12}:${mins.toString().padStart(2, '0')} ${ampm}`;
-  }
-
-  // Date format
-  if (dateEl) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    dateEl.textContent = `${months[gameState.gameMonth]} ${gameState.gameDay}`;
-  }
-
-  if (tempEl) {
-    const snowIcon = gameState.isSnowing ? '❄️ ' : '';
-    tempEl.textContent = `${snowIcon}${gameState.temperature}°F`;
-  }
-  if (windEl) windEl.textContent = `${Math.round(gameState.windSpeed)} km/h`;
-  if (skiersEl) skiersEl.textContent = `${gameState.skiers.length}`;
+function updateContourIntervalReadout() {
+  const el = document.getElementById('status-contour-interval');
+  if (!el) return;
+  const tier = pickActiveTier(CONTOUR_TIERS, camera.zoom);
+  el.textContent = `Contours: ${tier.majorFt}ft / ${tier.minorFt}ft`;
 }
 
-function showAlerts(alerts: string[]) {
-  const container = document.getElementById('alert-container');
-  if (!container) return;
+function resizeGameCanvas() {
+  const canvas = gameCanvas;
+  const container = document.getElementById('game-ui-container');
+  if (!canvas || !container) return;
 
-  for (const msg of alerts) {
-    const toast = document.createElement('div');
-    toast.className = 'alert-toast';
-    toast.textContent = msg;
-    container.appendChild(toast);
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
 
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      toast.remove();
-    }, 5000);
-  }
+  // Re-center the camera on the terrain
+  const zoom = 0.5;
+  camera = {
+    x: canvas.width / 2 - (MAP_SIZE * zoom) / 2,
+    y: canvas.height / 2 - (MAP_SIZE * zoom) / 2,
+    zoom,
+  };
 }
 
 // ========================
@@ -466,32 +364,6 @@ window.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       const size = Number(btn.getAttribute('data-size')) as AreaSizeMeters;
       gisSelector?.setSize(size);
-    });
-  });
-
-  // ---- Game Toolbar: Tool Buttons ----
-  const toolButtons = document.querySelectorAll('.tool-btn');
-  toolButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tool = btn.getAttribute('data-tool') as ActiveTool;
-      if (!tool || !gameState) return;
-
-      gameState.activeTool = tool;
-      toolButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    });
-  });
-
-  // ---- Game Toolbar: Speed Buttons ----
-  const speedButtons = document.querySelectorAll('.speed-btn');
-  speedButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const speed = parseInt(btn.getAttribute('data-speed') || '1', 10);
-      if (!gameState) return;
-
-      gameState.timeSpeed = speed;
-      speedButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
     });
   });
 

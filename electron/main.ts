@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { registerTerrainStorageHandlers } from './ipcTerrainStorage';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 

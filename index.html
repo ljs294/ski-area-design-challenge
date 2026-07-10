@@ -317,94 +317,13 @@
       <!-- Active Game UI (Hidden by Default)           -->
       <!-- ============================================ -->
       <div id="game-ui-container" class="view-container hidden">
-        <!-- Heads-Up Display Bar -->
-        <div id="game-hud" class="game-hud">
-          <div class="hud-group">
-            <span class="hud-label">Resort</span>
-            <span class="hud-value" id="hud-resort-name">—</span>
-          </div>
-          <div class="hud-group">
-            <span class="hud-label">Cash</span>
-            <span class="hud-value hud-cash" id="hud-cash">$50,000</span>
-          </div>
-          <div class="hud-group">
-            <span class="hud-label">Time</span>
-            <span class="hud-value" id="hud-time">8:00 AM</span>
-          </div>
-          <div class="hud-group">
-            <span class="hud-label">Date</span>
-            <span class="hud-value" id="hud-date">Jan 1</span>
-          </div>
-          <div class="hud-group">
-            <span class="hud-label">Temp</span>
-            <span class="hud-value" id="hud-temp">28°F</span>
-          </div>
-          <div class="hud-group">
-            <span class="hud-label">Wind</span>
-            <span class="hud-value" id="hud-wind">12 km/h</span>
-          </div>
-          <div class="hud-group">
-            <span class="hud-label">Skiers</span>
-            <span class="hud-value" id="hud-skiers">0</span>
-          </div>
-        </div>
-
-        <!-- Game Canvas -->
+        <button id="btn-quit-to-menu" class="quit-btn" title="Back to Menu">✕ Menu</button>
+        <span id="hud-resort-name" class="resort-name-label"></span>
         <canvas id="game-canvas"></canvas>
-
-        <!-- Bottom Toolbar -->
-        <div id="game-toolbar" class="game-toolbar">
-          <div class="toolbar-tools">
-            <button class="tool-btn active" data-tool="select" title="Select">
-              <span class="tool-icon">⬚</span>
-              <span class="tool-label">Select</span>
-            </button>
-            <div class="toolbar-separator"></div>
-            <button class="tool-btn" data-tool="lift-surface" title="Surface Lift">
-              <span class="tool-icon">▬</span>
-              <span class="tool-label">Surface</span>
-            </button>
-            <button class="tool-btn" data-tool="lift-fixed" title="Fixed Grip Quad">
-              <span class="tool-icon">◈</span>
-              <span class="tool-label">Fixed</span>
-            </button>
-            <button class="tool-btn" data-tool="lift-detachable" title="Detachable Lift">
-              <span class="tool-icon">◉</span>
-              <span class="tool-label">Detach</span>
-            </button>
-            <div class="toolbar-separator"></div>
-            <button class="tool-btn" data-tool="trail-green" title="Green Trail">
-              <span class="tool-icon tool-green">●</span>
-              <span class="tool-label">Green</span>
-            </button>
-            <button class="tool-btn" data-tool="trail-blue" title="Blue Trail">
-              <span class="tool-icon tool-blue">■</span>
-              <span class="tool-label">Blue</span>
-            </button>
-            <button class="tool-btn" data-tool="trail-black" title="Black Diamond">
-              <span class="tool-icon tool-black">◆</span>
-              <span class="tool-label">Black</span>
-            </button>
-            <div class="toolbar-separator"></div>
-            <button class="tool-btn" data-tool="lodge" title="Lodge">
-              <span class="tool-icon tool-lodge">⌂</span>
-              <span class="tool-label">Lodge</span>
-            </button>
-          </div>
-
-          <div class="toolbar-controls">
-            <div class="speed-controls">
-              <button class="speed-btn" data-speed="0" title="Pause">⏸</button>
-              <button class="speed-btn active" data-speed="1" title="1x Speed">▶</button>
-              <button class="speed-btn" data-speed="2" title="2x Speed">▶▶</button>
-              <button class="speed-btn" data-speed="5" title="5x Speed">▶▶▶</button>
-            </div>
-            <button id="btn-quit-to-menu" class="quit-btn" title="Quit to Menu">✕ Menu</button>
-          </div>
+        <div id="game-status-bar" class="game-status-bar">
+          <span id="status-elevation">Elevation: —</span>
+          <span id="status-contour-interval">Contours: —</span>
         </div>
-
-        <!-- Alert Toast Container -->
-        <div id="alert-container" class="alert-container"></div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

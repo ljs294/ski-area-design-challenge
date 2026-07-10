@@ -1,28 +1,34 @@
 // One-off dev tool — NOT shipped with the app. Downloads real elevation
 // data for a curated preset mountain and writes it to
-// src/presetTerrain/<id>.json, where terrainIngest.ts picks it up at build
-// time to replace that preset's procedurally-generated placeholder terrain.
+// public/presetTerrain/<id>.heights.bin, where terrainIngest.ts fetches it
+// at runtime to replace that preset's procedurally-generated placeholder
+// terrain.
 //
-// Usage: npm run download-preset -- <preset-id> [open-meteo|usgs]
-//   open-meteo (default) — same provider/pacing as the live in-app picker.
-//   usgs — USGS EPQS, US-coverage only. Fallback for when Open-Meteo is
-//   throttling this machine hard; a separate service with its own quota.
+// Usage: npm run download-preset -- <preset-id>
+//
+// Written as raw Float32 binary (row-major, square grid — grid size is
+// recovered from the file's byte length, sqrt(bytes/4)), not JSON. At the
+// grid sizes this app now requests (up to ~4M points), a plain JSON number
+// array runs ~18 bytes/point vs 4 bytes/point raw binary — and, more
+// importantly, serving/transforming a 70MB+ JSON file through Vite's dev
+// middleware was found to crash the dev server outright. Living in
+// public/ means Vite serves it as a static passthrough (copied verbatim,
+// no transform) in both dev and production, sidestepping that entirely.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NA_MOUNTAIN_PRESETS } from '../src/mountainPresets';
 import { boundsForSquareMeters } from '../src/geo';
-import { fetchElevationGrid, SAMPLE_GRID_SIZE } from '../src/elevation';
-import { fetchUsgsElevationGrid } from './usgsElevation';
+import { fetchElevationGrid, sampleGridSizeFor } from '../src/elevation';
+import { fetchVectorFeatures } from '../src/vectorFeatures';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
   const presetId = process.argv[2];
-  const source = process.argv[3] === 'usgs' ? 'usgs' : 'open-meteo';
 
   if (!presetId) {
-    console.error('Usage: npm run download-preset -- <preset-id> [open-meteo|usgs]');
+    console.error('Usage: npm run download-preset -- <preset-id>');
     console.error('Available:', NA_MOUNTAIN_PRESETS.map((p) => p.id).join(', '));
     process.exit(1);
   }
@@ -36,42 +42,47 @@ async function main() {
 
   const areaSizeMeters = preset.areaSizeMeters ?? 4000;
   const bounds = boundsForSquareMeters(preset.latitude, preset.longitude, areaSizeMeters);
+  const gridSize = sampleGridSizeFor(areaSizeMeters);
 
-  console.log(`Downloading real elevation data for ${preset.name} (${presetId}) via ${source}`);
+  console.log(`Downloading real elevation data for ${preset.name} (${presetId}) via USGS 3DEP`);
   console.log(
-    `  center: ${preset.latitude}, ${preset.longitude}  area: ${areaSizeMeters}m  grid: ${SAMPLE_GRID_SIZE}x${SAMPLE_GRID_SIZE}`
+    `  center: ${preset.latitude}, ${preset.longitude}  area: ${areaSizeMeters}m  grid: ${gridSize}x${gridSize}`
   );
 
   const startTime = Date.now();
-  let sampleHeights: number[];
+  const sampleHeights = await fetchElevationGrid(bounds, areaSizeMeters, (p) => {
+    console.log(`  ${p.phase}...`);
+  });
 
-  if (source === 'usgs') {
-    console.log('  (USGS EPQS, concurrent point queries — expect several minutes)');
-    sampleHeights = await fetchUsgsElevationGrid(bounds, SAMPLE_GRID_SIZE, (p) => {
-      const pct = Math.round((p.completed / p.total) * 100);
-      if (p.completed % 50 === 0 || p.completed === p.total) {
-        console.log(`  ${p.completed}/${p.total} points (${pct}%)`);
-      }
-    });
-  } else {
-    console.log('  (Open-Meteo, paced download — expect a couple of minutes)');
-    sampleHeights = await fetchElevationGrid(bounds, (p) => {
-      const pct = Math.round((p.completedBatches / p.totalBatches) * 100);
-      const suffix = p.rateLimited ? ' (rate-limited, backing off...)' : '';
-      console.log(`  ${p.completedBatches}/${p.totalBatches} batches (${pct}%)${suffix}`);
-    });
+  const elapsedSec = (Date.now() - startTime) / 1000;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const h of sampleHeights) {
+    if (h < min) min = h;
+    if (h > max) max = h;
   }
+  console.log(`Done in ${elapsedSec.toFixed(1)}s. Elevation range: ${min.toFixed(1)}m - ${max.toFixed(1)}m`);
 
-  const elapsedSec = Math.round((Date.now() - startTime) / 1000);
-  const min = Math.min(...sampleHeights);
-  const max = Math.max(...sampleHeights);
-  console.log(`Done in ${elapsedSec}s. Elevation range: ${min}m - ${max}m`);
-
-  const outDir = path.join(__dirname, '..', 'src', 'presetTerrain');
+  const outDir = path.join(__dirname, '..', 'public', 'presetTerrain');
   fs.mkdirSync(outDir, { recursive: true });
-  const outFile = path.join(outDir, `${presetId}.json`);
-  fs.writeFileSync(outFile, JSON.stringify({ sampleGridSize: SAMPLE_GRID_SIZE, sampleHeights }));
-  console.log(`Wrote ${outFile}`);
+  const outFile = path.join(outDir, `${presetId}.heights.bin`);
+  fs.writeFileSync(outFile, Buffer.from(Float32Array.from(sampleHeights).buffer));
+  console.log(`Wrote ${outFile} (${(fs.statSync(outFile).size / 1e6).toFixed(1)} MB)`);
+
+  console.log(`Downloading map features (roads/water/peaks/land cover) via Overpass...`);
+  try {
+    const vectorFeatures = await fetchVectorFeatures(bounds);
+    const vectorsFile = path.join(outDir, `${presetId}.vectors.json`);
+    fs.writeFileSync(vectorsFile, JSON.stringify(vectorFeatures), 'utf-8');
+    console.log(
+      `Wrote ${vectorsFile} (${(fs.statSync(vectorsFile).size / 1e3).toFixed(1)} KB) — ` +
+        `${vectorFeatures.roads.length} roads, ${vectorFeatures.waterLines.length} water lines, ` +
+        `${vectorFeatures.waterPolygons.length} water polygons, ${vectorFeatures.landCover.length} land cover polygons, ` +
+        `${vectorFeatures.peaks.length} named peaks`
+    );
+  } catch (e) {
+    console.error(`Failed to download map features (preset heightmap was still saved successfully):`, e);
+  }
 }
 
 main().catch((e) => {

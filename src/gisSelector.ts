@@ -137,12 +137,12 @@ export class GisSelector {
         sizeMeters,
         mountainName,
         (progress: ElevationProgress) => {
-          const pct = Math.round((progress.completedBatches / progress.totalBatches) * 100);
-          if (progressFill) progressFill.style.width = `${pct}%`;
+          if (progressFill) progressFill.style.width = progress.phase === 'decoding' ? '90%' : '40%';
           if (statusText) {
-            statusText.innerText = progress.rateLimited
-              ? `Downloading elevation data... (${progress.completedBatches}/${progress.totalBatches}) — elevation provider is rate-limiting, retrying automatically`
-              : `Downloading elevation data... (${progress.completedBatches}/${progress.totalBatches})`;
+            statusText.innerText =
+              progress.phase === 'decoding'
+                ? 'Processing elevation data...'
+                : 'Downloading elevation data...';
           }
         }
       );
@@ -151,7 +151,13 @@ export class GisSelector {
       this.onDataIngestedCallback(terrain);
     } catch (e) {
       console.error(e);
-      if (statusText) statusText.innerText = 'Failed to load terrain. Check connection.';
+      const message = e instanceof Error ? e.message : null;
+      if (statusText) {
+        statusText.innerText =
+          message && message.includes('United States')
+            ? message
+            : 'Failed to load terrain. Check connection.';
+      }
       if (ingestBtn) {
         ingestBtn.disabled = false;
         ingestBtn.classList.remove('disabled');

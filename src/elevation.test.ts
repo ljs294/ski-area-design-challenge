@@ -1,15 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { fetchElevationGrid, SAMPLE_GRID_SIZE } from './elevation';
+import { fetchElevationGrid, isUsCoverage, sampleGridSizeFor } from './elevation';
 import { boundsForSquareMeters } from './geo';
 
-// Real integration test against the live Open-Meteo elevation API — it
-// downloads an actual grid, not a mock. Downloads are deliberately paced
-// (see the comment atop elevation.ts) to avoid the provider's rate limit
-// rather than race it, so a full 64x64 grid takes a few minutes by design.
-// The generous per-test timeout below is intentional, not a mistake.
+// Real integration test against the live USGS 3DEP exportImage endpoint —
+// it downloads an actual raster, not a mock. Unlike the old point-by-point
+// EPQS approach, this is a single request per area size, so it completes in
+// seconds rather than minutes.
 // Requires network access; skip in fully offline environments.
 
-const TEST_TIMEOUT_MS = 300_000;
+const TEST_TIMEOUT_MS = 30_000;
 
 // Vail, CO — real mountainous terrain with known elevation range
 // (base ~2476m, summit ~3527m) to sanity-check the downloaded values.
@@ -24,25 +23,39 @@ describe.each(AVAILABLE_AREA_SIZES_METERS)('terrain download at %dm square', (si
     'downloads a complete, real-valued elevation grid',
     async () => {
       const bounds = boundsForSquareMeters(CENTER.latitude, CENTER.longitude, sizeMeters);
-      const expectedPoints = SAMPLE_GRID_SIZE * SAMPLE_GRID_SIZE;
-      const expectedBatches = Math.ceil(expectedPoints / 100);
+      const maxGridSize = sampleGridSizeFor(sizeMeters);
 
-      let lastProgress = { completedBatches: 0, totalBatches: 0, rateLimited: false };
-      const grid = await fetchElevationGrid(bounds, (p) => {
-        lastProgress = p;
-      });
+      const grid = await fetchElevationGrid(bounds, sizeMeters);
 
-      expect(grid).toHaveLength(expectedPoints);
+      // fetchElevationGrid may shrink the requested grid on transient
+      // server-side failures (see fetchWithShrink in elevation.ts) — a
+      // smaller-but-square grid is a pass, not just an exact match.
+      const actualGridSize = Math.round(Math.sqrt(grid.length));
+      expect(actualGridSize * actualGridSize).toBe(grid.length);
+      expect(actualGridSize).toBeLessThanOrEqual(maxGridSize);
       expect(grid.every((h) => Number.isFinite(h))).toBe(true);
 
-      const min = Math.min(...grid);
-      const max = Math.max(...grid);
+      let min = Infinity;
+      let max = -Infinity;
+      for (const h of grid) {
+        if (h < min) min = h;
+        if (h > max) max = h;
+      }
       expect(min).toBeGreaterThan(EXPECTED_MIN_METERS);
       expect(max).toBeLessThan(EXPECTED_MAX_METERS);
-
-      expect(lastProgress.completedBatches).toBe(expectedBatches);
-      expect(lastProgress.totalBatches).toBe(expectedBatches);
     },
     TEST_TIMEOUT_MS
   );
+});
+
+describe('isUsCoverage', () => {
+  it('accepts a selection within the contiguous US', () => {
+    const bounds = boundsForSquareMeters(CENTER.latitude, CENTER.longitude, 4000);
+    expect(isUsCoverage(bounds)).toBe(true);
+  });
+
+  it('rejects a selection outside US coverage (Whistler, BC)', () => {
+    const bounds = boundsForSquareMeters(50.1163, -122.9574, 4000);
+    expect(isUsCoverage(bounds)).toBe(false);
+  });
 });
