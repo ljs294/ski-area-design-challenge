@@ -164,12 +164,20 @@ body {
   flex: 0 0 auto;
 }
 
-/* --- Site picker control (top-right) --- */
-.site-control {
+/* --- Top-right control stack (site picker + 2D/3D toggle) --- */
+.top-right-stack {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+/* --- Site picker control --- */
+.site-control {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -233,6 +241,39 @@ body {
   background: #a8bfe8;
   border-color: #a8bfe8;
   cursor: default;
+}
+
+/* --- 2D/3D view toggle (top-right stack, below site control) --- */
+.view3d-control {
+  background: rgba(255, 255, 255, 0.92);
+  padding: 4px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.view3d-btn {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  color: #234;
+  cursor: pointer;
+}
+
+.view3d-btn:hover {
+  background: #f2f4f7;
+}
+
+.view3d-btn-active {
+  background: #2b6cff;
+  border-color: #2b6cff;
+  color: #fff;
+}
+
+.view3d-btn-active:hover {
+  background: #1f5be0;
 }
 
 /* --- Cursor readout (lower-left) --- */

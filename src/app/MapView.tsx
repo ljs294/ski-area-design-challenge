@@ -18,6 +18,8 @@ import {
 } from './sitePicker';
 import { SearchBox, type GeocodeResult } from './SearchBox';
 import { tuneBasemap } from './basemapStyle';
+import { View3DControl } from './View3DControl';
+import { enable3D, disable3D } from './terrain3d';
 
 // Crystal Mountain, WA — our canonical test site.
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
@@ -44,6 +46,7 @@ export function MapView() {
   const [readout, setReadout] = useState<Readout | null>(null);
   const [siteMode, setSiteMode] = useState<SiteMode>('explore');
   const [siteBox, setSiteBoxState] = useState<SiteBox | null>(null);
+  const [is3D, setIs3D] = useState(false);
 
   const activeOverlay = activeOverlayOf(layers);
 
@@ -226,6 +229,14 @@ export function MapView() {
     mapRef.current?.flyTo({ center: [r.lng, r.lat], zoom: 12, duration: 1200 });
   }
 
+  function toggle3D() {
+    const map = mapRef.current;
+    if (!map) return;
+    if (is3D) disable3D(map);
+    else enable3D(map);
+    setIs3D((v) => !v);
+  }
+
   function handleToggle(id: string) {
     const map = mapRef.current;
     if (!map) return;
@@ -267,14 +278,17 @@ export function MapView() {
         activeOverlay={activeOverlay}
       />
       <CursorReadout readout={readout} />
-      <SiteControl
-        mode={siteMode}
-        box={siteBox}
-        onStart={startSelect}
-        onConfirm={confirmSite}
-        onCancel={cancelSelect}
-        onExit={exitSite}
-      />
+      <div className="top-right-stack">
+        <SiteControl
+          mode={siteMode}
+          box={siteBox}
+          onStart={startSelect}
+          onConfirm={confirmSite}
+          onCancel={cancelSelect}
+          onExit={exitSite}
+        />
+        <View3DControl is3D={is3D} onToggle={toggle3D} />
+      </div>
     </>
   );
 }
