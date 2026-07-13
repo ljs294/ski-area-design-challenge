@@ -1,30 +1,16 @@
-// Renderer-side wrapper over the terrain filesystem IPC. Falls back to
-// localStorage when running outside Electron (e.g. `vite preview` during
-// dev) so the app doesn't crash — that path is for local dev convenience
-// only, not a production storage guarantee.
-import {
-  TERRAIN_SAVE_CHANNEL,
-  TERRAIN_LOAD_CHANNEL,
-  TERRAIN_LIST_CHANNEL,
-  TERRAIN_DELETE_CHANNEL,
-} from './ipcContract';
+// Renderer-side wrapper over the terrain filesystem storage. Uses the Electron
+// desktop bridge (electron/preload.ts) when present; falls back to localStorage
+// when running as a plain web page (e.g. the GitHub Pages demo or `vite preview`)
+// so the app doesn't crash. That fallback is dev/demo convenience only, not a
+// production storage guarantee.
+import { desktop } from './desktopBridge';
 import type {
-  TerrainSaveRequest,
   TerrainSaveResponse,
-  TerrainLoadRequest,
   TerrainLoadResponse,
   TerrainListResponse,
-  TerrainDeleteRequest,
   TerrainDeleteResponse,
 } from './ipcContract';
 import type { TerrainRecord, TerrainSummary } from './types';
-
-let ipcRenderer: any = null;
-try {
-  ipcRenderer = require('electron').ipcRenderer;
-} catch {
-  // Running in browser dev mode — fall back to localStorage below.
-}
 
 const LOCAL_STORAGE_PREFIX = 'terrain-fallback:';
 const LOCAL_STORAGE_INDEX_KEY = 'terrain-fallback-index';
@@ -55,10 +41,7 @@ function toSummary(record: TerrainRecord): TerrainSummary {
 }
 
 export async function saveTerrain(record: TerrainRecord): Promise<TerrainSaveResponse> {
-  if (ipcRenderer) {
-    const req: TerrainSaveRequest = { record };
-    return ipcRenderer.invoke(TERRAIN_SAVE_CHANNEL, req);
-  }
+  if (desktop) return desktop.terrain.save(record);
 
   try {
     localStorage.setItem(LOCAL_STORAGE_PREFIX + record.key, JSON.stringify(record));
@@ -70,27 +53,19 @@ export async function saveTerrain(record: TerrainRecord): Promise<TerrainSaveRes
 }
 
 export async function loadTerrain(key: string): Promise<TerrainLoadResponse> {
-  if (ipcRenderer) {
-    const req: TerrainLoadRequest = { key };
-    return ipcRenderer.invoke(TERRAIN_LOAD_CHANNEL, req);
-  }
+  if (desktop) return desktop.terrain.load(key);
 
   const raw = localStorage.getItem(LOCAL_STORAGE_PREFIX + key);
   return raw ? JSON.parse(raw) : null;
 }
 
 export async function listTerrains(): Promise<TerrainListResponse> {
-  if (ipcRenderer) {
-    return ipcRenderer.invoke(TERRAIN_LIST_CHANNEL);
-  }
+  if (desktop) return desktop.terrain.list();
   return localList();
 }
 
 export async function deleteTerrain(key: string): Promise<TerrainDeleteResponse> {
-  if (ipcRenderer) {
-    const req: TerrainDeleteRequest = { key };
-    return ipcRenderer.invoke(TERRAIN_DELETE_CHANNEL, req);
-  }
+  if (desktop) return desktop.terrain.delete(key);
 
   localStorage.removeItem(LOCAL_STORAGE_PREFIX + key);
   localWriteIndex(localList().filter((s) => s.key !== key));

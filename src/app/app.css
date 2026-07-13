@@ -1,3 +1,53 @@
+/* ============================================================
+   Theme tokens. Everything chrome-related keys off these so a
+   single [data-theme] flip on <html> re-skins the whole app.
+   ============================================================ */
+:root {
+  --app-bg: #eef1f5;
+  --surface: rgba(255, 255, 255, 0.92); /* translucent map-overlay panels */
+  --surface-solid: #ffffff;
+  --panel-elev: #ffffff; /* solid cards (menu slats, modals) */
+  --panel-elev-hover: #f2f5f9;
+  --seg-bg: #e7ebf1;
+  --text: #23303f;
+  --text-muted: #5a6b7b;
+  --text-faint: #8a97a4;
+  --border: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.2);
+  --accent: #2b6cff;
+  --accent-hover: #1f5be0;
+  --accent-contrast: #ffffff;
+  --danger: #d64b4b;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.3);
+  --readout-bg: rgba(28, 30, 33, 0.82);
+  --readout-text: #ffffff;
+  --scrim: linear-gradient(180deg, rgba(10, 18, 30, 0.35) 0%, rgba(10, 18, 30, 0.62) 100%);
+}
+
+:root[data-theme='dark'] {
+  --app-bg: #0d1117;
+  --surface: rgba(24, 30, 40, 0.92);
+  --surface-solid: #1a212b;
+  --panel-elev: #1b232e;
+  --panel-elev-hover: #232d3a;
+  --seg-bg: #10161e;
+  --text: #e6ecf3;
+  --text-muted: #9fb0c0;
+  --text-faint: #6e7f8f;
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --accent: #4b82ff;
+  --accent-hover: #6a99ff;
+  --accent-contrast: #0b1220;
+  --danger: #e26060;
+  --shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 14px 46px rgba(0, 0, 0, 0.6);
+  --readout-bg: rgba(8, 12, 18, 0.86);
+  --readout-text: #eef2f7;
+  --scrim: linear-gradient(180deg, rgba(3, 6, 11, 0.45) 0%, rgba(3, 6, 11, 0.72) 100%);
+}
+
 html,
 body,
 #root {
@@ -7,8 +57,10 @@ body,
 }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
   overflow: hidden;
+  background: var(--app-bg);
+  color: var(--text);
 }
 
 .map-root {
@@ -16,15 +68,19 @@ body {
   inset: 0;
 }
 
+/* ============================================================
+   Map chrome (light + dark via tokens)
+   ============================================================ */
 .layer-panel {
   position: absolute;
   top: 12px;
   left: 12px;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface);
+  color: var(--text);
   padding: 8px 14px 10px;
   border-radius: 10px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow);
   font-size: 13px;
   min-width: 150px;
 }
@@ -39,6 +95,7 @@ body {
   border: none;
   padding: 2px 0;
   cursor: pointer;
+  color: inherit;
 }
 
 .layer-panel-title {
@@ -46,11 +103,11 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #555;
+  color: var(--text-muted);
 }
 
 .layer-panel-chevron {
-  color: #888;
+  color: var(--text-faint);
   font-size: 11px;
 }
 
@@ -76,10 +133,10 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #999;
+  color: var(--text-faint);
   margin: 8px 0 3px;
   padding-top: 6px;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid var(--border);
 }
 
 /* --- Place search (top-center) --- */
@@ -92,51 +149,52 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface);
   padding: 6px 8px;
   border-radius: 10px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow);
 }
 
 .search-input {
   width: 220px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border);
   border-radius: 7px;
   padding: 6px 10px;
   font-size: 13px;
   outline: none;
+  background: var(--surface-solid);
+  color: var(--text);
 }
 
 .search-input:focus {
-  border-color: #2b6cff;
+  border-color: var(--accent);
 }
 
 .search-btn {
   font-size: 13px;
   padding: 6px 12px;
   border-radius: 7px;
-  border: 1px solid #2b6cff;
-  background: #2b6cff;
-  color: #fff;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
   cursor: pointer;
 }
 
 .search-btn:disabled {
-  background: #a8bfe8;
-  border-color: #a8bfe8;
+  opacity: 0.55;
 }
 
 .search-msg {
   font-size: 12px;
-  color: #c0392b;
+  color: var(--danger);
   padding-right: 4px;
 }
 
-/* --- Legend (inside the panel, for the active overlay only) --- */
+/* --- Legend --- */
 .legend {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--border);
 }
 
 .legend-title {
@@ -144,7 +202,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #777;
+  color: var(--text-muted);
   margin-bottom: 5px;
 }
 
@@ -160,11 +218,11 @@ body {
   width: 14px;
   height: 14px;
   border-radius: 3px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border);
   flex: 0 0 auto;
 }
 
-/* --- Top-right control stack (site picker + 2D/3D toggle) --- */
+/* --- Top-right control stack --- */
 .top-right-stack {
   position: absolute;
   top: 12px;
@@ -181,10 +239,11 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface);
+  color: var(--text);
   padding: 8px 10px;
   border-radius: 10px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow);
 }
 
 .site-control-wide {
@@ -195,14 +254,14 @@ body {
 
 .site-hint {
   font-size: 12px;
-  color: #555;
+  color: var(--text-muted);
   padding: 2px 0;
 }
 
 .site-dims {
   font-size: 13px;
   font-weight: 600;
-  color: #234;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
   padding: 2px 0;
 }
@@ -217,38 +276,38 @@ body {
   font-size: 13px;
   padding: 6px 12px;
   border-radius: 7px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  background: #fff;
-  color: #234;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
   cursor: pointer;
 }
 
 .site-btn:hover {
-  background: #f2f4f7;
+  background: var(--panel-elev-hover);
 }
 
 .site-btn-primary {
-  background: #2b6cff;
-  border-color: #2b6cff;
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .site-btn-primary:hover {
-  background: #1f5be0;
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
 .site-btn-primary:disabled {
-  background: #a8bfe8;
-  border-color: #a8bfe8;
+  opacity: 0.5;
   cursor: default;
 }
 
-/* --- 2D/3D view toggle (top-right stack, below site control) --- */
+/* --- 2D/3D view toggle --- */
 .view3d-control {
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface);
   padding: 4px;
   border-radius: 10px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow);
 }
 
 .view3d-btn {
@@ -256,34 +315,34 @@ body {
   font-weight: 700;
   padding: 6px 14px;
   border-radius: 7px;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  background: #fff;
-  color: #234;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
   cursor: pointer;
 }
 
 .view3d-btn:hover {
-  background: #f2f4f7;
+  background: var(--panel-elev-hover);
 }
 
 .view3d-btn-active {
-  background: #2b6cff;
-  border-color: #2b6cff;
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .view3d-btn-active:hover {
-  background: #1f5be0;
+  background: var(--accent-hover);
 }
 
-/* --- Cursor readout (lower-left) --- */
+/* --- Cursor readout (lower-left, always dark surface) --- */
 .cursor-readout {
   position: absolute;
   left: 12px;
   bottom: 24px;
   z-index: 10;
-  background: rgba(28, 30, 33, 0.82);
-  color: #fff;
+  background: var(--readout-bg);
+  color: var(--readout-text);
   padding: 8px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -306,4 +365,587 @@ body {
 .readout-value {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+}
+
+/* ============================================================
+   Reusable buttons
+   ============================================================ */
+.ghost-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 13px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.ghost-btn:hover {
+  background: var(--panel-elev-hover);
+}
+
+.danger-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--danger);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.danger-btn:hover {
+  border-color: var(--danger);
+}
+
+/* ============================================================
+   Main menu — ski-trail sign over a live Crystal Mountain map
+   ============================================================ */
+.main-menu {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.menu-backdrop,
+.menu-backdrop-map {
+  position: absolute;
+  inset: 0;
+}
+
+.menu-backdrop-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  pointer-events: none;
+}
+
+.menu-content {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 32px 16px;
+  overflow-y: auto;
+}
+
+.menu-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.menu-logo-mark {
+  width: 72px;
+  height: 58px;
+  stroke: #ffffff;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+
+.menu-title {
+  margin: 0;
+  font-size: clamp(22px, 4vw, 34px);
+  font-weight: 300;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+}
+
+.trail-sign {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+}
+
+.trail-sign-header {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+  margin-bottom: 2px;
+}
+
+.trail-slat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 340px;
+  max-width: 82vw;
+  padding: 13px 16px;
+  background: var(--panel-elev);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.trail-slat:hover:not(.trail-slat-disabled) {
+  transform: translateX(5px);
+  background: var(--panel-elev-hover);
+  box-shadow: var(--shadow-lg);
+}
+
+.trail-slat-disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.slat-chip {
+  flex: 0 0 auto;
+  width: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.slat-label {
+  flex: 1;
+}
+
+.slat-arrow {
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.menu-footer {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+/* --- Trail rating chips --- */
+.chip {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+}
+
+.chip-circle {
+  border-radius: 50%;
+}
+
+.chip-square {
+  border-radius: 3px;
+}
+
+.chip-diamond {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.chip-green {
+  background: #39a85a;
+}
+
+.chip-blue {
+  background: #2f6fed;
+}
+
+.chip-black {
+  background: #14181d;
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.chip-double {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  height: 16px;
+}
+
+/* ============================================================
+   In-game HUD (bottom-center, avoids the corner panels)
+   ============================================================ */
+.game-hud {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  padding: 6px 8px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.hud-resort {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  padding: 0 6px;
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-hud .ghost-btn {
+  box-shadow: none;
+}
+
+.hud-save {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: pointer;
+}
+
+.hud-save:hover {
+  background: var(--accent-hover);
+}
+
+.hud-save:disabled {
+  opacity: 0.6;
+}
+
+.hud-settings {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* --- Name-your-resort panel (New Game, after locking a site) --- */
+.name-entry {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 12;
+  width: 320px;
+  max-width: 86vw;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  padding: 20px;
+}
+
+.name-entry-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.name-entry-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14px;
+  background: var(--panel-elev);
+  color: var(--text);
+  outline: none;
+  margin-bottom: 14px;
+}
+
+.name-entry-input:focus {
+  border-color: var(--accent);
+}
+
+.name-entry-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ============================================================
+   Modals (Settings, Load Game) + full-screen views (Map Mgmt)
+   ============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.settings-panel,
+.list-panel {
+  width: 400px;
+  max-width: 100%;
+  max-height: 84vh;
+  overflow-y: auto;
+  background: var(--surface-solid);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  padding: 20px 22px 22px;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.settings-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.settings-close-x {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.settings-close-x:hover {
+  background: var(--panel-elev-hover);
+  color: var(--text);
+}
+
+.settings-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.setting-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.segmented {
+  display: inline-flex;
+  background: var(--seg-bg);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.seg-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.seg-btn-active {
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* Toggle switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-track {
+  position: absolute;
+  inset: 0;
+  background: var(--seg-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  transition: background 0.15s ease;
+}
+
+.switch-track::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface-solid);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.switch input:checked + .switch-track::before {
+  transform: translateX(18px);
+}
+
+.settings-done-btn {
+  width: 100%;
+  margin-top: 18px;
+  padding: 11px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-done-btn:hover {
+  background: var(--accent-hover);
+}
+
+/* Lists (Load Game modal + Map Management) */
+.list-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.list-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--panel-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.list-row:hover {
+  background: var(--panel-elev-hover);
+}
+
+.list-row-static {
+  cursor: default;
+}
+
+.list-row-static:hover {
+  background: var(--panel-elev);
+}
+
+.list-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.list-row-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.list-row-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.list-row-delete {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 15px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.list-row-delete:hover {
+  color: var(--danger);
+  background: var(--panel-elev-hover);
+}
+
+/* Full-screen sub-views (Map Management) */
+.screen-view {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: var(--app-bg);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+
+.screen-panel {
+  width: 760px;
+  max-width: 100%;
+}
+
+.screen-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.screen-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.screen-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
 }

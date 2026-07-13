@@ -113,3 +113,42 @@ export type TerrainSummary = Pick<
   TerrainRecord,
   'key' | 'mountainName' | 'latitude' | 'longitude' | 'areaSizeMeters' | 'sourceType' | 'createdAt' | 'updatedAt'
 >;
+
+// Serialized [[west, south], [east, north]] site rectangle. Mirrors SiteBox in
+// src/app/sitePicker.ts, redeclared here so the persisted save format does not
+// depend on a renderer-only module (types.ts is imported by the main process).
+export interface SavedSiteBox {
+  bounds: [[number, number], [number, number]];
+  widthKm: number;
+  heightKm: number;
+  areaKm2: number;
+}
+
+// A player's resort design. The first-class "game" unit, distinct from the raw
+// TerrainRecord it will eventually reference for offline rendering. Camera +
+// site are persisted so Load/Continue restores the exact view. `terrainKey`,
+// `lifts`, and `trails` are reserved for the offline-terrain + design/simulation
+// layers that are not built yet — the map still streams tiles online for now.
+export interface GameSave {
+  schemaVersion: 1;
+  key: string; // uuid
+  name: string; // resort name
+  mountainId?: string; // preset id if started from a curated mountain
+  terrainKey?: string; // reserved: ref into TerrainRecord storage for offline render
+  center: [number, number]; // [lng, lat]
+  zoom: number;
+  bearing: number;
+  pitch: number;
+  is3D: boolean;
+  site: SavedSiteBox | null; // locked property box, if one was drawn
+  lifts: unknown[]; // reserved for future ski-lift lines
+  trails: unknown[]; // reserved for future trail lines
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+
+// Lightweight listing entry for the Load Game modal.
+export type GameSaveSummary = Pick<
+  GameSave,
+  'key' | 'name' | 'mountainId' | 'terrainKey' | 'createdAt' | 'updatedAt'
+>;

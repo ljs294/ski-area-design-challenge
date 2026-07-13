@@ -1,7 +1,10 @@
 import type { OverlayId } from './Legend';
+import type { Units } from './SettingsContext';
+
+const M_TO_FT = 3.28084;
 
 export interface Readout {
-  elevationFt: number;
+  elevationM: number;
   overlay: OverlayId | null;
   slopeDeg: number;
   aspectCompass: string;
@@ -9,9 +12,13 @@ export interface Readout {
 }
 
 /** Lower-left readout: elevation always; active-overlay stat when one is on. */
-export function CursorReadout({ readout }: { readout: Readout | null }) {
+export function CursorReadout({ readout, units }: { readout: Readout | null; units: Units }) {
   if (!readout) return null;
-  const ft = Math.round(readout.elevationFt).toLocaleString();
+
+  const elev =
+    units === 'imperial'
+      ? `${Math.round(readout.elevationM * M_TO_FT).toLocaleString()} ft`
+      : `${Math.round(readout.elevationM).toLocaleString()} m`;
 
   let stat: { label: string; value: string } | null = null;
   if (readout.overlay === 'slope') stat = { label: 'Slope', value: `${Math.round(readout.slopeDeg)}°` };
@@ -22,7 +29,7 @@ export function CursorReadout({ readout }: { readout: Readout | null }) {
     <div className="cursor-readout">
       <div className="readout-line">
         <span className="readout-label">Elevation</span>
-        <span className="readout-value">{ft} ft</span>
+        <span className="readout-value">{elev}</span>
       </div>
       {stat && (
         <div className="readout-line">
