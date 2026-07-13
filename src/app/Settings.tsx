@@ -1,5 +1,5 @@
 import { useSettings } from './SettingsContext';
-import type { Theme, Units } from './SettingsContext';
+import type { Theme, Units, RenderQuality } from './SettingsContext';
 import type { WindowMode } from '../ipcContract';
 import { isDesktop } from '../desktopBridge';
 
@@ -35,7 +35,8 @@ function Segmented<T extends string>({
 }
 
 export function Settings({ onClose }: { onClose: () => void }) {
-  const { settings, setTheme, setUnits, setWindowMode, setReducedMotion } = useSettings();
+  const { settings, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality } =
+    useSettings();
 
   const themeOpts: { value: Theme; label: string }[] = [
     { value: 'light', label: 'Light' },
@@ -45,6 +46,11 @@ export function Settings({ onClose }: { onClose: () => void }) {
   const unitOpts: { value: Units; label: string }[] = [
     { value: 'imperial', label: 'Feet' },
     { value: 'metric', label: 'Meters' },
+  ];
+  const qualityOpts: { value: RenderQuality; label: string }[] = [
+    { value: 'standard', label: 'Standard' },
+    { value: 'high', label: 'High' },
+    { value: 'ultra', label: 'Ultra' },
   ];
   const windowOpts: { value: WindowMode; label: string }[] = isDesktop
     ? [
@@ -76,6 +82,14 @@ export function Settings({ onClose }: { onClose: () => void }) {
             onChange={setWindowMode}
           />
           <Segmented label="Units" value={settings.units} options={unitOpts} onChange={setUnits} />
+
+          <Segmented
+            label="Render quality"
+            value={settings.renderQuality}
+            options={qualityOpts}
+            onChange={setRenderQuality}
+          />
+          <p className="setting-hint">Sharper map textures at higher GPU cost. Standard matches your display.</p>
 
           <div className="setting-row">
             <span className="setting-label">Reduced motion</span>

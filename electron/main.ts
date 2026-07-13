@@ -34,10 +34,13 @@ function createWindow() {
     },
   });
 
+  // GRAPHICS_LAB=1 (see `npm run dev:lab`) boots straight into the two-map
+  // graphics dev tool, bypassing the menu.
+  const labHash = process.env.GRAPHICS_LAB ? 'graphics-lab' : '';
   if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL + (labHash ? `#${labHash}` : ''));
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'), labHash ? { hash: labHash } : undefined);
   }
 
   mainWindow.on('closed', () => {

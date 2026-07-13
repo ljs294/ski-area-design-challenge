@@ -124,10 +124,45 @@ export interface SavedSiteBox {
   areaKm2: number;
 }
 
+// Ski lift classes. Only fixed-grip chairlifts exist today; the discriminator
+// leaves room for detachables, gondolas, and surface lifts later.
+export type LiftClass = 'fixed-grip';
+
+// Carrier size for chairlifts: single through quad (the realistic fixed-grip range).
+export type ChairSize = 1 | 2 | 3 | 4;
+
+// Build state of a lift. 'planning' is a proposed line (rendered dashed);
+// 'complete' is built (rendered solid). New lifts start in 'planning'.
+export type LiftStatus = 'planning' | 'complete';
+
+interface SavedLiftBase {
+  id: string;
+  name: string; // default "Lift N"
+  liftClass: LiftClass;
+  /** Exactly two [lng, lat] points: [bottom terminal, top terminal] once
+   *  elevations are known (drawn order until then). Straight line only. */
+  points: [[number, number], [number, number]];
+  /** Sampled terminal elevations in meters, parallel to `points`. null means
+   *  sampling failed (offline) — backfilled on next load. */
+  endpointElevM: [number | null, number | null];
+  lengthM: number; // slope length; horizontal-only when elevations unknown
+  verticalM: number | null; // |top - bottom|; null while elevations unresolved
+  capacityPph: number; // user-chosen hourly capacity (persons per hour)
+  status: LiftStatus; // 'planning' (dashed) or 'complete' (solid)
+  createdAt: string; // ISO
+}
+
+export interface SavedFixedGripLift extends SavedLiftBase {
+  liftClass: 'fixed-grip';
+  chairSize: ChairSize; // default 2 (double)
+}
+
+export type SavedLift = SavedFixedGripLift;
+
 // A player's resort design. The first-class "game" unit, distinct from the raw
 // TerrainRecord it will eventually reference for offline rendering. Camera +
-// site are persisted so Load/Continue restores the exact view. `terrainKey`,
-// `lifts`, and `trails` are reserved for the offline-terrain + design/simulation
+// site are persisted so Load/Continue restores the exact view. `terrainKey`
+// and `trails` are reserved for the offline-terrain + design/simulation
 // layers that are not built yet — the map still streams tiles online for now.
 export interface GameSave {
   schemaVersion: 1;
@@ -141,7 +176,7 @@ export interface GameSave {
   pitch: number;
   is3D: boolean;
   site: SavedSiteBox | null; // locked property box, if one was drawn
-  lifts: unknown[]; // reserved for future ski-lift lines
+  lifts: SavedLift[]; // ski lifts drawn on the map
   trails: unknown[]; // reserved for future trail lines
   createdAt: string; // ISO
   updatedAt: string; // ISO

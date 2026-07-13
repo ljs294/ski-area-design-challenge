@@ -5,12 +5,32 @@ import type { WindowMode } from '../ipcContract';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type Units = 'imperial' | 'metric';
+export type RenderQuality = 'standard' | 'high' | 'ultra';
 
 export interface Settings {
   theme: Theme;
   units: Units;
   windowMode: WindowMode;
   reducedMotion: boolean;
+  renderQuality: RenderQuality;
+}
+
+/**
+ * Map a quality tier to a MapLibre pixelRatio (canvas supersampling factor).
+ * 'standard' matches the display's own DPR (what MapLibre does by default, so
+ * Retina/4K displays never regress); higher tiers push above it for a crisper
+ * map at the cost of fill-rate. Clamped to never fall below native DPR.
+ */
+export function pixelRatioFor(quality: RenderQuality): number {
+  const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+  switch (quality) {
+    case 'ultra':
+      return Math.max(dpr, 3);
+    case 'high':
+      return Math.max(dpr, 2);
+    default:
+      return dpr;
+  }
 }
 
 const STORAGE_KEY = 'skiapp:settings';
@@ -20,6 +40,7 @@ const DEFAULTS: Settings = {
   units: 'imperial',
   windowMode: 'windowed',
   reducedMotion: false,
+  renderQuality: 'standard',
 };
 
 function loadSettings(): Settings {
@@ -57,6 +78,7 @@ interface SettingsContextValue {
   setUnits: (u: Units) => void;
   setWindowMode: (m: WindowMode) => void;
   setReducedMotion: (v: boolean) => void;
+  setRenderQuality: (q: RenderQuality) => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -111,14 +133,18 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     (reducedMotion: boolean) => setSettings((s) => ({ ...s, reducedMotion })),
     []
   );
+  const setRenderQuality = useCallback(
+    (renderQuality: RenderQuality) => setSettings((s) => ({ ...s, renderQuality })),
+    []
+  );
   const setWindowMode = useCallback((windowMode: WindowMode) => {
     applyWindowMode(windowMode);
     setSettings((s) => ({ ...s, windowMode }));
   }, []);
 
   const value = useMemo<SettingsContextValue>(
-    () => ({ settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion }),
-    [settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion]
+    () => ({ settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality }),
+    [settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality]
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

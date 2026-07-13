@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { MenuBackdrop } from './MenuBackdrop';
 import { isDesktop } from '../desktopBridge';
 
@@ -55,11 +56,19 @@ export function MainMenu({
     { key: 'exit', label: 'Exit', rating: 'double-black', onClick: onExit, hidden: !isDesktop },
   ];
 
+  // Keep the menu hidden behind a minimal loading bar until the backdrop map has
+  // fully loaded, so it reveals as a finished scene, never mid-tile-load.
+  const [ready, setReady] = useState(false);
+
   return (
     <div className="main-menu">
-      <MenuBackdrop />
+      <MenuBackdrop onReady={() => setReady(true)} />
 
-      <div className="menu-content">
+      <div className={`menu-loading${ready ? ' menu-loading-done' : ''}`} aria-hidden={ready}>
+        <div className="menu-loading-bar" />
+      </div>
+
+      <div className={`menu-content${ready ? '' : ' menu-content-loading'}`} aria-hidden={!ready}>
         <div className="menu-logo">
           <svg className="menu-logo-mark" viewBox="0 0 100 80" aria-hidden>
             <path d="M10,70 L50,20 L90,70 Z" fill="none" strokeWidth="3" strokeLinejoin="round" />

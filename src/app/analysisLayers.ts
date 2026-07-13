@@ -75,6 +75,31 @@ export function setupAnalysisLayers(map: maplibregl.Map): LayerToggle[] {
   // Capture basemap feature layer ids BEFORE we add our own layers.
   const basemap = basemapCategories(styleLayers);
 
+  // --- Satellite imagery (Esri World Imagery) ---
+  // Draped at the bottom of our stack (under hillshade + overlays) so shaded
+  // relief reads over the photo. Off by default; the big "photoreal" lever,
+  // especially over 3D terrain. Goes to z19 — far crisper than the vector
+  // basemap when the LOD keeps that detail into the distance.
+  map.addSource('satellite', {
+    type: 'raster',
+    tiles: [
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    ],
+    tileSize: 256,
+    maxzoom: 19,
+    attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+  });
+  map.addLayer(
+    {
+      id: 'satellite',
+      type: 'raster',
+      source: 'satellite',
+      layout: { visibility: 'none' },
+      paint: { 'raster-opacity': 1 },
+    },
+    before
+  );
+
   // --- Ground cover: ESA WorldCover recolored into our buckets ---
   registerWorldcoverProtocol();
   map.addSource('worldcover', {
@@ -200,6 +225,7 @@ export function setupAnalysisLayers(map: maplibregl.Map): LayerToggle[] {
   );
 
   return [
+    { id: 'satellite', label: 'Satellite imagery', layerIds: ['satellite'], visible: false },
     { id: 'hillshade', label: 'Hillshade', layerIds: ['hillshade'], visible: true },
     { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'contour-labels'], visible: true },
     { id: 'slope', label: 'Slope angle', layerIds: ['slope'], visible: false, exclusiveGroup: 'overlay' },

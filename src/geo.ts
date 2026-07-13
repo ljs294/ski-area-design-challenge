@@ -24,6 +24,20 @@ export function boundsForSquareMeters(
   };
 }
 
+const EARTH_RADIUS_M = 6371000;
+
+/** Great-circle distance in meters between two [lng, lat] points (haversine). */
+export function haversineMeters(a: [number, number], b: [number, number]): number {
+  const toRad = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * toRad;
+  const dLng = (b[0] - a[0]) * toRad;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h =
+    sinLat * sinLat + Math.cos(a[1] * toRad) * Math.cos(b[1] * toRad) * sinLng * sinLng;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
+}
+
 export interface WorldPoint {
   x: number;
   y: number;

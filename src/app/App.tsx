@@ -4,15 +4,29 @@ import { MainMenu } from './MainMenu';
 import { MapManagement } from './MapManagement';
 import { Settings } from './Settings';
 import { LoadGameModal } from './LoadGameModal';
+import { GraphicsLab } from './GraphicsLab';
 import { SettingsProvider } from './SettingsContext';
 import { listGames, loadGame, mostRecentGame } from '../gameSaveClient';
 import { desktop } from '../desktopBridge';
 import type { GameSave } from '../types';
 
-type Screen = 'menu' | 'newGame' | 'game' | 'mapMgmt';
+type Screen = 'menu' | 'newGame' | 'game' | 'mapMgmt' | 'graphicsLab';
+
+/**
+ * Boot straight into a screen from a deep link, bypassing the menu. The
+ * Graphics Lab dev tool opens via `#graphics-lab` (or `?lab`) so it can be
+ * launched directly (see electron/main.ts GRAPHICS_LAB env).
+ */
+function initialScreen(): Screen {
+  if (typeof window === 'undefined') return 'menu';
+  const hash = window.location.hash.toLowerCase();
+  const params = new URLSearchParams(window.location.search);
+  if (hash.includes('graphics-lab') || params.has('lab')) return 'graphicsLab';
+  return 'menu';
+}
 
 function AppInner() {
-  const [screen, setScreen] = useState<Screen>('menu');
+  const [screen, setScreen] = useState<Screen>(initialScreen);
   const [currentSave, setCurrentSave] = useState<GameSave | null>(null);
   const [hasSaves, setHasSaves] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -26,6 +40,18 @@ function AppInner() {
   useEffect(() => {
     if (screen === 'menu') refreshHasSaves();
   }, [screen, refreshHasSaves]);
+
+  // Dev shortcut: Ctrl/Cmd+Shift+G toggles the Graphics Lab from anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        setScreen((s) => (s === 'graphicsLab' ? 'menu' : 'graphicsLab'));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const openSave = useCallback((save: GameSave) => {
     setCurrentSave(save);
@@ -84,6 +110,8 @@ function AppInner() {
       )}
 
       {screen === 'mapMgmt' && <MapManagement onBack={toMenu} />}
+
+      {screen === 'graphicsLab' && <GraphicsLab onExit={toMenu} />}
 
       {showLoad && <LoadGameModal onClose={() => setShowLoad(false)} onPick={(k) => void handleLoadPick(k)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
