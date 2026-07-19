@@ -28,8 +28,10 @@ try {
   await page.waitForSelector('.hud-resort',{timeout:8000});
   await page.waitForTimeout(1000); // let fitBounds settle
 
-  // Draw a lift: arm the tool, click two terminals.
-  await page.click('.site-btn >> text=New lift');
+  // Draw a lift: open the Lifts dock, hit "Add ski lift", click two terminals.
+  await page.click('.dock-circle-lifts');
+  await page.waitForTimeout(200);
+  await page.click('.lift-add-btn');
   await page.waitForTimeout(300);
   await page.mouse.click(500,500);
   await page.waitForTimeout(300);
@@ -81,7 +83,8 @@ try {
   await page.click('.lift-panel .site-btn-primary'); // Done
   await page.waitForTimeout(300);
 
-  // Persist + verify the save payload.
+  // Persist + verify the save payload (Save lives in the top-right Menu now).
+  await page.click('.game-menu-btn');
   await page.click('.hud-save');
   await page.waitForTimeout(800);
   const savedLift = await page.evaluate(()=>{

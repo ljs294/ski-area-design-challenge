@@ -1,5 +1,16 @@
 // Verifies the cursor readout (elevation + active-overlay stat) and the
 // context-sensitive legend (only when panel open, only for active overlay).
+//
+// NOTE (menu-overhaul relocation): this legacy diagnostic boots straight to the
+// map on :5175 and predates the main-menu flow. In the current UI:
+//   - In-game the readout moved onto the bottom toolbar as `.tb-readout`
+//     (Elev/Slope/Aspect always shown); `.cursor-readout` now only renders
+//     during site-picking (before a resort is saved).
+//   - The in-game layer toggles live behind the Layers dock circle
+//     (`.dock-circle-layers`); open it before touching `.layer-row`, and
+//     "collapse" = click that circle again (there is no `.layer-panel-header`
+//     in-game anymore — that header still exists in the Graphics Lab panel).
+// Re-point this through the New Game flow (see verifyLifts.mjs) when reviving it.
 import { chromium } from 'playwright';
 
 const url = process.argv[2] ?? 'http://localhost:5175/';

@@ -97,15 +97,23 @@ function AppInner() {
       )}
 
       {screen === 'newGame' && (
-        <MapView mode="picking" onQuit={toMenu} onOpenSettings={() => setShowSettings(true)} />
+        <MapView
+          mode="picking"
+          onQuit={toMenu}
+          onOpenSettings={() => setShowSettings(true)}
+          onLoadGame={() => setShowLoad(true)}
+        />
       )}
 
       {screen === 'game' && (
         <MapView
+          // Remount when the loaded save changes so Load/Continue reinitialize cleanly.
+          key={currentSave?.key ?? 'game'}
           mode="playing"
           initialSave={currentSave}
           onQuit={toMenu}
           onOpenSettings={() => setShowSettings(true)}
+          onLoadGame={() => setShowLoad(true)}
         />
       )}
 

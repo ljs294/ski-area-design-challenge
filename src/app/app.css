@@ -225,7 +225,8 @@ body {
 /* --- Top-right control stack --- */
 .top-right-stack {
   position: absolute;
-  top: 12px;
+  /* Sits below the top-right Menu button (top:12px, ~38px tall). */
+  top: 60px;
   right: 12px;
   z-index: 10;
   display: flex;
@@ -635,60 +636,446 @@ body {
 }
 
 /* ============================================================
-   In-game HUD (bottom-center, avoids the corner panels)
+   In-game bottom dock: status toolbar + layers/lifts roll-up circles
    ============================================================ */
-.game-hud {
+.game-dock {
   position: absolute;
-  left: 50%;
-  bottom: 20px;
-  transform: translateX(-50%);
+  left: 16px;
+  bottom: 16px;
+  width: fit-content;
+  max-width: calc(100vw - 32px);
   z-index: 11;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  pointer-events: none;
+}
+.game-dock > * {
+  pointer-events: auto;
+}
+
+/* Left-aligned column: the open roll-up sits above the two circles, which in
+   turn sit just above the toolbar's left edge. */
+.dock-stack {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.dock-circles {
+  display: flex;
+  gap: 10px;
+}
+
+.dock-circle {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.dock-circle:hover {
+  border-color: var(--accent);
+}
+.dock-circle.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.dock-rollup {
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  transform-origin: bottom left;
+  animation: dock-rollup-in 0.18s ease-out;
+}
+@keyframes dock-rollup-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scaleY(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-rollup {
+    animation: none;
+  }
+}
+
+.dock-panel {
   background: var(--surface);
-  padding: 6px 8px;
+  border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow);
+  padding: 10px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.dock-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* --- Status toolbar --- */
+.game-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* Fixed footprint: the bar stays one size regardless of the values inside it
+     (money totals, clock, resort name length, cursor readout). Variable groups
+     below get fixed widths; leftover space collects before the right readout. */
+  width: 720px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 6px 8px;
+}
+.tb-group {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+}
+.tb-group:last-child {
+  border-right: none;
+}
+.tb-group-right {
+  margin-left: auto;
+  border-right: none;
+}
+
+.tb-play {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 13px;
+  cursor: pointer;
+}
+.tb-play:hover {
+  background: var(--accent-hover);
+}
+
+.tb-clock {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  width: 64px;
+}
+.tb-day {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tb-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tb-speeds {
+  display: flex;
+  gap: 2px;
+  background: var(--seg-bg);
+  border-radius: 8px;
+  padding: 2px;
+}
+.tb-speed {
+  min-width: 28px;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tb-speed.is-active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.tb-money {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+  width: 84px;
+}
+.tb-balance {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.tb-income {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tb-resort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  color: var(--text);
+}
+.tb-resort:hover {
+  background: var(--seg-bg);
+}
+.tb-resort-name {
+  display: block;
+  width: 132px;
+}
+.tb-caret {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.tb-readout {
+  display: flex;
+  gap: 12px;
+}
+.tb-readout-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  line-height: 1.15;
+  width: 64px;
+}
+/* Contextual slot stays reserved (blank) when no overlay is active so the
+   toolbar keeps its width; its height is driven by the Elevation cell. */
+.tb-readout-ctx {
+  min-height: 26px;
+}
+.tb-readout-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.tb-readout-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .hud-resort {
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
-  padding: 0 6px;
-  max-width: 40vw;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.game-hud .ghost-btn {
-  box-shadow: none;
+/* ============================================================
+   Top-right in-game Menu (Save / Load / Settings / Credits / Main Menu)
+   ============================================================ */
+.game-menu {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 12;
 }
-
-.hud-save {
+.game-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 8px 12px;
+  color: var(--text);
   font-size: 13px;
   font-weight: 600;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--accent-contrast);
   cursor: pointer;
 }
-
-.hud-save:hover {
-  background: var(--accent-hover);
+.game-menu-btn:hover {
+  border-color: var(--accent);
 }
-
-.hud-save:disabled {
-  opacity: 0.6;
-}
-
-.hud-settings {
+.game-menu-icon {
   font-size: 15px;
   line-height: 1;
+}
+
+.game-menu-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 168px;
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.game-menu-item {
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.game-menu-item:hover {
+  background: var(--seg-bg);
+}
+.game-menu-item:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.game-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+
+/* --- Ski-lift overview (Lifts roll-up, draw tool idle) --- */
+.lift-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lift-overview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.lift-overview-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.lift-add-btn {
+  width: 100%;
+}
+.lift-overview-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 6px 2px;
+}
+
+/* --- Resort stats panel (opened from the toolbar name) --- */
+.resort-stats {
+  width: 340px;
+  max-width: 90vw;
+}
+.resort-stats-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.resort-stats-loc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 2px 2px 12px;
+}
+.resort-stats-body {
+  display: flex;
+  flex-direction: column;
+}
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.stat-row:last-child {
+  border-bottom: none;
+}
+.stat-row-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.stat-row-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.stat-row-value.is-tbd {
+  color: var(--text-muted);
+  font-weight: 500;
+  font-style: italic;
+}
+
+/* --- Credits panel --- */
+.credits-panel {
+  width: 380px;
+  max-width: 92vw;
+}
+.credits-intro {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.credits-list {
+  display: flex;
+  flex-direction: column;
+}
+.credits-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.credits-row:last-child {
+  border-bottom: none;
+}
+.credits-what {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.credits-who {
+  font-size: 13px;
+  color: var(--text);
+  text-align: right;
 }
 
 /* --- Name-your-resort panel (New Game, after locking a site) --- */

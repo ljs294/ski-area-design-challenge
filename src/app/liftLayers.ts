@@ -116,21 +116,18 @@ export function addLiftLayers(map: maplibregl.Map): void {
     filter: ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], true]],
     paint: { 'line-color': LIFT_RED, 'line-width': 2.5, 'line-dasharray': [2, 1.5] },
   });
+  // Terminal dots: red (matching the line) on a white ring, so both ends read
+  // the same on any basemap.
   map.addLayer({
     id: 'lift-terminals',
     type: 'circle',
     source: LIFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'terminal'],
     paint: {
-      'circle-radius': ['match', ['get', 'role'], 'top', 5, 4],
-      'circle-color': [
-        'case',
-        ['==', ['get', 'draft'], true],
-        LIFT_RED,
-        ['match', ['get', 'role'], 'top', '#111827', '#374151'],
-      ],
+      'circle-radius': 4.5,
+      'circle-color': LIFT_RED,
       'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5,
+      'circle-stroke-width': 2,
     },
   });
   map.addLayer({

@@ -29,7 +29,8 @@ try {
   // Confirm it landed in storage.
   const stored = await page.evaluate(()=>JSON.parse(localStorage.getItem('gamesave-index')||'[]'));
   console.log('STORED_COUNT:', stored.length, 'NAMES:', JSON.stringify(stored.map(s=>s.name)));
-  // Back to menu; Continue should now be enabled.
+  // Back to menu; Continue should now be enabled (Main Menu lives in the Menu dropdown).
+  await page.click('.game-menu-btn');
   await page.click('.hud-quit');
   await page.waitForSelector('.main-menu',{timeout:8000});
   await waitStyle('menuMap');

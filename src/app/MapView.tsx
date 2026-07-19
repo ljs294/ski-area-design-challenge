@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { setupAnalysisLayers, type LayerToggle } from './analysisLayers';
-import { LayerPanel } from './LayerPanel';
+import { LayerList } from './LayerPanel';
+import { GameToolbar } from './GameToolbar';
+import { GameMenu } from './GameMenu';
+import { CreditsPanel } from './CreditsPanel';
+import { LiftOverview } from './LiftOverview';
+import { ResortStatsPanel } from './ResortStatsPanel';
 import { CursorReadout, type Readout } from './CursorReadout';
 import type { OverlayId } from './Legend';
 import { sampleTerrainAt, compass8 } from './terrainProtocols';
@@ -77,19 +82,25 @@ interface MapViewProps {
   initialSave?: GameSave | null;
   onQuit: () => void;
   onOpenSettings: () => void;
+  /** Open the Load Game modal (owned by App). Menu → Load. */
+  onLoadGame: () => void;
 }
 
 /**
  * Owns the MapLibre instance. The map lives in a ref (never React state); React
  * state holds the layer-toggle UI model, cursor readout, and game/site status.
  */
-export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: MapViewProps) {
+export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLoadGame }: MapViewProps) {
   const { settings, resolvedTheme } = useSettings();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [layers, setLayers] = useState<LayerToggle[]>([]);
-  const [panelOpen, setPanelOpen] = useState(true);
+  // Bottom-dock roll-ups: user-chosen open panel (the lift panel also force-opens
+  // whenever the lift tool is active or a lift is selected — see liftsOpen below).
+  const [openDock, setOpenDock] = useState<'layers' | 'lifts' | null>(null);
+  const [showStats, setShowStats] = useState(false);
+  const [showCredits, setShowCredits] = useState(false);
   const [readout, setReadout] = useState<Readout | null>(null);
   const [siteMode, setSiteMode] = useState<SiteMode>(initialSave?.site ? 'locked' : 'explore');
   const [siteBox, setSiteBoxState] = useState<SiteBox | null>((initialSave?.site as SiteBox) ?? null);
@@ -209,7 +220,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
       bearing: start?.bearing ?? 0,
       pitch: start?.pitch ?? 0,
       pixelRatio: pixelRatioFor(settings.renderQuality),
-      attributionControl: { compact: false },
+      // Manual compact control (added below) instead of the default text blob, so
+      // attribution sits clear of the bottom dock and stays license-compliant.
+      attributionControl: false,
     });
     mapRef.current = map;
     // Exposed for the Playwright verification harness (readyGlobal: "appMap").
@@ -217,6 +230,20 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
 
     map.dragRotate.enable();
     map.keyboard.enable();
+    // Compact ⓘ, bottom-right — just left of the zoom/compass map controls (the
+    // dock now occupies the bottom-left). Aggregates the map-source attributions;
+    // customAttribution adds the fetch-time services that aren't persistent
+    // sources (USGS 3DEP elevation, Nominatim geocoding).
+    map.addControl(
+      new maplibregl.AttributionControl({
+        compact: true,
+        customAttribution: [
+          'Elevation: USGS 3DEP',
+          'Geocoding © OpenStreetMap contributors (Nominatim)',
+        ],
+      }),
+      'bottom-right'
+    );
     map.addControl(
       new maplibregl.NavigationControl({ visualizePitch: true, showZoom: true, showCompass: true }),
       'bottom-right'
@@ -620,8 +647,32 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
     if (res.ok) setSaved(next);
   }
 
+  /** Live-rename the resort; persists on the next Save (snapshot reads saved.name). */
+  function renameResort(name: string) {
+    setSaved((s) => (s ? { ...s, name } : s));
+  }
+
   const picking = mode === 'picking';
   const awaitingName = picking && siteMode === 'locked' && !saved;
+
+  // Lift panel is open when the user opened it OR the tool is mid-draw / a lift
+  // is being edited; layers yield to it so the two roll-ups never overlap.
+  const liftActive = liftTool.phase !== 'idle' || selectedLiftId !== null;
+  const liftsOpen = !!saved && (openDock === 'lifts' || liftActive);
+  const layersOpen = openDock === 'layers' && !liftsOpen;
+
+  /** Coordinate to reverse-geocode for the resort's Location: site center if a
+   *  site box is locked, else the saved camera center, else the live map. */
+  function resortCenter(): [number, number] {
+    const box = siteBox;
+    if (box) {
+      const [[w, s], [e, n]] = box.bounds;
+      return [(w + e) / 2, (s + n) / 2];
+    }
+    if (saved) return saved.center;
+    const c = mapRef.current?.getCenter();
+    return c ? [c.lng, c.lat] : INITIAL_CENTER;
+  }
 
   function handleToggle(id: string) {
     const map = mapRef.current;
@@ -655,31 +706,20 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
     <>
       <div ref={containerRef} className="map-root" />
 
-      {/* Top-left game HUD (playing) or "pick a site" hint (new game) */}
-      <div className="game-hud">
-        <button className="ghost-btn hud-quit" onClick={onQuit} title="Back to Menu">
-          ‹ Menu
-        </button>
-        {saved && <span className="hud-resort">{saved.name}</span>}
-        {saved && (
-          <button className="hud-save" onClick={saveProgress} disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        )}
-        <button className="ghost-btn hud-settings" onClick={onOpenSettings} title="Settings" aria-label="Settings">
-          ⚙
-        </button>
-      </div>
+      {/* Top-right app menu (Save / Load / Settings / Credits / Main Menu) */}
+      <GameMenu
+        canSave={!!saved}
+        saving={saving}
+        onSave={saveProgress}
+        onLoad={onLoadGame}
+        onSettings={onOpenSettings}
+        onCredits={() => setShowCredits(true)}
+        onQuit={onQuit}
+      />
 
       {picking && !saved && <SearchBox onResult={handleSearchResult} />}
-      <LayerPanel
-        layers={layers}
-        onToggle={handleToggle}
-        open={panelOpen}
-        onToggleOpen={() => setPanelOpen((o) => !o)}
-        activeOverlay={activeOverlay}
-      />
-      <CursorReadout readout={readout} units={settings.units} />
+
+      {/* Site-picking + 3D controls (top-right, below the Menu button) */}
       <div className="top-right-stack">
         {picking && !saved && (
           <SiteControl
@@ -691,25 +731,96 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
             onExit={exitSite}
           />
         )}
-        {saved && (
-          <LiftControl
-            tool={liftTool}
-            lifts={lifts}
-            selectedId={selectedLiftId}
-            units={settings.units}
-            onArm={armLiftTool}
-            onCancel={cancelLiftTool}
-            onDraftChange={patchLiftDraft}
-            onConfirm={confirmLift}
-            onSelect={(id) => selectLiftRef.current(id)}
-            onEditPatch={patchLift}
-            onCloseEdit={() => setSelectedLiftId(null)}
-            onDelete={deleteLift}
-            onRetryElevation={retryLiftElevation}
-          />
-        )}
         <View3DControl is3D={is3D} onToggle={toggle3D} />
       </div>
+
+      {/* Site-picking readout floats lower-left; in-game it lives on the toolbar. */}
+      {!saved && <CursorReadout readout={readout} units={settings.units} />}
+
+      {/* Bottom dock: layers/lifts roll-up circles above the status toolbar */}
+      {saved && (
+        <div className="game-dock">
+          <div className="dock-stack">
+            {layersOpen && (
+              <div className="dock-rollup dock-layers">
+                <div className="dock-panel">
+                  <div className="dock-panel-title">Layers</div>
+                  <LayerList
+                    layers={layers}
+                    onToggle={handleToggle}
+                    activeOverlay={activeOverlay}
+                  />
+                </div>
+              </div>
+            )}
+            {liftsOpen && (
+              <div className="dock-rollup dock-lifts">
+                <div className="dock-panel">
+                  {liftActive ? (
+                    <LiftControl
+                      tool={liftTool}
+                      lifts={lifts}
+                      selectedId={selectedLiftId}
+                      units={settings.units}
+                      onArm={armLiftTool}
+                      onCancel={cancelLiftTool}
+                      onDraftChange={patchLiftDraft}
+                      onConfirm={confirmLift}
+                      onSelect={(id) => selectLiftRef.current(id)}
+                      onEditPatch={patchLift}
+                      onCloseEdit={() => setSelectedLiftId(null)}
+                      onDelete={deleteLift}
+                      onRetryElevation={retryLiftElevation}
+                    />
+                  ) : (
+                    <LiftOverview
+                      lifts={lifts}
+                      units={settings.units}
+                      onArm={armLiftTool}
+                      onSelect={(id) => selectLiftRef.current(id)}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="dock-circles">
+              <button
+                className={`dock-circle dock-circle-layers${layersOpen ? ' is-active' : ''}`}
+                onClick={() => setOpenDock((d) => (d === 'layers' ? null : 'layers'))}
+                aria-pressed={layersOpen}
+                title="Layers"
+                aria-label="Layers"
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                  <path d="M12 3 2 8l10 5 10-5-10-5Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                  <path d="M2 12l10 5 10-5M2 16l10 5 10-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                className={`dock-circle dock-circle-lifts${liftsOpen ? ' is-active' : ''}`}
+                onClick={() => setOpenDock((d) => (d === 'lifts' ? null : 'lifts'))}
+                aria-pressed={liftsOpen}
+                title="Ski lifts"
+                aria-label="Ski lifts"
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                  <path d="M3 6l18-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <circle cx="10" cy="5.4" r="1.1" fill="currentColor" />
+                  <path d="M10 6.5v2.8m-2.4 0h4.8l-.7 3.4H8.3l-.7-3.4Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <GameToolbar
+            resortName={saved.name}
+            onOpenStats={() => setShowStats(true)}
+            readout={readout}
+            units={settings.units}
+          />
+        </div>
+      )}
 
       {/* Name-and-start panel once a New Game site is locked */}
       {awaitingName && (
@@ -740,6 +851,19 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
           </div>
         </div>
       )}
+
+      {saved && showStats && (
+        <ResortStatsPanel
+          name={saved.name}
+          onRename={renameResort}
+          lifts={lifts}
+          center={resortCenter()}
+          units={settings.units}
+          onClose={() => setShowStats(false)}
+        />
+      )}
+
+      {showCredits && <CreditsPanel onClose={() => setShowCredits(false)} />}
     </>
   );
 }

@@ -1,0 +1,44 @@
+// Human-readable credits for the free data services the app depends on. The
+// map's compact ⓘ control (bottom-left) is the license-compliance surface; this
+// panel is the discoverable version, opened from the in-game Menu. Strings mirror
+// the `attribution` values registered on the map sources in analysisLayers.ts.
+
+interface Credit {
+  what: string;
+  who: string;
+}
+
+const CREDITS: Credit[] = [
+  { what: 'Basemap', who: '© OpenStreetMap contributors · © CARTO' },
+  { what: 'Satellite imagery', who: '© Esri, Maxar, Earthstar Geographics' },
+  { what: 'Land cover', who: '© ESA WorldCover project / Copernicus' },
+  { what: 'Terrain (hillshade)', who: 'Terrarium tiles · Mapzen / AWS Open Data' },
+  { what: 'Elevation', who: 'USGS 3DEP' },
+  { what: 'Place search / location', who: 'Nominatim · © OpenStreetMap contributors' },
+];
+
+export function CreditsPanel({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="settings-panel credits-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="settings-header">
+          <h2 className="settings-title">Data &amp; API credits</h2>
+          <button className="settings-close-x" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
+        <p className="credits-intro">
+          Ski Area Design Challenge is built on these free, open data services.
+        </p>
+        <div className="credits-list">
+          {CREDITS.map((c) => (
+            <div className="credits-row" key={c.what}>
+              <span className="credits-what">{c.what}</span>
+              <span className="credits-who">{c.who}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

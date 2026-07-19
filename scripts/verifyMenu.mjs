@@ -54,12 +54,13 @@ try {
   await waitMap('menuMap');
   await page.click('.trail-slat >> text=New Game');
   await waitMap('appMap');
-  const hasHud = await page.$('.game-hud');
+  const hasHud = await page.$('.game-menu');
   const hasSite = await page.$('.site-control');
-  console.log('NEWGAME_HUD:', !!hasHud, 'SITE_CONTROL:', !!hasSite);
+  console.log('NEWGAME_MENU:', !!hasHud, 'SITE_CONTROL:', !!hasSite);
   await page.screenshot({ path: `${outDir}/newgame.png` });
 
-  // --- Open Settings modal from the map HUD ---
+  // --- Open Settings modal from the top-right Menu dropdown ---
+  await page.click('.game-menu-btn');
   await page.click('.hud-settings');
   await page.waitForSelector('.settings-panel', { timeout: 5000 });
   await page.screenshot({ path: `${outDir}/settings.png` });
