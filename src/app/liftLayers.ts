@@ -141,14 +141,16 @@ export function addLiftLayers(map: maplibregl.Map): void {
     layout: {
       'symbol-placement': 'line-center',
       'text-field': ['get', 'name'],
-      'text-size': 12,
+      'text-size': 20,
+      // Noto Sans Bold 404s on the dark (Carto) basemap — Regular is the only
+      // weight both fontstacks ship, so labels stay visible after a theme swap.
       'text-font': ['Noto Sans Regular'],
       'text-optional': true,
     },
     paint: {
-      'text-color': '#111827',
+      'text-color': LIFT_RED,
       'text-halo-color': '#ffffff',
-      'text-halo-width': 1.5,
+      'text-halo-width': 2,
     },
   });
 }

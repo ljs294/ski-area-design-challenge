@@ -1075,12 +1075,6 @@ body {
   color: var(--text);
 }
 
-.lift-slider {
-  flex: 1;
-  min-width: 0;
-  accent-color: var(--accent);
-}
-
 .lift-warning {
   font-size: 12px;
   color: var(--warning, #b45309);
@@ -1261,46 +1255,6 @@ body {
 .lift-delete-warn {
   font-size: 12px;
   color: var(--danger);
-}
-
-/* Base-terminal capacity badge (HTML marker): red plaque + white chair emblem. */
-.lift-badge {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  cursor: pointer;
-  user-select: none;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
-}
-
-.lift-badge-plaque {
-  display: flex;
-  line-height: 0;
-  padding: 3px 5px 2px;
-  background: var(--lift-red, #d42027);
-  border: 1.5px solid #fff;
-  border-radius: 8px;
-}
-
-.lift-badge--planning {
-  opacity: 0.92;
-}
-
-.lift-badge--planning .lift-badge-plaque {
-  border-style: dashed;
-}
-
-.lift-badge-cap {
-  padding: 1px 5px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.4;
-  color: #1f2937;
-  background: #fff;
-  border-radius: 6px;
-  font-variant-numeric: tabular-nums;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 /* ============================================================

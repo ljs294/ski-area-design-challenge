@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ChairSize, LiftStatus, SavedLift } from '../types';
 import type { Units } from './SettingsContext';
 import { haversineMeters } from '../geo';
-import { CHAIR_LABELS, capacityRange, fixedGripDerived, fmtDistance, liftStats } from '../lifts';
+import { CHAIR_LABELS, fixedGripCapacityPph, fixedGripDerived, fmtDistance, liftStats } from '../lifts';
 
 // UI state machine for the lift drawing tool. MapView owns the state and all
 // map interaction; this component only renders it (SiteControl pattern).
@@ -17,7 +17,6 @@ export interface DraftLift {
   elev: [number | null, number | null]; // filled async by sampling
   elevStatus: 'pending' | 'ok' | 'error';
   chairSize: ChairSize;
-  capacityPph: number;
   status: LiftStatus;
   name: string;
 }
@@ -26,12 +25,6 @@ function fmtRideTime(s: number): string {
   const m = Math.floor(s / 60);
   const sec = Math.round(s % 60);
   return `${m}:${sec.toString().padStart(2, '0')} min`;
-}
-
-/** Clamp capacity into the new chair size's range when the size changes. */
-function chairSizePatch(chairSize: ChairSize, capacityPph: number) {
-  const r = capacityRange(chairSize);
-  return { chairSize, capacityPph: Math.min(r.max, Math.max(r.min, capacityPph)) };
 }
 
 function StatusToggle({
@@ -60,82 +53,61 @@ function StatusToggle({
   );
 }
 
-/** Chair-size select + capacity slider, shared by the new-lift and edit panels. */
-function ChairCapacityFields({
+/** Chair-size select, shared by the new-lift and edit panels. Capacity follows
+ *  from the size (fixed headway) and is shown read-only in the stats block. */
+function ChairSizeField({
   chairSize,
-  capacityPph,
   onChange,
 }: {
   chairSize: ChairSize;
-  capacityPph: number;
-  onChange: (patch: { chairSize?: ChairSize; capacityPph?: number }) => void;
+  onChange: (patch: { chairSize: ChairSize }) => void;
 }) {
-  const range = capacityRange(chairSize);
   return (
-    <>
-      <label className="lift-field">
-        <span className="lift-field-label">Chairs</span>
-        <select
-          className="lift-select"
-          value={chairSize}
-          onChange={(e) => onChange(chairSizePatch(Number(e.target.value) as ChairSize, capacityPph))}
-        >
-          {([1, 2, 3, 4] as ChairSize[]).map((s) => (
-            <option key={s} value={s}>
-              {CHAIR_LABELS[s]}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="lift-field">
-        <span className="lift-field-label">Capacity</span>
-        <input
-          className="lift-slider"
-          type="range"
-          min={range.min}
-          max={range.max}
-          step={range.step}
-          value={capacityPph}
-          onChange={(e) => onChange({ capacityPph: Number(e.target.value) })}
-        />
-        <span className="lift-field-value">{capacityPph.toLocaleString()}/hr</span>
-      </label>
-    </>
+    <label className="lift-field">
+      <span className="lift-field-label">Chairs</span>
+      <select
+        className="lift-select"
+        value={chairSize}
+        onChange={(e) => onChange({ chairSize: Number(e.target.value) as ChairSize })}
+      >
+        {([2, 3, 4] as ChairSize[]).map((s) => (
+          <option key={s} value={s}>
+            {CHAIR_LABELS[s]}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
-/** Length / vertical / ride-time readout shared by both panels. */
+/** Length / vertical / capacity / ride-time readout shared by both panels. */
 function LiftStatsBlock({
   points,
   elev,
-  capacityPph,
   chairSize,
   units,
   elevSlot,
 }: {
   points: [[number, number], [number, number]];
   elev: [number | null, number | null];
-  capacityPph: number;
   chairSize: ChairSize;
   units: Units;
   elevSlot?: React.ReactNode;
 }) {
   const stats = liftStats(points, elev);
-  const derived = fixedGripDerived(capacityPph, chairSize, stats.lengthM);
+  const derived = fixedGripDerived(stats.lengthM);
   const bottomElev = stats.topIndex === null ? null : elev[stats.topIndex === 1 ? 0 : 1];
   const topElev = stats.topIndex === null ? null : elev[stats.topIndex];
   return (
     <>
-      {derived.aggressive && (
-        <div className="lift-warning">
-          ⚠ {Math.round(derived.headwayS * 10) / 10} s between chairs — tight loading for a
-          fixed-grip lift
-        </div>
-      )}
       <div className="lift-stats">
         <div className="readout-line">
           <span className="lift-stat-label">Length</span>
           <span className="lift-stat-value">{fmtDistance(stats.lengthM, units)}</span>
+        </div>
+        <div className="readout-line">
+          <span className="lift-stat-label">Capacity</span>
+          <span className="lift-stat-value">{fixedGripCapacityPph(chairSize).toLocaleString()}/hr</span>
         </div>
         {elevSlot}
         {stats.verticalM != null && (
@@ -232,16 +204,11 @@ export function LiftControl({
           value={d.name}
           onChange={(e) => onDraftChange({ name: e.target.value })}
         />
-        <ChairCapacityFields
-          chairSize={d.chairSize}
-          capacityPph={d.capacityPph}
-          onChange={onDraftChange}
-        />
+        <ChairSizeField chairSize={d.chairSize} onChange={onDraftChange} />
         <StatusToggle value={d.status} onChange={(status) => onDraftChange({ status })} />
         <LiftStatsBlock
           points={d.points}
           elev={d.elev}
-          capacityPph={d.capacityPph}
           chairSize={d.chairSize}
           units={units}
           elevSlot={
@@ -282,9 +249,8 @@ export function LiftControl({
           value={editing.name}
           onChange={(e) => onEditPatch(editing.id, { name: e.target.value })}
         />
-        <ChairCapacityFields
+        <ChairSizeField
           chairSize={editing.chairSize}
-          capacityPph={editing.capacityPph}
           onChange={(patch) => onEditPatch(editing.id, patch)}
         />
         <StatusToggle
@@ -294,7 +260,6 @@ export function LiftControl({
         <LiftStatsBlock
           points={editing.points}
           elev={editing.endpointElevM}
-          capacityPph={editing.capacityPph}
           chairSize={editing.chairSize}
           units={units}
         />
@@ -352,7 +317,7 @@ export function LiftControl({
                 <span className="lift-row-summary">
                   {CHAIR_LABELS[l.chairSize]}
                   {` · ${fmtDistance(l.lengthM, units)}`}
-                  {` · ${l.capacityPph.toLocaleString()}/hr`}
+                  {` · ${fixedGripCapacityPph(l.chairSize).toLocaleString()}/hr`}
                   {l.status === 'planning' ? ' · Planning' : ''}
                 </span>
               </span>

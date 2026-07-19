@@ -128,8 +128,8 @@ export interface SavedSiteBox {
 // leaves room for detachables, gondolas, and surface lifts later.
 export type LiftClass = 'fixed-grip';
 
-// Carrier size for chairlifts: single through quad (the realistic fixed-grip range).
-export type ChairSize = 1 | 2 | 3 | 4;
+// Carrier size for chairlifts: double through quad (the realistic fixed-grip range).
+export type ChairSize = 2 | 3 | 4;
 
 // Build state of a lift. 'planning' is a proposed line (rendered dashed);
 // 'complete' is built (rendered solid). New lifts start in 'planning'.
@@ -147,7 +147,6 @@ interface SavedLiftBase {
   endpointElevM: [number | null, number | null];
   lengthM: number; // slope length; horizontal-only when elevations unknown
   verticalM: number | null; // |top - bottom|; null while elevations unresolved
-  capacityPph: number; // user-chosen hourly capacity (persons per hour)
   status: LiftStatus; // 'planning' (dashed) or 'complete' (solid)
   createdAt: string; // ISO
 }

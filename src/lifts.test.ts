@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { haversineMeters } from './geo';
 import {
-  capacityRange,
+  fixedGripCapacityPph,
   fixedGripDerived,
   liftStats,
   nextLiftName,
@@ -59,25 +59,20 @@ describe('orientBottomToTop', () => {
   });
 });
 
-describe('capacityRange', () => {
-  it('scales with chair size, double defaulting to the classic 1200 pph', () => {
-    expect(capacityRange(2)).toEqual({ min: 300, max: 1800, step: 50, default: 1200 });
-    expect(capacityRange(4).max).toBe(3600);
-    expect(capacityRange(1).min).toBe(150);
+describe('fixedGripCapacityPph', () => {
+  it('is 600 pph per seat at the fixed 6 s headway', () => {
+    expect(fixedGripCapacityPph(2)).toBe(1200);
+    expect(fixedGripCapacityPph(3)).toBe(1800);
+    expect(fixedGripCapacityPph(4)).toBe(2400);
   });
 });
 
 describe('fixedGripDerived', () => {
-  it('derives headway and ride time from capacity and length', () => {
-    const d = fixedGripDerived(1200, 2, 1500);
-    expect(d.headwayS).toBeCloseTo(6, 6); // 2 seats * 3600 / 1200
+  it('derives headway, spacing, and ride time from length', () => {
+    const d = fixedGripDerived(1500);
+    expect(d.headwayS).toBe(FIXED_GRIP_SPEC.headwayS); // fixed 6 s
     expect(d.carrierSpacingM).toBeCloseTo(6 * FIXED_GRIP_SPEC.ropeSpeedMps, 6);
     expect(d.rideTimeS).toBeCloseTo(1500 / FIXED_GRIP_SPEC.ropeSpeedMps, 6);
-    expect(d.aggressive).toBe(false);
-  });
-
-  it('flags unrealistically tight headways', () => {
-    expect(fixedGripDerived(1800, 2, 1500).aggressive).toBe(true); // 4 s headway
   });
 });
 
@@ -90,7 +85,6 @@ describe('sanitizeLifts', () => {
     endpointElevM: [1300, 2100],
     lengthM: 0, // stale on purpose — sanitize must recompute
     verticalM: null,
-    capacityPph: 1200,
     chairSize: 2,
     status: 'complete',
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -114,10 +108,15 @@ describe('sanitizeLifts', () => {
     expect(out[0].lengthM).toBeGreaterThan(800);
   });
 
-  it('clamps out-of-range capacity and defaults bad chair sizes', () => {
-    const out = sanitizeLifts([{ ...valid, capacityPph: 99_999, chairSize: 7 }]);
-    expect(out[0].chairSize).toBe(2);
-    expect(out[0].capacityPph).toBe(1800); // clamped to double max
+  it('defaults bad chair sizes and migrates legacy Single (1) to Double', () => {
+    expect(sanitizeLifts([{ ...valid, chairSize: 7 }])[0].chairSize).toBe(2);
+    expect(sanitizeLifts([{ ...valid, chairSize: 1 }])[0].chairSize).toBe(2);
+  });
+
+  it('drops the legacy capacityPph field from old saves', () => {
+    const out = sanitizeLifts([{ ...valid, capacityPph: 1200 }]);
+    expect(out).toHaveLength(1);
+    expect('capacityPph' in out[0]).toBe(false);
   });
 
   it('keeps a valid status and defaults legacy/garbage ones to complete', () => {

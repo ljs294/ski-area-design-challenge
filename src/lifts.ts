@@ -2,11 +2,13 @@ import { haversineMeters } from './geo';
 import type { ChairSize, LiftStatus, SavedLift } from './types';
 
 // Fixed-grip chairlift operating envelope. Carriers grip the haul rope
-// permanently, so the whole line runs at loading speed — ANSI B77.1 caps
-// fixed-grip chairs at ~2.54 m/s; 2.3 m/s is a typical full-speed line.
+// permanently, so the whole line runs at loading speed — 450 ft/min (2.286 m/s)
+// is a typical full-speed line. Chairs are evenly spaced so one passes each
+// terminal every `headwayS` seconds, which fixes the hourly capacity.
 export const FIXED_GRIP_SPEC = {
-  ropeSpeedMps: 2.3,
-  chairSizes: [1, 2, 3, 4] as ChairSize[],
+  ropeSpeedMps: 2.286, // 450 ft/min line speed
+  headwayS: 6, // one chair passes a terminal every 6 s
+  chairSizes: [2, 3, 4] as ChairSize[],
   defaultChairSize: 2 as ChairSize,
 };
 
@@ -14,23 +16,15 @@ const M_TO_FT = 3.28084;
 
 /** Human names for each carrier size, keyed by seat count. */
 export const CHAIR_LABELS: Record<ChairSize, string> = {
-  1: 'Single',
   2: 'Double',
   3: 'Triple',
   4: 'Quad',
 };
 
-export interface CapacityRange {
-  min: number;
-  max: number;
-  step: number;
-  default: number;
-}
-
-/** User-selectable hourly capacity bounds for a fixed-grip chair of a given
- *  size. Double ⇒ 300–1800 pph, default 1200 (the classic double-chair spec). */
-export function capacityRange(chairSize: ChairSize): CapacityRange {
-  return { min: 150 * chairSize, max: 900 * chairSize, step: 50, default: 600 * chairSize };
+/** Fixed-grip hourly capacity: one chair of `seats` every headwayS seconds
+ *  (Double 1,200 / Triple 1,800 / Quad 2,400 pph). */
+export function fixedGripCapacityPph(chairSize: ChairSize): number {
+  return (chairSize * 3600) / FIXED_GRIP_SPEC.headwayS; // 600 × seats
 }
 
 export interface LiftStats {
@@ -77,23 +71,16 @@ export interface FixedGripDerived {
   carrierSpacingM: number;
   carriersOnLine: number; // both directions of the loop
   rideTimeS: number;
-  /** Headway under ~5 s is unrealistic for fixed-grip loading — warn, don't block. */
-  aggressive: boolean;
 }
 
-export function fixedGripDerived(
-  capacityPph: number,
-  chairSize: ChairSize,
-  lengthM: number
-): FixedGripDerived {
-  const headwayS = (chairSize * 3600) / capacityPph;
+export function fixedGripDerived(lengthM: number): FixedGripDerived {
+  const headwayS = FIXED_GRIP_SPEC.headwayS;
   const carrierSpacingM = headwayS * FIXED_GRIP_SPEC.ropeSpeedMps;
   return {
     headwayS,
     carrierSpacingM,
     carriersOnLine: Math.ceil((2 * lengthM) / carrierSpacingM),
     rideTimeS: lengthM / FIXED_GRIP_SPEC.ropeSpeedMps,
-    aggressive: headwayS < 5,
   };
 }
 
@@ -128,14 +115,10 @@ export function sanitizeLifts(raw: unknown[]): SavedLift[] {
       typeof rawElevs[0] === 'number' && Number.isFinite(rawElevs[0]) ? rawElevs[0] : null,
       typeof rawElevs[1] === 'number' && Number.isFinite(rawElevs[1]) ? rawElevs[1] : null,
     ];
+    // Non-members (incl. legacy Single = 1) fall back to the default Double.
     const chairSize = FIXED_GRIP_SPEC.chairSizes.includes(l.chairSize as ChairSize)
       ? (l.chairSize as ChairSize)
       : FIXED_GRIP_SPEC.defaultChairSize;
-    const range = capacityRange(chairSize);
-    const capacityPph =
-      typeof l.capacityPph === 'number' && Number.isFinite(l.capacityPph)
-        ? Math.min(range.max, Math.max(range.min, l.capacityPph))
-        : range.default;
     // Legacy saves predate `status`; treat an already-built lift as complete.
     const status: LiftStatus = l.status === 'planning' || l.status === 'complete' ? l.status : 'complete';
     const stats = liftStats(points, elevs);
@@ -147,7 +130,6 @@ export function sanitizeLifts(raw: unknown[]): SavedLift[] {
       endpointElevM: elevs,
       lengthM: stats.lengthM,
       verticalM: stats.verticalM,
-      capacityPph,
       chairSize,
       status,
       createdAt: typeof l.createdAt === 'string' ? l.createdAt : new Date().toISOString(),

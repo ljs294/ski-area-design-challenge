@@ -44,6 +44,11 @@ try {
   console.log('ELEVATION:', outcome);
   const panelText = await page.$eval('.lift-panel', el=>el.textContent);
   console.log('PANEL_TEXT:', panelText.replace(/\s+/g,' ').slice(0,300));
+  // Capacity is now derived + read-only: no slider, a Capacity stat line, no Single option.
+  const sliderInReview = await page.$$eval('.lift-slider', els=>els.length).catch(()=>0);
+  console.log('REVIEW_NO_SLIDER:', sliderInReview===0, '(expect true)');
+  console.log('REVIEW_HAS_CAPACITY_STAT:', /Capacity/.test(panelText) && /\/hr/.test(panelText), '(expect true)');
+  console.log('REVIEW_NO_SINGLE:', !/Single/.test(panelText), '(expect true)');
   await page.screenshot({path:`${outDir}/lift-review.png`});
   // New lifts default to Planning; the primary button reads "Add to plan".
   await page.click('.lift-panel .site-btn-primary');
@@ -58,12 +63,9 @@ try {
   const rowText = await page.$eval('.lift-row', el=>el.textContent).catch(()=>null);
   console.log('LIST_ROW:', rowText);
 
-  // Capacity badge marker at the base terminal.
-  const badgeText = await page.$eval('.lift-badge .lift-badge-cap', el=>el.textContent).catch(()=>null);
-  const badgeSeats = await page.$$eval('.lift-badge svg circle', els=>els.length).catch(()=>0);
-  console.log('BADGE_CAP:', badgeText, '| BADGE_CIRCLES:', badgeSeats, '(double = 3: grip+2 heads)');
-  const planningDash = await page.$eval('.lift-badge', el=>el.classList.contains('lift-badge--planning')).catch(()=>null);
-  console.log('BADGE_PLANNING_CLASS:', planningDash);
+  // Badges were removed entirely — assert no plaque marker exists anywhere.
+  const badgeCount = await page.$$eval('.lift-badge', els=>els.length).catch(()=>0);
+  console.log('BADGE_COUNT:', badgeCount, '(expect 0)');
 
   // Edit flow: open the lift, flip it to Complete, confirm the line restyles.
   await page.click('.lift-row-btn');
@@ -76,8 +78,6 @@ try {
     return line && line.properties.status;
   });
   console.log('STATUS_AFTER_EDIT:', statusAfter, '(expect complete)');
-  const badgeSolid = await page.$eval('.lift-badge', el=>!el.classList.contains('lift-badge--planning')).catch(()=>null);
-  console.log('BADGE_SOLID_AFTER_COMPLETE:', badgeSolid);
   await page.click('.lift-panel .site-btn-primary'); // Done
   await page.waitForTimeout(300);
 
@@ -93,8 +93,8 @@ try {
   console.log('SAVED_LIFT:', JSON.stringify(savedLift, null, 1));
   const ok = savedLift && savedLift.liftClass==='fixed-grip' && savedLift.chairSize===2
     && typeof savedLift.lengthM==='number' && savedLift.lengthM>0
-    && typeof savedLift.capacityPph==='number' && savedLift.points.length===2;
-  console.log('SAVE_SHAPE_OK:', !!ok);
+    && savedLift.capacityPph===undefined && savedLift.points.length===2;
+  console.log('SAVE_SHAPE_OK:', !!ok, '(capacityPph must be absent)');
   await page.screenshot({path:`${outDir}/lift-built.png`});
 } catch(e){ console.error('FAIL:', e.message); }
 console.log('=== ERRORS ==='); console.log(errors.join('\n')||'(none)');

@@ -26,10 +26,8 @@ import { saveGame } from '../gameSaveClient';
 import type { GameSave, SavedLift } from '../types';
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, type DraftLine } from './liftLayers';
-import { syncLiftBadges, clearLiftBadges, type BadgeEntry } from './liftBadge';
 import {
   FIXED_GRIP_SPEC,
-  capacityRange,
   liftStats,
   nextLiftName,
   orientBottomToTop,
@@ -120,7 +118,6 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
   const liftsRef = useRef<SavedLift[]>(lifts);
   const liftToolRef = useRef<LiftTool>(liftTool);
   const liftSampleTokenRef = useRef(0);
-  const badgeStoreRef = useRef<Map<string, BadgeEntry>>(new Map());
   const selectLiftRef = useRef<(id: string) => void>(() => {});
   const renderQualityRef = useRef(settings.renderQuality);
 
@@ -194,7 +191,6 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
     }
     addLiftLayers(map);
     setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
-    syncLiftBadges(map, liftsRef.current, badgeStoreRef.current, (id) => selectLiftRef.current(id));
     if (is3DRef.current) enable3D(map);
     applyTileLod(map, renderQualityRef.current);
     setLayers(applied);
@@ -250,7 +246,6 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
     });
 
     return () => {
-      clearLiftBadges(badgeStoreRef.current);
       map.remove();
       mapRef.current = null;
       setLayers([]);
@@ -343,14 +338,6 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
     setLiftData(map, liftsToGeoJSON(lifts, draftLineOf(liftTool)));
   }, [lifts, liftTool]);
 
-  // Reconcile the base-terminal capacity badges (HTML markers) with the lift
-  // list. Only depends on lifts — draft/tool changes don't affect badges.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    syncLiftBadges(map, lifts, badgeStoreRef.current, (id) => selectLiftRef.current(id));
-  }, [lifts]);
-
   /** Sample both terminal elevations for the review draft. Token-guarded so a
    *  cancel/confirm/redraw discards in-flight results. */
   function sampleDraftElevations(points: [[number, number], [number, number]]) {
@@ -412,7 +399,6 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
             elev: [null, null],
             elevStatus: 'pending',
             chairSize: FIXED_GRIP_SPEC.defaultChairSize,
-            capacityPph: capacityRange(FIXED_GRIP_SPEC.defaultChairSize).default,
             status: 'planning',
             name: nextLiftName(liftsRef.current),
           },
@@ -516,7 +502,6 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings }: Ma
       endpointElevM: o.elevs,
       lengthM: stats.lengthM,
       verticalM: stats.verticalM,
-      capacityPph: d.capacityPph,
       chairSize: d.chairSize,
       status: d.status,
       createdAt: new Date().toISOString(),
