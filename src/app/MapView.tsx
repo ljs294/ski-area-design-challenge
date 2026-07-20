@@ -33,6 +33,13 @@ import type { GameSave, SavedLift } from '../types';
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, type DraftLine } from './liftLayers';
 import {
+  vectorizeCover,
+  addCoverLayers,
+  removeCoverLayers,
+  COVER_LAYER_IDS,
+  type CoverGeoJSON,
+} from './coverVectorize';
+import {
   FIXED_GRIP_SPEC,
   liftStats,
   nextLiftName,
@@ -60,6 +67,12 @@ function draftLineOf(tool: LiftTool): DraftLine | null {
     return { points: tool.draft.points };
   }
   return null;
+}
+
+/** SiteBox rectangle -> degree bounds for cover sampling. */
+function boundsFromBox(box: SiteBox): { west: number; south: number; east: number; north: number } {
+  const [[w, s], [e, n]] = box.bounds;
+  return { west: w, south: s, east: e, north: n };
 }
 
 /** crypto.randomUUID is gated to secure contexts (fails under packaged file://). */
@@ -135,6 +148,12 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const liftSampleTokenRef = useRef(0);
   const selectLiftRef = useRef<(id: string) => void>(() => {});
   const renderQualityRef = useRef(settings.renderQuality);
+  // Vectorized ground cover for the locked site — computed once (see the
+  // site-lock effect), cached here so the light/dark style swap re-adds it
+  // without refetching. coverBoundsKeyRef guards against recomputing the same
+  // site.
+  const coverVectorRef = useRef<CoverGeoJSON | null>(null);
+  const coverBoundsKeyRef = useRef<string | null>(null);
 
   renderQualityRef.current = settings.renderQuality;
   layersRef.current = layers;
@@ -192,7 +211,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     tuneBasemap(map);
     const fresh = setupAnalysisLayers(map);
     const prev = layersRef.current;
-    const applied = fresh.map((f) => {
+    let applied = fresh.map((f) => {
       const was = prev.find((p) => p.id === f.id);
       if (was && was.visible !== f.visible) {
         for (const lid of f.layerIds)
@@ -201,6 +220,20 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       }
       return f;
     });
+
+    // Crisp vector cover for a locked site: re-add from the cached polygons and
+    // point the "Ground cover" toggle at those layers, leaving the raster
+    // groundcover hidden underneath.
+    if (coverVectorRef.current) {
+      const gc = applied.find((l) => l.id === 'groundcover');
+      const coverVisible = gc?.visible ?? true;
+      addCoverLayers(map, coverVectorRef.current, coverVisible);
+      if (map.getLayer('groundcover')) map.setLayoutProperty('groundcover', 'visibility', 'none');
+      applied = applied.map((l) =>
+        l.id === 'groundcover' ? { ...l, layerIds: COVER_LAYER_IDS } : l
+      );
+    }
+
     addSiteBoxLayers(map);
     if (siteModeRef.current === 'locked' && siteBoxRef.current) {
       setSiteBox(map, siteBoxRef.current);
@@ -392,6 +425,66 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     if (!map) return;
     setLiftData(map, liftsToGeoJSON(lifts, draftLineOf(liftTool)));
   }, [lifts, liftTool]);
+
+  // Vectorize the locked build site's ground cover ONCE, then render it as a
+  // crisp static GeoJSON overlay (see coverVectorize.ts). Recomputed only when
+  // the locked bounds change; dropped when the site is unlocked. The light/dark
+  // style swap re-adds it from coverVectorRef without refetching.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (siteMode !== 'locked' || !siteBox) {
+      if (coverVectorRef.current) {
+        coverVectorRef.current = null;
+        coverBoundsKeyRef.current = null;
+        removeCoverLayers(map);
+        setLayers((prev) =>
+          prev.map((l) => (l.id === 'groundcover' ? { ...l, layerIds: ['groundcover'] } : l))
+        );
+      }
+      return;
+    }
+
+    const b = boundsFromBox(siteBox);
+    const key = `${b.west.toFixed(5)},${b.south.toFixed(5)},${b.east.toFixed(5)},${b.north.toFixed(5)}`;
+    if (coverBoundsKeyRef.current === key) return; // already vectorized this site
+    coverBoundsKeyRef.current = key;
+
+    let cancelled = false;
+    void vectorizeCover(b)
+      .then((geo) => {
+        if (cancelled || mapRef.current !== map) return;
+        coverVectorRef.current = geo;
+        const apply = () => {
+          if (cancelled || mapRef.current !== map) return;
+          // Show the sharp cover as the design surface; it supersedes the raster
+          // groundcover and, being an overlay-group member, dismisses slope/aspect.
+          addCoverLayers(map, geo, true);
+          if (map.getLayer('groundcover')) map.setLayoutProperty('groundcover', 'visibility', 'none');
+          setLayers((prev) =>
+            prev.map((l) => {
+              if (l.id === 'groundcover') return { ...l, layerIds: COVER_LAYER_IDS, visible: true };
+              if (l.exclusiveGroup === 'overlay' && l.visible) {
+                for (const lid of l.layerIds) map.setLayoutProperty(lid, 'visibility', 'none');
+                return { ...l, visible: false };
+              }
+              return l;
+            })
+          );
+        };
+        if (map.isStyleLoaded()) apply();
+        else map.once('idle', apply);
+      })
+      .catch(() => {
+        coverBoundsKeyRef.current = null; // allow a retry on the next lock
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteMode, siteBox]);
 
   /** Sample both terminal elevations for the review draft. Token-guarded so a
    *  cancel/confirm/redraw discards in-flight results. */

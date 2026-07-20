@@ -117,7 +117,10 @@ export function setupAnalysisLayers(map: maplibregl.Map): LayerToggle[] {
       layout: { visibility: 'none' },
       paint: {
         'raster-opacity': 0.9,
-        'raster-resampling': 'linear', // smooth away the 10 m blockiness
+        // Crisp class edges instead of a bilinear smear. In-game (locked site)
+        // this raster is superseded by the vectorized cover; this keeps the
+        // pre-lock explore overlay sharp too.
+        'raster-resampling': 'nearest',
       },
     },
     before

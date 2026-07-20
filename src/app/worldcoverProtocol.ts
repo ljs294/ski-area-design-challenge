@@ -28,6 +28,20 @@ export const COVER_LABELS: Record<CoverBucket, string> = {
   water: 'Water',
 };
 
+// Stable bucket ordering, so the grid sampler can pack each cell as a small
+// integer index and the vectorizer can round-trip it back to a bucket name.
+export const BUCKET_ORDER: CoverBucket[] = ['tree', 'grass', 'alpine', 'rock', 'water'];
+/** Sentinel cell value for "no data / tile missing" in a sampled cover grid. */
+export const COVER_NODATA = 255;
+
+const BUCKET_INDEX: Record<CoverBucket, number> = {
+  tree: 0,
+  grass: 1,
+  alpine: 2,
+  rock: 3,
+  water: 4,
+};
+
 // ESA WorldCover class code -> [nativeR,nativeG,nativeB] (official palette) -> our bucket.
 const CLASS_TABLE: { rgb: [number, number, number]; bucket: CoverBucket }[] = [
   { rgb: [0, 100, 0], bucket: 'tree' }, // 10 tree cover
@@ -120,13 +134,21 @@ function fetchNativeTile(z: number, x: number, y: number): Promise<ImageData | n
   return p;
 }
 
+// Global (fractional) tile coordinates in the Web-Mercator pyramid.
+function lngToXf(lng: number, nTiles: number): number {
+  return ((lng + 180) / 360) * nTiles;
+}
+function latToYf(lat: number, nTiles: number): number {
+  const latRad = (lat * Math.PI) / 180;
+  return ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * nTiles;
+}
+
 /** Ground-cover bucket at a lng/lat, or null (nodata / tile missing). */
 export async function sampleCoverAt(lng: number, lat: number, z: number): Promise<CoverBucket | null> {
   const zz = Math.min(WC_MAXZOOM, z);
   const nTiles = 1 << zz;
-  const xf = ((lng + 180) / 360) * nTiles;
-  const latRad = (lat * Math.PI) / 180;
-  const yf = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * nTiles;
+  const xf = lngToXf(lng, nTiles);
+  const yf = latToYf(lat, nTiles);
   const img = await fetchNativeTile(zz, Math.floor(xf), Math.floor(yf));
   if (!img) return null;
   const px = Math.min(img.width - 1, Math.floor((xf - Math.floor(xf)) * img.width));
@@ -134,6 +156,70 @@ export async function sampleCoverAt(lng: number, lat: number, z: number): Promis
   const i = (py * img.width + px) * 4;
   if (img.data[i + 3] === 0) return null; // nodata
   return nearestBucket(img.data[i], img.data[i + 1], img.data[i + 2]);
+}
+
+/** Bounds of a rectangular area to sample, in degrees. */
+export interface CoverBounds {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}
+
+/**
+ * Sample an n×n grid of cover-bucket indices across `bounds` (row 0 = north
+ * edge, matching the renderer's grid convention). Fetches only the WorldCover
+ * tiles the area overlaps — a handful even for the largest site — then reads
+ * every cell from that decoded, cached set. Cells with no data (missing tile /
+ * transparent pixel) are `COVER_NODATA`. Run once when a site is locked.
+ */
+export async function sampleCoverGrid(bounds: CoverBounds, n: number): Promise<Uint8Array> {
+  const zz = WC_MAXZOOM;
+  const nTiles = 1 << zz;
+
+  const xfW = lngToXf(bounds.west, nTiles);
+  const xfE = lngToXf(bounds.east, nTiles);
+  const yfN = latToYf(bounds.north, nTiles);
+  const yfS = latToYf(bounds.south, nTiles);
+  const xTileMin = Math.floor(Math.min(xfW, xfE));
+  const xTileMax = Math.floor(Math.max(xfW, xfE));
+  const yTileMin = Math.floor(Math.min(yfN, yfS));
+  const yTileMax = Math.floor(Math.max(yfN, yfS));
+
+  const tiles = new Map<string, ImageData | null>();
+  const jobs: Promise<void>[] = [];
+  for (let tx = xTileMin; tx <= xTileMax; tx++) {
+    for (let ty = yTileMin; ty <= yTileMax; ty++) {
+      jobs.push(
+        fetchNativeTile(zz, tx, ty)
+          .then((img) => void tiles.set(`${tx}/${ty}`, img))
+          .catch(() => void tiles.set(`${tx}/${ty}`, null))
+      );
+    }
+  }
+  await Promise.all(jobs);
+
+  const out = new Uint8Array(n * n).fill(COVER_NODATA);
+  for (let r = 0; r < n; r++) {
+    const v = n === 1 ? 0 : r / (n - 1);
+    const lat = bounds.north - v * (bounds.north - bounds.south);
+    const yf = latToYf(lat, nTiles);
+    const ty = Math.floor(yf);
+    for (let c = 0; c < n; c++) {
+      const u = n === 1 ? 0 : c / (n - 1);
+      const lng = bounds.west + u * (bounds.east - bounds.west);
+      const xf = lngToXf(lng, nTiles);
+      const tx = Math.floor(xf);
+      const img = tiles.get(`${tx}/${ty}`);
+      if (!img) continue;
+      const px = Math.min(img.width - 1, Math.floor((xf - tx) * img.width));
+      const py = Math.min(img.height - 1, Math.floor((yf - ty) * img.height));
+      const i = (py * img.width + px) * 4;
+      if (img.data[i + 3] === 0) continue; // nodata
+      out[r * n + c] = BUCKET_INDEX[nearestBucket(img.data[i], img.data[i + 1], img.data[i + 2])];
+    }
+  }
+  return out;
 }
 
 let registered = false;
