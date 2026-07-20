@@ -66,6 +66,28 @@ async function loadBundledPresetVectors(presetId: string): Promise<VectorFeature
   }
 }
 
+/**
+ * The elevation raster's TRUE extent, written alongside a preset's bundled
+ * heights (see scripts/downloadPresetTerrain.ts). Older bundles predate the
+ * sidecar and return null, so the caller falls back to the computed
+ * square-in-meters bounds — those bundles are misregistered until re-downloaded.
+ */
+async function loadBundledPresetBounds(presetId: string): Promise<LatLonBounds | null> {
+  let response: Response;
+  try {
+    response = await fetch(`/presetTerrain/${presetId}.meta.json`);
+  } catch {
+    return null;
+  }
+  if (!response.ok) return null;
+  try {
+    const meta = (await response.json()) as { bounds?: LatLonBounds };
+    return meta.bounds ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function slugify(name: string): string {
   const slug = name
     .toLowerCase()
@@ -196,8 +218,7 @@ export async function prepareResortPackage(
   signal?: AbortSignal
 ): Promise<TerrainDB> {
   const [[west, south], [east, north]] = site.bounds;
-  const bounds = { west, south, east, north };
-  const center = { latitude: (south + north) / 2, longitude: (west + east) / 2 };
+  const requestedBounds = { west, south, east, north };
   const areaSizeMeters = Math.round(Math.max(site.widthKm, site.heightKm) * 1000);
   const report = (phase: TerrainPackageProgress['phase'], message: string, completed: number) =>
     onProgress?.({ phase, message, completed, total: 6 });
@@ -206,13 +227,24 @@ export async function prepareResortPackage(
   };
 
   report('elevation', 'Downloading and validating elevation', 0);
-  const sampleHeights = await fetchElevationGrid(
-    bounds,
+  const elevation = await fetchElevationGrid(
+    requestedBounds,
     areaSizeMeters,
     (p) => report('elevation', p.phase === 'fetching' ? 'Downloading elevation' : 'Decoding elevation', 0),
     signal
   );
   abort();
+
+  // The elevation service may return a wider/taller extent than requested (see
+  // ElevationGrid.bounds). Adopt that true extent for EVERY layer — ground
+  // cover, contours, vectors — so they all register against the same footprint
+  // and the satellite imagery.
+  const bounds = elevation.bounds;
+  const sampleHeights = elevation.heights;
+  const center = {
+    latitude: (bounds.south + bounds.north) / 2,
+    longitude: (bounds.west + bounds.east) / 2,
+  };
 
   report('ground-cover', 'Downloading ESA WorldCover 2021', 1);
   const coverGrid = await sampleSiteCoverGrid(bounds, 10, signal);
@@ -261,19 +293,25 @@ export async function prepareResortPackage(
  */
 export async function ingestLiveArea(
   bounds: LatLonBounds,
-  center: { latitude: number; longitude: number },
+  _center: { latitude: number; longitude: number },
   areaSizeMeters: AreaSizeMeters,
   mountainName: string,
   onProgress?: (progress: ElevationProgress) => void
 ): Promise<TerrainDB> {
-  const [sampleHeights, vectorFeatures] = await Promise.all([
-    fetchElevationGrid(bounds, areaSizeMeters, onProgress),
-    fetchVectorFeatures(bounds).catch((e) => {
-      console.error('Failed to fetch map features (roads/water/peaks/land cover):', e);
-      return undefined;
-    }),
-  ]);
-  return finalizeAndSave(mountainName, center.latitude, center.longitude, areaSizeMeters, bounds, sampleHeights, 'live', vectorFeatures);
+  // Elevation first: it may return a wider/taller extent than requested (see
+  // ElevationGrid.bounds), and every other layer must be pinned to that true
+  // extent — so vectors are fetched against it rather than the request.
+  const elevation = await fetchElevationGrid(bounds, areaSizeMeters, onProgress);
+  const trueBounds = elevation.bounds;
+  const center = {
+    latitude: (trueBounds.south + trueBounds.north) / 2,
+    longitude: (trueBounds.west + trueBounds.east) / 2,
+  };
+  const vectorFeatures = await fetchVectorFeatures(trueBounds).catch((e) => {
+    console.error('Failed to fetch map features (roads/water/peaks/land cover):', e);
+    return undefined;
+  });
+  return finalizeAndSave(mountainName, center.latitude, center.longitude, areaSizeMeters, trueBounds, elevation.heights, 'live', vectorFeatures);
 }
 
 /**
@@ -289,11 +327,14 @@ export async function ingestPreset(presetId: string): Promise<TerrainDB> {
   if (!preset) throw new Error(`Unknown preset: ${presetId}`);
 
   const areaSizeMeters = preset.areaSizeMeters ?? 4000;
-  const bounds = boundsForSquareMeters(preset.latitude, preset.longitude, areaSizeMeters);
-  const [bundledHeights, bundledVectors] = await Promise.all([
+  const [bundledHeights, bundledVectors, bundledBounds] = await Promise.all([
     loadBundledPresetHeights(presetId),
     loadBundledPresetVectors(presetId),
+    loadBundledPresetBounds(presetId),
   ]);
+  // Prefer the raster's true extent captured at download time; fall back to the
+  // computed square for procedural terrain and legacy bundles.
+  const bounds = bundledBounds ?? boundsForSquareMeters(preset.latitude, preset.longitude, areaSizeMeters);
 
   if (bundledHeights) {
     return finalizeAndSave(

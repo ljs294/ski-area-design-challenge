@@ -50,9 +50,10 @@ async function main() {
   );
 
   const startTime = Date.now();
-  const sampleHeights = await fetchElevationGrid(bounds, areaSizeMeters, (p) => {
+  const elevation = await fetchElevationGrid(bounds, areaSizeMeters, (p) => {
     console.log(`  ${p.phase}...`);
   });
+  const sampleHeights = elevation.heights;
 
   const elapsedSec = (Date.now() - startTime) / 1000;
   let min = Infinity;
@@ -62,6 +63,8 @@ async function main() {
     if (h > max) max = h;
   }
   console.log(`Done in ${elapsedSec.toFixed(1)}s. Elevation range: ${min.toFixed(1)}m - ${max.toFixed(1)}m`);
+  console.log(`  requested bounds: ${JSON.stringify(bounds)}`);
+  console.log(`  actual raster extent: ${JSON.stringify(elevation.bounds)}`);
 
   const outDir = path.join(__dirname, '..', 'public', 'presetTerrain');
   fs.mkdirSync(outDir, { recursive: true });
@@ -69,9 +72,15 @@ async function main() {
   fs.writeFileSync(outFile, Buffer.from(Float32Array.from(sampleHeights).buffer));
   console.log(`Wrote ${outFile} (${(fs.statSync(outFile).size / 1e6).toFixed(1)} MB)`);
 
+  // Sidecar so ingestPreset places the heights at the extent the service
+  // actually rendered (see ElevationGrid.bounds), not the requested square.
+  const metaFile = path.join(outDir, `${presetId}.meta.json`);
+  fs.writeFileSync(metaFile, JSON.stringify({ bounds: elevation.bounds, width: elevation.width, height: elevation.height }), 'utf-8');
+  console.log(`Wrote ${metaFile}`);
+
   console.log(`Downloading map features (roads/water/peaks/land cover) via Overpass...`);
   try {
-    const vectorFeatures = await fetchVectorFeatures(bounds);
+    const vectorFeatures = await fetchVectorFeatures(elevation.bounds);
     const vectorsFile = path.join(outDir, `${presetId}.vectors.json`);
     fs.writeFileSync(vectorsFile, JSON.stringify(vectorFeatures), 'utf-8');
     console.log(

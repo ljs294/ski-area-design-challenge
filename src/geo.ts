@@ -58,3 +58,26 @@ export function lonLatToWorld(lon: number, lat: number, bounds: LatLonBounds, ma
   const y = ((bounds.north - lat) / (bounds.north - bounds.south)) * mapSize;
   return { x, y };
 }
+
+/**
+ * The single projection every locally-prepared layer shares: a unit-square
+ * coordinate (u,v ∈ [0,1], v measured from the NORTH edge downward, matching
+ * the row-0-is-north grid convention) to lng/lat within `bounds`. Contours and
+ * cover boundaries are baked in this unit space and placed through here;
+ * `lngLatToUnit` is its exact inverse, used when sampling the DEM/cover grids.
+ * Keeping both sides on one pair of functions is what guarantees the layers
+ * stay registered to each other and to `bounds`.
+ */
+export function unitToLngLat(u: number, v: number, bounds: LatLonBounds): [number, number] {
+  return [
+    bounds.west + u * (bounds.east - bounds.west),
+    bounds.north - v * (bounds.north - bounds.south),
+  ];
+}
+
+export function lngLatToUnit(lng: number, lat: number, bounds: LatLonBounds): [number, number] {
+  return [
+    (lng - bounds.west) / (bounds.east - bounds.west),
+    (bounds.north - lat) / (bounds.north - bounds.south),
+  ];
+}

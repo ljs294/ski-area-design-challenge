@@ -34,6 +34,25 @@ export interface ElevationProgress {
   phase: 'fetching' | 'decoding';
 }
 
+export interface ElevationGrid {
+  /** Row-major heights (meters), row 0 = north edge. */
+  heights: number[];
+  /**
+   * The raster's TRUE geographic extent, read from the returned GeoTIFF's own
+   * georeferencing — NOT the requested bbox. ArcGIS `exportImage` snaps the
+   * output extent to the requested pixel-`size` aspect ratio: ask for a square
+   * grid over a bbox that is a rectangle in degrees (which a square-in-meters
+   * site always is off the equator) and the service silently expands the
+   * shorter axis, returning a taller/wider area than requested. Trusting the
+   * request instead of this value is what mis-registered every downstream layer
+   * (hillshade, contours, 3D mesh) against the satellite imagery.
+   */
+  bounds: LatLonBounds;
+  /** Raster dimensions actually returned (may differ from the requested size). */
+  width: number;
+  height: number;
+}
+
 /**
  * Grid size to request. Deliberately NOT scaled down for smaller areas —
  * smaller areas just end up with finer real-world spacing at the same
@@ -128,13 +147,18 @@ async function fetchWithShrink(
  * edge — this matches the raw GeoTIFF raster's natural orientation (row 0 =
  * north) exactly, which is also what the renderer expects (row 0 maps to
  * canvas y=0, the top of the screen — so north stays up).
+ *
+ * Returns the true extent the service actually rendered (see
+ * `ElevationGrid.bounds`), which every caller must adopt as the site's
+ * canonical bounds so the elevation, ground cover, contours, and satellite
+ * all share one footprint.
  */
 export async function fetchElevationGrid(
   bounds: LatLonBounds,
   areaSizeMeters: number,
   onProgress?: (progress: ElevationProgress) => void,
   signal?: AbortSignal
-): Promise<number[]> {
+): Promise<ElevationGrid> {
   if (!isUsCoverage(bounds)) {
     throw new Error(
       'Elevation data is currently only available for locations within the United States.'
@@ -149,5 +173,13 @@ export async function fetchElevationGrid(
   const rasters = await image.readRasters();
   const band = rasters[0] as unknown as ArrayLike<number>;
 
-  return Array.from(band);
+  // [minX, minY, maxX, maxY] in the image SR (4326) — the authoritative extent,
+  // not the requested bbox. For a north-up 4326 raster this is [W, S, E, N].
+  const [west, south, east, north] = image.getBoundingBox();
+  return {
+    heights: Array.from(band),
+    bounds: { west, south, east, north },
+    width: image.getWidth(),
+    height: image.getHeight(),
+  };
 }

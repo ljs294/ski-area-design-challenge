@@ -29,15 +29,26 @@ describe.each(AVAILABLE_AREA_SIZES_METERS)('terrain download at %dm square', (si
 
       // fetchElevationGrid may shrink the requested grid on transient
       // server-side failures (see fetchWithShrink in elevation.ts) — a
-      // smaller-but-square grid is a pass, not just an exact match.
-      const actualGridSize = Math.round(Math.sqrt(grid.length));
-      expect(actualGridSize * actualGridSize).toBe(grid.length);
-      expect(actualGridSize).toBeLessThanOrEqual(maxGridSize);
-      expect(grid.every((h) => Number.isFinite(h))).toBe(true);
+      // smaller grid is a pass, not just an exact match.
+      expect(grid.width * grid.height).toBe(grid.heights.length);
+      expect(Math.max(grid.width, grid.height)).toBeLessThanOrEqual(maxGridSize);
+      expect(grid.heights.every((h) => Number.isFinite(h))).toBe(true);
+
+      // Alignment invariant: the extent the service reports MUST match the
+      // pixel grid's aspect ratio, or placing the grid across those bounds
+      // stretches it (the exportImage extent-snap bug). Every real download
+      // in CI re-checks this.
+      const b = grid.bounds;
+      const lonSpan = b.east - b.west;
+      const latSpan = b.north - b.south;
+      expect(lonSpan / latSpan).toBeCloseTo(grid.width / grid.height, 2);
+      // The service expands symmetrically, so the requested center stays put.
+      expect((b.west + b.east) / 2).toBeCloseTo(CENTER.longitude, 4);
+      expect((b.south + b.north) / 2).toBeCloseTo(CENTER.latitude, 4);
 
       let min = Infinity;
       let max = -Infinity;
-      for (const h of grid) {
+      for (const h of grid.heights) {
         if (h < min) min = h;
         if (h > max) max = h;
       }

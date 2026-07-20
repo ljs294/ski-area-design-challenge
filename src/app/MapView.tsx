@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { setupAnalysisLayers, type LayerToggle } from './analysisLayers';
@@ -130,6 +130,18 @@ function activeOverlayOf(layers: LayerToggle[]): OverlayId | null {
   const on = analysis ?? layers.find((l) => l.id === 'groundcover' && l.visible);
   return (on?.id as OverlayId) ?? null;
 }
+
+/** Ordered display steps for the resort-preparation gate. Their index lines up
+ *  with TerrainPackageProgress.completed (0-based): step i is done when
+ *  completed > i, active when completed === i, pending otherwise. */
+const PREP_STEPS: { key: string; label: string }[] = [
+  { key: 'elevation', label: 'Elevation data' },
+  { key: 'ground-cover', label: 'Ground cover' },
+  { key: 'decoding', label: 'Land-cover classes' },
+  { key: 'deriving', label: 'Canopy & contours' },
+  { key: 'saving', label: 'Saving package' },
+  { key: 'verifying', label: 'Verifying' },
+];
 
 interface MapViewProps {
   mode: MapMode;
@@ -1289,23 +1301,60 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
       {showPackageGate && (
         <div className="package-gate" role="dialog" aria-modal="true" aria-live="polite">
-          <div className="package-card">
+          <div className={`package-card${packageState === 'error' ? ' is-error' : ''}`}>
+            {packageState !== 'error' && (
+              <svg className="topo-motif" viewBox="0 0 120 120" aria-hidden="true">
+                <defs>
+                  <path id="topoRing" d="M60 42 C73 42 80 50 80 60 C80 72 71 80 60 80 C49 80 40 71 40 60 C40 49 47 42 60 42 Z" />
+                </defs>
+                <g fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <use href="#topoRing" className="topo-ring" style={{ '--i': 0 } as CSSProperties} transform="translate(60 60) scale(0.5) translate(-60 -60)" />
+                  <use href="#topoRing" className="topo-ring" style={{ '--i': 1 } as CSSProperties} transform="translate(60 60) scale(1) translate(-60 -60)" />
+                  <use href="#topoRing" className="topo-ring" style={{ '--i': 2 } as CSSProperties} transform="translate(60 60) scale(1.55) translate(-60 -60)" />
+                  <use href="#topoRing" className="topo-ring" style={{ '--i': 3 } as CSSProperties} transform="translate(60 60) scale(2.1) translate(-60 -60)" />
+                </g>
+                <circle cx="60" cy="60" r="3.4" className="topo-peak" fill="currentColor" />
+              </svg>
+            )}
             <div className="package-kicker">LOCAL RESORT DATA</div>
-            <h2>{packageState === 'loading' ? 'Loading resort package' : packageState === 'preparing' ? 'Preparing resort data' : 'Resort data required'}</h2>
+            <h2>{packageState === 'loading' ? 'Loading resort package' : packageState === 'preparing' ? 'Preparing resort data' : packageState === 'error' ? 'Preparation failed' : 'Resort data required'}</h2>
             <p>
               {packageState === 'preparing'
-                ? packageProgress?.message ?? 'Preparing terrain and ground cover'
+                ? 'Fetching terrain, ground cover, and contours for your build site.'
+                : packageState === 'loading'
+                ? 'Restoring your saved terrain, ground cover, and contours.'
                 : packageError ?? 'Elevation, contours, and ground cover must be saved locally before designing.'}
             </p>
-            {packageState === 'preparing' && packageProgress && (
-              <>
-                <div className="package-progress"><span style={{ width: `${Math.round((packageProgress.completed / packageProgress.total) * 100)}%` }} /></div>
-                <div className="package-progress-label">Step {Math.min(packageProgress.total, packageProgress.completed + 1)} of {packageProgress.total}</div>
-                <div className="package-actions">
-                  <button className="site-btn" onClick={cancelPackagePreparation}>Cancel</button>
-                </div>
-              </>
+            {packageState === 'loading' && (
+              <div className="package-progress is-indeterminate"><span /></div>
             )}
+            {packageState === 'preparing' && packageProgress && (() => {
+              const { completed, total } = packageProgress;
+              const pct = Math.round((completed / total) * 100);
+              return (
+                <>
+                  <ul className="package-steps">
+                    {PREP_STEPS.map((s, i) => {
+                      const state = completed > i ? 'done' : completed === i ? 'active' : 'pending';
+                      return (
+                        <li key={s.key} className={`package-step is-${state}`}>
+                          <span className="package-step-dot" aria-hidden="true" />
+                          <span className="package-step-label">
+                            {s.label}
+                            {state === 'active' && <span className="package-step-detail">{packageProgress.message}</span>}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="package-progress"><span style={{ width: `${pct}%` }} /></div>
+                  <div className="package-progress-label">{pct}% · Step {Math.min(total, completed + 1)} of {total}</div>
+                  <div className="package-actions">
+                    <button className="site-btn" onClick={cancelPackagePreparation}>Cancel</button>
+                  </div>
+                </>
+              );
+            })()}
             {(packageState === 'missing' || packageState === 'error') && (
               <div className="package-actions">
                 <button className="site-btn" onClick={onQuit}>Back to menu</button>

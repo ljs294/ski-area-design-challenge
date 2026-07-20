@@ -12,6 +12,7 @@ import {
   RESORT_SLOPE_PROTOCOL,
 } from './resortProtocols';
 import { MASTER_PLAN_LAYER_IDS } from './masterPlanStyle';
+import { unitToLngLat } from '../geo';
 
 const TERRARIUM_TILES = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
 
@@ -53,8 +54,8 @@ function localContourGeoJSON(record: TerrainRecord, imperial: boolean): GeoJSON.
     const level = imperial ? levelM * 3.28084 : levelM;
     const lines = byLevel.get(level) ?? [];
     lines.push([
-      [b.west + data[i] * (b.east - b.west), b.north - data[i + 1] * (b.north - b.south)],
-      [b.west + data[i + 2] * (b.east - b.west), b.north - data[i + 3] * (b.north - b.south)],
+      unitToLngLat(data[i], data[i + 1], b),
+      unitToLngLat(data[i + 2], data[i + 3], b),
     ]);
     byLevel.set(level, lines);
   }
@@ -76,8 +77,8 @@ function localCoverBoundaryGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollec
     const code = data[i + 4];
     const lines = byClass.get(code) ?? [];
     lines.push([
-      [b.west + data[i] * (b.east - b.west), b.north - data[i + 1] * (b.north - b.south)],
-      [b.west + data[i + 2] * (b.east - b.west), b.north - data[i + 3] * (b.north - b.south)],
+      unitToLngLat(data[i], data[i + 1], b),
+      unitToLngLat(data[i + 2], data[i + 3], b),
     ]);
     byClass.set(code, lines);
   }

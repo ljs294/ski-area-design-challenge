@@ -67,11 +67,37 @@ export function manifestOf(record: TerrainRecord): TerrainPackageManifest {
   };
 }
 
+type BoundsLike = { west: number; south: number; east: number; north: number };
+
+/** Largest single-edge difference (degrees) between two extents; 0 = identical. */
+export function boundsOffsetDegrees(a: BoundsLike, b: BoundsLike): number {
+  return Math.max(
+    Math.abs(a.west - b.west),
+    Math.abs(a.east - b.east),
+    Math.abs(a.south - b.south),
+    Math.abs(a.north - b.north),
+  );
+}
+
+// Sub-pixel float noise is fine; anything larger means two layers were pinned
+// to different footprints (~0.11 m at this threshold). The exportImage
+// extent-snap bug offset the elevation from the cover by ~0.008° (~900 m).
+const MAX_LAYER_OFFSET_DEG = 1e-6;
+
 export function validateTerrainPackage(record: TerrainRecord): TerrainPackageValidation {
   const errors: string[] = [];
   const manifest = record.packageManifest;
   if (!manifest) errors.push('Package manifest is missing.');
   if (!record.coverGrid) errors.push('Ground-cover grid is missing.');
+  // Alignment guard — runs on every download. Elevation, contours, and cover
+  // are all rendered through record.bounds / coverGrid.bounds; if those two
+  // extents diverge the terrain, topo, and ground cover slide apart on the map.
+  if (record.bounds && record.coverGrid) {
+    const offset = boundsOffsetDegrees(record.bounds, record.coverGrid.bounds);
+    if (offset > MAX_LAYER_OFFSET_DEG) {
+      errors.push(`Ground-cover extent is offset from the terrain extent by ${offset.toExponential(2)}° — map layers would be misaligned.`);
+    }
+  }
   if (!record.coverBoundarySegments || !record.coverGeometryMetadata) errors.push('Prepared cover boundaries are missing.');
   if (!record.contourSegments || !record.contourMetadata) errors.push('Prepared contours are missing.');
   if (record.coverGrid) {

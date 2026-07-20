@@ -1,5 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import type { LandCoverClass, TerrainRecord, WorldCoverClassCode } from '../types';
+import { lngLatToUnit } from '../geo';
 
 export const RESORT_DEM_PROTOCOL = 'resort-dem';
 export const RESORT_COVER_PROTOCOL = 'resort-cover';
@@ -51,8 +52,9 @@ function sampleGrid(record: TerrainRecord, lng: number, lat: number): number | n
   const b = record.bounds;
   if (!b || lng < b.west || lng > b.east || lat < b.south || lat > b.north) return null;
   const n = record.sampleGridSize;
-  const x = ((lng - b.west) / (b.east - b.west)) * (n - 1);
-  const y = ((b.north - lat) / (b.north - b.south)) * (n - 1);
+  const [u, v] = lngLatToUnit(lng, lat, b);
+  const x = u * (n - 1);
+  const y = v * (n - 1);
   const x0 = Math.floor(x), y0 = Math.floor(y);
   const x1 = Math.min(n - 1, x0 + 1), y1 = Math.min(n - 1, y0 + 1);
   const tx = x - x0, ty = y - y0;
@@ -68,8 +70,9 @@ export function sampleLocalCoverAt(lng: number, lat: number): WorldCoverClassCod
   if (!grid) return null;
   const b = grid.bounds;
   if (lng < b.west || lng > b.east || lat < b.south || lat > b.north) return null;
-  const c = Math.min(grid.width - 1, Math.max(0, Math.floor(((lng - b.west) / (b.east - b.west)) * grid.width)));
-  const r = Math.min(grid.height - 1, Math.max(0, Math.floor(((b.north - lat) / (b.north - b.south)) * grid.height)));
+  const [u, v] = lngLatToUnit(lng, lat, b);
+  const c = Math.min(grid.width - 1, Math.max(0, Math.floor(u * grid.width)));
+  const r = Math.min(grid.height - 1, Math.max(0, Math.floor(v * grid.height)));
   const code = grid.data[r * grid.width + c] as WorldCoverClassCode;
   return code === 255 ? null : code;
 }
