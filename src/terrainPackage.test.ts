@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { SiteCoverGrid, TerrainRecord } from './types';
-import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from './terrainPackage';
+import type { SiteCoverGrid, TerrainCoverGrid, TerrainRecord } from './types';
+import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, manifestOf, originalCoverMetadataOf, validateTerrainPackage } from './terrainPackage';
 import { hydrateTerrainRecord } from './terrainIngest';
 
 function record(): TerrainRecord {
@@ -55,6 +55,31 @@ describe('terrain package manifests', () => {
     expect(validateTerrainPackage(value).ok).toBe(true);
     value.coverDisplayGeometry![5] = 0.5;
     expect(validateTerrainPackage(value).errors.join(' ')).toMatch(/vector ground-cover/i);
+  });
+  it('requires the refined four-class and original recovery grids for schema v6', () => {
+    const legacy = record();
+    const original = legacy.coverGrid as SiteCoverGrid;
+    const refined: TerrainCoverGrid = {
+      bounds: original.bounds, width: 2, height: 2, cellSizeM: 2,
+      data: Uint8Array.from([1, 2, 3, 4]), complete: true, nodataCount: 0,
+      source: 'usgs-four-class-v1', vintage: '2019/2021',
+      treelineM: { north: 1800, east: 1825, south: 1850, west: 1810, site: 1820 },
+      provenance: {
+        processingVersion: 'four-class-v1', confidence: 'reduced', method: 'worldcover-fallback',
+        attribution: ['ESA WorldCover'], worldCover: { vintage: '2021', license: 'cc-by-4.0' },
+      },
+    };
+    const geometry = [1, 1, 4, 0, 0, 1, 0, 1, 1, 0, 0];
+    const stats = { polygonCount: 1, ringCount: 1, vertexCount: 4, smoothingM: 6, simplifyM: 2, minFeatureM2: 16 };
+    let value: TerrainRecord = {
+      ...legacy, schemaVersion: 6, coverGrid: refined, coverMetadata: coverMetadataOf(refined),
+      originalCoverGrid: original, originalCoverMetadata: originalCoverMetadataOf(original),
+      coverDisplayGeometry: geometry, coverDisplayMetadata: coverDisplayMetadataOf(geometry, stats),
+    };
+    value = { ...value, packageManifest: manifestOf(value) };
+    expect(validateTerrainPackage(value)).toEqual({ ok: true, errors: [] });
+    delete value.originalCoverGrid;
+    expect(validateTerrainPackage(value).errors.join(' ')).toMatch(/original worldcover/i);
   });
 });
 

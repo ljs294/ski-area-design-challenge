@@ -137,12 +137,15 @@ function activeOverlayOf(layers: LayerToggle[]): OverlayId | null {
  *  completed > i, active when completed === i, pending otherwise. */
 const PREP_STEPS: { key: string; label: string }[] = [
   { key: 'elevation', label: 'Elevation data' },
-  { key: 'ground-cover', label: 'Ground cover' },
-  { key: 'decoding', label: 'Land-cover classes' },
-  { key: 'vectorizing-cover', label: 'Smooth vector cover' },
+  { key: 'ground-cover', label: 'Recovery ground cover' },
+  { key: 'lidar', label: 'Tree-canopy lidar' },
+  { key: 'imagery', label: 'Matching NAIP imagery' },
+  { key: 'decoding', label: 'Four terrain classes' },
+  { key: 'vectorizing-cover', label: 'Detailed vector cover' },
   { key: 'deriving', label: 'Canopy & contours' },
   { key: 'saving', label: 'Saving package' },
   { key: 'verifying', label: 'Verifying' },
+  { key: 'finalizing', label: 'Final validation' },
 ];
 
 interface MapViewProps {
@@ -228,6 +231,17 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   // style reinitialization. Gameplay never populates it from network data.
   const terrainRecordRef = useRef<TerrainRecord | null>(null);
   const coverDisplayRef = useRef<CoverDisplayGeoJSON | null>(null);
+  const localImageryUrlRef = useRef<string | null>(null);
+
+  function cacheTerrainDisplayAssets(record: TerrainRecord): void {
+    coverDisplayRef.current = record.coverDisplayGeometry && record.bounds
+      ? coverDisplayToGeoJSON(record.coverDisplayGeometry, record.bounds)
+      : null;
+    if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
+    localImageryUrlRef.current = record.localImagery
+      ? URL.createObjectURL(new Blob([Uint8Array.from(record.localImagery)], { type: record.localImageryMetadata?.mimeType ?? 'image/jpeg' }))
+      : null;
+  }
 
   renderQualityRef.current = settings.renderQuality;
   layersRef.current = layers;
@@ -242,7 +256,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   terrainRecordRef.current = terrainRecord;
   packageStateRef.current = packageState;
 
-  useEffect(() => () => packageAbortRef.current?.abort(), []);
+  useEffect(() => () => {
+    packageAbortRef.current?.abort();
+    if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
+  }, []);
 
   // A saved resort does not enter gameplay until its mandatory local package
   // has loaded and passed manifest validation.
@@ -299,9 +316,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         setPackageState('error');
         return;
       }
-      coverDisplayRef.current = readyRecord.coverDisplayGeometry && readyRecord.bounds
-        ? coverDisplayToGeoJSON(readyRecord.coverDisplayGeometry, readyRecord.bounds)
-        : null;
+      cacheTerrainDisplayAssets(readyRecord);
       setActiveResortTerrain(readyRecord);
       setTerrainRecord(readyRecord);
       setPackageState('ready');
@@ -390,7 +405,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     // WorldCover sources so they cannot contend with mandatory downloads.
     const fresh = packageStateRef.current === 'preparing'
       ? []
-      : setupAnalysisLayers(map, terrainRecordRef.current, settings.units, coverDisplayRef.current);
+      : setupAnalysisLayers(map, terrainRecordRef.current, settings.units, coverDisplayRef.current, localImageryUrlRef.current);
     const prev = layersRef.current;
     let applied = fresh.map((f) => {
       const was = prev.find((p) => p.id === f.id);
@@ -1163,7 +1178,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setPackageError(null);
     packageStateRef.current = 'preparing';
     setPackageState('preparing');
-    setPackageProgress({ phase: 'elevation', message: 'Starting resort preparation', completed: 0, total: 7 });
+    setPackageProgress({ phase: 'elevation', message: 'Starting resort preparation', completed: 0, total: 10 });
     packageAbortRef.current?.abort();
     const controller = new AbortController();
     packageAbortRef.current = controller;
@@ -1172,9 +1187,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       const record = await prepareResortPackage(site, name, setPackageProgress, controller.signal);
       const validation = validateTerrainPackage(record);
       if (!validation.ok) throw new Error(validation.errors.join(' '));
-      coverDisplayRef.current = record.coverDisplayGeometry && record.bounds
-        ? coverDisplayToGeoJSON(record.coverDisplayGeometry, record.bounds)
-        : null;
+      cacheTerrainDisplayAssets(record);
       terrainRecordRef.current = record;
       setActiveResortTerrain(record);
       setTerrainRecord(record);
@@ -1415,6 +1428,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         onLoad={onLoadGame}
         onSettings={onOpenSettings}
         onCredits={() => setShowCredits(true)}
+        onRebuildCover={terrainRecord && terrainRecord.schemaVersion < 6 ? () => void repairAndContinue() : undefined}
         onQuit={onQuit}
       />
 

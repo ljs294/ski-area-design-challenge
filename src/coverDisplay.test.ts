@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry } from './coverDisplay';
 import { maskToPolygonsRect } from './coverPolygons';
-import type { SiteCoverGrid } from './types';
+import type { SiteCoverGrid, TerrainCoverGrid } from './types';
 
 describe('rectangular cover polygons', () => {
   it('traces closed rings using independent width and height', () => {
@@ -52,5 +52,26 @@ describe('persisted cover display geometry', () => {
 
   it('rejects malformed binary streams', () => {
     expect(() => coverDisplayToGeoJSON([10, 1, 100, 0, 0], grid().bounds)).toThrow(/ring/i);
+  });
+
+  it('encodes the four game-focused terrain classes with detailed geometry settings', () => {
+    const source: TerrainCoverGrid = {
+      bounds: grid().bounds, width: 16, height: 16, cellSizeM: 10,
+      data: Uint8Array.from({ length: 256 }, (_, i) => {
+        const row = Math.floor(i / 16), col = i % 16;
+        return row < 8 ? col < 8 ? 1 : 2 : col < 8 ? 3 : 4;
+      }),
+      complete: true, nodataCount: 0, source: 'usgs-four-class-v1', vintage: '2021',
+      treelineM: { north: 1800, east: 1800, south: 1800, west: 1800, site: 1800 },
+      provenance: {
+        processingVersion: 'four-class-v1', confidence: 'reduced', method: 'worldcover-fallback',
+        attribution: ['ESA WorldCover'], worldCover: { vintage: '2021', license: 'cc-by-4.0' },
+      },
+    };
+    const display = deriveCoverDisplayGeometry(source);
+    const decoded = coverDisplayToGeoJSON(display.geometry, source.bounds);
+    expect(new Set(decoded.features.map((feature) => feature.properties.code))).toEqual(new Set([1, 2, 3, 4]));
+    expect(display.stats.minFeatureM2).toBe(16);
+    expect(display.stats.simplifyM).toBe(2);
   });
 });

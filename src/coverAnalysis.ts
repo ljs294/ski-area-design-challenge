@@ -1,9 +1,9 @@
-import type { SiteCoverGrid, WorldCoverClassCode } from './types';
+import type { CoverClassCode, CoverGrid } from './types';
 
 export interface CoverIntersectionCell {
   row: number;
   column: number;
-  code: WorldCoverClassCode;
+  code: CoverClassCode;
   /** Fraction of this source cell covered by the polygon, from 0 through 1. */
   coverage: number;
   areaM2: number;
@@ -11,7 +11,7 @@ export interface CoverIntersectionCell {
 
 /** Tree cover and mangroves share the canopy planning treatment. */
 export function isCanopyCode(code: number): boolean {
-  return code === 10 || code === 95;
+  return code === 1 || code === 10 || code === 95;
 }
 
 /**
@@ -19,9 +19,9 @@ export function isCanopyCode(code: number): boolean {
  * speckle removal is allowed here: one-cell stands and holes must survive.
  * Tuples are [x1,y1,x2,y2,class], normalized to the package bounds.
  */
-export function deriveCoverBoundarySegments(grid: SiteCoverGrid): number[] {
+export function deriveCoverBoundarySegments(grid: CoverGrid): number[] {
   const out: number[] = [];
-  const group = (code: number) => isCanopyCode(code) ? 10 : code === 20 ? 20 : 0;
+  const group = (code: number) => code === 1 ? 1 : isCanopyCode(code) ? 10 : code === 20 ? 20 : 0;
   const at = (row: number, col: number) =>
     row < 0 || row >= grid.height || col < 0 || col >= grid.width
       ? 0
@@ -85,7 +85,7 @@ function clippedArea(ring: Point[], col: number, row: number): number {
  * previews and cost estimates can consume the same result.
  */
 export function intersectCoverGridWithPolygon(
-  grid: SiteCoverGrid,
+  grid: CoverGrid,
   rings: [number, number][][]
 ): CoverIntersectionCell[] {
   if (!rings.length || rings[0].length < 3) return [];
@@ -111,7 +111,7 @@ export function intersectCoverGridWithPolygon(
       result.push({
         row,
         column,
-        code: grid.data[row * grid.width + column] as WorldCoverClassCode,
+        code: grid.data[row * grid.width + column] as CoverClassCode,
         coverage,
         areaM2: coverage * grid.cellSizeM * grid.cellSizeM,
       });
@@ -120,7 +120,7 @@ export function intersectCoverGridWithPolygon(
   return result;
 }
 
-export function canopyIntersectionAreaM2(grid: SiteCoverGrid, rings: [number, number][][]): number {
+export function canopyIntersectionAreaM2(grid: CoverGrid, rings: [number, number][][]): number {
   return intersectCoverGridWithPolygon(grid, rings)
     .filter((cell) => isCanopyCode(cell.code))
     .reduce((sum, cell) => sum + cell.areaM2, 0);

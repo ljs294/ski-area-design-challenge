@@ -1,5 +1,6 @@
 import { maskToPolygonsRect, type CoverPolygon } from './coverPolygons';
-import type { SiteCoverGrid, WorldCoverClassCode } from './types';
+import type { CoverClassCode, CoverGrid, WorldCoverClassCode } from './types';
+import { isFourClassGrid, TERRAIN_COVER_CODES } from './fourClassCover';
 
 export const COVER_DISPLAY_SMOOTHING_M = 24;
 export const COVER_DISPLAY_SIMPLIFY_M = 10;
@@ -9,6 +10,10 @@ export const COVER_DISPLAY_VERTEX_BUDGET = 250_000;
 export const WORLD_COVER_CODES: WorldCoverClassCode[] = [
   10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100,
 ];
+export const FOUR_CLASS_COVER_CODES: CoverClassCode[] = [
+  TERRAIN_COVER_CODES.forest, TERRAIN_COVER_CODES.alpine, TERRAIN_COVER_CODES.grassland, TERRAIN_COVER_CODES.water,
+];
+const ALL_COVER_CODES: CoverClassCode[] = [...WORLD_COVER_CODES, ...FOUR_CLASS_COVER_CODES];
 
 export interface CoverDisplayStats {
   polygonCount: number;
@@ -26,24 +31,27 @@ export interface DerivedCoverDisplay {
 
 export type CoverDisplayGeoJSON = GeoJSON.FeatureCollection<
   GeoJSON.Polygon,
-  { code: WorldCoverClassCode }
+  { code: CoverClassCode }
 >;
 
-function traceAt(grid: SiteCoverGrid, simplifyM: number): DerivedCoverDisplay {
+function traceAt(grid: CoverGrid, simplifyM: number): DerivedCoverDisplay {
   const mask = new Uint8Array(grid.width * grid.height);
   const geometry: number[] = [];
   let polygonCount = 0;
   let ringCount = 0;
   let vertexCount = 0;
   const cellM = Math.max(0.1, grid.cellSizeM);
+  const fourClass = isFourClassGrid(grid);
+  const smoothingM = fourClass ? 6 : COVER_DISPLAY_SMOOTHING_M;
+  const minFeatureM2 = fourClass ? 16 : COVER_DISPLAY_MIN_FEATURE_M2;
   const options = {
-    blurRadius: Math.max(1, Math.min(5, Math.round(COVER_DISPLAY_SMOOTHING_M / cellM))),
+    blurRadius: Math.max(1, Math.min(5, Math.round(smoothingM / cellM))),
     blurIterations: 2,
     simplifyTol: Math.max(0.5, simplifyM / cellM),
-    minAreaCells: Math.max(1, Math.round(COVER_DISPLAY_MIN_FEATURE_M2 / (cellM * cellM))),
+    minAreaCells: Math.max(1, Math.round(minFeatureM2 / (cellM * cellM))),
   };
 
-  const appendPolygon = (code: WorldCoverClassCode, polygon: CoverPolygon) => {
+  const appendPolygon = (code: CoverClassCode, polygon: CoverPolygon) => {
     const rings = [polygon.outer, ...polygon.holes];
     geometry.push(code, rings.length);
     polygonCount++;
@@ -57,7 +65,7 @@ function traceAt(grid: SiteCoverGrid, simplifyM: number): DerivedCoverDisplay {
     }
   };
 
-  for (const code of WORLD_COVER_CODES) {
+  for (const code of fourClass ? FOUR_CLASS_COVER_CODES : WORLD_COVER_CODES) {
     let any = false;
     for (let i = 0; i < grid.data.length; i++) {
       const hit = grid.data[i] === code ? 1 : 0;
@@ -76,17 +84,18 @@ function traceAt(grid: SiteCoverGrid, simplifyM: number): DerivedCoverDisplay {
       polygonCount,
       ringCount,
       vertexCount,
-      smoothingM: COVER_DISPLAY_SMOOTHING_M,
+      smoothingM,
       simplifyM,
-      minFeatureM2: COVER_DISPLAY_MIN_FEATURE_M2,
+      minFeatureM2,
     },
   };
 }
 
 /** One-time raster-to-vector preparation with a deterministic vertex budget. */
-export function deriveCoverDisplayGeometry(grid: SiteCoverGrid): DerivedCoverDisplay {
-  let result = traceAt(grid, COVER_DISPLAY_SIMPLIFY_M);
-  for (let simplifyM = 12; result.stats.vertexCount > COVER_DISPLAY_VERTEX_BUDGET && simplifyM <= 20; simplifyM += 2) {
+export function deriveCoverDisplayGeometry(grid: CoverGrid): DerivedCoverDisplay {
+  const initialSimplifyM = isFourClassGrid(grid) ? 2 : COVER_DISPLAY_SIMPLIFY_M;
+  let result = traceAt(grid, initialSimplifyM);
+  for (let simplifyM = initialSimplifyM + 2; result.stats.vertexCount > COVER_DISPLAY_VERTEX_BUDGET && simplifyM <= 20; simplifyM += 2) {
     result = traceAt(grid, simplifyM);
   }
   return result.stats.vertexCount > COVER_DISPLAY_VERTEX_BUDGET
@@ -110,7 +119,7 @@ function encodedPolygons(values: ArrayLike<number>): EncodedPolygon[] {
     const start = i;
     const code = data[i++];
     const ringCount = data[i++];
-    if (!WORLD_COVER_CODES.includes(code as WorldCoverClassCode) || !Number.isInteger(ringCount) || ringCount < 1) throw new Error('Invalid ground-cover display geometry header.');
+    if (!ALL_COVER_CODES.includes(code as CoverClassCode) || !Number.isInteger(ringCount) || ringCount < 1) throw new Error('Invalid ground-cover display geometry header.');
     let vertexCount = 0;
     let area = 0;
     for (let ringIndex = 0; ringIndex < ringCount; ringIndex++) {
@@ -173,9 +182,9 @@ export function coverDisplayToGeoJSON(
   const features: CoverDisplayGeoJSON['features'] = [];
   let i = 0;
   while (i < values.length) {
-    const code = values[i++] as WorldCoverClassCode;
+    const code = values[i++] as CoverClassCode;
     const ringCount = values[i++];
-    if (!WORLD_COVER_CODES.includes(code) || !Number.isInteger(ringCount) || ringCount < 1) {
+    if (!ALL_COVER_CODES.includes(code) || !Number.isInteger(ringCount) || ringCount < 1) {
       throw new Error('Invalid ground-cover display geometry header.');
     }
     const coordinates: GeoJSON.Position[][] = [];

@@ -1,5 +1,5 @@
 import maplibregl from 'maplibre-gl';
-import type { LandCoverClass, TerrainRecord, WorldCoverClassCode } from '../types';
+import type { CoverClassCode, LandCoverClass, TerrainRecord, WorldCoverClassCode } from '../types';
 import { lngLatToUnit } from '../geo';
 
 export const RESORT_DEM_PROTOCOL = 'resort-dem';
@@ -65,7 +65,7 @@ function sampleGrid(record: TerrainRecord, lng: number, lat: number): number | n
   return (a * (1 - tx) + c * tx) * (1 - ty) + (d * (1 - tx) + e * tx) * ty;
 }
 
-export function sampleLocalCoverAt(lng: number, lat: number): WorldCoverClassCode | null {
+export function sampleLocalCoverAt(lng: number, lat: number): CoverClassCode | null {
   const grid = active?.coverGrid;
   if (!grid) return null;
   const b = grid.bounds;
@@ -73,7 +73,7 @@ export function sampleLocalCoverAt(lng: number, lat: number): WorldCoverClassCod
   const [u, v] = lngLatToUnit(lng, lat, b);
   const c = Math.min(grid.width - 1, Math.max(0, Math.floor(u * grid.width)));
   const r = Math.min(grid.height - 1, Math.max(0, Math.floor(v * grid.height)));
-  const code = grid.data[r * grid.width + c] as WorldCoverClassCode;
+  const code = grid.data[r * grid.width + c] as CoverClassCode;
   return code === 255 ? null : code;
 }
 
@@ -97,6 +97,7 @@ export function sampleLocalTerrainAt(lng: number, lat: number): { elevation: num
 }
 
 export const WORLD_COVER_LABELS: Record<number, string> = {
+  1: 'Forest', 2: 'Alpine', 3: 'Grassland', 4: 'Water',
   10: 'Tree cover', 20: 'Shrubland', 30: 'Grassland', 40: 'Cropland', 50: 'Built-up',
   60: 'Bare / sparse', 70: 'Snow and ice', 80: 'Permanent water', 90: 'Herbaceous wetland',
   95: 'Mangroves', 100: 'Moss and lichen', 255: 'No data',
@@ -109,6 +110,7 @@ export const WORLD_COVER_CLASSES: Record<WorldCoverClassCode, LandCoverClass> = 
 };
 
 const COVER_RGBA: Record<number, [number, number, number, number]> = {
+  1: [82, 105, 82, 205], 2: [215, 216, 207, 150], 3: [177, 183, 145, 150], 4: [83, 142, 174, 185],
   10: [47, 81, 53, 205], 20: [113, 128, 90, 190], 30: [197, 200, 153, 120],
   40: [202, 184, 139, 120], 50: [154, 135, 125, 160], 60: [157, 151, 140, 140],
   70: [237, 240, 238, 150], 80: [83, 142, 174, 185], 90: [79, 145, 137, 170],

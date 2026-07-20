@@ -114,7 +114,8 @@ export function setupAnalysisLayers(
   map: maplibregl.Map,
   terrain?: TerrainRecord | null,
   units: 'imperial' | 'metric' = 'imperial',
-  coverDisplay?: CoverDisplayGeoJSON | null
+  coverDisplay?: CoverDisplayGeoJSON | null,
+  localImageryUrl?: string | null
 ): LayerToggle[] {
   const local = terrain?.coverGrid && terrain.bounds ? terrain : null;
   const styleLayers = map.getStyle().layers ?? [];
@@ -127,12 +128,24 @@ export function setupAnalysisLayers(
   const satelliteLayer = map.getLayer(MASTER_PLAN_LAYER_IDS.satellite)
     ? MASTER_PLAN_LAYER_IDS.satellite
     : 'satellite';
+  const satelliteVisible = local?.coverGrid?.source !== 'usgs-four-class-v1';
 
-  if (!map.getSource('satellite')) {
+  if (local && localImageryUrl && local.localImageryMetadata) {
+    if (map.getLayer(satelliteLayer)) map.removeLayer(satelliteLayer);
+    if (map.getSource('satellite')) map.removeSource('satellite');
+    const b = local.localImageryMetadata.bounds;
+    map.addSource('satellite', {
+      type: 'image', url: localImageryUrl,
+      coordinates: [[b.west, b.north], [b.east, b.north], [b.east, b.south], [b.west, b.south]],
+    });
+    map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', layout: { visibility: satelliteVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': 0.7, 'raster-saturation': -0.24, 'raster-contrast': -0.05 } }, before);
+  } else if (!map.getSource('satellite')) {
     map.addSource('satellite', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, maxzoom: 19, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
   }
   if (!map.getLayer(satelliteLayer)) {
-    map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', paint: { 'raster-opacity': 0.7, 'raster-saturation': -0.35, 'raster-contrast': -0.08 } }, before);
+    map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', layout: { visibility: satelliteVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': 0.7, 'raster-saturation': -0.35, 'raster-contrast': -0.08 } }, before);
+  } else {
+    map.setLayoutProperty(satelliteLayer, 'visibility', satelliteVisible ? 'visible' : 'none');
   }
 
   let demUrl = TERRARIUM_TILES;
@@ -147,7 +160,7 @@ export function setupAnalysisLayers(
     if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${key}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
     map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local), attribution: 'Local OSM context © OpenStreetMap contributors' });
     coverVisible = true;
-    coverLabel = 'ESA WorldCover 2021 · 10 m (local)';
+    coverLabel = local.coverGrid?.source === 'usgs-four-class-v1' ? 'Detailed terrain cover (local)' : 'ESA WorldCover 2021 · 10 m (local)';
   } else {
     registerWorldcoverProtocol();
     map.addSource('worldcover', { type: 'raster', tiles: [`${WORLDCOVER_PROTOCOL}://{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, attribution: '© ESA WorldCover project / Copernicus' });
@@ -247,7 +260,7 @@ export function setupAnalysisLayers(
   }, contourAnchor);
 
   return [
-    { id: 'satellite', label: 'Satellite imagery', layerIds: [satelliteLayer], visible: true, section: 'Imagery' },
+    { id: 'satellite', label: 'Satellite imagery', layerIds: [satelliteLayer], visible: satelliteVisible, section: 'Imagery' },
     { id: 'groundcover', label: coverLabel, layerIds: local && coverDisplay ? COVER_LAYER_IDS : local ? ['groundcover', 'cover-boundary-halo', 'cover-boundaries'] : ['groundcover'], visible: coverVisible, section: 'Master plan' },
     { id: 'hillshade', label: 'Terrain relief', layerIds: ['hillshade'], visible: true, section: 'Master plan' },
     { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },

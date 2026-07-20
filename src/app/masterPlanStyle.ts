@@ -20,7 +20,7 @@ export function createMasterPlanStyle(): StyleSpecification {
     },
     layers: [
       { id: 'mp-paper', type: 'background', paint: { 'background-color': '#e8e5dc' } },
-      { id: MASTER_PLAN_LAYER_IDS.satellite, type: 'raster', source: 'satellite', paint: { 'raster-opacity': 0.7, 'raster-saturation': -0.35, 'raster-contrast': -0.08, 'raster-fade-duration': 250 } },
+      { id: MASTER_PLAN_LAYER_IDS.satellite, type: 'raster', source: 'satellite', layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.7, 'raster-saturation': -0.35, 'raster-contrast': -0.08, 'raster-fade-duration': 250 } },
       { id: MASTER_PLAN_LAYER_IDS.contextLandcover, type: 'fill', source: 'openmaptiles', 'source-layer': 'landcover', paint: { 'fill-color': '#65745d', 'fill-opacity': 0.1 } },
       { id: MASTER_PLAN_LAYER_IDS.water, type: 'fill', source: 'openmaptiles', 'source-layer': 'water', paint: { 'fill-color': '#76a9c4', 'fill-opacity': 0.72 } },
       { id: MASTER_PLAN_LAYER_IDS.waterways, type: 'line', source: 'openmaptiles', 'source-layer': 'waterway', paint: { 'line-color': '#438caf', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 16, 1.4], 'line-opacity': 0.8 } },

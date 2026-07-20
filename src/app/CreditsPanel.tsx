@@ -10,9 +10,11 @@ interface Credit {
 
 const CREDITS: Credit[] = [
   { what: 'Basemap', who: '© OpenStreetMap contributors · © CARTO' },
-  { what: 'Satellite imagery', who: '© Esri, Maxar, Earthstar Geographics' },
-  { what: 'Local land cover', who: 'ESA WorldCover 2021 · 10 m · Copernicus' },
-  { what: 'Local terrain / contours', who: 'Prepared from USGS 3DEP elevation' },
+  { what: 'Preview satellite imagery', who: '© Esri, Maxar, Earthstar Geographics' },
+  { what: 'Matched local imagery', who: 'USDA / USGS NAIP orthoimagery · public domain' },
+  { what: 'Detailed tree cover', who: 'Prepared from USGS 3DEP lidar and USDA / USGS NAIP' },
+  { what: 'Recovery land cover', who: '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data' },
+  { what: 'Local terrain / contours', who: 'Prepared from USGS 3DEP elevation · public domain' },
   { what: 'Elevation', who: 'USGS 3DEP' },
   { what: 'Place search / location', who: 'Nominatim · © OpenStreetMap contributors' },
 ];

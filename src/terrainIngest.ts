@@ -1,7 +1,7 @@
 // Orchestrates turning either a live map selection or a curated preset into
 // a fully-built TerrainDB: fetch/generate the raw sample grid, upscale it
 // for display, attach a climate profile, persist it, and return it.
-import type { AreaSizeMeters, CoverDisplayMetadata, SiteCoverGrid, TerrainDB, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
+import type { AreaSizeMeters, CoverDisplayMetadata, CoverGrid, LocalImageryMetadata, SiteCoverGrid, TerrainDB, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
 import { fetchElevationGrid, sampleGridSizeFor, type LatLonBounds, type ElevationProgress } from './elevation';
 import { bicubicUpscale } from './bicubicUpscale';
 import { generateProceduralClimate } from './climate';
@@ -11,10 +11,12 @@ import { boundsForSquareMeters } from './geo';
 import { fetchVectorFeatures, hydrateVectorFeatures } from './vectorFeatures';
 import { MAP_SIZE } from './renderer';
 import { sampleSiteCoverGrid } from './app/worldcoverProtocol';
-import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from './terrainPackage';
+import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, imageryMetadataOf, manifestOf, originalCoverMetadataOf, validateTerrainPackage } from './terrainPackage';
 import { traceContours } from './marchingSquares';
 import { deriveCoverBoundarySegments } from './coverAnalysis';
 import { deriveCoverDisplayGeometry, type DerivedCoverDisplay } from './coverDisplay';
+import { deriveFourClassCover, isFourClassGrid } from './fourClassCover';
+import { fetchLidarCanopyGrid, fetchNaipAcquisition } from './usgsTerrainCover';
 
 export const DISPLAY_GRID_SIZE = 512;
 
@@ -135,8 +137,11 @@ async function finalizeAndSave(
   sampleHeights: number[],
   sourceType: TerrainRecord['sourceType'],
   vectorFeatures?: VectorFeatureSet,
-  coverGrid?: SiteCoverGrid,
-  preparedCoverDisplay?: DerivedCoverDisplay
+  coverGrid?: CoverGrid,
+  preparedCoverDisplay?: DerivedCoverDisplay,
+  originalCoverGrid?: SiteCoverGrid,
+  localImagery?: Uint8Array,
+  localImageryMetadata?: LocalImageryMetadata
 ): Promise<TerrainDB> {
   const sampleGridSize = Math.round(Math.sqrt(sampleHeights.length));
   const contourGridSize = Math.min(DISPLAY_GRID_SIZE, sampleGridSize);
@@ -163,7 +168,7 @@ async function finalizeAndSave(
 
   const now = new Date().toISOString();
   let record: TerrainRecord = {
-    schemaVersion: coverGrid ? 5 : 3,
+    schemaVersion: coverGrid ? isFourClassGrid(coverGrid) ? 6 : 5 : 3,
     key: makeKey(mountainName, latitude, longitude),
     mountainName,
     latitude,
@@ -176,10 +181,14 @@ async function finalizeAndSave(
     vectorFeatures,
     coverGrid,
     coverMetadata: coverGrid ? coverMetadataOf(coverGrid) : undefined,
+    originalCoverGrid,
+    originalCoverMetadata: originalCoverGrid ? originalCoverMetadataOf(originalCoverGrid) : undefined,
     coverBoundarySegments,
     coverGeometryMetadata: coverBoundarySegments ? coverGeometryMetadataOf(coverBoundarySegments) : undefined,
     coverDisplayGeometry,
     coverDisplayMetadata,
+    localImagery,
+    localImageryMetadata,
     contourSegments,
     contourMetadata: contourSegments ? contourMetadataOf(contourSegments, contourGridSize, contourIntervalM) : undefined,
     sourceType,
@@ -230,7 +239,7 @@ export async function prepareResortPackage(
   const requestedBounds = { west, south, east, north };
   const areaSizeMeters = Math.round(Math.max(site.widthKm, site.heightKm) * 1000);
   const report = (phase: TerrainPackageProgress['phase'], message: string, completed: number) =>
-    onProgress?.({ phase, message, completed, total: 7 });
+    onProgress?.({ phase, message, completed, total: 10 });
   const abort = () => {
     if (signal?.aborted) throw new DOMException('Resort preparation cancelled', 'AbortError');
   };
@@ -255,23 +264,55 @@ export async function prepareResortPackage(
     longitude: (bounds.west + bounds.east) / 2,
   };
 
-  report('ground-cover', 'Downloading ESA WorldCover 2021', 1);
-  const coverGrid = await sampleSiteCoverGrid(bounds, 10, signal);
-  if (!coverGrid.complete) throw new Error(`Ground-cover package is incomplete (${coverGrid.nodataCount} missing cells).`);
+  report('ground-cover', 'Downloading ESA WorldCover recovery data', 1);
+  const originalCoverGrid = await sampleSiteCoverGrid(bounds, 10, signal);
+  if (!originalCoverGrid.complete) throw new Error(`Ground-cover package is incomplete (${originalCoverGrid.nodataCount} missing cells).`);
   abort();
 
-  report('decoding', 'Validating source-faithful land-cover classes', 2);
+  report('lidar', 'Finding progressive USGS canopy lidar', 2);
+  const [lidar, vectorFeatures] = await Promise.all([
+    fetchLidarCanopyGrid(bounds, {
+      bounds, width: elevation.width, height: elevation.height, heights: sampleHeights,
+    }, signal),
+    fetchVectorFeatures(bounds).catch(() => undefined),
+  ]);
   abort();
 
-  report('vectorizing-cover', 'Drawing smooth ground cover', 3);
+  report('imagery', 'Downloading matching public-domain NAIP imagery', 3);
+  const naip = await fetchNaipAcquisition(bounds, lidar?.acquisitionYear, signal);
+  abort();
+
+  report('decoding', 'Classifying forest, alpine, grassland, and water', 4);
+  const coverGrid = deriveFourClassCover({
+    bounds,
+    original: originalCoverGrid,
+    elevation: { heights: sampleHeights, width: elevation.width, height: elevation.height },
+    naip,
+    lidar,
+    vectors: vectorFeatures,
+    targetCellM: 2,
+  });
+  abort();
+
+  report('vectorizing-cover', 'Drawing detailed tree-cover polygons', 5);
   const coverDisplay = deriveCoverDisplayGeometry(coverGrid);
   abort();
 
-  report('deriving', 'Preparing exact canopy boundaries and local contours', 4);
-  const vectorFeatures = await fetchVectorFeatures(bounds).catch(() => undefined);
+  report('deriving', 'Preparing canopy calculations and local contours', 6);
   abort();
 
-  report('saving', 'Saving local resort package', 5);
+  const localImagery = naip?.jpeg;
+  const localImageryMetadata = localImagery && naip ? imageryMetadataOf(localImagery, {
+    bounds: naip.bounds,
+    width: naip.width,
+    height: naip.height,
+    mimeType: 'image/jpeg',
+    acquisitionYear: naip.acquisitionYear,
+    sceneIds: naip.sceneIds,
+    attribution: 'USDA/USGS NAIP orthoimagery · public domain',
+  }) : undefined;
+
+  report('saving', 'Saving local resort package', 7);
   const terrain = await finalizeAndSave(
     mountainName,
     center.latitude,
@@ -282,19 +323,23 @@ export async function prepareResortPackage(
     'live',
     vectorFeatures,
     coverGrid,
-    coverDisplay
+    coverDisplay,
+    originalCoverGrid,
+    localImagery,
+    localImageryMetadata
   );
   if (signal?.aborted) {
     await deleteTerrain(terrain.key);
     abort();
   }
-  report('verifying', 'Verifying local resort package', 6);
+  report('verifying', 'Verifying local resort package', 8);
   const validation = validateTerrainPackage(terrain);
   if (!validation.ok) {
     await deleteTerrain(terrain.key);
     throw new Error(validation.errors.join(' '));
   }
-  report('verifying', 'Resort package ready', 7);
+  report('verifying', 'Finalizing four-class terrain cover', 9);
+  report('verifying', 'Resort package ready', 10);
   return terrain;
 }
 

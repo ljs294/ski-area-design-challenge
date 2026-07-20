@@ -41,6 +41,10 @@ export type LandCoverClass =
 
 /** Native ESA WorldCover class codes. 255 is reserved for missing/unknown data. */
 export type WorldCoverClassCode = 10 | 20 | 30 | 40 | 50 | 60 | 70 | 80 | 90 | 95 | 100 | 255;
+export type TerrainCoverClass = 'forest' | 'alpine' | 'grassland' | 'water';
+export type TerrainCoverCode = 1 | 2 | 3 | 4 | 255;
+export type CoverClassCode = WorldCoverClassCode | TerrainCoverCode;
+export type CoverGridData = number[] | Uint8Array;
 
 export interface SiteCoverGrid {
   bounds: LatLonBounds;
@@ -48,16 +52,75 @@ export interface SiteCoverGrid {
   height: number;
   /** Approximate source-cell size at the site's center latitude. */
   cellSizeM: number;
-  data: number[]; // row-major WorldCoverClassCode values; persisted as UInt8 binary
+  data: CoverGridData; // row-major WorldCoverClassCode values; persisted as UInt8 binary
   complete: boolean;
   nodataCount: number;
   source: 'esa-worldcover-2021-v200';
   vintage: '2021';
 }
 
-export interface CoverMetadata extends Omit<SiteCoverGrid, 'data'> {
+export interface TerrainCoverProvenance {
+  processingVersion: 'four-class-v1';
+  confidence: 'high' | 'reduced';
+  method: 'lidar-naip' | 'lidar-worldcover' | 'naip-worldcover' | 'worldcover-fallback';
+  attribution: string[];
+  lidar?: {
+    projectId: string;
+    acquisitionYear?: number;
+    resolutionM: number;
+    downloadedBytes: number;
+    license: 'us-government-public-domain';
+  };
+  naip?: {
+    sceneIds: number[];
+    sceneNames: string[];
+    acquisitionYear: number;
+    agency: 'USDA' | 'USGS';
+    resolutionM: number;
+    license: 'us-government-public-domain';
+  };
+  worldCover: {
+    vintage: '2021';
+    license: 'cc-by-4.0';
+  };
+}
+
+export interface TerrainCoverGrid {
+  bounds: LatLonBounds;
+  width: number;
+  height: number;
+  cellSizeM: number;
+  data: CoverGridData;
+  complete: boolean;
+  nodataCount: number;
+  source: 'usgs-four-class-v1';
+  vintage: string;
+  treelineM: { north: number; east: number; south: number; west: number; site: number };
+  provenance: TerrainCoverProvenance;
+}
+
+export type CoverGrid = SiteCoverGrid | TerrainCoverGrid;
+
+export type CoverMetadata = (
+  | Omit<SiteCoverGrid, 'data'>
+  | Omit<TerrainCoverGrid, 'data'>
+) & { byteLength: number; checksum: string };
+
+export interface OriginalCoverMetadata extends Omit<SiteCoverGrid, 'data'> {
   byteLength: number;
   checksum: string;
+}
+
+export interface LocalImageryMetadata {
+  bounds: LatLonBounds;
+  width: number;
+  height: number;
+  mimeType: 'image/jpeg';
+  byteLength: number;
+  checksum: string;
+  acquisitionYear: number;
+  sceneIds: number[];
+  attribution: string;
 }
 
 export interface ContourMetadata {
@@ -90,6 +153,8 @@ export interface CoverDisplayMetadata {
 export type TerrainPackagePhase =
   | 'elevation'
   | 'ground-cover'
+  | 'imagery'
+  | 'lidar'
   | 'decoding'
   | 'deriving'
   | 'vectorizing-cover'
@@ -104,21 +169,25 @@ export interface TerrainPackageProgress {
 }
 
 export interface TerrainPackageManifest {
-  schemaVersion: 1 | 2;
+  schemaVersion: 1 | 2 | 3;
   terrainKey: string;
   complete: boolean;
   elevationByteLength: number;
   elevationChecksum: string;
   cover?: CoverMetadata;
+  originalCover?: OriginalCoverMetadata;
   coverGeometry?: CoverGeometryMetadata;
   coverDisplay?: CoverDisplayMetadata;
   contours?: ContourMetadata;
+  imagery?: LocalImageryMetadata;
   assets: {
     elevation: string;
     cover: string;
+    originalCover?: string;
     coverGeometry: string;
     coverDisplay?: string;
     contours: string;
+    imagery?: string;
   };
   preparedAt: string;
 }
@@ -176,7 +245,7 @@ export interface VectorFeatureSet {
 // is stored; the display grid is always recomputed on load (deterministic,
 // cheap, and avoids multi-megabyte save files).
 export interface TerrainRecord {
-  schemaVersion: 2 | 3 | 4 | 5;
+  schemaVersion: 2 | 3 | 4 | 5 | 6;
   key: string; // stable slug, see terrainStorageClient.ts
   mountainName: string;
   latitude: number; // center
@@ -191,14 +260,20 @@ export interface TerrainRecord {
   sampleGridSize: number; // actual square elevation raster dimension
   sampleHeights: number[]; // row-major, sampleGridSize^2, meters
   /** Present on schema-v4 prepared resort packages; stored as .cover.bin. */
-  coverGrid?: SiteCoverGrid;
+  coverGrid?: CoverGrid;
   coverMetadata?: CoverMetadata;
+  /** Unmodified ESA grid retained by schema-v6 packages for provenance/recovery. */
+  originalCoverGrid?: SiteCoverGrid;
+  originalCoverMetadata?: OriginalCoverMetadata;
   /** Flat [x1,y1,x2,y2,classCode] tuples in normalized site coordinates. */
   coverBoundarySegments?: number[];
   coverGeometryMetadata?: CoverGeometryMetadata;
   /** Flat normalized polygon stream; see coverDisplay.ts. Required by schema v5. */
   coverDisplayGeometry?: number[];
   coverDisplayMetadata?: CoverDisplayMetadata;
+  /** Optional matching NAIP JPEG; stored outside JSON as .imagery.jpg. */
+  localImagery?: Uint8Array | number[];
+  localImageryMetadata?: LocalImageryMetadata;
   /** Flat [x1,y1,x2,y2,levelMeters] tuples in normalized site coordinates. */
   contourSegments?: number[];
   contourMetadata?: ContourMetadata;

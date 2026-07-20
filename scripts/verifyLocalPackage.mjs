@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 
 const base = process.argv[2] ?? 'http://127.0.0.1:5176/ski-area-design-challenge/';
 const shot = process.argv[3] ?? 'scratchpad/local-package.png';
+const target = process.argv[4] ?? 'default';
 const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
@@ -10,6 +11,8 @@ let phase = 'setup';
 
 const providerKind = (url) => {
   if (url.includes('elevation.nationalmap.gov')) return 'USGS';
+  if (url.includes('imagery.nationalmap.gov')) return 'NAIP';
+  if (url.includes('usgs-lidar-public') || url.includes('usgs-lidar-stac') || url.includes('hobuinc/usgs-lidar')) return 'USGS-Lidar';
   if (url.includes('wmts.terrascope.be')) return 'WorldCover';
   if (url.includes('elevation-tiles-prod')) return 'Terrarium';
   return null;
@@ -40,6 +43,10 @@ try {
   await page.goto(base, { waitUntil: 'load', timeout: 30_000 });
   await page.locator('.trail-slat', { hasText: 'New Game' }).evaluate((element) => element.click());
   await waitMap();
+  if (target === 'schweitzer') {
+    await page.evaluate(() => globalThis.appMap.jumpTo({ center: [-116.622, 48.368], zoom: 13.4 }));
+    await page.waitForTimeout(800);
+  }
   await page.click('.site-btn >> text=Select site');
   await page.mouse.move(610, 410);
   await page.mouse.down();
@@ -77,6 +84,7 @@ try {
       contourType: style.sources.contours?.type,
       hasCoverBoundaries: !!style.sources['cover-boundaries'],
       hasLocalContext: !!style.sources['local-context'],
+      satelliteType: style.sources.satellite?.type,
       layerOrder: style.layers.map((layer) => layer.id),
     };
   });
@@ -112,6 +120,12 @@ try {
       coverComplete: record?.coverGrid?.complete,
       coverSchema: record?.schemaVersion,
       coverVertices: record?.coverDisplayMetadata?.vertexCount,
+      coverSource: record?.coverGrid?.source,
+      coverMethod: record?.coverGrid?.provenance?.method,
+      imageryBytes: record?.localImageryMetadata?.byteLength,
+      lidarBytes: record?.coverGrid?.provenance?.lidar?.downloadedBytes,
+      treelineM: record?.coverGrid?.treelineM,
+      coverGrid: record?.coverGrid ? [record.coverGrid.width, record.coverGrid.height] : null,
     };
   }, local3D.pitch);
 
@@ -120,10 +134,12 @@ try {
   console.log('LOCAL_3D', JSON.stringify(local3D));
   console.log('PERSISTED_LOCAL_PACKAGE', JSON.stringify(persisted));
   console.log('GAMEPLAY_PROVIDER_REQUESTS', JSON.stringify(forbidden));
+  if (target === 'schweitzer') await page.screenshot({ path: shot });
   if (!String(local2D.demTiles?.[0]).startsWith('resort-dem://')) throw new Error('2D DEM was not local');
   if (!local2D.hasVectorCover || local2D.hasRasterCover || local2D.hasCoverBoundaries) throw new Error('Persisted vector cover did not replace raster cover');
+  if (persisted.imageryBytes && local2D.satelliteType !== 'image') throw new Error('Matched local imagery did not replace the live satellite source');
   if (!String(local3D.terrainTiles?.[0]).startsWith('resort-dem://')) throw new Error('3D DEM was not local');
-  if (!persisted.validation.ok || !persisted.coverComplete || persisted.coverSchema !== 5 || !persisted.coverVertices || !persisted.is3D || forbidden.length) throw new Error('Offline/persistence acceptance failed');
+  if (!persisted.validation.ok || !persisted.coverComplete || persisted.coverSchema !== 6 || persisted.coverSource !== 'usgs-four-class-v1' || !persisted.coverVertices || !persisted.is3D || forbidden.length) throw new Error('Offline/persistence acceptance failed');
 } catch (error) {
   console.error('VERIFY_LOCAL_PACKAGE_FAILED', error instanceof Error ? error.stack : error);
   console.error('PACKAGE_CARD', await page.locator('.package-card').textContent().catch(() => null));

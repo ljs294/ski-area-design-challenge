@@ -7,6 +7,7 @@ export const COVER_OUTLINE_LAYER = 'cover-outline';
 export const COVER_LAYER_IDS = [COVER_FILL_LAYER, COVER_OUTLINE_LAYER];
 
 const FILL_BY_CODE: Record<number, string> = {
+  1: '#526952', 2: '#d7d8cf', 3: '#b1b791', 4: '#538eae',
   10: '#2f5135', 20: '#71805a', 30: '#c5c899', 40: '#cab88b',
   50: '#9a877d', 60: '#9d978c', 70: '#edf0ee', 80: '#538eae',
   90: '#4f9189', 95: '#276945', 100: '#c0c199',
@@ -39,6 +40,7 @@ export function addCoverLayers(
       'fill-color': colorExpression('#000000'),
       'fill-opacity': [
         'match', ['get', 'code'],
+        1, 0.76, 2, 0.52, 3, 0.48, 4, 0.72,
         10, 0.8, 95, 0.8, 20, 0.74, 80, 0.72, 90, 0.67, 0.55,
       ] as unknown as maplibregl.ExpressionSpecification,
       'fill-antialias': true,
@@ -54,7 +56,7 @@ export function addCoverLayers(
       'line-width': [
         'interpolate', ['linear'], ['zoom'], 11, 0.25, 16, 1.05,
       ] as unknown as maplibregl.ExpressionSpecification,
-      'line-opacity': ['match', ['get', 'code'], 10, 0.8, 20, 0.65, 95, 0.8, 0.36] as unknown as maplibregl.ExpressionSpecification,
+      'line-opacity': ['match', ['get', 'code'], 1, 0.72, 2, 0.24, 3, 0.2, 4, 0.52, 10, 0.8, 20, 0.65, 95, 0.8, 0.36] as unknown as maplibregl.ExpressionSpecification,
     },
   }, before);
 }

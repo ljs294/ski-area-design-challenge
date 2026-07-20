@@ -2,6 +2,9 @@ import type {
   CoverMetadata,
   CoverGeometryMetadata,
   CoverDisplayMetadata,
+  CoverGrid,
+  LocalImageryMetadata,
+  OriginalCoverMetadata,
   SiteCoverGrid,
   TerrainPackageManifest,
   TerrainPackageValidation,
@@ -24,11 +27,11 @@ export function float32Bytes(values: ArrayLike<number>): Uint8Array {
   return new Uint8Array(floats.buffer, floats.byteOffset, floats.byteLength);
 }
 
-export function coverBytes(grid: SiteCoverGrid): Uint8Array {
+export function coverBytes(grid: CoverGrid): Uint8Array {
   return Uint8Array.from(grid.data);
 }
 
-export function coverMetadataOf(grid: SiteCoverGrid): CoverMetadata {
+export function coverMetadataOf(grid: CoverGrid): CoverMetadata {
   const bytes = coverBytes(grid);
   const { data: _data, ...base } = grid;
   return { ...base, byteLength: bytes.byteLength, checksum: checksumBytes(bytes) };
@@ -44,6 +47,18 @@ export function coverGeometryMetadataOf(segments: number[]): CoverGeometryMetada
   return { segmentCount: Math.floor(segments.length / 5), byteLength: bytes.byteLength, checksum: checksumBytes(bytes) };
 }
 
+export function originalCoverMetadataOf(grid: SiteCoverGrid): OriginalCoverMetadata {
+  return coverMetadataOf(grid) as OriginalCoverMetadata;
+}
+
+export function imageryMetadataOf(
+  bytes: ArrayLike<number>,
+  base: Omit<LocalImageryMetadata, 'byteLength' | 'checksum'>
+): LocalImageryMetadata {
+  const value = Uint8Array.from(bytes);
+  return { ...base, byteLength: value.byteLength, checksum: checksumBytes(value) };
+}
+
 export function coverDisplayMetadataOf(
   geometry: number[],
   stats: CoverDisplayStats
@@ -55,12 +70,13 @@ export function coverDisplayMetadataOf(
 export function manifestOf(record: TerrainRecord): TerrainPackageManifest {
   const heightBytes = float32Bytes(record.sampleHeights);
   return {
-    schemaVersion: record.coverDisplayGeometry ? 2 : 1,
+    schemaVersion: record.schemaVersion >= 6 ? 3 : record.coverDisplayGeometry ? 2 : 1,
     terrainKey: record.key,
     complete: !!record.coverGrid?.complete,
     elevationByteLength: heightBytes.byteLength,
     elevationChecksum: checksumBytes(heightBytes),
     cover: record.coverGrid ? coverMetadataOf(record.coverGrid) : record.coverMetadata,
+    originalCover: record.originalCoverGrid ? originalCoverMetadataOf(record.originalCoverGrid) : record.originalCoverMetadata,
     coverGeometry: record.coverBoundarySegments
       ? coverGeometryMetadataOf(record.coverBoundarySegments)
       : record.coverGeometryMetadata,
@@ -70,12 +86,17 @@ export function manifestOf(record: TerrainRecord): TerrainPackageManifest {
     contours: record.contourSegments
       ? contourMetadataOf(record.contourSegments, record.contourMetadata?.gridSize ?? 512, record.contourMetadata?.intervalM ?? 6.096)
       : record.contourMetadata,
+    imagery: record.localImagery && record.localImageryMetadata
+      ? imageryMetadataOf(record.localImagery, record.localImageryMetadata)
+      : record.localImageryMetadata,
     assets: {
       elevation: `${record.key}.heights.bin`,
       cover: `${record.key}.cover.bin`,
+      originalCover: record.originalCoverGrid || record.originalCoverMetadata ? `${record.key}.cover-original.bin` : undefined,
       coverGeometry: `${record.key}.cover-geometry.bin`,
       coverDisplay: `${record.key}.cover-display.bin`,
       contours: `${record.key}.contours.bin`,
+      imagery: record.localImagery || record.localImageryMetadata ? `${record.key}.imagery.jpg` : undefined,
     },
     preparedAt: new Date().toISOString(),
   };
@@ -119,6 +140,15 @@ export function validateTerrainPackage(record: TerrainRecord): TerrainPackageVal
   if (record.schemaVersion >= 5 && (!manifest?.coverDisplay || !manifest.assets.coverDisplay)) {
     errors.push('Vector ground-cover manifest asset is missing.');
   }
+  if (record.schemaVersion >= 6 && (!record.originalCoverGrid || !record.originalCoverMetadata)) {
+    errors.push('Original WorldCover recovery grid is missing.');
+  }
+  if (record.schemaVersion >= 6 && (!manifest?.originalCover || !manifest.assets.originalCover)) {
+    errors.push('Original WorldCover manifest asset is missing.');
+  }
+  if (record.schemaVersion >= 6 && record.coverGrid?.source !== 'usgs-four-class-v1') {
+    errors.push('Schema-v6 terrain cover is not the four-class product.');
+  }
   if (!record.contourSegments || !record.contourMetadata) errors.push('Prepared contours are missing.');
   if (record.coverGrid) {
     const expected = record.coverGrid.width * record.coverGrid.height;
@@ -136,6 +166,18 @@ export function validateTerrainPackage(record: TerrainRecord): TerrainPackageVal
     const metadata = coverGeometryMetadataOf(record.coverBoundarySegments);
     if (metadata.byteLength !== record.coverGeometryMetadata.byteLength || metadata.checksum !== record.coverGeometryMetadata.checksum) errors.push('Cover-boundary cache checksum does not match.');
     if (manifest?.coverGeometry && metadata.checksum !== manifest.coverGeometry.checksum) errors.push('Cover-boundary manifest checksum does not match.');
+  }
+  if (record.originalCoverGrid) {
+    const expected = record.originalCoverGrid.width * record.originalCoverGrid.height;
+    if (record.originalCoverGrid.data.length !== expected) errors.push('Original WorldCover dimensions do not match its data.');
+    const metadata = originalCoverMetadataOf(record.originalCoverGrid);
+    if (record.originalCoverMetadata && (metadata.byteLength !== record.originalCoverMetadata.byteLength || metadata.checksum !== record.originalCoverMetadata.checksum)) errors.push('Original WorldCover cache checksum does not match.');
+    if (manifest?.originalCover && metadata.checksum !== manifest.originalCover.checksum) errors.push('Original WorldCover manifest checksum does not match.');
+  }
+  if (record.localImagery && record.localImageryMetadata) {
+    const metadata = imageryMetadataOf(record.localImagery, record.localImageryMetadata);
+    if (metadata.byteLength !== record.localImageryMetadata.byteLength || metadata.checksum !== record.localImageryMetadata.checksum) errors.push('Local imagery checksum does not match.');
+    if (manifest?.imagery && metadata.checksum !== manifest.imagery.checksum) errors.push('Local imagery manifest checksum does not match.');
   }
   if (record.coverDisplayGeometry && record.coverDisplayMetadata) {
     const metadata = coverDisplayMetadataOf(record.coverDisplayGeometry, record.coverDisplayMetadata);
