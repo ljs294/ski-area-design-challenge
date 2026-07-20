@@ -1,4 +1,6 @@
 import maplibregl from 'maplibre-gl';
+import type { SiteCoverGrid, WorldCoverClassCode } from '../types';
+import { METERS_PER_DEGREE_LAT } from '../geo';
 
 // ESA WorldCover native WMTS (KVP GetTile form — verified working, see memory).
 const WORLDCOVER_TILES =
@@ -43,19 +45,26 @@ const BUCKET_INDEX: Record<CoverBucket, number> = {
 };
 
 // ESA WorldCover class code -> [nativeR,nativeG,nativeB] (official palette) -> our bucket.
-const CLASS_TABLE: { rgb: [number, number, number]; bucket: CoverBucket }[] = [
-  { rgb: [0, 100, 0], bucket: 'tree' }, // 10 tree cover
-  { rgb: [255, 187, 34], bucket: 'grass' }, // 20 shrubland
-  { rgb: [255, 255, 76], bucket: 'grass' }, // 30 grassland
-  { rgb: [240, 150, 255], bucket: 'grass' }, // 40 cropland
-  { rgb: [250, 0, 0], bucket: 'grass' }, // 50 built-up (cleared/developed)
-  { rgb: [180, 180, 180], bucket: 'rock' }, // 60 bare / sparse vegetation
-  { rgb: [240, 240, 240], bucket: 'alpine' }, // 70 snow and ice
-  { rgb: [0, 100, 200], bucket: 'water' }, // 80 permanent water
-  { rgb: [0, 150, 160], bucket: 'water' }, // 90 herbaceous wetland
-  { rgb: [0, 207, 117], bucket: 'tree' }, // 95 mangroves
-  { rgb: [250, 230, 160], bucket: 'alpine' }, // 100 moss and lichen
+const CLASS_TABLE: { code: WorldCoverClassCode; rgb: [number, number, number]; bucket: CoverBucket }[] = [
+  { code: 10, rgb: [0, 100, 0], bucket: 'tree' },
+  { code: 20, rgb: [255, 187, 34], bucket: 'grass' },
+  { code: 30, rgb: [255, 255, 76], bucket: 'grass' },
+  { code: 40, rgb: [240, 150, 255], bucket: 'grass' },
+  { code: 50, rgb: [250, 0, 0], bucket: 'grass' },
+  { code: 60, rgb: [180, 180, 180], bucket: 'rock' },
+  { code: 70, rgb: [240, 240, 240], bucket: 'alpine' },
+  { code: 80, rgb: [0, 100, 200], bucket: 'water' },
+  { code: 90, rgb: [0, 150, 160], bucket: 'water' },
+  { code: 95, rgb: [0, 207, 117], bucket: 'tree' },
+  { code: 100, rgb: [250, 230, 160], bucket: 'alpine' },
 ];
+
+const EXACT_CLASS = new Map(CLASS_TABLE.map((c) => [c.rgb.join(','), c.code]));
+
+/** Exact official-palette lookup. Unknown pixels are nodata, never clear land. */
+export function worldCoverCodeForRgb(r: number, g: number, b: number): WorldCoverClassCode {
+  return EXACT_CLASS.get(`${r},${g},${b}`) ?? 255;
+}
 
 /** Nearest official-palette class match -> our bucket. */
 export function nearestBucket(r: number, g: number, b: number): CoverBucket {
@@ -109,22 +118,29 @@ const WC_MAXZOOM = 14;
 const nativeCache = new Map<string, Promise<ImageData | null>>();
 const NATIVE_CACHE_MAX = 64;
 
-function fetchNativeTile(z: number, x: number, y: number): Promise<ImageData | null> {
+async function decodeNativeResponse(resp: Response | null): Promise<ImageData | null> {
+  if (!resp || !resp.ok) return null;
+  const bmp = await createImageBitmap(await resp.blob());
+  const c = document.createElement('canvas');
+  c.width = bmp.width;
+  c.height = bmp.height;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  ctx.drawImage(bmp, 0, 0);
+  bmp.close();
+  return ctx.getImageData(0, 0, c.width, c.height);
+}
+
+function fetchNativeTile(z: number, x: number, y: number, signal?: AbortSignal): Promise<ImageData | null> {
+  const url = WORLDCOVER_TILES.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
+  // Package preparation must be cancellable. Its fetch bypasses the shared
+  // preview cache so the AbortSignal reaches the underlying network request.
+  if (signal) return fetch(url, { signal }).then(decodeNativeResponse);
   const k = `${z}/${x}/${y}`;
   let p = nativeCache.get(k);
   if (p) return p;
   p = (async () => {
-    const url = WORLDCOVER_TILES.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
     const resp = await fetch(url).catch(() => null);
-    if (!resp || !resp.ok) return null;
-    const bmp = await createImageBitmap(await resp.blob());
-    const c = document.createElement('canvas');
-    c.width = bmp.width;
-    c.height = bmp.height;
-    const ctx = c.getContext('2d', { willReadFrequently: true })!;
-    ctx.drawImage(bmp, 0, 0);
-    bmp.close();
-    return ctx.getImageData(0, 0, c.width, c.height);
+    return decodeNativeResponse(resp);
   })();
   nativeCache.set(k, p);
   if (nativeCache.size > NATIVE_CACHE_MAX) {
@@ -220,6 +236,80 @@ export async function sampleCoverGrid(bounds: CoverBounds, n: number): Promise<U
     }
   }
   return out;
+}
+
+/**
+ * Downloads a source-faithful, rectangular WorldCover grid for a locked site.
+ * The grid is the persisted planning truth; no blur, simplification, or class
+ * collapsing is applied here.
+ */
+export async function sampleSiteCoverGrid(
+  bounds: CoverBounds,
+  targetCellM = 10,
+  signal?: AbortSignal
+): Promise<SiteCoverGrid> {
+  const midLat = (bounds.north + bounds.south) / 2;
+  const widthM = Math.abs(bounds.east - bounds.west) * METERS_PER_DEGREE_LAT * Math.cos((midLat * Math.PI) / 180);
+  const heightM = Math.abs(bounds.north - bounds.south) * METERS_PER_DEGREE_LAT;
+  const { width, height } = siteCoverDimensions(bounds, targetCellM);
+  const zz = WC_MAXZOOM;
+  const nTiles = 1 << zz;
+  const xfW = lngToXf(bounds.west, nTiles);
+  const xfE = lngToXf(bounds.east, nTiles);
+  const yfN = latToYf(bounds.north, nTiles);
+  const yfS = latToYf(bounds.south, nTiles);
+  const tiles = new Map<string, ImageData | null>();
+  const jobs: Promise<void>[] = [];
+  for (let tx = Math.floor(Math.min(xfW, xfE)); tx <= Math.floor(Math.max(xfW, xfE)); tx++) {
+    for (let ty = Math.floor(Math.min(yfN, yfS)); ty <= Math.floor(Math.max(yfN, yfS)); ty++) {
+      jobs.push(fetchNativeTile(zz, tx, ty, signal).then((img) => void tiles.set(`${tx}/${ty}`, img)));
+    }
+  }
+  await Promise.all(jobs);
+  if (signal?.aborted) throw new DOMException('Resort preparation cancelled', 'AbortError');
+
+  const data = new Uint8Array(width * height).fill(COVER_NODATA);
+  let nodataCount = 0;
+  for (let r = 0; r < height; r++) {
+    if (signal?.aborted) throw new DOMException('Resort preparation cancelled', 'AbortError');
+    const lat = bounds.north - ((r + 0.5) / height) * (bounds.north - bounds.south);
+    const yf = latToYf(lat, nTiles);
+    const ty = Math.floor(yf);
+    for (let c = 0; c < width; c++) {
+      const lng = bounds.west + ((c + 0.5) / width) * (bounds.east - bounds.west);
+      const xf = lngToXf(lng, nTiles);
+      const tx = Math.floor(xf);
+      const img = tiles.get(`${tx}/${ty}`);
+      if (!img) { nodataCount++; continue; }
+      const px = Math.min(img.width - 1, Math.floor((xf - tx) * img.width));
+      const py = Math.min(img.height - 1, Math.floor((yf - ty) * img.height));
+      const i = (py * img.width + px) * 4;
+      const code = img.data[i + 3] === 0 ? 255 : worldCoverCodeForRgb(img.data[i], img.data[i + 1], img.data[i + 2]);
+      data[r * width + c] = code;
+      if (code === 255) nodataCount++;
+    }
+  }
+  return {
+    bounds,
+    width,
+    height,
+    cellSizeM: Math.max(widthM / width, heightM / height),
+    data: Array.from(data),
+    complete: nodataCount === 0,
+    nodataCount,
+    source: 'esa-worldcover-2021-v200',
+    vintage: '2021',
+  };
+}
+
+export function siteCoverDimensions(bounds: CoverBounds, targetCellM = 10): { width: number; height: number } {
+  const midLat = (bounds.north + bounds.south) / 2;
+  const widthM = Math.abs(bounds.east - bounds.west) * METERS_PER_DEGREE_LAT * Math.cos((midLat * Math.PI) / 180);
+  const heightM = Math.abs(bounds.north - bounds.south) * METERS_PER_DEGREE_LAT;
+  return {
+    width: Math.max(2, Math.min(1200, Math.round(widthM / targetCellM))),
+    height: Math.max(2, Math.min(1200, Math.round(heightM / targetCellM))),
+  };
 }
 
 let registered = false;

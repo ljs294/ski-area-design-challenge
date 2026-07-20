@@ -1,4 +1,5 @@
 import type maplibregl from 'maplibre-gl';
+import { createMasterPlanStyle } from './masterPlanStyle';
 
 // Both styles are OpenMapTiles-schema vector basemaps (source-layers water /
 // transportation / building), so the analysis overlays + basemap feature
@@ -8,8 +9,8 @@ export const DARK_BASEMAP =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
 /** The basemap style URL for the resolved theme. */
-export function basemapFor(theme: 'light' | 'dark'): string {
-  return theme === 'dark' ? DARK_BASEMAP : LIGHT_BASEMAP;
+export function basemapFor(_theme: 'light' | 'dark'): maplibregl.StyleSpecification {
+  return createMasterPlanStyle();
 }
 
 /**

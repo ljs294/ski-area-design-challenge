@@ -1,5 +1,6 @@
 import type maplibregl from 'maplibre-gl';
 import type { SkySpecification } from 'maplibre-gl';
+import { activeResortTerrain, localTileBounds, RESORT_DEM_PROTOCOL } from './resortProtocols';
 
 // Same Terrarium tiles as the 'dem' source in analysisLayers.ts, but a
 // dedicated source: MapLibre v5 warns (and renders worse, with tile-reload
@@ -11,7 +12,7 @@ const TERRARIUM_TILES =
 
 // With the default fov (~37°) the horizon only enters the top of the frame at
 // pitch ≈ 72; fog is fully faded in by 70. 75 shows fog plus a real sky band.
-export const PITCH_3D = 75;
+export const PITCH_3D = 60;
 export const MAX_PITCH_3D = 85;
 export const MAX_PITCH_2D = 60; // MapLibre default
 
@@ -44,13 +45,16 @@ export function enable3D(map: maplibregl.Map): void {
     pendingDisable = null;
   }
   if (!map.getSource(TERRAIN_DEM_SOURCE)) {
+    const local = activeResortTerrain();
+    const key = local ? encodeURIComponent(local.key) : null;
     map.addSource(TERRAIN_DEM_SOURCE, {
       type: 'raster-dem',
-      tiles: [TERRARIUM_TILES],
+      tiles: [key ? `${RESORT_DEM_PROTOCOL}://${key}/{z}/{x}/{y}` : TERRARIUM_TILES],
       encoding: 'terrarium',
       tileSize: 256,
       maxzoom: 15,
-      attribution: 'Terrain: Terrarium tiles, Mapzen/AWS Open Data',
+      ...(local ? { bounds: localTileBounds(local) } : {}),
+      attribution: local ? 'Local resort elevation package' : 'Terrain: Terrarium tiles, Mapzen/AWS Open Data',
     });
   }
   map.setMaxPitch(MAX_PITCH_3D); // must precede easeTo — PITCH_3D exceeds the default cap

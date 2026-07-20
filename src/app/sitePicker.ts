@@ -1,4 +1,5 @@
 import type maplibregl from 'maplibre-gl';
+import { MASTER_PLAN_LAYER_IDS } from './masterPlanStyle';
 
 // Live site picker: drag a rectangle, clamp each side to 2–10 km, then lock the
 // map view to it (maxBounds). No snapshot/persistence — v1 is live-only.
@@ -105,6 +106,7 @@ function maskFeature(box: SiteBox): GeoJSON.Feature<GeoJSON.Polygon> {
  */
 export function addSiteBoxLayers(map: maplibregl.Map): void {
   if (map.getSource(SITE_SOURCE)) return;
+  const before = map.getLayer(MASTER_PLAN_LAYER_IDS.labels) ? MASTER_PLAN_LAYER_IDS.labels : undefined;
 
   map.addSource(MASK_SOURCE, { type: 'geojson', data: EMPTY });
   map.addLayer({
@@ -112,7 +114,7 @@ export function addSiteBoxLayers(map: maplibregl.Map): void {
     type: 'fill',
     source: MASK_SOURCE,
     paint: { 'fill-color': '#0a1626', 'fill-opacity': 0.4 },
-  });
+  }, before);
 
   map.addSource(SITE_SOURCE, { type: 'geojson', data: EMPTY });
   map.addLayer({
@@ -120,20 +122,20 @@ export function addSiteBoxLayers(map: maplibregl.Map): void {
     type: 'fill',
     source: SITE_SOURCE,
     paint: { 'fill-color': '#2b6cff', 'fill-opacity': 0.1 },
-  });
+  }, before);
   map.addLayer({
     id: 'site-box-line-dash',
     type: 'line',
     source: SITE_SOURCE,
     paint: { 'line-color': '#2b6cff', 'line-width': 2, 'line-dasharray': [2, 1] },
-  });
+  }, before);
   map.addLayer({
     id: 'site-box-line-solid',
     type: 'line',
     source: SITE_SOURCE,
     layout: { visibility: 'none' },
-    paint: { 'line-color': '#1d4ed8', 'line-width': 3 },
-  });
+    paint: { 'line-color': '#b51aa8', 'line-width': 3, 'line-dasharray': [3, 1.5] },
+  }, before);
 }
 
 /** Updates (or clears, when box is null) the drawn site rectangle. */

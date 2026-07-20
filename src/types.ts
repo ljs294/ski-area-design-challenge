@@ -15,7 +15,7 @@ export interface ClimateProfile {
   monthly: ClimateMonth[];
 }
 
-export type AreaSizeMeters = 2000 | 4000 | 8000;
+export type AreaSizeMeters = number;
 
 // Real-world map features pulled from OpenStreetMap (via Overpass) for a
 // terrain's exact ingest bounds. Geometry is stored raw as [lon, lat] pairs
@@ -24,7 +24,94 @@ export type AreaSizeMeters = 2000 | 4000 | 8000;
 // mapSize or fixing a projection bug never requires re-fetching data.
 export type RoadClass = 'major' | 'minor' | 'path';
 export type WaterLineClass = 'river' | 'stream';
-export type LandCoverClass = 'forest' | 'grass' | 'rock' | 'scrub';
+export type OsmLandCoverClass = 'forest' | 'grass' | 'rock' | 'scrub';
+export type LandCoverClass =
+  | 'tree-cover'
+  | 'shrubland'
+  | 'grassland'
+  | 'cropland'
+  | 'built-up'
+  | 'bare-sparse'
+  | 'snow-ice'
+  | 'permanent-water'
+  | 'herbaceous-wetland'
+  | 'mangroves'
+  | 'moss-lichen'
+  | 'nodata';
+
+/** Native ESA WorldCover class codes. 255 is reserved for missing/unknown data. */
+export type WorldCoverClassCode = 10 | 20 | 30 | 40 | 50 | 60 | 70 | 80 | 90 | 95 | 100 | 255;
+
+export interface SiteCoverGrid {
+  bounds: LatLonBounds;
+  width: number;
+  height: number;
+  /** Approximate source-cell size at the site's center latitude. */
+  cellSizeM: number;
+  data: number[]; // row-major WorldCoverClassCode values; persisted as UInt8 binary
+  complete: boolean;
+  nodataCount: number;
+  source: 'esa-worldcover-2021-v200';
+  vintage: '2021';
+}
+
+export interface CoverMetadata extends Omit<SiteCoverGrid, 'data'> {
+  byteLength: number;
+  checksum: string;
+}
+
+export interface ContourMetadata {
+  intervalM: number;
+  segmentCount: number;
+  byteLength: number;
+  checksum: string;
+  gridSize: number;
+}
+
+/** Exact cell-edge boundaries for canopy/shrub cover, stored as Float32 tuples. */
+export interface CoverGeometryMetadata {
+  segmentCount: number;
+  byteLength: number;
+  checksum: string;
+}
+
+export type TerrainPackagePhase =
+  | 'elevation'
+  | 'ground-cover'
+  | 'decoding'
+  | 'deriving'
+  | 'saving'
+  | 'verifying';
+
+export interface TerrainPackageProgress {
+  phase: TerrainPackagePhase;
+  message: string;
+  completed: number;
+  total: number;
+}
+
+export interface TerrainPackageManifest {
+  schemaVersion: 1;
+  terrainKey: string;
+  complete: boolean;
+  elevationByteLength: number;
+  elevationChecksum: string;
+  cover?: CoverMetadata;
+  coverGeometry?: CoverGeometryMetadata;
+  contours?: ContourMetadata;
+  assets: {
+    elevation: string;
+    cover: string;
+    coverGeometry: string;
+    contours: string;
+  };
+  preparedAt: string;
+}
+
+export interface TerrainPackageValidation {
+  ok: boolean;
+  errors: string[];
+}
 
 export interface RoadFeature {
   id: string;
@@ -50,7 +137,7 @@ export interface WaterPolygonFeature {
 
 export interface LandCoverFeature {
   id: string;
-  landCoverClass: LandCoverClass;
+  landCoverClass: OsmLandCoverClass;
   rings: [number, number][][];
 }
 
@@ -74,7 +161,7 @@ export interface VectorFeatureSet {
 // is stored; the display grid is always recomputed on load (deterministic,
 // cheap, and avoids multi-megabyte save files).
 export interface TerrainRecord {
-  schemaVersion: 2 | 3;
+  schemaVersion: 2 | 3 | 4;
   key: string; // stable slug, see terrainStorageClient.ts
   mountainName: string;
   latitude: number; // center
@@ -86,8 +173,18 @@ export interface TerrainRecord {
   // Optional only because schemaVersion 2 records predate this field;
   // hydrateTerrainRecord falls back to recomputing it for those.
   bounds?: LatLonBounds;
-  sampleGridSize: number; // fixed 64
+  sampleGridSize: number; // actual square elevation raster dimension
   sampleHeights: number[]; // row-major, sampleGridSize^2, meters
+  /** Present on schema-v4 prepared resort packages; stored as .cover.bin. */
+  coverGrid?: SiteCoverGrid;
+  coverMetadata?: CoverMetadata;
+  /** Flat [x1,y1,x2,y2,classCode] tuples in normalized site coordinates. */
+  coverBoundarySegments?: number[];
+  coverGeometryMetadata?: CoverGeometryMetadata;
+  /** Flat [x1,y1,x2,y2,levelMeters] tuples in normalized site coordinates. */
+  contourSegments?: number[];
+  contourMetadata?: ContourMetadata;
+  packageManifest?: TerrainPackageManifest;
   climate: ClimateProfile;
   // Absent on schemaVersion 2 records and on any record ingested before a
   // vector fetch succeeded — renderer treats missing as "no overlays".

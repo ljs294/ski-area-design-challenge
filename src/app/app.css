@@ -1961,3 +1961,30 @@ body {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Blocking, atomic local-resort preparation. */
+.package-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(22, 29, 29, 0.62);
+  backdrop-filter: blur(8px);
+}
+.package-card {
+  width: min(480px, calc(100vw - 48px));
+  padding: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel) 95%, #e8e5dc);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+}
+.package-card h2 { margin: 5px 0 10px; font-size: 22px; }
+.package-card p { margin: 0 0 18px; color: var(--text-muted); line-height: 1.45; }
+.package-kicker { color: #2f6855; font-size: 10px; font-weight: 800; letter-spacing: 0.14em; }
+.package-progress { height: 8px; overflow: hidden; border-radius: 999px; background: var(--panel-elev); }
+.package-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #315f4a, #70a06a); transition: width 180ms ease; }
+.package-progress-label { margin-top: 7px; color: var(--text-muted); font-size: 11px; text-align: right; }
+.package-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }

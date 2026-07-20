@@ -69,7 +69,7 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const { resolvedTheme, settings } = useSettings();
   const reduced = settings.reducedMotion;
-  // Held false until every tile has loaded and the first frame is fully rendered.
+  // Held false until the first styled frame; streamed scenery may fill later.
   const [ready, setReady] = useState(false);
 
   // Create the map once. Terrain/hillshade are (re)added on every 'style.load'.
@@ -90,15 +90,21 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
     // Exposed for the Playwright verification harness (readyGlobal: "menuMap").
     (window as unknown as { menuMap: maplibregl.Map }).menuMap = map;
 
-    const onStyle = () => setupTerrain(map);
-    map.on('style.load', onStyle);
-
-    // 'idle' fires once all requested tiles (basemap + DEM) are loaded and the
-    // scene has finished rendering — our cue that the backdrop is complete.
-    map.once('idle', () => {
+    let reportedReady = false;
+    const reportReady = () => {
+      if (reportedReady) return;
+      reportedReady = true;
       setReady(true);
       onReady?.();
-    });
+    };
+    const onStyle = () => {
+      setupTerrain(map);
+      // Streamed scenery is decorative: an offline request must never keep the
+      // menu loading screen above otherwise usable controls.
+      map.once('render', reportReady);
+      window.setTimeout(reportReady, 800);
+    };
+    map.on('style.load', onStyle);
 
     return () => {
       map.off('style.load', onStyle);

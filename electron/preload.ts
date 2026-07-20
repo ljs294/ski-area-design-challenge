@@ -22,6 +22,8 @@ const api = {
   terrain: {
     save: (record: unknown) => ipcRenderer.invoke(TERRAIN_SAVE_CHANNEL, { record }),
     load: (key: string) => ipcRenderer.invoke(TERRAIN_LOAD_CHANNEL, { key }),
+    loadPackage: (key: string) => ipcRenderer.invoke(TERRAIN_LOAD_CHANNEL, { key }),
+    repairPackage: (record: unknown) => ipcRenderer.invoke(TERRAIN_SAVE_CHANNEL, { record }),
     list: () => ipcRenderer.invoke(TERRAIN_LIST_CHANNEL),
     delete: (key: string) => ipcRenderer.invoke(TERRAIN_DELETE_CHANNEL, { key }),
   },

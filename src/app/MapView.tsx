@@ -29,7 +29,11 @@ import { enable3D, disable3D } from './terrain3d';
 import { useSettings, pixelRatioFor } from './SettingsContext';
 import { applyTileLod } from './terrainLod';
 import { saveGame } from '../gameSaveClient';
-import type { GameSave, SavedLift, SavedTrail } from '../types';
+import type { GameSave, SavedLift, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
+import { loadTerrain } from '../terrainStorageClient';
+import { prepareResortPackage } from '../terrainIngest';
+import { validateTerrainPackage } from '../terrainPackage';
+import { sampleLocalCoverAt, sampleLocalTerrainAt, setActiveResortTerrain, WORLD_COVER_LABELS } from './resortProtocols';
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, type DraftLine } from './liftLayers';
 import { TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
@@ -43,13 +47,6 @@ import {
   type TrailReview,
 } from './trailLayers';
 import { strokeToPolygon, resampleSpine } from './trailBrush';
-import {
-  vectorizeCover,
-  addCoverLayers,
-  removeCoverLayers,
-  COVER_LAYER_IDS,
-  type CoverGeoJSON,
-} from './coverVectorize';
 import {
   FIXED_GRIP_SPEC,
   liftStats,
@@ -118,12 +115,6 @@ function metersPerPixel(map: maplibregl.Map): number {
   return haversineMeters([c.lng, c.lat], [q.lng, q.lat]) || 1;
 }
 
-/** SiteBox rectangle -> degree bounds for cover sampling. */
-function boundsFromBox(box: SiteBox): { west: number; south: number; east: number; north: number } {
-  const [[w, s], [e, n]] = box.bounds;
-  return { west: w, south: s, east: e, north: n };
-}
-
 /** crypto.randomUUID is gated to secure contexts (fails under packaged file://). */
 function genId(): string {
   try {
@@ -135,7 +126,8 @@ function genId(): string {
 
 /** The visible member of the mutually-exclusive overlay group, if any. */
 function activeOverlayOf(layers: LayerToggle[]): OverlayId | null {
-  const on = layers.find((l) => l.exclusiveGroup === 'overlay' && l.visible);
+  const analysis = layers.find((l) => (l.exclusiveGroup === 'overlay' || l.exclusiveGroup === 'analysis') && l.visible);
+  const on = analysis ?? layers.find((l) => l.id === 'groundcover' && l.visible);
   return (on?.id as OverlayId) ?? null;
 }
 
@@ -171,6 +163,13 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const [saved, setSaved] = useState<GameSave | null>(initialSave);
   const [nameDraft, setNameDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
+  const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'error'>(
+    mode === 'playing' ? 'loading' : 'ready'
+  );
+  const [packageProgress, setPackageProgress] = useState<TerrainPackageProgress | null>(null);
+  const [packageError, setPackageError] = useState<string | null>(null);
+  const packageStateRef = useRef(packageState);
   const [lifts, setLifts] = useState<SavedLift[]>(() =>
     sanitizeLifts(initialSave?.lifts ?? [])
   );
@@ -210,12 +209,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const selectTrailRef = useRef<(id: string) => void>(() => {});
   const brushWidthRef = useRef(brushWidthM);
   const renderQualityRef = useRef(settings.renderQuality);
-  // Vectorized ground cover for the locked site — computed once (see the
-  // site-lock effect), cached here so the light/dark style swap re-adds it
-  // without refetching. coverBoundsKeyRef guards against recomputing the same
-  // site.
-  const coverVectorRef = useRef<CoverGeoJSON | null>(null);
-  const coverBoundsKeyRef = useRef<string | null>(null);
+  const packageAbortRef = useRef<AbortController | null>(null);
+  // Loaded local package backing cursor sampling, MapLibre protocols, and
+  // style reinitialization. Gameplay never populates it from network data.
+  const terrainRecordRef = useRef<TerrainRecord | null>(null);
 
   renderQualityRef.current = settings.renderQuality;
   layersRef.current = layers;
@@ -227,6 +224,48 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   trailsRef.current = trails;
   trailToolRef.current = trailTool;
   brushWidthRef.current = brushWidthM;
+  terrainRecordRef.current = terrainRecord;
+  packageStateRef.current = packageState;
+
+  useEffect(() => () => packageAbortRef.current?.abort(), []);
+
+  // A saved resort does not enter gameplay until its mandatory local package
+  // has loaded and passed manifest validation.
+  useEffect(() => {
+    if (mode !== 'playing') {
+      setActiveResortTerrain(null);
+      return;
+    }
+    let cancelled = false;
+    const key = initialSave?.terrainKey;
+    if (!key) {
+      setPackageState('missing');
+      return;
+    }
+    void loadTerrain(key).then((record) => {
+      if (cancelled) return;
+      if (!record) {
+        setPackageError('The local resort package is missing. Prepare it again to continue.');
+        setPackageState('missing');
+        return;
+      }
+      const validation = validateTerrainPackage(record);
+      if (!validation.ok) {
+        setPackageError(validation.errors.join(' '));
+        setPackageState('error');
+        return;
+      }
+      setActiveResortTerrain(record);
+      setTerrainRecord(record);
+      setPackageState('ready');
+    }).catch((error) => {
+      if (cancelled) return;
+      setPackageError(error instanceof Error ? error.message : 'Unable to load the local resort package.');
+      setPackageState('error');
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Clicking a lift (on the map or in the list) opens its read-only detail, and
   // yields any active trail tool/selection (docks are one-at-a-time). Redefined
@@ -260,10 +299,16 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     const overlay = activeOverlayRef.current;
     const token = ++sampleTokenRef.current;
     (async () => {
-      const t = await sampleTerrainAt(lngLat.lng, lngLat.lat, z).catch(() => null);
+      const localRecord = terrainRecordRef.current;
+      const t = localRecord
+        ? sampleLocalTerrainAt(lngLat.lng, lngLat.lat)
+        : await sampleTerrainAt(lngLat.lng, lngLat.lat, z).catch(() => null);
       if (!t || token !== sampleTokenRef.current) return;
       let coverLabel: string | null = null;
-      if (overlay === 'groundcover') {
+      if (localRecord) {
+        const code = sampleLocalCoverAt(lngLat.lng, lngLat.lat);
+        coverLabel = code == null ? '—' : WORLD_COVER_LABELS[code] ?? 'Unknown';
+      } else if (overlay === 'groundcover') {
         const bucket = await sampleCoverAt(lngLat.lng, lngLat.lat, z).catch(() => null);
         if (token !== sampleTokenRef.current) return;
         coverLabel = bucket ? COVER_LABELS[bucket] : '—';
@@ -283,12 +328,22 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     if (lastLngLatRef.current) doSampleRef.current(lastLngLatRef.current);
   }, [activeOverlay]);
 
+  function samplePlanningTerrain(lng: number, lat: number, zoom: number) {
+    if (!terrainRecordRef.current) return sampleTerrainAt(lng, lat, zoom);
+    const sample = sampleLocalTerrainAt(lng, lat);
+    return sample ? Promise.resolve(sample) : Promise.reject(new Error('Point is outside the local resort package.'));
+  }
+
   // (Re)attach analysis layers + site box + 3D after any style (re)load. Shared
   // by the initial load and the light<->dark basemap swap. Reads live state from
   // refs and re-applies the current layer-visibility model.
   function reinitAfterStyle(map: maplibregl.Map) {
     tuneBasemap(map);
-    const fresh = setupAnalysisLayers(map);
+    // While preparation is blocking the game, remove preview DEM/contour/
+    // WorldCover sources so they cannot contend with mandatory downloads.
+    const fresh = packageStateRef.current === 'preparing'
+      ? []
+      : setupAnalysisLayers(map, terrainRecordRef.current, settings.units);
     const prev = layersRef.current;
     let applied = fresh.map((f) => {
       const was = prev.find((p) => p.id === f.id);
@@ -299,19 +354,6 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       }
       return f;
     });
-
-    // Crisp vector cover for a locked site: re-add from the cached polygons and
-    // point the "Ground cover" toggle at those layers, leaving the raster
-    // groundcover hidden underneath.
-    if (coverVectorRef.current) {
-      const gc = applied.find((l) => l.id === 'groundcover');
-      const coverVisible = gc?.visible ?? true;
-      addCoverLayers(map, coverVectorRef.current, coverVisible);
-      if (map.getLayer('groundcover')) map.setLayoutProperty('groundcover', 'visibility', 'none');
-      applied = applied.map((l) =>
-        l.id === 'groundcover' ? { ...l, layerIds: COVER_LAYER_IDS } : l
-      );
-    }
 
     addSiteBoxLayers(map);
     if (siteModeRef.current === 'locked' && siteBoxRef.current) {
@@ -332,8 +374,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   }
 
   // Create the map once.
+  const mapCanStart = mode !== 'playing' || packageState === 'ready';
   useEffect(() => {
-    if (mapRef.current || !containerRef.current) return;
+    if (!mapCanStart || mapRef.current || !containerRef.current) return;
 
     const start = initialSave ?? null;
     const map = new maplibregl.Map({
@@ -373,7 +416,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       'bottom-right'
     );
 
-    map.on('load', () => {
+    map.on('style.load', () => {
       reinitAfterStyle(map);
       // A resumed site locks the pannable area to its context ring.
       if (siteModeRef.current === 'locked' && siteBoxRef.current) {
@@ -438,7 +481,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       setLayers([]);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [mapCanStart]);
 
   // A single scale bar whose unit follows the Units setting.
   useEffect(() => {
@@ -480,9 +523,22 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     const map = mapRef.current;
     if (!map) return;
     map.setStyle(basemapFor(resolvedTheme));
-    map.once('style.load', () => reinitAfterStyle(map));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedTheme]);
+
+  // Contour values and labels are generated in the selected display unit.
+  // Rebuild the owned style when units change so the local source is replaced
+  // atomically and no network elevation/contour source is introduced.
+  const firstUnitsStyleRun = useRef(true);
+  useEffect(() => {
+    if (firstUnitsStyleRun.current) {
+      firstUnitsStyleRun.current = false;
+      return;
+    }
+    const map = mapRef.current;
+    if (map) map.setStyle(basemapFor(resolvedTheme));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.units]);
 
   // Drag-to-draw the site rectangle while in 'selecting' mode.
   useEffect(() => {
@@ -541,66 +597,6 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     }
   }, [brushWidthM, trailTool.phase]);
 
-  // Vectorize the locked build site's ground cover ONCE, then render it as a
-  // crisp static GeoJSON overlay (see coverVectorize.ts). Recomputed only when
-  // the locked bounds change; dropped when the site is unlocked. The light/dark
-  // style swap re-adds it from coverVectorRef without refetching.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-
-    if (siteMode !== 'locked' || !siteBox) {
-      if (coverVectorRef.current) {
-        coverVectorRef.current = null;
-        coverBoundsKeyRef.current = null;
-        removeCoverLayers(map);
-        setLayers((prev) =>
-          prev.map((l) => (l.id === 'groundcover' ? { ...l, layerIds: ['groundcover'] } : l))
-        );
-      }
-      return;
-    }
-
-    const b = boundsFromBox(siteBox);
-    const key = `${b.west.toFixed(5)},${b.south.toFixed(5)},${b.east.toFixed(5)},${b.north.toFixed(5)}`;
-    if (coverBoundsKeyRef.current === key) return; // already vectorized this site
-    coverBoundsKeyRef.current = key;
-
-    let cancelled = false;
-    void vectorizeCover(b)
-      .then((geo) => {
-        if (cancelled || mapRef.current !== map) return;
-        coverVectorRef.current = geo;
-        const apply = () => {
-          if (cancelled || mapRef.current !== map) return;
-          // Show the sharp cover as the design surface; it supersedes the raster
-          // groundcover and, being an overlay-group member, dismisses slope/aspect.
-          addCoverLayers(map, geo, true);
-          if (map.getLayer('groundcover')) map.setLayoutProperty('groundcover', 'visibility', 'none');
-          setLayers((prev) =>
-            prev.map((l) => {
-              if (l.id === 'groundcover') return { ...l, layerIds: COVER_LAYER_IDS, visible: true };
-              if (l.exclusiveGroup === 'overlay' && l.visible) {
-                for (const lid of l.layerIds) map.setLayoutProperty(lid, 'visibility', 'none');
-                return { ...l, visible: false };
-              }
-              return l;
-            })
-          );
-        };
-        if (map.isStyleLoaded()) apply();
-        else map.once('idle', apply);
-      })
-      .catch(() => {
-        coverBoundsKeyRef.current = null; // allow a retry on the next lock
-      });
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteMode, siteBox]);
-
   /** Sample both terminal elevations for the review draft. Token-guarded so a
    *  cancel/confirm/redraw discards in-flight results. */
   function sampleDraftElevations(points: [[number, number], [number, number]]) {
@@ -610,7 +606,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setLiftTool((t) =>
       t.phase === 'review' ? { phase: 'review', draft: { ...t.draft, elevStatus: 'pending' } } : t
     );
-    void Promise.all(points.map(([lng, lat]) => sampleTerrainAt(lng, lat, z))).then(
+    void Promise.all(points.map(([lng, lat]) => samplePlanningTerrain(lng, lat, z))).then(
       (samples) => {
         if (token !== liftSampleTokenRef.current) return;
         setLiftTool((t) =>
@@ -700,7 +696,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setTrailTool((t) =>
       t.phase === 'review' ? { phase: 'review', draft: { ...t.draft, elevStatus: 'pending' } } : t
     );
-    void Promise.all(spine.map(([lng, lat]) => sampleTerrainAt(lng, lat, z))).then(
+    void Promise.all(spine.map(([lng, lat]) => samplePlanningTerrain(lng, lat, z))).then(
       (samples) => {
         if (token !== trailSampleTokenRef.current) return;
         const o = orientTopToBottom(spine, samples.map((s) => s.elevation));
@@ -831,7 +827,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     let stale = false;
     void Promise.allSettled(
       missing.map(async (l) => {
-        const samples = await Promise.all(l.points.map(([lng, lat]) => sampleTerrainAt(lng, lat, 13)));
+        const samples = await Promise.all(l.points.map(([lng, lat]) => samplePlanningTerrain(lng, lat, 13)));
         return { id: l.id, elevs: [samples[0].elevation, samples[1].elevation] as [number, number] };
       })
     ).then((results) => {
@@ -869,7 +865,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     let stale = false;
     void Promise.allSettled(
       missing.map(async (t) => {
-        const samples = await Promise.all(t.spine.map(([lng, lat]) => sampleTerrainAt(lng, lat, 13)));
+        const samples = await Promise.all(t.spine.map(([lng, lat]) => samplePlanningTerrain(lng, lat, 13)));
         return { id: t.id, elevM: samples.map((s) => s.elevation) };
       })
     ).then((results) => {
@@ -1110,6 +1106,57 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setIs3D((v) => !v);
   }
 
+  async function prepareLocalPackage(name: string): Promise<TerrainRecord | null> {
+    const site = siteBoxRef.current;
+    if (!site) {
+      setPackageError('A resort boundary is required before terrain can be prepared.');
+      setPackageState('error');
+      return null;
+    }
+    setPackageError(null);
+    packageStateRef.current = 'preparing';
+    setPackageState('preparing');
+    setPackageProgress({ phase: 'elevation', message: 'Starting resort preparation', completed: 0, total: 6 });
+    packageAbortRef.current?.abort();
+    const controller = new AbortController();
+    packageAbortRef.current = controller;
+    mapRef.current?.setStyle(basemapFor(resolvedTheme));
+    try {
+      const record = await prepareResortPackage(site, name, setPackageProgress, controller.signal);
+      const validation = validateTerrainPackage(record);
+      if (!validation.ok) throw new Error(validation.errors.join(' '));
+      terrainRecordRef.current = record;
+      setActiveResortTerrain(record);
+      setTerrainRecord(record);
+      packageStateRef.current = 'ready';
+      setPackageState('ready');
+      const map = mapRef.current;
+      if (map) {
+        map.setStyle(basemapFor(resolvedTheme));
+      }
+      return record;
+    } catch (error) {
+      if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+        setPackageError(null);
+        setPackageProgress(null);
+        packageStateRef.current = mode === 'playing' ? 'missing' : 'ready';
+        setPackageState(mode === 'playing' ? 'missing' : 'ready');
+        if (mode !== 'playing') mapRef.current?.setStyle(basemapFor(resolvedTheme));
+        return null;
+      }
+      setPackageError(error instanceof Error ? error.message : 'Resort preparation failed.');
+      packageStateRef.current = 'error';
+      setPackageState('error');
+      return null;
+    } finally {
+      if (packageAbortRef.current === controller) packageAbortRef.current = null;
+    }
+  }
+
+  function cancelPackagePreparation() {
+    packageAbortRef.current?.abort();
+  }
+
   /** Snapshot the current camera + site + 3D into a GameSave shape. */
   function snapshot(base: GameSave | null): GameSave | null {
     const map = mapRef.current;
@@ -1121,7 +1168,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       key: base?.key ?? genId(),
       name: base?.name ?? (nameDraft.trim() || 'Untitled Resort'),
       mountainId: base?.mountainId,
-      terrainKey: base?.terrainKey,
+      terrainKey: terrainRecordRef.current?.key ?? base?.terrainKey,
       center: [c.lng, c.lat],
       zoom: map.getZoom(),
       bearing: map.getBearing(),
@@ -1136,12 +1183,32 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   }
 
   async function createSave() {
-    const next = snapshot(null);
-    if (!next) return;
     setSaving(true);
+    const name = nameDraft.trim() || 'Untitled Resort';
+    const record = terrainRecordRef.current ?? await prepareLocalPackage(name);
+    if (!record) {
+      setSaving(false);
+      return;
+    }
+    const next = snapshot(null);
+    if (!next) { setSaving(false); return; }
     const res = await saveGame(next);
     setSaving(false);
     if (res.ok) setSaved(next);
+  }
+
+  async function repairAndContinue() {
+    const base = saved ?? initialSave;
+    if (!base) return;
+    const record = await prepareLocalPackage(base.name);
+    if (!record) return;
+    const next: GameSave = { ...base, terrainKey: record.key, updatedAt: new Date().toISOString() };
+    const result = await saveGame(next);
+    if (result.ok) setSaved(next);
+    else {
+      setPackageError(result.error);
+      setPackageState('error');
+    }
   }
 
   async function saveProgress() {
@@ -1172,6 +1239,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const layersOpen = openDock === 'layers' && !liftsOpen && !trailsOpen;
   const selectedLift = selectedLiftId ? lifts.find((l) => l.id === selectedLiftId) ?? null : null;
   const selectedTrail = selectedTrailId ? trails.find((t) => t.id === selectedTrailId) ?? null : null;
+  const showPackageGate = packageState !== 'ready' &&
+    (mode === 'playing' || packageState === 'preparing' || packageState === 'error');
 
   /** Coordinate to reverse-geocode for the resort's Location: site center if a
    *  site box is locked, else the saved camera center, else the live map. */
@@ -1217,6 +1286,37 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   return (
     <>
       <div ref={containerRef} className="map-root" />
+
+      {showPackageGate && (
+        <div className="package-gate" role="dialog" aria-modal="true" aria-live="polite">
+          <div className="package-card">
+            <div className="package-kicker">LOCAL RESORT DATA</div>
+            <h2>{packageState === 'loading' ? 'Loading resort package' : packageState === 'preparing' ? 'Preparing resort data' : 'Resort data required'}</h2>
+            <p>
+              {packageState === 'preparing'
+                ? packageProgress?.message ?? 'Preparing terrain and ground cover'
+                : packageError ?? 'Elevation, contours, and ground cover must be saved locally before designing.'}
+            </p>
+            {packageState === 'preparing' && packageProgress && (
+              <>
+                <div className="package-progress"><span style={{ width: `${Math.round((packageProgress.completed / packageProgress.total) * 100)}%` }} /></div>
+                <div className="package-progress-label">Step {Math.min(packageProgress.total, packageProgress.completed + 1)} of {packageProgress.total}</div>
+                <div className="package-actions">
+                  <button className="site-btn" onClick={cancelPackagePreparation}>Cancel</button>
+                </div>
+              </>
+            )}
+            {(packageState === 'missing' || packageState === 'error') && (
+              <div className="package-actions">
+                <button className="site-btn" onClick={onQuit}>Back to menu</button>
+                <button className="site-btn site-btn-primary" onClick={() => void (mode === 'playing' ? repairAndContinue() : createSave())}>
+                  Prepare Resort Data
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Top-right app menu (Save / Load / Settings / Credits / Main Menu) */}
       <GameMenu

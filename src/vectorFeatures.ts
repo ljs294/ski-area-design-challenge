@@ -13,7 +13,7 @@ import { TILES_PER_AXIS } from './contours';
 import type {
   RoadClass,
   WaterLineClass,
-  LandCoverClass,
+  OsmLandCoverClass,
   RoadFeature,
   WaterLineFeature,
   WaterPolygonFeature,
@@ -122,7 +122,7 @@ function classifyRoad(highway: string): RoadClass {
   return 'path';
 }
 
-function classifyLandCover(tags: Record<string, string>): LandCoverClass | null {
+function classifyLandCover(tags: Record<string, string>): OsmLandCoverClass | null {
   if (tags.natural === 'wood' || tags.landuse === 'forest') return 'forest';
   if (tags.natural === 'scrub') return 'scrub';
   if (tags.natural === 'grassland' || tags.landuse === 'meadow') return 'grass';
@@ -275,7 +275,7 @@ export interface ProjectedPolygon {
 }
 
 export interface ProjectedLandCoverPolygon extends ProjectedPolygon {
-  landCoverClass: LandCoverClass;
+  landCoverClass: OsmLandCoverClass;
 }
 
 export interface ProjectedPeak {

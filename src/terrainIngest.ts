@@ -1,15 +1,19 @@
 // Orchestrates turning either a live map selection or a curated preset into
 // a fully-built TerrainDB: fetch/generate the raw sample grid, upscale it
 // for display, attach a climate profile, persist it, and return it.
-import type { AreaSizeMeters, TerrainDB, TerrainRecord, VectorFeatureSet } from './types';
+import type { AreaSizeMeters, SiteCoverGrid, TerrainDB, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
 import { fetchElevationGrid, sampleGridSizeFor, type LatLonBounds, type ElevationProgress } from './elevation';
 import { bicubicUpscale } from './bicubicUpscale';
 import { generateProceduralClimate } from './climate';
 import { generateProceduralHeights, NA_MOUNTAIN_PRESETS } from './mountainPresets';
-import { saveTerrain } from './terrainStorageClient';
+import { deleteTerrain, loadTerrain, saveTerrain } from './terrainStorageClient';
 import { boundsForSquareMeters } from './geo';
 import { fetchVectorFeatures, hydrateVectorFeatures } from './vectorFeatures';
 import { MAP_SIZE } from './renderer';
+import { sampleSiteCoverGrid } from './app/worldcoverProtocol';
+import { contourMetadataOf, coverGeometryMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from './terrainPackage';
+import { traceContours } from './marchingSquares';
+import { deriveCoverBoundarySegments } from './coverAnalysis';
 
 export const DISPLAY_GRID_SIZE = 512;
 
@@ -107,17 +111,30 @@ async function finalizeAndSave(
   bounds: LatLonBounds,
   sampleHeights: number[],
   sourceType: TerrainRecord['sourceType'],
-  vectorFeatures?: VectorFeatureSet
+  vectorFeatures?: VectorFeatureSet,
+  coverGrid?: SiteCoverGrid
 ): Promise<TerrainDB> {
   const sampleGridSize = Math.round(Math.sqrt(sampleHeights.length));
+  const contourGridSize = Math.min(DISPLAY_GRID_SIZE, sampleGridSize);
+  const contourIntervalM = 6.096; // 20 ft minor contours, matching the master-plan reference density.
+  let contourSegments: number[] | undefined;
+  let coverBoundarySegments: number[] | undefined;
+  if (coverGrid) {
+    const contourHeights = sampleGridSize === contourGridSize
+      ? sampleHeights
+      : bicubicUpscale(sampleHeights, sampleGridSize, contourGridSize);
+    const traced = traceContours(contourHeights, contourGridSize, 1, contourIntervalM);
+    contourSegments = traced.flatMap((s) => [s.x1, s.y1, s.x2, s.y2, s.level]);
+    coverBoundarySegments = deriveCoverBoundarySegments(coverGrid);
+  }
 
   const sum = sampleHeights.reduce((a, b) => a + b, 0);
   const avgAlt = sum / sampleHeights.length;
   const climate = generateProceduralClimate(latitude, avgAlt);
 
   const now = new Date().toISOString();
-  const record: TerrainRecord = {
-    schemaVersion: 3,
+  let record: TerrainRecord = {
+    schemaVersion: coverGrid ? 4 : 3,
     key: makeKey(mountainName, latitude, longitude),
     mountainName,
     latitude,
@@ -128,17 +145,111 @@ async function finalizeAndSave(
     sampleHeights,
     climate,
     vectorFeatures,
+    coverGrid,
+    coverMetadata: coverGrid ? coverMetadataOf(coverGrid) : undefined,
+    coverBoundarySegments,
+    coverGeometryMetadata: coverBoundarySegments ? coverGeometryMetadataOf(coverBoundarySegments) : undefined,
+    contourSegments,
+    contourMetadata: contourSegments ? contourMetadataOf(contourSegments, contourGridSize, contourIntervalM) : undefined,
     sourceType,
     createdAt: now,
     updatedAt: now,
   };
 
+  if (coverGrid) {
+    record = { ...record, packageManifest: manifestOf(record) };
+    const validation = validateTerrainPackage(record);
+    if (!validation.ok) throw new Error(`Invalid resort package: ${validation.errors.join(' ')}`);
+  }
+
   const saveResult = await saveTerrain(record);
   if (!saveResult.ok) {
-    console.error('Failed to persist terrain:', saveResult.error);
+    throw new Error(`Failed to persist terrain: ${saveResult.error}`);
+  }
+
+  if (coverGrid) {
+    const persisted = await loadTerrain(record.key);
+    if (!persisted) throw new Error('The resort package could not be read after it was written.');
+    const validation = validateTerrainPackage(persisted);
+    if (!validation.ok) throw new Error(`The saved resort package failed verification: ${validation.errors.join(' ')}`);
+    return hydrateTerrainRecord(persisted);
   }
 
   return hydrateTerrainRecord(record);
+}
+
+export interface ResortPreparationSite {
+  bounds: [[number, number], [number, number]];
+  widthKm: number;
+  heightKm: number;
+}
+
+/**
+ * Prepare the mandatory local elevation + WorldCover package for gameplay.
+ * WorldCover/USGS are contacted only here; the returned terrainKey is what the
+ * game subsequently loads through local protocols.
+ */
+export async function prepareResortPackage(
+  site: ResortPreparationSite,
+  mountainName: string,
+  onProgress?: (progress: TerrainPackageProgress) => void,
+  signal?: AbortSignal
+): Promise<TerrainDB> {
+  const [[west, south], [east, north]] = site.bounds;
+  const bounds = { west, south, east, north };
+  const center = { latitude: (south + north) / 2, longitude: (west + east) / 2 };
+  const areaSizeMeters = Math.round(Math.max(site.widthKm, site.heightKm) * 1000);
+  const report = (phase: TerrainPackageProgress['phase'], message: string, completed: number) =>
+    onProgress?.({ phase, message, completed, total: 6 });
+  const abort = () => {
+    if (signal?.aborted) throw new DOMException('Resort preparation cancelled', 'AbortError');
+  };
+
+  report('elevation', 'Downloading and validating elevation', 0);
+  const sampleHeights = await fetchElevationGrid(
+    bounds,
+    areaSizeMeters,
+    (p) => report('elevation', p.phase === 'fetching' ? 'Downloading elevation' : 'Decoding elevation', 0),
+    signal
+  );
+  abort();
+
+  report('ground-cover', 'Downloading ESA WorldCover 2021', 1);
+  const coverGrid = await sampleSiteCoverGrid(bounds, 10, signal);
+  if (!coverGrid.complete) throw new Error(`Ground-cover package is incomplete (${coverGrid.nodataCount} missing cells).`);
+  abort();
+
+  report('decoding', 'Validating source-faithful land-cover classes', 2);
+  abort();
+
+  report('deriving', 'Preparing exact canopy boundaries and local contours', 3);
+  const vectorFeatures = await fetchVectorFeatures(bounds).catch(() => undefined);
+  abort();
+
+  report('saving', 'Saving local resort package', 4);
+  const terrain = await finalizeAndSave(
+    mountainName,
+    center.latitude,
+    center.longitude,
+    areaSizeMeters,
+    bounds,
+    sampleHeights,
+    'live',
+    vectorFeatures,
+    coverGrid
+  );
+  if (signal?.aborted) {
+    await deleteTerrain(terrain.key);
+    abort();
+  }
+  report('verifying', 'Verifying local resort package', 5);
+  const validation = validateTerrainPackage(terrain);
+  if (!validation.ok) {
+    await deleteTerrain(terrain.key);
+    throw new Error(validation.errors.join(' '));
+  }
+  report('verifying', 'Resort package ready', 6);
+  return terrain;
 }
 
 /**

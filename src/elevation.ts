@@ -66,8 +66,15 @@ export function isUsCoverage(bounds: LatLonBounds): boolean {
   return US_COVERAGE_BOXES.some((box) => boundsWithinBox(bounds, box));
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(new DOMException('Elevation download cancelled', 'AbortError'));
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(new DOMException('Elevation download cancelled', 'AbortError'));
+    }, { once: true });
+  });
 }
 
 function exportImageUrl(bounds: LatLonBounds, gridSize: number): string {
@@ -89,14 +96,15 @@ function exportImageUrl(bounds: LatLonBounds, gridSize: number): string {
 async function fetchWithShrink(
   bounds: LatLonBounds,
   gridSize: number,
-  onProgress?: (progress: ElevationProgress) => void
+  onProgress?: (progress: ElevationProgress) => void,
+  signal?: AbortSignal
 ): Promise<ArrayBuffer> {
   let genericAttempt = 0;
 
   for (;;) {
     try {
       onProgress?.({ phase: 'fetching' });
-      const response = await fetch(exportImageUrl(bounds, gridSize));
+      const response = await fetch(exportImageUrl(bounds, gridSize), { signal });
       if (response.ok) return await response.arrayBuffer();
 
       if (response.status >= 500 && gridSize > MIN_GRID_DIMENSION) {
@@ -105,9 +113,10 @@ async function fetchWithShrink(
       }
       throw new Error(`USGS elevation service returned ${response.status}`);
     } catch (e) {
+      if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e;
       if (genericAttempt >= MAX_RETRIES) throw e;
       genericAttempt++;
-      await sleep(RETRY_BASE_MS * genericAttempt);
+      await sleep(RETRY_BASE_MS * genericAttempt, signal);
     }
   }
 }
@@ -123,7 +132,8 @@ async function fetchWithShrink(
 export async function fetchElevationGrid(
   bounds: LatLonBounds,
   areaSizeMeters: number,
-  onProgress?: (progress: ElevationProgress) => void
+  onProgress?: (progress: ElevationProgress) => void,
+  signal?: AbortSignal
 ): Promise<number[]> {
   if (!isUsCoverage(bounds)) {
     throw new Error(
@@ -131,7 +141,7 @@ export async function fetchElevationGrid(
     );
   }
 
-  const arrayBuffer = await fetchWithShrink(bounds, sampleGridSizeFor(areaSizeMeters), onProgress);
+  const arrayBuffer = await fetchWithShrink(bounds, sampleGridSizeFor(areaSizeMeters), onProgress, signal);
 
   onProgress?.({ phase: 'decoding' });
   const tiff = await fromArrayBuffer(arrayBuffer);
