@@ -41,28 +41,48 @@ const OUTLINE: Record<CoverBucket, string> = {
   water: '#5e83a6',
 };
 
-// Target ~12 m cells (WorldCover is 10 m native — finer buys nothing), clamped
-// so even an 8 km site stays a light one-time trace.
-const TARGET_CELL_M = 12;
-const MIN_N = 96;
-const MAX_N = 512;
+// Sample at WorldCover's ~10 m native detail, clamped so even an 8 km site
+// stays a light one-time trace.
+const TARGET_CELL_M = 10;
+const MIN_N = 128;
+const MAX_N = 640;
 
-function resolutionFor(bounds: CoverBounds): number {
+// Cartographic generalization, in real-world meters (converted to grid cells at
+// trace time so the look is identical regardless of site size). The raster is a
+// grid of square pixels; without a strong pre-trace blur the traced boundaries
+// keep that blocky staircase. ~24 m of smoothing turns it into flowing, printed-
+// map edges; ~10 m of vertex simplification drops the leftover micro-zigzags.
+const SMOOTH_M = 24;
+const SIMPLIFY_M = 10;
+const MIN_FEATURE_M2 = 600; // drop cover specks smaller than this
+
+/** Longest side of the sampled area, meters. */
+function spanMetersOf(bounds: CoverBounds): number {
   const midLat = (bounds.north + bounds.south) / 2;
   const widthM =
     Math.abs(bounds.east - bounds.west) * METERS_PER_DEGREE_LAT * Math.cos((midLat * Math.PI) / 180);
   const heightM = Math.abs(bounds.north - bounds.south) * METERS_PER_DEGREE_LAT;
-  const span = Math.max(widthM, heightM);
-  return Math.min(MAX_N, Math.max(MIN_N, Math.round(span / TARGET_CELL_M)));
+  return Math.max(widthM, heightM);
 }
 
 /**
  * Sample the locked site's cover into an n×n grid, then trace each bucket into
  * smoothed polygons and project them to lng/lat. Cheap and one-time — a few
- * tile fetches plus a marching-squares pass per bucket.
+ * tile fetches plus a marching-squares pass per bucket. The blur/simplify budget
+ * is derived from real-world meters so the generalization is consistent whether
+ * the site is 1 km or 8 km across.
  */
 export async function vectorizeCover(bounds: CoverBounds): Promise<CoverGeoJSON> {
-  const n = resolutionFor(bounds);
+  const spanM = spanMetersOf(bounds);
+  const n = Math.min(MAX_N, Math.max(MIN_N, Math.round(spanM / TARGET_CELL_M)));
+  const cellM = spanM / Math.max(1, n - 1);
+  const traceOpts = {
+    // Min radius 2 guarantees the staircase is broken even on a big, coarse site.
+    blurRadius: Math.max(2, Math.min(5, Math.round(SMOOTH_M / cellM))),
+    blurIterations: 2,
+    simplifyTol: Math.max(1, Math.min(3, SIMPLIFY_M / cellM)),
+    minAreaCells: Math.max(4, Math.round(MIN_FEATURE_M2 / (cellM * cellM))),
+  };
   const grid = await sampleCoverGrid(bounds, n);
 
   // sample (row r, col c) -> lng/lat; row 0 is the north edge (grid convention).
@@ -87,7 +107,7 @@ export async function vectorizeCover(bounds: CoverBounds): Promise<CoverGeoJSON>
     }
     if (!any) continue;
 
-    const polys = maskToPolygons(mask, n, { minAreaCells: 6 });
+    const polys = maskToPolygons(mask, n, traceOpts);
     for (const poly of polys) {
       const coordinates = [poly.outer, ...poly.holes].map((ring) =>
         ring.map(([x, y]) => toLngLat(x, y))

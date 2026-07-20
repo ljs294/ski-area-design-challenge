@@ -158,11 +158,47 @@ export interface SavedFixedGripLift extends SavedLiftBase {
 
 export type SavedLift = SavedFixedGripLift;
 
+// Ski-run difficulty designation. Mirrors the four slope-angle bands in
+// terrainProtocols.ts (Green <16°, Blue <24°, Black <37°, Red ≥37°) — the same
+// ratings the slope overlay paints — so a run's recommended grade always agrees
+// with the terrain shading beneath it. See src/trails.ts.
+export type TrailDifficulty = 'green' | 'blue' | 'black' | 'red';
+
+// Build state of a run, mirroring LiftStatus: 'planning' (dashed) vs 'complete'.
+export type TrailStatus = 'planning' | 'complete';
+
+// A ski run painted with the brush tool. The run is a filled polygon (its
+// skiable footprint) with a centerline "spine" the profile + downhill
+// simulation walk. Geometry is stored raw as [lng, lat]; cached stats
+// (length/vertical/slope/difficulty) are recomputed from it on load by
+// sanitizeTrails so they can never drift from the geometry.
+export interface SavedTrail {
+  id: string;
+  name: string; // default "Run N"
+  /** Painted footprint. Ring 0 is the outer boundary; any others are holes.
+   *  Each ring is a closed loop of [lng, lat] pairs. */
+  polygon: [number, number][][];
+  /** Centerline the brush was dragged along, [lng, lat], ordered top → bottom.
+   *  Also the stations the elevation profile is sampled at. */
+  spine: [number, number][];
+  brushWidthM: number; // brush diameter used to paint it
+  /** Terrain elevations sampled at each `spine` station, meters, parallel to
+   *  `spine`. Empty when sampling failed offline (backfilled on next load). */
+  spineElevM: number[];
+  lengthM: number; // spine slope length (sum of 3D segment lengths)
+  verticalM: number | null; // top − bottom along the spine; null if unresolved
+  avgSlopeDeg: number; // run-length-weighted mean pitch along the spine
+  maxSlopeDeg: number; // steepest segment pitch along the spine
+  difficulty: TrailDifficulty; // user-chosen; defaults to the slope recommendation
+  status: TrailStatus; // 'planning' (dashed) or 'complete' (solid)
+  createdAt: string; // ISO
+}
+
 // A player's resort design. The first-class "game" unit, distinct from the raw
 // TerrainRecord it will eventually reference for offline rendering. Camera +
 // site are persisted so Load/Continue restores the exact view. `terrainKey`
-// and `trails` are reserved for the offline-terrain + design/simulation
-// layers that are not built yet — the map still streams tiles online for now.
+// is reserved for the offline-terrain layer that is not built yet — the map
+// still streams tiles online for now.
 export interface GameSave {
   schemaVersion: 1;
   key: string; // uuid
@@ -176,7 +212,7 @@ export interface GameSave {
   is3D: boolean;
   site: SavedSiteBox | null; // locked property box, if one was drawn
   lifts: SavedLift[]; // ski lifts drawn on the map
-  trails: unknown[]; // reserved for future trail lines
+  trails: SavedTrail[]; // ski runs painted on the map
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }
