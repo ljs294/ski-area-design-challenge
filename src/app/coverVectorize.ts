@@ -21,12 +21,27 @@ function colorExpression(fallback: string): maplibregl.ExpressionSpecification {
   ] as unknown as maplibregl.ExpressionSpecification;
 }
 
+// Over the aerial base the cover is a translucent classification tint so the
+// photo reads through (Stevens Pass Fig 4-2). On the paper fallback there is no
+// photo underneath, so the same polygons carry the map at a heavier opacity.
+const FILL_OPACITY_OVER_AERIAL = [
+  'match', ['get', 'code'],
+  1, 0.42, 2, 0.30, 3, 0.34, 4, 0.55,
+  10, 0.45, 95, 0.45, 20, 0.42, 80, 0.55, 90, 0.42, 0.36,
+] as unknown as maplibregl.ExpressionSpecification;
+const FILL_OPACITY_OVER_PAPER = [
+  'match', ['get', 'code'],
+  1, 0.76, 2, 0.52, 3, 0.48, 4, 0.72,
+  10, 0.8, 95, 0.8, 20, 0.74, 80, 0.72, 90, 0.67, 0.55,
+] as unknown as maplibregl.ExpressionSpecification;
+
 /** Add persisted display polygons beneath hillshade. Safe across style reloads. */
 export function addCoverLayers(
   map: maplibregl.Map,
   geojson: CoverDisplayGeoJSON,
   visible: boolean,
-  before?: string
+  before?: string,
+  overAerial = false
 ): void {
   removeCoverLayers(map);
   map.addSource(COVER_SOURCE, { type: 'geojson', data: geojson, maxzoom: 18, tolerance: 0.25 });
@@ -38,11 +53,7 @@ export function addCoverLayers(
     layout: { visibility },
     paint: {
       'fill-color': colorExpression('#000000'),
-      'fill-opacity': [
-        'match', ['get', 'code'],
-        1, 0.76, 2, 0.52, 3, 0.48, 4, 0.72,
-        10, 0.8, 95, 0.8, 20, 0.74, 80, 0.72, 90, 0.67, 0.55,
-      ] as unknown as maplibregl.ExpressionSpecification,
+      'fill-opacity': overAerial ? FILL_OPACITY_OVER_AERIAL : FILL_OPACITY_OVER_PAPER,
       'fill-antialias': true,
     },
   }, before);

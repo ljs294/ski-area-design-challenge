@@ -128,7 +128,11 @@ export function setupAnalysisLayers(
   const satelliteLayer = map.getLayer(MASTER_PLAN_LAYER_IDS.satellite)
     ? MASTER_PLAN_LAYER_IDS.satellite
     : 'satellite';
-  const satelliteVisible = local?.coverGrid?.source !== 'usgs-four-class-v1';
+  // The downloaded NAIP aerial is the master-plan base in game: show it whenever
+  // a package actually carries imagery, so the translucent cover reads over the
+  // photo (Stevens Pass Fig 4-2). Packages without imagery fall back to the paper
+  // background — fully offline, no network aerial. The picker keeps the aerial on.
+  const satelliteVisible = local ? !!(localImageryUrl && local.localImageryMetadata) : true;
 
   if (local && localImageryUrl && local.localImageryMetadata) {
     if (map.getLayer(satelliteLayer)) map.removeLayer(satelliteLayer);
@@ -168,19 +172,24 @@ export function setupAnalysisLayers(
 
   // Hillshade lands below cover; later additions before the same anchor draw above it.
   map.addSource('dem', { type: 'raster-dem', tiles: [demUrl], encoding: 'terrarium', tileSize: 256, maxzoom: 15, ...(bounds ? { bounds } : {}), attribution: local ? 'Local resort elevation package' : 'Terrain: Terrarium tiles, Mapzen/AWS Open Data' });
+  // Over the aerial base the photo already carries relief, so ease the hillshade
+  // to a subtle deepening and mute the highlights that would otherwise bleach
+  // sunlit slopes. On the paper fallback keep the stronger, brighter relief.
   map.addLayer({
     id: 'hillshade', type: 'hillshade', source: 'dem',
     paint: {
       'hillshade-method': 'multidirectional',
       'hillshade-illumination-direction': [315, 45, 225],
       'hillshade-illumination-altitude': [42, 28, 18],
-      'hillshade-exaggeration': 0.42,
+      'hillshade-exaggeration': satelliteVisible ? 0.25 : 0.42,
       'hillshade-shadow-color': ['#34403f', '#48504b', '#514b46'],
-      'hillshade-highlight-color': ['#f7f3e8', '#eef2eb', '#ede8df'],
+      'hillshade-highlight-color': satelliteVisible
+        ? ['#e8e2d4', '#e2e6de', '#e0dbd0']
+        : ['#f7f3e8', '#eef2eb', '#ede8df'],
       'hillshade-accent-color': '#4b514c',
     },
   } as maplibregl.HillshadeLayerSpecification, coverAnchor);
-  if (local && coverDisplay) addCoverLayers(map, coverDisplay, coverVisible, 'hillshade');
+  if (local && coverDisplay) addCoverLayers(map, coverDisplay, coverVisible, 'hillshade', satelliteVisible);
   else map.addLayer({ id: 'groundcover', type: 'raster', source: 'worldcover', layout: { visibility: coverVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': local ? 0.78 : 0.9, 'raster-resampling': 'nearest' } }, coverAnchor);
   if (local && !coverDisplay) {
     map.addSource('cover-boundaries', { type: 'geojson', data: localCoverBoundaryGeoJSON(local) });
