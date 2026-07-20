@@ -733,6 +733,29 @@ body {
   margin-bottom: 6px;
 }
 
+/* Roll-up / lift-panel header: title on the left, ✕ close in the corner.
+   Spacing to the body comes from the parent's gap; the Layers panel (a bare
+   .dock-panel with no gap) gets an explicit margin below. */
+.dock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dock-head-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.dock-panel > .dock-head {
+  margin-bottom: 8px;
+}
+
 /* --- Status toolbar --- */
 .game-toolbar {
   display: flex;
@@ -942,6 +965,22 @@ body {
   flex-direction: column;
   gap: 2px;
 }
+.game-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px 6px 8px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.game-menu-head-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
 .game-menu-item {
   text-align: left;
   background: transparent;
@@ -990,6 +1029,27 @@ body {
   font-size: 12px;
   color: var(--text-muted);
   padding: 6px 2px;
+}
+
+/* --- Single-lift detail (opened by clicking a lift; Edit / Remove at bottom) --- */
+.lift-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lift-detail-name {
+  font-size: 14px;
+}
+.lift-detail-sub {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: -4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.lift-detail-actions {
+  margin-top: 2px;
 }
 
 /* --- Resort stats panel (opened from the toolbar name) --- */

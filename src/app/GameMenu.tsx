@@ -64,6 +64,16 @@ export function GameMenu({
 
       {open && (
         <div className="game-menu-pop" role="menu">
+          <div className="game-menu-head">
+            <span className="game-menu-head-title">Menu</span>
+            <button
+              className="settings-close-x"
+              aria-label="Close menu"
+              onClick={() => setOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
           {canSave && (
             <button
               className="game-menu-item hud-save"

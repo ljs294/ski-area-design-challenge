@@ -27,6 +27,19 @@ function fmtRideTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')} min`;
 }
 
+/** Shared roll-up header: a title on the left and a ✕ close in the corner.
+ *  `onClose` dismisses whatever panel it heads (cancel a draw, leave edit). */
+function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <div className="dock-head">
+      <span className="dock-head-title">{title}</span>
+      <button className="settings-close-x" aria-label="Close" onClick={onClose}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function StatusToggle({
   value,
   onChange,
@@ -80,8 +93,9 @@ function ChairSizeField({
   );
 }
 
-/** Length / vertical / capacity / ride-time readout shared by both panels. */
-function LiftStatsBlock({
+/** Length / vertical / capacity / ride-time readout shared by both panels.
+ *  Exported so the single-lift overview (LiftDetail) shows identical stats. */
+export function LiftStatsBlock({
   points,
   elev,
   chairSize,
@@ -169,6 +183,7 @@ export function LiftControl({
   if (tool.phase === 'armed') {
     return (
       <div className="site-control site-control-wide">
+        <PanelHead title="New lift" onClose={onCancel} />
         <div className="site-hint">Click the map to place the first terminal</div>
         <button className="site-btn" onClick={onCancel}>
           Cancel
@@ -181,6 +196,7 @@ export function LiftControl({
     const dist = tool.cursor ? haversineMeters(tool.a, tool.cursor) : null;
     return (
       <div className="site-control site-control-wide">
+        <PanelHead title="New lift" onClose={onCancel} />
         {dist != null && dist > 0 ? (
           <div className="site-dims">{fmtDistance(dist, units)}</div>
         ) : (
@@ -197,7 +213,7 @@ export function LiftControl({
     const d = tool.draft;
     return (
       <div className="site-control site-control-wide lift-panel">
-        <div className="lift-panel-title">New fixed-grip chairlift</div>
+        <PanelHead title="New fixed-grip chairlift" onClose={onCancel} />
         <input
           className="name-entry-input lift-name-input"
           type="text"
@@ -242,7 +258,7 @@ export function LiftControl({
   if (editing) {
     return (
       <div className="site-control site-control-wide lift-panel">
-        <div className="lift-panel-title">Edit lift</div>
+        <PanelHead title="Edit lift" onClose={onCloseEdit} />
         <input
           className="name-entry-input lift-name-input"
           type="text"

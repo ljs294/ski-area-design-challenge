@@ -7,6 +7,7 @@ import { GameToolbar } from './GameToolbar';
 import { GameMenu } from './GameMenu';
 import { CreditsPanel } from './CreditsPanel';
 import { LiftOverview } from './LiftOverview';
+import { LiftDetail } from './LiftDetail';
 import { ResortStatsPanel } from './ResortStatsPanel';
 import { CursorReadout, type Readout } from './CursorReadout';
 import type { OverlayId } from './Legend';
@@ -113,6 +114,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   );
   const [liftTool, setLiftTool] = useState<LiftTool>({ phase: 'idle' });
   const [selectedLiftId, setSelectedLiftId] = useState<string | null>(null);
+  // A selected lift opens its read-only detail first; Edit flips this to the
+  // LiftControl edit panel. Reset to false whenever a (different) lift is opened.
+  const [liftEditing, setLiftEditing] = useState(false);
 
   const activeOverlay = activeOverlayOf(layers);
 
@@ -140,12 +144,14 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   liftsRef.current = lifts;
   liftToolRef.current = liftTool;
 
-  // Clicking a base-terminal badge opens that lift's edit panel. Redefined each
-  // render so the badge markers (which capture this via a ref) stay current.
+  // Clicking a lift (on the map or in the list) opens its read-only detail.
+  // Redefined each render so the map click handler (which captures this via a
+  // ref) stays current.
   selectLiftRef.current = (id: string) => {
     liftSampleTokenRef.current++;
     setLiftTool({ phase: 'idle' });
     setSelectedLiftId(id);
+    setLiftEditing(false);
   };
 
   // The actual sampler — redefined each render so it closes over fresh state.
@@ -271,6 +277,28 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       lastLngLatRef.current = null;
       setReadout(null);
     });
+
+    // Click a built lift to open its edit panel. Delegated to the wide white
+    // casing (bigger hit target than the 3px red line) plus the terminal dots;
+    // both carry the lift `id`. Gated to idle play so it never steals the
+    // terminal-placing clicks while a lift is being drawn. Delegated listeners
+    // survive the light/dark style swap (they query at event time), so this is
+    // registered once with the map.
+    const LIFT_HIT_LAYERS = ['lift-line-casing', 'lift-terminals'];
+    const onLiftClick = (e: maplibregl.MapLayerMouseEvent) => {
+      if (liftToolRef.current.phase !== 'idle') return;
+      const id = e.features?.[0]?.properties?.id;
+      if (typeof id === 'string') selectLiftRef.current(id);
+    };
+    const onLiftEnter = () => {
+      if (liftToolRef.current.phase === 'idle') map.getCanvas().style.cursor = 'pointer';
+    };
+    const onLiftLeave = () => {
+      if (liftToolRef.current.phase === 'idle') map.getCanvas().style.cursor = '';
+    };
+    map.on('click', LIFT_HIT_LAYERS, onLiftClick);
+    map.on('mouseenter', LIFT_HIT_LAYERS, onLiftEnter);
+    map.on('mouseleave', LIFT_HIT_LAYERS, onLiftLeave);
 
     return () => {
       map.remove();
@@ -495,7 +523,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
   function armLiftTool() {
     if (siteModeRef.current === 'selecting') return; // never two draw tools at once
-    setSelectedLiftId(null); // close any open edit panel
+    setSelectedLiftId(null); // close any open detail/edit panel
+    setLiftEditing(false);
     setLiftTool({ phase: 'armed' });
   }
 
@@ -546,6 +575,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   function deleteLift(id: string) {
     setLifts((prev) => prev.filter((l) => l.id !== id));
     setSelectedLiftId((cur) => (cur === id ? null : cur));
+    setLiftEditing(false);
   }
 
   function startSelect() {
@@ -656,10 +686,13 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const awaitingName = picking && siteMode === 'locked' && !saved;
 
   // Lift panel is open when the user opened it OR the tool is mid-draw / a lift
-  // is being edited; layers yield to it so the two roll-ups never overlap.
+  // is selected (detail or edit); layers yield to it so the two roll-ups never
+  // overlap. selectedLift resolves the id to the live lift (null if it was
+  // deleted out from under the selection).
   const liftActive = liftTool.phase !== 'idle' || selectedLiftId !== null;
   const liftsOpen = !!saved && (openDock === 'lifts' || liftActive);
   const layersOpen = openDock === 'layers' && !liftsOpen;
+  const selectedLift = selectedLiftId ? lifts.find((l) => l.id === selectedLiftId) ?? null : null;
 
   /** Coordinate to reverse-geocode for the resort's Location: site center if a
    *  site box is locked, else the saved camera center, else the live map. */
@@ -744,7 +777,16 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
             {layersOpen && (
               <div className="dock-rollup dock-layers">
                 <div className="dock-panel">
-                  <div className="dock-panel-title">Layers</div>
+                  <div className="dock-head">
+                    <span className="dock-head-title">Layers</span>
+                    <button
+                      className="settings-close-x"
+                      aria-label="Close"
+                      onClick={() => setOpenDock(null)}
+                    >
+                      ✕
+                    </button>
+                  </div>
                   <LayerList
                     layers={layers}
                     onToggle={handleToggle}
@@ -756,11 +798,33 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
             {liftsOpen && (
               <div className="dock-rollup dock-lifts">
                 <div className="dock-panel">
-                  {liftActive ? (
+                  {liftTool.phase === 'idle' && selectedLift && !liftEditing ? (
+                    // Clicking a lift opens its read-only detail first.
+                    <LiftDetail
+                      lift={selectedLift}
+                      units={settings.units}
+                      onEdit={() => setLiftEditing(true)}
+                      onRemove={() => deleteLift(selectedLift.id)}
+                      onClose={() => {
+                        // Back up to the full lift list (keep the dock open).
+                        setSelectedLiftId(null);
+                        setOpenDock('lifts');
+                      }}
+                    />
+                  ) : liftTool.phase === 'idle' && !selectedLift ? (
+                    <LiftOverview
+                      lifts={lifts}
+                      units={settings.units}
+                      onArm={armLiftTool}
+                      onSelect={(id) => selectLiftRef.current(id)}
+                      onClose={() => setOpenDock(null)}
+                    />
+                  ) : (
+                    // Draw / review a new lift, or edit the selected one.
                     <LiftControl
                       tool={liftTool}
                       lifts={lifts}
-                      selectedId={selectedLiftId}
+                      selectedId={liftTool.phase === 'idle' ? selectedLiftId : null}
                       units={settings.units}
                       onArm={armLiftTool}
                       onCancel={cancelLiftTool}
@@ -768,16 +832,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                       onConfirm={confirmLift}
                       onSelect={(id) => selectLiftRef.current(id)}
                       onEditPatch={patchLift}
-                      onCloseEdit={() => setSelectedLiftId(null)}
+                      onCloseEdit={() => setLiftEditing(false)}
                       onDelete={deleteLift}
                       onRetryElevation={retryLiftElevation}
-                    />
-                  ) : (
-                    <LiftOverview
-                      lifts={lifts}
-                      units={settings.units}
-                      onArm={armLiftTool}
-                      onSelect={(id) => selectLiftRef.current(id)}
                     />
                   )}
                 </div>

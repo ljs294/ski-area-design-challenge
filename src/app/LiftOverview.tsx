@@ -4,24 +4,30 @@ import { CHAIR_LABELS, fmtDistance, liftStats } from '../lifts';
 
 /**
  * Dedicated overview of every ski lift, shown in the Lifts roll-up when the draw
- * tool is idle. An "Add ski lift" button is pinned at the top; each row is
- * clickable to open that lift's edit panel (LiftControl handles the edit state).
+ * tool is idle and no single lift is selected. An "Add ski lift" button is pinned
+ * at the top; each row opens that lift's read-only detail (LiftDetail), from
+ * which the user can Edit or Remove. The ✕ closes the whole Lifts roll-up.
  */
 export function LiftOverview({
   lifts,
   units,
   onArm,
   onSelect,
+  onClose,
 }: {
   lifts: SavedLift[];
   units: Units;
   onArm: () => void;
   onSelect: (id: string) => void;
+  onClose: () => void;
 }) {
   return (
     <div className="lift-overview">
       <div className="lift-overview-head">
         <span className="lift-overview-title">Ski Lifts ({lifts.length})</span>
+        <button className="settings-close-x" aria-label="Close" onClick={onClose}>
+          ✕
+        </button>
       </div>
       <button className="lift-add-btn site-btn site-btn-primary" onClick={onArm}>
         ＋ Add ski lift
@@ -39,7 +45,7 @@ export function LiftOverview({
                 type="button"
                 className="lift-row lift-row-btn"
                 onClick={() => onSelect(l.id)}
-                title={`Edit ${l.name}`}
+                title={`View ${l.name}`}
               >
                 <span className={`lift-row-dot lift-row-dot--${l.status}`} aria-hidden="true" />
                 <span className="lift-row-main">
