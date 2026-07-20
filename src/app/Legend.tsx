@@ -2,11 +2,12 @@ import { SLOPE_LEGEND, ASPECT_LEGEND } from './terrainProtocols';
 
 export type OverlayId = 'slope' | 'aspect' | 'groundcover';
 
+// Water is not part of the ground-cover overlay — it renders from the dedicated
+// Water layer/toggle — so it is intentionally absent here.
 const COVER_LEGEND = [
   { label: 'Forest', color: 'rgb(82, 105, 82)' },
   { label: 'Alpine', color: 'rgb(215, 216, 207)' },
   { label: 'Grassland', color: 'rgb(177, 183, 145)' },
-  { label: 'Water', color: 'rgb(83, 142, 174)' },
 ];
 
 const LEGENDS: Record<OverlayId, { title: string; rows: { label: string; color: string }[] }> = {

@@ -14,6 +14,12 @@ export const FOUR_CLASS_COVER_CODES: CoverClassCode[] = [
   TERRAIN_COVER_CODES.forest, TERRAIN_COVER_CODES.alpine, TERRAIN_COVER_CODES.grassland, TERRAIN_COVER_CODES.water,
 ];
 const ALL_COVER_CODES: CoverClassCode[] = [...WORLD_COVER_CODES, ...FOUR_CLASS_COVER_CODES];
+// Water is rendered by the dedicated OSM/basemap water layer, so it is excluded
+// from the ground-cover display to avoid double-painting lakes and rivers. It
+// stays in the analytical cover grid and in ALL_COVER_CODES so persisted
+// geometry from older packages still decodes. 4 = four-class water, 80 = ESA
+// WorldCover permanent water bodies.
+const DISPLAY_WATER_CODES = new Set<number>([TERRAIN_COVER_CODES.water, 80]);
 
 export interface CoverDisplayStats {
   polygonCount: number;
@@ -66,6 +72,7 @@ function traceAt(grid: CoverGrid, simplifyM: number): DerivedCoverDisplay {
   };
 
   for (const code of fourClass ? FOUR_CLASS_COVER_CODES : WORLD_COVER_CODES) {
+    if (DISPLAY_WATER_CODES.has(code)) continue;
     let any = false;
     for (let i = 0; i < grid.data.length; i++) {
       const hit = grid.data[i] === code ? 1 : 0;

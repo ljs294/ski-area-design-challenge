@@ -62,15 +62,8 @@ export interface SiteCoverGrid {
 export interface TerrainCoverProvenance {
   processingVersion: 'four-class-v1';
   confidence: 'high' | 'reduced';
-  method: 'lidar-naip' | 'lidar-worldcover' | 'naip-worldcover' | 'worldcover-fallback';
+  method: 'naip-worldcover' | 'worldcover-fallback';
   attribution: string[];
-  lidar?: {
-    projectId: string;
-    acquisitionYear?: number;
-    resolutionM: number;
-    downloadedBytes: number;
-    license: 'us-government-public-domain';
-  };
   naip?: {
     sceneIds: number[];
     sceneNames: string[];
@@ -154,7 +147,6 @@ export type TerrainPackagePhase =
   | 'elevation'
   | 'ground-cover'
   | 'imagery'
-  | 'lidar'
   | 'decoding'
   | 'deriving'
   | 'vectorizing-cover'

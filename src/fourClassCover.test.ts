@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deriveFourClassCover, TERRAIN_COVER_CODES } from './fourClassCover';
 import type { SiteCoverGrid } from './types';
-import type { LidarCanopyGrid } from './usgsTerrainCover';
 import type { NaipAcquisition } from './usgsTerrainCover';
 
 const bounds = { west: -116.62, south: 48.36, east: -116.61866, north: 48.3609 };
@@ -12,17 +11,6 @@ function originalGrid(): SiteCoverGrid {
   return {
     bounds, width: 10, height: 10, cellSizeM: 10, data,
     complete: true, nodataCount: 0, source: 'esa-worldcover-2021-v200', vintage: '2021',
-  };
-}
-
-function lidarGrid(): LidarCanopyGrid {
-  const maxHeightM = new Float32Array(100);
-  for (let row = 3; row < 10; row++) for (let col = 0; col < 10; col++) {
-    if (col !== 5) maxHeightM[row * 10 + col] = 12;
-  }
-  return {
-    bounds, width: 10, height: 10, cellSizeM: 10, maxHeightM,
-    projectId: 'ID_NorthernID_1_2019', acquisitionYear: 2019, downloadedBytes: 2048,
   };
 }
 
@@ -37,11 +25,17 @@ function spectralWaterNaip(): NaipAcquisition {
 }
 
 describe('Schweitzer-style four-class terrain cover', () => {
-  it('uses water, observed canopy, and local elevation in deterministic precedence order', () => {
+  it('resolves water, forest, alpine, and grassland in deterministic precedence order', () => {
+    const original = originalGrid();
+    // WorldCover tree cover across the lower (warmer) rows, with a cleared
+    // column standing in for a ski run that must not read as forest.
+    for (let row = 3; row < 10; row++) for (let col = 0; col < 10; col++) {
+      if (col !== 5) original.data[row * 10 + col] = 10;
+    }
+    original.data[8 * 10 + 1] = 80; // keep the seeded water cell after the tree loop
     const heights = Array.from({ length: 100 }, (_, index) => 2200 - Math.floor(index / 10) * 20);
     const cover = deriveFourClassCover({
-      bounds, original: originalGrid(), elevation: { heights, width: 10, height: 10 },
-      lidar: lidarGrid(), targetCellM: 10,
+      bounds, original, elevation: { heights, width: 10, height: 10 }, targetCellM: 10,
     });
     const codes = new Set(cover.data);
     expect(codes).toContain(TERRAIN_COVER_CODES.forest);
@@ -51,8 +45,7 @@ describe('Schweitzer-style four-class terrain cover', () => {
     expect(cover.data[8 * cover.width + 1]).toBe(TERRAIN_COVER_CODES.water);
     expect(cover.data[6 * cover.width + 2]).toBe(TERRAIN_COVER_CODES.forest);
     expect(cover.data[6 * cover.width + 5]).not.toBe(TERRAIN_COVER_CODES.forest);
-    expect(cover.provenance.method).toBe('lidar-worldcover');
-    expect(cover.provenance.lidar?.license).toBe('us-government-public-domain');
+    expect(cover.provenance.method).toBe('worldcover-fallback');
   });
 
   it('falls back to WorldCover forest seeds without inventing restricted sources', () => {

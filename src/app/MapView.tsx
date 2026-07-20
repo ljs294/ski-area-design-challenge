@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { setupAnalysisLayers, type LayerToggle } from './analysisLayers';
+import { applyCoverOpacity } from './coverVectorize';
 import { LayerList } from './LayerPanel';
 import { GameToolbar } from './GameToolbar';
 import { GameMenu } from './GameMenu';
@@ -138,11 +139,10 @@ function activeOverlayOf(layers: LayerToggle[]): OverlayId | null {
 const PREP_STEPS: { key: string; label: string }[] = [
   { key: 'elevation', label: 'Elevation data' },
   { key: 'ground-cover', label: 'Recovery ground cover' },
-  { key: 'lidar', label: 'Tree-canopy lidar' },
-  { key: 'imagery', label: 'Matching NAIP imagery' },
+  { key: 'imagery', label: 'NAIP imagery & map context' },
   { key: 'decoding', label: 'Four terrain classes' },
   { key: 'vectorizing-cover', label: 'Detailed vector cover' },
-  { key: 'deriving', label: 'Canopy & contours' },
+  { key: 'deriving', label: 'Local contours' },
   { key: 'saving', label: 'Saving package' },
   { key: 'verifying', label: 'Verifying' },
   { key: 'finalizing', label: 'Final validation' },
@@ -416,6 +416,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       }
       return f;
     });
+    // setupAnalysisLayers bakes the cover opacity assuming the aerial is on;
+    // reconcile it to the aerial's actual (possibly toggled-off) visibility.
+    const aerialOn = applied.find((f) => f.id === 'satellite')?.visible ?? true;
+    applyCoverOpacity(map, aerialOn);
 
     addSiteBoxLayers(map);
     if (siteModeRef.current === 'locked' && siteBoxRef.current) {
@@ -1339,6 +1343,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         if (l.id === id) {
           for (const lid of l.layerIds)
             map.setLayoutProperty(lid, 'visibility', nextVisible ? 'visible' : 'none');
+          // The cover is a translucent tint over the aerial photo but must carry
+          // the map at heavier opacity when the aerial is off — otherwise it
+          // washes out over the bare paper background.
+          if (id === 'satellite') applyCoverOpacity(map, nextVisible);
           return { ...l, visible: nextVisible };
         }
         return l;

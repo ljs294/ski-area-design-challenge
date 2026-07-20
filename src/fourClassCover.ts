@@ -6,7 +6,7 @@ import type {
   VectorFeatureSet,
 } from './types';
 import type { LatLonBounds } from './elevation';
-import type { LidarCanopyGrid, NaipAcquisition } from './usgsTerrainCover';
+import type { NaipAcquisition } from './usgsTerrainCover';
 
 export const TERRAIN_COVER_CODES = {
   forest: 1,
@@ -25,7 +25,6 @@ interface DeriveFourClassOptions {
   original: SiteCoverGrid;
   elevation: { heights: ArrayLike<number>; width: number; height: number };
   naip?: NaipAcquisition | null;
-  lidar?: LidarCanopyGrid | null;
   vectors?: VectorFeatureSet;
   targetCellM?: number;
 }
@@ -211,7 +210,7 @@ function elevationQuantile(elevations: Float32Array, quantile: number): number {
 }
 
 export function deriveFourClassCover(options: DeriveFourClassOptions): TerrainCoverGrid {
-  const { bounds, original, naip, lidar, vectors } = options;
+  const { bounds, original, naip, vectors } = options;
   const dims = dimensions(bounds, options.targetCellM ?? 2);
   const count = dims.width * dims.height;
   const elevations = new Float32Array(count);
@@ -223,13 +222,10 @@ export function deriveFourClassCover(options: DeriveFourClassOptions): TerrainCo
     const u = (col + 0.5) / dims.width, v = (row + 0.5) / dims.height;
     const worldCode = original.data[indexAt(original.width, original.height, u, v)];
     elevations[i] = sampleElevation(options.elevation.heights, options.elevation.width, options.elevation.height, u, v);
-    const vegetation = naip ? ndvi(naip, u, v) > 0.08 : true;
-    if (lidar) {
-      const height = lidar.maxHeightM[indexAt(lidar.width, lidar.height, u, v)];
-      forest[i] = height >= 3 && vegetation ? 1 : 0;
-    } else {
-      forest[i] = isWorldForest(worldCode) ? 1 : 0;
-    }
+    // Forest is seeded from ESA WorldCover tree cover, then refined at its edges
+    // by NAIP NDVI/texture below. WorldCover is the reliable extent; the NAIP
+    // corridor pass carves clearings and adds tall canopy WorldCover missed.
+    forest[i] = isWorldForest(worldCode) ? 1 : 0;
     const lng = bounds.west + u * (bounds.east - bounds.west);
     const lat = bounds.north - v * (bounds.north - bounds.south);
     // Imagery is deliberately not an independent water detector: dark roofs,
@@ -283,24 +279,19 @@ export function deriveFourClassCover(options: DeriveFourClassOptions): TerrainCo
   }
 
   const provenance: TerrainCoverProvenance = {
-    processingVersion: 'four-class-v1', confidence: lidar && naip ? 'high' : 'reduced',
-    method: lidar && naip ? 'lidar-naip' : lidar ? 'lidar-worldcover' : naip ? 'naip-worldcover' : 'worldcover-fallback',
+    processingVersion: 'four-class-v1', confidence: naip ? 'high' : 'reduced',
+    method: naip ? 'naip-worldcover' : 'worldcover-fallback',
     attribution: [
-      ...(lidar ? ['USGS 3DEP lidar point cloud'] : []),
       ...(naip ? ['USDA/USGS NAIP orthoimagery'] : []),
       'ESA WorldCover 2021 / Contains modified Copernicus Sentinel data',
     ],
-    lidar: lidar ? {
-      projectId: lidar.projectId, acquisitionYear: lidar.acquisitionYear, resolutionM: lidar.cellSizeM,
-      downloadedBytes: lidar.downloadedBytes, license: 'us-government-public-domain',
-    } : undefined,
     naip: naip ? {
       sceneIds: naip.sceneIds, sceneNames: naip.sceneNames, acquisitionYear: naip.acquisitionYear,
       agency: naip.agency, resolutionM: naip.resolutionM, license: 'us-government-public-domain',
     } : undefined,
     worldCover: { vintage: '2021', license: 'cc-by-4.0' },
   };
-  const vintage = [lidar?.acquisitionYear, naip?.acquisitionYear, 2021].filter((year): year is number => !!year).sort().join('/');
+  const vintage = [naip?.acquisitionYear, 2021].filter((year): year is number => !!year).sort().join('/');
   return { bounds, width: dims.width, height: dims.height, cellSizeM: dims.cellSizeM, data, complete: true, nodataCount: 0, source: 'usgs-four-class-v1', vintage, treelineM: treeline, provenance };
 }
 

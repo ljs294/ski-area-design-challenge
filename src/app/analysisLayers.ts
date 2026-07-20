@@ -128,6 +128,14 @@ export function setupAnalysisLayers(
   const satelliteLayer = map.getLayer(MASTER_PLAN_LAYER_IDS.satellite)
     ? MASTER_PLAN_LAYER_IDS.satellite
     : 'satellite';
+  // The aerial is a base underlay, not an overlay: anchor it beneath every
+  // resort layer so the translucent cover, hillshade, and contours all read on
+  // top of the photo — matching the picker, where masterPlanStyle places the
+  // aerial at the bottom of the stack. Skip the satellite layer itself: in game
+  // we remove and re-add it, so using it as its own anchor would leave the
+  // re-added layer with a missing anchor (MapLibre then drops it silently).
+  const bottomAnchor =
+    styleLayers.find((l) => l.type !== 'background' && l.id !== satelliteLayer)?.id ?? before;
   // The downloaded NAIP aerial is the master-plan base in game: show it whenever
   // a package actually carries imagery, so the translucent cover reads over the
   // photo (Stevens Pass Fig 4-2). Packages without imagery fall back to the paper
@@ -142,12 +150,12 @@ export function setupAnalysisLayers(
       type: 'image', url: localImageryUrl,
       coordinates: [[b.west, b.north], [b.east, b.north], [b.east, b.south], [b.west, b.south]],
     });
-    map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', layout: { visibility: satelliteVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': 0.7, 'raster-saturation': -0.24, 'raster-contrast': -0.05 } }, before);
+    map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', layout: { visibility: satelliteVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': 0.6, 'raster-saturation': -0.35, 'raster-contrast': -0.06 } }, bottomAnchor);
   } else if (!map.getSource('satellite')) {
     map.addSource('satellite', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, maxzoom: 19, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
   }
   if (!map.getLayer(satelliteLayer)) {
-    map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', layout: { visibility: satelliteVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': 0.7, 'raster-saturation': -0.35, 'raster-contrast': -0.08 } }, before);
+    map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', layout: { visibility: satelliteVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': 0.6, 'raster-saturation': -0.35, 'raster-contrast': -0.08 } }, bottomAnchor);
   } else {
     map.setLayoutProperty(satelliteLayer, 'visibility', satelliteVisible ? 'visible' : 'none');
   }

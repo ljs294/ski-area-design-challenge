@@ -70,7 +70,9 @@ describe('persisted cover display geometry', () => {
     };
     const display = deriveCoverDisplayGeometry(source);
     const decoded = coverDisplayToGeoJSON(display.geometry, source.bounds);
-    expect(new Set(decoded.features.map((feature) => feature.properties.code))).toEqual(new Set([1, 2, 3, 4]));
+    // Water (code 4) is excluded from the display geometry — it renders from the
+    // dedicated OSM/basemap water layer, not the ground-cover fill.
+    expect(new Set(decoded.features.map((feature) => feature.properties.code))).toEqual(new Set([1, 2, 3]));
     expect(display.stats.minFeatureM2).toBe(16);
     expect(display.stats.simplifyM).toBe(2);
   });

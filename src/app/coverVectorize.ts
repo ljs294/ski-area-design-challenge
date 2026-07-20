@@ -13,6 +13,15 @@ const FILL_BY_CODE: Record<number, string> = {
   90: '#4f9189', 95: '#276945', 100: '#c0c199',
 };
 
+// Water lives in the dedicated OSM/basemap water layer; keep it out of the cover
+// fill so lakes and rivers are not painted twice. 4 = four-class water, 80 = ESA
+// WorldCover permanent water. Older packages still carry water polygons in their
+// persisted geometry, so this render filter — not only display generation — is
+// what guarantees they stop double-drawing water.
+const NON_WATER_FILTER = [
+  'match', ['get', 'code'], [4, 80], false, true,
+] as unknown as maplibregl.FilterSpecification;
+
 function colorExpression(fallback: string): maplibregl.ExpressionSpecification {
   return [
     'match', ['get', 'code'],
@@ -35,6 +44,19 @@ const FILL_OPACITY_OVER_PAPER = [
   10, 0.8, 95, 0.8, 20, 0.74, 80, 0.72, 90, 0.67, 0.55,
 ] as unknown as maplibregl.ExpressionSpecification;
 
+/** The fill-opacity set for the current base: translucent over the aerial photo,
+ *  heavier over the paper fallback so the cover still carries the map on its own. */
+export function coverFillOpacity(overAerial: boolean): maplibregl.ExpressionSpecification {
+  return overAerial ? FILL_OPACITY_OVER_AERIAL : FILL_OPACITY_OVER_PAPER;
+}
+
+/** Re-point the cover fill opacity when the aerial is toggled on/off at runtime. */
+export function applyCoverOpacity(map: maplibregl.Map, overAerial: boolean): void {
+  if (map.getLayer(COVER_FILL_LAYER)) {
+    map.setPaintProperty(COVER_FILL_LAYER, 'fill-opacity', coverFillOpacity(overAerial));
+  }
+}
+
 /** Add persisted display polygons beneath hillshade. Safe across style reloads. */
 export function addCoverLayers(
   map: maplibregl.Map,
@@ -51,9 +73,10 @@ export function addCoverLayers(
     type: 'fill',
     source: COVER_SOURCE,
     layout: { visibility },
+    filter: NON_WATER_FILTER,
     paint: {
       'fill-color': colorExpression('#000000'),
-      'fill-opacity': overAerial ? FILL_OPACITY_OVER_AERIAL : FILL_OPACITY_OVER_PAPER,
+      'fill-opacity': coverFillOpacity(overAerial),
       'fill-antialias': true,
     },
   }, before);
@@ -62,6 +85,7 @@ export function addCoverLayers(
     type: 'line',
     source: COVER_SOURCE,
     layout: { visibility, 'line-join': 'round', 'line-cap': 'round' },
+    filter: NON_WATER_FILTER,
     paint: {
       'line-color': colorExpression('#4d5c45'),
       'line-width': [
