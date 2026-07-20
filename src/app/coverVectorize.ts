@@ -1,191 +1,64 @@
 import type maplibregl from 'maplibre-gl';
-import { maskToPolygons } from '../coverPolygons';
-import { METERS_PER_DEGREE_LAT } from '../geo';
-import {
-  sampleCoverGrid,
-  BUCKET_ORDER,
-  type CoverBounds,
-  type CoverBucket,
-} from './worldcoverProtocol';
-
-// Turns the raster ESA WorldCover map into crisp vector cover polygons for a
-// locked build site — computed ONCE when the site is locked, then rendered as a
-// static GeoJSON source (zero per-frame cost, sharp edges, and a real polygon
-// the trail tool can later clear into). See coverPolygons.ts for the raster->
-// vector core and worldcoverProtocol.sampleCoverGrid for the tile sampling.
+import type { CoverDisplayGeoJSON } from '../coverDisplay';
 
 export const COVER_SOURCE = 'cover-vector';
 export const COVER_FILL_LAYER = 'cover-fill';
 export const COVER_OUTLINE_LAYER = 'cover-outline';
-/** Both cover layer ids, in draw order — what the Ground cover toggle drives
- *  once a site is locked. */
 export const COVER_LAYER_IDS = [COVER_FILL_LAYER, COVER_OUTLINE_LAYER];
 
-export type CoverGeoJSON = GeoJSON.FeatureCollection<GeoJSON.Polygon, { bucket: CoverBucket }>;
-
-// Cartographic palette — deeper forest + pale open ground, echoing a printed
-// resort trail map. Hillshade draws over these (they sit just beneath it), so
-// relief still reads across the fills.
-const FILL: Record<CoverBucket, string> = {
-  tree: '#41703f',
-  grass: '#e4dfc7',
-  alpine: '#eef2f6',
-  rock: '#c7bfb2',
-  water: '#7ea8c9',
-};
-const OUTLINE: Record<CoverBucket, string> = {
-  tree: '#2c4d2b',
-  grass: '#c9c3a4',
-  alpine: '#cdd6de',
-  rock: '#a49a89',
-  water: '#5e83a6',
+const FILL_BY_CODE: Record<number, string> = {
+  10: '#2f5135', 20: '#71805a', 30: '#c5c899', 40: '#cab88b',
+  50: '#9a877d', 60: '#9d978c', 70: '#edf0ee', 80: '#538eae',
+  90: '#4f9189', 95: '#276945', 100: '#c0c199',
 };
 
-// Sample at WorldCover's ~10 m native detail, clamped so even an 8 km site
-// stays a light one-time trace.
-const TARGET_CELL_M = 10;
-const MIN_N = 128;
-const MAX_N = 640;
-
-// Cartographic generalization, in real-world meters (converted to grid cells at
-// trace time so the look is identical regardless of site size). The raster is a
-// grid of square pixels; without a strong pre-trace blur the traced boundaries
-// keep that blocky staircase. ~24 m of smoothing turns it into flowing, printed-
-// map edges; ~10 m of vertex simplification drops the leftover micro-zigzags.
-const SMOOTH_M = 24;
-const SIMPLIFY_M = 10;
-const MIN_FEATURE_M2 = 600; // drop cover specks smaller than this
-
-/** Longest side of the sampled area, meters. */
-function spanMetersOf(bounds: CoverBounds): number {
-  const midLat = (bounds.north + bounds.south) / 2;
-  const widthM =
-    Math.abs(bounds.east - bounds.west) * METERS_PER_DEGREE_LAT * Math.cos((midLat * Math.PI) / 180);
-  const heightM = Math.abs(bounds.north - bounds.south) * METERS_PER_DEGREE_LAT;
-  return Math.max(widthM, heightM);
-}
-
-/**
- * Sample the locked site's cover into an n×n grid, then trace each bucket into
- * smoothed polygons and project them to lng/lat. Cheap and one-time — a few
- * tile fetches plus a marching-squares pass per bucket. The blur/simplify budget
- * is derived from real-world meters so the generalization is consistent whether
- * the site is 1 km or 8 km across.
- */
-export async function vectorizeCover(bounds: CoverBounds): Promise<CoverGeoJSON> {
-  const spanM = spanMetersOf(bounds);
-  const n = Math.min(MAX_N, Math.max(MIN_N, Math.round(spanM / TARGET_CELL_M)));
-  const cellM = spanM / Math.max(1, n - 1);
-  const traceOpts = {
-    // Min radius 2 guarantees the staircase is broken even on a big, coarse site.
-    blurRadius: Math.max(2, Math.min(5, Math.round(SMOOTH_M / cellM))),
-    blurIterations: 2,
-    simplifyTol: Math.max(1, Math.min(3, SIMPLIFY_M / cellM)),
-    minAreaCells: Math.max(4, Math.round(MIN_FEATURE_M2 / (cellM * cellM))),
-  };
-  const grid = await sampleCoverGrid(bounds, n);
-
-  // sample (row r, col c) -> lng/lat; row 0 is the north edge (grid convention).
-  const spanLng = bounds.east - bounds.west;
-  const spanLat = bounds.north - bounds.south;
-  const denom = n - 1 || 1;
-  const toLngLat = (x: number, y: number): [number, number] => [
-    bounds.west + (x / denom) * spanLng,
-    bounds.north - (y / denom) * spanLat,
-  ];
-
-  const features: GeoJSON.Feature<GeoJSON.Polygon, { bucket: CoverBucket }>[] = [];
-  const mask = new Uint8Array(n * n);
-
-  for (let b = 0; b < BUCKET_ORDER.length; b++) {
-    const bucket = BUCKET_ORDER[b];
-    let any = false;
-    for (let i = 0; i < grid.length; i++) {
-      const hit = grid[i] === b ? 1 : 0;
-      mask[i] = hit;
-      if (hit) any = true;
-    }
-    if (!any) continue;
-
-    const polys = maskToPolygons(mask, n, traceOpts);
-    for (const poly of polys) {
-      const coordinates = [poly.outer, ...poly.holes].map((ring) =>
-        ring.map(([x, y]) => toLngLat(x, y))
-      );
-      features.push({
-        type: 'Feature',
-        properties: { bucket },
-        geometry: { type: 'Polygon', coordinates },
-      });
-    }
-  }
-
-  return { type: 'FeatureCollection', features };
-}
-
-function fillColorExpr(): maplibregl.ExpressionSpecification {
+function colorExpression(fallback: string): maplibregl.ExpressionSpecification {
   return [
-    'match',
-    ['get', 'bucket'],
-    ...BUCKET_ORDER.flatMap((b) => [b, FILL[b]]),
-    '#cccccc',
-  ] as unknown as maplibregl.ExpressionSpecification;
-}
-function outlineColorExpr(): maplibregl.ExpressionSpecification {
-  return [
-    'match',
-    ['get', 'bucket'],
-    ...BUCKET_ORDER.flatMap((b) => [b, OUTLINE[b]]),
-    '#999999',
+    'match', ['get', 'code'],
+    ...Object.entries(FILL_BY_CODE).flatMap(([code, color]) => [Number(code), color]),
+    fallback,
   ] as unknown as maplibregl.ExpressionSpecification;
 }
 
-/**
- * (Re)adds the vector cover source + fill/outline layers, just beneath the
- * hillshade so shaded relief reads over the fills. Idempotent — removes any
- * prior instance first, so it is safe to call on every style (re)load.
- */
-export function addCoverLayers(map: maplibregl.Map, geojson: CoverGeoJSON, visible: boolean): void {
+/** Add persisted display polygons beneath hillshade. Safe across style reloads. */
+export function addCoverLayers(
+  map: maplibregl.Map,
+  geojson: CoverDisplayGeoJSON,
+  visible: boolean,
+  before?: string
+): void {
   removeCoverLayers(map);
-  map.addSource(COVER_SOURCE, { type: 'geojson', data: geojson });
-
-  const before = map.getLayer('hillshade') ? 'hillshade' : undefined;
-  const vis: 'visible' | 'none' = visible ? 'visible' : 'none';
-
-  map.addLayer(
-    {
-      id: COVER_FILL_LAYER,
-      type: 'fill',
-      source: COVER_SOURCE,
-      layout: { visibility: vis },
-      paint: { 'fill-color': fillColorExpr(), 'fill-opacity': 0.82, 'fill-antialias': true },
+  map.addSource(COVER_SOURCE, { type: 'geojson', data: geojson, maxzoom: 18, tolerance: 0.25 });
+  const visibility: 'visible' | 'none' = visible ? 'visible' : 'none';
+  map.addLayer({
+    id: COVER_FILL_LAYER,
+    type: 'fill',
+    source: COVER_SOURCE,
+    layout: { visibility },
+    paint: {
+      'fill-color': colorExpression('#000000'),
+      'fill-opacity': [
+        'match', ['get', 'code'],
+        10, 0.8, 95, 0.8, 20, 0.74, 80, 0.72, 90, 0.67, 0.55,
+      ] as unknown as maplibregl.ExpressionSpecification,
+      'fill-antialias': true,
     },
-    before
-  );
-  map.addLayer(
-    {
-      id: COVER_OUTLINE_LAYER,
-      type: 'line',
-      source: COVER_SOURCE,
-      layout: { visibility: vis, 'line-join': 'round' },
-      paint: {
-        'line-color': outlineColorExpr(),
-        // Forest edges read hard; other class borders stay faint.
-        'line-width': [
-          'match',
-          ['get', 'bucket'],
-          'tree',
-          1,
-          0.4,
-        ] as unknown as maplibregl.ExpressionSpecification,
-        'line-opacity': 0.55,
-      },
+  }, before);
+  map.addLayer({
+    id: COVER_OUTLINE_LAYER,
+    type: 'line',
+    source: COVER_SOURCE,
+    layout: { visibility, 'line-join': 'round', 'line-cap': 'round' },
+    paint: {
+      'line-color': colorExpression('#4d5c45'),
+      'line-width': [
+        'interpolate', ['linear'], ['zoom'], 11, 0.25, 16, 1.05,
+      ] as unknown as maplibregl.ExpressionSpecification,
+      'line-opacity': ['match', ['get', 'code'], 10, 0.8, 20, 0.65, 95, 0.8, 0.36] as unknown as maplibregl.ExpressionSpecification,
     },
-    before
-  );
+  }, before);
 }
 
-/** Removes the cover source + layers if present. Safe to call anytime. */
 export function removeCoverLayers(map: maplibregl.Map): void {
   for (const id of COVER_LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
   if (map.getSource(COVER_SOURCE)) map.removeSource(COVER_SOURCE);

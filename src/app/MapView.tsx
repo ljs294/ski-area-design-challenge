@@ -30,9 +30,10 @@ import { useSettings, pixelRatioFor } from './SettingsContext';
 import { applyTileLod } from './terrainLod';
 import { saveGame } from '../gameSaveClient';
 import type { GameSave, SavedLift, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
-import { loadTerrain } from '../terrainStorageClient';
+import { loadTerrain, saveTerrain } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
-import { validateTerrainPackage } from '../terrainPackage';
+import { coverDisplayMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
+import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
 import { sampleLocalCoverAt, sampleLocalTerrainAt, setActiveResortTerrain, WORLD_COVER_LABELS } from './resortProtocols';
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, type DraftLine } from './liftLayers';
@@ -138,6 +139,7 @@ const PREP_STEPS: { key: string; label: string }[] = [
   { key: 'elevation', label: 'Elevation data' },
   { key: 'ground-cover', label: 'Ground cover' },
   { key: 'decoding', label: 'Land-cover classes' },
+  { key: 'vectorizing-cover', label: 'Smooth vector cover' },
   { key: 'deriving', label: 'Canopy & contours' },
   { key: 'saving', label: 'Saving package' },
   { key: 'verifying', label: 'Verifying' },
@@ -176,7 +178,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const [nameDraft, setNameDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
-  const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'error'>(
+  const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'optimizing' | 'error'>(
     mode === 'playing' ? 'loading' : 'ready'
   );
   const [packageProgress, setPackageProgress] = useState<TerrainPackageProgress | null>(null);
@@ -225,6 +227,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   // Loaded local package backing cursor sampling, MapLibre protocols, and
   // style reinitialization. Gameplay never populates it from network data.
   const terrainRecordRef = useRef<TerrainRecord | null>(null);
+  const coverDisplayRef = useRef<CoverDisplayGeoJSON | null>(null);
 
   renderQualityRef.current = settings.renderQuality;
   layersRef.current = layers;
@@ -254,21 +257,53 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       setPackageState('missing');
       return;
     }
-    void loadTerrain(key).then((record) => {
+    void loadTerrain(key).then(async (record) => {
       if (cancelled) return;
       if (!record) {
         setPackageError('The local resort package is missing. Prepare it again to continue.');
         setPackageState('missing');
         return;
       }
-      const validation = validateTerrainPackage(record);
+      let readyRecord = record;
+      if (record.schemaVersion === 4 && record.coverGrid && record.bounds) {
+        packageStateRef.current = 'optimizing';
+        setPackageState('optimizing');
+        setPackageProgress({ phase: 'vectorizing-cover', message: 'Drawing smooth ground cover', completed: 0, total: 1 });
+        // Let React paint the one-time upgrade gate before the CPU-heavy trace.
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+        try {
+          const display = deriveCoverDisplayGeometry(record.coverGrid);
+          let upgraded: TerrainRecord = {
+            ...record,
+            schemaVersion: 5,
+            coverDisplayGeometry: display.geometry,
+            coverDisplayMetadata: coverDisplayMetadataOf(display.geometry, display.stats),
+            updatedAt: new Date().toISOString(),
+          };
+          upgraded = { ...upgraded, packageManifest: manifestOf(upgraded) };
+          const upgradeValidation = validateTerrainPackage(upgraded);
+          if (!upgradeValidation.ok) throw new Error(upgradeValidation.errors.join(' '));
+          const savedUpgrade = await saveTerrain(upgraded);
+          if (!savedUpgrade.ok) throw new Error(savedUpgrade.error);
+          readyRecord = upgraded;
+        } catch (error) {
+          // The old package stays playable and uses the raster protocol.
+          console.warn('Vector ground-cover upgrade failed; using raster fallback.', error);
+          readyRecord = record;
+        }
+      }
+      if (cancelled) return;
+      const validation = validateTerrainPackage(readyRecord);
       if (!validation.ok) {
         setPackageError(validation.errors.join(' '));
         setPackageState('error');
         return;
       }
-      setActiveResortTerrain(record);
-      setTerrainRecord(record);
+      coverDisplayRef.current = readyRecord.coverDisplayGeometry && readyRecord.bounds
+        ? coverDisplayToGeoJSON(readyRecord.coverDisplayGeometry, readyRecord.bounds)
+        : null;
+      setActiveResortTerrain(readyRecord);
+      setTerrainRecord(readyRecord);
       setPackageState('ready');
     }).catch((error) => {
       if (cancelled) return;
@@ -355,7 +390,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     // WorldCover sources so they cannot contend with mandatory downloads.
     const fresh = packageStateRef.current === 'preparing'
       ? []
-      : setupAnalysisLayers(map, terrainRecordRef.current, settings.units);
+      : setupAnalysisLayers(map, terrainRecordRef.current, settings.units, coverDisplayRef.current);
     const prev = layersRef.current;
     let applied = fresh.map((f) => {
       const was = prev.find((p) => p.id === f.id);
@@ -1128,7 +1163,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setPackageError(null);
     packageStateRef.current = 'preparing';
     setPackageState('preparing');
-    setPackageProgress({ phase: 'elevation', message: 'Starting resort preparation', completed: 0, total: 6 });
+    setPackageProgress({ phase: 'elevation', message: 'Starting resort preparation', completed: 0, total: 7 });
     packageAbortRef.current?.abort();
     const controller = new AbortController();
     packageAbortRef.current = controller;
@@ -1137,6 +1172,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       const record = await prepareResortPackage(site, name, setPackageProgress, controller.signal);
       const validation = validateTerrainPackage(record);
       if (!validation.ok) throw new Error(validation.errors.join(' '));
+      coverDisplayRef.current = record.coverDisplayGeometry && record.bounds
+        ? coverDisplayToGeoJSON(record.coverDisplayGeometry, record.bounds)
+        : null;
       terrainRecordRef.current = record;
       setActiveResortTerrain(record);
       setTerrainRecord(record);
@@ -1317,15 +1355,17 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
               </svg>
             )}
             <div className="package-kicker">LOCAL RESORT DATA</div>
-            <h2>{packageState === 'loading' ? 'Loading resort package' : packageState === 'preparing' ? 'Preparing resort data' : packageState === 'error' ? 'Preparation failed' : 'Resort data required'}</h2>
+            <h2>{packageState === 'loading' ? 'Loading resort package' : packageState === 'optimizing' ? 'Optimizing ground cover' : packageState === 'preparing' ? 'Preparing resort data' : packageState === 'error' ? 'Preparation failed' : 'Resort data required'}</h2>
             <p>
               {packageState === 'preparing'
                 ? 'Fetching terrain, ground cover, and contours for your build site.'
+                : packageState === 'optimizing'
+                ? 'Drawing smooth vector ground cover once for faster future loads.'
                 : packageState === 'loading'
                 ? 'Restoring your saved terrain, ground cover, and contours.'
                 : packageError ?? 'Elevation, contours, and ground cover must be saved locally before designing.'}
             </p>
-            {packageState === 'loading' && (
+            {(packageState === 'loading' || packageState === 'optimizing') && (
               <div className="package-progress is-indeterminate"><span /></div>
             )}
             {packageState === 'preparing' && packageProgress && (() => {

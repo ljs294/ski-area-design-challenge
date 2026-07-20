@@ -75,11 +75,24 @@ export interface CoverGeometryMetadata {
   checksum: string;
 }
 
+/** Persisted, generalized display polygons encoded as normalized Float32 data. */
+export interface CoverDisplayMetadata {
+  polygonCount: number;
+  ringCount: number;
+  vertexCount: number;
+  byteLength: number;
+  checksum: string;
+  smoothingM: number;
+  simplifyM: number;
+  minFeatureM2: number;
+}
+
 export type TerrainPackagePhase =
   | 'elevation'
   | 'ground-cover'
   | 'decoding'
   | 'deriving'
+  | 'vectorizing-cover'
   | 'saving'
   | 'verifying';
 
@@ -91,18 +104,20 @@ export interface TerrainPackageProgress {
 }
 
 export interface TerrainPackageManifest {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   terrainKey: string;
   complete: boolean;
   elevationByteLength: number;
   elevationChecksum: string;
   cover?: CoverMetadata;
   coverGeometry?: CoverGeometryMetadata;
+  coverDisplay?: CoverDisplayMetadata;
   contours?: ContourMetadata;
   assets: {
     elevation: string;
     cover: string;
     coverGeometry: string;
+    coverDisplay?: string;
     contours: string;
   };
   preparedAt: string;
@@ -161,7 +176,7 @@ export interface VectorFeatureSet {
 // is stored; the display grid is always recomputed on load (deterministic,
 // cheap, and avoids multi-megabyte save files).
 export interface TerrainRecord {
-  schemaVersion: 2 | 3 | 4;
+  schemaVersion: 2 | 3 | 4 | 5;
   key: string; // stable slug, see terrainStorageClient.ts
   mountainName: string;
   latitude: number; // center
@@ -181,6 +196,9 @@ export interface TerrainRecord {
   /** Flat [x1,y1,x2,y2,classCode] tuples in normalized site coordinates. */
   coverBoundarySegments?: number[];
   coverGeometryMetadata?: CoverGeometryMetadata;
+  /** Flat normalized polygon stream; see coverDisplay.ts. Required by schema v5. */
+  coverDisplayGeometry?: number[];
+  coverDisplayMetadata?: CoverDisplayMetadata;
   /** Flat [x1,y1,x2,y2,levelMeters] tuples in normalized site coordinates. */
   contourSegments?: number[];
   contourMetadata?: ContourMetadata;

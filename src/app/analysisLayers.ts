@@ -13,6 +13,8 @@ import {
 } from './resortProtocols';
 import { MASTER_PLAN_LAYER_IDS } from './masterPlanStyle';
 import { unitToLngLat } from '../geo';
+import type { CoverDisplayGeoJSON } from '../coverDisplay';
+import { addCoverLayers, COVER_LAYER_IDS } from './coverVectorize';
 
 const TERRARIUM_TILES = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
 
@@ -111,7 +113,8 @@ function localContextGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollection {
 export function setupAnalysisLayers(
   map: maplibregl.Map,
   terrain?: TerrainRecord | null,
-  units: 'imperial' | 'metric' = 'imperial'
+  units: 'imperial' | 'metric' = 'imperial',
+  coverDisplay?: CoverDisplayGeoJSON | null
 ): LayerToggle[] {
   const local = terrain?.coverGrid && terrain.bounds ? terrain : null;
   const styleLayers = map.getStyle().layers ?? [];
@@ -141,7 +144,7 @@ export function setupAnalysisLayers(
     const key = encodeURIComponent(local.key);
     bounds = localTileBounds(local);
     demUrl = `${RESORT_DEM_PROTOCOL}://${key}/{z}/{x}/{y}`;
-    map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${key}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
+    if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${key}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
     map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local), attribution: 'Local OSM context © OpenStreetMap contributors' });
     coverVisible = true;
     coverLabel = 'ESA WorldCover 2021 · 10 m (local)';
@@ -164,8 +167,9 @@ export function setupAnalysisLayers(
       'hillshade-accent-color': '#4b514c',
     },
   } as maplibregl.HillshadeLayerSpecification, coverAnchor);
-  map.addLayer({ id: 'groundcover', type: 'raster', source: 'worldcover', layout: { visibility: coverVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': local ? 0.78 : 0.9, 'raster-resampling': 'nearest' } }, coverAnchor);
-  if (local) {
+  if (local && coverDisplay) addCoverLayers(map, coverDisplay, coverVisible, 'hillshade');
+  else map.addLayer({ id: 'groundcover', type: 'raster', source: 'worldcover', layout: { visibility: coverVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': local ? 0.78 : 0.9, 'raster-resampling': 'nearest' } }, coverAnchor);
+  if (local && !coverDisplay) {
     map.addSource('cover-boundaries', { type: 'geojson', data: localCoverBoundaryGeoJSON(local) });
     map.addLayer({
       id: 'cover-boundary-halo', type: 'line', source: 'cover-boundaries',
@@ -244,7 +248,7 @@ export function setupAnalysisLayers(
 
   return [
     { id: 'satellite', label: 'Satellite imagery', layerIds: [satelliteLayer], visible: true, section: 'Imagery' },
-    { id: 'groundcover', label: coverLabel, layerIds: local ? ['groundcover', 'cover-boundary-halo', 'cover-boundaries'] : ['groundcover'], visible: coverVisible, section: 'Master plan' },
+    { id: 'groundcover', label: coverLabel, layerIds: local && coverDisplay ? COVER_LAYER_IDS : local ? ['groundcover', 'cover-boundary-halo', 'cover-boundaries'] : ['groundcover'], visible: coverVisible, section: 'Master plan' },
     { id: 'hillshade', label: 'Terrain relief', layerIds: ['hillshade'], visible: true, section: 'Master plan' },
     { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
     { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-lines'] : basemap.water, visible: true, section: 'Master plan' },

@@ -1,11 +1,13 @@
 import type {
   CoverMetadata,
   CoverGeometryMetadata,
+  CoverDisplayMetadata,
   SiteCoverGrid,
   TerrainPackageManifest,
   TerrainPackageValidation,
   TerrainRecord,
 } from './types';
+import { COVER_DISPLAY_VERTEX_BUDGET, inspectCoverDisplayGeometry, type CoverDisplayStats } from './coverDisplay';
 
 /** Small deterministic checksum used to detect truncated/corrupt package files. */
 export function checksumBytes(bytes: ArrayLike<number>): string {
@@ -42,10 +44,18 @@ export function coverGeometryMetadataOf(segments: number[]): CoverGeometryMetada
   return { segmentCount: Math.floor(segments.length / 5), byteLength: bytes.byteLength, checksum: checksumBytes(bytes) };
 }
 
+export function coverDisplayMetadataOf(
+  geometry: number[],
+  stats: CoverDisplayStats
+): CoverDisplayMetadata {
+  const bytes = float32Bytes(geometry);
+  return { ...stats, byteLength: bytes.byteLength, checksum: checksumBytes(bytes) };
+}
+
 export function manifestOf(record: TerrainRecord): TerrainPackageManifest {
   const heightBytes = float32Bytes(record.sampleHeights);
   return {
-    schemaVersion: 1,
+    schemaVersion: record.coverDisplayGeometry ? 2 : 1,
     terrainKey: record.key,
     complete: !!record.coverGrid?.complete,
     elevationByteLength: heightBytes.byteLength,
@@ -54,6 +64,9 @@ export function manifestOf(record: TerrainRecord): TerrainPackageManifest {
     coverGeometry: record.coverBoundarySegments
       ? coverGeometryMetadataOf(record.coverBoundarySegments)
       : record.coverGeometryMetadata,
+    coverDisplay: record.coverDisplayGeometry && record.coverDisplayMetadata
+      ? coverDisplayMetadataOf(record.coverDisplayGeometry, record.coverDisplayMetadata)
+      : record.coverDisplayMetadata,
     contours: record.contourSegments
       ? contourMetadataOf(record.contourSegments, record.contourMetadata?.gridSize ?? 512, record.contourMetadata?.intervalM ?? 6.096)
       : record.contourMetadata,
@@ -61,6 +74,7 @@ export function manifestOf(record: TerrainRecord): TerrainPackageManifest {
       elevation: `${record.key}.heights.bin`,
       cover: `${record.key}.cover.bin`,
       coverGeometry: `${record.key}.cover-geometry.bin`,
+      coverDisplay: `${record.key}.cover-display.bin`,
       contours: `${record.key}.contours.bin`,
     },
     preparedAt: new Date().toISOString(),
@@ -99,6 +113,12 @@ export function validateTerrainPackage(record: TerrainRecord): TerrainPackageVal
     }
   }
   if (!record.coverBoundarySegments || !record.coverGeometryMetadata) errors.push('Prepared cover boundaries are missing.');
+  if (record.schemaVersion >= 5 && (!record.coverDisplayGeometry || !record.coverDisplayMetadata)) {
+    errors.push('Prepared vector ground cover is missing.');
+  }
+  if (record.schemaVersion >= 5 && (!manifest?.coverDisplay || !manifest.assets.coverDisplay)) {
+    errors.push('Vector ground-cover manifest asset is missing.');
+  }
   if (!record.contourSegments || !record.contourMetadata) errors.push('Prepared contours are missing.');
   if (record.coverGrid) {
     const expected = record.coverGrid.width * record.coverGrid.height;
@@ -116,6 +136,18 @@ export function validateTerrainPackage(record: TerrainRecord): TerrainPackageVal
     const metadata = coverGeometryMetadataOf(record.coverBoundarySegments);
     if (metadata.byteLength !== record.coverGeometryMetadata.byteLength || metadata.checksum !== record.coverGeometryMetadata.checksum) errors.push('Cover-boundary cache checksum does not match.');
     if (manifest?.coverGeometry && metadata.checksum !== manifest.coverGeometry.checksum) errors.push('Cover-boundary manifest checksum does not match.');
+  }
+  if (record.coverDisplayGeometry && record.coverDisplayMetadata) {
+    const metadata = coverDisplayMetadataOf(record.coverDisplayGeometry, record.coverDisplayMetadata);
+    if (metadata.byteLength !== record.coverDisplayMetadata.byteLength || metadata.checksum !== record.coverDisplayMetadata.checksum) errors.push('Vector ground-cover cache checksum does not match.');
+    if (manifest?.coverDisplay && metadata.checksum !== manifest.coverDisplay.checksum) errors.push('Vector ground-cover manifest checksum does not match.');
+    try {
+      const inspected = inspectCoverDisplayGeometry(record.coverDisplayGeometry);
+      if (inspected.polygonCount !== metadata.polygonCount || inspected.ringCount !== metadata.ringCount || inspected.vertexCount !== metadata.vertexCount) errors.push('Vector ground-cover counts do not match its geometry.');
+      if (inspected.vertexCount > COVER_DISPLAY_VERTEX_BUDGET) errors.push('Vector ground-cover vertex budget was exceeded.');
+    } catch {
+      errors.push('Vector ground-cover geometry is malformed.');
+    }
   }
   if (manifest) {
     const heightBytes = float32Bytes(record.sampleHeights);

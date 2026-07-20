@@ -1,7 +1,7 @@
 // Orchestrates turning either a live map selection or a curated preset into
 // a fully-built TerrainDB: fetch/generate the raw sample grid, upscale it
 // for display, attach a climate profile, persist it, and return it.
-import type { AreaSizeMeters, SiteCoverGrid, TerrainDB, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
+import type { AreaSizeMeters, CoverDisplayMetadata, SiteCoverGrid, TerrainDB, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
 import { fetchElevationGrid, sampleGridSizeFor, type LatLonBounds, type ElevationProgress } from './elevation';
 import { bicubicUpscale } from './bicubicUpscale';
 import { generateProceduralClimate } from './climate';
@@ -11,9 +11,10 @@ import { boundsForSquareMeters } from './geo';
 import { fetchVectorFeatures, hydrateVectorFeatures } from './vectorFeatures';
 import { MAP_SIZE } from './renderer';
 import { sampleSiteCoverGrid } from './app/worldcoverProtocol';
-import { contourMetadataOf, coverGeometryMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from './terrainPackage';
+import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from './terrainPackage';
 import { traceContours } from './marchingSquares';
 import { deriveCoverBoundarySegments } from './coverAnalysis';
+import { deriveCoverDisplayGeometry, type DerivedCoverDisplay } from './coverDisplay';
 
 export const DISPLAY_GRID_SIZE = 512;
 
@@ -134,13 +135,16 @@ async function finalizeAndSave(
   sampleHeights: number[],
   sourceType: TerrainRecord['sourceType'],
   vectorFeatures?: VectorFeatureSet,
-  coverGrid?: SiteCoverGrid
+  coverGrid?: SiteCoverGrid,
+  preparedCoverDisplay?: DerivedCoverDisplay
 ): Promise<TerrainDB> {
   const sampleGridSize = Math.round(Math.sqrt(sampleHeights.length));
   const contourGridSize = Math.min(DISPLAY_GRID_SIZE, sampleGridSize);
   const contourIntervalM = 6.096; // 20 ft minor contours, matching the master-plan reference density.
   let contourSegments: number[] | undefined;
   let coverBoundarySegments: number[] | undefined;
+  let coverDisplayGeometry: number[] | undefined;
+  let coverDisplayMetadata: CoverDisplayMetadata | undefined;
   if (coverGrid) {
     const contourHeights = sampleGridSize === contourGridSize
       ? sampleHeights
@@ -148,6 +152,9 @@ async function finalizeAndSave(
     const traced = traceContours(contourHeights, contourGridSize, 1, contourIntervalM);
     contourSegments = traced.flatMap((s) => [s.x1, s.y1, s.x2, s.y2, s.level]);
     coverBoundarySegments = deriveCoverBoundarySegments(coverGrid);
+    const display = preparedCoverDisplay ?? deriveCoverDisplayGeometry(coverGrid);
+    coverDisplayGeometry = display.geometry;
+    coverDisplayMetadata = coverDisplayMetadataOf(display.geometry, display.stats);
   }
 
   const sum = sampleHeights.reduce((a, b) => a + b, 0);
@@ -156,7 +163,7 @@ async function finalizeAndSave(
 
   const now = new Date().toISOString();
   let record: TerrainRecord = {
-    schemaVersion: coverGrid ? 4 : 3,
+    schemaVersion: coverGrid ? 5 : 3,
     key: makeKey(mountainName, latitude, longitude),
     mountainName,
     latitude,
@@ -171,6 +178,8 @@ async function finalizeAndSave(
     coverMetadata: coverGrid ? coverMetadataOf(coverGrid) : undefined,
     coverBoundarySegments,
     coverGeometryMetadata: coverBoundarySegments ? coverGeometryMetadataOf(coverBoundarySegments) : undefined,
+    coverDisplayGeometry,
+    coverDisplayMetadata,
     contourSegments,
     contourMetadata: contourSegments ? contourMetadataOf(contourSegments, contourGridSize, contourIntervalM) : undefined,
     sourceType,
@@ -221,7 +230,7 @@ export async function prepareResortPackage(
   const requestedBounds = { west, south, east, north };
   const areaSizeMeters = Math.round(Math.max(site.widthKm, site.heightKm) * 1000);
   const report = (phase: TerrainPackageProgress['phase'], message: string, completed: number) =>
-    onProgress?.({ phase, message, completed, total: 6 });
+    onProgress?.({ phase, message, completed, total: 7 });
   const abort = () => {
     if (signal?.aborted) throw new DOMException('Resort preparation cancelled', 'AbortError');
   };
@@ -254,11 +263,15 @@ export async function prepareResortPackage(
   report('decoding', 'Validating source-faithful land-cover classes', 2);
   abort();
 
-  report('deriving', 'Preparing exact canopy boundaries and local contours', 3);
+  report('vectorizing-cover', 'Drawing smooth ground cover', 3);
+  const coverDisplay = deriveCoverDisplayGeometry(coverGrid);
+  abort();
+
+  report('deriving', 'Preparing exact canopy boundaries and local contours', 4);
   const vectorFeatures = await fetchVectorFeatures(bounds).catch(() => undefined);
   abort();
 
-  report('saving', 'Saving local resort package', 4);
+  report('saving', 'Saving local resort package', 5);
   const terrain = await finalizeAndSave(
     mountainName,
     center.latitude,
@@ -268,19 +281,20 @@ export async function prepareResortPackage(
     sampleHeights,
     'live',
     vectorFeatures,
-    coverGrid
+    coverGrid,
+    coverDisplay
   );
   if (signal?.aborted) {
     await deleteTerrain(terrain.key);
     abort();
   }
-  report('verifying', 'Verifying local resort package', 5);
+  report('verifying', 'Verifying local resort package', 6);
   const validation = validateTerrainPackage(terrain);
   if (!validation.ok) {
     await deleteTerrain(terrain.key);
     throw new Error(validation.errors.join(' '));
   }
-  report('verifying', 'Resort package ready', 6);
+  report('verifying', 'Resort package ready', 7);
   return terrain;
 }
 

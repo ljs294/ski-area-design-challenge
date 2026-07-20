@@ -39,34 +39,34 @@ const DEFAULTS: Required<MaskToPolygonsOpts> = {
 
 /** Separable box blur on an n×n field. Cheap smoothing so iso-lines curve
  *  instead of stair-stepping. Edges clamp (repeat the border sample). */
-function boxBlur(src: Float32Array, n: number, radius: number, iterations: number): Float32Array {
+function boxBlur(src: Float32Array, width: number, height: number, radius: number, iterations: number): Float32Array {
   if (radius <= 0 || iterations <= 0) return src;
   let buf = src;
-  const tmp = new Float32Array(n * n);
+  const tmp = new Float32Array(width * height);
   const w = radius * 2 + 1;
   for (let it = 0; it < iterations; it++) {
     // Horizontal pass: buf -> tmp
-    for (let r = 0; r < n; r++) {
-      const row = r * n;
-      for (let c = 0; c < n; c++) {
+    for (let r = 0; r < height; r++) {
+      const row = r * width;
+      for (let c = 0; c < width; c++) {
         let sum = 0;
         for (let k = -radius; k <= radius; k++) {
-          const cc = Math.min(n - 1, Math.max(0, c + k));
+          const cc = Math.min(width - 1, Math.max(0, c + k));
           sum += buf[row + cc];
         }
         tmp[row + c] = sum / w;
       }
     }
     // Vertical pass: tmp -> out
-    const out = new Float32Array(n * n);
-    for (let c = 0; c < n; c++) {
-      for (let r = 0; r < n; r++) {
+    const out = new Float32Array(width * height);
+    for (let c = 0; c < width; c++) {
+      for (let r = 0; r < height; r++) {
         let sum = 0;
         for (let k = -radius; k <= radius; k++) {
-          const rr = Math.min(n - 1, Math.max(0, r + k));
-          sum += tmp[rr * n + c];
+          const rr = Math.min(height - 1, Math.max(0, r + k));
+          sum += tmp[rr * width + c];
         }
-        out[r * n + c] = sum / w;
+        out[r * width + c] = sum / w;
       }
     }
     buf = out;
@@ -99,22 +99,22 @@ interface Seg {
  * still closes. Returned ring coords are shifted back into the inner
  * [0 .. n-1] sample space (edge crossings clamp to that range).
  */
-function traceRings(field: Float32Array, n: number, level: number): Ring[] {
-  // Pad to (n+2)² with a below-level border.
-  const N = n + 2;
+function traceRings(field: Float32Array, width: number, height: number, level: number): Ring[] {
+  const W = width + 2;
+  const H = height + 2;
   const below = level - 1;
-  const pad = new Float32Array(N * N).fill(below);
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) pad[(r + 1) * N + (c + 1)] = field[r * n + c];
+  const pad = new Float32Array(W * H).fill(below);
+  for (let r = 0; r < height; r++) {
+    for (let c = 0; c < width; c++) pad[(r + 1) * W + (c + 1)] = field[r * width + c];
   }
 
   const segs: Seg[] = [];
-  for (let r = 0; r < N - 1; r++) {
-    for (let c = 0; c < N - 1; c++) {
-      const tl = pad[r * N + c];
-      const tr = pad[r * N + c + 1];
-      const br = pad[(r + 1) * N + c + 1];
-      const bl = pad[(r + 1) * N + c];
+  for (let r = 0; r < H - 1; r++) {
+    for (let c = 0; c < W - 1; c++) {
+      const tl = pad[r * W + c];
+      const tr = pad[r * W + c + 1];
+      const br = pad[(r + 1) * W + c + 1];
+      const bl = pad[(r + 1) * W + c];
 
       const cellMin = Math.min(tl, tr, br, bl);
       const cellMax = Math.max(tl, tr, br, bl);
@@ -160,8 +160,8 @@ function traceRings(field: Float32Array, n: number, level: number): Ring[] {
   const rings: Ring[] = [];
 
   const shift = (p: [number, number]): [number, number] => [
-    Math.min(n - 1, Math.max(0, p[0] - 1)),
-    Math.min(n - 1, Math.max(0, p[1] - 1)),
+    Math.min(width - 1, Math.max(0, p[0] - 1)),
+    Math.min(height - 1, Math.max(0, p[1] - 1)),
   ];
 
   for (let s = 0; s < segs.length; s++) {
@@ -289,15 +289,25 @@ export function maskToPolygons(
   n: number,
   opts: MaskToPolygonsOpts = {}
 ): CoverPolygon[] {
+  return maskToPolygonsRect(mask, n, n, opts);
+}
+
+/** Rectangular-grid form used by persisted resort ground-cover packages. */
+export function maskToPolygonsRect(
+  mask: Uint8Array,
+  width: number,
+  height: number,
+  opts: MaskToPolygonsOpts = {}
+): CoverPolygon[] {
   const o = { ...DEFAULTS, ...opts };
-  if (n < 2) return [];
+  if (width < 2 || height < 2 || mask.length !== width * height) return [];
 
   // Mask -> float field, optionally blurred so edges curve.
-  const field = new Float32Array(n * n);
+  const field = new Float32Array(width * height);
   for (let i = 0; i < field.length; i++) field[i] = mask[i] ? 1 : 0;
-  const smoothed = boxBlur(field, n, o.blurRadius, o.blurIterations);
+  const smoothed = boxBlur(field, width, height, o.blurRadius, o.blurIterations);
 
-  let rings = traceRings(smoothed, n, o.level);
+  let rings = traceRings(smoothed, width, height, o.level);
 
   // Simplify, then drop specks.
   rings = rings

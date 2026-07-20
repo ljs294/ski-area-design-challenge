@@ -72,7 +72,8 @@ try {
     return {
       pitch: map.getPitch(),
       demTiles: style.sources.dem?.tiles,
-      coverTiles: style.sources.worldcover?.tiles,
+      hasVectorCover: style.sources['cover-vector']?.type === 'geojson',
+      hasRasterCover: !!style.sources.worldcover,
       contourType: style.sources.contours?.type,
       hasCoverBoundaries: !!style.sources['cover-boundaries'],
       hasLocalContext: !!style.sources['local-context'],
@@ -109,6 +110,8 @@ try {
       is3D: save.is3D,
       pitch: save.pitch,
       coverComplete: record?.coverGrid?.complete,
+      coverSchema: record?.schemaVersion,
+      coverVertices: record?.coverDisplayMetadata?.vertexCount,
     };
   }, local3D.pitch);
 
@@ -118,9 +121,9 @@ try {
   console.log('PERSISTED_LOCAL_PACKAGE', JSON.stringify(persisted));
   console.log('GAMEPLAY_PROVIDER_REQUESTS', JSON.stringify(forbidden));
   if (!String(local2D.demTiles?.[0]).startsWith('resort-dem://')) throw new Error('2D DEM was not local');
-  if (!String(local2D.coverTiles?.[0]).startsWith('resort-cover://')) throw new Error('Cover was not local');
+  if (!local2D.hasVectorCover || local2D.hasRasterCover || local2D.hasCoverBoundaries) throw new Error('Persisted vector cover did not replace raster cover');
   if (!String(local3D.terrainTiles?.[0]).startsWith('resort-dem://')) throw new Error('3D DEM was not local');
-  if (!persisted.validation.ok || !persisted.coverComplete || !persisted.is3D || forbidden.length) throw new Error('Offline/persistence acceptance failed');
+  if (!persisted.validation.ok || !persisted.coverComplete || persisted.coverSchema !== 5 || !persisted.coverVertices || !persisted.is3D || forbidden.length) throw new Error('Offline/persistence acceptance failed');
 } catch (error) {
   console.error('VERIFY_LOCAL_PACKAGE_FAILED', error instanceof Error ? error.stack : error);
   console.error('PACKAGE_CARD', await page.locator('.package-card').textContent().catch(() => null));

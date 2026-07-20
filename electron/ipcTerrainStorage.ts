@@ -74,25 +74,28 @@ export function registerTerrainStorageHandlers(): void {
       const heightsPath = safeFilePath(req.record.key, '.heights.bin');
       const coverPath = safeFilePath(req.record.key, '.cover.bin');
       const coverGeometryPath = safeFilePath(req.record.key, '.cover-geometry.bin');
+      const coverDisplayPath = safeFilePath(req.record.key, '.cover-display.bin');
       const contoursPath = safeFilePath(req.record.key, '.contours.bin');
-      if (!metaPath || !heightsPath || !coverPath || !coverGeometryPath || !contoursPath) return { ok: false, error: 'Invalid terrain key' };
+      if (!metaPath || !heightsPath || !coverPath || !coverGeometryPath || !coverDisplayPath || !contoursPath) return { ok: false, error: 'Invalid terrain key' };
 
       // sampleHeights is stored as raw Float32 binary, not JSON text — at
       // the grid sizes this app now requests (up to 2000x2000+), a plain
       // JSON number array runs ~18 bytes/point vs 4 bytes/point raw
       // binary, a ~4.5x difference that matters once files run into the
       // tens of megabytes.
-      const { sampleHeights, coverGrid, coverBoundarySegments, contourSegments, ...metadata } = req.record;
+      const { sampleHeights, coverGrid, coverBoundarySegments, coverDisplayGeometry, contourSegments, ...metadata } = req.record;
       const nonce = `${process.pid}-${Date.now()}`;
       const metaTmp = `${metaPath}.${nonce}.tmp`;
       const heightsTmp = `${heightsPath}.${nonce}.tmp`;
       const coverTmp = `${coverPath}.${nonce}.tmp`;
       const coverGeometryTmp = `${coverGeometryPath}.${nonce}.tmp`;
+      const coverDisplayTmp = `${coverDisplayPath}.${nonce}.tmp`;
       const contoursTmp = `${contoursPath}.${nonce}.tmp`;
       try {
         fs.writeFileSync(heightsTmp, Buffer.from(Float32Array.from(sampleHeights).buffer));
         if (coverGrid) fs.writeFileSync(coverTmp, Buffer.from(Uint8Array.from(coverGrid.data)));
         if (coverBoundarySegments) fs.writeFileSync(coverGeometryTmp, Buffer.from(Float32Array.from(coverBoundarySegments).buffer));
+        if (coverDisplayGeometry) fs.writeFileSync(coverDisplayTmp, Buffer.from(Float32Array.from(coverDisplayGeometry).buffer));
         if (contourSegments) fs.writeFileSync(contoursTmp, Buffer.from(Float32Array.from(contourSegments).buffer));
         fs.writeFileSync(metaTmp, JSON.stringify(metadata), 'utf-8');
 
@@ -106,6 +109,7 @@ export function registerTerrainStorageHandlers(): void {
           verify(heightsTmp, metadata.packageManifest.elevationByteLength, metadata.packageManifest.elevationChecksum, 'Elevation');
           if (coverGrid && metadata.coverMetadata) verify(coverTmp, metadata.coverMetadata.byteLength, metadata.coverMetadata.checksum, 'Ground cover');
           if (coverBoundarySegments && metadata.coverGeometryMetadata) verify(coverGeometryTmp, metadata.coverGeometryMetadata.byteLength, metadata.coverGeometryMetadata.checksum, 'Cover geometry');
+          if (coverDisplayGeometry && metadata.coverDisplayMetadata) verify(coverDisplayTmp, metadata.coverDisplayMetadata.byteLength, metadata.coverDisplayMetadata.checksum, 'Vector ground cover');
           if (contourSegments && metadata.contourMetadata) verify(contoursTmp, metadata.contourMetadata.byteLength, metadata.contourMetadata.checksum, 'Contours');
         }
         JSON.parse(fs.readFileSync(metaTmp, 'utf-8'));
@@ -125,6 +129,12 @@ export function registerTerrainStorageHandlers(): void {
         } else {
           fs.rmSync(coverGeometryPath, { force: true });
         }
+        if (coverDisplayGeometry) {
+          fs.rmSync(coverDisplayPath, { force: true });
+          fs.renameSync(coverDisplayTmp, coverDisplayPath);
+        } else {
+          fs.rmSync(coverDisplayPath, { force: true });
+        }
         if (contourSegments) {
           fs.rmSync(contoursPath, { force: true });
           fs.renameSync(contoursTmp, contoursPath);
@@ -138,6 +148,7 @@ export function registerTerrainStorageHandlers(): void {
         fs.rmSync(heightsTmp, { force: true });
         fs.rmSync(coverTmp, { force: true });
         fs.rmSync(coverGeometryTmp, { force: true });
+        fs.rmSync(coverDisplayTmp, { force: true });
         fs.rmSync(contoursTmp, { force: true });
       }
 
@@ -156,8 +167,9 @@ export function registerTerrainStorageHandlers(): void {
     const heightsPath = safeFilePath(req.key, '.heights.bin');
     const coverPath = safeFilePath(req.key, '.cover.bin');
     const coverGeometryPath = safeFilePath(req.key, '.cover-geometry.bin');
+    const coverDisplayPath = safeFilePath(req.key, '.cover-display.bin');
     const contoursPath = safeFilePath(req.key, '.contours.bin');
-    if (!metaPath || !heightsPath || !coverPath || !coverGeometryPath || !contoursPath) return null;
+    if (!metaPath || !heightsPath || !coverPath || !coverGeometryPath || !coverDisplayPath || !contoursPath) return null;
     try {
       const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
 
@@ -182,12 +194,20 @@ export function registerTerrainStorageHandlers(): void {
       }
       let contourSegments;
       let coverBoundarySegments;
+      let coverDisplayGeometry;
       if (metadata.coverGeometryMetadata) {
         if (!fs.existsSync(coverGeometryPath)) return null;
         const geometryBuffer = fs.readFileSync(coverGeometryPath);
         if (geometryBuffer.byteLength !== metadata.coverGeometryMetadata.byteLength || checksumBytes(geometryBuffer) !== metadata.coverGeometryMetadata.checksum) return null;
         const values = new Float32Array(geometryBuffer.buffer, geometryBuffer.byteOffset, geometryBuffer.byteLength / 4);
         coverBoundarySegments = Array.from(values);
+      }
+      if (metadata.coverDisplayMetadata) {
+        if (!fs.existsSync(coverDisplayPath)) return null;
+        const displayBuffer = fs.readFileSync(coverDisplayPath);
+        if (displayBuffer.byteLength !== metadata.coverDisplayMetadata.byteLength || checksumBytes(displayBuffer) !== metadata.coverDisplayMetadata.checksum) return null;
+        const values = new Float32Array(displayBuffer.buffer, displayBuffer.byteOffset, displayBuffer.byteLength / 4);
+        coverDisplayGeometry = Array.from(values);
       }
       if (metadata.contourMetadata) {
         if (!fs.existsSync(contoursPath)) return null;
@@ -196,7 +216,7 @@ export function registerTerrainStorageHandlers(): void {
         const values = new Float32Array(contourBuffer.buffer, contourBuffer.byteOffset, contourBuffer.byteLength / 4);
         contourSegments = Array.from(values);
       }
-      return { ...metadata, sampleHeights: Array.from(floats), ...(coverGrid ? { coverGrid } : {}), ...(coverBoundarySegments ? { coverBoundarySegments } : {}), ...(contourSegments ? { contourSegments } : {}) };
+      return { ...metadata, sampleHeights: Array.from(floats), ...(coverGrid ? { coverGrid } : {}), ...(coverBoundarySegments ? { coverBoundarySegments } : {}), ...(coverDisplayGeometry ? { coverDisplayGeometry } : {}), ...(contourSegments ? { contourSegments } : {}) };
     } catch {
       return null;
     }
@@ -211,13 +231,15 @@ export function registerTerrainStorageHandlers(): void {
     const heightsPath = safeFilePath(req.key, '.heights.bin');
     const coverPath = safeFilePath(req.key, '.cover.bin');
     const coverGeometryPath = safeFilePath(req.key, '.cover-geometry.bin');
+    const coverDisplayPath = safeFilePath(req.key, '.cover-display.bin');
     const contoursPath = safeFilePath(req.key, '.contours.bin');
-    if (!metaPath || !heightsPath || !coverPath || !coverGeometryPath || !contoursPath) return { ok: false };
+    if (!metaPath || !heightsPath || !coverPath || !coverGeometryPath || !coverDisplayPath || !contoursPath) return { ok: false };
     try {
       fs.rmSync(metaPath, { force: true });
       fs.rmSync(heightsPath, { force: true });
       fs.rmSync(coverPath, { force: true });
       fs.rmSync(coverGeometryPath, { force: true });
+      fs.rmSync(coverDisplayPath, { force: true });
       fs.rmSync(contoursPath, { force: true });
       writeIndex(readIndex().filter((s) => s.key !== req.key));
       return { ok: true };

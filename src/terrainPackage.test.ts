@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SiteCoverGrid, TerrainRecord } from './types';
-import { contourMetadataOf, coverGeometryMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from './terrainPackage';
+import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from './terrainPackage';
 import { hydrateTerrainRecord } from './terrainIngest';
 
 function record(): TerrainRecord {
@@ -45,6 +45,16 @@ describe('terrain package manifests', () => {
     const value = record();
     value.coverBoundarySegments![0] = 0.5;
     expect(validateTerrainPackage(value).ok).toBe(false);
+  });
+  it('requires and validates persisted vector geometry for schema v5', () => {
+    let value = record();
+    const geometry = [10, 1, 4, 0, 0, 1, 0, 1, 1, 0, 0];
+    const stats = { polygonCount: 1, ringCount: 1, vertexCount: 4, smoothingM: 24, simplifyM: 10, minFeatureM2: 600 };
+    value = { ...value, schemaVersion: 5, coverDisplayGeometry: geometry, coverDisplayMetadata: coverDisplayMetadataOf(geometry, stats) };
+    value.packageManifest = manifestOf(value);
+    expect(validateTerrainPackage(value).ok).toBe(true);
+    value.coverDisplayGeometry![5] = 0.5;
+    expect(validateTerrainPackage(value).errors.join(' ')).toMatch(/vector ground-cover/i);
   });
 });
 
