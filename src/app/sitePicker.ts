@@ -55,6 +55,29 @@ export function computeBox(anchor: LngLat, cursor: LngLat): SiteBox {
   };
 }
 
+/**
+ * Build a SiteBox from a package's true data extent ({west,south,east,north}).
+ * The elevation service snaps the download taller than the square the user
+ * dragged, and every play-box layer (cover, contours, vectors) fills that
+ * snapped extent — so once a package exists the outline + exterior mask must be
+ * drawn here, not at the smaller original square, or they read as spilling past
+ * the boundary. Dimensions are recomputed from the extent for the stats panel.
+ */
+export function siteBoxFromBounds(b: { west: number; south: number; east: number; north: number }): SiteBox {
+  const cosLat = Math.cos((((b.south + b.north) / 2) * Math.PI) / 180) || 1e-6;
+  const widthKm = ((b.east - b.west) * M_PER_DEG_LAT * cosLat) / 1000;
+  const heightKm = ((b.north - b.south) * M_PER_DEG_LAT) / 1000;
+  return {
+    bounds: [
+      [b.west, b.south],
+      [b.east, b.north],
+    ],
+    widthKm,
+    heightKm,
+    areaKm2: widthKm * heightKm,
+  };
+}
+
 function boxFeature(box: SiteBox): GeoJSON.Feature<GeoJSON.Polygon> {
   const [[w, s], [e, n]] = box.bounds;
   return {
@@ -71,20 +94,6 @@ const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: 
 
 export const SITE_SOURCE = 'site-box';
 export const MASK_SOURCE = 'site-mask';
-
-/** Context-margin factor: locked pan area = property inflated by this on each side. */
-export const MARGIN_FACTOR = 0.4;
-
-/** Outer (pannable) bounds around a property = property inflated by MARGIN_FACTOR. */
-export function computeOuterBounds(box: SiteBox): [[number, number], [number, number]] {
-  const [[w, s], [e, n]] = box.bounds;
-  const dw = (e - w) * MARGIN_FACTOR;
-  const dh = (n - s) * MARGIN_FACTOR;
-  return [
-    [w - dw, s - dh],
-    [e + dw, n + dh],
-  ];
-}
 
 /** World-minus-property polygon (a big outer ring with the property as a hole). */
 function maskFeature(box: SiteBox): GeoJSON.Feature<GeoJSON.Polygon> {
@@ -113,7 +122,10 @@ export function addSiteBoxLayers(map: maplibregl.Map): void {
     id: 'site-mask-fill',
     type: 'fill',
     source: MASK_SOURCE,
-    paint: { 'fill-color': '#0a1626', 'fill-opacity': 0.4 },
+    // Gentle focus vignette over the perimeter ring — enough to read the play
+    // box as the subject, light enough that the neighbouring relief still
+    // renders "like the normal map" rather than a dark plateau around the box.
+    paint: { 'fill-color': '#0a1626', 'fill-opacity': 0.16 },
   }, before);
 
   map.addSource(SITE_SOURCE, { type: 'geojson', data: EMPTY });

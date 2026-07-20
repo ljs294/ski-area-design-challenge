@@ -183,3 +183,90 @@ export async function fetchElevationGrid(
     height: image.getHeight(),
   };
 }
+
+// --- Offline perimeter ring ----------------------------------------------
+//
+// A medium-resolution elevation ring fetched around the high-res core so the 3D
+// view shows real neighbouring relief (hillshaded like the core) instead of a
+// cliff at the property line, terminating in a clean floating-clip edge. One
+// extra USGS export at capture time, embedded in the package JSON (a few MB, no
+// binary sidecar). Elevation only — ground cover / slope / aspect stay clamped
+// to the play box. See TerrainRecord.surround.
+
+/** How far the perimeter ring extends past the property line, in metres per
+ *  side. The rendered map is the play box plus this margin on all four edges —
+ *  real neighbouring relief for context, with the camera still locked to the box. */
+export const PERIMETER_MARGIN_M = 3000;
+/** Grid dimension for the perimeter ring. ~1024² gives ~10 m spacing over a
+ *  box+3 km extent — coarse enough to stay a few MB as JSON (no binary sidecar),
+ *  fine enough that the shaded relief reads like the core, not a blurry blob. */
+export const PERIMETER_GRID_SIZE = 1024;
+/** USGS 3DEP returns this for cells with no coverage (e.g. across a border or
+ *  offshore). Stored verbatim and treated as transparent when sampling. */
+export const SURROUND_NODATA = -9999;
+
+/** Grow a bbox outward by a fixed distance (metres) on every side. Longitude
+ *  degrees-per-metre is taken at the box centre latitude — good to well under a
+ *  pixel over a few km, and the exact extent is re-derived from the returned
+ *  raster anyway (see fetchElevationBuffer). */
+export function expandBoundsByMeters(b: LatLonBounds, meters: number): LatLonBounds {
+  const dLat = meters / 111320;
+  const cy = (b.south + b.north) / 2;
+  const dLon = meters / (111320 * Math.max(Math.cos((cy * Math.PI) / 180), 1e-6));
+  return { west: b.west - dLon, east: b.east + dLon, south: b.south - dLat, north: b.north + dLat };
+}
+
+export interface SurroundGrid {
+  heights: number[];
+  bounds: LatLonBounds;
+  width: number;
+  height: number;
+}
+
+/**
+ * Fetch the perimeter ring around a core extent — the play box grown by
+ * PERIMETER_MARGIN_M on every side, sampled at PERIMETER_GRID_SIZE. Best-effort:
+ * any failure (network, service error, out-of-coverage) resolves to null so a
+ * resort is never blocked on its cosmetic ring — it just renders without one.
+ * Unlike the core fetch this does not shrink-and-retry: a single ~1024² export
+ * is still well below the size that stresses the service.
+ */
+export async function fetchElevationBuffer(
+  coreBounds: LatLonBounds,
+  signal?: AbortSignal
+): Promise<SurroundGrid | null> {
+  const requested = expandBoundsByMeters(coreBounds, PERIMETER_MARGIN_M);
+  try {
+    let response: Response | null = null;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        response = await fetch(exportImageUrl(requested, PERIMETER_GRID_SIZE), { signal });
+        if (response.ok) break;
+        response = null;
+      } catch (e) {
+        if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e;
+      }
+      if (attempt < MAX_RETRIES) await sleep(RETRY_BASE_MS * (attempt + 1), signal);
+    }
+    if (!response) return null;
+
+    const tiff = await fromArrayBuffer(await response.arrayBuffer());
+    const image = await tiff.getImage();
+    const rasters = await image.readRasters();
+    const band = rasters[0] as unknown as ArrayLike<number>;
+    const [west, south, east, north] = image.getBoundingBox();
+    // Store to the decimetre: this ring embeds in the record JSON, and at ~10 m
+    // horizontal spacing sub-decimetre vertical precision is invisible while
+    // trimming the serialized array by roughly a third. Nodata (-9999) is exact.
+    return {
+      heights: Array.from(band, (h) => Math.round(h * 10) / 10),
+      bounds: { west, south, east, north },
+      width: image.getWidth(),
+      height: image.getHeight(),
+    };
+  } catch (e) {
+    if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e;
+    console.error('Perimeter elevation ring fetch failed; resort will render without one:', e);
+    return null;
+  }
+}

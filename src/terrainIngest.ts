@@ -2,7 +2,7 @@
 // a fully-built TerrainDB: fetch/generate the raw sample grid, upscale it
 // for display, attach a climate profile, persist it, and return it.
 import type { AreaSizeMeters, CoverDisplayMetadata, CoverGrid, LocalImageryMetadata, SiteCoverGrid, TerrainDB, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
-import { fetchElevationGrid, sampleGridSizeFor, type LatLonBounds, type ElevationProgress } from './elevation';
+import { fetchElevationBuffer, fetchElevationGrid, sampleGridSizeFor, type LatLonBounds, type ElevationProgress, type SurroundGrid } from './elevation';
 import { bicubicUpscale } from './bicubicUpscale';
 import { generateProceduralClimate } from './climate';
 import { generateProceduralHeights, NA_MOUNTAIN_PRESETS } from './mountainPresets';
@@ -91,6 +91,27 @@ async function loadBundledPresetBounds(presetId: string): Promise<LatLonBounds |
   }
 }
 
+/**
+ * Fetch a curated preset's bundled coarse surround ring, if present
+ * (public/presetTerrain/<id>.surround.json, produced by the download-preset
+ * script). Missing on legacy bundles and procedural presets — those just
+ * render without an offline buffer.
+ */
+async function loadBundledPresetSurround(presetId: string): Promise<SurroundGrid | null> {
+  let response: Response;
+  try {
+    response = await fetch(`/presetTerrain/${presetId}.surround.json`);
+  } catch {
+    return null;
+  }
+  if (!response.ok) return null;
+  try {
+    return (await response.json()) as SurroundGrid;
+  } catch {
+    return null;
+  }
+}
+
 function slugify(name: string): string {
   const slug = name
     .toLowerCase()
@@ -141,7 +162,8 @@ async function finalizeAndSave(
   preparedCoverDisplay?: DerivedCoverDisplay,
   originalCoverGrid?: SiteCoverGrid,
   localImagery?: Uint8Array,
-  localImageryMetadata?: LocalImageryMetadata
+  localImageryMetadata?: LocalImageryMetadata,
+  surround?: SurroundGrid
 ): Promise<TerrainDB> {
   const sampleGridSize = Math.round(Math.sqrt(sampleHeights.length));
   const contourGridSize = Math.min(DISPLAY_GRID_SIZE, sampleGridSize);
@@ -177,6 +199,7 @@ async function finalizeAndSave(
     bounds,
     sampleGridSize,
     sampleHeights,
+    surround,
     climate,
     vectorFeatures,
     coverGrid,
@@ -264,6 +287,11 @@ export async function prepareResortPackage(
     longitude: (bounds.west + bounds.east) / 2,
   };
 
+  // Coarse offline surround ring — fetched in the background alongside the
+  // cover/imagery downloads so it costs no extra serial time. Best-effort:
+  // resolves null on any failure and the resort just renders without a buffer.
+  const surroundPromise = fetchElevationBuffer(bounds, signal);
+
   report('ground-cover', 'Downloading ESA WorldCover recovery data', 1);
   const originalCoverGrid = await sampleSiteCoverGrid(bounds, 10, signal);
   if (!originalCoverGrid.complete) throw new Error(`Ground-cover package is incomplete (${originalCoverGrid.nodataCount} missing cells).`);
@@ -305,6 +333,9 @@ export async function prepareResortPackage(
     attribution: 'USDA/USGS NAIP orthoimagery · public domain',
   }) : undefined;
 
+  const surround = (await surroundPromise) ?? undefined;
+  abort();
+
   report('saving', 'Saving local resort package', 6);
   const terrain = await finalizeAndSave(
     mountainName,
@@ -319,7 +350,8 @@ export async function prepareResortPackage(
     coverDisplay,
     originalCoverGrid,
     localImagery,
-    localImageryMetadata
+    localImageryMetadata,
+    surround
   );
   if (signal?.aborted) {
     await deleteTerrain(terrain.key);
@@ -359,11 +391,17 @@ export async function ingestLiveArea(
     latitude: (trueBounds.south + trueBounds.north) / 2,
     longitude: (trueBounds.west + trueBounds.east) / 2,
   };
-  const vectorFeatures = await fetchVectorFeatures(trueBounds).catch((e) => {
-    console.error('Failed to fetch map features (roads/water/peaks/land cover):', e);
-    return undefined;
-  });
-  return finalizeAndSave(mountainName, center.latitude, center.longitude, areaSizeMeters, trueBounds, elevation.heights, 'live', vectorFeatures);
+  const [vectorFeatures, surround] = await Promise.all([
+    fetchVectorFeatures(trueBounds).catch((e) => {
+      console.error('Failed to fetch map features (roads/water/peaks/land cover):', e);
+      return undefined;
+    }),
+    fetchElevationBuffer(trueBounds).catch(() => null),
+  ]);
+  return finalizeAndSave(
+    mountainName, center.latitude, center.longitude, areaSizeMeters, trueBounds, elevation.heights,
+    'live', vectorFeatures, undefined, undefined, undefined, undefined, undefined, surround ?? undefined
+  );
 }
 
 /**
@@ -379,10 +417,11 @@ export async function ingestPreset(presetId: string): Promise<TerrainDB> {
   if (!preset) throw new Error(`Unknown preset: ${presetId}`);
 
   const areaSizeMeters = preset.areaSizeMeters ?? 4000;
-  const [bundledHeights, bundledVectors, bundledBounds] = await Promise.all([
+  const [bundledHeights, bundledVectors, bundledBounds, bundledSurround] = await Promise.all([
     loadBundledPresetHeights(presetId),
     loadBundledPresetVectors(presetId),
     loadBundledPresetBounds(presetId),
+    loadBundledPresetSurround(presetId),
   ]);
   // Prefer the raster's true extent captured at download time; fall back to the
   // computed square for procedural terrain and legacy bundles.
@@ -397,7 +436,9 @@ export async function ingestPreset(presetId: string): Promise<TerrainDB> {
       bounds,
       bundledHeights,
       'preset-real',
-      bundledVectors ?? undefined
+      bundledVectors ?? undefined,
+      undefined, undefined, undefined, undefined, undefined,
+      bundledSurround ?? undefined
     );
   }
 

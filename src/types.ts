@@ -4,6 +4,19 @@ import type { LatLonBounds } from './elevation';
 // vectorFeatures.ts imports feature types (RoadFeature etc.) from here.
 import type { HydratedVectorFeatures } from './vectorFeatures';
 
+/**
+ * A coarse elevation grid covering the buffer area around a resort's high-res
+ * core. Row-major, row 0 = north edge (same orientation as sampleHeights).
+ * Cells USGS reports as nodata are stored as SURROUND_NODATA and treated as
+ * "no data" (transparent) at render time.
+ */
+export interface SurroundElevation {
+  bounds: LatLonBounds;
+  width: number;
+  height: number;
+  heights: number[];
+}
+
 export interface ClimateMonth {
   tempHigh: number; // Fahrenheit
   tempLow: number;  // Fahrenheit
@@ -251,6 +264,18 @@ export interface TerrainRecord {
   bounds?: LatLonBounds;
   sampleGridSize: number; // actual square elevation raster dimension
   sampleHeights: number[]; // row-major, sampleGridSize^2, meters
+  /**
+   * Medium-resolution elevation ring covering the play box plus a fixed margin
+   * (PERIMETER_MARGIN_M) on every side, so the 3D view shows real neighbouring
+   * relief — hillshaded like the core, terminating in a clean floating-clip edge
+   * — instead of a cliff at the property line. Elevation only: ground cover /
+   * slope / aspect stay clamped to the box. Fully offline: fetched once at
+   * capture time and rendered by the resort-dem protocol outside `bounds`. Sized
+   * (see PERIMETER_GRID_SIZE) to embed directly in the record JSON as a few MB —
+   * no binary sidecar. Optional: packages captured before this feature (and
+   * presets without a bundled ring) simply render without a surround.
+   */
+  surround?: SurroundElevation;
   /** Present on schema-v4 prepared resort packages; stored as .cover.bin. */
   coverGrid?: CoverGrid;
   coverMetadata?: CoverMetadata;

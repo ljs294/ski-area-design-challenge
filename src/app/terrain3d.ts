@@ -1,6 +1,6 @@
 import type maplibregl from 'maplibre-gl';
 import type { SkySpecification } from 'maplibre-gl';
-import { activeResortTerrain, localTileBounds, RESORT_DEM_PROTOCOL } from './resortProtocols';
+import { activeResortTerrain, resortDemBounds, RESORT_DEM_PROTOCOL } from './resortProtocols';
 
 // Same Terrarium tiles as the 'dem' source in analysisLayers.ts, but a
 // dedicated source: MapLibre v5 warns (and renders worse, with tile-reload
@@ -19,14 +19,20 @@ export const MAX_PITCH_2D = 60; // MapLibre default
 export const TILT_3D_MS = 1200;
 export const TILT_2D_MS = 1000;
 
-// Alpine look: deep blue zenith → pale horizon band, cool haze on distant ridges.
+// Clean alpine sky: deep blue zenith → pale horizon band, and no ground fog.
+// The perimeter ring renders real, hillshaded relief out to its 3 km edge and
+// terminates in a crisp floating-clip cutoff (the DEM source simply ends at the
+// ring bounds), so we deliberately do NOT haze the mid-field — the terrain reads
+// sharp all the way to the edge. `fog-color` is pinned to the horizon colour and
+// `fog-ground-blend` to 1 so any residual fog lives only in the thin horizon
+// band and is indistinguishable from the sky, never washing over the terrain.
 const ALPINE_SKY: SkySpecification = {
   'sky-color': '#5f9ed6',
   'horizon-color': '#eef4fb',
-  'fog-color': '#dce7f0',
+  'fog-color': '#eef4fb',
   'sky-horizon-blend': 0.6,
-  'horizon-fog-blend': 0.7,
-  'fog-ground-blend': 0.8, // fog stays near the horizon; near terrain crisp
+  'horizon-fog-blend': 0.1,
+  'fog-ground-blend': 1, // fog confined to the horizon line; none over the terrain
   'atmosphere-blend': 0, // globe-only; irrelevant on mercator
 };
 
@@ -57,7 +63,10 @@ export function mountTerrain(map: maplibregl.Map): void {
       encoding: 'terrarium',
       tileSize: 256,
       maxzoom: 15,
-      ...(local ? { bounds: localTileBounds(local) } : {}),
+      // Span the offline perimeter ring (falls back to the core) so MapLibre
+      // requests DEM tiles past the property line: neighbouring relief renders
+      // out to the ring edge, where the source ends in a clean floating clip.
+      ...(local ? { bounds: resortDemBounds(local) } : {}),
       attribution: local ? 'Local resort elevation package' : 'Terrain: Terrarium tiles, Mapzen/AWS Open Data',
     });
   }

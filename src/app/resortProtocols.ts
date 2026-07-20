@@ -1,6 +1,11 @@
 import maplibregl from 'maplibre-gl';
-import type { CoverClassCode, LandCoverClass, TerrainRecord, WorldCoverClassCode } from '../types';
+import type { CoverClassCode, LandCoverClass, SurroundElevation, TerrainRecord, WorldCoverClassCode } from '../types';
+import { SURROUND_NODATA } from '../elevation';
 import { lngLatToUnit } from '../geo';
+
+// Any surround cell at or below this is treated as "no data" (see sampleSurround).
+// Well below every real US land elevation, well above the -9999 nodata sentinel.
+const NODATA_FLOOR = SURROUND_NODATA + 1000;
 
 export const RESORT_DEM_PROTOCOL = 'resort-dem';
 export const RESORT_COVER_PROTOCOL = 'resort-cover';
@@ -63,6 +68,63 @@ function sampleGrid(record: TerrainRecord, lng: number, lat: number): number | n
   const d = record.sampleHeights[y1 * n + x0];
   const e = record.sampleHeights[y1 * n + x1];
   return (a * (1 - tx) + c * tx) * (1 - ty) + (d * (1 - tx) + e * tx) * ty;
+}
+
+// Fraction of the core's width/height, in from each edge, over which the
+// high-res core cross-fades into the coarse surround — hides the resolution
+// change so the property line reads as a smooth handoff, not a seam.
+const FEATHER_FRAC = 0.08;
+
+/** Bilinear-sample the coarse offline surround ring. Null outside its extent
+ *  or where the source had no data (both meaning "let the caller fall back"). */
+function sampleSurround(surround: SurroundElevation, lng: number, lat: number): number | null {
+  const b = surround.bounds;
+  if (lng < b.west || lng > b.east || lat < b.south || lat > b.north) return null;
+  const { width: w, height: h, heights } = surround;
+  const [u, v] = lngLatToUnit(lng, lat, b);
+  const x = u * (w - 1);
+  const y = v * (h - 1);
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  const x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
+  const tx = x - x0, ty = y - y0;
+  const a = heights[y0 * w + x0];
+  const c = heights[y0 * w + x1];
+  const d = heights[y1 * w + x0];
+  const e = heights[y1 * w + x1];
+  // Any nodata corner poisons the interpolation — treat the whole sample as
+  // absent rather than averaging a -9999 sentinel into a false cliff. Use a
+  // generous floor, not exact -9999: the service's bilinear resampling can
+  // smear values toward the sentinel near coverage edges, and no US land sits
+  // anywhere near this low (Death Valley bottoms out at ~-86 m).
+  if (a <= NODATA_FLOOR || c <= NODATA_FLOOR || d <= NODATA_FLOOR || e <= NODATA_FLOOR) return null;
+  return (a * (1 - tx) + c * tx) * (1 - ty) + (d * (1 - tx) + e * tx) * ty;
+}
+
+/** 1 deep inside the core, easing to 0 at its edge over the feather band. */
+function coreEdgeWeight(record: TerrainRecord, lng: number, lat: number): number {
+  const b = record.bounds!;
+  const dx = Math.min(lng - b.west, b.east - lng) / ((b.east - b.west) * FEATHER_FRAC);
+  const dy = Math.min(lat - b.south, b.north - lat) / ((b.north - b.south) * FEATHER_FRAC);
+  const t = Math.max(0, Math.min(1, Math.min(dx, dy)));
+  return t * t * (3 - 2 * t); // smoothstep
+}
+
+/**
+ * Elevation for the 3D mesh: the high-res core inside the property line, the
+ * coarse offline surround outside it, cross-faded across the feather band so
+ * the boundary isn't a visible seam. Falls back to core-only when a package
+ * has no surround. Used only for the DEM tiles — the slope/aspect/cover
+ * overlays stay clamped to the core, since they only describe the property.
+ */
+function sampleElevation(record: TerrainRecord, lng: number, lat: number): number | null {
+  const core = sampleGrid(record, lng, lat);
+  const surround = record.surround;
+  if (!surround) return core;
+  const sur = sampleSurround(surround, lng, lat);
+  if (core == null) return sur;
+  if (sur == null) return core;
+  const w = coreEdgeWeight(record, lng, lat);
+  return core * w + sur * (1 - w);
 }
 
 export function sampleLocalCoverAt(lng: number, lat: number): CoverClassCode | null {
@@ -155,7 +217,7 @@ async function renderTile(kind: TileKind, url: string): Promise<ArrayBuffer> {
       const lat = axes.lat[py + 1];
       const i = (py * 256 + px) * 4;
       if (kind === 'dem') {
-        const elevation = sampleGrid(record, lng, lat);
+        const elevation = sampleElevation(record, lng, lat);
         const encoded = Math.max(0, Math.min(65535.996, (elevation ?? 0) + 32768));
         out[i] = Math.floor(encoded / 256);
         out[i + 1] = Math.floor(encoded) % 256;
@@ -228,4 +290,15 @@ export function registerResortProtocols(): void {
 export function localTileBounds(record: TerrainRecord): [number, number, number, number] | undefined {
   const b = record.bounds;
   return b ? [b.west, b.south, b.east, b.north] : undefined;
+}
+
+/**
+ * Tile bounds for the 3D terrain source: the surround extent when the package
+ * carries an offline buffer, otherwise the core. This is what lets MapLibre
+ * request DEM tiles out past the property line so neighbouring terrain renders
+ * instead of a void. Falls back to core bounds for buffer-less packages.
+ */
+export function resortDemBounds(record: TerrainRecord): [number, number, number, number] | undefined {
+  const b = record.surround?.bounds;
+  return b ? [b.west, b.south, b.east, b.north] : localTileBounds(record);
 }

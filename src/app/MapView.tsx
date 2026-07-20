@@ -20,7 +20,7 @@ import {
   setSiteBox,
   setBoundaryMode,
   computeBox,
-  computeOuterBounds,
+  siteBoxFromBounds,
   type SiteBox,
 } from './sitePicker';
 import { SearchBox, type GeocodeResult } from './SearchBox';
@@ -35,7 +35,7 @@ import { loadTerrain, saveTerrain } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import { coverDisplayMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
-import { sampleLocalCoverAt, sampleLocalTerrainAt, setActiveResortTerrain, WORLD_COVER_LABELS } from './resortProtocols';
+import { resortDemBounds, sampleLocalCoverAt, sampleLocalTerrainAt, setActiveResortTerrain, WORLD_COVER_LABELS } from './resortProtocols';
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, type DraftLine } from './liftLayers';
 import { TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
@@ -183,6 +183,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const [siteMode, setSiteMode] = useState<SiteMode>(initialSave?.site ? 'locked' : 'explore');
   const [siteBox, setSiteBoxState] = useState<SiteBox | null>((initialSave?.site as SiteBox) ?? null);
   const [is3D, setIs3D] = useState(initialSave?.is3D ?? false);
+  // Loading veil held over the resort until its first complete render, so the
+  // map never appears mid-stream (popping terrain / half-drawn custom tiles).
+  const [warming, setWarming] = useState(mode === 'playing' && !TERRAIN_DISABLED);
   const [saved, setSaved] = useState<GameSave | null>(initialSave);
   const [nameDraft, setNameDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -431,9 +434,16 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     applyCoverOpacity(map, aerialOn);
 
     addSiteBoxLayers(map);
-    if (siteModeRef.current === 'locked' && siteBoxRef.current) {
-      setSiteBox(map, siteBoxRef.current);
-      setBoundaryMode(map, 'locked', siteBoxRef.current);
+    // Once a package exists, the "box" is its true data extent (record.bounds),
+    // not the smaller square first dragged: the elevation service snaps the
+    // download taller and cover/contours/vectors all fill that extent. Drawing
+    // the outline + exterior mask there keeps every play-box layer inside the
+    // outline, leaving only elevation + hillshade in the perimeter ring.
+    const rec = terrainRecordRef.current;
+    const lockedBox = rec?.bounds ? siteBoxFromBounds(rec.bounds) : siteBoxRef.current;
+    if (siteModeRef.current === 'locked' && lockedBox) {
+      setSiteBox(map, lockedBox);
+      setBoundaryMode(map, 'locked', lockedBox);
     }
     // Runs beneath lifts (ski-map convention): add trails first, lifts on top.
     addTrailLayers(map);
@@ -456,10 +466,23 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         // frame) means the relief rises through perspective with no pop.
         const want3D = initialSave?.is3D ?? true;
         if (want3D !== is3DRef.current) setIs3D(want3D);
-        map.easeTo({ pitch: want3D ? PITCH_3D : 0, duration: 1200 });
+        // Hold the veil until the first complete render, then drop it and ease
+        // into the tilt — so the resort is revealed already-loaded, not mid-
+        // stream. Fall back on a timer in case the serial tile queue starves
+        // MapLibre's 'idle' event.
+        let revealed = false;
+        const reveal = () => {
+          if (revealed) return;
+          revealed = true;
+          setWarming(false);
+          map.easeTo({ pitch: want3D ? PITCH_3D : 0, duration: 1200 });
+        };
+        map.once('idle', reveal);
+        window.setTimeout(reveal, 6000);
       }
     } else {
       unmountTerrain(map);
+      setWarming(false);
     }
     applyTileLod(map, renderQualityRef.current);
     setLayers(applied);
@@ -510,9 +533,15 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
     map.on('style.load', () => {
       reinitAfterStyle(map);
-      // A resumed site locks the pannable area to its context ring.
-      if (siteModeRef.current === 'locked' && siteBoxRef.current) {
-        map.setMaxBounds(computeOuterBounds(siteBoxRef.current));
+      // Diorama camera: bound panning to the perimeter ring (box + 3 km), not
+      // the play box — so the camera can freely cross the whole diorama and see
+      // every side of the box, yet can't wander past the rendered edge into
+      // blank paper. Ring-less packages fall back to the box extent.
+      if (siteModeRef.current === 'locked') {
+        const rec = terrainRecordRef.current;
+        const ring = rec ? resortDemBounds(rec) : undefined;
+        if (ring) map.setMaxBounds(ring);
+        else if (siteBoxRef.current) map.setMaxBounds(siteBoxRef.current.bounds);
       }
     });
 
@@ -1165,9 +1194,12 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   function confirmSite() {
     const map = mapRef.current;
     if (!map || !siteBox) return;
-    const outer = computeOuterBounds(siteBox);
     setBoundaryMode(map, 'locked', siteBox);
-    map.setMaxBounds(outer);
+    // Before a package exists, bound to the drawn square; once one is prepared
+    // the restyle rebinds to the perimeter ring (see the style.load handler).
+    const rec = terrainRecordRef.current;
+    const ring = rec ? resortDemBounds(rec) : undefined;
+    map.setMaxBounds(ring ?? siteBox.bounds);
     map.fitBounds(siteBox.bounds, { padding: 40, duration: 600 });
     setSiteMode('locked');
   }
@@ -1222,6 +1254,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       setPackageState('ready');
       const map = mapRef.current;
       if (map) {
+        // Veil the first resort render (restyle re-mounts terrain + custom
+        // tiles); the style.load reveal drops it once fully drawn.
+        setWarming(true);
         map.setStyle(basemapFor(resolvedTheme));
       }
       return record;
@@ -1448,6 +1483,28 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {warming && !showPackageGate && (
+        <div
+          className="map-warming"
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#0e1a2a',
+            color: '#e9eef6',
+            font: '600 14px system-ui, sans-serif',
+            letterSpacing: '0.03em',
+          }}
+        >
+          Loading terrain…
         </div>
       )}
 

@@ -6,6 +6,7 @@ import { registerTerrainProtocols, SLOPE_PROTOCOL, ASPECT_PROTOCOL } from './ter
 import {
   localTileBounds,
   registerResortProtocols,
+  resortDemBounds,
   RESORT_ASPECT_PROTOCOL,
   RESORT_COVER_PROTOCOL,
   RESORT_DEM_PROTOCOL,
@@ -161,13 +162,19 @@ export function setupAnalysisLayers(
   }
 
   let demUrl = TERRARIUM_TILES;
+  // Core bounds clamp the play-box-only layers (cover, slope, aspect, contours).
   let bounds: [number, number, number, number] | undefined;
+  // The DEM/hillshade span the wider perimeter ring so neighbouring relief
+  // renders (shaded) out to the 3 km edge, while the analysis layers above stay
+  // clamped to the property. Falls back to core bounds for ring-less packages.
+  let demBounds: [number, number, number, number] | undefined;
   let coverVisible = false;
   let coverLabel = 'Ground cover preview';
   if (local) {
     registerResortProtocols();
     const key = encodeURIComponent(local.key);
     bounds = localTileBounds(local);
+    demBounds = resortDemBounds(local);
     demUrl = `${RESORT_DEM_PROTOCOL}://${key}/{z}/{x}/{y}`;
     if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${key}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
     map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local), attribution: 'Local OSM context © OpenStreetMap contributors' });
@@ -179,7 +186,7 @@ export function setupAnalysisLayers(
   }
 
   // Hillshade lands below cover; later additions before the same anchor draw above it.
-  map.addSource('dem', { type: 'raster-dem', tiles: [demUrl], encoding: 'terrarium', tileSize: 256, maxzoom: 15, ...(bounds ? { bounds } : {}), attribution: local ? 'Local resort elevation package' : 'Terrain: Terrarium tiles, Mapzen/AWS Open Data' });
+  map.addSource('dem', { type: 'raster-dem', tiles: [demUrl], encoding: 'terrarium', tileSize: 256, maxzoom: 15, ...(demBounds ? { bounds: demBounds } : {}), attribution: local ? 'Local resort elevation package' : 'Terrain: Terrarium tiles, Mapzen/AWS Open Data' });
   // Over the aerial base the photo already carries relief, so ease the hillshade
   // to a subtle deepening and mute the highlights that would otherwise bleach
   // sunlit slopes. On the paper fallback keep the stronger, brighter relief.

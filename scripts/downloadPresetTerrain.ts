@@ -19,7 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NA_MOUNTAIN_PRESETS } from '../src/mountainPresets';
 import { boundsForSquareMeters } from '../src/geo';
-import { fetchElevationGrid, sampleGridSizeFor } from '../src/elevation';
+import { fetchElevationBuffer, fetchElevationGrid, sampleGridSizeFor } from '../src/elevation';
 import { fetchVectorFeatures } from '../src/vectorFeatures';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -77,6 +77,26 @@ async function main() {
   const metaFile = path.join(outDir, `${presetId}.meta.json`);
   fs.writeFileSync(metaFile, JSON.stringify({ bounds: elevation.bounds, width: elevation.width, height: elevation.height }), 'utf-8');
   console.log(`Wrote ${metaFile}`);
+
+  // Offline perimeter ring so this preset gets neighbouring hillshaded relief in
+  // 3D (out to 3 km, floating-clip edge) instead of a cliff at the property line
+  // (see TerrainRecord.surround).
+  console.log(`Downloading offline perimeter ring via USGS 3DEP...`);
+  try {
+    const surround = await fetchElevationBuffer(elevation.bounds);
+    if (surround) {
+      const surroundFile = path.join(outDir, `${presetId}.surround.json`);
+      fs.writeFileSync(surroundFile, JSON.stringify(surround), 'utf-8');
+      console.log(
+        `Wrote ${surroundFile} (${(fs.statSync(surroundFile).size / 1e6).toFixed(1)} MB) — ` +
+          `${surround.width}x${surround.height} over ${JSON.stringify(surround.bounds)}`
+      );
+    } else {
+      console.warn('Perimeter ring unavailable (service returned no data); preset saved without one.');
+    }
+  } catch (e) {
+    console.error('Failed to download perimeter ring (preset was still saved successfully):', e);
+  }
 
   console.log(`Downloading map features (roads/water/peaks/land cover) via Overpass...`);
   try {
