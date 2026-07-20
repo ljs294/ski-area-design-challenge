@@ -6,7 +6,7 @@ import { setupAnalysisLayers, type LayerToggle } from './analysisLayers';
 import { LayerPanel } from './LayerPanel';
 import type { OverlayId } from './Legend';
 import { basemapFor, tuneBasemap } from './basemapStyle';
-import { enable3D, disable3D } from './terrain3d';
+import { mountTerrain, unmountTerrain, tilt3D } from './terrain3d';
 import { applyTileLod } from './terrainLod';
 import { pixelRatioFor, useSettings, type RenderQuality } from './SettingsContext';
 
@@ -193,10 +193,14 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
     [a, b].forEach((m, i) => {
       if (!m || !m.isStyleLoaded()) return;
       if (is3D) {
-        enable3D(m);
+        mountTerrain(m);
+        tilt3D(m, true);
         applyTileLod(m, q[i]); // terrain-dem source is new; give it the curve
       } else {
-        disable3D(m);
+        // Tilt flat first, then drop terrain once the ease lands so removing the
+        // mesh mid-pitch doesn't snap the camera's elevation.
+        tilt3D(m, false);
+        m.once('moveend', () => unmountTerrain(m));
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

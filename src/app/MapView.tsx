@@ -26,7 +26,7 @@ import {
 import { SearchBox, type GeocodeResult } from './SearchBox';
 import { tuneBasemap, basemapFor } from './basemapStyle';
 import { View3DControl } from './View3DControl';
-import { enable3D, disable3D } from './terrain3d';
+import { mountTerrain, unmountTerrain, tilt3D, PITCH_3D } from './terrain3d';
 import { useSettings, pixelRatioFor } from './SettingsContext';
 import { applyTileLod } from './terrainLod';
 import { saveGame } from '../gameSaveClient';
@@ -148,6 +148,12 @@ const PREP_STEPS: { key: string; label: string }[] = [
   { key: 'finalizing', label: 'Final validation' },
 ];
 
+// Escape hatch for the Playwright verification harness: the 3D terrain mesh
+// crashes SwiftShader headless, so `?flat` keeps the resort view terrain-free
+// (hillshade still stands in). No effect in the real Electron app.
+const TERRAIN_DISABLED =
+  typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('flat');
+
 interface MapViewProps {
   mode: MapMode;
   /** Present when resuming a saved resort (Load / Continue). */
@@ -216,6 +222,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const siteBoxRef = useRef<SiteBox | null>(siteBox);
   const siteModeRef = useRef<SiteMode>(siteMode);
   const is3DRef = useRef(is3D);
+  // Flips true the first time the resort's terrain is mounted, so the one-time
+  // "default into 3D" camera ease fires once — not on every dark/light restyle.
+  const resortReadyRef = useRef(false);
   const liftsRef = useRef<SavedLift[]>(lifts);
   const liftToolRef = useRef<LiftTool>(liftTool);
   const liftSampleTokenRef = useRef(0);
@@ -434,7 +443,24 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     );
     addLiftLayers(map);
     setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
-    if (is3DRef.current) enable3D(map);
+    // Resort view = a local terrain package is active. Terrain is mounted here
+    // (and re-mounted after every restyle, since setStyle drops it) so it is
+    // always present and the 2D↔3D switch stays a pure camera move. The
+    // worldwide picker has no package, so it stays flat.
+    if (terrainRecordRef.current && !TERRAIN_DISABLED) {
+      mountTerrain(map);
+      if (!resortReadyRef.current) {
+        resortReadyRef.current = true;
+        // First entry into the resort: honor a resumed 2D/3D choice, otherwise
+        // default into the 3D-native view. Easing after mountTerrain (same
+        // frame) means the relief rises through perspective with no pop.
+        const want3D = initialSave?.is3D ?? true;
+        if (want3D !== is3DRef.current) setIs3D(want3D);
+        map.easeTo({ pitch: want3D ? PITCH_3D : 0, duration: 1200 });
+      }
+    } else {
+      unmountTerrain(map);
+    }
     applyTileLod(map, renderQualityRef.current);
     setLayers(applied);
   }
@@ -1163,13 +1189,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
   function toggle3D() {
     const map = mapRef.current;
-    if (!map) return;
-    if (is3D) disable3D(map);
-    else {
-      enable3D(map);
-      applyTileLod(map, renderQualityRef.current); // new terrain-dem source needs the curve
-    }
-    setIs3D((v) => !v);
+    if (!map || !terrainRecordRef.current) return; // only meaningful in the resort view
+    const next = !is3D;
+    setIs3D(next);
+    tilt3D(map, next); // terrain stays mounted; this is a pure camera ease
   }
 
   async function prepareLocalPackage(name: string): Promise<TerrainRecord | null> {
@@ -1454,7 +1477,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
             onExit={exitSite}
           />
         )}
-        <View3DControl is3D={is3D} onToggle={toggle3D} />
+        {terrainRecord && <View3DControl is3D={is3D} onToggle={toggle3D} />}
       </div>
 
       {/* Site-picking readout floats lower-left; in-game it lives on the toolbar. */}

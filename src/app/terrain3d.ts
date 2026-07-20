@@ -16,6 +16,9 @@ export const PITCH_3D = 60;
 export const MAX_PITCH_3D = 85;
 export const MAX_PITCH_2D = 60; // MapLibre default
 
+export const TILT_3D_MS = 1200;
+export const TILT_2D_MS = 1000;
+
 // Alpine look: deep blue zenith → pale horizon band, cool haze on distant ridges.
 const ALPINE_SKY: SkySpecification = {
   'sky-color': '#5f9ed6',
@@ -36,14 +39,15 @@ const SKY_OFF: SkySpecification = {
   'atmosphere-blend': 0,
 };
 
-// Pending disable finalizer, cancelled if the user re-enables mid-ease.
-let pendingDisable: (() => void) | null = null;
-
-export function enable3D(map: maplibregl.Map): void {
-  if (pendingDisable) {
-    map.off('moveend', pendingDisable);
-    pendingDisable = null;
-  }
+// Mount the 3D terrain mesh + alpine sky and unlock the high pitch cap. Called
+// once the resort package is active and re-called after every style reload
+// (setStyle drops sources/terrain), so terrain is *always present* in the
+// resort view. Because it is never added or removed on a 2D↔3D toggle, the
+// switch is a pure camera move — no mid-animation re-tessellation, no elevation
+// pop, no DEM-tile flash. Idempotent. At pitch 0 the mounted terrain looks flat
+// (straight-down view has no horizon, so the sky doesn't render either); the
+// relief simply reveals itself through perspective as the camera tilts.
+export function mountTerrain(map: maplibregl.Map): void {
   if (!map.getSource(TERRAIN_DEM_SOURCE)) {
     const local = activeResortTerrain();
     const key = local ? encodeURIComponent(local.key) : null;
@@ -57,21 +61,23 @@ export function enable3D(map: maplibregl.Map): void {
       attribution: local ? 'Local resort elevation package' : 'Terrain: Terrarium tiles, Mapzen/AWS Open Data',
     });
   }
-  map.setMaxPitch(MAX_PITCH_3D); // must precede easeTo — PITCH_3D exceeds the default cap
+  map.setMaxPitch(MAX_PITCH_3D);
   map.setTerrain({ source: TERRAIN_DEM_SOURCE, exaggeration: 1.0 });
   map.setSky(ALPINE_SKY);
-  map.easeTo({ pitch: PITCH_3D, duration: 1200 }); // center/zoom/bearing untouched
 }
 
-export function disable3D(map: maplibregl.Map): void {
+// Tear terrain back down — only for leaving the resort view (e.g. the flat
+// worldwide picker or the verification harness). Not used by the 2D↔3D toggle.
+export function unmountTerrain(map: maplibregl.Map): void {
+  map.setTerrain(null);
   map.setSky(SKY_OFF);
-  map.easeTo({ pitch: 0, duration: 1000 });
-  // Drop terrain + restore maxPitch only after the ease lands: setMaxPitch(60)
-  // at pitch 65 snaps the camera; removing terrain while pitched jumps elevation.
-  pendingDisable = () => {
-    pendingDisable = null;
-    map.setTerrain(null);
-    map.setMaxPitch(MAX_PITCH_2D);
-  };
-  map.once('moveend', pendingDisable);
+  map.setMaxPitch(MAX_PITCH_2D);
+  if (map.getSource(TERRAIN_DEM_SOURCE)) map.removeSource(TERRAIN_DEM_SOURCE);
+}
+
+/** Ease the camera between the 3D-native tilt and a perfectly overhead view.
+ *  Terrain stays mounted throughout; only pitch changes. Bearing is untouched
+ *  so "2D" drops straight overhead without yanking the user's rotation. */
+export function tilt3D(map: maplibregl.Map, is3D: boolean): void {
+  map.easeTo({ pitch: is3D ? PITCH_3D : 0, duration: is3D ? TILT_3D_MS : TILT_2D_MS });
 }
