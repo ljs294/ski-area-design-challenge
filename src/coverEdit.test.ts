@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appendCorridorToDisplayGeometry,
+  appendPolygonsToDisplayGeometry,
   grasslandCodeFor,
+  jitterPolygon,
+  jitterRing,
   liftCorridorRing,
-  stampCorridorIntoGrid,
+  stampPolygonsIntoGrid,
   LIFT_CLEAR_HALF_WIDTH_M,
   LIFT_CLEAR_JITTER_M,
 } from './coverEdit';
@@ -110,10 +112,34 @@ describe('liftCorridorRing', () => {
   });
 });
 
-describe('stampCorridorIntoGrid', () => {
+// A square hole (tree island) centred on the box, ±20 m in unit space, closed.
+function holeRing(): [number, number][] {
+  const half = 20 / 240; // 20 m in unit coords on the 240 m box
+  const corners: [number, number][] = [
+    unitToLngLat(0.5 - half, 0.5 - half, BOUNDS),
+    unitToLngLat(0.5 + half, 0.5 - half, BOUNDS),
+    unitToLngLat(0.5 + half, 0.5 + half, BOUNDS),
+    unitToLngLat(0.5 - half, 0.5 + half, BOUNDS),
+  ];
+  return [...corners, corners[0]];
+}
+
+// A large outer ring covering the middle of the box (±60 m), closed.
+function outerRing(): [number, number][] {
+  const half = 60 / 240;
+  const corners: [number, number][] = [
+    unitToLngLat(0.5 - half, 0.5 - half, BOUNDS),
+    unitToLngLat(0.5 + half, 0.5 - half, BOUNDS),
+    unitToLngLat(0.5 + half, 0.5 + half, BOUNDS),
+    unitToLngLat(0.5 - half, 0.5 + half, BOUNDS),
+  ];
+  return [...corners, corners[0]];
+}
+
+describe('stampPolygonsIntoGrid', () => {
   it('clears interior forest to grassland, leaving distant cells forest', () => {
     const forest = grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest);
-    const { grid: cleared, changed } = stampCorridorIntoGrid(forest, ringFor());
+    const { grid: cleared, changed } = stampPolygonsIntoGrid(forest, [[ringFor()]]);
     expect(changed).toBeGreaterThan(0);
     const data = cleared.data as Uint8Array;
 
@@ -140,15 +166,33 @@ describe('stampCorridorIntoGrid', () => {
     const midRow = Math.floor(0.5 * N);
     const midCol = Math.floor(0.5 * N);
     (forest.data as Uint8Array)[midRow * N + midCol] = TERRAIN_COVER_CODES.water;
-    const { grid: cleared } = stampCorridorIntoGrid(forest, ringFor());
+    // Stamp the big outer square (no hole) so the mid cell is inside the footprint.
+    const { grid: cleared } = stampPolygonsIntoGrid(forest, [[outerRing()]]);
     expect((cleared.data as Uint8Array)[midRow * N + midCol]).toBe(TERRAIN_COVER_CODES.water);
+  });
+
+  it('leaves tree islands (holes) forested while clearing the footprint around them', () => {
+    const forest = grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest);
+    const { grid: cleared, changed } = stampPolygonsIntoGrid(forest, [[outerRing(), holeRing()]]);
+    expect(changed).toBeGreaterThan(0);
+    const data = cleared.data as Uint8Array;
+
+    // Dead centre is inside the hole → stays forest.
+    const midRow = Math.floor(0.5 * N);
+    const midCol = Math.floor(0.5 * N);
+    expect(data[midRow * N + midCol]).toBe(TERRAIN_COVER_CODES.forest);
+
+    // A cell 40 m east of centre sits between the hole edge (20 m) and the outer
+    // edge (60 m) → grassland.
+    const bandRow = Math.floor(0.5 * N);
+    const bandCol = Math.floor((0.5 + 40 / 240) * N);
+    expect(data[bandRow * N + bandCol]).toBe(TERRAIN_COVER_CODES.grassland);
   });
 });
 
-describe('appendCorridorToDisplayGeometry', () => {
+describe('appendPolygonsToDisplayGeometry', () => {
   it('adds one decodable grassland polygon inside the bounds', () => {
-    const ring = ringFor();
-    const geometry = appendCorridorToDisplayGeometry([], ring, BOUNDS, TERRAIN_COVER_CODES.grassland);
+    const geometry = appendPolygonsToDisplayGeometry([], [[ringFor()]], BOUNDS, TERRAIN_COVER_CODES.grassland);
     const fc = coverDisplayToGeoJSON(geometry, BOUNDS);
     expect(fc.features).toHaveLength(1);
     expect(fc.features[0].properties.code).toBe(TERRAIN_COVER_CODES.grassland);
@@ -160,9 +204,19 @@ describe('appendCorridorToDisplayGeometry', () => {
     }
   });
 
+  it('encodes a polygon with a hole as one feature with two rings', () => {
+    const geometry = appendPolygonsToDisplayGeometry([], [[outerRing(), holeRing()]], BOUNDS, TERRAIN_COVER_CODES.grassland);
+    const fc = coverDisplayToGeoJSON(geometry, BOUNDS);
+    expect(fc.features).toHaveLength(1);
+    // GeoJSON polygon coordinates = [outer, hole].
+    expect(fc.features[0].geometry.coordinates).toHaveLength(2);
+    const counts = inspectCoverDisplayGeometry(geometry);
+    expect(counts.polygonCount).toBe(1);
+    expect(counts.ringCount).toBe(2);
+  });
+
   it('keeps display metadata consistent with the geometry (the validate checks)', () => {
-    const ring = ringFor();
-    const geometry = appendCorridorToDisplayGeometry([], ring, BOUNDS, TERRAIN_COVER_CODES.grassland);
+    const geometry = appendPolygonsToDisplayGeometry([], [[outerRing(), holeRing()]], BOUNDS, TERRAIN_COVER_CODES.grassland);
     const counts = inspectCoverDisplayGeometry(geometry);
     const metadata = coverDisplayMetadataOf(geometry, { ...counts, smoothingM: 6, simplifyM: 2, minFeatureM2: 16 });
     // These are exactly the equalities validateTerrainPackage re-checks.
@@ -170,5 +224,35 @@ describe('appendCorridorToDisplayGeometry', () => {
     expect(metadata.ringCount).toBe(counts.ringCount);
     expect(metadata.vertexCount).toBe(counts.vertexCount);
     expect(metadata.checksum).toBe(checksumBytes(float32Bytes(geometry)));
+  });
+});
+
+describe('jitterRing / jitterPolygon', () => {
+  it('keeps the ring closed and stays within the amplitude of the input', () => {
+    const ring = outerRing();
+    const jittered = jitterRing(ring, LIFT_CLEAR_JITTER_M, 'trail-1:r0');
+    expect(jittered[0]).toEqual(jittered[jittered.length - 1]); // still closed
+    expect(jittered.length).toBe(ring.length);
+
+    // Every vertex moved by at most the amplitude (+ a hair for float error).
+    const mPerLat = 111320;
+    const mPerLng = 111320 * Math.cos((ring[0][1] * Math.PI) / 180);
+    for (let i = 0; i < ring.length; i++) {
+      const dLng = (jittered[i][0] - ring[i][0]) * mPerLng;
+      const dLat = (jittered[i][1] - ring[i][1]) * mPerLat;
+      expect(Math.hypot(dLng, dLat)).toBeLessThanOrEqual(LIFT_CLEAR_JITTER_M + 0.5);
+    }
+  });
+
+  it('is deterministic for a fixed seed and differs across seeds', () => {
+    expect(jitterRing(outerRing(), LIFT_CLEAR_JITTER_M, 'a')).toEqual(jitterRing(outerRing(), LIFT_CLEAR_JITTER_M, 'a'));
+    expect(jitterRing(outerRing(), LIFT_CLEAR_JITTER_M, 'a')).not.toEqual(jitterRing(outerRing(), LIFT_CLEAR_JITTER_M, 'b'));
+  });
+
+  it('jitters every ring of a polygon, keeping the hole', () => {
+    const jittered = jitterPolygon([outerRing(), holeRing()], LIFT_CLEAR_JITTER_M, 'trail-1:0');
+    expect(jittered).toHaveLength(2);
+    expect(jittered[0][0]).toEqual(jittered[0][jittered[0].length - 1]);
+    expect(jittered[1][0]).toEqual(jittered[1][jittered[1].length - 1]);
   });
 });

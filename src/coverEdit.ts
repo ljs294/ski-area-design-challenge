@@ -1,10 +1,11 @@
-// Clearing ground cover under a drawn ski lift. When a chairlift is confirmed,
-// the trees beneath and beside the cable are, in reality, felled to open a lift
-// corridor. These pure helpers turn a two-point lift line into a cleared strip
-// of grassland: a corridor polygon (with gently irregular, hand-cleared edges),
-// stamped into the analytical cover grid and appended to the persisted vector
-// display geometry. Nothing here re-vectorizes the whole grid — building the
-// ring is O(corridor), so it is cheap enough to run on every lift confirm (see
+// Clearing ground cover under drawn ski infrastructure. When a chairlift or a
+// trail is confirmed, the trees beneath it are, in reality, felled to open a
+// cleared strip of grassland. Both reduce to the same shape — a list of polygons
+// (each an outer ring plus optional tree-island holes) — which these pure helpers
+// stamp into the analytical cover grid and append to the persisted vector display
+// geometry. A lift generates its corridor polygon (`liftCorridorRing`); a trail
+// supplies its painted footprint directly. Nothing here re-vectorizes the whole
+// grid — the work is O(footprint), cheap enough to run on every confirm (see
 // coverDisplay.ts for why a full re-trace is not).
 
 import type { LatLonBounds } from './elevation';
@@ -163,61 +164,144 @@ export function liftCorridorRing(points: [LngLat, LngLat], _bounds: LatLonBounds
   return lngLatRing;
 }
 
-// ---- Point-in-ring (even-odd) ---------------------------------------------
+// A cleared area is a polygon: one outer ring followed by optional holes (tree
+// islands left standing). A lift emits a single-ring polygon; a trail emits one
+// polygon per painted part, each with its holes. Rings are closed lng/lat loops.
+export type Ring = LngLat[];
+export type Polygon = Ring[]; // [outer, ...holes]
 
-function pointInRing(lng: number, lat: number, ring: LngLat[]): boolean {
+// ---- Point-in-polygon (even-odd across all rings) -------------------------
+
+// Even-odd test over every ring of the polygon at once: a point inside the outer
+// ring but also inside a hole flips parity twice → counted as outside, so holes
+// (tree islands) are excluded for free.
+function pointInPolygon(lng: number, lat: number, polygon: Polygon): boolean {
   let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-    const intersects = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
-    if (intersects) inside = !inside;
+  for (const ring of polygon) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i];
+      const [xj, yj] = ring[j];
+      const intersects = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+      if (intersects) inside = !inside;
+    }
   }
   return inside;
+}
+
+// ---- Deterministic edge jitter for an existing ring -----------------------
+
+/** Ensure a ring is closed (first point repeated at the end). */
+function closeRing(ring: Ring): Ring {
+  if (ring.length === 0) return ring;
+  const [fx, fy] = ring[0];
+  const [lx, ly] = ring[ring.length - 1];
+  return fx === lx && fy === ly ? ring : [...ring, ring[0]];
+}
+
+/**
+ * Perturb a closed ring's vertices along their local normal by smooth,
+ * deterministic value-noise (±amplitudeM), so a brush-traced or generated edge
+ * wobbles organically like a hand-cleared boundary rather than following the
+ * exact outline. Reuses the same `makeEdgeNoise` infrastructure as the lift
+ * corridor, parameterised by perimeter distance. Endpoints stay identical so the
+ * ring remains closed; the same seed always reproduces the same wobble.
+ */
+export function jitterRing(ring: Ring, amplitudeM: number, seed: string): Ring {
+  const closed = closeRing(ring);
+  const pts = closed.slice(0, -1); // unique vertices (drop the closing duplicate)
+  if (pts.length < 3 || amplitudeM <= 0) return closed;
+
+  const lng0 = pts[0][0];
+  const lat0 = pts[0][1];
+  const mPerLat = METERS_PER_DEGREE_LAT;
+  const mPerLng = METERS_PER_DEGREE_LAT * Math.cos((lat0 * Math.PI) / 180);
+  const toM = (p: LngLat): Meters => ({ x: (p[0] - lng0) * mPerLng, y: (p[1] - lat0) * mPerLat });
+  const toLL = (m: Meters): LngLat => [lng0 + m.x / mPerLng, lat0 + m.y / mPerLat];
+  const mpts = pts.map(toM);
+
+  // Cumulative perimeter distance to each vertex (for the noise parameter).
+  const n = mpts.length;
+  const cum: number[] = new Array(n);
+  let perimeter = 0;
+  for (let i = 0; i < n; i++) {
+    cum[i] = perimeter;
+    const a = mpts[i];
+    const b = mpts[(i + 1) % n];
+    perimeter += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  const noise = makeEdgeNoise(seed, amplitudeM, JITTER_WAVELENGTH_M, perimeter);
+
+  const out: LngLat[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = mpts[(i - 1 + n) % n];
+    const next = mpts[(i + 1) % n];
+    const tx = next.x - prev.x;
+    const ty = next.y - prev.y;
+    const len = Math.hypot(tx, ty) || 1;
+    // Consistent left-normal of the local tangent; the signed noise wobbles the
+    // edge in and out. Consistency (not true outwardness) is what keeps it smooth.
+    const nx = -ty / len;
+    const ny = tx / len;
+    const d = noise(cum[i]);
+    out.push(toLL({ x: mpts[i].x + nx * d, y: mpts[i].y + ny * d }));
+  }
+  out.push(out[0]); // close
+  return out;
+}
+
+/** Jitter every ring of a polygon (outer + each hole) with a distinct seed. */
+export function jitterPolygon(polygon: Polygon, amplitudeM: number, seed: string): Polygon {
+  return polygon.map((ring, i) => jitterRing(ring, amplitudeM, `${seed}:r${i}`));
 }
 
 // ---- Grid stamp ------------------------------------------------------------
 
 /**
- * Stamp the corridor into the analytical cover grid: every land cell whose
- * centre falls inside `ring` becomes grassland. Water and no-data cells are left
- * untouched (so `complete`/`nodataCount` stay valid). Returns a NEW grid with a
- * copied data buffer, plus the number of cells actually changed.
+ * Stamp cleared polygons into the analytical cover grid: every land cell whose
+ * centre falls inside a polygon (outer ring, minus any holes) becomes grassland.
+ * Water and no-data cells are left untouched (so `complete`/`nodataCount` stay
+ * valid). Returns a NEW grid with a copied data buffer, plus the number of cells
+ * actually changed.
  */
-export function stampCorridorIntoGrid(grid: CoverGrid, ring: LngLat[]): { grid: CoverGrid; changed: number } {
+export function stampPolygonsIntoGrid(grid: CoverGrid, polygons: Polygon[]): { grid: CoverGrid; changed: number } {
   const code = grasslandCodeFor(grid);
   const data = Uint8Array.from(grid.data);
   const { bounds, width, height } = grid;
 
-  // Only visit cells inside the ring's bounding box (a small window).
-  let minU = 1;
-  let minV = 1;
-  let maxU = 0;
-  let maxV = 0;
-  for (const [lng, lat] of ring) {
-    const [u, v] = lngLatToUnit(lng, lat, bounds);
-    minU = Math.min(minU, u);
-    maxU = Math.max(maxU, u);
-    minV = Math.min(minV, v);
-    maxV = Math.max(maxV, v);
-  }
-  const col0 = Math.max(0, Math.floor(minU * width) - 1);
-  const col1 = Math.min(width - 1, Math.ceil(maxU * width) + 1);
-  const row0 = Math.max(0, Math.floor(minV * height) - 1);
-  const row1 = Math.min(height - 1, Math.ceil(maxV * height) + 1);
-
   let changed = 0;
-  for (let row = row0; row <= row1; row++) {
-    const v = (row + 0.5) / height;
-    for (let col = col0; col <= col1; col++) {
-      const u = (col + 0.5) / width;
-      const [lng, lat] = unitToLngLat(u, v, bounds);
-      if (!pointInRing(lng, lat, ring)) continue;
-      const idx = row * width + col;
-      const current = data[idx];
-      if (WATER_CODES.has(current) || current === NODATA_CODE || current === code) continue;
-      data[idx] = code;
-      changed++;
+  for (const polygon of polygons) {
+    const outer = polygon[0];
+    if (!outer || outer.length < 3) continue;
+
+    // Only visit cells inside the outer ring's bounding box (a small window).
+    let minU = 1;
+    let minV = 1;
+    let maxU = 0;
+    let maxV = 0;
+    for (const [lng, lat] of outer) {
+      const [u, v] = lngLatToUnit(lng, lat, bounds);
+      minU = Math.min(minU, u);
+      maxU = Math.max(maxU, u);
+      minV = Math.min(minV, v);
+      maxV = Math.max(maxV, v);
+    }
+    const col0 = Math.max(0, Math.floor(minU * width) - 1);
+    const col1 = Math.min(width - 1, Math.ceil(maxU * width) + 1);
+    const row0 = Math.max(0, Math.floor(minV * height) - 1);
+    const row1 = Math.min(height - 1, Math.ceil(maxV * height) + 1);
+
+    for (let row = row0; row <= row1; row++) {
+      const v = (row + 0.5) / height;
+      for (let col = col0; col <= col1; col++) {
+        const u = (col + 0.5) / width;
+        const [lng, lat] = unitToLngLat(u, v, bounds);
+        if (!pointInPolygon(lng, lat, polygon)) continue;
+        const idx = row * width + col;
+        const current = data[idx];
+        if (WATER_CODES.has(current) || current === NODATA_CODE || current === code) continue;
+        data[idx] = code;
+        changed++;
+      }
     }
   }
 
@@ -227,17 +311,30 @@ export function stampCorridorIntoGrid(grid: CoverGrid, ring: LngLat[]): { grid: 
 // ---- Display-geometry append ----------------------------------------------
 
 /**
- * Append the corridor as one grassland polygon to the packed display-geometry
- * stream (see coverDisplay.ts for the encoding). Coordinates are normalized to
- * the 0..1 unit square via `lngLatToUnit`, exactly what `coverDisplayToGeoJSON`
- * decodes back through `bounds`. Returns a new array; the input is not mutated.
+ * Append cleared polygons to the packed display-geometry stream (see
+ * coverDisplay.ts for the encoding). Each polygon is one feature: its outer ring
+ * followed by hole rings (which the renderer treats as holes, so tree islands
+ * show through as forest). Coordinates are normalized to the 0..1 unit square via
+ * `lngLatToUnit`, exactly what `coverDisplayToGeoJSON` decodes back through
+ * `bounds`. Rings are closed and any ring with fewer than four points (the
+ * decoder's minimum) is skipped. Returns a new array; the input is not mutated.
  */
-export function appendCorridorToDisplayGeometry(geometry: number[], ring: LngLat[], bounds: LatLonBounds, code: number): number[] {
+export function appendPolygonsToDisplayGeometry(geometry: number[], polygons: Polygon[], bounds: LatLonBounds, code: number): number[] {
   const out = geometry.slice();
-  out.push(code, 1, ring.length); // code, ringCount = 1 (outer, no holes), pointCount
-  for (const [lng, lat] of ring) {
-    const [u, v] = lngLatToUnit(lng, lat, bounds);
-    out.push(u, v);
+  for (const polygon of polygons) {
+    const closed = polygon.map(closeRing);
+    // The outer ring must be valid; if it is degenerate the whole polygon is
+    // dropped. Holes below the minimum vertex count are simply omitted.
+    if (!closed[0] || closed[0].length < 4) continue;
+    const rings = [closed[0], ...closed.slice(1).filter((ring) => ring.length >= 4)];
+    out.push(code, rings.length);
+    for (const ring of rings) {
+      out.push(ring.length);
+      for (const [lng, lat] of ring) {
+        const [u, v] = lngLatToUnit(lng, lat, bounds);
+        out.push(u, v);
+      }
+    }
   }
   return out;
 }

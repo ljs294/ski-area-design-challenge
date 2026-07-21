@@ -665,6 +665,23 @@ body {
   gap: 10px;
 }
 
+.dock-rollups {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+}
+
+@media (max-width: 620px) {
+  .dock-rollups {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .dock-rollups:has(.dock-rollup + .dock-rollup) .dock-panel {
+    max-height: min(30vh, 260px);
+  }
+}
+
 .dock-circles {
   display: flex;
   gap: 10px;

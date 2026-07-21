@@ -34,7 +34,7 @@ try {
     const source = map.getSource('trail-paint-preview');
     const data = source?._data;
     const kinds = data?.features?.map((feature) => feature.properties?.kind) ?? [];
-    return { kinds, paintColor: map.getPaintProperty('trail-paint', 'line-color'),
+    return { kinds, paintColor: map.getPaintProperty('trail-paint', 'fill-color'),
       guideColor: map.getPaintProperty('trail-paint-guide', 'line-color') };
   });
   if (!guide.kinds.includes('guide') || !guide.kinds.includes('crosshair'))
@@ -50,8 +50,20 @@ try {
       .observe({ type: 'longtask', buffered: true });
   });
   await page.mouse.move(520, 580); await page.mouse.down();
-  await page.mouse.move(700, 350, { steps: 120 }); await page.mouse.up();
+  await page.mouse.move(700, 350, { steps: 120 });
+  // Model releasing over dock chrome rather than over the MapLibre canvas.
+  await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
   await page.waitForFunction(() => !document.querySelector('.trail-panel button.site-btn-primary')?.disabled);
+  const draftBeforeLayers = await page.evaluate(() => globalThis.appMap
+    .getSource('trail-draft')?._data?.features?.length ?? 0);
+  await page.click('.dock-circle-layers');
+  await page.waitForSelector('.dock-layers');
+  await page.waitForSelector('.dock-trails');
+  await page.click('.dock-layers .layer-row input');
+  const draftAfterLayers = await page.evaluate(() => globalThis.appMap
+    .getSource('trail-draft')?._data?.features?.length ?? 0);
+  if (draftBeforeLayers === 0 || draftAfterLayers !== draftBeforeLayers)
+    throw new Error('Toggling layers changed or discarded trail painting progress.');
   await page.click('.trail-panel button.site-btn-primary');
   await page.waitForSelector('text=Review ski run', { timeout: 10_000 });
 

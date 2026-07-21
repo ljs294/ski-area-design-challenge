@@ -36,12 +36,14 @@ import { prepareResortPackage } from '../terrainIngest';
 import { coverDisplayMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, inspectCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
 import {
-  appendCorridorToDisplayGeometry,
+  appendPolygonsToDisplayGeometry,
   grasslandCodeFor,
+  jitterPolygon,
   liftCorridorRing,
-  stampCorridorIntoGrid,
+  stampPolygonsIntoGrid,
   LIFT_CLEAR_HALF_WIDTH_M,
   LIFT_CLEAR_JITTER_M,
+  type Polygon,
 } from '../coverEdit';
 import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL, resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt, setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
@@ -56,7 +58,6 @@ import {
   setTrailDraftData,
   setTrailPaintMode,
   setTrailPaintPreview,
-  setTrailPaintWidth,
   trailsToGeoJSON,
 } from './trailLayers';
 import type { TrailPaintRequest, TrailPaintRequestPayload, TrailPaintResponse } from './trailPaintProtocol';
@@ -96,15 +97,6 @@ function draftLineOf(tool: LiftTool): DraftLine | null {
     return { points: tool.draft.points };
   }
   return null;
-}
-
-/** Ground meters per screen pixel at the map center — converts a brush width in
- *  meters to the line-width (px) of the live paint preview. */
-function metersPerPixel(map: maplibregl.Map): number {
-  const c = map.getCenter();
-  const p = map.project(c);
-  const q = map.unproject([p.x + 1, p.y]);
-  return haversineMeters([c.lng, c.lat], [q.lng, q.lat]) || 1;
 }
 
 /** crypto.randomUUID is gated to secure contexts (fails under packaged file://). */
@@ -167,6 +159,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   // Bottom-dock roll-ups: user-chosen open panel (the lift panel also force-opens
   // whenever the lift tool is active or a lift is selected — see liftsOpen below).
   const [openDock, setOpenDock] = useState<'layers' | 'lifts' | 'trails' | null>(null);
+  const [layersAlongsideTrail, setLayersAlongsideTrail] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const [readout, setReadout] = useState<Readout | null>(null);
@@ -761,12 +754,11 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     else setTrailDraftData(map, draftToGeoJSON([]));
   }, [draftPolygons, reviewDraft?.parts, reviewDraft?.difficulty, reviewDraft?.name]);
 
-  // Keep the live brush-preview width (px) in sync with the brush size (m).
+  // Keep the geographic brush corridor and guide in sync with the brush size.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (trailTool.phase === 'paint') {
-      setTrailPaintWidth(map, brushWidthM / metersPerPixel(map));
       setTrailPaintPreview(map, { path: trailPreviewPathRef.current,
         cursor: trailBrushCursorRef.current, brushWidthM });
     }
@@ -915,12 +907,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     canvas.style.cursor = 'none';
     const renderPreview = () => setTrailPaintPreview(map, { path: trailPreviewPathRef.current,
       cursor: trailBrushCursorRef.current, brushWidthM: brushWidthRef.current });
-    const syncWidth = () => {
-      setTrailPaintWidth(map, brushWidthRef.current / metersPerPixel(map));
-      renderPreview();
-    };
-    syncWidth();
-    map.on('zoom', syncWidth);
+    renderPreview();
 
     let painting = false;
     let path: [number, number][] = [];
@@ -993,15 +980,14 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
     map.on('mousedown', down);
     map.on('mousemove', move);
-    map.on('mouseup', up);
+    window.addEventListener('mouseup', up);
     canvas.addEventListener('mouseleave', leave);
     window.addEventListener('keydown', onKey);
     return () => {
       map.off('mousedown', down);
       map.off('mousemove', move);
-      map.off('mouseup', up);
+      window.removeEventListener('mouseup', up);
       canvas.removeEventListener('mouseleave', leave);
-      map.off('zoom', syncWidth);
       if (previewRaf) cancelAnimationFrame(previewRaf);
       trailPreviewPathRef.current = [];
       trailBrushCursorRef.current = null;
@@ -1147,22 +1133,20 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   }
 
   /**
-   * Fell a grassland corridor under a newly-drawn lift and persist it to the
-   * resort package. Stamps the analytical cover grid and appends one polygon to
-   * the vector display geometry — no full re-vectorize (see coverEdit.ts). All
-   * failures are swallowed so a bad edit can never lose the lift.
+   * The single clearing engine shared by lifts and trails. Fells the given
+   * polygons (each an outer ring plus optional tree-island holes) to grassland,
+   * stamping the analytical cover grid and appending them to the vector display
+   * geometry — no full re-vectorize (see coverEdit.ts). Then recomputes the
+   * cover/display metadata + manifest, validates, saves, and live-updates the
+   * map. Best-effort: all failures are swallowed so a bad edit can never lose the
+   * lift or trail that triggered it.
    */
-  async function applyLiftCoverClear(lift: SavedLift): Promise<void> {
+  async function clearCoverUnderPolygons(polygons: Polygon[]): Promise<void> {
     const map = mapRef.current;
     const record = terrainRecordRef.current;
     if (!map || !record || !record.coverGrid || !record.bounds) return;
     try {
-      const ring = liftCorridorRing(lift.points, record.bounds, {
-        halfWidthM: LIFT_CLEAR_HALF_WIDTH_M,
-        jitterM: LIFT_CLEAR_JITTER_M,
-        seed: lift.id,
-      });
-      const { grid, changed } = stampCorridorIntoGrid(record.coverGrid, ring);
+      const { grid, changed } = stampPolygonsIntoGrid(record.coverGrid, polygons);
       if (changed === 0) return;
 
       // coverMetadata must travel with the grid: the desktop package writer
@@ -1170,12 +1154,12 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       // manifest), so a stale checksum here rejects the whole save.
       let upgraded: TerrainRecord = { ...record, coverGrid: grid, coverMetadata: coverMetadataOf(grid), updatedAt: new Date().toISOString() };
 
-      // v5+ packages render vector cover; append the corridor polygon so the
+      // v5+ packages render vector cover; append the cleared polygons so the
       // clearing shows without re-tracing. v4 raster-only packages skip this and
       // rely on the grid stamp + tile-cache refresh below.
       const hasVectorDisplay = !!record.coverDisplayGeometry && !!record.coverDisplayMetadata;
       if (hasVectorDisplay) {
-        const geometry = appendCorridorToDisplayGeometry(record.coverDisplayGeometry!, ring, record.bounds, grasslandCodeFor(grid));
+        const geometry = appendPolygonsToDisplayGeometry(record.coverDisplayGeometry!, polygons, record.bounds, grasslandCodeFor(grid));
         const counts = inspectCoverDisplayGeometry(geometry);
         const prev = record.coverDisplayMetadata!;
         const metadata = coverDisplayMetadataOf(geometry, {
@@ -1190,12 +1174,12 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       upgraded = { ...upgraded, packageManifest: manifestOf(upgraded) };
       const validation = validateTerrainPackage(upgraded);
       if (!validation.ok) {
-        console.warn('Lift cover-clear produced an invalid package; keeping the previous cover.', validation.errors.join(' '));
+        console.warn('Cover-clear produced an invalid package; keeping the previous cover.', validation.errors.join(' '));
         return;
       }
       const saved = await saveTerrain(upgraded);
       if (!saved.ok) {
-        console.warn('Lift cover-clear could not be saved; keeping the previous cover.', saved.error);
+        console.warn('Cover-clear could not be saved; keeping the previous cover.', saved.error);
         return;
       }
 
@@ -1211,8 +1195,37 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       }
       setTerrainRecord(upgraded);
     } catch (error) {
-      console.warn('Lift cover-clear failed; keeping the previous cover.', error);
+      console.warn('Cover-clear failed; keeping the previous cover.', error);
     }
+  }
+
+  /**
+   * Fell a grassland corridor under a newly-drawn lift. Generates the corridor
+   * ring (with its built-in ±2 m edge jitter) and hands it to the shared clearing
+   * engine as a single-ring polygon.
+   */
+  async function applyLiftCoverClear(lift: SavedLift): Promise<void> {
+    const record = terrainRecordRef.current;
+    if (!record || !record.bounds) return;
+    const ring = liftCorridorRing(lift.points, record.bounds, {
+      halfWidthM: LIFT_CLEAR_HALF_WIDTH_M,
+      jitterM: LIFT_CLEAR_JITTER_M,
+      seed: lift.id,
+    });
+    await clearCoverUnderPolygons([[ring]]);
+  }
+
+  /**
+   * Fell grassland under a newly-built trail. Each painted part's footprint is
+   * already a polygon (outer ring + tree-island holes); jitter its edges so the
+   * clearing reads organically like the lift corridor, then hand every part to
+   * the shared clearing engine. Tree islands stay forested because they are true
+   * holes in the polygon.
+   */
+  async function applyTrailCoverClear(trail: SavedTrail): Promise<void> {
+    const polygons: Polygon[] = trail.parts.map((part, i) =>
+      jitterPolygon(part.polygon, LIFT_CLEAR_JITTER_M, `${trail.id}:${i}`));
+    await clearCoverUnderPolygons(polygons);
   }
 
   /** Patch a non-geometric field (name/chairs/capacity/status) of a built lift. */
@@ -1397,6 +1410,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     trailWorkerRef.current = null;
     setTrails((prev) => [...prev, trail]);
     setTrailTool({ phase: 'idle' });
+    // Clearing the cover under the new trail is a background, best-effort edit to
+    // the resort package — it must never block or fail the trail itself.
+    void applyTrailCoverClear(trail);
   }
 
   /** Patch a non-geometric field (name/status) of a built run. */
@@ -1412,7 +1428,14 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
   /** Close/open a bottom dock, yielding any active draw tool of the others. */
   function toggleDock(which: 'layers' | 'lifts' | 'trails') {
+    // Layer visibility is presentation-only. While a trail session is active,
+    // show it beside the trail controls without cancelling the worker or draft.
+    if (which === 'layers' && trailToolRef.current.phase !== 'idle') {
+      setLayersAlongsideTrail((open) => !open);
+      return;
+    }
     const isOpen = which === 'layers' ? layersOpen : which === 'lifts' ? liftsOpen : trailsOpen;
+    if (which !== 'layers') setLayersAlongsideTrail(false);
     if (which !== 'lifts') {
       cancelLiftTool();
       setSelectedLiftId(null);
@@ -1630,7 +1653,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const trailActive = trailTool.phase !== 'idle' || selectedTrailId !== null;
   const liftsOpen = !!saved && (openDock === 'lifts' || liftActive);
   const trailsOpen = !!saved && !liftsOpen && (openDock === 'trails' || trailActive);
-  const layersOpen = openDock === 'layers' && !liftsOpen && !trailsOpen;
+  const layersOpen = !!saved && !liftsOpen && (openDock === 'layers' || layersAlongsideTrail);
   const selectedLift = selectedLiftId ? lifts.find((l) => l.id === selectedLiftId) ?? null : null;
   const selectedTrail = selectedTrailId ? trails.find((t) => t.id === selectedTrailId) ?? null : null;
   const showPackageGate = packageState !== 'ready' &&
@@ -1829,7 +1852,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       {saved && (
         <div className="game-dock">
           <div className="dock-stack">
-            {layersOpen && (
+            <div className="dock-rollups">
+              {layersOpen && (
               <div className="dock-rollup dock-layers">
                 <div className="dock-panel">
                   <div className="dock-head">
@@ -1837,7 +1861,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                     <button
                       className="settings-close-x"
                       aria-label="Close"
-                      onClick={() => setOpenDock(null)}
+                      onClick={() => {
+                        setLayersAlongsideTrail(false);
+                        setOpenDock((current) => current === 'layers' ? null : current);
+                      }}
                     >
                       ✕
                     </button>
@@ -1850,7 +1877,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                 </div>
               </div>
             )}
-            {liftsOpen && (
+              {liftsOpen && (
               <div className="dock-rollup dock-lifts">
                 <div className="dock-panel">
                   {liftTool.phase === 'idle' && selectedLift && !liftEditing ? (
@@ -1895,7 +1922,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                 </div>
               </div>
             )}
-            {trailsOpen && (
+              {trailsOpen && (
               <div className="dock-rollup dock-trails">
                 <div className="dock-panel">
                   {trailTool.phase === 'idle' && selectedTrail && !trailEditing ? (
@@ -1943,6 +1970,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                 </div>
               </div>
             )}
+
+            </div>
 
             <div className="dock-circles">
               <button
