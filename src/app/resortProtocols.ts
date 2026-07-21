@@ -47,6 +47,15 @@ export function activeResortTerrain(): TerrainRecord | null {
   return active;
 }
 
+/** Drop cached ground-cover tiles after an in-place edit to the same package
+ *  (e.g. a lift clearing a corridor), so the raster fallback re-renders from the
+ *  mutated grid. Leaves dem/slope/aspect tiles intact. */
+export function clearResortCoverCache(): void {
+  for (const key of [...tileCache.keys()]) {
+    if (key.startsWith('cover:')) tileCache.delete(key);
+  }
+}
+
 function parse(url: string): { key: string; z: number; x: number; y: number } {
   const m = url.match(/^[-a-z]+:\/\/([^/]+)\/(\d+)\/(\d+)\/(\d+)/);
   if (!m) throw new Error(`Invalid local resort tile URL: ${url}`);

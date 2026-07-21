@@ -374,6 +374,15 @@ export type TrailDifficulty = 'green' | 'blue' | 'black' | 'red';
 // Build state of a run, mirroring LiftStatus: 'planning' (dashed) vs 'complete'.
 export type TrailStatus = 'planning' | 'complete';
 
+export interface SavedTrailPart {
+  /** Outer ring followed by optional holes. */
+  polygon: [number, number][][];
+  /** Medial route derived from the painted footprint. */
+  centerline: [number, number][];
+  /** Terrain elevations in meters, parallel to `centerline`. */
+  centerlineElevM: number[];
+}
+
 // A ski run painted with the brush tool. The run is a filled polygon (its
 // skiable footprint) with a centerline "spine" the profile + downhill
 // simulation walk. Geometry is stored raw as [lng, lat]; cached stats
@@ -382,21 +391,15 @@ export type TrailStatus = 'planning' | 'complete';
 export interface SavedTrail {
   id: string;
   name: string; // default "Run N"
-  /** Painted footprint. Ring 0 is the outer boundary; any others are holes.
-   *  Each ring is a closed loop of [lng, lat] pairs. */
-  polygon: [number, number][][];
-  /** Centerline the brush was dragged along, [lng, lat], ordered top → bottom.
-   *  Also the stations the elevation profile is sampled at. */
-  spine: [number, number][];
+  /** Every connected painted footprint component. */
+  parts: SavedTrailPart[];
   brushWidthM: number; // brush diameter used to paint it
-  /** Terrain elevations sampled at each `spine` station, meters, parallel to
-   *  `spine`. Empty when sampling failed offline (backfilled on next load). */
-  spineElevM: number[];
-  lengthM: number; // spine slope length (sum of 3D segment lengths)
-  verticalM: number | null; // top − bottom along the spine; null if unresolved
-  avgSlopeDeg: number; // run-length-weighted mean pitch along the spine
-  maxSlopeDeg: number; // steepest segment pitch along the spine
-  difficulty: TrailDifficulty; // user-chosen; defaults to the slope recommendation
+  areaM2: number;
+  lengthM: number; // sum of all 3D centerline segments
+  verticalM: number | null; // highest − lowest centerline elevation
+  avgSlopeDeg: number;
+  maxSlopeDeg: number;
+  difficulty: TrailDifficulty; // automatically derived from the terrain
   status: TrailStatus; // 'planning' (dashed) or 'complete' (solid)
   createdAt: string; // ISO
 }
@@ -407,7 +410,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain

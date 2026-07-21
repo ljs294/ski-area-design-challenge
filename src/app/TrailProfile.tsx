@@ -1,6 +1,6 @@
 import { haversineMeters } from '../geo';
 import { DIFFICULTY_COLORS } from '../trails';
-import type { TrailDifficulty } from '../types';
+import type { SavedTrailPart, TrailDifficulty } from '../types';
 import type { Units } from './SettingsContext';
 
 const M_TO_FT = 3.28084;
@@ -20,38 +20,46 @@ function fmtElev(m: number, units: Units): string {
  * to a placeholder until the spine elevations resolve.
  */
 export function TrailProfile({
-  spine,
-  spineElevM,
+  parts,
   units,
   difficulty,
 }: {
-  spine: [number, number][];
-  spineElevM: number[];
+  parts: SavedTrailPart[];
   units: Units;
   difficulty: TrailDifficulty;
 }) {
-  const ready = spineElevM.length === spine.length && spineElevM.length >= 2;
+  const readyParts = parts.filter((p) => p.centerline.length >= 2 && p.centerlineElevM.length === p.centerline.length);
+  const ready = readyParts.length === parts.length && readyParts.length > 0;
   if (!ready) {
     return <div className="trail-profile trail-profile-empty">Sampling elevation profile…</div>;
   }
 
-  // Cumulative horizontal distance to each station.
-  const dist: number[] = [0];
-  for (let i = 1; i < spine.length; i++) {
-    dist.push(dist[i - 1] + haversineMeters(spine[i - 1], spine[i]));
-  }
-  const total = dist[dist.length - 1] || 1;
-  const maxE = Math.max(...spineElevM);
-  const minE = Math.min(...spineElevM);
+  const elevations = readyParts.flatMap((p) => p.centerlineElevM);
+  const lengths = readyParts.map((part) => {
+    let length = 0;
+    for (let i = 1; i < part.centerline.length; i++) length += haversineMeters(part.centerline[i - 1], part.centerline[i]);
+    return length;
+  });
+  const gap = readyParts.length > 1 ? VB_W * 0.025 : 0;
+  const usable = VB_W - gap * (readyParts.length - 1);
+  const total = lengths.reduce((a, b) => a + b, 0) || 1;
+  const maxE = Math.max(...elevations);
+  const minE = Math.min(...elevations);
   const span = maxE - minE || 1;
 
-  const px = (i: number) => (dist[i] / total) * VB_W;
   // 4 px top/bottom padding so the curve never clips the stroke.
   const py = (e: number) => 4 + (1 - (e - minE) / span) * (VB_H - 8);
-
-  const top = spineElevM.map((e, i) => `${px(i).toFixed(1)},${py(e).toFixed(1)}`).join(' ');
-  const area = `0,${VB_H} ${top} ${VB_W},${VB_H}`;
   const color = DIFFICULTY_COLORS[difficulty];
+  let offset = 0;
+  const profiles = readyParts.map((part, partIndex) => {
+    const dist = [0];
+    for (let i = 1; i < part.centerline.length; i++) dist.push(dist[i - 1] + haversineMeters(part.centerline[i - 1], part.centerline[i]));
+    const width = usable * lengths[partIndex] / total;
+    const top = part.centerlineElevM.map((e, i) => `${(offset + width * dist[i] / (lengths[partIndex] || 1)).toFixed(1)},${py(e).toFixed(1)}`).join(' ');
+    const area = `${offset},${VB_H} ${top} ${offset + width},${VB_H}`;
+    offset += width + gap;
+    return { top, area };
+  });
 
   return (
     <div className="trail-profile">
@@ -62,8 +70,8 @@ export function TrailProfile({
         role="img"
         aria-label="Run elevation profile"
       >
-        <polygon points={area} fill={color} fillOpacity={0.18} />
-        <polyline points={top} fill="none" stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+        {profiles.map((profile, i) => <g key={i}><polygon points={profile.area} fill={color} fillOpacity={0.18} />
+          <polyline points={profile.top} fill="none" stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" /></g>)}
       </svg>
       <div className="trail-profile-axis">
         <span>{fmtElev(maxE, units)}</span>

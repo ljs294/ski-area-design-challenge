@@ -44,14 +44,13 @@ export function TrailDetail({
       </div>
 
       <TrailProfile
-        spine={trail.spine}
-        spineElevM={trail.spineElevM}
+        parts={trail.parts}
         units={units}
         difficulty={trail.difficulty}
       />
       <TrailStatsBlock
-        spine={trail.spine}
-        spineElevM={trail.spineElevM}
+        parts={trail.parts}
+        areaM2={trail.areaM2}
         difficulty={trail.difficulty}
         units={units}
       />

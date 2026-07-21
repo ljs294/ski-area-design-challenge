@@ -1,7 +1,7 @@
 import type { SavedTrail } from '../types';
 import type { Units } from './SettingsContext';
 import { fmtDistance } from '../lifts';
-import { DIFFICULTY_LABELS, fmtVertical } from '../trails';
+import { DIFFICULTY_LABELS, fmtArea, fmtVertical } from '../trails';
 
 /**
  * Dedicated overview of every ski run, shown in the Trails roll-up when the
@@ -58,6 +58,7 @@ export function TrailOverview({
                   {DIFFICULTY_LABELS[t.difficulty]}
                   {t.verticalM != null ? ` · ${fmtVertical(t.verticalM, units)} vert` : ''}
                   {` · ${fmtDistance(t.lengthM, units)}`}
+                  {` · ${fmtArea(t.areaM2, units)}`}
                   {t.status === 'planning' ? ' · Planning' : ''}
                 </span>
               </span>

@@ -1,5 +1,5 @@
 import { haversineMeters } from './geo';
-import type { SavedTrail, TrailDifficulty, TrailStatus } from './types';
+import type { SavedTrail, SavedTrailPart, TrailDifficulty, TrailStatus } from './types';
 
 // Pure ski-run helpers: difficulty grading, spine geometry stats, and the
 // hydration shield for GameSave.trails. No DOM / fetch here — the brush→polygon
@@ -51,20 +51,11 @@ function bandFor(slopeDeg: number): TrailDifficulty {
   return 'red';
 }
 
-function rank(d: TrailDifficulty): number {
-  return TRAIL_DIFFICULTIES.indexOf(d);
-}
-
 /**
- * Recommend a run designation from its average and max slope: the harder of the
- * band the average falls in and the band the max falls in. A mostly-gentle run
- * with one steep pitch is graded up by that pitch (as real trail rating works),
- * while a uniformly steep run is graded by its sustained angle. The UI shows
- * both numbers so the recommendation is transparent, and it's user-overridable.
+ * Sustained pitch counts three times as much as the steepest single segment.
  */
 export function difficultyForSlopes(avgSlopeDeg: number, maxSlopeDeg: number): TrailDifficulty {
-  const idx = Math.max(rank(bandFor(avgSlopeDeg)), rank(bandFor(maxSlopeDeg)));
-  return TRAIL_DIFFICULTIES[idx];
+  return bandFor((3 * avgSlopeDeg + maxSlopeDeg) / 4);
 }
 
 export interface TrailStats {
@@ -115,6 +106,57 @@ export function trailStats(spine: [number, number][], elevM: number[]): TrailSta
   return { lengthM, verticalM, avgSlopeDeg, maxSlopeDeg };
 }
 
+export function trailPartsStats(parts: SavedTrailPart[]): TrailStats {
+  let lengthM = 0;
+  let weightedSlope = 0;
+  let horizTotal = 0;
+  let maxSlopeDeg = 0;
+  let allResolved = parts.length > 0;
+  const elevations: number[] = [];
+  for (const part of parts) {
+    const resolved = part.centerlineElevM.length === part.centerline.length &&
+      part.centerlineElevM.every(Number.isFinite);
+    if (!resolved) allResolved = false;
+    if (resolved) elevations.push(...part.centerlineElevM);
+    for (let i = 1; i < part.centerline.length; i++) {
+      const horiz = haversineMeters(part.centerline[i - 1], part.centerline[i]);
+      const dz = resolved ? part.centerlineElevM[i] - part.centerlineElevM[i - 1] : 0;
+      const slope = resolved && horiz > 0 ? Math.atan(Math.abs(dz) / horiz) * 180 / Math.PI : 0;
+      lengthM += resolved ? Math.hypot(horiz, dz) : horiz;
+      weightedSlope += slope * horiz;
+      horizTotal += horiz;
+      maxSlopeDeg = Math.max(maxSlopeDeg, slope);
+    }
+  }
+  return {
+    lengthM,
+    verticalM: allResolved && elevations.length > 0
+      ? Math.max(...elevations) - Math.min(...elevations) : null,
+    avgSlopeDeg: allResolved && horizTotal > 0 ? weightedSlope / horizTotal : 0,
+    maxSlopeDeg,
+  };
+}
+
+export function trailAreaM2(parts: Pick<SavedTrailPart, 'polygon'>[]): number {
+  let total = 0;
+  for (const { polygon } of parts) {
+    if (polygon.length === 0) continue;
+    const latRef = polygon[0].reduce((sum, p) => sum + p[1], 0) / polygon[0].length;
+    const metersLng = 111_320 * Math.cos(latRef * Math.PI / 180);
+    const ringArea = (ring: [number, number][]) => {
+      let sum = 0;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        sum += ring[j][0] * metersLng * ring[i][1] * 111_320 -
+          ring[i][0] * metersLng * ring[j][1] * 111_320;
+      }
+      return Math.abs(sum) / 2;
+    };
+    total += ringArea(polygon[0]);
+    for (let i = 1; i < polygon.length; i++) total -= ringArea(polygon[i]);
+  }
+  return Math.max(0, total);
+}
+
 /** Reorder the spine (and its elevations) so station 0 is the highest point —
  *  runs descend, so top-first is the natural direction. No-op when unresolved. */
 export function orientTopToBottom(
@@ -157,36 +199,40 @@ export function sanitizeTrails(raw: unknown[]): SavedTrail[] {
     if (typeof item !== 'object' || item === null) continue;
     const t = item as Record<string, unknown>;
     if (typeof t.id !== 'string' || typeof t.name !== 'string') continue;
-    if (!Array.isArray(t.polygon) || t.polygon.length === 0 || !t.polygon.every(isRing)) continue;
-    if (!Array.isArray(t.spine) || t.spine.length < 2 || !t.spine.every(isLngLat)) continue;
-
-    const polygon = t.polygon as [number, number][][];
-    const spine = t.spine as [number, number][];
-    const spineElevM =
-      Array.isArray(t.spineElevM) && t.spineElevM.length === spine.length &&
-      t.spineElevM.every((e) => typeof e === 'number' && Number.isFinite(e))
-        ? (t.spineElevM as number[])
-        : [];
+    const rawParts = Array.isArray(t.parts)
+      ? t.parts
+      : [{ polygon: t.polygon, centerline: t.spine, centerlineElevM: t.spineElevM }];
+    const parts: SavedTrailPart[] = [];
+    for (const rawPart of rawParts) {
+      if (typeof rawPart !== 'object' || rawPart === null) continue;
+      const p = rawPart as Record<string, unknown>;
+      if (!Array.isArray(p.polygon) || p.polygon.length === 0 || !p.polygon.every(isRing)) continue;
+      if (!Array.isArray(p.centerline) || p.centerline.length < 2 || !p.centerline.every(isLngLat)) continue;
+      const centerline = p.centerline as [number, number][];
+      const centerlineElevM = Array.isArray(p.centerlineElevM) &&
+        p.centerlineElevM.length === centerline.length &&
+        p.centerlineElevM.every((e) => typeof e === 'number' && Number.isFinite(e))
+          ? p.centerlineElevM as number[] : [];
+      parts.push({ polygon: p.polygon as [number, number][][], centerline, centerlineElevM });
+    }
+    if (parts.length === 0) continue;
 
     const brushWidthM =
       typeof t.brushWidthM === 'number' && Number.isFinite(t.brushWidthM) && t.brushWidthM > 0
         ? t.brushWidthM
         : DEFAULT_BRUSH_WIDTH_M;
 
-    const stats = trailStats(spine, spineElevM);
-    const difficulty: TrailDifficulty = TRAIL_DIFFICULTIES.includes(t.difficulty as TrailDifficulty)
-      ? (t.difficulty as TrailDifficulty)
-      : difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg);
+    const stats = trailPartsStats(parts);
+    const difficulty = difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg);
     const status: TrailStatus =
       t.status === 'planning' || t.status === 'complete' ? t.status : 'complete';
 
     out.push({
       id: t.id,
       name: t.name,
-      polygon,
-      spine,
+      parts,
       brushWidthM,
-      spineElevM,
+      areaM2: trailAreaM2(parts),
       lengthM: stats.lengthM,
       verticalM: stats.verticalM,
       avgSlopeDeg: stats.avgSlopeDeg,
@@ -223,4 +269,10 @@ export function fmtVertical(m: number | null, units: 'imperial' | 'metric'): str
   return units === 'imperial'
     ? `${Math.round(m * M_TO_FT).toLocaleString()} ft`
     : `${Math.round(m).toLocaleString()} m`;
+}
+
+export function fmtArea(m2: number, units: 'imperial' | 'metric'): string {
+  return units === 'imperial'
+    ? `${(m2 / 4046.8564224).toFixed(m2 < 40_468 ? 1 : 0)} ac`
+    : `${(m2 / 10_000).toFixed(m2 < 100_000 ? 1 : 0)} ha`;
 }

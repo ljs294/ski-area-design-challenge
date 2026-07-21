@@ -100,3 +100,10 @@ export function removeCoverLayers(map: maplibregl.Map): void {
   for (const id of COVER_LAYER_IDS) if (map.getLayer(id)) map.removeLayer(id);
   if (map.getSource(COVER_SOURCE)) map.removeSource(COVER_SOURCE);
 }
+
+/** Push new display polygons to the live cover source (e.g. after a lift clears
+ *  a corridor). No-op if the layers have not been added yet. */
+export function setCoverData(map: maplibregl.Map, geojson: CoverDisplayGeoJSON): void {
+  const src = map.getSource(COVER_SOURCE) as maplibregl.GeoJSONSource | undefined;
+  if (src) src.setData(geojson);
+}

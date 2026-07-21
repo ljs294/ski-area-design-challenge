@@ -23,9 +23,8 @@ export function resortElevations(lifts: SavedLift[], trails: SavedTrail[] = []):
     }
   }
   for (const t of trails) {
-    for (const e of t.spineElevM) {
+    for (const part of t.parts) for (const e of part.centerlineElevM)
       if (typeof e === 'number' && Number.isFinite(e)) elevs.push(e);
-    }
   }
   if (elevs.length === 0) return { summitM: null, baseM: null, verticalM: null };
   const summitM = Math.max(...elevs);

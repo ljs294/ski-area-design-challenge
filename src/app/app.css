@@ -1798,6 +1798,20 @@ body {
   accent-color: var(--accent);
   cursor: pointer;
 }
+.trail-brush-slider:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.trail-paint-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.trail-paint-modes .site-btn.is-active {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
 
 /* Difficulty (grade) picker: 4 segmented buttons, the recommendation badged. */
 .trail-difficulty-field {
