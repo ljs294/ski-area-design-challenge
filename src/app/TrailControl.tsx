@@ -61,12 +61,14 @@ export function TrailStatsBlock({ parts, areaM2, difficulty, units }: {
 
 export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onBrushWidthChange,
   onCancel, onModeChange, onUndo, onClear, onFinish, onDraftChange, onConfirm, onEditPatch,
-  onCloseEdit, onDelete, onRetryElevation }: {
+  onCloseEdit, onDelete, onRetryElevation, building = false }: {
   tool: TrailTool; trails: SavedTrail[]; selectedId: string | null; units: Units; brushWidthM: number;
   onBrushWidthChange: (m: number) => void; onCancel: () => void; onModeChange: (m: PaintMode) => void;
   onUndo: () => void; onClear: () => void; onFinish: () => void; onDraftChange: (p: Partial<DraftTrail>) => void;
   onConfirm: () => void; onEditPatch: (id: string, patch: Partial<SavedTrail>) => void;
   onCloseEdit: () => void; onDelete: (id: string) => void; onRetryElevation: () => void;
+  /** True while the confirmed run is felling its cover — spins the build button. */
+  building?: boolean;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   if (tool.phase === 'paint') return <div className="site-control site-control-wide trail-panel">
@@ -98,8 +100,9 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
       {d.elevStatus === 'error' && <div className="lift-warning">Elevation unavailable <button className="lift-link-btn" onClick={onRetryElevation}>Retry</button></div>}
       <StatusToggle value={d.status} onChange={(status) => onDraftChange({ status })} />
       <TrailStatsBlock parts={d.parts} areaM2={d.areaM2} difficulty={d.difficulty} units={units} />
-      <div className="site-actions"><button className="site-btn site-btn-primary" disabled={d.elevStatus !== 'ok'} onClick={onConfirm}>
-        {d.status === 'complete' ? 'Build run' : 'Add to plan'}</button><button className="site-btn" onClick={onCancel}>Cancel</button></div>
+      <div className="site-actions"><button className="site-btn site-btn-primary" disabled={d.elevStatus !== 'ok' || building} onClick={onConfirm}>
+        {building ? <><span className="site-btn-spinner" aria-hidden="true" /> Building…</> : d.status === 'complete' ? 'Build run' : 'Add to plan'}</button>
+        <button className="site-btn" onClick={onCancel} disabled={building}>Cancel</button></div>
     </div>;
   }
 

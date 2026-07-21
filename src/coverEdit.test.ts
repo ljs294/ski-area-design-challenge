@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appendPolygonsToDisplayGeometry,
   grasslandCodeFor,
   jitterPolygon,
   jitterRing,
@@ -9,8 +8,6 @@ import {
   LIFT_CLEAR_HALF_WIDTH_M,
   LIFT_CLEAR_JITTER_M,
 } from './coverEdit';
-import { coverDisplayToGeoJSON, inspectCoverDisplayGeometry } from './coverDisplay';
-import { checksumBytes, coverDisplayMetadataOf, float32Bytes } from './terrainPackage';
 import { boundsForSquareMeters, unitToLngLat } from './geo';
 import { TERRAIN_COVER_CODES } from './fourClassCover';
 import type { CoverGrid } from './types';
@@ -187,43 +184,6 @@ describe('stampPolygonsIntoGrid', () => {
     const bandRow = Math.floor(0.5 * N);
     const bandCol = Math.floor((0.5 + 40 / 240) * N);
     expect(data[bandRow * N + bandCol]).toBe(TERRAIN_COVER_CODES.grassland);
-  });
-});
-
-describe('appendPolygonsToDisplayGeometry', () => {
-  it('adds one decodable grassland polygon inside the bounds', () => {
-    const geometry = appendPolygonsToDisplayGeometry([], [[ringFor()]], BOUNDS, TERRAIN_COVER_CODES.grassland);
-    const fc = coverDisplayToGeoJSON(geometry, BOUNDS);
-    expect(fc.features).toHaveLength(1);
-    expect(fc.features[0].properties.code).toBe(TERRAIN_COVER_CODES.grassland);
-    for (const [lng, lat] of fc.features[0].geometry.coordinates[0]) {
-      expect(lng).toBeGreaterThanOrEqual(BOUNDS.west - 1e-6);
-      expect(lng).toBeLessThanOrEqual(BOUNDS.east + 1e-6);
-      expect(lat).toBeGreaterThanOrEqual(BOUNDS.south - 1e-6);
-      expect(lat).toBeLessThanOrEqual(BOUNDS.north + 1e-6);
-    }
-  });
-
-  it('encodes a polygon with a hole as one feature with two rings', () => {
-    const geometry = appendPolygonsToDisplayGeometry([], [[outerRing(), holeRing()]], BOUNDS, TERRAIN_COVER_CODES.grassland);
-    const fc = coverDisplayToGeoJSON(geometry, BOUNDS);
-    expect(fc.features).toHaveLength(1);
-    // GeoJSON polygon coordinates = [outer, hole].
-    expect(fc.features[0].geometry.coordinates).toHaveLength(2);
-    const counts = inspectCoverDisplayGeometry(geometry);
-    expect(counts.polygonCount).toBe(1);
-    expect(counts.ringCount).toBe(2);
-  });
-
-  it('keeps display metadata consistent with the geometry (the validate checks)', () => {
-    const geometry = appendPolygonsToDisplayGeometry([], [[outerRing(), holeRing()]], BOUNDS, TERRAIN_COVER_CODES.grassland);
-    const counts = inspectCoverDisplayGeometry(geometry);
-    const metadata = coverDisplayMetadataOf(geometry, { ...counts, smoothingM: 6, simplifyM: 2, minFeatureM2: 16 });
-    // These are exactly the equalities validateTerrainPackage re-checks.
-    expect(metadata.polygonCount).toBe(counts.polygonCount);
-    expect(metadata.ringCount).toBe(counts.ringCount);
-    expect(metadata.vertexCount).toBe(counts.vertexCount);
-    expect(metadata.checksum).toBe(checksumBytes(float32Bytes(geometry)));
   });
 });
 

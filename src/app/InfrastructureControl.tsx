@@ -1,0 +1,96 @@
+import type { RoadType, SavedRoad } from '../types';
+import { fmtDistance } from '../lifts';
+import { ROAD_CLEAR_BUFFER_M, ROAD_TYPE_LABELS, roadLengthM,
+  TWO_LANE_CLEAR_HALF_WIDTH_M, TWO_LANE_ROAD_WIDTH_M } from '../roads';
+import type { Units } from './SettingsContext';
+
+export interface DraftRoad {
+  name: string;
+  roadType: RoadType;
+  points: [number, number][];
+}
+
+export type RoadTool =
+  | { phase: 'idle' }
+  | { phase: 'armed'; roadType: RoadType }
+  | { phase: 'drawing'; roadType: RoadType; points: [number, number][]; cursor: [number, number] | null }
+  | { phase: 'review'; draft: DraftRoad };
+
+function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
+  return <div className="dock-head"><span className="dock-head-title">{title}</span>
+    <button className="settings-close-x" aria-label="Close" onClick={onClose}>✕</button></div>;
+}
+
+function RoadTypeField({ value, onChange }: { value: RoadType; onChange: (type: RoadType) => void }) {
+  return <label className="lift-field"><span className="lift-field-label">Road width</span>
+    <select className="lift-select" value={value}
+      onChange={(event) => onChange(event.target.value as RoadType)}>
+      <option value="two-lane">{ROAD_TYPE_LABELS['two-lane']}</option>
+    </select>
+  </label>;
+}
+
+function RoadStats({ points, units }: { points: [number, number][]; units: Units }) {
+  return <div className="lift-stats">
+    <div className="readout-line"><span className="lift-stat-label">Length</span>
+      <span className="lift-stat-value">{fmtDistance(roadLengthM(points), units)}</span></div>
+    <div className="readout-line"><span className="lift-stat-label">Paved width</span>
+      <span className="lift-stat-value">{fmtDistance(TWO_LANE_ROAD_WIDTH_M, units)}</span></div>
+    <div className="readout-line"><span className="lift-stat-label">Clearing</span>
+      <span className="lift-stat-value">{fmtDistance(TWO_LANE_CLEAR_HALF_WIDTH_M * 2, units)}</span></div>
+    <div className="site-hint">Includes {fmtDistance(ROAD_CLEAR_BUFFER_M, units)} beyond each pavement edge.</div>
+  </div>;
+}
+
+export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onUndo,
+  onFinish, onDraftChange, onConfirm, onClose }: {
+  tool: RoadTool;
+  roads: SavedRoad[];
+  units: Units;
+  onArm: (roadType: RoadType) => void;
+  onCancel: () => void;
+  onUndo: () => void;
+  onFinish: () => void;
+  onDraftChange: (patch: Partial<DraftRoad>) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  if (tool.phase === 'idle') return <div className="lift-overview infrastructure-panel">
+    <PanelHead title={`Infrastructure · Roads (${roads.length})`} onClose={onClose} />
+    <RoadTypeField value="two-lane" onChange={() => undefined} />
+    <button className="lift-add-btn site-btn site-btn-primary" onClick={() => onArm('two-lane')}>＋ Build road</button>
+    {roads.length === 0 ? <div className="lift-overview-empty">No roads yet — build your first one.</div> :
+      <div className="lift-list">{roads.map((road) => <div key={road.id} className="lift-row">
+        <span className="infrastructure-road-swatch" aria-hidden="true" />
+        <span className="lift-row-main"><span className="lift-row-name">{road.name}</span>
+          <span className="lift-row-summary">Two-lane · {fmtDistance(road.lengthM, units)}</span></span>
+      </div>)}</div>}
+  </div>;
+
+  if (tool.phase === 'armed' || tool.phase === 'drawing') {
+    const points = tool.phase === 'drawing' ? tool.points : [];
+    const previewPoints = tool.phase === 'drawing' && tool.cursor ? [...points, tool.cursor] : points;
+    return <div className="site-control site-control-wide infrastructure-panel">
+      <PanelHead title="New road" onClose={onCancel} />
+      <RoadTypeField value={tool.roadType} onChange={() => undefined} />
+      <div className="site-hint">Click along the road centerline. Pan or zoom between points.</div>
+      {previewPoints.length >= 2 && <RoadStats points={previewPoints} units={units} />}
+      <div className="site-actions">
+        <button className="site-btn" onClick={onUndo} disabled={points.length === 0}>Undo point</button>
+        <button className="site-btn site-btn-primary" onClick={onFinish} disabled={points.length < 2}>Finish route</button>
+      </div>
+      <button className="site-btn" onClick={onCancel}>Cancel</button>
+    </div>;
+  }
+
+  return <div className="site-control site-control-wide infrastructure-panel">
+    <PanelHead title="Review road" onClose={onCancel} />
+    <input className="name-entry-input lift-name-input" value={tool.draft.name}
+      onChange={(event) => onDraftChange({ name: event.target.value })} />
+    <RoadTypeField value={tool.draft.roadType}
+      onChange={(roadType) => onDraftChange({ roadType })} />
+    <RoadStats points={tool.draft.points} units={units} />
+    <div className="site-actions"><button className="site-btn" onClick={onCancel}>Cancel</button>
+      <button className="site-btn site-btn-primary" onClick={onConfirm}>Build road</button></div>
+  </div>;
+}

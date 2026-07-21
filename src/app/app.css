@@ -303,6 +303,25 @@ body {
   cursor: default;
 }
 
+/* Spinner shown inside the build button while a lift/trail fells its cover in the
+   background. Uses transform (compositor-driven), so it keeps spinning even while
+   the main thread is busy re-vectorizing the ground cover. */
+.site-btn-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  vertical-align: -1px;
+  margin-right: 3px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* --- 2D/3D view toggle --- */
 .view3d-control {
   background: var(--surface);
@@ -710,11 +729,44 @@ body {
   color: var(--accent-contrast);
 }
 
+.infrastructure-road-swatch {
+  width: 24px;
+  height: 4px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #55534e;
+  opacity: 0.72;
+}
+
 .dock-rollup {
   width: 280px;
   max-width: calc(100vw - 32px);
   transform-origin: bottom left;
   animation: dock-rollup-in 0.18s ease-out;
+}
+
+/* The Layers rollup anchors its contextual legend as a floating card above the
+   panel, so switching Slope/Aspect/Ground cover never resizes the menu. */
+.dock-layers {
+  position: relative;
+}
+.dock-legend-popover {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 10px;
+}
+/* Inside the card the legend's own top divider is redundant. */
+.dock-legend-popover .legend {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 @keyframes dock-rollup-in {
   from {

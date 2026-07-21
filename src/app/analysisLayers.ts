@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import type { TerrainRecord } from '../types';
+import type { SavedRoad, TerrainRecord } from '../types';
 import { registerWorldcoverProtocol, WORLDCOVER_PROTOCOL } from './worldcoverProtocol';
 import { registerTerrainProtocols, SLOPE_PROTOCOL, ASPECT_PROTOCOL } from './terrainProtocols';
 import {
@@ -16,6 +16,7 @@ import { MASTER_PLAN_LAYER_IDS } from './masterPlanStyle';
 import { unitToLngLat } from '../geo';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import { addCoverLayers, COVER_LAYER_IDS } from './coverVectorize';
+import { LOCAL_ROAD_PAINT, playerRoadFeatures } from './roadLayers';
 
 const TERRARIUM_TILES = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
 
@@ -25,7 +26,7 @@ export interface LayerToggle {
   layerIds: string[];
   visible: boolean;
   exclusiveGroup?: string;
-  section?: 'Imagery' | 'Master plan' | 'Analysis';
+  section?: 'Imagery' | 'Master plan' | 'Analysis' | 'Structures';
 }
 
 function basemapCategories(layers: maplibregl.LayerSpecification[]) {
@@ -95,20 +96,28 @@ function localCoverBoundaryGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollec
   };
 }
 
-function localContextGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollection {
+export function localContextGeoJSON(record: TerrainRecord, playerRoads: SavedRoad[] = []): GeoJSON.FeatureCollection {
   const vectors = record.vectorFeatures;
-  if (!vectors) return { type: 'FeatureCollection', features: [] };
   const features: GeoJSON.Feature[] = [];
-  for (const water of vectors.waterPolygons) {
-    features.push({ type: 'Feature', properties: { kind: 'water' }, geometry: { type: 'Polygon', coordinates: water.rings } });
+  if (vectors) {
+    for (const water of vectors.waterPolygons) {
+      features.push({ type: 'Feature', properties: { kind: 'water' }, geometry: { type: 'Polygon', coordinates: water.rings } });
+    }
+    for (const water of vectors.waterLines) {
+      features.push({ type: 'Feature', properties: { kind: 'water-line', class: water.waterClass }, geometry: { type: 'LineString', coordinates: water.points } });
+    }
+    for (const road of vectors.roads) {
+      features.push({ type: 'Feature', properties: { kind: 'road', class: road.roadClass }, geometry: { type: 'LineString', coordinates: road.points } });
+    }
   }
-  for (const water of vectors.waterLines) {
-    features.push({ type: 'Feature', properties: { kind: 'water-line', class: water.waterClass }, geometry: { type: 'LineString', coordinates: water.points } });
-  }
-  for (const road of vectors.roads) {
-    features.push({ type: 'Feature', properties: { kind: 'road', class: road.roadClass }, geometry: { type: 'LineString', coordinates: road.points } });
-  }
+  features.push(...playerRoadFeatures(playerRoads));
   return { type: 'FeatureCollection', features };
+}
+
+export function setLocalContextData(map: maplibregl.Map, record: TerrainRecord,
+  playerRoads: SavedRoad[] = []): void {
+  (map.getSource('local-context') as maplibregl.GeoJSONSource | undefined)
+    ?.setData(localContextGeoJSON(record, playerRoads));
 }
 
 export function setupAnalysisLayers(
@@ -116,7 +125,8 @@ export function setupAnalysisLayers(
   terrain?: TerrainRecord | null,
   units: 'imperial' | 'metric' = 'imperial',
   coverDisplay?: CoverDisplayGeoJSON | null,
-  localImageryUrl?: string | null
+  localImageryUrl?: string | null,
+  playerRoads: SavedRoad[] = []
 ): LayerToggle[] {
   const local = terrain?.coverGrid && terrain.bounds ? terrain : null;
   const styleLayers = map.getStyle().layers ?? [];
@@ -185,7 +195,7 @@ export function setupAnalysisLayers(
     demBounds = resortDemBounds(local);
     demUrl = `${RESORT_DEM_PROTOCOL}://${key}/{z}/{x}/{y}`;
     if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${key}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
-    map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local), attribution: 'Local OSM context © OpenStreetMap contributors' });
+    map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, playerRoads), attribution: 'Local OSM context © OpenStreetMap contributors' });
     coverVisible = true;
     coverLabel = local.coverGrid?.source === 'usgs-four-class-v1' ? 'Detailed terrain cover (local)' : 'ESA WorldCover 2021 · 10 m (local)';
   } else {
@@ -269,11 +279,7 @@ export function setupAnalysisLayers(
     map.addLayer({
       id: 'local-roads', type: 'line', source: 'local-context',
       filter: ['==', ['get', 'kind'], 'road'],
-      paint: {
-        'line-color': '#55534e',
-        'line-width': ['match', ['get', 'class'], 'major', 1.7, 'minor', 1, 0.55],
-        'line-opacity': 0.72,
-      },
+      paint: LOCAL_ROAD_PAINT,
     }, contourAnchor);
   }
 

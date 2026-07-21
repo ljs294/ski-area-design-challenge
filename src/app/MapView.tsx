@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { setupAnalysisLayers, type LayerToggle } from './analysisLayers';
+import { setLocalContextData, setupAnalysisLayers, type LayerToggle } from './analysisLayers';
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
 import { LayerList } from './LayerPanel';
 import { GameToolbar } from './GameToolbar';
@@ -11,7 +11,7 @@ import { LiftOverview } from './LiftOverview';
 import { LiftDetail } from './LiftDetail';
 import { ResortStatsPanel } from './ResortStatsPanel';
 import { CursorReadout, type Readout } from './CursorReadout';
-import type { OverlayId } from './Legend';
+import { Legend, type OverlayId } from './Legend';
 import { sampleTerrainAt, compass8 } from './terrainProtocols';
 import { sampleCoverAt, COVER_LABELS } from './worldcoverProtocol';
 import { SiteControl, type SiteMode } from './SiteControl';
@@ -30,14 +30,12 @@ import { mountTerrain, unmountTerrain, tilt3D, PITCH_3D } from './terrain3d';
 import { useSettings, pixelRatioFor } from './SettingsContext';
 import { applyTileLod } from './terrainLod';
 import { saveGame } from '../gameSaveClient';
-import type { GameSave, SavedLift, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
+import type { GameSave, RoadType, SavedLift, SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import { coverDisplayMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
-import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, inspectCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
+import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
 import {
-  appendPolygonsToDisplayGeometry,
-  grasslandCodeFor,
   jitterPolygon,
   liftCorridorRing,
   stampPolygonsIntoGrid,
@@ -47,10 +45,12 @@ import {
 } from '../coverEdit';
 import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL, resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt, setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
-import { addLiftLayers, setLiftData, liftsToGeoJSON, type DraftLine } from './liftLayers';
+import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS, type DraftLine } from './liftLayers';
 import { TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
 import { TrailOverview } from './TrailOverview';
 import { TrailDetail } from './TrailDetail';
+import { InfrastructureControl, type DraftRoad, type RoadTool } from './InfrastructureControl';
+import { addRoadDraftLayers, setRoadDraftData, type RoadDraftLine } from './roadLayers';
 import {
   addTrailLayers,
   draftToGeoJSON,
@@ -59,6 +59,7 @@ import {
   setTrailPaintMode,
   setTrailPaintPreview,
   trailsToGeoJSON,
+  TRAIL_BUILT_LAYER_IDS,
 } from './trailLayers';
 import type { TrailPaintRequest, TrailPaintRequestPayload, TrailPaintResponse } from './trailPaintProtocol';
 import {
@@ -76,6 +77,8 @@ import {
   difficultyForSlopes,
   DEFAULT_BRUSH_WIDTH_M,
 } from '../trails';
+import { nextRoadName, roadClearingPolygons, roadLengthM, sanitizeRoads,
+  TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import { haversineMeters } from '../geo';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
@@ -96,6 +99,12 @@ function draftLineOf(tool: LiftTool): DraftLine | null {
   if (tool.phase === 'review') {
     return { points: tool.draft.points };
   }
+  return null;
+}
+
+function roadDraftOf(tool: RoadTool): RoadDraftLine | null {
+  if (tool.phase === 'drawing') return { points: tool.points, cursor: tool.cursor };
+  if (tool.phase === 'review') return { points: tool.draft.points, cursor: null };
   return null;
 }
 
@@ -158,8 +167,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const [layers, setLayers] = useState<LayerToggle[]>([]);
   // Bottom-dock roll-ups: user-chosen open panel (the lift panel also force-opens
   // whenever the lift tool is active or a lift is selected — see liftsOpen below).
-  const [openDock, setOpenDock] = useState<'layers' | 'lifts' | 'trails' | null>(null);
-  const [layersAlongsideTrail, setLayersAlongsideTrail] = useState(false);
+  const [openDock, setOpenDock] = useState<'layers' | 'lifts' | 'trails' | 'infrastructure' | null>(null);
+  const [layersAlongsideBuild, setLayersAlongsideBuild] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const [readout, setReadout] = useState<Readout | null>(null);
@@ -197,8 +206,13 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const [trailTool, setTrailTool] = useState<TrailTool>({ phase: 'idle' });
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
   const [trailEditing, setTrailEditing] = useState(false);
+  const [roads, setRoads] = useState<SavedRoad[]>(() => sanitizeRoads(initialSave?.roads ?? []));
+  const [roadTool, setRoadTool] = useState<RoadTool>({ phase: 'idle' });
   // Last-used brush width, kept across arms so it persists between runs.
   const [brushWidthM, setBrushWidthM] = useState(DEFAULT_BRUSH_WIDTH_M);
+  // True while a confirmed lift/trail is felling its cover in the background, so
+  // the build button can spin instead of looking frozen during the re-vectorize.
+  const [building, setBuilding] = useState(false);
 
   const activeOverlay = activeOverlayOf(layers);
 
@@ -230,6 +244,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const trailPreviewPathRef = useRef<[number, number][]>([]);
   const trailBrushCursorRef = useRef<[number, number] | null>(null);
   const selectTrailRef = useRef<(id: string) => void>(() => {});
+  const roadsRef = useRef<SavedRoad[]>(roads);
+  const roadToolRef = useRef<RoadTool>(roadTool);
   const brushWidthRef = useRef(brushWidthM);
   const renderQualityRef = useRef(settings.renderQuality);
   const packageAbortRef = useRef<AbortController | null>(null);
@@ -258,6 +274,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   liftToolRef.current = liftTool;
   trailsRef.current = trails;
   trailToolRef.current = trailTool;
+  roadsRef.current = roads;
+  roadToolRef.current = roadTool;
   brushWidthRef.current = brushWidthM;
   terrainRecordRef.current = terrainRecord;
   packageStateRef.current = packageState;
@@ -412,7 +430,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     // WorldCover sources so they cannot contend with mandatory downloads.
     const fresh = packageStateRef.current === 'preparing'
       ? []
-      : setupAnalysisLayers(map, terrainRecordRef.current, settings.units, coverDisplayRef.current, localImageryUrlRef.current);
+      : setupAnalysisLayers(map, terrainRecordRef.current, settings.units, coverDisplayRef.current,
+        localImageryUrlRef.current, roadsRef.current);
     const prev = layersRef.current;
     let applied = fresh.map((f) => {
       const was = prev.find((p) => p.id === f.id);
@@ -440,6 +459,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       setSiteBox(map, lockedBox);
       setBoundaryMode(map, 'locked', lockedBox);
     }
+    // Roads sit with the basemap context; their transient construction overlay
+    // remains beneath ski runs and lifts.
+    addRoadDraftLayers(map);
+    setRoadDraftData(map, roadDraftOf(roadToolRef.current));
     // Runs beneath lifts (ski-map convention): add trails first, lifts on top.
     addTrailLayers(map);
     setTrailData(map, trailsToGeoJSON(trailsRef.current));
@@ -451,6 +474,22 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
     addLiftLayers(map);
     setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
+    // Toggles for the player's built structures, added once the lift/trail layers
+    // exist above. Visibility is reconciled from the previous state so a restyle
+    // (light↔dark) keeps whatever the player hid. Skipped while preparing (no
+    // analysis layers either). Uses the generic handleToggle/setLayoutProperty path.
+    if (packageStateRef.current !== 'preparing') {
+      const structures: { id: string; label: string; layerIds: string[] }[] = [
+        { id: 'trails', label: 'Ski trails', layerIds: TRAIL_BUILT_LAYER_IDS },
+        { id: 'lifts', label: 'Ski lifts', layerIds: LIFT_BUILT_LAYER_IDS },
+      ];
+      for (const s of structures) {
+        const wasVisible = prev.find((p) => p.id === s.id)?.visible ?? true;
+        for (const lid of s.layerIds)
+          if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', wasVisible ? 'visible' : 'none');
+        applied = [...applied, { ...s, visible: wasVisible, section: 'Structures' }];
+      }
+    }
     // Resort view = a local terrain package is active. Terrain is mounted here
     // (and re-mounted after every restyle, since setStyle drops it) so it is
     // always present and the 2D↔3D switch stays a pure camera move. The
@@ -599,7 +638,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     // survive the light/dark style swap (they query at event time), so this is
     // registered once with the map.
     const bothToolsIdle = () =>
-      liftToolRef.current.phase === 'idle' && trailToolRef.current.phase === 'idle';
+      liftToolRef.current.phase === 'idle' && trailToolRef.current.phase === 'idle' &&
+      roadToolRef.current.phase === 'idle';
 
     const LIFT_HIT_LAYERS = ['lift-line-casing', 'lift-terminals'];
     const onLiftClick = (e: maplibregl.MapLayerMouseEvent) => {
@@ -736,6 +776,17 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setLiftData(map, liftsToGeoJSON(lifts, draftLineOf(liftTool)));
   }, [lifts, liftTool]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    const record = terrainRecordRef.current;
+    if (map && record) setLocalContextData(map, record, roads);
+  }, [roads]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map) setRoadDraftData(map, roadDraftOf(roadTool));
+  }, [roadTool]);
+
   // Saved trails are stable while painting; drafts use their own source.
   useEffect(() => {
     const map = mapRef.current;
@@ -853,6 +904,49 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liftTool.phase]);
+
+  // Road drawing: successive clicks append centerline vertices. The map keeps
+  // its normal pan/zoom navigation; the small draft source follows the cursor.
+  useEffect(() => {
+    const map = mapRef.current;
+    const phase = roadTool.phase;
+    if (!map || (phase !== 'armed' && phase !== 'drawing')) return;
+    const canvas = map.getCanvas();
+    canvas.style.cursor = 'crosshair';
+
+    const onClick = (event: maplibregl.MapMouseEvent) => {
+      const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
+      const current = roadToolRef.current;
+      if (current.phase === 'armed') {
+        setRoadTool({ phase: 'drawing', roadType: current.roadType, points: [point], cursor: null });
+      } else if (current.phase === 'drawing') {
+        const last = current.points.at(-1);
+        if (last && haversineMeters(last, point) < 1) return;
+        setRoadTool({ ...current, points: [...current.points, point], cursor: null });
+      }
+    };
+    const onMove = (event: maplibregl.MapMouseEvent) => {
+      const current = roadToolRef.current;
+      if (current.phase === 'drawing') setRoadTool({ ...current,
+        cursor: [event.lngLat.lng, event.lngLat.lat] });
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancelRoadTool();
+      else if (event.key === 'Backspace') { event.preventDefault(); undoRoadPoint(); }
+      else if (event.key === 'Enter') finishRoadRoute();
+    };
+
+    map.on('click', onClick);
+    map.on('mousemove', onMove);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      map.off('click', onClick);
+      map.off('mousemove', onMove);
+      window.removeEventListener('keydown', onKey);
+      canvas.style.cursor = '';
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roadTool.phase]);
 
   /** Sample the shape-derived centerlines, orient each top→bottom, and grade. */
   function sampleTrailElevations(parts: DraftTrail['parts']) {
@@ -1080,8 +1174,62 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function armRoadTool(roadType: RoadType) {
+    if (siteModeRef.current === 'selecting') return;
+    cancelLiftTool();
+    cancelTrailTool();
+    setSelectedLiftId(null);
+    setLiftEditing(false);
+    setSelectedTrailId(null);
+    setTrailEditing(false);
+    setOpenDock('infrastructure');
+    setRoadTool({ phase: 'armed', roadType });
+  }
+
+  function cancelRoadTool() {
+    setRoadTool({ phase: 'idle' });
+    if (mapRef.current) setRoadDraftData(mapRef.current, null);
+  }
+
+  function undoRoadPoint() {
+    const current = roadToolRef.current;
+    if (current.phase !== 'drawing') return;
+    if (current.points.length <= 1) setRoadTool({ phase: 'armed', roadType: current.roadType });
+    else setRoadTool({ ...current, points: current.points.slice(0, -1), cursor: null });
+  }
+
+  function finishRoadRoute() {
+    const current = roadToolRef.current;
+    if (current.phase !== 'drawing' || current.points.length < 2) return;
+    setRoadTool({ phase: 'review', draft: { name: nextRoadName(roadsRef.current),
+      roadType: current.roadType, points: current.points } });
+  }
+
+  function patchRoadDraft(patch: Partial<DraftRoad>) {
+    setRoadTool((current) => current.phase === 'review'
+      ? { phase: 'review', draft: { ...current.draft, ...patch } } : current);
+  }
+
+  function confirmRoad() {
+    const current = roadToolRef.current;
+    if (current.phase !== 'review') return;
+    const road: SavedRoad = {
+      id: genId(),
+      name: current.draft.name.trim() || nextRoadName(roadsRef.current),
+      roadType: 'two-lane',
+      widthM: TWO_LANE_ROAD_WIDTH_M,
+      points: current.draft.points,
+      lengthM: roadLengthM(current.draft.points),
+      createdAt: new Date().toISOString(),
+    };
+    setRoads((previous) => [...previous, road]);
+    setRoadTool({ phase: 'idle' });
+    void clearCoverUnderPolygons(roadClearingPolygons(road.points));
+  }
+
   function armLiftTool() {
     if (siteModeRef.current === 'selecting') return; // never two draw tools at once
+    cancelRoadTool();
     cancelTrailTool(); // yield the other draw tool (docks are one-at-a-time)
     setSelectedTrailId(null);
     setTrailEditing(false);
@@ -1106,9 +1254,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     if (t.phase === 'review') sampleDraftElevations(t.draft.points);
   }
 
-  function confirmLift() {
+  async function confirmLift() {
     const t = liftToolRef.current;
-    if (t.phase !== 'review') return;
+    if (t.phase !== 'review' || building) return;
     const d = t.draft;
     const o = orientBottomToTop(d.points, d.elev);
     const stats = liftStats(o.points, o.elevs);
@@ -1126,20 +1274,28 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     };
     liftSampleTokenRef.current++;
     setLifts((prev) => [...prev, lift]);
-    setLiftTool({ phase: 'idle' });
-    // Clearing the cover under the new lift is a background, best-effort edit to
-    // the resort package — it must never block or fail the lift itself.
-    void applyLiftCoverClear(lift);
+    // Keep the review panel up with the build button spinning while the cover is
+    // felled and re-vectorized in the background — a best-effort edit that must
+    // never block or fail the lift itself. Yield a frame first so the spinner
+    // paints before the synchronous re-derive begins.
+    setBuilding(true);
+    try {
+      await new Promise(requestAnimationFrame);
+      await applyLiftCoverClear(lift);
+    } finally {
+      setBuilding(false);
+      setLiftTool({ phase: 'idle' });
+    }
   }
 
   /**
-   * The single clearing engine shared by lifts and trails. Fells the given
+   * The single clearing engine shared by lifts, trails, and roads. Fells the given
    * polygons (each an outer ring plus optional tree-island holes) to grassland,
    * stamping the analytical cover grid and appending them to the vector display
    * geometry — no full re-vectorize (see coverEdit.ts). Then recomputes the
    * cover/display metadata + manifest, validates, saves, and live-updates the
    * map. Best-effort: all failures are swallowed so a bad edit can never lose the
-   * lift or trail that triggered it.
+   * infrastructure object that triggered it.
    */
   async function clearCoverUnderPolygons(polygons: Polygon[]): Promise<void> {
     const map = mapRef.current;
@@ -1154,21 +1310,19 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       // manifest), so a stale checksum here rejects the whole save.
       let upgraded: TerrainRecord = { ...record, coverGrid: grid, coverMetadata: coverMetadataOf(grid), updatedAt: new Date().toISOString() };
 
-      // v5+ packages render vector cover; append the cleared polygons so the
-      // clearing shows without re-tracing. v4 raster-only packages skip this and
-      // rely on the grid stamp + tile-cache refresh below.
+      // v5+ packages render vector cover. Re-derive the whole display geometry
+      // from the freshly-stamped grid (the merged source of truth) rather than
+      // appending each cleared strip as its own feature: overlapping clears then
+      // merge into single polygons — no alpha-doubled overlap, no internal
+      // outlines — tree islands become true holes, and forest cells that were
+      // felled actually disappear instead of showing grass blended over forest.
+      // v4 raster-only packages skip this and rely on the grid stamp + tile-cache
+      // refresh below.
       const hasVectorDisplay = !!record.coverDisplayGeometry && !!record.coverDisplayMetadata;
       if (hasVectorDisplay) {
-        const geometry = appendPolygonsToDisplayGeometry(record.coverDisplayGeometry!, polygons, record.bounds, grasslandCodeFor(grid));
-        const counts = inspectCoverDisplayGeometry(geometry);
-        const prev = record.coverDisplayMetadata!;
-        const metadata = coverDisplayMetadataOf(geometry, {
-          ...counts,
-          smoothingM: prev.smoothingM,
-          simplifyM: prev.simplifyM,
-          minFeatureM2: prev.minFeatureM2,
-        });
-        upgraded = { ...upgraded, coverDisplayGeometry: geometry, coverDisplayMetadata: metadata };
+        const derived = deriveCoverDisplayGeometry(grid);
+        const metadata = coverDisplayMetadataOf(derived.geometry, derived.stats);
+        upgraded = { ...upgraded, coverDisplayGeometry: derived.geometry, coverDisplayMetadata: metadata };
       }
 
       upgraded = { ...upgraded, packageManifest: manifestOf(upgraded) };
@@ -1241,6 +1395,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
   function armTrailTool() {
     if (siteModeRef.current === 'selecting') return;
+    cancelRoadTool();
     cancelLiftTool(); // yield the other draw tool
     setSelectedLiftId(null);
     setLiftEditing(false);
@@ -1386,9 +1541,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     if (t.phase === 'review') sampleTrailElevations(t.draft.parts);
   }
 
-  function confirmTrail() {
+  async function confirmTrail() {
     const t = trailToolRef.current;
-    if (t.phase !== 'review') return;
+    if (t.phase !== 'review' || building) return;
     const d = t.draft;
     const stats = trailPartsStats(d.parts);
     const trail: SavedTrail = {
@@ -1409,10 +1564,18 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     trailWorkerRef.current?.terminate();
     trailWorkerRef.current = null;
     setTrails((prev) => [...prev, trail]);
-    setTrailTool({ phase: 'idle' });
-    // Clearing the cover under the new trail is a background, best-effort edit to
-    // the resort package — it must never block or fail the trail itself.
-    void applyTrailCoverClear(trail);
+    // Keep the review panel up with the build button spinning while the cover is
+    // felled and re-vectorized in the background — a best-effort edit that must
+    // never block or fail the trail itself. Yield a frame first so the spinner
+    // paints before the synchronous re-derive begins.
+    setBuilding(true);
+    try {
+      await new Promise(requestAnimationFrame);
+      await applyTrailCoverClear(trail);
+    } finally {
+      setBuilding(false);
+      setTrailTool({ phase: 'idle' });
+    }
   }
 
   /** Patch a non-geometric field (name/status) of a built run. */
@@ -1427,15 +1590,16 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   }
 
   /** Close/open a bottom dock, yielding any active draw tool of the others. */
-  function toggleDock(which: 'layers' | 'lifts' | 'trails') {
-    // Layer visibility is presentation-only. While a trail session is active,
-    // show it beside the trail controls without cancelling the worker or draft.
-    if (which === 'layers' && trailToolRef.current.phase !== 'idle') {
-      setLayersAlongsideTrail((open) => !open);
+  function toggleDock(which: 'layers' | 'lifts' | 'trails' | 'infrastructure') {
+    // Layer visibility is presentation-only. Keep it beside active paint/road
+    // controls without cancelling either draft.
+    if (which === 'layers' && (trailToolRef.current.phase !== 'idle' || roadToolRef.current.phase !== 'idle')) {
+      setLayersAlongsideBuild((open) => !open);
       return;
     }
-    const isOpen = which === 'layers' ? layersOpen : which === 'lifts' ? liftsOpen : trailsOpen;
-    if (which !== 'layers') setLayersAlongsideTrail(false);
+    const isOpen = which === 'layers' ? layersOpen : which === 'lifts' ? liftsOpen
+      : which === 'trails' ? trailsOpen : infrastructureOpen;
+    if (which !== 'layers') setLayersAlongsideBuild(false);
     if (which !== 'lifts') {
       cancelLiftTool();
       setSelectedLiftId(null);
@@ -1446,6 +1610,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       setSelectedTrailId(null);
       setTrailEditing(false);
     }
+    if (which !== 'infrastructure') cancelRoadTool();
     if (isOpen) {
       if (which === 'lifts') {
         cancelLiftTool();
@@ -1457,6 +1622,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         setSelectedTrailId(null);
         setTrailEditing(false);
       }
+      if (which === 'infrastructure') cancelRoadTool();
       setOpenDock(null);
     } else {
       setOpenDock(which);
@@ -1581,7 +1747,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     const c = map.getCenter();
     const now = new Date().toISOString();
     return {
-      schemaVersion: 2,
+      schemaVersion: 3,
       key: base?.key ?? genId(),
       name: base?.name ?? (nameDraft.trim() || 'Untitled Resort'),
       mountainId: base?.mountainId,
@@ -1594,6 +1760,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       site: siteBoxRef.current,
       lifts: liftsRef.current,
       trails: trailsRef.current,
+      roads: roadsRef.current,
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
     };
@@ -1651,9 +1818,12 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   // deleted out from under the selection).
   const liftActive = liftTool.phase !== 'idle' || selectedLiftId !== null;
   const trailActive = trailTool.phase !== 'idle' || selectedTrailId !== null;
+  const infrastructureActive = roadTool.phase !== 'idle';
   const liftsOpen = !!saved && (openDock === 'lifts' || liftActive);
   const trailsOpen = !!saved && !liftsOpen && (openDock === 'trails' || trailActive);
-  const layersOpen = !!saved && !liftsOpen && (openDock === 'layers' || layersAlongsideTrail);
+  const infrastructureOpen = !!saved && !liftsOpen && !trailsOpen &&
+    (openDock === 'infrastructure' || infrastructureActive);
+  const layersOpen = !!saved && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
   const selectedLift = selectedLiftId ? lifts.find((l) => l.id === selectedLiftId) ?? null : null;
   const selectedTrail = selectedTrailId ? trails.find((t) => t.id === selectedTrailId) ?? null : null;
   const showPackageGate = packageState !== 'ready' &&
@@ -1855,6 +2025,13 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
             <div className="dock-rollups">
               {layersOpen && (
               <div className="dock-rollup dock-layers">
+                {/* Contextual legend floats above the dock so switching overlays
+                    never resizes the menu itself (it stays a constant height). */}
+                {activeOverlay && (
+                  <div className="dock-legend-popover">
+                    <Legend overlay={activeOverlay} />
+                  </div>
+                )}
                 <div className="dock-panel">
                   <div className="dock-head">
                     <span className="dock-head-title">Layers</span>
@@ -1862,7 +2039,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                       className="settings-close-x"
                       aria-label="Close"
                       onClick={() => {
-                        setLayersAlongsideTrail(false);
+                        setLayersAlongsideBuild(false);
                         setOpenDock((current) => current === 'layers' ? null : current);
                       }}
                     >
@@ -1873,6 +2050,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                     layers={layers}
                     onToggle={handleToggle}
                     activeOverlay={activeOverlay}
+                    inlineLegend={false}
                   />
                 </div>
               </div>
@@ -1912,6 +2090,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                       onCancel={cancelLiftTool}
                       onDraftChange={patchLiftDraft}
                       onConfirm={confirmLift}
+                      building={building}
                       onSelect={(id) => selectLiftRef.current(id)}
                       onEditPatch={patchLift}
                       onCloseEdit={() => setLiftEditing(false)}
@@ -1961,12 +2140,31 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                       onFinish={finishTrailPaint}
                       onDraftChange={patchTrailDraft}
                       onConfirm={confirmTrail}
+                      building={building}
                       onEditPatch={patchTrail}
                       onCloseEdit={() => setTrailEditing(false)}
                       onDelete={deleteTrail}
                       onRetryElevation={retryTrailElevation}
                     />
                   )}
+                </div>
+              </div>
+            )}
+              {infrastructureOpen && (
+              <div className="dock-rollup dock-infrastructure">
+                <div className="dock-panel">
+                  <InfrastructureControl
+                    tool={roadTool}
+                    roads={roads}
+                    units={settings.units}
+                    onArm={armRoadTool}
+                    onCancel={cancelRoadTool}
+                    onUndo={undoRoadPoint}
+                    onFinish={finishRoadRoute}
+                    onDraftChange={patchRoadDraft}
+                    onConfirm={confirmRoad}
+                    onClose={() => setOpenDock(null)}
+                  />
                 </div>
               </div>
             )}
@@ -2009,6 +2207,20 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                 <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                   <path d="M3 20 12 4l9 16Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
                   <path d="M8.5 12q2 2.4 3.5 0t3.5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+              <button
+                className={`dock-circle dock-circle-infrastructure${infrastructureOpen ? ' is-active' : ''}`}
+                onClick={() => toggleDock('infrastructure')}
+                aria-pressed={infrastructureOpen}
+                title="Infrastructure"
+                aria-label="Infrastructure"
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                  <path d="M5 22c0-7 4-8 4-13 0-3-1-5-1-7M19 22c0-7-4-8-4-13 0-3 1-5 1-7"
+                    fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M12 20v-3m0-3v-3m0-3V5" fill="none" stroke="currentColor"
+                    strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               </button>
             </div>

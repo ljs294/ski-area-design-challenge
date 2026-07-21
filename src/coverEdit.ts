@@ -307,34 +307,3 @@ export function stampPolygonsIntoGrid(grid: CoverGrid, polygons: Polygon[]): { g
 
   return { grid: { ...grid, data } as CoverGrid, changed };
 }
-
-// ---- Display-geometry append ----------------------------------------------
-
-/**
- * Append cleared polygons to the packed display-geometry stream (see
- * coverDisplay.ts for the encoding). Each polygon is one feature: its outer ring
- * followed by hole rings (which the renderer treats as holes, so tree islands
- * show through as forest). Coordinates are normalized to the 0..1 unit square via
- * `lngLatToUnit`, exactly what `coverDisplayToGeoJSON` decodes back through
- * `bounds`. Rings are closed and any ring with fewer than four points (the
- * decoder's minimum) is skipped. Returns a new array; the input is not mutated.
- */
-export function appendPolygonsToDisplayGeometry(geometry: number[], polygons: Polygon[], bounds: LatLonBounds, code: number): number[] {
-  const out = geometry.slice();
-  for (const polygon of polygons) {
-    const closed = polygon.map(closeRing);
-    // The outer ring must be valid; if it is degenerate the whole polygon is
-    // dropped. Holes below the minimum vertex count are simply omitted.
-    if (!closed[0] || closed[0].length < 4) continue;
-    const rings = [closed[0], ...closed.slice(1).filter((ring) => ring.length >= 4)];
-    out.push(code, rings.length);
-    for (const ring of rings) {
-      out.push(ring.length);
-      for (const [lng, lat] of ring) {
-        const [u, v] = lngLatToUnit(lng, lat, bounds);
-        out.push(u, v);
-      }
-    }
-  }
-  return out;
-}

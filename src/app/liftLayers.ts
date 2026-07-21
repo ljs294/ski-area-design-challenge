@@ -8,6 +8,16 @@ import type { SavedLift } from '../types';
 
 export const LIFT_SOURCE = 'lifts';
 
+// The built (persisted) lift layers, for a show/hide toggle. Excludes
+// 'lift-line-draft', which is the transient line drawn while placing a lift.
+export const LIFT_BUILT_LAYER_IDS = [
+  'lift-line-casing',
+  'lift-line-complete',
+  'lift-line-planning',
+  'lift-terminals',
+  'lift-labels',
+];
+
 // Classic ski-map lift red (matches the capacity emblems at the base).
 const LIFT_RED = '#d42027';
 

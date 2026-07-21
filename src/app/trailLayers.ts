@@ -5,6 +5,16 @@ import { DIFFICULTY_COLORS, DIFFICULTY_SYMBOL, TRAIL_DIFFICULTIES } from '../tra
 export const TRAIL_SOURCE = 'trails';
 export const TRAIL_DRAFT_SOURCE = 'trail-draft';
 export const TRAIL_PAINT_SOURCE = 'trail-paint-preview';
+
+// The built (persisted) trail layers, for a show/hide toggle. Excludes the
+// transient draft/paint-preview layers used only while painting a run.
+export const TRAIL_BUILT_LAYER_IDS = [
+  'trail-fill',
+  'trail-outline',
+  'trail-outline-planning',
+  'trail-spine',
+  'trail-labels',
+];
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
 export interface TrailReview { parts: SavedTrailPart[]; difficulty: TrailDifficulty; name: string }

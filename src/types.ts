@@ -365,6 +365,22 @@ export interface SavedFixedGripLift extends SavedLiftBase {
 
 export type SavedLift = SavedFixedGripLift;
 
+// Player-built road classes. The discriminator and explicit width keep the save
+// format ready for additional road types without changing the v1 UI.
+export type RoadType = 'two-lane';
+
+export interface SavedRoad {
+  id: string;
+  name: string;
+  roadType: RoadType;
+  widthM: number;
+  /** Multi-point road centerline in drawing order. */
+  points: [number, number][];
+  /** Horizontal centerline length, recomputed during hydration. */
+  lengthM: number;
+  createdAt: string;
+}
+
 // Ski-run difficulty designation. Mirrors the four slope-angle bands in
 // terrainProtocols.ts (Green <16°, Blue <24°, Black <37°, Red ≥37°) — the same
 // ratings the slope overlay paints — so a run's recommended grade always agrees
@@ -410,7 +426,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1 | 2;
+  schemaVersion: 1 | 2 | 3;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -423,6 +439,8 @@ export interface GameSave {
   site: SavedSiteBox | null; // locked property box, if one was drawn
   lifts: SavedLift[]; // ski lifts drawn on the map
   trails: SavedTrail[]; // ski runs painted on the map
+  /** Player-built roads. Optional only for legacy schema v1/v2 saves. */
+  roads?: SavedRoad[];
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }
