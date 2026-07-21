@@ -152,13 +152,21 @@ export function setupAnalysisLayers(
       coordinates: [[b.west, b.north], [b.east, b.north], [b.east, b.south], [b.west, b.south]],
     });
     map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', layout: { visibility: satelliteVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': 0.6, 'raster-saturation': -0.35, 'raster-contrast': -0.06 } }, bottomAnchor);
-  } else if (!map.getSource('satellite')) {
+  } else if (!local && !map.getSource('satellite')) {
+    // Picker only: live aerial while choosing a site. In game we never add a
+    // network aerial — a package without local imagery falls back to the paper
+    // background (fully offline, nothing streams or drapes over the mesh).
     map.addSource('satellite', { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, maxzoom: 19, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
   }
-  if (!map.getLayer(satelliteLayer)) {
-    map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', layout: { visibility: satelliteVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': 0.6, 'raster-saturation': -0.35, 'raster-contrast': -0.08 } }, bottomAnchor);
-  } else {
-    map.setLayoutProperty(satelliteLayer, 'visibility', satelliteVisible ? 'visible' : 'none');
+  // Only touch the aerial layer when its source actually exists — in the offline
+  // game-without-imagery case there is no satellite source, so the placeholder
+  // layer stays hidden and no layer references a missing source.
+  if (map.getSource('satellite')) {
+    if (!map.getLayer(satelliteLayer)) {
+      map.addLayer({ id: satelliteLayer, type: 'raster', source: 'satellite', layout: { visibility: satelliteVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': 0.6, 'raster-saturation': -0.35, 'raster-contrast': -0.08 } }, bottomAnchor);
+    } else {
+      map.setLayoutProperty(satelliteLayer, 'visibility', satelliteVisible ? 'visible' : 'none');
+    }
   }
 
   let demUrl = TERRARIUM_TILES;

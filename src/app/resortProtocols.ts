@@ -15,11 +15,28 @@ export const RESORT_ASPECT_PROTOCOL = 'resort-aspect';
 let active: TerrainRecord | null = null;
 let registered = false;
 const tileCache = new Map<string, Promise<ArrayBuffer>>();
-const CACHE_MAX = 192;
+// Large enough to hold the whole warmed diorama tile set (see warmResortTiles)
+// so preloaded tiles are never evicted before the camera reaches them.
+const CACHE_MAX = 2048;
 type TileKind = 'dem' | 'cover' | 'slope' | 'aspect';
 const renderQueue: { kind: TileKind; url: string; resolve: (data: ArrayBuffer) => void; reject: (error: unknown) => void }[] = [];
 let activeRenders = 0;
-const MAX_CONCURRENT_RENDERS = 1;
+// Serial by default so on-demand renders never stutter interactive play; the
+// warm-up preload temporarily raises this (setRenderConcurrency) for throughput,
+// then restores it once the resort is revealed.
+let maxConcurrentRenders = 1;
+export function setRenderConcurrency(n: number): void {
+  maxConcurrentRenders = Math.max(1, n);
+  pumpRenderQueue();
+}
+
+// Cumulative counters for the preload progress/readiness gate. `completed` only
+// ever grows; `pending` is the live queue depth. getResortRenderStats() reads
+// them so the veil can wait until the on-demand queue has fully drained.
+let tilesCompleted = 0;
+export function getResortRenderStats(): { pending: number; completed: number } {
+  return { pending: renderQueue.length + activeRenders, completed: tilesCompleted };
+}
 
 export function setActiveResortTerrain(record: TerrainRecord | null): void {
   if (active?.key !== record?.key) tileCache.clear();
@@ -127,8 +144,8 @@ function sampleElevation(record: TerrainRecord, lng: number, lat: number): numbe
   return core * w + sur * (1 - w);
 }
 
-export function sampleLocalCoverAt(lng: number, lat: number): CoverClassCode | null {
-  const grid = active?.coverGrid;
+function sampleCoverForRecord(record: TerrainRecord, lng: number, lat: number): CoverClassCode | null {
+  const grid = record.coverGrid;
   if (!grid) return null;
   const b = grid.bounds;
   if (lng < b.west || lng > b.east || lat < b.south || lat > b.north) return null;
@@ -137,6 +154,10 @@ export function sampleLocalCoverAt(lng: number, lat: number): CoverClassCode | n
   const r = Math.min(grid.height - 1, Math.max(0, Math.floor(v * grid.height)));
   const code = grid.data[r * grid.width + c] as CoverClassCode;
   return code === 255 ? null : code;
+}
+
+export function sampleLocalCoverAt(lng: number, lat: number): CoverClassCode | null {
+  return active ? sampleCoverForRecord(active, lng, lat) : null;
 }
 
 export function sampleLocalTerrainAt(lng: number, lat: number): { elevation: number; slopeDeg: number; aspectDeg: number } | null {
@@ -206,11 +227,10 @@ function analysisColor(kind: 'slope' | 'aspect', slope: number, aspect: number):
   return [c[0], c[1], c[2], 150];
 }
 
-async function renderTile(kind: TileKind, url: string): Promise<ArrayBuffer> {
-  const p = parse(url);
-  const record = active;
-  if (!record || record.key !== p.key) throw new Error(`Local resort package is not loaded: ${p.key}`);
-  const axes = tileAxes(p.z, p.x, p.y);
+/** Rasterize one resort tile straight from an explicit record — no dependency
+ *  on the module-global `active`, so ingest/warm-up can call it for any package. */
+async function renderResortTile(record: TerrainRecord, kind: TileKind, z: number, x: number, y: number): Promise<ArrayBuffer> {
+  const axes = tileAxes(z, x, y);
   return canvasPng((out) => {
     for (let py = 0; py < 256; py++) for (let px = 0; px < 256; px++) {
       const lng = axes.lng[px + 1];
@@ -224,7 +244,7 @@ async function renderTile(kind: TileKind, url: string): Promise<ArrayBuffer> {
         out[i + 2] = Math.floor((encoded - Math.floor(encoded)) * 256);
         out[i + 3] = elevation == null ? 0 : 255;
       } else if (kind === 'cover') {
-        const code = sampleLocalCoverAt(lng, lat) ?? 255;
+        const code = sampleCoverForRecord(record, lng, lat) ?? 255;
         const rgba = COVER_RGBA[code] ?? COVER_RGBA[255];
         out[i] = rgba[0]; out[i + 1] = rgba[1]; out[i + 2] = rgba[2]; out[i + 3] = rgba[3];
       } else {
@@ -232,7 +252,7 @@ async function renderTile(kind: TileKind, url: string): Promise<ArrayBuffer> {
         const lngE = axes.lng[px + 2];
         const latN = axes.lat[py];
         const latS = axes.lat[py + 2];
-        const ewM = 2 * 156543.03392 * Math.cos((lat * Math.PI) / 180) / (2 ** p.z);
+        const ewM = 2 * 156543.03392 * Math.cos((lat * Math.PI) / 180) / (2 ** z);
         const nsM = ewM;
         const dzdx = ((sampleGrid(record, lngE, lat) ?? 0) - (sampleGrid(record, lngW, lat) ?? 0)) / ewM;
         const dzdy = ((sampleGrid(record, lng, latS) ?? 0) - (sampleGrid(record, lng, latN) ?? 0)) / nsM;
@@ -245,8 +265,15 @@ async function renderTile(kind: TileKind, url: string): Promise<ArrayBuffer> {
   });
 }
 
+async function renderTile(kind: TileKind, url: string): Promise<ArrayBuffer> {
+  const p = parse(url);
+  const record = active;
+  if (!record || record.key !== p.key) throw new Error(`Local resort package is not loaded: ${p.key}`);
+  return renderResortTile(record, kind, p.z, p.x, p.y);
+}
+
 function pumpRenderQueue(): void {
-  while (activeRenders < MAX_CONCURRENT_RENDERS && renderQueue.length) {
+  while (activeRenders < maxConcurrentRenders && renderQueue.length) {
     const task = renderQueue.shift()!;
     activeRenders++;
     // Yield before CPU-heavy rasterization so controls/camera updates paint
@@ -256,6 +283,7 @@ function pumpRenderQueue(): void {
         .then(task.resolve, task.reject)
         .finally(() => {
           activeRenders--;
+          tilesCompleted++;
           pumpRenderQueue();
         });
     }, 8);
@@ -301,4 +329,123 @@ export function localTileBounds(record: TerrainRecord): [number, number, number,
 export function resortDemBounds(record: TerrainRecord): [number, number, number, number] | undefined {
   const b = record.surround?.bounds;
   return b ? [b.west, b.south, b.east, b.north] : localTileBounds(record);
+}
+
+/**
+ * Bounds to clamp the *diorama camera* to — the play box grown by `marginM`
+ * (~1 km), clamped so it never exceeds the rendered surround/DEM extent. This
+ * keeps the camera inside the clean near-ring and off the coarse 3 km far edge
+ * (which looks janky) while still letting the player orbit all four sides of the
+ * box. Distinct from `resortDemBounds`, which stays the wider *source* extent so
+ * neighbouring relief still renders out to 3 km beyond where the camera can go.
+ */
+export function resortCameraBounds(
+  record: TerrainRecord,
+  marginM = 1000
+): [number, number, number, number] | undefined {
+  const b = record.bounds;
+  if (!b) return resortDemBounds(record);
+  const midLat = (b.north + b.south) / 2;
+  const dLat = marginM / 111320;
+  const dLng = marginM / (111320 * Math.max(0.05, Math.cos((midLat * Math.PI) / 180)));
+  let west = b.west - dLng, south = b.south - dLat;
+  let east = b.east + dLng, north = b.north + dLat;
+  const ring = resortDemBounds(record); // [w, s, e, n]
+  if (ring) {
+    west = Math.max(west, ring[0]);
+    south = Math.max(south, ring[1]);
+    east = Math.min(east, ring[2]);
+    north = Math.min(north, ring[3]);
+  }
+  return [west, south, east, north];
+}
+
+// ---------------------------------------------------------------------------
+// Preload / warm-up: rasterize the whole reachable diorama tile set into the
+// in-memory cache before the player joins, so gameplay opens fully drawn and
+// panning within the (box + ~1 km) camera bounds never triggers a fresh render.
+// ---------------------------------------------------------------------------
+
+const PROTOCOL_FOR_KIND: Record<'dem' | 'cover', string> = {
+  dem: RESORT_DEM_PROTOCOL,
+  cover: RESORT_COVER_PROTOCOL,
+};
+
+function lngLatToTileXY(lng: number, lat: number, z: number): [number, number] {
+  const n = 2 ** z;
+  const x = Math.floor(((lng + 180) / 360) * n);
+  const latRad = (lat * Math.PI) / 180;
+  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n);
+  return [Math.max(0, Math.min(n - 1, x)), Math.max(0, Math.min(n - 1, y))];
+}
+
+/** Slippy tiles covering `[w,s,e,n]` across the inclusive zoom band. */
+function tilesForBounds(bounds: [number, number, number, number], zMin: number, zMax: number): { z: number; x: number; y: number }[] {
+  const [w, s, e, n] = bounds;
+  const out: { z: number; x: number; y: number }[] = [];
+  for (let z = zMin; z <= zMax; z++) {
+    const [x0, y0] = lngLatToTileXY(w, n, z); // NW → min x, min y
+    const [x1, y1] = lngLatToTileXY(e, s, z); // SE → max x, max y
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++)
+      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) out.push({ z, x, y });
+  }
+  return out;
+}
+
+/** The tiles worth preloading: DEM across the rendered surround/ring (drives the
+ *  mesh + hillshade) and cover across the play box, over the zoom band the
+ *  camera actually uses (a coarse fit level up to the source maxzoom 15). The
+ *  slope/aspect analysis overlays are off by default, so they stay on-demand. */
+export function resortWarmTileKeys(record: TerrainRecord): { kind: 'dem' | 'cover'; z: number; x: number; y: number }[] {
+  const ring = resortDemBounds(record);
+  const core = localTileBounds(record);
+  const keys: { kind: 'dem' | 'cover'; z: number; x: number; y: number }[] = [];
+  const zMax = 15;
+  const bandFor = (b: [number, number, number, number]) => {
+    const widthDeg = Math.max(1e-6, b[2] - b[0]);
+    // Coarsest level where the extent still spans ~1 tile, floored so we also
+    // warm the low-zoom tiles the terrain mesh pulls for distant relief.
+    const zFit = Math.floor(Math.log2(360 / widthDeg));
+    return Math.max(11, Math.min(zMax, zFit));
+  };
+  if (ring) for (const t of tilesForBounds(ring, bandFor(ring), zMax)) keys.push({ kind: 'dem', ...t });
+  if (core) for (const t of tilesForBounds(core, bandFor(core), zMax)) keys.push({ kind: 'cover', ...t });
+  return keys;
+}
+
+/**
+ * Pre-rasterize the warm tile set into `tileCache`, reporting progress. Raises
+ * render concurrency for throughput; the caller restores it (setRenderConcurrency(1))
+ * once the resort is revealed. Best-effort — a failed tile is skipped and simply
+ * renders on demand later. Honors an AbortSignal so leaving the resort cancels it.
+ */
+export async function warmResortTiles(
+  record: TerrainRecord,
+  onProgress?: (completed: number, total: number) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const keys = resortWarmTileKeys(record);
+  const total = keys.length;
+  let done = 0;
+  onProgress?.(0, total);
+  if (!total) return;
+  setRenderConcurrency(4);
+  const key = encodeURIComponent(record.key);
+  let idx = 0;
+  const worker = async () => {
+    while (idx < keys.length) {
+      if (signal?.aborted) return;
+      const k = keys[idx++];
+      const url = `${PROTOCOL_FOR_KIND[k.kind]}://${key}/${k.z}/${k.x}/${k.y}`;
+      try {
+        await cached(k.kind, url);
+      } catch {
+        // Skip — the on-demand protocol path can retry this tile if the camera
+        // ever requests it.
+      }
+      done++;
+      onProgress?.(done, total);
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
 }

@@ -133,7 +133,14 @@ async function fetchWithShrink(
       throw new Error(`USGS elevation service returned ${response.status}`);
     } catch (e) {
       if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) throw e;
-      if (genericAttempt >= MAX_RETRIES) throw e;
+      if (genericAttempt >= MAX_RETRIES) {
+        // A bare fetch TypeError ("Failed to fetch") is opaque — name the stage
+        // and the likely cause so the failure is actionable, not mysterious.
+        if (e instanceof TypeError) {
+          throw new Error('Could not reach the USGS elevation service (network error). Check your internet connection and try again.');
+        }
+        throw e;
+      }
       genericAttempt++;
       await sleep(RETRY_BASE_MS * genericAttempt, signal);
     }

@@ -35,7 +35,7 @@ import { loadTerrain, saveTerrain } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import { coverDisplayMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
-import { resortDemBounds, sampleLocalCoverAt, sampleLocalTerrainAt, setActiveResortTerrain, WORLD_COVER_LABELS } from './resortProtocols';
+import { getResortRenderStats, resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt, setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, type DraftLine } from './liftLayers';
 import { TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
@@ -186,6 +186,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   // Loading veil held over the resort until its first complete render, so the
   // map never appears mid-stream (popping terrain / half-drawn custom tiles).
   const [warming, setWarming] = useState(mode === 'playing' && !TERRAIN_DISABLED);
+  // Determinate preload progress shown on the warming veil (completed/total warm
+  // tiles). null while indeterminate (before the tile set is known).
+  const [warmProgress, setWarmProgress] = useState<{ completed: number; total: number } | null>(null);
+  const warmAbortRef = useRef<AbortController | null>(null);
   const [saved, setSaved] = useState<GameSave | null>(initialSave);
   const [nameDraft, setNameDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -466,19 +470,52 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         // frame) means the relief rises through perspective with no pop.
         const want3D = initialSave?.is3D ?? true;
         if (want3D !== is3DRef.current) setIs3D(want3D);
-        // Hold the veil until the first complete render, then drop it and ease
-        // into the tilt — so the resort is revealed already-loaded, not mid-
-        // stream. Fall back on a timer in case the serial tile queue starves
-        // MapLibre's 'idle' event.
+        // Hold the veil until the resort is genuinely fully drawn: (1) preload
+        // every reachable diorama tile into the cache (determinate progress),
+        // then (2) wait for MapLibre to have all tiles loaded and go idle — so
+        // the map is revealed already-complete, never mid-stream. A generous
+        // safety timeout guarantees the veil always lifts even if something
+        // stalls. Replaces the old first-`idle`/6 s-timer heuristic, which fired
+        // early against the serial tile queue and revealed a half-loaded map.
+        const rec = terrainRecordRef.current;
         let revealed = false;
         const reveal = () => {
           if (revealed) return;
           revealed = true;
+          setRenderConcurrency(1); // restore calm serial rendering for play
           setWarming(false);
+          setWarmProgress(null);
           map.easeTo({ pitch: want3D ? PITCH_3D : 0, duration: 1200 });
         };
-        map.once('idle', reveal);
-        window.setTimeout(reveal, 6000);
+        const safety = window.setTimeout(reveal, 15000);
+        const controller = new AbortController();
+        warmAbortRef.current = controller;
+        void (async () => {
+          setWarmProgress({ completed: 0, total: 0 });
+          if (rec) {
+            await warmResortTiles(
+              rec,
+              (completed, total) => setWarmProgress({ completed, total }),
+              controller.signal
+            );
+          }
+          if (controller.signal.aborted) return;
+          // Catch any stragglers MapLibre requested outside the warm set: wait
+          // for a fully-loaded, idle map to hold across two consecutive frames.
+          let stable = 0;
+          const settle = () => {
+            if (revealed || controller.signal.aborted) return;
+            const ready = map.areTilesLoaded() && getResortRenderStats().pending === 0 && map.loaded();
+            stable = ready ? stable + 1 : 0;
+            if (stable >= 2) {
+              window.clearTimeout(safety);
+              reveal();
+            } else {
+              requestAnimationFrame(settle);
+            }
+          };
+          requestAnimationFrame(settle);
+        })();
       }
     } else {
       unmountTerrain(map);
@@ -496,7 +533,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     const start = initialSave ?? null;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: basemapFor(resolvedTheme),
+      style: basemapFor(resolvedTheme, { offline: mode === 'playing' }),
       center: start ? start.center : INITIAL_CENTER,
       zoom: start ? start.zoom : INITIAL_ZOOM,
       bearing: start?.bearing ?? 0,
@@ -533,14 +570,15 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
     map.on('style.load', () => {
       reinitAfterStyle(map);
-      // Diorama camera: bound panning to the perimeter ring (box + 3 km), not
-      // the play box — so the camera can freely cross the whole diorama and see
-      // every side of the box, yet can't wander past the rendered edge into
-      // blank paper. Ring-less packages fall back to the box extent.
+      // Diorama camera: bound panning to the play box grown by ~1 km — enough to
+      // orbit every side of the box, but not out to the coarse 3 km ring edge
+      // (which looks janky) or into blank paper. Relief still *renders* past the
+      // camera limit out to the DEM/surround extent. Ring-less packages fall
+      // back to the box extent.
       if (siteModeRef.current === 'locked') {
         const rec = terrainRecordRef.current;
-        const ring = rec ? resortDemBounds(rec) : undefined;
-        if (ring) map.setMaxBounds(ring);
+        const cam = rec ? resortCameraBounds(rec) : undefined;
+        if (cam) map.setMaxBounds(cam);
         else if (siteBoxRef.current) map.setMaxBounds(siteBoxRef.current.bounds);
       }
     });
@@ -597,6 +635,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     map.on('mouseleave', ['trail-fill'], onLiftLeave);
 
     return () => {
+      warmAbortRef.current?.abort();
+      setRenderConcurrency(1);
       map.remove();
       mapRef.current = null;
       setLayers([]);
@@ -643,7 +683,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     }
     const map = mapRef.current;
     if (!map) return;
-    map.setStyle(basemapFor(resolvedTheme));
+    map.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedTheme]);
 
@@ -657,7 +697,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       return;
     }
     const map = mapRef.current;
-    if (map) map.setStyle(basemapFor(resolvedTheme));
+    if (map) map.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.units]);
 
@@ -1198,8 +1238,8 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     // Before a package exists, bound to the drawn square; once one is prepared
     // the restyle rebinds to the perimeter ring (see the style.load handler).
     const rec = terrainRecordRef.current;
-    const ring = rec ? resortDemBounds(rec) : undefined;
-    map.setMaxBounds(ring ?? siteBox.bounds);
+    const cam = rec ? resortCameraBounds(rec) : undefined;
+    map.setMaxBounds(cam ?? siteBox.bounds);
     map.fitBounds(siteBox.bounds, { padding: 40, duration: 600 });
     setSiteMode('locked');
   }
@@ -1241,7 +1281,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     packageAbortRef.current?.abort();
     const controller = new AbortController();
     packageAbortRef.current = controller;
-    mapRef.current?.setStyle(basemapFor(resolvedTheme));
+    mapRef.current?.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
     try {
       const record = await prepareResortPackage(site, name, setPackageProgress, controller.signal);
       const validation = validateTerrainPackage(record);
@@ -1257,7 +1297,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         // Veil the first resort render (restyle re-mounts terrain + custom
         // tiles); the style.load reveal drops it once fully drawn.
         setWarming(true);
-        map.setStyle(basemapFor(resolvedTheme));
+        map.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
       }
       return record;
     } catch (error) {
@@ -1496,15 +1536,31 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
             inset: 0,
             zIndex: 6,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            gap: '14px',
             background: '#0e1a2a',
             color: '#e9eef6',
             font: '600 14px system-ui, sans-serif',
             letterSpacing: '0.03em',
           }}
         >
-          Loading terrain…
+          <div>Preloading terrain…</div>
+          {(() => {
+            const total = warmProgress?.total ?? 0;
+            const completed = warmProgress?.completed ?? 0;
+            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+            const indeterminate = total === 0;
+            return (
+              <div style={{ width: 'min(320px, 60vw)' }}>
+                <div className={`package-progress${indeterminate ? ' is-indeterminate' : ''}`}>
+                  <span style={indeterminate ? undefined : { width: `${pct}%` }} />
+                </div>
+                {!indeterminate && <div className="package-progress-label">{pct}%</div>}
+              </div>
+            );
+          })()}
         </div>
       )}
 

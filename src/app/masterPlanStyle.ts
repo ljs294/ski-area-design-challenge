@@ -30,3 +30,33 @@ export function createMasterPlanStyle(): StyleSpecification {
     ],
   } as StyleSpecification;
 }
+
+/**
+ * Fully offline basemap for in-game play. Same paper background + the
+ * `mp-satellite` placeholder anchor (which `setupAnalysisLayers` swaps to the
+ * downloaded local NAIP image), but with NO remote sources: the streaming
+ * OpenFreeMap vector tiles and their five context layers are dropped, because
+ * in game the equivalent water/roads context is drawn locally from the package's
+ * `local-context` GeoJSON. Nothing here touches the network, so nothing streams
+ * or drapes over the terrain mesh.
+ *
+ * `glyphs` are still fetched remotely: trail/lift/contour *labels* are overlay
+ * symbol layers that need a font atlas, and glyph PBFs are tiny, cached, and
+ * screen-space (never streamed per frame or draped on the mesh) — so they don't
+ * cause the jank/drape this style exists to remove. Truly bundling glyphs under
+ * `public/` for zero-network play is a separate follow-up.
+ */
+export function createGameBasemapStyle(): StyleSpecification {
+  return {
+    version: 8,
+    name: 'Mountain Planner Game (offline)',
+    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+    sources: {
+      satellite: { type: 'raster', tiles: [], tileSize: 256, maxzoom: 19 },
+    },
+    layers: [
+      { id: 'mp-paper', type: 'background', paint: { 'background-color': '#e8e5dc' } },
+      { id: MASTER_PLAN_LAYER_IDS.satellite, type: 'raster', source: 'satellite', layout: { visibility: 'none' }, paint: { 'raster-opacity': 0.7, 'raster-saturation': -0.35, 'raster-contrast': -0.08, 'raster-fade-duration': 250 } },
+    ],
+  } as StyleSpecification;
+}

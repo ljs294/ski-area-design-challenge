@@ -12,8 +12,11 @@ const TERRARIUM_TILES =
 
 // With the default fov (~37°) the horizon only enters the top of the frame at
 // pitch ≈ 72; fog is fully faded in by 70. 75 shows fog plus a real sky band.
+// Capped at 75 (not the old 85): past ~75 the terrain projection and the
+// maxBounds clamp interact badly — the forward viewport footprint overshoots
+// the clamped centre and the camera snaps/wonks near full tilt.
 export const PITCH_3D = 60;
-export const MAX_PITCH_3D = 85;
+export const MAX_PITCH_3D = 75;
 export const MAX_PITCH_2D = 60; // MapLibre default
 
 export const TILT_3D_MS = 1200;
