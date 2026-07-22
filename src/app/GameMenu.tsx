@@ -14,6 +14,7 @@ export function GameMenu({
   onLoad,
   onSettings,
   onCredits,
+  onRebuildCover,
   onQuit,
 }: {
   canSave: boolean;
@@ -22,6 +23,7 @@ export function GameMenu({
   onLoad: () => void;
   onSettings: () => void;
   onCredits: () => void;
+  onRebuildCover?: () => void;
   onQuit: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -97,6 +99,11 @@ export function GameMenu({
           <button className="game-menu-item" role="menuitem" onClick={pick(onCredits)}>
             Credits
           </button>
+          {onRebuildCover && (
+            <button className="game-menu-item" role="menuitem" onClick={pick(onRebuildCover)}>
+              Rebuild Detailed Tree Cover
+            </button>
+          )}
           <div className="game-menu-divider" role="separator" />
           <button className="game-menu-item hud-quit" role="menuitem" onClick={pick(onQuit)}>
             Main Menu

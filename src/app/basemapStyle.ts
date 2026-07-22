@@ -1,4 +1,5 @@
 import type maplibregl from 'maplibre-gl';
+import { createGameBasemapStyle, createMasterPlanStyle } from './masterPlanStyle';
 
 // Both styles are OpenMapTiles-schema vector basemaps (source-layers water /
 // transportation / building), so the analysis overlays + basemap feature
@@ -7,9 +8,19 @@ export const LIGHT_BASEMAP = 'https://tiles.openfreemap.org/styles/liberty';
 export const DARK_BASEMAP =
   'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
-/** The basemap style URL for the resolved theme. */
-export function basemapFor(theme: 'light' | 'dark'): string {
-  return theme === 'dark' ? DARK_BASEMAP : LIGHT_BASEMAP;
+/**
+ * The basemap style for the resolved theme. In game (`offline: true`) this is
+ * the fully-offline style — paper background only, no streaming vector/aerial
+ * tiles — so nothing streams from the network or drapes over the terrain mesh;
+ * the local package's aerial + context layers are added on top by
+ * `setupAnalysisLayers`. The worldwide picker keeps the streaming master-plan
+ * style so live imagery/labels are available while choosing a site.
+ */
+export function basemapFor(
+  _theme: 'light' | 'dark',
+  opts?: { offline?: boolean }
+): maplibregl.StyleSpecification {
+  return opts?.offline ? createGameBasemapStyle() : createMasterPlanStyle();
 }
 
 /**

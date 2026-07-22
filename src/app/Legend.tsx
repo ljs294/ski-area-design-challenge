@@ -1,17 +1,19 @@
 import { SLOPE_LEGEND, ASPECT_LEGEND } from './terrainProtocols';
-import { COVER_BUCKETS, COVER_LABELS, type CoverBucket } from './worldcoverProtocol';
 
 export type OverlayId = 'slope' | 'aspect' | 'groundcover';
 
-const COVER_LEGEND = (Object.keys(COVER_BUCKETS) as CoverBucket[]).map((b) => ({
-  label: COVER_LABELS[b],
-  color: `rgb(${COVER_BUCKETS[b][0]}, ${COVER_BUCKETS[b][1]}, ${COVER_BUCKETS[b][2]})`,
-}));
+// Water is not part of the ground-cover overlay — it renders from the dedicated
+// Water layer/toggle — so it is intentionally absent here.
+const COVER_LEGEND = [
+  { label: 'Forest', color: 'rgb(82, 105, 82)' },
+  { label: 'Alpine', color: 'rgb(215, 216, 207)' },
+  { label: 'Grassland', color: 'rgb(177, 183, 145)' },
+];
 
 const LEGENDS: Record<OverlayId, { title: string; rows: { label: string; color: string }[] }> = {
   slope: { title: 'Slope angle', rows: SLOPE_LEGEND },
   aspect: { title: 'Exposure', rows: ASPECT_LEGEND },
-  groundcover: { title: 'Ground cover', rows: COVER_LEGEND },
+  groundcover: { title: 'Detailed terrain cover', rows: COVER_LEGEND },
 };
 
 /** Legend for the currently active overlay only; nothing when none is active. */

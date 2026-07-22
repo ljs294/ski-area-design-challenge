@@ -1785,3 +1785,333 @@ body {
   font-weight: 600;
   text-transform: capitalize;
 }
+
+/* --- Ski runs (trail brush tool) --- */
+.trail-panel {
+  min-width: 250px;
+  gap: 8px;
+}
+
+/* Brush-width slider row (reuses .lift-field layout). */
+.trail-brush-slider {
+  flex: 1;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.trail-brush-slider:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.trail-paint-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.trail-paint-modes .site-btn.is-active {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Difficulty (grade) picker: 4 segmented buttons, the recommendation badged. */
+.trail-difficulty-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.trail-grade-row {
+  display: flex;
+  gap: 4px;
+}
+.trail-grade-btn {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-elev);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+.trail-grade-btn:hover {
+  border-color: var(--accent);
+}
+.trail-grade-symbol {
+  font-size: 12px;
+  line-height: 1;
+}
+.trail-grade-label {
+  font-size: 10px;
+  font-weight: 600;
+}
+.trail-grade-btn.is-active {
+  color: var(--text);
+  font-weight: 700;
+}
+.trail-grade-btn--green .trail-grade-symbol {
+  color: #43a047;
+}
+.trail-grade-btn--blue .trail-grade-symbol {
+  color: #1e88e5;
+}
+.trail-grade-btn--black .trail-grade-symbol {
+  color: #212121;
+}
+.trail-grade-btn--red .trail-grade-symbol {
+  color: #d32f2f;
+}
+[data-theme='dark'] .trail-grade-btn--black .trail-grade-symbol {
+  color: #c7ccd1;
+}
+.trail-grade-btn--green.is-active {
+  border-color: #43a047;
+  background: rgba(67, 160, 71, 0.14);
+}
+.trail-grade-btn--blue.is-active {
+  border-color: #1e88e5;
+  background: rgba(30, 136, 229, 0.14);
+}
+.trail-grade-btn--black.is-active {
+  border-color: #4b5563;
+  background: rgba(33, 33, 33, 0.12);
+}
+.trail-grade-btn--red.is-active {
+  border-color: #d32f2f;
+  background: rgba(211, 47, 47, 0.14);
+}
+.trail-grade-rec {
+  position: absolute;
+  top: -7px;
+  right: -4px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  padding: 1px 4px;
+  border-radius: 6px;
+}
+
+/* Grade dot used in the run list, detail sub-line, and stats block. */
+.trail-grade-dot {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  box-shadow: 0 0 0 1px var(--border) inset;
+}
+.trail-grade-dot--green {
+  background: #43a047;
+}
+.trail-grade-dot--blue {
+  background: #1e88e5;
+}
+.trail-grade-dot--black {
+  background: #212121;
+}
+.trail-grade-dot--red {
+  background: #d32f2f;
+}
+.trail-grade-dot.is-planning {
+  background: transparent;
+  box-shadow: none;
+  border: 2px dashed currentColor;
+}
+.trail-grade-dot--green.is-planning {
+  border-color: #43a047;
+}
+.trail-grade-dot--blue.is-planning {
+  border-color: #1e88e5;
+}
+.trail-grade-dot--black.is-planning {
+  border-color: #6b7280;
+}
+.trail-grade-dot--red.is-planning {
+  border-color: #d32f2f;
+}
+.trail-grade-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Elevation profile chart. */
+.trail-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.trail-profile-svg {
+  display: block;
+  width: 100%;
+  height: 64px;
+  background: var(--panel-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.trail-profile-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 64px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--panel-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.trail-profile-axis {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Blocking, atomic local-resort preparation. */
+.package-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(22, 29, 29, 0.62);
+  backdrop-filter: blur(8px);
+}
+.package-card {
+  position: relative;
+  width: min(460px, calc(100vw - 48px));
+  padding: 26px 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel-elev);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+  overflow: hidden;
+  text-align: center;
+}
+/* Alpine gradient hairline across the top of the card. */
+.package-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #315f4a, #70a06a, #9ec98a);
+}
+.package-card.is-error::before { background: var(--danger); }
+.package-card h2 { margin: 4px 0 8px; font-size: 21px; }
+.package-card p { margin: 0 auto 18px; max-width: 34ch; color: var(--text-muted); line-height: 1.45; }
+.package-kicker { color: #4f8f74; font-size: 10px; font-weight: 800; letter-spacing: 0.16em; }
+
+/* Pulsing topographic-contour motif (evokes elevation sampling). */
+.topo-motif {
+  display: block;
+  width: 76px;
+  height: 76px;
+  margin: 2px auto 12px;
+  color: #4f8f74;
+}
+.topo-ring {
+  opacity: 0.2;
+  transform-box: view-box;
+  animation: topoPulse 2.6s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 0.32s);
+}
+.topo-peak { opacity: 0.7; animation: topoPeak 2.6s ease-in-out infinite; }
+@keyframes topoPulse { 0%, 100% { opacity: 0.16; } 45% { opacity: 0.85; } }
+@keyframes topoPeak { 0%, 100% { opacity: 0.55; } 45% { opacity: 1; } }
+
+/* Six-step preparation checklist. */
+.package-steps {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  text-align: left;
+}
+.package-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+.package-step-dot {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 999px;
+  border: 2px solid var(--border-strong);
+  background: transparent;
+  position: relative;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+.package-step-label { display: flex; flex-direction: column; line-height: 1.35; }
+.package-step-detail { margin-top: 1px; font-size: 11px; color: var(--text-muted); }
+
+.package-step.is-active { color: var(--text); font-weight: 600; }
+.package-step.is-active .package-step-dot {
+  border-color: #4f8f74;
+  animation: stepPulse 1.4s ease-in-out infinite;
+}
+.package-step.is-active .package-step-dot::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  background: #4f8f74;
+}
+.package-step.is-done { color: var(--text-muted); }
+.package-step.is-done .package-step-dot {
+  border-color: #4f8f74;
+  background: #4f8f74;
+}
+.package-step.is-done .package-step-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: no-repeat center / 9px 9px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.2l2.6 2.6L10 3.4' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+@keyframes stepPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 143, 116, 0.45); }
+  60% { box-shadow: 0 0 0 5px rgba(79, 143, 116, 0); }
+}
+
+.package-progress { position: relative; height: 8px; overflow: hidden; border-radius: 999px; background: var(--seg-bg); }
+.package-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #315f4a, #70a06a); transition: width 220ms ease; }
+/* Sheen sweeping across the filled portion. */
+.package-progress span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.45) 50%, transparent 80%);
+  animation: progressSheen 1.6s linear infinite;
+}
+.package-progress.is-indeterminate span {
+  width: 38%;
+  animation: progressSlide 1.25s ease-in-out infinite;
+}
+.package-progress.is-indeterminate span::after { display: none; }
+@keyframes progressSheen { from { transform: translateX(-60%); } to { transform: translateX(160%); } }
+@keyframes progressSlide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+.package-progress-label { margin-top: 7px; color: var(--text-muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+.package-actions { display: flex; justify-content: center; gap: 8px; margin-top: 18px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .topo-ring, .topo-peak, .package-step.is-active .package-step-dot,
+  .package-progress span::after, .package-progress.is-indeterminate span { animation: none; }
+  .topo-ring { opacity: 0.5; }
+}

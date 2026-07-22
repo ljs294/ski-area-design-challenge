@@ -4,6 +4,19 @@ import type { LatLonBounds } from './elevation';
 // vectorFeatures.ts imports feature types (RoadFeature etc.) from here.
 import type { HydratedVectorFeatures } from './vectorFeatures';
 
+/**
+ * A coarse elevation grid covering the buffer area around a resort's high-res
+ * core. Row-major, row 0 = north edge (same orientation as sampleHeights).
+ * Cells USGS reports as nodata are stored as SURROUND_NODATA and treated as
+ * "no data" (transparent) at render time.
+ */
+export interface SurroundElevation {
+  bounds: LatLonBounds;
+  width: number;
+  height: number;
+  heights: number[];
+}
+
 export interface ClimateMonth {
   tempHigh: number; // Fahrenheit
   tempLow: number;  // Fahrenheit
@@ -15,7 +28,7 @@ export interface ClimateProfile {
   monthly: ClimateMonth[];
 }
 
-export type AreaSizeMeters = 2000 | 4000 | 8000;
+export type AreaSizeMeters = number;
 
 // Real-world map features pulled from OpenStreetMap (via Overpass) for a
 // terrain's exact ingest bounds. Geometry is stored raw as [lon, lat] pairs
@@ -24,7 +37,170 @@ export type AreaSizeMeters = 2000 | 4000 | 8000;
 // mapSize or fixing a projection bug never requires re-fetching data.
 export type RoadClass = 'major' | 'minor' | 'path';
 export type WaterLineClass = 'river' | 'stream';
-export type LandCoverClass = 'forest' | 'grass' | 'rock' | 'scrub';
+export type OsmLandCoverClass = 'forest' | 'grass' | 'rock' | 'scrub';
+export type LandCoverClass =
+  | 'tree-cover'
+  | 'shrubland'
+  | 'grassland'
+  | 'cropland'
+  | 'built-up'
+  | 'bare-sparse'
+  | 'snow-ice'
+  | 'permanent-water'
+  | 'herbaceous-wetland'
+  | 'mangroves'
+  | 'moss-lichen'
+  | 'nodata';
+
+/** Native ESA WorldCover class codes. 255 is reserved for missing/unknown data. */
+export type WorldCoverClassCode = 10 | 20 | 30 | 40 | 50 | 60 | 70 | 80 | 90 | 95 | 100 | 255;
+export type TerrainCoverClass = 'forest' | 'alpine' | 'grassland' | 'water';
+export type TerrainCoverCode = 1 | 2 | 3 | 4 | 255;
+export type CoverClassCode = WorldCoverClassCode | TerrainCoverCode;
+export type CoverGridData = number[] | Uint8Array;
+
+export interface SiteCoverGrid {
+  bounds: LatLonBounds;
+  width: number;
+  height: number;
+  /** Approximate source-cell size at the site's center latitude. */
+  cellSizeM: number;
+  data: CoverGridData; // row-major WorldCoverClassCode values; persisted as UInt8 binary
+  complete: boolean;
+  nodataCount: number;
+  source: 'esa-worldcover-2021-v200';
+  vintage: '2021';
+}
+
+export interface TerrainCoverProvenance {
+  processingVersion: 'four-class-v1';
+  confidence: 'high' | 'reduced';
+  method: 'naip-worldcover' | 'worldcover-fallback';
+  attribution: string[];
+  naip?: {
+    sceneIds: number[];
+    sceneNames: string[];
+    acquisitionYear: number;
+    agency: 'USDA' | 'USGS';
+    resolutionM: number;
+    license: 'us-government-public-domain';
+  };
+  worldCover: {
+    vintage: '2021';
+    license: 'cc-by-4.0';
+  };
+}
+
+export interface TerrainCoverGrid {
+  bounds: LatLonBounds;
+  width: number;
+  height: number;
+  cellSizeM: number;
+  data: CoverGridData;
+  complete: boolean;
+  nodataCount: number;
+  source: 'usgs-four-class-v1';
+  vintage: string;
+  treelineM: { north: number; east: number; south: number; west: number; site: number };
+  provenance: TerrainCoverProvenance;
+}
+
+export type CoverGrid = SiteCoverGrid | TerrainCoverGrid;
+
+export type CoverMetadata = (
+  | Omit<SiteCoverGrid, 'data'>
+  | Omit<TerrainCoverGrid, 'data'>
+) & { byteLength: number; checksum: string };
+
+export interface OriginalCoverMetadata extends Omit<SiteCoverGrid, 'data'> {
+  byteLength: number;
+  checksum: string;
+}
+
+export interface LocalImageryMetadata {
+  bounds: LatLonBounds;
+  width: number;
+  height: number;
+  mimeType: 'image/jpeg';
+  byteLength: number;
+  checksum: string;
+  acquisitionYear: number;
+  sceneIds: number[];
+  attribution: string;
+}
+
+export interface ContourMetadata {
+  intervalM: number;
+  segmentCount: number;
+  byteLength: number;
+  checksum: string;
+  gridSize: number;
+}
+
+/** Exact cell-edge boundaries for canopy/shrub cover, stored as Float32 tuples. */
+export interface CoverGeometryMetadata {
+  segmentCount: number;
+  byteLength: number;
+  checksum: string;
+}
+
+/** Persisted, generalized display polygons encoded as normalized Float32 data. */
+export interface CoverDisplayMetadata {
+  polygonCount: number;
+  ringCount: number;
+  vertexCount: number;
+  byteLength: number;
+  checksum: string;
+  smoothingM: number;
+  simplifyM: number;
+  minFeatureM2: number;
+}
+
+export type TerrainPackagePhase =
+  | 'elevation'
+  | 'ground-cover'
+  | 'imagery'
+  | 'decoding'
+  | 'deriving'
+  | 'vectorizing-cover'
+  | 'saving'
+  | 'verifying';
+
+export interface TerrainPackageProgress {
+  phase: TerrainPackagePhase;
+  message: string;
+  completed: number;
+  total: number;
+}
+
+export interface TerrainPackageManifest {
+  schemaVersion: 1 | 2 | 3;
+  terrainKey: string;
+  complete: boolean;
+  elevationByteLength: number;
+  elevationChecksum: string;
+  cover?: CoverMetadata;
+  originalCover?: OriginalCoverMetadata;
+  coverGeometry?: CoverGeometryMetadata;
+  coverDisplay?: CoverDisplayMetadata;
+  contours?: ContourMetadata;
+  imagery?: LocalImageryMetadata;
+  assets: {
+    elevation: string;
+    cover: string;
+    originalCover?: string;
+    coverGeometry: string;
+    coverDisplay?: string;
+    contours: string;
+    imagery?: string;
+  };
+  preparedAt: string;
+}
+
+export interface TerrainPackageValidation {
+  ok: boolean;
+  errors: string[];
+}
 
 export interface RoadFeature {
   id: string;
@@ -50,7 +226,7 @@ export interface WaterPolygonFeature {
 
 export interface LandCoverFeature {
   id: string;
-  landCoverClass: LandCoverClass;
+  landCoverClass: OsmLandCoverClass;
   rings: [number, number][][];
 }
 
@@ -74,7 +250,7 @@ export interface VectorFeatureSet {
 // is stored; the display grid is always recomputed on load (deterministic,
 // cheap, and avoids multi-megabyte save files).
 export interface TerrainRecord {
-  schemaVersion: 2 | 3;
+  schemaVersion: 2 | 3 | 4 | 5 | 6;
   key: string; // stable slug, see terrainStorageClient.ts
   mountainName: string;
   latitude: number; // center
@@ -86,8 +262,39 @@ export interface TerrainRecord {
   // Optional only because schemaVersion 2 records predate this field;
   // hydrateTerrainRecord falls back to recomputing it for those.
   bounds?: LatLonBounds;
-  sampleGridSize: number; // fixed 64
+  sampleGridSize: number; // actual square elevation raster dimension
   sampleHeights: number[]; // row-major, sampleGridSize^2, meters
+  /**
+   * Medium-resolution elevation ring covering the play box plus a fixed margin
+   * (PERIMETER_MARGIN_M) on every side, so the 3D view shows real neighbouring
+   * relief — hillshaded like the core, terminating in a clean floating-clip edge
+   * — instead of a cliff at the property line. Elevation only: ground cover /
+   * slope / aspect stay clamped to the box. Fully offline: fetched once at
+   * capture time and rendered by the resort-dem protocol outside `bounds`. Sized
+   * (see PERIMETER_GRID_SIZE) to embed directly in the record JSON as a few MB —
+   * no binary sidecar. Optional: packages captured before this feature (and
+   * presets without a bundled ring) simply render without a surround.
+   */
+  surround?: SurroundElevation;
+  /** Present on schema-v4 prepared resort packages; stored as .cover.bin. */
+  coverGrid?: CoverGrid;
+  coverMetadata?: CoverMetadata;
+  /** Unmodified ESA grid retained by schema-v6 packages for provenance/recovery. */
+  originalCoverGrid?: SiteCoverGrid;
+  originalCoverMetadata?: OriginalCoverMetadata;
+  /** Flat [x1,y1,x2,y2,classCode] tuples in normalized site coordinates. */
+  coverBoundarySegments?: number[];
+  coverGeometryMetadata?: CoverGeometryMetadata;
+  /** Flat normalized polygon stream; see coverDisplay.ts. Required by schema v5. */
+  coverDisplayGeometry?: number[];
+  coverDisplayMetadata?: CoverDisplayMetadata;
+  /** Optional matching NAIP JPEG; stored outside JSON as .imagery.jpg. */
+  localImagery?: Uint8Array | number[];
+  localImageryMetadata?: LocalImageryMetadata;
+  /** Flat [x1,y1,x2,y2,levelMeters] tuples in normalized site coordinates. */
+  contourSegments?: number[];
+  contourMetadata?: ContourMetadata;
+  packageManifest?: TerrainPackageManifest;
   climate: ClimateProfile;
   // Absent on schemaVersion 2 records and on any record ingested before a
   // vector fetch succeeded — renderer treats missing as "no overlays".
@@ -158,13 +365,52 @@ export interface SavedFixedGripLift extends SavedLiftBase {
 
 export type SavedLift = SavedFixedGripLift;
 
+// Ski-run difficulty designation. Mirrors the four slope-angle bands in
+// terrainProtocols.ts (Green <16°, Blue <24°, Black <37°, Red ≥37°) — the same
+// ratings the slope overlay paints — so a run's recommended grade always agrees
+// with the terrain shading beneath it. See src/trails.ts.
+export type TrailDifficulty = 'green' | 'blue' | 'black' | 'red';
+
+// Build state of a run, mirroring LiftStatus: 'planning' (dashed) vs 'complete'.
+export type TrailStatus = 'planning' | 'complete';
+
+export interface SavedTrailPart {
+  /** Outer ring followed by optional holes. */
+  polygon: [number, number][][];
+  /** Medial route derived from the painted footprint. */
+  centerline: [number, number][];
+  /** Terrain elevations in meters, parallel to `centerline`. */
+  centerlineElevM: number[];
+}
+
+// A ski run painted with the brush tool. The run is a filled polygon (its
+// skiable footprint) with a centerline "spine" the profile + downhill
+// simulation walk. Geometry is stored raw as [lng, lat]; cached stats
+// (length/vertical/slope/difficulty) are recomputed from it on load by
+// sanitizeTrails so they can never drift from the geometry.
+export interface SavedTrail {
+  id: string;
+  name: string; // default "Run N"
+  /** Every connected painted footprint component. */
+  parts: SavedTrailPart[];
+  brushWidthM: number; // brush diameter used to paint it
+  areaM2: number;
+  lengthM: number; // sum of all 3D centerline segments
+  verticalM: number | null; // highest − lowest centerline elevation
+  avgSlopeDeg: number;
+  maxSlopeDeg: number;
+  difficulty: TrailDifficulty; // automatically derived from the terrain
+  status: TrailStatus; // 'planning' (dashed) or 'complete' (solid)
+  createdAt: string; // ISO
+}
+
 // A player's resort design. The first-class "game" unit, distinct from the raw
 // TerrainRecord it will eventually reference for offline rendering. Camera +
 // site are persisted so Load/Continue restores the exact view. `terrainKey`
-// and `trails` are reserved for the offline-terrain + design/simulation
-// layers that are not built yet — the map still streams tiles online for now.
+// is reserved for the offline-terrain layer that is not built yet — the map
+// still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -176,7 +422,7 @@ export interface GameSave {
   is3D: boolean;
   site: SavedSiteBox | null; // locked property box, if one was drawn
   lifts: SavedLift[]; // ski lifts drawn on the map
-  trails: unknown[]; // reserved for future trail lines
+  trails: SavedTrail[]; // ski runs painted on the map
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }
