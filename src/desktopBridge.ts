@@ -20,6 +20,9 @@ export interface DesktopApi {
   terrain: {
     save(record: TerrainRecord): Promise<TerrainSaveResponse>;
     load(key: string): Promise<TerrainLoadResponse>;
+    /** Package-named aliases used by resort preparation and repair flows. */
+    loadPackage(key: string): Promise<TerrainLoadResponse>;
+    repairPackage(record: TerrainRecord): Promise<TerrainSaveResponse>;
     list(): Promise<TerrainListResponse>;
     delete(key: string): Promise<TerrainDeleteResponse>;
   };

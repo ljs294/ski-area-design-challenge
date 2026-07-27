@@ -10,7 +10,7 @@ import { listGames, loadGame, mostRecentGame } from '../gameSaveClient';
 import { desktop } from '../desktopBridge';
 import type { GameSave } from '../types';
 
-type Screen = 'menu' | 'newGame' | 'game' | 'mapMgmt' | 'graphicsLab';
+type Screen = 'menu' | 'newGame' | 'game' | 'loadingGame' | 'mapMgmt' | 'graphicsLab';
 
 /**
  * Boot straight into a screen from a deep link, bypassing the menu. The
@@ -59,17 +59,23 @@ function AppInner() {
   }, []);
 
   const handleContinue = useCallback(async () => {
+    // Unmount the decorative menu map before asynchronous save/package lookup;
+    // otherwise it can issue Terrarium requests during the resume transition.
+    setScreen('loadingGame');
     const recent = await mostRecentGame();
-    if (!recent) return;
+    if (!recent) { setScreen('menu'); return; }
     const save = await loadGame(recent.key);
     if (save) openSave(save);
+    else setScreen('menu');
   }, [openSave]);
 
   const handleLoadPick = useCallback(
     async (key: string) => {
-      const save = await loadGame(key);
       setShowLoad(false);
+      setScreen('loadingGame');
+      const save = await loadGame(key);
       if (save) openSave(save);
+      else setScreen('menu');
     },
     [openSave]
   );
@@ -104,6 +110,8 @@ function AppInner() {
           onLoadGame={() => setShowLoad(true)}
         />
       )}
+
+      {screen === 'loadingGame' && <div className="menu-loading" aria-label="Loading resort" />}
 
       {screen === 'game' && (
         <MapView

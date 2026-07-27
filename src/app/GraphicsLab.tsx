@@ -6,7 +6,7 @@ import { setupAnalysisLayers, type LayerToggle } from './analysisLayers';
 import { LayerPanel } from './LayerPanel';
 import type { OverlayId } from './Legend';
 import { basemapFor, tuneBasemap } from './basemapStyle';
-import { enable3D, disable3D } from './terrain3d';
+import { mountTerrain, unmountTerrain, tilt3D } from './terrain3d';
 import { applyTileLod } from './terrainLod';
 import { pixelRatioFor, useSettings, type RenderQuality } from './SettingsContext';
 
@@ -15,7 +15,11 @@ import { pixelRatioFor, useSettings, type RenderQuality } from './SettingsContex
 // independent — so you can pan/zoom/tilt once and compare, e.g., Standard vs
 // Ultra LOD on the same terrain. Bypasses the menu (see App deep-link/shortcut).
 
-const CENTER: [number, number] = [-121.474, 46.928]; // Crystal Mountain, WA
+const PRESETS = [
+  { id: 'crystal', label: 'Crystal', center: [-121.474, 46.928] as [number, number] },
+  { id: 'stevens', label: 'Stevens Pass', center: [-121.089, 47.744] as [number, number] },
+] as const;
+const CENTER = PRESETS[0].center;
 const ZOOM = 13;
 
 const QUALITY_OPTS: { value: RenderQuality; label: string }[] = [
@@ -25,7 +29,8 @@ const QUALITY_OPTS: { value: RenderQuality; label: string }[] = [
 ];
 
 function activeOverlayOf(layers: LayerToggle[]): OverlayId | null {
-  const on = layers.find((l) => l.exclusiveGroup === 'overlay' && l.visible);
+  const analysis = layers.find((l) => (l.exclusiveGroup === 'overlay' || l.exclusiveGroup === 'analysis') && l.visible);
+  const on = analysis ?? layers.find((l) => l.id === 'groundcover' && l.visible);
   return (on?.id as OverlayId) ?? null;
 }
 
@@ -62,6 +67,7 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
   const [quality0, setQuality0] = useState<RenderQuality>('standard');
   const [quality1, setQuality1] = useState<RenderQuality>('ultra');
   const [is3D, setIs3D] = useState(false);
+  const [presetId, setPresetId] = useState<(typeof PRESETS)[number]['id']>('crystal');
 
   // Per-pane layer toggle with the same exclusive-overlay grouping as MapView.
   function makeToggle(idx: 0 | 1, set: Dispatch<SetStateAction<LayerToggle[]>>) {
@@ -116,7 +122,7 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
         new maplibregl.NavigationControl({ visualizePitch: true, showZoom: true, showCompass: true }),
         'bottom-right'
       );
-      m.on('load', () => {
+      m.on('style.load', () => {
         tuneBasemap(m);
         setLayers[i](setupAnalysisLayers(m));
         applyTileLod(m, initialQ[i]);
@@ -168,6 +174,12 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
     applyTileLod(m, quality1);
   }, [quality1]);
 
+  useEffect(() => {
+    const preset = PRESETS.find((item) => item.id === presetId)!;
+    const first = mapsRef.current[0];
+    if (first) first.flyTo({ center: preset.center, zoom: ZOOM, duration: 900 });
+  }, [presetId]);
+
   // Shared 3D toggle — both panes tilt together so the synced camera stays
   // valid. Compare against the last *applied* value (not a first-run flag) so
   // React StrictMode's double-invoked mount effect doesn't fire disable3D on an
@@ -181,10 +193,14 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
     [a, b].forEach((m, i) => {
       if (!m || !m.isStyleLoaded()) return;
       if (is3D) {
-        enable3D(m);
+        mountTerrain(m);
+        tilt3D(m, true);
         applyTileLod(m, q[i]); // terrain-dem source is new; give it the curve
       } else {
-        disable3D(m);
+        // Tilt flat first, then drop terrain once the ease lands so removing the
+        // mesh mid-pitch doesn't snap the camera's elevation.
+        tilt3D(m, false);
+        m.once('moveend', () => unmountTerrain(m));
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,6 +225,17 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
         >
           3D
         </button>
+        <div className="segmented glab-presets" aria-label="Graphics Lab location">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              className={`seg-btn${presetId === preset.id ? ' seg-btn-active' : ''}`}
+              onClick={() => setPresetId(preset.id)}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
         <span className="glab-hint">Camera synced · layers &amp; quality independent</span>
         <button className="ghost-btn glab-close" onClick={onExit}>
           Close (Esc)

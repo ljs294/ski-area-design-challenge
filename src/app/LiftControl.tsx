@@ -163,6 +163,7 @@ export function LiftControl({
   onCloseEdit,
   onDelete,
   onRetryElevation,
+  building = false,
 }: {
   tool: LiftTool;
   lifts: SavedLift[];
@@ -177,6 +178,8 @@ export function LiftControl({
   onCloseEdit: () => void;
   onDelete: (id: string) => void;
   onRetryElevation: () => void;
+  /** True while the confirmed lift is felling its cover — spins the build button. */
+  building?: boolean;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -242,10 +245,12 @@ export function LiftControl({
           }
         />
         <div className="site-actions">
-          <button className="site-btn site-btn-primary" onClick={onConfirm}>
-            {d.status === 'complete' ? 'Build lift' : 'Add to plan'}
+          <button className="site-btn site-btn-primary" onClick={onConfirm} disabled={building}>
+            {building ? (
+              <><span className="site-btn-spinner" aria-hidden="true" /> Building…</>
+            ) : d.status === 'complete' ? 'Build lift' : 'Add to plan'}
           </button>
-          <button className="site-btn" onClick={onCancel}>
+          <button className="site-btn" onClick={onCancel} disabled={building}>
             Cancel
           </button>
         </div>

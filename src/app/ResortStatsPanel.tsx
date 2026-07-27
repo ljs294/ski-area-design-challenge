@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import type { SavedLift } from '../types';
+import type { SavedLift, SavedTrail } from '../types';
 import type { Units } from './SettingsContext';
 import { fmtDistance } from '../lifts';
-import { resortElevations } from './resortStats';
+import { resortElevations, resortTrailTotals } from './resortStats';
 import { reverseGeocode } from './SearchBox';
 
 function StatRow({ label, value, tbd }: { label: string; value: string; tbd?: boolean }) {
@@ -23,6 +23,7 @@ export function ResortStatsPanel({
   name,
   onRename,
   lifts,
+  trails,
   center,
   units,
   onClose,
@@ -30,11 +31,13 @@ export function ResortStatsPanel({
   name: string;
   onRename: (name: string) => void;
   lifts: SavedLift[];
+  trails: SavedTrail[];
   center: [number, number];
   units: Units;
   onClose: () => void;
 }) {
-  const { summitM, baseM, verticalM } = resortElevations(lifts);
+  const { summitM, baseM, verticalM } = resortElevations(lifts, trails);
+  const runTotals = resortTrailTotals(trails);
   const [location, setLocation] = useState<string | null>(null); // null = still loading
 
   const [lng, lat] = center;
@@ -74,7 +77,10 @@ export function ResortStatsPanel({
           <StatRow label="Base elevation" value={elev(baseM)} />
           <StatRow label="Vertical drop" value={elev(verticalM)} />
           <StatRow label="Ski lifts" value={lifts.length.toLocaleString()} />
-          <StatRow label="Ski runs" value="0" tbd />
+          <StatRow label="Ski runs" value={runTotals.count.toLocaleString()} />
+          {runTotals.count > 0 && (
+            <StatRow label="Total run length" value={fmtDistance(runTotals.totalLengthM, units)} />
+          )}
           <StatRow label="Avg. annual snowfall" value="TBD" tbd />
         </div>
       </div>

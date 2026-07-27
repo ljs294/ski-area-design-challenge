@@ -7,10 +7,15 @@ export function LayerList({
   layers,
   onToggle,
   activeOverlay,
+  inlineLegend = true,
 }: {
   layers: LayerToggle[];
   onToggle: (id: string) => void;
   activeOverlay: OverlayId | null;
+  /** Render the contextual legend inside the list (default). MapView's dock
+   *  passes false and floats the legend above the panel so the menu never
+   *  resizes when overlays are toggled. */
+  inlineLegend?: boolean;
 }) {
   return (
     <div className="layer-list">
@@ -26,7 +31,7 @@ export function LayerList({
         </div>
       ))}
       {/* Legend appears only for the active overlay. */}
-      <Legend overlay={activeOverlay} />
+      {inlineLegend && <Legend overlay={activeOverlay} />}
     </div>
   );
 }

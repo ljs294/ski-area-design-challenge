@@ -1,8 +1,7 @@
 // Renderer-side wrapper over the terrain filesystem storage. Uses the Electron
-// desktop bridge (electron/preload.ts) when present; falls back to localStorage
-// when running as a plain web page (e.g. the GitHub Pages demo or `vite preview`)
-// so the app doesn't crash. That fallback is dev/demo convenience only, not a
-// production storage guarantee.
+// desktop bridge (electron/preload.ts) when present; falls back to IndexedDB
+// when running as a plain web page. Legacy localStorage records are migrated
+// once on read, but no large package is ever written there.
 import { desktop } from './desktopBridge';
 import type {
   TerrainSaveResponse,
@@ -12,19 +11,40 @@ import type {
 } from './ipcContract';
 import type { TerrainRecord, TerrainSummary } from './types';
 
-const LOCAL_STORAGE_PREFIX = 'terrain-fallback:';
-const LOCAL_STORAGE_INDEX_KEY = 'terrain-fallback-index';
+const LEGACY_PREFIX = 'terrain-fallback:';
+const LEGACY_INDEX_KEY = 'terrain-fallback-index';
+const DB_NAME = 'mountain-planner-terrain';
+const STORE = 'terrains';
 
-function localList(): TerrainSummary[] {
+function legacyList(): TerrainSummary[] {
   try {
-    return JSON.parse(localStorage.getItem(LOCAL_STORAGE_INDEX_KEY) || '[]');
+    return JSON.parse(localStorage.getItem(LEGACY_INDEX_KEY) || '[]');
   } catch {
     return [];
   }
 }
 
-function localWriteIndex(summaries: TerrainSummary[]): void {
-  localStorage.setItem(LOCAL_STORAGE_INDEX_KEY, JSON.stringify(summaries));
+function openTerrainDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE, { keyPath: 'key' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error('Unable to open terrain database'));
+  });
+}
+
+async function dbRequest<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const db = await openTerrainDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, mode);
+    const req = run(tx.objectStore(STORE));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error('Terrain database operation failed'));
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => reject(tx.error ?? new Error('Terrain database transaction failed'));
+  });
 }
 
 function toSummary(record: TerrainRecord): TerrainSummary {
@@ -41,11 +61,10 @@ function toSummary(record: TerrainRecord): TerrainSummary {
 }
 
 export async function saveTerrain(record: TerrainRecord): Promise<TerrainSaveResponse> {
-  if (desktop) return desktop.terrain.save(record);
+  if (desktop) return desktop.terrain.repairPackage(record);
 
   try {
-    localStorage.setItem(LOCAL_STORAGE_PREFIX + record.key, JSON.stringify(record));
-    localWriteIndex([...localList().filter((s) => s.key !== record.key), toSummary(record)]);
+    await dbRequest('readwrite', (store) => store.put(record));
     return { ok: true, key: record.key };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Unknown error saving terrain' };
@@ -53,21 +72,30 @@ export async function saveTerrain(record: TerrainRecord): Promise<TerrainSaveRes
 }
 
 export async function loadTerrain(key: string): Promise<TerrainLoadResponse> {
-  if (desktop) return desktop.terrain.load(key);
+  if (desktop) return desktop.terrain.loadPackage(key);
 
-  const raw = localStorage.getItem(LOCAL_STORAGE_PREFIX + key);
-  return raw ? JSON.parse(raw) : null;
+  const stored = await dbRequest<TerrainRecord | undefined>('readonly', (store) => store.get(key));
+  if (stored) return stored;
+  // One-way compatibility for records created by the old demo fallback.
+  const raw = localStorage.getItem(LEGACY_PREFIX + key);
+  if (!raw) return null;
+  const legacy = JSON.parse(raw) as TerrainRecord;
+  await dbRequest('readwrite', (store) => store.put(legacy));
+  return legacy;
 }
 
 export async function listTerrains(): Promise<TerrainListResponse> {
   if (desktop) return desktop.terrain.list();
-  return localList();
+  const records = await dbRequest<TerrainRecord[]>('readonly', (store) => store.getAll());
+  const summaries = records.map(toSummary);
+  for (const legacy of legacyList()) if (!summaries.some((s) => s.key === legacy.key)) summaries.push(legacy);
+  return summaries;
 }
 
 export async function deleteTerrain(key: string): Promise<TerrainDeleteResponse> {
   if (desktop) return desktop.terrain.delete(key);
 
-  localStorage.removeItem(LOCAL_STORAGE_PREFIX + key);
-  localWriteIndex(localList().filter((s) => s.key !== key));
+  await dbRequest('readwrite', (store) => store.delete(key));
+  localStorage.removeItem(LEGACY_PREFIX + key);
   return { ok: true };
 }
