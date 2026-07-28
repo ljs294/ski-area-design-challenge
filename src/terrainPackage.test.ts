@@ -46,6 +46,19 @@ describe('terrain package manifests', () => {
     value.coverBoundarySegments![0] = 0.5;
     expect(validateTerrainPackage(value).ok).toBe(false);
   });
+  it('validates a regraded elevation grid with regenerated contours and manifest', () => {
+    let value = record();
+    const contourSegments = [0, 0.25, 1, 0.75, 1005];
+    value = {
+      ...value,
+      sampleHeights: [1000, 1007, 1015, 1024],
+      contourSegments,
+      contourMetadata: contourMetadataOf(contourSegments, 2, 6.096),
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    };
+    value = { ...value, packageManifest: manifestOf(value) };
+    expect(validateTerrainPackage(value)).toEqual({ ok: true, errors: [] });
+  });
   it('requires and validates persisted vector geometry for schema v5', () => {
     let value = record();
     const geometry = [10, 1, 4, 0, 0, 1, 0, 1, 1, 0, 0];

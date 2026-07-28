@@ -72,7 +72,10 @@ try {
 
   phase = 'gameplay';
   await waitMap();
-  await page.waitForTimeout(5_000);
+  // The resort loading screen covers the HUD until the resort is posed and
+  // fully drawn; its disappearance is the real "gameplay has begun" signal.
+  await page.waitForFunction(() => !document.querySelector('.resort-loading'), null, { timeout: 120_000 });
+  await page.waitForTimeout(1_000);
   const local2D = await page.evaluate(() => {
     const map = globalThis.appMap;
     const style = map.getStyle();

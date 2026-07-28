@@ -416,6 +416,8 @@ export interface SavedTrail {
   avgSlopeDeg: number;
   maxSlopeDeg: number;
   difficulty: TrailDifficulty; // automatically derived from the terrain
+  /** True when construction permanently regraded the local elevation package. */
+  terrainGraded?: boolean;
   status: TrailStatus; // 'planning' (dashed) or 'complete' (solid)
   createdAt: string; // ISO
 }

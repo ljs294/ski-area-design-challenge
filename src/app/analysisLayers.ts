@@ -7,6 +7,7 @@ import {
   localTileBounds,
   registerResortProtocols,
   resortDemBounds,
+  resortProtocolUrl,
   RESORT_ASPECT_PROTOCOL,
   RESORT_COVER_PROTOCOL,
   RESORT_DEM_PROTOCOL,
@@ -17,6 +18,8 @@ import { unitToLngLat } from '../geo';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import { addCoverLayers, COVER_LAYER_IDS } from './coverVectorize';
 import { LOCAL_ROAD_PAINT, playerRoadFeatures } from './roadLayers';
+import { localContourGeoJSON } from './localContours';
+export { localContourGeoJSON } from './localContours';
 
 const TERRARIUM_TILES = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
 
@@ -47,30 +50,6 @@ function contourDemFor(url: string): InstanceType<typeof mlcontour.DemSource> {
   const dem = new mlcontour.DemSource({ url, encoding: 'terrarium', maxzoom: 15, worker: false });
   dem.setupMaplibre(maplibregl);
   return dem;
-}
-
-function localContourGeoJSON(record: TerrainRecord, imperial: boolean): GeoJSON.FeatureCollection {
-  const b = record.bounds!;
-  const byLevel = new Map<number, GeoJSON.Position[][]>();
-  const data = record.contourSegments ?? [];
-  for (let i = 0; i + 4 < data.length; i += 5) {
-    const levelM = data[i + 4];
-    const level = imperial ? levelM * 3.28084 : levelM;
-    const lines = byLevel.get(level) ?? [];
-    lines.push([
-      unitToLngLat(data[i], data[i + 1], b),
-      unitToLngLat(data[i + 2], data[i + 3], b),
-    ]);
-    byLevel.set(level, lines);
-  }
-  return {
-    type: 'FeatureCollection',
-    features: [...byLevel.entries()].map(([ele, coordinates]) => ({
-      type: 'Feature',
-      properties: { ele, level: Math.round(ele / (imperial ? 20 : 6.096)) % 5 === 0 ? 1 : 0 },
-      geometry: { type: 'MultiLineString', coordinates },
-    })),
-  };
 }
 
 function localCoverBoundaryGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollection {
@@ -190,11 +169,10 @@ export function setupAnalysisLayers(
   let coverLabel = 'Ground cover preview';
   if (local) {
     registerResortProtocols();
-    const key = encodeURIComponent(local.key);
     bounds = localTileBounds(local);
     demBounds = resortDemBounds(local);
-    demUrl = `${RESORT_DEM_PROTOCOL}://${key}/{z}/{x}/{y}`;
-    if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${key}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
+    demUrl = resortProtocolUrl(RESORT_DEM_PROTOCOL, local);
+    if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(local.key)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
     map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, playerRoads), attribution: 'Local OSM context © OpenStreetMap contributors' });
     coverVisible = true;
     coverLabel = local.coverGrid?.source === 'usgs-four-class-v1' ? 'Detailed terrain cover (local)' : 'ESA WorldCover 2021 · 10 m (local)';
@@ -286,9 +264,9 @@ export function setupAnalysisLayers(
   const slopeProtocol = local ? RESORT_SLOPE_PROTOCOL : SLOPE_PROTOCOL;
   const aspectProtocol = local ? RESORT_ASPECT_PROTOCOL : ASPECT_PROTOCOL;
   if (!local) registerTerrainProtocols();
-  map.addSource('slope', { type: 'raster', tiles: [`${slopeProtocol}://${local ? `${encodeURIComponent(local.key)}/` : ''}{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, ...(bounds ? { bounds } : {}) });
+  map.addSource('slope', { type: 'raster', tiles: [local ? resortProtocolUrl(slopeProtocol, local) : `${slopeProtocol}://{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, ...(bounds ? { bounds } : {}) });
   map.addLayer({ id: 'slope', type: 'raster', source: 'slope', layout: { visibility: 'none' }, paint: { 'raster-opacity': 1 } }, analysisAnchor);
-  map.addSource('aspect', { type: 'raster', tiles: [`${aspectProtocol}://${local ? `${encodeURIComponent(local.key)}/` : ''}{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, ...(bounds ? { bounds } : {}) });
+  map.addSource('aspect', { type: 'raster', tiles: [local ? resortProtocolUrl(aspectProtocol, local) : `${aspectProtocol}://{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, ...(bounds ? { bounds } : {}) });
   map.addLayer({ id: 'aspect', type: 'raster', source: 'aspect', layout: { visibility: 'none' }, paint: { 'raster-opacity': 1 } }, analysisAnchor);
   map.addLayer({
     id: 'contour-labels', type: 'symbol', source: 'contours', ...(local ? {} : { 'source-layer': 'contours' }),

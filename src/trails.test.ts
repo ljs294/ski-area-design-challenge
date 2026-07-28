@@ -138,6 +138,12 @@ describe('sanitizeTrails', () => {
     expect(out[0].parts[0].centerlineElevM).toEqual([]); // wrong length → dropped
     expect(out[0].verticalM).toBeNull();
   });
+
+  it('preserves only an explicit terrain-grading marker', () => {
+    expect(sanitizeTrails([{ ...valid, terrainGraded: true }])[0].terrainGraded).toBe(true);
+    expect(sanitizeTrails([{ ...valid, terrainGraded: 'yes' }])[0].terrainGraded).toBe(false);
+    expect(sanitizeTrails([valid])[0].terrainGraded).toBe(false);
+  });
 });
 
 describe('nextTrailName', () => {

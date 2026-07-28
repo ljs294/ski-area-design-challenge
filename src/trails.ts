@@ -238,6 +238,7 @@ export function sanitizeTrails(raw: unknown[]): SavedTrail[] {
       avgSlopeDeg: stats.avgSlopeDeg,
       maxSlopeDeg: stats.maxSlopeDeg,
       difficulty,
+      terrainGraded: t.terrainGraded === true,
       status,
       createdAt: typeof t.createdAt === 'string' ? t.createdAt : new Date().toISOString(),
     });

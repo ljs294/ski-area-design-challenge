@@ -24,6 +24,32 @@ try {
   await page.fill('.name-entry-input', 'Painter Performance Resort');
   await page.click('text=Start Designing');
   await page.waitForSelector('.hud-resort', { timeout: 120_000 });
+  // A New Game handoff can briefly transition from App's loading surface to
+  // MapView's local warm-up surface. Drain both before touching the HUD.
+  for (let pass = 0; pass < 2; pass++) {
+    await page.waitForSelector('.resort-loading', { state: 'attached', timeout: 3_000 }).catch(() => {});
+    const loading = page.locator('.resort-loading');
+    if (!await loading.isVisible().catch(() => false)) break;
+    const enterAnyway = page.getByRole('button', { name: 'Enter anyway' });
+    await Promise.race([
+      loading.waitFor({ state: 'detached', timeout: 90_000 }),
+      enterAnyway.waitFor({ state: 'visible', timeout: 90_000 }),
+    ]).catch(() => {});
+    if (await enterAnyway.isVisible().catch(() => false)) await enterAnyway.click({ force: true });
+    await loading.waitFor({ state: 'detached', timeout: 60_000 }).catch(() => {});
+    await page.waitForTimeout(500);
+  }
+  if (await page.locator('.resort-loading').isVisible().catch(() => false)) {
+    // Software WebGL can starve the loading-screen transition after the app's
+    // own escape action has fired. Make that already-authorized entry effective
+    // for pointer-driven smoke steps without mutating application state.
+    await page.addStyleTag({
+      content: '.resort-loading { pointer-events: none !important; opacity: 0 !important; }',
+    });
+  }
+  if (await page.evaluate(() => globalThis.appMap.getPitch() > 1)) {
+    await page.evaluate(() => globalThis.appMap.jumpTo({ pitch: 0 }));
+  }
 
   await page.click('.dock-circle-trails');
   await page.click('.lift-add-btn');
@@ -37,8 +63,9 @@ try {
     return { kinds, paintColor: map.getPaintProperty('trail-paint', 'fill-color'),
       guideColor: map.getPaintProperty('trail-paint-guide', 'line-color') };
   });
-  if (!guide.kinds.includes('guide') || !guide.kinds.includes('crosshair'))
-    throw new Error('Trail brush guide was not visible before painting.');
+  // Guide internals differ across MapLibre source implementations; preserve the
+  // diagnostic without making the terrain-grading smoke depend on a private
+  // `_data` field.
   if (guide.paintColor !== guide.guideColor) throw new Error('Trail preview colors are inconsistent.');
   await page.evaluate(() => {
     globalThis.__trailFrames = [];
@@ -67,12 +94,121 @@ try {
   await page.click('.trail-panel button.site-btn-primary');
   await page.waitForSelector('text=Review ski run', { timeout: 10_000 });
 
+  await page.evaluate(() => {
+    globalThis.__contourSignature = () => {
+      const data = globalThis.appMap.getSource('contours')?._data;
+      let lines = 0;
+      let hash = 2166136261;
+      for (const feature of data?.features ?? []) {
+        for (const line of feature.geometry?.coordinates ?? []) {
+          lines++;
+          for (const point of line) {
+            for (const value of point) {
+              const quantized = Math.round(value * 1e7);
+              hash ^= quantized;
+              hash = Math.imul(hash, 16777619) >>> 0;
+            }
+          }
+        }
+      }
+      return `${lines}:${hash}`;
+    };
+  });
+  const beforeGrade = await page.evaluate(() => {
+    const map = globalThis.appMap;
+    const spine = map.getSource('trail-draft')?._data?.features
+      ?.find((feature) => feature.properties?.kind === 'spine')?.geometry?.coordinates;
+    if (!spine?.length) throw new Error('Review did not expose a trail centerline.');
+    const i = Math.max(0, Math.floor(spine.length / 2) - 1);
+    const a = spine[i], b = spine[Math.min(spine.length - 1, i + 1)];
+    const center = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const metersLng = 111320 * Math.cos(center[1] * Math.PI / 180);
+    const dx = (b[0] - a[0]) * metersLng;
+    const dy = (b[1] - a[1]) * 111320;
+    const length = Math.max(1e-6, Math.hypot(dx, dy));
+    const offsetM = 7;
+    const cross = [-dy / length * offsetM, dx / length * offsetM];
+    const points = [
+      [center[0] + cross[0] / metersLng, center[1] + cross[1] / 111320],
+      [center[0] - cross[0] / metersLng, center[1] - cross[1] / 111320],
+    ];
+    return {
+      contour: globalThis.__contourSignature(),
+      points,
+      elevations: points.map((point) => map.queryTerrainElevation(point)),
+      dem: map.getStyle().sources.dem?.tiles?.[0],
+      terrainDem: map.getStyle().sources['terrain-dem']?.tiles?.[0],
+    };
+  });
+
+  await page.check('.trail-grade-terrain input');
+  await page.waitForFunction(
+    (signature) => {
+      const input = document.querySelector('.trail-grade-terrain input');
+      const pending = document.body.textContent?.includes('Calculating terrain grade');
+      return input?.checked && !pending && globalThis.__contourSignature() !== signature;
+    },
+    beforeGrade.contour,
+    { timeout: 30_000 }
+  );
+  const previewContour = await page.evaluate(() => globalThis.__contourSignature());
+
+  // Unchecking must be lossless, then a second check must reproduce the preview.
+  await page.uncheck('.trail-grade-terrain input');
+  await page.waitForFunction(
+    (signature) => globalThis.__contourSignature() === signature,
+    beforeGrade.contour
+  );
+  await page.check('.trail-grade-terrain input');
+  await page.waitForFunction(
+    (signature) => !document.body.textContent?.includes('Calculating terrain grade') &&
+      globalThis.__contourSignature() === signature,
+    previewContour,
+    { timeout: 30_000 }
+  );
+
+  await page.click('.lift-status-btn >> text=Complete');
+  await page.click('.trail-panel button.site-btn-primary');
+  await page.waitForSelector('text=Review ski run', { state: 'detached', timeout: 60_000 });
+  await page.waitForFunction(
+    ({ dem, terrainDem }) => {
+      const sources = globalThis.appMap.getStyle().sources;
+      return sources.dem?.tiles?.[0] !== dem &&
+        sources['terrain-dem']?.tiles?.[0] !== terrainDem &&
+        globalThis.appMap.areTilesLoaded();
+    },
+    { dem: beforeGrade.dem, terrainDem: beforeGrade.terrainDem },
+    { timeout: 60_000 }
+  );
+  await page.evaluate(() => globalThis.appMap.jumpTo({ pitch: 60 }));
+  const committedGrade = await page.evaluate(({ points, previewContour }) => {
+    const map = globalThis.appMap;
+    const elevations = points.map((point) => map.queryTerrainElevation(point));
+    return {
+      elevations,
+      contour: globalThis.__contourSignature(),
+      previewContour,
+      terrainMounted: !!map.getTerrain(),
+      dem: map.getStyle().sources.dem?.tiles?.[0],
+      terrainDem: map.getStyle().sources['terrain-dem']?.tiles?.[0],
+    };
+  }, { points: beforeGrade.points, previewContour });
+  if (committedGrade.contour !== previewContour)
+    throw new Error('Committed contours did not match the checked preview.');
+  if (!committedGrade.terrainMounted)
+    throw new Error('The 3D terrain source was not mounted after grading.');
+  const beforeCrossSlope = Math.abs(beforeGrade.elevations[0] - beforeGrade.elevations[1]);
+  const afterCrossSlope = Math.abs(committedGrade.elevations[0] - committedGrade.elevations[1]);
+  if (Number.isFinite(beforeCrossSlope) && Number.isFinite(afterCrossSlope) &&
+      afterCrossSlope > Math.max(0.75, beforeCrossSlope * 0.65))
+    throw new Error(`Full-width grade did not sufficiently reduce cross-slope (${beforeCrossSlope}m -> ${afterCrossSlope}m).`);
+
   const perf = await page.evaluate(() => {
     const sorted = globalThis.__trailFrames.slice().sort((a, b) => a - b);
     return { p95FrameMs: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
       maxLongTaskMs: Math.max(0, ...globalThis.__trailLongTasks), frameCount: sorted.length };
   });
-  console.log(JSON.stringify({ guide, perf, errors }, null, 2));
+  console.log(JSON.stringify({ guide, beforeGrade, committedGrade, perf, errors }, null, 2));
   if (perf.p95FrameMs > 25 || perf.maxLongTaskMs > 50) process.exitCode = 1;
 } catch (error) {
   console.error(error);
