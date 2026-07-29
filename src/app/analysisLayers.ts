@@ -19,6 +19,7 @@ import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import { addCoverLayers, COVER_LAYER_IDS } from './coverVectorize';
 import { LOCAL_ROAD_PAINT, playerRoadFeatures } from './roadLayers';
 import { localContourGeoJSON } from './localContours';
+import { EMPTY_CONTOURS, GRADED_CONTOUR_SOURCE } from './terrainGradeMap';
 export { localContourGeoJSON } from './localContours';
 
 const TERRARIUM_TILES = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
@@ -253,6 +254,17 @@ export function setupAnalysisLayers(
       'line-width': ['match', ['coalesce', ['get', 'level'], 0], 1, 1.25, 0.55],
     },
   }, contourAnchor);
+  // Contours over ground a pending terrain edit would change, drawn in yellow on
+  // top of the normal set. Empty except while a grading preview is up.
+  map.addSource(GRADED_CONTOUR_SOURCE, { type: 'geojson', data: EMPTY_CONTOURS });
+  map.addLayer({
+    id: 'graded-contour-lines', type: 'line', source: GRADED_CONTOUR_SOURCE,
+    paint: {
+      'line-color': '#facc15',
+      'line-width': ['match', ['coalesce', ['get', 'level'], 0], 1, 2.6, 1.6],
+      'line-opacity': 0.95,
+    },
+  }, contourAnchor);
   if (local) {
     map.addLayer({
       id: 'local-roads', type: 'line', source: 'local-context',
@@ -279,7 +291,7 @@ export function setupAnalysisLayers(
     { id: 'satellite', label: 'Satellite imagery', layerIds: [satelliteLayer], visible: satelliteVisible, section: 'Imagery' },
     { id: 'groundcover', label: coverLabel, layerIds: local && coverDisplay ? COVER_LAYER_IDS : local ? ['groundcover', 'cover-boundary-halo', 'cover-boundaries'] : ['groundcover'], visible: coverVisible, section: 'Master plan' },
     { id: 'hillshade', label: 'Terrain relief', layerIds: ['hillshade'], visible: true, section: 'Master plan' },
-    { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
+    { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'graded-contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
     { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-lines'] : basemap.water, visible: true, section: 'Master plan' },
     { id: 'bm-roads', label: 'Roads', layerIds: local ? [...basemap.roads, 'local-roads'] : basemap.roads, visible: true, section: 'Master plan' },
     { id: 'bm-buildings', label: 'Buildings', layerIds: basemap.buildings, visible: true, section: 'Master plan' },

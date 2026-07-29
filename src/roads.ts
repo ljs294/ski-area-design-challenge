@@ -38,6 +38,18 @@ export function sanitizeRoads(raw: unknown[]): SavedRoad[] {
       if (!previous || haversineMeters(previous, point) >= 0.05) points.push(point);
     }
     if (points.length < 2) continue;
+    const rawEarthwork = typeof value.earthwork === 'object' && value.earthwork !== null
+      ? value.earthwork as Record<string, unknown> : null;
+    const earthwork = rawEarthwork &&
+      typeof rawEarthwork.cutM3 === 'number' && Number.isFinite(rawEarthwork.cutM3) && rawEarthwork.cutM3 >= 0 &&
+      typeof rawEarthwork.fillM3 === 'number' && Number.isFinite(rawEarthwork.fillM3) && rawEarthwork.fillM3 >= 0
+      ? {
+          cutM3: rawEarthwork.cutM3,
+          fillM3: rawEarthwork.fillM3,
+          balanceM3: typeof rawEarthwork.balanceM3 === 'number' && Number.isFinite(rawEarthwork.balanceM3)
+            ? rawEarthwork.balanceM3 : rawEarthwork.cutM3 - rawEarthwork.fillM3,
+        }
+      : undefined;
     roads.push({
       id: value.id,
       name: value.name,
@@ -45,6 +57,8 @@ export function sanitizeRoads(raw: unknown[]): SavedRoad[] {
       widthM: TWO_LANE_ROAD_WIDTH_M,
       points,
       lengthM: roadLengthM(points),
+      terrainGraded: value.terrainGraded === true,
+      earthwork,
       createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
     });
   }

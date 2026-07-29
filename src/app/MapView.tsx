@@ -66,9 +66,11 @@ import {
   TRAIL_BUILT_LAYER_IDS,
 } from './trailLayers';
 import type { TrailPaintRequest, TrailPaintRequestPayload, TrailPaintResponse } from './trailPaintProtocol';
+import { strokeToPolygon } from './trailBrush';
 import { terrainGradeGeometryKey, type TerrainGradeResponse } from './terrainGradeProtocol';
 import { applyTerrainGradeToRecord } from './terrainGradeCommit';
-import { refreshTerrainGradeSources, setTerrainContourData } from './terrainGradeMap';
+import { refreshTerrainGradeSources, setGradedContourPreview,
+  setTerrainContourData } from './terrainGradeMap';
 import {
   FIXED_GRIP_SPEC,
   liftStats,
@@ -80,6 +82,7 @@ import {
   sanitizeTrails,
   nextTrailName,
   orientTopToBottom,
+  trailAreaM2,
   trailPartsStats,
   difficultyForSlopes,
   DEFAULT_BRUSH_WIDTH_M,
@@ -97,6 +100,11 @@ export type MapMode = 'picking' | 'playing';
 // Reject lift terminals closer than this — avoids accidental zero-length lifts
 // from a double-click.
 const MIN_LIFT_M = 50;
+// A run benches inside what the player painted; the cut/fill volume is its
+// price. Slopes and the grade band are engine constants — see trailCrossSection.
+const TRAIL_GRADE_POLICY = { envelope: 'footprint' } as const;
+// A road has no painted shoulder, so it alone grades outside its pavement.
+const ROAD_GRADE_POLICY = { envelope: 'expand', maxWidthMultiplier: 3 } as const;
 
 /** The in-progress lift line to render for the current tool state, if any. */
 function draftLineOf(tool: LiftTool): DraftLine | null {
@@ -111,7 +119,9 @@ function draftLineOf(tool: LiftTool): DraftLine | null {
 
 function roadDraftOf(tool: RoadTool): RoadDraftLine | null {
   if (tool.phase === 'drawing') return { points: tool.points, cursor: tool.cursor };
-  if (tool.phase === 'review') return { points: tool.draft.points, cursor: null };
+  if (tool.phase === 'review') return { points: tool.draft.points, cursor: null,
+    gradingPolygons: tool.draft.gradingPolygons,
+    infeasibleLines: tool.draft.gradingInfeasibleLines };
   return null;
 }
 
@@ -285,6 +295,7 @@ export function MapView({
   const trailGradeWorkerRef = useRef<Worker | null>(null);
   const trailGradeRequestRef = useRef(0);
   const trailGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
+  const roadGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const trailCommandsRef = useRef<{ mode: 'paint' | 'erase'; path: [number, number][] }[]>([]);
   const trailPreviewPathRef = useRef<[number, number][]>([]);
   const trailBrushCursorRef = useRef<[number, number] | null>(null);
@@ -320,6 +331,12 @@ export function MapView({
 
   function setVisibleContours(record: TerrainRecord): void {
     setTerrainContourData(mapRef.current, record, settings.units === 'imperial');
+  }
+
+  /** Paint the contours a pending grade would move in yellow. `null` clears. */
+  function setEditedContours(segments: ArrayLike<number> | null): void {
+    setGradedContourPreview(mapRef.current, segments,
+      terrainRecordRef.current?.bounds, settings.units === 'imperial');
   }
 
   function refreshElevationSources(record: TerrainRecord): void {
@@ -550,12 +567,19 @@ export function MapView({
     const tt = trailToolRef.current;
     setTrailDraftData(map, tt.phase === 'paint' || tt.phase === 'analyzing'
       ? draftToGeoJSON(tt.polygons)
-      : tt.phase === 'review' ? draftToGeoJSON([], { parts: tt.draft.parts, difficulty: tt.draft.difficulty, name: tt.draft.name })
+      : tt.phase === 'review' ? draftToGeoJSON([], { parts: tt.draft.parts,
+        difficulty: tt.draft.difficulty, name: tt.draft.name,
+        infeasibleLines: tt.draft.infeasibleLines })
         : draftToGeoJSON([]));
     const gradePreview = trailGradeResultRef.current;
-    if (tt.phase === 'review' && tt.draft.gradingEnabled && gradePreview && terrainRecordRef.current) {
+    const roadGradePreview = roadGradeResultRef.current;
+    const preview = tt.phase === 'review' && tt.draft.gradingEnabled && gradePreview
+      ? gradePreview
+      : roadToolRef.current.phase === 'review' && roadGradePreview ? roadGradePreview : null;
+    if (preview && terrainRecordRef.current) {
       setVisibleContours({ ...terrainRecordRef.current,
-        contourSegments: Array.from(gradePreview.contourSegments) });
+        contourSegments: Array.from(preview.contourSegments) });
+      setEditedContours(preview.editedContourSegments);
     }
     setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
     addLiftLayers(map);
@@ -911,9 +935,11 @@ export function MapView({
     if (!map) return;
     if (draftPolygons) setTrailDraftData(map, draftToGeoJSON(draftPolygons));
     else if (reviewDraft) setTrailDraftData(map, draftToGeoJSON([], { parts: reviewDraft.parts,
-      difficulty: reviewDraft.difficulty, name: reviewDraft.name }));
+      difficulty: reviewDraft.difficulty, name: reviewDraft.name,
+      infeasibleLines: reviewDraft.infeasibleLines }));
     else setTrailDraftData(map, draftToGeoJSON([]));
-  }, [draftPolygons, reviewDraft?.parts, reviewDraft?.difficulty, reviewDraft?.name]);
+  }, [draftPolygons, reviewDraft?.parts, reviewDraft?.difficulty, reviewDraft?.name,
+    reviewDraft?.infeasibleLines]);
 
   // Keep the geographic brush corridor and guide in sync with the brush size.
   useEffect(() => {
@@ -1298,6 +1324,13 @@ export function MapView({
   }
 
   function cancelRoadTool() {
+    trailGradeRequestRef.current++;
+    trailGradeWorkerRef.current?.terminate();
+    trailGradeWorkerRef.current = null;
+    roadGradeResultRef.current = null;
+    const record = terrainRecordRef.current;
+    if (record) setVisibleContours(record);
+    setEditedContours(null);
     setRoadTool({ phase: 'idle' });
     if (mapRef.current) setRoadDraftData(mapRef.current, null);
   }
@@ -1312,8 +1345,22 @@ export function MapView({
   function finishRoadRoute() {
     const current = roadToolRef.current;
     if (current.phase !== 'drawing' || current.points.length < 2) return;
-    setRoadTool({ phase: 'review', draft: { name: nextRoadName(roadsRef.current),
-      roadType: current.roadType, points: current.points } });
+    const draft: DraftRoad = {
+      name: nextRoadName(roadsRef.current),
+      roadType: current.roadType,
+      points: current.points,
+      gradingStatus: 'pending',
+      gradingError: null,
+      gradingPolygons: [],
+      earthwork: null,
+      maxFaceSlopePct: 0,
+      maxGroundCrossSlopePct: 0,
+      maxDisturbedWidthM: 0,
+      ungradedLengthM: 0,
+      gradingInfeasibleLines: [],
+    };
+    setRoadTool({ phase: 'review', draft });
+    startRoadTerrainGrade(draft);
   }
 
   function patchRoadDraft(patch: Partial<DraftRoad>) {
@@ -1321,9 +1368,109 @@ export function MapView({
       ? { phase: 'review', draft: { ...current.draft, ...patch } } : current);
   }
 
-  function confirmRoad() {
+  function startRoadTerrainGrade(draft: DraftRoad) {
+    const record = terrainRecordRef.current;
+    const polygon = strokeToPolygon(draft.points, TWO_LANE_ROAD_WIDTH_M);
+    const parts = polygon.length ? [{
+      polygon,
+      centerline: draft.points,
+      centerlineElevM: [],
+    }] : [];
+    const requestId = ++trailGradeRequestRef.current;
+    roadGradeResultRef.current = null;
+    if (!record?.bounds || parts.length === 0) {
+      setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+        ...current.draft,
+        gradingStatus: 'error',
+        gradingError: 'The local elevation package or road footprint is unavailable.',
+      } } : current);
+      return;
+    }
+    requestAnimationFrame(() => {
+      if (requestId !== trailGradeRequestRef.current) return;
+      const worker = new Worker(new URL('./terrainGrade.worker.ts', import.meta.url),
+        { type: 'module' });
+      trailGradeWorkerRef.current?.terminate();
+      trailGradeWorkerRef.current = worker;
+      const geometryKey = terrainGradeGeometryKey(parts, TWO_LANE_ROAD_WIDTH_M,
+        [], 'road', ROAD_GRADE_POLICY);
+      worker.onmessage = (event: MessageEvent<TerrainGradeResponse>) => {
+        const response = event.data;
+        if (response.id !== trailGradeRequestRef.current) return;
+        if (!response.ok) {
+          setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+            ...current.draft, gradingStatus: 'error', gradingError: response.error,
+          } } : current);
+          return;
+        }
+        const activeChecksum = terrainRecordRef.current?.packageManifest?.elevationChecksum ?? '';
+        const active = roadToolRef.current;
+        if (response.baseElevationChecksum !== activeChecksum ||
+            active.phase !== 'review' ||
+            response.trailGeometryKey !== terrainGradeGeometryKey([{
+              polygon: strokeToPolygon(active.draft.points, TWO_LANE_ROAD_WIDTH_M),
+              centerline: active.draft.points,
+              centerlineElevM: [],
+            }], TWO_LANE_ROAD_WIDTH_M, [], 'road', ROAD_GRADE_POLICY)) {
+          setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+            ...current.draft, gradingStatus: 'error',
+            gradingError: 'The road or terrain changed while grading. Refinish the route.',
+          } } : current);
+          return;
+        }
+        roadGradeResultRef.current = response;
+        setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+          ...current.draft,
+          gradingStatus: 'ok',
+          gradingError: null,
+          gradingPolygons: response.expandedPolygons,
+          earthwork: { cutM3: response.cutM3, fillM3: response.fillM3,
+            balanceM3: response.balanceM3 },
+          maxFaceSlopePct: response.maxFaceSlopePct,
+          maxGroundCrossSlopePct: response.maxGroundCrossSlopePct,
+          maxDisturbedWidthM: response.maxDisturbedWidthM,
+          ungradedLengthM: response.ungradedLengthM,
+          gradingInfeasibleLines: response.infeasibleLines,
+        } } : current);
+        setVisibleContours({ ...record,
+          contourSegments: Array.from(response.contourSegments) });
+        setEditedContours(response.editedContourSegments);
+      };
+      worker.onerror = () => {
+        if (requestId !== trailGradeRequestRef.current) return;
+        setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+          ...current.draft, gradingStatus: 'error',
+          gradingError: 'Road grading worker stopped unexpectedly.',
+        } } : current);
+      };
+      const baseElevationChecksum = record.packageManifest?.elevationChecksum ?? '';
+      const cachedHeights = terrainHeightCacheRef.current;
+      const heights = cachedHeights &&
+        cachedHeights.checksum === (record.packageManifest?.elevationChecksum ?? record.updatedAt)
+        ? cachedHeights.heights.slice()
+        : Float32Array.from(record.sampleHeights);
+      worker.postMessage({
+        id: requestId,
+        kind: 'road',
+        heights,
+        gridSize: record.sampleGridSize,
+        bounds: record.bounds,
+        parts,
+        brushWidthM: TWO_LANE_ROAD_WIDTH_M,
+        ...ROAD_GRADE_POLICY,
+        baseElevationChecksum,
+        trailGeometryKey: geometryKey,
+        contourGridSize: record.contourMetadata?.gridSize,
+        contourIntervalM: record.contourMetadata?.intervalM,
+      }, [heights.buffer]);
+    });
+  }
+
+  async function confirmRoad() {
     const current = roadToolRef.current;
-    if (current.phase !== 'review') return;
+    const result = roadGradeResultRef.current;
+    if (current.phase !== 'review' || building ||
+        current.draft.gradingStatus !== 'ok' || !result) return;
     const road: SavedRoad = {
       id: genId(),
       name: current.draft.name.trim() || nextRoadName(roadsRef.current),
@@ -1331,11 +1478,41 @@ export function MapView({
       widthM: TWO_LANE_ROAD_WIDTH_M,
       points: current.draft.points,
       lengthM: roadLengthM(current.draft.points),
+      terrainGraded: true,
+      earthwork: current.draft.earthwork ?? undefined,
       createdAt: new Date().toISOString(),
     };
-    setRoads((previous) => [...previous, road]);
-    setRoadTool({ phase: 'idle' });
-    void clearCoverUnderPolygons(roadClearingPolygons(road.points));
+    setBuilding(true);
+    try {
+      await new Promise(requestAnimationFrame);
+      const record = terrainRecordRef.current;
+      if (!record) throw new Error('The local elevation package is unavailable.');
+      const upgraded = applyTerrainGradeToRecord(record, result);
+      const savedTerrain = await saveTerrain(upgraded);
+      if (!savedTerrain.ok) throw new Error(savedTerrain.error);
+      terrainRecordRef.current = upgraded;
+      cacheTerrainDisplayAssets(upgraded);
+      setActiveResortTerrain(upgraded);
+      setTerrainRecord(upgraded);
+      refreshElevationSources(upgraded);
+      setRoads((previous) => [...previous, road]);
+      roadGradeResultRef.current = null;
+      trailGradeWorkerRef.current?.terminate();
+      trailGradeWorkerRef.current = null;
+      setRoadTool({ phase: 'idle' });
+      await clearCoverUnderPolygons([
+        ...roadClearingPolygons(road.points),
+        ...result.disturbancePolygons,
+      ]);
+    } catch (error) {
+      setRoadTool((active) => active.phase === 'review' ? { phase: 'review', draft: {
+        ...active.draft,
+        gradingStatus: 'error',
+        gradingError: error instanceof Error ? error.message : 'Unable to save the road grade.',
+      } } : active);
+    } finally {
+      setBuilding(false);
+    }
   }
 
   function armLiftTool() {
@@ -1487,9 +1664,13 @@ export function MapView({
    * the shared clearing engine. Tree islands stay forested because they are true
    * holes in the polygon.
    */
-  async function applyTrailCoverClear(trail: SavedTrail): Promise<void> {
-    const polygons: Polygon[] = trail.parts.map((part, i) =>
-      jitterPolygon(part.polygon, LIFT_CLEAR_JITTER_M, `${trail.id}:${i}`));
+  async function applyTrailCoverClear(
+    trail: SavedTrail,
+    gradingPolygons?: [number, number][][][]
+  ): Promise<void> {
+    const source = gradingPolygons ?? trail.parts.map((part) => part.polygon);
+    const polygons: Polygon[] = source.map((polygon, i) =>
+      jitterPolygon(polygon, LIFT_CLEAR_JITTER_M, `${trail.id}:${i}`));
     await clearCoverUnderPolygons(polygons);
   }
 
@@ -1531,6 +1712,7 @@ export function MapView({
     trailGradeResultRef.current = null;
     const record = terrainRecordRef.current;
     if (record) setVisibleContours(record);
+    setEditedContours(null);
     trailWorkerRef.current?.terminate();
     trailWorkerRef.current = null;
     trailCommandsRef.current = [];
@@ -1585,10 +1767,13 @@ export function MapView({
           return;
         }
         const draft: DraftTrail = { parts: message.parts, ungradedParts: message.parts,
-          areaM2: message.areaM2,
+          areaM2: message.areaM2, ungradedAreaM2: message.areaM2,
           brushWidthM: brushWidthRef.current, name: nextTrailName(trailsRef.current), status: 'planning',
           difficulty: 'blue', elevStatus: 'pending', gradingEnabled: false,
-          gradingStatus: 'idle', gradingError: null };
+          gradingStatus: 'idle', gradingError: null,
+          earthwork: null, maxGroundCrossSlopePct: 0, maxFaceSlopePct: 0,
+          maxDisturbedWidthM: 0, ungradedLengthM: 0,
+          infeasibleLines: [] };
         setTrailTool({ phase: 'review', draft });
         sampleTrailElevations(message.parts);
       }
@@ -1669,10 +1854,15 @@ export function MapView({
       setTrailTool({ phase: 'review', draft: {
         ...current.draft,
         parts: current.draft.ungradedParts,
+        areaM2: current.draft.ungradedAreaM2,
         difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
         gradingEnabled: false, gradingStatus: 'idle', gradingError: null,
+        earthwork: null, maxGroundCrossSlopePct: 0, maxFaceSlopePct: 0,
+        maxDisturbedWidthM: 0, ungradedLengthM: 0,
+        infeasibleLines: [],
       } });
       if (record) setVisibleContours(record);
+      setEditedContours(null);
       return;
     }
     if (!record?.bounds) {
@@ -1681,7 +1871,7 @@ export function MapView({
       return;
     }
     setTrailTool({ phase: 'review', draft: { ...current.draft, gradingEnabled: true,
-      gradingStatus: 'pending', gradingError: null } });
+      gradingStatus: 'pending', gradingError: null, earthwork: null } });
     // Paint the checked/pending state before allocating the transferable grid.
     requestAnimationFrame(() => {
       if (requestId !== trailGradeRequestRef.current) return;
@@ -1702,13 +1892,18 @@ export function MapView({
         const activeRecord = terrainRecordRef.current;
         const activeTrail = trailToolRef.current;
         const activeChecksum = activeRecord?.packageManifest?.elevationChecksum ?? '';
+        const protectedPolygons = trailsRef.current.flatMap((trail) =>
+          trail.parts.map((part) => part.polygon));
         const activeGeometryKey = activeTrail.phase === 'review'
-          ? terrainGradeGeometryKey(activeTrail.draft.ungradedParts, activeTrail.draft.brushWidthM)
+          ? terrainGradeGeometryKey(activeTrail.draft.ungradedParts,
+            activeTrail.draft.brushWidthM, protectedPolygons, 'trail',
+            TRAIL_GRADE_POLICY)
           : '';
         if (response.baseElevationChecksum !== activeChecksum ||
             response.trailGeometryKey !== activeGeometryKey) {
           trailGradeResultRef.current = null;
           if (activeRecord) setVisibleContours(activeRecord);
+          setEditedContours(null);
           setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
             ...t.draft,
             gradingStatus: 'error',
@@ -1720,16 +1915,32 @@ export function MapView({
         setTrailTool((t) => {
           if (t.phase !== 'review' || !t.draft.gradingEnabled) return t;
           const parts = t.draft.ungradedParts.map((part, i) => ({
-            ...part, centerlineElevM: response.gradedElevations[i] ?? part.centerlineElevM,
+            ...part,
+            polygon: response.expandedPolygons[i] ?? part.polygon,
+            centerlineElevM: response.gradedElevations[i] ?? part.centerlineElevM,
           }));
           const stats = trailPartsStats(parts);
           return { phase: 'review', draft: { ...t.draft, parts,
+            areaM2: trailAreaM2(parts),
             difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
-            gradingStatus: 'ok', gradingError: null } };
+            gradingStatus: 'ok',
+            gradingError: null,
+            earthwork: {
+              cutM3: response.cutM3,
+              fillM3: response.fillM3,
+              balanceM3: response.balanceM3,
+            },
+            maxGroundCrossSlopePct: response.maxGroundCrossSlopePct,
+            maxFaceSlopePct: response.maxFaceSlopePct,
+            maxDisturbedWidthM: response.maxDisturbedWidthM,
+            ungradedLengthM: response.ungradedLengthM,
+            infeasibleLines: response.infeasibleLines,
+          } };
         });
         const preview: TerrainRecord = { ...record,
           contourSegments: Array.from(response.contourSegments) };
         setVisibleContours(preview);
+        setEditedContours(response.editedContourSegments);
       };
       worker.onerror = () => {
         if (requestId !== trailGradeRequestRef.current) return;
@@ -1740,6 +1951,8 @@ export function MapView({
       };
       const cachedHeights = terrainHeightCacheRef.current;
       const baseElevationChecksum = record.packageManifest?.elevationChecksum ?? '';
+      const protectedPolygons = trailsRef.current.flatMap((trail) =>
+        trail.parts.map((part) => part.polygon));
       const heights = cachedHeights &&
         cachedHeights.checksum === (record.packageManifest?.elevationChecksum ?? record.updatedAt)
           ? cachedHeights.heights.slice()
@@ -1747,10 +1960,16 @@ export function MapView({
       worker.postMessage({
         id: requestId, heights, gridSize: record.sampleGridSize, bounds: record.bounds,
         parts: current.draft.ungradedParts, brushWidthM: current.draft.brushWidthM,
+        kind: 'trail',
+        protectedPolygons,
+        ...TRAIL_GRADE_POLICY,
         baseElevationChecksum,
         trailGeometryKey: terrainGradeGeometryKey(
           current.draft.ungradedParts,
-          current.draft.brushWidthM
+          current.draft.brushWidthM,
+          protectedPolygons,
+          'trail',
+          TRAIL_GRADE_POLICY
         ),
         contourGridSize: record.contourMetadata?.gridSize,
         contourIntervalM: record.contourMetadata?.intervalM,
@@ -1771,7 +1990,10 @@ export function MapView({
     if (current.phase !== 'review' ||
         result.trailGeometryKey !== terrainGradeGeometryKey(
           current.draft.ungradedParts,
-          current.draft.brushWidthM
+          current.draft.brushWidthM,
+          trailsRef.current.flatMap((trail) => trail.parts.map((part) => part.polygon)),
+          'trail',
+          TRAIL_GRADE_POLICY
         )) {
       throw new Error('The trail changed after this grading preview. Recalculate the grade and try again.');
     }
@@ -1806,6 +2028,7 @@ export function MapView({
       maxSlopeDeg: stats.maxSlopeDeg,
       difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
       terrainGraded: commitGrading,
+      earthwork: commitGrading && d.earthwork ? d.earthwork : undefined,
       status: d.status,
       createdAt: new Date().toISOString(),
     };
@@ -1815,6 +2038,8 @@ export function MapView({
     // paints before the synchronous re-derive begins.
     setBuilding(true);
     let confirmed = false;
+    const gradingClearPolygons = commitGrading
+      ? trailGradeResultRef.current?.disturbancePolygons : undefined;
     try {
       await new Promise(requestAnimationFrame);
       if (commitGrading) await commitTrailTerrainGrade();
@@ -1822,6 +2047,8 @@ export function MapView({
         const record = terrainRecordRef.current;
         if (record) setVisibleContours(record);
       }
+      // The edit is terrain now, not a proposal.
+      setEditedContours(null);
       trailSampleTokenRef.current++;
       trailWorkerRef.current?.terminate();
       trailWorkerRef.current = null;
@@ -1830,7 +2057,7 @@ export function MapView({
       trailGradeResultRef.current = null;
       setTrails((prev) => [...prev, trail]);
       confirmed = true;
-      await applyTrailCoverClear(trail);
+      await applyTrailCoverClear(trail, gradingClearPolygons);
     } catch (error) {
       setTrailTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
         ...current.draft, gradingStatus: 'error',
@@ -2402,6 +2629,7 @@ export function MapView({
                     onFinish={finishRoadRoute}
                     onDraftChange={patchRoadDraft}
                     onConfirm={confirmRoad}
+                    building={building}
                     onClose={() => setOpenDock(null)}
                   />
                 </div>

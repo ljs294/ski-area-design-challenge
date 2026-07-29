@@ -17,7 +17,12 @@ export const TRAIL_BUILT_LAYER_IDS = [
 ];
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
-export interface TrailReview { parts: SavedTrailPart[]; difficulty: TrailDifficulty; name: string }
+export interface TrailReview {
+  parts: SavedTrailPart[];
+  difficulty: TrailDifficulty;
+  name: string;
+  infeasibleLines?: [number, number][][];
+}
 
 function difficultyMatch(fallback: string): maplibregl.ExpressionSpecification {
   return ['match', ['get', 'difficulty'],
@@ -51,6 +56,10 @@ export function draftToGeoJSON(
     difficulty: review.difficulty, status: 'planning' });
   else for (const polygon of polygons) features.push({ type: 'Feature', properties: { kind: 'trail', draft: true,
     difficulty: 'blue', status: 'planning' }, geometry: { type: 'Polygon', coordinates: polygon } });
+  for (const line of review?.infeasibleLines ?? []) features.push({
+    type: 'Feature', properties: { kind: 'infeasible' },
+    geometry: { type: 'LineString', coordinates: line },
+  });
   return { type: 'FeatureCollection', features };
 }
 
@@ -198,6 +207,11 @@ export function addTrailLayers(map: maplibregl.Map): void {
   map.addLayer({ id: 'trail-draft-spine', type: 'line', source: TRAIL_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'spine'], layout: { 'line-cap': 'round' },
     paint: { 'line-color': '#fff', 'line-width': 1.5, 'line-dasharray': [1, 2] } });
+  map.addLayer({ id: 'trail-draft-infeasible', type: 'line', source: TRAIL_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'infeasible'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#dc2626', 'line-width': 5, 'line-opacity': 0.95,
+      'line-dasharray': [1.5, 1] } });
 
   map.addLayer({ id: 'trail-paint', type: 'fill', source: TRAIL_PAINT_SOURCE,
     filter: ['==', ['get', 'kind'], 'paint'],

@@ -1,20 +1,22 @@
+import type { LatLonBounds } from '../elevation';
 import type { TerrainRecord } from '../types';
 import { unitToLngLat } from '../geo';
 
-export function localContourGeoJSON(
-  record: TerrainRecord,
+/** Group a flat `[x1, y1, x2, y2, levelM]` segment stream into one feature per
+ * elevation, in the caller's display units. */
+export function contourGeoJSON(
+  segments: ArrayLike<number>,
+  bounds: LatLonBounds,
   imperial: boolean
 ): GeoJSON.FeatureCollection {
-  const b = record.bounds!;
   const byLevel = new Map<number, GeoJSON.Position[][]>();
-  const data = record.contourSegments ?? [];
-  for (let i = 0; i + 4 < data.length; i += 5) {
-    const levelM = data[i + 4];
+  for (let i = 0; i + 4 < segments.length; i += 5) {
+    const levelM = segments[i + 4];
     const level = imperial ? levelM * 3.28084 : levelM;
     const lines = byLevel.get(level) ?? [];
     lines.push([
-      unitToLngLat(data[i], data[i + 1], b),
-      unitToLngLat(data[i + 2], data[i + 3], b),
+      unitToLngLat(segments[i], segments[i + 1], bounds),
+      unitToLngLat(segments[i + 2], segments[i + 3], bounds),
     ]);
     byLevel.set(level, lines);
   }
@@ -29,4 +31,11 @@ export function localContourGeoJSON(
       geometry: { type: 'MultiLineString', coordinates },
     })),
   };
+}
+
+export function localContourGeoJSON(
+  record: TerrainRecord,
+  imperial: boolean
+): GeoJSON.FeatureCollection {
+  return contourGeoJSON(record.contourSegments ?? [], record.bounds!, imperial);
 }

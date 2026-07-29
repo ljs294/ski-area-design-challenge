@@ -30,10 +30,16 @@ describe('InfrastructureControl', () => {
 
   it('shows paved and total clearing widths during review', () => {
     const html = render({ phase: 'review', draft: { name: 'Road 1', roadType: 'two-lane',
-      points: [[-121.5, 46.93], [-121.49, 46.94]] } });
+      points: [[-121.5, 46.93], [-121.49, 46.94]], gradingStatus: 'ok',
+      gradingError: null, gradingPolygons: [],
+      earthwork: { cutM3: 100, fillM3: 40, balanceM3: 60 },
+      maxFaceSlopePct: 100, maxGroundCrossSlopePct: 25,
+      maxDisturbedWidthM: 20, ungradedLengthM: 0,
+      gradingInfeasibleLines: [] } });
     expect(html).toContain('Paved width');
     expect(html).toContain('Clearing');
     expect(html).toContain('13 m');
+    expect(html).toContain('100 m³');
     expect(html).toContain('Build road');
   });
 });

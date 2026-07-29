@@ -13,6 +13,8 @@ export const LOCAL_ROAD_PAINT: maplibregl.LineLayerSpecification['paint'] = {
 export interface RoadDraftLine {
   points: [number, number][];
   cursor: [number, number] | null;
+  gradingPolygons?: [number, number][][][];
+  infeasibleLines?: [number, number][][];
 }
 
 export function playerRoadFeatures(roads: SavedRoad[]): GeoJSON.Feature[] {
@@ -30,6 +32,14 @@ export function roadDraftGeoJSON(draft: RoadDraftLine | null): GeoJSON.FeatureCo
   const features: GeoJSON.Feature[] = draft.points.map((point, index) => ({
     type: 'Feature', properties: { kind: 'vertex', index }, geometry: { type: 'Point', coordinates: point },
   }));
+  for (const polygon of draft.gradingPolygons ?? []) features.push({
+    type: 'Feature', properties: { kind: 'grade' },
+    geometry: { type: 'Polygon', coordinates: polygon },
+  });
+  for (const line of draft.infeasibleLines ?? []) features.push({
+    type: 'Feature', properties: { kind: 'infeasible' },
+    geometry: { type: 'LineString', coordinates: line },
+  });
   if (coordinates.length >= 2) features.unshift({
     type: 'Feature', properties: { kind: 'road', class: 'minor' },
     geometry: { type: 'LineString', coordinates },
@@ -40,6 +50,24 @@ export function roadDraftGeoJSON(draft: RoadDraftLine | null): GeoJSON.FeatureCo
 export function addRoadDraftLayers(map: maplibregl.Map): void {
   if (map.getSource(ROAD_DRAFT_SOURCE)) return;
   map.addSource(ROAD_DRAFT_SOURCE, { type: 'geojson', data: roadDraftGeoJSON(null) });
+  map.addLayer({
+    id: 'road-draft-grade-fill', type: 'fill', source: ROAD_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'grade'],
+    paint: { 'fill-color': '#8b7a62', 'fill-opacity': 0.16 },
+  });
+  map.addLayer({
+    id: 'road-draft-grade-outline', type: 'line', source: ROAD_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'grade'],
+    paint: { 'line-color': '#6b5e4c', 'line-opacity': 0.8,
+      'line-width': 1.5, 'line-dasharray': [2, 1.5] },
+  });
+  map.addLayer({
+    id: 'road-draft-infeasible', type: 'line', source: ROAD_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'infeasible'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#dc2626', 'line-opacity': 0.95,
+      'line-width': 5, 'line-dasharray': [1.5, 1] },
+  });
   map.addLayer({
     id: 'road-draft-line', type: 'line', source: ROAD_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'road'], layout: { 'line-cap': 'round', 'line-join': 'round' },

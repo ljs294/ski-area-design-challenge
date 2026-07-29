@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { SavedTrail, SavedTrailPart, TrailDifficulty, TrailStatus } from '../types';
+import type { EarthworkEstimate, SavedTrail, SavedTrailPart, TrailDifficulty, TrailStatus } from '../types';
 import type { Units } from './SettingsContext';
 import { fmtDistance } from '../lifts';
 import { DIFFICULTY_LABELS, fmtArea, fmtSlope, fmtVertical, trailPartsStats,
@@ -18,6 +18,8 @@ export interface DraftTrail {
   /** Terrain-sampled parts retained so an unchecked preview is lossless. */
   ungradedParts: SavedTrailPart[];
   areaM2: number;
+  /** Exact painted area restored when grading is unchecked. */
+  ungradedAreaM2: number;
   brushWidthM: number;
   name: string;
   status: TrailStatus;
@@ -26,6 +28,13 @@ export interface DraftTrail {
   gradingEnabled: boolean;
   gradingStatus: 'idle' | 'pending' | 'ok' | 'error';
   gradingError: string | null;
+  earthwork: EarthworkEstimate | null;
+  maxGroundCrossSlopePct: number;
+  maxFaceSlopePct: number;
+  maxDisturbedWidthM: number;
+  /** Metres of run too steep to bench, left at natural ground. */
+  ungradedLengthM: number;
+  infeasibleLines: [number, number][][];
 }
 
 function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
@@ -61,6 +70,35 @@ export function TrailStatsBlock({ parts, areaM2, difficulty, units }: {
       {stats.verticalM == null ? '—' : `${fmtSlope(stats.avgSlopeDeg)} / ${fmtSlope(stats.maxSlopeDeg)}`}</span></div>
     <div className="readout-line"><span className="lift-stat-label">Rating</span><span className="lift-stat-value trail-grade-inline">
       <span className={`trail-grade-dot trail-grade-dot--${difficulty}`} />{DIFFICULTY_LABELS[difficulty]}</span></div>
+  </div>;
+}
+
+function fmtVolume(m3: number, units: Units): string {
+  const value = units === 'imperial' ? m3 * 1.30795062 : m3;
+  return `${Math.round(value).toLocaleString()} ${units === 'imperial' ? 'yd³' : 'm³'}`;
+}
+
+export function EarthworkStats({ estimate, units,
+  maxGroundCrossSlopePct, maxDisturbedWidthM }: {
+  estimate: EarthworkEstimate;
+  units: Units;
+  maxGroundCrossSlopePct?: number;
+  maxDisturbedWidthM?: number;
+}) {
+  return <div className="lift-stats trail-earthwork">
+    <div className="readout-line"><span className="lift-stat-label">Cut</span>
+      <span className="lift-stat-value">{fmtVolume(estimate.cutM3, units)}</span></div>
+    <div className="readout-line"><span className="lift-stat-label">Fill</span>
+      <span className="lift-stat-value">{fmtVolume(estimate.fillM3, units)}</span></div>
+    <div className="readout-line"><span className="lift-stat-label">Balance</span>
+      <span className="lift-stat-value">{estimate.balanceM3 >= 0 ? '+' : '−'}
+        {fmtVolume(Math.abs(estimate.balanceM3), units)}</span></div>
+    {maxGroundCrossSlopePct != null &&
+      <div className="readout-line"><span className="lift-stat-label">Hillside cross slope</span>
+        <span className="lift-stat-value">{maxGroundCrossSlopePct.toFixed(0)}%</span></div>}
+    {maxDisturbedWidthM != null &&
+      <div className="readout-line"><span className="lift-stat-label">Max disturbed width</span>
+        <span className="lift-stat-value">{fmtDistance(maxDisturbedWidthM, units)}</span></div>}
   </div>;
 }
 
@@ -109,15 +147,24 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
         <input type="checkbox" checked={d.gradingEnabled}
           disabled={d.elevStatus !== 'ok' || d.gradingStatus === 'pending' || building}
           onChange={(e) => onGradingChange(e.target.checked)} />
-        <span><strong>Grade terrain</strong><small>Lightly smooth the full trail width and preview fall-line contours.</small></span>
+        <span><strong>Grade terrain</strong><small>Level the run across its width so contours run square to the centreline, with 45° cut and fill faces. Edited contours preview in yellow.</small></span>
       </label>
       {d.gradingStatus === 'pending' && <div className="site-hint">Calculating terrain grade…</div>}
       {d.gradingStatus === 'error' && <div className="lift-warning">{d.gradingError ?? 'Unable to preview terrain grading.'}</div>}
+      {d.gradingStatus === 'ok' && d.ungradedLengthM > 0 &&
+        <div className="site-hint">{fmtDistance(d.ungradedLengthM, units)} of this run is steeper
+          than 45° ({Math.round(d.maxGroundCrossSlopePct)}% cross slope) and was left at natural
+          ground — marked red.</div>}
+      {d.gradingEnabled && d.gradingStatus === 'ok' && d.earthwork &&
+        <EarthworkStats estimate={d.earthwork} units={units}
+          maxGroundCrossSlopePct={d.maxGroundCrossSlopePct}
+          maxDisturbedWidthM={d.maxDisturbedWidthM} />}
       {d.gradingEnabled && d.status === 'planning' && d.gradingStatus === 'ok' &&
         <div className="site-hint">Preview only. Choose Complete to commit this terrain edit.</div>}
       <TrailStatsBlock parts={d.parts} areaM2={d.areaM2} difficulty={d.difficulty} units={units} />
       <div className="site-actions"><button className="site-btn site-btn-primary"
-        disabled={d.elevStatus !== 'ok' || building || (d.gradingEnabled && d.gradingStatus !== 'ok')}
+        disabled={d.elevStatus !== 'ok' || building ||
+          (d.gradingEnabled && d.gradingStatus !== 'ok')}
         onClick={onConfirm}>
         {building ? <><span className="site-btn-spinner" aria-hidden="true" /> Building…</> : d.status === 'complete' ? 'Build run' : 'Add to plan'}</button>
         <button className="site-btn" onClick={onCancel} disabled={building}>Cancel</button></div>
@@ -132,6 +179,8 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
     <TrailProfile parts={editing.parts} units={units} difficulty={editing.difficulty} />
     <StatusToggle value={editing.status} onChange={(status) => onEditPatch(editing.id, { status })} />
     <TrailStatsBlock parts={editing.parts} areaM2={editing.areaM2} difficulty={editing.difficulty} units={units} />
+    {editing.earthwork && <EarthworkStats estimate={editing.earthwork} units={units}
+      />}
     {confirmDelete ? <div className="lift-delete-confirm"><div className="lift-delete-warn">Delete “{editing.name}”?</div>
       <div className="site-actions"><button className="site-btn site-btn-danger" onClick={() => { onDelete(editing.id); setConfirmDelete(false); }}>Delete</button>
       <button className="site-btn" onClick={() => setConfirmDelete(false)}>Keep</button></div></div>

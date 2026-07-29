@@ -17,6 +17,19 @@ describe('road draft GeoJSON', () => {
     expect(data.features[0].properties?.kind).toBe('vertex');
   });
 
+  it('includes bounded grading and infeasible station overlays during review', () => {
+    const a: [number, number] = [-121.5, 46.93];
+    const b: [number, number] = [-121.49, 46.94];
+    const polygon: [number, number][][] = [[a, [b[0], a[1]], b,
+      [a[0], b[1]], a]];
+    const data = roadDraftGeoJSON({ points: [a, b], cursor: null,
+      gradingPolygons: [polygon], infeasibleLines: [[a, b]] });
+    expect(data.features.map((feature) => feature.properties?.kind))
+      .toContain('grade');
+    expect(data.features.map((feature) => feature.properties?.kind))
+      .toContain('infeasible');
+  });
+
   it('emits confirmed roads as minor local-context road features', () => {
     const road: SavedRoad = { id: 'r1', name: 'Access Road', roadType: 'two-lane', widthM: 7,
       points: [[-121.5, 46.93], [-121.49, 46.94]], lengthM: 1000, createdAt: 'now' };

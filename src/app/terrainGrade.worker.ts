@@ -14,7 +14,8 @@ scope.onmessage = (event: MessageEvent<TerrainGradeRequest>) => {
       trailGeometryKey: request.trailGeometryKey,
     };
     scope.postMessage(response, [
-      result.patchIndices.buffer, result.patchHeights.buffer, result.contourSegments.buffer,
+      result.patchIndices.buffer, result.patchHeights.buffer,
+      result.contourSegments.buffer, result.editedContourSegments.buffer,
     ]);
   } catch (error) {
     const response: TerrainGradeResponse = {

@@ -1,6 +1,7 @@
 import type maplibregl from 'maplibre-gl';
+import type { LatLonBounds } from '../elevation';
 import type { TerrainRecord } from '../types';
-import { localContourGeoJSON } from './localContours';
+import { contourGeoJSON, localContourGeoJSON } from './localContours';
 import {
   clearResortElevationCache,
   RESORT_ASPECT_PROTOCOL,
@@ -10,6 +11,10 @@ import {
 } from './resortProtocols';
 import { TERRAIN_DEM_SOURCE } from './terrain3d';
 
+export const GRADED_CONTOUR_SOURCE = 'graded-contours';
+export const EMPTY_CONTOURS: GeoJSON.FeatureCollection =
+  { type: 'FeatureCollection', features: [] };
+
 export function setTerrainContourData(
   map: maplibregl.Map | null,
   record: TerrainRecord,
@@ -17,6 +22,22 @@ export function setTerrainContourData(
 ): void {
   const source = map?.getSource('contours') as maplibregl.GeoJSONSource | undefined;
   if (source && record.bounds) source.setData(localContourGeoJSON(record, imperial));
+}
+
+/** Highlight the contours a pending grade would move. Pass `null` to clear —
+ * once an edit is committed it is terrain, not a proposal, and belongs in the
+ * ordinary contour colour. */
+export function setGradedContourPreview(
+  map: maplibregl.Map | null,
+  segments: ArrayLike<number> | null,
+  bounds: LatLonBounds | undefined,
+  imperial: boolean
+): void {
+  const source = map?.getSource(GRADED_CONTOUR_SOURCE) as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+  source.setData(segments && segments.length > 0 && bounds
+    ? contourGeoJSON(segments, bounds, imperial)
+    : EMPTY_CONTOURS);
 }
 
 /** Refresh every map consumer of elevation after an atomic grading commit. */
@@ -36,5 +57,6 @@ export function refreshTerrainGradeSources(
   setTiles('slope', RESORT_SLOPE_PROTOCOL);
   setTiles('aspect', RESORT_ASPECT_PROTOCOL);
   setTerrainContourData(map, record, imperial);
+  setGradedContourPreview(map, null, record.bounds, imperial);
   map.triggerRepaint();
 }

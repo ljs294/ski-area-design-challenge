@@ -369,6 +369,15 @@ export type SavedLift = SavedFixedGripLift;
 // format ready for additional road types without changing the v1 UI.
 export type RoadType = 'two-lane';
 
+export interface EarthworkEstimate {
+  /** Gross material removed from the original DEM. */
+  cutM3: number;
+  /** Gross material added above the original DEM. */
+  fillM3: number;
+  /** Positive means excess cut; negative means additional fill is required. */
+  balanceM3: number;
+}
+
 export interface SavedRoad {
   id: string;
   name: string;
@@ -378,6 +387,10 @@ export interface SavedRoad {
   points: [number, number][];
   /** Horizontal centerline length, recomputed during hydration. */
   lengthM: number;
+  /** New roads are terrain-graded; absent/false identifies legacy roads. */
+  terrainGraded?: boolean;
+  /** Estimated volumes represented by the committed DEM edit. */
+  earthwork?: EarthworkEstimate;
   createdAt: string;
 }
 
@@ -418,6 +431,8 @@ export interface SavedTrail {
   difficulty: TrailDifficulty; // automatically derived from the terrain
   /** True when construction permanently regraded the local elevation package. */
   terrainGraded?: boolean;
+  /** Estimated volumes represented by the committed DEM edit. */
+  earthwork?: EarthworkEstimate;
   status: TrailStatus; // 'planning' (dashed) or 'complete' (solid)
   createdAt: string; // ISO
 }

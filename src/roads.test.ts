@@ -24,11 +24,15 @@ describe('roads', () => {
 
   it('sanitizes roads and derives fixed width and length', () => {
     const raw = { id: 'r1', name: 'Access Road', roadType: 'two-lane', widthM: 999,
-      points: [A, A, B], lengthM: 1, createdAt: '2026-01-01T00:00:00.000Z' };
+      points: [A, A, B], lengthM: 1, terrainGraded: true,
+      earthwork: { cutM3: 40, fillM3: 10, balanceM3: 30 },
+      createdAt: '2026-01-01T00:00:00.000Z' };
     const road = sanitizeRoads([raw])[0];
     expect(road.widthM).toBe(TWO_LANE_ROAD_WIDTH_M);
     expect(road.points).toEqual([A, B]);
     expect(road.lengthM).toBeCloseTo(haversineMeters(A, B), 8);
+    expect(road.terrainGraded).toBe(true);
+    expect(road.earthwork).toEqual({ cutM3: 40, fillM3: 10, balanceM3: 30 });
   });
 
   it('drops malformed and unsupported roads', () => {

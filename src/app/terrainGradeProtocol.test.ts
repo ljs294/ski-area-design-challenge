@@ -19,5 +19,11 @@ describe('terrain grade geometry identity', () => {
       ...part,
       centerline: [[0.51, 0], [0.5, 1]],
     }], 30)).not.toBe(key);
+    expect(terrainGradeGeometryKey([part], 30, [part.polygon])).not.toBe(key);
+    expect(terrainGradeGeometryKey([part], 30, [], 'road')).not.toBe(key);
+    expect(terrainGradeGeometryKey([part], 30, [], 'trail',
+      { maxWidthMultiplier: 3 })).not.toBe(key);
+    expect(terrainGradeGeometryKey([part], 30, [], 'trail',
+      { envelope: 'expand' })).not.toBe(key);
   });
 });

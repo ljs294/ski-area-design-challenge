@@ -144,6 +144,15 @@ describe('sanitizeTrails', () => {
     expect(sanitizeTrails([{ ...valid, terrainGraded: 'yes' }])[0].terrainGraded).toBe(false);
     expect(sanitizeTrails([valid])[0].terrainGraded).toBe(false);
   });
+
+  it('sanitizes persisted earthwork estimates', () => {
+    expect(sanitizeTrails([{ ...valid,
+      earthwork: { cutM3: 120, fillM3: 30, balanceM3: 90 },
+    }])[0].earthwork).toEqual({ cutM3: 120, fillM3: 30, balanceM3: 90 });
+    expect(sanitizeTrails([{ ...valid,
+      earthwork: { cutM3: -1, fillM3: 30, balanceM3: -31 },
+    }])[0].earthwork).toBeUndefined();
+  });
 });
 
 describe('nextTrailName', () => {
