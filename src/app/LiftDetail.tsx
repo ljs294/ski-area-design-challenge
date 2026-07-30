@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SavedLift } from '../types';
 import type { Units } from './SettingsContext';
 import { CHAIR_LABELS } from '../lifts';
+import { ConditionToggle } from './ConditionToggle';
 import { LiftStatsBlock } from './LiftControl';
 
 /**
@@ -15,12 +16,14 @@ export function LiftDetail({
   units,
   onEdit,
   onRemove,
+  onToggleClosed,
   onClose,
 }: {
   lift: SavedLift;
   units: Units;
   onEdit: () => void;
   onRemove: () => void;
+  onToggleClosed: (closed: boolean) => void;
   onClose: () => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -44,6 +47,8 @@ export function LiftDetail({
         chairSize={lift.chairSize}
         units={units}
       />
+
+      <ConditionToggle closed={lift.closed === true} onChange={onToggleClosed} />
 
       {confirmRemove ? (
         <div className="lift-delete-confirm">

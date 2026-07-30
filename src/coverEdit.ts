@@ -2,8 +2,8 @@
 // trail is confirmed, the trees beneath it are, in reality, felled to open a
 // cleared strip of grassland. Both reduce to the same shape — a list of polygons
 // (each an outer ring plus optional tree-island holes) — which these pure helpers
-// stamp into the analytical cover grid and append to the persisted vector display
-// geometry. A lift generates its corridor polygon (`liftCorridorRing`); a trail
+// stamp into the analytical cover grid before its vector display is regenerated.
+// A lift generates its corridor polygon (`liftCorridorRing`); a trail
 // supplies its painted footprint directly. Nothing here re-vectorizes the whole
 // grid — the work is O(footprint), cheap enough to run on every confirm (see
 // coverDisplay.ts for why a full re-trace is not).
@@ -11,12 +11,18 @@
 import type { LatLonBounds } from './elevation';
 import type { CoverGrid } from './types';
 import { isFourClassGrid, TERRAIN_COVER_CODES } from './fourClassCover';
-import { METERS_PER_DEGREE_LAT, lngLatToUnit, unitToLngLat } from './geo';
+import { METERS_PER_DEGREE_LAT } from './geo';
 
 /** Half-width of the cleared corridor on each side of the lift line (24 m total). */
 export const LIFT_CLEAR_HALF_WIDTH_M = 12;
 /** Peak ±wobble applied to the corridor edge so it never reads as a ruler line. */
 export const LIFT_CLEAR_JITTER_M = 2;
+/** Peak outward displacement of a lift or ski run's cut treeline. */
+export const TRAIL_CLEAR_BUBBLE_AMPLITUDE_M = 24;
+/** Approximate distance between broad lobes along a cut treeline. */
+export const TRAIL_CLEAR_BUBBLE_WAVELENGTH_M = 72;
+/** Maximum boundary segment length before bubble displacement is applied. */
+export const TRAIL_CLEAR_BUBBLE_STEP_M = 4;
 
 const WATER_CODES = new Set<number>([TERRAIN_COVER_CODES.water, 80]);
 const NODATA_CODE = TERRAIN_COVER_CODES.nodata; // 255, shared by both schemes
@@ -69,6 +75,104 @@ function makeEdgeNoise(seed: string, amplitude: number, wavelengthM: number, len
     const a = nodes[Math.min(i, nodeCount - 1)];
     const b = nodes[Math.min(i + 1, nodeCount - 1)];
     const t = f * f * (3 - 2 * f); // smoothstep
+    return a + (b - a) * t;
+  };
+}
+
+/**
+ * Periodic value noise for a closed ring. Normalized nodes span the requested
+ * displacement range; smoothstep makes both the value and first derivative meet
+ * cleanly at the closing seam.
+ */
+function makePeriodicEdgeNoise(
+  seed: string,
+  amplitude: number,
+  wavelengthM: number,
+  perimeterM: number,
+  outwardOnly: boolean
+): (s: number) => number {
+  const nodeCount = Math.max(3, Math.round(perimeterM / Math.max(1, wavelengthM)));
+  const rnd = mulberry32(hash32(seed));
+  const spacing = perimeterM / nodeCount;
+  if (outwardOnly) {
+    // Partition the ring into deliberately uneven intervals. Normalizing the
+    // random widths keeps the ring exactly periodic while letting neighbouring
+    // bays range from tight pockets to long, merged bulges.
+    const widthWeights = Array.from(
+      { length: nodeCount },
+      () => 0.62 + rnd() * 0.83
+    );
+    const weightTotal = widthWeights.reduce((sum, value) => sum + value, 0);
+    const widths = widthWeights.map((value) => perimeterM * value / weightTotal);
+    const starts = new Array<number>(nodeCount + 1);
+    starts[0] = 0;
+    for (let i = 0; i < nodeCount; i++) starts[i + 1] = starts[i] + widths[i];
+    starts[nodeCount] = perimeterM;
+
+    // Most valleys nearly return to the authored edge. A minority stay raised
+    // so adjacent lobes flow together into the larger tree-line bubbles visible
+    // in hand-drawn masterplans.
+    const troughs = Array.from({ length: nodeCount }, () => {
+      const mergedShoulder = rnd() < 0.24;
+      return amplitude * (mergedShoulder
+        ? 0.12 + rnd() * 0.10
+        : 0.01 + rnd() * 0.07);
+    });
+    const heights = Array.from(
+      { length: nodeCount },
+      () => amplitude * (0.74 + rnd() * 0.26)
+    );
+    const peaks = Array.from(
+      { length: nodeCount },
+      () => 0.41 + rnd() * 0.18
+    );
+    const smoothstep = (t: number) => t * t * (3 - 2 * t);
+    return (s: number) => {
+      const wrapped = ((s % perimeterM) + perimeterM) % perimeterM;
+      let low = 0;
+      let high = nodeCount;
+      while (low + 1 < high) {
+        const mid = (low + high) >>> 1;
+        if (starts[mid] <= wrapped) low = mid;
+        else high = mid;
+      }
+      const i = Math.min(nodeCount - 1, low);
+      const f = (wrapped - starts[i]) / widths[i];
+      const peak = peaks[i];
+      const nextTrough = troughs[(i + 1) % nodeCount];
+      const baseline = troughs[i] +
+        (nextTrough - troughs[i]) * smoothstep(Math.max(0, Math.min(1, f)));
+      // sin² traces a continuously rounded arch instead of the two nearly
+      // straight ramps produced by a half-by-half easing curve. A small seeded
+      // peak shift keeps it asymmetric while the 4 m resampling supplies enough
+      // intermediate curvature for vector simplification to retain the bubble.
+      const phase = f <= peak
+        ? 0.5 * f / peak
+        : 0.5 + 0.5 * (f - peak) / (1 - peak);
+      const arch = Math.sin(Math.PI * phase) ** 2;
+      return baseline +
+        (heights[i] - Math.max(troughs[i], nextTrough)) * arch;
+    };
+  }
+
+  const nodes = Array.from({ length: nodeCount }, () => rnd());
+  const min = Math.min(...nodes);
+  const max = Math.max(...nodes);
+  const span = max - min;
+  for (let i = 0; i < nodes.length; i++) {
+    const normalized = span > 0 ? (nodes[i] - min) / span : 0;
+    nodes[i] = (normalized * 2 - 1) * amplitude;
+  }
+
+  return (s: number) => {
+    const wrapped = ((s % perimeterM) + perimeterM) % perimeterM;
+    const x = wrapped / spacing;
+    const floorX = Math.floor(x);
+    const i = floorX % nodeCount;
+    const f = x - floorX;
+    const a = nodes[i];
+    const b = nodes[(i + 1) % nodeCount];
+    const t = f * f * (3 - 2 * f);
     return a + (b - a) * t;
   };
 }
@@ -170,22 +274,16 @@ export function liftCorridorRing(points: [LngLat, LngLat], _bounds: LatLonBounds
 export type Ring = LngLat[];
 export type Polygon = Ring[]; // [outer, ...holes]
 
-// ---- Point-in-polygon (even-odd across all rings) -------------------------
-
-// Even-odd test over every ring of the polygon at once: a point inside the outer
-// ring but also inside a hole flips parity twice → counted as outside, so holes
-// (tree islands) are excluded for free.
-function pointInPolygon(lng: number, lat: number, polygon: Polygon): boolean {
-  let inside = false;
-  for (const ring of polygon) {
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [xi, yi] = ring[i];
-      const [xj, yj] = ring[j];
-      const intersects = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
-      if (intersects) inside = !inside;
-    }
-  }
-  return inside;
+export interface RingJitterOptions {
+  amplitudeM: number;
+  /** Approximate distance between noise lobes. Defaults to the lift wobble. */
+  wavelengthM?: number;
+  /** Densify the boundary to at most this segment length before jittering. */
+  maxSegmentM?: number;
+  /** Join noise seamlessly around the closed perimeter. */
+  periodic?: boolean;
+  /** Move the edge only away from the polygon interior. */
+  outwardOnly?: boolean;
 }
 
 // ---- Deterministic edge jitter for an existing ring -----------------------
@@ -198,18 +296,54 @@ function closeRing(ring: Ring): Ring {
   return fx === lx && fy === ly ? ring : [...ring, ring[0]];
 }
 
+function densifyClosedRing(points: Meters[], maxSegmentM: number): Meters[] {
+  if (!(maxSegmentM > 0)) return points;
+  const out: Meters[] = [];
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i];
+    const b = points[(i + 1) % points.length];
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    const steps = Math.max(1, Math.ceil(length / maxSegmentM));
+    out.push(a);
+    for (let step = 1; step < steps; step++) {
+      const t = step / steps;
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    }
+  }
+  return out;
+}
+
 /**
  * Perturb a closed ring's vertices along their local normal by smooth,
- * deterministic value-noise (±amplitudeM), so a brush-traced or generated edge
- * wobbles organically like a hand-cleared boundary rather than following the
- * exact outline. Reuses the same `makeEdgeNoise` infrastructure as the lift
- * corridor, parameterised by perimeter distance. Endpoints stay identical so the
- * ring remains closed; the same seed always reproduces the same wobble.
+ * deterministic value-noise, so a generated edge reads like a hand-cleared
+ * boundary. The options form can resample, join noise periodically, and force
+ * every lobe outward. The same seed always reproduces the same boundary.
  */
-export function jitterRing(ring: Ring, amplitudeM: number, seed: string): Ring {
+function jitterRingInternal(
+  ring: Ring,
+  amplitudeOrOptions: number | RingJitterOptions,
+  seed: string,
+  hole: boolean
+): Ring {
   const closed = closeRing(ring);
-  const pts = closed.slice(0, -1); // unique vertices (drop the closing duplicate)
-  if (pts.length < 3 || amplitudeM <= 0) return closed;
+  const options: Required<RingJitterOptions> = typeof amplitudeOrOptions === 'number'
+    ? {
+        amplitudeM: amplitudeOrOptions,
+        wavelengthM: JITTER_WAVELENGTH_M,
+        maxSegmentM: 0,
+        periodic: false,
+        outwardOnly: false,
+      }
+    : {
+        amplitudeM: amplitudeOrOptions.amplitudeM,
+        wavelengthM: amplitudeOrOptions.wavelengthM ?? JITTER_WAVELENGTH_M,
+        maxSegmentM: amplitudeOrOptions.maxSegmentM ?? 0,
+        periodic: amplitudeOrOptions.periodic ?? false,
+        outwardOnly: amplitudeOrOptions.outwardOnly ?? false,
+      };
+  const pts = closed.slice(0, -1).filter((point, i, all) =>
+    i === 0 || point[0] !== all[i - 1][0] || point[1] !== all[i - 1][1]);
+  if (pts.length < 3 || options.amplitudeM <= 0) return closed;
 
   const lng0 = pts[0][0];
   const lat0 = pts[0][1];
@@ -217,7 +351,7 @@ export function jitterRing(ring: Ring, amplitudeM: number, seed: string): Ring {
   const mPerLng = METERS_PER_DEGREE_LAT * Math.cos((lat0 * Math.PI) / 180);
   const toM = (p: LngLat): Meters => ({ x: (p[0] - lng0) * mPerLng, y: (p[1] - lat0) * mPerLat });
   const toLL = (m: Meters): LngLat => [lng0 + m.x / mPerLng, lat0 + m.y / mPerLat];
-  const mpts = pts.map(toM);
+  const mpts = densifyClosedRing(pts.map(toM), options.maxSegmentM);
 
   // Cumulative perimeter distance to each vertex (for the noise parameter).
   const n = mpts.length;
@@ -229,7 +363,23 @@ export function jitterRing(ring: Ring, amplitudeM: number, seed: string): Ring {
     const b = mpts[(i + 1) % n];
     perimeter += Math.hypot(b.x - a.x, b.y - a.y);
   }
-  const noise = makeEdgeNoise(seed, amplitudeM, JITTER_WAVELENGTH_M, perimeter);
+  if (perimeter <= 0) return closed;
+  // Small tree islands taper toward zero displacement instead of being
+  // overwhelmed by a full-size four-metre lobe.
+  const amplitudeM = Math.min(options.amplitudeM, perimeter / 12);
+  const noise = options.periodic
+    ? makePeriodicEdgeNoise(seed, amplitudeM, options.wavelengthM, perimeter, options.outwardOnly)
+    : makeEdgeNoise(seed, amplitudeM, options.wavelengthM, perimeter);
+  let signedArea = 0;
+  for (let i = 0; i < n; i++) {
+    const a = mpts[i];
+    const b = mpts[(i + 1) % n];
+    signedArea += a.x * b.y - b.x * a.y;
+  }
+  // A CCW ring's interior is on its left, so its geometric outward normal is
+  // right. Hole rings represent excluded area and therefore invert that normal:
+  // expanding the cleared polygon cuts inward into the tree island.
+  const outwardNormalSign = (signedArea >= 0 ? -1 : 1) * (hole ? -1 : 1);
 
   const out: LngLat[] = [];
   for (let i = 0; i < n; i++) {
@@ -243,15 +393,32 @@ export function jitterRing(ring: Ring, amplitudeM: number, seed: string): Ring {
     const nx = -ty / len;
     const ny = tx / len;
     const d = noise(cum[i]);
-    out.push(toLL({ x: mpts[i].x + nx * d, y: mpts[i].y + ny * d }));
+    const direction = options.outwardOnly ? outwardNormalSign : 1;
+    out.push(toLL({
+      x: mpts[i].x + nx * d * direction,
+      y: mpts[i].y + ny * d * direction,
+    }));
   }
   out.push(out[0]); // close
   return out;
 }
 
+export function jitterRing(
+  ring: Ring,
+  amplitudeOrOptions: number | RingJitterOptions,
+  seed: string
+): Ring {
+  return jitterRingInternal(ring, amplitudeOrOptions, seed, false);
+}
+
 /** Jitter every ring of a polygon (outer + each hole) with a distinct seed. */
-export function jitterPolygon(polygon: Polygon, amplitudeM: number, seed: string): Polygon {
-  return polygon.map((ring, i) => jitterRing(ring, amplitudeM, `${seed}:r${i}`));
+export function jitterPolygon(
+  polygon: Polygon,
+  amplitudeOrOptions: number | RingJitterOptions,
+  seed: string
+): Polygon {
+  return polygon.map((ring, i) =>
+    jitterRingInternal(ring, amplitudeOrOptions, `${seed}:r${i}`, i > 0));
 }
 
 // ---- Grid stamp ------------------------------------------------------------
@@ -272,35 +439,57 @@ export function stampPolygonsIntoGrid(grid: CoverGrid, polygons: Polygon[]): { g
   for (const polygon of polygons) {
     const outer = polygon[0];
     if (!outer || outer.length < 3) continue;
-
-    // Only visit cells inside the outer ring's bounding box (a small window).
-    let minU = 1;
-    let minV = 1;
-    let maxU = 0;
-    let maxV = 0;
-    for (const [lng, lat] of outer) {
-      const [u, v] = lngLatToUnit(lng, lat, bounds);
-      minU = Math.min(minU, u);
-      maxU = Math.max(maxU, u);
-      minV = Math.min(minV, v);
-      maxV = Math.max(maxV, v);
+    const rings = polygon.map((ring) => ring.map(([lng, lat]) => ({
+      x: ((lng - bounds.west) / (bounds.east - bounds.west)) * width,
+      y: ((bounds.north - lat) / (bounds.north - bounds.south)) * height,
+    })));
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const point of rings[0]) {
+      minY = Math.min(minY, point.y);
+      maxY = Math.max(maxY, point.y);
     }
-    const col0 = Math.max(0, Math.floor(minU * width) - 1);
-    const col1 = Math.min(width - 1, Math.ceil(maxU * width) + 1);
-    const row0 = Math.max(0, Math.floor(minV * height) - 1);
-    const row1 = Math.min(height - 1, Math.ceil(maxV * height) + 1);
-
+    const row0 = Math.max(0, Math.ceil(minY - 0.5 - 1e-9));
+    const row1 = Math.min(height - 1, Math.ceil(maxY - 0.5 - 1e-9) - 1);
     for (let row = row0; row <= row1; row++) {
-      const v = (row + 0.5) / height;
-      for (let col = col0; col <= col1; col++) {
-        const u = (col + 0.5) / width;
-        const [lng, lat] = unitToLngLat(u, v, bounds);
-        if (!pointInPolygon(lng, lat, polygon)) continue;
-        const idx = row * width + col;
-        const current = data[idx];
-        if (WATER_CODES.has(current) || current === NODATA_CODE || current === code) continue;
-        data[idx] = code;
-        changed++;
+      const y = row + 0.5;
+      const intersections: number[] = [];
+      const horizontalBoundaries: [number, number][] = [];
+      for (const ring of rings) {
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          const a = ring[j];
+          const b = ring[i];
+          if (Math.abs(a.y - y) < 1e-9 && Math.abs(b.y - y) < 1e-9) {
+            horizontalBoundaries.push([Math.min(a.x, b.x), Math.max(a.x, b.x)]);
+            continue;
+          }
+          if ((a.y > y) === (b.y > y)) continue;
+          intersections.push(a.x + ((y - a.y) / (b.y - a.y)) * (b.x - a.x));
+        }
+      }
+      const fill = (col0: number, col1: number) => {
+        for (let col = Math.max(0, col0); col <= Math.min(width - 1, col1); col++) {
+          const idx = row * width + col;
+          const current = data[idx];
+          if (WATER_CODES.has(current) || current === NODATA_CODE || current === code) continue;
+          data[idx] = code;
+          changed++;
+        }
+      };
+      intersections.sort((a, b) => a - b);
+      for (let span = 0; span + 1 < intersections.length; span += 2) {
+        // A tiny grid-coordinate epsilon stabilizes centers that land exactly
+        // on an edge after lng/lat round-tripping: left is inclusive, right is
+        // exclusive, matching the even-odd point test.
+        const col0 = Math.ceil(intersections[span] - 0.5 - 1e-9);
+        const col1 = Math.ceil(intersections[span + 1] - 0.5 - 1e-9) - 1;
+        fill(col0, col1);
+      }
+      // Treat a cell center exactly on a horizontal polygon edge as covered.
+      // Besides matching the previous point test, this keeps an authored 13 m
+      // corridor from losing a whole one-metre row to floating-point rounding.
+      for (const [left, right] of horizontalBoundaries) {
+        fill(Math.ceil(left - 0.5 - 1e-9), Math.floor(right - 0.5 + 1e-9));
       }
     }
   }

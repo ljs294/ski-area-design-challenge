@@ -128,8 +128,24 @@ async function clickWhenReady(selector) {
 async function highlightGeometry(along) {
   return page.evaluate((along) => {
     const map = globalThis.appMap;
-    if (!map.getLayer('graded-contour-lines')) return { count: 0, squareFraction: 0 };
+    // Separate "the engine sent nothing" from "the map drew nothing": the first
+    // is an engine bug, the second a layer/style one, and they look identical
+    // from a rendered-feature count alone.
+    const source = map.getSource('graded-contours');
+    const data = source?._data;
+    const diagnostics = {
+      hasSource: !!source,
+      hasLayer: !!map.getLayer('graded-contour-lines'),
+      visibility: map.getLayer('graded-contour-lines')
+        ? map.getLayoutProperty('graded-contour-lines', 'visibility') ?? 'visible'
+        : null,
+      sourceFeatures: data?.features?.length ?? 0,
+      sourceSegments: (data?.features ?? []).reduce(
+        (total, feature) => total + (feature.geometry?.coordinates?.length ?? 0), 0),
+    };
+    if (!diagnostics.hasLayer) return { count: 0, squareFraction: 0, diagnostics };
     const features = map.queryRenderedFeatures({ layers: ['graded-contour-lines'] });
+    diagnostics.renderedFeatures = features.length;
     const cosines = [];
     for (const feature of features) {
       const lines = feature.geometry.type === 'MultiLineString'
@@ -149,6 +165,7 @@ async function highlightGeometry(along) {
     return {
       count: cosines.length,
       squareFraction: cosines.length ? square / cosines.length : 0,
+      diagnostics,
     };
   }, along);
 }
@@ -266,7 +283,8 @@ try {
 
   // 2. The edit is visible, and only while it is a proposal.
   if (graded.highlight.count === 0)
-    throw new Error('Grading moved contours but highlighted none of them.');
+    throw new Error('Grading moved contours but highlighted none of them: ' +
+      JSON.stringify(graded.highlight.diagnostics));
   if (graded.clearedHighlight.count !== 0)
     throw new Error('Unchecking Grade terrain left the yellow highlight behind.');
 

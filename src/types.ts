@@ -355,6 +355,9 @@ interface SavedLiftBase {
   lengthM: number; // slope length; horizontal-only when elevations unknown
   verticalM: number | null; // |top - bottom|; null while elevations unresolved
   status: LiftStatus; // 'planning' (dashed) or 'complete' (solid)
+  /** Operating condition. Absent/false = open. A closed lift stays in the
+   *  network graph but is not traversable by open-only route queries. */
+  closed?: boolean;
   createdAt: string; // ISO
 }
 
@@ -434,6 +437,9 @@ export interface SavedTrail {
   /** Estimated volumes represented by the committed DEM edit. */
   earthwork?: EarthworkEstimate;
   status: TrailStatus; // 'planning' (dashed) or 'complete' (solid)
+  /** Operating condition. Absent/false = open. Every network segment derived
+   *  from this run inherits it. */
+  closed?: boolean;
   createdAt: string; // ISO
 }
 
@@ -460,10 +466,12 @@ export interface GameSave {
   roads?: SavedRoad[];
   createdAt: string; // ISO
   updatedAt: string; // ISO
+  /** Most recent successful exit checkpoint. Optional for legacy saves. */
+  lastPlayedAt?: string; // ISO
 }
 
 // Lightweight listing entry for the Load Game modal.
 export type GameSaveSummary = Pick<
   GameSave,
-  'key' | 'name' | 'mountainId' | 'terrainKey' | 'createdAt' | 'updatedAt'
+  'key' | 'name' | 'mountainId' | 'terrainKey' | 'createdAt' | 'updatedAt' | 'lastPlayedAt'
 >;

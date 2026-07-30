@@ -132,6 +132,7 @@ export function sanitizeLifts(raw: unknown[]): SavedLift[] {
       verticalM: stats.verticalM,
       chairSize,
       status,
+      closed: l.closed === true,
       createdAt: typeof l.createdAt === 'string' ? l.createdAt : new Date().toISOString(),
     });
   }

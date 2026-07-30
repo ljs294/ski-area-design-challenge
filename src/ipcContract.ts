@@ -13,11 +13,15 @@ export const GAMESAVE_SAVE_CHANNEL = 'gamesave:save';
 export const GAMESAVE_LOAD_CHANNEL = 'gamesave:load';
 export const GAMESAVE_LIST_CHANNEL = 'gamesave:list';
 export const GAMESAVE_DELETE_CHANNEL = 'gamesave:delete';
+export const GAMESAVE_CAPTURE_PREVIEW_CHANNEL = 'gamesave:capture-preview';
+export const GAMESAVE_LOAD_PREVIEW_CHANNEL = 'gamesave:load-preview';
 
 // --- Window / shell control ---
 export const WINDOW_GET_MODE_CHANNEL = 'window:get-mode';
 export const WINDOW_SET_MODE_CHANNEL = 'window:set-mode';
 export const EXIT_CHANNEL = 'exit-game';
+export const WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL = 'window:request-close-checkpoint';
+export const WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL = 'window:close-checkpoint-complete';
 
 export type WindowMode = 'windowed' | 'fullscreen' | 'borderless';
 
@@ -41,6 +45,16 @@ export interface GameSaveDeleteRequest {
 export interface GameSaveDeleteResponse {
   ok: boolean;
 }
+
+export interface GameSavePreviewRequest {
+  key: string;
+}
+export type GameSavePreviewCaptureResponse =
+  | { ok: true }
+  | { ok: false; error: string };
+export type GameSavePreviewLoadResponse =
+  | { ok: true; dataUrl: string | null }
+  | { ok: false; error: string };
 
 export interface TerrainSaveRequest {
   record: TerrainRecord;

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SavedTrail } from '../types';
 import type { Units } from './SettingsContext';
 import { DIFFICULTY_LABELS } from '../trails';
+import { ConditionToggle } from './ConditionToggle';
 import { TrailProfile } from './TrailProfile';
 import { TrailStatsBlock } from './TrailControl';
 
@@ -15,12 +16,14 @@ export function TrailDetail({
   units,
   onEdit,
   onRemove,
+  onToggleClosed,
   onClose,
 }: {
   trail: SavedTrail;
   units: Units;
   onEdit: () => void;
   onRemove: () => void;
+  onToggleClosed: (closed: boolean) => void;
   onClose: () => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -54,6 +57,8 @@ export function TrailDetail({
         difficulty={trail.difficulty}
         units={units}
       />
+
+      <ConditionToggle closed={trail.closed === true} onChange={onToggleClosed} />
 
       {confirmRemove ? (
         <div className="lift-delete-confirm">

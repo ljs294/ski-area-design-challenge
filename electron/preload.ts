@@ -12,9 +12,13 @@ import {
   GAMESAVE_LOAD_CHANNEL,
   GAMESAVE_LIST_CHANNEL,
   GAMESAVE_DELETE_CHANNEL,
+  GAMESAVE_CAPTURE_PREVIEW_CHANNEL,
+  GAMESAVE_LOAD_PREVIEW_CHANNEL,
   WINDOW_GET_MODE_CHANNEL,
   WINDOW_SET_MODE_CHANNEL,
   EXIT_CHANNEL,
+  WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL,
+  WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL,
 } from '../src/ipcContract';
 
 const api = {
@@ -32,10 +36,20 @@ const api = {
     load: (key: string) => ipcRenderer.invoke(GAMESAVE_LOAD_CHANNEL, { key }),
     list: () => ipcRenderer.invoke(GAMESAVE_LIST_CHANNEL),
     delete: (key: string) => ipcRenderer.invoke(GAMESAVE_DELETE_CHANNEL, { key }),
+    capturePreview: (key: string) => ipcRenderer.invoke(GAMESAVE_CAPTURE_PREVIEW_CHANNEL, { key }),
+    loadPreview: (key: string) => ipcRenderer.invoke(GAMESAVE_LOAD_PREVIEW_CHANNEL, { key }),
   },
   window: {
     getMode: () => ipcRenderer.invoke(WINDOW_GET_MODE_CHANNEL),
     setMode: (mode: string) => ipcRenderer.invoke(WINDOW_SET_MODE_CHANNEL, mode),
+  },
+  lifecycle: {
+    onCloseCheckpointRequested: (listener: () => void) => {
+      const wrapped = () => listener();
+      ipcRenderer.on(WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL, wrapped);
+      return () => ipcRenderer.removeListener(WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL, wrapped);
+    },
+    completeCloseCheckpoint: () => ipcRenderer.send(WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL),
   },
   exit: () => ipcRenderer.send(EXIT_CHANNEL),
 };

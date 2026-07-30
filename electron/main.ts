@@ -3,7 +3,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { registerTerrainStorageHandlers } from './ipcTerrainStorage';
 import { registerGameSaveStorageHandlers } from './ipcGameSaveStorage';
-import { WINDOW_GET_MODE_CHANNEL, WINDOW_SET_MODE_CHANNEL, EXIT_CHANNEL } from '../src/ipcContract';
+import {
+  WINDOW_GET_MODE_CHANNEL,
+  WINDOW_SET_MODE_CHANNEL,
+  EXIT_CHANNEL,
+  WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL,
+  WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL,
+} from '../src/ipcContract';
 import type { WindowMode } from '../src/ipcContract';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -11,6 +17,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
 let mainWindow: BrowserWindow | null = null;
+let closeCheckpointPending = false;
+let closeCheckpointComplete = false;
+let closeCheckpointTimer: ReturnType<typeof setTimeout> | null = null;
+let quitAfterCheckpoint = false;
+
+function finishCloseCheckpoint(win: BrowserWindow): void {
+  if (closeCheckpointTimer) {
+    clearTimeout(closeCheckpointTimer);
+    closeCheckpointTimer = null;
+  }
+  closeCheckpointPending = false;
+  closeCheckpointComplete = true;
+  if (quitAfterCheckpoint) app.quit();
+  else if (!win.isDestroyed()) win.close();
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -45,6 +66,23 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    closeCheckpointPending = false;
+    closeCheckpointComplete = false;
+    quitAfterCheckpoint = false;
+    if (closeCheckpointTimer) clearTimeout(closeCheckpointTimer);
+    closeCheckpointTimer = null;
+  });
+
+  mainWindow.on('close', (event) => {
+    if (closeCheckpointComplete) return;
+    event.preventDefault();
+    if (closeCheckpointPending || !mainWindow) return;
+    closeCheckpointPending = true;
+    mainWindow.webContents.send(WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL);
+    // A renderer or storage failure must never make the application unclosable.
+    closeCheckpointTimer = setTimeout(() => {
+      if (mainWindow) finishCloseCheckpoint(mainWindow);
+    }, 3000);
   });
 }
 
@@ -106,5 +144,12 @@ ipcMain.handle(WINDOW_SET_MODE_CHANNEL, (_e, mode: WindowMode): WindowMode => {
 
 // Close the app from the main-menu Exit sign.
 ipcMain.on(EXIT_CHANNEL, () => {
+  quitAfterCheckpoint = true;
   app.quit();
+});
+
+ipcMain.on(WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL, (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== mainWindow || !closeCheckpointPending) return;
+  finishCloseCheckpoint(win);
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MapView } from './MapView';
+import { MapView, type GameSessionControls } from './MapView';
 import { MainMenu } from './MainMenu';
 import { MapManagement } from './MapManagement';
 import { Settings } from './Settings';
@@ -7,7 +7,7 @@ import { LoadGameModal } from './LoadGameModal';
 import { GraphicsLab } from './GraphicsLab';
 import { ResortLoadingScreen } from './ResortLoadingScreen';
 import { SettingsProvider } from './SettingsContext';
-import { listGames, loadGame, mostRecentGame } from '../gameSaveClient';
+import { listGames, loadGame, loadGamePreview, mostRecentGame } from '../gameSaveClient';
 import { desktop } from '../desktopBridge';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import type { GameSave } from '../types';
@@ -23,6 +23,7 @@ interface BootState {
   title: string;
   progress: BootProgress;
   imageryUrl: string | null;
+  imageryKind: 'resume' | 'aerial' | null;
   failure: { message: string; repair: () => void } | null;
   /** True once the resort is ready; the screen fades out before unmounting. */
   done: boolean;
@@ -53,10 +54,25 @@ function AppInner() {
   // Populated by MapView while a resort boots, so the loading screen's
   // "Enter anyway" / "Back to menu" can drive the warm-up it can't see.
   const bootControlsRef = useRef<BootControls | null>(null);
+  const sessionControlsRef = useRef<GameSessionControls | null>(null);
   const bootFadeRef = useRef<number | null>(null);
 
   useEffect(() => () => {
     if (bootFadeRef.current !== null) window.clearTimeout(bootFadeRef.current);
+  }, []);
+
+  useEffect(() => {
+    const bridge = desktop;
+    if (!bridge) return;
+    return bridge.lifecycle.onCloseCheckpointRequested(() => {
+      void (async () => {
+        try {
+          await sessionControlsRef.current?.checkpointForExit(false);
+        } finally {
+          bridge.lifecycle.completeCloseCheckpoint();
+        }
+      })();
+    });
   }, []);
 
   const refreshHasSaves = useCallback(() => {
@@ -99,6 +115,12 @@ function AppInner() {
     setScreen('menu');
   }, []);
 
+  const checkpointToMenu = useCallback(async () => {
+    const result = await sessionControlsRef.current?.checkpointForExit(true);
+    if (result && !result.ok) return;
+    toMenu();
+  }, [toMenu]);
+
   /** Raise the loading screen, then tear down the menu (and its live backdrop
    *  map) so it cannot issue Terrarium requests during the resume transition. */
   const beginBoot = useCallback(
@@ -108,9 +130,21 @@ function AppInner() {
         bootFadeRef.current = null;
       }
       bootControlsRef.current = null;
-      setBoot({ title, progress: { stage: 'save' }, imageryUrl: null, failure: null, done: false });
+      setBoot({
+        title,
+        progress: { stage: 'save' },
+        imageryUrl: null,
+        imageryKind: null,
+        failure: null,
+        done: false,
+      });
       setScreen('loadingGame');
-      const save = await loadGame(key);
+      const [save, previewUrl] = await Promise.all([loadGame(key), loadGamePreview(key)]);
+      if (previewUrl) {
+        setBoot((previous) => previous
+          ? { ...previous, imageryUrl: previewUrl, imageryKind: 'resume' }
+          : previous);
+      }
       // From here MapView mounts underneath the still-visible loading screen and
       // takes over reporting via onBoot, all the way to a fully-drawn resort.
       if (save) openSave(save);
@@ -133,6 +167,8 @@ function AppInner() {
   const handleLoadPick = useCallback(
     async (key: string, name: string) => {
       setShowLoad(false);
+      const checkpoint = await sessionControlsRef.current?.checkpointForExit(true);
+      if (checkpoint && !checkpoint.ok) return;
       await beginBoot(key, name);
     },
     [beginBoot]
@@ -147,7 +183,9 @@ function AppInner() {
           case 'progress':
             return { ...prev, progress: e.progress };
           case 'backdrop':
-            return { ...prev, imageryUrl: e.imageryUrl };
+            return prev.imageryKind === 'resume'
+              ? prev
+              : { ...prev, imageryUrl: e.imageryUrl, imageryKind: 'aerial' };
           case 'failed':
             return { ...prev, failure: { message: e.message, repair: e.repair } };
           case 'ready':
@@ -196,9 +234,10 @@ function AppInner() {
       {screen === 'newGame' && (
         <MapView
           mode="picking"
-          onQuit={toMenu}
+          onQuit={() => void checkpointToMenu()}
           onOpenSettings={() => setShowSettings(true)}
           onLoadGame={() => setShowLoad(true)}
+          sessionControlsRef={sessionControlsRef}
         />
       )}
 
@@ -208,11 +247,12 @@ function AppInner() {
           key={currentSave?.key ?? 'game'}
           mode="playing"
           initialSave={currentSave}
-          onQuit={toMenu}
+          onQuit={() => void checkpointToMenu()}
           onOpenSettings={() => setShowSettings(true)}
           onLoadGame={() => setShowLoad(true)}
           onBoot={handleBoot}
           bootControlsRef={bootControlsRef}
+          sessionControlsRef={sessionControlsRef}
         />
       )}
 
@@ -225,6 +265,7 @@ function AppInner() {
           title={boot.title}
           progress={boot.progress}
           imageryUrl={boot.imageryUrl}
+          imageryKind={boot.imageryKind ?? 'aerial'}
           state={boot.failure ? 'failed' : 'loading'}
           message={boot.failure?.message}
           done={boot.done}

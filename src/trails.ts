@@ -253,6 +253,7 @@ export function sanitizeTrails(raw: unknown[]): SavedTrail[] {
       terrainGraded: t.terrainGraded === true,
       earthwork,
       status,
+      closed: t.closed === true,
       createdAt: typeof t.createdAt === 'string' ? t.createdAt : new Date().toISOString(),
     });
   }

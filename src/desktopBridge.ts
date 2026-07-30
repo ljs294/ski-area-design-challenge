@@ -10,6 +10,8 @@ import type {
   GameSaveLoadResponse,
   GameSaveListResponse,
   GameSaveDeleteResponse,
+  GameSavePreviewCaptureResponse,
+  GameSavePreviewLoadResponse,
   WindowMode,
 } from './ipcContract';
 import type { TerrainRecord } from './types';
@@ -31,10 +33,16 @@ export interface DesktopApi {
     load(key: string): Promise<GameSaveLoadResponse>;
     list(): Promise<GameSaveListResponse>;
     delete(key: string): Promise<GameSaveDeleteResponse>;
+    capturePreview(key: string): Promise<GameSavePreviewCaptureResponse>;
+    loadPreview(key: string): Promise<GameSavePreviewLoadResponse>;
   };
   window: {
     getMode(): Promise<WindowMode>;
     setMode(mode: WindowMode): Promise<WindowMode>;
+  };
+  lifecycle: {
+    onCloseCheckpointRequested(listener: () => void): () => void;
+    completeCloseCheckpoint(): void;
   };
   exit(): void;
 }

@@ -13,6 +13,8 @@ export interface ResortLoadingScreenProps {
   progress: BootProgress;
   /** The resort's own NAIP orthophoto, once the package has been decoded. */
   imageryUrl: string | null;
+  /** Resume previews match the final camera and should not be heavily blurred. */
+  imageryKind?: 'resume' | 'aerial';
   state: ResortLoadingState;
   message?: string;
   /** True once the resort is fully drawn; fades the screen out over the scene. */
@@ -37,6 +39,7 @@ export function ResortLoadingScreen({
   title,
   progress,
   imageryUrl,
+  imageryKind = 'aerial',
   state,
   message,
   done = false,
@@ -132,7 +135,7 @@ export function ResortLoadingScreen({
 
       {imageryUrl && (
         <img
-          className={`resort-loading-photo${photoReady ? ' is-shown' : ''}`}
+          className={`resort-loading-photo is-${imageryKind}${photoReady ? ' is-shown' : ''}`}
           src={imageryUrl}
           alt=""
           aria-hidden

@@ -12,6 +12,7 @@ import type { GameSave, GameSaveSummary } from './types';
 
 const PREFIX = 'gamesave:';
 const INDEX_KEY = 'gamesave-index';
+const PREVIEW_PREFIX = 'gamesave-preview:';
 
 function localList(): GameSaveSummary[] {
   try {
@@ -33,6 +34,7 @@ function toSummary(save: GameSave): GameSaveSummary {
     terrainKey: save.terrainKey,
     createdAt: save.createdAt,
     updatedAt: save.updatedAt,
+    lastPlayedAt: save.lastPlayedAt,
   };
 }
 
@@ -61,13 +63,49 @@ export async function listGames(): Promise<GameSaveListResponse> {
 export async function deleteGame(key: string): Promise<GameSaveDeleteResponse> {
   if (desktop) return desktop.games.delete(key);
   localStorage.removeItem(PREFIX + key);
+  localStorage.removeItem(PREVIEW_PREFIX + key);
   localWriteIndex(localList().filter((s) => s.key !== key));
   return { ok: true };
+}
+
+export async function captureGamePreview(
+  key: string,
+  browserDataUrl?: string | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (desktop) return desktop.games.capturePreview(key);
+  if (!browserDataUrl) return { ok: false, error: 'The browser could not capture the map canvas.' };
+  try {
+    localStorage.setItem(PREVIEW_PREFIX + key, browserDataUrl);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Unable to store the resort preview.',
+    };
+  }
+}
+
+export async function loadGamePreview(key: string): Promise<string | null> {
+  if (desktop) {
+    try {
+      const result = await desktop.games.loadPreview(key);
+      return result.ok ? result.dataUrl : null;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return localStorage.getItem(PREVIEW_PREFIX + key);
+  } catch {
+    return null;
+  }
 }
 
 /** Newest save by updatedAt, for the "Continue Game" shortcut. Null if none. */
 export async function mostRecentGame(): Promise<GameSaveSummary | null> {
   const list = await listGames();
   if (list.length === 0) return null;
-  return list.reduce((a, b) => (a.updatedAt >= b.updatedAt ? a : b));
+  const activityAt = (save: GameSaveSummary) =>
+    save.lastPlayedAt && save.lastPlayedAt > save.updatedAt ? save.lastPlayedAt : save.updatedAt;
+  return list.reduce((a, b) => activityAt(a) >= activityAt(b) ? a : b);
 }
