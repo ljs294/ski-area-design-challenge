@@ -3,6 +3,8 @@
 // absent, so callers must handle `null` and fall back to browser equivalents.
 import type {
   TerrainSaveResponse,
+  TerrainCoverSaveRequest,
+  TerrainCoverSaveResponse,
   TerrainLoadResponse,
   TerrainListResponse,
   TerrainDeleteResponse,
@@ -10,6 +12,8 @@ import type {
   GameSaveLoadResponse,
   GameSaveListResponse,
   GameSaveDeleteResponse,
+  GameSavePreviewCaptureResponse,
+  GameSavePreviewLoadResponse,
   WindowMode,
 } from './ipcContract';
 import type { TerrainRecord } from './types';
@@ -23,6 +27,8 @@ export interface DesktopApi {
     /** Package-named aliases used by resort preparation and repair flows. */
     loadPackage(key: string): Promise<TerrainLoadResponse>;
     repairPackage(record: TerrainRecord): Promise<TerrainSaveResponse>;
+    /** Writes only edited cover assets and their merged package metadata. */
+    saveCover(request: TerrainCoverSaveRequest): Promise<TerrainCoverSaveResponse>;
     list(): Promise<TerrainListResponse>;
     delete(key: string): Promise<TerrainDeleteResponse>;
   };
@@ -31,10 +37,16 @@ export interface DesktopApi {
     load(key: string): Promise<GameSaveLoadResponse>;
     list(): Promise<GameSaveListResponse>;
     delete(key: string): Promise<GameSaveDeleteResponse>;
+    capturePreview(key: string): Promise<GameSavePreviewCaptureResponse>;
+    loadPreview(key: string): Promise<GameSavePreviewLoadResponse>;
   };
   window: {
     getMode(): Promise<WindowMode>;
     setMode(mode: WindowMode): Promise<WindowMode>;
+  };
+  lifecycle: {
+    onCloseCheckpointRequested(listener: () => void): () => void;
+    completeCloseCheckpoint(): void;
   };
   exit(): void;
 }

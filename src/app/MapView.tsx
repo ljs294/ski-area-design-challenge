@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { setLocalContextData, setupAnalysisLayers, type LayerToggle } from './analysisLayers';
@@ -9,6 +9,8 @@ import { GameMenu } from './GameMenu';
 import { CreditsPanel } from './CreditsPanel';
 import { LiftOverview } from './LiftOverview';
 import { LiftDetail } from './LiftDetail';
+import { NetworkMap } from './NetworkMap';
+import { buildSkiNetwork } from '../network';
 import { ResortStatsPanel } from './ResortStatsPanel';
 import { CursorReadout, type Readout } from './CursorReadout';
 import { Legend, type OverlayId } from './Legend';
@@ -29,21 +31,31 @@ import { View3DControl } from './View3DControl';
 import { mountTerrain, unmountTerrain, tilt3D, PITCH_3D } from './terrain3d';
 import { useSettings, pixelRatioFor } from './SettingsContext';
 import { applyTileLod } from './terrainLod';
-import { saveGame } from '../gameSaveClient';
+import { ResortLoadingScreen } from './ResortLoadingScreen';
+import type { BootControls, BootEvent, BootProgress } from './resortBoot';
+import { captureGamePreview, saveGame } from '../gameSaveClient';
+import { isDesktop } from '../desktopBridge';
 import type { GameSave, RoadType, SavedLift, SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
-import { loadTerrain, saveTerrain } from '../terrainStorageClient';
+import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
-import { coverDisplayMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
+import {
+  coverDisplayMetadataOf,
+  manifestOf,
+  manifestWithUpdatedCover,
+  validateTerrainCoverEdit,
+  validateTerrainPackage,
+} from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
 import {
   jitterPolygon,
-  liftCorridorRing,
-  stampPolygonsIntoGrid,
-  LIFT_CLEAR_HALF_WIDTH_M,
-  LIFT_CLEAR_JITTER_M,
-  type Polygon,
+  liftClearingRing,
+  TRAIL_CLEAR_JITTER_M,
+  type CoverClearing,
 } from '../coverEdit';
-import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL, resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt, setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
+import { runCoverEditWorker } from './coverEditClient';
+import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
+  resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt,
+  setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS, type DraftLine } from './liftLayers';
 import { TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
@@ -62,6 +74,11 @@ import {
   TRAIL_BUILT_LAYER_IDS,
 } from './trailLayers';
 import type { TrailPaintRequest, TrailPaintRequestPayload, TrailPaintResponse } from './trailPaintProtocol';
+import { strokeToPolygon } from './trailBrush';
+import { terrainGradeGeometryKey, type TerrainGradeResponse } from './terrainGradeProtocol';
+import { applyTerrainGradeToRecord } from './terrainGradeCommit';
+import { refreshTerrainGradeSources, setGradedContourPreview,
+  setTerrainContourData } from './terrainGradeMap';
 import {
   FIXED_GRIP_SPEC,
   liftStats,
@@ -73,6 +90,7 @@ import {
   sanitizeTrails,
   nextTrailName,
   orientTopToBottom,
+  trailAreaM2,
   trailPartsStats,
   difficultyForSlopes,
   DEFAULT_BRUSH_WIDTH_M,
@@ -80,6 +98,8 @@ import {
 import { nextRoadName, roadClearingPolygons, roadLengthM, sanitizeRoads,
   TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import { haversineMeters } from '../geo';
+import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
+import { ConstructionStatusBug, type ConstructionActivity } from './ConstructionStatusBug';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
@@ -90,6 +110,11 @@ export type MapMode = 'picking' | 'playing';
 // Reject lift terminals closer than this — avoids accidental zero-length lifts
 // from a double-click.
 const MIN_LIFT_M = 50;
+// A run benches inside what the player painted; the cut/fill volume is its
+// price. Slopes and the grade band are engine constants — see trailCrossSection.
+const TRAIL_GRADE_POLICY = { envelope: 'footprint' } as const;
+// A road has no painted shoulder, so it alone grades outside its pavement.
+const ROAD_GRADE_POLICY = { envelope: 'expand', maxWidthMultiplier: 3 } as const;
 
 /** The in-progress lift line to render for the current tool state, if any. */
 function draftLineOf(tool: LiftTool): DraftLine | null {
@@ -104,7 +129,9 @@ function draftLineOf(tool: LiftTool): DraftLine | null {
 
 function roadDraftOf(tool: RoadTool): RoadDraftLine | null {
   if (tool.phase === 'drawing') return { points: tool.points, cursor: tool.cursor };
-  if (tool.phase === 'review') return { points: tool.draft.points, cursor: null };
+  if (tool.phase === 'review') return { points: tool.draft.points, cursor: null,
+    gradingPolygons: tool.draft.gradingPolygons,
+    infeasibleLines: tool.draft.gradingInfeasibleLines };
   return null;
 }
 
@@ -153,13 +180,74 @@ interface MapViewProps {
   onOpenSettings: () => void;
   /** Open the Load Game modal (owned by App). Menu → Load. */
   onLoadGame: () => void;
+  /** Boot reports for the resort loading screen, which App owns (it has to
+   *  exist before this component mounts and outlive its first full render). */
+  onBoot?: (e: BootEvent) => void;
+  /** Filled in here so the loading screen can force or abort the warm-up. */
+  bootControlsRef?: MutableRefObject<BootControls | null>;
+  /** Lets App checkpoint this mounted game before navigating or closing. */
+  sessionControlsRef?: MutableRefObject<GameSessionControls | null>;
+}
+
+export interface ExitCheckpointResult {
+  ok: boolean;
+  error?: string;
+}
+
+export interface GameSessionControls {
+  checkpointForExit(interactive?: boolean): Promise<ExitCheckpointResult>;
+}
+
+function browserPreviewDataUrl(canvas: HTMLCanvasElement): string | null {
+  try {
+    const longest = Math.max(canvas.width, canvas.height);
+    const scale = longest > 1600 ? 1600 / longest : 1;
+    const out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(canvas.width * scale));
+    out.height = Math.max(1, Math.round(canvas.height * scale));
+    const context = out.getContext('2d');
+    if (!context) return null;
+    context.drawImage(canvas, 0, 0, out.width, out.height);
+    return out.toDataURL('image/jpeg', 0.8);
+  } catch {
+    return null;
+  }
+}
+
+/** Wait for one composed MapLibre frame; browser capture must happen in-frame. */
+function waitForCaptureFrame(map: maplibregl.Map): Promise<string | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (dataUrl: string | null) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      map.off('render', onRender);
+      resolve(dataUrl);
+    };
+    const onRender = () => finish(isDesktop ? null : browserPreviewDataUrl(map.getCanvas()));
+    const timeout = window.setTimeout(() => finish(
+      isDesktop ? null : browserPreviewDataUrl(map.getCanvas())
+    ), 500);
+    map.once('render', onRender);
+    map.triggerRepaint();
+  });
 }
 
 /**
  * Owns the MapLibre instance. The map lives in a ref (never React state); React
  * state holds the layer-toggle UI model, cursor readout, and game/site status.
  */
-export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLoadGame }: MapViewProps) {
+export function MapView({
+  mode,
+  initialSave = null,
+  onQuit,
+  onOpenSettings,
+  onLoadGame,
+  onBoot,
+  bootControlsRef,
+  sessionControlsRef,
+}: MapViewProps) {
   const { settings, resolvedTheme } = useSettings();
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -175,16 +263,42 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const [siteMode, setSiteMode] = useState<SiteMode>(initialSave?.site ? 'locked' : 'explore');
   const [siteBox, setSiteBoxState] = useState<SiteBox | null>((initialSave?.site as SiteBox) ?? null);
   const [is3D, setIs3D] = useState(initialSave?.is3D ?? false);
-  // Loading veil held over the resort until its first complete render, so the
-  // map never appears mid-stream (popping terrain / half-drawn custom tiles).
-  const [warming, setWarming] = useState(mode === 'playing' && !TERRAIN_DISABLED);
-  // Determinate preload progress shown on the warming veil (completed/total warm
-  // tiles). null while indeterminate (before the tile set is known).
-  const [warmProgress, setWarmProgress] = useState<{ completed: number; total: number } | null>(null);
   const warmAbortRef = useRef<AbortController | null>(null);
+  // App's resort loading screen stays up until `ready`, so the map is never
+  // shown mid-stream. Kept in a ref so the once-registered style.load handler
+  // and the warm-up loop always report through the current callback.
+  const onBootRef = useRef(onBoot);
+  onBootRef.current = onBoot;
+  const repairRef = useRef<() => void>(() => {});
+  const bootControls = useRef<BootControls | null>(null);
+  // A prepare→play handoff still re-mounts terrain and every custom tile source
+  // after App's loading screen has stood down (New Game, or repairing a broken
+  // package). We drive the same screen locally for that stretch rather than let
+  // the resort draw itself in front of the player.
+  const [localBoot, setLocalBoot] = useState<BootProgress | null>(null);
+  const localBootRef = useRef<BootProgress | null>(localBoot);
+  const showLocalBoot = (p: BootProgress | null) => {
+    if (localBootRef.current === p) return;
+    localBootRef.current = p;
+    setLocalBoot(p);
+  };
+  const reportBoot = (e: BootEvent) => {
+    if (e.type === 'ready' || e.type === 'handoff') showLocalBoot(null);
+    // Track locally only while a local screen is actually up, or when nobody
+    // upstream is listening — otherwise this is a render per warm-up tick.
+    else if (e.type === 'progress' && (localBootRef.current || !onBootRef.current)) showLocalBoot(e.progress);
+    onBootRef.current?.(e);
+  };
+  const reportStage = (progress: BootProgress) => reportBoot({ type: 'progress', progress });
+  const reportFailure = (message: string) =>
+    reportBoot({ type: 'failed', message, repair: () => repairRef.current() });
   const [saved, setSaved] = useState<GameSave | null>(initialSave);
+  // Unlike `saved`, this ref is never changed by live UI edits such as rename.
+  // Exit checkpoints spread this exact record so manual-save semantics remain.
+  const persistedSaveRef = useRef<GameSave | null>(initialSave);
   const [nameDraft, setNameDraft] = useState('');
   const [saving, setSaving] = useState(false);
+  const [checkpointError, setCheckpointError] = useState<string | null>(null);
   const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
   const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'optimizing' | 'error'>(
     mode === 'playing' ? 'loading' : 'ready'
@@ -210,9 +324,40 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const [roadTool, setRoadTool] = useState<RoadTool>({ phase: 'idle' });
   // Last-used brush width, kept across arms so it persists between runs.
   const [brushWidthM, setBrushWidthM] = useState(DEFAULT_BRUSH_WIDTH_M);
-  // True while a confirmed lift/trail is felling its cover in the background, so
-  // the build button can spin instead of looking frozen during the re-vectorize.
-  const [building, setBuilding] = useState(false);
+  // Identifies the active construction operation for disabled controls, button
+  // spinners, and the persistent map-level status bug.
+  const [buildingActivity, setBuildingActivity] = useState<ConstructionActivity | null>(null);
+  const building = buildingActivity !== null;
+  // Node map: a simplified 2D topology view, toggled from the top-left.
+  const [showNetwork, setShowNetwork] = useState(false);
+  const [networkLiftId, setNetworkLiftId] = useState<string | null>(null);
+  const [networkEdgeId, setNetworkEdgeId] = useState<string | null>(null);
+
+  // The trail/lift graph is derived, never persisted — the same rule that has
+  // sanitizeTrails recompute cached stats on load, so it can never drift from
+  // the geometry. Keyed on the two state arrays, so it rebuilds when a run or
+  // lift changes and never while the camera moves.
+  const network = useMemo(() => buildSkiNetwork(trails, lifts), [trails, lifts]);
+
+  // Exposed for the Playwright verification harness, alongside window.appMap.
+  useEffect(() => {
+    (window as unknown as { appNetwork?: typeof network }).appNetwork = network;
+  }, [network]);
+
+  // "N" toggles the node map, but never while the player is typing a name.
+  useEffect(() => {
+    if (!saved) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'n' && e.key !== 'N') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement;
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
+      if (el instanceof HTMLElement && el.isContentEditable) return;
+      setShowNetwork((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [saved]);
 
   const activeOverlay = activeOverlayOf(layers);
 
@@ -240,6 +385,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const trailWorkerIdRef = useRef(0);
   const trailWorkerAppliedRef = useRef(0);
   const trailWorkerRecoveryRef = useRef(0);
+  const trailGradeWorkerRef = useRef<Worker | null>(null);
+  const trailGradeRequestRef = useRef(0);
+  const trailGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
+  const roadGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const trailCommandsRef = useRef<{ mode: 'paint' | 'erase'; path: [number, number][] }[]>([]);
   const trailPreviewPathRef = useRef<[number, number][]>([]);
   const trailBrushCursorRef = useRef<[number, number] | null>(null);
@@ -252,17 +401,46 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   // Loaded local package backing cursor sampling, MapLibre protocols, and
   // style reinitialization. Gameplay never populates it from network data.
   const terrainRecordRef = useRef<TerrainRecord | null>(null);
+  const terrainHeightCacheRef = useRef<{ checksum: string; heights: Float32Array } | null>(null);
   const coverDisplayRef = useRef<CoverDisplayGeoJSON | null>(null);
   const localImageryUrlRef = useRef<string | null>(null);
+  const localImageryCacheKeyRef = useRef<string | null>(null);
 
   function cacheTerrainDisplayAssets(record: TerrainRecord): void {
+    const heightChecksum = record.packageManifest?.elevationChecksum ?? record.updatedAt;
+    if (terrainHeightCacheRef.current?.checksum !== heightChecksum) {
+      terrainHeightCacheRef.current = {
+        checksum: heightChecksum,
+        heights: Float32Array.from(record.sampleHeights),
+      };
+    }
     coverDisplayRef.current = record.coverDisplayGeometry && record.bounds
       ? coverDisplayToGeoJSON(record.coverDisplayGeometry, record.bounds)
       : null;
-    if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
-    localImageryUrlRef.current = record.localImagery
-      ? URL.createObjectURL(new Blob([Uint8Array.from(record.localImagery)], { type: record.localImageryMetadata?.mimeType ?? 'image/jpeg' }))
+    const imageryCacheKey = record.localImagery
+      ? `${record.localImageryMetadata?.checksum ?? record.localImagery.length}:${record.localImageryMetadata?.mimeType ?? 'image/jpeg'}`
       : null;
+    if (localImageryCacheKeyRef.current !== imageryCacheKey) {
+      if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
+      localImageryUrlRef.current = record.localImagery
+        ? URL.createObjectURL(new Blob([Uint8Array.from(record.localImagery)], { type: record.localImageryMetadata?.mimeType ?? 'image/jpeg' }))
+        : null;
+      localImageryCacheKeyRef.current = imageryCacheKey;
+    }
+  }
+
+  function setVisibleContours(record: TerrainRecord): void {
+    setTerrainContourData(mapRef.current, record, settings.units === 'imperial');
+  }
+
+  /** Paint the contours a pending grade would move in yellow. `null` clears. */
+  function setEditedContours(segments: ArrayLike<number> | null): void {
+    setGradedContourPreview(mapRef.current, segments,
+      terrainRecordRef.current?.bounds, settings.units === 'imperial');
+  }
+
+  function refreshElevationSources(record: TerrainRecord): void {
+    refreshTerrainGradeSources(mapRef.current, record, settings.units === 'imperial');
   }
 
   renderQualityRef.current = settings.renderQuality;
@@ -279,11 +457,19 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   brushWidthRef.current = brushWidthM;
   terrainRecordRef.current = terrainRecord;
   packageStateRef.current = packageState;
+  // Redefined each render so the boot-failure "Prepare Resort Data" button
+  // (rendered by App on the loading screen) runs against current state.
+  repairRef.current = () => void repairAndContinue();
 
   useEffect(() => () => {
     packageAbortRef.current?.abort();
+    // Without this a cancelled load leaves warmResortTiles rasterizing against
+    // a torn-down map for the rest of the tile set.
+    warmAbortRef.current?.abort();
     trailWorkerRef.current?.terminate();
+    trailGradeWorkerRef.current?.terminate();
     if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
+    localImageryCacheKeyRef.current = null;
   }, []);
 
   // A saved resort does not enter gameplay until its mandatory local package
@@ -297,13 +483,17 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     const key = initialSave?.terrainKey;
     if (!key) {
       setPackageState('missing');
+      reportFailure('The local resort package is missing. Prepare it again to continue.');
       return;
     }
+    reportStage({ stage: 'package' });
     void loadTerrain(key).then(async (record) => {
       if (cancelled) return;
       if (!record) {
-        setPackageError('The local resort package is missing. Prepare it again to continue.');
+        const message = 'The local resort package is missing. Prepare it again to continue.';
+        setPackageError(message);
         setPackageState('missing');
+        reportFailure(message);
         return;
       }
       let readyRecord = record;
@@ -311,6 +501,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         packageStateRef.current = 'optimizing';
         setPackageState('optimizing');
         setPackageProgress({ phase: 'vectorizing-cover', message: 'Drawing smooth ground cover', completed: 0, total: 1 });
+        reportStage({ stage: 'validate', note: 'Drawing smooth ground cover' });
         // Let React paint the one-time upgrade gate before the CPU-heavy trace.
         await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
         try {
@@ -335,20 +526,28 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         }
       }
       if (cancelled) return;
+      reportStage({ stage: 'validate' });
       const validation = validateTerrainPackage(readyRecord);
       if (!validation.ok) {
         setPackageError(validation.errors.join(' '));
         setPackageState('error');
+        reportFailure(validation.errors.join(' '));
         return;
       }
       cacheTerrainDisplayAssets(readyRecord);
+      // The resort's own aerial becomes the loading screen's backdrop — it is
+      // decoded here regardless, so the picture is free.
+      reportBoot({ type: 'backdrop', imageryUrl: localImageryUrlRef.current });
+      reportStage({ stage: 'build' });
       setActiveResortTerrain(readyRecord);
       setTerrainRecord(readyRecord);
       setPackageState('ready');
     }).catch((error) => {
       if (cancelled) return;
-      setPackageError(error instanceof Error ? error.message : 'Unable to load the local resort package.');
+      const message = error instanceof Error ? error.message : 'Unable to load the local resort package.';
+      setPackageError(message);
       setPackageState('error');
+      reportFailure(message);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -469,8 +668,20 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     const tt = trailToolRef.current;
     setTrailDraftData(map, tt.phase === 'paint' || tt.phase === 'analyzing'
       ? draftToGeoJSON(tt.polygons)
-      : tt.phase === 'review' ? draftToGeoJSON([], { parts: tt.draft.parts, difficulty: tt.draft.difficulty, name: tt.draft.name })
+      : tt.phase === 'review' ? draftToGeoJSON([], { parts: tt.draft.parts,
+        difficulty: tt.draft.difficulty, name: tt.draft.name,
+        infeasibleLines: tt.draft.infeasibleLines })
         : draftToGeoJSON([]));
+    const gradePreview = trailGradeResultRef.current;
+    const roadGradePreview = roadGradeResultRef.current;
+    const preview = tt.phase === 'review' && tt.draft.gradingEnabled && gradePreview
+      ? gradePreview
+      : roadToolRef.current.phase === 'review' && roadGradePreview ? roadGradePreview : null;
+    if (preview && terrainRecordRef.current) {
+      setVisibleContours({ ...terrainRecordRef.current,
+        contourSegments: Array.from(preview.contourSegments) });
+      setEditedContours(preview.editedContourSegments);
+    }
     setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
     addLiftLayers(map);
     setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
@@ -490,6 +701,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         applied = [...applied, { ...s, visible: wasVisible, section: 'Structures' }];
       }
     }
+    // Installed before the camera is posed below: the LOD falloff curve only
+    // engages when pitched, and it decides which zooms the tilted view asks for.
+    applyTileLod(map, renderQualityRef.current);
     // Resort view = a local terrain package is active. Terrain is mounted here
     // (and re-mounted after every restyle, since setStyle drops it) so it is
     // always present and the 2D↔3D switch stays a pure camera move. The
@@ -499,62 +713,92 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       if (!resortReadyRef.current) {
         resortReadyRef.current = true;
         // First entry into the resort: honor a resumed 2D/3D choice, otherwise
-        // default into the 3D-native view. Easing after mountTerrain (same
-        // frame) means the relief rises through perspective with no pop.
+        // default into the 3D-native view.
         const want3D = initialSave?.is3D ?? true;
         if (want3D !== is3DRef.current) setIs3D(want3D);
-        // Hold the veil until the resort is genuinely fully drawn: (1) preload
-        // every reachable diorama tile into the cache (determinate progress),
-        // then (2) wait for MapLibre to have all tiles loaded and go idle — so
-        // the map is revealed already-complete, never mid-stream. A generous
-        // safety timeout guarantees the veil always lifts even if something
-        // stalls. Replaces the old first-`idle`/6 s-timer heuristic, which fired
-        // early against the serial tile queue and revealed a half-loaded map.
+        // Pose the camera at its FINAL pitch *before* warming. This used to
+        // reveal flat and then easeTo(PITCH_3D), which meant readiness was
+        // measured in a camera pose the player never sees: tilting to 60°
+        // enlarges the viewport footprint enormously and, once applyTileLod's
+        // falloff engages, changes which zooms are requested — so every tile the
+        // 3D view actually needed streamed in *after* the veil had lifted.
+        if (initialSave) {
+          const pose = resumeCameraOf(initialSave, {
+            center: INITIAL_CENTER, zoom: INITIAL_ZOOM, bearing: 0, pitch: 0,
+          });
+          // Reapply the complete saved pose after terrain/maxBounds mount. In
+          // particular, do not replace a player's non-default 3D pitch.
+          map.jumpTo(pose);
+        } else {
+          map.jumpTo({ pitch: want3D ? PITCH_3D : 0 });
+        }
+        // Hold the loading screen until the resort is genuinely fully drawn:
+        // (1) preload every reachable diorama tile into the cache (determinate
+        // progress), then (2) wait for MapLibre to have all tiles loaded and go
+        // idle — so the map is revealed already-complete, never mid-stream.
+        // There is deliberately no safety timeout: rather than dump the player
+        // into a half-drawn resort, the loading screen offers "Enter anyway"
+        // once a load overruns.
         const rec = terrainRecordRef.current;
         let revealed = false;
         const reveal = () => {
           if (revealed) return;
           revealed = true;
           setRenderConcurrency(1); // restore calm serial rendering for play
-          setWarming(false);
-          setWarmProgress(null);
-          map.easeTo({ pitch: want3D ? PITCH_3D : 0, duration: 1200 });
+          bootControls.current = null;
+          if (bootControlsRef) bootControlsRef.current = null;
+          reportBoot({ type: 'ready' });
         };
-        const safety = window.setTimeout(reveal, 15000);
         const controller = new AbortController();
         warmAbortRef.current = controller;
+        bootControls.current = { reveal, abort: () => controller.abort() };
+        if (bootControlsRef) bootControlsRef.current = bootControls.current;
         void (async () => {
-          setWarmProgress({ completed: 0, total: 0 });
+          reportStage({ stage: 'warm' });
           if (rec) {
+            // Coalesce to ~8 reports/sec: warmResortTiles fires per tile, and
+            // thousands of React renders would compete with the rasterizer for
+            // the same main thread the bar is reporting on.
+            let lastReport = 0;
             await warmResortTiles(
               rec,
-              (completed, total) => setWarmProgress({ completed, total }),
+              (completed, total) => {
+                const now = performance.now();
+                if (completed < total && now - lastReport < 120) return;
+                lastReport = now;
+                reportStage({ stage: 'warm', completed, total });
+              },
               controller.signal
             );
           }
           if (controller.signal.aborted) return;
           // Catch any stragglers MapLibre requested outside the warm set: wait
           // for a fully-loaded, idle map to hold across two consecutive frames.
+          reportStage({ stage: 'settle' });
           let stable = 0;
           const settle = () => {
             if (revealed || controller.signal.aborted) return;
             const ready = map.areTilesLoaded() && getResortRenderStats().pending === 0 && map.loaded();
             stable = ready ? stable + 1 : 0;
-            if (stable >= 2) {
-              window.clearTimeout(safety);
-              reveal();
-            } else {
-              requestAnimationFrame(settle);
-            }
+            if (stable >= 2) reveal();
+            else requestAnimationFrame(settle);
           };
           requestAnimationFrame(settle);
         })();
       }
     } else {
       unmountTerrain(map);
-      setWarming(false);
+      // Nothing to warm — the ?flat harness, or the picker before preparation.
+      // Release any loading screen immediately rather than gate on a warm-up
+      // that will never run. resortReadyRef stays false in the picker so the
+      // real reveal still arms once preparation produces a package.
+      if (mode === 'playing' && !resortReadyRef.current) {
+        resortReadyRef.current = true;
+        reportBoot({ type: 'ready' });
+      } else {
+        showLocalBoot(null);
+      }
     }
-    applyTileLod(map, renderQualityRef.current);
     setLayers(applied);
   }
 
@@ -563,14 +807,16 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   useEffect(() => {
     if (!mapCanStart || mapRef.current || !containerRef.current) return;
 
-    const start = initialSave ?? null;
+    const start = resumeCameraOf(initialSave, {
+      center: INITIAL_CENTER, zoom: INITIAL_ZOOM, bearing: 0, pitch: 0,
+    });
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: basemapFor(resolvedTheme, { offline: mode === 'playing' }),
-      center: start ? start.center : INITIAL_CENTER,
-      zoom: start ? start.zoom : INITIAL_ZOOM,
-      bearing: start?.bearing ?? 0,
-      pitch: start?.pitch ?? 0,
+      center: start.center,
+      zoom: start.zoom,
+      bearing: start.bearing,
+      pitch: start.pitch,
       pixelRatio: pixelRatioFor(settings.renderQuality),
       // Manual compact control (added below) instead of the default text blob, so
       // attribution sits clear of the bottom dock and stays license-compliant.
@@ -801,9 +1047,11 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     if (!map) return;
     if (draftPolygons) setTrailDraftData(map, draftToGeoJSON(draftPolygons));
     else if (reviewDraft) setTrailDraftData(map, draftToGeoJSON([], { parts: reviewDraft.parts,
-      difficulty: reviewDraft.difficulty, name: reviewDraft.name }));
+      difficulty: reviewDraft.difficulty, name: reviewDraft.name,
+      infeasibleLines: reviewDraft.infeasibleLines }));
     else setTrailDraftData(map, draftToGeoJSON([]));
-  }, [draftPolygons, reviewDraft?.parts, reviewDraft?.difficulty, reviewDraft?.name]);
+  }, [draftPolygons, reviewDraft?.parts, reviewDraft?.difficulty, reviewDraft?.name,
+    reviewDraft?.infeasibleLines]);
 
   // Keep the geographic brush corridor and guide in sync with the brush size.
   useEffect(() => {
@@ -972,6 +1220,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                 draft: {
                   ...t.draft,
                   parts: resolvedParts,
+                  ungradedParts: resolvedParts,
                   elevStatus: 'ok',
                   difficulty: recommended,
                 },
@@ -1187,6 +1436,13 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   }
 
   function cancelRoadTool() {
+    trailGradeRequestRef.current++;
+    trailGradeWorkerRef.current?.terminate();
+    trailGradeWorkerRef.current = null;
+    roadGradeResultRef.current = null;
+    const record = terrainRecordRef.current;
+    if (record) setVisibleContours(record);
+    setEditedContours(null);
     setRoadTool({ phase: 'idle' });
     if (mapRef.current) setRoadDraftData(mapRef.current, null);
   }
@@ -1201,8 +1457,22 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   function finishRoadRoute() {
     const current = roadToolRef.current;
     if (current.phase !== 'drawing' || current.points.length < 2) return;
-    setRoadTool({ phase: 'review', draft: { name: nextRoadName(roadsRef.current),
-      roadType: current.roadType, points: current.points } });
+    const draft: DraftRoad = {
+      name: nextRoadName(roadsRef.current),
+      roadType: current.roadType,
+      points: current.points,
+      gradingStatus: 'pending',
+      gradingError: null,
+      gradingPolygons: [],
+      earthwork: null,
+      maxFaceSlopePct: 0,
+      maxGroundCrossSlopePct: 0,
+      maxDisturbedWidthM: 0,
+      ungradedLengthM: 0,
+      gradingInfeasibleLines: [],
+    };
+    setRoadTool({ phase: 'review', draft });
+    startRoadTerrainGrade(draft);
   }
 
   function patchRoadDraft(patch: Partial<DraftRoad>) {
@@ -1210,9 +1480,109 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       ? { phase: 'review', draft: { ...current.draft, ...patch } } : current);
   }
 
-  function confirmRoad() {
+  function startRoadTerrainGrade(draft: DraftRoad) {
+    const record = terrainRecordRef.current;
+    const polygon = strokeToPolygon(draft.points, TWO_LANE_ROAD_WIDTH_M);
+    const parts = polygon.length ? [{
+      polygon,
+      centerline: draft.points,
+      centerlineElevM: [],
+    }] : [];
+    const requestId = ++trailGradeRequestRef.current;
+    roadGradeResultRef.current = null;
+    if (!record?.bounds || parts.length === 0) {
+      setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+        ...current.draft,
+        gradingStatus: 'error',
+        gradingError: 'The local elevation package or road footprint is unavailable.',
+      } } : current);
+      return;
+    }
+    requestAnimationFrame(() => {
+      if (requestId !== trailGradeRequestRef.current) return;
+      const worker = new Worker(new URL('./terrainGrade.worker.ts', import.meta.url),
+        { type: 'module' });
+      trailGradeWorkerRef.current?.terminate();
+      trailGradeWorkerRef.current = worker;
+      const geometryKey = terrainGradeGeometryKey(parts, TWO_LANE_ROAD_WIDTH_M,
+        [], 'road', ROAD_GRADE_POLICY);
+      worker.onmessage = (event: MessageEvent<TerrainGradeResponse>) => {
+        const response = event.data;
+        if (response.id !== trailGradeRequestRef.current) return;
+        if (!response.ok) {
+          setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+            ...current.draft, gradingStatus: 'error', gradingError: response.error,
+          } } : current);
+          return;
+        }
+        const activeChecksum = terrainRecordRef.current?.packageManifest?.elevationChecksum ?? '';
+        const active = roadToolRef.current;
+        if (response.baseElevationChecksum !== activeChecksum ||
+            active.phase !== 'review' ||
+            response.trailGeometryKey !== terrainGradeGeometryKey([{
+              polygon: strokeToPolygon(active.draft.points, TWO_LANE_ROAD_WIDTH_M),
+              centerline: active.draft.points,
+              centerlineElevM: [],
+            }], TWO_LANE_ROAD_WIDTH_M, [], 'road', ROAD_GRADE_POLICY)) {
+          setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+            ...current.draft, gradingStatus: 'error',
+            gradingError: 'The road or terrain changed while grading. Refinish the route.',
+          } } : current);
+          return;
+        }
+        roadGradeResultRef.current = response;
+        setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+          ...current.draft,
+          gradingStatus: 'ok',
+          gradingError: null,
+          gradingPolygons: response.expandedPolygons,
+          earthwork: { cutM3: response.cutM3, fillM3: response.fillM3,
+            balanceM3: response.balanceM3 },
+          maxFaceSlopePct: response.maxFaceSlopePct,
+          maxGroundCrossSlopePct: response.maxGroundCrossSlopePct,
+          maxDisturbedWidthM: response.maxDisturbedWidthM,
+          ungradedLengthM: response.ungradedLengthM,
+          gradingInfeasibleLines: response.infeasibleLines,
+        } } : current);
+        setVisibleContours({ ...record,
+          contourSegments: Array.from(response.contourSegments) });
+        setEditedContours(response.editedContourSegments);
+      };
+      worker.onerror = () => {
+        if (requestId !== trailGradeRequestRef.current) return;
+        setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+          ...current.draft, gradingStatus: 'error',
+          gradingError: 'Road grading worker stopped unexpectedly.',
+        } } : current);
+      };
+      const baseElevationChecksum = record.packageManifest?.elevationChecksum ?? '';
+      const cachedHeights = terrainHeightCacheRef.current;
+      const heights = cachedHeights &&
+        cachedHeights.checksum === (record.packageManifest?.elevationChecksum ?? record.updatedAt)
+        ? cachedHeights.heights.slice()
+        : Float32Array.from(record.sampleHeights);
+      worker.postMessage({
+        id: requestId,
+        kind: 'road',
+        heights,
+        gridSize: record.sampleGridSize,
+        bounds: record.bounds,
+        parts,
+        brushWidthM: TWO_LANE_ROAD_WIDTH_M,
+        ...ROAD_GRADE_POLICY,
+        baseElevationChecksum,
+        trailGeometryKey: geometryKey,
+        contourGridSize: record.contourMetadata?.gridSize,
+        contourIntervalM: record.contourMetadata?.intervalM,
+      }, [heights.buffer]);
+    });
+  }
+
+  async function confirmRoad() {
     const current = roadToolRef.current;
-    if (current.phase !== 'review') return;
+    const result = roadGradeResultRef.current;
+    if (current.phase !== 'review' || building ||
+        current.draft.gradingStatus !== 'ok' || !result) return;
     const road: SavedRoad = {
       id: genId(),
       name: current.draft.name.trim() || nextRoadName(roadsRef.current),
@@ -1220,11 +1590,41 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       widthM: TWO_LANE_ROAD_WIDTH_M,
       points: current.draft.points,
       lengthM: roadLengthM(current.draft.points),
+      terrainGraded: true,
+      earthwork: current.draft.earthwork ?? undefined,
       createdAt: new Date().toISOString(),
     };
-    setRoads((previous) => [...previous, road]);
-    setRoadTool({ phase: 'idle' });
-    void clearCoverUnderPolygons(roadClearingPolygons(road.points));
+    setBuildingActivity('road');
+    try {
+      await new Promise(requestAnimationFrame);
+      const record = terrainRecordRef.current;
+      if (!record) throw new Error('The local elevation package is unavailable.');
+      const upgraded = applyTerrainGradeToRecord(record, result);
+      const savedTerrain = await saveTerrain(upgraded);
+      if (!savedTerrain.ok) throw new Error(savedTerrain.error);
+      terrainRecordRef.current = upgraded;
+      cacheTerrainDisplayAssets(upgraded);
+      setActiveResortTerrain(upgraded);
+      setTerrainRecord(upgraded);
+      refreshElevationSources(upgraded);
+      setRoads((previous) => [...previous, road]);
+      roadGradeResultRef.current = null;
+      trailGradeWorkerRef.current?.terminate();
+      trailGradeWorkerRef.current = null;
+      setRoadTool({ phase: 'idle' });
+      await clearCover([
+        ...roadClearingPolygons(road.points).map((polygon) => ({ polygon })),
+        ...result.disturbancePolygons.map((polygon) => ({ polygon })),
+      ]);
+    } catch (error) {
+      setRoadTool((active) => active.phase === 'review' ? { phase: 'review', draft: {
+        ...active.draft,
+        gradingStatus: 'error',
+        gradingError: error instanceof Error ? error.message : 'Unable to save the road grade.',
+      } } : active);
+    } finally {
+      setBuildingActivity(null);
+    }
   }
 
   function armLiftTool() {
@@ -1275,40 +1675,53 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     liftSampleTokenRef.current++;
     setLifts((prev) => [...prev, lift]);
     // Keep the review panel up with the build button spinning while the cover is
-    // felled and re-vectorized in the background — a best-effort edit that must
-    // never block or fail the lift itself. Yield a frame first so the spinner
-    // paints before the synchronous re-derive begins.
-    setBuilding(true);
+    // felled and re-vectorized in a worker — a best-effort edit that must never
+    // block or fail the lift itself. Yield a frame first so both indicators
+    // paint before processing begins.
+    setBuildingActivity('lift');
     try {
       await new Promise(requestAnimationFrame);
       await applyLiftCoverClear(lift);
     } finally {
-      setBuilding(false);
+      setBuildingActivity(null);
       setLiftTool({ phase: 'idle' });
     }
   }
 
   /**
    * The single clearing engine shared by lifts, trails, and roads. Fells the given
-   * polygons (each an outer ring plus optional tree-island holes) to grassland,
-   * stamping the analytical cover grid and appending them to the vector display
-   * geometry — no full re-vectorize (see coverEdit.ts). Then recomputes the
-   * cover/display metadata + manifest, validates, saves, and live-updates the
-   * map. Best-effort: all failures are swallowed so a bad edit can never lose the
-   * infrastructure object that triggered it.
+   * clearings (each an outer ring plus optional tree-island holes) to grassland,
+   * stamping the analytical cover grid and re-deriving its vector display in a
+   * worker. Then recomputes metadata + manifest, validates, saves, and updates
+   * the map. Best-effort: failures never lose the infrastructure object that
+   * triggered the edit.
    */
-  async function clearCoverUnderPolygons(polygons: Polygon[]): Promise<void> {
+  async function clearCover(clearings: CoverClearing[]): Promise<void> {
     const map = mapRef.current;
     const record = terrainRecordRef.current;
     if (!map || !record || !record.coverGrid || !record.bounds) return;
     try {
-      const { grid, changed } = stampPolygonsIntoGrid(record.coverGrid, polygons);
-      if (changed === 0) return;
+      const workerGrid = {
+        ...record.coverGrid,
+        data: Uint8Array.from(record.coverGrid.data),
+      } as typeof record.coverGrid;
+      const hasVectorDisplay = !!record.coverDisplayGeometry && !!record.coverDisplayMetadata;
+      const result = await runCoverEditWorker({
+        grid: workerGrid,
+        clearings,
+        deriveDisplay: hasVectorDisplay,
+      });
+      if (result.changed === 0) return;
+      const grid = { ...record.coverGrid, data: result.gridData } as typeof record.coverGrid;
 
-      // coverMetadata must travel with the grid: the desktop package writer
-      // re-verifies the written .cover.bin against record.coverMetadata (not the
-      // manifest), so a stale checksum here rejects the whole save.
-      let upgraded: TerrainRecord = { ...record, coverGrid: grid, coverMetadata: coverMetadataOf(grid), updatedAt: new Date().toISOString() };
+      // Checksums are produced beside the edited transferable buffers in the
+      // worker, avoiding another full-grid pass on the UI thread.
+      let upgraded: TerrainRecord = {
+        ...record,
+        coverGrid: grid,
+        coverMetadata: result.coverMetadata,
+        updatedAt: new Date().toISOString(),
+      };
 
       // v5+ packages render vector cover. Re-derive the whole display geometry
       // from the freshly-stamped grid (the merged source of truth) rather than
@@ -1318,20 +1731,26 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       // felled actually disappear instead of showing grass blended over forest.
       // v4 raster-only packages skip this and rely on the grid stamp + tile-cache
       // refresh below.
-      const hasVectorDisplay = !!record.coverDisplayGeometry && !!record.coverDisplayMetadata;
       if (hasVectorDisplay) {
-        const derived = deriveCoverDisplayGeometry(grid);
-        const metadata = coverDisplayMetadataOf(derived.geometry, derived.stats);
-        upgraded = { ...upgraded, coverDisplayGeometry: derived.geometry, coverDisplayMetadata: metadata };
+        if (!result.displayGeometry || !result.displayMetadata) {
+          throw new Error('Ground-cover worker returned no vector display geometry.');
+        }
+        upgraded = {
+          ...upgraded,
+          coverDisplayGeometry: result.displayGeometry,
+          coverDisplayMetadata: result.displayMetadata,
+        };
       }
 
-      upgraded = { ...upgraded, packageManifest: manifestOf(upgraded) };
-      const validation = validateTerrainPackage(upgraded);
+      upgraded = { ...upgraded, packageManifest: manifestWithUpdatedCover(upgraded) };
+      const validation = validateTerrainCoverEdit(upgraded);
       if (!validation.ok) {
         console.warn('Cover-clear produced an invalid package; keeping the previous cover.', validation.errors.join(' '));
         return;
       }
-      const saved = await saveTerrain(upgraded);
+      const saved = hasVectorDisplay
+        ? await saveTerrainCover(upgraded)
+        : await saveTerrain(upgraded);
       if (!saved.ok) {
         console.warn('Cover-clear could not be saved; keeping the previous cover.', saved.error);
         return;
@@ -1354,32 +1773,33 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   }
 
   /**
-   * Fell a grassland corridor under a newly-drawn lift. Generates the corridor
-   * ring (with its built-in ±2 m edge jitter) and hands it to the shared clearing
-   * engine as a single-ring polygon.
+   * Fell a minimum-50-foot corridor under a newly-drawn lift. Independent,
+   * irregular outward noise softens both treelines without ever narrowing the
+   * guaranteed base clearing. The saved lift line itself remains exact.
    */
   async function applyLiftCoverClear(lift: SavedLift): Promise<void> {
     const record = terrainRecordRef.current;
     if (!record || !record.bounds) return;
-    const ring = liftCorridorRing(lift.points, record.bounds, {
-      halfWidthM: LIFT_CLEAR_HALF_WIDTH_M,
-      jitterM: LIFT_CLEAR_JITTER_M,
-      seed: lift.id,
-    });
-    await clearCoverUnderPolygons([[ring]]);
+    const ring = liftClearingRing(lift.points, record.bounds, lift.id);
+    await clearCover([{ polygon: [ring] }]);
   }
 
   /**
    * Fell grassland under a newly-built trail. Each painted part's footprint is
-   * already a polygon (outer ring + tree-island holes); jitter its edges so the
-   * clearing reads organically like the lift corridor, then hand every part to
-   * the shared clearing engine. Tree islands stay forested because they are true
-   * holes in the polygon.
+   * already a polygon (outer ring + tree-island holes). Restore the original
+   * subtle edge treatment: deterministic +/-2 m value noise, smoothstep-blended
+   * between random nodes, instead of adding outward bubble dabs. The authored
+   * brush edge remains the baseline and tree islands remain polygon holes.
    */
-  async function applyTrailCoverClear(trail: SavedTrail): Promise<void> {
-    const polygons: Polygon[] = trail.parts.map((part, i) =>
-      jitterPolygon(part.polygon, LIFT_CLEAR_JITTER_M, `${trail.id}:${i}`));
-    await clearCoverUnderPolygons(polygons);
+  async function applyTrailCoverClear(
+    trail: SavedTrail,
+    gradingPolygons?: [number, number][][][]
+  ): Promise<void> {
+    const source = gradingPolygons ?? trail.parts.map((part) => part.polygon);
+    const clearings: CoverClearing[] = source.map((polygon, i) => ({
+      polygon: jitterPolygon(polygon, TRAIL_CLEAR_JITTER_M, `${trail.id}:${i}`),
+    }));
+    await clearCover(clearings);
   }
 
   /** Patch a non-geometric field (name/chairs/capacity/status) of a built lift. */
@@ -1403,6 +1823,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setTrailEditing(false);
     setOpenDock('trails');
     trailCommandsRef.current = [];
+    trailGradeWorkerRef.current?.terminate();
+    trailGradeWorkerRef.current = null;
+    trailGradeResultRef.current = null;
     trailWorkerRecoveryRef.current = 0;
     startTrailWorker(brushWidthRef.current);
     setTrailTool({ phase: 'paint', mode: 'paint', polygons: [], areaM2: 0,
@@ -1411,6 +1834,13 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
   function cancelTrailTool() {
     trailSampleTokenRef.current++;
+    trailGradeRequestRef.current++;
+    trailGradeWorkerRef.current?.terminate();
+    trailGradeWorkerRef.current = null;
+    trailGradeResultRef.current = null;
+    const record = terrainRecordRef.current;
+    if (record) setVisibleContours(record);
+    setEditedContours(null);
     trailWorkerRef.current?.terminate();
     trailWorkerRef.current = null;
     trailCommandsRef.current = [];
@@ -1464,9 +1894,14 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
             error: 'Paint a longer connected footprint so a centerline can be found.' });
           return;
         }
-        const draft: DraftTrail = { parts: message.parts, areaM2: message.areaM2,
+        const draft: DraftTrail = { parts: message.parts, ungradedParts: message.parts,
+          areaM2: message.areaM2, ungradedAreaM2: message.areaM2,
           brushWidthM: brushWidthRef.current, name: nextTrailName(trailsRef.current), status: 'planning',
-          difficulty: 'blue', elevStatus: 'pending' };
+          difficulty: 'blue', elevStatus: 'pending', gradingEnabled: false,
+          gradingStatus: 'idle', gradingError: null,
+          earthwork: null, maxGroundCrossSlopePct: 0, maxFaceSlopePct: 0,
+          maxDisturbedWidthM: 0, ungradedLengthM: 0,
+          infeasibleLines: [] };
         setTrailTool({ phase: 'review', draft });
         sampleTrailElevations(message.parts);
       }
@@ -1536,45 +1971,229 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     );
   }
 
+  function setTrailTerrainGrading(enabled: boolean) {
+    const current = trailToolRef.current;
+    const record = terrainRecordRef.current;
+    if (current.phase !== 'review') return;
+    const requestId = ++trailGradeRequestRef.current;
+    trailGradeResultRef.current = null;
+    if (!enabled) {
+      const stats = trailPartsStats(current.draft.ungradedParts);
+      setTrailTool({ phase: 'review', draft: {
+        ...current.draft,
+        parts: current.draft.ungradedParts,
+        areaM2: current.draft.ungradedAreaM2,
+        difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
+        gradingEnabled: false, gradingStatus: 'idle', gradingError: null,
+        earthwork: null, maxGroundCrossSlopePct: 0, maxFaceSlopePct: 0,
+        maxDisturbedWidthM: 0, ungradedLengthM: 0,
+        infeasibleLines: [],
+      } });
+      if (record) setVisibleContours(record);
+      setEditedContours(null);
+      return;
+    }
+    if (!record?.bounds) {
+      setTrailTool({ phase: 'review', draft: { ...current.draft, gradingEnabled: true,
+        gradingStatus: 'error', gradingError: 'The local elevation package is unavailable.' } });
+      return;
+    }
+    setTrailTool({ phase: 'review', draft: { ...current.draft, gradingEnabled: true,
+      gradingStatus: 'pending', gradingError: null, earthwork: null } });
+    // Paint the checked/pending state before allocating the transferable grid.
+    requestAnimationFrame(() => {
+      if (requestId !== trailGradeRequestRef.current) return;
+      let worker = trailGradeWorkerRef.current;
+      if (!worker) {
+        worker = new Worker(new URL('./terrainGrade.worker.ts', import.meta.url), { type: 'module' });
+        trailGradeWorkerRef.current = worker;
+      }
+      worker.onmessage = (event: MessageEvent<TerrainGradeResponse>) => {
+        const response = event.data;
+        if (response.id !== trailGradeRequestRef.current) return;
+        if (!response.ok) {
+          setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
+            ...t.draft, gradingStatus: 'error', gradingError: response.error,
+          } } : t);
+          return;
+        }
+        const activeRecord = terrainRecordRef.current;
+        const activeTrail = trailToolRef.current;
+        const activeChecksum = activeRecord?.packageManifest?.elevationChecksum ?? '';
+        const protectedPolygons = trailsRef.current.flatMap((trail) =>
+          trail.parts.map((part) => part.polygon));
+        const activeGeometryKey = activeTrail.phase === 'review'
+          ? terrainGradeGeometryKey(activeTrail.draft.ungradedParts,
+            activeTrail.draft.brushWidthM, protectedPolygons, 'trail',
+            TRAIL_GRADE_POLICY)
+          : '';
+        if (response.baseElevationChecksum !== activeChecksum ||
+            response.trailGeometryKey !== activeGeometryKey) {
+          trailGradeResultRef.current = null;
+          if (activeRecord) setVisibleContours(activeRecord);
+          setEditedContours(null);
+          setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
+            ...t.draft,
+            gradingStatus: 'error',
+            gradingError: 'The trail or terrain changed while grading. Uncheck and retry the preview.',
+          } } : t);
+          return;
+        }
+        trailGradeResultRef.current = response;
+        setTrailTool((t) => {
+          if (t.phase !== 'review' || !t.draft.gradingEnabled) return t;
+          const parts = t.draft.ungradedParts.map((part, i) => ({
+            ...part,
+            polygon: response.expandedPolygons[i] ?? part.polygon,
+            centerlineElevM: response.gradedElevations[i] ?? part.centerlineElevM,
+          }));
+          const stats = trailPartsStats(parts);
+          return { phase: 'review', draft: { ...t.draft, parts,
+            areaM2: trailAreaM2(parts),
+            difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
+            gradingStatus: 'ok',
+            gradingError: null,
+            earthwork: {
+              cutM3: response.cutM3,
+              fillM3: response.fillM3,
+              balanceM3: response.balanceM3,
+            },
+            maxGroundCrossSlopePct: response.maxGroundCrossSlopePct,
+            maxFaceSlopePct: response.maxFaceSlopePct,
+            maxDisturbedWidthM: response.maxDisturbedWidthM,
+            ungradedLengthM: response.ungradedLengthM,
+            infeasibleLines: response.infeasibleLines,
+          } };
+        });
+        const preview: TerrainRecord = { ...record,
+          contourSegments: Array.from(response.contourSegments) };
+        setVisibleContours(preview);
+        setEditedContours(response.editedContourSegments);
+      };
+      worker.onerror = () => {
+        if (requestId !== trailGradeRequestRef.current) return;
+        setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
+          ...t.draft, gradingStatus: 'error',
+          gradingError: 'Terrain grading worker stopped unexpectedly.',
+        } } : t);
+      };
+      const cachedHeights = terrainHeightCacheRef.current;
+      const baseElevationChecksum = record.packageManifest?.elevationChecksum ?? '';
+      const protectedPolygons = trailsRef.current.flatMap((trail) =>
+        trail.parts.map((part) => part.polygon));
+      const heights = cachedHeights &&
+        cachedHeights.checksum === (record.packageManifest?.elevationChecksum ?? record.updatedAt)
+          ? cachedHeights.heights.slice()
+          : Float32Array.from(record.sampleHeights);
+      worker.postMessage({
+        id: requestId, heights, gridSize: record.sampleGridSize, bounds: record.bounds,
+        parts: current.draft.ungradedParts, brushWidthM: current.draft.brushWidthM,
+        kind: 'trail',
+        protectedPolygons,
+        ...TRAIL_GRADE_POLICY,
+        baseElevationChecksum,
+        trailGeometryKey: terrainGradeGeometryKey(
+          current.draft.ungradedParts,
+          current.draft.brushWidthM,
+          protectedPolygons,
+          'trail',
+          TRAIL_GRADE_POLICY
+        ),
+        contourGridSize: record.contourMetadata?.gridSize,
+        contourIntervalM: record.contourMetadata?.intervalM,
+      }, [heights.buffer]);
+    });
+  }
+
   function retryTrailElevation() {
     const t = trailToolRef.current;
     if (t.phase === 'review') sampleTrailElevations(t.draft.parts);
+  }
+
+  async function commitTrailTerrainGrade(): Promise<TerrainRecord> {
+    const record = terrainRecordRef.current;
+    const result = trailGradeResultRef.current;
+    if (!record || !result) throw new Error('The terrain grading preview is not ready.');
+    const current = trailToolRef.current;
+    if (current.phase !== 'review' ||
+        result.trailGeometryKey !== terrainGradeGeometryKey(
+          current.draft.ungradedParts,
+          current.draft.brushWidthM,
+          trailsRef.current.flatMap((trail) => trail.parts.map((part) => part.polygon)),
+          'trail',
+          TRAIL_GRADE_POLICY
+        )) {
+      throw new Error('The trail changed after this grading preview. Recalculate the grade and try again.');
+    }
+    const upgraded = applyTerrainGradeToRecord(record, result);
+    const savedTerrain = await saveTerrain(upgraded);
+    if (!savedTerrain.ok) throw new Error(savedTerrain.error);
+    terrainRecordRef.current = upgraded;
+    cacheTerrainDisplayAssets(upgraded);
+    setActiveResortTerrain(upgraded);
+    setTerrainRecord(upgraded);
+    refreshElevationSources(upgraded);
+    return upgraded;
   }
 
   async function confirmTrail() {
     const t = trailToolRef.current;
     if (t.phase !== 'review' || building) return;
     const d = t.draft;
-    const stats = trailPartsStats(d.parts);
+    const commitGrading = d.status === 'complete' && d.gradingEnabled;
+    if (commitGrading && (d.gradingStatus !== 'ok' || !trailGradeResultRef.current)) return;
+    const parts = commitGrading ? d.parts : d.ungradedParts;
+    const stats = trailPartsStats(parts);
     const trail: SavedTrail = {
       id: genId(),
       name: d.name.trim() || nextTrailName(trailsRef.current),
-      parts: d.parts,
+      parts,
       brushWidthM: d.brushWidthM,
       areaM2: d.areaM2,
       lengthM: stats.lengthM,
       verticalM: stats.verticalM,
       avgSlopeDeg: stats.avgSlopeDeg,
       maxSlopeDeg: stats.maxSlopeDeg,
-      difficulty: d.difficulty,
+      difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
+      terrainGraded: commitGrading,
+      earthwork: commitGrading && d.earthwork ? d.earthwork : undefined,
       status: d.status,
       createdAt: new Date().toISOString(),
     };
-    trailSampleTokenRef.current++;
-    trailWorkerRef.current?.terminate();
-    trailWorkerRef.current = null;
-    setTrails((prev) => [...prev, trail]);
     // Keep the review panel up with the build button spinning while the cover is
-    // felled and re-vectorized in the background — a best-effort edit that must
-    // never block or fail the trail itself. Yield a frame first so the spinner
-    // paints before the synchronous re-derive begins.
-    setBuilding(true);
+    // felled and re-vectorized in a worker — a best-effort edit that must never
+    // block or fail the trail itself. Yield a frame first so both indicators
+    // paint before processing begins.
+    setBuildingActivity('trail');
+    let confirmed = false;
+    const gradingClearPolygons = commitGrading
+      ? trailGradeResultRef.current?.disturbancePolygons : undefined;
     try {
       await new Promise(requestAnimationFrame);
-      await applyTrailCoverClear(trail);
+      if (commitGrading) await commitTrailTerrainGrade();
+      else {
+        const record = terrainRecordRef.current;
+        if (record) setVisibleContours(record);
+      }
+      // The edit is terrain now, not a proposal.
+      setEditedContours(null);
+      trailSampleTokenRef.current++;
+      trailWorkerRef.current?.terminate();
+      trailWorkerRef.current = null;
+      trailGradeWorkerRef.current?.terminate();
+      trailGradeWorkerRef.current = null;
+      trailGradeResultRef.current = null;
+      setTrails((prev) => [...prev, trail]);
+      confirmed = true;
+      await applyTrailCoverClear(trail, gradingClearPolygons);
+    } catch (error) {
+      setTrailTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+        ...current.draft, gradingStatus: 'error',
+        gradingError: error instanceof Error ? error.message : 'Unable to save the terrain grade.',
+      } } : current);
     } finally {
-      setBuilding(false);
-      setTrailTool({ phase: 'idle' });
+      setBuildingActivity(null);
+      if (confirmed) setTrailTool({ phase: 'idle' });
     }
   }
 
@@ -1695,6 +2314,9 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setPackageError(null);
     packageStateRef.current = 'preparing';
     setPackageState('preparing');
+    // Preparation owns the screen from here — its own gate has the step
+    // checklist and a Cancel button, so any resort loading screen stands down.
+    reportBoot({ type: 'handoff' });
     setPackageProgress({ phase: 'elevation', message: 'Starting resort preparation', completed: 0, total: 10 });
     packageAbortRef.current?.abort();
     const controller = new AbortController();
@@ -1710,13 +2332,13 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       setTerrainRecord(record);
       packageStateRef.current = 'ready';
       setPackageState('ready');
-      const map = mapRef.current;
-      if (map) {
-        // Veil the first resort render (restyle re-mounts terrain + custom
-        // tiles); the style.load reveal drops it once fully drawn.
-        setWarming(true);
-        map.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
-      }
+      // Cover the first resort render; the style.load reveal drops it once the
+      // resort is fully drawn. Set unconditionally: repairing a save that
+      // failed to load has no map yet (mapCanStart was false), and the one it
+      // is about to construct needs covering just as much as a restyle does.
+      showLocalBoot({ stage: 'build' });
+      // A restyle re-mounts terrain and every custom tile source.
+      mapRef.current?.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
       return record;
     } catch (error) {
       if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
@@ -1738,6 +2360,118 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
 
   function cancelPackagePreparation() {
     packageAbortRef.current?.abort();
+  }
+
+  function setCaptureTransients(hidden: boolean): void {
+    const map = mapRef.current;
+    if (!map) return;
+    const trail = trailToolRef.current;
+    const road = roadToolRef.current;
+    if (hidden) {
+      setLiftData(map, liftsToGeoJSON(liftsRef.current, null));
+      setTrailDraftData(map, draftToGeoJSON([]));
+      setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
+      setRoadDraftData(map, null);
+      const record = terrainRecordRef.current;
+      if (record) setVisibleContours(record);
+      setEditedContours(null);
+      return;
+    }
+
+    setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
+    setTrailDraftData(map, trail.phase === 'paint' || trail.phase === 'analyzing'
+      ? draftToGeoJSON(trail.polygons)
+      : trail.phase === 'review'
+      ? draftToGeoJSON([], {
+          parts: trail.draft.parts,
+          difficulty: trail.draft.difficulty,
+          name: trail.draft.name,
+          infeasibleLines: trail.draft.infeasibleLines,
+        })
+      : draftToGeoJSON([]));
+    setTrailPaintPreview(map, {
+      path: trailPreviewPathRef.current,
+      cursor: trailBrushCursorRef.current,
+      brushWidthM: brushWidthRef.current,
+    });
+    setRoadDraftData(map, roadDraftOf(road));
+
+    const gradePreview = trailGradeResultRef.current;
+    const roadPreview = roadGradeResultRef.current;
+    const preview = trail.phase === 'review' && trail.draft.gradingEnabled && gradePreview
+      ? gradePreview
+      : road.phase === 'review' && roadPreview ? roadPreview : null;
+    const record = terrainRecordRef.current;
+    if (preview && record) {
+      setVisibleContours({ ...record, contourSegments: Array.from(preview.contourSegments) });
+      setEditedContours(preview.editedContourSegments);
+    } else if (record) {
+      setVisibleContours(record);
+      setEditedContours(null);
+    }
+  }
+
+  const checkpointPromiseRef = useRef<Promise<ExitCheckpointResult> | null>(null);
+
+  async function checkpointForExit(interactive = true): Promise<ExitCheckpointResult> {
+    if (checkpointPromiseRef.current) return checkpointPromiseRef.current;
+    const run = (async (): Promise<ExitCheckpointResult> => {
+      const persisted = persistedSaveRef.current;
+      const map = mapRef.current;
+      if (!persisted) return { ok: true };
+      // A package failure/loading cancellation can leave no map to capture. The
+      // already-persisted resume pose is still valid, so leaving remains safe.
+      if (!map) return { ok: true };
+
+      setCheckpointError(null);
+      setSaving(true);
+      const center = map.getCenter();
+      const checkpoint = withResumeCheckpoint(persisted, {
+        center: [center.lng, center.lat],
+        zoom: map.getZoom(),
+        bearing: map.getBearing(),
+        pitch: map.getPitch(),
+      }, is3DRef.current);
+      const savedCheckpoint = await saveGame(checkpoint).catch((error: unknown) => ({
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'The save service did not respond.',
+      }));
+      if (!savedCheckpoint.ok) {
+        setSaving(false);
+        const error = `Could not save the resume position: ${savedCheckpoint.error}`;
+        if (interactive) setCheckpointError(error);
+        return { ok: false, error };
+      }
+      persistedSaveRef.current = checkpoint;
+
+      // The image is best effort. A failed capture keeps the prior JPEG and
+      // never blocks a successfully saved camera checkpoint.
+      try {
+        document.documentElement.classList.add('resume-capture');
+        setCaptureTransients(true);
+        const browserDataUrl = await waitForCaptureFrame(map);
+        const preview = await captureGamePreview(checkpoint.key, browserDataUrl).catch(
+          (error: unknown) => ({
+            ok: false as const,
+            error: error instanceof Error ? error.message : 'The preview service did not respond.',
+          })
+        );
+        if (!preview.ok) console.warn('Unable to refresh the resort loading preview.', preview.error);
+      } finally {
+        try {
+          setCaptureTransients(false);
+        } catch (error) {
+          console.warn('Unable to restore transient map layers after preview capture.', error);
+        }
+        document.documentElement.classList.remove('resume-capture');
+        setSaving(false);
+      }
+      return { ok: true };
+    })().finally(() => {
+      checkpointPromiseRef.current = null;
+    });
+    checkpointPromiseRef.current = run;
+    return run;
   }
 
   /** Snapshot the current camera + site + 3D into a GameSave shape. */
@@ -1763,6 +2497,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
       roads: roadsRef.current,
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
+      lastPlayedAt: base?.lastPlayedAt,
     };
   }
 
@@ -1778,7 +2513,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     if (!next) { setSaving(false); return; }
     const res = await saveGame(next);
     setSaving(false);
-    if (res.ok) setSaved(next);
+    if (res.ok) {
+      persistedSaveRef.current = next;
+      setSaved(next);
+    }
   }
 
   async function repairAndContinue() {
@@ -1788,7 +2526,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     if (!record) return;
     const next: GameSave = { ...base, terrainKey: record.key, updatedAt: new Date().toISOString() };
     const result = await saveGame(next);
-    if (result.ok) setSaved(next);
+    if (result.ok) {
+      persistedSaveRef.current = next;
+      setSaved(next);
+    }
     else {
       setPackageError(result.error);
       setPackageState('error');
@@ -1801,13 +2542,24 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     setSaving(true);
     const res = await saveGame(next);
     setSaving(false);
-    if (res.ok) setSaved(next);
+    if (res.ok) {
+      persistedSaveRef.current = next;
+      setSaved(next);
+    }
   }
 
   /** Live-rename the resort; persists on the next Save (snapshot reads saved.name). */
   function renameResort(name: string) {
     setSaved((s) => (s ? { ...s, name } : s));
   }
+
+  useEffect(() => {
+    if (!sessionControlsRef) return;
+    sessionControlsRef.current = { checkpointForExit };
+    return () => {
+      sessionControlsRef.current = null;
+    };
+  });
 
   const picking = mode === 'picking';
   const awaitingName = picking && siteMode === 'locked' && !saved;
@@ -1826,8 +2578,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
   const layersOpen = !!saved && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
   const selectedLift = selectedLiftId ? lifts.find((l) => l.id === selectedLiftId) ?? null : null;
   const selectedTrail = selectedTrailId ? trails.find((t) => t.id === selectedTrailId) ?? null : null;
-  const showPackageGate = packageState !== 'ready' &&
-    (mode === 'playing' || packageState === 'preparing' || packageState === 'error');
+  // The gate is now the New Game preparation surface only. Resuming a saved
+  // resort — including a missing or invalid package — is reported upward and
+  // rendered on App's resort loading screen, so a load is one screen throughout.
+  const showPackageGate = packageState === 'preparing' || (mode === 'picking' && packageState === 'error');
 
   /** Coordinate to reverse-geocode for the resort's Location: site center if a
    *  site box is locked, else the saved camera center, else the live map. */
@@ -1878,6 +2632,13 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
     <>
       <div ref={containerRef} className="map-root" />
 
+      {checkpointError && (
+        <div className="checkpoint-error" role="alert">
+          <span>{checkpointError}</span>
+          <button type="button" onClick={() => setCheckpointError(null)}>Dismiss</button>
+        </div>
+      )}
+
       {showPackageGate && (
         <div className="package-gate" role="dialog" aria-modal="true" aria-live="polite">
           <div className={`package-card${packageState === 'error' ? ' is-error' : ''}`}>
@@ -1896,19 +2657,12 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
               </svg>
             )}
             <div className="package-kicker">LOCAL RESORT DATA</div>
-            <h2>{packageState === 'loading' ? 'Loading resort package' : packageState === 'optimizing' ? 'Optimizing ground cover' : packageState === 'preparing' ? 'Preparing resort data' : packageState === 'error' ? 'Preparation failed' : 'Resort data required'}</h2>
+            <h2>{packageState === 'preparing' ? 'Preparing resort data' : 'Preparation failed'}</h2>
             <p>
               {packageState === 'preparing'
                 ? 'Fetching terrain, ground cover, and contours for your build site.'
-                : packageState === 'optimizing'
-                ? 'Drawing smooth vector ground cover once for faster future loads.'
-                : packageState === 'loading'
-                ? 'Restoring your saved terrain, ground cover, and contours.'
                 : packageError ?? 'Elevation, contours, and ground cover must be saved locally before designing.'}
             </p>
-            {(packageState === 'loading' || packageState === 'optimizing') && (
-              <div className="package-progress is-indeterminate"><span /></div>
-            )}
             {packageState === 'preparing' && packageProgress && (() => {
               const { completed, total } = packageProgress;
               const pct = Math.round((completed / total) * 100);
@@ -1936,10 +2690,10 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                 </>
               );
             })()}
-            {(packageState === 'missing' || packageState === 'error') && (
+            {packageState === 'error' && (
               <div className="package-actions">
                 <button className="site-btn" onClick={onQuit}>Back to menu</button>
-                <button className="site-btn site-btn-primary" onClick={() => void (mode === 'playing' ? repairAndContinue() : createSave())}>
+                <button className="site-btn site-btn-primary" onClick={() => void createSave()}>
                   Prepare Resort Data
                 </button>
               </div>
@@ -1948,42 +2702,18 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         </div>
       )}
 
-      {warming && !showPackageGate && (
-        <div
-          className="map-warming"
-          role="status"
-          aria-live="polite"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 6,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '14px',
-            background: '#0e1a2a',
-            color: '#e9eef6',
-            font: '600 14px system-ui, sans-serif',
-            letterSpacing: '0.03em',
-          }}
-        >
-          <div>Preloading terrain…</div>
-          {(() => {
-            const total = warmProgress?.total ?? 0;
-            const completed = warmProgress?.completed ?? 0;
-            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-            const indeterminate = total === 0;
-            return (
-              <div style={{ width: 'min(320px, 60vw)' }}>
-                <div className={`package-progress${indeterminate ? ' is-indeterminate' : ''}`}>
-                  <span style={indeterminate ? undefined : { width: `${pct}%` }} />
-                </div>
-                {!indeterminate && <div className="package-progress-label">{pct}%</div>}
-              </div>
-            );
-          })()}
-        </div>
+      {/* The New Game prepare→play handoff has no App-owned loading screen, so
+          it drives the same surface locally rather than drawing the resort in
+          front of the player. Resuming a save renders this from App instead. */}
+      {localBoot && !showPackageGate && (
+        <ResortLoadingScreen
+          title={saved?.name || nameDraft.trim() || 'Your resort'}
+          progress={localBoot}
+          imageryUrl={localImageryUrlRef.current}
+          state="loading"
+          onBack={onQuit}
+          onEnterAnyway={() => bootControls.current?.reveal()}
+        />
       )}
 
       {/* Top-right app menu (Save / Load / Settings / Credits / Main Menu) */}
@@ -2014,6 +2744,37 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
         )}
         {terrainRecord && <View3DControl is3D={is3D} onToggle={toggle3D} />}
       </div>
+
+      {buildingActivity && <ConstructionStatusBug activity={buildingActivity} />}
+
+      {/* Node map toggle (top-left). Sits above the overlay it opens, so the
+          same button closes it. */}
+      {saved && (
+        <div className="top-left-stack">
+          <button
+            className="site-btn"
+            aria-pressed={showNetwork}
+            title="Node map — a simplified view of how runs and lifts connect (N)"
+            onClick={() => setShowNetwork((v) => !v)}
+          >
+            {showNetwork ? '✕ Node map' : 'Node map'}
+          </button>
+        </div>
+      )}
+
+      {saved && showNetwork && (
+        <NetworkMap
+          network={network}
+          units={settings.units}
+          selectedLiftId={networkLiftId}
+          selectedEdgeId={networkEdgeId}
+          onSelectLift={setNetworkLiftId}
+          onSelectEdge={setNetworkEdgeId}
+          onToggleTrailClosed={(id, closed) => patchTrail(id, { closed })}
+          onToggleLiftClosed={(id, closed) => patchLift(id, { closed })}
+          onClose={() => setShowNetwork(false)}
+        />
+      )}
 
       {/* Site-picking readout floats lower-left; in-game it lives on the toolbar. */}
       {!saved && <CursorReadout readout={readout} units={settings.units} />}
@@ -2065,6 +2826,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                       units={settings.units}
                       onEdit={() => setLiftEditing(true)}
                       onRemove={() => deleteLift(selectedLift.id)}
+                      onToggleClosed={(closed) => patchLift(selectedLift.id, { closed })}
                       onClose={() => {
                         // Back up to the full lift list (keep the dock open).
                         setSelectedLiftId(null);
@@ -2111,6 +2873,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                       units={settings.units}
                       onEdit={() => setTrailEditing(true)}
                       onRemove={() => deleteTrail(selectedTrail.id)}
+                      onToggleClosed={(closed) => patchTrail(selectedTrail.id, { closed })}
                       onClose={() => {
                         setSelectedTrailId(null);
                         setOpenDock('trails');
@@ -2139,6 +2902,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                       onClear={clearTrailPaint}
                       onFinish={finishTrailPaint}
                       onDraftChange={patchTrailDraft}
+                      onGradingChange={setTrailTerrainGrading}
                       onConfirm={confirmTrail}
                       building={building}
                       onEditPatch={patchTrail}
@@ -2163,6 +2927,7 @@ export function MapView({ mode, initialSave = null, onQuit, onOpenSettings, onLo
                     onFinish={finishRoadRoute}
                     onDraftChange={patchRoadDraft}
                     onConfirm={confirmRoad}
+                    building={building}
                     onClose={() => setOpenDock(null)}
                   />
                 </div>

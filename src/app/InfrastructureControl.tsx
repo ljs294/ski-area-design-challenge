@@ -1,4 +1,4 @@
-import type { RoadType, SavedRoad } from '../types';
+import type { EarthworkEstimate, RoadType, SavedRoad } from '../types';
 import { fmtDistance } from '../lifts';
 import { ROAD_CLEAR_BUFFER_M, ROAD_TYPE_LABELS, roadLengthM,
   TWO_LANE_CLEAR_HALF_WIDTH_M, TWO_LANE_ROAD_WIDTH_M } from '../roads';
@@ -8,6 +8,16 @@ export interface DraftRoad {
   name: string;
   roadType: RoadType;
   points: [number, number][];
+  gradingStatus: 'pending' | 'ok' | 'error';
+  gradingError: string | null;
+  gradingPolygons: [number, number][][][];
+  earthwork: EarthworkEstimate | null;
+  maxFaceSlopePct: number;
+  maxGroundCrossSlopePct: number;
+  maxDisturbedWidthM: number;
+  /** Metres of route too steep to bench, left at natural ground. */
+  ungradedLengthM: number;
+  gradingInfeasibleLines: [number, number][][];
 }
 
 export type RoadTool =
@@ -30,7 +40,16 @@ function RoadTypeField({ value, onChange }: { value: RoadType; onChange: (type: 
   </label>;
 }
 
-function RoadStats({ points, units }: { points: [number, number][]; units: Units }) {
+function fmtVolume(m3: number, units: Units): string {
+  const value = units === 'imperial' ? m3 * 1.30795062 : m3;
+  return `${Math.round(value).toLocaleString()} ${units === 'imperial' ? 'yd³' : 'm³'}`;
+}
+
+function RoadStats({ points, units, draft }: {
+  points: [number, number][];
+  units: Units;
+  draft?: DraftRoad;
+}) {
   return <div className="lift-stats">
     <div className="readout-line"><span className="lift-stat-label">Length</span>
       <span className="lift-stat-value">{fmtDistance(roadLengthM(points), units)}</span></div>
@@ -39,11 +58,24 @@ function RoadStats({ points, units }: { points: [number, number][]; units: Units
     <div className="readout-line"><span className="lift-stat-label">Clearing</span>
       <span className="lift-stat-value">{fmtDistance(TWO_LANE_CLEAR_HALF_WIDTH_M * 2, units)}</span></div>
     <div className="site-hint">Includes {fmtDistance(ROAD_CLEAR_BUFFER_M, units)} beyond each pavement edge.</div>
+    {draft?.earthwork && <>
+      <div className="readout-line"><span className="lift-stat-label">Cut</span>
+        <span className="lift-stat-value">{fmtVolume(draft.earthwork.cutM3, units)}</span></div>
+      <div className="readout-line"><span className="lift-stat-label">Fill</span>
+        <span className="lift-stat-value">{fmtVolume(draft.earthwork.fillM3, units)}</span></div>
+      <div className="readout-line"><span className="lift-stat-label">Balance</span>
+        <span className="lift-stat-value">{draft.earthwork.balanceM3 >= 0 ? '+' : '−'}
+          {fmtVolume(Math.abs(draft.earthwork.balanceM3), units)}</span></div>
+      <div className="readout-line"><span className="lift-stat-label">Cut / fill face</span>
+        <span className="lift-stat-value">{draft.maxFaceSlopePct.toFixed(0)}%</span></div>
+      <div className="readout-line"><span className="lift-stat-label">Max disturbed width</span>
+        <span className="lift-stat-value">{fmtDistance(draft.maxDisturbedWidthM, units)}</span></div>
+    </>}
   </div>;
 }
 
 export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onUndo,
-  onFinish, onDraftChange, onConfirm, onClose }: {
+  onFinish, onDraftChange, onConfirm, onClose, building = false }: {
   tool: RoadTool;
   roads: SavedRoad[];
   units: Units;
@@ -54,6 +86,7 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
   onDraftChange: (patch: Partial<DraftRoad>) => void;
   onConfirm: () => void;
   onClose: () => void;
+  building?: boolean;
 }) {
   if (tool.phase === 'idle') return <div className="lift-overview infrastructure-panel">
     <PanelHead title={`Infrastructure · Roads (${roads.length})`} onClose={onClose} />
@@ -89,8 +122,18 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
       onChange={(event) => onDraftChange({ name: event.target.value })} />
     <RoadTypeField value={tool.draft.roadType}
       onChange={(roadType) => onDraftChange({ roadType })} />
-    <RoadStats points={tool.draft.points} units={units} />
+    <RoadStats points={tool.draft.points} units={units} draft={tool.draft} />
+    {tool.draft.gradingStatus === 'pending' &&
+      <div className="site-hint">Calculating level road grade…</div>}
+    {tool.draft.gradingStatus === 'error' &&
+      <div className="lift-warning">{tool.draft.gradingError ?? 'Unable to grade this road.'}</div>}
+    {tool.draft.gradingStatus === 'ok' && tool.draft.ungradedLengthM > 0 &&
+      <div className="site-hint">{fmtDistance(tool.draft.ungradedLengthM, units)} of this route is
+        steeper than 45° ({Math.round(tool.draft.maxGroundCrossSlopePct)}% cross slope) and was left
+        at natural ground — marked red. Route around it for a level road.</div>}
     <div className="site-actions"><button className="site-btn" onClick={onCancel}>Cancel</button>
-      <button className="site-btn site-btn-primary" onClick={onConfirm}>Build road</button></div>
+      <button className="site-btn site-btn-primary" onClick={onConfirm}
+        disabled={building || tool.draft.gradingStatus !== 'ok'}>
+        {building ? 'Building…' : 'Build road'}</button></div>
   </div>;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { SavedTrailPart } from '../types';
 import { haversineMeters } from '../geo';
-import { paintPreviewGeoJSON } from './trailLayers';
+import { draftToGeoJSON, paintPreviewGeoJSON } from './trailLayers';
 
 const CURSOR: [number, number] = [-121.5, 46.93];
 
@@ -54,5 +55,18 @@ describe('trail paint preview geometry', () => {
 
   it('clears all preview geometry when the cursor leaves the map', () => {
     expect(paintPreviewGeoJSON({ path: [], cursor: null, brushWidthM: 20 }).features).toEqual([]);
+  });
+
+  it('renders infeasible grading station ranges in the review source', () => {
+    const end: [number, number] = [-121.49, 46.92];
+    const part: SavedTrailPart = {
+      polygon: [[CURSOR, [-121.49, 46.93], end, [-121.5, 46.92], CURSOR]],
+      centerline: [CURSOR, end],
+      centerlineElevM: [100, 90],
+    };
+    const data = draftToGeoJSON([], { parts: [part], difficulty: 'blue',
+      name: 'Traverse', infeasibleLines: [[CURSOR, end]] });
+    expect(data.features.map((feature) => feature.properties?.kind))
+      .toContain('infeasible');
   });
 });

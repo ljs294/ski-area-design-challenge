@@ -8,7 +8,15 @@ function fmtDate(iso: string): string {
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export function LoadGameModal({ onClose, onPick }: { onClose: () => void; onPick: (key: string) => void }) {
+export function LoadGameModal({
+  onClose,
+  onPick,
+}: {
+  onClose: () => void;
+  // The name comes along so the loading screen can title itself from the very
+  // first frame, before the save file has been read.
+  onPick: (key: string, name: string) => void;
+}) {
   const [saves, setSaves] = useState<GameSaveSummary[] | null>(null);
 
   const refresh = () =>
@@ -41,7 +49,7 @@ export function LoadGameModal({ onClose, onPick }: { onClose: () => void; onPick
             <p className="list-empty">No saved resorts yet. Start a New Game to create one.</p>
           ) : (
             saves.map((s) => (
-              <button key={s.key} className="list-row" onClick={() => onPick(s.key)}>
+              <button key={s.key} className="list-row" onClick={() => onPick(s.key, s.name)}>
                 <span className="list-row-main">
                   <span className="list-row-title">{s.name}</span>
                   <span className="list-row-sub">Updated {fmtDate(s.updatedAt)}</span>

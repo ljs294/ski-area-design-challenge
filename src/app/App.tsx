@@ -1,16 +1,35 @@
-import { useCallback, useEffect, useState } from 'react';
-import { MapView } from './MapView';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { MapView, type GameSessionControls } from './MapView';
 import { MainMenu } from './MainMenu';
 import { MapManagement } from './MapManagement';
 import { Settings } from './Settings';
 import { LoadGameModal } from './LoadGameModal';
 import { GraphicsLab } from './GraphicsLab';
+import { ResortLoadingScreen } from './ResortLoadingScreen';
 import { SettingsProvider } from './SettingsContext';
-import { listGames, loadGame, mostRecentGame } from '../gameSaveClient';
+import { listGames, loadGame, loadGamePreview, mostRecentGame } from '../gameSaveClient';
 import { desktop } from '../desktopBridge';
+import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import type { GameSave } from '../types';
 
+// 'loadingGame' mounts nothing: it exists so the menu (and its live backdrop
+// map) is torn down before the save/package lookup begins. The loading screen
+// itself is an overlay driven by `boot`, independent of the screen machine, so
+// it survives the switch to 'game' and stays up until the resort is drawn.
 type Screen = 'menu' | 'newGame' | 'game' | 'loadingGame' | 'mapMgmt' | 'graphicsLab';
+
+/** Everything the resort loading overlay needs; null when no load is running. */
+interface BootState {
+  title: string;
+  progress: BootProgress;
+  imageryUrl: string | null;
+  imageryKind: 'resume' | 'aerial' | null;
+  failure: { message: string; repair: () => void } | null;
+  /** True once the resort is ready; the screen fades out before unmounting. */
+  done: boolean;
+}
+
+const BOOT_FADE_MS = 600;
 
 /**
  * Boot straight into a screen from a deep link, bypassing the menu. The
@@ -31,6 +50,30 @@ function AppInner() {
   const [hasSaves, setHasSaves] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showLoad, setShowLoad] = useState(false);
+  const [boot, setBoot] = useState<BootState | null>(null);
+  // Populated by MapView while a resort boots, so the loading screen's
+  // "Enter anyway" / "Back to menu" can drive the warm-up it can't see.
+  const bootControlsRef = useRef<BootControls | null>(null);
+  const sessionControlsRef = useRef<GameSessionControls | null>(null);
+  const bootFadeRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (bootFadeRef.current !== null) window.clearTimeout(bootFadeRef.current);
+  }, []);
+
+  useEffect(() => {
+    const bridge = desktop;
+    if (!bridge) return;
+    return bridge.lifecycle.onCloseCheckpointRequested(() => {
+      void (async () => {
+        try {
+          await sessionControlsRef.current?.checkpointForExit(false);
+        } finally {
+          bridge.lifecycle.completeCloseCheckpoint();
+        }
+      })();
+    });
+  }, []);
 
   const refreshHasSaves = useCallback(() => {
     void listGames().then((l) => setHasSaves(l.length > 0));
@@ -58,32 +101,118 @@ function AppInner() {
     setScreen('game');
   }, []);
 
-  const handleContinue = useCallback(async () => {
-    // Unmount the decorative menu map before asynchronous save/package lookup;
-    // otherwise it can issue Terrarium requests during the resume transition.
-    setScreen('loadingGame');
-    const recent = await mostRecentGame();
-    if (!recent) { setScreen('menu'); return; }
-    const save = await loadGame(recent.key);
-    if (save) openSave(save);
-    else setScreen('menu');
-  }, [openSave]);
-
-  const handleLoadPick = useCallback(
-    async (key: string) => {
-      setShowLoad(false);
-      setScreen('loadingGame');
-      const save = await loadGame(key);
-      if (save) openSave(save);
-      else setScreen('menu');
-    },
-    [openSave]
-  );
+  const dismissBoot = useCallback(() => {
+    if (bootFadeRef.current !== null) {
+      window.clearTimeout(bootFadeRef.current);
+      bootFadeRef.current = null;
+    }
+    bootControlsRef.current = null;
+    setBoot(null);
+  }, []);
 
   const toMenu = useCallback(() => {
     setCurrentSave(null);
     setScreen('menu');
   }, []);
+
+  const checkpointToMenu = useCallback(async () => {
+    const result = await sessionControlsRef.current?.checkpointForExit(true);
+    if (result && !result.ok) return;
+    toMenu();
+  }, [toMenu]);
+
+  /** Raise the loading screen, then tear down the menu (and its live backdrop
+   *  map) so it cannot issue Terrarium requests during the resume transition. */
+  const beginBoot = useCallback(
+    async (key: string, title: string) => {
+      if (bootFadeRef.current !== null) {
+        window.clearTimeout(bootFadeRef.current);
+        bootFadeRef.current = null;
+      }
+      bootControlsRef.current = null;
+      setBoot({
+        title,
+        progress: { stage: 'save' },
+        imageryUrl: null,
+        imageryKind: null,
+        failure: null,
+        done: false,
+      });
+      setScreen('loadingGame');
+      const [save, previewUrl] = await Promise.all([loadGame(key), loadGamePreview(key)]);
+      if (previewUrl) {
+        setBoot((previous) => previous
+          ? { ...previous, imageryUrl: previewUrl, imageryKind: 'resume' }
+          : previous);
+      }
+      // From here MapView mounts underneath the still-visible loading screen and
+      // takes over reporting via onBoot, all the way to a fully-drawn resort.
+      if (save) openSave(save);
+      else {
+        dismissBoot();
+        setScreen('menu');
+      }
+    },
+    [dismissBoot, openSave]
+  );
+
+  const handleContinue = useCallback(async () => {
+    // Resolve the summary first — an index.json read, no map work — so the
+    // loading screen can title itself with the resort name from frame one.
+    const recent = await mostRecentGame();
+    if (!recent) return;
+    await beginBoot(recent.key, recent.name);
+  }, [beginBoot]);
+
+  const handleLoadPick = useCallback(
+    async (key: string, name: string) => {
+      setShowLoad(false);
+      const checkpoint = await sessionControlsRef.current?.checkpointForExit(true);
+      if (checkpoint && !checkpoint.ok) return;
+      await beginBoot(key, name);
+    },
+    [beginBoot]
+  );
+
+  /** MapView's boot reports, folded into the loading screen's state. */
+  const handleBoot = useCallback(
+    (e: BootEvent) => {
+      setBoot((prev) => {
+        if (!prev) return prev;
+        switch (e.type) {
+          case 'progress':
+            return { ...prev, progress: e.progress };
+          case 'backdrop':
+            return prev.imageryKind === 'resume'
+              ? prev
+              : { ...prev, imageryUrl: e.imageryUrl, imageryKind: 'aerial' };
+          case 'failed':
+            return { ...prev, failure: { message: e.message, repair: e.repair } };
+          case 'ready':
+            return { ...prev, done: true };
+          case 'handoff':
+            // Preparation started; its own package gate owns the screen now.
+            return null;
+        }
+      });
+      if (e.type === 'handoff') bootControlsRef.current = null;
+      if (e.type === 'ready') {
+        bootFadeRef.current = window.setTimeout(() => {
+          bootFadeRef.current = null;
+          dismissBoot();
+        }, BOOT_FADE_MS);
+      }
+    },
+    [dismissBoot]
+  );
+
+  const handleBootBack = useCallback(() => {
+    bootControlsRef.current?.abort();
+    // Drop the overlay before MapView unmounts — it revokes the imagery blob
+    // URL the backdrop is showing.
+    dismissBoot();
+    toMenu();
+  }, [dismissBoot, toMenu]);
 
   return (
     <>
@@ -105,13 +234,12 @@ function AppInner() {
       {screen === 'newGame' && (
         <MapView
           mode="picking"
-          onQuit={toMenu}
+          onQuit={() => void checkpointToMenu()}
           onOpenSettings={() => setShowSettings(true)}
           onLoadGame={() => setShowLoad(true)}
+          sessionControlsRef={sessionControlsRef}
         />
       )}
-
-      {screen === 'loadingGame' && <div className="menu-loading" aria-label="Loading resort" />}
 
       {screen === 'game' && (
         <MapView
@@ -119,9 +247,12 @@ function AppInner() {
           key={currentSave?.key ?? 'game'}
           mode="playing"
           initialSave={currentSave}
-          onQuit={toMenu}
+          onQuit={() => void checkpointToMenu()}
           onOpenSettings={() => setShowSettings(true)}
           onLoadGame={() => setShowLoad(true)}
+          onBoot={handleBoot}
+          bootControlsRef={bootControlsRef}
+          sessionControlsRef={sessionControlsRef}
         />
       )}
 
@@ -129,7 +260,28 @@ function AppInner() {
 
       {screen === 'graphicsLab' && <GraphicsLab onExit={toMenu} />}
 
-      {showLoad && <LoadGameModal onClose={() => setShowLoad(false)} onPick={(k) => void handleLoadPick(k)} />}
+      {boot && (
+        <ResortLoadingScreen
+          title={boot.title}
+          progress={boot.progress}
+          imageryUrl={boot.imageryUrl}
+          imageryKind={boot.imageryKind ?? 'aerial'}
+          state={boot.failure ? 'failed' : 'loading'}
+          message={boot.failure?.message}
+          done={boot.done}
+          onBack={handleBootBack}
+          // Only offer a forced entry once MapView has handed over a reveal
+          // handle — i.e. from the tile preload onward.
+          onEnterAnyway={
+            boot.progress.stage === 'warm' || boot.progress.stage === 'settle'
+              ? () => bootControlsRef.current?.reveal()
+              : undefined
+          }
+          onRepair={boot.failure?.repair}
+        />
+      )}
+
+      {showLoad && <LoadGameModal onClose={() => setShowLoad(false)} onPick={(k, n) => void handleLoadPick(k, n)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </>
   );

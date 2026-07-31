@@ -56,6 +56,20 @@ export function clearResortCoverCache(): void {
   }
 }
 
+/** Invalidate every raster derived from elevation after an in-place regrade. */
+export function clearResortElevationCache(): void {
+  for (const key of [...tileCache.keys()]) {
+    if (key.startsWith('dem:') || key.startsWith('slope:') || key.startsWith('aspect:'))
+      tileCache.delete(key);
+  }
+}
+
+/** A checksum revision makes MapLibre discard its own source-tile cache too. */
+export function resortProtocolUrl(protocol: string, record: TerrainRecord): string {
+  const revision = encodeURIComponent(record.packageManifest?.elevationChecksum ?? record.updatedAt);
+  return `${protocol}://${encodeURIComponent(record.key)}/{z}/{x}/{y}?rev=${revision}`;
+}
+
 function parse(url: string): { key: string; z: number; x: number; y: number } {
   const m = url.match(/^[-a-z]+:\/\/([^/]+)\/(\d+)\/(\d+)\/(\d+)/);
   if (!m) throw new Error(`Invalid local resort tile URL: ${url}`);
@@ -445,7 +459,10 @@ export async function warmResortTiles(
     while (idx < keys.length) {
       if (signal?.aborted) return;
       const k = keys[idx++];
-      const url = `${PROTOCOL_FOR_KIND[k.kind]}://${key}/${k.z}/${k.x}/${k.y}`;
+      const protocol = PROTOCOL_FOR_KIND[k.kind];
+      const url = k.kind === 'dem'
+        ? `${protocol}://${key}/${k.z}/${k.x}/${k.y}?rev=${encodeURIComponent(record.packageManifest?.elevationChecksum ?? record.updatedAt)}`
+        : `${protocol}://${key}/${k.z}/${k.x}/${k.y}`;
       try {
         await cached(k.kind, url);
       } catch {

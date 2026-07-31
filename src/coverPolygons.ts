@@ -38,40 +38,72 @@ const DEFAULTS: Required<MaskToPolygonsOpts> = {
 // ---- Blur -----------------------------------------------------------------
 
 /** Separable box blur on an n×n field. Cheap smoothing so iso-lines curve
- *  instead of stair-stepping. Edges clamp (repeat the border sample). */
-function boxBlur(src: Float32Array, width: number, height: number, radius: number, iterations: number): Float32Array {
+ *  instead of stair-stepping. Edges clamp (repeat the border sample).
+ *  @internal Exported for rolling-window equivalence tests. */
+function boxBlurPass(
+  src: ArrayLike<number>,
+  tmp: Float32Array,
+  dest: Float32Array,
+  width: number,
+  height: number,
+  radius: number
+): void {
+  const windowSize = radius * 2 + 1;
+  // Horizontal pass: src -> tmp
+  for (let row = 0; row < height; row++) {
+    const rowOffset = row * width;
+    let sum = 0;
+    for (let offset = -radius; offset <= radius; offset++) {
+      sum += src[rowOffset + Math.min(width - 1, Math.max(0, offset))];
+    }
+    for (let col = 0; col < width; col++) {
+      tmp[rowOffset + col] = sum / windowSize;
+      sum -= src[rowOffset + Math.min(width - 1, Math.max(0, col - radius))];
+      sum += src[rowOffset + Math.min(width - 1, Math.max(0, col + radius + 1))];
+    }
+  }
+  // Vertical pass: tmp -> dest
+  for (let col = 0; col < width; col++) {
+    let sum = 0;
+    for (let offset = -radius; offset <= radius; offset++) {
+      sum += tmp[Math.min(height - 1, Math.max(0, offset)) * width + col];
+    }
+    for (let row = 0; row < height; row++) {
+      dest[row * width + col] = sum / windowSize;
+      sum -= tmp[Math.min(height - 1, Math.max(0, row - radius)) * width + col];
+      sum += tmp[Math.min(height - 1, Math.max(0, row + radius + 1)) * width + col];
+    }
+  }
+}
+
+export function boxBlur(
+  src: Float32Array,
+  width: number,
+  height: number,
+  radius: number,
+  iterations: number
+): Float32Array {
   if (radius <= 0 || iterations <= 0) return src;
   let buf = src;
   const tmp = new Float32Array(width * height);
-  const w = radius * 2 + 1;
+  const out = new Float32Array(width * height);
   for (let it = 0; it < iterations; it++) {
-    // Horizontal pass: buf -> tmp
-    for (let r = 0; r < height; r++) {
-      const row = r * width;
-      for (let c = 0; c < width; c++) {
-        let sum = 0;
-        for (let k = -radius; k <= radius; k++) {
-          const cc = Math.min(width - 1, Math.max(0, c + k));
-          sum += buf[row + cc];
-        }
-        tmp[row + c] = sum / w;
-      }
-    }
-    // Vertical pass: tmp -> out
-    const out = new Float32Array(width * height);
-    for (let c = 0; c < width; c++) {
-      for (let r = 0; r < height; r++) {
-        let sum = 0;
-        for (let k = -radius; k <= radius; k++) {
-          const rr = Math.min(height - 1, Math.max(0, r + k));
-          sum += tmp[rr * width + c];
-        }
-        out[r * width + c] = sum / w;
-      }
-    }
+    boxBlurPass(buf, tmp, out, width, height, radius);
     buf = out;
   }
   return buf;
+}
+
+export interface MaskPreparationWorkspace {
+  field: Float32Array;
+  temporary: Float32Array;
+}
+
+export function createMaskPreparationWorkspace(length: number): MaskPreparationWorkspace {
+  return {
+    field: new Float32Array(length),
+    temporary: new Float32Array(length),
+  };
 }
 
 // ---- Marching squares -> closed rings -------------------------------------
@@ -299,18 +331,66 @@ export function maskToPolygonsRect(
   height: number,
   opts: MaskToPolygonsOpts = {}
 ): CoverPolygon[] {
-  const o = { ...DEFAULTS, ...opts };
   if (width < 2 || height < 2 || mask.length !== width * height) return [];
+  return preparedRingsToPolygons(prepareMaskRingsRect(mask, width, height, opts), opts);
+}
+
+/**
+ * Run the raster-dependent portion of polygon conversion once. The returned
+ * rings are unsimplified, allowing callers to retry different simplification
+ * tolerances without rebuilding the mask, blur, or marching-squares trace.
+ *
+ * @internal Used by cover-display vertex-budget retries.
+ */
+export function prepareMaskRingsRect(
+  mask: Uint8Array,
+  width: number,
+  height: number,
+  opts: MaskToPolygonsOpts = {},
+  workspace?: MaskPreparationWorkspace
+): Ring[] {
+  if (width < 2 || height < 2 || mask.length !== width * height) return [];
+  const o = { ...DEFAULTS, ...opts };
+  const usableWorkspace = workspace
+    && workspace.field.length === mask.length
+    && workspace.temporary.length === mask.length
+      ? workspace
+      : createMaskPreparationWorkspace(mask.length);
 
   // Mask -> float field, optionally blurred so edges curve.
-  const field = new Float32Array(width * height);
+  const field = usableWorkspace.field;
   for (let i = 0; i < field.length; i++) field[i] = mask[i] ? 1 : 0;
-  const smoothed = boxBlur(field, width, height, o.blurRadius, o.blurIterations);
+  if (o.blurRadius > 0 && o.blurIterations > 0) {
+    for (let iteration = 0; iteration < o.blurIterations; iteration++) {
+      // This field is private scratch, so the vertical pass can safely write
+      // back into it. Together with cross-class reuse this caps blur storage at
+      // two grid-sized Float32 arrays.
+      boxBlurPass(
+        field,
+        usableWorkspace.temporary,
+        field,
+        width,
+        height,
+        o.blurRadius
+      );
+    }
+  }
+  return traceRings(field, width, height, o.level);
+}
 
-  let rings = traceRings(smoothed, width, height, o.level);
+/**
+ * Simplify, filter, and nest rings produced by `prepareMaskRingsRect`.
+ *
+ * @internal Used by cover-display vertex-budget retries.
+ */
+export function preparedRingsToPolygons(
+  preparedRings: readonly Ring[],
+  opts: MaskToPolygonsOpts = {}
+): CoverPolygon[] {
+  const o = { ...DEFAULTS, ...opts };
 
   // Simplify, then drop specks.
-  rings = rings
+  const rings = preparedRings
     .map((r) => simplifyRing(r, o.simplifyTol))
     .filter((r): r is Ring => r !== null && ringArea(r) >= o.minAreaCells);
 

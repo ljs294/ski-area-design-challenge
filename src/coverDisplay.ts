@@ -1,4 +1,10 @@
-import { maskToPolygonsRect, type CoverPolygon } from './coverPolygons';
+import {
+  createMaskPreparationWorkspace,
+  prepareMaskRingsRect,
+  preparedRingsToPolygons,
+  type CoverPolygon,
+  type Ring,
+} from './coverPolygons';
 import type { CoverClassCode, CoverGrid, WorldCoverClassCode } from './types';
 import { isFourClassGrid, TERRAIN_COVER_CODES } from './fourClassCover';
 
@@ -40,36 +46,30 @@ export type CoverDisplayGeoJSON = GeoJSON.FeatureCollection<
   { code: CoverClassCode }
 >;
 
-function traceAt(grid: CoverGrid, simplifyM: number): DerivedCoverDisplay {
+interface PreparedCoverClass {
+  code: CoverClassCode;
+  rings: Ring[];
+}
+
+interface PreparedCoverDisplay {
+  classes: PreparedCoverClass[];
+  smoothingM: number;
+  minFeatureM2: number;
+  minAreaCells: number;
+}
+
+function prepareCoverDisplay(grid: CoverGrid): PreparedCoverDisplay {
   const mask = new Uint8Array(grid.width * grid.height);
-  const geometry: number[] = [];
-  let polygonCount = 0;
-  let ringCount = 0;
-  let vertexCount = 0;
   const cellM = Math.max(0.1, grid.cellSizeM);
   const fourClass = isFourClassGrid(grid);
   const smoothingM = fourClass ? 6 : COVER_DISPLAY_SMOOTHING_M;
   const minFeatureM2 = fourClass ? 16 : COVER_DISPLAY_MIN_FEATURE_M2;
-  const options = {
+  const traceOptions = {
     blurRadius: Math.max(1, Math.min(5, Math.round(smoothingM / cellM))),
     blurIterations: 2,
-    simplifyTol: Math.max(0.5, simplifyM / cellM),
-    minAreaCells: Math.max(1, Math.round(minFeatureM2 / (cellM * cellM))),
   };
-
-  const appendPolygon = (code: CoverClassCode, polygon: CoverPolygon) => {
-    const rings = [polygon.outer, ...polygon.holes];
-    geometry.push(code, rings.length);
-    polygonCount++;
-    ringCount += rings.length;
-    for (const ring of rings) {
-      geometry.push(ring.length);
-      vertexCount += ring.length;
-      for (const [x, y] of ring) {
-        geometry.push(x / Math.max(1, grid.width - 1), y / Math.max(1, grid.height - 1));
-      }
-    }
-  };
+  const classes: PreparedCoverClass[] = [];
+  const workspace = createMaskPreparationWorkspace(mask.length);
 
   for (const code of fourClass ? FOUR_CLASS_COVER_CODES : WORLD_COVER_CODES) {
     if (DISPLAY_WATER_CODES.has(code)) continue;
@@ -80,9 +80,52 @@ function traceAt(grid: CoverGrid, simplifyM: number): DerivedCoverDisplay {
       if (hit) any = true;
     }
     if (!any) continue;
-    for (const polygon of maskToPolygonsRect(mask, grid.width, grid.height, options)) {
-      appendPolygon(code, polygon);
+    classes.push({
+      code,
+      rings: prepareMaskRingsRect(mask, grid.width, grid.height, traceOptions, workspace),
+    });
+  }
+
+  return {
+    classes,
+    smoothingM,
+    minFeatureM2,
+    minAreaCells: Math.max(1, Math.round(minFeatureM2 / (cellM * cellM))),
+  };
+}
+
+function encodePreparedAt(
+  grid: CoverGrid,
+  prepared: PreparedCoverDisplay,
+  simplifyM: number
+): DerivedCoverDisplay {
+  const geometry: number[] = [];
+  let polygonCount = 0;
+  let ringCount = 0;
+  let vertexCount = 0;
+  const cellM = Math.max(0.1, grid.cellSizeM);
+  const simplifyTol = Math.max(0.5, simplifyM / cellM);
+  const xScale = Math.max(1, grid.width - 1);
+  const yScale = Math.max(1, grid.height - 1);
+
+  const appendPolygon = (code: CoverClassCode, polygon: CoverPolygon) => {
+    const rings = [polygon.outer, ...polygon.holes];
+    geometry.push(code, rings.length);
+    polygonCount++;
+    ringCount += rings.length;
+    for (const ring of rings) {
+      geometry.push(ring.length);
+      vertexCount += ring.length;
+      for (const [x, y] of ring) geometry.push(x / xScale, y / yScale);
     }
+  };
+
+  for (const { code, rings } of prepared.classes) {
+    const polygons = preparedRingsToPolygons(rings, {
+      simplifyTol,
+      minAreaCells: prepared.minAreaCells,
+    });
+    for (const polygon of polygons) appendPolygon(code, polygon);
   }
 
   return {
@@ -91,22 +134,27 @@ function traceAt(grid: CoverGrid, simplifyM: number): DerivedCoverDisplay {
       polygonCount,
       ringCount,
       vertexCount,
-      smoothingM,
+      smoothingM: prepared.smoothingM,
       simplifyM,
-      minFeatureM2,
+      minFeatureM2: prepared.minFeatureM2,
     },
   };
 }
 
 /** One-time raster-to-vector preparation with a deterministic vertex budget. */
-export function deriveCoverDisplayGeometry(grid: CoverGrid): DerivedCoverDisplay {
+export function deriveCoverDisplayGeometry(
+  grid: CoverGrid,
+  vertexBudget = COVER_DISPLAY_VERTEX_BUDGET
+): DerivedCoverDisplay {
   const initialSimplifyM = isFourClassGrid(grid) ? 2 : COVER_DISPLAY_SIMPLIFY_M;
-  let result = traceAt(grid, initialSimplifyM);
-  for (let simplifyM = initialSimplifyM + 2; result.stats.vertexCount > COVER_DISPLAY_VERTEX_BUDGET && simplifyM <= 20; simplifyM += 2) {
-    result = traceAt(grid, simplifyM);
+  const prepared = prepareCoverDisplay(grid);
+  const budget = Math.max(0, Math.floor(vertexBudget));
+  let result = encodePreparedAt(grid, prepared, initialSimplifyM);
+  for (let simplifyM = initialSimplifyM + 2; result.stats.vertexCount > budget && simplifyM <= 20; simplifyM += 2) {
+    result = encodePreparedAt(grid, prepared, simplifyM);
   }
-  return result.stats.vertexCount > COVER_DISPLAY_VERTEX_BUDGET
-    ? limitGeometry(result, COVER_DISPLAY_VERTEX_BUDGET)
+  return result.stats.vertexCount > budget
+    ? limitGeometry(result, budget)
     : result;
 }
 

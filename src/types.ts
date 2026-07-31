@@ -286,7 +286,7 @@ export interface TerrainRecord {
   coverBoundarySegments?: number[];
   coverGeometryMetadata?: CoverGeometryMetadata;
   /** Flat normalized polygon stream; see coverDisplay.ts. Required by schema v5. */
-  coverDisplayGeometry?: number[];
+  coverDisplayGeometry?: number[] | Float32Array;
   coverDisplayMetadata?: CoverDisplayMetadata;
   /** Optional matching NAIP JPEG; stored outside JSON as .imagery.jpg. */
   localImagery?: Uint8Array | number[];
@@ -355,6 +355,9 @@ interface SavedLiftBase {
   lengthM: number; // slope length; horizontal-only when elevations unknown
   verticalM: number | null; // |top - bottom|; null while elevations unresolved
   status: LiftStatus; // 'planning' (dashed) or 'complete' (solid)
+  /** Operating condition. Absent/false = open. A closed lift stays in the
+   *  network graph but is not traversable by open-only route queries. */
+  closed?: boolean;
   createdAt: string; // ISO
 }
 
@@ -369,6 +372,15 @@ export type SavedLift = SavedFixedGripLift;
 // format ready for additional road types without changing the v1 UI.
 export type RoadType = 'two-lane';
 
+export interface EarthworkEstimate {
+  /** Gross material removed from the original DEM. */
+  cutM3: number;
+  /** Gross material added above the original DEM. */
+  fillM3: number;
+  /** Positive means excess cut; negative means additional fill is required. */
+  balanceM3: number;
+}
+
 export interface SavedRoad {
   id: string;
   name: string;
@@ -378,6 +390,10 @@ export interface SavedRoad {
   points: [number, number][];
   /** Horizontal centerline length, recomputed during hydration. */
   lengthM: number;
+  /** New roads are terrain-graded; absent/false identifies legacy roads. */
+  terrainGraded?: boolean;
+  /** Estimated volumes represented by the committed DEM edit. */
+  earthwork?: EarthworkEstimate;
   createdAt: string;
 }
 
@@ -416,7 +432,14 @@ export interface SavedTrail {
   avgSlopeDeg: number;
   maxSlopeDeg: number;
   difficulty: TrailDifficulty; // automatically derived from the terrain
+  /** True when construction permanently regraded the local elevation package. */
+  terrainGraded?: boolean;
+  /** Estimated volumes represented by the committed DEM edit. */
+  earthwork?: EarthworkEstimate;
   status: TrailStatus; // 'planning' (dashed) or 'complete' (solid)
+  /** Operating condition. Absent/false = open. Every network segment derived
+   *  from this run inherits it. */
+  closed?: boolean;
   createdAt: string; // ISO
 }
 
@@ -443,10 +466,12 @@ export interface GameSave {
   roads?: SavedRoad[];
   createdAt: string; // ISO
   updatedAt: string; // ISO
+  /** Most recent successful exit checkpoint. Optional for legacy saves. */
+  lastPlayedAt?: string; // ISO
 }
 
 // Lightweight listing entry for the Load Game modal.
 export type GameSaveSummary = Pick<
   GameSave,
-  'key' | 'name' | 'mountainId' | 'terrainKey' | 'createdAt' | 'updatedAt'
+  'key' | 'name' | 'mountainId' | 'terrainKey' | 'createdAt' | 'updatedAt' | 'lastPlayedAt'
 >;

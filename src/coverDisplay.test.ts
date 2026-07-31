@@ -76,4 +76,33 @@ describe('persisted cover display geometry', () => {
     expect(display.stats.minFeatureM2).toBe(16);
     expect(display.stats.simplifyM).toBe(2);
   });
+
+  it('retries only simplification to satisfy a tighter vertex budget', () => {
+    const width = 128, height = 96;
+    const source: TerrainCoverGrid = {
+      bounds: grid().bounds, width, height, cellSizeM: 2,
+      data: Uint8Array.from({ length: width * height }, (_, index) => {
+        const row = Math.floor(index / width), col = index % width;
+        const edge = width / 2
+          + Math.round(Math.sin(row * 0.55) * 14)
+          + Math.round(Math.sin(row * 1.7) * 5);
+        return col <= edge ? 1 : 3;
+      }),
+      complete: true, nodataCount: 0, source: 'usgs-four-class-v1', vintage: '2021',
+      treelineM: { north: 1800, east: 1800, south: 1800, west: 1800, site: 1800 },
+      provenance: {
+        processingVersion: 'four-class-v1', confidence: 'reduced', method: 'worldcover-fallback',
+        attribution: ['ESA WorldCover'], worldCover: { vintage: '2021', license: 'cc-by-4.0' },
+      },
+    };
+    const initial = deriveCoverDisplayGeometry(source, Number.MAX_SAFE_INTEGER);
+    expect(initial.stats.simplifyM).toBe(2);
+    expect(initial.stats.vertexCount).toBeGreaterThan(20);
+
+    const budget = initial.stats.vertexCount - 1;
+    const limited = deriveCoverDisplayGeometry(source, budget);
+    expect(limited.stats.simplifyM).toBeGreaterThan(initial.stats.simplifyM);
+    expect(limited.stats.vertexCount).toBeLessThanOrEqual(budget);
+    expect(limited.geometry.length).toBeGreaterThan(0);
+  });
 });

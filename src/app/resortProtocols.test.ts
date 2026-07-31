@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { resortCameraBounds, resortDemBounds, resortWarmTileKeys } from './resortProtocols';
+import { RESORT_DEM_PROTOCOL, resortCameraBounds, resortDemBounds,
+  resortProtocolUrl, resortWarmTileKeys } from './resortProtocols';
 import type { TerrainRecord } from '../types';
 
 // Minimal record: only the fields the geometry helpers read. A ~2 km box with a
@@ -49,5 +50,16 @@ describe('resortWarmTileKeys', () => {
       expect(k.z).toBeGreaterThanOrEqual(11);
       expect(k.z).toBeLessThanOrEqual(15);
     }
+  });
+});
+
+describe('resortProtocolUrl', () => {
+  it('revisions elevation-derived source templates by elevation checksum', () => {
+    const rec = makeRecord();
+    rec.packageManifest = { elevationChecksum: 'fnv1a32-grade1' } as TerrainRecord['packageManifest'];
+    expect(resortProtocolUrl(RESORT_DEM_PROTOCOL, rec))
+      .toBe('resort-dem://test-resort/{z}/{x}/{y}?rev=fnv1a32-grade1');
+    rec.packageManifest!.elevationChecksum = 'fnv1a32-grade2';
+    expect(resortProtocolUrl(RESORT_DEM_PROTOCOL, rec)).toContain('grade2');
   });
 });

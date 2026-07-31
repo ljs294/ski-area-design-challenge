@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { SiteCoverGrid, TerrainCoverGrid, TerrainRecord } from './types';
-import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, manifestOf, originalCoverMetadataOf, validateTerrainPackage } from './terrainPackage';
+import {
+  contourMetadataOf,
+  coverDisplayMetadataOf,
+  coverGeometryMetadataOf,
+  coverMetadataOf,
+  manifestOf,
+  manifestWithUpdatedCover,
+  originalCoverMetadataOf,
+  validateTerrainCoverEdit,
+  validateTerrainPackage,
+} from './terrainPackage';
 import { hydrateTerrainRecord } from './terrainIngest';
 
 function record(): TerrainRecord {
@@ -46,6 +56,19 @@ describe('terrain package manifests', () => {
     value.coverBoundarySegments![0] = 0.5;
     expect(validateTerrainPackage(value).ok).toBe(false);
   });
+  it('validates a regraded elevation grid with regenerated contours and manifest', () => {
+    let value = record();
+    const contourSegments = [0, 0.25, 1, 0.75, 1005];
+    value = {
+      ...value,
+      sampleHeights: [1000, 1007, 1015, 1024],
+      contourSegments,
+      contourMetadata: contourMetadataOf(contourSegments, 2, 6.096),
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    };
+    value = { ...value, packageManifest: manifestOf(value) };
+    expect(validateTerrainPackage(value)).toEqual({ ok: true, errors: [] });
+  });
   it('requires and validates persisted vector geometry for schema v5', () => {
     let value = record();
     const geometry = [10, 1, 4, 0, 0, 1, 0, 1, 1, 0, 0];
@@ -80,6 +103,44 @@ describe('terrain package manifests', () => {
     expect(validateTerrainPackage(value)).toEqual({ ok: true, errors: [] });
     delete value.originalCoverGrid;
     expect(validateTerrainPackage(value).errors.join(' ')).toMatch(/original worldcover/i);
+  });
+  it('refreshes and validates only the cover assets after construction', () => {
+    let value = record();
+    const geometry = [10, 1, 4, 0, 0, 1, 0, 1, 1, 0, 0];
+    const stats = {
+      polygonCount: 1, ringCount: 1, vertexCount: 4,
+      smoothingM: 24, simplifyM: 10, minFeatureM2: 600,
+    };
+    value = {
+      ...value,
+      schemaVersion: 5,
+      coverDisplayGeometry: geometry,
+      coverDisplayMetadata: coverDisplayMetadataOf(geometry, stats),
+    };
+    value.packageManifest = manifestOf(value);
+    const previous = value.packageManifest;
+    const coverGrid = {
+      ...value.coverGrid!,
+      data: Uint8Array.from([30, 10, 20, 30]),
+    } as SiteCoverGrid;
+    value = {
+      ...value,
+      coverGrid,
+      coverMetadata: coverMetadataOf(coverGrid),
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    };
+    value.packageManifest = manifestWithUpdatedCover(value);
+
+    expect(value.packageManifest.elevationChecksum).toBe(previous.elevationChecksum);
+    expect(value.packageManifest.contours).toEqual(previous.contours);
+    expect(value.packageManifest.cover?.checksum).toBe(value.coverMetadata?.checksum);
+    expect(validateTerrainCoverEdit(value)).toEqual({ ok: true, errors: [] });
+
+    value.packageManifest = {
+      ...value.packageManifest,
+      cover: { ...value.packageManifest.cover!, checksum: 'bad' },
+    };
+    expect(validateTerrainCoverEdit(value).errors.join(' ')).toMatch(/manifest metadata/i);
   });
 });
 

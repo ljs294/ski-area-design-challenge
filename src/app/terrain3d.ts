@@ -1,12 +1,12 @@
 import type maplibregl from 'maplibre-gl';
 import type { SkySpecification } from 'maplibre-gl';
-import { activeResortTerrain, resortDemBounds, RESORT_DEM_PROTOCOL } from './resortProtocols';
+import { activeResortTerrain, resortDemBounds, resortProtocolUrl, RESORT_DEM_PROTOCOL } from './resortProtocols';
 
 // Same Terrarium tiles as the 'dem' source in analysisLayers.ts, but a
 // dedicated source: MapLibre v5 warns (and renders worse, with tile-reload
 // flashes) when hillshade and 3D terrain share one raster-dem source. The
 // browser HTTP cache dedupes the actual downloads.
-const TERRAIN_DEM_SOURCE = 'terrain-dem';
+export const TERRAIN_DEM_SOURCE = 'terrain-dem';
 const TERRARIUM_TILES =
   'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
 
@@ -59,10 +59,9 @@ const SKY_OFF: SkySpecification = {
 export function mountTerrain(map: maplibregl.Map): void {
   if (!map.getSource(TERRAIN_DEM_SOURCE)) {
     const local = activeResortTerrain();
-    const key = local ? encodeURIComponent(local.key) : null;
     map.addSource(TERRAIN_DEM_SOURCE, {
       type: 'raster-dem',
-      tiles: [key ? `${RESORT_DEM_PROTOCOL}://${key}/{z}/{x}/{y}` : TERRARIUM_TILES],
+      tiles: [local ? resortProtocolUrl(RESORT_DEM_PROTOCOL, local) : TERRARIUM_TILES],
       encoding: 'terrarium',
       tileSize: 256,
       maxzoom: 15,

@@ -226,6 +226,18 @@ export function sanitizeTrails(raw: unknown[]): SavedTrail[] {
     const difficulty = difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg);
     const status: TrailStatus =
       t.status === 'planning' || t.status === 'complete' ? t.status : 'complete';
+    const rawEarthwork = typeof t.earthwork === 'object' && t.earthwork !== null
+      ? t.earthwork as Record<string, unknown> : null;
+    const earthwork = rawEarthwork &&
+      typeof rawEarthwork.cutM3 === 'number' && Number.isFinite(rawEarthwork.cutM3) && rawEarthwork.cutM3 >= 0 &&
+      typeof rawEarthwork.fillM3 === 'number' && Number.isFinite(rawEarthwork.fillM3) && rawEarthwork.fillM3 >= 0
+      ? {
+          cutM3: rawEarthwork.cutM3,
+          fillM3: rawEarthwork.fillM3,
+          balanceM3: typeof rawEarthwork.balanceM3 === 'number' && Number.isFinite(rawEarthwork.balanceM3)
+            ? rawEarthwork.balanceM3 : rawEarthwork.cutM3 - rawEarthwork.fillM3,
+        }
+      : undefined;
 
     out.push({
       id: t.id,
@@ -238,7 +250,10 @@ export function sanitizeTrails(raw: unknown[]): SavedTrail[] {
       avgSlopeDeg: stats.avgSlopeDeg,
       maxSlopeDeg: stats.maxSlopeDeg,
       difficulty,
+      terrainGraded: t.terrainGraded === true,
+      earthwork,
       status,
+      closed: t.closed === true,
       createdAt: typeof t.createdAt === 'string' ? t.createdAt : new Date().toISOString(),
     });
   }

@@ -7,6 +7,7 @@ import {
   localTileBounds,
   registerResortProtocols,
   resortDemBounds,
+  resortProtocolUrl,
   RESORT_ASPECT_PROTOCOL,
   RESORT_COVER_PROTOCOL,
   RESORT_DEM_PROTOCOL,
@@ -17,6 +18,9 @@ import { unitToLngLat } from '../geo';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import { addCoverLayers, COVER_LAYER_IDS } from './coverVectorize';
 import { LOCAL_ROAD_PAINT, playerRoadFeatures } from './roadLayers';
+import { localContourGeoJSON } from './localContours';
+import { EMPTY_CONTOURS, GRADED_CONTOUR_SOURCE } from './terrainGradeMap';
+export { localContourGeoJSON } from './localContours';
 
 const TERRARIUM_TILES = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
 
@@ -47,30 +51,6 @@ function contourDemFor(url: string): InstanceType<typeof mlcontour.DemSource> {
   const dem = new mlcontour.DemSource({ url, encoding: 'terrarium', maxzoom: 15, worker: false });
   dem.setupMaplibre(maplibregl);
   return dem;
-}
-
-function localContourGeoJSON(record: TerrainRecord, imperial: boolean): GeoJSON.FeatureCollection {
-  const b = record.bounds!;
-  const byLevel = new Map<number, GeoJSON.Position[][]>();
-  const data = record.contourSegments ?? [];
-  for (let i = 0; i + 4 < data.length; i += 5) {
-    const levelM = data[i + 4];
-    const level = imperial ? levelM * 3.28084 : levelM;
-    const lines = byLevel.get(level) ?? [];
-    lines.push([
-      unitToLngLat(data[i], data[i + 1], b),
-      unitToLngLat(data[i + 2], data[i + 3], b),
-    ]);
-    byLevel.set(level, lines);
-  }
-  return {
-    type: 'FeatureCollection',
-    features: [...byLevel.entries()].map(([ele, coordinates]) => ({
-      type: 'Feature',
-      properties: { ele, level: Math.round(ele / (imperial ? 20 : 6.096)) % 5 === 0 ? 1 : 0 },
-      geometry: { type: 'MultiLineString', coordinates },
-    })),
-  };
 }
 
 function localCoverBoundaryGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollection {
@@ -190,11 +170,10 @@ export function setupAnalysisLayers(
   let coverLabel = 'Ground cover preview';
   if (local) {
     registerResortProtocols();
-    const key = encodeURIComponent(local.key);
     bounds = localTileBounds(local);
     demBounds = resortDemBounds(local);
-    demUrl = `${RESORT_DEM_PROTOCOL}://${key}/{z}/{x}/{y}`;
-    if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${key}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
+    demUrl = resortProtocolUrl(RESORT_DEM_PROTOCOL, local);
+    if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(local.key)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
     map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, playerRoads), attribution: 'Local OSM context © OpenStreetMap contributors' });
     coverVisible = true;
     coverLabel = local.coverGrid?.source === 'usgs-four-class-v1' ? 'Detailed terrain cover (local)' : 'ESA WorldCover 2021 · 10 m (local)';
@@ -275,6 +254,17 @@ export function setupAnalysisLayers(
       'line-width': ['match', ['coalesce', ['get', 'level'], 0], 1, 1.25, 0.55],
     },
   }, contourAnchor);
+  // Contours over ground a pending terrain edit would change, drawn in yellow on
+  // top of the normal set. Empty except while a grading preview is up.
+  map.addSource(GRADED_CONTOUR_SOURCE, { type: 'geojson', data: EMPTY_CONTOURS });
+  map.addLayer({
+    id: 'graded-contour-lines', type: 'line', source: GRADED_CONTOUR_SOURCE,
+    paint: {
+      'line-color': '#facc15',
+      'line-width': ['match', ['coalesce', ['get', 'level'], 0], 1, 2.6, 1.6],
+      'line-opacity': 0.95,
+    },
+  }, contourAnchor);
   if (local) {
     map.addLayer({
       id: 'local-roads', type: 'line', source: 'local-context',
@@ -286,9 +276,9 @@ export function setupAnalysisLayers(
   const slopeProtocol = local ? RESORT_SLOPE_PROTOCOL : SLOPE_PROTOCOL;
   const aspectProtocol = local ? RESORT_ASPECT_PROTOCOL : ASPECT_PROTOCOL;
   if (!local) registerTerrainProtocols();
-  map.addSource('slope', { type: 'raster', tiles: [`${slopeProtocol}://${local ? `${encodeURIComponent(local.key)}/` : ''}{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, ...(bounds ? { bounds } : {}) });
+  map.addSource('slope', { type: 'raster', tiles: [local ? resortProtocolUrl(slopeProtocol, local) : `${slopeProtocol}://{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, ...(bounds ? { bounds } : {}) });
   map.addLayer({ id: 'slope', type: 'raster', source: 'slope', layout: { visibility: 'none' }, paint: { 'raster-opacity': 1 } }, analysisAnchor);
-  map.addSource('aspect', { type: 'raster', tiles: [`${aspectProtocol}://${local ? `${encodeURIComponent(local.key)}/` : ''}{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, ...(bounds ? { bounds } : {}) });
+  map.addSource('aspect', { type: 'raster', tiles: [local ? resortProtocolUrl(aspectProtocol, local) : `${aspectProtocol}://{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, ...(bounds ? { bounds } : {}) });
   map.addLayer({ id: 'aspect', type: 'raster', source: 'aspect', layout: { visibility: 'none' }, paint: { 'raster-opacity': 1 } }, analysisAnchor);
   map.addLayer({
     id: 'contour-labels', type: 'symbol', source: 'contours', ...(local ? {} : { 'source-layer': 'contours' }),
@@ -301,7 +291,7 @@ export function setupAnalysisLayers(
     { id: 'satellite', label: 'Satellite imagery', layerIds: [satelliteLayer], visible: satelliteVisible, section: 'Imagery' },
     { id: 'groundcover', label: coverLabel, layerIds: local && coverDisplay ? COVER_LAYER_IDS : local ? ['groundcover', 'cover-boundary-halo', 'cover-boundaries'] : ['groundcover'], visible: coverVisible, section: 'Master plan' },
     { id: 'hillshade', label: 'Terrain relief', layerIds: ['hillshade'], visible: true, section: 'Master plan' },
-    { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
+    { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'graded-contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
     { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-lines'] : basemap.water, visible: true, section: 'Master plan' },
     { id: 'bm-roads', label: 'Roads', layerIds: local ? [...basemap.roads, 'local-roads'] : basemap.roads, visible: true, section: 'Master plan' },
     { id: 'bm-buildings', label: 'Buildings', layerIds: basemap.buildings, visible: true, section: 'Master plan' },
