@@ -1,5 +1,6 @@
 import { METERS_PER_DEGREE_LAT, haversineMeters } from './geo';
 import { fixedGripCapacityPph, fixedGripDerived, liftStats } from './lifts';
+import type { AnchorRef, SavedNode, SavedPath } from './skiNodes';
 import { difficultyForSlopes, trailAreaM2, trailStats } from './trails';
 import type {
   ChairSize,
@@ -42,7 +43,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type NodeId = string; // 'n:0', 'n:1', … assigned after a deterministic sort
-export type EdgeId = string; // 't:<trailId>:<part>:<seg>' | 't:…:<seg>:r' | 'l:<liftId>'
+export type EdgeId = string; // 't:<trailId>:<part>:<seg>' | 't:…:<seg>:r' | 'x:<pathId>:<seg>' | 'x:…:<seg>:r' | 'l:<liftId>'
 
 /** Local equirectangular meters. TOPOLOGY ONLY — never used for stats. */
 export interface MetersFrame {
@@ -60,6 +61,7 @@ export interface MetersFrame {
 export type NetworkNodeKind =
   | 'lift-base'
   | 'lift-top'
+  | 'user-node'
   | 'crossing'
   | 'junction'
   | 'trail-head'
@@ -78,6 +80,10 @@ export interface NetworkNode {
   liftTops: string[];
   /** Distinct parent trail ids incident here (sorted). */
   trailIds: string[];
+  /** SavedNode ids clustered here (sorted). */
+  nodeIds: string[];
+  /** Distinct parent path ids incident here (sorted). */
+  pathIds: string[];
   outgoing: EdgeId[];
   incoming: EdgeId[];
 }
@@ -158,7 +164,34 @@ export interface LiftEdge extends NetworkEdgeBase {
   servesTrailIds: string[];
 }
 
-export type NetworkEdge = TrailEdge | LiftEdge;
+export interface PathEdge extends NetworkEdgeBase {
+  kind: 'path';
+  pathId: string;
+  pathName: string;
+  /** Ordinal along the path, in stored point order. */
+  segmentIndex: number;
+  /** True [lng, lat] geometry, from → to. Same node-centroid caveat as TrailEdge.path. */
+  path: [number, number][];
+  /** Parallel to `path`; empty when the path's elevations are unresolved. */
+  elevM: number[];
+  /** Recomputed for THIS segment. A path has no stored grade to fall back on,
+   *  so an unresolved segment reads 'green' rather than inheriting anything. */
+  difficulty: TrailDifficulty;
+  avgSlopeDeg: number;
+  maxSlopeDeg: number;
+  /** Unsigned max − min along the segment, from trailStats. */
+  verticalM: number | null;
+  /** Signed elev[0] − elev[last]. NEGATIVE means the segment climbs. */
+  netVerticalM: number | null;
+  widthM: number;
+  status: TrailStatus;
+  planned: boolean;
+  elevationResolved: boolean;
+  /** Near-flat, or climbing against the stored from→to order. */
+  traverse: boolean;
+}
+
+export type NetworkEdge = TrailEdge | LiftEdge | PathEdge;
 
 export interface NetworkDiagnostics {
   crossingCount: number;
@@ -180,16 +213,31 @@ export interface NetworkDiagnostics {
   /** Weakly-connected components; 1 means the whole mountain is connected. */
   componentCount: number;
   traverseEdgeCount: number;
+  /** Trails with no `anchor` field at all (legacy/pre-feature). Informational only. */
+  unanchoredTrailIds: string[];
+  /** Trail `anchor` present but its target is missing, drifted beyond
+   *  anchorResolveM, or self-referential. */
+  unresolvedAnchorTrailIds: string[];
+  /** Same as unresolvedAnchorTrailIds, for a path's `from`/`to`. */
+  unresolvedAnchorPathIds: string[];
+  /** Anchor resolved, but farther than maxClusterRadiusM from its own end —
+   *  the union still happened (uncapped), but the node will sit visibly off
+   *  the geometry it was declared against. */
+  overreachingAnchorIds: string[];
+  /** Paths whose `from` and `to` both resolved into the same cluster. */
+  degeneratePathIds: string[];
 }
 
 export interface SkiNetwork {
   nodes: NetworkNode[];
-  /** Trail edges first, then lift edges. */
+  /** Trail edges, then path edges, then lift edges. */
   edges: NetworkEdge[];
   nodeById: Map<NodeId, NetworkNode>;
   edgeById: Map<EdgeId, NetworkEdge>;
   /** trailId → its segment edge ids in downhill order (reverse twins excluded). */
   trailEdgeIds: Map<string, EdgeId[]>;
+  /** pathId → its segment edge ids in stored order (reverse twins excluded). */
+  pathEdgeIds: Map<string, EdgeId[]>;
   liftEdgeIds: Map<string, EdgeId>;
   frame: MetersFrame;
   diagnostics: NetworkDiagnostics;
@@ -208,6 +256,14 @@ export interface BuildNetworkOptions {
    *  network is a one-way vector map, but a dead-flat connector is genuinely
    *  skated both ways, so the simulation can turn this on without a rewrite. */
   bidirectionalTraverses?: boolean;
+  /** Free-standing map pins to register as nodes. */
+  nodes?: SavedNode[];
+  /** Footpaths connecting nodes/lifts/runs. */
+  paths?: SavedPath[];
+  /** Max metres a cached AnchorRef.point may drift from the target's CURRENT
+   *  geometry before resolution gives up. Not a topology tolerance — this is
+   *  "did the point survive an edit". */
+  anchorResolveM?: number;
 }
 
 export const NETWORK_DEFAULTS = {
@@ -218,6 +274,7 @@ export const NETWORK_DEFAULTS = {
   minSegmentM: 8,
   coincidentM: 1,
   maxClusterRadiusM: 60,
+  anchorResolveM: 50,
 } as const;
 
 /** Mirrors the station dedupe rule in roads.ts. */
@@ -446,10 +503,15 @@ class ClusterSet {
 // ---------------------------------------------------------------------------
 
 interface Polyline {
-  key: string; // '<trailId>:<partIndex>'
-  trailId: string;
-  partIndex: number;
-  trail: SavedTrail;
+  key: string; // '<trailId>:<partIndex>' | 'path:<pathId>'
+  entityKind: 'trail' | 'path';
+  entityId: string; // trailId or pathId
+  /** Trail-only; present when entityKind === 'trail'. */
+  trailId?: string;
+  partIndex?: number;
+  trail?: SavedTrail;
+  /** Path-only; present when entityKind === 'path'. */
+  path?: SavedPath;
   lngLat: [number, number][];
   m: XY[];
   /** Empty when this part's elevations are unresolved. */
@@ -457,7 +519,7 @@ interface Polyline {
   /** Cumulative HORIZONTAL chainage, cum[0] = 0. */
   cum: number[];
   totalM: number;
-  /** This part's own footprint area. */
+  /** This part's own footprint area. Always 0 for a path. */
   areaM2: number;
   brushWidthM: number;
   bbox: BBox;
@@ -468,12 +530,14 @@ interface Site {
   m: XY;
   lngLat: [number, number];
   elevM: number | null;
-  /** Set for sites that sit on a trail centerline. */
+  /** Set for sites that sit on a trail/path centerline. */
   polylineIndex: number;
-  /** Chainage along that polyline; -1 for lift terminals. */
+  /** Chainage along that polyline; -1 for lift terminals and user nodes. */
   s: number;
   liftBase?: string;
   liftTop?: string;
+  /** Set for the site of a registered SavedNode. */
+  userNode?: string;
   fromCrossing: boolean;
 }
 
@@ -570,6 +634,8 @@ function buildPolylines(
       const m = lngLat.map((p) => toMeters(frame, p));
       out.push({
         key,
+        entityKind: 'trail',
+        entityId: trail.id,
         trailId: trail.id,
         partIndex,
         trail,
@@ -582,6 +648,59 @@ function buildPolylines(
         brushWidthM: trail.brushWidthM,
         bbox: bboxOf(m),
       });
+    });
+  }
+  return out;
+}
+
+/**
+ * Path counterpart of buildPolylines. A path has one polyline per SavedPath
+ * (no parts), zero footprint area, and its stored widthM stands in for
+ * brushWidthM — that is what feeds snapDistance, so a path participates in
+ * crossing/T-junction/endpoint-merge detection exactly like a trail part.
+ */
+function buildPathPolylines(
+  frame: MetersFrame,
+  paths: SavedPath[],
+  minSegmentM: number
+): Polyline[] {
+  const out: Polyline[] = [];
+  for (const path of paths) {
+    const key = `path:${path.id}`;
+    const lngLat: [number, number][] = [];
+    const elevSrc: number[] = [];
+    const hasElev =
+      path.pointElevM.length === path.points.length &&
+      path.pointElevM.every((e) => Number.isFinite(e));
+    for (let i = 0; i < path.points.length; i++) {
+      const p = path.points[i];
+      if (!Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
+      const prev = lngLat[lngLat.length - 1];
+      if (prev && haversineMeters(prev, p) < STATION_DEDUPE_M) continue;
+      lngLat.push([p[0], p[1]]);
+      if (hasElev) elevSrc.push(path.pointElevM[i]);
+    }
+    if (lngLat.length < 2) continue;
+    const cum = [0];
+    for (let i = 1; i < lngLat.length; i++) {
+      cum.push(cum[i - 1] + haversineMeters(lngLat[i - 1], lngLat[i]));
+    }
+    const totalM = cum[cum.length - 1];
+    if (totalM < minSegmentM) continue;
+    const m = lngLat.map((p) => toMeters(frame, p));
+    out.push({
+      key,
+      entityKind: 'path',
+      entityId: path.id,
+      path,
+      lngLat,
+      m,
+      elevM: hasElev ? elevSrc : [],
+      cum,
+      totalM,
+      areaM2: 0,
+      brushWidthM: path.widthM,
+      bbox: bboxOf(m),
     });
   }
   return out;
@@ -604,6 +723,7 @@ export function buildSkiNetwork(
     minSegmentM: options?.minSegmentM ?? NETWORK_DEFAULTS.minSegmentM,
     includePlanning: options?.includePlanning ?? true,
     bidirectionalTraverses: options?.bidirectionalTraverses ?? false,
+    anchorResolveM: options?.anchorResolveM ?? NETWORK_DEFAULTS.anchorResolveM,
   };
 
   const diagnostics: NetworkDiagnostics = {
@@ -620,6 +740,11 @@ export function buildSkiNetwork(
     isolatedLiftIds: [],
     componentCount: 0,
     traverseEdgeCount: 0,
+    unanchoredTrailIds: [],
+    unresolvedAnchorTrailIds: [],
+    unresolvedAnchorPathIds: [],
+    overreachingAnchorIds: [],
+    degeneratePathIds: [],
   };
 
   // First wins on a duplicate id, so the graph never carries two of anything.
@@ -639,14 +764,31 @@ export function buildSkiNetwork(
     seenLift.add(l.id);
     liftList.push(l);
   }
+  const nodeList: SavedNode[] = [];
+  const seenNode = new Set<string>();
+  for (const n of [...(options?.nodes ?? [])].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    if (seenNode.has(n.id)) continue;
+    seenNode.add(n.id);
+    nodeList.push(n);
+  }
+  const pathList: SavedPath[] = [];
+  const seenPath = new Set<string>();
+  for (const p of [...(options?.paths ?? [])].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+    if (seenPath.has(p.id)) continue;
+    if (!opt.includePlanning && p.status === 'planning') continue;
+    seenPath.add(p.id);
+    pathList.push(p);
+  }
 
   const frameSamples: [number, number][] = [];
   for (const t of trailList) for (const p of t.parts) for (const c of p.centerline) frameSamples.push(c);
   for (const l of liftList) frameSamples.push(l.points[0], l.points[1]);
+  for (const n of nodeList) frameSamples.push(n.point);
+  for (const p of pathList) for (const pt of p.points) frameSamples.push(pt);
   const frame = makeFrame(frameSamples);
 
   const unresolvedElev = new Set<string>();
-  const polylines = buildPolylines(
+  const trailPolylines = buildPolylines(
     frame,
     trailList,
     opt.minSegmentM,
@@ -654,6 +796,17 @@ export function buildSkiNetwork(
     unresolvedElev
   );
   diagnostics.unresolvedElevationTrailIds = [...unresolvedElev].sort();
+  const pathPolylines = buildPathPolylines(frame, pathList, opt.minSegmentM);
+  const polylines: Polyline[] = [...trailPolylines, ...pathPolylines];
+  const polylineIndexByKey = new Map<string, number>();
+  polylines.forEach((pl, idx) => polylineIndexByKey.set(pl.key, idx));
+  const polylinesByEntity = new Map<string, number[]>();
+  polylines.forEach((pl, idx) => {
+    const k = `${pl.entityKind}:${pl.entityId}`;
+    const arr = polylinesByEntity.get(k);
+    if (arr) arr.push(idx);
+    else polylinesByEntity.set(k, [idx]);
+  });
 
   const snapDistance = (a: Polyline, b: Polyline): number => {
     // A medial axis lies at most W/2 from its own footprint edge, so two
@@ -708,6 +861,21 @@ export function buildSkiNetwork(
       s: -1,
       liftBase: end === 'base' ? liftId : undefined,
       liftTop: end === 'top' ? liftId : undefined,
+      fromCrossing: false,
+    });
+    return key;
+  }
+
+  function addUserNodeSite(node: SavedNode): string {
+    const key = `nd:${node.id}`;
+    sites.set(key, {
+      key,
+      m: toMeters(frame, node.point),
+      lngLat: node.point,
+      elevM: node.elevM,
+      polylineIndex: -1,
+      s: -1,
+      userNode: node.id,
       fromCrossing: false,
     });
     return key;
@@ -906,12 +1074,139 @@ export function buildSkiNetwork(
     }
   }
 
+  // -- user-declared node sites ---------------------------------------------
+  //
+  // Registered before anchor resolution so a `kind: 'node'` anchor has
+  // something to resolve to, and so every SavedNode becomes a NetworkNode
+  // even when nothing ever attaches to it (zero incident edges).
+  for (const node of nodeList) addUserNodeSite(node);
+
+  // Pass 6 — explicit anchors. Runs after every geometric inference pass (so
+  // an anchor can land on a junction one of those passes already created) and
+  // before the split-collapse/clustering stage below.
+  //
+  // Unlike every other union in this file, an anchor union is pushed into
+  // `forcedLinks` and therefore unions UNCAPPED, even when the two ends are
+  // farther apart than maxClusterRadiusM. The cap exists to stop many
+  // independent PROXIMITY HEURISTICS from chaining along a ridge; a single
+  // targeted user assertion between two named entities cannot chain that way,
+  // and silently refusing a user's declared connection in a design tool would
+  // be wrong. When a resolved anchor lands far enough that the cap would have
+  // refused it, `overreachingAnchorIds` records it so the UI can warn that
+  // the node will sit visibly off the geometry.
+  const forcedLinks: { a: string; b: string }[] = [];
+  const unanchoredTrailIdSet = new Set<string>();
+  const unresolvedAnchorTrailIdSet = new Set<string>();
+  const unresolvedAnchorPathIdSet = new Set<string>();
+  const overreachingAnchorIdSet = new Set<string>();
+
+  // Resolves an AnchorRef to a site key against CURRENT geometry — never to
+  // another entity's anchor, so A→B→A circular anchors can never recurse.
+  function resolveAnchorSiteKey(
+    anchor: AnchorRef,
+    self: { kind: 'trail' | 'path' | 'node'; id: string }
+  ): { key: string } | 'self' | null {
+    if (anchor.kind === 'trail' && self.kind === 'trail' && anchor.trailId === self.id) return 'self';
+    if (anchor.kind === 'path' && self.kind === 'path' && anchor.pathId === self.id) return 'self';
+    if (anchor.kind === 'node' && self.kind === 'node' && anchor.nodeId === self.id) return 'self';
+    if (anchor.kind === 'lift') {
+      const key = anchor.end === 'top' ? `lt:${anchor.liftId}` : `lb:${anchor.liftId}`;
+      return sites.has(key) ? { key } : null;
+    }
+    if (anchor.kind === 'node') {
+      const key = `nd:${anchor.nodeId}`;
+      return sites.has(key) ? { key } : null;
+    }
+    const entityKey = anchor.kind === 'trail' ? `trail:${anchor.trailId}` : `path:${anchor.pathId}`;
+    const candidates = polylinesByEntity.get(entityKey) ?? [];
+    if (candidates.length === 0) return null;
+    const pm = toMeters(frame, anchor.point);
+    let best: { pi: number; s: number; d: number } | null = null;
+    for (const pi of candidates) {
+      const cpl = polylines[pi];
+      for (let si = 0; si < cpl.m.length - 1; si++) {
+        const { d, u } = pointSegmentDistance(pm, cpl.m[si], cpl.m[si + 1]);
+        if (!best || d < best.d - 1e-9) {
+          const s = cpl.cum[si] + u * (cpl.cum[si + 1] - cpl.cum[si]);
+          best = { pi, s, d };
+        }
+      }
+    }
+    if (!best || best.d > opt.anchorResolveM) return null;
+    return { key: addTrailSite(best.pi, best.s, false) };
+  }
+
+  function linkAnchor(ownKey: string, resolved: { key: string }, ownerId: string): void {
+    forcedLinks.push({ a: ownKey, b: resolved.key });
+    const ownSite = sites.get(ownKey);
+    const resolvedSite = sites.get(resolved.key);
+    if (ownSite && resolvedSite) {
+      const distM = Math.hypot(ownSite.m.x - resolvedSite.m.x, ownSite.m.y - resolvedSite.m.y);
+      if (distM > NETWORK_DEFAULTS.maxClusterRadiusM) overreachingAnchorIdSet.add(ownerId);
+    }
+  }
+
+  for (const trail of trailList) {
+    if (!trail.anchor) {
+      unanchoredTrailIdSet.add(trail.id);
+      continue;
+    }
+    const ownPi = polylineIndexByKey.get(`${trail.id}:0`);
+    if (ownPi === undefined) {
+      unresolvedAnchorTrailIdSet.add(trail.id);
+      continue;
+    }
+    const ownKey = trailSiteKey(ownPi, 0);
+    const resolved = resolveAnchorSiteKey(trail.anchor, { kind: 'trail', id: trail.id });
+    if (resolved === 'self' || resolved === null) {
+      unresolvedAnchorTrailIdSet.add(trail.id);
+      continue;
+    }
+    linkAnchor(ownKey, resolved, trail.id);
+  }
+
+  for (const p of pathList) {
+    const ownPi = polylineIndexByKey.get(`path:${p.id}`);
+    if (ownPi === undefined) {
+      unresolvedAnchorPathIdSet.add(p.id);
+      continue;
+    }
+    const ownPl = polylines[ownPi];
+    const headKey = trailSiteKey(ownPi, 0);
+    const footKey = trailSiteKey(ownPi, ownPl.totalM);
+    let unresolved = false;
+
+    const fromResolved = resolveAnchorSiteKey(p.from, { kind: 'path', id: p.id });
+    if (fromResolved === 'self' || fromResolved === null) unresolved = true;
+    else linkAnchor(headKey, fromResolved, p.id);
+
+    const toResolved = resolveAnchorSiteKey(p.to, { kind: 'path', id: p.id });
+    if (toResolved === 'self' || toResolved === null) unresolved = true;
+    else linkAnchor(footKey, toResolved, p.id);
+
+    if (unresolved) unresolvedAnchorPathIdSet.add(p.id);
+  }
+
+  // A node dropped ON a run, lift or path records what it sits on. Honour that
+  // here, or the node would become an isolated island in the graph — visibly a
+  // junction on the map, but connected to nothing.
+  for (const node of nodeList) {
+    if (!node.anchor) continue;
+    const resolved = resolveAnchorSiteKey(node.anchor, { kind: 'node', id: node.id });
+    if (resolved === 'self' || resolved === null) continue;
+    linkAnchor(`nd:${node.id}`, resolved, node.id);
+  }
+
+  diagnostics.unanchoredTrailIds = [...unanchoredTrailIdSet].sort();
+  diagnostics.unresolvedAnchorTrailIds = [...unresolvedAnchorTrailIdSet].sort();
+  diagnostics.unresolvedAnchorPathIds = [...unresolvedAnchorPathIdSet].sort();
+  diagnostics.overreachingAnchorIds = [...overreachingAnchorIdSet].sort();
+
   // -- collapse sub-minSegmentM splits -------------------------------------
   //
   // This is what kills the whole zero-length-edge bug class at the source: a
   // degenerate split becomes a MERGE, never an edge. It also turns "run A
   // overshoots run B by 2 m" into a clean junction instead of a 2 m stub.
-  const forcedLinks: { a: string; b: string }[] = [];
   const keptByPolyline: string[][] = polylines.map(() => []);
   for (let i = 0; i < polylines.length; i++) {
     const own = [...sites.values()]
@@ -986,6 +1281,8 @@ export function buildSkiNetwork(
     liftBases: Set<string>;
     liftTops: Set<string>;
     trailIds: Set<string>;
+    nodeIds: Set<string>;
+    pathIds: Set<string>;
     fromCrossing: boolean;
     headOnly: boolean;
   }
@@ -1002,6 +1299,8 @@ export function buildSkiNetwork(
         liftBases: new Set(),
         liftTops: new Set(),
         trailIds: new Set(),
+        nodeIds: new Set(),
+        pathIds: new Set(),
         fromCrossing: false,
         headOnly: true,
       };
@@ -1017,8 +1316,11 @@ export function buildSkiNetwork(
     }
     if (site.liftBase) c.liftBases.add(site.liftBase);
     if (site.liftTop) c.liftTops.add(site.liftTop);
+    if (site.userNode) c.nodeIds.add(site.userNode);
     if (site.polylineIndex >= 0) {
-      c.trailIds.add(polylines[site.polylineIndex].trailId);
+      const pl = polylines[site.polylineIndex];
+      if (pl.entityKind === 'trail') c.trailIds.add(pl.entityId);
+      else c.pathIds.add(pl.entityId);
       if (site.s > 1e-6) c.headOnly = false;
     }
     if (site.fromCrossing) c.fromCrossing = true;
@@ -1045,6 +1347,7 @@ export function buildSkiNetwork(
     let kind: NetworkNodeKind;
     if (c.liftBases.size > 0) kind = 'lift-base';
     else if (c.liftTops.size > 0) kind = 'lift-top';
+    else if (c.nodeIds.size > 0) kind = 'user-node';
     else if (c.fromCrossing) kind = 'crossing';
     else if (c.members.length > 1) kind = 'junction';
     else if (c.headOnly) kind = 'trail-head';
@@ -1057,6 +1360,8 @@ export function buildSkiNetwork(
       liftBases: [...c.liftBases].sort(),
       liftTops: [...c.liftTops].sort(),
       trailIds: [...c.trailIds].sort(),
+      nodeIds: [...c.nodeIds].sort(),
+      pathIds: [...c.pathIds].sort(),
       outgoing: [],
       incoming: [],
     };
@@ -1070,16 +1375,35 @@ export function buildSkiNetwork(
     return rootToNode.get(clusters.find(i)) as NodeId;
   };
 
-  // -- trail edges ----------------------------------------------------------
+  // A path is degenerate when its two declared ends resolved into the same
+  // cluster — still a legal connector (e.g. a loop back to its own junction),
+  // just flagged so the UI can call it out. Edges still build normally.
+  const degeneratePathIdSet = new Set<string>();
+  for (const p of pathList) {
+    const pi = polylineIndexByKey.get(`path:${p.id}`);
+    if (pi === undefined) continue;
+    const pl = polylines[pi];
+    const headKey = trailSiteKey(pi, 0);
+    const footKey = trailSiteKey(pi, pl.totalM);
+    if (nodeForSite(headKey) === nodeForSite(footKey)) degeneratePathIdSet.add(p.id);
+  }
+  diagnostics.degeneratePathIds = [...degeneratePathIdSet].sort();
+
+  // -- trail & path edges ----------------------------------------------------
 
   const edges: NetworkEdge[] = [];
   const trailEdgeIds = new Map<string, EdgeId[]>();
+  const pathEdgeIds = new Map<string, EdgeId[]>();
 
   for (let i = 0; i < polylines.length; i++) {
     const pl = polylines[i];
     const kept = keptByPolyline[i];
     if (kept.length < 2) continue;
-    const trail = pl.trail;
+
+    if (pl.entityKind === 'trail') {
+    const trail = pl.trail as SavedTrail;
+    const trailId = pl.trailId as string;
+    const partIndex = pl.partIndex as number;
     const condition: EdgeCondition = trail.closed ? 'closed' : 'open';
     const planned = trail.status === 'planning';
     let segmentIndex = 0;
@@ -1108,13 +1432,13 @@ export function buildSkiNetwork(
       // part's footprint area. Proration by length is the right model here:
       // runs are painted at a constant brush diameter.
       const areaM2 = pl.totalM > 0 ? (pl.areaM2 * spanM) / pl.totalM : 0;
-      const id: EdgeId = `t:${pl.trailId}:${pl.partIndex}:${segmentIndex}`;
+      const id: EdgeId = `t:${trailId}:${partIndex}:${segmentIndex}`;
       const from = nodeForSite(aSite.key);
       const to = nodeForSite(bSite.key);
       const base = {
-        trailId: pl.trailId,
+        trailId,
         trailName: trail.name,
-        partIndex: pl.partIndex,
+        partIndex,
         segmentIndex,
         difficulty,
         avgSlopeDeg: stats.avgSlopeDeg,
@@ -1142,9 +1466,9 @@ export function buildSkiNetwork(
         ...base,
       });
       if (traverse) diagnostics.traverseEdgeCount++;
-      const list = trailEdgeIds.get(pl.trailId) ?? [];
+      const list = trailEdgeIds.get(trailId) ?? [];
       list.push(id);
-      trailEdgeIds.set(pl.trailId, list);
+      trailEdgeIds.set(trailId, list);
 
       if (opt.bidirectionalTraverses && nearFlat) {
         const twinId: EdgeId = `${id}:r`;
@@ -1162,6 +1486,85 @@ export function buildSkiNetwork(
         diagnostics.traverseEdgeCount++;
       }
       segmentIndex++;
+    }
+    } else {
+      const savedPath = pl.path as SavedPath;
+      const condition: EdgeCondition = savedPath.closed ? 'closed' : 'open';
+      const planned = savedPath.status === 'planning';
+      let segmentIndex = 0;
+      for (let k = 0; k < kept.length - 1; k++) {
+        const aSite = sites.get(kept[k]) as Site;
+        const bSite = sites.get(kept[k + 1]) as Site;
+        const spanM = bSite.s - aSite.s;
+        if (spanM <= 0) continue;
+        const { lngLat, elevM } = sliceBetween(pl, aSite.s, bSite.s);
+        if (lngLat.length < 2) continue;
+        const stats = trailStats(lngLat, elevM);
+        const elevationResolved = elevM.length === lngLat.length && elevM.length > 0;
+        // A path has no stored difficulty to fall back on; unresolved terrain
+        // reads as the mellowest band rather than fabricating a grade.
+        const difficulty: TrailDifficulty = elevationResolved
+          ? difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg)
+          : 'green';
+        const netVerticalM = elevationResolved ? elevM[0] - elevM[elevM.length - 1] : null;
+        const flatTolM = Math.max(FLAT_FLOOR_M, FLAT_GRADE * spanM);
+        const nearFlat = netVerticalM != null && Math.abs(netVerticalM) <= flatTolM;
+        const climbs = netVerticalM != null && netVerticalM < -flatTolM;
+        const traverse = nearFlat || climbs;
+        const speed = traverse ? TRAVERSE_SPEED_MPS : SKI_SPEED_MPS[difficulty];
+        const id: EdgeId = `x:${savedPath.id}:${segmentIndex}`;
+        const from = nodeForSite(aSite.key);
+        const to = nodeForSite(bSite.key);
+        const base = {
+          pathId: savedPath.id,
+          pathName: savedPath.name,
+          segmentIndex,
+          difficulty,
+          avgSlopeDeg: stats.avgSlopeDeg,
+          maxSlopeDeg: stats.maxSlopeDeg,
+          verticalM: stats.verticalM,
+          widthM: savedPath.widthM,
+          status: savedPath.status,
+          planned,
+          elevationResolved,
+          condition,
+          open: condition === 'open' && savedPath.status === 'complete',
+          lengthM: stats.lengthM,
+          travelTimeS: speed > 0 ? stats.lengthM / speed : 0,
+        };
+        edges.push({
+          kind: 'path',
+          id,
+          from,
+          to,
+          path: lngLat,
+          elevM,
+          netVerticalM,
+          traverse,
+          ...base,
+        });
+        if (traverse) diagnostics.traverseEdgeCount++;
+        const list = pathEdgeIds.get(savedPath.id) ?? [];
+        list.push(id);
+        pathEdgeIds.set(savedPath.id, list);
+
+        if (opt.bidirectionalTraverses && nearFlat) {
+          const twinId: EdgeId = `${id}:r`;
+          edges.push({
+            kind: 'path',
+            id: twinId,
+            from: to,
+            to: from,
+            path: [...lngLat].reverse(),
+            elevM: [...elevM].reverse(),
+            netVerticalM: netVerticalM != null ? -netVerticalM : null,
+            traverse: true,
+            ...base,
+          });
+          diagnostics.traverseEdgeCount++;
+        }
+        segmentIndex++;
+      }
     }
   }
 
@@ -1233,6 +1636,7 @@ export function buildSkiNetwork(
     nodeById,
     edgeById,
     trailEdgeIds,
+    pathEdgeIds,
     liftEdgeIds,
     frame,
     diagnostics,
@@ -1503,6 +1907,7 @@ export function networkSummary(network: SkiNetwork): NetworkSummary {
       liftEdgeCount++;
       continue;
     }
+    if (e.kind !== 'trail') continue; // a path is a connector, not graded terrain
     if (e.id.endsWith(':r')) continue; // reverse twins are not extra terrain
     trailEdgeCount++;
     trailLengthM += e.lengthM;

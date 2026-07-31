@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sanitizeLifts } from './lifts';
+import { sanitizeNodes, sanitizePaths } from './skiNodes';
 import { sanitizeTrails, trailStats } from './trails';
 import {
   buildSkiNetwork,
@@ -16,8 +17,10 @@ import {
   trailsFromLift,
   withLiftQueues,
   type LiftEdge,
+  type PathEdge,
   type TrailEdge,
 } from './network';
+import type { AnchorRef, SavedNode, SavedPath } from './skiNodes';
 import type { SavedLift, SavedTrail } from './types';
 
 // Fixtures are laid out in flat meters around a Cascades-ish anchor and then
@@ -114,6 +117,44 @@ function straightRun(
 
 const trailEdges = (edges: readonly { kind: string }[]) =>
   edges.filter((e): e is TrailEdge => e.kind === 'trail');
+const pathEdges = (edges: readonly { kind: string }[]) =>
+  edges.filter((e): e is PathEdge => e.kind === 'path');
+
+function mkNode(id: string, point: [number, number], extra: Record<string, unknown> = {}): SavedNode {
+  return sanitizeNodes([
+    {
+      id,
+      name: id,
+      point,
+      elevM: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      ...extra,
+    },
+  ])[0];
+}
+
+function mkPath(
+  id: string,
+  points: [number, number][],
+  from: AnchorRef,
+  to: AnchorRef,
+  extra: Record<string, unknown> = {}
+): SavedPath {
+  return sanitizePaths([
+    {
+      id,
+      name: id,
+      points,
+      pointElevM: [],
+      widthM: 6,
+      from,
+      to,
+      status: 'complete',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      ...extra,
+    },
+  ])[0];
+}
 
 // ---------------------------------------------------------------------------
 
@@ -719,5 +760,252 @@ describe('networkSummary', () => {
     const total = Object.values(summary.byDifficulty).reduce((n, b) => n + b.count, 0);
     expect(total).toBe(2);
     expect(summary.trailLengthM).toBeCloseTo(green.lengthM + black.lengthM, 3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave 2B: graph integration of user nodes, paths and explicit anchors.
+// ---------------------------------------------------------------------------
+
+describe('graph integration: nodes, paths and explicit anchors', () => {
+  it('is byte-identical to the anchor-free build when nodes/paths are empty (back-compat pin)', () => {
+    const lift = mkLift('L', at(0, 0), at(0, 600), [200, 500]);
+    const a = straightRun('a', [10, 590], [10, 0], 500, 300);
+    const b = straightRun('b', [-10, 590], [-200, 0], 500, 300);
+    const base = buildSkiNetwork([a, b], [lift]);
+    const withEmptyOpts = buildSkiNetwork([a, b], [lift], { nodes: [], paths: [] });
+    expect(withEmptyOpts.nodes.map((n) => n.id)).toEqual(base.nodes.map((n) => n.id));
+    expect(withEmptyOpts.edges.map((e) => `${e.id}|${e.from}|${e.to}`)).toEqual(
+      base.edges.map((e) => `${e.id}|${e.from}|${e.to}`)
+    );
+  });
+
+  it('shares a lift-top node with a trail head anchored to it, beyond what liftSnapM inference alone reaches', () => {
+    const lift = mkLift('L', at(0, 0), at(0, 600), [200, 500]);
+    // Head sits 55 m from the lift top — past the 40 m liftSnapM radius, and
+    // its bbox doesn't even overlap the terminal, so pure inference can't see it.
+    const withoutAnchor = straightRun('b', [55, 600], [400, 0], 500, 300);
+    const disconnected = buildSkiNetwork([withoutAnchor], [lift]);
+    expect(disconnected.diagnostics.componentCount).toBe(2);
+
+    const withAnchor = straightRun('b', [55, 600], [400, 0], 500, 300, 5, {
+      anchor: { kind: 'lift', liftId: 'L', end: 'top', point: at(0, 600) },
+    });
+    const net = buildSkiNetwork([withAnchor], [lift]);
+    const liftEdge = net.edgeById.get('l:L') as LiftEdge;
+    expect(edgesForTrail(net, 'b')[0].from).toBe(liftEdge.to);
+    expect(net.diagnostics.componentCount).toBe(1);
+    expect(net.diagnostics.overreachingAnchorIds).toEqual([]);
+  });
+
+  it('splits a run at an explicit mid-point anchor, sharing the junction and conserving length', () => {
+    const a = straightRun('A', [-300, 0], [300, 0], 300, 60, 5);
+    const b = straightRun('B', [0, 45], [0, 250], 260, 40, 3, {
+      anchor: { kind: 'trail', trailId: 'A', point: at(0, 0) },
+    });
+    const net = buildSkiNetwork([a, b], []);
+    const segsA = edgesForTrail(net, 'A');
+    expect(segsA).toHaveLength(2);
+    expect(segsA[0].to).toBe(segsA[1].from);
+    const bHead = edgesForTrail(net, 'B')[0].from;
+    expect(segsA[0].to).toBe(bHead);
+    const totalLen = segsA.reduce((sum, e) => sum + e.lengthM, 0);
+    expect(Math.abs(totalLen - a.lengthM) / a.lengthM).toBeLessThan(0.005);
+    expect(net.diagnostics.overreachingAnchorIds).toEqual([]);
+  });
+
+  it('treats an anchor whose target trail no longer exists as unresolved, without changing the graph', () => {
+    const withAnchor = straightRun('B', [0, 300], [0, 0], 260, 60, 5, {
+      anchor: { kind: 'trail', trailId: 'ghost', point: at(0, 0) },
+    });
+    const withoutAnchor = straightRun('B', [0, 300], [0, 0], 260, 60, 5);
+    const net = buildSkiNetwork([withAnchor], []);
+    const baseline = buildSkiNetwork([withoutAnchor], []);
+    expect(net.diagnostics.unresolvedAnchorTrailIds).toEqual(['B']);
+    expect(net.nodes.map((n) => n.kind)).toEqual(baseline.nodes.map((n) => n.kind));
+    expect(net.edges.map((e) => `${e.id}|${e.from}|${e.to}`)).toEqual(
+      baseline.edges.map((e) => `${e.id}|${e.from}|${e.to}`)
+    );
+  });
+
+  it('treats an anchor whose cached point drifted beyond anchorResolveM as unresolved', () => {
+    const a = straightRun('A', [-300, 0], [300, 0], 300, 60, 5);
+    // Cached 90 m off A's current centerline — beyond the 50 m default.
+    const b = straightRun('B', [0, 300], [0, 100], 260, 60, 3, {
+      anchor: { kind: 'trail', trailId: 'A', point: at(0, 90) },
+    });
+    const net = buildSkiNetwork([a, b], []);
+    expect(net.diagnostics.unresolvedAnchorTrailIds).toEqual(['B']);
+    expect(net.diagnostics.componentCount).toBe(2);
+  });
+
+  it('rejects a self-anchor without throwing or creating a self-loop', () => {
+    const a = straightRun('A', [-300, 0], [300, 0], 300, 60, 5, {
+      anchor: { kind: 'trail', trailId: 'A', point: at(0, 0) },
+    });
+    expect(() => buildSkiNetwork([a], [])).not.toThrow();
+    const net = buildSkiNetwork([a], []);
+    expect(net.diagnostics.unresolvedAnchorTrailIds).toEqual(['A']);
+    const segs = edgesForTrail(net, 'A');
+    expect(segs).toHaveLength(1);
+    for (const e of segs) expect(e.from).not.toBe(e.to);
+  });
+
+  it('unions an anchor across a distance the cluster cap would refuse, flagging it as overreaching', () => {
+    const lift = mkLift('L', at(0, 0), at(0, 600), [200, 500]);
+    // ~200 m from the lift top at (0,600) — far past maxClusterRadiusM (60 m).
+    const b = straightRun('B', [0, 800], [400, 800], 500, 100, 3, {
+      anchor: { kind: 'lift', liftId: 'L', end: 'top', point: at(0, 600) },
+    });
+    const net = buildSkiNetwork([b], [lift]);
+    const liftEdge = net.edgeById.get('l:L') as LiftEdge;
+    const bHead = edgesForTrail(net, 'B')[0].from;
+    expect(bHead).toBe(liftEdge.to);
+    expect(net.diagnostics.overreachingAnchorIds).toEqual(['B']);
+  });
+
+  it('drops componentCount from 2 to 1 when a path connects two otherwise-disconnected runs', () => {
+    const podA = straightRun('a', [0, 400], [0, 0], 500, 120);
+    const podB = straightRun('b', [900, 400], [900, 0], 500, 120);
+    const disconnected = buildSkiNetwork([podA, podB], []);
+    expect(disconnected.diagnostics.componentCount).toBe(2);
+
+    const path = mkPath(
+      'p1',
+      [at(5, 5), at(895, 5)],
+      { kind: 'trail', trailId: 'a', point: at(5, 5) },
+      { kind: 'trail', trailId: 'b', point: at(895, 5) }
+    );
+    const connected = buildSkiNetwork([podA, podB], [], { paths: [path] });
+    expect(connected.diagnostics.componentCount).toBe(1);
+  });
+
+  it('emits PathEdges with their own difficulty; a dead-flat path is a traverse, mirrored when bidirectional', () => {
+    const flatPoints: [number, number][] = [at(0, 300), at(0, 150), at(0, 0)];
+    const n1 = mkNode('n1', flatPoints[0]);
+    const n2 = mkNode('n2', flatPoints[2]);
+    const path = mkPath(
+      'flatpath',
+      flatPoints,
+      { kind: 'node', nodeId: 'n1', point: flatPoints[0] },
+      { kind: 'node', nodeId: 'n2', point: flatPoints[2] },
+      { pointElevM: [400, 400, 400] }
+    );
+    const net = buildSkiNetwork([], [], { nodes: [n1, n2], paths: [path] });
+    const segs = pathEdges(net.edges).filter((e) => !e.id.endsWith(':r'));
+    expect(segs.length).toBeGreaterThan(0);
+    for (const e of segs) {
+      expect(e.pathId).toBe('flatpath');
+      expect(e.traverse).toBe(true);
+      expect(e.difficulty).toBe('green');
+    }
+    expect(net.pathEdgeIds.get('flatpath')?.length).toBe(segs.length);
+
+    const bidi = buildSkiNetwork([], [], {
+      nodes: [n1, n2],
+      paths: [path],
+      bidirectionalTraverses: true,
+    });
+    const twins = pathEdges(bidi.edges).filter((e) => e.id.endsWith(':r'));
+    expect(twins).toHaveLength(segs.length);
+  });
+
+  it('splits both a path and the trail it crosses mid-run', () => {
+    const a = straightRun('a', [-200, 100], [200, 100], 300, 40, 5);
+    const n1 = mkNode('n1', at(0, 250));
+    const n2 = mkNode('n2', at(0, -50));
+    const path = mkPath(
+      'crosser',
+      [at(0, 250), at(0, -50)],
+      { kind: 'node', nodeId: 'n1', point: at(0, 250) },
+      { kind: 'node', nodeId: 'n2', point: at(0, -50) }
+    );
+    const net = buildSkiNetwork([a], [], { nodes: [n1, n2], paths: [path] });
+    expect(edgesForTrail(net, 'a')).toHaveLength(2);
+    const segs = pathEdges(net.edges).filter((e) => !e.id.endsWith(':r'));
+    expect(segs).toHaveLength(2);
+    expect(net.diagnostics.crossingCount).toBeGreaterThan(0);
+  });
+
+  it('keeps a lone SavedNode as a user-node with no incident edges', () => {
+    const n = mkNode('solo', at(5000, 5000));
+    const net = buildSkiNetwork([], [], { nodes: [n] });
+    expect(net.nodes).toHaveLength(1);
+    expect(net.nodes[0].kind).toBe('user-node');
+    expect(net.nodes[0].nodeIds).toEqual(['solo']);
+    expect(net.nodes[0].outgoing).toEqual([]);
+    expect(net.nodes[0].incoming).toEqual([]);
+  });
+
+  it('joins a node dropped on a run into that run, not an island beside it', () => {
+    // A node placed mid-run records what it sits on; honouring that anchor is
+    // what stops it becoming a visible junction connected to nothing.
+    const a = straightRun('a', [0, 400], [0, 0], 500, 120);
+    const mid = a.parts[0].centerline[2];
+    const n = mkNode('hub', mid, {
+      anchor: { kind: 'trail', trailId: 'a', point: mid } satisfies AnchorRef,
+    });
+    const net = buildSkiNetwork([a], [], { nodes: [n] });
+    expect(net.diagnostics.componentCount).toBe(1);
+    const hub = net.nodes.find((x) => x.nodeIds.includes('hub'));
+    expect(hub).toBeDefined();
+    expect(hub?.trailIds).toEqual(['a']);
+    // Sitting mid-run, it splits the run rather than dangling off the side.
+    expect(edgesForTrail(net, 'a').length).toBe(2);
+  });
+
+  it('leaves an unanchored node islanded, so the anchor is what does the work', () => {
+    const a = straightRun('a', [0, 400], [0, 0], 500, 120);
+    const n = mkNode('hub', a.parts[0].centerline[2]);
+    const net = buildSkiNetwork([a], [], { nodes: [n] });
+    expect(net.diagnostics.componentCount).toBe(2);
+  });
+
+  it('flags a legacy trail with no anchor field as unanchored, leaving output unchanged', () => {
+    const a = straightRun('a', [0, 400], [0, 0], 500, 120);
+    const net = buildSkiNetwork([a], []);
+    expect(net.diagnostics.unanchoredTrailIds).toEqual(['a']);
+    expect(trailEdges(net.edges)).toHaveLength(1);
+  });
+
+  it('is deterministic and order-independent across shuffled trails, nodes and paths', () => {
+    const lift = mkLift('L', at(0, 0), at(0, 800), [200, 600]);
+    const top = straightRun('top', [0, 790], [0, 400], 600, 120, 4);
+    const west = straightRun('west', [-10, 395], [-400, 0], 478, 200);
+    const east = straightRun('east', [10, 395], [400, 0], 478, 200);
+    const n1 = mkNode('n1', at(-800, 800));
+    const n2 = mkNode('n2', at(800, 800));
+    const path = mkPath(
+      'link',
+      [at(-800, 800), at(800, 800)],
+      { kind: 'node', nodeId: 'n1', point: at(-800, 800) },
+      { kind: 'node', nodeId: 'n2', point: at(800, 800) }
+    );
+
+    const a = buildSkiNetwork([top, west, east], [lift], { nodes: [n1, n2], paths: [path] });
+    const b = buildSkiNetwork([east, top, west], [lift], { nodes: [n2, n1], paths: [path] });
+    expect(b.nodes.map((n) => n.id)).toEqual(a.nodes.map((n) => n.id));
+    expect([...b.edges].map((e) => `${e.id}|${e.from}|${e.to}`).sort()).toEqual(
+      [...a.edges].map((e) => `${e.id}|${e.from}|${e.to}`).sort()
+    );
+  });
+
+  it('populates pathEdgeIds parallel to trailEdgeIds', () => {
+    const n1 = mkNode('n1', at(0, 300));
+    const n2 = mkNode('n2', at(0, 0));
+    const path = mkPath(
+      'p1',
+      [at(0, 300), at(0, 0)],
+      { kind: 'node', nodeId: 'n1', point: at(0, 300) },
+      { kind: 'node', nodeId: 'n2', point: at(0, 0) }
+    );
+    const net = buildSkiNetwork([], [], { nodes: [n1, n2], paths: [path] });
+    const ids = net.pathEdgeIds.get('p1');
+    expect(ids).toBeDefined();
+    expect(ids!.length).toBeGreaterThan(0);
+    for (const id of ids!) {
+      const e = net.edgeById.get(id);
+      expect(e?.kind).toBe('path');
+    }
   });
 });

@@ -10,7 +10,27 @@ import { CreditsPanel } from './CreditsPanel';
 import { LiftOverview } from './LiftOverview';
 import { LiftDetail } from './LiftDetail';
 import { NetworkMap } from './NetworkMap';
-import { buildSkiNetwork } from '../network';
+import { TrailsPanel, type TrailsTool } from './TrailsPanel';
+import { buildSkiNetwork, makeFrame, pointSegmentDistance, toMeters } from '../network';
+import {
+  DEFAULT_PATH_WIDTH_M,
+  describeAnchor,
+  nextNodeName,
+  nextPathName,
+  pathLengthM,
+  sanitizeNodes,
+  sanitizePaths,
+  type AnchorRef,
+  type SavedNode,
+  type SavedPath,
+} from '../skiNodes';
+import {
+  addNodePathDraftLayers,
+  addNodePathLayers,
+  setNodePathData,
+  setNodePathDraftData,
+  type NodePathDraft,
+} from './nodePathLayers';
 import { ResortStatsPanel } from './ResortStatsPanel';
 import { CursorReadout, type Readout } from './CursorReadout';
 import { Legend, type OverlayId } from './Legend';
@@ -59,7 +79,6 @@ import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS, type DraftLine } from './liftLayers';
 import { TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
-import { TrailOverview } from './TrailOverview';
 import { TrailDetail } from './TrailDetail';
 import { InfrastructureControl, type DraftRoad, type RoadTool } from './InfrastructureControl';
 import { addRoadDraftLayers, setRoadDraftData, type RoadDraftLine } from './roadLayers';
@@ -81,6 +100,7 @@ import { refreshTerrainGradeSources, setGradedContourPreview,
   setTerrainContourData } from './terrainGradeMap';
 import {
   FIXED_GRIP_SPEC,
+  fmtDistance,
   liftStats,
   nextLiftName,
   orientBottomToTop,
@@ -106,6 +126,26 @@ const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
 const INITIAL_ZOOM = 12;
 
 export type MapMode = 'picking' | 'playing';
+
+/** Placing a single user node: click the map once. */
+export type NodeTool =
+  | { phase: 'idle' }
+  | { phase: 'armed' }
+  | { phase: 'review'; point: [number, number]; elevM: number | null; anchor: AnchorRef | null; name: string };
+
+/** Drawing a connector path. Both ends must land on a valid anchor target,
+ *  which is the whole point of a path — it declares a connection. */
+export type PathTool =
+  | { phase: 'idle' }
+  | { phase: 'armed' }
+  | { phase: 'drawing'; points: [number, number][]; cursor: [number, number] | null; from: AnchorRef | null }
+  | { phase: 'review'; points: [number, number][]; from: AnchorRef; to: AnchorRef; name: string };
+
+/** What an in-flight anchor pick will be written back onto. */
+export type AnchorPickTarget = 'trail-start' | 'node' | 'path-start' | 'path-end';
+
+/** How close a click must land to a run/lift/path to count as anchoring to it. */
+const ANCHOR_PICK_M = 60;
 
 // Reject lift terminals closer than this — avoids accidental zero-length lifts
 // from a double-click.
@@ -322,6 +362,16 @@ export function MapView({
   const [trailEditing, setTrailEditing] = useState(false);
   const [roads, setRoads] = useState<SavedRoad[]>(() => sanitizeRoads(initialSave?.roads ?? []));
   const [roadTool, setRoadTool] = useState<RoadTool>({ phase: 'idle' });
+  // User-declared connectivity: placed nodes and drawn connector paths, both
+  // owned by the trails side panel.
+  const [skiNodes, setSkiNodes] = useState<SavedNode[]>(() => sanitizeNodes(initialSave?.nodes ?? []));
+  const [skiPaths, setSkiPaths] = useState<SavedPath[]>(() => sanitizePaths(initialSave?.paths ?? []));
+  const [nodeTool, setNodeTool] = useState<NodeTool>({ phase: 'idle' });
+  const [pathTool, setPathTool] = useState<PathTool>({ phase: 'idle' });
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
+  /** Non-null while the player is clicking the map to choose a run's start. */
+  const [anchorPicking, setAnchorPicking] = useState<AnchorPickTarget | null>(null);
   // Last-used brush width, kept across arms so it persists between runs.
   const [brushWidthM, setBrushWidthM] = useState(DEFAULT_BRUSH_WIDTH_M);
   // Identifies the active construction operation for disabled controls, button
@@ -337,7 +387,10 @@ export function MapView({
   // sanitizeTrails recompute cached stats on load, so it can never drift from
   // the geometry. Keyed on the two state arrays, so it rebuilds when a run or
   // lift changes and never while the camera moves.
-  const network = useMemo(() => buildSkiNetwork(trails, lifts), [trails, lifts]);
+  const network = useMemo(
+    () => buildSkiNetwork(trails, lifts, { nodes: skiNodes, paths: skiPaths }),
+    [trails, lifts, skiNodes, skiPaths]
+  );
 
   // Exposed for the Playwright verification harness, alongside window.appMap.
   useEffect(() => {
@@ -378,6 +431,11 @@ export function MapView({
   const liftToolRef = useRef<LiftTool>(liftTool);
   const liftSampleTokenRef = useRef(0);
   const selectLiftRef = useRef<(id: string) => void>(() => {});
+  const skiNodesRef = useRef<SavedNode[]>(skiNodes);
+  const skiPathsRef = useRef<SavedPath[]>(skiPaths);
+  const nodeToolRef = useRef<NodeTool>(nodeTool);
+  const pathToolRef = useRef<PathTool>(pathTool);
+  const anchorPickingRef = useRef<AnchorPickTarget | null>(anchorPicking);
   const trailsRef = useRef<SavedTrail[]>(trails);
   const trailToolRef = useRef<TrailTool>(trailTool);
   const trailSampleTokenRef = useRef(0);
@@ -454,6 +512,11 @@ export function MapView({
   trailToolRef.current = trailTool;
   roadsRef.current = roads;
   roadToolRef.current = roadTool;
+  skiNodesRef.current = skiNodes;
+  skiPathsRef.current = skiPaths;
+  nodeToolRef.current = nodeTool;
+  pathToolRef.current = pathTool;
+  anchorPickingRef.current = anchorPicking;
   brushWidthRef.current = brushWidthM;
   terrainRecordRef.current = terrainRecord;
   packageStateRef.current = packageState;
@@ -661,6 +724,8 @@ export function MapView({
     // Roads sit with the basemap context; their transient construction overlay
     // remains beneath ski runs and lifts.
     addRoadDraftLayers(map);
+    addNodePathLayers(map);
+    addNodePathDraftLayers(map);
     setRoadDraftData(map, roadDraftOf(roadToolRef.current));
     // Runs beneath lifts (ski-map convention): add trails first, lifts on top.
     addTrailLayers(map);
@@ -1196,6 +1261,135 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roadTool.phase]);
 
+  // Built nodes + paths pushed to their own source, the same way lifts are.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map) setNodePathData(map, skiNodes, skiPaths);
+  }, [skiNodes, skiPaths, terrainRecord]);
+
+  // The in-progress connector line follows the cursor between clicks.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const draft: NodePathDraft | null =
+      pathTool.phase === 'drawing'
+        ? { points: pathTool.points, cursor: pathTool.cursor, highlight: [] }
+        : pathTool.phase === 'review'
+          ? { points: pathTool.points, cursor: null, highlight: [] }
+          : null;
+    setNodePathDraftData(map, draft);
+  }, [pathTool]);
+
+  // Node placement: one click drops a node, snapping onto whatever run, lift or
+  // path it lands on so the node declares a real connection rather than
+  // floating beside one.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || nodeTool.phase !== 'armed') return;
+    map.getCanvas().style.cursor = 'crosshair';
+    const onClick = (e: maplibregl.MapMouseEvent) => {
+      const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      const anchor = anchorAt(raw);
+      const point = anchor ? anchor.point : raw;
+      setNodeTool({
+        phase: 'review',
+        point,
+        elevM: null,
+        anchor,
+        name: nextNodeName(skiNodesRef.current),
+      });
+      const z = Math.min(14, Math.max(10, Math.round(map.getZoom())));
+      void samplePlanningTerrain(point[0], point[1], z).then((s) => {
+        setNodeTool((t) =>
+          t.phase === 'review' ? { ...t, elevM: s ? s.elevation : null } : t
+        );
+      });
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelNodeTool();
+    };
+    map.on('click', onClick);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      map.off('click', onClick);
+      window.removeEventListener('keydown', onKey);
+      map.getCanvas().style.cursor = '';
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeTool.phase]);
+
+  // Path drawing, modelled on the road tool: click to append, Backspace to
+  // undo, Enter to finish, Escape to cancel. The difference is that the FIRST
+  // and LAST clicks must land on a valid anchor target — a connector that
+  // connects nothing has no purpose.
+  useEffect(() => {
+    const map = mapRef.current;
+    const phase = pathTool.phase;
+    if (!map || (phase !== 'armed' && phase !== 'drawing')) return;
+    map.getCanvas().style.cursor = 'crosshair';
+
+    const onClick = (e: maplibregl.MapMouseEvent) => {
+      const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      const t = pathToolRef.current;
+      if (t.phase === 'armed') {
+        const anchor = anchorAt(raw);
+        if (!anchor) return; // the start must attach to something
+        setPathTool({ phase: 'drawing', points: [anchor.point], cursor: null, from: anchor });
+        return;
+      }
+      if (t.phase !== 'drawing') return;
+      const last = t.points.at(-1);
+      if (last && haversineMeters(last, raw) < 1) return;
+      setPathTool({ ...t, points: [...t.points, raw], cursor: null });
+    };
+    const onMove = (e: maplibregl.MapMouseEvent) => {
+      const t = pathToolRef.current;
+      if (t.phase === 'drawing') setPathTool({ ...t, cursor: [e.lngLat.lng, e.lngLat.lat] });
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelPathTool();
+      else if (e.key === 'Backspace') { e.preventDefault(); undoPathPoint(); }
+      else if (e.key === 'Enter') finishPathRoute();
+    };
+    map.on('click', onClick);
+    map.on('mousemove', onMove);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      map.off('click', onClick);
+      map.off('mousemove', onMove);
+      window.removeEventListener('keydown', onKey);
+      map.getCanvas().style.cursor = '';
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathTool.phase]);
+
+  // Picking a run's start: one click on a lift terminal, a run, a path or a
+  // node. Escape leaves the existing choice untouched.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !anchorPicking) return;
+    map.getCanvas().style.cursor = 'crosshair';
+    const onClick = (e: maplibregl.MapMouseEvent) => {
+      const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      const anchor = anchorAt(raw);
+      if (!anchor) return; // clicking open terrain is a miss, not a clear
+      applyPickedAnchor(anchorPickingRef.current ?? 'trail-start', anchor, raw);
+      setAnchorPicking(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAnchorPicking(null);
+    };
+    map.on('click', onClick);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      map.off('click', onClick);
+      window.removeEventListener('keydown', onKey);
+      map.getCanvas().style.cursor = '';
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anchorPicking]);
+
+
   /** Sample the shape-derived centerlines, orient each top→bottom, and grade. */
   function sampleTrailElevations(parts: DraftTrail['parts']) {
     const map = mapRef.current;
@@ -1213,6 +1407,11 @@ export function MapView({
         if (token !== trailSampleTokenRef.current) return;
         const stats = trailPartsStats(resolvedParts);
         const recommended = difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg);
+        // Now that the parts are oriented top-to-bottom, station 0 really is the
+        // uphill head — propose the nearest connection point to it so the common
+        // case is a confirmation, not a hunt. `??` keeps an explicit pick from
+        // being clobbered when elevations are re-sampled.
+        const head = resolvedParts[0]?.centerline[0];
         setTrailTool((t) =>
           t.phase === 'review'
             ? {
@@ -1223,6 +1422,7 @@ export function MapView({
                   ungradedParts: resolvedParts,
                   elevStatus: 'ok',
                   difficulty: recommended,
+                  anchor: t.draft.anchor ?? (head ? anchorAt(head) : null),
                 },
               }
             : t
@@ -1813,6 +2013,198 @@ export function MapView({
     setLiftEditing(false);
   }
 
+  // ---- User-declared connectivity: anchors, nodes, connector paths ---------
+
+  /**
+   * Nearest valid connection point to a clicked location, or null when the
+   * click lands in open terrain. The returned `point` is snapped ONTO the
+   * target (the perpendicular foot on a run, the terminal itself on a lift), so
+   * network.ts can resolve it back to an exact chainage later. A user-placed
+   * node wins ties: it is the most deliberate thing on the map.
+   */
+  function anchorAt(click: [number, number]): AnchorRef | null {
+    // A frame centred on the click keeps cos(lat) honest even before any
+    // geometry exists, which the network's own frame cannot promise.
+    const frame = makeFrame([click]);
+    const pm = toMeters(frame, click);
+    let best: { ref: AnchorRef; d: number } | null = null;
+    const consider = (ref: AnchorRef, d: number) => {
+      if (d > ANCHOR_PICK_M) return;
+      if (!best || d < best.d) best = { ref, d };
+    };
+
+    for (const node of skiNodesRef.current) {
+      const m = toMeters(frame, node.point);
+      consider(
+        { kind: 'node', nodeId: node.id, point: node.point },
+        Math.hypot(m.x - pm.x, m.y - pm.y) - 1 // slight bias: prefer a real node
+      );
+    }
+    for (const lift of liftsRef.current) {
+      const stats = liftStats(lift.points, lift.endpointElevM);
+      const flip = stats.topIndex === 0;
+      const ends: { end: 'base' | 'top'; point: [number, number] }[] = [
+        { end: 'base', point: flip ? lift.points[1] : lift.points[0] },
+        { end: 'top', point: flip ? lift.points[0] : lift.points[1] },
+      ];
+      for (const { end, point } of ends) {
+        const m = toMeters(frame, point);
+        consider({ kind: 'lift', liftId: lift.id, end, point }, Math.hypot(m.x - pm.x, m.y - pm.y));
+      }
+    }
+    const onPolyline = (pts: [number, number][], make: (p: [number, number]) => AnchorRef) => {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = toMeters(frame, pts[i]);
+        const b = toMeters(frame, pts[i + 1]);
+        const { d, u } = pointSegmentDistance(pm, a, b);
+        const foot: [number, number] = [
+          pts[i][0] + (pts[i + 1][0] - pts[i][0]) * u,
+          pts[i][1] + (pts[i + 1][1] - pts[i][1]) * u,
+        ];
+        consider(make(foot), d);
+      }
+    };
+    for (const trail of trailsRef.current) {
+      for (const part of trail.parts) {
+        onPolyline(part.centerline, (point) => ({ kind: 'trail', trailId: trail.id, point }));
+      }
+    }
+    for (const path of skiPathsRef.current) {
+      onPolyline(path.points, (point) => ({ kind: 'path', pathId: path.id, point }));
+    }
+    return best ? (best as { ref: AnchorRef; d: number }).ref : null;
+  }
+
+  /** Write a picked anchor back onto whichever draft asked for it. */
+  function applyPickedAnchor(target: AnchorPickTarget, anchor: AnchorRef, click: [number, number]) {
+    if (target === 'trail-start') {
+      patchTrailDraft({ anchor });
+    } else if (target === 'node') {
+      setNodeTool((t) => (t.phase === 'review' ? { ...t, anchor } : t));
+    } else if (target === 'path-start') {
+      setPathTool({ phase: 'drawing', points: [anchor.point], cursor: null, from: anchor });
+    } else if (target === 'path-end') {
+      const t = pathToolRef.current;
+      if (t.phase !== 'drawing' || !t.from) return;
+      const points = [...t.points, anchor.point];
+      if (points.length < 2) return;
+      setPathTool({
+        phase: 'review',
+        points,
+        from: t.from,
+        to: anchor,
+        name: nextPathName(skiPathsRef.current),
+      });
+    }
+    void click;
+  }
+
+  function armNodeTool() {
+    if (siteModeRef.current === 'selecting') return;
+    cancelLiftTool();
+    cancelTrailTool();
+    cancelRoadTool();
+    cancelPathTool();
+    setSelectedTrailId(null);
+    setSelectedLiftId(null);
+    setOpenDock('trails');
+    setNodeTool({ phase: 'armed' });
+  }
+
+  function cancelNodeTool() {
+    setNodeTool({ phase: 'idle' });
+  }
+
+  function confirmNode() {
+    const t = nodeToolRef.current;
+    if (t.phase !== 'review') return;
+    const node: SavedNode = {
+      id: genId(),
+      name: t.name.trim() || nextNodeName(skiNodesRef.current),
+      point: t.point,
+      elevM: t.elevM,
+      anchor: t.anchor ?? undefined,
+      createdAt: new Date().toISOString(),
+    };
+    setSkiNodes((prev) => [...prev, node]);
+    setNodeTool({ phase: 'idle' });
+  }
+
+  function deleteSkiNode(id: string) {
+    setSkiNodes((prev) => prev.filter((n) => n.id !== id));
+    setSelectedNodeId((cur) => (cur === id ? null : cur));
+  }
+
+  function armPathTool() {
+    if (siteModeRef.current === 'selecting') return;
+    cancelLiftTool();
+    cancelTrailTool();
+    cancelRoadTool();
+    cancelNodeTool();
+    setSelectedTrailId(null);
+    setSelectedLiftId(null);
+    setOpenDock('trails');
+    setPathTool({ phase: 'armed' });
+  }
+
+  function cancelPathTool() {
+    setPathTool({ phase: 'idle' });
+    if (mapRef.current) setNodePathDraftData(mapRef.current, null);
+  }
+
+  function undoPathPoint() {
+    const t = pathToolRef.current;
+    if (t.phase !== 'drawing') return;
+    // The first point IS the start anchor, so undoing it re-arms the tool.
+    if (t.points.length <= 1) setPathTool({ phase: 'armed' });
+    else setPathTool({ ...t, points: t.points.slice(0, -1), cursor: null });
+  }
+
+  /**
+   * Finish a connector. The last drawn point must resolve to an anchor — a path
+   * that lands in open snow connects nothing, so Enter is simply ignored until
+   * the route ends on a run, lift, path or node.
+   */
+  function finishPathRoute() {
+    const t = pathToolRef.current;
+    if (t.phase !== 'drawing' || t.points.length < 2 || !t.from) return;
+    const end = t.points.at(-1) as [number, number];
+    const to = anchorAt(end);
+    if (!to) return;
+    setPathTool({
+      phase: 'review',
+      points: [...t.points.slice(0, -1), to.point],
+      from: t.from,
+      to,
+      name: nextPathName(skiPathsRef.current),
+    });
+  }
+
+  function confirmPath() {
+    const t = pathToolRef.current;
+    if (t.phase !== 'review') return;
+    const path: SavedPath = {
+      id: genId(),
+      name: t.name.trim() || nextPathName(skiPathsRef.current),
+      points: t.points,
+      pointElevM: [],
+      widthM: DEFAULT_PATH_WIDTH_M,
+      from: t.from,
+      to: t.to,
+      lengthM: pathLengthM(t.points),
+      status: 'complete',
+      createdAt: new Date().toISOString(),
+    };
+    setSkiPaths((prev) => [...prev, path]);
+    setPathTool({ phase: 'idle' });
+    if (mapRef.current) setNodePathDraftData(mapRef.current, null);
+  }
+
+  function deleteSkiPath(id: string) {
+    setSkiPaths((prev) => prev.filter((p) => p.id !== id));
+    setSelectedPathId((cur) => (cur === id ? null : cur));
+  }
+
   function armTrailTool() {
     if (siteModeRef.current === 'selecting') return;
     cancelRoadTool();
@@ -1901,7 +2293,11 @@ export function MapView({
           gradingStatus: 'idle', gradingError: null,
           earthwork: null, maxGroundCrossSlopePct: 0, maxFaceSlopePct: 0,
           maxDisturbedWidthM: 0, ungradedLengthM: 0,
-          infeasibleLines: [] };
+          infeasibleLines: [],
+          // Proposed once elevations resolve, not here: the centerline comes out
+          // of skeletonDiameter in arbitrary order, and only orientTopToBottom
+          // (in sampleTrailElevations) settles which end is the head.
+          anchor: null };
         setTrailTool({ phase: 'review', draft });
         sampleTrailElevations(message.parts);
       }
@@ -2142,6 +2538,10 @@ export function MapView({
     const d = t.draft;
     const commitGrading = d.status === 'complete' && d.gradingEnabled;
     if (commitGrading && (d.gradingStatus !== 'ok' || !trailGradeResultRef.current)) return;
+    // The declared start is required. The button is already disabled without
+    // one; this re-check keeps the invariant true no matter how confirm is
+    // reached, so a run can never enter the save unconnected.
+    if (!d.anchor) return;
     const parts = commitGrading ? d.parts : d.ungradedParts;
     const stats = trailPartsStats(parts);
     const trail: SavedTrail = {
@@ -2158,6 +2558,7 @@ export function MapView({
       terrainGraded: commitGrading,
       earthwork: commitGrading && d.earthwork ? d.earthwork : undefined,
       status: d.status,
+      anchor: d.anchor,
       createdAt: new Date().toISOString(),
     };
     // Keep the review panel up with the build button spinning while the cover is
@@ -2226,6 +2627,8 @@ export function MapView({
     }
     if (which !== 'trails') {
       cancelTrailTool();
+      cancelNodeTool();
+      cancelPathTool();
       setSelectedTrailId(null);
       setTrailEditing(false);
     }
@@ -2237,7 +2640,11 @@ export function MapView({
         setLiftEditing(false);
       }
       if (which === 'trails') {
+        // The node and path tools also force the panel open, so closing it has
+        // to stand them down too or the circle would appear to do nothing.
         cancelTrailTool();
+        cancelNodeTool();
+        cancelPathTool();
         setSelectedTrailId(null);
         setTrailEditing(false);
       }
@@ -2481,7 +2888,7 @@ export function MapView({
     const c = map.getCenter();
     const now = new Date().toISOString();
     return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       key: base?.key ?? genId(),
       name: base?.name ?? (nameDraft.trim() || 'Untitled Resort'),
       mountainId: base?.mountainId,
@@ -2495,6 +2902,8 @@ export function MapView({
       lifts: liftsRef.current,
       trails: trailsRef.current,
       roads: roadsRef.current,
+      nodes: skiNodesRef.current,
+      paths: skiPathsRef.current,
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
       lastPlayedAt: base?.lastPlayedAt,
@@ -2569,10 +2978,57 @@ export function MapView({
   // overlap. selectedLift resolves the id to the live lift (null if it was
   // deleted out from under the selection).
   const liftActive = liftTool.phase !== 'idle' || selectedLiftId !== null;
-  const trailActive = trailTool.phase !== 'idle' || selectedTrailId !== null;
+  const trailActive = trailTool.phase !== 'idle' || selectedTrailId !== null ||
+    nodeTool.phase !== 'idle' || pathTool.phase !== 'idle';
+  /** The side panel swaps its body in place for a selection or an active tool. */
+  const trailPanelBusy = trailTool.phase !== 'idle' || trailEditing ||
+    nodeTool.phase !== 'idle' || pathTool.phase !== 'idle' || selectedTrailId !== null;
+  const activeTrailsTool: TrailsTool =
+    trailTool.phase !== 'idle' ? 'trail'
+      : nodeTool.phase !== 'idle' ? 'node'
+        : pathTool.phase !== 'idle' ? 'path'
+          : 'none';
+  /**
+   * Designer-facing connectivity warnings. `unanchoredTrailIds` is deliberately
+   * left out: every run built before this feature has no declared start, so
+   * warning on it would shout on every existing save.
+   */
+  const trailNetworkWarnings = useMemo(() => {
+    const d = network.diagnostics;
+    const out: string[] = [];
+    const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+    if (d.orphanTrailIds.length > 0) {
+      out.push(`${d.orphanTrailIds.length} ${plural(d.orphanTrailIds.length, 'run is', 'runs are')} not reachable from any lift.`);
+    }
+    const unresolved = d.unresolvedAnchorTrailIds.length + d.unresolvedAnchorPathIds.length;
+    if (unresolved > 0) {
+      out.push(`${unresolved} start ${plural(unresolved, 'connection no longer resolves', 'connections no longer resolve')} — the target was moved or deleted.`);
+    }
+    if (d.overreachingAnchorIds.length > 0) {
+      out.push(`${d.overreachingAnchorIds.length} ${plural(d.overreachingAnchorIds.length, 'connection spans', 'connections span')} an unusually long gap.`);
+    }
+    if (d.degeneratePathIds.length > 0) {
+      out.push(`${d.degeneratePathIds.length} ${plural(d.degeneratePathIds.length, 'path starts', 'paths start')} and ends at the same junction.`);
+    }
+    if (d.componentCount > 1) {
+      out.push(`The mountain is in ${d.componentCount} disconnected pieces.`);
+    }
+    return out;
+  }, [network]);
   const infrastructureActive = roadTool.phase !== 'idle';
   const liftsOpen = !!saved && (openDock === 'lifts' || liftActive);
   const trailsOpen = !!saved && !liftsOpen && (openDock === 'trails' || trailActive);
+
+  // The trails side panel pushes the dock and the top-left stack right, via one
+  // custom property rather than per-component layout surgery.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (trailsOpen) root.style.setProperty('--side-panel-offset', '300px');
+    else root.style.removeProperty('--side-panel-offset');
+    return () => {
+      root.style.removeProperty('--side-panel-offset');
+    };
+  }, [trailsOpen]);
   const infrastructureOpen = !!saved && !liftsOpen && !trailsOpen &&
     (openDock === 'infrastructure' || infrastructureActive);
   const layersOpen = !!saved && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
@@ -2772,8 +3228,168 @@ export function MapView({
           onSelectEdge={setNetworkEdgeId}
           onToggleTrailClosed={(id, closed) => patchTrail(id, { closed })}
           onToggleLiftClosed={(id, closed) => patchLift(id, { closed })}
+          onTogglePathClosed={(id, closed) =>
+            setSkiPaths((prev) => prev.map((p) => (p.id === id ? { ...p, closed } : p)))}
           onClose={() => setShowNetwork(false)}
         />
+      )}
+
+      {/* Trails side panel: the tools and lists live here, and a selection or an
+          active tool swaps the body in place rather than opening a second panel. */}
+      {trailsOpen && (
+        trailPanelBusy ? (
+          <aside className="side-panel trails-panel" data-panel="trails">
+            {nodeTool.phase !== 'idle' ? (
+              <div className="site-control site-control-wide trail-panel">
+                <div className="dock-head">
+                  <span className="dock-head-title">Place node</span>
+                  <button className="settings-close-x" aria-label="Close" onClick={cancelNodeTool}>✕</button>
+                </div>
+                {nodeTool.phase === 'armed' ? (
+                  <div className="site-hint">
+                    Click the map to drop a node. Landing on a run, lift or path attaches it there.
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      className="name-entry-input lift-name-input"
+                      value={nodeTool.name}
+                      onChange={(e) => setNodeTool((t) =>
+                        t.phase === 'review' ? { ...t, name: e.target.value } : t)}
+                    />
+                    <div className="readout-line">
+                      <span className="lift-stat-label">Attached to</span>
+                      <span className="lift-stat-value">
+                        {nodeTool.anchor ? describeAnchor(nodeTool.anchor) : 'Nothing'}
+                      </span>
+                    </div>
+                    <div className="site-actions">
+                      <button className="site-btn" onClick={cancelNodeTool}>Cancel</button>
+                      <button className="site-btn site-btn-primary" onClick={confirmNode}>Place node</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : pathTool.phase !== 'idle' ? (
+              <div className="site-control site-control-wide trail-panel">
+                <div className="dock-head">
+                  <span className="dock-head-title">Draw path</span>
+                  <button className="settings-close-x" aria-label="Close" onClick={cancelPathTool}>✕</button>
+                </div>
+                {pathTool.phase === 'review' ? (
+                  <>
+                    <input
+                      className="name-entry-input lift-name-input"
+                      value={pathTool.name}
+                      onChange={(e) => setPathTool((t) =>
+                        t.phase === 'review' ? { ...t, name: e.target.value } : t)}
+                    />
+                    <div className="readout-line">
+                      <span className="lift-stat-label">From</span>
+                      <span className="lift-stat-value">{describeAnchor(pathTool.from)}</span>
+                    </div>
+                    <div className="readout-line">
+                      <span className="lift-stat-label">To</span>
+                      <span className="lift-stat-value">{describeAnchor(pathTool.to)}</span>
+                    </div>
+                    <div className="readout-line">
+                      <span className="lift-stat-label">Length</span>
+                      <span className="lift-stat-value">
+                        {fmtDistance(pathLengthM(pathTool.points), settings.units)}
+                      </span>
+                    </div>
+                    <div className="site-actions">
+                      <button className="site-btn" onClick={cancelPathTool}>Cancel</button>
+                      <button className="site-btn site-btn-primary" onClick={confirmPath}>Build path</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="site-hint">
+                      {pathTool.phase === 'armed'
+                        ? 'Click a lift terminal, a run, a path or a node to start the connector.'
+                        : 'Click along the route. Finish on another run, lift, path or node.'}
+                    </div>
+                    <div className="site-actions">
+                      <button
+                        className="site-btn"
+                        onClick={undoPathPoint}
+                        disabled={pathTool.phase !== 'drawing'}
+                      >
+                        Undo point
+                      </button>
+                      <button
+                        className="site-btn site-btn-primary"
+                        onClick={finishPathRoute}
+                        disabled={pathTool.phase !== 'drawing' || pathTool.points.length < 2}
+                      >
+                        Finish
+                      </button>
+                    </div>
+                    <button className="site-btn" onClick={cancelPathTool}>Cancel</button>
+                  </>
+                )}
+              </div>
+            ) : trailTool.phase === 'idle' && selectedTrail && !trailEditing ? (
+              <TrailDetail
+                trail={selectedTrail}
+                units={settings.units}
+                onEdit={() => setTrailEditing(true)}
+                onRemove={() => deleteTrail(selectedTrail.id)}
+                onToggleClosed={(closed) => patchTrail(selectedTrail.id, { closed })}
+                onClose={() => {
+                  setSelectedTrailId(null);
+                  setOpenDock('trails');
+                }}
+              />
+            ) : (
+              <TrailControl
+                tool={trailTool}
+                trails={trails}
+                selectedId={trailTool.phase === 'idle' ? selectedTrailId : null}
+                units={settings.units}
+                brushWidthM={brushWidthM}
+                onBrushWidthChange={changeTrailBrushWidth}
+                onCancel={cancelTrailTool}
+                onModeChange={setTrailPaintModeState}
+                onUndo={undoTrailPaint}
+                onClear={clearTrailPaint}
+                onFinish={finishTrailPaint}
+                onDraftChange={patchTrailDraft}
+                onGradingChange={setTrailTerrainGrading}
+                onConfirm={confirmTrail}
+                onPickAnchor={() => setAnchorPicking('trail-start')}
+                pickingAnchor={anchorPicking === 'trail-start'}
+                building={building}
+                onEditPatch={patchTrail}
+                onCloseEdit={() => setTrailEditing(false)}
+                onDelete={deleteTrail}
+                onRetryElevation={retryTrailElevation}
+              />
+            )}
+          </aside>
+        ) : (
+          <TrailsPanel
+            trails={trails}
+            nodes={skiNodes}
+            paths={skiPaths}
+            units={settings.units}
+            selectedTrailId={selectedTrailId}
+            selectedNodeId={selectedNodeId}
+            selectedPathId={selectedPathId}
+            activeTool={activeTrailsTool}
+            warnings={trailNetworkWarnings}
+            onPaintRun={armTrailTool}
+            onPlaceNode={armNodeTool}
+            onDrawPath={armPathTool}
+            onSelectTrail={(id) => selectTrailRef.current(id)}
+            onSelectNode={setSelectedNodeId}
+            onSelectPath={setSelectedPathId}
+            onDeleteNode={deleteSkiNode}
+            onDeletePath={deleteSkiPath}
+            onClose={() => setOpenDock(null)}
+          />
+        )
       )}
 
       {/* Site-picking readout floats lower-left; in-game it lives on the toolbar. */}
@@ -2858,57 +3474,6 @@ export function MapView({
                       onCloseEdit={() => setLiftEditing(false)}
                       onDelete={deleteLift}
                       onRetryElevation={retryLiftElevation}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-              {trailsOpen && (
-              <div className="dock-rollup dock-trails">
-                <div className="dock-panel">
-                  {trailTool.phase === 'idle' && selectedTrail && !trailEditing ? (
-                    // Clicking a run opens its read-only detail first.
-                    <TrailDetail
-                      trail={selectedTrail}
-                      units={settings.units}
-                      onEdit={() => setTrailEditing(true)}
-                      onRemove={() => deleteTrail(selectedTrail.id)}
-                      onToggleClosed={(closed) => patchTrail(selectedTrail.id, { closed })}
-                      onClose={() => {
-                        setSelectedTrailId(null);
-                        setOpenDock('trails');
-                      }}
-                    />
-                  ) : trailTool.phase === 'idle' && !selectedTrail ? (
-                    <TrailOverview
-                      trails={trails}
-                      units={settings.units}
-                      onArm={armTrailTool}
-                      onSelect={(id) => selectTrailRef.current(id)}
-                      onClose={() => setOpenDock(null)}
-                    />
-                  ) : (
-                    // Paint / review a new run, or edit the selected one.
-                    <TrailControl
-                      tool={trailTool}
-                      trails={trails}
-                      selectedId={trailTool.phase === 'idle' ? selectedTrailId : null}
-                      units={settings.units}
-                      brushWidthM={brushWidthM}
-                      onBrushWidthChange={changeTrailBrushWidth}
-                      onCancel={cancelTrailTool}
-                      onModeChange={setTrailPaintModeState}
-                      onUndo={undoTrailPaint}
-                      onClear={clearTrailPaint}
-                      onFinish={finishTrailPaint}
-                      onDraftChange={patchTrailDraft}
-                      onGradingChange={setTrailTerrainGrading}
-                      onConfirm={confirmTrail}
-                      building={building}
-                      onEditPatch={patchTrail}
-                      onCloseEdit={() => setTrailEditing(false)}
-                      onDelete={deleteTrail}
-                      onRetryElevation={retryTrailElevation}
                     />
                   )}
                 </div>

@@ -7,6 +7,7 @@ import {
   trailsFromLift,
   type LiftEdge,
   type NetworkEdge,
+  type PathEdge,
   type SkiNetwork,
   type TrailEdge,
 } from '../network';
@@ -75,6 +76,7 @@ export function NetworkMap({
   onSelectEdge,
   onToggleTrailClosed,
   onToggleLiftClosed,
+  onTogglePathClosed,
   onClose,
 }: {
   network: SkiNetwork;
@@ -85,6 +87,7 @@ export function NetworkMap({
   onSelectEdge: (edgeId: string | null) => void;
   onToggleTrailClosed: (trailId: string, closed: boolean) => void;
   onToggleLiftClosed: (liftId: string, closed: boolean) => void;
+  onTogglePathClosed: (pathId: string, closed: boolean) => void;
   onClose: () => void;
 }) {
   const [view, setView] = useState<View | null>(null);
@@ -331,12 +334,13 @@ export function NetworkMap({
             {placed.map((pe) => {
               const { edge } = pe;
               const isTrail = edge.kind === 'trail';
+              const isPath = edge.kind === 'path';
               const dimmed = served ? !served.edgeIds.has(edge.id) : false;
               const direct = served?.directEdges.has(edge.id) ?? false;
               const selected = edge.id === selectedEdgeId;
               const closed = edge.condition === 'closed';
               const cls = [
-                isTrail ? 'network-trail' : 'network-lift',
+                isTrail ? 'network-trail' : isPath ? 'network-path' : 'network-lift',
                 closed ? 'is-closed' : '',
                 edge.planned ? 'is-planned' : '',
                 dimmed ? 'is-dimmed' : '',
@@ -346,7 +350,15 @@ export function NetworkMap({
                 .filter(Boolean)
                 .join(' ');
               const pts = pe.points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-              const color = isTrail ? DIFFICULTY_COLORS[(edge as TrailEdge).difficulty] : undefined;
+              const color =
+                isTrail || isPath ? DIFFICULTY_COLORS[(edge as TrailEdge | PathEdge).difficulty] : undefined;
+              // A path is a connector, not graded terrain — kept visibly thinner
+              // than a run at every selection state (matching, at reduced scale,
+              // what app.css does for a trail's is-direct/is-selected bump) so a
+              // cat track never reads as a run even when picked out.
+              const pathStrokeStyle = isPath
+                ? { strokeWidth: selected ? 3.5 : direct ? 3 : 1.75 }
+                : undefined;
               return (
                 <g
                   key={edge.id}
@@ -368,6 +380,7 @@ export function NetworkMap({
                     className="network-stroke"
                     points={pts}
                     stroke={closed ? undefined : color}
+                    style={pathStrokeStyle}
                     vectorEffect="non-scaling-stroke"
                   />
                   {/* One-way marker: every edge is a vector. */}
@@ -385,7 +398,11 @@ export function NetworkMap({
                       textAnchor="middle"
                       style={{ fontSize: active.w / 60 }}
                     >
-                      {isTrail ? (edge as TrailEdge).trailName : (edge as LiftEdge).liftName}
+                      {edge.kind === 'trail'
+                        ? edge.trailName
+                        : edge.kind === 'path'
+                          ? edge.pathName
+                          : (edge as LiftEdge).liftName}
                     </text>
                   )}
                 </g>
@@ -398,14 +415,19 @@ export function NetworkMap({
               const p = nodePos.get(node.id);
               if (!p) return null;
               const terminal = node.liftBases.length > 0 || node.liftTops.length > 0;
+              const isUserNode = node.kind === 'user-node';
+              // A deliberately-placed node earns the same emphasis as a lift
+              // terminal (sized up) plus the accent fill, so it reads as an
+              // intentional junction rather than an incidental crossing.
               return (
                 <circle
                   key={node.id}
                   data-node-id={node.id}
-                  className={`network-node network-node--${node.kind}${terminal ? ' is-terminal' : ''}`}
+                  className={`network-node network-node--${node.kind}${terminal ? ' is-terminal' : ''}${isUserNode ? ' is-user-node' : ''}`}
                   cx={p.x}
                   cy={p.y}
-                  r={(terminal ? 5 : 3) * (active.w / 900)}
+                  r={(terminal || isUserNode ? 5 : 3) * (active.w / 900)}
+                  style={isUserNode ? { fill: 'var(--accent)', stroke: 'var(--surface-solid)' } : undefined}
                 />
               );
             })}
@@ -449,6 +471,7 @@ export function NetworkMap({
         onSelectEdge={onSelectEdge}
         onToggleTrailClosed={onToggleTrailClosed}
         onToggleLiftClosed={onToggleLiftClosed}
+        onTogglePathClosed={onTogglePathClosed}
       />
     </div>
   );
@@ -475,6 +498,7 @@ function NetworkInspector({
   onSelectEdge,
   onToggleTrailClosed,
   onToggleLiftClosed,
+  onTogglePathClosed,
 }: {
   network: SkiNetwork;
   units: Units;
@@ -485,6 +509,7 @@ function NetworkInspector({
   onSelectEdge: (edgeId: string | null) => void;
   onToggleTrailClosed: (trailId: string, closed: boolean) => void;
   onToggleLiftClosed: (liftId: string, closed: boolean) => void;
+  onTogglePathClosed: (pathId: string, closed: boolean) => void;
 }) {
   const liftEdgeId = selectedLiftId ? network.liftEdgeIds.get(selectedLiftId) : undefined;
   const liftEdge = liftEdgeId ? (network.edgeById.get(liftEdgeId) as LiftEdge | undefined) : undefined;
@@ -591,6 +616,40 @@ function NetworkInspector({
     );
   }
 
+  if (selectedEdge && selectedEdge.kind === 'path') {
+    const edge = selectedEdge;
+    const segCount = network.pathEdgeIds.get(edge.pathId)?.length ?? 1;
+    return (
+      <aside className="network-inspector" data-inspector="path">
+        <div className="dock-head">
+          <span className="dock-head-title">{edge.pathName}</span>
+        </div>
+        <div className="network-sub">
+          <span style={{ color: DIFFICULTY_COLORS[edge.difficulty] }}>
+            {DIFFICULTY_SYMBOL[edge.difficulty]} {DIFFICULTY_LABELS[edge.difficulty]}
+          </span>{' '}
+          · Segment {edge.segmentIndex + 1} of {segCount}
+        </div>
+        <div className="network-stats">
+          <Stat label="Rating" value={DIFFICULTY_LABELS[edge.difficulty]} />
+          <Stat label="Length" value={fmtDistance(edge.lengthM, units)} />
+          <Stat label="Vertical" value={fmtVertical(edge.verticalM, units)} />
+          <Stat label="Avg pitch" value={fmtSlope(edge.avgSlopeDeg)} />
+          <Stat label="Max pitch" value={fmtSlope(edge.maxSlopeDeg)} />
+        </div>
+        {edge.traverse && (
+          <div className="network-note">
+            Traverse: this segment is flat or climbs, so it is skated rather than skied.
+          </div>
+        )}
+        <ConditionToggle
+          closed={edge.condition === 'closed'}
+          onChange={(closed) => onTogglePathClosed(edge.pathId, closed)}
+        />
+      </aside>
+    );
+  }
+
   const { diagnostics } = network;
   const trailCount = network.trailEdgeIds.size;
   const liftCount = network.liftEdgeIds.size;
@@ -603,8 +662,10 @@ function NetworkInspector({
       <div className="network-stats">
         <Stat label="Runs" value={`${trailCount}`} />
         <Stat label="Lifts" value={`${liftCount}`} />
+        <Stat label="Paths" value={`${network.pathEdgeIds.size}`} />
         <Stat label="Segments" value={`${network.edges.filter((e) => e.kind === 'trail').length}`} />
         <Stat label="Junctions" value={`${network.nodes.filter((n) => n.kind === 'junction' || n.kind === 'crossing').length}`} />
+        <Stat label="Unanchored runs" value={`${diagnostics.unanchoredTrailIds.length}`} />
       </div>
       {diagnostics.componentCount > 1 && (
         <div className="network-warn">
@@ -621,6 +682,33 @@ function NetworkInspector({
         <div className="network-warn">
           {diagnostics.isolatedLiftIds.length} lift
           {diagnostics.isolatedLiftIds.length === 1 ? '' : 's'} serve no runs.
+        </div>
+      )}
+      {(() => {
+        const unresolvedAnchorCount =
+          diagnostics.unresolvedAnchorTrailIds.length + diagnostics.unresolvedAnchorPathIds.length;
+        return (
+          unresolvedAnchorCount > 0 && (
+            <div className="network-warn">
+              {unresolvedAnchorCount} run/path connection{unresolvedAnchorCount === 1 ? '' : 's'} no longer
+              resolve{unresolvedAnchorCount === 1 ? 's' : ''}: the start connection's target was deleted or moved.
+            </div>
+          )
+        );
+      })()}
+      {diagnostics.overreachingAnchorIds.length > 0 && (
+        <div className="network-warn">
+          {diagnostics.overreachingAnchorIds.length} connection
+          {diagnostics.overreachingAnchorIds.length === 1 ? '' : 's'} span
+          {diagnostics.overreachingAnchorIds.length === 1 ? 's' : ''} an unusually long gap.
+        </div>
+      )}
+      {diagnostics.degeneratePathIds.length > 0 && (
+        <div className="network-warn">
+          {diagnostics.degeneratePathIds.length} path
+          {diagnostics.degeneratePathIds.length === 1 ? '' : 's'} start
+          {diagnostics.degeneratePathIds.length === 1 ? 's' : ''} and end
+          {diagnostics.degeneratePathIds.length === 1 ? 's' : ''} at the same junction.
         </div>
       )}
     </aside>

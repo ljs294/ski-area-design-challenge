@@ -3,6 +3,8 @@ import type { LatLonBounds } from './elevation';
 // Type-only, so this doesn't create a runtime circular import even though
 // vectorFeatures.ts imports feature types (RoadFeature etc.) from here.
 import type { HydratedVectorFeatures } from './vectorFeatures';
+// Type-only for the same reason: skiNodes.ts imports TrailStatus from here.
+import type { AnchorRef, SavedNode, SavedPath } from './skiNodes';
 
 /**
  * A coarse elevation grid covering the buffer area around a resort's high-res
@@ -440,6 +442,8 @@ export interface SavedTrail {
   /** Operating condition. Absent/false = open. Every network segment derived
    *  from this run inherits it. */
   closed?: boolean;
+  /** Declared start connection — pins this run's top onto a lift/run/path/node. */
+  anchor?: AnchorRef;
   createdAt: string; // ISO
 }
 
@@ -449,7 +453,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3;
+  schemaVersion: 1 | 2 | 3 | 4;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -464,6 +468,10 @@ export interface GameSave {
   trails: SavedTrail[]; // ski runs painted on the map
   /** Player-built roads. Optional only for legacy schema v1/v2 saves. */
   roads?: SavedRoad[];
+  /** Free-standing map pins. Optional so legacy saves load unchanged. */
+  nodes?: SavedNode[];
+  /** Footpaths connecting nodes/lifts/runs. Optional so legacy saves load unchanged. */
+  paths?: SavedPath[];
   createdAt: string; // ISO
   updatedAt: string; // ISO
   /** Most recent successful exit checkpoint. Optional for legacy saves. */

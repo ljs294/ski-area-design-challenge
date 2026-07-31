@@ -5,6 +5,7 @@ import { fmtDistance } from '../lifts';
 import { DIFFICULTY_LABELS, fmtArea, fmtSlope, fmtVertical, trailPartsStats,
   MIN_BRUSH_WIDTH_M, MAX_BRUSH_WIDTH_M } from '../trails';
 import { TrailProfile } from './TrailProfile';
+import { describeAnchor, type AnchorRef } from '../skiNodes';
 import type { PaintMode } from './trailPaintEngine';
 
 export type TrailTool =
@@ -35,6 +36,14 @@ export interface DraftTrail {
   /** Metres of run too steep to bench, left at natural ground. */
   ungradedLengthM: number;
   infeasibleLines: [number, number][][];
+  /**
+   * Where this run starts: a lift terminal, or a point along another run/path/
+   * node. Required before it can be built — a run that connects to nothing
+   * cannot be skied to, and the node map would only be able to guess at it.
+   * Auto-proposed from the nearest connection point when the review panel
+   * opens; the player can re-pick it.
+   */
+  anchor: AnchorRef | null;
 }
 
 function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
@@ -104,13 +113,18 @@ export function EarthworkStats({ estimate, units,
 
 export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onBrushWidthChange,
   onCancel, onModeChange, onUndo, onClear, onFinish, onDraftChange, onConfirm, onEditPatch,
-  onCloseEdit, onDelete, onRetryElevation, onGradingChange, building = false }: {
+  onCloseEdit, onDelete, onRetryElevation, onGradingChange, onPickAnchor,
+  pickingAnchor = false, building = false }: {
   tool: TrailTool; trails: SavedTrail[]; selectedId: string | null; units: Units; brushWidthM: number;
   onBrushWidthChange: (m: number) => void; onCancel: () => void; onModeChange: (m: PaintMode) => void;
   onUndo: () => void; onClear: () => void; onFinish: () => void; onDraftChange: (p: Partial<DraftTrail>) => void;
   onConfirm: () => void; onEditPatch: (id: string, patch: Partial<SavedTrail>) => void;
   onCloseEdit: () => void; onDelete: (id: string) => void; onRetryElevation: () => void;
   onGradingChange: (enabled: boolean) => void;
+  /** Arms map-click picking for the run's start connection. */
+  onPickAnchor: () => void;
+  /** True while the player is clicking the map to choose that start. */
+  pickingAnchor?: boolean;
   /** True while the confirmed run is felling its cover — spins the build button. */
   building?: boolean;
 }) {
@@ -142,6 +156,22 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
       <input className="name-entry-input lift-name-input" value={d.name} onChange={(e) => onDraftChange({ name: e.target.value })} />
       <TrailProfile parts={d.parts} units={units} difficulty={d.difficulty} />
       {d.elevStatus === 'error' && <div className="lift-warning">Elevation unavailable <button className="lift-link-btn" onClick={onRetryElevation}>Retry</button></div>}
+      {/* Where the run starts. Required: an unconnected run cannot be skied to,
+          and leaves the node map guessing at the topology. */}
+      <div className="trail-anchor-row" data-anchor={d.anchor ? 'set' : 'unset'}>
+        <span className="lift-stat-label">Starts from</span>
+        <span className={`trail-anchor-value${d.anchor ? '' : ' is-missing'}`}>
+          {d.anchor ? describeAnchor(d.anchor) : 'Not connected'}
+        </span>
+        <button className="lift-link-btn" onClick={onPickAnchor} aria-pressed={pickingAnchor}>
+          {pickingAnchor ? 'Click the map…' : d.anchor ? 'Change' : 'Pick start'}
+        </button>
+      </div>
+      {!d.anchor && (
+        <div className="site-hint">
+          Click a lift terminal, or any point along another run, to say where this run starts.
+        </div>
+      )}
       <StatusToggle value={d.status} onChange={(status) => onDraftChange({ status })} />
       <label className="trail-grade-terrain">
         <input type="checkbox" checked={d.gradingEnabled}
@@ -163,7 +193,7 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
         <div className="site-hint">Preview only. Choose Complete to commit this terrain edit.</div>}
       <TrailStatsBlock parts={d.parts} areaM2={d.areaM2} difficulty={d.difficulty} units={units} />
       <div className="site-actions"><button className="site-btn site-btn-primary"
-        disabled={d.elevStatus !== 'ok' || building ||
+        disabled={d.elevStatus !== 'ok' || building || d.anchor == null ||
           (d.gradingEnabled && d.gradingStatus !== 'ok')}
         onClick={onConfirm}>
         {building ? <><span className="site-btn-spinner" aria-hidden="true" /> Building…</> : d.status === 'complete' ? 'Build run' : 'Add to plan'}</button>

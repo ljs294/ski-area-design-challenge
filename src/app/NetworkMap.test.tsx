@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { buildSkiNetwork, type SkiNetwork } from '../network';
 import { sanitizeLifts } from '../lifts';
+import { sanitizeNodes, sanitizePaths } from '../skiNodes';
+import type { AnchorRef, SavedNode, SavedPath } from '../skiNodes';
 import { sanitizeTrails } from '../trails';
 import type { SavedLift, SavedTrail } from '../types';
 import { NetworkMap } from './NetworkMap';
@@ -62,6 +64,42 @@ function run(
   ])[0];
 }
 
+function node(id: string, point: [number, number], extra: Record<string, unknown> = {}): SavedNode {
+  return sanitizeNodes([
+    {
+      id,
+      name: id,
+      point,
+      elevM: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      ...extra,
+    },
+  ])[0];
+}
+
+function path(
+  id: string,
+  points: [number, number][],
+  from: AnchorRef,
+  to: AnchorRef,
+  extra: Record<string, unknown> = {}
+): SavedPath {
+  return sanitizePaths([
+    {
+      id,
+      name: id,
+      points,
+      pointElevM: [],
+      widthM: 6,
+      from,
+      to,
+      status: 'complete',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      ...extra,
+    },
+  ])[0];
+}
+
 function lift(id: string, a: [number, number], b: [number, number]): SavedLift {
   return sanitizeLifts([
     {
@@ -88,6 +126,7 @@ function render(network: SkiNetwork, props: Partial<Parameters<typeof NetworkMap
       onSelectEdge={vi.fn()}
       onToggleTrailClosed={vi.fn()}
       onToggleLiftClosed={vi.fn()}
+      onTogglePathClosed={vi.fn()}
       onClose={vi.fn()}
       {...props}
     />
@@ -169,5 +208,126 @@ describe('NetworkMap', () => {
   it('renders an empty state rather than a blank panel', () => {
     const html = render(buildSkiNetwork([], []));
     expect(html).toContain('Nothing to map yet');
+  });
+
+  it('draws a path edge with an x:-prefixed id and the network-path class', () => {
+    const n1 = node('n1', at(0, 300));
+    const n2 = node('n2', at(0, 0));
+    const p = path(
+      'p1',
+      [at(0, 300), at(0, 0)],
+      { kind: 'node', nodeId: 'n1', point: at(0, 300) },
+      { kind: 'node', nodeId: 'n2', point: at(0, 0) }
+    );
+    const net = buildSkiNetwork([], [], { nodes: [n1, n2], paths: [p] });
+    const html = render(net);
+    const pathEdgeIds = [...(net.pathEdgeIds.get('p1') ?? [])];
+    expect(pathEdgeIds.length).toBeGreaterThan(0);
+    for (const id of pathEdgeIds) {
+      expect(id.startsWith('x:')).toBe(true);
+      const i = html.indexOf(`data-edge-id="${id}"`);
+      expect(i).toBeGreaterThan(-1);
+      expect(html.slice(Math.max(0, i - 140), i)).toContain('network-path');
+    }
+  });
+
+  it('selecting a path edge shows the path inspector with rating and length', () => {
+    const n1 = node('n1', at(0, 300));
+    const n2 = node('n2', at(0, 0));
+    const p = path(
+      'p1',
+      [at(0, 300), at(0, 0)],
+      { kind: 'node', nodeId: 'n1', point: at(0, 300) },
+      { kind: 'node', nodeId: 'n2', point: at(0, 0) }
+    );
+    const net = buildSkiNetwork([], [], { nodes: [n1, n2], paths: [p] });
+    const edgeId = (net.pathEdgeIds.get('p1') ?? [])[0];
+    expect(edgeId).toBeDefined();
+    const html = render(net, { selectedEdgeId: edgeId });
+    expect(html).toContain('data-inspector="path"');
+    expect(html).toContain('Rating');
+    expect(html).toContain('Length');
+    expect(html).toContain('Segment 1 of');
+  });
+
+  it('draws a user-placed node with its own class', () => {
+    const n = node('solo', at(5000, 5000));
+    const net = buildSkiNetwork([], [], { nodes: [n] });
+    const html = render(net);
+    expect(html).toContain('network-node--user-node');
+  });
+
+  it('shows a Paths count in the summary panel', () => {
+    const n1 = node('n1', at(0, 300));
+    const n2 = node('n2', at(0, 0));
+    const p = path(
+      'p1',
+      [at(0, 300), at(0, 0)],
+      { kind: 'node', nodeId: 'n1', point: at(0, 300) },
+      { kind: 'node', nodeId: 'n2', point: at(0, 0) }
+    );
+    const net = buildSkiNetwork([], [], { nodes: [n1, n2], paths: [p] });
+    const html = render(net);
+    expect(html).toContain('data-inspector="summary"');
+    const match = html.match(/Paths<\/span><span class="network-stat-value">(\d+)</);
+    expect(match).not.toBeNull();
+    expect(Number(match?.[1])).toBe(net.pathEdgeIds.size);
+    expect(net.pathEdgeIds.size).toBe(1);
+  });
+
+  it('leaves unanchoredTrailIds informational only — no warning block on an otherwise-clean network', () => {
+    const net = mountain();
+    // Legacy trails carry no `anchor` field, so every run in the fixture is
+    // unanchored by construction — this is the "every existing save" case the
+    // spec calls out as informational, not a warning.
+    expect(net.diagnostics.unanchoredTrailIds.length).toBeGreaterThan(0);
+    expect(net.diagnostics.unresolvedAnchorTrailIds).toEqual([]);
+    expect(net.diagnostics.unresolvedAnchorPathIds).toEqual([]);
+    expect(net.diagnostics.overreachingAnchorIds).toEqual([]);
+    expect(net.diagnostics.degeneratePathIds).toEqual([]);
+    const html = render(net);
+    expect(html).toContain('Unanchored runs');
+    expect(html).not.toContain('no longer resolve');
+    expect(html).not.toContain('unusually long gap');
+    expect(html).not.toContain('same junction');
+  });
+
+  it('warns when a run or path anchor no longer resolves', () => {
+    const n1 = node('n1', at(0, 300));
+    const p = path(
+      'p1',
+      [at(0, 300), at(0, 0)],
+      { kind: 'node', nodeId: 'n1', point: at(0, 300) },
+      { kind: 'node', nodeId: 'ghost', point: at(0, 0) }
+    );
+    const net = buildSkiNetwork([], [], { nodes: [n1], paths: [p] });
+    expect(net.diagnostics.unresolvedAnchorPathIds).toEqual(['p1']);
+    const html = render(net);
+    expect(html).toContain('no longer resolve');
+  });
+
+  it('warns when an anchor unions across an unusually long gap', () => {
+    const l = lift('L', at(0, 0), at(0, 600));
+    const b = run('B', [0, 800], [400, 800], 500, 100, {
+      anchor: { kind: 'lift', liftId: 'L', end: 'top', point: at(0, 600) },
+    });
+    const net = buildSkiNetwork([b], [l]);
+    expect(net.diagnostics.overreachingAnchorIds).toEqual(['B']);
+    const html = render(net);
+    expect(html).toContain('unusually long gap');
+  });
+
+  it('warns when a path starts and ends at the same junction', () => {
+    const n1 = node('n1', at(0, 50));
+    const p = path(
+      'loop',
+      [at(0, 50), at(200, 50), at(400, 50)],
+      { kind: 'node', nodeId: 'n1', point: at(0, 50) },
+      { kind: 'node', nodeId: 'n1', point: at(400, 50) }
+    );
+    const net = buildSkiNetwork([], [], { nodes: [n1], paths: [p] });
+    expect(net.diagnostics.degeneratePathIds).toEqual(['loop']);
+    const html = render(net);
+    expect(html).toContain('same junction');
   });
 });

@@ -42,7 +42,9 @@ async function clickWhenReady(selector) {
 
 /** Arm the brush, paint one stroke, Finish the footprint, then Build the run. */
 async function paintRun(from, to) {
-  await page.locator('.lift-add-btn >> text=Add ski run').click();
+  // The bottom-dock "Add ski run" button is gone — runs are painted from the
+  // trails side panel's tool row now (TrailsPanel.tsx `.trails-tool`).
+  await page.locator('.trails-tool >> text=Paint run').click();
   await page.waitForSelector('.trail-panel', { timeout: 30_000 });
   await page.mouse.move(from[0], from[1]);
   await page.mouse.down();
@@ -51,6 +53,20 @@ async function paintRun(from, to) {
   await clickWhenReady('.trail-panel button.site-btn-primary'); // Finish
   // Skeletonization + terrain sampling run before the review panel appears.
   await page.waitForSelector('.trail-panel .lift-status-btn', { timeout: 90_000 });
+  // A run now needs a declared start before Build enables (TrailControl.tsx
+  // `.trail-anchor-row`). MapView auto-proposes the nearest connection point
+  // within 60 m of the run's head when the review panel opens, and this
+  // fixture always paints its runs right at the lift's unload — so the row
+  // should already read `data-anchor="set"`. If it doesn't, that's a real
+  // auto-propose regression, not a fixture problem — fail loudly on it.
+  const anchorUnset = await page.locator('.trail-anchor-row[data-anchor="unset"]')
+    .isVisible().catch(() => false);
+  if (anchorUnset) {
+    throw new Error(
+      'Run painted at the lift unload did not auto-propose a start anchor ' +
+      '(.trail-anchor-row[data-anchor="unset"]) — Build stays disabled until one is set.'
+    );
+  }
   await page.locator('.trail-panel .lift-status-btn >> text=Complete').click();
   await page.waitForSelector('.trail-panel .site-actions >> text=Build run', { timeout: 90_000 });
   await clickWhenReady('.trail-panel button.site-btn-primary'); // Build run

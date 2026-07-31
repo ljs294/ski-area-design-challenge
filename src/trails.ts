@@ -1,4 +1,5 @@
 import { haversineMeters } from './geo';
+import { sanitizeAnchor } from './skiNodes';
 import type { SavedTrail, SavedTrailPart, TrailDifficulty, TrailStatus } from './types';
 
 // Pure ski-run helpers: difficulty grading, spine geometry stats, and the
@@ -254,6 +255,7 @@ export function sanitizeTrails(raw: unknown[]): SavedTrail[] {
       earthwork,
       status,
       closed: t.closed === true,
+      anchor: sanitizeAnchor(t.anchor),
       createdAt: typeof t.createdAt === 'string' ? t.createdAt : new Date().toISOString(),
     });
   }

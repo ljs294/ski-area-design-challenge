@@ -14,12 +14,13 @@ const draft: DraftTrail = {
   earthwork: null, maxGroundCrossSlopePct: 0, maxFaceSlopePct: 0,
   maxDisturbedWidthM: 0, ungradedLengthM: 0,
   infeasibleLines: [],
+  anchor: { kind: 'lift', liftId: 'L1', end: 'top', point: [0.5, 1] },
 };
 const callbacks = {
   onBrushWidthChange: vi.fn(), onCancel: vi.fn(), onModeChange: vi.fn(),
   onUndo: vi.fn(), onClear: vi.fn(), onFinish: vi.fn(), onDraftChange: vi.fn(),
   onConfirm: vi.fn(), onEditPatch: vi.fn(), onCloseEdit: vi.fn(), onDelete: vi.fn(),
-  onRetryElevation: vi.fn(), onGradingChange: vi.fn(),
+  onRetryElevation: vi.fn(), onGradingChange: vi.fn(), onPickAnchor: vi.fn(),
 };
 
 describe('TrailControl terrain grading', () => {
