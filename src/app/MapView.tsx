@@ -36,18 +36,21 @@ import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
 import type { GameSave, RoadType, SavedLift, SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
-import { loadTerrain, saveTerrain } from '../terrainStorageClient';
+import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
-import { coverDisplayMetadataOf, coverMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
+import {
+  coverDisplayMetadataOf,
+  manifestOf,
+  manifestWithUpdatedCover,
+  validateTerrainCoverEdit,
+  validateTerrainPackage,
+} from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
 import {
   jitterPolygon,
-  liftCorridorRing,
-  LIFT_CLEAR_HALF_WIDTH_M,
-  TRAIL_CLEAR_BUBBLE_AMPLITUDE_M,
-  TRAIL_CLEAR_BUBBLE_STEP_M,
-  TRAIL_CLEAR_BUBBLE_WAVELENGTH_M,
-  type Polygon,
+  liftClearingRing,
+  TRAIL_CLEAR_JITTER_M,
+  type CoverClearing,
 } from '../coverEdit';
 import { runCoverEditWorker } from './coverEditClient';
 import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
@@ -401,6 +404,7 @@ export function MapView({
   const terrainHeightCacheRef = useRef<{ checksum: string; heights: Float32Array } | null>(null);
   const coverDisplayRef = useRef<CoverDisplayGeoJSON | null>(null);
   const localImageryUrlRef = useRef<string | null>(null);
+  const localImageryCacheKeyRef = useRef<string | null>(null);
 
   function cacheTerrainDisplayAssets(record: TerrainRecord): void {
     const heightChecksum = record.packageManifest?.elevationChecksum ?? record.updatedAt;
@@ -413,10 +417,16 @@ export function MapView({
     coverDisplayRef.current = record.coverDisplayGeometry && record.bounds
       ? coverDisplayToGeoJSON(record.coverDisplayGeometry, record.bounds)
       : null;
-    if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
-    localImageryUrlRef.current = record.localImagery
-      ? URL.createObjectURL(new Blob([Uint8Array.from(record.localImagery)], { type: record.localImageryMetadata?.mimeType ?? 'image/jpeg' }))
+    const imageryCacheKey = record.localImagery
+      ? `${record.localImageryMetadata?.checksum ?? record.localImagery.length}:${record.localImageryMetadata?.mimeType ?? 'image/jpeg'}`
       : null;
+    if (localImageryCacheKeyRef.current !== imageryCacheKey) {
+      if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
+      localImageryUrlRef.current = record.localImagery
+        ? URL.createObjectURL(new Blob([Uint8Array.from(record.localImagery)], { type: record.localImageryMetadata?.mimeType ?? 'image/jpeg' }))
+        : null;
+      localImageryCacheKeyRef.current = imageryCacheKey;
+    }
   }
 
   function setVisibleContours(record: TerrainRecord): void {
@@ -459,6 +469,7 @@ export function MapView({
     trailWorkerRef.current?.terminate();
     trailGradeWorkerRef.current?.terminate();
     if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
+    localImageryCacheKeyRef.current = null;
   }, []);
 
   // A saved resort does not enter gameplay until its mandatory local package
@@ -1601,9 +1612,9 @@ export function MapView({
       trailGradeWorkerRef.current?.terminate();
       trailGradeWorkerRef.current = null;
       setRoadTool({ phase: 'idle' });
-      await clearCoverUnderPolygons([
-        ...roadClearingPolygons(road.points),
-        ...result.disturbancePolygons,
+      await clearCover([
+        ...roadClearingPolygons(road.points).map((polygon) => ({ polygon })),
+        ...result.disturbancePolygons.map((polygon) => ({ polygon })),
       ]);
     } catch (error) {
       setRoadTool((active) => active.phase === 'review' ? { phase: 'review', draft: {
@@ -1679,13 +1690,13 @@ export function MapView({
 
   /**
    * The single clearing engine shared by lifts, trails, and roads. Fells the given
-   * polygons (each an outer ring plus optional tree-island holes) to grassland,
+   * clearings (each an outer ring plus optional tree-island holes) to grassland,
    * stamping the analytical cover grid and re-deriving its vector display in a
    * worker. Then recomputes metadata + manifest, validates, saves, and updates
    * the map. Best-effort: failures never lose the infrastructure object that
    * triggered the edit.
    */
-  async function clearCoverUnderPolygons(polygons: Polygon[]): Promise<void> {
+  async function clearCover(clearings: CoverClearing[]): Promise<void> {
     const map = mapRef.current;
     const record = terrainRecordRef.current;
     if (!map || !record || !record.coverGrid || !record.bounds) return;
@@ -1697,16 +1708,20 @@ export function MapView({
       const hasVectorDisplay = !!record.coverDisplayGeometry && !!record.coverDisplayMetadata;
       const result = await runCoverEditWorker({
         grid: workerGrid,
-        polygons,
+        clearings,
         deriveDisplay: hasVectorDisplay,
       });
       if (result.changed === 0) return;
       const grid = { ...record.coverGrid, data: result.gridData } as typeof record.coverGrid;
 
-      // coverMetadata must travel with the grid: the desktop package writer
-      // re-verifies the written .cover.bin against record.coverMetadata (not the
-      // manifest), so a stale checksum here rejects the whole save.
-      let upgraded: TerrainRecord = { ...record, coverGrid: grid, coverMetadata: coverMetadataOf(grid), updatedAt: new Date().toISOString() };
+      // Checksums are produced beside the edited transferable buffers in the
+      // worker, avoiding another full-grid pass on the UI thread.
+      let upgraded: TerrainRecord = {
+        ...record,
+        coverGrid: grid,
+        coverMetadata: result.coverMetadata,
+        updatedAt: new Date().toISOString(),
+      };
 
       // v5+ packages render vector cover. Re-derive the whole display geometry
       // from the freshly-stamped grid (the merged source of truth) rather than
@@ -1717,21 +1732,25 @@ export function MapView({
       // v4 raster-only packages skip this and rely on the grid stamp + tile-cache
       // refresh below.
       if (hasVectorDisplay) {
-        if (!result.displayGeometry || !result.displayStats) {
+        if (!result.displayGeometry || !result.displayMetadata) {
           throw new Error('Ground-cover worker returned no vector display geometry.');
         }
-        const geometry = Array.from(result.displayGeometry);
-        const metadata = coverDisplayMetadataOf(geometry, result.displayStats);
-        upgraded = { ...upgraded, coverDisplayGeometry: geometry, coverDisplayMetadata: metadata };
+        upgraded = {
+          ...upgraded,
+          coverDisplayGeometry: result.displayGeometry,
+          coverDisplayMetadata: result.displayMetadata,
+        };
       }
 
-      upgraded = { ...upgraded, packageManifest: manifestOf(upgraded) };
-      const validation = validateTerrainPackage(upgraded);
+      upgraded = { ...upgraded, packageManifest: manifestWithUpdatedCover(upgraded) };
+      const validation = validateTerrainCoverEdit(upgraded);
       if (!validation.ok) {
         console.warn('Cover-clear produced an invalid package; keeping the previous cover.', validation.errors.join(' '));
         return;
       }
-      const saved = await saveTerrain(upgraded);
+      const saved = hasVectorDisplay
+        ? await saveTerrainCover(upgraded)
+        : await saveTerrain(upgraded);
       if (!saved.ok) {
         console.warn('Cover-clear could not be saved; keeping the previous cover.', saved.error);
         return;
@@ -1754,48 +1773,33 @@ export function MapView({
   }
 
   /**
-   * Fell a broad, outward-scalloped grassland corridor under a newly-drawn lift.
-   * The saved lift line remains exact; only its ground-cover clearing is bubbled.
+   * Fell a minimum-50-foot corridor under a newly-drawn lift. Independent,
+   * irregular outward noise softens both treelines without ever narrowing the
+   * guaranteed base clearing. The saved lift line itself remains exact.
    */
   async function applyLiftCoverClear(lift: SavedLift): Promise<void> {
     const record = terrainRecordRef.current;
     if (!record || !record.bounds) return;
-    const ring = liftCorridorRing(lift.points, record.bounds, {
-      halfWidthM: LIFT_CLEAR_HALF_WIDTH_M,
-      jitterM: 0,
-      seed: lift.id,
-    });
-    const polygon = jitterPolygon([ring], {
-      amplitudeM: TRAIL_CLEAR_BUBBLE_AMPLITUDE_M,
-      wavelengthM: TRAIL_CLEAR_BUBBLE_WAVELENGTH_M,
-      maxSegmentM: TRAIL_CLEAR_BUBBLE_STEP_M,
-      periodic: true,
-      outwardOnly: true,
-    }, lift.id);
-    await clearCoverUnderPolygons([polygon]);
+    const ring = liftClearingRing(lift.points, record.bounds, lift.id);
+    await clearCover([{ polygon: [ring] }]);
   }
 
   /**
    * Fell grassland under a newly-built trail. Each painted part's footprint is
-   * already a polygon (outer ring + tree-island holes); jitter its edges so the
-   * clearing reads organically like the lift corridor, then hand every part to
-   * the shared clearing engine. Tree islands stay forested because they are true
-   * holes in the polygon.
+   * already a polygon (outer ring + tree-island holes). Restore the original
+   * subtle edge treatment: deterministic +/-2 m value noise, smoothstep-blended
+   * between random nodes, instead of adding outward bubble dabs. The authored
+   * brush edge remains the baseline and tree islands remain polygon holes.
    */
   async function applyTrailCoverClear(
     trail: SavedTrail,
     gradingPolygons?: [number, number][][][]
   ): Promise<void> {
     const source = gradingPolygons ?? trail.parts.map((part) => part.polygon);
-    const polygons: Polygon[] = source.map((polygon, i) =>
-      jitterPolygon(polygon, {
-        amplitudeM: TRAIL_CLEAR_BUBBLE_AMPLITUDE_M,
-        wavelengthM: TRAIL_CLEAR_BUBBLE_WAVELENGTH_M,
-        maxSegmentM: TRAIL_CLEAR_BUBBLE_STEP_M,
-        periodic: true,
-        outwardOnly: true,
-      }, `${trail.id}:${i}`));
-    await clearCoverUnderPolygons(polygons);
+    const clearings: CoverClearing[] = source.map((polygon, i) => ({
+      polygon: jitterPolygon(polygon, TRAIL_CLEAR_JITTER_M, `${trail.id}:${i}`),
+    }));
+    await clearCover(clearings);
   }
 
   /** Patch a non-geometric field (name/chairs/capacity/status) of a built lift. */

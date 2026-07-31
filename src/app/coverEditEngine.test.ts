@@ -21,29 +21,41 @@ function cover(fill: number): CoverGrid {
 }
 
 describe('processCoverEdit', () => {
-  it('returns a transferable edited grid and vector display', () => {
+  it('edits the transferred grid in place and returns vector display metadata', () => {
+    const grid = cover(TERRAIN_COVER_CODES.forest);
+    const transferredData = grid.data as Uint8Array;
     const result = processCoverEdit({
-      grid: cover(TERRAIN_COVER_CODES.forest),
-      polygons: [[ring]],
+      grid,
+      clearings: [{ polygon: [ring] }],
       deriveDisplay: true,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.changed).toBeGreaterThan(0);
-    expect(result.gridData).toBeInstanceOf(Uint8Array);
+    expect(result.gridData).toBe(transferredData);
     expect(result.displayGeometry).toBeInstanceOf(Float32Array);
-    expect(result.displayStats?.vertexCount).toBeGreaterThan(0);
+    expect(result.coverMetadata.byteLength).toBe(transferredData.byteLength);
+    expect(result.coverMetadata.checksum).toMatch(/^fnv1a32-[0-9a-f]{8}$/);
+    expect(result.displayMetadata?.vertexCount).toBeGreaterThan(0);
+    expect(result.displayMetadata?.byteLength)
+      .toBe(result.displayGeometry?.byteLength);
+    expect(result.displayMetadata?.checksum).toMatch(/^fnv1a32-[0-9a-f]{8}$/);
   });
 
-  it('skips vectorization when the edit changes no cells', () => {
+  it('returns the same transferred buffer and skips vectorization when no cells change', () => {
+    const grid = cover(TERRAIN_COVER_CODES.grassland);
+    const transferredData = grid.data as Uint8Array;
     const result = processCoverEdit({
-      grid: cover(TERRAIN_COVER_CODES.grassland),
-      polygons: [[ring]],
+      grid,
+      clearings: [{ polygon: [ring] }],
       deriveDisplay: true,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.changed).toBe(0);
+    expect(result.gridData).toBe(transferredData);
+    expect(result.coverMetadata.byteLength).toBe(transferredData.byteLength);
     expect(result.displayGeometry).toBeUndefined();
+    expect(result.displayMetadata).toBeUndefined();
   });
 });

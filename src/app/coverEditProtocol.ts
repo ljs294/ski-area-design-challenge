@@ -1,10 +1,9 @@
-import type { CoverDisplayStats } from '../coverDisplay';
-import type { Polygon } from '../coverEdit';
-import type { CoverGrid } from '../types';
+import type { CoverClearing } from '../coverEdit';
+import type { CoverDisplayMetadata, CoverGrid, CoverMetadata } from '../types';
 
 export interface CoverEditRequest {
   grid: CoverGrid;
-  polygons: Polygon[];
+  clearings: CoverClearing[];
   deriveDisplay: boolean;
 }
 
@@ -13,7 +12,8 @@ export type CoverEditResponse =
       ok: true;
       changed: number;
       gridData: Uint8Array;
+      coverMetadata: CoverMetadata;
       displayGeometry?: Float32Array;
-      displayStats?: CoverDisplayStats;
+      displayMetadata?: CoverDisplayMetadata;
     }
   | { ok: false; error: string };

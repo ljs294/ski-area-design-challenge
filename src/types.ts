@@ -286,7 +286,7 @@ export interface TerrainRecord {
   coverBoundarySegments?: number[];
   coverGeometryMetadata?: CoverGeometryMetadata;
   /** Flat normalized polygon stream; see coverDisplay.ts. Required by schema v5. */
-  coverDisplayGeometry?: number[];
+  coverDisplayGeometry?: number[] | Float32Array;
   coverDisplayMetadata?: CoverDisplayMetadata;
   /** Optional matching NAIP JPEG; stored outside JSON as .imagery.jpg. */
   localImagery?: Uint8Array | number[];

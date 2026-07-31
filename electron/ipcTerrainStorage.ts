@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   TERRAIN_SAVE_CHANNEL,
+  TERRAIN_SAVE_COVER_CHANNEL,
   TERRAIN_LOAD_CHANNEL,
   TERRAIN_LIST_CHANNEL,
   TERRAIN_DELETE_CHANNEL,
@@ -10,6 +11,8 @@ import {
 import type {
   TerrainSaveRequest,
   TerrainSaveResponse,
+  TerrainCoverSaveRequest,
+  TerrainCoverSaveResponse,
   TerrainLoadRequest,
   TerrainLoadResponse,
   TerrainListResponse,
@@ -18,6 +21,8 @@ import type {
 } from '../src/ipcContract';
 import type { TerrainRecord, TerrainSummary } from '../src/types';
 import { checksumBytes } from '../src/terrainPackage';
+
+const fsp = fs.promises;
 
 function terrainsDir(): string {
   const dir = path.join(app.getPath('userData'), 'terrains');
@@ -183,6 +188,177 @@ export function registerTerrainStorageHandlers(): void {
       return { ok: false, error: e instanceof Error ? e.message : 'Unknown error saving terrain' };
     }
   });
+
+  ipcMain.handle(
+    TERRAIN_SAVE_COVER_CHANNEL,
+    async (_event, req: TerrainCoverSaveRequest): Promise<TerrainCoverSaveResponse> => {
+      if (!req || typeof req.key !== 'string' || req.key.length === 0) {
+        return { ok: false, error: 'Invalid terrain key' };
+      }
+      const metaPath = safeFilePath(req.key, '.json');
+      const coverPath = safeFilePath(req.key, '.cover.bin');
+      const coverDisplayPath = safeFilePath(req.key, '.cover-display.bin');
+      if (!metaPath || !coverPath || !coverDisplayPath) {
+        return { ok: false, error: 'Invalid terrain key' };
+      }
+
+      const nonce = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const metaTmp = `${metaPath}.${nonce}.tmp`;
+      const coverTmp = `${coverPath}.${nonce}.tmp`;
+      const coverDisplayTmp = `${coverDisplayPath}.${nonce}.tmp`;
+
+      try {
+        if (
+          !req.coverGrid
+          || !req.coverMetadata
+          || !req.coverDisplayGeometry
+          || !req.coverDisplayMetadata
+          || !req.packageManifest
+        ) {
+          throw new Error('Ground-cover update is incomplete');
+        }
+        if (req.packageManifest.terrainKey !== req.key) {
+          throw new Error('Ground-cover manifest terrain key does not match');
+        }
+        if (!req.packageManifest.complete || !req.coverGrid.complete) {
+          throw new Error('Ground-cover update is not complete');
+        }
+        if (!Number.isInteger(req.coverGrid.width) || !Number.isInteger(req.coverGrid.height)) {
+          throw new Error('Ground-cover grid dimensions are invalid');
+        }
+
+        const coverValues = req.coverGrid.data instanceof Uint8Array
+          ? req.coverGrid.data
+          : Uint8Array.from(req.coverGrid.data);
+        const displayValues = req.coverDisplayGeometry instanceof Float32Array
+          ? req.coverDisplayGeometry
+          : Float32Array.from(req.coverDisplayGeometry);
+        const coverBytes = Buffer.from(coverValues.buffer, coverValues.byteOffset, coverValues.byteLength);
+        const displayBytes = Buffer.from(displayValues.buffer, displayValues.byteOffset, displayValues.byteLength);
+        if (coverValues.length !== req.coverGrid.width * req.coverGrid.height) {
+          throw new Error('Ground-cover grid dimensions do not match its data');
+        }
+        if (
+          req.coverMetadata.width !== req.coverGrid.width
+          || req.coverMetadata.height !== req.coverGrid.height
+          || req.coverMetadata.source !== req.coverGrid.source
+          || req.coverMetadata.complete !== req.coverGrid.complete
+          || req.coverMetadata.nodataCount !== req.coverGrid.nodataCount
+        ) {
+          throw new Error('Ground-cover metadata does not match its grid');
+        }
+        if (
+          coverBytes.byteLength !== req.coverMetadata.byteLength
+          || checksumBytes(coverBytes) !== req.coverMetadata.checksum
+        ) {
+          throw new Error('Ground-cover payload does not match its metadata');
+        }
+        if (
+          displayBytes.byteLength !== req.coverDisplayMetadata.byteLength
+          || checksumBytes(displayBytes) !== req.coverDisplayMetadata.checksum
+        ) {
+          throw new Error('Vector ground-cover payload does not match its metadata');
+        }
+        if (
+          !req.packageManifest.cover
+          || req.packageManifest.cover.byteLength !== req.coverMetadata.byteLength
+          || req.packageManifest.cover.checksum !== req.coverMetadata.checksum
+        ) {
+          throw new Error('Ground-cover manifest does not match its metadata');
+        }
+        if (
+          !req.packageManifest.coverDisplay
+          || req.packageManifest.coverDisplay.byteLength !== req.coverDisplayMetadata.byteLength
+          || req.packageManifest.coverDisplay.checksum !== req.coverDisplayMetadata.checksum
+        ) {
+          throw new Error('Vector ground-cover manifest does not match its metadata');
+        }
+        if (Number.isNaN(Date.parse(req.updatedAt))) {
+          throw new Error('Ground-cover update timestamp is invalid');
+        }
+
+        const existing = JSON.parse(await fsp.readFile(metaPath, 'utf-8')) as TerrainRecord;
+        if (existing.key !== req.key) {
+          throw new Error('Stored terrain metadata key does not match');
+        }
+        if (!existing.packageManifest) {
+          throw new Error('Stored terrain package manifest is missing');
+        }
+
+        // Only the two edited assets and their manifest entries are replaced.
+        // Immutable package assets retain their existing checksums and paths.
+        const packageManifest = {
+          ...existing.packageManifest,
+          schemaVersion: req.packageManifest.schemaVersion,
+          complete: req.packageManifest.complete,
+          cover: req.coverMetadata,
+          coverDisplay: req.coverDisplayMetadata,
+          assets: {
+            ...existing.packageManifest.assets,
+            cover: `${req.key}.cover.bin`,
+            coverDisplay: `${req.key}.cover-display.bin`,
+          },
+          preparedAt: req.packageManifest.preparedAt,
+        };
+        const metadata: TerrainRecord = {
+          ...existing,
+          coverMetadata: req.coverMetadata,
+          coverDisplayMetadata: req.coverDisplayMetadata,
+          packageManifest,
+          updatedAt: req.updatedAt,
+        };
+
+        await Promise.all([
+          fsp.writeFile(coverTmp, coverBytes),
+          fsp.writeFile(coverDisplayTmp, displayBytes),
+        ]);
+
+        // Re-read the temporary files rather than trusting the source buffers.
+        // Metadata remains the package commit marker and is not replaced until
+        // both new assets have passed their byte-length/checksum checks.
+        const [writtenCover, writtenDisplay] = await Promise.all([
+          fsp.readFile(coverTmp),
+          fsp.readFile(coverDisplayTmp),
+        ]);
+        if (
+          writtenCover.byteLength !== req.coverMetadata.byteLength
+          || checksumBytes(writtenCover) !== req.coverMetadata.checksum
+        ) {
+          throw new Error('Ground-cover temporary file failed validation');
+        }
+        if (
+          writtenDisplay.byteLength !== req.coverDisplayMetadata.byteLength
+          || checksumBytes(writtenDisplay) !== req.coverDisplayMetadata.checksum
+        ) {
+          throw new Error('Vector ground-cover temporary file failed validation');
+        }
+
+        await fsp.writeFile(metaTmp, JSON.stringify(metadata), 'utf-8');
+        JSON.parse(await fsp.readFile(metaTmp, 'utf-8'));
+
+        await fsp.rename(coverTmp, coverPath);
+        await fsp.rename(coverDisplayTmp, coverDisplayPath);
+        await fsp.rename(metaTmp, metaPath);
+
+        const index = readIndex().filter((summary) => summary.key !== req.key);
+        index.push(toSummary(metadata));
+        writeIndex(index);
+
+        return { ok: true, key: req.key };
+      } catch (e) {
+        return {
+          ok: false,
+          error: e instanceof Error ? e.message : 'Unknown error saving terrain cover',
+        };
+      } finally {
+        await Promise.allSettled([
+          fsp.rm(metaTmp, { force: true }),
+          fsp.rm(coverTmp, { force: true }),
+          fsp.rm(coverDisplayTmp, { force: true }),
+        ]);
+      }
+    },
+  );
 
   ipcMain.handle(TERRAIN_LOAD_CHANNEL, (_event, req: TerrainLoadRequest): TerrainLoadResponse => {
     const metaPath = safeFilePath(req.key, '.json');

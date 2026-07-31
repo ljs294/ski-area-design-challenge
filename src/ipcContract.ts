@@ -1,9 +1,19 @@
 // Shared IPC channel names + payload/response types for terrain filesystem
 // storage. Imported by both the renderer (src/) and the Electron main
 // process (electron/) — tsconfig.json already includes both directories.
-import type { TerrainRecord, TerrainSummary, GameSave, GameSaveSummary } from './types';
+import type {
+  CoverDisplayMetadata,
+  CoverGrid,
+  CoverMetadata,
+  GameSave,
+  GameSaveSummary,
+  TerrainPackageManifest,
+  TerrainRecord,
+  TerrainSummary,
+} from './types';
 
 export const TERRAIN_SAVE_CHANNEL = 'terrain:save';
+export const TERRAIN_SAVE_COVER_CHANNEL = 'terrain:save-cover';
 export const TERRAIN_LOAD_CHANNEL = 'terrain:load';
 export const TERRAIN_LIST_CHANNEL = 'terrain:list';
 export const TERRAIN_DELETE_CHANNEL = 'terrain:delete';
@@ -62,6 +72,22 @@ export interface TerrainSaveRequest {
 export type TerrainSaveResponse =
   | { ok: true; key: string }
   | { ok: false; error: string };
+
+/**
+ * Compact package update used after an infrastructure cover edit. The
+ * Electron writer merges these fields into the existing metadata document and
+ * leaves every unrelated binary sidecar untouched.
+ */
+export interface TerrainCoverSaveRequest {
+  key: string;
+  coverGrid: CoverGrid;
+  coverMetadata: CoverMetadata;
+  coverDisplayGeometry: number[] | Float32Array;
+  coverDisplayMetadata: CoverDisplayMetadata;
+  packageManifest: TerrainPackageManifest;
+  updatedAt: string;
+}
+export type TerrainCoverSaveResponse = TerrainSaveResponse;
 
 export interface TerrainLoadRequest {
   key: string;

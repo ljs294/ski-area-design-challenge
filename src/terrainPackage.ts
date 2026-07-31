@@ -23,12 +23,12 @@ export function checksumBytes(bytes: ArrayLike<number>): string {
 }
 
 export function float32Bytes(values: ArrayLike<number>): Uint8Array {
-  const floats = Float32Array.from(values);
+  const floats = values instanceof Float32Array ? values : Float32Array.from(values);
   return new Uint8Array(floats.buffer, floats.byteOffset, floats.byteLength);
 }
 
 export function coverBytes(grid: CoverGrid): Uint8Array {
-  return Uint8Array.from(grid.data);
+  return grid.data instanceof Uint8Array ? grid.data : Uint8Array.from(grid.data);
 }
 
 export function coverMetadataOf(grid: CoverGrid): CoverMetadata {
@@ -60,11 +60,42 @@ export function imageryMetadataOf(
 }
 
 export function coverDisplayMetadataOf(
-  geometry: number[],
+  geometry: ArrayLike<number>,
   stats: CoverDisplayStats
 ): CoverDisplayMetadata {
   const bytes = float32Bytes(geometry);
   return { ...stats, byteLength: bytes.byteLength, checksum: checksumBytes(bytes) };
+}
+
+/**
+ * Refresh just the mutable cover entries in an already-valid package manifest.
+ *
+ * Infrastructure construction never changes elevation, contours, imagery, or
+ * the original recovery grid. Re-hashing those large immutable assets made a
+ * small cover edit disproportionately expensive, so this fast path carries
+ * their previously-verified manifest entries forward.
+ */
+export function manifestWithUpdatedCover(record: TerrainRecord): TerrainPackageManifest {
+  const previous = record.packageManifest;
+  if (!previous) return manifestOf(record);
+  const cover = record.coverMetadata
+    ?? (record.coverGrid ? coverMetadataOf(record.coverGrid) : undefined);
+  const coverDisplay = record.coverDisplayMetadata;
+  return {
+    ...previous,
+    terrainKey: record.key,
+    complete: !!record.coverGrid?.complete,
+    cover,
+    coverDisplay,
+    assets: {
+      ...previous.assets,
+      cover: previous.assets.cover || `${record.key}.cover.bin`,
+      coverDisplay: coverDisplay
+        ? (previous.assets.coverDisplay || `${record.key}.cover-display.bin`)
+        : undefined,
+    },
+    preparedAt: new Date().toISOString(),
+  };
 }
 
 export function manifestOf(record: TerrainRecord): TerrainPackageManifest {
@@ -118,6 +149,91 @@ export function boundsOffsetDegrees(a: BoundsLike, b: BoundsLike): number {
 // to different footprints (~0.11 m at this threshold). The exportImage
 // extent-snap bug offset the elevation from the cover by ~0.008° (~900 m).
 const MAX_LAYER_OFFSET_DEG = 1e-6;
+
+/**
+ * Validate the assets touched by an infrastructure cover edit without
+ * re-reading and re-hashing the package's immutable elevation, contour,
+ * imagery, boundary, and recovery assets. The worker supplies checksums for the
+ * newly-created buffers and the desktop writer verifies those bytes again
+ * before committing metadata.
+ */
+export function validateTerrainCoverEdit(record: TerrainRecord): TerrainPackageValidation {
+  const errors: string[] = [];
+  const manifest = record.packageManifest;
+  const grid = record.coverGrid;
+  const metadata = record.coverMetadata;
+
+  if (!manifest) errors.push('Package manifest is missing.');
+  if (!grid) errors.push('Ground-cover grid is missing.');
+  if (!metadata) errors.push('Ground-cover metadata is missing.');
+  if (manifest && !manifest.complete) errors.push('Package was not marked complete.');
+  if (manifest && !manifest.cover) errors.push('Ground-cover manifest asset is missing.');
+
+  if (record.bounds && grid) {
+    const offset = boundsOffsetDegrees(record.bounds, grid.bounds);
+    if (offset > MAX_LAYER_OFFSET_DEG) {
+      errors.push(`Ground-cover extent is offset from the terrain extent by ${offset.toExponential(2)}° — map layers would be misaligned.`);
+    }
+  }
+
+  if (grid) {
+    const expected = grid.width * grid.height;
+    if (grid.data.length !== expected) {
+      errors.push('Ground-cover grid dimensions do not match its data.');
+    }
+    if (!grid.complete || grid.nodataCount > 0) {
+      errors.push('Ground-cover data is incomplete.');
+    }
+    if (record.schemaVersion >= 6 && grid.source !== 'usgs-four-class-v1') {
+      errors.push('Schema-v6 terrain cover is not the four-class product.');
+    }
+    if (metadata) {
+      if (metadata.width !== grid.width || metadata.height !== grid.height
+          || metadata.byteLength !== grid.data.length) {
+        errors.push('Ground-cover metadata dimensions do not match its data.');
+      }
+      if (manifest?.cover
+          && (manifest.cover.byteLength !== metadata.byteLength
+            || manifest.cover.checksum !== metadata.checksum)) {
+        errors.push('Ground-cover manifest metadata does not match.');
+      }
+    }
+  }
+
+  const geometry = record.coverDisplayGeometry;
+  const displayMetadata = record.coverDisplayMetadata;
+  if (record.schemaVersion >= 5 && (!geometry || !displayMetadata)) {
+    errors.push('Prepared vector ground cover is missing.');
+  }
+  if (record.schemaVersion >= 5 && (!manifest?.coverDisplay || !manifest.assets.coverDisplay)) {
+    errors.push('Vector ground-cover manifest asset is missing.');
+  }
+  if (geometry && displayMetadata) {
+    if (displayMetadata.byteLength !== geometry.length * Float32Array.BYTES_PER_ELEMENT) {
+      errors.push('Vector ground-cover metadata length does not match its geometry.');
+    }
+    if (manifest?.coverDisplay
+        && (manifest.coverDisplay.byteLength !== displayMetadata.byteLength
+          || manifest.coverDisplay.checksum !== displayMetadata.checksum)) {
+      errors.push('Vector ground-cover manifest metadata does not match.');
+    }
+    try {
+      const inspected = inspectCoverDisplayGeometry(geometry);
+      if (inspected.polygonCount !== displayMetadata.polygonCount
+          || inspected.ringCount !== displayMetadata.ringCount
+          || inspected.vertexCount !== displayMetadata.vertexCount) {
+        errors.push('Vector ground-cover counts do not match its geometry.');
+      }
+      if (inspected.vertexCount > COVER_DISPLAY_VERTEX_BUDGET) {
+        errors.push('Vector ground-cover vertex budget was exceeded.');
+      }
+    } catch {
+      errors.push('Vector ground-cover geometry is malformed.');
+    }
+  }
+
+  return { ok: errors.length === 0, errors };
+}
 
 export function validateTerrainPackage(record: TerrainRecord): TerrainPackageValidation {
   const errors: string[] = [];

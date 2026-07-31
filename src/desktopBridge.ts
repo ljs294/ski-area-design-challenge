@@ -3,6 +3,8 @@
 // absent, so callers must handle `null` and fall back to browser equivalents.
 import type {
   TerrainSaveResponse,
+  TerrainCoverSaveRequest,
+  TerrainCoverSaveResponse,
   TerrainLoadResponse,
   TerrainListResponse,
   TerrainDeleteResponse,
@@ -25,6 +27,8 @@ export interface DesktopApi {
     /** Package-named aliases used by resort preparation and repair flows. */
     loadPackage(key: string): Promise<TerrainLoadResponse>;
     repairPackage(record: TerrainRecord): Promise<TerrainSaveResponse>;
+    /** Writes only edited cover assets and their merged package metadata. */
+    saveCover(request: TerrainCoverSaveRequest): Promise<TerrainCoverSaveResponse>;
     list(): Promise<TerrainListResponse>;
     delete(key: string): Promise<TerrainDeleteResponse>;
   };

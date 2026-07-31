@@ -3,10 +3,14 @@ import {
   grasslandCodeFor,
   jitterPolygon,
   jitterRing,
+  liftClearingRing,
   liftCorridorRing,
+  stampClearingsIntoGrid,
   stampPolygonsIntoGrid,
   LIFT_CLEAR_HALF_WIDTH_M,
-  LIFT_CLEAR_JITTER_M,
+  LIFT_CLEAR_MIN_WIDTH_M,
+  LIFT_CLEAR_NOISE_AMPLITUDE_M,
+  TRAIL_CLEAR_JITTER_M,
   TRAIL_CLEAR_BUBBLE_AMPLITUDE_M,
   TRAIL_CLEAR_BUBBLE_STEP_M,
   TRAIL_CLEAR_BUBBLE_WAVELENGTH_M,
@@ -41,7 +45,7 @@ const LIFT: [[number, number], [number, number]] = [
 ];
 
 function ringFor(seed = 'lift-1') {
-  return liftCorridorRing(LIFT, BOUNDS, { halfWidthM: LIFT_CLEAR_HALF_WIDTH_M, jitterM: LIFT_CLEAR_JITTER_M, seed });
+  return liftClearingRing(LIFT, BOUNDS, seed);
 }
 
 describe('grasslandCodeFor', () => {
@@ -51,7 +55,91 @@ describe('grasslandCodeFor', () => {
   });
 });
 
+describe('production lift clearing profile', () => {
+  const longBounds = boundsForSquareMeters(47, -121.5, 1000);
+  const longLift: [[number, number], [number, number]] = [
+    unitToLngLat(0.1, 0.5, longBounds),
+    unitToLngLat(0.9, 0.5, longBounds),
+  ];
+
+  function sideProfiles(ring: [number, number][]) {
+    const north: Array<{ x: number; width: number }> = [];
+    const south: Array<{ x: number; width: number }> = [];
+    for (const [lng, lat] of ring.slice(0, -1)) {
+      const [u, v] = lngLatToUnit(lng, lat, longBounds);
+      if (u <= 0.11 || u >= 0.89) continue; // omit rounded end caps
+      const signedWidth = (0.5 - v) * 1000;
+      (signedWidth >= 0 ? north : south).push({
+        x: u * 1000,
+        width: Math.abs(signedWidth),
+      });
+    }
+    north.sort((a, b) => a.x - b.x);
+    south.sort((a, b) => a.x - b.x);
+    return { north, south };
+  }
+
+  it('uses deterministic, smooth, independently varied outward noise', () => {
+    const ring = liftClearingRing(longLift, longBounds, 'organic-lift');
+    expect(ring).toEqual(liftClearingRing(longLift, longBounds, 'organic-lift'));
+    expect(ring).not.toEqual(liftClearingRing(longLift, longBounds, 'other-lift'));
+
+    const sides = sideProfiles(ring);
+    for (const profile of Object.values(sides)) {
+      const widths = profile.map(({ width }) => width);
+      expect(Math.min(...widths)).toBeGreaterThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M - 0.05);
+      expect(Math.max(...widths)).toBeLessThanOrEqual(
+        LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_NOISE_AMPLITUDE_M + 0.05);
+      expect(Math.max(...widths) - Math.min(...widths)).toBeGreaterThan(2);
+      expect(new Set(widths.map((width) => width.toFixed(1))).size).toBeGreaterThan(20);
+      for (let i = 1; i < widths.length; i++) {
+        expect(Math.abs(widths[i] - widths[i - 1])).toBeLessThan(1.6);
+      }
+    }
+    expect(sides.north.map(({ width }) => width.toFixed(3)))
+      .not.toEqual(sides.south.map(({ width }) => width.toFixed(3)));
+  });
+
+  it('retains the minimum width and organic variation after vector smoothing', () => {
+    const size = 500;
+    const forest = {
+      ...grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest),
+      bounds: longBounds,
+      width: size,
+      height: size,
+      data: new Uint8Array(size * size).fill(TERRAIN_COVER_CODES.forest),
+    } as CoverGrid;
+    const ring = liftClearingRing(longLift, longBounds, 'visible-organic-lift');
+    const cleared = stampClearingsIntoGrid(forest, [{ polygon: [ring] }]).grid;
+    const display = coverDisplayToGeoJSON(
+      deriveCoverDisplayGeometry(cleared).geometry,
+      longBounds
+    );
+    const grass = display.features.find((feature) =>
+      feature.properties.code === TERRAIN_COVER_CODES.grassland);
+    expect(grass).toBeDefined();
+
+    const visibleWidths = grass!.geometry.coordinates[0]
+      .map(([lng, lat]) => {
+        const [u, v] = lngLatToUnit(lng, lat, longBounds);
+        return { u, width: Math.abs(v - 0.5) * 1000 };
+      })
+      .filter(({ u }) => u > 0.13 && u < 0.87)
+      .map(({ width }) => width);
+    expect(Math.min(...visibleWidths)).toBeGreaterThanOrEqual(
+      LIFT_CLEAR_MIN_WIDTH_M / 2 - 0.25);
+    expect(Math.max(...visibleWidths) - Math.min(...visibleWidths)).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...visibleWidths)).toBeLessThanOrEqual(
+      LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_NOISE_AMPLITUDE_M + 2);
+  });
+});
+
 describe('liftCorridorRing', () => {
+  it('guarantees at least 50 feet of authored clear width', () => {
+    expect(LIFT_CLEAR_MIN_WIDTH_M).toBeCloseTo(15.24, 8);
+    expect(LIFT_CLEAR_HALF_WIDTH_M * 2).toBeGreaterThanOrEqual(LIFT_CLEAR_MIN_WIDTH_M);
+  });
+
   it('returns a closed ring of at least four points', () => {
     const ring = ringFor();
     expect(ring.length).toBeGreaterThanOrEqual(4);
@@ -86,7 +174,7 @@ describe('liftCorridorRing', () => {
     expect(crossings).toBe(0);
   });
 
-  it('holds the corridor within half-width ± jitter of the centreline', () => {
+  it('only widens outward from the minimum corridor', () => {
     const ring = ringFor();
     const mPerLat = 111320;
     const mPerLng = 111320 * Math.cos((LIFT[0][1] * Math.PI) / 180);
@@ -101,14 +189,15 @@ describe('liftCorridorRing', () => {
       const perpM = Math.abs(lat - lineLat) * mPerLat;
       // Points beside the line stay within the jittered half-width; points near
       // the rounded caps may sit slightly past the ends but never wider.
-      const withinSpan = lng >= minLng - 1 && lng <= maxLng + 1;
+      const withinSpan = lng >= minLng && lng <= maxLng;
       if (withinSpan) {
-        expect(perpM).toBeLessThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_JITTER_M + 0.5);
+        expect(perpM).toBeGreaterThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M - 0.5);
+        expect(perpM).toBeLessThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_NOISE_AMPLITUDE_M + 0.5);
       }
-      // Nothing anywhere on the ring exceeds half-width + jitter from the axis.
+      // Nothing anywhere on the ring exceeds half-width + outward noise.
       const alongOffset = Math.max(0, minLng - lng, lng - maxLng) * mPerLng;
       const radial = Math.hypot(perpM, alongOffset);
-      expect(radial).toBeLessThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_JITTER_M + 1);
+      expect(radial).toBeLessThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_NOISE_AMPLITUDE_M + 1);
     }
   });
 });
@@ -194,7 +283,7 @@ describe('stampPolygonsIntoGrid', () => {
 describe('jitterRing / jitterPolygon', () => {
   it('keeps the ring closed and stays within the amplitude of the input', () => {
     const ring = outerRing();
-    const jittered = jitterRing(ring, LIFT_CLEAR_JITTER_M, 'trail-1:r0');
+    const jittered = jitterRing(ring, TRAIL_CLEAR_JITTER_M, 'trail-1:r0');
     expect(jittered[0]).toEqual(jittered[jittered.length - 1]); // still closed
     expect(jittered.length).toBe(ring.length);
 
@@ -204,17 +293,17 @@ describe('jitterRing / jitterPolygon', () => {
     for (let i = 0; i < ring.length; i++) {
       const dLng = (jittered[i][0] - ring[i][0]) * mPerLng;
       const dLat = (jittered[i][1] - ring[i][1]) * mPerLat;
-      expect(Math.hypot(dLng, dLat)).toBeLessThanOrEqual(LIFT_CLEAR_JITTER_M + 0.5);
+      expect(Math.hypot(dLng, dLat)).toBeLessThanOrEqual(TRAIL_CLEAR_JITTER_M + 0.5);
     }
   });
 
   it('is deterministic for a fixed seed and differs across seeds', () => {
-    expect(jitterRing(outerRing(), LIFT_CLEAR_JITTER_M, 'a')).toEqual(jitterRing(outerRing(), LIFT_CLEAR_JITTER_M, 'a'));
-    expect(jitterRing(outerRing(), LIFT_CLEAR_JITTER_M, 'a')).not.toEqual(jitterRing(outerRing(), LIFT_CLEAR_JITTER_M, 'b'));
+    expect(jitterRing(outerRing(), TRAIL_CLEAR_JITTER_M, 'a')).toEqual(jitterRing(outerRing(), TRAIL_CLEAR_JITTER_M, 'a'));
+    expect(jitterRing(outerRing(), TRAIL_CLEAR_JITTER_M, 'a')).not.toEqual(jitterRing(outerRing(), TRAIL_CLEAR_JITTER_M, 'b'));
   });
 
   it('jitters every ring of a polygon, keeping the hole', () => {
-    const jittered = jitterPolygon([outerRing(), holeRing()], LIFT_CLEAR_JITTER_M, 'trail-1:0');
+    const jittered = jitterPolygon([outerRing(), holeRing()], TRAIL_CLEAR_JITTER_M, 'trail-1:0');
     expect(jittered).toHaveLength(2);
     expect(jittered[0][0]).toEqual(jittered[0][jittered[0].length - 1]);
     expect(jittered[1][0]).toEqual(jittered[1][jittered[1].length - 1]);
@@ -491,5 +580,265 @@ describe('scanline cover stamping', () => {
       data: new Uint8Array(size * size).fill(TERRAIN_COVER_CODES.forest),
     } as CoverGrid;
     expect(stampPolygonsIntoGrid(source, [[dense]]).changed).toBeGreaterThan(10_000);
+  });
+});
+
+describe('bubbly treeline brush stamping', () => {
+  it('preserves the complete authored footprint and adds deterministic irregular caps', () => {
+    const forest = grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest);
+    const plain = stampPolygonsIntoGrid(forest, [[outerRing()]]);
+    const brushedA = stampClearingsIntoGrid(forest, [{
+      polygon: [outerRing()],
+      edgeBrush: { seed: 'bubbly-square' },
+    }]);
+    const brushedAgain = stampClearingsIntoGrid(forest, [{
+      polygon: [outerRing()],
+      edgeBrush: { seed: 'bubbly-square' },
+    }]);
+    const brushedB = stampClearingsIntoGrid(forest, [{
+      polygon: [outerRing()],
+      edgeBrush: { seed: 'different-bubbly-square' },
+    }]);
+
+    expect(brushedA.grid.data).toEqual(brushedAgain.grid.data);
+    expect(brushedA.grid.data).not.toEqual(brushedB.grid.data);
+    expect(brushedA.changed).toBeGreaterThan(plain.changed);
+
+    let countedChanges = 0;
+    let maxOutsideM = 0;
+    let extraCells = 0;
+    for (let row = 0; row < N; row++) {
+      for (let col = 0; col < N; col++) {
+        const index = row * N + col;
+        const value = brushedA.grid.data[index];
+        if (value !== forest.data[index]) countedChanges++;
+        // The brush can only add to the clearing; no authored grass cell may
+        // disappear when the edge treatment is enabled.
+        if (plain.grid.data[index] === TERRAIN_COVER_CODES.grassland) {
+          expect(value).toBe(TERRAIN_COVER_CODES.grassland);
+        }
+        if (value !== TERRAIN_COVER_CODES.grassland ||
+            plain.grid.data[index] === TERRAIN_COVER_CODES.grassland) continue;
+        extraCells++;
+        const outsideM = Math.max(
+          Math.abs((col + 0.5) * 2 - 120),
+          Math.abs((row + 0.5) * 2 - 120)
+        ) - 60;
+        maxOutsideM = Math.max(maxOutsideM, outsideM);
+      }
+    }
+    expect(countedChanges).toBe(brushedA.changed);
+    expect(extraCells).toBeGreaterThan(100);
+    expect(maxOutsideM).toBeGreaterThanOrEqual(8);
+    expect(maxOutsideM).toBeLessThanOrEqual(16);
+    // Immutable mode copies exactly once and leaves the caller's grid alone.
+    expect(brushedA.grid.data).not.toBe(forest.data);
+    expect(forest.data.every((value) => value === TERRAIN_COVER_CODES.forest)).toBe(true);
+  });
+
+  it('erodes a tree island only from its own boundary and preserves its core', () => {
+    const forest = grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest);
+    const polygon = [outerRing(), holeRing()];
+    const plain = stampPolygonsIntoGrid(forest, [polygon]).grid.data;
+    const brushed = stampClearingsIntoGrid(forest, [{
+      polygon,
+      edgeBrush: { seed: 'island-brush' },
+    }]).grid.data;
+
+    let erodedHoleCells = 0;
+    for (let row = 0; row < N; row++) {
+      for (let col = 0; col < N; col++) {
+        const index = row * N + col;
+        const xM = (col + 0.5) * 2 - 120;
+        const yM = (row + 0.5) * 2 - 120;
+        const insideOriginalHole = Math.abs(xM) < 20 && Math.abs(yM) < 20;
+        if (insideOriginalHole &&
+            plain[index] === TERRAIN_COVER_CODES.forest &&
+            brushed[index] === TERRAIN_COVER_CODES.grassland) {
+          erodedHoleCells++;
+        }
+        // A central 8 m square remains a standing tree-island core.
+        if (Math.abs(xM) <= 4 && Math.abs(yM) <= 4) {
+          expect(brushed[index]).toBe(TERRAIN_COVER_CODES.forest);
+        }
+      }
+    }
+    expect(erodedHoleCells).toBeGreaterThan(20);
+  });
+
+  it('derives the clearing-side normal correctly from either ring winding', () => {
+    const forest = grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest);
+    const reversedOuter = [...outerRing()].reverse();
+    const reversedHole = [...holeRing()].reverse();
+    const stamped = stampClearingsIntoGrid(forest, [{
+      polygon: [reversedOuter, reversedHole],
+      edgeBrush: { seed: 'reversed-winding' },
+    }]).grid.data;
+
+    let exteriorCaps = 0;
+    let islandErosion = 0;
+    for (let row = 0; row < N; row++) {
+      for (let col = 0; col < N; col++) {
+        if (stamped[row * N + col] !== TERRAIN_COVER_CODES.grassland) continue;
+        const xM = (col + 0.5) * 2 - 120;
+        const yM = (row + 0.5) * 2 - 120;
+        if (Math.max(Math.abs(xM), Math.abs(yM)) > 60) exteriorCaps++;
+        if (Math.max(Math.abs(xM), Math.abs(yM)) < 20) islandErosion++;
+      }
+    }
+    expect(exteriorCaps).toBeGreaterThan(50);
+    expect(islandErosion).toBeGreaterThan(20);
+    const mid = Math.floor(N / 2);
+    expect(stamped[mid * N + mid]).toBe(TERRAIN_COVER_CODES.forest);
+  });
+
+  it('preserves water and no-data during both the polygon and dab passes', () => {
+    const source = grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest);
+    for (let index = 0; index < source.data.length; index += 17) {
+      source.data[index] = TERRAIN_COVER_CODES.water;
+    }
+    for (let index = 5; index < source.data.length; index += 29) {
+      source.data[index] = TERRAIN_COVER_CODES.nodata;
+    }
+    const stamped = stampClearingsIntoGrid(source, [{
+      polygon: [outerRing(), holeRing()],
+      edgeBrush: { seed: 'protected-cover' },
+    }]);
+    for (let index = 0; index < source.data.length; index++) {
+      if (source.data[index] === TERRAIN_COVER_CODES.water ||
+          source.data[index] === TERRAIN_COVER_CODES.nodata) {
+        expect(stamped.grid.data[index]).toBe(source.data[index]);
+      }
+    }
+  });
+
+  it('can stamp the worker-owned Uint8Array in place without another grid copy', () => {
+    const source = grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest);
+    const buffer = source.data as Uint8Array;
+    const stamped = stampClearingsIntoGrid(
+      source,
+      [{ polygon: [outerRing()], edgeBrush: { seed: 'in-place' } }],
+      { inPlace: true }
+    );
+    expect(stamped.grid.data).toBe(buffer);
+    expect(source.data).toBe(buffer);
+    expect(stamped.changed).toBeGreaterThan(0);
+    expect(buffer.some((value) => value === TERRAIN_COVER_CODES.grassland)).toBe(true);
+  });
+
+  it('keeps mixed-scale linework irregular along a long straight edge', () => {
+    const bounds = boundsForSquareMeters(47, -121.5, 1000);
+    const size = 500;
+    const rectangle: [number, number][] = [
+      unitToLngLat(0.1, 0.488, bounds),
+      unitToLngLat(0.9, 0.488, bounds),
+      unitToLngLat(0.9, 0.512, bounds),
+      unitToLngLat(0.1, 0.512, bounds),
+      unitToLngLat(0.1, 0.488, bounds),
+    ];
+    const source = {
+      ...grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest),
+      bounds,
+      width: size,
+      height: size,
+      data: new Uint8Array(size * size).fill(TERRAIN_COVER_CODES.forest),
+    } as CoverGrid;
+    const stamped = stampClearingsIntoGrid(source, [{
+      polygon: [rectangle],
+      edgeBrush: { seed: 'long-bubble-line' },
+    }]).grid.data;
+
+    const baseTopRow = Math.floor(0.488 * size);
+    const depthsM: number[] = [];
+    for (let col = Math.floor(0.13 * size); col <= Math.floor(0.87 * size); col++) {
+      let top = baseTopRow;
+      while (top > 0 &&
+             stamped[(top - 1) * size + col] === TERRAIN_COVER_CODES.grassland) {
+        top--;
+      }
+      depthsM.push((baseTopRow - top) * 2);
+    }
+    const distinctDepths = new Set(depthsM);
+    expect(depthsM.filter((depth) => depth >= 2).length)
+      .toBeGreaterThan(depthsM.length * 0.8);
+    expect(Math.max(...depthsM)).toBeGreaterThanOrEqual(10);
+    expect(distinctDepths.size).toBeGreaterThanOrEqual(5);
+  });
+
+  it('retains visible peak-to-trough variation after display smoothing and decoding', () => {
+    const bounds = boundsForSquareMeters(47, -121.5, 1000);
+    const size = 500;
+    const authoredTopV = 0.488;
+    const rectangle: [number, number][] = [
+      unitToLngLat(0.1, authoredTopV, bounds),
+      unitToLngLat(0.9, authoredTopV, bounds),
+      unitToLngLat(0.9, 0.512, bounds),
+      unitToLngLat(0.1, 0.512, bounds),
+      unitToLngLat(0.1, authoredTopV, bounds),
+    ];
+    const source = {
+      ...grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest),
+      bounds,
+      width: size,
+      height: size,
+      data: new Uint8Array(size * size).fill(TERRAIN_COVER_CODES.forest),
+    } as CoverGrid;
+    const clearing = {
+      polygon: [rectangle],
+      edgeBrush: { seed: 'render-visible-brush' },
+    };
+    const first = stampClearingsIntoGrid(source, [clearing]).grid;
+    const second = stampClearingsIntoGrid(source, [clearing]).grid;
+    expect(first.data).toEqual(second.data);
+
+    const display = coverDisplayToGeoJSON(
+      deriveCoverDisplayGeometry(first).geometry,
+      bounds
+    );
+    const grass = display.features.find((feature) =>
+      feature.properties.code === TERRAIN_COVER_CODES.grassland);
+    expect(grass).toBeDefined();
+    const northEdgeDepthsM = grass!.geometry.coordinates
+      .flat()
+      .map(([lng, lat]) => lngLatToUnit(lng, lat, bounds))
+      .filter(([u, v]) => u >= 0.15 && u <= 0.85 && v < 0.5)
+      .map(([, v]) => (authoredTopV - v) * 1000);
+    expect(northEdgeDepthsM.length).toBeGreaterThan(10);
+    expect(Math.max(...northEdgeDepthsM)).toBeGreaterThanOrEqual(4);
+    expect(Math.max(...northEdgeDepthsM) - Math.min(...northEdgeDepthsM))
+      .toBeGreaterThanOrEqual(3);
+  });
+
+  it('stamps a densely sampled 10 km-class boundary without quadratic work', () => {
+    const meters = 10_000;
+    const bounds = boundsForSquareMeters(47, -121.5, meters);
+    const size = 1000;
+    const dense: [number, number][] = [];
+    const samples = 5000;
+    for (let i = 0; i <= samples; i++) {
+      dense.push(unitToLngLat(0.1 + 0.8 * i / samples, 0.4985, bounds));
+    }
+    for (let i = samples; i >= 0; i--) {
+      dense.push(unitToLngLat(0.1 + 0.8 * i / samples, 0.5015, bounds));
+    }
+    dense.push(dense[0]);
+    const source = {
+      ...grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest),
+      bounds,
+      width: size,
+      height: size,
+      cellSizeM: 10,
+      data: new Uint8Array(size * size).fill(TERRAIN_COVER_CODES.forest),
+    } as CoverGrid;
+    const started = performance.now();
+    const stamped = stampClearingsIntoGrid(source, [{
+      polygon: [dense],
+      edgeBrush: { seed: 'performance-line' },
+    }]);
+    const elapsedMs = performance.now() - started;
+    expect(stamped.changed).toBeGreaterThan(2000);
+    // Generous enough for shared CI, but catches the old rows × vertices or
+    // per-dab polygon-union approaches immediately.
+    expect(elapsedMs).toBeLessThan(750);
   });
 });

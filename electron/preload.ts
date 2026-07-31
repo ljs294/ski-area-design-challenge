@@ -5,6 +5,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import {
   TERRAIN_SAVE_CHANNEL,
+  TERRAIN_SAVE_COVER_CHANNEL,
   TERRAIN_LOAD_CHANNEL,
   TERRAIN_LIST_CHANNEL,
   TERRAIN_DELETE_CHANNEL,
@@ -28,6 +29,7 @@ const api = {
     load: (key: string) => ipcRenderer.invoke(TERRAIN_LOAD_CHANNEL, { key }),
     loadPackage: (key: string) => ipcRenderer.invoke(TERRAIN_LOAD_CHANNEL, { key }),
     repairPackage: (record: unknown) => ipcRenderer.invoke(TERRAIN_SAVE_CHANNEL, { record }),
+    saveCover: (request: unknown) => ipcRenderer.invoke(TERRAIN_SAVE_COVER_CHANNEL, request),
     list: () => ipcRenderer.invoke(TERRAIN_LIST_CHANNEL),
     delete: (key: string) => ipcRenderer.invoke(TERRAIN_DELETE_CHANNEL, { key }),
   },

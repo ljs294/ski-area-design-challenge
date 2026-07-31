@@ -5,6 +5,7 @@
 import { desktop } from './desktopBridge';
 import type {
   TerrainSaveResponse,
+  TerrainCoverSaveRequest,
   TerrainLoadResponse,
   TerrainListResponse,
   TerrainDeleteResponse,
@@ -68,6 +69,43 @@ export async function saveTerrain(record: TerrainRecord): Promise<TerrainSaveRes
     return { ok: true, key: record.key };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Unknown error saving terrain' };
+  }
+}
+
+/**
+ * Persist an infrastructure ground-cover edit without rewriting immutable
+ * terrain assets on desktop. IndexedDB stores a single record, so the browser
+ * fallback intentionally retains its full-record put.
+ */
+export async function saveTerrainCover(record: TerrainRecord): Promise<TerrainSaveResponse> {
+  if (
+    !record.coverGrid
+    || !record.coverMetadata
+    || !record.coverDisplayGeometry
+    || !record.coverDisplayMetadata
+    || !record.packageManifest
+  ) {
+    return { ok: false, error: 'Edited terrain is missing prepared ground-cover assets' };
+  }
+
+  if (desktop) {
+    const request: TerrainCoverSaveRequest = {
+      key: record.key,
+      coverGrid: record.coverGrid,
+      coverMetadata: record.coverMetadata,
+      coverDisplayGeometry: record.coverDisplayGeometry,
+      coverDisplayMetadata: record.coverDisplayMetadata,
+      packageManifest: record.packageManifest,
+      updatedAt: record.updatedAt,
+    };
+    return desktop.terrain.saveCover(request);
+  }
+
+  try {
+    await dbRequest('readwrite', (store) => store.put(record));
+    return { ok: true, key: record.key };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Unknown error saving terrain cover' };
   }
 }
 
