@@ -5,14 +5,14 @@ import { describeAnchor } from '../skiNodes';
 import { fmtDistance } from '../lifts';
 import { DIFFICULTY_COLORS, DIFFICULTY_LABELS, DIFFICULTY_SYMBOL, fmtSlope } from '../trails';
 
-// Left side panel for the trails network: runs, free-standing nodes, and the
+// Floating roll-up content for the trails network: runs, free-standing nodes, and the
 // footpaths that connect them. Presentational only — MapView owns the state
 // and all map interaction (same house rule as LiftControl.tsx); this
 // component just renders whatever it's handed and reports clicks upward.
 //
 // Visual idiom borrowed from LayerPanel.tsx: `.layer-section-title` headers
 // over a compact row list. No CSS lives here — see app.css for
-// `.side-panel` / `.trails-panel` / `.trails-tool` and friends.
+// `.trails-panel` / `.trails-tool` and friends.
 
 export type TrailsTool = 'none' | 'trail' | 'node' | 'path';
 
@@ -56,7 +56,7 @@ export function TrailsPanel({
   onClose: () => void;
 }) {
   return (
-    <aside className="side-panel trails-panel" data-panel="trails">
+    <div className="trails-panel">
       <div className="dock-head">
         <span className="dock-head-title">Ski runs</span>
         <button className="settings-close-x" aria-label="Close" onClick={onClose}>
@@ -206,6 +206,6 @@ export function TrailsPanel({
           </ul>
         </>
       )}
-    </aside>
+    </div>
   );
 }

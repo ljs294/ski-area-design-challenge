@@ -363,7 +363,7 @@ export function MapView({
   const [roads, setRoads] = useState<SavedRoad[]>(() => sanitizeRoads(initialSave?.roads ?? []));
   const [roadTool, setRoadTool] = useState<RoadTool>({ phase: 'idle' });
   // User-declared connectivity: placed nodes and drawn connector paths, both
-  // owned by the trails side panel.
+  // owned by the floating Trails roll-up.
   const [skiNodes, setSkiNodes] = useState<SavedNode[]>(() => sanitizeNodes(initialSave?.nodes ?? []));
   const [skiPaths, setSkiPaths] = useState<SavedPath[]>(() => sanitizePaths(initialSave?.paths ?? []));
   const [nodeTool, setNodeTool] = useState<NodeTool>({ phase: 'idle' });
@@ -2980,7 +2980,7 @@ export function MapView({
   const liftActive = liftTool.phase !== 'idle' || selectedLiftId !== null;
   const trailActive = trailTool.phase !== 'idle' || selectedTrailId !== null ||
     nodeTool.phase !== 'idle' || pathTool.phase !== 'idle';
-  /** The side panel swaps its body in place for a selection or an active tool. */
+  /** The Trails roll-up swaps its body in place for a selection or active tool. */
   const trailPanelBusy = trailTool.phase !== 'idle' || trailEditing ||
     nodeTool.phase !== 'idle' || pathTool.phase !== 'idle' || selectedTrailId !== null;
   const activeTrailsTool: TrailsTool =
@@ -3018,17 +3018,6 @@ export function MapView({
   const infrastructureActive = roadTool.phase !== 'idle';
   const liftsOpen = !!saved && (openDock === 'lifts' || liftActive);
   const trailsOpen = !!saved && !liftsOpen && (openDock === 'trails' || trailActive);
-
-  // The trails side panel pushes the dock and the top-left stack right, via one
-  // custom property rather than per-component layout surgery.
-  useEffect(() => {
-    const root = document.documentElement;
-    if (trailsOpen) root.style.setProperty('--side-panel-offset', '300px');
-    else root.style.removeProperty('--side-panel-offset');
-    return () => {
-      root.style.removeProperty('--side-panel-offset');
-    };
-  }, [trailsOpen]);
   const infrastructureOpen = !!saved && !liftsOpen && !trailsOpen &&
     (openDock === 'infrastructure' || infrastructureActive);
   const layersOpen = !!saved && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
@@ -3234,164 +3223,6 @@ export function MapView({
         />
       )}
 
-      {/* Trails side panel: the tools and lists live here, and a selection or an
-          active tool swaps the body in place rather than opening a second panel. */}
-      {trailsOpen && (
-        trailPanelBusy ? (
-          <aside className="side-panel trails-panel" data-panel="trails">
-            {nodeTool.phase !== 'idle' ? (
-              <div className="site-control site-control-wide trail-panel">
-                <div className="dock-head">
-                  <span className="dock-head-title">Place node</span>
-                  <button className="settings-close-x" aria-label="Close" onClick={cancelNodeTool}>✕</button>
-                </div>
-                {nodeTool.phase === 'armed' ? (
-                  <div className="site-hint">
-                    Click the map to drop a node. Landing on a run, lift or path attaches it there.
-                  </div>
-                ) : (
-                  <>
-                    <input
-                      className="name-entry-input lift-name-input"
-                      value={nodeTool.name}
-                      onChange={(e) => setNodeTool((t) =>
-                        t.phase === 'review' ? { ...t, name: e.target.value } : t)}
-                    />
-                    <div className="readout-line">
-                      <span className="lift-stat-label">Attached to</span>
-                      <span className="lift-stat-value">
-                        {nodeTool.anchor ? describeAnchor(nodeTool.anchor) : 'Nothing'}
-                      </span>
-                    </div>
-                    <div className="site-actions">
-                      <button className="site-btn" onClick={cancelNodeTool}>Cancel</button>
-                      <button className="site-btn site-btn-primary" onClick={confirmNode}>Place node</button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : pathTool.phase !== 'idle' ? (
-              <div className="site-control site-control-wide trail-panel">
-                <div className="dock-head">
-                  <span className="dock-head-title">Draw path</span>
-                  <button className="settings-close-x" aria-label="Close" onClick={cancelPathTool}>✕</button>
-                </div>
-                {pathTool.phase === 'review' ? (
-                  <>
-                    <input
-                      className="name-entry-input lift-name-input"
-                      value={pathTool.name}
-                      onChange={(e) => setPathTool((t) =>
-                        t.phase === 'review' ? { ...t, name: e.target.value } : t)}
-                    />
-                    <div className="readout-line">
-                      <span className="lift-stat-label">From</span>
-                      <span className="lift-stat-value">{describeAnchor(pathTool.from)}</span>
-                    </div>
-                    <div className="readout-line">
-                      <span className="lift-stat-label">To</span>
-                      <span className="lift-stat-value">{describeAnchor(pathTool.to)}</span>
-                    </div>
-                    <div className="readout-line">
-                      <span className="lift-stat-label">Length</span>
-                      <span className="lift-stat-value">
-                        {fmtDistance(pathLengthM(pathTool.points), settings.units)}
-                      </span>
-                    </div>
-                    <div className="site-actions">
-                      <button className="site-btn" onClick={cancelPathTool}>Cancel</button>
-                      <button className="site-btn site-btn-primary" onClick={confirmPath}>Build path</button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="site-hint">
-                      {pathTool.phase === 'armed'
-                        ? 'Click a lift terminal, a run, a path or a node to start the connector.'
-                        : 'Click along the route. Finish on another run, lift, path or node.'}
-                    </div>
-                    <div className="site-actions">
-                      <button
-                        className="site-btn"
-                        onClick={undoPathPoint}
-                        disabled={pathTool.phase !== 'drawing'}
-                      >
-                        Undo point
-                      </button>
-                      <button
-                        className="site-btn site-btn-primary"
-                        onClick={finishPathRoute}
-                        disabled={pathTool.phase !== 'drawing' || pathTool.points.length < 2}
-                      >
-                        Finish
-                      </button>
-                    </div>
-                    <button className="site-btn" onClick={cancelPathTool}>Cancel</button>
-                  </>
-                )}
-              </div>
-            ) : trailTool.phase === 'idle' && selectedTrail && !trailEditing ? (
-              <TrailDetail
-                trail={selectedTrail}
-                units={settings.units}
-                onEdit={() => setTrailEditing(true)}
-                onRemove={() => deleteTrail(selectedTrail.id)}
-                onToggleClosed={(closed) => patchTrail(selectedTrail.id, { closed })}
-                onClose={() => {
-                  setSelectedTrailId(null);
-                  setOpenDock('trails');
-                }}
-              />
-            ) : (
-              <TrailControl
-                tool={trailTool}
-                trails={trails}
-                selectedId={trailTool.phase === 'idle' ? selectedTrailId : null}
-                units={settings.units}
-                brushWidthM={brushWidthM}
-                onBrushWidthChange={changeTrailBrushWidth}
-                onCancel={cancelTrailTool}
-                onModeChange={setTrailPaintModeState}
-                onUndo={undoTrailPaint}
-                onClear={clearTrailPaint}
-                onFinish={finishTrailPaint}
-                onDraftChange={patchTrailDraft}
-                onGradingChange={setTrailTerrainGrading}
-                onConfirm={confirmTrail}
-                onPickAnchor={() => setAnchorPicking('trail-start')}
-                pickingAnchor={anchorPicking === 'trail-start'}
-                building={building}
-                onEditPatch={patchTrail}
-                onCloseEdit={() => setTrailEditing(false)}
-                onDelete={deleteTrail}
-                onRetryElevation={retryTrailElevation}
-              />
-            )}
-          </aside>
-        ) : (
-          <TrailsPanel
-            trails={trails}
-            nodes={skiNodes}
-            paths={skiPaths}
-            units={settings.units}
-            selectedTrailId={selectedTrailId}
-            selectedNodeId={selectedNodeId}
-            selectedPathId={selectedPathId}
-            activeTool={activeTrailsTool}
-            warnings={trailNetworkWarnings}
-            onPaintRun={armTrailTool}
-            onPlaceNode={armNodeTool}
-            onDrawPath={armPathTool}
-            onSelectTrail={(id) => selectTrailRef.current(id)}
-            onSelectNode={setSelectedNodeId}
-            onSelectPath={setSelectedPathId}
-            onDeleteNode={deleteSkiNode}
-            onDeletePath={deleteSkiPath}
-            onClose={() => setOpenDock(null)}
-          />
-        )
-      )}
-
       {/* Site-picking readout floats lower-left; in-game it lives on the toolbar. */}
       {!saved && <CursorReadout readout={readout} units={settings.units} />}
 
@@ -3429,6 +3260,163 @@ export function MapView({
                     activeOverlay={activeOverlay}
                     inlineLegend={false}
                   />
+                </div>
+              </div>
+            )}
+              {trailsOpen && (
+              <div className="dock-rollup dock-trails" data-panel="trails">
+                <div className="dock-panel">
+                  {trailPanelBusy ? (
+                    nodeTool.phase !== 'idle' ? (
+                      <div className="site-control site-control-wide trail-panel">
+                        <div className="dock-head">
+                          <span className="dock-head-title">Place node</span>
+                          <button className="settings-close-x" aria-label="Close" onClick={cancelNodeTool}>✕</button>
+                        </div>
+                        {nodeTool.phase === 'armed' ? (
+                          <div className="site-hint">
+                            Click the map to drop a node. Landing on a run, lift or path attaches it there.
+                          </div>
+                        ) : (
+                          <>
+                            <input
+                              className="name-entry-input lift-name-input"
+                              value={nodeTool.name}
+                              onChange={(e) => setNodeTool((t) =>
+                                t.phase === 'review' ? { ...t, name: e.target.value } : t)}
+                            />
+                            <div className="readout-line">
+                              <span className="lift-stat-label">Attached to</span>
+                              <span className="lift-stat-value">
+                                {nodeTool.anchor ? describeAnchor(nodeTool.anchor) : 'Nothing'}
+                              </span>
+                            </div>
+                            <div className="site-actions">
+                              <button className="site-btn" onClick={cancelNodeTool}>Cancel</button>
+                              <button className="site-btn site-btn-primary" onClick={confirmNode}>Place node</button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ) : pathTool.phase !== 'idle' ? (
+                      <div className="site-control site-control-wide trail-panel">
+                        <div className="dock-head">
+                          <span className="dock-head-title">Draw path</span>
+                          <button className="settings-close-x" aria-label="Close" onClick={cancelPathTool}>✕</button>
+                        </div>
+                        {pathTool.phase === 'review' ? (
+                          <>
+                            <input
+                              className="name-entry-input lift-name-input"
+                              value={pathTool.name}
+                              onChange={(e) => setPathTool((t) =>
+                                t.phase === 'review' ? { ...t, name: e.target.value } : t)}
+                            />
+                            <div className="readout-line">
+                              <span className="lift-stat-label">From</span>
+                              <span className="lift-stat-value">{describeAnchor(pathTool.from)}</span>
+                            </div>
+                            <div className="readout-line">
+                              <span className="lift-stat-label">To</span>
+                              <span className="lift-stat-value">{describeAnchor(pathTool.to)}</span>
+                            </div>
+                            <div className="readout-line">
+                              <span className="lift-stat-label">Length</span>
+                              <span className="lift-stat-value">
+                                {fmtDistance(pathLengthM(pathTool.points), settings.units)}
+                              </span>
+                            </div>
+                            <div className="site-actions">
+                              <button className="site-btn" onClick={cancelPathTool}>Cancel</button>
+                              <button className="site-btn site-btn-primary" onClick={confirmPath}>Build path</button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="site-hint">
+                              {pathTool.phase === 'armed'
+                                ? 'Click a lift terminal, a run, a path or a node to start the connector.'
+                                : 'Click along the route. Finish on another run, lift, path or node.'}
+                            </div>
+                            <div className="site-actions">
+                              <button
+                                className="site-btn"
+                                onClick={undoPathPoint}
+                                disabled={pathTool.phase !== 'drawing'}
+                              >
+                                Undo point
+                              </button>
+                              <button
+                                className="site-btn site-btn-primary"
+                                onClick={finishPathRoute}
+                                disabled={pathTool.phase !== 'drawing' || pathTool.points.length < 2}
+                              >
+                                Finish
+                              </button>
+                            </div>
+                            <button className="site-btn" onClick={cancelPathTool}>Cancel</button>
+                          </>
+                        )}
+                      </div>
+                    ) : trailTool.phase === 'idle' && selectedTrail && !trailEditing ? (
+                      <TrailDetail
+                        trail={selectedTrail}
+                        units={settings.units}
+                        onEdit={() => setTrailEditing(true)}
+                        onRemove={() => deleteTrail(selectedTrail.id)}
+                        onToggleClosed={(closed) => patchTrail(selectedTrail.id, { closed })}
+                        onClose={() => {
+                          setSelectedTrailId(null);
+                          setOpenDock('trails');
+                        }}
+                      />
+                    ) : (
+                      <TrailControl
+                        tool={trailTool}
+                        trails={trails}
+                        selectedId={trailTool.phase === 'idle' ? selectedTrailId : null}
+                        units={settings.units}
+                        brushWidthM={brushWidthM}
+                        onBrushWidthChange={changeTrailBrushWidth}
+                        onCancel={cancelTrailTool}
+                        onModeChange={setTrailPaintModeState}
+                        onUndo={undoTrailPaint}
+                        onClear={clearTrailPaint}
+                        onFinish={finishTrailPaint}
+                        onDraftChange={patchTrailDraft}
+                        onGradingChange={setTrailTerrainGrading}
+                        onConfirm={confirmTrail}
+                        onPickAnchor={() => setAnchorPicking('trail-start')}
+                        pickingAnchor={anchorPicking === 'trail-start'}
+                        building={building}
+                        onEditPatch={patchTrail}
+                        onCloseEdit={() => setTrailEditing(false)}
+                        onDelete={deleteTrail}
+                        onRetryElevation={retryTrailElevation}
+                      />
+                    )
+                  ) : (
+                    <TrailsPanel
+                      trails={trails}
+                      nodes={skiNodes}
+                      paths={skiPaths}
+                      units={settings.units}
+                      selectedTrailId={selectedTrailId}
+                      selectedNodeId={selectedNodeId}
+                      selectedPathId={selectedPathId}
+                      activeTool={activeTrailsTool}
+                      warnings={trailNetworkWarnings}
+                      onPaintRun={armTrailTool}
+                      onPlaceNode={armNodeTool}
+                      onDrawPath={armPathTool}
+                      onSelectTrail={(id) => selectTrailRef.current(id)}
+                      onSelectNode={setSelectedNodeId}
+                      onSelectPath={setSelectedPathId}
+                      onDeleteNode={deleteSkiNode}
+                      onDeletePath={deleteSkiPath}
+                      onClose={() => setOpenDock(null)}
+                    />
+                  )}
                 </div>
               </div>
             )}

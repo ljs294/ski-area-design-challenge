@@ -1,11 +1,10 @@
-// Browser-level check for the trails side panel and the free-standing "node"
+// Browser-level check for the floating Trails roll-up and the free-standing "node"
 // feature that lives inside it (TrailsPanel.tsx / MapView.tsx `nodeTool`).
 //
 // Verifies the things the feature promises:
 //
-//   1. the trails dock opens the LEFT SIDE PANEL (TrailsPanel.tsx), not the
-//      old bottom-dock rollup, with its three tools and Runs/Nodes/Paths
-//      sections;
+//   1. the Trails button opens a left-aligned bottom-dock roll-up with its
+//      three tools and Runs/Nodes/Paths sections;
 //   2. a run painted right at a lift's unload auto-proposes a start anchor
 //      (`.trail-anchor-row[data-anchor="set"]`) and Build enables;
 //   3. a run painted far from anything does NOT auto-propose an anchor, and
@@ -44,7 +43,7 @@ async function clickWhenReady(selector) {
   await button.evaluate((element) => element.click());
 }
 
-/** Arm the paint-run brush from the trails side panel, paint one stroke, and
+/** Arm the paint-run brush from the Trails roll-up, paint one stroke, and
  *  Finish the footprint — stopping at the review panel so the caller can
  *  inspect the anchor before deciding whether to build or cancel. */
 async function paintFootprint(from, to) {
@@ -104,9 +103,25 @@ try {
     await page.evaluate(() => globalThis.appMap.jumpTo({ pitch: 0 }));
   }
 
-  // --- 1. the trails side panel opens with its tools + sections ------------
+  // --- 1. the floating trails roll-up opens with its tools + sections ------
   await clickWhenReady('.dock-circle-trails');
-  await page.waitForSelector('.side-panel.trails-panel[data-panel="trails"]', { timeout: 30_000 });
+  await page.waitForSelector('.dock-rollup.dock-trails[data-panel="trails"]', { timeout: 30_000 });
+
+  const floatingLayout = await page.evaluate(() => {
+    const panel = document.querySelector('.dock-rollup.dock-trails');
+    const stack = document.querySelector('.dock-stack');
+    const circles = document.querySelector('.dock-circles');
+    const panelBox = panel.getBoundingClientRect();
+    const stackBox = stack.getBoundingClientRect();
+    const circlesBox = circles.getBoundingClientRect();
+    return {
+      leftAligned: Math.abs(panelBox.left - stackBox.left) < 2,
+      aboveCircles: panelBox.bottom <= circlesBox.top + 1,
+      boundedHeight: panelBox.height < window.innerHeight,
+    };
+  });
+  if (!floatingLayout.leftAligned || !floatingLayout.aboveCircles || !floatingLayout.boundedHeight)
+    throw new Error(`Trails menu is not a bounded, left-aligned floating roll-up: ${JSON.stringify(floatingLayout)}`);
 
   // Section headers and tool labels are uppercased in CSS, so innerText comes
   // back as "TOOLS" / "RUNS (0)". Compare case-insensitively.
@@ -114,7 +129,7 @@ try {
   const toolLabels = (await page.locator('.trails-tool').allInnerTexts()).map(norm);
   for (const label of ['Paint run', 'Place node', 'Draw path']) {
     if (!toolLabels.some((t) => t.includes(norm(label))))
-      throw new Error(`Trails tool "${label}" missing from the side panel: ${JSON.stringify(toolLabels)}`);
+      throw new Error(`Trails tool "${label}" missing from the roll-up: ${JSON.stringify(toolLabels)}`);
   }
   const sectionTitles = (await page.locator('.layer-section-title').allInnerTexts()).map(norm);
   for (const label of ['Tools', 'Runs (0)', 'Nodes (0)', 'Paths (0)']) {
@@ -171,6 +186,14 @@ try {
   const buildDisabledAtAnchor = await page.locator('.trail-panel button.site-btn-primary').isDisabled();
   if (buildDisabledAtAnchor)
     throw new Error('Build stayed disabled even though the anchor row read "set".');
+
+  // Layers remains available beside an active Trails tool without cancelling it.
+  await clickWhenReady('.dock-circle-layers');
+  await page.waitForSelector('.dock-rollup.dock-layers');
+  if (!(await page.locator('.dock-rollup.dock-trails .trail-panel').isVisible()))
+    throw new Error('Opening Layers cancelled or hid the active Trails tool.');
+  await clickWhenReady('.dock-circle-layers');
+  await page.waitForSelector('.dock-rollup.dock-layers', { state: 'detached' });
 
   await completeAndBuild();
 
@@ -248,7 +271,7 @@ try {
   });
 
   await clickWhenReady('.dock-circle-trails');
-  await page.waitForSelector('.side-panel.trails-panel[data-panel="trails"]', { timeout: 30_000 });
+  await page.waitForSelector('.dock-rollup.dock-trails[data-panel="trails"]', { timeout: 30_000 });
   await page.waitForSelector(`[data-row-id="${nodeCheck.savedNodeId}"]`, { timeout: 30_000 });
 
   const reloadedNode = await page.evaluate(() => {
