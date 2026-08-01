@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { siteCoverDimensions, worldCoverCodeForRgb } from './worldcoverProtocol';
+import { isRetryableWorldCoverStatus, siteCoverDimensions, worldCoverCodeForRgb } from './worldcoverProtocol';
 
 describe('WorldCover source fidelity', () => {
   it('decodes every official class exactly and rejects unknown colors', () => {
@@ -12,5 +12,14 @@ describe('WorldCover source fidelity', () => {
   it('preserves a rectangular resort boundary aspect ratio', () => {
     const dims = siteCoverDimensions({ west: -121.5, east: -121.47, south: 46.9, north: 46.91 });
     expect(dims.width).toBeGreaterThan(dims.height * 2);
+  });
+
+  it('retries transient Terrascope responses, including its intermittent 400', () => {
+    expect(isRetryableWorldCoverStatus(400)).toBe(true);
+    expect(isRetryableWorldCoverStatus(408)).toBe(true);
+    expect(isRetryableWorldCoverStatus(429)).toBe(true);
+    expect(isRetryableWorldCoverStatus(503)).toBe(true);
+    expect(isRetryableWorldCoverStatus(401)).toBe(false);
+    expect(isRetryableWorldCoverStatus(404)).toBe(false);
   });
 });

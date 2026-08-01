@@ -136,8 +136,18 @@ async function decodeNativeResponse(resp: Response | null): Promise<ImageData | 
 // Promise.all and abort the entire resort preparation — the root cause of the
 // frequent "Preparation failed: Failed to fetch". Retry those transient
 // failures so a blip on one of many parallel tiles no longer sinks the job.
-const TILE_RETRIES = 3;
+const TILE_RETRIES = 6;
 const TILE_RETRY_BASE_MS = 400;
+
+/**
+ * Terrascope occasionally answers an otherwise valid WMTS tile request with
+ * HTTP 400 while its tile backend is recovering. Treat that response like the
+ * network/5xx failures we already retry. The remaining 4xx statuses describe
+ * permanent request/authentication failures and should fail immediately.
+ */
+export function isRetryableWorldCoverStatus(status: number): boolean {
+  return status === 400 || status === 408 || status === 425 || status === 429 || status >= 500;
+}
 
 function tileSleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(new DOMException('WorldCover download cancelled', 'AbortError'));
@@ -152,17 +162,17 @@ function tileSleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 /**
  * Fetch one WMTS tile, retrying transient network errors and 5xx with a short
- * backoff. A genuine 4xx (tile outside coverage) is a real "absent" and returns
- * null without retrying. Cancellation (abort) propagates as an AbortError so
- * package preparation can unwind cleanly; every other failure resolves to null
- * (→ transparent / nodata) rather than throwing.
+ * backoff. Terrascope's transient 400 responses are retryable too; permanent
+ * 4xx responses return null immediately. Cancellation (abort) propagates as an
+ * AbortError so package preparation can unwind cleanly; every other failure
+ * resolves to null (→ transparent / nodata) rather than throwing.
  */
 async function fetchTileResponse(url: string, signal?: AbortSignal): Promise<Response | null> {
   for (let attempt = 0; ; attempt++) {
     try {
       const resp = await fetch(url, signal ? { signal } : {});
       if (resp.ok) return resp;
-      if (resp.status < 500) return null; // real "absent" — don't retry
+      if (!isRetryableWorldCoverStatus(resp.status)) return null;
     } catch (e) {
       if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
         throw new DOMException('WorldCover download cancelled', 'AbortError');
@@ -375,8 +385,8 @@ export function registerWorldcoverProtocol(): void {
       .replace('{y}', String(y));
 
     // The WMTS occasionally returns a transient 5xx or drops the connection;
-    // fetchTileResponse retries those with backoff. Only a genuinely absent
-    // tile (4xx / still failing after retries) falls back to transparent.
+    // fetchTileResponse retries those with backoff. Only a permanent 4xx or a
+    // transient response that exhausts its retries falls back to transparent.
     const resp = await fetchTileResponse(realUrl, abortController.signal).catch(() => null);
     if (!resp || !resp.ok) {
       console.warn(`[worldcover] tile ${z}/${x}/${y} failed (${resp?.status ?? 'network'})`);
