@@ -20,10 +20,27 @@ const callbacks = {
   onBrushWidthChange: vi.fn(), onCancel: vi.fn(), onModeChange: vi.fn(),
   onUndo: vi.fn(), onClear: vi.fn(), onFinish: vi.fn(), onDraftChange: vi.fn(),
   onConfirm: vi.fn(), onEditPatch: vi.fn(), onCloseEdit: vi.fn(), onDelete: vi.fn(),
-  onRetryElevation: vi.fn(), onGradingChange: vi.fn(), onPickAnchor: vi.fn(),
+  onRetryElevation: vi.fn(), onGradingChange: vi.fn(),
 };
 
 describe('TrailControl terrain grading', () => {
+  it('requires a lift-top anchor before the first paint stroke', () => {
+    const html = renderToStaticMarkup(<TrailControl tool={{ phase: 'paint', mode: 'paint',
+      polygons: [], areaM2: 0, activeAreaM2: null, canUndo: false, pending: false,
+      error: null, anchor: null }} trails={[]} selectedId={null} units="metric"
+      brushWidthM={30} {...callbacks} />);
+    expect(html).toContain('Start on the top terminal of an existing lift');
+    expect(html).toMatch(/disabled=""[^>]*>Erase/);
+  });
+
+  it('shows a fixed lift-top connection during review', () => {
+    const html = renderToStaticMarkup(<TrailControl tool={{ phase: 'review', draft }}
+      trails={[]} selectedId={null} units="metric" brushWidthM={30} {...callbacks} />);
+    expect(html).toContain('Lift top');
+    expect(html).not.toContain('Pick start');
+    expect(html).not.toContain('Change');
+  });
+
   it('offers an unchecked terrain grading option during review', () => {
     const html = renderToStaticMarkup(<TrailControl tool={{ phase: 'review', draft }}
       trails={[]} selectedId={null} units="metric" brushWidthM={30} {...callbacks} />);

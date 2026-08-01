@@ -3,6 +3,7 @@ import {
   difficultyForSlopes,
   trailStats,
   orientTopToBottom,
+  pinTrailHead,
   sanitizeTrails,
   nextTrailName,
   DEFAULT_BRUSH_WIDTH_M,
@@ -62,6 +63,29 @@ describe('orientTopToBottom', () => {
   it('leaves an already top-first spine untouched', () => {
     const { elevM } = orientTopToBottom(SPINE, [2000, 1900, 1800]);
     expect(elevM[0]).toBe(2000);
+  });
+});
+
+describe('pinTrailHead', () => {
+  it('makes the exact anchor station 0 and keeps elevations aligned', () => {
+    const head: [number, number] = [-121.5, 46.931];
+    const other = {
+      polygon: [[[0, 0], [1, 0], [1, 1], [0, 0]]] as [number, number][][],
+      centerline: [[-121.6, 46.9], [-121.6, 46.8]] as [number, number][],
+      centerlineElevM: [1500, 1400],
+    };
+    const connected = {
+      polygon: other.polygon,
+      centerline: [...SPINE].reverse(),
+      centerlineElevM: [1800, 1900, 2000],
+    };
+
+    const pinned = pinTrailHead([other, connected], head);
+
+    expect(pinned[0].centerline[0]).toEqual(head);
+    expect(pinned[0].centerline.slice(1)).toEqual(SPINE.slice(1));
+    expect(pinned[0].centerlineElevM).toEqual([2000, 1900, 1800]);
+    expect(pinned[1]).toBe(other);
   });
 });
 

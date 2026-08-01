@@ -51,10 +51,35 @@ try {
     await page.evaluate(() => globalThis.appMap.jumpTo({ pitch: 0 }));
   }
 
+  // New runs must begin at an existing lift top. Build the fixture lift first.
+  await page.click('.dock-circle-lifts');
+  await page.click('.lift-add-btn >> text=Add ski lift');
+  await page.mouse.click(700, 660);
+  await page.mouse.click(700, 300);
+  await page.click('.lift-panel .lift-status-btn >> text=Complete');
+  await page.waitForSelector('.lift-panel .site-actions >> text=Build lift', { timeout: 60_000 });
+  await page.click('.lift-panel button.site-btn-primary');
+  await page.waitForTimeout(800);
+
+  const trailStroke = await page.evaluate(() => {
+    const lift = globalThis.appNetwork.edges.find((edge) => edge.kind === 'lift');
+    const map = globalThis.appMap;
+    const base = map.project(lift.path[0]);
+    const top = map.project(lift.path.at(-1));
+    const length = Math.hypot(base.x - top.x, base.y - top.y) || 1;
+    const down = [(base.x - top.x) / length, (base.y - top.y) / length];
+    const side = [-down[1], down[0]];
+    return {
+      from: [top.x, top.y],
+      to: [top.x + down[0] * 230 + side[0] * 120,
+        top.y + down[1] * 230 + side[1] * 120],
+    };
+  });
+
   await page.click('.dock-circle-trails');
   await page.click('.lift-add-btn');
   await page.waitForSelector('text=Paint ski run');
-  await page.mouse.move(520, 580);
+  await page.mouse.move(trailStroke.from[0], trailStroke.from[1]);
   const guide = await page.evaluate(() => {
     const map = globalThis.appMap;
     const source = map.getSource('trail-paint-preview');
@@ -76,8 +101,8 @@ try {
     new PerformanceObserver((list) => globalThis.__trailLongTasks.push(...list.getEntries().map((e) => e.duration)))
       .observe({ type: 'longtask', buffered: true });
   });
-  await page.mouse.move(520, 580); await page.mouse.down();
-  await page.mouse.move(700, 350, { steps: 120 });
+  await page.mouse.move(trailStroke.from[0], trailStroke.from[1]); await page.mouse.down();
+  await page.mouse.move(trailStroke.to[0], trailStroke.to[1], { steps: 120 });
   // Model releasing over dock chrome rather than over the MapLibre canvas.
   await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
   await page.waitForFunction(() => !document.querySelector('.trail-panel button.site-btn-primary')?.disabled);

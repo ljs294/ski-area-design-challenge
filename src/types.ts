@@ -442,7 +442,8 @@ export interface SavedTrail {
   /** Operating condition. Absent/false = open. Every network segment derived
    *  from this run inherits it. */
   closed?: boolean;
-  /** Declared start connection — pins this run's top onto a lift/run/path/node. */
+  /** Declared start connection. New runs pin station 0 to a lift's top terminal;
+   * legacy saves may contain another AnchorRef variant. */
   anchor?: AnchorRef;
   createdAt: string; // ISO
 }

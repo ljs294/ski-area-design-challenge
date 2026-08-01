@@ -171,6 +171,49 @@ export function orientTopToBottom(
   return { spine, elevM };
 }
 
+/**
+ * Make an exact, declared trail head station 0. The paint skeleton is inset
+ * slightly from a round brush cap and may be returned in either direction (or
+ * after another disconnected component), so select the nearest component end,
+ * orient it away from the anchor, and replace that endpoint with the exact
+ * terminal coordinate. Elevations are reversed with their stations when they
+ * have already been sampled.
+ */
+export function pinTrailHead(
+  parts: SavedTrailPart[],
+  head: [number, number]
+): SavedTrailPart[] {
+  if (parts.length === 0) return parts;
+  let bestPart = 0;
+  let reverse = false;
+  let bestDistance = Infinity;
+  for (let i = 0; i < parts.length; i++) {
+    const line = parts[i].centerline;
+    if (line.length === 0) continue;
+    const startDistance = haversineMeters(head, line[0]);
+    const endDistance = haversineMeters(head, line[line.length - 1]);
+    if (startDistance < bestDistance) {
+      bestPart = i;
+      reverse = false;
+      bestDistance = startDistance;
+    }
+    if (endDistance < bestDistance) {
+      bestPart = i;
+      reverse = true;
+      bestDistance = endDistance;
+    }
+  }
+
+  const selected = parts[bestPart];
+  const centerline = reverse ? [...selected.centerline].reverse() : [...selected.centerline];
+  const centerlineElevM = reverse && selected.centerlineElevM.length === selected.centerline.length
+    ? [...selected.centerlineElevM].reverse()
+    : [...selected.centerlineElevM];
+  centerline[0] = head;
+  const pinned = { ...selected, centerline, centerlineElevM };
+  return [pinned, ...parts.slice(0, bestPart), ...parts.slice(bestPart + 1)];
+}
+
 // ---- Hydration shield ------------------------------------------------------
 
 function isLngLat(p: unknown): p is [number, number] {

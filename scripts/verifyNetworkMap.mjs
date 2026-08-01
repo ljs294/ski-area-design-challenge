@@ -41,29 +41,26 @@ async function clickWhenReady(selector) {
 }
 
 /** Arm the brush, paint one stroke, Finish the footprint, then Build the run. */
-async function paintRun(from, to) {
+async function paintRun(from, to, via = []) {
   // The bottom-dock "Add ski run" button is gone — runs are painted from the
   // trails side panel's tool row now (TrailsPanel.tsx `.trails-tool`).
   await page.locator('.trails-tool >> text=Paint run').click();
   await page.waitForSelector('.trail-panel', { timeout: 30_000 });
   await page.mouse.move(from[0], from[1]);
   await page.mouse.down();
+  for (const point of via) await page.mouse.move(point[0], point[1], { steps: 30 });
   await page.mouse.move(to[0], to[1], { steps: 60 });
   await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
   await clickWhenReady('.trail-panel button.site-btn-primary'); // Finish
   // Skeletonization + terrain sampling run before the review panel appears.
   await page.waitForSelector('.trail-panel .lift-status-btn', { timeout: 90_000 });
-  // A run now needs a declared start before Build enables (TrailControl.tsx
-  // `.trail-anchor-row`). MapView auto-proposes the nearest connection point
-  // within 60 m of the run's head when the review panel opens, and this
-  // fixture always paints its runs right at the lift's unload — so the row
-  // should already read `data-anchor="set"`. If it doesn't, that's a real
-  // auto-propose regression, not a fixture problem — fail loudly on it.
+  // The first stroke must snap to a lift top before painting begins. This
+  // fixture starts at the unload, so review must retain that exact anchor.
   const anchorUnset = await page.locator('.trail-anchor-row[data-anchor="unset"]')
     .isVisible().catch(() => false);
   if (anchorUnset) {
     throw new Error(
-      'Run painted at the lift unload did not auto-propose a start anchor ' +
+      'Run painted at the lift unload did not retain its lift-top start anchor ' +
       '(.trail-anchor-row[data-anchor="unset"]) — Build stays disabled until one is set.'
     );
   }
@@ -145,8 +142,8 @@ try {
   await clickWhenReady('.dock-circle-trails');
 
   // Derive the paint coordinates from where the built lift ACTUALLY projects on
-  // screen rather than from the pixels we clicked: the head of a run has to land
-  // inside LIFT_SNAP_M (40 m) of the top terminal, and hardcoded pixels drift
+  // screen rather than from the pixels we clicked: the first stroke has to land
+  // inside the 60 m lift-top snap radius, and hardcoded pixels drift
   // with any camera change between placing the lift and painting.
   const geometry = await page.evaluate(() => {
     const lift = globalThis.appNetwork.edges.find((e) => e.kind === 'lift');
@@ -177,8 +174,9 @@ try {
   // both runs must split at a shared junction.
   await paintRun(along(top, headOffsetPx, 0), along(top, headOffsetPx + runLen, runLen * 0.45));
   await paintRun(
-    along(top, headOffsetPx + runLen * 0.25, runLen * 0.7),
-    along(top, headOffsetPx + runLen * 0.9, -runLen * 0.1)
+    along(top, headOffsetPx, 0),
+    along(top, headOffsetPx + runLen * 0.9, -runLen * 0.1),
+    [along(top, headOffsetPx + runLen * 0.25, runLen * 0.7)]
   );
 
   // --- 1. the node map draws the split network ----------------------------

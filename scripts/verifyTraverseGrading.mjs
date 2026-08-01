@@ -271,6 +271,32 @@ try {
       `full-length traverse available still peaks at ${Math.round((site?.flattestRejected ?? Infinity) * 100)}% ` +
       'cross slope.');
 
+  // Anchor the traverse at a real lift top. Pick the lower of the two points
+  // normal to the contour as the lift base, leaving the stroke's first point
+  // as the unload terminal.
+  const trailHead = [site.center[0] - site.along[0] * HALF_STROKE_PX,
+    site.center[1] - site.along[1] * HALF_STROKE_PX];
+  const liftBase = await page.evaluate(({ head, along }) => {
+    const map = globalThis.appMap;
+    const normal = [-along[1], along[0]];
+    const candidates = [1, -1].map((sign) => {
+      const screen = [head[0] + normal[0] * 140 * sign, head[1] + normal[1] * 140 * sign];
+      const point = map.unproject(screen);
+      return { screen, elevation: map.queryTerrainElevation(point) };
+    });
+    candidates.sort((a, b) => a.elevation - b.elevation);
+    return candidates[0].screen;
+  }, { head: trailHead, along: site.along });
+
+  await clickWhenReady('.dock-circle-lifts');
+  await page.locator('.lift-add-btn >> text=Add ski lift').click();
+  await page.mouse.click(liftBase[0], liftBase[1]);
+  await page.mouse.click(trailHead[0], trailHead[1]);
+  await page.locator('.lift-panel .lift-status-btn >> text=Complete').click();
+  await page.waitForSelector('.lift-panel .site-actions >> text=Build lift', { timeout: 60_000 });
+  await clickWhenReady('.lift-panel button.site-btn-primary');
+  await page.waitForTimeout(800);
+
   await clickWhenReady('.dock-circle-trails');
   const graded = await gradeTraverse(40, site.center, site.along);
   await page.screenshot({ path: 'verify-traverse-grading.png' });

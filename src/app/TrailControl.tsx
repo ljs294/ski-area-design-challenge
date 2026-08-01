@@ -10,8 +10,8 @@ import type { PaintMode } from './trailPaintEngine';
 
 export type TrailTool =
   | { phase: 'idle' }
-  | { phase: 'paint'; mode: PaintMode; polygons: [number, number][][][]; areaM2: number; activeAreaM2: number | null; canUndo: boolean; pending: boolean; error: string | null }
-  | { phase: 'analyzing'; polygons: [number, number][][][]; areaM2: number }
+  | { phase: 'paint'; mode: PaintMode; polygons: [number, number][][][]; areaM2: number; activeAreaM2: number | null; canUndo: boolean; pending: boolean; error: string | null; anchor: AnchorRef | null }
+  | { phase: 'analyzing'; polygons: [number, number][][][]; areaM2: number; anchor: AnchorRef }
   | { phase: 'review'; draft: DraftTrail };
 
 export interface DraftTrail {
@@ -37,11 +37,8 @@ export interface DraftTrail {
   ungradedLengthM: number;
   infeasibleLines: [number, number][][];
   /**
-   * Where this run starts: a lift terminal, or a point along another run/path/
-   * node. Required before it can be built — a run that connects to nothing
-   * cannot be skied to, and the node map would only be able to guess at it.
-   * Auto-proposed from the nearest connection point when the review panel
-   * opens; the player can re-pick it.
+   * The lift-top terminal where the first paint stroke began. Its exact point
+   * is also station 0 of the first centerline part.
    */
   anchor: AnchorRef | null;
 }
@@ -113,18 +110,14 @@ export function EarthworkStats({ estimate, units,
 
 export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onBrushWidthChange,
   onCancel, onModeChange, onUndo, onClear, onFinish, onDraftChange, onConfirm, onEditPatch,
-  onCloseEdit, onDelete, onRetryElevation, onGradingChange, onPickAnchor,
-  pickingAnchor = false, building = false }: {
+  onCloseEdit, onDelete, onRetryElevation, onGradingChange,
+  building = false }: {
   tool: TrailTool; trails: SavedTrail[]; selectedId: string | null; units: Units; brushWidthM: number;
   onBrushWidthChange: (m: number) => void; onCancel: () => void; onModeChange: (m: PaintMode) => void;
   onUndo: () => void; onClear: () => void; onFinish: () => void; onDraftChange: (p: Partial<DraftTrail>) => void;
   onConfirm: () => void; onEditPatch: (id: string, patch: Partial<SavedTrail>) => void;
   onCloseEdit: () => void; onDelete: (id: string) => void; onRetryElevation: () => void;
   onGradingChange: (enabled: boolean) => void;
-  /** Arms map-click picking for the run's start connection. */
-  onPickAnchor: () => void;
-  /** True while the player is clicking the map to choose that start. */
-  pickingAnchor?: boolean;
   /** True while the confirmed run is felling its cover — spins the build button. */
   building?: boolean;
 }) {
@@ -134,15 +127,18 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
     <BrushWidthField widthM={brushWidthM} units={units} disabled={tool.areaM2 > 0} onChange={onBrushWidthChange} />
     <div className="trail-paint-modes" role="group" aria-label="Brush mode">
       {(['paint', 'erase'] as PaintMode[]).map((mode) => <button key={mode} className={`site-btn${tool.mode === mode ? ' is-active' : ''}`}
+        disabled={mode === 'erase' && !tool.anchor}
         onClick={() => onModeChange(mode)}>{mode === 'paint' ? 'Paint' : 'Erase'}</button>)}
     </div>
     <div className="readout-line"><span className="lift-stat-label">Painted area</span>
       <span className="lift-stat-value">{tool.activeAreaM2 != null ? '~' : ''}{fmtArea(tool.activeAreaM2 ?? tool.areaM2, units)}</span></div>
-    <div className="site-hint">Paint the skiable footprint. Lift the brush and continue anywhere.</div>
+    <div className="site-hint">{tool.anchor
+      ? 'Trail head anchored to a lift top. Lift the brush and continue anywhere.'
+      : 'Start on the top terminal of an existing lift. Drag from it, or click once and continue with another stroke.'}</div>
     {tool.error && <div className="lift-warning">{tool.error}</div>}
     <div className="site-actions"><button className="site-btn" disabled={!tool.canUndo || tool.pending} onClick={onUndo}>Undo</button>
       <button className="site-btn" disabled={tool.areaM2 === 0 || tool.pending} onClick={onClear}>Clear</button>
-      <button className="site-btn site-btn-primary" disabled={tool.areaM2 === 0 || tool.pending} onClick={onFinish}>Finish</button></div>
+      <button className="site-btn site-btn-primary" disabled={tool.areaM2 === 0 || tool.pending || !tool.anchor} onClick={onFinish}>Finish</button></div>
   </div>;
 
   if (tool.phase === 'analyzing') return <div className="site-control site-control-wide trail-panel">
@@ -163,13 +159,10 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
         <span className={`trail-anchor-value${d.anchor ? '' : ' is-missing'}`}>
           {d.anchor ? describeAnchor(d.anchor) : 'Not connected'}
         </span>
-        <button className="lift-link-btn" onClick={onPickAnchor} aria-pressed={pickingAnchor}>
-          {pickingAnchor ? 'Click the map…' : d.anchor ? 'Change' : 'Pick start'}
-        </button>
       </div>
       {!d.anchor && (
         <div className="site-hint">
-          Click a lift terminal, or any point along another run, to say where this run starts.
+          Restart painting and begin on the top terminal of an existing lift.
         </div>
       )}
       <StatusToggle value={d.status} onChange={(status) => onDraftChange({ status })} />
