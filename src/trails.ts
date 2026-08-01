@@ -214,6 +214,47 @@ export function pinTrailHead(
   return [pinned, ...parts.slice(0, bestPart), ...parts.slice(bestPart + 1)];
 }
 
+/**
+ * Repair a sparsely-sampled elevation profile. A terrain sample can come back
+ * absent for a single point — one vertex nudged past the package boundary, one
+ * tile that failed to decode — and losing the whole run's profile over that is
+ * far worse than the interpolation error: a hundred-metre gap on a ski run is
+ * within the DEM's own noise, while an empty profile makes the run unbuildable.
+ *
+ * Interior gaps are filled by linear interpolation between the nearest resolved
+ * neighbours; leading/trailing gaps extend the nearest resolved value, since
+ * there is nothing to interpolate against. Returns null only when nothing
+ * resolved at all — the one case the caller genuinely cannot recover from.
+ */
+export function fillElevationGaps(values: (number | null)[]): number[] | null {
+  const known: number[] = [];
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v != null && Number.isFinite(v)) known.push(i);
+  }
+  if (known.length === 0) return null;
+
+  const out = new Array<number>(values.length);
+  for (const i of known) out[i] = values[i] as number;
+
+  const first = known[0];
+  const last = known[known.length - 1];
+  for (let i = 0; i < first; i++) out[i] = out[first];
+  for (let i = last + 1; i < values.length; i++) out[i] = out[last];
+
+  for (let k = 1; k < known.length; k++) {
+    const a = known[k - 1];
+    const b = known[k];
+    if (b === a + 1) continue;
+    const span = b - a;
+    for (let i = a + 1; i < b; i++) {
+      const t = (i - a) / span;
+      out[i] = out[a] * (1 - t) + out[b] * t;
+    }
+  }
+  return out;
+}
+
 function pointInRing(point: [number, number], ring: [number, number][]): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {

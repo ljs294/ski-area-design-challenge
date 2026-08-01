@@ -2814,6 +2814,10 @@ html.resume-capture .maplibregl-canvas {
   cursor: pointer;
 }
 .trails-row-delete:hover { color: var(--danger); background: var(--panel-elev-hover); }
+/* A node the network needs keeps its ✕ so the row still explains itself (the
+   reason is on the title), but it must not look or feel clickable. */
+.trails-row-delete:disabled { opacity: 0.3; cursor: not-allowed; }
+.trails-row-delete:disabled:hover { color: var(--text-faint); background: transparent; }
 
 .trails-empty {
   font-size: 12px;
@@ -2855,3 +2859,17 @@ html.resume-capture .maplibregl-canvas {
   white-space: nowrap;
 }
 .trail-anchor-value.is-missing { color: var(--danger); font-weight: 500; }
+/* Second line under the anchor's name — which segment, which graph nodes. It
+   overrides the parent's nowrap/ellipsis deliberately: truncating this line
+   would hide the numbers it exists to show. */
+.trail-anchor-detail {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: normal;
+  color: var(--text-muted);
+}
+/* In a space-between readout the value hugs the right edge; its second line
+   should too, rather than hanging left of the name above it. */
+.lift-stat-value .trail-anchor-detail { text-align: right; }

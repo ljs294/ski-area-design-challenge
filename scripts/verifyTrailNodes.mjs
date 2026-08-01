@@ -1,16 +1,17 @@
-// Browser-level check for the floating Trails roll-up and the free-standing "node"
-// feature that lives inside it (TrailsPanel.tsx / MapView.tsx `nodeTool`).
+// Browser-level check for the floating Trails roll-up and the graph-node tools
+// that live inside it (TrailsPanel.tsx / MapView.tsx `nodeTool`).
 //
 // Verifies the things the feature promises:
 //
 //   1. the Trails button opens a left-aligned bottom-dock roll-up with its
-//      three tools and Runs/Nodes/Paths sections;
+//      four tools and Runs/Nodes/Paths sections;
 //   2. a trailhead placement snaps to a graph target, seeds the brush, and
 //      becomes the exact first centerline point;
 //   3. a first stroke far from every lift top is rejected;
-//   4. a node placed on top of a built run reports "Attached to" that run,
-//      and shows up in `window.appNetwork` as a `kind === 'user-node'` node;
-//   5. that node — and its anchor — survive a save + reload.
+//   4. Add node names the segment it will split and really splits it (one trail
+//      edge becomes two); Remove node refuses a lift terminal with a reason and
+//      fuses a mid-run node back into one edge;
+//   5. an added node survives a save + reload as a split, not just a point.
 //
 // Run against a preview server with network access so the normal New Resort
 // terrain preparation can complete:
@@ -22,6 +23,10 @@
 import { chromium } from 'playwright';
 
 const base = process.argv[2] ?? 'http://localhost:4173/';
+// A cold terrain cache is 400 tiles over the network, which is minutes on a slow
+// link and seconds on a warm one. Override when the default is not enough:
+//   VERIFY_BOOT_TIMEOUT_MS=900000 node scripts/verifyTrailNodes.mjs <url>
+const BOOT_TIMEOUT_MS = Number(process.env.VERIFY_BOOT_TIMEOUT_MS ?? 120_000);
 const browser = await chromium.launch({
   args: ['--enable-unsafe-swiftshader', '--use-gl=angle', '--use-angle=swiftshader'],
 });
@@ -130,7 +135,7 @@ try {
   await page.click('.site-btn >> text=View this area');
   await page.fill('.name-entry-input', 'Trail Nodes Resort');
   await page.click('text=Start Designing');
-  await page.waitForSelector('.hud-resort', { timeout: 120_000 });
+  await page.waitForSelector('.hud-resort', { timeout: BOOT_TIMEOUT_MS });
   for (let pass = 0; pass < 2; pass++) {
     await page.waitForSelector('.resort-loading', { state: 'attached', timeout: 3_000 }).catch(() => {});
     const loading = page.locator('.resort-loading');
@@ -175,7 +180,7 @@ try {
   // back as "TOOLS" / "RUNS (0)". Compare case-insensitively.
   const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ').trim();
   const toolLabels = (await page.locator('.trails-tool').allInnerTexts()).map(norm);
-  for (const label of ['Create Trail', 'Place node', 'Draw path']) {
+  for (const label of ['Create Trail', 'Add node', 'Remove node', 'Draw path']) {
     if (!toolLabels.some((t) => t.includes(norm(label))))
       throw new Error(`Trails tool "${label}" missing from the roll-up: ${JSON.stringify(toolLabels)}`);
   }
@@ -271,39 +276,78 @@ try {
   await page.waitForSelector('.trail-panel', { state: 'detached', timeout: 30_000 }).catch(() => {});
   await page.waitForTimeout(300);
 
-  // --- 5. place a node on the built run -------------------------------------
+  // --- 5. add a node on the built run, then take it back off ----------------
+  // A node IS a split in the run's topology, so the observable effect is the
+  // trail edge count: one run edge becomes two, and fusing it back returns one.
+  const trailEdges = () => page.evaluate(() =>
+    globalThis.appNetwork.edges.filter((e) => e.kind === 'trail').length);
+  const junctionNodes = () => page.evaluate(() =>
+    globalThis.appNetwork.nodes.filter((n) => n.kind === 'junction').length);
+
   const nodeTargetPx = await page.evaluate(() => {
     const edge = globalThis.appNetwork.edges.find((e) => e.kind === 'trail');
     const pt = edge.path[Math.floor(edge.path.length / 2)];
     const p = globalThis.appMap.project({ lng: pt[0], lat: pt[1] });
     return [p.x, p.y];
   });
+  const edgesBefore = await trailEdges();
 
-  await page.locator('.trails-tool >> text=Place node').click();
+  await page.locator('.trails-tool >> text=Add node').click();
   await page.waitForSelector('.trail-panel .site-hint', { timeout: 30_000 });
   await page.mouse.click(nodeTargetPx[0], nodeTargetPx[1]);
-  await page.waitForSelector('.trail-panel .name-entry-input', { timeout: 30_000 });
+  await page.waitForSelector('.trail-panel .readout-line', { timeout: 30_000 });
+  const splitsText = (await page.locator('.trail-panel .readout-line')
+    .filter({ hasText: 'Splits' }).locator('.lift-stat-value').innerText()).trim();
+  if (!/segment \d+ of \d+/.test(splitsText))
+    throw new Error(`Add node did not name the segment it would split: "${splitsText}"`);
 
-  const attachedText = (await page.locator('.trail-panel .readout-line')
-    .filter({ hasText: 'Attached to' }).locator('.lift-stat-value').innerText()).trim();
-  if (attachedText === 'Nothing' || attachedText === '')
-    throw new Error(`Node dropped on the run's centerline reported no attachment: "${attachedText}"`);
+  await clickWhenReady('.trail-panel .site-actions button.site-btn-primary'); // Add node
+  await page.waitForTimeout(600);
+  const edgesAfterAdd = await trailEdges();
+  const junctionsAfterAdd = await junctionNodes();
+  if (edgesAfterAdd !== edgesBefore + 1)
+    throw new Error(`Adding a node did not split the run: ${edgesBefore} → ${edgesAfterAdd} trail edges.`);
+  if (junctionsAfterAdd < 1)
+    throw new Error('The added node is not a junction in window.appNetwork.');
 
-  await clickWhenReady('.trail-panel .site-actions button.site-btn-primary'); // Place node
-  await page.waitForSelector('.trail-panel', { state: 'detached', timeout: 30_000 }).catch(() => {});
-  await page.waitForTimeout(500);
+  // A lift terminal is load-bearing: the tool must refuse it AND say why.
+  await page.locator('.trail-panel .settings-close-x').click();
+  await page.waitForTimeout(300);
+  await page.locator('.trails-tool >> text=Remove node').click();
+  await page.waitForSelector('.trail-panel .site-hint', { timeout: 30_000 });
+  await page.mouse.click(top[0], top[1]);
+  await page.waitForTimeout(300);
+  const refusal = (await page.locator('.trail-panel .lift-warning').innerText().catch(() => '')).trim();
+  if (!refusal)
+    throw new Error('Picking a lift-terminal node gave no reason it cannot be removed.');
+  if (!(await page.locator('.trail-panel .site-actions button.site-btn-primary').isDisabled()))
+    throw new Error(`Remove stayed enabled for a node the network needs ("${refusal}").`);
 
-  const nodeCheck = await page.evaluate(() => {
-    const net = globalThis.appNetwork;
-    const userNode = net.nodes.find((n) => n.kind === 'user-node');
-    return {
-      hasUserNode: !!userNode,
-      savedNodeId: userNode?.nodeIds?.[0] ?? null,
-      nodeCount: net.nodes.length,
-    };
-  });
-  if (!nodeCheck.hasUserNode || !nodeCheck.savedNodeId)
-    throw new Error(`No kind==='user-node' node found in window.appNetwork after placing one: ${JSON.stringify(nodeCheck)}`);
+  // The mid-run node has exactly two segments meeting at it, so it can go.
+  await page.mouse.click(nodeTargetPx[0], nodeTargetPx[1]);
+  await page.waitForTimeout(300);
+  await clickWhenReady('.trail-panel .site-actions button.site-btn-primary'); // Remove node
+  await page.waitForTimeout(600);
+  const edgesAfterRemove = await trailEdges();
+  if (edgesAfterRemove !== edgesBefore)
+    throw new Error(`Removing the node did not fuse the run back: ${edgesAfterAdd} → ${edgesAfterRemove}.`);
+
+  // Put one back so the save/reload check below has a node to persist.
+  await page.locator('.trail-panel .settings-close-x').click();
+  await page.waitForTimeout(300);
+  await page.locator('.trails-tool >> text=Add node').click();
+  await page.waitForSelector('.trail-panel .site-hint', { timeout: 30_000 });
+  await page.mouse.click(nodeTargetPx[0], nodeTargetPx[1]);
+  await page.waitForSelector('.trail-panel .readout-line', { timeout: 30_000 });
+  await clickWhenReady('.trail-panel .site-actions button.site-btn-primary');
+  await page.waitForTimeout(600);
+  await page.locator('.trail-panel .settings-close-x').click();
+  await page.waitForTimeout(300);
+
+  const nodeCheck = { edgesBefore, edgesAfterAdd, edgesAfterRemove,
+    junctionsAfterAdd, splitsText, refusal, trailEdges: await trailEdges() };
+  if (nodeCheck.trailEdges !== edgesBefore + 1)
+    throw new Error(`Re-adding the node did not split the run again: ${JSON.stringify(nodeCheck)}`);
 
   // --- 6. log diagnostics ---------------------------------------------------
   const diagnostics = await page.evaluate(() => globalThis.appNetwork.diagnostics);
@@ -316,22 +360,21 @@ try {
   await page.reload({ waitUntil: 'load' });
   await page.waitForFunction(() => globalThis.menuMap?.isStyleLoaded?.(), null, { timeout: 60_000 });
   await page.click('.trail-slat >> text=Continue Game');
-  await page.waitForSelector('.hud-resort', { timeout: 120_000 });
+  await page.waitForSelector('.hud-resort', { timeout: BOOT_TIMEOUT_MS });
   await page.addStyleTag({
     content: '.resort-loading { pointer-events: none !important; opacity: 0 !important; }',
   });
 
   await clickWhenReady('.dock-circle-trails');
   await page.waitForSelector('.dock-rollup.dock-trails[data-panel="trails"]', { timeout: 30_000 });
-  await page.waitForSelector(`[data-row-id="${nodeCheck.savedNodeId}"]`, { timeout: 30_000 });
+  // The added node has to come back as a real split, not just a saved point:
+  // the run stays two segments and the panel still lists a numbered node.
+  await page.waitForSelector('.dock-rollup.dock-trails >> text=/^Node \\d+$/', { timeout: 30_000 });
 
-  const reloadedNode = await page.evaluate(() => {
-    const net = globalThis.appNetwork;
-    const userNode = net.nodes.find((n) => n.kind === 'user-node');
-    return { hasUserNode: !!userNode, diagnostics: net.diagnostics };
-  });
-  if (!reloadedNode.hasUserNode)
-    throw new Error('The placed node did not survive a save + reload (window.appNetwork has no user-node).');
+  const reloadedNode = { trailEdges: await trailEdges(), junctions: await junctionNodes(),
+    diagnostics: await page.evaluate(() => globalThis.appNetwork.diagnostics) };
+  if (reloadedNode.trailEdges !== edgesBefore + 1 || reloadedNode.junctions < 1)
+    throw new Error(`The added node did not survive a save + reload: ${JSON.stringify(reloadedNode)}`);
 
   // --- 8. screenshot + error gate -------------------------------------------
   await page.screenshot({ path: 'verify-trail-nodes.png' });

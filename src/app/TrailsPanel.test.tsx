@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TrailsPanel, type TrailsTool } from './TrailsPanel';
 import type { SavedTrail } from '../types';
 import type { SavedNode, SavedPath } from '../skiNodes';
+import type { JunctionSummary } from '../topology';
 
 const trails: SavedTrail[] = [
   {
@@ -35,20 +36,20 @@ const trails: SavedTrail[] = [
   },
 ];
 
-const nodes: SavedNode[] = [
+// One removable mid-run node and one that is load-bearing, which is the whole
+// distinction the Nodes list exists to show.
+const junctions: JunctionSummary[] = [
+  { id: 'j-1', point: [-121.5, 46.93], number: 1, label: 'Lower Meadow', blocked: null },
+  { id: 'j-2', point: [-121.51, 46.94], number: 2, label: 'Summit Express top',
+    blocked: 'That node is a lift terminal — the lift needs it.' },
+];
+
+const legacyNodes: SavedNode[] = [
   {
     id: 'node-1',
     name: 'Node 1',
     point: [-121.5, 46.93],
     elevM: 1500,
-    createdAt: '2026-01-01T00:00:00.000Z',
-  },
-  {
-    id: 'node-2',
-    name: 'Node 2',
-    point: [-121.51, 46.94],
-    elevM: 1600,
-    anchor: { kind: 'lift', liftId: 'lift-1', end: 'top', point: [-121.51, 46.94] },
     createdAt: '2026-01-01T00:00:00.000Z',
   },
 ];
@@ -73,19 +74,22 @@ const paths: SavedPath[] = [
 
 const callbacks = {
   onPaintRun: vi.fn(),
-  onPlaceNode: vi.fn(),
+  onAddNode: vi.fn(),
+  onRemoveNodeTool: vi.fn(),
   onDrawPath: vi.fn(),
   onSelectTrail: vi.fn(),
   onSelectNode: vi.fn(),
   onSelectPath: vi.fn(),
   onDeleteNode: vi.fn(),
+  onDeleteLegacyNode: vi.fn(),
   onDeletePath: vi.fn(),
   onClose: vi.fn(),
 };
 
 function render(opts: {
   trails?: SavedTrail[];
-  nodes?: SavedNode[];
+  junctions?: JunctionSummary[];
+  legacyNodes?: SavedNode[];
   paths?: SavedPath[];
   activeTool?: TrailsTool;
   warnings?: string[];
@@ -93,7 +97,8 @@ function render(opts: {
   return renderToStaticMarkup(
     <TrailsPanel
       trails={opts.trails ?? []}
-      nodes={opts.nodes ?? []}
+      junctions={opts.junctions ?? []}
+      legacyNodes={opts.legacyNodes ?? []}
       paths={opts.paths ?? []}
       units="metric"
       selectedTrailId={null}
@@ -108,27 +113,35 @@ function render(opts: {
 
 describe('TrailsPanel', () => {
   it('renders a section per entity kind with correct counts', () => {
-    const html = render({ trails, nodes, paths });
+    const html = render({ trails, junctions, paths });
     expect(html).toContain('Runs (2)');
     expect(html).toContain('Nodes (2)');
     expect(html).toContain('Paths (1)');
   });
 
   it('renders one data-row-id per run, node, and path', () => {
-    const html = render({ trails, nodes, paths });
+    const html = render({ trails, junctions, legacyNodes, paths });
     for (const t of trails) expect(html).toContain(`data-row-id="${t.id}"`);
-    for (const n of nodes) expect(html).toContain(`data-row-id="${n.id}"`);
+    for (const j of junctions) expect(html).toContain(`data-row-id="${j.id}"`);
+    for (const n of legacyNodes) expect(html).toContain(`data-row-id="${n.id}"`);
     for (const p of paths) expect(html).toContain(`data-row-id="${p.id}"`);
     expect((html.match(/data-row-id="/g) ?? [])).toHaveLength(
-      trails.length + nodes.length + paths.length
+      trails.length + junctions.length + legacyNodes.length + paths.length
     );
   });
 
   it('marks only the active tool as pressed', () => {
-    const html = render({ activeTool: 'node' });
+    const html = render({ activeTool: 'node-add' });
     expect(html).toMatch(/aria-pressed="false"[^>]*>\s*<span aria-hidden="true">◈<\/span> Create Trail/);
-    expect(html).toMatch(/aria-pressed="true"[^>]*>\s*<span aria-hidden="true">●<\/span> Place node/);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>\s*<span aria-hidden="true">●<\/span> Add node/);
+    expect(html).toMatch(/aria-pressed="false"[^>]*>\s*<span aria-hidden="true">○<\/span> Remove node/);
     expect(html).toMatch(/aria-pressed="false"[^>]*>\s*<span aria-hidden="true">⋯<\/span> Draw path/);
+  });
+
+  it('marks the remove-node tool as pressed when active', () => {
+    const html = render({ activeTool: 'node-remove' });
+    expect(html).toMatch(/aria-pressed="true"[^>]*>\s*<span aria-hidden="true">○<\/span> Remove node/);
+    expect(html).toMatch(/aria-pressed="false"[^>]*>\s*<span aria-hidden="true">●<\/span> Add node/);
   });
 
   it('marks the paint-run tool as pressed when active', () => {
@@ -153,13 +166,25 @@ describe('TrailsPanel', () => {
   it('renders empty states when a list is empty', () => {
     const html = render({});
     expect(html).toContain('No runs yet — paint your first one.');
-    expect(html).toContain('No nodes yet — drop a pin to mark a landmark.');
+    expect(html).toContain('No nodes yet — paint a run, or split one to add a node.');
     expect(html).toContain('No paths yet — connect a lift to a run.');
   });
 
-  it('shows "Unattached" for a node with no anchor, and describeAnchor for one with an anchor', () => {
-    const html = render({ nodes });
-    expect(html).toContain('Unattached');
-    expect(html).toContain('Lift top');
+  // A node the network needs must still be visible and still explain itself —
+  // an enabled ✕ that silently does nothing would be the worse failure.
+  it('numbers each node and disables removal for a load-bearing one, with the reason', () => {
+    const html = render({ junctions });
+    expect(html).toContain('Node 1');
+    expect(html).toContain('Lower Meadow');
+    expect(html).toContain('mid-run');
+    expect(html).toContain('Node 2');
+    expect(html).toContain('Summit Express top');
+    expect(html).toMatch(/disabled=""[^>]*title="That node is a lift terminal — the lift needs it."/);
+  });
+
+  it('keeps old free-standing pins deletable and labelled as such', () => {
+    const html = render({ legacyNodes });
+    expect(html).toContain('Old pin · Unattached');
+    expect(html).toContain('aria-label="Delete Node 1"');
   });
 });

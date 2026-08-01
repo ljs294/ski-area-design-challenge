@@ -2,6 +2,7 @@ import type { SavedTrail } from '../types';
 import type { Units } from './SettingsContext';
 import type { SavedNode, SavedPath } from '../skiNodes';
 import { describeAnchor } from '../skiNodes';
+import type { JunctionSummary } from '../topology';
 import { fmtDistance } from '../lifts';
 import { DIFFICULTY_COLORS, DIFFICULTY_LABELS, DIFFICULTY_SYMBOL, fmtSlope } from '../trails';
 
@@ -14,11 +15,12 @@ import { DIFFICULTY_COLORS, DIFFICULTY_LABELS, DIFFICULTY_SYMBOL, fmtSlope } fro
 // over a compact row list. No CSS lives here — see app.css for
 // `.trails-panel` / `.trails-tool` and friends.
 
-export type TrailsTool = 'none' | 'trail' | 'node' | 'path';
+export type TrailsTool = 'none' | 'trail' | 'node-add' | 'node-remove' | 'path';
 
 export function TrailsPanel({
   trails,
-  nodes,
+  junctions,
+  legacyNodes,
   paths,
   units,
   selectedTrailId,
@@ -27,17 +29,22 @@ export function TrailsPanel({
   activeTool,
   warnings,
   onPaintRun,
-  onPlaceNode,
+  onAddNode,
+  onRemoveNodeTool,
   onDrawPath,
   onSelectTrail,
   onSelectNode,
   onSelectPath,
   onDeleteNode,
+  onDeleteLegacyNode,
   onDeletePath,
   onClose,
 }: {
   trails: SavedTrail[];
-  nodes: SavedNode[];
+  /** The graph nodes, numbered and pre-checked for removability. */
+  junctions: JunctionSummary[];
+  /** Free-standing pins from saves made before nodes became graph nodes. */
+  legacyNodes: SavedNode[];
   paths: SavedPath[];
   units: Units;
   selectedTrailId: string | null;
@@ -46,12 +53,14 @@ export function TrailsPanel({
   activeTool: TrailsTool;
   warnings: string[];
   onPaintRun: () => void;
-  onPlaceNode: () => void;
+  onAddNode: () => void;
+  onRemoveNodeTool: () => void;
   onDrawPath: () => void;
   onSelectTrail: (id: string) => void;
   onSelectNode: (id: string) => void;
   onSelectPath: (id: string) => void;
   onDeleteNode: (id: string) => void;
+  onDeleteLegacyNode: (id: string) => void;
   onDeletePath: (id: string) => void;
   onClose: () => void;
 }) {
@@ -76,11 +85,19 @@ export function TrailsPanel({
         </button>
         <button
           type="button"
-          className={`trails-tool${activeTool === 'node' ? ' is-active' : ''}`}
-          aria-pressed={activeTool === 'node'}
-          onClick={onPlaceNode}
+          className={`trails-tool${activeTool === 'node-add' ? ' is-active' : ''}`}
+          aria-pressed={activeTool === 'node-add'}
+          onClick={onAddNode}
         >
-          <span aria-hidden="true">●</span> Place node
+          <span aria-hidden="true">●</span> Add node
+        </button>
+        <button
+          type="button"
+          className={`trails-tool${activeTool === 'node-remove' ? ' is-active' : ''}`}
+          aria-pressed={activeTool === 'node-remove'}
+          onClick={onRemoveNodeTool}
+        >
+          <span aria-hidden="true">○</span> Remove node
         </button>
         <button
           type="button"
@@ -124,12 +141,44 @@ export function TrailsPanel({
         </div>
       )}
 
-      <div className="layer-section-title">Nodes ({nodes.length})</div>
-      {nodes.length === 0 ? (
-        <div className="trails-empty">No nodes yet — drop a pin to mark a landmark.</div>
+      <div className="layer-section-title">Nodes ({junctions.length})</div>
+      {junctions.length === 0 && legacyNodes.length === 0 ? (
+        <div className="trails-empty">No nodes yet — paint a run, or split one to add a node.</div>
       ) : (
         <div className="trails-list">
-          {nodes.map((n) => (
+          {junctions.map((j) => (
+            <div className="trails-row" key={j.id}>
+              <button
+                type="button"
+                className={`trails-row-btn${selectedNodeId === j.id ? ' is-selected' : ''}`}
+                data-row-id={j.id}
+                onClick={() => onSelectNode(j.id)}
+                title={`Show node ${j.number}`}
+              >
+                <span className="trails-row-main">
+                  <span className="trails-row-name">Node {j.number}</span>
+                  <span className="trails-row-meta">
+                    {j.label}
+                    {j.blocked ? ` · ${j.blocked}` : ' · mid-run'}
+                  </span>
+                </span>
+              </button>
+              {/* A load-bearing node keeps its button, disabled and holding the
+                  reason — hiding it would read as "this row is different" without
+                  ever saying why. */}
+              <button
+                type="button"
+                className="trails-row-delete"
+                aria-label={`Remove node ${j.number}`}
+                disabled={j.blocked !== null}
+                title={j.blocked ?? `Remove node ${j.number}`}
+                onClick={() => onDeleteNode(j.id)}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          {legacyNodes.map((n) => (
             <div className="trails-row" key={n.id}>
               <button
                 type="button"
@@ -141,7 +190,7 @@ export function TrailsPanel({
                 <span className="trails-row-main">
                   <span className="trails-row-name">{n.name}</span>
                   <span className="trails-row-meta">
-                    {n.anchor ? describeAnchor(n.anchor) : 'Unattached'}
+                    {`Old pin · ${n.anchor ? describeAnchor(n.anchor) : 'Unattached'}`}
                   </span>
                 </span>
               </button>
@@ -149,7 +198,7 @@ export function TrailsPanel({
                 type="button"
                 className="trails-row-delete"
                 aria-label={`Delete ${n.name}`}
-                onClick={() => onDeleteNode(n.id)}
+                onClick={() => onDeleteLegacyNode(n.id)}
               >
                 ✕
               </button>

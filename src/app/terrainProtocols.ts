@@ -49,7 +49,11 @@ function getDem(z: number, x: number, y: number, signal: AbortSignal): Promise<F
   const k = key(z, wx, y);
   let p = demCache.get(k);
   if (!p) {
-    p = decodeTile(z, wx, y, signal);
+    // Settle a decode failure into the same zero tile a missing fetch produces.
+    // The cache holds the *promise*, so a rejection here would be remembered for
+    // the rest of the session and every later sample touching this tile would
+    // fail forever — which is not what "missing tile -> zeros" promises.
+    p = decodeTile(z, wx, y, signal).catch(() => new Float32Array(TILE * TILE));
     demCache.set(k, p);
     if (demCache.size > DEM_CACHE_MAX) {
       const oldest = demCache.keys().next().value;

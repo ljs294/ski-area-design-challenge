@@ -22,6 +22,7 @@ export const NODE_PATH_BUILT_LAYER_IDS = [
   'ski-nodes',
   'ski-node-labels',
   'trail-junctions',
+  'trail-junction-labels',
 ];
 
 // Neutral slate — distinct from lift red, road taupe, and every trail
@@ -67,10 +68,12 @@ export function nodePathsToGeoJSON(
       geometry: { type: 'Point', coordinates: node.point },
     });
   }
-  for (const junction of junctions) features.push({
-    type: 'Feature', properties: { kind: 'junction', id: junction.id },
+  // `number` is the junction's 1-based position, the same label the trails panel
+  // and the run review panel print — so "node 3" means one findable dot.
+  junctions.forEach((junction, index) => features.push({
+    type: 'Feature', properties: { kind: 'junction', id: junction.id, number: index + 1 },
     geometry: { type: 'Point', coordinates: junction.point },
-  });
+  }));
   return { type: 'FeatureCollection', features };
 }
 
@@ -126,6 +129,29 @@ export function addNodePathLayers(map: maplibregl.Map): void {
     filter: ['==', ['get', 'kind'], 'junction'],
     paint: { 'circle-radius': 4, 'circle-color': '#f59e0b',
       'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 },
+  });
+  // The junction's number, so the "between nodes 1 and 2" in a review panel and
+  // the "Node 3" in the trails list both point at something you can see. Optional
+  // text: at a zoomed-out resort these collide, and a missing label beats a
+  // smeared one.
+  map.addLayer({
+    id: 'trail-junction-labels',
+    type: 'symbol',
+    source: NODE_PATH_SOURCE,
+    filter: ['==', ['get', 'kind'], 'junction'],
+    layout: {
+      'text-field': ['to-string', ['get', 'number']],
+      'text-size': 11,
+      'text-offset': [0, -1],
+      'text-anchor': 'bottom',
+      'text-font': ['Noto Sans Regular'],
+      'text-optional': true,
+    },
+    paint: {
+      'text-color': '#b45309',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 1.5,
+    },
   });
   map.addLayer({
     id: 'ski-node-labels',

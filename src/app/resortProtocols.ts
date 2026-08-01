@@ -183,18 +183,26 @@ export function sampleLocalCoverAt(lng: number, lat: number): CoverClassCode | n
   return active ? sampleCoverForRecord(active, lng, lat) : null;
 }
 
+/**
+ * Point terrain for planning tools. Samples through `sampleElevation`, not the
+ * core grid alone: the map renders the offline surround ring, the camera roams
+ * it, and nothing clamps a painted stroke or a placed terminal to the property
+ * line — so a point a few metres outside the core is an ordinary thing for a
+ * designer to produce, and answering "no data" for it stalls the tool. Null
+ * still means genuinely outside every extent we hold.
+ */
 export function sampleLocalTerrainAt(lng: number, lat: number): { elevation: number; slopeDeg: number; aspectDeg: number } | null {
   const record = active;
   const b = record?.bounds;
   if (!record || !b) return null;
-  const elevation = sampleGrid(record, lng, lat);
+  const elevation = sampleElevation(record, lng, lat);
   if (elevation == null) return null;
   const dx = (b.east - b.west) / Math.max(1, record.sampleGridSize - 1);
   const dy = (b.north - b.south) / Math.max(1, record.sampleGridSize - 1);
   const metersX = dx * 111320 * Math.cos((lat * Math.PI) / 180);
   const metersY = dy * 111320;
-  const dzdx = ((sampleGrid(record, lng + dx, lat) ?? elevation) - (sampleGrid(record, lng - dx, lat) ?? elevation)) / Math.max(1, 2 * metersX);
-  const dzdy = ((sampleGrid(record, lng, lat - dy) ?? elevation) - (sampleGrid(record, lng, lat + dy) ?? elevation)) / Math.max(1, 2 * metersY);
+  const dzdx = ((sampleElevation(record, lng + dx, lat) ?? elevation) - (sampleElevation(record, lng - dx, lat) ?? elevation)) / Math.max(1, 2 * metersX);
+  const dzdy = ((sampleElevation(record, lng, lat - dy) ?? elevation) - (sampleElevation(record, lng, lat + dy) ?? elevation)) / Math.max(1, 2 * metersY);
   return {
     elevation,
     slopeDeg: Math.atan(Math.hypot(dzdx, dzdy)) * 180 / Math.PI,

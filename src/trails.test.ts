@@ -3,7 +3,9 @@ import {
   difficultyForSlopes,
   trailStats,
   orientTopToBottom,
+  fillElevationGaps,
   pinTrailHead,
+  pinTrailEndpoints,
   sanitizeTrails,
   nextTrailName,
   DEFAULT_BRUSH_WIDTH_M,
@@ -66,6 +68,25 @@ describe('orientTopToBottom', () => {
   });
 });
 
+describe('fillElevationGaps', () => {
+  it('interpolates an interior gap between its resolved neighbours', () => {
+    expect(fillElevationGaps([2000, null, null, 1700])).toEqual([2000, 1900, 1800, 1700]);
+  });
+
+  it('extends the nearest resolved value across leading and trailing gaps', () => {
+    // Nothing to interpolate against past the ends — a flat shoulder beats a
+    // hole, and it keeps the array the same length as the centerline.
+    expect(fillElevationGaps([null, null, 1900, 1800, null])).toEqual([1900, 1900, 1900, 1800, 1800]);
+  });
+
+  it('returns null only when no point resolved at all', () => {
+    expect(fillElevationGaps([null, null, null])).toBeNull();
+    expect(fillElevationGaps([])).toBeNull();
+    // A single survivor is still enough to build a (flat) profile from.
+    expect(fillElevationGaps([null, 1850, null])).toEqual([1850, 1850, 1850]);
+  });
+});
+
 describe('pinTrailHead', () => {
   it('makes the exact anchor station 0 and keeps elevations aligned', () => {
     const head: [number, number] = [-121.5, 46.931];
@@ -86,6 +107,36 @@ describe('pinTrailHead', () => {
     expect(pinned[0].centerline.slice(1)).toEqual(SPINE.slice(1));
     expect(pinned[0].centerlineElevM).toEqual([2000, 1900, 1800]);
     expect(pinned[1]).toBe(other);
+  });
+});
+
+describe('pinTrailEndpoints', () => {
+  // The paint flow pins once at analysis and again after elevations resolve, on
+  // the already-pinned result. That second call must succeed — if it can't, the
+  // run is rejected in review with no way forward, which is exactly the failure
+  // this pair of tests exists to keep from coming back.
+  const head: [number, number] = [-121.5, 46.9305];
+  const tail: [number, number] = [-121.5, 46.9295];
+  const box: [number, number][][] = [[
+    [-121.501, 46.931], [-121.499, 46.931], [-121.499, 46.929],
+    [-121.501, 46.929], [-121.501, 46.931],
+  ]];
+
+  it('pins both ends onto the footprint containing them', () => {
+    const pinned = pinTrailEndpoints([{ polygon: box, centerline: SPINE, centerlineElevM: [] }], head, tail);
+    expect(pinned).not.toBeNull();
+    expect(pinned![0].centerline[0]).toEqual(head);
+    expect(pinned![0].centerline.at(-1)).toEqual(tail);
+  });
+
+  it('is idempotent — re-pinning its own output still resolves', () => {
+    const once = pinTrailEndpoints([{ polygon: box, centerline: SPINE, centerlineElevM: [] }], head, tail)!;
+    // Elevations arrive between the two calls; geometry is untouched.
+    const sampled = once.map((p) => ({ ...p, centerlineElevM: p.centerline.map(() => 1800) }));
+    const twice = pinTrailEndpoints(sampled, head, tail);
+    expect(twice).not.toBeNull();
+    expect(twice![0].centerline).toEqual(once[0].centerline);
+    expect(twice![0].centerlineElevM).toHaveLength(once[0].centerline.length);
   });
 });
 

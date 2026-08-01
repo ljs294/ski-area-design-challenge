@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RESORT_DEM_PROTOCOL, resortCameraBounds, resortDemBounds,
-  resortProtocolUrl, resortWarmTileKeys } from './resortProtocols';
+  resortProtocolUrl, resortWarmTileKeys, sampleLocalTerrainAt,
+  setActiveResortTerrain } from './resortProtocols';
 import type { TerrainRecord } from '../types';
 
 // Minimal record: only the fields the geometry helpers read. A ~2 km box with a
@@ -50,6 +51,34 @@ describe('resortWarmTileKeys', () => {
       expect(k.z).toBeGreaterThanOrEqual(11);
       expect(k.z).toBeLessThanOrEqual(15);
     }
+  });
+});
+
+describe('sampleLocalTerrainAt', () => {
+  // Same box + ring as makeRecord, plus the elevation grids the sampler reads.
+  function makeSampledRecord(): TerrainRecord {
+    const rec = makeRecord();
+    return {
+      ...rec,
+      sampleGridSize: 4,
+      sampleHeights: new Array(16).fill(2000),
+    } as unknown as TerrainRecord;
+  }
+
+  it('answers for a point in the surround ring, outside the property line', () => {
+    // Nothing clamps a painted stroke to the box, and the ring is rendered and
+    // skiable-looking — refusing here used to abort a whole run's profile.
+    setActiveResortTerrain(makeSampledRecord());
+    const outsideCore = sampleLocalTerrainAt(-121.46, 47.01); // east of core.east
+    expect(outsideCore).not.toBeNull();
+    expect(outsideCore!.elevation).toBeCloseTo(1000, 6); // the ring's height
+    setActiveResortTerrain(null);
+  });
+
+  it('still reports null outside every extent we hold', () => {
+    setActiveResortTerrain(makeSampledRecord());
+    expect(sampleLocalTerrainAt(-120, 47)).toBeNull();
+    setActiveResortTerrain(null);
   });
 });
 

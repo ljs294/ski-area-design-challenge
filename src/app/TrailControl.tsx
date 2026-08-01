@@ -5,7 +5,8 @@ import { fmtDistance } from '../lifts';
 import { DIFFICULTY_LABELS, fmtArea, fmtSlope, fmtVertical, trailPartsStats,
   MIN_BRUSH_WIDTH_M, MAX_BRUSH_WIDTH_M } from '../trails';
 import { TrailProfile } from './TrailProfile';
-import { describeAnchor, type AnchorRef } from '../skiNodes';
+import type { AnchorRef } from '../skiNodes';
+import { describeAnchorDetail, type AnchorWorld } from '../topology';
 import type { PaintMode } from './trailPaintEngine';
 import type { TrailHeadAnchor, TrailTailAnchor } from './trailHeadAnchor';
 
@@ -29,6 +30,8 @@ export interface DraftTrail {
   status: TrailStatus;
   difficulty: TrailDifficulty;
   elevStatus: 'pending' | 'ok' | 'error';
+  /** Why sampling failed, when it did. Absent falls back to a generic line. */
+  elevError?: string | null;
   gradingEnabled: boolean;
   gradingStatus: 'idle' | 'pending' | 'ok' | 'error';
   gradingError: string | null;
@@ -46,6 +49,15 @@ export interface DraftTrail {
   anchor: AnchorRef | null;
   /** Exact required destination selected after brushing. */
   tailAnchor?: AnchorRef | null;
+}
+
+/**
+ * One end of a run, named. The second line carries the segment and node numbers
+ * and is allowed to wrap — clipping it would hide exactly what it exists to say.
+ */
+export function AnchorValue({ anchor, world }: { anchor: AnchorRef; world: AnchorWorld }) {
+  const { label, detail } = describeAnchorDetail(anchor, world);
+  return <>{label}{detail && <small className="trail-anchor-detail">{detail}</small>}</>;
 }
 
 function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
@@ -113,11 +125,14 @@ export function EarthworkStats({ estimate, units,
   </div>;
 }
 
-export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onBrushWidthChange,
+export function TrailControl({ tool, trails, world, selectedId, units, brushWidthM, onBrushWidthChange,
   onCancel, onModeChange, onUndo, onClear, onFinish, onDraftChange, onConfirm, onEditPatch,
   onCloseEdit, onDelete, onRetryElevation, onGradingChange, onChangeHead, onBackToPaint,
   building = false }: {
-  tool: TrailTool; trails: SavedTrail[]; selectedId: string | null; units: Units; brushWidthM: number;
+  tool: TrailTool; trails: SavedTrail[];
+  /** Lifts, junctions and nodes, so an anchor can be named rather than typed. */
+  world: AnchorWorld;
+  selectedId: string | null; units: Units; brushWidthM: number;
   onBrushWidthChange: (m: number) => void; onCancel: () => void; onModeChange: (m: PaintMode) => void;
   onUndo: () => void; onClear: () => void; onFinish: () => void; onDraftChange: (p: Partial<DraftTrail>) => void;
   onConfirm: () => void; onEditPatch: (id: string, patch: Partial<SavedTrail>) => void;
@@ -133,7 +148,7 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
     <PanelHead title="Place Trailhead" onClose={onCancel} />
     <div className="site-hint">Click a lift terminal at the top, or anywhere along an existing trail centerline.</div>
     {tool.candidate && <div className="readout-line"><span className="lift-stat-label">Ready to anchor</span>
-      <span className="lift-stat-value">{describeAnchor(tool.candidate)}</span></div>}
+      <span className="lift-stat-value"><AnchorValue anchor={tool.candidate} world={world} /></span></div>}
     {tool.error && <div className="lift-warning">{tool.error}</div>}
   </div>;
 
@@ -141,7 +156,7 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
     <PanelHead title="Place Trail End" onClose={onCancel} />
     <div className="site-hint">Select a lift base or another trail reached by the painted footprint.</div>
     {tool.candidate && <div className="readout-line"><span className="lift-stat-label">Ready to connect</span>
-      <span className="lift-stat-value">{describeAnchor(tool.candidate)}</span></div>}
+      <span className="lift-stat-value"><AnchorValue anchor={tool.candidate} world={world} /></span></div>}
     {tool.error && <div className="lift-warning">{tool.error}</div>}
     <button className="site-btn" onClick={onBackToPaint}>Back to brush</button>
   </div>;
@@ -174,19 +189,19 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
       <PanelHead title="Review ski run" onClose={onCancel} />
       <input className="name-entry-input lift-name-input" value={d.name} onChange={(e) => onDraftChange({ name: e.target.value })} />
       <TrailProfile parts={d.parts} units={units} difficulty={d.difficulty} />
-      {d.elevStatus === 'error' && <div className="lift-warning">Elevation unavailable <button className="lift-link-btn" onClick={onRetryElevation}>Retry</button></div>}
+      {d.elevStatus === 'error' && <div className="lift-warning">{d.elevError ?? 'Elevation unavailable'} <button className="lift-link-btn" onClick={onRetryElevation}>Retry</button></div>}
       {/* Where the run starts. Required: an unconnected run cannot be skied to,
           and leaves the node map guessing at the topology. */}
       <div className="trail-anchor-row" data-anchor={d.anchor ? 'set' : 'unset'}>
         <span className="lift-stat-label">Starts from</span>
         <span className={`trail-anchor-value${d.anchor ? '' : ' is-missing'}`}>
-          {d.anchor ? describeAnchor(d.anchor) : 'Not connected'}
+          {d.anchor ? <AnchorValue anchor={d.anchor} world={world} /> : 'Not connected'}
         </span>
       </div>
       <div className="trail-anchor-row" data-anchor={d.tailAnchor ? 'set' : 'unset'}>
         <span className="lift-stat-label">Ends at</span>
         <span className={`trail-anchor-value${d.tailAnchor ? '' : ' is-missing'}`}>
-          {d.tailAnchor ? describeAnchor(d.tailAnchor) : 'Not connected'}
+          {d.tailAnchor ? <AnchorValue anchor={d.tailAnchor} world={world} /> : 'Not connected'}
         </span>
       </div>
       {!d.anchor && (
