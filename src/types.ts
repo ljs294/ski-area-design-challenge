@@ -411,10 +411,23 @@ export type TrailStatus = 'planning' | 'complete';
 export interface SavedTrailPart {
   /** Outer ring followed by optional holes. */
   polygon: [number, number][][];
-  /** Medial route derived from the painted footprint. */
+  /** Ordered, durable graph segments for this connected footprint. */
+  segments?: SavedTrailSegment[];
+  /**
+   * Flattened centerline caches retained for rendering/profile code and legacy
+   * save compatibility. `segments` is authoritative and hydration rebuilds
+   * these arrays, so they cannot drift from the persisted topology.
+   */
   centerline: [number, number][];
-  /** Terrain elevations in meters, parallel to `centerline`. */
   centerlineElevM: number[];
+}
+
+export interface SavedTrailSegment {
+  id: string;
+  centerline: [number, number][];
+  centerlineElevM: number[];
+  fromJunctionId: string;
+  toJunctionId: string;
 }
 
 // A ski run painted with the brush tool. The run is a filled polygon (its
@@ -454,7 +467,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4;
+  schemaVersion: 1 | 2 | 3 | 4 | 5;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -473,6 +486,8 @@ export interface GameSave {
   nodes?: SavedNode[];
   /** Footpaths connecting nodes/lifts/runs. Optional so legacy saves load unchanged. */
   paths?: SavedPath[];
+  /** Durable graph junctions. Optional only for schema-v1-v4 saves. */
+  junctions?: import('./skiNodes').SavedJunction[];
   createdAt: string; // ISO
   updatedAt: string; // ISO
   /** Most recent successful exit checkpoint. Optional for legacy saves. */

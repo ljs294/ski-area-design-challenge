@@ -4,6 +4,7 @@ import type { AnchorRef } from '../skiNodes';
 import type { SavedLift, SavedTrail } from '../types';
 
 export type TrailHeadAnchor = Extract<AnchorRef, { kind: 'lift' | 'trail' }>;
+export type TrailTailAnchor = TrailHeadAnchor;
 
 /**
  * Snap a prospective trailhead onto the nearest supported graph target. Lift
@@ -15,6 +16,19 @@ export function nearestTrailHeadAnchor(
   lifts: SavedLift[],
   trails: SavedTrail[],
   maxDistanceM: number,
+): TrailHeadAnchor | null {
+  return nearestTrailEndpointAnchor(click, lifts, trails, maxDistanceM, 'head');
+}
+
+export function nearestTrailTailAnchor(
+  click: [number, number], lifts: SavedLift[], trails: SavedTrail[], maxDistanceM: number,
+): TrailTailAnchor | null {
+  return nearestTrailEndpointAnchor(click, lifts, trails, maxDistanceM, 'tail');
+}
+
+function nearestTrailEndpointAnchor(
+  click: [number, number], lifts: SavedLift[], trails: SavedTrail[], maxDistanceM: number,
+  endpoint: 'head' | 'tail',
 ): TrailHeadAnchor | null {
   const frame = makeFrame([click]);
   const pm = toMeters(frame, click);
@@ -34,6 +48,7 @@ export function nearestTrailHeadAnchor(
       { end: 'top', point: flip ? lift.points[0] : lift.points[1] },
     ];
     for (const terminal of terminals) {
+      if (terminal.end !== (endpoint === 'head' ? 'top' : 'base')) continue;
       const m = toMeters(frame, terminal.point);
       consider({ kind: 'lift', liftId: lift.id, ...terminal },
         Math.hypot(m.x - pm.x, m.y - pm.y), 0);

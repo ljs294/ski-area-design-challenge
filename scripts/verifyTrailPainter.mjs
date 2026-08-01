@@ -71,8 +71,7 @@ try {
     const side = [-down[1], down[0]];
     return {
       from: [top.x, top.y],
-      to: [top.x + down[0] * 230 + side[0] * 120,
-        top.y + down[1] * 230 + side[1] * 120],
+      to: [base.x, base.y],
     };
   });
 
@@ -120,6 +119,8 @@ try {
   if (draftBeforeLayers === 0 || draftAfterLayers !== draftBeforeLayers)
     throw new Error('Toggling layers changed or discarded trail painting progress.');
   await page.click('.trail-panel button.site-btn-primary');
+  await page.waitForSelector('text=Place Trail End', { timeout: 30_000 });
+  await page.mouse.click(trailStroke.to[0], trailStroke.to[1]);
   await page.waitForSelector('text=Review ski run', { timeout: 10_000 });
 
   await page.evaluate(() => {

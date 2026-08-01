@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SavedLift, SavedTrail } from '../types';
-import { nearestTrailHeadAnchor } from './trailHeadAnchor';
+import { nearestTrailHeadAnchor, nearestTrailTailAnchor } from './trailHeadAnchor';
 
 const origin: [number, number] = [-121.5, 46.93];
 const at = (eastM: number, northM: number): [number, number] => [
@@ -21,8 +21,8 @@ const trail: SavedTrail = {
 };
 
 describe('nearestTrailHeadAnchor', () => {
-  it('selects either lift terminal', () => {
-    expect(nearestTrailHeadAnchor(at(3, 2), [lift], [], 60)).toMatchObject({ kind: 'lift', end: 'base' });
+  it('selects the directional lift terminal', () => {
+    expect(nearestTrailTailAnchor(at(3, 2), [lift], [], 60)).toMatchObject({ kind: 'lift', end: 'base' });
     expect(nearestTrailHeadAnchor(at(3, 198), [lift], [], 60)).toMatchObject({ kind: 'lift', end: 'top' });
   });
 
@@ -39,6 +39,6 @@ describe('nearestTrailHeadAnchor', () => {
 
   it('prefers a lift terminal over an exactly coincident trail', () => {
     const coincident = { ...trail, parts: [{ ...trail.parts[0], centerline: [at(-50, 0), at(50, 0)] }] };
-    expect(nearestTrailHeadAnchor(at(0, 0), [lift], [coincident], 60)).toMatchObject({ kind: 'lift' });
+    expect(nearestTrailTailAnchor(at(0, 0), [lift], [coincident], 60)).toMatchObject({ kind: 'lift' });
   });
 });

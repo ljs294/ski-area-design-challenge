@@ -1,6 +1,6 @@
 import { haversineMeters } from './geo';
 import { sanitizeAnchor } from './skiNodes';
-import type { SavedTrail, SavedTrailPart, TrailDifficulty, TrailStatus } from './types';
+import type { SavedTrail, SavedTrailPart, SavedTrailSegment, TrailDifficulty, TrailStatus } from './types';
 
 // Pure ski-run helpers: difficulty grading, spine geometry stats, and the
 // hydration shield for GameSave.trails. No DOM / fetch here — the brush→polygon
@@ -214,6 +214,37 @@ export function pinTrailHead(
   return [pinned, ...parts.slice(0, bestPart), ...parts.slice(bestPart + 1)];
 }
 
+function pointInRing(point: [number, number], ring: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j];
+    if ((a[1] > point[1]) !== (b[1] > point[1]) &&
+        point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
+}
+
+export function trailPartContains(part: Pick<SavedTrailPart, 'polygon'>, point: [number, number]): boolean {
+  return part.polygon.length > 0 && pointInRing(point, part.polygon[0]) &&
+    !part.polygon.slice(1).some((ring) => pointInRing(point, ring));
+}
+
+/** Keep the one connected footprint containing both required endpoints and pin them exactly. */
+export function pinTrailEndpoints(parts: SavedTrailPart[], head: [number, number], tail: [number, number]): SavedTrailPart[] | null {
+  const selected = parts.find((part) => trailPartContains(part, head) && trailPartContains(part, tail));
+  if (!selected || selected.centerline.length < 2) return null;
+  const forward = haversineMeters(head, selected.centerline[0]) +
+    haversineMeters(tail, selected.centerline.at(-1)!);
+  const reverse = haversineMeters(head, selected.centerline.at(-1)!) +
+    haversineMeters(tail, selected.centerline[0]);
+  const centerline = reverse < forward ? [...selected.centerline].reverse() : [...selected.centerline];
+  const centerlineElevM = reverse < forward && selected.centerlineElevM.length === selected.centerline.length
+    ? [...selected.centerlineElevM].reverse() : [...selected.centerlineElevM];
+  centerline[0] = head;
+  centerline[centerline.length - 1] = tail;
+  return [{ ...selected, segments: undefined, centerline, centerlineElevM }];
+}
+
 // ---- Hydration shield ------------------------------------------------------
 
 function isLngLat(p: unknown): p is [number, number] {
@@ -247,17 +278,47 @@ export function sanitizeTrails(raw: unknown[]): SavedTrail[] {
       ? t.parts
       : [{ polygon: t.polygon, centerline: t.spine, centerlineElevM: t.spineElevM }];
     const parts: SavedTrailPart[] = [];
-    for (const rawPart of rawParts) {
+    for (let partIndex = 0; partIndex < rawParts.length; partIndex++) {
+      const rawPart = rawParts[partIndex];
       if (typeof rawPart !== 'object' || rawPart === null) continue;
       const p = rawPart as Record<string, unknown>;
       if (!Array.isArray(p.polygon) || p.polygon.length === 0 || !p.polygon.every(isRing)) continue;
-      if (!Array.isArray(p.centerline) || p.centerline.length < 2 || !p.centerline.every(isLngLat)) continue;
-      const centerline = p.centerline as [number, number][];
-      const centerlineElevM = Array.isArray(p.centerlineElevM) &&
-        p.centerlineElevM.length === centerline.length &&
-        p.centerlineElevM.every((e) => typeof e === 'number' && Number.isFinite(e))
-          ? p.centerlineElevM as number[] : [];
-      parts.push({ polygon: p.polygon as [number, number][][], centerline, centerlineElevM });
+      const rawSegments = Array.isArray(p.segments) ? p.segments : [];
+      const segments: SavedTrailSegment[] = [];
+      for (const rawSegment of rawSegments) {
+        if (typeof rawSegment !== 'object' || rawSegment === null) continue;
+        const s = rawSegment as Record<string, unknown>;
+        if (typeof s.id !== 'string' || typeof s.fromJunctionId !== 'string' ||
+            typeof s.toJunctionId !== 'string' || !Array.isArray(s.centerline) ||
+            s.centerline.length < 2 || !s.centerline.every(isLngLat)) continue;
+        const line = s.centerline as [number, number][];
+        const elev = Array.isArray(s.centerlineElevM) && s.centerlineElevM.length === line.length &&
+          s.centerlineElevM.every((e) => typeof e === 'number' && Number.isFinite(e))
+            ? s.centerlineElevM as number[] : [];
+        segments.push({ id: s.id, centerline: line, centerlineElevM: elev,
+          fromJunctionId: s.fromJunctionId, toJunctionId: s.toJunctionId });
+      }
+      let centerline: [number, number][];
+      let centerlineElevM: number[];
+      if (segments.length > 0) {
+        centerline = segments.flatMap((s, index) => index === 0 ? s.centerline : s.centerline.slice(1));
+        const elevationsResolved = segments.every((s) => s.centerlineElevM.length === s.centerline.length);
+        centerlineElevM = elevationsResolved
+          ? segments.flatMap((s, index) => index === 0 ? s.centerlineElevM : s.centerlineElevM.slice(1)) : [];
+      } else {
+        if (!Array.isArray(p.centerline) || p.centerline.length < 2 || !p.centerline.every(isLngLat)) continue;
+        centerline = p.centerline as [number, number][];
+        centerlineElevM = Array.isArray(p.centerlineElevM) &&
+          p.centerlineElevM.length === centerline.length &&
+          p.centerlineElevM.every((e) => typeof e === 'number' && Number.isFinite(e))
+            ? p.centerlineElevM as number[] : [];
+        segments.push({
+          id: `${t.id}:${partIndex}:0`, centerline, centerlineElevM,
+          fromJunctionId: `junction:${t.id}:${partIndex}:start`,
+          toJunctionId: `junction:${t.id}:${partIndex}:end`,
+        });
+      }
+      parts.push({ polygon: p.polygon as [number, number][][], segments, centerline, centerlineElevM });
     }
     if (parts.length === 0) continue;
 

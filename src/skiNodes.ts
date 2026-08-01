@@ -31,6 +31,18 @@ export interface SavedNode {
   createdAt: string; // ISO
 }
 
+/** A durable topology point shared by trail segments, paths, and lift terminals. */
+export interface SavedJunction {
+  id: string;
+  point: [number, number];
+  elevM: number | null;
+  /** Present when this junction is exactly a lift terminal. */
+  liftTerminal?: { liftId: string; end: 'top' | 'base' };
+  /** Retains otherwise unsupported legacy connectivity without enabling it for new tools. */
+  legacyAnchor?: AnchorRef;
+  createdAt: string;
+}
+
 export interface SavedPath {
   id: string;
   name: string; // default "Path N"
@@ -40,6 +52,9 @@ export interface SavedPath {
   widthM: number;
   from: AnchorRef;
   to: AnchorRef;
+  /** Schema-v5 durable endpoint references. Legacy paths are upgraded on hydration. */
+  fromJunctionId?: string;
+  toJunctionId?: string;
   lengthM: number; // ALWAYS recomputed on load from points
   status: TrailStatus; // 'planning' (dashed) or 'complete' (solid)
   /** Operating condition. Absent/false = open. */
@@ -194,6 +209,8 @@ export function sanitizePaths(raw: unknown[]): SavedPath[] {
       widthM,
       from,
       to,
+      fromJunctionId: typeof p.fromJunctionId === 'string' ? p.fromJunctionId : undefined,
+      toJunctionId: typeof p.toJunctionId === 'string' ? p.toJunctionId : undefined,
       lengthM: pathLengthM(points),
       status,
       closed: p.closed === true,

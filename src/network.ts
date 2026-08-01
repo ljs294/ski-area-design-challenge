@@ -1,6 +1,6 @@
 import { METERS_PER_DEGREE_LAT, haversineMeters } from './geo';
 import { fixedGripCapacityPph, fixedGripDerived, liftStats } from './lifts';
-import type { AnchorRef, SavedNode, SavedPath } from './skiNodes';
+import type { AnchorRef, SavedJunction, SavedNode, SavedPath } from './skiNodes';
 import { difficultyForSlopes, trailAreaM2, trailStats } from './trails';
 import type {
   ChairSize,
@@ -110,6 +110,10 @@ export interface TrailEdge extends NetworkEdgeBase {
   partIndex: number;
   /** Ordinal along the part, in stored centerline order. */
   segmentIndex: number;
+  /** Stable schema-v5 segment identity; runtime crossing splits share this value. */
+  savedSegmentId?: string;
+  fromJunctionId?: string;
+  toJunctionId?: string;
   /**
    * True [lng, lat] geometry, from → to. Deliberately NOT snapped onto the node
    * positions: `node.lngLat` is a cluster centroid up to ~snapDistance/2 away,
@@ -260,6 +264,8 @@ export interface BuildNetworkOptions {
   nodes?: SavedNode[];
   /** Footpaths connecting nodes/lifts/runs. */
   paths?: SavedPath[];
+  /** Durable topology junctions used by schema-v5 segments and paths. */
+  junctions?: SavedJunction[];
   /** Max metres a cached AnchorRef.point may drift from the target's CURRENT
    *  geometry before resolution gives up. Not a topology tolerance — this is
    *  "did the point survive an edit". */
@@ -509,6 +515,9 @@ interface Polyline {
   /** Trail-only; present when entityKind === 'trail'. */
   trailId?: string;
   partIndex?: number;
+  savedSegmentId?: string;
+  fromJunctionId?: string;
+  toJunctionId?: string;
   trail?: SavedTrail;
   /** Path-only; present when entityKind === 'path'. */
   path?: SavedPath;
@@ -603,19 +612,26 @@ function buildPolylines(
   const out: Polyline[] = [];
   for (const trail of trails) {
     trail.parts.forEach((part, partIndex) => {
-      const key = `${trail.id}:${partIndex}`;
+      const sourceSegments = part.segments?.length ? part.segments : [{
+        id: `${trail.id}:${partIndex}:legacy`, centerline: part.centerline,
+        centerlineElevM: part.centerlineElevM, fromJunctionId: '', toJunctionId: '',
+      }];
+      const partTotalM = sourceSegments.reduce((sum, segment) => sum + segment.centerline.slice(1)
+        .reduce((length, point, i) => length + haversineMeters(segment.centerline[i], point), 0), 0);
+      sourceSegments.forEach((savedSegment) => {
+      const key = savedSegment.id;
       const lngLat: [number, number][] = [];
       const elevSrc: number[] = [];
       const hasElev =
-        part.centerlineElevM.length === part.centerline.length &&
-        part.centerlineElevM.every((e) => Number.isFinite(e));
-      for (let i = 0; i < part.centerline.length; i++) {
-        const p = part.centerline[i];
+        savedSegment.centerlineElevM.length === savedSegment.centerline.length &&
+        savedSegment.centerlineElevM.every((e) => Number.isFinite(e));
+      for (let i = 0; i < savedSegment.centerline.length; i++) {
+        const p = savedSegment.centerline[i];
         if (!Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
         const prev = lngLat[lngLat.length - 1];
         if (prev && haversineMeters(prev, p) < STATION_DEDUPE_M) continue;
         lngLat.push([p[0], p[1]]);
-        if (hasElev) elevSrc.push(part.centerlineElevM[i]);
+        if (hasElev) elevSrc.push(savedSegment.centerlineElevM[i]);
       }
       if (!hasElev) unresolvedElevationTrailIds.add(trail.id);
       if (lngLat.length < 2) {
@@ -638,15 +654,19 @@ function buildPolylines(
         entityId: trail.id,
         trailId: trail.id,
         partIndex,
+        savedSegmentId: savedSegment.id,
+        fromJunctionId: savedSegment.fromJunctionId,
+        toJunctionId: savedSegment.toJunctionId,
         trail,
         lngLat,
         m,
         elevM: hasElev ? elevSrc : [],
         cum,
         totalM,
-        areaM2: trailAreaM2([part]),
+        areaM2: partTotalM > 0 ? trailAreaM2([part]) * totalM / partTotalM : 0,
         brushWidthM: trail.brushWidthM,
         bbox: bboxOf(m),
+      });
       });
     });
   }
@@ -693,6 +713,8 @@ function buildPathPolylines(
       entityKind: 'path',
       entityId: path.id,
       path,
+      fromJunctionId: path.fromJunctionId,
+      toJunctionId: path.toJunctionId,
       lngLat,
       m,
       elevM: hasElev ? elevSrc : [],
@@ -779,12 +801,14 @@ export function buildSkiNetwork(
     seenPath.add(p.id);
     pathList.push(p);
   }
+  const junctionList = [...(options?.junctions ?? [])].sort((a, b) => a.id.localeCompare(b.id));
 
   const frameSamples: [number, number][] = [];
   for (const t of trailList) for (const p of t.parts) for (const c of p.centerline) frameSamples.push(c);
   for (const l of liftList) frameSamples.push(l.points[0], l.points[1]);
   for (const n of nodeList) frameSamples.push(n.point);
   for (const p of pathList) for (const pt of p.points) frameSamples.push(pt);
+  for (const j of junctionList) frameSamples.push(j.point);
   const frame = makeFrame(frameSamples);
 
   const unresolvedElev = new Set<string>();
@@ -1081,6 +1105,29 @@ export function buildSkiNetwork(
   // even when nothing ever attaches to it (zero incident edges).
   for (const node of nodeList) addUserNodeSite(node);
 
+  // Schema-v5 topology is authoritative: endpoints carrying the same durable
+  // junction id are unioned even if cached coordinates drift slightly. A lift
+  // attachment joins that same group to its canonical terminal site.
+  const sitesByJunction = new Map<string, string[]>();
+  const registerJunctionSite = (id: string | undefined, key: string) => {
+    if (!id) return;
+    const keys = sitesByJunction.get(id) ?? [];
+    keys.push(key); sitesByJunction.set(id, keys);
+  };
+  polylines.forEach((pl, pi) => {
+    registerJunctionSite(pl.fromJunctionId, trailSiteKey(pi, 0));
+    registerJunctionSite(pl.toJunctionId, trailSiteKey(pi, pl.totalM));
+  });
+  for (const junction of junctionList) {
+    if (junction.liftTerminal) registerJunctionSite(junction.id,
+      junction.liftTerminal.end === 'base' ? `lb:${junction.liftTerminal.liftId}`
+        : `lt:${junction.liftTerminal.liftId}`);
+  }
+  for (const keys of sitesByJunction.values()) {
+    const existing = keys.filter((key) => sites.has(key));
+    for (let i = 1; i < existing.length; i++) links.push({ a: existing[0], b: existing[i] });
+  }
+
   // Pass 6 — explicit anchors. Runs after every geometric inference pass (so
   // an anchor can land on a junction one of those passes already created) and
   // before the split-collapse/clustering stage below.
@@ -1151,7 +1198,7 @@ export function buildSkiNetwork(
       unanchoredTrailIdSet.add(trail.id);
       continue;
     }
-    const ownPi = polylineIndexByKey.get(`${trail.id}:0`);
+    const ownPi = polylinesByEntity.get(`trail:${trail.id}`)?.[0];
     if (ownPi === undefined) {
       unresolvedAnchorTrailIdSet.add(trail.id);
       continue;
@@ -1406,7 +1453,7 @@ export function buildSkiNetwork(
     const partIndex = pl.partIndex as number;
     const condition: EdgeCondition = trail.closed ? 'closed' : 'open';
     const planned = trail.status === 'planning';
-    let segmentIndex = 0;
+    let segmentIndex = trailEdgeIds.get(trailId)?.length ?? 0;
     for (let k = 0; k < kept.length - 1; k++) {
       const aSite = sites.get(kept[k]) as Site;
       const bSite = sites.get(kept[k + 1]) as Site;
@@ -1432,7 +1479,8 @@ export function buildSkiNetwork(
       // part's footprint area. Proration by length is the right model here:
       // runs are painted at a constant brush diameter.
       const areaM2 = pl.totalM > 0 ? (pl.areaM2 * spanM) / pl.totalM : 0;
-      const id: EdgeId = `t:${trailId}:${partIndex}:${segmentIndex}`;
+      const persistedId = pl.savedSegmentId ?? `${trailId}:${partIndex}`;
+      const id: EdgeId = kept.length === 2 ? `t:${persistedId}` : `t:${persistedId}:${k}`;
       const from = nodeForSite(aSite.key);
       const to = nodeForSite(bSite.key);
       const base = {
@@ -1440,6 +1488,7 @@ export function buildSkiNetwork(
         trailName: trail.name,
         partIndex,
         segmentIndex,
+        savedSegmentId: pl.savedSegmentId,
         difficulty,
         avgSlopeDeg: stats.avgSlopeDeg,
         maxSlopeDeg: stats.maxSlopeDeg,

@@ -171,7 +171,7 @@ async function highlightGeometry(along) {
 }
 
 /** Paint one traverse at `brushWidthM` and report what the grader makes of it. */
-async function gradeTraverse(brushWidthM, center, along) {
+async function gradeTraverse(brushWidthM, center, along, tailTarget) {
   await clickWhenReady('.lift-add-btn');
   await page.waitForSelector('text=Place Trailhead');
   const head = [center[0] - along[0] * HALF_STROKE_PX,
@@ -183,7 +183,15 @@ async function gradeTraverse(brushWidthM, center, along) {
   await page.locator('.trail-brush-slider')
     .fill(String(Math.max(8, Math.min(120, Math.ceil(brushWidthM / 2) * 2))));
   await paintStroke(center, along, HALF_STROKE_PX);
+  const strokeEnd = [center[0] + along[0] * HALF_STROKE_PX,
+    center[1] + along[1] * HALF_STROKE_PX];
+  await page.mouse.move(strokeEnd[0], strokeEnd[1]);
+  await page.mouse.down();
+  await page.mouse.move(tailTarget[0], tailTarget[1], { steps: 40 });
+  await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
   await clickWhenReady('.trail-panel button.site-btn-primary');
+  await page.waitForSelector('text=Place Trail End', { timeout: 30_000 });
+  await page.mouse.click(tailTarget[0], tailTarget[1]);
   await page.waitForSelector('text=Review ski run', { timeout: 60_000 });
 
   await clickWhenReady('.trail-grade-terrain input');
@@ -303,7 +311,7 @@ try {
   await page.waitForTimeout(800);
 
   await clickWhenReady('.dock-circle-trails');
-  const graded = await gradeTraverse(40, site.center, site.along);
+  const graded = await gradeTraverse(40, site.center, site.along, liftBase);
   await page.screenshot({ path: 'verify-traverse-grading.png' });
 
   // 1. Grading is a tool, not a gate.

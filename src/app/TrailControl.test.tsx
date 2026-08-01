@@ -15,6 +15,7 @@ const draft: DraftTrail = {
   maxDisturbedWidthM: 0, ungradedLengthM: 0,
   infeasibleLines: [],
   anchor: { kind: 'lift', liftId: 'L1', end: 'top', point: [0.5, 1] },
+  tailAnchor: { kind: 'lift', liftId: 'L1', end: 'base', point: [0.5, 0] },
 };
 const callbacks = {
   onBrushWidthChange: vi.fn(), onCancel: vi.fn(), onModeChange: vi.fn(),

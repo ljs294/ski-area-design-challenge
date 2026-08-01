@@ -55,6 +55,8 @@ async function paintRun(from, to, via = []) {
   await page.mouse.move(to[0], to[1], { steps: 60 });
   await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
   await clickWhenReady('.trail-panel button.site-btn-primary'); // Finish
+  await page.waitForSelector('text=Place Trail End', { timeout: 30_000 });
+  await page.mouse.click(to[0], to[1]);
   // Skeletonization + terrain sampling run before the review panel appears.
   await page.waitForSelector('.trail-panel .lift-status-btn', { timeout: 90_000 });
   // The first stroke must snap to a lift top before painting begins. This
@@ -161,7 +163,7 @@ try {
     return { top: [top.x, top.y], base: [base.x, base.y], down, len, metresPerPx };
   });
 
-  const { top, down, len, metresPerPx } = geometry;
+  const { top, base, down, len, metresPerPx } = geometry;
   // Perpendicular to the lift line, for fanning the two runs apart.
   const side = [-down[1], down[0]];
   const along = (from, d, lateral) => [
@@ -175,10 +177,11 @@ try {
 
   // `served` drops away from the unload; `crosser` cuts across it lower down so
   // both runs must split at a shared junction.
-  await paintRun(along(top, headOffsetPx, 0), along(top, headOffsetPx + runLen, runLen * 0.45));
+  await paintRun(along(top, headOffsetPx, 0), base,
+    [along(top, headOffsetPx + runLen * 0.5, runLen * 0.45)]);
   await paintRun(
     along(top, headOffsetPx, 0),
-    along(top, headOffsetPx + runLen * 0.9, -runLen * 0.1),
+    base,
     [along(top, headOffsetPx + runLen * 0.25, runLen * 0.7)]
   );
 

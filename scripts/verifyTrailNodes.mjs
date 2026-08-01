@@ -100,6 +100,8 @@ async function paintFootprint(from, to, exerciseSeedControls = false, anchorPoin
     await page.waitForFunction(() => !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
   }
   await clickWhenReady('.trail-panel button.site-btn-primary'); // Finish
+  await page.waitForSelector('text=Place Trail End', { timeout: 30_000 });
+  await page.mouse.click(to[0], to[1]);
   // Skeletonization + terrain sampling run before the review panel appears.
   await page.waitForSelector('.trail-panel .trail-anchor-row', { timeout: 90_000 });
 }
@@ -211,7 +213,7 @@ try {
       lift.lengthM / Math.max(1, Math.hypot(base.x - top.x, base.y - top.y));
     return { top: [top.x, top.y], base: [base.x, base.y], down, len, metresPerPx };
   });
-  const { top, down, len, metresPerPx } = geometry;
+  const { top, base: liftBase, down, len, metresPerPx } = geometry;
   const side = [-down[1], down[0]]; // perpendicular to the lift line
   const along = (from, d, lateral) => [
     from[0] + down[0] * d + side[0] * lateral,
@@ -223,7 +225,7 @@ try {
   // first click is released, then painting resumes to verify pickup/continue.
   const headOffsetPx = Math.max(3, 15 / metresPerPx);
   const runLen = Math.min(len * 0.6, 200);
-  await paintFootprint(along(top, headOffsetPx, 0), along(top, headOffsetPx + runLen, 0), true, top);
+  await paintFootprint(along(top, headOffsetPx, 0), liftBase, true, top);
 
   const anchorSet = await page.locator('.trail-anchor-row[data-anchor="set"]')
     .isVisible().catch(() => false);

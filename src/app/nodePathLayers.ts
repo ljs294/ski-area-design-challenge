@@ -1,5 +1,5 @@
 import type maplibregl from 'maplibre-gl';
-import type { SavedNode, SavedPath } from '../skiNodes';
+import type { SavedJunction, SavedNode, SavedPath } from '../skiNodes';
 
 // Node/path rendering: free-standing map pins ("nodes") and the footpaths
 // that connect them to lifts, runs, or each other. Mirrors liftLayers.ts —
@@ -21,6 +21,7 @@ export const NODE_PATH_BUILT_LAYER_IDS = [
   'path-line-planning',
   'ski-nodes',
   'ski-node-labels',
+  'trail-junctions',
 ];
 
 // Neutral slate — distinct from lift red, road taupe, and every trail
@@ -32,7 +33,7 @@ const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: 
 
 /** In-progress path: vertices placed so far, cursor tracking the next click,
  *  and any anchor candidates worth highlighting while the user picks a
- *  start/end target (lift terminal, run edge, another path/node). */
+ *  start/end target along a ski trail. */
 export interface NodePathDraft {
   points: [number, number][];
   cursor: [number, number] | null;
@@ -42,7 +43,8 @@ export interface NodePathDraft {
 
 export function nodePathsToGeoJSON(
   nodes: SavedNode[],
-  paths: SavedPath[]
+  paths: SavedPath[],
+  junctions: SavedJunction[] = [],
 ): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = [];
   for (const path of paths) {
@@ -65,6 +67,10 @@ export function nodePathsToGeoJSON(
       geometry: { type: 'Point', coordinates: node.point },
     });
   }
+  for (const junction of junctions) features.push({
+    type: 'Feature', properties: { kind: 'junction', id: junction.id },
+    geometry: { type: 'Point', coordinates: junction.point },
+  });
   return { type: 'FeatureCollection', features };
 }
 
@@ -116,6 +122,12 @@ export function addNodePathLayers(map: maplibregl.Map): void {
     },
   });
   map.addLayer({
+    id: 'trail-junctions', type: 'circle', source: NODE_PATH_SOURCE,
+    filter: ['==', ['get', 'kind'], 'junction'],
+    paint: { 'circle-radius': 4, 'circle-color': '#f59e0b',
+      'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 },
+  });
+  map.addLayer({
     id: 'ski-node-labels',
     type: 'symbol',
     source: NODE_PATH_SOURCE,
@@ -139,10 +151,11 @@ export function addNodePathLayers(map: maplibregl.Map): void {
 }
 
 /** Replaces the node/path source data. No-op before the source exists (pre style.load). */
-export function setNodePathData(map: maplibregl.Map, nodes: SavedNode[], paths: SavedPath[]): void {
+export function setNodePathData(map: maplibregl.Map, nodes: SavedNode[], paths: SavedPath[],
+  junctions: SavedJunction[] = []): void {
   const src = map.getSource(NODE_PATH_SOURCE) as maplibregl.GeoJSONSource | undefined;
   if (!src) return;
-  src.setData(nodePathsToGeoJSON(nodes, paths));
+  src.setData(nodePathsToGeoJSON(nodes, paths, junctions));
 }
 
 /** Pure builder for the draft source data — split out so it's separately testable. */

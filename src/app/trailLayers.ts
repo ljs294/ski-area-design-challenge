@@ -69,6 +69,7 @@ export interface TrailPaintPreview {
   brushWidthM: number;
   candidate?: [number, number] | null;
   head?: [number, number] | null;
+  tail?: [number, number] | null;
 }
 
 type MeterPoint = { x: number; y: number };
@@ -159,7 +160,7 @@ function brushCorridor(path: [number, number][], brushWidthM: number): GeoJSON.P
 
 /** Geographic brush geometry. The ring is built in local meters rather than
  * screen pixels, so it stays true to the analytical brush on pitched maps. */
-export function paintPreviewGeoJSON({ path, cursor, brushWidthM, candidate, head }: TrailPaintPreview): GeoJSON.FeatureCollection {
+export function paintPreviewGeoJSON({ path, cursor, brushWidthM, candidate, head, tail }: TrailPaintPreview): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = [];
   const corridor = brushCorridor(path, brushWidthM);
   if (corridor) features.push({ type: 'Feature', properties: { kind: 'paint' }, geometry: corridor });
@@ -185,6 +186,8 @@ export function paintPreviewGeoJSON({ path, cursor, brushWidthM, candidate, head
     geometry: { type: 'Point', coordinates: candidate } });
   if (head) features.push({ type: 'Feature', properties: { kind: 'trailhead' },
     geometry: { type: 'Point', coordinates: head } });
+  if (tail) features.push({ type: 'Feature', properties: { kind: 'trailtail' },
+    geometry: { type: 'Point', coordinates: tail } });
   return { type: 'FeatureCollection', features };
 }
 
@@ -235,6 +238,10 @@ export function addTrailLayers(map: maplibregl.Map): void {
   map.addLayer({ id: 'trail-head-marker', type: 'circle', source: TRAIL_PAINT_SOURCE,
     filter: ['==', ['get', 'kind'], 'trailhead'],
     paint: { 'circle-radius': 6, 'circle-color': '#0f172a',
+      'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
+  map.addLayer({ id: 'trail-tail-marker', type: 'circle', source: TRAIL_PAINT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'trailtail'],
+    paint: { 'circle-radius': 6, 'circle-color': '#f59e0b',
       'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
   map.addLayer({ id: 'trail-labels', type: 'symbol', source: TRAIL_SOURCE,
     filter: ['==', ['get', 'kind'], 'trail'], layout: { 'text-field': ['get', 'label'], 'text-size': 13,
