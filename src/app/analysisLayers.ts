@@ -79,15 +79,23 @@ function localCoverBoundaryGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollec
 }
 
 export function setLocalContextData(map: maplibregl.Map, record: TerrainRecord,
-  playerRoads: SavedRoad[] = [], lakeNameOverrides: Record<string, string> = {}): void {
+  playerRoads: SavedRoad[] = [], lakeNameOverrides: Record<string, string> = {},
+  streamWidthOverrides: Record<string, number> = {}): void {
   (map.getSource('local-context') as maplibregl.GeoJSONSource | undefined)
-    ?.setData(localContextGeoJSON(record, playerRoads, lakeNameOverrides));
+    ?.setData(localContextGeoJSON(record, playerRoads, lakeNameOverrides, streamWidthOverrides));
 }
 
 export function setSelectedLake(map: maplibregl.Map | null, lakeId: string | null): void {
   if (!map?.getLayer('local-water-selected')) return;
   map.setFilter('local-water-selected', [
     'all', ['==', ['get', 'kind'], 'water'], ['==', ['get', 'id'], lakeId ?? ''],
+  ]);
+}
+
+export function setSelectedStream(map: maplibregl.Map | null, streamId: string | null): void {
+  if (!map?.getLayer('local-water-line-selected')) return;
+  map.setFilter('local-water-line-selected', [
+    'all', ['==', ['get', 'kind'], 'water-line'], ['==', ['get', 'id'], streamId ?? ''],
   ]);
 }
 
@@ -98,7 +106,8 @@ export function setupAnalysisLayers(
   coverDisplay?: CoverDisplayGeoJSON | null,
   localImageryUrl?: string | null,
   playerRoads: SavedRoad[] = [],
-  lakeNameOverrides: Record<string, string> = {}
+  lakeNameOverrides: Record<string, string> = {},
+  streamWidthOverrides: Record<string, number> = {}
 ): LayerToggle[] {
   const local = terrain?.coverGrid && terrain.bounds ? terrain : null;
   const styleLayers = map.getStyle().layers ?? [];
@@ -166,7 +175,7 @@ export function setupAnalysisLayers(
     demBounds = resortDemBounds(local);
     demUrl = resortProtocolUrl(RESORT_DEM_PROTOCOL, local);
     if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(local.key)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
-    map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, playerRoads, lakeNameOverrides), attribution: 'Local OSM context © OpenStreetMap contributors' });
+    map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, playerRoads, lakeNameOverrides, streamWidthOverrides), attribution: 'Local OSM context © OpenStreetMap contributors' });
     coverVisible = true;
     coverLabel = local.coverGrid?.source === 'usgs-four-class-v1' ? 'Detailed terrain cover (local)' : 'ESA WorldCover 2021 · 10 m (local)';
   } else {
@@ -228,7 +237,22 @@ export function setupAnalysisLayers(
     map.addLayer({
       id: 'local-water-lines', type: 'line', source: 'local-context',
       filter: ['==', ['get', 'kind'], 'water-line'],
-      paint: { 'line-color': '#397f9f', 'line-width': ['match', ['get', 'class'], 'river', 1.5, 0.8], 'line-opacity': 0.9 },
+      paint: { 'line-color': '#397f9f',
+        'line-width': ['interpolate', ['linear'], ['zoom'],
+          10, ['max', 0.8, ['min', 3, ['*', ['get', 'effectiveWidthM'], 0.12]]],
+          16, ['max', 1.4, ['min', 12, ['*', ['get', 'effectiveWidthM'], 0.5]]]],
+        'line-opacity': 0.9 },
+    }, contourAnchor);
+    map.addLayer({
+      id: 'local-water-line-selected', type: 'line', source: 'local-context',
+      filter: ['all', ['==', ['get', 'kind'], 'water-line'], ['==', ['get', 'id'], '']],
+      paint: { 'line-color': '#f6fbff',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 16, 7], 'line-opacity': 0.95 },
+    }, contourAnchor);
+    map.addLayer({
+      id: 'local-water-line-hit', type: 'line', source: 'local-context',
+      filter: ['==', ['get', 'kind'], 'water-line'],
+      paint: { 'line-color': 'rgba(0,0,0,0)', 'line-width': 14 },
     }, contourAnchor);
     map.addLayer({
       id: 'local-water-labels', type: 'symbol', source: 'local-context',
@@ -310,7 +334,7 @@ export function setupAnalysisLayers(
     { id: 'groundcover', label: coverLabel, layerIds: local && coverDisplay ? COVER_LAYER_IDS : local ? ['groundcover', 'cover-boundary-halo', 'cover-boundaries'] : ['groundcover'], visible: coverVisible, section: 'Master plan' },
     { id: 'hillshade', label: 'Terrain relief', layerIds: ['hillshade'], visible: true, section: 'Master plan' },
     { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'graded-contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
-    { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-selected', 'local-water-lines', 'local-water-labels'] : basemap.water, visible: true, section: 'Master plan' },
+    { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-selected', 'local-water-lines', 'local-water-line-selected', 'local-water-line-hit', 'local-water-labels'] : basemap.water, visible: true, section: 'Master plan' },
     { id: 'bm-roads', label: 'Roads', layerIds: local ? [...basemap.roads, 'local-roads'] : basemap.roads, visible: true, section: 'Master plan' },
     { id: 'bm-buildings', label: 'Buildings', layerIds: basemap.buildings, visible: true, section: 'Master plan' },
     { id: 'bm-labels', label: 'Labels', layerIds: basemap.labels, visible: true, section: 'Master plan' },

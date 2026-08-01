@@ -58,6 +58,21 @@ function buildQuery(bounds: LatLonBounds): string {
   );
 }
 
+/** Parse the common OSM width forms (bare metres, `m`, or feet/inches). */
+export function parseWaterwayWidthM(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const text = raw.trim().toLowerCase();
+  const metres = /^([0-9]+(?:\.[0-9]+)?)\s*(?:m|metre|metres|meter|meters)?$/.exec(text);
+  if (metres) {
+    const value = Number(metres[1]);
+    return value > 0 && value <= 500 ? value : undefined;
+  }
+  const feet = /^(\d+(?:\.\d+)?)\s*(?:ft|feet|')\s*(?:(\d+(?:\.\d+)?)\s*(?:in|"))?$/.exec(text);
+  if (!feet) return undefined;
+  const value = Number(feet[1]) * 0.3048 + Number(feet[2] ?? 0) * 0.0254;
+  return value > 0 && value <= 500 ? value : undefined;
+}
+
 interface OverpassLatLon {
   lat: number;
   lon: number;
@@ -223,7 +238,8 @@ export async function fetchVectorFeatures(bounds: LatLonBounds): Promise<VectorF
 
     if (tags.waterway === 'river' || tags.waterway === 'stream' || tags.waterway === 'canal') {
       const waterClass: WaterLineClass = tags.waterway === 'stream' ? 'stream' : 'river';
-      waterLines.push({ id: `way/${el.id}`, name: tags.name, waterClass, points: lonLat });
+      waterLines.push({ id: `way/${el.id}`, name: tags.name, waterClass,
+        widthM: parseWaterwayWidthM(tags.width), points: lonLat });
       continue;
     }
 

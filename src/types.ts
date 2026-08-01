@@ -215,6 +215,8 @@ export interface WaterLineFeature {
   id: string;
   name?: string;
   waterClass: WaterLineClass;
+  /** OSM channel width, normalized to metres when the tag is usable. */
+  widthM?: number;
   points: [number, number][]; // [lon, lat]
 }
 
@@ -399,6 +401,28 @@ export interface SavedRoad {
   createdAt: string;
 }
 
+/** A player-built dam and the full-pool snowmaking pond analyzed at build time. */
+export interface SavedDam {
+  id: string;
+  name: string;
+  /** Straight crest endpoints, both at crestElevationM. */
+  points: [[number, number], [number, number]];
+  crestElevationM: number;
+  streamId: string;
+  streamName: string;
+  sourceWidthM: number;
+  inflowM3s: number;
+  /** Outer full-pool ring followed by optional holes. */
+  pondRings: [number, number][][];
+  areaM2: number;
+  averageDepthM: number;
+  capacityM3: number;
+  /** Mean crest-to-ground structural height sampled along the dam alignment. */
+  averageDamHeightM?: number;
+  maxDamHeightM: number;
+  createdAt: string;
+}
+
 // Ski-run difficulty designation. Mirrors the four slope-angle bands in
 // terrainProtocols.ts (Green <16°, Blue <24°, Black <37°, Red ≥37°) — the same
 // ratings the slope overlay paints — so a run's recommended grade always agrees
@@ -467,7 +491,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -482,6 +506,8 @@ export interface GameSave {
   trails: SavedTrail[]; // ski runs painted on the map
   /** Player-built roads. Optional only for legacy schema v1/v2 saves. */
   roads?: SavedRoad[];
+  /** Player-built snowmaking dams. Optional for schema-v1-v7 saves. */
+  dams?: SavedDam[];
   /** Free-standing map pins. Optional so legacy saves load unchanged. */
   nodes?: SavedNode[];
   /** Footpaths connecting nodes/lifts/runs. Optional so legacy saves load unchanged. */
@@ -492,6 +518,8 @@ export interface GameSave {
   lakeDepthOverrides?: Record<string, number>;
   /** Player-entered lake names keyed by the terrain's stable OSM water id. */
   lakeNameOverrides?: Record<string, string>;
+  /** Player-entered channel widths in metres, keyed by stable OSM waterway id. */
+  streamWidthOverrides?: Record<string, number>;
   createdAt: string; // ISO
   updatedAt: string; // ISO
   /** Most recent successful exit checkpoint. Optional for legacy saves. */

@@ -67,4 +67,18 @@ describe('game preview fallback storage', () => {
     expect((await loadGame('lakes'))?.lakeDepthOverrides).toEqual({ 'way/42': 3.75 });
     expect((await loadGame('lakes'))?.lakeNameOverrides).toEqual({ 'way/42': 'Mirror Pond' });
   });
+
+  it('round-trips schema-v8 snowmaking dams', async () => {
+    const save: GameSave = { ...game('dams', '2026-06-01T00:00:00.000Z'), schemaVersion: 8,
+      streamWidthOverrides: { 'way/1': 4.5 },
+      dams: [{ id: 'dam-1', name: 'Dam 1', points: [[0, 0], [0.001, 0]],
+        crestElevationM: 1000, streamId: 'way/1', streamName: 'Creek', sourceWidthM: 3,
+        inflowM3s: 0.3, pondRings: [[[0, 0], [0, 0.001], [0.001, 0], [0, 0]]],
+        areaM2: 1000, averageDepthM: 2, capacityM3: 2000, averageDamHeightM: 2.5,
+        maxDamHeightM: 4,
+        createdAt: '2026-06-01T00:00:00.000Z' }] };
+    await saveGame(save);
+    expect((await loadGame('dams'))?.dams).toEqual(save.dams);
+    expect((await loadGame('dams'))?.streamWidthOverrides).toEqual({ 'way/1': 4.5 });
+  });
 });
