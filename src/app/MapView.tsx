@@ -349,6 +349,18 @@ export function MapView({
   const [siteMode, setSiteMode] = useState<SiteMode>(initialSave?.site ? 'locked' : 'explore');
   const [siteBox, setSiteBoxState] = useState<SiteBox | null>((initialSave?.site as SiteBox) ?? null);
   const [is3D, setIs3D] = useState(initialSave?.is3D ?? false);
+  // Live camera pitch. The 2D/3D button reads the camera, not the last button
+  // press — dragging the map into a tilt is a 3D view no matter what was
+  // clicked last, and the button has to offer the way back out of it.
+  const [pitchDeg, setPitchDeg] = useState(0);
+  // The point a snapping tool would take if you clicked right now, drawn as an
+  // amber ring. Every tool that must attach to a run shows it, so "it snaps"
+  // is something you can see before committing rather than after.
+  const [snapHover, setSnapHover] = useState<[number, number] | null>(null);
+  // Perfectly overhead means pitch 0. A rotated top-down view is still 2D, and
+  // `tilt3D` deliberately leaves bearing alone, so pitch alone decides; the
+  // epsilon absorbs ease residue, nothing more.
+  const isOverhead = pitchDeg < 0.5;
   const warmAbortRef = useRef<AbortController | null>(null);
   // App's resort loading screen stays up until `ready`, so the map is never
   // shown mid-stream. Kept in a ref so the once-registered style.load handler
@@ -1020,6 +1032,12 @@ export function MapView({
       setReadout(null);
     });
 
+    // Keep the 2D/3D button honest about the camera, however it got tilted —
+    // the button press, a drag, or the boot-time ease into the 3D-native view.
+    const onPitch = () => setPitchDeg(map.getPitch());
+    map.on('pitch', onPitch);
+    map.on('pitchend', onPitch);
+
     // Click a built lift to open its edit panel. Delegated to the wide white
     // casing (bigger hit target than the 3px red line) plus the terminal dots;
     // both carry the lift `id`. Gated to idle play so it never steals the
@@ -1439,18 +1457,25 @@ export function MapView({
     if (map) setNodePathData(map, skiNodes, skiPaths, junctions);
   }, [skiNodes, skiPaths, junctions, terrainRecord]);
 
-  // The in-progress connector line follows the cursor between clicks.
+  // The in-progress connector line follows the cursor between clicks, and every
+  // tool that has to attach to a run shows the point it would take as an amber
+  // ring — the same "here is what you are about to pick" the trailhead anchor
+  // gives you. A tool with no line still gets a draft so its ring has somewhere
+  // to render.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    const highlight = snapHover ? [snapHover] : [];
     const draft: NodePathDraft | null =
       pathTool.phase === 'drawing'
-        ? { points: pathTool.points, cursor: pathTool.cursor, highlight: [] }
+        ? { points: pathTool.points, cursor: pathTool.cursor, highlight }
         : pathTool.phase === 'review'
           ? { points: pathTool.points, cursor: null, highlight: [] }
-          : null;
+          : pathTool.phase === 'armed' || nodeTool.phase !== 'idle'
+            ? { points: [], cursor: null, highlight }
+            : null;
     setNodePathDraftData(map, draft);
-  }, [pathTool]);
+  }, [pathTool, nodeTool, snapHover]);
 
   // Node editing. A click only ever picks a target and previews what will happen
   // to it — `confirmAddNode`/`confirmRemoveNode` do the committing. Elevation is
@@ -1461,6 +1486,16 @@ export function MapView({
     if (!map || nodeTool.phase === 'idle') return;
     const phase = nodeTool.phase;
     map.getCanvas().style.cursor = 'crosshair';
+    // Add snaps onto a run's centerline; remove snaps onto an existing node.
+    // Both preview the snap under the cursor so you aim at the ring, not at the
+    // pixel — a node 20 m off the run it was meant to split is worse than a
+    // missed click, because it looks like it worked.
+    const snapAt = (point: [number, number]) => phase === 'add'
+      ? trailAnchorAt(point)?.point ?? null
+      : junctionAt(point)?.point ?? null;
+    const onMove = (e: maplibregl.MapMouseEvent) => {
+      setSnapHover(snapAt([e.lngLat.lng, e.lngLat.lat]));
+    };
     const onClick = (e: maplibregl.MapMouseEvent) => {
       const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       if (phase === 'add') {
@@ -1483,11 +1518,14 @@ export function MapView({
       if (e.key === 'Escape') cancelNodeTool();
     };
     map.on('click', onClick);
+    map.on('mousemove', onMove);
     window.addEventListener('keydown', onKey);
     return () => {
       map.off('click', onClick);
+      map.off('mousemove', onMove);
       window.removeEventListener('keydown', onKey);
       map.getCanvas().style.cursor = '';
+      setSnapHover(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeTool.phase]);
@@ -1505,20 +1543,27 @@ export function MapView({
     const onClick = (e: maplibregl.MapMouseEvent) => {
       const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       const t = pathToolRef.current;
+      // A click within reach of a run takes the run's centerline instead of the
+      // raw point. That is what makes the ends *connect*: `confirmPath` splits
+      // each run at the endpoint it was given, so an endpoint a few metres off
+      // the centerline would put the new node beside the run rather than on it.
+      const snapped = trailAnchorAt(raw);
       if (t.phase === 'armed') {
-        const anchor = nearestTrailTailAnchor(raw, [], trailsRef.current, ANCHOR_PICK_M);
-        if (!anchor) return; // the start must attach to something
-        setPathTool({ phase: 'drawing', points: [anchor.point], cursor: null, from: anchor });
+        if (!snapped) return; // the start must attach to a run
+        setPathTool({ phase: 'drawing', points: [snapped.point], cursor: null, from: snapped });
         return;
       }
       if (t.phase !== 'drawing') return;
+      const point = snapped ? snapped.point : raw;
       const last = t.points.at(-1);
-      if (last && haversineMeters(last, raw) < 1) return;
-      setPathTool({ ...t, points: [...t.points, raw], cursor: null });
+      if (last && haversineMeters(last, point) < 1) return;
+      setPathTool({ ...t, points: [...t.points, point], cursor: null });
     };
     const onMove = (e: maplibregl.MapMouseEvent) => {
+      const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      setSnapHover(trailAnchorAt(raw)?.point ?? null);
       const t = pathToolRef.current;
-      if (t.phase === 'drawing') setPathTool({ ...t, cursor: [e.lngLat.lng, e.lngLat.lat] });
+      if (t.phase === 'drawing') setPathTool({ ...t, cursor: raw });
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') cancelPathTool();
@@ -1533,6 +1578,7 @@ export function MapView({
       map.off('mousemove', onMove);
       window.removeEventListener('keydown', onKey);
       map.getCanvas().style.cursor = '';
+      setSnapHover(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathTool.phase]);
@@ -2313,8 +2359,8 @@ export function MapView({
     const t = pathToolRef.current;
     if (t.phase !== 'drawing' || t.points.length < 2 || !t.from) return;
     const end = t.points.at(-1) as [number, number];
-    const to = nearestTrailTailAnchor(end, [], trailsRef.current, ANCHOR_PICK_M);
-    if (!to || to.kind !== 'trail' || t.from.kind !== 'trail' || to.trailId === t.from.trailId) return;
+    const to = trailAnchorAt(end);
+    if (!to || t.from.kind !== 'trail' || to.trailId === t.from.trailId) return;
     setPathTool({
       phase: 'review',
       points: [...t.points.slice(0, -1), to.point],
@@ -2981,7 +3027,10 @@ export function MapView({
   function toggle3D() {
     const map = mapRef.current;
     if (!map || !terrainRecordRef.current) return; // only meaningful in the resort view
-    const next = !is3D;
+    // Snap to whichever view the camera is not already in. Any tilt at all —
+    // including one the player dragged into — counts as 3D, so the button
+    // always does what its label says.
+    const next = isOverhead;
     setIs3D(next);
     tilt3D(map, next); // terrain stays mounted; this is a pure camera ease
   }
@@ -3471,7 +3520,7 @@ export function MapView({
             onExit={exitSite}
           />
         )}
-        {terrainRecord && <View3DControl is3D={is3D} onToggle={toggle3D} />}
+        {terrainRecord && <View3DControl is3D={!isOverhead} onToggle={toggle3D} />}
       </div>
 
       {buildingActivity && <ConstructionStatusBug activity={buildingActivity} />}
@@ -3632,7 +3681,7 @@ export function MapView({
                             <div className="site-hint">
                               {pathTool.phase === 'armed'
                                 ? 'Click anywhere along a ski trail to start the connector.'
-                                : 'Click along the route. Finish on a different ski trail.'}
+                                : 'Click along the route. Finish on a different ski trail — a node is added where each end meets a run.'}
                             </div>
                             <div className="site-actions">
                               <button
