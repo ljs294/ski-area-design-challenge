@@ -44,8 +44,11 @@ async function clickWhenReady(selector) {
 async function paintRun(from, to, via = []) {
   // The bottom-dock "Add ski run" button is gone — runs are painted from the
   // trails side panel's tool row now (TrailsPanel.tsx `.trails-tool`).
-  await page.locator('.trails-tool >> text=Paint run').click();
-  await page.waitForSelector('.trail-panel', { timeout: 30_000 });
+  await page.locator('.trails-tool >> text=Create Trail').click();
+  await page.waitForSelector('text=Place Trailhead', { timeout: 30_000 });
+  await page.mouse.click(from[0], from[1]);
+  await page.waitForSelector('.trail-panel >> text=Create Trail', { timeout: 30_000 });
+  await page.waitForFunction(() => !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
   await page.mouse.move(from[0], from[1]);
   await page.mouse.down();
   for (const point of via) await page.mouse.move(point[0], point[1], { steps: 30 });
@@ -60,7 +63,7 @@ async function paintRun(from, to, via = []) {
     .isVisible().catch(() => false);
   if (anchorUnset) {
     throw new Error(
-      'Run painted at the lift unload did not retain its lift-top start anchor ' +
+      'Run created from the lift unload did not retain its terminal start anchor ' +
       '(.trail-anchor-row[data-anchor="unset"]) — Build stays disabled until one is set.'
     );
   }

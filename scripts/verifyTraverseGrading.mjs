@@ -173,7 +173,12 @@ async function highlightGeometry(along) {
 /** Paint one traverse at `brushWidthM` and report what the grader makes of it. */
 async function gradeTraverse(brushWidthM, center, along) {
   await clickWhenReady('.lift-add-btn');
-  await page.waitForSelector('text=Paint ski run');
+  await page.waitForSelector('text=Place Trailhead');
+  const head = [center[0] - along[0] * HALF_STROKE_PX,
+    center[1] - along[1] * HALF_STROKE_PX];
+  await page.mouse.click(head[0], head[1]);
+  await page.waitForSelector('.trail-panel >> text=Create Trail');
+  await page.waitForFunction(() => !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
   // The brush slider steps in 2 m; snap to a notch it will accept.
   await page.locator('.trail-brush-slider')
     .fill(String(Math.max(8, Math.min(120, Math.ceil(brushWidthM / 2) * 2))));

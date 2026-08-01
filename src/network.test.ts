@@ -798,6 +798,16 @@ describe('graph integration: nodes, paths and explicit anchors', () => {
     expect(net.diagnostics.overreachingAnchorIds).toEqual([]);
   });
 
+  it('can explicitly share a lift-base node when that terminal is chosen as the trailhead', () => {
+    const lift = mkLift('L', at(0, 0), at(0, 600), [200, 500]);
+    const trail = straightRun('base-run', [35, 0], [300, -400], 200, 100, 5, {
+      anchor: { kind: 'lift', liftId: 'L', end: 'base', point: at(0, 0) },
+    });
+    const net = buildSkiNetwork([trail], [lift]);
+    const liftEdge = net.edgeById.get('l:L') as LiftEdge;
+    expect(edgesForTrail(net, 'base-run')[0].from).toBe(liftEdge.from);
+  });
+
   it('splits a run at an explicit mid-point anchor, sharing the junction and conserving length', () => {
     const a = straightRun('A', [-300, 0], [300, 0], 300, 60, 5);
     const b = straightRun('B', [0, 45], [0, 250], 260, 40, 3, {

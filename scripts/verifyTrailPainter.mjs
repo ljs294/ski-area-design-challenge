@@ -78,7 +78,10 @@ try {
 
   await page.click('.dock-circle-trails');
   await page.click('.lift-add-btn');
-  await page.waitForSelector('text=Paint ski run');
+  await page.waitForSelector('text=Place Trailhead');
+  await page.mouse.click(trailStroke.from[0], trailStroke.from[1]);
+  await page.waitForSelector('.trail-panel >> text=Create Trail');
+  await page.waitForFunction(() => !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
   await page.mouse.move(trailStroke.from[0], trailStroke.from[1]);
   const guide = await page.evaluate(() => {
     const map = globalThis.appMap;

@@ -57,6 +57,13 @@ describe('trail paint preview geometry', () => {
     expect(paintPreviewGeoJSON({ path: [], cursor: null, brushWidthM: 20 }).features).toEqual([]);
   });
 
+  it('renders candidate and selected trailhead markers independently of the brush', () => {
+    const data = paintPreviewGeoJSON({ path: [], cursor: null, brushWidthM: 20,
+      candidate: CURSOR, head: [-121.49, 46.92] });
+    expect(data.features.map((feature) => feature.properties?.kind))
+      .toEqual(['head-candidate', 'trailhead']);
+  });
+
   it('renders infeasible grading station ranges in the review source', () => {
     const end: [number, number] = [-121.49, 46.92];
     const part: SavedTrailPart = {

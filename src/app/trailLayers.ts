@@ -67,6 +67,8 @@ export interface TrailPaintPreview {
   path: [number, number][];
   cursor: [number, number] | null;
   brushWidthM: number;
+  candidate?: [number, number] | null;
+  head?: [number, number] | null;
 }
 
 type MeterPoint = { x: number; y: number };
@@ -157,7 +159,7 @@ function brushCorridor(path: [number, number][], brushWidthM: number): GeoJSON.P
 
 /** Geographic brush geometry. The ring is built in local meters rather than
  * screen pixels, so it stays true to the analytical brush on pitched maps. */
-export function paintPreviewGeoJSON({ path, cursor, brushWidthM }: TrailPaintPreview): GeoJSON.FeatureCollection {
+export function paintPreviewGeoJSON({ path, cursor, brushWidthM, candidate, head }: TrailPaintPreview): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = [];
   const corridor = brushCorridor(path, brushWidthM);
   if (corridor) features.push({ type: 'Feature', properties: { kind: 'paint' }, geometry: corridor });
@@ -179,6 +181,10 @@ export function paintPreviewGeoJSON({ path, cursor, brushWidthM }: TrailPaintPre
         [[cursor[0], cursor[1] - armM / 111_320], [cursor[0], cursor[1] + armM / 111_320]],
       ] } });
   }
+  if (candidate) features.push({ type: 'Feature', properties: { kind: 'head-candidate' },
+    geometry: { type: 'Point', coordinates: candidate } });
+  if (head) features.push({ type: 'Feature', properties: { kind: 'trailhead' },
+    geometry: { type: 'Point', coordinates: head } });
   return { type: 'FeatureCollection', features };
 }
 
@@ -222,6 +228,14 @@ export function addTrailLayers(map: maplibregl.Map): void {
   map.addLayer({ id: 'trail-paint-crosshair', type: 'line', source: TRAIL_PAINT_SOURCE,
     filter: ['==', ['get', 'kind'], 'crosshair'], layout: { 'line-cap': 'round' },
     paint: { 'line-color': '#38bdf8', 'line-width': 1.5, 'line-opacity': 0.95 } });
+  map.addLayer({ id: 'trail-head-candidate', type: 'circle', source: TRAIL_PAINT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'head-candidate'],
+    paint: { 'circle-radius': 9, 'circle-color': '#f59e0b', 'circle-opacity': 0.18,
+      'circle-stroke-color': '#f59e0b', 'circle-stroke-width': 2.5 } });
+  map.addLayer({ id: 'trail-head-marker', type: 'circle', source: TRAIL_PAINT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'trailhead'],
+    paint: { 'circle-radius': 6, 'circle-color': '#0f172a',
+      'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
   map.addLayer({ id: 'trail-labels', type: 'symbol', source: TRAIL_SOURCE,
     filter: ['==', ['get', 'kind'], 'trail'], layout: { 'text-field': ['get', 'label'], 'text-size': 13,
       'text-font': ['Noto Sans Regular'], 'text-optional': true },

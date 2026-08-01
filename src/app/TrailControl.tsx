@@ -7,11 +7,13 @@ import { DIFFICULTY_LABELS, fmtArea, fmtSlope, fmtVertical, trailPartsStats,
 import { TrailProfile } from './TrailProfile';
 import { describeAnchor, type AnchorRef } from '../skiNodes';
 import type { PaintMode } from './trailPaintEngine';
+import type { TrailHeadAnchor } from './trailHeadAnchor';
 
 export type TrailTool =
   | { phase: 'idle' }
-  | { phase: 'paint'; mode: PaintMode; polygons: [number, number][][][]; areaM2: number; activeAreaM2: number | null; canUndo: boolean; pending: boolean; error: string | null; anchor: AnchorRef | null }
-  | { phase: 'analyzing'; polygons: [number, number][][][]; areaM2: number; anchor: AnchorRef }
+  | { phase: 'place-head'; candidate: TrailHeadAnchor | null; error: string | null }
+  | { phase: 'paint'; mode: PaintMode; polygons: [number, number][][][]; areaM2: number; activeAreaM2: number | null; canUndo: boolean; pending: boolean; error: string | null; anchor: TrailHeadAnchor; hasUserStroke: boolean }
+  | { phase: 'analyzing'; polygons: [number, number][][][]; areaM2: number; anchor: TrailHeadAnchor }
   | { phase: 'review'; draft: DraftTrail };
 
 export interface DraftTrail {
@@ -37,8 +39,8 @@ export interface DraftTrail {
   ungradedLengthM: number;
   infeasibleLines: [number, number][][];
   /**
-   * The lift-top terminal where the first paint stroke began. Its exact point
-   * is also station 0 of the first centerline part.
+   * The lift terminal or existing trail centerline chosen before painting. Its
+   * exact point is also station 0 of the first centerline part.
    */
   anchor: AnchorRef | null;
 }
@@ -110,7 +112,7 @@ export function EarthworkStats({ estimate, units,
 
 export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onBrushWidthChange,
   onCancel, onModeChange, onUndo, onClear, onFinish, onDraftChange, onConfirm, onEditPatch,
-  onCloseEdit, onDelete, onRetryElevation, onGradingChange,
+  onCloseEdit, onDelete, onRetryElevation, onGradingChange, onChangeHead,
   building = false }: {
   tool: TrailTool; trails: SavedTrail[]; selectedId: string | null; units: Units; brushWidthM: number;
   onBrushWidthChange: (m: number) => void; onCancel: () => void; onModeChange: (m: PaintMode) => void;
@@ -118,27 +120,35 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
   onConfirm: () => void; onEditPatch: (id: string, patch: Partial<SavedTrail>) => void;
   onCloseEdit: () => void; onDelete: (id: string) => void; onRetryElevation: () => void;
   onGradingChange: (enabled: boolean) => void;
+  onChangeHead: () => void;
   /** True while the confirmed run is felling its cover — spins the build button. */
   building?: boolean;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  if (tool.phase === 'place-head') return <div className="site-control site-control-wide trail-panel">
+    <PanelHead title="Place Trailhead" onClose={onCancel} />
+    <div className="site-hint">Click a lift terminal or anywhere along an existing trail centerline.</div>
+    {tool.candidate && <div className="readout-line"><span className="lift-stat-label">Ready to anchor</span>
+      <span className="lift-stat-value">{describeAnchor(tool.candidate)}</span></div>}
+    {tool.error && <div className="lift-warning">{tool.error}</div>}
+  </div>;
+
   if (tool.phase === 'paint') return <div className="site-control site-control-wide trail-panel">
-    <PanelHead title="Paint ski run" onClose={onCancel} />
-    <BrushWidthField widthM={brushWidthM} units={units} disabled={tool.areaM2 > 0} onChange={onBrushWidthChange} />
+    <PanelHead title="Create Trail" onClose={onCancel} />
+    <BrushWidthField widthM={brushWidthM} units={units} disabled={tool.hasUserStroke} onChange={onBrushWidthChange} />
     <div className="trail-paint-modes" role="group" aria-label="Brush mode">
       {(['paint', 'erase'] as PaintMode[]).map((mode) => <button key={mode} className={`site-btn${tool.mode === mode ? ' is-active' : ''}`}
-        disabled={mode === 'erase' && !tool.anchor}
+        disabled={mode === 'erase' && !tool.hasUserStroke}
         onClick={() => onModeChange(mode)}>{mode === 'paint' ? 'Paint' : 'Erase'}</button>)}
     </div>
     <div className="readout-line"><span className="lift-stat-label">Painted area</span>
       <span className="lift-stat-value">{tool.activeAreaM2 != null ? '~' : ''}{fmtArea(tool.activeAreaM2 ?? tool.areaM2, units)}</span></div>
-    <div className="site-hint">{tool.anchor
-      ? 'Trail head anchored to a lift top. Lift the brush and continue anywhere.'
-      : 'Start on the top terminal of an existing lift. Drag from it, or click once and continue with another stroke.'}</div>
+    <div className="site-hint">Trailhead anchored. Paint from the seed, or lift the brush and continue with another stroke.</div>
     {tool.error && <div className="lift-warning">{tool.error}</div>}
+    <button className="lift-link-btn" disabled={tool.pending} onClick={onChangeHead}>Change trailhead</button>
     <div className="site-actions"><button className="site-btn" disabled={!tool.canUndo || tool.pending} onClick={onUndo}>Undo</button>
-      <button className="site-btn" disabled={tool.areaM2 === 0 || tool.pending} onClick={onClear}>Clear</button>
-      <button className="site-btn site-btn-primary" disabled={tool.areaM2 === 0 || tool.pending || !tool.anchor} onClick={onFinish}>Finish</button></div>
+      <button className="site-btn" disabled={!tool.hasUserStroke || tool.pending} onClick={onClear}>Clear</button>
+      <button className="site-btn site-btn-primary" disabled={!tool.hasUserStroke || tool.pending} onClick={onFinish}>Finish</button></div>
   </div>;
 
   if (tool.phase === 'analyzing') return <div className="site-control site-control-wide trail-panel">
@@ -162,7 +172,7 @@ export function TrailControl({ tool, trails, selectedId, units, brushWidthM, onB
       </div>
       {!d.anchor && (
         <div className="site-hint">
-          Restart painting and begin on the top terminal of an existing lift.
+          Restart creation and choose a lift terminal or existing trail centerline.
         </div>
       )}
       <StatusToggle value={d.status} onChange={(status) => onDraftChange({ status })} />

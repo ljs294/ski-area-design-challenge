@@ -126,14 +126,14 @@ describe('TrailsPanel', () => {
 
   it('marks only the active tool as pressed', () => {
     const html = render({ activeTool: 'node' });
-    expect(html).toMatch(/aria-pressed="false"[^>]*>\s*<span aria-hidden="true">◈<\/span> Paint run/);
+    expect(html).toMatch(/aria-pressed="false"[^>]*>\s*<span aria-hidden="true">◈<\/span> Create Trail/);
     expect(html).toMatch(/aria-pressed="true"[^>]*>\s*<span aria-hidden="true">●<\/span> Place node/);
     expect(html).toMatch(/aria-pressed="false"[^>]*>\s*<span aria-hidden="true">⋯<\/span> Draw path/);
   });
 
   it('marks the paint-run tool as pressed when active', () => {
     const html = render({ activeTool: 'trail' });
-    expect(html).toMatch(/aria-pressed="true"[^>]*>\s*<span aria-hidden="true">◈<\/span> Paint run/);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>\s*<span aria-hidden="true">◈<\/span> Create Trail/);
   });
 
   it('marks the draw-path tool as pressed when active', () => {

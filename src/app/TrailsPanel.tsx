@@ -72,7 +72,7 @@ export function TrailsPanel({
           aria-pressed={activeTool === 'trail'}
           onClick={onPaintRun}
         >
-          <span aria-hidden="true">◈</span> Paint run
+          <span aria-hidden="true">◈</span> Create Trail
         </button>
         <button
           type="button"

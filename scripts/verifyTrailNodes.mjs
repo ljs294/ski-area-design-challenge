@@ -5,8 +5,8 @@
 //
 //   1. the Trails button opens a left-aligned bottom-dock roll-up with its
 //      three tools and Runs/Nodes/Paths sections;
-//   2. the first stroke must snap to a lift's top terminal, which becomes the
-//      exact first centerline point; a click can be followed by another stroke;
+//   2. a trailhead placement snaps to a graph target, seeds the brush, and
+//      becomes the exact first centerline point;
 //   3. a first stroke far from every lift top is rejected;
 //   4. a node placed on top of a built run reports "Attached to" that run,
 //      and shows up in `window.appNetwork` as a `kind === 'user-node'` node;
@@ -45,19 +45,60 @@ async function clickWhenReady(selector) {
 /** Arm the paint-run brush from the Trails roll-up, paint one stroke, and
  *  Finish the footprint — stopping at the review panel so the caller can
  *  inspect the anchor before deciding whether to build or cancel. */
-async function paintFootprint(from, to, pickupAfterAnchor = false) {
-  await page.locator('.trails-tool >> text=Paint run').click();
-  await page.waitForSelector('.trail-panel', { timeout: 30_000 });
-  await page.mouse.move(from[0], from[1]);
-  await page.mouse.down();
-  if (pickupAfterAnchor) {
-    await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
-    await page.waitForFunction(() => !document.querySelector('.trail-panel button.site-btn-primary')?.disabled);
+async function paintFootprint(from, to, exerciseSeedControls = false, anchorPoint = from) {
+  await page.locator('.trails-tool >> text=Create Trail').click();
+  await page.waitForSelector('text=Place Trailhead', { timeout: 30_000 });
+  await page.mouse.click(from[0], from[1]);
+  await page.waitForSelector('.trail-panel >> text=Create Trail', { timeout: 30_000 });
+  await page.waitForFunction(() => !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
+
+  if (exerciseSeedControls) {
+    await page.locator('.trail-panel .lift-link-btn >> text=Change trailhead').click();
+    await page.waitForSelector('text=Place Trailhead');
+    await page.mouse.click(from[0], from[1]);
+    await page.waitForSelector('.trail-panel >> text=Create Trail');
+    await page.waitForFunction(() => !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
+    await page.locator('.trail-brush-slider').fill('40');
+    await page.waitForFunction(() => !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
+
+    // A user dab can be undone without removing the immutable seed.
     await page.mouse.move(from[0], from[1]);
     await page.mouse.down();
+    await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
+    await page.waitForFunction(() => !document.querySelector('.trail-panel button.site-btn-primary')?.disabled);
+    await page.locator('.trail-panel .site-actions >> text=Undo').click();
+    await page.waitForFunction(() => document.querySelector('.trail-panel button.site-btn-primary')?.disabled &&
+      !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
   }
-  await page.mouse.move(to[0], to[1], { steps: 60 });
-  await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
+
+  const drawStroke = async () => {
+    await page.mouse.move(from[0], from[1]);
+    await page.mouse.down();
+    await page.mouse.move(to[0], to[1], { steps: 60 });
+    await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
+    await page.waitForFunction(() => !document.querySelector('.trail-panel button.site-btn-primary')?.disabled);
+  };
+  await drawStroke();
+
+  if (exerciseSeedControls) {
+    await page.locator('.trail-panel .site-actions >> text=Clear').click();
+    await page.waitForFunction(() => document.querySelector('.trail-panel button.site-btn-primary')?.disabled &&
+      !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
+    await drawStroke();
+
+    // Erase directly over the anchor; the worker must repaint the protected seed.
+    await page.locator('.trail-paint-modes >> text=Erase').click();
+    await page.mouse.move(anchorPoint[0], anchorPoint[1]);
+    await page.mouse.down();
+    await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
+    await page.waitForFunction(() => !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
+    const markerVisible = await page.evaluate(() => globalThis.appMap
+      .getSource('trail-paint-preview')?._data?.features
+      ?.some((feature) => feature.properties?.kind === 'trailhead'));
+    if (!markerVisible) throw new Error('Erasing over the anchor removed the trailhead marker.');
+    await page.locator('.trail-panel .site-actions >> text=Undo').click();
+    await page.waitForFunction(() => !document.querySelector('.trail-panel .lift-link-btn')?.disabled);
+  }
   await clickWhenReady('.trail-panel button.site-btn-primary'); // Finish
   // Skeletonization + terrain sampling run before the review panel appears.
   await page.waitForSelector('.trail-panel .trail-anchor-row', { timeout: 90_000 });
@@ -132,7 +173,7 @@ try {
   // back as "TOOLS" / "RUNS (0)". Compare case-insensitively.
   const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ').trim();
   const toolLabels = (await page.locator('.trails-tool').allInnerTexts()).map(norm);
-  for (const label of ['Paint run', 'Place node', 'Draw path']) {
+  for (const label of ['Create Trail', 'Place node', 'Draw path']) {
     if (!toolLabels.some((t) => t.includes(norm(label))))
       throw new Error(`Trails tool "${label}" missing from the roll-up: ${JSON.stringify(toolLabels)}`);
   }
@@ -182,7 +223,7 @@ try {
   // first click is released, then painting resumes to verify pickup/continue.
   const headOffsetPx = Math.max(3, 15 / metresPerPx);
   const runLen = Math.min(len * 0.6, 200);
-  await paintFootprint(along(top, headOffsetPx, 0), along(top, headOffsetPx + runLen, 0), true);
+  await paintFootprint(along(top, headOffsetPx, 0), along(top, headOffsetPx + runLen, 0), true, top);
 
   const anchorSet = await page.locator('.trail-anchor-row[data-anchor="set"]')
     .isVisible().catch(() => false);
@@ -218,16 +259,11 @@ try {
   const clampX = (x) => Math.min(1320, Math.max(80, x));
   const clampY = (y) => Math.min(820, Math.max(80, y));
   const farBase = [clampX(top[0] - side[0] * farOffsetPx), clampY(top[1] - side[1] * farOffsetPx)];
-  const farTip = [clampX(farBase[0] + down[0] * 100), clampY(farBase[1] + down[1] * 100)];
-  await page.locator('.trails-tool >> text=Paint run').click();
-  await page.mouse.move(farBase[0], farBase[1]);
-  await page.mouse.down();
-  await page.mouse.move(farTip[0], farTip[1], { steps: 20 });
-  await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })));
-  await page.waitForSelector('text=Start the run on the top terminal of an existing lift.');
-  const finishDisabledFar = await page.locator('.trail-panel button.site-btn-primary').isDisabled();
-  if (!finishDisabledFar)
-    throw new Error('Finish enabled after an unanchored first stroke was supposed to be rejected.');
+  await page.locator('.trails-tool >> text=Create Trail').click();
+  await page.mouse.click(farBase[0], farBase[1]);
+  await page.waitForSelector('text=Choose a lift terminal or an existing trail centerline.');
+  if (!(await page.getByText('Place Trailhead', { exact: true }).isVisible()))
+    throw new Error('An invalid trailhead click unexpectedly opened the brush.');
 
   await page.locator('.trail-panel .settings-close-x').click();
   await page.waitForSelector('.trail-panel', { state: 'detached', timeout: 30_000 }).catch(() => {});

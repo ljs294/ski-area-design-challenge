@@ -79,6 +79,7 @@ import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
 import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS, type DraftLine } from './liftLayers';
 import { TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
+import { nearestTrailHeadAnchor, type TrailHeadAnchor } from './trailHeadAnchor';
 import { TrailDetail } from './TrailDetail';
 import { InfrastructureControl, type DraftRoad, type RoadTool } from './InfrastructureControl';
 import { addRoadDraftLayers, setRoadDraftData, type RoadDraftLine } from './roadLayers';
@@ -151,6 +152,39 @@ const MIN_LIFT_M = 50;
 // A run benches inside what the player painted; the cut/fill volume is its
 // price. Slopes and the grade band are engine constants — see trailCrossSection.
 const TRAIL_GRADE_POLICY = { envelope: 'footprint' } as const;
+
+interface TrailPaintCommand {
+  mode: 'paint' | 'erase';
+  path: [number, number][];
+  seed?: boolean;
+  /** Erase is one user action but two worker operations: erase, then repaint seed. */
+  restoreSeed?: [number, number];
+}
+
+function trailHeadPreview(tool: TrailTool): {
+  candidate: [number, number] | null;
+  head: [number, number] | null;
+} {
+  if (tool.phase === 'place-head') return { candidate: tool.candidate?.point ?? null, head: null };
+  if (tool.phase === 'paint' || tool.phase === 'analyzing')
+    return { candidate: null, head: tool.anchor.point };
+  if (tool.phase === 'review') return { candidate: null, head: tool.draft.anchor?.point ?? null };
+  return { candidate: null, head: null };
+}
+
+function sameTrailHeadAnchor(a: TrailHeadAnchor | null, b: TrailHeadAnchor | null): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.kind !== b.kind) return false;
+  const samePoint = a.point[0] === b.point[0] && a.point[1] === b.point[1];
+  return samePoint && (a.kind === 'lift'
+    ? b.kind === 'lift' && a.liftId === b.liftId && a.end === b.end
+    : b.kind === 'trail' && a.trailId === b.trailId);
+}
+
+function hasUserTrailStroke(commands: TrailPaintCommand[], head: [number, number]): boolean {
+  return commands.some((command) => !command.seed && command.mode === 'paint' &&
+    command.path.some((point) => haversineMeters(point, head) >= 0.5));
+}
 // A road has no painted shoulder, so it alone grades outside its pavement.
 const ROAD_GRADE_POLICY = { envelope: 'expand', maxWidthMultiplier: 3 } as const;
 
@@ -442,7 +476,8 @@ export function MapView({
   const trailGradeRequestRef = useRef(0);
   const trailGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const roadGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
-  const trailCommandsRef = useRef<{ mode: 'paint' | 'erase'; path: [number, number][] }[]>([]);
+  const trailCommandsRef = useRef<TrailPaintCommand[]>([]);
+  const trailPendingUntilRef = useRef(0);
   const trailPreviewPathRef = useRef<[number, number][]>([]);
   const trailBrushCursorRef = useRef<[number, number] | null>(null);
   const selectTrailRef = useRef<(id: string) => void>(() => {});
@@ -741,7 +776,8 @@ export function MapView({
         contourSegments: Array.from(preview.contourSegments) });
       setEditedContours(preview.editedContourSegments);
     }
-    setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
+    setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current,
+      ...trailHeadPreview(trailToolRef.current) });
     addLiftLayers(map);
     setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
     // Toggles for the player's built structures, added once the lift/trail layers
@@ -1112,15 +1148,58 @@ export function MapView({
   }, [draftPolygons, reviewDraft?.parts, reviewDraft?.difficulty, reviewDraft?.name,
     reviewDraft?.infeasibleLines]);
 
-  // Keep the geographic brush corridor and guide in sync with the brush size.
+  // Keep brush geometry and the transient trailhead/candidate marker in sync.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (trailTool.phase === 'paint') {
-      setTrailPaintPreview(map, { path: trailPreviewPathRef.current,
-        cursor: trailBrushCursorRef.current, brushWidthM });
-    }
-  }, [brushWidthM, trailTool.phase]);
+    setTrailPaintPreview(map, {
+      path: trailTool.phase === 'paint' ? trailPreviewPathRef.current : [],
+      cursor: trailTool.phase === 'paint' ? trailBrushCursorRef.current : null,
+      brushWidthM,
+      ...trailHeadPreview(trailTool),
+    });
+  }, [brushWidthM, trailTool]);
+
+  // Stage one of Create Trail: choose one exact graph target, then immediately
+  // seed the painter at it. Invalid clicks leave the prompt active.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || trailTool.phase !== 'place-head') return;
+    const canvas = map.getCanvas();
+    canvas.style.cursor = 'crosshair';
+    const candidateAt = (e: maplibregl.MapMouseEvent) => nearestTrailHeadAnchor(
+      [e.lngLat.lng, e.lngLat.lat], liftsRef.current, trailsRef.current, ANCHOR_PICK_M);
+    const onMove = (e: maplibregl.MapMouseEvent) => {
+      const candidate = candidateAt(e);
+      setTrailTool((tool) => tool.phase === 'place-head' && !sameTrailHeadAnchor(tool.candidate, candidate)
+        ? { ...tool, candidate, error: candidate ? null : tool.error } : tool);
+    };
+    const onClick = (e: maplibregl.MapMouseEvent) => {
+      const anchor = candidateAt(e);
+      if (!anchor) {
+        setTrailTool((tool) => tool.phase === 'place-head' ? { ...tool,
+          candidate: null,
+          error: 'Choose a lift terminal or an existing trail centerline.' } : tool);
+        return;
+      }
+      beginTrailPainting(anchor);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') cancelTrailTool(); };
+    const onLeave = () => setTrailTool((tool) => tool.phase === 'place-head'
+      ? { ...tool, candidate: null } : tool);
+    map.on('mousemove', onMove);
+    map.on('click', onClick);
+    canvas.addEventListener('mouseleave', onLeave);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      map.off('mousemove', onMove);
+      map.off('click', onClick);
+      canvas.removeEventListener('mouseleave', onLeave);
+      window.removeEventListener('keydown', onKey);
+      canvas.style.cursor = '';
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trailTool.phase]);
 
   /** Sample both terminal elevations for the review draft. Token-guarded so a
    *  cancel/confirm/redraw discards in-flight results. */
@@ -1412,7 +1491,8 @@ export function MapView({
     const canvas = map.getCanvas();
     canvas.style.cursor = 'none';
     const renderPreview = () => setTrailPaintPreview(map, { path: trailPreviewPathRef.current,
-      cursor: trailBrushCursorRef.current, brushWidthM: brushWidthRef.current });
+      cursor: trailBrushCursorRef.current, brushWidthM: brushWidthRef.current,
+      ...trailHeadPreview(trailToolRef.current) });
     renderPreview();
 
     let painting = false;
@@ -1428,28 +1508,20 @@ export function MapView({
     const finish = () => {
       painting = false;
       if (path.length === 1) path.push(path[0]); // a click is a valid brush dab
-      const mode = trailToolRef.current.phase === 'paint' ? trailToolRef.current.mode : 'paint';
-      trailCommandsRef.current.push({ mode, path: path.slice() });
-      submitTrailStroke(path, mode);
+      const tool = trailToolRef.current;
+      const mode = tool.phase === 'paint' ? tool.mode : 'paint';
+      const command: TrailPaintCommand = { mode, path: path.slice(),
+        restoreSeed: mode === 'erase' && tool.phase === 'paint' ? tool.anchor.point : undefined };
+      trailCommandsRef.current.push(command);
+      submitTrailCommand(command);
     };
 
     const down = (e: maplibregl.MapMouseEvent) => {
       const tool = trailToolRef.current;
       if (tool.phase !== 'paint' || tool.pending) return;
       const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-      let first = raw;
-      if (!tool.anchor) {
-        const anchor = liftTopAnchorAt(raw);
-        if (!anchor) {
-          setTrailTool((t) => t.phase === 'paint' ? { ...t,
-            error: 'Start the run on the top terminal of an existing lift.' } : t);
-          return;
-        }
-        first = anchor.point;
-        setTrailTool((t) => t.phase === 'paint' ? { ...t, mode: 'paint', anchor, error: null } : t);
-      }
       painting = true;
-      path = [first];
+      path = [raw];
       previewPath = path;
       trailPreviewPathRef.current = previewPath;
       trailBrushCursorRef.current = path[0];
@@ -1457,10 +1529,7 @@ export function MapView({
     };
     const move = (e: maplibregl.MapMouseEvent) => {
       const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-      const tool = trailToolRef.current;
-      const p = tool.phase === 'paint' && !tool.anchor
-        ? liftTopAnchorAt(raw)?.point ?? raw
-        : raw;
+      const p = raw;
       trailBrushCursorRef.current = p;
       if (!painting) { schedulePreview(); return; }
       const gap = Math.max(0.5, Math.min(2, brushWidthRef.current / 16));
@@ -1514,7 +1583,8 @@ export function MapView({
       if (previewRaf) cancelAnimationFrame(previewRaf);
       trailPreviewPathRef.current = [];
       trailBrushCursorRef.current = null;
-      setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
+      setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current,
+        ...trailHeadPreview(trailToolRef.current) });
       window.removeEventListener('keydown', onKey);
       map.dragPan.enable();
       map.doubleClickZoom.enable();
@@ -1995,21 +2065,6 @@ export function MapView({
 
   // ---- User-declared connectivity: anchors, nodes, connector paths ---------
 
-  /** Nearest elevation-resolved lift top within the trail-head snap radius. */
-  function liftTopAnchorAt(click: [number, number]): Extract<AnchorRef, { kind: 'lift' }> | null {
-    let best: { anchor: Extract<AnchorRef, { kind: 'lift' }>; distanceM: number } | null = null;
-    for (const lift of liftsRef.current) {
-      const topIndex = liftStats(lift.points, lift.endpointElevM).topIndex;
-      if (topIndex === null) continue;
-      const point = lift.points[topIndex];
-      const distanceM = haversineMeters(click, point);
-      if (distanceM <= ANCHOR_PICK_M && (!best || distanceM < best.distanceM)) {
-        best = { anchor: { kind: 'lift', liftId: lift.id, end: 'top', point }, distanceM };
-      }
-    }
-    return best?.anchor ?? null;
-  }
-
   /**
    * Nearest valid connection point to a clicked location, or null when the
    * click lands in open terrain. The returned `point` is snapped ONTO the
@@ -2186,13 +2241,32 @@ export function MapView({
     setTrailEditing(false);
     setOpenDock('trails');
     trailCommandsRef.current = [];
+    trailPendingUntilRef.current = 0;
     trailGradeWorkerRef.current?.terminate();
     trailGradeWorkerRef.current = null;
     trailGradeResultRef.current = null;
     trailWorkerRecoveryRef.current = 0;
-    startTrailWorker(brushWidthRef.current);
+    setTrailTool({ phase: 'place-head', candidate: null, error: null });
+  }
+
+  function beginTrailPainting(anchor: TrailHeadAnchor) {
+    const seed: TrailPaintCommand = { mode: 'paint', path: [anchor.point, anchor.point], seed: true };
+    trailCommandsRef.current = [seed];
+    trailWorkerRecoveryRef.current = 0;
     setTrailTool({ phase: 'paint', mode: 'paint', polygons: [], areaM2: 0,
-      activeAreaM2: null, canUndo: false, pending: false, error: null, anchor: null });
+      activeAreaM2: null, canUndo: false, pending: true, error: null, anchor,
+      hasUserStroke: false });
+    startTrailWorker(brushWidthRef.current, [seed]);
+  }
+
+  function changeTrailHead() {
+    trailWorkerRef.current?.terminate();
+    trailWorkerRef.current = null;
+    trailCommandsRef.current = [];
+    trailPendingUntilRef.current = 0;
+    trailPreviewPathRef.current = [];
+    trailBrushCursorRef.current = null;
+    setTrailTool({ phase: 'place-head', candidate: null, error: null });
   }
 
   function cancelTrailTool() {
@@ -2207,6 +2281,7 @@ export function MapView({
     trailWorkerRef.current?.terminate();
     trailWorkerRef.current = null;
     trailCommandsRef.current = [];
+    trailPendingUntilRef.current = 0;
     trailPreviewPathRef.current = [];
     trailBrushCursorRef.current = null;
     if (mapRef.current) setTrailPaintPreview(mapRef.current, { path: [], cursor: null,
@@ -2214,7 +2289,7 @@ export function MapView({
     setTrailTool({ phase: 'idle' });
   }
 
-  function startTrailWorker(widthM: number, replay: { mode: 'paint' | 'erase'; path: [number, number][] }[] = []) {
+  function startTrailWorker(widthM: number, replay: TrailPaintCommand[] = []) {
     trailWorkerRef.current?.terminate();
     const worker = new Worker(new URL('./trailPaint.worker.ts', import.meta.url), { type: 'module' });
     trailWorkerRef.current = worker;
@@ -2224,45 +2299,45 @@ export function MapView({
       if (message.id < trailWorkerAppliedRef.current) return;
       trailWorkerAppliedRef.current = message.id;
       if (!message.ok) {
-        if (trailToolRef.current.phase === 'paint' && trailToolRef.current.pending)
-          trailCommandsRef.current.pop();
-        const hasPaint = trailCommandsRef.current.some((command) => command.mode === 'paint');
+        if (trailToolRef.current.phase === 'paint' && trailToolRef.current.pending &&
+            trailCommandsRef.current.length > 1) trailCommandsRef.current.pop();
         setTrailTool((t) => t.phase === 'paint'
           ? { ...t, pending: false, activeAreaM2: null, error: message.error,
-              anchor: hasPaint ? t.anchor : null, mode: hasPaint ? t.mode : 'paint' }
+              canUndo: trailCommandsRef.current.length > 1,
+              hasUserStroke: hasUserTrailStroke(trailCommandsRef.current, t.anchor.point) }
           : t.phase === 'analyzing' ? { phase: 'paint', mode: 'paint', polygons: t.polygons,
-            areaM2: t.areaM2, activeAreaM2: null, canUndo: trailCommandsRef.current.length > 0,
-            pending: false, error: message.error, anchor: t.anchor } : t);
+            areaM2: t.areaM2, activeAreaM2: null, canUndo: trailCommandsRef.current.length > 1,
+            pending: false, error: message.error, anchor: t.anchor,
+            hasUserStroke: hasUserTrailStroke(trailCommandsRef.current, t.anchor.point) } : t);
         return;
       }
       if (message.type === 'ready' && replay.length > 0) {
-        for (const command of replay) {
-          const coordinates = new Float64Array(command.path.length * 2);
-          command.path.forEach((point, i) => { coordinates[i * 2] = point[0]; coordinates[i * 2 + 1] = point[1]; });
-          postTrailRequest({ type: 'stroke', mode: command.mode, coordinates }, [coordinates.buffer]);
-        }
+        for (const command of replay) submitTrailCommand(command);
         return;
       }
       if (message.type === 'preview') {
         trailPreviewPathRef.current = [];
         if (mapRef.current) setTrailPaintPreview(mapRef.current, { path: [],
-          cursor: trailBrushCursorRef.current, brushWidthM: brushWidthRef.current });
+          cursor: trailBrushCursorRef.current, brushWidthM: brushWidthRef.current,
+          ...trailHeadPreview(trailToolRef.current) });
         setTrailTool((t) => t.phase === 'paint' ? { ...t, polygons: message.polygons,
-          areaM2: message.areaM2, activeAreaM2: null, canUndo: message.canUndo, pending: false, error: null,
-          anchor: message.areaM2 > 0 ? t.anchor : null } : t);
+          areaM2: message.areaM2, activeAreaM2: null,
+          canUndo: trailCommandsRef.current.length > 1,
+          hasUserStroke: hasUserTrailStroke(trailCommandsRef.current, t.anchor.point),
+          pending: message.id < trailPendingUntilRef.current, error: null } : t);
       } else if (message.type === 'analysis') {
-        if (message.parts.length === 0) {
-          const current = trailToolRef.current;
-          setTrailTool({ phase: 'paint', mode: 'paint',
-            polygons: current.phase === 'analyzing' ? current.polygons : [],
-            areaM2: current.phase === 'analyzing' ? current.areaM2 : 0,
-            activeAreaM2: null, canUndo: trailCommandsRef.current.length > 0, pending: false,
-            error: 'Paint a longer connected footprint so a centerline can be found.',
-            anchor: current.phase === 'analyzing' ? current.anchor : null });
-          return;
-        }
         const current = trailToolRef.current;
         if (current.phase !== 'analyzing') return;
+        if (message.parts.length === 0) {
+          setTrailTool({ phase: 'paint', mode: 'paint',
+            polygons: current.polygons,
+            areaM2: current.areaM2,
+            activeAreaM2: null, canUndo: trailCommandsRef.current.length > 1, pending: false,
+            error: 'Paint a longer connected footprint so a centerline can be found.',
+            anchor: current.anchor,
+            hasUserStroke: hasUserTrailStroke(trailCommandsRef.current, current.anchor.point) });
+          return;
+        }
         const anchoredParts = pinTrailHead(message.parts, current.anchor.point);
         const draft: DraftTrail = { parts: anchoredParts, ungradedParts: anchoredParts,
           areaM2: message.areaM2, ungradedAreaM2: message.areaM2,
@@ -2292,18 +2367,26 @@ export function MapView({
     postTrailRequest({ type: 'init', origin, brushWidthM: widthM });
   }
 
-  function postTrailRequest(request: TrailPaintRequestPayload, transfer: Transferable[] = []) {
+  function postTrailRequest(request: TrailPaintRequestPayload, transfer: Transferable[] = []): number {
     const worker = trailWorkerRef.current;
-    if (!worker) return;
+    if (!worker) return 0;
     const message = { ...request, id: ++trailWorkerIdRef.current } as TrailPaintRequest;
     worker.postMessage(message, transfer);
+    return message.id;
   }
 
-  function submitTrailStroke(path: [number, number][], mode: 'paint' | 'erase') {
+  function postTrailStroke(path: [number, number][], mode: 'paint' | 'erase'): number {
     const coordinates = new Float64Array(path.length * 2);
     path.forEach((point, i) => { coordinates[i * 2] = point[0]; coordinates[i * 2 + 1] = point[1]; });
+    return postTrailRequest({ type: 'stroke', mode, coordinates }, [coordinates.buffer]);
+  }
+
+  function submitTrailCommand(command: TrailPaintCommand) {
     setTrailTool((t) => t.phase === 'paint' ? { ...t, pending: true, activeAreaM2: null } : t);
-    postTrailRequest({ type: 'stroke', mode, coordinates }, [coordinates.buffer]);
+    let finalId = postTrailStroke(command.path, command.mode);
+    if (command.restoreSeed) finalId = postTrailStroke(
+      [command.restoreSeed, command.restoreSeed], 'paint');
+    trailPendingUntilRef.current = finalId;
   }
 
   function setTrailPaintModeState(mode: 'paint' | 'erase') {
@@ -2312,23 +2395,31 @@ export function MapView({
   }
 
   function undoTrailPaint() {
-    setTrailTool((t) => t.phase === 'paint' ? { ...t, pending: true } : t);
-    trailCommandsRef.current.pop();
-    if (!trailCommandsRef.current.some((command) => command.mode === 'paint')) {
-      setTrailTool((t) => t.phase === 'paint' ? { ...t, anchor: null, mode: 'paint' } : t);
-    }
-    postTrailRequest({ type: 'undo' });
+    if (trailCommandsRef.current.length <= 1) return;
+    const removed = trailCommandsRef.current.pop()!;
+    setTrailTool((t) => t.phase === 'paint' ? { ...t, pending: true,
+      canUndo: trailCommandsRef.current.length > 1,
+      hasUserStroke: hasUserTrailStroke(trailCommandsRef.current, t.anchor.point) } : t);
+    let finalId = postTrailRequest({ type: 'undo' });
+    if (removed.restoreSeed) finalId = postTrailRequest({ type: 'undo' });
+    trailPendingUntilRef.current = finalId;
   }
 
   function clearTrailPaint() {
-    trailCommandsRef.current = [];
-    setTrailTool((t) => t.phase === 'paint' ? { ...t, pending: true, anchor: null, mode: 'paint' } : t);
+    const tool = trailToolRef.current;
+    if (tool.phase !== 'paint') return;
+    const seed: TrailPaintCommand = { mode: 'paint', path: [tool.anchor.point, tool.anchor.point], seed: true };
+    trailCommandsRef.current = [seed];
+    setTrailTool({ ...tool, pending: true, mode: 'paint', canUndo: false,
+      hasUserStroke: false, activeAreaM2: null, error: null });
     postTrailRequest({ type: 'clear' });
+    const finalId = postTrailStroke(seed.path, 'paint');
+    trailPendingUntilRef.current = finalId;
   }
 
   function finishTrailPaint() {
     const t = trailToolRef.current;
-    if (t.phase !== 'paint' || t.pending || t.areaM2 <= 0 || !t.anchor) return;
+    if (t.phase !== 'paint' || t.pending || !t.hasUserStroke) return;
     setTrailTool({ phase: 'analyzing', polygons: t.polygons, areaM2: t.areaM2, anchor: t.anchor });
     postTrailRequest({ type: 'finish' });
   }
@@ -2336,7 +2427,13 @@ export function MapView({
   function changeTrailBrushWidth(widthM: number) {
     setBrushWidthM(widthM);
     const t = trailToolRef.current;
-    if (t.phase === 'paint' && t.areaM2 === 0 && !t.pending) startTrailWorker(widthM);
+    if (t.phase === 'paint' && !t.hasUserStroke) {
+      const seed: TrailPaintCommand = { mode: 'paint', path: [t.anchor.point, t.anchor.point], seed: true };
+      trailCommandsRef.current = [seed];
+      setTrailTool({ ...t, polygons: [], areaM2: 0, activeAreaM2: null,
+        pending: true, canUndo: false, error: null });
+      startTrailWorker(widthM, [seed]);
+    }
   }
 
   function patchTrailDraft(patch: Partial<DraftTrail>) {
@@ -2518,7 +2615,7 @@ export function MapView({
     if (commitGrading && (d.gradingStatus !== 'ok' || !trailGradeResultRef.current)) return;
     // Preserve the paint-time invariant even if confirmation is invoked outside
     // the visible button: every new run starts exactly at a lift top.
-    if (d.anchor?.kind !== 'lift' || d.anchor.end !== 'top') return;
+    if (!d.anchor || (d.anchor.kind !== 'lift' && d.anchor.kind !== 'trail')) return;
     const parts = pinTrailHead(commitGrading ? d.parts : d.ungradedParts, d.anchor.point);
     const stats = trailPartsStats(parts);
     const trail: SavedTrail = {
@@ -2777,6 +2874,7 @@ export function MapView({
       path: trailPreviewPathRef.current,
       cursor: trailBrushCursorRef.current,
       brushWidthM: brushWidthRef.current,
+      ...trailHeadPreview(trail),
     });
     setRoadDraftData(map, roadDraftOf(road));
 
@@ -3368,6 +3466,7 @@ export function MapView({
                         onCloseEdit={() => setTrailEditing(false)}
                         onDelete={deleteTrail}
                         onRetryElevation={retryTrailElevation}
+                        onChangeHead={changeTrailHead}
                       />
                     )
                   ) : (
