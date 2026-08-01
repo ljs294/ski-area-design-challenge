@@ -215,6 +215,8 @@ export interface WaterLineFeature {
   id: string;
   name?: string;
   waterClass: WaterLineClass;
+  /** Parsed OSM channel width in metres, when the source supplied a usable width tag. */
+  sourceWidthM?: number;
   points: [number, number][]; // [lon, lat]
 }
 
@@ -467,7 +469,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -492,6 +494,8 @@ export interface GameSave {
   lakeDepthOverrides?: Record<string, number>;
   /** Player-entered lake names keyed by the terrain's stable OSM water id. */
   lakeNameOverrides?: Record<string, string>;
+  /** Player-entered channel widths in metres, keyed by the terrain's stable OSM waterway id. */
+  streamWidthOverrides?: Record<string, number>;
   createdAt: string; // ISO
   updatedAt: string; // ISO
   /** Most recent successful exit checkpoint. Optional for legacy saves. */

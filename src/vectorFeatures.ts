@@ -21,6 +21,7 @@ import type {
   PeakFeature,
   VectorFeatureSet,
 } from './types';
+import { parseOsmWidthM } from './streamAnalysis';
 
 // Overpass is a shared community resource, not a paid API — a descriptive
 // User-Agent and a short mirror list (not aggressive retries) is the
@@ -223,7 +224,9 @@ export async function fetchVectorFeatures(bounds: LatLonBounds): Promise<VectorF
 
     if (tags.waterway === 'river' || tags.waterway === 'stream' || tags.waterway === 'canal') {
       const waterClass: WaterLineClass = tags.waterway === 'stream' ? 'stream' : 'river';
-      waterLines.push({ id: `way/${el.id}`, name: tags.name, waterClass, points: lonLat });
+      const sourceWidthM = parseOsmWidthM(tags.width);
+      waterLines.push({ id: `way/${el.id}`, name: tags.name, waterClass,
+        ...(sourceWidthM == null ? {} : { sourceWidthM }), points: lonLat });
       continue;
     }
 

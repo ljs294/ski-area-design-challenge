@@ -1405,6 +1405,9 @@ html.resume-capture .maplibregl-canvas {
 .lake-depth-source--override {
   color: var(--accent);
 }
+.lake-depth-source--osm {
+  color: var(--accent);
+}
 .lake-depth-input-wrap {
   display: flex;
   align-items: center;

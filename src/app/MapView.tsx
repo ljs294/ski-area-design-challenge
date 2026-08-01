@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { setLocalContextData, setSelectedLake, setupAnalysisLayers, type LayerToggle } from './analysisLayers';
+import { setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers, type LayerToggle } from './analysisLayers';
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
 import { LayerList } from './LayerPanel';
 import { GameToolbar } from './GameToolbar';
@@ -10,6 +10,7 @@ import { CreditsPanel } from './CreditsPanel';
 import { LiftOverview } from './LiftOverview';
 import { LiftDetail } from './LiftDetail';
 import { LakeDetail } from './LakeDetail';
+import { StreamDetail } from './StreamDetail';
 import { NetworkMap } from './NetworkMap';
 import { TrailsPanel, type TrailsTool } from './TrailsPanel';
 import { buildSkiNetwork, makeFrame, toMeters } from '../network';
@@ -58,6 +59,7 @@ import { captureGamePreview, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
 import type { GameSave, RoadType, SavedLift, SavedRoad, SavedTrail, SavedTrailPart, TerrainPackageProgress, TerrainRecord } from '../types';
 import { analyzeLake, sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
+import { analyzeStream, sanitizeStreamWidthOverrides } from '../streamAnalysis';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import {
@@ -434,10 +436,13 @@ export function MapView({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
   const [selectedLakeId, setSelectedLakeId] = useState<string | null>(null);
+  const [selectedStreamId, setSelectedStreamId] = useState<string | null>(null);
   const [lakeDepthOverrides, setLakeDepthOverrides] = useState<Record<string, number>>(() =>
     sanitizeLakeDepthOverrides(initialSave?.lakeDepthOverrides));
   const [lakeNameOverrides, setLakeNameOverrides] = useState<Record<string, string>>(() =>
     sanitizeLakeNameOverrides(initialSave?.lakeNameOverrides));
+  const [streamWidthOverrides, setStreamWidthOverrides] = useState<Record<string, number>>(() =>
+    sanitizeStreamWidthOverrides(initialSave?.streamWidthOverrides));
   // Last-used brush width, kept across arms so it persists between runs.
   const [brushWidthM, setBrushWidthM] = useState(DEFAULT_BRUSH_WIDTH_M);
   // Identifies the active construction operation for disabled controls, button
@@ -519,9 +524,12 @@ export function MapView({
   const trailBrushCursorRef = useRef<[number, number] | null>(null);
   const selectTrailRef = useRef<(id: string) => void>(() => {});
   const selectLakeRef = useRef<(id: string) => void>(() => {});
+  const selectStreamRef = useRef<(id: string) => void>(() => {});
   const selectedLakeIdRef = useRef<string | null>(selectedLakeId);
+  const selectedStreamIdRef = useRef<string | null>(selectedStreamId);
   const lakeDepthOverridesRef = useRef(lakeDepthOverrides);
   const lakeNameOverridesRef = useRef(lakeNameOverrides);
+  const streamWidthOverridesRef = useRef(streamWidthOverrides);
   const roadsRef = useRef<SavedRoad[]>(roads);
   const roadToolRef = useRef<RoadTool>(roadTool);
   const brushWidthRef = useRef(brushWidthM);
@@ -597,8 +605,10 @@ export function MapView({
   nodeToolRef.current = nodeTool;
   pathToolRef.current = pathTool;
   selectedLakeIdRef.current = selectedLakeId;
+  selectedStreamIdRef.current = selectedStreamId;
   lakeDepthOverridesRef.current = lakeDepthOverrides;
   lakeNameOverridesRef.current = lakeNameOverrides;
+  streamWidthOverridesRef.current = streamWidthOverrides;
   brushWidthRef.current = brushWidthM;
   terrainRecordRef.current = terrainRecord;
   packageStateRef.current = packageState;
@@ -710,6 +720,7 @@ export function MapView({
     setSelectedLiftId(id);
     setLiftEditing(false);
     setSelectedLakeId(null);
+    setSelectedStreamId(null);
   };
 
   // Clicking a run opens its read-only detail, yielding any active lift tool.
@@ -722,6 +733,7 @@ export function MapView({
     setSelectedTrailId(id);
     setTrailEditing(false);
     setSelectedLakeId(null);
+    setSelectedStreamId(null);
   };
 
   selectLakeRef.current = (id: string) => {
@@ -732,7 +744,20 @@ export function MapView({
     setSelectedTrailId(null);
     setTrailEditing(false);
     setOpenDock(null);
+    setSelectedStreamId(null);
     setSelectedLakeId(id);
+  };
+
+  selectStreamRef.current = (id: string) => {
+    cancelLiftTool();
+    cancelTrailTool();
+    setSelectedLiftId(null);
+    setLiftEditing(false);
+    setSelectedTrailId(null);
+    setTrailEditing(false);
+    setOpenDock(null);
+    setSelectedLakeId(null);
+    setSelectedStreamId(id);
   };
 
   // The actual sampler — redefined each render so it closes over fresh state.
@@ -808,7 +833,8 @@ export function MapView({
     const fresh = packageStateRef.current === 'preparing'
       ? []
       : setupAnalysisLayers(map, terrainRecordRef.current, settings.units, coverDisplayRef.current,
-        localImageryUrlRef.current, roadsRef.current, lakeNameOverridesRef.current);
+        localImageryUrlRef.current, roadsRef.current, lakeNameOverridesRef.current,
+        streamWidthOverridesRef.current);
     const prev = layersRef.current;
     let applied = fresh.map((f) => {
       const was = prev.find((p) => p.id === f.id);
@@ -868,6 +894,7 @@ export function MapView({
     addLiftLayers(map);
     setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
     setSelectedLake(map, selectedLakeIdRef.current);
+    setSelectedStream(map, selectedStreamIdRef.current);
     // Toggles for the player's built structures, added once the lift/trail layers
     // exist above. Visibility is reconciled from the previous state so a restyle
     // (light↔dark) keeps whatever the player hid. Skipped while preparing (no
@@ -1104,9 +1131,20 @@ export function MapView({
     map.on('mouseenter', ['trail-fill'], onLiftEnter);
     map.on('mouseleave', ['trail-fill'], onLiftLeave);
 
-    const onLakeClick = (e: maplibregl.MapLayerMouseEvent) => {
+    const onStreamClick = (e: maplibregl.MapLayerMouseEvent) => {
       if (!allToolsIdle()) return;
       const priorityLayers = [...LIFT_HIT_LAYERS, 'trail-fill'].filter((id) => map.getLayer(id));
+      if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
+      const id = e.features?.[0]?.properties?.id;
+      if (typeof id === 'string') selectStreamRef.current(id);
+    };
+    map.on('click', ['local-water-line-hit'], onStreamClick);
+    map.on('mouseenter', ['local-water-line-hit'], onLiftEnter);
+    map.on('mouseleave', ['local-water-line-hit'], onLiftLeave);
+
+    const onLakeClick = (e: maplibregl.MapLayerMouseEvent) => {
+      if (!allToolsIdle()) return;
+      const priorityLayers = [...LIFT_HIT_LAYERS, 'trail-fill', 'local-water-line-hit'].filter((id) => map.getLayer(id));
       if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
       const id = e.features?.[0]?.properties?.id;
       if (typeof id === 'string') selectLakeRef.current(id);
@@ -1128,6 +1166,10 @@ export function MapView({
   useEffect(() => {
     setSelectedLake(mapRef.current, selectedLakeId);
   }, [selectedLakeId]);
+
+  useEffect(() => {
+    setSelectedStream(mapRef.current, selectedStreamId);
+  }, [selectedStreamId]);
 
   // A single scale bar whose unit follows the Units setting.
   useEffect(() => {
@@ -1230,8 +1272,8 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     const record = terrainRecordRef.current;
-    if (map && record) setLocalContextData(map, record, roads, lakeNameOverrides);
-  }, [roads, lakeNameOverrides]);
+    if (map && record) setLocalContextData(map, record, roads, lakeNameOverrides, streamWidthOverrides);
+  }, [roads, lakeNameOverrides, streamWidthOverrides]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1900,6 +1942,8 @@ export function MapView({
     setLiftEditing(false);
     setSelectedTrailId(null);
     setTrailEditing(false);
+    setSelectedLakeId(null);
+    setSelectedStreamId(null);
     setOpenDock('infrastructure');
     setRoadTool({ phase: 'armed', roadType });
   }
@@ -2104,6 +2148,8 @@ export function MapView({
     setTrailEditing(false);
     setSelectedLiftId(null); // close any open detail/edit panel
     setLiftEditing(false);
+    setSelectedLakeId(null);
+    setSelectedStreamId(null);
     setLiftTool({ phase: 'armed' });
   }
 
@@ -2369,6 +2415,8 @@ export function MapView({
 
   function selectGraphNode(id: string) {
     setSelectedNodeId(id);
+    setSelectedLakeId(null);
+    setSelectedStreamId(null);
     const junction = junctionsRef.current.find((j) => j.id === id);
     if (junction) mapRef.current?.easeTo({ center: junction.point, duration: 400 });
   }
@@ -2381,6 +2429,8 @@ export function MapView({
     cancelNodeTool();
     setSelectedTrailId(null);
     setSelectedLiftId(null);
+    setSelectedLakeId(null);
+    setSelectedStreamId(null);
     setOpenDock('trails');
     setPathTool({ phase: 'armed' });
   }
@@ -2466,6 +2516,8 @@ export function MapView({
     setLiftEditing(false);
     setSelectedTrailId(null);
     setTrailEditing(false);
+    setSelectedLakeId(null);
+    setSelectedStreamId(null);
     setOpenDock('trails');
     trailCommandsRef.current = [];
     trailPendingUntilRef.current = 0;
@@ -2987,6 +3039,7 @@ export function MapView({
       return;
     }
     setSelectedLakeId(null);
+    setSelectedStreamId(null);
     const isOpen = which === 'layers' ? layersOpen : which === 'lifts' ? liftsOpen
       : which === 'trails' ? trailsOpen : infrastructureOpen;
     if (which !== 'layers') setLayersAlongsideBuild(false);
@@ -3262,7 +3315,7 @@ export function MapView({
     const c = map.getCenter();
     const now = new Date().toISOString();
     return {
-      schemaVersion: 7,
+      schemaVersion: 8,
       key: base?.key ?? genId(),
       name: base?.name ?? (nameDraft.trim() || 'Untitled Resort'),
       mountainId: base?.mountainId,
@@ -3281,6 +3334,7 @@ export function MapView({
       junctions: junctionsRef.current,
       lakeDepthOverrides: lakeDepthOverridesRef.current,
       lakeNameOverrides: lakeNameOverridesRef.current,
+      streamWidthOverrides: streamWidthOverridesRef.current,
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
       lastPlayedAt: base?.lastPlayedAt,
@@ -3407,12 +3461,19 @@ export function MapView({
     ? analyzeLake(selectedLakeFeature, terrainRecord, lakeDepthOverrides[selectedLakeFeature.id],
       lakeNameOverrides[selectedLakeFeature.id])
     : null, [selectedLakeFeature, terrainRecord, lakeDepthOverrides, lakeNameOverrides]);
-  const lakeOpen = !!saved && selectedLake !== null;
-  const liftsOpen = !!saved && !lakeOpen && (openDock === 'lifts' || liftActive);
-  const trailsOpen = !!saved && !lakeOpen && !liftsOpen && (openDock === 'trails' || trailActive);
-  const infrastructureOpen = !!saved && !lakeOpen && !liftsOpen && !trailsOpen &&
+  const selectedStreamFeature = selectedStreamId
+    ? terrainRecord?.vectorFeatures?.waterLines.find((stream) => stream.id === selectedStreamId) ?? null
+    : null;
+  const selectedStream = useMemo(() => selectedStreamFeature
+    ? analyzeStream(selectedStreamFeature, streamWidthOverrides[selectedStreamFeature.id])
+    : null, [selectedStreamFeature, streamWidthOverrides]);
+  const streamOpen = !!saved && selectedStream !== null;
+  const lakeOpen = !!saved && !streamOpen && selectedLake !== null;
+  const liftsOpen = !!saved && !streamOpen && !lakeOpen && (openDock === 'lifts' || liftActive);
+  const trailsOpen = !!saved && !streamOpen && !lakeOpen && !liftsOpen && (openDock === 'trails' || trailActive);
+  const infrastructureOpen = !!saved && !streamOpen && !lakeOpen && !liftsOpen && !trailsOpen &&
     (openDock === 'infrastructure' || infrastructureActive);
-  const layersOpen = !!saved && !lakeOpen && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
+  const layersOpen = !!saved && !streamOpen && !lakeOpen && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
   const selectedLift = selectedLiftId ? lifts.find((l) => l.id === selectedLiftId) ?? null : null;
   const selectedTrail = selectedTrailId ? trails.find((t) => t.id === selectedTrailId) ?? null : null;
   // The gate is now the New Game preparation surface only. Resuming a saved
@@ -3623,6 +3684,25 @@ export function MapView({
         <div className="game-dock">
           <div className="dock-stack">
             <div className="dock-rollups">
+              {streamOpen && selectedStream && (
+                <div className="dock-rollup dock-stream" data-panel="stream">
+                  <div className="dock-panel">
+                    <StreamDetail
+                      stream={selectedStream}
+                      units={settings.units}
+                      onWidthOverride={(widthM) => {
+                        setStreamWidthOverrides((current) => {
+                          const next = { ...current };
+                          if (widthM == null) delete next[selectedStream.id];
+                          else next[selectedStream.id] = widthM;
+                          return next;
+                        });
+                      }}
+                      onClose={() => setSelectedStreamId(null)}
+                    />
+                  </div>
+                </div>
+              )}
               {lakeOpen && selectedLake && (
                 <div className="dock-rollup dock-lake" data-panel="lake">
                   <div className="dock-panel">
