@@ -467,7 +467,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -488,6 +488,10 @@ export interface GameSave {
   paths?: SavedPath[];
   /** Durable graph junctions. Optional only for schema-v1-v4 saves. */
   junctions?: import('./skiNodes').SavedJunction[];
+  /** Player-entered average lake depths in metres, keyed by the terrain's stable OSM water id. */
+  lakeDepthOverrides?: Record<string, number>;
+  /** Player-entered lake names keyed by the terrain's stable OSM water id. */
+  lakeNameOverrides?: Record<string, string>;
   createdAt: string; // ISO
   updatedAt: string; // ISO
   /** Most recent successful exit checkpoint. Optional for legacy saves. */

@@ -1357,6 +1357,99 @@ html.resume-capture .maplibregl-canvas {
   margin-top: 2px;
 }
 
+/* --- Read-only lake detail with one editable analysis value --- */
+.lake-detail-sub {
+  margin-top: -4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.lake-name-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 2px 7px;
+  border-bottom: 1px solid var(--border);
+}
+.lake-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-solid);
+  color: var(--text);
+  padding: 6px 7px;
+  font: inherit;
+}
+.lake-name-input::placeholder { color: var(--text-faint); }
+.lake-name-input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: var(--accent);
+}
+.lake-depth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.lake-depth-row > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lake-depth-source {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.lake-depth-source--override {
+  color: var(--accent);
+}
+.lake-depth-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.lake-depth-input {
+  width: 70px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-solid);
+  color: var(--text);
+  padding: 5px 7px;
+  text-align: right;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.lake-depth-input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: var(--accent);
+}
+.lake-depth-note {
+  margin-top: -5px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+.lake-reset-btn {
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+.lake-reset-btn:hover {
+  text-decoration: underline;
+}
+.lake-volume-row {
+  padding-top: 7px;
+}
+
 /* --- Resort stats panel (opened from the toolbar name) --- */
 .resort-stats {
   width: 340px;

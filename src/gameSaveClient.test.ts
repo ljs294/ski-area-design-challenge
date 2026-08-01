@@ -3,6 +3,7 @@ import type { GameSave } from './types';
 import {
   captureGamePreview,
   deleteGame,
+  loadGame,
   loadGamePreview,
   mostRecentGame,
   saveGame,
@@ -57,5 +58,13 @@ describe('game preview fallback storage', () => {
     await saveGame(game('played', '2026-01-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z'));
     await saveGame(game('edited', '2026-04-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z'));
     expect((await mostRecentGame())?.key).toBe('edited');
+  });
+
+  it('round-trips schema-v7 lake property overrides', async () => {
+    const save = { ...game('lakes', '2026-05-01T00:00:00.000Z'), schemaVersion: 7 as const,
+      lakeDepthOverrides: { 'way/42': 3.75 }, lakeNameOverrides: { 'way/42': 'Mirror Pond' } };
+    await saveGame(save);
+    expect((await loadGame('lakes'))?.lakeDepthOverrides).toEqual({ 'way/42': 3.75 });
+    expect((await loadGame('lakes'))?.lakeNameOverrides).toEqual({ 'way/42': 'Mirror Pond' });
   });
 });

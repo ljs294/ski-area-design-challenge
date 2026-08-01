@@ -17,10 +17,12 @@ import { MASTER_PLAN_LAYER_IDS } from './masterPlanStyle';
 import { unitToLngLat } from '../geo';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import { addCoverLayers, COVER_LAYER_IDS } from './coverVectorize';
-import { LOCAL_ROAD_PAINT, playerRoadFeatures } from './roadLayers';
+import { LOCAL_ROAD_PAINT } from './roadLayers';
+import { localContextGeoJSON } from './localContextGeoJSON';
 import { localContourGeoJSON } from './localContours';
 import { EMPTY_CONTOURS, GRADED_CONTOUR_SOURCE } from './terrainGradeMap';
 export { localContourGeoJSON } from './localContours';
+export { localContextGeoJSON } from './localContextGeoJSON';
 
 const TERRARIUM_TILES = 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
 
@@ -76,28 +78,17 @@ function localCoverBoundaryGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollec
   };
 }
 
-export function localContextGeoJSON(record: TerrainRecord, playerRoads: SavedRoad[] = []): GeoJSON.FeatureCollection {
-  const vectors = record.vectorFeatures;
-  const features: GeoJSON.Feature[] = [];
-  if (vectors) {
-    for (const water of vectors.waterPolygons) {
-      features.push({ type: 'Feature', properties: { kind: 'water' }, geometry: { type: 'Polygon', coordinates: water.rings } });
-    }
-    for (const water of vectors.waterLines) {
-      features.push({ type: 'Feature', properties: { kind: 'water-line', class: water.waterClass }, geometry: { type: 'LineString', coordinates: water.points } });
-    }
-    for (const road of vectors.roads) {
-      features.push({ type: 'Feature', properties: { kind: 'road', class: road.roadClass }, geometry: { type: 'LineString', coordinates: road.points } });
-    }
-  }
-  features.push(...playerRoadFeatures(playerRoads));
-  return { type: 'FeatureCollection', features };
+export function setLocalContextData(map: maplibregl.Map, record: TerrainRecord,
+  playerRoads: SavedRoad[] = [], lakeNameOverrides: Record<string, string> = {}): void {
+  (map.getSource('local-context') as maplibregl.GeoJSONSource | undefined)
+    ?.setData(localContextGeoJSON(record, playerRoads, lakeNameOverrides));
 }
 
-export function setLocalContextData(map: maplibregl.Map, record: TerrainRecord,
-  playerRoads: SavedRoad[] = []): void {
-  (map.getSource('local-context') as maplibregl.GeoJSONSource | undefined)
-    ?.setData(localContextGeoJSON(record, playerRoads));
+export function setSelectedLake(map: maplibregl.Map | null, lakeId: string | null): void {
+  if (!map?.getLayer('local-water-selected')) return;
+  map.setFilter('local-water-selected', [
+    'all', ['==', ['get', 'kind'], 'water'], ['==', ['get', 'id'], lakeId ?? ''],
+  ]);
 }
 
 export function setupAnalysisLayers(
@@ -106,7 +97,8 @@ export function setupAnalysisLayers(
   units: 'imperial' | 'metric' = 'imperial',
   coverDisplay?: CoverDisplayGeoJSON | null,
   localImageryUrl?: string | null,
-  playerRoads: SavedRoad[] = []
+  playerRoads: SavedRoad[] = [],
+  lakeNameOverrides: Record<string, string> = {}
 ): LayerToggle[] {
   const local = terrain?.coverGrid && terrain.bounds ? terrain : null;
   const styleLayers = map.getStyle().layers ?? [];
@@ -174,7 +166,7 @@ export function setupAnalysisLayers(
     demBounds = resortDemBounds(local);
     demUrl = resortProtocolUrl(RESORT_DEM_PROTOCOL, local);
     if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(local.key)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
-    map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, playerRoads), attribution: 'Local OSM context © OpenStreetMap contributors' });
+    map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, playerRoads, lakeNameOverrides), attribution: 'Local OSM context © OpenStreetMap contributors' });
     coverVisible = true;
     coverLabel = local.coverGrid?.source === 'usgs-four-class-v1' ? 'Detailed terrain cover (local)' : 'ESA WorldCover 2021 · 10 m (local)';
   } else {
@@ -225,9 +217,35 @@ export function setupAnalysisLayers(
       paint: { 'fill-color': '#6ca3be', 'fill-opacity': 0.72, 'fill-outline-color': '#397f9f' },
     }, contourAnchor);
     map.addLayer({
+      id: 'local-water-selected', type: 'line', source: 'local-context',
+      filter: ['all', ['==', ['get', 'kind'], 'water'], ['==', ['get', 'id'], '']],
+      paint: {
+        'line-color': '#f6fbff',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 16, 5],
+        'line-opacity': 0.95,
+      },
+    }, contourAnchor);
+    map.addLayer({
       id: 'local-water-lines', type: 'line', source: 'local-context',
       filter: ['==', ['get', 'kind'], 'water-line'],
       paint: { 'line-color': '#397f9f', 'line-width': ['match', ['get', 'class'], 'river', 1.5, 0.8], 'line-opacity': 0.9 },
+    }, contourAnchor);
+    map.addLayer({
+      id: 'local-water-labels', type: 'symbol', source: 'local-context',
+      filter: ['all', ['==', ['get', 'kind'], 'water'], ['!=', ['get', 'customName'], '']],
+      layout: {
+        'text-field': ['get', 'customName'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 10, 10, 16, 13],
+        'text-letter-spacing': 0.04,
+        'text-max-width': 10,
+      },
+      paint: {
+        'text-color': '#315f73',
+        'text-opacity': 0.58,
+        'text-halo-color': 'rgba(240,245,241,0.72)',
+        'text-halo-width': 1.2,
+      },
     }, contourAnchor);
   }
 
@@ -292,7 +310,7 @@ export function setupAnalysisLayers(
     { id: 'groundcover', label: coverLabel, layerIds: local && coverDisplay ? COVER_LAYER_IDS : local ? ['groundcover', 'cover-boundary-halo', 'cover-boundaries'] : ['groundcover'], visible: coverVisible, section: 'Master plan' },
     { id: 'hillshade', label: 'Terrain relief', layerIds: ['hillshade'], visible: true, section: 'Master plan' },
     { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'graded-contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
-    { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-lines'] : basemap.water, visible: true, section: 'Master plan' },
+    { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-selected', 'local-water-lines', 'local-water-labels'] : basemap.water, visible: true, section: 'Master plan' },
     { id: 'bm-roads', label: 'Roads', layerIds: local ? [...basemap.roads, 'local-roads'] : basemap.roads, visible: true, section: 'Master plan' },
     { id: 'bm-buildings', label: 'Buildings', layerIds: basemap.buildings, visible: true, section: 'Master plan' },
     { id: 'bm-labels', label: 'Labels', layerIds: basemap.labels, visible: true, section: 'Master plan' },

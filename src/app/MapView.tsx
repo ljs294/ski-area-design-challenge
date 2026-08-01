@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { setLocalContextData, setupAnalysisLayers, type LayerToggle } from './analysisLayers';
+import { setLocalContextData, setSelectedLake, setupAnalysisLayers, type LayerToggle } from './analysisLayers';
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
 import { LayerList } from './LayerPanel';
 import { GameToolbar } from './GameToolbar';
@@ -9,6 +9,7 @@ import { GameMenu } from './GameMenu';
 import { CreditsPanel } from './CreditsPanel';
 import { LiftOverview } from './LiftOverview';
 import { LiftDetail } from './LiftDetail';
+import { LakeDetail } from './LakeDetail';
 import { NetworkMap } from './NetworkMap';
 import { TrailsPanel, type TrailsTool } from './TrailsPanel';
 import { buildSkiNetwork, makeFrame, toMeters } from '../network';
@@ -56,6 +57,7 @@ import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
 import type { GameSave, RoadType, SavedLift, SavedRoad, SavedTrail, SavedTrailPart, TerrainPackageProgress, TerrainRecord } from '../types';
+import { analyzeLake, sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import {
@@ -431,6 +433,11 @@ export function MapView({
   const [pathTool, setPathTool] = useState<PathTool>({ phase: 'idle' });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
+  const [selectedLakeId, setSelectedLakeId] = useState<string | null>(null);
+  const [lakeDepthOverrides, setLakeDepthOverrides] = useState<Record<string, number>>(() =>
+    sanitizeLakeDepthOverrides(initialSave?.lakeDepthOverrides));
+  const [lakeNameOverrides, setLakeNameOverrides] = useState<Record<string, string>>(() =>
+    sanitizeLakeNameOverrides(initialSave?.lakeNameOverrides));
   // Last-used brush width, kept across arms so it persists between runs.
   const [brushWidthM, setBrushWidthM] = useState(DEFAULT_BRUSH_WIDTH_M);
   // Identifies the active construction operation for disabled controls, button
@@ -511,6 +518,10 @@ export function MapView({
   const trailPreviewPathRef = useRef<[number, number][]>([]);
   const trailBrushCursorRef = useRef<[number, number] | null>(null);
   const selectTrailRef = useRef<(id: string) => void>(() => {});
+  const selectLakeRef = useRef<(id: string) => void>(() => {});
+  const selectedLakeIdRef = useRef<string | null>(selectedLakeId);
+  const lakeDepthOverridesRef = useRef(lakeDepthOverrides);
+  const lakeNameOverridesRef = useRef(lakeNameOverrides);
   const roadsRef = useRef<SavedRoad[]>(roads);
   const roadToolRef = useRef<RoadTool>(roadTool);
   const brushWidthRef = useRef(brushWidthM);
@@ -585,6 +596,9 @@ export function MapView({
   junctionsRef.current = junctions;
   nodeToolRef.current = nodeTool;
   pathToolRef.current = pathTool;
+  selectedLakeIdRef.current = selectedLakeId;
+  lakeDepthOverridesRef.current = lakeDepthOverrides;
+  lakeNameOverridesRef.current = lakeNameOverrides;
   brushWidthRef.current = brushWidthM;
   terrainRecordRef.current = terrainRecord;
   packageStateRef.current = packageState;
@@ -695,6 +709,7 @@ export function MapView({
     setLiftTool({ phase: 'idle' });
     setSelectedLiftId(id);
     setLiftEditing(false);
+    setSelectedLakeId(null);
   };
 
   // Clicking a run opens its read-only detail, yielding any active lift tool.
@@ -706,6 +721,18 @@ export function MapView({
     setTrailTool({ phase: 'idle' });
     setSelectedTrailId(id);
     setTrailEditing(false);
+    setSelectedLakeId(null);
+  };
+
+  selectLakeRef.current = (id: string) => {
+    cancelLiftTool();
+    cancelTrailTool();
+    setSelectedLiftId(null);
+    setLiftEditing(false);
+    setSelectedTrailId(null);
+    setTrailEditing(false);
+    setOpenDock(null);
+    setSelectedLakeId(id);
   };
 
   // The actual sampler — redefined each render so it closes over fresh state.
@@ -781,7 +808,7 @@ export function MapView({
     const fresh = packageStateRef.current === 'preparing'
       ? []
       : setupAnalysisLayers(map, terrainRecordRef.current, settings.units, coverDisplayRef.current,
-        localImageryUrlRef.current, roadsRef.current);
+        localImageryUrlRef.current, roadsRef.current, lakeNameOverridesRef.current);
     const prev = layersRef.current;
     let applied = fresh.map((f) => {
       const was = prev.find((p) => p.id === f.id);
@@ -840,6 +867,7 @@ export function MapView({
       ...trailHeadPreview(trailToolRef.current) });
     addLiftLayers(map);
     setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
+    setSelectedLake(map, selectedLakeIdRef.current);
     // Toggles for the player's built structures, added once the lift/trail layers
     // exist above. Visibility is reconciled from the previous state so a restyle
     // (light↔dark) keeps whatever the player hid. Skipped while preparing (no
@@ -1044,21 +1072,22 @@ export function MapView({
     // terminal-placing clicks while a lift is being drawn. Delegated listeners
     // survive the light/dark style swap (they query at event time), so this is
     // registered once with the map.
-    const bothToolsIdle = () =>
+    const allToolsIdle = () =>
       liftToolRef.current.phase === 'idle' && trailToolRef.current.phase === 'idle' &&
-      roadToolRef.current.phase === 'idle';
+      roadToolRef.current.phase === 'idle' && nodeToolRef.current.phase === 'idle' &&
+      pathToolRef.current.phase === 'idle';
 
     const LIFT_HIT_LAYERS = ['lift-line-casing', 'lift-terminals'];
     const onLiftClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!bothToolsIdle()) return;
+      if (!allToolsIdle()) return;
       const id = e.features?.[0]?.properties?.id;
       if (typeof id === 'string') selectLiftRef.current(id);
     };
     const onLiftEnter = () => {
-      if (bothToolsIdle()) map.getCanvas().style.cursor = 'pointer';
+      if (allToolsIdle()) map.getCanvas().style.cursor = 'pointer';
     };
     const onLiftLeave = () => {
-      if (bothToolsIdle()) map.getCanvas().style.cursor = '';
+      if (allToolsIdle()) map.getCanvas().style.cursor = '';
     };
     map.on('click', LIFT_HIT_LAYERS, onLiftClick);
     map.on('mouseenter', LIFT_HIT_LAYERS, onLiftEnter);
@@ -1067,13 +1096,24 @@ export function MapView({
     // Click a run's fill to open its detail. Same idle gating so it never steals
     // a brush/terminal click.
     const onTrailClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!bothToolsIdle()) return;
+      if (!allToolsIdle()) return;
       const id = e.features?.[0]?.properties?.id;
       if (typeof id === 'string') selectTrailRef.current(id);
     };
     map.on('click', ['trail-fill'], onTrailClick);
     map.on('mouseenter', ['trail-fill'], onLiftEnter);
     map.on('mouseleave', ['trail-fill'], onLiftLeave);
+
+    const onLakeClick = (e: maplibregl.MapLayerMouseEvent) => {
+      if (!allToolsIdle()) return;
+      const priorityLayers = [...LIFT_HIT_LAYERS, 'trail-fill'].filter((id) => map.getLayer(id));
+      if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
+      const id = e.features?.[0]?.properties?.id;
+      if (typeof id === 'string') selectLakeRef.current(id);
+    };
+    map.on('click', ['local-water-fill'], onLakeClick);
+    map.on('mouseenter', ['local-water-fill'], onLiftEnter);
+    map.on('mouseleave', ['local-water-fill'], onLiftLeave);
 
     return () => {
       warmAbortRef.current?.abort();
@@ -1084,6 +1124,10 @@ export function MapView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapCanStart]);
+
+  useEffect(() => {
+    setSelectedLake(mapRef.current, selectedLakeId);
+  }, [selectedLakeId]);
 
   // A single scale bar whose unit follows the Units setting.
   useEffect(() => {
@@ -1186,8 +1230,8 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     const record = terrainRecordRef.current;
-    if (map && record) setLocalContextData(map, record, roads);
-  }, [roads]);
+    if (map && record) setLocalContextData(map, record, roads, lakeNameOverrides);
+  }, [roads, lakeNameOverrides]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2942,6 +2986,7 @@ export function MapView({
       setLayersAlongsideBuild((open) => !open);
       return;
     }
+    setSelectedLakeId(null);
     const isOpen = which === 'layers' ? layersOpen : which === 'lifts' ? liftsOpen
       : which === 'trails' ? trailsOpen : infrastructureOpen;
     if (which !== 'layers') setLayersAlongsideBuild(false);
@@ -3217,7 +3262,7 @@ export function MapView({
     const c = map.getCenter();
     const now = new Date().toISOString();
     return {
-      schemaVersion: 5,
+      schemaVersion: 7,
       key: base?.key ?? genId(),
       name: base?.name ?? (nameDraft.trim() || 'Untitled Resort'),
       mountainId: base?.mountainId,
@@ -3234,6 +3279,8 @@ export function MapView({
       nodes: skiNodesRef.current,
       paths: skiPathsRef.current,
       junctions: junctionsRef.current,
+      lakeDepthOverrides: lakeDepthOverridesRef.current,
+      lakeNameOverrides: lakeNameOverridesRef.current,
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
       lastPlayedAt: base?.lastPlayedAt,
@@ -3353,11 +3400,19 @@ export function MapView({
     return out;
   }, [network]);
   const infrastructureActive = roadTool.phase !== 'idle';
-  const liftsOpen = !!saved && (openDock === 'lifts' || liftActive);
-  const trailsOpen = !!saved && !liftsOpen && (openDock === 'trails' || trailActive);
-  const infrastructureOpen = !!saved && !liftsOpen && !trailsOpen &&
+  const selectedLakeFeature = selectedLakeId
+    ? terrainRecord?.vectorFeatures?.waterPolygons.find((lake) => lake.id === selectedLakeId) ?? null
+    : null;
+  const selectedLake = useMemo(() => selectedLakeFeature && terrainRecord
+    ? analyzeLake(selectedLakeFeature, terrainRecord, lakeDepthOverrides[selectedLakeFeature.id],
+      lakeNameOverrides[selectedLakeFeature.id])
+    : null, [selectedLakeFeature, terrainRecord, lakeDepthOverrides, lakeNameOverrides]);
+  const lakeOpen = !!saved && selectedLake !== null;
+  const liftsOpen = !!saved && !lakeOpen && (openDock === 'lifts' || liftActive);
+  const trailsOpen = !!saved && !lakeOpen && !liftsOpen && (openDock === 'trails' || trailActive);
+  const infrastructureOpen = !!saved && !lakeOpen && !liftsOpen && !trailsOpen &&
     (openDock === 'infrastructure' || infrastructureActive);
-  const layersOpen = !!saved && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
+  const layersOpen = !!saved && !lakeOpen && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
   const selectedLift = selectedLiftId ? lifts.find((l) => l.id === selectedLiftId) ?? null : null;
   const selectedTrail = selectedTrailId ? trails.find((t) => t.id === selectedTrailId) ?? null : null;
   // The gate is now the New Game preparation surface only. Resuming a saved
@@ -3568,6 +3623,33 @@ export function MapView({
         <div className="game-dock">
           <div className="dock-stack">
             <div className="dock-rollups">
+              {lakeOpen && selectedLake && (
+                <div className="dock-rollup dock-lake" data-panel="lake">
+                  <div className="dock-panel">
+                    <LakeDetail
+                      lake={selectedLake}
+                      units={settings.units}
+                      onNameOverride={(name) => {
+                        setLakeNameOverrides((current) => {
+                          const next = { ...current };
+                          if (name == null) delete next[selectedLake.id];
+                          else next[selectedLake.id] = name;
+                          return next;
+                        });
+                      }}
+                      onDepthOverride={(depthM) => {
+                        setLakeDepthOverrides((current) => {
+                          const next = { ...current };
+                          if (depthM == null) delete next[selectedLake.id];
+                          else next[selectedLake.id] = depthM;
+                          return next;
+                        });
+                      }}
+                      onClose={() => setSelectedLakeId(null)}
+                    />
+                  </div>
+                </div>
+              )}
               {layersOpen && (
               <div className="dock-rollup dock-layers">
                 {/* Contextual legend floats above the dock so switching overlays
