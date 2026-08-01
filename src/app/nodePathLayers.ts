@@ -40,6 +40,10 @@ export interface NodePathDraft {
   cursor: [number, number] | null;
   /** Candidate anchor targets to highlight while picking. */
   highlight?: [number, number][];
+  /** A target already picked but not yet committed — drawn as the dot it is
+   *  about to become, so the click leaves something on the map to look at
+   *  while the user reads the panel and decides. */
+  pick?: [number, number] | null;
 }
 
 export function nodePathsToGeoJSON(
@@ -201,6 +205,13 @@ export function nodePathDraftGeoJSON(draft: NodePathDraft | null): GeoJSON.Featu
       geometry: { type: 'Point', coordinates: point },
     });
   }
+  if (draft.pick) {
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'pick' },
+      geometry: { type: 'Point', coordinates: draft.pick },
+    });
+  }
   if (coordinates.length >= 2) {
     features.unshift({
       type: 'Feature',
@@ -249,6 +260,22 @@ export function addNodePathDraftLayers(map: maplibregl.Map): void {
       'circle-color': HIGHLIGHT_COLOR,
       'circle-opacity': 0.18,
       'circle-stroke-color': HIGHLIGHT_COLOR,
+      'circle-stroke-width': 2,
+    },
+  });
+  // The picked-but-uncommitted target, drawn on top of the hover ring as the
+  // junction dot it will become (trail-junctions, one size up). Picking and
+  // committing are separate clicks here, so between them the map has to say
+  // where the node is going — the panel alone can't point at a place.
+  map.addLayer({
+    id: 'path-draft-pick',
+    type: 'circle',
+    source: NODE_PATH_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'pick'],
+    paint: {
+      'circle-radius': 5,
+      'circle-color': HIGHLIGHT_COLOR,
+      'circle-stroke-color': '#ffffff',
       'circle-stroke-width': 2,
     },
   });

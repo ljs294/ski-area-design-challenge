@@ -1466,13 +1466,17 @@ export function MapView({
     const map = mapRef.current;
     if (!map) return;
     const highlight = snapHover ? [snapHover] : [];
+    // Add-node picks a spot on one click and commits on another, so the pick
+    // has to stay on the map in between — the hover ring moves off with the
+    // cursor, and the panel can name the run but not point at the metre.
+    const pick = nodeTool.phase === 'add' ? nodeTool.candidate?.point ?? null : null;
     const draft: NodePathDraft | null =
       pathTool.phase === 'drawing'
         ? { points: pathTool.points, cursor: pathTool.cursor, highlight }
         : pathTool.phase === 'review'
           ? { points: pathTool.points, cursor: null, highlight: [] }
           : pathTool.phase === 'armed' || nodeTool.phase !== 'idle'
-            ? { points: [], cursor: null, highlight }
+            ? { points: [], cursor: null, highlight, pick }
             : null;
     setNodePathDraftData(map, draft);
   }, [pathTool, nodeTool, snapHover]);

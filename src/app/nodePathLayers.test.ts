@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nodePathsToGeoJSON } from './nodePathLayers';
+import { nodePathDraftGeoJSON, nodePathsToGeoJSON } from './nodePathLayers';
 import type { SavedJunction } from '../skiNodes';
 
 const junction = (id: string, lng: number): SavedJunction =>
@@ -19,5 +19,21 @@ describe('nodePathsToGeoJSON', () => {
 
   it('emits nothing for a resort with no nodes, paths or pins', () => {
     expect(nodePathsToGeoJSON([], [], []).features).toEqual([]);
+  });
+});
+
+describe('nodePathDraftGeoJSON', () => {
+  // Add-node picks on one click and commits on another; the marker for the
+  // picked spot is the only thing on the map between the two.
+  it('marks a picked-but-uncommitted target separately from the hover ring', () => {
+    const features = nodePathDraftGeoJSON({
+      points: [], cursor: null, highlight: [[-121.5, 46.93]], pick: [-121.51, 46.94],
+    }).features;
+    expect(features.map((f) => f.properties?.kind)).toEqual(['highlight', 'pick']);
+    expect(features[1].geometry).toEqual({ type: 'Point', coordinates: [-121.51, 46.94] });
+  });
+
+  it('draws no pick marker before anything is picked', () => {
+    expect(nodePathDraftGeoJSON({ points: [], cursor: null, pick: null }).features).toEqual([]);
   });
 });
