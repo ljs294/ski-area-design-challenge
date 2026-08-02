@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import type { SavedLift, SavedTrail } from '../types';
+import type { SavedDam, SavedLift, SavedPond, SavedTrail } from '../types';
 import type { Units } from './SettingsContext';
 import { fmtDistance } from '../lifts';
 import { fmtArea } from '../trails';
-import { resortElevations, resortTrailTotals } from './resortStats';
+import { resortElevations, resortTrailTotals, snowmakingWaterCapacityM3 } from './resortStats';
 import { reverseGeocode } from './SearchBox';
+import { formatLakeVolume } from '../lakeAnalysis';
 
 function StatRow({ label, value, tbd }: { label: string; value: string; tbd?: boolean }) {
   return (
@@ -25,6 +26,8 @@ export function ResortStatsPanel({
   onRename,
   lifts,
   trails,
+  dams,
+  ponds,
   center,
   units,
   onClose,
@@ -33,12 +36,15 @@ export function ResortStatsPanel({
   onRename: (name: string) => void;
   lifts: SavedLift[];
   trails: SavedTrail[];
+  dams: SavedDam[];
+  ponds: SavedPond[];
   center: [number, number];
   units: Units;
   onClose: () => void;
 }) {
   const { summitM, baseM, verticalM } = resortElevations(lifts, trails);
   const runTotals = resortTrailTotals(trails);
+  const snowmakingCapacityM3 = snowmakingWaterCapacityM3(dams, ponds);
   const [location, setLocation] = useState<string | null>(null); // null = still loading
 
   const [lng, lat] = center;
@@ -87,6 +93,8 @@ export function ResortStatsPanel({
           {runTotals.count > 0 && (
             <StatRow label="Skiable area" value={fmtArea(runTotals.totalAreaM2, units)} />
           )}
+          <StatRow label="Snowmaking water capacity"
+            value={formatLakeVolume(snowmakingCapacityM3, units)} />
           <StatRow label="Avg. annual snowfall" value="TBD" tbd />
         </div>
       </div>

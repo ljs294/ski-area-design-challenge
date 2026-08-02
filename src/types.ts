@@ -420,10 +420,23 @@ export interface SavedDam {
   /** Mean crest-to-ground structural height sampled along the dam alignment. */
   averageDamHeightM?: number;
   maxDamHeightM: number;
+  /** Top of the embankment: full pool plus freeboard. Absent on dams built
+   * before the game graded them, which were a line on the map. */
+  damCrestElevationM?: number;
+  /** Deck polygon along the built stretch of the alignment. */
+  crestRing?: [number, number][];
+  /** Graded embankment footprint: outer toe ring followed by optional holes. */
+  footprintRings?: [number, number][][];
+  /** Length of alignment standing above natural ground. */
+  builtLengthM?: number;
+  disturbedAreaM2?: number;
+  earthwork?: EarthworkEstimate;
+  /** True once the embankment has been cut into the terrain package. */
+  terrainGraded?: boolean;
   createdAt: string;
 }
 
-/** A player-drawn standalone snowmaking pond. It has no natural inflow. */
+/** A player-drawn standalone pond. It has no natural inflow. */
 export interface SavedPond {
   id: string;
   name: string;
@@ -434,6 +447,23 @@ export interface SavedPond {
   averageDepthM: number;
   maxDepthM: number;
   capacityM3: number;
+  /** Whether this pond's capacity is available to the resort snowmaking system. */
+  isSnowmaking?: boolean;
+  /** How far the floor was dug below full pool. Absent on schema-v9 ponds. */
+  excavationDepthM?: number;
+  /** Top of the berm holding the pool in: full pool plus freeboard. */
+  crestElevationM?: number;
+  /** Tallest point of the berm, natural ground to crest. */
+  maxBermHeightM?: number;
+  /** Shoreline length that needed a berm rather than a cut. */
+  bermLengthM?: number;
+  maxCutDepthM?: number;
+  /** Ground area the cut and fill faces touched. */
+  disturbedAreaM2?: number;
+  /** True when construction permanently regraded the local elevation package. */
+  terrainGraded?: boolean;
+  /** Estimated volumes represented by the committed DEM edit. */
+  earthwork?: EarthworkEstimate;
   createdAt: string;
 }
 
@@ -505,7 +535,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -522,7 +552,7 @@ export interface GameSave {
   roads?: SavedRoad[];
   /** Player-built snowmaking dams. Optional for schema-v1-v7 saves. */
   dams?: SavedDam[];
-  /** Player-drawn standalone snowmaking ponds. Optional for schema-v1-v8 saves. */
+  /** Player-drawn standalone ponds. Optional for schema-v1-v8 saves. */
   ponds?: SavedPond[];
   /** Free-standing map pins. Optional so legacy saves load unchanged. */
   nodes?: SavedNode[];

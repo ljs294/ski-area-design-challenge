@@ -91,4 +91,14 @@ describe('game preview fallback storage', () => {
     await saveGame(save);
     expect((await loadGame('ponds'))?.ponds).toEqual(save.ponds);
   });
+
+  it('round-trips schema-v10 snowmaking pond designations', async () => {
+    const save: GameSave = { ...game('pond-designation', '2026-08-01T00:00:00.000Z'), schemaVersion: 10,
+      ponds: [{ id: 'pond-2', name: 'Decorative Pond',
+        boundary: [[0, 0], [0, 0.001], [0.001, 0], [0, 0]], topElevationM: 1001,
+        areaM2: 500, averageDepthM: 1, maxDepthM: 2, capacityM3: 500,
+        isSnowmaking: false, createdAt: '2026-08-01T00:00:00.000Z' }] };
+    await saveGame(save);
+    expect((await loadGame('pond-designation'))?.ponds?.[0].isSnowmaking).toBe(false);
+  });
 });

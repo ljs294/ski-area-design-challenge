@@ -1,16 +1,27 @@
-import { METERS_PER_DEGREE_LAT, unitToLngLat } from './geo';
+import { unitToLngLat } from './geo';
 import { lakeSurfaceAreaM2, pointInRing } from './lakeAnalysis';
-import type { SavedPond, TerrainRecord } from './types';
+import { designPondEarthwork, MAX_POND_BERM_HEIGHT_M,
+  MAX_POND_EXCAVATION_M } from './pondEarthwork';
+import type { EarthworkEstimate, SavedPond, TerrainRecord } from './types';
 
 export const MIN_STANDALONE_POND_AREA_M2 = 100;
 
 export interface StandalonePondAnalysis {
   boundary: [number, number][];
   topElevationM: number;
+  /** How far the floor is dug below full pool before the berm is built. */
+  excavationDepthM: number;
+  /** Top of the berm: full pool plus freeboard. */
+  crestElevationM: number;
   areaM2: number;
   averageDepthM: number;
   maxDepthM: number;
   capacityM3: number;
+  maxBermHeightM: number;
+  bermLengthM: number;
+  maxCutDepthM: number;
+  disturbedAreaM2: number;
+  earthwork: EarthworkEstimate;
 }
 
 export type StandalonePondOutcome = { ok: true; result: StandalonePondAnalysis } |
@@ -18,6 +29,10 @@ export type StandalonePondOutcome = { ok: true; result: StandalonePondAnalysis }
 
 function validElevation(value: number): boolean {
   return Number.isFinite(value) && value > -1000 && value < 10000;
+}
+
+function finiteOrUndefined(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function validPoint(value: unknown): value is [number, number] {
@@ -71,7 +86,13 @@ function sampleTerrain(record: TerrainRecord, point: [number, number]): number |
     (values[2] * (1 - tx) + values[3] * tx) * ty;
 }
 
-/** Suggest a useful first value while leaving the final full-pool elevation user-controlled. */
+/**
+ * Suggest a useful first value while leaving the final full-pool elevation
+ * user-controlled. Mean ground inside the boundary is the balanced starting
+ * point: on a hillside the uphill half is cut and the downhill half becomes
+ * berm, which is how a pond gets sited. Setting it to the high point instead
+ * would ask for a dam as tall as the slope the player drew across.
+ */
 export function suggestedPondTopElevationM(record: TerrainRecord, points: [number, number][]): number | null {
   const bounds = record.bounds, n = record.sampleGridSize;
   if (!bounds || n < 2 || record.sampleHeights.length !== n * n) return null;
@@ -82,30 +103,40 @@ export function suggestedPondTopElevationM(record: TerrainRecord, points: [numbe
   const x1 = Math.min(n - 1, Math.ceil((Math.max(...lngs) - bounds.west) / (bounds.east - bounds.west) * (n - 1)));
   const y0 = Math.max(0, Math.floor((bounds.north - Math.max(...lats)) / (bounds.north - bounds.south) * (n - 1)));
   const y1 = Math.min(n - 1, Math.ceil((bounds.north - Math.min(...lats)) / (bounds.north - bounds.south) * (n - 1)));
-  let highest = -Infinity;
+  let sumM = 0, samples = 0;
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
     const point = unitToLngLat(x / (n - 1), y / (n - 1), bounds);
     if (!pointInRing(point, ring)) continue;
     const elevation = record.sampleHeights[y * n + x];
-    if (validElevation(elevation)) highest = Math.max(highest, elevation);
+    if (validElevation(elevation)) { sumM += elevation; samples++; }
   }
-  if (!Number.isFinite(highest)) {
+  if (samples === 0) {
     const center: [number, number] = [points.reduce((sum, point) => sum + point[0], 0) / points.length,
       points.reduce((sum, point) => sum + point[1], 0) / points.length];
     for (const point of [...points, center]) {
       const elevation = sampleTerrain(record, point);
-      if (elevation != null) highest = Math.max(highest, elevation);
+      if (elevation != null) { sumM += elevation; samples++; }
     }
   }
-  return Number.isFinite(highest) ? Math.ceil(highest * 2) / 2 + 1 : null;
+  // The extra metre keeps a pond on genuinely flat ground from starting dry.
+  return samples > 0 ? Math.ceil(sumM / samples * 2) / 2 + 1 : null;
 }
 
+/**
+ * Full pond design: the pool the player drew, the berm that holds it in, and
+ * the earthwork bill for both. Depths and volume are measured on the *graded*
+ * surface, so the numbers describe the pond that will exist after construction
+ * rather than the natural hollow it started from.
+ */
 export function analyzeStandalonePond(record: TerrainRecord, points: [number, number][],
-  topElevationM: number): StandalonePondOutcome {
+  topElevationM: number, excavationDepthM = 0): StandalonePondOutcome {
   const bounds = record.bounds, n = record.sampleGridSize;
   if (!bounds || n < 2 || record.sampleHeights.length !== n * n)
     return { ok: false, error: 'Terrain coverage is unavailable for this pond.' };
   if (!validElevation(topElevationM)) return { ok: false, error: 'Enter a valid top-of-pond elevation.' };
+  if (!Number.isFinite(excavationDepthM) || excavationDepthM < 0 ||
+    excavationDepthM > MAX_POND_EXCAVATION_M)
+    return { ok: false, error: `Enter an excavation depth between 0 and ${MAX_POND_EXCAVATION_M} m.` };
   if (!pondBoundaryIsSimple(points))
     return { ok: false, error: 'Draw a boundary with at least three points that does not cross itself.' };
   const boundary = closedBoundary(points);
@@ -115,50 +146,40 @@ export function analyzeStandalonePond(record: TerrainRecord, points: [number, nu
   if (areaM2 < MIN_STANDALONE_POND_AREA_M2)
     return { ok: false, error: 'This pond is too small. Draw a boundary of at least 100 m².' };
 
-  const centerLat = (bounds.north + bounds.south) / 2;
-  const gridWidthM = (bounds.east - bounds.west) * METERS_PER_DEGREE_LAT * Math.cos(centerLat * Math.PI / 180);
-  const gridHeightM = (bounds.north - bounds.south) * METERS_PER_DEGREE_LAT;
-  const cellAreaM2 = gridWidthM * gridHeightM / ((n - 1) * (n - 1));
-  const lngs = boundary.map((point) => point[0]), lats = boundary.map((point) => point[1]);
-  const x0 = Math.max(0, Math.floor((Math.min(...lngs) - bounds.west) / (bounds.east - bounds.west) * (n - 1)));
-  const x1 = Math.min(n - 2, Math.ceil((Math.max(...lngs) - bounds.west) / (bounds.east - bounds.west) * (n - 1)));
-  const y0 = Math.max(0, Math.floor((bounds.north - Math.max(...lats)) / (bounds.north - bounds.south) * (n - 1)));
-  const y1 = Math.min(n - 2, Math.ceil((bounds.north - Math.min(...lats)) / (bounds.north - bounds.south) * (n - 1)));
-  let validCells = 0, coveredCells = 0, depthSumM = 0, maxDepthM = 0;
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const center = unitToLngLat((x + 0.5) / (n - 1), (y + 0.5) / (n - 1), bounds);
-    if (!pointInRing(center, boundary)) continue;
-    coveredCells++;
-    const corners = [record.sampleHeights[y * n + x], record.sampleHeights[y * n + x + 1],
-      record.sampleHeights[(y + 1) * n + x], record.sampleHeights[(y + 1) * n + x + 1]];
-    if (!corners.every(validElevation)) continue;
-    validCells++;
-    const groundM = corners.reduce((sum, value) => sum + value, 0) / 4;
-    const depthM = Math.max(0, topElevationM - groundM);
-    depthSumM += depthM;
-    maxDepthM = Math.max(maxDepthM, depthM);
-  }
-  if (coveredCells > 0 && validCells / coveredCells < 0.8)
+  const design = designPondEarthwork(record, boundary,
+    { topElevationM, excavationDepthM, poolAreaM2: areaM2 });
+  if (!design) return { ok: false, error: 'Terrain coverage is unavailable for this pond.' };
+  if (design.coveredSamples > 0 && design.validSamples / design.coveredSamples < 0.8)
     return { ok: false, error: 'The pond boundary does not have enough valid terrain coverage.' };
-  if (coveredCells === 0) {
+  if (design.truncated)
+    return { ok: false, error: 'The berm cannot reach natural ground inside the available terrain. Lower the top of pond or draw a smaller boundary.' };
+  if (design.maxBermHeightM > MAX_POND_BERM_HEIGHT_M)
+    return { ok: false, error: `This pond needs a ${Math.round(design.maxBermHeightM)} m berm. Keep it under ${MAX_POND_BERM_HEIGHT_M} m — lower the top of pond, or dam a stream instead.` };
+
+  const shared = {
+    boundary, topElevationM, excavationDepthM: design.excavationDepthM,
+    crestElevationM: design.crestElevationM, areaM2,
+    maxBermHeightM: design.maxBermHeightM, bermLengthM: design.bermLengthM,
+    maxCutDepthM: design.maxCutDepthM, disturbedAreaM2: design.disturbedAreaM2,
+    earthwork: { cutM3: design.cutM3, fillM3: design.fillM3, balanceM3: design.balanceM3 },
+  };
+  // A pond smaller than the elevation grid encloses no sample. Fall back to a
+  // single interpolated reading at its centre so tiny ponds still price out.
+  if (design.coveredSamples === 0) {
     const openBoundary = boundary.slice(0, -1);
     const center: [number, number] = [openBoundary.reduce((sum, point) => sum + point[0], 0) / openBoundary.length,
       openBoundary.reduce((sum, point) => sum + point[1], 0) / openBoundary.length];
     const groundM = sampleTerrain(record, center);
     if (groundM == null) return { ok: false, error: 'The pond boundary does not have enough valid terrain coverage.' };
-    const depthM = Math.max(0, topElevationM - groundM);
+    const depthM = Math.max(0, topElevationM - Math.min(groundM, topElevationM - excavationDepthM));
     if (depthM < 0.1) return { ok: false, error: 'Raise the top elevation above the ground inside the pond.' };
-    return { ok: true, result: { boundary, topElevationM, areaM2,
+    return { ok: true, result: { ...shared,
       averageDepthM: depthM, maxDepthM: depthM, capacityM3: areaM2 * depthM } };
   }
-  // Scale the grid integration to the geodesic boundary area so coarse grids
-  // do not make saved area and volume disagree at small pond sizes.
-  const sampledAreaM2 = validCells * cellAreaM2;
-  const capacityM3 = sampledAreaM2 > 0 ? depthSumM * cellAreaM2 * areaM2 / sampledAreaM2 : 0;
-  if (capacityM3 <= 1 || maxDepthM < 0.1)
+  if (design.capacityM3 <= 1 || design.maxDepthM < 0.1)
     return { ok: false, error: 'Raise the top elevation above the ground inside the pond.' };
-  return { ok: true, result: { boundary, topElevationM, areaM2,
-    averageDepthM: capacityM3 / areaM2, maxDepthM, capacityM3 } };
+  return { ok: true, result: { ...shared, averageDepthM: design.averageDepthM,
+    maxDepthM: design.maxDepthM, capacityM3: design.capacityM3 } };
 }
 
 export function sanitizePonds(raw: unknown[]): SavedPond[] {
@@ -173,11 +194,27 @@ export function sanitizePonds(raw: unknown[]): SavedPond[] {
     const numeric = ['topElevationM', 'areaM2', 'averageDepthM', 'maxDepthM', 'capacityM3'];
     if (numeric.some((key) => typeof value[key] !== 'number' || !Number.isFinite(value[key]) ||
       (key !== 'topElevationM' && (value[key] as number) <= 0))) continue;
+    const earthwork = value.earthwork as Record<string, unknown> | undefined;
     ponds.push({ id: value.id, name: value.name,
       boundary: closedBoundary(value.boundary as [number, number][]),
       topElevationM: value.topElevationM as number, areaM2: value.areaM2 as number,
       averageDepthM: value.averageDepthM as number, maxDepthM: value.maxDepthM as number,
       capacityM3: value.capacityM3 as number,
+      // Schema-v9 ponds were all described as snowmaking ponds.
+      isSnowmaking: typeof value.isSnowmaking === 'boolean' ? value.isSnowmaking : true,
+      // Grading fields arrived with schema v10; ponds built before it kept the
+      // natural hollow they were drawn on.
+      excavationDepthM: finiteOrUndefined(value.excavationDepthM),
+      crestElevationM: finiteOrUndefined(value.crestElevationM),
+      maxBermHeightM: finiteOrUndefined(value.maxBermHeightM),
+      bermLengthM: finiteOrUndefined(value.bermLengthM),
+      maxCutDepthM: finiteOrUndefined(value.maxCutDepthM),
+      disturbedAreaM2: finiteOrUndefined(value.disturbedAreaM2),
+      terrainGraded: value.terrainGraded === true ? true : undefined,
+      earthwork: earthwork && ['cutM3', 'fillM3', 'balanceM3'].every((key) =>
+        typeof earthwork[key] === 'number' && Number.isFinite(earthwork[key]))
+        ? { cutM3: earthwork.cutM3 as number, fillM3: earthwork.fillM3 as number,
+          balanceM3: earthwork.balanceM3 as number } : undefined,
       createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString() });
   }
   return ponds;

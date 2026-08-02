@@ -28,6 +28,38 @@ describe('standalone pond analysis', () => {
       outcome.result.areaM2 * outcome.result.averageDepthM, 6);
   });
 
+  it('reports the berm crest and an earthwork bill', () => {
+    const record = terrain(Array(25).fill(100));
+    const outcome = analyzeStandalonePond(record, boundary, 102);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.result.crestElevationM).toBeCloseTo(102.6, 6);
+    expect(outcome.result.excavationDepthM).toBe(0);
+    expect(outcome.result.bermLengthM).toBeGreaterThan(0); // every shoreline is low
+    expect(outcome.result.earthwork.balanceM3).toBeCloseTo(
+      outcome.result.earthwork.cutM3 - outcome.result.earthwork.fillM3, 6);
+  });
+
+  it('trades excavation for imported fill', () => {
+    const record = terrain(Array(25).fill(100));
+    const shallow = analyzeStandalonePond(record, boundary, 102);
+    const dug = analyzeStandalonePond(record, boundary, 102, 4);
+    expect(shallow.ok && dug.ok).toBe(true);
+    if (!shallow.ok || !dug.ok) return;
+    expect(dug.result.excavationDepthM).toBe(4);
+    expect(dug.result.earthwork.cutM3).toBeGreaterThan(shallow.result.earthwork.cutM3);
+    expect(dug.result.capacityM3).toBeGreaterThan(shallow.result.capacityM3);
+    expect(dug.result.earthwork.balanceM3).toBeGreaterThan(shallow.result.earthwork.balanceM3);
+  });
+
+  it('refuses a berm past earth-fill height', () => {
+    const record = terrain(Array.from({ length: 25 }, (_, index) => 100 + (index % 5) * 40));
+    const outcome = analyzeStandalonePond(record, boundary, 200);
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.error).toMatch(/berm/);
+  });
+
   it('suggests a top elevation above the enclosed terrain', () => {
     const record = terrain(Array(25).fill(100));
     expect(suggestedPondTopElevationM(record, boundary)).toBe(101);
@@ -45,5 +77,7 @@ describe('standalone pond analysis', () => {
       areaM2: 500, averageDepthM: 1, maxDepthM: 2, capacityM3: 500, createdAt: 'now' };
     expect(sanitizePonds([valid, { ...valid, id: 4 }])).toHaveLength(1);
     expect(sanitizePonds([valid])[0].boundary[0]).toEqual(sanitizePonds([valid])[0].boundary.at(-1));
+    expect(sanitizePonds([valid])[0].isSnowmaking).toBe(true);
+    expect(sanitizePonds([{ ...valid, isSnowmaking: false }])[0].isSnowmaking).toBe(false);
   });
 });

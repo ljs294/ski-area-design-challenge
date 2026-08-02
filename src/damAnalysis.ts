@@ -1,6 +1,8 @@
 import { maskToPolygons } from './coverPolygons';
+import { designDamEmbankment, MAX_DAM_HEIGHT_M } from './damEarthwork';
+import { localMeters, segmentOffset, terrainMetrics } from './earthwork';
 import { haversineMeters, lngLatToUnit, METERS_PER_DEGREE_LAT, unitToLngLat } from './geo';
-import type { SavedDam, TerrainRecord, WaterLineFeature } from './types';
+import type { EarthworkEstimate, SavedDam, TerrainRecord, WaterLineFeature } from './types';
 
 export const DEFAULT_STREAM_WIDTH_M = 3;
 export const DEFAULT_RIVER_WIDTH_M = 15;
@@ -26,6 +28,17 @@ export interface DamAnalysisResult {
   capacityM3: number;
   averageDamHeightM: number;
   maxDamHeightM: number;
+  /** Top of the embankment: full pool plus freeboard. */
+  damCrestElevationM: number;
+  /** Deck polygon along the built stretch of the alignment. */
+  crestRing: [number, number][];
+  /** Length of alignment standing above natural ground. */
+  builtLengthM: number;
+  disturbedAreaM2: number;
+  earthwork: EarthworkEstimate;
+  /** Elevation edits the embankment commits to the terrain package. */
+  patchIndices: Uint32Array;
+  patchHeights: Float32Array;
   crossing: DamStreamCrossing;
   sourceWidthM: number;
   inflowM3s: number;
@@ -54,6 +67,17 @@ export function gameplayStreamFlowM3s(widthM: number): number {
 
 export function damFillTimeSeconds(capacityM3: number, inflowM3s: number): number {
   return capacityM3 > 0 && inflowM3s > 0 ? capacityM3 / inflowM3s : Infinity;
+}
+
+/**
+ * Ground elevation on the core sample grid. The dam tool takes full pool from
+ * this rather than the surround-blended resort sampler, so the clicked bank,
+ * the snapped opposite bank, and the surface the pond is flooded over are all
+ * the same grid.
+ */
+export function damCrestElevationAt(record: TerrainRecord,
+  point: [number, number]): number | null {
+  return sample(record, point);
 }
 
 function sample(record: TerrainRecord, point: [number, number]): number | null {
@@ -141,9 +165,22 @@ function gridPoint(record: TerrainRecord, point: [number, number]): [number, num
 }
 
 function markBarrier(mask: Uint8Array, n: number, a: [number, number], b: [number, number]): void {
-  const steps = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * 2));
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const length = Math.max(0.001, Math.hypot(dx, dy));
+  // Delineation uses the full cross-valley plane. The clicked endpoints are
+  // where the structure meets equal-height banks, but stopping the raster wall
+  // there lets a flood route around a sub-cell contour endpoint, onto the
+  // downstream side, and then all the way to the terrain boundary. Extending
+  // the same plane to the raster edge only blocks that impossible downstream
+  // detour; a genuinely uncontained upstream basin still reaches one of the
+  // boundary edges on its own side and is rejected.
+  const extension = n * 2;
+  const start: [number, number] = [a[0] - dx / length * extension, a[1] - dy / length * extension];
+  const end: [number, number] = [b[0] + dx / length * extension, b[1] + dy / length * extension];
+  const steps = Math.max(1, Math.ceil(Math.hypot(end[0] - start[0], end[1] - start[1]) * 2));
   for (let i = 0; i <= steps; i++) {
-    const t = i / steps, x = Math.round(a[0] + (b[0] - a[0]) * t), y = Math.round(a[1] + (b[1] - a[1]) * t);
+    const t = i / steps, x = Math.round(start[0] + (end[0] - start[0]) * t),
+      y = Math.round(start[1] + (end[1] - start[1]) * t);
     for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
       const px = x + ox, py = y + oy;
       if (px >= 0 && px < n && py >= 0 && py < n) mask[py * n + px] = 1;
@@ -151,18 +188,55 @@ function markBarrier(mask: Uint8Array, n: number, a: [number, number], b: [numbe
   }
 }
 
-function seedFor(record: TerrainRecord, crossing: DamStreamCrossing, crest: number): [number, number] | null {
-  const a = crossing.stream.points[crossing.segmentIndex];
-  const b = crossing.stream.points[crossing.segmentIndex + 1];
-  const before: [number, number] = [a[0] + (b[0] - a[0]) * Math.max(0, crossing.segmentT - 0.12),
-    a[1] + (b[1] - a[1]) * Math.max(0, crossing.segmentT - 0.12)];
-  const after: [number, number] = [a[0] + (b[0] - a[0]) * Math.min(1, crossing.segmentT + 0.12),
-    a[1] + (b[1] - a[1]) * Math.min(1, crossing.segmentT + 0.12)];
-  const beforeH = sample(record, before), afterH = sample(record, after);
-  // OSM waterways are digitized downstream, so `before` is the deterministic fallback.
-  const useAfter = beforeH != null && afterH != null && afterH > beforeH + 0.25;
+function pointAlongStream(crossing: DamStreamCrossing, direction: -1 | 1,
+  distanceM: number): [number, number] {
+  const points = crossing.stream.points;
+  let segment = crossing.segmentIndex;
+  let current = crossing.point;
+  let target = direction < 0 ? points[segment] : points[segment + 1];
+  let remaining = distanceM;
+  while (true) {
+    const length = haversineMeters(current, target);
+    if (length >= remaining && length > 0) {
+      const t = remaining / length;
+      return [current[0] + (target[0] - current[0]) * t,
+        current[1] + (target[1] - current[1]) * t];
+    }
+    remaining -= length;
+    current = target;
+    segment += direction;
+    const nextIndex = direction < 0 ? segment : segment + 1;
+    if (nextIndex < 0 || nextIndex >= points.length) return current;
+    target = points[nextIndex];
+  }
+}
+
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  values.sort((a, b) => a - b);
+  const middle = Math.floor(values.length / 2);
+  return values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2;
+}
+
+/** Robustly choose the rising (upstream) direction across several DEM samples. */
+function upstreamDirection(record: TerrainRecord, crossing: DamStreamCrossing): -1 | 1 {
+  const elevations = (direction: -1 | 1) => median([20, 50, 100]
+    .map((distance) => sample(record, pointAlongStream(crossing, direction, distance)))
+    .filter((value): value is number => value != null));
+  const beforeM = elevations(-1), afterM = elevations(1);
+  if (beforeM != null && afterM != null && Math.abs(afterM - beforeM) > 0.25)
+    return afterM > beforeM ? 1 : -1;
+  // OSM commonly follows downstream order, but only use that convention when
+  // the wider terrain signal really is flat or unavailable.
+  return -1;
+}
+
+function seedFor(record: TerrainRecord, crossing: DamStreamCrossing, crest: number,
+  barrier: Uint8Array): [number, number] | null {
+  const direction = upstreamDirection(record, crossing);
+  const upstream = pointAlongStream(crossing, direction, 50);
   const [crossX, crossY] = gridPoint(record, crossing.point);
-  const target = gridPoint(record, useAfter ? b : a);
+  const target = gridPoint(record, upstream);
   const vectorX = target[0] - crossX, vectorY = target[1] - crossY;
   const vectorLength = Math.max(0.001, Math.hypot(vectorX, vectorY));
   // Start several cells upstream so the three-cell dam barrier cannot swallow
@@ -174,87 +248,153 @@ function seedFor(record: TerrainRecord, crossing: DamStreamCrossing, crest: numb
   for (let radius = 0; radius <= 8; radius++) for (let oy = -radius; oy <= radius; oy++) {
     for (let ox = -radius; ox <= radius; ox++) {
       const x = ix + ox, y = iy + oy;
-      if (x >= 0 && x < n && y >= 0 && y < n && validElevation(record.sampleHeights[y * n + x]) &&
-        record.sampleHeights[y * n + x] <= crest + 0.25)
+      const index = y * n + x;
+      const upstreamDistance = ((x - crossX) * vectorX + (y - crossY) * vectorY) / vectorLength;
+      if (x >= 0 && x < n && y >= 0 && y < n && upstreamDistance >= 2 && !barrier[index] &&
+        validElevation(record.sampleHeights[index]) &&
+        record.sampleHeights[y * n + x] <= crest)
         return [x, y];
     }
   }
   return null;
 }
 
+interface Basin {
+  filled: Uint8Array;
+  cells: number;
+  depthSumM: number;
+  maxDepthM: number;
+  escaped: boolean;
+  /** Deepest cell in the basin — the seed that survives the embankment. */
+  lowestIndex: number;
+}
+
+/** Flood the terrain behind the alignment up to full pool. */
+function floodBasin(heights: ArrayLike<number>, n: number, barrier: Uint8Array,
+  start: number, waterElevationM: number): Basin {
+  const filled = new Uint8Array(n * n);
+  const queue = new Int32Array(n * n);
+  let head = 0, tail = 0, escaped = false, depthSumM = 0, maxDepthM = 0;
+  let lowestIndex = start;
+  filled[start] = 1; queue[tail++] = start;
+  while (head < tail) {
+    const index = queue[head++], x = index % n, y = Math.floor(index / n);
+    if (x === 0 || y === 0 || x === n - 1 || y === n - 1) escaped = true;
+    const depth = Math.max(0, waterElevationM - heights[index]);
+    depthSumM += depth;
+    if (depth > maxDepthM) { maxDepthM = depth; lowestIndex = index; }
+    const neighbours = [index - 1, index + 1, index - n, index + n];
+    for (const next of neighbours) {
+      const nx = next % n, ny = Math.floor(next / n);
+      if (next < 0 || next >= filled.length || Math.abs(nx - x) + Math.abs(ny - y) !== 1) continue;
+      const height = heights[next];
+      // Strictly the water surface: full pool sits on the contour the player
+      // clicked, so any over-tolerance here is a band of cells at bank height
+      // that the flood can creep along and off the edge of the raster.
+      if (!filled[next] && !barrier[next] && validElevation(height) && height <= waterElevationM) {
+        filled[next] = 1; queue[tail++] = next;
+      }
+    }
+  }
+  return { filled, cells: tail, depthSumM, maxDepthM, escaped, lowestIndex };
+}
+
+/**
+ * Full dam design: the embankment that holds the water back, and the pond it
+ * impounds. The reservoir is delineated twice — once on natural ground to find
+ * the basin and which flank of the alignment it sits on, then again on the
+ * graded surface, so the reported shoreline and capacity describe the pond that
+ * will exist once the dam is built rather than the bare valley it started as.
+ *
+ * `crestElevationM` is full pool, taken from the snapped alignment; the
+ * structure itself is graded a freeboard above it.
+ */
 export function analyzeDam(record: TerrainRecord, points: [[number, number], [number, number]],
   crestElevationM: number, streams: WaterLineFeature[]): DamAnalysisOutcome {
   const bounds = record.bounds, n = record.sampleGridSize;
-  if (!bounds || n < 2 || record.sampleHeights.length !== n * n)
+  const metrics = terrainMetrics(record);
+  if (!bounds || !metrics || n < 2 || record.sampleHeights.length !== n * n)
     return { ok: false, error: 'Terrain coverage is unavailable for this dam.' };
   const crossings = damStreamCrossings(points, streams);
   if (crossings.length !== 1) return { ok: false, error: crossings.length === 0
     ? 'The dam must cross one stream.' : 'The dam cannot cross more than one stream.' };
   const barrier = new Uint8Array(n * n);
   markBarrier(barrier, n, gridPoint(record, points[0]), gridPoint(record, points[1]));
-  const seed = seedFor(record, crossings[0], crestElevationM);
+  const seed = seedFor(record, crossings[0], crestElevationM, barrier);
   if (!seed) return { ok: false, error: 'The upstream pond basin could not be located.' };
-  const filled = new Uint8Array(n * n);
-  const queue = new Int32Array(n * n);
-  let head = 0, tail = 0, escaped = false;
   const start = seed[1] * n + seed[0];
   if (barrier[start]) return { ok: false, error: 'The dam is too short to separate the upstream basin.' };
-  filled[start] = 1; queue[tail++] = start;
-  let depthSum = 0, maxDepth = 0;
-  while (head < tail) {
-    const index = queue[head++], x = index % n, y = Math.floor(index / n);
-    if (x === 0 || y === 0 || x === n - 1 || y === n - 1) escaped = true;
-    const depth = Math.max(0, crestElevationM - record.sampleHeights[index]);
-    depthSum += depth; maxDepth = Math.max(maxDepth, depth);
-    const neighbours = [index - 1, index + 1, index - n, index + n];
-    for (const next of neighbours) {
-      const nx = next % n, ny = Math.floor(next / n);
-      if (next < 0 || next >= filled.length || Math.abs(nx - x) + Math.abs(ny - y) !== 1) continue;
-      const height = record.sampleHeights[next];
-      if (!filled[next] && !barrier[next] && validElevation(height) && height <= crestElevationM + 0.25) {
-        filled[next] = 1; queue[tail++] = next;
-      }
-    }
+  const natural = floodBasin(record.sampleHeights, n, barrier, start, crestElevationM);
+  if (natural.escaped) return { ok: false, error: 'Full pool at this bank backs water past the edge of the available terrain. Pick a lower point on the bank, or move the dam upstream.' };
+
+  // The basin tells the embankment which face is the wet one.
+  const a = localMeters(metrics, points[0]), b = localMeters(metrics, points[1]);
+  const seedX = (natural.lowestIndex % n) * metrics.dxM;
+  const seedY = Math.floor(natural.lowestIndex / n) * metrics.dyM;
+  const seedSide = segmentOffset(a, b, seedX, seedY).side;
+  const embankment = designDamEmbankment(record, points, crestElevationM,
+    seedSide === 0 ? 1 : seedSide);
+  if (!embankment) return { ok: false, error: 'The dam embankment could not be graded into this terrain.' };
+  if (embankment.truncated)
+    return { ok: false, error: 'The embankment cannot reach natural ground inside the available terrain. Move the dam to a narrower crossing or lower the crest.' };
+  if (embankment.maxHeightM > MAX_DAM_HEIGHT_M)
+    return { ok: false, error: `This dam would stand ${Math.round(embankment.maxHeightM)} m tall. Keep it under ${MAX_DAM_HEIGHT_M} m — lower the crest or find a narrower crossing.` };
+
+  // Re-delineate against the built surface. The deepest *natural* cell is the
+  // thalweg right at the alignment, which the upstream face buries on any grid
+  // finer than a few metres, so seed from the deepest cell that is still under
+  // water once the embankment is in — one seed, so the pond stays one body.
+  const graded = Float32Array.from(record.sampleHeights);
+  for (let i = 0; i < embankment.patchIndices.length; i++)
+    graded[embankment.patchIndices[i]] = embankment.patchHeights[i];
+  let seedIndex = -1, deepestM = 0;
+  for (let i = 0; i < graded.length; i++) {
+    if (!natural.filled[i]) continue;
+    const depthM = crestElevationM - graded[i];
+    if (depthM > deepestM) { deepestM = depthM; seedIndex = i; }
   }
-  if (escaped) return { ok: false, error: 'The pond is not contained within the available terrain.' };
-  const centerLat = (bounds.north + bounds.south) / 2;
-  const widthM = (bounds.east - bounds.west) * METERS_PER_DEGREE_LAT * Math.cos(centerLat * Math.PI / 180);
-  const heightM = (bounds.north - bounds.south) * METERS_PER_DEGREE_LAT;
-  const cellAreaM2 = widthM * heightM / ((n - 1) * (n - 1));
-  const areaM2 = tail * cellAreaM2;
-  const capacityM3 = depthSum * cellAreaM2;
-  if (areaM2 < MIN_POND_AREA_M2 || capacityM3 <= 1 || maxDepth <= 0.1)
+  if (seedIndex < 0)
+    return { ok: false, error: 'The embankment fills the basin it would impound. Move the dam to a narrower crossing.' };
+  // The graded surface only ever rises, so this basin is a subset of the
+  // natural one and cannot reach an edge the natural flood did not.
+  const pool = floodBasin(graded, n, barrier, seedIndex, crestElevationM);
+
+  const areaM2 = pool.cells * metrics.cellAreaM2;
+  const capacityM3 = pool.depthSumM * metrics.cellAreaM2;
+  if (areaM2 < MIN_POND_AREA_M2 || capacityM3 <= 1 || pool.maxDepthM <= 0.1)
     return { ok: false, error: 'This alignment does not create a usable pond.' };
-  const polygons = maskToPolygons(filled, n, { blurRadius: 0, blurIterations: 0,
+  const polygons = maskToPolygons(pool.filled, n, { blurRadius: 0, blurIterations: 0,
     simplifyTol: 1, minAreaCells: 4 });
   if (!polygons.length) return { ok: false, error: 'The pond boundary could not be generated.' };
   const largest = polygons.reduce((best, value) => value.outer.length > best.outer.length ? value : best);
   const pondRings = [largest.outer, ...largest.holes].map((ring) => ring.map(([x, y]) =>
     unitToLngLat(x / (n - 1), y / (n - 1), bounds)));
-  let maxDamHeightM = 0;
-  let damHeightSumM = 0;
-  let damHeightSamples = 0;
-  for (let i = 0; i <= 64; i++) {
-    const t = i / 64;
-    const point: [number, number] = [points[0][0] + (points[1][0] - points[0][0]) * t,
-      points[0][1] + (points[1][1] - points[0][1]) * t];
-    const height = sample(record, point);
-    if (height != null) {
-      const structuralHeightM = Math.max(0, crestElevationM - height);
-      maxDamHeightM = Math.max(maxDamHeightM, structuralHeightM);
-      damHeightSumM += structuralHeightM;
-      damHeightSamples++;
-    }
-  }
-  const averageDamHeightM = damHeightSamples > 0 ? damHeightSumM / damHeightSamples : 0;
   const sourceWidthM = effectiveWaterwayWidthM(crossings[0].stream);
   return { ok: true, result: { pondRings, areaM2, averageDepthM: capacityM3 / areaM2,
-    capacityM3, averageDamHeightM, maxDamHeightM, crossing: crossings[0], sourceWidthM,
+    capacityM3, averageDamHeightM: embankment.averageHeightM,
+    maxDamHeightM: embankment.maxHeightM,
+    damCrestElevationM: embankment.crestElevationM,
+    crestRing: embankment.crestRing,
+    builtLengthM: embankment.builtLengthM,
+    disturbedAreaM2: embankment.disturbedAreaM2,
+    earthwork: { cutM3: embankment.cutM3, fillM3: embankment.fillM3,
+      balanceM3: embankment.balanceM3 },
+    patchIndices: embankment.patchIndices, patchHeights: embankment.patchHeights,
+    crossing: crossings[0], sourceWidthM,
     inflowM3s: gameplayStreamFlowM3s(sourceWidthM) } };
 }
 
 function validPoint(value: unknown): value is [number, number] {
   return Array.isArray(value) && value.length === 2 && value.every((v) => typeof v === 'number' && Number.isFinite(v));
+}
+
+function finiteOrUndefined(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function ringOrUndefined(value: unknown): [number, number][] | undefined {
+  return Array.isArray(value) && value.length >= 4 && value.every(validPoint)
+    ? value as [number, number][] : undefined;
 }
 
 export function sanitizeDams(raw: unknown[]): SavedDam[] {
@@ -268,6 +408,7 @@ export function sanitizeDams(raw: unknown[]): SavedDam[] {
     if (typeof value.crestElevationM !== 'number' || !Number.isFinite(value.crestElevationM)) continue;
     const positive = ['sourceWidthM', 'inflowM3s', 'areaM2', 'averageDepthM', 'capacityM3'];
     if (positive.some((key) => typeof value[key] !== 'number' || !Number.isFinite(value[key]) || (value[key] as number) <= 0)) continue;
+    const earthwork = value.earthwork as Record<string, unknown> | undefined;
     dams.push({ id: value.id, name: value.name, points: value.points as SavedDam['points'],
       crestElevationM: value.crestElevationM as number, streamId: typeof value.streamId === 'string' ? value.streamId : '',
       streamName: typeof value.streamName === 'string' ? value.streamName : 'Unnamed stream',
@@ -278,6 +419,20 @@ export function sanitizeDams(raw: unknown[]): SavedDam[] {
         ? Math.max(0, value.averageDamHeightM) : undefined,
       maxDamHeightM: typeof value.maxDamHeightM === 'number' && Number.isFinite(value.maxDamHeightM)
         ? Math.max(0, value.maxDamHeightM) : 0,
+      // Embankment fields arrived with schema v10; dams saved before it were a
+      // crest line on the map and never regraded the terrain.
+      damCrestElevationM: finiteOrUndefined(value.damCrestElevationM),
+      crestRing: ringOrUndefined(value.crestRing),
+      footprintRings: Array.isArray(value.footprintRings) &&
+        value.footprintRings.every((ring) => Array.isArray(ring) && ring.every(validPoint))
+        ? value.footprintRings as [number, number][][] : undefined,
+      builtLengthM: finiteOrUndefined(value.builtLengthM),
+      disturbedAreaM2: finiteOrUndefined(value.disturbedAreaM2),
+      terrainGraded: value.terrainGraded === true ? true : undefined,
+      earthwork: earthwork && ['cutM3', 'fillM3', 'balanceM3'].every((key) =>
+        typeof earthwork[key] === 'number' && Number.isFinite(earthwork[key]))
+        ? { cutM3: earthwork.cutM3 as number, fillM3: earthwork.fillM3 as number,
+          balanceM3: earthwork.balanceM3 as number } : undefined,
       createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString() });
   }
   return dams;

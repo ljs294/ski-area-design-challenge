@@ -3,6 +3,9 @@ import type { EarthworkEstimate, RoadType, SavedDam, SavedPond, SavedRoad } from
 import { damFillTimeSeconds } from '../damAnalysis';
 import { formatLakeDepth, formatLakeVolume } from '../lakeAnalysis';
 import { fmtDistance } from '../lifts';
+import { MAX_POND_EXCAVATION_M, POND_CREST_WIDTH_M, POND_FREEBOARD_M,
+  POND_INNER_SLOPE, POND_OUTER_SLOPE } from '../pondEarthwork';
+import { EarthworkStats } from './TrailControl';
 import { ROAD_CLEAR_BUFFER_M, ROAD_TYPE_LABELS, roadLengthM,
   TWO_LANE_CLEAR_HALF_WIDTH_M, TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import type { Units } from './SettingsContext';
@@ -36,7 +39,7 @@ export type DamTool =
   | { phase: 'anchored'; first: [number, number]; crestElevationM: number;
       cursor: [number, number] | null; error: string | null }
   | { phase: 'analyzing'; points: [[number, number], [number, number]]; crestElevationM: number }
-  | { phase: 'review'; draft: DraftDam };
+  | { phase: 'review'; draft: DraftDam; error: string | null };
 
 export interface DraftPond extends Omit<SavedPond, 'id' | 'createdAt'> {}
 
@@ -112,8 +115,14 @@ function RoadStats({ points, units, draft }: { points: [number, number][]; units
 function DamStats({ dam, units }: { dam: DraftDam | SavedDam; units: Units }) {
   return <div className="lift-stats">
     <div className="readout-line"><span className="lift-stat-label">Source</span><span className="lift-stat-value">{dam.streamName}</span></div>
-    <div className="readout-line"><span className="lift-stat-label">Crest elevation</span><span className="lift-stat-value">{fmtDistance(dam.crestElevationM, units)}</span></div>
+    <div className="readout-line"><span className="lift-stat-label">Full pool elevation</span><span className="lift-stat-value">{fmtDistance(dam.crestElevationM, units)}</span></div>
+    {dam.damCrestElevationM != null &&
+      <div className="readout-line"><span className="lift-stat-label">Dam crest elevation</span>
+        <span className="lift-stat-value">{fmtDistance(dam.damCrestElevationM, units)}</span></div>}
     <div className="readout-line"><span className="lift-stat-label">Dam length</span><span className="lift-stat-value">{fmtDistance(roadLengthM(dam.points), units)}</span></div>
+    {dam.builtLengthM != null &&
+      <div className="readout-line"><span className="lift-stat-label">Embankment length</span>
+        <span className="lift-stat-value">{fmtDistance(dam.builtLengthM, units)}</span></div>}
     <div className="readout-line"><span className="lift-stat-label">Average height</span><span className="lift-stat-value">{formatLakeDepth(dam.averageDamHeightM ?? null, units)}</span></div>
     <div className="readout-line"><span className="lift-stat-label">Maximum height</span><span className="lift-stat-value">{fmtDistance(dam.maxDamHeightM, units)}</span></div>
     <div className="readout-line"><span className="lift-stat-label">Pond area</span><span className="lift-stat-value">{fmtArea(dam.areaM2, units)}</span></div>
@@ -125,10 +134,31 @@ function DamStats({ dam, units }: { dam: DraftDam | SavedDam; units: Units }) {
   </div>;
 }
 
+/** The embankment the game grades into the valley, and its earthwork bill. */
+function DamEarthworkStats({ dam, units }: { dam: DraftDam | SavedDam; units: Units }) {
+  if (!dam.earthwork) return null;
+  return <>
+    {dam.disturbedAreaM2 != null && <div className="lift-stats">
+      <div className="readout-line"><span className="lift-stat-label">Disturbed area</span>
+        <span className="lift-stat-value">{fmtArea(dam.disturbedAreaM2, units)}</span></div>
+    </div>}
+    <EarthworkStats estimate={dam.earthwork} units={units} />
+    <div className="site-hint">{dam.earthwork.balanceM3 >= 0
+      ? `Surplus cut: ${fmtVolume(dam.earthwork.balanceM3, units)} to haul off site.`
+      : `Short of material: ${fmtVolume(-dam.earthwork.balanceM3, units)} of borrow fill must be hauled in.`}
+      {' '}Crest is {fmtDistance(POND_FREEBOARD_M, units)} of freeboard over full pool,
+      {' '}{fmtDistance(POND_CREST_WIDTH_M, units)} wide, on {POND_INNER_SLOPE}:1 upstream
+      {' '}and {POND_OUTER_SLOPE}:1 downstream faces — the same embankment a pond berm uses.</div>
+  </>;
+}
+
 function PondStats({ pond, units }: { pond: DraftPond | SavedPond; units: Units }) {
   return <div className="lift-stats">
     <div className="readout-line"><span className="lift-stat-label">Top elevation</span>
       <span className="lift-stat-value">{fmtDistance(pond.topElevationM, units)}</span></div>
+    {pond.crestElevationM != null &&
+      <div className="readout-line"><span className="lift-stat-label">Berm crest elevation</span>
+        <span className="lift-stat-value">{fmtDistance(pond.crestElevationM, units)}</span></div>}
     <div className="readout-line"><span className="lift-stat-label">Pond area</span>
       <span className="lift-stat-value">{fmtArea(pond.areaM2, units)}</span></div>
     <div className="readout-line"><span className="lift-stat-label">Average depth</span>
@@ -141,8 +171,37 @@ function PondStats({ pond, units }: { pond: DraftPond | SavedPond; units: Units 
   </div>;
 }
 
-function PondElevationField({ valueM, units, onCommit }: {
-  valueM: number; units: Units; onCommit: (valueM: number) => void;
+/** The berm that holds the pool in, and the earthwork bill for building it. */
+function PondEarthworkStats({ pond, units }: { pond: DraftPond | SavedPond; units: Units }) {
+  if (!pond.earthwork) return null;
+  return <>
+    <div className="lift-stats">
+      {pond.bermLengthM != null &&
+        <div className="readout-line"><span className="lift-stat-label">Berm length</span>
+          <span className="lift-stat-value">{fmtDistance(pond.bermLengthM, units)}</span></div>}
+      {pond.maxBermHeightM != null &&
+        <div className="readout-line"><span className="lift-stat-label">Max berm height</span>
+          <span className="lift-stat-value">{fmtDistance(pond.maxBermHeightM, units)}</span></div>}
+      {pond.maxCutDepthM != null &&
+        <div className="readout-line"><span className="lift-stat-label">Max cut depth</span>
+          <span className="lift-stat-value">{fmtDistance(pond.maxCutDepthM, units)}</span></div>}
+      {pond.disturbedAreaM2 != null &&
+        <div className="readout-line"><span className="lift-stat-label">Disturbed area</span>
+          <span className="lift-stat-value">{fmtArea(pond.disturbedAreaM2, units)}</span></div>}
+    </div>
+    <EarthworkStats estimate={pond.earthwork} units={units} />
+    <div className="site-hint">{pond.earthwork.balanceM3 >= 0
+      ? `Surplus cut: ${fmtVolume(pond.earthwork.balanceM3, units)} to haul off site.`
+      : `Short of material: ${fmtVolume(-pond.earthwork.balanceM3, units)} must be imported. Deepen the excavation to balance it.`}
+      {' '}Crest is {fmtDistance(POND_FREEBOARD_M, units)} of freeboard over full pool,
+      {' '}{fmtDistance(POND_CREST_WIDTH_M, units)} wide, on {POND_INNER_SLOPE}:1 water
+      {' '}and {POND_OUTER_SLOPE}:1 outer faces.</div>
+  </>;
+}
+
+function PondMetersField({ label, valueM, units, onCommit, minM = -1000, maxM = 10000 }: {
+  label: string; valueM: number; units: Units; onCommit: (valueM: number) => void;
+  minM?: number; maxM?: number;
 }) {
   const factor = units === 'imperial' ? 3.280839895 : 1;
   const display = (valueM * factor).toFixed(1);
@@ -150,23 +209,36 @@ function PondElevationField({ valueM, units, onCommit }: {
   useEffect(() => setDraft(display), [display]);
   const commit = () => {
     const value = Number(draft) / factor;
-    if (!Number.isFinite(value) || value < -1000 || value > 10000) setDraft(display);
+    if (!Number.isFinite(value) || value < minM || value > maxM) setDraft(display);
     else onCommit(value);
   };
-  return <label className="lake-depth-row"><span className="lift-stat-label">Top of pond elevation</span>
+  return <label className="lake-depth-row"><span className="lift-stat-label">{label}</span>
     <span className="lake-depth-input-wrap"><input className="lake-depth-input" type="number" step="0.5"
-      value={draft} aria-label={`Top of pond elevation in ${units === 'imperial' ? 'feet' : 'metres'}`}
+      value={draft} aria-label={`${label} in ${units === 'imperial' ? 'feet' : 'metres'}`}
       onChange={(event) => setDraft(event.target.value)} onBlur={commit}
       onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur();
         if (event.key === 'Escape') { event.preventDefault(); setDraft(display); } }} />
       <span>{units === 'imperial' ? 'ft' : 'm'}</span></span></label>;
 }
 
+function SnowmakingPondField({ checked, onChange }: {
+  checked: boolean; onChange: (checked: boolean) => void;
+}) {
+  return <label className="trail-grade-terrain">
+    <input type="checkbox" checked={checked} aria-label="Snowmaking pond"
+      onChange={(event) => onChange(event.target.checked)} />
+    <span><strong>Snowmaking pond</strong>
+      <small>Include this pond's full volume in the ski area's snowmaking water capacity.</small></span>
+  </label>;
+}
+
 export function InfrastructureControl({ tool, damTool, pondTool, roads, dams, ponds, selectedDam, selectedPond,
   units, onArm, onCancel, onUndo,
   onFinish, onDraftChange, onConfirm, onArmDam, onCancelDam, onDamDraftChange, onConfirmDam,
   onSelectDam, onDeleteDam, onCloseDam, onArmPond, onCancelPond, onUndoPond, onFinishPond,
-  onPondDraftChange, onPondElevationChange, onConfirmPond, onSelectPond, onDeletePond, onClosePond,
+  onPondDraftChange, onPondElevationChange, onPondExcavationChange,
+  onConfirmPond, onSelectPond, onDeletePond, onClosePond,
+  onPondSnowmakingChange,
   onClose, building = false }: {
   tool: RoadTool; damTool: DamTool; pondTool: PondTool; roads: SavedRoad[]; dams: SavedDam[];
   ponds: SavedPond[]; selectedDam: SavedDam | null; selectedPond: SavedPond | null; units: Units;
@@ -176,7 +248,9 @@ export function InfrastructureControl({ tool, damTool, pondTool, roads, dams, po
   onSelectDam: (id: string) => void; onDeleteDam: (id: string) => void; onCloseDam: () => void;
   onArmPond: () => void; onCancelPond: () => void; onUndoPond: () => void; onFinishPond: () => void;
   onPondDraftChange: (patch: Partial<DraftPond>) => void; onPondElevationChange: (valueM: number) => void;
+  onPondExcavationChange: (valueM: number) => void;
   onConfirmPond: () => void; onSelectPond: (id: string) => void; onDeletePond: (id: string) => void;
+  onPondSnowmakingChange: (id: string, checked: boolean) => void;
   onClosePond: () => void;
   onClose: () => void; building?: boolean;
 }) {
@@ -195,41 +269,58 @@ export function InfrastructureControl({ tool, damTool, pondTool, roads, dams, po
     <PanelHead title="Review standalone pond" onClose={onCancelPond} />
     <input className="name-entry-input lift-name-input" value={pondTool.draft.name}
       onChange={(event) => onPondDraftChange({ name: event.target.value })} />
-    <PondElevationField valueM={pondTool.draft.topElevationM} units={units} onCommit={onPondElevationChange} />
-    {pondTool.error ? <div className="lift-warning">{pondTool.error}</div> : <PondStats pond={pondTool.draft} units={units} />}
+    <PondMetersField label="Top of pond elevation" valueM={pondTool.draft.topElevationM}
+      units={units} onCommit={onPondElevationChange} />
+    <PondMetersField label="Excavation below full pool" valueM={pondTool.draft.excavationDepthM ?? 0}
+      units={units} minM={0} maxM={MAX_POND_EXCAVATION_M} onCommit={onPondExcavationChange} />
+    <SnowmakingPondField checked={pondTool.draft.isSnowmaking !== false}
+      onChange={(isSnowmaking) => onPondDraftChange({ isSnowmaking })} />
+    {pondTool.error ? <div className="lift-warning">{pondTool.error}</div> : <>
+      <PondStats pond={pondTool.draft} units={units} />
+      <PondEarthworkStats pond={pondTool.draft} units={units} />
+      <div className="site-hint">Highlighted contours show the ground this pond will reshape.</div>
+    </>}
     <div className="site-actions"><button className="site-btn" onClick={onCancelPond}>Cancel</button>
       <button className="site-btn site-btn-primary" disabled={building || !!pondTool.error} onClick={onConfirmPond}>
         {building ? 'Building…' : 'Build pond'}</button></div>
   </div>;
   if (damTool.phase === 'armed') return <div className="site-control site-control-wide infrastructure-panel">
     <PanelHead title="New dam" onClose={onCancelDam} />
-    <div className="site-hint">Click one bank to set the crest elevation, then click near the matching contour on the opposite bank.</div>
+    <div className="site-hint">Click one bank to set full pool, then click near the matching contour on the opposite bank.</div>
     {damTool.error && <div className="lift-warning">{damTool.error}</div>}
     <button className="site-btn" onClick={onCancelDam}>Cancel</button>
   </div>;
   if (damTool.phase === 'anchored') return <div className="site-control site-control-wide infrastructure-panel">
     <PanelHead title="New dam" onClose={onCancelDam} />
-    <div className="readout-line"><span className="lift-stat-label">Crest elevation</span><span className="lift-stat-value">{fmtDistance(damTool.crestElevationM, units)}</span></div>
+    <div className="readout-line"><span className="lift-stat-label">Full pool elevation</span><span className="lift-stat-value">{fmtDistance(damTool.crestElevationM, units)}</span></div>
     <div className="site-hint">Move to the opposite bank. The endpoint snaps to the same elevation.</div>
     {damTool.error && <div className="lift-warning">{damTool.error}</div>}
     <button className="site-btn" onClick={onCancelDam}>Cancel</button>
   </div>;
   if (damTool.phase === 'analyzing') return <div className="site-control site-control-wide infrastructure-panel">
-    <PanelHead title="Analyzing pond" onClose={onCancelDam} /><div className="site-hint">Tracing the full-pool shoreline and calculating capacity…</div>
+    <PanelHead title="Analyzing pond" onClose={onCancelDam} /><div className="site-hint">Grading the embankment and tracing the full-pool shoreline…</div>
   </div>;
   if (damTool.phase === 'review') return <div className="site-control site-control-wide infrastructure-panel">
     <PanelHead title="Review snowmaking pond" onClose={onCancelDam} />
     <input className="name-entry-input lift-name-input" value={damTool.draft.name} onChange={(event) => onDamDraftChange({ name: event.target.value })} />
     <DamStats dam={damTool.draft} units={units} />
+    <DamEarthworkStats dam={damTool.draft} units={units} />
+    <div className="site-hint">Highlighted contours show the ground this dam will reshape.</div>
+    {damTool.error && <div className="lift-warning">{damTool.error}</div>}
     <div className="site-actions"><button className="site-btn" onClick={onCancelDam}>Cancel</button>
       <button className="site-btn site-btn-primary" disabled={building} onClick={onConfirmDam}>{building ? 'Building…' : 'Build dam'}</button></div>
   </div>;
   if (tool.phase === 'idle' && selectedDam) return <div className="site-control site-control-wide infrastructure-panel">
     <PanelHead title={selectedDam.name} onClose={onCloseDam} /><DamStats dam={selectedDam} units={units} />
+    <DamEarthworkStats dam={selectedDam} units={units} />
     <button className="lift-delete-btn" onClick={() => onDeleteDam(selectedDam.id)}>Remove dam</button>
   </div>;
   if (tool.phase === 'idle' && selectedPond) return <div className="site-control site-control-wide infrastructure-panel">
-    <PanelHead title={selectedPond.name} onClose={onClosePond} /><PondStats pond={selectedPond} units={units} />
+    <PanelHead title={selectedPond.name} onClose={onClosePond} />
+    <SnowmakingPondField checked={selectedPond.isSnowmaking !== false}
+      onChange={(checked) => onPondSnowmakingChange(selectedPond.id, checked)} />
+    <PondStats pond={selectedPond} units={units} />
+    <PondEarthworkStats pond={selectedPond} units={units} />
     <button className="lift-delete-btn" onClick={() => onDeletePond(selectedPond.id)}>Remove pond</button>
   </div>;
   if (tool.phase === 'idle') return <div className="lift-overview infrastructure-panel">
@@ -247,7 +338,7 @@ export function InfrastructureControl({ tool, damTool, pondTool, roads, dams, po
           <span className="lift-row-summary">Snowmaking pond · {fmtArea(dam.areaM2, units)}</span></span></button>)}</div>}
       {ponds.length > 0 && <div className="lift-list">{ponds.map((pond) => <button key={pond.id} className="lift-row lift-row-button" onClick={() => onSelectPond(pond.id)}>
         <span className="infrastructure-dam-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{pond.name}</span>
-          <span className="lift-row-summary">Standalone pond · {fmtArea(pond.areaM2, units)}</span></span></button>)}</div>}
+          <span className="lift-row-summary">{pond.isSnowmaking !== false ? 'Snowmaking pond' : 'Standalone pond'} · {fmtArea(pond.areaM2, units)}</span></span></button>)}</div>}
     </>}
   </div>;
   if (tool.phase === 'armed' || tool.phase === 'drawing') {
