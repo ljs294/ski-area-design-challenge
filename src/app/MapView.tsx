@@ -58,7 +58,7 @@ import { ResortLoadingScreen } from './ResortLoadingScreen';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
-import type { GameSave, RoadType, SavedDam, SavedLift, SavedRoad, SavedTrail, SavedTrailPart, TerrainPackageProgress, TerrainRecord } from '../types';
+import type { GameSave, RoadType, SavedDam, SavedLift, SavedPond, SavedRoad, SavedTrail, SavedTrailPart, TerrainPackageProgress, TerrainRecord } from '../types';
 import { analyzeLake, sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
@@ -85,10 +85,14 @@ import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS, type 
 import { AnchorValue, TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
 import { nearestTrailHeadAnchor, nearestTrailTailAnchor, type TrailHeadAnchor } from './trailHeadAnchor';
 import { TrailDetail } from './TrailDetail';
-import { InfrastructureControl, type DamTool, type DraftDam, type DraftRoad, type RoadTool } from './InfrastructureControl';
+import { InfrastructureControl, type DamTool, type DraftDam, type DraftPond, type DraftRoad, type PondTool, type RoadTool } from './InfrastructureControl';
 import { addRoadDraftLayers, setRoadDraftData, type RoadDraftLine } from './roadLayers';
 import { nextDamName, sanitizeDams, snapDamEndpoint } from '../damAnalysis';
 import { addDamLayers, DAM_BUILT_LAYER_IDS, DAM_HIT_LAYERS, setDamData, setDamDraftData, setSelectedDam } from './damLayers';
+import { analyzeStandalonePond, nextPondName, sanitizePonds,
+  suggestedPondTopElevationM } from '../pondAnalysis';
+import { addPondLayers, POND_BUILT_LAYER_IDS, POND_HIT_LAYERS, setPondData,
+  setPondDraftData, setSelectedPond } from './pondLayers';
 import type { DamAnalysisResponse } from './damAnalysisProtocol';
 import {
   addTrailLayers,
@@ -232,7 +236,15 @@ function damDraftOf(tool: DamTool) {
   if (tool.phase === 'anchored') return { points: [tool.first], cursor: tool.cursor };
   if (tool.phase === 'analyzing') return { points: tool.points, cursor: null };
   if (tool.phase === 'review') return { points: tool.draft.points, cursor: null,
-    pondRings: tool.draft.pondRings };
+    pondRings: tool.draft.pondRings, crestElevationM: tool.draft.crestElevationM,
+    averageDepthM: tool.draft.averageDepthM };
+  return null;
+}
+
+function pondDraftOf(tool: PondTool) {
+  if (tool.phase === 'drawing') return { points: tool.points, cursor: tool.cursor, closed: false };
+  if (tool.phase === 'review') return { points: tool.draft.boundary.slice(0, -1), cursor: null, closed: true,
+    topElevationM: tool.draft.topElevationM, averageDepthM: tool.draft.averageDepthM };
   return null;
 }
 
@@ -440,6 +452,9 @@ export function MapView({
   const [dams, setDams] = useState<SavedDam[]>(() => sanitizeDams(initialSave?.dams ?? []));
   const [damTool, setDamTool] = useState<DamTool>({ phase: 'idle' });
   const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
+  const [ponds, setPonds] = useState<SavedPond[]>(() => sanitizePonds(initialSave?.ponds ?? []));
+  const [pondTool, setPondTool] = useState<PondTool>({ phase: 'idle' });
+  const [selectedPondId, setSelectedPondId] = useState<string | null>(null);
   // User-declared connectivity: placed nodes and drawn connector paths, both
   // owned by the floating Trails roll-up.
   const [skiNodes, setSkiNodes] = useState<SavedNode[]>(() => sanitizeNodes(initialSave?.nodes ?? []));
@@ -549,6 +564,9 @@ export function MapView({
   const damsRef = useRef<SavedDam[]>(dams);
   const damToolRef = useRef<DamTool>(damTool);
   const selectedDamIdRef = useRef<string | null>(selectedDamId);
+  const pondsRef = useRef<SavedPond[]>(ponds);
+  const pondToolRef = useRef<PondTool>(pondTool);
+  const selectedPondIdRef = useRef<string | null>(selectedPondId);
   const damWorkerRef = useRef<Worker | null>(null);
   const damRequestRef = useRef(0);
   const brushWidthRef = useRef(brushWidthM);
@@ -621,6 +639,9 @@ export function MapView({
   damsRef.current = dams;
   damToolRef.current = damTool;
   selectedDamIdRef.current = selectedDamId;
+  pondsRef.current = ponds;
+  pondToolRef.current = pondTool;
+  selectedPondIdRef.current = selectedPondId;
   skiNodesRef.current = skiNodes;
   skiPathsRef.current = skiPaths;
   junctionsRef.current = junctions;
@@ -745,6 +766,7 @@ export function MapView({
     setSelectedLakeId(null);
     setSelectedStreamId(null);
     setSelectedDamId(null);
+    setSelectedPondId(null);
   };
 
   // Clicking a run opens its read-only detail, yielding any active lift tool.
@@ -759,6 +781,7 @@ export function MapView({
     setSelectedLakeId(null);
     setSelectedStreamId(null);
     setSelectedDamId(null);
+    setSelectedPondId(null);
   };
 
   selectLakeRef.current = (id: string) => {
@@ -770,6 +793,7 @@ export function MapView({
     setTrailEditing(false);
     setOpenDock(null);
     setSelectedDamId(null);
+    setSelectedPondId(null);
     setSelectedStreamId(null);
     setSelectedLakeId(id);
   };
@@ -779,6 +803,7 @@ export function MapView({
     setSelectedLiftId(null); setLiftEditing(false);
     setSelectedTrailId(null); setTrailEditing(false);
     setSelectedDamId(null); setSelectedLakeId(null); setOpenDock(null);
+    setSelectedPondId(null);
     setSelectedStreamId(id);
   };
 
@@ -888,9 +913,13 @@ export function MapView({
     // remains beneath ski runs and lifts.
     addRoadDraftLayers(map);
     addDamLayers(map);
-    setDamData(map, damsRef.current);
-    setDamDraftData(map, damDraftOf(damToolRef.current));
+    setDamData(map, damsRef.current, rec);
+    setDamDraftData(map, damDraftOf(damToolRef.current), rec);
     setSelectedDam(map, selectedDamIdRef.current);
+    addPondLayers(map);
+    setPondData(map, pondsRef.current, rec);
+    setPondDraftData(map, pondDraftOf(pondToolRef.current), rec);
+    setSelectedPond(map, selectedPondIdRef.current);
     addNodePathLayers(map);
     addNodePathDraftLayers(map);
     setNodePathData(map, skiNodesRef.current, skiPathsRef.current, junctionsRef.current);
@@ -930,6 +959,7 @@ export function MapView({
         { id: 'trails', label: 'Ski trails', layerIds: TRAIL_BUILT_LAYER_IDS },
         { id: 'lifts', label: 'Ski lifts', layerIds: LIFT_BUILT_LAYER_IDS },
         { id: 'dams', label: 'Snowmaking ponds', layerIds: DAM_BUILT_LAYER_IDS },
+        { id: 'standalone-ponds', label: 'Standalone ponds', layerIds: POND_BUILT_LAYER_IDS },
       ];
       for (const s of structures) {
         const wasVisible = prev.find((p) => p.id === s.id)?.visible ?? true;
@@ -1129,7 +1159,8 @@ export function MapView({
     const allToolsIdle = () =>
       liftToolRef.current.phase === 'idle' && trailToolRef.current.phase === 'idle' &&
       roadToolRef.current.phase === 'idle' && nodeToolRef.current.phase === 'idle' &&
-      pathToolRef.current.phase === 'idle' && damToolRef.current.phase === 'idle';
+      pathToolRef.current.phase === 'idle' && damToolRef.current.phase === 'idle' &&
+      pondToolRef.current.phase === 'idle';
 
     const LIFT_HIT_LAYERS = ['lift-line-casing', 'lift-terminals'];
     const onLiftClick = (e: maplibregl.MapLayerMouseEvent) => {
@@ -1165,15 +1196,29 @@ export function MapView({
       const id = e.features?.[0]?.properties?.id;
       if (typeof id !== 'string') return;
       setSelectedLakeId(null); setSelectedStreamId(null); setSelectedLiftId(null); setSelectedTrailId(null);
-      setSelectedDamId(id); setOpenDock('infrastructure');
+      setSelectedPondId(null); setSelectedDamId(id); setOpenDock('infrastructure');
     };
     map.on('click', DAM_HIT_LAYERS, onDamClick);
     map.on('mouseenter', DAM_HIT_LAYERS, onLiftEnter);
     map.on('mouseleave', DAM_HIT_LAYERS, onLiftLeave);
 
+    const onPondClick = (e: maplibregl.MapLayerMouseEvent) => {
+      if (!allToolsIdle()) return;
+      const priorityLayers = [...LIFT_HIT_LAYERS, 'trail-fill', ...DAM_HIT_LAYERS]
+        .filter((id) => map.getLayer(id));
+      if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
+      const id = e.features?.[0]?.properties?.id;
+      if (typeof id !== 'string') return;
+      setSelectedLakeId(null); setSelectedStreamId(null); setSelectedLiftId(null); setSelectedTrailId(null);
+      setSelectedDamId(null); setSelectedPondId(id); setOpenDock('infrastructure');
+    };
+    map.on('click', POND_HIT_LAYERS, onPondClick);
+    map.on('mouseenter', POND_HIT_LAYERS, onLiftEnter);
+    map.on('mouseleave', POND_HIT_LAYERS, onLiftLeave);
+
     const onStreamClick = (e: maplibregl.MapLayerMouseEvent) => {
       if (!allToolsIdle()) return;
-      const priorityLayers = [...LIFT_HIT_LAYERS, 'trail-fill', ...DAM_HIT_LAYERS].filter((id) => map.getLayer(id));
+      const priorityLayers = [...LIFT_HIT_LAYERS, 'trail-fill', ...DAM_HIT_LAYERS, ...POND_HIT_LAYERS].filter((id) => map.getLayer(id));
       if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
       const id = e.features?.[0]?.properties?.id;
       if (typeof id === 'string') selectStreamRef.current(id);
@@ -1184,7 +1229,7 @@ export function MapView({
 
     const onLakeClick = (e: maplibregl.MapLayerMouseEvent) => {
       if (!allToolsIdle()) return;
-      const priorityLayers = [...LIFT_HIT_LAYERS, 'trail-fill', ...DAM_HIT_LAYERS, 'local-water-line-hit'].filter((id) => map.getLayer(id));
+      const priorityLayers = [...LIFT_HIT_LAYERS, 'trail-fill', ...DAM_HIT_LAYERS, ...POND_HIT_LAYERS, 'local-water-line-hit'].filter((id) => map.getLayer(id));
       if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
       const id = e.features?.[0]?.properties?.id;
       if (typeof id === 'string') selectLakeRef.current(id);
@@ -1323,10 +1368,18 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    setDamData(map, dams);
-    setDamDraftData(map, damDraftOf(damTool));
+    setDamData(map, dams, terrainRecord);
+    setDamDraftData(map, damDraftOf(damTool), terrainRecord);
     setSelectedDam(map, selectedDamId);
-  }, [dams, damTool, selectedDamId]);
+  }, [dams, damTool, selectedDamId, terrainRecord]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    setPondData(map, ponds, terrainRecord);
+    setPondDraftData(map, pondDraftOf(pondTool), terrainRecord);
+    setSelectedPond(map, selectedPondId);
+  }, [ponds, pondTool, selectedPondId, terrainRecord]);
 
   // Saved trails are stable while painting; drafts use their own source.
   useEffect(() => {
@@ -1584,6 +1637,47 @@ export function MapView({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roadTool.phase]);
+
+  // Standalone ponds use a freehand polygon boundary. The full-pool elevation
+  // is entered in review and the terrain-integrated capacity updates from it.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || (pondTool.phase !== 'armed' && pondTool.phase !== 'drawing')) return;
+    const canvas = map.getCanvas();
+    canvas.style.cursor = 'crosshair';
+    const onClick = (event: maplibregl.MapMouseEvent) => {
+      const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
+      const current = pondToolRef.current;
+      const bounds = terrainRecordRef.current?.bounds;
+      if (!bounds || point[0] < bounds.west || point[0] > bounds.east ||
+        point[1] < bounds.south || point[1] > bounds.north) {
+        setPondTool(current.phase === 'drawing' ? { ...current,
+          error: 'Keep the pond boundary inside the available terrain.' } :
+          { phase: 'armed', error: 'Choose a point inside the available terrain.' });
+        return;
+      }
+      if (current.phase === 'armed') setPondTool({ phase: 'drawing', points: [point], cursor: null, error: null });
+      else if (current.phase === 'drawing') {
+        const last = current.points.at(-1);
+        if (last && haversineMeters(last, point) < 1) return;
+        setPondTool({ ...current, points: [...current.points, point], cursor: null, error: null });
+      }
+    };
+    const onMove = (event: maplibregl.MapMouseEvent) => {
+      const current = pondToolRef.current;
+      if (current.phase === 'drawing') setPondTool({ ...current,
+        cursor: [event.lngLat.lng, event.lngLat.lat] });
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancelPondTool();
+      else if (event.key === 'Backspace') { event.preventDefault(); undoPondPoint(); }
+      else if (event.key === 'Enter') finishPondBoundary();
+    };
+    map.on('click', onClick); map.on('mousemove', onMove); window.addEventListener('keydown', onKey);
+    return () => { map.off('click', onClick); map.off('mousemove', onMove);
+      window.removeEventListener('keydown', onKey); canvas.style.cursor = ''; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pondTool.phase]);
 
   // Dam drawing: the first bank fixes the crest elevation; the opposite bank
   // snaps to the same DEM contour before pond analysis runs off the UI thread.
@@ -2068,7 +2162,9 @@ export function MapView({
   function armRoadTool(roadType: RoadType) {
     if (siteModeRef.current === 'selecting') return;
     cancelDamTool();
+    cancelPondTool();
     setSelectedDamId(null);
+    setSelectedPondId(null);
     cancelLiftTool();
     cancelTrailTool();
     setSelectedLiftId(null);
@@ -2081,8 +2177,9 @@ export function MapView({
 
   function armDamTool() {
     if (siteModeRef.current === 'selecting' || !terrainRecordRef.current) return;
-    cancelRoadTool(); cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool();
+    cancelRoadTool(); cancelPondTool(); cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool();
     setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedDamId(null);
+    setSelectedPondId(null);
     setLiftEditing(false); setTrailEditing(false); setOpenDock('infrastructure');
     setDamTool({ phase: 'armed', error: null });
   }
@@ -2110,14 +2207,88 @@ export function MapView({
   }
 
   function selectDam(id: string) {
-    cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool(); cancelRoadTool(); cancelDamTool();
-    setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedDamId(id);
+    cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool(); cancelRoadTool(); cancelDamTool(); cancelPondTool();
+    setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
+    setSelectedDamId(id);
+    setSelectedPondId(null);
     setLiftEditing(false); setTrailEditing(false); setOpenDock('infrastructure');
   }
 
   function deleteDam(id: string) {
     setDams((existing) => existing.filter((dam) => dam.id !== id));
     setSelectedDamId((selected) => selected === id ? null : selected);
+  }
+
+  function armPondTool() {
+    if (siteModeRef.current === 'selecting' || !terrainRecordRef.current) return;
+    cancelRoadTool(); cancelDamTool(); cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool();
+    setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
+    setSelectedDamId(null); setSelectedPondId(null); setLiftEditing(false); setTrailEditing(false);
+    setOpenDock('infrastructure'); setPondTool({ phase: 'armed', error: null });
+  }
+
+  function cancelPondTool() {
+    setPondTool({ phase: 'idle' });
+    if (mapRef.current) setPondDraftData(mapRef.current, null);
+  }
+
+  function undoPondPoint() {
+    const current = pondToolRef.current;
+    if (current.phase !== 'drawing') return;
+    if (current.points.length <= 1) setPondTool({ phase: 'armed', error: null });
+    else setPondTool({ ...current, points: current.points.slice(0, -1), cursor: null, error: null });
+  }
+
+  function finishPondBoundary() {
+    const current = pondToolRef.current, record = terrainRecordRef.current;
+    if (current.phase !== 'drawing' || current.points.length < 3 || !record) return;
+    const topElevationM = suggestedPondTopElevationM(record, current.points);
+    if (topElevationM == null) {
+      setPondTool({ ...current, cursor: null, error: 'The pond boundary does not have valid terrain coverage.' });
+      return;
+    }
+    const outcome = analyzeStandalonePond(record, current.points, topElevationM);
+    if (!outcome.ok) { setPondTool({ ...current, cursor: null, error: outcome.error }); return; }
+    setPondTool({ phase: 'review', error: null, draft: {
+      name: nextPondName(pondsRef.current), ...outcome.result,
+    } });
+  }
+
+  function patchPondDraft(patch: Partial<DraftPond>) {
+    setPondTool((current) => current.phase === 'review'
+      ? { ...current, draft: { ...current.draft, ...patch } } : current);
+  }
+
+  function changePondElevation(topElevationM: number) {
+    const current = pondToolRef.current, record = terrainRecordRef.current;
+    if (current.phase !== 'review' || !record) return;
+    const points = current.draft.boundary.slice(0, -1);
+    const outcome = analyzeStandalonePond(record, points, topElevationM);
+    if (!outcome.ok) {
+      setPondTool({ phase: 'review', draft: { ...current.draft, topElevationM }, error: outcome.error });
+      return;
+    }
+    setPondTool({ phase: 'review', draft: { ...current.draft, ...outcome.result }, error: null });
+  }
+
+  function confirmPond() {
+    const current = pondToolRef.current;
+    if (current.phase !== 'review' || current.error) return;
+    setPonds((existing) => [...existing, { ...current.draft, id: genId(),
+      name: current.draft.name.trim() || nextPondName(existing), createdAt: new Date().toISOString() }]);
+    setPondTool({ phase: 'idle' });
+  }
+
+  function selectPond(id: string) {
+    cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool(); cancelRoadTool(); cancelDamTool(); cancelPondTool();
+    setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
+    setSelectedDamId(null); setSelectedPondId(id); setLiftEditing(false); setTrailEditing(false);
+    setOpenDock('infrastructure');
+  }
+
+  function deletePond(id: string) {
+    setPonds((existing) => existing.filter((pond) => pond.id !== id));
+    setSelectedPondId((selected) => selected === id ? null : selected);
   }
 
   function cancelRoadTool() {
@@ -2316,7 +2487,9 @@ export function MapView({
     if (siteModeRef.current === 'selecting') return; // never two draw tools at once
     cancelRoadTool();
     cancelDamTool();
+    cancelPondTool();
     setSelectedDamId(null);
+    setSelectedPondId(null);
     cancelTrailTool(); // yield the other draw tool (docks are one-at-a-time)
     setSelectedTrailId(null);
     setTrailEditing(false);
@@ -2532,7 +2705,9 @@ export function MapView({
     cancelTrailTool();
     cancelRoadTool();
     cancelDamTool();
+    cancelPondTool();
     setSelectedDamId(null);
+    setSelectedPondId(null);
     cancelPathTool();
     setSelectedTrailId(null);
     setSelectedLiftId(null);
@@ -2599,7 +2774,9 @@ export function MapView({
     cancelTrailTool();
     cancelRoadTool();
     cancelDamTool();
+    cancelPondTool();
     setSelectedDamId(null);
+    setSelectedPondId(null);
     cancelNodeTool();
     setSelectedTrailId(null);
     setSelectedLiftId(null);
@@ -2684,7 +2861,9 @@ export function MapView({
     if (siteModeRef.current === 'selecting') return;
     cancelRoadTool();
     cancelDamTool();
+    cancelPondTool();
     setSelectedDamId(null);
+    setSelectedPondId(null);
     cancelLiftTool(); // yield the other draw tool
     setSelectedLiftId(null);
     setLiftEditing(false);
@@ -3207,7 +3386,7 @@ export function MapView({
     // Layer visibility is presentation-only. Keep it beside active paint/road
     // controls without cancelling either draft.
     if (which === 'layers' && (trailToolRef.current.phase !== 'idle' || roadToolRef.current.phase !== 'idle' ||
-      damToolRef.current.phase !== 'idle')) {
+      damToolRef.current.phase !== 'idle' || pondToolRef.current.phase !== 'idle')) {
       setLayersAlongsideBuild((open) => !open);
       return;
     }
@@ -3228,7 +3407,8 @@ export function MapView({
       setSelectedTrailId(null);
       setTrailEditing(false);
     }
-    if (which !== 'infrastructure') { cancelRoadTool(); cancelDamTool(); setSelectedDamId(null); }
+    if (which !== 'infrastructure') { cancelRoadTool(); cancelDamTool(); cancelPondTool();
+      setSelectedDamId(null); setSelectedPondId(null); }
     if (isOpen) {
       if (which === 'lifts') {
         cancelLiftTool();
@@ -3244,7 +3424,8 @@ export function MapView({
         setSelectedTrailId(null);
         setTrailEditing(false);
       }
-      if (which === 'infrastructure') { cancelRoadTool(); cancelDamTool(); setSelectedDamId(null); }
+      if (which === 'infrastructure') { cancelRoadTool(); cancelDamTool(); cancelPondTool();
+        setSelectedDamId(null); setSelectedPondId(null); }
       setOpenDock(null);
     } else {
       setOpenDock(which);
@@ -3379,6 +3560,7 @@ export function MapView({
       setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
       setRoadDraftData(map, null);
       setDamDraftData(map, null);
+      setPondDraftData(map, null);
       const record = terrainRecordRef.current;
       if (record) setVisibleContours(record);
       setEditedContours(null);
@@ -3403,7 +3585,8 @@ export function MapView({
       ...trailHeadPreview(trail),
     });
     setRoadDraftData(map, roadDraftOf(road));
-    setDamDraftData(map, damDraftOf(damToolRef.current));
+    setDamDraftData(map, damDraftOf(damToolRef.current), terrainRecordRef.current);
+    setPondDraftData(map, pondDraftOf(pondToolRef.current), terrainRecordRef.current);
 
     const gradePreview = trailGradeResultRef.current;
     const roadPreview = roadGradeResultRef.current;
@@ -3490,7 +3673,7 @@ export function MapView({
     const c = map.getCenter();
     const now = new Date().toISOString();
     return {
-      schemaVersion: 8,
+      schemaVersion: 9,
       key: base?.key ?? genId(),
       name: base?.name ?? (nameDraft.trim() || 'Untitled Resort'),
       mountainId: base?.mountainId,
@@ -3505,6 +3688,7 @@ export function MapView({
       trails: trailsRef.current,
       roads: roadsRef.current,
       dams: damsRef.current,
+      ponds: pondsRef.current,
       nodes: skiNodesRef.current,
       paths: skiPathsRef.current,
       junctions: junctionsRef.current,
@@ -3629,7 +3813,8 @@ export function MapView({
     }
     return out;
   }, [network]);
-  const infrastructureActive = roadTool.phase !== 'idle' || damTool.phase !== 'idle' || selectedDamId !== null;
+  const infrastructureActive = roadTool.phase !== 'idle' || damTool.phase !== 'idle' ||
+    pondTool.phase !== 'idle' || selectedDamId !== null || selectedPondId !== null;
   const selectedLakeFeature = selectedLakeId
     ? terrainRecord?.vectorFeatures?.waterPolygons.find((lake) => lake.id === selectedLakeId) ?? null
     : null;
@@ -3638,6 +3823,7 @@ export function MapView({
       lakeNameOverrides[selectedLakeFeature.id])
     : null, [selectedLakeFeature, terrainRecord, lakeDepthOverrides, lakeNameOverrides]);
   const selectedDam = selectedDamId ? dams.find((dam) => dam.id === selectedDamId) ?? null : null;
+  const selectedPond = selectedPondId ? ponds.find((pond) => pond.id === selectedPondId) ?? null : null;
   const selectedStreamFeature = selectedStreamId
     ? terrainRecord?.vectorFeatures?.waterLines.find((stream) => stream.id === selectedStreamId) ?? null
     : null;
@@ -4163,9 +4349,12 @@ export function MapView({
                   <InfrastructureControl
                     tool={roadTool}
                     damTool={damTool}
+                    pondTool={pondTool}
                     roads={roads}
                     dams={dams}
+                    ponds={ponds}
                     selectedDam={selectedDam}
+                    selectedPond={selectedPond}
                     units={settings.units}
                     onArm={armRoadTool}
                     onCancel={cancelRoadTool}
@@ -4180,6 +4369,16 @@ export function MapView({
                     onSelectDam={selectDam}
                     onDeleteDam={deleteDam}
                     onCloseDam={() => setSelectedDamId(null)}
+                    onArmPond={armPondTool}
+                    onCancelPond={cancelPondTool}
+                    onUndoPond={undoPondPoint}
+                    onFinishPond={finishPondBoundary}
+                    onPondDraftChange={patchPondDraft}
+                    onPondElevationChange={changePondElevation}
+                    onConfirmPond={confirmPond}
+                    onSelectPond={selectPond}
+                    onDeletePond={deletePond}
+                    onClosePond={() => setSelectedPondId(null)}
                     building={building}
                     onClose={() => setOpenDock(null)}
                   />

@@ -423,6 +423,20 @@ export interface SavedDam {
   createdAt: string;
 }
 
+/** A player-drawn standalone snowmaking pond. It has no natural inflow. */
+export interface SavedPond {
+  id: string;
+  name: string;
+  /** Closed full-pool boundary in [longitude, latitude] order. */
+  boundary: [number, number][];
+  topElevationM: number;
+  areaM2: number;
+  averageDepthM: number;
+  maxDepthM: number;
+  capacityM3: number;
+  createdAt: string;
+}
+
 // Ski-run difficulty designation. Mirrors the four slope-angle bands in
 // terrainProtocols.ts (Green <16°, Blue <24°, Black <37°, Red ≥37°) — the same
 // ratings the slope overlay paints — so a run's recommended grade always agrees
@@ -491,7 +505,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -508,6 +522,8 @@ export interface GameSave {
   roads?: SavedRoad[];
   /** Player-built snowmaking dams. Optional for schema-v1-v7 saves. */
   dams?: SavedDam[];
+  /** Player-drawn standalone snowmaking ponds. Optional for schema-v1-v8 saves. */
+  ponds?: SavedPond[];
   /** Free-standing map pins. Optional so legacy saves load unchanged. */
   nodes?: SavedNode[];
   /** Footpaths connecting nodes/lifts/runs. Optional so legacy saves load unchanged. */

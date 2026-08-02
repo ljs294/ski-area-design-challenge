@@ -81,4 +81,14 @@ describe('game preview fallback storage', () => {
     expect((await loadGame('dams'))?.dams).toEqual(save.dams);
     expect((await loadGame('dams'))?.streamWidthOverrides).toEqual({ 'way/1': 4.5 });
   });
+
+  it('round-trips schema-v9 standalone ponds', async () => {
+    const save: GameSave = { ...game('ponds', '2026-08-01T00:00:00.000Z'), schemaVersion: 9,
+      ponds: [{ id: 'pond-1', name: 'Pond 1',
+        boundary: [[0, 0], [0, 0.001], [0.001, 0], [0, 0]], topElevationM: 1001,
+        areaM2: 1000, averageDepthM: 2, maxDepthM: 3, capacityM3: 2000,
+        createdAt: '2026-08-01T00:00:00.000Z' }] };
+    await saveGame(save);
+    expect((await loadGame('ponds'))?.ponds).toEqual(save.ponds);
+  });
 });

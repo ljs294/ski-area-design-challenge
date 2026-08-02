@@ -1,5 +1,6 @@
 import type maplibregl from 'maplibre-gl';
-import type { SavedDam } from '../types';
+import type { SavedDam, TerrainRecord } from '../types';
+import { pondRelativeRenderHeightM, smoothPondRings } from '../pondGeometry';
 
 const DAM_SOURCE = 'player-dams';
 const DAM_DRAFT_SOURCE = 'dam-draft';
@@ -11,26 +12,33 @@ export interface DamDraftMapData {
   points: [number, number][];
   cursor: [number, number] | null;
   pondRings?: [number, number][][];
+  crestElevationM?: number;
+  averageDepthM?: number;
 }
 
-function damFeatures(dams: SavedDam[]): GeoJSON.Feature[] {
+function damFeatures(dams: SavedDam[], terrain?: TerrainRecord | null): GeoJSON.Feature[] {
   return dams.flatMap((dam) => [
-    { type: 'Feature' as const, properties: { kind: 'pond', id: dam.id, name: dam.name },
-      geometry: { type: 'Polygon' as const, coordinates: dam.pondRings } },
+    { type: 'Feature' as const, properties: { kind: 'pond', id: dam.id, name: dam.name,
+      renderHeightM: pondRelativeRenderHeightM(dam.pondRings[0], dam.crestElevationM,
+        dam.averageDepthM, terrain) },
+      geometry: { type: 'Polygon' as const, coordinates: smoothPondRings(dam.pondRings) } },
     { type: 'Feature' as const, properties: { kind: 'dam', id: dam.id, name: dam.name },
       geometry: { type: 'LineString' as const, coordinates: dam.points } },
   ]);
 }
 
-export function damsToGeoJSON(dams: SavedDam[]): GeoJSON.FeatureCollection {
-  return { type: 'FeatureCollection', features: damFeatures(dams) };
+export function damsToGeoJSON(dams: SavedDam[], terrain?: TerrainRecord | null): GeoJSON.FeatureCollection {
+  return { type: 'FeatureCollection', features: damFeatures(dams, terrain) };
 }
 
-export function damDraftGeoJSON(draft: DamDraftMapData | null): GeoJSON.FeatureCollection {
+export function damDraftGeoJSON(draft: DamDraftMapData | null,
+  terrain?: TerrainRecord | null): GeoJSON.FeatureCollection {
   if (!draft) return { type: 'FeatureCollection', features: [] };
   const features: GeoJSON.Feature[] = [];
-  if (draft.pondRings?.length) features.push({ type: 'Feature', properties: { kind: 'pond' },
-    geometry: { type: 'Polygon', coordinates: draft.pondRings } });
+  if (draft.pondRings?.length) features.push({ type: 'Feature', properties: { kind: 'pond',
+    renderHeightM: pondRelativeRenderHeightM(draft.pondRings[0], draft.crestElevationM ?? 0,
+      draft.averageDepthM ?? 0.01, terrain) },
+    geometry: { type: 'Polygon', coordinates: smoothPondRings(draft.pondRings) } });
   const line = [...draft.points];
   if (draft.cursor) line.push(draft.cursor);
   if (line.length >= 2) features.push({ type: 'Feature', properties: { kind: 'dam' },
@@ -46,8 +54,11 @@ export function addDamLayers(map: maplibregl.Map): void {
   if (!map.getSource(DAM_SOURCE)) map.addSource(DAM_SOURCE, { type: 'geojson', data: damsToGeoJSON([]) });
   if (!map.getSource(DAM_DRAFT_SOURCE)) map.addSource(DAM_DRAFT_SOURCE,
     { type: 'geojson', data: damDraftGeoJSON(null) });
-  map.addLayer({ id: 'dam-pond-fill', type: 'fill', source: DAM_SOURCE,
-    filter: ['==', ['get', 'kind'], 'pond'], paint: { 'fill-color': '#69a9c5', 'fill-opacity': 0.62 } });
+  map.addLayer({ id: 'dam-pond-fill', type: 'fill-extrusion', source: DAM_SOURCE,
+    filter: ['==', ['get', 'kind'], 'pond'], paint: { 'fill-extrusion-color': '#69a9c5',
+      'fill-extrusion-opacity': 0.62, 'fill-extrusion-height': ['get', 'renderHeightM'],
+      'fill-extrusion-base': ['max', 0.001, ['-', ['get', 'renderHeightM'], 0.05]],
+      'fill-extrusion-vertical-gradient': false } });
   map.addLayer({ id: 'dam-pond-outline', type: 'line', source: DAM_SOURCE,
     filter: ['==', ['get', 'kind'], 'pond'], paint: { 'line-color': '#397f9f', 'line-width': 1.5 } });
   map.addLayer({ id: 'dam-crest-casing', type: 'line', source: DAM_SOURCE,
@@ -63,8 +74,11 @@ export function addDamLayers(map: maplibregl.Map): void {
     filter: ['==', ['get', 'kind'], 'dam'], paint: { 'line-color': 'rgba(0,0,0,0)', 'line-width': 18 } });
   map.addLayer({ id: 'dam-pond-hit', type: 'fill', source: DAM_SOURCE,
     filter: ['==', ['get', 'kind'], 'pond'], paint: { 'fill-color': 'rgba(0,0,0,0)', 'fill-opacity': 0.01 } });
-  map.addLayer({ id: 'dam-preview-fill', type: 'fill', source: DAM_DRAFT_SOURCE,
-    filter: ['==', ['get', 'kind'], 'pond'], paint: { 'fill-color': '#60b7d6', 'fill-opacity': 0.3 } });
+  map.addLayer({ id: 'dam-preview-fill', type: 'fill-extrusion', source: DAM_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'pond'], paint: { 'fill-extrusion-color': '#60b7d6',
+      'fill-extrusion-opacity': 0.3, 'fill-extrusion-height': ['get', 'renderHeightM'],
+      'fill-extrusion-base': ['max', 0.001, ['-', ['get', 'renderHeightM'], 0.05]],
+      'fill-extrusion-vertical-gradient': false } });
   map.addLayer({ id: 'dam-preview-outline', type: 'line', source: DAM_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'pond'], paint: { 'line-color': '#d7f5ff', 'line-width': 2.2,
       'line-dasharray': [2, 2] } });
@@ -77,12 +91,14 @@ export function addDamLayers(map: maplibregl.Map): void {
       'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } });
 }
 
-export function setDamData(map: maplibregl.Map, dams: SavedDam[]): void {
-  (map.getSource(DAM_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(damsToGeoJSON(dams));
+export function setDamData(map: maplibregl.Map, dams: SavedDam[], terrain?: TerrainRecord | null): void {
+  (map.getSource(DAM_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(damsToGeoJSON(dams, terrain));
 }
 
-export function setDamDraftData(map: maplibregl.Map, draft: DamDraftMapData | null): void {
-  (map.getSource(DAM_DRAFT_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(damDraftGeoJSON(draft));
+export function setDamDraftData(map: maplibregl.Map, draft: DamDraftMapData | null,
+  terrain?: TerrainRecord | null): void {
+  (map.getSource(DAM_DRAFT_SOURCE) as maplibregl.GeoJSONSource | undefined)
+    ?.setData(damDraftGeoJSON(draft, terrain));
 }
 
 export function setSelectedDam(map: maplibregl.Map | null, id: string | null): void {

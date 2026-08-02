@@ -1,4 +1,5 @@
-import type { EarthworkEstimate, RoadType, SavedDam, SavedRoad } from '../types';
+import { useEffect, useState } from 'react';
+import type { EarthworkEstimate, RoadType, SavedDam, SavedPond, SavedRoad } from '../types';
 import { damFillTimeSeconds } from '../damAnalysis';
 import { formatLakeDepth, formatLakeVolume } from '../lakeAnalysis';
 import { fmtDistance } from '../lifts';
@@ -36,6 +37,14 @@ export type DamTool =
       cursor: [number, number] | null; error: string | null }
   | { phase: 'analyzing'; points: [[number, number], [number, number]]; crestElevationM: number }
   | { phase: 'review'; draft: DraftDam };
+
+export interface DraftPond extends Omit<SavedPond, 'id' | 'createdAt'> {}
+
+export type PondTool =
+  | { phase: 'idle' }
+  | { phase: 'armed'; error: string | null }
+  | { phase: 'drawing'; points: [number, number][]; cursor: [number, number] | null; error: string | null }
+  | { phase: 'review'; draft: DraftPond; error: string | null };
 
 function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
   return <div className="dock-head"><span className="dock-head-title">{title}</span>
@@ -116,16 +125,82 @@ function DamStats({ dam, units }: { dam: DraftDam | SavedDam; units: Units }) {
   </div>;
 }
 
-export function InfrastructureControl({ tool, damTool, roads, dams, selectedDam, units, onArm, onCancel, onUndo,
+function PondStats({ pond, units }: { pond: DraftPond | SavedPond; units: Units }) {
+  return <div className="lift-stats">
+    <div className="readout-line"><span className="lift-stat-label">Top elevation</span>
+      <span className="lift-stat-value">{fmtDistance(pond.topElevationM, units)}</span></div>
+    <div className="readout-line"><span className="lift-stat-label">Pond area</span>
+      <span className="lift-stat-value">{fmtArea(pond.areaM2, units)}</span></div>
+    <div className="readout-line"><span className="lift-stat-label">Average depth</span>
+      <span className="lift-stat-value">{formatLakeDepth(pond.averageDepthM, units)}</span></div>
+    <div className="readout-line"><span className="lift-stat-label">Maximum depth</span>
+      <span className="lift-stat-value">{formatLakeDepth(pond.maxDepthM, units)}</span></div>
+    <div className="readout-line lake-volume-row"><span className="lift-stat-label">Pond volume</span>
+      <span className="lift-stat-value">{formatLakeVolume(pond.capacityM3, units)}</span></div>
+    <div className="site-hint">No natural inflow is modeled. This pond will not fill on its own.</div>
+  </div>;
+}
+
+function PondElevationField({ valueM, units, onCommit }: {
+  valueM: number; units: Units; onCommit: (valueM: number) => void;
+}) {
+  const factor = units === 'imperial' ? 3.280839895 : 1;
+  const display = (valueM * factor).toFixed(1);
+  const [draft, setDraft] = useState(display);
+  useEffect(() => setDraft(display), [display]);
+  const commit = () => {
+    const value = Number(draft) / factor;
+    if (!Number.isFinite(value) || value < -1000 || value > 10000) setDraft(display);
+    else onCommit(value);
+  };
+  return <label className="lake-depth-row"><span className="lift-stat-label">Top of pond elevation</span>
+    <span className="lake-depth-input-wrap"><input className="lake-depth-input" type="number" step="0.5"
+      value={draft} aria-label={`Top of pond elevation in ${units === 'imperial' ? 'feet' : 'metres'}`}
+      onChange={(event) => setDraft(event.target.value)} onBlur={commit}
+      onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur();
+        if (event.key === 'Escape') { event.preventDefault(); setDraft(display); } }} />
+      <span>{units === 'imperial' ? 'ft' : 'm'}</span></span></label>;
+}
+
+export function InfrastructureControl({ tool, damTool, pondTool, roads, dams, ponds, selectedDam, selectedPond,
+  units, onArm, onCancel, onUndo,
   onFinish, onDraftChange, onConfirm, onArmDam, onCancelDam, onDamDraftChange, onConfirmDam,
-  onSelectDam, onDeleteDam, onCloseDam, onClose, building = false }: {
-  tool: RoadTool; damTool: DamTool; roads: SavedRoad[]; dams: SavedDam[]; selectedDam: SavedDam | null; units: Units;
+  onSelectDam, onDeleteDam, onCloseDam, onArmPond, onCancelPond, onUndoPond, onFinishPond,
+  onPondDraftChange, onPondElevationChange, onConfirmPond, onSelectPond, onDeletePond, onClosePond,
+  onClose, building = false }: {
+  tool: RoadTool; damTool: DamTool; pondTool: PondTool; roads: SavedRoad[]; dams: SavedDam[];
+  ponds: SavedPond[]; selectedDam: SavedDam | null; selectedPond: SavedPond | null; units: Units;
   onArm: (roadType: RoadType) => void; onCancel: () => void; onUndo: () => void; onFinish: () => void;
   onDraftChange: (patch: Partial<DraftRoad>) => void; onConfirm: () => void; onArmDam: () => void;
   onCancelDam: () => void; onDamDraftChange: (patch: Partial<DraftDam>) => void; onConfirmDam: () => void;
   onSelectDam: (id: string) => void; onDeleteDam: (id: string) => void; onCloseDam: () => void;
+  onArmPond: () => void; onCancelPond: () => void; onUndoPond: () => void; onFinishPond: () => void;
+  onPondDraftChange: (patch: Partial<DraftPond>) => void; onPondElevationChange: (valueM: number) => void;
+  onConfirmPond: () => void; onSelectPond: (id: string) => void; onDeletePond: (id: string) => void;
+  onClosePond: () => void;
   onClose: () => void; building?: boolean;
 }) {
+  if (pondTool.phase === 'armed' || pondTool.phase === 'drawing') {
+    const points = pondTool.phase === 'drawing' ? pondTool.points : [];
+    return <div className="site-control site-control-wide infrastructure-panel">
+      <PanelHead title="New standalone pond" onClose={onCancelPond} />
+      <div className="site-hint">Click around the full-pool boundary. Add at least three points, then finish the boundary.</div>
+      {pondTool.error && <div className="lift-warning">{pondTool.error}</div>}
+      <div className="site-actions"><button className="site-btn" onClick={onUndoPond} disabled={!points.length}>Undo point</button>
+        <button className="site-btn site-btn-primary" onClick={onFinishPond} disabled={points.length < 3}>Finish boundary</button></div>
+      <button className="site-btn" onClick={onCancelPond}>Cancel</button>
+    </div>;
+  }
+  if (pondTool.phase === 'review') return <div className="site-control site-control-wide infrastructure-panel">
+    <PanelHead title="Review standalone pond" onClose={onCancelPond} />
+    <input className="name-entry-input lift-name-input" value={pondTool.draft.name}
+      onChange={(event) => onPondDraftChange({ name: event.target.value })} />
+    <PondElevationField valueM={pondTool.draft.topElevationM} units={units} onCommit={onPondElevationChange} />
+    {pondTool.error ? <div className="lift-warning">{pondTool.error}</div> : <PondStats pond={pondTool.draft} units={units} />}
+    <div className="site-actions"><button className="site-btn" onClick={onCancelPond}>Cancel</button>
+      <button className="site-btn site-btn-primary" disabled={building || !!pondTool.error} onClick={onConfirmPond}>
+        {building ? 'Building…' : 'Build pond'}</button></div>
+  </div>;
   if (damTool.phase === 'armed') return <div className="site-control site-control-wide infrastructure-panel">
     <PanelHead title="New dam" onClose={onCancelDam} />
     <div className="site-hint">Click one bank to set the crest elevation, then click near the matching contour on the opposite bank.</div>
@@ -153,18 +228,26 @@ export function InfrastructureControl({ tool, damTool, roads, dams, selectedDam,
     <PanelHead title={selectedDam.name} onClose={onCloseDam} /><DamStats dam={selectedDam} units={units} />
     <button className="lift-delete-btn" onClick={() => onDeleteDam(selectedDam.id)}>Remove dam</button>
   </div>;
+  if (tool.phase === 'idle' && selectedPond) return <div className="site-control site-control-wide infrastructure-panel">
+    <PanelHead title={selectedPond.name} onClose={onClosePond} /><PondStats pond={selectedPond} units={units} />
+    <button className="lift-delete-btn" onClick={() => onDeletePond(selectedPond.id)}>Remove pond</button>
+  </div>;
   if (tool.phase === 'idle') return <div className="lift-overview infrastructure-panel">
-    <PanelHead title={`Infrastructure · ${roads.length} roads · ${dams.length} dams`} onClose={onClose} />
+    <PanelHead title={`Infrastructure · ${roads.length} roads · ${dams.length} dams · ${ponds.length} ponds`} onClose={onClose} />
     <RoadTypeField value="two-lane" onChange={() => undefined} />
     <button className="lift-add-btn site-btn site-btn-primary" onClick={() => onArm('two-lane')}>＋ Build road</button>
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmDam}>＋ Build dam</button>
-    {roads.length === 0 && dams.length === 0 ? <div className="lift-overview-empty">No infrastructure yet — build your first road or dam.</div> : <>
+    <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmPond}>＋ Build standalone pond</button>
+    {roads.length === 0 && dams.length === 0 && ponds.length === 0 ? <div className="lift-overview-empty">No infrastructure yet — build your first road, dam, or pond.</div> : <>
       {roads.length > 0 && <div className="lift-list">{roads.map((road) => <div key={road.id} className="lift-row">
         <span className="infrastructure-road-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{road.name}</span>
           <span className="lift-row-summary">Two-lane · {fmtDistance(road.lengthM, units)}</span></span></div>)}</div>}
       {dams.length > 0 && <div className="lift-list">{dams.map((dam) => <button key={dam.id} className="lift-row lift-row-button" onClick={() => onSelectDam(dam.id)}>
         <span className="infrastructure-dam-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{dam.name}</span>
           <span className="lift-row-summary">Snowmaking pond · {fmtArea(dam.areaM2, units)}</span></span></button>)}</div>}
+      {ponds.length > 0 && <div className="lift-list">{ponds.map((pond) => <button key={pond.id} className="lift-row lift-row-button" onClick={() => onSelectPond(pond.id)}>
+        <span className="infrastructure-dam-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{pond.name}</span>
+          <span className="lift-row-summary">Standalone pond · {fmtArea(pond.areaM2, units)}</span></span></button>)}</div>}
     </>}
   </div>;
   if (tool.phase === 'armed' || tool.phase === 'drawing') {

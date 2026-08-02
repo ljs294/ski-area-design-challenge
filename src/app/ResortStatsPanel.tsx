@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { SavedLift, SavedTrail } from '../types';
 import type { Units } from './SettingsContext';
 import { fmtDistance } from '../lifts';
+import { fmtArea } from '../trails';
 import { resortElevations, resortTrailTotals } from './resortStats';
 import { reverseGeocode } from './SearchBox';
 
@@ -80,6 +81,11 @@ export function ResortStatsPanel({
           <StatRow label="Ski runs" value={runTotals.count.toLocaleString()} />
           {runTotals.count > 0 && (
             <StatRow label="Total run length" value={fmtDistance(runTotals.totalLengthM, units)} />
+          )}
+          {/* Same fmtArea the per-run panel uses, so the resort total reads in the
+              same unit as the runs it is the sum of. */}
+          {runTotals.count > 0 && (
+            <StatRow label="Skiable area" value={fmtArea(runTotals.totalAreaM2, units)} />
           )}
           <StatRow label="Avg. annual snowfall" value="TBD" tbd />
         </div>
