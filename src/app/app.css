@@ -1268,6 +1268,15 @@ html.resume-capture .maplibregl-canvas {
 .game-menu-btn:hover {
   border-color: var(--accent);
 }
+/* Work that has not reached the disk — terrain grading and cleared cover
+   included. Cleared by Save; the exit gate raises a dialog for the same state. */
+.game-menu-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
 .game-menu-icon {
   font-size: 15px;
   line-height: 1;
@@ -1631,6 +1640,26 @@ html.resume-capture .maplibregl-canvas {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+}
+
+/* Unsaved-changes gate on leaving a resort. */
+.unsaved-panel {
+  width: 380px;
+}
+.unsaved-body {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+.unsaved-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.unsaved-actions .site-btn {
+  width: 100%;
+  justify-content: center;
 }
 
 .settings-title {

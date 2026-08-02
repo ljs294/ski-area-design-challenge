@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 export function GameMenu({
   canSave,
   saving,
+  unsaved,
   onSave,
   onLoad,
   onSettings,
@@ -19,6 +20,8 @@ export function GameMenu({
 }: {
   canSave: boolean;
   saving: boolean;
+  /** Live design or terrain edits that have not reached the disk. */
+  unsaved: boolean;
   onSave: () => void;
   onLoad: () => void;
   onSettings: () => void;
@@ -58,10 +61,11 @@ export function GameMenu({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="menu"
-        title="Menu"
+        title={unsaved ? 'Menu — unsaved changes' : 'Menu'}
       >
         <span className="game-menu-icon" aria-hidden="true">☰</span>
         <span className="game-menu-label">Menu</span>
+        {unsaved && <span className="game-menu-dot" aria-label="Unsaved changes" role="status" />}
       </button>
 
       {open && (
@@ -83,7 +87,7 @@ export function GameMenu({
               onClick={pick(onSave)}
               disabled={saving}
             >
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving…' : unsaved ? 'Save •' : 'Save'}
             </button>
           )}
           <button className="game-menu-item" role="menuitem" onClick={pick(onLoad)}>

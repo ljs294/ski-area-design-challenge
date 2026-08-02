@@ -110,6 +110,17 @@ import type { TrailPaintRequest, TrailPaintRequestPayload, TrailPaintResponse } 
 import { strokeToPolygon } from './trailBrush';
 import { terrainGradeGeometryKey, type TerrainGradeResponse } from './terrainGradeProtocol';
 import { applyTerrainGradeToRecord } from './terrainGradeCommit';
+import {
+  TERRAIN_CLEAN,
+  designHasEdits,
+  designOf,
+  flushTerrainEdits,
+  terrainHasEdits,
+  withTerrainEdit,
+  type DesignSnapshot,
+  type TerrainDirty,
+} from './unsavedChanges';
+import { UnsavedChangesModal, type UnsavedChoice } from './UnsavedChangesModal';
 import { refreshTerrainGradeSources, setGradedContourPreview,
   setTerrainContourData } from './terrainGradeMap';
 import {
@@ -319,6 +330,9 @@ export interface ExitCheckpointResult {
 
 export interface GameSessionControls {
   checkpointForExit(interactive?: boolean): Promise<ExitCheckpointResult>;
+  /** Resolve the unsaved-work gate before navigating away. `false` means the
+   *  player cancelled and the session must stay open. */
+  confirmExit(): Promise<boolean>;
 }
 
 function browserPreviewDataUrl(canvas: HTMLCanvasElement): string | null {
@@ -434,6 +448,9 @@ export function MapView({
   const [nameDraft, setNameDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [checkpointError, setCheckpointError] = useState<string | null>(null);
+  // The unsaved-work gate on exit. The ref holds the pending prompt's resolver.
+  const [unsavedPrompt, setUnsavedPrompt] = useState(false);
+  const unsavedChoiceRef = useRef<((choice: UnsavedChoice) => void) | null>(null);
   const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
   const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'optimizing' | 'error'>(
     mode === 'playing' ? 'loading' : 'ready'
@@ -484,6 +501,27 @@ export function MapView({
     sanitizeLakeNameOverrides(initialSave?.lakeNameOverrides));
   // Last-used brush width, kept across arms so it persists between runs.
   const [brushWidthM, setBrushWidthM] = useState(DEFAULT_BRUSH_WIDTH_M);
+  // Terrain edits are held in memory and written on Save, like every other
+  // design change. The ref mirror lets async build handlers accumulate flags.
+  const [terrainDirty, setTerrainDirtyState] = useState<TerrainDirty>(TERRAIN_CLEAN);
+  const terrainDirtyRef = useRef(terrainDirty);
+  const setTerrainDirty = (next: TerrainDirty) => {
+    terrainDirtyRef.current = next;
+    setTerrainDirtyState(next);
+  };
+  const markTerrainEdited = (kind: 'elevation' | 'cover') =>
+    setTerrainDirty(withTerrainEdit(terrainDirtyRef.current, kind));
+  // The design as last written to disk. Seeded from the *sanitized* state above
+  // rather than from initialSave, whose arrays those sanitizers replaced — the
+  // comparison is by reference, so seeding it from initialSave would report a
+  // freshly-loaded resort dirty.
+  const [savedDesign, setSavedDesign] = useState<DesignSnapshot>(() => ({
+    name: initialSave?.name ?? '',
+    site: initialSave?.site ?? null,
+    lifts, trails, roads, dams, ponds,
+    nodes: skiNodes, paths: skiPaths, junctions,
+    lakeDepthOverrides, lakeNameOverrides, streamWidthOverrides,
+  }));
   // Identifies the active construction operation for disabled controls, button
   // spinners, and the persistent map-level status bug.
   const [buildingActivity, setBuildingActivity] = useState<ConstructionActivity | null>(null);
@@ -514,6 +552,19 @@ export function MapView({
     (window as unknown as { appTerrainBounds?: TerrainRecord['bounds'] })
       .appTerrainBounds = terrainRecord?.bounds;
   }, [terrainRecord]);
+
+  // Also for the harness: what this session would write, versus what is on
+  // disk. Terrain edits are only in memory until Save, so a check that reads
+  // storage alone cannot tell whether a discard actually discarded anything.
+  useEffect(() => {
+    (window as unknown as { appSaveState?: unknown }).appSaveState = {
+      terrainKey: terrainRecord?.key ?? null,
+      elevationChecksum: terrainRecord?.packageManifest?.elevationChecksum ?? null,
+      coverChecksum: terrainRecord?.coverMetadata?.checksum ?? null,
+      terrainDirty: { ...terrainDirtyRef.current },
+      unsaved: hasUnsavedChanges(),
+    };
+  });
 
   // "N" toggles the node map, but never while the player is typing a name.
   useEffect(() => {
@@ -2267,9 +2318,8 @@ export function MapView({
       if (!record) throw new Error('The local elevation package is unavailable.');
       if (!patch) throw new Error('This embankment has no grading design. Redraw the dam.');
       const upgraded = applyTerrainGradeToRecord(record, patch);
-      const savedTerrain = await saveTerrain(upgraded);
-      if (!savedTerrain.ok) throw new Error(savedTerrain.error);
       terrainRecordRef.current = upgraded;
+      markTerrainEdited('elevation');
       cacheTerrainDisplayAssets(upgraded);
       setActiveResortTerrain(upgraded);
       setTerrainRecord(upgraded);
@@ -2409,9 +2459,8 @@ export function MapView({
         throw new Error('The berm no longer fits this terrain. Adjust the top of pond and try again.');
       const patch = pondTerrainPatch(record, design);
       const upgraded = applyTerrainGradeToRecord(record, patch);
-      const savedTerrain = await saveTerrain(upgraded);
-      if (!savedTerrain.ok) throw new Error(savedTerrain.error);
       terrainRecordRef.current = upgraded;
+      markTerrainEdited('elevation');
       cacheTerrainDisplayAssets(upgraded);
       setActiveResortTerrain(upgraded);
       setTerrainRecord(upgraded);
@@ -2620,9 +2669,8 @@ export function MapView({
       const record = terrainRecordRef.current;
       if (!record) throw new Error('The local elevation package is unavailable.');
       const upgraded = applyTerrainGradeToRecord(record, result);
-      const savedTerrain = await saveTerrain(upgraded);
-      if (!savedTerrain.ok) throw new Error(savedTerrain.error);
       terrainRecordRef.current = upgraded;
+      markTerrainEdited('elevation');
       cacheTerrainDisplayAssets(upgraded);
       setActiveResortTerrain(upgraded);
       setTerrainRecord(upgraded);
@@ -2772,14 +2820,10 @@ export function MapView({
         console.warn('Cover-clear produced an invalid package; keeping the previous cover.', validation.errors.join(' '));
         return;
       }
-      const saved = hasVectorDisplay
-        ? await saveTerrainCover(upgraded)
-        : await saveTerrain(upgraded);
-      if (!saved.ok) {
-        console.warn('Cover-clear could not be saved; keeping the previous cover.', saved.error);
-        return;
-      }
-
+      // No write here: the edit lives in memory until the player saves, and the
+      // tile protocols below read the in-memory record, not the package on disk.
+      terrainRecordRef.current = upgraded;
+      markTerrainEdited('cover');
       cacheTerrainDisplayAssets(upgraded);
       setActiveResortTerrain(upgraded);
       if (hasVectorDisplay && coverDisplayRef.current) {
@@ -3408,9 +3452,8 @@ export function MapView({
       throw new Error('The trail changed after this grading preview. Recalculate the grade and try again.');
     }
     const upgraded = applyTerrainGradeToRecord(record, result);
-    const savedTerrain = await saveTerrain(upgraded);
-    if (!savedTerrain.ok) throw new Error(savedTerrain.error);
     terrainRecordRef.current = upgraded;
+    markTerrainEdited('elevation');
     cacheTerrainDisplayAssets(upgraded);
     setActiveResortTerrain(upgraded);
     setTerrainRecord(upgraded);
@@ -3679,6 +3722,8 @@ export function MapView({
       if (!validation.ok) throw new Error(validation.errors.join(' '));
       cacheTerrainDisplayAssets(record);
       terrainRecordRef.current = record;
+      // Ingest persisted this package itself, so it starts clean.
+      setTerrainDirty(TERRAIN_CLEAN);
       setActiveResortTerrain(record);
       setTerrainRecord(record);
       packageStateRef.current = 'ready';
@@ -3853,6 +3898,44 @@ export function MapView({
     };
   }
 
+  /** The live design, for comparison against the last one written to disk. */
+  function liveDesign(): DesignSnapshot {
+    return {
+      name: saved?.name ?? initialSave?.name ?? '',
+      site: siteBoxRef.current,
+      lifts: liftsRef.current,
+      trails: trailsRef.current,
+      roads: roadsRef.current,
+      dams: damsRef.current,
+      ponds: pondsRef.current,
+      nodes: skiNodesRef.current,
+      paths: skiPathsRef.current,
+      junctions: junctionsRef.current,
+      lakeDepthOverrides: lakeDepthOverridesRef.current,
+      lakeNameOverrides: lakeNameOverridesRef.current,
+      streamWidthOverrides: streamWidthOverridesRef.current,
+    };
+  }
+
+  function hasUnsavedChanges(): boolean {
+    return terrainHasEdits(terrainDirtyRef.current) || designHasEdits(savedDesign, liveDesign());
+  }
+
+  /**
+   * Write whatever terrain edits are pending. Returns an error message, or null
+   * when there was nothing to do or the write succeeded.
+   */
+  async function flushTerrain(): Promise<string | null> {
+    const record = terrainRecordRef.current;
+    if (!record || !terrainHasEdits(terrainDirtyRef.current)) return null;
+    const result = await flushTerrainEdits(record, terrainDirtyRef.current,
+      { saveTerrain, saveTerrainCover });
+    if (!result.ok) return result.error;
+    // Anything built while the write was in flight is not covered by it.
+    if (terrainRecordRef.current === record) setTerrainDirty(TERRAIN_CLEAN);
+    return null;
+  }
+
   async function createSave() {
     setSaving(true);
     const name = nameDraft.trim() || 'Untitled Resort';
@@ -3863,11 +3946,20 @@ export function MapView({
     }
     const next = snapshot(null);
     if (!next) { setSaving(false); return; }
+    const terrainError = await flushTerrain();
+    if (terrainError) {
+      setSaving(false);
+      setCheckpointError(`The terrain package could not be saved: ${terrainError}`);
+      return;
+    }
     const res = await saveGame(next);
     setSaving(false);
     if (res.ok) {
       persistedSaveRef.current = next;
       setSaved(next);
+      setSavedDesign(designOf(next));
+    } else {
+      setCheckpointError(`Could not save the resort: ${res.error}`);
     }
   }
 
@@ -3888,16 +3980,51 @@ export function MapView({
     }
   }
 
-  async function saveProgress() {
+  /** Explicit save: the only path that writes terrain edits to disk. Terrain
+   *  goes first — a GameSave whose runs reference ungraded ground is the worse
+   *  of the two half-written outcomes. */
+  async function saveProgress(): Promise<boolean> {
     const next = snapshot(saved);
-    if (!next) return;
+    if (!next) return false;
     setSaving(true);
+    const terrainError = await flushTerrain();
+    if (terrainError) {
+      setSaving(false);
+      setCheckpointError(`The terrain package could not be saved: ${terrainError}`);
+      return false;
+    }
     const res = await saveGame(next);
     setSaving(false);
-    if (res.ok) {
-      persistedSaveRef.current = next;
-      setSaved(next);
+    if (!res.ok) {
+      setCheckpointError(`Could not save the resort: ${res.error}`);
+      return false;
     }
+    persistedSaveRef.current = next;
+    setSaved(next);
+    setSavedDesign(designOf(next));
+    return true;
+  }
+
+  /**
+   * The unsaved-work gate, run before leaving the resort. Resolves true when it
+   * is safe to navigate away — nothing pending, the player discarded, or the
+   * save they asked for succeeded.
+   */
+  async function confirmExit(): Promise<boolean> {
+    if (!saved || !hasUnsavedChanges()) return true;
+    const choice = await new Promise<UnsavedChoice>((resolve) => {
+      unsavedChoiceRef.current = resolve;
+      setUnsavedPrompt(true);
+    });
+    unsavedChoiceRef.current = null;
+    if (choice !== 'save') {
+      setUnsavedPrompt(false);
+      return choice === 'discard';
+    }
+    // The dialog stays up showing its spinner until the write settles.
+    const ok = await saveProgress();
+    setUnsavedPrompt(false);
+    return ok;
   }
 
   /** Live-rename the resort; persists on the next Save (snapshot reads saved.name). */
@@ -3907,7 +4034,7 @@ export function MapView({
 
   useEffect(() => {
     if (!sessionControlsRef) return;
-    sessionControlsRef.current = { checkpointForExit };
+    sessionControlsRef.current = { checkpointForExit, confirmExit };
     return () => {
       sessionControlsRef.current = null;
     };
@@ -4053,6 +4180,13 @@ export function MapView({
         </div>
       )}
 
+      {unsavedPrompt && (
+        <UnsavedChangesModal
+          saving={saving}
+          onChoice={(choice) => unsavedChoiceRef.current?.(choice)}
+        />
+      )}
+
       {showPackageGate && (
         <div className="package-gate" role="dialog" aria-modal="true" aria-live="polite">
           <div className={`package-card${packageState === 'error' ? ' is-error' : ''}`}>
@@ -4134,7 +4268,8 @@ export function MapView({
       <GameMenu
         canSave={!!saved}
         saving={saving}
-        onSave={saveProgress}
+        unsaved={!!saved && hasUnsavedChanges()}
+        onSave={() => void saveProgress()}
         onLoad={onLoadGame}
         onSettings={onOpenSettings}
         onCredits={() => setShowCredits(true)}
