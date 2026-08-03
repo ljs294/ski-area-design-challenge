@@ -1,9 +1,11 @@
-export type ConstructionActivity = 'lift' | 'trail' | 'road';
+export type ConstructionActivity = 'lift' | 'trail' | 'road' | 'pond' | 'dam';
 
 const LABELS: Record<ConstructionActivity, string> = {
   lift: 'Building lift…',
   trail: 'Building run…',
   road: 'Building road…',
+  pond: 'Building pond…',
+  dam: 'Building dam…',
 };
 
 export function ConstructionStatusBug({ activity }: { activity: ConstructionActivity }) {
