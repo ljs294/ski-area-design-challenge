@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { analyzeDam, damFillTimeSeconds, damStreamCrossings, effectiveWaterwayWidthM,
   gameplayStreamFlowM3s, sanitizeDams, snapDamEndpoint } from './damAnalysis';
 import type { TerrainRecord, WaterLineFeature } from './types';
-import { parseWaterwayWidthM } from './vectorFeatures';
+import { parseOsmWidthM } from './streamAnalysis';
 
 const bounds = { west: 0, east: 0.002, south: 0, north: 0.002 };
 function point(x: number, y: number, n = 21): [number, number] {
@@ -21,8 +21,8 @@ describe('dam gameplay flow', () => {
     expect(effectiveWaterwayWidthM(stream)).toBe(3);
     expect(effectiveWaterwayWidthM({ ...stream, waterClass: 'river' })).toBe(15);
     expect(damFillTimeSeconds(300, 0.3)).toBe(1000);
-    expect(parseWaterwayWidthM('12 ft 6 in')).toBeCloseTo(3.81, 4);
-    expect(parseWaterwayWidthM('4.5 m')).toBe(4.5);
+    expect(parseOsmWidthM('12 ft 6 in')).toBeCloseTo(3.81, 4);
+    expect(parseOsmWidthM('4.5 m')).toBe(4.5);
   });
 });
 

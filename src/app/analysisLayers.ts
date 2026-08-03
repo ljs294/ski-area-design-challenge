@@ -241,11 +241,6 @@ export function setupAnalysisLayers(
     map.addLayer({
       id: 'local-water-lines', type: 'line', source: 'local-context',
       filter: ['==', ['get', 'kind'], 'water-line'],
-      paint: { 'line-color': '#397f9f',
-        'line-width': ['interpolate', ['linear'], ['zoom'],
-          10, ['max', 0.8, ['min', 3, ['*', ['get', 'effectiveWidthM'], 0.12]]],
-          16, ['max', 1.4, ['min', 12, ['*', ['get', 'effectiveWidthM'], 0.5]]]],
-        'line-opacity': 0.9 },
       paint: {
         'line-color': '#397f9f',
         'line-width': waterWidth,
@@ -255,8 +250,6 @@ export function setupAnalysisLayers(
     map.addLayer({
       id: 'local-water-line-selected', type: 'line', source: 'local-context',
       filter: ['all', ['==', ['get', 'kind'], 'water-line'], ['==', ['get', 'id'], '']],
-      paint: { 'line-color': '#f6fbff',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 16, 7], 'line-opacity': 0.95 },
       paint: {
         'line-color': '#f6fbff',
         'line-width': 3,
@@ -267,7 +260,6 @@ export function setupAnalysisLayers(
     map.addLayer({
       id: 'local-water-line-hit', type: 'line', source: 'local-context',
       filter: ['==', ['get', 'kind'], 'water-line'],
-      paint: { 'line-color': 'rgba(0,0,0,0)', 'line-width': 14 },
       paint: { 'line-color': '#000000', 'line-width': 14, 'line-opacity': 0.01 },
     }, contourAnchor);
     map.addLayer({

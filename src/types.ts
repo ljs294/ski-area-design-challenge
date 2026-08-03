@@ -538,7 +538,6 @@ export interface SavedTrail {
 // still streams tiles online for now.
 export interface GameSave {
   schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
