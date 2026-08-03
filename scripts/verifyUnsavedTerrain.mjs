@@ -27,6 +27,16 @@ const check = (name, ok, detail = '') => {
 };
 
 const saveState = () => page.evaluate(() => globalThis.appSaveState ?? null);
+/**
+ * Click without Playwright's post-click navigation wait. Anything that tears
+ * down and rebuilds the map leaves that wait pending long after the click has
+ * landed, which wedges the run for the full timeout on a click that worked.
+ */
+const hardClick = async (selector) => {
+  const target = page.locator(selector).first();
+  await target.waitFor({ state: 'visible', timeout: 30_000 });
+  await target.evaluate((node) => node.click());
+};
 const waitStyle = async (global) => {
   await page.waitForFunction((k) => globalThis[k]?.isStyleLoaded?.(), global, { timeout: 30_000 });
   await page.waitForTimeout(1200);
@@ -91,7 +101,16 @@ const liftCount = async () => {
 
 try {
   await page.goto(base, { waitUntil: 'load' });
-  await page.evaluate(() => localStorage.clear());
+  // Terrain packages live in IndexedDB, not localStorage: clearing only the
+  // latter leaves a previous run's package behind and the run is not repeatable.
+  await page.evaluate(async () => {
+    localStorage.clear();
+    const dbs = (await indexedDB.databases?.()) ?? [];
+    await Promise.all(dbs.map(({ name }) => name && new Promise((resolve) => {
+      const request = indexedDB.deleteDatabase(name);
+      request.onsuccess = request.onerror = request.onblocked = () => resolve();
+    })));
+  });
   await page.reload({ waitUntil: 'load' });
   await waitStyle('menuMap');
   await page.click('.trail-slat >> text=New Game');
@@ -131,18 +150,18 @@ try {
     await page.locator('.game-menu-dot').isVisible().catch(() => false));
 
   await page.click('.game-menu-btn');
-  await page.click('.hud-quit');
+  await hardClick('.hud-quit');
   const dialog = page.locator('.unsaved-panel');
   const prompted = await dialog.waitFor({ state: 'visible', timeout: 10_000 })
     .then(() => true, () => false);
   check('leaving with unsaved work raises the gate', prompted);
   await page.screenshot({ path: `${outDir}/unsaved-gate.png` });
   if (!prompted) throw new Error('No unsaved-changes dialog; the rest of the run cannot be trusted.');
-  await page.click('.unsaved-panel >> text=Discard changes');
+  await hardClick('.unsaved-panel >> text=Discard changes');
   await page.waitForSelector('.main-menu', { timeout: 30_000 });
   await waitStyle('menuMap');
 
-  await page.click('.trail-slat >> text=Continue Game');
+  await hardClick('.trail-slat >> text=Continue Game');
   await page.waitForSelector('.hud-resort', { timeout: 120_000 });
   await waitPackage();
   await dismissLoadingScreen();
@@ -156,7 +175,7 @@ try {
   // ---- Build, then save ----------------------------------------------------
   await buildLift(500, 500, 720, 340);
   await page.click('.game-menu-btn');
-  await page.click('.hud-save');
+  await hardClick('.hud-save');
   await page.waitForFunction(() => globalThis.appSaveState?.unsaved === false,
     null, { timeout: 180_000 });
   const saved = await saveState();
@@ -164,14 +183,14 @@ try {
   check('saving clears the unsaved state', saved.unsaved === false);
 
   await page.click('.game-menu-btn');
-  await page.click('.hud-quit');
+  await hardClick('.hud-quit');
   const promptedAgain = await dialog.waitFor({ state: 'visible', timeout: 4000 })
     .then(() => true, () => false);
   check('leaving with nothing pending does not prompt', promptedAgain === false);
   await page.waitForSelector('.main-menu', { timeout: 30_000 });
   await waitStyle('menuMap');
 
-  await page.click('.trail-slat >> text=Continue Game');
+  await hardClick('.trail-slat >> text=Continue Game');
   await page.waitForSelector('.hud-resort', { timeout: 120_000 });
   await waitPackage();
   await dismissLoadingScreen();
@@ -184,6 +203,8 @@ try {
   await page.screenshot({ path: `${outDir}/unsaved-after-save.png` });
 } catch (e) {
   check('run completed', false, e.message);
+  // Where it actually stalled, since the message alone rarely says.
+  await page.screenshot({ path: `${outDir}/unsaved-failure.png` }).catch(() => {});
 }
 
 console.log('=== ERRORS ===');
