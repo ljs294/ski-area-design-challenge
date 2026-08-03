@@ -16,6 +16,11 @@ export function localContextGeoJSON(record: TerrainRecord, playerRoads: SavedRoa
       }, geometry: { type: 'Polygon', coordinates: water.rings } });
     }
     for (const water of vectors.waterLines) {
+      const effectiveWidthM = streamWidthOverrides[water.id] ?? water.widthM ??
+        (water.waterClass === 'stream' ? 3 : 15);
+      features.push({ type: 'Feature', id: water.id, properties: { kind: 'water-line', id: water.id,
+        name: water.name ?? '', class: water.waterClass, widthM: water.widthM ?? null, effectiveWidthM },
+      geometry: { type: 'LineString', coordinates: water.points } });
       const effective = effectiveStreamWidth(water, streamWidthOverrides[water.id]);
       features.push({ type: 'Feature', id: water.id, properties: {
         kind: 'water-line', id: water.id, name: water.name ?? '', class: water.waterClass,

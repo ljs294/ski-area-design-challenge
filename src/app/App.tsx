@@ -116,6 +116,9 @@ function AppInner() {
   }, []);
 
   const checkpointToMenu = useCallback(async () => {
+    // Unsaved terrain grading and cleared cover die with the session now, so
+    // ask before leaving; a cancelled prompt keeps the resort open.
+    if ((await sessionControlsRef.current?.confirmExit()) === false) return;
     const result = await sessionControlsRef.current?.checkpointForExit(true);
     if (result && !result.ok) return;
     toMenu();
@@ -167,6 +170,7 @@ function AppInner() {
   const handleLoadPick = useCallback(
     async (key: string, name: string) => {
       setShowLoad(false);
+      if ((await sessionControlsRef.current?.confirmExit()) === false) return;
       const checkpoint = await sessionControlsRef.current?.checkpointForExit(true);
       if (checkpoint && !checkpoint.ok) return;
       await beginBoot(key, name);
