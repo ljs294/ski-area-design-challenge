@@ -6,7 +6,6 @@ import { waterLinePixelWidth } from './waterLineStyle';
 const record = {
   vectorFeatures: {
     waterPolygons: [{ id: 'way/42', name: 'OSM Lake', rings: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }],
-    waterLines: [{ id: 'way/7', name: 'Creek', waterClass: 'stream', widthM: 4.5,
     waterLines: [{ id: 'way/7', name: 'Cold Creek', waterClass: 'stream', sourceWidthM: 4,
       points: [[0, 0], [1, 1]] }], roads: [], landCover: [], peaks: [],
   },
@@ -20,12 +19,6 @@ describe('local lake context', () => {
     expect(named.properties).toMatchObject({ id: 'way/42', name: 'OSM Lake', customName: 'Mirror Pond' });
   });
 
-  it('retains stream identity and publishes its effective rendered width', () => {
-    const stream = localContextGeoJSON(record, [], {}, { 'way/7': 8 }).features
-      .find((feature) => feature.properties?.kind === 'water-line');
-    expect(stream?.id).toBe('way/7');
-    expect(stream?.properties).toMatchObject({ id: 'way/7', name: 'Creek', class: 'stream',
-      widthM: 4.5, effectiveWidthM: 8 });
   it('publishes stable waterway properties and the effective width', () => {
     const source = localContextGeoJSON(record).features[1];
     const overridden = localContextGeoJSON(record, [], {}, { 'way/7': 9 }).features[1];

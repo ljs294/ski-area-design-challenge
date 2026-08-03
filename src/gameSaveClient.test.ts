@@ -69,38 +69,4 @@ describe('game preview fallback storage', () => {
     expect((await loadGame('lakes'))?.lakeNameOverrides).toEqual({ 'way/42': 'Mirror Pond' });
     expect((await loadGame('lakes'))?.streamWidthOverrides).toEqual({ 'way/7': 4.5 });
   });
-
-  it('round-trips schema-v8 snowmaking dams', async () => {
-    const save: GameSave = { ...game('dams', '2026-06-01T00:00:00.000Z'), schemaVersion: 8,
-      streamWidthOverrides: { 'way/1': 4.5 },
-      dams: [{ id: 'dam-1', name: 'Dam 1', points: [[0, 0], [0.001, 0]],
-        crestElevationM: 1000, streamId: 'way/1', streamName: 'Creek', sourceWidthM: 3,
-        inflowM3s: 0.3, pondRings: [[[0, 0], [0, 0.001], [0.001, 0], [0, 0]]],
-        areaM2: 1000, averageDepthM: 2, capacityM3: 2000, averageDamHeightM: 2.5,
-        maxDamHeightM: 4,
-        createdAt: '2026-06-01T00:00:00.000Z' }] };
-    await saveGame(save);
-    expect((await loadGame('dams'))?.dams).toEqual(save.dams);
-    expect((await loadGame('dams'))?.streamWidthOverrides).toEqual({ 'way/1': 4.5 });
-  });
-
-  it('round-trips schema-v9 standalone ponds', async () => {
-    const save: GameSave = { ...game('ponds', '2026-08-01T00:00:00.000Z'), schemaVersion: 9,
-      ponds: [{ id: 'pond-1', name: 'Pond 1',
-        boundary: [[0, 0], [0, 0.001], [0.001, 0], [0, 0]], topElevationM: 1001,
-        areaM2: 1000, averageDepthM: 2, maxDepthM: 3, capacityM3: 2000,
-        createdAt: '2026-08-01T00:00:00.000Z' }] };
-    await saveGame(save);
-    expect((await loadGame('ponds'))?.ponds).toEqual(save.ponds);
-  });
-
-  it('round-trips schema-v10 snowmaking pond designations', async () => {
-    const save: GameSave = { ...game('pond-designation', '2026-08-01T00:00:00.000Z'), schemaVersion: 10,
-      ponds: [{ id: 'pond-2', name: 'Decorative Pond',
-        boundary: [[0, 0], [0, 0.001], [0.001, 0], [0, 0]], topElevationM: 1001,
-        areaM2: 500, averageDepthM: 1, maxDepthM: 2, capacityM3: 500,
-        isSnowmaking: false, createdAt: '2026-08-01T00:00:00.000Z' }] };
-    await saveGame(save);
-    expect((await loadGame('pond-designation'))?.ponds?.[0].isSnowmaking).toBe(false);
-  });
 });

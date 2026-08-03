@@ -1,4 +1,4 @@
-import type { SavedDam, SavedLift, SavedPond, SavedTrail } from '../types';
+import type { SavedLift, SavedTrail } from '../types';
 
 export interface ResortElevations {
   /** Highest resolved elevation across lifts + runs, meters. null until any resolves. */
@@ -36,29 +36,11 @@ export interface ResortTrailTotals {
   count: number;
   /** Sum of every run's slope length, meters. */
   totalLengthM: number;
-  /**
-   * Sum of every run's painted footprint, square meters — the resort's skiable
-   * acreage. Each run contributes the same `areaM2` its own panel reports, so
-   * two runs painted across each other count their shared ground twice; that
-   * matches how the trails list adds up and keeps the total explainable
-   * run-by-run rather than silently differing from the parts.
-   */
-  totalAreaM2: number;
 }
 
-/** Run count, total run length and total skiable area across all painted runs. */
+/** Run count + total run length across all painted runs. */
 export function resortTrailTotals(trails: SavedTrail[]): ResortTrailTotals {
   let totalLengthM = 0;
-  let totalAreaM2 = 0;
-  for (const t of trails) {
-    totalLengthM += t.lengthM;
-    totalAreaM2 += t.areaM2;
-  }
-  return { count: trails.length, totalLengthM, totalAreaM2 };
-}
-
-/** Full-pool storage available to the resort snowmaking system. */
-export function snowmakingWaterCapacityM3(dams: SavedDam[], ponds: SavedPond[]): number {
-  return dams.reduce((sum, dam) => sum + dam.capacityM3, 0) +
-    ponds.reduce((sum, pond) => sum + (pond.isSnowmaking !== false ? pond.capacityM3 : 0), 0);
+  for (const t of trails) totalLengthM += t.lengthM;
+  return { count: trails.length, totalLengthM };
 }

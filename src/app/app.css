@@ -973,23 +973,6 @@ html.resume-capture .maplibregl-canvas {
   background: #55534e;
   opacity: 0.72;
 }
-.infrastructure-dam-swatch {
-  width: 22px;
-  height: 5px;
-  flex: 0 0 auto;
-  border-radius: 2px;
-  background: #72553b;
-  box-shadow: 0 0 0 2px rgba(105, 169, 197, 0.42);
-}
-.lift-row-button {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
 
 .dock-rollup {
   width: 280px;
@@ -1267,15 +1250,6 @@ html.resume-capture .maplibregl-canvas {
 }
 .game-menu-btn:hover {
   border-color: var(--accent);
-}
-/* Work that has not reached the disk — terrain grading and cleared cover
-   included. Cleared by Save; the exit gate raises a dialog for the same state. */
-.game-menu-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex: none;
 }
 .game-menu-icon {
   font-size: 15px;
@@ -1643,26 +1617,6 @@ html.resume-capture .maplibregl-canvas {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
-}
-
-/* Unsaved-changes gate on leaving a resort. */
-.unsaved-panel {
-  width: 380px;
-}
-.unsaved-body {
-  margin: 0 0 16px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-faint);
-}
-.unsaved-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.unsaved-actions .site-btn {
-  width: 100%;
-  justify-content: center;
 }
 
 .settings-title {
