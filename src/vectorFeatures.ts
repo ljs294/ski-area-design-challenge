@@ -21,6 +21,7 @@ import type {
   PeakFeature,
   VectorFeatureSet,
 } from './types';
+import { parseOsmWidthM } from './streamAnalysis';
 
 // Overpass is a shared community resource, not a paid API — a descriptive
 // User-Agent and a short mirror list (not aggressive retries) is the

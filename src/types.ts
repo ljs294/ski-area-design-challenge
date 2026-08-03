@@ -217,6 +217,8 @@ export interface WaterLineFeature {
   waterClass: WaterLineClass;
   /** OSM channel width, normalized to metres when the tag is usable. */
   widthM?: number;
+  /** Parsed OSM channel width in metres, when the source supplied a usable width tag. */
+  sourceWidthM?: number;
   points: [number, number][]; // [lon, lat]
 }
 
@@ -536,6 +538,7 @@ export interface SavedTrail {
 // still streams tiles online for now.
 export interface GameSave {
   schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain

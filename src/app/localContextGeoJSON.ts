@@ -1,4 +1,5 @@
 import type { SavedRoad, TerrainRecord } from '../types';
+import { effectiveStreamWidth } from '../streamAnalysis';
 import { playerRoadFeatures } from './roadLayers';
 
 /** Build the shared local OSM/player context, including save-only lake names. */
@@ -20,6 +21,11 @@ export function localContextGeoJSON(record: TerrainRecord, playerRoads: SavedRoa
       features.push({ type: 'Feature', id: water.id, properties: { kind: 'water-line', id: water.id,
         name: water.name ?? '', class: water.waterClass, widthM: water.widthM ?? null, effectiveWidthM },
       geometry: { type: 'LineString', coordinates: water.points } });
+      const effective = effectiveStreamWidth(water, streamWidthOverrides[water.id]);
+      features.push({ type: 'Feature', id: water.id, properties: {
+        kind: 'water-line', id: water.id, name: water.name ?? '', class: water.waterClass,
+        widthM: effective.widthM, widthSource: effective.source,
+      }, geometry: { type: 'LineString', coordinates: water.points } });
     }
     for (const road of vectors.roads) {
       features.push({ type: 'Feature', properties: { kind: 'road', class: road.roadClass }, geometry: { type: 'LineString', coordinates: road.points } });

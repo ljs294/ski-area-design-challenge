@@ -21,6 +21,7 @@ import { LOCAL_ROAD_PAINT } from './roadLayers';
 import { localContextGeoJSON } from './localContextGeoJSON';
 import { localContourGeoJSON } from './localContours';
 import { EMPTY_CONTOURS, GRADED_CONTOUR_SOURCE } from './terrainGradeMap';
+import { waterLinePixelWidth } from './waterLineStyle';
 export { localContourGeoJSON } from './localContours';
 export { localContextGeoJSON } from './localContextGeoJSON';
 
@@ -169,6 +170,9 @@ export function setupAnalysisLayers(
   let demBounds: [number, number, number, number] | undefined;
   let coverVisible = false;
   let coverLabel = 'Ground cover preview';
+  const waterWidth = waterLinePixelWidth(local?.bounds
+    ? (local.bounds.north + local.bounds.south) / 2
+    : 0);
   if (local) {
     registerResortProtocols();
     bounds = localTileBounds(local);
@@ -242,17 +246,29 @@ export function setupAnalysisLayers(
           10, ['max', 0.8, ['min', 3, ['*', ['get', 'effectiveWidthM'], 0.12]]],
           16, ['max', 1.4, ['min', 12, ['*', ['get', 'effectiveWidthM'], 0.5]]]],
         'line-opacity': 0.9 },
+      paint: {
+        'line-color': '#397f9f',
+        'line-width': waterWidth,
+        'line-opacity': 0.9,
+      },
     }, contourAnchor);
     map.addLayer({
       id: 'local-water-line-selected', type: 'line', source: 'local-context',
       filter: ['all', ['==', ['get', 'kind'], 'water-line'], ['==', ['get', 'id'], '']],
       paint: { 'line-color': '#f6fbff',
         'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 16, 7], 'line-opacity': 0.95 },
+      paint: {
+        'line-color': '#f6fbff',
+        'line-width': 3,
+        'line-gap-width': waterWidth,
+        'line-opacity': 0.95,
+      },
     }, contourAnchor);
     map.addLayer({
       id: 'local-water-line-hit', type: 'line', source: 'local-context',
       filter: ['==', ['get', 'kind'], 'water-line'],
       paint: { 'line-color': 'rgba(0,0,0,0)', 'line-width': 14 },
+      paint: { 'line-color': '#000000', 'line-width': 14, 'line-opacity': 0.01 },
     }, contourAnchor);
     map.addLayer({
       id: 'local-water-labels', type: 'symbol', source: 'local-context',
