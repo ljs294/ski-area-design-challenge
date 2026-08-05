@@ -49,15 +49,15 @@ try {
     map.once('idle', resolve);
     setTimeout(resolve, 8000);
   }));
-  await page.click('.dock-circle-infrastructure');
-  await page.waitForSelector('.dock-infrastructure');
-  await page.click('.infrastructure-panel >> text=Build standalone pond');
+  await page.click('.dock-circle-snowmaking');
+  await page.waitForSelector('.dock-snowmaking');
+  await page.click('.snowmaking-panel >> text=Build standalone pond');
   for (const [x, y] of [[590, 500], [650, 500], [650, 550], [590, 550]]) await page.mouse.click(x, y);
-  await page.click('.infrastructure-panel >> text=Finish boundary');
-  await page.waitForSelector('.infrastructure-panel >> text=Review standalone pond');
+  await page.click('.snowmaking-panel >> text=Finish boundary');
+  await page.waitForSelector('.snowmaking-panel >> text=Review standalone pond');
 
   const readReview = () => page.evaluate(() => {
-    const panel = document.querySelector('.infrastructure-panel');
+    const panel = document.querySelector('.snowmaking-panel');
     const value = (label) => [...panel.querySelectorAll('.readout-line')]
       .find((row) => row.textContent?.startsWith(label))?.textContent ?? null;
     return { text: panel.textContent, cut: value('Cut'), fill: value('Fill'),
@@ -79,7 +79,7 @@ try {
     throw new Error('The pond review did not highlight the contours it would move.');
 
   // Excavating the floor has to move both the earthwork bill and the capacity.
-  const excavation = page.locator('.infrastructure-panel input[aria-label^="Excavation below full pool"]');
+  const excavation = page.locator('.snowmaking-panel input[aria-label^="Excavation below full pool"]');
   await excavation.fill('3');
   await excavation.blur();
   await page.waitForTimeout(300);
@@ -91,9 +91,9 @@ try {
   }
 
   const beforeDem = await page.evaluate(() => globalThis.appMap.getStyle().sources.dem?.tiles?.[0]);
-  await page.fill('.infrastructure-panel .name-entry-input', 'Snowmaking Pond');
-  await page.click('.infrastructure-panel >> text=Build pond');
-  await page.waitForSelector('.infrastructure-panel >> text=Snowmaking Pond', { timeout: 60_000 });
+  await page.fill('.snowmaking-panel .name-entry-input', 'Snowmaking Pond');
+  await page.click('.snowmaking-panel >> text=Build pond');
+  await page.waitForSelector('.snowmaking-panel >> text=Snowmaking Pond', { timeout: 60_000 });
   await page.waitForFunction((url) => globalThis.appMap
     .getStyle().sources.dem?.tiles?.[0] !== url, beforeDem, { timeout: 60_000 });
 

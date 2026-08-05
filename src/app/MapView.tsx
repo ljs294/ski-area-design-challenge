@@ -85,7 +85,8 @@ import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS, type 
 import { AnchorValue, TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
 import { nearestTrailHeadAnchor, nearestTrailTailAnchor, type TrailHeadAnchor } from './trailHeadAnchor';
 import { TrailDetail } from './TrailDetail';
-import { InfrastructureControl, type DamTool, type DraftDam, type DraftPond, type DraftRoad, type PondTool, type RoadTool } from './InfrastructureControl';
+import { InfrastructureControl, type DraftRoad, type RoadTool } from './InfrastructureControl';
+import { SnowmakingControl, type DamTool, type DraftDam, type DraftPond, type PondTool } from './SnowmakingControl';
 import { addRoadDraftLayers, setRoadDraftData, type RoadDraftLine } from './roadLayers';
 import { damCrestElevationAt, nextDamName, sanitizeDams, snapDamEndpoint } from '../damAnalysis';
 import { addDamLayers, DAM_BUILT_LAYER_IDS, DAM_HIT_LAYERS, setDamData, setDamDraftData, setSelectedDam } from './damLayers';
@@ -392,7 +393,7 @@ export function MapView({
   const [layers, setLayers] = useState<LayerToggle[]>([]);
   // Bottom-dock roll-ups: user-chosen open panel (the lift panel also force-opens
   // whenever the lift tool is active or a lift is selected — see liftsOpen below).
-  const [openDock, setOpenDock] = useState<'layers' | 'lifts' | 'trails' | 'infrastructure' | null>(null);
+  const [openDock, setOpenDock] = useState<'layers' | 'lifts' | 'trails' | 'snowmaking' | 'infrastructure' | null>(null);
   const [layersAlongsideBuild, setLayersAlongsideBuild] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
@@ -1286,7 +1287,7 @@ export function MapView({
       const id = e.features?.[0]?.properties?.id;
       if (typeof id !== 'string') return;
       setSelectedLakeId(null); setSelectedStreamId(null); setSelectedLiftId(null); setSelectedTrailId(null);
-      setSelectedPondId(null); setSelectedDamId(id); setOpenDock('infrastructure');
+      setSelectedPondId(null); setSelectedDamId(id); setOpenDock('snowmaking');
     };
     map.on('click', DAM_HIT_LAYERS, onDamClick);
     map.on('mouseenter', DAM_HIT_LAYERS, onLiftEnter);
@@ -1300,7 +1301,7 @@ export function MapView({
       const id = e.features?.[0]?.properties?.id;
       if (typeof id !== 'string') return;
       setSelectedLakeId(null); setSelectedStreamId(null); setSelectedLiftId(null); setSelectedTrailId(null);
-      setSelectedDamId(null); setSelectedPondId(id); setOpenDock('infrastructure');
+      setSelectedDamId(null); setSelectedPondId(id); setOpenDock('snowmaking');
     };
     map.on('click', POND_HIT_LAYERS, onPondClick);
     map.on('mouseenter', POND_HIT_LAYERS, onLiftEnter);
@@ -2287,7 +2288,7 @@ export function MapView({
     cancelRoadTool(); cancelPondTool(); cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool();
     setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedDamId(null);
     setSelectedPondId(null);
-    setLiftEditing(false); setTrailEditing(false); setOpenDock('infrastructure');
+    setLiftEditing(false); setTrailEditing(false); setOpenDock('snowmaking');
     setDamTool({ phase: 'armed', error: null });
   }
 
@@ -2346,7 +2347,7 @@ export function MapView({
     setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
     setSelectedDamId(id);
     setSelectedPondId(null);
-    setLiftEditing(false); setTrailEditing(false); setOpenDock('infrastructure');
+    setLiftEditing(false); setTrailEditing(false); setOpenDock('snowmaking');
   }
 
   function deleteDam(id: string) {
@@ -2359,7 +2360,7 @@ export function MapView({
     cancelRoadTool(); cancelDamTool(); cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool();
     setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
     setSelectedDamId(null); setSelectedPondId(null); setLiftEditing(false); setTrailEditing(false);
-    setOpenDock('infrastructure'); setPondTool({ phase: 'armed', error: null });
+    setOpenDock('snowmaking'); setPondTool({ phase: 'armed', error: null });
   }
 
   function cancelPondTool() {
@@ -2494,7 +2495,7 @@ export function MapView({
     cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool(); cancelRoadTool(); cancelDamTool(); cancelPondTool();
     setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
     setSelectedDamId(null); setSelectedPondId(id); setLiftEditing(false); setTrailEditing(false);
-    setOpenDock('infrastructure');
+    setOpenDock('snowmaking');
   }
 
   function deletePond(id: string) {
@@ -3599,7 +3600,7 @@ export function MapView({
   }
 
   /** Close/open a bottom dock, yielding any active draw tool of the others. */
-  function toggleDock(which: 'layers' | 'lifts' | 'trails' | 'infrastructure') {
+  function toggleDock(which: 'layers' | 'lifts' | 'trails' | 'snowmaking' | 'infrastructure') {
     // Layer visibility is presentation-only. Keep it beside active paint/road
     // controls without cancelling either draft.
     if (which === 'layers' && (trailToolRef.current.phase !== 'idle' || roadToolRef.current.phase !== 'idle' ||
@@ -3610,7 +3611,7 @@ export function MapView({
     setSelectedLakeId(null);
     setSelectedStreamId(null);
     const isOpen = which === 'layers' ? layersOpen : which === 'lifts' ? liftsOpen
-      : which === 'trails' ? trailsOpen : infrastructureOpen;
+      : which === 'trails' ? trailsOpen : which === 'snowmaking' ? snowmakingOpen : infrastructureOpen;
     if (which !== 'layers') setLayersAlongsideBuild(false);
     if (which !== 'lifts') {
       cancelLiftTool();
@@ -3624,7 +3625,8 @@ export function MapView({
       setSelectedTrailId(null);
       setTrailEditing(false);
     }
-    if (which !== 'infrastructure') { cancelRoadTool(); cancelDamTool(); cancelPondTool();
+    if (which !== 'infrastructure') cancelRoadTool();
+    if (which !== 'snowmaking') { cancelDamTool(); cancelPondTool();
       setSelectedDamId(null); setSelectedPondId(null); }
     if (isOpen) {
       if (which === 'lifts') {
@@ -3641,7 +3643,8 @@ export function MapView({
         setSelectedTrailId(null);
         setTrailEditing(false);
       }
-      if (which === 'infrastructure') { cancelRoadTool(); cancelDamTool(); cancelPondTool();
+      if (which === 'infrastructure') cancelRoadTool();
+      if (which === 'snowmaking') { cancelDamTool(); cancelPondTool();
         setSelectedDamId(null); setSelectedPondId(null); }
       setOpenDock(null);
     } else {
@@ -4102,8 +4105,9 @@ export function MapView({
     }
     return out;
   }, [network]);
-  const infrastructureActive = roadTool.phase !== 'idle' || damTool.phase !== 'idle' ||
-    pondTool.phase !== 'idle' || selectedDamId !== null || selectedPondId !== null;
+  const infrastructureActive = roadTool.phase !== 'idle';
+  const snowmakingActive = damTool.phase !== 'idle' || pondTool.phase !== 'idle' ||
+    selectedDamId !== null || selectedPondId !== null;
   const selectedLakeFeature = selectedLakeId
     ? terrainRecord?.vectorFeatures?.waterPolygons.find((lake) => lake.id === selectedLakeId) ?? null
     : null;
@@ -4124,8 +4128,10 @@ export function MapView({
   const waterDetailOpen = lakeOpen || streamOpen;
   const liftsOpen = !!saved && !waterDetailOpen && (openDock === 'lifts' || liftActive);
   const trailsOpen = !!saved && !waterDetailOpen && !liftsOpen && (openDock === 'trails' || trailActive);
+  const snowmakingOpen = !!saved && !waterDetailOpen && !liftsOpen && !trailsOpen &&
+    (openDock === 'snowmaking' || snowmakingActive);
   const infrastructureOpen = !!saved && !waterDetailOpen && !liftsOpen && !trailsOpen &&
-    (openDock === 'infrastructure' || infrastructureActive);
+    !snowmakingOpen && (openDock === 'infrastructure' || infrastructureActive);
   const layersOpen = !!saved && !waterDetailOpen && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
   const selectedLift = selectedLiftId ? lifts.find((l) => l.id === selectedLiftId) ?? null : null;
   const selectedTrail = selectedTrailId ? trails.find((t) => t.id === selectedTrailId) ?? null : null;
@@ -4643,25 +4649,17 @@ export function MapView({
                 </div>
               </div>
             )}
-              {infrastructureOpen && (
-              <div className="dock-rollup dock-infrastructure">
+              {snowmakingOpen && (
+              <div className="dock-rollup dock-snowmaking">
                 <div className="dock-panel">
-                  <InfrastructureControl
-                    tool={roadTool}
+                  <SnowmakingControl
                     damTool={damTool}
                     pondTool={pondTool}
-                    roads={roads}
                     dams={dams}
                     ponds={ponds}
                     selectedDam={selectedDam}
                     selectedPond={selectedPond}
                     units={settings.units}
-                    onArm={armRoadTool}
-                    onCancel={cancelRoadTool}
-                    onUndo={undoRoadPoint}
-                    onFinish={finishRoadRoute}
-                    onDraftChange={patchRoadDraft}
-                    onConfirm={confirmRoad}
                     onArmDam={armDamTool}
                     onCancelDam={cancelDamTool}
                     onDamDraftChange={patchDamDraft}
@@ -4681,6 +4679,25 @@ export function MapView({
                     onDeletePond={deletePond}
                     onPondSnowmakingChange={changePondSnowmaking}
                     onClosePond={() => setSelectedPondId(null)}
+                    building={building}
+                    onClose={() => setOpenDock(null)}
+                  />
+                </div>
+              </div>
+            )}
+              {infrastructureOpen && (
+              <div className="dock-rollup dock-infrastructure">
+                <div className="dock-panel">
+                  <InfrastructureControl
+                    tool={roadTool}
+                    roads={roads}
+                    units={settings.units}
+                    onArm={armRoadTool}
+                    onCancel={cancelRoadTool}
+                    onUndo={undoRoadPoint}
+                    onFinish={finishRoadRoute}
+                    onDraftChange={patchRoadDraft}
+                    onConfirm={confirmRoad}
                     building={building}
                     onClose={() => setOpenDock(null)}
                   />
@@ -4726,6 +4743,20 @@ export function MapView({
                 <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                   <path d="M3 20 12 4l9 16Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
                   <path d="M8.5 12q2 2.4 3.5 0t3.5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+              <button
+                className={`dock-circle dock-circle-snowmaking${snowmakingOpen ? ' is-active' : ''}`}
+                onClick={() => toggleDock('snowmaking')}
+                aria-pressed={snowmakingOpen}
+                title="Snowmaking"
+                aria-label="Snowmaking"
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                  <path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9" fill="none" stroke="currentColor"
+                    strokeWidth="1.7" strokeLinecap="round" />
+                  <path d="M9.6 4.8 12 7.2l2.4-2.4M9.6 19.2 12 16.8l2.4 2.4" fill="none" stroke="currentColor"
+                    strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
               <button
