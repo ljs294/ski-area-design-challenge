@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | R2 — complete map contribution ownership |
-| Status | R1 is committed: document snapshots are owned/read-only, no-op topology commands preserve revisions, trail terrain/topology commits are atomic, and save/capture reads the synchronous committed topology projection |
-| Last green commit | R1 at `e61821e3d84b7911048bf2fc89d489be36db9454` |
-| Next step | Characterize the full contribution lifecycle, then add data/visibility/hover/style-generation/cleanup ownership and move committed roads out of the analysis family |
+| Current benchmark | R3 — worker post/response/cancellation hardening |
+| Status | R2 is committed: one generation-aware registry owns style/data/visibility/hit/hover/capture/cleanup traversal, and committed roads now belong to the road family |
+| Last green commit | R2 at `a7439ce1693bb758ac702675090e88b2447afa39` |
+| Next step | Characterize synchronous `postMessage` failure, response-envelope identity, supersession termination, and disposal across all four worker adapters |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -38,12 +38,12 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | C2 | Complete | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
 | D1 | Complete | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
 | D2 | Complete; remediated by R1 | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
-| D3 | Provisional pending R2/R4 | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
+| D3 | Complete; reaccepted by R2 | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
 | D4 | Provisional pending R3/R4 | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
 | R0 | Complete | Preserve D4 and independently rerun its deterministic gates | Backup branch points to the audited D4 state; full check and all browser workflows pass |
 | R1 | Complete | Document immutability, atomic terrain/topology confirmation, and coherent persistence snapshots | Ownership/no-op/atomicity tests, full check, and all browser workflows pass |
-| R2 | Next | Full map-contribution lifecycle and road-family ownership | Unit/browser tests cover data, visibility, hover, style generations, order, capture, and cleanup |
-| R3 | Not started | Worker post/response/cancellation hardening | Each adapter proves post failure, identity mismatch, supersession termination, and disposal |
+| R2 | Complete | Full map-contribution lifecycle and road-family ownership | Unit/browser tests cover data, visibility, hover, style generations, order, capture, and cleanup |
+| R3 | Next | Worker post/response/cancellation hardening | Each adapter proves post failure, identity mismatch, supersession termination, and disposal |
 | R4 | Not started | Cross-cutting browser gates and D2–D4 reacceptance | Construction locking, worker supersession, style/hit/capture, and save coherence pass in browser |
 | E1 | Blocked by R4 | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
 | E2 | Not started | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
@@ -80,6 +80,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | D4 | `35fd9469bc12a1c87330e26d30591e530310bda5` | Passed | The four worker adapters landed across three green sub-checkpoints: the shared session with the dam-analysis and cover-edit adapters at `a753d464e11af0268575a4ca81831cc314624233`, the shared grade preview at `bcdc00a08a246c1ac5e4de7471f957641228f7e8`, and the painting engine at `35fd9469bc12a1c87330e26d30591e530310bda5`. Twenty-nine contract tests, 624 total offline tests, both builds, and all six deterministic browser workflows passed. `MapView` now contains zero `new Worker` expressions. The new painting workflow paints a run from a lift terminal and fails when the ready-then-replay handshake is neutered. |
 | R0 | `c6e6c2a6c2f837de3f9ee8c4fb1aa4ad6136b18c` | Passed | The D4 state was preserved at local branch `backup/refactor-d4-audit`. An independent `npm run check` passed 624 offline tests and both builds, and all six deterministic browser workflows passed before remediation began. |
 | R1 | `e61821e3d84b7911048bf2fc89d489be36db9454` | Passed | Ownership/no-op revisions landed at `75449a9`, two-phase terrain/topology confirmation and five coordinator tests at `4dc06c5`, and synchronous persistence projection at `e61821e`. `npm run check` passed 631 offline tests and both builds; all six deterministic browser workflows passed. |
+| R2 | `a7439ce1693bb758ac702675090e88b2447afa39` | Passed | The complete registry contract landed at `494adc9`, committed-road ownership at `af74dd1`, live registry traversal at `5a23c3b`, legacy-seam removal at `3e8a414`, and browser capture proof at `a7439ce`. `npm run check` passed 632 offline tests and both builds; all seven deterministic browser workflows passed. |
 
 ## D4 worker ownership
 
@@ -110,12 +111,13 @@ adds rejecting the promise its caller is awaiting.
 
 ## D3 declared map order
 
-The paint order and the hit priority are declared once in
-[`src/app/mapContribution.ts`](../../src/app/mapContribution.ts). All nine
-families install through the registry, the capture hide/restore walk uses the
-same manifest, and every click guard is derived from the declared priority
-rather than re-accumulated inside each handler. An incomplete or repeated
-contribution set is refused.
+The paint order and hit priority are declared once in
+[`src/app/mapContribution.ts`](../../src/app/mapContribution.ts). The registry
+owns reactive map/style generations and all nine families' installation, data,
+visibility, hit dispatch, hover targets, capture, and cleanup. An incomplete,
+repeated, or incorrectly ranked contribution set is refused. Visibility state
+survives style replacement, exclusive groups arbitrate centrally, and shared
+descriptors merge: one Roads toggle controls both imported OSM and player roads.
 
 One deliberate behavior change: a run now yields to a lift crossing it. The
 seven hand-maintained guard arrays had drifted — the run handler yielded to
@@ -126,9 +128,11 @@ One documented asymmetry is preserved rather than normalized: a standalone pond
 paints above a dam, but a dam picks ahead of a pond. A dam's crest is the
 structure a click is aimed at; the pool it impounds is not.
 
-`MapView` still holds the contributions themselves, each closing over its own
-refs, and still owns the traversal. E1–E5 move the contributions to feature
-controllers; the manifest and the derivation do not move with them.
+Committed player roads now have a dedicated source and layer installed by the
+road family above the site boundary; analysis owns only imported OSM context.
+`MapView` still creates the legacy contribution objects, each closing over its
+own refs until E1–E5 move it to a feature controller, but no longer owns any
+cross-family traversal.
 
 ## D2 migrated write paths
 
