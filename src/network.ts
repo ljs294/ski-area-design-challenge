@@ -389,6 +389,35 @@ export function pointSegmentDistance(p: XY, a: XY, b: XY): { d: number; u: numbe
   return { d: Math.hypot(p.x - (a.x + u * dx), p.y - (a.y + u * dy)), u };
 }
 
+/**
+ * Ramer-Douglas-Peucker simplification of a CLOSED ring (first point === last
+ * point, as every stored boundary/footprint ring is). Shared by the trail
+ * paint engine's mask-to-polygon tracing and the snowmaking dashboard's
+ * screen-space cover-backdrop simplification — same algorithm, two callers.
+ */
+export function simplifyRing(points: [number, number][], tolerance: number): [number, number][] {
+  if (points.length < 6) return points;
+  const open = points.slice(0, -1);
+  const keep = new Uint8Array(open.length); keep[0] = keep[open.length - 1] = 1;
+  const stack: [number, number][] = [[0, open.length - 1]];
+  while (stack.length) {
+    const [lo, hi] = stack.pop()!;
+    const [ax, ay] = open[lo], [bx, by] = open[hi];
+    const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+    let best = tolerance, at = -1;
+    for (let i = lo + 1; i < hi; i++) {
+      const t = len2 ? ((open[i][0] - ax) * dx + (open[i][1] - ay) * dy) / len2 : 0;
+      const d = Math.hypot(open[i][0] - (ax + t * dx), open[i][1] - (ay + t * dy));
+      if (d > best) { best = d; at = i; }
+    }
+    if (at >= 0) { keep[at] = 1; stack.push([lo, at], [at, hi]); }
+  }
+  const result = open.filter((_, i) => keep[i]);
+  if (result.length < 3) return points;
+  result.push(result[0]);
+  return result;
+}
+
 function bboxOf(points: XY[]): BBox {
   let minX = Infinity;
   let minY = Infinity;

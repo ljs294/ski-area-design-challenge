@@ -1,3 +1,4 @@
+import { simplifyRing } from '../network';
 import type { SavedTrailPart } from '../types';
 
 export type PaintMode = 'paint' | 'erase';
@@ -304,29 +305,6 @@ function signedArea(ring: [number, number][]): number {
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
     sum += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
   return sum / 2;
-}
-
-function simplifyRing(points: [number, number][], tolerance: number): [number, number][] {
-  if (points.length < 6) return points;
-  const open = points.slice(0, -1);
-  const keep = new Uint8Array(open.length); keep[0] = keep[open.length - 1] = 1;
-  const stack: [number, number][] = [[0, open.length - 1]];
-  while (stack.length) {
-    const [lo, hi] = stack.pop()!;
-    const [ax, ay] = open[lo], [bx, by] = open[hi];
-    const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
-    let best = tolerance, at = -1;
-    for (let i = lo + 1; i < hi; i++) {
-      const t = len2 ? ((open[i][0] - ax) * dx + (open[i][1] - ay) * dy) / len2 : 0;
-      const d = Math.hypot(open[i][0] - (ax + t * dx), open[i][1] - (ay + t * dy));
-      if (d > best) { best = d; at = i; }
-    }
-    if (at >= 0) { keep[at] = 1; stack.push([lo, at], [at, hi]); }
-  }
-  const result = open.filter((_, i) => keep[i]);
-  if (result.length < 3) return points;
-  result.push(result[0]);
-  return result;
 }
 
 const neighbors = (key: number, set: Set<number>) => {

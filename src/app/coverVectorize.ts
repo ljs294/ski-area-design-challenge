@@ -6,7 +6,7 @@ export const COVER_FILL_LAYER = 'cover-fill';
 export const COVER_OUTLINE_LAYER = 'cover-outline';
 export const COVER_LAYER_IDS = [COVER_FILL_LAYER, COVER_OUTLINE_LAYER];
 
-const FILL_BY_CODE: Record<number, string> = {
+export const FILL_BY_CODE: Record<number, string> = {
   1: '#526952', 2: '#d7d8cf', 3: '#b1b791', 4: '#538eae',
   10: '#2f5135', 20: '#71805a', 30: '#c5c899', 40: '#cab88b',
   50: '#9a877d', 60: '#9d978c', 70: '#edf0ee', 80: '#538eae',

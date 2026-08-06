@@ -103,4 +103,20 @@ describe('game preview fallback storage', () => {
     await saveGame(save);
     expect((await loadGame('pond-designation'))?.ponds?.[0].isSnowmaking).toBe(false);
   });
+
+  it('round-trips schema-v11 snowmaking network nodes', async () => {
+    const save: GameSave = { ...game('snowmaking-nodes', '2026-08-01T00:00:00.000Z'), schemaVersion: 11,
+      dams: [{ id: 'dam-1', name: 'Dam 1', points: [[0, 0], [0.001, 0]],
+        crestElevationM: 1000, streamId: 'way/1', streamName: 'Creek', sourceWidthM: 3,
+        inflowM3s: 0.3, pondRings: [[[0, 0], [0, 0.001], [0.001, 0], [0, 0]]],
+        areaM2: 1000, averageDepthM: 2, capacityM3: 2000, averageDamHeightM: 2.5,
+        maxDamHeightM: 4, createdAt: '2026-06-01T00:00:00.000Z' }],
+      snowmakingNodes: [{ id: 'node-1', name: 'Dam 1 Intake', kind: 'intake',
+        point: [0.0005, 0.0005], elevM: 1000, source: { kind: 'dam', damId: 'dam-1' },
+        createdAt: '2026-08-01T00:00:00.000Z' },
+        { id: 'node-2', name: 'Hydrant A', kind: 'hydrant', point: [0.001, 0.001],
+          elevM: null, createdAt: '2026-08-01T00:00:00.000Z' }] };
+    await saveGame(save);
+    expect((await loadGame('snowmaking-nodes'))?.snowmakingNodes).toEqual(save.snowmakingNodes);
+  });
 });

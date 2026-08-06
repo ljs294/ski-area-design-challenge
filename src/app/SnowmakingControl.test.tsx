@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { SnowmakingControl, type DamTool, type PondTool } from './SnowmakingControl';
+import type { SavedSnowmakingNode } from '../snowmakingNodes';
+import type { SavedDam, SavedPond } from '../types';
 
 const callbacks = {
   onClose: vi.fn(),
@@ -11,12 +13,15 @@ const callbacks = {
   onConfirmPond: vi.fn(),
   onSelectPond: vi.fn(), onDeletePond: vi.fn(), onClosePond: vi.fn(),
   onPondSnowmakingChange: vi.fn(),
+  onSelectNode: vi.fn(), onRenameNode: vi.fn(), onCloseNode: vi.fn(),
 };
 
 function render(damTool: DamTool = { phase: 'idle' }, pondTool: PondTool = { phase: 'idle' },
-  units: 'metric' | 'imperial' = 'metric') {
+  units: 'metric' | 'imperial' = 'metric', dams: SavedDam[] = [], ponds: SavedPond[] = [],
+  nodes: SavedSnowmakingNode[] = [], selectedNode: SavedSnowmakingNode | null = null) {
   return renderToStaticMarkup(<SnowmakingControl damTool={damTool} pondTool={pondTool}
-    dams={[]} ponds={[]} selectedDam={null} selectedPond={null} units={units} {...callbacks} />);
+    dams={dams} ponds={ponds} selectedDam={null} selectedPond={null}
+    nodes={nodes} selectedNode={selectedNode} units={units} {...callbacks} />);
 }
 
 describe('SnowmakingControl', () => {
@@ -125,5 +130,51 @@ describe('SnowmakingControl', () => {
         inflowM3s: 0.3, pondRings: [[[0, 0], [0, 0.001], [0.001, 0], [0, 0]]],
         areaM2: 1000, averageDepthM: 2, capacityM3: 2160, maxDamHeightM: 4 } });
     expect(html).toContain('The terrain changed after this grading preview.');
+  });
+
+  const testPond: SavedPond = {
+    id: 'pond-1', name: 'Upper Pond', boundary: [[0, 0], [0, 0.001], [0.001, 0], [0, 0]],
+    topElevationM: 1001, areaM2: 1000, averageDepthM: 2, maxDepthM: 3, capacityM3: 2160,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  const testNode: SavedSnowmakingNode = {
+    id: 'node-1', name: 'Upper Pond Intake', kind: 'intake', point: [0, 0], elevM: 1001,
+    source: { kind: 'pond', pondId: 'pond-1' }, createdAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  it('lists snowmaking nodes with their kind and source in the idle overview', () => {
+    const html = render(undefined, undefined, 'metric', [], [testPond], [testNode]);
+    expect(html).toContain('Upper Pond Intake');
+    expect(html).toContain('Intake');
+    expect(html).toContain('Upper Pond');
+  });
+
+  it('omits the node list section when there are no nodes', () => {
+    const html = render(undefined, undefined, 'metric', [], [testPond], []);
+    // The dam/pond lists still use .lift-list, so just confirm no swatch for a node row leaks in.
+    expect(html).not.toContain('snowmaking-node-swatch');
+  });
+
+  it('shows a selected node detail branch with name input, kind, source, and elevation', () => {
+    const html = render(undefined, undefined, 'metric', [], [testPond], [testNode], testNode);
+    expect(html).toContain('value="Upper Pond Intake"');
+    expect(html).toContain('Kind');
+    expect(html).toContain('Intake');
+    expect(html).toContain('Source');
+    expect(html).toContain('Upper Pond');
+    expect(html).toContain('Elevation');
+  });
+
+  it('does not offer a delete/remove action for a selected node', () => {
+    const html = render(undefined, undefined, 'metric', [], [testPond], [testNode], testNode);
+    expect(html).not.toContain('lift-delete-btn');
+    expect(html).not.toContain('Remove node');
+  });
+
+  it('renders a placeholder when a selected node has no sampled elevation', () => {
+    const nodeWithoutElevation: SavedSnowmakingNode = { ...testNode, elevM: null };
+    const html = render(undefined, undefined, 'metric', [], [testPond], [nodeWithoutElevation], nodeWithoutElevation);
+    expect(html).toContain('—');
   });
 });

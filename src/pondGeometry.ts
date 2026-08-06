@@ -1,3 +1,4 @@
+import { ringCenter } from './snowmakingNodes';
 import type { TerrainRecord } from './types';
 
 type Point = [number, number];
@@ -58,10 +59,8 @@ function sampleTerrain(record: TerrainRecord, point: Point): number | null {
  */
 export function pondRelativeRenderHeightM(ring: Point[], waterElevationM: number,
   fallbackDepthM: number, record?: TerrainRecord | null): number {
-  const open = ring.length > 1 && samePoint(ring[0], ring[ring.length - 1]) ? ring.slice(0, -1) : ring;
-  if (record && open.length) {
-    const center: Point = [open.reduce((sum, point) => sum + point[0], 0) / open.length,
-      open.reduce((sum, point) => sum + point[1], 0) / open.length];
+  if (record && ring.length) {
+    const center = ringCenter(ring);
     const groundM = sampleTerrain(record, center);
     if (groundM != null) return Math.max(0.01, waterElevationM - groundM);
   }

@@ -7,6 +7,7 @@ import { MAX_POND_EXCAVATION_M, POND_CREST_WIDTH_M, POND_FREEBOARD_M,
   POND_INNER_SLOPE, POND_OUTER_SLOPE } from '../pondEarthwork';
 import { EarthworkStats } from './TrailControl';
 import { roadLengthM } from '../roads';
+import { SNOWMAKING_NODE_LABELS, type SavedSnowmakingNode } from '../snowmakingNodes';
 import type { Units } from './SettingsContext';
 
 export interface DraftDam extends Omit<SavedDam, 'id' | 'createdAt'> {}
@@ -176,18 +177,34 @@ function SnowmakingPondField({ checked, onChange }: {
   </label>;
 }
 
+/**
+ * Name of the dam/pond a node was auto-seeded from, or null when the node
+ * has no `source` (a future hand-placed node) or its source no longer
+ * resolves (should be pruned by reconcileSnowmakingNodes, but stay
+ * defensive rather than throwing on stale data).
+ */
+function snowmakingSourceName(node: SavedSnowmakingNode, dams: SavedDam[], ponds: SavedPond[]): string | null {
+  const source = node.source;
+  if (!source) return null;
+  if (source.kind === 'dam') return dams.find((dam) => dam.id === source.damId)?.name ?? 'Unknown';
+  return ponds.find((pond) => pond.id === source.pondId)?.name ?? 'Unknown';
+}
+
 /** Water storage and (eventually) distribution: dams, standalone ponds, and the
  *  pipe network that will carry their water uphill. Pipes are a placeholder —
  *  the button is deliberately inert until there is a network to build. */
 export function SnowmakingControl({ damTool, pondTool, dams, ponds, selectedDam, selectedPond,
+  nodes, selectedNode,
   units, onArmDam, onCancelDam, onDamDraftChange, onConfirmDam,
   onSelectDam, onDeleteDam, onCloseDam, onArmPond, onCancelPond, onUndoPond, onFinishPond,
   onPondDraftChange, onPondElevationChange, onPondExcavationChange,
   onConfirmPond, onSelectPond, onDeletePond, onClosePond,
   onPondSnowmakingChange,
+  onSelectNode, onRenameNode, onCloseNode,
   onClose, building = false }: {
   damTool: DamTool; pondTool: PondTool; dams: SavedDam[];
-  ponds: SavedPond[]; selectedDam: SavedDam | null; selectedPond: SavedPond | null; units: Units;
+  ponds: SavedPond[]; selectedDam: SavedDam | null; selectedPond: SavedPond | null;
+  nodes: SavedSnowmakingNode[]; selectedNode: SavedSnowmakingNode | null; units: Units;
   onArmDam: () => void;
   onCancelDam: () => void; onDamDraftChange: (patch: Partial<DraftDam>) => void; onConfirmDam: () => void;
   onSelectDam: (id: string) => void; onDeleteDam: (id: string) => void; onCloseDam: () => void;
@@ -197,6 +214,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, selectedDam,
   onConfirmPond: () => void; onSelectPond: (id: string) => void; onDeletePond: (id: string) => void;
   onPondSnowmakingChange: (id: string, checked: boolean) => void;
   onClosePond: () => void;
+  onSelectNode: (id: string) => void; onRenameNode: (id: string, name: string) => void; onCloseNode: () => void;
   onClose: () => void; building?: boolean;
 }) {
   if (pondTool.phase === 'armed' || pondTool.phase === 'drawing') {
@@ -255,6 +273,23 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, selectedDam,
     <div className="site-actions"><button className="site-btn" onClick={onCancelDam}>Cancel</button>
       <button className="site-btn site-btn-primary" disabled={building} onClick={onConfirmDam}>{building ? 'Building…' : 'Build dam'}</button></div>
   </div>;
+  if (selectedNode) {
+    const sourceName = snowmakingSourceName(selectedNode, dams, ponds);
+    return <div className="site-control site-control-wide snowmaking-panel">
+      <PanelHead title={selectedNode.name} onClose={onCloseNode} />
+      <input className="name-entry-input lift-name-input" value={selectedNode.name}
+        onChange={(event) => onRenameNode(selectedNode.id, event.target.value)} />
+      <div className="lift-stats">
+        <div className="readout-line"><span className="lift-stat-label">Kind</span>
+          <span className="lift-stat-value">{SNOWMAKING_NODE_LABELS[selectedNode.kind]}</span></div>
+        {sourceName != null && <div className="readout-line"><span className="lift-stat-label">Source</span>
+          <span className="lift-stat-value">{sourceName}</span></div>}
+        <div className="readout-line"><span className="lift-stat-label">Elevation</span>
+          <span className="lift-stat-value">{selectedNode.elevM != null ? fmtDistance(selectedNode.elevM, units) : '—'}</span></div>
+      </div>
+      <div className="site-hint">This node belongs to its water source and is removed automatically if that dam or pond is deleted.</div>
+    </div>;
+  }
   if (selectedDam) return <div className="site-control site-control-wide snowmaking-panel">
     <PanelHead title={selectedDam.name} onClose={onCloseDam} /><DamStats dam={selectedDam} units={units} />
     <DamEarthworkStats dam={selectedDam} units={units} />
@@ -282,6 +317,13 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, selectedDam,
       {ponds.length > 0 && <div className="lift-list">{ponds.map((pond) => <button key={pond.id} className="lift-row lift-row-button" onClick={() => onSelectPond(pond.id)}>
         <span className="infrastructure-dam-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{pond.name}</span>
           <span className="lift-row-summary">{pond.isSnowmaking !== false ? 'Snowmaking pond' : 'Standalone pond'} · {fmtArea(pond.areaM2, units)}</span></span></button>)}</div>}
+      {nodes.length > 0 && <div className="lift-list">{nodes.map((node) => {
+        const sourceName = snowmakingSourceName(node, dams, ponds);
+        const summary = sourceName != null ? `${SNOWMAKING_NODE_LABELS[node.kind]} · ${sourceName}` : SNOWMAKING_NODE_LABELS[node.kind];
+        return <button key={node.id} className="lift-row lift-row-button" onClick={() => onSelectNode(node.id)}>
+          <span className="snowmaking-node-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{node.name}</span>
+            <span className="lift-row-summary">{summary}</span></span></button>;
+      })}</div>}
     </>}
   </div>;
 }
