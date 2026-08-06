@@ -17,9 +17,9 @@ This is the shared execution record for the approved refactor. Update it at ever
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
 | Current benchmark | B3 — complete obsolete vertical deletion |
-| Status | B2 is committed with its clean metrics, 527 offline tests, and browser-smoke evidence |
+| Status | B3 candidate is green: isolated `npm ci`, aggregate checks, browser smoke, live-provider picker, and payload guard pass |
 | Last green commit | B2 at `7e3ba52d4e1c58a20a848f9f7f14562465d45ac0` |
-| Next step | Reconfirm reachability, delete the exact obsolete file/asset set, remove Leaflet, and validate a clean production output |
+| Next step | Commit B3, capture its clean deletion metrics, then begin the dependency-neutral C1 type models |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks

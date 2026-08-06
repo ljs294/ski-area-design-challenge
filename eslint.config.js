@@ -12,7 +12,6 @@ export default [
       '**/coverage/**',
       '**/playwright-report/**',
       '**/test-results/**',
-      'public/presetTerrain/**',
       'scratchpad/**',
     ],
   },

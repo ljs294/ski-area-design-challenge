@@ -1,8 +1,5 @@
 // Mountain Planner - TypeScript Type Definitions
 import type { LatLonBounds } from './types/geo';
-// Type-only, so this doesn't create a runtime circular import even though
-// vectorFeatures.ts imports feature types (RoadFeature etc.) from here.
-import type { HydratedVectorFeatures } from './vectorFeatures';
 // Type-only for the same reason: skiNodes.ts imports TrailStatus from here.
 import type { AnchorRef, SavedNode, SavedPath } from './skiNodes';
 // Type-only, same reasoning as the skiNodes import above.
@@ -267,8 +264,7 @@ export interface TerrainRecord {
   // Exact lat/lon bounds used for this ingest — persisted (not recomputed
   // from center+areaSizeMeters) so vector features always reproject in
   // perfect alignment with the elevation grid they were fetched alongside.
-  // Optional only because schemaVersion 2 records predate this field;
-  // hydrateTerrainRecord falls back to recomputing it for those.
+  // Optional only because schemaVersion 2 records predate this field.
   bounds?: LatLonBounds;
   sampleGridSize: number; // actual square elevation raster dimension
   sampleHeights: number[]; // row-major, sampleGridSize^2, meters
@@ -310,17 +306,6 @@ export interface TerrainRecord {
   sourceType: 'live' | 'preset' | 'preset-real';
   createdAt: string; // ISO
   updatedAt: string; // ISO
-}
-
-// Obsolete poster-renderer shape. The supported React/MapLibre app owns and
-// consumes TerrainRecord directly; this type disappears with the B3 deletion.
-export interface TerrainDB extends TerrainRecord {
-  displayGridSize: number; // fixed 512
-  displayHeights: number[]; // bicubic-upscaled, row-major, displayGridSize^2
-  widthMeters: number; // = areaSizeMeters
-  heightMeters: number; // = areaSizeMeters
-  bounds: LatLonBounds; // always resolved by hydrateTerrainRecord, unlike the optional field on TerrainRecord
-  hydratedFeatures: HydratedVectorFeatures; // projected + tile-indexed vectorFeatures, ready for the renderer
 }
 
 // Lightweight listing entry (no height data) for the Content Manager.

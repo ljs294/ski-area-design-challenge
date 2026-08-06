@@ -38,27 +38,6 @@ export function haversineMeters(a: [number, number], b: [number, number]): numbe
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
 }
 
-export interface WorldPoint {
-  x: number;
-  y: number;
-}
-
-/**
- * Project a lon/lat point into the same world-space square the renderer
- * works in (0..mapSize on each axis). Matches the grid convention used
- * throughout elevation.ts/contours.ts: row 0 = north edge, col 0 = west
- * edge, so y=0 is north and x=0 is west here too — vector features line up
- * with the elevation grid exactly as long as both are projected from the
- * same `bounds`. A linear equirectangular approximation, which is fine at
- * the few-km scale these selections are (same simplification
- * boundsForSquareMeters already makes).
- */
-export function lonLatToWorld(lon: number, lat: number, bounds: LatLonBounds, mapSize: number): WorldPoint {
-  const x = ((lon - bounds.west) / (bounds.east - bounds.west)) * mapSize;
-  const y = ((bounds.north - lat) / (bounds.north - bounds.south)) * mapSize;
-  return { x, y };
-}
-
 /**
  * The single projection every locally-prepared layer shares: a unit-square
  * coordinate (u,v ∈ [0,1], v measured from the NORTH edge downward, matching

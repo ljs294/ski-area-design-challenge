@@ -8,7 +8,6 @@ This file is the canonical repository guidance for Codex, Claude Code, and other
 - Electron starts at `electron/main.ts`; `electron/preload.ts` is the only renderer bridge to desktop IPC.
 - The static web build uses `vite.config.web.ts` and the same React entrypoint.
 - `spike.html` and `src/spike/spikeMain.ts` are a supported MapLibre data-source developer harness, not the product entrypoint.
-- `menu.html` and `src/main.ts` are an obsolete poster/Leaflet vertical pending verified backup and deliberate removal. Do not extend them.
 - `src/app/GraphicsLab.tsx`, reached with `npm run dev:lab`, is a supported graphics developer harness.
 
 ## Commands

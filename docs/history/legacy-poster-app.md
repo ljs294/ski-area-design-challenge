@@ -13,4 +13,6 @@ The obsolete poster/Leaflet application and curated preset payload were verified
 
 The verified tree contains the poster menu entrypoint and renderer, GIS selection and content-management code, curated-preset tooling, and preset terrain assets that form the obsolete vertical. This remote branch is the recovery point for that code and data after removal from the supported application branch.
 
-The branch verification authorizes the planned local deletion benchmark. It does not authorize force-pushing, deleting the backup reference, or creating/pushing a remote tag.
+The obsolete vertical was removed from the supported `refactor` branch during benchmark B3 on 2026-08-06. The deletion covered the poster entrypoint and stylesheet, canvas renderer and its contour/label/hillshade/tile-index helpers, Leaflet GIS selector and selection box, content manager, curated preset catalog/downloader, and all tracked preset terrain assets.
+
+The recovery reference does not authorize force-pushing, deleting the backup reference, or creating/pushing a remote tag.
