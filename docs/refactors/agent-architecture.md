@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | R3 — worker post/response/cancellation hardening |
-| Status | R2 is committed: one generation-aware registry owns style/data/visibility/hit/hover/capture/cleanup traversal, and committed roads now belong to the road family |
-| Last green commit | R2 at `a7439ce1693bb758ac702675090e88b2447afa39` |
-| Next step | Characterize synchronous `postMessage` failure, response-envelope identity, supersession termination, and disposal across all four worker adapters |
+| Current benchmark | R4 — cross-cutting browser gates and D2–D4 reacceptance |
+| Status | R3 is committed: rejected posts settle, response envelopes are identity-checked, and cancelling trail grading terminates its worker |
+| Last green commit | R3 at `ede5ac6487523e88c14065d7092725d23ea8cbb8` |
+| Next step | Add deterministic browser evidence for construction locking, worker supersession, save coherence, and the already-declared style/hit/capture invariants |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -39,12 +39,12 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | D1 | Complete | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
 | D2 | Complete; remediated by R1 | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
 | D3 | Complete; reaccepted by R2 | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
-| D4 | Provisional pending R3/R4 | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
+| D4 | Remediated by R3; browser reacceptance pending R4 | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
 | R0 | Complete | Preserve D4 and independently rerun its deterministic gates | Backup branch points to the audited D4 state; full check and all browser workflows pass |
 | R1 | Complete | Document immutability, atomic terrain/topology confirmation, and coherent persistence snapshots | Ownership/no-op/atomicity tests, full check, and all browser workflows pass |
 | R2 | Complete | Full map-contribution lifecycle and road-family ownership | Unit/browser tests cover data, visibility, hover, style generations, order, capture, and cleanup |
-| R3 | Next | Worker post/response/cancellation hardening | Each adapter proves post failure, identity mismatch, supersession termination, and disposal |
-| R4 | Not started | Cross-cutting browser gates and D2–D4 reacceptance | Construction locking, worker supersession, style/hit/capture, and save coherence pass in browser |
+| R3 | Complete | Worker post/response/cancellation hardening | Each adapter proves post failure, identity mismatch, supersession termination, and disposal |
+| R4 | Next | Cross-cutting browser gates and D2–D4 reacceptance | Construction locking, worker supersession, style/hit/capture, and save coherence pass in browser |
 | E1 | Blocked by R4 | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
 | E2 | Not started | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
 | E3 | Not started | Snowmaking façade with dam, pond, and node controllers | Feature workflows plus ordering, locking, capture, and save gates pass |
@@ -81,6 +81,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | R0 | `c6e6c2a6c2f837de3f9ee8c4fb1aa4ad6136b18c` | Passed | The D4 state was preserved at local branch `backup/refactor-d4-audit`. An independent `npm run check` passed 624 offline tests and both builds, and all six deterministic browser workflows passed before remediation began. |
 | R1 | `e61821e3d84b7911048bf2fc89d489be36db9454` | Passed | Ownership/no-op revisions landed at `75449a9`, two-phase terrain/topology confirmation and five coordinator tests at `4dc06c5`, and synchronous persistence projection at `e61821e`. `npm run check` passed 631 offline tests and both builds; all six deterministic browser workflows passed. |
 | R2 | `a7439ce1693bb758ac702675090e88b2447afa39` | Passed | The complete registry contract landed at `494adc9`, committed-road ownership at `af74dd1`, live registry traversal at `5a23c3b`, legacy-seam removal at `3e8a414`, and browser capture proof at `a7439ce`. `npm run check` passed 632 offline tests and both builds; all seven deterministic browser workflows passed. |
+| R3 | `ede5ac6487523e88c14065d7092725d23ea8cbb8` | Passed | Worker transport retirement landed at `0be94b8`, explicit post-failure settlement at `94919c9`, response identity/envelope validation at `54c97b1`, and trail-grade toggle cancellation at `ede5ac6`. `npm run check` passed 642 offline tests and both builds; all seven deterministic browser workflows passed. |
 
 ## D4 worker ownership
 
