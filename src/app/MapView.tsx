@@ -1762,6 +1762,8 @@ export function MapView({
       setRenderConcurrency(1);
       mapInteractionLeaseRef.current?.dispose();
       mapContributions.dispose();
+      delete (window as unknown as { appSetCaptureTransients?: (hidden: boolean) => void })
+        .appSetCaptureTransients;
       map.remove();
       mapRef.current = null;
       setLayers([]);
@@ -4051,6 +4053,9 @@ export function MapView({
     }
     applyGradePreview();
   }
+  // Deterministic capture verification, alongside appMap/appNetwork above.
+  (window as unknown as { appSetCaptureTransients: (hidden: boolean) => void })
+    .appSetCaptureTransients = setCaptureTransients;
 
   const checkpointPromiseRef = useRef<Promise<ExitCheckpointResult> | null>(null);
 

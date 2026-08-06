@@ -7,6 +7,7 @@ interface ProbeMap {
   getLayoutProperty(layerId: string, name: string): unknown;
   project(lngLat: [number, number]): { x: number; y: number };
   jumpTo(options: { center: [number, number]; zoom: number }): void;
+  getSource(id: string): { serialize(): { data?: unknown } } | undefined;
 }
 
 /** Every layer in the live style, bottom to top. */
@@ -21,6 +22,19 @@ export const visibilityOf = (page: Page, layerId: string): Promise<unknown> =>
     (id) => (window as unknown as { appMap: ProbeMap }).appMap.getLayoutProperty(id, 'visibility'),
     layerId,
   );
+
+export const sourceFeatureCount = (page: Page, sourceId: string): Promise<number> =>
+  page.evaluate((id) => {
+    const source = (window as unknown as { appMap: ProbeMap }).appMap.getSource(id);
+    const data = source?.serialize().data as { features?: unknown[] } | undefined;
+    return data?.features?.length ?? 0;
+  }, sourceId);
+
+export const setCaptureTransients = (page: Page, hidden: boolean): Promise<void> =>
+  page.evaluate((nextHidden) => {
+    (window as unknown as { appSetCaptureTransients: (value: boolean) => void })
+      .appSetCaptureTransients(nextHidden);
+  }, hidden);
 
 /** Put a coordinate under the middle of the viewport, without animating. */
 export const jumpTo = (page: Page, center: [number, number], zoom: number): Promise<void> =>
