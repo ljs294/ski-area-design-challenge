@@ -29,7 +29,7 @@ Terrain preparation is orchestrated by [`src/terrainIngest.ts`](../src/terrainIn
 
 ## Map and worker ownership
 
-Map feature ordering is declared once by the contribution registry described below. [`src/app/toolCoordinator.ts`](../src/app/toolCoordinator.ts) is the synchronous authority for the seven construction tools, dock state, and Layers-alongside-build behavior. Controllers register cancellation callbacks; changing tools cancels the prior owner before publishing the replacement. Selection stays outside that coordinator but enters through one centralized transition in `MapView`.
+Map feature ordering is declared once by the contribution registry described below, and every worker is owned by the adapter described below it. [`src/app/toolCoordinator.ts`](../src/app/toolCoordinator.ts) is the synchronous authority for the seven construction tools, dock state, and Layers-alongside-build behavior. Controllers register cancellation callbacks; changing tools cancels the prior owner before publishing the replacement. Selection stays outside that coordinator but enters through one centralized transition in `MapView`.
 
 [`src/app/mapInteractionLease.ts`](../src/app/mapInteractionLease.ts) exclusively leases controller cursor, drag-pan, and double-click-zoom overrides and restores the exact prior map state once on release or disposal. The separate site-box gesture is not a construction controller. Escape remains in each existing feature listener.
 
@@ -41,9 +41,15 @@ The same document owns construction ownership and cover-edit serialization. [`sr
 
 [`src/app/topologyDocument.ts`](../src/app/topologyDocument.ts) makes trails, ski nodes, connector paths, and junctions one revisioned document. A transaction takes a working copy, applies pure operations from [`src/topology.ts`](../src/topology.ts), and publishes every collection it moved in one change against the revision it began from; a stale transaction is rejected without partial writes, and identity comparison decides which collections publish, so an operation resolving to something already present moves nothing. Confirming a run materializes both anchor junctions and lands them with the run itself, and deleting a run prunes exactly the junctions nothing references any more, lift terminals excepted. The port owns junction materialization and publication only: `buildSkiNetwork`, coordinate frames, sanitizers, derived-network reads, and feature-controller behavior stay outside it. There is no runtime replacement command because opening another resort remounts the session, so the clean load is the document's construction seed.
 
-Worker construction and feature-controller extraction are still coordinated directly in `MapView`.
+Feature-controller extraction is still coordinated directly in `MapView`.
 
-Cover editing already has a client abstraction in [`src/app/coverEditClient.ts`](../src/app/coverEditClient.ts). Dam analysis, terrain grading, and trail painting workers are still constructed directly from `MapView`. Worker protocol, engine, and worker entry files live under `src/app/`.
+## Worker adapters
+
+[`src/app/workerAdapter.ts`](../src/app/workerAdapter.ts) runs one worker at a time and binds handlers to the instance that was running when they were bound, so a retired worker cannot deliver into the live tool and terminating is the ordinary way to supersede work. A worker that raises an uncaught error is terminated before its owner is told, because an engine that threw has already lost whatever state the next request would be answered against. Request identity, response validation, and recovery belong to each protocol and stay in the adapter above the session.
+
+`MapView` constructs no workers. It holds one adapter per protocol and disposes each on teardown; disposal abandons what is in flight without retiring the adapter, so a StrictMode remount stays usable. [`damAnalysisClient.ts`](../src/app/damAnalysisClient.ts) numbers each alignment and abandons the previous one, so a superseded pond can never reach review. [`terrainGradeClient.ts`](../src/app/terrainGradeClient.ts) is shared by the road and trail tools because one grade preview exists on the map; it checks the preview token, the elevation checksum, and the geometry key before a finished grade is applied, and reports a failure of any of them as superseded. [`trailPaintClient.ts`](../src/app/trailPaintClient.ts) drives the one stateful engine: requests are numbered so an out-of-order preview cannot repaint the canvas backwards, the watermark resets whenever a new engine starts, and one crash is recovered by starting a replacement and asking its owner to replay. [`coverEditClient.ts`](../src/app/coverEditClient.ts) settles one promise per edit — success, refusal, crash, timeout, or teardown — and terminates the worker on every ending.
+
+Worker protocol, engine, and worker entry files live under `src/app/`.
 
 ## Map contributions
 

@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | D4 — terrain-grade, cover-edit, dam-analysis, and trail-paint worker adapters |
-| Status | D3 is committed: the paint order and hit priority are declared once, every family installs through the registry, and every click guard is derived from the declared priority |
-| Last green commit | D3 at `88ff5bffd0b194006e0816bbc5d32222810cb35c` |
-| Next step | Characterize request identity, abort, termination, stale responses, validation, and disposal before moving worker construction out of `MapView` |
+| Current benchmark | E1 — lift controller extraction |
+| Status | D4 is committed: `MapView` constructs no workers, and request identity, abort, termination, stale responses, validation, and disposal are owned per protocol |
+| Last green commit | D4 at `35fd9469bc12a1c87330e26d30591e530310bda5` |
+| Next step | Characterize the lift feature workflow and its cross-cutting coordinator, map, and save behavior before moving lift state out of `MapView` |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -39,8 +39,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | D1 | Complete | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
 | D2 | Complete | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
 | D3 | Complete | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
-| D4 | Next | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
-| E1 | Not started | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
+| D4 | Complete | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
+| E1 | Next | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
 | E2 | Not started | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
 | E3 | Not started | Snowmaking façade with dam, pond, and node controllers | Feature workflows plus ordering, locking, capture, and save gates pass |
 | E4 | Not started | Ski node/path controller extraction | Node/path/topology workflows plus ordering, cancellation, and save gates pass |
@@ -72,6 +72,34 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | D1 | `bc9fb3790ce0958d090dc33f8b825a515df26860` | Passed | The seven-tool coordinator and exclusive map-interaction lease landed with centralized selection. Fourteen contract tests, 545 total offline tests, both builds, and deterministic browser switching/Layers workflows passed. |
 | D2 | `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd` | Passed | Revisioned terrain and topology documents landed and were integrated across three green sub-checkpoints: contracts at `5ac586b02173afd5d941e00bde47534d83435dc9`, terrain integration at `6ccca2a00226b943e9ae9882dc22057082283f23`, topology integration at `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd`. Thirty-nine contract tests, 584 total offline tests, both builds, and all three deterministic browser workflows passed at each of the two integration checkpoints. |
 | D3 | `88ff5bffd0b194006e0816bbc5d32222810cb35c` | Passed | The map contribution registry landed across three green sub-checkpoints: the declared orders and derived guards at `2c9a7389c19e71b2dc59b27aa9dfcdf15176a287`, the `MapView` traversal for style reload, hits, and capture at `743236d31fe662145c0504cb53fa181469d31e01`, and the browser evidence at `88ff5bffd0b194006e0816bbc5d32222810cb35c`. Thirteen contract tests, 597 total offline tests, both builds, and all five deterministic browser workflows passed. The restyle workflow asserts the nine family blocks, every guarded hit layer, hidden-layer persistence across a style reload, and map teardown; the hit workflow asserts a lift crossing a run picks the lift and the run alone still picks the run, and it fails when the guard derivation is neutered. |
+| D4 | `35fd9469bc12a1c87330e26d30591e530310bda5` | Passed | The four worker adapters landed across three green sub-checkpoints: the shared session with the dam-analysis and cover-edit adapters at `a753d464e11af0268575a4ca81831cc314624233`, the shared grade preview at `bcdc00a08a246c1ac5e4de7471f957641228f7e8`, and the painting engine at `35fd9469bc12a1c87330e26d30591e530310bda5`. Twenty-nine contract tests, 624 total offline tests, both builds, and all six deterministic browser workflows passed. `MapView` now contains zero `new Worker` expressions. The new painting workflow paints a run from a lift terminal and fails when the ready-then-replay handshake is neutered. |
+
+## D4 worker ownership
+
+[`src/app/workerAdapter.ts`](../../src/app/workerAdapter.ts) runs one worker at
+a time and binds handlers to the instance that was running when they were
+bound. A retired worker cannot deliver into the live tool, terminating is the
+ordinary way to supersede work, and a crashed worker is terminated before its
+owner is told. Each protocol's adapter sits above that and owns request
+identity, response validation, and recovery.
+
+Three behaviors changed deliberately, each because the previous one was an
+oversight rather than a decision:
+
+- A cover edit in flight is now terminated on teardown. `MapView` held no
+  handle on that worker, so leaving a resort mid-clearing left it running to
+  completion.
+- A superseded trail grade is now terminated. The trail tool queued the next
+  grade behind a computation whose result was already destined to be discarded;
+  the road tool already replaced its worker.
+- A crashed worker is terminated rather than left assigned. Both grade paths
+  and the painting engine previously kept the dead instance and posted to it.
+
+Disposal abandons what is in flight without retiring the adapter, matching the
+terrain document: a StrictMode remount must not permanently kill a feature.
+That makes `dispose` the same abandonment as a tool cancel for the dam, grade,
+and paint adapters, and it is documented as such at each one; the cover adapter
+adds rejecting the promise its caller is awaiting.
 
 ## D3 declared map order
 
