@@ -158,6 +158,8 @@ import { haversineMeters } from '../geo';
 import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
 import { ConstructionStatusBug } from './ConstructionStatusBug';
 import type { ConstructionActivity } from './constructionLock';
+import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
+  type TerrainSnapshot } from './terrainDocument';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
@@ -797,7 +799,6 @@ export function MapView({
   const trailWorkerAppliedRef = useRef(0);
   const trailWorkerRecoveryRef = useRef(0);
   const trailGradeWorkerRef = useRef<Worker | null>(null);
-  const trailGradeRequestRef = useRef(0);
   const trailGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const roadGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const trailCommandsRef = useRef<TrailPaintCommand[]>([]);
@@ -866,11 +867,71 @@ export function MapView({
   }
   // Loaded local package backing cursor sampling, MapLibre protocols, and
   // style reinitialization. Gameplay never populates it from network data.
+  // Written only by the terrain document's publication, so a handler reading it
+  // between a build and the next render sees the record that was committed.
   const terrainRecordRef = useRef<TerrainRecord | null>(null);
   const terrainHeightCacheRef = useRef<{ checksum: string; heights: Float32Array } | null>(null);
   const coverDisplayRef = useRef<CoverDisplayGeoJSON | null>(null);
   const localImageryUrlRef = useRef<string | null>(null);
   const localImageryCacheKeyRef = useRef<string | null>(null);
+
+  // The terrain document is the authority for the committed package: revisions,
+  // construction ownership, cover-edit serialization, and grade-preview
+  // ownership. It is constructed once, but its ports are re-bound every render
+  // because the contour and source refreshes read `settings.units` — a closure
+  // captured at construction would pin those to the first render.
+  const terrainPortsRef = useRef<TerrainDocumentPorts>({
+    cacheDisplayAssets: () => {},
+    activateProtocols: () => {},
+    publishState: () => {},
+    refreshSources: () => {},
+    publishPersisted: () => {},
+    publishConstruction: () => {},
+  });
+  const terrainDocumentRef = useRef<TerrainDocument | null>(null);
+  if (!terrainDocumentRef.current) {
+    terrainDocumentRef.current = new TerrainDocument({
+      cacheDisplayAssets: (record) => terrainPortsRef.current.cacheDisplayAssets(record),
+      activateProtocols: (record) => terrainPortsRef.current.activateProtocols(record),
+      publishState: (publication) => terrainPortsRef.current.publishState(publication),
+      refreshSources: (publication) => terrainPortsRef.current.refreshSources(publication),
+      publishPersisted: () => terrainPortsRef.current.publishPersisted(),
+      publishConstruction: (activity) => terrainPortsRef.current.publishConstruction(activity),
+    });
+  }
+  const terrain = terrainDocumentRef.current;
+
+  /** The one place a committed terrain record reaches React and the dirty flag. */
+  function publishTerrainState({ record, edit }: TerrainPublication): void {
+    terrainRecordRef.current = record;
+    if (edit) markTerrainEdited(edit);
+    else setTerrainDirty(TERRAIN_CLEAN);
+    setTerrainRecord(record);
+  }
+
+  /**
+   * Refresh only the map sources a change actually invalidated. A load or
+   * package replacement refreshes nothing: a restyle follows it, and that
+   * re-mounts terrain and every custom tile source anyway.
+   */
+  function refreshTerrainSources({ record, edit }: TerrainPublication): void {
+    if (edit === 'elevation') {
+      refreshElevationSources(record);
+      return;
+    }
+    if (edit !== 'cover') return;
+    const map = mapRef.current;
+    if (!map) return;
+    // v5+ packages render vector cover, re-derived whole from the freshly
+    // stamped grid. v4 raster-only packages refetch the resort-cover tiles.
+    if (coverDisplayRef.current && record.coverDisplayMetadata) {
+      setCoverData(map, coverDisplayRef.current);
+      return;
+    }
+    clearResortCoverCache();
+    const source = map.getSource('worldcover') as { setTiles?: (tiles: string[]) => void } | undefined;
+    source?.setTiles?.([`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(record.key)}/{z}/{x}/{y}`]);
+  }
 
   function cacheTerrainDisplayAssets(record: TerrainRecord): void {
     const heightChecksum = record.packageManifest?.elevationChecksum ?? record.updatedAt;
@@ -974,7 +1035,14 @@ export function MapView({
   lakeNameOverridesRef.current = lakeNameOverrides;
   streamWidthOverridesRef.current = streamWidthOverrides;
   brushWidthRef.current = brushWidthM;
-  terrainRecordRef.current = terrainRecord;
+  terrainPortsRef.current = {
+    cacheDisplayAssets: cacheTerrainDisplayAssets,
+    activateProtocols: setActiveResortTerrain,
+    publishState: publishTerrainState,
+    refreshSources: refreshTerrainSources,
+    publishPersisted: () => setTerrainDirty(TERRAIN_CLEAN),
+    publishConstruction: setBuildingActivity,
+  };
   packageStateRef.current = packageState;
   // Redefined each render so the boot-failure "Prepare Resort Data" button
   // (rendered by App on the loading screen) runs against current state.
@@ -982,6 +1050,10 @@ export function MapView({
 
   useEffect(() => () => {
     packageAbortRef.current?.abort();
+    // Drops construction ownership and invalidates queued cover work and any
+    // outstanding grade preview. The document stays usable, so a StrictMode
+    // remount does not retire it.
+    terrain.dispose();
     // Without this a cancelled load leaves warmResortTiles rasterizing against
     // a torn-down map for the rest of the tile set.
     warmAbortRef.current?.abort();
@@ -990,7 +1062,9 @@ export function MapView({
     damWorkerRef.current?.terminate();
     if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
     localImageryCacheKeyRef.current = null;
-  }, []);
+    // `terrain` is ref-held and never changes identity, so this stays a
+    // mount/unmount effect.
+  }, [terrain]);
 
   // A saved resort does not enter gameplay until its mandatory local package
   // has loaded and passed manifest validation.
@@ -1054,13 +1128,12 @@ export function MapView({
         reportFailure(validation.errors.join(' '));
         return;
       }
-      cacheTerrainDisplayAssets(readyRecord);
+      // The package exactly as it is on disk: a clean replacement, never an edit.
+      terrain.replace(readyRecord);
       // The resort's own aerial becomes the loading screen's backdrop — it is
       // decoded here regardless, so the picture is free.
       reportBoot({ type: 'backdrop', imageryUrl: localImageryUrlRef.current });
       reportStage({ stage: 'build' });
-      setActiveResortTerrain(readyRecord);
-      setTerrainRecord(readyRecord);
       setPackageState('ready');
     }).catch((error) => {
       if (cancelled) return;
@@ -2551,36 +2624,33 @@ export function MapView({
    * the structure and fell whatever stood on the ground it moved. */
   async function confirmDam() {
     const current = damToolRef.current;
-    if (current.phase !== 'review' || building) return;
+    if (current.phase !== 'review') return;
     const draft = current.draft;
     const patch = earthworkPatchRef.current;
-    setBuildingActivity('dam');
-    try {
-      await new Promise(requestAnimationFrame);
-      const record = terrainRecordRef.current;
-      if (!record) throw new Error('The local elevation package is unavailable.');
-      if (!patch) throw new Error('This embankment has no grading design. Redraw the dam.');
-      const upgraded = applyTerrainGradeToRecord(record, patch);
-      terrainRecordRef.current = upgraded;
-      markTerrainEdited('elevation');
-      cacheTerrainDisplayAssets(upgraded);
-      setActiveResortTerrain(upgraded);
-      setTerrainRecord(upgraded);
-      earthworkPatchRef.current = null;
-      refreshElevationSources(upgraded);
-      setDams((existing) => [...existing, { ...draft, id: genId(),
-        name: draft.name.trim() || nextDamName(existing), terrainGraded: true,
-        createdAt: new Date().toISOString() }]);
-      setDamTool({ phase: 'idle' });
-      toolCoordinator.release('dam');
-      // The embankment and its toe are bare fill now: fell what stood there.
-      await clearCover(patch.disturbancePolygons.map((polygon) => ({ polygon })));
-    } catch (error) {
-      setDamTool((active) => active.phase === 'review' ? { ...active,
-        error: error instanceof Error ? error.message : 'Unable to build this dam.' } : active);
-    } finally {
-      setBuildingActivity(null);
-    }
+    // Ownership is taken synchronously here, so a second confirmation in the
+    // same tick is rejected rather than building this dam twice.
+    await terrain.runConstruction('dam', async () => {
+      try {
+        await new Promise(requestAnimationFrame);
+        const { record, revision } = terrain.snapshot();
+        if (!record) throw new Error('The local elevation package is unavailable.');
+        if (!patch) throw new Error('This embankment has no grading design. Redraw the dam.');
+        const commit = terrain.commit({ expectedRevision: revision,
+          record: applyTerrainGradeToRecord(record, patch), kind: 'elevation' });
+        if (!commit.ok) throw new Error('The terrain changed while building. Redraw the dam.');
+        earthworkPatchRef.current = null;
+        setDams((existing) => [...existing, { ...draft, id: genId(),
+          name: draft.name.trim() || nextDamName(existing), terrainGraded: true,
+          createdAt: new Date().toISOString() }]);
+        setDamTool({ phase: 'idle' });
+        toolCoordinator.release('dam');
+        // The embankment and its toe are bare fill now: fell what stood there.
+        await clearCover(patch.disturbancePolygons.map((polygon) => ({ polygon })));
+      } catch (error) {
+        setDamTool((active) => active.phase === 'review' ? { ...active,
+          error: error instanceof Error ? error.message : 'Unable to build this dam.' } : active);
+      }
+    });
   }
 
   function selectDam(id: string) {
@@ -2680,53 +2750,48 @@ export function MapView({
 
   async function confirmPond() {
     const current = pondToolRef.current;
-    if (current.phase !== 'review' || current.error || building) return;
+    if (current.phase !== 'review' || current.error) return;
     const draft = current.draft;
-    setBuildingActivity('pond');
-    try {
-      await new Promise(requestAnimationFrame);
-      const record = terrainRecordRef.current;
-      if (!record) throw new Error('The local elevation package is unavailable.');
-      // Re-solve against the live terrain rather than trusting the review pass,
-      // so a grade committed by another tool since then cannot be overwritten.
-      const design = designPondEarthwork(record, draft.boundary, {
-        topElevationM: draft.topElevationM,
-        excavationDepthM: draft.excavationDepthM ?? 0,
-        poolAreaM2: draft.areaM2,
-      });
-      if (!design) throw new Error('The pond could not be graded into this terrain.');
-      if (design.truncated || design.maxBermHeightM > MAX_POND_BERM_HEIGHT_M)
-        throw new Error('The berm no longer fits this terrain. Adjust the top of pond and try again.');
-      const patch = pondTerrainPatch(record, design);
-      const upgraded = applyTerrainGradeToRecord(record, patch);
-      terrainRecordRef.current = upgraded;
-      markTerrainEdited('elevation');
-      cacheTerrainDisplayAssets(upgraded);
-      setActiveResortTerrain(upgraded);
-      setTerrainRecord(upgraded);
-      earthworkPatchRef.current = null;
-      refreshElevationSources(upgraded);
-      setPonds((existing) => [...existing, { ...draft, id: genId(),
-        name: draft.name.trim() || nextPondName(existing),
-        crestElevationM: design.crestElevationM,
-        excavationDepthM: design.excavationDepthM,
-        maxBermHeightM: design.maxBermHeightM,
-        bermLengthM: design.bermLengthM,
-        maxCutDepthM: design.maxCutDepthM,
-        disturbedAreaM2: design.disturbedAreaM2,
-        terrainGraded: true,
-        earthwork: { cutM3: design.cutM3, fillM3: design.fillM3, balanceM3: design.balanceM3 },
-        createdAt: new Date().toISOString() }]);
-      setPondTool({ phase: 'idle' });
-      toolCoordinator.release('pond');
-      // The pool and its berm are bare ground now: fell whatever stood on them.
-      await clearCover(patch.disturbancePolygons.map((polygon) => ({ polygon })));
-    } catch (error) {
-      setPondTool((active) => active.phase === 'review' ? { ...active,
-        error: error instanceof Error ? error.message : 'Unable to build this pond.' } : active);
-    } finally {
-      setBuildingActivity(null);
-    }
+    await terrain.runConstruction('pond', async () => {
+      try {
+        await new Promise(requestAnimationFrame);
+        const { record, revision } = terrain.snapshot();
+        if (!record) throw new Error('The local elevation package is unavailable.');
+        // Re-solve against the live terrain rather than trusting the review pass,
+        // so a grade committed by another tool since then cannot be overwritten.
+        const design = designPondEarthwork(record, draft.boundary, {
+          topElevationM: draft.topElevationM,
+          excavationDepthM: draft.excavationDepthM ?? 0,
+          poolAreaM2: draft.areaM2,
+        });
+        if (!design) throw new Error('The pond could not be graded into this terrain.');
+        if (design.truncated || design.maxBermHeightM > MAX_POND_BERM_HEIGHT_M)
+          throw new Error('The berm no longer fits this terrain. Adjust the top of pond and try again.');
+        const patch = pondTerrainPatch(record, design);
+        const commit = terrain.commit({ expectedRevision: revision,
+          record: applyTerrainGradeToRecord(record, patch), kind: 'elevation' });
+        if (!commit.ok) throw new Error('The terrain changed while building. Redraw the pond.');
+        earthworkPatchRef.current = null;
+        setPonds((existing) => [...existing, { ...draft, id: genId(),
+          name: draft.name.trim() || nextPondName(existing),
+          crestElevationM: design.crestElevationM,
+          excavationDepthM: design.excavationDepthM,
+          maxBermHeightM: design.maxBermHeightM,
+          bermLengthM: design.bermLengthM,
+          maxCutDepthM: design.maxCutDepthM,
+          disturbedAreaM2: design.disturbedAreaM2,
+          terrainGraded: true,
+          earthwork: { cutM3: design.cutM3, fillM3: design.fillM3, balanceM3: design.balanceM3 },
+          createdAt: new Date().toISOString() }]);
+        setPondTool({ phase: 'idle' });
+        toolCoordinator.release('pond');
+        // The pool and its berm are bare ground now: fell whatever stood on them.
+        await clearCover(patch.disturbancePolygons.map((polygon) => ({ polygon })));
+      } catch (error) {
+        setPondTool((active) => active.phase === 'review' ? { ...active,
+          error: error instanceof Error ? error.message : 'Unable to build this pond.' } : active);
+      }
+    });
   }
 
   function selectPond(id: string) {
@@ -2751,7 +2816,7 @@ export function MapView({
   }
 
   function cancelRoadTool() {
-    trailGradeRequestRef.current++;
+    terrain.preview.invalidate();
     trailGradeWorkerRef.current?.terminate();
     trailGradeWorkerRef.current = null;
     roadGradeResultRef.current = null;
@@ -2804,7 +2869,7 @@ export function MapView({
       centerline: draft.points,
       centerlineElevM: [],
     }] : [];
-    const requestId = ++trailGradeRequestRef.current;
+    const requestId = terrain.preview.claim();
     roadGradeResultRef.current = null;
     if (!record?.bounds || parts.length === 0) {
       setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
@@ -2815,7 +2880,7 @@ export function MapView({
       return;
     }
     requestAnimationFrame(() => {
-      if (requestId !== trailGradeRequestRef.current) return;
+      if (!terrain.preview.isCurrent(requestId)) return;
       const worker = new Worker(new URL('./terrainGrade.worker.ts', import.meta.url),
         { type: 'module' });
       trailGradeWorkerRef.current?.terminate();
@@ -2824,7 +2889,7 @@ export function MapView({
         [], 'road', ROAD_GRADE_POLICY);
       worker.onmessage = (event: MessageEvent<TerrainGradeResponse>) => {
         const response = event.data;
-        if (response.id !== trailGradeRequestRef.current) return;
+        if (!terrain.preview.isCurrent(response.id)) return;
         if (!response.ok) {
           setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
             ...current.draft, gradingStatus: 'error', gradingError: response.error,
@@ -2865,7 +2930,7 @@ export function MapView({
         setEditedContours(response.editedContourSegments);
       };
       worker.onerror = () => {
-        if (requestId !== trailGradeRequestRef.current) return;
+        if (!terrain.preview.isCurrent(requestId)) return;
         setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
           ...current.draft, gradingStatus: 'error',
           gradingError: 'Road grading worker stopped unexpectedly.',
@@ -2897,7 +2962,7 @@ export function MapView({
   async function confirmRoad() {
     const current = roadToolRef.current;
     const result = roadGradeResultRef.current;
-    if (current.phase !== 'review' || building ||
+    if (current.phase !== 'review' ||
         current.draft.gradingStatus !== 'ok' || !result) return;
     const road: SavedRoad = {
       id: genId(),
@@ -2910,37 +2975,32 @@ export function MapView({
       earthwork: current.draft.earthwork ?? undefined,
       createdAt: new Date().toISOString(),
     };
-    setBuildingActivity('road');
-    try {
-      await new Promise(requestAnimationFrame);
-      const record = terrainRecordRef.current;
-      if (!record) throw new Error('The local elevation package is unavailable.');
-      const upgraded = applyTerrainGradeToRecord(record, result);
-      terrainRecordRef.current = upgraded;
-      markTerrainEdited('elevation');
-      cacheTerrainDisplayAssets(upgraded);
-      setActiveResortTerrain(upgraded);
-      setTerrainRecord(upgraded);
-      refreshElevationSources(upgraded);
-      setRoads((previous) => [...previous, road]);
-      roadGradeResultRef.current = null;
-      trailGradeWorkerRef.current?.terminate();
-      trailGradeWorkerRef.current = null;
-      setRoadTool({ phase: 'idle' });
-      toolCoordinator.release('road');
-      await clearCover([
-        ...roadClearingPolygons(road.points).map((polygon) => ({ polygon })),
-        ...result.disturbancePolygons.map((polygon) => ({ polygon })),
-      ]);
-    } catch (error) {
-      setRoadTool((active) => active.phase === 'review' ? { phase: 'review', draft: {
-        ...active.draft,
-        gradingStatus: 'error',
-        gradingError: error instanceof Error ? error.message : 'Unable to save the road grade.',
-      } } : active);
-    } finally {
-      setBuildingActivity(null);
-    }
+    await terrain.runConstruction('road', async () => {
+      try {
+        await new Promise(requestAnimationFrame);
+        const { record, revision } = terrain.snapshot();
+        if (!record) throw new Error('The local elevation package is unavailable.');
+        const commit = terrain.commit({ expectedRevision: revision,
+          record: applyTerrainGradeToRecord(record, result), kind: 'elevation' });
+        if (!commit.ok) throw new Error('The terrain changed while building. Refinish the route.');
+        setRoads((previous) => [...previous, road]);
+        roadGradeResultRef.current = null;
+        trailGradeWorkerRef.current?.terminate();
+        trailGradeWorkerRef.current = null;
+        setRoadTool({ phase: 'idle' });
+        toolCoordinator.release('road');
+        await clearCover([
+          ...roadClearingPolygons(road.points).map((polygon) => ({ polygon })),
+          ...result.disturbancePolygons.map((polygon) => ({ polygon })),
+        ]);
+      } catch (error) {
+        setRoadTool((active) => active.phase === 'review' ? { phase: 'review', draft: {
+          ...active.draft,
+          gradingStatus: 'error',
+          gradingError: error instanceof Error ? error.message : 'Unable to save the road grade.',
+        } } : active);
+      }
+    });
   }
 
   function armLiftTool() {
@@ -2969,7 +3029,7 @@ export function MapView({
 
   async function confirmLift() {
     const t = liftToolRef.current;
-    if (t.phase !== 'review' || building) return;
+    if (t.phase !== 'review') return;
     const d = t.draft;
     const o = orientBottomToTop(d.points, d.elev);
     const stats = liftStats(o.points, o.elevs);
@@ -2985,21 +3045,21 @@ export function MapView({
       status: d.status,
       createdAt: new Date().toISOString(),
     };
-    liftSampleTokenRef.current++;
-    setLifts((prev) => [...prev, lift]);
     // Keep the review panel up with the build button spinning while the cover is
     // felled and re-vectorized in a worker — a best-effort edit that must never
     // block or fail the lift itself. Yield a frame first so both indicators
     // paint before processing begins.
-    setBuildingActivity('lift');
-    try {
-      await new Promise(requestAnimationFrame);
-      await applyLiftCoverClear(lift);
-    } finally {
-      setBuildingActivity(null);
-      setLiftTool({ phase: 'idle' });
-      toolCoordinator.release('lift');
-    }
+    await terrain.runConstruction('lift', async () => {
+      liftSampleTokenRef.current++;
+      setLifts((prev) => [...prev, lift]);
+      try {
+        await new Promise(requestAnimationFrame);
+        await applyLiftCoverClear(lift);
+      } finally {
+        setLiftTool({ phase: 'idle' });
+        toolCoordinator.release('lift');
+      }
+    });
   }
 
   /**
@@ -3011,8 +3071,16 @@ export function MapView({
    * triggered the edit.
    */
   async function clearCover(clearings: CoverClearing[]): Promise<void> {
+    // Serialized by the terrain document, and handed the snapshot current when
+    // this edit actually starts — never the one current when it was queued.
+    await terrain.runCoverEdit((snapshot) => clearCoverAgainst(snapshot, clearings));
+  }
+
+  async function clearCoverAgainst(
+    { record, revision }: TerrainSnapshot,
+    clearings: CoverClearing[]
+  ): Promise<void> {
     const map = mapRef.current;
-    const record = terrainRecordRef.current;
     if (!map || !record || !record.coverGrid || !record.bounds) return;
     try {
       const workerGrid = {
@@ -3063,20 +3131,12 @@ export function MapView({
         return;
       }
       // No write here: the edit lives in memory until the player saves, and the
-      // tile protocols below read the in-memory record, not the package on disk.
-      terrainRecordRef.current = upgraded;
-      markTerrainEdited('cover');
-      cacheTerrainDisplayAssets(upgraded);
-      setActiveResortTerrain(upgraded);
-      if (hasVectorDisplay && coverDisplayRef.current) {
-        setCoverData(map, coverDisplayRef.current);
-      } else {
-        // Raster fallback: refetch the resort-cover tiles from the mutated grid.
-        clearResortCoverCache();
-        const src = map.getSource('worldcover') as { setTiles?: (tiles: string[]) => void } | undefined;
-        src?.setTiles?.([`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(upgraded.key)}/{z}/{x}/{y}`]);
+      // tile protocols the commit refreshes read the in-memory record, not the
+      // package on disk.
+      const commit = terrain.commit({ expectedRevision: revision, record: upgraded, kind: 'cover' });
+      if (!commit.ok) {
+        console.warn('Cover-clear finished against a superseded terrain package; keeping the previous cover.');
       }
-      setTerrainRecord(upgraded);
     } catch (error) {
       console.warn('Cover-clear failed; keeping the previous cover.', error);
     }
@@ -3088,7 +3148,7 @@ export function MapView({
    * guaranteed base clearing. The saved lift line itself remains exact.
    */
   async function applyLiftCoverClear(lift: SavedLift): Promise<void> {
-    const record = terrainRecordRef.current;
+    const record = terrain.record;
     if (!record || !record.bounds) return;
     const ring = liftClearingRing(lift.points, record.bounds, lift.id);
     await clearCover([{ polygon: [ring] }]);
@@ -3330,7 +3390,7 @@ export function MapView({
 
   function cancelTrailTool() {
     trailSampleTokenRef.current++;
-    trailGradeRequestRef.current++;
+    terrain.preview.invalidate();
     trailGradeWorkerRef.current?.terminate();
     trailGradeWorkerRef.current = null;
     trailGradeResultRef.current = null;
@@ -3521,7 +3581,7 @@ export function MapView({
     const current = trailToolRef.current;
     const record = terrainRecordRef.current;
     if (current.phase !== 'review') return;
-    const requestId = ++trailGradeRequestRef.current;
+    const requestId = terrain.preview.claim();
     trailGradeResultRef.current = null;
     if (!enabled) {
       const stats = trailPartsStats(current.draft.ungradedParts);
@@ -3548,7 +3608,7 @@ export function MapView({
       gradingStatus: 'pending', gradingError: null, earthwork: null } });
     // Paint the checked/pending state before allocating the transferable grid.
     requestAnimationFrame(() => {
-      if (requestId !== trailGradeRequestRef.current) return;
+      if (!terrain.preview.isCurrent(requestId)) return;
       let worker = trailGradeWorkerRef.current;
       if (!worker) {
         worker = new Worker(new URL('./terrainGrade.worker.ts', import.meta.url), { type: 'module' });
@@ -3556,7 +3616,7 @@ export function MapView({
       }
       worker.onmessage = (event: MessageEvent<TerrainGradeResponse>) => {
         const response = event.data;
-        if (response.id !== trailGradeRequestRef.current) return;
+        if (!terrain.preview.isCurrent(response.id)) return;
         if (!response.ok) {
           setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
             ...t.draft, gradingStatus: 'error', gradingError: response.error,
@@ -3617,7 +3677,7 @@ export function MapView({
         setEditedContours(response.editedContourSegments);
       };
       worker.onerror = () => {
-        if (requestId !== trailGradeRequestRef.current) return;
+        if (!terrain.preview.isCurrent(requestId)) return;
         setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
           ...t.draft, gradingStatus: 'error',
           gradingError: 'Terrain grading worker stopped unexpectedly.',
@@ -3658,8 +3718,8 @@ export function MapView({
     }
   }
 
-  async function commitTrailTerrainGrade(): Promise<TerrainRecord> {
-    const record = terrainRecordRef.current;
+  async function commitTrailTerrainGrade(): Promise<void> {
+    const { record, revision } = terrain.snapshot();
     const result = trailGradeResultRef.current;
     if (!record || !result) throw new Error('The terrain grading preview is not ready.');
     const current = trailToolRef.current;
@@ -3673,19 +3733,16 @@ export function MapView({
         )) {
       throw new Error('The trail changed after this grading preview. Recalculate the grade and try again.');
     }
-    const upgraded = applyTerrainGradeToRecord(record, result);
-    terrainRecordRef.current = upgraded;
-    markTerrainEdited('elevation');
-    cacheTerrainDisplayAssets(upgraded);
-    setActiveResortTerrain(upgraded);
-    setTerrainRecord(upgraded);
-    refreshElevationSources(upgraded);
-    return upgraded;
+    const commit = terrain.commit({ expectedRevision: revision,
+      record: applyTerrainGradeToRecord(record, result), kind: 'elevation' });
+    if (!commit.ok) {
+      throw new Error('The trail changed after this grading preview. Recalculate the grade and try again.');
+    }
   }
 
   async function confirmTrail() {
     const t = trailToolRef.current;
-    if (t.phase !== 'review' || building) return;
+    if (t.phase !== 'review') return;
     const d = t.draft;
     const commitGrading = d.status === 'complete' && d.gradingEnabled;
     if (commitGrading && (d.gradingStatus !== 'ok' || !trailGradeResultRef.current)) return;
@@ -3744,41 +3801,41 @@ export function MapView({
     // felled and re-vectorized in a worker — a best-effort edit that must never
     // block or fail the trail itself. Yield a frame first so both indicators
     // paint before processing begins.
-    setBuildingActivity('trail');
     let confirmed = false;
     const gradingClearPolygons = commitGrading
       ? trailGradeResultRef.current?.disturbancePolygons : undefined;
-    try {
-      await new Promise(requestAnimationFrame);
-      if (commitGrading) await commitTrailTerrainGrade();
-      else {
-        const record = terrainRecordRef.current;
-        if (record) setVisibleContours(record);
+    await terrain.runConstruction('trail', async () => {
+      try {
+        await new Promise(requestAnimationFrame);
+        if (commitGrading) await commitTrailTerrainGrade();
+        else {
+          const record = terrain.record;
+          if (record) setVisibleContours(record);
+        }
+        // The edit is terrain now, not a proposal.
+        setEditedContours(null);
+        trailSampleTokenRef.current++;
+        trailWorkerRef.current?.terminate();
+        trailWorkerRef.current = null;
+        trailGradeWorkerRef.current?.terminate();
+        trailGradeWorkerRef.current = null;
+        trailGradeResultRef.current = null;
+        setJunctions(topologyJunctions);
+        setTrails([...topologyTrails, trail]);
+        confirmed = true;
+        await applyTrailCoverClear(trail, gradingClearPolygons);
+      } catch (error) {
+        setTrailTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+          ...current.draft, gradingStatus: 'error',
+          gradingError: error instanceof Error ? error.message : 'Unable to save the terrain grade.',
+        } } : current);
+      } finally {
+        if (confirmed) {
+          setTrailTool({ phase: 'idle' });
+          toolCoordinator.release('trail');
+        }
       }
-      // The edit is terrain now, not a proposal.
-      setEditedContours(null);
-      trailSampleTokenRef.current++;
-      trailWorkerRef.current?.terminate();
-      trailWorkerRef.current = null;
-      trailGradeWorkerRef.current?.terminate();
-      trailGradeWorkerRef.current = null;
-      trailGradeResultRef.current = null;
-      setJunctions(topologyJunctions);
-      setTrails([...topologyTrails, trail]);
-      confirmed = true;
-      await applyTrailCoverClear(trail, gradingClearPolygons);
-    } catch (error) {
-      setTrailTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
-        ...current.draft, gradingStatus: 'error',
-        gradingError: error instanceof Error ? error.message : 'Unable to save the terrain grade.',
-      } } : current);
-    } finally {
-      setBuildingActivity(null);
-      if (confirmed) {
-        setTrailTool({ phase: 'idle' });
-        toolCoordinator.release('trail');
-      }
-    }
+    });
   }
 
   /** Patch a non-geometric field (name/status) of a built run. */
@@ -3931,12 +3988,8 @@ export function MapView({
       );
       const validation = validateTerrainPackage(record);
       if (!validation.ok) throw new Error(validation.errors.join(' '));
-      cacheTerrainDisplayAssets(record);
-      terrainRecordRef.current = record;
       // Ingest persisted this package itself, so it starts clean.
-      setTerrainDirty(TERRAIN_CLEAN);
-      setActiveResortTerrain(record);
-      setTerrainRecord(record);
+      terrain.replace(record);
       packageStateRef.current = 'ready';
       setPackageState('ready');
       // Cover the first resort render; the style.load reveal drops it once the
@@ -4139,13 +4192,13 @@ export function MapView({
    * when there was nothing to do or the write succeeded.
    */
   async function flushTerrain(): Promise<string | null> {
-    const record = terrainRecordRef.current;
+    const { record, revision } = terrain.snapshot();
     if (!record || !terrainHasEdits(terrainDirtyRef.current)) return null;
     const result = await flushTerrainEdits(record, terrainDirtyRef.current,
       { saveTerrain, saveTerrainCover });
     if (!result.ok) return result.error;
     // Anything built while the write was in flight is not covered by it.
-    if (terrainRecordRef.current === record) setTerrainDirty(TERRAIN_CLEAN);
+    terrain.markPersisted(revision);
     return null;
   }
 
