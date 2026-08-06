@@ -82,6 +82,7 @@ import {
 import { CoverEditAdapter } from './coverEditClient';
 import { DamAnalysisAdapter } from './damAnalysisClient';
 import { TerrainGradeAdapter } from './terrainGradeClient';
+import { TrailPaintAdapter } from './trailPaintClient';
 import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
   resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt,
   setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
@@ -114,7 +115,6 @@ import {
   trailsToGeoJSON,
   TRAIL_BUILT_LAYER_IDS,
 } from './trailLayers';
-import type { TrailPaintRequest, TrailPaintRequestPayload, TrailPaintResponse } from './trailPaintProtocol';
 import { strokeToPolygon } from './trailBrush';
 import { terrainGradeGeometryKey, type TerrainGradeResponse } from './terrainGradeProtocol';
 import { applyTerrainGradeToRecord } from './terrainGradeCommit';
@@ -814,10 +814,7 @@ export function MapView({
   const trailsRef = useRef<SavedTrail[]>(trails);
   const trailToolRef = useRef<TrailTool>(trailTool);
   const trailSampleTokenRef = useRef(0);
-  const trailWorkerRef = useRef<Worker | null>(null);
-  const trailWorkerIdRef = useRef(0);
-  const trailWorkerAppliedRef = useRef(0);
-  const trailWorkerRecoveryRef = useRef(0);
+  const trailReplayRef = useRef<TrailPaintCommand[]>([]);
   const trailGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const roadGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const trailCommandsRef = useRef<TrailPaintCommand[]>([]);
@@ -934,6 +931,9 @@ export function MapView({
   const terrainGradeRef = useRef<TerrainGradeAdapter | null>(null);
   if (!terrainGradeRef.current) terrainGradeRef.current = new TerrainGradeAdapter();
   const terrainGrade = terrainGradeRef.current;
+  const trailPaintRef = useRef<TrailPaintAdapter | null>(null);
+  if (!trailPaintRef.current) trailPaintRef.current = new TrailPaintAdapter();
+  const trailPaint = trailPaintRef.current;
 
   /** The one place a committed terrain record reaches React and the dirty flag. */
   function publishTerrainState({ record, edit }: TerrainPublication): void {
@@ -1091,7 +1091,7 @@ export function MapView({
     // Without this a cancelled load leaves warmResortTiles rasterizing against
     // a torn-down map for the rest of the tile set.
     warmAbortRef.current?.abort();
-    trailWorkerRef.current?.terminate();
+    trailPaint.dispose();
     damAnalysis.dispose();
     coverEdit.dispose();
     terrainGrade.dispose();
@@ -1099,7 +1099,7 @@ export function MapView({
     localImageryCacheKeyRef.current = null;
     // The document and the adapters are ref-held and never change identity, so
     // this stays a mount/unmount effect.
-  }, [terrain, damAnalysis, coverEdit, terrainGrade]);
+  }, [terrain, damAnalysis, coverEdit, terrainGrade, trailPaint]);
 
   // A saved resort does not enter gameplay until its mandatory local package
   // has loaded and passed manifest validation.
@@ -1989,13 +1989,13 @@ export function MapView({
       }
       setTrailTool({ phase: 'analyzing', polygons: current.polygons, areaM2: current.areaM2,
         anchor: current.anchor, tailAnchor: candidate });
-      postTrailRequest({ type: 'finish' });
+      trailPaint.post({ type: 'finish' });
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') backToTrailPaint(); };
     map.on('mousemove', onMove); map.on('click', onClick); window.addEventListener('keydown', onKey);
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
       window.removeEventListener('keydown', onKey); interaction.release(); };
-  }, [trailTool.phase]);
+  }, [trailTool.phase, trailPaint]);
 
   /** Sample both terminal elevations for the review draft. Token-guarded so a
    *  cancel/confirm/redraw discards in-flight results. */
@@ -3426,14 +3426,14 @@ export function MapView({
     trailPendingUntilRef.current = 0;
     terrainGrade.stop();
     trailGradeResultRef.current = null;
-    trailWorkerRecoveryRef.current = 0;
+    trailPaint.allowRestart();
     setTrailTool({ phase: 'place-head', candidate: null, error: null });
   }
 
   function beginTrailPainting(anchor: TrailHeadAnchor) {
     const seed: TrailPaintCommand = { mode: 'paint', path: [anchor.point, anchor.point], seed: true };
     trailCommandsRef.current = [seed];
-    trailWorkerRecoveryRef.current = 0;
+    trailPaint.allowRestart();
     setTrailTool({ phase: 'paint', mode: 'paint', polygons: [], areaM2: 0,
       activeAreaM2: null, canUndo: false, pending: true, error: null, anchor,
       hasUserStroke: false });
@@ -3441,8 +3441,7 @@ export function MapView({
   }
 
   function changeTrailHead() {
-    trailWorkerRef.current?.terminate();
-    trailWorkerRef.current = null;
+    trailPaint.stop();
     trailCommandsRef.current = [];
     trailPendingUntilRef.current = 0;
     trailPreviewPathRef.current = [];
@@ -3458,8 +3457,7 @@ export function MapView({
     const record = terrainRecordRef.current;
     if (record) setVisibleContours(record);
     setEditedContours(null);
-    trailWorkerRef.current?.terminate();
-    trailWorkerRef.current = null;
+    trailPaint.stop();
     trailCommandsRef.current = [];
     trailPendingUntilRef.current = 0;
     trailPreviewPathRef.current = [];
@@ -3470,33 +3468,33 @@ export function MapView({
     toolCoordinator.release('trail');
   }
 
-  function startTrailWorker(widthM: number, replay: TrailPaintCommand[] = []) {
-    trailWorkerRef.current?.terminate();
-    const worker = new Worker(new URL('./trailPaint.worker.ts', import.meta.url), { type: 'module' });
-    trailWorkerRef.current = worker;
-    trailWorkerAppliedRef.current = 0;
-    worker.onmessage = (event: MessageEvent<TrailPaintResponse>) => {
-      const message = event.data;
-      if (message.id < trailWorkerAppliedRef.current) return;
-      trailWorkerAppliedRef.current = message.id;
-      if (!message.ok) {
+  function startTrailWorker(widthM: number, replay: TrailPaintCommand[]) {
+    // Held until the engine says it is ready, and replayed onto it then. A
+    // restart snapshots the strokes at the moment it crashed for the same
+    // reason: the replacement canvas is empty and has to be repainted.
+    trailReplayRef.current = replay;
+    const map = mapRef.current;
+    const center = map?.getCenter();
+    const origin: [number, number] = center ? [center.lng, center.lat] : INITIAL_CENTER;
+    trailPaint.start({ origin, brushWidthM: widthM }, {
+      onReady: () => {
+        const pending = trailReplayRef.current;
+        trailReplayRef.current = [];
+        for (const command of pending) submitTrailCommand(command);
+      },
+      onFailure: (error) => {
         if (trailToolRef.current.phase === 'paint' && trailToolRef.current.pending &&
             trailCommandsRef.current.length > 1) trailCommandsRef.current.pop();
         setTrailTool((t) => t.phase === 'paint'
-          ? { ...t, pending: false, activeAreaM2: null, error: message.error,
+          ? { ...t, pending: false, activeAreaM2: null, error,
               canUndo: trailCommandsRef.current.length > 1,
               hasUserStroke: hasUserTrailStroke(trailCommandsRef.current, t.anchor.point) }
           : t.phase === 'analyzing' ? { phase: 'place-tail', mode: 'paint', polygons: t.polygons,
             areaM2: t.areaM2, activeAreaM2: null, canUndo: trailCommandsRef.current.length > 1,
-            pending: false, error: message.error, anchor: t.anchor,
+            pending: false, error, anchor: t.anchor,
             hasUserStroke: hasUserTrailStroke(trailCommandsRef.current, t.anchor.point), candidate: null } : t);
-        return;
-      }
-      if (message.type === 'ready' && replay.length > 0) {
-        for (const command of replay) submitTrailCommand(command);
-        return;
-      }
-      if (message.type === 'preview') {
+      },
+      onPreview: (message) => {
         trailPreviewPathRef.current = [];
         if (mapRef.current) setTrailPaintPreview(mapRef.current, { path: [],
           cursor: trailBrushCursorRef.current, brushWidthM: brushWidthRef.current,
@@ -3506,7 +3504,8 @@ export function MapView({
           canUndo: trailCommandsRef.current.length > 1,
           hasUserStroke: hasUserTrailStroke(trailCommandsRef.current, t.anchor.point),
           pending: message.id < trailPendingUntilRef.current, error: null } : t);
-      } else if (message.type === 'analysis') {
+      },
+      onAnalysis: (message) => {
         const current = trailToolRef.current;
         if (current.phase !== 'analyzing') return;
         if (message.parts.length === 0) {
@@ -3539,35 +3538,23 @@ export function MapView({
           anchor: current.anchor, tailAnchor: current.tailAnchor };
         setTrailTool({ phase: 'review', draft });
         sampleTrailElevations(anchoredParts, current.anchor, current.tailAnchor);
-      }
-    };
-    worker.onerror = () => {
-      if (trailWorkerRecoveryRef.current++ === 0) {
-        const replayCommands = trailCommandsRef.current.map((command) => ({ ...command, path: command.path.slice() }));
-        setTrailTool((t) => t.phase === 'paint' ? { ...t, pending: replayCommands.length > 0,
-          error: 'Restarting trail analysis…' } : t);
-        startTrailWorker(widthM, replayCommands);
-      } else setTrailTool((t) => t.phase === 'paint'
-        ? { ...t, pending: false, error: 'Trail analysis worker stopped. Cancel and reopen the painter to retry.' } : t);
-    };
-    const map = mapRef.current;
-    const center = map?.getCenter();
-    const origin: [number, number] = center ? [center.lng, center.lat] : INITIAL_CENTER;
-    postTrailRequest({ type: 'init', origin, brushWidthM: widthM });
-  }
-
-  function postTrailRequest(request: TrailPaintRequestPayload, transfer: Transferable[] = []): number {
-    const worker = trailWorkerRef.current;
-    if (!worker) return 0;
-    const message = { ...request, id: ++trailWorkerIdRef.current } as TrailPaintRequest;
-    worker.postMessage(message, transfer);
-    return message.id;
+      },
+      onRestart: () => {
+        trailReplayRef.current = trailCommandsRef.current.map((command) =>
+          ({ ...command, path: command.path.slice() }));
+        setTrailTool((t) => t.phase === 'paint'
+          ? { ...t, pending: trailReplayRef.current.length > 0,
+              error: 'Restarting trail analysis…' } : t);
+      },
+      onLost: () => setTrailTool((t) => t.phase === 'paint' ? { ...t, pending: false,
+        error: 'Trail analysis worker stopped. Cancel and reopen the painter to retry.' } : t),
+    });
   }
 
   function postTrailStroke(path: [number, number][], mode: 'paint' | 'erase'): number {
     const coordinates = new Float64Array(path.length * 2);
     path.forEach((point, i) => { coordinates[i * 2] = point[0]; coordinates[i * 2 + 1] = point[1]; });
-    return postTrailRequest({ type: 'stroke', mode, coordinates }, [coordinates.buffer]);
+    return trailPaint.post({ type: 'stroke', mode, coordinates }, [coordinates.buffer]);
   }
 
   function submitTrailCommand(command: TrailPaintCommand) {
@@ -3589,8 +3576,8 @@ export function MapView({
     setTrailTool((t) => t.phase === 'paint' ? { ...t, pending: true,
       canUndo: trailCommandsRef.current.length > 1,
       hasUserStroke: hasUserTrailStroke(trailCommandsRef.current, t.anchor.point) } : t);
-    let finalId = postTrailRequest({ type: 'undo' });
-    if (removed.restoreSeed) finalId = postTrailRequest({ type: 'undo' });
+    let finalId = trailPaint.post({ type: 'undo' });
+    if (removed.restoreSeed) finalId = trailPaint.post({ type: 'undo' });
     trailPendingUntilRef.current = finalId;
   }
 
@@ -3601,7 +3588,7 @@ export function MapView({
     trailCommandsRef.current = [seed];
     setTrailTool({ ...tool, pending: true, mode: 'paint', canUndo: false,
       hasUserStroke: false, activeAreaM2: null, error: null });
-    postTrailRequest({ type: 'clear' });
+    trailPaint.post({ type: 'clear' });
     const finalId = postTrailStroke(seed.path, 'paint');
     trailPendingUntilRef.current = finalId;
   }
@@ -3862,8 +3849,7 @@ export function MapView({
         // The edit is terrain now, not a proposal.
         setEditedContours(null);
         trailSampleTokenRef.current++;
-        trailWorkerRef.current?.terminate();
-        trailWorkerRef.current = null;
+        trailPaint.stop();
         terrainGrade.stop();
         trailGradeResultRef.current = null;
         edit.addTrail(trail);

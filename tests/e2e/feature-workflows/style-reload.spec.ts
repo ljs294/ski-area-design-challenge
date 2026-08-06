@@ -1,5 +1,5 @@
-import type { Page } from '@playwright/test';
 import { expect, test } from '../support/deterministicApp';
+import { jumpTo, layerIds, pointAt, visibilityOf } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
 
 /**
@@ -41,25 +41,6 @@ const HIT_LAYERS = [
   'local-water-line-hit',
   'local-water-fill',
 ];
-
-interface ProbeMap {
-  getStyle(): { layers?: { id: string }[] };
-  getLayoutProperty(layerId: string, name: string): unknown;
-  project(lngLat: [number, number]): { x: number; y: number };
-  jumpTo(options: { center: [number, number]; zoom: number }): void;
-}
-
-const layerIds = (page: Page): Promise<string[]> =>
-  page.evaluate(() => {
-    const map = (window as unknown as { appMap: ProbeMap }).appMap;
-    return (map.getStyle().layers ?? []).map((layer) => layer.id);
-  });
-
-const visibilityOf = (page: Page, layerId: string): Promise<unknown> =>
-  page.evaluate(
-    (id) => (window as unknown as { appMap: ProbeMap }).appMap.getLayoutProperty(id, 'visibility'),
-    layerId,
-  );
 
 /** Assert the declared paint order, given the live style's layer list. */
 function expectDeclaredOrder(ids: string[]): void {
@@ -165,33 +146,12 @@ const crossingRun = {
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
-/** Viewport point for a map coordinate, offset by the canvas position. */
-async function pointAt(
-  page: Page,
-  lngLat: [number, number],
-): Promise<{ x: number; y: number }> {
-  const box = await page.locator('.maplibregl-canvas').boundingBox();
-  expect(box, 'the map canvas must be laid out').not.toBeNull();
-  const projected = await page.evaluate(
-    (coordinate) => {
-      const point = (window as unknown as { appMap: ProbeMap }).appMap.project(coordinate);
-      return { x: point.x, y: point.y };
-    },
-    lngLat,
-  );
-  return { x: box!.x + projected.x, y: box!.y + projected.y };
-}
-
 test('a click where a lift crosses a run picks the lift, and the run alone picks the run', async ({ page }) => {
   await seedPreparedResort(page, { lifts: [crossingLift], trails: [crossingRun] });
   await page.getByRole('button', { name: 'Continue Game' }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
-  await page.evaluate(
-    (center) => (window as unknown as { appMap: ProbeMap }).appMap
-      .jumpTo({ center, zoom: 16 }),
-    CROSSING,
-  );
+  await jumpTo(page, CROSSING, 16);
 
   // Hovering a pickable family marks the cursor; leaving every family clears it.
   const crossing = await pointAt(page, CROSSING);
