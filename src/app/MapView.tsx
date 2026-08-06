@@ -156,7 +156,8 @@ import { nextRoadName, roadClearingPolygons, roadLengthM, sanitizeRoads,
   TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import { haversineMeters } from '../geo';
 import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
-import { ConstructionStatusBug, type ConstructionActivity } from './ConstructionStatusBug';
+import { ConstructionStatusBug } from './ConstructionStatusBug';
+import type { ConstructionActivity } from './constructionLock';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
