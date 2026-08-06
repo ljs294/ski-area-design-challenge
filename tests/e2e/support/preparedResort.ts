@@ -116,7 +116,13 @@ function preparedTerrainFixture() {
   };
 }
 
-function preparedSaveFixture() {
+/** Structures merged into the fixture save, for tests that need built features. */
+export interface PreparedStructures {
+  lifts?: Record<string, unknown>[];
+  trails?: Record<string, unknown>[];
+}
+
+function preparedSaveFixture(structures: PreparedStructures) {
   return {
     schemaVersion: 11,
     key: SAVE_KEY,
@@ -133,8 +139,8 @@ function preparedSaveFixture() {
       heightKm: 1.11,
       areaKm2: 0.84,
     },
-    lifts: [],
-    trails: [],
+    lifts: structures.lifts ?? [],
+    trails: structures.trails ?? [],
     roads: [],
     dams: [],
     ponds: [],
@@ -150,7 +156,10 @@ function preparedSaveFixture() {
   };
 }
 
-export async function seedPreparedResort(page: Page): Promise<void> {
+export async function seedPreparedResort(
+  page: Page,
+  structures: PreparedStructures = {},
+): Promise<void> {
   await page.goto('/?flat', { waitUntil: 'load' });
   await page.evaluate(
     async ({ save, terrain }) => {
@@ -184,7 +193,7 @@ export async function seedPreparedResort(page: Page): Promise<void> {
         };
       });
     },
-    { save: preparedSaveFixture(), terrain: preparedTerrainFixture() },
+    { save: preparedSaveFixture(structures), terrain: preparedTerrainFixture() },
   );
   await page.reload({ waitUntil: 'load' });
 }
