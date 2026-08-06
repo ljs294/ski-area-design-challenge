@@ -29,7 +29,7 @@ Terrain preparation is orchestrated by [`src/terrainIngest.ts`](../src/terrainIn
 
 ## Map and worker ownership
 
-Map feature ordering is distributed across layer modules and `MapView`; there is no shared contribution registry yet. [`src/app/toolCoordinator.ts`](../src/app/toolCoordinator.ts) is the synchronous authority for the seven construction tools, dock state, and Layers-alongside-build behavior. Controllers register cancellation callbacks; changing tools cancels the prior owner before publishing the replacement. Selection stays outside that coordinator but enters through one centralized transition in `MapView`.
+Map feature ordering is declared once by the contribution registry described below. [`src/app/toolCoordinator.ts`](../src/app/toolCoordinator.ts) is the synchronous authority for the seven construction tools, dock state, and Layers-alongside-build behavior. Controllers register cancellation callbacks; changing tools cancels the prior owner before publishing the replacement. Selection stays outside that coordinator but enters through one centralized transition in `MapView`.
 
 [`src/app/mapInteractionLease.ts`](../src/app/mapInteractionLease.ts) exclusively leases controller cursor, drag-pan, and double-click-zoom overrides and restores the exact prior map state once on release or disposal. The separate site-box gesture is not a construction controller. Escape remains in each existing feature listener.
 
@@ -41,11 +41,15 @@ The same document owns construction ownership and cover-edit serialization. [`sr
 
 [`src/app/topologyDocument.ts`](../src/app/topologyDocument.ts) makes trails, ski nodes, connector paths, and junctions one revisioned document. A transaction takes a working copy, applies pure operations from [`src/topology.ts`](../src/topology.ts), and publishes every collection it moved in one change against the revision it began from; a stale transaction is rejected without partial writes, and identity comparison decides which collections publish, so an operation resolving to something already present moves nothing. Confirming a run materializes both anchor junctions and lands them with the run itself, and deleting a run prunes exactly the junctions nothing references any more, lift terminals excepted. The port owns junction materialization and publication only: `buildSkiNetwork`, coordinate frames, sanitizers, derived-network reads, and feature-controller behavior stay outside it. There is no runtime replacement command because opening another resort remounts the session, so the clean load is the document's construction seed.
 
-Worker construction, the map contribution registry, and feature-controller extraction are still coordinated directly in `MapView`.
+Worker construction and feature-controller extraction are still coordinated directly in `MapView`.
 
 Cover editing already has a client abstraction in [`src/app/coverEditClient.ts`](../src/app/coverEditClient.ts). Dam analysis, terrain grading, and trail painting workers are still constructed directly from `MapView`. Worker protocol, engine, and worker entry files live under `src/app/`.
 
-The required visual order is bottom-to-top: analysis, site boundary, road, dam, pond, ski-node/path, trail, lift, and snowmaking nodes. The required hit priority is snowmaking nodes, lift, trail, dam, pond, stream, and lake. Refactor work must characterize and preserve both orders.
+## Map contributions
+
+The required visual order is bottom-to-top: analysis, site boundary, road, dam, pond, ski-node/path, trail, lift, and snowmaking nodes. The required hit priority is snowmaking nodes, lift, trail, dam, pond, stream, and lake. [`src/app/mapContribution.ts`](../src/app/mapContribution.ts) declares both orders once and derives everything else from them. A family contributes an `install` step and, when it draws something in-progress, a capture transient; a hit family contributes the layers its clicks are delegated to. An incomplete or repeated set of contributions is refused rather than silently reordered.
+
+`MapView` holds the legacy contributions — each closes over its refs until E1–E5 move them to controllers — and walks them in exactly one place for style (re)load, and one place for capture hide/restore. Every click handler yields to the layers of the families that pick ahead of it, and that guard is now derived from the declared priority instead of re-accumulated per handler; a run therefore yields to a lift crossing it. Pond paints above dam while dam picks ahead of pond: that inversion is deliberate, since a dam's crest is the structure a click is aimed at and the pool it impounds is not.
 
 ## Verification state
 

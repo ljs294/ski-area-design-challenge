@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | D3 — map contribution registry with legacy contributions |
-| Status | D2 is committed: one revisioned terrain document owns every terrain commit, construction ownership, cover serialization, and grade-preview ownership, and one revisioned topology document owns every trail/node/path/junction mutation |
-| Last green commit | D2 at `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd` |
-| Next step | Characterize style-reload restoration, literal z-order and hit priority, visibility reconciliation, hover, and capture transients before moving layer installation behind a registry |
+| Current benchmark | D4 — terrain-grade, cover-edit, dam-analysis, and trail-paint worker adapters |
+| Status | D3 is committed: the paint order and hit priority are declared once, every family installs through the registry, and every click guard is derived from the declared priority |
+| Last green commit | D3 at `88ff5bffd0b194006e0816bbc5d32222810cb35c` |
+| Next step | Characterize request identity, abort, termination, stale responses, validation, and disposal before moving worker construction out of `MapView` |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -38,8 +38,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | C2 | Complete | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
 | D1 | Complete | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
 | D2 | Complete | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
-| D3 | Next | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
-| D4 | Not started | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
+| D3 | Complete | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
+| D4 | Next | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
 | E1 | Not started | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
 | E2 | Not started | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
 | E3 | Not started | Snowmaking façade with dam, pond, and node controllers | Feature workflows plus ordering, locking, capture, and save gates pass |
@@ -71,6 +71,29 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | C2 | `dbf447e507c8d021a36b12ddf078f8f5a1eea221` | Passed | The complete acyclic model graph and 35-line exact facade landed. Architecture ownership/manifest gates, compile-time save compatibility, schema-v1/v11 hydration fixtures, 531 offline tests, both builds, and all deterministic browser workflows passed. |
 | D1 | `bc9fb3790ce0958d090dc33f8b825a515df26860` | Passed | The seven-tool coordinator and exclusive map-interaction lease landed with centralized selection. Fourteen contract tests, 545 total offline tests, both builds, and deterministic browser switching/Layers workflows passed. |
 | D2 | `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd` | Passed | Revisioned terrain and topology documents landed and were integrated across three green sub-checkpoints: contracts at `5ac586b02173afd5d941e00bde47534d83435dc9`, terrain integration at `6ccca2a00226b943e9ae9882dc22057082283f23`, topology integration at `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd`. Thirty-nine contract tests, 584 total offline tests, both builds, and all three deterministic browser workflows passed at each of the two integration checkpoints. |
+| D3 | `88ff5bffd0b194006e0816bbc5d32222810cb35c` | Passed | The map contribution registry landed across three green sub-checkpoints: the declared orders and derived guards at `2c9a7389c19e71b2dc59b27aa9dfcdf15176a287`, the `MapView` traversal for style reload, hits, and capture at `743236d31fe662145c0504cb53fa181469d31e01`, and the browser evidence at `88ff5bffd0b194006e0816bbc5d32222810cb35c`. Thirteen contract tests, 597 total offline tests, both builds, and all five deterministic browser workflows passed. The restyle workflow asserts the nine family blocks, every guarded hit layer, hidden-layer persistence across a style reload, and map teardown; the hit workflow asserts a lift crossing a run picks the lift and the run alone still picks the run, and it fails when the guard derivation is neutered. |
+
+## D3 declared map order
+
+The paint order and the hit priority are declared once in
+[`src/app/mapContribution.ts`](../../src/app/mapContribution.ts). All nine
+families install through the registry, the capture hide/restore walk uses the
+same manifest, and every click guard is derived from the declared priority
+rather than re-accumulated inside each handler. An incomplete or repeated
+contribution set is refused.
+
+One deliberate behavior change: a run now yields to a lift crossing it. The
+seven hand-maintained guard arrays had drifted — the run handler yielded to
+snowmaking nodes but not to lifts — so a click where a lift crossed a run
+selected the run, against the stated priority. Deriving the guards corrects it.
+
+One documented asymmetry is preserved rather than normalized: a standalone pond
+paints above a dam, but a dam picks ahead of a pond. A dam's crest is the
+structure a click is aimed at; the pool it impounds is not.
+
+`MapView` still holds the contributions themselves, each closing over its own
+refs, and still owns the traversal. E1–E5 move the contributions to feature
+controllers; the manifest and the derivation do not move with them.
 
 ## D2 migrated write paths
 

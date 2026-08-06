@@ -60,5 +60,6 @@ Append only green, committed snapshots. Capture the JSON after required tests an
 | C2 acyclic domain models | `dbf447e507c8d021a36b12ddf078f8f5a1eea221` | Yes | 135 / 27,612 | 74 / 8,651 | 5,080 / 78 / 60 / 44 / 4 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 7,990,761 / 7,990,739 |
 | D1 tool/interaction ownership | `bc9fb3790ce0958d090dc33f8b825a515df26860` | Yes | 137 / 27,859 | 76 / 8,839 | 5,062 / 80 / 59 / 44 / 4 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 7,993,914 / 7,993,892 |
 | D2 terrain/topology documents | `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd` | Yes | 140 / 28,431 | 79 / 9,535 | 5,135 / 83 / 59 / 44 / 4 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 7,999,804 / 7,999,782 |
+| D3 map contribution registry | `88ff5bffd0b194006e0816bbc5d32222810cb35c` | Yes | 141 / 28,571 | 81 / 9,929 | 5,165 / 84 / 59 / 44 / 4 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 7,999,749 / 7,999,727 |
 | D4 foundations complete | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 | F1 final structural gate | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
