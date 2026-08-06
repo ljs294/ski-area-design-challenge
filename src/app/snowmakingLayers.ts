@@ -1,5 +1,5 @@
 import type maplibregl from 'maplibre-gl';
-import type { SavedSnowmakingNode } from '../snowmakingNodes';
+import type { SavedSnowmakingNode } from '../types/snowmaking';
 
 // Snowmaking pipe-network nodes: intakes, pumps, junctions, and hydrants.
 // Mirrors pondLayers.ts's shape (one source, a small fixed set of layers,

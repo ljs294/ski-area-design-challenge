@@ -1,6 +1,6 @@
 import type { SavedTrail } from '../types';
 import type { Units } from './SettingsContext';
-import type { SavedNode, SavedPath } from '../skiNodes';
+import type { SavedNode, SavedPath } from '../types/topology';
 import { describeAnchor } from '../skiNodes';
 import type { JunctionSummary } from '../topology';
 import { fmtDistance } from '../lifts';

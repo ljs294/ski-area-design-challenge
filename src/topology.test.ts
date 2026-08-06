@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sanitizeTrails } from './trails';
 import { canRemoveJunction, describeAnchorDetail, hydrateJunctions, hydrateTopology,
   junctionUses, removeJunction, splitTrailAt, summarizeJunctions } from './topology';
-import type { SavedJunction, SavedPath } from './skiNodes';
+import type { SavedJunction, SavedPath } from './types/topology';
 import type { SavedLift } from './types';
 
 const rawTrail = {

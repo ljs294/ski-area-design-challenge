@@ -7,7 +7,8 @@ import { MAX_POND_EXCAVATION_M, POND_CREST_WIDTH_M, POND_FREEBOARD_M,
   POND_INNER_SLOPE, POND_OUTER_SLOPE } from '../pondEarthwork';
 import { EarthworkStats } from './TrailControl';
 import { roadLengthM } from '../roads';
-import { SNOWMAKING_NODE_LABELS, type SavedSnowmakingNode } from '../snowmakingNodes';
+import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
+import type { SavedSnowmakingNode } from '../types/snowmaking';
 import type { Units } from './SettingsContext';
 
 export interface DraftDam extends Omit<SavedDam, 'id' | 'createdAt'> {}

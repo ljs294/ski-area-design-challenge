@@ -2,8 +2,8 @@ import { unitToLngLat } from './geo';
 import { lakeSurfaceAreaM2, pointInRing } from './lakeAnalysis';
 import { designPondEarthwork, MAX_POND_BERM_HEIGHT_M,
   MAX_POND_EXCAVATION_M } from './pondEarthwork';
-import type { SavedPond } from './types';
 import type { EarthworkEstimate } from './types/earthwork';
+import type { SavedPond } from './types/snowmaking';
 import type { TerrainRecord } from './types/terrain';
 
 export const MIN_STANDALONE_POND_AREA_M2 = 100;

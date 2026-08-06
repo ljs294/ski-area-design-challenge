@@ -1,5 +1,5 @@
 import { haversineMeters } from './geo';
-import type { ChairSize, LiftStatus, SavedLift } from './types';
+import type { ChairSize, LiftStatus, SavedLift } from './types/lifts';
 
 // Fixed-grip chairlift operating envelope. Carriers grip the haul rope
 // permanently, so the whole line runs at loading speed — 450 ft/min (2.286 m/s)

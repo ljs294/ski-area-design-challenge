@@ -5,7 +5,7 @@ import { fmtDistance } from '../lifts';
 import { DIFFICULTY_LABELS, fmtArea, fmtSlope, fmtVertical, trailPartsStats,
   MIN_BRUSH_WIDTH_M, MAX_BRUSH_WIDTH_M } from '../trails';
 import { TrailProfile } from './TrailProfile';
-import type { AnchorRef } from '../skiNodes';
+import type { AnchorRef } from '../types/anchors';
 import { describeAnchorDetail, type AnchorWorld } from '../topology';
 import type { PaintMode } from './trailPaintEngine';
 import type { TrailHeadAnchor, TrailTailAnchor } from './trailHeadAnchor';

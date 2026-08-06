@@ -22,10 +22,6 @@ import {
   pathLengthM,
   sanitizeNodes,
   sanitizePaths,
-  type AnchorRef,
-  type SavedJunction,
-  type SavedNode,
-  type SavedPath,
 } from '../skiNodes';
 import {
   addNodePathDraftLayers,
@@ -57,9 +53,11 @@ import { isTypingTarget, normalizeKey } from '../keybinds';
 import { applyTileLod } from './terrainLod';
 import { ResortLoadingScreen } from './ResortLoadingScreen';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
-import { captureGamePreview, saveGame } from '../gameSaveClient';
+import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
-import type { GameSave, RoadType, SavedDam, SavedLift, SavedPond, SavedRoad, SavedTrail, SavedTrailPart, TerrainPackageProgress, TerrainRecord } from '../types';
+import type { AnchorRef, GameSave, RoadType, SavedDam, SavedJunction, SavedLift,
+  SavedNode, SavedPath, SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
+  SavedTrailPart, TerrainPackageProgress, TerrainRecord } from '../types';
 import { analyzeLake, sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
@@ -97,7 +95,7 @@ import { designPondEarthwork, MAX_POND_BERM_HEIGHT_M, pondTerrainPatch } from '.
 import { earthworkTerrainPatch, type EarthworkTerrainPatch } from '../earthwork';
 import { addPondLayers, POND_BUILT_LAYER_IDS, POND_HIT_LAYERS, setPondData,
   setPondDraftData, setSelectedPond } from './pondLayers';
-import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes, type SavedSnowmakingNode } from '../snowmakingNodes';
+import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
 import { addSnowmakingLayers, setSnowmakingData, setSelectedSnowmakingNode,
   SNOWMAKING_HIT_LAYERS, SNOWMAKING_BUILT_LAYER_IDS } from './snowmakingLayers';
 import type { DamAnalysisResponse } from './damAnalysisProtocol';
@@ -4104,7 +4102,7 @@ export function MapView({
     const c = map.getCenter();
     const now = new Date().toISOString();
     return {
-      schemaVersion: 11,
+      schemaVersion: CURRENT_GAME_SAVE_SCHEMA_VERSION,
       key: base?.key ?? genId(),
       name: base?.name ?? (nameDraft.trim() || 'Untitled Resort'),
       mountainId: base?.mountainId,

@@ -1,6 +1,7 @@
 import { haversineMeters } from './geo';
 import { sanitizeAnchor } from './skiNodes';
-import type { SavedTrail, SavedTrailPart, SavedTrailSegment, TrailDifficulty, TrailStatus } from './types';
+import type { SavedTrailSegment } from './types/topology';
+import type { SavedTrail, SavedTrailPart, TrailDifficulty, TrailStatus } from './types/trails';
 
 // Pure ski-run helpers: difficulty grading, spine geometry stats, and the
 // hydration shield for GameSave.trails. No DOM / fetch here — the brush→polygon

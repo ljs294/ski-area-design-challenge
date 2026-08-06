@@ -7,9 +7,52 @@ const repoRoot = process.cwd();
 const sourceRoot = path.join(repoRoot, 'src');
 const appRoot = path.join(sourceRoot, 'app');
 const typeModelRoot = path.join(sourceRoot, 'types');
+const typeFacadePath = path.join(sourceRoot, 'types.ts');
 const sourceExtensions = new Set(['.ts', '.tsx']);
 
 const TEMPORARY_CORE_TO_APP_EXCEPTIONS = new Map();
+
+// Exact public compatibility surface. Additions in C2 intentionally expose
+// the canonical geo, construction, topology, and snowmaking-node models.
+// TerrainDB is intentionally absent: its obsolete runtime consumer was removed
+// in B3. Any future manifest change requires an explicit compatibility review.
+const TYPE_FACADE_MANIFEST = new Map([
+  ['./types/anchors', ['AnchorRef']],
+  ['./types/construction', ['ConstructionStatus']],
+  ['./types/cover', [
+    'CoverClassCode', 'CoverDisplayMetadata', 'CoverGeometryMetadata', 'CoverGrid',
+    'CoverGridData', 'CoverMetadata', 'LandCoverClass', 'OriginalCoverMetadata',
+    'SiteCoverGrid', 'TerrainCoverClass', 'TerrainCoverCode', 'TerrainCoverGrid',
+    'TerrainCoverProvenance', 'WorldCoverClassCode',
+  ]],
+  ['./types/earthwork', ['EarthworkEstimate']],
+  ['./types/gameSave', ['GameSave', 'GameSaveSummary', 'SavedSiteBox']],
+  ['./types/geo', ['LatLonBounds']],
+  ['./types/lifts', [
+    'ChairSize', 'LiftClass', 'LiftStatus', 'SavedFixedGripLift', 'SavedLift', 'SavedLiftBase',
+  ]],
+  ['./types/roads', ['RoadType', 'SavedRoad']],
+  ['./types/snowmaking', [
+    'SavedDam', 'SavedPond', 'SavedSnowmakingNode', 'SnowmakingNodeKind', 'SnowmakingSourceRef',
+  ]],
+  ['./types/terrain', [
+    'AreaSizeMeters', 'ClimateMonth', 'ClimateProfile', 'ContourMetadata',
+    'LocalImageryMetadata', 'SurroundElevation', 'TerrainPackageManifest',
+    'TerrainPackagePhase', 'TerrainPackageProgress', 'TerrainPackageValidation',
+    'TerrainRecord', 'TerrainSummary',
+  ]],
+  ['./types/topology', ['SavedJunction', 'SavedNode', 'SavedPath', 'SavedTrailSegment']],
+  ['./types/trails', ['SavedTrail', 'SavedTrailPart', 'TrailDifficulty', 'TrailStatus']],
+  ['./types/vectorFeatures', [
+    'LandCoverFeature', 'OsmLandCoverClass', 'PeakFeature', 'RoadClass', 'RoadFeature',
+    'VectorFeatureSet', 'WaterLineClass', 'WaterLineFeature', 'WaterPolygonFeature',
+  ]],
+]);
+
+const ROOT_FACADE_ALLOWLIST = new Set([
+  'src/desktopBridge.ts',
+  'src/ipcContract.ts',
+]);
 
 function normalized(filePath) {
   return path.resolve(filePath).replaceAll('\\', '/');
@@ -105,10 +148,97 @@ const errors = [];
 const usedTemporaryExceptions = [];
 const typeGraph = new Map(typeFiles.map((filePath) => [normalized(filePath), []]));
 
+const facadeSource = sourceFileFor(typeFacadePath);
+const facadeLines = fs.readFileSync(typeFacadePath, 'utf8').split(/\r?\n/).length;
+if (facadeLines > 100) errors.push(`src/types.ts exceeds the 100-line facade budget (${facadeLines})`);
+
+const actualFacadeManifest = new Map();
+for (const statement of facadeSource.statements) {
+  const position = facadeSource.getLineAndCharacterOfPosition(statement.getStart(facadeSource));
+  const line = position.line + 1;
+  if (!ts.isExportDeclaration(statement)) {
+    errors.push(`src/types.ts:${line} contains a non-export statement; the facade must be type-only re-exports`);
+    continue;
+  }
+  if (!statement.isTypeOnly) {
+    errors.push(`src/types.ts:${line} contains a runtime-capable export`);
+  }
+  if (
+    !statement.moduleSpecifier
+    || !ts.isStringLiteralLike(statement.moduleSpecifier)
+    || !statement.exportClause
+    || !ts.isNamedExports(statement.exportClause)
+  ) {
+    errors.push(`src/types.ts:${line} must use an explicit named type re-export`);
+    continue;
+  }
+
+  const specifier = statement.moduleSpecifier.text;
+  if (actualFacadeManifest.has(specifier)) {
+    errors.push(`src/types.ts:${line} repeats facade module ${specifier}`);
+    continue;
+  }
+  actualFacadeManifest.set(
+    specifier,
+    statement.exportClause.elements.map((element) => element.name.text).sort(),
+  );
+}
+
+for (const [specifier, expectedNames] of TYPE_FACADE_MANIFEST) {
+  const actualNames = actualFacadeManifest.get(specifier);
+  if (!actualNames) {
+    errors.push(`src/types.ts is missing facade module ${specifier}`);
+    continue;
+  }
+  if (actualNames.join('\0') !== [...expectedNames].sort().join('\0')) {
+    errors.push(
+      `src/types.ts exports the wrong manifest for ${specifier}: expected [${[...expectedNames].sort().join(', ')}], got [${actualNames.join(', ')}]`,
+    );
+  }
+}
+for (const specifier of actualFacadeManifest.keys()) {
+  if (!TYPE_FACADE_MANIFEST.has(specifier)) {
+    errors.push(`src/types.ts contains undocumented facade module ${specifier}`);
+  }
+}
+
+const authoritativeModelFile = new Map();
+for (const [specifier, names] of TYPE_FACADE_MANIFEST) {
+  const modelPath = normalized(path.resolve(path.dirname(typeFacadePath), `${specifier}.ts`));
+  for (const name of names) authoritativeModelFile.set(name, modelPath);
+}
+
 for (const filePath of files) {
   const sourceFile = sourceFileFor(filePath);
   const isAppFile = isWithin(filePath, appRoot);
   const isTypeFile = isWithin(filePath, typeModelRoot);
+  const repositoryPath = path.relative(repoRoot, filePath).replaceAll('\\', '/');
+
+  if (normalized(filePath) !== normalized(typeFacadePath)) {
+    for (const statement of sourceFile.statements) {
+      if (
+        (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement))
+        && statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+      ) {
+        const expectedFile = authoritativeModelFile.get(statement.name.text);
+        if (expectedFile && expectedFile !== normalized(filePath)) {
+          errors.push(
+            `${repositoryPath} re-declares authoritative model ${statement.name.text}; use ${path.relative(repoRoot, expectedFile)}`,
+          );
+        }
+      }
+      if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        for (const element of statement.exportClause.elements) {
+          const expectedFile = authoritativeModelFile.get(element.name.text);
+          if (expectedFile) {
+            errors.push(
+              `${repositoryPath} re-exports authoritative model ${element.name.text}; import it from ${path.relative(repoRoot, expectedFile)}`,
+            );
+          }
+        }
+      }
+    }
+  }
 
   for (const imported of moduleSpecifiers(sourceFile)) {
     const target = projectTarget(filePath, imported.specifier);
@@ -128,6 +258,14 @@ for (const filePath of files) {
     }
 
     const resolvedTarget = resolveSourceModule(target, sourceFiles);
+    if (
+      resolvedTarget && normalized(resolvedTarget) === normalized(typeFacadePath)
+      && path.dirname(filePath) === sourceRoot
+      && !/\.(test|spec)\.tsx?$/.test(filePath)
+      && !ROOT_FACADE_ALLOWLIST.has(repositoryPath)
+    ) {
+      errors.push(`${repositoryPath}:${imported.line} must import its authoritative domain model instead of src/types.ts`);
+    }
     if (isTypeFile && resolvedTarget && !isWithin(resolvedTarget, typeModelRoot)) {
       errors.push(
         `${path.relative(repoRoot, filePath)}:${imported.line} ${imported.kind} crosses from src/types into implementation code: ${imported.specifier}`,

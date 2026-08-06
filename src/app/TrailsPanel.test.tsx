@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { TrailsPanel, type TrailsTool } from './TrailsPanel';
 import type { SavedTrail } from '../types';
-import type { SavedNode, SavedPath } from '../skiNodes';
+import type { SavedNode, SavedPath } from '../types/topology';
 import type { JunctionSummary } from '../topology';
 
 const trails: SavedTrail[] = [

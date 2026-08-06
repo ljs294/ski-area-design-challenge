@@ -1,6 +1,6 @@
 import type { Polygon } from './coverEdit';
 import { haversineMeters, METERS_PER_DEGREE_LAT } from './geo';
-import type { RoadType, SavedRoad } from './types';
+import type { RoadType, SavedRoad } from './types/roads';
 
 export const TWO_LANE_ROAD_WIDTH_M = 7;
 export const ROAD_CLEAR_BUFFER_M = 3;

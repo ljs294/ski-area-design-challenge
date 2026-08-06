@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { SnowmakingControl, type DamTool, type PondTool } from './SnowmakingControl';
-import type { SavedSnowmakingNode } from '../snowmakingNodes';
+import type { SavedSnowmakingNode } from '../types/snowmaking';
 import type { SavedDam, SavedPond } from '../types';
 
 const callbacks = {

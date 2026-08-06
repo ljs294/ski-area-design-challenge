@@ -13,7 +13,8 @@ import {
   sanitizeNodes,
   sanitizePaths,
 } from './skiNodes';
-import type { AnchorRef, SavedNode, SavedPath } from './skiNodes';
+import type { AnchorRef } from './types/anchors';
+import type { SavedNode, SavedPath } from './types/topology';
 
 // Lat/lng offsets around lat 46.93, lng -121.5; 0.001 deg lat is ~111 m.
 const A: [number, number] = [-121.5, 46.93];

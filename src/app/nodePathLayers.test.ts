@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { nodePathDraftGeoJSON, nodePathsToGeoJSON } from './nodePathLayers';
-import type { SavedJunction } from '../skiNodes';
+import type { SavedJunction } from '../types/topology';
 
 const junction = (id: string, lng: number): SavedJunction =>
   ({ id, point: [lng, 46.93], elevM: null, createdAt: '2026-01-01T00:00:00.000Z' });
