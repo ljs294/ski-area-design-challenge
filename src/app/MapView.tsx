@@ -81,6 +81,7 @@ import {
 } from '../coverEdit';
 import { CoverEditAdapter } from './coverEditClient';
 import { DamAnalysisAdapter } from './damAnalysisClient';
+import { TerrainGradeAdapter } from './terrainGradeClient';
 import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
   resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt,
   setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
@@ -817,7 +818,6 @@ export function MapView({
   const trailWorkerIdRef = useRef(0);
   const trailWorkerAppliedRef = useRef(0);
   const trailWorkerRecoveryRef = useRef(0);
-  const trailGradeWorkerRef = useRef<Worker | null>(null);
   const trailGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const roadGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const trailCommandsRef = useRef<TrailPaintCommand[]>([]);
@@ -929,6 +929,11 @@ export function MapView({
   const coverEditRef = useRef<CoverEditAdapter | null>(null);
   if (!coverEditRef.current) coverEditRef.current = new CoverEditAdapter();
   const coverEdit = coverEditRef.current;
+  // One grade preview exists on the map, so the road and trail tools share one
+  // adapter rather than racing two workers into the same contour overlay.
+  const terrainGradeRef = useRef<TerrainGradeAdapter | null>(null);
+  if (!terrainGradeRef.current) terrainGradeRef.current = new TerrainGradeAdapter();
+  const terrainGrade = terrainGradeRef.current;
 
   /** The one place a committed terrain record reaches React and the dirty flag. */
   function publishTerrainState({ record, edit }: TerrainPublication): void {
@@ -1087,14 +1092,14 @@ export function MapView({
     // a torn-down map for the rest of the tile set.
     warmAbortRef.current?.abort();
     trailWorkerRef.current?.terminate();
-    trailGradeWorkerRef.current?.terminate();
     damAnalysis.dispose();
     coverEdit.dispose();
+    terrainGrade.dispose();
     if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
     localImageryCacheKeyRef.current = null;
     // The document and the adapters are ref-held and never change identity, so
     // this stays a mount/unmount effect.
-  }, [terrain, damAnalysis, coverEdit]);
+  }, [terrain, damAnalysis, coverEdit, terrainGrade]);
 
   // A saved resort does not enter gameplay until its mandatory local package
   // has loaded and passed manifest validation.
@@ -2883,8 +2888,7 @@ export function MapView({
 
   function cancelRoadTool() {
     terrain.preview.invalidate();
-    trailGradeWorkerRef.current?.terminate();
-    trailGradeWorkerRef.current = null;
+    terrainGrade.stop();
     roadGradeResultRef.current = null;
     const record = terrainRecordRef.current;
     if (record) setVisibleContours(record);
@@ -2927,6 +2931,12 @@ export function MapView({
       ? { phase: 'review', draft: { ...current.draft, ...patch } } : current);
   }
 
+  function failRoadGrade(gradingError: string) {
+    setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+      ...current.draft, gradingStatus: 'error', gradingError,
+    } } : current);
+  }
+
   function startRoadTerrainGrade(draft: DraftRoad) {
     const record = terrainRecordRef.current;
     const polygon = strokeToPolygon(draft.points, TWO_LANE_ROAD_WIDTH_M);
@@ -2936,92 +2946,74 @@ export function MapView({
       centerlineElevM: [],
     }] : [];
     const requestId = terrain.preview.claim();
+    const bounds = record?.bounds;
     roadGradeResultRef.current = null;
-    if (!record?.bounds || parts.length === 0) {
-      setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
-        ...current.draft,
-        gradingStatus: 'error',
-        gradingError: 'The local elevation package or road footprint is unavailable.',
-      } } : current);
+    if (!record || !bounds || parts.length === 0) {
+      failRoadGrade('The local elevation package or road footprint is unavailable.');
       return;
     }
     requestAnimationFrame(() => {
       if (!terrain.preview.isCurrent(requestId)) return;
-      const worker = new Worker(new URL('./terrainGrade.worker.ts', import.meta.url),
-        { type: 'module' });
-      trailGradeWorkerRef.current?.terminate();
-      trailGradeWorkerRef.current = worker;
-      const geometryKey = terrainGradeGeometryKey(parts, TWO_LANE_ROAD_WIDTH_M,
-        [], 'road', ROAD_GRADE_POLICY);
-      worker.onmessage = (event: MessageEvent<TerrainGradeResponse>) => {
-        const response = event.data;
-        if (!terrain.preview.isCurrent(response.id)) return;
-        if (!response.ok) {
-          setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
-            ...current.draft, gradingStatus: 'error', gradingError: response.error,
-          } } : current);
-          return;
-        }
-        const activeChecksum = terrainRecordRef.current?.packageManifest?.elevationChecksum ?? '';
-        const active = roadToolRef.current;
-        if (response.baseElevationChecksum !== activeChecksum ||
-            active.phase !== 'review' ||
-            response.trailGeometryKey !== terrainGradeGeometryKey([{
-              polygon: strokeToPolygon(active.draft.points, TWO_LANE_ROAD_WIDTH_M),
-              centerline: active.draft.points,
-              centerlineElevM: [],
-            }], TWO_LANE_ROAD_WIDTH_M, [], 'road', ROAD_GRADE_POLICY)) {
-          setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
-            ...current.draft, gradingStatus: 'error',
-            gradingError: 'The road or terrain changed while grading. Refinish the route.',
-          } } : current);
-          return;
-        }
-        roadGradeResultRef.current = response;
-        setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
-          ...current.draft,
-          gradingStatus: 'ok',
-          gradingError: null,
-          gradingPolygons: response.expandedPolygons,
-          earthwork: { cutM3: response.cutM3, fillM3: response.fillM3,
-            balanceM3: response.balanceM3 },
-          maxFaceSlopePct: response.maxFaceSlopePct,
-          maxGroundCrossSlopePct: response.maxGroundCrossSlopePct,
-          maxDisturbedWidthM: response.maxDisturbedWidthM,
-          ungradedLengthM: response.ungradedLengthM,
-          gradingInfeasibleLines: response.infeasibleLines,
-        } } : current);
-        setVisibleContours({ ...record,
-          contourSegments: Array.from(response.contourSegments) });
-        setEditedContours(response.editedContourSegments);
-      };
-      worker.onerror = () => {
-        if (!terrain.preview.isCurrent(requestId)) return;
-        setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
-          ...current.draft, gradingStatus: 'error',
-          gradingError: 'Road grading worker stopped unexpectedly.',
-        } } : current);
-      };
       const baseElevationChecksum = record.packageManifest?.elevationChecksum ?? '';
       const cachedHeights = terrainHeightCacheRef.current;
       const heights = cachedHeights &&
         cachedHeights.checksum === (record.packageManifest?.elevationChecksum ?? record.updatedAt)
         ? cachedHeights.heights.slice()
         : Float32Array.from(record.sampleHeights);
-      worker.postMessage({
+      terrainGrade.run({
         id: requestId,
         kind: 'road',
         heights,
         gridSize: record.sampleGridSize,
-        bounds: record.bounds,
+        bounds,
         parts,
         brushWidthM: TWO_LANE_ROAD_WIDTH_M,
         ...ROAD_GRADE_POLICY,
         baseElevationChecksum,
-        trailGeometryKey: geometryKey,
+        trailGeometryKey: terrainGradeGeometryKey(parts, TWO_LANE_ROAD_WIDTH_M,
+          [], 'road', ROAD_GRADE_POLICY),
         contourGridSize: record.contourMetadata?.gridSize,
         contourIntervalM: record.contourMetadata?.intervalM,
-      }, [heights.buffer]);
+      }, {
+        isCurrent: (id) => terrain.preview.isCurrent(id),
+        live: () => {
+          const active = roadToolRef.current;
+          return {
+            baseElevationChecksum:
+              terrainRecordRef.current?.packageManifest?.elevationChecksum ?? '',
+            trailGeometryKey: active.phase === 'review'
+              ? terrainGradeGeometryKey([{
+                polygon: strokeToPolygon(active.draft.points, TWO_LANE_ROAD_WIDTH_M),
+                centerline: active.draft.points,
+                centerlineElevM: [],
+              }], TWO_LANE_ROAD_WIDTH_M, [], 'road', ROAD_GRADE_POLICY)
+              : '',
+          };
+        },
+        onResult: (response) => {
+          roadGradeResultRef.current = response;
+          setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
+            ...current.draft,
+            gradingStatus: 'ok',
+            gradingError: null,
+            gradingPolygons: response.expandedPolygons,
+            earthwork: { cutM3: response.cutM3, fillM3: response.fillM3,
+              balanceM3: response.balanceM3 },
+            maxFaceSlopePct: response.maxFaceSlopePct,
+            maxGroundCrossSlopePct: response.maxGroundCrossSlopePct,
+            maxDisturbedWidthM: response.maxDisturbedWidthM,
+            ungradedLengthM: response.ungradedLengthM,
+            gradingInfeasibleLines: response.infeasibleLines,
+          } } : current);
+          setVisibleContours({ ...record,
+            contourSegments: Array.from(response.contourSegments) });
+          setEditedContours(response.editedContourSegments);
+        },
+        onSuperseded: () =>
+          failRoadGrade('The road or terrain changed while grading. Refinish the route.'),
+        onError: failRoadGrade,
+        onCrash: () => failRoadGrade('Road grading worker stopped unexpectedly.'),
+      });
     });
   }
 
@@ -3051,8 +3043,7 @@ export function MapView({
         if (!commit.ok) throw new Error('The terrain changed while building. Refinish the route.');
         setRoads((previous) => [...previous, road]);
         roadGradeResultRef.current = null;
-        trailGradeWorkerRef.current?.terminate();
-        trailGradeWorkerRef.current = null;
+        terrainGrade.stop();
         setRoadTool({ phase: 'idle' });
         toolCoordinator.release('road');
         await clearCover([
@@ -3433,8 +3424,7 @@ export function MapView({
     setOpenDock('trails');
     trailCommandsRef.current = [];
     trailPendingUntilRef.current = 0;
-    trailGradeWorkerRef.current?.terminate();
-    trailGradeWorkerRef.current = null;
+    terrainGrade.stop();
     trailGradeResultRef.current = null;
     trailWorkerRecoveryRef.current = 0;
     setTrailTool({ phase: 'place-head', candidate: null, error: null });
@@ -3463,8 +3453,7 @@ export function MapView({
   function cancelTrailTool() {
     trailSampleTokenRef.current++;
     terrain.preview.invalidate();
-    trailGradeWorkerRef.current?.terminate();
-    trailGradeWorkerRef.current = null;
+    terrainGrade.stop();
     trailGradeResultRef.current = null;
     const record = terrainRecordRef.current;
     if (record) setVisibleContours(record);
@@ -3649,6 +3638,12 @@ export function MapView({
     );
   }
 
+  function failTrailGrade(gradingError: string) {
+    setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
+      ...t.draft, gradingStatus: 'error', gradingError,
+    } } : t);
+  }
+
   function setTrailTerrainGrading(enabled: boolean) {
     const current = trailToolRef.current;
     const record = terrainRecordRef.current;
@@ -3671,7 +3666,10 @@ export function MapView({
       setEditedContours(null);
       return;
     }
-    if (!record?.bounds) {
+    const bounds = record?.bounds;
+    if (!record || !bounds) {
+      // Checked, but unable to grade: the box stays on so unchecking is what
+      // clears the error, exactly as it would after a refused grade.
       setTrailTool({ phase: 'review', draft: { ...current.draft, gradingEnabled: true,
         gradingStatus: 'error', gradingError: 'The local elevation package is unavailable.' } });
       return;
@@ -3681,80 +3679,6 @@ export function MapView({
     // Paint the checked/pending state before allocating the transferable grid.
     requestAnimationFrame(() => {
       if (!terrain.preview.isCurrent(requestId)) return;
-      let worker = trailGradeWorkerRef.current;
-      if (!worker) {
-        worker = new Worker(new URL('./terrainGrade.worker.ts', import.meta.url), { type: 'module' });
-        trailGradeWorkerRef.current = worker;
-      }
-      worker.onmessage = (event: MessageEvent<TerrainGradeResponse>) => {
-        const response = event.data;
-        if (!terrain.preview.isCurrent(response.id)) return;
-        if (!response.ok) {
-          setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
-            ...t.draft, gradingStatus: 'error', gradingError: response.error,
-          } } : t);
-          return;
-        }
-        const activeRecord = terrainRecordRef.current;
-        const activeTrail = trailToolRef.current;
-        const activeChecksum = activeRecord?.packageManifest?.elevationChecksum ?? '';
-        const protectedPolygons = trailsRef.current.flatMap((trail) =>
-          trail.parts.map((part) => part.polygon));
-        const activeGeometryKey = activeTrail.phase === 'review'
-          ? terrainGradeGeometryKey(activeTrail.draft.ungradedParts,
-            activeTrail.draft.brushWidthM, protectedPolygons, 'trail',
-            TRAIL_GRADE_POLICY)
-          : '';
-        if (response.baseElevationChecksum !== activeChecksum ||
-            response.trailGeometryKey !== activeGeometryKey) {
-          trailGradeResultRef.current = null;
-          if (activeRecord) setVisibleContours(activeRecord);
-          setEditedContours(null);
-          setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
-            ...t.draft,
-            gradingStatus: 'error',
-            gradingError: 'The trail or terrain changed while grading. Uncheck and retry the preview.',
-          } } : t);
-          return;
-        }
-        trailGradeResultRef.current = response;
-        setTrailTool((t) => {
-          if (t.phase !== 'review' || !t.draft.gradingEnabled) return t;
-          const parts = t.draft.ungradedParts.map((part, i) => ({
-            ...part,
-            polygon: response.expandedPolygons[i] ?? part.polygon,
-            centerlineElevM: response.gradedElevations[i] ?? part.centerlineElevM,
-          }));
-          const stats = trailPartsStats(parts);
-          return { phase: 'review', draft: { ...t.draft, parts,
-            areaM2: trailAreaM2(parts),
-            difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
-            gradingStatus: 'ok',
-            gradingError: null,
-            earthwork: {
-              cutM3: response.cutM3,
-              fillM3: response.fillM3,
-              balanceM3: response.balanceM3,
-            },
-            maxGroundCrossSlopePct: response.maxGroundCrossSlopePct,
-            maxFaceSlopePct: response.maxFaceSlopePct,
-            maxDisturbedWidthM: response.maxDisturbedWidthM,
-            ungradedLengthM: response.ungradedLengthM,
-            infeasibleLines: response.infeasibleLines,
-          } };
-        });
-        const preview: TerrainRecord = { ...record,
-          contourSegments: Array.from(response.contourSegments) };
-        setVisibleContours(preview);
-        setEditedContours(response.editedContourSegments);
-      };
-      worker.onerror = () => {
-        if (!terrain.preview.isCurrent(requestId)) return;
-        setTrailTool((t) => t.phase === 'review' ? { phase: 'review', draft: {
-          ...t.draft, gradingStatus: 'error',
-          gradingError: 'Terrain grading worker stopped unexpectedly.',
-        } } : t);
-      };
       const cachedHeights = terrainHeightCacheRef.current;
       const baseElevationChecksum = record.packageManifest?.elevationChecksum ?? '';
       const protectedPolygons = trailsRef.current.flatMap((trail) =>
@@ -3763,8 +3687,8 @@ export function MapView({
         cachedHeights.checksum === (record.packageManifest?.elevationChecksum ?? record.updatedAt)
           ? cachedHeights.heights.slice()
           : Float32Array.from(record.sampleHeights);
-      worker.postMessage({
-        id: requestId, heights, gridSize: record.sampleGridSize, bounds: record.bounds,
+      terrainGrade.run({
+        id: requestId, heights, gridSize: record.sampleGridSize, bounds,
         parts: current.draft.ungradedParts, brushWidthM: current.draft.brushWidthM,
         kind: 'trail',
         protectedPolygons,
@@ -3779,7 +3703,63 @@ export function MapView({
         ),
         contourGridSize: record.contourMetadata?.gridSize,
         contourIntervalM: record.contourMetadata?.intervalM,
-      }, [heights.buffer]);
+      }, {
+        isCurrent: (id) => terrain.preview.isCurrent(id),
+        live: () => {
+          const activeTrail = trailToolRef.current;
+          return {
+            baseElevationChecksum:
+              terrainRecordRef.current?.packageManifest?.elevationChecksum ?? '',
+            trailGeometryKey: activeTrail.phase === 'review'
+              ? terrainGradeGeometryKey(activeTrail.draft.ungradedParts,
+                activeTrail.draft.brushWidthM,
+                trailsRef.current.flatMap((trail) => trail.parts.map((part) => part.polygon)),
+                'trail', TRAIL_GRADE_POLICY)
+              : '',
+          };
+        },
+        onSuperseded: () => {
+          trailGradeResultRef.current = null;
+          const activeRecord = terrainRecordRef.current;
+          if (activeRecord) setVisibleContours(activeRecord);
+          setEditedContours(null);
+          failTrailGrade('The trail or terrain changed while grading. Uncheck and retry the preview.');
+        },
+        onError: failTrailGrade,
+        onCrash: () => failTrailGrade('Terrain grading worker stopped unexpectedly.'),
+        onResult: (response) => {
+          trailGradeResultRef.current = response;
+          setTrailTool((t) => {
+            if (t.phase !== 'review' || !t.draft.gradingEnabled) return t;
+            const parts = t.draft.ungradedParts.map((part, i) => ({
+              ...part,
+              polygon: response.expandedPolygons[i] ?? part.polygon,
+              centerlineElevM: response.gradedElevations[i] ?? part.centerlineElevM,
+            }));
+            const stats = trailPartsStats(parts);
+            return { phase: 'review', draft: { ...t.draft, parts,
+              areaM2: trailAreaM2(parts),
+              difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
+              gradingStatus: 'ok',
+              gradingError: null,
+              earthwork: {
+                cutM3: response.cutM3,
+                fillM3: response.fillM3,
+                balanceM3: response.balanceM3,
+              },
+              maxGroundCrossSlopePct: response.maxGroundCrossSlopePct,
+              maxFaceSlopePct: response.maxFaceSlopePct,
+              maxDisturbedWidthM: response.maxDisturbedWidthM,
+              ungradedLengthM: response.ungradedLengthM,
+              infeasibleLines: response.infeasibleLines,
+            } };
+          });
+          const preview: TerrainRecord = { ...record,
+            contourSegments: Array.from(response.contourSegments) };
+          setVisibleContours(preview);
+          setEditedContours(response.editedContourSegments);
+        },
+      });
     });
   }
 
@@ -3884,8 +3864,7 @@ export function MapView({
         trailSampleTokenRef.current++;
         trailWorkerRef.current?.terminate();
         trailWorkerRef.current = null;
-        trailGradeWorkerRef.current?.terminate();
-        trailGradeWorkerRef.current = null;
+        terrainGrade.stop();
         trailGradeResultRef.current = null;
         edit.addTrail(trail);
         if (!edit.commit().ok) {
