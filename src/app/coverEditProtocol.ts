@@ -1,13 +1,17 @@
 import type { CoverClearing } from '../coverEdit';
 import type { CoverDisplayMetadata, CoverGrid, CoverMetadata } from '../types';
 
-export interface CoverEditRequest {
+export interface CoverEditPayload {
   grid: CoverGrid;
   clearings: CoverClearing[];
   deriveDisplay: boolean;
 }
 
-export type CoverEditResponse =
+export interface CoverEditRequest extends CoverEditPayload {
+  id: number;
+}
+
+export type CoverEditEngineResult =
   | {
       ok: true;
       changed: number;
@@ -17,3 +21,5 @@ export type CoverEditResponse =
       displayMetadata?: CoverDisplayMetadata;
     }
   | { ok: false; error: string };
+
+export type CoverEditResponse = CoverEditEngineResult & { id: number };

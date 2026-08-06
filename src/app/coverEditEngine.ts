@@ -1,10 +1,10 @@
 import { deriveCoverDisplayGeometry } from '../coverDisplay';
 import { stampClearingsIntoGrid } from '../coverEdit';
 import { coverDisplayMetadataOf, coverMetadataOf } from '../terrainPackage';
-import type { CoverEditRequest, CoverEditResponse } from './coverEditProtocol';
+import type { CoverEditEngineResult, CoverEditPayload } from './coverEditProtocol';
 
 /** Pure worker body, exported separately so cover processing is unit-testable. */
-export function processCoverEdit(request: CoverEditRequest): CoverEditResponse {
+export function processCoverEdit(request: CoverEditPayload): CoverEditEngineResult {
   try {
     // The request grid is a renderer-created private copy whose buffer has been
     // transferred to this one-shot worker. Mutating it avoids two additional

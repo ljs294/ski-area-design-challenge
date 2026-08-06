@@ -5,6 +5,7 @@ import type { WorkerFactory, WorkerLike } from './workerAdapter';
 
 const CRASHED = 'The pond analysis worker failed. Try another alignment.';
 const POST_FAILED = 'The pond analysis worker could not accept the alignment. Try again.';
+const INVALID_RESPONSE = 'The pond analysis worker returned an invalid response. Try again.';
 
 export interface DamAnalysisHandlers {
   onResult(result: DamAnalysisResult): void;
@@ -34,6 +35,11 @@ export class DamAnalysisAdapter {
     const id = this.requestId;
     this.session.connect({
       onResponse: (response) => {
+        if (!isDamAnalysisResponse(response)) {
+          this.session.stop();
+          if (id === this.requestId) handlers.onError(INVALID_RESPONSE);
+          return;
+        }
         if (response.id !== this.requestId) return;
         this.session.stop();
         if (response.ok) handlers.onResult(response.result);
@@ -63,4 +69,12 @@ export class DamAnalysisAdapter {
   dispose(): void {
     this.cancel();
   }
+}
+
+function isDamAnalysisResponse(value: unknown): value is DamAnalysisResponse {
+  if (!value || typeof value !== 'object') return false;
+  const response = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(response.id) || typeof response.ok !== 'boolean') return false;
+  if (!response.ok) return typeof response.error === 'string';
+  return !!response.result && typeof response.result === 'object';
 }

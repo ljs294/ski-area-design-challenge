@@ -91,19 +91,23 @@ describe('TrailPaintAdapter', () => {
   it('routes each answer to its own handler', () => {
     const { created, factory } = fakeWorkers();
     const bound = handlers();
-    new TrailPaintAdapter(factory).start(INIT, bound);
+    const adapter = new TrailPaintAdapter(factory);
+    adapter.start(INIT, bound);
 
     created[0].deliver({ id: 1, ok: true, type: 'ready' });
     expect(bound.onReady).toHaveBeenCalledOnce();
 
+    adapter.post({ type: 'undo' });
     created[0].deliver(preview(2, 400));
     expect(bound.onPreview).toHaveBeenCalledOnce();
     expect(bound.onPreview.mock.calls[0][0]).toMatchObject({ areaM2: 400 });
 
     const parts: SavedTrailPart[] = [];
+    adapter.post({ type: 'finish' });
     created[0].deliver({ id: 3, ok: true, type: 'analysis', parts, areaM2: 400 });
     expect(bound.onAnalysis).toHaveBeenCalledOnce();
 
+    adapter.post({ type: 'clear' });
     created[0].deliver({ id: 4, ok: false, error: 'Trail analysis failed.' });
     expect(bound.onFailure).toHaveBeenCalledWith('Trail analysis failed.');
   });
@@ -130,7 +134,10 @@ describe('TrailPaintAdapter', () => {
   it('drops an answer that would repaint the canvas backwards', () => {
     const { created, factory } = fakeWorkers();
     const bound = handlers();
-    new TrailPaintAdapter(factory).start(INIT, bound);
+    const adapter = new TrailPaintAdapter(factory);
+    adapter.start(INIT, bound);
+    created[0].deliver({ id: 1, ok: true, type: 'ready' });
+    for (let id = 2; id <= 6; id++) adapter.post({ type: 'undo' });
 
     created[0].deliver(preview(5, 500));
     created[0].deliver(preview(3, 300));
@@ -141,6 +148,22 @@ describe('TrailPaintAdapter', () => {
     // The watermark tracks the newest answer, not the newest request.
     created[0].deliver(preview(6, 600));
     expect(bound.onPreview).toHaveBeenCalledTimes(2);
+  });
+
+  it('drops unissued identities and rejects a response type that does not match its request', () => {
+    const { created, factory } = fakeWorkers();
+    const adapter = new TrailPaintAdapter(factory);
+    const bound = handlers();
+    adapter.start(INIT, bound);
+
+    created[0].deliver(preview(99, 900));
+    expect(bound.onPreview).not.toHaveBeenCalled();
+
+    created[0].deliver(preview(1, 100));
+    expect(bound.onPreview).not.toHaveBeenCalled();
+    expect(bound.onFailure).toHaveBeenCalledWith(
+      'Trail painting returned an invalid response.');
+    expect(created[0].terminate).toHaveBeenCalledOnce();
   });
 
   it('restarts a crashed engine once and asks the owner to repaint it', () => {

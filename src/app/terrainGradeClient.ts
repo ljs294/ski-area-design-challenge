@@ -3,6 +3,7 @@ import { WorkerSession } from './workerAdapter';
 import type { WorkerFactory, WorkerLike } from './workerAdapter';
 
 const POST_FAILED = 'Terrain grading could not start. Try again.';
+const INVALID_RESPONSE = 'Terrain grading returned an invalid response. Try again.';
 
 export type TerrainGradeSuccess = Extract<TerrainGradeResponse, { ok: true }>;
 
@@ -57,7 +58,14 @@ export class TerrainGradeAdapter {
     this.pending = true;
     this.session.connect({
       onResponse: (response) => {
-        if (response.id === request.id) this.pending = false;
+        if (!isTerrainGradeResponse(response)) {
+          this.pending = false;
+          this.session.stop();
+          if (handlers.isCurrent(request.id)) handlers.onError(INVALID_RESPONSE);
+          return;
+        }
+        if (response.id !== request.id) return;
+        this.pending = false;
         if (!handlers.isCurrent(response.id)) return;
         if (!response.ok) {
           handlers.onError(response.error);
@@ -96,4 +104,13 @@ export class TerrainGradeAdapter {
   dispose(): void {
     this.stop();
   }
+}
+
+function isTerrainGradeResponse(value: unknown): value is TerrainGradeResponse {
+  if (!value || typeof value !== 'object') return false;
+  const response = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(response.id) || typeof response.ok !== 'boolean') return false;
+  if (!response.ok) return typeof response.error === 'string';
+  return typeof response.baseElevationChecksum === 'string' &&
+    typeof response.trailGeometryKey === 'string';
 }

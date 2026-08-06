@@ -127,6 +127,20 @@ describe('DamAnalysisAdapter', () => {
     expect(bound.onResult).toHaveBeenCalledOnce();
   });
 
+  it('rejects a malformed response from the live worker and terminates it', () => {
+    const { created, factory } = fakeWorkers();
+    const adapter = new DamAnalysisAdapter(factory);
+    const bound = handlers();
+
+    adapter.run(alignment(), bound);
+    created[0].deliver({ id: 1, ok: true } as DamAnalysisResponse);
+
+    expect(bound.onResult).not.toHaveBeenCalled();
+    expect(bound.onError).toHaveBeenCalledWith(
+      'The pond analysis worker returned an invalid response. Try again.');
+    expect(created[0].terminate).toHaveBeenCalledOnce();
+  });
+
   it('reports a crashed worker once, and only for the live request', () => {
     const { created, factory } = fakeWorkers();
     const adapter = new DamAnalysisAdapter(factory);

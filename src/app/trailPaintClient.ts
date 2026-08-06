@@ -5,6 +5,7 @@ import { WorkerSession } from './workerAdapter';
 import type { WorkerFactory, WorkerLike } from './workerAdapter';
 
 const POST_FAILED = 'Trail painting could not send work to its engine.';
+const INVALID_RESPONSE = 'Trail painting returned an invalid response.';
 
 export type TrailPaintSuccess = Extract<TrailPaintResponse, { ok: true }>;
 export type TrailPaintPreview = Extract<TrailPaintSuccess, { type: 'preview' }>;
@@ -52,6 +53,7 @@ export class TrailPaintAdapter {
   private requestId = 0;
   private applied = 0;
   private recoveries = 0;
+  private readonly pending = new Map<number, TrailPaintRequest['type']>();
 
   constructor(factory: WorkerFactory<TrailPaintRequest, TrailPaintResponse> = trailPaintWorker) {
     this.session = new WorkerSession(factory);
@@ -82,12 +84,14 @@ export class TrailPaintAdapter {
       this.handlers?.onFailure(POST_FAILED);
       return 0;
     }
+    this.pending.set(message.id, message.type);
     return message.id;
   }
 
   /** Discard the engine and everything painted on it. */
   stop(): void {
     this.session.stop();
+    this.pending.clear();
   }
 
   /**
@@ -101,6 +105,7 @@ export class TrailPaintAdapter {
   private launch(): void {
     // A new canvas has answered nothing, so nothing it sends is out of order.
     this.applied = 0;
+    this.pending.clear();
     this.session.connect({
       onResponse: (response) => this.receive(response),
       onCrash: () => this.recover(),
@@ -109,8 +114,20 @@ export class TrailPaintAdapter {
   }
 
   private receive(response: TrailPaintResponse): void {
+    const id = responseId(response);
+    const requestType = id === null ? undefined : this.pending.get(id);
+    if (id === null || !requestType) return;
+    if (!isTrailPaintResponse(response) || !responseMatchesRequest(response, requestType)) {
+      this.stop();
+      this.handlers?.onFailure(INVALID_RESPONSE);
+      return;
+    }
+    this.pending.delete(response.id);
     if (response.id < this.applied) return;
     this.applied = response.id;
+    for (const pendingId of this.pending.keys()) {
+      if (pendingId < this.applied) this.pending.delete(pendingId);
+    }
     const handlers = this.handlers;
     if (!handlers) return;
     if (!response.ok) {
@@ -123,6 +140,7 @@ export class TrailPaintAdapter {
   }
 
   private recover(): void {
+    this.pending.clear();
     const handlers = this.handlers;
     if (this.recoveries > 0) {
       handlers?.onLost();
@@ -132,4 +150,34 @@ export class TrailPaintAdapter {
     handlers?.onRestart();
     this.launch();
   }
+}
+
+function responseId(value: unknown): number | null {
+  if (!value || typeof value !== 'object') return null;
+  const id = (value as { id?: unknown }).id;
+  return Number.isSafeInteger(id) ? id as number : null;
+}
+
+function isTrailPaintResponse(value: unknown): value is TrailPaintResponse {
+  if (!value || typeof value !== 'object') return false;
+  const response = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(response.id) || typeof response.ok !== 'boolean') return false;
+  if (!response.ok) return typeof response.error === 'string';
+  if (response.type === 'ready') return true;
+  if (response.type === 'preview') {
+    return Array.isArray(response.polygons) && Number.isFinite(response.areaM2) &&
+      typeof response.canUndo === 'boolean';
+  }
+  return response.type === 'analysis' && Array.isArray(response.parts) &&
+    Number.isFinite(response.areaM2);
+}
+
+function responseMatchesRequest(
+  response: TrailPaintResponse,
+  requestType: TrailPaintRequest['type'],
+): boolean {
+  if (!response.ok) return true;
+  if (requestType === 'init') return response.type === 'ready';
+  if (requestType === 'finish') return response.type === 'analysis';
+  return response.type === 'preview';
 }

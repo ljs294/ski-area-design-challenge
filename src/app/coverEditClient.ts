@@ -1,4 +1,4 @@
-import type { CoverEditRequest, CoverEditResponse } from './coverEditProtocol';
+import type { CoverEditPayload, CoverEditRequest, CoverEditResponse } from './coverEditProtocol';
 import { WorkerSession } from './workerAdapter';
 import type { WorkerFactory, WorkerLike } from './workerAdapter';
 
@@ -6,6 +6,7 @@ const DEFAULT_TIMEOUT_MS = 60_000;
 const CRASHED = 'Ground-cover worker stopped unexpectedly.';
 const ABANDONED = 'The ground-cover edit was abandoned.';
 const POST_FAILED = 'Ground-cover processing could not start.';
+const INVALID_RESPONSE = 'Ground-cover processing returned an invalid response.';
 
 export type CoverEditSuccess = Extract<CoverEditResponse, { ok: true }>;
 
@@ -33,14 +34,16 @@ export class CoverEditAdapter {
   private readonly session: WorkerSession<CoverEditRequest, CoverEditResponse>;
   private readonly timeoutMs: number;
   private abandon: ((reason: Error) => void) | null = null;
+  private requestId = 0;
 
   constructor(options: CoverEditClientOptions = {}) {
     this.session = new WorkerSession(options.workerFactory ?? coverEditWorker);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
-  run(request: CoverEditRequest): Promise<CoverEditSuccess> {
+  run(payload: CoverEditPayload): Promise<CoverEditSuccess> {
     this.abandon?.(new Error(ABANDONED));
+    const request: CoverEditRequest = { ...payload, id: ++this.requestId };
     return new Promise<CoverEditSuccess>((resolve, reject) => {
       let settled = false;
       const finish = (outcome: CoverEditSuccess | Error) => {
@@ -59,7 +62,14 @@ export class CoverEditAdapter {
       );
       this.abandon = finish;
       this.session.connect({
-        onResponse: (response) => finish(response.ok ? response : new Error(response.error)),
+        onResponse: (response) => {
+          if (!isCoverEditResponse(response)) {
+            finish(new Error(INVALID_RESPONSE));
+            return;
+          }
+          if (response.id !== request.id) return;
+          finish(response.ok ? response : new Error(response.error));
+        },
         onCrash: () => finish(new Error(CRASHED)),
       });
       const data = request.grid.data as Uint8Array;
@@ -75,4 +85,13 @@ export class CoverEditAdapter {
     this.session.stop();
     this.abandon?.(new Error(ABANDONED));
   }
+}
+
+function isCoverEditResponse(value: unknown): value is CoverEditResponse {
+  if (!value || typeof value !== 'object') return false;
+  const response = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(response.id) || typeof response.ok !== 'boolean') return false;
+  if (!response.ok) return typeof response.error === 'string';
+  return Number.isFinite(response.changed) && response.gridData instanceof Uint8Array &&
+    !!response.coverMetadata && typeof response.coverMetadata === 'object';
 }

@@ -102,6 +102,31 @@ describe('TerrainGradeAdapter', () => {
     expect(bound.onError).not.toHaveBeenCalled();
   });
 
+  it('accepts only the response identity of the request actually posted', () => {
+    const { created, factory } = fakeWorkers();
+    const bound = handlers({ current: [1, 2] });
+    new TerrainGradeAdapter(factory).run(gradeRequest(1), bound);
+
+    // Token 2 may be current elsewhere, but this worker was asked for token 1.
+    created[0].deliver(graded(2));
+    expect(bound.onResult).not.toHaveBeenCalled();
+    created[0].deliver(graded(1));
+    expect(bound.onResult).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a malformed response from the live worker and terminates it', () => {
+    const { created, factory } = fakeWorkers();
+    const bound = handlers();
+    new TerrainGradeAdapter(factory).run(gradeRequest(1), bound);
+
+    created[0].deliver({ id: 1, ok: true } as TerrainGradeResponse);
+
+    expect(bound.onResult).not.toHaveBeenCalled();
+    expect(bound.onError).toHaveBeenCalledWith(
+      'Terrain grading returned an invalid response. Try again.');
+    expect(created[0].terminate).toHaveBeenCalledOnce();
+  });
+
   it('refuses a grade computed against a different package or footprint', () => {
     const changedTerrain = fakeWorkers();
     const afterTerrain = handlers({ live: { ...IDENTITY, baseElevationChecksum: 'elevation-b' } });
