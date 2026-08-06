@@ -604,9 +604,11 @@ export function MapView({
   const lastFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
+    const heldKeys = heldRef.current;
+
     function stepFrame(ts: number) {
       rafIdRef.current = null;
-      if (heldRef.current.size === 0) {
+      if (heldKeys.size === 0) {
         lastFrameRef.current = null;
         return;
       }
@@ -618,27 +620,27 @@ export function MapView({
         const kb = keybindsRef.current;
         let dx = 0;
         let dy = 0;
-        if (heldRef.current.has(kb.panForward)) dy -= 1;
-        if (heldRef.current.has(kb.panBackward)) dy += 1;
-        if (heldRef.current.has(kb.panLeft)) dx -= 1;
-        if (heldRef.current.has(kb.panRight)) dx += 1;
+        if (heldKeys.has(kb.panForward)) dy -= 1;
+        if (heldKeys.has(kb.panBackward)) dy += 1;
+        if (heldKeys.has(kb.panLeft)) dx -= 1;
+        if (heldKeys.has(kb.panRight)) dx += 1;
         if (dx !== 0 || dy !== 0) {
           const len = Math.hypot(dx, dy);
           map.panBy([(dx / len) * PAN_SPEED_PX_S * dt, (dy / len) * PAN_SPEED_PX_S * dt], { animate: false });
         }
         let bearingDelta = 0;
-        if (heldRef.current.has(kb.rotateLeft)) bearingDelta -= ROTATE_SPEED_DEG_S * dt;
-        if (heldRef.current.has(kb.rotateRight)) bearingDelta += ROTATE_SPEED_DEG_S * dt;
+        if (heldKeys.has(kb.rotateLeft)) bearingDelta -= ROTATE_SPEED_DEG_S * dt;
+        if (heldKeys.has(kb.rotateRight)) bearingDelta += ROTATE_SPEED_DEG_S * dt;
         if (bearingDelta !== 0) map.setBearing(map.getBearing() + bearingDelta);
         let pitchDelta = 0;
-        if (heldRef.current.has(kb.tiltUp)) pitchDelta += PITCH_SPEED_DEG_S * dt;
-        if (heldRef.current.has(kb.tiltDown)) pitchDelta -= PITCH_SPEED_DEG_S * dt;
+        if (heldKeys.has(kb.tiltUp)) pitchDelta += PITCH_SPEED_DEG_S * dt;
+        if (heldKeys.has(kb.tiltDown)) pitchDelta -= PITCH_SPEED_DEG_S * dt;
         if (pitchDelta !== 0) {
           const nextPitch = Math.min(map.getMaxPitch(), Math.max(0, map.getPitch() + pitchDelta));
           if (nextPitch !== map.getPitch()) map.setPitch(nextPitch);
         }
       }
-      if (heldRef.current.size > 0) rafIdRef.current = requestAnimationFrame(stepFrame);
+      if (heldKeys.size > 0) rafIdRef.current = requestAnimationFrame(stepFrame);
     }
 
     function startLoopIfNeeded() {
@@ -662,8 +664,8 @@ export function MapView({
       if (isTypingTarget(document.activeElement)) return;
       const key = normalizeKey(e.key);
       if (!continuousKeys().includes(key)) return;
-      const wasEmpty = heldRef.current.size === 0;
-      heldRef.current.add(key);
+      const wasEmpty = heldKeys.size === 0;
+      heldKeys.add(key);
       if (wasEmpty) startLoopIfNeeded();
     }
 
@@ -671,7 +673,7 @@ export function MapView({
       // No guards — releasing a key must always work, even if focus moved to
       // an input mid-hold, or the key could get stuck "held".
       const key = normalizeKey(e.key);
-      heldRef.current.delete(key);
+      heldKeys.delete(key);
     }
 
     window.addEventListener('keydown', onKeyDown);
@@ -680,7 +682,7 @@ export function MapView({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current);
-      heldRef.current.clear();
+      heldKeys.clear();
     };
   }, []);
 
@@ -1693,6 +1695,7 @@ export function MapView({
       difficulty: reviewDraft.difficulty, name: reviewDraft.name,
       infeasibleLines: reviewDraft.infeasibleLines }));
     else setTrailDraftData(map, draftToGeoJSON([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Only rendered draft fields should retrigger source synchronization; review errors do not affect map data.
   }, [draftPolygons, reviewDraft?.parts, reviewDraft?.difficulty, reviewDraft?.name,
     reviewDraft?.infeasibleLines]);
 
@@ -1746,7 +1749,7 @@ export function MapView({
       window.removeEventListener('keydown', onKey);
       canvas.style.cursor = '';
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Tool callbacks intentionally read live refs; resubscribe only when the phase changes.
   }, [trailTool.phase]);
 
   // Stage three: after brushing, choose a destination already covered by the
@@ -1786,7 +1789,6 @@ export function MapView({
     map.on('mousemove', onMove); map.on('click', onClick); window.addEventListener('keydown', onKey);
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
       window.removeEventListener('keydown', onKey); canvas.style.cursor = ''; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trailTool.phase]);
 
   /** Sample both terminal elevations for the review draft. Token-guarded so a
@@ -2151,7 +2153,6 @@ export function MapView({
       map.getCanvas().style.cursor = '';
       setSnapHover(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeTool.phase]);
 
   // Path drawing, modelled on the road tool: click to append, Backspace to

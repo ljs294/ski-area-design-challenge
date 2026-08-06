@@ -111,6 +111,7 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
       map.remove();
       mapRef.current = null;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Map creation is mount-only; theme changes are handled below and onReady is the initial readiness callback.
   }, []);
 
   // Swap basemap when the theme changes (terrain re-adds via the style.load handler).

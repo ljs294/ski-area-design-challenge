@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | A1 — shared documentation foundation |
-| Status | Implemented in working tree; standalone documentation check passed; awaiting review and commit |
-| Last green commit | Not recorded; A1 has not been committed |
-| Next step | Review the A1 diff and commit it as the first green benchmark |
+| Current benchmark | A2 — deterministic strict-check baseline |
+| Status | A2 candidate is green under the full aggregate gate and ready to commit |
+| Last green commit | A1 at `574e68745e17083002588aca7c5f4884a887c310` |
+| Next step | Commit A2, capture its clean metrics snapshot, then establish the Playwright harness at A3 |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -61,7 +61,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 
 | ID | Commit SHA | Gate result | Notes |
 | --- | --- | --- | --- |
-| A1 | Pending | Passed | `node scripts/checkAgentDocs.mjs` passed on 2026-08-06; review and commit SHA still required |
+| A1 | `574e68745e17083002588aca7c5f4884a887c310` | Passed | Shared guidance, architecture documentation, ledger, editor defaults, and documentation checker committed on 2026-08-06. |
 
 ## Open decisions and blockers
 

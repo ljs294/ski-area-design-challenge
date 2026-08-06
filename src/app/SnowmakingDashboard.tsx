@@ -285,6 +285,7 @@ export function SnowmakingDashboard({
       }
     }
     return [...dByCode.entries()].map(([code, ds]) => ({ code, d: ds.join(' ') }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- place is entirely derived from frame, which is already a dependency.
   }, [coverDisplay, frame, fitWidthM]);
 
   // -- elevation contours -----------------------------------------------------
@@ -310,6 +311,7 @@ export function SnowmakingDashboard({
       }
     }
     return { major: major.join(' '), minor: minor.join(' ') };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- place is entirely derived from frame, which is already a dependency.
   }, [terrainRecord, units, frame]);
 
   const scaleM = niceDistance(active.w / 5);

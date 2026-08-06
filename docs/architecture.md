@@ -37,6 +37,8 @@ The required visual order is bottom-to-top: analysis, site boundary, road, dam, 
 
 ## Verification state
 
-Vitest tests are colocated with source as `*.test.ts` and `*.test.tsx`. The current default `npm test` command includes tests that contact live providers, so it is not yet a deterministic offline gate. The repository contains ad hoc Playwright-based `scripts/verify*.mjs` scripts, but no Playwright Test project configuration is currently a release gate. GitHub Pages deployment exists; a separate required pull-request check does not yet exist.
+Vitest tests are colocated with source as `*.test.ts` and `*.test.tsx`. `npm test` and `npm run test:unit` are deterministic offline gates; live-provider cases use `*.integration.test.ts` and run only through `npm run test:integration:live`. The repository still contains ad hoc Playwright-based `scripts/verify*.mjs` scripts, but they are not release gates. GitHub Pages deployment remains separate from the pull-request CI workflow.
 
-The current TypeScript configuration enables unused-code and switch checks but does not yet set `strict`. There is no repository ESLint configuration or aggregate `npm run check` command in the landed package scripts.
+TypeScript runs with `strict` plus the existing unused-code and switch checks. Flat ESLint configuration enforces the React rules of hooks and treats unexplained or obsolete suppressions as errors. [`scripts/checkArchitecture.mjs`](../scripts/checkArchitecture.mjs) checks core-to-app boundaries and type-model isolation/cycles; it reports one narrowly keyed temporary `terrainIngest` exception that benchmark B1 must remove.
+
+`npm run check` is the canonical deterministic gate: agent-document checks, architecture checks, lint, strict typechecking, offline unit tests, and desktop and web production builds. [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs `npm ci` and that command for pull requests and protected development branches. Repository branch settings must make the workflow required; the workflow file cannot enforce that setting by itself.
