@@ -163,8 +163,8 @@ import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
   type TerrainCommitRequest, type TerrainRecordView, type TerrainSnapshot } from './terrainDocument';
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { commitDocuments } from './committedDocumentTransaction';
-import { hitGuardLayers, orderContributions, orderHitContributions,
-  type MapContribution } from './mapContribution';
+import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry,
+  type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
@@ -287,6 +287,29 @@ function pondDraftOf(tool: PondTool) {
   if (tool.phase === 'review') return { points: tool.draft.boundary.slice(0, -1), cursor: null, closed: true,
     topElevationM: tool.draft.topElevationM, averageDepthM: tool.draft.averageDepthM };
   return null;
+}
+
+function nodePathDraftOf(
+  pathTool: PathTool,
+  nodeTool: NodeTool,
+  snapHover: [number, number] | null,
+): NodePathDraft | null {
+  const highlight = snapHover ? [snapHover] : [];
+  const pick = nodeTool.phase === 'add' ? nodeTool.candidate?.point ?? null : null;
+  if (pathTool.phase === 'drawing') {
+    return { points: pathTool.points, cursor: pathTool.cursor, highlight };
+  }
+  if (pathTool.phase === 'review') {
+    return { points: pathTool.points, cursor: null, highlight: [] };
+  }
+  if (pathTool.phase === 'armed' || nodeTool.phase !== 'idle') {
+    return { points: [], cursor: null, highlight, pick };
+  }
+  return null;
+}
+
+function layerTogglesOf(descriptors: readonly MapVisibilityDescriptor[]): LayerToggle[] {
+  return descriptors.map((descriptor) => ({ ...descriptor, layerIds: [...descriptor.layerIds] }));
 }
 
 /** crypto.randomUUID is gated to secure contexts (fails under packaged file://). */
@@ -796,6 +819,8 @@ export function MapView({
   // fresh every render, exactly like `is3DRef`.
   const toggle3DRef = useRef<() => void>(() => {});
   const layersRef = useRef<LayerToggle[]>([]);
+  const analysisTogglesRef = useRef<LayerToggle[]>([]);
+  const mapContributionRegistryRef = useRef<MapContributionRegistry | null>(null);
   const siteBoxRef = useRef<SiteBox | null>(siteBox);
   const siteModeRef = useRef<SiteMode>(siteMode);
   const is3DRef = useRef(is3D);
@@ -855,6 +880,8 @@ export function MapView({
   const earthworkPatchRef = useRef<EarthworkTerrainPatch | null>(null);
   const brushWidthRef = useRef(brushWidthM);
   const renderQualityRef = useRef(settings.renderQuality);
+  const unitsRef = useRef(settings.units);
+  const snapHoverRef = useRef(snapHover);
   const packageAbortRef = useRef<AbortController | null>(null);
   const toolCancellationRef = useRef<Record<ToolId, () => void>>({
     lift: () => {}, road: () => {}, dam: () => {}, pond: () => {},
@@ -1001,13 +1028,13 @@ export function MapView({
   }
 
   function setVisibleContours(record: TerrainRecordView): void {
-    setTerrainContourData(mapRef.current, record, settings.units === 'imperial');
+    setTerrainContourData(mapRef.current, record, unitsRef.current === 'imperial');
   }
 
   /** Paint the contours a pending grade would move in yellow. `null` clears. */
   function setEditedContours(segments: ArrayLike<number> | null): void {
     setGradedContourPreview(mapRef.current, segments,
-      terrainRecordRef.current?.bounds, settings.units === 'imperial');
+      terrainRecordRef.current?.bounds, unitsRef.current === 'imperial');
   }
 
   /** Whichever tool is holding a grade up for approval owns the contours on
@@ -1049,6 +1076,8 @@ export function MapView({
   // `sampleTrailElevations`) or write through a functional updater — never read
   // it back out of a ref.
   renderQualityRef.current = settings.renderQuality;
+  unitsRef.current = settings.units;
+  snapHoverRef.current = snapHover;
   layersRef.current = layers;
   siteBoxRef.current = siteBox;
   siteModeRef.current = siteMode;
@@ -1318,28 +1347,17 @@ export function MapView({
     // WorldCover sources so they cannot contend with mandatory downloads.
     const fresh = packageStateRef.current === 'preparing'
       ? []
-      : setupAnalysisLayers(map, terrainRecordRef.current, settings.units, coverDisplayRef.current,
+      : setupAnalysisLayers(map, terrainRecordRef.current, unitsRef.current, coverDisplayRef.current,
         localImageryUrlRef.current, lakeNameOverridesRef.current,
         streamWidthOverridesRef.current);
-    const prev = layersRef.current;
-    const applied = fresh.map((f) => {
-      const was = prev.find((p) => p.id === f.id);
-      if (was && was.visible !== f.visible) {
-        for (const lid of f.layerIds)
-          map.setLayoutProperty(lid, 'visibility', was.visible ? 'visible' : 'none');
-        return { ...f, visible: was.visible };
-      }
-      return f;
-    });
-    // setupAnalysisLayers bakes the cover opacity assuming the aerial is on;
-    // reconcile it to the aerial's actual (possibly toggled-off) visibility.
-    const aerialOn = applied.find((f) => f.id === 'satellite')?.visible ?? true;
-    applyCoverOpacity(map, aerialOn);
-    return applied;
+    return fresh;
   }
 
   function installSiteBoundaryLayers(map: maplibregl.Map): void {
     addSiteBoxLayers(map);
+  }
+
+  function synchronizeSiteBoundary(map: maplibregl.Map): void {
     // Once a package exists, the "box" is its true data extent (record.bounds),
     // not the smaller square first dragged: the elevation service snaps the
     // download taller and cover/contours/vectors all fill that extent. Drawing
@@ -1353,71 +1371,119 @@ export function MapView({
     }
   }
 
-  /**
-   * The legacy map contributions, one per family, ordered by the declared
-   * bottom-to-top paint order. Feature controllers take these over in E1–E5;
-   * today each closes over MapView's refs. Rebuilt per traversal so the
-   * analysis family can hand its toggle model back to the caller.
-   */
-  function mapContributions(
-    map: maplibregl.Map,
-    onAnalysisToggles: (toggles: LayerToggle[]) => void = () => {},
-  ): MapContribution[] {
-    return orderContributions([
-      { id: 'analysis', install: () => onAnalysisToggles(installAnalysisLayers(map)) },
-      { id: 'site-boundary', install: () => installSiteBoundaryLayers(map) },
+  /** Legacy contributions close over live refs until their controllers land.
+   * The registry, rather than MapView, owns every cross-family traversal. */
+  function createMapContributions(): ManagedMapContribution[] {
+    const structureVisibility = (
+      id: string,
+      label: string,
+      layerIds: readonly string[],
+    ): MapVisibilityDescriptor[] => packageStateRef.current === 'preparing' ? [] : [{
+      id, label, layerIds, visible: true, section: 'Structures',
+    }];
+    return [
       {
-        // Roads sit with the basemap context; their transient construction
-        // overlay remains beneath ski runs and lifts.
-        id: 'road',
-        install: () => {
+        id: 'analysis', zOrder: MAP_Z_ORDER.analysis,
+        hits: [
+          { id: 'stream', priority: MAP_HIT_RANK.stream, layerIds: ['local-water-line-hit'],
+            select: (id) => selectStreamRef.current(id) },
+          { id: 'lake', priority: MAP_HIT_RANK.lake, layerIds: ['local-water-fill'],
+            select: (id) => selectLakeRef.current(id) },
+        ],
+        install: ({ map }) => { analysisTogglesRef.current = installAnalysisLayers(map); },
+        synchronizeData: ({ map }) => {
+          const record = terrainRecordRef.current;
+          if (record) setLocalContextData(map, record, lakeNameOverridesRef.current,
+            streamWidthOverridesRef.current);
+          setSelectedLake(map, selectedLakeIdRef.current);
+          setSelectedStream(map, selectedStreamIdRef.current);
+        },
+        visibility: () => analysisTogglesRef.current,
+        visibilityChanged: ({ map }, id, visible) => {
+          if (id === 'satellite') applyCoverOpacity(map, visible);
+        },
+        cleanup: () => {},
+      },
+      {
+        id: 'site-boundary', zOrder: MAP_Z_ORDER['site-boundary'],
+        install: ({ map }) => installSiteBoundaryLayers(map),
+        synchronizeData: ({ map }) => synchronizeSiteBoundary(map),
+        cleanup: () => {},
+      },
+      {
+        id: 'road', zOrder: MAP_Z_ORDER.road,
+        install: ({ map }) => {
           addRoadLayers(map);
           addRoadDraftLayers(map);
+        },
+        synchronizeData: ({ map }) => {
           setRoadData(map, roadsRef.current);
           setRoadDraftData(map, roadDraftOf(roadToolRef.current));
         },
-        setCaptureTransient: (hidden) => setRoadDraftData(map,
+        visibility: () => analysisTogglesRef.current.some((entry) => entry.id === 'bm-roads')
+          ? [{ id: 'bm-roads', label: 'Roads', layerIds: ROAD_BUILT_LAYER_IDS,
+            visible: true, section: 'Master plan' }]
+          : [],
+        setCaptureTransient: ({ map }, hidden) => setRoadDraftData(map,
           hidden ? null : roadDraftOf(roadToolRef.current)),
+        cleanup: () => {},
       },
       {
-        id: 'dam',
-        install: () => {
+        id: 'dam', zOrder: MAP_Z_ORDER.dam,
+        hits: [{ id: 'dam', priority: MAP_HIT_RANK.dam, layerIds: DAM_HIT_LAYERS,
+          select: (id) => transitionSelection({ kind: 'dam', id }) }],
+        install: ({ map }) => addDamLayers(map),
+        synchronizeData: ({ map }) => {
           const rec = terrainRecordRef.current;
-          addDamLayers(map);
           setDamData(map, damsRef.current, rec);
           setDamDraftData(map, damDraftOf(damToolRef.current), rec);
           setSelectedDam(map, selectedDamIdRef.current);
         },
-        setCaptureTransient: (hidden) => hidden
+        visibility: () => structureVisibility('dams', 'Snowmaking ponds', DAM_BUILT_LAYER_IDS),
+        setCaptureTransient: ({ map }, hidden) => hidden
           ? setDamDraftData(map, null)
           : setDamDraftData(map, damDraftOf(damToolRef.current), terrainRecordRef.current),
+        cleanup: () => {},
       },
       {
-        id: 'pond',
-        install: () => {
+        id: 'pond', zOrder: MAP_Z_ORDER.pond,
+        hits: [{ id: 'pond', priority: MAP_HIT_RANK.pond, layerIds: POND_HIT_LAYERS,
+          select: (id) => transitionSelection({ kind: 'pond', id }) }],
+        install: ({ map }) => addPondLayers(map),
+        synchronizeData: ({ map }) => {
           const rec = terrainRecordRef.current;
-          addPondLayers(map);
           setPondData(map, pondsRef.current, rec);
           setPondDraftData(map, pondDraftOf(pondToolRef.current), rec);
           setSelectedPond(map, selectedPondIdRef.current);
         },
-        setCaptureTransient: (hidden) => hidden
+        visibility: () => structureVisibility(
+          'standalone-ponds', 'Standalone ponds', POND_BUILT_LAYER_IDS),
+        setCaptureTransient: ({ map }, hidden) => hidden
           ? setPondDraftData(map, null)
           : setPondDraftData(map, pondDraftOf(pondToolRef.current), terrainRecordRef.current),
+        cleanup: () => {},
       },
       {
-        id: 'ski-node-path',
-        install: () => {
+        id: 'ski-node-path', zOrder: MAP_Z_ORDER['ski-node-path'],
+        install: ({ map }) => {
           addNodePathLayers(map);
           addNodePathDraftLayers(map);
-          setNodePathData(map, skiNodesRef.current, skiPathsRef.current, junctionsRef.current);
         },
+        synchronizeData: ({ map }) => {
+          setNodePathData(map, skiNodesRef.current, skiPathsRef.current, junctionsRef.current);
+          setNodePathDraftData(map, nodePathDraftOf(
+            pathToolRef.current, nodeToolRef.current, snapHoverRef.current));
+        },
+        setCaptureTransient: ({ map }, hidden) => setNodePathDraftData(map, hidden ? null
+          : nodePathDraftOf(pathToolRef.current, nodeToolRef.current, snapHoverRef.current)),
+        cleanup: () => {},
       },
       {
-        // Runs beneath lifts (ski-map convention): trails first, lifts on top.
-        id: 'trail',
-        install: () => {
-          addTrailLayers(map);
+        id: 'trail', zOrder: MAP_Z_ORDER.trail,
+        hits: [{ id: 'trail', priority: MAP_HIT_RANK.trail, layerIds: ['trail-fill'],
+          select: (id) => selectTrailRef.current(id) }],
+        install: ({ map }) => addTrailLayers(map),
+        synchronizeData: ({ map }) => {
           setTrailData(map, trailsToGeoJSON(trailsRef.current));
           const tt = trailToolRef.current;
           setTrailDraftData(map, tt.phase === 'paint' || tt.phase === 'place-tail' || tt.phase === 'analyzing'
@@ -1427,17 +1493,22 @@ export function MapView({
               infeasibleLines: tt.draft.infeasibleLines })
               : draftToGeoJSON([]));
           if (activeGradePreview()) applyGradePreview();
-          setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current,
+          setTrailPaintPreview(map, {
+            path: tt.phase === 'paint' ? trailPreviewPathRef.current : [],
+            cursor: tt.phase === 'paint' ? trailBrushCursorRef.current : null,
+            brushWidthM: brushWidthRef.current,
             ...trailHeadPreview(trailToolRef.current) });
         },
-        setCaptureTransient: (hidden) => {
+        visibility: () => structureVisibility('trails', 'Ski trails', TRAIL_BUILT_LAYER_IDS),
+        setCaptureTransient: ({ map }, hidden) => {
           const trail = trailToolRef.current;
           if (hidden) {
             setTrailDraftData(map, draftToGeoJSON([]));
             setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
             return;
           }
-          setTrailDraftData(map, trail.phase === 'paint' || trail.phase === 'analyzing'
+          setTrailDraftData(map, trail.phase === 'paint' || trail.phase === 'place-tail' ||
+            trail.phase === 'analyzing'
             ? draftToGeoJSON(trail.polygons)
             : trail.phase === 'review'
             ? draftToGeoJSON([], {
@@ -1454,64 +1525,49 @@ export function MapView({
             ...trailHeadPreview(trail),
           });
         },
+        cleanup: () => {},
       },
       {
-        id: 'lift',
-        install: () => {
-          addLiftLayers(map);
+        id: 'lift', zOrder: MAP_Z_ORDER.lift,
+        hits: [{ id: 'lift', priority: MAP_HIT_RANK.lift,
+          layerIds: ['lift-line-casing', 'lift-terminals'],
+          select: (id) => selectLiftRef.current(id) }],
+        install: ({ map }) => addLiftLayers(map),
+        synchronizeData: ({ map }) => {
           setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
         },
-        setCaptureTransient: (hidden) => setLiftData(map,
+        visibility: () => structureVisibility('lifts', 'Ski lifts', LIFT_BUILT_LAYER_IDS),
+        setCaptureTransient: ({ map }, hidden) => setLiftData(map,
           liftsToGeoJSON(liftsRef.current, hidden ? null : draftLineOf(liftToolRef.current))),
+        cleanup: () => {},
       },
       {
-        // Nodes render last, on top of every other structure family.
-        id: 'snowmaking',
-        install: () => {
-          addSnowmakingLayers(map);
+        id: 'snowmaking', zOrder: MAP_Z_ORDER.snowmaking,
+        hits: [{ id: 'snowmaking', priority: MAP_HIT_RANK.snowmaking,
+          layerIds: SNOWMAKING_HIT_LAYERS, select: (id) => selectSnowmakingNode(id) }],
+        install: ({ map }) => addSnowmakingLayers(map),
+        synchronizeData: ({ map }) => {
           setSnowmakingData(map, snowmakingNodesRef.current);
           setSelectedSnowmakingNode(map, selectedSnowmakingNodeIdRef.current);
         },
+        visibility: () => structureVisibility(
+          'snowmaking-network', 'Snowmaking network', SNOWMAKING_BUILT_LAYER_IDS),
+        cleanup: () => {},
       },
-    ]);
+    ];
   }
+
+  if (!mapContributionRegistryRef.current) {
+    mapContributionRegistryRef.current = new MapContributionRegistry(createMapContributions());
+  }
+  const mapContributions = mapContributionRegistryRef.current;
 
   // (Re)attach analysis layers + site box + 3D after any style (re)load. Shared
   // by the initial load and the light<->dark basemap swap. Reads live state from
   // refs and re-applies the current layer-visibility model.
   function reinitAfterStyle(map: maplibregl.Map) {
     tuneBasemap(map);
-    // The loop lives here so the paint order is applied in exactly one place;
-    // each family only knows how to install itself.
-    let applied: LayerToggle[] = [];
-    for (const contribution of mapContributions(map, (toggles) => { applied = toggles; })) {
-      contribution.install();
-    }
-    setSelectedLake(map, selectedLakeIdRef.current);
-    setSelectedStream(map, selectedStreamIdRef.current);
-    // Toggles for the player's built structures, added once the lift/trail layers
-    // exist above. Visibility is reconciled from the previous state so a restyle
-    // (light↔dark) keeps whatever the player hid. Skipped while preparing (no
-    // analysis layers either). Uses the generic handleToggle/setLayoutProperty path.
-    if (packageStateRef.current !== 'preparing') {
-      const prev = layersRef.current;
-      applied = applied.map((entry) => entry.id === 'bm-roads'
-        ? { ...entry, layerIds: [...entry.layerIds, ...ROAD_BUILT_LAYER_IDS] }
-        : entry);
-      const structures: { id: string; label: string; layerIds: string[] }[] = [
-        { id: 'trails', label: 'Ski trails', layerIds: TRAIL_BUILT_LAYER_IDS },
-        { id: 'lifts', label: 'Ski lifts', layerIds: LIFT_BUILT_LAYER_IDS },
-        { id: 'dams', label: 'Snowmaking ponds', layerIds: DAM_BUILT_LAYER_IDS },
-        { id: 'standalone-ponds', label: 'Standalone ponds', layerIds: POND_BUILT_LAYER_IDS },
-        { id: 'snowmaking-network', label: 'Snowmaking network', layerIds: SNOWMAKING_BUILT_LAYER_IDS },
-      ];
-      for (const s of structures) {
-        const wasVisible = prev.find((p) => p.id === s.id)?.visible ?? true;
-        for (const lid of s.layerIds)
-          if (map.getLayer(lid)) map.setLayoutProperty(lid, 'visibility', wasVisible ? 'visible' : 'none');
-        applied = [...applied, { ...s, visible: wasVisible, section: 'Structures' }];
-      }
-    }
+    const applied = layerTogglesOf(mapContributions.synchronizeStyle());
     // Installed before the camera is posed below: the LOD falloff curve only
     // engages when pitched, and it decides which zooms the tilted view asks for.
     applyTileLod(map, renderQualityRef.current);
@@ -1634,6 +1690,7 @@ export function MapView({
       attributionControl: false,
     });
     mapRef.current = map;
+    mapContributions.attach(map, () => toolCoordinator.snapshot.activeTool === null);
     // Exposed for the Playwright verification harness (readyGlobal: "appMap").
     (window as unknown as { appMap: maplibregl.Map }).appMap = map;
 
@@ -1694,56 +1751,11 @@ export function MapView({
     map.on('pitch', onPitch);
     map.on('pitchend', onPitch);
 
-    // Click a built lift to open its edit panel. Delegated to the wide white
-    // casing (bigger hit target than the 3px red line) plus the terminal dots;
-    // both carry the lift `id`. Gated to idle play so it never steals the
-    // terminal-placing clicks while a lift is being drawn. Delegated listeners
-    // survive the light/dark style swap (they query at event time), so this is
-    // registered once with the map.
-    const allToolsIdle = () => toolCoordinator.snapshot.activeTool === null;
-    const onHoverEnter = () => {
-      if (allToolsIdle()) map.getCanvas().style.cursor = 'pointer';
-    };
-    const onHoverLeave = () => {
-      if (allToolsIdle()) map.getCanvas().style.cursor = '';
-    };
-
-    // One declared chain rather than a guard re-accumulated in each handler: a
-    // family yields whenever something that picks ahead of it has a feature
-    // under the cursor, so exactly one handler acts on any overlap. Snowmaking
-    // nodes render above every other structure family and so yield to nothing.
-    const hitContributions = orderHitContributions([
-      { id: 'snowmaking', layerIds: SNOWMAKING_HIT_LAYERS,
-        select: (id) => selectSnowmakingNode(id) },
-      { id: 'lift', layerIds: ['lift-line-casing', 'lift-terminals'],
-        select: (id) => selectLiftRef.current(id) },
-      { id: 'trail', layerIds: ['trail-fill'], select: (id) => selectTrailRef.current(id) },
-      { id: 'dam', layerIds: DAM_HIT_LAYERS,
-        select: (id) => transitionSelection({ kind: 'dam', id }) },
-      { id: 'pond', layerIds: POND_HIT_LAYERS,
-        select: (id) => transitionSelection({ kind: 'pond', id }) },
-      { id: 'stream', layerIds: ['local-water-line-hit'],
-        select: (id) => selectStreamRef.current(id) },
-      { id: 'lake', layerIds: ['local-water-fill'], select: (id) => selectLakeRef.current(id) },
-    ]);
-    for (const contribution of hitContributions) {
-      const guard = hitGuardLayers(contribution.id, hitContributions);
-      const layerIds = [...contribution.layerIds];
-      map.on('click', layerIds, (e: maplibregl.MapLayerMouseEvent) => {
-        if (!allToolsIdle()) return;
-        const above = guard.filter((layerId) => map.getLayer(layerId));
-        if (above.length && map.queryRenderedFeatures(e.point, { layers: above }).length) return;
-        const id = e.features?.[0]?.properties?.id;
-        if (typeof id === 'string') contribution.select(id);
-      });
-      map.on('mouseenter', layerIds, onHoverEnter);
-      map.on('mouseleave', layerIds, onHoverLeave);
-    }
-
     return () => {
       warmAbortRef.current?.abort();
       setRenderConcurrency(1);
       mapInteractionLeaseRef.current?.dispose();
+      mapContributions.dispose();
       map.remove();
       mapRef.current = null;
       setLayers([]);
@@ -1752,12 +1764,12 @@ export function MapView({
   }, [mapCanStart]);
 
   useEffect(() => {
-    setSelectedLake(mapRef.current, selectedLakeId);
-  }, [selectedLakeId]);
+    mapContributions.synchronizeData('analysis');
+  }, [selectedLakeId, mapContributions]);
 
   useEffect(() => {
-    setSelectedStream(mapRef.current, selectedStreamId);
-  }, [selectedStreamId]);
+    mapContributions.synchronizeData('analysis');
+  }, [selectedStreamId, mapContributions]);
 
   // A single scale bar whose unit follows the Units setting.
   useEffect(() => {
@@ -1852,39 +1864,24 @@ export function MapView({
 
   // Push lift + draft geometry into the map source whenever either changes.
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    setLiftData(map, liftsToGeoJSON(lifts, draftLineOf(liftTool)));
-  }, [lifts, liftTool]);
+    mapContributions.synchronizeData('lift');
+  }, [lifts, liftTool, mapContributions]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    const record = terrainRecordRef.current;
-    if (map && record) setLocalContextData(map, record, lakeNameOverrides, streamWidthOverrides);
-  }, [lakeNameOverrides, streamWidthOverrides]);
+    mapContributions.synchronizeData('analysis');
+  }, [lakeNameOverrides, streamWidthOverrides, mapContributions]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    setRoadData(map, roads);
-    setRoadDraftData(map, roadDraftOf(roadTool));
-  }, [roads, roadTool]);
+    mapContributions.synchronizeData('road');
+  }, [roads, roadTool, mapContributions]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    setDamData(map, dams, terrainRecord);
-    setDamDraftData(map, damDraftOf(damTool), terrainRecord);
-    setSelectedDam(map, selectedDamId);
-  }, [dams, damTool, selectedDamId, terrainRecord]);
+    mapContributions.synchronizeData('dam');
+  }, [dams, damTool, selectedDamId, terrainRecord, mapContributions]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    setPondData(map, ponds, terrainRecord);
-    setPondDraftData(map, pondDraftOf(pondTool), terrainRecord);
-    setSelectedPond(map, selectedPondId);
-  }, [ponds, pondTool, selectedPondId, terrainRecord]);
+    mapContributions.synchronizeData('pond');
+  }, [ponds, pondTool, selectedPondId, terrainRecord, mapContributions]);
 
   // Intakes follow their water: build a pond, get a node; delete or
   // de-designate it, lose the node. Kept separate from the map-data-push
@@ -1895,45 +1892,13 @@ export function MapView({
   }, [dams, ponds]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    setSnowmakingData(map, snowmakingNodes);
-    setSelectedSnowmakingNode(map, selectedSnowmakingNodeId);
-  }, [snowmakingNodes, selectedSnowmakingNodeId]);
+    mapContributions.synchronizeData('snowmaking');
+  }, [snowmakingNodes, selectedSnowmakingNodeId, mapContributions]);
 
-  // Saved trails are stable while painting; drafts use their own source.
+  // The trail contribution owns committed, draft, and brush-preview sources.
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    setTrailData(map, trailsToGeoJSON(trails));
-  }, [trails]);
-
-  const draftPolygons = trailTool.phase === 'paint' || trailTool.phase === 'place-tail' ||
-    trailTool.phase === 'analyzing' ? trailTool.polygons : null;
-  const reviewDraft = trailTool.phase === 'review' ? trailTool.draft : null;
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (draftPolygons) setTrailDraftData(map, draftToGeoJSON(draftPolygons));
-    else if (reviewDraft) setTrailDraftData(map, draftToGeoJSON([], { parts: reviewDraft.parts,
-      difficulty: reviewDraft.difficulty, name: reviewDraft.name,
-      infeasibleLines: reviewDraft.infeasibleLines }));
-    else setTrailDraftData(map, draftToGeoJSON([]));
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Only rendered draft fields should retrigger source synchronization; review errors do not affect map data.
-  }, [draftPolygons, reviewDraft?.parts, reviewDraft?.difficulty, reviewDraft?.name,
-    reviewDraft?.infeasibleLines]);
-
-  // Keep brush geometry and the transient trailhead/candidate marker in sync.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    setTrailPaintPreview(map, {
-      path: trailTool.phase === 'paint' ? trailPreviewPathRef.current : [],
-      cursor: trailTool.phase === 'paint' ? trailBrushCursorRef.current : null,
-      brushWidthM,
-      ...trailHeadPreview(trailTool),
-    });
-  }, [brushWidthM, trailTool]);
+    mapContributions.synchronizeData('trail');
+  }, [trails, brushWidthM, trailTool, mapContributions]);
 
   // Stage one of Create Trail: choose one exact graph target, then immediately
   // seed the painter at it. Invalid clicks leave the prompt active.
@@ -2283,9 +2248,8 @@ export function MapView({
 
   // Built nodes + paths pushed to their own source, the same way lifts are.
   useEffect(() => {
-    const map = mapRef.current;
-    if (map) setNodePathData(map, skiNodes, skiPaths, junctions);
-  }, [skiNodes, skiPaths, junctions, terrainRecord]);
+    mapContributions.synchronizeData('ski-node-path');
+  }, [skiNodes, skiPaths, junctions, terrainRecord, mapContributions]);
 
   // The in-progress connector line follows the cursor between clicks, and every
   // tool that has to attach to a run shows the point it would take as an amber
@@ -2293,23 +2257,8 @@ export function MapView({
   // gives you. A tool with no line still gets a draft so its ring has somewhere
   // to render.
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const highlight = snapHover ? [snapHover] : [];
-    // Add-node picks a spot on one click and commits on another, so the pick
-    // has to stay on the map in between — the hover ring moves off with the
-    // cursor, and the panel can name the run but not point at the metre.
-    const pick = nodeTool.phase === 'add' ? nodeTool.candidate?.point ?? null : null;
-    const draft: NodePathDraft | null =
-      pathTool.phase === 'drawing'
-        ? { points: pathTool.points, cursor: pathTool.cursor, highlight }
-        : pathTool.phase === 'review'
-          ? { points: pathTool.points, cursor: null, highlight: [] }
-          : pathTool.phase === 'armed' || nodeTool.phase !== 'idle'
-            ? { points: [], cursor: null, highlight, pick }
-            : null;
-    setNodePathDraftData(map, draft);
-  }, [pathTool, nodeTool, snapHover]);
+    mapContributions.synchronizeData('ski-node-path');
+  }, [pathTool, nodeTool, snapHover, mapContributions]);
 
   // Node editing. A click only ever picks a target and previews what will happen
   // to it — `confirmAddNode`/`confirmRemoveNode` do the committing. Elevation is
@@ -4087,7 +4036,7 @@ export function MapView({
   function setCaptureTransients(hidden: boolean): void {
     const map = mapRef.current;
     if (!map) return;
-    for (const contribution of mapContributions(map)) contribution.setCaptureTransient?.(hidden);
+    mapContributions.setCaptureTransients(hidden);
     if (hidden) {
       const record = terrainRecordRef.current;
       if (record) setVisibleContours(record);
@@ -4450,35 +4399,7 @@ export function MapView({
   }
 
   function handleToggle(id: string) {
-    const map = mapRef.current;
-    if (!map) return;
-    setLayers((prev) => {
-      const target = prev.find((l) => l.id === id);
-      if (!target) return prev;
-      const nextVisible = !target.visible;
-      return prev.map((l) => {
-        if (
-          nextVisible &&
-          target.exclusiveGroup &&
-          l.exclusiveGroup === target.exclusiveGroup &&
-          l.id !== id &&
-          l.visible
-        ) {
-          for (const lid of l.layerIds) map.setLayoutProperty(lid, 'visibility', 'none');
-          return { ...l, visible: false };
-        }
-        if (l.id === id) {
-          for (const lid of l.layerIds)
-            map.setLayoutProperty(lid, 'visibility', nextVisible ? 'visible' : 'none');
-          // The cover is a translucent tint over the aerial photo but must carry
-          // the map at heavier opacity when the aerial is off — otherwise it
-          // washes out over the bare paper background.
-          if (id === 'satellite') applyCoverOpacity(map, nextVisible);
-          return { ...l, visible: nextVisible };
-        }
-        return l;
-      });
-    });
+    setLayers(layerTogglesOf(mapContributions.toggleVisibility(id)));
   }
 
   return (

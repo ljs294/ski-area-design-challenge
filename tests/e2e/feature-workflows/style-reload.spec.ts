@@ -81,13 +81,15 @@ test('a restyle reinstalls every map family in the declared order and keeps hidd
 
   expectDeclaredOrder(await layerIds(page));
 
-  // Hide one analysis layer and one structure layer: the two halves of the
-  // toggle model are reconciled by different code paths after a restyle.
+  // Hide analysis, structure, and shared analysis/road-family descriptors.
   await page.getByRole('button', { name: 'Layers' }).click();
   await page.getByRole('checkbox', { name: 'Contours' }).uncheck();
   await page.getByRole('checkbox', { name: 'Ski trails' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Roads', exact: true }).uncheck();
   expect(await visibilityOf(page, 'contour-lines')).toBe('none');
   expect(await visibilityOf(page, 'trail-fill')).toBe('none');
+  expect(await visibilityOf(page, 'local-roads')).toBe('none');
+  expect(await visibilityOf(page, 'player-roads')).toBe('none');
   expect(await visibilityOf(page, 'lift-line-casing')).not.toBe('none');
 
   await restyle(page);
@@ -95,9 +97,12 @@ test('a restyle reinstalls every map family in the declared order and keeps hidd
   expectDeclaredOrder(await layerIds(page));
   expect(await visibilityOf(page, 'contour-lines')).toBe('none');
   expect(await visibilityOf(page, 'trail-fill')).toBe('none');
+  expect(await visibilityOf(page, 'local-roads')).toBe('none');
+  expect(await visibilityOf(page, 'player-roads')).toBe('none');
   expect(await visibilityOf(page, 'lift-line-casing')).not.toBe('none');
   await expect(page.getByRole('checkbox', { name: 'Contours' })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Ski trails' })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Roads', exact: true })).not.toBeChecked();
 
   // Leaving the resort runs the map teardown; the deterministic fixture fails
   // the test on any uncaught exception it raises.
