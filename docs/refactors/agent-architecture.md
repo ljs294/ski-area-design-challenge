@@ -17,35 +17,35 @@ This is the shared execution record for the approved refactor. Update it at ever
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
 | Current benchmark | B2 — return persisted terrain records and remove runtime hydration |
-| Status | B1 is committed with clean metrics, 526 offline tests, and deterministic browser-smoke evidence |
+| Status | B2 candidate returns the verified persisted record without live-path hydration; final gates pending |
 | Last green commit | B1 at `f62dea0dd20aa6f8380d0920e172899e5de02c56` |
-| Next step | Characterize old terrain-package compatibility, then remove only hydration work proven unreachable from the live app |
+| Next step | Run aggregate and browser-smoke gates, then commit the B2 live-path contract if green |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
 
 Each row is a hard stop: run its gates, update this ledger, and commit before beginning the next row. If context or token budget runs low, stop at the latest green benchmark and report the next row.
 
-| ID | Commit boundary | Required evidence before commit |
-| --- | --- | --- |
-| A1 | Shared guidance, current architecture, ledger, editor defaults, docs checker | Direct docs checker passes; guidance size and pairing pass; local links resolve |
-| A2 | Strict TypeScript, flat ESLint, offline/live test split, aggregate `npm run check` | Strict typecheck, lint, offline unit tests, desktop build, and web build pass |
-| A3 | Playwright Test harness and required PR CI | Negative control proves nonzero failure; deterministic smoke passes; CI workflow validates locally as far as possible |
-| B1 | Canonical geographic bounds and injectable resort-preparation service | Characterization tests cover bounds, incomplete cover, cancellation, and service failure |
-| B2 | `prepareResortPackage` returns `TerrainRecord`; runtime hydration is removed | Offline gate plus deterministic New Game/package workflow passes |
-| B3 | Obsolete poster/preset vertical and Leaflet removed | Verified backup remains reachable; clean install/check; production bundle contains no preset payload |
-| C1 | Dependency-neutral type models through terrain | Typecheck and offline suite pass; no type-model cycles introduced |
-| C2 | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
-| D1 | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
-| D2 | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
-| D3 | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
-| D4 | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
-| E1 | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
-| E2 | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
-| E3 | Snowmaking façade with dam, pond, and node controllers | Feature workflows plus ordering, locking, capture, and save gates pass |
-| E4 | Ski node/path controller extraction | Node/path/topology workflows plus ordering, cancellation, and save gates pass |
-| E5 | Trail controller extraction | Paint, anchor/review, grading, failure retention, topology, cancellation, and save gates pass |
-| F1 | Final MapView structural budgets and architecture documentation | All deterministic browser projects, Electron smoke, both builds, fixtures, and one opt-in live New Game run pass |
+| ID | Status | Commit boundary | Required evidence before commit |
+| --- | --- | --- | --- |
+| A1 | Complete | Shared guidance, current architecture, ledger, editor defaults, docs checker | Direct docs checker passes; guidance size and pairing pass; local links resolve |
+| A2 | Complete | Strict TypeScript, flat ESLint, offline/live test split, aggregate `npm run check` | Strict typecheck, lint, offline unit tests, desktop build, and web build pass |
+| A3 | Complete | Playwright Test harness and required PR CI | Negative control proves nonzero failure; deterministic smoke passes; CI workflow validates locally as far as possible |
+| B1 | Complete | Canonical geographic bounds and injectable resort-preparation service | Characterization tests cover bounds, incomplete cover, cancellation, and service failure |
+| B2 | In progress | `prepareResortPackage` returns `TerrainRecord`; live-path runtime hydration is removed | Offline gate plus deterministic New Game/package workflow passes |
+| B3 | Not started | Obsolete poster/preset vertical, remaining dead hydration, and Leaflet removed | Verified backup remains reachable; clean install/check; production bundle contains no preset payload |
+| C1 | Not started | Dependency-neutral type models through terrain | Typecheck and offline suite pass; no type-model cycles introduced |
+| C2 | Not started | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
+| D1 | Not started | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
+| D2 | Not started | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
+| D3 | Not started | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
+| D4 | Not started | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
+| E1 | Not started | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
+| E2 | Not started | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
+| E3 | Not started | Snowmaking façade with dam, pond, and node controllers | Feature workflows plus ordering, locking, capture, and save gates pass |
+| E4 | Not started | Ski node/path controller extraction | Node/path/topology workflows plus ordering, cancellation, and save gates pass |
+| E5 | Not started | Trail controller extraction | Paint, anchor/review, grading, failure retention, topology, cancellation, and save gates pass |
+| F1 | Not started | Final MapView structural budgets and architecture documentation | All deterministic browser projects, Electron smoke, both builds, fixtures, and one opt-in live New Game run pass |
 
 ## Standard benchmark protocol
 

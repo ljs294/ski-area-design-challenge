@@ -312,8 +312,8 @@ export interface TerrainRecord {
   updatedAt: string; // ISO
 }
 
-// Runtime shape used by the renderer — a TerrainRecord plus the
-// bicubic-upscaled display grid built by terrainIngest.ts after download/load.
+// Obsolete poster-renderer shape. The supported React/MapLibre app owns and
+// consumes TerrainRecord directly; this type disappears with the B3 deletion.
 export interface TerrainDB extends TerrainRecord {
   displayGridSize: number; // fixed 512
   displayHeights: number[]; // bicubic-upscaled, row-major, displayGridSize^2

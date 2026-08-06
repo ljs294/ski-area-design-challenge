@@ -1,6 +1,6 @@
-// Orchestrates turning either a live map selection or a curated preset into
-// a fully-built TerrainDB: fetch/generate the raw sample grid, upscale it
-// for display, attach a climate profile, persist it, and return it.
+// Orchestrates supported live resort preparation into a verified, persisted
+// TerrainRecord. Obsolete poster/preset exports at the bottom still hydrate a
+// legacy renderer shape only until that vertical is deleted in benchmark B3.
 import type { AreaSizeMeters, CoverDisplayMetadata, CoverGrid, LocalImageryMetadata, SiteCoverGrid, TerrainDB, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
 import { fetchElevationBuffer, fetchElevationGrid, sampleGridSizeFor, type ElevationProgress, type SurroundGrid } from './elevation';
 import type { LatLonBounds } from './types/geo';
@@ -126,9 +126,9 @@ function makeKey(mountainName: string, latitude: number, longitude: number): str
 }
 
 /**
- * Rebuild a TerrainDB (upscaled display grid + derived fields) from a
- * persisted TerrainRecord, without re-saving it. Used both internally by
- * finalizeAndSave and by the Content Manager's "Load" action.
+ * Rebuild the obsolete poster renderer's display shape from a persisted
+ * TerrainRecord. The supported React/MapLibre app does not call this function.
+ * It remains only until the complete legacy vertical is deleted in B3.
  */
 export function hydrateTerrainRecord(record: TerrainRecord): TerrainDB {
   const displayHeights = bicubicUpscale(record.sampleHeights, record.sampleGridSize, DISPLAY_GRID_SIZE);
@@ -164,7 +164,7 @@ async function finalizeAndSave(
   localImagery?: Uint8Array,
   localImageryMetadata?: LocalImageryMetadata,
   surround?: SurroundGrid
-): Promise<TerrainDB> {
+): Promise<TerrainRecord> {
   const sampleGridSize = Math.round(Math.sqrt(sampleHeights.length));
   const contourGridSize = Math.min(DISPLAY_GRID_SIZE, sampleGridSize);
   const contourIntervalM = 6.096; // 20 ft minor contours, matching the master-plan reference density.
@@ -235,10 +235,10 @@ async function finalizeAndSave(
     if (!persisted) throw new Error('The resort package could not be read after it was written.');
     const validation = validateTerrainPackage(persisted);
     if (!validation.ok) throw new Error(`The saved resort package failed verification: ${validation.errors.join(' ')}`);
-    return hydrateTerrainRecord(persisted);
+    return persisted;
   }
 
-  return hydrateTerrainRecord(record);
+  return record;
 }
 
 export interface ResortPreparationSite {
@@ -270,7 +270,7 @@ export async function prepareResortPackage(
   mountainName: string,
   services: ResortPreparationServices,
   options: ResortPreparationOptions = {}
-): Promise<TerrainDB> {
+): Promise<TerrainRecord> {
   const { onProgress, signal } = options;
   const [[west, south], [east, north]] = site.bounds;
   const requestedBounds = { west, south, east, north };
@@ -412,10 +412,10 @@ export async function ingestLiveArea(
     }),
     fetchElevationBuffer(trueBounds).catch(() => null),
   ]);
-  return finalizeAndSave(
+  return hydrateTerrainRecord(await finalizeAndSave(
     mountainName, center.latitude, center.longitude, areaSizeMeters, trueBounds, elevation.heights,
     'live', vectorFeatures, undefined, undefined, undefined, undefined, undefined, surround ?? undefined
-  );
+  ));
 }
 
 /**
@@ -442,7 +442,7 @@ export async function ingestPreset(presetId: string): Promise<TerrainDB> {
   const bounds = bundledBounds ?? boundsForSquareMeters(preset.latitude, preset.longitude, areaSizeMeters);
 
   if (bundledHeights) {
-    return finalizeAndSave(
+    return hydrateTerrainRecord(await finalizeAndSave(
       preset.name,
       preset.latitude,
       preset.longitude,
@@ -453,7 +453,7 @@ export async function ingestPreset(presetId: string): Promise<TerrainDB> {
       bundledVectors ?? undefined,
       undefined, undefined, undefined, undefined, undefined,
       bundledSurround ?? undefined
-    );
+    ));
   }
 
   const sampleHeights = generateProceduralHeights(
@@ -461,7 +461,7 @@ export async function ingestPreset(presetId: string): Promise<TerrainDB> {
     preset.maxAltitude,
     sampleGridSizeFor(areaSizeMeters)
   );
-  return finalizeAndSave(
+  return hydrateTerrainRecord(await finalizeAndSave(
     preset.name,
     preset.latitude,
     preset.longitude,
@@ -470,5 +470,5 @@ export async function ingestPreset(presetId: string): Promise<TerrainDB> {
     sampleHeights,
     'preset',
     bundledVectors ?? undefined
-  );
+  ));
 }
