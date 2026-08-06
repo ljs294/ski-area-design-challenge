@@ -1027,13 +1027,19 @@ export function MapView({
     }
   }
 
-  function setVisibleContours(record: TerrainRecordView): void {
-    setTerrainContourData(mapRef.current, record, unitsRef.current === 'imperial');
+  function setVisibleContours(
+    record: TerrainRecordView,
+    map: maplibregl.Map | null = mapRef.current,
+  ): void {
+    setTerrainContourData(map, record, unitsRef.current === 'imperial');
   }
 
   /** Paint the contours a pending grade would move in yellow. `null` clears. */
-  function setEditedContours(segments: ArrayLike<number> | null): void {
-    setGradedContourPreview(mapRef.current, segments,
+  function setEditedContours(
+    segments: ArrayLike<number> | null,
+    map: maplibregl.Map | null = mapRef.current,
+  ): void {
+    setGradedContourPreview(map, segments,
       terrainRecordRef.current?.bounds, unitsRef.current === 'imperial');
   }
 
@@ -1050,16 +1056,16 @@ export function MapView({
     return earthworkPatchRef.current;
   }
 
-  function applyGradePreview(): void {
+  function applyGradePreview(map: maplibregl.Map | null = mapRef.current): void {
     const record = terrainRecordRef.current;
     if (!record) return;
     const preview = activeGradePreview();
     if (preview) {
-      setVisibleContours({ ...record, contourSegments: Array.from(preview.contourSegments) });
-      setEditedContours(preview.editedContourSegments);
+      setVisibleContours({ ...record, contourSegments: Array.from(preview.contourSegments) }, map);
+      setEditedContours(preview.editedContourSegments, map);
     } else {
-      setVisibleContours(record);
-      setEditedContours(null);
+      setVisibleContours(record, map);
+      setEditedContours(null, map);
     }
   }
 
@@ -1492,7 +1498,7 @@ export function MapView({
               difficulty: tt.draft.difficulty, name: tt.draft.name,
               infeasibleLines: tt.draft.infeasibleLines })
               : draftToGeoJSON([]));
-          if (activeGradePreview()) applyGradePreview();
+          if (activeGradePreview()) applyGradePreview(map);
           setTrailPaintPreview(map, {
             path: tt.phase === 'paint' ? trailPreviewPathRef.current : [],
             cursor: tt.phase === 'paint' ? trailBrushCursorRef.current : null,

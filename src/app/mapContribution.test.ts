@@ -6,11 +6,8 @@ import {
   MAP_LAYER_ORDER,
   MAP_Z_ORDER,
   MapContributionRegistry,
-  orderContributions,
-  orderHitContributions,
   type ManagedMapContribution,
   type ManagedMapHitContribution,
-  type MapContribution,
   type MapHitContribution,
   type MapHitFamilyId,
 } from './mapContribution';
@@ -31,14 +28,6 @@ function hitContributions(): MapHitContribution[] {
   return MAP_HIT_PRIORITY.map((id) => ({ id, layerIds: HIT_LAYERS[id], select: vi.fn() }));
 }
 
-function contribution(id: MapContribution['id'], log: string[]): MapContribution {
-  return {
-    id,
-    install: () => log.push(`install:${id}`),
-    setCaptureTransient: (hidden) => log.push(`${hidden ? 'hide' : 'restore'}:${id}`),
-  };
-}
-
 describe('map layer order', () => {
   it('is the required bottom-to-top order', () => {
     expect([...MAP_LAYER_ORDER]).toEqual([
@@ -47,51 +36,6 @@ describe('map layer order', () => {
     ]);
   });
 
-  it('installs every family bottom-to-top however they were registered', () => {
-    const log: string[] = [];
-    const registered = [...MAP_LAYER_ORDER]
-      .reverse()
-      .map((id) => contribution(id, log));
-
-    for (const entry of orderContributions(registered)) entry.install();
-
-    expect(log).toEqual(MAP_LAYER_ORDER.map((id) => `install:${id}`));
-  });
-
-  it('refuses a set that is missing a family', () => {
-    const log: string[] = [];
-    const incomplete = MAP_LAYER_ORDER
-      .filter((id) => id !== 'trail')
-      .map((id) => contribution(id, log));
-
-    expect(() => orderContributions(incomplete)).toThrow('Missing map layer contribution trail');
-  });
-
-  it('refuses a family registered twice', () => {
-    const log: string[] = [];
-    const duplicated = [...MAP_LAYER_ORDER.map((id) => contribution(id, log)),
-      contribution('lift', log)];
-
-    expect(() => orderContributions(duplicated)).toThrow('Duplicate map layer contribution lift');
-  });
-
-  it('walks capture hide and restore in the same order, skipping families with no transient', () => {
-    const log: string[] = [];
-    const registered: MapContribution[] = MAP_LAYER_ORDER.map((id) =>
-      id === 'analysis' || id === 'site-boundary'
-        ? { id, install: () => log.push(`install:${id}`) }
-        : contribution(id, log));
-    const ordered = orderContributions(registered);
-
-    for (const entry of ordered) entry.setCaptureTransient?.(true);
-    for (const entry of ordered) entry.setCaptureTransient?.(false);
-
-    const transient = ['road', 'dam', 'pond', 'ski-node-path', 'trail', 'lift', 'snowmaking'];
-    expect(log).toEqual([
-      ...transient.map((id) => `hide:${id}`),
-      ...transient.map((id) => `restore:${id}`),
-    ]);
-  });
 });
 
 describe('map hit priority', () => {
@@ -160,15 +104,6 @@ describe('map hit priority', () => {
         expect(yields).toBe(higherFirst);
       }
     }
-  });
-
-  it('orders hit contributions top-to-bottom and refuses an incomplete set', () => {
-    const registered = [...hitContributions()].reverse();
-
-    expect(orderHitContributions(registered).map((entry) => entry.id))
-      .toEqual([...MAP_HIT_PRIORITY]);
-    expect(() => orderHitContributions(registered.filter((entry) => entry.id !== 'lake')))
-      .toThrow('Missing map hit contribution lake');
   });
 
   it('rejects an unknown family rather than guarding it with everything', () => {
@@ -303,6 +238,13 @@ describe('managed map contribution lifecycle', () => {
   });
 
   it('rejects a family whose declared z-order or hit priority drifts', () => {
+    const missing = managedContributions([]).filter((entry) => entry.id !== 'trail');
+    expect(() => new MapContributionRegistry(missing))
+      .toThrow('Missing managed map layer contribution trail');
+    const duplicate = [...managedContributions([]), managedContributions([])[0]];
+    expect(() => new MapContributionRegistry(duplicate))
+      .toThrow('Duplicate managed map layer contribution analysis');
+
     const wrongZ = managedContributions([]).map((entry) =>
       entry.id === 'road' ? { ...entry, zOrder: 99 } : entry);
     expect(() => new MapContributionRegistry(wrongZ)).toThrow('Invalid z-order');
@@ -311,6 +253,12 @@ describe('managed map contribution lifecycle', () => {
       ? { ...entry, hits: entry.hits?.map((hit) => ({ ...hit, priority: 99 })) }
       : entry);
     expect(() => new MapContributionRegistry(wrongHit)).toThrow('Invalid hit priority');
+
+    const missingHit = managedContributions([]).map((entry) => entry.id === 'analysis'
+      ? { ...entry, hits: entry.hits?.filter((hit) => hit.id !== 'lake') }
+      : entry);
+    expect(() => new MapContributionRegistry(missingHit))
+      .toThrow('Missing managed map hit contribution lake');
   });
 });
 

@@ -43,17 +43,6 @@ export const MAP_HIT_PRIORITY = [
 
 export type MapHitFamilyId = (typeof MAP_HIT_PRIORITY)[number];
 
-export interface MapContribution {
-  readonly id: MapFamilyId;
-  /** Install this family's sources and layers, then push its current data. */
-  install(): void;
-  /**
-   * Hide (`true`) or restore (`false`) this family's in-progress overlays for
-   * the resume-preview capture. Families that draw nothing transient omit it.
-   */
-  setCaptureTransient?(hidden: boolean): void;
-}
-
 export interface MapHitContribution {
   readonly id: MapHitFamilyId;
   /** The layers a click on this family is delegated to. */
@@ -78,18 +67,6 @@ function requireEach<Id, T extends { id: Id }>(
     if (!contribution) throw new Error(`Missing ${what} contribution ${String(id)}.`);
     return contribution;
   });
-}
-
-/** Sort contributions into paint order, refusing an incomplete or repeated set. */
-export function orderContributions(contributions: readonly MapContribution[]): MapContribution[] {
-  return requireEach(MAP_LAYER_ORDER, contributions, 'map layer');
-}
-
-/** Sort hit contributions into click order, refusing an incomplete or repeated set. */
-export function orderHitContributions(
-  contributions: readonly MapHitContribution[],
-): MapHitContribution[] {
-  return requireEach(MAP_HIT_PRIORITY, contributions, 'map hit');
 }
 
 /**
