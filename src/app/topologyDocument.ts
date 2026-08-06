@@ -2,6 +2,7 @@ import { liftJunction, removeJunction, splitTrailAt } from '../topology';
 import type { SavedLift } from '../types/lifts';
 import type { SavedJunction, SavedNode, SavedPath } from '../types/topology';
 import type { SavedTrail } from '../types/trails';
+import type { DeepReadonly } from '../types/readonly';
 
 /**
  * The ski topology as one document: runs, the junctions that stitch them
@@ -23,8 +24,23 @@ export interface TopologyState {
   junctions: SavedJunction[];
 }
 
-export interface TopologySnapshot extends TopologyState {
+interface MutableTopologySnapshot extends TopologyState {
   readonly revision: number;
+}
+
+export type TopologySnapshot = DeepReadonly<MutableTopologySnapshot>;
+
+/** React and persistence models still use the mutable saved-data interfaces.
+ * Give those projections an owned copy instead of weakening the document's
+ * read-only snapshot contract. Mutating the projection cannot mutate the
+ * document or bypass its revision. */
+export function topologyProjection(snapshot: TopologySnapshot): TopologyState {
+  return structuredClone({
+    trails: snapshot.trails,
+    nodes: snapshot.nodes,
+    paths: snapshot.paths,
+    junctions: snapshot.junctions,
+  }) as TopologyState;
 }
 
 export interface TopologyChanged {
@@ -52,6 +68,20 @@ function stateOf(state: TopologyState): TopologyState {
   };
 }
 
+/** Topology is small compared with terrain. Take ownership of every nested
+ * value at publication so neither a caller nor a snapshot consumer can mutate
+ * the document without a revisioned command. */
+function ownedSnapshot(state: TopologyState, revision: number): MutableTopologySnapshot {
+  const owned = structuredClone({ ...stateOf(state), revision });
+  const freeze = (value: unknown): void => {
+    if (!value || typeof value !== 'object' || Object.isFrozen(value)) return;
+    for (const child of Object.values(value)) freeze(child);
+    Object.freeze(value);
+  };
+  freeze(owned);
+  return owned;
+}
+
 /** Every operation replaces the collection it touches, so identity is the
  *  exact test for "this edit moved that collection". */
 function changedBetween(base: TopologyState, next: TopologyState): TopologyChanged {
@@ -70,11 +100,11 @@ function changedBetween(base: TopologyState, next: TopologyState): TopologyChang
  */
 export class TopologyTransaction {
   private readonly document: TopologyDocument;
-  private readonly base: TopologySnapshot;
+  private readonly base: MutableTopologySnapshot;
   private next: TopologyState;
   private settled = false;
 
-  constructor(document: TopologyDocument, base: TopologySnapshot) {
+  constructor(document: TopologyDocument, base: MutableTopologySnapshot) {
     this.document = document;
     this.base = base;
     this.next = stateOf(base);
@@ -131,9 +161,15 @@ export class TopologyTransaction {
     this.next.trails = [...this.next.trails, trail];
   }
 
-  patchTrail(id: string, patch: Partial<SavedTrail>): void {
-    this.next.trails = this.next.trails.map((trail) =>
-      trail.id === id ? { ...trail, ...patch } : trail);
+  patchTrail(id: string, patch: Partial<SavedTrail>): boolean {
+    const index = this.next.trails.findIndex((trail) => trail.id === id);
+    if (index < 0) return false;
+    const trail = this.next.trails[index];
+    if (Object.entries(patch).every(([key, value]) =>
+      Object.is(trail[key as keyof SavedTrail], value))) return false;
+    this.next.trails = this.next.trails.map((entry, position) =>
+      position === index ? { ...entry, ...patch } : entry);
+    return true;
   }
 
   /** Rewrite every run — the backfill path, which resolves elevations that a
@@ -161,20 +197,33 @@ export class TopologyTransaction {
     return true;
   }
 
-  removeNode(id: string): void {
-    this.next.nodes = this.next.nodes.filter((node) => node.id !== id);
+  removeNode(id: string): boolean {
+    const nodes = this.next.nodes.filter((node) => node.id !== id);
+    if (nodes.length === this.next.nodes.length) return false;
+    this.next.nodes = nodes;
+    return true;
   }
 
   addPath(path: SavedPath): void {
     this.next.paths = [...this.next.paths, path];
   }
 
-  patchPath(id: string, patch: Partial<SavedPath>): void {
-    this.next.paths = this.next.paths.map((path) => (path.id === id ? { ...path, ...patch } : path));
+  patchPath(id: string, patch: Partial<SavedPath>): boolean {
+    const index = this.next.paths.findIndex((path) => path.id === id);
+    if (index < 0) return false;
+    const path = this.next.paths[index];
+    if (Object.entries(patch).every(([key, value]) =>
+      Object.is(path[key as keyof SavedPath], value))) return false;
+    this.next.paths = this.next.paths.map((entry, position) =>
+      position === index ? { ...entry, ...patch } : entry);
+    return true;
   }
 
-  removePath(id: string): void {
-    this.next.paths = this.next.paths.filter((path) => path.id !== id);
+  removePath(id: string): boolean {
+    const paths = this.next.paths.filter((path) => path.id !== id);
+    if (paths.length === this.next.paths.length) return false;
+    this.next.paths = paths;
+    return true;
   }
 
   /** Publish every collection this edit touched, or reject the whole edit
@@ -192,7 +241,7 @@ export class TopologyTransaction {
 }
 
 export class TopologyDocument {
-  private current: TopologySnapshot;
+  private current: MutableTopologySnapshot;
   private readonly onChange: (change: TopologyChange) => void;
 
   /**
@@ -201,7 +250,7 @@ export class TopologyDocument {
    * remounts the session rather than swapping a document underneath it.
    */
   constructor(initial: TopologyState, onChange: (change: TopologyChange) => void = () => {}) {
-    this.current = Object.freeze({ ...stateOf(initial), revision: 0 });
+    this.current = ownedSnapshot(initial, 0);
     this.onChange = onChange;
   }
 
@@ -222,13 +271,13 @@ export class TopologyDocument {
    * Land a transaction. Called by `TopologyTransaction.commit`; nothing else
    * should reach past a transaction to publish.
    */
-  publish(base: TopologySnapshot, next: TopologyState): TopologyCommitResult {
+  publish(base: MutableTopologySnapshot, next: TopologyState): TopologyCommitResult {
     if (base.revision !== this.current.revision) return { ok: false, reason: 'stale' };
     const changed = changedBetween(base, next);
     if (!changed.trails && !changed.nodes && !changed.paths && !changed.junctions) {
       return { ok: true, revision: this.current.revision, changed: false };
     }
-    this.current = Object.freeze({ ...next, revision: this.current.revision + 1 });
+    this.current = ownedSnapshot(next, this.current.revision + 1);
     this.onChange({ snapshot: this.current, changed });
     return { ok: true, revision: this.current.revision, changed: true };
   }

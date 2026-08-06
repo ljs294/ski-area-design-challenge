@@ -1,4 +1,5 @@
 import type { TerrainRecord } from '../types';
+import type { DeepReadonly } from '../types/readonly';
 import { contourMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
 
 export interface TerrainGradePatch {
@@ -13,7 +14,7 @@ export interface TerrainGradePatch {
 /** Build and validate the exact terrain record represented by a grading
  * preview. Persistence remains the caller's responsibility. */
 export function applyTerrainGradeToRecord(
-  record: TerrainRecord,
+  record: DeepReadonly<TerrainRecord>,
   result: TerrainGradePatch,
   updatedAt = new Date().toISOString()
 ): TerrainRecord {
@@ -41,7 +42,7 @@ export function applyTerrainGradeToRecord(
     throw new Error('The terrain grading preview contains invalid contours.');
   }
 
-  let upgraded: TerrainRecord = {
+  let upgraded = {
     ...record,
     sampleHeights,
     contourSegments,
@@ -51,7 +52,7 @@ export function applyTerrainGradeToRecord(
       result.contourIntervalM
     ),
     updatedAt,
-  };
+  } as unknown as TerrainRecord;
   upgraded = { ...upgraded, packageManifest: manifestOf(upgraded) };
   const validation = validateTerrainPackage(upgraded);
   if (!validation.ok) throw new Error(validation.errors.join(' '));

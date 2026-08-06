@@ -61,7 +61,7 @@ import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION, saveGame } from '
 import { isDesktop } from '../desktopBridge';
 import type { AnchorRef, GameSave, RoadType, SavedDam, SavedJunction, SavedLift,
   SavedNode, SavedPath, SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
-  SavedTrailPart, TerrainPackageProgress, TerrainRecord } from '../types';
+  SavedTrailPart, TerrainPackageProgress, TerrainRecord, CoverGrid } from '../types';
 import { analyzeLake, sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
@@ -159,8 +159,8 @@ import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
 import { ConstructionStatusBug } from './ConstructionStatusBug';
 import type { ConstructionActivity } from './constructionLock';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
-  type TerrainSnapshot } from './terrainDocument';
-import { TopologyDocument } from './topologyDocument';
+  type TerrainRecordView, type TerrainSnapshot } from './terrainDocument';
+import { TopologyDocument, topologyProjection } from './topologyDocument';
 import { hitGuardLayers, orderContributions, orderHitContributions,
   type MapContribution } from './mapContribution';
 
@@ -545,10 +545,11 @@ export function MapView({
     topologyDocumentRef.current = new TopologyDocument(
       { trails, nodes: skiNodes, paths: skiPaths, junctions },
       ({ snapshot, changed }) => {
-        if (changed.trails) setTrails(snapshot.trails);
-        if (changed.nodes) setSkiNodes(snapshot.nodes);
-        if (changed.paths) setSkiPaths(snapshot.paths);
-        if (changed.junctions) setJunctions(snapshot.junctions);
+        const projection = topologyProjection(snapshot);
+        if (changed.trails) setTrails(projection.trails);
+        if (changed.nodes) setSkiNodes(projection.nodes);
+        if (changed.paths) setSkiPaths(projection.paths);
+        if (changed.junctions) setJunctions(projection.junctions);
       }
     );
   }
@@ -990,7 +991,7 @@ export function MapView({
     }
   }
 
-  function setVisibleContours(record: TerrainRecord): void {
+  function setVisibleContours(record: TerrainRecordView): void {
     setTerrainContourData(mapRef.current, record, settings.units === 'imperial');
   }
 
@@ -3142,8 +3143,9 @@ export function MapView({
     try {
       const workerGrid = {
         ...record.coverGrid,
+        bounds: { ...record.coverGrid.bounds },
         data: Uint8Array.from(record.coverGrid.data),
-      } as typeof record.coverGrid;
+      } as unknown as CoverGrid;
       const hasVectorDisplay = !!record.coverDisplayGeometry && !!record.coverDisplayMetadata;
       const result = await coverEdit.run({
         grid: workerGrid,
@@ -3151,16 +3153,17 @@ export function MapView({
         deriveDisplay: hasVectorDisplay,
       });
       if (result.changed === 0) return;
-      const grid = { ...record.coverGrid, data: result.gridData } as typeof record.coverGrid;
+      const grid = { ...record.coverGrid, bounds: { ...record.coverGrid.bounds },
+        data: result.gridData } as unknown as CoverGrid;
 
       // Checksums are produced beside the edited transferable buffers in the
       // worker, avoiding another full-grid pass on the UI thread.
-      let upgraded: TerrainRecord = {
+      let upgraded = {
         ...record,
         coverGrid: grid,
         coverMetadata: result.coverMetadata,
         updatedAt: new Date().toISOString(),
-      };
+      } as unknown as TerrainRecord;
 
       // v5+ packages render vector cover. Re-derive the whole display geometry
       // from the freshly-stamped grid (the merged source of truth) rather than
@@ -4205,7 +4208,9 @@ export function MapView({
   async function flushTerrain(): Promise<string | null> {
     const { record, revision } = terrain.snapshot();
     if (!record || !terrainHasEdits(terrainDirtyRef.current)) return null;
-    const result = await flushTerrainEdits(record, terrainDirtyRef.current,
+    // Persistence serializes the record and never mutates it. Keep the one
+    // mutable-type escape at this boundary rather than weakening snapshots.
+    const result = await flushTerrainEdits(record as unknown as TerrainRecord, terrainDirtyRef.current,
       { saveTerrain, saveTerrainCover });
     if (!result.ok) return result.error;
     // Anything built while the write was in flight is not covered by it.

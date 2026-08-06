@@ -4,6 +4,7 @@ import {
   type ConstructionActivity,
   type ConstructionOutcome,
 } from './constructionLock';
+import type { DeepReadonly } from '../types/readonly';
 
 /**
  * The committed terrain package, and the single path every change to it takes.
@@ -18,8 +19,10 @@ import {
  */
 export type TerrainEditKind = 'elevation' | 'cover';
 
+export type TerrainRecordView = DeepReadonly<TerrainRecord>;
+
 export interface TerrainSnapshot {
-  readonly record: TerrainRecord | null;
+  readonly record: TerrainRecordView | null;
   readonly revision: number;
 }
 
@@ -81,7 +84,8 @@ export class PreviewOwnership {
 }
 
 export class TerrainDocument {
-  private current: TerrainSnapshot = Object.freeze({ record: null, revision: 0 });
+  private current: { readonly record: TerrainRecord | null; readonly revision: number } =
+    Object.freeze({ record: null, revision: 0 });
   /** Bumped on disposal so queued cover work can tell the session ended. */
   private generation = 0;
   private coverQueue: Promise<void> = Promise.resolve();
@@ -98,7 +102,7 @@ export class TerrainDocument {
     return this.current;
   }
 
-  get record(): TerrainRecord | null {
+  get record(): TerrainRecordView | null {
     return this.current.record;
   }
 
@@ -174,10 +178,15 @@ export class TerrainDocument {
 
   private publish(record: TerrainRecord, edit: TerrainEditKind | null): void {
     const revision = this.current.revision + 1;
-    this.current = Object.freeze({ record, revision });
-    const publication: TerrainPublication = Object.freeze({ record, revision, edit });
-    this.ports.cacheDisplayAssets(record);
-    this.ports.activateProtocols(record);
+    // Copy and freeze the record shell once at publication. Large elevation,
+    // cover, contour, and imagery payloads are deliberately not deep-cloned;
+    // the public snapshot projects them recursively read-only and every edit
+    // creates replacement payloads before it reaches this ownership boundary.
+    const owned = Object.freeze({ ...record });
+    this.current = Object.freeze({ record: owned, revision });
+    const publication: TerrainPublication = Object.freeze({ record: owned, revision, edit });
+    this.ports.cacheDisplayAssets(owned);
+    this.ports.activateProtocols(owned);
     this.ports.publishState(publication);
     this.ports.refreshSources(publication);
   }

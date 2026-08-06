@@ -81,6 +81,22 @@ describe('TerrainDocument revisions', () => {
     expect(publications[0].revision).toBe(1);
   });
 
+  it('takes ownership of the record shell and exposes a frozen snapshot', () => {
+    const { spies } = ports();
+    const document = new TerrainDocument(spies);
+    const input = record('owned');
+
+    const snapshot = document.replace(input);
+    input.key = 'changed-by-caller';
+
+    expect(snapshot.record).not.toBe(input);
+    expect(Object.isFrozen(snapshot.record)).toBe(true);
+    expect(document.snapshot().record?.key).toBe('owned');
+    expect(() => {
+      (snapshot.record as TerrainRecord).key = 'changed-through-snapshot';
+    }).toThrow();
+  });
+
   it('rejects a stale commit without touching any published state', () => {
     const { spies } = ports();
     const document = new TerrainDocument(spies);

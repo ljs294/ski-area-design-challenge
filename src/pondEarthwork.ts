@@ -6,6 +6,9 @@ import {
 } from './earthwork';
 import { bilinearAt } from './earthwork';
 import type { TerrainRecord } from './types/terrain';
+import type { DeepReadonly } from './types/readonly';
+
+type TerrainRecordView = DeepReadonly<TerrainRecord>;
 
 /** The pond's share of the shared earthwork spec, re-exported under pond names
  * so the panel can quote the berm it is about to build. */
@@ -88,7 +91,7 @@ interface PoolTally {
   maxDepthM: number;
 }
 
-export function designPondEarthwork(record: TerrainRecord, boundary: Point[],
+export function designPondEarthwork(record: TerrainRecordView, boundary: Point[],
   options: PondEarthworkOptions): PondEarthworkDesign | null {
   const metrics = terrainMetrics(record);
   if (!metrics) return null;
@@ -183,7 +186,7 @@ export type PondTerrainPatch = EarthworkTerrainPatch;
  * Turn a design into the elevation patch the terrain package commits, complete
  * with re-traced contours and the disturbed footprint the cover edit clears.
  */
-export function pondTerrainPatch(record: TerrainRecord,
+export function pondTerrainPatch(record: TerrainRecordView,
   design: PondEarthworkDesign): PondTerrainPatch {
   return earthworkTerrainPatch(record, design.patchIndices, design.patchHeights);
 }

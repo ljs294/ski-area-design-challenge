@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { TopologyDocument, type TopologyChange, type TopologyState } from './topologyDocument';
+import { TopologyDocument, topologyProjection,
+  type TopologyChange, type TopologyState } from './topologyDocument';
 import { hydrateJunctions } from '../topology';
 import { sanitizeTrails } from '../trails';
 import type { SavedLift } from '../types/lifts';
@@ -47,14 +48,30 @@ function pathBetween(fromJunctionId: string, toJunctionId: string): SavedPath {
 }
 
 describe('TopologyDocument snapshots', () => {
-  it('exposes an immutable snapshot at revision zero', () => {
+  it('owns and deeply freezes the snapshot at revision zero', () => {
     const state = initialState();
     const document = new TopologyDocument(state);
     const snapshot = document.snapshot();
 
     expect(snapshot.revision).toBe(0);
-    expect(snapshot.trails).toBe(state.trails);
+    expect(snapshot.trails).not.toBe(state.trails);
     expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(Object.isFrozen(snapshot.trails)).toBe(true);
+    expect(Object.isFrozen(snapshot.trails[0])).toBe(true);
+    expect(Object.isFrozen(snapshot.trails[0].parts[0].centerline)).toBe(true);
+
+    state.trails[0].name = 'Changed by caller';
+    expect(document.snapshot().trails[0].name).toBe('Run');
+    expect(() => {
+      (snapshot.trails as SavedTrail[]).push(state.trails[0]);
+    }).toThrow();
+    expect(() => {
+      (snapshot.trails[0] as SavedTrail).name = 'Changed through snapshot';
+    }).toThrow();
+
+    const projection = topologyProjection(snapshot);
+    projection.trails[0].name = 'Mutable React projection';
+    expect(document.snapshot().trails[0].name).toBe('Run');
   });
 
   it('increments the revision monotonically and leaves earlier snapshots alone', () => {
@@ -83,10 +100,11 @@ describe('TopologyDocument snapshots', () => {
 
     const snapshot = document.snapshot();
     expect(snapshot.revision).toBe(0);
-    expect(snapshot.trails).toBe(state.trails);
-    expect(snapshot.nodes).toBe(state.nodes);
-    expect(snapshot.paths).toBe(state.paths);
-    expect(snapshot.junctions).toBe(state.junctions);
+    expect(snapshot.trails).toEqual(state.trails);
+    expect(snapshot.nodes).toEqual(state.nodes);
+    expect(snapshot.paths).toEqual(state.paths);
+    expect(snapshot.junctions).toEqual(state.junctions);
+    expect(snapshot.trails).not.toBe(state.trails);
     expect(change).not.toHaveBeenCalled();
   });
 });
@@ -192,6 +210,21 @@ describe('TopologyDocument commands', () => {
     expect(changes[1].snapshot.paths[0].closed).toBe(true);
     expect(changes.every((change) => change.changed.paths)).toBe(true);
     expect(document.snapshot().revision).toBe(3);
+  });
+
+  it('does not publish or advance the revision for missing targets or identical patches', () => {
+    const change = vi.fn();
+    const document = new TopologyDocument(initialState(), change);
+    const transaction = document.begin();
+
+    expect(transaction.patchTrail('missing', { closed: true })).toBe(false);
+    expect(transaction.patchTrail('run', { name: 'Run' })).toBe(false);
+    expect(transaction.removeNode('missing')).toBe(false);
+    expect(transaction.patchPath('missing', { closed: true })).toBe(false);
+    expect(transaction.removePath('missing')).toBe(false);
+    expect(transaction.commit()).toEqual({ ok: true, revision: 0, changed: false });
+    expect(document.snapshot().revision).toBe(0);
+    expect(change).not.toHaveBeenCalled();
   });
 
   it('publishes a confirmed run and every junction it materialized in one snapshot', () => {
