@@ -160,6 +160,8 @@ import type { ConstructionActivity } from './constructionLock';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
   type TerrainSnapshot } from './terrainDocument';
 import { TopologyDocument } from './topologyDocument';
+import { hitGuardLayers, orderContributions, orderHitContributions,
+  type MapContribution } from './mapContribution';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
@@ -1280,11 +1282,12 @@ export function MapView({
     return fillElevationGaps(samples.map((s) => (s ? s.elevation : null)));
   }
 
-  // (Re)attach analysis layers + site box + 3D after any style (re)load. Shared
-  // by the initial load and the light<->dark basemap swap. Reads live state from
-  // refs and re-applies the current layer-visibility model.
-  function reinitAfterStyle(map: maplibregl.Map) {
-    tuneBasemap(map);
+  /**
+   * Basemap context: DEM, contours, ground cover, aerial, and local vectors.
+   * Hands back the layer-toggle model reconciled against what the player had
+   * hidden, so a light↔dark restyle never switches a hidden layer back on.
+   */
+  function installAnalysisLayers(map: maplibregl.Map): LayerToggle[] {
     // While preparation is blocking the game, remove preview DEM/contour/
     // WorldCover sources so they cannot contend with mandatory downloads.
     const fresh = packageStateRef.current === 'preparing'
@@ -1293,7 +1296,7 @@ export function MapView({
         localImageryUrlRef.current, roadsRef.current, lakeNameOverridesRef.current,
         streamWidthOverridesRef.current);
     const prev = layersRef.current;
-    let applied = fresh.map((f) => {
+    const applied = fresh.map((f) => {
       const was = prev.find((p) => p.id === f.id);
       if (was && was.visible !== f.visible) {
         for (const lid of f.layerIds)
@@ -1306,7 +1309,10 @@ export function MapView({
     // reconcile it to the aerial's actual (possibly toggled-off) visibility.
     const aerialOn = applied.find((f) => f.id === 'satellite')?.visible ?? true;
     applyCoverOpacity(map, aerialOn);
+    return applied;
+  }
 
+  function installSiteBoundaryLayers(map: maplibregl.Map): void {
     addSiteBoxLayers(map);
     // Once a package exists, the "box" is its true data extent (record.bounds),
     // not the smaller square first dragged: the elevation service snaps the
@@ -1319,40 +1325,140 @@ export function MapView({
       setSiteBox(map, lockedBox);
       setBoundaryMode(map, 'locked', lockedBox);
     }
-    // Roads sit with the basemap context; their transient construction overlay
-    // remains beneath ski runs and lifts.
-    addRoadDraftLayers(map);
-    addDamLayers(map);
-    setDamData(map, damsRef.current, rec);
-    setDamDraftData(map, damDraftOf(damToolRef.current), rec);
-    setSelectedDam(map, selectedDamIdRef.current);
-    addPondLayers(map);
-    setPondData(map, pondsRef.current, rec);
-    setPondDraftData(map, pondDraftOf(pondToolRef.current), rec);
-    setSelectedPond(map, selectedPondIdRef.current);
-    addNodePathLayers(map);
-    addNodePathDraftLayers(map);
-    setNodePathData(map, skiNodesRef.current, skiPathsRef.current, junctionsRef.current);
-    setRoadDraftData(map, roadDraftOf(roadToolRef.current));
-    // Runs beneath lifts (ski-map convention): add trails first, lifts on top.
-    addTrailLayers(map);
-    setTrailData(map, trailsToGeoJSON(trailsRef.current));
-    const tt = trailToolRef.current;
-    setTrailDraftData(map, tt.phase === 'paint' || tt.phase === 'place-tail' || tt.phase === 'analyzing'
-      ? draftToGeoJSON(tt.polygons)
-      : tt.phase === 'review' ? draftToGeoJSON([], { parts: tt.draft.parts,
-        difficulty: tt.draft.difficulty, name: tt.draft.name,
-        infeasibleLines: tt.draft.infeasibleLines })
-        : draftToGeoJSON([]));
-    if (activeGradePreview()) applyGradePreview();
-    setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current,
-      ...trailHeadPreview(trailToolRef.current) });
-    addLiftLayers(map);
-    setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
-    // Nodes render last, on top of every other structure family.
-    addSnowmakingLayers(map);
-    setSnowmakingData(map, snowmakingNodesRef.current);
-    setSelectedSnowmakingNode(map, selectedSnowmakingNodeIdRef.current);
+  }
+
+  /**
+   * The legacy map contributions, one per family, ordered by the declared
+   * bottom-to-top paint order. Feature controllers take these over in E1–E5;
+   * today each closes over MapView's refs. Rebuilt per traversal so the
+   * analysis family can hand its toggle model back to the caller.
+   */
+  function mapContributions(
+    map: maplibregl.Map,
+    onAnalysisToggles: (toggles: LayerToggle[]) => void = () => {},
+  ): MapContribution[] {
+    return orderContributions([
+      { id: 'analysis', install: () => onAnalysisToggles(installAnalysisLayers(map)) },
+      { id: 'site-boundary', install: () => installSiteBoundaryLayers(map) },
+      {
+        // Roads sit with the basemap context; their transient construction
+        // overlay remains beneath ski runs and lifts.
+        id: 'road',
+        install: () => {
+          addRoadDraftLayers(map);
+          setRoadDraftData(map, roadDraftOf(roadToolRef.current));
+        },
+        setCaptureTransient: (hidden) => setRoadDraftData(map,
+          hidden ? null : roadDraftOf(roadToolRef.current)),
+      },
+      {
+        id: 'dam',
+        install: () => {
+          const rec = terrainRecordRef.current;
+          addDamLayers(map);
+          setDamData(map, damsRef.current, rec);
+          setDamDraftData(map, damDraftOf(damToolRef.current), rec);
+          setSelectedDam(map, selectedDamIdRef.current);
+        },
+        setCaptureTransient: (hidden) => hidden
+          ? setDamDraftData(map, null)
+          : setDamDraftData(map, damDraftOf(damToolRef.current), terrainRecordRef.current),
+      },
+      {
+        id: 'pond',
+        install: () => {
+          const rec = terrainRecordRef.current;
+          addPondLayers(map);
+          setPondData(map, pondsRef.current, rec);
+          setPondDraftData(map, pondDraftOf(pondToolRef.current), rec);
+          setSelectedPond(map, selectedPondIdRef.current);
+        },
+        setCaptureTransient: (hidden) => hidden
+          ? setPondDraftData(map, null)
+          : setPondDraftData(map, pondDraftOf(pondToolRef.current), terrainRecordRef.current),
+      },
+      {
+        id: 'ski-node-path',
+        install: () => {
+          addNodePathLayers(map);
+          addNodePathDraftLayers(map);
+          setNodePathData(map, skiNodesRef.current, skiPathsRef.current, junctionsRef.current);
+        },
+      },
+      {
+        // Runs beneath lifts (ski-map convention): trails first, lifts on top.
+        id: 'trail',
+        install: () => {
+          addTrailLayers(map);
+          setTrailData(map, trailsToGeoJSON(trailsRef.current));
+          const tt = trailToolRef.current;
+          setTrailDraftData(map, tt.phase === 'paint' || tt.phase === 'place-tail' || tt.phase === 'analyzing'
+            ? draftToGeoJSON(tt.polygons)
+            : tt.phase === 'review' ? draftToGeoJSON([], { parts: tt.draft.parts,
+              difficulty: tt.draft.difficulty, name: tt.draft.name,
+              infeasibleLines: tt.draft.infeasibleLines })
+              : draftToGeoJSON([]));
+          if (activeGradePreview()) applyGradePreview();
+          setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current,
+            ...trailHeadPreview(trailToolRef.current) });
+        },
+        setCaptureTransient: (hidden) => {
+          const trail = trailToolRef.current;
+          if (hidden) {
+            setTrailDraftData(map, draftToGeoJSON([]));
+            setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
+            return;
+          }
+          setTrailDraftData(map, trail.phase === 'paint' || trail.phase === 'analyzing'
+            ? draftToGeoJSON(trail.polygons)
+            : trail.phase === 'review'
+            ? draftToGeoJSON([], {
+                parts: trail.draft.parts,
+                difficulty: trail.draft.difficulty,
+                name: trail.draft.name,
+                infeasibleLines: trail.draft.infeasibleLines,
+              })
+            : draftToGeoJSON([]));
+          setTrailPaintPreview(map, {
+            path: trailPreviewPathRef.current,
+            cursor: trailBrushCursorRef.current,
+            brushWidthM: brushWidthRef.current,
+            ...trailHeadPreview(trail),
+          });
+        },
+      },
+      {
+        id: 'lift',
+        install: () => {
+          addLiftLayers(map);
+          setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
+        },
+        setCaptureTransient: (hidden) => setLiftData(map,
+          liftsToGeoJSON(liftsRef.current, hidden ? null : draftLineOf(liftToolRef.current))),
+      },
+      {
+        // Nodes render last, on top of every other structure family.
+        id: 'snowmaking',
+        install: () => {
+          addSnowmakingLayers(map);
+          setSnowmakingData(map, snowmakingNodesRef.current);
+          setSelectedSnowmakingNode(map, selectedSnowmakingNodeIdRef.current);
+        },
+      },
+    ]);
+  }
+
+  // (Re)attach analysis layers + site box + 3D after any style (re)load. Shared
+  // by the initial load and the light<->dark basemap swap. Reads live state from
+  // refs and re-applies the current layer-visibility model.
+  function reinitAfterStyle(map: maplibregl.Map) {
+    tuneBasemap(map);
+    // The loop lives here so the paint order is applied in exactly one place;
+    // each family only knows how to install itself.
+    let applied: LayerToggle[] = [];
+    for (const contribution of mapContributions(map, (toggles) => { applied = toggles; })) {
+      contribution.install();
+    }
     setSelectedLake(map, selectedLakeIdRef.current);
     setSelectedStream(map, selectedStreamIdRef.current);
     // Toggles for the player's built structures, added once the lift/trail layers
@@ -1360,6 +1466,7 @@ export function MapView({
     // (light↔dark) keeps whatever the player hid. Skipped while preparing (no
     // analysis layers either). Uses the generic handleToggle/setLayoutProperty path.
     if (packageStateRef.current !== 'preparing') {
+      const prev = layersRef.current;
       const structures: { id: string; label: string; layerIds: string[] }[] = [
         { id: 'trails', label: 'Ski trails', layerIds: TRAIL_BUILT_LAYER_IDS },
         { id: 'lifts', label: 'Ski lifts', layerIds: LIFT_BUILT_LAYER_IDS },
@@ -1563,98 +1670,44 @@ export function MapView({
     // survive the light/dark style swap (they query at event time), so this is
     // registered once with the map.
     const allToolsIdle = () => toolCoordinator.snapshot.activeTool === null;
-
-    const LIFT_HIT_LAYERS = ['lift-line-casing', 'lift-terminals'];
-    const onLiftClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!allToolsIdle()) return;
-      const priorityLayers = SNOWMAKING_HIT_LAYERS.filter((id) => map.getLayer(id));
-      if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
-      const id = e.features?.[0]?.properties?.id;
-      if (typeof id === 'string') selectLiftRef.current(id);
-    };
-    const onLiftEnter = () => {
+    const onHoverEnter = () => {
       if (allToolsIdle()) map.getCanvas().style.cursor = 'pointer';
     };
-    const onLiftLeave = () => {
+    const onHoverLeave = () => {
       if (allToolsIdle()) map.getCanvas().style.cursor = '';
     };
-    map.on('click', LIFT_HIT_LAYERS, onLiftClick);
-    map.on('mouseenter', LIFT_HIT_LAYERS, onLiftEnter);
-    map.on('mouseleave', LIFT_HIT_LAYERS, onLiftLeave);
 
-    // Snowmaking network nodes render above every other structure family, so
-    // their click handler sits at the top of the priority chain: it is checked
-    // first, and every handler below it (lift, trail, dam, pond, stream, lake)
-    // yields to it via the accumulated `priorityLayers` guard.
-    const onSnowmakingNodeClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!allToolsIdle()) return;
-      const id = e.features?.[0]?.properties?.id;
-      if (typeof id !== 'string') return;
-      selectSnowmakingNode(id);
-    };
-    map.on('click', SNOWMAKING_HIT_LAYERS, onSnowmakingNodeClick);
-    map.on('mouseenter', SNOWMAKING_HIT_LAYERS, onLiftEnter);
-    map.on('mouseleave', SNOWMAKING_HIT_LAYERS, onLiftLeave);
-
-    // Click a run's fill to open its detail. Same idle gating so it never steals
-    // a brush/terminal click.
-    const onTrailClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!allToolsIdle()) return;
-      const priorityLayers = SNOWMAKING_HIT_LAYERS.filter((id) => map.getLayer(id));
-      if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
-      const id = e.features?.[0]?.properties?.id;
-      if (typeof id === 'string') selectTrailRef.current(id);
-    };
-    map.on('click', ['trail-fill'], onTrailClick);
-    map.on('mouseenter', ['trail-fill'], onLiftEnter);
-    map.on('mouseleave', ['trail-fill'], onLiftLeave);
-
-    const onDamClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!allToolsIdle()) return;
-      const priorityLayers = [...SNOWMAKING_HIT_LAYERS, ...LIFT_HIT_LAYERS, 'trail-fill'].filter((id) => map.getLayer(id));
-      if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
-      const id = e.features?.[0]?.properties?.id;
-      if (typeof id !== 'string') return;
-      transitionSelection({ kind: 'dam', id });
-    };
-    map.on('click', DAM_HIT_LAYERS, onDamClick);
-    map.on('mouseenter', DAM_HIT_LAYERS, onLiftEnter);
-    map.on('mouseleave', DAM_HIT_LAYERS, onLiftLeave);
-
-    const onPondClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!allToolsIdle()) return;
-      const priorityLayers = [...SNOWMAKING_HIT_LAYERS, ...LIFT_HIT_LAYERS, 'trail-fill', ...DAM_HIT_LAYERS]
-        .filter((id) => map.getLayer(id));
-      if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
-      const id = e.features?.[0]?.properties?.id;
-      if (typeof id !== 'string') return;
-      transitionSelection({ kind: 'pond', id });
-    };
-    map.on('click', POND_HIT_LAYERS, onPondClick);
-    map.on('mouseenter', POND_HIT_LAYERS, onLiftEnter);
-    map.on('mouseleave', POND_HIT_LAYERS, onLiftLeave);
-
-    const onStreamClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!allToolsIdle()) return;
-      const priorityLayers = [...SNOWMAKING_HIT_LAYERS, ...LIFT_HIT_LAYERS, 'trail-fill', ...DAM_HIT_LAYERS, ...POND_HIT_LAYERS].filter((id) => map.getLayer(id));
-      if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
-      const id = e.features?.[0]?.properties?.id;
-      if (typeof id === 'string') selectStreamRef.current(id);
-    };
-    map.on('click', ['local-water-line-hit'], onStreamClick);
-    map.on('mouseenter', ['local-water-line-hit'], onLiftEnter);
-    map.on('mouseleave', ['local-water-line-hit'], onLiftLeave);
-
-    const onLakeClick = (e: maplibregl.MapLayerMouseEvent) => {
-      if (!allToolsIdle()) return;
-      const priorityLayers = [...SNOWMAKING_HIT_LAYERS, ...LIFT_HIT_LAYERS, 'trail-fill', ...DAM_HIT_LAYERS, ...POND_HIT_LAYERS, 'local-water-line-hit'].filter((id) => map.getLayer(id));
-      if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
-      const id = e.features?.[0]?.properties?.id;
-      if (typeof id === 'string') selectLakeRef.current(id);
-    };
-    map.on('click', ['local-water-fill'], onLakeClick);
-    map.on('mouseenter', ['local-water-fill'], onLiftEnter);
-    map.on('mouseleave', ['local-water-fill'], onLiftLeave);
+    // One declared chain rather than a guard re-accumulated in each handler: a
+    // family yields whenever something that picks ahead of it has a feature
+    // under the cursor, so exactly one handler acts on any overlap. Snowmaking
+    // nodes render above every other structure family and so yield to nothing.
+    const hitContributions = orderHitContributions([
+      { id: 'snowmaking', layerIds: SNOWMAKING_HIT_LAYERS,
+        select: (id) => selectSnowmakingNode(id) },
+      { id: 'lift', layerIds: ['lift-line-casing', 'lift-terminals'],
+        select: (id) => selectLiftRef.current(id) },
+      { id: 'trail', layerIds: ['trail-fill'], select: (id) => selectTrailRef.current(id) },
+      { id: 'dam', layerIds: DAM_HIT_LAYERS,
+        select: (id) => transitionSelection({ kind: 'dam', id }) },
+      { id: 'pond', layerIds: POND_HIT_LAYERS,
+        select: (id) => transitionSelection({ kind: 'pond', id }) },
+      { id: 'stream', layerIds: ['local-water-line-hit'],
+        select: (id) => selectStreamRef.current(id) },
+      { id: 'lake', layerIds: ['local-water-fill'], select: (id) => selectLakeRef.current(id) },
+    ]);
+    for (const contribution of hitContributions) {
+      const guard = hitGuardLayers(contribution.id, hitContributions);
+      const layerIds = [...contribution.layerIds];
+      map.on('click', layerIds, (e: maplibregl.MapLayerMouseEvent) => {
+        if (!allToolsIdle()) return;
+        const above = guard.filter((layerId) => map.getLayer(layerId));
+        if (above.length && map.queryRenderedFeatures(e.point, { layers: above }).length) return;
+        const id = e.features?.[0]?.properties?.id;
+        if (typeof id === 'string') contribution.select(id);
+      });
+      map.on('mouseenter', layerIds, onHoverEnter);
+      map.on('mouseleave', layerIds, onHoverLeave);
+    }
 
     return () => {
       warmAbortRef.current?.abort();
@@ -4042,45 +4095,22 @@ export function MapView({
     packageAbortRef.current?.abort();
   }
 
+  /**
+   * Hide every in-progress overlay for the resume-preview capture, then restore
+   * it. Each family owns its own transient, so a family added later cannot be
+   * left out of the capture by forgetting to extend a list here; the grade
+   * preview is not a family and stays explicit.
+   */
   function setCaptureTransients(hidden: boolean): void {
     const map = mapRef.current;
     if (!map) return;
-    const trail = trailToolRef.current;
-    const road = roadToolRef.current;
+    for (const contribution of mapContributions(map)) contribution.setCaptureTransient?.(hidden);
     if (hidden) {
-      setLiftData(map, liftsToGeoJSON(liftsRef.current, null));
-      setTrailDraftData(map, draftToGeoJSON([]));
-      setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current });
-      setRoadDraftData(map, null);
-      setDamDraftData(map, null);
-      setPondDraftData(map, null);
       const record = terrainRecordRef.current;
       if (record) setVisibleContours(record);
       setEditedContours(null);
       return;
     }
-
-    setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
-    setTrailDraftData(map, trail.phase === 'paint' || trail.phase === 'analyzing'
-      ? draftToGeoJSON(trail.polygons)
-      : trail.phase === 'review'
-      ? draftToGeoJSON([], {
-          parts: trail.draft.parts,
-          difficulty: trail.draft.difficulty,
-          name: trail.draft.name,
-          infeasibleLines: trail.draft.infeasibleLines,
-        })
-      : draftToGeoJSON([]));
-    setTrailPaintPreview(map, {
-      path: trailPreviewPathRef.current,
-      cursor: trailBrushCursorRef.current,
-      brushWidthM: brushWidthRef.current,
-      ...trailHeadPreview(trail),
-    });
-    setRoadDraftData(map, roadDraftOf(road));
-    setDamDraftData(map, damDraftOf(damToolRef.current), terrainRecordRef.current);
-    setPondDraftData(map, pondDraftOf(pondToolRef.current), terrainRecordRef.current);
-
     applyGradePreview();
   }
 
