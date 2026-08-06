@@ -242,6 +242,7 @@ function AppInner() {
           onOpenSettings={() => setShowSettings(true)}
           onLoadGame={() => setShowLoad(true)}
           sessionControlsRef={sessionControlsRef}
+          controlsSuspended={showSettings || showLoad}
         />
       )}
 
@@ -257,6 +258,7 @@ function AppInner() {
           onBoot={handleBoot}
           bootControlsRef={bootControlsRef}
           sessionControlsRef={sessionControlsRef}
+          controlsSuspended={showSettings || showLoad}
         />
       )}
 

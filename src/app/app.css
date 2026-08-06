@@ -981,6 +981,13 @@ html.resume-capture .maplibregl-canvas {
   background: #72553b;
   box-shadow: 0 0 0 2px rgba(105, 169, 197, 0.42);
 }
+.snowmaking-node-swatch {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #69a9c5;
+}
 .lift-row-button {
   width: 100%;
   border: 0;
@@ -1744,6 +1751,51 @@ html.resume-capture .maplibregl-canvas {
   background: var(--surface-solid);
   color: var(--text);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* Section heading inside .settings-body, e.g. "Controls". */
+.settings-section-title {
+  margin: 18px 0 0;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Per-action rebind button in the Controls section — a compact .seg-btn. */
+.keybind-btn {
+  min-width: 64px;
+  border: 1px solid var(--border);
+  background: var(--seg-bg);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.keybind-btn:hover {
+  background: var(--panel-elev-hover);
+}
+
+.keybind-btn-listening {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  animation: keybind-pulse 1s ease-in-out infinite;
+}
+
+@keyframes keybind-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.keybind-reset-btn {
+  margin-top: 12px;
+  width: 100%;
 }
 
 /* Toggle switch */
@@ -2689,7 +2741,12 @@ html.resume-capture .maplibregl-canvas {
 .network-chrome-tl {
   position: absolute;
   top: 12px;
-  left: 12px;
+  /* Cleared right of .top-left-stack (top:12/left:12, width:150px, z-index:22 —
+     the always-on-top "Mountain Dashboards" toggle that opens both dashboards
+     this chrome belongs to, per MapView.tsx). Both are only ever visible
+     together, so without this offset the toggle sat directly on top of and
+     obscured this row's own Close/Reset buttons, making them unclickable. */
+  left: 176px;
   display: flex;
   gap: 8px;
 }
@@ -2847,6 +2904,87 @@ html.resume-capture .maplibregl-canvas {
 @media (max-width: 900px) {
   .network-inspector { width: 240px; flex-basis: 240px; }
 }
+
+/* ============================================================
+   Mountain dashboards picker — a thin segmented control layered over
+   whichever full-screen dashboard (NetworkMap or SnowmakingDashboard) is
+   mounted. z-index 21 clears both dashboards' z-index 20 fixed overlay.
+   ============================================================ */
+.dashboard-picker {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 21;
+  display: flex;
+  gap: 6px;
+  background: var(--panel-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: var(--shadow);
+}
+.dashboard-picker .site-btn[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* ============================================================
+   Snowmaking dashboard — reuses .network-map/.network-canvas/.network-svg/
+   .network-grid-line/.network-chrome-tl/.network-chrome-bl/.network-empty for
+   the shared dialog chrome (see NetworkMap's own block above); these rules cover only the
+   elements unique to this view: the cover backdrop, contour lines, water
+   shapes, and nodes.
+   ============================================================ */
+.snowmaking-dashboard-cover-class {
+  stroke: none;
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.snowmaking-dashboard-contour-major {
+  fill: none;
+  stroke: rgba(248, 246, 237, 0.84);
+  stroke-width: 1.25;
+  pointer-events: none;
+}
+
+.snowmaking-dashboard-contour-minor {
+  fill: none;
+  stroke: rgba(244, 242, 232, 0.48);
+  stroke-width: 0.55;
+  pointer-events: none;
+}
+
+.snowmaking-dashboard-water-shape {
+  fill: #3f7fa6;
+  opacity: 0.55;
+  stroke: #2c5c7a;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.snowmaking-dashboard-node { cursor: pointer; }
+.snowmaking-dashboard-node-dot {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+.snowmaking-dashboard-node.is-selected .snowmaking-dashboard-node-dot {
+  stroke: #fff6c7;
+  stroke-width: 3;
+}
+.snowmaking-dashboard-node-label {
+  fill: var(--text-muted);
+  pointer-events: none;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--app-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.snowmaking-dashboard-node.is-selected .snowmaking-dashboard-node-label { fill: var(--text); }
 
 /* Open / Closed condition row, shared by the trail + lift detail panels. */
 .condition-row {

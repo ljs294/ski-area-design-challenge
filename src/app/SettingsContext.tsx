@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import type { ReactNode } from 'react';
 import { desktop } from '../desktopBridge';
 import type { WindowMode } from '../ipcContract';
+import type { GameAction, Keybinds } from '../keybinds';
+import { DEFAULT_KEYBINDS, mergeKeybinds } from '../keybinds';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type Units = 'imperial' | 'metric';
@@ -13,6 +15,7 @@ export interface Settings {
   windowMode: WindowMode;
   reducedMotion: boolean;
   renderQuality: RenderQuality;
+  keybinds: Keybinds;
 }
 
 /**
@@ -41,13 +44,20 @@ const DEFAULTS: Settings = {
   windowMode: 'windowed',
   reducedMotion: false,
   renderQuality: 'standard',
+  keybinds: DEFAULT_KEYBINDS,
 };
 
 function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
-    return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) };
+    const parsed = JSON.parse(raw) as Partial<Settings>;
+    const merged = { ...DEFAULTS, ...parsed };
+    // A shallow spread would let a stored (possibly stale/partial) keybinds
+    // object silently clobber DEFAULTS.keybinds instead of merging with it —
+    // always rebuild it as a fully-populated Keybinds via mergeKeybinds.
+    merged.keybinds = mergeKeybinds(parsed.keybinds);
+    return merged;
   } catch {
     return DEFAULTS;
   }
@@ -79,6 +89,8 @@ interface SettingsContextValue {
   setWindowMode: (m: WindowMode) => void;
   setReducedMotion: (v: boolean) => void;
   setRenderQuality: (q: RenderQuality) => void;
+  setKeybind: (action: GameAction, key: string) => void;
+  resetKeybinds: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -141,10 +153,25 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     applyWindowMode(windowMode);
     setSettings((s) => ({ ...s, windowMode }));
   }, []);
+  const setKeybind = useCallback(
+    (action: GameAction, key: string) =>
+      setSettings((s) => ({ ...s, keybinds: { ...s.keybinds, [action]: key } })),
+    []
+  );
+  const resetKeybinds = useCallback(
+    () => setSettings((s) => ({ ...s, keybinds: { ...DEFAULT_KEYBINDS } })),
+    []
+  );
 
   const value = useMemo<SettingsContextValue>(
-    () => ({ settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality }),
-    [settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality]
+    () => ({
+      settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
+      setKeybind, resetKeybinds,
+    }),
+    [
+      settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
+      setKeybind, resetKeybinds,
+    ]
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

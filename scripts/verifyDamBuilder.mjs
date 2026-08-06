@@ -131,20 +131,20 @@ try {
   if (!survey.candidates.length)
     throw new Error(`No dammable stream on screen (${survey.streams} water lines in the box).`);
 
-  await page.click('.dock-circle-infrastructure');
-  await page.waitForSelector('.dock-infrastructure');
-  const review = page.locator('.infrastructure-panel >> text=Review snowmaking pond');
+  await page.click('.dock-circle-snowmaking');
+  await page.waitForSelector('.dock-snowmaking');
+  const review = page.locator('.snowmaking-panel >> text=Review snowmaking pond');
   const attempts = [];
   let used = null;
-  const warningText = page.locator('.infrastructure-panel .lift-warning').first();
-  const armDam = page.locator('.infrastructure-panel .lift-add-btn', { hasText: 'Build dam' });
+  const warningText = page.locator('.snowmaking-panel .lift-warning').first();
+  const armDam = page.locator('.snowmaking-panel .lift-add-btn', { hasText: 'Build dam' });
   for (const candidate of survey.candidates.slice(0, 60)) {
     if (!await armDam.isVisible().catch(() => false)) {
-      await page.click('.dock-circle-infrastructure');
-      await page.waitForSelector('.dock-infrastructure');
+      await page.click('.dock-circle-snowmaking');
+      await page.waitForSelector('.dock-snowmaking');
     }
     await armDam.click();
-    await page.waitForSelector('.infrastructure-panel >> text=New dam');
+    await page.waitForSelector('.snowmaking-panel >> text=New dam');
     await page.mouse.click(...candidate.a);
     await page.mouse.move(...candidate.b);
     await page.waitForTimeout(200);
@@ -165,7 +165,7 @@ try {
     // Escape, not the Cancel button: a click has to wait out scheduled
     // navigation, and a re-analysing panel can hold that open past the timeout.
     await page.keyboard.press('Escape');
-    await page.waitForSelector('.infrastructure-panel >> text=New dam',
+    await page.waitForSelector('.snowmaking-panel >> text=New dam',
       { state: 'detached', timeout: 10_000 }).catch(() => {});
   }
   if (!used) {
@@ -176,7 +176,7 @@ try {
   }
 
   const readReview = () => page.evaluate(() => {
-    const panel = document.querySelector('.infrastructure-panel');
+    const panel = document.querySelector('.snowmaking-panel');
     const value = (label) => [...panel.querySelectorAll('.readout-line')]
       .find((row) => row.textContent?.startsWith(label))?.textContent ?? null;
     return { cut: value('Cut'), fill: value('Fill'), balance: value('Balance'),
@@ -201,9 +201,9 @@ try {
     throw new Error(`The dam draft is missing its embankment: ${JSON.stringify(draftKinds)}`);
 
   const beforeDem = await page.evaluate(() => globalThis.appMap.getStyle().sources.dem?.tiles?.[0]);
-  await page.fill('.infrastructure-panel .name-entry-input', 'Verified Dam');
-  await page.click('.infrastructure-panel >> text=Build dam');
-  await page.waitForSelector('.infrastructure-panel >> text=Verified Dam', { timeout: 60_000 });
+  await page.fill('.snowmaking-panel .name-entry-input', 'Verified Dam');
+  await page.click('.snowmaking-panel >> text=Build dam');
+  await page.waitForSelector('.snowmaking-panel >> text=Verified Dam', { timeout: 60_000 });
   await page.waitForFunction((url) => globalThis.appMap
     .getStyle().sources.dem?.tiles?.[0] !== url, beforeDem, { timeout: 60_000 });
 

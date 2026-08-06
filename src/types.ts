@@ -5,6 +5,8 @@ import type { LatLonBounds } from './elevation';
 import type { HydratedVectorFeatures } from './vectorFeatures';
 // Type-only for the same reason: skiNodes.ts imports TrailStatus from here.
 import type { AnchorRef, SavedNode, SavedPath } from './skiNodes';
+// Type-only, same reasoning as the skiNodes import above.
+import type { SavedSnowmakingNode } from './snowmakingNodes';
 
 /**
  * A coarse elevation grid covering the buffer area around a resort's high-res
@@ -537,7 +539,7 @@ export interface SavedTrail {
 // is reserved for the offline-terrain layer that is not built yet — the map
 // still streams tiles online for now.
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
   key: string; // uuid
   name: string; // resort name
   mountainId?: string; // preset id if started from a curated mountain
@@ -562,6 +564,8 @@ export interface GameSave {
   paths?: SavedPath[];
   /** Durable graph junctions. Optional only for schema-v1-v4 saves. */
   junctions?: import('./skiNodes').SavedJunction[];
+  /** Snowmaking network nodes. Optional for schema-v1–v10 saves. */
+  snowmakingNodes?: SavedSnowmakingNode[];
   /** Player-entered average lake depths in metres, keyed by the terrain's stable OSM water id. */
   lakeDepthOverrides?: Record<string, number>;
   /** Player-entered lake names keyed by the terrain's stable OSM water id. */

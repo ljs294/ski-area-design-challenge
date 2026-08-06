@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { GameSave, TerrainRecord } from '../types';
 import { withResumeCheckpoint } from './resumeCheckpoint';
+import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes, type SavedSnowmakingNode } from '../snowmakingNodes';
 import {
   TERRAIN_CLEAN,
   designHasEdits,
@@ -119,5 +120,38 @@ describe('designHasEdits', () => {
       save, { center: [1, 2], zoom: 10, bearing: 11, pitch: 12 }, false
     );
     expect(designHasEdits(saved, designOf(checkpoint))).toBe(false);
+  });
+
+  it('is dirty after a snowmaking node rename', () => {
+    const nodes: SavedSnowmakingNode[] = [{ id: 'node-1', name: 'Old Name', kind: 'intake',
+      point: [0, 0], elevM: null, createdAt: '2026-01-01T00:00:00.000Z' }];
+    const savedWithNodes = designOf({ ...save, snowmakingNodes: nodes });
+    const renamed = nodes.map((n) => n.id === 'node-1' ? { ...n, name: 'New Name' } : n);
+    const live = designOf({ ...save, snowmakingNodes: renamed });
+    expect(designHasEdits(savedWithNodes, live)).toBe(true);
+  });
+
+  it('reconciling a legacy save (no snowmakingNodes field) does not spuriously mark it dirty', () => {
+    const dam: NonNullable<GameSave['dams']>[number] = {
+      id: 'dam-1', name: 'Dam 1', points: [[0, 0], [0.001, 0]],
+      crestElevationM: 1000, streamId: 'way/1', streamName: 'Creek', sourceWidthM: 3,
+      inflowM3s: 0.3, pondRings: [[[0, 0], [0, 0.001], [0.001, 0], [0, 0]]],
+      areaM2: 1000, averageDepthM: 2, capacityM3: 2000, averageDamHeightM: 2.5,
+      maxDamHeightM: 4, createdAt: '2026-01-01T00:00:00.000Z',
+    };
+    // schemaVersion 10 predates snowmakingNodes: the field is absent, but a
+    // dam is present, so the very first reconcile backfills its auto intake.
+    const legacySave: GameSave = { ...save, dams: [dam] };
+    // Mirrors how MapView seeds `snowmakingNodes` state on load.
+    const initialNodes = reconcileSnowmakingNodes(
+      sanitizeSnowmakingNodes(legacySave.snowmakingNodes ?? []), legacySave.dams ?? [], legacySave.ponds ?? []);
+    expect(initialNodes).toHaveLength(1);
+    const savedDesign = designOf({ ...legacySave, snowmakingNodes: initialNodes });
+    // Mirrors the reconcile effect re-running (e.g. on mount) against
+    // unchanged dams/ponds: it must hand back the exact same array reference.
+    const liveNodes = reconcileSnowmakingNodes(initialNodes, legacySave.dams ?? [], legacySave.ponds ?? []);
+    expect(liveNodes).toBe(initialNodes);
+    const live = designOf({ ...legacySave, snowmakingNodes: liveNodes });
+    expect(designHasEdits(savedDesign, live)).toBe(false);
   });
 });
