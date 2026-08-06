@@ -54,6 +54,7 @@ Append only green, committed snapshots. Capture the JSON after required tests an
 | A2 formal baseline | `7215da704c203b78ced0516502349cd9bf515804` | Yes | 131 / 29,968 | 64 / 7,978 | 5,077 / 78 / 60 / 44 / 4 | 585 / 74 | 21 / 65,351,258 | 65,231,155 | 10 / 16 | 73,224,519 / 73,224,497 |
 | A3 Playwright gate | `a52b54ab99988f132c503759be1608c843738b02` | Yes | 131 / 29,968 | 71 / 8,309 | 5,077 / 78 / 60 / 44 / 4 | 585 / 74 | 21 / 65,351,258 | 65,231,155 | 10 / 17 | 73,224,519 / 73,224,497 |
 | B1 resort service boundary | `f62dea0dd20aa6f8380d0920e172899e5de02c56` | Yes | 132 / 29,982 | 72 / 8,422 | 5,082 / 78 / 60 / 44 / 4 | 585 / 74 | 21 / 65,351,258 | 65,231,155 | 10 / 17 | 73,224,624 / 73,224,602 |
+| B2 persisted terrain return | `7e3ba52d4e1c58a20a848f9f7f14562465d45ac0` | Yes | 132 / 29,982 | 73 / 8,534 | 5,082 / 78 / 60 / 44 / 4 | 585 / 74 | 21 / 65,351,258 | 65,231,155 | 10 / 17 | 73,222,104 / 73,222,082 |
 | B3 obsolete vertical removed | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 | D4 foundations complete | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 | F1 final structural gate | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |

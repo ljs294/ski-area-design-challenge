@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | B2 — return persisted terrain records and remove runtime hydration |
-| Status | B2 candidate returns the verified persisted record without live-path hydration; final gates pending |
-| Last green commit | B1 at `f62dea0dd20aa6f8380d0920e172899e5de02c56` |
-| Next step | Run aggregate and browser-smoke gates, then commit the B2 live-path contract if green |
+| Current benchmark | B3 — complete obsolete vertical deletion |
+| Status | B2 is committed with its clean metrics, 527 offline tests, and browser-smoke evidence |
+| Last green commit | B2 at `7e3ba52d4e1c58a20a848f9f7f14562465d45ac0` |
+| Next step | Reconfirm reachability, delete the exact obsolete file/asset set, remove Leaflet, and validate a clean production output |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -32,8 +32,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | A2 | Complete | Strict TypeScript, flat ESLint, offline/live test split, aggregate `npm run check` | Strict typecheck, lint, offline unit tests, desktop build, and web build pass |
 | A3 | Complete | Playwright Test harness and required PR CI | Negative control proves nonzero failure; deterministic smoke passes; CI workflow validates locally as far as possible |
 | B1 | Complete | Canonical geographic bounds and injectable resort-preparation service | Characterization tests cover bounds, incomplete cover, cancellation, and service failure |
-| B2 | In progress | `prepareResortPackage` returns `TerrainRecord`; live-path runtime hydration is removed | Offline gate plus deterministic New Game/package workflow passes |
-| B3 | Not started | Obsolete poster/preset vertical, remaining dead hydration, and Leaflet removed | Verified backup remains reachable; clean install/check; production bundle contains no preset payload |
+| B2 | Complete | `prepareResortPackage` returns `TerrainRecord`; live-path runtime hydration is removed | Offline gate plus deterministic New Game/package workflow passes |
+| B3 | In progress | Obsolete poster/preset vertical, remaining dead hydration, and Leaflet removed | Verified backup remains reachable; clean install/check; production bundle contains no preset payload |
 | C1 | Not started | Dependency-neutral type models through terrain | Typecheck and offline suite pass; no type-model cycles introduced |
 | C2 | Not started | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
 | D1 | Not started | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
@@ -65,6 +65,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | A2 | `7215da704c203b78ced0516502349cd9bf515804` | Passed | `npm run check`: documentation and architecture checks, zero-warning lint, strict TypeScript, 522 offline tests, and desktop/web builds passed on 2026-08-06. Clean metrics baseline recorded separately. |
 | A3 | `a52b54ab99988f132c503759be1608c843738b02` | Passed | Negative control returned Playwright exit 1 and matched both sentinels; two browser-smoke tests and one feature-workflow test passed with deterministic local fixtures on 2026-08-06. |
 | B1 | `f62dea0dd20aa6f8380d0920e172899e5de02c56` | Passed | Canonical bounds and the required preparation-service port landed; four characterization tests cover true-bounds forwarding, incomplete cover, cancellation, and service failure. Full check and browser smoke passed. |
+| B2 | `7e3ba52d4e1c58a20a848f9f7f14562465d45ac0` | Passed | The supported preparation/save path returns its verified persisted `TerrainRecord` without allocating legacy display grids or projected caches; one contract test, full check, and browser smoke passed. |
 
 ## Open decisions and blockers
 
