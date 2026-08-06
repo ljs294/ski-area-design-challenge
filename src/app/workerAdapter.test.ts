@@ -9,6 +9,7 @@ interface FakeWorker extends WorkerLike<string, string> {
   terminate: Mock<() => void>;
   deliver(response: string): void;
   crash(): void;
+  failPost: boolean;
 }
 
 /** A factory plus the workers it has been asked for, in construction order. */
@@ -21,7 +22,9 @@ function fakeWorkers() {
       posted: [],
       transferred: [],
       terminate: vi.fn(() => {}),
+      failPost: false,
       postMessage(message: string, transfer: Transferable[] = []) {
+        if (worker.failPost) throw new DOMException('could not clone', 'DataCloneError');
         worker.posted.push(message);
         worker.transferred.push(transfer);
       },
@@ -124,5 +127,23 @@ describe('WorkerSession', () => {
 
     session.connect(bound);
     expect(created).toHaveLength(2);
+  });
+
+  it('retires a worker when postMessage rejects the request and remains reusable', () => {
+    const { created, factory } = fakeWorkers();
+    const session = new WorkerSession(factory);
+    session.connect(handlers());
+    created[0].failPost = true;
+
+    let accepted: boolean | undefined;
+    expect(() => { accepted = session.post('uncloneable'); }).not.toThrow();
+    expect(accepted).toBe(false);
+    expect(session.running).toBe(false);
+    expect(created[0].terminate).toHaveBeenCalledOnce();
+
+    session.connect(handlers());
+    expect(created).toHaveLength(2);
+    expect(session.post('fresh')).toBe(true);
+    expect(created[1].posted).toEqual(['fresh']);
   });
 });

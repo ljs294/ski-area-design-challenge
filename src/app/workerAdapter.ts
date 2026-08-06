@@ -58,11 +58,21 @@ export class WorkerSession<Request, Response> {
     };
   }
 
-  /** Send a request to the running worker. False when none is running. */
+  /**
+   * Send a request to the running worker. False when none is running or the
+   * browser refuses the message (for example, because a transfer is invalid).
+   * A worker whose post failed is retired: callers may safely start a fresh
+   * session, but must settle the request that was not accepted.
+   */
   post(request: Request, transfer: Transferable[] = []): boolean {
     if (!this.worker) return false;
-    this.worker.postMessage(request, transfer);
-    return true;
+    try {
+      this.worker.postMessage(request, transfer);
+      return true;
+    } catch {
+      this.stop();
+      return false;
+    }
   }
 
   /**
