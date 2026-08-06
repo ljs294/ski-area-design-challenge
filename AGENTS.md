@@ -16,13 +16,15 @@ This file is the canonical repository guidance for Codex, Claude Code, and other
 - Install the pinned dependency graph: `npm ci`.
 - Start the desktop development app: `npm run dev`.
 - Start the graphics lab: `npm run dev:lab`.
-- Run the current test suite: `npm test`.
+- Run deterministic offline unit tests: `npm test`.
+- Run opt-in live-provider tests: `npm run test:integration:live`.
 - Type-check and build the desktop renderer: `npm run build`.
-- Build the static web renderer: `npx tsc && npx vite build --config vite.config.web.ts`.
-- Validate agent documentation directly: `node scripts/checkAgentDocs.mjs`.
-- Use `npm run check` once that command is present; it is the required aggregate gate.
+- Build the static web renderer: `npm run build:web`.
+- Run the required deterministic gate: `npm run check`.
+- Prove browser-test failure propagation: `npm run check:e2e-harness`.
+- Run deterministic browser smoke and feature workflows: `npm run test:e2e`.
 
-Do not treat the legacy `scripts/verify*.mjs` scripts as release gates unless they have been ported to Playwright Test or repaired to propagate assertion failures. Live-provider tests are opt-in once their separate command is present.
+Do not treat the legacy `scripts/verify*.mjs` scripts as release gates unless they have been ported to Playwright Test or repaired to propagate assertion failures. Live-provider, GPU, and Electron release tests remain opt-in.
 
 ## Dependency direction
 

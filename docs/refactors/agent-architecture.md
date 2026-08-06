@@ -17,9 +17,9 @@ This is the shared execution record for the approved refactor. Update it at ever
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
 | Current benchmark | A3 — deterministic Playwright harness |
-| Status | A2 is committed and its clean metrics baseline is recorded |
+| Status | A3 candidate is green locally: negative-control propagation and three deterministic workflows pass |
 | Last green commit | A2 at `7215da704c203b78ced0516502349cd9bf515804` |
-| Next step | Install the pinned Playwright Test runner, prove failure propagation, and run deterministic browser workflows |
+| Next step | Commit A3, record its SHA, then begin B1 at the resort-preparation service boundary |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
