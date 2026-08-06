@@ -5,7 +5,7 @@
 // load" split as elevation.ts/bicubicUpscale.ts: raw lon/lat geometry is
 // what gets persisted (types.ts's VectorFeatureSet), everything in this
 // file below fetchVectorFeatures is a pure, re-derivable projection step.
-import type { LatLonBounds } from './elevation';
+import type { LatLonBounds } from './types/geo';
 import { lonLatToWorld, type WorldPoint } from './geo';
 import { buildTileIndex, type TileIndex, type Segment } from './tileIndex';
 import { thinLabelsBySpacing, type WorldLabel } from './labels';

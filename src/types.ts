@@ -1,5 +1,5 @@
 // Mountain Planner - TypeScript Type Definitions
-import type { LatLonBounds } from './elevation';
+import type { LatLonBounds } from './types/geo';
 // Type-only, so this doesn't create a runtime circular import even though
 // vectorFeatures.ts imports feature types (RoadFeature etc.) from here.
 import type { HydratedVectorFeatures } from './vectorFeatures';

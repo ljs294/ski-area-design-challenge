@@ -38,7 +38,7 @@ import { ResortStatsPanel } from './ResortStatsPanel';
 import { CursorReadout, type Readout } from './CursorReadout';
 import { Legend, type OverlayId } from './Legend';
 import { sampleTerrainAt, compass8 } from './terrainProtocols';
-import { sampleCoverAt, COVER_LABELS } from './worldcoverProtocol';
+import { sampleCoverAt, sampleSiteCoverGrid, COVER_LABELS } from './worldcoverProtocol';
 import { SiteControl, type SiteMode } from './SiteControl';
 import {
   addSiteBoxLayers,
@@ -3946,7 +3946,12 @@ export function MapView({
     packageAbortRef.current = controller;
     mapRef.current?.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
     try {
-      const record = await prepareResortPackage(site, name, setPackageProgress, controller.signal);
+      const record = await prepareResortPackage(
+        site,
+        name,
+        { sampleSiteCoverGrid },
+        { onProgress: setPackageProgress, signal: controller.signal }
+      );
       const validation = validateTerrainPackage(record);
       if (!validation.ok) throw new Error(validation.errors.join(' '));
       cacheTerrainDisplayAssets(record);

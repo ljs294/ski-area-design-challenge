@@ -1,4 +1,4 @@
-import type { LatLonBounds } from '../elevation';
+import type { LatLonBounds } from '../types/geo';
 import type { SavedTrailPart } from '../types';
 
 /** How far grading may stray from the drawn feature. Trails must stay inside

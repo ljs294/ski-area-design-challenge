@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import type { SiteCoverGrid, WorldCoverClassCode } from '../types';
 import { METERS_PER_DEGREE_LAT } from '../geo';
+import type { LatLonBounds } from '../types/geo';
 
 // ESA WorldCover native WMTS (KVP GetTile form — verified working, see memory).
 const WORLDCOVER_TILES =
@@ -229,13 +230,6 @@ export async function sampleCoverAt(lng: number, lat: number, z: number): Promis
 }
 
 /** Bounds of a rectangular area to sample, in degrees. */
-export interface CoverBounds {
-  west: number;
-  south: number;
-  east: number;
-  north: number;
-}
-
 /**
  * Sample an n×n grid of cover-bucket indices across `bounds` (row 0 = north
  * edge, matching the renderer's grid convention). Fetches only the WorldCover
@@ -243,7 +237,7 @@ export interface CoverBounds {
  * every cell from that decoded, cached set. Cells with no data (missing tile /
  * transparent pixel) are `COVER_NODATA`. Run once when a site is locked.
  */
-export async function sampleCoverGrid(bounds: CoverBounds, n: number): Promise<Uint8Array> {
+export async function sampleCoverGrid(bounds: LatLonBounds, n: number): Promise<Uint8Array> {
   const zz = WC_MAXZOOM;
   const nTiles = 1 << zz;
 
@@ -298,7 +292,7 @@ export async function sampleCoverGrid(bounds: CoverBounds, n: number): Promise<U
  * collapsing is applied here.
  */
 export async function sampleSiteCoverGrid(
-  bounds: CoverBounds,
+  bounds: LatLonBounds,
   targetCellM = 10,
   signal?: AbortSignal
 ): Promise<SiteCoverGrid> {
@@ -356,7 +350,7 @@ export async function sampleSiteCoverGrid(
   };
 }
 
-export function siteCoverDimensions(bounds: CoverBounds, targetCellM = 10): { width: number; height: number } {
+export function siteCoverDimensions(bounds: LatLonBounds, targetCellM = 10): { width: number; height: number } {
   const midLat = (bounds.north + bounds.south) / 2;
   const widthM = Math.abs(bounds.east - bounds.west) * METERS_PER_DEGREE_LAT * Math.cos((midLat * Math.PI) / 180);
   const heightM = Math.abs(bounds.north - bounds.south) * METERS_PER_DEGREE_LAT;

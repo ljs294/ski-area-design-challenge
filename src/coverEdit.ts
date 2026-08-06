@@ -8,7 +8,7 @@
 // grid — the work is O(footprint), cheap enough to run on every confirm (see
 // coverDisplay.ts for why a full re-trace is not).
 
-import type { LatLonBounds } from './elevation';
+import type { LatLonBounds } from './types/geo';
 import type { CoverGrid } from './types';
 import { isFourClassGrid, TERRAIN_COVER_CODES } from './fourClassCover';
 import { METERS_PER_DEGREE_LAT } from './geo';

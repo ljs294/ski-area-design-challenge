@@ -5,7 +5,7 @@ import type {
   TerrainCoverProvenance,
   VectorFeatureSet,
 } from './types';
-import type { LatLonBounds } from './elevation';
+import type { LatLonBounds } from './types/geo';
 import type { NaipAcquisition } from './usgsTerrainCover';
 
 export const TERRAIN_COVER_CODES = {

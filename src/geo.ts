@@ -1,4 +1,4 @@
-import type { LatLonBounds } from './elevation';
+import type { LatLonBounds } from './types/geo';
 
 export const METERS_PER_DEGREE_LAT = 111320;
 

@@ -17,9 +17,9 @@ This is the shared execution record for the approved refactor. Update it at ever
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
 | Current benchmark | B1 — geographic bounds and resort-preparation service boundary |
-| Status | A3 is committed; its clean metrics and deterministic browser evidence are recorded |
+| Status | B1 candidate implemented; characterization and aggregate gates are pending final execution |
 | Last green commit | A3 at `a52b54ab99988f132c503759be1608c843738b02` |
-| Next step | Characterize bounds forwarding, incomplete cover, cancellation, and service failure before changing production code |
+| Next step | Run the full deterministic and browser-smoke gates, then commit B1 if green |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks

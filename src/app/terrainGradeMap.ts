@@ -1,5 +1,5 @@
 import type maplibregl from 'maplibre-gl';
-import type { LatLonBounds } from '../elevation';
+import type { LatLonBounds } from '../types/geo';
 import type { TerrainRecord } from '../types';
 import { contourGeoJSON, localContourGeoJSON } from './localContours';
 import {

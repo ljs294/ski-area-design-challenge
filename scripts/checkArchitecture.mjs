@@ -9,12 +9,7 @@ const appRoot = path.join(sourceRoot, 'app');
 const typeModelRoot = path.join(sourceRoot, 'types');
 const sourceExtensions = new Set(['.ts', '.tsx']);
 
-// Remove this exact exception in benchmark B1 with the obsolete terrain-ingest
-// vertical. It is deliberately keyed by both importer and specifier so it
-// cannot mask any other core-to-app dependency inversion.
-const TEMPORARY_CORE_TO_APP_EXCEPTIONS = new Map([
-  ['src/terrainIngest.ts::./app/worldcoverProtocol', 'remove in B1 obsolete-vertical deletion'],
-]);
+const TEMPORARY_CORE_TO_APP_EXCEPTIONS = new Map();
 
 function normalized(filePath) {
   return path.resolve(filePath).replaceAll('\\', '/');

@@ -1,5 +1,5 @@
 import { fromArrayBuffer } from 'geotiff';
-import type { LatLonBounds } from './elevation';
+import type { LatLonBounds } from './types/geo';
 
 const NAIP_SERVICE = 'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer';
 const MAX_SOURCE_BYTES = 250 * 1024 * 1024;

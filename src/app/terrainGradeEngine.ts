@@ -1,4 +1,4 @@
-﻿import type { LatLonBounds } from '../elevation';
+﻿import type { LatLonBounds } from '../types/geo';
 import type { SavedTrailPart } from '../types';
 import { lngLatToUnit, unitToLngLat } from '../geo';
 import { traceContours } from '../marchingSquares';

@@ -2,7 +2,8 @@
 // a fully-built TerrainDB: fetch/generate the raw sample grid, upscale it
 // for display, attach a climate profile, persist it, and return it.
 import type { AreaSizeMeters, CoverDisplayMetadata, CoverGrid, LocalImageryMetadata, SiteCoverGrid, TerrainDB, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
-import { fetchElevationBuffer, fetchElevationGrid, sampleGridSizeFor, type LatLonBounds, type ElevationProgress, type SurroundGrid } from './elevation';
+import { fetchElevationBuffer, fetchElevationGrid, sampleGridSizeFor, type ElevationProgress, type SurroundGrid } from './elevation';
+import type { LatLonBounds } from './types/geo';
 import { bicubicUpscale } from './bicubicUpscale';
 import { generateProceduralClimate } from './climate';
 import { generateProceduralHeights, NA_MOUNTAIN_PRESETS } from './mountainPresets';
@@ -10,7 +11,6 @@ import { deleteTerrain, loadTerrain, saveTerrain } from './terrainStorageClient'
 import { boundsForSquareMeters } from './geo';
 import { fetchVectorFeatures, hydrateVectorFeatures } from './vectorFeatures';
 import { MAP_SIZE } from './renderer';
-import { sampleSiteCoverGrid } from './app/worldcoverProtocol';
 import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, imageryMetadataOf, manifestOf, originalCoverMetadataOf, validateTerrainPackage } from './terrainPackage';
 import { traceContours } from './marchingSquares';
 import { deriveCoverBoundarySegments } from './coverAnalysis';
@@ -247,6 +247,19 @@ export interface ResortPreparationSite {
   heightKm: number;
 }
 
+export interface ResortPreparationServices {
+  sampleSiteCoverGrid(
+    bounds: LatLonBounds,
+    targetCellM: number,
+    signal?: AbortSignal
+  ): Promise<SiteCoverGrid>;
+}
+
+export interface ResortPreparationOptions {
+  onProgress?: (progress: TerrainPackageProgress) => void;
+  signal?: AbortSignal;
+}
+
 /**
  * Prepare the mandatory local elevation + WorldCover package for gameplay.
  * WorldCover/USGS are contacted only here; the returned terrainKey is what the
@@ -255,9 +268,10 @@ export interface ResortPreparationSite {
 export async function prepareResortPackage(
   site: ResortPreparationSite,
   mountainName: string,
-  onProgress?: (progress: TerrainPackageProgress) => void,
-  signal?: AbortSignal
+  services: ResortPreparationServices,
+  options: ResortPreparationOptions = {}
 ): Promise<TerrainDB> {
+  const { onProgress, signal } = options;
   const [[west, south], [east, north]] = site.bounds;
   const requestedBounds = { west, south, east, north };
   const areaSizeMeters = Math.round(Math.max(site.widthKm, site.heightKm) * 1000);
@@ -293,7 +307,7 @@ export async function prepareResortPackage(
   const surroundPromise = fetchElevationBuffer(bounds, signal);
 
   report('ground-cover', 'Downloading ESA WorldCover recovery data', 1);
-  const originalCoverGrid = await sampleSiteCoverGrid(bounds, 10, signal);
+  const originalCoverGrid = await services.sampleSiteCoverGrid(bounds, 10, signal);
   if (!originalCoverGrid.complete) throw new Error(`Ground-cover package is incomplete (${originalCoverGrid.nodataCount} missing cells).`);
   abort();
 
