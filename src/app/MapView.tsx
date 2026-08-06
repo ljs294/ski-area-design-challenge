@@ -3614,6 +3614,7 @@ export function MapView({
     const requestId = terrain.preview.claim();
     trailGradeResultRef.current = null;
     if (!enabled) {
+      terrainGrade.stop();
       const stats = trailPartsStats(current.draft.ungradedParts);
       setTrailTool({ phase: 'review', draft: {
         ...current.draft,
