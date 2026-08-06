@@ -20,7 +20,7 @@ import { seedPreparedResort } from '../support/preparedResort';
 const FAMILY_BLOCKS: { family: string; first: string; last: string }[] = [
   { family: 'analysis', first: 'cover-fill', last: 'contour-labels' },
   { family: 'site-boundary', first: 'site-mask-fill', last: 'site-box-line-solid' },
-  { family: 'road', first: 'road-draft-grade-fill', last: 'road-draft-vertices' },
+  { family: 'road', first: 'player-roads', last: 'road-draft-vertices' },
   { family: 'dam', first: 'dam-embankment-fill', last: 'dam-preview-points' },
   { family: 'pond', first: 'standalone-pond-fill', last: 'standalone-pond-preview-points' },
   { family: 'ski-node-path', first: 'path-casing', last: 'path-draft-pick' },

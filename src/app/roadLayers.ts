@@ -2,6 +2,8 @@ import type maplibregl from 'maplibre-gl';
 import type { SavedRoad } from '../types';
 
 export const ROAD_DRAFT_SOURCE = 'road-draft';
+export const ROAD_BUILT_SOURCE = 'player-roads';
+export const ROAD_BUILT_LAYER_IDS = ['player-roads'] as const;
 
 /** Shared by imported and player-built roads so their cartography is exactly identical. */
 export const LOCAL_ROAD_PAINT: maplibregl.LineLayerSpecification['paint'] = {
@@ -23,6 +25,10 @@ export function playerRoadFeatures(roads: SavedRoad[]): GeoJSON.Feature[] {
       playerBuilt: true, roadId: road.id, name: road.name },
     geometry: { type: 'LineString', coordinates: road.points },
   }));
+}
+
+export function playerRoadGeoJSON(roads: SavedRoad[]): GeoJSON.FeatureCollection {
+  return { type: 'FeatureCollection', features: playerRoadFeatures(roads) };
 }
 
 export function roadDraftGeoJSON(draft: RoadDraftLine | null): GeoJSON.FeatureCollection {
@@ -79,6 +85,23 @@ export function addRoadDraftLayers(map: maplibregl.Map): void {
     paint: { 'circle-radius': 3.5, 'circle-color': '#55534e',
       'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 },
   });
+}
+
+/** Player-built roads are separate from imported OSM context so the road
+ * contribution owns their source, data, order, visibility, and cleanup. */
+export function addRoadLayers(map: maplibregl.Map): void {
+  if (map.getSource(ROAD_BUILT_SOURCE)) return;
+  map.addSource(ROAD_BUILT_SOURCE, { type: 'geojson', data: playerRoadGeoJSON([]) });
+  map.addLayer({
+    id: ROAD_BUILT_LAYER_IDS[0], type: 'line', source: ROAD_BUILT_SOURCE,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: LOCAL_ROAD_PAINT,
+  });
+}
+
+export function setRoadData(map: maplibregl.Map, roads: SavedRoad[]): void {
+  (map.getSource(ROAD_BUILT_SOURCE) as maplibregl.GeoJSONSource | undefined)
+    ?.setData(playerRoadGeoJSON(roads));
 }
 
 export function setRoadDraftData(map: maplibregl.Map, draft: RoadDraftLine | null): void {

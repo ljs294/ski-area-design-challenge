@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LOCAL_ROAD_PAINT, playerRoadFeatures, roadDraftGeoJSON } from './roadLayers';
+import { LOCAL_ROAD_PAINT, playerRoadFeatures, playerRoadGeoJSON,
+  roadDraftGeoJSON } from './roadLayers';
 import type { SavedRoad } from '../types';
 
 describe('road draft GeoJSON', () => {
@@ -30,12 +31,15 @@ describe('road draft GeoJSON', () => {
       .toContain('infeasible');
   });
 
-  it('emits confirmed roads as minor local-context road features', () => {
+  it('emits confirmed roads in the dedicated player-road collection', () => {
     const road: SavedRoad = { id: 'r1', name: 'Access Road', roadType: 'two-lane', widthM: 7,
       points: [[-121.5, 46.93], [-121.49, 46.94]], lengthM: 1000, createdAt: 'now' };
     const feature = playerRoadFeatures([road])[0];
     expect(feature.properties).toMatchObject({ kind: 'road', class: 'minor', playerBuilt: true,
       roadId: 'r1', name: 'Access Road' });
+    expect(playerRoadGeoJSON([road])).toEqual({
+      type: 'FeatureCollection', features: [feature],
+    });
     expect(LOCAL_ROAD_PAINT).toMatchObject({ 'line-color': '#55534e', 'line-opacity': 0.72 });
   });
 });

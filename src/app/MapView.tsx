@@ -93,7 +93,8 @@ import { nearestTrailHeadAnchor, nearestTrailTailAnchor, type TrailHeadAnchor } 
 import { TrailDetail } from './TrailDetail';
 import { InfrastructureControl, type DraftRoad, type RoadTool } from './InfrastructureControl';
 import { SnowmakingControl, type DamTool, type DraftDam, type DraftPond, type PondTool } from './SnowmakingControl';
-import { addRoadDraftLayers, setRoadDraftData, type RoadDraftLine } from './roadLayers';
+import { addRoadDraftLayers, addRoadLayers, ROAD_BUILT_LAYER_IDS, setRoadData,
+  setRoadDraftData, type RoadDraftLine } from './roadLayers';
 import { damCrestElevationAt, nextDamName, sanitizeDams, snapDamEndpoint } from '../damAnalysis';
 import { addDamLayers, DAM_BUILT_LAYER_IDS, DAM_HIT_LAYERS, setDamData, setDamDraftData, setSelectedDam } from './damLayers';
 import { analyzeStandalonePond, nextPondName, sanitizePonds,
@@ -1318,7 +1319,7 @@ export function MapView({
     const fresh = packageStateRef.current === 'preparing'
       ? []
       : setupAnalysisLayers(map, terrainRecordRef.current, settings.units, coverDisplayRef.current,
-        localImageryUrlRef.current, roadsRef.current, lakeNameOverridesRef.current,
+        localImageryUrlRef.current, lakeNameOverridesRef.current,
         streamWidthOverridesRef.current);
     const prev = layersRef.current;
     const applied = fresh.map((f) => {
@@ -1370,7 +1371,9 @@ export function MapView({
         // overlay remains beneath ski runs and lifts.
         id: 'road',
         install: () => {
+          addRoadLayers(map);
           addRoadDraftLayers(map);
+          setRoadData(map, roadsRef.current);
           setRoadDraftData(map, roadDraftOf(roadToolRef.current));
         },
         setCaptureTransient: (hidden) => setRoadDraftData(map,
@@ -1492,6 +1495,9 @@ export function MapView({
     // analysis layers either). Uses the generic handleToggle/setLayoutProperty path.
     if (packageStateRef.current !== 'preparing') {
       const prev = layersRef.current;
+      applied = applied.map((entry) => entry.id === 'bm-roads'
+        ? { ...entry, layerIds: [...entry.layerIds, ...ROAD_BUILT_LAYER_IDS] }
+        : entry);
       const structures: { id: string; label: string; layerIds: string[] }[] = [
         { id: 'trails', label: 'Ski trails', layerIds: TRAIL_BUILT_LAYER_IDS },
         { id: 'lifts', label: 'Ski lifts', layerIds: LIFT_BUILT_LAYER_IDS },
@@ -1854,13 +1860,15 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     const record = terrainRecordRef.current;
-    if (map && record) setLocalContextData(map, record, roads, lakeNameOverrides, streamWidthOverrides);
-  }, [roads, lakeNameOverrides, streamWidthOverrides]);
+    if (map && record) setLocalContextData(map, record, lakeNameOverrides, streamWidthOverrides);
+  }, [lakeNameOverrides, streamWidthOverrides]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (map) setRoadDraftData(map, roadDraftOf(roadTool));
-  }, [roadTool]);
+    if (!map) return;
+    setRoadData(map, roads);
+    setRoadDraftData(map, roadDraftOf(roadTool));
+  }, [roads, roadTool]);
 
   useEffect(() => {
     const map = mapRef.current;
