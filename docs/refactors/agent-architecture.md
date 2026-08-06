@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | D2 — revisioned terrain document and atomic topology ports |
-| Status | D1 is committed: one synchronous coordinator owns construction-tool/dock state and one lease owns controller map interactions |
-| Last green commit | D1 at `bc9fb3790ce0958d090dc33f8b825a515df26860` |
-| Next step | Characterize revision, stale-write, construction-lock, coherent terrain commit, and atomic topology-command contracts |
+| Current benchmark | D3 — map contribution registry with legacy contributions |
+| Status | D2 is committed: one revisioned terrain document owns every terrain commit, construction ownership, cover serialization, and grade-preview ownership, and one revisioned topology document owns every trail/node/path/junction mutation |
+| Last green commit | D2 at `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd` |
+| Next step | Characterize style-reload restoration, literal z-order and hit priority, visibility reconciliation, hover, and capture transients before moving layer installation behind a registry |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -37,8 +37,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | C1 | Complete | Dependency-neutral type models through terrain | Typecheck and offline suite pass; no type-model cycles introduced |
 | C2 | Complete | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
 | D1 | Complete | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
-| D2 | In progress | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
-| D3 | Not started | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
+| D2 | Complete | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
+| D3 | Next | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
 | D4 | Not started | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
 | E1 | Not started | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
 | E2 | Not started | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
@@ -70,6 +70,34 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | C1 | `eef74944fda4da24cb81b8dbfe197639ee0b863d` | Passed | Seven dependency-safe foundational model files landed. Full check (527 offline tests and both builds), architecture/cycle checks, and all deterministic browser workflows passed; `src/types.ts` fell from 570 to 217 lines. |
 | C2 | `dbf447e507c8d021a36b12ddf078f8f5a1eea221` | Passed | The complete acyclic model graph and 35-line exact facade landed. Architecture ownership/manifest gates, compile-time save compatibility, schema-v1/v11 hydration fixtures, 531 offline tests, both builds, and all deterministic browser workflows passed. |
 | D1 | `bc9fb3790ce0958d090dc33f8b825a515df26860` | Passed | The seven-tool coordinator and exclusive map-interaction lease landed with centralized selection. Fourteen contract tests, 545 total offline tests, both builds, and deterministic browser switching/Layers workflows passed. |
+| D2 | `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd` | Passed | Revisioned terrain and topology documents landed and were integrated across three green sub-checkpoints: contracts at `5ac586b02173afd5d941e00bde47534d83435dc9`, terrain integration at `6ccca2a00226b943e9ae9882dc22057082283f23`, topology integration at `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd`. Thirty-nine contract tests, 584 total offline tests, both builds, and all three deterministic browser workflows passed at each of the two integration checkpoints. |
+
+## D2 migrated write paths
+
+Terrain writes now reaching the document: the saved-package load (including the
+schema-4 vector-cover upgrade), package preparation, the dam, pond, road, and
+trail elevation commits, the cover-clear commit shared by lifts, trails, roads,
+dams, and ponds, and the post-write dirty clear in `flushTerrain`. Construction
+ownership covers all five confirmations; the shared road/trail grade preview
+uses the document's preview ownership.
+
+Topology writes now reaching the document: the offline centerline backfill,
+add/remove graph node, remove legacy free-standing node, confirm/delete
+connector path, path closed toggle, confirm trail, patch trail, and delete
+trail.
+
+Two deliberate absences, so D2 leaves no unused abstraction:
+
+- The topology port has no `addNode` command. In the supported app a legacy
+  free-standing node can only be removed; it arrives through save hydration.
+- The topology port has no runtime replacement command. `App` remounts
+  `MapView` on a save change, so the clean load is the document's construction
+  seed. The terrain document does have `replace`, because a package really is
+  swapped mid-session by preparation and repair.
+
+One terrain-adjacent call stays outside the document by design:
+`setActiveResortTerrain(null)` in picking mode clears the resort protocols when
+no package exists, which is not a write to a committed record.
 
 ## Open decisions and blockers
 
