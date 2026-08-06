@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | A2 — deterministic strict-check baseline |
-| Status | A2 candidate is green under the full aggregate gate and ready to commit |
-| Last green commit | A1 at `574e68745e17083002588aca7c5f4884a887c310` |
-| Next step | Commit A2, capture its clean metrics snapshot, then establish the Playwright harness at A3 |
+| Current benchmark | A3 — deterministic Playwright harness |
+| Status | A2 is committed and its clean metrics baseline is recorded |
+| Last green commit | A2 at `7215da704c203b78ced0516502349cd9bf515804` |
+| Next step | Install the pinned Playwright Test runner, prove failure propagation, and run deterministic browser workflows |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -62,6 +62,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | ID | Commit SHA | Gate result | Notes |
 | --- | --- | --- | --- |
 | A1 | `574e68745e17083002588aca7c5f4884a887c310` | Passed | Shared guidance, architecture documentation, ledger, editor defaults, and documentation checker committed on 2026-08-06. |
+| A2 | `7215da704c203b78ced0516502349cd9bf515804` | Passed | `npm run check`: documentation and architecture checks, zero-warning lint, strict TypeScript, 522 offline tests, and desktop/web builds passed on 2026-08-06. Clean metrics baseline recorded separately. |
 
 ## Open decisions and blockers
 

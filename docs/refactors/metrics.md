@@ -51,7 +51,7 @@ Append only green, committed snapshots. Capture the JSON after required tests an
 
 | Snapshot | Commit | Clean | Prod files/lines | Test files/lines | MapView lines/imports/state/effects/workers | Types lines/importers | Obsolete files/bytes | Preset bytes | Deps/dev deps | Dist/dist-web bytes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| A2 formal baseline | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
+| A2 formal baseline | `7215da704c203b78ced0516502349cd9bf515804` | Yes | 131 / 29,968 | 64 / 7,978 | 5,077 / 78 / 60 / 44 / 4 | 585 / 74 | 21 / 65,351,258 | 65,231,155 | 10 / 16 | 73,224,519 / 73,224,497 |
 | B3 obsolete vertical removed | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 | D4 foundations complete | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 | F1 final structural gate | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
