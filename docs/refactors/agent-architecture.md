@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | B1 — geographic bounds and resort-preparation service boundary |
-| Status | B1 candidate implemented; characterization and aggregate gates are pending final execution |
-| Last green commit | A3 at `a52b54ab99988f132c503759be1608c843738b02` |
-| Next step | Run the full deterministic and browser-smoke gates, then commit B1 if green |
+| Current benchmark | B2 — return persisted terrain records and remove runtime hydration |
+| Status | B1 is committed with clean metrics, 526 offline tests, and deterministic browser-smoke evidence |
+| Last green commit | B1 at `f62dea0dd20aa6f8380d0920e172899e5de02c56` |
+| Next step | Characterize old terrain-package compatibility, then remove only hydration work proven unreachable from the live app |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -64,6 +64,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | A1 | `574e68745e17083002588aca7c5f4884a887c310` | Passed | Shared guidance, architecture documentation, ledger, editor defaults, and documentation checker committed on 2026-08-06. |
 | A2 | `7215da704c203b78ced0516502349cd9bf515804` | Passed | `npm run check`: documentation and architecture checks, zero-warning lint, strict TypeScript, 522 offline tests, and desktop/web builds passed on 2026-08-06. Clean metrics baseline recorded separately. |
 | A3 | `a52b54ab99988f132c503759be1608c843738b02` | Passed | Negative control returned Playwright exit 1 and matched both sentinels; two browser-smoke tests and one feature-workflow test passed with deterministic local fixtures on 2026-08-06. |
+| B1 | `f62dea0dd20aa6f8380d0920e172899e5de02c56` | Passed | Canonical bounds and the required preparation-service port landed; four characterization tests cover true-bounds forwarding, incomplete cover, cancellation, and service failure. Full check and browser smoke passed. |
 
 ## Open decisions and blockers
 
