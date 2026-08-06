@@ -4,6 +4,7 @@ import { WorkerSession } from './workerAdapter';
 import type { WorkerFactory, WorkerLike } from './workerAdapter';
 
 const CRASHED = 'The pond analysis worker failed. Try another alignment.';
+const POST_FAILED = 'The pond analysis worker could not accept the alignment. Try again.';
 
 export interface DamAnalysisHandlers {
   onResult(result: DamAnalysisResult): void;
@@ -43,7 +44,10 @@ export class DamAnalysisAdapter {
         handlers.onError(CRASHED);
       },
     });
-    this.session.post({ ...request, id }, [request.heights.buffer]);
+    if (!this.session.post({ ...request, id }, [request.heights.buffer]) &&
+        id === this.requestId) {
+      handlers.onError(POST_FAILED);
+    }
   }
 
   /** Abandon the analysis in flight; nothing it produces can be applied. */

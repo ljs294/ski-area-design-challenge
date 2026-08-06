@@ -5,6 +5,7 @@ import type { WorkerFactory, WorkerLike } from './workerAdapter';
 const DEFAULT_TIMEOUT_MS = 60_000;
 const CRASHED = 'Ground-cover worker stopped unexpectedly.';
 const ABANDONED = 'The ground-cover edit was abandoned.';
+const POST_FAILED = 'Ground-cover processing could not start.';
 
 export type CoverEditSuccess = Extract<CoverEditResponse, { ok: true }>;
 
@@ -62,7 +63,7 @@ export class CoverEditAdapter {
         onCrash: () => finish(new Error(CRASHED)),
       });
       const data = request.grid.data as Uint8Array;
-      this.session.post(request, [data.buffer]);
+      if (!this.session.post(request, [data.buffer])) finish(new Error(POST_FAILED));
     });
   }
 

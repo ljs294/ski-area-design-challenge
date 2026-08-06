@@ -11,6 +11,7 @@ interface FakeWorker extends WorkerLike<TrailPaintRequest, TrailPaintResponse> {
   terminate: Mock<() => void>;
   deliver(response: TrailPaintResponse): void;
   crash(): void;
+  failPost: boolean;
 }
 
 function fakeWorkers() {
@@ -22,7 +23,9 @@ function fakeWorkers() {
       posted: [],
       transferred: [],
       terminate: vi.fn(() => {}),
+      failPost: false,
       postMessage(message: TrailPaintRequest, transfer: Transferable[] = []) {
+        if (worker.failPost) throw new DOMException('could not clone', 'DataCloneError');
         worker.posted.push(message);
         worker.transferred.push(transfer);
       },
@@ -103,6 +106,25 @@ describe('TrailPaintAdapter', () => {
 
     created[0].deliver({ id: 4, ok: false, error: 'Trail analysis failed.' });
     expect(bound.onFailure).toHaveBeenCalledWith('Trail analysis failed.');
+  });
+
+  it('reports and terminates when the engine refuses a request message', () => {
+    const created: FakeWorker[] = [];
+    const factory = (): FakeWorker => {
+      const worker = fakeWorkers().factory();
+      worker.failPost = true;
+      created.push(worker);
+      return worker;
+    };
+    const bound = handlers();
+    const adapter = new TrailPaintAdapter(factory);
+
+    adapter.start(INIT, bound);
+
+    expect(bound.onFailure).toHaveBeenCalledWith(
+      'Trail painting could not send work to its engine.');
+    expect(created[0].terminate).toHaveBeenCalledOnce();
+    expect(adapter.post({ type: 'undo' })).toBe(0);
   });
 
   it('drops an answer that would repaint the canvas backwards', () => {

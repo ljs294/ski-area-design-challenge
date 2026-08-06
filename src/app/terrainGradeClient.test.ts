@@ -11,6 +11,7 @@ interface FakeWorker extends WorkerLike<TerrainGradeRequest, TerrainGradeRespons
   terminate: Mock<() => void>;
   deliver(response: TerrainGradeResponse): void;
   crash(): void;
+  failPost: boolean;
 }
 
 function fakeWorkers() {
@@ -22,7 +23,9 @@ function fakeWorkers() {
       posted: [],
       transferred: [],
       terminate: vi.fn(() => {}),
+      failPost: false,
       postMessage(message: TerrainGradeRequest, transfer: Transferable[] = []) {
+        if (worker.failPost) throw new DOMException('could not clone', 'DataCloneError');
         worker.posted.push(message);
         worker.transferred.push(transfer);
       },
@@ -165,6 +168,23 @@ describe('TerrainGradeAdapter', () => {
     expect(created).toHaveLength(2);
     created[1].deliver(graded(2));
     expect(bound.onResult).toHaveBeenCalledOnce();
+  });
+
+  it('reports and terminates when the worker refuses the request message', () => {
+    const created: FakeWorker[] = [];
+    const factory = (): FakeWorker => {
+      const worker = fakeWorkers().factory();
+      worker.failPost = true;
+      created.push(worker);
+      return worker;
+    };
+    const bound = handlers();
+
+    new TerrainGradeAdapter(factory).run(gradeRequest(1), bound);
+
+    expect(bound.onError).toHaveBeenCalledWith('Terrain grading could not start. Try again.');
+    expect(created[0].terminate).toHaveBeenCalledOnce();
+    expect(bound.onCrash).not.toHaveBeenCalled();
   });
 
   it('stays silent about a crash the preview has already moved past', () => {

@@ -2,6 +2,8 @@ import type { TerrainGradeRequest, TerrainGradeResponse } from './terrainGradePr
 import { WorkerSession } from './workerAdapter';
 import type { WorkerFactory, WorkerLike } from './workerAdapter';
 
+const POST_FAILED = 'Terrain grading could not start. Try again.';
+
 export type TerrainGradeSuccess = Extract<TerrainGradeResponse, { ok: true }>;
 
 /** What a finished grade must still describe to be worth applying. */
@@ -75,7 +77,10 @@ export class TerrainGradeAdapter {
         handlers.onCrash();
       },
     });
-    this.session.post(request, [request.heights.buffer]);
+    if (!this.session.post(request, [request.heights.buffer])) {
+      this.pending = false;
+      if (handlers.isCurrent(request.id)) handlers.onError(POST_FAILED);
+    }
   }
 
   /** Abandon the grade in flight; the caller has already dropped its preview. */

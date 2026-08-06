@@ -11,6 +11,7 @@ interface FakeWorker extends WorkerLike<DamAnalysisRequest, DamAnalysisResponse>
   terminate: Mock<() => void>;
   deliver(response: DamAnalysisResponse): void;
   crash(): void;
+  failPost: boolean;
 }
 
 function fakeWorkers() {
@@ -22,7 +23,9 @@ function fakeWorkers() {
       posted: [],
       transferred: [],
       terminate: vi.fn(() => {}),
+      failPost: false,
       postMessage(message: DamAnalysisRequest, transfer: Transferable[] = []) {
+        if (worker.failPost) throw new DOMException('could not clone', 'DataCloneError');
         worker.posted.push(message);
         worker.transferred.push(transfer);
       },
@@ -134,6 +137,24 @@ describe('DamAnalysisAdapter', () => {
     expect(bound.onError).toHaveBeenCalledOnce();
     expect(bound.onError).toHaveBeenCalledWith(
       'The pond analysis worker failed. Try another alignment.');
+    expect(created[0].terminate).toHaveBeenCalledOnce();
+  });
+
+  it('reports and terminates when the worker refuses the request message', () => {
+    const created: FakeWorker[] = [];
+    const factory = (): FakeWorker => {
+      const worker = fakeWorkers().factory();
+      worker.failPost = true;
+      created.push(worker);
+      return worker;
+    };
+    const adapter = new DamAnalysisAdapter(factory);
+    const bound = handlers();
+
+    adapter.run(alignment(), bound);
+
+    expect(bound.onError).toHaveBeenCalledWith(
+      'The pond analysis worker could not accept the alignment. Try again.');
     expect(created[0].terminate).toHaveBeenCalledOnce();
   });
 

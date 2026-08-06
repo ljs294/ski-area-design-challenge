@@ -4,6 +4,8 @@ import type {
 import { WorkerSession } from './workerAdapter';
 import type { WorkerFactory, WorkerLike } from './workerAdapter';
 
+const POST_FAILED = 'Trail painting could not send work to its engine.';
+
 export type TrailPaintSuccess = Extract<TrailPaintResponse, { ok: true }>;
 export type TrailPaintPreview = Extract<TrailPaintSuccess, { type: 'preview' }>;
 export type TrailPaintAnalysis = Extract<TrailPaintSuccess, { type: 'analysis' }>;
@@ -76,7 +78,10 @@ export class TrailPaintAdapter {
     if (!this.session.running) return 0;
     this.requestId += 1;
     const message = { ...payload, id: this.requestId } as TrailPaintRequest;
-    this.session.post(message, transfer);
+    if (!this.session.post(message, transfer)) {
+      this.handlers?.onFailure(POST_FAILED);
+      return 0;
+    }
     return message.id;
   }
 

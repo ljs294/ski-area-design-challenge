@@ -41,6 +41,7 @@ interface FakeWorker extends WorkerLike<CoverEditRequest, CoverEditResponse> {
   terminate: Mock<() => void>;
   deliver(response: CoverEditResponse): void;
   crash(): void;
+  failPost: boolean;
 }
 
 /** A factory plus the workers it has been asked for; none answer on their own. */
@@ -52,7 +53,9 @@ function fakeWorkers() {
       onerror: null,
       transfer: [],
       terminate: vi.fn(() => {}),
+      failPost: false,
       postMessage(_message: CoverEditRequest, transfer: Transferable[] = []) {
+        if (worker.failPost) throw new DOMException('could not clone', 'DataCloneError');
         worker.transfer = transfer;
       },
       deliver(response: CoverEditResponse) {
@@ -122,6 +125,20 @@ describe('CoverEditAdapter', () => {
 
     created[0].deliver(cleared(request()));
     await expect(superseding).rejects.toThrow('timed out');
+  });
+
+  it('rejects and terminates when the worker refuses the request message', async () => {
+    const created: FakeWorker[] = [];
+    const factory = (): FakeWorker => {
+      const worker = fakeWorkers().factory();
+      worker.failPost = true;
+      created.push(worker);
+      return worker;
+    };
+
+    await expect(new CoverEditAdapter({ workerFactory: factory }).run(request()))
+      .rejects.toThrow('Ground-cover processing could not start.');
+    expect(created[0].terminate).toHaveBeenCalledOnce();
   });
 
   it('abandons the edit in flight on teardown and stays usable afterwards', async () => {
