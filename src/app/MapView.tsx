@@ -160,7 +160,7 @@ import { ConstructionStatusBug } from './ConstructionStatusBug';
 import type { ConstructionActivity } from './constructionLock';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
   type TerrainCommitRequest, type TerrainRecordView, type TerrainSnapshot } from './terrainDocument';
-import { TopologyDocument, topologyProjection } from './topologyDocument';
+import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { commitDocuments } from './committedDocumentTransaction';
 import { hitGuardLayers, orderContributions, orderHitContributions,
   type MapContribution } from './mapContribution';
@@ -537,6 +537,12 @@ export function MapView({
   const [skiNodes, setSkiNodes] = useState<SavedNode[]>(() => sanitizeNodes(initialSave?.nodes ?? []));
   const [skiPaths, setSkiPaths] = useState<SavedPath[]>(initialTopology.paths);
   const [junctions, setJunctions] = useState<SavedJunction[]>(initialTopology.junctions);
+  // Synchronous committed projection for save/capture and dirty comparison.
+  // React's four collection states may render later; this ref moves in the
+  // topology publication callback, so persistence cannot observe a mixed graph.
+  const committedTopologyRef = useRef<TopologyState>(
+    { trails, nodes: skiNodes, paths: skiPaths, junctions }
+  );
   // Runs, ski nodes, connector paths, and junctions describe one graph, so one
   // document owns every change to it. React holds the projection; a transaction
   // lands each collection it touched in a single publication, so nothing ever
@@ -547,6 +553,7 @@ export function MapView({
       { trails, nodes: skiNodes, paths: skiPaths, junctions },
       ({ snapshot, changed }) => {
         const projection = topologyProjection(snapshot);
+        committedTopologyRef.current = projection;
         if (changed.trails) setTrails(projection.trails);
         if (changed.nodes) setSkiNodes(projection.nodes);
         if (changed.paths) setSkiPaths(projection.paths);
@@ -4151,12 +4158,14 @@ export function MapView({
     if (!map) return base;
     const c = map.getCenter();
     const now = new Date().toISOString();
+    const committedTopology = committedTopologyRef.current;
+    const committedTerrain = terrain.snapshot().record;
     return {
       schemaVersion: CURRENT_GAME_SAVE_SCHEMA_VERSION,
       key: base?.key ?? genId(),
       name: base?.name ?? (nameDraft.trim() || 'Untitled Resort'),
       mountainId: base?.mountainId,
-      terrainKey: terrainRecordRef.current?.key ?? base?.terrainKey,
+      terrainKey: committedTerrain?.key ?? base?.terrainKey,
       center: [c.lng, c.lat],
       zoom: map.getZoom(),
       bearing: map.getBearing(),
@@ -4164,13 +4173,13 @@ export function MapView({
       is3D: is3DRef.current,
       site: siteBoxRef.current,
       lifts: liftsRef.current,
-      trails: trailsRef.current,
+      trails: committedTopology.trails,
       roads: roadsRef.current,
       dams: damsRef.current,
       ponds: pondsRef.current,
-      nodes: skiNodesRef.current,
-      paths: skiPathsRef.current,
-      junctions: junctionsRef.current,
+      nodes: committedTopology.nodes,
+      paths: committedTopology.paths,
+      junctions: committedTopology.junctions,
       snowmakingNodes: snowmakingNodesRef.current,
       lakeDepthOverrides: lakeDepthOverridesRef.current,
       lakeNameOverrides: lakeNameOverridesRef.current,
@@ -4183,17 +4192,18 @@ export function MapView({
 
   /** The live design, for comparison against the last one written to disk. */
   function liveDesign(): DesignSnapshot {
+    const committedTopology = committedTopologyRef.current;
     return {
       name: saved?.name ?? initialSave?.name ?? '',
       site: siteBoxRef.current,
       lifts: liftsRef.current,
-      trails: trailsRef.current,
+      trails: committedTopology.trails,
       roads: roadsRef.current,
       dams: damsRef.current,
       ponds: pondsRef.current,
-      nodes: skiNodesRef.current,
-      paths: skiPathsRef.current,
-      junctions: junctionsRef.current,
+      nodes: committedTopology.nodes,
+      paths: committedTopology.paths,
+      junctions: committedTopology.junctions,
       snowmakingNodes: snowmakingNodesRef.current,
       lakeDepthOverrides: lakeDepthOverridesRef.current,
       lakeNameOverrides: lakeNameOverridesRef.current,
