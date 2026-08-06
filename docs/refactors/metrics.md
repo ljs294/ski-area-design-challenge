@@ -58,5 +58,6 @@ Append only green, committed snapshots. Capture the JSON after required tests an
 | B3 obsolete vertical removed | `418e86049a32af01b4da0ed068d109bb64dcd5d1` | Yes | 122 / 27,664 | 73 / 8,530 | 5,082 / 78 / 60 / 44 / 4 | 570 / 68 | 0 / 0 | 0 | 8 / 17 | 7,990,761 / 7,990,739 |
 | C1 foundational type models | `eef74944fda4da24cb81b8dbfe197639ee0b863d` | Yes | 128 / 27,623 | 73 / 8,530 | 5,082 / 78 / 60 / 44 / 4 | 217 / 52 | 0 / 0 | 0 | 8 / 17 | 7,990,761 / 7,990,739 |
 | C2 acyclic domain models | `dbf447e507c8d021a36b12ddf078f8f5a1eea221` | Yes | 135 / 27,612 | 74 / 8,651 | 5,080 / 78 / 60 / 44 / 4 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 7,990,761 / 7,990,739 |
+| D1 tool/interaction ownership | `bc9fb3790ce0958d090dc33f8b825a515df26860` | Yes | 137 / 27,859 | 76 / 8,839 | 5,062 / 80 / 59 / 44 / 4 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 7,993,914 / 7,993,892 |
 | D4 foundations complete | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 | F1 final structural gate | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |

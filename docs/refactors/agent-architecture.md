@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | D1 — tool coordinator and map interaction lease |
-| Status | C2 is committed: the full model graph is acyclic, the exact type-only facade is 35 lines, and save compatibility is gated |
-| Last green commit | C2 at `dbf447e507c8d021a36b12ddf078f8f5a1eea221` |
-| Next step | Characterize and implement synchronous tool arbitration plus exact map-interaction ownership/restoration |
+| Current benchmark | D2 — revisioned terrain document and atomic topology ports |
+| Status | D1 is committed: one synchronous coordinator owns construction-tool/dock state and one lease owns controller map interactions |
+| Last green commit | D1 at `bc9fb3790ce0958d090dc33f8b825a515df26860` |
+| Next step | Characterize revision, stale-write, construction-lock, coherent terrain commit, and atomic topology-command contracts |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -36,8 +36,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | B3 | Complete | Obsolete poster/preset vertical, remaining dead hydration, and Leaflet removed | Verified backup remains reachable; clean install/check; production bundle contains no preset payload |
 | C1 | Complete | Dependency-neutral type models through terrain | Typecheck and offline suite pass; no type-model cycles introduced |
 | C2 | Complete | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
-| D1 | In progress | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
-| D2 | Not started | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
+| D1 | Complete | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
+| D2 | In progress | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
 | D3 | Not started | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
 | D4 | Not started | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
 | E1 | Not started | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
@@ -69,6 +69,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | B3 | `418e86049a32af01b4da0ed068d109bb64dcd5d1` | Passed | Backup ref re-verified; isolated `npm ci`, 527 offline tests, both builds, negative control, browser smoke, and live-provider picker passed. Obsolete guard found zero paths/dependencies/payload; production outputs fell to about 7.99 MB each. |
 | C1 | `eef74944fda4da24cb81b8dbfe197639ee0b863d` | Passed | Seven dependency-safe foundational model files landed. Full check (527 offline tests and both builds), architecture/cycle checks, and all deterministic browser workflows passed; `src/types.ts` fell from 570 to 217 lines. |
 | C2 | `dbf447e507c8d021a36b12ddf078f8f5a1eea221` | Passed | The complete acyclic model graph and 35-line exact facade landed. Architecture ownership/manifest gates, compile-time save compatibility, schema-v1/v11 hydration fixtures, 531 offline tests, both builds, and all deterministic browser workflows passed. |
+| D1 | `bc9fb3790ce0958d090dc33f8b825a515df26860` | Passed | The seven-tool coordinator and exclusive map-interaction lease landed with centralized selection. Fourteen contract tests, 545 total offline tests, both builds, and deterministic browser switching/Layers workflows passed. |
 
 ## Open decisions and blockers
 
