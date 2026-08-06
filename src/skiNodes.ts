@@ -1,5 +1,8 @@
 import { haversineMeters } from './geo';
-import type { TrailStatus } from './types';
+import type { AnchorRef } from './types/anchors';
+import type { TrailStatus } from './types/construction';
+
+export type { AnchorRef } from './types/anchors';
 
 // Pure ski-node/path helpers: free-standing map pins ("nodes") and the
 // footpaths that connect them to lifts, runs, or each other. Same layer as
@@ -13,13 +16,6 @@ export const MAX_PATH_WIDTH_M = 20;
 
 // Mirrors the 0.05 m consecutive-point dedupe rule in sanitizeRoads.
 export const POINT_DEDUPE_M = 0.05;
-
-/** Where a run or path attaches to the rest of the mountain. */
-export type AnchorRef =
-  | { kind: 'lift'; liftId: string; end: 'top' | 'base'; point: [number, number] }
-  | { kind: 'trail'; trailId: string; point: [number, number] }
-  | { kind: 'path'; pathId: string; point: [number, number] }
-  | { kind: 'node'; nodeId: string; point: [number, number] };
 
 export interface SavedNode {
   id: string;

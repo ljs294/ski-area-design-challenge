@@ -1,4 +1,4 @@
-import type { WaterLineClass, WaterLineFeature } from './types';
+import type { WaterLineClass, WaterLineFeature } from './types/vectorFeatures';
 
 const EARTH_RADIUS_M = 6_371_000;
 const M_TO_FT = 3.280839895;

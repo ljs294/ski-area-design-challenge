@@ -19,7 +19,9 @@ Two developer surfaces are supported:
 
 ## Data and persistence
 
-[`src/types.ts`](../src/types.ts) currently contains most of the aggregate persisted and runtime type model. Geographic bounds have one authoritative definition in [`src/types/geo.ts`](../src/types/geo.ts); the rest of the domain split has not landed yet. The aggregate file imports some types from vector features, ski nodes, and snowmaking nodes. Domain modules at the root of `src/` implement terrain, cover, lift, road, snowmaking, trail, topology, and network behavior.
+Dependency-neutral models live under [`src/types/`](../src/types/): geographic bounds, construction status, earthwork estimates, anchors, raw vector features, cover, and terrain/package records. Dependencies within that directory flow from the neutral leaf models into cover and then terrain, with no imports from implementation or application modules. Root domain modules import these authoritative models directly.
+
+[`src/types.ts`](../src/types.ts) is the compatibility facade for aggregate UI and IPC consumers. It re-exports the landed foundational models but still defines the lift, road, snowmaking, trail, and save types pending the next model slice. `skiNodes.ts` temporarily provides a compatibility re-export for `AnchorRef`; the authoritative declaration is [`src/types/anchors.ts`](../src/types/anchors.ts).
 
 Terrain preparation is orchestrated by [`src/terrainIngest.ts`](../src/terrainIngest.ts). It fetches elevation and surrounding elevation, NAIP data, and vector context; derives four-class cover and display assets; persists and verifies a `TerrainRecord`; and returns that persisted record directly. Browser-only WorldCover sampling enters through the required `ResortPreparationServices` port supplied by `MapView`; preparation progress and cancellation use a named options object. Browser storage fallback and Electron storage are accessed through [`src/terrainStorageClient.ts`](../src/terrainStorageClient.ts).
 

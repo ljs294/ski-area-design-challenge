@@ -5,7 +5,7 @@ import {
   type EarthworkTerrainPatch, type Point, type TerrainMetrics, type XY,
 } from './earthwork';
 import { bilinearAt } from './earthwork';
-import type { TerrainRecord } from './types';
+import type { TerrainRecord } from './types/terrain';
 
 /** The pond's share of the shared earthwork spec, re-exported under pond names
  * so the panel can quote the berm it is about to build. */

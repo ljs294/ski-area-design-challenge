@@ -10,7 +10,7 @@ import type {
   TerrainListResponse,
   TerrainDeleteResponse,
 } from './ipcContract';
-import type { TerrainRecord, TerrainSummary } from './types';
+import type { TerrainRecord, TerrainSummary } from './types/terrain';
 
 const LEGACY_PREFIX = 'terrain-fallback:';
 const LEGACY_INDEX_KEY = 'terrain-fallback-index';

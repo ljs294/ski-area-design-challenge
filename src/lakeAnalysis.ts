@@ -1,4 +1,5 @@
-import type { TerrainRecord, WaterPolygonFeature } from './types';
+import type { TerrainRecord } from './types/terrain';
+import type { WaterPolygonFeature } from './types/vectorFeatures';
 
 const EARTH_RADIUS_M = 6_371_000;
 const M_TO_FT = 3.280839895;

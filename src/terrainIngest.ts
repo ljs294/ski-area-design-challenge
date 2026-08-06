@@ -1,6 +1,8 @@
 // Orchestrates supported live resort preparation into a verified, persisted
 // TerrainRecord.
-import type { AreaSizeMeters, CoverDisplayMetadata, CoverGrid, LocalImageryMetadata, SiteCoverGrid, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
+import type { CoverDisplayMetadata, CoverGrid, SiteCoverGrid } from './types/cover';
+import type { AreaSizeMeters, LocalImageryMetadata, TerrainPackageProgress, TerrainRecord } from './types/terrain';
+import type { VectorFeatureSet } from './types/vectorFeatures';
 import { fetchElevationBuffer, fetchElevationGrid, type SurroundGrid } from './elevation';
 import type { LatLonBounds } from './types/geo';
 import { bicubicUpscale } from './bicubicUpscale';

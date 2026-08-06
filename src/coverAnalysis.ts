@@ -1,4 +1,4 @@
-import type { CoverClassCode, CoverGrid } from './types';
+import type { CoverClassCode, CoverGrid } from './types/cover';
 
 export interface CoverIntersectionCell {
   row: number;

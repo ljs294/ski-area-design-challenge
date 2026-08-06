@@ -9,7 +9,7 @@
 // coverDisplay.ts for why a full re-trace is not).
 
 import type { LatLonBounds } from './types/geo';
-import type { CoverGrid } from './types';
+import type { CoverGrid } from './types/cover';
 import { isFourClassGrid, TERRAIN_COVER_CODES } from './fourClassCover';
 import { METERS_PER_DEGREE_LAT } from './geo';
 

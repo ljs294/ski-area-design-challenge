@@ -1,7 +1,7 @@
 import { maskToPolygons } from './coverPolygons';
 import { METERS_PER_DEGREE_LAT, unitToLngLat } from './geo';
 import { traceContours } from './marchingSquares';
-import type { TerrainRecord } from './types';
+import type { TerrainRecord } from './types/terrain';
 
 /**
  * The one earth-moving system the game builds with. Every structure that

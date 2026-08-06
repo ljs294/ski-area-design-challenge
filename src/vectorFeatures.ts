@@ -13,7 +13,7 @@ import type {
   LandCoverFeature,
   PeakFeature,
   VectorFeatureSet,
-} from './types';
+} from './types/vectorFeatures';
 import { parseOsmWidthM } from './streamAnalysis';
 
 // Overpass is a shared community resource, not a paid API — a descriptive
