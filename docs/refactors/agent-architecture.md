@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | C1 — dependency-neutral type models through terrain |
-| Status | B3 is committed: 2,304 production TypeScript lines and 65,351,258 obsolete bytes removed from the A2 baseline |
-| Last green commit | B3 at `418e86049a32af01b4da0ed068d109bb64dcd5d1` |
-| Next step | Land construction, earthwork, anchors, raw vector, cover, and terrain models in dependency order |
+| Current benchmark | C2 — infrastructure, topology, trail, and save models plus the final type-only facade |
+| Status | C1 is committed: seven acyclic foundational model files are authoritative and the compatibility facade fell from 570 to 217 lines |
+| Last green commit | C1 at `eef74944fda4da24cb81b8dbfe197639ee0b863d` |
+| Next step | Land lift, road, snowmaking, topology, trail, and save models; finish the facade and compatibility checks |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -34,8 +34,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | B1 | Complete | Canonical geographic bounds and injectable resort-preparation service | Characterization tests cover bounds, incomplete cover, cancellation, and service failure |
 | B2 | Complete | `prepareResortPackage` returns `TerrainRecord`; live-path runtime hydration is removed | Offline gate plus deterministic New Game/package workflow passes |
 | B3 | Complete | Obsolete poster/preset vertical, remaining dead hydration, and Leaflet removed | Verified backup remains reachable; clean install/check; production bundle contains no preset payload |
-| C1 | In progress | Dependency-neutral type models through terrain | Typecheck and offline suite pass; no type-model cycles introduced |
-| C2 | Not started | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
+| C1 | Complete | Dependency-neutral type models through terrain | Typecheck and offline suite pass; no type-model cycles introduced |
+| C2 | In progress | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
 | D1 | Not started | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
 | D2 | Not started | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
 | D3 | Not started | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
@@ -67,6 +67,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | B1 | `f62dea0dd20aa6f8380d0920e172899e5de02c56` | Passed | Canonical bounds and the required preparation-service port landed; four characterization tests cover true-bounds forwarding, incomplete cover, cancellation, and service failure. Full check and browser smoke passed. |
 | B2 | `7e3ba52d4e1c58a20a848f9f7f14562465d45ac0` | Passed | The supported preparation/save path returns its verified persisted `TerrainRecord` without allocating legacy display grids or projected caches; one contract test, full check, and browser smoke passed. |
 | B3 | `418e86049a32af01b4da0ed068d109bb64dcd5d1` | Passed | Backup ref re-verified; isolated `npm ci`, 527 offline tests, both builds, negative control, browser smoke, and live-provider picker passed. Obsolete guard found zero paths/dependencies/payload; production outputs fell to about 7.99 MB each. |
+| C1 | `eef74944fda4da24cb81b8dbfe197639ee0b863d` | Passed | Seven dependency-safe foundational model files landed. Full check (527 offline tests and both builds), architecture/cycle checks, and all deterministic browser workflows passed; `src/types.ts` fell from 570 to 217 lines. |
 
 ## Open decisions and blockers
 
