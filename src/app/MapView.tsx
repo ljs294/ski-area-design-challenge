@@ -49,6 +49,10 @@ import { tuneBasemap, basemapFor } from './basemapStyle';
 import { View3DControl } from './View3DControl';
 import { mountTerrain, unmountTerrain, tilt3D, PITCH_3D } from './terrain3d';
 import { useSettings, pixelRatioFor } from './SettingsContext';
+import { MapInteractionLease, type MapInteractionLeaseHandle,
+  type MapInteractionOverrides } from './mapInteractionLease';
+import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot,
+  type ToolId } from './toolCoordinator';
 import { isTypingTarget, normalizeKey } from '../keybinds';
 import { applyTileLod } from './terrainLod';
 import { ResortLoadingScreen } from './ResortLoadingScreen';
@@ -179,6 +183,11 @@ export type PathTool =
   | { phase: 'armed' }
   | { phase: 'drawing'; points: [number, number][]; cursor: [number, number] | null; from: AnchorRef | null }
   | { phase: 'review'; points: [number, number][]; from: AnchorRef; to: AnchorRef; name: string };
+
+type SelectionTarget =
+  | { kind: 'lift' | 'trail' | 'dam' | 'pond' | 'snowmaking-node' | 'ski-node' | 'ski-path'; id: string }
+  | { kind: 'lake' | 'stream'; id: string }
+  | { kind: 'none' };
 
 /** How close a click must land to a run/lift/path to count as anchoring to it. */
 const ANCHOR_PICK_M = 60;
@@ -407,8 +416,21 @@ export function MapView({
   const [layers, setLayers] = useState<LayerToggle[]>([]);
   // Bottom-dock roll-ups: user-chosen open panel (the lift panel also force-opens
   // whenever the lift tool is active or a lift is selected — see liftsOpen below).
-  const [openDock, setOpenDock] = useState<'layers' | 'lifts' | 'trails' | 'snowmaking' | 'infrastructure' | null>(null);
-  const [layersAlongsideBuild, setLayersAlongsideBuild] = useState(false);
+  const [toolCoordinatorState, setToolCoordinatorState] = useState<ToolCoordinatorSnapshot>({
+    activeTool: null,
+    openDock: null,
+    layersAlongsideBuild: false,
+  });
+  const toolCoordinatorRef = useRef<ToolCoordinator | null>(null);
+  if (!toolCoordinatorRef.current) {
+    toolCoordinatorRef.current = new ToolCoordinator(setToolCoordinatorState);
+  }
+  const toolCoordinator = toolCoordinatorRef.current;
+  const { openDock, layersAlongsideBuild } = toolCoordinatorState;
+  const setOpenDock = (next: DockId | null | ((current: DockId | null) => DockId | null)) =>
+    toolCoordinator.setOpenDock(next);
+  const setLayersAlongsideBuild = (next: boolean | ((current: boolean) => boolean)) =>
+    toolCoordinator.setLayersAlongsideBuild(next);
   const [showStats, setShowStats] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const [readout, setReadout] = useState<Readout | null>(null);
@@ -808,6 +830,39 @@ export function MapView({
   const brushWidthRef = useRef(brushWidthM);
   const renderQualityRef = useRef(settings.renderQuality);
   const packageAbortRef = useRef<AbortController | null>(null);
+  const toolCancellationRef = useRef<Record<ToolId, () => void>>({
+    lift: () => {}, road: () => {}, dam: () => {}, pond: () => {},
+    'ski-node': () => {}, 'ski-path': () => {}, trail: () => {},
+  });
+  const toolRegistrationsReadyRef = useRef(false);
+  if (!toolRegistrationsReadyRef.current) {
+    for (const toolId of TOOL_IDS) {
+      toolCoordinator.register(toolId, () => toolCancellationRef.current[toolId]());
+    }
+    toolRegistrationsReadyRef.current = true;
+  }
+  toolCancellationRef.current = {
+    lift: cancelLiftTool,
+    road: cancelRoadTool,
+    dam: cancelDamTool,
+    pond: cancelPondTool,
+    'ski-node': cancelNodeTool,
+    'ski-path': cancelPathTool,
+    trail: cancelTrailTool,
+  };
+  const mapInteractionLeaseRef = useRef<MapInteractionLease | null>(null);
+  if (!mapInteractionLeaseRef.current) {
+    mapInteractionLeaseRef.current = new MapInteractionLease((toolId) => toolCoordinator.isActive(toolId));
+  }
+  function acquireMapInteractions(
+    owner: ToolId,
+    map: maplibregl.Map,
+    overrides: MapInteractionOverrides,
+  ): MapInteractionLeaseHandle {
+    const lease = mapInteractionLeaseRef.current;
+    if (!lease) throw new Error('Map interaction lease is unavailable.');
+    return lease.acquire(owner, map, overrides);
+  }
   // Loaded local package backing cursor sampling, MapLibre protocols, and
   // style reinitialization. Gameplay never populates it from network data.
   const terrainRecordRef = useRef<TerrainRecord | null>(null);
@@ -1017,59 +1072,58 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Clicking a lift (on the map or in the list) opens its read-only detail, and
-  // yields any active trail tool/selection (docks are one-at-a-time). Redefined
-  // each render so the map click handler (captured via a ref) stays current.
+  /** Selection stays outside the tool coordinator, but every transition uses
+   * this one path so it cannot leave a hidden selection or active tool behind. */
+  function clearSelectionState() {
+    setSelectedLiftId(null);
+    setSelectedTrailId(null);
+    setSelectedDamId(null);
+    setSelectedPondId(null);
+    setSelectedSnowmakingNodeId(null);
+    setSelectedNodeId(null);
+    setSelectedPathId(null);
+    setSelectedLakeId(null);
+    setSelectedStreamId(null);
+    setLiftEditing(false);
+    setTrailEditing(false);
+  }
+
+  function transitionSelection(target: SelectionTarget) {
+    toolCoordinator.cancelActive();
+    clearSelectionState();
+
+    switch (target.kind) {
+      case 'lift': setSelectedLiftId(target.id); break;
+      case 'trail': setSelectedTrailId(target.id); break;
+      case 'dam': setSelectedDamId(target.id); setOpenDock('snowmaking'); break;
+      case 'pond': setSelectedPondId(target.id); setOpenDock('snowmaking'); break;
+      case 'snowmaking-node': setSelectedSnowmakingNodeId(target.id); setOpenDock('snowmaking'); break;
+      case 'ski-node': setSelectedNodeId(target.id); break;
+      case 'ski-path': setSelectedPathId(target.id); break;
+      case 'lake': setSelectedLakeId(target.id); setOpenDock(null); break;
+      case 'stream': setSelectedStreamId(target.id); setOpenDock(null); break;
+      case 'none': break;
+    }
+  }
+
+  // Clicking a lift (on the map or in the list) opens its read-only detail.
   selectLiftRef.current = (id: string) => {
     liftSampleTokenRef.current++;
-    cancelTrailTool();
-    setSelectedTrailId(null);
-    setTrailEditing(false);
-    setLiftTool({ phase: 'idle' });
-    setSelectedLiftId(id);
-    setLiftEditing(false);
-    setSelectedLakeId(null);
-    setSelectedStreamId(null);
-    setSelectedDamId(null);
-    setSelectedPondId(null);
+    transitionSelection({ kind: 'lift', id });
   };
 
-  // Clicking a run opens its read-only detail, yielding any active lift tool.
+  // Clicking a run opens its read-only detail.
   selectTrailRef.current = (id: string) => {
     trailSampleTokenRef.current++;
-    cancelLiftTool();
-    setSelectedLiftId(null);
-    setLiftEditing(false);
-    setTrailTool({ phase: 'idle' });
-    setSelectedTrailId(id);
-    setTrailEditing(false);
-    setSelectedLakeId(null);
-    setSelectedStreamId(null);
-    setSelectedDamId(null);
-    setSelectedPondId(null);
+    transitionSelection({ kind: 'trail', id });
   };
 
   selectLakeRef.current = (id: string) => {
-    cancelLiftTool();
-    cancelTrailTool();
-    setSelectedLiftId(null);
-    setLiftEditing(false);
-    setSelectedTrailId(null);
-    setTrailEditing(false);
-    setOpenDock(null);
-    setSelectedDamId(null);
-    setSelectedPondId(null);
-    setSelectedStreamId(null);
-    setSelectedLakeId(id);
+    transitionSelection({ kind: 'lake', id });
   };
 
   selectStreamRef.current = (id: string) => {
-    cancelLiftTool(); cancelTrailTool();
-    setSelectedLiftId(null); setLiftEditing(false);
-    setSelectedTrailId(null); setTrailEditing(false);
-    setSelectedDamId(null); setSelectedLakeId(null); setOpenDock(null);
-    setSelectedPondId(null);
-    setSelectedStreamId(id);
+    transitionSelection({ kind: 'stream', id });
   };
 
   // The actual sampler — redefined each render so it closes over fresh state.
@@ -1417,11 +1471,7 @@ export function MapView({
     // terminal-placing clicks while a lift is being drawn. Delegated listeners
     // survive the light/dark style swap (they query at event time), so this is
     // registered once with the map.
-    const allToolsIdle = () =>
-      liftToolRef.current.phase === 'idle' && trailToolRef.current.phase === 'idle' &&
-      roadToolRef.current.phase === 'idle' && nodeToolRef.current.phase === 'idle' &&
-      pathToolRef.current.phase === 'idle' && damToolRef.current.phase === 'idle' &&
-      pondToolRef.current.phase === 'idle';
+    const allToolsIdle = () => toolCoordinator.snapshot.activeTool === null;
 
     const LIFT_HIT_LAYERS = ['lift-line-casing', 'lift-terminals'];
     const onLiftClick = (e: maplibregl.MapLayerMouseEvent) => {
@@ -1474,8 +1524,7 @@ export function MapView({
       if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
       const id = e.features?.[0]?.properties?.id;
       if (typeof id !== 'string') return;
-      setSelectedLakeId(null); setSelectedStreamId(null); setSelectedLiftId(null); setSelectedTrailId(null);
-      setSelectedPondId(null); setSelectedDamId(id); setOpenDock('snowmaking');
+      transitionSelection({ kind: 'dam', id });
     };
     map.on('click', DAM_HIT_LAYERS, onDamClick);
     map.on('mouseenter', DAM_HIT_LAYERS, onLiftEnter);
@@ -1488,8 +1537,7 @@ export function MapView({
       if (priorityLayers.length && map.queryRenderedFeatures(e.point, { layers: priorityLayers }).length) return;
       const id = e.features?.[0]?.properties?.id;
       if (typeof id !== 'string') return;
-      setSelectedLakeId(null); setSelectedStreamId(null); setSelectedLiftId(null); setSelectedTrailId(null);
-      setSelectedDamId(null); setSelectedPondId(id); setOpenDock('snowmaking');
+      transitionSelection({ kind: 'pond', id });
     };
     map.on('click', POND_HIT_LAYERS, onPondClick);
     map.on('mouseenter', POND_HIT_LAYERS, onLiftEnter);
@@ -1520,6 +1568,7 @@ export function MapView({
     return () => {
       warmAbortRef.current?.abort();
       setRenderConcurrency(1);
+      mapInteractionLeaseRef.current?.dispose();
       map.remove();
       mapRef.current = null;
       setLayers([]);
@@ -1715,7 +1764,7 @@ export function MapView({
     const map = mapRef.current;
     if (!map || trailTool.phase !== 'place-head') return;
     const canvas = map.getCanvas();
-    canvas.style.cursor = 'crosshair';
+    const interaction = acquireMapInteractions('trail', map, { cursor: 'crosshair' });
     const candidateAt = (e: maplibregl.MapMouseEvent) => nearestTrailHeadAnchor(
       [e.lngLat.lng, e.lngLat.lat], liftsRef.current, trailsRef.current, ANCHOR_PICK_M);
     const onMove = (e: maplibregl.MapMouseEvent) => {
@@ -1745,7 +1794,7 @@ export function MapView({
       map.off('click', onClick);
       canvas.removeEventListener('mouseleave', onLeave);
       window.removeEventListener('keydown', onKey);
-      canvas.style.cursor = '';
+      interaction.release();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Tool callbacks intentionally read live refs; resubscribe only when the phase changes.
   }, [trailTool.phase]);
@@ -1755,8 +1804,7 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || trailTool.phase !== 'place-tail') return;
-    const canvas = map.getCanvas();
-    canvas.style.cursor = 'crosshair';
+    const interaction = acquireMapInteractions('trail', map, { cursor: 'crosshair' });
     const candidateAt = (e: maplibregl.MapMouseEvent) => nearestTrailTailAnchor(
       [e.lngLat.lng, e.lngLat.lat], liftsRef.current, trailsRef.current, ANCHOR_PICK_M);
     const isConnected = (tool: Extract<TrailTool, { phase: 'place-tail' }>, point: [number, number]) =>
@@ -1786,7 +1834,7 @@ export function MapView({
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') backToTrailPaint(); };
     map.on('mousemove', onMove); map.on('click', onClick); window.addEventListener('keydown', onKey);
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
-      window.removeEventListener('keydown', onKey); canvas.style.cursor = ''; };
+      window.removeEventListener('keydown', onKey); interaction.release(); };
   }, [trailTool.phase]);
 
   /** Sample both terminal elevations for the review draft. Token-guarded so a
@@ -1842,8 +1890,10 @@ export function MapView({
     const phase = liftTool.phase;
     if (!map || (phase !== 'armed' && phase !== 'anchored')) return;
 
-    map.doubleClickZoom.disable();
-    map.getCanvas().style.cursor = 'crosshair';
+    const interaction = acquireMapInteractions('lift', map, {
+      cursor: 'crosshair',
+      doubleClickZoomEnabled: false,
+    });
 
     const onClick = (e: maplibregl.MapMouseEvent) => {
       const p: [number, number] = [e.lngLat.lng, e.lngLat.lat];
@@ -1873,7 +1923,7 @@ export function MapView({
       setLiftTool({ ...t, cursor: [e.lngLat.lng, e.lngLat.lat] });
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLiftTool({ phase: 'idle' });
+      if (e.key === 'Escape') cancelLiftTool();
     };
 
     map.on('click', onClick);
@@ -1883,8 +1933,7 @@ export function MapView({
       map.off('click', onClick);
       map.off('mousemove', onMove);
       window.removeEventListener('keydown', onKey);
-      map.doubleClickZoom.enable();
-      map.getCanvas().style.cursor = '';
+      interaction.release();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liftTool.phase]);
@@ -1895,8 +1944,7 @@ export function MapView({
     const map = mapRef.current;
     const phase = roadTool.phase;
     if (!map || (phase !== 'armed' && phase !== 'drawing')) return;
-    const canvas = map.getCanvas();
-    canvas.style.cursor = 'crosshair';
+    const interaction = acquireMapInteractions('road', map, { cursor: 'crosshair' });
 
     const onClick = (event: maplibregl.MapMouseEvent) => {
       const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
@@ -1927,7 +1975,7 @@ export function MapView({
       map.off('click', onClick);
       map.off('mousemove', onMove);
       window.removeEventListener('keydown', onKey);
-      canvas.style.cursor = '';
+      interaction.release();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roadTool.phase]);
@@ -1937,8 +1985,7 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || (pondTool.phase !== 'armed' && pondTool.phase !== 'drawing')) return;
-    const canvas = map.getCanvas();
-    canvas.style.cursor = 'crosshair';
+    const interaction = acquireMapInteractions('pond', map, { cursor: 'crosshair' });
     const onClick = (event: maplibregl.MapMouseEvent) => {
       const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
       const current = pondToolRef.current;
@@ -1969,7 +2016,7 @@ export function MapView({
     };
     map.on('click', onClick); map.on('mousemove', onMove); window.addEventListener('keydown', onKey);
     return () => { map.off('click', onClick); map.off('mousemove', onMove);
-      window.removeEventListener('keydown', onKey); canvas.style.cursor = ''; };
+      window.removeEventListener('keydown', onKey); interaction.release(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pondTool.phase]);
 
@@ -1978,8 +2025,7 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || (damTool.phase !== 'armed' && damTool.phase !== 'anchored')) return;
-    const canvas = map.getCanvas();
-    canvas.style.cursor = 'crosshair';
+    const interaction = acquireMapInteractions('dam', map, { cursor: 'crosshair' });
     const onMove = (event: maplibregl.MapMouseEvent) => {
       const current = damToolRef.current;
       const record = terrainRecordRef.current;
@@ -2067,7 +2113,7 @@ export function MapView({
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelDamTool(); };
     map.on('mousemove', onMove); map.on('click', onClick); window.addEventListener('keydown', onKey);
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
-      window.removeEventListener('keydown', onKey); canvas.style.cursor = ''; };
+      window.removeEventListener('keydown', onKey); interaction.release(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [damTool.phase]);
 
@@ -2109,7 +2155,7 @@ export function MapView({
     const map = mapRef.current;
     if (!map || nodeTool.phase === 'idle') return;
     const phase = nodeTool.phase;
-    map.getCanvas().style.cursor = 'crosshair';
+    const interaction = acquireMapInteractions('ski-node', map, { cursor: 'crosshair' });
     // Add snaps onto a run's centerline; remove snaps onto an existing node.
     // Both preview the snap under the cursor so you aim at the ring, not at the
     // pixel — a node 20 m off the run it was meant to split is worse than a
@@ -2148,9 +2194,10 @@ export function MapView({
       map.off('click', onClick);
       map.off('mousemove', onMove);
       window.removeEventListener('keydown', onKey);
-      map.getCanvas().style.cursor = '';
+      interaction.release();
       setSnapHover(null);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Tool callbacks use the stable coordinator plus live refs; only phase changes resubscribe map listeners.
   }, [nodeTool.phase]);
 
   // Path drawing, modelled on the road tool: click to append, Backspace to
@@ -2161,7 +2208,7 @@ export function MapView({
     const map = mapRef.current;
     const phase = pathTool.phase;
     if (!map || (phase !== 'armed' && phase !== 'drawing')) return;
-    map.getCanvas().style.cursor = 'crosshair';
+    const interaction = acquireMapInteractions('ski-path', map, { cursor: 'crosshair' });
 
     const onClick = (e: maplibregl.MapMouseEvent) => {
       const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
@@ -2200,7 +2247,7 @@ export function MapView({
       map.off('click', onClick);
       map.off('mousemove', onMove);
       window.removeEventListener('keydown', onKey);
-      map.getCanvas().style.cursor = '';
+      interaction.release();
       setSnapHover(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2277,10 +2324,12 @@ export function MapView({
     const map = mapRef.current;
     if (!map || !trailDrawing) return;
 
-    map.dragPan.disable();
-    map.doubleClickZoom.disable();
     const canvas = map.getCanvas();
-    canvas.style.cursor = 'none';
+    const interaction = acquireMapInteractions('trail', map, {
+      cursor: 'none',
+      dragPanEnabled: false,
+      doubleClickZoomEnabled: false,
+    });
     const renderPreview = () => setTrailPaintPreview(map, { path: trailPreviewPathRef.current,
       cursor: trailBrushCursorRef.current, brushWidthM: brushWidthRef.current,
       ...trailHeadPreview(trailToolRef.current) });
@@ -2377,9 +2426,7 @@ export function MapView({
       setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM: brushWidthRef.current,
         ...trailHeadPreview(trailToolRef.current) });
       window.removeEventListener('keydown', onKey);
-      map.dragPan.enable();
-      map.doubleClickZoom.enable();
-      canvas.style.cursor = '';
+      interaction.release();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trailDrawing]);
@@ -2469,28 +2516,17 @@ export function MapView({
 
   function armRoadTool(roadType: RoadType) {
     if (siteModeRef.current === 'selecting') return;
-    cancelDamTool();
-    cancelPondTool();
-    setSelectedDamId(null);
-    setSelectedPondId(null);
-    cancelLiftTool();
-    cancelTrailTool();
-    setSelectedLiftId(null);
-    setLiftEditing(false);
-    setSelectedTrailId(null);
-    setTrailEditing(false);
-    setSelectedLakeId(null);
-    setSelectedStreamId(null);
+    if (!toolCoordinator.activate('road')) return;
+    clearSelectionState();
     setOpenDock('infrastructure');
     setRoadTool({ phase: 'armed', roadType });
   }
 
   function armDamTool() {
     if (siteModeRef.current === 'selecting' || !terrainRecordRef.current) return;
-    cancelRoadTool(); cancelPondTool(); cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool();
-    setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedDamId(null);
-    setSelectedPondId(null);
-    setLiftEditing(false); setTrailEditing(false); setOpenDock('snowmaking');
+    if (!toolCoordinator.activate('dam')) return;
+    clearSelectionState();
+    setOpenDock('snowmaking');
     setDamTool({ phase: 'armed', error: null });
   }
 
@@ -2502,6 +2538,7 @@ export function MapView({
     earthworkPatchRef.current = null;
     applyGradePreview();
     if (mapRef.current) setDamDraftData(mapRef.current, null);
+    toolCoordinator.release('dam');
   }
 
   function patchDamDraft(patch: Partial<DraftDam>) {
@@ -2534,6 +2571,7 @@ export function MapView({
         name: draft.name.trim() || nextDamName(existing), terrainGraded: true,
         createdAt: new Date().toISOString() }]);
       setDamTool({ phase: 'idle' });
+      toolCoordinator.release('dam');
       // The embankment and its toe are bare fill now: fell what stood there.
       await clearCover(patch.disturbancePolygons.map((polygon) => ({ polygon })));
     } catch (error) {
@@ -2545,11 +2583,7 @@ export function MapView({
   }
 
   function selectDam(id: string) {
-    cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool(); cancelRoadTool(); cancelDamTool(); cancelPondTool();
-    setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
-    setSelectedDamId(id);
-    setSelectedPondId(null);
-    setLiftEditing(false); setTrailEditing(false); setOpenDock('snowmaking');
+    transitionSelection({ kind: 'dam', id });
   }
 
   function deleteDam(id: string) {
@@ -2559,9 +2593,8 @@ export function MapView({
 
   function armPondTool() {
     if (siteModeRef.current === 'selecting' || !terrainRecordRef.current) return;
-    cancelRoadTool(); cancelDamTool(); cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool();
-    setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
-    setSelectedDamId(null); setSelectedPondId(null); setLiftEditing(false); setTrailEditing(false);
+    if (!toolCoordinator.activate('pond')) return;
+    clearSelectionState();
     setOpenDock('snowmaking'); setPondTool({ phase: 'armed', error: null });
   }
 
@@ -2570,6 +2603,7 @@ export function MapView({
     earthworkPatchRef.current = null;
     applyGradePreview();
     if (mapRef.current) setPondDraftData(mapRef.current, null);
+    toolCoordinator.release('pond');
   }
 
   /** Re-trace the contours the pond as currently designed would leave behind,
@@ -2683,6 +2717,7 @@ export function MapView({
         earthwork: { cutM3: design.cutM3, fillM3: design.fillM3, balanceM3: design.balanceM3 },
         createdAt: new Date().toISOString() }]);
       setPondTool({ phase: 'idle' });
+      toolCoordinator.release('pond');
       // The pool and its berm are bare ground now: fell whatever stood on them.
       await clearCover(patch.disturbancePolygons.map((polygon) => ({ polygon })));
     } catch (error) {
@@ -2694,10 +2729,7 @@ export function MapView({
   }
 
   function selectPond(id: string) {
-    cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool(); cancelRoadTool(); cancelDamTool(); cancelPondTool();
-    setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
-    setSelectedDamId(null); setSelectedPondId(id); setLiftEditing(false); setTrailEditing(false);
-    setOpenDock('snowmaking');
+    transitionSelection({ kind: 'pond', id });
   }
 
   function deletePond(id: string) {
@@ -2710,11 +2742,7 @@ export function MapView({
   }
 
   function selectSnowmakingNode(id: string) {
-    cancelLiftTool(); cancelTrailTool(); cancelNodeTool(); cancelPathTool(); cancelRoadTool(); cancelDamTool(); cancelPondTool();
-    setSelectedLiftId(null); setSelectedTrailId(null); setSelectedLakeId(null); setSelectedStreamId(null);
-    setSelectedDamId(null); setSelectedPondId(null); setSelectedSnowmakingNodeId(id);
-    setLiftEditing(false); setTrailEditing(false);
-    setOpenDock('snowmaking');
+    transitionSelection({ kind: 'snowmaking-node', id });
   }
 
   function renameSnowmakingNode(id: string, name: string) {
@@ -2731,6 +2759,7 @@ export function MapView({
     setEditedContours(null);
     setRoadTool({ phase: 'idle' });
     if (mapRef.current) setRoadDraftData(mapRef.current, null);
+    toolCoordinator.release('road');
   }
 
   function undoRoadPoint() {
@@ -2897,6 +2926,7 @@ export function MapView({
       trailGradeWorkerRef.current?.terminate();
       trailGradeWorkerRef.current = null;
       setRoadTool({ phase: 'idle' });
+      toolCoordinator.release('road');
       await clearCover([
         ...roadClearingPolygons(road.points).map((polygon) => ({ polygon })),
         ...result.disturbancePolygons.map((polygon) => ({ polygon })),
@@ -2914,24 +2944,15 @@ export function MapView({
 
   function armLiftTool() {
     if (siteModeRef.current === 'selecting') return; // never two draw tools at once
-    cancelRoadTool();
-    cancelDamTool();
-    cancelPondTool();
-    setSelectedDamId(null);
-    setSelectedPondId(null);
-    cancelTrailTool(); // yield the other draw tool (docks are one-at-a-time)
-    setSelectedTrailId(null);
-    setTrailEditing(false);
-    setSelectedLiftId(null); // close any open detail/edit panel
-    setLiftEditing(false);
-    setSelectedLakeId(null);
-    setSelectedStreamId(null);
+    if (!toolCoordinator.activate('lift')) return;
+    clearSelectionState();
     setLiftTool({ phase: 'armed' });
   }
 
   function cancelLiftTool() {
     liftSampleTokenRef.current++; // discard any in-flight sampling
     setLiftTool({ phase: 'idle' });
+    toolCoordinator.release('lift');
   }
 
   function patchLiftDraft(patch: Partial<DraftLift>) {
@@ -2976,6 +2997,7 @@ export function MapView({
     } finally {
       setBuildingActivity(null);
       setLiftTool({ phase: 'idle' });
+      toolCoordinator.release('lift');
     }
   }
 
@@ -3128,16 +3150,8 @@ export function MapView({
 
   function armNodeTool(phase: 'add' | 'remove') {
     if (siteModeRef.current === 'selecting') return;
-    cancelLiftTool();
-    cancelTrailTool();
-    cancelRoadTool();
-    cancelDamTool();
-    cancelPondTool();
-    setSelectedDamId(null);
-    setSelectedPondId(null);
-    cancelPathTool();
-    setSelectedTrailId(null);
-    setSelectedLiftId(null);
+    if (!toolCoordinator.activate('ski-node')) return;
+    clearSelectionState();
     setOpenDock('trails');
     setNodeTool(phase === 'add'
       ? { phase: 'add', candidate: null, error: null }
@@ -3146,6 +3160,7 @@ export function MapView({
 
   function cancelNodeTool() {
     setNodeTool({ phase: 'idle' });
+    toolCoordinator.release('ski-node');
   }
 
   function confirmAddNode() {
@@ -3190,27 +3205,15 @@ export function MapView({
   }
 
   function selectGraphNode(id: string) {
-    setSelectedNodeId(id);
-    setSelectedLakeId(null);
-    setSelectedStreamId(null);
+    transitionSelection({ kind: 'ski-node', id });
     const junction = junctionsRef.current.find((j) => j.id === id);
     if (junction) mapRef.current?.easeTo({ center: junction.point, duration: 400 });
   }
 
   function armPathTool() {
     if (siteModeRef.current === 'selecting') return;
-    cancelLiftTool();
-    cancelTrailTool();
-    cancelRoadTool();
-    cancelDamTool();
-    cancelPondTool();
-    setSelectedDamId(null);
-    setSelectedPondId(null);
-    cancelNodeTool();
-    setSelectedTrailId(null);
-    setSelectedLiftId(null);
-    setSelectedLakeId(null);
-    setSelectedStreamId(null);
+    if (!toolCoordinator.activate('ski-path')) return;
+    clearSelectionState();
     setOpenDock('trails');
     setPathTool({ phase: 'armed' });
   }
@@ -3218,6 +3221,7 @@ export function MapView({
   function cancelPathTool() {
     setPathTool({ phase: 'idle' });
     if (mapRef.current) setNodePathDraftData(mapRef.current, null);
+    toolCoordinator.release('ski-path');
   }
 
   function undoPathPoint() {
@@ -3280,6 +3284,7 @@ export function MapView({
     setJunctions(topologyJunctions);
     setSkiPaths((prev) => [...prev, path]);
     setPathTool({ phase: 'idle' });
+    toolCoordinator.release('ski-path');
     if (mapRef.current) setNodePathDraftData(mapRef.current, null);
   }
 
@@ -3290,18 +3295,8 @@ export function MapView({
 
   function armTrailTool() {
     if (siteModeRef.current === 'selecting') return;
-    cancelRoadTool();
-    cancelDamTool();
-    cancelPondTool();
-    setSelectedDamId(null);
-    setSelectedPondId(null);
-    cancelLiftTool(); // yield the other draw tool
-    setSelectedLiftId(null);
-    setLiftEditing(false);
-    setSelectedTrailId(null);
-    setTrailEditing(false);
-    setSelectedLakeId(null);
-    setSelectedStreamId(null);
+    if (!toolCoordinator.activate('trail')) return;
+    clearSelectionState();
     setOpenDock('trails');
     trailCommandsRef.current = [];
     trailPendingUntilRef.current = 0;
@@ -3350,6 +3345,7 @@ export function MapView({
     if (mapRef.current) setTrailPaintPreview(mapRef.current, { path: [], cursor: null,
       brushWidthM: brushWidthRef.current });
     setTrailTool({ phase: 'idle' });
+    toolCoordinator.release('trail');
   }
 
   function startTrailWorker(widthM: number, replay: TrailPaintCommand[] = []) {
@@ -3777,7 +3773,10 @@ export function MapView({
       } } : current);
     } finally {
       setBuildingActivity(null);
-      if (confirmed) setTrailTool({ phase: 'idle' });
+      if (confirmed) {
+        setTrailTool({ phase: 'idle' });
+        toolCoordinator.release('trail');
+      }
     }
   }
 
@@ -3814,55 +3813,34 @@ export function MapView({
   }
 
   /** Close/open a bottom dock, yielding any active draw tool of the others. */
-  function toggleDock(which: 'layers' | 'lifts' | 'trails' | 'snowmaking' | 'infrastructure') {
-    // Layer visibility is presentation-only. Keep it beside active paint/road
-    // controls without cancelling either draft.
-    if (which === 'layers' && (trailToolRef.current.phase !== 'idle' || roadToolRef.current.phase !== 'idle' ||
-      damToolRef.current.phase !== 'idle' || pondToolRef.current.phase !== 'idle')) {
-      setLayersAlongsideBuild((open) => !open);
-      return;
-    }
-    setSelectedLakeId(null);
-    setSelectedStreamId(null);
+  function toggleDock(which: DockId) {
     const isOpen = which === 'layers' ? layersOpen : which === 'lifts' ? liftsOpen
       : which === 'trails' ? trailsOpen : which === 'snowmaking' ? snowmakingOpen : infrastructureOpen;
-    if (which !== 'layers') setLayersAlongsideBuild(false);
+    if (toolCoordinator.toggleDock(which, isOpen) === 'layers-alongside') return;
+
+    setSelectedLakeId(null);
+    setSelectedStreamId(null);
     if (which !== 'lifts') {
-      cancelLiftTool();
       setSelectedLiftId(null);
       setLiftEditing(false);
     }
     if (which !== 'trails') {
-      cancelTrailTool();
-      cancelNodeTool();
-      cancelPathTool();
       setSelectedTrailId(null);
       setTrailEditing(false);
     }
-    if (which !== 'infrastructure') cancelRoadTool();
-    if (which !== 'snowmaking') { cancelDamTool(); cancelPondTool();
+    if (which !== 'snowmaking') {
       setSelectedDamId(null); setSelectedPondId(null); setSelectedSnowmakingNodeId(null); }
     if (isOpen) {
       if (which === 'lifts') {
-        cancelLiftTool();
         setSelectedLiftId(null);
         setLiftEditing(false);
       }
       if (which === 'trails') {
-        // The node and path tools also force the panel open, so closing it has
-        // to stand them down too or the circle would appear to do nothing.
-        cancelTrailTool();
-        cancelNodeTool();
-        cancelPathTool();
         setSelectedTrailId(null);
         setTrailEditing(false);
       }
-      if (which === 'infrastructure') cancelRoadTool();
-      if (which === 'snowmaking') { cancelDamTool(); cancelPondTool();
+      if (which === 'snowmaking') {
         setSelectedDamId(null); setSelectedPondId(null); setSelectedSnowmakingNodeId(null); }
-      setOpenDock(null);
-    } else {
-      setOpenDock(which);
     }
   }
 
@@ -4281,9 +4259,10 @@ export function MapView({
   // is selected (detail or edit); layers yield to it so the two roll-ups never
   // overlap. selectedLift resolves the id to the live lift (null if it was
   // deleted out from under the selection).
-  const liftActive = liftTool.phase !== 'idle' || selectedLiftId !== null;
-  const trailActive = trailTool.phase !== 'idle' || selectedTrailId !== null ||
-    nodeTool.phase !== 'idle' || pathTool.phase !== 'idle';
+  const liftActive = toolCoordinatorState.activeTool === 'lift' || selectedLiftId !== null;
+  const trailActive = toolCoordinatorState.activeTool === 'trail' ||
+    toolCoordinatorState.activeTool === 'ski-node' || toolCoordinatorState.activeTool === 'ski-path' ||
+    selectedTrailId !== null;
   /** The Trails roll-up swaps its body in place for a selection or active tool. */
   const trailPanelBusy = trailTool.phase !== 'idle' || trailEditing ||
     nodeTool.phase !== 'idle' || pathTool.phase !== 'idle' || selectedTrailId !== null;
@@ -4326,8 +4305,9 @@ export function MapView({
     }
     return out;
   }, [network]);
-  const infrastructureActive = roadTool.phase !== 'idle';
-  const snowmakingActive = damTool.phase !== 'idle' || pondTool.phase !== 'idle' ||
+  const infrastructureActive = toolCoordinatorState.activeTool === 'road';
+  const snowmakingActive = toolCoordinatorState.activeTool === 'dam' ||
+    toolCoordinatorState.activeTool === 'pond' ||
     selectedDamId !== null || selectedPondId !== null || selectedSnowmakingNodeId !== null;
   const selectedLakeFeature = selectedLakeId
     ? terrainRecord?.vectorFeatures?.waterPolygons.find((lake) => lake.id === selectedLakeId) ?? null
@@ -4832,7 +4812,9 @@ export function MapView({
                       onDrawPath={armPathTool}
                       onSelectTrail={(id) => selectTrailRef.current(id)}
                       onSelectNode={selectGraphNode}
-                      onSelectPath={setSelectedPathId}
+                      onSelectPath={(id) => id
+                        ? transitionSelection({ kind: 'ski-path', id })
+                        : setSelectedPathId(null)}
                       onDeleteNode={removeGraphNode}
                       onDeleteLegacyNode={deleteSkiNode}
                       onDeletePath={deleteSkiPath}

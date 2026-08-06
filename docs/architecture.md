@@ -29,7 +29,9 @@ Terrain preparation is orchestrated by [`src/terrainIngest.ts`](../src/terrainIn
 
 ## Map and worker ownership
 
-Map feature ordering is distributed across layer modules and `MapView`; there is no shared contribution registry yet. Tool arbitration, construction locking, terrain revisions, and topology changes are also coordinated directly in `MapView`, not through independent ports.
+Map feature ordering is distributed across layer modules and `MapView`; there is no shared contribution registry yet. [`src/app/toolCoordinator.ts`](../src/app/toolCoordinator.ts) is the synchronous authority for the seven construction tools, dock state, and Layers-alongside-build behavior. Controllers register cancellation callbacks; changing tools cancels the prior owner before publishing the replacement. Selection stays outside that coordinator but enters through one centralized transition in `MapView`.
+
+[`src/app/mapInteractionLease.ts`](../src/app/mapInteractionLease.ts) exclusively leases controller cursor, drag-pan, and double-click-zoom overrides and restores the exact prior map state once on release or disposal. The separate site-box gesture is not a construction controller. Escape remains in each existing feature listener. Construction locking, terrain revisions, and topology changes are still coordinated directly in `MapView`, not through independent ports.
 
 Cover editing already has a client abstraction in [`src/app/coverEditClient.ts`](../src/app/coverEditClient.ts). Dam analysis, terrain grading, and trail painting workers are still constructed directly from `MapView`. Worker protocol, engine, and worker entry files live under `src/app/`.
 
