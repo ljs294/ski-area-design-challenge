@@ -79,7 +79,8 @@ import {
   TRAIL_CLEAR_JITTER_M,
   type CoverClearing,
 } from '../coverEdit';
-import { runCoverEditWorker } from './coverEditClient';
+import { CoverEditAdapter } from './coverEditClient';
+import { DamAnalysisAdapter } from './damAnalysisClient';
 import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
   resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt,
   setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
@@ -102,7 +103,6 @@ import { addPondLayers, POND_BUILT_LAYER_IDS, POND_HIT_LAYERS, setPondData,
 import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
 import { addSnowmakingLayers, setSnowmakingData, setSelectedSnowmakingNode,
   SNOWMAKING_HIT_LAYERS, SNOWMAKING_BUILT_LAYER_IDS } from './snowmakingLayers';
-import type { DamAnalysisResponse } from './damAnalysisProtocol';
 import {
   addTrailLayers,
   draftToGeoJSON,
@@ -842,8 +842,6 @@ export function MapView({
   const selectedPondIdRef = useRef<string | null>(selectedPondId);
   const snowmakingNodesRef = useRef<SavedSnowmakingNode[]>(snowmakingNodes);
   const selectedSnowmakingNodeIdRef = useRef<string | null>(selectedSnowmakingNodeId);
-  const damWorkerRef = useRef<Worker | null>(null);
-  const damRequestRef = useRef(0);
   // Grading patch for whichever water structure is in review. It drives the
   // pre-build contour highlight and, for dams, the commit itself. Dams and
   // ponds cancel each other, so one slot is enough.
@@ -919,6 +917,18 @@ export function MapView({
     });
   }
   const terrain = terrainDocumentRef.current;
+
+  // Every worker this session owns. Each adapter answers the same three
+  // questions for its protocol — which response is still the one being waited
+  // on, what supersedes it, and what stops it — so no feature has to reinvent
+  // them, and teardown is one call per adapter instead of a list of terminates
+  // that a new worker can quietly fall off.
+  const damAnalysisRef = useRef<DamAnalysisAdapter | null>(null);
+  if (!damAnalysisRef.current) damAnalysisRef.current = new DamAnalysisAdapter();
+  const damAnalysis = damAnalysisRef.current;
+  const coverEditRef = useRef<CoverEditAdapter | null>(null);
+  if (!coverEditRef.current) coverEditRef.current = new CoverEditAdapter();
+  const coverEdit = coverEditRef.current;
 
   /** The one place a committed terrain record reaches React and the dirty flag. */
   function publishTerrainState({ record, edit }: TerrainPublication): void {
@@ -1078,12 +1088,13 @@ export function MapView({
     warmAbortRef.current?.abort();
     trailWorkerRef.current?.terminate();
     trailGradeWorkerRef.current?.terminate();
-    damWorkerRef.current?.terminate();
+    damAnalysis.dispose();
+    coverEdit.dispose();
     if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
     localImageryCacheKeyRef.current = null;
-    // `terrain` is ref-held and never changes identity, so this stays a
-    // mount/unmount effect.
-  }, [terrain]);
+    // The document and the adapters are ref-held and never change identity, so
+    // this stays a mount/unmount effect.
+  }, [terrain, damAnalysis, coverEdit]);
 
   // A saved resort does not enter gameplay until its mandatory local package
   // has loaded and passed manifest validation.
@@ -2204,55 +2215,42 @@ export function MapView({
       if (current.phase !== 'anchored' || !current.cursor || !record.bounds) return;
       const points: [[number, number], [number, number]] = [current.first, current.cursor];
       setDamTool({ phase: 'analyzing', points, crestElevationM: current.crestElevationM });
-      damWorkerRef.current?.terminate();
-      const worker = new Worker(new URL('./damAnalysis.worker.ts', import.meta.url), { type: 'module' });
-      damWorkerRef.current = worker;
-      const id = ++damRequestRef.current;
-      worker.onmessage = (message: MessageEvent<DamAnalysisResponse>) => {
-        if (message.data.id !== damRequestRef.current) return;
-        worker.terminate();
-        if (damWorkerRef.current === worker) damWorkerRef.current = null;
-        if (!message.data.ok) {
-          setDamTool({ phase: 'anchored', first: points[0], crestElevationM: current.crestElevationM,
-            cursor: null, error: message.data.error });
-          return;
-        }
-        const analysis = message.data.result;
-        // Trace the embankment's contours and footprint here rather than in the
-        // worker: the patch has to be stamped against the live package so the
-        // preview the player approves is exactly what gets committed.
-        const patch = earthworkTerrainPatch(record, analysis.patchIndices, analysis.patchHeights);
-        earthworkPatchRef.current = patch;
-        setDamTool({ phase: 'review', error: null, draft: {
-          name: nextDamName(damsRef.current), points, crestElevationM: current.crestElevationM,
-          streamId: analysis.crossing.stream.id,
-          streamName: analysis.crossing.stream.name ?? `Unnamed ${analysis.crossing.stream.waterClass}`,
-          sourceWidthM: analysis.sourceWidthM, inflowM3s: analysis.inflowM3s,
-          pondRings: analysis.pondRings, areaM2: analysis.areaM2,
-          averageDepthM: analysis.averageDepthM, capacityM3: analysis.capacityM3,
-          averageDamHeightM: analysis.averageDamHeightM,
-          maxDamHeightM: analysis.maxDamHeightM,
-          damCrestElevationM: analysis.damCrestElevationM,
-          crestRing: analysis.crestRing,
-          footprintRings: largestFootprint(patch.disturbancePolygons),
-          builtLengthM: analysis.builtLengthM,
-          disturbedAreaM2: analysis.disturbedAreaM2,
-          earthwork: analysis.earthwork,
-        } });
-        applyGradePreview();
-      };
-      worker.onerror = () => {
-        if (id !== damRequestRef.current) return;
-        worker.terminate();
-        if (damWorkerRef.current === worker) damWorkerRef.current = null;
-        setDamTool({ phase: 'anchored', first: points[0], crestElevationM: current.crestElevationM,
-          cursor: null, error: 'The pond analysis worker failed. Try another alignment.' });
-      };
-      const heights = Float32Array.from(record.sampleHeights);
-      worker.postMessage({ id, heights, gridSize: record.sampleGridSize, bounds: record.bounds,
+      damAnalysis.run({
+        heights: Float32Array.from(record.sampleHeights),
+        gridSize: record.sampleGridSize, bounds: record.bounds,
         points, crestElevationM: current.crestElevationM,
         streams: (record.vectorFeatures?.waterLines ?? []).map((stream) => ({ ...stream,
-          widthM: streamWidthOverridesRef.current[stream.id] ?? stream.widthM })) }, [heights.buffer]);
+          widthM: streamWidthOverridesRef.current[stream.id] ?? stream.widthM })),
+      }, {
+        onResult: (analysis) => {
+          // Trace the embankment's contours and footprint here rather than in the
+          // worker: the patch has to be stamped against the live package so the
+          // preview the player approves is exactly what gets committed.
+          const patch = earthworkTerrainPatch(record, analysis.patchIndices, analysis.patchHeights);
+          earthworkPatchRef.current = patch;
+          setDamTool({ phase: 'review', error: null, draft: {
+            name: nextDamName(damsRef.current), points, crestElevationM: current.crestElevationM,
+            streamId: analysis.crossing.stream.id,
+            streamName: analysis.crossing.stream.name ?? `Unnamed ${analysis.crossing.stream.waterClass}`,
+            sourceWidthM: analysis.sourceWidthM, inflowM3s: analysis.inflowM3s,
+            pondRings: analysis.pondRings, areaM2: analysis.areaM2,
+            averageDepthM: analysis.averageDepthM, capacityM3: analysis.capacityM3,
+            averageDamHeightM: analysis.averageDamHeightM,
+            maxDamHeightM: analysis.maxDamHeightM,
+            damCrestElevationM: analysis.damCrestElevationM,
+            crestRing: analysis.crestRing,
+            footprintRings: largestFootprint(patch.disturbancePolygons),
+            builtLengthM: analysis.builtLengthM,
+            disturbedAreaM2: analysis.disturbedAreaM2,
+            earthwork: analysis.earthwork,
+          } });
+          applyGradePreview();
+        },
+        onError: (error) => {
+          setDamTool({ phase: 'anchored', first: points[0],
+            crestElevationM: current.crestElevationM, cursor: null, error });
+        },
+      });
     };
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelDamTool(); };
     map.on('mousemove', onMove); map.on('click', onClick); window.addEventListener('keydown', onKey);
@@ -2675,9 +2673,7 @@ export function MapView({
   }
 
   function cancelDamTool() {
-    damRequestRef.current++;
-    damWorkerRef.current?.terminate();
-    damWorkerRef.current = null;
+    damAnalysis.cancel();
     setDamTool({ phase: 'idle' });
     earthworkPatchRef.current = null;
     applyGradePreview();
@@ -3158,7 +3154,7 @@ export function MapView({
         data: Uint8Array.from(record.coverGrid.data),
       } as typeof record.coverGrid;
       const hasVectorDisplay = !!record.coverDisplayGeometry && !!record.coverDisplayMetadata;
-      const result = await runCoverEditWorker({
+      const result = await coverEdit.run({
         grid: workerGrid,
         clearings,
         deriveDisplay: hasVectorDisplay,

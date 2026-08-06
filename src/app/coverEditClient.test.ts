@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import type { CoverGrid } from '../types';
 import { coverMetadataOf } from '../terrainPackage';
 import type { CoverEditRequest, CoverEditResponse } from './coverEditProtocol';
-import { runCoverEditWorker } from './coverEditClient';
+import { CoverEditAdapter } from './coverEditClient';
+import type { WorkerLike } from './workerAdapter';
 
 function request(): CoverEditRequest {
   return {
@@ -23,56 +25,117 @@ function request(): CoverEditRequest {
   };
 }
 
-function fakeWorker(response?: CoverEditResponse) {
-  const worker = {
-    onmessage: null as ((event: MessageEvent<CoverEditResponse>) => void) | null,
-    onerror: null as (() => void) | null,
-    transfer: [] as Transferable[],
-    terminate: vi.fn(),
-    postMessage(_message: CoverEditRequest, transfer: Transferable[]) {
-      worker.transfer = transfer;
-      if (response) queueMicrotask(() =>
-        worker.onmessage?.({ data: response } as MessageEvent<CoverEditResponse>));
-    },
+/** A cleared grid and the response a worker would return for it. */
+function cleared(input: CoverEditRequest): Extract<CoverEditResponse, { ok: true }> {
+  const gridData = new Uint8Array([3, 1, 1, 1]);
+  return {
+    ok: true,
+    changed: 1,
+    gridData,
+    coverMetadata: coverMetadataOf({ ...input.grid, data: gridData }),
   };
-  return worker;
 }
 
-describe('runCoverEditWorker', () => {
-  it('transfers only the grid buffer and preserves a successful metadata response', async () => {
-    const input = request();
-    const gridData = new Uint8Array([3, 1, 1, 1]);
-    const response: CoverEditResponse = {
-      ok: true,
-      changed: 1,
-      gridData,
-      coverMetadata: coverMetadataOf({ ...input.grid, data: gridData }),
+interface FakeWorker extends WorkerLike<CoverEditRequest, CoverEditResponse> {
+  transfer: Transferable[];
+  terminate: Mock<() => void>;
+  deliver(response: CoverEditResponse): void;
+  crash(): void;
+}
+
+/** A factory plus the workers it has been asked for; none answer on their own. */
+function fakeWorkers() {
+  const created: FakeWorker[] = [];
+  const factory = (): FakeWorker => {
+    const worker: FakeWorker = {
+      onmessage: null,
+      onerror: null,
+      transfer: [],
+      terminate: vi.fn(() => {}),
+      postMessage(_message: CoverEditRequest, transfer: Transferable[] = []) {
+        worker.transfer = transfer;
+      },
+      deliver(response: CoverEditResponse) {
+        worker.onmessage?.({ data: response } as MessageEvent<CoverEditResponse>);
+      },
+      crash() {
+        worker.onerror?.({} as ErrorEvent);
+      },
     };
-    const worker = fakeWorker(response);
-    const result = await runCoverEditWorker(input, { workerFactory: () => worker });
+    created.push(worker);
+    return worker;
+  };
+  return { created, factory };
+}
+
+describe('CoverEditAdapter', () => {
+  it('transfers only the grid buffer and preserves a successful metadata response', async () => {
+    const { created, factory } = fakeWorkers();
+    const input = request();
+    const response = cleared(input);
+    const pending = new CoverEditAdapter({ workerFactory: factory }).run(input);
+    expect(created[0].transfer).toEqual([(input.grid.data as Uint8Array).buffer]);
+    created[0].deliver(response);
+
+    const result = await pending;
     expect(result).toMatchObject({
       changed: 1,
       coverMetadata: {
-        byteLength: gridData.byteLength,
+        byteLength: response.gridData.byteLength,
         checksum: response.coverMetadata.checksum,
       },
     });
-    expect(result.gridData).toBe(gridData);
-    expect(worker.transfer).toEqual([(input.grid.data as Uint8Array).buffer]);
-    expect(worker.terminate).toHaveBeenCalledOnce();
+    expect(result.gridData).toBe(response.gridData);
+    expect(created[0].terminate).toHaveBeenCalledOnce();
   });
 
-  it('rejects worker errors and timeouts and always terminates', async () => {
-    const failed = fakeWorker({ ok: false, error: 'bad cover' });
-    await expect(runCoverEditWorker(request(), { workerFactory: () => failed }))
-      .rejects.toThrow('bad cover');
-    expect(failed.terminate).toHaveBeenCalledOnce();
+  it('rejects a refused edit, a crashed worker, and a timeout, always terminating', async () => {
+    const refused = fakeWorkers();
+    const refusal = new CoverEditAdapter({ workerFactory: refused.factory }).run(request());
+    refused.created[0].deliver({ ok: false, error: 'bad cover' });
+    await expect(refusal).rejects.toThrow('bad cover');
+    expect(refused.created[0].terminate).toHaveBeenCalledOnce();
 
-    const timedOut = fakeWorker();
-    await expect(runCoverEditWorker(request(), {
-      workerFactory: () => timedOut,
-      timeoutMs: 1,
-    })).rejects.toThrow('timed out');
-    expect(timedOut.terminate).toHaveBeenCalledOnce();
+    const crashed = fakeWorkers();
+    const crashing = new CoverEditAdapter({ workerFactory: crashed.factory }).run(request());
+    crashed.created[0].crash();
+    await expect(crashing).rejects.toThrow('Ground-cover worker stopped unexpectedly.');
+    expect(crashed.created[0].terminate).toHaveBeenCalledOnce();
+
+    const stalled = fakeWorkers();
+    await expect(new CoverEditAdapter({ workerFactory: stalled.factory, timeoutMs: 1 })
+      .run(request())).rejects.toThrow('timed out');
+    expect(stalled.created[0].terminate).toHaveBeenCalledOnce();
+  });
+
+  it('settles once, so a late answer cannot resolve an edit that already failed', async () => {
+    const { created, factory } = fakeWorkers();
+    const adapter = new CoverEditAdapter({ workerFactory: factory, timeoutMs: 1 });
+    const outcome = adapter.run(request())
+      .then(() => 'resolved', (error: Error) => error.message);
+
+    // The terrain document serializes cover edits, so a second one starting is
+    // a caller mistake: report it rather than run two stamps at once.
+    const superseding = adapter.run(request());
+    expect(await outcome).toBe('The ground-cover edit was abandoned.');
+    expect(created[0].terminate).toHaveBeenCalledOnce();
+
+    created[0].deliver(cleared(request()));
+    await expect(superseding).rejects.toThrow('timed out');
+  });
+
+  it('abandons the edit in flight on teardown and stays usable afterwards', async () => {
+    const { created, factory } = fakeWorkers();
+    const adapter = new CoverEditAdapter({ workerFactory: factory });
+    const abandoned = adapter.run(request());
+    adapter.dispose();
+    await expect(abandoned).rejects.toThrow('The ground-cover edit was abandoned.');
+    expect(created[0].terminate).toHaveBeenCalledOnce();
+
+    // Teardown is abandonment, not retirement: a StrictMode remount still works.
+    const input = request();
+    const remounted = adapter.run(input);
+    created[1].deliver(cleared(input));
+    await expect(remounted).resolves.toMatchObject({ changed: 1 });
   });
 });
