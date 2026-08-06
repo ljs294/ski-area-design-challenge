@@ -150,8 +150,7 @@ import {
   difficultyForSlopes,
   DEFAULT_BRUSH_WIDTH_M,
 } from '../trails';
-import { canRemoveJunction, hydrateTopology, liftJunction, removeJunction,
-  splitTrailAt, summarizeJunctions, withTopologyPart } from '../topology';
+import { canRemoveJunction, hydrateTopology, summarizeJunctions, withTopologyPart } from '../topology';
 import { nextRoadName, roadClearingPolygons, roadLengthM, sanitizeRoads,
   TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import { haversineMeters } from '../geo';
@@ -160,6 +159,7 @@ import { ConstructionStatusBug } from './ConstructionStatusBug';
 import type { ConstructionActivity } from './constructionLock';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
   type TerrainSnapshot } from './terrainDocument';
+import { TopologyDocument } from './topologyDocument';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
@@ -533,6 +533,23 @@ export function MapView({
   const [skiNodes, setSkiNodes] = useState<SavedNode[]>(() => sanitizeNodes(initialSave?.nodes ?? []));
   const [skiPaths, setSkiPaths] = useState<SavedPath[]>(initialTopology.paths);
   const [junctions, setJunctions] = useState<SavedJunction[]>(initialTopology.junctions);
+  // Runs, ski nodes, connector paths, and junctions describe one graph, so one
+  // document owns every change to it. React holds the projection; a transaction
+  // lands each collection it touched in a single publication, so nothing ever
+  // observes a trail whose segments name a junction that has not arrived yet.
+  const topologyDocumentRef = useRef<TopologyDocument | null>(null);
+  if (!topologyDocumentRef.current) {
+    topologyDocumentRef.current = new TopologyDocument(
+      { trails, nodes: skiNodes, paths: skiPaths, junctions },
+      ({ snapshot, changed }) => {
+        if (changed.trails) setTrails(snapshot.trails);
+        if (changed.nodes) setSkiNodes(snapshot.nodes);
+        if (changed.paths) setSkiPaths(snapshot.paths);
+        if (changed.junctions) setJunctions(snapshot.junctions);
+      }
+    );
+  }
+  const topology = topologyDocumentRef.current;
   const [nodeTool, setNodeTool] = useState<NodeTool>({ phase: 'idle' });
   const [pathTool, setPathTool] = useState<PathTool>({ phase: 'idle' });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -2565,22 +2582,22 @@ export function MapView({
       const byId = new Map<string, SavedTrail['parts']>();
       for (const r of results) if (r.status === 'fulfilled') byId.set(r.value.id, r.value.parts);
       if (byId.size === 0) return;
-      setTrails((prev) =>
-        prev.map((t) => {
-          const parts = byId.get(t.id);
-          if (!parts) return t;
-          const stats = trailPartsStats(parts);
-          return {
-            ...t,
-            parts,
-            lengthM: stats.lengthM,
-            verticalM: stats.verticalM,
-            avgSlopeDeg: stats.avgSlopeDeg,
-            maxSlopeDeg: stats.maxSlopeDeg,
-            difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
-          };
-        })
-      );
+      const backfill = topology.begin();
+      backfill.mapTrails((t) => {
+        const parts = byId.get(t.id);
+        if (!parts) return t;
+        const stats = trailPartsStats(parts);
+        return {
+          ...t,
+          parts,
+          lengthM: stats.lengthM,
+          verticalM: stats.verticalM,
+          avgSlopeDeg: stats.avgSlopeDeg,
+          maxSlopeDeg: stats.maxSlopeDeg,
+          difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
+        };
+      });
+      backfill.commit();
     });
     return () => {
       stale = true;
@@ -3227,29 +3244,31 @@ export function MapView({
   function confirmAddNode() {
     const t = nodeToolRef.current;
     if (t.phase !== 'add' || !t.candidate) return;
-    const edit = splitTrailAt(trailsRef.current, junctionsRef.current, t.candidate.trailId,
-      t.candidate.point, genId);
-    if (!edit) {
+    const edit = topology.begin();
+    if (!edit.splitTrail(t.candidate.trailId, t.candidate.point, genId)) {
+      edit.abort();
       setNodeTool({ phase: 'add', candidate: null, error: 'That run cannot be split there.' });
       return;
     }
-    // splitTrailAt hands back the existing junction, list untouched, when the
-    // click lands on one. Nothing was added, so say so rather than flash success.
-    if (edit.junctions.length === junctionsRef.current.length) {
+    // A split hands back the existing junction, lists untouched, when the click
+    // lands on one. Nothing was added, so say so rather than flash success.
+    if (!edit.changed.junctions) {
+      edit.abort();
       setNodeTool({ phase: 'add', candidate: null, error: 'There is already a node there.' });
       return;
     }
-    setTrails(edit.trails);
-    setJunctions(edit.junctions);
+    edit.commit();
     // Stay armed — splitting a run is something you do several times in a row.
     setNodeTool({ phase: 'add', candidate: null, error: null });
   }
 
   function removeGraphNode(id: string) {
-    const edit = removeJunction(trailsRef.current, junctionsRef.current, skiPathsRef.current, id);
-    if (!edit) return;
-    setTrails(edit.trails);
-    setJunctions(edit.junctions);
+    const edit = topology.begin();
+    if (!edit.removeJunction(id)) {
+      edit.abort();
+      return;
+    }
+    edit.commit();
     setSelectedNodeId((cur) => (cur === id ? null : cur));
   }
 
@@ -3262,7 +3281,9 @@ export function MapView({
 
   /** Legacy free-standing pins from saves made before nodes became graph nodes. */
   function deleteSkiNode(id: string) {
-    setSkiNodes((prev) => prev.filter((n) => n.id !== id));
+    const edit = topology.begin();
+    edit.removeNode(id);
+    edit.commit();
   }
 
   function selectGraphNode(id: string) {
@@ -3317,17 +3338,12 @@ export function MapView({
     const t = pathToolRef.current;
     if (t.phase !== 'review') return;
     if (t.from.kind !== 'trail' || t.to.kind !== 'trail' || t.from.trailId === t.to.trailId) return;
-    let topologyTrails = trailsRef.current;
-    let topologyJunctions = junctionsRef.current;
-    const fromEdit = splitTrailAt(topologyTrails, topologyJunctions, t.from.trailId,
-      t.from.point, genId);
-    if (!fromEdit) return;
-    topologyTrails = fromEdit.trails; topologyJunctions = fromEdit.junctions;
-    const toEdit = splitTrailAt(topologyTrails, topologyJunctions, t.to.trailId,
-      t.to.point, genId);
-    if (!toEdit) return;
-    topologyTrails = toEdit.trails; topologyJunctions = toEdit.junctions;
-    const path: SavedPath = {
+    const edit = topology.begin();
+    const fromJunction = edit.splitTrail(t.from.trailId, t.from.point, genId);
+    if (!fromJunction) { edit.abort(); return; }
+    const toJunction = edit.splitTrail(t.to.trailId, t.to.point, genId);
+    if (!toJunction) { edit.abort(); return; }
+    edit.addPath({
       id: genId(),
       name: t.name.trim() || nextPathName(skiPathsRef.current),
       points: t.points,
@@ -3335,23 +3351,30 @@ export function MapView({
       widthM: DEFAULT_PATH_WIDTH_M,
       from: t.from,
       to: t.to,
-      fromJunctionId: fromEdit.junction.id,
-      toJunctionId: toEdit.junction.id,
+      fromJunctionId: fromJunction.id,
+      toJunctionId: toJunction.id,
       lengthM: pathLengthM(t.points),
       status: 'complete',
       createdAt: new Date().toISOString(),
-    };
-    setTrails(topologyTrails);
-    setJunctions(topologyJunctions);
-    setSkiPaths((prev) => [...prev, path]);
+    });
+    edit.commit();
     setPathTool({ phase: 'idle' });
     toolCoordinator.release('ski-path');
     if (mapRef.current) setNodePathDraftData(mapRef.current, null);
   }
 
   function deleteSkiPath(id: string) {
-    setSkiPaths((prev) => prev.filter((p) => p.id !== id));
+    const edit = topology.begin();
+    edit.removePath(id);
+    edit.commit();
     setSelectedPathId((cur) => (cur === id ? null : cur));
+  }
+
+  /** Patch a non-geometric field (closed) of a built connector path. */
+  function patchSkiPath(id: string, patch: Partial<SavedPath>) {
+    const edit = topology.begin();
+    edit.patchPath(id, patch);
+    edit.commit();
   }
 
   function armTrailTool() {
@@ -3755,27 +3778,22 @@ export function MapView({
     const pinned = pinTrailEndpoints(commitGrading ? d.parts : d.ungradedParts,
       d.anchor.point, d.tailAnchor.point);
     if (!pinned) return;
-    let topologyTrails = trailsRef.current;
-    let topologyJunctions = junctionsRef.current;
+    // Both anchors are materialized now, against the revision this confirmation
+    // started from, and land with the run itself once the grade has committed.
+    const edit = topology.begin();
     const materialize = (anchor: AnchorRef): SavedJunction | null => {
-      if (anchor.kind === 'trail') {
-        const edit = splitTrailAt(topologyTrails, topologyJunctions, anchor.trailId,
+      if (anchor.kind === 'trail') return edit.splitTrail(anchor.trailId, anchor.point, genId);
+      if (anchor.kind === 'lift')
+        return edit.liftTerminalJunction(liftsRef.current, anchor.liftId, anchor.end,
           anchor.point, genId);
-        if (!edit) return null;
-        topologyTrails = edit.trails; topologyJunctions = edit.junctions;
-        return edit.junction;
-      }
-      if (anchor.kind === 'lift') {
-        const edit = liftJunction(liftsRef.current, topologyJunctions, anchor.liftId,
-          anchor.end, anchor.point, genId);
-        topologyJunctions = edit.junctions;
-        return edit.junction;
-      }
       return null;
     };
     const headJunction = materialize(d.anchor);
     const tailJunction = materialize(d.tailAnchor);
-    if (!headJunction || !tailJunction || headJunction.id === tailJunction.id) return;
+    if (!headJunction || !tailJunction || headJunction.id === tailJunction.id) {
+      edit.abort();
+      return;
+    }
     const trailId = genId();
     const parts = pinned.map((part, index) => withTopologyPart(part, headJunction.id,
       tailJunction.id, `${trailId}:${index}:segment:0`));
@@ -3820,8 +3838,10 @@ export function MapView({
         trailGradeWorkerRef.current?.terminate();
         trailGradeWorkerRef.current = null;
         trailGradeResultRef.current = null;
-        setJunctions(topologyJunctions);
-        setTrails([...topologyTrails, trail]);
+        edit.addTrail(trail);
+        if (!edit.commit().ok) {
+          throw new Error('The trail network changed while building. Repaint the run.');
+        }
         confirmed = true;
         await applyTrailCoverClear(trail, gradingClearPolygons);
       } catch (error) {
@@ -3840,7 +3860,9 @@ export function MapView({
 
   /** Patch a non-geometric field (name/status) of a built run. */
   function patchTrail(id: string, patch: Partial<SavedTrail>) {
-    setTrails((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    const edit = topology.begin();
+    edit.patchTrail(id, patch);
+    edit.commit();
   }
 
   function deleteTrail(id: string) {
@@ -3857,15 +3879,13 @@ export function MapView({
       window.alert(`Remove connected ${names.join(', ')} before deleting ${target.name}.`);
       return;
     }
-    const remaining = trailsRef.current.filter((t) => t.id !== id);
-    const referenced = new Set(remaining.flatMap((trail) => trail.parts.flatMap((part) =>
-      (part.segments ?? []).flatMap((segment) => [segment.fromJunctionId, segment.toJunctionId]))));
-    for (const path of skiPathsRef.current) {
-      if (path.fromJunctionId) referenced.add(path.fromJunctionId);
-      if (path.toJunctionId) referenced.add(path.toJunctionId);
+    // The run and every junction nothing references any more leave together.
+    const edit = topology.begin();
+    if (!edit.removeTrail(id)) {
+      edit.abort();
+      return;
     }
-    setJunctions((current) => current.filter((junction) => junction.liftTerminal || referenced.has(junction.id)));
-    setTrails(remaining);
+    edit.commit();
     setSelectedTrailId((cur) => (cur === id ? null : cur));
     setTrailEditing(false);
   }
@@ -4598,8 +4618,7 @@ export function MapView({
             onSelectEdge: setNetworkEdgeId,
             onToggleTrailClosed: (id, closed) => patchTrail(id, { closed }),
             onToggleLiftClosed: (id, closed) => patchLift(id, { closed }),
-            onTogglePathClosed: (id, closed) =>
-              setSkiPaths((prev) => prev.map((p) => (p.id === id ? { ...p, closed } : p))),
+            onTogglePathClosed: (id, closed) => patchSkiPath(id, { closed }),
           }}
           snowmakingProps={{
             dams,

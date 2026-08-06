@@ -52,6 +52,17 @@ function stateOf(state: TopologyState): TopologyState {
   };
 }
 
+/** Every operation replaces the collection it touches, so identity is the
+ *  exact test for "this edit moved that collection". */
+function changedBetween(base: TopologyState, next: TopologyState): TopologyChanged {
+  return {
+    trails: next.trails !== base.trails,
+    nodes: next.nodes !== base.nodes,
+    paths: next.paths !== base.paths,
+    junctions: next.junctions !== base.junctions,
+  };
+}
+
 /**
  * One atomic edit in progress. Every operation replaces the collection it
  * touches rather than mutating it, so the document a consumer is holding is
@@ -74,20 +85,10 @@ export class TopologyTransaction {
     return this.base.revision;
   }
 
-  get trails(): SavedTrail[] {
-    return this.next.trails;
-  }
-
-  get nodes(): SavedNode[] {
-    return this.next.nodes;
-  }
-
-  get paths(): SavedPath[] {
-    return this.next.paths;
-  }
-
-  get junctions(): SavedJunction[] {
-    return this.next.junctions;
+  /** Which collections this edit has moved so far. An operation that resolved
+   *  to something already there leaves every one of them false. */
+  get changed(): TopologyChanged {
+    return changedBetween(this.base, this.next);
   }
 
   /** Split a run at `point`, materializing its junction — or reusing the one
@@ -194,6 +195,11 @@ export class TopologyDocument {
   private current: TopologySnapshot;
   private readonly onChange: (change: TopologyChange) => void;
 
+  /**
+   * The clean load: hydrated, sanitized collections seeded at revision zero.
+   * There is no runtime replacement command because opening another resort
+   * remounts the session rather than swapping a document underneath it.
+   */
   constructor(initial: TopologyState, onChange: (change: TopologyChange) => void = () => {}) {
     this.current = Object.freeze({ ...stateOf(initial), revision: 0 });
     this.onChange = onChange;
@@ -212,28 +218,13 @@ export class TopologyDocument {
     return new TopologyTransaction(this, this.current);
   }
 
-  /** Clean load or replacement of the whole document. */
-  load(state: TopologyState): TopologySnapshot {
-    this.current = Object.freeze({ ...stateOf(state), revision: this.current.revision + 1 });
-    this.onChange({
-      snapshot: this.current,
-      changed: { trails: true, nodes: true, paths: true, junctions: true },
-    });
-    return this.current;
-  }
-
   /**
    * Land a transaction. Called by `TopologyTransaction.commit`; nothing else
    * should reach past a transaction to publish.
    */
   publish(base: TopologySnapshot, next: TopologyState): TopologyCommitResult {
     if (base.revision !== this.current.revision) return { ok: false, reason: 'stale' };
-    const changed: TopologyChanged = {
-      trails: next.trails !== base.trails,
-      nodes: next.nodes !== base.nodes,
-      paths: next.paths !== base.paths,
-      junctions: next.junctions !== base.junctions,
-    };
+    const changed = changedBetween(base, next);
     if (!changed.trails && !changed.nodes && !changed.paths && !changed.junctions) {
       return { ok: true, revision: this.current.revision, changed: false };
     }

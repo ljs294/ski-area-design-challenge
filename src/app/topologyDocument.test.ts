@@ -75,19 +75,19 @@ describe('TopologyDocument snapshots', () => {
     expect(before.nodes).toHaveLength(1);
   });
 
-  it('publishes a clean load of the whole document', () => {
+  it('seeds a clean load from the hydrated collections without publishing', () => {
     const change = vi.fn();
-    const document = new TopologyDocument(initialState(), change);
-    const replacement: TopologyState = { trails: [], nodes: [], paths: [], junctions: [] };
+    const state = initialState();
 
-    document.load(replacement);
+    const document = new TopologyDocument(state, change);
 
-    expect(document.snapshot().revision).toBe(1);
-    expect(document.snapshot().trails).toBe(replacement.trails);
-    expect(change).toHaveBeenCalledTimes(1);
-    expect(change.mock.calls[0][0].changed).toEqual({
-      trails: true, nodes: true, paths: true, junctions: true,
-    });
+    const snapshot = document.snapshot();
+    expect(snapshot.revision).toBe(0);
+    expect(snapshot.trails).toBe(state.trails);
+    expect(snapshot.nodes).toBe(state.nodes);
+    expect(snapshot.paths).toBe(state.paths);
+    expect(snapshot.junctions).toBe(state.junctions);
+    expect(change).not.toHaveBeenCalled();
   });
 });
 
@@ -122,9 +122,11 @@ describe('TopologyDocument commands', () => {
 
     const again = document.begin();
     const reused = again.splitTrail('run', junction.point, ids(10));
+    const reported = again.changed;
     const result = again.commit();
 
     expect(reused?.id).toBe(junction.id);
+    expect(reported).toEqual({ trails: false, nodes: false, paths: false, junctions: false });
     expect(result).toEqual({ ok: true, revision: 1, changed: false });
     expect(change).not.toHaveBeenCalled();
   });
