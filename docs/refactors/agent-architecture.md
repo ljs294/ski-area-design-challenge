@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | E1 — lift controller extraction |
-| Status | D4 is committed: `MapView` constructs no workers, and request identity, abort, termination, stale responses, validation, and disposal are owned per protocol |
-| Last green commit | D4 at `35fd9469bc12a1c87330e26d30591e530310bda5` |
-| Next step | Characterize the lift feature workflow and its cross-cutting coordinator, map, and save behavior before moving lift state out of `MapView` |
+| Current benchmark | R2 — complete map contribution ownership |
+| Status | R1 is committed: document snapshots are owned/read-only, no-op topology commands preserve revisions, trail terrain/topology commits are atomic, and save/capture reads the synchronous committed topology projection |
+| Last green commit | R1 at `e61821e3d84b7911048bf2fc89d489be36db9454` |
+| Next step | Characterize the full contribution lifecycle, then add data/visibility/hover/style-generation/cleanup ownership and move committed roads out of the analysis family |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -37,10 +37,15 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | C1 | Complete | Dependency-neutral type models through terrain | Typecheck and offline suite pass; no type-model cycles introduced |
 | C2 | Complete | Infrastructure/topology/trail/save models and type-only facade | Facade manifest, cycle, boundary, old/current fixture, and schema-11 tests pass |
 | D1 | Complete | Tool coordinator and interaction lease | Unit tests cover synchronous cancellation, ownership, release, and exact restoration |
-| D2 | Complete | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
-| D3 | Complete | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
-| D4 | Complete | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
-| E1 | Next | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
+| D2 | Complete; remediated by R1 | Terrain document and topology ports | Tests cover revisions, stale commits, construction lock, atomic commands, and coherent snapshots |
+| D3 | Provisional pending R2/R4 | Map contribution registry with legacy contributions | Style reload, literal z-order/hit priority, visibility, hover, capture, and cleanup tests pass |
+| D4 | Provisional pending R3/R4 | Terrain-grade, cover-edit, dam-analysis, and trail-paint adapters | Request identity, abort, termination, stale response, validation, and disposal tests pass |
+| R0 | Complete | Preserve D4 and independently rerun its deterministic gates | Backup branch points to the audited D4 state; full check and all browser workflows pass |
+| R1 | Complete | Document immutability, atomic terrain/topology confirmation, and coherent persistence snapshots | Ownership/no-op/atomicity tests, full check, and all browser workflows pass |
+| R2 | Next | Full map-contribution lifecycle and road-family ownership | Unit/browser tests cover data, visibility, hover, style generations, order, capture, and cleanup |
+| R3 | Not started | Worker post/response/cancellation hardening | Each adapter proves post failure, identity mismatch, supersession termination, and disposal |
+| R4 | Not started | Cross-cutting browser gates and D2–D4 reacceptance | Construction locking, worker supersession, style/hit/capture, and save coherence pass in browser |
+| E1 | Blocked by R4 | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
 | E2 | Not started | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
 | E3 | Not started | Snowmaking façade with dam, pond, and node controllers | Feature workflows plus ordering, locking, capture, and save gates pass |
 | E4 | Not started | Ski node/path controller extraction | Node/path/topology workflows plus ordering, cancellation, and save gates pass |
@@ -73,6 +78,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | D2 | `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd` | Passed | Revisioned terrain and topology documents landed and were integrated across three green sub-checkpoints: contracts at `5ac586b02173afd5d941e00bde47534d83435dc9`, terrain integration at `6ccca2a00226b943e9ae9882dc22057082283f23`, topology integration at `1dfcf24d2031fcb5a286dc81386bc4ff5bb435dd`. Thirty-nine contract tests, 584 total offline tests, both builds, and all three deterministic browser workflows passed at each of the two integration checkpoints. |
 | D3 | `88ff5bffd0b194006e0816bbc5d32222810cb35c` | Passed | The map contribution registry landed across three green sub-checkpoints: the declared orders and derived guards at `2c9a7389c19e71b2dc59b27aa9dfcdf15176a287`, the `MapView` traversal for style reload, hits, and capture at `743236d31fe662145c0504cb53fa181469d31e01`, and the browser evidence at `88ff5bffd0b194006e0816bbc5d32222810cb35c`. Thirteen contract tests, 597 total offline tests, both builds, and all five deterministic browser workflows passed. The restyle workflow asserts the nine family blocks, every guarded hit layer, hidden-layer persistence across a style reload, and map teardown; the hit workflow asserts a lift crossing a run picks the lift and the run alone still picks the run, and it fails when the guard derivation is neutered. |
 | D4 | `35fd9469bc12a1c87330e26d30591e530310bda5` | Passed | The four worker adapters landed across three green sub-checkpoints: the shared session with the dam-analysis and cover-edit adapters at `a753d464e11af0268575a4ca81831cc314624233`, the shared grade preview at `bcdc00a08a246c1ac5e4de7471f957641228f7e8`, and the painting engine at `35fd9469bc12a1c87330e26d30591e530310bda5`. Twenty-nine contract tests, 624 total offline tests, both builds, and all six deterministic browser workflows passed. `MapView` now contains zero `new Worker` expressions. The new painting workflow paints a run from a lift terminal and fails when the ready-then-replay handshake is neutered. |
+| R0 | `c6e6c2a6c2f837de3f9ee8c4fb1aa4ad6136b18c` | Passed | The D4 state was preserved at local branch `backup/refactor-d4-audit`. An independent `npm run check` passed 624 offline tests and both builds, and all six deterministic browser workflows passed before remediation began. |
+| R1 | `e61821e3d84b7911048bf2fc89d489be36db9454` | Passed | Ownership/no-op revisions landed at `75449a9`, two-phase terrain/topology confirmation and five coordinator tests at `4dc06c5`, and synchronous persistence projection at `e61821e`. `npm run check` passed 631 offline tests and both builds; all six deterministic browser workflows passed. |
 
 ## D4 worker ownership
 
@@ -137,10 +144,8 @@ add/remove graph node, remove legacy free-standing node, confirm/delete
 connector path, path closed toggle, confirm trail, patch trail, and delete
 trail.
 
-Two deliberate absences, so D2 leaves no unused abstraction:
+One deliberate absence remains in D2:
 
-- The topology port has no `addNode` command. In the supported app a legacy
-  free-standing node can only be removed; it arrives through save hydration.
 - The topology port has no runtime replacement command. `App` remounts
   `MapView` on a save change, so the clean load is the document's construction
   seed. The terrain document does have `replace`, because a package really is
@@ -149,6 +154,21 @@ Two deliberate absences, so D2 leaves no unused abstraction:
 One terrain-adjacent call stays outside the document by design:
 `setActiveResortTerrain(null)` in picking mode clears the resort protocols when
 no package exists, which is not a write to a committed record.
+
+## R1 document remediation
+
+Terrain and topology snapshots now expose recursively read-only contracts;
+topology takes an owned deep-frozen copy while terrain owns and freezes its
+record shell without duplicating its large immutable buffers. Missing targets,
+identical patches, and other no-op topology commands do not advance revisions.
+
+[`src/app/committedDocumentTransaction.ts`](../../src/app/committedDocumentTransaction.ts)
+provides the trail confirmation's two-phase boundary. It validates both
+revisions, applies both authoritative snapshots, and only then publishes either
+projection. Stale terrain therefore cannot land topology, and stale topology
+cannot leave an orphaned terrain grade. Save, exit checkpoint, capture, and
+dirty comparison read the topology document's synchronously published
+projection rather than four render-timed React refs.
 
 ## Open decisions and blockers
 
