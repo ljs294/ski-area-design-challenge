@@ -43,6 +43,26 @@ export type TerrainCommitResult =
   | { ok: true; revision: number }
   | { ok: false; reason: 'stale' };
 
+const TERRAIN_PREPARATION = Symbol('terrain-preparation');
+
+/** Opaque two-phase commit owned by its TerrainDocument. Applying changes the
+ * authoritative snapshot; publishing fans that already-committed snapshot out
+ * to caches, protocols, React, and map sources. */
+export interface PreparedTerrainCommit {
+  readonly revision: number;
+  readonly [TERRAIN_PREPARATION]: {
+    readonly owner: TerrainDocument;
+    readonly expectedRevision: number;
+    readonly publication: TerrainPublication;
+    applied: boolean;
+    published: boolean;
+  };
+}
+
+export type TerrainPrepareResult =
+  | { ok: true; prepared: PreparedTerrainCommit }
+  | { ok: false; reason: 'stale' };
+
 /**
  * Everything one terrain change has to touch, in the order a coherent
  * publication needs it: the caches feed the protocols and the map sources, and
@@ -123,9 +143,49 @@ export class TerrainDocument {
   /** Publish an edited package, or reject it for having been built on a
    *  revision that has since been superseded. */
   commit(request: TerrainCommitRequest): TerrainCommitResult {
+    const preparation = this.prepareCommit(request);
+    if (!preparation.ok) return preparation;
+    if (!this.applyPrepared(preparation.prepared)) return { ok: false, reason: 'stale' };
+    this.publishPrepared(preparation.prepared);
+    return { ok: true, revision: preparation.prepared.revision };
+  }
+
+  /** Validate and own the next record without changing the live document. */
+  prepareCommit(request: TerrainCommitRequest): TerrainPrepareResult {
     if (request.expectedRevision !== this.current.revision) return { ok: false, reason: 'stale' };
-    this.publish(request.record, request.kind);
-    return { ok: true, revision: this.current.revision };
+    const revision = this.current.revision + 1;
+    const record = Object.freeze({ ...request.record });
+    const publication = Object.freeze({ record, revision, edit: request.kind });
+    return { ok: true, prepared: {
+      revision,
+      [TERRAIN_PREPARATION]: {
+        owner: this,
+        expectedRevision: request.expectedRevision,
+        publication,
+        applied: false,
+        published: false,
+      },
+    } };
+  }
+
+  /** Apply a prepared record without invoking observers. Used by the atomic
+   * terrain/topology coordinator so both documents move before either emits. */
+  applyPrepared(prepared: PreparedTerrainCommit): boolean {
+    const state = prepared[TERRAIN_PREPARATION];
+    if (state.owner !== this || state.applied ||
+        state.expectedRevision !== this.current.revision) return false;
+    this.current = Object.freeze({ record: state.publication.record,
+      revision: state.publication.revision });
+    state.applied = true;
+    return true;
+  }
+
+  /** Publish a preparation that has already become authoritative. */
+  publishPrepared(prepared: PreparedTerrainCommit): void {
+    const state = prepared[TERRAIN_PREPARATION];
+    if (state.owner !== this || !state.applied || state.published) return;
+    state.published = true;
+    this.publishToPorts(state.publication);
   }
 
   /** Clear the dirty flag after a write, unless something was built while the
@@ -185,8 +245,12 @@ export class TerrainDocument {
     const owned = Object.freeze({ ...record });
     this.current = Object.freeze({ record: owned, revision });
     const publication: TerrainPublication = Object.freeze({ record: owned, revision, edit });
-    this.ports.cacheDisplayAssets(owned);
-    this.ports.activateProtocols(owned);
+    this.publishToPorts(publication);
+  }
+
+  private publishToPorts(publication: TerrainPublication): void {
+    this.ports.cacheDisplayAssets(publication.record);
+    this.ports.activateProtocols(publication.record);
     this.ports.publishState(publication);
     this.ports.refreshSources(publication);
   }

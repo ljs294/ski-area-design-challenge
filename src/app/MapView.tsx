@@ -159,8 +159,9 @@ import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
 import { ConstructionStatusBug } from './ConstructionStatusBug';
 import type { ConstructionActivity } from './constructionLock';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
-  type TerrainRecordView, type TerrainSnapshot } from './terrainDocument';
+  type TerrainCommitRequest, type TerrainRecordView, type TerrainSnapshot } from './terrainDocument';
 import { TopologyDocument, topologyProjection } from './topologyDocument';
+import { commitDocuments } from './committedDocumentTransaction';
 import { hitGuardLayers, orderContributions, orderHitContributions,
   type MapContribution } from './mapContribution';
 
@@ -3760,7 +3761,7 @@ export function MapView({
     }
   }
 
-  async function commitTrailTerrainGrade(): Promise<void> {
+  function trailTerrainGradeCommit(): TerrainCommitRequest {
     const { record, revision } = terrain.snapshot();
     const result = trailGradeResultRef.current;
     if (!record || !result) throw new Error('The terrain grading preview is not ready.');
@@ -3775,11 +3776,8 @@ export function MapView({
         )) {
       throw new Error('The trail changed after this grading preview. Recalculate the grade and try again.');
     }
-    const commit = terrain.commit({ expectedRevision: revision,
-      record: applyTerrainGradeToRecord(record, result), kind: 'elevation' });
-    if (!commit.ok) {
-      throw new Error('The trail changed after this grading preview. Recalculate the grade and try again.');
-    }
+    return { expectedRevision: revision,
+      record: applyTerrainGradeToRecord(record, result), kind: 'elevation' };
   }
 
   async function confirmTrail() {
@@ -3844,8 +3842,18 @@ export function MapView({
     await terrain.runConstruction('trail', async () => {
       try {
         await new Promise(requestAnimationFrame);
-        if (commitGrading) await commitTrailTerrainGrade();
-        else {
+        const terrainCommit = commitGrading ? trailTerrainGradeCommit() : undefined;
+        edit.addTrail(trail);
+        const commit = commitDocuments({ terrain, topology: edit, terrainCommit });
+        if (!commit.ok) {
+          if (commit.reason === 'terrain-stale') {
+            throw new Error(
+              'The terrain changed after this grading preview. Recalculate the grade and try again.'
+            );
+          }
+          throw new Error('The trail network changed while building. Repaint the run.');
+        }
+        if (!commitGrading) {
           const record = terrain.record;
           if (record) setVisibleContours(record);
         }
@@ -3855,10 +3863,6 @@ export function MapView({
         trailPaint.stop();
         terrainGrade.stop();
         trailGradeResultRef.current = null;
-        edit.addTrail(trail);
-        if (!edit.commit().ok) {
-          throw new Error('The trail network changed while building. Repaint the run.');
-        }
         confirmed = true;
         await applyTrailCoverClear(trail, gradingClearPolygons);
       } catch (error) {

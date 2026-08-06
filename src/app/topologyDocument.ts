@@ -59,6 +59,28 @@ export type TopologyCommitResult =
   | { ok: true; revision: number; changed: boolean }
   | { ok: false; reason: 'stale' | 'settled' };
 
+const TOPOLOGY_PREPARATION = Symbol('topology-preparation');
+
+/** Opaque two-phase commit owned by one transaction and its document. */
+export interface PreparedTopologyCommit {
+  readonly revision: number;
+  readonly changed: boolean;
+  readonly [TOPOLOGY_PREPARATION]: {
+    readonly owner: TopologyDocument;
+    readonly transaction: TopologyTransaction;
+    readonly baseRevision: number;
+    readonly snapshot: MutableTopologySnapshot;
+    readonly changedCollections: TopologyChanged;
+    applied: boolean;
+    published: boolean;
+    cancelled: boolean;
+  };
+}
+
+export type TopologyPrepareResult =
+  | { ok: true; prepared: PreparedTopologyCommit }
+  | { ok: false; reason: 'stale' | 'settled' };
+
 function stateOf(state: TopologyState): TopologyState {
   return {
     trails: state.trails,
@@ -103,6 +125,7 @@ export class TopologyTransaction {
   private readonly base: MutableTopologySnapshot;
   private next: TopologyState;
   private settled = false;
+  private prepared: PreparedTopologyCommit | null = null;
 
   constructor(document: TopologyDocument, base: MutableTopologySnapshot) {
     this.document = document;
@@ -204,6 +227,10 @@ export class TopologyTransaction {
     return true;
   }
 
+  addNode(node: SavedNode): void {
+    this.next.nodes = [...this.next.nodes, node];
+  }
+
   addPath(path: SavedPath): void {
     this.next.paths = [...this.next.paths, path];
   }
@@ -229,13 +256,47 @@ export class TopologyTransaction {
   /** Publish every collection this edit touched, or reject the whole edit
    *  because the document moved underneath it. */
   commit(): TopologyCommitResult {
-    if (this.settled) return { ok: false, reason: 'settled' };
+    const preparation = this.prepareCommit();
+    if (!preparation.ok) return preparation;
+    if (!this.document.applyPrepared(preparation.prepared)) {
+      return { ok: false, reason: this.settled ? 'settled' : 'stale' };
+    }
+    this.document.publishPrepared(preparation.prepared);
+    return {
+      ok: true,
+      revision: preparation.prepared.revision,
+      changed: preparation.prepared.changed,
+    };
+  }
+
+  /** Validate and own the completed edit without changing the live document. */
+  prepareCommit(): TopologyPrepareResult {
+    if (this.settled || this.prepared) return { ok: false, reason: 'settled' };
+    const preparation = this.document.prepareCommit(this, this.base, this.next);
+    if (preparation.ok) this.prepared = preparation.prepared;
+    return preparation;
+  }
+
+  /** Called only by the owning document when a preparation becomes live. */
+  settlePrepared(prepared: PreparedTopologyCommit): boolean {
+    if (this.settled || this.prepared !== prepared) return false;
     this.settled = true;
-    return this.document.publish(this.base, this.next);
+    return true;
+  }
+
+  /** Apply this transaction's prepared snapshot without notifying observers. */
+  applyPrepared(prepared: PreparedTopologyCommit): boolean {
+    return this.document.applyPrepared(prepared);
+  }
+
+  /** Notify observers after the prepared snapshot has become authoritative. */
+  publishPrepared(prepared: PreparedTopologyCommit): void {
+    this.document.publishPrepared(prepared);
   }
 
   /** Abandon the edit. Nothing was published, so there is nothing to undo. */
   abort(): void {
+    if (this.prepared) this.prepared[TOPOLOGY_PREPARATION].cancelled = true;
     this.settled = true;
   }
 }
@@ -267,18 +328,53 @@ export class TopologyDocument {
     return new TopologyTransaction(this, this.current);
   }
 
-  /**
-   * Land a transaction. Called by `TopologyTransaction.commit`; nothing else
-   * should reach past a transaction to publish.
-   */
-  publish(base: MutableTopologySnapshot, next: TopologyState): TopologyCommitResult {
+  /** Validate and own a transaction result without changing live state. */
+  prepareCommit(
+    transaction: TopologyTransaction,
+    base: MutableTopologySnapshot,
+    next: TopologyState,
+  ): TopologyPrepareResult {
     if (base.revision !== this.current.revision) return { ok: false, reason: 'stale' };
-    const changed = changedBetween(base, next);
-    if (!changed.trails && !changed.nodes && !changed.paths && !changed.junctions) {
-      return { ok: true, revision: this.current.revision, changed: false };
+    const changedCollections = changedBetween(base, next);
+    const changed = Object.values(changedCollections).some(Boolean);
+    const revision = this.current.revision + (changed ? 1 : 0);
+    const snapshot = changed ? ownedSnapshot(next, revision) : this.current;
+    const prepared: PreparedTopologyCommit = {
+      revision,
+      changed,
+      [TOPOLOGY_PREPARATION]: {
+        owner: this,
+        transaction,
+        baseRevision: base.revision,
+        snapshot,
+        changedCollections,
+        applied: false,
+        published: false,
+        cancelled: false,
+      },
+    };
+    return { ok: true, prepared };
+  }
+
+  /** Apply without notifying observers, allowing a coordinator to move all
+   * authoritative documents before any projection sees the change. */
+  applyPrepared(prepared: PreparedTopologyCommit): boolean {
+    const state = prepared[TOPOLOGY_PREPARATION];
+    if (state.owner !== this || state.applied || state.cancelled ||
+        state.baseRevision !== this.current.revision ||
+        !state.transaction.settlePrepared(prepared)) return false;
+    if (prepared.changed) this.current = state.snapshot;
+    state.applied = true;
+    return true;
+  }
+
+  /** Notify observers after a preparation has become authoritative. */
+  publishPrepared(prepared: PreparedTopologyCommit): void {
+    const state = prepared[TOPOLOGY_PREPARATION];
+    if (state.owner !== this || !state.applied || state.published) return;
+    state.published = true;
+    if (prepared.changed) {
+      this.onChange({ snapshot: state.snapshot, changed: state.changedCollections });
     }
-    this.current = ownedSnapshot(next, this.current.revision + 1);
-    this.onChange({ snapshot: this.current, changed });
-    return { ok: true, revision: this.current.revision, changed: true };
   }
 }
