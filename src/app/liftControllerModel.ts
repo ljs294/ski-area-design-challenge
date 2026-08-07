@@ -1,5 +1,11 @@
 import type { SavedLift } from '../types/lifts';
-import { FIXED_GRIP_SPEC, liftStats, nextLiftName, orientBottomToTop } from '../lifts';
+import {
+  FIXED_GRIP_SPEC,
+  liftStats,
+  nextLiftIdentifier,
+  nextLiftName,
+  orientBottomToTop,
+} from '../lifts';
 
 export type LiftTool =
   | { phase: 'idle' }
@@ -13,6 +19,7 @@ export interface DraftLift {
   elevStatus: 'pending' | 'ok' | 'error';
   chairSize: SavedLift['chairSize'];
   status: SavedLift['status'];
+  identifier: string;
   name: string;
 }
 
@@ -20,7 +27,8 @@ export type LiftControllerAction =
   | { type: 'arm' }
   | { type: 'anchor'; point: [number, number] }
   | { type: 'move'; point: [number, number] }
-  | { type: 'review'; points: [[number, number], [number, number]]; name: string }
+  | { type: 'review'; points: [[number, number], [number, number]];
+      identifier: string; name: string }
   | { type: 'patch'; patch: Partial<DraftLift> }
   | { type: 'sample-started' }
   | { type: 'sample-succeeded'; elevations: [number, number] }
@@ -43,6 +51,7 @@ export function reduceLiftTool(state: LiftTool, action: LiftControllerAction): L
       elevStatus: 'pending',
       chairSize: FIXED_GRIP_SPEC.defaultChairSize,
       status: 'planning',
+      identifier: action.identifier,
       name: action.name,
     } } : state;
     case 'patch': return state.phase === 'review'
@@ -74,7 +83,8 @@ export function liftFromDraft(
   const stats = liftStats(oriented.points, oriented.elevs);
   return {
     id,
-    name: draft.name.trim() || nextLiftName([...existing]),
+    identifier: draft.identifier.trim() || nextLiftIdentifier(existing),
+    name: draft.name.trim() || nextLiftName(existing),
     liftClass: 'fixed-grip',
     points: oriented.points,
     endpointElevM: oriented.elevs,

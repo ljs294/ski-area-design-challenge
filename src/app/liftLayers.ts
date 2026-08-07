@@ -1,5 +1,6 @@
 import type maplibregl from 'maplibre-gl';
 import type { SavedLift } from '../types';
+import { formatLiftLabel } from '../lifts';
 
 // Lift rendering: every lift is a red line under a white casing (classic
 // ski-map styling) with terminal dots and a name label. Complete lifts render
@@ -12,6 +13,7 @@ export const LIFT_SOURCE = 'lifts';
 // 'lift-line-draft', which is the transient line drawn while placing a lift.
 export const LIFT_BUILT_LAYER_IDS = [
   'lift-line-casing',
+  'lift-line-hit',
   'lift-line-complete',
   'lift-line-planning',
   'lift-terminals',
@@ -20,6 +22,10 @@ export const LIFT_BUILT_LAYER_IDS = [
 
 // Classic ski-map lift red (matches the capacity emblems at the base).
 const LIFT_RED = '#d42027';
+export const LIFT_LINE_CASING_WIDTH_PX = 3;
+export const LIFT_LINE_WIDTH_PX = 1.5;
+export const LIFT_DRAFT_LINE_WIDTH_PX = 1.25;
+export const LIFT_LINE_HIT_WIDTH_PX = 8;
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 
@@ -39,6 +45,8 @@ export function liftsToGeoJSON(
       properties: {
         id: lift.id,
         name: lift.name,
+        identifier: lift.identifier ?? '',
+        label: formatLiftLabel(lift),
         kind: 'line',
         draft: false,
         status: lift.status,
@@ -89,7 +97,16 @@ export function addLiftLayers(map: maplibregl.Map): void {
     source: LIFT_SOURCE,
     filter: ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], false]],
     layout: { 'line-cap': 'round' },
-    paint: { 'line-color': '#ffffff', 'line-width': 5 },
+    paint: { 'line-color': '#ffffff', 'line-width': LIFT_LINE_CASING_WIDTH_PX },
+  });
+  // Decouple selection tolerance from the thin visual line.
+  map.addLayer({
+    id: 'lift-line-hit',
+    type: 'line',
+    source: LIFT_SOURCE,
+    filter: ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], false]],
+    layout: { 'line-cap': 'round' },
+    paint: { 'line-color': 'rgba(0,0,0,0)', 'line-width': LIFT_LINE_HIT_WIDTH_PX },
   });
   // Complete lifts: solid red.
   map.addLayer({
@@ -103,7 +120,7 @@ export function addLiftLayers(map: maplibregl.Map): void {
       ['==', ['get', 'status'], 'complete'],
     ],
     layout: { 'line-cap': 'round' },
-    paint: { 'line-color': LIFT_RED, 'line-width': 3 },
+    paint: { 'line-color': LIFT_RED, 'line-width': LIFT_LINE_WIDTH_PX },
   });
   // Planning lifts: dashed red.
   map.addLayer({
@@ -116,7 +133,11 @@ export function addLiftLayers(map: maplibregl.Map): void {
       ['==', ['get', 'draft'], false],
       ['==', ['get', 'status'], 'planning'],
     ],
-    paint: { 'line-color': LIFT_RED, 'line-width': 3, 'line-dasharray': [2, 1.5] },
+    paint: {
+      'line-color': LIFT_RED,
+      'line-width': LIFT_LINE_WIDTH_PX,
+      'line-dasharray': [2, 1.5],
+    },
   });
   // In-progress draft while placing the second terminal.
   map.addLayer({
@@ -124,7 +145,11 @@ export function addLiftLayers(map: maplibregl.Map): void {
     type: 'line',
     source: LIFT_SOURCE,
     filter: ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], true]],
-    paint: { 'line-color': LIFT_RED, 'line-width': 2.5, 'line-dasharray': [2, 1.5] },
+    paint: {
+      'line-color': LIFT_RED,
+      'line-width': LIFT_DRAFT_LINE_WIDTH_PX,
+      'line-dasharray': [2, 1.5],
+    },
   });
   // Terminal dots: red (matching the line) on a white ring, so both ends read
   // the same on any basemap.
@@ -147,7 +172,7 @@ export function addLiftLayers(map: maplibregl.Map): void {
     filter: ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], false]],
     layout: {
       'symbol-placement': 'line-center',
-      'text-field': ['get', 'name'],
+      'text-field': ['get', 'label'],
       'text-size': 20,
       // Noto Sans Bold 404s on the dark (Carto) basemap — Regular is the only
       // weight both fontstacks ship, so labels stay visible after a theme swap.

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { SavedLift } from '../types';
 import type { Units } from './SettingsContext';
-import { CHAIR_LABELS } from '../lifts';
+import { CHAIR_LABELS, formatLiftLabel } from '../lifts';
 import { ConditionToggle } from './ConditionToggle';
 import { LiftStatsBlock } from './LiftControl';
 
@@ -31,7 +31,7 @@ export function LiftDetail({
   return (
     <div className="lift-detail">
       <div className="dock-head">
-        <span className="dock-head-title lift-detail-name">{lift.name}</span>
+        <span className="dock-head-title lift-detail-name">{formatLiftLabel(lift)}</span>
         <button className="settings-close-x" aria-label="Close" onClick={onClose}>
           ✕
         </button>
@@ -52,7 +52,9 @@ export function LiftDetail({
 
       {confirmRemove ? (
         <div className="lift-delete-confirm">
-          <div className="lift-delete-warn">Remove “{lift.name}”? This can't be undone.</div>
+          <div className="lift-delete-warn">
+            Remove “{formatLiftLabel(lift)}”? This can't be undone.
+          </div>
           <div className="site-actions">
             <button className="site-btn site-btn-danger" onClick={onRemove}>
               Remove

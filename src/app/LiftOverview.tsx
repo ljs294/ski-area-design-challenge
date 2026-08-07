@@ -1,6 +1,6 @@
 import type { SavedLift } from '../types';
 import type { Units } from './SettingsContext';
-import { CHAIR_LABELS, fmtDistance, liftStats } from '../lifts';
+import { CHAIR_LABELS, fmtDistance, formatLiftLabel, liftStats } from '../lifts';
 
 /**
  * Dedicated overview of every ski lift, shown in the Lifts roll-up when the draw
@@ -45,11 +45,11 @@ export function LiftOverview({
                 type="button"
                 className="lift-row lift-row-btn"
                 onClick={() => onSelect(l.id)}
-                title={`View ${l.name}`}
+                title={`View ${formatLiftLabel(l)}`}
               >
                 <span className={`lift-row-dot lift-row-dot--${l.status}`} aria-hidden="true" />
                 <span className="lift-row-main">
-                  <span className="lift-row-name">{l.name}</span>
+                  <span className="lift-row-name">{formatLiftLabel(l)}</span>
                   <span className="lift-row-summary">
                     {CHAIR_LABELS[l.chairSize]}
                     {vertM != null ? ` · ${fmtDistance(vertM, units)} vert` : ''}

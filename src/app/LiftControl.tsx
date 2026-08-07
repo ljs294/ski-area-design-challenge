@@ -2,7 +2,14 @@ import { useState } from 'react';
 import type { ChairSize, LiftStatus, SavedLift } from '../types';
 import type { Units } from './SettingsContext';
 import { haversineMeters } from '../geo';
-import { CHAIR_LABELS, fixedGripCapacityPph, fixedGripDerived, fmtDistance, liftStats } from '../lifts';
+import {
+  CHAIR_LABELS,
+  fixedGripCapacityPph,
+  fixedGripDerived,
+  fmtDistance,
+  formatLiftLabel,
+  liftStats,
+} from '../lifts';
 import type { DraftLift, LiftTool } from './liftControllerModel';
 
 export type { DraftLift, LiftTool } from './liftControllerModel';
@@ -76,6 +83,43 @@ function ChairSizeField({
         ))}
       </select>
     </label>
+  );
+}
+
+function LiftIdentityFields({
+  identifier,
+  name,
+  onChange,
+}: {
+  identifier?: string;
+  name: string;
+  onChange: (patch: { identifier?: string; name?: string }) => void;
+}) {
+  return (
+    <>
+      <label className="lift-field lift-identity-field">
+        <span className="lift-field-label">Letter / number</span>
+        <input
+          className="name-entry-input lift-identity-input lift-number-input"
+          type="text"
+          value={identifier ?? ''}
+          placeholder="e.g. A or 12"
+          autoCapitalize="characters"
+          spellCheck={false}
+          onChange={(event) => onChange({ identifier: event.target.value })}
+        />
+      </label>
+      <label className="lift-field lift-identity-field">
+        <span className="lift-field-label">Name</span>
+        <input
+          className="name-entry-input lift-identity-input lift-name-input"
+          type="text"
+          value={name}
+          placeholder="e.g. Summit Express"
+          onChange={(event) => onChange({ name: event.target.value })}
+        />
+      </label>
+    </>
   );
 }
 
@@ -203,11 +247,10 @@ export function LiftControl({
     return (
       <div className="site-control site-control-wide lift-panel">
         <PanelHead title="New fixed-grip chairlift" onClose={onCancel} />
-        <input
-          className="name-entry-input lift-name-input"
-          type="text"
-          value={d.name}
-          onChange={(e) => onDraftChange({ name: e.target.value })}
+        <LiftIdentityFields
+          identifier={d.identifier}
+          name={d.name}
+          onChange={onDraftChange}
         />
         <ChairSizeField chairSize={d.chairSize} onChange={onDraftChange} />
         <StatusToggle value={d.status} onChange={(status) => onDraftChange({ status })} />
@@ -250,11 +293,10 @@ export function LiftControl({
     return (
       <div className="site-control site-control-wide lift-panel">
         <PanelHead title="Edit lift" onClose={onCloseEdit} />
-        <input
-          className="name-entry-input lift-name-input"
-          type="text"
-          value={editing.name}
-          onChange={(e) => onEditPatch(editing.id, { name: e.target.value })}
+        <LiftIdentityFields
+          identifier={editing.identifier}
+          name={editing.name}
+          onChange={(patch) => onEditPatch(editing.id, patch)}
         />
         <ChairSizeField
           chairSize={editing.chairSize}
@@ -272,7 +314,9 @@ export function LiftControl({
         />
         {confirmDelete ? (
           <div className="lift-delete-confirm">
-            <div className="lift-delete-warn">Delete “{editing.name}”? This can't be undone.</div>
+            <div className="lift-delete-warn">
+              Delete “{formatLiftLabel(editing)}”? This can't be undone.
+            </div>
             <div className="site-actions">
               <button
                 className="site-btn site-btn-danger"
@@ -316,11 +360,11 @@ export function LiftControl({
               type="button"
               className="lift-row lift-row-btn"
               onClick={() => onSelect(l.id)}
-              title={`Edit ${l.name}`}
+              title={`Edit ${formatLiftLabel(l)}`}
             >
               <span className={`lift-row-dot lift-row-dot--${l.status}`} aria-hidden="true" />
               <span className="lift-row-main">
-                <span className="lift-row-name">{l.name}</span>
+                <span className="lift-row-name">{formatLiftLabel(l)}</span>
                 <span className="lift-row-summary">
                   {CHAIR_LABELS[l.chairSize]}
                   {` · ${fmtDistance(l.lengthM, units)}`}

@@ -2,7 +2,7 @@ import { useEffect, useReducer, useRef, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import type { SavedLift } from '../types/lifts';
 import { haversineMeters } from '../geo';
-import { nextLiftName } from '../lifts';
+import { nextLiftIdentifier, nextLiftName } from '../lifts';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS } from './liftLayers';
 import type { DraftLine } from './liftLayers';
 import { MAP_HIT_RANK, MAP_Z_ORDER } from './mapContribution';
@@ -87,7 +87,7 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
       hits: [{
         id: 'lift',
         priority: MAP_HIT_RANK.lift,
-        layerIds: ['lift-line-casing', 'lift-terminals'],
+        layerIds: ['lift-line-hit', 'lift-terminals'],
         select: (id) => select(id),
       }],
       install: ({ map }) => addLiftLayers(map),
@@ -128,7 +128,12 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
       }
       if (current.phase !== 'anchored' || haversineMeters(current.a, point) < MIN_LIFT_M) return;
       const points: [[number, number], [number, number]] = [current.a, point];
-      dispatch({ type: 'review', points, name: nextLiftName([...liftsRef.current]) });
+      dispatch({
+        type: 'review',
+        points,
+        identifier: nextLiftIdentifier(liftsRef.current),
+        name: nextLiftName(liftsRef.current),
+      });
       sampleElevations(points);
     };
     const onMove = (event: maplibregl.MapMouseEvent) => {

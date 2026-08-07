@@ -1,4 +1,5 @@
 import { haversineMeters } from './geo';
+import { formatLiftLabel } from './lifts';
 import { makeFrame, pointSegmentDistance, toMeters } from './network';
 import { describeAnchor, sanitizeAnchor } from './skiNodes';
 import type { AnchorRef } from './types/anchors';
@@ -282,7 +283,7 @@ export function describeAnchorDetail(anchor: AnchorRef, world: AnchorWorld): Anc
   switch (anchor.kind) {
     case 'lift': {
       const lift = world.lifts.find((l) => l.id === anchor.liftId);
-      const label = lift ? `${lift.name} ${anchor.end}` : describeAnchor(anchor);
+      const label = lift ? `${formatLiftLabel(lift)} ${anchor.end}` : describeAnchor(anchor);
       const terminal = world.junctions.find((junction) =>
         junction.liftTerminal?.liftId === anchor.liftId && junction.liftTerminal.end === anchor.end);
       const number = junctionNumber(world.junctions, terminal?.id);
@@ -445,7 +446,7 @@ export function summarizeJunctions(world: AnchorWorld): JunctionSummary[] {
     let label: string;
     if (junction.liftTerminal) {
       const lift = world.lifts.find((l) => l.id === junction.liftTerminal!.liftId);
-      label = `${lift?.name ?? 'Lift'} ${junction.liftTerminal.end}`;
+      label = `${lift ? formatLiftLabel(lift) : 'Lift'} ${junction.liftTerminal.end}`;
     } else {
       const names = [...new Set(uses.map((use) =>
         world.trails.find((trail) => trail.id === use.trailId)?.name ?? 'Unknown run'))];

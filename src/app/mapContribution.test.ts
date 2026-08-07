@@ -16,7 +16,7 @@ import type maplibregl from 'maplibre-gl';
 /** The layer ids the live map delegates each family's clicks to. */
 const HIT_LAYERS: Record<MapHitFamilyId, string[]> = {
   snowmaking: ['snowmaking-node-hit'],
-  lift: ['lift-line-casing', 'lift-terminals'],
+  lift: ['lift-line-hit', 'lift-terminals'],
   trail: ['trail-fill'],
   dam: ['dam-crest-hit', 'dam-pool-fill'],
   pond: ['pond-fill-hit'],
@@ -66,21 +66,21 @@ describe('map hit priority', () => {
 
     expect(hitGuardLayers('lift', contributions)).toEqual(['snowmaking-node-hit']);
     expect(hitGuardLayers('trail', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-casing', 'lift-terminals',
+      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals',
     ]);
     expect(hitGuardLayers('dam', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-casing', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
     ]);
     expect(hitGuardLayers('pond', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-casing', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
       'dam-crest-hit', 'dam-pool-fill',
     ]);
     expect(hitGuardLayers('stream', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-casing', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
       'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit',
     ]);
     expect(hitGuardLayers('lake', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-casing', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
       'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'local-water-line-hit',
     ]);
   });
@@ -88,7 +88,7 @@ describe('map hit priority', () => {
   it('makes a run yield to a lift crossing it', () => {
     const guard = hitGuardLayers('trail', hitContributions());
 
-    expect(guard).toContain('lift-line-casing');
+    expect(guard).toContain('lift-line-hit');
     expect(guard).toContain('lift-terminals');
   });
 
@@ -335,8 +335,8 @@ describe('managed map hit dispatch', () => {
     expect(map.canvas.style.cursor).toBe('');
 
     enabled = false;
-    map.emit('click', 'lift-line-casing', 'lift');
-    map.emit('mouseenter', 'lift-line-casing');
+    map.emit('click', 'lift-line-hit', 'lift');
+    map.emit('mouseenter', 'lift-line-hit');
     expect(selected).toEqual(['trail:run']);
     expect(map.canvas.style.cursor).toBe('');
   });

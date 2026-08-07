@@ -124,6 +124,9 @@ export function sanitizeLifts(raw: unknown[]): SavedLift[] {
     const stats = liftStats(points, elevs);
     out.push({
       id: l.id,
+      identifier: typeof l.identifier === 'string' && l.identifier.trim()
+        ? l.identifier.trim()
+        : undefined,
       name: l.name,
       liftClass: 'fixed-grip',
       points,
@@ -139,12 +142,43 @@ export function sanitizeLifts(raw: unknown[]): SavedLift[] {
   return out;
 }
 
+/** Map/UI label, preserving the legacy name-only form when no identifier exists. */
+export function formatLiftLabel(
+  lift: Pick<SavedLift, 'identifier' | 'name'>,
+): string {
+  const identifier = lift.identifier?.trim() ?? '';
+  const name = lift.name.trim();
+  if (identifier && name) return `${identifier} - ${name}`;
+  return identifier || name;
+}
+
+function reservedLiftNumbers(existing: readonly SavedLift[]): Set<string> {
+  const taken = new Set<string>();
+  for (const lift of existing) {
+    const identifier = lift.identifier?.trim();
+    if (identifier && /^\d+$/.test(identifier)) taken.add(String(Number(identifier)));
+    const legacyNumber = /^Lift\s+(\d+)$/i.exec(lift.name.trim())?.[1];
+    if (legacyNumber) taken.add(String(Number(legacyNumber)));
+  }
+  return taken;
+}
+
+/** First number unused by either an identifier or a legacy/default "Lift N" name. */
+export function nextLiftIdentifier(existing: readonly SavedLift[]): string {
+  const taken = reservedLiftNumbers(existing);
+  for (let n = 1; ; n++) {
+    const identifier = String(n);
+    if (!taken.has(identifier)) return identifier;
+  }
+}
+
 /** First "Lift N" not already taken. */
-export function nextLiftName(existing: SavedLift[]): string {
-  const taken = new Set(existing.map((l) => l.name));
+export function nextLiftName(existing: readonly SavedLift[]): string {
+  const takenNames = new Set(existing.map((lift) => lift.name));
+  const takenNumbers = reservedLiftNumbers(existing);
   for (let n = 1; ; n++) {
     const name = `Lift ${n}`;
-    if (!taken.has(name)) return name;
+    if (!takenNames.has(name) && !takenNumbers.has(String(n))) return name;
   }
 }
 
