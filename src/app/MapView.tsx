@@ -1,20 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers, type LayerToggle } from './analysisLayers';
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
-import { GameMenu } from './GameMenu';
-import { CreditsPanel } from './CreditsPanel';
 import { sanitizeStreamWidthOverrides } from '../streamAnalysis';
-import { MountainDashboards, type DashboardKind } from './MountainDashboards';
+import type { DashboardKind } from './MountainDashboards';
 import { buildSkiNetwork } from '../network';
 import { sanitizeNodes, sanitizePaths } from '../skiNodes';
-import { ResortStatsPanel } from './ResortStatsPanel';
-import { CursorReadout, type Readout } from './CursorReadout';
+import type { Readout } from './CursorReadout';
 import type { OverlayId } from './Legend';
 import { sampleTerrainAt, compass8 } from './terrainProtocols';
 import { sampleCoverAt, sampleSiteCoverGrid, COVER_LABELS } from './worldcoverProtocol';
-import { SiteControl, type SiteMode } from './SiteControl';
+import type { SiteMode } from './SiteControl';
 import {
   addSiteBoxLayers,
   setSiteBox,
@@ -23,9 +20,8 @@ import {
   siteBoxFromBounds,
   type SiteBox,
 } from './sitePicker';
-import { SearchBox, type GeocodeResult } from './SearchBox';
+import type { GeocodeResult } from './SearchBox';
 import { tuneBasemap, basemapFor } from './basemapStyle';
-import { View3DControl } from './View3DControl';
 import { mountTerrain, unmountTerrain, tilt3D, PITCH_3D } from './terrain3d';
 import { useSettings, pixelRatioFor } from './SettingsContext';
 import { MapInteractionLease, type MapInteractionLeaseHandle,
@@ -33,7 +29,6 @@ import { MapInteractionLease, type MapInteractionLeaseHandle,
 import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot,
   type ToolId } from './toolCoordinator';
 import { applyTileLod } from './terrainLod';
-import { ResortLoadingScreen } from './ResortLoadingScreen';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
@@ -62,7 +57,7 @@ import { useRoadController } from './useRoadController';
 import { useSnowmakingController } from './useSnowmakingController';
 import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
-import { MapGameDock } from './MapGameDock';
+import { MapViewChrome } from './MapViewChrome';
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
 import { sanitizeDams } from '../damAnalysis';
@@ -78,7 +73,7 @@ import {
   type DesignSnapshot,
   type TerrainDirty,
 } from './unsavedChanges';
-import { UnsavedChangesModal, type UnsavedChoice } from './UnsavedChangesModal';
+import type { UnsavedChoice } from './UnsavedChangesModal';
 import { refreshTerrainGradeSources, setGradedContourPreview,
   setTerrainContourData } from './terrainGradeMap';
 import { sanitizeLifts } from '../lifts';
@@ -89,7 +84,6 @@ import {
 import { hydrateTopology } from '../topology';
 import { sanitizeRoads } from '../roads';
 import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
-import { ConstructionStatusBug } from './ConstructionStatusBug';
 import type { ConstructionActivity } from './constructionLock';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
   type TerrainRecordView } from './terrainDocument';
@@ -134,21 +128,6 @@ function activeOverlayOf(layers: LayerToggle[]): OverlayId | null {
   const on = analysis ?? layers.find((l) => l.id === 'groundcover' && l.visible);
   return (on?.id as OverlayId) ?? null;
 }
-
-/** Ordered display steps for the resort-preparation gate. Their index lines up
- *  with TerrainPackageProgress.completed (0-based): step i is done when
- *  completed > i, active when completed === i, pending otherwise. */
-const PREP_STEPS: { key: string; label: string }[] = [
-  { key: 'elevation', label: 'Elevation data' },
-  { key: 'ground-cover', label: 'Recovery ground cover' },
-  { key: 'imagery', label: 'NAIP imagery & map context' },
-  { key: 'decoding', label: 'Four terrain classes' },
-  { key: 'vectorizing-cover', label: 'Detailed vector cover' },
-  { key: 'deriving', label: 'Local contours' },
-  { key: 'saving', label: 'Saving package' },
-  { key: 'verifying', label: 'Verifying' },
-  { key: 'finalizing', label: 'Final validation' },
-];
 
 // Escape hatch for the Playwright verification harness: the 3D terrain mesh
 // crashes SwiftShader headless, so `?flat` keeps the resort view terrain-free
@@ -2003,150 +1982,59 @@ export function MapView({
   return (
     <>
       <div ref={containerRef} className="map-root" />
-
-      {checkpointError && (
-        <div className="checkpoint-error" role="alert">
-          <span>{checkpointError}</span>
-          <button type="button" onClick={() => setCheckpointError(null)}>Dismiss</button>
-        </div>
-      )}
-
-      {unsavedPrompt && (
-        <UnsavedChangesModal
-          saving={saving}
-          onChoice={(choice) => unsavedChoiceRef.current?.(choice)}
-        />
-      )}
-
-      {showPackageGate && (
-        <div className="package-gate" role="dialog" aria-modal="true" aria-live="polite">
-          <div className={`package-card${packageState === 'error' ? ' is-error' : ''}`}>
-            {packageState !== 'error' && (
-              <svg className="topo-motif" viewBox="0 0 120 120" aria-hidden="true">
-                <defs>
-                  <path id="topoRing" d="M60 42 C73 42 80 50 80 60 C80 72 71 80 60 80 C49 80 40 71 40 60 C40 49 47 42 60 42 Z" />
-                </defs>
-                <g fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <use href="#topoRing" className="topo-ring" style={{ '--i': 0 } as CSSProperties} transform="translate(60 60) scale(0.5) translate(-60 -60)" />
-                  <use href="#topoRing" className="topo-ring" style={{ '--i': 1 } as CSSProperties} transform="translate(60 60) scale(1) translate(-60 -60)" />
-                  <use href="#topoRing" className="topo-ring" style={{ '--i': 2 } as CSSProperties} transform="translate(60 60) scale(1.55) translate(-60 -60)" />
-                  <use href="#topoRing" className="topo-ring" style={{ '--i': 3 } as CSSProperties} transform="translate(60 60) scale(2.1) translate(-60 -60)" />
-                </g>
-                <circle cx="60" cy="60" r="3.4" className="topo-peak" fill="currentColor" />
-              </svg>
-            )}
-            <div className="package-kicker">LOCAL RESORT DATA</div>
-            <h2>{packageState === 'preparing' ? 'Preparing resort data' : 'Preparation failed'}</h2>
-            <p>
-              {packageState === 'preparing'
-                ? 'Fetching terrain, ground cover, and contours for your build site.'
-                : packageError ?? 'Elevation, contours, and ground cover must be saved locally before designing.'}
-            </p>
-            {packageState === 'preparing' && packageProgress && (() => {
-              const { completed, total } = packageProgress;
-              const pct = Math.round((completed / total) * 100);
-              return (
-                <>
-                  <ul className="package-steps">
-                    {PREP_STEPS.map((s, i) => {
-                      const state = completed > i ? 'done' : completed === i ? 'active' : 'pending';
-                      return (
-                        <li key={s.key} className={`package-step is-${state}`}>
-                          <span className="package-step-dot" aria-hidden="true" />
-                          <span className="package-step-label">
-                            {s.label}
-                            {state === 'active' && <span className="package-step-detail">{packageProgress.message}</span>}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  <div className="package-progress"><span style={{ width: `${pct}%` }} /></div>
-                  <div className="package-progress-label">{pct}% · Step {Math.min(total, completed + 1)} of {total}</div>
-                  <div className="package-actions">
-                    <button className="site-btn" onClick={cancelPackagePreparation}>Cancel</button>
-                  </div>
-                </>
-              );
-            })()}
-            {packageState === 'error' && (
-              <div className="package-actions">
-                <button className="site-btn" onClick={onQuit}>Back to menu</button>
-                <button className="site-btn site-btn-primary" onClick={() => void createSave()}>
-                  Prepare Resort Data
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* The New Game prepare→play handoff has no App-owned loading screen, so
-          it drives the same surface locally rather than drawing the resort in
-          front of the player. Resuming a save renders this from App instead. */}
-      {localBoot && !showPackageGate && (
-        <ResortLoadingScreen
-          title={saved?.name || nameDraft.trim() || 'Your resort'}
-          progress={localBoot}
-          imageryUrl={localImageryUrlRef.current}
-          state="loading"
-          onBack={onQuit}
-          onEnterAnyway={() => bootControls.current?.reveal()}
-        />
-      )}
-
-      {/* Top-right app menu (Save / Load / Settings / Credits / Main Menu) */}
-      <GameMenu
-        canSave={!!saved}
-        saving={saving}
-        unsaved={!!saved && hasUnsavedChanges()}
-        onSave={() => void saveProgress()}
-        onLoad={onLoadGame}
-        onSettings={onOpenSettings}
-        onCredits={() => setShowCredits(true)}
-        onRebuildCover={terrainRecord && terrainRecord.schemaVersion < 6 ? () => void repairAndContinue() : undefined}
-        onQuit={onQuit}
-      />
-
-      {picking && !saved && <SearchBox onResult={handleSearchResult} />}
-
-      {/* Site-picking + 3D controls (top-right, below the Menu button) */}
-      <div className="top-right-stack">
-        {picking && !saved && (
-          <SiteControl
-            mode={siteMode}
-            box={siteBox}
-            onStart={startSelect}
-            onConfirm={confirmSite}
-            onCancel={cancelSelect}
-            onExit={exitSite}
-          />
-        )}
-        {terrainRecord && <View3DControl is3D={!isOverhead} onToggle={toggle3D} />}
-      </div>
-
-      {buildingActivity && <ConstructionStatusBug activity={buildingActivity} />}
-
-      {/* Mountain dashboards toggle (top-left). Sits above the overlay it
-          opens, so the same button closes it. */}
-      {saved && (
-        <div className="top-left-stack">
-          <button
-            className="site-btn"
-            aria-pressed={showNetwork}
-            title="Mountain Dashboards — Trails & Lifts and Snowmaking network views (1 / 2)"
-            onClick={() => setShowNetwork((v) => !v)}
-          >
-            {showNetwork ? '✕ Mountain Dashboards' : 'Mountain Dashboards'}
-          </button>
-        </div>
-      )}
-
-      {saved && showNetwork && (
-        <MountainDashboards
-          dashboard={dashboard}
-          onDashboardChange={setDashboard}
-          networkProps={{
+      <MapViewChrome
+        checkpointError={checkpointError}
+        dismissCheckpointError={() => setCheckpointError(null)}
+        unsaved={unsavedPrompt ? {
+          saving,
+          onChoice: (choice) => unsavedChoiceRef.current?.(choice),
+        } : null}
+        packageGate={showPackageGate ? {
+          state: packageState === 'error' ? 'error' : 'preparing',
+          progress: packageProgress,
+          error: packageError,
+          cancel: cancelPackagePreparation,
+          back: onQuit,
+          prepare: () => { void createSave(); },
+        } : null}
+        localBoot={localBoot ? {
+          progress: localBoot,
+          title: saved?.name || nameDraft.trim() || 'Your resort',
+          imageryUrl: localImageryUrlRef.current,
+          back: onQuit,
+          reveal: () => bootControls.current?.reveal(),
+        } : null}
+        menu={{
+          canSave: !!saved,
+          saving,
+          unsaved: !!saved && hasUnsavedChanges(),
+          onSave: () => { void saveProgress(); },
+          onLoad: onLoadGame,
+          onSettings: onOpenSettings,
+          onCredits: () => setShowCredits(true),
+          onRebuildCover: terrainRecord && terrainRecord.schemaVersion < 6
+            ? () => { void repairAndContinue(); } : undefined,
+          onQuit,
+        }}
+        searchResult={picking && !saved ? handleSearchResult : null}
+        siteControl={picking && !saved ? {
+          mode: siteMode,
+          box: siteBox,
+          onStart: startSelect,
+          onConfirm: confirmSite,
+          onCancel: cancelSelect,
+          onExit: exitSite,
+        } : null}
+        view3D={terrainRecord ? { is3D: !isOverhead, onToggle: toggle3D } : null}
+        buildingActivity={buildingActivity}
+        dashboardToggle={saved ? {
+          open: showNetwork,
+          toggle: () => setShowNetwork((value) => !value),
+        } : null}
+        dashboard={saved && showNetwork ? {
+          dashboard,
+          onDashboardChange: setDashboard,
+          networkProps: {
             network,
             units: settings.units,
             selectedLiftId: networkLiftId,
@@ -2156,8 +2044,8 @@ export function MapView({
             onToggleTrailClosed: (id, closed) => patchTrail(id, { closed }),
             onToggleLiftClosed: (id, closed) => patchLift(id, { closed }),
             onTogglePathClosed: (id, closed) => patchSkiPath(id, { closed }),
-          }}
-          snowmakingProps={{
+          },
+          snowmakingProps: {
             dams,
             ponds,
             trails,
@@ -2170,97 +2058,81 @@ export function MapView({
             onSelectNode: (id) => (id
               ? snowmakingController.nodes.select(id)
               : setSelectedSnowmakingNodeId(null)),
-          }}
-          onClose={() => setShowNetwork(false)}
-        />
-      )}
-
-      {/* Site-picking readout floats lower-left; in-game it lives on the toolbar. */}
-      {!saved && <CursorReadout readout={readout} units={settings.units} />}
-
-      {/* Bottom dock: layers/lifts roll-up circles above the status toolbar */}
-      {saved && (
-        <MapGameDock
-          saved={saved} units={settings.units} readout={readout} building={building}
-          openDock={openDock} layersAlongsideBuild={layersAlongsideBuild}
-          coordinator={toolCoordinatorState} layers={layers} activeOverlay={activeOverlay}
-          lifts={lifts} trails={trails} roads={roads} dams={dams} ponds={ponds}
-          snowmakingNodes={snowmakingNodes} skiNodes={skiNodes} skiPaths={skiPaths}
-          junctions={junctions} terrainRecord={terrainRecord} network={network}
-          selectedLiftId={selectedLiftId} selectedTrailId={selectedTrailId}
-          selectedDamId={selectedDamId} selectedPondId={selectedPondId}
-          selectedSnowmakingNodeId={selectedSnowmakingNodeId} selectedNodeId={selectedNodeId}
-          selectedPathId={selectedPathId} selectedLakeId={selectedLakeId}
-          selectedStreamId={selectedStreamId} liftEditing={liftEditing} trailEditing={trailEditing}
-          lakeDepthOverrides={lakeDepthOverrides} lakeNameOverrides={lakeNameOverrides}
-          streamWidthOverrides={streamWidthOverrides} liftController={liftController}
-          roadController={roadController} trailController={trailController}
-          nodePathController={nodePathController} snowmakingController={snowmakingController}
-          toggleDock={toggleDock} closeDock={() => setOpenDock(null)}
-          closeLayers={() => { setLayersAlongsideBuild(false);
-            setOpenDock((current) => current === 'layers' ? null : current); }}
-          toggleLayer={handleToggle} openStats={() => setShowStats(true)}
-          setLiftEditing={setLiftEditing} setTrailEditing={setTrailEditing}
-          clearSelectedLift={() => { setSelectedLiftId(null); setOpenDock('lifts'); }}
-          clearSelectedTrail={() => { setSelectedTrailId(null); setOpenDock('trails'); }}
-          clearSelectedDam={() => setSelectedDamId(null)} clearSelectedPond={() => setSelectedPondId(null)}
-          clearSelectedSnowmakingNode={() => setSelectedSnowmakingNodeId(null)}
-          clearSelectedNode={() => setSelectedNodeId(null)} clearSelectedPath={() => setSelectedPathId(null)}
-          clearSelectedLake={() => setSelectedLakeId(null)} clearSelectedStream={() => setSelectedStreamId(null)}
-          setLakeName={(id, name) => setLakeNameOverrides((current) => { const next = { ...current };
-            if (name == null) delete next[id]; else next[id] = name; return next; })}
-          setLakeDepth={(id, depth) => setLakeDepthOverrides((current) => { const next = { ...current };
-            if (depth == null) delete next[id]; else next[id] = depth; return next; })}
-          setStreamWidth={(id, width) => setStreamWidthOverrides((current) => { const next = { ...current };
-            if (width == null) delete next[id]; else next[id] = width; return next; })}
-        />
-      )}
-
-      {/* Name-and-start panel once a New Game site is locked */}
-      {awaitingName && (
-        <div className="name-entry">
-          <div className="name-entry-title">Name your resort</div>
-          <input
-            className="name-entry-input"
-            type="text"
-            placeholder="e.g. Crystal Peak Resort"
-            value={nameDraft}
-            autoFocus
-            onChange={(e) => setNameDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void createSave();
-            }}
-          />
-          <div className="name-entry-actions">
-            <button className="site-btn" onClick={exitSite}>
-              Redraw
-            </button>
-            <button
-              className="site-btn site-btn-primary"
-              onClick={() => void createSave()}
-              disabled={saving}
-            >
-              {saving ? 'Creating…' : 'Start Designing'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {saved && showStats && (
-        <ResortStatsPanel
-          name={saved.name}
-          onRename={renameResort}
-          lifts={lifts}
-          trails={trails}
-          dams={dams}
-          ponds={ponds}
-          center={resortCenter()}
-          units={settings.units}
-          onClose={() => setShowStats(false)}
-        />
-      )}
-
-      {showCredits && <CreditsPanel onClose={() => setShowCredits(false)} />}
+          },
+          onClose: () => setShowNetwork(false),
+        } : null}
+        readout={!saved ? { value: readout, units: settings.units } : null}
+        dock={saved ? {
+          saved, units: settings.units, readout, building,
+          openDock, layersAlongsideBuild,
+          coordinator: toolCoordinatorState, layers, activeOverlay,
+          lifts, trails, roads, dams, ponds,
+          snowmakingNodes, skiNodes, skiPaths,
+          junctions, terrainRecord, network,
+          selectedLiftId, selectedTrailId,
+          selectedDamId, selectedPondId,
+          selectedSnowmakingNodeId, selectedNodeId,
+          selectedPathId, selectedLakeId,
+          selectedStreamId, liftEditing, trailEditing,
+          lakeDepthOverrides, lakeNameOverrides,
+          streamWidthOverrides, liftController,
+          roadController, trailController,
+          nodePathController, snowmakingController,
+          toggleDock,
+          closeDock: () => setOpenDock(null),
+          closeLayers: () => {
+            setLayersAlongsideBuild(false);
+            setOpenDock((current) => current === 'layers' ? null : current);
+          },
+          toggleLayer: handleToggle,
+          openStats: () => setShowStats(true),
+          setLiftEditing,
+          setTrailEditing,
+          clearSelectedLift: () => { setSelectedLiftId(null); setOpenDock('lifts'); },
+          clearSelectedTrail: () => { setSelectedTrailId(null); setOpenDock('trails'); },
+          clearSelectedDam: () => setSelectedDamId(null),
+          clearSelectedPond: () => setSelectedPondId(null),
+          clearSelectedSnowmakingNode: () => setSelectedSnowmakingNodeId(null),
+          clearSelectedNode: () => setSelectedNodeId(null),
+          clearSelectedPath: () => setSelectedPathId(null),
+          clearSelectedLake: () => setSelectedLakeId(null),
+          clearSelectedStream: () => setSelectedStreamId(null),
+          setLakeName: (id, name) => setLakeNameOverrides((current) => {
+            const next = { ...current };
+            if (name == null) delete next[id]; else next[id] = name;
+            return next;
+          }),
+          setLakeDepth: (id, depth) => setLakeDepthOverrides((current) => {
+            const next = { ...current };
+            if (depth == null) delete next[id]; else next[id] = depth;
+            return next;
+          }),
+          setStreamWidth: (id, width) => setStreamWidthOverrides((current) => {
+            const next = { ...current };
+            if (width == null) delete next[id]; else next[id] = width;
+            return next;
+          }),
+        } : null}
+        nameEntry={awaitingName ? {
+          value: nameDraft,
+          saving,
+          change: setNameDraft,
+          redraw: exitSite,
+          submit: () => { void createSave(); },
+        } : null}
+        stats={saved && showStats ? {
+          name: saved.name,
+          onRename: renameResort,
+          lifts,
+          trails,
+          dams,
+          ponds,
+          center: resortCenter(),
+          units: settings.units,
+          onClose: () => setShowStats(false),
+        } : null}
+        closeCredits={showCredits ? () => setShowCredits(false) : null}
+      />
     </>
   );
 }
