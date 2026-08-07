@@ -91,10 +91,9 @@ import { useLiftController } from './useLiftController';
 import { AnchorValue, TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
 import { nearestTrailHeadAnchor, nearestTrailTailAnchor, type TrailHeadAnchor } from './trailHeadAnchor';
 import { TrailDetail } from './TrailDetail';
-import { InfrastructureControl, type DraftRoad, type RoadTool } from './InfrastructureControl';
+import { InfrastructureControl } from './InfrastructureControl';
+import { useRoadController } from './useRoadController';
 import { SnowmakingControl, type DamTool, type DraftDam, type DraftPond, type PondTool } from './SnowmakingControl';
-import { addRoadDraftLayers, addRoadLayers, ROAD_BUILT_LAYER_IDS, setRoadData,
-  setRoadDraftData, type RoadDraftLine } from './roadLayers';
 import { damCrestElevationAt, nextDamName, sanitizeDams, snapDamEndpoint } from '../damAnalysis';
 import { addDamLayers, DAM_BUILT_LAYER_IDS, DAM_HIT_LAYERS, setDamData, setDamDraftData, setSelectedDam } from './damLayers';
 import { analyzeStandalonePond, nextPondName, sanitizePonds,
@@ -116,7 +115,6 @@ import {
   trailsToGeoJSON,
   TRAIL_BUILT_LAYER_IDS,
 } from './trailLayers';
-import { strokeToPolygon } from './trailBrush';
 import { terrainGradeGeometryKey, type TerrainGradeResponse } from './terrainGradeProtocol';
 import { applyTerrainGradeToRecord } from './terrainGradeCommit';
 import {
@@ -151,8 +149,7 @@ import {
   DEFAULT_BRUSH_WIDTH_M,
 } from '../trails';
 import { canRemoveJunction, hydrateTopology, summarizeJunctions, withTopologyPart } from '../topology';
-import { nextRoadName, roadClearingPolygons, roadLengthM, sanitizeRoads,
-  TWO_LANE_ROAD_WIDTH_M } from '../roads';
+import { sanitizeRoads } from '../roads';
 import { haversineMeters } from '../geo';
 import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
 import { ConstructionStatusBug } from './ConstructionStatusBug';
@@ -240,17 +237,6 @@ function hasUserTrailStroke(commands: TrailPaintCommand[], head: [number, number
   return commands.some((command) => !command.seed && command.mode === 'paint' &&
     command.path.some((point) => haversineMeters(point, head) >= 0.5));
 }
-// A road has no painted shoulder, so it alone grades outside its pavement.
-const ROAD_GRADE_POLICY = { envelope: 'expand', maxWidthMultiplier: 3 } as const;
-
-function roadDraftOf(tool: RoadTool): RoadDraftLine | null {
-  if (tool.phase === 'drawing') return { points: tool.points, cursor: tool.cursor };
-  if (tool.phase === 'review') return { points: tool.draft.points, cursor: null,
-    gradingPolygons: tool.draft.gradingPolygons,
-    infeasibleLines: tool.draft.gradingInfeasibleLines };
-  return null;
-}
-
 function damDraftOf(tool: DamTool) {
   if (tool.phase === 'anchored') return { points: [tool.first], cursor: tool.cursor };
   if (tool.phase === 'analyzing') return { points: tool.points, cursor: null };
@@ -528,7 +514,6 @@ export function MapView({
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
   const [trailEditing, setTrailEditing] = useState(false);
   const [roads, setRoads] = useState<SavedRoad[]>(() => sanitizeRoads(initialSave?.roads ?? []));
-  const [roadTool, setRoadTool] = useState<RoadTool>({ phase: 'idle' });
   const [dams, setDams] = useState<SavedDam[]>(() => sanitizeDams(initialSave?.dams ?? []));
   const [damTool, setDamTool] = useState<DamTool>({ phase: 'idle' });
   const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
@@ -833,7 +818,6 @@ export function MapView({
   const trailSampleTokenRef = useRef(0);
   const trailReplayRef = useRef<TrailPaintCommand[]>([]);
   const trailGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
-  const roadGradeResultRef = useRef<Extract<TerrainGradeResponse, { ok: true }> | null>(null);
   const trailCommandsRef = useRef<TrailPaintCommand[]>([]);
   const trailPendingUntilRef = useRef(0);
   const trailPreviewPathRef = useRef<[number, number][]>([]);
@@ -847,7 +831,6 @@ export function MapView({
   const lakeNameOverridesRef = useRef(lakeNameOverrides);
   const streamWidthOverridesRef = useRef(streamWidthOverrides);
   const roadsRef = useRef<SavedRoad[]>(roads);
-  const roadToolRef = useRef<RoadTool>(roadTool);
   const damsRef = useRef<SavedDam[]>(dams);
   const damToolRef = useRef<DamTool>(damTool);
   const selectedDamIdRef = useRef<string | null>(selectedDamId);
@@ -986,6 +969,43 @@ export function MapView({
   });
   const liftTool = liftController.state;
 
+  const roadController = useRoadController({
+    mapRef,
+    roads,
+    addRoad: (road) => setRoads((existing) => [...existing, road]),
+    canArm: () => siteModeRef.current !== 'selecting',
+    activate: () => toolCoordinator.activate('road'),
+    release: () => { toolCoordinator.release('road'); },
+    openDock: () => setOpenDock('infrastructure'),
+    clearSelection: clearSelectionState,
+    acquireInteractions: (map) => acquireMapInteractions('road', map, { cursor: 'crosshair' }),
+    terrain,
+    terrainRecord: () => terrainRecordRef.current,
+    heightGrid: (record) => {
+      const cached = terrainHeightCacheRef.current;
+      return cached &&
+        cached.checksum === (record.packageManifest?.elevationChecksum ?? record.updatedAt)
+        ? cached.heights.slice()
+        : Float32Array.from(record.sampleHeights);
+    },
+    gradeAdapter: terrainGrade,
+    showGrade: (record, result) => {
+      setVisibleContours({ ...record, contourSegments: Array.from(result.contourSegments) });
+      setEditedContours(result.editedContourSegments);
+    },
+    clearGrade: () => {
+      const record = terrainRecordRef.current;
+      if (record) setVisibleContours(record);
+      setEditedContours(null);
+    },
+    clearCover,
+    createId: genId,
+    now: () => new Date().toISOString(),
+    roadsVisible: () => analysisTogglesRef.current.some((entry) => entry.id === 'bm-roads'),
+    synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('road'),
+  });
+  const roadTool = roadController.state;
+
   /** The one place a committed terrain record reaches React and the dirty flag. */
   function publishTerrainState({ record, edit }: TerrainPublication): void {
     terrainRecordRef.current = record;
@@ -1063,10 +1083,11 @@ export function MapView({
   function activeGradePreview(): {
     contourSegments: ArrayLike<number>; editedContourSegments: ArrayLike<number>;
   } | null {
-    const trail = trailToolRef.current, road = roadToolRef.current;
+    const trail = trailToolRef.current;
     if (trail.phase === 'review' && trail.draft.gradingEnabled && trailGradeResultRef.current)
       return trailGradeResultRef.current;
-    if (road.phase === 'review' && roadGradeResultRef.current) return roadGradeResultRef.current;
+    const road = roadController.activeGradePreview();
+    if (road) return road;
     return earthworkPatchRef.current;
   }
 
@@ -1107,7 +1128,6 @@ export function MapView({
   trailsRef.current = trails;
   trailToolRef.current = trailTool;
   roadsRef.current = roads;
-  roadToolRef.current = roadTool;
   damsRef.current = dams;
   damToolRef.current = damTool;
   selectedDamIdRef.current = selectedDamId;
@@ -1423,24 +1443,7 @@ export function MapView({
         synchronizeData: ({ map }) => synchronizeSiteBoundary(map),
         cleanup: () => {},
       },
-      {
-        id: 'road', zOrder: MAP_Z_ORDER.road,
-        install: ({ map }) => {
-          addRoadLayers(map);
-          addRoadDraftLayers(map);
-        },
-        synchronizeData: ({ map }) => {
-          setRoadData(map, roadsRef.current);
-          setRoadDraftData(map, roadDraftOf(roadToolRef.current));
-        },
-        visibility: () => analysisTogglesRef.current.some((entry) => entry.id === 'bm-roads')
-          ? [{ id: 'bm-roads', label: 'Roads', layerIds: ROAD_BUILT_LAYER_IDS,
-            visible: true, section: 'Master plan' }]
-          : [],
-        setCaptureTransient: ({ map }, hidden) => setRoadDraftData(map,
-          hidden ? null : roadDraftOf(roadToolRef.current)),
-        cleanup: () => {},
-      },
+      roadController.contribution,
       {
         id: 'dam', zOrder: MAP_Z_ORDER.dam,
         hits: [{ id: 'dam', priority: MAP_HIT_RANK.dam, layerIds: DAM_HIT_LAYERS,
@@ -1869,10 +1872,6 @@ export function MapView({
   }, [lakeNameOverrides, streamWidthOverrides, mapContributions]);
 
   useEffect(() => {
-    mapContributions.synchronizeData('road');
-  }, [roads, roadTool, mapContributions]);
-
-  useEffect(() => {
     mapContributions.synchronizeData('dam');
   }, [dams, damTool, selectedDamId, terrainRecord, mapContributions]);
 
@@ -1975,48 +1974,6 @@ export function MapView({
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
       window.removeEventListener('keydown', onKey); interaction.release(); };
   }, [trailTool.phase, trailPaint]);
-
-  // Road drawing: successive clicks append centerline vertices. The map keeps
-  // its normal pan/zoom navigation; the small draft source follows the cursor.
-  useEffect(() => {
-    const map = mapRef.current;
-    const phase = roadTool.phase;
-    if (!map || (phase !== 'armed' && phase !== 'drawing')) return;
-    const interaction = acquireMapInteractions('road', map, { cursor: 'crosshair' });
-
-    const onClick = (event: maplibregl.MapMouseEvent) => {
-      const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
-      const current = roadToolRef.current;
-      if (current.phase === 'armed') {
-        setRoadTool({ phase: 'drawing', roadType: current.roadType, points: [point], cursor: null });
-      } else if (current.phase === 'drawing') {
-        const last = current.points.at(-1);
-        if (last && haversineMeters(last, point) < 1) return;
-        setRoadTool({ ...current, points: [...current.points, point], cursor: null });
-      }
-    };
-    const onMove = (event: maplibregl.MapMouseEvent) => {
-      const current = roadToolRef.current;
-      if (current.phase === 'drawing') setRoadTool({ ...current,
-        cursor: [event.lngLat.lng, event.lngLat.lat] });
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancelRoadTool();
-      else if (event.key === 'Backspace') { event.preventDefault(); undoRoadPoint(); }
-      else if (event.key === 'Enter') finishRoadRoute();
-    };
-
-    map.on('click', onClick);
-    map.on('mousemove', onMove);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      map.off('click', onClick);
-      map.off('mousemove', onMove);
-      window.removeEventListener('keydown', onKey);
-      interaction.release();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roadTool.phase]);
 
   // Standalone ponds use a freehand polygon boundary. The full-pool elevation
   // is entered in review and the terrain-integrated capacity updates from it.
@@ -2524,11 +2481,7 @@ export function MapView({
   }, []);
 
   function armRoadTool(roadType: RoadType) {
-    if (siteModeRef.current === 'selecting') return;
-    if (!toolCoordinator.activate('road')) return;
-    clearSelectionState();
-    setOpenDock('infrastructure');
-    setRoadTool({ phase: 'armed', roadType });
+    roadController.arm(roadType);
   }
 
   function armDamTool() {
@@ -2749,177 +2702,7 @@ export function MapView({
   }
 
   function cancelRoadTool() {
-    terrain.preview.invalidate();
-    terrainGrade.stop();
-    roadGradeResultRef.current = null;
-    const record = terrainRecordRef.current;
-    if (record) setVisibleContours(record);
-    setEditedContours(null);
-    setRoadTool({ phase: 'idle' });
-    if (mapRef.current) setRoadDraftData(mapRef.current, null);
-    toolCoordinator.release('road');
-  }
-
-  function undoRoadPoint() {
-    const current = roadToolRef.current;
-    if (current.phase !== 'drawing') return;
-    if (current.points.length <= 1) setRoadTool({ phase: 'armed', roadType: current.roadType });
-    else setRoadTool({ ...current, points: current.points.slice(0, -1), cursor: null });
-  }
-
-  function finishRoadRoute() {
-    const current = roadToolRef.current;
-    if (current.phase !== 'drawing' || current.points.length < 2) return;
-    const draft: DraftRoad = {
-      name: nextRoadName(roadsRef.current),
-      roadType: current.roadType,
-      points: current.points,
-      gradingStatus: 'pending',
-      gradingError: null,
-      gradingPolygons: [],
-      earthwork: null,
-      maxFaceSlopePct: 0,
-      maxGroundCrossSlopePct: 0,
-      maxDisturbedWidthM: 0,
-      ungradedLengthM: 0,
-      gradingInfeasibleLines: [],
-    };
-    setRoadTool({ phase: 'review', draft });
-    startRoadTerrainGrade(draft);
-  }
-
-  function patchRoadDraft(patch: Partial<DraftRoad>) {
-    setRoadTool((current) => current.phase === 'review'
-      ? { phase: 'review', draft: { ...current.draft, ...patch } } : current);
-  }
-
-  function failRoadGrade(gradingError: string) {
-    setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
-      ...current.draft, gradingStatus: 'error', gradingError,
-    } } : current);
-  }
-
-  function startRoadTerrainGrade(draft: DraftRoad) {
-    const record = terrainRecordRef.current;
-    const polygon = strokeToPolygon(draft.points, TWO_LANE_ROAD_WIDTH_M);
-    const parts = polygon.length ? [{
-      polygon,
-      centerline: draft.points,
-      centerlineElevM: [],
-    }] : [];
-    const requestId = terrain.preview.claim();
-    const bounds = record?.bounds;
-    roadGradeResultRef.current = null;
-    if (!record || !bounds || parts.length === 0) {
-      failRoadGrade('The local elevation package or road footprint is unavailable.');
-      return;
-    }
-    requestAnimationFrame(() => {
-      if (!terrain.preview.isCurrent(requestId)) return;
-      const baseElevationChecksum = record.packageManifest?.elevationChecksum ?? '';
-      const cachedHeights = terrainHeightCacheRef.current;
-      const heights = cachedHeights &&
-        cachedHeights.checksum === (record.packageManifest?.elevationChecksum ?? record.updatedAt)
-        ? cachedHeights.heights.slice()
-        : Float32Array.from(record.sampleHeights);
-      terrainGrade.run({
-        id: requestId,
-        kind: 'road',
-        heights,
-        gridSize: record.sampleGridSize,
-        bounds,
-        parts,
-        brushWidthM: TWO_LANE_ROAD_WIDTH_M,
-        ...ROAD_GRADE_POLICY,
-        baseElevationChecksum,
-        trailGeometryKey: terrainGradeGeometryKey(parts, TWO_LANE_ROAD_WIDTH_M,
-          [], 'road', ROAD_GRADE_POLICY),
-        contourGridSize: record.contourMetadata?.gridSize,
-        contourIntervalM: record.contourMetadata?.intervalM,
-      }, {
-        isCurrent: (id) => terrain.preview.isCurrent(id),
-        live: () => {
-          const active = roadToolRef.current;
-          return {
-            baseElevationChecksum:
-              terrainRecordRef.current?.packageManifest?.elevationChecksum ?? '',
-            trailGeometryKey: active.phase === 'review'
-              ? terrainGradeGeometryKey([{
-                polygon: strokeToPolygon(active.draft.points, TWO_LANE_ROAD_WIDTH_M),
-                centerline: active.draft.points,
-                centerlineElevM: [],
-              }], TWO_LANE_ROAD_WIDTH_M, [], 'road', ROAD_GRADE_POLICY)
-              : '',
-          };
-        },
-        onResult: (response) => {
-          roadGradeResultRef.current = response;
-          setRoadTool((current) => current.phase === 'review' ? { phase: 'review', draft: {
-            ...current.draft,
-            gradingStatus: 'ok',
-            gradingError: null,
-            gradingPolygons: response.expandedPolygons,
-            earthwork: { cutM3: response.cutM3, fillM3: response.fillM3,
-              balanceM3: response.balanceM3 },
-            maxFaceSlopePct: response.maxFaceSlopePct,
-            maxGroundCrossSlopePct: response.maxGroundCrossSlopePct,
-            maxDisturbedWidthM: response.maxDisturbedWidthM,
-            ungradedLengthM: response.ungradedLengthM,
-            gradingInfeasibleLines: response.infeasibleLines,
-          } } : current);
-          setVisibleContours({ ...record,
-            contourSegments: Array.from(response.contourSegments) });
-          setEditedContours(response.editedContourSegments);
-        },
-        onSuperseded: () =>
-          failRoadGrade('The road or terrain changed while grading. Refinish the route.'),
-        onError: failRoadGrade,
-        onCrash: () => failRoadGrade('Road grading worker stopped unexpectedly.'),
-      });
-    });
-  }
-
-  async function confirmRoad() {
-    const current = roadToolRef.current;
-    const result = roadGradeResultRef.current;
-    if (current.phase !== 'review' ||
-        current.draft.gradingStatus !== 'ok' || !result) return;
-    const road: SavedRoad = {
-      id: genId(),
-      name: current.draft.name.trim() || nextRoadName(roadsRef.current),
-      roadType: 'two-lane',
-      widthM: TWO_LANE_ROAD_WIDTH_M,
-      points: current.draft.points,
-      lengthM: roadLengthM(current.draft.points),
-      terrainGraded: true,
-      earthwork: current.draft.earthwork ?? undefined,
-      createdAt: new Date().toISOString(),
-    };
-    await terrain.runConstruction('road', async () => {
-      try {
-        await new Promise(requestAnimationFrame);
-        const { record, revision } = terrain.snapshot();
-        if (!record) throw new Error('The local elevation package is unavailable.');
-        const commit = terrain.commit({ expectedRevision: revision,
-          record: applyTerrainGradeToRecord(record, result), kind: 'elevation' });
-        if (!commit.ok) throw new Error('The terrain changed while building. Refinish the route.');
-        setRoads((previous) => [...previous, road]);
-        roadGradeResultRef.current = null;
-        terrainGrade.stop();
-        setRoadTool({ phase: 'idle' });
-        toolCoordinator.release('road');
-        await clearCover([
-          ...roadClearingPolygons(road.points).map((polygon) => ({ polygon })),
-          ...result.disturbancePolygons.map((polygon) => ({ polygon })),
-        ]);
-      } catch (error) {
-        setRoadTool((active) => active.phase === 'review' ? { phase: 'review', draft: {
-          ...active.draft,
-          gradingStatus: 'error',
-          gradingError: error instanceof Error ? error.message : 'Unable to save the road grade.',
-        } } : active);
-      }
-    });
+    roadController.cancel();
   }
 
   function armLiftTool() {
@@ -4780,10 +4563,10 @@ export function MapView({
                     units={settings.units}
                     onArm={armRoadTool}
                     onCancel={cancelRoadTool}
-                    onUndo={undoRoadPoint}
-                    onFinish={finishRoadRoute}
-                    onDraftChange={patchRoadDraft}
-                    onConfirm={confirmRoad}
+                    onUndo={roadController.undo}
+                    onFinish={roadController.finish}
+                    onDraftChange={roadController.patchDraft}
+                    onConfirm={roadController.confirm}
                     building={building}
                     onClose={() => setOpenDock(null)}
                   />

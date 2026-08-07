@@ -1,6 +1,7 @@
 import { expect, test } from '../support/deterministicApp';
 import { jumpTo, pointAt, setCaptureTransients, sourceFeatureCount } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
+import { installWorkerProbe, workerEntries } from '../support/workerProbe';
 
 const CENTER: [number, number] = [-121.495, 46.905];
 const BASE: [number, number] = [-121.4962, 46.9044];
@@ -124,4 +125,48 @@ test('double confirmation builds once and Save persists one coherent document', 
     terrainDirty: { elevation: false, cover: false },
     unsaved: false,
   });
+});
+
+test('road confirmation builds once and survives best-effort cover failure', async ({ page }) => {
+  await installWorkerProbe(page, { failPostFor: 'coverEdit.worker' });
+  await seedPreparedResort(page);
+  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+  await jumpTo(page, CENTER, 16);
+
+  await page.getByRole('button', { name: 'Infrastructure' }).click();
+  await page.getByRole('button', { name: /Build road/ }).click();
+  const first = await pointAt(page, BASE);
+  const second = await pointAt(page, TOP);
+  await page.mouse.click(first.x, first.y);
+  await page.mouse.click(second.x, second.y);
+  await page.getByRole('button', { name: 'Finish route' }).click();
+
+  await expect(page.getByText('Review road', { exact: true })).toBeVisible();
+  await page.locator('.infrastructure-panel .lift-name-input').fill('Atomic Road');
+  const build = page.getByRole('button', { name: 'Build road', exact: true });
+  await expect(build).toBeEnabled({ timeout: 15_000 });
+  await build.evaluate((button) => {
+    button.click();
+    button.click();
+  });
+
+  await expect(page.getByText(/Infrastructure.*1 roads/)).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => sourceFeatureCount(page, 'player-roads')).toBeGreaterThan(0);
+  await expect.poll(async () => (await workerEntries(page, 'coverEdit.worker')).length).toBe(1);
+
+  await page.getByRole('button', { name: /^Menu/ }).click();
+  await page.locator('.hud-save').click();
+  await expect.poll(() => page.evaluate(() =>
+    (window as unknown as { appSaveState: { unsaved: boolean } }).appSaveState.unsaved,
+  )).toBe(false);
+
+  const persisted = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
+  expect(persisted).toMatchObject({
+    schemaVersion: 11,
+    terrainKey: 'e2e-terrain',
+    roads: [{ name: 'Atomic Road', roadType: 'two-lane', terrainGraded: true }],
+  });
+  expect(persisted.roads).toHaveLength(1);
 });

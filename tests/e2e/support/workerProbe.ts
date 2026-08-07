@@ -10,8 +10,11 @@ export interface WorkerProbeEntry {
  * the application protocol. The script is installed before every navigation,
  * so Vite's hashed worker URLs and replacement workers are both visible.
  */
-export async function installWorkerProbe(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+export async function installWorkerProbe(
+  page: Page,
+  options: { failPostFor?: string } = {},
+): Promise<void> {
+  await page.addInitScript(({ failPostFor }) => {
     const NativeWorker = window.Worker;
     const entries: WorkerProbeEntry[] = [];
     const ProbedWorker = new Proxy(NativeWorker, {
@@ -19,6 +22,12 @@ export async function installWorkerProbe(page: Page): Promise<void> {
         const worker = Reflect.construct(target, argumentsList) as Worker;
         const entry = { url: String(argumentsList[0]), terminationCount: 0 };
         entries.push(entry);
+        if (failPostFor && entry.url.includes(failPostFor)) {
+          Object.defineProperty(worker, 'postMessage', {
+            configurable: true,
+            value: () => { throw new DOMException(`Injected ${failPostFor} post failure`); },
+          });
+        }
         const terminate = worker.terminate.bind(worker);
         worker.terminate = () => {
           entry.terminationCount += 1;
@@ -33,7 +42,7 @@ export async function installWorkerProbe(page: Page): Promise<void> {
       value: ProbedWorker,
     });
     (window as unknown as { appWorkerProbe: WorkerProbeEntry[] }).appWorkerProbe = entries;
-  });
+  }, options);
 }
 
 export const workerEntries = (page: Page, name: string): Promise<WorkerProbeEntry[]> =>
