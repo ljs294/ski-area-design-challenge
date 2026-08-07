@@ -1,6 +1,7 @@
 import { expect, test } from '../support/deterministicApp';
 import { jumpTo, pointAt } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
+import { installWorkerProbe, workerEntries } from '../support/workerProbe';
 
 /**
  * The painting engine, observed through the panel it feeds. Unlike the other
@@ -27,6 +28,7 @@ const anchorLift = {
 };
 
 test('painting from a lift terminal seeds an engine and grows the reported footprint', async ({ page }) => {
+  await installWorkerProbe(page);
   await seedPreparedResort(page, { lifts: [anchorLift] });
   await page.getByRole('button', { name: 'Continue Game' }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
@@ -41,6 +43,7 @@ test('painting from a lift terminal seeds an engine and grows the reported footp
   await page.mouse.move(head.x, head.y);
   await page.mouse.click(head.x, head.y);
   await expect(page.getByText('Create Trail', { exact: true })).toBeVisible();
+  await expect.poll(async () => (await workerEntries(page, 'trailPaint.worker')).length).toBe(1);
 
   const paintedArea = page.locator('.trail-panel .readout-line .lift-stat-value');
   const finish = page.getByRole('button', { name: 'Finish' });
@@ -49,6 +52,10 @@ test('painting from a lift terminal seeds an engine and grows the reported footp
   // The seed has to be replayed onto the replacement, at the new width, so a
   // measurable dab here is the proof that the ready-then-replay handshake ran.
   await page.locator('.trail-brush-slider').fill('120');
+  await expect.poll(async () => workerEntries(page, 'trailPaint.worker')).toMatchObject([
+    { terminationCount: 1 },
+    { terminationCount: 0 },
+  ]);
   await expect(paintedArea).not.toHaveText(/^~?0(\.0)?\s/, { timeout: 10_000 });
   const seeded = (await paintedArea.textContent())?.trim() ?? '';
   await expect(finish).toBeDisabled();
@@ -69,4 +76,10 @@ test('painting from a lift terminal seeds an engine and grows the reported footp
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(paintedArea).toHaveText(seeded, { timeout: 10_000 });
   await expect(finish).toBeDisabled();
+
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect.poll(async () => workerEntries(page, 'trailPaint.worker')).toMatchObject([
+    { terminationCount: 1 },
+    { terminationCount: 1 },
+  ]);
 });
