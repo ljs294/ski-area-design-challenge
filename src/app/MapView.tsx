@@ -14,22 +14,13 @@ import { StreamDetail } from './StreamDetail';
 import { analyzeStream, sanitizeStreamWidthOverrides } from '../streamAnalysis';
 import { MountainDashboards, type DashboardKind } from './MountainDashboards';
 import { TrailsPanel, type TrailsTool } from './TrailsPanel';
-import { buildSkiNetwork, makeFrame, toMeters } from '../network';
+import { buildSkiNetwork } from '../network';
 import {
-  DEFAULT_PATH_WIDTH_M,
   describeAnchor,
-  nextPathName,
   pathLengthM,
   sanitizeNodes,
   sanitizePaths,
 } from '../skiNodes';
-import {
-  addNodePathDraftLayers,
-  addNodePathLayers,
-  setNodePathData,
-  setNodePathDraftData,
-  type NodePathDraft,
-} from './nodePathLayers';
 import { ResortStatsPanel } from './ResortStatsPanel';
 import { CursorReadout, type Readout } from './CursorReadout';
 import { Legend, type OverlayId } from './Legend';
@@ -95,7 +86,7 @@ import { InfrastructureControl } from './InfrastructureControl';
 import { useRoadController } from './useRoadController';
 import { SnowmakingControl } from './SnowmakingControl';
 import { useSnowmakingController } from './useSnowmakingController';
-import type { NodeTool, PathTool } from './nodePathControllerModel';
+import { useNodePathController } from './useNodePathController';
 import { sanitizeDams } from '../damAnalysis';
 import { sanitizePonds } from '../pondAnalysis';
 import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
@@ -142,7 +133,7 @@ import {
   difficultyForSlopes,
   DEFAULT_BRUSH_WIDTH_M,
 } from '../trails';
-import { canRemoveJunction, hydrateTopology, summarizeJunctions, withTopologyPart } from '../topology';
+import { hydrateTopology, summarizeJunctions, withTopologyPart } from '../topology';
 import { sanitizeRoads } from '../roads';
 import { haversineMeters } from '../geo';
 import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
@@ -218,25 +209,6 @@ function hasUserTrailStroke(commands: TrailPaintCommand[], head: [number, number
   return commands.some((command) => !command.seed && command.mode === 'paint' &&
     command.path.some((point) => haversineMeters(point, head) >= 0.5));
 }
-function nodePathDraftOf(
-  pathTool: PathTool,
-  nodeTool: NodeTool,
-  snapHover: [number, number] | null,
-): NodePathDraft | null {
-  const highlight = snapHover ? [snapHover] : [];
-  const pick = nodeTool.phase === 'add' ? nodeTool.candidate?.point ?? null : null;
-  if (pathTool.phase === 'drawing') {
-    return { points: pathTool.points, cursor: pathTool.cursor, highlight };
-  }
-  if (pathTool.phase === 'review') {
-    return { points: pathTool.points, cursor: null, highlight: [] };
-  }
-  if (pathTool.phase === 'armed' || nodeTool.phase !== 'idle') {
-    return { points: [], cursor: null, highlight, pick };
-  }
-  return null;
-}
-
 function layerTogglesOf(descriptors: readonly MapVisibilityDescriptor[]): LayerToggle[] {
   return descriptors.map((descriptor) => ({ ...descriptor, layerIds: [...descriptor.layerIds] }));
 }
@@ -404,7 +376,6 @@ export function MapView({
   // The point a snapping tool would take if you clicked right now, drawn as an
   // amber ring. Every tool that must attach to a run shows it, so "it snaps"
   // is something you can see before committing rather than after.
-  const [snapHover, setSnapHover] = useState<[number, number] | null>(null);
   // Perfectly overhead means pitch 0. A rotated top-down view is still 2D, and
   // `tilt3D` deliberately leaves bearing alone, so pitch alone decides; the
   // epsilon absorbs ease residue, nothing more.
@@ -511,8 +482,6 @@ export function MapView({
     );
   }
   const topology = topologyDocumentRef.current;
-  const [nodeTool, setNodeTool] = useState<NodeTool>({ phase: 'idle' });
-  const [pathTool, setPathTool] = useState<PathTool>({ phase: 'idle' });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
   const [selectedLakeId, setSelectedLakeId] = useState<string | null>(null);
@@ -766,8 +735,6 @@ export function MapView({
   const skiNodesRef = useRef<SavedNode[]>(skiNodes);
   const skiPathsRef = useRef<SavedPath[]>(skiPaths);
   const junctionsRef = useRef<SavedJunction[]>(junctions);
-  const nodeToolRef = useRef<NodeTool>(nodeTool);
-  const pathToolRef = useRef<PathTool>(pathTool);
   const trailsRef = useRef<SavedTrail[]>(trails);
   const trailToolRef = useRef<TrailTool>(trailTool);
   const trailSampleTokenRef = useRef(0);
@@ -792,7 +759,6 @@ export function MapView({
   const brushWidthRef = useRef(brushWidthM);
   const renderQualityRef = useRef(settings.renderQuality);
   const unitsRef = useRef(settings.units);
-  const snapHoverRef = useRef(snapHover);
   const packageAbortRef = useRef<AbortController | null>(null);
   const toolCancellationRef = useRef<Record<ToolId, () => void>>({
     lift: () => {}, road: () => {}, dam: () => {}, pond: () => {},
@@ -1007,6 +973,22 @@ export function MapView({
   const damTool = snowmakingController.dam.state;
   const pondTool = snowmakingController.pond.state;
 
+  const nodePathController = useNodePathController({
+    mapRef, trails, nodes: skiNodes, paths: skiPaths, junctions, topology,
+    canArm: () => siteModeRef.current !== 'selecting',
+    activate: (tool) => toolCoordinator.activate(tool),
+    release: (tool) => { toolCoordinator.release(tool); },
+    openDock: () => setOpenDock('trails'), clearSelection: clearSelectionState,
+    acquireInteractions: (tool, map) => acquireMapInteractions(tool, map, { cursor: 'crosshair' }),
+    selectNode: (id) => transitionSelection({ kind: 'ski-node', id }),
+    selectPath: (id) => transitionSelection({ kind: 'ski-path', id }),
+    clearSelectedNode: (id) => setSelectedNodeId((selected) => selected === id ? null : selected),
+    clearSelectedPath: (id) => setSelectedPathId((selected) => selected === id ? null : selected),
+    createId: genId, now: () => new Date().toISOString(),
+    synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('ski-node-path'),
+  });
+  const { nodeTool, pathTool } = nodePathController;
+
   /** The one place a committed terrain record reaches React and the dirty flag. */
   function publishTerrainState({ record, edit }: TerrainPublication): void {
     terrainRecordRef.current = record;
@@ -1120,7 +1102,6 @@ export function MapView({
   // it back out of a ref.
   renderQualityRef.current = settings.renderQuality;
   unitsRef.current = settings.units;
-  snapHoverRef.current = snapHover;
   layersRef.current = layers;
   siteBoxRef.current = siteBox;
   siteModeRef.current = siteMode;
@@ -1136,8 +1117,6 @@ export function MapView({
   skiNodesRef.current = skiNodes;
   skiPathsRef.current = skiPaths;
   junctionsRef.current = junctions;
-  nodeToolRef.current = nodeTool;
-  pathToolRef.current = pathTool;
   selectedLakeIdRef.current = selectedLakeId;
   selectedStreamIdRef.current = selectedStreamId;
   lakeDepthOverridesRef.current = lakeDepthOverrides;
@@ -1443,21 +1422,7 @@ export function MapView({
       roadController.contribution,
       snowmakingController.dam.contribution,
       snowmakingController.pond.contribution,
-      {
-        id: 'ski-node-path', zOrder: MAP_Z_ORDER['ski-node-path'],
-        install: ({ map }) => {
-          addNodePathLayers(map);
-          addNodePathDraftLayers(map);
-        },
-        synchronizeData: ({ map }) => {
-          setNodePathData(map, skiNodesRef.current, skiPathsRef.current, junctionsRef.current);
-          setNodePathDraftData(map, nodePathDraftOf(
-            pathToolRef.current, nodeToolRef.current, snapHoverRef.current));
-        },
-        setCaptureTransient: ({ map }, hidden) => setNodePathDraftData(map, hidden ? null
-          : nodePathDraftOf(pathToolRef.current, nodeToolRef.current, snapHoverRef.current)),
-        cleanup: () => {},
-      },
+      nodePathController.contribution,
       {
         id: 'trail', zOrder: MAP_Z_ORDER.trail,
         hits: [{ id: 'trail', priority: MAP_HIT_RANK.trail, layerIds: ['trail-fill'],
@@ -1907,126 +1872,6 @@ export function MapView({
       window.removeEventListener('keydown', onKey); interaction.release(); };
   }, [trailTool.phase, trailPaint]);
 
-  // Built nodes + paths pushed to their own source, the same way lifts are.
-  useEffect(() => {
-    mapContributions.synchronizeData('ski-node-path');
-  }, [skiNodes, skiPaths, junctions, terrainRecord, mapContributions]);
-
-  // The in-progress connector line follows the cursor between clicks, and every
-  // tool that has to attach to a run shows the point it would take as an amber
-  // ring — the same "here is what you are about to pick" the trailhead anchor
-  // gives you. A tool with no line still gets a draft so its ring has somewhere
-  // to render.
-  useEffect(() => {
-    mapContributions.synchronizeData('ski-node-path');
-  }, [pathTool, nodeTool, snapHover, mapContributions]);
-
-  // Node editing. A click only ever picks a target and previews what will happen
-  // to it — `confirmAddNode`/`confirmRemoveNode` do the committing. Elevation is
-  // never sampled here: `splitTrailAt` interpolates the new node's height from
-  // the run's own profile, which is both exact and offline-safe.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || nodeTool.phase === 'idle') return;
-    const phase = nodeTool.phase;
-    const interaction = acquireMapInteractions('ski-node', map, { cursor: 'crosshair' });
-    // Add snaps onto a run's centerline; remove snaps onto an existing node.
-    // Both preview the snap under the cursor so you aim at the ring, not at the
-    // pixel — a node 20 m off the run it was meant to split is worse than a
-    // missed click, because it looks like it worked.
-    const snapAt = (point: [number, number]) => phase === 'add'
-      ? trailAnchorAt(point)?.point ?? null
-      : junctionAt(point)?.point ?? null;
-    const onMove = (e: maplibregl.MapMouseEvent) => {
-      setSnapHover(snapAt([e.lngLat.lng, e.lngLat.lat]));
-    };
-    const onClick = (e: maplibregl.MapMouseEvent) => {
-      const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-      if (phase === 'add') {
-        const candidate = trailAnchorAt(raw);
-        setNodeTool({ phase: 'add', candidate,
-          error: candidate ? null : 'Nodes sit on a run — click along one you have painted.' });
-        return;
-      }
-      const junction = junctionAt(raw);
-      if (!junction) {
-        setNodeTool({ phase: 'remove', junctionId: null, error: 'No node there — click one of the dots on a run.' });
-        return;
-      }
-      const check = canRemoveJunction(trailsRef.current, junctionsRef.current,
-        skiPathsRef.current, junction.id);
-      setNodeTool({ phase: 'remove', junctionId: junction.id,
-        error: check.ok ? null : check.reason });
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') cancelNodeTool();
-    };
-    map.on('click', onClick);
-    map.on('mousemove', onMove);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      map.off('click', onClick);
-      map.off('mousemove', onMove);
-      window.removeEventListener('keydown', onKey);
-      interaction.release();
-      setSnapHover(null);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- Tool callbacks use the stable coordinator plus live refs; only phase changes resubscribe map listeners.
-  }, [nodeTool.phase]);
-
-  // Path drawing, modelled on the road tool: click to append, Backspace to
-  // undo, Enter to finish, Escape to cancel. The difference is that the FIRST
-  // and LAST clicks must land on a valid anchor target — a connector that
-  // connects nothing has no purpose.
-  useEffect(() => {
-    const map = mapRef.current;
-    const phase = pathTool.phase;
-    if (!map || (phase !== 'armed' && phase !== 'drawing')) return;
-    const interaction = acquireMapInteractions('ski-path', map, { cursor: 'crosshair' });
-
-    const onClick = (e: maplibregl.MapMouseEvent) => {
-      const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-      const t = pathToolRef.current;
-      // A click within reach of a run takes the run's centerline instead of the
-      // raw point. That is what makes the ends *connect*: `confirmPath` splits
-      // each run at the endpoint it was given, so an endpoint a few metres off
-      // the centerline would put the new node beside the run rather than on it.
-      const snapped = trailAnchorAt(raw);
-      if (t.phase === 'armed') {
-        if (!snapped) return; // the start must attach to a run
-        setPathTool({ phase: 'drawing', points: [snapped.point], cursor: null, from: snapped });
-        return;
-      }
-      if (t.phase !== 'drawing') return;
-      const point = snapped ? snapped.point : raw;
-      const last = t.points.at(-1);
-      if (last && haversineMeters(last, point) < 1) return;
-      setPathTool({ ...t, points: [...t.points, point], cursor: null });
-    };
-    const onMove = (e: maplibregl.MapMouseEvent) => {
-      const raw: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-      setSnapHover(trailAnchorAt(raw)?.point ?? null);
-      const t = pathToolRef.current;
-      if (t.phase === 'drawing') setPathTool({ ...t, cursor: raw });
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') cancelPathTool();
-      else if (e.key === 'Backspace') { e.preventDefault(); undoPathPoint(); }
-      else if (e.key === 'Enter') finishPathRoute();
-    };
-    map.on('click', onClick);
-    map.on('mousemove', onMove);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      map.off('click', onClick);
-      map.off('mousemove', onMove);
-      window.removeEventListener('keydown', onKey);
-      interaction.release();
-      setSnapHover(null);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathTool.phase]);
-
   /**
    * Sample the shape-derived centerlines, orient each top→bottom, and grade.
    *
@@ -2443,116 +2288,45 @@ export function MapView({
 
   // ---- User-declared connectivity: anchors, nodes, connector paths ---------
 
-  /**
-   * Nearest point on a painted run, snapped onto its centerline. Runs only: a
-   * node is a station ON a run, and a run is the only thing `splitTrailAt` can
-   * cut, so an empty lift list is deliberate — a terminal near the click must
-   * not win the snap and hand back an unsplittable target.
-   */
-  function trailAnchorAt(click: [number, number]): Extract<AnchorRef, { kind: 'trail' }> | null {
-    const anchor = nearestTrailTailAnchor(click, [], trailsRef.current, ANCHOR_PICK_M);
-    return anchor?.kind === 'trail' ? anchor : null;
-  }
-
-  /** Nearest existing graph node to a click, within the same pick radius. */
-  function junctionAt(click: [number, number]): SavedJunction | null {
-    const frame = makeFrame([click]);
-    const pm = toMeters(frame, click);
-    let best: { junction: SavedJunction; d: number } | null = null;
-    for (const junction of junctionsRef.current) {
-      const m = toMeters(frame, junction.point);
-      const d = Math.hypot(m.x - pm.x, m.y - pm.y);
-      if (d <= ANCHOR_PICK_M && (!best || d < best.d)) best = { junction, d };
-    }
-    return best ? best.junction : null;
-  }
-
   function armNodeTool(phase: 'add' | 'remove') {
-    if (siteModeRef.current === 'selecting') return;
-    if (!toolCoordinator.activate('ski-node')) return;
-    clearSelectionState();
-    setOpenDock('trails');
-    setNodeTool(phase === 'add'
-      ? { phase: 'add', candidate: null, error: null }
-      : { phase: 'remove', junctionId: null, error: null });
+    nodePathController.armNode(phase);
   }
 
   function cancelNodeTool() {
-    setNodeTool({ phase: 'idle' });
-    toolCoordinator.release('ski-node');
+    nodePathController.cancelNode();
   }
 
   function confirmAddNode() {
-    const t = nodeToolRef.current;
-    if (t.phase !== 'add' || !t.candidate) return;
-    const edit = topology.begin();
-    if (!edit.splitTrail(t.candidate.trailId, t.candidate.point, genId)) {
-      edit.abort();
-      setNodeTool({ phase: 'add', candidate: null, error: 'That run cannot be split there.' });
-      return;
-    }
-    // A split hands back the existing junction, lists untouched, when the click
-    // lands on one. Nothing was added, so say so rather than flash success.
-    if (!edit.changed.junctions) {
-      edit.abort();
-      setNodeTool({ phase: 'add', candidate: null, error: 'There is already a node there.' });
-      return;
-    }
-    edit.commit();
-    // Stay armed — splitting a run is something you do several times in a row.
-    setNodeTool({ phase: 'add', candidate: null, error: null });
+    nodePathController.confirmAddNode();
   }
 
   function removeGraphNode(id: string) {
-    const edit = topology.begin();
-    if (!edit.removeJunction(id)) {
-      edit.abort();
-      return;
-    }
-    edit.commit();
-    setSelectedNodeId((cur) => (cur === id ? null : cur));
+    nodePathController.removeNode(id);
   }
 
   function confirmRemoveNode() {
-    const t = nodeToolRef.current;
-    if (t.phase !== 'remove' || !t.junctionId) return;
-    removeGraphNode(t.junctionId);
-    setNodeTool({ phase: 'remove', junctionId: null, error: null });
+    nodePathController.confirmRemoveNode();
   }
 
   /** Legacy free-standing pins from saves made before nodes became graph nodes. */
   function deleteSkiNode(id: string) {
-    const edit = topology.begin();
-    edit.removeNode(id);
-    edit.commit();
+    nodePathController.deleteLegacyNode(id);
   }
 
   function selectGraphNode(id: string) {
-    transitionSelection({ kind: 'ski-node', id });
-    const junction = junctionsRef.current.find((j) => j.id === id);
-    if (junction) mapRef.current?.easeTo({ center: junction.point, duration: 400 });
+    nodePathController.selectNode(id);
   }
 
   function armPathTool() {
-    if (siteModeRef.current === 'selecting') return;
-    if (!toolCoordinator.activate('ski-path')) return;
-    clearSelectionState();
-    setOpenDock('trails');
-    setPathTool({ phase: 'armed' });
+    nodePathController.armPath();
   }
 
   function cancelPathTool() {
-    setPathTool({ phase: 'idle' });
-    if (mapRef.current) setNodePathDraftData(mapRef.current, null);
-    toolCoordinator.release('ski-path');
+    nodePathController.cancelPath();
   }
 
   function undoPathPoint() {
-    const t = pathToolRef.current;
-    if (t.phase !== 'drawing') return;
-    // The first point IS the start anchor, so undoing it re-arms the tool.
-    if (t.points.length <= 1) setPathTool({ phase: 'armed' });
-    else setPathTool({ ...t, points: t.points.slice(0, -1), cursor: null });
+    nodePathController.undoPath();
   }
 
   /**
@@ -2561,61 +2335,20 @@ export function MapView({
    * the route ends on a run, lift, path or node.
    */
   function finishPathRoute() {
-    const t = pathToolRef.current;
-    if (t.phase !== 'drawing' || t.points.length < 2 || !t.from) return;
-    const end = t.points.at(-1) as [number, number];
-    const to = trailAnchorAt(end);
-    if (!to || t.from.kind !== 'trail' || to.trailId === t.from.trailId) return;
-    setPathTool({
-      phase: 'review',
-      points: [...t.points.slice(0, -1), to.point],
-      from: t.from,
-      to,
-      name: nextPathName(skiPathsRef.current),
-    });
+    nodePathController.finishPath();
   }
 
   function confirmPath() {
-    const t = pathToolRef.current;
-    if (t.phase !== 'review') return;
-    if (t.from.kind !== 'trail' || t.to.kind !== 'trail' || t.from.trailId === t.to.trailId) return;
-    const edit = topology.begin();
-    const fromJunction = edit.splitTrail(t.from.trailId, t.from.point, genId);
-    if (!fromJunction) { edit.abort(); return; }
-    const toJunction = edit.splitTrail(t.to.trailId, t.to.point, genId);
-    if (!toJunction) { edit.abort(); return; }
-    edit.addPath({
-      id: genId(),
-      name: t.name.trim() || nextPathName(skiPathsRef.current),
-      points: t.points,
-      pointElevM: [],
-      widthM: DEFAULT_PATH_WIDTH_M,
-      from: t.from,
-      to: t.to,
-      fromJunctionId: fromJunction.id,
-      toJunctionId: toJunction.id,
-      lengthM: pathLengthM(t.points),
-      status: 'complete',
-      createdAt: new Date().toISOString(),
-    });
-    edit.commit();
-    setPathTool({ phase: 'idle' });
-    toolCoordinator.release('ski-path');
-    if (mapRef.current) setNodePathDraftData(mapRef.current, null);
+    nodePathController.confirmPath();
   }
 
   function deleteSkiPath(id: string) {
-    const edit = topology.begin();
-    edit.removePath(id);
-    edit.commit();
-    setSelectedPathId((cur) => (cur === id ? null : cur));
+    nodePathController.removePath(id);
   }
 
   /** Patch a non-geometric field (closed) of a built connector path. */
   function patchSkiPath(id: string, patch: Partial<SavedPath>) {
-    const edit = topology.begin();
-    edit.patchPath(id, patch);
-    edit.commit();
+    nodePathController.patchPath(id, patch);
   }
 
   function armTrailTool() {
@@ -3958,8 +3691,7 @@ export function MapView({
                             <input
                               className="name-entry-input lift-name-input"
                               value={pathTool.name}
-                              onChange={(e) => setPathTool((t) =>
-                                t.phase === 'review' ? { ...t, name: e.target.value } : t)}
+                              onChange={(e) => nodePathController.renamePath(e.target.value)}
                             />
                             <div className="readout-line">
                               <span className="lift-stat-label">From</span>
