@@ -3,27 +3,15 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers, type LayerToggle } from './analysisLayers';
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
-import { LayerList } from './LayerPanel';
-import { GameToolbar } from './GameToolbar';
 import { GameMenu } from './GameMenu';
 import { CreditsPanel } from './CreditsPanel';
-import { LiftOverview } from './LiftOverview';
-import { LiftDetail } from './LiftDetail';
-import { LakeDetail } from './LakeDetail';
-import { StreamDetail } from './StreamDetail';
-import { analyzeStream, sanitizeStreamWidthOverrides } from '../streamAnalysis';
+import { sanitizeStreamWidthOverrides } from '../streamAnalysis';
 import { MountainDashboards, type DashboardKind } from './MountainDashboards';
-import { TrailsPanel, type TrailsTool } from './TrailsPanel';
 import { buildSkiNetwork } from '../network';
-import {
-  describeAnchor,
-  pathLengthM,
-  sanitizeNodes,
-  sanitizePaths,
-} from '../skiNodes';
+import { sanitizeNodes, sanitizePaths } from '../skiNodes';
 import { ResortStatsPanel } from './ResortStatsPanel';
 import { CursorReadout, type Readout } from './CursorReadout';
-import { Legend, type OverlayId } from './Legend';
+import type { OverlayId } from './Legend';
 import { sampleTerrainAt, compass8 } from './terrainProtocols';
 import { sampleCoverAt, sampleSiteCoverGrid, COVER_LABELS } from './worldcoverProtocol';
 import { SiteControl, type SiteMode } from './SiteControl';
@@ -50,10 +38,10 @@ import { ResortLoadingScreen } from './ResortLoadingScreen';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
-import type { GameSave, RoadType, SavedDam, SavedJunction, SavedLift,
+import type { GameSave, SavedDam, SavedJunction, SavedLift,
   SavedNode, SavedPath, SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
   TerrainPackageProgress, TerrainRecord, CoverGrid } from '../types';
-import { analyzeLake, sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
+import { sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import {
@@ -72,16 +60,12 @@ import { TrailPaintAdapter } from './trailPaintClient';
 import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
   resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt,
   setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
-import { LiftControl } from './LiftControl';
 import { useLiftController } from './useLiftController';
-import { AnchorValue, TrailControl } from './TrailControl';
-import { TrailDetail } from './TrailDetail';
-import { InfrastructureControl } from './InfrastructureControl';
 import { useRoadController } from './useRoadController';
-import { SnowmakingControl } from './SnowmakingControl';
 import { useSnowmakingController } from './useSnowmakingController';
 import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
+import { MapGameDock } from './MapGameDock';
 import { sanitizeDams } from '../damAnalysis';
 import { sanitizePonds } from '../pondAnalysis';
 import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
@@ -99,7 +83,6 @@ import { UnsavedChangesModal, type UnsavedChoice } from './UnsavedChangesModal';
 import { refreshTerrainGradeSources, setGradedContourPreview,
   setTerrainContourData } from './terrainGradeMap';
 import {
-  fmtDistance,
   liftStats,
   orientBottomToTop,
   sanitizeLifts,
@@ -111,7 +94,7 @@ import {
   trailPartsStats,
   difficultyForSlopes,
 } from '../trails';
-import { hydrateTopology, summarizeJunctions } from '../topology';
+import { hydrateTopology } from '../topology';
 import { sanitizeRoads } from '../roads';
 import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
 import { ConstructionStatusBug } from './ConstructionStatusBug';
@@ -798,7 +781,6 @@ export function MapView({
     structuresVisible: () => packageStateRef.current !== 'preparing',
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('lift'),
   });
-  const liftTool = liftController.state;
 
   const roadController = useRoadController({
     mapRef,
@@ -835,7 +817,6 @@ export function MapView({
     roadsVisible: () => analysisTogglesRef.current.some((entry) => entry.id === 'bm-roads'),
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('road'),
   });
-  const roadTool = roadController.state;
 
   const snowmakingController = useSnowmakingController({
     dam: {
@@ -889,8 +870,6 @@ export function MapView({
       synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('snowmaking'),
     },
   });
-  const damTool = snowmakingController.dam.state;
-  const pondTool = snowmakingController.pond.state;
 
   const nodePathController = useNodePathController({
     mapRef, trails, nodes: skiNodes, paths: skiPaths, junctions, topology,
@@ -906,7 +885,6 @@ export function MapView({
     createId: genId, now: () => new Date().toISOString(),
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('ski-node-path'),
   });
-  const { nodeTool, pathTool } = nodePathController;
 
   const trailController = useTrailController({
     mapRef, lifts, trails, paths: skiPaths, topology, terrain,
@@ -932,8 +910,6 @@ export function MapView({
     structuresVisible: () => packageStateRef.current !== 'preparing',
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('trail'),
   });
-  const trailTool = trailController.state;
-  const brushWidthM = trailController.brushWidthM;
 
   /** The one place a committed terrain record reaches React and the dirty flag. */
   function publishTerrainState({ record, edit }: TerrainPublication): void {
@@ -1758,20 +1734,8 @@ export function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function armRoadTool(roadType: RoadType) {
-    roadController.arm(roadType);
-  }
-
-  function armDamTool() {
-    snowmakingController.dam.arm();
-  }
-
   function cancelDamTool() {
     snowmakingController.dam.cancel();
-  }
-
-  function armPondTool() {
-    snowmakingController.pond.arm();
   }
 
   function cancelPondTool() {
@@ -1780,10 +1744,6 @@ export function MapView({
 
   function cancelRoadTool() {
     roadController.cancel();
-  }
-
-  function armLiftTool() {
-    liftController.arm();
   }
 
   function cancelLiftTool() {
@@ -1889,68 +1849,12 @@ export function MapView({
     liftController.patch(id, patch);
   }
 
-  function deleteLift(id: string) {
-    liftController.remove(id);
-  }
-
-  // ---- User-declared connectivity: anchors, nodes, connector paths ---------
-
-  function armNodeTool(phase: 'add' | 'remove') {
-    nodePathController.armNode(phase);
-  }
-
   function cancelNodeTool() {
     nodePathController.cancelNode();
   }
 
-  function confirmAddNode() {
-    nodePathController.confirmAddNode();
-  }
-
-  function removeGraphNode(id: string) {
-    nodePathController.removeNode(id);
-  }
-
-  function confirmRemoveNode() {
-    nodePathController.confirmRemoveNode();
-  }
-
-  /** Legacy free-standing pins from saves made before nodes became graph nodes. */
-  function deleteSkiNode(id: string) {
-    nodePathController.deleteLegacyNode(id);
-  }
-
-  function selectGraphNode(id: string) {
-    nodePathController.selectNode(id);
-  }
-
-  function armPathTool() {
-    nodePathController.armPath();
-  }
-
   function cancelPathTool() {
     nodePathController.cancelPath();
-  }
-
-  function undoPathPoint() {
-    nodePathController.undoPath();
-  }
-
-  /**
-   * Finish a connector. The last drawn point must resolve to an anchor — a path
-   * that lands in open snow connects nothing, so Enter is simply ignored until
-   * the route ends on a run, lift, path or node.
-   */
-  function finishPathRoute() {
-    nodePathController.finishPath();
-  }
-
-  function confirmPath() {
-    nodePathController.confirmPath();
-  }
-
-  function deleteSkiPath(id: string) {
-    nodePathController.removePath(id);
   }
 
   /** Patch a non-geometric field (closed) of a built connector path. */
@@ -1958,56 +1862,8 @@ export function MapView({
     nodePathController.patchPath(id, patch);
   }
 
-  function armTrailTool() {
-    trailController.arm();
-  }
-
-  function changeTrailHead() {
-    trailController.changeHead();
-  }
-
   function cancelTrailTool() {
     trailController.cancel();
-  }
-
-  function setTrailPaintModeState(mode: 'paint' | 'erase') {
-    trailController.setPaintMode(mode);
-  }
-
-  function undoTrailPaint() {
-    trailController.undoPaint();
-  }
-
-  function clearTrailPaint() {
-    trailController.clearPaint();
-  }
-
-  function finishTrailPaint() {
-    trailController.finishPaint();
-  }
-
-  function backToTrailPaint() {
-    trailController.backToPaint();
-  }
-
-  function changeTrailBrushWidth(widthM: number) {
-    trailController.changeBrushWidth(widthM);
-  }
-
-  function patchTrailDraft(patch: Parameters<typeof trailController.patchDraft>[0]) {
-    trailController.patchDraft(patch);
-  }
-
-  function setTrailTerrainGrading(enabled: boolean) {
-    trailController.setGrading(enabled);
-  }
-
-  function retryTrailElevation() {
-    trailController.retryElevation();
-  }
-
-  async function confirmTrail() {
-    await trailController.confirm();
   }
 
   /** Patch a non-geometric field (name/status) of a built run. */
@@ -2015,14 +1871,20 @@ export function MapView({
     trailController.patch(id, patch);
   }
 
-  function deleteTrail(id: string) {
-    trailController.remove(id);
-  }
 
   /** Close/open a bottom dock, yielding any active draw tool of the others. */
   function toggleDock(which: DockId) {
-    const isOpen = which === 'layers' ? layersOpen : which === 'lifts' ? liftsOpen
-      : which === 'trails' ? trailsOpen : which === 'snowmaking' ? snowmakingOpen : infrastructureOpen;
+    const waterDetailOpen = selectedLakeId !== null || selectedStreamId !== null;
+    const activeTool = toolCoordinator.snapshot.activeTool;
+    const isOpen = !waterDetailOpen && (which === 'layers'
+      ? openDock === 'layers' || layersAlongsideBuild
+      : which === 'lifts' ? openDock === 'lifts' || activeTool === 'lift' || selectedLiftId !== null
+        : which === 'trails' ? openDock === 'trails' || activeTool === 'trail' ||
+          activeTool === 'ski-node' || activeTool === 'ski-path' || selectedTrailId !== null
+          : which === 'snowmaking' ? openDock === 'snowmaking' || activeTool === 'dam' ||
+            activeTool === 'pond' || selectedDamId !== null || selectedPondId !== null ||
+            selectedSnowmakingNodeId !== null
+            : openDock === 'infrastructure' || activeTool === 'road');
     if (toolCoordinator.toggleDock(which, isOpen) === 'layers-alongside') return;
 
     setSelectedLakeId(null);
@@ -2443,90 +2305,6 @@ export function MapView({
   const picking = mode === 'picking';
   const awaitingName = picking && siteMode === 'locked' && !saved;
 
-  // Lift panel is open when the user opened it OR the tool is mid-draw / a lift
-  // is selected (detail or edit); layers yield to it so the two roll-ups never
-  // overlap. selectedLift resolves the id to the live lift (null if it was
-  // deleted out from under the selection).
-  const liftActive = toolCoordinatorState.activeTool === 'lift' || selectedLiftId !== null;
-  const trailActive = toolCoordinatorState.activeTool === 'trail' ||
-    toolCoordinatorState.activeTool === 'ski-node' || toolCoordinatorState.activeTool === 'ski-path' ||
-    selectedTrailId !== null;
-  /** The Trails roll-up swaps its body in place for a selection or active tool. */
-  const trailPanelBusy = trailTool.phase !== 'idle' || trailEditing ||
-    nodeTool.phase !== 'idle' || pathTool.phase !== 'idle' || selectedTrailId !== null;
-  const activeTrailsTool: TrailsTool =
-    trailTool.phase !== 'idle' ? 'trail'
-      : nodeTool.phase === 'add' ? 'node-add'
-        : nodeTool.phase === 'remove' ? 'node-remove'
-          : pathTool.phase !== 'idle' ? 'path'
-            : 'none';
-  /** Everything needed to turn an id into a name, shared by every readout. */
-  const anchorWorld = useMemo(
-    () => ({ trails, lifts, junctions, nodes: skiNodes, paths: skiPaths }),
-    [trails, lifts, junctions, skiNodes, skiPaths]);
-  /** The graph nodes as the panel lists them: numbered, named, removable or not. */
-  const junctionRows = useMemo(() => summarizeJunctions(anchorWorld), [anchorWorld]);
-  /**
-   * Designer-facing connectivity warnings. `unanchoredTrailIds` is deliberately
-   * left out: every run built before this feature has no declared start, so
-   * warning on it would shout on every existing save.
-   */
-  const trailNetworkWarnings = useMemo(() => {
-    const d = network.diagnostics;
-    const out: string[] = [];
-    const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
-    if (d.orphanTrailIds.length > 0) {
-      out.push(`${d.orphanTrailIds.length} ${plural(d.orphanTrailIds.length, 'run is', 'runs are')} not reachable from any lift.`);
-    }
-    const unresolved = d.unresolvedAnchorTrailIds.length + d.unresolvedAnchorPathIds.length;
-    if (unresolved > 0) {
-      out.push(`${unresolved} start ${plural(unresolved, 'connection no longer resolves', 'connections no longer resolve')} — the target was moved or deleted.`);
-    }
-    if (d.overreachingAnchorIds.length > 0) {
-      out.push(`${d.overreachingAnchorIds.length} ${plural(d.overreachingAnchorIds.length, 'connection spans', 'connections span')} an unusually long gap.`);
-    }
-    if (d.degeneratePathIds.length > 0) {
-      out.push(`${d.degeneratePathIds.length} ${plural(d.degeneratePathIds.length, 'path starts', 'paths start')} and ends at the same junction.`);
-    }
-    if (d.componentCount > 1) {
-      out.push(`The mountain is in ${d.componentCount} disconnected pieces.`);
-    }
-    return out;
-  }, [network]);
-  const infrastructureActive = toolCoordinatorState.activeTool === 'road';
-  const snowmakingActive = toolCoordinatorState.activeTool === 'dam' ||
-    toolCoordinatorState.activeTool === 'pond' ||
-    selectedDamId !== null || selectedPondId !== null || selectedSnowmakingNodeId !== null;
-  const selectedLakeFeature = selectedLakeId
-    ? terrainRecord?.vectorFeatures?.waterPolygons.find((lake) => lake.id === selectedLakeId) ?? null
-    : null;
-  const selectedLake = useMemo(() => selectedLakeFeature && terrainRecord
-    ? analyzeLake(selectedLakeFeature, terrainRecord, lakeDepthOverrides[selectedLakeFeature.id],
-      lakeNameOverrides[selectedLakeFeature.id])
-    : null, [selectedLakeFeature, terrainRecord, lakeDepthOverrides, lakeNameOverrides]);
-  const selectedDam = selectedDamId ? dams.find((dam) => dam.id === selectedDamId) ?? null : null;
-  const selectedPond = selectedPondId ? ponds.find((pond) => pond.id === selectedPondId) ?? null : null;
-  const selectedSnowmakingNode = selectedSnowmakingNodeId
-    ? snowmakingNodes.find((node) => node.id === selectedSnowmakingNodeId) ?? null
-    : null;
-  const selectedStreamFeature = selectedStreamId
-    ? terrainRecord?.vectorFeatures?.waterLines.find((stream) => stream.id === selectedStreamId) ?? null
-    : null;
-  const selectedStream = useMemo(() => selectedStreamFeature
-    ? analyzeStream(selectedStreamFeature, streamWidthOverrides[selectedStreamFeature.id]) : null,
-    [selectedStreamFeature, streamWidthOverrides]);
-  const lakeOpen = !!saved && selectedLake !== null;
-  const streamOpen = !!saved && selectedStream !== null;
-  const waterDetailOpen = lakeOpen || streamOpen;
-  const liftsOpen = !!saved && !waterDetailOpen && (openDock === 'lifts' || liftActive);
-  const trailsOpen = !!saved && !waterDetailOpen && !liftsOpen && (openDock === 'trails' || trailActive);
-  const snowmakingOpen = !!saved && !waterDetailOpen && !liftsOpen && !trailsOpen &&
-    (openDock === 'snowmaking' || snowmakingActive);
-  const infrastructureOpen = !!saved && !waterDetailOpen && !liftsOpen && !trailsOpen &&
-    !snowmakingOpen && (openDock === 'infrastructure' || infrastructureActive);
-  const layersOpen = !!saved && !waterDetailOpen && !liftsOpen && (openDock === 'layers' || layersAlongsideBuild);
-  const selectedLift = selectedLiftId ? lifts.find((l) => l.id === selectedLiftId) ?? null : null;
-  const selectedTrail = selectedTrailId ? trails.find((t) => t.id === selectedTrailId) ?? null : null;
   // The gate is now the New Game preparation surface only. Resuming a saved
   // resort — including a missing or invalid package — is reported upward and
   // rendered on App's resort loading screen, so a load is one screen throughout.
@@ -2729,447 +2507,40 @@ export function MapView({
 
       {/* Bottom dock: layers/lifts roll-up circles above the status toolbar */}
       {saved && (
-        <div className="game-dock">
-          <div className="dock-stack">
-            <div className="dock-rollups">
-              {streamOpen && selectedStream && (
-                <div className="dock-rollup dock-stream" data-panel="stream">
-                  <div className="dock-panel">
-                    <StreamDetail
-                      stream={selectedStream}
-                      units={settings.units}
-                      onWidthOverride={(widthM) => {
-                        setStreamWidthOverrides((current) => {
-                          const next = { ...current };
-                          if (widthM == null) delete next[selectedStream.id];
-                          else next[selectedStream.id] = widthM;
-                          return next;
-                        });
-                      }}
-                      onClose={() => setSelectedStreamId(null)}
-                    />
-                  </div>
-                </div>
-              )}
-              {lakeOpen && selectedLake && (
-                <div className="dock-rollup dock-lake" data-panel="lake">
-                  <div className="dock-panel">
-                    <LakeDetail
-                      lake={selectedLake}
-                      units={settings.units}
-                      onNameOverride={(name) => {
-                        setLakeNameOverrides((current) => {
-                          const next = { ...current };
-                          if (name == null) delete next[selectedLake.id];
-                          else next[selectedLake.id] = name;
-                          return next;
-                        });
-                      }}
-                      onDepthOverride={(depthM) => {
-                        setLakeDepthOverrides((current) => {
-                          const next = { ...current };
-                          if (depthM == null) delete next[selectedLake.id];
-                          else next[selectedLake.id] = depthM;
-                          return next;
-                        });
-                      }}
-                      onClose={() => setSelectedLakeId(null)}
-                    />
-                  </div>
-                </div>
-              )}
-              {layersOpen && (
-              <div className="dock-rollup dock-layers">
-                {/* Contextual legend floats above the dock so switching overlays
-                    never resizes the menu itself (it stays a constant height). */}
-                {activeOverlay && (
-                  <div className="dock-legend-popover">
-                    <Legend overlay={activeOverlay} />
-                  </div>
-                )}
-                <div className="dock-panel">
-                  <div className="dock-head">
-                    <span className="dock-head-title">Layers</span>
-                    <button
-                      className="settings-close-x"
-                      aria-label="Close"
-                      onClick={() => {
-                        setLayersAlongsideBuild(false);
-                        setOpenDock((current) => current === 'layers' ? null : current);
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <LayerList
-                    layers={layers}
-                    onToggle={handleToggle}
-                    activeOverlay={activeOverlay}
-                    inlineLegend={false}
-                  />
-                </div>
-              </div>
-            )}
-              {trailsOpen && (
-              <div className="dock-rollup dock-trails" data-panel="trails">
-                <div className="dock-panel">
-                  {trailPanelBusy ? (
-                    nodeTool.phase !== 'idle' ? (
-                      <div className="site-control site-control-wide trail-panel">
-                        <div className="dock-head">
-                          <span className="dock-head-title">
-                            {nodeTool.phase === 'add' ? 'Add node' : 'Remove node'}
-                          </span>
-                          <button className="settings-close-x" aria-label="Close" onClick={cancelNodeTool}>✕</button>
-                        </div>
-                        <div className="site-hint">
-                          {nodeTool.phase === 'add'
-                            ? 'Click anywhere along a run to split it there.'
-                            : 'Click a node on a run. Only one the run passes straight through can go.'}
-                        </div>
-                        {nodeTool.phase === 'add' && nodeTool.candidate && (
-                          <div className="readout-line">
-                            <span className="lift-stat-label">Splits</span>
-                            <span className="lift-stat-value">
-                              <AnchorValue anchor={nodeTool.candidate} world={anchorWorld} />
-                            </span>
-                          </div>
-                        )}
-                        {nodeTool.phase === 'remove' && nodeTool.junctionId && (() => {
-                          const row = junctionRows.find((r) => r.id === nodeTool.junctionId);
-                          return row ? (
-                            <div className="readout-line">
-                              <span className="lift-stat-label">Node {row.number}</span>
-                              <span className="lift-stat-value">{row.label}</span>
-                            </div>
-                          ) : null;
-                        })()}
-                        {nodeTool.error && <div className="lift-warning">{nodeTool.error}</div>}
-                        <div className="site-actions">
-                          <button className="site-btn" onClick={cancelNodeTool}>Done</button>
-                          {nodeTool.phase === 'add' ? (
-                            <button className="site-btn site-btn-primary" disabled={!nodeTool.candidate}
-                              onClick={confirmAddNode}>Add node</button>
-                          ) : (
-                            <button className="site-btn site-btn-primary"
-                              disabled={!nodeTool.junctionId || nodeTool.error !== null}
-                              onClick={confirmRemoveNode}>Remove node</button>
-                          )}
-                        </div>
-                      </div>
-                    ) : pathTool.phase !== 'idle' ? (
-                      <div className="site-control site-control-wide trail-panel">
-                        <div className="dock-head">
-                          <span className="dock-head-title">Draw path</span>
-                          <button className="settings-close-x" aria-label="Close" onClick={cancelPathTool}>✕</button>
-                        </div>
-                        {pathTool.phase === 'review' ? (
-                          <>
-                            <input
-                              className="name-entry-input lift-name-input"
-                              value={pathTool.name}
-                              onChange={(e) => nodePathController.renamePath(e.target.value)}
-                            />
-                            <div className="readout-line">
-                              <span className="lift-stat-label">From</span>
-                              <span className="lift-stat-value">{describeAnchor(pathTool.from)}</span>
-                            </div>
-                            <div className="readout-line">
-                              <span className="lift-stat-label">To</span>
-                              <span className="lift-stat-value">{describeAnchor(pathTool.to)}</span>
-                            </div>
-                            <div className="readout-line">
-                              <span className="lift-stat-label">Length</span>
-                              <span className="lift-stat-value">
-                                {fmtDistance(pathLengthM(pathTool.points), settings.units)}
-                              </span>
-                            </div>
-                            <div className="site-actions">
-                              <button className="site-btn" onClick={cancelPathTool}>Cancel</button>
-                              <button className="site-btn site-btn-primary" onClick={confirmPath}>Build path</button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="site-hint">
-                              {pathTool.phase === 'armed'
-                                ? 'Click anywhere along a ski trail to start the connector.'
-                                : 'Click along the route. Finish on a different ski trail — a node is added where each end meets a run.'}
-                            </div>
-                            <div className="site-actions">
-                              <button
-                                className="site-btn"
-                                onClick={undoPathPoint}
-                                disabled={pathTool.phase !== 'drawing'}
-                              >
-                                Undo point
-                              </button>
-                              <button
-                                className="site-btn site-btn-primary"
-                                onClick={finishPathRoute}
-                                disabled={pathTool.phase !== 'drawing' || pathTool.points.length < 2}
-                              >
-                                Finish
-                              </button>
-                            </div>
-                            <button className="site-btn" onClick={cancelPathTool}>Cancel</button>
-                          </>
-                        )}
-                      </div>
-                    ) : trailTool.phase === 'idle' && selectedTrail && !trailEditing ? (
-                      <TrailDetail
-                        trail={selectedTrail}
-                        units={settings.units}
-                        onEdit={() => setTrailEditing(true)}
-                        onRemove={() => deleteTrail(selectedTrail.id)}
-                        onToggleClosed={(closed) => patchTrail(selectedTrail.id, { closed })}
-                        onClose={() => {
-                          setSelectedTrailId(null);
-                          setOpenDock('trails');
-                        }}
-                      />
-                    ) : (
-                      <TrailControl
-                        tool={trailTool}
-                        trails={trails}
-                        world={anchorWorld}
-                        selectedId={trailTool.phase === 'idle' ? selectedTrailId : null}
-                        units={settings.units}
-                        brushWidthM={brushWidthM}
-                        onBrushWidthChange={changeTrailBrushWidth}
-                        onCancel={cancelTrailTool}
-                        onModeChange={setTrailPaintModeState}
-                        onUndo={undoTrailPaint}
-                        onClear={clearTrailPaint}
-                        onFinish={finishTrailPaint}
-                        onDraftChange={patchTrailDraft}
-                        onGradingChange={setTrailTerrainGrading}
-                        onConfirm={confirmTrail}
-                        building={building}
-                        onEditPatch={patchTrail}
-                        onCloseEdit={() => setTrailEditing(false)}
-                        onDelete={deleteTrail}
-                        onRetryElevation={retryTrailElevation}
-                        onChangeHead={changeTrailHead}
-                        onBackToPaint={backToTrailPaint}
-                      />
-                    )
-                  ) : (
-                    <TrailsPanel
-                      trails={trails}
-                      junctions={junctionRows}
-                      legacyNodes={skiNodes}
-                      paths={skiPaths}
-                      units={settings.units}
-                      selectedTrailId={selectedTrailId}
-                      selectedNodeId={selectedNodeId}
-                      selectedPathId={selectedPathId}
-                      activeTool={activeTrailsTool}
-                      warnings={trailNetworkWarnings}
-                      onPaintRun={armTrailTool}
-                      onAddNode={() => armNodeTool('add')}
-                      onRemoveNodeTool={() => armNodeTool('remove')}
-                      onDrawPath={armPathTool}
-                      onSelectTrail={(id) => selectTrailRef.current(id)}
-                      onSelectNode={selectGraphNode}
-                      onSelectPath={(id) => id
-                        ? transitionSelection({ kind: 'ski-path', id })
-                        : setSelectedPathId(null)}
-                      onDeleteNode={removeGraphNode}
-                      onDeleteLegacyNode={deleteSkiNode}
-                      onDeletePath={deleteSkiPath}
-                      onClose={() => setOpenDock(null)}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-              {liftsOpen && (
-              <div className="dock-rollup dock-lifts">
-                <div className="dock-panel">
-                  {liftTool.phase === 'idle' && selectedLift && !liftEditing ? (
-                    // Clicking a lift opens its read-only detail first.
-                    <LiftDetail
-                      lift={selectedLift}
-                      units={settings.units}
-                      onEdit={() => setLiftEditing(true)}
-                      onRemove={() => deleteLift(selectedLift.id)}
-                      onToggleClosed={(closed) => patchLift(selectedLift.id, { closed })}
-                      onClose={() => {
-                        // Back up to the full lift list (keep the dock open).
-                        setSelectedLiftId(null);
-                        setOpenDock('lifts');
-                      }}
-                    />
-                  ) : liftTool.phase === 'idle' && !selectedLift ? (
-                    <LiftOverview
-                      lifts={lifts}
-                      units={settings.units}
-                      onArm={armLiftTool}
-                      onSelect={liftController.select}
-                      onClose={() => setOpenDock(null)}
-                    />
-                  ) : (
-                    // Draw / review a new lift, or edit the selected one.
-                    <LiftControl
-                      tool={liftTool}
-                      lifts={lifts}
-                      selectedId={liftTool.phase === 'idle' ? selectedLiftId : null}
-                      units={settings.units}
-                      onArm={armLiftTool}
-                      onCancel={cancelLiftTool}
-                      onDraftChange={liftController.patchDraft}
-                      onConfirm={() => void liftController.confirm()}
-                      building={building}
-                      onSelect={liftController.select}
-                      onEditPatch={patchLift}
-                      onCloseEdit={() => setLiftEditing(false)}
-                      onDelete={deleteLift}
-                      onRetryElevation={liftController.retryElevation}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-              {snowmakingOpen && (
-              <div className="dock-rollup dock-snowmaking">
-                <div className="dock-panel">
-                  <SnowmakingControl
-                    damTool={damTool}
-                    pondTool={pondTool}
-                    dams={dams}
-                    ponds={ponds}
-                    selectedDam={selectedDam}
-                    selectedPond={selectedPond}
-                    nodes={snowmakingNodes}
-                    selectedNode={selectedSnowmakingNode}
-                    units={settings.units}
-                    onArmDam={armDamTool}
-                    onCancelDam={cancelDamTool}
-                    onDamDraftChange={snowmakingController.dam.patchDraft}
-                    onConfirmDam={snowmakingController.dam.confirm}
-                    onSelectDam={snowmakingController.dam.select}
-                    onDeleteDam={snowmakingController.dam.remove}
-                    onCloseDam={() => setSelectedDamId(null)}
-                    onArmPond={armPondTool}
-                    onCancelPond={cancelPondTool}
-                    onUndoPond={snowmakingController.pond.undo}
-                    onFinishPond={snowmakingController.pond.finish}
-                    onPondDraftChange={snowmakingController.pond.patchDraft}
-                    onPondElevationChange={snowmakingController.pond.changeElevation}
-                    onPondExcavationChange={snowmakingController.pond.changeExcavation}
-                    onConfirmPond={snowmakingController.pond.confirm}
-                    onSelectPond={snowmakingController.pond.select}
-                    onDeletePond={snowmakingController.pond.remove}
-                    onPondSnowmakingChange={snowmakingController.pond.setSnowmaking}
-                    onClosePond={() => setSelectedPondId(null)}
-                    onSelectNode={snowmakingController.nodes.select}
-                    onRenameNode={snowmakingController.nodes.rename}
-                    onCloseNode={() => setSelectedSnowmakingNodeId(null)}
-                    building={building}
-                    onClose={() => setOpenDock(null)}
-                  />
-                </div>
-              </div>
-            )}
-              {infrastructureOpen && (
-              <div className="dock-rollup dock-infrastructure">
-                <div className="dock-panel">
-                  <InfrastructureControl
-                    tool={roadTool}
-                    roads={roads}
-                    units={settings.units}
-                    onArm={armRoadTool}
-                    onCancel={cancelRoadTool}
-                    onUndo={roadController.undo}
-                    onFinish={roadController.finish}
-                    onDraftChange={roadController.patchDraft}
-                    onConfirm={roadController.confirm}
-                    building={building}
-                    onClose={() => setOpenDock(null)}
-                  />
-                </div>
-              </div>
-            )}
-
-            </div>
-
-            <div className="dock-circles">
-              <button
-                className={`dock-circle dock-circle-layers${layersOpen ? ' is-active' : ''}`}
-                onClick={() => toggleDock('layers')}
-                aria-pressed={layersOpen}
-                title="Layers"
-                aria-label="Layers"
-              >
-                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                  <path d="M12 3 2 8l10 5 10-5-10-5Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                  <path d="M2 12l10 5 10-5M2 16l10 5 10-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <button
-                className={`dock-circle dock-circle-lifts${liftsOpen ? ' is-active' : ''}`}
-                onClick={() => toggleDock('lifts')}
-                aria-pressed={liftsOpen}
-                title="Ski lifts"
-                aria-label="Ski lifts"
-              >
-                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                  <path d="M3 6l18-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                  <circle cx="10" cy="5.4" r="1.1" fill="currentColor" />
-                  <path d="M10 6.5v2.8m-2.4 0h4.8l-.7 3.4H8.3l-.7-3.4Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <button
-                className={`dock-circle dock-circle-trails${trailsOpen ? ' is-active' : ''}`}
-                onClick={() => toggleDock('trails')}
-                aria-pressed={trailsOpen}
-                title="Ski runs"
-                aria-label="Ski runs"
-              >
-                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                  <path d="M3 20 12 4l9 16Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                  <path d="M8.5 12q2 2.4 3.5 0t3.5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
-              <button
-                className={`dock-circle dock-circle-snowmaking${snowmakingOpen ? ' is-active' : ''}`}
-                onClick={() => toggleDock('snowmaking')}
-                aria-pressed={snowmakingOpen}
-                title="Snowmaking"
-                aria-label="Snowmaking"
-              >
-                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                  <path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9" fill="none" stroke="currentColor"
-                    strokeWidth="1.7" strokeLinecap="round" />
-                  <path d="M9.6 4.8 12 7.2l2.4-2.4M9.6 19.2 12 16.8l2.4 2.4" fill="none" stroke="currentColor"
-                    strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <button
-                className={`dock-circle dock-circle-infrastructure${infrastructureOpen ? ' is-active' : ''}`}
-                onClick={() => toggleDock('infrastructure')}
-                aria-pressed={infrastructureOpen}
-                title="Infrastructure"
-                aria-label="Infrastructure"
-              >
-                <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                  <path d="M5 22c0-7 4-8 4-13 0-3-1-5-1-7M19 22c0-7-4-8-4-13 0-3 1-5 1-7"
-                    fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                  <path d="M12 20v-3m0-3v-3m0-3V5" fill="none" stroke="currentColor"
-                    strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <GameToolbar
-            resortName={saved.name}
-            onOpenStats={() => setShowStats(true)}
-            readout={readout}
-            units={settings.units}
-          />
-        </div>
+        <MapGameDock
+          saved={saved} units={settings.units} readout={readout} building={building}
+          openDock={openDock} layersAlongsideBuild={layersAlongsideBuild}
+          coordinator={toolCoordinatorState} layers={layers} activeOverlay={activeOverlay}
+          lifts={lifts} trails={trails} roads={roads} dams={dams} ponds={ponds}
+          snowmakingNodes={snowmakingNodes} skiNodes={skiNodes} skiPaths={skiPaths}
+          junctions={junctions} terrainRecord={terrainRecord} network={network}
+          selectedLiftId={selectedLiftId} selectedTrailId={selectedTrailId}
+          selectedDamId={selectedDamId} selectedPondId={selectedPondId}
+          selectedSnowmakingNodeId={selectedSnowmakingNodeId} selectedNodeId={selectedNodeId}
+          selectedPathId={selectedPathId} selectedLakeId={selectedLakeId}
+          selectedStreamId={selectedStreamId} liftEditing={liftEditing} trailEditing={trailEditing}
+          lakeDepthOverrides={lakeDepthOverrides} lakeNameOverrides={lakeNameOverrides}
+          streamWidthOverrides={streamWidthOverrides} liftController={liftController}
+          roadController={roadController} trailController={trailController}
+          nodePathController={nodePathController} snowmakingController={snowmakingController}
+          toggleDock={toggleDock} closeDock={() => setOpenDock(null)}
+          closeLayers={() => { setLayersAlongsideBuild(false);
+            setOpenDock((current) => current === 'layers' ? null : current); }}
+          toggleLayer={handleToggle} openStats={() => setShowStats(true)}
+          setLiftEditing={setLiftEditing} setTrailEditing={setTrailEditing}
+          clearSelectedLift={() => { setSelectedLiftId(null); setOpenDock('lifts'); }}
+          clearSelectedTrail={() => { setSelectedTrailId(null); setOpenDock('trails'); }}
+          clearSelectedDam={() => setSelectedDamId(null)} clearSelectedPond={() => setSelectedPondId(null)}
+          clearSelectedSnowmakingNode={() => setSelectedSnowmakingNodeId(null)}
+          clearSelectedNode={() => setSelectedNodeId(null)} clearSelectedPath={() => setSelectedPathId(null)}
+          clearSelectedLake={() => setSelectedLakeId(null)} clearSelectedStream={() => setSelectedStreamId(null)}
+          setLakeName={(id, name) => setLakeNameOverrides((current) => { const next = { ...current };
+            if (name == null) delete next[id]; else next[id] = name; return next; })}
+          setLakeDepth={(id, depth) => setLakeDepthOverrides((current) => { const next = { ...current };
+            if (depth == null) delete next[id]; else next[id] = depth; return next; })}
+          setStreamWidth={(id, width) => setStreamWidthOverrides((current) => { const next = { ...current };
+            if (width == null) delete next[id]; else next[id] = width; return next; })}
+        />
       )}
 
       {/* Name-and-start panel once a New Game site is locked */}
