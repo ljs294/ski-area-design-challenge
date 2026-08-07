@@ -93,18 +93,11 @@ import { nearestTrailHeadAnchor, nearestTrailTailAnchor, type TrailHeadAnchor } 
 import { TrailDetail } from './TrailDetail';
 import { InfrastructureControl } from './InfrastructureControl';
 import { useRoadController } from './useRoadController';
-import { SnowmakingControl, type DamTool, type DraftDam, type DraftPond, type PondTool } from './SnowmakingControl';
-import { damCrestElevationAt, nextDamName, sanitizeDams, snapDamEndpoint } from '../damAnalysis';
-import { addDamLayers, DAM_BUILT_LAYER_IDS, DAM_HIT_LAYERS, setDamData, setDamDraftData, setSelectedDam } from './damLayers';
-import { analyzeStandalonePond, nextPondName, sanitizePonds,
-  suggestedPondTopElevationM } from '../pondAnalysis';
-import { designPondEarthwork, MAX_POND_BERM_HEIGHT_M, pondTerrainPatch } from '../pondEarthwork';
-import { earthworkTerrainPatch, type EarthworkTerrainPatch } from '../earthwork';
-import { addPondLayers, POND_BUILT_LAYER_IDS, POND_HIT_LAYERS, setPondData,
-  setPondDraftData, setSelectedPond } from './pondLayers';
+import { SnowmakingControl } from './SnowmakingControl';
+import { useSnowmakingController } from './useSnowmakingController';
+import { sanitizeDams } from '../damAnalysis';
+import { sanitizePonds } from '../pondAnalysis';
 import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
-import { addSnowmakingLayers, setSnowmakingData, setSelectedSnowmakingNode,
-  SNOWMAKING_HIT_LAYERS, SNOWMAKING_BUILT_LAYER_IDS } from './snowmakingLayers';
 import {
   addTrailLayers,
   draftToGeoJSON,
@@ -237,30 +230,6 @@ function hasUserTrailStroke(commands: TrailPaintCommand[], head: [number, number
   return commands.some((command) => !command.seed && command.mode === 'paint' &&
     command.path.some((point) => haversineMeters(point, head) >= 0.5));
 }
-function damDraftOf(tool: DamTool) {
-  if (tool.phase === 'anchored') return { points: [tool.first], cursor: tool.cursor };
-  if (tool.phase === 'analyzing') return { points: tool.points, cursor: null };
-  if (tool.phase === 'review') return { points: tool.draft.points, cursor: null,
-    pondRings: tool.draft.pondRings, crestElevationM: tool.draft.crestElevationM,
-    averageDepthM: tool.draft.averageDepthM, footprintRings: tool.draft.footprintRings,
-    crestRing: tool.draft.crestRing };
-  return null;
-}
-
-/** The embankment toe traced from a grading patch: the polygon whose outer ring
- * is longest, since the structure is one connected body of earth. */
-function largestFootprint(polygons: [number, number][][][]): [number, number][][] | undefined {
-  if (!polygons.length) return undefined;
-  return polygons.reduce((best, polygon) => polygon[0].length > best[0].length ? polygon : best);
-}
-
-function pondDraftOf(tool: PondTool) {
-  if (tool.phase === 'drawing') return { points: tool.points, cursor: tool.cursor, closed: false };
-  if (tool.phase === 'review') return { points: tool.draft.boundary.slice(0, -1), cursor: null, closed: true,
-    topElevationM: tool.draft.topElevationM, averageDepthM: tool.draft.averageDepthM };
-  return null;
-}
-
 function nodePathDraftOf(
   pathTool: PathTool,
   nodeTool: NodeTool,
@@ -515,10 +484,8 @@ export function MapView({
   const [trailEditing, setTrailEditing] = useState(false);
   const [roads, setRoads] = useState<SavedRoad[]>(() => sanitizeRoads(initialSave?.roads ?? []));
   const [dams, setDams] = useState<SavedDam[]>(() => sanitizeDams(initialSave?.dams ?? []));
-  const [damTool, setDamTool] = useState<DamTool>({ phase: 'idle' });
   const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
   const [ponds, setPonds] = useState<SavedPond[]>(() => sanitizePonds(initialSave?.ponds ?? []));
-  const [pondTool, setPondTool] = useState<PondTool>({ phase: 'idle' });
   const [selectedPondId, setSelectedPondId] = useState<string | null>(null);
   // Seeded already-reconciled against the sanitized dams/ponds above, so a
   // save that needed backfilling (or predates this field) doesn't present as
@@ -832,17 +799,8 @@ export function MapView({
   const streamWidthOverridesRef = useRef(streamWidthOverrides);
   const roadsRef = useRef<SavedRoad[]>(roads);
   const damsRef = useRef<SavedDam[]>(dams);
-  const damToolRef = useRef<DamTool>(damTool);
-  const selectedDamIdRef = useRef<string | null>(selectedDamId);
   const pondsRef = useRef<SavedPond[]>(ponds);
-  const pondToolRef = useRef<PondTool>(pondTool);
-  const selectedPondIdRef = useRef<string | null>(selectedPondId);
   const snowmakingNodesRef = useRef<SavedSnowmakingNode[]>(snowmakingNodes);
-  const selectedSnowmakingNodeIdRef = useRef<string | null>(selectedSnowmakingNodeId);
-  // Grading patch for whichever water structure is in review. It drives the
-  // pre-build contour highlight and, for dams, the commit itself. Dams and
-  // ponds cancel each other, so one slot is enough.
-  const earthworkPatchRef = useRef<EarthworkTerrainPatch | null>(null);
   const brushWidthRef = useRef(brushWidthM);
   const renderQualityRef = useRef(settings.renderQuality);
   const unitsRef = useRef(settings.units);
@@ -1006,6 +964,61 @@ export function MapView({
   });
   const roadTool = roadController.state;
 
+  const snowmakingController = useSnowmakingController({
+    dam: {
+      mapRef, dams, selectedId: selectedDamId,
+      add: (dam) => setDams((existing) => [...existing, dam]),
+      remove: (id) => setDams((existing) => existing.filter((dam) => dam.id !== id)),
+      select: (id) => transitionSelection({ kind: 'dam', id }),
+      clearSelected: (id) => setSelectedDamId((selected) => selected === id ? null : selected),
+      canArm: () => siteModeRef.current !== 'selecting',
+      activate: () => toolCoordinator.activate('dam'),
+      release: () => { toolCoordinator.release('dam'); },
+      openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
+      acquireInteractions: (map) => acquireMapInteractions('dam', map, { cursor: 'crosshair' }),
+      terrain, terrainRevision: terrain.snapshot().revision,
+      terrainRecord: () => terrainRecordRef.current,
+      streamWidthOverrides: () => streamWidthOverridesRef.current,
+      analysis: damAnalysis, gradeChanged: applyGradePreview,
+      clearCover: (polygons) => clearCover(polygons.map((polygon) => ({ polygon }))),
+      createId: genId, now: () => new Date().toISOString(),
+      structuresVisible: () => packageStateRef.current !== 'preparing',
+      synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('dam'),
+    },
+    pond: {
+      mapRef, ponds, selectedId: selectedPondId,
+      add: (pond) => setPonds((existing) => [...existing, pond]),
+      patch: (id, value) => setPonds((existing) =>
+        existing.map((pond) => pond.id === id ? { ...pond, ...value } : pond)),
+      remove: (id) => setPonds((existing) => existing.filter((pond) => pond.id !== id)),
+      select: (id) => transitionSelection({ kind: 'pond', id }),
+      clearSelected: (id) => setSelectedPondId((selected) => selected === id ? null : selected),
+      canArm: () => siteModeRef.current !== 'selecting',
+      activate: () => toolCoordinator.activate('pond'),
+      release: () => { toolCoordinator.release('pond'); },
+      openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
+      acquireInteractions: (map) => acquireMapInteractions('pond', map, { cursor: 'crosshair' }),
+      terrain, terrainRevision: terrain.snapshot().revision,
+      terrainRecord: () => terrainRecordRef.current, gradeChanged: applyGradePreview,
+      clearCover: (polygons) => clearCover(polygons.map((polygon) => ({ polygon }))),
+      createId: genId, now: () => new Date().toISOString(),
+      structuresVisible: () => packageStateRef.current !== 'preparing',
+      synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('pond'),
+    },
+    nodes: {
+      dams, ponds, nodes: snowmakingNodes, selectedId: selectedSnowmakingNodeId,
+      reconcileSources: (nextDams, nextPonds) => setSnowmakingNodes((existing) =>
+        reconcileSnowmakingNodes(existing, [...nextDams], [...nextPonds])),
+      rename: (id, name) => setSnowmakingNodes((existing) =>
+        existing.map((node) => node.id === id ? { ...node, name } : node)),
+      select: (id) => transitionSelection({ kind: 'snowmaking-node', id }),
+      structuresVisible: () => packageStateRef.current !== 'preparing',
+      synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('snowmaking'),
+    },
+  });
+  const damTool = snowmakingController.dam.state;
+  const pondTool = snowmakingController.pond.state;
+
   /** The one place a committed terrain record reaches React and the dirty flag. */
   function publishTerrainState({ record, edit }: TerrainPublication): void {
     terrainRecordRef.current = record;
@@ -1088,7 +1101,8 @@ export function MapView({
       return trailGradeResultRef.current;
     const road = roadController.activeGradePreview();
     if (road) return road;
-    return earthworkPatchRef.current;
+    return snowmakingController.dam.activeGradePreview() ??
+      snowmakingController.pond.activeGradePreview();
   }
 
   function applyGradePreview(map: maplibregl.Map | null = mapRef.current): void {
@@ -1129,13 +1143,8 @@ export function MapView({
   trailToolRef.current = trailTool;
   roadsRef.current = roads;
   damsRef.current = dams;
-  damToolRef.current = damTool;
-  selectedDamIdRef.current = selectedDamId;
   pondsRef.current = ponds;
-  pondToolRef.current = pondTool;
-  selectedPondIdRef.current = selectedPondId;
   snowmakingNodesRef.current = snowmakingNodes;
-  selectedSnowmakingNodeIdRef.current = selectedSnowmakingNodeId;
   skiNodesRef.current = skiNodes;
   skiPathsRef.current = skiPaths;
   junctionsRef.current = junctions;
@@ -1444,41 +1453,8 @@ export function MapView({
         cleanup: () => {},
       },
       roadController.contribution,
-      {
-        id: 'dam', zOrder: MAP_Z_ORDER.dam,
-        hits: [{ id: 'dam', priority: MAP_HIT_RANK.dam, layerIds: DAM_HIT_LAYERS,
-          select: (id) => transitionSelection({ kind: 'dam', id }) }],
-        install: ({ map }) => addDamLayers(map),
-        synchronizeData: ({ map }) => {
-          const rec = terrainRecordRef.current;
-          setDamData(map, damsRef.current, rec);
-          setDamDraftData(map, damDraftOf(damToolRef.current), rec);
-          setSelectedDam(map, selectedDamIdRef.current);
-        },
-        visibility: () => structureVisibility('dams', 'Snowmaking ponds', DAM_BUILT_LAYER_IDS),
-        setCaptureTransient: ({ map }, hidden) => hidden
-          ? setDamDraftData(map, null)
-          : setDamDraftData(map, damDraftOf(damToolRef.current), terrainRecordRef.current),
-        cleanup: () => {},
-      },
-      {
-        id: 'pond', zOrder: MAP_Z_ORDER.pond,
-        hits: [{ id: 'pond', priority: MAP_HIT_RANK.pond, layerIds: POND_HIT_LAYERS,
-          select: (id) => transitionSelection({ kind: 'pond', id }) }],
-        install: ({ map }) => addPondLayers(map),
-        synchronizeData: ({ map }) => {
-          const rec = terrainRecordRef.current;
-          setPondData(map, pondsRef.current, rec);
-          setPondDraftData(map, pondDraftOf(pondToolRef.current), rec);
-          setSelectedPond(map, selectedPondIdRef.current);
-        },
-        visibility: () => structureVisibility(
-          'standalone-ponds', 'Standalone ponds', POND_BUILT_LAYER_IDS),
-        setCaptureTransient: ({ map }, hidden) => hidden
-          ? setPondDraftData(map, null)
-          : setPondDraftData(map, pondDraftOf(pondToolRef.current), terrainRecordRef.current),
-        cleanup: () => {},
-      },
+      snowmakingController.dam.contribution,
+      snowmakingController.pond.contribution,
       {
         id: 'ski-node-path', zOrder: MAP_Z_ORDER['ski-node-path'],
         install: ({ map }) => {
@@ -1544,19 +1520,7 @@ export function MapView({
         cleanup: () => {},
       },
       liftController.contribution,
-      {
-        id: 'snowmaking', zOrder: MAP_Z_ORDER.snowmaking,
-        hits: [{ id: 'snowmaking', priority: MAP_HIT_RANK.snowmaking,
-          layerIds: SNOWMAKING_HIT_LAYERS, select: (id) => selectSnowmakingNode(id) }],
-        install: ({ map }) => addSnowmakingLayers(map),
-        synchronizeData: ({ map }) => {
-          setSnowmakingData(map, snowmakingNodesRef.current);
-          setSelectedSnowmakingNode(map, selectedSnowmakingNodeIdRef.current);
-        },
-        visibility: () => structureVisibility(
-          'snowmaking-network', 'Snowmaking network', SNOWMAKING_BUILT_LAYER_IDS),
-        cleanup: () => {},
-      },
+      snowmakingController.nodes.contribution,
     ];
   }
 
@@ -1871,26 +1835,6 @@ export function MapView({
     mapContributions.synchronizeData('analysis');
   }, [lakeNameOverrides, streamWidthOverrides, mapContributions]);
 
-  useEffect(() => {
-    mapContributions.synchronizeData('dam');
-  }, [dams, damTool, selectedDamId, terrainRecord, mapContributions]);
-
-  useEffect(() => {
-    mapContributions.synchronizeData('pond');
-  }, [ponds, pondTool, selectedPondId, terrainRecord, mapContributions]);
-
-  // Intakes follow their water: build a pond, get a node; delete or
-  // de-designate it, lose the node. Kept separate from the map-data-push
-  // effect below — reconciliation is pure state, independent of whether a
-  // map exists yet.
-  useEffect(() => {
-    setSnowmakingNodes((prev) => reconcileSnowmakingNodes(prev, dams, ponds));
-  }, [dams, ponds]);
-
-  useEffect(() => {
-    mapContributions.synchronizeData('snowmaking');
-  }, [snowmakingNodes, selectedSnowmakingNodeId, mapContributions]);
-
   // The trail contribution owns committed, draft, and brush-preview sources.
   useEffect(() => {
     mapContributions.synchronizeData('trail');
@@ -1974,130 +1918,6 @@ export function MapView({
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
       window.removeEventListener('keydown', onKey); interaction.release(); };
   }, [trailTool.phase, trailPaint]);
-
-  // Standalone ponds use a freehand polygon boundary. The full-pool elevation
-  // is entered in review and the terrain-integrated capacity updates from it.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || (pondTool.phase !== 'armed' && pondTool.phase !== 'drawing')) return;
-    const interaction = acquireMapInteractions('pond', map, { cursor: 'crosshair' });
-    const onClick = (event: maplibregl.MapMouseEvent) => {
-      const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
-      const current = pondToolRef.current;
-      const bounds = terrainRecordRef.current?.bounds;
-      if (!bounds || point[0] < bounds.west || point[0] > bounds.east ||
-        point[1] < bounds.south || point[1] > bounds.north) {
-        setPondTool(current.phase === 'drawing' ? { ...current,
-          error: 'Keep the pond boundary inside the available terrain.' } :
-          { phase: 'armed', error: 'Choose a point inside the available terrain.' });
-        return;
-      }
-      if (current.phase === 'armed') setPondTool({ phase: 'drawing', points: [point], cursor: null, error: null });
-      else if (current.phase === 'drawing') {
-        const last = current.points.at(-1);
-        if (last && haversineMeters(last, point) < 1) return;
-        setPondTool({ ...current, points: [...current.points, point], cursor: null, error: null });
-      }
-    };
-    const onMove = (event: maplibregl.MapMouseEvent) => {
-      const current = pondToolRef.current;
-      if (current.phase === 'drawing') setPondTool({ ...current,
-        cursor: [event.lngLat.lng, event.lngLat.lat] });
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancelPondTool();
-      else if (event.key === 'Backspace') { event.preventDefault(); undoPondPoint(); }
-      else if (event.key === 'Enter') finishPondBoundary();
-    };
-    map.on('click', onClick); map.on('mousemove', onMove); window.addEventListener('keydown', onKey);
-    return () => { map.off('click', onClick); map.off('mousemove', onMove);
-      window.removeEventListener('keydown', onKey); interaction.release(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pondTool.phase]);
-
-  // Dam drawing: the first bank fixes the crest elevation; the opposite bank
-  // snaps to the same DEM contour before pond analysis runs off the UI thread.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || (damTool.phase !== 'armed' && damTool.phase !== 'anchored')) return;
-    const interaction = acquireMapInteractions('dam', map, { cursor: 'crosshair' });
-    const onMove = (event: maplibregl.MapMouseEvent) => {
-      const current = damToolRef.current;
-      const record = terrainRecordRef.current;
-      if (current.phase !== 'anchored' || !record) return;
-      const cursor: [number, number] = [event.lngLat.lng, event.lngLat.lat];
-      const snapped = snapDamEndpoint(record, current.first, cursor);
-      setDamTool({ ...current, cursor: snapped, error: snapped ? null : 'No matching crest contour near the cursor.' });
-    };
-    const onClick = (event: maplibregl.MapMouseEvent) => {
-      const current = damToolRef.current;
-      const record = terrainRecordRef.current;
-      if (!record) return;
-      if (current.phase === 'armed') {
-        const first: [number, number] = [event.lngLat.lng, event.lngLat.lat];
-        const bounds = record.bounds;
-        if (!bounds || first[0] < bounds.west || first[0] > bounds.east ||
-          first[1] < bounds.south || first[1] > bounds.north) {
-          setDamTool({ phase: 'armed', error: 'Choose a bank inside the resort terrain boundary.' });
-          return;
-        }
-        // The core sample grid, not the surround-blended resort sampler: the
-        // snap and the flood both read this grid, and near the box edge the two
-        // disagree by enough to lift full pool off the bank that was clicked.
-        const elevationM = damCrestElevationAt(record, first);
-        if (elevationM == null) {
-          setDamTool({ phase: 'armed', error: 'Choose a point within the available terrain.' });
-          return;
-        }
-        setDamTool({ phase: 'anchored', first, crestElevationM: elevationM, cursor: null, error: null });
-        return;
-      }
-      if (current.phase !== 'anchored' || !current.cursor || !record.bounds) return;
-      const points: [[number, number], [number, number]] = [current.first, current.cursor];
-      setDamTool({ phase: 'analyzing', points, crestElevationM: current.crestElevationM });
-      damAnalysis.run({
-        heights: Float32Array.from(record.sampleHeights),
-        gridSize: record.sampleGridSize, bounds: record.bounds,
-        points, crestElevationM: current.crestElevationM,
-        streams: (record.vectorFeatures?.waterLines ?? []).map((stream) => ({ ...stream,
-          widthM: streamWidthOverridesRef.current[stream.id] ?? stream.widthM })),
-      }, {
-        onResult: (analysis) => {
-          // Trace the embankment's contours and footprint here rather than in the
-          // worker: the patch has to be stamped against the live package so the
-          // preview the player approves is exactly what gets committed.
-          const patch = earthworkTerrainPatch(record, analysis.patchIndices, analysis.patchHeights);
-          earthworkPatchRef.current = patch;
-          setDamTool({ phase: 'review', error: null, draft: {
-            name: nextDamName(damsRef.current), points, crestElevationM: current.crestElevationM,
-            streamId: analysis.crossing.stream.id,
-            streamName: analysis.crossing.stream.name ?? `Unnamed ${analysis.crossing.stream.waterClass}`,
-            sourceWidthM: analysis.sourceWidthM, inflowM3s: analysis.inflowM3s,
-            pondRings: analysis.pondRings, areaM2: analysis.areaM2,
-            averageDepthM: analysis.averageDepthM, capacityM3: analysis.capacityM3,
-            averageDamHeightM: analysis.averageDamHeightM,
-            maxDamHeightM: analysis.maxDamHeightM,
-            damCrestElevationM: analysis.damCrestElevationM,
-            crestRing: analysis.crestRing,
-            footprintRings: largestFootprint(patch.disturbancePolygons),
-            builtLengthM: analysis.builtLengthM,
-            disturbedAreaM2: analysis.disturbedAreaM2,
-            earthwork: analysis.earthwork,
-          } });
-          applyGradePreview();
-        },
-        onError: (error) => {
-          setDamTool({ phase: 'anchored', first: points[0],
-            crestElevationM: current.crestElevationM, cursor: null, error });
-        },
-      });
-    };
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelDamTool(); };
-    map.on('mousemove', onMove); map.on('click', onClick); window.addEventListener('keydown', onKey);
-    return () => { map.off('mousemove', onMove); map.off('click', onClick);
-      window.removeEventListener('keydown', onKey); interaction.release(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [damTool.phase]);
 
   // Built nodes + paths pushed to their own source, the same way lifts are.
   useEffect(() => {
@@ -2485,220 +2305,19 @@ export function MapView({
   }
 
   function armDamTool() {
-    if (siteModeRef.current === 'selecting' || !terrainRecordRef.current) return;
-    if (!toolCoordinator.activate('dam')) return;
-    clearSelectionState();
-    setOpenDock('snowmaking');
-    setDamTool({ phase: 'armed', error: null });
+    snowmakingController.dam.arm();
   }
 
   function cancelDamTool() {
-    damAnalysis.cancel();
-    setDamTool({ phase: 'idle' });
-    earthworkPatchRef.current = null;
-    applyGradePreview();
-    if (mapRef.current) setDamDraftData(mapRef.current, null);
-    toolCoordinator.release('dam');
-  }
-
-  function patchDamDraft(patch: Partial<DraftDam>) {
-    setDamTool((current) => current.phase === 'review'
-      ? { ...current, draft: { ...current.draft, ...patch } } : current);
-  }
-
-  /** Build the dam: cut its embankment into the terrain package, then record
-   * the structure and fell whatever stood on the ground it moved. */
-  async function confirmDam() {
-    const current = damToolRef.current;
-    if (current.phase !== 'review') return;
-    const draft = current.draft;
-    const patch = earthworkPatchRef.current;
-    // Ownership is taken synchronously here, so a second confirmation in the
-    // same tick is rejected rather than building this dam twice.
-    await terrain.runConstruction('dam', async () => {
-      try {
-        await new Promise(requestAnimationFrame);
-        const { record, revision } = terrain.snapshot();
-        if (!record) throw new Error('The local elevation package is unavailable.');
-        if (!patch) throw new Error('This embankment has no grading design. Redraw the dam.');
-        const commit = terrain.commit({ expectedRevision: revision,
-          record: applyTerrainGradeToRecord(record, patch), kind: 'elevation' });
-        if (!commit.ok) throw new Error('The terrain changed while building. Redraw the dam.');
-        earthworkPatchRef.current = null;
-        setDams((existing) => [...existing, { ...draft, id: genId(),
-          name: draft.name.trim() || nextDamName(existing), terrainGraded: true,
-          createdAt: new Date().toISOString() }]);
-        setDamTool({ phase: 'idle' });
-        toolCoordinator.release('dam');
-        // The embankment and its toe are bare fill now: fell what stood there.
-        await clearCover(patch.disturbancePolygons.map((polygon) => ({ polygon })));
-      } catch (error) {
-        setDamTool((active) => active.phase === 'review' ? { ...active,
-          error: error instanceof Error ? error.message : 'Unable to build this dam.' } : active);
-      }
-    });
-  }
-
-  function selectDam(id: string) {
-    transitionSelection({ kind: 'dam', id });
-  }
-
-  function deleteDam(id: string) {
-    setDams((existing) => existing.filter((dam) => dam.id !== id));
-    setSelectedDamId((selected) => selected === id ? null : selected);
+    snowmakingController.dam.cancel();
   }
 
   function armPondTool() {
-    if (siteModeRef.current === 'selecting' || !terrainRecordRef.current) return;
-    if (!toolCoordinator.activate('pond')) return;
-    clearSelectionState();
-    setOpenDock('snowmaking'); setPondTool({ phase: 'armed', error: null });
+    snowmakingController.pond.arm();
   }
 
   function cancelPondTool() {
-    setPondTool({ phase: 'idle' });
-    earthworkPatchRef.current = null;
-    applyGradePreview();
-    if (mapRef.current) setPondDraftData(mapRef.current, null);
-    toolCoordinator.release('pond');
-  }
-
-  /** Re-trace the contours the pond as currently designed would leave behind,
-   * so the player sees the reshaped ground before committing to it. */
-  function previewPondGrade(topElevationM: number, excavationDepthM: number,
-    boundary: [number, number][], areaM2: number): void {
-    const record = terrainRecordRef.current;
-    const design = record && designPondEarthwork(record, boundary,
-      { topElevationM, excavationDepthM, poolAreaM2: areaM2 });
-    earthworkPatchRef.current = design && record ? pondTerrainPatch(record, design) : null;
-    applyGradePreview();
-  }
-
-  function undoPondPoint() {
-    const current = pondToolRef.current;
-    if (current.phase !== 'drawing') return;
-    if (current.points.length <= 1) setPondTool({ phase: 'armed', error: null });
-    else setPondTool({ ...current, points: current.points.slice(0, -1), cursor: null, error: null });
-  }
-
-  function finishPondBoundary() {
-    const current = pondToolRef.current, record = terrainRecordRef.current;
-    if (current.phase !== 'drawing' || current.points.length < 3 || !record) return;
-    const topElevationM = suggestedPondTopElevationM(record, current.points);
-    if (topElevationM == null) {
-      setPondTool({ ...current, cursor: null, error: 'The pond boundary does not have valid terrain coverage.' });
-      return;
-    }
-    const outcome = analyzeStandalonePond(record, current.points, topElevationM);
-    if (!outcome.ok) { setPondTool({ ...current, cursor: null, error: outcome.error }); return; }
-    setPondTool({ phase: 'review', error: null, draft: {
-      name: nextPondName(pondsRef.current), isSnowmaking: true, ...outcome.result,
-    } });
-    previewPondGrade(topElevationM, outcome.result.excavationDepthM,
-      outcome.result.boundary, outcome.result.areaM2);
-  }
-
-  function patchPondDraft(patch: Partial<DraftPond>) {
-    setPondTool((current) => current.phase === 'review'
-      ? { ...current, draft: { ...current.draft, ...patch } } : current);
-  }
-
-  /** Re-solve the pool, the berm and the earthwork bill after any design change. */
-  function redesignPond(topElevationM: number, excavationDepthM: number) {
-    const current = pondToolRef.current, record = terrainRecordRef.current;
-    if (current.phase !== 'review' || !record) return;
-    const points = current.draft.boundary.slice(0, -1);
-    const outcome = analyzeStandalonePond(record, points, topElevationM, excavationDepthM);
-    if (!outcome.ok) {
-      setPondTool({ phase: 'review', error: outcome.error,
-        draft: { ...current.draft, topElevationM, excavationDepthM } });
-      // A design that will not build has no ground change worth showing.
-      earthworkPatchRef.current = null;
-      applyGradePreview();
-      return;
-    }
-    setPondTool({ phase: 'review', draft: { ...current.draft, ...outcome.result }, error: null });
-    previewPondGrade(topElevationM, outcome.result.excavationDepthM,
-      outcome.result.boundary, outcome.result.areaM2);
-  }
-
-  function changePondElevation(topElevationM: number) {
-    const current = pondToolRef.current;
-    if (current.phase !== 'review') return;
-    redesignPond(topElevationM, current.draft.excavationDepthM ?? 0);
-  }
-
-  function changePondExcavation(excavationDepthM: number) {
-    const current = pondToolRef.current;
-    if (current.phase !== 'review') return;
-    redesignPond(current.draft.topElevationM, excavationDepthM);
-  }
-
-  async function confirmPond() {
-    const current = pondToolRef.current;
-    if (current.phase !== 'review' || current.error) return;
-    const draft = current.draft;
-    await terrain.runConstruction('pond', async () => {
-      try {
-        await new Promise(requestAnimationFrame);
-        const { record, revision } = terrain.snapshot();
-        if (!record) throw new Error('The local elevation package is unavailable.');
-        // Re-solve against the live terrain rather than trusting the review pass,
-        // so a grade committed by another tool since then cannot be overwritten.
-        const design = designPondEarthwork(record, draft.boundary, {
-          topElevationM: draft.topElevationM,
-          excavationDepthM: draft.excavationDepthM ?? 0,
-          poolAreaM2: draft.areaM2,
-        });
-        if (!design) throw new Error('The pond could not be graded into this terrain.');
-        if (design.truncated || design.maxBermHeightM > MAX_POND_BERM_HEIGHT_M)
-          throw new Error('The berm no longer fits this terrain. Adjust the top of pond and try again.');
-        const patch = pondTerrainPatch(record, design);
-        const commit = terrain.commit({ expectedRevision: revision,
-          record: applyTerrainGradeToRecord(record, patch), kind: 'elevation' });
-        if (!commit.ok) throw new Error('The terrain changed while building. Redraw the pond.');
-        earthworkPatchRef.current = null;
-        setPonds((existing) => [...existing, { ...draft, id: genId(),
-          name: draft.name.trim() || nextPondName(existing),
-          crestElevationM: design.crestElevationM,
-          excavationDepthM: design.excavationDepthM,
-          maxBermHeightM: design.maxBermHeightM,
-          bermLengthM: design.bermLengthM,
-          maxCutDepthM: design.maxCutDepthM,
-          disturbedAreaM2: design.disturbedAreaM2,
-          terrainGraded: true,
-          earthwork: { cutM3: design.cutM3, fillM3: design.fillM3, balanceM3: design.balanceM3 },
-          createdAt: new Date().toISOString() }]);
-        setPondTool({ phase: 'idle' });
-        toolCoordinator.release('pond');
-        // The pool and its berm are bare ground now: fell whatever stood on them.
-        await clearCover(patch.disturbancePolygons.map((polygon) => ({ polygon })));
-      } catch (error) {
-        setPondTool((active) => active.phase === 'review' ? { ...active,
-          error: error instanceof Error ? error.message : 'Unable to build this pond.' } : active);
-      }
-    });
-  }
-
-  function selectPond(id: string) {
-    transitionSelection({ kind: 'pond', id });
-  }
-
-  function deletePond(id: string) {
-    setPonds((existing) => existing.filter((pond) => pond.id !== id));
-    setSelectedPondId((selected) => selected === id ? null : selected);
-  }
-
-  function changePondSnowmaking(id: string, isSnowmaking: boolean) {
-    setPonds((existing) => existing.map((pond) => pond.id === id ? { ...pond, isSnowmaking } : pond));
-  }
-
-  function selectSnowmakingNode(id: string) {
-    transitionSelection({ kind: 'snowmaking-node', id });
-  }
-
-  function renameSnowmakingNode(id: string, name: string) {
-    setSnowmakingNodes((existing) => existing.map((n) => n.id === id ? { ...n, name } : n));
+    snowmakingController.pond.cancel();
   }
 
   function cancelRoadTool() {
@@ -4199,7 +3818,9 @@ export function MapView({
             terrainRecord,
             units: settings.units,
             selectedNodeId: selectedSnowmakingNodeId,
-            onSelectNode: (id) => (id ? selectSnowmakingNode(id) : setSelectedSnowmakingNodeId(null)),
+            onSelectNode: (id) => (id
+              ? snowmakingController.nodes.select(id)
+              : setSelectedSnowmakingNodeId(null)),
           }}
           onClose={() => setShowNetwork(false)}
         />
@@ -4528,25 +4149,25 @@ export function MapView({
                     units={settings.units}
                     onArmDam={armDamTool}
                     onCancelDam={cancelDamTool}
-                    onDamDraftChange={patchDamDraft}
-                    onConfirmDam={confirmDam}
-                    onSelectDam={selectDam}
-                    onDeleteDam={deleteDam}
+                    onDamDraftChange={snowmakingController.dam.patchDraft}
+                    onConfirmDam={snowmakingController.dam.confirm}
+                    onSelectDam={snowmakingController.dam.select}
+                    onDeleteDam={snowmakingController.dam.remove}
                     onCloseDam={() => setSelectedDamId(null)}
                     onArmPond={armPondTool}
                     onCancelPond={cancelPondTool}
-                    onUndoPond={undoPondPoint}
-                    onFinishPond={finishPondBoundary}
-                    onPondDraftChange={patchPondDraft}
-                    onPondElevationChange={changePondElevation}
-                    onPondExcavationChange={changePondExcavation}
-                    onConfirmPond={confirmPond}
-                    onSelectPond={selectPond}
-                    onDeletePond={deletePond}
-                    onPondSnowmakingChange={changePondSnowmaking}
+                    onUndoPond={snowmakingController.pond.undo}
+                    onFinishPond={snowmakingController.pond.finish}
+                    onPondDraftChange={snowmakingController.pond.patchDraft}
+                    onPondElevationChange={snowmakingController.pond.changeElevation}
+                    onPondExcavationChange={snowmakingController.pond.changeExcavation}
+                    onConfirmPond={snowmakingController.pond.confirm}
+                    onSelectPond={snowmakingController.pond.select}
+                    onDeletePond={snowmakingController.pond.remove}
+                    onPondSnowmakingChange={snowmakingController.pond.setSnowmaking}
                     onClosePond={() => setSelectedPondId(null)}
-                    onSelectNode={selectSnowmakingNode}
-                    onRenameNode={renameSnowmakingNode}
+                    onSelectNode={snowmakingController.nodes.select}
+                    onRenameNode={snowmakingController.nodes.rename}
                     onCloseNode={() => setSelectedSnowmakingNodeId(null)}
                     building={building}
                     onClose={() => setOpenDock(null)}

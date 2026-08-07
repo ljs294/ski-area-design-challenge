@@ -120,6 +120,9 @@ function preparedTerrainFixture() {
 export interface PreparedStructures {
   lifts?: Record<string, unknown>[];
   trails?: Record<string, unknown>[];
+  dams?: Record<string, unknown>[];
+  ponds?: Record<string, unknown>[];
+  snowmakingNodes?: Record<string, unknown>[];
 }
 
 function preparedSaveFixture(structures: PreparedStructures) {
@@ -142,12 +145,12 @@ function preparedSaveFixture(structures: PreparedStructures) {
     lifts: structures.lifts ?? [],
     trails: structures.trails ?? [],
     roads: [],
-    dams: [],
-    ponds: [],
+    dams: structures.dams ?? [],
+    ponds: structures.ponds ?? [],
     nodes: [],
     paths: [],
     junctions: [],
-    snowmakingNodes: [],
+    snowmakingNodes: structures.snowmakingNodes ?? [],
     lakeDepthOverrides: {},
     lakeNameOverrides: {},
     streamWidthOverrides: {},
