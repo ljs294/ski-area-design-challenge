@@ -1,4 +1,5 @@
-import type { EarthworkEstimate, RoadType, SavedRoad } from '../types';
+import type { EarthworkEstimate } from '../types/earthwork';
+import type { RoadType, SavedRoad } from '../types/roads';
 import { nextRoadName, roadLengthM, TWO_LANE_ROAD_WIDTH_M } from '../roads';
 
 export interface DraftRoad {

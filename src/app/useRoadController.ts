@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
-import type { RoadType, SavedRoad, TerrainRecord } from '../types';
+import type { RoadType, SavedRoad } from '../types/roads';
+import type { TerrainRecord } from '../types/terrain';
 import { haversineMeters } from '../geo';
 import { nextRoadName, roadClearingPolygons, TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import { strokeToPolygon } from './trailBrush';
