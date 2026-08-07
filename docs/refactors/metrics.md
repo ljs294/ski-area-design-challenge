@@ -65,14 +65,15 @@ Append only green, committed snapshots. Capture the JSON after required tests an
 | R1 document remediation | `e61821e3d84b7911048bf2fc89d489be36db9454` | Yes | 147 / 29,252 | 88 / 10,961 | 5,145 / 86 / 59 / 44 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,004,524 / 8,004,501 |
 | R2 complete map registry | `a7439ce1693bb758ac702675090e88b2447afa39` | Yes | 147 / 29,495 | 88 / 11,177 | 5,085 / 86 / 59 / 42 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,009,037 / 8,009,014 |
 | R3 worker hardening | `ede5ac6487523e88c14065d7092725d23ea8cbb8` | Yes | 147 / 29,626 | 88 / 11,362 | 5,086 / 86 / 59 / 42 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,011,563 / 8,011,540 |
+| R4 browser reacceptance | `a1e6cc3d1ba70a7774cbc4a1cadbd3f42d71d42b` | Yes | 147 / 29,626 | 90 / 11,540 | 5,086 / 86 / 59 / 42 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,011,563 / 8,011,540 |
 | F1 final structural gate | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 
-## Change from the A2 formal baseline through R3
+## Change from the A2 formal baseline through R4
 
 | Metric | Net change |
 | --- | ---: |
 | Production physical lines | -342 (-1.1%) |
-| Test physical lines | +3,384 (+42.4%) |
+| Test physical lines | +3,562 (+44.6%) |
 | MapView physical lines | +9 (+0.2%) |
 | MapView direct imports | +8 |
 | MapView direct state/effect/worker calls | -1 / -2 / -4 |
