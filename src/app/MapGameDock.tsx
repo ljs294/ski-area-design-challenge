@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath,
   SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail, TerrainRecord } from '../types';
+import type { SnowmakingLakeSource } from '../types/snowmaking';
 import { analyzeLake } from '../lakeAnalysis';
 import { analyzeStream } from '../streamAnalysis';
 import { describeAnchor, pathLengthM } from '../skiNodes';
@@ -49,6 +50,7 @@ export interface MapGameDockProps {
   dams: SavedDam[];
   ponds: SavedPond[];
   snowmakingNodes: SavedSnowmakingNode[];
+  snowmakingLakes: SnowmakingLakeSource[];
   skiNodes: SavedNode[];
   skiPaths: SavedPath[];
   junctions: SavedJunction[];
@@ -67,6 +69,7 @@ export interface MapGameDockProps {
   trailEditing: boolean;
   lakeDepthOverrides: Record<string, number>;
   lakeNameOverrides: Record<string, string>;
+  snowmakingLakeIds: string[];
   streamWidthOverrides: Record<string, number>;
   liftController: LiftController;
   roadController: RoadController;
@@ -91,6 +94,7 @@ export interface MapGameDockProps {
   clearSelectedStream(): void;
   setLakeName(id: string, name: string | null): void;
   setLakeDepth(id: string, depthM: number | null): void;
+  setLakeSnowmaking(id: string, enabled: boolean): void;
   setStreamWidth(id: string, widthM: number | null): void;
 }
 
@@ -176,6 +180,8 @@ export function MapGameDock(props: MapGameDockProps) {
         onClose={props.clearSelectedStream} /></div></div>}
     {selectedLake && <div className="dock-rollup dock-lake" data-panel="lake">
       <div className="dock-panel"><LakeDetail lake={selectedLake} units={props.units}
+        isSnowmaking={props.snowmakingLakeIds.includes(selectedLake.id)}
+        onSnowmakingChange={(enabled) => props.setLakeSnowmaking(selectedLake.id, enabled)}
         onNameOverride={(name) => props.setLakeName(selectedLake.id, name)}
         onDepthOverride={(depth) => props.setLakeDepth(selectedLake.id, depth)}
         onClose={props.clearSelectedLake} /></div></div>}
@@ -280,6 +286,7 @@ export function MapGameDock(props: MapGameDockProps) {
     </div></div>}
     {snowmakingOpen && <div className="dock-rollup dock-snowmaking"><div className="dock-panel">
       <SnowmakingControl damTool={damTool} pondTool={pondTool} dams={props.dams} ponds={props.ponds}
+        lakes={props.snowmakingLakes}
         selectedDam={selectedDam} selectedPond={selectedPond} nodes={props.snowmakingNodes}
         selectedNode={selectedSnowmakingNode} units={props.units}
         onArmDam={snowmakingController.dam.arm} onCancelDam={snowmakingController.dam.cancel}

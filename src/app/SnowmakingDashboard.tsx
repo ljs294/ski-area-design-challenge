@@ -6,6 +6,7 @@ import { makeFrame, simplifyRing, toMeters, type MetersFrame, type XY } from '..
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
 import type { SavedSnowmakingNode, SnowmakingNodeKind } from '../types/snowmaking';
 import type { SavedDam, SavedLift, SavedPond, SavedTrail, TerrainRecord } from '../types';
+import type { SnowmakingLakeSource } from '../types/snowmaking';
 import { FILL_BY_CODE } from './coverVectorize';
 import { localContourGeoJSON } from './localContours';
 import type { Units } from './SettingsContext';
@@ -89,13 +90,19 @@ function ringPathD(points: XY[]): string {
 function snowmakingSourceInfo(
   node: SavedSnowmakingNode,
   dams: SavedDam[],
-  ponds: SavedPond[]
+  ponds: SavedPond[],
+  lakes: SnowmakingLakeSource[] = [],
 ): { name: string; capacityM3: number } | null {
   const source = node.source;
   if (!source) return null;
   if (source.kind === 'dam') {
     const dam = dams.find((d) => d.id === source.damId);
     return dam ? { name: dam.name, capacityM3: dam.capacityM3 } : { name: 'Unknown', capacityM3: 0 };
+  }
+  if (source.kind === 'lake') {
+    const lake = lakes.find((item) => item.id === source.lakeId);
+    return lake ? { name: lake.name, capacityM3: lake.capacityM3 ?? 0 }
+      : { name: 'Unknown', capacityM3: 0 };
   }
   const pond = ponds.find((p) => p.id === source.pondId);
   return pond ? { name: pond.name, capacityM3: pond.capacityM3 } : { name: 'Unknown', capacityM3: 0 };
@@ -104,6 +111,7 @@ function snowmakingSourceInfo(
 export function SnowmakingDashboard({
   dams,
   ponds,
+  lakes = [],
   trails,
   lifts,
   nodes,
@@ -116,6 +124,7 @@ export function SnowmakingDashboard({
 }: {
   dams: SavedDam[];
   ponds: SavedPond[];
+  lakes?: SnowmakingLakeSource[];
   trails: SavedTrail[];
   lifts: SavedLift[];
   nodes: SavedSnowmakingNode[];
@@ -130,7 +139,7 @@ export function SnowmakingDashboard({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
 
-  const empty = dams.length === 0 && ponds.length === 0 && nodes.length === 0;
+  const empty = dams.length === 0 && ponds.length === 0 && lakes.length === 0 && nodes.length === 0;
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null;
 
   // Frame is scoped to water + node geometry — the features this dashboard
@@ -139,6 +148,7 @@ export function SnowmakingDashboard({
   const frame = useMemo<MetersFrame>(() => {
     const samples: [number, number][] = [];
     for (const pond of ponds) for (const p of pond.boundary) samples.push(p);
+    for (const lake of lakes) for (const p of lake.boundary) samples.push(p);
     for (const dam of dams) for (const ring of dam.pondRings) for (const p of ring) samples.push(p);
     for (const node of nodes) samples.push(node.point);
     if (samples.length > 0) return makeFrame(samples);
@@ -155,7 +165,7 @@ export function SnowmakingDashboard({
       if (lift.points.length > 0) return makeFrame(lift.points);
     }
     return makeFrame([]);
-  }, [dams, ponds, nodes, trails, lifts]);
+  }, [dams, ponds, lakes, nodes, trails, lifts]);
 
   // North is up: SVG y grows downward, the meters frame's y grows north.
   const place = useCallback((p: [number, number]): XY => {
@@ -174,6 +184,7 @@ export function SnowmakingDashboard({
       if (p.y > maxY) maxY = p.y;
     };
     for (const pond of ponds) for (const p of pond.boundary) consider(place(p));
+    for (const lake of lakes) for (const p of lake.boundary) consider(place(p));
     for (const dam of dams) for (const ring of dam.pondRings) for (const p of ring) consider(place(p));
     for (const node of nodes) consider(place(node.point));
     if (!Number.isFinite(minX)) return { x: -200, y: -200, w: 400, h: 400 };
@@ -181,10 +192,10 @@ export function SnowmakingDashboard({
     const h = Math.max(MIN_SPAN_M, maxY - minY);
     const pad = Math.max(w, h) * PAD_FRAC;
     return { x: minX - pad, y: minY - pad, w: w + pad * 2, h: h + pad * 2 };
-  }, [dams, ponds, nodes, place]);
+  }, [dams, ponds, lakes, nodes, place]);
 
   // A new fit whenever the drawn water/node set changes shape.
-  const fitKey = `${dams.length}:${ponds.length}:${nodes.length}`;
+  const fitKey = `${dams.length}:${ponds.length}:${lakes.length}:${nodes.length}`;
   const lastFitKey = useRef(fitKey);
   if (lastFitKey.current !== fitKey) {
     lastFitKey.current = fitKey;
@@ -389,6 +400,11 @@ export function SnowmakingDashboard({
                 data-pond-id={pond.id}
               />
             ))}
+            {lakes.map((lake) => (
+              <path key={`lake-${lake.id}`} d={ringPathD(lake.boundary.map(place))}
+                className="snowmaking-dashboard-water-shape" fillRule="evenodd"
+                data-lake-id={lake.id} />
+            ))}
             {dams.map((dam) => {
               const d = dam.pondRings.map((ring) => ringPathD(ring.map(place))).filter(Boolean).join(' ');
               if (!d) return null;
@@ -473,7 +489,7 @@ export function SnowmakingDashboard({
       <SnowmakingInspector
         selectedNode={selectedNode}
         dams={dams}
-        ponds={ponds}
+        ponds={ponds} lakes={lakes}
         nodes={nodes}
         units={units}
         onSelectNode={onSelectNode}
@@ -508,6 +524,7 @@ function SnowmakingInspector({
   selectedNode,
   dams,
   ponds,
+  lakes = [],
   nodes,
   units,
   onSelectNode,
@@ -515,12 +532,13 @@ function SnowmakingInspector({
   selectedNode: SavedSnowmakingNode | null;
   dams: SavedDam[];
   ponds: SavedPond[];
+  lakes?: SnowmakingLakeSource[];
   nodes: SavedSnowmakingNode[];
   units: Units;
   onSelectNode: (id: string | null) => void;
 }) {
   if (selectedNode) {
-    const sourceInfo = snowmakingSourceInfo(selectedNode, dams, ponds);
+    const sourceInfo = snowmakingSourceInfo(selectedNode, dams, ponds, lakes);
     return (
       <aside className="network-inspector" data-inspector="node">
         <div className="dock-head">
@@ -547,7 +565,7 @@ function SnowmakingInspector({
       <div className="network-sub">Click a node to see its detail.</div>
       <div className="network-stats">
         <Stat label="Dams" value={`${dams.length}`} />
-        <Stat label="Ponds" value={`${ponds.length}`} />
+        <Stat label="Ponds" value={`${ponds.length + lakes.length}`} />
         <Stat label="Nodes" value={`${nodes.length}`} />
       </div>
       {nodes.length > 0 && (
@@ -555,7 +573,7 @@ function SnowmakingInspector({
           <div className="network-section-title">Nodes</div>
           <ul className="network-run-list">
             {nodes.map((node) => {
-              const info = snowmakingSourceInfo(node, dams, ponds);
+              const info = snowmakingSourceInfo(node, dams, ponds, lakes);
               return (
                 <li key={node.id}>
                   <button className="network-run" onClick={() => onSelectNode(node.id)}>

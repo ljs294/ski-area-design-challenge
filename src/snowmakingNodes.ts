@@ -2,6 +2,7 @@ import type {
   SavedDam,
   SavedPond,
   SavedSnowmakingNode,
+  SnowmakingLakeSource,
   SnowmakingNodeKind,
   SnowmakingSourceRef,
 } from './types/snowmaking';
@@ -79,6 +80,8 @@ function sanitizeSource(raw: unknown): SnowmakingSourceRef | undefined {
       return typeof s.damId === 'string' ? { kind: 'dam', damId: s.damId } : undefined;
     case 'pond':
       return typeof s.pondId === 'string' ? { kind: 'pond', pondId: s.pondId } : undefined;
+    case 'lake':
+      return typeof s.lakeId === 'string' ? { kind: 'lake', lakeId: s.lakeId } : undefined;
     default:
       return undefined;
   }
@@ -147,6 +150,7 @@ export function reconcileSnowmakingNodes(
   nodes: SavedSnowmakingNode[],
   dams: SavedDam[],
   ponds: SavedPond[],
+  lakes?: SnowmakingLakeSource[],
 ): SavedSnowmakingNode[] {
   interface DesiredSource {
     key: string;
@@ -176,6 +180,15 @@ export function reconcileSnowmakingNodes(
       elevM: pond.topElevationM,
     });
   }
+  for (const lake of lakes ?? []) {
+    desired.push({
+      key: `lake:${lake.id}`,
+      source: { kind: 'lake', lakeId: lake.id },
+      sourceName: lake.name,
+      point: ringCenter(lake.boundary),
+      elevM: lake.surfaceElevationM,
+    });
+  }
   const desiredByKey = new Map(desired.map((d) => [d.key, d]));
 
   const matchedKeys = new Set<string>();
@@ -183,7 +196,11 @@ export function reconcileSnowmakingNodes(
   let anyDropped = false;
   for (const node of nodes) {
     if (!node.source) { kept.push(node); continue; }
-    const key = node.source.kind === 'dam' ? `dam:${node.source.damId}` : `pond:${node.source.pondId}`;
+    // Terrain-backed lakes cannot be resolved during initial save hydration;
+    // retain them until the terrain package is available to the controller.
+    if (node.source.kind === 'lake' && lakes === undefined) { kept.push(node); continue; }
+    const key = node.source.kind === 'dam' ? `dam:${node.source.damId}`
+      : node.source.kind === 'pond' ? `pond:${node.source.pondId}` : `lake:${node.source.lakeId}`;
     if (desiredByKey.has(key)) {
       kept.push(node);
       matchedKeys.add(key);

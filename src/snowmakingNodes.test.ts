@@ -6,7 +6,8 @@ import {
   sanitizeSnowmakingNodes,
   SNOWMAKING_NODE_LABELS,
 } from './snowmakingNodes';
-import type { SavedDam, SavedPond, SavedSnowmakingNode } from './types/snowmaking';
+import type { SavedDam, SavedPond, SavedSnowmakingNode,
+  SnowmakingLakeSource } from './types/snowmaking';
 
 // Minimal but realistic fixtures, mirroring lifts.test.ts/pondEarthwork.test.ts style.
 
@@ -100,6 +101,25 @@ describe('reconcileSnowmakingNodes', () => {
       source: { kind: 'pond', pondId: 'pond-1' },
     });
     expect(pondNode!.point).toEqual(ringCenter(pond.boundary));
+  });
+
+  it('creates and removes an intake for an imported pond designation', () => {
+    const lake: SnowmakingLakeSource = {
+      id: 'way/42', name: 'Mirror Lake',
+      boundary: [[-121.5, 46.9], [-121.49, 46.9], [-121.49, 46.91], [-121.5, 46.9]],
+      surfaceElevationM: 1450, capacityM3: 80_000,
+    };
+    const seeded = reconcileSnowmakingNodes([], [], [], [lake]);
+    expect(seeded[0]).toMatchObject({ name: 'Mirror Lake Intake', kind: 'intake',
+      elevM: 1450, source: { kind: 'lake', lakeId: 'way/42' } });
+    expect(seeded[0].point).toEqual(ringCenter(lake.boundary));
+    expect(reconcileSnowmakingNodes(seeded, [], [], [])).toEqual([]);
+  });
+
+  it('retains imported-pond intakes until terrain-backed sources can be resolved', () => {
+    const node: SavedSnowmakingNode = { id: 'lake-intake', name: 'Lake Intake', kind: 'intake',
+      point: [0, 0], elevM: null, source: { kind: 'lake', lakeId: 'way/42' }, createdAt: 'now' };
+    expect(reconcileSnowmakingNodes([node], [], [])).toEqual([node]);
   });
 
   it('skips ponds with isSnowmaking === false', () => {

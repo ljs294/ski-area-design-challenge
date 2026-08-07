@@ -38,6 +38,7 @@ interface ExpectedGameSave {
   snowmakingNodes?: SavedSnowmakingNode[];
   lakeDepthOverrides?: Record<string, number>;
   lakeNameOverrides?: Record<string, string>;
+  snowmakingLakeIds?: string[];
   streamWidthOverrides?: Record<string, number>;
   createdAt: string;
   updatedAt: string;

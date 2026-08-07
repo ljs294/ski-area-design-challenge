@@ -5,14 +5,8 @@ import { setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisL
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
 import { buildSkiNetwork } from '../network';
 import { sampleSiteCoverGrid } from './worldcoverProtocol';
-import {
-  addSiteBoxLayers,
-  setSiteBox,
-  setBoundaryMode,
-  computeBox,
-  siteBoxFromBounds,
-  type SiteBox,
-} from './sitePicker';
+import { addSiteBoxLayers, setSiteBox, setBoundaryMode, computeBox, siteBoxFromBounds,
+  type SiteBox } from './sitePicker';
 import { basemapFor } from './basemapStyle';
 import { tilt3D } from './terrain3d';
 import { useSettings } from './SettingsContext';
@@ -28,17 +22,13 @@ import type { GameSave, SavedDam, SavedJunction, SavedLift,
   TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
-import {
-  coverDisplayMetadataOf,
-  manifestOf,
-  validateTerrainPackage,
-} from '../terrainPackage';
+import { coverDisplayMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
 import { clearResortCoverCache, RESORT_COVER_PROTOCOL,
   resortCameraBounds, setActiveResortTerrain } from './resortProtocols';
 import { useLiftController } from './useLiftController';
 import { useRoadController } from './useRoadController';
-import { useSnowmakingController } from './useSnowmakingController';
+import { useSnowmakingController, useSnowmakingLakeSources } from './useSnowmakingController';
 import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
 import { MapViewChrome, useMapContextRecovery } from './MapViewChrome';
@@ -49,16 +39,8 @@ import { useMapSampling } from './useMapSampling';
 import { useMapWorkers } from './useMapWorkers';
 import { reconcileSnowmakingNodes } from '../snowmakingNodes';
 import { initialResortDesign } from './initialResortDesign';
-import {
-  TERRAIN_CLEAN,
-  designHasEdits,
-  designOf,
-  flushTerrainEdits,
-  terrainHasEdits,
-  withTerrainEdit,
-  type DesignSnapshot,
-  type TerrainDirty,
-} from './unsavedChanges';
+import { TERRAIN_CLEAN, designHasEdits, designOf, flushTerrainEdits, terrainHasEdits,
+  withTerrainEdit, type DesignSnapshot, type TerrainDirty } from './unsavedChanges';
 import { refreshTerrainGradeSources, setGradedContourPreview,
   setTerrainContourData } from './terrainGradeMap';
 import { withResumeCheckpoint } from './resumeCheckpoint';
@@ -338,6 +320,9 @@ export function MapView({
     initialDesign.lakeDepthOverrides);
   const [lakeNameOverrides, setLakeNameOverrides] = useState<Record<string, string>>(
     initialDesign.lakeNameOverrides);
+  const [snowmakingLakeIds, setSnowmakingLakeIds] = useState<string[]>(initialDesign.snowmakingLakeIds);
+  const snowmakingLakes = useSnowmakingLakeSources(terrainRecord, snowmakingLakeIds,
+    lakeDepthOverrides, lakeNameOverrides);
   // Terrain edits are held in memory and written on Save, like every other
   // design change. The ref mirror lets async build handlers accumulate flags.
   const [terrainDirty, setTerrainDirtyState] = useState<TerrainDirty>(TERRAIN_CLEAN);
@@ -357,7 +342,7 @@ export function MapView({
     site: initialSave?.site ?? null,
     lifts, trails, roads, dams, ponds,
     nodes: skiNodes, paths: skiPaths, junctions, snowmakingNodes,
-    lakeDepthOverrides, lakeNameOverrides, streamWidthOverrides,
+    lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds, streamWidthOverrides,
   }));
   // Identifies the active construction operation for disabled controls, button
   // spinners, and the persistent map-level status bug.
@@ -439,6 +424,7 @@ export function MapView({
   const selectedStreamIdRef = useRef<string | null>(selectedStreamId);
   const lakeDepthOverridesRef = useRef(lakeDepthOverrides);
   const lakeNameOverridesRef = useRef(lakeNameOverrides);
+  const snowmakingLakeIdsRef = useRef(snowmakingLakeIds);
   const streamWidthOverridesRef = useRef(streamWidthOverrides);
   const roadsRef = useRef<SavedRoad[]>(roads);
   const damsRef = useRef<SavedDam[]>(dams);
@@ -641,9 +627,10 @@ export function MapView({
       synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('pond'),
     },
     nodes: {
-      dams, ponds, nodes: snowmakingNodes, selectedId: selectedSnowmakingNodeId,
-      reconcileSources: (nextDams, nextPonds) => setSnowmakingNodes((existing) =>
-        reconcileSnowmakingNodes(existing, [...nextDams], [...nextPonds])),
+      dams, ponds, lakes: snowmakingLakes, nodes: snowmakingNodes,
+      selectedId: selectedSnowmakingNodeId,
+      reconcileSources: (nextDams, nextPonds, nextLakes) => setSnowmakingNodes((existing) =>
+        reconcileSnowmakingNodes(existing, [...nextDams], [...nextPonds], [...nextLakes])),
       rename: (id, name) => setSnowmakingNodes((existing) =>
         existing.map((node) => node.id === id ? { ...node, name } : node)),
       select: (id) => transitionSelection({ kind: 'snowmaking-node', id }),
@@ -821,6 +808,7 @@ export function MapView({
   selectedStreamIdRef.current = selectedStreamId;
   lakeDepthOverridesRef.current = lakeDepthOverrides;
   lakeNameOverridesRef.current = lakeNameOverrides;
+  snowmakingLakeIdsRef.current = snowmakingLakeIds;
   streamWidthOverridesRef.current = streamWidthOverrides;
   terrainPortsRef.current = {
     cacheDisplayAssets: cacheTerrainDisplayAssets,
@@ -1457,6 +1445,7 @@ export function MapView({
       snowmakingNodes: snowmakingNodesRef.current,
       lakeDepthOverrides: lakeDepthOverridesRef.current,
       lakeNameOverrides: lakeNameOverridesRef.current,
+      snowmakingLakeIds: snowmakingLakeIdsRef.current,
       streamWidthOverrides: streamWidthOverridesRef.current,
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
@@ -1481,6 +1470,7 @@ export function MapView({
       snowmakingNodes: snowmakingNodesRef.current,
       lakeDepthOverrides: lakeDepthOverridesRef.current,
       lakeNameOverrides: lakeNameOverridesRef.current,
+      snowmakingLakeIds: snowmakingLakeIdsRef.current,
       streamWidthOverrides: streamWidthOverridesRef.current,
     };
   }
@@ -1710,6 +1700,7 @@ export function MapView({
           snowmakingProps: {
             dams,
             ponds,
+            lakes: snowmakingLakes ?? [],
             trails,
             lifts,
             nodes: snowmakingNodes,
@@ -1728,7 +1719,7 @@ export function MapView({
           saved, units: settings.units, readout, building,
           openDock, layersAlongsideBuild,
           coordinator: toolCoordinatorState, layers, activeOverlay,
-          lifts, trails, roads, dams, ponds,
+          lifts, trails, roads, dams, ponds, snowmakingLakes: snowmakingLakes ?? [],
           snowmakingNodes, skiNodes, skiPaths,
           junctions, terrainRecord, network,
           selectedLiftId, selectedTrailId,
@@ -1736,7 +1727,7 @@ export function MapView({
           selectedSnowmakingNodeId, selectedNodeId,
           selectedPathId, selectedLakeId,
           selectedStreamId, liftEditing, trailEditing,
-          lakeDepthOverrides, lakeNameOverrides,
+          lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds,
           streamWidthOverrides, liftController,
           roadController, trailController,
           nodePathController, snowmakingController,
@@ -1769,6 +1760,9 @@ export function MapView({
             if (depth == null) delete next[id]; else next[id] = depth;
             return next;
           }),
+          setLakeSnowmaking: (id, enabled) => setSnowmakingLakeIds((current) => enabled
+            ? current.includes(id) ? current : [...current, id]
+            : current.filter((lakeId) => lakeId !== id)),
           setStreamWidth: (id, width) => setStreamWidthOverrides((current) => {
             const next = { ...current };
             if (width == null) delete next[id]; else next[id] = width;
@@ -1789,6 +1783,7 @@ export function MapView({
           trails,
           dams,
           ponds,
+          snowmakingLakes: snowmakingLakes ?? [],
           center: resortCenter(),
           units: settings.units,
           onClose: () => setShowStats(false),

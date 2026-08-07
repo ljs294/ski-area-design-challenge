@@ -1,5 +1,6 @@
 import { sanitizeDams } from '../damAnalysis';
-import { sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
+import { sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides,
+  sanitizeSnowmakingLakeIds } from '../lakeAnalysis';
 import { sanitizeLifts } from '../lifts';
 import { sanitizePonds } from '../pondAnalysis';
 import { sanitizeRoads } from '../roads';
@@ -37,5 +38,6 @@ export function initialResortDesign(save?: GameSave | null) {
     streamWidthOverrides: sanitizeStreamWidthOverrides(save?.streamWidthOverrides),
     lakeDepthOverrides: sanitizeLakeDepthOverrides(save?.lakeDepthOverrides),
     lakeNameOverrides: sanitizeLakeNameOverrides(save?.lakeNameOverrides),
+    snowmakingLakeIds: sanitizeSnowmakingLakeIds(save?.snowmakingLakeIds),
   };
 }

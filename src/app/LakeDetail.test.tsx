@@ -12,6 +12,7 @@ const lake: LakeAnalysis = {
 describe('LakeDetail', () => {
   it('shows derived properties, provenance, editable units, and reset affordance', () => {
     const html = renderToStaticMarkup(<LakeDetail lake={lake} units="metric"
+      isSnowmaking={false} onSnowmakingChange={() => {}}
       onNameOverride={() => {}} onDepthOverride={() => {}} onClose={() => {}} />);
     expect(html).toContain('Mirror Lake');
     expect(html).toContain('2.0 ha');
@@ -21,14 +22,18 @@ describe('LakeDetail', () => {
     expect(html).toContain('not measured bathymetry');
     expect(html).toContain('Pond name');
     expect(html).toContain('Remove name');
+    expect(html).toContain('Snowmaking pond');
+    expect(html).not.toContain('checked=""');
   });
 
   it('allows manual entry when the terrain estimate is unavailable', () => {
     const unavailable = { ...lake, averageDepthM: null, estimatedAverageDepthM: null,
       depthSource: 'unavailable' as const, volumeM3: null };
     const html = renderToStaticMarkup(<LakeDetail lake={unavailable} units="imperial"
+      isSnowmaking={true} onSnowmakingChange={() => {}}
       onNameOverride={() => {}} onDepthOverride={() => {}} onClose={() => {}} />);
     expect(html).toContain('Unavailable');
     expect(html).toContain('Average depth in feet');
+    expect(html).toContain('checked=""');
   });
 });

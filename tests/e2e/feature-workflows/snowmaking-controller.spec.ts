@@ -1,5 +1,5 @@
 import { expect, test } from '../support/deterministicApp';
-import { pointAt, setCaptureTransients, sourceFeatureCount } from '../support/mapProbe';
+import { jumpTo, pointAt, setCaptureTransients, sourceFeatureCount } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
 
 const FIXED_TIME = '2026-01-01T00:00:00.000Z';
@@ -70,4 +70,28 @@ test('snowmaking façade owns contributions, reconciliation, editing, and persis
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
   expect(saved).toMatchObject({ schemaVersion: 11, dams: [],
     ponds: [{ id: 'pond-seed', isSnowmaking: false }], snowmakingNodes: [] });
+});
+
+test('an imported pond can be designated for snowmaking and persisted', async ({ page }) => {
+  await seedPreparedResort(page);
+  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+  await jumpTo(page, [-121.4965, 46.9063], 17);
+
+  const lake = await pointAt(page, [-121.4965, 46.9063]);
+  await page.mouse.click(lake.x, lake.y);
+  await expect(page.getByText('Context Lake', { exact: true })).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Snowmaking pond' }).check();
+  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(1);
+
+  await page.getByRole('button', { name: /^Menu/ }).click();
+  await page.locator('.hud-save').click();
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
+  expect(saved).toMatchObject({ schemaVersion: 11, snowmakingLakeIds: ['way/lake'],
+    snowmakingNodes: [{ name: 'Context Lake Intake',
+      source: { kind: 'lake', lakeId: 'way/lake' } }] });
+
+  await page.getByRole('checkbox', { name: 'Snowmaking pond' }).uncheck();
+  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(0);
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analyzeLake, estimateLakeAverageDepthM, formatLakeVolume, lakeSurfaceAreaM2,
-  sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from './lakeAnalysis';
+  sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides, sanitizeSnowmakingLakeIds } from './lakeAnalysis';
 import type { TerrainRecord, WaterPolygonFeature } from './types';
 
 const square = (id: string, west: number, south: number, east: number, north: number): WaterPolygonFeature => ({
@@ -72,6 +72,12 @@ describe('lake analysis', () => {
     expect(sanitizeLakeDepthOverrides(undefined)).toEqual({});
     expect(sanitizeLakeNameOverrides({ lake: '  Mirror Pond  ', blank: ' ', bad: 4 }))
       .toEqual({ lake: 'Mirror Pond' });
+  });
+
+  it('sanitizes and de-duplicates imported snowmaking pond ids', () => {
+    expect(sanitizeSnowmakingLakeIds([' way/42 ', 'way/42', '', 7, 'relation/8']))
+      .toEqual(['way/42', 'relation/8']);
+    expect(sanitizeSnowmakingLakeIds({})).toEqual([]);
   });
 
   it('uses player names ahead of OSM names without changing the source feature', () => {

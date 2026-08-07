@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { SavedDam, SavedLift, SavedPond, SavedTrail } from '../types';
+import type { SnowmakingLakeSource } from '../types/snowmaking';
 import type { Units } from './SettingsContext';
 import { fmtDistance } from '../lifts';
 import { fmtArea } from '../trails';
@@ -28,6 +29,7 @@ export function ResortStatsPanel({
   trails,
   dams,
   ponds,
+  snowmakingLakes = [],
   center,
   units,
   onClose,
@@ -38,13 +40,14 @@ export function ResortStatsPanel({
   trails: SavedTrail[];
   dams: SavedDam[];
   ponds: SavedPond[];
+  snowmakingLakes?: SnowmakingLakeSource[];
   center: [number, number];
   units: Units;
   onClose: () => void;
 }) {
   const { summitM, baseM, verticalM } = resortElevations(lifts, trails);
   const runTotals = resortTrailTotals(trails);
-  const snowmakingCapacityM3 = snowmakingWaterCapacityM3(dams, ponds);
+  const snowmakingCapacityM3 = snowmakingWaterCapacityM3(dams, ponds, snowmakingLakes);
   const [location, setLocation] = useState<string | null>(null); // null = still loading
 
   const [lng, lat] = center;

@@ -1,4 +1,5 @@
 import type { SavedDam, SavedLift, SavedPond, SavedTrail } from '../types';
+import type { SnowmakingLakeSource } from '../types/snowmaking';
 
 export interface ResortElevations {
   /** Highest resolved elevation across lifts + runs, meters. null until any resolves. */
@@ -58,7 +59,9 @@ export function resortTrailTotals(trails: SavedTrail[]): ResortTrailTotals {
 }
 
 /** Full-pool storage available to the resort snowmaking system. */
-export function snowmakingWaterCapacityM3(dams: SavedDam[], ponds: SavedPond[]): number {
+export function snowmakingWaterCapacityM3(dams: SavedDam[], ponds: SavedPond[],
+  lakes: SnowmakingLakeSource[] = []): number {
   return dams.reduce((sum, dam) => sum + dam.capacityM3, 0) +
-    ponds.reduce((sum, pond) => sum + (pond.isSnowmaking !== false ? pond.capacityM3 : 0), 0);
+    ponds.reduce((sum, pond) => sum + (pond.isSnowmaking !== false ? pond.capacityM3 : 0), 0) +
+    lakes.reduce((sum, lake) => sum + (lake.capacityM3 ?? 0), 0);
 }

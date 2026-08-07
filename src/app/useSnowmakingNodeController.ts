@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { SavedDam, SavedPond, SavedSnowmakingNode } from '../types/snowmaking';
+import type { SavedDam, SavedPond, SavedSnowmakingNode,
+  SnowmakingLakeSource } from '../types/snowmaking';
 import { MAP_HIT_RANK, MAP_Z_ORDER } from './mapContribution';
 import type { ManagedMapContribution, MapVisibilityDescriptor } from './mapContribution';
 import { addSnowmakingLayers, setSelectedSnowmakingNode, setSnowmakingData,
@@ -8,9 +9,11 @@ import { addSnowmakingLayers, setSelectedSnowmakingNode, setSnowmakingData,
 export interface SnowmakingNodeControllerOptions {
   dams: readonly SavedDam[];
   ponds: readonly SavedPond[];
+  lakes: readonly SnowmakingLakeSource[] | null;
   nodes: readonly SavedSnowmakingNode[];
   selectedId: string | null;
-  reconcileSources(dams: readonly SavedDam[], ponds: readonly SavedPond[]): void;
+  reconcileSources(dams: readonly SavedDam[], ponds: readonly SavedPond[],
+    lakes: readonly SnowmakingLakeSource[]): void;
   rename(id: string, name: string): void;
   select(id: string): void;
   structuresVisible(): boolean;
@@ -49,8 +52,9 @@ export function useSnowmakingNodeController(
   };
 
   useEffect(() => {
-    optionsRef.current.reconcileSources(options.dams, options.ponds);
-  }, [options.dams, options.ponds]);
+    if (options.lakes === null) return;
+    optionsRef.current.reconcileSources(options.dams, options.ponds, options.lakes);
+  }, [options.dams, options.ponds, options.lakes]);
 
   useEffect(() => { optionsRef.current.synchronizeMap(); }, [options.nodes, options.selectedId]);
 

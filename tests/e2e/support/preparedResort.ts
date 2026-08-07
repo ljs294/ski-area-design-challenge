@@ -132,6 +132,7 @@ export interface PreparedStructures {
   dams?: Record<string, unknown>[];
   ponds?: Record<string, unknown>[];
   snowmakingNodes?: Record<string, unknown>[];
+  snowmakingLakeIds?: string[];
 }
 
 export interface PreparedResortOptions {
@@ -167,6 +168,7 @@ function preparedSaveFixture(structures: PreparedStructures) {
     snowmakingNodes: structures.snowmakingNodes ?? [],
     lakeDepthOverrides: {},
     lakeNameOverrides: {},
+    snowmakingLakeIds: structures.snowmakingLakeIds ?? [],
     streamWidthOverrides: {},
     createdAt: FIXED_TIME,
     updatedAt: FIXED_TIME,
