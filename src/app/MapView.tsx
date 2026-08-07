@@ -66,6 +66,7 @@ import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
 import { MapGameDock } from './MapGameDock';
 import { useMapKeyboardControls } from './useMapKeyboardControls';
+import { useElevationBackfill } from './useElevationBackfill';
 import { sanitizeDams } from '../damAnalysis';
 import { sanitizePonds } from '../pondAnalysis';
 import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
@@ -82,17 +83,10 @@ import {
 import { UnsavedChangesModal, type UnsavedChoice } from './UnsavedChangesModal';
 import { refreshTerrainGradeSources, setGradedContourPreview,
   setTerrainContourData } from './terrainGradeMap';
-import {
-  liftStats,
-  orientBottomToTop,
-  sanitizeLifts,
-} from '../lifts';
+import { sanitizeLifts } from '../lifts';
 import {
   sanitizeTrails,
-  orientTopToBottom,
   fillElevationGaps,
-  trailPartsStats,
-  difficultyForSlopes,
 } from '../trails';
 import { hydrateTopology } from '../topology';
 import { sanitizeRoads } from '../roads';
@@ -1495,88 +1489,14 @@ export function MapView({
     mapContributions.synchronizeData('analysis');
   }, [lakeNameOverrides, streamWidthOverrides, mapContributions]);
 
-  // Backfill elevations for lifts that were confirmed offline (null endpoint
-  // elevations in the save). Idempotent; results keyed by lift id.
-  useEffect(() => {
-    const missing = liftsRef.current.filter((l) => l.endpointElevM.some((e) => e == null));
-    if (missing.length === 0) return;
-    let stale = false;
-    void Promise.allSettled(
-      missing.map(async (l) => {
-        const samples = await Promise.all(l.points.map(([lng, lat]) => samplePlanningTerrainOrNull(lng, lat, 13)));
-        const [a, b] = samples;
-        if (!a || !b) throw new Error('No terrain data at this lift.');
-        return { id: l.id, elevs: [a.elevation, b.elevation] as [number, number] };
-      })
-    ).then((results) => {
-      if (stale) return;
-      const byId = new Map<string, [number, number]>();
-      for (const r of results) if (r.status === 'fulfilled') byId.set(r.value.id, r.value.elevs);
-      if (byId.size === 0) return;
-      setLifts((prev) =>
-        prev.map((l) => {
-          const elevs = byId.get(l.id);
-          if (!elevs) return l;
-          const o = orientBottomToTop(l.points, elevs);
-          const stats = liftStats(o.points, o.elevs);
-          return {
-            ...l,
-            points: o.points,
-            endpointElevM: o.elevs,
-            lengthM: stats.lengthM,
-            verticalM: stats.verticalM,
-          };
-        })
-      );
-    });
-    return () => {
-      stale = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Backfill centerline elevations for legacy/offline runs.
-  useEffect(() => {
-    const missing = trailsRef.current.filter((t) => t.parts.some((p) => p.centerlineElevM.length !== p.centerline.length));
-    if (missing.length === 0) return;
-    let stale = false;
-    void Promise.allSettled(
-      missing.map(async (t) => {
-        const parts = await Promise.all(t.parts.map(async (part) => {
-          const elevs = await sampleProfile(part.centerline, 13);
-          if (!elevs) throw new Error('No terrain data covers this run.');
-          const o = orientTopToBottom(part.centerline, elevs);
-          return { ...part, centerline: o.spine, centerlineElevM: o.elevM };
-        }));
-        return { id: t.id, parts };
-      })
-    ).then((results) => {
-      if (stale) return;
-      const byId = new Map<string, SavedTrail['parts']>();
-      for (const r of results) if (r.status === 'fulfilled') byId.set(r.value.id, r.value.parts);
-      if (byId.size === 0) return;
-      const backfill = topology.begin();
-      backfill.mapTrails((t) => {
-        const parts = byId.get(t.id);
-        if (!parts) return t;
-        const stats = trailPartsStats(parts);
-        return {
-          ...t,
-          parts,
-          lengthM: stats.lengthM,
-          verticalM: stats.verticalM,
-          avgSlopeDeg: stats.avgSlopeDeg,
-          maxSlopeDeg: stats.maxSlopeDeg,
-          difficulty: difficultyForSlopes(stats.avgSlopeDeg, stats.maxSlopeDeg),
-        };
-      });
-      backfill.commit();
-    });
-    return () => {
-      stale = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useElevationBackfill({
+    getLifts: () => liftsRef.current,
+    getTrails: () => trailsRef.current,
+    setLifts,
+    topology,
+    samplePoint: samplePlanningTerrainOrNull,
+    sampleProfile,
+  });
 
   function cancelDamTool() {
     snowmakingController.dam.cancel();
