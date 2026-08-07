@@ -10,24 +10,11 @@ import { roadLengthM } from '../roads';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
 import type { SavedSnowmakingNode } from '../types/snowmaking';
 import type { Units } from './SettingsContext';
+import type { DamTool, DraftDam } from './damControllerModel';
+import type { DraftPond, PondTool } from './pondControllerModel';
 
-export interface DraftDam extends Omit<SavedDam, 'id' | 'createdAt'> {}
-
-export type DamTool =
-  | { phase: 'idle' }
-  | { phase: 'armed'; error: string | null }
-  | { phase: 'anchored'; first: [number, number]; crestElevationM: number;
-      cursor: [number, number] | null; error: string | null }
-  | { phase: 'analyzing'; points: [[number, number], [number, number]]; crestElevationM: number }
-  | { phase: 'review'; draft: DraftDam; error: string | null };
-
-export interface DraftPond extends Omit<SavedPond, 'id' | 'createdAt'> {}
-
-export type PondTool =
-  | { phase: 'idle' }
-  | { phase: 'armed'; error: string | null }
-  | { phase: 'drawing'; points: [number, number][]; cursor: [number, number] | null; error: string | null }
-  | { phase: 'review'; draft: DraftPond; error: string | null };
+export type { DamTool, DraftDam } from './damControllerModel';
+export type { DraftPond, PondTool } from './pondControllerModel';
 
 function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
   return <div className="dock-head"><span className="dock-head-title">{title}</span>
