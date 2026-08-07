@@ -1,5 +1,5 @@
 import { expect, test } from '../support/deterministicApp';
-import { jumpTo, pointAt, sourceFeatureCount } from '../support/mapProbe';
+import { jumpTo, pointAt, setCaptureTransients, sourceFeatureCount } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
 
 const CENTER: [number, number] = [-121.495, 46.905];
@@ -39,6 +39,11 @@ test('double confirmation builds once and Save persists one coherent document', 
   const base = await pointAt(page, BASE);
   const top = await pointAt(page, TOP);
   await page.mouse.click(base.x, base.y);
+  await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(3);
+  await setCaptureTransients(page, true);
+  await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(0);
+  await setCaptureTransients(page, false);
+  await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(3);
   await page.mouse.click(top.x, top.y);
   await expect(page.getByText('New fixed-grip chairlift', { exact: true })).toBeVisible();
   await page.locator('.lift-name-input').fill('Atomic Double');

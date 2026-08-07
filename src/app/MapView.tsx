@@ -86,8 +86,8 @@ import { TrailPaintAdapter } from './trailPaintClient';
 import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
   resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt,
   setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
-import { LiftControl, type LiftTool, type DraftLift } from './LiftControl';
-import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS, type DraftLine } from './liftLayers';
+import { LiftControl } from './LiftControl';
+import { useLiftController } from './useLiftController';
 import { AnchorValue, TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
 import { nearestTrailHeadAnchor, nearestTrailTailAnchor, type TrailHeadAnchor } from './trailHeadAnchor';
 import { TrailDetail } from './TrailDetail';
@@ -133,10 +133,8 @@ import { UnsavedChangesModal, type UnsavedChoice } from './UnsavedChangesModal';
 import { refreshTerrainGradeSources, setGradedContourPreview,
   setTerrainContourData } from './terrainGradeMap';
 import {
-  FIXED_GRIP_SPEC,
   fmtDistance,
   liftStats,
-  nextLiftName,
   orientBottomToTop,
   sanitizeLifts,
 } from '../lifts';
@@ -202,7 +200,6 @@ const ANCHOR_PICK_M = 60;
 
 // Reject lift terminals closer than this — avoids accidental zero-length lifts
 // from a double-click.
-const MIN_LIFT_M = 50;
 // A run benches inside what the player painted; the cut/fill volume is its
 // price. Slopes and the grade band are engine constants — see trailCrossSection.
 const TRAIL_GRADE_POLICY = { envelope: 'footprint' } as const;
@@ -245,17 +242,6 @@ function hasUserTrailStroke(commands: TrailPaintCommand[], head: [number, number
 }
 // A road has no painted shoulder, so it alone grades outside its pavement.
 const ROAD_GRADE_POLICY = { envelope: 'expand', maxWidthMultiplier: 3 } as const;
-
-/** The in-progress lift line to render for the current tool state, if any. */
-function draftLineOf(tool: LiftTool): DraftLine | null {
-  if (tool.phase === 'anchored') {
-    return { points: [tool.a, tool.cursor ?? tool.a] };
-  }
-  if (tool.phase === 'review') {
-    return { points: tool.draft.points };
-  }
-  return null;
-}
 
 function roadDraftOf(tool: RoadTool): RoadDraftLine | null {
   if (tool.phase === 'drawing') return { points: tool.points, cursor: tool.cursor };
@@ -533,7 +519,6 @@ export function MapView({
     sanitizeTrails(initialSave?.trails ?? []), sanitizePaths(initialSave?.paths ?? []),
     sanitizeLifts(initialSave?.lifts ?? []), initialSave?.junctions ?? [],
     sanitizeNodes(initialSave?.nodes ?? [])));
-  const [liftTool, setLiftTool] = useState<LiftTool>({ phase: 'idle' });
   const [selectedLiftId, setSelectedLiftId] = useState<string | null>(null);
   // A selected lift opens its read-only detail first; Edit flips this to the
   // LiftControl edit panel. Reset to false whenever a (different) lift is opened.
@@ -838,9 +823,6 @@ export function MapView({
   // "default into 3D" camera ease fires once — not on every dark/light restyle.
   const resortReadyRef = useRef(false);
   const liftsRef = useRef<SavedLift[]>(lifts);
-  const liftToolRef = useRef<LiftTool>(liftTool);
-  const liftSampleTokenRef = useRef(0);
-  const selectLiftRef = useRef<(id: string) => void>(() => {});
   const skiNodesRef = useRef<SavedNode[]>(skiNodes);
   const skiPathsRef = useRef<SavedPath[]>(skiPaths);
   const junctionsRef = useRef<SavedJunction[]>(junctions);
@@ -972,6 +954,38 @@ export function MapView({
   if (!trailPaintRef.current) trailPaintRef.current = new TrailPaintAdapter();
   const trailPaint = trailPaintRef.current;
 
+  const liftController = useLiftController({
+    mapRef,
+    lifts,
+    commands: {
+      add: (lift) => setLifts((existing) => [...existing, lift]),
+      patch: (id, patch) => setLifts((existing) =>
+        existing.map((lift) => lift.id === id ? { ...lift, ...patch } : lift)),
+      remove: (id) => setLifts((existing) => existing.filter((lift) => lift.id !== id)),
+    },
+    canArm: () => siteModeRef.current !== 'selecting',
+    activate: () => toolCoordinator.activate('lift'),
+    release: () => { toolCoordinator.release('lift'); },
+    clearSelection: clearSelectionState,
+    select: (id) => transitionSelection({ kind: 'lift', id }),
+    clearSelected: (id) => {
+      setSelectedLiftId((selected) => selected === id ? null : selected);
+      setLiftEditing(false);
+    },
+    acquireInteractions: (map) => acquireMapInteractions('lift', map, {
+      cursor: 'crosshair',
+      doubleClickZoomEnabled: false,
+    }),
+    sampleTerrain: samplePlanningTerrainOrNull,
+    runConstruction: (operation) => terrain.runConstruction('lift', operation),
+    clearCover: applyLiftCoverClear,
+    createId: genId,
+    now: () => new Date().toISOString(),
+    structuresVisible: () => packageStateRef.current !== 'preparing',
+    synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('lift'),
+  });
+  const liftTool = liftController.state;
+
   /** The one place a committed terrain record reaches React and the dirty flag. */
   function publishTerrainState({ record, edit }: TerrainPublication): void {
     terrainRecordRef.current = record;
@@ -1090,7 +1104,6 @@ export function MapView({
   is3DRef.current = is3D;
   toggle3DRef.current = toggle3D;
   liftsRef.current = lifts;
-  liftToolRef.current = liftTool;
   trailsRef.current = trails;
   trailToolRef.current = trailTool;
   roadsRef.current = roads;
@@ -1259,12 +1272,6 @@ export function MapView({
       case 'none': break;
     }
   }
-
-  // Clicking a lift (on the map or in the list) opens its read-only detail.
-  selectLiftRef.current = (id: string) => {
-    liftSampleTokenRef.current++;
-    transitionSelection({ kind: 'lift', id });
-  };
 
   // Clicking a run opens its read-only detail.
   selectTrailRef.current = (id: string) => {
@@ -1533,20 +1540,7 @@ export function MapView({
         },
         cleanup: () => {},
       },
-      {
-        id: 'lift', zOrder: MAP_Z_ORDER.lift,
-        hits: [{ id: 'lift', priority: MAP_HIT_RANK.lift,
-          layerIds: ['lift-line-casing', 'lift-terminals'],
-          select: (id) => selectLiftRef.current(id) }],
-        install: ({ map }) => addLiftLayers(map),
-        synchronizeData: ({ map }) => {
-          setLiftData(map, liftsToGeoJSON(liftsRef.current, draftLineOf(liftToolRef.current)));
-        },
-        visibility: () => structureVisibility('lifts', 'Ski lifts', LIFT_BUILT_LAYER_IDS),
-        setCaptureTransient: ({ map }, hidden) => setLiftData(map,
-          liftsToGeoJSON(liftsRef.current, hidden ? null : draftLineOf(liftToolRef.current))),
-        cleanup: () => {},
-      },
+      liftController.contribution,
       {
         id: 'snowmaking', zOrder: MAP_Z_ORDER.snowmaking,
         hits: [{ id: 'snowmaking', priority: MAP_HIT_RANK.snowmaking,
@@ -1870,11 +1864,6 @@ export function MapView({
     };
   }, [siteMode]);
 
-  // Push lift + draft geometry into the map source whenever either changes.
-  useEffect(() => {
-    mapContributions.synchronizeData('lift');
-  }, [lifts, liftTool, mapContributions]);
-
   useEffect(() => {
     mapContributions.synchronizeData('analysis');
   }, [lakeNameOverrides, streamWidthOverrides, mapContributions]);
@@ -1986,107 +1975,6 @@ export function MapView({
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
       window.removeEventListener('keydown', onKey); interaction.release(); };
   }, [trailTool.phase, trailPaint]);
-
-  /** Sample both terminal elevations for the review draft. Token-guarded so a
-   *  cancel/confirm/redraw discards in-flight results. */
-  function sampleDraftElevations(points: [[number, number], [number, number]]) {
-    const map = mapRef.current;
-    const z = map ? Math.min(14, Math.max(10, Math.round(map.getZoom()))) : 13;
-    const token = ++liftSampleTokenRef.current;
-    setLiftTool((t) =>
-      t.phase === 'review' ? { phase: 'review', draft: { ...t.draft, elevStatus: 'pending' } } : t
-    );
-    void Promise.all(points.map(([lng, lat]) => samplePlanningTerrainOrNull(lng, lat, z))).then(
-      (samples) => {
-        if (token !== liftSampleTokenRef.current) return;
-        // Both terminals are load-bearing here — a lift's vertical *is* the
-        // difference between them, so there is nothing sane to interpolate from
-        // if one is missing. Unlike a trail profile, a gap is a real failure.
-        const [a, b] = samples;
-        if (!a || !b) {
-          setLiftTool((t) =>
-            t.phase === 'review' ? { phase: 'review', draft: { ...t.draft, elevStatus: 'error' } } : t
-          );
-          return;
-        }
-        setLiftTool((t) =>
-          t.phase === 'review'
-            ? {
-                phase: 'review',
-                draft: {
-                  ...t.draft,
-                  elev: [a.elevation, b.elevation],
-                  elevStatus: 'ok',
-                },
-              }
-            : t
-        );
-      },
-      () => {
-        if (token !== liftSampleTokenRef.current) return;
-        setLiftTool((t) =>
-          t.phase === 'review' ? { phase: 'review', draft: { ...t.draft, elevStatus: 'error' } } : t
-        );
-      }
-    );
-  }
-
-  // Lift drawing: click-click placement while the tool is armed/anchored.
-  // dragPan stays enabled (unlike the site tool) so the user can pan and zoom
-  // between placing the two terminals of a long lift; only double-click zoom
-  // is suspended, since finishing a line involves two quick clicks.
-  useEffect(() => {
-    const map = mapRef.current;
-    const phase = liftTool.phase;
-    if (!map || (phase !== 'armed' && phase !== 'anchored')) return;
-
-    const interaction = acquireMapInteractions('lift', map, {
-      cursor: 'crosshair',
-      doubleClickZoomEnabled: false,
-    });
-
-    const onClick = (e: maplibregl.MapMouseEvent) => {
-      const p: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-      const t = liftToolRef.current;
-      if (t.phase === 'armed') {
-        setLiftTool({ phase: 'anchored', a: p, cursor: null });
-      } else if (t.phase === 'anchored') {
-        if (haversineMeters(t.a, p) < MIN_LIFT_M) return; // ignore double-click jitter
-        const points: [[number, number], [number, number]] = [t.a, p];
-        setLiftTool({
-          phase: 'review',
-          draft: {
-            points,
-            elev: [null, null],
-            elevStatus: 'pending',
-            chairSize: FIXED_GRIP_SPEC.defaultChairSize,
-            status: 'planning',
-            name: nextLiftName(liftsRef.current),
-          },
-        });
-        sampleDraftElevations(points);
-      }
-    };
-    const onMove = (e: maplibregl.MapMouseEvent) => {
-      const t = liftToolRef.current;
-      if (t.phase !== 'anchored') return;
-      setLiftTool({ ...t, cursor: [e.lngLat.lng, e.lngLat.lat] });
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') cancelLiftTool();
-    };
-
-    map.on('click', onClick);
-    map.on('mousemove', onMove);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      map.off('click', onClick);
-      map.off('mousemove', onMove);
-      window.removeEventListener('keydown', onKey);
-      interaction.release();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liftTool.phase]);
 
   // Road drawing: successive clicks append centerline vertices. The map keeps
   // its normal pan/zoom navigation; the small draft source follows the cursor.
@@ -3035,62 +2923,11 @@ export function MapView({
   }
 
   function armLiftTool() {
-    if (siteModeRef.current === 'selecting') return; // never two draw tools at once
-    if (!toolCoordinator.activate('lift')) return;
-    clearSelectionState();
-    setLiftTool({ phase: 'armed' });
+    liftController.arm();
   }
 
   function cancelLiftTool() {
-    liftSampleTokenRef.current++; // discard any in-flight sampling
-    setLiftTool({ phase: 'idle' });
-    toolCoordinator.release('lift');
-  }
-
-  function patchLiftDraft(patch: Partial<DraftLift>) {
-    setLiftTool((t) =>
-      t.phase === 'review' ? { phase: 'review', draft: { ...t.draft, ...patch } } : t
-    );
-  }
-
-  function retryLiftElevation() {
-    const t = liftToolRef.current;
-    if (t.phase === 'review') sampleDraftElevations(t.draft.points);
-  }
-
-  async function confirmLift() {
-    const t = liftToolRef.current;
-    if (t.phase !== 'review') return;
-    const d = t.draft;
-    const o = orientBottomToTop(d.points, d.elev);
-    const stats = liftStats(o.points, o.elevs);
-    const lift: SavedLift = {
-      id: genId(),
-      name: d.name.trim() || nextLiftName(liftsRef.current),
-      liftClass: 'fixed-grip',
-      points: o.points,
-      endpointElevM: o.elevs,
-      lengthM: stats.lengthM,
-      verticalM: stats.verticalM,
-      chairSize: d.chairSize,
-      status: d.status,
-      createdAt: new Date().toISOString(),
-    };
-    // Keep the review panel up with the build button spinning while the cover is
-    // felled and re-vectorized in a worker — a best-effort edit that must never
-    // block or fail the lift itself. Yield a frame first so both indicators
-    // paint before processing begins.
-    await terrain.runConstruction('lift', async () => {
-      liftSampleTokenRef.current++;
-      setLifts((prev) => [...prev, lift]);
-      try {
-        await new Promise(requestAnimationFrame);
-        await applyLiftCoverClear(lift);
-      } finally {
-        setLiftTool({ phase: 'idle' });
-        toolCoordinator.release('lift');
-      }
-    });
+    liftController.cancel();
   }
 
   /**
@@ -3207,13 +3044,11 @@ export function MapView({
 
   /** Patch a non-geometric field (name/chairs/capacity/status) of a built lift. */
   function patchLift(id: string, patch: Partial<SavedLift>) {
-    setLifts((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    liftController.patch(id, patch);
   }
 
   function deleteLift(id: string) {
-    setLifts((prev) => prev.filter((l) => l.id !== id));
-    setSelectedLiftId((cur) => (cur === id ? null : cur));
-    setLiftEditing(false);
+    liftController.remove(id);
   }
 
   // ---- User-declared connectivity: anchors, nodes, connector paths ---------
@@ -4870,7 +4705,7 @@ export function MapView({
                       lifts={lifts}
                       units={settings.units}
                       onArm={armLiftTool}
-                      onSelect={(id) => selectLiftRef.current(id)}
+                      onSelect={liftController.select}
                       onClose={() => setOpenDock(null)}
                     />
                   ) : (
@@ -4882,14 +4717,14 @@ export function MapView({
                       units={settings.units}
                       onArm={armLiftTool}
                       onCancel={cancelLiftTool}
-                      onDraftChange={patchLiftDraft}
-                      onConfirm={confirmLift}
+                      onDraftChange={liftController.patchDraft}
+                      onConfirm={() => void liftController.confirm()}
                       building={building}
-                      onSelect={(id) => selectLiftRef.current(id)}
+                      onSelect={liftController.select}
                       onEditPatch={patchLift}
                       onCloseEdit={() => setLiftEditing(false)}
                       onDelete={deleteLift}
-                      onRetryElevation={retryLiftElevation}
+                      onRetryElevation={liftController.retryElevation}
                     />
                   )}
                 </div>
