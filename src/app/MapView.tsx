@@ -79,7 +79,8 @@ import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
   setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
 import { LiftControl } from './LiftControl';
 import { useLiftController } from './useLiftController';
-import { AnchorValue, TrailControl, type TrailTool, type DraftTrail } from './TrailControl';
+import { AnchorValue, TrailControl } from './TrailControl';
+import type { DraftTrail, TrailTool } from './trailControllerModel';
 import { nearestTrailHeadAnchor, nearestTrailTailAnchor, type TrailHeadAnchor } from './trailHeadAnchor';
 import { TrailDetail } from './TrailDetail';
 import { InfrastructureControl } from './InfrastructureControl';

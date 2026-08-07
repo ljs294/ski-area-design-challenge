@@ -8,48 +8,7 @@ import { TrailProfile } from './TrailProfile';
 import type { AnchorRef } from '../types/anchors';
 import { describeAnchorDetail, type AnchorWorld } from '../topology';
 import type { PaintMode } from './trailPaintEngine';
-import type { TrailHeadAnchor, TrailTailAnchor } from './trailHeadAnchor';
-
-export type TrailTool =
-  | { phase: 'idle' }
-  | { phase: 'place-head'; candidate: TrailHeadAnchor | null; error: string | null }
-  | { phase: 'paint'; mode: PaintMode; polygons: [number, number][][][]; areaM2: number; activeAreaM2: number | null; canUndo: boolean; pending: boolean; error: string | null; anchor: TrailHeadAnchor; hasUserStroke: boolean }
-  | { phase: 'place-tail'; mode: PaintMode; polygons: [number, number][][][]; areaM2: number; activeAreaM2: number | null; canUndo: boolean; pending: boolean; error: string | null; anchor: TrailHeadAnchor; hasUserStroke: boolean; candidate: TrailTailAnchor | null }
-  | { phase: 'analyzing'; polygons: [number, number][][][]; areaM2: number; anchor: TrailHeadAnchor; tailAnchor: TrailTailAnchor }
-  | { phase: 'review'; draft: DraftTrail };
-
-export interface DraftTrail {
-  parts: SavedTrailPart[];
-  /** Terrain-sampled parts retained so an unchecked preview is lossless. */
-  ungradedParts: SavedTrailPart[];
-  areaM2: number;
-  /** Exact painted area restored when grading is unchecked. */
-  ungradedAreaM2: number;
-  brushWidthM: number;
-  name: string;
-  status: TrailStatus;
-  difficulty: TrailDifficulty;
-  elevStatus: 'pending' | 'ok' | 'error';
-  /** Why sampling failed, when it did. Absent falls back to a generic line. */
-  elevError?: string | null;
-  gradingEnabled: boolean;
-  gradingStatus: 'idle' | 'pending' | 'ok' | 'error';
-  gradingError: string | null;
-  earthwork: EarthworkEstimate | null;
-  maxGroundCrossSlopePct: number;
-  maxFaceSlopePct: number;
-  maxDisturbedWidthM: number;
-  /** Metres of run too steep to bench, left at natural ground. */
-  ungradedLengthM: number;
-  infeasibleLines: [number, number][][];
-  /**
-   * The lift terminal or existing trail centerline chosen before painting. Its
-   * exact point is also station 0 of the first centerline part.
-   */
-  anchor: AnchorRef | null;
-  /** Exact required destination selected after brushing. */
-  tailAnchor?: AnchorRef | null;
-}
+import type { DraftTrail, TrailTool } from './trailControllerModel';
 
 /**
  * One end of a run, named. The second line carries the segment and node numbers
