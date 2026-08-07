@@ -54,6 +54,13 @@ const ROOT_FACADE_ALLOWLIST = new Set([
   'src/ipcContract.ts',
 ]);
 
+// These two predate the refactor and remain explicitly documented follow-up
+// candidates. New production files do not inherit their historical waiver.
+const HISTORIC_LARGE_FILE_ALLOWLIST = new Set([
+  'src/network.ts',
+  'src/coverEdit.ts',
+]);
+
 function normalized(filePath) {
   return path.resolve(filePath).replaceAll('\\', '/');
 }
@@ -121,6 +128,14 @@ function sourceFileFor(filePath) {
   return ts.createSourceFile(filePath, sourceText, ts.ScriptTarget.Latest, true, kind);
 }
 
+function physicalLines(text) {
+  const normalizedText = text.replaceAll('\r\n', '\n');
+  if (!normalizedText) return 0;
+  return normalizedText.endsWith('\n')
+    ? normalizedText.slice(0, -1).split('\n').length
+    : normalizedText.split('\n').length;
+}
+
 function projectTarget(importer, specifier) {
   if (specifier.startsWith('.')) return path.resolve(path.dirname(importer), specifier);
   if (specifier === 'src') return sourceRoot;
@@ -147,6 +162,38 @@ const typeFileSet = new Set(typeFiles.map(normalized));
 const errors = [];
 const usedTemporaryExceptions = [];
 const typeGraph = new Map(typeFiles.map((filePath) => [normalized(filePath), []]));
+
+const mapViewPath = path.join(appRoot, 'MapView.tsx');
+const mapViewText = fs.readFileSync(mapViewPath, 'utf8');
+const mapViewSource = sourceFileFor(mapViewPath);
+const mapViewLines = physicalLines(mapViewText);
+const mapViewImports = mapViewSource.statements.filter(ts.isImportDeclaration).length;
+let mapViewEffects = 0;
+let mapViewWorkers = 0;
+function inspectMapView(node) {
+  if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)
+      && node.expression.text === 'useEffect') mapViewEffects += 1;
+  if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)
+      && node.expression.text === 'Worker') mapViewWorkers += 1;
+  ts.forEachChild(node, inspectMapView);
+}
+inspectMapView(mapViewSource);
+if (mapViewLines > 1800) errors.push(`src/app/MapView.tsx exceeds 1,800 lines (${mapViewLines})`);
+if (mapViewImports > 40) errors.push(`src/app/MapView.tsx exceeds 40 imports (${mapViewImports})`);
+if (mapViewEffects > 15) errors.push(`src/app/MapView.tsx exceeds 15 local effects (${mapViewEffects})`);
+if (mapViewWorkers > 0) errors.push(`src/app/MapView.tsx constructs ${mapViewWorkers} workers`);
+
+for (const filePath of files) {
+  const repositoryPath = path.relative(repoRoot, filePath).replaceAll('\\', '/');
+  if (/\.(?:test|spec)\.tsx?$/.test(repositoryPath)) continue;
+  const lines = physicalLines(fs.readFileSync(filePath, 'utf8'));
+  if (filePath !== mapViewPath && lines > 800 && !HISTORIC_LARGE_FILE_ALLOWLIST.has(repositoryPath)) {
+    errors.push(`${repositoryPath} exceeds the 800-line production-file budget (${lines})`);
+  }
+  if (/^src\/app\/use.*Controller\.tsx?$/.test(repositoryPath) && lines > 600) {
+    errors.push(`${repositoryPath} exceeds the 600-line controller budget (${lines})`);
+  }
+}
 
 const facadeSource = sourceFileFor(typeFacadePath);
 const facadeLines = fs.readFileSync(typeFacadePath, 'utf8').split(/\r?\n/).length;

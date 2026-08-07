@@ -72,7 +72,8 @@ Keep imports flowing from dependency-neutral models and pure domain logic toward
 | Area | Start here | Main concern |
 | --- | --- | --- |
 | App screens and boot | `src/app/App.tsx`, `src/app/resortBoot.ts` | Screen transitions and load handoff |
-| Map orchestration | `src/app/MapView.tsx` | Committed state, map lifecycle, tool arbitration |
+| Map composition | `src/app/MapView.tsx`, `src/app/MapViewChrome.tsx` | Committed state, document ports, selection, presentation wiring |
+| Map runtime | `src/app/useMapRuntime.ts`, `src/app/mapContribution.ts` | Map lifecycle, style generations, camera warm-up, ordering |
 | Map layers | `src/app/*Layers.ts` | Source lifecycle, z-order, hit behavior |
 | Lift domain | `src/lifts.ts`, `src/app/LiftControl.tsx` | Lift validation and review flow |
 | Road domain | `src/roads.ts`, `src/app/roadLayers.ts` | Construction and cover edits |

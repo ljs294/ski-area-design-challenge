@@ -72,13 +72,14 @@ Append only green, committed snapshots. Capture the JSON after required tests an
 | E4 node/path controller | `66f78c01deb0900fbde95377bb516c605ab0f1e6` | Yes | 159 / 30,328 | 96 / 11,940 | 4,045 / 81 / 52 / 28 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,023,656 / 8,023,633 |
 | E5 trail controller | `d39bdfd1a0562625cb6ab08793f8a98ff89950f9` | Yes | 162 / 30,327 | 97 / 12,108 | 3,222 / 76 / 50 / 24 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,027,434 / 8,027,411 |
 | F1 final structural gate | `f0489b30465c697a8d5c29adbde26edb8f157dbd` | Yes | 171 / 30,138 | 97 / 12,127 | 1,799 / 40 / 49 / 8 / 0 | 35 / 44 | 0 / 0 | 0 | 8 / 17 | 8,032,209 / 8,032,186 |
+| F2 final acceptance | `d089a67b30e601711c718bf6bb3b661c513b5f5b` | Yes | 171 / 30,138 | 97 / 12,197 | 1,799 / 40 / 49 / 8 / 0 | 35 / 44 | 0 / 0 | 0 | 8 / 17 | 8,032,209 / 8,032,186 |
 
 ## Change from the A2 formal baseline through F1
 
 | Metric | Net change |
 | --- | ---: |
 | Production physical lines | +170 (+0.6%) |
-| Test physical lines | +4,149 (+52.0%) |
+| Test physical lines | +4,219 (+52.9%) |
 | MapView physical lines | -3,278 (-64.6%) |
 | MapView direct imports | -38 (-48.7%) |
 | MapView direct state/effect/worker calls | -11 / -36 / -4 |

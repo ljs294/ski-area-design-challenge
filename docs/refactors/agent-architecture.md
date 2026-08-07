@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | F2 — final release and live-provider acceptance |
-| Status | F1 is committed: all approved MapView structural budgets pass; the full offline gate and all 14 deterministic browser workflows are green |
-| Last green commit | F1 at `f0489b30465c697a8d5c29adbde26edb8f157dbd` |
-| Next step | Run Electron release smoke, representative save compatibility, final builds, and one opt-in live-provider New Game workflow; then polish architecture documentation |
+| Current benchmark | Complete — approved refactor scope accepted |
+| Status | F2 is committed: structural, deterministic, packaged-Electron, save-compatibility, and live-provider acceptance gates are green |
+| Last green commit | F2 at `d089a67b30e601711c718bf6bb3b661c513b5f5b` |
+| Next step | None in approved scope; `app.css`, `network.ts`, and measured runtime tuning remain separate follow-up candidates |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -51,7 +51,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | E4 | Complete | Ski node/path controller extraction | Node/path/topology workflows plus ordering, cancellation, and save gates pass |
 | E5 | Complete | Trail controller extraction | Paint, anchor/review, grading, failure retention, topology, cancellation, and save gates pass |
 | F1 | Complete | Final MapView structural budgets | Structural budgets, full offline check, and all deterministic browser projects pass |
-| F2 | Next | Release/live acceptance and final architecture documentation | Electron smoke, both builds, save fixtures, one opt-in live New Game run, clean metrics, and current documentation pass |
+| F2 | Complete | Release/live acceptance and final architecture documentation | Electron smoke, both builds, save fixtures, one opt-in live New Game run, clean metrics, and current documentation pass |
 
 ## Standard benchmark protocol
 
@@ -90,6 +90,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | E4 | `66f78c01deb0900fbde95377bb516c605ab0f1e6` | Passed | The pure node/path model landed at `c1031ea`; the controller and atomic connector workflow landed at `66f78c0`. `MapView` fell by 280 lines, three state calls, and four effects. `npm run check` passed 654 offline tests and both builds; all eleven deterministic browser workflows passed. The node/path workflow proves leased map input, draft capture restoration, atomic path-plus-junction publication, and schema-v11 persistence. |
 | E5 | `d39bdfd1a0562625cb6ab08793f8a98ff89950f9` | Passed | The pure trail model landed at `98b4eaa`; the split trail controller/map-input workflow and expanded browser evidence landed at `d39bdfd`. `MapView` fell by 823 lines, five imports, two state calls, and four effects. `npm run check` passed 657 offline tests and both builds; all thirteen deterministic browser workflows passed. The workflows prove painter restart/cancellation, review and capture restoration, grading-failure retention, successful graded terrain/topology confirmation, same-task double-confirm rejection, schema-v11 persistence, and best-effort cover failure. |
 | F1 | `f0489b30465c697a8d5c29adbde26edb8f157dbd` | Passed | Presentation chrome, map runtime, keyboard and sampling hooks, compatibility backfill, cover-clear and worker services, and initial-save hydration landed across rollback-safe commits. `MapView` is 1,799 lines with 40 imports, 49 state calls, 8 effects, and no worker construction. `npm run check` passed 657 offline tests and both builds; all 14 deterministic browser workflows passed. The paint workflow now waits on its instrumented worker-ready observable and the previously timing-sensitive confirmation passed three repeated runs before the full suite. |
+| F2 | `d089a67b30e601711c718bf6bb3b661c513b5f5b` | Passed | The live-provider project now performs a real New Game preparation rather than stopping at the picker; it observed USGS and WorldCover traffic, entered gameplay, and verified a complete persisted schema-6 terrain package with a schema-11 save. The package build succeeded in an isolated output after the repository release directory was locked by Windows scanning, and Playwright launched the packaged executable and verified its main menu. Eleven targeted old/current save tests, all 657 offline tests, both production builds, and the final deterministic suite were green. |
 
 ## D4 worker ownership
 
