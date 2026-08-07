@@ -1,6 +1,7 @@
 import type maplibregl from 'maplibre-gl';
-import type { LatLonBounds } from '../elevation';
+import type { LatLonBounds } from '../types/geo';
 import type { TerrainRecord } from '../types';
+import type { DeepReadonly } from '../types/readonly';
 import { contourGeoJSON, localContourGeoJSON } from './localContours';
 import {
   clearResortElevationCache,
@@ -17,7 +18,7 @@ export const EMPTY_CONTOURS: GeoJSON.FeatureCollection =
 
 export function setTerrainContourData(
   map: maplibregl.Map | null,
-  record: TerrainRecord,
+  record: DeepReadonly<TerrainRecord>,
   imperial: boolean
 ): void {
   const source = map?.getSource('contours') as maplibregl.GeoJSONSource | undefined;
@@ -43,14 +44,16 @@ export function setGradedContourPreview(
 /** Refresh every map consumer of elevation after an atomic grading commit. */
 export function refreshTerrainGradeSources(
   map: maplibregl.Map | null,
-  record: TerrainRecord,
+  record: DeepReadonly<TerrainRecord>,
   imperial: boolean
 ): void {
   if (!map) return;
   clearResortElevationCache();
   const setTiles = (id: string, protocol: string) => {
     const source = map.getSource(id) as { setTiles?: (tiles: string[]) => void } | undefined;
-    source?.setTiles?.([resortProtocolUrl(protocol, record)]);
+    // The protocol serializes/reads the record; it never mutates it. Its legacy
+    // mutable signature is intentionally escaped only at this adapter edge.
+    source?.setTiles?.([resortProtocolUrl(protocol, record as unknown as TerrainRecord)]);
   };
   setTiles('dem', RESORT_DEM_PROTOCOL);
   setTiles(TERRAIN_DEM_SOURCE, RESORT_DEM_PROTOCOL);

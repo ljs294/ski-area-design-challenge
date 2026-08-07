@@ -2,7 +2,10 @@ import { maskToPolygons } from './coverPolygons';
 import { designDamEmbankment, MAX_DAM_HEIGHT_M } from './damEarthwork';
 import { localMeters, segmentOffset, terrainMetrics } from './earthwork';
 import { haversineMeters, lngLatToUnit, METERS_PER_DEGREE_LAT, unitToLngLat } from './geo';
-import type { EarthworkEstimate, SavedDam, TerrainRecord, WaterLineFeature } from './types';
+import type { EarthworkEstimate } from './types/earthwork';
+import type { SavedDam } from './types/snowmaking';
+import type { TerrainRecord } from './types/terrain';
+import type { WaterLineFeature } from './types/vectorFeatures';
 
 export const DEFAULT_STREAM_WIDTH_M = 3;
 export const DEFAULT_RIVER_WIDTH_M = 15;

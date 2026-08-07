@@ -8,7 +8,9 @@ import type {
   GameSaveListResponse,
   GameSaveDeleteResponse,
 } from './ipcContract';
-import type { GameSave, GameSaveSummary } from './types';
+import type { GameSave, GameSaveSummary } from './types/gameSave';
+
+export { CURRENT_GAME_SAVE_SCHEMA_VERSION } from './gameSaveSchema';
 
 const PREFIX = 'gamesave:';
 const INDEX_KEY = 'gamesave-index';

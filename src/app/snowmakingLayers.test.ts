@@ -8,7 +8,7 @@ import {
   setSnowmakingData,
   snowmakingNodesToGeoJSON,
 } from './snowmakingLayers';
-import type { SavedSnowmakingNode } from '../snowmakingNodes';
+import type { SavedSnowmakingNode } from '../types/snowmaking';
 
 const NODES: SavedSnowmakingNode[] = [
   { id: 'node-1', name: 'Upper Pond Intake', kind: 'intake', point: [-121.5, 47.2],

@@ -13,6 +13,7 @@
 // capped well under the documented limit, with shrink-and-retry as a
 // safety net for the still-observed variance at that size.
 import { fromArrayBuffer } from 'geotiff';
+import type { LatLonBounds } from './types/geo';
 
 const EXPORT_IMAGE_URL = 'https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage';
 
@@ -22,13 +23,6 @@ const MAX_GRID_DIMENSION = 2000;
 const MIN_GRID_DIMENSION = 500;
 const MAX_RETRIES = 2;
 const RETRY_BASE_MS = 500;
-
-export interface LatLonBounds {
-  south: number;
-  north: number;
-  west: number;
-  east: number;
-}
 
 export interface ElevationProgress {
   phase: 'fetching' | 'decoding';

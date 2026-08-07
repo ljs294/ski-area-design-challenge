@@ -1,5 +1,6 @@
 import { haversineMeters } from './geo';
-import type { TrailStatus } from './types';
+import type { AnchorRef } from './types/anchors';
+import type { SavedNode, SavedPath } from './types/topology';
 
 // Pure ski-node/path helpers: free-standing map pins ("nodes") and the
 // footpaths that connect them to lifts, runs, or each other. Same layer as
@@ -13,54 +14,6 @@ export const MAX_PATH_WIDTH_M = 20;
 
 // Mirrors the 0.05 m consecutive-point dedupe rule in sanitizeRoads.
 export const POINT_DEDUPE_M = 0.05;
-
-/** Where a run or path attaches to the rest of the mountain. */
-export type AnchorRef =
-  | { kind: 'lift'; liftId: string; end: 'top' | 'base'; point: [number, number] }
-  | { kind: 'trail'; trailId: string; point: [number, number] }
-  | { kind: 'path'; pathId: string; point: [number, number] }
-  | { kind: 'node'; nodeId: string; point: [number, number] };
-
-export interface SavedNode {
-  id: string;
-  name: string; // default "Node N"
-  point: [number, number];
-  elevM: number | null; // sampled; null when offline
-  /** Optional: pins this node onto a run/lift/path rather than free-standing. */
-  anchor?: AnchorRef;
-  createdAt: string; // ISO
-}
-
-/** A durable topology point shared by trail segments, paths, and lift terminals. */
-export interface SavedJunction {
-  id: string;
-  point: [number, number];
-  elevM: number | null;
-  /** Present when this junction is exactly a lift terminal. */
-  liftTerminal?: { liftId: string; end: 'top' | 'base' };
-  /** Retains otherwise unsupported legacy connectivity without enabling it for new tools. */
-  legacyAnchor?: AnchorRef;
-  createdAt: string;
-}
-
-export interface SavedPath {
-  id: string;
-  name: string; // default "Path N"
-  points: [number, number][]; // >= 2 after dedupe
-  /** Terrain elevations in meters, parallel to `points`; [] when unresolved. */
-  pointElevM: number[];
-  widthM: number;
-  from: AnchorRef;
-  to: AnchorRef;
-  /** Schema-v5 durable endpoint references. Legacy paths are upgraded on hydration. */
-  fromJunctionId?: string;
-  toJunctionId?: string;
-  lengthM: number; // ALWAYS recomputed on load from points
-  status: TrailStatus; // 'planning' (dashed) or 'complete' (solid)
-  /** Operating condition. Absent/false = open. */
-  closed?: boolean;
-  createdAt: string; // ISO
-}
 
 function isLngLat(p: unknown): p is [number, number] {
   return (
@@ -199,7 +152,7 @@ export function sanitizePaths(raw: unknown[]): SavedPath[] {
     const widthM = typeof p.widthM === 'number' && Number.isFinite(p.widthM)
       ? Math.min(MAX_PATH_WIDTH_M, Math.max(MIN_PATH_WIDTH_M, p.widthM))
       : DEFAULT_PATH_WIDTH_M;
-    const status: TrailStatus = p.status === 'planning' || p.status === 'complete' ? p.status : 'complete';
+    const status: SavedPath['status'] = p.status === 'planning' || p.status === 'complete' ? p.status : 'complete';
 
     out.push({
       id: p.id,

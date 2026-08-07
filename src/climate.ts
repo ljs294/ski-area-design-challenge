@@ -1,4 +1,4 @@
-import type { ClimateMonth, ClimateProfile } from './types';
+import type { ClimateMonth, ClimateProfile } from './types/terrain';
 
 /**
  * Generate a procedural climate profile based on latitude and altitude.

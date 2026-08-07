@@ -1,7 +1,10 @@
 import { maskToPolygons } from './coverPolygons';
 import { METERS_PER_DEGREE_LAT, unitToLngLat } from './geo';
 import { traceContours } from './marchingSquares';
-import type { TerrainRecord } from './types';
+import type { TerrainRecord } from './types/terrain';
+import type { DeepReadonly } from './types/readonly';
+
+type TerrainRecordView = DeepReadonly<TerrainRecord>;
 
 /**
  * The one earth-moving system the game builds with. Every structure that
@@ -39,7 +42,7 @@ export function validElevation(value: number): boolean {
 export interface TerrainMetrics {
   n: number;
   heights: ArrayLike<number>;
-  bounds: NonNullable<TerrainRecord['bounds']>;
+  bounds: NonNullable<TerrainRecordView['bounds']>;
   metersX: number;
   metersY: number;
   dxM: number;
@@ -49,7 +52,7 @@ export interface TerrainMetrics {
   cellAreaM2: number;
 }
 
-export function terrainMetrics(record: TerrainRecord): TerrainMetrics | null {
+export function terrainMetrics(record: TerrainRecordView): TerrainMetrics | null {
   const bounds = record.bounds, n = record.sampleGridSize;
   if (!bounds || n < 2 || record.sampleHeights.length !== n * n) return null;
   const midLat = (bounds.north + bounds.south) / 2;
@@ -240,7 +243,7 @@ export interface EarthworkTerrainPatch {
  * footprint the cover edit clears. Shared by every earth-moving tool so a
  * preview and its commit are always derived from the same arrays.
  */
-export function earthworkTerrainPatch(record: TerrainRecord, patchIndices: Uint32Array,
+export function earthworkTerrainPatch(record: TerrainRecordView, patchIndices: Uint32Array,
   patchHeights: Float32Array): EarthworkTerrainPatch {
   const n = record.sampleGridSize;
   const patched = Float32Array.from(record.sampleHeights);

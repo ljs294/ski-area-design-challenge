@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { GameSave, TerrainRecord } from '../types';
 import { withResumeCheckpoint } from './resumeCheckpoint';
-import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes, type SavedSnowmakingNode } from '../snowmakingNodes';
+import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
+import type { SavedSnowmakingNode } from '../types/snowmaking';
 import {
   TERRAIN_CLEAN,
   designHasEdits,

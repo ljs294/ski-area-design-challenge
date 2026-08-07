@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ConstructionStatusBug, type ConstructionActivity } from './ConstructionStatusBug';
+import { ConstructionStatusBug } from './ConstructionStatusBug';
+import type { ConstructionActivity } from './constructionLock';
 
 describe('ConstructionStatusBug', () => {
   it.each([

@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import mlcontour from 'maplibre-contour';
-import type { SavedRoad, TerrainRecord } from '../types';
+import type { TerrainRecord } from '../types';
 import { registerWorldcoverProtocol, WORLDCOVER_PROTOCOL } from './worldcoverProtocol';
 import { registerTerrainProtocols, SLOPE_PROTOCOL, ASPECT_PROTOCOL } from './terrainProtocols';
 import {
@@ -35,6 +35,8 @@ export interface LayerToggle {
   exclusiveGroup?: string;
   section?: 'Imagery' | 'Master plan' | 'Analysis' | 'Structures';
 }
+
+export type OverlayId = 'slope' | 'aspect' | 'groundcover';
 
 function basemapCategories(layers: maplibregl.LayerSpecification[]) {
   const water: string[] = [], roads: string[] = [], buildings: string[] = [], labels: string[] = [];
@@ -80,10 +82,10 @@ function localCoverBoundaryGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollec
 }
 
 export function setLocalContextData(map: maplibregl.Map, record: TerrainRecord,
-  playerRoads: SavedRoad[] = [], lakeNameOverrides: Record<string, string> = {},
+  lakeNameOverrides: Record<string, string> = {},
   streamWidthOverrides: Record<string, number> = {}): void {
   (map.getSource('local-context') as maplibregl.GeoJSONSource | undefined)
-    ?.setData(localContextGeoJSON(record, playerRoads, lakeNameOverrides, streamWidthOverrides));
+    ?.setData(localContextGeoJSON(record, lakeNameOverrides, streamWidthOverrides));
 }
 
 export function setSelectedLake(map: maplibregl.Map | null, lakeId: string | null): void {
@@ -106,7 +108,6 @@ export function setupAnalysisLayers(
   units: 'imperial' | 'metric' = 'imperial',
   coverDisplay?: CoverDisplayGeoJSON | null,
   localImageryUrl?: string | null,
-  playerRoads: SavedRoad[] = [],
   lakeNameOverrides: Record<string, string> = {},
   streamWidthOverrides: Record<string, number> = {}
 ): LayerToggle[] {
@@ -179,7 +180,7 @@ export function setupAnalysisLayers(
     demBounds = resortDemBounds(local);
     demUrl = resortProtocolUrl(RESORT_DEM_PROTOCOL, local);
     if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(local.key)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
-    map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, playerRoads, lakeNameOverrides, streamWidthOverrides), attribution: 'Local OSM context © OpenStreetMap contributors' });
+    map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, lakeNameOverrides, streamWidthOverrides), attribution: 'Local OSM context © OpenStreetMap contributors' });
     coverVisible = true;
     coverLabel = local.coverGrid?.source === 'usgs-four-class-v1' ? 'Detailed terrain cover (local)' : 'ESA WorldCover 2021 · 10 m (local)';
   } else {

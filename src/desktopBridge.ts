@@ -5,6 +5,8 @@ import type {
   TerrainSaveResponse,
   TerrainCoverSaveRequest,
   TerrainCoverSaveResponse,
+  TerrainMapContextSaveRequest,
+  TerrainMapContextSaveResponse,
   TerrainLoadResponse,
   TerrainListResponse,
   TerrainDeleteResponse,
@@ -29,6 +31,8 @@ export interface DesktopApi {
     repairPackage(record: TerrainRecord): Promise<TerrainSaveResponse>;
     /** Writes only edited cover assets and their merged package metadata. */
     saveCover(request: TerrainCoverSaveRequest): Promise<TerrainCoverSaveResponse>;
+    /** Merges OSM vectors into metadata without rewriting terrain binaries. */
+    saveMapContext(request: TerrainMapContextSaveRequest): Promise<TerrainMapContextSaveResponse>;
     list(): Promise<TerrainListResponse>;
     delete(key: string): Promise<TerrainDeleteResponse>;
   };

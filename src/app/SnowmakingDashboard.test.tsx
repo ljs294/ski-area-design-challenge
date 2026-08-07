@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
-import type { LatLonBounds } from '../elevation';
-import type { SavedSnowmakingNode } from '../snowmakingNodes';
+import type { LatLonBounds } from '../types/geo';
+import type { SavedSnowmakingNode } from '../types/snowmaking';
 import type { CoverClassCode, SavedDam, SavedLift, SavedPond, SavedTrail, TerrainRecord } from '../types';
 import { SnowmakingDashboard } from './SnowmakingDashboard';
 

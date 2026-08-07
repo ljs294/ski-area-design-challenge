@@ -5,7 +5,7 @@ import {
   type CoverPolygon,
   type Ring,
 } from './coverPolygons';
-import type { CoverClassCode, CoverGrid, WorldCoverClassCode } from './types';
+import type { CoverClassCode, CoverGrid, WorldCoverClassCode } from './types/cover';
 import { isFourClassGrid, TERRAIN_COVER_CODES } from './fourClassCover';
 
 export const COVER_DISPLAY_SMOOTHING_M = 24;

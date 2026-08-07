@@ -1,29 +1,11 @@
-import type { EarthworkEstimate, RoadType, SavedRoad } from '../types';
+import type { RoadType, SavedRoad } from '../types';
 import { fmtDistance } from '../lifts';
 import { ROAD_CLEAR_BUFFER_M, ROAD_TYPE_LABELS, roadLengthM,
   TWO_LANE_CLEAR_HALF_WIDTH_M, TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import type { Units } from './SettingsContext';
+import type { DraftRoad, RoadTool } from './roadControllerModel';
 
-export interface DraftRoad {
-  name: string;
-  roadType: RoadType;
-  points: [number, number][];
-  gradingStatus: 'pending' | 'ok' | 'error';
-  gradingError: string | null;
-  gradingPolygons: [number, number][][][];
-  earthwork: EarthworkEstimate | null;
-  maxFaceSlopePct: number;
-  maxGroundCrossSlopePct: number;
-  maxDisturbedWidthM: number;
-  ungradedLengthM: number;
-  gradingInfeasibleLines: [number, number][][];
-}
-
-export type RoadTool =
-  | { phase: 'idle' }
-  | { phase: 'armed'; roadType: RoadType }
-  | { phase: 'drawing'; roadType: RoadType; points: [number, number][]; cursor: [number, number] | null }
-  | { phase: 'review'; draft: DraftRoad };
+export type { DraftRoad, RoadTool } from './roadControllerModel';
 
 function PanelHead({ title, onClose }: { title: string; onClose: () => void }) {
   return <div className="dock-head"><span className="dock-head-title">{title}</span>

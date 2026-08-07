@@ -1,9 +1,8 @@
-import type { SavedRoad, TerrainRecord } from '../types';
+import type { TerrainRecord } from '../types';
 import { effectiveStreamWidth } from '../streamAnalysis';
-import { playerRoadFeatures } from './roadLayers';
 
-/** Build the shared local OSM/player context, including save-only lake names. */
-export function localContextGeoJSON(record: TerrainRecord, playerRoads: SavedRoad[] = [],
+/** Build imported local context, including save-only lake names. */
+export function localContextGeoJSON(record: TerrainRecord,
   lakeNameOverrides: Record<string, string> = {},
   streamWidthOverrides: Record<string, number> = {}): GeoJSON.FeatureCollection {
   const vectors = record.vectorFeatures;
@@ -26,6 +25,5 @@ export function localContextGeoJSON(record: TerrainRecord, playerRoads: SavedRoa
       features.push({ type: 'Feature', properties: { kind: 'road', class: road.roadClass }, geometry: { type: 'LineString', coordinates: road.points } });
     }
   }
-  features.push(...playerRoadFeatures(playerRoads));
   return { type: 'FeatureCollection', features };
 }

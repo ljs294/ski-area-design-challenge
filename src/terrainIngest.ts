@@ -1,16 +1,14 @@
-// Orchestrates turning either a live map selection or a curated preset into
-// a fully-built TerrainDB: fetch/generate the raw sample grid, upscale it
-// for display, attach a climate profile, persist it, and return it.
-import type { AreaSizeMeters, CoverDisplayMetadata, CoverGrid, LocalImageryMetadata, SiteCoverGrid, TerrainDB, TerrainPackageProgress, TerrainRecord, VectorFeatureSet } from './types';
-import { fetchElevationBuffer, fetchElevationGrid, sampleGridSizeFor, type LatLonBounds, type ElevationProgress, type SurroundGrid } from './elevation';
+// Orchestrates supported live resort preparation into a verified, persisted
+// TerrainRecord.
+import type { CoverDisplayMetadata, CoverGrid, SiteCoverGrid } from './types/cover';
+import type { AreaSizeMeters, LocalImageryMetadata, TerrainPackageProgress, TerrainRecord } from './types/terrain';
+import type { VectorFeatureSet } from './types/vectorFeatures';
+import { fetchElevationBuffer, fetchElevationGrid, type SurroundGrid } from './elevation';
+import type { LatLonBounds } from './types/geo';
 import { bicubicUpscale } from './bicubicUpscale';
 import { generateProceduralClimate } from './climate';
-import { generateProceduralHeights, NA_MOUNTAIN_PRESETS } from './mountainPresets';
 import { deleteTerrain, loadTerrain, saveTerrain } from './terrainStorageClient';
-import { boundsForSquareMeters } from './geo';
-import { fetchVectorFeatures, hydrateVectorFeatures } from './vectorFeatures';
-import { MAP_SIZE } from './renderer';
-import { sampleSiteCoverGrid } from './app/worldcoverProtocol';
+import { fetchVectorFeatures, type MapContextProviderError } from './vectorFeatures';
 import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, imageryMetadataOf, manifestOf, originalCoverMetadataOf, validateTerrainPackage } from './terrainPackage';
 import { traceContours } from './marchingSquares';
 import { deriveCoverBoundarySegments } from './coverAnalysis';
@@ -18,99 +16,7 @@ import { deriveCoverDisplayGeometry, type DerivedCoverDisplay } from './coverDis
 import { deriveFourClassCover, isFourClassGrid } from './fourClassCover';
 import { fetchNaipAcquisition } from './usgsTerrainCover';
 
-export const DISPLAY_GRID_SIZE = 512;
-
-/**
- * Fetch a curated preset's bundled real elevation data, if present.
- * Produced offline via `npm run download-preset -- <id>`
- * (scripts/downloadPresetTerrain.ts) as a raw Float32 binary file under
- * public/presetTerrain/ — plain static passthrough (Vite copies public/
- * verbatim, no transform), not a JSON import. Serving/parsing the
- * equivalent data as JSON was found to outright crash Vite's dev server
- * once these grids grew past tens of megabytes; a `public/` static fetch
- * sidesteps that entirely and is ~4.5x smaller on the wire besides (4
- * bytes/point raw binary vs ~18 bytes/point as JSON text).
- * Returns null if this preset has no bundled file (caller falls back to
- * procedural terrain).
- */
-async function loadBundledPresetHeights(presetId: string): Promise<number[] | null> {
-  let response: Response;
-  try {
-    response = await fetch(`/presetTerrain/${presetId}.heights.bin`);
-  } catch {
-    return null;
-  }
-  if (!response.ok) return null;
-
-  const buf = await response.arrayBuffer();
-  return Array.from(new Float32Array(buf));
-}
-
-/**
- * Fetch a curated preset's bundled real vector features (roads, water,
- * peaks, land cover), if present. Produced offline via the same
- * download-preset script as the heightmap. Presets never hit Overpass at
- * runtime — only live map-picker ingests do — so a missing bundle just
- * means that preset renders without overlays, not an error.
- */
-async function loadBundledPresetVectors(presetId: string): Promise<VectorFeatureSet | null> {
-  let response: Response;
-  try {
-    response = await fetch(`/presetTerrain/${presetId}.vectors.json`);
-  } catch {
-    return null;
-  }
-  if (!response.ok) return null;
-
-  try {
-    return (await response.json()) as VectorFeatureSet;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * The elevation raster's TRUE extent, written alongside a preset's bundled
- * heights (see scripts/downloadPresetTerrain.ts). Older bundles predate the
- * sidecar and return null, so the caller falls back to the computed
- * square-in-meters bounds — those bundles are misregistered until re-downloaded.
- */
-async function loadBundledPresetBounds(presetId: string): Promise<LatLonBounds | null> {
-  let response: Response;
-  try {
-    response = await fetch(`/presetTerrain/${presetId}.meta.json`);
-  } catch {
-    return null;
-  }
-  if (!response.ok) return null;
-  try {
-    const meta = (await response.json()) as { bounds?: LatLonBounds };
-    return meta.bounds ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Fetch a curated preset's bundled coarse surround ring, if present
- * (public/presetTerrain/<id>.surround.json, produced by the download-preset
- * script). Missing on legacy bundles and procedural presets — those just
- * render without an offline buffer.
- */
-async function loadBundledPresetSurround(presetId: string): Promise<SurroundGrid | null> {
-  let response: Response;
-  try {
-    response = await fetch(`/presetTerrain/${presetId}.surround.json`);
-  } catch {
-    return null;
-  }
-  if (!response.ok) return null;
-  try {
-    return (await response.json()) as SurroundGrid;
-  } catch {
-    return null;
-  }
-}
+const CONTOUR_GRID_SIZE = 512;
 
 function slugify(name: string): string {
   const slug = name
@@ -123,30 +29,6 @@ function slugify(name: string): string {
 
 function makeKey(mountainName: string, latitude: number, longitude: number): string {
   return `${slugify(mountainName)}-${latitude.toFixed(4)}_${longitude.toFixed(4)}`;
-}
-
-/**
- * Rebuild a TerrainDB (upscaled display grid + derived fields) from a
- * persisted TerrainRecord, without re-saving it. Used both internally by
- * finalizeAndSave and by the Content Manager's "Load" action.
- */
-export function hydrateTerrainRecord(record: TerrainRecord): TerrainDB {
-  const displayHeights = bicubicUpscale(record.sampleHeights, record.sampleGridSize, DISPLAY_GRID_SIZE);
-  // schemaVersion-2 records predate `bounds` — recompute it the same way it
-  // would have been derived, so old saves still load (without vector
-  // features, which they never had either).
-  const bounds = record.bounds ?? boundsForSquareMeters(record.latitude, record.longitude, record.areaSizeMeters);
-  const hydratedFeatures = hydrateVectorFeatures(record.vectorFeatures, bounds, MAP_SIZE);
-
-  return {
-    ...record,
-    bounds,
-    hydratedFeatures,
-    displayGridSize: DISPLAY_GRID_SIZE,
-    displayHeights,
-    widthMeters: record.areaSizeMeters,
-    heightMeters: record.areaSizeMeters,
-  };
 }
 
 async function finalizeAndSave(
@@ -164,9 +46,9 @@ async function finalizeAndSave(
   localImagery?: Uint8Array,
   localImageryMetadata?: LocalImageryMetadata,
   surround?: SurroundGrid
-): Promise<TerrainDB> {
+): Promise<TerrainRecord> {
   const sampleGridSize = Math.round(Math.sqrt(sampleHeights.length));
-  const contourGridSize = Math.min(DISPLAY_GRID_SIZE, sampleGridSize);
+  const contourGridSize = Math.min(CONTOUR_GRID_SIZE, sampleGridSize);
   const contourIntervalM = 6.096; // 20 ft minor contours, matching the master-plan reference density.
   let contourSegments: number[] | undefined;
   let coverBoundarySegments: number[] | undefined;
@@ -235,10 +117,10 @@ async function finalizeAndSave(
     if (!persisted) throw new Error('The resort package could not be read after it was written.');
     const validation = validateTerrainPackage(persisted);
     if (!validation.ok) throw new Error(`The saved resort package failed verification: ${validation.errors.join(' ')}`);
-    return hydrateTerrainRecord(persisted);
+    return persisted;
   }
 
-  return hydrateTerrainRecord(record);
+  return record;
 }
 
 export interface ResortPreparationSite {
@@ -246,6 +128,22 @@ export interface ResortPreparationSite {
   widthKm: number;
   heightKm: number;
 }
+
+export interface ResortPreparationServices {
+  sampleSiteCoverGrid(
+    bounds: LatLonBounds,
+    targetCellM: number,
+    signal?: AbortSignal
+  ): Promise<SiteCoverGrid>;
+}
+
+export interface ResortPreparationOptions {
+  onProgress?: (progress: TerrainPackageProgress) => void;
+  signal?: AbortSignal;
+  onMapContextFailure?(error: MapContextProviderError): Promise<MapContextDecision>;
+}
+
+export type MapContextDecision = 'retry' | 'continue' | 'cancel';
 
 /**
  * Prepare the mandatory local elevation + WorldCover package for gameplay.
@@ -255,9 +153,10 @@ export interface ResortPreparationSite {
 export async function prepareResortPackage(
   site: ResortPreparationSite,
   mountainName: string,
-  onProgress?: (progress: TerrainPackageProgress) => void,
-  signal?: AbortSignal
-): Promise<TerrainDB> {
+  services: ResortPreparationServices,
+  options: ResortPreparationOptions = {}
+): Promise<TerrainRecord> {
+  const { onProgress, signal } = options;
   const [[west, south], [east, north]] = site.bounds;
   const requestedBounds = { west, south, east, north };
   const areaSizeMeters = Math.round(Math.max(site.widthKm, site.heightKm) * 1000);
@@ -293,15 +192,35 @@ export async function prepareResortPackage(
   const surroundPromise = fetchElevationBuffer(bounds, signal);
 
   report('ground-cover', 'Downloading ESA WorldCover recovery data', 1);
-  const originalCoverGrid = await sampleSiteCoverGrid(bounds, 10, signal);
+  const originalCoverGrid = await services.sampleSiteCoverGrid(bounds, 10, signal);
   if (!originalCoverGrid.complete) throw new Error(`Ground-cover package is incomplete (${originalCoverGrid.nodataCount} missing cells).`);
   abort();
 
   report('imagery', 'Downloading public-domain NAIP imagery and map context', 2);
-  const [naip, vectorFeatures] = await Promise.all([
+  const [naip, firstContext] = await Promise.all([
     fetchNaipAcquisition(bounds, undefined, signal),
-    fetchVectorFeatures(bounds).catch(() => undefined),
+    fetchVectorFeatures(bounds, signal).then(
+      (value) => ({ ok: true as const, value }),
+      (error: MapContextProviderError) => ({ ok: false as const, error }),
+    ),
   ]);
+  let vectorFeatures: VectorFeatureSet | undefined;
+  let contextResult = firstContext;
+  while (!contextResult.ok) {
+    abort();
+    if (!options.onMapContextFailure) throw contextResult.error;
+    const decision = await options.onMapContextFailure(contextResult.error);
+    abort();
+    if (decision === 'cancel') {
+      throw new DOMException('Resort preparation cancelled', 'AbortError');
+    }
+    if (decision === 'continue') break;
+    contextResult = await fetchVectorFeatures(bounds, signal).then(
+      (value) => ({ ok: true as const, value }),
+      (error: MapContextProviderError) => ({ ok: false as const, error }),
+    );
+  }
+  if (contextResult.ok) vectorFeatures = contextResult.value;
   abort();
 
   report('decoding', 'Classifying forest, alpine, grassland, and water', 3);
@@ -366,95 +285,4 @@ export async function prepareResortPackage(
   report('verifying', 'Finalizing four-class terrain cover', 8);
   report('verifying', 'Resort package ready', 9);
   return terrain;
-}
-
-/**
- * Download real elevation data for a map selection and build a TerrainDB.
- * Vector features (roads/water/peaks/land cover) are fetched from Overpass
- * in parallel with elevation — and are allowed to fail independently, since
- * Overpass is a shared, best-effort community service and a flaky map-
- * feature fetch shouldn't block getting a playable terrain.
- */
-export async function ingestLiveArea(
-  bounds: LatLonBounds,
-  _center: { latitude: number; longitude: number },
-  areaSizeMeters: AreaSizeMeters,
-  mountainName: string,
-  onProgress?: (progress: ElevationProgress) => void
-): Promise<TerrainDB> {
-  // Elevation first: it may return a wider/taller extent than requested (see
-  // ElevationGrid.bounds), and every other layer must be pinned to that true
-  // extent — so vectors are fetched against it rather than the request.
-  const elevation = await fetchElevationGrid(bounds, areaSizeMeters, onProgress);
-  const trueBounds = elevation.bounds;
-  const center = {
-    latitude: (trueBounds.south + trueBounds.north) / 2,
-    longitude: (trueBounds.west + trueBounds.east) / 2,
-  };
-  const [vectorFeatures, surround] = await Promise.all([
-    fetchVectorFeatures(trueBounds).catch((e) => {
-      console.error('Failed to fetch map features (roads/water/peaks/land cover):', e);
-      return undefined;
-    }),
-    fetchElevationBuffer(trueBounds).catch(() => null),
-  ]);
-  return finalizeAndSave(
-    mountainName, center.latitude, center.longitude, areaSizeMeters, trueBounds, elevation.heights,
-    'live', vectorFeatures, undefined, undefined, undefined, undefined, undefined, surround ?? undefined
-  );
-}
-
-/**
- * Build a TerrainDB for a curated preset mountain. Uses real bundled
- * elevation data and vector features when available
- * (public/presetTerrain/<id>.heights.bin / .vectors.json), otherwise falls
- * back to procedurally generated placeholder elevation with no overlays —
- * both go through the same finalize/upscale pipeline as live downloads.
- * Presets never call Overpass live; see downloadPresetTerrain.ts.
- */
-export async function ingestPreset(presetId: string): Promise<TerrainDB> {
-  const preset = NA_MOUNTAIN_PRESETS.find((p) => p.id === presetId);
-  if (!preset) throw new Error(`Unknown preset: ${presetId}`);
-
-  const areaSizeMeters = preset.areaSizeMeters ?? 4000;
-  const [bundledHeights, bundledVectors, bundledBounds, bundledSurround] = await Promise.all([
-    loadBundledPresetHeights(presetId),
-    loadBundledPresetVectors(presetId),
-    loadBundledPresetBounds(presetId),
-    loadBundledPresetSurround(presetId),
-  ]);
-  // Prefer the raster's true extent captured at download time; fall back to the
-  // computed square for procedural terrain and legacy bundles.
-  const bounds = bundledBounds ?? boundsForSquareMeters(preset.latitude, preset.longitude, areaSizeMeters);
-
-  if (bundledHeights) {
-    return finalizeAndSave(
-      preset.name,
-      preset.latitude,
-      preset.longitude,
-      areaSizeMeters,
-      bounds,
-      bundledHeights,
-      'preset-real',
-      bundledVectors ?? undefined,
-      undefined, undefined, undefined, undefined, undefined,
-      bundledSurround ?? undefined
-    );
-  }
-
-  const sampleHeights = generateProceduralHeights(
-    preset.minAltitude,
-    preset.maxAltitude,
-    sampleGridSizeFor(areaSizeMeters)
-  );
-  return finalizeAndSave(
-    preset.name,
-    preset.latitude,
-    preset.longitude,
-    areaSizeMeters,
-    bounds,
-    sampleHeights,
-    'preset',
-    bundledVectors ?? undefined
-  );
 }

@@ -6,8 +6,7 @@ import {
   sanitizeSnowmakingNodes,
   SNOWMAKING_NODE_LABELS,
 } from './snowmakingNodes';
-import type { SavedSnowmakingNode } from './snowmakingNodes';
-import type { SavedDam, SavedPond } from './types';
+import type { SavedDam, SavedPond, SavedSnowmakingNode } from './types/snowmaking';
 
 // Minimal but realistic fixtures, mirroring lifts.test.ts/pondEarthwork.test.ts style.
 

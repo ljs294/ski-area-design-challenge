@@ -1,16 +1,10 @@
 import { METERS_PER_DEGREE_LAT, haversineMeters } from './geo';
 import { fixedGripCapacityPph, fixedGripDerived, liftStats } from './lifts';
-import type { AnchorRef, SavedJunction, SavedNode, SavedPath } from './skiNodes';
 import { difficultyForSlopes, trailAreaM2, trailStats } from './trails';
-import type {
-  ChairSize,
-  LiftClass,
-  LiftStatus,
-  SavedLift,
-  SavedTrail,
-  TrailDifficulty,
-  TrailStatus,
-} from './types';
+import type { AnchorRef } from './types/anchors';
+import type { ChairSize, LiftClass, LiftStatus, SavedLift } from './types/lifts';
+import type { SavedJunction, SavedNode, SavedPath } from './types/topology';
+import type { SavedTrail, TrailDifficulty, TrailStatus } from './types/trails';
 
 /**
  * The ski-area network graph: painted runs and placed lifts turned into a

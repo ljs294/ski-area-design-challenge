@@ -1,4 +1,10 @@
-import type { SavedDam, SavedPond } from './types';
+import type {
+  SavedDam,
+  SavedPond,
+  SavedSnowmakingNode,
+  SnowmakingNodeKind,
+  SnowmakingSourceRef,
+} from './types/snowmaking';
 
 // Pure snowmaking pipe-network helpers: free-standing network nodes
 // (intakes, pumps, junctions, hydrants) and their reconciliation against the
@@ -6,8 +12,6 @@ import type { SavedDam, SavedPond } from './types';
 // roads.ts — no DOM, no fetch, no imports from src/app/**. Everything here is
 // a pure function of stored geometry, cheap to unit test and safe to
 // recompute on every load.
-
-export type SnowmakingNodeKind = 'intake' | 'pump' | 'junction' | 'hydrant';
 
 export const SNOWMAKING_NODE_LABELS: Record<SnowmakingNodeKind, string> = {
   intake: 'Intake',
@@ -17,22 +21,6 @@ export const SNOWMAKING_NODE_LABELS: Record<SnowmakingNodeKind, string> = {
 };
 
 const SNOWMAKING_NODE_KINDS = new Set<SnowmakingNodeKind>(['intake', 'pump', 'junction', 'hydrant']);
-
-/** Which water body an auto-seeded intake belongs to. */
-export type SnowmakingSourceRef =
-  | { kind: 'dam'; damId: string }
-  | { kind: 'pond'; pondId: string };
-
-export interface SavedSnowmakingNode {
-  id: string;
-  name: string;
-  kind: SnowmakingNodeKind;
-  point: [number, number];
-  elevM: number | null;
-  /** Present on auto-seeded intakes; absent on future hand-placed nodes. */
-  source?: SnowmakingSourceRef;
-  createdAt: string;
-}
 
 function isLngLat(p: unknown): p is [number, number] {
   return (

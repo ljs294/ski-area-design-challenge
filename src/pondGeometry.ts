@@ -1,5 +1,5 @@
 import { ringCenter } from './snowmakingNodes';
-import type { TerrainRecord } from './types';
+import type { TerrainRecord } from './types/terrain';
 
 type Point = [number, number];
 

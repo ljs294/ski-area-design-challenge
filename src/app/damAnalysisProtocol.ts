@@ -1,4 +1,4 @@
-import type { LatLonBounds } from '../elevation';
+import type { LatLonBounds } from '../types/geo';
 import type { DamAnalysisResult } from '../damAnalysis';
 import type { WaterLineFeature } from '../types';
 

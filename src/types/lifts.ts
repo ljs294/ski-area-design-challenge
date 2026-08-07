@@ -1,0 +1,25 @@
+import type { ConstructionStatus } from './construction';
+
+export type LiftClass = 'fixed-grip';
+export type ChairSize = 2 | 3 | 4;
+export type LiftStatus = ConstructionStatus;
+
+export interface SavedLiftBase {
+  id: string;
+  name: string;
+  liftClass: LiftClass;
+  points: [[number, number], [number, number]];
+  endpointElevM: [number | null, number | null];
+  lengthM: number;
+  verticalM: number | null;
+  status: LiftStatus;
+  closed?: boolean;
+  createdAt: string;
+}
+
+export interface SavedFixedGripLift extends SavedLiftBase {
+  liftClass: 'fixed-grip';
+  chairSize: ChairSize;
+}
+
+export type SavedLift = SavedFixedGripLift;

@@ -1,6 +1,6 @@
 import { liftStats } from '../lifts';
 import { makeFrame, pointSegmentDistance, toMeters } from '../network';
-import type { AnchorRef } from '../skiNodes';
+import type { AnchorRef } from '../types/anchors';
 import type { SavedLift, SavedTrail } from '../types';
 
 export type TrailHeadAnchor = Extract<AnchorRef, { kind: 'lift' | 'trail' }>;

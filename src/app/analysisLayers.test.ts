@@ -14,14 +14,14 @@ const record = {
 describe('local lake context', () => {
   it('publishes only a player override as the custom map label', () => {
     const unnamed = localContextGeoJSON(record).features[0];
-    const named = localContextGeoJSON(record, [], { 'way/42': 'Mirror Pond' }).features[0];
+    const named = localContextGeoJSON(record, { 'way/42': 'Mirror Pond' }).features[0];
     expect(unnamed.properties).toMatchObject({ id: 'way/42', name: 'OSM Lake', customName: '' });
     expect(named.properties).toMatchObject({ id: 'way/42', name: 'OSM Lake', customName: 'Mirror Pond' });
   });
 
   it('publishes stable waterway properties and the effective width', () => {
     const source = localContextGeoJSON(record).features[1];
-    const overridden = localContextGeoJSON(record, [], {}, { 'way/7': 9 }).features[1];
+    const overridden = localContextGeoJSON(record, {}, { 'way/7': 9 }).features[1];
     expect(source.properties).toMatchObject({ id: 'way/7', name: 'Cold Creek', class: 'stream',
       widthM: 4, widthSource: 'osm' });
     expect(overridden.properties).toMatchObject({ widthM: 9, widthSource: 'override' });

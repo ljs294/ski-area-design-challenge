@@ -1,15 +1,8 @@
 // Fetches real-world map features (roads, hydrography, named peaks, land
 // cover) from OpenStreetMap via the Overpass API for a terrain's exact
-// ingest bounds, and projects/tile-indexes them into the renderer's
-// world-space at hydrate time. Same "store raw, derive display form on
-// load" split as elevation.ts/bicubicUpscale.ts: raw lon/lat geometry is
-// what gets persisted (types.ts's VectorFeatureSet), everything in this
-// file below fetchVectorFeatures is a pure, re-derivable projection step.
-import type { LatLonBounds } from './elevation';
-import { lonLatToWorld, type WorldPoint } from './geo';
-import { buildTileIndex, type TileIndex, type Segment } from './tileIndex';
-import { thinLabelsBySpacing, type WorldLabel } from './labels';
-import { TILES_PER_AXIS } from './contours';
+// ingest bounds. Raw lon/lat geometry is persisted in TerrainRecord so the
+// supported MapLibre renderer can consume it without legacy world projection.
+import type { LatLonBounds } from './types/geo';
 import type {
   RoadClass,
   WaterLineClass,
@@ -20,24 +13,44 @@ import type {
   LandCoverFeature,
   PeakFeature,
   VectorFeatureSet,
-} from './types';
+} from './types/vectorFeatures';
 import { parseOsmWidthM } from './streamAnalysis';
+import { OVERPASS_ENDPOINTS } from './overpassConfig';
+
+export { OVERPASS_ENDPOINTS } from './overpassConfig';
 
 // Overpass is a shared community resource, not a paid API — a descriptive
 // User-Agent and a short mirror list (not aggressive retries) is the
-// expected etiquette. overpass-api.de is the primary public instance;
-// kumi.systems is a well-known independent mirror used as a fallback if the
-// primary is overloaded or down.
-const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-];
-
+// expected etiquette. Keep this centralized list aligned with OpenStreetMap's
+// public-instance registry; Private.coffee is the documented successor to the
+// former overpass.kumi.systems service.
 // Denser areas (e.g. New England road networks) can meaningfully exceed 25s
 // server-side even for a small few-km bbox — 45s gives Overpass enough
 // headroom before the client gives up on an endpoint and tries the next.
 const OVERPASS_SERVER_TIMEOUT_S = 45;
-const QUERY_TIMEOUT_MS = 50_000;
+const QUERY_TIMEOUT_MS = 60_000;
+
+export interface OverpassEndpointFailure {
+  endpoint: string;
+  elapsedMs: number;
+  kind: 'http' | 'timeout' | 'network' | 'invalid-response';
+  status?: number;
+  message: string;
+}
+
+/** Every configured provider failed. Structured diagnostics prevent terrain
+ * preparation from silently discarding the entire local map context. */
+export class MapContextProviderError extends Error {
+  readonly failures: readonly OverpassEndpointFailure[];
+
+  constructor(failures: readonly OverpassEndpointFailure[]) {
+    super(`Map context providers failed: ${failures.map((failure) =>
+      `${new URL(failure.endpoint).host} (${failure.message}, ` +
+      `${(failure.elapsedMs / 1000).toFixed(1)}s)`).join('; ')}`);
+    this.name = 'MapContextProviderError';
+    this.failures = failures.map((failure) => ({ ...failure }));
+  }
+}
 
 function bboxParam(bounds: LatLonBounds): string {
   return `${bounds.south},${bounds.west},${bounds.north},${bounds.east}`;
@@ -85,33 +98,59 @@ interface OverpassResponse {
   elements: OverpassElement[];
 }
 
-async function fetchOverpass(bounds: LatLonBounds): Promise<OverpassResponse> {
+async function fetchOverpass(bounds: LatLonBounds, signal?: AbortSignal): Promise<OverpassResponse> {
   const query = buildQuery(bounds);
-  let lastError: unknown;
+  const failures: OverpassEndpointFailure[] = [];
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
+    if (signal?.aborted) throw new DOMException('Map context download cancelled', 'AbortError');
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), QUERY_TIMEOUT_MS);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, QUERY_TIMEOUT_MS);
+    const cancel = () => controller.abort();
+    signal?.addEventListener('abort', cancel, { once: true });
+    const startedAt = performance.now();
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'text/plain',
-          'User-Agent': 'ski-area-design-challenge (mountain terrain planner, non-commercial)',
         },
         body: query,
+        referrerPolicy: 'origin-when-cross-origin',
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`Overpass returned ${response.status}`);
-      return (await response.json()) as OverpassResponse;
-    } catch (e) {
-      lastError = e;
+      if (!response.ok) {
+        failures.push({ endpoint, elapsedMs: performance.now() - startedAt,
+          kind: 'http', status: response.status,
+          message: `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}` });
+        continue;
+      }
+      try {
+        const value = await response.json() as Partial<OverpassResponse>;
+        if (!Array.isArray(value.elements)) throw new Error('Response has no elements array');
+        return { elements: value.elements };
+      } catch (error) {
+        failures.push({ endpoint, elapsedMs: performance.now() - startedAt,
+          kind: 'invalid-response',
+          message: error instanceof Error ? error.message : 'Response was not valid JSON' });
+      }
+    } catch (error) {
+      if (signal?.aborted) throw new DOMException('Map context download cancelled', 'AbortError');
+      failures.push({ endpoint, elapsedMs: performance.now() - startedAt,
+        kind: timedOut ? 'timeout' : 'network',
+        message: timedOut ? `Timed out after ${QUERY_TIMEOUT_MS / 1000} seconds`
+          : error instanceof Error ? error.message : 'Network request failed' });
     } finally {
       clearTimeout(timeout);
+      signal?.removeEventListener('abort', cancel);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('Overpass fetch failed');
+  throw new MapContextProviderError(failures);
 }
 
 const MAJOR_HIGHWAY = new Set(['motorway', 'trunk', 'primary', 'secondary']);
@@ -184,8 +223,11 @@ function assembleRings(fragments: [number, number][][]): [number, number][][] {
  * ingest bounds. Raw lon/lat only — see hydrateVectorFeatures below for the
  * world-space projection step run at hydrate time.
  */
-export async function fetchVectorFeatures(bounds: LatLonBounds): Promise<VectorFeatureSet> {
-  const data = await fetchOverpass(bounds);
+export async function fetchVectorFeatures(
+  bounds: LatLonBounds,
+  signal?: AbortSignal,
+): Promise<VectorFeatureSet> {
+  const data = await fetchOverpass(bounds, signal);
 
   const roads: RoadFeature[] = [];
   const waterLines: WaterLineFeature[] = [];
@@ -257,151 +299,4 @@ export async function fetchVectorFeatures(bounds: LatLonBounds): Promise<VectorF
   }
 
   return { roads, waterLines, waterPolygons, landCover, peaks };
-}
-
-// ---------------------------------------------------------------------
-// Hydration — projects raw lon/lat features into the renderer's world
-// space and builds the same kind of viewport tile index contours.ts uses,
-// so roads/rivers stay fast to pan/zoom at any feature density.
-// ---------------------------------------------------------------------
-
-export interface RoadSegment extends Segment {
-  roadClass: RoadClass;
-}
-
-export interface WaterLineSegment extends Segment {
-  waterClass: WaterLineClass;
-}
-
-export interface ProjectedPolygon {
-  rings: WorldPoint[][];
-}
-
-export interface ProjectedLandCoverPolygon extends ProjectedPolygon {
-  landCoverClass: OsmLandCoverClass;
-}
-
-export interface ProjectedPeak {
-  x: number;
-  y: number;
-  name: string;
-  elevationMeters?: number;
-}
-
-export interface HydratedVectorFeatures {
-  roadIndex: TileIndex<RoadSegment>;
-  waterLineIndex: TileIndex<WaterLineSegment>;
-  waterPolygons: ProjectedPolygon[];
-  landCover: ProjectedLandCoverPolygon[];
-  peaks: ProjectedPeak[];
-  roadLabels: WorldLabel[];
-  waterLabels: WorldLabel[];
-}
-
-const ROAD_LABEL_MIN_SPACING = 320;
-const WATER_LABEL_MIN_SPACING = 320;
-
-function projectRing(ring: [number, number][], bounds: LatLonBounds, mapSize: number): WorldPoint[] {
-  return ring.map(([lon, lat]) => lonLatToWorld(lon, lat, bounds, mapSize));
-}
-
-function projectPolylineToSegments<M extends object>(
-  points: [number, number][],
-  bounds: LatLonBounds,
-  mapSize: number,
-  meta: M
-): (Segment & M)[] {
-  const projected = projectRing(points, bounds, mapSize);
-  const segments: (Segment & M)[] = [];
-  for (let i = 0; i < projected.length - 1; i++) {
-    segments.push({ x1: projected[i].x, y1: projected[i].y, x2: projected[i + 1].x, y2: projected[i + 1].y, ...meta });
-  }
-  return segments;
-}
-
-/** Places a label at the midpoint of a projected line, angled along the
- * line's local direction there (matches the contour label convention). */
-function labelForLine(projected: WorldPoint[], text: string): WorldLabel {
-  const midIdx = Math.floor(projected.length / 2);
-  const mid = projected[midIdx];
-  const next = projected[Math.min(projected.length - 1, midIdx + 1)];
-  let angle = Math.atan2(next.y - mid.y, next.x - mid.x);
-  if (angle > Math.PI / 2 || angle < -Math.PI / 2) angle += Math.PI;
-  return { x: mid.x, y: mid.y, angle, text };
-}
-
-function polygonCentroid(ring: WorldPoint[]): WorldPoint {
-  let sx = 0;
-  let sy = 0;
-  for (const p of ring) {
-    sx += p.x;
-    sy += p.y;
-  }
-  return { x: sx / ring.length, y: sy / ring.length };
-}
-
-export function hydrateVectorFeatures(
-  features: VectorFeatureSet | undefined,
-  bounds: LatLonBounds,
-  mapSize: number,
-  tilesPerAxis: number = TILES_PER_AXIS
-): HydratedVectorFeatures {
-  if (!features) {
-    return {
-      roadIndex: buildTileIndex<RoadSegment>([], mapSize, tilesPerAxis),
-      waterLineIndex: buildTileIndex<WaterLineSegment>([], mapSize, tilesPerAxis),
-      waterPolygons: [],
-      landCover: [],
-      peaks: [],
-      roadLabels: [],
-      waterLabels: [],
-    };
-  }
-
-  const roadSegments: RoadSegment[] = [];
-  const roadLabels: WorldLabel[] = [];
-  for (const road of features.roads) {
-    roadSegments.push(...projectPolylineToSegments(road.points, bounds, mapSize, { roadClass: road.roadClass }));
-    if (road.name) {
-      roadLabels.push(labelForLine(projectRing(road.points, bounds, mapSize), road.name));
-    }
-  }
-
-  const waterLineSegments: WaterLineSegment[] = [];
-  const waterLabels: WorldLabel[] = [];
-  for (const line of features.waterLines) {
-    waterLineSegments.push(...projectPolylineToSegments(line.points, bounds, mapSize, { waterClass: line.waterClass }));
-    if (line.name) {
-      waterLabels.push(labelForLine(projectRing(line.points, bounds, mapSize), line.name));
-    }
-  }
-
-  const waterPolygons: ProjectedPolygon[] = features.waterPolygons.map((poly) => ({
-    rings: poly.rings.map((ring) => projectRing(ring, bounds, mapSize)),
-  }));
-  for (const poly of features.waterPolygons) {
-    if (!poly.name || poly.rings.length === 0) continue;
-    const centroid = polygonCentroid(projectRing(poly.rings[0], bounds, mapSize));
-    waterLabels.push({ x: centroid.x, y: centroid.y, angle: 0, text: poly.name });
-  }
-
-  const landCover: ProjectedLandCoverPolygon[] = features.landCover.map((poly) => ({
-    landCoverClass: poly.landCoverClass,
-    rings: poly.rings.map((ring) => projectRing(ring, bounds, mapSize)),
-  }));
-
-  const peaks: ProjectedPeak[] = features.peaks.map((peak) => {
-    const p = lonLatToWorld(peak.lon, peak.lat, bounds, mapSize);
-    return { x: p.x, y: p.y, name: peak.name, elevationMeters: peak.elevationMeters };
-  });
-
-  return {
-    roadIndex: buildTileIndex(roadSegments, mapSize, tilesPerAxis),
-    waterLineIndex: buildTileIndex(waterLineSegments, mapSize, tilesPerAxis),
-    waterPolygons,
-    landCover,
-    peaks,
-    roadLabels: thinLabelsBySpacing(roadLabels, ROAD_LABEL_MIN_SPACING),
-    waterLabels: thinLabelsBySpacing(waterLabels, WATER_LABEL_MIN_SPACING),
-  };
 }

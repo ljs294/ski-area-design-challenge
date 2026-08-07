@@ -1,6 +1,7 @@
 import { SLOPE_LEGEND, ASPECT_LEGEND } from './terrainProtocols';
+import type { OverlayId } from './analysisLayers';
 
-export type OverlayId = 'slope' | 'aspect' | 'groundcover';
+export type { OverlayId } from './analysisLayers';
 
 // Water is not part of the ground-cover overlay — it renders from the dedicated
 // Water layer/toggle — so it is intentionally absent here.

@@ -3,13 +3,15 @@ import type {
   CoverGeometryMetadata,
   CoverDisplayMetadata,
   CoverGrid,
-  LocalImageryMetadata,
   OriginalCoverMetadata,
   SiteCoverGrid,
+} from './types/cover';
+import type {
+  LocalImageryMetadata,
   TerrainPackageManifest,
   TerrainPackageValidation,
   TerrainRecord,
-} from './types';
+} from './types/terrain';
 import { COVER_DISPLAY_VERTEX_BUDGET, inspectCoverDisplayGeometry, type CoverDisplayStats } from './coverDisplay';
 
 /** Small deterministic checksum used to detect truncated/corrupt package files. */

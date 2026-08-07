@@ -1,0 +1,45 @@
+import { expect, openMenu, test } from '../support/deterministicApp';
+import { seedPreparedResort } from '../support/preparedResort';
+
+test('main menu enters the New Game site-picker shell', async ({ page }) => {
+  await openMenu(page);
+
+  await expect(page.getByRole('button', { name: 'Continue Game' })).toBeDisabled();
+  await page.getByRole('button', { name: 'New Game' }).click();
+
+  await expect(page.locator('.main-menu')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Menu', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Select site/ })).toBeVisible();
+  await expect(page.locator('.game-dock')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Menu', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Load' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Save' })).toHaveCount(0);
+});
+
+test('a prepared resort reveals a usable, mutually exclusive construction dock', async ({ page }) => {
+  await seedPreparedResort(page);
+
+  const continueButton = page.getByRole('button', { name: 'Continue Game' });
+  await expect(continueButton).toBeEnabled();
+  await continueButton.click();
+
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+  await expect(page.locator('.game-dock')).toBeVisible();
+  await expect(page.getByText('Deterministic Peak', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Layers' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ski lifts' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ski runs' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Snowmaking' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Infrastructure' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Layers' }).click();
+  await expect(page.locator('.dock-layers')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Layers' })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.getByRole('button', { name: 'Ski lifts' }).click();
+  await expect(page.locator('.dock-layers')).toHaveCount(0);
+  await expect(page.locator('.dock-lifts')).toBeVisible();
+  await expect(page.getByText('Ski Lifts (0)', { exact: true })).toBeVisible();
+});

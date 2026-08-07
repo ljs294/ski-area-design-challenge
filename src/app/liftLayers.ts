@@ -29,7 +29,7 @@ export interface DraftLine {
 }
 
 export function liftsToGeoJSON(
-  lifts: SavedLift[],
+  lifts: readonly SavedLift[],
   draft: DraftLine | null
 ): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = [];

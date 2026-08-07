@@ -20,7 +20,8 @@ import {
   type PathEdge,
   type TrailEdge,
 } from './network';
-import type { AnchorRef, SavedNode, SavedPath } from './skiNodes';
+import type { AnchorRef } from './types/anchors';
+import type { SavedNode, SavedPath } from './types/topology';
 import type { SavedLift, SavedTrail } from './types';
 
 // Fixtures are laid out in flat meters around a Cascades-ish anchor and then

@@ -4,7 +4,8 @@ import type { CoverEditRequest } from './coverEditProtocol';
 
 const scope: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope;
 scope.onmessage = (event: MessageEvent<CoverEditRequest>) => {
-  const response = processCoverEdit(event.data);
+  const result = processCoverEdit(event.data);
+  const response = { id: event.data.id, ...result };
   if (!response.ok) {
     scope.postMessage(response);
     return;

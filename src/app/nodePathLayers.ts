@@ -1,5 +1,5 @@
 import type maplibregl from 'maplibre-gl';
-import type { SavedJunction, SavedNode, SavedPath } from '../skiNodes';
+import type { SavedJunction, SavedNode, SavedPath } from '../types/topology';
 
 // Node/path rendering: free-standing map pins ("nodes") and the footpaths
 // that connect them to lifts, runs, or each other. Mirrors liftLayers.ts —

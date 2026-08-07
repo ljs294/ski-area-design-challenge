@@ -1,8 +1,10 @@
 import { haversineMeters } from './geo';
 import { makeFrame, pointSegmentDistance, toMeters } from './network';
-import { describeAnchor, sanitizeAnchor, type AnchorRef, type SavedJunction, type SavedNode,
-  type SavedPath } from './skiNodes';
-import type { SavedLift, SavedTrail, SavedTrailPart, SavedTrailSegment } from './types';
+import { describeAnchor, sanitizeAnchor } from './skiNodes';
+import type { AnchorRef } from './types/anchors';
+import type { SavedLift } from './types/lifts';
+import type { SavedJunction, SavedNode, SavedPath, SavedTrailSegment } from './types/topology';
+import type { SavedTrail, SavedTrailPart } from './types/trails';
 
 const SAME_POINT_M = 0.25;
 

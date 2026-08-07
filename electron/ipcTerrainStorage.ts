@@ -4,6 +4,7 @@ import path from 'path';
 import {
   TERRAIN_SAVE_CHANNEL,
   TERRAIN_SAVE_COVER_CHANNEL,
+  TERRAIN_SAVE_CONTEXT_CHANNEL,
   TERRAIN_LOAD_CHANNEL,
   TERRAIN_LIST_CHANNEL,
   TERRAIN_DELETE_CHANNEL,
@@ -13,6 +14,8 @@ import type {
   TerrainSaveResponse,
   TerrainCoverSaveRequest,
   TerrainCoverSaveResponse,
+  TerrainMapContextSaveRequest,
+  TerrainMapContextSaveResponse,
   TerrainLoadRequest,
   TerrainLoadResponse,
   TerrainListResponse,
@@ -356,6 +359,42 @@ export function registerTerrainStorageHandlers(): void {
           fsp.rm(coverTmp, { force: true }),
           fsp.rm(coverDisplayTmp, { force: true }),
         ]);
+      }
+    },
+  );
+
+  ipcMain.handle(
+    TERRAIN_SAVE_CONTEXT_CHANNEL,
+    (_event, req: TerrainMapContextSaveRequest): TerrainMapContextSaveResponse => {
+      if (!req || typeof req.key !== 'string' || !req.vectorFeatures ||
+          Number.isNaN(Date.parse(req.updatedAt))) {
+        return { ok: false, error: 'Map-context update is invalid' };
+      }
+      const collections = ['roads', 'waterLines', 'waterPolygons', 'landCover', 'peaks'] as const;
+      if (!collections.every((key) => Array.isArray(req.vectorFeatures[key]))) {
+        return { ok: false, error: 'Map-context collections are incomplete' };
+      }
+      const metaPath = safeFilePath(req.key, '.json');
+      if (!metaPath) return { ok: false, error: 'Invalid terrain key' };
+      const metaTmp = `${metaPath}.${process.pid}-${Date.now()}.tmp`;
+      try {
+        const existing = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as TerrainRecord;
+        if (existing.key !== req.key) return { ok: false, error: 'Stored terrain key does not match' };
+        const metadata: TerrainRecord = { ...existing,
+          vectorFeatures: req.vectorFeatures, updatedAt: req.updatedAt };
+        fs.writeFileSync(metaTmp, JSON.stringify(metadata), 'utf-8');
+        JSON.parse(fs.readFileSync(metaTmp, 'utf-8'));
+        fs.rmSync(metaPath, { force: true });
+        fs.renameSync(metaTmp, metaPath);
+        const index = readIndex().filter((summary) => summary.key !== req.key);
+        index.push(toSummary(metadata));
+        writeIndex(index);
+        return { ok: true, key: req.key };
+      } catch (error) {
+        return { ok: false,
+          error: error instanceof Error ? error.message : 'Unable to save map context' };
+      } finally {
+        fs.rmSync(metaTmp, { force: true });
       }
     },
   );

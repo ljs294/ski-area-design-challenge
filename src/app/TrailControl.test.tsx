@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { TrailControl, type DraftTrail } from './TrailControl';
+import { TrailControl } from './TrailControl';
+import type { DraftTrail } from './trailControllerModel';
 import type { AnchorWorld } from '../topology';
 import type { SavedLift } from '../types';
 

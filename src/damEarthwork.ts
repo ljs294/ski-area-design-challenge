@@ -4,7 +4,7 @@ import {
   validElevation, WATER_FACE_SLOPE,
   type Point, type TerrainMetrics, type XY,
 } from './earthwork';
-import type { TerrainRecord } from './types';
+import type { TerrainRecord } from './types/terrain';
 
 /** Freeboard and crest are the pond berm's, so a dam and a pond edge are the
  * same structure at different scales. */

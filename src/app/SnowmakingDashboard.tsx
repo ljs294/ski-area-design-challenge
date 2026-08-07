@@ -3,7 +3,8 @@ import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import { formatLakeVolume } from '../lakeAnalysis';
 import { fmtDistance } from '../lifts';
 import { makeFrame, simplifyRing, toMeters, type MetersFrame, type XY } from '../network';
-import { SNOWMAKING_NODE_LABELS, type SavedSnowmakingNode, type SnowmakingNodeKind } from '../snowmakingNodes';
+import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
+import type { SavedSnowmakingNode, SnowmakingNodeKind } from '../types/snowmaking';
 import type { SavedDam, SavedLift, SavedPond, SavedTrail, TerrainRecord } from '../types';
 import { FILL_BY_CODE } from './coverVectorize';
 import { localContourGeoJSON } from './localContours';
@@ -285,6 +286,7 @@ export function SnowmakingDashboard({
       }
     }
     return [...dByCode.entries()].map(([code, ds]) => ({ code, d: ds.join(' ') }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- place is entirely derived from frame, which is already a dependency.
   }, [coverDisplay, frame, fitWidthM]);
 
   // -- elevation contours -----------------------------------------------------
@@ -310,6 +312,7 @@ export function SnowmakingDashboard({
       }
     }
     return { major: major.join(' '), minor: minor.join(' ') };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- place is entirely derived from frame, which is already a dependency.
   }, [terrainRecord, units, frame]);
 
   const scaleM = niceDistance(active.w / 5);

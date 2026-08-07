@@ -1652,6 +1652,59 @@ html.resume-capture .maplibregl-canvas {
   margin-bottom: 8px;
 }
 
+/* Settings alone owns a fixed modal frame: shared panels such as Credits and
+   Unsaved Changes keep their existing natural-height scrolling behavior. */
+.settings-panel-tabbed {
+  box-sizing: border-box;
+  width: 440px;
+  height: min(680px, 84vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--seg-bg);
+}
+
+.settings-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 8px 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-tab:hover { color: var(--text); }
+.settings-tab-active {
+  background: var(--surface-solid);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+.settings-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.settings-tabpanel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.settings-tabpanel[hidden] { display: none; }
+
 /* Unsaved-changes gate on leaving a resort. */
 .unsaved-panel {
   width: 380px;
@@ -1764,6 +1817,37 @@ html.resume-capture .maplibregl-canvas {
   letter-spacing: 0.04em;
 }
 
+.resort-data-panel {
+  justify-content: flex-start;
+}
+.resort-data-status,
+.resort-data-description,
+.resort-data-error {
+  margin: 14px 0 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.resort-data-status {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+}
+.resort-data-description { color: var(--text-muted); }
+.resort-data-error {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.resort-data-download-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 12px;
+}
+
 /* Per-action rebind button in the Controls section — a compact .seg-btn. */
 .keybind-btn {
   min-width: 64px;
@@ -1845,6 +1929,7 @@ html.resume-capture .maplibregl-canvas {
 }
 
 .settings-done-btn {
+  flex: 0 0 auto;
   width: 100%;
   margin-top: 18px;
   padding: 11px;

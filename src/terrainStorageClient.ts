@@ -6,11 +6,12 @@ import { desktop } from './desktopBridge';
 import type {
   TerrainSaveResponse,
   TerrainCoverSaveRequest,
+  TerrainMapContextSaveRequest,
   TerrainLoadResponse,
   TerrainListResponse,
   TerrainDeleteResponse,
 } from './ipcContract';
-import type { TerrainRecord, TerrainSummary } from './types';
+import type { TerrainRecord, TerrainSummary } from './types/terrain';
 
 const LEGACY_PREFIX = 'terrain-fallback:';
 const LEGACY_INDEX_KEY = 'terrain-fallback-index';
@@ -107,6 +108,40 @@ export async function saveTerrainCover(record: TerrainRecord): Promise<TerrainSa
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Unknown error saving terrain cover' };
   }
+}
+
+/** Persist only OSM context. Desktop merges JSON metadata in place; the browser
+ * performs the equivalent read-modify-write in one IndexedDB transaction. */
+export async function saveTerrainMapContext(
+  request: TerrainMapContextSaveRequest,
+): Promise<TerrainSaveResponse> {
+  if (desktop) return desktop.terrain.saveMapContext(request);
+  const db = await openTerrainDb();
+  return new Promise((resolve) => {
+    const transaction = db.transaction(STORE, 'readwrite');
+    const store = transaction.objectStore(STORE);
+    const read = store.get(request.key) as IDBRequest<TerrainRecord | undefined>;
+    let failure: string | null = null;
+    read.onerror = () => { failure = read.error?.message ?? 'Unable to read terrain package'; };
+    read.onsuccess = () => {
+      if (!read.result) {
+        failure = 'Terrain package is missing';
+        return;
+      }
+      store.put({ ...read.result, vectorFeatures: request.vectorFeatures,
+        updatedAt: request.updatedAt });
+    };
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(failure ? { ok: false, error: failure } : { ok: true, key: request.key });
+    };
+    transaction.onerror = () => {
+      const error = transaction.error?.message ?? failure ?? 'Unable to save map context';
+      db.close();
+      resolve({ ok: false, error });
+    };
+    transaction.onabort = transaction.onerror;
+  });
 }
 
 export async function loadTerrain(key: string): Promise<TerrainLoadResponse> {

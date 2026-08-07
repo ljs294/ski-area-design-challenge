@@ -1,0 +1,380 @@
+import { liftJunction, removeJunction, splitTrailAt } from '../topology';
+import type { SavedLift } from '../types/lifts';
+import type { SavedJunction, SavedNode, SavedPath } from '../types/topology';
+import type { SavedTrail } from '../types/trails';
+import type { DeepReadonly } from '../types/readonly';
+
+/**
+ * The ski topology as one document: runs, the junctions that stitch them
+ * together, connector paths, and the legacy free-standing nodes.
+ *
+ * These four collections describe one graph, but they used to be four
+ * independent React setters. Splitting a run publishes a trail whose segments
+ * name a junction that does not exist yet unless both land together, and
+ * confirming a run materializes up to two junctions across an await — long
+ * enough for the collections it read to have moved on. A transaction takes a
+ * working copy, applies pure topology operations to it, and lands every
+ * collection it touched in one publication against the revision it started
+ * from.
+ */
+export interface TopologyState {
+  trails: SavedTrail[];
+  nodes: SavedNode[];
+  paths: SavedPath[];
+  junctions: SavedJunction[];
+}
+
+interface MutableTopologySnapshot extends TopologyState {
+  readonly revision: number;
+}
+
+export type TopologySnapshot = DeepReadonly<MutableTopologySnapshot>;
+
+/** React and persistence models still use the mutable saved-data interfaces.
+ * Give those projections an owned copy instead of weakening the document's
+ * read-only snapshot contract. Mutating the projection cannot mutate the
+ * document or bypass its revision. */
+export function topologyProjection(snapshot: TopologySnapshot): TopologyState {
+  return structuredClone({
+    trails: snapshot.trails,
+    nodes: snapshot.nodes,
+    paths: snapshot.paths,
+    junctions: snapshot.junctions,
+  }) as TopologyState;
+}
+
+export interface TopologyChanged {
+  trails: boolean;
+  nodes: boolean;
+  paths: boolean;
+  junctions: boolean;
+}
+
+export interface TopologyChange {
+  readonly snapshot: TopologySnapshot;
+  readonly changed: TopologyChanged;
+}
+
+export type TopologyCommitResult =
+  | { ok: true; revision: number; changed: boolean }
+  | { ok: false; reason: 'stale' | 'settled' };
+
+const TOPOLOGY_PREPARATION = Symbol('topology-preparation');
+
+/** Opaque two-phase commit owned by one transaction and its document. */
+export interface PreparedTopologyCommit {
+  readonly revision: number;
+  readonly changed: boolean;
+  readonly [TOPOLOGY_PREPARATION]: {
+    readonly owner: TopologyDocument;
+    readonly transaction: TopologyTransaction;
+    readonly baseRevision: number;
+    readonly snapshot: MutableTopologySnapshot;
+    readonly changedCollections: TopologyChanged;
+    applied: boolean;
+    published: boolean;
+    cancelled: boolean;
+  };
+}
+
+export type TopologyPrepareResult =
+  | { ok: true; prepared: PreparedTopologyCommit }
+  | { ok: false; reason: 'stale' | 'settled' };
+
+function stateOf(state: TopologyState): TopologyState {
+  return {
+    trails: state.trails,
+    nodes: state.nodes,
+    paths: state.paths,
+    junctions: state.junctions,
+  };
+}
+
+/** Topology is small compared with terrain. Take ownership of every nested
+ * value at publication so neither a caller nor a snapshot consumer can mutate
+ * the document without a revisioned command. */
+function ownedSnapshot(state: TopologyState, revision: number): MutableTopologySnapshot {
+  const owned = structuredClone({ ...stateOf(state), revision });
+  const freeze = (value: unknown): void => {
+    if (!value || typeof value !== 'object' || Object.isFrozen(value)) return;
+    for (const child of Object.values(value)) freeze(child);
+    Object.freeze(value);
+  };
+  freeze(owned);
+  return owned;
+}
+
+/** Every operation replaces the collection it touches, so identity is the
+ *  exact test for "this edit moved that collection". */
+function changedBetween(base: TopologyState, next: TopologyState): TopologyChanged {
+  return {
+    trails: next.trails !== base.trails,
+    nodes: next.nodes !== base.nodes,
+    paths: next.paths !== base.paths,
+    junctions: next.junctions !== base.junctions,
+  };
+}
+
+/**
+ * One atomic edit in progress. Every operation replaces the collection it
+ * touches rather than mutating it, so the document a consumer is holding is
+ * never disturbed by an edit that is later abandoned or rejected.
+ */
+export class TopologyTransaction {
+  private readonly document: TopologyDocument;
+  private readonly base: MutableTopologySnapshot;
+  private next: TopologyState;
+  private settled = false;
+  private prepared: PreparedTopologyCommit | null = null;
+
+  constructor(document: TopologyDocument, base: MutableTopologySnapshot) {
+    this.document = document;
+    this.base = base;
+    this.next = stateOf(base);
+  }
+
+  /** The revision this edit was built against. */
+  get baseRevision(): number {
+    return this.base.revision;
+  }
+
+  /** Which collections this edit has moved so far. An operation that resolved
+   *  to something already there leaves every one of them false. */
+  get changed(): TopologyChanged {
+    return changedBetween(this.base, this.next);
+  }
+
+  /** Split a run at `point`, materializing its junction — or reusing the one
+   *  already there, in which case no collection moves. */
+  splitTrail(
+    trailId: string,
+    point: [number, number],
+    idFactory: () => string,
+  ): SavedJunction | null {
+    const edit = splitTrailAt(this.next.trails, this.next.junctions, trailId, point, idFactory);
+    if (!edit) return null;
+    this.next.trails = edit.trails;
+    this.next.junctions = edit.junctions;
+    return edit.junction;
+  }
+
+  /** Materialize (or reuse) the junction standing at a lift terminal. */
+  liftTerminalJunction(
+    lifts: SavedLift[],
+    liftId: string,
+    end: 'top' | 'base',
+    point: [number, number],
+    idFactory: () => string,
+  ): SavedJunction {
+    const edit = liftJunction(lifts, this.next.junctions, liftId, end, point, idFactory);
+    this.next.junctions = edit.junctions;
+    return edit.junction;
+  }
+
+  /** Dissolve a junction, merging the two segments it separated. */
+  removeJunction(junctionId: string): boolean {
+    const edit = removeJunction(this.next.trails, this.next.junctions, this.next.paths, junctionId);
+    if (!edit) return false;
+    this.next.trails = edit.trails;
+    this.next.junctions = edit.junctions;
+    return true;
+  }
+
+  addTrail(trail: SavedTrail): void {
+    this.next.trails = [...this.next.trails, trail];
+  }
+
+  patchTrail(id: string, patch: Partial<SavedTrail>): boolean {
+    const index = this.next.trails.findIndex((trail) => trail.id === id);
+    if (index < 0) return false;
+    const trail = this.next.trails[index];
+    if (Object.entries(patch).every(([key, value]) =>
+      Object.is(trail[key as keyof SavedTrail], value))) return false;
+    this.next.trails = this.next.trails.map((entry, position) =>
+      position === index ? { ...entry, ...patch } : entry);
+    return true;
+  }
+
+  /** Rewrite every run — the backfill path, which resolves elevations that a
+   *  save made offline could not. */
+  mapTrails(project: (trail: SavedTrail) => SavedTrail): void {
+    this.next.trails = this.next.trails.map(project);
+  }
+
+  /**
+   * Remove a run along with every junction nothing references any more. Lift
+   * terminals survive: they belong to the lift, not to the run that reached it.
+   */
+  removeTrail(id: string): boolean {
+    const remaining = this.next.trails.filter((trail) => trail.id !== id);
+    if (remaining.length === this.next.trails.length) return false;
+    const referenced = new Set(remaining.flatMap((trail) => trail.parts.flatMap((part) =>
+      (part.segments ?? []).flatMap((segment) => [segment.fromJunctionId, segment.toJunctionId]))));
+    for (const path of this.next.paths) {
+      if (path.fromJunctionId) referenced.add(path.fromJunctionId);
+      if (path.toJunctionId) referenced.add(path.toJunctionId);
+    }
+    this.next.junctions = this.next.junctions.filter((junction) =>
+      junction.liftTerminal || referenced.has(junction.id));
+    this.next.trails = remaining;
+    return true;
+  }
+
+  removeNode(id: string): boolean {
+    const nodes = this.next.nodes.filter((node) => node.id !== id);
+    if (nodes.length === this.next.nodes.length) return false;
+    this.next.nodes = nodes;
+    return true;
+  }
+
+  addNode(node: SavedNode): void {
+    this.next.nodes = [...this.next.nodes, node];
+  }
+
+  addPath(path: SavedPath): void {
+    this.next.paths = [...this.next.paths, path];
+  }
+
+  patchPath(id: string, patch: Partial<SavedPath>): boolean {
+    const index = this.next.paths.findIndex((path) => path.id === id);
+    if (index < 0) return false;
+    const path = this.next.paths[index];
+    if (Object.entries(patch).every(([key, value]) =>
+      Object.is(path[key as keyof SavedPath], value))) return false;
+    this.next.paths = this.next.paths.map((entry, position) =>
+      position === index ? { ...entry, ...patch } : entry);
+    return true;
+  }
+
+  removePath(id: string): boolean {
+    const paths = this.next.paths.filter((path) => path.id !== id);
+    if (paths.length === this.next.paths.length) return false;
+    this.next.paths = paths;
+    return true;
+  }
+
+  /** Publish every collection this edit touched, or reject the whole edit
+   *  because the document moved underneath it. */
+  commit(): TopologyCommitResult {
+    const preparation = this.prepareCommit();
+    if (!preparation.ok) return preparation;
+    if (!this.document.applyPrepared(preparation.prepared)) {
+      return { ok: false, reason: this.settled ? 'settled' : 'stale' };
+    }
+    this.document.publishPrepared(preparation.prepared);
+    return {
+      ok: true,
+      revision: preparation.prepared.revision,
+      changed: preparation.prepared.changed,
+    };
+  }
+
+  /** Validate and own the completed edit without changing the live document. */
+  prepareCommit(): TopologyPrepareResult {
+    if (this.settled || this.prepared) return { ok: false, reason: 'settled' };
+    const preparation = this.document.prepareCommit(this, this.base, this.next);
+    if (preparation.ok) this.prepared = preparation.prepared;
+    return preparation;
+  }
+
+  /** Called only by the owning document when a preparation becomes live. */
+  settlePrepared(prepared: PreparedTopologyCommit): boolean {
+    if (this.settled || this.prepared !== prepared) return false;
+    this.settled = true;
+    return true;
+  }
+
+  /** Apply this transaction's prepared snapshot without notifying observers. */
+  applyPrepared(prepared: PreparedTopologyCommit): boolean {
+    return this.document.applyPrepared(prepared);
+  }
+
+  /** Notify observers after the prepared snapshot has become authoritative. */
+  publishPrepared(prepared: PreparedTopologyCommit): void {
+    this.document.publishPrepared(prepared);
+  }
+
+  /** Abandon the edit. Nothing was published, so there is nothing to undo. */
+  abort(): void {
+    if (this.prepared) this.prepared[TOPOLOGY_PREPARATION].cancelled = true;
+    this.settled = true;
+  }
+}
+
+export class TopologyDocument {
+  private current: MutableTopologySnapshot;
+  private readonly onChange: (change: TopologyChange) => void;
+
+  /**
+   * The clean load: hydrated, sanitized collections seeded at revision zero.
+   * There is no runtime replacement command because opening another resort
+   * remounts the session rather than swapping a document underneath it.
+   */
+  constructor(initial: TopologyState, onChange: (change: TopologyChange) => void = () => {}) {
+    this.current = ownedSnapshot(initial, 0);
+    this.onChange = onChange;
+  }
+
+  snapshot(): TopologySnapshot {
+    return this.current;
+  }
+
+  get revision(): number {
+    return this.current.revision;
+  }
+
+  /** Begin an atomic edit against the current revision. */
+  begin(): TopologyTransaction {
+    return new TopologyTransaction(this, this.current);
+  }
+
+  /** Validate and own a transaction result without changing live state. */
+  prepareCommit(
+    transaction: TopologyTransaction,
+    base: MutableTopologySnapshot,
+    next: TopologyState,
+  ): TopologyPrepareResult {
+    if (base.revision !== this.current.revision) return { ok: false, reason: 'stale' };
+    const changedCollections = changedBetween(base, next);
+    const changed = Object.values(changedCollections).some(Boolean);
+    const revision = this.current.revision + (changed ? 1 : 0);
+    const snapshot = changed ? ownedSnapshot(next, revision) : this.current;
+    const prepared: PreparedTopologyCommit = {
+      revision,
+      changed,
+      [TOPOLOGY_PREPARATION]: {
+        owner: this,
+        transaction,
+        baseRevision: base.revision,
+        snapshot,
+        changedCollections,
+        applied: false,
+        published: false,
+        cancelled: false,
+      },
+    };
+    return { ok: true, prepared };
+  }
+
+  /** Apply without notifying observers, allowing a coordinator to move all
+   * authoritative documents before any projection sees the change. */
+  applyPrepared(prepared: PreparedTopologyCommit): boolean {
+    const state = prepared[TOPOLOGY_PREPARATION];
+    if (state.owner !== this || state.applied || state.cancelled ||
+        state.baseRevision !== this.current.revision ||
+        !state.transaction.settlePrepared(prepared)) return false;
+    if (prepared.changed) this.current = state.snapshot;
+    state.applied = true;
+    return true;
+  }
+
+  /** Notify observers after a preparation has become authoritative. */
+  publishPrepared(prepared: PreparedTopologyCommit): void {
+    const state = prepared[TOPOLOGY_PREPARATION];
+    if (state.owner !== this || !state.applied || state.published) return;
+    state.published = true;
+    if (prepared.changed) {
+      this.onChange({ snapshot: state.snapshot, changed: state.changedCollections });
+    }
+  }
+}

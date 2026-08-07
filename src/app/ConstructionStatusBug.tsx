@@ -1,4 +1,4 @@
-export type ConstructionActivity = 'lift' | 'trail' | 'road' | 'pond' | 'dam';
+import type { ConstructionActivity } from './constructionLock';
 
 const LABELS: Record<ConstructionActivity, string> = {
   lift: 'Building lift…',

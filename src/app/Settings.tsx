@@ -1,10 +1,44 @@
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useSettings } from './SettingsContext';
 import type { Theme, Units, RenderQuality } from './SettingsContext';
 import type { WindowMode } from '../ipcContract';
 import { isDesktop } from '../desktopBridge';
 import { GAME_ACTION_LABELS, GAME_ACTION_ORDER, actionForKey, normalizeKey } from '../keybinds';
 import type { GameAction } from '../keybinds';
+
+export interface ResortSettingsCapability {
+  mapContextAvailable: boolean;
+  downloadMapContext(
+    signal: AbortSignal,
+  ): Promise<{ ok: true } | { ok: false; error: string }>;
+}
+
+export interface SettingsProps {
+  onClose: () => void;
+  resortSettings?: ResortSettingsCapability;
+}
+
+type SettingsTab = 'general' | 'controls' | 'resort-data';
+
+interface SettingsTabDefinition {
+  id: SettingsTab;
+  label: string;
+}
+
+type MapContextDownloadState =
+  | { status: 'idle' }
+  | { status: 'downloading' }
+  | { status: 'success' }
+  | { status: 'error'; error: string };
+
+const GENERAL_TAB: SettingsTabDefinition = { id: 'general', label: 'General' };
+const CONTROLS_TAB: SettingsTabDefinition = { id: 'controls', label: 'Controls' };
+const RESORT_DATA_TAB: SettingsTabDefinition = { id: 'resort-data', label: 'Resort Data' };
 
 /** A segmented row of mutually-exclusive choices. */
 function Segmented<T extends string>({
@@ -22,14 +56,14 @@ function Segmented<T extends string>({
     <div className="setting-row">
       <span className="setting-label">{label}</span>
       <div className="segmented">
-        {options.map((o) => (
+        {options.map((option) => (
           <button
-            key={o.value}
-            className={`seg-btn${value === o.value ? ' seg-btn-active' : ''}`}
-            aria-pressed={value === o.value}
-            onClick={() => onChange(o.value)}
+            key={option.value}
+            className={`seg-btn${value === option.value ? ' seg-btn-active' : ''}`}
+            aria-pressed={value === option.value}
+            onClick={() => onChange(option.value)}
           >
-            {o.label}
+            {option.label}
           </button>
         ))}
       </div>
@@ -37,51 +71,60 @@ function Segmented<T extends string>({
   );
 }
 
-export function Settings({ onClose }: { onClose: () => void }) {
+function tabId(tab: SettingsTab): string {
+  return `settings-tab-${tab}`;
+}
+
+function panelId(tab: SettingsTab): string {
+  return `settings-panel-${tab}`;
+}
+
+export function Settings({ onClose, resortSettings }: SettingsProps) {
   const {
     settings, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
     setKeybind, resetKeybinds,
   } = useSettings();
-
-  // Which action (if any) is currently listening for its next keypress, and
-  // a transient conflict message when the pressed key already belongs to a
-  // different action. Both are local UI state — nothing here is persisted
-  // until a non-conflicting key is actually assigned.
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [listeningFor, setListeningFor] = useState<GameAction | null>(null);
   const [conflict, setConflict] = useState<{ action: GameAction; key: string } | null>(null);
+  const [mapContextDownload, setMapContextDownload] = useState<MapContextDownloadState>({
+    status: 'idle',
+  });
+  const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
+  const downloadController = useRef<AbortController | null>(null);
 
-  // Escape closes the whole Settings panel — but not while the Controls
-  // rebind listener below owns the keydown (it treats Escape as "cancel
-  // listening" and calls stopImmediatePropagation, so this bails out on the
-  // same state it's guarded by rather than relying on effect registration
-  // order between two independent listeners on the same `window` target).
+  const tabs: SettingsTabDefinition[] = resortSettings
+    ? [GENERAL_TAB, CONTROLS_TAB, RESORT_DATA_TAB]
+    : [GENERAL_TAB, CONTROLS_TAB];
+
+  // Escape closes Settings unless a keybinding listener owns that key, in
+  // which case Escape only cancels the in-progress binding.
   useEffect(() => {
     if (listeningFor !== null) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [listeningFor, onClose]);
 
-  // While rebinding, capture the very next keydown anywhere and stop it from
-  // reaching anything else (MapView's global camera-control listener sits on
-  // the same `window` target underneath this modal).
+  // While rebinding, capture the next keydown before MapView's global camera
+  // controls can observe it.
   useEffect(() => {
     if (listeningFor === null) return;
     const action = listeningFor;
-    const onKey = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      if (e.key === 'Escape') {
+    const onKey = (event: KeyboardEvent) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.key === 'Escape') {
         setListeningFor(null);
         return;
       }
-      const key = normalizeKey(e.key);
+      const key = normalizeKey(event.key);
       const owner = actionForKey(settings.keybinds, key);
       if (owner !== null && owner !== action) {
         setConflict({ action: owner, key });
-        return; // leave listeningFor as-is so the user can try another key
+        return;
       }
       setKeybind(action, key);
       setListeningFor(null);
@@ -90,32 +133,97 @@ export function Settings({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [listeningFor, settings.keybinds, setKeybind]);
 
-  // Clear a conflict message shortly after it appears, or as soon as the
-  // user starts listening for a different key.
   useEffect(() => {
     if (!conflict) return;
-    const t = setTimeout(() => setConflict(null), 2000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setConflict(null), 2000);
+    return () => clearTimeout(timer);
   }, [conflict]);
+
   useEffect(() => {
     setConflict(null);
   }, [listeningFor]);
 
-  const themeOpts: { value: Theme; label: string }[] = [
+  // Closing Settings cancels provider work that has not reached its commit.
+  useEffect(() => () => {
+    downloadController.current?.abort();
+  }, []);
+
+  // App removes the transient capability when the active MapView goes away.
+  // Abort here as well because Settings can briefly outlive that view during a
+  // screen transition.
+  useEffect(() => {
+    if (!resortSettings) {
+      downloadController.current?.abort();
+      downloadController.current = null;
+      setActiveTab('general');
+      setMapContextDownload({ status: 'idle' });
+    }
+  }, [resortSettings]);
+
+  const selectTab = (tab: SettingsTab) => {
+    if (tab !== 'controls') {
+      setListeningFor(null);
+      setConflict(null);
+    }
+    setActiveTab(tab);
+  };
+
+  const onTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, tab: SettingsTab) => {
+    const currentIndex = tabs.findIndex((candidate) => candidate.id === tab);
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+    if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = tabs.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const nextTab = tabs[nextIndex].id;
+    selectTab(nextTab);
+    tabRefs.current[nextTab]?.focus();
+  };
+
+  const downloadMapContext = async () => {
+    if (!resortSettings || mapContextDownload.status === 'downloading') return;
+
+    const controller = new AbortController();
+    downloadController.current?.abort();
+    downloadController.current = controller;
+    setMapContextDownload({ status: 'downloading' });
+
+    try {
+      const result = await resortSettings.downloadMapContext(controller.signal);
+      if (controller.signal.aborted) return;
+      setMapContextDownload(result.ok
+        ? { status: 'success' }
+        : { status: 'error', error: result.error });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setMapContextDownload({
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Map context could not be downloaded.',
+      });
+    } finally {
+      if (downloadController.current === controller) downloadController.current = null;
+    }
+  };
+
+  const themeOptions: { value: Theme; label: string }[] = [
     { value: 'light', label: 'Light' },
     { value: 'dark', label: 'Dark' },
     { value: 'system', label: 'System' },
   ];
-  const unitOpts: { value: Units; label: string }[] = [
+  const unitOptions: { value: Units; label: string }[] = [
     { value: 'imperial', label: 'Feet' },
     { value: 'metric', label: 'Meters' },
   ];
-  const qualityOpts: { value: RenderQuality; label: string }[] = [
+  const qualityOptions: { value: RenderQuality; label: string }[] = [
     { value: 'standard', label: 'Standard' },
     { value: 'high', label: 'High' },
     { value: 'ultra', label: 'Ultra' },
   ];
-  const windowOpts: { value: WindowMode; label: string }[] = isDesktop
+  const windowOptions: { value: WindowMode; label: string }[] = isDesktop
     ? [
         { value: 'windowed', label: 'Windowed' },
         { value: 'fullscreen', label: 'Fullscreen' },
@@ -126,33 +234,73 @@ export function Settings({ onClose }: { onClose: () => void }) {
         { value: 'fullscreen', label: 'Fullscreen' },
       ];
 
+  const mapContextAvailable = resortSettings?.mapContextAvailable === true
+    || mapContextDownload.status === 'success';
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="settings-panel settings-panel-tabbed" onClick={(event) => event.stopPropagation()}>
         <div className="settings-header">
           <h2 className="settings-title">Settings</h2>
           <button className="settings-close-x" aria-label="Close settings" onClick={onClose}>
-            ✕
+            ×
           </button>
         </div>
 
-        <div className="settings-body">
-          <Segmented label="Theme" value={settings.theme} options={themeOpts} onChange={setTheme} />
+        <div className="settings-tabs" role="tablist" aria-label="Settings sections">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              ref={(element) => { tabRefs.current[tab.id] = element; }}
+              id={tabId(tab.id)}
+              type="button"
+              className={`settings-tab${activeTab === tab.id ? ' settings-tab-active' : ''}`}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls={panelId(tab.id)}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              onClick={() => selectTab(tab.id)}
+              onKeyDown={(event) => onTabKeyDown(event, tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div
+          id={panelId('general')}
+          className="settings-body settings-tabpanel"
+          role="tabpanel"
+          aria-labelledby={tabId('general')}
+          hidden={activeTab !== 'general'}
+        >
+          <Segmented
+            label="Theme"
+            value={settings.theme}
+            options={themeOptions}
+            onChange={setTheme}
+          />
           <Segmented
             label="Window"
             value={settings.windowMode}
-            options={windowOpts}
+            options={windowOptions}
             onChange={setWindowMode}
           />
-          <Segmented label="Units" value={settings.units} options={unitOpts} onChange={setUnits} />
-
+          <Segmented
+            label="Units"
+            value={settings.units}
+            options={unitOptions}
+            onChange={setUnits}
+          />
           <Segmented
             label="Render quality"
             value={settings.renderQuality}
-            options={qualityOpts}
+            options={qualityOptions}
             onChange={setRenderQuality}
           />
-          <p className="setting-hint">Sharper map textures at higher GPU cost. Standard matches your display.</p>
+          <p className="setting-hint">
+            Sharper map textures at higher GPU cost. Standard matches your display.
+          </p>
 
           <div className="setting-row">
             <span className="setting-label">Reduced motion</span>
@@ -160,13 +308,20 @@ export function Settings({ onClose }: { onClose: () => void }) {
               <input
                 type="checkbox"
                 checked={settings.reducedMotion}
-                onChange={(e) => setReducedMotion(e.target.checked)}
+                onChange={(event) => setReducedMotion(event.target.checked)}
               />
               <span className="switch-track" />
             </label>
           </div>
+        </div>
 
-          <h3 className="settings-section-title">Controls</h3>
+        <div
+          id={panelId('controls')}
+          className="settings-body settings-tabpanel"
+          role="tabpanel"
+          aria-labelledby={tabId('controls')}
+          hidden={activeTab !== 'controls'}
+        >
           {GAME_ACTION_ORDER.map((action) => (
             <div className="setting-row" key={action}>
               <span className="setting-label">{GAME_ACTION_LABELS[action]}</span>
@@ -180,7 +335,7 @@ export function Settings({ onClose }: { onClose: () => void }) {
             </div>
           ))}
           {conflict && (
-            <p className="setting-hint">
+            <p className="setting-hint" role="alert">
               {conflict.key.toUpperCase()} is already used by {GAME_ACTION_LABELS[conflict.action]}
             </p>
           )}
@@ -188,6 +343,55 @@ export function Settings({ onClose }: { onClose: () => void }) {
             Reset controls to defaults
           </button>
         </div>
+
+        {resortSettings && (
+          <div
+            id={panelId('resort-data')}
+            className="settings-body settings-tabpanel resort-data-panel"
+            role="tabpanel"
+            aria-labelledby={tabId('resort-data')}
+            aria-busy={mapContextDownload.status === 'downloading'}
+            hidden={activeTab !== 'resort-data'}
+          >
+            <h3 className="settings-section-title">Map context</h3>
+            {mapContextAvailable ? (
+              <p className="resort-data-status" role="status">Map context available</p>
+            ) : mapContextDownload.status === 'downloading' ? (
+              <>
+                <p className="resort-data-description" role="status" aria-live="polite">
+                  Downloading roads and water for this resort…
+                </p>
+                <button type="button" className="site-btn resort-data-download-btn" disabled>
+                  Downloading Map Context…
+                </button>
+              </>
+            ) : mapContextDownload.status === 'error' ? (
+              <>
+                <p className="resort-data-error" role="alert">{mapContextDownload.error}</p>
+                <button
+                  type="button"
+                  className="site-btn resort-data-download-btn"
+                  onClick={() => void downloadMapContext()}
+                >
+                  Retry Map Context
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="resort-data-description">
+                  Roads and water are not available for this resort. Download map context to add them.
+                </p>
+                <button
+                  type="button"
+                  className="site-btn resort-data-download-btn"
+                  onClick={() => void downloadMapContext()}
+                >
+                  Download Map Context
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         <button className="settings-done-btn" onClick={onClose}>
           Done

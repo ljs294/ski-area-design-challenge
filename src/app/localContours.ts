@@ -1,5 +1,6 @@
-import type { LatLonBounds } from '../elevation';
+import type { LatLonBounds } from '../types/geo';
 import type { TerrainRecord } from '../types';
+import type { DeepReadonly } from '../types/readonly';
 import { unitToLngLat } from '../geo';
 
 /** Group a flat `[x1, y1, x2, y2, levelM]` segment stream into one feature per
@@ -34,7 +35,7 @@ export function contourGeoJSON(
 }
 
 export function localContourGeoJSON(
-  record: TerrainRecord,
+  record: DeepReadonly<TerrainRecord>,
   imperial: boolean
 ): GeoJSON.FeatureCollection {
   return contourGeoJSON(record.contourSegments ?? [], record.bounds!, imperial);

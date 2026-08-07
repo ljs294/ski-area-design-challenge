@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, session } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { registerTerrainStorageHandlers } from './ipcTerrainStorage';
 import { registerGameSaveStorageHandlers } from './ipcGameSaveStorage';
+import { registerOverpassRequestIdentity } from './overpassRequestIdentity';
 import {
   WINDOW_GET_MODE_CHANNEL,
   WINDOW_SET_MODE_CHANNEL,
@@ -116,6 +117,7 @@ function applyWindowMode(win: BrowserWindow, mode: WindowMode): void {
 }
 
 app.whenReady().then(() => {
+  registerOverpassRequestIdentity(session.defaultSession.webRequest, app.getVersion());
   registerTerrainStorageHandlers();
   registerGameSaveStorageHandlers();
   createWindow();

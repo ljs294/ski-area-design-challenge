@@ -288,7 +288,8 @@ function AppInner() {
       )}
 
       {showLoad && <LoadGameModal onClose={() => setShowLoad(false)} onPick={(k, n) => void handleLoadPick(k, n)} />}
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showSettings && <Settings onClose={() => setShowSettings(false)}
+        resortSettings={sessionControlsRef.current?.resortSettings} />}
     </>
   );
 }

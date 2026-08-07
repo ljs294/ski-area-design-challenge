@@ -11,7 +11,6 @@ import {
   validateTerrainCoverEdit,
   validateTerrainPackage,
 } from './terrainPackage';
-import { hydrateTerrainRecord } from './terrainIngest';
 
 function record(): TerrainRecord {
   const coverGrid: SiteCoverGrid = {
@@ -145,15 +144,12 @@ describe('terrain package manifests', () => {
 });
 
 describe('legacy terrain records', () => {
-  it('remain hydratable but are rejected as gameplay packages for one-time preparation', () => {
+  it('are rejected as gameplay packages for one-time preparation', () => {
     const old: TerrainRecord = {
       schemaVersion: 2, key: 'old', mountainName: 'Old', latitude: 46.9, longitude: -121.5,
       areaSizeMeters: 2000, sampleGridSize: 2, sampleHeights: [1, 2, 3, 4],
       climate: { monthly: [] }, sourceType: 'live', createdAt: '2025-01-01', updatedAt: '2025-01-01',
     };
-    const hydrated = hydrateTerrainRecord(old);
-    expect(hydrated.bounds).toBeDefined();
-    expect(hydrated.displayHeights.length).toBeGreaterThan(0);
     expect(validateTerrainPackage(old).ok).toBe(false);
   });
 });
