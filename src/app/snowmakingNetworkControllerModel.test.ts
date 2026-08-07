@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { reduceSnowmakingNodeTool, reduceSnowmakingPipeTool,
-  IDLE_SNOWMAKING_NODE_TOOL, IDLE_SNOWMAKING_PIPE_TOOL } from './snowmakingNetworkControllerModel';
+  IDLE_SNOWMAKING_NODE_TOOL, IDLE_SNOWMAKING_PIPE_TOOL,
+  snowmakingPipePreview } from './snowmakingNetworkControllerModel';
 
 describe('snowmaking pipe tool reducer', () => {
   it('moves through armed, drawing, review, rename, and cancel', () => {
@@ -19,6 +20,20 @@ describe('snowmaking pipe tool reducer', () => {
     const drawing = reduceSnowmakingPipeTool({ phase: 'armed' }, { type: 'add',
       point: { point: [0, 0], snap: null } });
     expect(reduceSnowmakingPipeTool(drawing, { type: 'undo' })).toEqual({ phase: 'armed' });
+  });
+
+  it('keeps the completed route visible during review without a cursor segment', () => {
+    const points = [
+      { point: [0, 0] as [number, number], snap: null },
+      { point: [0, 0.001] as [number, number], snap: null },
+    ];
+    const review = reduceSnowmakingPipeTool({ phase: 'drawing', points,
+      cursor: [0, 0.002], cursorSnap: null }, { type: 'review', name: 'Pipe 1' });
+
+    expect(snowmakingPipePreview(review)).toEqual({
+      points: [[0, 0], [0, 0.001]],
+      cursor: null,
+    });
   });
 });
 

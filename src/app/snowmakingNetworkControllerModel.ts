@@ -86,3 +86,19 @@ export interface SnowmakingToolOptionsState {
   diameterIn: SnowmakingPipeDiameterIn;
   snapping: boolean;
 }
+
+/** Geometry that remains visible while a pipe is being drawn or reviewed. */
+export function snowmakingPipePreview(tool: SnowmakingPipeTool): {
+  points: [number, number][];
+  cursor: [number, number] | null;
+} | null {
+  if (tool.phase === 'drawing') return {
+    points: tool.points.map((draft) => draft.point),
+    cursor: tool.cursor,
+  };
+  if (tool.phase === 'review') return {
+    points: tool.points.map((draft) => draft.point),
+    cursor: null,
+  };
+  return null;
+}

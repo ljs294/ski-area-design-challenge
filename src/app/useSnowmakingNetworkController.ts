@@ -29,6 +29,7 @@ import { setSelectedSnowmakingFeature, setSnowmakingCaptureTransient, setSnowmak
   SNOWMAKING_HIT_LAYERS } from './snowmakingLayers';
 import { reduceSnowmakingNodeTool, reduceSnowmakingPipeTool,
   IDLE_SNOWMAKING_NODE_TOOL, IDLE_SNOWMAKING_PIPE_TOOL,
+  snowmakingPipePreview,
   type SnowmakingNodeCandidate, type SnowmakingNodeTool, type SnowmakingPipeTool,
   type SnowmakingSnapIntent } from './snowmakingNetworkControllerModel';
 import { snowmakingNetworkProjection, type SnowmakingNetworkDocument } from './snowmakingNetworkDocument';
@@ -194,9 +195,10 @@ export function useSnowmakingNetworkController(
 
   function synchronizeDraft(map = optionsRef.current.mapRef.current): void {
     const current = pipeToolRef.current;
-    setSnowmakingDraftData(map, current.phase === 'drawing' ? {
-      points: current.points.map((draft) => draft.point), cursor: current.cursor,
-      snapPoint: snapHoverRef.current,
+    const preview = snowmakingPipePreview(current);
+    setSnowmakingDraftData(map, preview ? {
+      ...preview,
+      snapPoint: current.phase === 'drawing' ? snapHoverRef.current : null,
     } : { points: [], cursor: null, snapPoint: snapHoverRef.current });
   }
 
