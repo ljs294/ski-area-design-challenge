@@ -66,21 +66,22 @@ Append only green, committed snapshots. Capture the JSON after required tests an
 | R2 complete map registry | `a7439ce1693bb758ac702675090e88b2447afa39` | Yes | 147 / 29,495 | 88 / 11,177 | 5,085 / 86 / 59 / 42 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,009,037 / 8,009,014 |
 | R3 worker hardening | `ede5ac6487523e88c14065d7092725d23ea8cbb8` | Yes | 147 / 29,626 | 88 / 11,362 | 5,086 / 86 / 59 / 42 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,011,563 / 8,011,540 |
 | R4 browser reacceptance | `a1e6cc3d1ba70a7774cbc4a1cadbd3f42d71d42b` | Yes | 147 / 29,626 | 90 / 11,540 | 5,086 / 86 / 59 / 42 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,011,563 / 8,011,540 |
+| E1 lift controller | `5a6bfcc38adbb96dc3a7547acda3bd7074b06c79` | Yes | 149 / 29,787 | 91 / 11,608 | 4,921 / 86 / 58 / 40 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,013,367 / 8,013,344 |
 | F1 final structural gate | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 
-## Change from the A2 formal baseline through R4
+## Change from the A2 formal baseline through E1
 
 | Metric | Net change |
 | --- | ---: |
-| Production physical lines | -342 (-1.1%) |
-| Test physical lines | +3,562 (+44.6%) |
-| MapView physical lines | +9 (+0.2%) |
+| Production physical lines | -181 (-0.6%) |
+| Test physical lines | +3,630 (+45.5%) |
+| MapView physical lines | -156 (-3.1%) |
 | MapView direct imports | +8 |
-| MapView direct state/effect/worker calls | -1 / -2 / -4 |
+| MapView direct state/effect/worker calls | -2 / -4 / -4 |
 | Type-facade physical lines | -550 (-94.0%) |
 | Type-facade production importers | -31 (-41.9%) |
 | Obsolete tracked bytes | -65,351,258 |
-| Desktop production artifact bytes | -65,212,956 (-89.1%) |
+| Desktop production artifact bytes | -65,211,152 (-89.1%) |
 
 The temporary MapView increase is foundation scaffolding, not the structural
 end state. E1–E5 must bring it below the 1,800-line acceptance budget; F1 is

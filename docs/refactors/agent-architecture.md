@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | E1 — lift controller extraction |
-| Status | R4 is committed: D2–D4 are reaccepted by browser evidence for locking, same-tick topology/save coherence, worker termination, style/hit order, and capture restoration |
-| Last green commit | R4 at `a1e6cc3d1ba70a7774cbc4a1cadbd3f42d71d42b` |
-| Next step | Characterize the lift controller boundary, then move its state, map input, sampling, confirmation, cancellation, and map contribution without changing presentation props |
+| Current benchmark | E2 — road controller extraction |
+| Status | E1 is committed: the lift model, controller, map contribution, and capture behavior are separated from presentation and `MapView` |
+| Last green commit | E1 at `5a6bfcc38adbb96dc3a7547acda3bd7074b06c79` |
+| Next step | Characterize the road reducer and cover-failure workflow, then move road drawing, grading/review, construction, cancellation, and contribution behind command ports |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -45,8 +45,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | R2 | Complete | Full map-contribution lifecycle and road-family ownership | Unit/browser tests cover data, visibility, hover, style generations, order, capture, and cleanup |
 | R3 | Complete | Worker post/response/cancellation hardening | Each adapter proves post failure, identity mismatch, supersession termination, and disposal |
 | R4 | Complete | Cross-cutting browser gates and D2–D4 reacceptance | Construction locking, worker supersession, style/hit/capture, and save coherence pass in browser |
-| E1 | Next | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
-| E2 | Not started | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
+| E1 | Complete | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
+| E2 | Next | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
 | E3 | Not started | Snowmaking façade with dam, pond, and node controllers | Feature workflows plus ordering, locking, capture, and save gates pass |
 | E4 | Not started | Ski node/path controller extraction | Node/path/topology workflows plus ordering, cancellation, and save gates pass |
 | E5 | Not started | Trail controller extraction | Paint, anchor/review, grading, failure retention, topology, cancellation, and save gates pass |
@@ -83,6 +83,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | R2 | `a7439ce1693bb758ac702675090e88b2447afa39` | Passed | The complete registry contract landed at `494adc9`, committed-road ownership at `af74dd1`, live registry traversal at `5a23c3b`, legacy-seam removal at `3e8a414`, and browser capture proof at `a7439ce`. `npm run check` passed 632 offline tests and both builds; all seven deterministic browser workflows passed. |
 | R3 | `ede5ac6487523e88c14065d7092725d23ea8cbb8` | Passed | Worker transport retirement landed at `0be94b8`, explicit post-failure settlement at `94919c9`, response identity/envelope validation at `54c97b1`, and trail-grade toggle cancellation at `ede5ac6`. `npm run check` passed 642 offline tests and both builds; all seven deterministic browser workflows passed. |
 | R4 | `a1e6cc3d1ba70a7774cbc4a1cadbd3f42d71d42b` | Passed | A real Worker-constructor probe proves trail-paint supersession and cancellation terminate each engine exactly once. The construction/save workflow dispatches two lift confirmations in one task, observes one lift, then patches topology and invokes Save in one task; the schema-v11 save contains the synchronous topology projection and matches the persisted terrain record. `npm run check` passed 642 offline tests and both builds; all eight deterministic browser workflows passed. |
+| E1 | `5a6bfcc38adbb96dc3a7547acda3bd7074b06c79` | Passed | The pure lift model landed at `6ee033e`; the controller, contribution, and lift-specific capture proof landed at `5a6bfcc`. `MapView` fell by 165 lines, one state call, and two effects. `npm run check` passed 645 offline tests and both builds; all eight deterministic browser workflows passed, including same-tick double confirmation, save coherence, lift transient capture, style reload, and hit priority. |
 
 ## D4 worker ownership
 
@@ -132,9 +133,9 @@ structure a click is aimed at; the pool it impounds is not.
 
 Committed player roads now have a dedicated source and layer installed by the
 road family above the site boundary; analysis owns only imported OSM context.
-`MapView` still creates the legacy contribution objects, each closing over its
-own refs until E1–E5 move it to a feature controller, but no longer owns any
-cross-family traversal.
+The lift controller now creates its contribution. `MapView` still creates the
+remaining legacy contribution objects, each closing over its own refs until
+E2–E5 move it to a feature controller, but no longer owns cross-family traversal.
 
 ## D2 migrated write paths
 
