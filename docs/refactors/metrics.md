@@ -70,22 +70,24 @@ Append only green, committed snapshots. Capture the JSON after required tests an
 | E2 road controller | `62a5c68d0dc1c5e9ddad7d6619b3dab6116a5ecd` | Yes | 151 / 29,916 | 92 / 11,718 | 4,704 / 85 / 57 / 38 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,015,245 / 8,015,222 |
 | E3 snowmaking controllers | `bdcaf4978b4efc234600699b12e29446725f6db0` | Yes | 157 / 30,277 | 94 / 11,847 | 4,325 / 81 / 55 / 32 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,020,936 / 8,020,913 |
 | E4 node/path controller | `66f78c01deb0900fbde95377bb516c605ab0f1e6` | Yes | 159 / 30,328 | 96 / 11,940 | 4,045 / 81 / 52 / 28 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,023,656 / 8,023,633 |
+| E5 trail controller | `d39bdfd1a0562625cb6ab08793f8a98ff89950f9` | Yes | 162 / 30,327 | 97 / 12,108 | 3,222 / 76 / 50 / 24 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,027,434 / 8,027,411 |
 | F1 final structural gate | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 
-## Change from the A2 formal baseline through E4
+## Change from the A2 formal baseline through E5
 
 | Metric | Net change |
 | --- | ---: |
-| Production physical lines | +360 (+1.2%) |
-| Test physical lines | +3,962 (+49.7%) |
-| MapView physical lines | -1,032 (-20.3%) |
-| MapView direct imports | +3 |
-| MapView direct state/effect/worker calls | -8 / -16 / -4 |
+| Production physical lines | +359 (+1.2%) |
+| Test physical lines | +4,130 (+51.8%) |
+| MapView physical lines | -1,855 (-36.5%) |
+| MapView direct imports | -2 |
+| MapView direct state/effect/worker calls | -10 / -20 / -4 |
 | Type-facade physical lines | -550 (-94.0%) |
 | Type-facade production importers | -31 (-41.9%) |
 | Obsolete tracked bytes | -65,351,258 |
-| Desktop production artifact bytes | -65,200,863 (-89.0%) |
+| Desktop production artifact bytes | -65,197,085 (-89.0%) |
 
-The temporary MapView increase is foundation scaffolding, not the structural
-end state. E1–E5 must bring it below the 1,800-line acceptance budget; F1 is
-the point where that reduction is accepted rather than inferred from modularity.
+Controller extraction brought `MapView` down to 3,222 lines but did not by
+itself meet the 1,800-line acceptance budget. F1 must extract cohesive
+cross-cutting services and presentation composition before that reduction is
+accepted; modularity alone is not counted as structural completion.
