@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | F1 — final structural and acceptance gate |
-| Status | E5 is committed: the trail reducer, map input, painting, anchor/review, grading, atomic confirmation, editing, and contribution are controller-owned |
-| Last green commit | E5 at `d39bdfd1a0562625cb6ab08793f8a98ff89950f9` |
-| Next step | Extract cohesive cross-cutting MapView services and presentation composition until the approved line/import/effect budgets pass, without moving boot/save/load authority or changing behavior |
+| Current benchmark | F2 — final release and live-provider acceptance |
+| Status | F1 is committed: all approved MapView structural budgets pass; the full offline gate and all 14 deterministic browser workflows are green |
+| Last green commit | F1 at `f0489b30465c697a8d5c29adbde26edb8f157dbd` |
+| Next step | Run Electron release smoke, representative save compatibility, final builds, and one opt-in live-provider New Game workflow; then polish architecture documentation |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -50,7 +50,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | E3 | Complete | Snowmaking façade with dam, pond, and node controllers | Feature workflows plus ordering, locking, capture, and save gates pass |
 | E4 | Complete | Ski node/path controller extraction | Node/path/topology workflows plus ordering, cancellation, and save gates pass |
 | E5 | Complete | Trail controller extraction | Paint, anchor/review, grading, failure retention, topology, cancellation, and save gates pass |
-| F1 | Next | Final MapView structural budgets and architecture documentation | All deterministic browser projects, Electron smoke, both builds, fixtures, and one opt-in live New Game run pass |
+| F1 | Complete | Final MapView structural budgets | Structural budgets, full offline check, and all deterministic browser projects pass |
+| F2 | Next | Release/live acceptance and final architecture documentation | Electron smoke, both builds, save fixtures, one opt-in live New Game run, clean metrics, and current documentation pass |
 
 ## Standard benchmark protocol
 
@@ -88,6 +89,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | E3 | `bdcaf4978b4efc234600699b12e29446725f6db0` | Passed | Dam and pond models landed at `7f19118`; the separate dam, pond, and snowmaking-node controllers plus their façade landed at `bdcaf49`. `MapView` fell by 379 lines, two state calls, six effects, and four imports. `npm run check` passed 651 offline tests and both builds; all ten deterministic browser workflows passed. The snowmaking workflow proves contribution data, pond-draft capture restoration, node rename/reconciliation, source deletion, and schema-v11 persistence. Dam analysis now also rejects a terrain revision that changes before review or confirmation. |
 | E4 | `66f78c01deb0900fbde95377bb516c605ab0f1e6` | Passed | The pure node/path model landed at `c1031ea`; the controller and atomic connector workflow landed at `66f78c0`. `MapView` fell by 280 lines, three state calls, and four effects. `npm run check` passed 654 offline tests and both builds; all eleven deterministic browser workflows passed. The node/path workflow proves leased map input, draft capture restoration, atomic path-plus-junction publication, and schema-v11 persistence. |
 | E5 | `d39bdfd1a0562625cb6ab08793f8a98ff89950f9` | Passed | The pure trail model landed at `98b4eaa`; the split trail controller/map-input workflow and expanded browser evidence landed at `d39bdfd`. `MapView` fell by 823 lines, five imports, two state calls, and four effects. `npm run check` passed 657 offline tests and both builds; all thirteen deterministic browser workflows passed. The workflows prove painter restart/cancellation, review and capture restoration, grading-failure retention, successful graded terrain/topology confirmation, same-task double-confirm rejection, schema-v11 persistence, and best-effort cover failure. |
+| F1 | `f0489b30465c697a8d5c29adbde26edb8f157dbd` | Passed | Presentation chrome, map runtime, keyboard and sampling hooks, compatibility backfill, cover-clear and worker services, and initial-save hydration landed across rollback-safe commits. `MapView` is 1,799 lines with 40 imports, 49 state calls, 8 effects, and no worker construction. `npm run check` passed 657 offline tests and both builds; all 14 deterministic browser workflows passed. The paint workflow now waits on its instrumented worker-ready observable and the previously timing-sensitive confirmation passed three repeated runs before the full suite. |
 
 ## D4 worker ownership
 
