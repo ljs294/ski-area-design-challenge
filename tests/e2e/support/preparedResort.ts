@@ -20,7 +20,7 @@ function floatMetadata(values: number[]) {
 }
 
 /** Small, fully valid schema-v5 package. It exercises the real browser stores. */
-function preparedTerrainFixture() {
+function preparedTerrainFixture(includeMapContext = true) {
   const sampleHeights = [1000, 1010, 1020, 1030];
   const coverGrid = {
     bounds,
@@ -65,7 +65,7 @@ function preparedTerrainFixture() {
   };
   const elevation = floatMetadata(sampleHeights);
 
-  return {
+  const terrain = {
     schemaVersion: 5,
     key: TERRAIN_KEY,
     mountainName: 'Deterministic Peak',
@@ -85,9 +85,14 @@ function preparedTerrainFixture() {
     contourMetadata,
     climate: { monthly: [] },
     vectorFeatures: {
-      roads: [],
-      waterLines: [],
-      waterPolygons: [],
+      roads: [{ id: 'way/road', name: 'Context Road', roadClass: 'minor',
+        points: [[-121.499, 46.901], [-121.491, 46.909]] }],
+      waterLines: [{ id: 'way/stream', name: 'Context Creek', waterClass: 'stream',
+        sourceWidthM: 3, points: [[-121.498, 46.909], [-121.492, 46.901]] }],
+      waterPolygons: [{ id: 'way/lake', name: 'Context Lake', rings: [[
+        [-121.497, 46.906], [-121.496, 46.906], [-121.496, 46.907],
+        [-121.497, 46.906],
+      ]] }],
       landCover: [],
       peaks: [],
     },
@@ -114,6 +119,10 @@ function preparedTerrainFixture() {
       preparedAt: FIXED_TIME,
     },
   };
+  if (!includeMapContext) {
+    delete (terrain as { vectorFeatures?: unknown }).vectorFeatures;
+  }
+  return terrain;
 }
 
 /** Structures merged into the fixture save, for tests that need built features. */
@@ -123,6 +132,11 @@ export interface PreparedStructures {
   dams?: Record<string, unknown>[];
   ponds?: Record<string, unknown>[];
   snowmakingNodes?: Record<string, unknown>[];
+}
+
+export interface PreparedResortOptions {
+  /** Omit persisted OSM vectors to exercise Settings -> Resort Data recovery. */
+  mapContext?: 'present' | 'missing';
 }
 
 function preparedSaveFixture(structures: PreparedStructures) {
@@ -162,6 +176,7 @@ function preparedSaveFixture(structures: PreparedStructures) {
 export async function seedPreparedResort(
   page: Page,
   structures: PreparedStructures = {},
+  options: PreparedResortOptions = {},
 ): Promise<void> {
   await page.goto('/?flat', { waitUntil: 'load' });
   await page.evaluate(
@@ -196,7 +211,8 @@ export async function seedPreparedResort(
         };
       });
     },
-    { save: preparedSaveFixture(structures), terrain: preparedTerrainFixture() },
+    { save: preparedSaveFixture(structures),
+      terrain: preparedTerrainFixture(options.mapContext !== 'missing') },
   );
   await page.reload({ waitUntil: 'load' });
 }

@@ -41,7 +41,7 @@ import { useRoadController } from './useRoadController';
 import { useSnowmakingController } from './useSnowmakingController';
 import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
-import { MapViewChrome } from './MapViewChrome';
+import { MapViewChrome, useMapContextRecovery } from './MapViewChrome';
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
 import { useMapRuntime } from './useMapRuntime';
@@ -138,6 +138,8 @@ export interface GameSessionControls {
   /** Resolve the unsaved-work gate before navigating away. `false` means the
    *  player cancelled and the session must stay open. */
   confirmExit(): Promise<boolean>;
+  resortSettings?: { mapContextAvailable: boolean;
+    downloadMapContext(signal: AbortSignal): Promise<{ ok: true } | { ok: false; error: string }> };
 }
 
 function browserPreviewDataUrl(canvas: HTMLCanvasElement): string | null {
@@ -444,7 +446,6 @@ export function MapView({
   const snowmakingNodesRef = useRef<SavedSnowmakingNode[]>(snowmakingNodes);
   const renderQualityRef = useRef(settings.renderQuality);
   const unitsRef = useRef(settings.units);
-  const packageAbortRef = useRef<AbortController | null>(null);
   const toolCancellationRef = useRef<Record<ToolId, () => void>>({
     lift: () => {}, road: () => {}, dam: () => {}, pond: () => {},
     'ski-node': () => {}, 'ski-path': () => {}, trail: () => {},
@@ -692,10 +693,10 @@ export function MapView({
   });
 
   /** The one place a committed terrain record reaches React and the dirty flag. */
-  function publishTerrainState({ record, edit }: TerrainPublication): void {
+  function publishTerrainState({ record, edit, preserveDirty }: TerrainPublication): void {
     terrainRecordRef.current = record;
     if (edit) markTerrainEdited(edit);
-    else setTerrainDirty(TERRAIN_CLEAN);
+    else if (!preserveDirty) setTerrainDirty(TERRAIN_CLEAN);
     setTerrainRecord(record);
   }
 
@@ -835,7 +836,6 @@ export function MapView({
   repairRef.current = () => void repairAndContinue();
 
   useEffect(() => () => {
-    packageAbortRef.current?.abort();
     // Drops construction ownership and invalidates queued cover work and any
     // outstanding grade preview. The document stays usable, so a StrictMode
     // remount does not retire it.
@@ -1060,6 +1060,7 @@ export function MapView({
     mapContributionRegistryRef.current = new MapContributionRegistry(createMapContributions());
   }
   const mapContributions = mapContributionRegistryRef.current;
+  const mapContext = useMapContextRecovery(terrain, mapContributions);
 
   useMapRuntime({
     canStart: mode !== 'playing' || packageState === 'ready',
@@ -1291,22 +1292,22 @@ export function MapView({
       return null;
     }
     setPackageError(null);
+    mapContext.decide('cancel');
     packageStateRef.current = 'preparing';
     setPackageState('preparing');
     // Preparation owns the screen from here — its own gate has the step
     // checklist and a Cancel button, so any resort loading screen stands down.
     reportBoot({ type: 'handoff' });
     setPackageProgress({ phase: 'elevation', message: 'Starting resort preparation', completed: 0, total: 10 });
-    packageAbortRef.current?.abort();
-    const controller = new AbortController();
-    packageAbortRef.current = controller;
+    const controller = mapContext.startPreparation();
     mapRef.current?.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
     try {
       const record = await prepareResortPackage(
         site,
         name,
         { sampleSiteCoverGrid },
-        { onProgress: setPackageProgress, signal: controller.signal }
+        { onProgress: setPackageProgress, signal: controller.signal,
+          onMapContextFailure: mapContext.requestDecision }
       );
       const validation = validateTerrainPackage(record);
       if (!validation.ok) throw new Error(validation.errors.join(' '));
@@ -1336,12 +1337,8 @@ export function MapView({
       setPackageState('error');
       return null;
     } finally {
-      if (packageAbortRef.current === controller) packageAbortRef.current = null;
+      mapContext.finishPreparation(controller);
     }
-  }
-
-  function cancelPackagePreparation() {
-    packageAbortRef.current?.abort();
   }
 
   /**
@@ -1607,7 +1604,9 @@ export function MapView({
 
   useEffect(() => {
     if (!sessionControlsRef) return;
-    sessionControlsRef.current = { checkpointForExit, confirmExit };
+    sessionControlsRef.current = { checkpointForExit, confirmExit,
+      resortSettings: terrainRecord ? { mapContextAvailable: !!terrainRecord.vectorFeatures,
+        downloadMapContext: (signal) => mapContext.repair(terrainRecord, signal) } : undefined };
     return () => {
       sessionControlsRef.current = null;
     };
@@ -1652,9 +1651,11 @@ export function MapView({
           state: packageState === 'error' ? 'error' : 'preparing',
           progress: packageProgress,
           error: packageError,
-          cancel: cancelPackagePreparation,
+          mapContextError: mapContext.error,
+          cancel: mapContext.cancelPreparation,
           back: onQuit,
           prepare: () => { void createSave(); },
+          decideMapContext: mapContext.decide,
         } : null}
         localBoot={localBoot ? {
           progress: localBoot,

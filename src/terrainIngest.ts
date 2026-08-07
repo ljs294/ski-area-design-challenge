@@ -8,7 +8,7 @@ import type { LatLonBounds } from './types/geo';
 import { bicubicUpscale } from './bicubicUpscale';
 import { generateProceduralClimate } from './climate';
 import { deleteTerrain, loadTerrain, saveTerrain } from './terrainStorageClient';
-import { fetchVectorFeatures } from './vectorFeatures';
+import { fetchVectorFeatures, type MapContextProviderError } from './vectorFeatures';
 import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, coverMetadataOf, imageryMetadataOf, manifestOf, originalCoverMetadataOf, validateTerrainPackage } from './terrainPackage';
 import { traceContours } from './marchingSquares';
 import { deriveCoverBoundarySegments } from './coverAnalysis';
@@ -140,7 +140,10 @@ export interface ResortPreparationServices {
 export interface ResortPreparationOptions {
   onProgress?: (progress: TerrainPackageProgress) => void;
   signal?: AbortSignal;
+  onMapContextFailure?(error: MapContextProviderError): Promise<MapContextDecision>;
 }
+
+export type MapContextDecision = 'retry' | 'continue' | 'cancel';
 
 /**
  * Prepare the mandatory local elevation + WorldCover package for gameplay.
@@ -194,10 +197,30 @@ export async function prepareResortPackage(
   abort();
 
   report('imagery', 'Downloading public-domain NAIP imagery and map context', 2);
-  const [naip, vectorFeatures] = await Promise.all([
+  const [naip, firstContext] = await Promise.all([
     fetchNaipAcquisition(bounds, undefined, signal),
-    fetchVectorFeatures(bounds).catch(() => undefined),
+    fetchVectorFeatures(bounds, signal).then(
+      (value) => ({ ok: true as const, value }),
+      (error: MapContextProviderError) => ({ ok: false as const, error }),
+    ),
   ]);
+  let vectorFeatures: VectorFeatureSet | undefined;
+  let contextResult = firstContext;
+  while (!contextResult.ok) {
+    abort();
+    if (!options.onMapContextFailure) throw contextResult.error;
+    const decision = await options.onMapContextFailure(contextResult.error);
+    abort();
+    if (decision === 'cancel') {
+      throw new DOMException('Resort preparation cancelled', 'AbortError');
+    }
+    if (decision === 'continue') break;
+    contextResult = await fetchVectorFeatures(bounds, signal).then(
+      (value) => ({ ok: true as const, value }),
+      (error: MapContextProviderError) => ({ ok: false as const, error }),
+    );
+  }
+  if (contextResult.ok) vectorFeatures = contextResult.value;
   abort();
 
   report('decoding', 'Classifying forest, alpine, grassland, and water', 3);

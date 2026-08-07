@@ -81,6 +81,23 @@ describe('TerrainDocument revisions', () => {
     expect(publications[0].revision).toBe(1);
   });
 
+  it('adds persisted map context to the latest revision without clearing unrelated dirtiness', () => {
+    const { spies, publications } = ports();
+    const document = new TerrainDocument(spies);
+    document.replace(record('base'));
+    document.commit({ expectedRevision: 1, record: record('graded'), kind: 'elevation' });
+    const vectorFeatures = {
+      roads: [], waterLines: [], waterPolygons: [], landCover: [], peaks: [],
+    };
+
+    const snapshot = document.publishMapContext(vectorFeatures, '2026-02-01T00:00:00.000Z');
+
+    expect(snapshot.record).toMatchObject({
+      key: 'graded', vectorFeatures, updatedAt: '2026-02-01T00:00:00.000Z',
+    });
+    expect(publications.at(-1)).toMatchObject({ edit: null, preserveDirty: true });
+  });
+
   it('takes ownership of the record shell and exposes a frozen snapshot', () => {
     const { spies } = ports();
     const document = new TerrainDocument(spies);

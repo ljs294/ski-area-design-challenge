@@ -2,29 +2,72 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { GAME_ACTION_LABELS, GAME_ACTION_ORDER, DEFAULT_KEYBINDS } from '../keybinds';
 import { Settings } from './Settings';
+import type { ResortSettingsCapability } from './Settings';
 import { SettingsProvider } from './SettingsContext';
 
-// Matches the DOM-free component-test pattern in SnowmakingDashboard.test.tsx /
-// NetworkMap.test.tsx: render to a string and assert on markup, so no jsdom is
-// needed. renderToStaticMarkup produces static HTML with no live event
-// handling, so this is a structural smoke test only — no click/keydown
-// simulation (that needs a real DOM, out of house convention here).
-
-function render() {
+// The component tests in this directory render without a browser DOM. These
+// checks cover the complete tab structure and initial resort-data states;
+// keyboard and asynchronous transitions are covered by the browser workflow.
+function render(resortSettings?: ResortSettingsCapability) {
   return renderToStaticMarkup(
     <SettingsProvider>
-      <Settings onClose={vi.fn()} />
-    </SettingsProvider>
+      <Settings onClose={vi.fn()} resortSettings={resortSettings} />
+    </SettingsProvider>,
   );
 }
 
-// renderToStaticMarkup HTML-escapes text content, so "Trails & lifts
-// dashboard" comes back as "Trails &amp; lifts dashboard".
 function expectLabel(html: string, label: string): void {
   expect(html).toContain(label.replace(/&/g, '&amp;'));
 }
 
-describe('Settings — Controls section', () => {
+const missingMapContext: ResortSettingsCapability = {
+  mapContextAvailable: false,
+  downloadMapContext: vi.fn(async () => ({ ok: true as const })),
+};
+
+const availableMapContext: ResortSettingsCapability = {
+  mapContextAvailable: true,
+  downloadMapContext: vi.fn(async () => ({ ok: true as const })),
+};
+
+describe('Settings tabs', () => {
+  it('renders an accessible tab list with General selected by default', () => {
+    const html = render();
+
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain('aria-label="Settings sections"');
+    expect(html).toMatch(
+      /id="settings-tab-general"[^>]*role="tab"[^>]*aria-selected="true"[^>]*aria-controls="settings-panel-general"[^>]*tabindex="0"/,
+    );
+    expect(html).toMatch(
+      /id="settings-tab-controls"[^>]*role="tab"[^>]*aria-selected="false"[^>]*aria-controls="settings-panel-controls"[^>]*tabindex="-1"/,
+    );
+    expect(html).toMatch(
+      /id="settings-panel-general"[^>]*role="tabpanel"[^>]*aria-labelledby="settings-tab-general"/,
+    );
+    expect(html).toMatch(
+      /id="settings-panel-controls"[^>]*role="tabpanel"[^>]*aria-labelledby="settings-tab-controls"[^>]*hidden=""/,
+    );
+  });
+
+  it('keeps general settings in the General panel', () => {
+    const html = render();
+
+    for (const label of ['Theme', 'Window', 'Units', 'Render quality', 'Reduced motion']) {
+      expectLabel(html, label);
+    }
+  });
+
+  it('omits Resort Data when no active-resort capability is supplied', () => {
+    const html = render();
+
+    expect(html).not.toContain('settings-tab-resort-data');
+    expect(html).not.toContain('settings-panel-resort-data');
+    expect(html).not.toContain('Resort Data');
+  });
+});
+
+describe('Settings Controls tab', () => {
   it('renders one row per action with the correct default key displayed', () => {
     const html = render();
     for (const action of GAME_ACTION_ORDER) {
@@ -41,13 +84,31 @@ describe('Settings — Controls section', () => {
     }
   });
 
-  it('renders a "Reset controls to defaults" button', () => {
-    const html = render();
-    expect(html).toContain('Reset controls to defaults');
+  it('renders the reset action', () => {
+    expect(render()).toContain('Reset controls to defaults');
+  });
+});
+
+describe('Settings Resort Data tab', () => {
+  it('renders the conditional tab and missing-context recovery action', () => {
+    const html = render(missingMapContext);
+
+    expect(html).toMatch(
+      /id="settings-tab-resort-data"[^>]*role="tab"[^>]*aria-selected="false"[^>]*aria-controls="settings-panel-resort-data"/,
+    );
+    expect(html).toMatch(
+      /id="settings-panel-resort-data"[^>]*role="tabpanel"[^>]*aria-labelledby="settings-tab-resort-data"[^>]*aria-busy="false"[^>]*hidden=""/,
+    );
+    expect(html).toContain('Roads and water are not available for this resort.');
+    expect(html).toContain('Download Map Context');
+    expect(html).not.toContain('Map context available');
   });
 
-  it('renders the Controls section title', () => {
-    const html = render();
-    expect(html).toContain('Controls');
+  it('reports existing map context without offering a refresh action', () => {
+    const html = render(availableMapContext);
+
+    expect(html).toContain('Map context available');
+    expect(html).not.toContain('Download Map Context');
+    expect(html).not.toContain('Retry Map Context');
   });
 });

@@ -15,22 +15,42 @@ import type {
   VectorFeatureSet,
 } from './types/vectorFeatures';
 import { parseOsmWidthM } from './streamAnalysis';
+import { OVERPASS_ENDPOINTS } from './overpassConfig';
+
+export { OVERPASS_ENDPOINTS } from './overpassConfig';
 
 // Overpass is a shared community resource, not a paid API — a descriptive
 // User-Agent and a short mirror list (not aggressive retries) is the
-// expected etiquette. overpass-api.de is the primary public instance;
-// kumi.systems is a well-known independent mirror used as a fallback if the
-// primary is overloaded or down.
-const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-];
-
+// expected etiquette. Keep this centralized list aligned with OpenStreetMap's
+// public-instance registry; Private.coffee is the documented successor to the
+// former overpass.kumi.systems service.
 // Denser areas (e.g. New England road networks) can meaningfully exceed 25s
 // server-side even for a small few-km bbox — 45s gives Overpass enough
 // headroom before the client gives up on an endpoint and tries the next.
 const OVERPASS_SERVER_TIMEOUT_S = 45;
-const QUERY_TIMEOUT_MS = 50_000;
+const QUERY_TIMEOUT_MS = 60_000;
+
+export interface OverpassEndpointFailure {
+  endpoint: string;
+  elapsedMs: number;
+  kind: 'http' | 'timeout' | 'network' | 'invalid-response';
+  status?: number;
+  message: string;
+}
+
+/** Every configured provider failed. Structured diagnostics prevent terrain
+ * preparation from silently discarding the entire local map context. */
+export class MapContextProviderError extends Error {
+  readonly failures: readonly OverpassEndpointFailure[];
+
+  constructor(failures: readonly OverpassEndpointFailure[]) {
+    super(`Map context providers failed: ${failures.map((failure) =>
+      `${new URL(failure.endpoint).host} (${failure.message}, ` +
+      `${(failure.elapsedMs / 1000).toFixed(1)}s)`).join('; ')}`);
+    this.name = 'MapContextProviderError';
+    this.failures = failures.map((failure) => ({ ...failure }));
+  }
+}
 
 function bboxParam(bounds: LatLonBounds): string {
   return `${bounds.south},${bounds.west},${bounds.north},${bounds.east}`;
@@ -78,33 +98,59 @@ interface OverpassResponse {
   elements: OverpassElement[];
 }
 
-async function fetchOverpass(bounds: LatLonBounds): Promise<OverpassResponse> {
+async function fetchOverpass(bounds: LatLonBounds, signal?: AbortSignal): Promise<OverpassResponse> {
   const query = buildQuery(bounds);
-  let lastError: unknown;
+  const failures: OverpassEndpointFailure[] = [];
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
+    if (signal?.aborted) throw new DOMException('Map context download cancelled', 'AbortError');
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), QUERY_TIMEOUT_MS);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, QUERY_TIMEOUT_MS);
+    const cancel = () => controller.abort();
+    signal?.addEventListener('abort', cancel, { once: true });
+    const startedAt = performance.now();
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'text/plain',
-          'User-Agent': 'ski-area-design-challenge (mountain terrain planner, non-commercial)',
         },
         body: query,
+        referrerPolicy: 'origin-when-cross-origin',
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`Overpass returned ${response.status}`);
-      return (await response.json()) as OverpassResponse;
-    } catch (e) {
-      lastError = e;
+      if (!response.ok) {
+        failures.push({ endpoint, elapsedMs: performance.now() - startedAt,
+          kind: 'http', status: response.status,
+          message: `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ''}` });
+        continue;
+      }
+      try {
+        const value = await response.json() as Partial<OverpassResponse>;
+        if (!Array.isArray(value.elements)) throw new Error('Response has no elements array');
+        return { elements: value.elements };
+      } catch (error) {
+        failures.push({ endpoint, elapsedMs: performance.now() - startedAt,
+          kind: 'invalid-response',
+          message: error instanceof Error ? error.message : 'Response was not valid JSON' });
+      }
+    } catch (error) {
+      if (signal?.aborted) throw new DOMException('Map context download cancelled', 'AbortError');
+      failures.push({ endpoint, elapsedMs: performance.now() - startedAt,
+        kind: timedOut ? 'timeout' : 'network',
+        message: timedOut ? `Timed out after ${QUERY_TIMEOUT_MS / 1000} seconds`
+          : error instanceof Error ? error.message : 'Network request failed' });
     } finally {
       clearTimeout(timeout);
+      signal?.removeEventListener('abort', cancel);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('Overpass fetch failed');
+  throw new MapContextProviderError(failures);
 }
 
 const MAJOR_HIGHWAY = new Set(['motorway', 'trunk', 'primary', 'secondary']);
@@ -177,8 +223,11 @@ function assembleRings(fragments: [number, number][][]): [number, number][][] {
  * ingest bounds. Raw lon/lat only — see hydrateVectorFeatures below for the
  * world-space projection step run at hydrate time.
  */
-export async function fetchVectorFeatures(bounds: LatLonBounds): Promise<VectorFeatureSet> {
-  const data = await fetchOverpass(bounds);
+export async function fetchVectorFeatures(
+  bounds: LatLonBounds,
+  signal?: AbortSignal,
+): Promise<VectorFeatureSet> {
+  const data = await fetchOverpass(bounds, signal);
 
   const roads: RoadFeature[] = [];
   const waterLines: WaterLineFeature[] = [];

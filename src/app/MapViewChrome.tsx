@@ -16,6 +16,8 @@ import { View3DControl } from './View3DControl';
 import type { BootProgress } from './resortBoot';
 import type { TerrainPackageProgress } from '../types/terrain';
 
+export { useMapContextRecovery } from './useMapContextRecovery';
+
 const PREP_STEPS = [
   ['elevation', 'Elevation data'],
   ['ground-cover', 'Recovery ground cover'],
@@ -32,9 +34,11 @@ interface PackageGateProps {
   state: 'preparing' | 'error';
   progress: TerrainPackageProgress | null;
   error: string | null;
+  mapContextError: string | null;
   cancel(): void;
   back(): void;
   prepare(): void;
+  decideMapContext(decision: 'retry' | 'continue' | 'cancel'): void;
 }
 
 interface NameEntryProps {
@@ -101,11 +105,22 @@ export function MapViewChrome(props: MapViewChromeProps) {
               </svg>
             )}
             <div className="package-kicker">LOCAL RESORT DATA</div>
-            <h2>{gate.state === 'preparing' ? 'Preparing resort data' : 'Preparation failed'}</h2>
-            <p>{gate.state === 'preparing'
+            <h2>{gate.mapContextError ? 'Map context unavailable'
+              : gate.state === 'preparing' ? 'Preparing resort data' : 'Preparation failed'}</h2>
+            <p>{gate.mapContextError
+              ? `Roads and water could not be downloaded. ${gate.mapContextError}`
+              : gate.state === 'preparing'
               ? 'Fetching terrain, ground cover, and contours for your build site.'
               : gate.error ?? 'Elevation, contours, and ground cover must be saved locally before designing.'}</p>
-            {gate.state === 'preparing' && gate.progress && (() => {
+            {gate.mapContextError && <div className="package-actions">
+              <button className="site-btn"
+                onClick={() => gate.decideMapContext('cancel')}>Cancel</button>
+              <button className="site-btn"
+                onClick={() => gate.decideMapContext('continue')}>Continue Without Map Context</button>
+              <button className="site-btn site-btn-primary"
+                onClick={() => gate.decideMapContext('retry')}>Retry Map Context</button>
+            </div>}
+            {!gate.mapContextError && gate.state === 'preparing' && gate.progress && (() => {
               const { completed, total } = gate.progress;
               const pct = Math.round((completed / total) * 100);
               return <>
@@ -125,7 +140,7 @@ export function MapViewChrome(props: MapViewChromeProps) {
                 <div className="package-actions"><button className="site-btn" onClick={gate.cancel}>Cancel</button></div>
               </>;
             })()}
-            {gate.state === 'error' && <div className="package-actions">
+            {!gate.mapContextError && gate.state === 'error' && <div className="package-actions">
               <button className="site-btn" onClick={gate.back}>Back to menu</button>
               <button className="site-btn site-btn-primary" onClick={gate.prepare}>Prepare Resort Data</button>
             </div>}

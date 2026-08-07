@@ -5,6 +5,7 @@ import {
   type ConstructionOutcome,
 } from './constructionLock';
 import type { DeepReadonly } from '../types/readonly';
+import type { VectorFeatureSet } from '../types/vectorFeatures';
 
 /**
  * The committed terrain package, and the single path every change to it takes.
@@ -31,6 +32,8 @@ export interface TerrainPublication {
   readonly revision: number;
   /** The edit this publication carries; `null` for a clean load or replacement. */
   readonly edit: TerrainEditKind | null;
+  /** Context was already persisted independently; retain any unrelated dirty flag. */
+  readonly preserveDirty?: boolean;
 }
 
 export interface TerrainCommitRequest {
@@ -140,6 +143,15 @@ export class TerrainDocument {
     return this.current;
   }
 
+  /** Publish metadata-only context after its independent storage transaction.
+   * The latest authoritative terrain is extended, so a provider request that
+   * overlapped construction cannot replace newer elevation or cover data. */
+  publishMapContext(vectorFeatures: VectorFeatureSet, updatedAt: string): TerrainSnapshot {
+    if (!this.current.record) return this.current;
+    this.publish({ ...this.current.record, vectorFeatures, updatedAt }, null, true);
+    return this.current;
+  }
+
   /** Publish an edited package, or reject it for having been built on a
    *  revision that has since been superseded. */
   commit(request: TerrainCommitRequest): TerrainCommitResult {
@@ -236,7 +248,11 @@ export class TerrainDocument {
     this.lock.dispose();
   }
 
-  private publish(record: TerrainRecord, edit: TerrainEditKind | null): void {
+  private publish(
+    record: TerrainRecord,
+    edit: TerrainEditKind | null,
+    preserveDirty = false,
+  ): void {
     const revision = this.current.revision + 1;
     // Copy and freeze the record shell once at publication. Large elevation,
     // cover, contour, and imagery payloads are deliberately not deep-cloned;
@@ -244,7 +260,8 @@ export class TerrainDocument {
     // creates replacement payloads before it reaches this ownership boundary.
     const owned = Object.freeze({ ...record });
     this.current = Object.freeze({ record: owned, revision });
-    const publication: TerrainPublication = Object.freeze({ record: owned, revision, edit });
+    const publication: TerrainPublication = Object.freeze({ record: owned, revision, edit,
+      ...(preserveDirty ? { preserveDirty: true } : {}) });
     this.publishToPorts(publication);
   }
 

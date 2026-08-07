@@ -1,5 +1,5 @@
 import { expect, test } from '../support/deterministicApp';
-import { jumpTo, layerIds, pointAt, visibilityOf } from '../support/mapProbe';
+import { jumpTo, layerIds, pointAt, sourceFeatureCount, visibilityOf } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
 
 /**
@@ -80,6 +80,7 @@ test('a restyle reinstalls every map family in the declared order and keeps hidd
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   expectDeclaredOrder(await layerIds(page));
+  await expect.poll(() => sourceFeatureCount(page, 'local-context')).toBe(3);
 
   // Hide analysis, structure, and shared analysis/road-family descriptors.
   await page.getByRole('button', { name: 'Layers' }).click();
@@ -95,6 +96,7 @@ test('a restyle reinstalls every map family in the declared order and keeps hidd
   await restyle(page);
 
   expectDeclaredOrder(await layerIds(page));
+  await expect.poll(() => sourceFeatureCount(page, 'local-context')).toBe(3);
   expect(await visibilityOf(page, 'contour-lines')).toBe('none');
   expect(await visibilityOf(page, 'trail-fill')).toBe('none');
   expect(await visibilityOf(page, 'local-roads')).toBe('none');

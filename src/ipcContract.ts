@@ -10,10 +10,12 @@ import type {
   TerrainPackageManifest,
   TerrainRecord,
   TerrainSummary,
+  VectorFeatureSet,
 } from './types';
 
 export const TERRAIN_SAVE_CHANNEL = 'terrain:save';
 export const TERRAIN_SAVE_COVER_CHANNEL = 'terrain:save-cover';
+export const TERRAIN_SAVE_CONTEXT_CHANNEL = 'terrain:save-context';
 export const TERRAIN_LOAD_CHANNEL = 'terrain:load';
 export const TERRAIN_LIST_CHANNEL = 'terrain:list';
 export const TERRAIN_DELETE_CHANNEL = 'terrain:delete';
@@ -88,6 +90,16 @@ export interface TerrainCoverSaveRequest {
   updatedAt: string;
 }
 export type TerrainCoverSaveResponse = TerrainSaveResponse;
+
+/** Metadata-only update for optional OSM context. Binary terrain assets are
+ * deliberately excluded so a slow provider response cannot overwrite a grade
+ * or cover edit that completed while the request was in flight. */
+export interface TerrainMapContextSaveRequest {
+  key: string;
+  vectorFeatures: VectorFeatureSet;
+  updatedAt: string;
+}
+export type TerrainMapContextSaveResponse = TerrainSaveResponse;
 
 export interface TerrainLoadRequest {
   key: string;

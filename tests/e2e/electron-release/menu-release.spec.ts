@@ -12,6 +12,30 @@ test('packaged Electron release opens the main menu', async () => {
     const window = await application.firstWindow();
     await expect(window.getByRole('navigation', { name: 'Main menu' })).toBeVisible();
     await expect(window.getByRole('button', { name: 'New Game' })).toBeEnabled();
+
+    await application.evaluate(({ session }) => {
+      const probe = globalThis as typeof globalThis & { overpassIdentityProbe?: string | null };
+      probe.overpassIdentityProbe = null;
+      session.defaultSession.webRequest.onSendHeaders(
+        { urls: ['https://overpass-api.de/api/interpreter'] },
+        (details) => {
+          const entry = Object.entries(details.requestHeaders)
+            .find(([name]) => name.toLowerCase() === 'user-agent');
+          probe.overpassIdentityProbe = entry?.[1] ?? null;
+        },
+      );
+    });
+    await window.evaluate(() => {
+      void fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: '[out:json][timeout:5];node(43.47,-110.78,43.471,-110.779);out 1;',
+      }).catch(() => {});
+    });
+    await expect.poll(() => application.evaluate(() =>
+      (globalThis as typeof globalThis & { overpassIdentityProbe?: string | null })
+        .overpassIdentityProbe,
+    )).toMatch(/^Mountain-Planner\/.+\(\+https:\/\/github\.com\/ljs294\/ski-area-design-challenge\)$/);
   } finally {
     await application.close();
   }

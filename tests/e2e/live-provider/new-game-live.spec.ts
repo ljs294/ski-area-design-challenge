@@ -8,11 +8,17 @@ test('live providers prepare and persist a New Game resort package', async ({ pa
   );
 
   const providerKinds = new Set<string>();
+  const overpassReferers: string[] = [];
   page.on('request', (request) => {
     const url = request.url();
     if (url.includes('elevation.nationalmap.gov')) providerKinds.add('USGS');
     if (url.includes('imagery.nationalmap.gov')) providerKinds.add('NAIP');
     if (url.includes('wmts.terrascope.be')) providerKinds.add('WorldCover');
+    if (url.includes('overpass-api.de') || url.includes('maps.mail.ru')
+      || url.includes('overpass.private.coffee')) {
+      providerKinds.add('Overpass');
+      overpassReferers.push(request.headers().referer ?? '');
+    }
   });
   await page.route('**/elevation-tiles-prod.s3.amazonaws.com/**', (route) => route.abort());
   await page.route('**/server.arcgisonline.com/**', (route) => route.abort());
@@ -49,6 +55,8 @@ test('live providers prepare and persist a New Game resort package', async ({ pa
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 60_000 });
   expect(providerKinds).toContain('USGS');
   expect(providerKinds).toContain('WorldCover');
+  expect(providerKinds).toContain('Overpass');
+  expect(overpassReferers.some((referer) => referer.length > 0)).toBe(true);
 
   const persisted = await page.evaluate(async () => {
     const index = JSON.parse(localStorage.getItem('gamesave-index') ?? '[]') as Array<{
@@ -75,6 +83,7 @@ test('live providers prepare and persist a New Game resort package', async ({ pa
       recordKey: terrain?.key,
       terrainSchema: terrain?.schemaVersion,
       coverComplete: (terrain?.coverGrid as { complete?: boolean } | undefined)?.complete,
+      mapContextPresent: terrain?.vectorFeatures != null,
     };
   });
   expect(persisted).toMatchObject({
@@ -82,5 +91,6 @@ test('live providers prepare and persist a New Game resort package', async ({ pa
     terrainKey: persisted.recordKey,
     terrainSchema: 6,
     coverComplete: true,
+    mapContextPresent: true,
   });
 });

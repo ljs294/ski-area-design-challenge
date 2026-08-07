@@ -38,7 +38,10 @@ const mocks = vi.hoisted(() => ({
   saved: null as TerrainRecord | null,
   saveTerrain: vi.fn(),
   loadTerrain: vi.fn(),
+  fetchVectorFeatures: vi.fn(),
 }));
+
+const EMPTY_VECTORS = { roads: [], waterLines: [], waterPolygons: [], landCover: [], peaks: [] };
 
 vi.mock('./elevation', async (importOriginal) => ({
   ...await importOriginal<typeof import('./elevation')>(),
@@ -72,7 +75,7 @@ vi.mock('./usgsTerrainCover', async (importOriginal) => ({
 }));
 vi.mock('./vectorFeatures', async (importOriginal) => ({
   ...await importOriginal<typeof import('./vectorFeatures')>(),
-  fetchVectorFeatures: vi.fn(async () => undefined),
+  fetchVectorFeatures: mocks.fetchVectorFeatures,
 }));
 vi.mock('./terrainStorageClient', () => ({
   saveTerrain: mocks.saveTerrain,
@@ -82,6 +85,7 @@ vi.mock('./terrainStorageClient', () => ({
 
 import { prepareResortPackage } from './terrainIngest';
 import { validateTerrainPackage } from './terrainPackage';
+import { MapContextProviderError, OVERPASS_ENDPOINTS } from './vectorFeatures';
 
 describe('prepareResortPackage persisted return contract', () => {
   beforeEach(() => {
@@ -91,6 +95,7 @@ describe('prepareResortPackage persisted return contract', () => {
       return { ok: true, key: record.key };
     });
     mocks.loadTerrain.mockReset().mockImplementation(async () => mocks.saved);
+    mocks.fetchVectorFeatures.mockReset().mockResolvedValue(EMPTY_VECTORS);
   });
 
   it('returns the verified persisted TerrainRecord without legacy hydration fields', async () => {
@@ -108,5 +113,57 @@ describe('prepareResortPackage persisted return contract', () => {
     expect(record).not.toHaveProperty('hydratedFeatures');
     expect(record).not.toHaveProperty('widthMeters');
     expect(record).not.toHaveProperty('heightMeters');
+    expect(record.vectorFeatures).toEqual(EMPTY_VECTORS);
+  });
+
+  it('retries only map context and persists the successful response', async () => {
+    const failure = new MapContextProviderError([{
+      endpoint: OVERPASS_ENDPOINTS[0], elapsedMs: 50, kind: 'http', status: 503,
+      message: 'HTTP 503',
+    }]);
+    mocks.fetchVectorFeatures.mockRejectedValueOnce(failure).mockResolvedValueOnce(EMPTY_VECTORS);
+    const decide = vi.fn(async () => 'retry' as const);
+
+    const record = await prepareResortPackage(
+      { bounds: [[BOUNDS.west, BOUNDS.south], [BOUNDS.east, BOUNDS.north]], widthKm: 1, heightKm: 1 },
+      'Retry Peak',
+      { sampleSiteCoverGrid: vi.fn(async () => ORIGINAL_COVER) },
+      { onMapContextFailure: decide },
+    );
+
+    expect(decide).toHaveBeenCalledWith(failure);
+    expect(mocks.fetchVectorFeatures).toHaveBeenCalledTimes(2);
+    expect(record.vectorFeatures).toEqual(EMPTY_VECTORS);
+  });
+
+  it('persists no vectors only after explicit continuation', async () => {
+    const failure = new MapContextProviderError([{
+      endpoint: OVERPASS_ENDPOINTS[0], elapsedMs: 50, kind: 'network', message: 'offline',
+    }]);
+    mocks.fetchVectorFeatures.mockRejectedValue(failure);
+
+    const record = await prepareResortPackage(
+      { bounds: [[BOUNDS.west, BOUNDS.south], [BOUNDS.east, BOUNDS.north]], widthKm: 1, heightKm: 1 },
+      'Context-free Peak',
+      { sampleSiteCoverGrid: vi.fn(async () => ORIGINAL_COVER) },
+      { onMapContextFailure: async () => 'continue' },
+    );
+
+    expect(record.vectorFeatures).toBeUndefined();
+    expect(mocks.saveTerrain).toHaveBeenCalledOnce();
+  });
+
+  it('cancels before terrain persistence', async () => {
+    mocks.fetchVectorFeatures.mockRejectedValue(new MapContextProviderError([{
+      endpoint: OVERPASS_ENDPOINTS[0], elapsedMs: 50, kind: 'network', message: 'offline',
+    }]));
+
+    await expect(prepareResortPackage(
+      { bounds: [[BOUNDS.west, BOUNDS.south], [BOUNDS.east, BOUNDS.north]], widthKm: 1, heightKm: 1 },
+      'Cancelled Peak',
+      { sampleSiteCoverGrid: vi.fn(async () => ORIGINAL_COVER) },
+      { onMapContextFailure: async () => 'cancel' },
+    )).rejects.toMatchObject({ name: 'AbortError' });
+    expect(mocks.saveTerrain).not.toHaveBeenCalled();
   });
 });
