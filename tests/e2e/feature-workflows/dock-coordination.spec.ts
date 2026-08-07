@@ -42,3 +42,20 @@ test('capture hides and exactly restores an active family transient', async ({ p
 
   await page.getByRole('button', { name: 'Cancel' }).click();
 });
+
+test('dashboard shortcuts open, switch, and close the requested dashboard', async ({ page }) => {
+  await seedPreparedResort(page);
+  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+
+  const picker = page.getByRole('group', { name: 'Mountain dashboards' });
+  await page.keyboard.press('1');
+  await expect(picker).toBeVisible();
+  await expect(picker.getByRole('button', { name: 'Trails & Lifts' })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.keyboard.press('2');
+  await expect(picker.getByRole('button', { name: 'Snowmaking' })).toHaveAttribute('aria-pressed', 'true');
+
+  await page.keyboard.press('2');
+  await expect(picker).toHaveCount(0);
+});

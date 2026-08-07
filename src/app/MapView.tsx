@@ -32,7 +32,6 @@ import { MapInteractionLease, type MapInteractionLeaseHandle,
   type MapInteractionOverrides } from './mapInteractionLease';
 import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot,
   type ToolId } from './toolCoordinator';
-import { isTypingTarget, normalizeKey } from '../keybinds';
 import { applyTileLod } from './terrainLod';
 import { ResortLoadingScreen } from './ResortLoadingScreen';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
@@ -66,6 +65,7 @@ import { useSnowmakingController } from './useSnowmakingController';
 import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
 import { MapGameDock } from './MapGameDock';
+import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { sanitizeDams } from '../damAnalysis';
 import { sanitizePonds } from '../pondAnalysis';
 import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
@@ -163,12 +163,6 @@ const PREP_STEPS: { key: string; label: string }[] = [
 // (hillshade still stands in). No effect in the real Electron app.
 const TERRAIN_DISABLED =
   typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('flat');
-
-// Keyboard camera control tuning (WASD pan, QE rotate, RF tilt) — screen
-// px/sec and degrees/sec, reasonable defaults for a 60fps continuous hold.
-const PAN_SPEED_PX_S = 900;
-const ROTATE_SPEED_DEG_S = 90;
-const PITCH_SPEED_DEG_S = 60;
 
 interface MapViewProps {
   mode: MapMode;
@@ -473,143 +467,9 @@ export function MapView({
     };
   });
 
-  // Keyboard camera controls: WASD pan, QE rotate, RF tilt, N snap-north, U
-  // toggle 2D/3D, 1/2 open the Mountain Dashboards. Registered once (empty
-  // deps beyond mount) and read live values through refs (4c below) — the
-  // house idiom for a global window keydown listener that needs current
-  // state without re-subscribing on every change. Available in both
-  // 'picking' and 'playing' mode: the worldwide picker map gets WASD/QE/RF/N/U
-  // navigation too, 1/2 and toggleView3D simply no-op before a resort exists.
-  const heldRef = useRef<Set<string>>(new Set());
-  const rafIdRef = useRef<number | null>(null);
-  const lastFrameRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const heldKeys = heldRef.current;
-
-    function stepFrame(ts: number) {
-      rafIdRef.current = null;
-      if (heldKeys.size === 0) {
-        lastFrameRef.current = null;
-        return;
-      }
-      const last = lastFrameRef.current ?? ts;
-      const dt = Math.min(0.1, Math.max(0, (ts - last) / 1000));
-      lastFrameRef.current = ts;
-      const map = mapRef.current;
-      if (map) {
-        const kb = keybindsRef.current;
-        let dx = 0;
-        let dy = 0;
-        if (heldKeys.has(kb.panForward)) dy -= 1;
-        if (heldKeys.has(kb.panBackward)) dy += 1;
-        if (heldKeys.has(kb.panLeft)) dx -= 1;
-        if (heldKeys.has(kb.panRight)) dx += 1;
-        if (dx !== 0 || dy !== 0) {
-          const len = Math.hypot(dx, dy);
-          map.panBy([(dx / len) * PAN_SPEED_PX_S * dt, (dy / len) * PAN_SPEED_PX_S * dt], { animate: false });
-        }
-        let bearingDelta = 0;
-        if (heldKeys.has(kb.rotateLeft)) bearingDelta -= ROTATE_SPEED_DEG_S * dt;
-        if (heldKeys.has(kb.rotateRight)) bearingDelta += ROTATE_SPEED_DEG_S * dt;
-        if (bearingDelta !== 0) map.setBearing(map.getBearing() + bearingDelta);
-        let pitchDelta = 0;
-        if (heldKeys.has(kb.tiltUp)) pitchDelta += PITCH_SPEED_DEG_S * dt;
-        if (heldKeys.has(kb.tiltDown)) pitchDelta -= PITCH_SPEED_DEG_S * dt;
-        if (pitchDelta !== 0) {
-          const nextPitch = Math.min(map.getMaxPitch(), Math.max(0, map.getPitch() + pitchDelta));
-          if (nextPitch !== map.getPitch()) map.setPitch(nextPitch);
-        }
-      }
-      if (heldKeys.size > 0) rafIdRef.current = requestAnimationFrame(stepFrame);
-    }
-
-    function startLoopIfNeeded() {
-      if (rafIdRef.current === null) {
-        lastFrameRef.current = null;
-        rafIdRef.current = requestAnimationFrame(stepFrame);
-      }
-    }
-
-    const continuousKeys = () => {
-      const kb = keybindsRef.current;
-      return [
-        kb.panForward, kb.panBackward, kb.panLeft, kb.panRight,
-        kb.rotateLeft, kb.rotateRight, kb.tiltUp, kb.tiltDown,
-      ];
-    };
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (controlsSuspendedRef.current) return;
-      if (showNetworkRef.current) return; // dashboard open — the map is hidden behind it
-      if (isTypingTarget(document.activeElement)) return;
-      const key = normalizeKey(e.key);
-      if (!continuousKeys().includes(key)) return;
-      const wasEmpty = heldKeys.size === 0;
-      heldKeys.add(key);
-      if (wasEmpty) startLoopIfNeeded();
-    }
-
-    function onKeyUp(e: KeyboardEvent) {
-      // No guards — releasing a key must always work, even if focus moved to
-      // an input mid-hold, or the key could get stuck "held".
-      const key = normalizeKey(e.key);
-      heldKeys.delete(key);
-    }
-
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-      if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current);
-      heldKeys.clear();
-    };
-  }, []);
-
-  // Discrete single-press keyboard actions: N (snap north), U (toggle 2D/3D),
-  // 1/2 (open/switch Mountain Dashboards). Only N and U bail while a
-  // dashboard is open — panning/tilting/rotating the hidden map behind a
-  // dashboard is meaningless, but opening/switching dashboards (1/2) is
-  // exactly what those keys are for even while one is already open.
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (controlsSuspendedRef.current) return;
-      if (isTypingTarget(document.activeElement)) return;
-      const key = normalizeKey(e.key);
-      const kb = keybindsRef.current;
-      if (key === kb.snapNorth) {
-        if (showNetworkRef.current) return;
-        mapRef.current?.easeTo({ bearing: 0, duration: 300 });
-      } else if (key === kb.toggleView3D) {
-        if (showNetworkRef.current) return;
-        // Calls through a ref (not `toggle3D` directly): this effect has an
-        // empty dep array and only runs once, so a direct call would forever
-        // close over the mount-time `toggle3D` — and the mount-time
-        // `isOverhead` it reads is frozen at its initial value (pitchDeg
-        // starts at 0, so `isOverhead` starts `true`), making every U press
-        // force 3D regardless of the camera's actual current pitch.
-        toggle3DRef.current();
-      } else if (key === kb.openTrailsDashboard) {
-        if (showNetworkRef.current && dashboardRef.current === 'trails') {
-          setShowNetwork(false);
-        } else {
-          setDashboard('trails');
-          setShowNetwork(true);
-        }
-      } else if (key === kb.openSnowmakingDashboard) {
-        if (showNetworkRef.current && dashboardRef.current === 'snowmaking') {
-          setShowNetwork(false);
-        } else {
-          setDashboard('snowmaking');
-          setShowNetwork(true);
-        }
-      }
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
+  useMapKeyboardControls({ mapRef, suspended: controlsSuspended, keybinds: settings.keybinds,
+    showDashboard: showNetwork, dashboard, toggle3D,
+    setShowDashboard: setShowNetwork, setDashboard });
   const activeOverlay = activeOverlayOf(layers);
 
   // Refs so once-registered handlers + the style-swap re-init read current values.
@@ -618,27 +478,12 @@ export function MapView({
   const sampleTokenRef = useRef(0);
   const rafPendingRef = useRef(false);
   const doSampleRef = useRef<(lngLat: { lng: number; lat: number }) => void>(() => {});
-  // Mirrors `toggle3D` (defined below, but hoisted as a function declaration)
-  // so the once-registered discrete-keydown effect always calls the current
-  // render's closure — see the ref-refresh block below where this is kept
-  // fresh every render, exactly like `is3DRef`.
-  const toggle3DRef = useRef<() => void>(() => {});
   const layersRef = useRef<LayerToggle[]>([]);
   const analysisTogglesRef = useRef<LayerToggle[]>([]);
   const mapContributionRegistryRef = useRef<MapContributionRegistry | null>(null);
   const siteBoxRef = useRef<SiteBox | null>(siteBox);
   const siteModeRef = useRef<SiteMode>(siteMode);
   const is3DRef = useRef(is3D);
-  // Live values for the keyboard camera-control listeners above, which are
-  // registered once on mount and so cannot close over fresh props/state.
-  const controlsSuspendedRef = useRef(controlsSuspended);
-  const keybindsRef = useRef(settings.keybinds);
-  const showNetworkRef = useRef(showNetwork);
-  const dashboardRef = useRef(dashboard);
-  useEffect(() => { controlsSuspendedRef.current = controlsSuspended; }, [controlsSuspended]);
-  useEffect(() => { keybindsRef.current = settings.keybinds; }, [settings.keybinds]);
-  useEffect(() => { showNetworkRef.current = showNetwork; }, [showNetwork]);
-  useEffect(() => { dashboardRef.current = dashboard; }, [dashboard]);
   // Flips true the first time the resort's terrain is mounted, so the one-time
   // "default into 3D" camera ease fires once — not on every dark/light restyle.
   const resortReadyRef = useRef(false);
@@ -1027,7 +872,6 @@ export function MapView({
   siteBoxRef.current = siteBox;
   siteModeRef.current = siteMode;
   is3DRef.current = is3D;
-  toggle3DRef.current = toggle3D;
   liftsRef.current = lifts;
   trailsRef.current = trails;
   roadsRef.current = roads;
