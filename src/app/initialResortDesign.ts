@@ -6,6 +6,7 @@ import { sanitizePonds } from '../pondAnalysis';
 import { sanitizeRoads } from '../roads';
 import { sanitizeNodes, sanitizePaths } from '../skiNodes';
 import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
+import { hydrateSnowmakingNetwork } from '../snowmakingNetwork';
 import { sanitizeStreamWidthOverrides } from '../streamAnalysis';
 import { hydrateTopology } from '../topology';
 import { sanitizeTrails } from '../trails';
@@ -24,14 +25,18 @@ export function initialResortDesign(save?: GameSave | null) {
   );
   const dams = sanitizeDams(save?.dams ?? []);
   const ponds = sanitizePonds(save?.ponds ?? []);
+  const snowmaking = hydrateSnowmakingNetwork(reconcileSnowmakingNodes(
+    sanitizeSnowmakingNodes(save?.snowmakingNodes ?? []), dams, ponds),
+  save?.snowmakingPipes ?? [], save?.snowmakingNodeNextNumbers);
   return {
     lifts,
     trails: topology.trails,
     roads: sanitizeRoads(save?.roads ?? []),
     dams,
     ponds,
-    snowmakingNodes: reconcileSnowmakingNodes(
-      sanitizeSnowmakingNodes(save?.snowmakingNodes ?? []), dams, ponds),
+    snowmakingNodes: snowmaking.nodes,
+    snowmakingPipes: snowmaking.pipes,
+    snowmakingNodeNextNumbers: snowmaking.nextNumbers,
     nodes,
     paths: topology.paths,
     junctions: topology.junctions,

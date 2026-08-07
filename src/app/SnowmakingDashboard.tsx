@@ -4,12 +4,39 @@ import { formatLakeVolume } from '../lakeAnalysis';
 import { fmtDistance } from '../lifts';
 import { makeFrame, simplifyRing, toMeters, type MetersFrame, type XY } from '../network';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
-import type { SavedSnowmakingNode, SnowmakingNodeKind } from '../types/snowmaking';
+import { snowmakingNodeLabel } from '../snowmakingNetwork';
+import { SNOWMAKING_PIPE_DIAMETERS_IN } from '../types/snowmaking';
+import type { SavedSnowmakingNode, SavedSnowmakingPipe, SnowmakingNodeKind,
+  SnowmakingPipeDiameterIn } from '../types/snowmaking';
 import type { SavedDam, SavedLift, SavedPond, SavedTrail, TerrainRecord } from '../types';
 import type { SnowmakingLakeSource } from '../types/snowmaking';
 import { FILL_BY_CODE } from './coverVectorize';
 import { localContourGeoJSON } from './localContours';
 import type { Units } from './SettingsContext';
+import type { SnowmakingNetworkController } from './useSnowmakingNetworkController';
+
+type SnowmakingDashboardProps = Parameters<typeof SnowmakingDashboard>[0];
+
+/** Bind the map-owned network state to the dashboard's presentation contract. */
+export function snowmakingDashboardProps(input: {
+  dams: SavedDam[]; ponds: SavedPond[]; lakes: SnowmakingLakeSource[];
+  trails: SavedTrail[]; lifts: SavedLift[]; nodes: SavedSnowmakingNode[];
+  pipes: SavedSnowmakingPipe[]; coverDisplay: CoverDisplayGeoJSON | null;
+  terrainRecord: TerrainRecord | null; units: Units;
+  selectedNodeId: string | null; selectedPipeId: string | null;
+  clearNode(): void; clearPipe(): void; controller: SnowmakingNetworkController;
+}): Omit<SnowmakingDashboardProps, 'onClose'> {
+  const { controller, clearNode, clearPipe, ...dashboard } = input;
+  return {
+    ...dashboard,
+    onSelectNode: (id) => id ? controller.selectNode(id) : clearNode(),
+    onSelectPipe: (id) => id ? controller.selectPipe(id) : clearPipe(),
+    onRenameNode: controller.renameNode,
+    onDeleteNode: controller.removeNode,
+    onPatchPipe: controller.patchPipe,
+    onDeletePipe: controller.removePipe,
+  };
+}
 
 /**
  * The snowmaking dashboard: a to-scale, geographic plan view of the pipe
@@ -115,11 +142,18 @@ export function SnowmakingDashboard({
   trails,
   lifts,
   nodes,
+  pipes = [],
   coverDisplay,
   terrainRecord,
   units,
   selectedNodeId,
+  selectedPipeId = null,
   onSelectNode,
+  onSelectPipe = () => {},
+  onRenameNode = () => {},
+  onDeleteNode = () => {},
+  onPatchPipe = () => {},
+  onDeletePipe = () => {},
   onClose,
 }: {
   dams: SavedDam[];
@@ -128,19 +162,28 @@ export function SnowmakingDashboard({
   trails: SavedTrail[];
   lifts: SavedLift[];
   nodes: SavedSnowmakingNode[];
+  pipes?: SavedSnowmakingPipe[];
   coverDisplay: CoverDisplayGeoJSON | null;
   terrainRecord: TerrainRecord | null;
   units: Units;
   selectedNodeId: string | null;
+  selectedPipeId?: string | null;
   onSelectNode: (id: string | null) => void;
+  onSelectPipe?: (id: string | null) => void;
+  onRenameNode?: (id: string, name: string) => void;
+  onDeleteNode?: (id: string) => void;
+  onPatchPipe?: (id: string, patch: Pick<Partial<SavedSnowmakingPipe>, 'name' | 'diameterIn'>) => void;
+  onDeletePipe?: (id: string) => void;
   onClose: () => void;
 }) {
   const [view, setView] = useState<View | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
 
-  const empty = dams.length === 0 && ponds.length === 0 && lakes.length === 0 && nodes.length === 0;
+  const empty = dams.length === 0 && ponds.length === 0 && lakes.length === 0 &&
+    nodes.length === 0 && pipes.length === 0;
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null;
+  const selectedPipe = pipes.find((pipe) => pipe.id === selectedPipeId) ?? null;
 
   // Frame is scoped to water + node geometry — the features this dashboard
   // exists to show — not the whole trail/lift network. Trails/lifts still
@@ -151,6 +194,7 @@ export function SnowmakingDashboard({
     for (const lake of lakes) for (const p of lake.boundary) samples.push(p);
     for (const dam of dams) for (const ring of dam.pondRings) for (const p of ring) samples.push(p);
     for (const node of nodes) samples.push(node.point);
+    for (const pipe of pipes) for (const vertex of pipe.vertices) samples.push(vertex.point);
     if (samples.length > 0) return makeFrame(samples);
     // No water/node geometry yet. Fall back to trail/lift geometry purely so
     // the frame isn't degenerate (makeFrame([]) centers on [0,0], the null
@@ -165,7 +209,7 @@ export function SnowmakingDashboard({
       if (lift.points.length > 0) return makeFrame(lift.points);
     }
     return makeFrame([]);
-  }, [dams, ponds, lakes, nodes, trails, lifts]);
+  }, [dams, ponds, lakes, nodes, pipes, trails, lifts]);
 
   // North is up: SVG y grows downward, the meters frame's y grows north.
   const place = useCallback((p: [number, number]): XY => {
@@ -187,15 +231,16 @@ export function SnowmakingDashboard({
     for (const lake of lakes) for (const p of lake.boundary) consider(place(p));
     for (const dam of dams) for (const ring of dam.pondRings) for (const p of ring) consider(place(p));
     for (const node of nodes) consider(place(node.point));
+    for (const pipe of pipes) for (const vertex of pipe.vertices) consider(place(vertex.point));
     if (!Number.isFinite(minX)) return { x: -200, y: -200, w: 400, h: 400 };
     const w = Math.max(MIN_SPAN_M, maxX - minX);
     const h = Math.max(MIN_SPAN_M, maxY - minY);
     const pad = Math.max(w, h) * PAD_FRAC;
     return { x: minX - pad, y: minY - pad, w: w + pad * 2, h: h + pad * 2 };
-  }, [dams, ponds, lakes, nodes, place]);
+  }, [dams, ponds, lakes, nodes, pipes, place]);
 
   // A new fit whenever the drawn water/node set changes shape.
-  const fitKey = `${dams.length}:${ponds.length}:${lakes.length}:${nodes.length}`;
+  const fitKey = `${dams.length}:${ponds.length}:${lakes.length}:${nodes.length}:${pipes.length}`;
   const lastFitKey = useRef(fitKey);
   if (lastFitKey.current !== fitKey) {
     lastFitKey.current = fitKey;
@@ -342,6 +387,7 @@ export function SnowmakingDashboard({
           onClick={() => {
             if (dragRef.current?.moved) return;
             onSelectNode(null);
+            onSelectPipe(null);
           }}
         >
           <defs>
@@ -420,7 +466,25 @@ export function SnowmakingDashboard({
             })}
           </g>
 
-          {/* 4. Nodes, colored by kind, selection highlighted. */}
+          {/* 4. Pipe routes beneath their connection nodes. */}
+          <g className="snowmaking-dashboard-pipes">
+            {pipes.map((pipe) => {
+              const points = pipe.vertices.map((vertex) => place(vertex.point));
+              const d = points.length >= 2 ? 'M' + points.map((point) =>
+                `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join('L') : '';
+              const selected = pipe.id === selectedPipeId;
+              return d ? <path key={pipe.id} d={d}
+                className={`snowmaking-dashboard-pipe${selected ? ' is-selected' : ''}`}
+                data-pipe-id={pipe.id} role="button" tabIndex={0}
+                aria-label={`${pipe.name}, ${pipe.diameterIn} inch snowmaking pipe`}
+                vectorEffect="non-scaling-stroke"
+                onClick={(event) => { event.stopPropagation(); onSelectPipe(pipe.id); }}
+                onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault(); onSelectPipe(pipe.id); } }} /> : null;
+            })}
+          </g>
+
+          {/* 5. Nodes, colored by kind, selection highlighted. */}
           <g className="snowmaking-dashboard-nodes">
             {nodes.map((node) => {
               const p = place(node.point);
@@ -430,11 +494,16 @@ export function SnowmakingDashboard({
                   key={node.id}
                   className={`snowmaking-dashboard-node snowmaking-dashboard-node--${node.kind}${selected ? ' is-selected' : ''}`}
                   data-node-id={node.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${SNOWMAKING_NODE_LABELS[node.kind]} ${snowmakingNodeLabel(node)}, ${node.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (dragRef.current?.moved) return;
                     onSelectNode(node.id);
                   }}
+                  onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault(); event.stopPropagation(); onSelectNode(node.id); } }}
                 >
                   <circle
                     cx={p.x}
@@ -451,7 +520,7 @@ export function SnowmakingDashboard({
                     className="snowmaking-dashboard-node-label"
                     style={{ fontSize: active.w / 70 }}
                   >
-                    {node.name}
+                    {snowmakingNodeLabel(node)}
                   </text>
                 </g>
               );
@@ -488,11 +557,18 @@ export function SnowmakingDashboard({
 
       <SnowmakingInspector
         selectedNode={selectedNode}
+        selectedPipe={selectedPipe}
         dams={dams}
         ponds={ponds} lakes={lakes}
         nodes={nodes}
+        pipes={pipes}
         units={units}
         onSelectNode={onSelectNode}
+        onSelectPipe={onSelectPipe}
+        onRenameNode={onRenameNode}
+        onDeleteNode={onDeleteNode}
+        onPatchPipe={onPatchPipe}
+        onDeletePipe={onDeletePipe}
       />
     </div>
   );
@@ -522,27 +598,58 @@ function Stat({ label, value }: { label: string; value: string }) {
  */
 function SnowmakingInspector({
   selectedNode,
+  selectedPipe,
   dams,
   ponds,
   lakes = [],
   nodes,
+  pipes,
   units,
   onSelectNode,
+  onSelectPipe,
+  onRenameNode,
+  onDeleteNode,
+  onPatchPipe,
+  onDeletePipe,
 }: {
   selectedNode: SavedSnowmakingNode | null;
+  selectedPipe: SavedSnowmakingPipe | null;
   dams: SavedDam[];
   ponds: SavedPond[];
   lakes?: SnowmakingLakeSource[];
   nodes: SavedSnowmakingNode[];
+  pipes: SavedSnowmakingPipe[];
   units: Units;
   onSelectNode: (id: string | null) => void;
+  onSelectPipe: (id: string | null) => void;
+  onRenameNode: (id: string, name: string) => void;
+  onDeleteNode: (id: string) => void;
+  onPatchPipe: (id: string, patch: Pick<Partial<SavedSnowmakingPipe>, 'name' | 'diameterIn'>) => void;
+  onDeletePipe: (id: string) => void;
 }) {
+  if (selectedPipe) return <aside className="network-inspector" data-inspector="pipe">
+    <div className="dock-head"><span className="dock-head-title">{selectedPipe.name}</span></div>
+    <input className="name-entry-input" aria-label="Pipe name" value={selectedPipe.name}
+      onChange={(event) => onPatchPipe(selectedPipe.id, { name: event.target.value })} />
+    <label className="lake-depth-row"><span>Diameter</span><select className="lift-select"
+      aria-label="Pipe diameter" value={selectedPipe.diameterIn}
+      onChange={(event) => onPatchPipe(selectedPipe.id,
+        { diameterIn: Number(event.target.value) as SnowmakingPipeDiameterIn })}>
+      {SNOWMAKING_PIPE_DIAMETERS_IN.map((diameter) => <option key={diameter} value={diameter}>
+        {diameter}&quot;</option>)}
+    </select></label>
+    <div className="network-stats"><Stat label="Length" value={fmtDistance(selectedPipe.lengthM, units)} />
+      <Stat label="Vertical" value={selectedPipe.verticalM != null
+        ? fmtDistance(selectedPipe.verticalM, units) : '—'} /></div>
+    <button className="lift-delete-btn" onClick={() => onDeletePipe(selectedPipe.id)}>Remove pipe</button>
+  </aside>;
   if (selectedNode) {
     const sourceInfo = snowmakingSourceInfo(selectedNode, dams, ponds, lakes);
     return (
       <aside className="network-inspector" data-inspector="node">
         <div className="dock-head">
-          <span className="dock-head-title">{selectedNode.name}</span>
+          <span className="dock-head-title">{selectedNode.kind === 'intake' ? selectedNode.name
+            : `${snowmakingNodeLabel(selectedNode)} · ${selectedNode.name}`}</span>
         </div>
         <div className="network-sub">{SNOWMAKING_NODE_LABELS[selectedNode.kind]}</div>
         <div className="network-stats">
@@ -553,6 +660,12 @@ function SnowmakingInspector({
             value={selectedNode.elevM != null ? fmtDistance(selectedNode.elevM, units) : '—'}
           />
         </div>
+        {selectedNode.kind !== 'junction' && <input className="name-entry-input"
+          aria-label="Node name" value={selectedNode.name}
+          onChange={(event) => onRenameNode(selectedNode.id, event.target.value)} />}
+        {(selectedNode.kind === 'pump' || selectedNode.kind === 'hydrant') &&
+          <button className="lift-delete-btn" onClick={() => onDeleteNode(selectedNode.id)}>
+            Remove {selectedNode.kind}</button>}
       </aside>
     );
   }
@@ -567,6 +680,7 @@ function SnowmakingInspector({
         <Stat label="Dams" value={`${dams.length}`} />
         <Stat label="Ponds" value={`${ponds.length + lakes.length}`} />
         <Stat label="Nodes" value={`${nodes.length}`} />
+        <Stat label="Pipes" value={`${pipes.length}`} />
       </div>
       {nodes.length > 0 && (
         <>
@@ -577,7 +691,8 @@ function SnowmakingInspector({
               return (
                 <li key={node.id}>
                   <button className="network-run" onClick={() => onSelectNode(node.id)}>
-                    <span className="network-run-name">{node.name}</span>
+                    <span className="network-run-name">{node.kind === 'intake' ? node.name
+                      : `${snowmakingNodeLabel(node)} · ${node.name}`}</span>
                     <span className="network-run-meta">
                       {SNOWMAKING_NODE_LABELS[node.kind]}
                       {info ? ` · ${info.name}` : ''}
@@ -589,6 +704,12 @@ function SnowmakingInspector({
           </ul>
         </>
       )}
+      {pipes.length > 0 && <><div className="network-section-title">Pipes</div>
+        <ul className="network-run-list">{pipes.map((pipe) => <li key={pipe.id}>
+          <button className="network-run" onClick={() => onSelectPipe(pipe.id)}>
+            <span className="network-run-name">{pipe.name}</span>
+            <span className="network-run-meta">{pipe.diameterIn}&quot; · {fmtDistance(pipe.lengthM, units)}</span>
+          </button></li>)}</ul></>}
     </aside>
   );
 }

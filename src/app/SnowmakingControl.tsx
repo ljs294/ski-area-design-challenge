@@ -8,10 +8,14 @@ import { MAX_POND_EXCAVATION_M, POND_CREST_WIDTH_M, POND_FREEBOARD_M,
 import { EarthworkStats } from './TrailControl';
 import { roadLengthM } from '../roads';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
-import type { SavedSnowmakingNode, SnowmakingLakeSource } from '../types/snowmaking';
+import { snowmakingNodeLabel } from '../snowmakingNetwork';
+import { SNOWMAKING_PIPE_DIAMETERS_IN } from '../types/snowmaking';
+import type { SavedSnowmakingNode, SavedSnowmakingPipe, SnowmakingLakeSource,
+  SnowmakingPipeDiameterIn } from '../types/snowmaking';
 import type { Units } from './SettingsContext';
 import type { DamTool, DraftDam } from './damControllerModel';
 import type { DraftPond, PondTool } from './pondControllerModel';
+import type { SnowmakingNodeTool, SnowmakingPipeTool } from './snowmakingNetworkControllerModel';
 
 export type { DamTool, DraftDam } from './damControllerModel';
 export type { DraftPond, PondTool } from './pondControllerModel';
@@ -184,18 +188,24 @@ function snowmakingSourceName(node: SavedSnowmakingNode, dams: SavedDam[], ponds
  *  pipe network that will carry their water uphill. Pipes are a placeholder —
  *  the button is deliberately inert until there is a network to build. */
 export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], selectedDam, selectedPond,
-  nodes, selectedNode,
+  nodes, pipes, selectedNode, selectedPipe, pipeTool, nodeTool, diameterIn,
   units, onArmDam, onCancelDam, onDamDraftChange, onConfirmDam,
   onSelectDam, onDeleteDam, onCloseDam, onArmPond, onCancelPond, onUndoPond, onFinishPond,
   onPondDraftChange, onPondElevationChange, onPondExcavationChange,
   onConfirmPond, onSelectPond, onDeletePond, onClosePond,
   onPondSnowmakingChange,
-  onSelectNode, onRenameNode, onCloseNode,
+  onArmPipe, onCancelPipe, onUndoPipe, onFinishPipe, onConfirmPipe, onRenameDraftPipe,
+  onDiameterChange, onArmNode, onCancelNode, onConfirmNode,
+  onSelectNode, onRenameNode, onDeleteNode, onCloseNode,
+  onSelectPipe, onPatchPipe, onDeletePipe, onClosePipe,
   onClose, building = false }: {
   damTool: DamTool; pondTool: PondTool; dams: SavedDam[];
   ponds: SavedPond[]; selectedDam: SavedDam | null; selectedPond: SavedPond | null;
   lakes?: SnowmakingLakeSource[];
-  nodes: SavedSnowmakingNode[]; selectedNode: SavedSnowmakingNode | null; units: Units;
+  nodes: SavedSnowmakingNode[]; pipes: SavedSnowmakingPipe[];
+  selectedNode: SavedSnowmakingNode | null; selectedPipe: SavedSnowmakingPipe | null;
+  pipeTool: SnowmakingPipeTool; nodeTool: SnowmakingNodeTool;
+  diameterIn: SnowmakingPipeDiameterIn; units: Units;
   onArmDam: () => void;
   onCancelDam: () => void; onDamDraftChange: (patch: Partial<DraftDam>) => void; onConfirmDam: () => void;
   onSelectDam: (id: string) => void; onDeleteDam: (id: string) => void; onCloseDam: () => void;
@@ -205,9 +215,57 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onConfirmPond: () => void; onSelectPond: (id: string) => void; onDeletePond: (id: string) => void;
   onPondSnowmakingChange: (id: string, checked: boolean) => void;
   onClosePond: () => void;
-  onSelectNode: (id: string) => void; onRenameNode: (id: string, name: string) => void; onCloseNode: () => void;
+  onArmPipe: () => void; onCancelPipe: () => void; onUndoPipe: () => void;
+  onFinishPipe: () => void; onConfirmPipe: () => void; onRenameDraftPipe: (name: string) => void;
+  onDiameterChange: (diameter: SnowmakingPipeDiameterIn) => void;
+  onArmNode: (kind: 'pump' | 'hydrant') => void; onCancelNode: () => void; onConfirmNode: () => void;
+  onSelectNode: (id: string) => void; onRenameNode: (id: string, name: string) => void;
+  onDeleteNode: (id: string) => void; onCloseNode: () => void;
+  onSelectPipe: (id: string) => void;
+  onPatchPipe: (id: string, patch: Pick<Partial<SavedSnowmakingPipe>, 'name' | 'diameterIn'>) => void;
+  onDeletePipe: (id: string) => void; onClosePipe: () => void;
   onClose: () => void; building?: boolean;
 }) {
+  if (pipeTool.phase === 'armed' || pipeTool.phase === 'drawing') {
+    const pointCount = pipeTool.phase === 'drawing' ? pipeTool.points.length : 0;
+    return <div className="site-control site-control-wide snowmaking-panel">
+      <PanelHead title="Install snowmaking pipe" onClose={onCancelPipe} />
+      <div className="site-hint">Click to route the pipe. Snapping and live statistics are in the lower-right map options.</div>
+      <div className="site-actions"><button className="site-btn" onClick={onUndoPipe}
+        disabled={pointCount === 0}>Undo point</button>
+        <button className="site-btn site-btn-primary" onClick={onFinishPipe}
+          disabled={pointCount < 2}>Finish route</button></div>
+      <button className="site-btn" onClick={onCancelPipe}>Cancel</button>
+    </div>;
+  }
+  if (pipeTool.phase === 'review') return <div className="site-control site-control-wide snowmaking-panel">
+    <PanelHead title="Review snowmaking pipe" onClose={onCancelPipe} />
+    <input className="name-entry-input lift-name-input" aria-label="Pipe name" value={pipeTool.name}
+      onChange={(event) => onRenameDraftPipe(event.target.value)} />
+    <label className="lake-depth-row"><span className="lift-stat-label">Diameter</span>
+      <select className="lift-select" aria-label="Pipe diameter" value={diameterIn}
+        onChange={(event) => onDiameterChange(Number(event.target.value) as SnowmakingPipeDiameterIn)}>
+        {SNOWMAKING_PIPE_DIAMETERS_IN.map((diameter) => <option key={diameter} value={diameter}>{diameter}&quot;</option>)}
+      </select></label>
+    {pipeTool.error && <div className="lift-warning">{pipeTool.error}</div>}
+    <div className="site-actions"><button className="site-btn" onClick={onCancelPipe}>Cancel</button>
+      <button className="site-btn site-btn-primary" onClick={onConfirmPipe}>Install pipe</button></div>
+  </div>;
+  if (nodeTool.phase === 'placing') return <div className="site-control site-control-wide snowmaking-panel">
+    <PanelHead title={`Place ${nodeTool.kind}`} onClose={onCancelNode} />
+    <div className="site-hint">Click a location, then confirm it. Leave this tool open to place several {nodeTool.kind}s.</div>
+    {nodeTool.error && <div className="lift-warning">{nodeTool.error}</div>}
+    {nodeTool.candidate && <div className="lift-stats">
+      <div className="readout-line"><span className="lift-stat-label">Elevation</span>
+        <span className="lift-stat-value">{nodeTool.candidate.elevM != null
+          ? fmtDistance(nodeTool.candidate.elevM, units) : '—'}</span></div>
+      <div className="readout-line"><span className="lift-stat-label">Connection</span>
+        <span className="lift-stat-value">{nodeTool.candidate.snap ? 'Snapped to network' : 'Free-standing'}</span></div>
+    </div>}
+    <div className="site-actions"><button className="site-btn" onClick={onCancelNode}>Done</button>
+      <button className="site-btn site-btn-primary" disabled={!nodeTool.candidate}
+        onClick={onConfirmNode}>Place {nodeTool.kind}</button></div>
+  </div>;
   if (pondTool.phase === 'armed' || pondTool.phase === 'drawing') {
     const points = pondTool.phase === 'drawing' ? pondTool.points : [];
     return <div className="site-control site-control-wide snowmaking-panel">
@@ -264,21 +322,57 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
     <div className="site-actions"><button className="site-btn" onClick={onCancelDam}>Cancel</button>
       <button className="site-btn site-btn-primary" disabled={building} onClick={onConfirmDam}>{building ? 'Building…' : 'Build dam'}</button></div>
   </div>;
+  if (selectedPipe) return <div className="site-control site-control-wide snowmaking-panel">
+    <PanelHead title={selectedPipe.name} onClose={onClosePipe} />
+    <input className="name-entry-input lift-name-input" aria-label="Pipe name" value={selectedPipe.name}
+      onChange={(event) => onPatchPipe(selectedPipe.id, { name: event.target.value })} />
+    <label className="lake-depth-row"><span className="lift-stat-label">Diameter</span>
+      <select className="lift-select" aria-label="Pipe diameter" value={selectedPipe.diameterIn}
+        onChange={(event) => onPatchPipe(selectedPipe.id,
+          { diameterIn: Number(event.target.value) as SnowmakingPipeDiameterIn })}>
+        {SNOWMAKING_PIPE_DIAMETERS_IN.map((diameter) => <option key={diameter} value={diameter}>{diameter}&quot;</option>)}
+      </select></label>
+    <div className="lift-stats">
+      <div className="readout-line"><span className="lift-stat-label">Length</span>
+        <span className="lift-stat-value">{fmtDistance(selectedPipe.lengthM, units)}</span></div>
+      <div className="readout-line"><span className="lift-stat-label">Vertical</span>
+        <span className="lift-stat-value">{selectedPipe.verticalM != null
+          ? fmtDistance(selectedPipe.verticalM, units) : '—'}</span></div>
+      <div className="readout-line"><span className="lift-stat-label">Connections</span>
+        <span className="lift-stat-value">{new Set(selectedPipe.vertices.flatMap((vertex) =>
+          vertex.nodeId ? [vertex.nodeId] : [])).size}</span></div>
+    </div>
+    <button className="lift-delete-btn" onClick={() => onDeletePipe(selectedPipe.id)}>Remove pipe</button>
+  </div>;
   if (selectedNode) {
     const sourceName = snowmakingSourceName(selectedNode, dams, ponds, lakes);
+    const connections = pipes.filter((pipe) => pipe.vertices.some((vertex) =>
+      vertex.nodeId === selectedNode.id)).length;
     return <div className="site-control site-control-wide snowmaking-panel">
-      <PanelHead title={selectedNode.name} onClose={onCloseNode} />
-      <input className="name-entry-input lift-name-input" value={selectedNode.name}
-        onChange={(event) => onRenameNode(selectedNode.id, event.target.value)} />
+      <PanelHead title={selectedNode.kind === 'intake' ? selectedNode.name
+        : `${snowmakingNodeLabel(selectedNode)} · ${selectedNode.name}`} onClose={onCloseNode} />
+      {selectedNode.kind !== 'junction' && <input className="name-entry-input lift-name-input"
+        aria-label="Node name" value={selectedNode.name}
+        onChange={(event) => onRenameNode(selectedNode.id, event.target.value)} />}
       <div className="lift-stats">
+        {selectedNode.kind !== 'intake' && <div className="readout-line">
+          <span className="lift-stat-label">Label</span>
+          <span className="lift-stat-value">{snowmakingNodeLabel(selectedNode)}</span></div>}
         <div className="readout-line"><span className="lift-stat-label">Kind</span>
           <span className="lift-stat-value">{SNOWMAKING_NODE_LABELS[selectedNode.kind]}</span></div>
         {sourceName != null && <div className="readout-line"><span className="lift-stat-label">Source</span>
           <span className="lift-stat-value">{sourceName}</span></div>}
         <div className="readout-line"><span className="lift-stat-label">Elevation</span>
           <span className="lift-stat-value">{selectedNode.elevM != null ? fmtDistance(selectedNode.elevM, units) : '—'}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">Connected pipes</span>
+          <span className="lift-stat-value">{connections}</span></div>
       </div>
-      <div className="site-hint">This node belongs to its water source and is removed automatically if that dam or pond is deleted.</div>
+      {selectedNode.kind === 'intake' && <div className="site-hint">Source-owned intake. It is removed only with its water source; attached pipes become open ends.</div>}
+      {selectedNode.kind === 'junction' && <div className="site-hint">Junctions are managed automatically where pipe routes join.</div>}
+      {(selectedNode.kind === 'pump' || selectedNode.kind === 'hydrant') && <>
+        <div className="site-hint">Removing this device detaches connected pipes without changing their geometry.</div>
+        <button className="lift-delete-btn" onClick={() => onDeleteNode(selectedNode.id)}>Remove {selectedNode.kind}</button>
+      </>}
     </div>;
   }
   if (selectedDam) return <div className="site-control site-control-wide snowmaking-panel">
@@ -298,21 +392,30 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
     <PanelHead title={`Snowmaking · ${dams.length} dams · ${ponds.length} ponds`} onClose={onClose} />
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmDam}>＋ Build dam</button>
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmPond}>＋ Build standalone pond</button>
-    <button className="lift-add-btn site-btn site-btn-primary" disabled
-      title="Snowmaking pipe networks are not buildable yet">＋ Install snowmaking pipe</button>
-    <div className="site-hint">Pipe networks are not buildable yet — water storage only for now.</div>
-    {dams.length === 0 && ponds.length === 0 ? <div className="lift-overview-empty">No water storage yet — build your first dam or pond.</div> : <>
+    <div className="site-actions"><button className="site-btn" onClick={() => onArmNode('hydrant')}>Place hydrants</button>
+      <button className="site-btn" onClick={() => onArmNode('pump')}>Place pumps</button></div>
+    <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmPipe}
+      title="Draw a snowmaking pipe route">＋ Install snowmaking pipe</button>
+    <div className="site-hint">Pipe routes and network devices are saved with the resort.</div>
+    {dams.length === 0 && ponds.length === 0 && nodes.length === 0 && pipes.length === 0
+      ? <div className="lift-overview-empty">No snowmaking infrastructure yet.</div> : <>
       {dams.length > 0 && <div className="lift-list">{dams.map((dam) => <button key={dam.id} className="lift-row lift-row-button" onClick={() => onSelectDam(dam.id)}>
         <span className="infrastructure-dam-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{dam.name}</span>
           <span className="lift-row-summary">Snowmaking pond · {fmtArea(dam.areaM2, units)}</span></span></button>)}</div>}
       {ponds.length > 0 && <div className="lift-list">{ponds.map((pond) => <button key={pond.id} className="lift-row lift-row-button" onClick={() => onSelectPond(pond.id)}>
         <span className="infrastructure-dam-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{pond.name}</span>
           <span className="lift-row-summary">{pond.isSnowmaking !== false ? 'Snowmaking pond' : 'Standalone pond'} · {fmtArea(pond.areaM2, units)}</span></span></button>)}</div>}
+      {pipes.length > 0 && <><div className="network-section-title">Pipes</div><div className="lift-list">
+        {pipes.map((pipe) => <button key={pipe.id} className="lift-row lift-row-button"
+          onClick={() => onSelectPipe(pipe.id)}><span className="snowmaking-pipe-swatch" aria-hidden="true" />
+          <span className="lift-row-main"><span className="lift-row-name">{pipe.name}</span>
+            <span className="lift-row-summary">{pipe.diameterIn}&quot; · {fmtDistance(pipe.lengthM, units)}</span>
+          </span></button>)}</div></>}
       {nodes.length > 0 && <div className="lift-list">{nodes.map((node) => {
         const sourceName = snowmakingSourceName(node, dams, ponds, lakes);
         const summary = sourceName != null ? `${SNOWMAKING_NODE_LABELS[node.kind]} · ${sourceName}` : SNOWMAKING_NODE_LABELS[node.kind];
         return <button key={node.id} className="lift-row lift-row-button" onClick={() => onSelectNode(node.id)}>
-          <span className="snowmaking-node-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{node.name}</span>
+          <span className="snowmaking-node-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{node.kind === 'intake' ? node.name : `${snowmakingNodeLabel(node)} · ${node.name}`}</span>
             <span className="lift-row-summary">{summary}</span></span></button>;
       })}</div>}
     </>}

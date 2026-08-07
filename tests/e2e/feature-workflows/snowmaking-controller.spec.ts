@@ -95,3 +95,45 @@ test('an imported pond can be designated for snowmaking and persisted', async ({
   await page.getByRole('checkbox', { name: 'Snowmaking pond' }).uncheck();
   await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(0);
 });
+
+test('draws and persists a numbered snowmaking pipe network', async ({ page }) => {
+  await seedPreparedResort(page);
+  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+  await jumpTo(page, [-121.495, 46.905], 16);
+
+  await page.getByRole('button', { name: 'Snowmaking' }).click();
+  await page.getByRole('button', { name: /Install snowmaking pipe/ }).click();
+  const options = page.getByRole('group', { name: 'Snowmaking pipe options' });
+  await expect(options).toBeVisible();
+  await expect(options.getByRole('option')).toHaveCount(11);
+  await expect(options.getByRole('checkbox', { name: 'Node snapping' })).not.toBeChecked();
+  await options.getByRole('combobox', { name: 'Pipe diameter' }).selectOption('12');
+
+  const start = await pointAt(page, [-121.496, 46.9045]);
+  const end = await pointAt(page, [-121.4935, 46.906]);
+  await page.mouse.click(start.x, start.y);
+  await page.mouse.click(end.x, end.y);
+  await page.getByRole('button', { name: 'Finish route' }).click();
+  await page.getByRole('textbox', { name: 'Pipe name' }).fill('Summit Main');
+  await page.getByRole('button', { name: 'Install pipe' }).click();
+  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(1);
+
+  await page.getByRole('button', { name: 'Place hydrants' }).click();
+  const hydrant = await pointAt(page, [-121.4945, 46.905]);
+  await page.mouse.click(hydrant.x, hydrant.y);
+  await page.getByRole('button', { name: 'Place hydrant' }).click();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('button', { name: /Hydrant 1/ })).toBeVisible();
+
+  await page.getByRole('button', { name: /^Menu/ }).click();
+  await page.locator('.hud-save').click();
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
+  expect(saved).toMatchObject({
+    schemaVersion: 11,
+    snowmakingPipes: [{ name: 'Summit Main', diameterIn: 12 }],
+    snowmakingNodes: [{ kind: 'hydrant', labelNumber: 1 }],
+    snowmakingNodeNextNumbers: { hydrant: 2, junction: 1, pump: 1 },
+  });
+});

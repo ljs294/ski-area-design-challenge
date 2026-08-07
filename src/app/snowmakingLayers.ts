@@ -1,66 +1,176 @@
 import type maplibregl from 'maplibre-gl';
-import type { SavedSnowmakingNode } from '../types/snowmaking';
-
-// Snowmaking pipe-network nodes: intakes, pumps, junctions, and hydrants.
-// Mirrors pondLayers.ts's shape (one source, a small fixed set of layers,
-// setXxxData/setSelectedXxx) rather than nodePathLayers.ts's draft-source
-// pattern, since there's no in-progress drawing state to render here yet —
-// just a saved point set. Per-kind color follows the match-by-`kind`
-// approach used for dam/pond preview points and node-path junctions.
+import { snowmakingNodeLabel } from '../snowmakingNetwork';
+import type { SavedSnowmakingNode, SavedSnowmakingPipe } from '../types/snowmaking';
 
 const SNOWMAKING_SOURCE = 'snowmaking-network';
-export const SNOWMAKING_HIT_LAYERS = ['snowmaking-node-hit'];
-export const SNOWMAKING_BUILT_LAYER_IDS = ['snowmaking-node-halo', 'snowmaking-nodes',
-  'snowmaking-node-selected', 'snowmaking-node-labels', ...SNOWMAKING_HIT_LAYERS];
+const SNOWMAKING_DRAFT_SOURCE = 'snowmaking-network-draft';
 
-export function snowmakingNodesToGeoJSON(nodes: SavedSnowmakingNode[]):
-GeoJSON.FeatureCollection<GeoJSON.Point, { id: string; name: string; kind: string }> {
+export const SNOWMAKING_HIT_LAYERS = ['snowmaking-node-hit', 'snowmaking-pipe-hit'] as const;
+export const SNOWMAKING_DRAFT_LAYER_IDS = [
+  'snowmaking-pipe-draft', 'snowmaking-pipe-draft-vertices', 'snowmaking-snap-preview',
+] as const;
+export const SNOWMAKING_BUILT_LAYER_IDS = [
+  'snowmaking-pipe-casing', 'snowmaking-pipes', 'snowmaking-pipe-selected',
+  'snowmaking-node-halo', 'snowmaking-nodes', 'snowmaking-node-selected',
+  'snowmaking-node-labels', ...SNOWMAKING_HIT_LAYERS,
+] as const;
+
+type NetworkProperties = {
+  id: string;
+  entityKind: 'node' | 'pipe';
+  name: string;
+  kind?: string;
+  label?: string;
+  diameterIn?: number;
+};
+
+export function snowmakingNetworkToGeoJSON(nodes: readonly SavedSnowmakingNode[],
+  pipes: readonly SavedSnowmakingPipe[]): GeoJSON.FeatureCollection<GeoJSON.Geometry, NetworkProperties> {
+  return {
+    type: 'FeatureCollection',
+    features: [
+      ...pipes.map((pipe): GeoJSON.Feature<GeoJSON.LineString, NetworkProperties> => ({
+        type: 'Feature',
+        id: pipe.id,
+        properties: { id: pipe.id, entityKind: 'pipe', name: pipe.name,
+          diameterIn: pipe.diameterIn },
+        geometry: { type: 'LineString', coordinates: pipe.vertices.map((vertex) => vertex.point) },
+      })),
+      ...nodes.map((node): GeoJSON.Feature<GeoJSON.Point, NetworkProperties> => ({
+        type: 'Feature',
+        id: node.id,
+        properties: { id: node.id, entityKind: 'node', name: node.name,
+          kind: node.kind, label: snowmakingNodeLabel(node) },
+        geometry: { type: 'Point', coordinates: node.point },
+      })),
+    ],
+  };
+}
+
+/** Compatibility projection retained for focused node-layer tests. */
+export function snowmakingNodesToGeoJSON(nodes: readonly SavedSnowmakingNode[]):
+GeoJSON.FeatureCollection<GeoJSON.Point, NetworkProperties> {
   return { type: 'FeatureCollection', features: nodes.map((node) => ({
-    type: 'Feature', properties: { id: node.id, name: node.name, kind: node.kind },
+    type: 'Feature', id: node.id,
+    properties: { id: node.id, entityKind: 'node', name: node.name,
+      kind: node.kind, label: snowmakingNodeLabel(node) },
     geometry: { type: 'Point', coordinates: node.point },
   })) };
 }
 
+export interface SnowmakingDraftData {
+  points: [number, number][];
+  cursor: [number, number] | null;
+  snapPoint: [number, number] | null;
+}
+
+export function snowmakingDraftToGeoJSON(draft: SnowmakingDraftData | null):
+GeoJSON.FeatureCollection<GeoJSON.Geometry, { kind: 'line' | 'vertex' | 'snap' }> {
+  if (!draft) return { type: 'FeatureCollection', features: [] };
+  const line = draft.cursor ? [...draft.points, draft.cursor] : draft.points;
+  const features: GeoJSON.Feature<GeoJSON.Geometry, { kind: 'line' | 'vertex' | 'snap' }>[] = [];
+  if (line.length >= 2) features.push({ type: 'Feature', properties: { kind: 'line' },
+    geometry: { type: 'LineString', coordinates: line } });
+  for (const point of draft.points) features.push({ type: 'Feature', properties: { kind: 'vertex' },
+    geometry: { type: 'Point', coordinates: point } });
+  if (draft.snapPoint) features.push({ type: 'Feature', properties: { kind: 'snap' },
+    geometry: { type: 'Point', coordinates: draft.snapPoint } });
+  return { type: 'FeatureCollection', features };
+}
+
 export function addSnowmakingLayers(map: maplibregl.Map): void {
   if (map.getSource(SNOWMAKING_SOURCE)) return;
-  map.addSource(SNOWMAKING_SOURCE, { type: 'geojson', data: snowmakingNodesToGeoJSON([]) });
-  // Per-kind circle color, staying in the palette family already used for
-  // water (pond outline blue), dam/pond preview points (amber), and neutral
-  // waypoints (node-path slate). Hydrant gets a fresh saturated green since
-  // no existing layer already claims one in this accent family.
-  // Soft halo under every kind, same opacity/radius approach as
-  // trail-head-candidate (trailLayers.ts) — reads as "network node" at a
-  // glance before you're close enough to make out the base dot's color.
+  map.addSource(SNOWMAKING_SOURCE, { type: 'geojson', data: snowmakingNetworkToGeoJSON([], []) });
+  map.addSource(SNOWMAKING_DRAFT_SOURCE, { type: 'geojson', data: snowmakingDraftToGeoJSON(null) });
+
+  const pipeFilter: maplibregl.FilterSpecification = ['==', ['get', 'entityKind'], 'pipe'];
+  const nodeFilter: maplibregl.FilterSpecification = ['==', ['get', 'entityKind'], 'node'];
+  map.addLayer({ id: 'snowmaking-pipe-casing', type: 'line', source: SNOWMAKING_SOURCE,
+    filter: pipeFilter, layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#ffffff', 'line-opacity': 0.92,
+      'line-width': ['interpolate', ['linear'], ['get', 'diameterIn'], 4, 4, 24, 8] } });
+  map.addLayer({ id: 'snowmaking-pipes', type: 'line', source: SNOWMAKING_SOURCE,
+    filter: pipeFilter, layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#2c83a5',
+      'line-width': ['interpolate', ['linear'], ['get', 'diameterIn'], 4, 2, 24, 6] } });
+  map.addLayer({ id: 'snowmaking-pipe-selected', type: 'line', source: SNOWMAKING_SOURCE,
+    filter: ['all', pipeFilter, ['==', ['get', 'id'], '']],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#fff1a8', 'line-width': 9, 'line-opacity': 0.7 } });
+
   map.addLayer({ id: 'snowmaking-node-halo', type: 'circle', source: SNOWMAKING_SOURCE,
-    paint: { 'circle-radius': 9, 'circle-opacity': 0.18, 'circle-stroke-width': 0,
-      'circle-color': ['match', ['get', 'kind'], 'intake', '#397f9f', 'pump', '#f0b44d',
-        'junction', '#4b5563', 'hydrant', '#22c55e', '#397f9f'] } });
+    filter: nodeFilter, paint: { 'circle-radius': 9, 'circle-opacity': 0.18,
+      'circle-stroke-width': 0, 'circle-color': ['match', ['get', 'kind'],
+        'intake', '#397f9f', 'pump', '#f0b44d', 'junction', '#4b5563',
+        'hydrant', '#22c55e', '#397f9f'] } });
   map.addLayer({ id: 'snowmaking-nodes', type: 'circle', source: SNOWMAKING_SOURCE,
-    paint: { 'circle-radius': 5.5, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5,
-      'circle-color': ['match', ['get', 'kind'], 'intake', '#397f9f', 'pump', '#f0b44d',
-        'junction', '#4b5563', 'hydrant', '#22c55e', '#397f9f'] } });
+    filter: nodeFilter, paint: { 'circle-radius': 5.5, 'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 1.5, 'circle-color': ['match', ['get', 'kind'],
+        'intake', '#397f9f', 'pump', '#f0b44d', 'junction', '#4b5563',
+        'hydrant', '#22c55e', '#397f9f'] } });
   map.addLayer({ id: 'snowmaking-node-selected', type: 'circle', source: SNOWMAKING_SOURCE,
-    filter: ['==', ['get', 'id'], ''],
+    filter: ['all', nodeFilter, ['==', ['get', 'id'], '']],
     paint: { 'circle-radius': 8, 'circle-color': 'rgba(0,0,0,0)',
       'circle-stroke-color': '#fff6c7', 'circle-stroke-width': 3 } });
   map.addLayer({ id: 'snowmaking-node-labels', type: 'symbol', source: SNOWMAKING_SOURCE,
-    layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-offset': [0, 1.1],
-      'text-anchor': 'top',
-      // Noto Sans Bold 404s on the dark (Carto) basemap — Regular is the
-      // only weight both fontstacks ship, so labels stay visible after a
-      // theme swap.
-      'text-font': ['Noto Sans Regular'], 'text-optional': true },
-    paint: { 'text-color': '#1f2937', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } });
+    filter: nodeFilter, layout: { 'text-field': ['get', 'label'], 'text-size': 12,
+      'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-font': ['Noto Sans Regular'],
+      'text-optional': true }, paint: { 'text-color': '#1f2937',
+      'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } });
+
+  map.addLayer({ id: 'snowmaking-pipe-hit', type: 'line', source: SNOWMAKING_SOURCE,
+    filter: pipeFilter, paint: { 'line-width': 16, 'line-color': 'rgba(0,0,0,0)',
+      'line-opacity': 0.01 } });
   map.addLayer({ id: 'snowmaking-node-hit', type: 'circle', source: SNOWMAKING_SOURCE,
-    paint: { 'circle-radius': 12, 'circle-color': 'rgba(0,0,0,0)', 'circle-opacity': 0.01 } });
+    filter: nodeFilter, paint: { 'circle-radius': 12, 'circle-color': 'rgba(0,0,0,0)',
+      'circle-opacity': 0.01 } });
+
+  map.addLayer({ id: 'snowmaking-pipe-draft', type: 'line', source: SNOWMAKING_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'line'], layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#efb84f', 'line-width': 4, 'line-dasharray': [1.5, 1] } });
+  map.addLayer({ id: 'snowmaking-pipe-draft-vertices', type: 'circle',
+    source: SNOWMAKING_DRAFT_SOURCE, filter: ['==', ['get', 'kind'], 'vertex'],
+    paint: { 'circle-radius': 4.5, 'circle-color': '#efb84f',
+      'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } });
+  map.addLayer({ id: 'snowmaking-snap-preview', type: 'circle', source: SNOWMAKING_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'snap'], paint: { 'circle-radius': 9,
+      'circle-color': 'rgba(239,184,79,0.18)', 'circle-stroke-color': '#efb84f',
+      'circle-stroke-width': 3 } });
 }
 
-export function setSnowmakingData(map: maplibregl.Map | null, nodes: SavedSnowmakingNode[]): void {
+export function setSnowmakingData(map: maplibregl.Map | null,
+  nodes: readonly SavedSnowmakingNode[], pipes: readonly SavedSnowmakingPipe[] = []): void {
   (map?.getSource(SNOWMAKING_SOURCE) as maplibregl.GeoJSONSource | undefined)
-    ?.setData(snowmakingNodesToGeoJSON(nodes));
+    ?.setData(snowmakingNetworkToGeoJSON(nodes, pipes));
 }
 
 export function setSelectedSnowmakingNode(map: maplibregl.Map | null, id: string | null): void {
-  if (map?.getLayer('snowmaking-node-selected'))
+  if (map?.getLayer('snowmaking-node-selected')) {
     map.setFilter('snowmaking-node-selected', ['==', ['get', 'id'], id ?? '']);
+  }
+  if (map?.getLayer('snowmaking-pipe-selected')) {
+    map.setFilter('snowmaking-pipe-selected', ['==', ['get', 'id'], '']);
+  }
+}
+
+export function setSnowmakingDraftData(map: maplibregl.Map | null,
+  draft: SnowmakingDraftData | null): void {
+  (map?.getSource(SNOWMAKING_DRAFT_SOURCE) as maplibregl.GeoJSONSource | undefined)
+    ?.setData(snowmakingDraftToGeoJSON(draft));
+}
+
+export function setSelectedSnowmakingFeature(map: maplibregl.Map | null,
+  selected: { kind: 'node' | 'pipe'; id: string } | null): void {
+  if (map?.getLayer('snowmaking-node-selected')) map.setFilter('snowmaking-node-selected',
+    ['all', ['==', ['get', 'entityKind'], 'node'],
+      ['==', ['get', 'id'], selected?.kind === 'node' ? selected.id : '']]);
+  if (map?.getLayer('snowmaking-pipe-selected')) map.setFilter('snowmaking-pipe-selected',
+    ['all', ['==', ['get', 'entityKind'], 'pipe'],
+      ['==', ['get', 'id'], selected?.kind === 'pipe' ? selected.id : '']]);
+}
+
+export function setSnowmakingCaptureTransient(map: maplibregl.Map | null, hidden: boolean): void {
+  for (const id of SNOWMAKING_DRAFT_LAYER_IDS) if (map?.getLayer(id)) {
+    map.setLayoutProperty(id, 'visibility', hidden ? 'none' : 'visible');
+  }
 }

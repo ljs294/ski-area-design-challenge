@@ -18,26 +18,27 @@ import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
 import type { GameSave, SavedDam, SavedJunction, SavedLift,
-  SavedNode, SavedPath, SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
+  SavedNode, SavedPath, SavedPond, SavedRoad, SavedTrail,
   TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import { coverDisplayMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
 import { clearResortCoverCache, RESORT_COVER_PROTOCOL,
-  resortCameraBounds, setActiveResortTerrain } from './resortProtocols';
+  resortCameraBounds, sampleLocalTerrainAt, setActiveResortTerrain } from './resortProtocols';
 import { useLiftController } from './useLiftController';
 import { useRoadController } from './useRoadController';
-import { useSnowmakingController, useSnowmakingLakeSources } from './useSnowmakingController';
+import { useCommittedSnowmakingNetwork, useSnowmakingController,
+  useSnowmakingLakeSources } from './useSnowmakingController';
 import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
-import { MapViewChrome, useMapContextRecovery } from './MapViewChrome';
+import { MapViewChrome, SnowmakingToolOptions, snowmakingDashboardProps,
+  useMapContextRecovery } from './MapViewChrome';
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
 import { useMapRuntime } from './useMapRuntime';
 import { useMapSampling } from './useMapSampling';
 import { useMapWorkers } from './useMapWorkers';
-import { reconcileSnowmakingNodes } from '../snowmakingNodes';
 import { initialResortDesign } from './initialResortDesign';
 import { TERRAIN_CLEAN, designHasEdits, designOf, flushTerrainEdits, terrainHasEdits,
   withTerrainEdit, type DesignSnapshot, type TerrainDirty } from './unsavedChanges';
@@ -64,7 +65,8 @@ export type MapMode = 'picking' | 'playing';
  * a button, so a misclick costs nothing.
  */
 type SelectionTarget =
-  | { kind: 'lift' | 'trail' | 'dam' | 'pond' | 'snowmaking-node' | 'ski-node' | 'ski-path'; id: string }
+  | { kind: 'lift' | 'trail' | 'dam' | 'pond' | 'snowmaking-node' | 'snowmaking-pipe' |
+      'ski-node' | 'ski-path'; id: string }
   | { kind: 'lake' | 'stream'; id: string }
   | { kind: 'none' };
 
@@ -274,14 +276,13 @@ export function MapView({
   const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
   const [ponds, setPonds] = useState<SavedPond[]>(initialDesign.ponds);
   const [selectedPondId, setSelectedPondId] = useState<string | null>(null);
-  // Seeded already-reconciled against the sanitized dams/ponds above, so a
-  // save that needed backfilling (or predates this field) doesn't present as
-  // dirty the instant it's opened.
-  const [snowmakingNodes, setSnowmakingNodes] = useState<SavedSnowmakingNode[]>(
-    initialDesign.snowmakingNodes);
-  const [selectedSnowmakingNodeId, setSelectedSnowmakingNodeId] = useState<string | null>(null);
-  // User-declared connectivity: placed nodes and drawn connector paths, both
-  // owned by the floating Trails roll-up.
+  const snowmakingState = useCommittedSnowmakingNetwork({ nodes: initialDesign.snowmakingNodes,
+    pipes: initialDesign.snowmakingPipes, nextNumbers: initialDesign.snowmakingNodeNextNumbers });
+  const { nodes: snowmakingNodes, pipes: snowmakingPipes,
+    nextNumbers: snowmakingNodeNextNumbers, selectedNodeId: selectedSnowmakingNodeId,
+    selectedPipeId: selectedSnowmakingPipeId, setSelectedNodeId: setSelectedSnowmakingNodeId,
+    setSelectedPipeId: setSelectedSnowmakingPipeId, committedRef: committedSnowmakingRef,
+    document: snowmakingNetwork } = snowmakingState;
   const [skiNodes, setSkiNodes] = useState<SavedNode[]>(initialDesign.nodes);
   const [skiPaths, setSkiPaths] = useState<SavedPath[]>(initialDesign.paths);
   const [junctions, setJunctions] = useState<SavedJunction[]>(initialDesign.junctions);
@@ -333,34 +334,21 @@ export function MapView({
   };
   const markTerrainEdited = (kind: 'elevation' | 'cover') =>
     setTerrainDirty(withTerrainEdit(terrainDirtyRef.current, kind));
-  // The design as last written to disk. Seeded from the *sanitized* state above
-  // rather than from initialSave, whose arrays those sanitizers replaced — the
-  // comparison is by reference, so seeding it from initialSave would report a
-  // freshly-loaded resort dirty.
   const [savedDesign, setSavedDesign] = useState<DesignSnapshot>(() => ({
     name: initialSave?.name ?? '',
     site: initialSave?.site ?? null,
     lifts, trails, roads, dams, ponds,
-    nodes: skiNodes, paths: skiPaths, junctions, snowmakingNodes,
+    nodes: skiNodes, paths: skiPaths, junctions, snowmakingNodes, snowmakingPipes,
+    snowmakingNodeNextNumbers,
     lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds, streamWidthOverrides,
   }));
-  // Identifies the active construction operation for disabled controls, button
-  // spinners, and the persistent map-level status bug.
   const [buildingActivity, setBuildingActivity] =
     useState<Parameters<TerrainDocumentPorts['publishConstruction']>[0]>(null);
   const building = buildingActivity !== null;
-  // Node map: a simplified 2D topology view, toggled from the top-left.
   const [showNetwork, setShowNetwork] = useState(false);
   const [networkLiftId, setNetworkLiftId] = useState<string | null>(null);
   const [networkEdgeId, setNetworkEdgeId] = useState<string | null>(null);
-  // Which dashboard the "Mountain Dashboards" overlay shows — independent of
-  // showNetwork, which only opens/closes the overlay itself.
   const [dashboard, setDashboard] = useState<'trails' | 'snowmaking'>('trails');
-
-  // The trail/lift graph is derived, never persisted — the same rule that has
-  // sanitizeTrails recompute cached stats on load, so it can never drift from
-  // the geometry. Keyed on the two state arrays, so it rebuilds when a run or
-  // lift changes and never while the camera moves.
   const network = useMemo(
     () => buildSkiNetwork(trails, lifts, { nodes: skiNodes, paths: skiPaths, junctions }),
     [trails, lifts, skiNodes, skiPaths, junctions]
@@ -429,12 +417,12 @@ export function MapView({
   const roadsRef = useRef<SavedRoad[]>(roads);
   const damsRef = useRef<SavedDam[]>(dams);
   const pondsRef = useRef<SavedPond[]>(ponds);
-  const snowmakingNodesRef = useRef<SavedSnowmakingNode[]>(snowmakingNodes);
   const renderQualityRef = useRef(settings.renderQuality);
   const unitsRef = useRef(settings.units);
   const toolCancellationRef = useRef<Record<ToolId, () => void>>({
     lift: () => {}, road: () => {}, dam: () => {}, pond: () => {},
     'ski-node': () => {}, 'ski-path': () => {}, trail: () => {},
+    'snowmaking-pipe': () => {}, 'snowmaking-node': () => {},
   });
   const toolRegistrationsReadyRef = useRef(false);
   if (!toolRegistrationsReadyRef.current) {
@@ -451,6 +439,8 @@ export function MapView({
     'ski-node': cancelNodeTool,
     'ski-path': cancelPathTool,
     trail: cancelTrailTool,
+    'snowmaking-pipe': () => snowmakingController.network.cancelPipe(),
+    'snowmaking-node': () => snowmakingController.network.cancelNode(),
   };
   const mapInteractionLeaseRef = useRef<MapInteractionLease | null>(null);
   if (!mapInteractionLeaseRef.current) {
@@ -626,16 +616,25 @@ export function MapView({
       structuresVisible: () => packageStateRef.current !== 'preparing',
       synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('pond'),
     },
-    nodes: {
-      dams, ponds, lakes: snowmakingLakes, nodes: snowmakingNodes,
-      selectedId: selectedSnowmakingNodeId,
-      reconcileSources: (nextDams, nextPonds, nextLakes) => setSnowmakingNodes((existing) =>
-        reconcileSnowmakingNodes(existing, [...nextDams], [...nextPonds], [...nextLakes])),
-      rename: (id, name) => setSnowmakingNodes((existing) =>
-        existing.map((node) => node.id === id ? { ...node, name } : node)),
-      select: (id) => transitionSelection({ kind: 'snowmaking-node', id }),
-      structuresVisible: () => packageStateRef.current !== 'preparing',
-      synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('snowmaking'),
+    network: { mapRef, dams, ponds, lakes: snowmakingLakes, nodes: snowmakingNodes,
+      pipes: snowmakingPipes, network: snowmakingNetwork,
+      selected: selectedSnowmakingNodeId ? { kind: 'node', id: selectedSnowmakingNodeId } :
+        selectedSnowmakingPipeId ? { kind: 'pipe', id: selectedSnowmakingPipeId } : null,
+      canArm: () => siteModeRef.current !== 'selecting', activate: (tool) =>
+        toolCoordinator.activate(tool), release: (tool) => { toolCoordinator.release(tool); },
+      openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
+      acquireInteractions: (tool, map) => acquireMapInteractions(tool, map, {
+        cursor: 'crosshair', doubleClickZoomEnabled: false }),
+      selectNode: (id) => transitionSelection({ kind: 'snowmaking-node', id }), selectPipe: (id) =>
+        transitionSelection({ kind: 'snowmaking-pipe', id }),
+      clearSelected: (id) => {
+        setSelectedSnowmakingNodeId((selected) => selected === id ? null : selected);
+        setSelectedSnowmakingPipeId((selected) => selected === id ? null : selected);
+      },
+      createId: genId, now: () => new Date().toISOString(), sampleElevation: ([lng, lat]) =>
+        sampleLocalTerrainAt(lng, lat)?.elevation ?? null,
+      structuresVisible: () => packageStateRef.current !== 'preparing', synchronizeMap: () =>
+        mapContributionRegistryRef.current?.synchronizeData('snowmaking'),
     },
   });
 
@@ -801,7 +800,6 @@ export function MapView({
   roadsRef.current = roads;
   damsRef.current = dams;
   pondsRef.current = ponds;
-  snowmakingNodesRef.current = snowmakingNodes;
   skiNodesRef.current = skiNodes;
   skiPathsRef.current = skiPaths;
   junctionsRef.current = junctions;
@@ -930,6 +928,7 @@ export function MapView({
     setSelectedDamId(null);
     setSelectedPondId(null);
     setSelectedSnowmakingNodeId(null);
+    setSelectedSnowmakingPipeId(null);
     setSelectedNodeId(null);
     setSelectedPathId(null);
     setSelectedLakeId(null);
@@ -948,6 +947,7 @@ export function MapView({
       case 'dam': setSelectedDamId(target.id); setOpenDock('snowmaking'); break;
       case 'pond': setSelectedPondId(target.id); setOpenDock('snowmaking'); break;
       case 'snowmaking-node': setSelectedSnowmakingNodeId(target.id); setOpenDock('snowmaking'); break;
+      case 'snowmaking-pipe': setSelectedSnowmakingPipeId(target.id); setOpenDock('snowmaking'); break;
       case 'ski-node': setSelectedNodeId(target.id); break;
       case 'ski-path': setSelectedPathId(target.id); break;
       case 'lake': setSelectedLakeId(target.id); setOpenDock(null); break;
@@ -1041,7 +1041,7 @@ export function MapView({
       nodePathController.contribution,
       trailController.contribution,
       liftController.contribution,
-      snowmakingController.nodes.contribution,
+      snowmakingController.network.contribution,
     ];
   }
 
@@ -1187,8 +1187,9 @@ export function MapView({
         : which === 'trails' ? openDock === 'trails' || activeTool === 'trail' ||
           activeTool === 'ski-node' || activeTool === 'ski-path' || selectedTrailId !== null
           : which === 'snowmaking' ? openDock === 'snowmaking' || activeTool === 'dam' ||
-            activeTool === 'pond' || selectedDamId !== null || selectedPondId !== null ||
-            selectedSnowmakingNodeId !== null
+            activeTool === 'pond' || activeTool === 'snowmaking-pipe' ||
+            activeTool === 'snowmaking-node' || selectedDamId !== null || selectedPondId !== null ||
+            selectedSnowmakingNodeId !== null || selectedSnowmakingPipeId !== null
             : openDock === 'infrastructure' || activeTool === 'road');
     if (toolCoordinator.toggleDock(which, isOpen) === 'layers-alongside') return;
 
@@ -1203,7 +1204,8 @@ export function MapView({
       setTrailEditing(false);
     }
     if (which !== 'snowmaking') {
-      setSelectedDamId(null); setSelectedPondId(null); setSelectedSnowmakingNodeId(null); }
+      setSelectedDamId(null); setSelectedPondId(null); setSelectedSnowmakingNodeId(null);
+      setSelectedSnowmakingPipeId(null); }
     if (isOpen) {
       if (which === 'lifts') {
         setSelectedLiftId(null);
@@ -1214,7 +1216,8 @@ export function MapView({
         setTrailEditing(false);
       }
       if (which === 'snowmaking') {
-        setSelectedDamId(null); setSelectedPondId(null); setSelectedSnowmakingNodeId(null); }
+        setSelectedDamId(null); setSelectedPondId(null); setSelectedSnowmakingNodeId(null);
+        setSelectedSnowmakingPipeId(null); }
     }
   }
 
@@ -1443,7 +1446,9 @@ export function MapView({
       nodes: committedTopology.nodes,
       paths: committedTopology.paths,
       junctions: committedTopology.junctions,
-      snowmakingNodes: snowmakingNodesRef.current,
+      snowmakingNodes: committedSnowmakingRef.current.nodes,
+      snowmakingPipes: committedSnowmakingRef.current.pipes,
+      snowmakingNodeNextNumbers: committedSnowmakingRef.current.nextNumbers,
       lakeDepthOverrides: lakeDepthOverridesRef.current,
       lakeNameOverrides: lakeNameOverridesRef.current,
       snowmakingLakeIds: snowmakingLakeIdsRef.current,
@@ -1468,7 +1473,9 @@ export function MapView({
       nodes: committedTopology.nodes,
       paths: committedTopology.paths,
       junctions: committedTopology.junctions,
-      snowmakingNodes: snowmakingNodesRef.current,
+      snowmakingNodes: committedSnowmakingRef.current.nodes,
+      snowmakingPipes: committedSnowmakingRef.current.pipes,
+      snowmakingNodeNextNumbers: committedSnowmakingRef.current.nextNumbers,
       lakeDepthOverrides: lakeDepthOverridesRef.current,
       lakeNameOverrides: lakeNameOverridesRef.current,
       snowmakingLakeIds: snowmakingLakeIdsRef.current,
@@ -1680,6 +1687,8 @@ export function MapView({
         } : null}
         view3D={terrainRecord ? { is3D: !isOverhead, onToggle: toggle3D } : null}
         buildingActivity={buildingActivity}
+        bottomRightToolOptions={saved ? <SnowmakingToolOptions
+          controller={snowmakingController.network} units={settings.units} /> : null}
         dashboardToggle={saved ? {
           open: showNetwork,
           toggle: () => setShowNetwork((value) => !value),
@@ -1698,21 +1707,15 @@ export function MapView({
             onToggleLiftClosed: (id, closed) => patchLift(id, { closed }),
             onTogglePathClosed: (id, closed) => patchSkiPath(id, { closed }),
           },
-          snowmakingProps: {
-            dams,
-            ponds,
-            lakes: snowmakingLakes ?? [],
-            trails,
-            lifts,
-            nodes: snowmakingNodes,
-            coverDisplay: coverDisplayRef.current,
-            terrainRecord,
-            units: settings.units,
-            selectedNodeId: selectedSnowmakingNodeId,
-            onSelectNode: (id) => (id
-              ? snowmakingController.nodes.select(id)
-              : setSelectedSnowmakingNodeId(null)),
-          },
+          snowmakingProps: snowmakingDashboardProps({
+            dams, ponds, lakes: snowmakingLakes ?? [], trails, lifts, nodes: snowmakingNodes,
+            pipes: snowmakingPipes,
+            coverDisplay: coverDisplayRef.current, terrainRecord, units: settings.units,
+            selectedNodeId: selectedSnowmakingNodeId, selectedPipeId: selectedSnowmakingPipeId,
+            clearNode: () => setSelectedSnowmakingNodeId(null), clearPipe: () =>
+              setSelectedSnowmakingPipeId(null),
+            controller: snowmakingController.network,
+          }),
           onClose: () => setShowNetwork(false),
         } : null}
         readout={!saved ? { value: readout, units: settings.units } : null}
@@ -1721,11 +1724,11 @@ export function MapView({
           openDock, layersAlongsideBuild,
           coordinator: toolCoordinatorState, layers, activeOverlay,
           lifts, trails, roads, dams, ponds, snowmakingLakes: snowmakingLakes ?? [],
-          snowmakingNodes, skiNodes, skiPaths,
+          snowmakingNodes, snowmakingPipes, skiNodes, skiPaths,
           junctions, terrainRecord, network,
           selectedLiftId, selectedTrailId,
           selectedDamId, selectedPondId,
-          selectedSnowmakingNodeId, selectedNodeId,
+          selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedNodeId,
           selectedPathId, selectedLakeId,
           selectedStreamId, liftEditing, trailEditing,
           lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds,
@@ -1747,6 +1750,7 @@ export function MapView({
           clearSelectedDam: () => setSelectedDamId(null),
           clearSelectedPond: () => setSelectedPondId(null),
           clearSelectedSnowmakingNode: () => setSelectedSnowmakingNodeId(null),
+          clearSelectedSnowmakingPipe: () => setSelectedSnowmakingPipeId(null),
           clearSelectedNode: () => setSelectedNodeId(null),
           clearSelectedPath: () => setSelectedPathId(null),
           clearSelectedLake: () => setSelectedLakeId(null),

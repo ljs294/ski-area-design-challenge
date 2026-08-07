@@ -13,7 +13,11 @@ const callbacks = {
   onConfirmPond: vi.fn(),
   onSelectPond: vi.fn(), onDeletePond: vi.fn(), onClosePond: vi.fn(),
   onPondSnowmakingChange: vi.fn(),
-  onSelectNode: vi.fn(), onRenameNode: vi.fn(), onCloseNode: vi.fn(),
+  onArmPipe: vi.fn(), onCancelPipe: vi.fn(), onUndoPipe: vi.fn(), onFinishPipe: vi.fn(),
+  onConfirmPipe: vi.fn(), onRenameDraftPipe: vi.fn(), onDiameterChange: vi.fn(),
+  onArmNode: vi.fn(), onCancelNode: vi.fn(), onConfirmNode: vi.fn(),
+  onSelectNode: vi.fn(), onRenameNode: vi.fn(), onDeleteNode: vi.fn(), onCloseNode: vi.fn(),
+  onSelectPipe: vi.fn(), onPatchPipe: vi.fn(), onDeletePipe: vi.fn(), onClosePipe: vi.fn(),
 };
 
 function render(damTool: DamTool = { phase: 'idle' }, pondTool: PondTool = { phase: 'idle' },
@@ -21,7 +25,9 @@ function render(damTool: DamTool = { phase: 'idle' }, pondTool: PondTool = { pha
   nodes: SavedSnowmakingNode[] = [], selectedNode: SavedSnowmakingNode | null = null) {
   return renderToStaticMarkup(<SnowmakingControl damTool={damTool} pondTool={pondTool}
     dams={dams} ponds={ponds} selectedDam={null} selectedPond={null}
-    nodes={nodes} selectedNode={selectedNode} units={units} {...callbacks} />);
+    nodes={nodes} pipes={[]} selectedNode={selectedNode} selectedPipe={null}
+    pipeTool={{ phase: 'idle' }} nodeTool={{ phase: 'idle' }} diameterIn={8}
+    units={units} {...callbacks} />);
 }
 
 describe('SnowmakingControl', () => {
@@ -33,10 +39,10 @@ describe('SnowmakingControl', () => {
     expect(html).toContain('Install snowmaking pipe');
   });
 
-  it('keeps the pipe tool inert until there is a network to build', () => {
-    // Placeholder: a disabled button reads as not-yet-ready, where a live one
-    // would arm nothing and look broken.
-    expect(render()).toMatch(/disabled=""[^>]*>＋ Install snowmaking pipe/);
+  it('enables pipe and device construction', () => {
+    expect(render()).not.toMatch(/disabled=""[^>]*>.*Install snowmaking pipe/);
+    expect(render()).toContain('Place hydrants');
+    expect(render()).toContain('Place pumps');
   });
 
   it('reviews standalone pond elevation, volume, and lack of natural fill', () => {

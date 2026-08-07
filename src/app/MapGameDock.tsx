@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath,
-  SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail, TerrainRecord } from '../types';
-import type { SnowmakingLakeSource } from '../types/snowmaking';
+  SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
+  TerrainRecord } from '../types';
+import type { SavedSnowmakingPipe, SnowmakingLakeSource } from '../types/snowmaking';
 import { analyzeLake } from '../lakeAnalysis';
 import { analyzeStream } from '../streamAnalysis';
 import { describeAnchor, pathLengthM } from '../skiNodes';
@@ -50,6 +51,7 @@ export interface MapGameDockProps {
   dams: SavedDam[];
   ponds: SavedPond[];
   snowmakingNodes: SavedSnowmakingNode[];
+  snowmakingPipes: SavedSnowmakingPipe[];
   snowmakingLakes: SnowmakingLakeSource[];
   skiNodes: SavedNode[];
   skiPaths: SavedPath[];
@@ -61,6 +63,7 @@ export interface MapGameDockProps {
   selectedDamId: string | null;
   selectedPondId: string | null;
   selectedSnowmakingNodeId: string | null;
+  selectedSnowmakingPipeId: string | null;
   selectedNodeId: string | null;
   selectedPathId: string | null;
   selectedLakeId: string | null;
@@ -88,6 +91,7 @@ export interface MapGameDockProps {
   clearSelectedDam(): void;
   clearSelectedPond(): void;
   clearSelectedSnowmakingNode(): void;
+  clearSelectedSnowmakingPipe(): void;
   clearSelectedNode(): void;
   clearSelectedPath(): void;
   clearSelectedLake(): void;
@@ -109,8 +113,10 @@ export function MapGameDock(props: MapGameDockProps) {
     props.coordinator.activeTool === 'ski-node' || props.coordinator.activeTool === 'ski-path' ||
     props.selectedTrailId !== null;
   const snowmakingActive = props.coordinator.activeTool === 'dam' ||
-    props.coordinator.activeTool === 'pond' || props.selectedDamId !== null ||
-    props.selectedPondId !== null || props.selectedSnowmakingNodeId !== null;
+    props.coordinator.activeTool === 'pond' || props.coordinator.activeTool === 'snowmaking-pipe' ||
+    props.coordinator.activeTool === 'snowmaking-node' || props.selectedDamId !== null ||
+    props.selectedPondId !== null || props.selectedSnowmakingNodeId !== null ||
+    props.selectedSnowmakingPipeId !== null;
   const selectedLakeFeature = props.selectedLakeId
     ? props.terrainRecord?.vectorFeatures?.waterPolygons.find(
       (lake) => lake.id === props.selectedLakeId) ?? null : null;
@@ -144,6 +150,8 @@ export function MapGameDock(props: MapGameDockProps) {
     ? props.ponds.find((pond) => pond.id === props.selectedPondId) ?? null : null;
   const selectedSnowmakingNode = props.selectedSnowmakingNodeId
     ? props.snowmakingNodes.find((node) => node.id === props.selectedSnowmakingNodeId) ?? null : null;
+  const selectedSnowmakingPipe = props.selectedSnowmakingPipeId
+    ? props.snowmakingPipes.find((pipe) => pipe.id === props.selectedSnowmakingPipeId) ?? null : null;
   const anchorWorld = useMemo(() => ({ trails: props.trails, lifts: props.lifts,
     junctions: props.junctions, nodes: props.skiNodes, paths: props.skiPaths }),
   [props.trails, props.lifts, props.junctions, props.skiNodes, props.skiPaths]);
@@ -288,7 +296,10 @@ export function MapGameDock(props: MapGameDockProps) {
       <SnowmakingControl damTool={damTool} pondTool={pondTool} dams={props.dams} ponds={props.ponds}
         lakes={props.snowmakingLakes}
         selectedDam={selectedDam} selectedPond={selectedPond} nodes={props.snowmakingNodes}
-        selectedNode={selectedSnowmakingNode} units={props.units}
+        pipes={props.snowmakingPipes} selectedNode={selectedSnowmakingNode}
+        selectedPipe={selectedSnowmakingPipe} pipeTool={snowmakingController.network.pipeTool}
+        nodeTool={snowmakingController.network.nodeTool}
+        diameterIn={snowmakingController.network.diameterIn} units={props.units}
         onArmDam={snowmakingController.dam.arm} onCancelDam={snowmakingController.dam.cancel}
         onDamDraftChange={snowmakingController.dam.patchDraft}
         onConfirmDam={snowmakingController.dam.confirm} onSelectDam={snowmakingController.dam.select}
@@ -301,8 +312,25 @@ export function MapGameDock(props: MapGameDockProps) {
         onConfirmPond={snowmakingController.pond.confirm} onSelectPond={snowmakingController.pond.select}
         onDeletePond={snowmakingController.pond.remove}
         onPondSnowmakingChange={snowmakingController.pond.setSnowmaking}
-        onClosePond={props.clearSelectedPond} onSelectNode={snowmakingController.nodes.select}
-        onRenameNode={snowmakingController.nodes.rename} onCloseNode={props.clearSelectedSnowmakingNode}
+        onClosePond={props.clearSelectedPond}
+        onArmPipe={snowmakingController.network.armPipe}
+        onCancelPipe={snowmakingController.network.cancelPipe}
+        onUndoPipe={snowmakingController.network.undoPipe}
+        onFinishPipe={snowmakingController.network.finishPipe}
+        onConfirmPipe={snowmakingController.network.confirmPipe}
+        onRenameDraftPipe={snowmakingController.network.renameDraftPipe}
+        onDiameterChange={snowmakingController.network.setDiameter}
+        onArmNode={snowmakingController.network.armNode}
+        onCancelNode={snowmakingController.network.cancelNode}
+        onConfirmNode={snowmakingController.network.confirmNode}
+        onSelectNode={snowmakingController.network.selectNode}
+        onRenameNode={snowmakingController.network.renameNode}
+        onDeleteNode={snowmakingController.network.removeNode}
+        onCloseNode={props.clearSelectedSnowmakingNode}
+        onSelectPipe={snowmakingController.network.selectPipe}
+        onPatchPipe={snowmakingController.network.patchPipe}
+        onDeletePipe={snowmakingController.network.removePipe}
+        onClosePipe={props.clearSelectedSnowmakingPipe}
         building={props.building} onClose={props.closeDock} />
     </div></div>}
     {infrastructureOpen && <div className="dock-rollup dock-infrastructure"><div className="dock-panel">

@@ -1,6 +1,7 @@
 import type { SavedLift } from './lifts';
 import type { SavedRoad } from './roads';
-import type { SavedDam, SavedPond, SavedSnowmakingNode } from './snowmaking';
+import type { SavedDam, SavedPond, SavedSnowmakingNode, SavedSnowmakingPipe,
+  SnowmakingNodeNextNumbers } from './snowmaking';
 import type { SavedJunction, SavedNode, SavedPath } from './topology';
 import type { SavedTrail } from './trails';
 
@@ -33,6 +34,8 @@ export interface GameSave {
   paths?: SavedPath[];
   junctions?: SavedJunction[];
   snowmakingNodes?: SavedSnowmakingNode[];
+  snowmakingPipes?: SavedSnowmakingPipe[];
+  snowmakingNodeNextNumbers?: SnowmakingNodeNextNumbers;
   lakeDepthOverrides?: Record<string, number>;
   lakeNameOverrides?: Record<string, string>;
   /** Imported standing-water feature IDs designated for snowmaking. */

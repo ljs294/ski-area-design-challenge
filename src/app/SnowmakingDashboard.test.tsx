@@ -241,14 +241,11 @@ describe('SnowmakingDashboard', () => {
       expect(html).not.toContain('Capacity');
     });
 
-    it('never renders a rename input in the inspector (read-only, unlike the dock panel)', () => {
+    it('renders management controls only for a selected item', () => {
       const withSelection = render({ selectedNodeId: 'node-a' });
       const withoutSelection = render();
-      expect(withSelection).not.toContain('name-entry-input');
+      expect(withSelection).toContain('name-entry-input');
       expect(withoutSelection).not.toContain('name-entry-input');
-      // No text inputs at all inside the inspector aside.
-      const inspectorHtml = withSelection.slice(withSelection.indexOf('data-inspector'));
-      expect(inspectorHtml).not.toContain('<input');
     });
   });
 });

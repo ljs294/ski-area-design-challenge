@@ -50,6 +50,20 @@ export interface SavedPond {
 
 export type SnowmakingNodeKind = 'intake' | 'pump' | 'junction' | 'hydrant';
 
+export const SNOWMAKING_PIPE_DIAMETERS_IN = [
+  4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24,
+] as const;
+
+export type SnowmakingPipeDiameterIn = (typeof SNOWMAKING_PIPE_DIAMETERS_IN)[number];
+
+export type NumberedSnowmakingNodeKind = Exclude<SnowmakingNodeKind, 'intake'>;
+
+export interface SnowmakingNodeNextNumbers {
+  hydrant: number;
+  junction: number;
+  pump: number;
+}
+
 export type SnowmakingSourceRef =
   | { kind: 'dam'; damId: string }
   | { kind: 'pond'; pondId: string }
@@ -68,8 +82,30 @@ export interface SavedSnowmakingNode {
   id: string;
   name: string;
   kind: SnowmakingNodeKind;
+  /** Stable per-kind asset number. Intakes retain their source-derived label. */
+  labelNumber?: number;
   point: [number, number];
   elevM: number | null;
   source?: SnowmakingSourceRef;
+  createdAt: string;
+}
+
+export interface SavedSnowmakingPipeVertex {
+  point: [number, number];
+  /** Planning-terrain elevation sampled when the pipe was installed. */
+  elevM: number | null;
+  /** Connectivity is explicit; geometric crossings never imply a connection. */
+  nodeId: string | null;
+}
+
+export interface SavedSnowmakingPipe {
+  id: string;
+  name: string;
+  diameterIn: SnowmakingPipeDiameterIn;
+  vertices: SavedSnowmakingPipeVertex[];
+  /** Recomputed from vertices while hydrating. */
+  lengthM: number;
+  /** Highest minus lowest sampled station, or null while elevation is unresolved. */
+  verticalM: number | null;
   createdAt: string;
 }

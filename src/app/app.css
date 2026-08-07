@@ -3251,3 +3251,93 @@ html.resume-capture .maplibregl-canvas {
 /* In a space-between readout the value hugs the right edge; its second line
    should too, rather than hanging left of the name above it. */
 .lift-stat-value .trail-anchor-detail { text-align: right; }
+.bottom-right-tool-stack {
+  position: absolute;
+  z-index: 18;
+  right: 54px;
+  bottom: 92px;
+  width: min(280px, calc(100vw - 32px));
+  pointer-events: auto;
+}
+
+.snowmaking-tool-options {
+  padding: 12px;
+  border: 1px solid rgba(64, 74, 79, 0.25);
+  border-radius: 12px;
+  background: rgba(248, 247, 241, 0.96);
+  box-shadow: 0 8px 28px rgba(25, 34, 38, 0.2);
+  color: #263238;
+  backdrop-filter: blur(8px);
+}
+
+.snowmaking-tool-options-title {
+  margin-bottom: 9px;
+  font-weight: 700;
+}
+
+.snowmaking-tool-option-row,
+.snowmaking-snap-toggle,
+.snowmaking-tool-stats > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.snowmaking-snap-toggle {
+  justify-content: flex-start;
+  margin: 10px 0;
+}
+
+.snowmaking-snap-toggle span {
+  display: grid;
+  gap: 2px;
+}
+
+.snowmaking-snap-toggle small {
+  color: #647078;
+}
+
+.snowmaking-tool-stats {
+  display: grid;
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(64, 74, 79, 0.16);
+}
+
+.snowmaking-tool-stats output {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.snowmaking-pipe-swatch {
+  width: 26px;
+  height: 5px;
+  border: 1px solid #fff;
+  border-radius: 999px;
+  background: #2c83a5;
+  box-shadow: 0 0 0 1px rgba(44, 131, 165, 0.35);
+}
+
+@media (max-width: 720px) {
+  .bottom-right-tool-stack {
+    right: 12px;
+    bottom: 126px;
+  }
+}
+.snowmaking-dashboard-pipe {
+  fill: none;
+  stroke: #2c83a5;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  cursor: pointer;
+  outline: none;
+}
+
+.snowmaking-dashboard-pipe:hover,
+.snowmaking-dashboard-pipe:focus,
+.snowmaking-dashboard-pipe.is-selected {
+  stroke: #f2b94b;
+  stroke-width: 7;
+}
