@@ -669,14 +669,15 @@ export function MapView({
         (record.packageManifest?.elevationChecksum ?? record.updatedAt)
         ? cached.heights.slice() : Float32Array.from(record.sampleHeights);
     },
-    sampleProfile, gradeChanged: applyGradePreview, clearCover: coverClear.clear,
+    sampleProfile, gradeChanged: applyGradePreview,
+    restoreGradePreview: (map) => { if (activeGradePreview()) applyGradePreview(map); },
+    clearCover: coverClear.clear,
     select: (id) => transitionSelection({ kind: 'trail', id }),
     clearSelected: (id) => setSelectedTrailId((selected) => selected === id ? null : selected),
     closeEditing: () => setTrailEditing(false),
     reportBlockedDelete: (message) => window.alert(message),
     createId: genId, now: () => new Date().toISOString(),
     structuresVisible: () => packageStateRef.current !== 'preparing',
-    synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('trail'),
   });
 
   /** The one place a committed terrain record reaches React and the dirty flag. */

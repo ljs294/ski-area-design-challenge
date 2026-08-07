@@ -20,7 +20,7 @@ function floatMetadata(values: number[]) {
 }
 
 /** Small, fully valid schema-v5 package. It exercises the real browser stores. */
-function preparedTerrainFixture(includeMapContext = true) {
+function preparedTerrainFixture(includeMapContext = true, contourSegmentCount = 1) {
   const sampleHeights = [1000, 1010, 1020, 1030];
   const coverGrid = {
     bounds,
@@ -46,10 +46,13 @@ function preparedTerrainFixture(includeMapContext = true) {
     segmentCount: 1,
     ...floatMetadata(coverBoundarySegments),
   };
-  const contourSegments = [0, 0, 1, 1, 1500];
+  const contourSegments = Array.from({ length: contourSegmentCount }, (_, index) => {
+    const y = contourSegmentCount === 1 ? 0 : index / (contourSegmentCount - 1);
+    return [0, y, 1, y, 1_500 + index % 20 * 6.096];
+  }).flat();
   const contourMetadata = {
     intervalM: 6.096,
-    segmentCount: 1,
+    segmentCount: contourSegmentCount,
     gridSize: 2,
     ...floatMetadata(contourSegments),
   };
@@ -138,6 +141,8 @@ export interface PreparedStructures {
 export interface PreparedResortOptions {
   /** Omit persisted OSM vectors to exercise Settings -> Resort Data recovery. */
   mapContext?: 'present' | 'missing';
+  /** Larger contour payload for source-update regression coverage. */
+  contourSegmentCount?: number;
 }
 
 function preparedSaveFixture(structures: PreparedStructures) {
@@ -214,7 +219,8 @@ export async function seedPreparedResort(
       });
     },
     { save: preparedSaveFixture(structures),
-      terrain: preparedTerrainFixture(options.mapContext !== 'missing') },
+      terrain: preparedTerrainFixture(options.mapContext !== 'missing',
+        options.contourSegmentCount ?? 1) },
   );
   await page.reload({ waitUntil: 'load' });
 }
