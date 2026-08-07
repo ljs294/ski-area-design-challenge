@@ -39,20 +39,18 @@ import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION, saveGame } from '
 import { isDesktop } from '../desktopBridge';
 import type { GameSave, SavedDam, SavedJunction, SavedLift,
   SavedNode, SavedPath, SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
-  TerrainPackageProgress, TerrainRecord, CoverGrid } from '../types';
+  TerrainPackageProgress, TerrainRecord } from '../types';
 import { sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import {
   coverDisplayMetadataOf,
   manifestOf,
-  manifestWithUpdatedCover,
-  validateTerrainCoverEdit,
   validateTerrainPackage,
 } from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
-import { liftClearingRing, type CoverClearing } from '../coverEdit';
 import { CoverEditAdapter } from './coverEditClient';
+import { createCoverClearService } from './coverClearService';
 import { DamAnalysisAdapter } from './damAnalysisClient';
 import { TerrainGradeAdapter } from './terrainGradeClient';
 import { TrailPaintAdapter } from './trailPaintClient';
@@ -94,7 +92,7 @@ import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
 import { ConstructionStatusBug } from './ConstructionStatusBug';
 import type { ConstructionActivity } from './constructionLock';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
-  type TerrainRecordView, type TerrainSnapshot } from './terrainDocument';
+  type TerrainRecordView } from './terrainDocument';
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry,
   type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
@@ -581,6 +579,11 @@ export function MapView({
   const coverEditRef = useRef<CoverEditAdapter | null>(null);
   if (!coverEditRef.current) coverEditRef.current = new CoverEditAdapter();
   const coverEdit = coverEditRef.current;
+  const coverClear = createCoverClearService({
+    map: () => mapRef.current,
+    terrain,
+    adapter: coverEdit,
+  });
   // One grade preview exists on the map, so the road and trail tools share one
   // adapter rather than racing two workers into the same contour overlay.
   const terrainGradeRef = useRef<TerrainGradeAdapter | null>(null);
@@ -614,7 +617,7 @@ export function MapView({
     }),
     sampleTerrain: samplePlanningTerrainOrNull,
     runConstruction: (operation) => terrain.runConstruction('lift', operation),
-    clearCover: applyLiftCoverClear,
+    clearCover: coverClear.clearLift,
     createId: genId,
     now: () => new Date().toISOString(),
     structuresVisible: () => packageStateRef.current !== 'preparing',
@@ -650,7 +653,7 @@ export function MapView({
       if (record) setVisibleContours(record);
       setEditedContours(null);
     },
-    clearCover,
+    clearCover: coverClear.clear,
     createId: genId,
     now: () => new Date().toISOString(),
     roadsVisible: () => analysisTogglesRef.current.some((entry) => entry.id === 'bm-roads'),
@@ -673,7 +676,7 @@ export function MapView({
       terrainRecord: () => terrainRecordRef.current,
       streamWidthOverrides: () => streamWidthOverridesRef.current,
       analysis: damAnalysis, gradeChanged: applyGradePreview,
-      clearCover: (polygons) => clearCover(polygons.map((polygon) => ({ polygon }))),
+      clearCover: (polygons) => coverClear.clear(polygons.map((polygon) => ({ polygon }))),
       createId: genId, now: () => new Date().toISOString(),
       structuresVisible: () => packageStateRef.current !== 'preparing',
       synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('dam'),
@@ -693,7 +696,7 @@ export function MapView({
       acquireInteractions: (map) => acquireMapInteractions('pond', map, { cursor: 'crosshair' }),
       terrain, terrainRevision: terrain.snapshot().revision,
       terrainRecord: () => terrainRecordRef.current, gradeChanged: applyGradePreview,
-      clearCover: (polygons) => clearCover(polygons.map((polygon) => ({ polygon }))),
+      clearCover: (polygons) => coverClear.clear(polygons.map((polygon) => ({ polygon }))),
       createId: genId, now: () => new Date().toISOString(),
       structuresVisible: () => packageStateRef.current !== 'preparing',
       synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('pond'),
@@ -740,7 +743,7 @@ export function MapView({
         (record.packageManifest?.elevationChecksum ?? record.updatedAt)
         ? cached.heights.slice() : Float32Array.from(record.sampleHeights);
     },
-    sampleProfile, gradeChanged: applyGradePreview, clearCover,
+    sampleProfile, gradeChanged: applyGradePreview, clearCover: coverClear.clear,
     select: (id) => transitionSelection({ kind: 'trail', id }),
     clearSelected: (id) => setSelectedTrailId((selected) => selected === id ? null : selected),
     closeEditing: () => setTrailEditing(false),
@@ -1512,100 +1515,6 @@ export function MapView({
 
   function cancelLiftTool() {
     liftController.cancel();
-  }
-
-  /**
-   * The single clearing engine shared by lifts, trails, and roads. Fells the given
-   * clearings (each an outer ring plus optional tree-island holes) to grassland,
-   * stamping the analytical cover grid and re-deriving its vector display in a
-   * worker. Then recomputes metadata + manifest, validates, saves, and updates
-   * the map. Best-effort: failures never lose the infrastructure object that
-   * triggered the edit.
-   */
-  async function clearCover(clearings: CoverClearing[]): Promise<void> {
-    // Serialized by the terrain document, and handed the snapshot current when
-    // this edit actually starts — never the one current when it was queued.
-    await terrain.runCoverEdit((snapshot) => clearCoverAgainst(snapshot, clearings));
-  }
-
-  async function clearCoverAgainst(
-    { record, revision }: TerrainSnapshot,
-    clearings: CoverClearing[]
-  ): Promise<void> {
-    const map = mapRef.current;
-    if (!map || !record || !record.coverGrid || !record.bounds) return;
-    try {
-      const workerGrid = {
-        ...record.coverGrid,
-        bounds: { ...record.coverGrid.bounds },
-        data: Uint8Array.from(record.coverGrid.data),
-      } as unknown as CoverGrid;
-      const hasVectorDisplay = !!record.coverDisplayGeometry && !!record.coverDisplayMetadata;
-      const result = await coverEdit.run({
-        grid: workerGrid,
-        clearings,
-        deriveDisplay: hasVectorDisplay,
-      });
-      if (result.changed === 0) return;
-      const grid = { ...record.coverGrid, bounds: { ...record.coverGrid.bounds },
-        data: result.gridData } as unknown as CoverGrid;
-
-      // Checksums are produced beside the edited transferable buffers in the
-      // worker, avoiding another full-grid pass on the UI thread.
-      let upgraded = {
-        ...record,
-        coverGrid: grid,
-        coverMetadata: result.coverMetadata,
-        updatedAt: new Date().toISOString(),
-      } as unknown as TerrainRecord;
-
-      // v5+ packages render vector cover. Re-derive the whole display geometry
-      // from the freshly-stamped grid (the merged source of truth) rather than
-      // appending each cleared strip as its own feature: overlapping clears then
-      // merge into single polygons — no alpha-doubled overlap, no internal
-      // outlines — tree islands become true holes, and forest cells that were
-      // felled actually disappear instead of showing grass blended over forest.
-      // v4 raster-only packages skip this and rely on the grid stamp + tile-cache
-      // refresh below.
-      if (hasVectorDisplay) {
-        if (!result.displayGeometry || !result.displayMetadata) {
-          throw new Error('Ground-cover worker returned no vector display geometry.');
-        }
-        upgraded = {
-          ...upgraded,
-          coverDisplayGeometry: result.displayGeometry,
-          coverDisplayMetadata: result.displayMetadata,
-        };
-      }
-
-      upgraded = { ...upgraded, packageManifest: manifestWithUpdatedCover(upgraded) };
-      const validation = validateTerrainCoverEdit(upgraded);
-      if (!validation.ok) {
-        console.warn('Cover-clear produced an invalid package; keeping the previous cover.', validation.errors.join(' '));
-        return;
-      }
-      // No write here: the edit lives in memory until the player saves, and the
-      // tile protocols the commit refreshes read the in-memory record, not the
-      // package on disk.
-      const commit = terrain.commit({ expectedRevision: revision, record: upgraded, kind: 'cover' });
-      if (!commit.ok) {
-        console.warn('Cover-clear finished against a superseded terrain package; keeping the previous cover.');
-      }
-    } catch (error) {
-      console.warn('Cover-clear failed; keeping the previous cover.', error);
-    }
-  }
-
-  /**
-   * Fell a minimum-50-foot corridor under a newly-drawn lift. Independent,
-   * irregular outward noise softens both treelines without ever narrowing the
-   * guaranteed base clearing. The saved lift line itself remains exact.
-   */
-  async function applyLiftCoverClear(lift: SavedLift): Promise<void> {
-    const record = terrain.record;
-    if (!record || !record.bounds) return;
-    const ring = liftClearingRing(lift.points, record.bounds, lift.id);
-    await clearCover([{ polygon: [ring] }]);
   }
 
   /** Patch a non-geometric field (name/chairs/capacity/status) of a built lift. */
