@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type maplibregl from 'maplibre-gl';
 import {
   SNOWMAKING_BUILT_LAYER_IDS,
+  SNOWMAKING_DRAFT_LAYER_IDS,
   SNOWMAKING_HIT_LAYERS,
   addSnowmakingLayers,
   setSelectedSnowmakingNode,
   setSnowmakingData,
   snowmakingNodesToGeoJSON,
+  snowmakingDraftToGeoJSON,
 } from './snowmakingLayers';
 import type { SavedSnowmakingNode } from '../types/snowmaking';
 
@@ -40,6 +42,19 @@ describe('snowmaking network map layers', () => {
   it('keeps the hit layers a subset of the built layer ids', () => {
     for (const id of SNOWMAKING_HIT_LAYERS) expect(SNOWMAKING_BUILT_LAYER_IDS).toContain(id);
     expect(SNOWMAKING_BUILT_LAYER_IDS.length).toBeGreaterThanOrEqual(SNOWMAKING_HIT_LAYERS.length);
+  });
+
+  it('renders a route interval, endpoints, pending hydrants, and non-color conflict marks', () => {
+    const data = snowmakingDraftToGeoJSON({ points: [], cursor: null, snapPoint: null,
+      selectedRoute: [[0, 0], [0, 0.002]], intervalPoints: [[0, 0.0005], [0, 0.0015]],
+      startPoint: [0, 0.0005], endPoint: [0, 0.0015], hydrants: [
+        { point: [0, 0.0005], conflict: false }, { point: [0, 0.0015], conflict: true },
+      ] });
+    expect(data.features.map((feature) => feature.properties?.kind)).toEqual([
+      'route', 'interval', 'endpoint', 'endpoint', 'hydrant', 'hydrant',
+    ]);
+    expect(data.features.at(-1)?.properties).toMatchObject({ conflict: true, label: '×' });
+    expect(SNOWMAKING_DRAFT_LAYER_IDS).toContain('snowmaking-hydrant-preview-labels');
   });
 
   it('adds the source and every built layer to the map, idempotently', () => {

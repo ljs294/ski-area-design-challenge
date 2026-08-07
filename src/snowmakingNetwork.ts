@@ -141,6 +141,195 @@ export interface SnowmakingPipeLocation {
   distanceM: number;
 }
 
+export interface SnowmakingPipeStation extends SnowmakingPipeLocation {
+  /** Terrain-following distance from the first route vertex. */
+  stationM: number;
+  elevM: number | null;
+}
+
+export const MAX_HYDRANT_RUN_POSITIONS = 500;
+
+export type SnowmakingHydrantRunSpec =
+  | { mode: 'count'; count: number }
+  | { mode: 'spacing'; spacingM: number };
+
+export interface SnowmakingHydrantRunLayout {
+  start: SnowmakingPipeStation;
+  end: SnowmakingPipeStation;
+  lengthM: number;
+  actualSpacingM: number;
+  positions: SnowmakingPipeStation[];
+}
+
+function pipeStationLengths(pipe: SavedSnowmakingPipe): { cumulative: number[]; resolved: boolean } {
+  const resolved = pipe.vertices.every((vertex) => vertex.elevM != null && Number.isFinite(vertex.elevM));
+  const cumulative = [0];
+  for (let index = 1; index < pipe.vertices.length; index += 1) {
+    const previous = pipe.vertices[index - 1], current = pipe.vertices[index];
+    const horizontalM = haversineMeters(previous.point, current.point);
+    const verticalM = resolved ? (current.elevM as number) - (previous.elevM as number) : 0;
+    cumulative.push(cumulative[index - 1] + Math.hypot(horizontalM, verticalM));
+  }
+  return { cumulative, resolved };
+}
+
+/** Project a map point to a stable distance along one saved pipe route. */
+export function snowmakingPipeStationAt(
+  pipe: SavedSnowmakingPipe,
+  point: [number, number],
+): SnowmakingPipeStation | null {
+  const location = closestSnowmakingPipeLocation(pipe, point);
+  if (!location) return null;
+  const { cumulative, resolved } = pipeStationLengths(pipe);
+  const segmentLengthM = cumulative[location.segmentIndex + 1] - cumulative[location.segmentIndex];
+  const before = pipe.vertices[location.segmentIndex], after = pipe.vertices[location.segmentIndex + 1];
+  return {
+    ...location,
+    stationM: cumulative[location.segmentIndex] + segmentLengthM * location.u,
+    elevM: resolved
+      ? (before.elevM as number) + ((after.elevM as number) - (before.elevM as number)) * location.u
+      : null,
+  };
+}
+
+/** Resolve an exact point at a terrain-following station along a saved pipe route. */
+export function snowmakingPipePointAtStation(
+  pipe: SavedSnowmakingPipe,
+  requestedStationM: number,
+): SnowmakingPipeStation | null {
+  if (pipe.vertices.length < 2) return null;
+  const { cumulative, resolved } = pipeStationLengths(pipe);
+  const totalM = cumulative.at(-1) ?? 0;
+  const stationM = Math.max(0, Math.min(totalM, requestedStationM));
+  let segmentIndex = Math.max(0, pipe.vertices.length - 2);
+  for (let index = 0; index < cumulative.length - 1; index += 1) {
+    if (stationM <= cumulative[index + 1]) { segmentIndex = index; break; }
+  }
+  const spanM = cumulative[segmentIndex + 1] - cumulative[segmentIndex];
+  const u = spanM > 0 ? (stationM - cumulative[segmentIndex]) / spanM : 0;
+  const before = pipe.vertices[segmentIndex], after = pipe.vertices[segmentIndex + 1];
+  const point: [number, number] = [
+    before.point[0] + (after.point[0] - before.point[0]) * u,
+    before.point[1] + (after.point[1] - before.point[1]) * u,
+  ];
+  return {
+    point, segmentIndex, u, stationM, distanceM: 0,
+    elevM: resolved
+      ? (before.elevM as number) + ((after.elevM as number) - (before.elevM as number)) * u
+      : null,
+  };
+}
+
+/** Build endpoint-inclusive hydrant stations in the player's chosen direction. */
+export function snowmakingHydrantRunLayout(
+  pipe: SavedSnowmakingPipe,
+  start: SnowmakingPipeStation,
+  end: SnowmakingPipeStation,
+  spec: SnowmakingHydrantRunSpec,
+): SnowmakingHydrantRunLayout | string {
+  const lengthM = Math.abs(end.stationM - start.stationM);
+  if (!Number.isFinite(lengthM) || lengthM < POINT_EPSILON_M) {
+    return 'Choose two distinct points on the pipe.';
+  }
+  let count: number;
+  if (spec.mode === 'count') {
+    if (!Number.isInteger(spec.count) || spec.count < 2 || spec.count > MAX_HYDRANT_RUN_POSITIONS) {
+      return `Enter between 2 and ${MAX_HYDRANT_RUN_POSITIONS} hydrant positions.`;
+    }
+    count = spec.count;
+  } else {
+    if (!Number.isFinite(spec.spacingM) || spec.spacingM <= 0) return 'Enter a positive maximum spacing.';
+    count = Math.ceil(lengthM / spec.spacingM) + 1;
+    if (count > MAX_HYDRANT_RUN_POSITIONS) {
+      return `This spacing creates more than ${MAX_HYDRANT_RUN_POSITIONS} positions.`;
+    }
+  }
+  const actualSpacingM = lengthM / (count - 1);
+  const direction = end.stationM >= start.stationM ? 1 : -1;
+  const positions: SnowmakingPipeStation[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const station = snowmakingPipePointAtStation(pipe,
+      start.stationM + direction * actualSpacingM * index);
+    if (station) positions.push(station);
+  }
+  return { start, end, lengthM, actualSpacingM, positions };
+}
+
+/** Geometry for highlighting only the selected subsection of a route. */
+export function snowmakingPipeIntervalPoints(
+  pipe: SavedSnowmakingPipe,
+  start: SnowmakingPipeStation,
+  end: SnowmakingPipeStation,
+): [number, number][] {
+  const forward = start.stationM <= end.stationM;
+  const { cumulative } = pipeStationLengths(pipe);
+  const low = Math.min(start.stationM, end.stationM), high = Math.max(start.stationM, end.stationM);
+  const middle = pipe.vertices.flatMap((vertex, index) =>
+    cumulative[index] > low && cumulative[index] < high ? [vertex.point] : []);
+  const points = forward ? [start.point, ...middle, end.point] : [end.point, ...middle, start.point];
+  return forward ? points : points.reverse();
+}
+
+/** Insert several explicit node references while retaining the pipe as one route. */
+export function attachNodesToSnowmakingPipe(
+  pipe: SavedSnowmakingPipe,
+  attachments: readonly { stationM: number; nodeId: string }[],
+): SavedSnowmakingPipe {
+  if (attachments.length === 0) return pipe;
+  const { cumulative } = pipeStationLengths(pipe);
+  const items: { stationM: number; vertex: SavedSnowmakingPipeVertex; attachment: boolean }[] =
+    pipe.vertices.map((vertex, index) => ({ stationM: cumulative[index], vertex: { ...vertex }, attachment: false }));
+  for (const attachment of attachments) {
+    const station = snowmakingPipePointAtStation(pipe, attachment.stationM);
+    if (station) items.push({ stationM: station.stationM,
+      vertex: { point: station.point, elevM: station.elevM, nodeId: attachment.nodeId }, attachment: true });
+  }
+  items.sort((left, right) => left.stationM - right.stationM || Number(left.attachment) - Number(right.attachment));
+  const vertices: SavedSnowmakingPipeVertex[] = [];
+  const stations: number[] = [];
+  for (const item of items) {
+    const previousStation = stations.at(-1);
+    if (previousStation != null && Math.abs(previousStation - item.stationM) < POINT_EPSILON_M) {
+      if (item.attachment) vertices[vertices.length - 1] = {
+        ...vertices[vertices.length - 1], point: item.vertex.point, elevM: item.vertex.elevM,
+        nodeId: item.vertex.nodeId,
+      };
+      continue;
+    }
+    stations.push(item.stationM); vertices.push(item.vertex);
+  }
+  return { ...pipe, vertices, ...snowmakingPipeStats(vertices) };
+}
+
+export function populateSnowmakingHydrantRun(
+  state: SnowmakingNetworkState,
+  pipeId: string,
+  layout: SnowmakingHydrantRunLayout,
+  createId: () => string,
+  now: () => string,
+): { state: SnowmakingNetworkState; nodes: SavedSnowmakingNode[]; skipped: number } | string {
+  const pipe = state.pipes.find((candidate) => candidate.id === pipeId);
+  if (!pipe) return 'The selected pipe is no longer available.';
+  let next = state;
+  const occupied = state.nodes.map((node) => node.point);
+  const nodes: SavedSnowmakingNode[] = [];
+  const attachments: { stationM: number; nodeId: string }[] = [];
+  let skipped = 0;
+  for (const position of layout.positions) {
+    if (occupied.some((point) => haversineMeters(point, position.point) < POINT_EPSILON_M)) {
+      skipped += 1; continue;
+    }
+    const allocation = allocateSnowmakingNode(next, { id: createId(), kind: 'hydrant',
+      point: position.point, elevM: position.elevM, createdAt: now() });
+    next = allocation.state; nodes.push(allocation.node); occupied.push(position.point);
+    attachments.push({ stationM: position.stationM, nodeId: allocation.node.id });
+  }
+  if (nodes.length === 0) return 'Every calculated position is already occupied.';
+  const updatedPipe = attachNodesToSnowmakingPipe(pipe, attachments);
+  return { state: { ...next, pipes: next.pipes.map((candidate) =>
+    candidate.id === pipeId ? updatedPipe : candidate) }, nodes, skipped };
+}
+
 export function closestSnowmakingPipeLocation(
   pipe: SavedSnowmakingPipe,
   point: [number, number],

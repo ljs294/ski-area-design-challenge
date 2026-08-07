@@ -15,7 +15,9 @@ import type { SavedSnowmakingNode, SavedSnowmakingPipe, SnowmakingLakeSource,
 import type { Units } from './SettingsContext';
 import type { DamTool, DraftDam } from './damControllerModel';
 import type { DraftPond, PondTool } from './pondControllerModel';
-import type { SnowmakingNodeTool, SnowmakingPipeTool } from './snowmakingNetworkControllerModel';
+import type { SnowmakingHydrantRunTool, SnowmakingNodeTool,
+  SnowmakingPipeTool } from './snowmakingNetworkControllerModel';
+import type { SnowmakingHydrantRunPreview } from './useSnowmakingNetworkController';
 
 export type { DamTool, DraftDam } from './damControllerModel';
 export type { DraftPond, PondTool } from './pondControllerModel';
@@ -158,6 +160,23 @@ function PondMetersField({ label, valueM, units, onCommit, minM = -1000, maxM = 
       <span>{units === 'imperial' ? 'ft' : 'm'}</span></span></label>;
 }
 
+function HydrantSpacingField({ valueM, units, onChange }: {
+  valueM: number; units: Units; onChange: (valueM: number) => void;
+}) {
+  const factor = units === 'imperial' ? 3.280839895 : 1;
+  const [draft, setDraft] = useState((valueM * factor).toFixed(1));
+  return <label className="lake-depth-row"><span className="lift-stat-label">Maximum spacing</span>
+    <span className="lake-depth-input-wrap"><input className="lake-depth-input" type="number"
+      min="0.1" step="1" value={draft}
+      aria-label={`Maximum hydrant spacing in ${units === 'imperial' ? 'feet' : 'metres'}`}
+      onChange={(event) => {
+        setDraft(event.target.value);
+        const next = Number(event.target.value) / factor;
+        if (Number.isFinite(next)) onChange(next);
+      }} />
+      <span>{units === 'imperial' ? 'ft' : 'm'}</span></span></label>;
+}
+
 function SnowmakingPondField({ checked, onChange }: {
   checked: boolean; onChange: (checked: boolean) => void;
 }) {
@@ -188,7 +207,8 @@ function snowmakingSourceName(node: SavedSnowmakingNode, dams: SavedDam[], ponds
  *  pipe network that will carry their water uphill. Pipes are a placeholder —
  *  the button is deliberately inert until there is a network to build. */
 export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], selectedDam, selectedPond,
-  nodes, pipes, selectedNode, selectedPipe, pipeTool, nodeTool, diameterIn,
+  nodes, pipes, selectedNode, selectedPipe, pipeTool, nodeTool, hydrantRunTool,
+  hydrantRunPreview, diameterIn,
   units, onArmDam, onCancelDam, onDamDraftChange, onConfirmDam,
   onSelectDam, onDeleteDam, onCloseDam, onArmPond, onCancelPond, onUndoPond, onFinishPond,
   onPondDraftChange, onPondElevationChange, onPondExcavationChange,
@@ -196,6 +216,8 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onPondSnowmakingChange,
   onArmPipe, onCancelPipe, onUndoPipe, onFinishPipe, onConfirmPipe, onRenameDraftPipe,
   onDiameterChange, onArmNode, onCancelNode, onConfirmNode,
+  onArmHydrantRun, onCancelHydrantRun, onBackHydrantRun, onHydrantRunModeChange,
+  onHydrantRunCountChange, onHydrantRunSpacingChange, onConfirmHydrantRun,
   onSelectNode, onRenameNode, onDeleteNode, onCloseNode,
   onSelectPipe, onPatchPipe, onDeletePipe, onClosePipe,
   onClose, building = false }: {
@@ -205,6 +227,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   nodes: SavedSnowmakingNode[]; pipes: SavedSnowmakingPipe[];
   selectedNode: SavedSnowmakingNode | null; selectedPipe: SavedSnowmakingPipe | null;
   pipeTool: SnowmakingPipeTool; nodeTool: SnowmakingNodeTool;
+  hydrantRunTool: SnowmakingHydrantRunTool; hydrantRunPreview: SnowmakingHydrantRunPreview | null;
   diameterIn: SnowmakingPipeDiameterIn; units: Units;
   onArmDam: () => void;
   onCancelDam: () => void; onDamDraftChange: (patch: Partial<DraftDam>) => void; onConfirmDam: () => void;
@@ -219,6 +242,10 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onFinishPipe: () => void; onConfirmPipe: () => void; onRenameDraftPipe: (name: string) => void;
   onDiameterChange: (diameter: SnowmakingPipeDiameterIn) => void;
   onArmNode: (kind: 'pump' | 'hydrant') => void; onCancelNode: () => void; onConfirmNode: () => void;
+  onArmHydrantRun: () => void; onCancelHydrantRun: () => void; onBackHydrantRun: () => void;
+  onHydrantRunModeChange: (mode: 'count' | 'spacing') => void;
+  onHydrantRunCountChange: (count: number) => void;
+  onHydrantRunSpacingChange: (spacingM: number) => void; onConfirmHydrantRun: () => void;
   onSelectNode: (id: string) => void; onRenameNode: (id: string, name: string) => void;
   onDeleteNode: (id: string) => void; onCloseNode: () => void;
   onSelectPipe: (id: string) => void;
@@ -251,6 +278,72 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
     <div className="site-actions"><button className="site-btn" onClick={onCancelPipe}>Cancel</button>
       <button className="site-btn site-btn-primary" onClick={onConfirmPipe}>Install pipe</button></div>
   </div>;
+  if (hydrantRunTool.phase !== 'idle') {
+    const preview = hydrantRunPreview;
+    const stepTitle = hydrantRunTool.phase === 'select-pipe' ? 'Select a pipe'
+      : hydrantRunTool.phase === 'select-start' ? 'Select run start'
+      : hydrantRunTool.phase === 'select-end' ? 'Select run end' : 'Review hydrant run';
+    if (hydrantRunTool.phase !== 'review') return <div className="site-control site-control-wide snowmaking-panel">
+      <PanelHead title={stepTitle} onClose={onCancelHydrantRun} />
+      <div className="site-hint">{hydrantRunTool.phase === 'select-pipe'
+        ? 'Click an installed snowmaking pipe to begin.'
+        : hydrantRunTool.phase === 'select-start'
+          ? `Click the first hydrant position on ${preview?.pipeName ?? 'the selected pipe'}.`
+          : 'Click the final hydrant position on the same pipe. The direction sets label order.'}</div>
+      {preview?.lengthM != null && <div className="lift-stats"><div className="readout-line">
+        <span className="lift-stat-label">Interval length</span>
+        <span className="lift-stat-value">{fmtDistance(preview.lengthM, units)}</span></div></div>}
+      {(hydrantRunTool.error || preview?.error) && <div className="lift-warning">
+        {preview?.error ?? hydrantRunTool.error}</div>}
+      <div className="site-actions">
+        {hydrantRunTool.phase !== 'select-pipe' && <button className="site-btn"
+          onClick={onBackHydrantRun}>Back</button>}
+        <button className="site-btn" onClick={onCancelHydrantRun}>Cancel</button>
+      </div>
+    </div>;
+    return <div className="site-control site-control-wide snowmaking-panel">
+      <PanelHead title={stepTitle} onClose={onCancelHydrantRun} />
+      <div className="site-hint">Positions include both endpoints. Occupied positions are marked and skipped.</div>
+      <fieldset className="hydrant-run-mode"><legend>Layout method</legend>
+        <label><input type="radio" name="hydrant-run-mode" value="count"
+          checked={hydrantRunTool.mode === 'count'}
+          onChange={() => onHydrantRunModeChange('count')} /> By count</label>
+        <label><input type="radio" name="hydrant-run-mode" value="spacing"
+          checked={hydrantRunTool.mode === 'spacing'}
+          onChange={() => onHydrantRunModeChange('spacing')} /> By maximum spacing</label>
+      </fieldset>
+      {hydrantRunTool.mode === 'count' ? <label className="lake-depth-row">
+        <span className="lift-stat-label">Hydrant positions</span>
+        <input className="lake-depth-input" type="number" min="2" max="500" step="1"
+          aria-label="Hydrant position count" value={hydrantRunTool.count}
+          onChange={(event) => onHydrantRunCountChange(Number(event.target.value))} /></label>
+        : <HydrantSpacingField valueM={hydrantRunTool.spacingM} units={units}
+          onChange={onHydrantRunSpacingChange} />}
+      <div className="lift-stats">
+        <div className="readout-line"><span className="lift-stat-label">Pipe</span>
+          <span className="lift-stat-value">{preview?.pipeName ?? '—'}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">Length</span>
+          <span className="lift-stat-value">{preview?.lengthM != null
+            ? fmtDistance(preview.lengthM, units) : '—'}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">Actual spacing</span>
+          <span className="lift-stat-value">{preview?.actualSpacingM != null
+            ? fmtDistance(preview.actualSpacingM, units) : '—'}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">Calculated positions</span>
+          <span className="lift-stat-value">{preview?.positions.length ?? 0}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">New hydrants</span>
+          <span className="lift-stat-value">{preview?.newCount ?? 0}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">Skipped occupied</span>
+          <span className="lift-stat-value">{preview?.skippedCount ?? 0}</span></div>
+      </div>
+      {(hydrantRunTool.error || preview?.error) && <div className="lift-warning">
+        {preview?.error ?? hydrantRunTool.error}</div>}
+      <div className="site-actions"><button className="site-btn" onClick={onBackHydrantRun}>Back</button>
+        <button className="site-btn site-btn-primary"
+          disabled={!!preview?.error || (preview?.newCount ?? 0) === 0}
+          onClick={onConfirmHydrantRun}>Place {preview?.newCount ?? 0} hydrants</button></div>
+      <button className="site-btn" onClick={onCancelHydrantRun}>Cancel</button>
+    </div>;
+  }
   if (nodeTool.phase === 'placing') return <div className="site-control site-control-wide snowmaking-panel">
     <PanelHead title={`Place ${nodeTool.kind}`} onClose={onCancelNode} />
     <div className="site-hint">Click a location, then confirm it. Leave this tool open to place several {nodeTool.kind}s.</div>
@@ -392,7 +485,9 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
     <PanelHead title={`Snowmaking · ${dams.length} dams · ${ponds.length} ponds`} onClose={onClose} />
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmDam}>＋ Build dam</button>
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmPond}>＋ Build standalone pond</button>
-    <div className="site-actions"><button className="site-btn" onClick={() => onArmNode('hydrant')}>Place hydrants</button>
+    <div className="site-actions"><button className="site-btn" onClick={() => onArmNode('hydrant')}>Place one hydrant</button>
+      <button className="site-btn" disabled={pipes.length === 0} onClick={onArmHydrantRun}>Place hydrants along pipe</button></div>
+    <div className="site-actions">
       <button className="site-btn" onClick={() => onArmNode('pump')}>Place pumps</button></div>
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmPipe}
       title="Draw a snowmaking pipe route">＋ Install snowmaking pipe</button>

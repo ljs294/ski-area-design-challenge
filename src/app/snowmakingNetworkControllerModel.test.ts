@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { reduceSnowmakingNodeTool, reduceSnowmakingPipeTool,
-  IDLE_SNOWMAKING_NODE_TOOL, IDLE_SNOWMAKING_PIPE_TOOL,
+import { reduceSnowmakingHydrantRunTool, reduceSnowmakingNodeTool, reduceSnowmakingPipeTool,
+  IDLE_SNOWMAKING_HYDRANT_RUN_TOOL, IDLE_SNOWMAKING_NODE_TOOL, IDLE_SNOWMAKING_PIPE_TOOL,
   snowmakingPipePreview } from './snowmakingNetworkControllerModel';
 
 describe('snowmaking pipe tool reducer', () => {
@@ -34,6 +34,25 @@ describe('snowmaking pipe tool reducer', () => {
       points: [[0, 0], [0, 0.001]],
       cursor: null,
     });
+  });
+});
+
+describe('snowmaking hydrant run reducer', () => {
+  it('stages pipe, endpoints, review settings, and back navigation', () => {
+    const station = { point: [0, 0] as [number, number], segmentIndex: 0, u: 0,
+      stationM: 0, distanceM: 0, elevM: 100 };
+    const pipe = reduceSnowmakingHydrantRunTool(IDLE_SNOWMAKING_HYDRANT_RUN_TOOL,
+      { type: 'arm' });
+    const start = reduceSnowmakingHydrantRunTool(pipe, { type: 'pipe', pipeId: 'pipe-1' });
+    const end = reduceSnowmakingHydrantRunTool(start, { type: 'start', station });
+    const review = reduceSnowmakingHydrantRunTool(end, { type: 'end',
+      station: { ...station, stationM: 100 }, revision: 4 });
+    const spacing = reduceSnowmakingHydrantRunTool(review, { type: 'mode', mode: 'spacing' });
+    expect(spacing).toMatchObject({ phase: 'review', pipeId: 'pipe-1', mode: 'spacing',
+      spacingM: 30, revision: 4 });
+    expect(reduceSnowmakingHydrantRunTool(spacing, { type: 'back' }).phase).toBe('select-end');
+    expect(reduceSnowmakingHydrantRunTool(spacing, { type: 'cancel' }))
+      .toBe(IDLE_SNOWMAKING_HYDRANT_RUN_TOOL);
   });
 });
 

@@ -119,12 +119,28 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.getByRole('button', { name: 'Install pipe' }).click();
   await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(1);
 
-  await page.getByRole('button', { name: 'Place hydrants' }).click();
+  await page.getByRole('button', { name: 'Place one hydrant' }).click();
   const hydrant = await pointAt(page, [-121.4945, 46.905]);
   await page.mouse.click(hydrant.x, hydrant.y);
   await page.getByRole('button', { name: 'Place hydrant' }).click();
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(page.getByRole('button', { name: /Hydrant 1/ })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Place hydrants along pipe' }).click();
+  const pipeTarget = await pointAt(page, [-121.49475, 46.90525]);
+  await page.mouse.click(pipeTarget.x, pipeTarget.y);
+  await expect(page.getByText('Select run start', { exact: true })).toBeVisible();
+  const runStart = await pointAt(page, [-121.49575, 46.90465]);
+  await page.mouse.click(runStart.x, runStart.y);
+  await expect(page.getByText('Select run end', { exact: true })).toBeVisible();
+  const runEnd = await pointAt(page, [-121.49375, 46.90585]);
+  await page.mouse.click(runEnd.x, runEnd.y);
+  await expect(page.getByText('Review hydrant run', { exact: true })).toBeVisible();
+  await page.getByRole('spinbutton', { name: 'Hydrant position count' }).fill('4');
+  await expect(page.getByRole('button', { name: 'Place 4 hydrants' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Place 4 hydrants' }).click();
+  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(6);
+  await expect(page.getByRole('button', { name: /Hydrant 5/ })).toBeVisible();
 
   await page.getByRole('button', { name: /^Menu/ }).click();
   await page.locator('.hud-save').click();
@@ -133,7 +149,11 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   expect(saved).toMatchObject({
     schemaVersion: 11,
     snowmakingPipes: [{ name: 'Summit Main', diameterIn: 12 }],
-    snowmakingNodes: [{ kind: 'hydrant', labelNumber: 1 }],
-    snowmakingNodeNextNumbers: { hydrant: 2, junction: 1, pump: 1 },
+    snowmakingNodes: [
+      { kind: 'hydrant', labelNumber: 1 }, { kind: 'hydrant', labelNumber: 2 },
+      { kind: 'hydrant', labelNumber: 3 }, { kind: 'hydrant', labelNumber: 4 },
+      { kind: 'hydrant', labelNumber: 5 },
+    ],
+    snowmakingNodeNextNumbers: { hydrant: 6, junction: 1, pump: 1 },
   });
 });

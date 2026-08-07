@@ -299,6 +299,8 @@ export function MapGameDock(props: MapGameDockProps) {
         pipes={props.snowmakingPipes} selectedNode={selectedSnowmakingNode}
         selectedPipe={selectedSnowmakingPipe} pipeTool={snowmakingController.network.pipeTool}
         nodeTool={snowmakingController.network.nodeTool}
+        hydrantRunTool={snowmakingController.network.hydrantRunTool}
+        hydrantRunPreview={snowmakingController.network.hydrantRunPreview}
         diameterIn={snowmakingController.network.diameterIn} units={props.units}
         onArmDam={snowmakingController.dam.arm} onCancelDam={snowmakingController.dam.cancel}
         onDamDraftChange={snowmakingController.dam.patchDraft}
@@ -323,6 +325,13 @@ export function MapGameDock(props: MapGameDockProps) {
         onArmNode={snowmakingController.network.armNode}
         onCancelNode={snowmakingController.network.cancelNode}
         onConfirmNode={snowmakingController.network.confirmNode}
+        onArmHydrantRun={snowmakingController.network.armHydrantRun}
+        onCancelHydrantRun={snowmakingController.network.cancelHydrantRun}
+        onBackHydrantRun={snowmakingController.network.backHydrantRun}
+        onHydrantRunModeChange={snowmakingController.network.setHydrantRunMode}
+        onHydrantRunCountChange={snowmakingController.network.setHydrantRunCount}
+        onHydrantRunSpacingChange={snowmakingController.network.setHydrantRunSpacing}
+        onConfirmHydrantRun={snowmakingController.network.confirmHydrantRun}
         onSelectNode={snowmakingController.network.selectNode}
         onRenameNode={snowmakingController.network.renameNode}
         onDeleteNode={snowmakingController.network.removeNode}

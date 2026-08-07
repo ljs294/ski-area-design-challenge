@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateSnowmakingNode,
+  attachNodesToSnowmakingPipe,
   buildSnowmakingPipe,
   detachSnowmakingNode,
   hydrateSnowmakingNetwork,
   pruneAffectedJunctions,
+  populateSnowmakingHydrantRun,
   snowmakingNodeLabel,
   snowmakingPipeSpans,
+  snowmakingHydrantRunLayout,
+  snowmakingPipeIntervalPoints,
+  snowmakingPipePointAtStation,
+  snowmakingPipeStationAt,
   snowmakingPipeStats,
   type SnowmakingNetworkState,
 } from './snowmakingNetwork';
@@ -54,6 +60,92 @@ describe('snowmaking pipe model', () => {
     expect(spans).toHaveLength(2);
     expect(spans[0].at(-1)?.nodeId).toBe('J1');
     expect(spans[1][0].nodeId).toBe('J1');
+  });
+});
+
+describe('snowmaking hydrant runs', () => {
+  it('stations clicks and resolves forward and reverse endpoint-inclusive layouts', () => {
+    const route = pipe();
+    const start = snowmakingPipePointAtStation(route, route.lengthM * 0.2)!;
+    const end = snowmakingPipePointAtStation(route, route.lengthM * 0.8)!;
+    const projected = snowmakingPipeStationAt(route, start.point)!;
+    expect(projected.stationM).toBeCloseTo(start.stationM, 4);
+
+    const forward = snowmakingHydrantRunLayout(route, start, end, { mode: 'count', count: 4 });
+    expect(typeof forward).not.toBe('string');
+    if (typeof forward === 'string') return;
+    expect(forward.positions).toHaveLength(4);
+    expect(forward.positions[0].stationM).toBeCloseTo(start.stationM);
+    expect(forward.positions.at(-1)?.stationM).toBeCloseTo(end.stationM);
+    expect(forward.actualSpacingM).toBeCloseTo(forward.lengthM / 3);
+
+    const reverse = snowmakingHydrantRunLayout(route, end, start, { mode: 'count', count: 3 });
+    expect(typeof reverse).not.toBe('string');
+    if (typeof reverse === 'string') return;
+    expect(reverse.positions.map((position) => position.stationM)).toEqual([
+      expect.closeTo(end.stationM), expect.closeTo((start.stationM + end.stationM) / 2),
+      expect.closeTo(start.stationM),
+    ]);
+    expect(snowmakingPipeIntervalPoints(route, end, start)[0]).toEqual(end.point);
+  });
+
+  it('treats requested spacing as a maximum and caps oversized batches', () => {
+    const route = pipe();
+    const start = snowmakingPipePointAtStation(route, 0)!;
+    const end = snowmakingPipePointAtStation(route, route.lengthM)!;
+    const layout = snowmakingHydrantRunLayout(route, start, end,
+      { mode: 'spacing', spacingM: route.lengthM / 2.4 });
+    expect(typeof layout).not.toBe('string');
+    if (typeof layout === 'string') return;
+    expect(layout.positions).toHaveLength(4);
+    expect(layout.actualSpacingM).toBeLessThanOrEqual(route.lengthM / 2.4);
+    expect(snowmakingHydrantRunLayout(route, start, end,
+      { mode: 'spacing', spacingM: 0.01 })).toContain('500');
+  });
+
+  it('uses horizontal stationing when elevation is incomplete', () => {
+    const route = pipe();
+    route.vertices[1].elevM = null;
+    const start = snowmakingPipePointAtStation(route, 0)!;
+    const end = snowmakingPipePointAtStation(route,
+      snowmakingPipeStats(route.vertices).lengthM)!;
+    expect(start.elevM).toBeNull();
+    expect(end.elevM).toBeNull();
+  });
+
+  it('inserts all node references in station order without splitting the route', () => {
+    const route = pipe('route');
+    const updated = attachNodesToSnowmakingPipe(route, [
+      { stationM: route.lengthM * 0.75, nodeId: 'h2' },
+      { stationM: route.lengthM * 0.25, nodeId: 'h1' },
+    ]);
+    expect(updated.id).toBe(route.id);
+    expect(updated.vertices.filter((vertex) => vertex.nodeId).map((vertex) => vertex.nodeId))
+      .toEqual(['h1', 'h2']);
+    expect(updated.lengthM).toBeCloseTo(route.lengthM, 3);
+  });
+
+  it('skips occupied positions and allocates labels only for committed hydrants', () => {
+    const route = pipe('route');
+    const start = snowmakingPipePointAtStation(route, 0)!;
+    const end = snowmakingPipePointAtStation(route, route.lengthM)!;
+    const layout = snowmakingHydrantRunLayout(route, start, end, { mode: 'count', count: 3 });
+    expect(typeof layout).not.toBe('string');
+    if (typeof layout === 'string') return;
+    const occupied = node('pump-at-start', 'pump', 1);
+    const initial: SnowmakingNetworkState = { nodes: [occupied], pipes: [route],
+      nextNumbers: { hydrant: 1, junction: 1, pump: 2 } };
+    let id = 0;
+    const populated = populateSnowmakingHydrantRun(initial, route.id, layout,
+      () => `hydrant-${++id}`, () => '2026-01-01T00:00:00.000Z');
+    expect(typeof populated).not.toBe('string');
+    if (typeof populated === 'string') return;
+    expect(populated.skipped).toBe(1);
+    expect(populated.nodes.map((created) => created.labelNumber)).toEqual([1, 2]);
+    expect(populated.state.nextNumbers.hydrant).toBe(3);
+    expect(populated.state.pipes).toHaveLength(1);
+    expect(populated.state.pipes[0].vertices.filter((vertex) => vertex.nodeId)
+      .map((vertex) => vertex.nodeId)).toEqual(['hydrant-1', 'hydrant-2']);
   });
 });
 
