@@ -69,21 +69,22 @@ Append only green, committed snapshots. Capture the JSON after required tests an
 | E1 lift controller | `5a6bfcc38adbb96dc3a7547acda3bd7074b06c79` | Yes | 149 / 29,787 | 91 / 11,608 | 4,921 / 86 / 58 / 40 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,013,367 / 8,013,344 |
 | E2 road controller | `62a5c68d0dc1c5e9ddad7d6619b3dab6116a5ecd` | Yes | 151 / 29,916 | 92 / 11,718 | 4,704 / 85 / 57 / 38 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,015,245 / 8,015,222 |
 | E3 snowmaking controllers | `bdcaf4978b4efc234600699b12e29446725f6db0` | Yes | 157 / 30,277 | 94 / 11,847 | 4,325 / 81 / 55 / 32 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,020,936 / 8,020,913 |
+| E4 node/path controller | `66f78c01deb0900fbde95377bb516c605ab0f1e6` | Yes | 159 / 30,328 | 96 / 11,940 | 4,045 / 81 / 52 / 28 / 0 | 35 / 43 | 0 / 0 | 0 | 8 / 17 | 8,023,656 / 8,023,633 |
 | F1 final structural gate | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 
-## Change from the A2 formal baseline through E3
+## Change from the A2 formal baseline through E4
 
 | Metric | Net change |
 | --- | ---: |
-| Production physical lines | +309 (+1.0%) |
-| Test physical lines | +3,869 (+48.5%) |
-| MapView physical lines | -752 (-14.8%) |
+| Production physical lines | +360 (+1.2%) |
+| Test physical lines | +3,962 (+49.7%) |
+| MapView physical lines | -1,032 (-20.3%) |
 | MapView direct imports | +3 |
-| MapView direct state/effect/worker calls | -5 / -12 / -4 |
+| MapView direct state/effect/worker calls | -8 / -16 / -4 |
 | Type-facade physical lines | -550 (-94.0%) |
 | Type-facade production importers | -31 (-41.9%) |
 | Obsolete tracked bytes | -65,351,258 |
-| Desktop production artifact bytes | -65,203,583 (-89.0%) |
+| Desktop production artifact bytes | -65,200,863 (-89.0%) |
 
 The temporary MapView increase is foundation scaffolding, not the structural
 end state. E1–E5 must bring it below the 1,800-line acceptance budget; F1 is

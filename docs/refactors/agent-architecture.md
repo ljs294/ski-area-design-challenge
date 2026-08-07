@@ -16,10 +16,10 @@ This is the shared execution record for the approved refactor. Update it at ever
 | Field | Value |
 | --- | --- |
 | Approved scope | Shared checks; obsolete vertical removal after backup; acyclic types; MapView foundations; controller extraction; final structural gate |
-| Current benchmark | E4 — ski node/path controller extraction |
-| Status | E3 is committed: separate dam, pond, and snowmaking-node controllers sit behind one façade and own their state, input, construction, reconciliation, and contributions |
-| Last green commit | E3 at `bdcaf4978b4efc234600699b12e29446725f6db0` |
-| Next step | Characterize node/path transitions, then move their leased input, topology commands, cancellation, and map contribution behind one controller |
+| Current benchmark | E5 — trail controller extraction |
+| Status | E4 is committed: one ski node/path controller owns its tool state, leased input, topology commands, cancellation, and map contribution |
+| Last green commit | E4 at `66f78c01deb0900fbde95377bb516c605ab0f1e6` |
+| Next step | Characterize the trail reducer, painting, anchor/review, grading, failure-retention, topology, and cancellation workflows before moving them behind the trail controller |
 | Blocking issue | None for the backup prerequisite; the verified recovery reference is recorded in [`docs/history/legacy-poster-app.md`](../history/legacy-poster-app.md) |
 
 ## Commit benchmarks
@@ -48,8 +48,8 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | E1 | Complete | Lift controller extraction | Feature workflow plus all cross-cutting coordinator/map/save gates pass |
 | E2 | Complete | Road controller extraction | Feature workflow plus construction, cover-failure, capture, and save gates pass |
 | E3 | Complete | Snowmaking façade with dam, pond, and node controllers | Feature workflows plus ordering, locking, capture, and save gates pass |
-| E4 | Next | Ski node/path controller extraction | Node/path/topology workflows plus ordering, cancellation, and save gates pass |
-| E5 | Not started | Trail controller extraction | Paint, anchor/review, grading, failure retention, topology, cancellation, and save gates pass |
+| E4 | Complete | Ski node/path controller extraction | Node/path/topology workflows plus ordering, cancellation, and save gates pass |
+| E5 | Next | Trail controller extraction | Paint, anchor/review, grading, failure retention, topology, cancellation, and save gates pass |
 | F1 | Not started | Final MapView structural budgets and architecture documentation | All deterministic browser projects, Electron smoke, both builds, fixtures, and one opt-in live New Game run pass |
 
 ## Standard benchmark protocol
@@ -86,6 +86,7 @@ Each row is a hard stop: run its gates, update this ledger, and commit before be
 | E1 | `5a6bfcc38adbb96dc3a7547acda3bd7074b06c79` | Passed | The pure lift model landed at `6ee033e`; the controller, contribution, and lift-specific capture proof landed at `5a6bfcc`. `MapView` fell by 165 lines, one state call, and two effects. `npm run check` passed 645 offline tests and both builds; all eight deterministic browser workflows passed, including same-tick double confirmation, save coherence, lift transient capture, style reload, and hit priority. |
 | E2 | `62a5c68d0dc1c5e9ddad7d6619b3dab6116a5ecd` | Passed | The pure road model landed at `861d0c0`, the controller and feature proof at `4c49ff2`, and authoritative domain imports at `62a5c68`. `MapView` fell by 217 lines, one state call, two effects, and one import. `npm run check` passed 648 offline tests and both builds; all nine deterministic browser workflows passed. The road workflow proves same-task double confirmation builds once, schema-v11 save/terrain coherence, transient capture, and best-effort cover-worker failure. |
 | E3 | `bdcaf4978b4efc234600699b12e29446725f6db0` | Passed | Dam and pond models landed at `7f19118`; the separate dam, pond, and snowmaking-node controllers plus their façade landed at `bdcaf49`. `MapView` fell by 379 lines, two state calls, six effects, and four imports. `npm run check` passed 651 offline tests and both builds; all ten deterministic browser workflows passed. The snowmaking workflow proves contribution data, pond-draft capture restoration, node rename/reconciliation, source deletion, and schema-v11 persistence. Dam analysis now also rejects a terrain revision that changes before review or confirmation. |
+| E4 | `66f78c01deb0900fbde95377bb516c605ab0f1e6` | Passed | The pure node/path model landed at `c1031ea`; the controller and atomic connector workflow landed at `66f78c0`. `MapView` fell by 280 lines, three state calls, and four effects. `npm run check` passed 654 offline tests and both builds; all eleven deterministic browser workflows passed. The node/path workflow proves leased map input, draft capture restoration, atomic path-plus-junction publication, and schema-v11 persistence. |
 
 ## D4 worker ownership
 
@@ -135,9 +136,9 @@ structure a click is aimed at; the pool it impounds is not.
 
 Committed player roads now have a dedicated source and layer installed by the
 road family above the site boundary; analysis owns only imported OSM context.
-The lift, road, and three snowmaking controllers now create their contributions. `MapView` still
-creates the remaining legacy contribution objects, each closing over its own
-refs until E4–E5 move them to feature controllers, but no longer owns
+The lift, road, three snowmaking, and node/path controllers now create their contributions. `MapView` still
+creates the remaining trail contribution, which closes over its own refs until
+E5 moves it to the feature controller, but no longer owns
 cross-family traversal.
 
 ## D2 migrated write paths
