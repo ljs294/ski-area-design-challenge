@@ -49,6 +49,7 @@ export interface TrailControllerOptions {
   heightGrid(record: TerrainRecord): Float32Array;
   sampleProfile(line: [number, number][], zoom: number): Promise<number[] | null>;
   gradeChanged(): void;
+  restoreGradePreview(map: maplibregl.Map): void;
   clearCover(clearings: CoverClearing[]): Promise<void>;
   select(id: string): void;
   clearSelected(id: string): void;
@@ -57,7 +58,6 @@ export interface TrailControllerOptions {
   createId(): string;
   now(): string;
   structuresVisible(): boolean;
-  synchronizeMap(): void;
 }
 
 export interface TrailController {
@@ -113,7 +113,7 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
       const current = optionsRef.current;
       setTrailData(map, trailsToGeoJSON([...current.trails]));
       setTrailDraftData(map, draftGeoJSON(stateRef.current));
-      current.gradeChanged();
+      current.restoreGradePreview(map);
       const tool = stateRef.current;
       setTrailPaintPreview(map, { path: tool.phase === 'paint' ? previewPathRef.current : [],
         cursor: tool.phase === 'paint' ? brushCursorRef.current : null,
@@ -135,7 +135,26 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
     cleanup: () => {},
   };
 
-  useEffect(() => { optionsRef.current.synchronizeMap(); }, [state, brushWidthM, options.trails]);
+  const draftPolygons = state.phase === 'paint' || state.phase === 'place-tail' ||
+    state.phase === 'analyzing' ? state.polygons : null;
+  const review = state.phase === 'review' ? state.draft : null;
+  useEffect(() => {
+    const map = optionsRef.current.mapRef.current;
+    if (map) setTrailData(map, trailsToGeoJSON([...optionsRef.current.trails]));
+  }, [options.trails]);
+  useEffect(() => {
+    const map = optionsRef.current.mapRef.current;
+    if (map) setTrailDraftData(map, draftGeoJSON(stateRef.current));
+  }, [state.phase, draftPolygons, review?.parts, review?.difficulty, review?.name,
+    review?.infeasibleLines]);
+  useEffect(() => {
+    const map = optionsRef.current.mapRef.current;
+    if (!map) return;
+    const tool = stateRef.current;
+    setTrailPaintPreview(map, { path: tool.phase === 'paint' ? previewPathRef.current : [],
+      cursor: tool.phase === 'paint' ? brushCursorRef.current : null,
+      brushWidthM, ...trailHeadPreview(tool) });
+  }, [brushWidthM]);
   useEffect(() => () => { sampleTokenRef.current++; optionsRef.current.paintAdapter.stop();
     optionsRef.current.release(); }, []);
 

@@ -35,6 +35,8 @@ export interface GameSave {
   snowmakingNodes?: SavedSnowmakingNode[];
   lakeDepthOverrides?: Record<string, number>;
   lakeNameOverrides?: Record<string, string>;
+  /** Imported standing-water feature IDs designated for snowmaking. */
+  snowmakingLakeIds?: string[];
   streamWidthOverrides?: Record<string, number>;
   createdAt: string;
   updatedAt: string;

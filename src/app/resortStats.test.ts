@@ -35,4 +35,9 @@ describe('snowmakingWaterCapacityM3', () => {
   it('includes legacy standalone ponds whose designation is absent', () => {
     expect(snowmakingWaterCapacityM3([], [pond(750)])).toBe(750);
   });
+
+  it('includes designated imported ponds when their depth is available', () => {
+    expect(snowmakingWaterCapacityM3([], [], [{ id: 'way/42', name: 'Mirror Lake',
+      boundary: [], surfaceElevationM: 1000, capacityM3: 12_500 }])).toBe(12_500);
+  });
 });

@@ -10,6 +10,7 @@ import {
   LIFT_CLEAR_HALF_WIDTH_M,
   LIFT_CLEAR_MIN_WIDTH_M,
   LIFT_CLEAR_NOISE_AMPLITUDE_M,
+  LIFT_CLEAR_WIDTH_M,
   TRAIL_CLEAR_JITTER_M,
   TRAIL_CLEAR_BUBBLE_AMPLITUDE_M,
   TRAIL_CLEAR_BUBBLE_STEP_M,
@@ -79,28 +80,18 @@ describe('production lift clearing profile', () => {
     return { north, south };
   }
 
-  it('uses deterministic, smooth, independently varied outward noise', () => {
-    const ring = liftClearingRing(longLift, longBounds, 'organic-lift');
-    expect(ring).toEqual(liftClearingRing(longLift, longBounds, 'organic-lift'));
-    expect(ring).not.toEqual(liftClearingRing(longLift, longBounds, 'other-lift'));
-
+  it('keeps both authored sides smooth and exactly 8.382 metres from the cable', () => {
+    const ring = liftClearingRing(longLift, longBounds, 'straight-lift');
     const sides = sideProfiles(ring);
     for (const profile of Object.values(sides)) {
       const widths = profile.map(({ width }) => width);
-      expect(Math.min(...widths)).toBeGreaterThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M - 0.05);
-      expect(Math.max(...widths)).toBeLessThanOrEqual(
-        LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_NOISE_AMPLITUDE_M + 0.05);
-      expect(Math.max(...widths) - Math.min(...widths)).toBeGreaterThan(2);
-      expect(new Set(widths.map((width) => width.toFixed(1))).size).toBeGreaterThan(20);
-      for (let i = 1; i < widths.length; i++) {
-        expect(Math.abs(widths[i] - widths[i - 1])).toBeLessThan(1.6);
-      }
+      expect(widths.length).toBeGreaterThan(100);
+      for (const width of widths) expect(width).toBeCloseTo(8.382, 6);
+      expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(1e-6);
     }
-    expect(sides.north.map(({ width }) => width.toFixed(3)))
-      .not.toEqual(sides.south.map(({ width }) => width.toFixed(3)));
   });
 
-  it('retains the minimum width and organic variation after vector smoothing', () => {
+  it('keeps the straight clearing visible without reintroducing rough sides', () => {
     const size = 500;
     const forest = {
       ...grid('usgs-four-class-v1', TERRAIN_COVER_CODES.forest),
@@ -109,7 +100,7 @@ describe('production lift clearing profile', () => {
       height: size,
       data: new Uint8Array(size * size).fill(TERRAIN_COVER_CODES.forest),
     } as CoverGrid;
-    const ring = liftClearingRing(longLift, longBounds, 'visible-organic-lift');
+    const ring = liftClearingRing(longLift, longBounds, 'visible-straight-lift');
     const cleared = stampClearingsIntoGrid(forest, [{ polygon: [ring] }]).grid;
     const display = coverDisplayToGeoJSON(
       deriveCoverDisplayGeometry(cleared).geometry,
@@ -127,17 +118,20 @@ describe('production lift clearing profile', () => {
       .filter(({ u }) => u > 0.13 && u < 0.87)
       .map(({ width }) => width);
     expect(Math.min(...visibleWidths)).toBeGreaterThanOrEqual(
-      LIFT_CLEAR_MIN_WIDTH_M / 2 - 0.25);
-    expect(Math.max(...visibleWidths) - Math.min(...visibleWidths)).toBeGreaterThanOrEqual(3);
+      LIFT_CLEAR_HALF_WIDTH_M - 1.25);
     expect(Math.max(...visibleWidths)).toBeLessThanOrEqual(
-      LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_NOISE_AMPLITUDE_M + 2);
+      LIFT_CLEAR_HALF_WIDTH_M + 2);
+    expect(Math.max(...visibleWidths) - Math.min(...visibleWidths)).toBeLessThanOrEqual(2.5);
   });
 });
 
-describe('liftCorridorRing', () => {
-  it('guarantees at least 50 feet of authored clear width', () => {
-    expect(LIFT_CLEAR_MIN_WIDTH_M).toBeCloseTo(15.24, 8);
-    expect(LIFT_CLEAR_HALF_WIDTH_M * 2).toBeGreaterThanOrEqual(LIFT_CLEAR_MIN_WIDTH_M);
+describe('liftClearingRing', () => {
+  it('authors an exact 55-foot clear width with no edge-noise amplitude', () => {
+    expect(LIFT_CLEAR_WIDTH_M).toBeCloseTo(55 * 0.3048, 8);
+    expect(LIFT_CLEAR_MIN_WIDTH_M).toBe(LIFT_CLEAR_WIDTH_M);
+    expect(LIFT_CLEAR_HALF_WIDTH_M).toBeCloseTo(8.382, 8);
+    expect(LIFT_CLEAR_HALF_WIDTH_M * 2).toBeCloseTo(LIFT_CLEAR_MIN_WIDTH_M, 8);
+    expect(LIFT_CLEAR_NOISE_AMPLITUDE_M).toBe(0);
   });
 
   it('returns a closed ring of at least four points', () => {
@@ -146,9 +140,9 @@ describe('liftCorridorRing', () => {
     expect(ring[0]).toEqual(ring[ring.length - 1]);
   });
 
-  it('is deterministic for a given seed and differs across seeds', () => {
+  it('is deterministic and seed-independent because its sides are smooth', () => {
     expect(ringFor('a')).toEqual(ringFor('a'));
-    expect(ringFor('a')).not.toEqual(ringFor('b'));
+    expect(ringFor('a')).toEqual(ringFor('b'));
   });
 
   it('is a simple polygon — no self-intersections at either end cap', () => {
@@ -174,7 +168,7 @@ describe('liftCorridorRing', () => {
     expect(crossings).toBe(0);
   });
 
-  it('only widens outward from the minimum corridor', () => {
+  it('keeps every side and rounded-cap point at the exact half-width', () => {
     const ring = ringFor();
     const mPerLat = 111320;
     const mPerLng = 111320 * Math.cos((LIFT[0][1] * Math.PI) / 180);
@@ -187,17 +181,11 @@ describe('liftCorridorRing', () => {
     const maxLng = Math.max(a[0], b[0]);
     for (const [lng, lat] of ring) {
       const perpM = Math.abs(lat - lineLat) * mPerLat;
-      // Points beside the line stay within the jittered half-width; points near
-      // the rounded caps may sit slightly past the ends but never wider.
-      const withinSpan = lng >= minLng && lng <= maxLng;
-      if (withinSpan) {
-        expect(perpM).toBeGreaterThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M - 0.5);
-        expect(perpM).toBeLessThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_NOISE_AMPLITUDE_M + 0.5);
-      }
-      // Nothing anywhere on the ring exceeds half-width + outward noise.
+      // Side points measure perpendicular to the cable; cap points measure
+      // radially from their nearest terminal. Both lie on the same capsule.
       const alongOffset = Math.max(0, minLng - lng, lng - maxLng) * mPerLng;
       const radial = Math.hypot(perpM, alongOffset);
-      expect(radial).toBeLessThanOrEqual(LIFT_CLEAR_HALF_WIDTH_M + LIFT_CLEAR_NOISE_AMPLITUDE_M + 1);
+      expect(radial).toBeCloseTo(LIFT_CLEAR_HALF_WIDTH_M, 6);
     }
   });
 });

@@ -72,6 +72,7 @@ export type DesignSnapshot = Pick<GameSave,
   | 'snowmakingNodes'
   | 'lakeDepthOverrides'
   | 'lakeNameOverrides'
+  | 'snowmakingLakeIds'
   | 'streamWidthOverrides'>;
 
 export function designOf(save: DesignSnapshot): DesignSnapshot {
@@ -89,6 +90,7 @@ export function designOf(save: DesignSnapshot): DesignSnapshot {
     snowmakingNodes: save.snowmakingNodes,
     lakeDepthOverrides: save.lakeDepthOverrides,
     lakeNameOverrides: save.lakeNameOverrides,
+    snowmakingLakeIds: save.snowmakingLakeIds,
     streamWidthOverrides: save.streamWidthOverrides,
   };
 }
@@ -96,7 +98,7 @@ export function designOf(save: DesignSnapshot): DesignSnapshot {
 const DESIGN_COLLECTIONS = [
   'site', 'lifts', 'trails', 'roads', 'dams', 'ponds', 'nodes', 'paths', 'junctions',
   'snowmakingNodes',
-  'lakeDepthOverrides', 'lakeNameOverrides', 'streamWidthOverrides',
+  'lakeDepthOverrides', 'lakeNameOverrides', 'snowmakingLakeIds', 'streamWidthOverrides',
 ] as const;
 
 /**

@@ -32,7 +32,7 @@ const FAMILY_BLOCKS: { family: string; first: string; last: string }[] = [
 /** Every layer a hit guard names. A missing id would silently stop guarding. */
 const HIT_LAYERS = [
   'snowmaking-node-hit',
-  'lift-line-casing',
+  'lift-line-hit',
   'lift-terminals',
   'trail-fill',
   'dam-hit',
@@ -162,12 +162,14 @@ test('a click where a lift crosses a run picks the lift, and the run alone picks
 
   // Hovering a pickable family marks the cursor; leaving every family clears it.
   const crossing = await pointAt(page, CROSSING);
-  await page.mouse.move(crossing.x, crossing.y);
+  // Three pixels is outside the 3 px visual casing but inside the 8 px hit line.
+  const liftHitPoint = { x: crossing.x, y: crossing.y + 3 };
+  await page.mouse.move(liftHitPoint.x, liftHitPoint.y);
   await expect
     .poll(() => page.locator('.maplibregl-canvas').evaluate((el) => el.style.cursor))
     .toBe('pointer');
 
-  await page.mouse.click(crossing.x, crossing.y);
+  await page.mouse.click(liftHitPoint.x, liftHitPoint.y);
   await expect(page.locator('.dock-lifts')).toBeVisible();
   await expect(page.getByText('Crossing Double')).toBeVisible();
   await expect(page.locator('.dock-trails')).toHaveCount(0);

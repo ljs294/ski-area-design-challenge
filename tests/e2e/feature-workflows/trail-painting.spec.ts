@@ -1,6 +1,7 @@
 import { expect, test } from '../support/deterministicApp';
 import type { Page } from '@playwright/test';
-import { jumpTo, pointAt, setCaptureTransients, sourceFeatureCount } from '../support/mapProbe';
+import { countSourceUpdates, jumpTo, pointAt, setCaptureTransients, sourceFeatureCount,
+  sourceUpdateCounts } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
 import { installWorkerProbe, workerEntries } from '../support/workerProbe';
 
@@ -64,7 +65,7 @@ async function paintToReview(page: Page): Promise<void> {
 
 test('painting from a lift terminal seeds an engine and grows the reported footprint', async ({ page }) => {
   await installWorkerProbe(page);
-  await seedPreparedResort(page, { lifts: [anchorLift] });
+  await seedPreparedResort(page, { lifts: [anchorLift] }, { contourSegmentCount: 5_000 });
   await page.getByRole('button', { name: 'Continue Game' }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, TOP, 17);
@@ -75,7 +76,22 @@ test('painting from a lift terminal seeds an engine and grows the reported footp
 
   // Anchoring starts an engine, replays the seed dab, and reports its area.
   const head = await pointAt(page, TOP);
-  await page.mouse.move(head.x, head.y);
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await countSourceUpdates(page, ['contours', 'trails', 'trail-draft', 'trail-paint-preview']);
+  // The first pointer event lets MapLibre finish any deferred initial source
+  // publication. Measure the sustained hover path after that warm-up.
+  await page.mouse.move(head.x - 120, head.y);
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  const beforeHover = await sourceUpdateCounts(page);
+  await page.mouse.move(head.x, head.y, { steps: 30 });
+  await page.evaluate(() => new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  const afterHover = await sourceUpdateCounts(page);
+  expect(afterHover.contours).toBe(beforeHover.contours);
+  expect(afterHover.trails).toBe(beforeHover.trails);
+  expect(afterHover['trail-draft']).toBe(beforeHover['trail-draft']);
   await page.mouse.click(head.x, head.y);
   await expect(page.getByText('Create Trail', { exact: true })).toBeVisible();
   await expect.poll(async () => (await workerEntries(page, 'trailPaint.worker')).length).toBe(1);
@@ -97,10 +113,17 @@ test('painting from a lift terminal seeds an engine and grows the reported footp
 
   // One stroke down the fall line. Its preview must land, or Finish stays
   // disabled and the painted area never moves off the seed dab.
+  const beforeStroke = await sourceUpdateCounts(page);
   await page.mouse.move(head.x, head.y);
   await page.mouse.down();
   await page.mouse.move(head.x, head.y + 60, { steps: 6 });
   await page.mouse.move(head.x + 30, head.y + 120, { steps: 6 });
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  const duringStroke = await sourceUpdateCounts(page);
+  expect(duringStroke.contours).toBe(beforeStroke.contours);
+  expect(duringStroke.trails).toBe(beforeStroke.trails);
+  expect(duringStroke['trail-draft']).toBe(beforeStroke['trail-draft']);
+  expect(duringStroke['trail-paint-preview']).toBeGreaterThan(beforeStroke['trail-paint-preview']);
   await page.mouse.up();
 
   await expect(finish).toBeEnabled({ timeout: 10_000 });

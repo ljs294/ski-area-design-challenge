@@ -13,9 +13,12 @@ describe('lift controller model', () => {
     expect(reduceLiftTool(anchored, { type: 'move', point: B }))
       .toMatchObject({ phase: 'anchored', cursor: B });
 
-    const review = reduceLiftTool(anchored, { type: 'review', points: [A, B], name: 'Lift 1' });
+    const review = reduceLiftTool(anchored, {
+      type: 'review', points: [A, B], identifier: '1', name: 'Lift 1',
+    });
     expect(review).toMatchObject({ phase: 'review', draft: {
-      elevStatus: 'pending', chairSize: 2, status: 'planning', name: 'Lift 1',
+      elevStatus: 'pending', chairSize: 2, status: 'planning',
+      identifier: '1', name: 'Lift 1',
     } });
     const sampled = reduceLiftTool(review, {
       type: 'sample-succeeded', elevations: [1000, 1100],
@@ -42,6 +45,7 @@ describe('lift controller model', () => {
       elevStatus: 'ok',
       chairSize: 4,
       status: 'complete',
+      identifier: '  ',
       name: '  ',
     };
     const existing = [{ name: 'Lift 1' }] as SavedLift[];
@@ -50,6 +54,7 @@ describe('lift controller model', () => {
 
     expect(lift).toMatchObject({
       id: 'lift-new',
+      identifier: '2',
       name: 'Lift 2',
       points: [B, A],
       endpointElevM: [1000, 1200],

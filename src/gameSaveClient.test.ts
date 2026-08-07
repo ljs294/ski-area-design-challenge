@@ -63,9 +63,11 @@ describe('game preview fallback storage', () => {
   it('round-trips schema-v8 lake and stream property overrides', async () => {
     const save = { ...game('lakes', '2026-05-01T00:00:00.000Z'), schemaVersion: 8 as const,
       lakeDepthOverrides: { 'way/42': 3.75 }, lakeNameOverrides: { 'way/42': 'Mirror Pond' },
+      snowmakingLakeIds: ['way/42'],
       streamWidthOverrides: { 'way/7': 4.5 } };
     await saveGame(save);
     expect((await loadGame('lakes'))?.lakeDepthOverrides).toEqual({ 'way/42': 3.75 });
+    expect((await loadGame('lakes'))?.snowmakingLakeIds).toEqual(['way/42']);
     expect((await loadGame('lakes'))?.lakeNameOverrides).toEqual({ 'way/42': 'Mirror Pond' });
     expect((await loadGame('lakes'))?.streamWidthOverrides).toEqual({ 'way/7': 4.5 });
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SavedLift, SavedTrail } from '../types';
-import { nearestTrailHeadAnchor, nearestTrailTailAnchor } from './trailHeadAnchor';
+import { nearestTrailHeadAnchor, nearestTrailTailAnchor, TrailAnchorIndex } from './trailHeadAnchor';
 
 const origin: [number, number] = [-121.5, 46.93];
 const at = (eastM: number, northM: number): [number, number] => [
@@ -40,5 +40,19 @@ describe('nearestTrailHeadAnchor', () => {
   it('prefers a lift terminal over an exactly coincident trail', () => {
     const coincident = { ...trail, parts: [{ ...trail.parts[0], centerline: [at(-50, 0), at(50, 0)] }] };
     expect(nearestTrailTailAnchor(at(0, 0), [lift], [coincident], 60)).toMatchObject({ kind: 'lift' });
+  });
+
+  it('limits a dense resort query to nearby indexed geometry', () => {
+    const distant = Array.from({ length: 500 }, (_, index): SavedTrail => ({
+      ...trail,
+      id: `distant-${index}`,
+      parts: [{ ...trail.parts[0], centerline: [at(1_000 + index * 100, 50),
+        at(1_000 + index * 100, 150)] }],
+    }));
+    const index = new TrailAnchorIndex([lift], [trail, ...distant]);
+    expect(index.nearestHead(at(20, 100), 60)).toMatchObject({
+      kind: 'trail', trailId: 'trail',
+    });
+    expect(index.candidateCount(at(20, 100), 60)).toBeLessThan(10);
   });
 });

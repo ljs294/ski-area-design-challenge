@@ -3,9 +3,12 @@ import type { LakeAnalysis } from '../lakeAnalysis';
 import { depthFromDisplay, depthToDisplay, formatLakeArea, formatLakeVolume } from '../lakeAnalysis';
 import type { Units } from './SettingsContext';
 
-export function LakeDetail({ lake, units, onNameOverride, onDepthOverride, onClose }: {
+export function LakeDetail({ lake, units, isSnowmaking, onSnowmakingChange,
+  onNameOverride, onDepthOverride, onClose }: {
   lake: LakeAnalysis;
   units: Units;
+  isSnowmaking: boolean;
+  onSnowmakingChange: (enabled: boolean) => void;
   onNameOverride: (name: string | null) => void;
   onDepthOverride: (depthM: number | null) => void;
   onClose: () => void;
@@ -40,6 +43,12 @@ export function LakeDetail({ lake, units, onNameOverride, onDepthOverride, onClo
         <button className="settings-close-x" aria-label="Close" onClick={onClose}>✕</button>
       </div>
       <div className="lake-detail-sub">Standing water · OpenStreetMap</div>
+      <label className="trail-grade-terrain">
+        <input type="checkbox" checked={isSnowmaking} aria-label="Snowmaking pond"
+          onChange={(event) => onSnowmakingChange(event.target.checked)} />
+        <span><strong>Snowmaking pond</strong>
+          <small>Include this pond's estimated volume and add an intake to the snowmaking network.</small></span>
+      </label>
       <label className="lake-name-row">
         <span className="lift-stat-label">Pond name</span>
         <input

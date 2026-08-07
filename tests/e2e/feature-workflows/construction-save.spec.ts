@@ -1,4 +1,5 @@
 import { expect, test } from '../support/deterministicApp';
+import type { Page } from '@playwright/test';
 import { jumpTo, pointAt, setCaptureTransients, sourceFeatureCount } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
 import { installWorkerProbe, workerEntries } from '../support/workerProbe';
@@ -6,6 +7,16 @@ import { installWorkerProbe, workerEntries } from '../support/workerProbe';
 const CENTER: [number, number] = [-121.495, 46.905];
 const BASE: [number, number] = [-121.4962, 46.9044];
 const TOP: [number, number] = [-121.4938, 46.9056];
+
+const liftMapLabel = (page: Page): Promise<string | undefined> => page.evaluate(() => {
+  const source = (window as unknown as {
+    appMap: { getSource(id: string): { serialize(): { data?: unknown } } | undefined };
+  }).appMap.getSource('lifts');
+  const data = source?.serialize().data as {
+    features?: Array<{ properties?: { label?: string } }>;
+  } | undefined;
+  return data?.features?.find((feature) => feature.properties?.label)?.properties?.label;
+});
 
 const seededTrail = {
   id: 'trail-save-coherence',
@@ -47,6 +58,7 @@ test('double confirmation builds once and Save persists one coherent document', 
   await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(3);
   await page.mouse.click(top.x, top.y);
   await expect(page.getByText('New fixed-grip chairlift', { exact: true })).toBeVisible();
+  await page.getByLabel('Letter / number').fill('A');
   await page.locator('.lift-name-input').fill('Atomic Double');
   await page.getByRole('button', { name: 'Complete', exact: true }).click();
 
@@ -61,6 +73,15 @@ test('double confirmation builds once and Save persists one coherent document', 
 
   await expect(page.getByText('Ski Lifts (1)', { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(3);
+  await expect.poll(() => liftMapLabel(page)).toBe('A - Atomic Double');
+  await page.getByRole('button', { name: /A - Atomic Double/ }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByLabel('Letter / number')).toHaveValue('A');
+  await expect(page.getByLabel('Name')).toHaveValue('Atomic Double');
+  await page.getByLabel('Letter / number').fill('B');
+  await page.getByLabel('Name').fill('Atomic Express');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect.poll(() => liftMapLabel(page)).toBe('B - Atomic Express');
   await expect.poll(() => page.evaluate(() =>
     (window as unknown as { appSaveState: { unsaved: boolean } }).appSaveState.unsaved,
   )).toBe(true);
@@ -114,7 +135,7 @@ test('double confirmation builds once and Save persists one coherent document', 
   expect(persisted.save).toMatchObject({
     schemaVersion: 11,
     terrainKey: 'e2e-terrain',
-    lifts: [{ name: 'Atomic Double', status: 'complete' }],
+    lifts: [{ identifier: 'B', name: 'Atomic Express', status: 'complete' }],
     trails: [{ id: 'trail-save-coherence', name: 'Renamed in save tick' }],
   });
   expect(persisted.save.lifts).toHaveLength(1);

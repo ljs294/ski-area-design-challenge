@@ -8,7 +8,7 @@ import { MAX_POND_EXCAVATION_M, POND_CREST_WIDTH_M, POND_FREEBOARD_M,
 import { EarthworkStats } from './TrailControl';
 import { roadLengthM } from '../roads';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
-import type { SavedSnowmakingNode } from '../types/snowmaking';
+import type { SavedSnowmakingNode, SnowmakingLakeSource } from '../types/snowmaking';
 import type { Units } from './SettingsContext';
 import type { DamTool, DraftDam } from './damControllerModel';
 import type { DraftPond, PondTool } from './pondControllerModel';
@@ -171,17 +171,19 @@ function SnowmakingPondField({ checked, onChange }: {
  * resolves (should be pruned by reconcileSnowmakingNodes, but stay
  * defensive rather than throwing on stale data).
  */
-function snowmakingSourceName(node: SavedSnowmakingNode, dams: SavedDam[], ponds: SavedPond[]): string | null {
+function snowmakingSourceName(node: SavedSnowmakingNode, dams: SavedDam[], ponds: SavedPond[],
+  lakes: SnowmakingLakeSource[]): string | null {
   const source = node.source;
   if (!source) return null;
   if (source.kind === 'dam') return dams.find((dam) => dam.id === source.damId)?.name ?? 'Unknown';
+  if (source.kind === 'lake') return lakes.find((lake) => lake.id === source.lakeId)?.name ?? 'Unknown';
   return ponds.find((pond) => pond.id === source.pondId)?.name ?? 'Unknown';
 }
 
 /** Water storage and (eventually) distribution: dams, standalone ponds, and the
  *  pipe network that will carry their water uphill. Pipes are a placeholder —
  *  the button is deliberately inert until there is a network to build. */
-export function SnowmakingControl({ damTool, pondTool, dams, ponds, selectedDam, selectedPond,
+export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], selectedDam, selectedPond,
   nodes, selectedNode,
   units, onArmDam, onCancelDam, onDamDraftChange, onConfirmDam,
   onSelectDam, onDeleteDam, onCloseDam, onArmPond, onCancelPond, onUndoPond, onFinishPond,
@@ -192,6 +194,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, selectedDam,
   onClose, building = false }: {
   damTool: DamTool; pondTool: PondTool; dams: SavedDam[];
   ponds: SavedPond[]; selectedDam: SavedDam | null; selectedPond: SavedPond | null;
+  lakes?: SnowmakingLakeSource[];
   nodes: SavedSnowmakingNode[]; selectedNode: SavedSnowmakingNode | null; units: Units;
   onArmDam: () => void;
   onCancelDam: () => void; onDamDraftChange: (patch: Partial<DraftDam>) => void; onConfirmDam: () => void;
@@ -262,7 +265,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, selectedDam,
       <button className="site-btn site-btn-primary" disabled={building} onClick={onConfirmDam}>{building ? 'Building…' : 'Build dam'}</button></div>
   </div>;
   if (selectedNode) {
-    const sourceName = snowmakingSourceName(selectedNode, dams, ponds);
+    const sourceName = snowmakingSourceName(selectedNode, dams, ponds, lakes);
     return <div className="site-control site-control-wide snowmaking-panel">
       <PanelHead title={selectedNode.name} onClose={onCloseNode} />
       <input className="name-entry-input lift-name-input" value={selectedNode.name}
@@ -306,7 +309,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, selectedDam,
         <span className="infrastructure-dam-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{pond.name}</span>
           <span className="lift-row-summary">{pond.isSnowmaking !== false ? 'Snowmaking pond' : 'Standalone pond'} · {fmtArea(pond.areaM2, units)}</span></span></button>)}</div>}
       {nodes.length > 0 && <div className="lift-list">{nodes.map((node) => {
-        const sourceName = snowmakingSourceName(node, dams, ponds);
+        const sourceName = snowmakingSourceName(node, dams, ponds, lakes);
         const summary = sourceName != null ? `${SNOWMAKING_NODE_LABELS[node.kind]} · ${sourceName}` : SNOWMAKING_NODE_LABELS[node.kind];
         return <button key={node.id} className="lift-row lift-row-button" onClick={() => onSelectNode(node.id)}>
           <span className="snowmaking-node-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{node.name}</span>

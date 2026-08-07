@@ -13,22 +13,15 @@ import type { CoverGrid } from './types/cover';
 import { isFourClassGrid, TERRAIN_COVER_CODES } from './fourClassCover';
 import { METERS_PER_DEGREE_LAT } from './geo';
 
-/** Required clear width under a lift cable. */
-export const LIFT_CLEAR_MIN_WIDTH_M = 50 * 0.3048;
-/**
- * Grid-safe half-width on each side of the cable (16 m / 52.5 ft total).
- * Keeping this just above the 50 ft contract prevents 2 m raster rounding from
- * making a diagonal corridor visibly narrower than the requested minimum.
- */
-export const LIFT_CLEAR_HALF_WIDTH_M = 8;
-/** Maximum extra clearing on either lift edge; it is always applied outward. */
-export const LIFT_CLEAR_NOISE_AMPLITUDE_M = 6;
-/** Broad nominal scale of the lift's organic treeline variation. */
-export const LIFT_CLEAR_NOISE_WAVELENGTH_M = 48;
+/** Exact authored clear width under a lift cable: 27.5 ft per side. */
+export const LIFT_CLEAR_WIDTH_M = 55 * 0.3048;
+export const LIFT_CLEAR_HALF_WIDTH_M = LIFT_CLEAR_WIDTH_M / 2;
+/** Compatibility name used by the generic corridor's lower-bound guard. */
+export const LIFT_CLEAR_MIN_WIDTH_M = LIFT_CLEAR_WIDTH_M;
+/** Lift clearings deliberately have no automatic edge roughness. */
+export const LIFT_CLEAR_NOISE_AMPLITUDE_M = 0;
 /** Peak centered wobble retained for the subtle ski-run treeline treatment. */
 export const TRAIL_CLEAR_JITTER_M = 2;
-/** Compatibility alias for callers of the original centered-noise corridor API. */
-export const LIFT_CLEAR_JITTER_M = TRAIL_CLEAR_JITTER_M;
 /** Peak outward displacement of a lift or ski run's cut treeline. */
 export const TRAIL_CLEAR_BUBBLE_AMPLITUDE_M = 24;
 /** Approximate distance between broad lobes along a cut treeline. */
@@ -341,7 +334,7 @@ export function liftCorridorRing(points: [LngLat, LngLat], _bounds: LatLonBounds
   return lngLatRing;
 }
 
-/** Production lift clearing: at least 50 ft wide with irregular outward noise. */
+/** Production lift clearing: a smooth 55 ft capsule, 27.5 ft per side. */
 export function liftClearingRing(
   points: [LngLat, LngLat],
   bounds: LatLonBounds,
@@ -350,8 +343,6 @@ export function liftClearingRing(
   return liftCorridorRing(points, bounds, {
     halfWidthM: LIFT_CLEAR_HALF_WIDTH_M,
     jitterM: LIFT_CLEAR_NOISE_AMPLITUDE_M,
-    wavelengthM: LIFT_CLEAR_NOISE_WAVELENGTH_M,
-    outwardOrganic: true,
     seed,
   });
 }

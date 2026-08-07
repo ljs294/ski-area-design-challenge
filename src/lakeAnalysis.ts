@@ -248,3 +248,10 @@ export function sanitizeLakeNameOverrides(raw: unknown): Record<string, string> 
   }
   return result;
 }
+
+/** Stable OSM IDs only; malformed and duplicate save entries are discarded. */
+export function sanitizeSnowmakingLakeIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter((id): id is string => typeof id === 'string' && id.trim() !== '')
+    .map((id) => id.trim()))];
+}

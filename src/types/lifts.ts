@@ -6,6 +6,9 @@ export type LiftStatus = ConstructionStatus;
 
 export interface SavedLiftBase {
   id: string;
+  /** User-facing letter or number. Optional only for schema-11 compatibility. */
+  identifier?: string;
+  /** The lift's actual name, independent of its letter/number identifier. */
   name: string;
   liftClass: LiftClass;
   points: [[number, number], [number, number]];

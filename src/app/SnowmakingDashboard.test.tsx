@@ -171,6 +171,18 @@ describe('SnowmakingDashboard', () => {
     expect(html).toContain('data-dam-id="dam-1"');
   });
 
+  it('draws a designated imported pond and resolves its intake capacity', () => {
+    const lake = { id: 'way/lake', name: 'Context Lake', boundary: squareRing(500, 100, 30),
+      surfaceElevationM: 990, capacityM3: 12_500 };
+    const intake: SavedSnowmakingNode = { id: 'lake-node', name: 'Context Lake Intake',
+      kind: 'intake', point: at(500, 100), elevM: 990,
+      source: { kind: 'lake', lakeId: 'way/lake' }, createdAt: '2026-01-01T00:00:00.000Z' };
+    const html = render({ lakes: [lake], nodes: [intake], selectedNodeId: intake.id });
+    expect(html).toContain('data-lake-id="way/lake"');
+    expect(html).toContain('Context Lake');
+    expect(html).toContain('12.5M L');
+  });
+
   it('renders a helpful empty state when there are no dams, ponds, or nodes', () => {
     const html = render({ dams: [], ponds: [], nodes: [] });
     expect(html).toContain('Nothing to map yet');

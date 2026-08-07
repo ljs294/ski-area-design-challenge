@@ -1,4 +1,4 @@
-import { useEffect, useRef, type Dispatch, type MutableRefObject,
+import { useEffect, useMemo, useRef, type Dispatch, type MutableRefObject,
   type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import type { SavedLift } from '../types/lifts';
@@ -7,7 +7,7 @@ import { haversineMeters } from '../geo';
 import { trailPartContains } from '../trails';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
 import type { TrailHeadAnchor } from './trailHeadAnchor';
-import { nearestTrailHeadAnchor, nearestTrailTailAnchor } from './trailHeadAnchor';
+import { TrailAnchorIndex } from './trailHeadAnchor';
 import { setTrailPaintPreview } from './trailLayers';
 import type { TrailTool, TrailToolAction } from './trailControllerModel';
 
@@ -46,13 +46,12 @@ export function hasUserTrailStroke(
     command.path.some((point) => haversineMeters(point, head) >= 0.5));
 }
 
-function sameAnchor(a: TrailHeadAnchor | null, b: TrailHeadAnchor | null): boolean {
+function sameAnchorTarget(a: TrailHeadAnchor | null, b: TrailHeadAnchor | null): boolean {
   if (a === b) return true;
   if (!a || !b || a.kind !== b.kind) return false;
-  const samePoint = a.point[0] === b.point[0] && a.point[1] === b.point[1];
-  return samePoint && (a.kind === 'lift'
+  return a.kind === 'lift'
     ? b.kind === 'lift' && a.liftId === b.liftId && a.end === b.end
-    : b.kind === 'trail' && a.trailId === b.trailId);
+    : b.kind === 'trail' && a.trailId === b.trailId;
 }
 
 interface TrailMapInputOptions {
@@ -79,6 +78,10 @@ interface TrailMapInputOptions {
 export function useTrailMapInput(options: TrailMapInputOptions): void {
   const optionsRef = useRef(options);
   optionsRef.current = options;
+  const anchorIndex = useMemo(() => new TrailAnchorIndex(options.lifts, options.trails),
+    [options.lifts, options.trails]);
+  const anchorIndexRef = useRef(anchorIndex);
+  anchorIndexRef.current = anchorIndex;
 
   useEffect(() => {
     const currentOptions = optionsRef.current;
@@ -86,13 +89,24 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     if (!map || currentOptions.stateRef.current.phase !== 'place-head') return;
     const canvas = map.getCanvas();
     const interaction = currentOptions.acquireInteractions({ cursor: 'crosshair' });
-    const candidateAt = (event: maplibregl.MapMouseEvent) => nearestTrailHeadAnchor(
-      [event.lngLat.lng, event.lngLat.lat], [...optionsRef.current.lifts],
-      [...optionsRef.current.trails], ANCHOR_PICK_M);
+    let previewRaf = 0, previewCandidate: TrailHeadAnchor | null = null;
+    const renderCandidate = () => { previewRaf = 0;
+      const state = optionsRef.current.stateRef.current;
+      setTrailPaintPreview(map, { path: [], cursor: null,
+        brushWidthM: optionsRef.current.brushWidthRef.current,
+        ...trailHeadPreview(state), candidate: previewCandidate?.point ?? null }); };
+    const scheduleCandidate = (candidate: TrailHeadAnchor | null) => {
+      previewCandidate = candidate;
+      if (!previewRaf) previewRaf = requestAnimationFrame(renderCandidate);
+    };
+    const candidateAt = (event: maplibregl.MapMouseEvent) => anchorIndexRef.current.nearestHead(
+      [event.lngLat.lng, event.lngLat.lat], ANCHOR_PICK_M);
+    renderCandidate();
     const onMove = (event: maplibregl.MapMouseEvent) => {
       const candidate = candidateAt(event);
+      scheduleCandidate(candidate);
       const state = optionsRef.current.stateRef.current;
-      if (state.phase === 'place-head' && !sameAnchor(state.candidate, candidate))
+      if (state.phase === 'place-head' && !sameAnchorTarget(state.candidate, candidate))
         optionsRef.current.dispatch({ type: 'head-candidate', candidate });
     };
     const onClick = (event: maplibregl.MapMouseEvent) => {
@@ -107,12 +121,13 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') optionsRef.current.cancel();
     };
-    const onLeave = () => optionsRef.current.dispatch({
-      type: 'head-candidate', candidate: null });
+    const onLeave = () => { scheduleCandidate(null); optionsRef.current.dispatch({
+      type: 'head-candidate', candidate: null }); };
     map.on('mousemove', onMove); map.on('click', onClick);
     canvas.addEventListener('mouseleave', onLeave); window.addEventListener('keydown', onKey);
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
       canvas.removeEventListener('mouseleave', onLeave); window.removeEventListener('keydown', onKey);
+      if (previewRaf) cancelAnimationFrame(previewRaf);
       interaction.release(); };
   }, [options.state.phase]);
 
@@ -121,9 +136,19 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     const map = currentOptions.mapRef.current;
     if (!map || currentOptions.stateRef.current.phase !== 'place-tail') return;
     const interaction = currentOptions.acquireInteractions({ cursor: 'crosshair' });
-    const candidateAt = (event: maplibregl.MapMouseEvent) => nearestTrailTailAnchor(
-      [event.lngLat.lng, event.lngLat.lat], [...optionsRef.current.lifts],
-      [...optionsRef.current.trails], ANCHOR_PICK_M);
+    let previewRaf = 0, previewCandidate: TrailHeadAnchor | null = null;
+    const renderCandidate = () => { previewRaf = 0;
+      const state = optionsRef.current.stateRef.current;
+      setTrailPaintPreview(map, { path: [], cursor: null,
+        brushWidthM: optionsRef.current.brushWidthRef.current,
+        ...trailHeadPreview(state), candidate: previewCandidate?.point ?? null }); };
+    const scheduleCandidate = (candidate: TrailHeadAnchor | null) => {
+      previewCandidate = candidate;
+      if (!previewRaf) previewRaf = requestAnimationFrame(renderCandidate);
+    };
+    const candidateAt = (event: maplibregl.MapMouseEvent) => anchorIndexRef.current.nearestTail(
+      [event.lngLat.lng, event.lngLat.lat], ANCHOR_PICK_M);
+    renderCandidate();
     const isConnected = (state: Extract<TrailTool, { phase: 'place-tail' }>,
       point: [number, number]) => haversineMeters(state.anchor.point, point) >= 8 &&
       state.polygons.some((polygon) => trailPartContains({ polygon }, state.anchor.point) &&
@@ -133,10 +158,12 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
       const state = optionsRef.current.stateRef.current;
       if (state.phase !== 'place-tail') return;
       const connected = !!candidate && isConnected(state, candidate.point);
-      optionsRef.current.dispatch({ type: 'tail-candidate',
-        candidate: connected ? candidate : null,
-        error: candidate && !connected
-          ? 'The painted trail must reach this endpoint in one connected footprint.' : state.error });
+      const visible = connected ? candidate : null;
+      scheduleCandidate(visible);
+      const error = candidate && !connected
+        ? 'The painted trail must reach this endpoint in one connected footprint.' : state.error;
+      if (!sameAnchorTarget(state.candidate, visible) || state.error !== error)
+        optionsRef.current.dispatch({ type: 'tail-candidate', candidate: visible, error });
     };
     const onClick = (event: maplibregl.MapMouseEvent) => {
       const candidate = candidateAt(event);
@@ -154,7 +181,8 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     };
     map.on('mousemove', onMove); map.on('click', onClick); window.addEventListener('keydown', onKey);
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
-      window.removeEventListener('keydown', onKey); interaction.release(); };
+      window.removeEventListener('keydown', onKey); if (previewRaf) cancelAnimationFrame(previewRaf);
+      interaction.release(); };
   }, [options.state.phase]);
 
   useEffect(() => {
@@ -172,7 +200,8 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     });
     renderPreview();
     let painting = false, path: [number, number][] = [], previewPath: [number, number][] = [];
-    let previewRaf = 0, lastMetricAt = 0;
+    let previewRaf = 0, lastMetricAt = 0, strokeLengthM = 0;
+    let lastPreviewPixel: { x: number; y: number } | null = null;
     const drawPreview = () => { previewRaf = 0; renderPreview(); };
     const schedulePreview = () => { if (!previewRaf) previewRaf = requestAnimationFrame(drawPreview); };
     const finish = () => {
@@ -189,7 +218,8 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
       const state = optionsRef.current.stateRef.current;
       if (state.phase !== 'paint' || state.pending) return;
       const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
-      painting = true; path = [point]; previewPath = path;
+      painting = true; path = [point]; previewPath = [point]; strokeLengthM = 0;
+      lastPreviewPixel = map.project(point);
       optionsRef.current.previewPathRef.current = previewPath;
       optionsRef.current.brushCursorRef.current = point; schedulePreview();
     };
@@ -199,21 +229,23 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
       if (!painting) { schedulePreview(); return; }
       const width = optionsRef.current.brushWidthRef.current;
       const gap = Math.max(0.5, Math.min(2, width / 16));
-      if (haversineMeters(path[path.length - 1], point) < gap) { schedulePreview(); return; }
+      const segmentLengthM = haversineMeters(path[path.length - 1], point);
+      if (segmentLengthM < gap) { schedulePreview(); return; }
       path.push(point);
-      const lastPreview = previewPath.at(-1);
-      if (!lastPreview || Math.hypot(map.project(lastPreview).x - map.project(point).x,
-        map.project(lastPreview).y - map.project(point).y) >= 2) {
-        previewPath = [...previewPath, point];
+      strokeLengthM += segmentLengthM;
+      const pixel = map.project(point);
+      if (!lastPreviewPixel || Math.hypot(lastPreviewPixel.x - pixel.x,
+        lastPreviewPixel.y - pixel.y) >= 2) {
+        previewPath.push(point); lastPreviewPixel = pixel;
+        if (previewPath.length > 2048) previewPath = previewPath.filter(
+          (_, index) => index % 2 === 0 || index === previewPath.length - 1);
         optionsRef.current.previewPathRef.current = previewPath;
       }
       schedulePreview();
       const now = performance.now();
-      if (now - lastMetricAt >= 100) {
+      if (now - lastMetricAt >= 200) {
         lastMetricAt = now;
-        let length = 0;
-        for (let i = 1; i < path.length; i++) length += haversineMeters(path[i - 1], path[i]);
-        const swept = Math.PI * (width / 2) ** 2 + length * width;
+        const swept = Math.PI * (width / 2) ** 2 + strokeLengthM * width;
         const state = optionsRef.current.stateRef.current;
         if (state.phase === 'paint') optionsRef.current.dispatch({ type: 'paint-patch', patch: {
           activeAreaM2: state.mode === 'paint' ? state.areaM2 + swept

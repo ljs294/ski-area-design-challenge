@@ -52,7 +52,17 @@ export type SnowmakingNodeKind = 'intake' | 'pump' | 'junction' | 'hydrant';
 
 export type SnowmakingSourceRef =
   | { kind: 'dam'; damId: string }
-  | { kind: 'pond'; pondId: string };
+  | { kind: 'pond'; pondId: string }
+  | { kind: 'lake'; lakeId: string };
+
+/** An imported standing-water feature selected as a snowmaking source. */
+export interface SnowmakingLakeSource {
+  id: string;
+  name: string;
+  boundary: [number, number][];
+  surfaceElevationM: number | null;
+  capacityM3: number | null;
+}
 
 export interface SavedSnowmakingNode {
   id: string;

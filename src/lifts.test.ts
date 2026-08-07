@@ -3,7 +3,9 @@ import { haversineMeters } from './geo';
 import {
   fixedGripCapacityPph,
   fixedGripDerived,
+  formatLiftLabel,
   liftStats,
+  nextLiftIdentifier,
   nextLiftName,
   orientBottomToTop,
   sanitizeLifts,
@@ -79,6 +81,7 @@ describe('fixedGripDerived', () => {
 describe('sanitizeLifts', () => {
   const valid: SavedLift = {
     id: 'l1',
+    identifier: 'A',
     name: 'Lift 1',
     liftClass: 'fixed-grip',
     points: [BASE, SUMMIT],
@@ -126,6 +129,43 @@ describe('sanitizeLifts', () => {
     const { status: _drop, ...noStatus } = valid;
     expect(sanitizeLifts([noStatus])[0].status).toBe('complete');
     expect(sanitizeLifts([{ ...valid, status: 'nonsense' }])[0].status).toBe('complete');
+  });
+
+  it('trims identifiers while preserving legacy name-only lifts', () => {
+    expect(sanitizeLifts([{ ...valid, identifier: '  12  ' }])[0].identifier).toBe('12');
+    const { identifier: _identifier, ...legacy } = valid;
+    const hydrated = sanitizeLifts([legacy])[0];
+    expect(hydrated.identifier).toBeUndefined();
+    expect(formatLiftLabel(hydrated)).toBe('Lift 1');
+  });
+});
+
+describe('lift naming', () => {
+  it('shows the letter or number and actual name with a hyphen', () => {
+    expect(formatLiftLabel({ identifier: 'A', name: 'Summit Express' }))
+      .toBe('A - Summit Express');
+    expect(formatLiftLabel({ name: 'Legacy Double' })).toBe('Legacy Double');
+  });
+
+  it('allocates the first unused numeric identifier and respects legacy Lift N names', () => {
+    const lift = (identifier: string | undefined, name: string) =>
+      ({ identifier, name }) as SavedLift;
+    expect(nextLiftIdentifier([])).toBe('1');
+    expect(nextLiftIdentifier([
+      lift('1', 'Summit'),
+      lift(undefined, 'Lift 2'),
+      lift('A', 'Alpine'),
+      lift('4', 'Ridge'),
+    ])).toBe('3');
+  });
+
+  it('keeps untouched default identifiers and names on the same number', () => {
+    const existing = [
+      { identifier: '1', name: 'Summit Express' },
+      { identifier: '2', name: 'Lift 7' },
+    ] as SavedLift[];
+    expect(nextLiftIdentifier(existing)).toBe('3');
+    expect(nextLiftName(existing)).toBe('Lift 3');
   });
 });
 

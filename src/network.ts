@@ -1,5 +1,5 @@
 import { METERS_PER_DEGREE_LAT, haversineMeters } from './geo';
-import { fixedGripCapacityPph, fixedGripDerived, liftStats } from './lifts';
+import { fixedGripCapacityPph, fixedGripDerived, formatLiftLabel, liftStats } from './lifts';
 import { difficultyForSlopes, trailAreaM2, trailStats } from './trails';
 import type { AnchorRef } from './types/anchors';
 import type { ChairSize, LiftClass, LiftStatus, SavedLift } from './types/lifts';
@@ -1654,7 +1654,7 @@ export function buildSkiNetwork(
       from: nodeForSite(plan.baseKey),
       to: nodeForSite(plan.topKey),
       liftId: lift.id,
-      liftName: lift.name,
+      liftName: formatLiftLabel(lift),
       liftClass: lift.liftClass,
       chairSize: lift.chairSize,
       path: [plan.basePoint, plan.topPoint],
