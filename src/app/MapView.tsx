@@ -95,6 +95,7 @@ import { InfrastructureControl } from './InfrastructureControl';
 import { useRoadController } from './useRoadController';
 import { SnowmakingControl } from './SnowmakingControl';
 import { useSnowmakingController } from './useSnowmakingController';
+import type { NodeTool, PathTool } from './nodePathControllerModel';
 import { sanitizeDams } from '../damAnalysis';
 import { sanitizePonds } from '../pondAnalysis';
 import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
@@ -167,19 +168,6 @@ export type MapMode = 'picking' | 'playing';
  * accepts a node the run passes straight through. Both pick first and commit on
  * a button, so a misclick costs nothing.
  */
-export type NodeTool =
-  | { phase: 'idle' }
-  | { phase: 'add'; candidate: Extract<AnchorRef, { kind: 'trail' }> | null; error: string | null }
-  | { phase: 'remove'; junctionId: string | null; error: string | null };
-
-/** Drawing a connector path. Both ends must land on a valid anchor target,
- *  which is the whole point of a path — it declares a connection. */
-export type PathTool =
-  | { phase: 'idle' }
-  | { phase: 'armed' }
-  | { phase: 'drawing'; points: [number, number][]; cursor: [number, number] | null; from: AnchorRef | null }
-  | { phase: 'review'; points: [number, number][]; from: AnchorRef; to: AnchorRef; name: string };
-
 type SelectionTarget =
   | { kind: 'lift' | 'trail' | 'dam' | 'pond' | 'snowmaking-node' | 'ski-node' | 'ski-path'; id: string }
   | { kind: 'lake' | 'stream'; id: string }
