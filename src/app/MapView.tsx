@@ -21,14 +21,13 @@ import {
   type SiteBox,
 } from './sitePicker';
 import type { GeocodeResult } from './SearchBox';
-import { tuneBasemap, basemapFor } from './basemapStyle';
-import { mountTerrain, unmountTerrain, tilt3D, PITCH_3D } from './terrain3d';
-import { useSettings, pixelRatioFor } from './SettingsContext';
+import { basemapFor } from './basemapStyle';
+import { tilt3D } from './terrain3d';
+import { useSettings } from './SettingsContext';
 import { MapInteractionLease, type MapInteractionLeaseHandle,
   type MapInteractionOverrides } from './mapInteractionLease';
 import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot,
   type ToolId } from './toolCoordinator';
-import { applyTileLod } from './terrainLod';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
@@ -49,9 +48,9 @@ import { createCoverClearService } from './coverClearService';
 import { DamAnalysisAdapter } from './damAnalysisClient';
 import { TerrainGradeAdapter } from './terrainGradeClient';
 import { TrailPaintAdapter } from './trailPaintClient';
-import { clearResortCoverCache, getResortRenderStats, RESORT_COVER_PROTOCOL,
+import { clearResortCoverCache, RESORT_COVER_PROTOCOL,
   resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt,
-  setActiveResortTerrain, setRenderConcurrency, warmResortTiles, WORLD_COVER_LABELS } from './resortProtocols';
+  setActiveResortTerrain, WORLD_COVER_LABELS } from './resortProtocols';
 import { useLiftController } from './useLiftController';
 import { useRoadController } from './useRoadController';
 import { useSnowmakingController } from './useSnowmakingController';
@@ -60,6 +59,7 @@ import { useTrailController } from './useTrailController';
 import { MapViewChrome } from './MapViewChrome';
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
+import { useMapRuntime } from './useMapRuntime';
 import { sanitizeDams } from '../damAnalysis';
 import { sanitizePonds } from '../pondAnalysis';
 import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
@@ -83,7 +83,7 @@ import {
 } from '../trails';
 import { hydrateTopology } from '../topology';
 import { sanitizeRoads } from '../roads';
-import { resumeCameraOf, withResumeCheckpoint } from './resumeCheckpoint';
+import { withResumeCheckpoint } from './resumeCheckpoint';
 import type { ConstructionActivity } from './constructionLock';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
   type TerrainRecordView } from './terrainDocument';
@@ -128,12 +128,6 @@ function activeOverlayOf(layers: LayerToggle[]): OverlayId | null {
   const on = analysis ?? layers.find((l) => l.id === 'groundcover' && l.visible);
   return (on?.id as OverlayId) ?? null;
 }
-
-// Escape hatch for the Playwright verification harness: the 3D terrain mesh
-// crashes SwiftShader headless, so `?flat` keeps the resort view terrain-free
-// (hillshade still stands in). No effect in the real Electron app.
-const TERRAIN_DISABLED =
-  typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('flat');
 
 interface MapViewProps {
   mode: MapMode;
@@ -1165,273 +1159,40 @@ export function MapView({
   }
   const mapContributions = mapContributionRegistryRef.current;
 
-  // (Re)attach analysis layers + site box + 3D after any style (re)load. Shared
-  // by the initial load and the light<->dark basemap swap. Reads live state from
-  // refs and re-applies the current layer-visibility model.
-  function reinitAfterStyle(map: maplibregl.Map) {
-    tuneBasemap(map);
-    const applied = layerTogglesOf(mapContributions.synchronizeStyle());
-    // Installed before the camera is posed below: the LOD falloff curve only
-    // engages when pitched, and it decides which zooms the tilted view asks for.
-    applyTileLod(map, renderQualityRef.current);
-    // Resort view = a local terrain package is active. Terrain is mounted here
-    // (and re-mounted after every restyle, since setStyle drops it) so it is
-    // always present and the 2D↔3D switch stays a pure camera move. The
-    // worldwide picker has no package, so it stays flat.
-    if (terrainRecordRef.current && !TERRAIN_DISABLED) {
-      mountTerrain(map);
-      if (!resortReadyRef.current) {
-        resortReadyRef.current = true;
-        // First entry into the resort: honor a resumed 2D/3D choice, otherwise
-        // default into the 3D-native view.
-        const want3D = initialSave?.is3D ?? true;
-        if (want3D !== is3DRef.current) setIs3D(want3D);
-        // Pose the camera at its FINAL pitch *before* warming. This used to
-        // reveal flat and then easeTo(PITCH_3D), which meant readiness was
-        // measured in a camera pose the player never sees: tilting to 60°
-        // enlarges the viewport footprint enormously and, once applyTileLod's
-        // falloff engages, changes which zooms are requested — so every tile the
-        // 3D view actually needed streamed in *after* the veil had lifted.
-        if (initialSave) {
-          const pose = resumeCameraOf(initialSave, {
-            center: INITIAL_CENTER, zoom: INITIAL_ZOOM, bearing: 0, pitch: 0,
-          });
-          // Reapply the complete saved pose after terrain/maxBounds mount. In
-          // particular, do not replace a player's non-default 3D pitch.
-          map.jumpTo(pose);
-        } else {
-          map.jumpTo({ pitch: want3D ? PITCH_3D : 0 });
-        }
-        // Hold the loading screen until the resort is genuinely fully drawn:
-        // (1) preload every reachable diorama tile into the cache (determinate
-        // progress), then (2) wait for MapLibre to have all tiles loaded and go
-        // idle — so the map is revealed already-complete, never mid-stream.
-        // There is deliberately no safety timeout: rather than dump the player
-        // into a half-drawn resort, the loading screen offers "Enter anyway"
-        // once a load overruns.
-        const rec = terrainRecordRef.current;
-        let revealed = false;
-        const reveal = () => {
-          if (revealed) return;
-          revealed = true;
-          setRenderConcurrency(1); // restore calm serial rendering for play
-          bootControls.current = null;
-          if (bootControlsRef) bootControlsRef.current = null;
-          reportBoot({ type: 'ready' });
-        };
-        const controller = new AbortController();
-        warmAbortRef.current = controller;
-        bootControls.current = { reveal, abort: () => controller.abort() };
-        if (bootControlsRef) bootControlsRef.current = bootControls.current;
-        void (async () => {
-          reportStage({ stage: 'warm' });
-          if (rec) {
-            // Coalesce to ~8 reports/sec: warmResortTiles fires per tile, and
-            // thousands of React renders would compete with the rasterizer for
-            // the same main thread the bar is reporting on.
-            let lastReport = 0;
-            await warmResortTiles(
-              rec,
-              (completed, total) => {
-                const now = performance.now();
-                if (completed < total && now - lastReport < 120) return;
-                lastReport = now;
-                reportStage({ stage: 'warm', completed, total });
-              },
-              controller.signal
-            );
-          }
-          if (controller.signal.aborted) return;
-          // Catch any stragglers MapLibre requested outside the warm set: wait
-          // for a fully-loaded, idle map to hold across two consecutive frames.
-          reportStage({ stage: 'settle' });
-          let stable = 0;
-          const settle = () => {
-            if (revealed || controller.signal.aborted) return;
-            const ready = map.areTilesLoaded() && getResortRenderStats().pending === 0 && map.loaded();
-            stable = ready ? stable + 1 : 0;
-            if (stable >= 2) reveal();
-            else requestAnimationFrame(settle);
-          };
-          requestAnimationFrame(settle);
-        })();
-      }
-    } else {
-      unmountTerrain(map);
-      // Nothing to warm — the ?flat harness, or the picker before preparation.
-      // Release any loading screen immediately rather than gate on a warm-up
-      // that will never run. resortReadyRef stays false in the picker so the
-      // real reveal still arms once preparation produces a package.
-      if (mode === 'playing' && !resortReadyRef.current) {
-        resortReadyRef.current = true;
-        reportBoot({ type: 'ready' });
-      } else {
-        showLocalBoot(null);
-      }
-    }
-    setLayers(applied);
-  }
-
-  // Create the map once.
-  const mapCanStart = mode !== 'playing' || packageState === 'ready';
-  useEffect(() => {
-    if (!mapCanStart || mapRef.current || !containerRef.current) return;
-
-    const start = resumeCameraOf(initialSave, {
-      center: INITIAL_CENTER, zoom: INITIAL_ZOOM, bearing: 0, pitch: 0,
-    });
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: basemapFor(resolvedTheme, { offline: mode === 'playing' }),
-      center: start.center,
-      zoom: start.zoom,
-      bearing: start.bearing,
-      pitch: start.pitch,
-      pixelRatio: pixelRatioFor(settings.renderQuality),
-      // Manual compact control (added below) instead of the default text blob, so
-      // attribution sits clear of the bottom dock and stays license-compliant.
-      attributionControl: false,
-    });
-    mapRef.current = map;
-    mapContributions.attach(map, () => toolCoordinator.snapshot.activeTool === null);
-    // Exposed for the Playwright verification harness (readyGlobal: "appMap").
-    (window as unknown as { appMap: maplibregl.Map }).appMap = map;
-
-    map.dragRotate.enable();
-    map.keyboard.enable();
-    // Compact ⓘ, bottom-right — just left of the zoom/compass map controls (the
-    // dock now occupies the bottom-left). Aggregates the map-source attributions;
-    // customAttribution adds the fetch-time services that aren't persistent
-    // sources (USGS 3DEP elevation, Nominatim geocoding).
-    map.addControl(
-      new maplibregl.AttributionControl({
-        compact: true,
-        customAttribution: [
-          'Elevation: USGS 3DEP',
-          'Geocoding © OpenStreetMap contributors (Nominatim)',
-        ],
-      }),
-      'bottom-right'
-    );
-    map.addControl(
-      new maplibregl.NavigationControl({ visualizePitch: true, showZoom: true, showCompass: true }),
-      'bottom-right'
-    );
-
-    map.on('style.load', () => {
-      reinitAfterStyle(map);
-      // Diorama camera: bound panning to the play box grown by ~1 km — enough to
-      // orbit every side of the box, but not out to the coarse 3 km ring edge
-      // (which looks janky) or into blank paper. Relief still *renders* past the
-      // camera limit out to the DEM/surround extent. Ring-less packages fall
-      // back to the box extent.
-      if (siteModeRef.current === 'locked') {
-        const rec = terrainRecordRef.current;
-        const cam = rec ? resortCameraBounds(rec) : undefined;
-        if (cam) map.setMaxBounds(cam);
-        else if (siteBoxRef.current) map.setMaxBounds(siteBoxRef.current.bounds);
-      }
-    });
-
-    const onMove = (e: maplibregl.MapMouseEvent) => {
-      lastLngLatRef.current = { lng: e.lngLat.lng, lat: e.lngLat.lat };
-      if (rafPendingRef.current) return;
-      rafPendingRef.current = true;
-      requestAnimationFrame(() => {
-        rafPendingRef.current = false;
-        if (lastLngLatRef.current) doSampleRef.current(lastLngLatRef.current);
-      });
-    };
-    map.on('mousemove', onMove);
-    map.on('mouseout', () => {
-      lastLngLatRef.current = null;
-      setReadout(null);
-    });
-
-    // Keep the 2D/3D button honest about the camera, however it got tilted —
-    // the button press, a drag, or the boot-time ease into the 3D-native view.
-    const onPitch = () => setPitchDeg(map.getPitch());
-    map.on('pitch', onPitch);
-    map.on('pitchend', onPitch);
-
-    return () => {
-      warmAbortRef.current?.abort();
-      setRenderConcurrency(1);
-      mapInteractionLeaseRef.current?.dispose();
-      mapContributions.dispose();
-      delete (window as unknown as { appSetCaptureTransients?: (hidden: boolean) => void })
-        .appSetCaptureTransients;
-      map.remove();
-      mapRef.current = null;
-      setLayers([]);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapCanStart]);
-
-  useEffect(() => {
-    mapContributions.synchronizeData('analysis');
-  }, [selectedLakeId, mapContributions]);
-
-  useEffect(() => {
-    mapContributions.synchronizeData('analysis');
-  }, [selectedStreamId, mapContributions]);
-
-  // A single scale bar whose unit follows the Units setting.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const ctrl = new maplibregl.ScaleControl({
-      unit: settings.units === 'metric' ? 'metric' : 'imperial',
-    });
-    map.addControl(ctrl, 'bottom-right');
-    return () => {
-      // On unmount the map may already be torn down (its own effect nulls the
-      // ref). Only remove the control while the map is still alive, else
-      // removeControl throws on the dead instance and crashes the tree.
-      if (mapRef.current) mapRef.current.removeControl(ctrl);
-    };
-  }, [settings.units]);
-
-  // Live render-quality change: re-supersample the canvas in place. Skips the
-  // first run — the constructor already set pixelRatio from the persisted tier.
-  const firstQualityRun = useRef(true);
-  useEffect(() => {
-    if (firstQualityRun.current) {
-      firstQualityRun.current = false;
-      return;
-    }
-    const map = mapRef.current;
-    if (!map) return;
-    map.setPixelRatio(pixelRatioFor(settings.renderQuality));
-    applyTileLod(map, settings.renderQuality);
-  }, [settings.renderQuality]);
-
-  // Live light<->dark basemap swap. Skips the first run (initial style is correct).
-  const firstThemeRun = useRef(true);
-  useEffect(() => {
-    if (firstThemeRun.current) {
-      firstThemeRun.current = false;
-      return;
-    }
-    const map = mapRef.current;
-    if (!map) return;
-    map.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedTheme]);
-
-  // Contour values and labels are generated in the selected display unit.
-  // Rebuild the owned style when units change so the local source is replaced
-  // atomically and no network elevation/contour source is introduced.
-  const firstUnitsStyleRun = useRef(true);
-  useEffect(() => {
-    if (firstUnitsStyleRun.current) {
-      firstUnitsStyleRun.current = false;
-      return;
-    }
-    const map = mapRef.current;
-    if (map) map.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.units]);
+  useMapRuntime({
+    canStart: mode !== 'playing' || packageState === 'ready',
+    mode,
+    initialSave,
+    initialCenter: INITIAL_CENTER,
+    initialZoom: INITIAL_ZOOM,
+    resolvedTheme,
+    renderQuality: settings.renderQuality,
+    units: settings.units,
+    mapRef,
+    containerRef,
+    terrainRecordRef,
+    renderQualityRef,
+    siteBoxRef,
+    siteModeRef,
+    is3DRef,
+    resortReadyRef,
+    warmAbortRef,
+    bootControls,
+    bootControlsRef,
+    mapInteractionLeaseRef,
+    registry: mapContributions,
+    canDispatchHit: () => toolCoordinator.snapshot.activeTool === null,
+    doSampleRef,
+    lastLngLatRef,
+    rafPendingRef,
+    setLayers,
+    setReadout,
+    setPitchDeg,
+    setIs3D,
+    reportBoot,
+    reportStage,
+    showLocalBoot,
+  });
 
   // Drag-to-draw the site rectangle while in 'selecting' mode.
   useEffect(() => {
