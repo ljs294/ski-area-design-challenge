@@ -3,23 +3,9 @@ import type { ChairSize, LiftStatus, SavedLift } from '../types';
 import type { Units } from './SettingsContext';
 import { haversineMeters } from '../geo';
 import { CHAIR_LABELS, fixedGripCapacityPph, fixedGripDerived, fmtDistance, liftStats } from '../lifts';
+import type { DraftLift, LiftTool } from './liftControllerModel';
 
-// UI state machine for the lift drawing tool. MapView owns the state and all
-// map interaction; this component only renders it (SiteControl pattern).
-export type LiftTool =
-  | { phase: 'idle' }
-  | { phase: 'armed' }
-  | { phase: 'anchored'; a: [number, number]; cursor: [number, number] | null }
-  | { phase: 'review'; draft: DraftLift };
-
-export interface DraftLift {
-  points: [[number, number], [number, number]]; // drawn order
-  elev: [number | null, number | null]; // filled async by sampling
-  elevStatus: 'pending' | 'ok' | 'error';
-  chairSize: ChairSize;
-  status: LiftStatus;
-  name: string;
-}
+export type { DraftLift, LiftTool } from './liftControllerModel';
 
 function fmtRideTime(s: number): string {
   const m = Math.floor(s / 60);
