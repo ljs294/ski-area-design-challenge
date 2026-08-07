@@ -36,6 +36,8 @@ export interface LayerToggle {
   section?: 'Imagery' | 'Master plan' | 'Analysis' | 'Structures';
 }
 
+export type OverlayId = 'slope' | 'aspect' | 'groundcover';
+
 function basemapCategories(layers: maplibregl.LayerSpecification[]) {
   const water: string[] = [], roads: string[] = [], buildings: string[] = [], labels: string[] = [];
   for (const layer of layers) {

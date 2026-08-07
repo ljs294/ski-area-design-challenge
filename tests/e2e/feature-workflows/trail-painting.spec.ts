@@ -48,6 +48,8 @@ async function paintToReview(page: Page): Promise<void> {
   const head = await pointAt(page, TOP);
   const tail = await pointAt(page, TAIL);
   await page.mouse.click(head.x, head.y);
+  await expect(page.getByText('Create Trail', { exact: true })).toBeVisible();
+  await expect.poll(async () => (await workerEntries(page, 'trailPaint.worker')).length).toBe(1);
   const finish = page.getByRole('button', { name: 'Finish', exact: true });
   await page.mouse.move(head.x, head.y);
   await page.mouse.down();

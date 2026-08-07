@@ -1,17 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
-import { setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers, type LayerToggle } from './analysisLayers';
+import { setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers,
+  type LayerToggle, type OverlayId } from './analysisLayers';
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
-import { sanitizeStreamWidthOverrides } from '../streamAnalysis';
-import type { DashboardKind } from './MountainDashboards';
 import { buildSkiNetwork } from '../network';
-import { sanitizeNodes, sanitizePaths } from '../skiNodes';
-import type { Readout } from './CursorReadout';
-import type { OverlayId } from './Legend';
-import { sampleTerrainAt, compass8 } from './terrainProtocols';
-import { sampleCoverAt, sampleSiteCoverGrid, COVER_LABELS } from './worldcoverProtocol';
-import type { SiteMode } from './SiteControl';
+import { sampleSiteCoverGrid } from './worldcoverProtocol';
 import {
   addSiteBoxLayers,
   setSiteBox,
@@ -20,7 +13,6 @@ import {
   siteBoxFromBounds,
   type SiteBox,
 } from './sitePicker';
-import type { GeocodeResult } from './SearchBox';
 import { basemapFor } from './basemapStyle';
 import { tilt3D } from './terrain3d';
 import { useSettings } from './SettingsContext';
@@ -34,7 +26,6 @@ import { isDesktop } from '../desktopBridge';
 import type { GameSave, SavedDam, SavedJunction, SavedLift,
   SavedNode, SavedPath, SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
   TerrainPackageProgress, TerrainRecord } from '../types';
-import { sanitizeLakeDepthOverrides, sanitizeLakeNameOverrides } from '../lakeAnalysis';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import {
@@ -43,14 +34,8 @@ import {
   validateTerrainPackage,
 } from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
-import { CoverEditAdapter } from './coverEditClient';
-import { createCoverClearService } from './coverClearService';
-import { DamAnalysisAdapter } from './damAnalysisClient';
-import { TerrainGradeAdapter } from './terrainGradeClient';
-import { TrailPaintAdapter } from './trailPaintClient';
 import { clearResortCoverCache, RESORT_COVER_PROTOCOL,
-  resortCameraBounds, sampleLocalCoverAt, sampleLocalTerrainAt,
-  setActiveResortTerrain, WORLD_COVER_LABELS } from './resortProtocols';
+  resortCameraBounds, setActiveResortTerrain } from './resortProtocols';
 import { useLiftController } from './useLiftController';
 import { useRoadController } from './useRoadController';
 import { useSnowmakingController } from './useSnowmakingController';
@@ -60,9 +45,10 @@ import { MapViewChrome } from './MapViewChrome';
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
 import { useMapRuntime } from './useMapRuntime';
-import { sanitizeDams } from '../damAnalysis';
-import { sanitizePonds } from '../pondAnalysis';
-import { reconcileSnowmakingNodes, sanitizeSnowmakingNodes } from '../snowmakingNodes';
+import { useMapSampling } from './useMapSampling';
+import { useMapWorkers } from './useMapWorkers';
+import { reconcileSnowmakingNodes } from '../snowmakingNodes';
+import { initialResortDesign } from './initialResortDesign';
 import {
   TERRAIN_CLEAN,
   designHasEdits,
@@ -73,18 +59,9 @@ import {
   type DesignSnapshot,
   type TerrainDirty,
 } from './unsavedChanges';
-import type { UnsavedChoice } from './UnsavedChangesModal';
 import { refreshTerrainGradeSources, setGradedContourPreview,
   setTerrainContourData } from './terrainGradeMap';
-import { sanitizeLifts } from '../lifts';
-import {
-  sanitizeTrails,
-  fillElevationGaps,
-} from '../trails';
-import { hydrateTopology } from '../topology';
-import { sanitizeRoads } from '../roads';
 import { withResumeCheckpoint } from './resumeCheckpoint';
-import type { ConstructionActivity } from './constructionLock';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
   type TerrainRecordView } from './terrainDocument';
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
@@ -238,8 +215,8 @@ export function MapView({
     toolCoordinator.setLayersAlongsideBuild(next);
   const [showStats, setShowStats] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
-  const [readout, setReadout] = useState<Readout | null>(null);
-  const [siteMode, setSiteMode] = useState<SiteMode>(initialSave?.site ? 'locked' : 'explore');
+  const [siteMode, setSiteMode] = useState<'locked' | 'explore' | 'selecting'>(
+    initialSave?.site ? 'locked' : 'explore');
   const [siteBox, setSiteBoxState] = useState<SiteBox | null>((initialSave?.site as SiteBox) ?? null);
   const [is3D, setIs3D] = useState(initialSave?.is3D ?? false);
   // Live camera pitch. The 2D/3D button reads the camera, not the last button
@@ -291,7 +268,7 @@ export function MapView({
   const [checkpointError, setCheckpointError] = useState<string | null>(null);
   // The unsaved-work gate on exit. The ref holds the pending prompt's resolver.
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
-  const unsavedChoiceRef = useRef<((choice: UnsavedChoice) => void) | null>(null);
+  const unsavedChoiceRef = useRef<((choice: 'save' | 'discard' | 'cancel') => void) | null>(null);
   const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
   const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'optimizing' | 'error'>(
     mode === 'playing' ? 'loading' : 'ready'
@@ -299,36 +276,31 @@ export function MapView({
   const [packageProgress, setPackageProgress] = useState<TerrainPackageProgress | null>(null);
   const [packageError, setPackageError] = useState<string | null>(null);
   const packageStateRef = useRef(packageState);
-  const [lifts, setLifts] = useState<SavedLift[]>(() =>
-    sanitizeLifts(initialSave?.lifts ?? [])
-  );
-  const [initialTopology] = useState(() => hydrateTopology(
-    sanitizeTrails(initialSave?.trails ?? []), sanitizePaths(initialSave?.paths ?? []),
-    sanitizeLifts(initialSave?.lifts ?? []), initialSave?.junctions ?? [],
-    sanitizeNodes(initialSave?.nodes ?? [])));
+  const [initialDesign] = useState(() => initialResortDesign(initialSave));
+  const [lifts, setLifts] = useState<SavedLift[]>(initialDesign.lifts);
   const [selectedLiftId, setSelectedLiftId] = useState<string | null>(null);
   // A selected lift opens its read-only detail first; Edit flips this to the
   // LiftControl edit panel. Reset to false whenever a (different) lift is opened.
   const [liftEditing, setLiftEditing] = useState(false);
-  const [trails, setTrails] = useState<SavedTrail[]>(initialTopology.trails);
+  const [trails, setTrails] = useState<SavedTrail[]>(initialDesign.trails);
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
   const [trailEditing, setTrailEditing] = useState(false);
-  const [roads, setRoads] = useState<SavedRoad[]>(() => sanitizeRoads(initialSave?.roads ?? []));
-  const [dams, setDams] = useState<SavedDam[]>(() => sanitizeDams(initialSave?.dams ?? []));
+  const [roads, setRoads] = useState<SavedRoad[]>(initialDesign.roads);
+  const [dams, setDams] = useState<SavedDam[]>(initialDesign.dams);
   const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
-  const [ponds, setPonds] = useState<SavedPond[]>(() => sanitizePonds(initialSave?.ponds ?? []));
+  const [ponds, setPonds] = useState<SavedPond[]>(initialDesign.ponds);
   const [selectedPondId, setSelectedPondId] = useState<string | null>(null);
   // Seeded already-reconciled against the sanitized dams/ponds above, so a
   // save that needed backfilling (or predates this field) doesn't present as
   // dirty the instant it's opened.
-  const [snowmakingNodes, setSnowmakingNodes] = useState<SavedSnowmakingNode[]>(() =>
-    reconcileSnowmakingNodes(sanitizeSnowmakingNodes(initialSave?.snowmakingNodes ?? []), dams, ponds));
+  const [snowmakingNodes, setSnowmakingNodes] = useState<SavedSnowmakingNode[]>(
+    initialDesign.snowmakingNodes);
   const [selectedSnowmakingNodeId, setSelectedSnowmakingNodeId] = useState<string | null>(null);
   // User-declared connectivity: placed nodes and drawn connector paths, both
   // owned by the floating Trails roll-up.
-  const [skiNodes, setSkiNodes] = useState<SavedNode[]>(() => sanitizeNodes(initialSave?.nodes ?? []));
-  const [skiPaths, setSkiPaths] = useState<SavedPath[]>(initialTopology.paths);
-  const [junctions, setJunctions] = useState<SavedJunction[]>(initialTopology.junctions);
+  const [skiNodes, setSkiNodes] = useState<SavedNode[]>(initialDesign.nodes);
+  const [skiPaths, setSkiPaths] = useState<SavedPath[]>(initialDesign.paths);
+  const [junctions, setJunctions] = useState<SavedJunction[]>(initialDesign.junctions);
   // Synchronous committed projection for save/capture and dirty comparison.
   // React's four collection states may render later; this ref moves in the
   // topology publication callback, so persistence cannot observe a mixed graph.
@@ -358,12 +330,12 @@ export function MapView({
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
   const [selectedLakeId, setSelectedLakeId] = useState<string | null>(null);
   const [selectedStreamId, setSelectedStreamId] = useState<string | null>(null);
-  const [streamWidthOverrides, setStreamWidthOverrides] = useState<Record<string, number>>(() =>
-    sanitizeStreamWidthOverrides(initialSave?.streamWidthOverrides));
-  const [lakeDepthOverrides, setLakeDepthOverrides] = useState<Record<string, number>>(() =>
-    sanitizeLakeDepthOverrides(initialSave?.lakeDepthOverrides));
-  const [lakeNameOverrides, setLakeNameOverrides] = useState<Record<string, string>>(() =>
-    sanitizeLakeNameOverrides(initialSave?.lakeNameOverrides));
+  const [streamWidthOverrides, setStreamWidthOverrides] = useState<Record<string, number>>(
+    initialDesign.streamWidthOverrides);
+  const [lakeDepthOverrides, setLakeDepthOverrides] = useState<Record<string, number>>(
+    initialDesign.lakeDepthOverrides);
+  const [lakeNameOverrides, setLakeNameOverrides] = useState<Record<string, string>>(
+    initialDesign.lakeNameOverrides);
   // Terrain edits are held in memory and written on Save, like every other
   // design change. The ref mirror lets async build handlers accumulate flags.
   const [terrainDirty, setTerrainDirtyState] = useState<TerrainDirty>(TERRAIN_CLEAN);
@@ -387,7 +359,8 @@ export function MapView({
   }));
   // Identifies the active construction operation for disabled controls, button
   // spinners, and the persistent map-level status bug.
-  const [buildingActivity, setBuildingActivity] = useState<ConstructionActivity | null>(null);
+  const [buildingActivity, setBuildingActivity] =
+    useState<Parameters<TerrainDocumentPorts['publishConstruction']>[0]>(null);
   const building = buildingActivity !== null;
   // Node map: a simplified 2D topology view, toggled from the top-left.
   const [showNetwork, setShowNetwork] = useState(false);
@@ -395,7 +368,7 @@ export function MapView({
   const [networkEdgeId, setNetworkEdgeId] = useState<string | null>(null);
   // Which dashboard the "Mountain Dashboards" overlay shows — independent of
   // showNetwork, which only opens/closes the overlay itself.
-  const [dashboard, setDashboard] = useState<DashboardKind>('trails');
+  const [dashboard, setDashboard] = useState<'trails' | 'snowmaking'>('trails');
 
   // The trail/lift graph is derived, never persisted — the same rule that has
   // sanitizeTrails recompute cached stats on load, so it can never drift from
@@ -447,7 +420,7 @@ export function MapView({
   const analysisTogglesRef = useRef<LayerToggle[]>([]);
   const mapContributionRegistryRef = useRef<MapContributionRegistry | null>(null);
   const siteBoxRef = useRef<SiteBox | null>(siteBox);
-  const siteModeRef = useRef<SiteMode>(siteMode);
+  const siteModeRef = useRef<'locked' | 'explore' | 'selecting'>(siteMode);
   const is3DRef = useRef(is3D);
   // Flips true the first time the resort's terrain is mounted, so the one-time
   // "default into 3D" camera ease fires once — not on every dark/light restyle.
@@ -514,6 +487,20 @@ export function MapView({
   const coverDisplayRef = useRef<CoverDisplayGeoJSON | null>(null);
   const localImageryUrlRef = useRef<string | null>(null);
   const localImageryCacheKeyRef = useRef<string | null>(null);
+  const {
+    readout,
+    setReadout,
+    samplePoint: samplePlanningTerrainOrNull,
+    sampleProfile,
+  } = useMapSampling({
+    mapRef,
+    terrainRecordRef,
+    activeOverlay,
+    activeOverlayRef,
+    lastLngLatRef,
+    sampleTokenRef,
+    doSampleRef,
+  });
 
   // The terrain document is the authority for the committed package: revisions,
   // construction ownership, cover-edit serialization, and grade-preview
@@ -541,30 +528,8 @@ export function MapView({
   }
   const terrain = terrainDocumentRef.current;
 
-  // Every worker this session owns. Each adapter answers the same three
-  // questions for its protocol — which response is still the one being waited
-  // on, what supersedes it, and what stops it — so no feature has to reinvent
-  // them, and teardown is one call per adapter instead of a list of terminates
-  // that a new worker can quietly fall off.
-  const damAnalysisRef = useRef<DamAnalysisAdapter | null>(null);
-  if (!damAnalysisRef.current) damAnalysisRef.current = new DamAnalysisAdapter();
-  const damAnalysis = damAnalysisRef.current;
-  const coverEditRef = useRef<CoverEditAdapter | null>(null);
-  if (!coverEditRef.current) coverEditRef.current = new CoverEditAdapter();
-  const coverEdit = coverEditRef.current;
-  const coverClear = createCoverClearService({
-    map: () => mapRef.current,
-    terrain,
-    adapter: coverEdit,
-  });
-  // One grade preview exists on the map, so the road and trail tools share one
-  // adapter rather than racing two workers into the same contour overlay.
-  const terrainGradeRef = useRef<TerrainGradeAdapter | null>(null);
-  if (!terrainGradeRef.current) terrainGradeRef.current = new TerrainGradeAdapter();
-  const terrainGrade = terrainGradeRef.current;
-  const trailPaintRef = useRef<TrailPaintAdapter | null>(null);
-  if (!trailPaintRef.current) trailPaintRef.current = new TrailPaintAdapter();
-  const trailPaint = trailPaintRef.current;
+  const { damAnalysis, coverEdit, coverClear, terrainGrade, trailPaint } =
+    useMapWorkers(mapRef, terrain);
 
   const liftController = useLiftController({
     mapRef,
@@ -1015,69 +980,6 @@ export function MapView({
     transitionSelection({ kind: 'stream', id });
   };
 
-  // The actual sampler — redefined each render so it closes over fresh state.
-  doSampleRef.current = (lngLat) => {
-    const map = mapRef.current;
-    if (!map) return;
-    const z = Math.min(14, Math.max(10, Math.round(map.getZoom())));
-    const overlay = activeOverlayRef.current;
-    const token = ++sampleTokenRef.current;
-    (async () => {
-      const localRecord = terrainRecordRef.current;
-      const t = localRecord
-        ? sampleLocalTerrainAt(lngLat.lng, lngLat.lat)
-        : await sampleTerrainAt(lngLat.lng, lngLat.lat, z).catch(() => null);
-      if (!t || token !== sampleTokenRef.current) return;
-      let coverLabel: string | null = null;
-      if (localRecord) {
-        const code = sampleLocalCoverAt(lngLat.lng, lngLat.lat);
-        coverLabel = code == null ? '—' : WORLD_COVER_LABELS[code] ?? 'Unknown';
-      } else if (overlay === 'groundcover') {
-        const bucket = await sampleCoverAt(lngLat.lng, lngLat.lat, z).catch(() => null);
-        if (token !== sampleTokenRef.current) return;
-        coverLabel = bucket ? COVER_LABELS[bucket] : '—';
-      }
-      setReadout({
-        elevationM: t.elevation,
-        overlay,
-        slopeDeg: t.slopeDeg,
-        aspectCompass: compass8(t.aspectDeg),
-        coverLabel,
-      });
-    })();
-  };
-
-  useEffect(() => {
-    activeOverlayRef.current = activeOverlay;
-    if (lastLngLatRef.current) doSampleRef.current(lastLngLatRef.current);
-  }, [activeOverlay]);
-
-  function samplePlanningTerrain(lng: number, lat: number, zoom: number) {
-    if (!terrainRecordRef.current) return sampleTerrainAt(lng, lat, zoom);
-    const sample = sampleLocalTerrainAt(lng, lat);
-    return sample ? Promise.resolve(sample) : Promise.reject(new Error('Point is outside the local resort package.'));
-  }
-
-  /**
-   * `samplePlanningTerrain` that reports an absent point as null instead of
-   * rejecting. Profile sampling fans out over hundreds of points through
-   * `Promise.all`, where a single rejection discards every sibling result — so
-   * callers sampling a *line* use this and repair the gaps, and only callers
-   * needing one specific point treat absence as failure.
-   */
-  function samplePlanningTerrainOrNull(lng: number, lat: number, zoom: number) {
-    return samplePlanningTerrain(lng, lat, zoom).then(
-      (s) => s,
-      () => null
-    );
-  }
-
-  /** Sample a whole centerline, repairing isolated gaps. Null if none resolved. */
-  async function sampleProfile(line: [number, number][], zoom: number): Promise<number[] | null> {
-    const samples = await Promise.all(line.map(([lng, lat]) => samplePlanningTerrainOrNull(lng, lat, zoom)));
-    return fillElevationGaps(samples.map((s) => (s ? s.elevation : null)));
-  }
-
   /**
    * Basemap context: DEM, contours, ground cover, aerial, and local vectors.
    * Hands back the layer-toggle model reconciled against what the player had
@@ -1368,10 +1270,6 @@ export function MapView({
     }
     setSiteBoxState(null);
     setSiteMode('explore');
-  }
-
-  function handleSearchResult(r: GeocodeResult) {
-    mapRef.current?.flyTo({ center: [r.lng, r.lat], zoom: 12, duration: 1200 });
   }
 
   function toggle3D() {
@@ -1687,7 +1585,7 @@ export function MapView({
    */
   async function confirmExit(): Promise<boolean> {
     if (!saved || !hasUnsavedChanges()) return true;
-    const choice = await new Promise<UnsavedChoice>((resolve) => {
+    const choice = await new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
       unsavedChoiceRef.current = resolve;
       setUnsavedPrompt(true);
     });
@@ -1777,7 +1675,9 @@ export function MapView({
             ? () => { void repairAndContinue(); } : undefined,
           onQuit,
         }}
-        searchResult={picking && !saved ? handleSearchResult : null}
+        searchResult={picking && !saved ? (result) => {
+          mapRef.current?.flyTo({ center: [result.lng, result.lat], zoom: 12, duration: 1200 });
+        } : null}
         siteControl={picking && !saved ? {
           mode: siteMode,
           box: siteBox,
