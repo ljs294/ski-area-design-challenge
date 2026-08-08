@@ -5,8 +5,9 @@ import { fmtDistance } from '../lifts';
 import { makeFrame, simplifyRing, toMeters, type MetersFrame, type XY } from '../network';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
 import { snowmakingNodeLabel } from '../snowmakingNetwork';
+import { snowgunCatalogValue, snowgunVariant } from '../snowmakingGuns';
 import { SNOWMAKING_PIPE_DIAMETERS_IN } from '../types/snowmaking';
-import type { SavedSnowmakingNode, SavedSnowmakingPipe, SnowmakingNodeKind,
+import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe, SnowmakingNodeKind,
   SnowmakingPipeDiameterIn } from '../types/snowmaking';
 import type { SavedDam, SavedLift, SavedPond, SavedTrail, TerrainRecord } from '../types';
 import type { SnowmakingLakeSource } from '../types/snowmaking';
@@ -14,6 +15,8 @@ import { FILL_BY_CODE } from './coverVectorize';
 import { localContourGeoJSON } from './localContours';
 import type { Units } from './SettingsContext';
 import type { SnowmakingNetworkController } from './useSnowmakingNetworkController';
+import type { SnowgunController } from './useSnowgunController';
+import { SnowgunDashboardInspector, SnowgunDashboardMarkers } from './SnowgunDashboard';
 
 type SnowmakingDashboardProps = Parameters<typeof SnowmakingDashboard>[0];
 
@@ -22,19 +25,24 @@ export function snowmakingDashboardProps(input: {
   dams: SavedDam[]; ponds: SavedPond[]; lakes: SnowmakingLakeSource[];
   trails: SavedTrail[]; lifts: SavedLift[]; nodes: SavedSnowmakingNode[];
   pipes: SavedSnowmakingPipe[]; coverDisplay: CoverDisplayGeoJSON | null;
+  guns: SavedSnowgun[];
   terrainRecord: TerrainRecord | null; units: Units;
-  selectedNodeId: string | null; selectedPipeId: string | null;
-  clearNode(): void; clearPipe(): void; controller: SnowmakingNetworkController;
+  selectedNodeId: string | null; selectedPipeId: string | null; selectedGunId: string | null;
+  clearNode(): void; clearPipe(): void; clearGun(): void; controller: SnowmakingNetworkController;
+  gunController: SnowgunController;
 }): Omit<SnowmakingDashboardProps, 'onClose'> {
-  const { controller, clearNode, clearPipe, ...dashboard } = input;
+  const { controller, gunController, clearNode, clearPipe, clearGun, ...dashboard } = input;
   return {
     ...dashboard,
     onSelectNode: (id) => id ? controller.selectNode(id) : clearNode(),
     onSelectPipe: (id) => id ? controller.selectPipe(id) : clearPipe(),
+    onSelectGun: (id) => id ? controller.selectGun(id) : clearGun(),
     onRenameNode: controller.renameNode,
     onDeleteNode: controller.removeNode,
     onPatchPipe: controller.patchPipe,
     onDeletePipe: controller.removePipe,
+    onMoveGun: gunController.armMove,
+    onDeleteGun: gunController.remove,
   };
 }
 
@@ -143,17 +151,22 @@ export function SnowmakingDashboard({
   lifts,
   nodes,
   pipes = [],
+  guns = [],
   coverDisplay,
   terrainRecord,
   units,
   selectedNodeId,
   selectedPipeId = null,
+  selectedGunId = null,
   onSelectNode,
   onSelectPipe = () => {},
+  onSelectGun = () => {},
   onRenameNode = () => {},
   onDeleteNode = () => {},
   onPatchPipe = () => {},
   onDeletePipe = () => {},
+  onMoveGun = () => {},
+  onDeleteGun = () => {},
   onClose,
 }: {
   dams: SavedDam[];
@@ -163,27 +176,35 @@ export function SnowmakingDashboard({
   lifts: SavedLift[];
   nodes: SavedSnowmakingNode[];
   pipes?: SavedSnowmakingPipe[];
+  guns?: SavedSnowgun[];
   coverDisplay: CoverDisplayGeoJSON | null;
   terrainRecord: TerrainRecord | null;
   units: Units;
   selectedNodeId: string | null;
   selectedPipeId?: string | null;
+  selectedGunId?: string | null;
   onSelectNode: (id: string | null) => void;
   onSelectPipe?: (id: string | null) => void;
+  onSelectGun?: (id: string | null) => void;
   onRenameNode?: (id: string, name: string) => void;
   onDeleteNode?: (id: string) => void;
   onPatchPipe?: (id: string, patch: Pick<Partial<SavedSnowmakingPipe>, 'name' | 'diameterIn'>) => void;
   onDeletePipe?: (id: string) => void;
+  onMoveGun?: (id: string) => void;
+  onDeleteGun?: (id: string) => void;
   onClose: () => void;
 }) {
   const [view, setView] = useState<View | null>(null);
+  const [showGunTypes, setShowGunTypes] = useState(false);
+  const [pendingHydrantDeleteId, setPendingHydrantDeleteId] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
 
   const empty = dams.length === 0 && ponds.length === 0 && lakes.length === 0 &&
-    nodes.length === 0 && pipes.length === 0;
+    nodes.length === 0 && pipes.length === 0 && guns.length === 0;
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null;
   const selectedPipe = pipes.find((pipe) => pipe.id === selectedPipeId) ?? null;
+  const selectedGun = guns.find((gun) => gun.id === selectedGunId) ?? null;
 
   // Frame is scoped to water + node geometry — the features this dashboard
   // exists to show — not the whole trail/lift network. Trails/lifts still
@@ -195,6 +216,7 @@ export function SnowmakingDashboard({
     for (const dam of dams) for (const ring of dam.pondRings) for (const p of ring) samples.push(p);
     for (const node of nodes) samples.push(node.point);
     for (const pipe of pipes) for (const vertex of pipe.vertices) samples.push(vertex.point);
+    for (const gun of guns) samples.push(gun.point);
     if (samples.length > 0) return makeFrame(samples);
     // No water/node geometry yet. Fall back to trail/lift geometry purely so
     // the frame isn't degenerate (makeFrame([]) centers on [0,0], the null
@@ -209,7 +231,7 @@ export function SnowmakingDashboard({
       if (lift.points.length > 0) return makeFrame(lift.points);
     }
     return makeFrame([]);
-  }, [dams, ponds, lakes, nodes, pipes, trails, lifts]);
+  }, [dams, ponds, lakes, nodes, pipes, guns, trails, lifts]);
 
   // North is up: SVG y grows downward, the meters frame's y grows north.
   const place = useCallback((p: [number, number]): XY => {
@@ -232,15 +254,16 @@ export function SnowmakingDashboard({
     for (const dam of dams) for (const ring of dam.pondRings) for (const p of ring) consider(place(p));
     for (const node of nodes) consider(place(node.point));
     for (const pipe of pipes) for (const vertex of pipe.vertices) consider(place(vertex.point));
+    for (const gun of guns) consider(place(gun.point));
     if (!Number.isFinite(minX)) return { x: -200, y: -200, w: 400, h: 400 };
     const w = Math.max(MIN_SPAN_M, maxX - minX);
     const h = Math.max(MIN_SPAN_M, maxY - minY);
     const pad = Math.max(w, h) * PAD_FRAC;
     return { x: minX - pad, y: minY - pad, w: w + pad * 2, h: h + pad * 2 };
-  }, [dams, ponds, lakes, nodes, pipes, place]);
+  }, [dams, ponds, lakes, nodes, pipes, guns, place]);
 
   // A new fit whenever the drawn water/node set changes shape.
-  const fitKey = `${dams.length}:${ponds.length}:${lakes.length}:${nodes.length}:${pipes.length}`;
+  const fitKey = `${dams.length}:${ponds.length}:${lakes.length}:${nodes.length}:${pipes.length}:${guns.length}`;
   const lastFitKey = useRef(fitKey);
   if (lastFitKey.current !== fitKey) {
     lastFitKey.current = fitKey;
@@ -388,6 +411,7 @@ export function SnowmakingDashboard({
             if (dragRef.current?.moved) return;
             onSelectNode(null);
             onSelectPipe(null);
+            onSelectGun(null);
           }}
         >
           <defs>
@@ -526,6 +550,10 @@ export function SnowmakingDashboard({
               );
             })}
           </g>
+
+          {/* 6. Snowguns sit above the pipe graph and remain visible regardless of label preference. */}
+          <SnowgunDashboardMarkers guns={guns} selectedId={selectedGunId} width={active.w}
+            showTypes={showGunTypes} place={place} select={onSelectGun} />
         </svg>
 
         <div className="network-chrome-tl">
@@ -535,6 +563,11 @@ export function SnowmakingDashboard({
           <button className="site-btn" onClick={() => setView(null)}>
             Reset view
           </button>
+          <label className="snowmaking-dashboard-gun-toggle">
+            <input type="checkbox" checked={showGunTypes}
+              onChange={(event) => setShowGunTypes(event.target.checked)} />
+            Show snowgun types
+          </label>
         </div>
 
         <div className="network-chrome-bl">
@@ -558,17 +591,24 @@ export function SnowmakingDashboard({
       <SnowmakingInspector
         selectedNode={selectedNode}
         selectedPipe={selectedPipe}
+        selectedGun={selectedGun}
         dams={dams}
         ponds={ponds} lakes={lakes}
         nodes={nodes}
         pipes={pipes}
+        guns={guns}
         units={units}
         onSelectNode={onSelectNode}
         onSelectPipe={onSelectPipe}
+        onSelectGun={onSelectGun}
         onRenameNode={onRenameNode}
         onDeleteNode={onDeleteNode}
         onPatchPipe={onPatchPipe}
         onDeletePipe={onDeletePipe}
+        onMoveGun={onMoveGun}
+        onDeleteGun={onDeleteGun}
+        pendingHydrantDeleteId={pendingHydrantDeleteId}
+        onSetPendingHydrantDeleteId={setPendingHydrantDeleteId}
       />
     </div>
   );
@@ -599,33 +639,47 @@ function Stat({ label, value }: { label: string; value: string }) {
 function SnowmakingInspector({
   selectedNode,
   selectedPipe,
+  selectedGun,
   dams,
   ponds,
   lakes = [],
   nodes,
   pipes,
+  guns,
   units,
   onSelectNode,
   onSelectPipe,
+  onSelectGun,
   onRenameNode,
   onDeleteNode,
   onPatchPipe,
   onDeletePipe,
+  onMoveGun,
+  onDeleteGun,
+  pendingHydrantDeleteId,
+  onSetPendingHydrantDeleteId,
 }: {
   selectedNode: SavedSnowmakingNode | null;
   selectedPipe: SavedSnowmakingPipe | null;
+  selectedGun: SavedSnowgun | null;
   dams: SavedDam[];
   ponds: SavedPond[];
   lakes?: SnowmakingLakeSource[];
   nodes: SavedSnowmakingNode[];
   pipes: SavedSnowmakingPipe[];
+  guns: SavedSnowgun[];
   units: Units;
   onSelectNode: (id: string | null) => void;
   onSelectPipe: (id: string | null) => void;
+  onSelectGun: (id: string | null) => void;
   onRenameNode: (id: string, name: string) => void;
   onDeleteNode: (id: string) => void;
   onPatchPipe: (id: string, patch: Pick<Partial<SavedSnowmakingPipe>, 'name' | 'diameterIn'>) => void;
   onDeletePipe: (id: string) => void;
+  onMoveGun: (id: string) => void;
+  onDeleteGun: (id: string) => void;
+  pendingHydrantDeleteId: string | null;
+  onSetPendingHydrantDeleteId: (id: string | null) => void;
 }) {
   if (selectedPipe) return <aside className="network-inspector" data-inspector="pipe">
     <div className="dock-head"><span className="dock-head-title">{selectedPipe.name}</span></div>
@@ -643,6 +697,8 @@ function SnowmakingInspector({
         ? fmtDistance(selectedPipe.verticalM, units) : '—'} /></div>
     <button className="lift-delete-btn" onClick={() => onDeletePipe(selectedPipe.id)}>Remove pipe</button>
   </aside>;
+  if (selectedGun) return <SnowgunDashboardInspector gun={selectedGun} nodes={nodes} units={units}
+    move={() => onMoveGun(selectedGun.id)} remove={() => onDeleteGun(selectedGun.id)} />;
   if (selectedNode) {
     const sourceInfo = snowmakingSourceInfo(selectedNode, dams, ponds, lakes);
     return (
@@ -663,9 +719,21 @@ function SnowmakingInspector({
         {selectedNode.kind !== 'junction' && <input className="name-entry-input"
           aria-label="Node name" value={selectedNode.name}
           onChange={(event) => onRenameNode(selectedNode.id, event.target.value)} />}
-        {(selectedNode.kind === 'pump' || selectedNode.kind === 'hydrant') &&
-          <button className="lift-delete-btn" onClick={() => onDeleteNode(selectedNode.id)}>
-            Remove {selectedNode.kind}</button>}
+        {(selectedNode.kind === 'pump' || selectedNode.kind === 'hydrant') && (() => {
+          const connectedGun = selectedNode.kind === 'hydrant'
+            ? guns.find((gun) => gun.hydrantId === selectedNode.id) ?? null : null;
+          if (connectedGun && pendingHydrantDeleteId === selectedNode.id) return <div className="snowgun-delete-warning">
+            <p>Removing this hydrant disconnects its snowgun. The gun remains installed and may reconnect automatically.</p>
+            <div className="dock-actions"><button className="site-btn"
+              onClick={() => onSetPendingHydrantDeleteId(null)}>Cancel</button>
+              <button className="lift-delete-btn" onClick={() => {
+                onSetPendingHydrantDeleteId(null); onDeleteNode(selectedNode.id);
+              }}>Remove hydrant</button></div>
+          </div>;
+          return <button className="lift-delete-btn" onClick={() => connectedGun
+            ? onSetPendingHydrantDeleteId(selectedNode.id) : onDeleteNode(selectedNode.id)}>
+            Remove {selectedNode.kind}</button>;
+        })()}
       </aside>
     );
   }
@@ -675,12 +743,15 @@ function SnowmakingInspector({
       <div className="dock-head">
         <span className="dock-head-title">Snowmaking network</span>
       </div>
-      <div className="network-sub">Click a node to see its detail.</div>
+      <div className="network-sub">Click a pipe, node, or snowgun to see its detail.</div>
       <div className="network-stats">
         <Stat label="Dams" value={`${dams.length}`} />
         <Stat label="Ponds" value={`${ponds.length + lakes.length}`} />
         <Stat label="Nodes" value={`${nodes.length}`} />
         <Stat label="Pipes" value={`${pipes.length}`} />
+        <Stat label="Snowguns" value={`${guns.length}`} />
+        <Stat label="Disconnected" value={`${guns.filter((gun) => gun.hydrantId == null).length}`} />
+        <Stat label="Catalog value" value={`$${snowgunCatalogValue(guns).toLocaleString('en-US')}`} />
       </div>
       {nodes.length > 0 && (
         <>
@@ -710,6 +781,16 @@ function SnowmakingInspector({
             <span className="network-run-name">{pipe.name}</span>
             <span className="network-run-meta">{pipe.diameterIn}&quot; · {fmtDistance(pipe.lengthM, units)}</span>
           </button></li>)}</ul></>}
+      {guns.length > 0 && <><div className="network-section-title">Snowguns</div>
+        <ul className="network-run-list">{guns.map((gun) => {
+          const variant = snowgunVariant(gun.variantId);
+          return <li key={gun.id}><button className="network-run" onClick={() => onSelectGun(gun.id)}>
+            <span className="network-run-name">{variant.shortLabel}</span>
+            <span className="network-run-meta">{gun.hydrantId
+              ? `Hydrant ${gun.hydrantId}`
+              : <><span className="snowgun-warning" aria-hidden="true">!</span> Disconnected</>}</span>
+          </button></li>;
+        })}</ul></>}
     </aside>
   );
 }

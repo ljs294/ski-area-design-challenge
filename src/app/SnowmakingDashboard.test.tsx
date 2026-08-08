@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import type { LatLonBounds } from '../types/geo';
-import type { SavedSnowmakingNode } from '../types/snowmaking';
+import type { SavedSnowgun, SavedSnowmakingNode } from '../types/snowmaking';
 import type { CoverClassCode, SavedDam, SavedLift, SavedPond, SavedTrail, TerrainRecord } from '../types';
 import { SnowmakingDashboard } from './SnowmakingDashboard';
 
@@ -57,6 +57,18 @@ const nodeA: SavedSnowmakingNode = {
 const nodeB: SavedSnowmakingNode = {
   id: 'node-b', name: 'Pump 1', kind: 'pump', point: at(100, 100), elevM: 1050,
   createdAt: '2026-01-01T00:00:00.000Z',
+};
+const hydrant: SavedSnowmakingNode = {
+  id: 'hydrant-1', name: 'Hydrant 1', kind: 'hydrant', labelNumber: 1,
+  point: at(102, 100), elevM: 1050, createdAt: '2026-01-01T00:00:00.000Z',
+};
+const connectedGun: SavedSnowgun = {
+  id: 'gun-1', variantId: 'HKD_ImpulseR5_10s', point: at(103, 100), elevM: 1051,
+  hydrantId: 'hydrant-1', createdAt: '2026-01-01T00:00:00.000Z',
+};
+const disconnectedGun: SavedSnowgun = {
+  id: 'gun-2', variantId: 'HKD_ImpulseR5_20t', point: at(500, 500), elevM: null,
+  hydrantId: null, createdAt: '2026-01-01T00:00:00.000Z',
 };
 
 const trails: SavedTrail[] = [];
@@ -165,6 +177,15 @@ describe('SnowmakingDashboard', () => {
     expect(html.slice(Math.max(0, j - 160), j)).not.toContain('is-selected');
   });
 
+  it('renders selectable guns, warnings, and keeps type labels off by default', () => {
+    const html = render({ nodes: [nodeA, hydrant], guns: [connectedGun, disconnectedGun] });
+    expect(html).toContain('data-gun-id="gun-1"');
+    expect(html).toContain('data-gun-id="gun-2"');
+    expect(html).toContain('Warning: disconnected snowgun');
+    expect(html).toContain('Show snowgun types');
+    expect(html).not.toContain('snowmaking-dashboard-gun-label');
+  });
+
   it('draws water bodies for both dams and standalone ponds', () => {
     const html = render();
     expect(html).toContain('data-pond-id="pond-1"');
@@ -246,6 +267,29 @@ describe('SnowmakingDashboard', () => {
       const withoutSelection = render();
       expect(withSelection).toContain('name-entry-input');
       expect(withoutSelection).not.toContain('name-entry-input');
+    });
+
+    it('shows gun specifications, hookup, movement rules, and dashboard totals', () => {
+      const gunHtml = render({ nodes: [hydrant], guns: [connectedGun, disconnectedGun],
+        selectedGunId: connectedGun.id });
+      expect(gunHtml).toContain('data-inspector="gun"');
+      expect(gunHtml).toContain('HKD Impulse R5 10 ft Sled');
+      expect(gunHtml).toContain('$7,000');
+      expect(gunHtml).toContain('Move sled gun');
+
+      const summaryHtml = render({ nodes: [hydrant], guns: [connectedGun, disconnectedGun] });
+      expect(summaryHtml).toContain('Catalog value');
+      expect(summaryHtml).toContain('$15,000');
+      expect(summaryHtml).toContain('Disconnected');
+      expect(summaryHtml).toContain('R5 20 ft Tower');
+    });
+
+    it('warns that a disconnected gun is not served using text as well as color', () => {
+      const html = render({ guns: [disconnectedGun], selectedGunId: disconnectedGun.id });
+      expect(html).toContain('Disconnected');
+      expect(html).toContain('no free hydrant is within 50 ft');
+      expect(html).not.toContain('Move sled gun');
+      expect(html).toContain('Tower guns are fixed');
     });
   });
 });

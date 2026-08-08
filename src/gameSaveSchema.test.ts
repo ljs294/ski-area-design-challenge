@@ -11,7 +11,7 @@ import { sanitizeTrails } from './trails';
 import type { GameSave, SavedSiteBox } from './types/gameSave';
 import type { SavedLift } from './types/lifts';
 import type { SavedRoad } from './types/roads';
-import type { SavedDam, SavedPond, SavedSnowmakingNode, SavedSnowmakingPipe,
+import type { SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingNodeNextNumbers } from './types/snowmaking';
 import type { SavedJunction, SavedNode, SavedPath } from './types/topology';
 import type { SavedTrail } from './types/trails';
@@ -38,6 +38,7 @@ interface ExpectedGameSave {
   junctions?: SavedJunction[];
   snowmakingNodes?: SavedSnowmakingNode[];
   snowmakingPipes?: SavedSnowmakingPipe[];
+  snowguns?: SavedSnowgun[];
   snowmakingNodeNextNumbers?: SnowmakingNodeNextNumbers;
   lakeDepthOverrides?: Record<string, number>;
   lakeNameOverrides?: Record<string, string>;
@@ -92,12 +93,14 @@ const currentFixture = {
     lengthM: 1, verticalM: 1, createdAt: '2026-08-06T00:00:00.000Z',
   }],
   snowmakingNodeNextNumbers: { hydrant: 2, junction: 1, pump: 1 },
+  snowguns: [{ id: 'gun-1', variantId: 'HKD_ImpulseR5_10s', point: [-121.5, 46.9],
+    elevM: null, hydrantId: 'hydrant-1', createdAt: '2026-08-06T00:00:00.000Z' }],
 } satisfies GameSave;
 
 function hydrateDesignFixture(fixture: GameSave) {
   const parsed = JSON.parse(JSON.stringify(fixture)) as GameSave;
   const snowmaking = hydrateSnowmakingNetwork(parsed.snowmakingNodes ?? [],
-    parsed.snowmakingPipes ?? [], parsed.snowmakingNodeNextNumbers);
+    parsed.snowmakingPipes ?? [], parsed.snowmakingNodeNextNumbers, parsed.snowguns ?? []);
   return {
     lifts: sanitizeLifts(parsed.lifts),
     trails: sanitizeTrails(parsed.trails),
@@ -109,6 +112,7 @@ function hydrateDesignFixture(fixture: GameSave) {
     junctions: sanitizeJunctions(parsed.junctions ?? []),
     snowmakingNodes: snowmaking.nodes,
     snowmakingPipes: snowmaking.pipes,
+    snowguns: snowmaking.guns,
     snowmakingNodeNextNumbers: snowmaking.nextNumbers,
   };
 }
@@ -121,7 +125,7 @@ describe('GameSave compatibility boundary', () => {
   it('hydrates a representative schema-v1 fixture with later collections absent', () => {
     expect(hydrateDesignFixture(legacyFixture)).toEqual({
       lifts: [], trails: [], roads: [], dams: [], ponds: [], nodes: [], paths: [],
-      junctions: [], snowmakingNodes: [], snowmakingPipes: [],
+      junctions: [], snowmakingNodes: [], snowmakingPipes: [], snowguns: [],
       snowmakingNodeNextNumbers: { hydrant: 1, junction: 1, pump: 1 },
     });
   });
@@ -133,6 +137,7 @@ describe('GameSave compatibility boundary', () => {
     expect(hydrated.snowmakingPipes[0]).toMatchObject({ id: 'pipe-1', diameterIn: 8 });
     expect(hydrated.snowmakingPipes[0]?.lengthM).not.toBe(1);
     expect(hydrated.snowmakingPipes[0]?.verticalM).toBe(10);
+    expect(hydrated.snowguns).toEqual(currentFixture.snowguns);
     expect(hydrated.snowmakingNodeNextNumbers).toEqual(currentFixture.snowmakingNodeNextNumbers);
   });
 

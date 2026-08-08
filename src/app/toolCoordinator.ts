@@ -8,6 +8,7 @@ export const TOOL_IDS = [
   'trail',
   'snowmaking-pipe',
   'snowmaking-node',
+  'snowmaking-gun',
 ] as const;
 
 export type ToolId = (typeof TOOL_IDS)[number];
@@ -31,10 +32,11 @@ const TOOL_DOCK: Record<ToolId, Exclude<DockId, 'layers'>> = {
   trail: 'trails',
   'snowmaking-pipe': 'snowmaking',
   'snowmaking-node': 'snowmaking',
+  'snowmaking-gun': 'snowmaking',
 };
 
 const LAYERS_ALONGSIDE_TOOLS = new Set<ToolId>([
-  'road', 'dam', 'pond', 'trail', 'snowmaking-pipe', 'snowmaking-node',
+  'road', 'dam', 'pond', 'trail', 'snowmaking-pipe', 'snowmaking-node', 'snowmaking-gun',
 ]);
 
 const INITIAL_SNAPSHOT: ToolCoordinatorSnapshot = Object.freeze({

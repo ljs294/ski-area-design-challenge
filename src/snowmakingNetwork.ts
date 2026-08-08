@@ -4,10 +4,12 @@ import type {
   SavedSnowmakingNode,
   SavedSnowmakingPipe,
   SavedSnowmakingPipeVertex,
+  SavedSnowgun,
   SnowmakingNodeNextNumbers,
   SnowmakingPipeDiameterIn,
 } from './types/snowmaking';
 import { SNOWMAKING_PIPE_DIAMETERS_IN } from './types/snowmaking';
+import { sanitizeSnowguns } from './snowmakingGuns';
 
 export const DEFAULT_SNOWMAKING_PIPE_DIAMETER_IN: SnowmakingPipeDiameterIn = 8;
 export const SNOWMAKING_PIPE_PROFILE_SPACING_M = 25;
@@ -23,6 +25,7 @@ const POINT_EPSILON_M = 0.05;
 export interface SnowmakingNetworkState {
   nodes: SavedSnowmakingNode[];
   pipes: SavedSnowmakingPipe[];
+  guns: SavedSnowgun[];
   nextNumbers: SnowmakingNodeNextNumbers;
 }
 
@@ -464,11 +467,14 @@ export function hydrateSnowmakingNetwork(
   nodes: readonly SavedSnowmakingNode[],
   rawPipes: unknown[],
   rawNext: unknown,
+  rawGuns: unknown[] = [],
 ): SnowmakingNetworkState {
   const numbered = hydrateSnowmakingNumbering(nodes, rawNext);
+  const pipes = sanitizeSnowmakingPipes(rawPipes, numbered.nodes);
   return {
     nodes: numbered.nodes,
-    pipes: sanitizeSnowmakingPipes(rawPipes, numbered.nodes),
+    pipes,
+    guns: sanitizeSnowguns(rawGuns, numbered.nodes, pipes),
     nextNumbers: numbered.nextNumbers,
   };
 }

@@ -23,14 +23,15 @@ import {
   type SnowmakingPipeStats,
 } from '../snowmakingNetwork';
 import { reconcileSnowmakingNodes } from '../snowmakingNodes';
+import { reconcileSnowgunConnections } from '../snowmakingGuns';
 import type { SavedDam, SavedPond, SavedSnowmakingNode, SavedSnowmakingPipe,
-  SnowmakingLakeSource, SnowmakingPipeDiameterIn } from '../types/snowmaking';
+  SavedSnowgun, SnowmakingLakeSource, SnowmakingPipeDiameterIn } from '../types/snowmaking';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
 import { MAP_HIT_RANK, MAP_Z_ORDER, type ManagedMapContribution,
   type MapVisibilityDescriptor } from './mapContribution';
 import { setSelectedSnowmakingFeature, setSnowmakingCaptureTransient, setSnowmakingData,
   setSnowmakingDraftData, addSnowmakingLayers, SNOWMAKING_BUILT_LAYER_IDS,
-  SNOWMAKING_HIT_LAYERS } from './snowmakingLayers';
+  SNOWMAKING_HIT_LAYERS, SNOWMAKING_HOVER_LAYERS } from './snowmakingLayers';
 import { reduceSnowmakingHydrantRunTool, reduceSnowmakingNodeTool, reduceSnowmakingPipeTool,
   IDLE_SNOWMAKING_HYDRANT_RUN_TOOL, IDLE_SNOWMAKING_NODE_TOOL, IDLE_SNOWMAKING_PIPE_TOOL,
   snowmakingPipePreview,
@@ -39,10 +40,8 @@ import { reduceSnowmakingHydrantRunTool, reduceSnowmakingNodeTool, reduceSnowmak
 import { snowmakingNetworkProjection, type SnowmakingNetworkDocument } from './snowmakingNetworkDocument';
 import type { ToolId } from './toolCoordinator';
 import { pipeSnapAt, snowmakingSnapAt } from './snowmakingNetworkSnap';
-
 const TARGET_REVALIDATE_M = 2;
-
-export type SnowmakingSelection = { kind: 'node' | 'pipe'; id: string } | null;
+export type SnowmakingSelection = { kind: 'node' | 'pipe' | 'gun'; id: string } | null;
 
 export interface SnowmakingNetworkControllerOptions {
   mapRef: MutableRefObject<maplibregl.Map | null>;
@@ -51,6 +50,7 @@ export interface SnowmakingNetworkControllerOptions {
   lakes: readonly SnowmakingLakeSource[] | null;
   nodes: readonly SavedSnowmakingNode[];
   pipes: readonly SavedSnowmakingPipe[];
+  guns: readonly SavedSnowgun[];
   selected: SnowmakingSelection;
   network: SnowmakingNetworkDocument;
   canArm(): boolean;
@@ -62,6 +62,7 @@ export interface SnowmakingNetworkControllerOptions {
     map: maplibregl.Map): MapInteractionLeaseHandle;
   selectNode(id: string): void;
   selectPipe(id: string): void;
+  selectGun(id: string): void;
   clearSelected(id: string): void;
   createId(): string;
   now(): string;
@@ -100,6 +101,7 @@ export interface SnowmakingNetworkController {
   confirmHydrantRun(): void;
   selectNode(id: string): void;
   selectPipe(id: string): void;
+  selectGun(id: string): void;
   renameNode(id: string, name: string): void;
   removeNode(id: string): void;
   patchPipe(id: string, patch: Pick<Partial<SavedSnowmakingPipe>, 'name' | 'diameterIn'>): void;
@@ -137,8 +139,7 @@ export function useSnowmakingNetworkController(
   const [hydrantRunTool, hydrantRunDispatch] = useReducer(reduceSnowmakingHydrantRunTool,
     IDLE_SNOWMAKING_HYDRANT_RUN_TOOL);
   const [snapping, setSnapping] = useState(false);
-  const [diameterIn, setDiameter] = useState<SnowmakingPipeDiameterIn>(
-    DEFAULT_SNOWMAKING_PIPE_DIAMETER_IN);
+  const [diameterIn, setDiameter] = useState<SnowmakingPipeDiameterIn>(DEFAULT_SNOWMAKING_PIPE_DIAMETER_IN);
   const [snapHover, setSnapHover] = useState<[number, number] | null>(null);
   const [hydrantRunHover, setHydrantRunHover] = useState<SnowmakingPipeStation | null>(null);
   const snapHoverRef = useRef<[number, number] | null>(snapHover);
@@ -146,8 +147,7 @@ export function useSnowmakingNetworkController(
   const pipeToolRef = useRef(pipeTool);
   const nodeToolRef = useRef(nodeTool);
   const hydrantRunToolRef = useRef(hydrantRunTool);
-  optionsRef.current = options;
-  pipeToolRef.current = pipeTool;
+  optionsRef.current = options; pipeToolRef.current = pipeTool;
   nodeToolRef.current = nodeTool;
   hydrantRunToolRef.current = hydrantRunTool;
   snapHoverRef.current = snapHover;
@@ -170,8 +170,9 @@ export function useSnowmakingNetworkController(
     if (hydrantRunTool.phase === 'idle') return null;
     const pipeId = hydrantRunTool.phase === 'select-pipe' ? null : hydrantRunTool.pipeId;
     const pipe = pipeId ? options.pipes.find((candidate) => candidate.id === pipeId) ?? null : null;
-    const start = hydrantRunTool.phase === 'select-end' || hydrantRunTool.phase === 'review'
-      ? hydrantRunTool.start : null;
+    const start = hydrantRunTool.phase === 'select-start' ? hydrantRunHover
+      : hydrantRunTool.phase === 'select-end' || hydrantRunTool.phase === 'review'
+        ? hydrantRunTool.start : null;
     const end = hydrantRunTool.phase === 'review' ? hydrantRunTool.end
       : hydrantRunTool.phase === 'select-end' ? hydrantRunHover : null;
     let layout: SnowmakingHydrantRunLayout | string | null = null;
@@ -225,13 +226,16 @@ export function useSnowmakingNetworkController(
     id: 'snowmaking', zOrder: MAP_Z_ORDER.snowmaking,
     hits: [{ id: 'snowmaking', priority: MAP_HIT_RANK.snowmaking,
       layerIds: SNOWMAKING_HIT_LAYERS,
+      hoverLayerIds: SNOWMAKING_HOVER_LAYERS,
       select: (id) => {
-        if (optionsRef.current.pipes.some((pipe) => pipe.id === id)) optionsRef.current.selectPipe(id);
+        if (optionsRef.current.guns.some((gun) => gun.id === id)) optionsRef.current.selectGun(id);
+        else if (optionsRef.current.pipes.some((pipe) => pipe.id === id)) optionsRef.current.selectPipe(id);
         else if (optionsRef.current.nodes.some((node) => node.id === id)) optionsRef.current.selectNode(id);
       } }],
     install: ({ map }) => addSnowmakingLayers(map),
     synchronizeData: ({ map }) => {
-      setSnowmakingData(map, optionsRef.current.nodes, optionsRef.current.pipes);
+      setSnowmakingData(map, optionsRef.current.nodes, optionsRef.current.pipes,
+        optionsRef.current.guns);
       setSelectedSnowmakingFeature(map, optionsRef.current.selected);
       synchronizeDraft(map);
     },
@@ -256,12 +260,13 @@ export function useSnowmakingNetworkController(
     let pipes = before.pipes;
     for (const id of removed) pipes = detachSnowmakingNode(pipes, id);
     const edit = current.network.begin();
-    edit.replace({ nodes: numbered.nodes, pipes, nextNumbers: numbered.nextNumbers });
+    edit.replace({ nodes: numbered.nodes, pipes, guns: before.guns,
+      nextNumbers: numbered.nextNumbers });
     if (edit.commit().ok) for (const id of removed) current.clearSelected(id);
   }, [options.dams, options.ponds, options.lakes, options.network]);
 
   useEffect(() => { optionsRef.current.synchronizeMap(); },
-    [options.nodes, options.pipes, options.selected]);
+    [options.nodes, options.pipes, options.guns, options.selected]);
   useEffect(() => { synchronizeDraft(); },
     [pipeTool, nodeTool, snapHover, hydrantRunPreview, synchronizeDraft]);
 
@@ -487,6 +492,8 @@ export function useSnowmakingNetworkController(
     if (targetPipe && targetLocation) {
       state = replacePipe(state, attachNodeToSnowmakingPipe(targetPipe, targetLocation, allocation.node.id));
     }
+    if (current.kind === 'hydrant') state = { ...state,
+      guns: reconcileSnowgunConnections(state.guns, state.nodes) };
     const edit = optionsRef.current.network.begin(); edit.replace(state);
     if (!edit.commit().ok) { nodeDispatch({ type: 'candidate', candidate: current.candidate,
       error: 'The network changed. Pick the location again.' }); return; }
@@ -499,21 +506,12 @@ export function useSnowmakingNetworkController(
     hydrantRunDispatch({ type: 'arm' });
   }
   function cancelHydrantRun(): void {
-    hydrantRunDispatch({ type: 'cancel' }); setHydrantRunHover(null);
-    optionsRef.current.release('snowmaking-node');
+    hydrantRunDispatch({ type: 'cancel' }); setHydrantRunHover(null); optionsRef.current.release('snowmaking-node');
   }
-  function backHydrantRun(): void {
-    hydrantRunDispatch({ type: 'back' }); setHydrantRunHover(null);
-  }
-  function setHydrantRunMode(mode: 'count' | 'spacing'): void {
-    hydrantRunDispatch({ type: 'mode', mode });
-  }
-  function setHydrantRunCount(count: number): void {
-    hydrantRunDispatch({ type: 'count', count });
-  }
-  function setHydrantRunSpacing(spacingM: number): void {
-    hydrantRunDispatch({ type: 'spacing', spacingM });
-  }
+  function backHydrantRun(): void { hydrantRunDispatch({ type: 'back' }); setHydrantRunHover(null); }
+  function setHydrantRunMode(mode: 'count' | 'spacing'): void { hydrantRunDispatch({ type: 'mode', mode }); }
+  function setHydrantRunCount(count: number): void { hydrantRunDispatch({ type: 'count', count }); }
+  function setHydrantRunSpacing(spacingM: number): void { hydrantRunDispatch({ type: 'spacing', spacingM }); }
   function confirmHydrantRun(): void {
     const current = hydrantRunToolRef.current;
     if (current.phase !== 'review') return;
@@ -542,7 +540,8 @@ export function useSnowmakingNetworkController(
       optionsRef.current.createId, optionsRef.current.now);
     if (typeof populated === 'string') { hydrantRunDispatch({ type: 'error',
       error: populated }); return; }
-    state = populated.state;
+    state = { ...populated.state, guns: reconcileSnowgunConnections(
+      populated.state.guns, populated.state.nodes) };
     edit.replace(state);
     if (!edit.commit().ok) { hydrantRunDispatch({ type: 'error', revision: document.revision,
       error: 'The network changed during confirmation. Review the refreshed preview and try again.' });
@@ -564,6 +563,7 @@ export function useSnowmakingNetworkController(
     if (!node || node.kind === 'intake' || node.kind === 'junction') return;
     state = { ...state, nodes: state.nodes.filter((candidate) => candidate.id !== id),
       pipes: detachSnowmakingNode(state.pipes, id) };
+    state = { ...state, guns: reconcileSnowgunConnections(state.guns, state.nodes) };
     const edit = optionsRef.current.network.begin(); edit.replace(state);
     if (edit.commit().ok) optionsRef.current.clearSelected(id);
   }
@@ -594,7 +594,7 @@ export function useSnowmakingNetworkController(
     setDiameter, setSnapping, armNode, cancelNode, confirmNode,
     armHydrantRun, cancelHydrantRun, backHydrantRun, setHydrantRunMode,
     setHydrantRunCount, setHydrantRunSpacing, confirmHydrantRun,
-    selectNode: options.selectNode, selectPipe: options.selectPipe,
+    selectNode: options.selectNode, selectPipe: options.selectPipe, selectGun: options.selectGun,
     renameNode, removeNode, patchPipe, removePipe,
   };
 }

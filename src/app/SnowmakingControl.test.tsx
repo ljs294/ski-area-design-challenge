@@ -17,13 +17,22 @@ const callbacks = {
   onPondSnowmakingChange: vi.fn(),
   onArmPipe: vi.fn(), onCancelPipe: vi.fn(), onUndoPipe: vi.fn(), onFinishPipe: vi.fn(),
   onConfirmPipe: vi.fn(), onRenameDraftPipe: vi.fn(), onDiameterChange: vi.fn(),
+  onSnappingChange: vi.fn(),
   onArmNode: vi.fn(), onCancelNode: vi.fn(), onConfirmNode: vi.fn(),
   onArmHydrantRun: vi.fn(), onCancelHydrantRun: vi.fn(), onBackHydrantRun: vi.fn(),
   onHydrantRunModeChange: vi.fn(), onHydrantRunCountChange: vi.fn(),
   onHydrantRunSpacingChange: vi.fn(), onConfirmHydrantRun: vi.fn(),
   onSelectNode: vi.fn(), onRenameNode: vi.fn(), onDeleteNode: vi.fn(), onCloseNode: vi.fn(),
   onSelectPipe: vi.fn(), onPatchPipe: vi.fn(), onDeletePipe: vi.fn(), onClosePipe: vi.fn(),
+  onArmGuns: vi.fn(), onCancelGuns: vi.fn(), onSnowgunVariantChange: vi.fn(),
+  onRemoveDraftGun: vi.fn(), onReviewGuns: vi.fn(), onBackGuns: vi.fn(), onConfirmGuns: vi.fn(),
+  onSelectGun: vi.fn(), onMoveGun: vi.fn(), onConfirmMoveGun: vi.fn(), onDeleteGun: vi.fn(),
+  onCloseGun: vi.fn(),
 };
+
+const gunProps = { guns: [], selectedGun: null, gunTool: { phase: 'idle' } as const,
+  gunPreview: { items: [], candidate: null, totalUsd: 0, connectedCount: 0,
+    disconnectedCount: 0 } };
 
 function render(damTool: DamTool = { phase: 'idle' }, pondTool: PondTool = { phase: 'idle' },
   units: 'metric' | 'imperial' = 'metric', dams: SavedDam[] = [], ponds: SavedPond[] = [],
@@ -32,9 +41,9 @@ function render(damTool: DamTool = { phase: 'idle' }, pondTool: PondTool = { pha
   hydrantRunPreview: SnowmakingHydrantRunPreview | null = null) {
   return renderToStaticMarkup(<SnowmakingControl damTool={damTool} pondTool={pondTool}
     dams={dams} ponds={ponds} selectedDam={null} selectedPond={null}
-    nodes={nodes} pipes={[]} selectedNode={selectedNode} selectedPipe={null}
+    nodes={nodes} pipes={[]} selectedNode={selectedNode} selectedPipe={null} {...gunProps}
     pipeTool={{ phase: 'idle' }} nodeTool={{ phase: 'idle' }}
-    hydrantRunTool={hydrantRunTool} hydrantRunPreview={hydrantRunPreview} diameterIn={8}
+    hydrantRunTool={hydrantRunTool} hydrantRunPreview={hydrantRunPreview} diameterIn={8} snapping={false}
     units={units} {...callbacks} />);
 }
 
@@ -52,6 +61,17 @@ describe('SnowmakingControl', () => {
     expect(render()).toContain('Place one hydrant');
     expect(render()).toContain('Place hydrants along pipe');
     expect(render()).toContain('Place pumps');
+  });
+
+  it('offers network snapping while placing one hydrant', () => {
+    const html = renderToStaticMarkup(<SnowmakingControl damTool={{ phase: 'idle' }}
+      pondTool={{ phase: 'idle' }} dams={[]} ponds={[]} selectedDam={null} selectedPond={null}
+      nodes={[]} pipes={[]} selectedNode={null} selectedPipe={null} {...gunProps} pipeTool={{ phase: 'idle' }}
+      nodeTool={{ phase: 'placing', kind: 'hydrant', candidate: null, error: null }}
+      hydrantRunTool={{ phase: 'idle' }} hydrantRunPreview={null} diameterIn={8} snapping={false}
+      units="metric" {...callbacks} />);
+    expect(html).toContain('Snap single hydrant to snowmaking network');
+    expect(html).toContain('Snap within 16 px of a pipe or existing node.');
   });
 
   it('reviews endpoint-inclusive hydrant layouts and reports skipped positions', () => {

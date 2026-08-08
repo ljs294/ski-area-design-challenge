@@ -66,6 +66,7 @@ export type MapMode = 'picking' | 'playing';
  */
 type SelectionTarget =
   | { kind: 'lift' | 'trail' | 'dam' | 'pond' | 'snowmaking-node' | 'snowmaking-pipe' |
+      'snowgun' |
       'ski-node' | 'ski-path'; id: string }
   | { kind: 'lake' | 'stream'; id: string }
   | { kind: 'none' };
@@ -205,29 +206,17 @@ export function MapView({
     initialSave?.site ? 'locked' : 'explore');
   const [siteBox, setSiteBoxState] = useState<SiteBox | null>((initialSave?.site as SiteBox) ?? null);
   const [is3D, setIs3D] = useState(initialSave?.is3D ?? false);
-  // Live camera pitch. The 2D/3D button reads the camera, not the last button
-  // press — dragging the map into a tilt is a 3D view no matter what was
-  // clicked last, and the button has to offer the way back out of it.
+  // Live pitch drives the 2D/3D affordance.
   const [pitchDeg, setPitchDeg] = useState(0);
-  // The point a snapping tool would take if you clicked right now, drawn as an
-  // amber ring. Every tool that must attach to a run shows it, so "it snaps"
-  // is something you can see before committing rather than after.
-  // Perfectly overhead means pitch 0. A rotated top-down view is still 2D, and
-  // `tilt3D` deliberately leaves bearing alone, so pitch alone decides; the
-  // epsilon absorbs ease residue, nothing more.
+  // Perfectly overhead is pitch zero; the epsilon absorbs ease residue.
   const isOverhead = pitchDeg < 0.5;
   const warmAbortRef = useRef<AbortController | null>(null);
-  // App's resort loading screen stays up until `ready`, so the map is never
-  // shown mid-stream. Kept in a ref so the once-registered style.load handler
-  // and the warm-up loop always report through the current callback.
+  // The ref keeps boot reporting current for once-registered map handlers.
   const onBootRef = useRef(onBoot);
   onBootRef.current = onBoot;
   const repairRef = useRef<() => void>(() => {});
   const bootControls = useRef<BootControls | null>(null);
-  // A prepare→play handoff still re-mounts terrain and every custom tile source
-  // after App's loading screen has stood down (New Game, or repairing a broken
-  // package). We drive the same screen locally for that stretch rather than let
-  // the resort draw itself in front of the player.
+  // Local loading covers prepare-to-play remounts after App's screen stands down.
   const [localBoot, setLocalBoot] = useState<BootProgress | null>(null);
   const localBootRef = useRef<BootProgress | null>(localBoot);
   const showLocalBoot = (p: BootProgress | null) => {
@@ -277,25 +266,22 @@ export function MapView({
   const [ponds, setPonds] = useState<SavedPond[]>(initialDesign.ponds);
   const [selectedPondId, setSelectedPondId] = useState<string | null>(null);
   const snowmakingState = useCommittedSnowmakingNetwork({ nodes: initialDesign.snowmakingNodes,
-    pipes: initialDesign.snowmakingPipes, nextNumbers: initialDesign.snowmakingNodeNextNumbers });
-  const { nodes: snowmakingNodes, pipes: snowmakingPipes,
+    pipes: initialDesign.snowmakingPipes, guns: initialDesign.snowguns,
+    nextNumbers: initialDesign.snowmakingNodeNextNumbers });
+  const { nodes: snowmakingNodes, pipes: snowmakingPipes, guns: snowguns,
     nextNumbers: snowmakingNodeNextNumbers, selectedNodeId: selectedSnowmakingNodeId,
-    selectedPipeId: selectedSnowmakingPipeId, setSelectedNodeId: setSelectedSnowmakingNodeId,
-    setSelectedPipeId: setSelectedSnowmakingPipeId, committedRef: committedSnowmakingRef,
+    selectedPipeId: selectedSnowmakingPipeId, selectedGunId: selectedSnowgunId,
+    setSelectedNodeId: setSelectedSnowmakingNodeId, setSelectedPipeId: setSelectedSnowmakingPipeId,
+    setSelectedGunId: setSelectedSnowgunId, committedRef: committedSnowmakingRef,
     document: snowmakingNetwork } = snowmakingState;
   const [skiNodes, setSkiNodes] = useState<SavedNode[]>(initialDesign.nodes);
   const [skiPaths, setSkiPaths] = useState<SavedPath[]>(initialDesign.paths);
   const [junctions, setJunctions] = useState<SavedJunction[]>(initialDesign.junctions);
-  // Synchronous committed projection for save/capture and dirty comparison.
-  // React's four collection states may render later; this ref moves in the
-  // topology publication callback, so persistence cannot observe a mixed graph.
+  // Synchronous projection prevents persistence from observing a mixed graph.
   const committedTopologyRef = useRef<TopologyState>(
     { trails, nodes: skiNodes, paths: skiPaths, junctions }
   );
-  // Runs, ski nodes, connector paths, and junctions describe one graph, so one
-  // document owns every change to it. React holds the projection; a transaction
-  // lands each collection it touched in a single publication, so nothing ever
-  // observes a trail whose segments name a junction that has not arrived yet.
+  // One document publishes runs, ski nodes, paths, and junctions atomically.
   const topologyDocumentRef = useRef<TopologyDocument | null>(null);
   if (!topologyDocumentRef.current) {
     topologyDocumentRef.current = new TopologyDocument(
@@ -338,7 +324,7 @@ export function MapView({
     name: initialSave?.name ?? '',
     site: initialSave?.site ?? null,
     lifts, trails, roads, dams, ponds,
-    nodes: skiNodes, paths: skiPaths, junctions, snowmakingNodes, snowmakingPipes,
+    nodes: skiNodes, paths: skiPaths, junctions, snowmakingNodes, snowmakingPipes, snowguns,
     snowmakingNodeNextNumbers,
     lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds, streamWidthOverrides,
   }));
@@ -422,7 +408,7 @@ export function MapView({
   const toolCancellationRef = useRef<Record<ToolId, () => void>>({
     lift: () => {}, road: () => {}, dam: () => {}, pond: () => {},
     'ski-node': () => {}, 'ski-path': () => {}, trail: () => {},
-    'snowmaking-pipe': () => {}, 'snowmaking-node': () => {},
+    'snowmaking-pipe': () => {}, 'snowmaking-node': () => {}, 'snowmaking-gun': () => {},
   });
   const toolRegistrationsReadyRef = useRef(false);
   if (!toolRegistrationsReadyRef.current) {
@@ -441,6 +427,7 @@ export function MapView({
     trail: cancelTrailTool,
     'snowmaking-pipe': () => snowmakingController.network.cancelPipe(),
     'snowmaking-node': () => snowmakingController.network.cancelNode(),
+    'snowmaking-gun': () => snowmakingController.guns.cancel(),
   };
   const mapInteractionLeaseRef = useRef<MapInteractionLease | null>(null);
   if (!mapInteractionLeaseRef.current) {
@@ -479,11 +466,7 @@ export function MapView({
     doSampleRef,
   });
 
-  // The terrain document is the authority for the committed package: revisions,
-  // construction ownership, cover-edit serialization, and grade-preview
-  // ownership. It is constructed once, but its ports are re-bound every render
-  // because the contour and source refreshes read `settings.units` — a closure
-  // captured at construction would pin those to the first render.
+  // The terrain document is constructed once; its unit-sensitive ports rebind each render.
   const terrainPortsRef = useRef<TerrainDocumentPorts>({
     cacheDisplayAssets: () => {},
     activateProtocols: () => {},
@@ -504,10 +487,8 @@ export function MapView({
     });
   }
   const terrain = terrainDocumentRef.current;
-
   const { damAnalysis, coverEdit, coverClear, terrainGrade, trailPaint } =
     useMapWorkers(mapRef, terrain);
-
   const liftController = useLiftController({
     mapRef,
     lifts,
@@ -617,24 +598,40 @@ export function MapView({
       synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('pond'),
     },
     network: { mapRef, dams, ponds, lakes: snowmakingLakes, nodes: snowmakingNodes,
-      pipes: snowmakingPipes, network: snowmakingNetwork,
+      pipes: snowmakingPipes, guns: snowguns, network: snowmakingNetwork,
       selected: selectedSnowmakingNodeId ? { kind: 'node', id: selectedSnowmakingNodeId } :
-        selectedSnowmakingPipeId ? { kind: 'pipe', id: selectedSnowmakingPipeId } : null,
-      canArm: () => siteModeRef.current !== 'selecting', activate: (tool) =>
-        toolCoordinator.activate(tool), release: (tool) => { toolCoordinator.release(tool); },
+        selectedSnowmakingPipeId ? { kind: 'pipe', id: selectedSnowmakingPipeId } :
+          selectedSnowgunId ? { kind: 'gun', id: selectedSnowgunId } : null,
+      canArm: () => siteModeRef.current !== 'selecting',
+      activate: (tool) => toolCoordinator.activate(tool),
+      release: (tool) => { toolCoordinator.release(tool); },
       openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
-      acquireInteractions: (tool, map) => acquireMapInteractions(tool, map, {
-        cursor: 'crosshair', doubleClickZoomEnabled: false }),
-      selectNode: (id) => transitionSelection({ kind: 'snowmaking-node', id }), selectPipe: (id) =>
-        transitionSelection({ kind: 'snowmaking-pipe', id }),
+      acquireInteractions: (tool, map) => acquireMapInteractions(tool, map,
+        { cursor: 'crosshair', doubleClickZoomEnabled: false }),
+      selectNode: (id) => transitionSelection({ kind: 'snowmaking-node', id }),
+      selectPipe: (id) => transitionSelection({ kind: 'snowmaking-pipe', id }),
+      selectGun: (id) => transitionSelection({ kind: 'snowgun', id }),
       clearSelected: (id) => {
         setSelectedSnowmakingNodeId((selected) => selected === id ? null : selected);
         setSelectedSnowmakingPipeId((selected) => selected === id ? null : selected);
+        setSelectedSnowgunId((selected) => selected === id ? null : selected);
       },
-      createId: genId, now: () => new Date().toISOString(), sampleElevation: ([lng, lat]) =>
-        sampleLocalTerrainAt(lng, lat)?.elevation ?? null,
-      structuresVisible: () => packageStateRef.current !== 'preparing', synchronizeMap: () =>
-        mapContributionRegistryRef.current?.synchronizeData('snowmaking'),
+      createId: genId, now: () => new Date().toISOString(),
+      sampleElevation: ([lng, lat]) => sampleLocalTerrainAt(lng, lat)?.elevation ?? null,
+      structuresVisible: () => packageStateRef.current !== 'preparing',
+      synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('snowmaking'),
+    },
+    guns: { mapRef, nodes: snowmakingNodes, guns: snowguns, network: snowmakingNetwork,
+      canArm: () => siteModeRef.current !== 'selecting',
+      activate: (tool) => toolCoordinator.activate(tool),
+      release: (tool) => { toolCoordinator.release(tool); },
+      openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
+      acquireInteractions: (tool, map) => acquireMapInteractions(tool, map,
+        { cursor: 'crosshair', doubleClickZoomEnabled: false }),
+      selectGun: (id) => transitionSelection({ kind: 'snowgun', id }),
+      clearSelected: (id) => setSelectedSnowgunId((selected) => selected === id ? null : selected),
+      createId: genId, now: () => new Date().toISOString(),
+      sampleElevation: ([lng, lat]) => sampleLocalTerrainAt(lng, lat)?.elevation ?? null,
     },
   });
 
@@ -781,14 +778,7 @@ export function MapView({
     refreshTerrainGradeSources(mapRef.current, record, settings.units === 'imperial');
   }
 
-  // State mirrored into refs so map event handlers, which are registered once,
-  // can read live values. These are assigned during *render*, so they are only
-  // as fresh as the last commit: an async continuation started in the same tick
-  // as a setState will still see the pre-update value, because React schedules
-  // that render on a macrotask and any microtask chain drains first. Such a
-  // continuation must take what it needs as arguments (see
-  // `sampleTrailElevations`) or write through a functional updater — never read
-  // it back out of a ref.
+  // Once-registered map handlers read live state through render-synchronized refs.
   renderQualityRef.current = settings.renderQuality;
   unitsRef.current = settings.units;
   layersRef.current = layers;
@@ -929,6 +919,7 @@ export function MapView({
     setSelectedPondId(null);
     setSelectedSnowmakingNodeId(null);
     setSelectedSnowmakingPipeId(null);
+    setSelectedSnowgunId(null);
     setSelectedNodeId(null);
     setSelectedPathId(null);
     setSelectedLakeId(null);
@@ -948,6 +939,7 @@ export function MapView({
       case 'pond': setSelectedPondId(target.id); setOpenDock('snowmaking'); break;
       case 'snowmaking-node': setSelectedSnowmakingNodeId(target.id); setOpenDock('snowmaking'); break;
       case 'snowmaking-pipe': setSelectedSnowmakingPipeId(target.id); setOpenDock('snowmaking'); break;
+      case 'snowgun': setSelectedSnowgunId(target.id); setOpenDock('snowmaking'); break;
       case 'ski-node': setSelectedNodeId(target.id); break;
       case 'ski-path': setSelectedPathId(target.id); break;
       case 'lake': setSelectedLakeId(target.id); setOpenDock(null); break;
@@ -1188,8 +1180,9 @@ export function MapView({
           activeTool === 'ski-node' || activeTool === 'ski-path' || selectedTrailId !== null
           : which === 'snowmaking' ? openDock === 'snowmaking' || activeTool === 'dam' ||
             activeTool === 'pond' || activeTool === 'snowmaking-pipe' ||
-            activeTool === 'snowmaking-node' || selectedDamId !== null || selectedPondId !== null ||
-            selectedSnowmakingNodeId !== null || selectedSnowmakingPipeId !== null
+            activeTool === 'snowmaking-node' || activeTool === 'snowmaking-gun' ||
+            selectedDamId !== null || selectedPondId !== null || selectedSnowmakingNodeId !== null ||
+            selectedSnowmakingPipeId !== null || selectedSnowgunId !== null
             : openDock === 'infrastructure' || activeTool === 'road');
     if (toolCoordinator.toggleDock(which, isOpen) === 'layers-alongside') return;
 
@@ -1448,6 +1441,7 @@ export function MapView({
       junctions: committedTopology.junctions,
       snowmakingNodes: committedSnowmakingRef.current.nodes,
       snowmakingPipes: committedSnowmakingRef.current.pipes,
+      snowguns: committedSnowmakingRef.current.guns,
       snowmakingNodeNextNumbers: committedSnowmakingRef.current.nextNumbers,
       lakeDepthOverrides: lakeDepthOverridesRef.current,
       lakeNameOverrides: lakeNameOverridesRef.current,
@@ -1475,6 +1469,7 @@ export function MapView({
       junctions: committedTopology.junctions,
       snowmakingNodes: committedSnowmakingRef.current.nodes,
       snowmakingPipes: committedSnowmakingRef.current.pipes,
+      snowguns: committedSnowmakingRef.current.guns,
       snowmakingNodeNextNumbers: committedSnowmakingRef.current.nextNumbers,
       lakeDepthOverrides: lakeDepthOverridesRef.current,
       lakeNameOverrides: lakeNameOverridesRef.current,
@@ -1688,7 +1683,8 @@ export function MapView({
         view3D={terrainRecord ? { is3D: !isOverhead, onToggle: toggle3D } : null}
         buildingActivity={buildingActivity}
         bottomRightToolOptions={saved ? <SnowmakingToolOptions
-          controller={snowmakingController.network} units={settings.units} /> : null}
+          controller={snowmakingController.network} gunController={snowmakingController.guns}
+          units={settings.units} /> : null}
         dashboardToggle={saved ? {
           open: showNetwork,
           toggle: () => setShowNetwork((value) => !value),
@@ -1709,12 +1705,15 @@ export function MapView({
           },
           snowmakingProps: snowmakingDashboardProps({
             dams, ponds, lakes: snowmakingLakes ?? [], trails, lifts, nodes: snowmakingNodes,
-            pipes: snowmakingPipes,
+            pipes: snowmakingPipes, guns: snowguns,
             coverDisplay: coverDisplayRef.current, terrainRecord, units: settings.units,
             selectedNodeId: selectedSnowmakingNodeId, selectedPipeId: selectedSnowmakingPipeId,
+            selectedGunId: selectedSnowgunId,
             clearNode: () => setSelectedSnowmakingNodeId(null), clearPipe: () =>
               setSelectedSnowmakingPipeId(null),
+            clearGun: () => setSelectedSnowgunId(null),
             controller: snowmakingController.network,
+            gunController: snowmakingController.guns,
           }),
           onClose: () => setShowNetwork(false),
         } : null}
@@ -1724,11 +1723,11 @@ export function MapView({
           openDock, layersAlongsideBuild,
           coordinator: toolCoordinatorState, layers, activeOverlay,
           lifts, trails, roads, dams, ponds, snowmakingLakes: snowmakingLakes ?? [],
-          snowmakingNodes, snowmakingPipes, skiNodes, skiPaths,
+          snowmakingNodes, snowmakingPipes, snowguns, skiNodes, skiPaths,
           junctions, terrainRecord, network,
           selectedLiftId, selectedTrailId,
           selectedDamId, selectedPondId,
-          selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedNodeId,
+          selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedSnowgunId, selectedNodeId,
           selectedPathId, selectedLakeId,
           selectedStreamId, liftEditing, trailEditing,
           lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds,
@@ -1751,6 +1750,7 @@ export function MapView({
           clearSelectedPond: () => setSelectedPondId(null),
           clearSelectedSnowmakingNode: () => setSelectedSnowmakingNodeId(null),
           clearSelectedSnowmakingPipe: () => setSelectedSnowmakingPipeId(null),
+          clearSelectedSnowgun: () => setSelectedSnowgunId(null),
           clearSelectedNode: () => setSelectedNodeId(null),
           clearSelectedPath: () => setSelectedPathId(null),
           clearSelectedLake: () => setSelectedLakeId(null),

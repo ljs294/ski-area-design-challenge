@@ -9,7 +9,7 @@ export type SnowmakingNetworkSnapshot = DeepReadonly<MutableSnowmakingNetworkSna
 
 export interface SnowmakingNetworkChange {
   snapshot: SnowmakingNetworkSnapshot;
-  changed: { nodes: boolean; pipes: boolean; nextNumbers: boolean };
+  changed: { nodes: boolean; pipes: boolean; guns: boolean; nextNumbers: boolean };
 }
 
 export type SnowmakingNetworkCommitResult =
@@ -34,6 +34,7 @@ export function snowmakingNetworkProjection(
   return structuredClone({
     nodes: snapshot.nodes,
     pipes: snapshot.pipes,
+    guns: snapshot.guns,
     nextNumbers: snapshot.nextNumbers,
   }) as SnowmakingNetworkState;
 }
@@ -42,6 +43,7 @@ function changedBetween(base: SnowmakingNetworkState, next: SnowmakingNetworkSta
   return {
     nodes: base.nodes !== next.nodes,
     pipes: base.pipes !== next.pipes,
+    guns: base.guns !== next.guns,
     nextNumbers: base.nextNumbers !== next.nextNumbers,
   };
 }
@@ -55,7 +57,7 @@ export class SnowmakingNetworkTransaction {
   constructor(document: SnowmakingNetworkDocument, base: MutableSnowmakingNetworkSnapshot) {
     this.document = document;
     this.base = base;
-    this.next = { nodes: base.nodes as never, pipes: base.pipes as never,
+    this.next = { nodes: base.nodes as never, pipes: base.pipes as never, guns: base.guns as never,
       nextNumbers: base.nextNumbers as never };
   }
 

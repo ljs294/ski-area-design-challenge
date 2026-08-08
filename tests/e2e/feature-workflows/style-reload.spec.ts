@@ -26,12 +26,14 @@ const FAMILY_BLOCKS: { family: string; first: string; last: string }[] = [
   { family: 'ski-node-path', first: 'path-casing', last: 'path-draft-pick' },
   { family: 'trail', first: 'trail-fill', last: 'trail-labels' },
   { family: 'lift', first: 'lift-line-casing', last: 'lift-labels' },
-  { family: 'snowmaking', first: 'snowmaking-node-halo', last: 'snowmaking-node-hit' },
+  { family: 'snowmaking', first: 'snowmaking-pipe-casing', last: 'snowmaking-pipe-hit' },
 ];
 
 /** Every layer a hit guard names. A missing id would silently stop guarding. */
 const HIT_LAYERS = [
+  'snowmaking-gun-hit',
   'snowmaking-node-hit',
+  'snowmaking-pipe-hit',
   'lift-line-hit',
   'lift-terminals',
   'trail-fill',
@@ -70,7 +72,7 @@ async function restyle(page: Page): Promise<void> {
   // The restyle drops every added layer and reinstalls the registry on
   // style.load; wait for the topmost family to come back before asserting.
   await expect
-    .poll(async () => (await layerIds(page)).includes('snowmaking-node-hit'), { timeout: 10_000 })
+    .poll(async () => (await layerIds(page)).includes('snowmaking-pipe-hit'), { timeout: 10_000 })
     .toBe(true);
 }
 

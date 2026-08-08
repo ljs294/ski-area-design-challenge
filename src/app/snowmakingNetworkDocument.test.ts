@@ -3,7 +3,7 @@ import { SnowmakingNetworkDocument, snowmakingNetworkProjection } from './snowma
 import type { SnowmakingNetworkState } from '../snowmakingNetwork';
 
 const initial: SnowmakingNetworkState = {
-  nodes: [], pipes: [], nextNumbers: { hydrant: 1, junction: 1, pump: 1 },
+  nodes: [], pipes: [], guns: [], nextNumbers: { hydrant: 1, junction: 1, pump: 1 },
 };
 
 describe('SnowmakingNetworkDocument', () => {
@@ -22,7 +22,8 @@ describe('SnowmakingNetworkDocument', () => {
     const change = vi.fn();
     const document = new SnowmakingNetworkDocument(initial, change);
     const edit = document.begin();
-    edit.replace({ nodes: [], pipes: [], nextNumbers: { hydrant: 2, junction: 1, pump: 1 } });
+    edit.replace({ nodes: [], pipes: [], guns: [],
+      nextNumbers: { hydrant: 2, junction: 1, pump: 1 } });
     expect(edit.commit()).toEqual({ ok: true, revision: 1, changed: true });
     expect(change).toHaveBeenCalledTimes(1);
   });

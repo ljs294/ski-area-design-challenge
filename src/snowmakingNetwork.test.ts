@@ -133,7 +133,7 @@ describe('snowmaking hydrant runs', () => {
     expect(typeof layout).not.toBe('string');
     if (typeof layout === 'string') return;
     const occupied = node('pump-at-start', 'pump', 1);
-    const initial: SnowmakingNetworkState = { nodes: [occupied], pipes: [route],
+    const initial: SnowmakingNetworkState = { nodes: [occupied], pipes: [route], guns: [],
       nextNumbers: { hydrant: 1, junction: 1, pump: 2 } };
     let id = 0;
     const populated = populateSnowmakingHydrantRun(initial, route.id, layout,
@@ -159,7 +159,7 @@ describe('snowmaking numbering and hydration', () => {
   });
 
   it('never returns a committed label number after deletion', () => {
-    const initial: SnowmakingNetworkState = { nodes: [], pipes: [],
+    const initial: SnowmakingNetworkState = { nodes: [], pipes: [], guns: [],
       nextNumbers: { hydrant: 1, junction: 1, pump: 1 } };
     const first = allocateSnowmakingNode(initial, { id: 'h1', kind: 'hydrant', point: A,
       elevM: 100, createdAt: '2026-01-01T00:00:00.000Z' });
@@ -191,7 +191,7 @@ describe('snowmaking detach and cleanup', () => {
   it('prunes an affected junction once it no longer joins two pipe routes', () => {
     const junction = node('junction', 'junction', 1);
     const state: SnowmakingNetworkState = {
-      nodes: [junction], pipes: [pipe('one', 'junction')],
+      nodes: [junction], pipes: [pipe('one', 'junction')], guns: [],
       nextNumbers: { hydrant: 1, junction: 2, pump: 1 },
     };
     const cleaned = pruneAffectedJunctions(state, new Set(['junction']));

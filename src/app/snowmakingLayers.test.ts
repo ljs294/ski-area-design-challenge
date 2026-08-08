@@ -4,13 +4,18 @@ import {
   SNOWMAKING_BUILT_LAYER_IDS,
   SNOWMAKING_DRAFT_LAYER_IDS,
   SNOWMAKING_HIT_LAYERS,
+  SNOWMAKING_HOVER_LAYERS,
   addSnowmakingLayers,
   setSelectedSnowmakingNode,
   setSnowmakingData,
+  setSnowgunDraftData,
+  setSelectedSnowmakingFeature,
+  snowgunDraftToGeoJSON,
+  snowmakingNetworkToGeoJSON,
   snowmakingNodesToGeoJSON,
   snowmakingDraftToGeoJSON,
 } from './snowmakingLayers';
-import type { SavedSnowmakingNode } from '../types/snowmaking';
+import type { SavedSnowgun, SavedSnowmakingNode } from '../types/snowmaking';
 
 const NODES: SavedSnowmakingNode[] = [
   { id: 'node-1', name: 'Upper Pond Intake', kind: 'intake', point: [-121.5, 47.2],
@@ -19,6 +24,12 @@ const NODES: SavedSnowmakingNode[] = [
     elevM: 1210, createdAt: 'now' },
   { id: 'node-3', name: 'Hydrant 3', kind: 'hydrant', point: [-121.52, 47.22],
     elevM: 1220, createdAt: 'now' },
+];
+const GUNS: SavedSnowgun[] = [
+  { id: 'gun-1', variantId: 'HKD_ImpulseR5_10s', point: [-121.5201, 47.2201],
+    elevM: 1221, hydrantId: 'node-3', createdAt: 'now' },
+  { id: 'gun-2', variantId: 'HKD_ImpulseR5_20t', point: [-121.54, 47.24],
+    elevM: null, hydrantId: null, createdAt: 'now' },
 ];
 
 describe('snowmaking network map layers', () => {
@@ -42,6 +53,31 @@ describe('snowmaking network map layers', () => {
   it('keeps the hit layers a subset of the built layer ids', () => {
     for (const id of SNOWMAKING_HIT_LAYERS) expect(SNOWMAKING_BUILT_LAYER_IDS).toContain(id);
     expect(SNOWMAKING_BUILT_LAYER_IDS.length).toBeGreaterThanOrEqual(SNOWMAKING_HIT_LAYERS.length);
+  });
+
+  it('uses visible pipe geometry for the clickable hover affordance', () => {
+    expect(SNOWMAKING_HOVER_LAYERS).toContain('snowmaking-pipes');
+    expect(SNOWMAKING_HOVER_LAYERS).toContain('snowmaking-pipe-casing');
+  });
+
+  it('renders installed guns with catalog and connection metadata', () => {
+    const data = snowmakingNetworkToGeoJSON(NODES, [], GUNS);
+    const guns = data.features.filter((feature) => feature.properties?.entityKind === 'gun');
+    expect(guns).toHaveLength(2);
+    expect(guns[0].properties).toMatchObject({ id: 'gun-1', variantId: 'HKD_ImpulseR5_10s',
+      variantLabel: 'R5 10S', connected: true, hydrantId: 'node-3' });
+    expect(guns[1].properties).toMatchObject({ id: 'gun-2', connected: false });
+  });
+
+  it('draws draft hookups and a non-color disconnected warning', () => {
+    const data = snowgunDraftToGeoJSON({ guns: [
+      { point: [0, 0], hydrantPoint: [0, 0.0001], connected: true },
+      { point: [1, 1], hydrantPoint: null, connected: false },
+    ], candidate: { point: [2, 2], hydrantPoint: null, connected: false } });
+    expect(data.features.map((feature) => feature.properties?.kind)).toEqual([
+      'gun-hose', 'gun', 'gun', 'gun',
+    ]);
+    expect(SNOWMAKING_DRAFT_LAYER_IDS).toContain('snowmaking-gun-draft-warnings');
   });
 
   it('renders a route interval, endpoints, pending hydrants, and non-color conflict marks', () => {
@@ -95,5 +131,9 @@ describe('snowmaking network map layers', () => {
     // Missing/null map is a safe no-op.
     expect(() => setSnowmakingData(null, NODES)).not.toThrow();
     expect(() => setSelectedSnowmakingNode(null, 'x')).not.toThrow();
+    setSelectedSnowmakingFeature(map, { kind: 'gun', id: 'gun-1' });
+    expect(layers.find((layer) => layer.id === 'snowmaking-gun-selected')?.filter)
+      .toEqual(['all', ['==', ['get', 'entityKind'], 'gun'], ['==', ['get', 'id'], 'gun-1']]);
+    expect(() => setSnowgunDraftData(null, { guns: [], candidate: null })).not.toThrow();
   });
 });

@@ -27,7 +27,7 @@ export function initialResortDesign(save?: GameSave | null) {
   const ponds = sanitizePonds(save?.ponds ?? []);
   const snowmaking = hydrateSnowmakingNetwork(reconcileSnowmakingNodes(
     sanitizeSnowmakingNodes(save?.snowmakingNodes ?? []), dams, ponds),
-  save?.snowmakingPipes ?? [], save?.snowmakingNodeNextNumbers);
+  save?.snowmakingPipes ?? [], save?.snowmakingNodeNextNumbers, save?.snowguns ?? []);
   return {
     lifts,
     trails: topology.trails,
@@ -36,6 +36,7 @@ export function initialResortDesign(save?: GameSave | null) {
     ponds,
     snowmakingNodes: snowmaking.nodes,
     snowmakingPipes: snowmaking.pipes,
+    snowguns: snowmaking.guns,
     snowmakingNodeNextNumbers: snowmaking.nextNumbers,
     nodes,
     paths: topology.paths,

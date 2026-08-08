@@ -33,7 +33,8 @@ const TYPE_FACADE_MANIFEST = new Map([
   ]],
   ['./types/roads', ['RoadType', 'SavedRoad']],
   ['./types/snowmaking', [
-    'SavedDam', 'SavedPond', 'SavedSnowmakingNode', 'SnowmakingNodeKind', 'SnowmakingSourceRef',
+    'SavedDam', 'SavedPond', 'SavedSnowgun', 'SavedSnowmakingNode', 'SnowgunVariantId',
+    'SnowmakingNodeKind', 'SnowmakingSourceRef',
   ]],
   ['./types/terrain', [
     'AreaSizeMeters', 'ClimateMonth', 'ClimateProfile', 'ContourMetadata',

@@ -1,6 +1,6 @@
 import type { SavedLift } from './lifts';
 import type { SavedRoad } from './roads';
-import type { SavedDam, SavedPond, SavedSnowmakingNode, SavedSnowmakingPipe,
+import type { SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingNodeNextNumbers } from './snowmaking';
 import type { SavedJunction, SavedNode, SavedPath } from './topology';
 import type { SavedTrail } from './trails';
@@ -35,6 +35,7 @@ export interface GameSave {
   junctions?: SavedJunction[];
   snowmakingNodes?: SavedSnowmakingNode[];
   snowmakingPipes?: SavedSnowmakingPipe[];
+  snowguns?: SavedSnowgun[];
   snowmakingNodeNextNumbers?: SnowmakingNodeNextNumbers;
   lakeDepthOverrides?: Record<string, number>;
   lakeNameOverrides?: Record<string, string>;

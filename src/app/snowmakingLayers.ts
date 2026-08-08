@@ -1,33 +1,49 @@
 import type maplibregl from 'maplibre-gl';
 import { snowmakingNodeLabel } from '../snowmakingNetwork';
-import type { SavedSnowmakingNode, SavedSnowmakingPipe } from '../types/snowmaking';
+import { snowgunVariant } from '../snowmakingGuns';
+import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe } from '../types/snowmaking';
 
 const SNOWMAKING_SOURCE = 'snowmaking-network';
 const SNOWMAKING_DRAFT_SOURCE = 'snowmaking-network-draft';
 
-export const SNOWMAKING_HIT_LAYERS = ['snowmaking-node-hit', 'snowmaking-pipe-hit'] as const;
+export const SNOWMAKING_HIT_LAYERS = [
+  'snowmaking-gun-hit', 'snowmaking-node-hit', 'snowmaking-pipe-hit',
+] as const;
+/** Visible geometry is included so installed pipes advertise clickability even
+ * when the transparent hit line is visually indistinguishable from the map. */
+export const SNOWMAKING_HOVER_LAYERS = [
+  'snowmaking-gun-hit', 'snowmaking-node-hit', 'snowmaking-pipe-hit', 'snowmaking-guns',
+  'snowmaking-pipes', 'snowmaking-pipe-casing',
+] as const;
 export const SNOWMAKING_DRAFT_LAYER_IDS = [
   'snowmaking-pipe-draft', 'snowmaking-pipe-draft-vertices', 'snowmaking-snap-preview',
   'snowmaking-hydrant-route', 'snowmaking-hydrant-interval', 'snowmaking-hydrant-endpoints',
   'snowmaking-hydrant-preview', 'snowmaking-hydrant-preview-labels',
+  'snowmaking-gun-draft-hoses', 'snowmaking-gun-draft', 'snowmaking-gun-draft-warnings',
 ] as const;
 export const SNOWMAKING_BUILT_LAYER_IDS = [
   'snowmaking-pipe-casing', 'snowmaking-pipes', 'snowmaking-pipe-selected',
   'snowmaking-node-halo', 'snowmaking-nodes', 'snowmaking-node-selected',
-  'snowmaking-node-labels', ...SNOWMAKING_HIT_LAYERS,
+  'snowmaking-node-labels', 'snowmaking-gun-selected', 'snowmaking-guns',
+  ...SNOWMAKING_HIT_LAYERS,
 ] as const;
 
 type NetworkProperties = {
   id: string;
-  entityKind: 'node' | 'pipe';
+  entityKind: 'node' | 'pipe' | 'gun';
   name: string;
   kind?: string;
   label?: string;
   diameterIn?: number;
+  variantId?: string;
+  variantLabel?: string;
+  connected?: boolean;
+  hydrantId?: string;
 };
 
 export function snowmakingNetworkToGeoJSON(nodes: readonly SavedSnowmakingNode[],
-  pipes: readonly SavedSnowmakingPipe[]): GeoJSON.FeatureCollection<GeoJSON.Geometry, NetworkProperties> {
+  pipes: readonly SavedSnowmakingPipe[], guns: readonly SavedSnowgun[] = []):
+GeoJSON.FeatureCollection<GeoJSON.Geometry, NetworkProperties> {
   return {
     type: 'FeatureCollection',
     features: [
@@ -45,6 +61,14 @@ export function snowmakingNetworkToGeoJSON(nodes: readonly SavedSnowmakingNode[]
           kind: node.kind, label: snowmakingNodeLabel(node) },
         geometry: { type: 'Point', coordinates: node.point },
       })),
+      ...guns.map((gun): GeoJSON.Feature<GeoJSON.Point, NetworkProperties> => {
+        const variant = snowgunVariant(gun.variantId);
+        return { type: 'Feature', id: gun.id,
+          properties: { id: gun.id, entityKind: 'gun', name: variant.label,
+            variantId: gun.variantId, variantLabel: variant.shortLabel,
+            connected: !!gun.hydrantId, ...(gun.hydrantId ? { hydrantId: gun.hydrantId } : {}) },
+          geometry: { type: 'Point', coordinates: gun.point } };
+      }),
     ],
   };
 }
@@ -69,6 +93,12 @@ export interface SnowmakingDraftData {
   startPoint?: [number, number] | null;
   endPoint?: [number, number] | null;
   hydrants?: { point: [number, number]; conflict: boolean }[];
+}
+
+export interface SnowgunDraftData {
+  guns: { point: [number, number]; hydrantPoint: [number, number] | null; connected: boolean }[];
+  candidate: { point: [number, number]; hydrantPoint: [number, number] | null;
+    connected: boolean } | null;
 }
 
 export function snowmakingDraftToGeoJSON(draft: SnowmakingDraftData | null):
@@ -98,13 +128,32 @@ GeoJSON.FeatureCollection<GeoJSON.Geometry, { kind: 'line' | 'vertex' | 'snap' |
   return { type: 'FeatureCollection', features };
 }
 
+export function snowgunDraftToGeoJSON(draft: SnowgunDraftData | null):
+GeoJSON.FeatureCollection<GeoJSON.Geometry, { kind: 'gun' | 'gun-hose'; connected: boolean;
+  candidate?: boolean }> {
+  if (!draft) return { type: 'FeatureCollection', features: [] };
+  const rows = [...draft.guns.map((gun) => ({ ...gun, candidate: false })),
+    ...(draft.candidate ? [{ ...draft.candidate, candidate: true }] : [])];
+  const features: GeoJSON.Feature<GeoJSON.Geometry, { kind: 'gun' | 'gun-hose';
+    connected: boolean; candidate?: boolean }>[] = [];
+  for (const row of rows) {
+    if (row.hydrantPoint) features.push({ type: 'Feature', properties: {
+      kind: 'gun-hose', connected: true, candidate: row.candidate },
+    geometry: { type: 'LineString', coordinates: [row.hydrantPoint, row.point] } });
+    features.push({ type: 'Feature', properties: { kind: 'gun', connected: row.connected,
+      candidate: row.candidate }, geometry: { type: 'Point', coordinates: row.point } });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
 export function addSnowmakingLayers(map: maplibregl.Map): void {
   if (map.getSource(SNOWMAKING_SOURCE)) return;
-  map.addSource(SNOWMAKING_SOURCE, { type: 'geojson', data: snowmakingNetworkToGeoJSON([], []) });
+  map.addSource(SNOWMAKING_SOURCE, { type: 'geojson', data: snowmakingNetworkToGeoJSON([], [], []) });
   map.addSource(SNOWMAKING_DRAFT_SOURCE, { type: 'geojson', data: snowmakingDraftToGeoJSON(null) });
 
   const pipeFilter: maplibregl.FilterSpecification = ['==', ['get', 'entityKind'], 'pipe'];
   const nodeFilter: maplibregl.FilterSpecification = ['==', ['get', 'entityKind'], 'node'];
+  const gunFilter: maplibregl.FilterSpecification = ['==', ['get', 'entityKind'], 'gun'];
   map.addLayer({ id: 'snowmaking-pipe-casing', type: 'line', source: SNOWMAKING_SOURCE,
     filter: pipeFilter, layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: { 'line-color': '#ffffff', 'line-opacity': 0.92,
@@ -138,12 +187,22 @@ export function addSnowmakingLayers(map: maplibregl.Map): void {
       'text-optional': true }, paint: { 'text-color': '#1f2937',
       'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } });
 
+  map.addLayer({ id: 'snowmaking-gun-selected', type: 'circle', source: SNOWMAKING_SOURCE,
+    filter: ['all', gunFilter, ['==', ['get', 'id'], '']], paint: { 'circle-radius': 10,
+      'circle-color': '#fff1a8', 'circle-opacity': 0.65, 'circle-stroke-width': 0 } });
+  map.addLayer({ id: 'snowmaking-guns', type: 'circle', source: SNOWMAKING_SOURCE,
+    filter: gunFilter, paint: { 'circle-radius': 6, 'circle-color': '#6d4cc3',
+      'circle-stroke-width': 0 } });
+
   map.addLayer({ id: 'snowmaking-pipe-hit', type: 'line', source: SNOWMAKING_SOURCE,
     filter: pipeFilter, paint: { 'line-width': 16, 'line-color': 'rgba(0,0,0,0)',
       'line-opacity': 0.01 } });
   map.addLayer({ id: 'snowmaking-node-hit', type: 'circle', source: SNOWMAKING_SOURCE,
     filter: nodeFilter, paint: { 'circle-radius': 12, 'circle-color': 'rgba(0,0,0,0)',
       'circle-opacity': 0.01 } });
+  map.addLayer({ id: 'snowmaking-gun-hit', type: 'circle', source: SNOWMAKING_SOURCE,
+    filter: gunFilter, paint: { 'circle-radius': 13, 'circle-color': 'rgba(0,0,0,0)',
+      'circle-opacity': 0.01, 'circle-stroke-width': 0 } });
 
   map.addLayer({ id: 'snowmaking-pipe-draft', type: 'line', source: SNOWMAKING_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'line'], layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -176,12 +235,27 @@ export function addSnowmakingLayers(map: maplibregl.Map): void {
       ['==', ['get', 'conflict'], true]], layout: { 'text-field': ['get', 'label'],
       'text-size': 14, 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': true },
     paint: { 'text-color': '#b91c1c' } });
+  map.addLayer({ id: 'snowmaking-gun-draft-hoses', type: 'line', source: SNOWMAKING_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'gun-hose'], layout: { 'line-cap': 'round' },
+    paint: { 'line-color': '#6d4cc3', 'line-width': 2, 'line-dasharray': [2, 1] } });
+  map.addLayer({ id: 'snowmaking-gun-draft', type: 'circle', source: SNOWMAKING_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'gun'], paint: { 'circle-radius': ['case',
+      ['get', 'candidate'], 7, 6], 'circle-color': ['case', ['get', 'connected'],
+      '#6d4cc3', '#ffffff'], 'circle-stroke-color': ['case', ['get', 'connected'],
+      '#ffffff', '#b91c1c'], 'circle-stroke-width': ['case', ['get', 'connected'], 1, 3] } });
+  map.addLayer({ id: 'snowmaking-gun-draft-warnings', type: 'symbol',
+    source: SNOWMAKING_DRAFT_SOURCE, filter: ['all', ['==', ['get', 'kind'], 'gun'],
+      ['==', ['get', 'connected'], false]], layout: { 'text-field': '!', 'text-size': 14,
+      'text-offset': [0.75, -0.75], 'text-font': ['Noto Sans Regular'],
+      'text-allow-overlap': true }, paint: { 'text-color': '#b91c1c',
+      'text-halo-color': '#ffffff', 'text-halo-width': 2 } });
 }
 
 export function setSnowmakingData(map: maplibregl.Map | null,
-  nodes: readonly SavedSnowmakingNode[], pipes: readonly SavedSnowmakingPipe[] = []): void {
+  nodes: readonly SavedSnowmakingNode[], pipes: readonly SavedSnowmakingPipe[] = [],
+  guns: readonly SavedSnowgun[] = []): void {
   (map?.getSource(SNOWMAKING_SOURCE) as maplibregl.GeoJSONSource | undefined)
-    ?.setData(snowmakingNetworkToGeoJSON(nodes, pipes));
+    ?.setData(snowmakingNetworkToGeoJSON(nodes, pipes, guns));
 }
 
 export function setSelectedSnowmakingNode(map: maplibregl.Map | null, id: string | null): void {
@@ -199,14 +273,23 @@ export function setSnowmakingDraftData(map: maplibregl.Map | null,
     ?.setData(snowmakingDraftToGeoJSON(draft));
 }
 
+export function setSnowgunDraftData(map: maplibregl.Map | null,
+  draft: SnowgunDraftData | null): void {
+  (map?.getSource(SNOWMAKING_DRAFT_SOURCE) as maplibregl.GeoJSONSource | undefined)
+    ?.setData(snowgunDraftToGeoJSON(draft));
+}
+
 export function setSelectedSnowmakingFeature(map: maplibregl.Map | null,
-  selected: { kind: 'node' | 'pipe'; id: string } | null): void {
+  selected: { kind: 'node' | 'pipe' | 'gun'; id: string } | null): void {
   if (map?.getLayer('snowmaking-node-selected')) map.setFilter('snowmaking-node-selected',
     ['all', ['==', ['get', 'entityKind'], 'node'],
       ['==', ['get', 'id'], selected?.kind === 'node' ? selected.id : '']]);
   if (map?.getLayer('snowmaking-pipe-selected')) map.setFilter('snowmaking-pipe-selected',
     ['all', ['==', ['get', 'entityKind'], 'pipe'],
       ['==', ['get', 'id'], selected?.kind === 'pipe' ? selected.id : '']]);
+  if (map?.getLayer('snowmaking-gun-selected')) map.setFilter('snowmaking-gun-selected',
+    ['all', ['==', ['get', 'entityKind'], 'gun'],
+      ['==', ['get', 'id'], selected?.kind === 'gun' ? selected.id : '']]);
 }
 
 export function setSnowmakingCaptureTransient(map: maplibregl.Map | null, hidden: boolean): void {

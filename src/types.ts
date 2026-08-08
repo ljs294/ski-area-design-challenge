@@ -16,8 +16,8 @@ export type {
 } from './types/lifts';
 export type { RoadType, SavedRoad } from './types/roads';
 export type {
-  SavedDam, SavedPond, SavedSnowmakingNode, SnowmakingNodeKind,
-  SnowmakingSourceRef,
+  SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SnowgunVariantId,
+  SnowmakingNodeKind, SnowmakingSourceRef,
 } from './types/snowmaking';
 export type {
   AreaSizeMeters, ClimateMonth, ClimateProfile, ContourMetadata,

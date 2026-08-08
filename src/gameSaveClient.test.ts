@@ -106,7 +106,7 @@ describe('game preview fallback storage', () => {
     expect((await loadGame('pond-designation'))?.ponds?.[0].isSnowmaking).toBe(false);
   });
 
-  it('round-trips schema-v11 snowmaking network nodes', async () => {
+  it('round-trips schema-v11 snowmaking network nodes and snowguns', async () => {
     const save: GameSave = { ...game('snowmaking-nodes', '2026-08-01T00:00:00.000Z'), schemaVersion: 11,
       dams: [{ id: 'dam-1', name: 'Dam 1', points: [[0, 0], [0.001, 0]],
         crestElevationM: 1000, streamId: 'way/1', streamName: 'Creek', sourceWidthM: 3,
@@ -117,8 +117,11 @@ describe('game preview fallback storage', () => {
         point: [0.0005, 0.0005], elevM: 1000, source: { kind: 'dam', damId: 'dam-1' },
         createdAt: '2026-08-01T00:00:00.000Z' },
         { id: 'node-2', name: 'Hydrant A', kind: 'hydrant', point: [0.001, 0.001],
-          elevM: null, createdAt: '2026-08-01T00:00:00.000Z' }] };
+          elevM: null, createdAt: '2026-08-01T00:00:00.000Z' }],
+      snowguns: [{ id: 'gun-1', variantId: 'HKD_ImpulseR5_10s', point: [0.00101, 0.001],
+        elevM: null, hydrantId: 'node-2', createdAt: '2026-08-01T00:00:00.000Z' }] };
     await saveGame(save);
     expect((await loadGame('snowmaking-nodes'))?.snowmakingNodes).toEqual(save.snowmakingNodes);
+    expect((await loadGame('snowmaking-nodes'))?.snowguns).toEqual(save.snowguns);
   });
 });

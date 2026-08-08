@@ -109,3 +109,20 @@ export interface SavedSnowmakingPipe {
   verticalM: number | null;
   createdAt: string;
 }
+
+export type SnowgunVariantId =
+  | 'HKD_ImpulseR5_10s'
+  | 'HKD_ImpulseR5_10t'
+  | 'HKD_ImpulseR5_20t'
+  | 'HKD_ImpulseR5_30t';
+
+/** Installed snowmaking equipment. Guns consume at hydrants but are not pipe-topology nodes. */
+export interface SavedSnowgun {
+  id: string;
+  variantId: SnowgunVariantId;
+  point: [number, number];
+  elevM: number | null;
+  /** Null means installed but currently disconnected. */
+  hydrantId: string | null;
+  createdAt: string;
+}

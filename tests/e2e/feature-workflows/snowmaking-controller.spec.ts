@@ -1,5 +1,5 @@
 import { expect, test } from '../support/deterministicApp';
-import { jumpTo, pointAt, setCaptureTransients, sourceFeatureCount } from '../support/mapProbe';
+import { jumpTo, pointAt, setCaptureTransients, sourceFeatureCount, visibilityOf } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
 
 const FIXED_TIME = '2026-01-01T00:00:00.000Z';
@@ -119,7 +119,18 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.getByRole('button', { name: 'Install pipe' }).click();
   await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(1);
 
+  await page.mouse.move(end.x, end.y);
+  await expect.poll(() => page.locator('.maplibregl-canvas')
+    .evaluate((canvas) => canvas.style.cursor)).toBe('pointer');
+
   await page.getByRole('button', { name: 'Place one hydrant' }).click();
+  const singleSnap = page.getByRole('checkbox', {
+    name: 'Snap single hydrant to snowmaking network',
+  });
+  await expect(singleSnap).toBeVisible();
+  await singleSnap.check();
+  await expect(singleSnap).toBeChecked();
+  await singleSnap.uncheck();
   const hydrant = await pointAt(page, [-121.4945, 46.905]);
   await page.mouse.click(hydrant.x, hydrant.y);
   await page.getByRole('button', { name: 'Place hydrant' }).click();
@@ -131,6 +142,14 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.mouse.click(pipeTarget.x, pipeTarget.y);
   await expect(page.getByText('Select run start', { exact: true })).toBeVisible();
   const runStart = await pointAt(page, [-121.49575, 46.90465]);
+  await page.mouse.move(runStart.x, runStart.y);
+  await expect.poll(() => page.evaluate(() => {
+    const source = (window as unknown as { appMap: { getSource(id: string): {
+      serialize(): { data?: { features?: { properties?: { kind?: string; label?: string } }[] } };
+    } | undefined } }).appMap.getSource('snowmaking-network-draft');
+    return source?.serialize().data?.features?.some((feature) =>
+      feature.properties?.kind === 'endpoint' && feature.properties.label === 'S') ?? false;
+  })).toBe(true);
   await page.mouse.click(runStart.x, runStart.y);
   await expect(page.getByText('Select run end', { exact: true })).toBeVisible();
   const runEnd = await pointAt(page, [-121.49375, 46.90585]);
@@ -141,6 +160,31 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.getByRole('button', { name: 'Place 4 hydrants' }).click();
   await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(6);
   await expect(page.getByRole('button', { name: /Hydrant 5/ })).toBeVisible();
+
+  await page.getByRole('button', { name: '＋ Install snowguns' }).click();
+  const gunType = page.getByRole('combobox', { name: 'Snowgun type' });
+  await expect(gunType.getByRole('option')).toHaveCount(4);
+  await page.mouse.click(hydrant.x, hydrant.y);
+  await gunType.selectOption('HKD_ImpulseR5_20t');
+  // A clear upper-right map location is well beyond the 50 ft hookup radius.
+  await page.mouse.click(1000, 200);
+  await expect(page.getByText('Plan total').locator('..')).toContainText('$15,000');
+  await setCaptureTransients(page, true);
+  await expect.poll(() => visibilityOf(page, 'snowmaking-gun-draft')).toBe('none');
+  await setCaptureTransients(page, false);
+  await expect.poll(() => visibilityOf(page, 'snowmaking-gun-draft')).toBe('visible');
+  await page.getByRole('button', { name: 'Review 2 snowguns' }).click();
+  await expect(page.getByText(/Disconnected guns will be built/)).toBeVisible();
+  await page.getByRole('button', { name: /Build 2 snowguns/ }).click();
+  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(8);
+
+  await page.getByRole('button', { name: 'Mountain Dashboards' }).click();
+  await page.getByRole('group', { name: 'Mountain dashboards' })
+    .getByRole('button', { name: 'Snowmaking', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Show snowgun types' })).not.toBeChecked();
+  await expect(page.getByText('Catalog value').locator('..')).toContainText('$15,000');
+  await expect(page.getByLabel('Warning: disconnected snowgun')).toBeVisible();
+  await page.getByRole('button', { name: /Close snowmaking map/ }).click();
 
   await page.getByRole('button', { name: /^Menu/ }).click();
   await page.locator('.hud-save').click();
@@ -155,5 +199,9 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
       { kind: 'hydrant', labelNumber: 5 },
     ],
     snowmakingNodeNextNumbers: { hydrant: 6, junction: 1, pump: 1 },
+    snowguns: [
+      { variantId: 'HKD_ImpulseR5_10s', hydrantId: expect.any(String) },
+      { variantId: 'HKD_ImpulseR5_20t', hydrantId: null },
+    ],
   });
 });

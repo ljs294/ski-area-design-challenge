@@ -11,13 +11,16 @@ import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
 import { snowmakingNodeLabel } from '../snowmakingNetwork';
 import { SNOWMAKING_PIPE_DIAMETERS_IN } from '../types/snowmaking';
 import type { SavedSnowmakingNode, SavedSnowmakingPipe, SnowmakingLakeSource,
-  SnowmakingPipeDiameterIn } from '../types/snowmaking';
+  SavedSnowgun, SnowgunVariantId, SnowmakingPipeDiameterIn } from '../types/snowmaking';
 import type { Units } from './SettingsContext';
 import type { DamTool, DraftDam } from './damControllerModel';
 import type { DraftPond, PondTool } from './pondControllerModel';
 import type { SnowmakingHydrantRunTool, SnowmakingNodeTool,
   SnowmakingPipeTool } from './snowmakingNetworkControllerModel';
 import type { SnowmakingHydrantRunPreview } from './useSnowmakingNetworkController';
+import { SnowgunDirectory, SnowgunInspector, SnowgunToolPanel } from './SnowgunControl';
+import type { SnowgunTool } from './snowmakingGunControllerModel';
+import type { SnowgunPlanPreview } from './useSnowgunController';
 
 export type { DamTool, DraftDam } from './damControllerModel';
 export type { DraftPond, PondTool } from './pondControllerModel';
@@ -207,28 +210,33 @@ function snowmakingSourceName(node: SavedSnowmakingNode, dams: SavedDam[], ponds
  *  pipe network that will carry their water uphill. Pipes are a placeholder —
  *  the button is deliberately inert until there is a network to build. */
 export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], selectedDam, selectedPond,
-  nodes, pipes, selectedNode, selectedPipe, pipeTool, nodeTool, hydrantRunTool,
-  hydrantRunPreview, diameterIn,
+  nodes, pipes, guns, selectedNode, selectedPipe, selectedGun, pipeTool, nodeTool, hydrantRunTool,
+  gunTool, gunPreview,
+  hydrantRunPreview, diameterIn, snapping,
   units, onArmDam, onCancelDam, onDamDraftChange, onConfirmDam,
   onSelectDam, onDeleteDam, onCloseDam, onArmPond, onCancelPond, onUndoPond, onFinishPond,
   onPondDraftChange, onPondElevationChange, onPondExcavationChange,
   onConfirmPond, onSelectPond, onDeletePond, onClosePond,
   onPondSnowmakingChange,
   onArmPipe, onCancelPipe, onUndoPipe, onFinishPipe, onConfirmPipe, onRenameDraftPipe,
-  onDiameterChange, onArmNode, onCancelNode, onConfirmNode,
+  onDiameterChange, onSnappingChange, onArmNode, onCancelNode, onConfirmNode,
   onArmHydrantRun, onCancelHydrantRun, onBackHydrantRun, onHydrantRunModeChange,
   onHydrantRunCountChange, onHydrantRunSpacingChange, onConfirmHydrantRun,
   onSelectNode, onRenameNode, onDeleteNode, onCloseNode,
   onSelectPipe, onPatchPipe, onDeletePipe, onClosePipe,
+  onArmGuns, onCancelGuns, onSnowgunVariantChange, onRemoveDraftGun, onReviewGuns,
+  onBackGuns, onConfirmGuns, onSelectGun, onMoveGun, onConfirmMoveGun, onDeleteGun, onCloseGun,
   onClose, building = false }: {
   damTool: DamTool; pondTool: PondTool; dams: SavedDam[];
   ponds: SavedPond[]; selectedDam: SavedDam | null; selectedPond: SavedPond | null;
   lakes?: SnowmakingLakeSource[];
-  nodes: SavedSnowmakingNode[]; pipes: SavedSnowmakingPipe[];
+  nodes: SavedSnowmakingNode[]; pipes: SavedSnowmakingPipe[]; guns: SavedSnowgun[];
   selectedNode: SavedSnowmakingNode | null; selectedPipe: SavedSnowmakingPipe | null;
+  selectedGun: SavedSnowgun | null;
   pipeTool: SnowmakingPipeTool; nodeTool: SnowmakingNodeTool;
   hydrantRunTool: SnowmakingHydrantRunTool; hydrantRunPreview: SnowmakingHydrantRunPreview | null;
-  diameterIn: SnowmakingPipeDiameterIn; units: Units;
+  gunTool: SnowgunTool; gunPreview: SnowgunPlanPreview;
+  diameterIn: SnowmakingPipeDiameterIn; snapping: boolean; units: Units;
   onArmDam: () => void;
   onCancelDam: () => void; onDamDraftChange: (patch: Partial<DraftDam>) => void; onConfirmDam: () => void;
   onSelectDam: (id: string) => void; onDeleteDam: (id: string) => void; onCloseDam: () => void;
@@ -241,6 +249,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onArmPipe: () => void; onCancelPipe: () => void; onUndoPipe: () => void;
   onFinishPipe: () => void; onConfirmPipe: () => void; onRenameDraftPipe: (name: string) => void;
   onDiameterChange: (diameter: SnowmakingPipeDiameterIn) => void;
+  onSnappingChange: (snapping: boolean) => void;
   onArmNode: (kind: 'pump' | 'hydrant') => void; onCancelNode: () => void; onConfirmNode: () => void;
   onArmHydrantRun: () => void; onCancelHydrantRun: () => void; onBackHydrantRun: () => void;
   onHydrantRunModeChange: (mode: 'count' | 'spacing') => void;
@@ -251,8 +260,18 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onSelectPipe: (id: string) => void;
   onPatchPipe: (id: string, patch: Pick<Partial<SavedSnowmakingPipe>, 'name' | 'diameterIn'>) => void;
   onDeletePipe: (id: string) => void; onClosePipe: () => void;
+  onArmGuns: () => void; onCancelGuns: () => void;
+  onSnowgunVariantChange: (id: SnowgunVariantId) => void;
+  onRemoveDraftGun: (id: string) => void; onReviewGuns: () => void; onBackGuns: () => void;
+  onConfirmGuns: () => void; onSelectGun: (id: string) => void; onMoveGun: (id: string) => void;
+  onConfirmMoveGun: () => void; onDeleteGun: (id: string) => void; onCloseGun: () => void;
   onClose: () => void; building?: boolean;
 }) {
+  const [pendingHydrantDeleteId, setPendingHydrantDeleteId] = useState<string | null>(null);
+  if (gunTool.phase !== 'idle') return <SnowgunToolPanel tool={gunTool} preview={gunPreview}
+    units={units} setVariant={onSnowgunVariantChange} removeDraft={onRemoveDraftGun}
+    review={onReviewGuns} back={onBackGuns} confirm={onConfirmGuns} cancel={onCancelGuns}
+    confirmMove={onConfirmMoveGun} />;
   if (pipeTool.phase === 'armed' || pipeTool.phase === 'drawing') {
     const pointCount = pipeTool.phase === 'drawing' ? pipeTool.points.length : 0;
     return <div className="site-control site-control-wide snowmaking-panel">
@@ -347,6 +366,12 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   if (nodeTool.phase === 'placing') return <div className="site-control site-control-wide snowmaking-panel">
     <PanelHead title={`Place ${nodeTool.kind}`} onClose={onCancelNode} />
     <div className="site-hint">Click a location, then confirm it. Leave this tool open to place several {nodeTool.kind}s.</div>
+    <label className="snowmaking-snap-toggle">
+      <input type="checkbox" checked={snapping}
+        aria-label={`Snap single ${nodeTool.kind} to snowmaking network`}
+        onChange={(event) => onSnappingChange(event.target.checked)} />
+      <span><strong>Node snapping</strong><small>Snap within 16 px of a pipe or existing node.</small></span>
+    </label>
     {nodeTool.error && <div className="lift-warning">{nodeTool.error}</div>}
     {nodeTool.candidate && <div className="lift-stats">
       <div className="readout-line"><span className="lift-stat-label">Elevation</span>
@@ -415,6 +440,9 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
     <div className="site-actions"><button className="site-btn" onClick={onCancelDam}>Cancel</button>
       <button className="site-btn site-btn-primary" disabled={building} onClick={onConfirmDam}>{building ? 'Building…' : 'Build dam'}</button></div>
   </div>;
+  if (selectedGun) return <SnowgunInspector gun={selectedGun} nodes={nodes} units={units}
+    close={onCloseGun} move={() => onMoveGun(selectedGun.id)}
+    remove={() => onDeleteGun(selectedGun.id)} />;
   if (selectedPipe) return <div className="site-control site-control-wide snowmaking-panel">
     <PanelHead title={selectedPipe.name} onClose={onClosePipe} />
     <input className="name-entry-input lift-name-input" aria-label="Pipe name" value={selectedPipe.name}
@@ -441,6 +469,8 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
     const sourceName = snowmakingSourceName(selectedNode, dams, ponds, lakes);
     const connections = pipes.filter((pipe) => pipe.vertices.some((vertex) =>
       vertex.nodeId === selectedNode.id)).length;
+    const connectedGun = selectedNode.kind === 'hydrant'
+      ? guns.find((gun) => gun.hydrantId === selectedNode.id) ?? null : null;
     return <div className="site-control site-control-wide snowmaking-panel">
       <PanelHead title={selectedNode.kind === 'intake' ? selectedNode.name
         : `${snowmakingNodeLabel(selectedNode)} · ${selectedNode.name}`} onClose={onCloseNode} />
@@ -464,7 +494,17 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
       {selectedNode.kind === 'junction' && <div className="site-hint">Junctions are managed automatically where pipe routes join.</div>}
       {(selectedNode.kind === 'pump' || selectedNode.kind === 'hydrant') && <>
         <div className="site-hint">Removing this device detaches connected pipes without changing their geometry.</div>
-        <button className="lift-delete-btn" onClick={() => onDeleteNode(selectedNode.id)}>Remove {selectedNode.kind}</button>
+        {pendingHydrantDeleteId === selectedNode.id && connectedGun ? <div className="lift-warning">
+          This hydrant serves a snowgun. Removing it will end that hookup; the gun remains installed
+          and reconnects only if another free hydrant is within 50 ft.
+          <div className="site-actions"><button className="site-btn"
+            onClick={() => setPendingHydrantDeleteId(null)}>Cancel</button>
+            <button className="lift-delete-btn" onClick={() => {
+              onDeleteNode(selectedNode.id); setPendingHydrantDeleteId(null);
+            }}>Remove hydrant</button></div></div>
+          : <button className="lift-delete-btn" onClick={() => connectedGun
+            ? setPendingHydrantDeleteId(selectedNode.id) : onDeleteNode(selectedNode.id)}>
+            Remove {selectedNode.kind}</button>}
       </>}
     </div>;
   }
@@ -491,8 +531,10 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
       <button className="site-btn" onClick={() => onArmNode('pump')}>Place pumps</button></div>
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmPipe}
       title="Draw a snowmaking pipe route">＋ Install snowmaking pipe</button>
+    <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmGuns}>
+      ＋ Install snowguns</button>
     <div className="site-hint">Pipe routes and network devices are saved with the resort.</div>
-    {dams.length === 0 && ponds.length === 0 && nodes.length === 0 && pipes.length === 0
+    {dams.length === 0 && ponds.length === 0 && nodes.length === 0 && pipes.length === 0 && guns.length === 0
       ? <div className="lift-overview-empty">No snowmaking infrastructure yet.</div> : <>
       {dams.length > 0 && <div className="lift-list">{dams.map((dam) => <button key={dam.id} className="lift-row lift-row-button" onClick={() => onSelectDam(dam.id)}>
         <span className="infrastructure-dam-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{dam.name}</span>
@@ -506,6 +548,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
           <span className="lift-row-main"><span className="lift-row-name">{pipe.name}</span>
             <span className="lift-row-summary">{pipe.diameterIn}&quot; · {fmtDistance(pipe.lengthM, units)}</span>
           </span></button>)}</div></>}
+      <SnowgunDirectory guns={guns} nodes={nodes} select={onSelectGun} />
       {nodes.length > 0 && <div className="lift-list">{nodes.map((node) => {
         const sourceName = snowmakingSourceName(node, dams, ponds, lakes);
         const summary = sourceName != null ? `${SNOWMAKING_NODE_LABELS[node.kind]} · ${sourceName}` : SNOWMAKING_NODE_LABELS[node.kind];

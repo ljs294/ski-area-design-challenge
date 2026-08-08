@@ -3260,6 +3260,103 @@ html.resume-capture .maplibregl-canvas {
   pointer-events: auto;
 }
 
+.snowgun-swatch {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #6d4cc3;
+}
+
+.snowgun-plan-list { display: grid; gap: 6px; margin: 8px 0; }
+.snowgun-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: var(--seg-bg);
+}
+.snowgun-plan-row > span:first-child { display: grid; min-width: 0; flex: 1; }
+.snowgun-plan-row small { color: var(--muted); }
+.snowgun-plan-row.is-disconnected { outline: 2px solid #b91c1c; }
+.snowgun-warning {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: #fff;
+  background: #b91c1c;
+  font-weight: 900;
+}
+
+.snowmaking-dashboard-gun-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.65rem;
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--panel-bg, #fff) 90%, transparent);
+  color: var(--text-primary, #172033);
+  font-size: 0.82rem;
+}
+
+.snowmaking-dashboard-gun {
+  cursor: pointer;
+}
+
+.snowmaking-dashboard-gun-dot {
+  fill: #7c3aed;
+  stroke: none;
+}
+
+.snowmaking-dashboard-gun-halo {
+  fill: none;
+  stroke: #111827;
+  stroke-width: 3;
+}
+
+.snowmaking-dashboard-gun-label {
+  fill: #111827;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+  font-weight: 700;
+}
+
+.snowmaking-dashboard-gun-warning {
+  fill: #dc2626;
+  stroke: #fff;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.snowmaking-dashboard-gun-warning-text {
+  fill: #fff;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.snowgun-disconnected-message {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.7rem 0;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.snowgun-delete-warning {
+  margin-top: 0.75rem;
+  padding: 0.7rem;
+  border: 1px solid #dc2626;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, #fee2e2 70%, transparent);
+}
+
 .snowmaking-tool-options {
   padding: 12px;
   border: 1px solid rgba(64, 74, 79, 0.25);
