@@ -207,12 +207,22 @@ describe('SnowmakingDashboard', () => {
     const html = render({ mode: 'analysis', nodes: [nodeA, nodeB, hydrant], pipes: [testPipe],
       guns: [connectedGun] });
     expect(html).toContain('data-inspector="analysis"');
-    expect(html).toContain('Check system');
-    expect(html).toMatch(/data-pipe-id="pipe-1"[^>]*aria-pressed="false"/);
+    expect(html).toContain('Operate snowguns');
+    expect(html).toContain('Select all connected');
+    expect(html).not.toContain('Check system');
+    expect(html).toContain('data-segment-id="pipe-1:segment:0"');
+    expect(html).toContain('data-segment-id="pipe-1:segment:1"');
     expect(html).toMatch(/data-gun-id="gun-1"[^>]*aria-pressed="false"/);
-    expect(html).toContain('Pump 1');
-    expect(html).toContain('No pump node is attached to the selected pipes.');
     expect(html).not.toContain('Remove pipe');
+  });
+
+  it('renders every incident pump arm as a persistent port assignment', () => {
+    const html = render({ selectedNodeId: nodeB.id, nodes: [nodeA, nodeB, hydrant],
+      pipes: [testPipe] });
+    expect(html).toContain('Hydraulic direction');
+    expect(html.match(/name="pump-direction-node-b"/g)).toHaveLength(2);
+    expect(html).toContain('Suction from Main');
+    expect(html).toContain('Configure at least one suction and one discharge arm.');
   });
 
   it('draws water bodies for both dams and standalone ponds', () => {

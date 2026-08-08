@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { SnowmakingControl, type DamTool, type PondTool } from './SnowmakingControl';
-import type { SavedSnowmakingNode } from '../types/snowmaking';
+import type { SavedSnowmakingNode, SavedSnowmakingPipe } from '../types/snowmaking';
 import type { SavedDam, SavedPond } from '../types';
 import type { SnowmakingHydrantRunTool } from './snowmakingNetworkControllerModel';
 import type { SnowmakingHydrantRunPreview } from './useSnowmakingNetworkController';
@@ -19,6 +19,7 @@ const callbacks = {
   onConfirmPipe: vi.fn(), onRenameDraftPipe: vi.fn(), onDiameterChange: vi.fn(),
   onSnappingChange: vi.fn(),
   onArmNode: vi.fn(), onCancelNode: vi.fn(), onConfirmNode: vi.fn(),
+  onSetPumpSuctionSide: vi.fn(), onSetPumpPort: vi.fn(),
   onArmHydrantRun: vi.fn(), onCancelHydrantRun: vi.fn(), onBackHydrantRun: vi.fn(),
   onHydrantRunModeChange: vi.fn(), onHydrantRunCountChange: vi.fn(),
   onHydrantRunSpacingChange: vi.fn(), onConfirmHydrantRun: vi.fn(),
@@ -74,6 +75,28 @@ describe('SnowmakingControl', () => {
       units="metric" {...callbacks} />);
     expect(html).toContain('Snap single hydrant to snowmaking network');
     expect(html).toContain('Snap within 16 px of a pipe or existing node.');
+  });
+
+  it('requires an explicit inline pump direction before placement', () => {
+    const testPipe: SavedSnowmakingPipe = { id: 'pipe-1', name: 'Main', diameterIn: 8,
+      vertices: [{ point: [0, 0], elevM: 100, nodeId: null },
+        { point: [0, 0.001], elevM: 90, nodeId: null }], lengthM: 111, verticalM: 10,
+      createdAt: '2026-01-01T00:00:00.000Z', segments: [{ id: 'segment-1',
+        startVertexIndex: 0, endVertexIndex: 1, startPumpPort: null, endPumpPort: null }] };
+    const candidate = { point: [0, 0.0005] as [number, number], elevM: 95, revision: 3,
+      snap: { kind: 'pipe' as const, pipeId: testPipe.id,
+        point: [0, 0.0005] as [number, number] }, pumpSegmentId: 'segment-1',
+      pumpSuctionSide: null };
+    const html = renderToStaticMarkup(<SnowmakingControl damTool={{ phase: 'idle' }}
+      pondTool={{ phase: 'idle' }} dams={[]} ponds={[]} selectedDam={null} selectedPond={null}
+      nodes={[]} pipes={[testPipe]} selectedNode={null} selectedPipe={null} {...gunProps}
+      pipeTool={{ phase: 'idle' }} nodeTool={{ phase: 'placing', kind: 'pump', candidate, error: null }}
+      hydrantRunTool={{ phase: 'idle' }} hydrantRunPreview={null} diameterIn={8} snapping={false}
+      units="metric" {...callbacks} />);
+    expect(html).toContain('Hydraulic direction');
+    expect(html).toContain('Suction from Main start');
+    expect(html).not.toContain('Snap single pump');
+    expect(html).toMatch(/disabled=""[^>]*>Place pump/);
   });
 
   it('reviews endpoint-inclusive hydrant layouts and reports skipped positions', () => {

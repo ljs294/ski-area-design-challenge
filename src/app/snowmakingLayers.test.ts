@@ -99,6 +99,15 @@ describe('snowmaking network map layers', () => {
     expect(SNOWMAKING_DRAFT_LAYER_IDS).toContain('snowmaking-hydrant-preview-labels');
   });
 
+  it('renders the chosen inline pump flow direction as an arrow path', () => {
+    const data = snowmakingDraftToGeoJSON({ points: [], cursor: null, snapPoint: [0, 0.001],
+      pumpDirection: [[0, 0], [0, 0.001], [0, 0.002]] });
+    expect(data.features.map((feature) => feature.properties?.kind)).toEqual([
+      'snap', 'pump-direction',
+    ]);
+    expect(SNOWMAKING_DRAFT_LAYER_IDS).toContain('snowmaking-pump-direction-preview');
+  });
+
   it('adds the source and every built layer to the map, idempotently', () => {
     const sources: Record<string, unknown> = {};
     const layers: { id: string; filter?: unknown; paint?: Record<string, unknown>;

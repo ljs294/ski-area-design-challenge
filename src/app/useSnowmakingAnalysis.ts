@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useReducer } from 'react';
-import { analyzeSnowmakingSystem } from '../snowmakingHydraulics';
+import { useEffect, useMemo, useReducer, useRef } from 'react';
+import { deriveSnowmakingAnalysisGroups, snowmakingSourceKey,
+  type SnowmakingSourceResource } from '../snowmakingHydraulics';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingLakeSource } from '../types/snowmaking';
 import type { SavedDam, SavedPond } from '../types';
+import { SnowmakingAnalysisAdapter } from './snowmakingAnalysisClient';
 import { createSnowmakingAnalysisState, pumpAnalysisSetting,
   snowmakingAnalysisReducer } from './snowmakingAnalysisModel';
 
@@ -17,34 +19,72 @@ export function useSnowmakingAnalysis(input: {
   const { nodes, pipes, guns, dams, ponds, lakes } = input;
   const [state, dispatch] = useReducer(snowmakingAnalysisReducer, undefined,
     createSnowmakingAnalysisState);
-  const pipeIds = useMemo(() => pipes.map((pipe) => pipe.id), [pipes]);
+  const adapterRef = useRef<SnowmakingAnalysisAdapter | null>(null);
+  if (!adapterRef.current) adapterRef.current = new SnowmakingAnalysisAdapter();
+
   const gunIds = useMemo(() => guns.map((gun) => gun.id), [guns]);
+  const intakeNodeIds = useMemo(() => nodes.filter((node) => node.kind === 'intake')
+    .map((node) => node.id), [nodes]);
   const pumpIds = useMemo(() => nodes.filter((node) => node.kind === 'pump')
     .map((node) => node.id), [nodes]);
+  const groups = useMemo(() => deriveSnowmakingAnalysisGroups({ nodes, pipes, guns }),
+    [nodes, pipes, guns]);
 
-  useEffect(() => dispatch({ type: 'reconcile', pipeIds, gunIds, pumpIds }),
-    [pipeIds, gunIds, pumpIds]);
+  useEffect(() => dispatch({ type: 'reconcile', gunIds, intakeNodeIds, pumpIds }),
+    [gunIds, intakeNodeIds, pumpIds]);
 
-  const sourceCapacitiesM3 = useMemo(() => Object.fromEntries(nodes.flatMap((node) => {
-    if (node.kind !== 'intake' || !node.source) return [];
+  const selectedGunSet = useMemo(() => new Set(state.selectedGunIds), [state.selectedGunIds]);
+  const relevantGroups = useMemo(() => groups.filter((group) =>
+    group.gunIds.some((id) => selectedGunSet.has(id))), [groups, selectedGunSet]);
+  const relevantIntakeIds = useMemo(() => relevantGroups.flatMap((group) => group.intakeNodeIds),
+    [relevantGroups]);
+  const automaticIntakeIds = useMemo(() => relevantGroups.flatMap((group) =>
+    group.intakeNodeIds.length === 1 ? group.intakeNodeIds : []), [relevantGroups]);
+  useEffect(() => dispatch({ type: 'auto-intakes', ids: automaticIntakeIds,
+    relevantIds: relevantIntakeIds }), [automaticIntakeIds, relevantIntakeIds]);
+
+  const sourceResourcesByIntakeId = useMemo(() => Object.fromEntries(nodes.flatMap((node) => {
+    if (node.kind !== 'intake') return [];
     const source = node.source;
-    const capacity = source.kind === 'dam'
-      ? dams.find((dam) => dam.id === source.damId)?.capacityM3
-      : source.kind === 'pond'
-        ? ponds.find((pond) => pond.id === source.pondId)?.capacityM3
-        : lakes.find((lake) => lake.id === source.lakeId)?.capacityM3;
-    return [[node.id, capacity ?? null]];
+    const entity = source?.kind === 'dam' ? dams.find((dam) => dam.id === source.damId)
+      : source?.kind === 'pond' ? ponds.find((pond) => pond.id === source.pondId)
+        : source?.kind === 'lake' ? lakes.find((lake) => lake.id === source.lakeId) : undefined;
+    const resource: SnowmakingSourceResource = {
+      sourceKey: snowmakingSourceKey(source, node.id),
+      name: entity?.name ?? node.name,
+      capacityM3: entity?.capacityM3 ?? null,
+    };
+    return [[node.id, resource]];
   })), [nodes, dams, ponds, lakes]);
 
-  const check = () => dispatch({ type: 'checked', result: analyzeSnowmakingSystem({
-    nodes, pipes, guns, selectedPipeIds: state.selectedPipeIds,
-    selectedGunIds: state.selectedGunIds, wetBulbF: Number(state.wetBulbF),
-    pumpSettings: Object.fromEntries(pumpIds.map((id) => [id,
-      pumpAnalysisSetting(state.pumpSettings[id])])), sourceCapacitiesM3,
-  }) });
-  const gunStatuses = state.result?.ok && !state.stale
-    ? Object.fromEntries(state.result.guns.map((gun) => [gun.gunId,
-      gun.status === 'ready' ? 'ready' as const : 'failed' as const])) : undefined;
+  useEffect(() => {
+    const adapter = adapterRef.current!;
+    if (state.selectedGunIds.length === 0) {
+      adapter.cancel(); dispatch({ type: 'clear-result' }); return;
+    }
+    dispatch({ type: 'calculation-started' });
+    const timeout = window.setTimeout(() => adapter.run({
+      nodes, pipes, guns,
+      selectedGunIds: state.selectedGunIds,
+      selectedIntakeNodeIds: state.selectedIntakeNodeIds,
+      wetBulbF: Number(state.wetBulbF),
+      pumpSettings: Object.fromEntries(pumpIds.map((id) => [id,
+        pumpAnalysisSetting(state.pumpSettings[id])])),
+      sourceResourcesByIntakeId,
+    }, {
+      onResult: (result) => dispatch({ type: 'analyzed', result }),
+      onError: (message) => dispatch({ type: 'analysis-error', message }),
+    }), 200);
+    return () => { window.clearTimeout(timeout); adapter.cancel(); };
+  }, [nodes, pipes, guns, pumpIds, sourceResourcesByIntakeId, state.selectedGunIds,
+    state.selectedIntakeNodeIds, state.wetBulbF, state.pumpSettings]);
 
-  return { state, dispatch, check, gunStatuses };
+  useEffect(() => () => adapterRef.current?.dispose(), []);
+
+  const gunStatuses = !state.stale && state.result ? Object.fromEntries(
+    state.result.systems.flatMap((system) => system.guns.map((gun) => [gun.gunId,
+      gun.status === 'ready' ? 'ready' as const : 'failed' as const]))) : undefined;
+
+  return { state, dispatch, groups, relevantGroups, gunStatuses,
+    sourceResourcesByIntakeId };
 }

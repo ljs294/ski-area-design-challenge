@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   allocateSnowmakingNode,
+  attachInlinePumpToSnowmakingPipe,
   attachNodesToSnowmakingPipe,
   buildSnowmakingPipe,
+  closestSnowmakingPipeLocation,
   detachSnowmakingNode,
   hydrateSnowmakingNetwork,
+  normalizeSnowmakingPipeSegments,
   pruneAffectedJunctions,
   populateSnowmakingHydrantRun,
   snowmakingNodeLabel,
   snowmakingPipeSpans,
+  snowmakingPipeSegments,
   snowmakingHydrantRunLayout,
   snowmakingPipeIntervalPoints,
   snowmakingPipePointAtStation,
@@ -60,6 +64,39 @@ describe('snowmaking pipe model', () => {
     expect(spans).toHaveLength(2);
     expect(spans[0].at(-1)?.nodeId).toBe('J1');
     expect(spans[1][0].nodeId).toBe('J1');
+  });
+
+  it('keeps stable segment identity and pump-facing roles across topology edits', () => {
+    const route = pipe('route', 'pump');
+    route.segments = normalizeSnowmakingPipeSegments(route).map((segment, index) => ({
+      ...segment,
+      ...(index === 0 ? { endPumpPort: 'suction' as const }
+        : { startPumpPort: 'discharge' as const }),
+    }));
+    let id = 0;
+    const split = attachNodesToSnowmakingPipe(route,
+      [{ stationM: route.lengthM * 0.25, nodeId: 'hydrant' }], () => `new-segment-${++id}`);
+    expect(split.segments).toHaveLength(3);
+    expect(split.segments?.map((segment) => segment.id)).not.toContain(route.segments[0].id);
+    expect(split.segments?.at(-1)?.id).toBe(route.segments.at(-1)?.id);
+    expect(split.segments?.[1].endPumpPort).toBe('suction');
+    expect(split.segments?.[2].startPumpPort).toBe('discharge');
+    expect(snowmakingPipeSegments(split).map((segment) => segment.vertices.length)
+      .every((length) => length >= 2)).toBe(true);
+  });
+
+  it('installs an inline pump with exactly two oppositely configured arms', () => {
+    const route = pipe('main');
+    const location = closestSnowmakingPipeLocation(route, B)!;
+    const installed = attachInlinePumpToSnowmakingPipe(route, location, 'pump-1',
+      'route-start', (() => { let id = 0; return () => `split-${++id}`; })());
+    expect(installed).not.toBeNull();
+    const arms = snowmakingPipeSegments(installed!).filter((segment) =>
+      segment.fromNodeId === 'pump-1' || segment.toNodeId === 'pump-1');
+    expect(arms).toHaveLength(2);
+    expect(arms.find((segment) => segment.toNodeId === 'pump-1')?.endPumpPort).toBe('suction');
+    expect(arms.find((segment) => segment.fromNodeId === 'pump-1')?.startPumpPort).toBe('discharge');
+    expect(arms.map((segment) => segment.id)).not.toContain(route.segments?.[0].id);
   });
 });
 
@@ -176,6 +213,19 @@ describe('snowmaking numbering and hydration', () => {
     const hydrated = hydrateSnowmakingNetwork([junction], [valid, { ...valid, id: 'junction' }], null);
     expect(hydrated.pipes).toHaveLength(1);
     expect(hydrateSnowmakingNetwork([], [], null).pipes).toEqual([]);
+  });
+
+  it('materializes schema-12 segments for legacy pipes and repairs malformed metadata', () => {
+    const legacy = pipe('legacy');
+    const { segments: _segments, ...withoutSegments } = legacy;
+    const hydrated = hydrateSnowmakingNetwork([], [withoutSegments], null);
+    expect(hydrated.pipes[0].segments).toEqual([{ id: 'legacy:segment:0',
+      startVertexIndex: 0, endVertexIndex: legacy.vertices.length - 1,
+      startPumpPort: null, endPumpPort: null }]);
+    const malformed = { ...legacy, segments: [{ id: 'duplicate', startVertexIndex: 1,
+      endVertexIndex: 2, startPumpPort: 'suction', endPumpPort: 'discharge' }] };
+    expect(hydrateSnowmakingNetwork([], [malformed], null).pipes[0].segments)
+      .toEqual(hydrated.pipes[0].segments);
   });
 });
 

@@ -3317,6 +3317,12 @@ html.resume-capture .maplibregl-canvas {
   cursor: pointer;
 }
 
+.snowmaking-dashboard-gun-hit {
+  fill: transparent;
+  stroke: transparent;
+  pointer-events: all;
+}
+
 .snowmaking-dashboard-gun-dot {
   fill: #000;
   stroke: none;
@@ -3460,6 +3466,39 @@ html.resume-capture .maplibregl-canvas {
   outline: none;
 }
 
+.snowmaking-dashboard-pipe.is-analysis-relevant {
+  cursor: default;
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+.snowmaking-dashboard--analysis .snowmaking-dashboard-pipe:not(.is-analysis-relevant) {
+  cursor: default;
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+.snowmaking-dashboard-pipe.is-analysis-active {
+  opacity: 1;
+  stroke-width: 4;
+}
+
+.snowmaking-dashboard-pipe.is-analysis-inactive {
+  opacity: 0.22;
+  stroke-width: 1.75;
+}
+
+.snowmaking-dashboard-flow-label {
+  fill: #111827;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 3px;
+  pointer-events: none;
+  font-weight: 800;
+}
+
+.snowmaking-dashboard--analysis .snowmaking-dashboard-nodes { pointer-events: none; }
+
 .snowmaking-dashboard-pipe:hover,
 .snowmaking-dashboard-pipe:focus,
 .snowmaking-dashboard-pipe.is-selected {
@@ -3499,6 +3538,42 @@ html.resume-capture .maplibregl-canvas {
 .snowmaking-analysis-checklist span { display: grid; min-width: 0; }
 .snowmaking-analysis-checklist small { color: var(--text-muted); }
 .snowmaking-analysis-checklist .is-disabled { opacity: 0.55; }
+.snowmaking-analysis-groups,
+.snowmaking-analysis-source-group { display: grid; gap: 8px; }
+.snowmaking-analysis-groups fieldset,
+.snowmaking-analysis-source-group,
+.snowmaking-pump-ports {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.snowmaking-analysis-groups legend,
+.snowmaking-analysis-source-group legend,
+.snowmaking-pump-ports legend { padding: 0 4px; font-weight: 700; }
+.snowmaking-analysis-source-group > label,
+.snowmaking-pump-ports > label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 7px 0;
+}
+.snowmaking-analysis-source-group span,
+.snowmaking-pump-ports span { display: grid; }
+.snowmaking-analysis-source-group small,
+.snowmaking-pump-ports small { color: var(--text-muted); }
+.snowmaking-pump-directions { display: grid; gap: 6px; margin-top: 7px; }
+.snowmaking-pump-directions > label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
 .snowmaking-analysis-pumps { display: grid; gap: 8px; }
 .snowmaking-analysis-pumps fieldset {
   margin: 0;

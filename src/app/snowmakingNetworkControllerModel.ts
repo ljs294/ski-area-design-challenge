@@ -21,6 +21,9 @@ export interface SnowmakingNodeCandidate {
   point: [number, number];
   snap: SnowmakingSnapIntent | null;
   elevM: number | null;
+  revision: number;
+  pumpSegmentId: string | null;
+  pumpSuctionSide: 'route-start' | 'route-end' | null;
 }
 
 export type SnowmakingNodeTool =
@@ -37,6 +40,20 @@ export type SnowmakingHydrantRunTool =
       mode: 'count' | 'spacing'; count: number; spacingM: number; revision: number;
       error: string | null };
 
+export interface SnowmakingHydrantRunPreview {
+  pipeName: string | null;
+  selectedRoute: [number, number][];
+  intervalPoints: [number, number][];
+  startPoint: [number, number] | null;
+  endPoint: [number, number] | null;
+  lengthM: number | null;
+  actualSpacingM: number | null;
+  positions: { station: SnowmakingPipeStation; conflict: boolean }[];
+  newCount: number;
+  skippedCount: number;
+  error: string | null;
+}
+
 export type SnowmakingPipeAction =
   | { type: 'arm' }
   | { type: 'add'; point: SnowmakingDraftPoint }
@@ -50,6 +67,7 @@ export type SnowmakingPipeAction =
 export type SnowmakingNodeAction =
   | { type: 'arm'; kind: 'pump' | 'hydrant' }
   | { type: 'candidate'; candidate: SnowmakingNodeCandidate | null; error: string | null }
+  | { type: 'pump-direction'; side: 'route-start' | 'route-end' }
   | { type: 'committed' }
   | { type: 'cancel' };
 
@@ -99,6 +117,8 @@ export function reduceSnowmakingNodeTool(state: SnowmakingNodeTool,
     case 'arm': return { phase: 'placing', kind: action.kind, candidate: null, error: null };
     case 'candidate': return state.phase === 'placing'
       ? { ...state, candidate: action.candidate, error: action.error } : state;
+    case 'pump-direction': return state.phase === 'placing' && state.kind === 'pump' && state.candidate
+      ? { ...state, candidate: { ...state.candidate, pumpSuctionSide: action.side }, error: null } : state;
     case 'committed': return state.phase === 'placing'
       ? { ...state, candidate: null, error: null } : state;
     case 'cancel': return IDLE_SNOWMAKING_NODE_TOOL;

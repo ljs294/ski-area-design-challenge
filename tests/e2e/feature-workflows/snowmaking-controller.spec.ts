@@ -68,7 +68,7 @@ test('snowmaking façade owns contributions, reconciliation, editing, and persis
   await page.locator('.hud-save').click();
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
-  expect(saved).toMatchObject({ schemaVersion: 11, dams: [],
+  expect(saved).toMatchObject({ schemaVersion: 12, dams: [],
     ponds: [{ id: 'pond-seed', isSnowmaking: false }], snowmakingNodes: [] });
 });
 
@@ -88,7 +88,7 @@ test('an imported pond can be designated for snowmaking and persisted', async ({
   await page.locator('.hud-save').click();
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
-  expect(saved).toMatchObject({ schemaVersion: 11, snowmakingLakeIds: ['way/lake'],
+  expect(saved).toMatchObject({ schemaVersion: 12, snowmakingLakeIds: ['way/lake'],
     snowmakingNodes: [{ name: 'Context Lake Intake',
       source: { kind: 'lake', lakeId: 'way/lake' } }] });
 
@@ -122,6 +122,21 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.mouse.move(end.x, end.y);
   await expect.poll(() => page.locator('.maplibregl-canvas')
     .evaluate((canvas) => canvas.style.cursor)).toBe('pointer');
+
+  await page.getByRole('button', { name: 'Place pumps' }).click();
+  const pumpPoint = await pointAt(page, [-121.49525, 46.90495]);
+  await page.mouse.click(pumpPoint.x, pumpPoint.y);
+  await page.getByRole('radio', { name: /Suction from Summit Main start/ }).check();
+  await expect.poll(() => page.evaluate(() => {
+    const source = (window as unknown as { appMap: { getSource(id: string): {
+      serialize(): { data?: { features?: { properties?: { kind?: string } }[] } } } } }).appMap
+      .getSource('snowmaking-network-draft');
+    return source.serialize().data?.features?.some((feature) =>
+      feature.properties?.kind === 'pump-direction') ?? false;
+  })).toBe(true);
+  await page.getByRole('button', { name: 'Place pump' }).click();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('button', { name: /Pump P1/ })).toBeVisible();
 
   await page.getByRole('button', { name: 'Place one hydrant' }).click();
   const singleSnap = page.getByRole('checkbox', {
@@ -158,7 +173,7 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.getByRole('spinbutton', { name: 'Hydrant position count' }).fill('4');
   await expect(page.getByRole('button', { name: 'Place 4 hydrants' })).toBeEnabled();
   await page.getByRole('button', { name: 'Place 4 hydrants' }).click();
-  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(6);
+  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(7);
   await expect(page.getByRole('button', { name: /Hydrant 5/ })).toBeVisible();
 
   await page.getByRole('button', { name: '＋ Install snowguns' }).click();
@@ -176,8 +191,8 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.getByRole('button', { name: 'Review 2 snowguns' }).click();
   await expect(page.getByText(/Disconnected guns will be built/)).toBeVisible();
   await page.getByRole('button', { name: /Build 2 snowguns/ }).click();
-  // Pipe + five hydrants + two guns + the connected gun's hookup line.
-  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(9);
+  // Pipe + pump + five hydrants + two guns + the connected gun's hookup line.
+  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(10);
 
   await page.getByRole('button', { name: 'Mountain Dashboards' }).click();
   await page.getByRole('group', { name: 'Mountain dashboards' })
@@ -192,19 +207,24 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
   expect(saved).toMatchObject({
-    schemaVersion: 11,
+    schemaVersion: 12,
     snowmakingPipes: [{ name: 'Summit Main', diameterIn: 12 }],
     snowmakingNodes: [
+      { kind: 'pump', labelNumber: 1 },
       { kind: 'hydrant', labelNumber: 1 }, { kind: 'hydrant', labelNumber: 2 },
       { kind: 'hydrant', labelNumber: 3 }, { kind: 'hydrant', labelNumber: 4 },
       { kind: 'hydrant', labelNumber: 5 },
     ],
-    snowmakingNodeNextNumbers: { hydrant: 6, junction: 1, pump: 1 },
+    snowmakingNodeNextNumbers: { hydrant: 6, junction: 1, pump: 2 },
     snowguns: [
       { variantId: 'HKD_ImpulseR5_10s', hydrantId: expect.any(String) },
       { variantId: 'HKD_ImpulseR5_20t', hydrantId: null },
     ],
   });
+  const pumpPorts = saved.snowmakingPipes[0].segments.flatMap((segment: {
+    startPumpPort: string | null; endPumpPort: string | null }) =>
+    [segment.startPumpPort, segment.endPumpPort]).filter(Boolean);
+  expect(pumpPorts.sort()).toEqual(['discharge', 'suction']);
 });
 
 test('analyzes a branched snowmaking system without persisting the scenario', async ({ page }) => {
@@ -226,6 +246,9 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
       { point: from.point, elevM: from.elevM, nodeId: from.id },
       { point: to.point, elevM: to.elevM, nodeId: to.id },
     ],
+    segments: [{ id: `${id}:segment:0`, startVertexIndex: 0, endVertexIndex: 1,
+      startPumpPort: from.kind === 'pump' ? 'discharge' : null,
+      endPumpPort: to.kind === 'pump' ? 'suction' : null }],
     lengthM: 100, verticalM: Math.abs((to.elevM ?? 0) - (from.elevM ?? 0)),
     createdAt: FIXED_TIME,
   });
@@ -255,26 +278,22 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
   const analyzer = page.locator('.snowmaking-analysis-panel');
   await expect(analyzer).toBeVisible();
 
-  for (const checkbox of await analyzer.locator('.snowmaking-analysis-checklist').first()
-    .getByRole('checkbox').all()) await checkbox.check();
-  for (const checkbox of await analyzer.locator('.snowmaking-analysis-checklist').nth(1)
-    .getByRole('checkbox').all()) await checkbox.check();
+  await analyzer.getByRole('button', { name: 'Select all connected' }).click();
   await analyzer.getByRole('checkbox', { name: 'Pump On' }).check();
   await analyzer.getByRole('spinbutton', { name: 'Primary Pump horsepower' }).fill('500');
   await analyzer.getByRole('spinbutton', {
     name: 'Wet-bulb temperature in Fahrenheit',
   }).fill('9');
-  await analyzer.getByRole('button', { name: 'Check system' }).click();
 
   await expect(analyzer).toContainText('116 GPM');
   await expect(analyzer).toContainText('6,960 gal/hr');
-  await expect(analyzer).toContainText('System ready');
+  await expect(analyzer).toContainText('All selected guns ready');
   await expect(analyzer.getByText('Ready', { exact: true })).toHaveCount(2);
 
   await analyzer.getByRole('spinbutton', {
     name: 'Wet-bulb temperature in Fahrenheit',
   }).fill('14');
-  await expect(analyzer).toContainText('Inputs changed. Check the system again');
+  await expect(analyzer).toContainText('96 GPM');
   await page.getByRole('button', { name: 'Close system analyzer' }).click();
 
   await page.getByRole('button', { name: 'Analyze snowmaking system' }).click();
@@ -283,15 +302,15 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
     name: 'Wet-bulb temperature in Fahrenheit',
   })).toHaveValue('28');
   await expect(reopened.locator('.snowmaking-analysis-checklist input:checked')).toHaveCount(0);
-  for (const checkbox of await reopened.locator('.snowmaking-analysis-checklist').first()
-    .getByRole('checkbox').all()) await checkbox.check();
+  await reopened.getByRole('button', { name: 'Select all connected' }).click();
   await expect(reopened.getByRole('checkbox', { name: 'Pump On' })).not.toBeChecked();
   await page.getByRole('button', { name: 'Close system analyzer' }).click();
 
   await page.getByRole('button', { name: /^Menu/ }).click();
   await page.locator('.hud-save').click();
   const savedText = await page.evaluate(() => localStorage.getItem('gamesave:e2e-save') ?? '');
-  expect(JSON.parse(savedText)).toMatchObject({ schemaVersion: 11 });
+  expect(JSON.parse(savedText)).toMatchObject({ schemaVersion: 12 });
   expect(savedText).not.toContain('horsepowerHp');
   expect(savedText).not.toContain('selectedPipeIds');
+  expect(savedText).not.toContain('selectedGunIds');
 });

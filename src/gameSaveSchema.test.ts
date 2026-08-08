@@ -17,7 +17,7 @@ import type { SavedJunction, SavedNode, SavedPath } from './types/topology';
 import type { SavedTrail } from './types/trails';
 
 interface ExpectedGameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
   key: string;
   name: string;
   mountainId?: string;
@@ -135,14 +135,16 @@ describe('GameSave compatibility boundary', () => {
     expect(hydrated.snowmakingNodes).toEqual(currentFixture.snowmakingNodes);
     expect(hydrated.snowmakingPipes).toHaveLength(1);
     expect(hydrated.snowmakingPipes[0]).toMatchObject({ id: 'pipe-1', diameterIn: 8 });
+    expect(hydrated.snowmakingPipes[0]?.segments).toEqual([{ id: 'pipe-1:segment:0',
+      startVertexIndex: 0, endVertexIndex: 1, startPumpPort: null, endPumpPort: null }]);
     expect(hydrated.snowmakingPipes[0]?.lengthM).not.toBe(1);
     expect(hydrated.snowmakingPipes[0]?.verticalM).toBe(10);
     expect(hydrated.snowguns).toEqual(currentFixture.snowguns);
     expect(hydrated.snowmakingNodeNextNumbers).toEqual(currentFixture.snowmakingNodeNextNumbers);
   });
 
-  it('keeps newly written saves on schema version 11', () => {
-    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(11);
-    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<11>();
+  it('keeps newly written saves on schema version 12', () => {
+    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(12);
+    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<12>();
   });
 });

@@ -80,8 +80,8 @@ describe('MountainDashboards', () => {
 
   it('opens snowmaking capacity mode without the normal dashboard picker', () => {
     const html = render('snowmaking-analysis');
-    expect(html).toContain('Analyze snowmaking system');
-    expect(html).toContain('Check system');
+    expect(html).toContain('Operate snowguns');
+    expect(html).not.toContain('Check system');
     expect(html).not.toContain('aria-label="Mountain dashboards"');
   });
 });

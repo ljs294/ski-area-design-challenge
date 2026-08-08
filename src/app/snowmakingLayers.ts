@@ -19,6 +19,7 @@ export const SNOWMAKING_DRAFT_LAYER_IDS = [
   'snowmaking-pipe-draft', 'snowmaking-pipe-draft-vertices', 'snowmaking-snap-preview',
   'snowmaking-hydrant-route', 'snowmaking-hydrant-interval', 'snowmaking-hydrant-endpoints',
   'snowmaking-hydrant-preview', 'snowmaking-hydrant-preview-labels',
+  'snowmaking-pump-direction-preview',
   'snowmaking-gun-draft-hoses', 'snowmaking-gun-draft', 'snowmaking-gun-draft-warnings',
 ] as const;
 export const SNOWMAKING_BUILT_LAYER_IDS = [
@@ -110,6 +111,7 @@ export interface SnowmakingDraftData {
   startPoint?: [number, number] | null;
   endPoint?: [number, number] | null;
   hydrants?: { point: [number, number]; conflict: boolean }[];
+  pumpDirection?: [number, number][];
 }
 
 export interface SnowgunDraftData {
@@ -120,11 +122,11 @@ export interface SnowgunDraftData {
 
 export function snowmakingDraftToGeoJSON(draft: SnowmakingDraftData | null):
 GeoJSON.FeatureCollection<GeoJSON.Geometry, { kind: 'line' | 'vertex' | 'snap' | 'route' |
-  'interval' | 'endpoint' | 'hydrant'; label?: string; conflict?: boolean }> {
+  'interval' | 'endpoint' | 'hydrant' | 'pump-direction'; label?: string; conflict?: boolean }> {
   if (!draft) return { type: 'FeatureCollection', features: [] };
   const line = draft.cursor ? [...draft.points, draft.cursor] : draft.points;
   const features: GeoJSON.Feature<GeoJSON.Geometry, { kind: 'line' | 'vertex' | 'snap' | 'route' |
-    'interval' | 'endpoint' | 'hydrant'; label?: string; conflict?: boolean }>[] = [];
+    'interval' | 'endpoint' | 'hydrant' | 'pump-direction'; label?: string; conflict?: boolean }>[] = [];
   if (line.length >= 2) features.push({ type: 'Feature', properties: { kind: 'line' },
     geometry: { type: 'LineString', coordinates: line } });
   for (const point of draft.points) features.push({ type: 'Feature', properties: { kind: 'vertex' },
@@ -142,6 +144,9 @@ GeoJSON.FeatureCollection<GeoJSON.Geometry, { kind: 'line' | 'vertex' | 'snap' |
   for (const hydrant of draft.hydrants ?? []) features.push({ type: 'Feature',
     properties: { kind: 'hydrant', conflict: hydrant.conflict,
       label: hydrant.conflict ? '×' : '' }, geometry: { type: 'Point', coordinates: hydrant.point } });
+  if ((draft.pumpDirection?.length ?? 0) >= 2) features.push({ type: 'Feature',
+    properties: { kind: 'pump-direction' },
+    geometry: { type: 'LineString', coordinates: draft.pumpDirection! } });
   return { type: 'FeatureCollection', features };
 }
 
@@ -270,6 +275,12 @@ export function addSnowmakingLayers(map: maplibregl.Map): void {
       ['==', ['get', 'conflict'], true]], layout: { 'text-field': ['get', 'label'],
       'text-size': 14, 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': true },
     paint: { 'text-color': '#b91c1c' } });
+  map.addLayer({ id: 'snowmaking-pump-direction-preview', type: 'symbol',
+    source: SNOWMAKING_DRAFT_SOURCE, filter: ['==', ['get', 'kind'], 'pump-direction'],
+    layout: { 'symbol-placement': 'line', 'symbol-spacing': 45, 'text-field': '▶',
+      'text-size': 18, 'text-font': ['Noto Sans Regular'], 'text-keep-upright': false,
+      'text-allow-overlap': true }, paint: { 'text-color': '#efb84f',
+      'text-halo-color': '#172033', 'text-halo-width': 1 } });
   map.addLayer({ id: 'snowmaking-gun-draft-hoses', type: 'line', source: SNOWMAKING_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'gun-hose'], layout: { 'line-cap': 'round' },
     paint: { 'line-color': '#4b5563', 'line-width': 1.25, 'line-dasharray': [2, 1] } });

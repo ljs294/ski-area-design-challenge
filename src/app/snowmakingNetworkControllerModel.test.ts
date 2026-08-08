@@ -61,7 +61,8 @@ describe('snowmaking node tool reducer', () => {
     const placing = reduceSnowmakingNodeTool(IDLE_SNOWMAKING_NODE_TOOL,
       { type: 'arm', kind: 'hydrant' });
     const candidate = reduceSnowmakingNodeTool(placing, { type: 'candidate', error: null,
-      candidate: { point: [0, 0], snap: null, elevM: 100 } });
+      candidate: { point: [0, 0], snap: null, elevM: 100, revision: 1,
+        pumpSegmentId: null, pumpSuctionSide: null } });
     const committed = reduceSnowmakingNodeTool(candidate, { type: 'committed' });
     expect(committed).toEqual({ phase: 'placing', kind: 'hydrant', candidate: null, error: null });
   });

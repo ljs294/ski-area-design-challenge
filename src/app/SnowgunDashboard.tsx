@@ -40,6 +40,7 @@ export function SnowgunDashboardMarkers({ guns, selectedId, analysisSelectedIds,
       onClick={(event) => { event.stopPropagation(); select(gun.id); }}
       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault(); event.stopPropagation(); select(gun.id); } }}>
+      <circle cx={p.x} cy={p.y} r={width / 50} className="snowmaking-dashboard-gun-hit" />
       {selected && <circle cx={p.x} cy={p.y} r={width / 100}
         className="snowmaking-dashboard-gun-halo" vectorEffect="non-scaling-stroke" />}
       <circle cx={p.x} cy={p.y} r={width / 180}

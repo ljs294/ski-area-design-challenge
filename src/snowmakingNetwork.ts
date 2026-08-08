@@ -3,8 +3,10 @@ import type {
   NumberedSnowmakingNodeKind,
   SavedSnowmakingNode,
   SavedSnowmakingPipe,
+  SavedSnowmakingPipeSegment,
   SavedSnowmakingPipeVertex,
   SavedSnowgun,
+  SnowmakingPumpPort,
   SnowmakingNodeNextNumbers,
   SnowmakingPipeDiameterIn,
 } from './types/snowmaking';
@@ -32,6 +34,14 @@ export interface SnowmakingNetworkState {
 export interface SnowmakingPipeStats {
   lengthM: number;
   verticalM: number | null;
+}
+
+export interface SnowmakingPipeSegment extends SavedSnowmakingPipeSegment {
+  pipeId: string;
+  segmentIndex: number;
+  vertices: SavedSnowmakingPipeVertex[];
+  fromNodeId: string | null;
+  toNodeId: string | null;
 }
 
 function isPoint(value: unknown): value is [number, number] {
@@ -84,6 +94,147 @@ export function snowmakingPipeStats(
   return { lengthM, verticalM: Math.max(...elevations) - Math.min(...elevations) };
 }
 
+function snowmakingPipeBoundaryIndices(
+  vertices: readonly SavedSnowmakingPipeVertex[],
+): number[] {
+  if (vertices.length < 2) return [];
+  const breaks = new Set<number>([0, vertices.length - 1]);
+  vertices.forEach((vertex, index) => { if (vertex.nodeId) breaks.add(index); });
+  return [...breaks].sort((left, right) => left - right);
+}
+
+function defaultSnowmakingPipeSegments(
+  pipeId: string,
+  vertices: readonly SavedSnowmakingPipeVertex[],
+): SavedSnowmakingPipeSegment[] {
+  const boundaries = snowmakingPipeBoundaryIndices(vertices);
+  return boundaries.slice(1).map((endVertexIndex, segmentIndex) => ({
+    id: `${pipeId}:segment:${segmentIndex}`,
+    startVertexIndex: boundaries[segmentIndex],
+    endVertexIndex,
+    startPumpPort: null,
+    endPumpPort: null,
+  }));
+}
+
+function isPumpPort(value: unknown): value is SnowmakingPumpPort {
+  return value === 'suction' || value === 'discharge';
+}
+
+/**
+ * Normalize schema-12 segment metadata against the authoritative route.
+ * Invalid coverage or identity causes a conservative rebuild; invalid port
+ * roles are stripped without disturbing otherwise sound segment IDs.
+ */
+export function normalizeSnowmakingPipeSegments(
+  pipe: Pick<SavedSnowmakingPipe, 'id' | 'vertices'>,
+  nodes: readonly SavedSnowmakingNode[] = [],
+  rawSegments: unknown = (pipe as SavedSnowmakingPipe).segments,
+): SavedSnowmakingPipeSegment[] {
+  const fallback = defaultSnowmakingPipeSegments(pipe.id, pipe.vertices);
+  if (!Array.isArray(rawSegments) || rawSegments.length !== fallback.length) return fallback;
+  const used = new Set<string>();
+  const parsed: SavedSnowmakingPipeSegment[] = [];
+  for (let index = 0; index < fallback.length; index += 1) {
+    const raw = rawSegments[index];
+    if (!raw || typeof raw !== 'object') return fallback;
+    const value = raw as Record<string, unknown>;
+    if (typeof value.id !== 'string' || !value.id || used.has(value.id) ||
+      value.startVertexIndex !== fallback[index].startVertexIndex ||
+      value.endVertexIndex !== fallback[index].endVertexIndex) return fallback;
+    used.add(value.id);
+    parsed.push({
+      id: value.id,
+      startVertexIndex: value.startVertexIndex,
+      endVertexIndex: value.endVertexIndex,
+      startPumpPort: isPumpPort(value.startPumpPort) ? value.startPumpPort : null,
+      endPumpPort: isPumpPort(value.endPumpPort) ? value.endPumpPort : null,
+    });
+  }
+  if (nodes.length === 0) return parsed;
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  return parsed.map((segment) => {
+    const startNode = nodeById.get(pipe.vertices[segment.startVertexIndex]?.nodeId ?? '');
+    const endNode = nodeById.get(pipe.vertices[segment.endVertexIndex]?.nodeId ?? '');
+    return {
+      ...segment,
+      startPumpPort: startNode?.kind === 'pump' ? segment.startPumpPort : null,
+      endPumpPort: endNode?.kind === 'pump' ? segment.endPumpPort : null,
+    };
+  });
+}
+
+function boundaryIdentity(vertex: SavedSnowmakingPipeVertex, index: number,
+  vertexCount: number): string {
+  if (vertex.nodeId) return `node:${vertex.nodeId}`;
+  const point = `${vertex.point[0].toFixed(9)},${vertex.point[1].toFixed(9)}`;
+  return `${index === 0 ? 'start' : index === vertexCount - 1 ? 'end' : 'open'}:${point}`;
+}
+
+/**
+ * Rebuild segment bounds after a topology edit while preserving unaffected
+ * IDs and pump-facing route-side roles. Newly split/merged spans receive new
+ * IDs so stale analysis results can never silently refer to new geometry.
+ */
+export function resegmentSnowmakingPipe(
+  previous: SavedSnowmakingPipe,
+  vertices: SavedSnowmakingPipeVertex[],
+  createId?: () => string,
+): SavedSnowmakingPipe {
+  const oldSegments = normalizeSnowmakingPipeSegments(previous);
+  const oldIdsByBounds = new Map<string, string>();
+  const portByRouteSide = new Map<string, SnowmakingPumpPort | null>();
+  for (const segment of oldSegments) {
+    const start = boundaryIdentity(previous.vertices[segment.startVertexIndex],
+      segment.startVertexIndex, previous.vertices.length);
+    const end = boundaryIdentity(previous.vertices[segment.endVertexIndex],
+      segment.endVertexIndex, previous.vertices.length);
+    oldIdsByBounds.set(`${start}>${end}`, segment.id);
+    portByRouteSide.set(`${start}:start`, segment.startPumpPort);
+    portByRouteSide.set(`${end}:end`, segment.endPumpPort);
+  }
+  const defaults = defaultSnowmakingPipeSegments(previous.id, vertices);
+  const used = new Set(oldSegments.map((segment) => segment.id));
+  let fallbackCounter = 0;
+  const allocateId = (ordinal: number): string => {
+    if (createId) {
+      let id = createId();
+      while (!id || used.has(id)) id = createId();
+      used.add(id); return id;
+    }
+    let id = `${previous.id}:segment:${ordinal}:edit:${++fallbackCounter}`;
+    while (used.has(id)) id = `${previous.id}:segment:${ordinal}:edit:${++fallbackCounter}`;
+    used.add(id); return id;
+  };
+  const segments = defaults.map((segment, ordinal): SavedSnowmakingPipeSegment => {
+    const start = boundaryIdentity(vertices[segment.startVertexIndex],
+      segment.startVertexIndex, vertices.length);
+    const end = boundaryIdentity(vertices[segment.endVertexIndex],
+      segment.endVertexIndex, vertices.length);
+    return {
+      ...segment,
+      id: oldIdsByBounds.get(`${start}>${end}`) ?? allocateId(ordinal),
+      startPumpPort: portByRouteSide.get(`${start}:start`) ?? null,
+      endPumpPort: portByRouteSide.get(`${end}:end`) ?? null,
+    };
+  });
+  return { ...previous, vertices, ...snowmakingPipeStats(vertices), segments };
+}
+
+export function snowmakingPipeSegments(pipe: SavedSnowmakingPipe): SnowmakingPipeSegment[] {
+  return normalizeSnowmakingPipeSegments(pipe).map((segment, segmentIndex) => {
+    const vertices = pipe.vertices.slice(segment.startVertexIndex, segment.endVertexIndex + 1);
+    return {
+      ...segment,
+      pipeId: pipe.id,
+      segmentIndex,
+      vertices,
+      fromNodeId: vertices[0]?.nodeId ?? null,
+      toNodeId: vertices.at(-1)?.nodeId ?? null,
+    };
+  });
+}
+
 /** Densify each clicked segment independently so exact corners and snap points survive. */
 export function densifySnowmakingPipe(
   points: readonly [number, number][],
@@ -119,7 +270,7 @@ export function densifySnowmakingPipe(
 }
 
 export function buildSnowmakingPipe(
-  input: Omit<SavedSnowmakingPipe, 'vertices' | 'lengthM' | 'verticalM'> & {
+  input: Omit<SavedSnowmakingPipe, 'vertices' | 'lengthM' | 'verticalM' | 'segments'> & {
     points: readonly [number, number][];
     nodeIds?: readonly (string | null)[];
   },
@@ -127,7 +278,7 @@ export function buildSnowmakingPipe(
 ): SavedSnowmakingPipe {
   const vertices = densifySnowmakingPipe(input.points, sampleElevation, input.nodeIds);
   const stats = snowmakingPipeStats(vertices);
-  return {
+  const pipe: SavedSnowmakingPipe = {
     id: input.id,
     name: input.name,
     diameterIn: input.diameterIn,
@@ -135,6 +286,7 @@ export function buildSnowmakingPipe(
     ...stats,
     createdAt: input.createdAt,
   };
+  return { ...pipe, segments: normalizeSnowmakingPipeSegments(pipe) };
 }
 
 export interface SnowmakingPipeLocation {
@@ -277,6 +429,7 @@ export function snowmakingPipeIntervalPoints(
 export function attachNodesToSnowmakingPipe(
   pipe: SavedSnowmakingPipe,
   attachments: readonly { stationM: number; nodeId: string }[],
+  createId?: () => string,
 ): SavedSnowmakingPipe {
   if (attachments.length === 0) return pipe;
   const { cumulative } = pipeStationLengths(pipe);
@@ -301,7 +454,7 @@ export function attachNodesToSnowmakingPipe(
     }
     stations.push(item.stationM); vertices.push(item.vertex);
   }
-  return { ...pipe, vertices, ...snowmakingPipeStats(vertices) };
+  return resegmentSnowmakingPipe(pipe, vertices, createId);
 }
 
 export function populateSnowmakingHydrantRun(
@@ -328,7 +481,7 @@ export function populateSnowmakingHydrantRun(
     attachments.push({ stationM: position.stationM, nodeId: allocation.node.id });
   }
   if (nodes.length === 0) return 'Every calculated position is already occupied.';
-  const updatedPipe = attachNodesToSnowmakingPipe(pipe, attachments);
+  const updatedPipe = attachNodesToSnowmakingPipe(pipe, attachments, createId);
   return { state: { ...next, pipes: next.pipes.map((candidate) =>
     candidate.id === pipeId ? updatedPipe : candidate) }, nodes, skipped };
 }
@@ -364,6 +517,7 @@ export function attachNodeToSnowmakingPipe(
   pipe: SavedSnowmakingPipe,
   location: SnowmakingPipeLocation,
   nodeId: string,
+  createId?: () => string,
 ): SavedSnowmakingPipe {
   const vertices = pipe.vertices.slice();
   const before = vertices[location.segmentIndex];
@@ -377,7 +531,40 @@ export function attachNodeToSnowmakingPipe(
       ? before.elevM + (after.elevM - before.elevM) * location.u : null;
     vertices.splice(location.segmentIndex + 1, 0, { point: location.point, elevM, nodeId });
   }
-  return { ...pipe, vertices, ...snowmakingPipeStats(vertices) };
+  return resegmentSnowmakingPipe(pipe, vertices, createId);
+}
+
+/** Insert a two-port pump inside one existing node-bounded segment and assign
+ * the two newly-created pump-facing ends in parent-route order. */
+export function attachInlinePumpToSnowmakingPipe(
+  pipe: SavedSnowmakingPipe,
+  location: NonNullable<ReturnType<typeof closestSnowmakingPipeLocation>>,
+  pumpNodeId: string,
+  suctionSide: 'route-start' | 'route-end',
+  createId?: () => string,
+): SavedSnowmakingPipe | null {
+  const parentSegment = snowmakingPipeSegments(pipe).find((segment) =>
+    segment.startVertexIndex <= location.segmentIndex && segment.endVertexIndex > location.segmentIndex);
+  if (!parentSegment) return null;
+  const startBoundary = pipe.vertices[parentSegment.startVertexIndex];
+  const endBoundary = pipe.vertices[parentSegment.endVertexIndex];
+  if (!startBoundary || !endBoundary ||
+    haversineMeters(startBoundary.point, location.point) < POINT_EPSILON_M ||
+    haversineMeters(endBoundary.point, location.point) < POINT_EPSILON_M) return null;
+  const inserted = attachNodeToSnowmakingPipe(pipe, location, pumpNodeId, createId);
+  const segments = normalizeSnowmakingPipeSegments(inserted);
+  const routeStartArm = segments.find((segment) =>
+    inserted.vertices[segment.endVertexIndex]?.nodeId === pumpNodeId);
+  const routeEndArm = segments.find((segment) =>
+    inserted.vertices[segment.startVertexIndex]?.nodeId === pumpNodeId);
+  if (!routeStartArm || !routeEndArm || routeStartArm.id === routeEndArm.id) return null;
+  return { ...inserted, segments: segments.map((segment) => {
+    if (segment.id === routeStartArm.id) return { ...segment,
+      endPumpPort: suctionSide === 'route-start' ? 'suction' : 'discharge' };
+    if (segment.id === routeEndArm.id) return { ...segment,
+      startPumpPort: suctionSide === 'route-end' ? 'suction' : 'discharge' };
+    return segment;
+  }) };
 }
 
 function sanitizeVertex(raw: unknown): SavedSnowmakingPipeVertex | null {
@@ -422,8 +609,10 @@ export function sanitizeSnowmakingPipes(
     }
     if (vertices.length < 2) continue;
     usedIds.add(value.id);
-    pipes.push({ id: value.id, name: value.name, diameterIn: value.diameterIn,
-      vertices, ...snowmakingPipeStats(vertices), createdAt: value.createdAt });
+    const pipe: SavedSnowmakingPipe = { id: value.id, name: value.name, diameterIn: value.diameterIn,
+      vertices, ...snowmakingPipeStats(vertices), createdAt: value.createdAt };
+    pipes.push({ ...pipe, segments: normalizeSnowmakingPipeSegments(
+      pipe, nodes, value.segments) });
   }
   return pipes;
 }
@@ -510,16 +699,40 @@ export function nodeReferenceCounts(pipes: readonly SavedSnowmakingPipe[]): Map<
   return counts;
 }
 
+export function setSnowmakingPumpPort(
+  state: SnowmakingNetworkState,
+  pipeId: string,
+  segmentId: string,
+  end: 'start' | 'end',
+  port: SnowmakingPumpPort | null,
+): SnowmakingNetworkState | null {
+  const pipe = state.pipes.find((candidate) => candidate.id === pipeId);
+  if (!pipe) return null;
+  const segments = normalizeSnowmakingPipeSegments(pipe, state.nodes);
+  const segment = segments.find((candidate) => candidate.id === segmentId);
+  if (!segment) return null;
+  const vertexIndex = end === 'start' ? segment.startVertexIndex : segment.endVertexIndex;
+  const node = state.nodes.find((candidate) => candidate.id === pipe.vertices[vertexIndex]?.nodeId);
+  if (node?.kind !== 'pump') return null;
+  const field = end === 'start' ? 'startPumpPort' : 'endPumpPort';
+  return { ...state, pipes: state.pipes.map((candidate) => candidate.id === pipeId
+    ? { ...candidate, segments: segments.map((entry) => entry.id === segmentId
+      ? { ...entry, [field]: port } : entry) }
+    : candidate) };
+}
+
 export function detachSnowmakingNode(
   pipes: readonly SavedSnowmakingPipe[],
   nodeId: string,
+  createId?: () => string,
 ): SavedSnowmakingPipe[] {
   let changed = false;
   const next = pipes.map((pipe) => {
     if (!pipe.vertices.some((vertex) => vertex.nodeId === nodeId)) return pipe;
     changed = true;
-    return { ...pipe, vertices: pipe.vertices.map((vertex) =>
-      vertex.nodeId === nodeId ? { ...vertex, nodeId: null } : vertex) };
+    const vertices = pipe.vertices.map((vertex) =>
+      vertex.nodeId === nodeId ? { ...vertex, nodeId: null } : vertex);
+    return resegmentSnowmakingPipe(pipe, vertices, createId);
   });
   return changed ? next : pipes as SavedSnowmakingPipe[];
 }
@@ -527,6 +740,7 @@ export function detachSnowmakingNode(
 export function pruneAffectedJunctions(
   state: SnowmakingNetworkState,
   candidates: ReadonlySet<string>,
+  createId?: () => string,
 ): SnowmakingNetworkState {
   if (candidates.size === 0) return state;
   const counts = nodeReferenceCounts(state.pipes);
@@ -536,22 +750,15 @@ export function pruneAffectedJunctions(
   return {
     ...state,
     nodes: state.nodes.filter((node) => !removed.has(node.id)),
-    pipes: state.pipes.map((pipe) => ({ ...pipe, vertices: pipe.vertices.map((vertex) =>
-      vertex.nodeId && removed.has(vertex.nodeId) ? { ...vertex, nodeId: null } : vertex) })),
+    pipes: state.pipes.map((pipe) => pipe.vertices.some((vertex) =>
+      vertex.nodeId && removed.has(vertex.nodeId))
+      ? resegmentSnowmakingPipe(pipe, pipe.vertices.map((vertex) =>
+        vertex.nodeId && removed.has(vertex.nodeId) ? { ...vertex, nodeId: null } : vertex), createId)
+      : pipe),
   };
 }
 
-/** Future hydraulic solvers consume spans derived from the editable route. */
+/** Compatibility geometry view for callers that do not need segment identity. */
 export function snowmakingPipeSpans(pipe: SavedSnowmakingPipe): SavedSnowmakingPipeVertex[][] {
-  if (pipe.vertices.length < 2) return [];
-  const breaks = new Set<number>([0, pipe.vertices.length - 1]);
-  pipe.vertices.forEach((vertex, index) => { if (vertex.nodeId) breaks.add(index); });
-  const indices = [...breaks].sort((left, right) => left - right);
-  const spans: SavedSnowmakingPipeVertex[][] = [];
-  for (let index = 1; index < indices.length; index += 1) {
-    if (indices[index] > indices[index - 1]) {
-      spans.push(pipe.vertices.slice(indices[index - 1], indices[index] + 1));
-    }
-  }
-  return spans;
+  return snowmakingPipeSegments(pipe).map((segment) => segment.vertices);
 }

@@ -2,10 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Mut
 import maplibregl from 'maplibre-gl';
 import { haversineMeters } from '../geo';
 import {
-  allocateSnowmakingNode,
-  attachNodeToSnowmakingPipe,
   buildSnowmakingPipe,
-  closestSnowmakingPipeLocation,
   DEFAULT_SNOWMAKING_PIPE_DIAMETER_IN,
   densifySnowmakingPipe,
   detachSnowmakingNode,
@@ -14,6 +11,7 @@ import {
   nextSnowmakingPipeName,
   populateSnowmakingHydrantRun,
   pruneAffectedJunctions,
+  setSnowmakingPumpPort,
   snowmakingNodeLabel,
   snowmakingHydrantRunLayout,
   snowmakingPipeIntervalPoints,
@@ -25,7 +23,8 @@ import {
 import { reconcileSnowmakingNodes } from '../snowmakingNodes';
 import { reconcileSnowgunConnections } from '../snowmakingGuns';
 import type { SavedDam, SavedPond, SavedSnowmakingNode, SavedSnowmakingPipe,
-  SavedSnowgun, SnowmakingLakeSource, SnowmakingPipeDiameterIn } from '../types/snowmaking';
+  SavedSnowgun, SnowmakingLakeSource, SnowmakingPipeDiameterIn,
+  SnowmakingPumpPort } from '../types/snowmaking';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
 import { MAP_HIT_RANK, MAP_Z_ORDER, type ManagedMapContribution,
   type MapVisibilityDescriptor } from './mapContribution';
@@ -35,14 +34,17 @@ import { setSelectedSnowmakingFeature, setSnowmakingCaptureTransient, setSnowmak
 import { reduceSnowmakingHydrantRunTool, reduceSnowmakingNodeTool, reduceSnowmakingPipeTool,
   IDLE_SNOWMAKING_HYDRANT_RUN_TOOL, IDLE_SNOWMAKING_NODE_TOOL, IDLE_SNOWMAKING_PIPE_TOOL,
   snowmakingPipePreview,
-  type SnowmakingHydrantRunTool, type SnowmakingNodeCandidate, type SnowmakingNodeTool,
+  type SnowmakingHydrantRunPreview, type SnowmakingHydrantRunTool,
+  type SnowmakingNodeCandidate, type SnowmakingNodeTool,
   type SnowmakingPipeTool } from './snowmakingNetworkControllerModel';
+export type { SnowmakingHydrantRunPreview } from './snowmakingNetworkControllerModel';
 import { snowmakingNetworkProjection, type SnowmakingNetworkDocument } from './snowmakingNetworkDocument';
 import type { ToolId } from './toolCoordinator';
 import { pipeSnapAt, snowmakingSnapAt } from './snowmakingNetworkSnap';
+import { applySnowmakingNodeCandidate, inlinePumpCandidate,
+  inlinePumpDirectionPoints, resolveSnowmakingPipeDraft } from './snowmakingNodePlacement';
 const TARGET_REVALIDATE_M = 2;
 export type SnowmakingSelection = { kind: 'node' | 'pipe' | 'gun'; id: string } | null;
-
 export interface SnowmakingNetworkControllerOptions {
   mapRef: MutableRefObject<maplibregl.Map | null>;
   dams: readonly SavedDam[];
@@ -70,7 +72,6 @@ export interface SnowmakingNetworkControllerOptions {
   structuresVisible(): boolean;
   synchronizeMap(): void;
 }
-
 export interface SnowmakingNetworkController {
   readonly contribution: ManagedMapContribution;
   readonly pipeTool: SnowmakingPipeTool;
@@ -89,6 +90,7 @@ export interface SnowmakingNetworkController {
   renameDraftPipe(name: string): void;
   setDiameter(value: SnowmakingPipeDiameterIn): void;
   setSnapping(value: boolean): void;
+  setPumpSuctionSide(side: 'route-start' | 'route-end'): void;
   armNode(kind: 'pump' | 'hydrant'): void;
   cancelNode(): void;
   confirmNode(): void;
@@ -105,32 +107,10 @@ export interface SnowmakingNetworkController {
   renameNode(id: string, name: string): void;
   removeNode(id: string): void;
   patchPipe(id: string, patch: Pick<Partial<SavedSnowmakingPipe>, 'name' | 'diameterIn'>): void;
+  setPumpPort(pipeId: string, segmentId: string, end: 'start' | 'end',
+    port: SnowmakingPumpPort | null): void;
   removePipe(id: string): void;
 }
-
-export interface SnowmakingHydrantRunPreview {
-  pipeName: string | null;
-  selectedRoute: [number, number][];
-  intervalPoints: [number, number][];
-  startPoint: [number, number] | null;
-  endPoint: [number, number] | null;
-  lengthM: number | null;
-  actualSpacingM: number | null;
-  positions: { station: SnowmakingPipeStation; conflict: boolean }[];
-  newCount: number;
-  skippedCount: number;
-  error: string | null;
-}
-
-function replacePipe(state: SnowmakingNetworkState, pipe: SavedSnowmakingPipe): SnowmakingNetworkState {
-  return { ...state, pipes: state.pipes.map((candidate) => candidate.id === pipe.id ? pipe : candidate) };
-}
-
-function pipeElevationAt(pipe: SavedSnowmakingPipe, segmentIndex: number, u: number): number | null {
-  const a = pipe.vertices[segmentIndex]?.elevM, b = pipe.vertices[segmentIndex + 1]?.elevM;
-  return a != null && b != null ? a + (b - a) * u : null;
-}
-
 export function useSnowmakingNetworkController(
   options: SnowmakingNetworkControllerOptions,
 ): SnowmakingNetworkController {
@@ -209,6 +189,9 @@ export function useSnowmakingNetworkController(
     const current = pipeToolRef.current;
     const preview = snowmakingPipePreview(current);
     const run = hydrantRunPreviewRef.current;
+    const node = nodeToolRef.current;
+    const pumpCandidate = node.phase === 'placing' && node.kind === 'pump' ? node.candidate : null;
+    const pumpDirection = inlinePumpDirectionPoints(pumpCandidate, optionsRef.current.pipes);
     setSnowmakingDraftData(map, run ? {
       points: [], cursor: null, snapPoint: null,
       selectedRoute: run.selectedRoute, intervalPoints: run.intervalPoints,
@@ -218,7 +201,7 @@ export function useSnowmakingNetworkController(
     } : preview ? {
       ...preview,
       snapPoint: current.phase === 'drawing' ? snapHoverRef.current : null,
-    } : { points: [], cursor: null, snapPoint: snapHoverRef.current });
+    } : { points: [], cursor: null, snapPoint: snapHoverRef.current, pumpDirection });
   }, []);
 
   const contributionRef = useRef<ManagedMapContribution | null>(null);
@@ -258,7 +241,7 @@ export function useSnowmakingNetworkController(
       .map((node) => node.id));
     const numbered = hydrateSnowmakingNumbering(reconciled, before.nextNumbers);
     let pipes = before.pipes;
-    for (const id of removed) pipes = detachSnowmakingNode(pipes, id);
+    for (const id of removed) pipes = detachSnowmakingNode(pipes, id, current.createId);
     const edit = current.network.begin();
     edit.replace({ nodes: numbered.nodes, pipes, guns: before.guns,
       nextNumbers: numbered.nextNumbers });
@@ -307,22 +290,42 @@ export function useSnowmakingNetworkController(
     const interaction = optionsRef.current.acquireInteractions('snowmaking-node', map);
     const onMove = (event: maplibregl.MapMouseEvent) => {
       const raw: [number, number] = [event.lngLat.lng, event.lngLat.lat];
-      const snap = snapping ? snowmakingSnapAt(map, raw,
-        optionsRef.current.nodes, optionsRef.current.pipes) : null;
+      const current = nodeToolRef.current;
+      const snap = current.phase === 'placing' && current.kind === 'pump'
+        ? snowmakingSnapAt(map, raw, optionsRef.current.nodes, optionsRef.current.pipes)
+        : snapping ? snowmakingSnapAt(map, raw,
+          optionsRef.current.nodes, optionsRef.current.pipes) : null;
       setSnapHover(snap?.point ?? null);
     };
     const onClick = (event: maplibregl.MapMouseEvent) => {
       const raw: [number, number] = [event.lngLat.lng, event.lngLat.lat];
-      const snap = snapping ? snowmakingSnapAt(map, raw,
-        optionsRef.current.nodes, optionsRef.current.pipes) : null;
+      const current = nodeToolRef.current;
+      const snap = current.phase === 'placing' && current.kind === 'pump'
+        ? snowmakingSnapAt(map, raw, optionsRef.current.nodes, optionsRef.current.pipes)
+        : snapping ? snowmakingSnapAt(map, raw,
+          optionsRef.current.nodes, optionsRef.current.pipes) : null;
       if (snap?.kind === 'node') {
         nodeDispatch({ type: 'candidate', candidate: null,
           error: `${snowmakingNodeLabel(optionsRef.current.nodes.find((node) => node.id === snap.nodeId)!)} already occupies that location.` });
         return;
       }
+      if (current.phase === 'placing' && current.kind === 'pump' && snap?.kind !== 'pipe') {
+        nodeDispatch({ type: 'candidate', candidate: null,
+          error: 'Pumps must be placed inside an existing pipe segment.' });
+        return;
+      }
       const point = snap?.point ?? raw;
+      if (current.phase === 'placing' && current.kind === 'pump' && snap?.kind === 'pipe') {
+        const result = inlinePumpCandidate({ pipes: optionsRef.current.pipes, snap,
+          revision: optionsRef.current.network.revision,
+          sampleElevation: optionsRef.current.sampleElevation });
+        nodeDispatch({ type: 'candidate', candidate: typeof result === 'string' ? null : result,
+          error: typeof result === 'string' ? result : null });
+        return;
+      }
       const candidate: SnowmakingNodeCandidate = { point, snap,
-        elevM: optionsRef.current.sampleElevation(point) };
+        elevM: optionsRef.current.sampleElevation(point),
+        revision: optionsRef.current.network.revision, pumpSegmentId: null, pumpSuctionSide: null };
       nodeDispatch({ type: 'candidate', candidate, error: null });
     };
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelNode(); };
@@ -405,34 +408,8 @@ export function useSnowmakingNetworkController(
 
   function resolvePipeDraft(current: Extract<SnowmakingPipeTool, { phase: 'review' }>):
   { state: SnowmakingNetworkState; points: [number, number][]; nodeIds: (string | null)[] } | string {
-    let state = snowmakingNetworkProjection(optionsRef.current.network.snapshot());
-    const points: [number, number][] = [];
-    const nodeIds: (string | null)[] = [];
-    for (const draft of current.points) {
-      const snap = draft.snap;
-      if (!snap) { points.push(draft.point); nodeIds.push(null); continue; }
-      if (snap.kind === 'node') {
-        const resolved = state.nodes.find((candidate) => candidate.id === snap.nodeId);
-        if (!resolved) return 'A snapped node changed before this pipe was installed. Pick the connection again.';
-        points.push(resolved.point); nodeIds.push(resolved.id); continue;
-      }
-      const pipeIndex = state.pipes.findIndex((pipe) => pipe.id === snap.pipeId);
-      if (pipeIndex < 0) return 'A snapped pipe changed before this pipe was installed. Pick the connection again.';
-      const target = state.pipes[pipeIndex];
-      const location = closestSnowmakingPipeLocation(target, snap.point);
-      if (!location || location.distanceM > TARGET_REVALIDATE_M) return 'A snapped connection is no longer available.';
-      const existing = state.nodes.find((node) => haversineMeters(node.point, location.point) < 0.05);
-      if (existing) {
-        points.push(existing.point); nodeIds.push(existing.id); continue;
-      }
-      const elevM = pipeElevationAt(target, location.segmentIndex, location.u);
-      const allocation = allocateSnowmakingNode(state, { id: optionsRef.current.createId(),
-        kind: 'junction', point: location.point, elevM, createdAt: optionsRef.current.now() });
-      state = allocation.state;
-      state = replacePipe(state, attachNodeToSnowmakingPipe(target, location, allocation.node.id));
-      points.push(location.point); nodeIds.push(allocation.node.id);
-    }
-    return { state, points, nodeIds };
+    return resolveSnowmakingPipeDraft(snowmakingNetworkProjection(optionsRef.current.network.snapshot()),
+      current, optionsRef.current.createId, optionsRef.current.now);
   }
 
   function confirmPipe(): void {
@@ -459,42 +436,33 @@ export function useSnowmakingNetworkController(
     hydrantRunDispatch({ type: 'cancel' });
     optionsRef.current.clearSelection(); optionsRef.current.openDock(); nodeDispatch({ type: 'arm', kind });
   }
+  function setPumpSuctionSide(side: 'route-start' | 'route-end'): void {
+    nodeDispatch({ type: 'pump-direction', side });
+  }
   function cancelNode(): void { nodeDispatch({ type: 'cancel' }); hydrantRunDispatch({ type: 'cancel' });
     setSnapHover(null); setHydrantRunHover(null);
     optionsRef.current.release('snowmaking-node'); }
   function confirmNode(): void {
     const current = nodeToolRef.current;
     if (current.phase !== 'placing' || !current.candidate) return;
-    let state = snowmakingNetworkProjection(optionsRef.current.network.snapshot());
-    let point = current.candidate.point;
-    let elevM = current.candidate.elevM;
-    let targetPipe: SavedSnowmakingPipe | null = null;
-    let targetLocation: ReturnType<typeof closestSnowmakingPipeLocation> = null;
-    if (current.candidate.snap?.kind === 'pipe') {
-      const snap = current.candidate.snap;
-      targetPipe = state.pipes.find((pipe) => pipe.id === snap.pipeId) ?? null;
-      targetLocation = targetPipe
-        ? closestSnowmakingPipeLocation(targetPipe, snap.point) : null;
-      if (!targetPipe || !targetLocation || targetLocation.distanceM > TARGET_REVALIDATE_M) {
-        nodeDispatch({ type: 'candidate', candidate: current.candidate,
-          error: 'That pipe changed. Pick the device location again.' }); return;
-      }
-      point = targetLocation.point;
-      elevM = pipeElevationAt(targetPipe, targetLocation.segmentIndex, targetLocation.u);
+    if (current.kind === 'pump' && optionsRef.current.network.revision !== current.candidate.revision) {
+      nodeDispatch({ type: 'candidate', candidate: current.candidate,
+        error: 'The pipe network changed. Pick the pump location and direction again.' }); return;
     }
-    if (state.nodes.some((node) => haversineMeters(node.point, point) < 0.05)) {
-      nodeDispatch({ type: 'candidate', candidate: null,
-        error: 'A network node already occupies that location.' }); return;
+    if (current.kind === 'pump' && (!current.candidate.pumpSegmentId ||
+      !current.candidate.pumpSuctionSide || current.candidate.snap?.kind !== 'pipe')) {
+      nodeDispatch({ type: 'candidate', candidate: current.candidate,
+        error: 'Choose which side supplies the pump before placing it.' }); return;
     }
-    const allocation = allocateSnowmakingNode(state, { id: optionsRef.current.createId(),
-      kind: current.kind, point, elevM, createdAt: optionsRef.current.now() });
-    state = allocation.state;
-    if (targetPipe && targetLocation) {
-      state = replacePipe(state, attachNodeToSnowmakingPipe(targetPipe, targetLocation, allocation.node.id));
+    const state = snowmakingNetworkProjection(optionsRef.current.network.snapshot());
+    const applied = applySnowmakingNodeCandidate(state, current,
+      optionsRef.current.createId, optionsRef.current.now);
+    if (typeof applied === 'string') {
+      nodeDispatch({ type: 'candidate', candidate: current.candidate, error: applied }); return;
     }
-    if (current.kind === 'hydrant') state = { ...state,
-      guns: reconcileSnowgunConnections(state.guns, state.nodes) };
-    const edit = optionsRef.current.network.begin(); edit.replace(state);
+    const next = current.kind === 'hydrant' ? { ...applied,
+      guns: reconcileSnowgunConnections(applied.guns, applied.nodes) } : applied;
+    const edit = optionsRef.current.network.begin(); edit.replace(next);
     if (!edit.commit().ok) { nodeDispatch({ type: 'candidate', candidate: current.candidate,
       error: 'The network changed. Pick the location again.' }); return; }
     nodeDispatch({ type: 'committed' });
@@ -562,7 +530,7 @@ export function useSnowmakingNetworkController(
     const node = state.nodes.find((candidate) => candidate.id === id);
     if (!node || node.kind === 'intake' || node.kind === 'junction') return;
     state = { ...state, nodes: state.nodes.filter((candidate) => candidate.id !== id),
-      pipes: detachSnowmakingNode(state.pipes, id) };
+      pipes: detachSnowmakingNode(state.pipes, id, optionsRef.current.createId) };
     state = { ...state, guns: reconcileSnowgunConnections(state.guns, state.nodes) };
     const edit = optionsRef.current.network.begin(); edit.replace(state);
     if (edit.commit().ok) optionsRef.current.clearSelected(id);
@@ -576,13 +544,22 @@ export function useSnowmakingNetworkController(
       pipes: state.pipes.map((pipe) => pipe.id === id ? { ...pipe, ...patch } : pipe) });
     edit.commit();
   }
+  function setPumpPort(pipeId: string, segmentId: string, end: 'start' | 'end',
+    port: SnowmakingPumpPort | null): void {
+    const state = snowmakingNetworkProjection(optionsRef.current.network.snapshot());
+    const next = setSnowmakingPumpPort(state, pipeId, segmentId, end, port);
+    if (!next) return;
+    const edit = optionsRef.current.network.begin();
+    edit.replace(next);
+    edit.commit();
+  }
   function removePipe(id: string): void {
     let state = snowmakingNetworkProjection(optionsRef.current.network.snapshot());
     const removed = state.pipes.find((pipe) => pipe.id === id);
     if (!removed) return;
     const candidates = new Set(removed.vertices.flatMap((vertex) => vertex.nodeId ? [vertex.nodeId] : []));
     state = pruneAffectedJunctions({ ...state, pipes: state.pipes.filter((pipe) => pipe.id !== id) },
-      candidates);
+      candidates, optionsRef.current.createId);
     const edit = optionsRef.current.network.begin(); edit.replace(state);
     if (edit.commit().ok) optionsRef.current.clearSelected(id);
   }
@@ -591,10 +568,10 @@ export function useSnowmakingNetworkController(
     contribution: contributionRef.current, pipeTool, nodeTool, hydrantRunTool, snapping, diameterIn,
     previewStats, nodeCandidateTarget, hydrantRunPreview, armPipe, cancelPipe,
     undoPipe: () => pipeDispatch({ type: 'undo' }), finishPipe, confirmPipe, renameDraftPipe,
-    setDiameter, setSnapping, armNode, cancelNode, confirmNode,
+    setDiameter, setSnapping, armNode, cancelNode, confirmNode, setPumpSuctionSide,
     armHydrantRun, cancelHydrantRun, backHydrantRun, setHydrantRunMode,
     setHydrantRunCount, setHydrantRunSpacing, confirmHydrantRun,
     selectNode: options.selectNode, selectPipe: options.selectPipe, selectGun: options.selectGun,
-    renameNode, removeNode, patchPipe, removePipe,
+    renameNode, removeNode, patchPipe, setPumpPort, removePipe,
   };
 }

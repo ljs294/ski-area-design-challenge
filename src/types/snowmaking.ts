@@ -98,6 +98,24 @@ export interface SavedSnowmakingPipeVertex {
   nodeId: string | null;
 }
 
+export type SnowmakingPumpPort = 'suction' | 'discharge';
+
+/**
+ * Stable metadata for one node-bounded portion of an editable pipe route.
+ * Geometry and connectivity remain authoritative in the parent `vertices`;
+ * these records provide durable hydraulic edge identity and classify the two
+ * half-edges that can meet pump nodes.
+ */
+export interface SavedSnowmakingPipeSegment {
+  id: string;
+  /** Inclusive index into the parent pipe's vertices. */
+  startVertexIndex: number;
+  /** Inclusive index into the parent pipe's vertices. */
+  endVertexIndex: number;
+  startPumpPort: SnowmakingPumpPort | null;
+  endPumpPort: SnowmakingPumpPort | null;
+}
+
 export interface SavedSnowmakingPipe {
   id: string;
   name: string;
@@ -107,6 +125,11 @@ export interface SavedSnowmakingPipe {
   lengthM: number;
   /** Highest minus lowest sampled station, or null while elevation is unresolved. */
   verticalM: number | null;
+  /**
+   * Added in save schema 12. Optional at the compatibility boundary so saves
+   * from schema 11 and earlier remain representable; hydration always fills it.
+   */
+  segments?: SavedSnowmakingPipeSegment[];
   createdAt: string;
 }
 

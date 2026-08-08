@@ -336,6 +336,8 @@ export function MapGameDock(props: MapGameDockProps) {
         onArmNode={snowmakingController.network.armNode}
         onCancelNode={snowmakingController.network.cancelNode}
         onConfirmNode={snowmakingController.network.confirmNode}
+        onSetPumpSuctionSide={snowmakingController.network.setPumpSuctionSide}
+        onSetPumpPort={snowmakingController.network.setPumpPort}
         onArmHydrantRun={snowmakingController.network.armHydrantRun}
         onCancelHydrantRun={snowmakingController.network.cancelHydrantRun}
         onBackHydrantRun={snowmakingController.network.backHydrantRun}

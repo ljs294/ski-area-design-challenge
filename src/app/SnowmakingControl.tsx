@@ -8,10 +8,10 @@ import { MAX_POND_EXCAVATION_M, POND_CREST_WIDTH_M, POND_FREEBOARD_M,
 import { EarthworkStats } from './TrailControl';
 import { roadLengthM } from '../roads';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
-import { snowmakingNodeLabel } from '../snowmakingNetwork';
+import { snowmakingNodeLabel, snowmakingPipeSegments } from '../snowmakingNetwork';
 import { SNOWMAKING_PIPE_DIAMETERS_IN } from '../types/snowmaking';
 import type { SavedSnowmakingNode, SavedSnowmakingPipe, SnowmakingLakeSource,
-  SavedSnowgun, SnowgunVariantId, SnowmakingPipeDiameterIn } from '../types/snowmaking';
+  SavedSnowgun, SnowgunVariantId, SnowmakingPipeDiameterIn, SnowmakingPumpPort } from '../types/snowmaking';
 import type { Units } from './SettingsContext';
 import type { DamTool, DraftDam } from './damControllerModel';
 import type { DraftPond, PondTool } from './pondControllerModel';
@@ -21,6 +21,7 @@ import type { SnowmakingHydrantRunPreview } from './useSnowmakingNetworkControll
 import { SnowgunDirectory, SnowgunInspector, SnowgunToolPanel } from './SnowgunControl';
 import type { SnowgunTool } from './snowmakingGunControllerModel';
 import type { SnowgunPlanPreview } from './useSnowgunController';
+import { SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
 
 export type { DamTool, DraftDam } from './damControllerModel';
 export type { DraftPond, PondTool } from './pondControllerModel';
@@ -220,6 +221,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onPondSnowmakingChange,
   onArmPipe, onCancelPipe, onUndoPipe, onFinishPipe, onConfirmPipe, onRenameDraftPipe,
   onDiameterChange, onSnappingChange, onArmNode, onCancelNode, onConfirmNode,
+  onSetPumpSuctionSide, onSetPumpPort,
   onArmHydrantRun, onCancelHydrantRun, onBackHydrantRun, onHydrantRunModeChange,
   onHydrantRunCountChange, onHydrantRunSpacingChange, onConfirmHydrantRun,
   onSelectNode, onRenameNode, onDeleteNode, onCloseNode,
@@ -251,6 +253,9 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onDiameterChange: (diameter: SnowmakingPipeDiameterIn) => void;
   onSnappingChange: (snapping: boolean) => void;
   onArmNode: (kind: 'pump' | 'hydrant') => void; onCancelNode: () => void; onConfirmNode: () => void;
+  onSetPumpSuctionSide: (side: 'route-start' | 'route-end') => void;
+  onSetPumpPort: (pipeId: string, segmentId: string, end: 'start' | 'end',
+    port: SnowmakingPumpPort | null) => void;
   onArmHydrantRun: () => void; onCancelHydrantRun: () => void; onBackHydrantRun: () => void;
   onHydrantRunModeChange: (mode: 'count' | 'spacing') => void;
   onHydrantRunCountChange: (count: number) => void;
@@ -364,15 +369,30 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
       <button className="site-btn" onClick={onCancelHydrantRun}>Cancel</button>
     </div>;
   }
-  if (nodeTool.phase === 'placing') return <div className="site-control site-control-wide snowmaking-panel">
+  if (nodeTool.phase === 'placing') {
+    const pumpSnap = nodeTool.kind === 'pump' && nodeTool.candidate?.snap?.kind === 'pipe'
+      ? nodeTool.candidate.snap : null;
+    const pumpPipe = pumpSnap ? pipes.find((pipe) => pipe.id === pumpSnap.pipeId) ?? null : null;
+    const pumpSegment = pumpPipe && nodeTool.candidate?.pumpSegmentId
+      ? snowmakingPipeSegments(pumpPipe).find((segment) =>
+        segment.id === nodeTool.candidate?.pumpSegmentId) ?? null : null;
+    const sideName = (nodeId: string | null, fallback: string) => {
+      const node = nodes.find((candidate) => candidate.id === nodeId);
+      return node ? snowmakingNodeLabel(node) : fallback;
+    };
+    const routeStartName = sideName(pumpSegment?.fromNodeId ?? null, `${pumpPipe?.name ?? 'pipe'} start`);
+    const routeEndName = sideName(pumpSegment?.toNodeId ?? null, `${pumpPipe?.name ?? 'pipe'} end`);
+    return <div className="site-control site-control-wide snowmaking-panel">
     <PanelHead title={`Place ${nodeTool.kind}`} onClose={onCancelNode} />
-    <div className="site-hint">Click a location, then confirm it. Leave this tool open to place several {nodeTool.kind}s.</div>
-    <label className="snowmaking-snap-toggle">
+    <div className="site-hint">{nodeTool.kind === 'pump'
+      ? 'Click inside an existing pipe segment, choose its suction side, then place the pump.'
+      : 'Click a location, then confirm it. Leave this tool open to place several hydrants.'}</div>
+    {nodeTool.kind !== 'pump' && <label className="snowmaking-snap-toggle">
       <input type="checkbox" checked={snapping}
         aria-label={`Snap single ${nodeTool.kind} to snowmaking network`}
         onChange={(event) => onSnappingChange(event.target.checked)} />
       <span><strong>Node snapping</strong><small>Snap within 16 px of a pipe or existing node.</small></span>
-    </label>
+    </label>}
     {nodeTool.error && <div className="lift-warning">{nodeTool.error}</div>}
     {nodeTool.candidate && <div className="lift-stats">
       <div className="readout-line"><span className="lift-stat-label">Elevation</span>
@@ -381,10 +401,25 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
       <div className="readout-line"><span className="lift-stat-label">Connection</span>
         <span className="lift-stat-value">{nodeTool.candidate.snap ? 'Snapped to network' : 'Free-standing'}</span></div>
     </div>}
+    {nodeTool.kind === 'pump' && pumpSegment && <fieldset className="snowmaking-pump-ports">
+      <legend>Hydraulic direction</legend>
+      <label><input type="radio" name="new-pump-direction"
+        checked={nodeTool.candidate?.pumpSuctionSide === 'route-start'}
+        onChange={() => onSetPumpSuctionSide('route-start')} />
+        <span><strong>Suction from {routeStartName}</strong><small>
+          Discharge toward {routeEndName}</small></span></label>
+      <label><input type="radio" name="new-pump-direction"
+        checked={nodeTool.candidate?.pumpSuctionSide === 'route-end'}
+        onChange={() => onSetPumpSuctionSide('route-end')} />
+        <span><strong>Suction from {routeEndName}</strong><small>
+          Discharge toward {routeStartName}</small></span></label>
+    </fieldset>}
     <div className="site-actions"><button className="site-btn" onClick={onCancelNode}>Done</button>
-      <button className="site-btn site-btn-primary" disabled={!nodeTool.candidate}
+      <button className="site-btn site-btn-primary" disabled={!nodeTool.candidate ||
+        (nodeTool.kind === 'pump' && !nodeTool.candidate.pumpSuctionSide)}
         onClick={onConfirmNode}>Place {nodeTool.kind}</button></div>
   </div>;
+  }
   if (pondTool.phase === 'armed' || pondTool.phase === 'drawing') {
     const points = pondTool.phase === 'drawing' ? pondTool.points : [];
     return <div className="site-control site-control-wide snowmaking-panel">
@@ -491,6 +526,8 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
         <div className="readout-line"><span className="lift-stat-label">Connected pipes</span>
           <span className="lift-stat-value">{connections}</span></div>
       </div>
+      {selectedNode.kind === 'pump' && <SnowmakingPumpPortEditor pump={selectedNode}
+        nodes={nodes} pipes={pipes} onSetPumpPort={onSetPumpPort} />}
       {selectedNode.kind === 'intake' && <div className="site-hint">Source-owned intake. It is removed only with its water source; attached pipes become open ends.</div>}
       {selectedNode.kind === 'junction' && <div className="site-hint">Junctions are managed automatically where pipe routes join.</div>}
       {(selectedNode.kind === 'pump' || selectedNode.kind === 'hydrant') && <>
