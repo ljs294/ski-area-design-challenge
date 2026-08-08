@@ -5,16 +5,37 @@ import type { SavedSnowgun, SavedSnowmakingNode } from '../types/snowmaking';
 import type { XY } from '../network';
 import type { Units } from './SettingsContext';
 
-export function SnowgunDashboardMarkers({ guns, selectedId, width, showTypes, place, select }: {
+export function SnowgunDashboardConnections({ guns, nodes, place }: {
+  guns: SavedSnowgun[]; nodes: SavedSnowmakingNode[]; place(point: [number, number]): XY;
+}) {
+  return <g className="snowmaking-dashboard-gun-connections"
+    aria-label="Snowgun hydrant connections">{guns.map((gun) => {
+      const hydrant = gun.hydrantId == null ? null
+        : nodes.find((node) => node.id === gun.hydrantId && node.kind === 'hydrant');
+      if (!hydrant) return null;
+      const from = place(hydrant.point), to = place(gun.point);
+      return <line key={gun.id} x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+        className="snowmaking-dashboard-gun-connection" data-gun-id={gun.id}
+        data-hydrant-id={hydrant.id} vectorEffect="non-scaling-stroke" />;
+    })}</g>;
+}
+
+export function SnowgunDashboardMarkers({ guns, selectedId, analysisSelectedIds, analysisStatuses,
+  width, showTypes, place, select }: {
   guns: SavedSnowgun[]; selectedId: string | null; width: number; showTypes: boolean;
+  analysisSelectedIds?: readonly string[];
+  analysisStatuses?: Readonly<Record<string, 'ready' | 'failed' | undefined>>;
   place(point: [number, number]): XY; select(id: string): void;
 }) {
+  const analysisSelected = analysisSelectedIds ? new Set(analysisSelectedIds) : null;
   return <g className="snowmaking-dashboard-guns">{guns.map((gun) => {
     const p = place(gun.point), variant = snowgunVariant(gun.variantId);
-    const selected = gun.id === selectedId, connected = gun.hydrantId != null;
+    const selected = gun.id === selectedId || !!analysisSelected?.has(gun.id);
+    const connected = gun.hydrantId != null, status = analysisStatuses?.[gun.id];
     return <g key={gun.id}
-      className={`snowmaking-dashboard-gun${selected ? ' is-selected' : ''}${connected ? '' : ' is-disconnected'}`}
+      className={`snowmaking-dashboard-gun${selected ? ' is-selected' : ''}${connected ? '' : ' is-disconnected'}${status ? ` is-analysis-${status}` : ''}`}
       data-gun-id={gun.id} role="button" tabIndex={0}
+      {...(analysisSelected ? { 'aria-pressed': analysisSelected.has(gun.id) } : {})}
       aria-label={`${variant.label}, ${connected ? `connected to hydrant ${gun.hydrantId}` : 'disconnected'}`}
       onClick={(event) => { event.stopPropagation(); select(gun.id); }}
       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {

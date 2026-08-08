@@ -81,6 +81,7 @@ export interface MapGameDockProps {
   trailController: TrailController;
   nodePathController: NodePathController;
   snowmakingController: SnowmakingController;
+  openSnowmakingAnalysis(): void;
   toggleDock(dock: DockId): void;
   closeDock(): void;
   closeLayers(): void;
@@ -358,6 +359,7 @@ export function MapGameDock(props: MapGameDockProps) {
           snowmakingController.network.selectGun(id)} onMoveGun={snowmakingController.guns.armMove}
         onConfirmMoveGun={snowmakingController.guns.confirmMove}
         onDeleteGun={snowmakingController.guns.remove} onCloseGun={props.clearSelectedSnowgun}
+        onAnalyzeSystem={props.openSnowmakingAnalysis}
         building={props.building} onClose={props.closeDock} />
     </div></div>}
     {infrastructureOpen && <div className="dock-rollup dock-infrastructure"><div className="dock-panel">

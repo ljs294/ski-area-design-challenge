@@ -176,7 +176,8 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.getByRole('button', { name: 'Review 2 snowguns' }).click();
   await expect(page.getByText(/Disconnected guns will be built/)).toBeVisible();
   await page.getByRole('button', { name: /Build 2 snowguns/ }).click();
-  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(8);
+  // Pipe + five hydrants + two guns + the connected gun's hookup line.
+  await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(9);
 
   await page.getByRole('button', { name: 'Mountain Dashboards' }).click();
   await page.getByRole('group', { name: 'Mountain dashboards' })
@@ -204,4 +205,93 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
       { variantId: 'HKD_ImpulseR5_20t', hydrantId: null },
     ],
   });
+});
+
+test('analyzes a branched snowmaking system without persisting the scenario', async ({ page }) => {
+  const analysisNodes = [
+    nodes[0],
+    { id: 'pump-primary', name: 'Primary Pump', kind: 'pump', labelNumber: 1,
+      point: [-121.4968, 46.9042], elevM: 1010, createdAt: FIXED_TIME },
+    { id: 'junction-1', name: 'Junction 1', kind: 'junction', labelNumber: 1,
+      point: [-121.4963, 46.9045], elevM: 1010, createdAt: FIXED_TIME },
+    { id: 'hydrant-1', name: 'Hydrant 1', kind: 'hydrant', labelNumber: 1,
+      point: [-121.4958, 46.9049], elevM: 1020, createdAt: FIXED_TIME },
+    { id: 'hydrant-2', name: 'Hydrant 2', kind: 'hydrant', labelNumber: 2,
+      point: [-121.4958, 46.9041], elevM: 1000, createdAt: FIXED_TIME },
+  ];
+  const pipe = (id: string, name: string, from: typeof analysisNodes[number],
+    to: typeof analysisNodes[number]) => ({
+    id, name, diameterIn: 8,
+    vertices: [
+      { point: from.point, elevM: from.elevM, nodeId: from.id },
+      { point: to.point, elevM: to.elevM, nodeId: to.id },
+    ],
+    lengthM: 100, verticalM: Math.abs((to.elevM ?? 0) - (from.elevM ?? 0)),
+    createdAt: FIXED_TIME,
+  });
+  const analysisPipes = [
+    pipe('pipe-suction', 'Suction', analysisNodes[0], analysisNodes[1]),
+    pipe('pipe-trunk', 'Trunk', analysisNodes[1], analysisNodes[2]),
+    pipe('pipe-north', 'North Branch', analysisNodes[2], analysisNodes[3]),
+    pipe('pipe-south', 'South Branch', analysisNodes[2], analysisNodes[4]),
+  ];
+  const analysisGuns = [
+    { id: 'gun-1', variantId: 'HKD_ImpulseR5_10s', point: analysisNodes[3].point,
+      elevM: 1020, hydrantId: 'hydrant-1', createdAt: FIXED_TIME },
+    { id: 'gun-2', variantId: 'HKD_ImpulseR5_10s', point: analysisNodes[4].point,
+      elevM: 1000, hydrantId: 'hydrant-2', createdAt: FIXED_TIME },
+  ];
+
+  await seedPreparedResort(page, {
+    dams: [dam], snowmakingNodes: analysisNodes, snowmakingPipes: analysisPipes,
+    snowguns: analysisGuns,
+    snowmakingNodeNextNumbers: { hydrant: 3, junction: 2, pump: 2 },
+  });
+  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+
+  await page.getByRole('button', { name: 'Snowmaking' }).click();
+  await page.getByRole('button', { name: 'Analyze snowmaking system' }).click();
+  const analyzer = page.locator('.snowmaking-analysis-panel');
+  await expect(analyzer).toBeVisible();
+
+  for (const checkbox of await analyzer.locator('.snowmaking-analysis-checklist').first()
+    .getByRole('checkbox').all()) await checkbox.check();
+  for (const checkbox of await analyzer.locator('.snowmaking-analysis-checklist').nth(1)
+    .getByRole('checkbox').all()) await checkbox.check();
+  await analyzer.getByRole('checkbox', { name: 'Pump On' }).check();
+  await analyzer.getByRole('spinbutton', { name: 'Primary Pump horsepower' }).fill('500');
+  await analyzer.getByRole('spinbutton', {
+    name: 'Wet-bulb temperature in Fahrenheit',
+  }).fill('9');
+  await analyzer.getByRole('button', { name: 'Check system' }).click();
+
+  await expect(analyzer).toContainText('116 GPM');
+  await expect(analyzer).toContainText('6,960 gal/hr');
+  await expect(analyzer).toContainText('System ready');
+  await expect(analyzer.getByText('Ready', { exact: true })).toHaveCount(2);
+
+  await analyzer.getByRole('spinbutton', {
+    name: 'Wet-bulb temperature in Fahrenheit',
+  }).fill('14');
+  await expect(analyzer).toContainText('Inputs changed. Check the system again');
+  await page.getByRole('button', { name: 'Close system analyzer' }).click();
+
+  await page.getByRole('button', { name: 'Analyze snowmaking system' }).click();
+  const reopened = page.locator('.snowmaking-analysis-panel');
+  await expect(reopened.getByRole('spinbutton', {
+    name: 'Wet-bulb temperature in Fahrenheit',
+  })).toHaveValue('28');
+  await expect(reopened.locator('.snowmaking-analysis-checklist input:checked')).toHaveCount(0);
+  for (const checkbox of await reopened.locator('.snowmaking-analysis-checklist').first()
+    .getByRole('checkbox').all()) await checkbox.check();
+  await expect(reopened.getByRole('checkbox', { name: 'Pump On' })).not.toBeChecked();
+  await page.getByRole('button', { name: 'Close system analyzer' }).click();
+
+  await page.getByRole('button', { name: /^Menu/ }).click();
+  await page.locator('.hud-save').click();
+  const savedText = await page.evaluate(() => localStorage.getItem('gamesave:e2e-save') ?? '');
+  expect(JSON.parse(savedText)).toMatchObject({ schemaVersion: 11 });
+  expect(savedText).not.toContain('horsepowerHp');
+  expect(savedText).not.toContain('selectedPipeIds');
 });

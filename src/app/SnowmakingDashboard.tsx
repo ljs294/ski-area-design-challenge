@@ -16,7 +16,11 @@ import { localContourGeoJSON } from './localContours';
 import type { Units } from './SettingsContext';
 import type { SnowmakingNetworkController } from './useSnowmakingNetworkController';
 import type { SnowgunController } from './useSnowgunController';
-import { SnowgunDashboardInspector, SnowgunDashboardMarkers } from './SnowgunDashboard';
+import { SnowgunDashboardConnections, SnowgunDashboardInspector,
+  SnowgunDashboardMarkers } from './SnowgunDashboard';
+import { SnowmakingAnalysisPanel } from './SnowmakingAnalysisPanel';
+import { ringAreaM2, ringPathD, snowmakingSourceInfo } from './snowmakingDashboardModel';
+import { useSnowmakingAnalysis } from './useSnowmakingAnalysis';
 
 type SnowmakingDashboardProps = Parameters<typeof SnowmakingDashboard>[0];
 
@@ -101,19 +105,6 @@ function niceDistance(target: number): number {
 
 /** Shoelace area of a projected ring (closed or open — the wraparound term
  *  contributes zero when the last point already duplicates the first). */
-function ringAreaM2(points: XY[]): number {
-  let sum = 0;
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    sum += points[j].x * points[i].y - points[i].x * points[j].y;
-  }
-  return Math.abs(sum) / 2;
-}
-
-function ringPathD(points: XY[]): string {
-  if (points.length < 2) return '';
-  return 'M' + points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join('L') + 'Z';
-}
-
 /**
  * Name and capacity of the dam/pond a node was auto-seeded from, or null when
  * the node has no `source` (a future hand-placed node). Mirrors
@@ -122,27 +113,6 @@ function ringPathD(points: XY[]): string {
  * but stay defensive rather than throwing on stale data) degrades to
  * 'Unknown' / 0 rather than crashing.
  */
-function snowmakingSourceInfo(
-  node: SavedSnowmakingNode,
-  dams: SavedDam[],
-  ponds: SavedPond[],
-  lakes: SnowmakingLakeSource[] = [],
-): { name: string; capacityM3: number } | null {
-  const source = node.source;
-  if (!source) return null;
-  if (source.kind === 'dam') {
-    const dam = dams.find((d) => d.id === source.damId);
-    return dam ? { name: dam.name, capacityM3: dam.capacityM3 } : { name: 'Unknown', capacityM3: 0 };
-  }
-  if (source.kind === 'lake') {
-    const lake = lakes.find((item) => item.id === source.lakeId);
-    return lake ? { name: lake.name, capacityM3: lake.capacityM3 ?? 0 }
-      : { name: 'Unknown', capacityM3: 0 };
-  }
-  const pond = ponds.find((p) => p.id === source.pondId);
-  return pond ? { name: pond.name, capacityM3: pond.capacityM3 } : { name: 'Unknown', capacityM3: 0 };
-}
-
 export function SnowmakingDashboard({
   dams,
   ponds,
@@ -167,6 +137,7 @@ export function SnowmakingDashboard({
   onDeletePipe = () => {},
   onMoveGun = () => {},
   onDeleteGun = () => {},
+  mode = 'inspect',
   onClose,
 }: {
   dams: SavedDam[];
@@ -192,20 +163,24 @@ export function SnowmakingDashboard({
   onDeletePipe?: (id: string) => void;
   onMoveGun?: (id: string) => void;
   onDeleteGun?: (id: string) => void;
+  mode?: 'inspect' | 'analysis';
   onClose: () => void;
 }) {
   const [view, setView] = useState<View | null>(null);
   const [showGunTypes, setShowGunTypes] = useState(false);
   const [pendingHydrantDeleteId, setPendingHydrantDeleteId] = useState<string | null>(null);
+  const { state: analysis, dispatch: analysisDispatch, check: checkAnalysis,
+    gunStatuses: analysisStatuses } = useSnowmakingAnalysis({ nodes, pipes, guns,
+    dams, ponds, lakes });
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
 
   const empty = dams.length === 0 && ponds.length === 0 && lakes.length === 0 &&
     nodes.length === 0 && pipes.length === 0 && guns.length === 0;
-  const selectedNode = nodes.find((n) => n.id === selectedNodeId) ?? null;
-  const selectedPipe = pipes.find((pipe) => pipe.id === selectedPipeId) ?? null;
-  const selectedGun = guns.find((gun) => gun.id === selectedGunId) ?? null;
-
+  const selectedNode = mode === 'inspect' ? nodes.find((n) => n.id === selectedNodeId) ?? null : null;
+  const selectedPipe = mode === 'inspect'
+    ? pipes.find((pipe) => pipe.id === selectedPipeId) ?? null : null;
+  const selectedGun = mode === 'inspect' ? guns.find((gun) => gun.id === selectedGunId) ?? null : null;
   // Frame is scoped to water + node geometry — the features this dashboard
   // exists to show — not the whole trail/lift network. Trails/lifts still
   // render as context, reached by panning out.
@@ -409,6 +384,7 @@ export function SnowmakingDashboard({
           onPointerDown={onPointerDown}
           onClick={() => {
             if (dragRef.current?.moved) return;
+            if (mode === 'analysis') return;
             onSelectNode(null);
             onSelectPipe(null);
             onSelectGun(null);
@@ -496,17 +472,23 @@ export function SnowmakingDashboard({
               const points = pipe.vertices.map((vertex) => place(vertex.point));
               const d = points.length >= 2 ? 'M' + points.map((point) =>
                 `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join('L') : '';
-              const selected = pipe.id === selectedPipeId;
+              const selected = mode === 'analysis'
+                ? analysis.selectedPipeIds.includes(pipe.id) : pipe.id === selectedPipeId;
               return d ? <path key={pipe.id} d={d}
-                className={`snowmaking-dashboard-pipe${selected ? ' is-selected' : ''}`}
+                className={`snowmaking-dashboard-pipe${selected ? ' is-selected is-analysis-selected' : ''}`}
                 data-pipe-id={pipe.id} role="button" tabIndex={0}
+                {...(mode === 'analysis' ? { 'aria-pressed': selected } : {})}
                 aria-label={`${pipe.name}, ${pipe.diameterIn} inch snowmaking pipe`}
                 vectorEffect="non-scaling-stroke"
-                onClick={(event) => { event.stopPropagation(); onSelectPipe(pipe.id); }}
+                onClick={(event) => { event.stopPropagation(); mode === 'analysis'
+                  ? analysisDispatch({ type: 'toggle-pipe', id: pipe.id }) : onSelectPipe(pipe.id); }}
                 onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault(); onSelectPipe(pipe.id); } }} /> : null;
+                  event.preventDefault(); mode === 'analysis'
+                    ? analysisDispatch({ type: 'toggle-pipe', id: pipe.id }) : onSelectPipe(pipe.id); } }} /> : null;
             })}
           </g>
+
+          <SnowgunDashboardConnections guns={guns} nodes={nodes} place={place} />
 
           {/* 5. Nodes, colored by kind, selection highlighted. */}
           <g className="snowmaking-dashboard-nodes">
@@ -518,25 +500,27 @@ export function SnowmakingDashboard({
                   key={node.id}
                   className={`snowmaking-dashboard-node snowmaking-dashboard-node--${node.kind}${selected ? ' is-selected' : ''}`}
                   data-node-id={node.id}
-                  role="button"
-                  tabIndex={0}
+                  {...(mode === 'inspect' ? { role: 'button', tabIndex: 0 } : {})}
                   aria-label={`${SNOWMAKING_NODE_LABELS[node.kind]} ${snowmakingNodeLabel(node)}, ${node.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (mode === 'analysis') return;
                     if (dragRef.current?.moved) return;
                     onSelectNode(node.id);
                   }}
                   onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
+                    if (mode === 'analysis') return;
                     event.preventDefault(); event.stopPropagation(); onSelectNode(node.id); } }}
                 >
-                  <circle
-                    cx={p.x}
-                    cy={p.y}
-                    r={(selected ? 7 : 5) * (active.w / NOMINAL_PX)}
+                  {node.kind === 'hydrant' ? <text x={p.x} y={p.y} textAnchor="middle"
+                    dominantBaseline="central" className="snowmaking-dashboard-hydrant-symbol"
+                    style={{ fontSize: active.w / 65 }} aria-hidden="true">×</text> : <circle
+                    cx={p.x} cy={p.y}
+                    r={(selected ? 6 : 4.5) * (active.w / NOMINAL_PX)}
                     fill={NODE_COLORS[node.kind]}
                     className="snowmaking-dashboard-node-dot"
                     vectorEffect="non-scaling-stroke"
-                  />
+                  />}
                   <text
                     x={p.x}
                     y={p.y - active.w / 70}
@@ -552,13 +536,23 @@ export function SnowmakingDashboard({
           </g>
 
           {/* 6. Snowguns sit above the pipe graph and remain visible regardless of label preference. */}
-          <SnowgunDashboardMarkers guns={guns} selectedId={selectedGunId} width={active.w}
-            showTypes={showGunTypes} place={place} select={onSelectGun} />
+          <SnowgunDashboardMarkers guns={guns} selectedId={mode === 'inspect' ? selectedGunId : null}
+            analysisSelectedIds={mode === 'analysis' ? analysis.selectedGunIds : undefined}
+            analysisStatuses={analysisStatuses} width={active.w} showTypes={showGunTypes} place={place}
+            select={(id) => {
+              if (mode === 'analysis') {
+                if (guns.find((gun) => gun.id === id)?.hydrantId) {
+                  analysisDispatch({ type: 'toggle-gun', id });
+                }
+                return;
+              }
+              onSelectGun(id);
+            }} />
         </svg>
 
         <div className="network-chrome-tl">
           <button className="site-btn network-close" onClick={onClose}>
-            ✕ Close snowmaking map
+            ✕ Close {mode === 'analysis' ? 'system analyzer' : 'snowmaking map'}
           </button>
           <button className="site-btn" onClick={() => setView(null)}>
             Reset view
@@ -588,7 +582,15 @@ export function SnowmakingDashboard({
         )}
       </div>
 
-      <SnowmakingInspector
+      {mode === 'analysis' ? <SnowmakingAnalysisPanel state={analysis} nodes={nodes} pipes={pipes}
+        guns={guns} result={analysis.result}
+        togglePipe={(id) => analysisDispatch({ type: 'toggle-pipe', id })}
+        toggleGun={(id) => analysisDispatch({ type: 'toggle-gun', id })}
+        setWetBulb={(value) => analysisDispatch({ type: 'wet-bulb', value })}
+        setPumpOn={(id, on) => analysisDispatch({ type: 'pump-on', id, on })}
+        setPumpHp={(id, value) => analysisDispatch({ type: 'pump-hp', id, value })}
+        setPumpEfficiency={(id, value) => analysisDispatch({ type: 'pump-efficiency', id, value })}
+        check={checkAnalysis} reset={() => analysisDispatch({ type: 'reset' })} /> : <SnowmakingInspector
         selectedNode={selectedNode}
         selectedPipe={selectedPipe}
         selectedGun={selectedGun}
@@ -609,7 +611,7 @@ export function SnowmakingDashboard({
         onDeleteGun={onDeleteGun}
         pendingHydrantDeleteId={pendingHydrantDeleteId}
         onSetPendingHydrantDeleteId={setPendingHydrantDeleteId}
-      />
+      />}
     </div>
   );
 }

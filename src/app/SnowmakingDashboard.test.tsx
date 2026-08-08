@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import type { LatLonBounds } from '../types/geo';
-import type { SavedSnowgun, SavedSnowmakingNode } from '../types/snowmaking';
+import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe } from '../types/snowmaking';
 import type { CoverClassCode, SavedDam, SavedLift, SavedPond, SavedTrail, TerrainRecord } from '../types';
 import { SnowmakingDashboard } from './SnowmakingDashboard';
 
@@ -69,6 +69,15 @@ const connectedGun: SavedSnowgun = {
 const disconnectedGun: SavedSnowgun = {
   id: 'gun-2', variantId: 'HKD_ImpulseR5_20t', point: at(500, 500), elevM: null,
   hydrantId: null, createdAt: '2026-01-01T00:00:00.000Z',
+};
+const testPipe: SavedSnowmakingPipe = {
+  id: 'pipe-1', name: 'Main', diameterIn: 8,
+  vertices: [
+    { point: nodeA.point, elevM: nodeA.elevM, nodeId: nodeA.id },
+    { point: nodeB.point, elevM: nodeB.elevM, nodeId: nodeB.id },
+    { point: hydrant.point, elevM: hydrant.elevM, nodeId: hydrant.id },
+  ],
+  lengthM: 285, verticalM: 49, createdAt: '2026-01-01T00:00:00.000Z',
 };
 
 const trails: SavedTrail[] = [];
@@ -177,13 +186,33 @@ describe('SnowmakingDashboard', () => {
     expect(html.slice(Math.max(0, j - 160), j)).not.toContain('is-selected');
   });
 
+  it('renders water hydrants as compact X symbols', () => {
+    const html = render({ nodes: [hydrant] });
+    expect(html).toContain('snowmaking-dashboard-hydrant-symbol');
+    expect(html).toContain('>×</text>');
+  });
+
   it('renders selectable guns, warnings, and keeps type labels off by default', () => {
     const html = render({ nodes: [nodeA, hydrant], guns: [connectedGun, disconnectedGun] });
     expect(html).toContain('data-gun-id="gun-1"');
     expect(html).toContain('data-gun-id="gun-2"');
+    expect(html).toContain('snowmaking-dashboard-gun-connection');
+    expect(html).toContain('data-hydrant-id="hydrant-1"');
     expect(html).toContain('Warning: disconnected snowgun');
     expect(html).toContain('Show snowgun types');
     expect(html).not.toContain('snowmaking-dashboard-gun-label');
+  });
+
+  it('renders transient multi-selection and pump defaults in analysis mode', () => {
+    const html = render({ mode: 'analysis', nodes: [nodeA, nodeB, hydrant], pipes: [testPipe],
+      guns: [connectedGun] });
+    expect(html).toContain('data-inspector="analysis"');
+    expect(html).toContain('Check system');
+    expect(html).toMatch(/data-pipe-id="pipe-1"[^>]*aria-pressed="false"/);
+    expect(html).toMatch(/data-gun-id="gun-1"[^>]*aria-pressed="false"/);
+    expect(html).toContain('Pump 1');
+    expect(html).toContain('No pump node is attached to the selected pipes.');
+    expect(html).not.toContain('Remove pipe');
   });
 
   it('draws water bodies for both dams and standalone ponds', () => {

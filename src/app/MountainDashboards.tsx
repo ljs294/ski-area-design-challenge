@@ -8,7 +8,7 @@ import { SnowmakingDashboard } from './SnowmakingDashboard';
 // between them, positioned as its own fixed overlay so it survives which
 // dashboard is mounted underneath.
 
-export type DashboardKind = 'trails' | 'snowmaking';
+export type DashboardKind = 'trails' | 'snowmaking' | 'snowmaking-analysis';
 
 type NetworkMapProps = Omit<Parameters<typeof NetworkMap>[0], 'onClose'>;
 type SnowmakingDashboardProps = Omit<Parameters<typeof SnowmakingDashboard>[0], 'onClose'>;
@@ -26,9 +26,10 @@ export function MountainDashboards({
   snowmakingProps: SnowmakingDashboardProps;
   onClose: () => void;
 }) {
+  const analysis = dashboard === 'snowmaking-analysis';
   return (
     <div className="mountain-dashboards">
-      <div className="dashboard-picker" role="group" aria-label="Mountain dashboards">
+      {!analysis && <div className="dashboard-picker" role="group" aria-label="Mountain dashboards">
         <button
           className="site-btn"
           aria-pressed={dashboard === 'trails'}
@@ -43,11 +44,11 @@ export function MountainDashboards({
         >
           Snowmaking
         </button>
-      </div>
+      </div>}
       {dashboard === 'trails' ? (
         <NetworkMap {...networkProps} onClose={onClose} />
       ) : (
-        <SnowmakingDashboard {...snowmakingProps} onClose={onClose} />
+        <SnowmakingDashboard {...snowmakingProps} mode={analysis ? 'analysis' : 'inspect'} onClose={onClose} />
       )}
     </div>
   );

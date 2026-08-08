@@ -226,7 +226,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onSelectPipe, onPatchPipe, onDeletePipe, onClosePipe,
   onArmGuns, onCancelGuns, onSnowgunVariantChange, onRemoveDraftGun, onReviewGuns,
   onBackGuns, onConfirmGuns, onSelectGun, onMoveGun, onConfirmMoveGun, onDeleteGun, onCloseGun,
-  onClose, building = false }: {
+  onAnalyzeSystem, onClose, building = false }: {
   damTool: DamTool; pondTool: PondTool; dams: SavedDam[];
   ponds: SavedPond[]; selectedDam: SavedDam | null; selectedPond: SavedPond | null;
   lakes?: SnowmakingLakeSource[];
@@ -265,6 +265,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onRemoveDraftGun: (id: string) => void; onReviewGuns: () => void; onBackGuns: () => void;
   onConfirmGuns: () => void; onSelectGun: (id: string) => void; onMoveGun: (id: string) => void;
   onConfirmMoveGun: () => void; onDeleteGun: (id: string) => void; onCloseGun: () => void;
+  onAnalyzeSystem: () => void;
   onClose: () => void; building?: boolean;
 }) {
   const [pendingHydrantDeleteId, setPendingHydrantDeleteId] = useState<string | null>(null);
@@ -523,6 +524,8 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   </div>;
   return <div className="lift-overview snowmaking-panel">
     <PanelHead title={`Snowmaking · ${dams.length} dams · ${ponds.length} ponds`} onClose={onClose} />
+    <button className="lift-add-btn site-btn site-btn-primary" onClick={onAnalyzeSystem}>
+      Analyze snowmaking system</button>
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmDam}>＋ Build dam</button>
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmPond}>＋ Build standalone pond</button>
     <div className="site-actions"><button className="site-btn" onClick={() => onArmNode('hydrant')}>Place one hydrant</button>

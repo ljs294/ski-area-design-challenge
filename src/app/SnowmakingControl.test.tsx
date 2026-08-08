@@ -28,6 +28,7 @@ const callbacks = {
   onRemoveDraftGun: vi.fn(), onReviewGuns: vi.fn(), onBackGuns: vi.fn(), onConfirmGuns: vi.fn(),
   onSelectGun: vi.fn(), onMoveGun: vi.fn(), onConfirmMoveGun: vi.fn(), onDeleteGun: vi.fn(),
   onCloseGun: vi.fn(),
+  onAnalyzeSystem: vi.fn(),
 };
 
 const gunProps = { guns: [], selectedGun: null, gunTool: { phase: 'idle' } as const,
@@ -54,6 +55,7 @@ describe('SnowmakingControl', () => {
     expect(html).toContain('Build dam');
     expect(html).toContain('Build standalone pond');
     expect(html).toContain('Install snowmaking pipe');
+    expect(html).toContain('Analyze snowmaking system');
   });
 
   it('enables pipe and device construction', () => {

@@ -13,7 +13,7 @@ export const SNOWMAKING_HIT_LAYERS = [
  * when the transparent hit line is visually indistinguishable from the map. */
 export const SNOWMAKING_HOVER_LAYERS = [
   'snowmaking-gun-hit', 'snowmaking-node-hit', 'snowmaking-pipe-hit', 'snowmaking-guns',
-  'snowmaking-pipes', 'snowmaking-pipe-casing',
+  'snowmaking-pipes', 'snowmaking-water-hydrants', 'snowmaking-air-hydrants',
 ] as const;
 export const SNOWMAKING_DRAFT_LAYER_IDS = [
   'snowmaking-pipe-draft', 'snowmaking-pipe-draft-vertices', 'snowmaking-snap-preview',
@@ -23,14 +23,16 @@ export const SNOWMAKING_DRAFT_LAYER_IDS = [
 ] as const;
 export const SNOWMAKING_BUILT_LAYER_IDS = [
   'snowmaking-pipe-casing', 'snowmaking-pipes', 'snowmaking-pipe-selected',
-  'snowmaking-node-halo', 'snowmaking-nodes', 'snowmaking-node-selected',
+  'snowmaking-gun-connections',
+  'snowmaking-node-halo', 'snowmaking-nodes', 'snowmaking-water-hydrants',
+  'snowmaking-air-hydrants', 'snowmaking-node-selected',
   'snowmaking-node-labels', 'snowmaking-gun-selected', 'snowmaking-guns',
   ...SNOWMAKING_HIT_LAYERS,
 ] as const;
 
 type NetworkProperties = {
   id: string;
-  entityKind: 'node' | 'pipe' | 'gun';
+  entityKind: 'node' | 'pipe' | 'gun' | 'gun-connection';
   name: string;
   kind?: string;
   label?: string;
@@ -39,6 +41,10 @@ type NetworkProperties = {
   variantLabel?: string;
   connected?: boolean;
   hydrantId?: string;
+  gunId?: string;
+  /** Current saved hydrants are water hookups. This discriminator lets the
+   * renderer use the reserved O glyph when air hydrants enter the domain. */
+  hydrantType?: 'water' | 'air';
 };
 
 export function snowmakingNetworkToGeoJSON(nodes: readonly SavedSnowmakingNode[],
@@ -58,9 +64,19 @@ GeoJSON.FeatureCollection<GeoJSON.Geometry, NetworkProperties> {
         type: 'Feature',
         id: node.id,
         properties: { id: node.id, entityKind: 'node', name: node.name,
-          kind: node.kind, label: snowmakingNodeLabel(node) },
+          kind: node.kind, label: snowmakingNodeLabel(node),
+          ...(node.kind === 'hydrant' ? { hydrantType: 'water' as const } : {}) },
         geometry: { type: 'Point', coordinates: node.point },
       })),
+      ...guns.flatMap((gun): GeoJSON.Feature<GeoJSON.LineString, NetworkProperties>[] => {
+        if (!gun.hydrantId) return [];
+        const hydrant = nodes.find((node) => node.id === gun.hydrantId && node.kind === 'hydrant');
+        if (!hydrant) return [];
+        return [{ type: 'Feature', id: `gun-connection:${gun.id}`,
+          properties: { id: `gun-connection:${gun.id}`, entityKind: 'gun-connection',
+            name: 'Snowgun hydrant connection', gunId: gun.id, hydrantId: hydrant.id },
+          geometry: { type: 'LineString', coordinates: [hydrant.point, gun.point] } }];
+      }),
       ...guns.map((gun): GeoJSON.Feature<GeoJSON.Point, NetworkProperties> => {
         const variant = snowgunVariant(gun.variantId);
         return { type: 'Feature', id: gun.id,
@@ -79,7 +95,8 @@ GeoJSON.FeatureCollection<GeoJSON.Point, NetworkProperties> {
   return { type: 'FeatureCollection', features: nodes.map((node) => ({
     type: 'Feature', id: node.id,
     properties: { id: node.id, entityKind: 'node', name: node.name,
-      kind: node.kind, label: snowmakingNodeLabel(node) },
+      kind: node.kind, label: snowmakingNodeLabel(node),
+      ...(node.kind === 'hydrant' ? { hydrantType: 'water' as const } : {}) },
     geometry: { type: 'Point', coordinates: node.point },
   })) };
 }
@@ -153,45 +170,64 @@ export function addSnowmakingLayers(map: maplibregl.Map): void {
 
   const pipeFilter: maplibregl.FilterSpecification = ['==', ['get', 'entityKind'], 'pipe'];
   const nodeFilter: maplibregl.FilterSpecification = ['==', ['get', 'entityKind'], 'node'];
+  const roundNodeFilter: maplibregl.FilterSpecification = ['all', nodeFilter,
+    ['!=', ['get', 'kind'], 'hydrant']];
+  const waterHydrantFilter: maplibregl.FilterSpecification = ['all', nodeFilter,
+    ['==', ['get', 'kind'], 'hydrant'], ['!=', ['get', 'hydrantType'], 'air']];
+  const airHydrantFilter: maplibregl.FilterSpecification = ['all', nodeFilter,
+    ['==', ['get', 'kind'], 'hydrant'], ['==', ['get', 'hydrantType'], 'air']];
   const gunFilter: maplibregl.FilterSpecification = ['==', ['get', 'entityKind'], 'gun'];
+  const gunConnectionFilter: maplibregl.FilterSpecification =
+    ['==', ['get', 'entityKind'], 'gun-connection'];
   map.addLayer({ id: 'snowmaking-pipe-casing', type: 'line', source: SNOWMAKING_SOURCE,
     filter: pipeFilter, layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#ffffff', 'line-opacity': 0.92,
-      'line-width': ['interpolate', ['linear'], ['get', 'diameterIn'], 4, 4, 24, 8] } });
+    paint: { 'line-color': '#2c83a5', 'line-opacity': 0.18,
+      'line-width': ['interpolate', ['linear'], ['get', 'diameterIn'], 4, 2.5, 24, 4.5] } });
   map.addLayer({ id: 'snowmaking-pipes', type: 'line', source: SNOWMAKING_SOURCE,
     filter: pipeFilter, layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: { 'line-color': '#2c83a5',
-      'line-width': ['interpolate', ['linear'], ['get', 'diameterIn'], 4, 2, 24, 6] } });
+      'line-width': ['interpolate', ['linear'], ['get', 'diameterIn'], 4, 1.25, 24, 3.25] } });
   map.addLayer({ id: 'snowmaking-pipe-selected', type: 'line', source: SNOWMAKING_SOURCE,
     filter: ['all', pipeFilter, ['==', ['get', 'id'], '']],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#fff1a8', 'line-width': 9, 'line-opacity': 0.7 } });
+    paint: { 'line-color': '#efb84f', 'line-width': 4, 'line-opacity': 0.9 } });
+  map.addLayer({ id: 'snowmaking-gun-connections', type: 'line', source: SNOWMAKING_SOURCE,
+    filter: gunConnectionFilter, layout: { 'line-cap': 'round' },
+    paint: { 'line-color': '#374151', 'line-width': 1,
+      'line-opacity': 0.8, 'line-dasharray': [2, 1.5] } });
 
   map.addLayer({ id: 'snowmaking-node-halo', type: 'circle', source: SNOWMAKING_SOURCE,
-    filter: nodeFilter, paint: { 'circle-radius': 9, 'circle-opacity': 0.18,
+    filter: roundNodeFilter, paint: { 'circle-radius': 7, 'circle-opacity': 0.12,
       'circle-stroke-width': 0, 'circle-color': ['match', ['get', 'kind'],
         'intake', '#397f9f', 'pump', '#f0b44d', 'junction', '#4b5563',
         'hydrant', '#22c55e', '#397f9f'] } });
   map.addLayer({ id: 'snowmaking-nodes', type: 'circle', source: SNOWMAKING_SOURCE,
-    filter: nodeFilter, paint: { 'circle-radius': 5.5, 'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5, 'circle-color': ['match', ['get', 'kind'],
+    filter: roundNodeFilter, paint: { 'circle-radius': 4.5, 'circle-stroke-width': 0,
+      'circle-color': ['match', ['get', 'kind'],
         'intake', '#397f9f', 'pump', '#f0b44d', 'junction', '#4b5563',
         'hydrant', '#22c55e', '#397f9f'] } });
+  map.addLayer({ id: 'snowmaking-water-hydrants', type: 'symbol', source: SNOWMAKING_SOURCE,
+    filter: waterHydrantFilter, layout: { 'text-field': '×', 'text-size': 15,
+      'text-font': ['Noto Sans Regular'], 'text-allow-overlap': true },
+    paint: { 'text-color': '#172033' } });
+  map.addLayer({ id: 'snowmaking-air-hydrants', type: 'symbol', source: SNOWMAKING_SOURCE,
+    filter: airHydrantFilter, layout: { 'text-field': 'O', 'text-size': 9,
+      'text-font': ['Noto Sans Regular'], 'text-allow-overlap': true },
+    paint: { 'text-color': '#172033' } });
   map.addLayer({ id: 'snowmaking-node-selected', type: 'circle', source: SNOWMAKING_SOURCE,
     filter: ['all', nodeFilter, ['==', ['get', 'id'], '']],
-    paint: { 'circle-radius': 8, 'circle-color': 'rgba(0,0,0,0)',
-      'circle-stroke-color': '#fff6c7', 'circle-stroke-width': 3 } });
+    paint: { 'circle-radius': 7, 'circle-color': 'rgba(0,0,0,0)',
+      'circle-stroke-color': '#efb84f', 'circle-stroke-width': 1.5 } });
   map.addLayer({ id: 'snowmaking-node-labels', type: 'symbol', source: SNOWMAKING_SOURCE,
     filter: nodeFilter, layout: { 'text-field': ['get', 'label'], 'text-size': 12,
       'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-font': ['Noto Sans Regular'],
-      'text-optional': true }, paint: { 'text-color': '#1f2937',
-      'text-halo-color': '#ffffff', 'text-halo-width': 1.5 } });
+      'text-optional': true }, paint: { 'text-color': '#1f2937' } });
 
   map.addLayer({ id: 'snowmaking-gun-selected', type: 'circle', source: SNOWMAKING_SOURCE,
     filter: ['all', gunFilter, ['==', ['get', 'id'], '']], paint: { 'circle-radius': 10,
-      'circle-color': '#fff1a8', 'circle-opacity': 0.65, 'circle-stroke-width': 0 } });
+      'circle-color': '#efb84f', 'circle-opacity': 0.45, 'circle-stroke-width': 0 } });
   map.addLayer({ id: 'snowmaking-guns', type: 'circle', source: SNOWMAKING_SOURCE,
-    filter: gunFilter, paint: { 'circle-radius': 6, 'circle-color': '#6d4cc3',
+    filter: gunFilter, paint: { 'circle-radius': 5, 'circle-color': '#000000',
       'circle-stroke-width': 0 } });
 
   map.addLayer({ id: 'snowmaking-pipe-hit', type: 'line', source: SNOWMAKING_SOURCE,
@@ -206,30 +242,29 @@ export function addSnowmakingLayers(map: maplibregl.Map): void {
 
   map.addLayer({ id: 'snowmaking-pipe-draft', type: 'line', source: SNOWMAKING_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'line'], layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#efb84f', 'line-width': 4, 'line-dasharray': [1.5, 1] } });
+    paint: { 'line-color': '#efb84f', 'line-width': 2.5, 'line-dasharray': [1.5, 1] } });
   map.addLayer({ id: 'snowmaking-pipe-draft-vertices', type: 'circle',
     source: SNOWMAKING_DRAFT_SOURCE, filter: ['==', ['get', 'kind'], 'vertex'],
-    paint: { 'circle-radius': 4.5, 'circle-color': '#efb84f',
-      'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } });
+    paint: { 'circle-radius': 3.5, 'circle-color': '#efb84f', 'circle-stroke-width': 0 } });
   map.addLayer({ id: 'snowmaking-snap-preview', type: 'circle', source: SNOWMAKING_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'snap'], paint: { 'circle-radius': 9,
       'circle-color': 'rgba(239,184,79,0.18)', 'circle-stroke-color': '#efb84f',
-      'circle-stroke-width': 3 } });
+      'circle-stroke-width': 1.5 } });
   map.addLayer({ id: 'snowmaking-hydrant-route', type: 'line', source: SNOWMAKING_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'route'], layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#fff1a8', 'line-width': 8, 'line-opacity': 0.65 } });
+    paint: { 'line-color': '#2c83a5', 'line-width': 3, 'line-opacity': 0.35 } });
   map.addLayer({ id: 'snowmaking-hydrant-interval', type: 'line', source: SNOWMAKING_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'interval'], layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#efb84f', 'line-width': 5, 'line-opacity': 0.95 } });
+    paint: { 'line-color': '#efb84f', 'line-width': 3, 'line-opacity': 0.95 } });
   map.addLayer({ id: 'snowmaking-hydrant-endpoints', type: 'symbol', source: SNOWMAKING_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'endpoint'], layout: { 'text-field': ['get', 'label'],
       'text-size': 12, 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': true },
-    paint: { 'text-color': '#1f2937', 'text-halo-color': '#fff1a8', 'text-halo-width': 4 } });
-  map.addLayer({ id: 'snowmaking-hydrant-preview', type: 'circle', source: SNOWMAKING_DRAFT_SOURCE,
-    filter: ['==', ['get', 'kind'], 'hydrant'], paint: { 'circle-radius': 6,
-      'circle-color': ['case', ['get', 'conflict'], '#ffffff', '#22c55e'],
-      'circle-stroke-color': ['case', ['get', 'conflict'], '#b91c1c', '#ffffff'],
-      'circle-stroke-width': ['case', ['get', 'conflict'], 3, 1.5] } });
+    paint: { 'text-color': '#1f2937' } });
+  map.addLayer({ id: 'snowmaking-hydrant-preview', type: 'symbol', source: SNOWMAKING_DRAFT_SOURCE,
+    filter: ['all', ['==', ['get', 'kind'], 'hydrant'],
+      ['==', ['get', 'conflict'], false]], layout: { 'text-field': '×', 'text-size': 15,
+      'text-font': ['Noto Sans Regular'], 'text-allow-overlap': true },
+    paint: { 'text-color': '#172033' } });
   map.addLayer({ id: 'snowmaking-hydrant-preview-labels', type: 'symbol',
     source: SNOWMAKING_DRAFT_SOURCE, filter: ['all', ['==', ['get', 'kind'], 'hydrant'],
       ['==', ['get', 'conflict'], true]], layout: { 'text-field': ['get', 'label'],
@@ -237,18 +272,17 @@ export function addSnowmakingLayers(map: maplibregl.Map): void {
     paint: { 'text-color': '#b91c1c' } });
   map.addLayer({ id: 'snowmaking-gun-draft-hoses', type: 'line', source: SNOWMAKING_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'gun-hose'], layout: { 'line-cap': 'round' },
-    paint: { 'line-color': '#6d4cc3', 'line-width': 2, 'line-dasharray': [2, 1] } });
+    paint: { 'line-color': '#4b5563', 'line-width': 1.25, 'line-dasharray': [2, 1] } });
   map.addLayer({ id: 'snowmaking-gun-draft', type: 'circle', source: SNOWMAKING_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'gun'], paint: { 'circle-radius': ['case',
-      ['get', 'candidate'], 7, 6], 'circle-color': ['case', ['get', 'connected'],
-      '#6d4cc3', '#ffffff'], 'circle-stroke-color': ['case', ['get', 'connected'],
-      '#ffffff', '#b91c1c'], 'circle-stroke-width': ['case', ['get', 'connected'], 1, 3] } });
+      ['get', 'candidate'], 6, 5], 'circle-color': '#000000',
+      'circle-stroke-color': ['case', ['get', 'connected'], '#000000', '#b91c1c'],
+      'circle-stroke-width': ['case', ['get', 'connected'], 0, 1.5] } });
   map.addLayer({ id: 'snowmaking-gun-draft-warnings', type: 'symbol',
     source: SNOWMAKING_DRAFT_SOURCE, filter: ['all', ['==', ['get', 'kind'], 'gun'],
       ['==', ['get', 'connected'], false]], layout: { 'text-field': '!', 'text-size': 14,
       'text-offset': [0.75, -0.75], 'text-font': ['Noto Sans Regular'],
-      'text-allow-overlap': true }, paint: { 'text-color': '#b91c1c',
-      'text-halo-color': '#ffffff', 'text-halo-width': 2 } });
+      'text-allow-overlap': true }, paint: { 'text-color': '#b91c1c' } });
 }
 
 export function setSnowmakingData(map: maplibregl.Map | null,

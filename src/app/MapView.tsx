@@ -334,7 +334,7 @@ export function MapView({
   const [showNetwork, setShowNetwork] = useState(false);
   const [networkLiftId, setNetworkLiftId] = useState<string | null>(null);
   const [networkEdgeId, setNetworkEdgeId] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<'trails' | 'snowmaking'>('trails');
+  const [dashboard, setDashboard] = useState<'trails' | 'snowmaking' | 'snowmaking-analysis'>('trails');
   const network = useMemo(
     () => buildSkiNetwork(trails, lifts, { nodes: skiNodes, paths: skiPaths, junctions }),
     [trails, lifts, skiNodes, skiPaths, junctions]
@@ -1715,7 +1715,7 @@ export function MapView({
             controller: snowmakingController.network,
             gunController: snowmakingController.guns,
           }),
-          onClose: () => setShowNetwork(false),
+          onClose: () => { setShowNetwork(false); if (dashboard === 'snowmaking-analysis') setDashboard('snowmaking'); },
         } : null}
         readout={!saved ? { value: readout, units: settings.units } : null}
         dock={saved ? {
@@ -1734,7 +1734,7 @@ export function MapView({
           streamWidthOverrides, liftController,
           roadController, trailController,
           nodePathController, snowmakingController,
-          toggleDock,
+          toggleDock, openSnowmakingAnalysis: () => { setDashboard('snowmaking-analysis'); setShowNetwork(true); },
           closeDock: () => setOpenDock(null),
           closeLayers: () => {
             setLayersAlongsideBuild(false);

@@ -77,4 +77,11 @@ describe('MountainDashboards', () => {
     expect(html).toContain('aria-label="Snowmaking network map"');
     expect(html).not.toContain('aria-label="Mountain node map"');
   });
+
+  it('opens snowmaking capacity mode without the normal dashboard picker', () => {
+    const html = render('snowmaking-analysis');
+    expect(html).toContain('Analyze snowmaking system');
+    expect(html).toContain('Check system');
+    expect(html).not.toContain('aria-label="Mountain dashboards"');
+  });
 });

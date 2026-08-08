@@ -57,13 +57,19 @@ describe('snowmaking network map layers', () => {
 
   it('uses visible pipe geometry for the clickable hover affordance', () => {
     expect(SNOWMAKING_HOVER_LAYERS).toContain('snowmaking-pipes');
-    expect(SNOWMAKING_HOVER_LAYERS).toContain('snowmaking-pipe-casing');
+    expect(SNOWMAKING_HOVER_LAYERS).toContain('snowmaking-water-hydrants');
   });
 
   it('renders installed guns with catalog and connection metadata', () => {
     const data = snowmakingNetworkToGeoJSON(NODES, [], GUNS);
     const guns = data.features.filter((feature) => feature.properties?.entityKind === 'gun');
+    const connections = data.features.filter((feature) =>
+      feature.properties?.entityKind === 'gun-connection');
     expect(guns).toHaveLength(2);
+    expect(connections).toHaveLength(1);
+    expect(connections[0].properties).toMatchObject({ gunId: 'gun-1', hydrantId: 'node-3' });
+    expect(connections[0].geometry).toEqual({ type: 'LineString',
+      coordinates: [NODES[2].point, GUNS[0].point] });
     expect(guns[0].properties).toMatchObject({ id: 'gun-1', variantId: 'HKD_ImpulseR5_10s',
       variantLabel: 'R5 10S', connected: true, hydrantId: 'node-3' });
     expect(guns[1].properties).toMatchObject({ id: 'gun-2', connected: false });
@@ -95,11 +101,13 @@ describe('snowmaking network map layers', () => {
 
   it('adds the source and every built layer to the map, idempotently', () => {
     const sources: Record<string, unknown> = {};
-    const layers: { id: string; filter?: unknown }[] = [];
+    const layers: { id: string; filter?: unknown; paint?: Record<string, unknown>;
+      layout?: Record<string, unknown> }[] = [];
     const map = {
       getSource: (id: string) => sources[id],
       addSource: (id: string, src: unknown) => { sources[id] = src; },
-      addLayer: (layer: { id: string; filter?: unknown }) => { layers.push(layer); },
+      addLayer: (layer: { id: string; filter?: unknown; paint?: Record<string, unknown>;
+        layout?: Record<string, unknown> }) => { layers.push(layer); },
       getLayer: (id: string) => layers.find((l) => l.id === id),
       setFilter: (id: string, filter: unknown) => {
         const layer = layers.find((l) => l.id === id);
@@ -114,6 +122,16 @@ describe('snowmaking network map layers', () => {
     // Idempotent: calling again must not add duplicate layers.
     addSnowmakingLayers(map);
     expect(layers.filter((l) => l.id === 'snowmaking-nodes')).toHaveLength(1);
+    expect(layers.find((l) => l.id === 'snowmaking-water-hydrants')?.layout?.['text-field'])
+      .toBe('×');
+    expect(layers.find((l) => l.id === 'snowmaking-air-hydrants')?.layout?.['text-field'])
+      .toBe('O');
+    expect(layers.find((l) => l.id === 'snowmaking-guns')?.paint?.['circle-color'])
+      .toBe('#000000');
+    expect(layers.find((l) => l.id === 'snowmaking-gun-connections')?.paint?.['line-width'])
+      .toBe(1);
+    expect(layers.find((l) => l.id === 'snowmaking-pipe-casing')?.paint?.['line-color'])
+      .not.toBe('#ffffff');
 
     setSelectedSnowmakingNode(map, 'node-2');
     const selected = layers.find((l) => l.id === 'snowmaking-node-selected');
