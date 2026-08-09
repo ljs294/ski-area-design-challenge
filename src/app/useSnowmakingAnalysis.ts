@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { deriveSnowmakingAnalysisGroups, snowmakingSourceKey,
   type SnowmakingSourceResource } from '../snowmakingHydraulics';
+import { deriveSnowmakingRoutingForest } from '../snowmakingRouting';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingLakeSource } from '../types/snowmaking';
 import type { SavedDam, SavedPond } from '../types';
@@ -56,6 +57,14 @@ export function useSnowmakingAnalysis(input: {
     };
     return [[node.id, resource]];
   })), [nodes, dams, ponds, lakes]);
+  const analysisPumpSettings = useMemo(() => Object.fromEntries(pumpIds.map((id) => [id,
+    pumpAnalysisSetting(state.pumpSettings[id])])), [pumpIds, state.pumpSettings]);
+  const routing = useMemo(() => deriveSnowmakingRoutingForest({ nodes, pipes, guns,
+    selectedGunIds: state.selectedGunIds,
+    selectedIntakeNodeIds: state.selectedIntakeNodeIds,
+    pumpSettings: analysisPumpSettings,
+  }), [nodes, pipes, guns, state.selectedGunIds, state.selectedIntakeNodeIds,
+    analysisPumpSettings]);
 
   useEffect(() => {
     const adapter = adapterRef.current!;
@@ -68,16 +77,15 @@ export function useSnowmakingAnalysis(input: {
       selectedGunIds: state.selectedGunIds,
       selectedIntakeNodeIds: state.selectedIntakeNodeIds,
       wetBulbF: Number(state.wetBulbF),
-      pumpSettings: Object.fromEntries(pumpIds.map((id) => [id,
-        pumpAnalysisSetting(state.pumpSettings[id])])),
+      pumpSettings: analysisPumpSettings,
       sourceResourcesByIntakeId,
     }, {
       onResult: (result) => dispatch({ type: 'analyzed', result }),
       onError: (message) => dispatch({ type: 'analysis-error', message }),
     }), 200);
     return () => { window.clearTimeout(timeout); adapter.cancel(); };
-  }, [nodes, pipes, guns, pumpIds, sourceResourcesByIntakeId, state.selectedGunIds,
-    state.selectedIntakeNodeIds, state.wetBulbF, state.pumpSettings]);
+  }, [nodes, pipes, guns, sourceResourcesByIntakeId, state.selectedGunIds,
+    state.selectedIntakeNodeIds, state.wetBulbF, analysisPumpSettings]);
 
   useEffect(() => () => adapterRef.current?.dispose(), []);
 
@@ -85,6 +93,6 @@ export function useSnowmakingAnalysis(input: {
     state.result.systems.flatMap((system) => system.guns.map((gun) => [gun.gunId,
       gun.status === 'ready' ? 'ready' as const : 'failed' as const]))) : undefined;
 
-  return { state, dispatch, groups, relevantGroups, gunStatuses,
+  return { state, dispatch, groups, relevantGroups, routing, gunStatuses,
     sourceResourcesByIntakeId };
 }

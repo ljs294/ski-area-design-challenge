@@ -20,6 +20,7 @@ import { SnowgunDashboardConnections, SnowgunDashboardInspector,
 import { SnowmakingAnalysisPanel } from './SnowmakingAnalysisPanel';
 import { SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
 import { SnowmakingSummaryInspector, Stat } from './SnowmakingSummaryInspector';
+import { snowmakingSegmentAnnotationGeometry } from './snowmakingDashboardGeometry';
 import { ringAreaM2, ringPathD, snowmakingSourceInfo } from './snowmakingDashboardModel';
 import { useSnowmakingAnalysis } from './useSnowmakingAnalysis';
 
@@ -175,16 +176,21 @@ export function SnowmakingDashboard({
 }) {
   const [view, setView] = useState<View | null>(null);
   const [showGunTypes, setShowGunTypes] = useState(false);
+  const [hoveredGunId, setHoveredGunId] = useState<string | null>(null);
   const [pendingHydrantDeleteId, setPendingHydrantDeleteId] = useState<string | null>(null);
   const { state: analysis, dispatch: analysisDispatch, groups: analysisGroups,
-    relevantGroups: analysisRelevantGroups, gunStatuses: analysisStatuses,
+    relevantGroups: analysisRelevantGroups, routing: analysisRouting,
+    gunStatuses: analysisStatuses,
     sourceResourcesByIntakeId } = useSnowmakingAnalysis({ nodes, pipes, guns, dams, ponds, lakes });
   const analysisSegments = useMemo(() => new Map((analysis.stale ? [] : analysis.result?.systems ?? [])
     .flatMap((system) => system.segments).map((segment) => [segment.id, segment])),
   [analysis.result, analysis.stale]);
-  const relevantSegmentColors = useMemo(() => new Map(analysisRelevantGroups.flatMap((group, index) =>
-    group.segmentIds.map((id) => [id, SYSTEM_COLORS[index % SYSTEM_COLORS.length]] as const))),
-  [analysisRelevantGroups]);
+  const relevantSegmentColors = useMemo(() => {
+    const colorByComponent = new Map(analysisRelevantGroups.map((group, index) =>
+      [group.componentId, SYSTEM_COLORS[index % SYSTEM_COLORS.length]] as const));
+    return new Map(analysisRouting.trees.flatMap((tree) => tree.segmentIds.map((id) =>
+      [id, colorByComponent.get(tree.componentId) ?? SYSTEM_COLORS[0]] as const)));
+  }, [analysisRelevantGroups, analysisRouting]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
 
@@ -480,9 +486,6 @@ export function SnowmakingDashboard({
             })}
           </g>
 
-          <defs><marker id="snowmaking-flow-arrow" markerWidth="8" markerHeight="8" refX="5" refY="3"
-            orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L6,3 z" fill="context-stroke" /></marker></defs>
-
           {/* 4. Node-bounded pipe segments beneath their connection nodes. */}
           <g className="snowmaking-dashboard-pipes">
             {pipes.flatMap((pipe) => snowmakingPipeSegments(pipe).map((segment) => {
@@ -493,6 +496,8 @@ export function SnowmakingDashboard({
                 `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join('L') : '';
               const selected = mode === 'inspect' && pipe.id === selectedPipeId;
               const relevantColor = relevantSegmentColors.get(segment.id);
+              const annotation = flow ? snowmakingSegmentAnnotationGeometry(points,
+                active.w / NOMINAL_PX) : null;
               const className = `snowmaking-dashboard-pipe${selected ? ' is-selected' : ''}` +
                 `${mode === 'analysis' && relevantColor ? ' is-analysis-relevant' : ''}` +
                 `${flow?.active ? ' is-analysis-active' : flow ? ' is-analysis-inactive' : ''}`;
@@ -503,8 +508,6 @@ export function SnowmakingDashboard({
                 aria-label={`${pipe.name}, segment ${segment.segmentIndex + 1}, ${pipe.diameterIn} inch pipe`}
                 vectorEffect="non-scaling-stroke" style={mode === 'analysis' && relevantColor
                   ? { stroke: relevantColor } : undefined}
-                markerMid={flow?.active ? 'url(#snowmaking-flow-arrow)' : undefined}
-                markerEnd={flow?.active ? 'url(#snowmaking-flow-arrow)' : undefined}
                 onClick={(event) => { if (mode === 'inspect') {
                   event.stopPropagation(); onSelectPipe(pipe.id);
                 } }}
@@ -512,10 +515,28 @@ export function SnowmakingDashboard({
                   (event.key === 'Enter' || event.key === ' ')) {
                   event.preventDefault(); onSelectPipe(pipe.id);
                 } }} />;
-              const midpoint = points[Math.floor(points.length / 2)];
-              return flow?.active ? <g key={segment.id}>{path}<text x={midpoint.x} y={midpoint.y}
-                className="snowmaking-dashboard-flow-label" textAnchor="middle"
-                style={{ fontSize: active.w / 90 }}>{FLOW_NUMBER.format(Math.abs(flow.flowGpm))} GPM</text></g> : path;
+              if (!flow || !annotation) return path;
+              const fontSize = active.w / 92;
+              return <g key={segment.id} data-analysis-segment-id={segment.id}>{path}
+                <g className="snowmaking-dashboard-segment-annotation" aria-label={
+                  `${FLOW_NUMBER.format(Math.abs(flow.flowGpm))} GPM, ${FLOW_NUMBER.format(flow.upstreamPressurePsi)} to ${FLOW_NUMBER.format(flow.downstreamPressurePsi)} PSI`}>
+                  {flow.active && annotation.arrows.map((arrow, index) => <path
+                    key={`${segment.id}:arrow:${index}`} className="snowmaking-dashboard-flow-arrow"
+                    data-flow-arrow="true" d="M-5,-3 L5,0 L-5,3 Z"
+                    transform={`translate(${arrow.x} ${arrow.y}) rotate(${Math.atan2(
+                      arrow.tangentY, arrow.tangentX) * 180 / Math.PI}) scale(${active.w / NOMINAL_PX})`} />)}
+                  <text x={annotation.flowLabel.x} y={annotation.flowLabel.y}
+                    transform={`rotate(${annotation.labelAngleDeg} ${annotation.flowLabel.x} ${annotation.flowLabel.y})`}
+                    className="snowmaking-dashboard-flow-label" textAnchor="middle"
+                    dominantBaseline="central" style={{ fontSize }}>
+                    {FLOW_NUMBER.format(Math.abs(flow.flowGpm))} GPM</text>
+                  <text x={annotation.pressureLabel.x} y={annotation.pressureLabel.y}
+                    transform={`rotate(${annotation.labelAngleDeg} ${annotation.pressureLabel.x} ${annotation.pressureLabel.y})`}
+                    className="snowmaking-dashboard-pressure-label" textAnchor="middle"
+                    dominantBaseline="central" style={{ fontSize }}>
+                    {FLOW_NUMBER.format(flow.upstreamPressurePsi)} → {FLOW_NUMBER.format(flow.downstreamPressurePsi)} PSI</text>
+                </g>
+              </g>;
             }))}
           </g>
 
@@ -567,7 +588,8 @@ export function SnowmakingDashboard({
           </g>
 
           {/* 6. Snowguns sit above the pipe graph and remain visible regardless of label preference. */}
-          <SnowgunDashboardMarkers guns={guns} selectedId={mode === 'inspect' ? selectedGunId : null}
+          <SnowgunDashboardMarkers guns={guns} nodes={nodes}
+            selectedId={mode === 'inspect' ? selectedGunId : null} hoveredId={hoveredGunId}
             analysisSelectedIds={mode === 'analysis' ? analysis.selectedGunIds : undefined}
             analysisStatuses={analysisStatuses} width={active.w} showTypes={showGunTypes} place={place}
             select={(id) => {
@@ -624,6 +646,7 @@ export function SnowmakingDashboard({
         setPumpHp={(id, value) => analysisDispatch({ type: 'pump-hp', id, value })}
         setPumpEfficiency={(id, value) => analysisDispatch({ type: 'pump-efficiency', id, value })}
         onSetPumpPort={onSetPumpPort}
+        setHoveredGun={setHoveredGunId}
         reset={() => analysisDispatch({ type: 'reset' })} /> : <SnowmakingInspector
         selectedNode={selectedNode}
         selectedPipe={selectedPipe}

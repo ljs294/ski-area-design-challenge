@@ -1,7 +1,7 @@
 import { fmtDistance } from '../lifts';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
 import { snowmakingNodeLabel } from '../snowmakingNetwork';
-import { snowgunCatalogValue, snowgunVariant } from '../snowmakingGuns';
+import { snowgunCatalogValue, snowgunLabel, snowgunVariant } from '../snowmakingGuns';
 import type { SavedDam, SavedPond } from '../types';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingLakeSource } from '../types/snowmaking';
@@ -48,8 +48,8 @@ export function SnowmakingSummaryInspector({ dams, ponds, lakes, nodes, pipes, g
       <ul className="network-run-list">{guns.map((gun) => {
         const variant = snowgunVariant(gun.variantId);
         return <li key={gun.id}><button className="network-run" onClick={() => onSelectGun(gun.id)}>
-          <span className="network-run-name">{variant.shortLabel}</span>
-          <span className="network-run-meta">{gun.hydrantId ? `Hydrant ${gun.hydrantId}`
+          <span className="network-run-name">{snowgunLabel(gun, nodes)} · {variant.shortLabel}</span>
+          <span className="network-run-meta">{gun.hydrantId ? snowgunLabel(gun, nodes)
             : <><span className="snowgun-warning" aria-hidden="true">!</span> Disconnected</>}</span>
         </button></li>;
       })}</ul></>}

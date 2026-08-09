@@ -305,8 +305,11 @@ export function useSnowmakingNetworkController(
         : snapping ? snowmakingSnapAt(map, raw,
           optionsRef.current.nodes, optionsRef.current.pipes) : null;
       if (snap?.kind === 'node') {
+        const occupied = optionsRef.current.nodes.find((node) => node.id === snap.nodeId)!;
         nodeDispatch({ type: 'candidate', candidate: null,
-          error: `${snowmakingNodeLabel(optionsRef.current.nodes.find((node) => node.id === snap.nodeId)!)} already occupies that location.` });
+          error: current.phase === 'placing' && current.kind === 'pump' && occupied.kind === 'intake'
+            ? 'Place the pump downstream inside the pipe; a pump cannot occupy the water source.'
+            : `${snowmakingNodeLabel(occupied)} already occupies that location.` });
         return;
       }
       if (current.phase === 'placing' && current.kind === 'pump' && snap?.kind !== 'pipe') {
@@ -316,7 +319,8 @@ export function useSnowmakingNetworkController(
       }
       const point = snap?.point ?? raw;
       if (current.phase === 'placing' && current.kind === 'pump' && snap?.kind === 'pipe') {
-        const result = inlinePumpCandidate({ pipes: optionsRef.current.pipes, snap,
+        const result = inlinePumpCandidate({ pipes: optionsRef.current.pipes,
+          nodes: optionsRef.current.nodes, snap,
           revision: optionsRef.current.network.revision,
           sampleElevation: optionsRef.current.sampleElevation });
         nodeDispatch({ type: 'candidate', candidate: typeof result === 'string' ? null : result,

@@ -192,7 +192,7 @@ describe('SnowmakingDashboard', () => {
     expect(html).toContain('>×</text>');
   });
 
-  it('renders selectable guns, warnings, and keeps type labels off by default', () => {
+  it('renders selectable guns with persistent hydrant labels and optional type labels', () => {
     const html = render({ nodes: [nodeA, hydrant], guns: [connectedGun, disconnectedGun] });
     expect(html).toContain('data-gun-id="gun-1"');
     expect(html).toContain('data-gun-id="gun-2"');
@@ -200,7 +200,9 @@ describe('SnowmakingDashboard', () => {
     expect(html).toContain('data-hydrant-id="hydrant-1"');
     expect(html).toContain('Warning: disconnected snowgun');
     expect(html).toContain('Show snowgun types');
-    expect(html).not.toContain('snowmaking-dashboard-gun-label');
+    expect(html).toContain('snowmaking-dashboard-gun-label');
+    expect(html).toContain('>H1</text>');
+    expect(html).not.toContain('>H1 · R5 10S</text>');
   });
 
   it('renders transient multi-selection and pump defaults in analysis mode', () => {

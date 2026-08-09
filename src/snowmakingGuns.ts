@@ -77,6 +77,14 @@ export function snowgunHydrantDistanceM(
   return haversineMeters(gun.point, hydrant.point);
 }
 
+/** Human-facing gun identity follows its exclusive hydrant hookup. */
+export function snowgunLabel(gun: Pick<SavedSnowgun, 'hydrantId'>,
+  nodes: readonly Pick<SavedSnowmakingNode, 'id' | 'kind' | 'labelNumber'>[]): string {
+  if (!gun.hydrantId) return 'Disconnected';
+  const hydrant = nodes.find((node) => node.id === gun.hydrantId && node.kind === 'hydrant');
+  return hydrant?.labelNumber ? `H${hydrant.labelNumber}` : 'Disconnected';
+}
+
 function isPoint(value: unknown): value is [number, number] {
   return Array.isArray(value) && value.length === 2 && value.every((coordinate) =>
     typeof coordinate === 'number' && Number.isFinite(coordinate)) &&

@@ -12,14 +12,24 @@ const snap = (point: [number, number]) => ({ kind: 'pipe' as const, pipeId: pipe
 
 describe('inline snowmaking pump placement', () => {
   it('rejects segment endpoints and requires an interior pipe location', () => {
-    expect(inlinePumpCandidate({ pipes: [pipe], snap: snap([0, 0]), revision: 2,
+    expect(inlinePumpCandidate({ pipes: [pipe], nodes: [], snap: snap([0, 0]), revision: 2,
       sampleElevation: () => 100 })).toBeTypeOf('string');
-    expect(inlinePumpCandidate({ pipes: [], snap: snap([0, 0.0005]), revision: 2,
+    expect(inlinePumpCandidate({ pipes: [], nodes: [], snap: snap([0, 0.0005]), revision: 2,
       sampleElevation: () => 100 })).toBeTypeOf('string');
   });
 
+  it('rejects placing a pump directly on a water-source intake', () => {
+    const source: SavedSnowmakingNode = { id: 'source', kind: 'intake', name: 'Pond Intake',
+      point: [0, 0], elevM: 100, source: { kind: 'pond', pondId: 'pond' }, createdAt: 'now' };
+    const sourcePipe = buildSnowmakingPipe({ id: 'source-pipe', name: 'Source main', diameterIn: 8,
+      points: [[0, 0], [0, 0.001]], nodeIds: [source.id, null], createdAt: 'now' }, () => 100);
+    expect(inlinePumpCandidate({ pipes: [sourcePipe], nodes: [source],
+      snap: { kind: 'pipe', pipeId: sourcePipe.id, point: source.point }, revision: 2,
+      sampleElevation: () => 100 })).toContain('cannot occupy the water source');
+  });
+
   it('commits the selected direction with the inline node in one state change', () => {
-    const candidate = inlinePumpCandidate({ pipes: [pipe], snap: snap([0, 0.0005]), revision: 2,
+    const candidate = inlinePumpCandidate({ pipes: [pipe], nodes: [], snap: snap([0, 0.0005]), revision: 2,
       sampleElevation: () => 100 });
     expect(typeof candidate).not.toBe('string');
     if (typeof candidate === 'string') return;

@@ -257,6 +257,7 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
     pipe('pipe-trunk', 'Trunk', analysisNodes[1], analysisNodes[2]),
     pipe('pipe-north', 'North Branch', analysisNodes[2], analysisNodes[3]),
     pipe('pipe-south', 'South Branch', analysisNodes[2], analysisNodes[4]),
+    pipe('pipe-loop', 'Loop Closure', analysisNodes[3], analysisNodes[4]),
   ];
   const analysisGuns = [
     { id: 'gun-1', variantId: 'HKD_ImpulseR5_10s', point: analysisNodes[3].point,
@@ -278,12 +279,29 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
   const analyzer = page.locator('.snowmaking-analysis-panel');
   await expect(analyzer).toBeVisible();
 
-  await analyzer.getByRole('button', { name: 'Select all connected' }).click();
+  const firstGunRow = analyzer.locator('.snowmaking-analysis-checklist label')
+    .filter({ hasText: 'H1 · R5 10S' }).first();
+  await firstGunRow.getByRole('checkbox').check();
   await analyzer.getByRole('checkbox', { name: 'Pump On' }).check();
   await analyzer.getByRole('spinbutton', { name: 'Primary Pump horsepower' }).fill('500');
   await analyzer.getByRole('spinbutton', {
     name: 'Wet-bulb temperature in Fahrenheit',
   }).fill('9');
+
+  await expect(analyzer).toContainText('58 GPM');
+  const northSegment = page.locator('[data-segment-id="pipe-north:segment:0"]');
+  const loopSegment = page.locator('[data-segment-id="pipe-loop:segment:0"]');
+  await expect(northSegment).toHaveClass(/is-analysis-active/);
+  await expect(loopSegment).not.toHaveClass(/is-analysis-relevant/);
+  const northAnnotation = page.locator('[data-analysis-segment-id="pipe-north:segment:0"]');
+  await expect(northAnnotation.locator('[data-flow-arrow="true"]')).toHaveCount(2);
+  await expect(northAnnotation).toContainText('GPM');
+  await expect(northAnnotation).toContainText('PSI');
+  await firstGunRow.hover();
+  await expect(page.locator('.snowmaking-dashboard-gun[data-gun-id="gun-1"]'))
+    .toHaveClass(/is-hovered/);
+
+  await analyzer.getByRole('button', { name: 'Select all connected' }).click();
 
   await expect(analyzer).toContainText('116 GPM');
   await expect(analyzer).toContainText('6,960 gal/hr');

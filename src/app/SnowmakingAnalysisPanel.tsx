@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { snowgunVariant } from '../snowmakingGuns';
+import { snowgunLabel, snowgunVariant } from '../snowmakingGuns';
 import { snowmakingNodeLabel } from '../snowmakingNetwork';
 import type { SnowmakingAnalysisGroup, SnowmakingAnalysisResult,
   SnowmakingSourceResource } from '../snowmakingHydraulics';
@@ -42,7 +42,7 @@ function focusPumpPorts(pumpId: string): void {
 
 export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, relevantGroups,
   sourceResourcesByIntakeId, result, toggleGun, setGuns, toggleIntake, setWetBulb,
-  setPumpOn, setPumpHp, setPumpEfficiency, onSetPumpPort, reset }: {
+  setPumpOn, setPumpHp, setPumpEfficiency, onSetPumpPort, setHoveredGun, reset }: {
   state: SnowmakingAnalysisState;
   nodes: readonly SavedSnowmakingNode[];
   pipes: readonly SavedSnowmakingPipe[];
@@ -60,6 +60,7 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
   setPumpEfficiency(id: string, value: string): void;
   onSetPumpPort(pipeId: string, segmentId: string, end: 'start' | 'end',
     port: SnowmakingPumpPort | null): void;
+  setHoveredGun(id: string | null): void;
   reset(): void;
 }) {
   const selectedGuns = new Set(state.selectedGunIds);
@@ -75,7 +76,8 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
   return <aside className="network-inspector snowmaking-analysis-panel"
     data-inspector="analysis" aria-label="Snowmaking system analyzer">
     <div className="dock-head"><span className="dock-head-title">Operate snowguns</span></div>
-    <div className="network-sub">Select the guns to run. Required flows and pressures update automatically.</div>
+    <div className="network-sub">Select the guns to run. Automatic radial routing uses the shortest
+      required tree and excludes alternate loop links.</div>
 
     <label className="snowmaking-analysis-temperature">
       <span>Wet-bulb temperature</span>
@@ -101,9 +103,12 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
             onChange={() => setGuns(selectedCount === group.gunIds.length
               ? state.selectedGunIds.filter((id) => !group.gunIds.includes(id))
               : [...new Set([...state.selectedGunIds, ...group.gunIds])])} />
-          {groupGuns.map((gun) => { const variant = snowgunVariant(gun.variantId); return <label key={gun.id}>
+          {groupGuns.map((gun) => { const variant = snowgunVariant(gun.variantId);
+            const label = snowgunLabel(gun, nodes); return <label key={gun.id}
+              onMouseEnter={() => setHoveredGun(gun.id)} onMouseLeave={() => setHoveredGun(null)}
+              onFocus={() => setHoveredGun(gun.id)} onBlur={() => setHoveredGun(null)}>
             <input type="checkbox" checked={selectedGuns.has(gun.id)} onChange={() => toggleGun(gun.id)} />
-            <span><strong>{variant.shortLabel}</strong><small>
+            <span><strong>{label} · {variant.shortLabel}</strong><small>
               Hydrant {nodeById.get(gun.hydrantId ?? '')?.labelNumber ?? '—'}</small></span>
           </label>; })}
         </div>
@@ -112,7 +117,8 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
     {guns.some((gun) => !connectedGunSet.has(gun.id)) && <div className="snowmaking-analysis-checklist">
       {guns.filter((gun) => !connectedGunSet.has(gun.id)).map((gun) => <label key={gun.id}
         className="is-disabled"><input type="checkbox" disabled />
-        <span><strong>{snowgunVariant(gun.variantId).shortLabel}</strong><small>Disconnected</small></span>
+        <span><strong>Disconnected · {snowgunVariant(gun.variantId).shortLabel}</strong>
+          <small>Disconnected</small></span>
       </label>)}
     </div>}
 
@@ -156,7 +162,8 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
         </div>
         {result.diagnostics.length > 0 && <div className="snowmaking-analysis-diagnostics"><ul>
           {result.diagnostics.map((entry, index) => <li key={`${entry.code}:${entry.entityId ?? index}`}>
-            {entry.message}{entry.code === 'unconfigured-pump-ports' && entry.entityId &&
+            {entry.message}{(entry.code === 'unconfigured-pump-ports' ||
+              entry.code === 'pump-direction-blocks-route') && entry.entityId &&
               <button className="site-btn" onClick={() => focusPumpPorts(entry.entityId!)}>
                 Configure ports</button>}</li>)}
         </ul></div>}
@@ -179,7 +186,7 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
               : `${whole.format(source.capacityGallons)} gal · ${runtime(source.runtimeHours)}`}</small>
           </div>)}</div>
         </details>}
-        {result.systems.map((system, index) => <details open key={system.componentId}
+        {result.systems.map((system, index) => <details open key={system.systemId}
           className={system.status === 'failed' ? 'is-failed' : ''}>
           <summary>System {index + 1} · {system.summary.readyGunCount}/{system.summary.selectedGunCount} guns ready</summary>
           {system.diagnostics.length > 0 && <ul>{system.diagnostics.map((entry, diagnosticIndex) =>
@@ -197,9 +204,11 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
                 {' '}{number.format(segment.downstreamPressurePsi)} PSI</span>
               <small>{number.format(segment.frictionHeadFt)} ft friction</small>
             </div>)}
-            {system.guns.map((gun) => <div key={gun.gunId}
+            {system.guns.map((gun) => <div key={gun.gunId} tabIndex={0}
+              onMouseEnter={() => setHoveredGun(gun.gunId)} onMouseLeave={() => setHoveredGun(null)}
+              onFocus={() => setHoveredGun(gun.gunId)} onBlur={() => setHoveredGun(null)}
               className={gun.status === 'ready' ? 'is-ready' : 'is-failed'}><strong>
-                {gunById.has(gun.gunId) ? snowgunVariant(gunById.get(gun.gunId)!.variantId).shortLabel : gun.gunId}</strong>
+                {gunById.has(gun.gunId) ? `${snowgunLabel(gunById.get(gun.gunId)!, nodes)} · ${snowgunVariant(gunById.get(gun.gunId)!.variantId).shortLabel}` : gun.gunId}</strong>
               <span>{gun.demandGpm} GPM · {gun.pressurePsi == null ? '—' : number.format(gun.pressurePsi)} PSI</span>
               <small>{GUN_STATUS[gun.status]}</small>
             </div>)}

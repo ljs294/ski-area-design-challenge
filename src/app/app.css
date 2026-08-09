@@ -3334,10 +3334,20 @@ html.resume-capture .maplibregl-canvas {
   stroke-width: 1.5;
 }
 
+.snowmaking-dashboard-gun-hover-halo {
+  fill: color-mix(in srgb, #38bdf8 18%, transparent);
+  stroke: #0284c7;
+  stroke-width: 2.75;
+  pointer-events: none;
+}
+
 .snowmaking-dashboard-gun-label {
   fill: #111827;
   pointer-events: none;
   font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.94);
+  stroke-width: 3px;
 }
 
 .snowmaking-dashboard-gun-warning {
@@ -3490,11 +3500,22 @@ html.resume-capture .maplibregl-canvas {
 
 .snowmaking-dashboard-flow-label {
   fill: #111827;
-  paint-order: stroke;
-  stroke: rgba(255, 255, 255, 0.92);
-  stroke-width: 3px;
   pointer-events: none;
   font-weight: 800;
+}
+
+.snowmaking-dashboard-pressure-label {
+  fill: #1f2937;
+  pointer-events: none;
+  font-weight: 700;
+}
+
+.snowmaking-dashboard-flow-arrow {
+  fill: #111827;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 0.8px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
 
 .snowmaking-dashboard--analysis .snowmaking-dashboard-nodes { pointer-events: none; }

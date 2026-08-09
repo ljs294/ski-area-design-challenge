@@ -2,7 +2,7 @@ import { haversineMeters } from '../geo';
 import { allocateSnowmakingNode, attachInlinePumpToSnowmakingPipe,
   attachNodeToSnowmakingPipe, closestSnowmakingPipeLocation, snowmakingPipeSegments,
   type SnowmakingNetworkState } from '../snowmakingNetwork';
-import type { SavedSnowmakingPipe } from '../types/snowmaking';
+import type { SavedSnowmakingNode, SavedSnowmakingPipe } from '../types/snowmaking';
 import type { SnowmakingNodeCandidate, SnowmakingNodeTool,
   SnowmakingPipeTool, SnowmakingSnapIntent } from './snowmakingNetworkControllerModel';
 
@@ -12,16 +12,21 @@ function pipeElevationAt(pipe: SavedSnowmakingPipe, segmentIndex: number, u: num
 }
 
 export function inlinePumpCandidate(input: { pipes: readonly SavedSnowmakingPipe[];
+  nodes: readonly SavedSnowmakingNode[];
   snap: Extract<SnowmakingSnapIntent, { kind: 'pipe' }>; revision: number;
   sampleElevation(point: [number, number]): number | null }): SnowmakingNodeCandidate | string {
   const pipe = input.pipes.find((candidate) => candidate.id === input.snap.pipeId);
   const location = pipe ? closestSnowmakingPipeLocation(pipe, input.snap.point) : null;
   const segment = pipe && location ? snowmakingPipeSegments(pipe).find((candidate) =>
     candidate.startVertexIndex <= location.segmentIndex && candidate.endVertexIndex > location.segmentIndex) : null;
-  const atBoundary = !!segment && !!pipe && (haversineMeters(
-    pipe.vertices[segment.startVertexIndex].point, input.snap.point) < 0.05 || haversineMeters(
-    pipe.vertices[segment.endVertexIndex].point, input.snap.point) < 0.05);
-  if (!segment || atBoundary) return 'Place the pump inside the pipe segment, away from its endpoint or another node.';
+  const boundary = segment && pipe ? [segment.startVertexIndex, segment.endVertexIndex]
+    .map((index) => pipe.vertices[index]).find((vertex) =>
+      haversineMeters(vertex.point, input.snap.point) < 0.05) : null;
+  const boundaryNode = boundary?.nodeId
+    ? input.nodes.find((node) => node.id === boundary.nodeId) ?? null : null;
+  if (boundaryNode?.kind === 'intake')
+    return 'Place the pump downstream inside the pipe; a pump cannot occupy the water source.';
+  if (!segment || boundary) return 'Place the pump inside the pipe segment, away from its endpoint or another node.';
   return { point: input.snap.point, snap: input.snap, elevM: input.sampleElevation(input.snap.point),
     revision: input.revision, pumpSegmentId: segment.id, pumpSuctionSide: null };
 }

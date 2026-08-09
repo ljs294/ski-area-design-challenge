@@ -6,6 +6,7 @@ import {
   reconcileSnowgunConnections,
   sanitizeSnowguns,
   snowgunCatalogValue,
+  snowgunLabel,
 } from './snowmakingGuns';
 import type { SavedSnowgun, SavedSnowmakingNode } from './types/snowmaking';
 
@@ -56,6 +57,12 @@ describe('snowgun hookup reconciliation', () => {
   it('frees an invalid hookup and preserves a disconnected installed gun', () => {
     const result = reconcileSnowgunConnections([gun('g1', 0, 'deleted')], []);
     expect(result[0]).toMatchObject({ id: 'g1', hydrantId: null });
+  });
+
+  it('uses the exclusive hydrant number as the connected gun label', () => {
+    const h7 = { ...hydrant('h7', 0), labelNumber: 7 };
+    expect(snowgunLabel(gun('g7', 0, h7.id), [h7])).toBe('H7');
+    expect(snowgunLabel(gun('free', 0), [h7])).toBe('Disconnected');
   });
 });
 

@@ -1,6 +1,6 @@
 import { fmtDistance } from '../lifts';
 import { HKD_IMPULSE_R5, SNOWGUN_VARIANTS, snowgunHydrantDistanceM,
-  snowgunVariant } from '../snowmakingGuns';
+  snowgunLabel, snowgunVariant } from '../snowmakingGuns';
 import type { SavedSnowgun, SavedSnowmakingNode, SnowgunVariantId } from '../types/snowmaking';
 import type { Units } from './SettingsContext';
 import type { SnowgunTool } from './snowmakingGunControllerModel';
@@ -96,10 +96,11 @@ export function SnowgunInspector({ gun, nodes, units, close, move, remove }: {
   close(): void; move(): void; remove(): void;
 }) {
   const variant = snowgunVariant(gun.variantId);
+  const label = snowgunLabel(gun, nodes);
   const hydrant = gun.hydrantId ? nodes.find((node) => node.id === gun.hydrantId) ?? null : null;
   const distanceM = hydrant ? snowgunHydrantDistanceM(gun, hydrant) : null;
   return <div className="site-control site-control-wide snowmaking-panel">
-    <div className="dock-head"><span className="dock-head-title">{variant.label}</span>
+    <div className="dock-head"><span className="dock-head-title">{label} · {variant.label}</span>
       <button className="dock-close" onClick={close} aria-label="Close snowgun">×</button></div>
     {!hydrant && <div className="lift-warning"><span className="snowgun-warning" aria-hidden="true">!</span>
       Disconnected — no free hydrant is available within 50 ft.</div>}
@@ -128,14 +129,14 @@ export function SnowgunDirectory({ guns, nodes, select }: { guns: SavedSnowgun[]
   if (guns.length === 0) return null;
   return <><div className="network-section-title">Snowguns</div><div className="lift-list">
     {guns.map((gun) => { const variant = snowgunVariant(gun.variantId);
+      const label = snowgunLabel(gun, nodes);
       const hydrant = gun.hydrantId ? nodes.find((node) => node.id === gun.hydrantId) : null;
       return <button key={gun.id} className="lift-row lift-row-button" onClick={() => select(gun.id)}>
         <span className="snowgun-swatch" aria-hidden="true" />
-        <span className="lift-row-main"><span className="lift-row-name">{variant.shortLabel}</span>
+        <span className="lift-row-main"><span className="lift-row-name">{label} · {variant.shortLabel}</span>
           <span className="lift-row-summary">{hydrant?.labelNumber
             ? `Hydrant ${hydrant.labelNumber}` : 'Disconnected'}</span></span>
         {!hydrant && <span className="snowgun-warning" aria-label="Disconnected snowgun">!</span>}
       </button>; })}
   </div></>;
 }
-

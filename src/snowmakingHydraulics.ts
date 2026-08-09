@@ -4,6 +4,8 @@ import { HKD_IMPULSE_R5, type SnowgunPerformanceStage } from './snowmakingGuns';
 import { hydraulicLinkHeadLoss, PUMP_MIN_FORWARD_FLOW_GPM, solveHydraulicModel,
   type HydraulicNumericSolution, type HydraulicSolverLink,
   type HydraulicSolverModel } from './snowmakingHydraulicSolver';
+import { deriveSnowmakingRoutingForest, type SnowmakingRoutingDiagnostic,
+  type SnowmakingRoutingTree } from './snowmakingRouting';
 import type {
   SavedSnowgun,
   SavedSnowmakingNode,
@@ -51,6 +53,8 @@ export type SnowmakingAnalysisDiagnosticCode =
   | 'missing-elevation'
   | 'unconfigured-pump-ports'
   | 'invalid-pump'
+  | 'pump-direction-blocks-route'
+  | 'unroutable-gun'
   | 'pump-no-forward-flow'
   | 'solver-nonconvergence';
 
@@ -146,6 +150,7 @@ export interface SnowmakingConvergenceInfo {
 }
 
 export interface SnowmakingSystemAnalysisResult {
+  systemId: string;
   componentId: string;
   status: 'ready' | 'not-ready' | 'failed';
   diagnostics: SnowmakingAnalysisDiagnostic[];
@@ -341,31 +346,6 @@ function physicalComponents(graph: PhysicalGraph): Component[] {
   return components.sort((left, right) => left.id.localeCompare(right.id));
 }
 
-function pruneUnusedLeaves(component: Component, protectedKeys: ReadonlySet<string>): PipeEdge[] {
-  const remaining = new Map(component.edges.map((edge) => [edge.segment.id, edge]));
-  const adjacency = new Map<string, Set<string>>();
-  for (const edge of component.edges) {
-    adjacency.set(edge.a, new Set([...(adjacency.get(edge.a) ?? []), edge.segment.id]));
-    adjacency.set(edge.b, new Set([...(adjacency.get(edge.b) ?? []), edge.segment.id]));
-  }
-  const queue = [...adjacency.keys()].filter((key) => !protectedKeys.has(key) &&
-    (adjacency.get(key)?.size ?? 0) <= 1).sort();
-  while (queue.length) {
-    const key = queue.shift()!;
-    if (protectedKeys.has(key) || (adjacency.get(key)?.size ?? 0) > 1) continue;
-    const edgeId = [...(adjacency.get(key) ?? [])][0];
-    if (!edgeId) continue;
-    const edge = remaining.get(edgeId);
-    if (!edge) continue;
-    remaining.delete(edgeId);
-    for (const endpoint of [edge.a, edge.b]) {
-      adjacency.get(endpoint)?.delete(edgeId);
-      if (!protectedKeys.has(endpoint) && (adjacency.get(endpoint)?.size ?? 0) <= 1) queue.push(endpoint);
-    }
-  }
-  return [...remaining.values()].sort((left, right) => left.segment.id.localeCompare(right.segment.id));
-}
-
 function endpointHydraulicKey(edge: PipeEdge, side: 'a' | 'b',
   node: SavedSnowmakingNode | null, passivePumps: ReadonlySet<string>): string {
   if (node?.kind !== 'pump') return side === 'a' ? edge.a : edge.b;
@@ -483,37 +463,37 @@ function pressurePsi(heads: ReadonlyMap<string, number>, elevations: ReadonlyMap
   return ((heads.get(key) ?? 0) - (elevations.get(key) ?? 0)) / FEET_HEAD_PER_PSI;
 }
 
-function failedSystem(componentId: string, selectedGuns: readonly SavedSnowgun[],
+function failedSystem(systemId: string, componentId: string,
+  selectedGuns: readonly SavedSnowgun[],
   stage: SnowgunPerformanceStage | null, diagnostics: SnowmakingAnalysisDiagnostic[],
   selectedIntakeIds: readonly string[]): SnowmakingSystemAnalysisResult {
   const guns = selectedGuns.map((gun): SnowmakingGunAnalysisResult => ({ gunId: gun.id,
     hydrantId: gun.hydrantId, stage, demandGpm: stage?.waterFlowGpm ?? 0,
     pressurePsi: null, status: gun.hydrantId ? 'not-analyzed' : 'disconnected' }));
   const demand = guns.reduce((sum, gun) => sum + gun.demandGpm, 0);
-  return { componentId, status: 'failed', diagnostics,
+  return { systemId, componentId, status: 'failed', diagnostics,
     summary: { selectedGunCount: guns.length, analyzedGunCount: 0, readyGunCount: 0,
       requestedDemandGpm: demand, waterUseGalPerHour: demand * 60,
       minimumGunPressurePsi: null, overallReady: false }, convergence: null,
     intakeNodeIds: [...selectedIntakeIds], sources: [], pumps: [], segments: [], guns };
 }
 
-function analyzeComponent(input: SnowmakingAnalysisInput, graph: PhysicalGraph, component: Component,
-  selectedGuns: SavedSnowgun[], stage: SnowgunPerformanceStage | null,
-  selectedIntakeIds: Set<string>): SnowmakingSystemAnalysisResult {
+function analyzeRoutedTree(input: SnowmakingAnalysisInput, graph: PhysicalGraph,
+  tree: SnowmakingRoutingTree, selectedGuns: SavedSnowgun[],
+  stage: SnowgunPerformanceStage | null): SnowmakingSystemAnalysisResult {
   const diagnostics: SnowmakingAnalysisDiagnostic[] = [];
-  const candidateIntakes = [...component.keys].flatMap((key) => {
-    const node = graph.nodesByKey.get(key); return node?.kind === 'intake' ? [node] : [];
+  const selectedIntakes = input.nodes.filter((node) => node.kind === 'intake' &&
+    node.id === tree.intakeNodeId);
+  const edgeById = new Map(graph.edges.map((edge) => [edge.segment.id, edge]));
+  const edges = tree.segmentIds.flatMap((id) => {
+    const edge = edgeById.get(id); return edge ? [edge] : [];
   });
-  const selectedIntakes = candidateIntakes.filter((intake) => selectedIntakeIds.has(intake.id));
-  if (selectedIntakes.length === 0) addDiagnostic(diagnostics, 'missing-source',
-    'Select at least one water source for this system.', undefined, component.id);
-  const protectedKeys = new Set<string>([
-    ...selectedGuns.flatMap((gun) => gun.hydrantId ? [gun.hydrantId] : []),
-    ...selectedIntakes.map((intake) => intake.id),
-  ]);
-  const edges = pruneUnusedLeaves(component, protectedKeys);
-  if (diagnostics.length) return failedSystem(component.id, selectedGuns, stage,
-    diagnostics, selectedIntakes.map((intake) => intake.id));
+  if (selectedIntakes.length !== 1 || edges.length !== tree.segmentIds.length) {
+    addDiagnostic(diagnostics, 'unroutable-gun',
+      'The required radial route changed before it could be analyzed.', undefined, tree.componentId);
+    return failedSystem(tree.systemId, tree.componentId, selectedGuns, stage,
+      diagnostics, selectedIntakes.map((intake) => intake.id));
+  }
 
   const passivePumps = new Set(input.nodes.filter((node) => node.kind === 'pump' &&
     !input.pumpSettings[node.id]?.on).map((node) => node.id));
@@ -522,9 +502,9 @@ function analyzeComponent(input: SnowmakingAnalysisInput, graph: PhysicalGraph, 
   while (true) {
     const modelDiagnostics: SnowmakingAnalysisDiagnostic[] = [];
     model = buildHydraulicModel(input, graph, edges, selectedGuns, stage,
-      selectedIntakes, new Set([...passivePumps, ...fallbackPumps]), modelDiagnostics, component.id);
+      selectedIntakes, new Set([...passivePumps, ...fallbackPumps]), modelDiagnostics, tree.componentId);
     diagnostics.push(...modelDiagnostics);
-    if (!model) return failedSystem(component.id, selectedGuns, stage, diagnostics,
+    if (!model) return failedSystem(tree.systemId, tree.componentId, selectedGuns, stage, diagnostics,
       selectedIntakes.map((intake) => intake.id));
     solution = solveHydraulicModel(model);
     if (solution.ok) break;
@@ -534,8 +514,8 @@ function analyzeComponent(input: SnowmakingAnalysisInput, graph: PhysicalGraph, 
       .map((link) => link.pumpNodeId!).sort()[0];
     if (!blocked) {
       addDiagnostic(diagnostics, 'solver-nonconvergence',
-        'The hydraulic equations did not converge for this system.', undefined, component.id);
-      return failedSystem(component.id, selectedGuns, stage, diagnostics,
+        'The hydraulic equations did not converge for this system.', undefined, tree.componentId);
+      return failedSystem(tree.systemId, tree.componentId, selectedGuns, stage, diagnostics,
         selectedIntakes.map((intake) => intake.id));
     }
     fallbackPumps.add(blocked);
@@ -545,14 +525,14 @@ function analyzeComponent(input: SnowmakingAnalysisInput, graph: PhysicalGraph, 
     const flow = passivePumpFlow(pumpId, edges, model, solution.flows);
     if (flow > PUMP_MIN_FORWARD_FLOW_GPM) {
       addDiagnostic(diagnostics, 'pump-no-forward-flow',
-        'A requested pump could not reach a valid forward-flow operating point.', pumpId, component.id);
-      return failedSystem(component.id, selectedGuns, stage, diagnostics,
+        'A requested pump could not reach a valid forward-flow operating point.', pumpId, tree.componentId);
+      return failedSystem(tree.systemId, tree.componentId, selectedGuns, stage, diagnostics,
         selectedIntakes.map((intake) => intake.id));
     }
     addDiagnostic(diagnostics, 'pump-no-forward-flow', flow < -ACTIVE_SNOWMAKING_FLOW_GPM
       ? 'The requested pump is experiencing reverse flow and is acting as a passive passage.'
       : 'The requested pump is below its modeled operating flow and is acting as a passive passage.',
-    pumpId, component.id, 'warning');
+    pumpId, tree.componentId, 'warning');
   }
 
   const segmentResults: SnowmakingSegmentAnalysisResult[] = edges.map((edge) => {
@@ -621,7 +601,8 @@ function analyzeComponent(input: SnowmakingAnalysisInput, graph: PhysicalGraph, 
   const pressures = gunResults.flatMap((gun) => gun.pressurePsi == null ? [] : [gun.pressurePsi]);
   const readyGunCount = gunResults.filter((gun) => gun.status === 'ready').length;
   const overallReady = gunResults.length > 0 && readyGunCount === gunResults.length;
-  return { componentId: component.id, status: overallReady ? 'ready' : 'not-ready', diagnostics,
+  return { systemId: tree.systemId, componentId: tree.componentId,
+    status: overallReady ? 'ready' : 'not-ready', diagnostics,
     summary: { selectedGunCount: gunResults.length, analyzedGunCount: gunResults.length,
       readyGunCount, requestedDemandGpm: demand, waterUseGalPerHour: demand * 60,
       minimumGunPressurePsi: pressures.length ? Math.min(...pressures) : null, overallReady },
@@ -680,26 +661,25 @@ export function analyzeSnowmakingSystems(input: SnowmakingAnalysisInput): Snowma
       systems: [], sources: [] };
   }
 
-  const graph = buildPhysicalGraph(input), components = physicalComponents(graph);
-  const componentByKey = new Map<string, Component>();
-  for (const component of components) for (const key of component.keys) componentByKey.set(key, component);
-  const gunsByComponent = new Map<string, SavedSnowgun[]>();
+  const graph = buildPhysicalGraph(input);
+  const routing = deriveSnowmakingRoutingForest({ ...input,
+    selectedGunIds: selectedGuns.map((gun) => gun.id) });
   const systems: SnowmakingSystemAnalysisResult[] = [];
-  for (const gun of selectedGuns) {
-    const component = gun.hydrantId ? componentByKey.get(gun.hydrantId) : null;
-    if (!component) {
-      const local: SnowmakingAnalysisDiagnostic[] = [];
-      addDiagnostic(local, 'disconnected-gun', 'A selected snowgun is not connected to a pipe hydrant.',
-        gun.id, `gun:${gun.id}`);
-      systems.push(failedSystem(`gun:${gun.id}`, [gun], stage, local, []));
-    } else gunsByComponent.set(component.id, [...(gunsByComponent.get(component.id) ?? []), gun]);
+  for (const tree of routing.trees) {
+    const guns = tree.gunIds.flatMap((id) => {
+      const gun = gunById.get(id); return gun ? [gun] : [];
+    });
+    systems.push(analyzeRoutedTree(input, graph, tree, guns, stage));
   }
-  const selectedIntakeIds = new Set(input.selectedIntakeNodeIds);
-  for (const component of components) {
-    const guns = gunsByComponent.get(component.id);
-    if (guns?.length) systems.push(analyzeComponent(input, graph, component, guns, stage, selectedIntakeIds));
+  for (const failure of routing.failures) {
+    const guns = failure.gunIds.flatMap((id) => {
+      const gun = gunById.get(id); return gun ? [gun] : [];
+    });
+    const local = failure.diagnostics.map((entry: SnowmakingRoutingDiagnostic):
+    SnowmakingAnalysisDiagnostic => ({ ...entry }));
+    systems.push(failedSystem(failure.systemId, failure.componentId, guns, stage, local, []));
   }
-  systems.sort((left, right) => left.componentId.localeCompare(right.componentId));
+  systems.sort((left, right) => left.systemId.localeCompare(right.systemId));
   for (const system of systems) diagnostics.push(...system.diagnostics);
   const sources = aggregateSources(input, systems);
   const analyzedGunCount = systems.reduce((sum, system) => sum + system.summary.analyzedGunCount, 0);

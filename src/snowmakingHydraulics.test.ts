@@ -67,7 +67,20 @@ describe('analyzeSnowmakingSystems', () => {
     expect(result.systems[0].segments.find((entry) => entry.pipeId === 'branch-a')?.flowGpm)
       .toBeCloseTo(58, 2);
     expect(result.systems[0].pumps[0]).toMatchObject({ nodeId: 'pump', status: 'boosting' });
+    expect(result.systems[0].pumps[0].dischargePressurePsi)
+      .toBeGreaterThan(result.systems[0].pumps[0].suctionPressurePsi ?? Infinity);
+    expect(result.systems[0].segments.find((entry) => entry.pipeId === 'suction')?.flowGpm)
+      .toBeGreaterThan(0);
     expect(result.sources[0].runtimeHours).toBeCloseTo(37.956, 2);
+  });
+
+  it('routes and demands only the selected gun', () => {
+    const result = analyzeSnowmakingSystems({ ...base, selectedGunIds: ['gun-a'] });
+    expect(result.status).toBe('complete');
+    expect(result.summary.requestedDemandGpm).toBe(58);
+    expect(result.systems[0].segments.find((entry) => entry.pipeId === 'trunk')?.flowGpm)
+      .toBeCloseTo(58, 2);
+    expect(result.systems[0].segments.some((entry) => entry.pipeId === 'branch-b')).toBe(false);
   });
 
   it('allows gravity-only operation and reports insufficient pressure as a solved result', () => {
@@ -86,7 +99,7 @@ describe('analyzeSnowmakingSystems', () => {
     expect(low.systems[0].guns.every((entry) => entry.status === 'insufficient-pressure')).toBe(true);
   });
 
-  it('splits equal parallel pipes equally and solves loops', () => {
+  it('chooses one stable pipe from equal parallel routes', () => {
     const source = node('source', 'intake', 0, 350, 'parallel');
     const hydrant = node('parallel-gun', 'hydrant', 200, 0);
     const result = analyzeSnowmakingSystems({ nodes: [source, hydrant],
@@ -94,12 +107,12 @@ describe('analyzeSnowmakingSystems', () => {
       guns: [gun('parallel-gun', hydrant)], selectedGunIds: ['parallel-gun'],
       selectedIntakeNodeIds: ['source'], wetBulbF: 9, pumpSettings: {} });
     expect(result.status).toBe('complete');
-    const flows = result.systems[0].segments.map((entry) => entry.flowGpm);
-    expect(flows[0]).toBeCloseTo(29, 2);
-    expect(flows[1]).toBeCloseTo(29, 2);
+    expect(result.systems[0].segments).toHaveLength(1);
+    expect(result.systems[0].segments[0]).toMatchObject({ pipeId: 'parallel-a' });
+    expect(result.systems[0].segments[0].flowGpm).toBeCloseTo(58, 2);
   });
 
-  it('balances interacting fixed-head sources and reports receiving flow', () => {
+  it('assigns a gun to one nearest source tree without source circulation', () => {
     const upper = node('upper-source', 'intake', 0, 605, 'upper');
     const lower = node('lower-source', 'intake', 0, 600, 'lower');
     const merge = node('merge', 'junction', 100, 590);
@@ -113,11 +126,31 @@ describe('analyzeSnowmakingSystems', () => {
         'lower-source': { sourceKey: 'pond:lower', name: 'Lower', capacityM3: 100 },
       } });
     expect(result.status).toBe('complete');
-    expect(result.systems[0].sources.map((source) => source.withdrawalGpm)
-      .reduce((sum, flow) => sum + flow, 0)).toBeCloseTo(58, 2);
-    expect(result.sources.some((source) => source.status === 'receiving')).toBe(true);
+    expect(result.systems).toHaveLength(1);
+    expect(result.systems[0].intakeNodeIds).toEqual(['lower-source']);
+    expect(result.systems[0].sources[0].withdrawalGpm).toBeCloseTo(58, 2);
+    expect(result.sources.some((source) => source.status === 'receiving')).toBe(false);
     expect(result.systems[0].segments.find((entry) => entry.pipeId === 'shared-main')?.flowGpm)
       .toBeCloseTo(58, 2);
+  });
+
+  it('solves two source-rooted trees inside one connected physical component', () => {
+    const west = node('west-source', 'intake', 0, 500, 'west');
+    const westHydrant = node('west-hydrant', 'hydrant', 100, 0);
+    const eastHydrant = node('east-hydrant', 'hydrant', 700, 0);
+    const east = node('east-source', 'intake', 800, 500, 'east');
+    const result = analyzeSnowmakingSystems({ nodes: [west, westHydrant, eastHydrant, east],
+      pipes: [pipe('west-main', west, westHydrant),
+        pipe('cross-link', westHydrant, eastHydrant), pipe('east-main', eastHydrant, east)],
+      guns: [gun('west-gun', westHydrant), gun('east-gun', eastHydrant)],
+      selectedGunIds: ['west-gun', 'east-gun'],
+      selectedIntakeNodeIds: ['west-source', 'east-source'], wetBulbF: 9, pumpSettings: {} });
+    expect(result.status).toBe('complete');
+    expect(result.systems).toHaveLength(2);
+    expect(new Set(result.systems.map((system) => system.systemId)).size).toBe(2);
+    expect(result.systems.flatMap((system) => system.segments)
+      .some((segment) => segment.pipeId === 'cross-link')).toBe(false);
+    expect(result.sources.every((source) => source.status === 'supplying')).toBe(true);
   });
 
   it('keeps independent component failures local', () => {
