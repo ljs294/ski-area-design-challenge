@@ -22,6 +22,7 @@ import { SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
 import { SnowmakingSummaryInspector, Stat } from './SnowmakingSummaryInspector';
 import { snowmakingSegmentAnnotationGeometry } from './snowmakingDashboardGeometry';
 import { ringAreaM2, ringPathD, snowmakingSourceInfo } from './snowmakingDashboardModel';
+import { snowmakingPressureColor, snowmakingPressureRange } from './snowmakingPressureHeatmap';
 import { useSnowmakingAnalysis } from './useSnowmakingAnalysis';
 
 type SnowmakingDashboardProps = Parameters<typeof SnowmakingDashboard>[0];
@@ -53,32 +54,9 @@ export function snowmakingDashboardProps(input: {
   };
 }
 
-/**
- * The snowmaking dashboard: a to-scale, geographic plan view of the pipe
- * network's water sources and placed nodes, drawn in SVG the same way
- * NetworkMap draws the trail/lift topology — but this view keeps real
- * geography (not a schematic graph), because "where is this relative to
- * that pond" is the whole point. Trail and lift geometry is not drawn — only
- * ground cover, contour lines, water bodies, and nodes — so cleared terrain
- * isn't confused for a planned run; trails/lifts still contribute to the
- * frame's fallback bounds when there's no water/node geometry yet.
- *
- * Sibling of NetworkMap, not a variant of it: separate pan/zoom state, own
- * coordinate frame (scoped to water + node geometry, not the whole mountain),
- * own draw order. Visually consistent by reusing NetworkMap's CSS classes
- * (.network-map/.network-canvas/.network-svg/.network-grid-line/
- * .network-chrome-tl/.network-chrome-bl/.network-empty) rather than
- * reinventing the dialog chrome.
- */
-
 const PAD_FRAC = 0.06;
 const MIN_SPAN_M = 120;
-// Nominal reference width in "pixels" that NetworkMap itself normalizes radii
-// against (see its `active.w / 900` scale factor) — reused here so the cover
-// backdrop's simplify tolerance and area-drop threshold are pinned to the
-// same nominal scale as the rest of the dashboard chrome.
 const NOMINAL_PX = 900;
-// A screen pixel worth of area at the nominal scale, in tolerance-metres^2.
 const MIN_RING_AREA_PX2 = 4;
 
 // Matches src/app/snowmakingLayers.ts's per-kind circle-color palette —
@@ -108,16 +86,6 @@ function niceDistance(target: number): number {
   return step * pow;
 }
 
-/** Shoelace area of a projected ring (closed or open — the wraparound term
- *  contributes zero when the last point already duplicates the first). */
-/**
- * Name and capacity of the dam/pond a node was auto-seeded from, or null when
- * the node has no `source` (a future hand-placed node). Mirrors
- * SnowmakingControl.tsx's `snowmakingSourceName` — an orphaned reference
- * (source no longer resolves — should be pruned by reconcileSnowmakingNodes,
- * but stay defensive rather than throwing on stale data) degrades to
- * 'Unknown' / 0 rather than crashing.
- */
 export function SnowmakingDashboard({
   dams,
   ponds,
@@ -177,14 +145,19 @@ export function SnowmakingDashboard({
   const [view, setView] = useState<View | null>(null);
   const [showGunTypes, setShowGunTypes] = useState(false);
   const [hoveredGunId, setHoveredGunId] = useState<string | null>(null);
+  const [hoveredSegmentId, setHoveredSegmentId] = useState<string | null>(null);
   const [pendingHydrantDeleteId, setPendingHydrantDeleteId] = useState<string | null>(null);
   const { state: analysis, dispatch: analysisDispatch, groups: analysisGroups,
     relevantGroups: analysisRelevantGroups, routing: analysisRouting,
     gunStatuses: analysisStatuses,
     sourceResourcesByIntakeId } = useSnowmakingAnalysis({ nodes, pipes, guns, dams, ponds, lakes });
-  const analysisSegments = useMemo(() => new Map((analysis.stale ? [] : analysis.result?.systems ?? [])
-    .flatMap((system) => system.segments).map((segment) => [segment.id, segment])),
-  [analysis.result, analysis.stale]);
+  const solvedSegments = useMemo(() => (analysis.stale ? [] : analysis.result?.systems ?? [])
+    .flatMap((system) => system.segments), [analysis.result, analysis.stale]);
+  const analysisSegments = useMemo(() => new Map(solvedSegments
+    .map((segment) => [segment.id, segment])),
+  [solvedSegments]);
+  const pressureRange = useMemo(() => snowmakingPressureRange(solvedSegments),
+    [solvedSegments]);
   const relevantSegmentColors = useMemo(() => {
     const colorByComponent = new Map(analysisRelevantGroups.map((group, index) =>
       [group.componentId, SYSTEM_COLORS[index % SYSTEM_COLORS.length]] as const));
@@ -419,6 +392,19 @@ export function SnowmakingDashboard({
                 vectorEffect="non-scaling-stroke"
               />
             </pattern>
+            {pressureRange && pipes.flatMap((pipe) => snowmakingPipeSegments(pipe).map((segment) => {
+              const flow = analysisSegments.get(segment.id);
+              if (!flow) return null;
+              const rawPoints = segment.vertices.map((vertex) => place(vertex.point));
+              const points = flow.flowGpm < 0 ? [...rawPoints].reverse() : rawPoints;
+              const first = points[0], last = points[points.length - 1];
+              if (!first || !last) return null;
+              return <linearGradient key={segment.id} id={`snow-pressure-${segment.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`}
+                gradientUnits="userSpaceOnUse" x1={first.x} y1={first.y} x2={last.x} y2={last.y}>
+                <stop offset="0%" stopColor={snowmakingPressureColor(flow.upstreamPressurePsi, pressureRange)} />
+                <stop offset="100%" stopColor={snowmakingPressureColor(flow.downstreamPressurePsi, pressureRange)} />
+              </linearGradient>;
+            }))}
           </defs>
 
           <rect x={active.x} y={active.y} width={active.w} height={active.h} fill="url(#snow-grid)" />
@@ -500,14 +486,16 @@ export function SnowmakingDashboard({
                 active.w / NOMINAL_PX) : null;
               const className = `snowmaking-dashboard-pipe${selected ? ' is-selected' : ''}` +
                 `${mode === 'analysis' && relevantColor ? ' is-analysis-relevant' : ''}` +
-                `${flow?.active ? ' is-analysis-active' : flow ? ' is-analysis-inactive' : ''}`;
+                `${flow?.active ? ' is-analysis-active' : flow ? ' is-analysis-inactive' : ''}` +
+                `${hoveredSegmentId === segment.id ? ' is-analysis-hovered' : ''}`;
               if (!d) return null;
               const path = <path key={segment.id} d={d} className={className}
                 data-pipe-id={pipe.id} data-segment-id={segment.id}
                 {...(mode === 'inspect' ? { role: 'button', tabIndex: 0 } : {})}
                 aria-label={`${pipe.name}, segment ${segment.segmentIndex + 1}, ${pipe.diameterIn} inch pipe`}
-                vectorEffect="non-scaling-stroke" style={mode === 'analysis' && relevantColor
-                  ? { stroke: relevantColor } : undefined}
+                vectorEffect="non-scaling-stroke" style={flow && pressureRange
+                  ? { stroke: `url(#snow-pressure-${segment.id.replace(/[^a-zA-Z0-9_-]/g, '-')})` }
+                  : mode === 'analysis' && relevantColor ? { stroke: relevantColor } : undefined}
                 onClick={(event) => { if (mode === 'inspect') {
                   event.stopPropagation(); onSelectPipe(pipe.id);
                 } }}
@@ -518,6 +506,13 @@ export function SnowmakingDashboard({
               if (!flow || !annotation) return path;
               const fontSize = active.w / 92;
               return <g key={segment.id} data-analysis-segment-id={segment.id}>{path}
+                <path d={d} className="snowmaking-dashboard-pipe-hit" data-segment-hover-id={segment.id}
+                  role="button" tabIndex={0} aria-label={`${pipe.name}, segment ${segment.segmentIndex + 1}. ${FLOW_NUMBER.format(Math.abs(flow.flowGpm))} GPM. ${FLOW_NUMBER.format(flow.upstreamPressurePsi)} to ${FLOW_NUMBER.format(flow.downstreamPressurePsi)} PSI. ${FLOW_NUMBER.format(flow.frictionHeadFt)} feet friction head.`}
+                  vectorEffect="non-scaling-stroke"
+                  onMouseEnter={() => setHoveredSegmentId(segment.id)}
+                  onMouseLeave={() => setHoveredSegmentId(null)}
+                  onFocus={() => setHoveredSegmentId(segment.id)}
+                  onBlur={() => setHoveredSegmentId(null)} />
                 <g className="snowmaking-dashboard-segment-annotation" aria-label={
                   `${FLOW_NUMBER.format(Math.abs(flow.flowGpm))} GPM, ${FLOW_NUMBER.format(flow.upstreamPressurePsi)} to ${FLOW_NUMBER.format(flow.downstreamPressurePsi)} PSI`}>
                   {flow.active && annotation.arrows.map((arrow, index) => <path
@@ -603,6 +598,15 @@ export function SnowmakingDashboard({
             }} />
         </svg>
 
+        {mode === 'analysis' && pressureRange && <div className="snowmaking-pressure-legend"
+          aria-label={`Pipe pressure heat map from ${FLOW_NUMBER.format(pressureRange.minPsi)} to ${FLOW_NUMBER.format(pressureRange.maxPsi)} PSI`}>
+          <div className="snowmaking-pressure-legend-title">Operating pressure</div>
+          <div className="snowmaking-pressure-legend-ramp" aria-hidden="true" />
+          <div className="snowmaking-pressure-legend-values"><span>{FLOW_NUMBER.format(pressureRange.minPsi)} PSI</span>
+            <span>{FLOW_NUMBER.format((pressureRange.minPsi + pressureRange.maxPsi) / 2)} PSI</span>
+            <span>{FLOW_NUMBER.format(pressureRange.maxPsi)} PSI</span></div>
+        </div>}
+
         <div className="network-chrome-tl">
           <button className="site-btn network-close" onClick={onClose}>
             ✕ Close {mode === 'analysis' ? 'system analyzer' : 'snowmaking map'}
@@ -647,6 +651,7 @@ export function SnowmakingDashboard({
         setPumpEfficiency={(id, value) => analysisDispatch({ type: 'pump-efficiency', id, value })}
         onSetPumpPort={onSetPumpPort}
         setHoveredGun={setHoveredGunId}
+        hoveredSegmentId={hoveredSegmentId}
         reset={() => analysisDispatch({ type: 'reset' })} /> : <SnowmakingInspector
         selectedNode={selectedNode}
         selectedPipe={selectedPipe}

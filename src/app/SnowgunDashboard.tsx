@@ -43,8 +43,12 @@ export function SnowgunDashboardMarkers({ guns, nodes, selectedId, hoveredId, an
       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault(); event.stopPropagation(); select(gun.id); } }}>
       <circle cx={p.x} cy={p.y} r={width / 50} className="snowmaking-dashboard-gun-hit" />
-      {selected && <circle cx={p.x} cy={p.y} r={width / 100}
-        className="snowmaking-dashboard-gun-halo" vectorEffect="non-scaling-stroke" />}
+      {selected && <>
+        <circle cx={p.x} cy={p.y} r={width / 92}
+          className="snowmaking-dashboard-gun-halo" vectorEffect="non-scaling-stroke" />
+        <circle cx={p.x} cy={p.y} r={width / 126}
+          className="snowmaking-dashboard-gun-operating-ring" vectorEffect="non-scaling-stroke" />
+      </>}
       {hovered && <circle cx={p.x} cy={p.y} r={width / 85}
         className="snowmaking-dashboard-gun-hover-halo" vectorEffect="non-scaling-stroke" />}
       <circle cx={p.x} cy={p.y} r={width / 180}

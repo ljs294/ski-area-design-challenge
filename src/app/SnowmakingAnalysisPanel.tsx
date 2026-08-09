@@ -42,7 +42,8 @@ function focusPumpPorts(pumpId: string): void {
 
 export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, relevantGroups,
   sourceResourcesByIntakeId, result, toggleGun, setGuns, toggleIntake, setWetBulb,
-  setPumpOn, setPumpHp, setPumpEfficiency, onSetPumpPort, setHoveredGun, reset }: {
+  setPumpOn, setPumpHp, setPumpEfficiency, onSetPumpPort, setHoveredGun,
+  hoveredSegmentId, reset }: {
   state: SnowmakingAnalysisState;
   nodes: readonly SavedSnowmakingNode[];
   pipes: readonly SavedSnowmakingPipe[];
@@ -61,6 +62,7 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
   onSetPumpPort(pipeId: string, segmentId: string, end: 'start' | 'end',
     port: SnowmakingPumpPort | null): void;
   setHoveredGun(id: string | null): void;
+  hoveredSegmentId: string | null;
   reset(): void;
 }) {
   const selectedGuns = new Set(state.selectedGunIds);
@@ -72,12 +74,29 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
   const pipeById = new Map(pipes.map((pipe) => [pipe.id, pipe]));
   const gunById = new Map(guns.map((gun) => [gun.id, gun]));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const hoveredSegment = result?.systems.flatMap((system) => system.segments)
+    .find((segment) => segment.id === hoveredSegmentId) ?? null;
+  const hoveredPipe = hoveredSegment ? pipeById.get(hoveredSegment.pipeId) : null;
 
   return <aside className="network-inspector snowmaking-analysis-panel"
     data-inspector="analysis" aria-label="Snowmaking system analyzer">
     <div className="dock-head"><span className="dock-head-title">Operate snowguns</span></div>
     <div className="network-sub">Select the guns to run. Automatic radial routing uses the shortest
       required tree and excludes alternate loop links.</div>
+
+    <section className={`snowmaking-segment-peek${hoveredSegment ? ' is-visible' : ''}`}
+      aria-live="polite" aria-label="Hovered pipe segment details">
+      {hoveredSegment ? <>
+        <div className="snowmaking-segment-peek-head"><span>Pipe segment</span>
+          <strong>{hoveredPipe?.name ?? hoveredSegment.pipeId} · {hoveredSegment.segmentIndex + 1}</strong></div>
+        <div className="snowmaking-segment-peek-grid">
+          <div><span>Pressure</span><strong>{number.format(hoveredSegment.upstreamPressurePsi)} → {number.format(hoveredSegment.downstreamPressurePsi)} PSI</strong></div>
+          <div><span>Flow</span><strong>{number.format(Math.abs(hoveredSegment.flowGpm))} GPM</strong></div>
+          <div><span>Friction head</span><strong>{number.format(hoveredSegment.frictionHeadFt)} ft</strong></div>
+          <div><span>Pipe</span><strong>{hoveredPipe?.diameterIn ?? '—'} in · {whole.format(hoveredSegment.lengthFt)} ft</strong></div>
+        </div>
+      </> : <div className="snowmaking-segment-peek-empty">Hover or focus a colored pipe segment to inspect its hydraulic performance.</div>}
+    </section>
 
     <label className="snowmaking-analysis-temperature">
       <span>Wet-bulb temperature</span>
@@ -165,7 +184,7 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
             {entry.message}{(entry.code === 'unconfigured-pump-ports' ||
               entry.code === 'pump-direction-blocks-route') && entry.entityId &&
               <button className="site-btn" onClick={() => focusPumpPorts(entry.entityId!)}>
-                Configure ports</button>}</li>)}
+                Set pump direction</button>}</li>)}
         </ul></div>}
         <div className="network-stats">
           <div className="network-stat"><span className="network-stat-label">Requested demand</span>
@@ -196,9 +215,10 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
               {nodeById.get(pump.nodeId)?.name ?? pump.nodeId} — {pump.status}</strong>
               <span>{number.format(pump.flowGpm)} GPM · +{number.format(pump.pressureAddedPsi)} PSI</span>
               <small>{pump.suctionPressurePsi == null ? 'Pressure unavailable'
-                : `${number.format(pump.suctionPressurePsi)} → ${number.format(pump.dischargePressurePsi ?? 0)} PSI`}</small>
+                : `Water enters at ${number.format(pump.suctionPressurePsi)} PSI · pump pushes out at ${number.format(pump.dischargePressurePsi ?? 0)} PSI`}</small>
             </div>)}
-            {system.segments.map((segment) => <div key={segment.id}><strong>
+            {system.segments.map((segment) => <div key={segment.id}
+              className={hoveredSegmentId === segment.id ? 'is-hovered' : undefined}><strong>
               {pipeById.get(segment.pipeId)?.name ?? segment.pipeId} · segment {segment.segmentIndex + 1}</strong>
               <span>{number.format(segment.flowGpm)} GPM · {number.format(segment.upstreamPressurePsi)} →
                 {' '}{number.format(segment.downstreamPressurePsi)} PSI</span>

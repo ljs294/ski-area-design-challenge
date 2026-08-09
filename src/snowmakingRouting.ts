@@ -301,7 +301,7 @@ export function deriveSnowmakingRoutingForest(input: SnowmakingRoutingInput): Sn
       const pumpIds = unconfiguredPumps(component, physicalEdges);
       const diagnostics: SnowmakingRoutingDiagnostic[] = pumpIds.length
         ? pumpIds.map((pumpId) => ({ code: 'unconfigured-pump-ports' as const,
-          message: `${nodeById.get(pumpId)?.name ?? 'A pump'} has an unassigned pipe arm. Configure suction and discharge ports.`,
+          message: `${nodeById.get(pumpId)?.name ?? 'A pump'} has a pipe with no water direction. Choose where water enters the pump and where the pump pushes it.`,
           entityId: pumpId, componentId: component.id }))
         : component.pumpNodeIds.size && [...component.pumpNodeIds].some((id) => input.pumpSettings[id]?.on)
           ? [{ code: 'pump-direction-blocks-route',

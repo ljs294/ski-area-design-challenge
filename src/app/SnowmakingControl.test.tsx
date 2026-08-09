@@ -93,8 +93,9 @@ describe('SnowmakingControl', () => {
       pipeTool={{ phase: 'idle' }} nodeTool={{ phase: 'placing', kind: 'pump', candidate, error: null }}
       hydrantRunTool={{ phase: 'idle' }} hydrantRunPreview={null} diameterIn={8} snapping={false}
       units="metric" {...callbacks} />);
-    expect(html).toContain('Hydraulic direction');
-    expect(html).toContain('Suction from Main start');
+    expect(html).toContain('Which way does this pump push water?');
+    expect(html).toContain('Water enters from Main start');
+    expect(html).toContain('Pump pushes toward Main end');
     expect(html).not.toContain('Snap single pump');
     expect(html).toMatch(/disabled=""[^>]*>Place pump/);
   });

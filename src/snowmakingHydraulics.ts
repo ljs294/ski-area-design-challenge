@@ -367,14 +367,14 @@ function buildHydraulicModel(input: SnowmakingAnalysisInput, graph: PhysicalGrap
     if (node?.kind !== 'pump') continue;
     const port = side === 'a' ? edge.segment.startPumpPort : edge.segment.endPumpPort;
     if (!port) addDiagnostic(diagnostics, 'unconfigured-pump-ports',
-      `${node.name} has an unassigned pipe arm. Configure suction and discharge ports.`,
+      `${node.name} has a pipe with no water direction. Choose where water enters the pump and where the pump pushes it.`,
       node.id, componentId);
     else incidentPorts.set(node.id, new Set([...(incidentPorts.get(node.id) ?? []), port]));
   }
   for (const [pumpId, ports] of incidentPorts) if (!ports.has('suction') || !ports.has('discharge')) {
     const pump = nodeById.get(pumpId)!;
     addDiagnostic(diagnostics, 'unconfigured-pump-ports',
-      `${pump.name} needs at least one suction arm and one discharge arm.`, pumpId, componentId);
+      `${pump.name} needs at least one inlet where water enters and one outlet where the pump pushes water.`, pumpId, componentId);
   }
   if (diagnostics.some((entry) => entry.componentId === componentId && entry.severity !== 'warning')) return null;
 

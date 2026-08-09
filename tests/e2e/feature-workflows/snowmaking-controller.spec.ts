@@ -126,7 +126,7 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.getByRole('button', { name: 'Place pumps' }).click();
   const pumpPoint = await pointAt(page, [-121.49525, 46.90495]);
   await page.mouse.click(pumpPoint.x, pumpPoint.y);
-  await page.getByRole('radio', { name: /Suction from Summit Main start/ }).check();
+  await page.getByRole('radio', { name: /Water enters from Summit Main start/ }).check();
   await expect.poll(() => page.evaluate(() => {
     const source = (window as unknown as { appMap: { getSource(id: string): {
       serialize(): { data?: { features?: { properties?: { kind?: string } }[] } } } } }).appMap
@@ -297,6 +297,11 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
   await expect(northAnnotation.locator('[data-flow-arrow="true"]')).toHaveCount(2);
   await expect(northAnnotation).toContainText('GPM');
   await expect(northAnnotation).toContainText('PSI');
+  await expect(page.locator('.snowmaking-pressure-legend')).toContainText('Operating pressure');
+  await page.locator('[data-segment-hover-id="pipe-north:segment:0"]').hover();
+  await expect(analyzer.locator('.snowmaking-segment-peek')).toContainText('Friction head');
+  await expect(analyzer.locator('.snowmaking-segment-peek')).toContainText('Flow');
+  await expect(analyzer.locator('.snowmaking-segment-peek')).toContainText('Pressure');
   await firstGunRow.hover();
   await expect(page.locator('.snowmaking-dashboard-gun[data-gun-id="gun-1"]'))
     .toHaveClass(/is-hovered/);

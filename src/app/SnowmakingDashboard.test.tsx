@@ -221,10 +221,11 @@ describe('SnowmakingDashboard', () => {
   it('renders every incident pump arm as a persistent port assignment', () => {
     const html = render({ selectedNodeId: nodeB.id, nodes: [nodeA, nodeB, hydrant],
       pipes: [testPipe] });
-    expect(html).toContain('Hydraulic direction');
+    expect(html).toContain('Which way does this pump push water?');
     expect(html.match(/name="pump-direction-node-b"/g)).toHaveLength(2);
-    expect(html).toContain('Suction from Main');
-    expect(html).toContain('Configure at least one suction and one discharge arm.');
+    expect(html).toContain('Water enters from Main');
+    expect(html).toContain('Pump pushes toward Main');
+    expect(html).toContain('Choose at least one inlet where water enters');
   });
 
   it('draws water bodies for both dams and standalone ponds', () => {

@@ -385,7 +385,7 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
     return <div className="site-control site-control-wide snowmaking-panel">
     <PanelHead title={`Place ${nodeTool.kind}`} onClose={onCancelNode} />
     <div className="site-hint">{nodeTool.kind === 'pump'
-      ? 'Click inside an existing pipe segment, choose its suction side, then place the pump.'
+      ? 'Click inside an existing pipe segment, then choose which way the pump pushes water.'
       : 'Click a location, then confirm it. Leave this tool open to place several hydrants.'}</div>
     {nodeTool.kind !== 'pump' && <label className="snowmaking-snap-toggle">
       <input type="checkbox" checked={snapping}
@@ -402,17 +402,17 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
         <span className="lift-stat-value">{nodeTool.candidate.snap ? 'Snapped to network' : 'Free-standing'}</span></div>
     </div>}
     {nodeTool.kind === 'pump' && pumpSegment && <fieldset className="snowmaking-pump-ports">
-      <legend>Hydraulic direction</legend>
+      <legend>Which way does this pump push water?</legend>
       <label><input type="radio" name="new-pump-direction"
         checked={nodeTool.candidate?.pumpSuctionSide === 'route-start'}
         onChange={() => onSetPumpSuctionSide('route-start')} />
-        <span><strong>Suction from {routeStartName}</strong><small>
-          Discharge toward {routeEndName}</small></span></label>
+        <span><strong>Water enters from {routeStartName}</strong><small>
+          Pump pushes toward {routeEndName}</small></span></label>
       <label><input type="radio" name="new-pump-direction"
         checked={nodeTool.candidate?.pumpSuctionSide === 'route-end'}
         onChange={() => onSetPumpSuctionSide('route-end')} />
-        <span><strong>Suction from {routeEndName}</strong><small>
-          Discharge toward {routeStartName}</small></span></label>
+        <span><strong>Water enters from {routeEndName}</strong><small>
+          Pump pushes toward {routeStartName}</small></span></label>
     </fieldset>}
     <div className="site-actions"><button className="site-btn" onClick={onCancelNode}>Done</button>
       <button className="site-btn site-btn-primary" disabled={!nodeTool.candidate ||
