@@ -12,11 +12,9 @@ interface MapKeyboardControlsOptions {
   mapRef: RefObject<maplibregl.Map | null>;
   suspended: boolean;
   keybinds: Keybinds;
-  showDashboard: boolean;
-  dashboard: DashboardKind;
+  activeDashboard: DashboardKind | null;
   toggle3D(): void;
-  setShowDashboard: Dispatch<SetStateAction<boolean>>;
-  setDashboard: Dispatch<SetStateAction<DashboardKind>>;
+  setActiveDashboard: Dispatch<SetStateAction<DashboardKind | null>>;
 }
 
 /** Global map-camera and dashboard shortcuts, backed by commit-timed live refs. */
@@ -64,7 +62,7 @@ export function useMapKeyboardControls(options: MapKeyboardControlsOptions): voi
     ]; };
     const onKeyDown = (event: KeyboardEvent) => {
       const current = optionsRef.current;
-      if (current.suspended || current.showDashboard || isTypingTarget(document.activeElement)) return;
+      if (current.suspended || isTypingTarget(document.activeElement)) return;
       const key = normalizeKey(event.key);
       if (!continuousKeys().includes(key)) return;
       const wasEmpty = !heldKeys.size; heldKeys.add(key);
@@ -84,15 +82,13 @@ export function useMapKeyboardControls(options: MapKeyboardControlsOptions): voi
       if (current.suspended || isTypingTarget(document.activeElement)) return;
       const key = normalizeKey(event.key), keys = current.keybinds;
       if (key === keys.snapNorth) {
-        if (!current.showDashboard) current.mapRef.current?.easeTo({ bearing: 0, duration: 300 });
+        current.mapRef.current?.easeTo({ bearing: 0, duration: 300 });
       } else if (key === keys.toggleView3D) {
-        if (!current.showDashboard) current.toggle3D();
+        current.toggle3D();
       } else if (key === keys.openTrailsDashboard) {
-        if (current.showDashboard && current.dashboard === 'trails') current.setShowDashboard(false);
-        else { current.setDashboard('trails'); current.setShowDashboard(true); }
+        current.setActiveDashboard((value) => value === 'trails' ? null : 'trails');
       } else if (key === keys.openSnowmakingDashboard) {
-        if (current.showDashboard && current.dashboard === 'snowmaking') current.setShowDashboard(false);
-        else { current.setDashboard('snowmaking'); current.setShowDashboard(true); }
+        current.setActiveDashboard((value) => value === 'snowmaking' ? null : 'snowmaking');
       }
     };
     window.addEventListener('keydown', onKeyDown);

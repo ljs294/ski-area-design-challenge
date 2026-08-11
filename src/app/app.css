@@ -3068,6 +3068,138 @@ html.resume-capture .maplibregl-canvas {
 .snowmaking-dashboard-node-dot {
   stroke: none;
 }
+
+/* In-map dashboard selector and inspector. The map itself remains the only
+   pan/zoom surface; these controls float above it. */
+.dashboard-menu { position: relative; width: max-content; }
+.dashboard-bubble {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-elev);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dashboard-bubble:hover { background: var(--panel-elev-hover); }
+.dashboard-bubble.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow);
+}
+.dashboard-bubble-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.dashboard-bubble-icon path { fill: currentColor; stroke: none; }
+.dashboard-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 196px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-elev);
+  box-shadow: var(--shadow);
+}
+.dashboard-popover button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dashboard-popover button:hover { background: var(--panel-elev-hover); }
+.dashboard-popover button[aria-checked='true'] { color: var(--accent); font-weight: 700; }
+.dashboard-menu-check { width: 14px; text-align: center; }
+
+.dashboard-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: 320px;
+  padding: 14px;
+  overflow-y: auto;
+  background: var(--panel-elev);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.dashboard-sidebar-actions {
+  position: sticky;
+  top: -14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -14px -14px 12px;
+  padding: 12px 14px;
+  background: var(--panel-elev);
+  border-bottom: 1px solid var(--border);
+}
+.dashboard-sidebar-actions .settings-close-x { margin-left: auto; }
+.dashboard-sidebar .network-inspector {
+  width: auto;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+}
+.dashboard-sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.dashboard-sidebar-empty strong { color: var(--text); }
+.dashboard-sidebar .snowmaking-pressure-legend { position: static; margin: 0 0 12px; }
+
+.snowmaking-pipe-tooltip {
+  position: fixed;
+  z-index: 40;
+  width: min(270px, calc(100vw - 24px));
+  padding: 10px 11px;
+  pointer-events: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-elev) 96%, transparent);
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.snowmaking-pipe-hover-details {
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-solid) 82%, transparent);
+}
+.snowmaking-pipe-hover-details.is-compact { margin: 0; padding: 0; border: 0; background: transparent; }
+.snowmaking-pipe-hover-title { display: grid; gap: 2px; margin-bottom: 8px; }
+.snowmaking-pipe-hover-title span,
+.snowmaking-pipe-hover-grid span { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.snowmaking-pipe-hover-title strong { font-size: 13px; }
+.snowmaking-pipe-hover-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; }
+.snowmaking-pipe-hover-grid > div { display: grid; gap: 1px; min-width: 0; }
+.snowmaking-pipe-hover-grid strong { font-size: 12px; overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .dashboard-sidebar { width: 260px; }
+}
 .snowmaking-dashboard-node.is-selected .snowmaking-dashboard-node-dot {
   stroke: #efb84f;
   stroke-width: 1.5;

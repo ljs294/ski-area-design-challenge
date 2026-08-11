@@ -27,7 +27,7 @@ import type { SavedDam, SavedPond, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingPumpPort } from '../types/snowmaking';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
 import { MAP_HIT_RANK, MAP_Z_ORDER, type ManagedMapContribution,
-  type MapVisibilityDescriptor } from './mapContribution';
+  type MapHitHoverTarget, type MapVisibilityDescriptor } from './mapContribution';
 import { setSelectedSnowmakingFeature, setSnowmakingCaptureTransient, setSnowmakingData,
   setSnowmakingDraftData, addSnowmakingLayers, SNOWMAKING_BUILT_LAYER_IDS,
   SNOWMAKING_HIT_LAYERS, SNOWMAKING_HOVER_LAYERS } from './snowmakingLayers';
@@ -65,6 +65,7 @@ export interface SnowmakingNetworkControllerOptions {
   selectNode(id: string): void;
   selectPipe(id: string): void;
   selectGun(id: string): void;
+  hoverDashboardPipe(target: MapHitHoverTarget | null): void;
   clearSelected(id: string): void;
   createId(): string;
   now(): string;
@@ -208,8 +209,11 @@ export function useSnowmakingNetworkController(
   if (!contributionRef.current) contributionRef.current = {
     id: 'snowmaking', zOrder: MAP_Z_ORDER.snowmaking,
     hits: [{ id: 'snowmaking', priority: MAP_HIT_RANK.snowmaking,
-      layerIds: SNOWMAKING_HIT_LAYERS,
-      hoverLayerIds: SNOWMAKING_HOVER_LAYERS,
+      layerIds: [...SNOWMAKING_HIT_LAYERS, 'dashboard-snow-pipe-hit',
+        'dashboard-snow-node-hit', 'dashboard-snow-gun-hit'],
+      hoverLayerIds: [...SNOWMAKING_HOVER_LAYERS, 'dashboard-snow-pipe-hit',
+        'dashboard-snow-node-hit', 'dashboard-snow-gun-hit'],
+      hover: (target) => optionsRef.current.hoverDashboardPipe(target),
       select: (id) => {
         if (optionsRef.current.guns.some((gun) => gun.id === id)) optionsRef.current.selectGun(id);
         else if (optionsRef.current.pipes.some((pipe) => pipe.id === id)) optionsRef.current.selectPipe(id);

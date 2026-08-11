@@ -50,6 +50,8 @@ import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry,
   type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
+import { addDashboardMapLayers, setDashboardMapVisibility,
+  useInMapDashboards } from './inMapDashboards';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
@@ -331,20 +333,14 @@ export function MapView({
   const [buildingActivity, setBuildingActivity] =
     useState<Parameters<TerrainDocumentPorts['publishConstruction']>[0]>(null);
   const building = buildingActivity !== null;
-  const [showNetwork, setShowNetwork] = useState(false);
-  const [networkLiftId, setNetworkLiftId] = useState<string | null>(null);
-  const [networkEdgeId, setNetworkEdgeId] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<'trails' | 'snowmaking' | 'snowmaking-analysis'>('trails');
   const network = useMemo(
     () => buildSkiNetwork(trails, lifts, { nodes: skiNodes, paths: skiPaths, junctions }),
     [trails, lifts, skiNodes, skiPaths, junctions]
   );
-
   // Exposed for the Playwright verification harness, alongside window.appMap.
   useEffect(() => {
     (window as unknown as { appNetwork?: typeof network }).appNetwork = network;
   }, [network]);
-
   // Also for the harness: the play box. Local context is drawn over the wider
   // perimeter ring, so a check that only reads map sources cannot tell which
   // features the build tools will actually accept.
@@ -352,7 +348,6 @@ export function MapView({
     (window as unknown as { appTerrainBounds?: TerrainRecord['bounds'] })
       .appTerrainBounds = terrainRecord?.bounds;
   }, [terrainRecord]);
-
   // Also for the harness: what this session would write, versus what is on
   // disk. Terrain edits are only in memory until Save, so a check that reads
   // storage alone cannot tell whether a discard actually discarded anything.
@@ -365,10 +360,6 @@ export function MapView({
       unsaved: hasUnsavedChanges(),
     };
   });
-
-  useMapKeyboardControls({ mapRef, suspended: controlsSuspended, keybinds: settings.keybinds,
-    showDashboard: showNetwork, dashboard, toggle3D,
-    setShowDashboard: setShowNetwork, setDashboard });
   const activeOverlay = activeOverlayOf(layers);
 
   // Refs so once-registered handlers + the style-swap re-init read current values.
@@ -449,6 +440,12 @@ export function MapView({
   const terrainRecordRef = useRef<TerrainRecord | null>(null);
   const terrainHeightCacheRef = useRef<{ checksum: string; heights: Float32Array } | null>(null);
   const coverDisplayRef = useRef<CoverDisplayGeoJSON | null>(null);
+  const dashboards = useInMapDashboards({ mapRef, registryRef: mapContributionRegistryRef,
+    dark: resolvedTheme === 'dark', units: settings.units, network, dams, ponds, lakes: snowmakingLakes ?? [],
+    trails, lifts, nodes: snowmakingNodes, pipes: snowmakingPipes, guns: snowguns,
+    coverDisplay: coverDisplayRef.current, terrainRecord });
+  useMapKeyboardControls({ mapRef, suspended: controlsSuspended, keybinds: settings.keybinds,
+    activeDashboard: dashboards.active, toggle3D, setActiveDashboard: dashboards.setActive });
   const localImageryUrlRef = useRef<string | null>(null);
   const localImageryCacheKeyRef = useRef<string | null>(null);
   const {
@@ -502,7 +499,7 @@ export function MapView({
     activate: () => toolCoordinator.activate('lift'),
     release: () => { toolCoordinator.release('lift'); },
     clearSelection: clearSelectionState,
-    select: (id) => transitionSelection({ kind: 'lift', id }),
+    select: (id) => { if (!dashboards.selectLift(id)) transitionSelection({ kind: 'lift', id }); },
     clearSelected: (id) => {
       setSelectedLiftId((selected) => selected === id ? null : selected);
       setLiftEditing(false);
@@ -608,9 +605,10 @@ export function MapView({
       openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
       acquireInteractions: (tool, map) => acquireMapInteractions(tool, map,
         { cursor: 'crosshair', doubleClickZoomEnabled: false }),
-      selectNode: (id) => transitionSelection({ kind: 'snowmaking-node', id }),
-      selectPipe: (id) => transitionSelection({ kind: 'snowmaking-pipe', id }),
-      selectGun: (id) => transitionSelection({ kind: 'snowgun', id }),
+      selectNode: (id) => { if (!dashboards.selectSnow('node', id)) transitionSelection({ kind: 'snowmaking-node', id }); },
+      selectPipe: (id) => { if (!dashboards.selectSnow('pipe', id)) transitionSelection({ kind: 'snowmaking-pipe', id }); },
+      selectGun: (id) => { if (!dashboards.selectSnow('gun', id)) transitionSelection({ kind: 'snowgun', id }); },
+      hoverDashboardPipe: dashboards.hoverSnowPipe,
       clearSelected: (id) => {
         setSelectedSnowmakingNodeId((selected) => selected === id ? null : selected);
         setSelectedSnowmakingPipeId((selected) => selected === id ? null : selected);
@@ -668,7 +666,9 @@ export function MapView({
     sampleProfile, gradeChanged: applyGradePreview,
     restoreGradePreview: (map) => { if (activeGradePreview()) applyGradePreview(map); },
     clearCover: coverClear.clear,
-    select: (id) => transitionSelection({ kind: 'trail', id }),
+    select: (id) => {
+      if (!dashboards.selectEdge(id)) transitionSelection({ kind: 'trail', id });
+    },
     clearSelected: (id) => setSelectedTrailId((selected) => selected === id ? null : selected),
     closeEditing: () => setTrailEditing(false),
     reportBlockedDelete: (message) => window.alert(message),
@@ -1007,18 +1007,25 @@ export function MapView({
           { id: 'lake', priority: MAP_HIT_RANK.lake, layerIds: ['local-water-fill'],
             select: (id) => selectLakeRef.current(id) },
         ],
-        install: ({ map }) => { analysisTogglesRef.current = installAnalysisLayers(map); },
+        install: ({ map }) => {
+          analysisTogglesRef.current = installAnalysisLayers(map);
+          addDashboardMapLayers(map);
+        },
         synchronizeData: ({ map }) => {
           const record = terrainRecordRef.current;
           if (record) setLocalContextData(map, record, lakeNameOverridesRef.current,
             streamWidthOverridesRef.current);
           setSelectedLake(map, selectedLakeIdRef.current);
           setSelectedStream(map, selectedStreamIdRef.current);
+          dashboards.sync(map);
         },
         visibility: () => analysisTogglesRef.current,
         visibilityChanged: ({ map }, id, visible) => {
           if (id === 'satellite') applyCoverOpacity(map, visible);
         },
+        presentationChanged: ({ map }, presentation) => setDashboardMapVisibility(map,
+          presentation === 'dashboard-trails' ? 'trails'
+            : presentation?.startsWith('dashboard-snowmaking') ? 'snowmaking' : null),
         cleanup: () => {},
       },
       {
@@ -1036,11 +1043,12 @@ export function MapView({
       snowmakingController.network.contribution,
     ];
   }
-
   if (!mapContributionRegistryRef.current) {
     mapContributionRegistryRef.current = new MapContributionRegistry(createMapContributions());
   }
   const mapContributions = mapContributionRegistryRef.current;
+  useEffect(() => { if (toolCoordinatorState.activeTool) mapContributions.clearHitHovers(); },
+    [toolCoordinatorState.activeTool, mapContributions]);
   const mapContext = useMapContextRecovery(terrain, mapContributions);
 
   useMapRuntime({
@@ -1673,49 +1681,41 @@ export function MapView({
           mapRef.current?.flyTo({ center: [result.lng, result.lat], zoom: 12, duration: 1200 });
         } : null}
         siteControl={picking && !saved ? {
-          mode: siteMode,
-          box: siteBox,
-          onStart: startSelect,
-          onConfirm: confirmSite,
-          onCancel: cancelSelect,
-          onExit: exitSite,
+          mode: siteMode, box: siteBox, onStart: startSelect, onConfirm: confirmSite,
+          onCancel: cancelSelect, onExit: exitSite,
         } : null}
         view3D={terrainRecord ? { is3D: !isOverhead, onToggle: toggle3D } : null}
         buildingActivity={buildingActivity}
         bottomRightToolOptions={saved ? <SnowmakingToolOptions
           controller={snowmakingController.network} gunController={snowmakingController.guns}
           units={settings.units} /> : null}
-        dashboardToggle={saved ? {
-          open: showNetwork,
-          toggle: () => setShowNetwork((value) => !value),
-        } : null}
-        dashboard={saved && showNetwork ? {
-          dashboard,
-          onDashboardChange: setDashboard,
+        dashboardToggle={saved ? { active: dashboards.active, change: dashboards.change } : null}
+        dashboardPipeHover={dashboards.active === 'snowmaking' && dashboards.snowHover ?
+          { hover: dashboards.snowHover, units: settings.units } : null}
+        dashboard={saved && dashboards.active ? {
+          dashboard: dashboards.active, snowmakingMode: dashboards.snowMode,
           networkProps: {
-            network,
-            units: settings.units,
-            selectedLiftId: networkLiftId,
-            selectedEdgeId: networkEdgeId,
-            onSelectLift: setNetworkLiftId,
-            onSelectEdge: setNetworkEdgeId,
+            network, units: settings.units,
+            selectedLiftId: dashboards.liftId, selectedEdgeId: dashboards.edgeId,
+            onSelectLift: dashboards.setLiftId,
+            onSelectEdge: (id) => { dashboards.setLiftId(null); dashboards.setEdgeId(id); },
             onToggleTrailClosed: (id, closed) => patchTrail(id, { closed }),
             onToggleLiftClosed: (id, closed) => patchLift(id, { closed }),
             onTogglePathClosed: (id, closed) => patchSkiPath(id, { closed }),
           },
-          snowmakingProps: snowmakingDashboardProps({
+          snowmakingProps: { ...snowmakingDashboardProps({
             dams, ponds, lakes: snowmakingLakes ?? [], trails, lifts, nodes: snowmakingNodes,
             pipes: snowmakingPipes, guns: snowguns,
             coverDisplay: coverDisplayRef.current, terrainRecord, units: settings.units,
-            selectedNodeId: selectedSnowmakingNodeId, selectedPipeId: selectedSnowmakingPipeId,
-            selectedGunId: selectedSnowgunId,
-            clearNode: () => setSelectedSnowmakingNodeId(null), clearPipe: () =>
-              setSelectedSnowmakingPipeId(null),
-            clearGun: () => setSelectedSnowgunId(null),
-            controller: snowmakingController.network,
+            selectedNodeId: dashboards.snowSelection?.kind === 'node' ? dashboards.snowSelection.id : null,
+            selectedPipeId: dashboards.snowSelection?.kind === 'pipe' ? dashboards.snowSelection.id : null,
+            selectedGunId: dashboards.snowSelection?.kind === 'gun' ? dashboards.snowSelection.id : null,
+            clearNode: () => dashboards.setSnowSelection(null), clearPipe: () => dashboards.setSnowSelection(null),
+            clearGun: () => dashboards.setSnowSelection(null), controller: snowmakingController.network,
             gunController: snowmakingController.guns,
-          }),
-          onClose: () => { setShowNetwork(false); if (dashboard === 'snowmaking-analysis') setDashboard('snowmaking'); },
+          }), mapHoveredPipe: dashboards.snowHover },
+          onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation,
+          onClose: dashboards.close,
         } : null}
         readout={!saved ? { value: readout, units: settings.units } : null}
         dock={saved ? {
@@ -1734,7 +1734,7 @@ export function MapView({
           streamWidthOverrides, liftController,
           roadController, trailController,
           nodePathController, snowmakingController,
-          toggleDock, openSnowmakingAnalysis: () => { setDashboard('snowmaking-analysis'); setShowNetwork(true); },
+          toggleDock, openSnowmakingAnalysis: dashboards.openAnalysis,
           closeDock: () => setOpenDock(null),
           closeLayers: () => {
             setLayersAlongsideBuild(false);

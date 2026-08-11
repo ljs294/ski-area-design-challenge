@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
-import { formatLakeVolume } from '../lakeAnalysis';
 import { fmtDistance } from '../lifts';
 import { makeFrame, simplifyRing, toMeters, type MetersFrame, type XY } from '../network';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
 import { snowmakingNodeLabel, snowmakingPipeSegments } from '../snowmakingNetwork';
-import { SNOWMAKING_PIPE_DIAMETERS_IN } from '../types/snowmaking';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe, SnowmakingNodeKind,
-  SnowmakingPipeDiameterIn, SnowmakingPumpPort } from '../types/snowmaking';
+  SnowmakingPumpPort } from '../types/snowmaking';
 import type { SavedDam, SavedLift, SavedPond, SavedTrail, TerrainRecord } from '../types';
 import type { SnowmakingLakeSource } from '../types/snowmaking';
 import { FILL_BY_CODE } from './coverVectorize';
@@ -15,15 +13,15 @@ import { localContourGeoJSON } from './localContours';
 import type { Units } from './SettingsContext';
 import type { SnowmakingNetworkController } from './useSnowmakingNetworkController';
 import type { SnowgunController } from './useSnowgunController';
-import { SnowgunDashboardConnections, SnowgunDashboardInspector,
-  SnowgunDashboardMarkers } from './SnowgunDashboard';
+import { SnowgunDashboardConnections, SnowgunDashboardMarkers } from './SnowgunDashboard';
 import { SnowmakingAnalysisPanel } from './SnowmakingAnalysisPanel';
-import { SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
-import { SnowmakingSummaryInspector, Stat } from './SnowmakingSummaryInspector';
 import { snowmakingSegmentAnnotationGeometry } from './snowmakingDashboardGeometry';
-import { ringAreaM2, ringPathD, snowmakingSourceInfo } from './snowmakingDashboardModel';
+import { ringAreaM2, ringPathD } from './snowmakingDashboardModel';
 import { snowmakingPressureColor, snowmakingPressureRange } from './snowmakingPressureHeatmap';
 import { useSnowmakingAnalysis } from './useSnowmakingAnalysis';
+import type { SnowmakingMapPresentation } from './dashboardMapLayers';
+import { SnowmakingDashboardInspector } from './SnowmakingDashboardInspector';
+import { SnowmakingPipeHoverDetails, type SnowmakingPipeHoverState } from './SnowmakingPipeHover';
 
 type SnowmakingDashboardProps = Parameters<typeof SnowmakingDashboard>[0];
 
@@ -77,7 +75,6 @@ interface View {
   w: number;
   h: number;
 }
-
 function niceDistance(target: number): number {
   if (!Number.isFinite(target) || target <= 0) return 100;
   const pow = Math.pow(10, Math.floor(Math.log10(target)));
@@ -113,6 +110,10 @@ export function SnowmakingDashboard({
   onDeleteGun = () => {},
   mode = 'inspect',
   onClose,
+  panelOnly = false,
+  onFit,
+  onPresentationChange,
+  mapHoveredPipe = null,
 }: {
   dams: SavedDam[];
   ponds: SavedPond[];
@@ -141,6 +142,10 @@ export function SnowmakingDashboard({
   onDeleteGun?: (id: string) => void;
   mode?: 'inspect' | 'analysis';
   onClose: () => void;
+  panelOnly?: boolean;
+  onFit?: () => void;
+  onPresentationChange?: (presentation: SnowmakingMapPresentation) => void;
+  mapHoveredPipe?: SnowmakingPipeHoverState | null;
 }) {
   const [view, setView] = useState<View | null>(null);
   const [showGunTypes, setShowGunTypes] = useState(false);
@@ -164,6 +169,19 @@ export function SnowmakingDashboard({
     return new Map(analysisRouting.trees.flatMap((tree) => tree.segmentIds.map((id) =>
       [id, colorByComponent.get(tree.componentId) ?? SYSTEM_COLORS[0]] as const)));
   }, [analysisRelevantGroups, analysisRouting]);
+
+  useEffect(() => onPresentationChange?.({
+    mode,
+    segments: solvedSegments,
+    relevantSegmentColors,
+    selectedGunIds: new Set(analysis.selectedGunIds),
+    gunStatuses: analysisStatuses ?? {},
+    pressureRange,
+    showGunTypes,
+    toggleGun: (id) => analysisDispatch({ type: 'toggle-gun', id }),
+    setHoveredSegment: setHoveredSegmentId,
+  }), [mode, solvedSegments, relevantSegmentColors, analysis.selectedGunIds,
+    analysisStatuses, pressureRange, showGunTypes, onPresentationChange, analysisDispatch]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
 
@@ -363,6 +381,51 @@ export function SnowmakingDashboard({
 
   const scaleM = niceDistance(active.w / 5);
   const scalePct = Math.min(60, (scaleM / active.w) * 100);
+
+  if (panelOnly) return <aside className="dashboard-sidebar" aria-label="Snowmaking dashboard">
+    <div className="dashboard-sidebar-actions">
+      <button className="site-btn" type="button" onClick={onFit}>Fit dashboard</button>
+      <label className="snowmaking-dashboard-gun-toggle">
+        <input type="checkbox" checked={showGunTypes}
+          onChange={(event) => setShowGunTypes(event.target.checked)} />
+        Show snowgun types
+      </label>
+      <button className="settings-close-x" type="button" aria-label="Close Snowmaking dashboard"
+        onClick={onClose}>✕</button>
+    </div>
+    {mode === 'analysis' && pressureRange && <div className="snowmaking-pressure-legend"
+      aria-label={`Pipe pressure heat map from ${FLOW_NUMBER.format(pressureRange.minPsi)} to ${FLOW_NUMBER.format(pressureRange.maxPsi)} PSI`}>
+      <div className="snowmaking-pressure-legend-title">Operating pressure</div>
+      <div className="snowmaking-pressure-legend-ramp" aria-hidden="true" />
+      <div className="snowmaking-pressure-legend-values"><span>{FLOW_NUMBER.format(pressureRange.minPsi)} PSI</span>
+        <span>{FLOW_NUMBER.format((pressureRange.minPsi + pressureRange.maxPsi) / 2)} PSI</span>
+        <span>{FLOW_NUMBER.format(pressureRange.maxPsi)} PSI</span></div>
+    </div>}
+    {empty && <div className="dashboard-sidebar-empty"><strong>Nothing to map yet</strong>
+      <span>Build a pond or snowmaking network to populate this dashboard.</span></div>}
+    {mode === 'inspect' && mapHoveredPipe && <SnowmakingPipeHoverDetails
+      hover={mapHoveredPipe} units={units} />}
+    {mode === 'analysis' ? <SnowmakingAnalysisPanel state={analysis} nodes={nodes} pipes={pipes}
+      guns={guns} groups={analysisGroups} relevantGroups={analysisRelevantGroups}
+      sourceResourcesByIntakeId={sourceResourcesByIntakeId} result={analysis.result}
+      toggleGun={(id) => analysisDispatch({ type: 'toggle-gun', id })}
+      setGuns={(ids) => analysisDispatch({ type: 'set-guns', ids })}
+      toggleIntake={(id) => analysisDispatch({ type: 'toggle-intake', id })}
+      setWetBulb={(value) => analysisDispatch({ type: 'wet-bulb', value })}
+      setPumpOn={(id, on) => analysisDispatch({ type: 'pump-on', id, on })}
+      setPumpHp={(id, value) => analysisDispatch({ type: 'pump-hp', id, value })}
+      setPumpEfficiency={(id, value) => analysisDispatch({ type: 'pump-efficiency', id, value })}
+      onSetPumpPort={onSetPumpPort} setHoveredGun={setHoveredGunId}
+      hoveredSegmentId={hoveredSegmentId} reset={() => analysisDispatch({ type: 'reset' })} />
+      : <SnowmakingDashboardInspector selectedNode={selectedNode} selectedPipe={selectedPipe}
+        selectedGun={selectedGun} dams={dams} ponds={ponds} lakes={lakes} nodes={nodes}
+        pipes={pipes} guns={guns} units={units} onSelectNode={onSelectNode}
+        onSelectPipe={onSelectPipe} onSelectGun={onSelectGun} onRenameNode={onRenameNode}
+        onDeleteNode={onDeleteNode} onPatchPipe={onPatchPipe} onSetPumpPort={onSetPumpPort}
+        onDeletePipe={onDeletePipe} onMoveGun={onMoveGun} onDeleteGun={onDeleteGun}
+        pendingHydrantDeleteId={pendingHydrantDeleteId}
+        onSetPendingHydrantDeleteId={setPendingHydrantDeleteId} />}
+  </aside>;
 
   return (
     <div className={`network-map snowmaking-dashboard--${mode}`} role="dialog" aria-modal="true"
@@ -652,7 +715,7 @@ export function SnowmakingDashboard({
         onSetPumpPort={onSetPumpPort}
         setHoveredGun={setHoveredGunId}
         hoveredSegmentId={hoveredSegmentId}
-        reset={() => analysisDispatch({ type: 'reset' })} /> : <SnowmakingInspector
+        reset={() => analysisDispatch({ type: 'reset' })} /> : <SnowmakingDashboardInspector
         selectedNode={selectedNode}
         selectedPipe={selectedPipe}
         selectedGun={selectedGun}
@@ -677,118 +740,4 @@ export function SnowmakingDashboard({
       />}
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-
-function SnowmakingInspector({
-  selectedNode,
-  selectedPipe,
-  selectedGun,
-  dams,
-  ponds,
-  lakes = [],
-  nodes,
-  pipes,
-  guns,
-  units,
-  onSelectNode,
-  onSelectPipe,
-  onSelectGun,
-  onRenameNode,
-  onDeleteNode,
-  onPatchPipe,
-  onSetPumpPort,
-  onDeletePipe,
-  onMoveGun,
-  onDeleteGun,
-  pendingHydrantDeleteId,
-  onSetPendingHydrantDeleteId,
-}: {
-  selectedNode: SavedSnowmakingNode | null;
-  selectedPipe: SavedSnowmakingPipe | null;
-  selectedGun: SavedSnowgun | null;
-  dams: SavedDam[];
-  ponds: SavedPond[];
-  lakes?: SnowmakingLakeSource[];
-  nodes: SavedSnowmakingNode[];
-  pipes: SavedSnowmakingPipe[];
-  guns: SavedSnowgun[];
-  units: Units;
-  onSelectNode: (id: string | null) => void;
-  onSelectPipe: (id: string | null) => void;
-  onSelectGun: (id: string | null) => void;
-  onRenameNode: (id: string, name: string) => void;
-  onDeleteNode: (id: string) => void;
-  onPatchPipe: (id: string, patch: Pick<Partial<SavedSnowmakingPipe>, 'name' | 'diameterIn'>) => void;
-  onSetPumpPort: (pipeId: string, segmentId: string, end: 'start' | 'end',
-    port: SnowmakingPumpPort | null) => void;
-  onDeletePipe: (id: string) => void;
-  onMoveGun: (id: string) => void;
-  onDeleteGun: (id: string) => void;
-  pendingHydrantDeleteId: string | null;
-  onSetPendingHydrantDeleteId: (id: string | null) => void;
-}) {
-  if (selectedPipe) return <aside className="network-inspector" data-inspector="pipe">
-    <div className="dock-head"><span className="dock-head-title">{selectedPipe.name}</span></div>
-    <input className="name-entry-input" aria-label="Pipe name" value={selectedPipe.name}
-      onChange={(event) => onPatchPipe(selectedPipe.id, { name: event.target.value })} />
-    <label className="lake-depth-row"><span>Diameter</span><select className="lift-select"
-      aria-label="Pipe diameter" value={selectedPipe.diameterIn}
-      onChange={(event) => onPatchPipe(selectedPipe.id,
-        { diameterIn: Number(event.target.value) as SnowmakingPipeDiameterIn })}>
-      {SNOWMAKING_PIPE_DIAMETERS_IN.map((diameter) => <option key={diameter} value={diameter}>
-        {diameter}&quot;</option>)}
-    </select></label>
-    <div className="network-stats"><Stat label="Length" value={fmtDistance(selectedPipe.lengthM, units)} />
-      <Stat label="Vertical" value={selectedPipe.verticalM != null
-        ? fmtDistance(selectedPipe.verticalM, units) : '—'} /></div>
-    <button className="lift-delete-btn" onClick={() => onDeletePipe(selectedPipe.id)}>Remove pipe</button>
-  </aside>;
-  if (selectedGun) return <SnowgunDashboardInspector gun={selectedGun} nodes={nodes} units={units}
-    move={() => onMoveGun(selectedGun.id)} remove={() => onDeleteGun(selectedGun.id)} />;
-  if (selectedNode) {
-    const sourceInfo = snowmakingSourceInfo(selectedNode, dams, ponds, lakes);
-    return (
-      <aside className="network-inspector" data-inspector="node">
-        <div className="dock-head">
-          <span className="dock-head-title">{selectedNode.kind === 'intake' ? selectedNode.name
-            : `${snowmakingNodeLabel(selectedNode)} · ${selectedNode.name}`}</span>
-        </div>
-        <div className="network-sub">{SNOWMAKING_NODE_LABELS[selectedNode.kind]}</div>
-        <div className="network-stats">
-          {sourceInfo && <Stat label="Source" value={sourceInfo.name} />}
-          {sourceInfo && <Stat label="Capacity" value={formatLakeVolume(sourceInfo.capacityM3, units)} />}
-          <Stat
-            label="Elevation"
-            value={selectedNode.elevM != null ? fmtDistance(selectedNode.elevM, units) : '—'}
-          />
-        </div>
-        {selectedNode.kind !== 'junction' && <input className="name-entry-input"
-          aria-label="Node name" value={selectedNode.name}
-          onChange={(event) => onRenameNode(selectedNode.id, event.target.value)} />}
-        {selectedNode.kind === 'pump' && <SnowmakingPumpPortEditor pump={selectedNode}
-          nodes={nodes} pipes={pipes} onSetPumpPort={onSetPumpPort} />}
-        {(selectedNode.kind === 'pump' || selectedNode.kind === 'hydrant') && (() => {
-          const connectedGun = selectedNode.kind === 'hydrant'
-            ? guns.find((gun) => gun.hydrantId === selectedNode.id) ?? null : null;
-          if (connectedGun && pendingHydrantDeleteId === selectedNode.id) return <div className="snowgun-delete-warning">
-            <p>Removing this hydrant disconnects its snowgun. The gun remains installed and may reconnect automatically.</p>
-            <div className="dock-actions"><button className="site-btn"
-              onClick={() => onSetPendingHydrantDeleteId(null)}>Cancel</button>
-              <button className="lift-delete-btn" onClick={() => {
-                onSetPendingHydrantDeleteId(null); onDeleteNode(selectedNode.id);
-              }}>Remove hydrant</button></div>
-          </div>;
-          return <button className="lift-delete-btn" onClick={() => connectedGun
-            ? onSetPendingHydrantDeleteId(selectedNode.id) : onDeleteNode(selectedNode.id)}>
-            Remove {selectedNode.kind}</button>;
-        })()}
-      </aside>
-    );
-  }
-
-  return <SnowmakingSummaryInspector dams={dams} ponds={ponds} lakes={lakes} nodes={nodes}
-    pipes={pipes} guns={guns} units={units} onSelectNode={onSelectNode}
-    onSelectPipe={onSelectPipe} onSelectGun={onSelectGun} />;
 }

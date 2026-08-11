@@ -10,6 +10,7 @@ import {
   type ManagedMapHitContribution,
   type MapHitContribution,
   type MapHitFamilyId,
+  type MapHitHoverTarget,
 } from './mapContribution';
 import type maplibregl from 'maplibre-gl';
 
@@ -159,20 +160,23 @@ class FakeMap {
   }
 }
 
-function managedHits(selectLog: string[]): Record<MapHitFamilyId, ManagedMapHitContribution> {
+function managedHits(selectLog: string[], hoverLog: string[] = []): Record<MapHitFamilyId, ManagedMapHitContribution> {
   return Object.fromEntries(MAP_HIT_PRIORITY.map((id) => [id, {
     id,
     priority: MAP_HIT_RANK[id],
     layerIds: HIT_LAYERS[id],
     select: (featureId: string) => selectLog.push(`${id}:${featureId}`),
+    hover: (target: MapHitHoverTarget | null) =>
+      hoverLog.push(`${id}:${target?.featureId ?? 'none'}`),
   }])) as unknown as Record<MapHitFamilyId, ManagedMapHitContribution>;
 }
 
 function managedContributions(
   log: string[],
   selectLog: string[] = [],
+  hoverLog: string[] = [],
 ): ManagedMapContribution[] {
-  const hits = managedHits(selectLog);
+  const hits = managedHits(selectLog, hoverLog);
   return MAP_LAYER_ORDER.map((id) => ({
     id,
     zOrder: MAP_Z_ORDER[id],
@@ -263,6 +267,30 @@ describe('managed map contribution lifecycle', () => {
 });
 
 describe('managed map contribution visibility', () => {
+  it('temporarily suppresses normal layers and restores the latest preference', () => {
+    const contributions = managedContributions([]);
+    const modes: Array<string | null> = [];
+    contributions[0].visibility = () => [{
+      id: 'roads', label: 'Roads', layerIds: ['osm-roads'], visible: true,
+    }];
+    contributions[0].presentationChanged = (_context, mode) => modes.push(mode);
+    const map = new FakeMap();
+    const registry = new MapContributionRegistry(contributions);
+    registry.attach(map as unknown as maplibregl.Map);
+    registry.synchronizeStyle();
+
+    map.calls.length = 0;
+    registry.setPresentation('dashboard-trails');
+    expect(map.calls.at(-1)).toBe('visibility:osm-roads:none');
+    expect(modes.at(-1)).toBe('dashboard-trails');
+
+    registry.toggleVisibility('roads');
+    map.calls.length = 0;
+    registry.setPresentation(null);
+    expect(map.calls.at(-1)).toBe('visibility:osm-roads:none');
+    expect(modes.at(-1)).toBeNull();
+  });
+
   it('merges shared descriptors, preserves visibility on restyle, and arbitrates exclusivity', () => {
     const log: string[] = [];
     const contributions = managedContributions(log);
@@ -318,9 +346,10 @@ describe('managed map contribution visibility', () => {
 describe('managed map hit dispatch', () => {
   it('dispatches by priority, owns hover targets, and honors the enabled gate', () => {
     const selected: string[] = [];
+    const hovered: string[] = [];
     const map = new FakeMap();
     let enabled = true;
-    const registry = new MapContributionRegistry(managedContributions([], selected));
+    const registry = new MapContributionRegistry(managedContributions([], selected, hovered));
     registry.attach(map as unknown as maplibregl.Map, () => enabled);
 
     map.guarded = true;
@@ -330,14 +359,34 @@ describe('managed map hit dispatch', () => {
     map.emit('click', 'trail-fill', 'run');
     expect(selected).toEqual(['trail:run']);
     map.emit('mouseenter', 'trail-fill');
+    map.emit('mousemove', 'trail-fill', 'run');
     expect(map.canvas.style.cursor).toBe('pointer');
+    expect(hovered.at(-1)).toBe('trail:run');
     map.emit('mouseleave', 'trail-fill');
     expect(map.canvas.style.cursor).toBe('');
+    expect(hovered.at(-1)).toBe('trail:none');
 
     enabled = false;
     map.emit('click', 'lift-line-hit', 'lift');
     map.emit('mouseenter', 'lift-line-hit');
+    map.emit('mousemove', 'lift-line-hit', 'lift');
     expect(selected).toEqual(['trail:run']);
     expect(map.canvas.style.cursor).toBe('');
+    expect(hovered.at(-1)).toBe('lift:none');
+  });
+
+  it('clears transient hover on a style reload and explicit interaction cancellation', () => {
+    const hovered: string[] = [];
+    const map = new FakeMap();
+    const registry = new MapContributionRegistry(managedContributions([], [], hovered));
+    registry.attach(map as unknown as maplibregl.Map);
+    map.emit('mousemove', 'snowmaking-node-hit', 'pipe-1');
+    expect(hovered.at(-1)).toBe('snowmaking:pipe-1');
+
+    registry.clearHitHovers();
+    expect(hovered.slice(-MAP_HIT_PRIORITY.length)).toEqual(
+      MAP_HIT_PRIORITY.map((id) => `${id}:none`));
+    registry.synchronizeStyle();
+    expect(hovered.at(-1)).toBe('lake:none');
   });
 });

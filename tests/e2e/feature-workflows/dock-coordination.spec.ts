@@ -1,6 +1,6 @@
 import { expect, test } from '../support/deterministicApp';
 import { seedPreparedResort } from '../support/preparedResort';
-import { setCaptureTransients, sourceFeatureCount } from '../support/mapProbe';
+import { setCaptureTransients, sourceFeatureCount, visibilityOf } from '../support/mapProbe';
 
 test('Layers can remain beside an active trail tool and switching tools cancels it', async ({ page }) => {
   await seedPreparedResort(page);
@@ -48,14 +48,41 @@ test('dashboard shortcuts open, switch, and close the requested dashboard', asyn
   await page.getByRole('button', { name: 'Continue Game' }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
-  const picker = page.getByRole('group', { name: 'Mountain dashboards' });
+  const bubble = page.getByRole('button', { name: 'Dashboards' });
+  const menu = page.getByRole('menu', { name: 'Dashboards' });
+  await bubble.click();
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+
+  await bubble.click();
+  await page.locator('.maplibregl-canvas').click({ position: { x: 400, y: 400 } });
+  await expect(menu).toHaveCount(0);
+
+  await bubble.click();
+  await menu.getByRole('menuitemcheckbox', { name: 'Trail Map' }).click();
+  await expect(page.getByRole('complementary', { name: 'Trail Map dashboard' })).toBeVisible();
+  await bubble.click();
+  await expect(menu.getByRole('menuitemcheckbox', { name: 'Trail Map' }))
+    .toHaveAttribute('aria-checked', 'true');
+  await menu.getByRole('menuitemcheckbox', { name: 'Trail Map' }).click();
+  await expect(page.getByRole('complementary', { name: 'Trail Map dashboard' })).toHaveCount(0);
+
   await page.keyboard.press('1');
-  await expect(picker).toBeVisible();
-  await expect(picker.getByRole('button', { name: 'Trails & Lifts' })).toHaveAttribute('aria-pressed', 'true');
+  const trailDashboard = page.getByRole('complementary', { name: 'Trail Map dashboard' });
+  const snowDashboard = page.getByRole('complementary', { name: 'Snowmaking dashboard' });
+  await expect(trailDashboard).toBeVisible();
+  await expect(bubble).toHaveClass(/is-active/);
+  await expect.poll(() => visibilityOf(page, 'dashboard-backdrop')).toBe('visible');
+  await expect.poll(() => visibilityOf(page, 'hillshade')).toBe('none');
 
   await page.keyboard.press('2');
-  await expect(picker.getByRole('button', { name: 'Snowmaking' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(snowDashboard).toBeVisible();
+  await expect(trailDashboard).toHaveCount(0);
 
   await page.keyboard.press('2');
-  await expect(picker).toHaveCount(0);
+  await expect(snowDashboard).toHaveCount(0);
+  await expect(bubble).not.toHaveClass(/is-active/);
+  await expect.poll(() => visibilityOf(page, 'dashboard-backdrop')).toBe('none');
+  await expect.poll(() => visibilityOf(page, 'hillshade')).toBe('visible');
 });

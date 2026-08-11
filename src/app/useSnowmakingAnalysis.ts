@@ -89,9 +89,10 @@ export function useSnowmakingAnalysis(input: {
 
   useEffect(() => () => adapterRef.current?.dispose(), []);
 
-  const gunStatuses = !state.stale && state.result ? Object.fromEntries(
+  const gunStatuses = useMemo(() => !state.stale && state.result ? Object.fromEntries(
     state.result.systems.flatMap((system) => system.guns.map((gun) => [gun.gunId,
-      gun.status === 'ready' ? 'ready' as const : 'failed' as const]))) : undefined;
+      gun.status === 'ready' ? 'ready' as const : 'failed' as const]))) : undefined,
+  [state.stale, state.result]);
 
   return { state, dispatch, groups, relevantGroups, routing, gunStatuses,
     sourceResourcesByIntakeId };

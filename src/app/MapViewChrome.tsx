@@ -13,6 +13,9 @@ import { SiteControl } from './SiteControl';
 import type { Units } from './SettingsContext';
 import { UnsavedChangesModal } from './UnsavedChangesModal';
 import { View3DControl } from './View3DControl';
+import { DashboardMenu } from './DashboardMenu';
+import { SnowmakingPipeTooltip } from './SnowmakingPipeHover';
+import type { DashboardKind } from './dashboardMode';
 import type { BootProgress } from './resortBoot';
 import type { TerrainPackageProgress } from '../types/terrain';
 
@@ -68,7 +71,8 @@ export interface MapViewChromeProps {
   siteControl: Parameters<typeof SiteControl>[0] | null;
   view3D: Parameters<typeof View3DControl>[0] | null;
   buildingActivity: ConstructionActivity | null;
-  dashboardToggle: { open: boolean; toggle(): void } | null;
+  dashboardToggle: { active: DashboardKind | null; change(kind: DashboardKind | null): void } | null;
+  dashboardPipeHover?: Parameters<typeof SnowmakingPipeTooltip>[0] | null;
   dashboard: Parameters<typeof MountainDashboards>[0] | null;
   readout: { value: Readout | null; units: Units } | null;
   dock: MapGameDockProps | null;
@@ -165,12 +169,10 @@ export function MapViewChrome(props: MapViewChromeProps) {
       {props.buildingActivity && <ConstructionStatusBug activity={props.buildingActivity} />}
 
       {props.dashboardToggle && <div className="top-left-stack">
-        <button className="site-btn" aria-pressed={props.dashboardToggle.open}
-          title="Mountain Dashboards — Trails & Lifts and Snowmaking network views (1 / 2)"
-          onClick={props.dashboardToggle.toggle}>
-          {props.dashboardToggle.open ? '✕ Mountain Dashboards' : 'Mountain Dashboards'}
-        </button>
+        <DashboardMenu active={props.dashboardToggle.active}
+          onChange={props.dashboardToggle.change} />
       </div>}
+      {props.dashboardPipeHover && <SnowmakingPipeTooltip {...props.dashboardPipeHover} />}
       {props.dashboard && <MountainDashboards {...props.dashboard} />}
       {props.readout && <CursorReadout readout={props.readout.value} units={props.readout.units} />}
       {props.dock && <MapGameDock {...props.dock} />}
