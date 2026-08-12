@@ -199,6 +199,15 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
     .getByRole('menuitemcheckbox', { name: 'Snowmaking', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Show snowgun types' })).not.toBeChecked();
   await expect(page.getByText('Catalog value').locator('..')).toContainText('$15,000');
+  await expect.poll(() => page.evaluate(() => {
+    const source = (window as unknown as { appMap: { getSource(id: string): {
+      serialize(): { data?: { features?: Array<{ properties?: Record<string, unknown> }> } }
+    } } }).appMap.getSource('dashboard-map');
+    return source.serialize().data?.features?.filter((row) =>
+      row.properties?.kind === 'snow-pump-direction').map((row) => row.properties?.portLabel).sort();
+  })).toEqual(['IN', 'OUT']);
+  await page.getByRole('button', { name: 'Fit dashboard' }).click();
+  await page.waitForTimeout(600);
   const dashboardPipe = await page.evaluate(() => {
     const map = (window as unknown as { appMap: {
       getCanvas(): HTMLCanvasElement;
@@ -208,19 +217,27 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
         geometry?: { type: string; coordinates: [number, number][] };
       }> } } };
     } }).appMap;
-    const feature = map.getSource('dashboard-map').serialize().data?.features?.find((row) =>
-      row.properties?.kind === 'snow-pipe' && row.properties?.name === 'Summit Main');
-    const coordinates = feature?.geometry?.coordinates ?? [];
-    const start = coordinates[0], end = coordinates.at(-1)!;
-    const projected = map.project([(start[0] + end[0]) / 2, (start[1] + end[1]) / 2]);
+    const candidates = (map.getSource('dashboard-map').serialize().data?.features ?? [])
+      .filter((row) => row.properties?.kind === 'snow-pipe' &&
+        row.properties?.name === 'Summit Main').flatMap((feature) => {
+        const coordinates = feature.geometry?.coordinates ?? [];
+        const start = coordinates[0], end = coordinates.at(-1);
+        if (!start || !end) return [];
+        const a = map.project(start), b = map.project(end);
+        return [{ point: map.project([(start[0] + end[0]) / 2, (start[1] + end[1]) / 2]),
+          length: Math.hypot(b.x - a.x, b.y - a.y) }];
+      }).filter((candidate) => candidate.point.x > 20 && candidate.point.y > 20 &&
+        candidate.point.x < window.innerWidth - 340 && candidate.point.y < window.innerHeight - 20)
+      .sort((left, right) => right.length - left.length);
+    const projected = candidates[0].point;
     const rect = map.getCanvas().getBoundingClientRect();
     return { x: rect.left + projected.x, y: rect.top + projected.y };
   });
   await page.mouse.move(dashboardPipe.x, dashboardPipe.y);
-  await expect(page.locator('.snowmaking-pipe-tooltip')).toContainText('Summit Main · 1');
+  await expect(page.locator('.snowmaking-pipe-tooltip')).toContainText('Summit Main ·');
   await expect(page.locator('.snowmaking-pipe-tooltip')).toContainText('12"');
   await expect(page.locator('.dashboard-sidebar .snowmaking-pipe-hover-details'))
-    .toContainText('Summit Main · 1');
+    .toContainText('Summit Main ·');
   await page.mouse.click(dashboardPipe.x, dashboardPipe.y);
   await expect(page.locator('.dashboard-sidebar').getByRole('textbox', { name: 'Pipe name' }))
     .toHaveValue('Summit Main');
@@ -305,6 +322,17 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
   await page.getByRole('button', { name: 'Analyze snowmaking system' }).click();
   const analyzer = page.locator('.snowmaking-analysis-panel');
   await expect(analyzer).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const rows = ((window as unknown as { appMap: { getSource(id: string): {
+      serialize(): { data?: { features?: Array<{ properties?: Record<string, unknown> }> } }
+    } } }).appMap.getSource('dashboard-map').serialize().data?.features ?? []);
+    return rows.filter((row) => row.properties?.kind === 'snow-pump-direction')
+      .map((row) => ({ port: row.properties?.port, label: row.properties?.portLabel,
+        bearing: row.properties?.bearing }));
+  })).toEqual(expect.arrayContaining([
+    expect.objectContaining({ port: 'suction', label: 'IN', bearing: expect.any(Number) }),
+    expect.objectContaining({ port: 'discharge', label: 'OUT', bearing: expect.any(Number) }),
+  ]));
 
   const firstGunRow = analyzer.locator('.snowmaking-analysis-checklist label')
     .filter({ hasText: 'H1 · R5 10S' }).first();
@@ -321,12 +349,17 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
       serialize(): { data?: { features?: Array<{ properties?: Record<string, unknown> }> } }
     } } }).appMap.getSource('dashboard-map');
     const rows = source.serialize().data?.features ?? [];
-    const north = rows.find((row) => row.properties?.segmentId === 'pipe-north:segment:0');
+    const north = rows.find((row) => row.properties?.segmentId === 'pipe-north:segment:0' &&
+      row.properties?.kind === 'snow-pipe');
     const loop = rows.find((row) => row.properties?.segmentId === 'pipe-loop:segment:0');
+    const arrows = rows.filter((row) => row.properties?.kind === 'snow-flow-arrow');
     return { northActive: north?.properties?.active, northLabel: north?.properties?.flowLabel,
+      northFrom: north?.properties?.flowFrom, northTo: north?.properties?.flowTo,
+      arrowCount: arrows.length, arrowBearings: arrows.map((row) => row.properties?.bearing),
       loopRelevant: loop?.properties?.relevant };
   })).toMatchObject({ northActive: true, northLabel: expect.stringContaining('GPM'),
-    loopRelevant: false });
+    northFrom: 'J1', northTo: 'H1', arrowCount: 3,
+    arrowBearings: [expect.any(Number), expect.any(Number), expect.any(Number)], loopRelevant: false });
   await expect(page.locator('.snowmaking-pressure-legend')).toContainText('Operating pressure');
   const analyzedPipe = await page.evaluate(() => {
     const map = (window as unknown as { appMap: {
@@ -353,6 +386,21 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
   await expect(page.locator('.snowmaking-pipe-tooltip')).toContainText('GPM');
   await expect(page.locator('.snowmaking-pipe-tooltip')).toContainText('PSI');
   await expect(page.getByLabel('Hovered pipe segment details')).toContainText('North Branch · 1');
+  await expect(page.locator('.snowmaking-pipe-tooltip')).toContainText('J1 → H1');
+
+  await analyzer.getByRole('radio', { name: /Water enters from Trunk/ }).check();
+  await expect(analyzer).toContainText('faces away from the selected source');
+  await expect(analyzer.locator('.snowmaking-direction-diagnostic')).toContainText('Current:');
+  await expect.poll(() => page.evaluate(() => {
+    const rows = ((window as unknown as { appMap: { getSource(id: string): {
+      serialize(): { data?: { features?: Array<{ properties?: Record<string, unknown> }> } }
+    } } }).appMap.getSource('dashboard-map').serialize().data?.features ?? []);
+    return rows.find((row) => row.properties?.kind === 'snow-node' &&
+      row.properties?.id === 'pump-primary')?.properties?.invalidDirection;
+  })).toBe(true);
+  await analyzer.getByRole('radio', { name: /Water enters from Suction/ }).check();
+  await expect(analyzer).toContainText('58 GPM');
+  await expect(analyzer).not.toContainText('faces away from the selected source');
 
   await analyzer.getByRole('button', { name: 'Select all connected' }).click();
 

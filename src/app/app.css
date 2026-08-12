@@ -3195,6 +3195,7 @@ html.resume-capture .maplibregl-canvas {
 .snowmaking-pipe-hover-title strong { font-size: 13px; }
 .snowmaking-pipe-hover-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 12px; }
 .snowmaking-pipe-hover-grid > div { display: grid; gap: 1px; min-width: 0; }
+.snowmaking-pipe-hover-grid > .snowmaking-pipe-hover-direction { grid-column: 1 / -1; }
 .snowmaking-pipe-hover-grid strong { font-size: 12px; overflow-wrap: anywhere; }
 
 @media (max-width: 900px) {
@@ -3842,6 +3843,28 @@ html.resume-capture .maplibregl-canvas {
 .snowmaking-analysis-source-group small,
 .snowmaking-pump-ports small { color: var(--text-muted); }
 .snowmaking-pump-directions { display: grid; gap: 6px; margin-top: 7px; }
+.snowmaking-pump-direction-summary {
+  display: grid;
+  gap: 3px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+.snowmaking-pump-direction-summary span { color: var(--text-muted); font-size: 10px; text-transform: uppercase; }
+.snowmaking-pump-direction-summary strong { font-size: 12px; line-height: 1.45; }
+.snowmaking-port-badge {
+  display: inline-block;
+  min-width: 28px;
+  margin-right: 5px;
+  padding: 1px 4px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-style: normal;
+  text-align: center;
+}
+.snowmaking-port-badge.is-inlet { color: #1d4ed8; background: #dbeafe; }
+.snowmaking-port-badge.is-outlet { color: #92400e; background: #fef3c7; }
 .snowmaking-pump-directions > label {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -3875,6 +3898,7 @@ html.resume-capture .maplibregl-canvas {
 .snowmaking-analysis-verdict.is-ready { background: #dcfce7; color: #14532d; }
 .snowmaking-analysis-verdict { display: grid; gap: 2px; margin-bottom: 9px; }
 .snowmaking-analysis-diagnostics ul { margin: 6px 0 0; padding-left: 20px; }
+.snowmaking-direction-diagnostic { display: block; margin: 3px 0; font-weight: 600; }
 .snowmaking-analysis-results details { margin-top: 10px; }
 .snowmaking-analysis-results summary { cursor: pointer; font-weight: 700; }
 .snowmaking-analysis-table { display: grid; gap: 5px; margin-top: 6px; }

@@ -403,6 +403,12 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
     </div>}
     {nodeTool.kind === 'pump' && pumpSegment && <fieldset className="snowmaking-pump-ports">
       <legend>Which way does this pump push water?</legend>
+      {nodeTool.candidate?.pumpSuctionSide && <div className="snowmaking-pump-direction-summary"
+        aria-label="Configured pump direction"><span>Configured flow</span><strong>{
+          nodeTool.candidate.pumpSuctionSide === 'route-start' ? routeStartName : routeEndName
+        } → New pump → {
+          nodeTool.candidate.pumpSuctionSide === 'route-start' ? routeEndName : routeStartName
+        }</strong></div>}
       <label><input type="radio" name="new-pump-direction"
         checked={nodeTool.candidate?.pumpSuctionSide === 'route-start'}
         onChange={() => onSetPumpSuctionSide('route-start')} />

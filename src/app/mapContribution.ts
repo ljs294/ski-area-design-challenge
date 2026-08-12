@@ -47,7 +47,7 @@ export interface MapHitContribution {
   readonly id: MapHitFamilyId;
   /** The layers a click on this family is delegated to. */
   readonly layerIds: readonly string[];
-  select(featureId: string): void;
+  select(featureId: string, properties?: Readonly<Record<string, unknown>>): void;
 }
 
 function requireEach<Id, T extends { id: Id }>(
@@ -400,8 +400,9 @@ export class MapContributionRegistry {
         if (!this.hitEnabled()) return;
         const above = guard.filter((layerId) => map.getLayer(layerId));
         if (above.length && map.queryRenderedFeatures(event.point, { layers: above }).length) return;
-        const id = event.features?.[0]?.properties?.id;
-        if (typeof id === 'string') hit.select(id);
+        const properties = event.features?.[0]?.properties;
+        const id = properties?.id;
+        if (typeof id === 'string') hit.select(id, properties as Record<string, unknown>);
       };
       this.bindHit(map, 'click', hit.layerIds, click);
       const hoverLayers = hit.hoverLayerIds ?? hit.layerIds;

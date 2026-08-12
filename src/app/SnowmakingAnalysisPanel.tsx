@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { snowgunLabel, snowgunVariant } from '../snowmakingGuns';
-import { snowmakingNodeLabel } from '../snowmakingNetwork';
+import { snowmakingNodeLabel, snowmakingPipeSegments, snowmakingPipeStats } from '../snowmakingNetwork';
 import type { SnowmakingAnalysisGroup, SnowmakingAnalysisResult,
   SnowmakingSourceResource } from '../snowmakingHydraulics';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingPumpPort } from '../types/snowmaking';
 import { DEFAULT_PUMP_ANALYSIS_DRAFT, type SnowmakingAnalysisState } from './snowmakingAnalysisModel';
-import { SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
+import { snowmakingPumpDirectionSummary, SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
 
 const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -74,9 +74,19 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
   const pipeById = new Map(pipes.map((pipe) => [pipe.id, pipe]));
   const gunById = new Map(guns.map((gun) => [gun.id, gun]));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const pumpDirectionText = (id: string | undefined) => {
+    const pump = id ? nodeById.get(id) : null;
+    return pump?.kind === 'pump'
+      ? snowmakingPumpDirectionSummary(pump, nodes, pipes)?.text ?? null : null;
+  };
   const hoveredSegment = result?.systems.flatMap((system) => system.segments)
     .find((segment) => segment.id === hoveredSegmentId) ?? null;
   const hoveredPipe = hoveredSegment ? pipeById.get(hoveredSegment.pipeId) : null;
+  const hoveredPhysicalStats = hoveredPipe && hoveredSegment
+    ? snowmakingPipeSegments(hoveredPipe)
+      .find((segment) => segment.id === hoveredSegment.id) : null;
+  const hoveredStats = hoveredPhysicalStats
+    ? snowmakingPipeStats(hoveredPhysicalStats.vertices) : null;
 
   return <aside className="network-inspector snowmaking-analysis-panel"
     data-inspector="analysis" aria-label="Snowmaking system analyzer">
@@ -93,7 +103,10 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
           <div><span>Pressure</span><strong>{number.format(hoveredSegment.upstreamPressurePsi)} → {number.format(hoveredSegment.downstreamPressurePsi)} PSI</strong></div>
           <div><span>Flow</span><strong>{number.format(Math.abs(hoveredSegment.flowGpm))} GPM</strong></div>
           <div><span>Friction head</span><strong>{number.format(hoveredSegment.frictionHeadFt)} ft</strong></div>
-          <div><span>Pipe</span><strong>{hoveredPipe?.diameterIn ?? '—'} in · {whole.format(hoveredSegment.lengthFt)} ft</strong></div>
+          <div><span>Diameter</span><strong>{hoveredPipe?.diameterIn ?? '—'} in</strong></div>
+          <div><span>Length</span><strong>{whole.format(hoveredSegment.lengthFt)} ft</strong></div>
+          <div><span>Vertical</span><strong>{hoveredStats?.verticalM == null
+            ? '—' : `${whole.format(hoveredStats.verticalM * 3.28084)} ft`}</strong></div>
         </div>
       </> : <div className="snowmaking-segment-peek-empty">Hover or focus a colored pipe segment to inspect its hydraulic performance.</div>}
     </section>
@@ -181,7 +194,10 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
         </div>
         {result.diagnostics.length > 0 && <div className="snowmaking-analysis-diagnostics"><ul>
           {result.diagnostics.map((entry, index) => <li key={`${entry.code}:${entry.entityId ?? index}`}>
-            {entry.message}{(entry.code === 'unconfigured-pump-ports' ||
+            {entry.message}{entry.code === 'pump-direction-blocks-route' &&
+              pumpDirectionText(entry.entityId) && <small className="snowmaking-direction-diagnostic">
+                Current: {pumpDirectionText(entry.entityId)}</small>}
+            {(entry.code === 'unconfigured-pump-ports' ||
               entry.code === 'pump-direction-blocks-route') && entry.entityId &&
               <button className="site-btn" onClick={() => focusPumpPorts(entry.entityId!)}>
                 Set pump direction</button>}</li>)}

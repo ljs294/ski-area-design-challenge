@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
+import { snowmakingPipeSegments } from '../snowmakingNetwork';
 import type { LatLonBounds } from '../types/geo';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe } from '../types/snowmaking';
 import type { CoverClassCode, SavedDam, SavedLift, SavedPond, SavedTrail, TerrainRecord } from '../types';
@@ -144,6 +145,17 @@ function render(props: Partial<Parameters<typeof SnowmakingDashboard>[0]> = {}) 
 }
 
 describe('SnowmakingDashboard', () => {
+  it('shows physical properties for the selected pipe segment, not the whole pipe', () => {
+    const segment = snowmakingPipeSegments(testPipe)[1];
+    const html = render({ panelOnly: true, pipes: [testPipe], selectedPipeId: testPipe.id,
+      selectedPipeSegmentId: segment.id });
+    expect(html).toContain('Main · 2');
+    expect(html).toContain('2 m');
+    expect(html).toContain('0 m');
+    expect(html).not.toContain('285 m');
+    expect(html).not.toContain('49 m');
+  });
+
   it('draws one backdrop path per distinct cover class, not per polygon', () => {
     const html = render();
     // 2 classes (10 and 20) present across 6 input polygons — one merged path
@@ -219,13 +231,21 @@ describe('SnowmakingDashboard', () => {
   });
 
   it('renders every incident pump arm as a persistent port assignment', () => {
+    const configuredPipe = { ...testPipe, segments: snowmakingPipeSegments(testPipe)
+      .map((segment, index) => ({ id: segment.id, startVertexIndex: segment.startVertexIndex,
+        endVertexIndex: segment.endVertexIndex,
+        startPumpPort: index === 1 ? 'discharge' as const : null,
+        endPumpPort: index === 0 ? 'suction' as const : null })) };
     const html = render({ selectedNodeId: nodeB.id, nodes: [nodeA, nodeB, hydrant],
-      pipes: [testPipe] });
+      pipes: [configuredPipe] });
     expect(html).toContain('Which way does this pump push water?');
     expect(html.match(/name="pump-direction-node-b"/g)).toHaveLength(2);
     expect(html).toContain('Water enters from Main');
     expect(html).toContain('Pump pushes toward Main');
-    expect(html).toContain('Choose at least one inlet where water enters');
+    expect(html).toContain('Configured pump direction');
+    expect(html).toContain('→ Pump 1 →');
+    expect(html).toContain('snowmaking-port-badge is-inlet');
+    expect(html).toContain('snowmaking-port-badge is-outlet');
   });
 
   it('draws water bodies for both dams and standalone ponds', () => {

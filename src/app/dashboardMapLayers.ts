@@ -2,11 +2,13 @@ import maplibregl from 'maplibre-gl';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import { haversineMeters } from '../geo';
 import { toLngLat, toMeters, trailsFromLift, type SkiNetwork } from '../network';
-import { snowmakingPipeSegments } from '../snowmakingNetwork';
+import { snowmakingNodeLabel, snowmakingPipeSegments, snowmakingPipeStats,
+  type SnowmakingPipeSegment } from '../snowmakingNetwork';
 import type { SnowmakingSegmentAnalysisResult } from '../snowmakingHydraulics';
 import type { SavedDam, SavedLift, SavedPond, SavedSnowmakingNode, SavedTrail,
   TerrainRecord } from '../types';
-import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource } from '../types/snowmaking';
+import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource,
+  SnowmakingPumpPort } from '../types/snowmaking';
 import { DIFFICULTY_COLORS } from '../trails';
 import { FILL_BY_CODE } from './coverVectorize';
 import type { DashboardKind, SnowmakingDashboardMode } from './dashboardMode';
@@ -21,6 +23,7 @@ export const DASHBOARD_LAYER_IDS = [
   'dashboard-trail-edges', 'dashboard-trail-arrows', 'dashboard-trail-labels',
   'dashboard-trail-nodes', 'dashboard-lift-hit', 'dashboard-trail-hit',
   'dashboard-snow-pipes', 'dashboard-snow-flow-arrows', 'dashboard-snow-flow-labels',
+  'dashboard-snow-pump-arrows', 'dashboard-snow-pump-port-labels',
   'dashboard-snow-gun-connections', 'dashboard-snow-nodes',
   'dashboard-snow-hydrants', 'dashboard-snow-node-labels', 'dashboard-snow-guns',
   'dashboard-snow-gun-labels', 'dashboard-snow-gun-warnings',
@@ -38,6 +41,7 @@ export interface SnowmakingMapPresentation {
   relevantSegmentColors: ReadonlyMap<string, string>;
   selectedGunIds: ReadonlySet<string>;
   gunStatuses: Readonly<Record<string, 'ready' | 'failed'>>;
+  invalidPumpIds: ReadonlySet<string>;
   pressureRange: { minPsi: number; maxPsi: number } | null;
   showGunTypes: boolean;
   toggleGun(id: string): void;
@@ -61,7 +65,8 @@ export interface DashboardMapData {
   guns: readonly SavedSnowgun[];
   coverDisplay: CoverDisplayGeoJSON | null;
   terrainRecord: TerrainRecord | null;
-  selectedSnowmaking: { kind: 'node' | 'pipe' | 'gun'; id: string } | null;
+  selectedSnowmaking: { kind: 'node' | 'gun'; id: string } |
+    { kind: 'pipe'; id: string; segmentId: string | null } | null;
   snowmakingPresentation: SnowmakingMapPresentation | null;
 }
 
@@ -158,6 +163,68 @@ export function snowmakingSegmentMidpoint(
   return points.at(-1) ?? null;
 }
 
+export interface SnowmakingDirectionMarker {
+  point: [number, number];
+  bearing: number;
+}
+
+function bearingBetween(from: [number, number], to: [number, number]): number {
+  const phi1 = from[1] * Math.PI / 180, phi2 = to[1] * Math.PI / 180;
+  const delta = (to[0] - from[0]) * Math.PI / 180;
+  const y = Math.sin(delta) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(delta);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+export function snowmakingDirectionMarker(
+  points: readonly [number, number][],
+  fraction = 0.5,
+): SnowmakingDirectionMarker | null {
+  if (points.length < 2) return null;
+  const lengths = points.slice(1).map((point, index) => haversineMeters(points[index], point));
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  const target = total * Math.max(0, Math.min(1, fraction));
+  let traveled = 0;
+  for (let index = 0; index < lengths.length; index += 1) {
+    const length = lengths[index];
+    if (traveled + length >= target && length > 0) {
+      const ratio = (target - traveled) / length;
+      return { point: [
+        points[index][0] + (points[index + 1][0] - points[index][0]) * ratio,
+        points[index][1] + (points[index + 1][1] - points[index][1]) * ratio,
+      ], bearing: bearingBetween(points[index], points[index + 1]) };
+    }
+    traveled += length;
+  }
+  return null;
+}
+
+export function orientedSnowmakingFlow(
+  points: readonly [number, number][],
+  flowGpm: number,
+): { coordinates: [number, number][]; arrow: SnowmakingDirectionMarker | null } {
+  const storedMarker = Math.abs(flowGpm) > 0 ? snowmakingDirectionMarker(points) : null;
+  const coordinates = flowGpm < 0 ? [...points].reverse() : [...points];
+  return { coordinates, arrow: storedMarker && flowGpm < 0
+    ? { point: storedMarker.point, bearing: (storedMarker.bearing + 180) % 360 }
+    : storedMarker };
+}
+
+export function snowmakingPumpArmMarker(
+  segment: SnowmakingPipeSegment,
+  pumpId: string,
+  port: SnowmakingPumpPort,
+): SnowmakingDirectionMarker | null {
+  const points = segment.vertices.map((vertex) => vertex.point);
+  const awayFromPump = segment.fromNodeId === pumpId ? points
+    : segment.toNodeId === pumpId ? [...points].reverse() : null;
+  if (!awayFromPump) return null;
+  const marker = snowmakingDirectionMarker(awayFromPump, 0.18);
+  if (!marker || port === 'discharge') return marker;
+  return { point: marker.point, bearing: (marker.bearing + 180) % 360 };
+}
+
 function snowmakingFeatures(input: DashboardMapData): Feature[] {
   const features: Feature[] = [];
   for (const row of input.coverDisplay?.features ?? []) {
@@ -179,29 +246,63 @@ function snowmakingFeatures(input: DashboardMapData): Feature[] {
   }
   const presentation = input.snowmakingPresentation;
   const solved = new Map((presentation?.segments ?? []).map((segment) => [segment.id, segment]));
+  const nodeById = new Map(input.nodes.map((node) => [node.id, node]));
+  const endpointName = (id: string | null, fallback: string) => {
+    const node = id ? nodeById.get(id) : null;
+    if (!node) return fallback;
+    return node.labelNumber != null
+      ? `${node.kind === 'pump' ? 'P' : node.kind === 'hydrant' ? 'H' : 'J'}${node.labelNumber}`
+      : snowmakingNodeLabel(node);
+  };
   for (const pipe of input.pipes) for (const segment of snowmakingPipeSegments(pipe)) {
+    const segmentStats = snowmakingPipeStats(segment.vertices);
     const result = solved.get(segment.id);
     const relevant = presentation?.relevantSegmentColors.get(segment.id) ?? null;
     const pressure = result && presentation?.pressureRange
       ? snowmakingPressureColor((result.upstreamPressurePsi + result.downstreamPressurePsi) / 2,
         presentation.pressureRange) : relevant;
+    const rawCoordinates = segment.vertices.map((vertex) => vertex.point);
+    const oriented = result ? orientedSnowmakingFlow(rawCoordinates, result.flowGpm)
+      : { coordinates: rawCoordinates, arrow: null };
+    const forward = !result || result.flowGpm >= 0;
+    const flowFrom = endpointName(forward ? segment.fromNodeId : segment.toNodeId,
+      `${pipe.name} ${forward ? 'start' : 'end'}`);
+    const flowTo = endpointName(forward ? segment.toNodeId : segment.fromNodeId,
+      `${pipe.name} ${forward ? 'end' : 'start'}`);
     const flowLabel = result
       ? `${Math.abs(result.flowGpm).toFixed(1)} GPM\n${result.upstreamPressurePsi.toFixed(1)} → ${result.downstreamPressurePsi.toFixed(1)} PSI`
       : '';
     const properties = { id: pipe.id, segmentId: segment.id, segmentIndex: segment.segmentIndex,
-      name: pipe.name, diameterIn: pipe.diameterIn, lengthM: pipe.lengthM,
-      verticalM: pipe.verticalM, selected: input.selectedSnowmaking?.kind === 'pipe' &&
-        input.selectedSnowmaking.id === pipe.id, analysis: presentation?.mode === 'analysis',
+      name: pipe.name, diameterIn: pipe.diameterIn, lengthM: segmentStats.lengthM,
+      verticalM: segmentStats.verticalM, selected: input.selectedSnowmaking?.kind === 'pipe' &&
+        input.selectedSnowmaking.id === pipe.id && (!input.selectedSnowmaking.segmentId ||
+          input.selectedSnowmaking.segmentId === segment.id),
+      analysis: presentation?.mode === 'analysis',
       relevant: !!relevant, active: result?.active ?? false,
-      color: pressure ?? '#2c83a5', flowLabel };
+      color: pressure ?? '#2c83a5', flowLabel, flowFrom, flowTo };
     features.push(feature('snow-pipe', {
-      type: 'LineString', coordinates: segment.vertices.map((vertex) => vertex.point),
+      type: 'LineString', coordinates: oriented.coordinates,
     }, properties));
-    const midpoint = flowLabel && snowmakingSegmentMidpoint(
-      segment.vertices.map((vertex) => vertex.point));
+    if (result?.active && oriented.arrow) features.push(feature('snow-flow-arrow', {
+      type: 'Point', coordinates: oriented.arrow.point,
+    }, { ...properties, bearing: oriented.arrow.bearing }));
+    const midpoint = flowLabel && snowmakingSegmentMidpoint(oriented.coordinates);
     if (midpoint) features.push(feature('snow-pipe-label', {
       type: 'Point', coordinates: midpoint,
     }, properties));
+  }
+  for (const pump of input.nodes.filter((node) => node.kind === 'pump')) {
+    for (const pipe of input.pipes) for (const segment of snowmakingPipeSegments(pipe)) {
+      const port = segment.fromNodeId === pump.id ? segment.startPumpPort
+        : segment.toNodeId === pump.id ? segment.endPumpPort : null;
+      if (!port) continue;
+      const marker = snowmakingPumpArmMarker(segment, pump.id, port);
+      if (!marker) continue;
+      features.push(feature('snow-pump-direction', { type: 'Point', coordinates: marker.point }, {
+        id: pump.id, segmentId: segment.id, port, portLabel: port === 'suction' ? 'IN' : 'OUT',
+        bearing: marker.bearing,
+      }));
+    }
   }
   for (const gun of input.guns) {
     const hydrant = gun.hydrantId ? input.nodes.find((node) => node.id === gun.hydrantId) : null;
@@ -213,7 +314,8 @@ function snowmakingFeatures(input: DashboardMapData): Feature[] {
     type: 'Point', coordinates: node.point,
   }, { id: node.id, nodeKind: node.kind, label: node.labelNumber != null
     ? `${node.kind === 'pump' ? 'P' : node.kind === 'hydrant' ? 'H' : 'J'}${node.labelNumber}` : node.name,
-    selected: input.selectedSnowmaking?.kind === 'node' && input.selectedSnowmaking.id === node.id }));
+    selected: input.selectedSnowmaking?.kind === 'node' && input.selectedSnowmaking.id === node.id,
+    invalidDirection: presentation?.invalidPumpIds.has(node.id) ?? false }));
   for (const gun of input.guns) {
     const status = presentation?.gunStatuses[gun.id] ?? null;
     features.push(feature('snow-gun', { type: 'Point', coordinates: gun.point }, {
@@ -307,9 +409,10 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
       'line-opacity': ['case', ['all', ['get', 'analysis'], ['!', ['get', 'relevant']]], 0.16,
         ['all', ['get', 'analysis'], ['!', ['get', 'active']]], 0.45, 1] } });
   map.addLayer({ id: 'dashboard-snow-flow-arrows', type: 'symbol', source: DASHBOARD_SOURCE,
-    filter: allFilter(filter('snow-pipe'), ['get', 'active']), layout: { visibility: 'none',
-      'symbol-placement': 'line', 'symbol-spacing': 90, 'text-field': '▶', 'text-size': 10,
-      'text-font': ['Noto Sans Regular'], 'text-keep-upright': false },
+    filter: filter('snow-flow-arrow'), layout: { visibility: 'none',
+      'symbol-placement': 'point', 'text-field': '▶', 'text-size': 14,
+      'text-font': ['Noto Sans Regular'], 'text-rotate': ['get', 'bearing'],
+      'text-rotation-alignment': 'map', 'text-allow-overlap': true },
     paint: { 'text-color': '#172033' } });
   map.addLayer({ id: 'dashboard-snow-flow-labels', type: 'symbol', source: DASHBOARD_SOURCE,
     filter: filter('snow-pipe-label'), layout: {
@@ -319,6 +422,22 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
       'text-offset': [0, -1.35], 'text-anchor': 'bottom', 'text-optional': true },
     paint: { 'text-color': '#27303f',
       'text-halo-color': '#f4f1ea', 'text-halo-width': 2 } });
+  map.addLayer({ id: 'dashboard-snow-pump-arrows', type: 'symbol', source: DASHBOARD_SOURCE,
+    filter: filter('snow-pump-direction'), layout: { visibility: 'none',
+      'symbol-placement': 'point', 'text-field': '▶', 'text-size': 16,
+      'text-font': ['Noto Sans Regular'], 'text-rotate': ['get', 'bearing'],
+      'text-rotation-alignment': 'map', 'text-allow-overlap': true }, paint: {
+      'text-color': ['match', ['get', 'port'], 'suction', '#2563eb', '#d97706'],
+      'text-halo-color': '#f4f1ea', 'text-halo-width': 1.5,
+    } });
+  map.addLayer({ id: 'dashboard-snow-pump-port-labels', type: 'symbol', source: DASHBOARD_SOURCE,
+    filter: filter('snow-pump-direction'), layout: { visibility: 'none',
+      'symbol-placement': 'point', 'text-field': ['get', 'portLabel'], 'text-size': 9,
+      'text-font': ['Noto Sans Regular'], 'text-offset': [0, 1.45],
+      'text-allow-overlap': true }, paint: {
+      'text-color': ['match', ['get', 'port'], 'suction', '#1d4ed8', '#b45309'],
+      'text-halo-color': '#f4f1ea', 'text-halo-width': 1.5,
+    } });
   map.addLayer({ id: 'dashboard-snow-gun-connections', type: 'line', source: DASHBOARD_SOURCE,
     filter: filter('snow-gun-connection'), layout: { visibility: 'none' }, paint: {
       'line-color': '#4b5563', 'line-width': 1, 'line-dasharray': [2, 1.5],
@@ -328,7 +447,8 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
     layout: { visibility: 'none' }, paint: { 'circle-radius': ['case', ['get', 'selected'], 7, 5],
       'circle-color': ['match', ['get', 'nodeKind'], 'intake', '#397f9f', 'pump', '#f0b44d',
         'junction', '#4b5563', '#397f9f'], 'circle-stroke-color': ['case', ['get', 'selected'],
-        '#efb84f', 'rgba(0,0,0,0)'], 'circle-stroke-width': 2 } });
+        '#efb84f', ['case', ['get', 'invalidDirection'], '#dc2626', 'rgba(0,0,0,0)']],
+      'circle-stroke-width': ['case', ['any', ['get', 'selected'], ['get', 'invalidDirection']], 2, 0] } });
   map.addLayer({ id: 'dashboard-snow-hydrants', type: 'symbol', source: DASHBOARD_SOURCE,
     filter: allFilter(filter('snow-node'), ['==', ['get', 'nodeKind'], 'hydrant']), layout: {
       visibility: 'none', 'text-field': '×', 'text-size': 18,

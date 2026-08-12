@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildSkiNetwork } from '../network';
+import { snowmakingPipeSegments } from '../snowmakingNetwork';
 import type { SavedLift } from '../types';
-import { dashboardGeoJSON, snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
+import { dashboardGeoJSON, orientedSnowmakingFlow, snowmakingPumpArmMarker,
+  snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
 
 const lift: SavedLift = {
   id: 'lift-1', identifier: 'A', name: 'Summit', liftClass: 'fixed-grip', chairSize: 4,
@@ -19,7 +21,8 @@ function data(kind: DashboardMapData['kind']): DashboardMapData {
       verticalM: 10, vertices: [
         { point: [-121.5, 46.9], elevM: 1000, nodeId: 'node-1' },
         { point: [-121.49, 46.91], elevM: 1010, nodeId: null },
-      ], createdAt: '2026-01-01' }],
+      ], segments: [{ id: 'pipe-1:segment:0', startVertexIndex: 0, endVertexIndex: 1,
+        startPumpPort: 'discharge', endPumpPort: null }], createdAt: '2026-01-01' }],
     guns: [], coverDisplay: null, terrainRecord: null, selectedSnowmaking: null,
     snowmakingPresentation: null,
   };
@@ -42,6 +45,10 @@ describe('dashboard MapLibre projection', () => {
     expect(result.features).toContainEqual(expect.objectContaining({
       properties: expect.objectContaining({ kind: 'snow-pipe', id: 'pipe-1' }),
     }));
+    expect(result.features).toContainEqual(expect.objectContaining({
+      properties: expect.objectContaining({ kind: 'snow-pump-direction', id: 'node-1',
+        port: 'discharge', portLabel: 'OUT' }),
+    }));
     expect(result.features.filter((row) => row.properties?.kind === 'backdrop')).toHaveLength(1);
   });
 
@@ -55,15 +62,46 @@ describe('dashboard MapLibre projection', () => {
         fromPressurePsi: 90, toPressurePsi: 84, upstreamPressurePsi: 90,
         downstreamPressurePsi: 84 }],
       relevantSegmentColors: new Map([['pipe-1:segment:0', '#123456']]),
-      selectedGunIds: new Set(), gunStatuses: {}, pressureRange: { minPsi: 80, maxPsi: 100 },
+      selectedGunIds: new Set(), gunStatuses: {}, invalidPumpIds: new Set(),
+      pressureRange: { minPsi: 80, maxPsi: 100 },
       showGunTypes: false, toggleGun: () => {}, setHoveredSegment: () => {},
     };
     const result = dashboardGeoJSON(input);
     const pipe = result.features.find((row) => row.properties?.kind === 'snow-pipe');
     const label = result.features.find((row) => row.properties?.kind === 'snow-pipe-label');
-    expect(pipe?.properties).toMatchObject({ name: 'Main', diameterIn: 8, lengthM: 100,
+    expect(pipe?.properties).toMatchObject({ name: 'Main', diameterIn: 8,
       verticalM: 10, segmentIndex: 0, flowLabel: '58.4 GPM\n90.0 → 84.0 PSI' });
+    expect(pipe?.properties?.lengthM).toBeCloseTo(1346.7, 1);
     expect(label?.geometry).toEqual({ type: 'Point', coordinates:
       snowmakingSegmentMidpoint([[-121.5, 46.9], [-121.49, 46.91]]) });
+    input.snowmakingPresentation = { ...input.snowmakingPresentation,
+      segments: [{ ...input.snowmakingPresentation.segments[0], flowGpm: -58.4 }] };
+    const reversed = dashboardGeoJSON(input);
+    expect(reversed.features.find((row) => row.properties?.kind === 'snow-pipe')?.geometry)
+      .toEqual({ type: 'LineString', coordinates: [[-121.49, 46.91], [-121.5, 46.9]] });
+    expect(reversed.features.find((row) => row.properties?.kind === 'snow-flow-arrow')?.properties)
+      .toMatchObject({ flowFrom: 'Main end', flowTo: 'P1', active: true });
+  });
+
+  it('orients arrow geometry from signed flow rather than saved vertex order', () => {
+    const points: [number, number][] = [[0, 0], [0, 0.001], [0.001, 0.001]];
+    const forward = orientedSnowmakingFlow(points, 50);
+    const reverse = orientedSnowmakingFlow(points, -50);
+    const stopped = orientedSnowmakingFlow(points, 0);
+    expect(forward.coordinates).toEqual(points);
+    expect(reverse.coordinates).toEqual([...points].reverse());
+    expect(forward.arrow?.bearing).toBeCloseTo(0, 4);
+    expect(reverse.arrow?.bearing).toBeCloseTo(180, 3);
+    expect(reverse.arrow?.point).toEqual(forward.arrow?.point);
+    expect(stopped.arrow).toBeNull();
+  });
+
+  it('points suction arms toward pumps and discharge arms away from pumps', () => {
+    const segment = snowmakingPipeSegments(data('snowmaking').pipes[0])[0];
+    const discharge = snowmakingPumpArmMarker(segment, 'node-1', 'discharge');
+    const suction = snowmakingPumpArmMarker(segment, 'node-1', 'suction');
+    expect(discharge).not.toBeNull();
+    expect(suction?.point).toEqual(discharge?.point);
+    expect(suction?.bearing).toBeCloseTo(((discharge?.bearing ?? 0) + 180) % 360, 6);
   });
 });

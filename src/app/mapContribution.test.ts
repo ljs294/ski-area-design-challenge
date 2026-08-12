@@ -151,10 +151,12 @@ class FakeMap {
     if (index >= 0) this.bindings.splice(index, 1);
   }
 
-  emit(type: string, layer: string, featureId = 'feature'): void {
+  emit(type: string, layer: string, featureId = 'feature',
+    properties: Record<string, unknown> = {}): void {
     for (const binding of [...this.bindings]) {
       if (binding.type === type && binding.layers.includes(layer)) {
-        binding.listener({ point: { x: 1, y: 2 }, features: [{ properties: { id: featureId } }] });
+        binding.listener({ point: { x: 1, y: 2 },
+          features: [{ properties: { id: featureId, ...properties } }] });
       }
     }
   }
@@ -165,7 +167,9 @@ function managedHits(selectLog: string[], hoverLog: string[] = []): Record<MapHi
     id,
     priority: MAP_HIT_RANK[id],
     layerIds: HIT_LAYERS[id],
-    select: (featureId: string) => selectLog.push(`${id}:${featureId}`),
+    select: (featureId: string, properties?: Readonly<Record<string, unknown>>) =>
+      selectLog.push(`${id}:${featureId}${typeof properties?.segmentId === 'string'
+        ? `:${properties.segmentId}` : ''}`),
     hover: (target: MapHitHoverTarget | null) =>
       hoverLog.push(`${id}:${target?.featureId ?? 'none'}`),
   }])) as unknown as Record<MapHitFamilyId, ManagedMapHitContribution>;
@@ -366,11 +370,15 @@ describe('managed map hit dispatch', () => {
     expect(map.canvas.style.cursor).toBe('');
     expect(hovered.at(-1)).toBe('trail:none');
 
+    map.emit('click', 'snowmaking-node-hit', 'pipe-1',
+      { segmentId: 'pipe-1:segment:2' });
+    expect(selected.at(-1)).toBe('snowmaking:pipe-1:pipe-1:segment:2');
+
     enabled = false;
     map.emit('click', 'lift-line-hit', 'lift');
     map.emit('mouseenter', 'lift-line-hit');
     map.emit('mousemove', 'lift-line-hit', 'lift');
-    expect(selected).toEqual(['trail:run']);
+    expect(selected).toEqual(['trail:run', 'snowmaking:pipe-1:pipe-1:segment:2']);
     expect(map.canvas.style.cursor).toBe('');
     expect(hovered.at(-1)).toBe('lift:none');
   });

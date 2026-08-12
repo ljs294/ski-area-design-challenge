@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MutableRefObject, type RefObject } fr
 import type maplibregl from 'maplibre-gl';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import type { SkiNetwork } from '../network';
-import { snowmakingPipeSegments } from '../snowmakingNetwork';
+import { snowmakingPipeSegments, snowmakingPipeStats } from '../snowmakingNetwork';
 import type { SavedDam, SavedLift, SavedPond, SavedSnowmakingNode, SavedTrail,
   TerrainRecord } from '../types';
 import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource } from '../types/snowmaking';
@@ -37,7 +37,8 @@ export function useInMapDashboards(input: InMapDashboardInput) {
   const [liftId, setLiftId] = useState<string | null>(null);
   const [edgeId, setEdgeId] = useState<string | null>(null);
   const [snowSelection, setSnowSelection] = useState<
-    { kind: 'node' | 'pipe' | 'gun'; id: string } | null>(null);
+    { kind: 'node' | 'gun'; id: string } |
+    { kind: 'pipe'; id: string; segmentId: string | null } | null>(null);
   const [snowMode, setSnowMode] = useState<SnowmakingDashboardMode>('inspect');
   const [snowPresentation, setSnowPresentation] =
     useState<SnowmakingMapPresentation | null>(null);
@@ -99,10 +100,12 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     if (activeRef.current !== 'trails' || !networkRef.current.edgeById.has(id)) return false;
     setLiftId(null); setEdgeId(id); return true;
   };
-  const selectSnow = (kind: 'node' | 'pipe' | 'gun', id: string): boolean => {
+  const selectSnow = (kind: 'node' | 'pipe' | 'gun', id: string,
+    segmentId?: string): boolean => {
     if (activeRef.current !== 'snowmaking') return false;
     if (snowMode === 'analysis' && kind === 'gun') presentationRef.current?.toggleGun(id);
-    else setSnowSelection({ kind, id });
+    else setSnowSelection(kind === 'pipe'
+      ? { kind, id, segmentId: segmentId ?? null } : { kind, id });
     return true;
   };
   const hoverSnowPipe = (target: MapHitHoverTarget | null): void => {
@@ -124,8 +127,11 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     presentationRef.current?.setHoveredSegment(segmentId);
     const analysis = presentationRef.current?.segments.find((candidate) =>
       candidate.id === segmentId) ?? null;
+    const flowFrom = target.properties.flowFrom, flowTo = target.properties.flowTo;
     setSnowHover({ pipe, segmentId, segmentIndex: segment.segmentIndex,
-      point: target.point, analysis });
+      segmentStats: snowmakingPipeStats(segment.vertices),
+      point: target.point, analysis, direction: analysis && typeof flowFrom === 'string' &&
+        typeof flowTo === 'string' ? { from: flowFrom, to: flowTo } : null });
   };
   return { active, setActive, activeRef, liftId, edgeId, snowSelection, snowMode,
     snowHover, setSnowMode, setSnowPresentation, sync: syncRef.current, change, close, fit,

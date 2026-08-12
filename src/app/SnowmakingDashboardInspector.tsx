@@ -1,7 +1,7 @@
 import { formatLakeVolume } from '../lakeAnalysis';
 import { fmtDistance } from '../lifts';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
-import { snowmakingNodeLabel } from '../snowmakingNetwork';
+import { snowmakingNodeLabel, snowmakingPipeSegments, snowmakingPipeStats } from '../snowmakingNetwork';
 import { SNOWMAKING_PIPE_DIAMETERS_IN } from '../types/snowmaking';
 import type { SavedDam, SavedPond } from '../types';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
@@ -15,6 +15,7 @@ import { snowmakingSourceInfo } from './snowmakingDashboardModel';
 export interface SnowmakingDashboardInspectorProps {
   selectedNode: SavedSnowmakingNode | null;
   selectedPipe: SavedSnowmakingPipe | null;
+  selectedPipeSegmentId?: string | null;
   selectedGun: SavedSnowgun | null;
   dams: SavedDam[];
   ponds: SavedPond[];
@@ -39,13 +40,18 @@ export interface SnowmakingDashboardInspectorProps {
 }
 
 export function SnowmakingDashboardInspector({
-  selectedNode, selectedPipe, selectedGun, dams, ponds, lakes = [], nodes, pipes, guns,
+  selectedNode, selectedPipe, selectedPipeSegmentId, selectedGun, dams, ponds, lakes = [], nodes, pipes, guns,
   units, onSelectNode, onSelectPipe, onSelectGun, onRenameNode, onDeleteNode,
   onPatchPipe, onSetPumpPort, onDeletePipe, onMoveGun, onDeleteGun,
   pendingHydrantDeleteId, onSetPendingHydrantDeleteId,
 }: SnowmakingDashboardInspectorProps) {
-  if (selectedPipe) return <aside className="network-inspector" data-inspector="pipe">
-    <div className="dock-head"><span className="dock-head-title">{selectedPipe.name}</span></div>
+  if (selectedPipe) {
+    const selectedSegment = snowmakingPipeSegments(selectedPipe)
+      .find((segment) => segment.id === selectedPipeSegmentId) ?? null;
+    const stats = selectedSegment ? snowmakingPipeStats(selectedSegment.vertices) : null;
+    return <aside className="network-inspector" data-inspector="pipe">
+    <div className="dock-head"><span className="dock-head-title">{selectedPipe.name}
+      {selectedSegment ? ` · ${selectedSegment.segmentIndex + 1}` : ''}</span></div>
     <input className="name-entry-input" aria-label="Pipe name" value={selectedPipe.name}
       onChange={(event) => onPatchPipe(selectedPipe.id, { name: event.target.value })} />
     <label className="lake-depth-row"><span>Diameter</span><select className="lift-select"
@@ -55,11 +61,13 @@ export function SnowmakingDashboardInspector({
       {SNOWMAKING_PIPE_DIAMETERS_IN.map((diameter) => <option key={diameter} value={diameter}>
         {diameter}&quot;</option>)}
     </select></label>
-    <div className="network-stats"><Stat label="Length" value={fmtDistance(selectedPipe.lengthM, units)} />
-      <Stat label="Vertical" value={selectedPipe.verticalM != null
-        ? fmtDistance(selectedPipe.verticalM, units) : '—'} /></div>
+    {stats ? <div className="network-stats"><Stat label="Length" value={fmtDistance(stats.lengthM, units)} />
+      <Stat label="Vertical" value={stats.verticalM != null
+        ? fmtDistance(stats.verticalM, units) : '—'} /></div>
+      : <div className="network-sub">Select a pipe segment on the map to see its length and vertical.</div>}
     <button className="lift-delete-btn" onClick={() => onDeletePipe(selectedPipe.id)}>Remove pipe</button>
   </aside>;
+  }
   if (selectedGun) return <SnowgunDashboardInspector gun={selectedGun} nodes={nodes} units={units}
     move={() => onMoveGun(selectedGun.id)} remove={() => onDeleteGun(selectedGun.id)} />;
   if (selectedNode) {

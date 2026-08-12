@@ -32,7 +32,8 @@ export function snowmakingDashboardProps(input: {
   pipes: SavedSnowmakingPipe[]; coverDisplay: CoverDisplayGeoJSON | null;
   guns: SavedSnowgun[];
   terrainRecord: TerrainRecord | null; units: Units;
-  selectedNodeId: string | null; selectedPipeId: string | null; selectedGunId: string | null;
+  selectedNodeId: string | null; selectedPipeId: string | null;
+  selectedPipeSegmentId?: string | null; selectedGunId: string | null;
   clearNode(): void; clearPipe(): void; clearGun(): void; controller: SnowmakingNetworkController;
   gunController: SnowgunController;
 }): Omit<SnowmakingDashboardProps, 'onClose'> {
@@ -97,6 +98,7 @@ export function SnowmakingDashboard({
   units,
   selectedNodeId,
   selectedPipeId = null,
+  selectedPipeSegmentId = null,
   selectedGunId = null,
   onSelectNode,
   onSelectPipe = () => {},
@@ -128,6 +130,7 @@ export function SnowmakingDashboard({
   units: Units;
   selectedNodeId: string | null;
   selectedPipeId?: string | null;
+  selectedPipeSegmentId?: string | null;
   selectedGunId?: string | null;
   onSelectNode: (id: string | null) => void;
   onSelectPipe?: (id: string | null) => void;
@@ -163,6 +166,9 @@ export function SnowmakingDashboard({
   [solvedSegments]);
   const pressureRange = useMemo(() => snowmakingPressureRange(solvedSegments),
     [solvedSegments]);
+  const invalidPumpIds = useMemo(() => new Set((analysis.result?.diagnostics ?? [])
+    .filter((entry) => entry.code === 'pump-direction-blocks-route')
+    .flatMap((entry) => entry.entityId ? [entry.entityId] : [])), [analysis.result]);
   const relevantSegmentColors = useMemo(() => {
     const colorByComponent = new Map(analysisRelevantGroups.map((group, index) =>
       [group.componentId, SYSTEM_COLORS[index % SYSTEM_COLORS.length]] as const));
@@ -176,12 +182,14 @@ export function SnowmakingDashboard({
     relevantSegmentColors,
     selectedGunIds: new Set(analysis.selectedGunIds),
     gunStatuses: analysisStatuses ?? {},
+    invalidPumpIds,
     pressureRange,
     showGunTypes,
     toggleGun: (id) => analysisDispatch({ type: 'toggle-gun', id }),
     setHoveredSegment: setHoveredSegmentId,
   }), [mode, solvedSegments, relevantSegmentColors, analysis.selectedGunIds,
-    analysisStatuses, pressureRange, showGunTypes, onPresentationChange, analysisDispatch]);
+    analysisStatuses, invalidPumpIds, pressureRange, showGunTypes, onPresentationChange,
+    analysisDispatch]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
 
@@ -418,6 +426,7 @@ export function SnowmakingDashboard({
       onSetPumpPort={onSetPumpPort} setHoveredGun={setHoveredGunId}
       hoveredSegmentId={hoveredSegmentId} reset={() => analysisDispatch({ type: 'reset' })} />
       : <SnowmakingDashboardInspector selectedNode={selectedNode} selectedPipe={selectedPipe}
+        selectedPipeSegmentId={selectedPipeSegmentId}
         selectedGun={selectedGun} dams={dams} ponds={ponds} lakes={lakes} nodes={nodes}
         pipes={pipes} guns={guns} units={units} onSelectNode={onSelectNode}
         onSelectPipe={onSelectPipe} onSelectGun={onSelectGun} onRenameNode={onRenameNode}
@@ -718,6 +727,7 @@ export function SnowmakingDashboard({
         reset={() => analysisDispatch({ type: 'reset' })} /> : <SnowmakingDashboardInspector
         selectedNode={selectedNode}
         selectedPipe={selectedPipe}
+        selectedPipeSegmentId={selectedPipeSegmentId}
         selectedGun={selectedGun}
         dams={dams}
         ponds={ponds} lakes={lakes}

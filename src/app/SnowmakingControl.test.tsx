@@ -98,6 +98,15 @@ describe('SnowmakingControl', () => {
     expect(html).toContain('Pump pushes toward Main end');
     expect(html).not.toContain('Snap single pump');
     expect(html).toMatch(/disabled=""[^>]*>Place pump/);
+    const directed = renderToStaticMarkup(<SnowmakingControl damTool={{ phase: 'idle' }}
+      pondTool={{ phase: 'idle' }} dams={[]} ponds={[]} selectedDam={null} selectedPond={null}
+      nodes={[]} pipes={[testPipe]} selectedNode={null} selectedPipe={null} {...gunProps}
+      pipeTool={{ phase: 'idle' }} nodeTool={{ phase: 'placing', kind: 'pump',
+        candidate: { ...candidate, pumpSuctionSide: 'route-start' }, error: null }}
+      hydrantRunTool={{ phase: 'idle' }} hydrantRunPreview={null} diameterIn={8} snapping={false}
+      units="metric" {...callbacks} />);
+    expect(directed).toContain('Configured pump direction');
+    expect(directed).toContain('Main start → New pump → Main end');
   });
 
   it('reviews endpoint-inclusive hydrant layouts and reports skipped positions', () => {

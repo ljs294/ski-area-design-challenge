@@ -606,7 +606,7 @@ export function MapView({
       acquireInteractions: (tool, map) => acquireMapInteractions(tool, map,
         { cursor: 'crosshair', doubleClickZoomEnabled: false }),
       selectNode: (id) => { if (!dashboards.selectSnow('node', id)) transitionSelection({ kind: 'snowmaking-node', id }); },
-      selectPipe: (id) => { if (!dashboards.selectSnow('pipe', id)) transitionSelection({ kind: 'snowmaking-pipe', id }); },
+      selectPipe: (id, segmentId) => { if (!dashboards.selectSnow('pipe', id, segmentId)) transitionSelection({ kind: 'snowmaking-pipe', id }); },
       selectGun: (id) => { if (!dashboards.selectSnow('gun', id)) transitionSelection({ kind: 'snowgun', id }); },
       hoverDashboardPipe: dashboards.hoverSnowPipe,
       clearSelected: (id) => {
@@ -1708,7 +1708,7 @@ export function MapView({
             pipes: snowmakingPipes, guns: snowguns,
             coverDisplay: coverDisplayRef.current, terrainRecord, units: settings.units,
             selectedNodeId: dashboards.snowSelection?.kind === 'node' ? dashboards.snowSelection.id : null,
-            selectedPipeId: dashboards.snowSelection?.kind === 'pipe' ? dashboards.snowSelection.id : null,
+            selectedPipeId: dashboards.snowSelection?.kind === 'pipe' ? dashboards.snowSelection.id : null, selectedPipeSegmentId: dashboards.snowSelection?.kind === 'pipe' ? dashboards.snowSelection.segmentId : null,
             selectedGunId: dashboards.snowSelection?.kind === 'gun' ? dashboards.snowSelection.id : null,
             clearNode: () => dashboards.setSnowSelection(null), clearPipe: () => dashboards.setSnowSelection(null),
             clearGun: () => dashboards.setSnowSelection(null), controller: snowmakingController.network,

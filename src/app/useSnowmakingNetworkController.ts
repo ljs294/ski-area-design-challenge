@@ -63,7 +63,7 @@ export interface SnowmakingNetworkControllerOptions {
   acquireInteractions(tool: Extract<ToolId, 'snowmaking-pipe' | 'snowmaking-node'>,
     map: maplibregl.Map): MapInteractionLeaseHandle;
   selectNode(id: string): void;
-  selectPipe(id: string): void;
+  selectPipe(id: string, segmentId?: string): void;
   selectGun(id: string): void;
   hoverDashboardPipe(target: MapHitHoverTarget | null): void;
   clearSelected(id: string): void;
@@ -214,9 +214,12 @@ export function useSnowmakingNetworkController(
       hoverLayerIds: [...SNOWMAKING_HOVER_LAYERS, 'dashboard-snow-pipe-hit',
         'dashboard-snow-node-hit', 'dashboard-snow-gun-hit'],
       hover: (target) => optionsRef.current.hoverDashboardPipe(target),
-      select: (id) => {
+      select: (id, properties) => {
         if (optionsRef.current.guns.some((gun) => gun.id === id)) optionsRef.current.selectGun(id);
-        else if (optionsRef.current.pipes.some((pipe) => pipe.id === id)) optionsRef.current.selectPipe(id);
+        else if (optionsRef.current.pipes.some((pipe) => pipe.id === id)) {
+          optionsRef.current.selectPipe(id,
+            typeof properties?.segmentId === 'string' ? properties.segmentId : undefined);
+        }
         else if (optionsRef.current.nodes.some((node) => node.id === id)) optionsRef.current.selectNode(id);
       } }],
     install: ({ map }) => addSnowmakingLayers(map),
