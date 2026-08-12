@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildSkiNetwork } from '../network';
 import { snowmakingPipeSegments } from '../snowmakingNetwork';
 import type { SavedLift } from '../types';
-import { dashboardGeoJSON, orientedSnowmakingFlow, snowmakingPumpArmMarker,
+import { dashboardGeoJSON, orientedSnowmakingFlow, snowmakingArrowGlyphRotation, snowmakingPumpArmMarker,
   snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
 
 const lift: SavedLift = {
@@ -69,9 +69,12 @@ describe('dashboard MapLibre projection', () => {
     const result = dashboardGeoJSON(input);
     const pipe = result.features.find((row) => row.properties?.kind === 'snow-pipe');
     const label = result.features.find((row) => row.properties?.kind === 'snow-pipe-label');
+    const arrow = result.features.find((row) => row.properties?.kind === 'snow-flow-arrow');
     expect(pipe?.properties).toMatchObject({ name: 'Main', diameterIn: 8,
       verticalM: 10, segmentIndex: 0, flowLabel: '58.4 GPM\n90.0 → 84.0 PSI' });
     expect(pipe?.properties?.lengthM).toBeCloseTo(1346.7, 1);
+    expect(arrow?.properties?.rotation).toBe(snowmakingArrowGlyphRotation(
+      arrow?.properties?.bearing as number));
     expect(label?.geometry).toEqual({ type: 'Point', coordinates:
       snowmakingSegmentMidpoint([[-121.5, 46.9], [-121.49, 46.91]]) });
     input.snowmakingPresentation = { ...input.snowmakingPresentation,
@@ -94,6 +97,13 @@ describe('dashboard MapLibre projection', () => {
     expect(reverse.arrow?.bearing).toBeCloseTo(180, 3);
     expect(reverse.arrow?.point).toEqual(forward.arrow?.point);
     expect(stopped.arrow).toBeNull();
+  });
+
+  it('converts compass bearings to the rotation of a naturally right-facing glyph', () => {
+    expect(snowmakingArrowGlyphRotation(0)).toBe(270);
+    expect(snowmakingArrowGlyphRotation(90)).toBe(0);
+    expect(snowmakingArrowGlyphRotation(180)).toBe(90);
+    expect(snowmakingArrowGlyphRotation(270)).toBe(180);
   });
 
   it('points suction arms toward pumps and discharge arms away from pumps', () => {

@@ -168,6 +168,12 @@ export interface SnowmakingDirectionMarker {
   bearing: number;
 }
 
+/** MapLibre rotates text from its natural right-facing baseline, while pipe
+ * tangents are compass bearings measured clockwise from north. */
+export function snowmakingArrowGlyphRotation(bearing: number): number {
+  return (bearing + 270) % 360;
+}
+
 function bearingBetween(from: [number, number], to: [number, number]): number {
   const phi1 = from[1] * Math.PI / 180, phi2 = to[1] * Math.PI / 180;
   const delta = (to[0] - from[0]) * Math.PI / 180;
@@ -285,7 +291,8 @@ function snowmakingFeatures(input: DashboardMapData): Feature[] {
     }, properties));
     if (result?.active && oriented.arrow) features.push(feature('snow-flow-arrow', {
       type: 'Point', coordinates: oriented.arrow.point,
-    }, { ...properties, bearing: oriented.arrow.bearing }));
+    }, { ...properties, bearing: oriented.arrow.bearing,
+      rotation: snowmakingArrowGlyphRotation(oriented.arrow.bearing) }));
     const midpoint = flowLabel && snowmakingSegmentMidpoint(oriented.coordinates);
     if (midpoint) features.push(feature('snow-pipe-label', {
       type: 'Point', coordinates: midpoint,
@@ -300,7 +307,7 @@ function snowmakingFeatures(input: DashboardMapData): Feature[] {
       if (!marker) continue;
       features.push(feature('snow-pump-direction', { type: 'Point', coordinates: marker.point }, {
         id: pump.id, segmentId: segment.id, port, portLabel: port === 'suction' ? 'IN' : 'OUT',
-        bearing: marker.bearing,
+        bearing: marker.bearing, rotation: snowmakingArrowGlyphRotation(marker.bearing),
       }));
     }
   }
@@ -410,10 +417,11 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
         ['all', ['get', 'analysis'], ['!', ['get', 'active']]], 0.45, 1] } });
   map.addLayer({ id: 'dashboard-snow-flow-arrows', type: 'symbol', source: DASHBOARD_SOURCE,
     filter: filter('snow-flow-arrow'), layout: { visibility: 'none',
-      'symbol-placement': 'point', 'text-field': '▶', 'text-size': 14,
-      'text-font': ['Noto Sans Regular'], 'text-rotate': ['get', 'bearing'],
+      'symbol-placement': 'point', 'text-field': '›', 'text-size': 14,
+      'text-font': ['Noto Sans Regular'], 'text-rotate': ['get', 'rotation'],
       'text-rotation-alignment': 'map', 'text-allow-overlap': true },
-    paint: { 'text-color': '#172033' } });
+    paint: { 'text-color': '#344054', 'text-opacity': 0.68,
+      'text-halo-color': '#f4f1ea', 'text-halo-width': 0.75 } });
   map.addLayer({ id: 'dashboard-snow-flow-labels', type: 'symbol', source: DASHBOARD_SOURCE,
     filter: filter('snow-pipe-label'), layout: {
       visibility: 'none', 'symbol-placement': 'point', 'text-field': ['get', 'flowLabel'],
@@ -425,7 +433,7 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
   map.addLayer({ id: 'dashboard-snow-pump-arrows', type: 'symbol', source: DASHBOARD_SOURCE,
     filter: filter('snow-pump-direction'), layout: { visibility: 'none',
       'symbol-placement': 'point', 'text-field': '▶', 'text-size': 16,
-      'text-font': ['Noto Sans Regular'], 'text-rotate': ['get', 'bearing'],
+      'text-font': ['Noto Sans Regular'], 'text-rotate': ['get', 'rotation'],
       'text-rotation-alignment': 'map', 'text-allow-overlap': true }, paint: {
       'text-color': ['match', ['get', 'port'], 'suction', '#2563eb', '#d97706'],
       'text-halo-color': '#f4f1ea', 'text-halo-width': 1.5,
