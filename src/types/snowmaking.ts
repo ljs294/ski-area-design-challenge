@@ -50,6 +50,20 @@ export interface SavedPond {
 
 export type SnowmakingNodeKind = 'intake' | 'pump' | 'junction' | 'hydrant';
 
+export const SNOWMAKING_PIPE_DIAMETERS_IN = [
+  4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24,
+] as const;
+
+export type SnowmakingPipeDiameterIn = (typeof SNOWMAKING_PIPE_DIAMETERS_IN)[number];
+
+export type NumberedSnowmakingNodeKind = Exclude<SnowmakingNodeKind, 'intake'>;
+
+export interface SnowmakingNodeNextNumbers {
+  hydrant: number;
+  junction: number;
+  pump: number;
+}
+
 export type SnowmakingSourceRef =
   | { kind: 'dam'; damId: string }
   | { kind: 'pond'; pondId: string }
@@ -68,8 +82,70 @@ export interface SavedSnowmakingNode {
   id: string;
   name: string;
   kind: SnowmakingNodeKind;
+  /** Stable per-kind asset number. Intakes retain their source-derived label. */
+  labelNumber?: number;
   point: [number, number];
   elevM: number | null;
   source?: SnowmakingSourceRef;
+  createdAt: string;
+}
+
+export interface SavedSnowmakingPipeVertex {
+  point: [number, number];
+  /** Planning-terrain elevation sampled when the pipe was installed. */
+  elevM: number | null;
+  /** Connectivity is explicit; geometric crossings never imply a connection. */
+  nodeId: string | null;
+}
+
+export type SnowmakingPumpPort = 'suction' | 'discharge';
+
+/**
+ * Stable metadata for one node-bounded portion of an editable pipe route.
+ * Geometry and connectivity remain authoritative in the parent `vertices`;
+ * these records provide durable hydraulic edge identity and classify the two
+ * half-edges that can meet pump nodes.
+ */
+export interface SavedSnowmakingPipeSegment {
+  id: string;
+  /** Inclusive index into the parent pipe's vertices. */
+  startVertexIndex: number;
+  /** Inclusive index into the parent pipe's vertices. */
+  endVertexIndex: number;
+  startPumpPort: SnowmakingPumpPort | null;
+  endPumpPort: SnowmakingPumpPort | null;
+}
+
+export interface SavedSnowmakingPipe {
+  id: string;
+  name: string;
+  diameterIn: SnowmakingPipeDiameterIn;
+  vertices: SavedSnowmakingPipeVertex[];
+  /** Recomputed from vertices while hydrating. */
+  lengthM: number;
+  /** Highest minus lowest sampled station, or null while elevation is unresolved. */
+  verticalM: number | null;
+  /**
+   * Added in save schema 12. Optional at the compatibility boundary so saves
+   * from schema 11 and earlier remain representable; hydration always fills it.
+   */
+  segments?: SavedSnowmakingPipeSegment[];
+  createdAt: string;
+}
+
+export type SnowgunVariantId =
+  | 'HKD_ImpulseR5_10s'
+  | 'HKD_ImpulseR5_10t'
+  | 'HKD_ImpulseR5_20t'
+  | 'HKD_ImpulseR5_30t';
+
+/** Installed snowmaking equipment. Guns consume at hydrants but are not pipe-topology nodes. */
+export interface SavedSnowgun {
+  id: string;
+  variantId: SnowgunVariantId;
+  point: [number, number];
+  elevM: number | null;
+  /** Null means installed but currently disconnected. */
+  hydrantId: string | null;
   createdAt: string;
 }

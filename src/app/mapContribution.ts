@@ -47,7 +47,7 @@ export interface MapHitContribution {
   readonly id: MapHitFamilyId;
   /** The layers a click on this family is delegated to. */
   readonly layerIds: readonly string[];
-  select(featureId: string): void;
+  select(featureId: string, properties?: Readonly<Record<string, unknown>>): void;
 }
 
 function requireEach<Id, T extends { id: Id }>(
@@ -103,6 +103,9 @@ export interface MapContributionContext {
   readonly styleGeneration: number;
 }
 
+export type MapPresentationMode = 'dashboard-trails' | 'dashboard-snowmaking' |
+  'dashboard-snowmaking-analysis' | null;
+
 export interface MapVisibilityDescriptor {
   readonly id: string;
   readonly label: string;
@@ -117,6 +120,15 @@ export interface ManagedMapHitContribution extends MapHitContribution {
   /** Defaults to layerIds. Kept independent for families with narrow hits but
    * a larger pointer-hover affordance. */
   readonly hoverLayerIds?: readonly string[];
+  /** Receives the rendered feature under the pointer. Unlike selection this
+   * is transient presentation state and must never mutate the document. */
+  hover?(target: MapHitHoverTarget | null): void;
+}
+
+export interface MapHitHoverTarget {
+  readonly featureId: string;
+  readonly properties: Readonly<Record<string, unknown>>;
+  readonly point: { readonly x: number; readonly y: number };
 }
 
 /** Complete lifecycle owned by one map family. Controller extraction moves
@@ -133,6 +145,9 @@ export interface ManagedMapContribution {
     descriptorId: string,
     visible: boolean,
   ): void;
+  /** Apply temporary, non-persistent presentation styling after every family
+   * has installed. Normal visibility preferences remain authoritative. */
+  presentationChanged?(context: MapContributionContext, mode: MapPresentationMode): void;
   setCaptureTransient?(context: MapContributionContext, hidden: boolean): void;
   cleanup(context: MapContributionContext): void;
 }
@@ -141,7 +156,7 @@ type HitEvent = maplibregl.MapLayerMouseEvent;
 type HitListener = (event: HitEvent) => void;
 
 interface HitBinding {
-  readonly type: 'click' | 'mouseenter' | 'mouseleave';
+  readonly type: 'click' | 'mouseenter' | 'mousemove' | 'mouseleave';
   readonly layerIds: readonly string[];
   readonly listener: HitListener;
 }
@@ -197,6 +212,7 @@ export class MapContributionRegistry {
   private hitEnabled: () => boolean = () => true;
   private visibilityState = new Map<string, MapVisibilityDescriptor>();
   private descriptorOwners = new Map<string, ManagedMapContribution[]>();
+  private presentationMode: MapPresentationMode = null;
 
   constructor(contributions: readonly ManagedMapContribution[]) {
     this.contributions = managedOrder(contributions);
@@ -216,6 +232,7 @@ export class MapContributionRegistry {
   /** Reinstall bottom-to-top after a style load and reapply data/visibility. */
   synchronizeStyle(): MapVisibilityDescriptor[] {
     const previous = this.requireContext();
+    this.clearHitHovers();
     if (previous.styleGeneration > 0) {
       for (const contribution of [...this.contributions].reverse()) contribution.cleanup(previous);
     }
@@ -231,6 +248,7 @@ export class MapContributionRegistry {
       contribution.synchronizeData(context);
     }
     this.reconcileVisibility(context);
+    this.applyPresentation(context);
     return this.visibilityDescriptors();
   }
 
@@ -264,7 +282,15 @@ export class MapContributionRegistry {
       }
     }
     this.setVisibility(context, id, nextVisible);
+    this.applyPresentation(context);
     return this.visibilityDescriptors();
+  }
+
+  setPresentation(mode: MapPresentationMode): void {
+    if (mode !== this.presentationMode) this.clearHitHovers();
+    this.presentationMode = mode;
+    const context = this.context;
+    if (context && context.styleGeneration > 0) this.applyPresentation(context);
   }
 
   visibilityDescriptors(): MapVisibilityDescriptor[] {
@@ -277,6 +303,7 @@ export class MapContributionRegistry {
   dispose(): void {
     const context = this.context;
     if (!context) return;
+    this.clearHitHovers();
     this.detachHits(context.map);
     if (context.styleGeneration > 0) {
       for (const contribution of [...this.contributions].reverse()) contribution.cleanup(context);
@@ -326,6 +353,23 @@ export class MapContributionRegistry {
     this.notifyVisibility(context, id, visible);
   }
 
+  clearHitHovers(): void {
+    for (const hit of this.hits) hit.hover?.(null);
+    if (this.context) this.context.map.getCanvas().style.cursor = '';
+  }
+
+  private applyPresentation(context: MapContributionContext): void {
+    // A dashboard temporarily suppresses normal visibility descriptors without
+    // mutating them. Clearing it reapplies the latest user choices exactly.
+    for (const descriptor of this.visibilityState.values()) {
+      this.applyLayerVisibility(context, this.presentationMode
+        ? { ...descriptor, visible: false } : descriptor);
+    }
+    for (const contribution of this.contributions) {
+      contribution.presentationChanged?.(context, this.presentationMode);
+    }
+  }
+
   private applyLayerVisibility(
     context: MapContributionContext,
     descriptor: MapVisibilityDescriptor,
@@ -350,24 +394,54 @@ export class MapContributionRegistry {
   private attachHits(): void {
     const context = this.requireContext();
     const { map } = context;
-    const hoverEnter: HitListener = () => {
-      if (this.hitEnabled()) map.getCanvas().style.cursor = 'pointer';
-    };
-    const hoverLeave: HitListener = () => {
-      if (this.hitEnabled()) map.getCanvas().style.cursor = '';
-    };
     for (const hit of this.hits) {
       const guard = hitGuardLayers(hit.id, this.hits);
       const click: HitListener = (event) => {
         if (!this.hitEnabled()) return;
         const above = guard.filter((layerId) => map.getLayer(layerId));
         if (above.length && map.queryRenderedFeatures(event.point, { layers: above }).length) return;
-        const id = event.features?.[0]?.properties?.id;
-        if (typeof id === 'string') hit.select(id);
+        const properties = event.features?.[0]?.properties;
+        const id = properties?.id;
+        if (typeof id === 'string') hit.select(id, properties as Record<string, unknown>);
       };
       this.bindHit(map, 'click', hit.layerIds, click);
       const hoverLayers = hit.hoverLayerIds ?? hit.layerIds;
+      const hoverEnter: HitListener = () => {
+        if (this.hitEnabled()) map.getCanvas().style.cursor = 'pointer';
+      };
+      const hoverMove: HitListener = (event) => {
+        if (!this.hitEnabled()) {
+          map.getCanvas().style.cursor = '';
+          hit.hover?.(null);
+          return;
+        }
+        const above = guard.filter((layerId) => map.getLayer(layerId));
+        if (above.length && map.queryRenderedFeatures(event.point, { layers: above }).length) {
+          map.getCanvas().style.cursor = '';
+          hit.hover?.(null);
+          return;
+        }
+        map.getCanvas().style.cursor = 'pointer';
+        const rendered = event.features?.[0];
+        const properties = rendered?.properties;
+        const id = properties?.id;
+        const canvasRect = map.getCanvas().getBoundingClientRect?.();
+        const pointer = event.originalEvent;
+        hit.hover?.(typeof id === 'string' ? {
+          featureId: id,
+          properties: properties as Record<string, unknown>,
+          point: {
+            x: pointer?.clientX ?? (canvasRect?.left ?? 0) + event.point.x,
+            y: pointer?.clientY ?? (canvasRect?.top ?? 0) + event.point.y,
+          },
+        } : null);
+      };
+      const hoverLeave: HitListener = () => {
+        map.getCanvas().style.cursor = '';
+        hit.hover?.(null);
+      };
       this.bindHit(map, 'mouseenter', hoverLayers, hoverEnter);
+      if (hit.hover) this.bindHit(map, 'mousemove', hoverLayers, hoverMove);
       this.bindHit(map, 'mouseleave', hoverLayers, hoverLeave);
     }
   }

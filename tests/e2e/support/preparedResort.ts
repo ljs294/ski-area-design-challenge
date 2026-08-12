@@ -135,6 +135,9 @@ export interface PreparedStructures {
   dams?: Record<string, unknown>[];
   ponds?: Record<string, unknown>[];
   snowmakingNodes?: Record<string, unknown>[];
+  snowmakingPipes?: Record<string, unknown>[];
+  snowguns?: Record<string, unknown>[];
+  snowmakingNodeNextNumbers?: Record<string, number>;
   snowmakingLakeIds?: string[];
 }
 
@@ -171,6 +174,10 @@ function preparedSaveFixture(structures: PreparedStructures) {
     paths: [],
     junctions: [],
     snowmakingNodes: structures.snowmakingNodes ?? [],
+    snowmakingPipes: structures.snowmakingPipes ?? [],
+    snowguns: structures.snowguns ?? [],
+    snowmakingNodeNextNumbers: structures.snowmakingNodeNextNumbers ??
+      { hydrant: 1, junction: 1, pump: 1 },
     lakeDepthOverrides: {},
     lakeNameOverrides: {},
     snowmakingLakeIds: structures.snowmakingLakeIds ?? [],

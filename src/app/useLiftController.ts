@@ -87,7 +87,7 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
       hits: [{
         id: 'lift',
         priority: MAP_HIT_RANK.lift,
-        layerIds: ['lift-line-hit', 'lift-terminals'],
+        layerIds: ['lift-line-hit', 'lift-terminals', 'dashboard-lift-hit'],
         select: (id) => select(id),
       }],
       install: ({ map }) => addLiftLayers(map),

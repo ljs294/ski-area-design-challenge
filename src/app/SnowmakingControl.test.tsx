@@ -1,8 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { SnowmakingControl, type DamTool, type PondTool } from './SnowmakingControl';
-import type { SavedSnowmakingNode } from '../types/snowmaking';
+import type { SavedSnowmakingNode, SavedSnowmakingPipe } from '../types/snowmaking';
 import type { SavedDam, SavedPond } from '../types';
+import type { SnowmakingHydrantRunTool } from './snowmakingNetworkControllerModel';
+import type { SnowmakingHydrantRunPreview } from './useSnowmakingNetworkController';
 
 const callbacks = {
   onClose: vi.fn(),
@@ -13,15 +15,38 @@ const callbacks = {
   onConfirmPond: vi.fn(),
   onSelectPond: vi.fn(), onDeletePond: vi.fn(), onClosePond: vi.fn(),
   onPondSnowmakingChange: vi.fn(),
-  onSelectNode: vi.fn(), onRenameNode: vi.fn(), onCloseNode: vi.fn(),
+  onArmPipe: vi.fn(), onCancelPipe: vi.fn(), onUndoPipe: vi.fn(), onFinishPipe: vi.fn(),
+  onConfirmPipe: vi.fn(), onRenameDraftPipe: vi.fn(), onDiameterChange: vi.fn(),
+  onSnappingChange: vi.fn(),
+  onArmNode: vi.fn(), onCancelNode: vi.fn(), onConfirmNode: vi.fn(),
+  onSetPumpSuctionSide: vi.fn(), onSetPumpPort: vi.fn(),
+  onArmHydrantRun: vi.fn(), onCancelHydrantRun: vi.fn(), onBackHydrantRun: vi.fn(),
+  onHydrantRunModeChange: vi.fn(), onHydrantRunCountChange: vi.fn(),
+  onHydrantRunSpacingChange: vi.fn(), onConfirmHydrantRun: vi.fn(),
+  onSelectNode: vi.fn(), onRenameNode: vi.fn(), onDeleteNode: vi.fn(), onCloseNode: vi.fn(),
+  onSelectPipe: vi.fn(), onPatchPipe: vi.fn(), onDeletePipe: vi.fn(), onClosePipe: vi.fn(),
+  onArmGuns: vi.fn(), onCancelGuns: vi.fn(), onSnowgunVariantChange: vi.fn(),
+  onRemoveDraftGun: vi.fn(), onReviewGuns: vi.fn(), onBackGuns: vi.fn(), onConfirmGuns: vi.fn(),
+  onSelectGun: vi.fn(), onMoveGun: vi.fn(), onConfirmMoveGun: vi.fn(), onDeleteGun: vi.fn(),
+  onCloseGun: vi.fn(),
+  onAnalyzeSystem: vi.fn(),
 };
+
+const gunProps = { guns: [], selectedGun: null, gunTool: { phase: 'idle' } as const,
+  gunPreview: { items: [], candidate: null, totalUsd: 0, connectedCount: 0,
+    disconnectedCount: 0 } };
 
 function render(damTool: DamTool = { phase: 'idle' }, pondTool: PondTool = { phase: 'idle' },
   units: 'metric' | 'imperial' = 'metric', dams: SavedDam[] = [], ponds: SavedPond[] = [],
-  nodes: SavedSnowmakingNode[] = [], selectedNode: SavedSnowmakingNode | null = null) {
+  nodes: SavedSnowmakingNode[] = [], selectedNode: SavedSnowmakingNode | null = null,
+  hydrantRunTool: SnowmakingHydrantRunTool = { phase: 'idle' },
+  hydrantRunPreview: SnowmakingHydrantRunPreview | null = null) {
   return renderToStaticMarkup(<SnowmakingControl damTool={damTool} pondTool={pondTool}
     dams={dams} ponds={ponds} selectedDam={null} selectedPond={null}
-    nodes={nodes} selectedNode={selectedNode} units={units} {...callbacks} />);
+    nodes={nodes} pipes={[]} selectedNode={selectedNode} selectedPipe={null} {...gunProps}
+    pipeTool={{ phase: 'idle' }} nodeTool={{ phase: 'idle' }}
+    hydrantRunTool={hydrantRunTool} hydrantRunPreview={hydrantRunPreview} diameterIn={8} snapping={false}
+    units={units} {...callbacks} />);
 }
 
 describe('SnowmakingControl', () => {
@@ -31,12 +56,75 @@ describe('SnowmakingControl', () => {
     expect(html).toContain('Build dam');
     expect(html).toContain('Build standalone pond');
     expect(html).toContain('Install snowmaking pipe');
+    expect(html).toContain('Analyze snowmaking system');
   });
 
-  it('keeps the pipe tool inert until there is a network to build', () => {
-    // Placeholder: a disabled button reads as not-yet-ready, where a live one
-    // would arm nothing and look broken.
-    expect(render()).toMatch(/disabled=""[^>]*>＋ Install snowmaking pipe/);
+  it('enables pipe and device construction', () => {
+    expect(render()).toMatch(/<button[^>]*title="Draw a snowmaking pipe route"[^>]*>[^<]*Install snowmaking pipe/);
+    expect(render()).toContain('Place one hydrant');
+    expect(render()).toContain('Place hydrants along pipe');
+    expect(render()).toContain('Place pumps');
+  });
+
+  it('offers network snapping while placing one hydrant', () => {
+    const html = renderToStaticMarkup(<SnowmakingControl damTool={{ phase: 'idle' }}
+      pondTool={{ phase: 'idle' }} dams={[]} ponds={[]} selectedDam={null} selectedPond={null}
+      nodes={[]} pipes={[]} selectedNode={null} selectedPipe={null} {...gunProps} pipeTool={{ phase: 'idle' }}
+      nodeTool={{ phase: 'placing', kind: 'hydrant', candidate: null, error: null }}
+      hydrantRunTool={{ phase: 'idle' }} hydrantRunPreview={null} diameterIn={8} snapping={false}
+      units="metric" {...callbacks} />);
+    expect(html).toContain('Snap single hydrant to snowmaking network');
+    expect(html).toContain('Snap within 16 px of a pipe or existing node.');
+  });
+
+  it('requires an explicit inline pump direction before placement', () => {
+    const testPipe: SavedSnowmakingPipe = { id: 'pipe-1', name: 'Main', diameterIn: 8,
+      vertices: [{ point: [0, 0], elevM: 100, nodeId: null },
+        { point: [0, 0.001], elevM: 90, nodeId: null }], lengthM: 111, verticalM: 10,
+      createdAt: '2026-01-01T00:00:00.000Z', segments: [{ id: 'segment-1',
+        startVertexIndex: 0, endVertexIndex: 1, startPumpPort: null, endPumpPort: null }] };
+    const candidate = { point: [0, 0.0005] as [number, number], elevM: 95, revision: 3,
+      snap: { kind: 'pipe' as const, pipeId: testPipe.id,
+        point: [0, 0.0005] as [number, number] }, pumpSegmentId: 'segment-1',
+      pumpSuctionSide: null };
+    const html = renderToStaticMarkup(<SnowmakingControl damTool={{ phase: 'idle' }}
+      pondTool={{ phase: 'idle' }} dams={[]} ponds={[]} selectedDam={null} selectedPond={null}
+      nodes={[]} pipes={[testPipe]} selectedNode={null} selectedPipe={null} {...gunProps}
+      pipeTool={{ phase: 'idle' }} nodeTool={{ phase: 'placing', kind: 'pump', candidate, error: null }}
+      hydrantRunTool={{ phase: 'idle' }} hydrantRunPreview={null} diameterIn={8} snapping={false}
+      units="metric" {...callbacks} />);
+    expect(html).toContain('Which way does this pump push water?');
+    expect(html).toContain('Water enters from Main start');
+    expect(html).toContain('Pump pushes toward Main end');
+    expect(html).not.toContain('Snap single pump');
+    expect(html).toMatch(/disabled=""[^>]*>Place pump/);
+    const directed = renderToStaticMarkup(<SnowmakingControl damTool={{ phase: 'idle' }}
+      pondTool={{ phase: 'idle' }} dams={[]} ponds={[]} selectedDam={null} selectedPond={null}
+      nodes={[]} pipes={[testPipe]} selectedNode={null} selectedPipe={null} {...gunProps}
+      pipeTool={{ phase: 'idle' }} nodeTool={{ phase: 'placing', kind: 'pump',
+        candidate: { ...candidate, pumpSuctionSide: 'route-start' }, error: null }}
+      hydrantRunTool={{ phase: 'idle' }} hydrantRunPreview={null} diameterIn={8} snapping={false}
+      units="metric" {...callbacks} />);
+    expect(directed).toContain('Configured pump direction');
+    expect(directed).toContain('Main start → New pump → Main end');
+  });
+
+  it('reviews endpoint-inclusive hydrant layouts and reports skipped positions', () => {
+    const station = { point: [0, 0] as [number, number], segmentIndex: 0, u: 0,
+      stationM: 0, distanceM: 0, elevM: 100 };
+    const tool: SnowmakingHydrantRunTool = { phase: 'review', pipeId: 'pipe-1', start: station,
+      end: { ...station, point: [0, 0.001], stationM: 100 }, mode: 'count', count: 4,
+      spacingM: 30, revision: 1, error: null };
+    const preview: SnowmakingHydrantRunPreview = { pipeName: 'Main line', selectedRoute: [],
+      intervalPoints: [], startPoint: station.point, endPoint: [0, 0.001], lengthM: 100,
+      actualSpacingM: 100 / 3, positions: [0, 1, 2, 3].map((index) => ({
+        station: { ...station, stationM: index * 100 / 3 }, conflict: index === 2 })),
+      newCount: 3, skippedCount: 1, error: null };
+    const html = render(undefined, undefined, 'metric', [], [], [], null, tool, preview);
+    expect(html).toContain('Review hydrant run');
+    expect(html).toContain('Calculated positions');
+    expect(html).toContain('Skipped occupied');
+    expect(html).toContain('Place 3 hydrants');
   });
 
   it('reviews standalone pond elevation, volume, and lack of natural fill', () => {

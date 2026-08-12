@@ -172,7 +172,7 @@ test('review retains a grade failure and commits trail topology coherently', asy
   await page.locator('.hud-save').click();
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
-  expect(saved.schemaVersion).toBe(11);
+  expect(saved.schemaVersion).toBe(12);
   expect(saved.trails).toHaveLength(1);
   expect(saved.trails[0]).toMatchObject({ name: 'Atomic Glade', status: 'planning',
     terrainGraded: false, anchor: { kind: 'lift', liftId: 'lift-anchor', end: 'top' } });

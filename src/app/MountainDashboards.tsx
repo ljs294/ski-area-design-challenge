@@ -1,5 +1,7 @@
 import { NetworkMap } from './NetworkMap';
 import { SnowmakingDashboard } from './SnowmakingDashboard';
+import type { DashboardKind, SnowmakingDashboardMode } from './dashboardMode';
+import type { SnowmakingMapPresentation } from './dashboardMapLayers';
 
 // Thin picker + delegator over the two full-screen dashboards. Neither
 // NetworkMap nor SnowmakingDashboard is edited by this file — both already
@@ -8,47 +10,31 @@ import { SnowmakingDashboard } from './SnowmakingDashboard';
 // between them, positioned as its own fixed overlay so it survives which
 // dashboard is mounted underneath.
 
-export type DashboardKind = 'trails' | 'snowmaking';
+export type { DashboardKind } from './dashboardMode';
 
 type NetworkMapProps = Omit<Parameters<typeof NetworkMap>[0], 'onClose'>;
 type SnowmakingDashboardProps = Omit<Parameters<typeof SnowmakingDashboard>[0], 'onClose'>;
 
 export function MountainDashboards({
   dashboard,
-  onDashboardChange,
+  snowmakingMode = 'inspect',
   networkProps,
   snowmakingProps,
   onClose,
+  onFit,
+  onSnowmakingPresentationChange,
 }: {
   dashboard: DashboardKind;
-  onDashboardChange: (dashboard: DashboardKind) => void;
+  snowmakingMode?: SnowmakingDashboardMode;
   networkProps: NetworkMapProps;
   snowmakingProps: SnowmakingDashboardProps;
   onClose: () => void;
+  onFit: () => void;
+  onSnowmakingPresentationChange?: (presentation: SnowmakingMapPresentation) => void;
 }) {
-  return (
-    <div className="mountain-dashboards">
-      <div className="dashboard-picker" role="group" aria-label="Mountain dashboards">
-        <button
-          className="site-btn"
-          aria-pressed={dashboard === 'trails'}
-          onClick={() => onDashboardChange('trails')}
-        >
-          Trails &amp; Lifts
-        </button>
-        <button
-          className="site-btn"
-          aria-pressed={dashboard === 'snowmaking'}
-          onClick={() => onDashboardChange('snowmaking')}
-        >
-          Snowmaking
-        </button>
-      </div>
-      {dashboard === 'trails' ? (
-        <NetworkMap {...networkProps} onClose={onClose} />
-      ) : (
-        <SnowmakingDashboard {...snowmakingProps} onClose={onClose} />
-      )}
-    </div>
-  );
+  return dashboard === 'trails'
+    ? <NetworkMap {...networkProps} panelOnly onFit={onFit} onClose={onClose} />
+    : <SnowmakingDashboard {...snowmakingProps} panelOnly onFit={onFit}
+      mode={snowmakingMode} onPresentationChange={onSnowmakingPresentationChange}
+      onClose={onClose} />;
 }

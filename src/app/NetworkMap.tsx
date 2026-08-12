@@ -78,6 +78,8 @@ export function NetworkMap({
   onToggleLiftClosed,
   onTogglePathClosed,
   onClose,
+  panelOnly = false,
+  onFit,
 }: {
   network: SkiNetwork;
   units: Units;
@@ -89,6 +91,8 @@ export function NetworkMap({
   onToggleLiftClosed: (liftId: string, closed: boolean) => void;
   onTogglePathClosed: (pathId: string, closed: boolean) => void;
   onClose: () => void;
+  panelOnly?: boolean;
+  onFit?: () => void;
 }) {
   const [view, setView] = useState<View | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -262,6 +266,23 @@ export function NetworkMap({
   const labelCutoff = active.w * 0.09;
 
   const empty = network.edges.length === 0;
+
+  if (panelOnly) return <aside className="dashboard-sidebar" aria-label="Trail Map dashboard">
+    <div className="dashboard-sidebar-actions">
+      <button className="site-btn" type="button" onClick={onFit}>Fit dashboard</button>
+      <button className="settings-close-x" type="button" aria-label="Close Trail Map dashboard"
+        onClick={onClose}>✕</button>
+    </div>
+    {empty && <div className="dashboard-sidebar-empty">
+      <strong>Nothing to map yet</strong>
+      <span>Paint a run or place a lift, and the Trail Map will wire it up.</span>
+    </div>}
+    <NetworkInspector network={network} units={units} selectedLiftId={selectedLiftId}
+      selectedEdge={selectedEdge} servedDirect={served?.result.direct ?? []}
+      servedReachable={served?.result.reachable ?? []} onSelectEdge={onSelectEdge}
+      onToggleTrailClosed={onToggleTrailClosed} onToggleLiftClosed={onToggleLiftClosed}
+      onTogglePathClosed={onTogglePathClosed} />
+  </aside>;
 
   return (
     <div className="network-map" role="dialog" aria-modal="true" aria-label="Mountain node map">

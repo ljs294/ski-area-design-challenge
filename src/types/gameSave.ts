@@ -1,6 +1,7 @@
 import type { SavedLift } from './lifts';
 import type { SavedRoad } from './roads';
-import type { SavedDam, SavedPond, SavedSnowmakingNode } from './snowmaking';
+import type { SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
+  SnowmakingNodeNextNumbers } from './snowmaking';
 import type { SavedJunction, SavedNode, SavedPath } from './topology';
 import type { SavedTrail } from './trails';
 
@@ -13,7 +14,7 @@ export interface SavedSiteBox {
 
 /** A player's persisted resort design. This is a compatibility boundary. */
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
   key: string;
   name: string;
   mountainId?: string;
@@ -33,6 +34,9 @@ export interface GameSave {
   paths?: SavedPath[];
   junctions?: SavedJunction[];
   snowmakingNodes?: SavedSnowmakingNode[];
+  snowmakingPipes?: SavedSnowmakingPipe[];
+  snowguns?: SavedSnowgun[];
+  snowmakingNodeNextNumbers?: SnowmakingNodeNextNumbers;
   lakeDepthOverrides?: Record<string, number>;
   lakeNameOverrides?: Record<string, string>;
   /** Imported standing-water feature IDs designated for snowmaking. */

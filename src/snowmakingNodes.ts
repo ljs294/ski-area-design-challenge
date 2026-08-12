@@ -116,6 +116,8 @@ export function sanitizeSnowmakingNodes(raw: unknown[]): SavedSnowmakingNode[] {
       id: n.id,
       name: n.name,
       kind: n.kind as SnowmakingNodeKind,
+      labelNumber: typeof n.labelNumber === 'number' && Number.isSafeInteger(n.labelNumber) &&
+        n.labelNumber > 0 ? n.labelNumber : undefined,
       point: n.point,
       elevM: typeof n.elevM === 'number' && Number.isFinite(n.elevM) ? n.elevM : null,
       source: sanitizeSource(n.source),

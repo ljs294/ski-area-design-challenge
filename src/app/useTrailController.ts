@@ -106,7 +106,8 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
   const contributionRef = useRef<ManagedMapContribution | null>(null);
   if (!contributionRef.current) contributionRef.current = {
     id: 'trail', zOrder: MAP_Z_ORDER.trail,
-    hits: [{ id: 'trail', priority: MAP_HIT_RANK.trail, layerIds: ['trail-fill'],
+    hits: [{ id: 'trail', priority: MAP_HIT_RANK.trail,
+      layerIds: ['trail-fill', 'dashboard-trail-hit'],
       select: (id) => select(id) }],
     install: ({ map }) => addTrailLayers(map),
     synchronizeData: ({ map }) => {
