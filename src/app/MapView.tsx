@@ -1713,7 +1713,7 @@ export function MapView({
             clearNode: () => dashboards.setSnowSelection(null), clearPipe: () => dashboards.setSnowSelection(null),
             clearGun: () => dashboards.setSnowSelection(null), controller: snowmakingController.network,
             gunController: snowmakingController.guns,
-          }), mapHoveredPipe: dashboards.snowHover },
+          }), mapHoveredPipe: dashboards.snowHover, snowmakingLasso: dashboards.snowLasso },
           onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation,
           onClose: dashboards.close,
         } : null}

@@ -7,6 +7,7 @@ import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingPumpPort } from '../types/snowmaking';
 import { DEFAULT_PUMP_ANALYSIS_DRAFT, type SnowmakingAnalysisState } from './snowmakingAnalysisModel';
 import { snowmakingPumpDirectionSummary, SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
+import type { SnowmakingLassoSelection } from './snowmakingLasso';
 
 const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -43,7 +44,7 @@ function focusPumpPorts(pumpId: string): void {
 export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, relevantGroups,
   sourceResourcesByIntakeId, result, toggleGun, setGuns, toggleIntake, setWetBulb,
   setPumpOn, setPumpHp, setPumpEfficiency, onSetPumpPort, setHoveredGun,
-  hoveredSegmentId, reset }: {
+  hoveredSegmentId, reset, analyze, lasso = null }: {
   state: SnowmakingAnalysisState;
   nodes: readonly SavedSnowmakingNode[];
   pipes: readonly SavedSnowmakingPipe[];
@@ -64,11 +65,14 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
   setHoveredGun(id: string | null): void;
   hoveredSegmentId: string | null;
   reset(): void;
+  analyze(): void;
+  lasso?: SnowmakingLassoSelection | null;
 }) {
   const selectedGuns = new Set(state.selectedGunIds);
   const selectedIntakes = new Set(state.selectedIntakeNodeIds);
   const connectedGunIds = groups.flatMap((group) => group.gunIds);
   const connectedGunSet = new Set(connectedGunIds);
+  const selectedConnectedGunCount = connectedGunIds.filter((id) => selectedGuns.has(id)).length;
   const relevantPumpIds = new Set(relevantGroups.flatMap((group) => group.pumpNodeIds));
   const pumps = nodes.filter((node) => node.kind === 'pump' && relevantPumpIds.has(node.id));
   const pipeById = new Map(pipes.map((pipe) => [pipe.id, pipe]));
@@ -119,12 +123,26 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
     </label>
 
     <div className="snowmaking-analysis-actions">
+      <button className="site-btn site-btn-primary" disabled={state.calculating || selectedConnectedGunCount === 0}
+        onClick={analyze}>Analyze</button>
       <button className="site-btn" onClick={() => setGuns(connectedGunIds)}>Select all connected</button>
       <button className="site-btn" onClick={() => setGuns([])}>Clear guns</button>
       <button className="site-btn" onClick={reset}>Reset analysis</button>
     </div>
 
     <div className="network-section-title">Snowguns</div>
+    <div className="snowmaking-gun-legend" aria-label="Snowgun status legend">
+      {[
+        ['unselected', 'Not selected'], ['selected', 'Selected'],
+        ['selected-ready', 'Selected, analyzed, OK, not operating'],
+        ['operating-ready', 'Operating, OK'],
+        ['selected-failed', 'Selected, analyzed, not OK, not operating'],
+        ['operating-failed', 'Operating, not OK'],
+      ].map(([stateName, label]) => <div key={stateName} className="snowmaking-gun-legend-entry">
+        <span className={`snowmaking-gun-swatch is-${stateName}`} aria-hidden="true" />
+        <span>{label}</span>
+      </div>)}
+    </div>
     {groups.length ? <div className="snowmaking-analysis-groups">{groups.map((group, groupIndex) => {
       const selectedCount = group.gunIds.filter((id) => selectedGuns.has(id)).length;
       const groupGuns = group.gunIds.map((id) => gunById.get(id)).filter(Boolean) as SavedSnowgun[];
@@ -182,6 +200,20 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
         </fieldset>;
       })}</div> : <div className="network-sub">No pumps are attached to the selected systems. Gravity may still supply pressure.</div>}
     </>}
+
+    {lasso && <div className="snowmaking-lasso-popover" style={{ left: lasso.anchor.x, top: lasso.anchor.y }}
+      role="dialog" aria-label="Lasso selection">
+      <div className="snowmaking-lasso-counts">
+        <span>{lasso.gunIds.length} enclosed</span>
+        <span>{lasso.selectedGunCount} selected</span>
+        <span>{lasso.unselectedGunCount} unselected</span>
+      </div>
+      <div className="snowmaking-lasso-actions">
+        <button type="button" aria-label="Add enclosed guns" onClick={lasso.add}>+</button>
+        <button type="button" aria-label="Remove enclosed guns" onClick={lasso.remove}>−</button>
+        <button type="button" aria-label="Cancel lasso selection" onClick={lasso.cancel}>×</button>
+      </div>
+    </div>}
 
     <div aria-live="polite" className={`snowmaking-analysis-results${state.stale ? ' is-stale' : ''}`}>
       {state.calculating && <div className="network-sub">Calculating flows and pressures…</div>}

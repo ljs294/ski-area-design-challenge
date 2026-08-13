@@ -106,6 +106,11 @@ export interface MapContributionContext {
 export type MapPresentationMode = 'dashboard-trails' | 'dashboard-snowmaking' |
   'dashboard-snowmaking-analysis' | null;
 
+function presentationDefaultCursor(mode: MapPresentationMode): string {
+  return mode === 'dashboard-snowmaking' || mode === 'dashboard-snowmaking-analysis'
+    ? 'crosshair' : '';
+}
+
 export interface MapVisibilityDescriptor {
   readonly id: string;
   readonly label: string;
@@ -287,8 +292,9 @@ export class MapContributionRegistry {
   }
 
   setPresentation(mode: MapPresentationMode): void {
-    if (mode !== this.presentationMode) this.clearHitHovers();
+    const changed = mode !== this.presentationMode;
     this.presentationMode = mode;
+    if (changed) this.clearHitHovers();
     const context = this.context;
     if (context && context.styleGeneration > 0) this.applyPresentation(context);
   }
@@ -355,7 +361,8 @@ export class MapContributionRegistry {
 
   clearHitHovers(): void {
     for (const hit of this.hits) hit.hover?.(null);
-    if (this.context) this.context.map.getCanvas().style.cursor = '';
+    if (this.context) this.context.map.getCanvas().style.cursor =
+      presentationDefaultCursor(this.presentationMode);
   }
 
   private applyPresentation(context: MapContributionContext): void {
@@ -411,13 +418,13 @@ export class MapContributionRegistry {
       };
       const hoverMove: HitListener = (event) => {
         if (!this.hitEnabled()) {
-          map.getCanvas().style.cursor = '';
+          map.getCanvas().style.cursor = presentationDefaultCursor(this.presentationMode);
           hit.hover?.(null);
           return;
         }
         const above = guard.filter((layerId) => map.getLayer(layerId));
         if (above.length && map.queryRenderedFeatures(event.point, { layers: above }).length) {
-          map.getCanvas().style.cursor = '';
+          map.getCanvas().style.cursor = presentationDefaultCursor(this.presentationMode);
           hit.hover?.(null);
           return;
         }
@@ -437,7 +444,7 @@ export class MapContributionRegistry {
         } : null);
       };
       const hoverLeave: HitListener = () => {
-        map.getCanvas().style.cursor = '';
+        map.getCanvas().style.cursor = presentationDefaultCursor(this.presentationMode);
         hit.hover?.(null);
       };
       this.bindHit(map, 'mouseenter', hoverLayers, hoverEnter);

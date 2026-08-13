@@ -230,6 +230,18 @@ describe('SnowmakingDashboard', () => {
     expect(html).not.toContain('Remove pipe');
   });
 
+  it('renders an explicit Analyze control and the complete gun status legend', () => {
+    const html = render({ mode: 'analysis', nodes: [nodeA, nodeB, hydrant], pipes: [testPipe],
+      guns: [connectedGun] });
+    expect(html).toContain('>Analyze</button>');
+    expect(html).toContain('Not selected');
+    expect(html).toContain('Selected');
+    expect(html).toContain('Selected, analyzed, OK, not operating');
+    expect(html).toContain('Operating, OK');
+    expect(html).toContain('Selected, analyzed, not OK, not operating');
+    expect(html).toContain('Operating, not OK');
+  });
+
   it('renders every incident pump arm as a persistent port assignment', () => {
     const configuredPipe = { ...testPipe, segments: snowmakingPipeSegments(testPipe)
       .map((segment, index) => ({ id: segment.id, startVertexIndex: segment.startVertexIndex,

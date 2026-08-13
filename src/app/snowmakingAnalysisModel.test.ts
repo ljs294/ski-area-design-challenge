@@ -8,7 +8,7 @@ describe('snowmaking analysis state', () => {
       efficiency: 0.85 });
   });
 
-  it('marks checked results stale after an input changes and reset clears everything', () => {
+  it('clears checked results after an input changes and reset clears everything', () => {
     const result = { status: 'failed' as const, diagnostics: [], systems: [], sources: [],
       summary: { systemCount: 0, readySystemCount: 0, selectedGunCount: 0,
         analyzedGunCount: 0, readyGunCount: 0, notAnalyzedGunCount: 0,
@@ -18,7 +18,8 @@ describe('snowmaking analysis state', () => {
       { type: 'analyzed', result });
     expect(state.stale).toBe(false);
     state = snowmakingAnalysisReducer(state, { type: 'wet-bulb', value: '14' });
-    expect(state.stale).toBe(true);
+    expect(state.stale).toBe(false);
+    expect(state.result).toBeNull();
     expect(snowmakingAnalysisReducer(state, { type: 'reset' }))
       .toEqual(createSnowmakingAnalysisState());
   });

@@ -4,6 +4,7 @@ import { snowgunHydrantDistanceM, snowgunLabel, snowgunVariant } from '../snowma
 import type { SavedSnowgun, SavedSnowmakingNode } from '../types/snowmaking';
 import type { XY } from '../network';
 import type { Units } from './SettingsContext';
+import { snowmakingGunColor, snowmakingGunVisualState } from './dashboardMapLayers';
 
 export function SnowgunDashboardConnections({ guns, nodes, place }: {
   guns: SavedSnowgun[]; nodes: SavedSnowmakingNode[]; place(point: [number, number]): XY;
@@ -21,11 +22,12 @@ export function SnowgunDashboardConnections({ guns, nodes, place }: {
 }
 
 export function SnowgunDashboardMarkers({ guns, nodes, selectedId, hoveredId, analysisSelectedIds,
-  analysisStatuses, width, showTypes, place, select }: {
+  analysisStatuses, analysisOperatingIds, width, showTypes, place, select }: {
   guns: SavedSnowgun[]; nodes: SavedSnowmakingNode[]; selectedId: string | null;
   hoveredId: string | null; width: number; showTypes: boolean;
   analysisSelectedIds?: readonly string[];
   analysisStatuses?: Readonly<Record<string, 'ready' | 'failed' | undefined>>;
+  analysisOperatingIds?: ReadonlySet<string>;
   place(point: [number, number]): XY; select(id: string): void;
 }) {
   const analysisSelected = analysisSelectedIds ? new Set(analysisSelectedIds) : null;
@@ -34,8 +36,12 @@ export function SnowgunDashboardMarkers({ guns, nodes, selectedId, hoveredId, an
     const label = snowgunLabel(gun, nodes), hovered = gun.id === hoveredId;
     const selected = gun.id === selectedId || !!analysisSelected?.has(gun.id);
     const connected = gun.hydrantId != null, status = analysisStatuses?.[gun.id];
+    const analysisMode = analysisSelected !== null;
+    const visualState = analysisMode ? snowmakingGunVisualState({ analysis: true,
+      selected: !!analysisSelected?.has(gun.id), status: status ?? null,
+      operating: analysisOperatingIds?.has(gun.id) ?? false }) : null;
     return <g key={gun.id}
-      className={`snowmaking-dashboard-gun${selected ? ' is-selected' : ''}${hovered ? ' is-hovered' : ''}${connected ? '' : ' is-disconnected'}${status ? ` is-analysis-${status}` : ''}`}
+      className={`snowmaking-dashboard-gun${selected ? ' is-selected' : ''}${hovered ? ' is-hovered' : ''}${connected ? '' : ' is-disconnected'}${visualState ? ` is-analysis-mode is-analysis-${visualState}` : ''}`}
       data-gun-id={gun.id} role="button" tabIndex={0}
       {...(analysisSelected ? { 'aria-pressed': analysisSelected.has(gun.id) } : {})}
       aria-label={`${label}, ${variant.label}, ${connected ? 'connected' : 'disconnected'}`}
@@ -52,7 +58,9 @@ export function SnowgunDashboardMarkers({ guns, nodes, selectedId, hoveredId, an
       {hovered && <circle cx={p.x} cy={p.y} r={width / 85}
         className="snowmaking-dashboard-gun-hover-halo" vectorEffect="non-scaling-stroke" />}
       <circle cx={p.x} cy={p.y} r={width / 180}
-        className="snowmaking-dashboard-gun-dot" vectorEffect="non-scaling-stroke" />
+        className="snowmaking-dashboard-gun-dot" style={visualState ? {
+          fill: snowmakingGunColor(visualState),
+        } : undefined} vectorEffect="non-scaling-stroke" />
       <text x={p.x} y={p.y - width / 60} textAnchor="middle"
         className="snowmaking-dashboard-gun-label" style={{ fontSize: width / 75 }}>
         {showTypes ? `${label} · ${variant.shortLabel}` : label}</text>

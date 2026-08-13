@@ -48,7 +48,10 @@ export function createSnowmakingAnalysisState(): SnowmakingAnalysisState {
 
 function changed(state: SnowmakingAnalysisState,
   patch: Partial<SnowmakingAnalysisState>): SnowmakingAnalysisState {
-  return { ...state, ...patch, stale: state.result !== null, calculating: false, error: null };
+  // Input edits invalidate the last hydraulic snapshot immediately. Keeping
+  // the old result around made it too easy to mistake a previous calculation
+  // for the current selection.
+  return { ...state, ...patch, result: null, stale: false, calculating: false, error: null };
 }
 
 function toggle(ids: readonly string[], id: string): string[] {
@@ -94,7 +97,8 @@ export function snowmakingAnalysisReducer(state: SnowmakingAnalysisState,
       [action.id]: { ...pumpDraft(state, action.id), horsepowerHp: action.value } } });
     case 'pump-efficiency': return changed(state, { pumpSettings: { ...state.pumpSettings,
       [action.id]: { ...pumpDraft(state, action.id), efficiencyPercent: action.value } } });
-    case 'calculation-started': return { ...state, calculating: true, error: null };
+    case 'calculation-started': return { ...state, result: null, stale: false,
+      calculating: true, error: null };
     case 'analyzed': return { ...state, result: action.result, stale: false,
       calculating: false, error: null };
     case 'analysis-error': return { ...state, calculating: false, error: action.message };

@@ -3890,6 +3890,59 @@ html.resume-capture .maplibregl-canvas {
 .snowmaking-analysis-pumps legend { padding: 0 4px; font-weight: 700; }
 .snowmaking-analysis-pump-toggle { justify-content: flex-start !important; }
 .snowmaking-analysis-actions { display: flex; gap: 8px; margin: 14px 0; }
+.snowmaking-analysis-actions { flex-wrap: wrap; }
+.snowmaking-gun-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  margin: 8px 0 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+.snowmaking-gun-legend-entry { display: flex; align-items: center; gap: 6px; }
+.snowmaking-gun-swatch {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(15, 23, 42, 0.28);
+  border-radius: 50%;
+}
+.snowmaking-gun-swatch.is-unselected { background: #9ca3af; }
+.snowmaking-gun-swatch.is-selected { background: #000; }
+.snowmaking-gun-swatch.is-selected-ready { background: #86efac; }
+.snowmaking-gun-swatch.is-operating-ready { background: #166534; }
+.snowmaking-gun-swatch.is-selected-failed { background: #fca5a5; }
+.snowmaking-gun-swatch.is-operating-failed { background: #991b1b; }
+.snowmaking-lasso-popover {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 7px;
+  min-width: 170px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, #2563eb);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-solid) 94%, transparent);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(10px);
+  transform: translate(8px, 8px);
+}
+.snowmaking-lasso-counts { display: grid; gap: 2px; color: var(--text-muted); font-size: 11px; }
+.snowmaking-lasso-actions { display: flex; gap: 5px; }
+.snowmaking-lasso-actions button {
+  width: 28px;
+  height: 25px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.snowmaking-lasso-actions button:hover { border-color: #2563eb; background: #eff6ff; }
 .snowmaking-analysis-results.is-stale > :not(.lift-warning) { opacity: 0.48; }
 .snowmaking-analysis-diagnostics,
 .snowmaking-analysis-verdict { padding: 9px; border-radius: 7px; }
@@ -3918,20 +3971,35 @@ html.resume-capture .maplibregl-canvas {
 .snowmaking-analysis-table > .is-ready { border-left-color: #16a34a; }
 .snowmaking-analysis-table > .is-failed { border-left-color: #dc2626; }
 .snowmaking-analysis-table small { color: var(--text-muted); }
-.snowmaking-dashboard-gun.is-analysis-ready .snowmaking-dashboard-gun-halo {
+.snowmaking-dashboard-gun.is-analysis-selected-ready .snowmaking-dashboard-gun-halo {
   fill: rgba(14, 165, 233, 0.14);
   stroke: #7dd3fc;
 }
-.snowmaking-dashboard-gun.is-analysis-ready .snowmaking-dashboard-gun-operating-ring {
+.snowmaking-dashboard-gun.is-analysis-selected-ready .snowmaking-dashboard-gun-operating-ring {
   stroke: #0284c7;
 }
-.snowmaking-dashboard-gun.is-analysis-failed .snowmaking-dashboard-gun-halo {
+.snowmaking-dashboard-gun.is-analysis-selected-failed .snowmaking-dashboard-gun-halo {
   fill: rgba(245, 158, 11, 0.14);
   stroke: #fbbf24;
   filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.4));
 }
-.snowmaking-dashboard-gun.is-analysis-failed .snowmaking-dashboard-gun-operating-ring {
+.snowmaking-dashboard-gun.is-analysis-selected-failed .snowmaking-dashboard-gun-operating-ring {
   stroke: #d97706;
+  stroke-dasharray: 3 2;
+}
+.snowmaking-dashboard-gun.is-analysis-mode.is-analysis-operating-ready .snowmaking-dashboard-gun-halo {
+  fill: rgba(22, 101, 52, 0.18);
+  stroke: #166534;
+}
+.snowmaking-dashboard-gun.is-analysis-mode.is-analysis-operating-ready .snowmaking-dashboard-gun-operating-ring {
+  stroke: #14532d;
+}
+.snowmaking-dashboard-gun.is-analysis-mode.is-analysis-operating-failed .snowmaking-dashboard-gun-halo {
+  fill: rgba(153, 27, 27, 0.18);
+  stroke: #991b1b;
+}
+.snowmaking-dashboard-gun.is-analysis-mode.is-analysis-operating-failed .snowmaking-dashboard-gun-operating-ring {
+  stroke: #7f1d1d;
   stroke-dasharray: 3 2;
 }
 

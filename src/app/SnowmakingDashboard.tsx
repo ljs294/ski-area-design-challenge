@@ -20,6 +20,7 @@ import { ringAreaM2, ringPathD } from './snowmakingDashboardModel';
 import { snowmakingPressureColor, snowmakingPressureRange } from './snowmakingPressureHeatmap';
 import { useSnowmakingAnalysis } from './useSnowmakingAnalysis';
 import type { SnowmakingMapPresentation } from './dashboardMapLayers';
+import type { SnowmakingLassoSelection } from './snowmakingLasso';
 import { SnowmakingDashboardInspector } from './SnowmakingDashboardInspector';
 import { SnowmakingPipeHoverDetails, type SnowmakingPipeHoverState } from './SnowmakingPipeHover';
 
@@ -116,6 +117,7 @@ export function SnowmakingDashboard({
   onFit,
   onPresentationChange,
   mapHoveredPipe = null,
+  snowmakingLasso = null,
 }: {
   dams: SavedDam[];
   ponds: SavedPond[];
@@ -149,6 +151,7 @@ export function SnowmakingDashboard({
   onFit?: () => void;
   onPresentationChange?: (presentation: SnowmakingMapPresentation) => void;
   mapHoveredPipe?: SnowmakingPipeHoverState | null;
+  snowmakingLasso?: SnowmakingLassoSelection | null;
 }) {
   const [view, setView] = useState<View | null>(null);
   const [showGunTypes, setShowGunTypes] = useState(false);
@@ -157,7 +160,7 @@ export function SnowmakingDashboard({
   const [pendingHydrantDeleteId, setPendingHydrantDeleteId] = useState<string | null>(null);
   const { state: analysis, dispatch: analysisDispatch, groups: analysisGroups,
     relevantGroups: analysisRelevantGroups, routing: analysisRouting,
-    gunStatuses: analysisStatuses,
+    gunStatuses: analysisStatuses, analyze,
     sourceResourcesByIntakeId } = useSnowmakingAnalysis({ nodes, pipes, guns, dams, ponds, lakes });
   const solvedSegments = useMemo(() => (analysis.stale ? [] : analysis.result?.systems ?? [])
     .flatMap((system) => system.segments), [analysis.result, analysis.stale]);
@@ -182,10 +185,12 @@ export function SnowmakingDashboard({
     relevantSegmentColors,
     selectedGunIds: new Set(analysis.selectedGunIds),
     gunStatuses: analysisStatuses ?? {},
+    operatingGunIds: new Set(),
     invalidPumpIds,
     pressureRange,
     showGunTypes,
     toggleGun: (id) => analysisDispatch({ type: 'toggle-gun', id }),
+    setGuns: (ids) => analysisDispatch({ type: 'set-guns', ids }),
     setHoveredSegment: setHoveredSegmentId,
   }), [mode, solvedSegments, relevantSegmentColors, analysis.selectedGunIds,
     analysisStatuses, invalidPumpIds, pressureRange, showGunTypes, onPresentationChange,
@@ -418,6 +423,7 @@ export function SnowmakingDashboard({
       sourceResourcesByIntakeId={sourceResourcesByIntakeId} result={analysis.result}
       toggleGun={(id) => analysisDispatch({ type: 'toggle-gun', id })}
       setGuns={(ids) => analysisDispatch({ type: 'set-guns', ids })}
+      analyze={analyze} lasso={snowmakingLasso}
       toggleIntake={(id) => analysisDispatch({ type: 'toggle-intake', id })}
       setWetBulb={(value) => analysisDispatch({ type: 'wet-bulb', value })}
       setPumpOn={(id, on) => analysisDispatch({ type: 'pump-on', id, on })}
@@ -658,7 +664,8 @@ export function SnowmakingDashboard({
           <SnowgunDashboardMarkers guns={guns} nodes={nodes}
             selectedId={mode === 'inspect' ? selectedGunId : null} hoveredId={hoveredGunId}
             analysisSelectedIds={mode === 'analysis' ? analysis.selectedGunIds : undefined}
-            analysisStatuses={analysisStatuses} width={active.w} showTypes={showGunTypes} place={place}
+            analysisStatuses={analysisStatuses} analysisOperatingIds={new Set()} width={active.w}
+            showTypes={showGunTypes} place={place}
             select={(id) => {
               if (mode === 'analysis') {
                 if (guns.find((gun) => gun.id === id)?.hydrantId) {
@@ -716,6 +723,7 @@ export function SnowmakingDashboard({
         sourceResourcesByIntakeId={sourceResourcesByIntakeId} result={analysis.result}
         toggleGun={(id) => analysisDispatch({ type: 'toggle-gun', id })}
         setGuns={(ids) => analysisDispatch({ type: 'set-guns', ids })}
+        analyze={analyze} lasso={snowmakingLasso}
         toggleIntake={(id) => analysisDispatch({ type: 'toggle-intake', id })}
         setWetBulb={(value) => analysisDispatch({ type: 'wet-bulb', value })}
         setPumpOn={(id, on) => analysisDispatch({ type: 'pump-on', id, on })}

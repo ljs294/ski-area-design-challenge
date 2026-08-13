@@ -15,6 +15,7 @@ import type { DashboardKind, SnowmakingDashboardMode } from './dashboardMode';
 import { localContourGeoJSON } from './localContours';
 import { snowmakingPressureColor } from './snowmakingPressureHeatmap';
 import type { Units } from './SettingsContext';
+import type { SnowmakingLassoMapState } from './snowmakingLasso';
 
 export const DASHBOARD_SOURCE = 'dashboard-map';
 export const DASHBOARD_LAYER_IDS = [
@@ -25,7 +26,8 @@ export const DASHBOARD_LAYER_IDS = [
   'dashboard-snow-pipes', 'dashboard-snow-flow-arrows', 'dashboard-snow-flow-labels',
   'dashboard-snow-pump-arrows', 'dashboard-snow-pump-port-labels',
   'dashboard-snow-gun-connections', 'dashboard-snow-nodes',
-  'dashboard-snow-hydrants', 'dashboard-snow-node-labels', 'dashboard-snow-guns',
+  'dashboard-snow-hydrants', 'dashboard-snow-node-labels', 'dashboard-snow-gun-lasso-fill',
+  'dashboard-snow-gun-lasso-line', 'dashboard-snow-guns',
   'dashboard-snow-gun-labels', 'dashboard-snow-gun-warnings',
   'dashboard-snow-pipe-hit', 'dashboard-snow-node-hit', 'dashboard-snow-gun-hit',
 ] as const;
@@ -44,8 +46,39 @@ export interface SnowmakingMapPresentation {
   invalidPumpIds: ReadonlySet<string>;
   pressureRange: { minPsi: number; maxPsi: number } | null;
   showGunTypes: boolean;
+  operatingGunIds?: ReadonlySet<string>;
   toggleGun(id: string): void;
+  setGuns(ids: string[]): void;
   setHoveredSegment(id: string | null): void;
+}
+
+export type SnowmakingGunVisualState = 'operating-ready' | 'operating-failed' |
+  'selected-ready' | 'selected-failed' | 'selected' | 'unselected';
+
+export function snowmakingGunVisualState(input: {
+  analysis: boolean;
+  selected: boolean;
+  status: 'ready' | 'failed' | null | undefined;
+  operating: boolean;
+}): SnowmakingGunVisualState {
+  if (input.analysis && input.operating) {
+    return input.status === 'failed' ? 'operating-failed' : 'operating-ready';
+  }
+  if (input.analysis && input.selected) {
+    if (input.status === 'ready') return 'selected-ready';
+    if (input.status === 'failed') return 'selected-failed';
+    return 'selected';
+  }
+  return input.analysis ? 'unselected' : input.status === 'ready' ? 'selected-ready'
+    : input.status === 'failed' ? 'selected-failed' : 'selected';
+}
+
+export function snowmakingGunColor(state: SnowmakingGunVisualState): string {
+  return {
+    'operating-ready': '#166534', 'operating-failed': '#991b1b',
+    'selected-ready': '#86efac', 'selected-failed': '#fca5a5',
+    selected: '#000000', unselected: '#9ca3af',
+  }[state];
 }
 
 export interface DashboardMapData {
@@ -68,6 +101,7 @@ export interface DashboardMapData {
   selectedSnowmaking: { kind: 'node' | 'gun'; id: string } |
     { kind: 'pipe'; id: string; segmentId: string | null } | null;
   snowmakingPresentation: SnowmakingMapPresentation | null;
+  snowmakingLasso?: SnowmakingLassoMapState | null;
 }
 
 type Props = Record<string, string | number | boolean | null>;
@@ -323,12 +357,22 @@ function snowmakingFeatures(input: DashboardMapData): Feature[] {
     ? `${node.kind === 'pump' ? 'P' : node.kind === 'hydrant' ? 'H' : 'J'}${node.labelNumber}` : node.name,
     selected: input.selectedSnowmaking?.kind === 'node' && input.selectedSnowmaking.id === node.id,
     invalidDirection: presentation?.invalidPumpIds.has(node.id) ?? false }));
+  if (input.snowmakingLasso) {
+    const [west, south, east, north] = input.snowmakingLasso.geoBounds;
+    features.push(feature('snow-gun-lasso', polygon([
+      [west, south], [east, south], [east, north], [west, north], [west, south],
+    ]), { gunCount: input.snowmakingLasso.gunIds.length }));
+  }
   for (const gun of input.guns) {
     const status = presentation?.gunStatuses[gun.id] ?? null;
+    const selected = presentation?.mode === 'analysis'
+      ? presentation.selectedGunIds.has(gun.id) : input.selectedSnowmaking?.kind === 'gun' &&
+        input.selectedSnowmaking.id === gun.id;
     features.push(feature('snow-gun', { type: 'Point', coordinates: gun.point }, {
-      id: gun.id, connected: !!gun.hydrantId, selected: presentation?.mode === 'analysis'
-        ? presentation.selectedGunIds.has(gun.id) : input.selectedSnowmaking?.kind === 'gun' &&
-          input.selectedSnowmaking.id === gun.id,
+      id: gun.id, connected: !!gun.hydrantId, selected,
+      lassoed: !!input.snowmakingLasso?.gunIds.includes(gun.id),
+      analysis: presentation?.mode === 'analysis',
+      operating: presentation?.operatingGunIds?.has(gun.id) ?? false,
       status, label: presentation?.showGunTypes ? gun.variantId : '',
     }));
   }
@@ -474,11 +518,28 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
       'text-size': 11, 'text-offset': [0, -1.2], 'text-anchor': 'bottom',
       'text-font': ['Noto Sans Regular'], 'text-optional': true },
     paint: { 'text-color': '#27303f', 'text-halo-color': '#f4f1ea', 'text-halo-width': 1.5 } });
+  map.addLayer({ id: 'dashboard-snow-gun-lasso-fill', type: 'fill', source: DASHBOARD_SOURCE,
+    filter: filter('snow-gun-lasso'), layout: { visibility: 'none' }, paint: {
+      'fill-color': '#60a5fa', 'fill-opacity': 0.08,
+    } });
+  map.addLayer({ id: 'dashboard-snow-gun-lasso-line', type: 'line', source: DASHBOARD_SOURCE,
+    filter: filter('snow-gun-lasso'), layout: { visibility: 'none' }, paint: {
+      'line-color': '#2563eb', 'line-width': 1.5, 'line-dasharray': [2, 2],
+      'line-opacity': 0.85,
+    } });
   map.addLayer({ id: 'dashboard-snow-guns', type: 'circle', source: DASHBOARD_SOURCE,
     filter: filter('snow-gun'), layout: { visibility: 'none' }, paint: {
       'circle-radius': ['case', ['get', 'selected'], 8, 5],
-      'circle-color': ['match', ['get', 'status'], 'ready', '#22c55e', 'failed', '#dc2626', '#000000'],
-      'circle-stroke-color': ['case', ['get', 'connected'], '#000000', '#dc2626'],
+      'circle-color': ['case',
+        ['all', ['get', 'analysis'], ['get', 'operating'], ['==', ['get', 'status'], 'failed']], '#991b1b',
+        ['all', ['get', 'analysis'], ['get', 'operating']], '#166534',
+        ['all', ['get', 'analysis'], ['get', 'selected'], ['==', ['get', 'status'], 'failed']], '#fca5a5',
+        ['all', ['get', 'analysis'], ['get', 'selected'], ['==', ['get', 'status'], 'ready']], '#86efac',
+        ['all', ['get', 'analysis'], ['get', 'selected']], '#000000',
+        ['get', 'analysis'], '#9ca3af',
+        ['match', ['get', 'status'], 'ready', '#22c55e', 'failed', '#dc2626', '#000000']],
+      'circle-stroke-color': ['case', ['get', 'lassoed'], '#2563eb',
+        ['case', ['get', 'connected'], '#000000', '#dc2626']],
       'circle-stroke-width': ['case', ['get', 'selected'], 3, ['get', 'connected'], 0, 1.5],
     } });
   map.addLayer({ id: 'dashboard-snow-gun-labels', type: 'symbol', source: DASHBOARD_SOURCE,

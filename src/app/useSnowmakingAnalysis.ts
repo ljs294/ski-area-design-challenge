@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { deriveSnowmakingAnalysisGroups, snowmakingSourceKey,
   type SnowmakingSourceResource } from '../snowmakingHydraulics';
 import { deriveSnowmakingRoutingForest } from '../snowmakingRouting';
@@ -34,6 +34,10 @@ export function useSnowmakingAnalysis(input: {
   useEffect(() => dispatch({ type: 'reconcile', gunIds, intakeNodeIds, pumpIds }),
     [gunIds, intakeNodeIds, pumpIds]);
 
+  useEffect(() => {
+    dispatch({ type: 'clear-result' });
+  }, [nodes, pipes, guns, dams, ponds, lakes]);
+
   const selectedGunSet = useMemo(() => new Set(state.selectedGunIds), [state.selectedGunIds]);
   const relevantGroups = useMemo(() => groups.filter((group) =>
     group.gunIds.some((id) => selectedGunSet.has(id))), [groups, selectedGunSet]);
@@ -66,26 +70,32 @@ export function useSnowmakingAnalysis(input: {
   }), [nodes, pipes, guns, state.selectedGunIds, state.selectedIntakeNodeIds,
     analysisPumpSettings]);
 
+  // Any edit to the current snapshot invalidates work that was started from
+  // the previous snapshot. It does not start a replacement request; analysis
+  // is deliberately an explicit user action now.
   useEffect(() => {
     const adapter = adapterRef.current!;
-    if (state.selectedGunIds.length === 0) {
-      adapter.cancel(); dispatch({ type: 'clear-result' }); return;
-    }
+    return () => { adapter.cancel(); };
+  }, [nodes, pipes, guns, sourceResourcesByIntakeId, state.selectedGunIds,
+    state.selectedIntakeNodeIds, state.wetBulbF, analysisPumpSettings]);
+
+  const analyze = useCallback(() => {
+    if (state.selectedGunIds.length === 0 || state.calculating) return;
+    const adapter = adapterRef.current!;
     dispatch({ type: 'calculation-started' });
-    const timeout = window.setTimeout(() => adapter.run({
+    adapter.run({
       nodes, pipes, guns,
-      selectedGunIds: state.selectedGunIds,
-      selectedIntakeNodeIds: state.selectedIntakeNodeIds,
+      selectedGunIds: [...state.selectedGunIds],
+      selectedIntakeNodeIds: [...state.selectedIntakeNodeIds],
       wetBulbF: Number(state.wetBulbF),
       pumpSettings: analysisPumpSettings,
       sourceResourcesByIntakeId,
     }, {
       onResult: (result) => dispatch({ type: 'analyzed', result }),
       onError: (message) => dispatch({ type: 'analysis-error', message }),
-    }), 200);
-    return () => { window.clearTimeout(timeout); adapter.cancel(); };
-  }, [nodes, pipes, guns, sourceResourcesByIntakeId, state.selectedGunIds,
-    state.selectedIntakeNodeIds, state.wetBulbF, analysisPumpSettings]);
+    });
+  }, [state.selectedGunIds, state.calculating, state.selectedIntakeNodeIds, state.wetBulbF,
+    nodes, pipes, guns, analysisPumpSettings, sourceResourcesByIntakeId]);
 
   useEffect(() => () => adapterRef.current?.dispose(), []);
 
@@ -94,6 +104,6 @@ export function useSnowmakingAnalysis(input: {
       gun.status === 'ready' ? 'ready' as const : 'failed' as const]))) : undefined,
   [state.stale, state.result]);
 
-  return { state, dispatch, groups, relevantGroups, routing, gunStatuses,
+  return { state, dispatch, analyze, groups, relevantGroups, routing, gunStatuses,
     sourceResourcesByIntakeId };
 }

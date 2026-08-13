@@ -3,7 +3,7 @@ import { buildSkiNetwork } from '../network';
 import { snowmakingPipeSegments } from '../snowmakingNetwork';
 import type { SavedLift } from '../types';
 import { addDashboardMapLayers, dashboardGeoJSON, orientedSnowmakingFlow, snowmakingArrowGlyphRotation, snowmakingPumpArmMarker,
-  snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
+  snowmakingGunColor, snowmakingGunVisualState, snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
 
 const lift: SavedLift = {
   id: 'lift-1', identifier: 'A', name: 'Summit', liftClass: 'fixed-grip', chairSize: 4,
@@ -29,6 +29,17 @@ function data(kind: DashboardMapData['kind']): DashboardMapData {
 }
 
 describe('dashboard MapLibre projection', () => {
+  it('gives operating status precedence over analyzed selection status', () => {
+    expect(snowmakingGunColor(snowmakingGunVisualState({ analysis: true,
+      selected: true, status: 'ready', operating: true }))).toBe('#166534');
+    expect(snowmakingGunColor(snowmakingGunVisualState({ analysis: true,
+      selected: true, status: 'failed', operating: true }))).toBe('#991b1b');
+    expect(snowmakingGunColor(snowmakingGunVisualState({ analysis: true,
+      selected: true, status: 'ready', operating: false }))).toBe('#86efac');
+    expect(snowmakingGunColor(snowmakingGunVisualState({ analysis: true,
+      selected: false, status: null, operating: false }))).toBe('#9ca3af');
+  });
+
   it('projects the ski graph with grid, edge identity, and lift hit identity', () => {
     const result = dashboardGeoJSON(data('trails'));
     expect(result.features.some((row) => row.properties?.kind === 'grid')).toBe(true);
@@ -52,6 +63,29 @@ describe('dashboard MapLibre projection', () => {
     expect(result.features.filter((row) => row.properties?.kind === 'backdrop')).toHaveLength(1);
   });
 
+  it('projects transient lasso geometry and highlighted gun properties', () => {
+    const input = data('snowmaking');
+    input.guns = [{ id: 'gun-1', variantId: 'HKD_ImpulseR5_20t', point: [-121.495, 46.905],
+      elevM: 1000, hydrantId: 'hydrant-1', createdAt: '2026-01-01' }];
+    input.snowmakingLasso = { rect: { minX: 1, minY: 2, maxX: 3, maxY: 4 },
+      geoBounds: [-121.5, 46.9, -121.49, 46.91], gunIds: ['gun-1'] };
+    input.snowmakingPresentation = {
+      mode: 'analysis', segments: [], relevantSegmentColors: new Map(), selectedGunIds: new Set(['gun-1']),
+      gunStatuses: { 'gun-1': 'ready' }, invalidPumpIds: new Set(), pressureRange: null,
+      showGunTypes: false, toggleGun: () => {}, setGuns: () => {}, setHoveredSegment: () => {},
+    };
+    const result = dashboardGeoJSON(input);
+    expect(result.features).toContainEqual(expect.objectContaining({
+      properties: expect.objectContaining({ kind: 'snow-gun-lasso' }),
+      geometry: { type: 'Polygon', coordinates: [[[-121.5, 46.9], [-121.49, 46.9],
+        [-121.49, 46.91], [-121.5, 46.91], [-121.5, 46.9]]] },
+    }));
+    expect(result.features).toContainEqual(expect.objectContaining({
+      properties: expect.objectContaining({ kind: 'snow-gun', lassoed: true,
+        analysis: true, operating: false, status: 'ready' }),
+    }));
+  });
+
   it('projects compact hydraulic labels at the physical segment midpoint', () => {
     const input = data('snowmaking');
     input.snowmakingPresentation = {
@@ -64,7 +98,7 @@ describe('dashboard MapLibre projection', () => {
       relevantSegmentColors: new Map([['pipe-1:segment:0', '#123456']]),
       selectedGunIds: new Set(), gunStatuses: {}, invalidPumpIds: new Set(),
       pressureRange: { minPsi: 80, maxPsi: 100 },
-      showGunTypes: false, toggleGun: () => {}, setHoveredSegment: () => {},
+      showGunTypes: false, toggleGun: () => {}, setGuns: () => {}, setHoveredSegment: () => {},
     };
     const result = dashboardGeoJSON(input);
     const pipe = result.features.find((row) => row.properties?.kind === 'snow-pipe');
