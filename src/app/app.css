@@ -3658,7 +3658,7 @@ html.resume-capture .maplibregl-canvas {
 .snowmaking-dashboard-flow-arrow {
   fill: #111827;
   stroke: rgba(255, 255, 255, 0.9);
-  stroke-width: 0.8px;
+  stroke-width: 1.2px;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }

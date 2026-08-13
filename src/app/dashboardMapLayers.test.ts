@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildSkiNetwork } from '../network';
 import { snowmakingPipeSegments } from '../snowmakingNetwork';
 import type { SavedLift } from '../types';
-import { dashboardGeoJSON, orientedSnowmakingFlow, snowmakingArrowGlyphRotation, snowmakingPumpArmMarker,
+import { addDashboardMapLayers, dashboardGeoJSON, orientedSnowmakingFlow, snowmakingArrowGlyphRotation, snowmakingPumpArmMarker,
   snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
 
 const lift: SavedLift = {
@@ -104,6 +104,19 @@ describe('dashboard MapLibre projection', () => {
     expect(snowmakingArrowGlyphRotation(90)).toBe(0);
     expect(snowmakingArrowGlyphRotation(180)).toBe(90);
     expect(snowmakingArrowGlyphRotation(270)).toBe(180);
+  });
+
+  it('does not let MapLibre flip directional glyphs back to upright', () => {
+    const layers: { id: string; layout?: Record<string, unknown> }[] = [];
+    const map = { getSource: () => undefined, addSource: () => {},
+      addLayer: (layer: { id: string; layout?: Record<string, unknown> }) => layers.push(layer) };
+    addDashboardMapLayers(map as never);
+    for (const id of ['dashboard-snow-flow-arrows', 'dashboard-snow-pump-arrows']) {
+      const layer = layers.find((candidate) => candidate.id === id);
+      expect(layer?.layout?.['text-keep-upright']).toBe(false);
+    }
+    expect(layers.find((layer) => layer.id === 'dashboard-snow-flow-arrows')?.layout?.['text-field'])
+      .toBe('▶');
   });
 
   it('points suction arms toward pumps and discharge arms away from pumps', () => {

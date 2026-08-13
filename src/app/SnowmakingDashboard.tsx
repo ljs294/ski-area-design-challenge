@@ -589,7 +589,7 @@ export function SnowmakingDashboard({
                   `${FLOW_NUMBER.format(Math.abs(flow.flowGpm))} GPM, ${FLOW_NUMBER.format(flow.upstreamPressurePsi)} to ${FLOW_NUMBER.format(flow.downstreamPressurePsi)} PSI`}>
                   {flow.active && annotation.arrows.map((arrow, index) => <path
                     key={`${segment.id}:arrow:${index}`} className="snowmaking-dashboard-flow-arrow"
-                    data-flow-arrow="true" d="M-5,-3 L5,0 L-5,3 Z"
+                    data-flow-arrow="true" d="M-8,-5 L8,0 L-8,5 Z"
                     transform={`translate(${arrow.x} ${arrow.y}) rotate(${Math.atan2(
                       arrow.tangentY, arrow.tangentX) * 180 / Math.PI}) scale(${active.w / NOMINAL_PX})`} />)}
                   <text x={annotation.flowLabel.x} y={annotation.flowLabel.y}

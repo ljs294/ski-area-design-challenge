@@ -417,11 +417,16 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
         ['all', ['get', 'analysis'], ['!', ['get', 'active']]], 0.45, 1] } });
   map.addLayer({ id: 'dashboard-snow-flow-arrows', type: 'symbol', source: DASHBOARD_SOURCE,
     filter: filter('snow-flow-arrow'), layout: { visibility: 'none',
-      'symbol-placement': 'point', 'text-field': '›', 'text-size': 14,
+      // Direction markers must be allowed to turn upside down. MapLibre's
+      // default keep-upright behavior is useful for labels, but it mirrors an
+      // arrow after a 90-degree turn and makes it point against the solved
+      // hydraulic flow.
+      'symbol-placement': 'point', 'text-field': '▶', 'text-size': 18,
       'text-font': ['Noto Sans Regular'], 'text-rotate': ['get', 'rotation'],
-      'text-rotation-alignment': 'map', 'text-allow-overlap': true },
-    paint: { 'text-color': '#344054', 'text-opacity': 0.68,
-      'text-halo-color': '#f4f1ea', 'text-halo-width': 0.75 } });
+      'text-rotation-alignment': 'map', 'text-keep-upright': false,
+      'text-allow-overlap': true },
+    paint: { 'text-color': '#172033', 'text-opacity': 0.95,
+      'text-halo-color': '#f4f1ea', 'text-halo-width': 1.25 } });
   map.addLayer({ id: 'dashboard-snow-flow-labels', type: 'symbol', source: DASHBOARD_SOURCE,
     filter: filter('snow-pipe-label'), layout: {
       visibility: 'none', 'symbol-placement': 'point', 'text-field': ['get', 'flowLabel'],
@@ -434,7 +439,8 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
     filter: filter('snow-pump-direction'), layout: { visibility: 'none',
       'symbol-placement': 'point', 'text-field': '▶', 'text-size': 16,
       'text-font': ['Noto Sans Regular'], 'text-rotate': ['get', 'rotation'],
-      'text-rotation-alignment': 'map', 'text-allow-overlap': true }, paint: {
+      'text-rotation-alignment': 'map', 'text-keep-upright': false,
+      'text-allow-overlap': true }, paint: {
       'text-color': ['match', ['get', 'port'], 'suction', '#2563eb', '#d97706'],
       'text-halo-color': '#f4f1ea', 'text-halo-width': 1.5,
     } });
