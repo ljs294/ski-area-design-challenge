@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { deriveSnowmakingAnalysisGroups, snowmakingSourceKey,
   type SnowmakingSourceResource } from '../snowmakingHydraulics';
-import { deriveSnowmakingRoutingForest } from '../snowmakingRouting';
+import { deriveSnowmakingRoutingForest, prepareSnowmakingRoutingTopology } from '../snowmakingRouting';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingLakeSource } from '../types/snowmaking';
 import type { SavedDam, SavedPond } from '../types';
@@ -63,12 +63,14 @@ export function useSnowmakingAnalysis(input: {
   })), [nodes, dams, ponds, lakes]);
   const analysisPumpSettings = useMemo(() => Object.fromEntries(pumpIds.map((id) => [id,
     pumpAnalysisSetting(state.pumpSettings[id])])), [pumpIds, state.pumpSettings]);
+  const routingTopology = useMemo(() => prepareSnowmakingRoutingTopology({ nodes, pipes }),
+    [nodes, pipes]);
   const routing = useMemo(() => deriveSnowmakingRoutingForest({ nodes, pipes, guns,
     selectedGunIds: state.selectedGunIds,
     selectedIntakeNodeIds: state.selectedIntakeNodeIds,
-    pumpSettings: analysisPumpSettings,
+    pumpSettings: analysisPumpSettings, topology: routingTopology,
   }), [nodes, pipes, guns, state.selectedGunIds, state.selectedIntakeNodeIds,
-    analysisPumpSettings]);
+    analysisPumpSettings, routingTopology]);
 
   // Any edit to the current snapshot invalidates work that was started from
   // the previous snapshot. It does not start a replacement request; analysis

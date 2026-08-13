@@ -3470,13 +3470,6 @@ html.resume-capture .maplibregl-canvas {
   pointer-events: none;
 }
 
-.snowmaking-dashboard-gun-operating-ring {
-  fill: rgba(255, 255, 255, 0.78);
-  stroke: #0ea5e9;
-  stroke-width: 1.4;
-  pointer-events: none;
-}
-
 .snowmaking-dashboard-gun-hover-halo {
   fill: color-mix(in srgb, #8b5cf6 14%, transparent);
   stroke: #7c3aed;
@@ -3889,8 +3882,23 @@ html.resume-capture .maplibregl-canvas {
 }
 .snowmaking-analysis-pumps legend { padding: 0 4px; font-weight: 700; }
 .snowmaking-analysis-pump-toggle { justify-content: flex-start !important; }
-.snowmaking-analysis-actions { display: flex; gap: 8px; margin: 14px 0; }
-.snowmaking-analysis-actions { flex-wrap: wrap; }
+.snowmaking-analysis-actions { display: grid; gap: 8px; margin: 14px 0; }
+.snowmaking-analysis-selection-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.snowmaking-analysis-selection-actions .site-btn {
+  min-width: 0;
+  padding-inline: 6px;
+  font-size: 11px;
+}
+.snowmaking-analysis-selection-actions .site-btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  color: var(--accent);
+}
+.snowmaking-analysis-run { width: 100%; min-height: 30px; }
 .snowmaking-gun-legend {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3975,32 +3983,18 @@ html.resume-capture .maplibregl-canvas {
   fill: rgba(14, 165, 233, 0.14);
   stroke: #7dd3fc;
 }
-.snowmaking-dashboard-gun.is-analysis-selected-ready .snowmaking-dashboard-gun-operating-ring {
-  stroke: #0284c7;
-}
 .snowmaking-dashboard-gun.is-analysis-selected-failed .snowmaking-dashboard-gun-halo {
   fill: rgba(245, 158, 11, 0.14);
   stroke: #fbbf24;
   filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.4));
 }
-.snowmaking-dashboard-gun.is-analysis-selected-failed .snowmaking-dashboard-gun-operating-ring {
-  stroke: #d97706;
-  stroke-dasharray: 3 2;
-}
 .snowmaking-dashboard-gun.is-analysis-mode.is-analysis-operating-ready .snowmaking-dashboard-gun-halo {
   fill: rgba(22, 101, 52, 0.18);
   stroke: #166534;
 }
-.snowmaking-dashboard-gun.is-analysis-mode.is-analysis-operating-ready .snowmaking-dashboard-gun-operating-ring {
-  stroke: #14532d;
-}
 .snowmaking-dashboard-gun.is-analysis-mode.is-analysis-operating-failed .snowmaking-dashboard-gun-halo {
   fill: rgba(153, 27, 27, 0.18);
   stroke: #991b1b;
-}
-.snowmaking-dashboard-gun.is-analysis-mode.is-analysis-operating-failed .snowmaking-dashboard-gun-operating-ring {
-  stroke: #7f1d1d;
-  stroke-dasharray: 3 2;
 }
 
 @media (max-width: 900px) {

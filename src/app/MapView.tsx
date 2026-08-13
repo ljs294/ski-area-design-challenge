@@ -1713,9 +1713,9 @@ export function MapView({
             clearNode: () => dashboards.setSnowSelection(null), clearPipe: () => dashboards.setSnowSelection(null),
             clearGun: () => dashboards.setSnowSelection(null), controller: snowmakingController.network,
             gunController: snowmakingController.guns,
-          }), mapHoveredPipe: dashboards.snowHover, snowmakingLasso: dashboards.snowLasso },
-          onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation,
-          onClose: dashboards.close,
+          }), mapHoveredPipe: dashboards.snowHover, snowmakingLasso: dashboards.snowLasso, snowGunSelectionPhase: dashboards.snowGunSelectionPhase,
+          onToggleSnowGunSelection: dashboards.toggleSnowGunSelection, onCancelSnowGunSelection: dashboards.cancelSnowGunSelection },
+          onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation, onClose: dashboards.close,
         } : null}
         readout={!saved ? { value: readout, units: settings.units } : null}
         dock={saved ? {

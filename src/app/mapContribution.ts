@@ -104,11 +104,10 @@ export interface MapContributionContext {
 }
 
 export type MapPresentationMode = 'dashboard-trails' | 'dashboard-snowmaking' |
-  'dashboard-snowmaking-analysis' | null;
+  'dashboard-snowmaking-analysis' | 'dashboard-snowmaking-select' | null;
 
 function presentationDefaultCursor(mode: MapPresentationMode): string {
-  return mode === 'dashboard-snowmaking' || mode === 'dashboard-snowmaking-analysis'
-    ? 'crosshair' : '';
+  return mode === 'dashboard-snowmaking-select' ? 'crosshair' : '';
 }
 
 export interface MapVisibilityDescriptor {

@@ -16,6 +16,7 @@ export interface SnowmakingRoutingInput {
   selectedGunIds: readonly string[];
   selectedIntakeNodeIds: readonly string[];
   pumpSettings: Readonly<Record<string, SnowmakingRoutingPumpSetting | undefined>>;
+  topology?: SnowmakingRoutingTopology;
 }
 
 export type SnowmakingRoutingDiagnosticCode =
@@ -55,7 +56,7 @@ export interface SnowmakingRoutingForest {
   failures: SnowmakingRoutingFailure[];
 }
 
-interface PhysicalEdge {
+export interface SnowmakingRoutingPhysicalEdge {
   id: string;
   a: string;
   b: string;
@@ -63,7 +64,7 @@ interface PhysicalEdge {
   lengthFt: number;
 }
 
-interface PhysicalComponent {
+export interface SnowmakingRoutingPhysicalComponent {
   id: string;
   keys: Set<string>;
   segmentIds: Set<string>;
@@ -99,14 +100,14 @@ function segmentLengthFt(segment: SnowmakingPipeSegment): number {
   return Math.max(lengthM * FEET_PER_METER, 1e-9);
 }
 
-function physicalComponents(edges: readonly PhysicalEdge[],
-  nodeById: ReadonlyMap<string, SavedSnowmakingNode>): PhysicalComponent[] {
-  const adjacency = new Map<string, PhysicalEdge[]>();
+function physicalComponents(edges: readonly SnowmakingRoutingPhysicalEdge[],
+  nodeById: ReadonlyMap<string, SavedSnowmakingNode>): SnowmakingRoutingPhysicalComponent[] {
+  const adjacency = new Map<string, SnowmakingRoutingPhysicalEdge[]>();
   for (const edge of edges) {
     adjacency.set(edge.a, [...(adjacency.get(edge.a) ?? []), edge]);
     adjacency.set(edge.b, [...(adjacency.get(edge.b) ?? []), edge]);
   }
-  const unseen = new Set(adjacency.keys()), result: PhysicalComponent[] = [];
+  const unseen = new Set(adjacency.keys()), result: SnowmakingRoutingPhysicalComponent[] = [];
   while (unseen.size) {
     const start = [...unseen].sort()[0], keys = new Set<string>();
     const segmentIds = new Set<string>(), pumpNodeIds = new Set<string>(), stack = [start];
@@ -140,7 +141,7 @@ function addArc(adjacency: Map<string, RoutingArc[]>, from: string, arc: Routing
   adjacency.set(from, [...(adjacency.get(from) ?? []), arc]);
 }
 
-function buildRoutingAdjacency(edges: readonly PhysicalEdge[],
+function buildRoutingAdjacency(edges: readonly SnowmakingRoutingPhysicalEdge[],
   nodeById: ReadonlyMap<string, SavedSnowmakingNode>,
   pumpSettings: SnowmakingRoutingInput['pumpSettings']): Map<string, RoutingArc[]> {
   const adjacency = new Map<string, RoutingArc[]>(), activePumpBuses = new Set<string>();
@@ -204,7 +205,8 @@ function searchFromForest(adjacency: ReadonlyMap<string, RoutingArc[]>,
   return { distanceByKey, ownerByKey, previousByKey };
 }
 
-function unconfiguredPumps(component: PhysicalComponent, edges: readonly PhysicalEdge[]): string[] {
+function unconfiguredPumps(component: SnowmakingRoutingPhysicalComponent,
+  edges: readonly SnowmakingRoutingPhysicalEdge[]): string[] {
   const ids = new Set<string>();
   for (const edge of edges) {
     if (!component.segmentIds.has(edge.id)) continue;
@@ -214,21 +216,40 @@ function unconfiguredPumps(component: PhysicalComponent, edges: readonly Physica
   return [...ids].filter((id) => component.pumpNodeIds.has(id)).sort();
 }
 
+export interface SnowmakingRoutingTopology {
+  nodeById: ReadonlyMap<string, SavedSnowmakingNode>;
+  physicalEdges: readonly SnowmakingRoutingPhysicalEdge[];
+  components: readonly SnowmakingRoutingPhysicalComponent[];
+  componentByKey: ReadonlyMap<string, SnowmakingRoutingPhysicalComponent>;
+}
+
+export function prepareSnowmakingRoutingTopology(input: {
+  nodes: readonly SavedSnowmakingNode[];
+  pipes: readonly SavedSnowmakingPipe[];
+}): SnowmakingRoutingTopology {
+  const nodeById = new Map(input.nodes.map((node) => [node.id, node]));
+  const physicalEdges = input.pipes.flatMap((pipe) =>
+    snowmakingPipeSegments(pipe).map((segment) => ({ id: segment.id,
+      a: physicalEndpoint(segment, 'a'), b: physicalEndpoint(segment, 'b'), segment,
+      lengthFt: segmentLengthFt(segment) }))).sort((left, right) => left.id.localeCompare(right.id));
+  const components = physicalComponents(physicalEdges, nodeById);
+  const componentByKey = new Map<string, SnowmakingRoutingPhysicalComponent>();
+  for (const component of components) for (const key of component.keys) componentByKey.set(key, component);
+  return { nodeById, physicalEdges, components, componentByKey };
+}
+
 /**
  * Derive the transient radial network used by both live preview and hydraulics.
  * Every added path touches the existing forest exactly once, so the result is
  * acyclic even when the installed network contains loops or parallel pipes.
  */
 export function deriveSnowmakingRoutingForest(input: SnowmakingRoutingInput): SnowmakingRoutingForest {
-  const nodeById = new Map(input.nodes.map((node) => [node.id, node]));
+  const topology = input.topology ?? prepareSnowmakingRoutingTopology(input);
+  const nodeById = topology.nodeById;
   const gunById = new Map(input.guns.map((gun) => [gun.id, gun]));
-  const physicalEdges: PhysicalEdge[] = input.pipes.flatMap((pipe) =>
-    snowmakingPipeSegments(pipe).map((segment) => ({ id: segment.id,
-      a: physicalEndpoint(segment, 'a'), b: physicalEndpoint(segment, 'b'), segment,
-      lengthFt: segmentLengthFt(segment) }))).sort((left, right) => left.id.localeCompare(right.id));
-  const components = physicalComponents(physicalEdges, nodeById);
-  const componentByKey = new Map<string, PhysicalComponent>();
-  for (const component of components) for (const key of component.keys) componentByKey.set(key, component);
+  const physicalEdges = topology.physicalEdges;
+  const components = topology.components;
+  const componentByKey = topology.componentByKey;
   const adjacency = buildRoutingAdjacency(physicalEdges, nodeById, input.pumpSettings);
   const failures: SnowmakingRoutingFailure[] = [], gunsByComponent = new Map<string, SavedSnowgun[]>();
   for (const gunId of [...new Set(input.selectedGunIds)]) {

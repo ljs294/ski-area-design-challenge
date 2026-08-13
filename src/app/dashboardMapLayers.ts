@@ -18,6 +18,7 @@ import type { Units } from './SettingsContext';
 import type { SnowmakingLassoMapState } from './snowmakingLasso';
 
 export const DASHBOARD_SOURCE = 'dashboard-map';
+export const DASHBOARD_LASSO_SOURCE = 'dashboard-snowmaking-lasso';
 export const DASHBOARD_LAYER_IDS = [
   'dashboard-backdrop', 'dashboard-grid', 'dashboard-snow-cover',
   'dashboard-snow-contours', 'dashboard-snow-water', 'dashboard-trail-ties',
@@ -27,7 +28,7 @@ export const DASHBOARD_LAYER_IDS = [
   'dashboard-snow-pump-arrows', 'dashboard-snow-pump-port-labels',
   'dashboard-snow-gun-connections', 'dashboard-snow-nodes',
   'dashboard-snow-hydrants', 'dashboard-snow-node-labels', 'dashboard-snow-gun-lasso-fill',
-  'dashboard-snow-gun-lasso-line', 'dashboard-snow-guns',
+  'dashboard-snow-gun-lasso-line', 'dashboard-snow-gun-lasso-halo', 'dashboard-snow-guns',
   'dashboard-snow-gun-labels', 'dashboard-snow-gun-warnings',
   'dashboard-snow-pipe-hit', 'dashboard-snow-node-hit', 'dashboard-snow-gun-hit',
 ] as const;
@@ -51,6 +52,9 @@ export interface SnowmakingMapPresentation {
   setGuns(ids: string[]): void;
   setHoveredSegment(id: string | null): void;
 }
+
+export function snowGunFeatureId(id: string): string { return `snow-gun:${id}`; }
+export function snowPipeFeatureId(id: string): string { return `snow-pipe:${id}`; }
 
 export type SnowmakingGunVisualState = 'operating-ready' | 'operating-failed' |
   'selected-ready' | 'selected-failed' | 'selected' | 'unselected';
@@ -107,8 +111,10 @@ export interface DashboardMapData {
 type Props = Record<string, string | number | boolean | null>;
 type Feature = GeoJSON.Feature<GeoJSON.Geometry, Props>;
 
-function feature(kind: string, geometry: GeoJSON.Geometry, properties: Props = {}): Feature {
-  return { type: 'Feature', properties: { kind, ...properties }, geometry };
+function feature(kind: string, geometry: GeoJSON.Geometry, properties: Props = {},
+  id?: string): Feature {
+  return { type: 'Feature', ...(id ? { id } : {}), properties: { kind, ...properties,
+    ...(id ? { featureId: id } : {}) }, geometry };
 }
 
 function gridFeatures(network: SkiNetwork): Feature[] {
@@ -322,15 +328,16 @@ function snowmakingFeatures(input: DashboardMapData): Feature[] {
       color: pressure ?? '#2c83a5', flowLabel, flowFrom, flowTo };
     features.push(feature('snow-pipe', {
       type: 'LineString', coordinates: oriented.coordinates,
-    }, properties));
+    }, properties, snowPipeFeatureId(segment.id)));
     if (result?.active && oriented.arrow) features.push(feature('snow-flow-arrow', {
       type: 'Point', coordinates: oriented.arrow.point,
     }, { ...properties, bearing: oriented.arrow.bearing,
-      rotation: snowmakingArrowGlyphRotation(oriented.arrow.bearing) }));
+      rotation: snowmakingArrowGlyphRotation(oriented.arrow.bearing) },
+    `${snowPipeFeatureId(segment.id)}:flow`));
     const midpoint = flowLabel && snowmakingSegmentMidpoint(oriented.coordinates);
     if (midpoint) features.push(feature('snow-pipe-label', {
       type: 'Point', coordinates: midpoint,
-    }, properties));
+    }, properties, `${snowPipeFeatureId(segment.id)}:label`));
   }
   for (const pump of input.nodes.filter((node) => node.kind === 'pump')) {
     for (const pipe of input.pipes) for (const segment of snowmakingPipeSegments(pipe)) {
@@ -342,7 +349,7 @@ function snowmakingFeatures(input: DashboardMapData): Feature[] {
       features.push(feature('snow-pump-direction', { type: 'Point', coordinates: marker.point }, {
         id: pump.id, segmentId: segment.id, port, portLabel: port === 'suction' ? 'IN' : 'OUT',
         bearing: marker.bearing, rotation: snowmakingArrowGlyphRotation(marker.bearing),
-      }));
+      }, `snow-pump:${pump.id}:${segment.id}`));
     }
   }
   for (const gun of input.guns) {
@@ -357,24 +364,11 @@ function snowmakingFeatures(input: DashboardMapData): Feature[] {
     ? `${node.kind === 'pump' ? 'P' : node.kind === 'hydrant' ? 'H' : 'J'}${node.labelNumber}` : node.name,
     selected: input.selectedSnowmaking?.kind === 'node' && input.selectedSnowmaking.id === node.id,
     invalidDirection: presentation?.invalidPumpIds.has(node.id) ?? false }));
-  if (input.snowmakingLasso) {
-    const [west, south, east, north] = input.snowmakingLasso.geoBounds;
-    features.push(feature('snow-gun-lasso', polygon([
-      [west, south], [east, south], [east, north], [west, north], [west, south],
-    ]), { gunCount: input.snowmakingLasso.gunIds.length }));
-  }
   for (const gun of input.guns) {
-    const status = presentation?.gunStatuses[gun.id] ?? null;
-    const selected = presentation?.mode === 'analysis'
-      ? presentation.selectedGunIds.has(gun.id) : input.selectedSnowmaking?.kind === 'gun' &&
-        input.selectedSnowmaking.id === gun.id;
     features.push(feature('snow-gun', { type: 'Point', coordinates: gun.point }, {
-      id: gun.id, connected: !!gun.hydrantId, selected,
-      lassoed: !!input.snowmakingLasso?.gunIds.includes(gun.id),
-      analysis: presentation?.mode === 'analysis',
-      operating: presentation?.operatingGunIds?.has(gun.id) ?? false,
-      status, label: presentation?.showGunTypes ? gun.variantId : '',
-    }));
+      id: gun.id, connected: !!gun.hydrantId,
+      label: presentation?.showGunTypes ? gun.variantId : '',
+    }, snowGunFeatureId(gun.id)));
   }
   return features;
 }
@@ -386,6 +380,87 @@ export function dashboardGeoJSON(input: DashboardMapData): GeoJSON.FeatureCollec
   return { type: 'FeatureCollection', features };
 }
 
+const EMPTY_LASSO: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+
+export function dashboardLassoGeoJSON(
+  lasso: SnowmakingLassoMapState | null | undefined,
+): GeoJSON.FeatureCollection {
+  if (!lasso?.ring.length) return EMPTY_LASSO;
+  return { type: 'FeatureCollection', features: [{ type: 'Feature', id: 'lasso',
+    properties: { kind: 'snow-gun-lasso' }, geometry: {
+      type: 'Polygon', coordinates: polygon(lasso.ring).coordinates,
+    } }] };
+}
+
+function setFeatureState(map: maplibregl.Map, id: string, state: Record<string, unknown>): void {
+  map.setFeatureState({ source: DASHBOARD_SOURCE, id }, state);
+}
+
+export function applyDashboardGunLassoState(
+  map: maplibregl.Map | null,
+  nextIds: readonly string[],
+  previousIds: readonly string[] = [],
+): void {
+  if (!map) return;
+  const next = new Set(nextIds), previous = new Set(previousIds);
+  for (const id of new Set([...previousIds, ...nextIds])) {
+    if (previous.has(id) === next.has(id)) continue;
+    setFeatureState(map, snowGunFeatureId(id), { lassoed: next.has(id) });
+  }
+}
+
+export function applyDashboardMapPresentation(
+  map: maplibregl.Map | null,
+  presentation: SnowmakingMapPresentation | null,
+  previous: SnowmakingMapPresentation | null = null,
+  gunIds: readonly string[] = [],
+): void {
+  if (!map || !presentation) return;
+  const gunStateIds = new Set([
+    ...gunIds, ...presentation.selectedGunIds,
+    ...Object.keys(presentation.gunStatuses), ...presentation.operatingGunIds ?? [],
+    ...(previous ? [...previous.selectedGunIds, ...Object.keys(previous.gunStatuses),
+      ...previous.operatingGunIds ?? []] : []),
+  ]);
+  for (const id of gunStateIds) {
+    const nextState = {
+    analysis: presentation.mode === 'analysis',
+    selected: presentation.selectedGunIds.has(id),
+    status: presentation.gunStatuses[id] ?? null,
+    operating: presentation.operatingGunIds?.has(id) ?? false,
+    };
+    const previousState = previous ? {
+      analysis: previous.mode === 'analysis', selected: previous.selectedGunIds.has(id),
+      status: previous.gunStatuses[id] ?? null,
+      operating: previous.operatingGunIds?.has(id) ?? false,
+    } : null;
+    if (!previousState || Object.keys(nextState).some((key) =>
+      nextState[key as keyof typeof nextState] !== previousState[key as keyof typeof previousState])) {
+      setFeatureState(map, snowGunFeatureId(id), nextState);
+    }
+  }
+  const segmentIds = new Set([
+    ...(previous?.segments ?? []).map((segment) => segment.id),
+    ...presentation.segments.map((segment) => segment.id),
+    ...presentation.relevantSegmentColors.keys(),
+    ...(previous ? [...previous.relevantSegmentColors.keys()] : []),
+  ]);
+  for (const id of segmentIds) {
+    const nextState = { analysis: presentation.mode === 'analysis',
+      active: presentation.segments.some((candidate) => candidate.id === id && candidate.active),
+      relevant: presentation.relevantSegmentColors.has(id),
+      color: presentation.relevantSegmentColors.get(id) ?? null };
+    const previousState = previous && { analysis: previous.mode === 'analysis',
+      active: previous.segments.some((candidate) => candidate.id === id && candidate.active),
+      relevant: previous.relevantSegmentColors.has(id),
+      color: previous.relevantSegmentColors.get(id) ?? null };
+    if (!previousState || Object.keys(nextState).some((key) =>
+      nextState[key as keyof typeof nextState] !== previousState[key as keyof typeof previousState])) {
+      setFeatureState(map, snowPipeFeatureId(id), nextState);
+    }
+  }
+}
+
 const filter = (kind: string): maplibregl.ExpressionSpecification =>
   ['==', ['get', 'kind'], kind] as maplibregl.ExpressionSpecification;
 const allFilter = (...rows: maplibregl.ExpressionSpecification[]): maplibregl.FilterSpecification =>
@@ -393,7 +468,12 @@ const allFilter = (...rows: maplibregl.ExpressionSpecification[]): maplibregl.Fi
 
 export function addDashboardMapLayers(map: maplibregl.Map): void {
   if (map.getSource(DASHBOARD_SOURCE)) return;
-  map.addSource(DASHBOARD_SOURCE, { type: 'geojson', data: EMPTY });
+  // Feature state uses the stable top-level GeoJSON IDs assigned by the
+  // projection. The ordinary `id` property remains the domain ID consumed by
+  // the shared hit controller, so promoting it would make pipe segments
+  // collide and would address state to the wrong feature.
+  map.addSource(DASHBOARD_SOURCE, { type: 'geojson', data: EMPTY, promoteId: 'featureId' });
+  map.addSource(DASHBOARD_LASSO_SOURCE, { type: 'geojson', data: EMPTY_LASSO });
   map.addLayer({ id: 'dashboard-backdrop', type: 'fill', source: DASHBOARD_SOURCE,
     filter: filter('backdrop'), layout: { visibility: 'none' },
     paint: { 'fill-color': '#f4f1ea', 'fill-opacity': 1 } });
@@ -454,11 +534,13 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
       'line-opacity': 0.01 } });
   map.addLayer({ id: 'dashboard-snow-pipes', type: 'line', source: DASHBOARD_SOURCE,
     filter: filter('snow-pipe'), layout: { visibility: 'none', 'line-cap': 'round',
-      'line-join': 'round' }, paint: { 'line-color': ['get', 'color'],
+      'line-join': 'round' }, paint: { 'line-color': ['coalesce', ['feature-state', 'color'], ['get', 'color']],
       'line-width': ['case', ['get', 'selected'], 5, ['interpolate', ['linear'],
         ['get', 'diameterIn'], 4, 2, 24, 4]],
-      'line-opacity': ['case', ['all', ['get', 'analysis'], ['!', ['get', 'relevant']]], 0.16,
-        ['all', ['get', 'analysis'], ['!', ['get', 'active']]], 0.45, 1] } });
+      'line-opacity': ['case', ['all', ['coalesce', ['feature-state', 'analysis'], ['get', 'analysis']],
+        ['!', ['coalesce', ['feature-state', 'relevant'], ['get', 'relevant']]]], 0.16,
+        ['all', ['coalesce', ['feature-state', 'analysis'], ['get', 'analysis']],
+          ['!', ['coalesce', ['feature-state', 'active'], ['get', 'active']]]], 0.45, 1] } });
   map.addLayer({ id: 'dashboard-snow-flow-arrows', type: 'symbol', source: DASHBOARD_SOURCE,
     filter: filter('snow-flow-arrow'), layout: { visibility: 'none',
       // Direction markers must be allowed to turn upside down. MapLibre's
@@ -518,29 +600,38 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
       'text-size': 11, 'text-offset': [0, -1.2], 'text-anchor': 'bottom',
       'text-font': ['Noto Sans Regular'], 'text-optional': true },
     paint: { 'text-color': '#27303f', 'text-halo-color': '#f4f1ea', 'text-halo-width': 1.5 } });
-  map.addLayer({ id: 'dashboard-snow-gun-lasso-fill', type: 'fill', source: DASHBOARD_SOURCE,
+  map.addLayer({ id: 'dashboard-snow-gun-lasso-fill', type: 'fill', source: DASHBOARD_LASSO_SOURCE,
     filter: filter('snow-gun-lasso'), layout: { visibility: 'none' }, paint: {
       'fill-color': '#60a5fa', 'fill-opacity': 0.08,
     } });
-  map.addLayer({ id: 'dashboard-snow-gun-lasso-line', type: 'line', source: DASHBOARD_SOURCE,
+  map.addLayer({ id: 'dashboard-snow-gun-lasso-line', type: 'line', source: DASHBOARD_LASSO_SOURCE,
     filter: filter('snow-gun-lasso'), layout: { visibility: 'none' }, paint: {
       'line-color': '#2563eb', 'line-width': 1.5, 'line-dasharray': [2, 2],
       'line-opacity': 0.85,
     } });
+  // Draw the preview beneath the gun itself so even an active lasso cannot
+  // obscure the authoritative status fill.
+  map.addLayer({ id: 'dashboard-snow-gun-lasso-halo', type: 'circle', source: DASHBOARD_SOURCE,
+    filter: filter('snow-gun'), layout: { visibility: 'none' }, paint: {
+      'circle-radius': 9, 'circle-color': '#60a5fa',
+      'circle-opacity': ['case', ['coalesce', ['feature-state', 'lassoed'], false], 0.18, 0],
+      'circle-stroke-width': 0,
+    } });
   map.addLayer({ id: 'dashboard-snow-guns', type: 'circle', source: DASHBOARD_SOURCE,
     filter: filter('snow-gun'), layout: { visibility: 'none' }, paint: {
-      'circle-radius': ['case', ['get', 'selected'], 8, 5],
+      'circle-radius': ['case', ['coalesce', ['feature-state', 'selected'], false], 8, 5],
       'circle-color': ['case',
-        ['all', ['get', 'analysis'], ['get', 'operating'], ['==', ['get', 'status'], 'failed']], '#991b1b',
-        ['all', ['get', 'analysis'], ['get', 'operating']], '#166534',
-        ['all', ['get', 'analysis'], ['get', 'selected'], ['==', ['get', 'status'], 'failed']], '#fca5a5',
-        ['all', ['get', 'analysis'], ['get', 'selected'], ['==', ['get', 'status'], 'ready']], '#86efac',
-        ['all', ['get', 'analysis'], ['get', 'selected']], '#000000',
-        ['get', 'analysis'], '#9ca3af',
-        ['match', ['get', 'status'], 'ready', '#22c55e', 'failed', '#dc2626', '#000000']],
-      'circle-stroke-color': ['case', ['get', 'lassoed'], '#2563eb',
-        ['case', ['get', 'connected'], '#000000', '#dc2626']],
-      'circle-stroke-width': ['case', ['get', 'selected'], 3, ['get', 'connected'], 0, 1.5],
+        ['all', ['feature-state', 'analysis'], ['feature-state', 'operating'],
+          ['==', ['feature-state', 'status'], 'failed']], '#991b1b',
+        ['all', ['feature-state', 'analysis'], ['feature-state', 'operating']], '#166534',
+        ['all', ['feature-state', 'analysis'], ['feature-state', 'selected'],
+          ['==', ['feature-state', 'status'], 'failed']], '#fca5a5',
+        ['all', ['feature-state', 'analysis'], ['feature-state', 'selected'],
+          ['==', ['feature-state', 'status'], 'ready']], '#86efac',
+        ['all', ['feature-state', 'analysis'], ['feature-state', 'selected']], '#000000',
+        ['feature-state', 'analysis'], '#9ca3af', '#000000'],
+      'circle-stroke-color': ['case', ['get', 'connected'], 'rgba(0,0,0,0)', '#dc2626'],
+      'circle-stroke-width': ['case', ['get', 'connected'], 0, 1.5],
     } });
   map.addLayer({ id: 'dashboard-snow-gun-labels', type: 'symbol', source: DASHBOARD_SOURCE,
     filter: allFilter(filter('snow-gun'), ['!=', ['get', 'label'], '']), layout: {
@@ -567,8 +658,19 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
 export function setDashboardMapData(map: maplibregl.Map | null, input: DashboardMapData): void {
   (map?.getSource(DASHBOARD_SOURCE) as maplibregl.GeoJSONSource | undefined)
     ?.setData(dashboardGeoJSON(input));
+  setDashboardLassoData(map, input.snowmakingLasso ?? null);
+  applyDashboardMapPresentation(map, input.snowmakingPresentation,
+    null, input.guns.map((gun) => gun.id));
   if (map?.getLayer('dashboard-backdrop')) map.setPaintProperty('dashboard-backdrop',
     'fill-color', input.dark ? '#18202a' : '#f4f1ea');
+}
+
+export function setDashboardLassoData(
+  map: maplibregl.Map | null,
+  lasso: SnowmakingLassoMapState | null,
+): void {
+  (map?.getSource(DASHBOARD_LASSO_SOURCE) as maplibregl.GeoJSONSource | undefined)
+    ?.setData(dashboardLassoGeoJSON(lasso));
 }
 
 export function setDashboardMapVisibility(map: maplibregl.Map, kind: DashboardKind | null): void {

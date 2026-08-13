@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { buildSkiNetwork } from '../network';
 import { snowmakingPipeSegments } from '../snowmakingNetwork';
 import type { SavedLift } from '../types';
-import { addDashboardMapLayers, dashboardGeoJSON, orientedSnowmakingFlow, snowmakingArrowGlyphRotation, snowmakingPumpArmMarker,
-  snowmakingGunColor, snowmakingGunVisualState, snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
+import { applyDashboardGunLassoState, addDashboardMapLayers,
+  dashboardGeoJSON, dashboardLassoGeoJSON, orientedSnowmakingFlow,
+  snowmakingArrowGlyphRotation, snowmakingPumpArmMarker, snowmakingGunColor,
+  snowmakingGunVisualState, snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
 
 const lift: SavedLift = {
   id: 'lift-1', identifier: 'A', name: 'Summit', liftClass: 'fixed-grip', chairSize: 4,
@@ -29,6 +31,17 @@ function data(kind: DashboardMapData['kind']): DashboardMapData {
 }
 
 describe('dashboard MapLibre projection', () => {
+  it('writes only changed feature states for selection previews', () => {
+    const writes: Array<{ id: string; state: Record<string, unknown> }> = [];
+    const map = { setFeatureState: (target: { id: string }, state: Record<string, unknown>) =>
+      writes.push({ id: target.id, state }) };
+    applyDashboardGunLassoState(map as never, ['gun-1'], []);
+    expect(writes).toHaveLength(1);
+    writes.length = 0;
+    applyDashboardGunLassoState(map as never, ['gun-1'], ['gun-1']);
+    expect(writes).toHaveLength(0);
+  });
+
   it('gives operating status precedence over analyzed selection status', () => {
     expect(snowmakingGunColor(snowmakingGunVisualState({ analysis: true,
       selected: true, status: 'ready', operating: true }))).toBe('#166534');
@@ -67,22 +80,23 @@ describe('dashboard MapLibre projection', () => {
     const input = data('snowmaking');
     input.guns = [{ id: 'gun-1', variantId: 'HKD_ImpulseR5_20t', point: [-121.495, 46.905],
       elevM: 1000, hydrantId: 'hydrant-1', createdAt: '2026-01-01' }];
-    input.snowmakingLasso = { rect: { minX: 1, minY: 2, maxX: 3, maxY: 4 },
-      geoBounds: [-121.5, 46.9, -121.49, 46.91], gunIds: ['gun-1'] };
+    input.snowmakingLasso = { ring: [[-121.5, 46.9], [-121.49, 46.9],
+      [-121.49, 46.91], [-121.5, 46.91]], gunIds: ['gun-1'] };
     input.snowmakingPresentation = {
       mode: 'analysis', segments: [], relevantSegmentColors: new Map(), selectedGunIds: new Set(['gun-1']),
       gunStatuses: { 'gun-1': 'ready' }, invalidPumpIds: new Set(), pressureRange: null,
       showGunTypes: false, toggleGun: () => {}, setGuns: () => {}, setHoveredSegment: () => {},
     };
     const result = dashboardGeoJSON(input);
-    expect(result.features).toContainEqual(expect.objectContaining({
-      properties: expect.objectContaining({ kind: 'snow-gun-lasso' }),
+    expect(result.features.some((row) => row.properties?.kind === 'snow-gun-lasso')).toBe(false);
+    expect(dashboardLassoGeoJSON(input.snowmakingLasso).features[0]).toMatchObject({
+      properties: { kind: 'snow-gun-lasso' },
       geometry: { type: 'Polygon', coordinates: [[[-121.5, 46.9], [-121.49, 46.9],
         [-121.49, 46.91], [-121.5, 46.91], [-121.5, 46.9]]] },
-    }));
+    });
     expect(result.features).toContainEqual(expect.objectContaining({
-      properties: expect.objectContaining({ kind: 'snow-gun', lassoed: true,
-        analysis: true, operating: false, status: 'ready' }),
+      id: 'snow-gun:gun-1', properties: expect.objectContaining({ kind: 'snow-gun',
+        connected: true }),
     }));
   });
 
@@ -151,6 +165,35 @@ describe('dashboard MapLibre projection', () => {
     }
     expect(layers.find((layer) => layer.id === 'dashboard-snow-flow-arrows')?.layout?.['text-field'])
       .toBe('▶');
+  });
+
+  it('uses stable feature IDs and removes the connected-gun black stroke', () => {
+    const sources: Array<{ id: string; options: Record<string, unknown> }> = [];
+    const layers: Array<{ id: string; source?: string; paint?: Record<string, unknown> }> = [];
+    const map = { getSource: () => undefined,
+      addSource: (id: string, options: Record<string, unknown>) => sources.push({ id, options }),
+      addLayer: (layer: { id: string; source?: string; paint?: Record<string, unknown> }) =>
+        layers.push(layer) };
+    addDashboardMapLayers(map as never);
+    expect(sources.map((source) => source.id)).toContain('dashboard-map');
+    expect(sources.map((source) => source.id)).toContain('dashboard-snowmaking-lasso');
+    expect(sources.find((source) => source.id === 'dashboard-map')?.options.promoteId)
+      .toBe('featureId');
+    const guns = layers.find((layer) => layer.id === 'dashboard-snow-guns');
+    expect(guns?.paint?.['circle-stroke-color']).toEqual([
+      'case', ['get', 'connected'], 'rgba(0,0,0,0)', '#dc2626',
+    ]);
+    expect(guns?.paint?.['circle-stroke-width']).toEqual([
+      'case', ['get', 'connected'], 0, 1.5,
+    ]);
+    const halo = layers.find((layer) => layer.id === 'dashboard-snow-gun-lasso-halo');
+    expect(halo?.source).toBe('dashboard-map');
+    expect(halo?.paint?.['circle-stroke-width']).toBe(0);
+    expect(halo?.paint?.['circle-opacity']).toEqual([
+      'case', ['coalesce', ['feature-state', 'lassoed'], false], 0.18, 0,
+    ]);
+    expect(layers.findIndex((layer) => layer.id === 'dashboard-snow-gun-lasso-halo'))
+      .toBeLessThan(layers.findIndex((layer) => layer.id === 'dashboard-snow-guns'));
   });
 
   it('points suction arms toward pumps and discharge arms away from pumps', () => {

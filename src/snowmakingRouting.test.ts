@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveSnowmakingRoutingForest } from './snowmakingRouting';
+import { deriveSnowmakingRoutingForest, prepareSnowmakingRoutingTopology } from './snowmakingRouting';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
   SnowmakingPumpPort } from './types/snowmaking';
 
@@ -26,6 +26,20 @@ function gun(id: string, hydrant: SavedSnowmakingNode): SavedSnowgun {
 }
 
 describe('deriveSnowmakingRoutingForest', () => {
+  it('matches the uncached result when using prepared static topology', () => {
+    const source = node('source', 'intake', 0), near = node('near', 'hydrant', 100);
+    const far = node('far', 'hydrant', 200);
+    const nodes = [source, near, far];
+    const pipes = [pipe('main-near', source, near), pipe('main-far', near, far)];
+    const guns = [gun('near-gun', near), gun('far-gun', far)];
+    const input = { nodes, pipes, guns, selectedGunIds: ['near-gun', 'far-gun'],
+      selectedIntakeNodeIds: ['source'], pumpSettings: {} };
+    const uncached = deriveSnowmakingRoutingForest(input);
+    const cached = deriveSnowmakingRoutingForest({ ...input,
+      topology: prepareSnowmakingRoutingTopology({ nodes, pipes }) });
+    expect(cached).toEqual(uncached);
+  });
+
   it('grows the closest gun trunk and excludes the loop closure', () => {
     const source = node('source', 'intake', 0), near = node('near', 'hydrant', 100);
     const far = node('far', 'hydrant', 200);

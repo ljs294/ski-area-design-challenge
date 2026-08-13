@@ -222,11 +222,12 @@ describe('SnowmakingDashboard', () => {
       guns: [connectedGun] });
     expect(html).toContain('data-inspector="analysis"');
     expect(html).toContain('Operate snowguns');
-    expect(html).toContain('Select all connected');
+    expect(html).toContain('Select All Connected');
     expect(html).not.toContain('Check system');
     expect(html).toContain('data-segment-id="pipe-1:segment:0"');
     expect(html).toContain('data-segment-id="pipe-1:segment:1"');
     expect(html).toMatch(/data-gun-id="gun-1"[^>]*aria-pressed="false"/);
+    expect(html).not.toContain('snowmaking-dashboard-gun-operating-ring');
     expect(html).not.toContain('Remove pipe');
   });
 
@@ -240,6 +241,22 @@ describe('SnowmakingDashboard', () => {
     expect(html).toContain('Operating, OK');
     expect(html).toContain('Selected, analyzed, not OK, not operating');
     expect(html).toContain('Operating, not OK');
+  });
+
+  it('renders the one-shot gun selection toolbar in the requested order', () => {
+    const html = render({ mode: 'analysis', nodes: [nodeA, nodeB, hydrant], pipes: [testPipe],
+      guns: [connectedGun], snowGunSelectionPhase: 'armed' });
+    const select = html.indexOf('>Select Guns</button>');
+    const selectAll = html.indexOf('>Select All Connected</button>');
+    const clear = html.indexOf('>Clear Guns</button>');
+    const analyze = html.indexOf('>Analyze</button>');
+    expect(select).toBeGreaterThan(-1);
+    expect(selectAll).toBeGreaterThan(select);
+    expect(clear).toBeGreaterThan(selectAll);
+    expect(analyze).toBeGreaterThan(clear);
+    expect(html.slice(Math.max(0, select - 300), select)).toContain('aria-pressed="true"');
+    expect(html).toContain('snowmaking-analysis-run');
+    expect(html).not.toContain('Reset Analysis');
   });
 
   it('renders every incident pump arm as a persistent port assignment', () => {

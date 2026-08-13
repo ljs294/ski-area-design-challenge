@@ -271,6 +271,23 @@ describe('managed map contribution lifecycle', () => {
 });
 
 describe('managed map contribution visibility', () => {
+  it('uses a crosshair only for the explicit snowgun selection presentation', () => {
+    const map = new FakeMap();
+    const registry = new MapContributionRegistry(managedContributions([]));
+    registry.attach(map as unknown as maplibregl.Map);
+
+    registry.setPresentation('dashboard-snowmaking-analysis');
+    expect(map.canvas.style.cursor).toBe('');
+    registry.setPresentation('dashboard-snowmaking-select');
+    expect(map.canvas.style.cursor).toBe('crosshair');
+    map.emit('mouseenter', 'snowmaking-node-hit');
+    expect(map.canvas.style.cursor).toBe('pointer');
+    map.emit('mouseleave', 'snowmaking-node-hit');
+    expect(map.canvas.style.cursor).toBe('crosshair');
+    registry.setPresentation(null);
+    expect(map.canvas.style.cursor).toBe('');
+  });
+
   it('temporarily suppresses normal layers and restores the latest preference', () => {
     const contributions = managedContributions([]);
     const modes: Array<string | null> = [];

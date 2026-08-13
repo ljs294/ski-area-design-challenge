@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import type { SkiNetwork } from '../network';
@@ -6,15 +6,16 @@ import { snowmakingPipeSegments, snowmakingPipeStats } from '../snowmakingNetwor
 import type { SavedDam, SavedLift, SavedPond, SavedSnowmakingNode, SavedTrail,
   TerrainRecord } from '../types';
 import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource } from '../types/snowmaking';
-import { dashboardBounds, setDashboardMapData, type DashboardMapData,
+import { applyDashboardGunLassoState, applyDashboardMapPresentation, dashboardBounds,
+  setDashboardLassoData, setDashboardMapData, type DashboardMapData,
   type SnowmakingMapPresentation } from './dashboardMapLayers';
-import type { DashboardKind, SnowmakingDashboardMode } from './dashboardMode';
+import type { DashboardKind, SnowgunSelectionPhase, SnowmakingDashboardMode } from './dashboardMode';
 import type { MapContributionRegistry } from './mapContribution';
 import type { MapHitHoverTarget } from './mapContribution';
 import type { Units } from './SettingsContext';
 import type { SnowmakingPipeHoverState } from './SnowmakingPipeHover';
-import { connectedGunIdsInLasso, normalizeLassoRect,
-  type LassoPoint, type SnowmakingLassoSelection } from './snowmakingLasso';
+import { appendLassoSample, closeLassoPath, connectedGunIdsInLasso,
+  type LassoPoint, type SnowmakingLassoSelection, type SnowmakingLassoMapState } from './snowmakingLasso';
 
 export interface InMapDashboardInput {
   mapRef: RefObject<maplibregl.Map | null>;
@@ -34,6 +35,25 @@ export interface InMapDashboardInput {
   terrainRecord: TerrainRecord | null;
 }
 
+function samePresentationSource(
+  left: SnowmakingMapPresentation | null,
+  right: SnowmakingMapPresentation | null,
+): boolean {
+  if (!left || !right) return left === right;
+  if (left.mode !== right.mode || left.showGunTypes !== right.showGunTypes ||
+    left.pressureRange?.minPsi !== right.pressureRange?.minPsi ||
+    left.pressureRange?.maxPsi !== right.pressureRange?.maxPsi ||
+    left.invalidPumpIds.size !== right.invalidPumpIds.size ||
+    left.segments.length !== right.segments.length) return false;
+  for (const id of left.invalidPumpIds) if (!right.invalidPumpIds.has(id)) return false;
+  return left.segments.every((segment, index) => {
+    const other = right.segments[index];
+    return segment.id === other?.id && segment.flowGpm === other.flowGpm &&
+      segment.active === other.active && segment.upstreamPressurePsi === other.upstreamPressurePsi &&
+      segment.downstreamPressurePsi === other.downstreamPressurePsi;
+  });
+}
+
 export function useInMapDashboards(input: InMapDashboardInput) {
   const [active, setActive] = useState<DashboardKind | null>(null);
   const [liftId, setLiftId] = useState<string | null>(null);
@@ -42,18 +62,22 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     { kind: 'node' | 'gun'; id: string } |
     { kind: 'pipe'; id: string; segmentId: string | null } | null>(null);
   const [snowMode, setSnowMode] = useState<SnowmakingDashboardMode>('inspect');
-  const [snowPresentation, setSnowPresentation] =
-    useState<SnowmakingMapPresentation | null>(null);
+  const [snowGunSelectionPhase, setSnowGunSelectionPhase] =
+    useState<SnowgunSelectionPhase>('idle');
   const [snowHover, setSnowHover] = useState<SnowmakingPipeHoverState | null>(null);
   const [snowLasso, setSnowLasso] = useState<SnowmakingLassoSelection | null>(null);
   const activeRef = useRef(active), networkRef = useRef(input.network);
-  const presentationRef = useRef(snowPresentation);
+  const presentationRef = useRef<SnowmakingMapPresentation | null>(null);
   const pipesRef = useRef(input.pipes);
   const suppressSnowClickRef = useRef(false);
+  const lassoIdsRef = useRef<string[]>([]);
+  const lassoMapRef = useRef<SnowmakingLassoMapState | null>(null);
+  const snowGunSelectionPhaseRef = useRef(snowGunSelectionPhase);
   activeRef.current = active;
   networkRef.current = input.network;
-  presentationRef.current = snowPresentation;
   pipesRef.current = input.pipes;
+  snowGunSelectionPhaseRef.current = snowGunSelectionPhase;
+  const snowGunSelectionActive = snowGunSelectionPhase !== 'idle';
 
   const data: DashboardMapData = {
     kind: active, dark: input.dark, units: input.units, network: input.network,
@@ -61,33 +85,49 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     lakes: input.lakes, trails: input.trails, lifts: input.lifts, nodes: input.nodes,
     pipes: input.pipes, guns: input.guns, coverDisplay: input.coverDisplay,
     terrainRecord: input.terrainRecord, selectedSnowmaking: snowSelection,
-    snowmakingPresentation: snowPresentation,
-    snowmakingLasso: snowLasso,
+    snowmakingPresentation: presentationRef.current,
+    snowmakingLasso: lassoMapRef.current,
   };
   const dataRef = useRef(data);
   dataRef.current = data;
-  const syncRef = useRef((map: maplibregl.Map | null) =>
-    setDashboardMapData(map, dataRef.current));
+  const syncRef = useRef((map: maplibregl.Map | null) => {
+    dataRef.current = { ...dataRef.current,
+      snowmakingPresentation: presentationRef.current,
+      snowmakingLasso: lassoMapRef.current };
+    setDashboardMapData(map, dataRef.current);
+  });
+  const setSnowPresentation = useCallback((next: SnowmakingMapPresentation) => {
+    const previous = presentationRef.current;
+    presentationRef.current = next;
+    dataRef.current = { ...dataRef.current, snowmakingPresentation: next };
+    const map = input.mapRef.current;
+    if (!samePresentationSource(previous, next)) setDashboardMapData(map, dataRef.current);
+    applyDashboardMapPresentation(map, next, previous, input.guns.map((gun) => gun.id));
+  }, [input.guns, input.mapRef]);
 
-  type LassoGesture = { start: LassoPoint; current: LassoPoint; moved: boolean;
-    restored: boolean; priorDragPan: boolean };
+  type LassoGesture = { start: LassoPoint; latest: LassoPoint; path: LassoPoint[];
+    moved: boolean; restored: boolean; priorDragPan: boolean; frame: number | null;
+    previewIds: string[]; projectedGuns: ReadonlyMap<string, LassoPoint> };
+
+  const cancelSnowGunSelection = useCallback(() => setSnowGunSelectionPhase('idle'), []);
+  const toggleSnowGunSelection = useCallback(() => setSnowGunSelectionPhase((phase) =>
+    phase === 'idle' ? 'armed' : 'idle'), []);
 
   useEffect(() => {
     if (active !== 'snowmaking') {
       presentationRef.current?.setHoveredSegment(null);
       setSnowMode('inspect');
+      setSnowGunSelectionPhase('idle');
       setSnowHover(null);
       setSnowLasso(null);
       suppressSnowClickRef.current = false;
+    } else if (snowMode !== 'analysis') {
+      setSnowGunSelectionPhase('idle');
     }
-  }, [active]);
+  }, [active, snowMode]);
 
   useEffect(() => {
-    if (active !== 'snowmaking' || snowMode !== 'analysis') {
-      setSnowLasso(null);
-      suppressSnowClickRef.current = false;
-      return;
-    }
+    if (!snowGunSelectionActive || active !== 'snowmaking' || snowMode !== 'analysis') return;
     const map = input.mapRef.current;
     if (!map) return;
     const canvas = map.getCanvas();
@@ -102,28 +142,55 @@ export function useInMapDashboards(input: InMapDashboardInput) {
       const bounds = canvas.getBoundingClientRect();
       return { x: clientX - bounds.left, y: clientY - bounds.top };
     };
-    const geoBounds = (rect: ReturnType<typeof normalizeLassoRect>) => {
-      const sw = map.unproject([rect.minX, rect.maxY]);
-      const ne = map.unproject([rect.maxX, rect.minY]);
-      return [sw.lng, sw.lat, ne.lng, ne.lat] as const;
+    const mapRing = (ring: readonly LassoPoint[]): [number, number][] =>
+      ring.map((point) => {
+        const lngLat = map.unproject([point.x, point.y]);
+        return [lngLat.lng, lngLat.lat];
+      });
+    const anchor = (point: LassoPoint): LassoPoint => {
+      const bounds = canvas.getBoundingClientRect();
+      const clientX = bounds.left + point.x, clientY = bounds.top + point.y;
+      return { x: Math.min(Math.max(8, clientX), Math.max(8, window.innerWidth - 190)),
+        y: Math.min(Math.max(8, clientY), Math.max(8, window.innerHeight - 86)) };
     };
-    const updatePreview = (end: LassoPoint) => {
-      if (!currentGesture) return;
-      currentGesture.current = end;
-      const dx = end.x - currentGesture.start.x, dy = end.y - currentGesture.start.y;
-      if (!currentGesture.moved && Math.hypot(dx, dy) < 4) return;
-      currentGesture.moved = true;
-      const rect = normalizeLassoRect(currentGesture.start, end);
-      const gunIds = connectedGunIdsInLasso(input.guns,
-        (point) => map.project(point), rect);
+    const anchorFromLngLat = (point: [number, number]): LassoPoint => {
+      const projected = map.project(point);
+      return anchor({ x: projected.x, y: projected.y });
+    };
+    const clearLasso = () => {
+      const previous = currentGesture?.previewIds ?? lassoIdsRef.current;
+      applyDashboardGunLassoState(map, [], previous);
+      setDashboardLassoData(map, null);
+      lassoIdsRef.current = [];
+      lassoMapRef.current = null;
+      suppressSnowClickRef.current = false;
+      setSnowLasso(null);
+    };
+    const publishPreview = (gesture: LassoGesture, ring: readonly LassoPoint[]) => {
+      if (ring.length < 3) return [];
+      const gunIds = connectedGunIdsInLasso(input.guns, gesture.projectedGuns, ring);
+      applyDashboardGunLassoState(map, gunIds, gesture.previewIds);
+      gesture.previewIds = gunIds;
+      const state: SnowmakingLassoMapState = { ring: mapRing(ring), gunIds };
+      lassoIdsRef.current = gunIds;
+      lassoMapRef.current = state;
+      setDashboardLassoData(map, state);
+      return gunIds;
+    };
+    const processGesture = (gesture: LassoGesture, final: boolean) => {
+      gesture.path = appendLassoSample(gesture.path, gesture.latest);
+      if (!gesture.moved && Math.hypot(gesture.latest.x - gesture.start.x,
+        gesture.latest.y - gesture.start.y) < 4) return;
+      gesture.moved = true;
+      const ring = final ? closeLassoPath(gesture.path)
+        : gesture.path.length >= 3 ? [...gesture.path, gesture.path[0]] : [];
+      const gunIds = publishPreview(gesture, ring);
+      if (!final || ring.length < 4) return;
       const selected = new Set(presentationRef.current?.selectedGunIds ?? []);
-      const canvasBounds = canvas.getBoundingClientRect();
-      const clientX = canvasBounds.left + end.x, clientY = canvasBounds.top + end.y;
-      const maxAnchorX = Math.max(8, window.innerWidth - 190);
-      const maxAnchorY = Math.max(8, window.innerHeight - 86);
-      setSnowLasso({ rect, gunIds, geoBounds: geoBounds(rect),
-        anchor: { x: Math.min(Math.max(8, clientX), maxAnchorX),
-          y: Math.min(Math.max(8, clientY), maxAnchorY) },
+      const release = map.unproject([gesture.latest.x, gesture.latest.y]);
+      const anchorLngLat: [number, number] = [release.lng, release.lat];
+      const finalState: SnowmakingLassoSelection = {
+        ring: mapRing(ring), gunIds, anchor: anchorFromLngLat(anchorLngLat), anchorLngLat,
         selectedGunCount: gunIds.filter((id) => selected.has(id)).length,
         unselectedGunCount: gunIds.filter((id) => !selected.has(id)).length,
         add: () => {
@@ -131,7 +198,8 @@ export function useInMapDashboards(input: InMapDashboardInput) {
           if (presentation) presentation.setGuns([...new Set([
             ...presentation.selectedGunIds, ...gunIds,
           ])]);
-          setSnowLasso(null);
+          clearLasso();
+          setSnowGunSelectionPhase('idle');
         },
         remove: () => {
           const presentation = presentationRef.current;
@@ -139,26 +207,45 @@ export function useInMapDashboards(input: InMapDashboardInput) {
             const enclosed = new Set(gunIds);
             presentation.setGuns([...presentation.selectedGunIds].filter((id) => !enclosed.has(id)));
           }
-          setSnowLasso(null);
+          clearLasso();
+          setSnowGunSelectionPhase('idle');
         },
-        cancel: () => setSnowLasso(null),
-      });
+        cancel: () => { clearLasso(); setSnowGunSelectionPhase('idle'); },
+      };
+      setSnowLasso(finalState);
+      setSnowGunSelectionPhase('review');
     };
     const onMouseDown = (event: maplibregl.MapMouseEvent) => {
-      if (event.originalEvent.button !== 0) return;
+      if (snowGunSelectionPhaseRef.current !== 'armed' || event.originalEvent.button !== 0) return;
+      clearLasso();
+      const projectedGuns = new Map(input.guns.filter((gun) => gun.hydrantId != null)
+        .map((gun) => {
+          const point = map.project(gun.point);
+          return [gun.id, { x: point.x, y: point.y }] as const;
+        }));
       currentGesture = { start: { x: event.point.x, y: event.point.y },
-        current: { x: event.point.x, y: event.point.y }, moved: false,
-        restored: false, priorDragPan: map.dragPan.isEnabled() };
+        latest: { x: event.point.x, y: event.point.y },
+        path: [{ x: event.point.x, y: event.point.y }], moved: false,
+        restored: false, priorDragPan: map.dragPan.isEnabled(), frame: null, previewIds: [],
+        projectedGuns };
       map.dragPan.disable();
-      setSnowLasso(null);
     };
     const onMouseMove = (event: maplibregl.MapMouseEvent) => {
-      if (currentGesture) updatePreview({ x: event.point.x, y: event.point.y });
+      if (!currentGesture) return;
+      currentGesture.latest = { x: event.point.x, y: event.point.y };
+      if (currentGesture.frame == null) currentGesture.frame = requestAnimationFrame(() => {
+        if (!currentGesture) return;
+        currentGesture.frame = null;
+        processGesture(currentGesture, false);
+      });
     };
     const finish = (point: LassoPoint) => {
       if (!currentGesture) return;
-      updatePreview(point);
       const finished = currentGesture;
+      finished.latest = point;
+      if (finished.frame != null) cancelAnimationFrame(finished.frame);
+      finished.frame = null;
+      processGesture(finished, true);
       restore(finished);
       currentGesture = null;
       if (!finished.moved) return;
@@ -168,45 +255,73 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     const onWindowMouseUp = (event: MouseEvent) => finish(screenPoint(event.clientX, event.clientY));
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (currentGesture?.frame != null) cancelAnimationFrame(currentGesture.frame);
       restore(currentGesture);
       currentGesture = null;
-      setSnowLasso(null);
+      clearLasso();
       suppressSnowClickRef.current = false;
+      setSnowGunSelectionPhase('idle');
+    };
+    const onMoveStart = () => {
+      if (!currentGesture) return;
+      if (currentGesture.frame != null) cancelAnimationFrame(currentGesture.frame);
+      restore(currentGesture);
+      currentGesture = null;
+      clearLasso();
+      suppressSnowClickRef.current = false;
+    };
+    const onMove = () => {
+      if (snowGunSelectionPhaseRef.current !== 'review') return;
+      setSnowLasso((selection) => selection ? { ...selection,
+        anchor: anchorFromLngLat(selection.anchorLngLat) } : null);
     };
     map.on('mousedown', onMouseDown);
     map.on('mousemove', onMouseMove);
     map.on('mouseup', onMouseUp);
+    map.on('movestart', onMoveStart);
+    map.on('move', onMove);
     window.addEventListener('mouseup', onWindowMouseUp);
     window.addEventListener('keydown', onKeyDown);
     return () => {
+      if (currentGesture?.frame != null) cancelAnimationFrame(currentGesture.frame);
       restore(currentGesture);
       currentGesture = null;
       map.off('mousedown', onMouseDown);
       map.off('mousemove', onMouseMove);
       map.off('mouseup', onMouseUp);
+      map.off('movestart', onMoveStart);
+      map.off('move', onMove);
       window.removeEventListener('mouseup', onWindowMouseUp);
       window.removeEventListener('keydown', onKeyDown);
-      setSnowLasso(null);
+      clearLasso();
       suppressSnowClickRef.current = false;
     };
-  }, [active, snowMode, input.mapRef, input.guns]);
+  }, [snowGunSelectionActive, active, snowMode, input.mapRef, input.guns]);
   useEffect(() => {
     const presentation = active === 'trails' ? 'dashboard-trails'
-      : active === 'snowmaking' ? snowMode === 'analysis'
+      : active === 'snowmaking' && snowGunSelectionActive ? 'dashboard-snowmaking-select'
+        : active === 'snowmaking' ? snowMode === 'analysis'
         ? 'dashboard-snowmaking-analysis' : 'dashboard-snowmaking' : null;
     input.registryRef.current?.setPresentation(presentation);
+  }, [active, snowMode, snowGunSelectionActive, input.registryRef]);
+  useEffect(() => {
     syncRef.current(input.mapRef.current);
-  });
+  }, [active, snowMode, liftId, edgeId, snowSelection,
+    input.dark, input.units, input.network, input.dams, input.ponds, input.lakes,
+    input.trails, input.lifts, input.nodes, input.pipes, input.guns,
+    input.coverDisplay, input.terrainRecord, input.mapRef, input.registryRef]);
 
   const clear = () => {
     presentationRef.current?.setHoveredSegment(null);
     setLiftId(null); setEdgeId(null); setSnowSelection(null); setSnowHover(null);
   };
   const change = (kind: DashboardKind | null) => {
-    setActive(kind); clear();
+    setSnowGunSelectionPhase('idle'); setActive(kind); clear();
     if (kind === 'snowmaking') setSnowMode('inspect');
   };
-  const close = () => { setActive(null); setSnowMode('inspect'); clear(); };
+  const close = () => {
+    setSnowGunSelectionPhase('idle'); setActive(null); setSnowMode('inspect'); clear();
+  };
   const fit = () => {
     const bounds = dashboardBounds(dataRef.current);
     if (bounds) input.mapRef.current?.fitBounds(bounds, { padding: 64, duration: 500 });
@@ -224,7 +339,13 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     if (activeRef.current !== 'snowmaking') return false;
     if (snowMode === 'analysis' && kind === 'gun' && suppressSnowClickRef.current) {
       suppressSnowClickRef.current = false;
-    } else if (snowMode === 'analysis' && kind === 'gun') presentationRef.current?.toggleGun(id);
+    } else if (snowMode === 'analysis' && kind === 'gun') {
+      if (snowGunSelectionPhaseRef.current === 'armed' &&
+        input.guns.some((gun) => gun.id === id && gun.hydrantId != null)) {
+        presentationRef.current?.toggleGun(id);
+        setSnowGunSelectionPhase('idle');
+      }
+    }
     else setSnowSelection(kind === 'pipe'
       ? { kind, id, segmentId: segmentId ?? null } : { kind, id });
     return true;
@@ -255,8 +376,11 @@ export function useInMapDashboards(input: InMapDashboardInput) {
         typeof flowTo === 'string' ? { from: flowFrom, to: flowTo } : null });
   };
   return { active, setActive, activeRef, liftId, edgeId, snowSelection, snowMode,
-    snowHover, snowLasso, setSnowMode, setSnowPresentation, sync: syncRef.current, change, close, fit,
+    snowHover, snowLasso, snowGunSelectionPhase, setSnowMode, setSnowPresentation,
+    toggleSnowGunSelection, cancelSnowGunSelection, sync: syncRef.current, change, close, fit,
     selectLift, selectEdge, selectSnow, setLiftId, setEdgeId, setSnowSelection,
     hoverSnowPipe,
-    openAnalysis: () => { setSnowMode('analysis'); setActive('snowmaking'); } };
+    openAnalysis: () => {
+      setSnowGunSelectionPhase('idle'); setSnowMode('analysis'); setActive('snowmaking');
+    } };
 }

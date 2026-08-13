@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { snowgunLabel, snowgunVariant } from '../snowmakingGuns';
 import { snowmakingNodeLabel, snowmakingPipeSegments, snowmakingPipeStats } from '../snowmakingNetwork';
 import type { SnowmakingAnalysisGroup, SnowmakingAnalysisResult,
@@ -8,6 +8,7 @@ import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
 import { DEFAULT_PUMP_ANALYSIS_DRAFT, type SnowmakingAnalysisState } from './snowmakingAnalysisModel';
 import { snowmakingPumpDirectionSummary, SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
 import type { SnowmakingLassoSelection } from './snowmakingLasso';
+import type { SnowgunSelectionPhase } from './dashboardMode';
 
 const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 const whole = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -41,10 +42,30 @@ function focusPumpPorts(pumpId: string): void {
   editor?.querySelector<HTMLElement>('input, select, button')?.focus();
 }
 
+const SnowgunChecklistRow = memo(function SnowgunChecklistRow({ gun, nodes, checked,
+  toggleGun, setHoveredGun }: {
+  gun: SavedSnowgun;
+  nodes: readonly SavedSnowmakingNode[];
+  checked: boolean;
+  toggleGun(id: string): void;
+  setHoveredGun(id: string | null): void;
+}) {
+  const variant = snowgunVariant(gun.variantId);
+  const label = snowgunLabel(gun, nodes);
+  const node = nodes.find((candidate) => candidate.id === gun.hydrantId);
+  return <label onMouseEnter={() => setHoveredGun(gun.id)} onMouseLeave={() => setHoveredGun(null)}
+    onFocus={() => setHoveredGun(gun.id)} onBlur={() => setHoveredGun(null)}>
+    <input type="checkbox" checked={checked} onChange={() => toggleGun(gun.id)} />
+    <span><strong>{label} · {variant.shortLabel}</strong><small>
+      Hydrant {node?.labelNumber ?? '—'}</small></span>
+  </label>;
+});
+
 export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, relevantGroups,
   sourceResourcesByIntakeId, result, toggleGun, setGuns, toggleIntake, setWetBulb,
   setPumpOn, setPumpHp, setPumpEfficiency, onSetPumpPort, setHoveredGun,
-  hoveredSegmentId, reset, analyze, lasso = null }: {
+  hoveredSegmentId, analyze, lasso = null, gunSelectionPhase = 'idle',
+  toggleGunSelection, cancelGunSelection }: {
   state: SnowmakingAnalysisState;
   nodes: readonly SavedSnowmakingNode[];
   pipes: readonly SavedSnowmakingPipe[];
@@ -64,9 +85,11 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
     port: SnowmakingPumpPort | null): void;
   setHoveredGun(id: string | null): void;
   hoveredSegmentId: string | null;
-  reset(): void;
   analyze(): void;
   lasso?: SnowmakingLassoSelection | null;
+  gunSelectionPhase?: SnowgunSelectionPhase;
+  toggleGunSelection(): void;
+  cancelGunSelection(): void;
 }) {
   const selectedGuns = new Set(state.selectedGunIds);
   const selectedIntakes = new Set(state.selectedIntakeNodeIds);
@@ -123,11 +146,19 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
     </label>
 
     <div className="snowmaking-analysis-actions">
-      <button className="site-btn site-btn-primary" disabled={state.calculating || selectedConnectedGunCount === 0}
-        onClick={analyze}>Analyze</button>
-      <button className="site-btn" onClick={() => setGuns(connectedGunIds)}>Select all connected</button>
-      <button className="site-btn" onClick={() => setGuns([])}>Clear guns</button>
-      <button className="site-btn" onClick={reset}>Reset analysis</button>
+      <div className="snowmaking-analysis-selection-actions">
+        <button className="site-btn" type="button" aria-pressed={gunSelectionPhase !== 'idle'}
+          onClick={toggleGunSelection}>Select Guns</button>
+        <button className="site-btn" type="button" onClick={() => {
+          cancelGunSelection(); setGuns(connectedGunIds);
+        }}>Select All Connected</button>
+        <button className="site-btn" type="button" onClick={() => {
+          cancelGunSelection(); setGuns([]);
+        }}>Clear Guns</button>
+      </div>
+      <button className="site-btn site-btn-primary snowmaking-analysis-run" type="button"
+        disabled={state.calculating || selectedConnectedGunCount === 0}
+        onClick={() => { cancelGunSelection(); analyze(); }}>Analyze</button>
     </div>
 
     <div className="network-section-title">Snowguns</div>
@@ -153,14 +184,8 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
             onChange={() => setGuns(selectedCount === group.gunIds.length
               ? state.selectedGunIds.filter((id) => !group.gunIds.includes(id))
               : [...new Set([...state.selectedGunIds, ...group.gunIds])])} />
-          {groupGuns.map((gun) => { const variant = snowgunVariant(gun.variantId);
-            const label = snowgunLabel(gun, nodes); return <label key={gun.id}
-              onMouseEnter={() => setHoveredGun(gun.id)} onMouseLeave={() => setHoveredGun(null)}
-              onFocus={() => setHoveredGun(gun.id)} onBlur={() => setHoveredGun(null)}>
-            <input type="checkbox" checked={selectedGuns.has(gun.id)} onChange={() => toggleGun(gun.id)} />
-            <span><strong>{label} · {variant.shortLabel}</strong><small>
-              Hydrant {nodeById.get(gun.hydrantId ?? '')?.labelNumber ?? '—'}</small></span>
-          </label>; })}
+          {groupGuns.map((gun) => <SnowgunChecklistRow key={gun.id} gun={gun} nodes={nodes}
+            checked={selectedGuns.has(gun.id)} toggleGun={toggleGun} setHoveredGun={setHoveredGun} />)}
         </div>
       </fieldset>;
     })}</div> : <div className="network-sub">No connected snowguns are installed.</div>}

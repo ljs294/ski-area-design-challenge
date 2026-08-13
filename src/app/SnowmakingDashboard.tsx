@@ -21,6 +21,7 @@ import { snowmakingPressureColor, snowmakingPressureRange } from './snowmakingPr
 import { useSnowmakingAnalysis } from './useSnowmakingAnalysis';
 import type { SnowmakingMapPresentation } from './dashboardMapLayers';
 import type { SnowmakingLassoSelection } from './snowmakingLasso';
+import type { SnowgunSelectionPhase } from './dashboardMode';
 import { SnowmakingDashboardInspector } from './SnowmakingDashboardInspector';
 import { SnowmakingPipeHoverDetails, type SnowmakingPipeHoverState } from './SnowmakingPipeHover';
 
@@ -118,6 +119,9 @@ export function SnowmakingDashboard({
   onPresentationChange,
   mapHoveredPipe = null,
   snowmakingLasso = null,
+  snowGunSelectionPhase = 'idle',
+  onToggleSnowGunSelection = () => {},
+  onCancelSnowGunSelection = () => {},
 }: {
   dams: SavedDam[];
   ponds: SavedPond[];
@@ -152,6 +156,9 @@ export function SnowmakingDashboard({
   onPresentationChange?: (presentation: SnowmakingMapPresentation) => void;
   mapHoveredPipe?: SnowmakingPipeHoverState | null;
   snowmakingLasso?: SnowmakingLassoSelection | null;
+  snowGunSelectionPhase?: SnowgunSelectionPhase;
+  onToggleSnowGunSelection?: () => void;
+  onCancelSnowGunSelection?: () => void;
 }) {
   const [view, setView] = useState<View | null>(null);
   const [showGunTypes, setShowGunTypes] = useState(false);
@@ -162,6 +169,20 @@ export function SnowmakingDashboard({
     relevantGroups: analysisRelevantGroups, routing: analysisRouting,
     gunStatuses: analysisStatuses, analyze,
     sourceResourcesByIntakeId } = useSnowmakingAnalysis({ nodes, pipes, guns, dams, ponds, lakes });
+  const toggleAnalysisGun = useCallback((id: string) =>
+    analysisDispatch({ type: 'toggle-gun', id }), [analysisDispatch]);
+  const setAnalysisGuns = useCallback((ids: string[]) =>
+    analysisDispatch({ type: 'set-guns', ids }), [analysisDispatch]);
+  const toggleAnalysisIntake = useCallback((id: string) =>
+    analysisDispatch({ type: 'toggle-intake', id }), [analysisDispatch]);
+  const setAnalysisWetBulb = useCallback((value: string) =>
+    analysisDispatch({ type: 'wet-bulb', value }), [analysisDispatch]);
+  const setAnalysisPumpOn = useCallback((id: string, on: boolean) =>
+    analysisDispatch({ type: 'pump-on', id, on }), [analysisDispatch]);
+  const setAnalysisPumpHp = useCallback((id: string, value: string) =>
+    analysisDispatch({ type: 'pump-hp', id, value }), [analysisDispatch]);
+  const setAnalysisPumpEfficiency = useCallback((id: string, value: string) =>
+    analysisDispatch({ type: 'pump-efficiency', id, value }), [analysisDispatch]);
   const solvedSegments = useMemo(() => (analysis.stale ? [] : analysis.result?.systems ?? [])
     .flatMap((system) => system.segments), [analysis.result, analysis.stale]);
   const analysisSegments = useMemo(() => new Map(solvedSegments
@@ -183,18 +204,19 @@ export function SnowmakingDashboard({
     mode,
     segments: solvedSegments,
     relevantSegmentColors,
-    selectedGunIds: new Set(analysis.selectedGunIds),
+    selectedGunIds: new Set(mode === 'analysis' ? analysis.selectedGunIds
+      : selectedGunId ? [selectedGunId] : []),
     gunStatuses: analysisStatuses ?? {},
     operatingGunIds: new Set(),
     invalidPumpIds,
     pressureRange,
     showGunTypes,
-    toggleGun: (id) => analysisDispatch({ type: 'toggle-gun', id }),
-    setGuns: (ids) => analysisDispatch({ type: 'set-guns', ids }),
+    toggleGun: toggleAnalysisGun,
+    setGuns: setAnalysisGuns,
     setHoveredSegment: setHoveredSegmentId,
-  }), [mode, solvedSegments, relevantSegmentColors, analysis.selectedGunIds,
+  }), [mode, solvedSegments, relevantSegmentColors, analysis.selectedGunIds, selectedGunId,
     analysisStatuses, invalidPumpIds, pressureRange, showGunTypes, onPresentationChange,
-    analysisDispatch]);
+    analysisDispatch, toggleAnalysisGun, setAnalysisGuns]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
 
@@ -271,11 +293,13 @@ export function SnowmakingDashboard({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (snowGunSelectionPhase !== 'idle') onCancelSnowGunSelection();
+      else onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [snowGunSelectionPhase, onCancelSnowGunSelection, onClose]);
 
   const toSvg = (clientX: number, clientY: number, v: View) => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -421,16 +445,18 @@ export function SnowmakingDashboard({
     {mode === 'analysis' ? <SnowmakingAnalysisPanel state={analysis} nodes={nodes} pipes={pipes}
       guns={guns} groups={analysisGroups} relevantGroups={analysisRelevantGroups}
       sourceResourcesByIntakeId={sourceResourcesByIntakeId} result={analysis.result}
-      toggleGun={(id) => analysisDispatch({ type: 'toggle-gun', id })}
-      setGuns={(ids) => analysisDispatch({ type: 'set-guns', ids })}
-      analyze={analyze} lasso={snowmakingLasso}
-      toggleIntake={(id) => analysisDispatch({ type: 'toggle-intake', id })}
-      setWetBulb={(value) => analysisDispatch({ type: 'wet-bulb', value })}
-      setPumpOn={(id, on) => analysisDispatch({ type: 'pump-on', id, on })}
-      setPumpHp={(id, value) => analysisDispatch({ type: 'pump-hp', id, value })}
-      setPumpEfficiency={(id, value) => analysisDispatch({ type: 'pump-efficiency', id, value })}
+      toggleGun={toggleAnalysisGun}
+      setGuns={setAnalysisGuns}
+      analyze={analyze} lasso={snowmakingLasso} gunSelectionPhase={snowGunSelectionPhase}
+      toggleGunSelection={onToggleSnowGunSelection}
+      cancelGunSelection={onCancelSnowGunSelection}
+      toggleIntake={toggleAnalysisIntake}
+      setWetBulb={setAnalysisWetBulb}
+      setPumpOn={setAnalysisPumpOn}
+      setPumpHp={setAnalysisPumpHp}
+      setPumpEfficiency={setAnalysisPumpEfficiency}
       onSetPumpPort={onSetPumpPort} setHoveredGun={setHoveredGunId}
-      hoveredSegmentId={hoveredSegmentId} reset={() => analysisDispatch({ type: 'reset' })} />
+      hoveredSegmentId={hoveredSegmentId} />
       : <SnowmakingDashboardInspector selectedNode={selectedNode} selectedPipe={selectedPipe}
         selectedPipeSegmentId={selectedPipeSegmentId}
         selectedGun={selectedGun} dams={dams} ponds={ponds} lakes={lakes} nodes={nodes}
@@ -668,8 +694,10 @@ export function SnowmakingDashboard({
             showTypes={showGunTypes} place={place}
             select={(id) => {
               if (mode === 'analysis') {
-                if (guns.find((gun) => gun.id === id)?.hydrantId) {
+                if (snowGunSelectionPhase === 'armed' &&
+                  guns.find((gun) => gun.id === id)?.hydrantId) {
                   analysisDispatch({ type: 'toggle-gun', id });
+                  onCancelSnowGunSelection();
                 }
                 return;
               }
@@ -721,18 +749,19 @@ export function SnowmakingDashboard({
       {mode === 'analysis' ? <SnowmakingAnalysisPanel state={analysis} nodes={nodes} pipes={pipes}
         guns={guns} groups={analysisGroups} relevantGroups={analysisRelevantGroups}
         sourceResourcesByIntakeId={sourceResourcesByIntakeId} result={analysis.result}
-        toggleGun={(id) => analysisDispatch({ type: 'toggle-gun', id })}
-        setGuns={(ids) => analysisDispatch({ type: 'set-guns', ids })}
-        analyze={analyze} lasso={snowmakingLasso}
-        toggleIntake={(id) => analysisDispatch({ type: 'toggle-intake', id })}
-        setWetBulb={(value) => analysisDispatch({ type: 'wet-bulb', value })}
-        setPumpOn={(id, on) => analysisDispatch({ type: 'pump-on', id, on })}
-        setPumpHp={(id, value) => analysisDispatch({ type: 'pump-hp', id, value })}
-        setPumpEfficiency={(id, value) => analysisDispatch({ type: 'pump-efficiency', id, value })}
+        toggleGun={toggleAnalysisGun}
+        setGuns={setAnalysisGuns}
+        analyze={analyze} lasso={snowmakingLasso} gunSelectionPhase={snowGunSelectionPhase}
+        toggleGunSelection={onToggleSnowGunSelection}
+        cancelGunSelection={onCancelSnowGunSelection}
+        toggleIntake={toggleAnalysisIntake}
+        setWetBulb={setAnalysisWetBulb}
+        setPumpOn={setAnalysisPumpOn}
+        setPumpHp={setAnalysisPumpHp}
+        setPumpEfficiency={setAnalysisPumpEfficiency}
         onSetPumpPort={onSetPumpPort}
         setHoveredGun={setHoveredGunId}
-        hoveredSegmentId={hoveredSegmentId}
-        reset={() => analysisDispatch({ type: 'reset' })} /> : <SnowmakingDashboardInspector
+        hoveredSegmentId={hoveredSegmentId} /> : <SnowmakingDashboardInspector
         selectedNode={selectedNode}
         selectedPipe={selectedPipe}
         selectedPipeSegmentId={selectedPipeSegmentId}

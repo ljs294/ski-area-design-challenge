@@ -334,8 +334,7 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
     expect.objectContaining({ port: 'discharge', label: 'OUT', bearing: expect.any(Number) }),
   ]));
 
-  const lassoGun = async (id: string, assertLive = false) => {
-    const point = await page.evaluate((gunId) => {
+  const gunPoint = (id: string) => page.evaluate((gunId) => {
       const map = (window as unknown as { appMap: {
         project(point: [number, number]): { x: number; y: number };
         getCanvas(): HTMLCanvasElement;
@@ -343,6 +342,7 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
           properties?: Record<string, unknown>;
           geometry?: { type: string; coordinates: [number, number] };
         }> } } };
+        getFeatureState(target: { source: string; id: string }): Record<string, unknown>;
       } }).appMap;
       const feature = map.getSource('dashboard-map').serialize().data?.features?.find((row) =>
         row.properties?.kind === 'snow-gun' && row.properties?.id === gunId);
@@ -352,26 +352,103 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
       const rect = map.getCanvas().getBoundingClientRect();
       return { x: rect.left + projected.x, y: rect.top + projected.y };
     }, id);
-    await page.mouse.move(point.x - 9, point.y - 9);
+  const selectGuns = analyzer.getByRole('button', { name: 'Select Guns' });
+  const lassoGun = async (id: string, assertLive = false) => {
+    await selectGuns.click();
+    await expect(selectGuns).toHaveAttribute('aria-pressed', 'true');
+    const point = await gunPoint(id);
+    // Concave free-form path with the gun in the broad upper section and a
+    // narrow notch below it.
+    const path = [[point.x - 20, point.y - 20], [point.x + 20, point.y - 20],
+      [point.x + 20, point.y + 20], [point.x + 5, point.y + 20],
+      [point.x + 5, point.y + 5], [point.x - 5, point.y + 5],
+      [point.x - 5, point.y + 20], [point.x - 20, point.y + 20],
+      [point.x - 20, point.y - 20]];
+    await page.mouse.move(path[0][0], path[0][1]);
     await page.mouse.down();
-    await page.mouse.move(point.x + 9, point.y + 9, { steps: 3 });
+    for (const [x, y] of path.slice(1)) await page.mouse.move(x, y, { steps: 3 });
     if (assertLive) await expect.poll(() => page.evaluate((gunId) => {
-      const rows = ((window as unknown as { appMap: { getSource(id: string): {
-        serialize(): { data?: { features?: Array<{ properties?: Record<string, unknown> }> } }
-      } } }).appMap.getSource('dashboard-map').serialize().data?.features ?? []);
-      return rows.find((row) => row.properties?.kind === 'snow-gun' &&
-        row.properties?.id === gunId)?.properties?.lassoed;
+      const map = (window as unknown as { appMap: {
+        getFeatureState(target: { source: string; id: string }): Record<string, unknown>;
+      } }).appMap;
+      return map.getFeatureState({ source: 'dashboard-map', id: `snow-gun:${gunId}` }).lassoed;
     }, id)).toBe(true);
     await page.mouse.up();
     await expect(page.getByRole('dialog', { name: 'Lasso selection' })).toContainText('1 enclosed');
   };
 
   await expect(analyzer.getByRole('button', { name: 'Analyze', exact: true })).toBeDisabled();
+  await page.evaluate(() => {
+    const map = (window as unknown as { appMap: { getSource(id: string): {
+      setData(data: unknown): unknown;
+    } } }).appMap;
+    const source = map.getSource('dashboard-map');
+    const original = source.setData.bind(source);
+    (window as unknown as { dashboardMainSetDataCount: number }).dashboardMainSetDataCount = 0;
+    source.setData = (data: unknown) => {
+      const state = window as unknown as { dashboardMainSetDataCount: number };
+      state.dashboardMainSetDataCount += 1;
+      return original(data);
+    };
+  });
+
+  const canvas = page.locator('.maplibregl-canvas');
+  const canvasBox = await canvas.boundingBox();
+  expect(canvasBox).not.toBeNull();
+  const mapPoint = { x: canvasBox!.x + canvasBox!.width * 0.5,
+    y: canvasBox!.y + canvasBox!.height * 0.72 };
+  const camera = () => page.evaluate(() => {
+    const map = (window as unknown as { appMap: {
+      getCenter(): { lng: number; lat: number }; getZoom(): number;
+    } }).appMap;
+    const center = map.getCenter();
+    return { center: [center.lng, center.lat], zoom: map.getZoom() };
+  });
+
+  await expect(selectGuns).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => canvas.evaluate((element) => element.style.cursor)).toBe('');
+  const beforePan = await camera();
+  await page.mouse.move(mapPoint.x, mapPoint.y);
+  await page.mouse.down();
+  await page.mouse.move(mapPoint.x + 70, mapPoint.y + 25, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => (await camera()).center).not.toEqual(beforePan.center);
+
+  await selectGuns.click();
+  await expect(selectGuns).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => canvas.evaluate((element) => element.style.cursor)).toBe('crosshair');
+  const beforeInterruptedZoom = await camera();
+  await page.mouse.move(mapPoint.x, mapPoint.y);
+  await page.mouse.down();
+  await page.mouse.move(mapPoint.x + 18, mapPoint.y + 12, { steps: 3 });
+  await page.mouse.wheel(0, -420);
+  await expect.poll(async () => (await camera()).zoom).not.toBe(beforeInterruptedZoom.zoom);
+  await page.mouse.up();
+  await expect(page.getByRole('dialog', { name: 'Lasso selection' })).toHaveCount(0);
+  await expect(selectGuns).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(selectGuns).toHaveAttribute('aria-pressed', 'false');
+  await expect(analyzer).toBeVisible();
+  await expect.poll(() => canvas.evaluate((element) => element.style.cursor)).toBe('');
+  await expect.poll(() => page.evaluate(() =>
+    (window as unknown as { dashboardMainSetDataCount: number }).dashboardMainSetDataCount))
+    .toBe(0);
+
   await lassoGun('gun-1', true);
   await page.getByRole('button', { name: 'Add enclosed guns' }).click();
+  await expect(selectGuns).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => page.evaluate(() =>
+    (window as unknown as { dashboardMainSetDataCount: number }).dashboardMainSetDataCount))
+    .toBe(0);
 
   const firstGunRow = analyzer.locator('.snowmaking-analysis-checklist label')
     .filter({ hasText: 'H1 · R5 10S' }).first();
+  await expect(firstGunRow.getByRole('checkbox')).toBeChecked();
+  await selectGuns.click();
+  const firstGunPoint = await gunPoint('gun-1');
+  await page.mouse.click(firstGunPoint.x, firstGunPoint.y);
+  await expect(firstGunRow.getByRole('checkbox')).not.toBeChecked();
+  await expect(selectGuns).toHaveAttribute('aria-pressed', 'false');
   await firstGunRow.getByRole('checkbox').check();
   await analyzer.getByRole('checkbox', { name: 'Pump On' }).check();
   await analyzer.getByRole('spinbutton', { name: 'Primary Pump horsepower' }).fill('500');
@@ -379,9 +456,43 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
     name: 'Wet-bulb temperature in Fahrenheit',
   }).fill('9');
 
+  await expect.poll(() => page.evaluate(() =>
+    (window as unknown as { dashboardMainSetDataCount: number }).dashboardMainSetDataCount))
+    .toBe(0);
+
   await expect(analyzer).not.toContainText('58 GPM');
   await analyzer.getByRole('button', { name: 'Analyze', exact: true }).click();
   await expect(analyzer).toContainText('58 GPM');
+  const analyzedGunRender = await page.evaluate(() => {
+    const map = (window as unknown as { appMap: {
+      getFeatureState(target: { source: string; id: string }): Record<string, unknown>;
+      getSource(id: string): { serialize(): { data?: { features?: Array<{
+        properties?: Record<string, unknown>; geometry?: { coordinates: [number, number] };
+      }> } } };
+      project(point: [number, number]): { x: number; y: number };
+      queryRenderedFeatures(point: { x: number; y: number }, options: { layers: string[] }):
+        Array<{ id?: string | number }>;
+    } }).appMap;
+    const feature = map.getSource('dashboard-map').serialize().data?.features?.find((row) =>
+      row.properties?.kind === 'snow-gun' && row.properties?.id === 'gun-1');
+    const coordinates = feature?.geometry?.coordinates;
+    const point = coordinates ? map.project(coordinates) : { x: 0, y: 0 };
+    return {
+      state: map.getFeatureState({ source: 'dashboard-map', id: 'snow-gun:gun-1' }),
+      renderedIds: map.queryRenderedFeatures(point, { layers: ['dashboard-snow-guns'] })
+        .map((row) => row.id),
+      sourceFeature: feature,
+    };
+  });
+  expect(analyzedGunRender.state).toMatchObject({ analysis: true, selected: true,
+    status: 'ready', operating: false, lassoed: false });
+  expect(analyzedGunRender.renderedIds).toContain('snow-gun:gun-1');
+  await expect.poll(() => page.evaluate(() => {
+    const map = (window as unknown as { appMap: {
+      getFeatureState(target: { source: string; id: string }): Record<string, unknown>;
+    } }).appMap;
+    return map.getFeatureState({ source: 'dashboard-map', id: 'snow-gun:gun-2' });
+  })).toMatchObject({ analysis: true, selected: false, status: null, operating: false });
   await expect.poll(() => page.evaluate(() => {
     const source = (window as unknown as { appMap: { getSource(id: string): {
       serialize(): { data?: { features?: Array<{ properties?: Record<string, unknown> }> } }
@@ -453,7 +564,7 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
   await expect(analyzer).toContainText('58 GPM');
   await expect(analyzer).not.toContainText('faces away from the selected source');
 
-  await analyzer.getByRole('button', { name: 'Select all connected' }).click();
+  await analyzer.getByRole('button', { name: 'Select All Connected' }).click();
   await analyzer.getByRole('button', { name: 'Analyze', exact: true }).click();
 
   await expect(analyzer).toContainText('116 GPM');
@@ -475,7 +586,7 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
     name: 'Wet-bulb temperature in Fahrenheit',
   })).toHaveValue('28');
   await expect(reopened.locator('.snowmaking-analysis-checklist input:checked')).toHaveCount(0);
-  await reopened.getByRole('button', { name: 'Select all connected' }).click();
+  await reopened.getByRole('button', { name: 'Select All Connected' }).click();
   await expect(reopened.getByRole('checkbox', { name: 'Pump On' })).not.toBeChecked();
   await page.getByRole('button', { name: 'Close Snowmaking dashboard' }).click();
 
