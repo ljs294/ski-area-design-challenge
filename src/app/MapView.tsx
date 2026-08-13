@@ -1,57 +1,46 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
-import { setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers,
-  type LayerToggle, type OverlayId } from './analysisLayers';
+import { setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers, type LayerToggle, type OverlayId } from './analysisLayers';
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
 import { buildSkiNetwork } from '../network';
 import { sampleSiteCoverGrid } from './worldcoverProtocol';
-import { addSiteBoxLayers, setSiteBox, setBoundaryMode, computeBox, siteBoxFromBounds,
-  type SiteBox } from './sitePicker';
+import { addSiteBoxLayers, setSiteBox, setBoundaryMode, computeBox, siteBoxFromBounds, type SiteBox } from './sitePicker';
 import { basemapFor } from './basemapStyle';
 import { tilt3D } from './terrain3d';
 import { useSettings } from './SettingsContext';
-import { MapInteractionLease, type MapInteractionLeaseHandle,
-  type MapInteractionOverrides } from './mapInteractionLease';
-import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot,
-  type ToolId } from './toolCoordinator';
+import { MapInteractionLease, type MapInteractionLeaseHandle, type MapInteractionOverrides } from './mapInteractionLease';
+import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot, type ToolId } from './toolCoordinator';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION, saveGame } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
-import type { GameSave, SavedDam, SavedJunction, SavedLift,
-  SavedNode, SavedPath, SavedPond, SavedRoad, SavedTrail,
-  TerrainPackageProgress, TerrainRecord } from '../types';
+import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath, SavedPond,
+  SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import { coverDisplayMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
 import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
-import { clearResortCoverCache, RESORT_COVER_PROTOCOL,
-  resortCameraBounds, sampleLocalTerrainAt, setActiveResortTerrain } from './resortProtocols';
+import { clearResortCoverCache, RESORT_COVER_PROTOCOL, resortCameraBounds,
+  sampleLocalTerrainAt, setActiveResortTerrain } from './resortProtocols';
 import { useLiftController } from './useLiftController';
 import { useRoadController } from './useRoadController';
-import { useCommittedSnowmakingNetwork, useSnowmakingController,
-  useSnowmakingLakeSources } from './useSnowmakingController';
+import { useCommittedSnowmakingNetwork, useSnowmakingController, useSnowmakingLakeSources } from './useSnowmakingController';
 import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
-import { MapViewChrome, SnowmakingToolOptions, snowmakingDashboardProps,
-  useMapContextRecovery } from './MapViewChrome';
+import { MapViewChrome, SnowmakingToolOptions, snowmakingDashboardProps, useMapContextRecovery } from './MapViewChrome';
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
 import { useMapRuntime } from './useMapRuntime';
-import { useMapSampling } from './useMapSampling';
+import { useMapSampling, useSnowLayer } from './useMapSampling';
 import { useMapWorkers } from './useMapWorkers';
 import { initialResortDesign } from './initialResortDesign';
-import { TERRAIN_CLEAN, designHasEdits, designOf, flushTerrainEdits, terrainHasEdits,
-  withTerrainEdit, type DesignSnapshot, type TerrainDirty } from './unsavedChanges';
-import { refreshTerrainGradeSources, setGradedContourPreview,
-  setTerrainContourData } from './terrainGradeMap';
+import { TERRAIN_CLEAN, designHasEdits, designOf, flushTerrainEdits, terrainHasEdits, withTerrainEdit,
+  type DesignSnapshot, type TerrainDirty } from './unsavedChanges';
+import { refreshTerrainGradeSources, setGradedContourPreview, setTerrainContourData } from './terrainGradeMap';
 import { withResumeCheckpoint } from './resumeCheckpoint';
-import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication,
-  type TerrainRecordView } from './terrainDocument';
+import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication, type TerrainRecordView } from './terrainDocument';
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
-import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry,
-  type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
-import { addDashboardMapLayers, setDashboardMapVisibility,
-  useInMapDashboards } from './inMapDashboards';
+import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
+import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
@@ -247,6 +236,7 @@ export function MapView({
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
   const unsavedChoiceRef = useRef<((choice: 'save' | 'discard' | 'cancel') => void) | null>(null);
   const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
+  const snow = useSnowLayer(mapRef);
   const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'optimizing' | 'error'>(
     mode === 'playing' ? 'loading' : 'ready'
   );
@@ -356,6 +346,7 @@ export function MapView({
       terrainKey: terrainRecord?.key ?? null,
       elevationChecksum: terrainRecord?.packageManifest?.elevationChecksum ?? null,
       coverChecksum: terrainRecord?.coverMetadata?.checksum ?? null,
+      snowCells: snow.grid ? snow.grid.width * snow.grid.height : 0,
       terrainDirty: { ...terrainDirtyRef.current },
       unsaved: hasUnsavedChanges(),
     };
@@ -461,6 +452,7 @@ export function MapView({
     lastLngLatRef,
     sampleTokenRef,
     doSampleRef,
+    snowGridRef: snow.gridRef,
   });
 
   // The terrain document is constructed once; its unit-sensitive ports rebind each render.
@@ -682,6 +674,7 @@ export function MapView({
     if (edit) markTerrainEdited(edit);
     else if (!preserveDirty) setTerrainDirty(TERRAIN_CLEAN);
     setTerrainRecord(record);
+    if (edit === 'elevation') snow.regenerate(record);
   }
 
   /**
@@ -692,6 +685,7 @@ export function MapView({
   function refreshTerrainSources({ record, edit }: TerrainPublication): void {
     if (edit === 'elevation') {
       refreshElevationSources(record);
+      snow.refresh();
       return;
     }
     if (edit !== 'cover') return;
@@ -894,6 +888,7 @@ export function MapView({
       }
       // The package exactly as it is on disk: a clean replacement, never an edit.
       terrain.replace(readyRecord);
+      snow.load(readyRecord, initialSave?.snow);
       // The resort's own aerial becomes the loading screen's backdrop — it is
       // decoded here regardless, so the picture is free.
       reportBoot({ type: 'backdrop', imageryUrl: localImageryUrlRef.current });
@@ -973,7 +968,7 @@ export function MapView({
       ? []
       : setupAnalysisLayers(map, terrainRecordRef.current, unitsRef.current, coverDisplayRef.current,
         localImageryUrlRef.current, lakeNameOverridesRef.current,
-        streamWidthOverridesRef.current);
+        streamWidthOverridesRef.current, snow.gridRef.current, snow.modeRef.current);
     return fresh;
   }
 
@@ -1306,6 +1301,7 @@ export function MapView({
       if (!validation.ok) throw new Error(validation.errors.join(' '));
       // Ingest persisted this package itself, so it starts clean.
       terrain.replace(record);
+      snow.regenerate(record);
       packageStateRef.current = 'ready';
       setPackageState('ready');
       // Cover the first resort render; the style.load reveal drops it once the
@@ -1455,6 +1451,7 @@ export function MapView({
       lakeNameOverrides: lakeNameOverridesRef.current,
       snowmakingLakeIds: snowmakingLakeIdsRef.current,
       streamWidthOverrides: streamWidthOverridesRef.current,
+      snow: snow.snapshot(base?.snow),
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
       lastPlayedAt: base?.lastPlayedAt,
@@ -1731,7 +1728,10 @@ export function MapView({
           selectedPathId, selectedLakeId,
           selectedStreamId, liftEditing, trailEditing,
           lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds,
-          streamWidthOverrides, liftController,
+          streamWidthOverrides,
+          snowControl: activeOverlay === 'snow' && !dashboards.active
+            ? { mode: snow.mode, change: snow.changeMode, close: () => handleToggle('snow'), escapeEnabled: toolCoordinatorState.activeTool === null && !controlsSuspended } : null,
+          liftController,
           roadController, trailController,
           nodePathController, snowmakingController,
           toggleDock, openSnowmakingAnalysis: dashboards.openAnalysis,

@@ -8,6 +8,10 @@ import { sampleLocalCoverAt, sampleLocalTerrainAt, WORLD_COVER_LABELS } from './
 import type { Readout } from './CursorReadout';
 import type { OverlayId } from './Legend';
 import type { TerrainRecord } from '../types/terrain';
+import type { SnowGrid } from '../types/snow';
+import { sampleSnowGrid } from '../snow';
+
+export { useSnowLayer } from './useSnowLayer';
 
 interface MapSamplingOptions {
   mapRef: MutableRefObject<maplibregl.Map | null>;
@@ -17,6 +21,7 @@ interface MapSamplingOptions {
   lastLngLatRef: MutableRefObject<{ lng: number; lat: number } | null>;
   sampleTokenRef: MutableRefObject<number>;
   doSampleRef: MutableRefObject<(lngLat: { lng: number; lat: number }) => void>;
+  snowGridRef: MutableRefObject<SnowGrid | null>;
 }
 
 export interface MapSampling {
@@ -56,6 +61,8 @@ export function useMapSampling(options: MapSamplingOptions): MapSampling {
       const terrain = await samplePoint(lngLat.lng, lngLat.lat, zoom);
       if (!terrain || token !== options.sampleTokenRef.current) return;
       let coverLabel: string | null = null;
+      const snow = overlay === 'snow' && options.snowGridRef.current
+        ? sampleSnowGrid(options.snowGridRef.current, lngLat.lng, lngLat.lat) : null;
       if (localRecord) {
         const code = sampleLocalCoverAt(lngLat.lng, lngLat.lat);
         coverLabel = code == null ? '—' : WORLD_COVER_LABELS[code] ?? 'Unknown';
@@ -70,6 +77,8 @@ export function useMapSampling(options: MapSamplingOptions): MapSampling {
         slopeDeg: terrain.slopeDeg,
         aspectCompass: compass8(terrain.aspectDeg),
         coverLabel,
+        snowDepthM: snow?.depthM,
+        snowSurface: snow?.surface,
       });
     })();
   };

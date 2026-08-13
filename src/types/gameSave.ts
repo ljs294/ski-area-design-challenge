@@ -4,6 +4,7 @@ import type { SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SavedSnowm
   SnowmakingNodeNextNumbers } from './snowmaking';
 import type { SavedJunction, SavedNode, SavedPath } from './topology';
 import type { SavedTrail } from './trails';
+import type { SavedSnowGrid } from './snow';
 
 export interface SavedSiteBox {
   bounds: [[number, number], [number, number]];
@@ -14,7 +15,7 @@ export interface SavedSiteBox {
 
 /** A player's persisted resort design. This is a compatibility boundary. */
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
   key: string;
   name: string;
   mountainId?: string;
@@ -42,6 +43,8 @@ export interface GameSave {
   /** Imported standing-water feature IDs designated for snowmaking. */
   snowmakingLakeIds?: string[];
   streamWidthOverrides?: Record<string, number>;
+  /** Added in schema 13. Older saves derive a deterministic baseline at load. */
+  snow?: SavedSnowGrid;
   createdAt: string;
   updatedAt: string;
   lastPlayedAt?: string;

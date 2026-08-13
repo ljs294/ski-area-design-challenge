@@ -32,6 +32,7 @@ const TYPE_FACADE_MANIFEST = new Map([
     'ChairSize', 'LiftClass', 'LiftStatus', 'SavedFixedGripLift', 'SavedLift', 'SavedLiftBase',
   ]],
   ['./types/roads', ['RoadType', 'SavedRoad']],
+  ['./types/snow', ['SavedSnowGrid', 'SnowGrid', 'SnowSurfaceCode']],
   ['./types/snowmaking', [
     'SavedDam', 'SavedPond', 'SavedSnowgun', 'SavedSnowmakingNode', 'SnowgunVariantId',
     'SnowmakingNodeKind', 'SnowmakingSourceRef',

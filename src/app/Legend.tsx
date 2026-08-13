@@ -1,5 +1,6 @@
 import { SLOPE_LEGEND, ASPECT_LEGEND } from './terrainProtocols';
 import type { OverlayId } from './analysisLayers';
+import { SNOW_DEPTH_LEGEND } from './snowStyle';
 
 export type { OverlayId } from './analysisLayers';
 
@@ -15,6 +16,7 @@ const LEGENDS: Record<OverlayId, { title: string; rows: { label: string; color: 
   slope: { title: 'Slope angle', rows: SLOPE_LEGEND },
   aspect: { title: 'Exposure', rows: ASPECT_LEGEND },
   groundcover: { title: 'Detailed terrain cover', rows: COVER_LEGEND },
+  snow: { title: 'Snow depth', rows: SNOW_DEPTH_LEGEND },
 };
 
 /** Legend for the currently active overlay only; nothing when none is active. */

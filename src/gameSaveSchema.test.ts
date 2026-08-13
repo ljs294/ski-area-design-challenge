@@ -15,9 +15,10 @@ import type { SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SavedSnowm
   SnowmakingNodeNextNumbers } from './types/snowmaking';
 import type { SavedJunction, SavedNode, SavedPath } from './types/topology';
 import type { SavedTrail } from './types/trails';
+import type { SavedSnowGrid } from './types/snow';
 
 interface ExpectedGameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
   key: string;
   name: string;
   mountainId?: string;
@@ -44,6 +45,7 @@ interface ExpectedGameSave {
   lakeNameOverrides?: Record<string, string>;
   snowmakingLakeIds?: string[];
   streamWidthOverrides?: Record<string, number>;
+  snow?: SavedSnowGrid;
   createdAt: string;
   updatedAt: string;
   lastPlayedAt?: string;
@@ -143,8 +145,15 @@ describe('GameSave compatibility boundary', () => {
     expect(hydrated.snowmakingNodeNextNumbers).toEqual(currentFixture.snowmakingNodeNextNumbers);
   });
 
-  it('keeps newly written saves on schema version 12', () => {
-    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(12);
-    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<12>();
+  it('hydrates a representative schema-v12 fixture without snow state', () => {
+    const fixture: GameSave = { ...currentFixture, schemaVersion: 12, key: 'current-v12' };
+    const hydrated = hydrateDesignFixture(fixture);
+    expect(hydrated.snowmakingPipes).toHaveLength(1);
+    expect(fixture.snow).toBeUndefined();
+  });
+
+  it('keeps newly written saves on schema version 13', () => {
+    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(13);
+    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<13>();
   });
 });

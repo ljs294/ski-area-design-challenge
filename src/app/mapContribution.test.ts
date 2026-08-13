@@ -323,6 +323,8 @@ describe('managed map contribution visibility', () => {
         exclusiveGroup: 'analysis', section: 'Analysis' },
       { id: 'aspect', label: 'Aspect', layerIds: ['aspect'], visible: false,
         exclusiveGroup: 'analysis', section: 'Analysis' },
+      { id: 'snow', label: 'Snow', layerIds: ['snow'], visible: false,
+        exclusiveGroup: 'analysis', section: 'Analysis' },
     ];
     const road = contributions.find((entry) => entry.id === 'road')!;
     road.visibility = () => [
@@ -338,13 +340,14 @@ describe('managed map contribution visibility', () => {
       section: 'Master plan',
     });
     registry.toggleVisibility('roads');
-    registry.toggleVisibility('aspect');
+    registry.toggleVisibility('snow');
     map.calls.length = 0;
     const afterRestyle = registry.synchronizeStyle();
 
     expect(afterRestyle.find((entry) => entry.id === 'roads')?.visible).toBe(false);
     expect(afterRestyle.find((entry) => entry.id === 'slope')?.visible).toBe(false);
-    expect(afterRestyle.find((entry) => entry.id === 'aspect')?.visible).toBe(true);
+    expect(afterRestyle.find((entry) => entry.id === 'aspect')?.visible).toBe(false);
+    expect(afterRestyle.find((entry) => entry.id === 'snow')?.visible).toBe(true);
     expect(map.calls).toContain('visibility:osm-roads:none');
     expect(map.calls).toContain('visibility:player-roads:none');
   });

@@ -9,6 +9,8 @@ export interface Readout {
   slopeDeg: number;
   aspectCompass: string;
   coverLabel: string | null;
+  snowDepthM?: number;
+  snowSurface?: number;
 }
 
 /** Lower-left readout: elevation always; active-overlay stat when one is on. */

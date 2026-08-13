@@ -920,6 +920,31 @@ html.resume-capture .maplibregl-canvas {
   gap: 10px;
 }
 
+.snow-layer-control {
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+}
+.snow-layer-heading { margin-bottom: 7px; }
+.snow-layer-heading .dock-head-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+.snow-mode-toggle { display: flex; width: 100%; }
+.snow-mode-toggle .seg-btn { flex: 1; }
+.snow-live-readout { display: grid; gap: 3px; margin: 9px 0; font-size: 12px; }
+.snow-live-readout span { display: flex; justify-content: space-between; gap: 12px; }
+.snow-live-readout b { color: var(--text-muted); font-weight: 600; }
+.snow-legend { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+.snow-legend.is-conditions { grid-template-columns: 1fr 1fr; column-gap: 9px; }
+.snow-legend .legend-row { min-width: 0; font-size: 10px; }
+.snow-legend .legend-swatch { flex: 0 0 auto; }
+.dock-layers .dock-panel { max-height: min(34vh, 260px); }
+
 .dock-rollups {
   display: flex;
   align-items: flex-end;

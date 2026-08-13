@@ -31,6 +31,8 @@ import type { RoadController } from './useRoadController';
 import type { TrailController } from './useTrailController';
 import type { useNodePathController } from './useNodePathController';
 import type { useSnowmakingController } from './useSnowmakingController';
+import { SnowLayerControl } from './SnowLayerControl';
+import type { SnowDisplayMode } from './snowStyle';
 
 type NodePathController = ReturnType<typeof useNodePathController>;
 type SnowmakingController = ReturnType<typeof useSnowmakingController>;
@@ -76,6 +78,8 @@ export interface MapGameDockProps {
   lakeNameOverrides: Record<string, string>;
   snowmakingLakeIds: string[];
   streamWidthOverrides: Record<string, number>;
+  snowControl: { mode: SnowDisplayMode; change(mode: SnowDisplayMode): void;
+    close(): void; escapeEnabled: boolean } | null;
   liftController: LiftController;
   roadController: RoadController;
   trailController: TrailController;
@@ -188,7 +192,11 @@ export function MapGameDock(props: MapGameDockProps) {
     return warnings;
   }, [props.network]);
 
-  return <div className="game-dock"><div className="dock-stack"><div className="dock-rollups">
+  return <div className="game-dock"><div className="dock-stack">
+    {props.snowControl && <SnowLayerControl mode={props.snowControl.mode}
+      onModeChange={props.snowControl.change} onClose={props.snowControl.close}
+      escapeEnabled={props.snowControl.escapeEnabled} readout={props.readout} units={props.units} />}
+    <div className="dock-rollups">
     {selectedStream && <div className="dock-rollup dock-stream" data-panel="stream">
       <div className="dock-panel"><StreamDetail stream={selectedStream} units={props.units}
         onWidthOverride={(width) => props.setStreamWidth(selectedStream.id, width)}
@@ -201,7 +209,7 @@ export function MapGameDock(props: MapGameDockProps) {
         onDepthOverride={(depth) => props.setLakeDepth(selectedLake.id, depth)}
         onClose={props.clearSelectedLake} /></div></div>}
     {layersOpen && <div className="dock-rollup dock-layers">
-      {props.activeOverlay && <div className="dock-legend-popover">
+      {props.activeOverlay && props.activeOverlay !== 'snow' && <div className="dock-legend-popover">
         <Legend overlay={props.activeOverlay} /></div>}
       <div className="dock-panel"><div className="dock-head"><span className="dock-head-title">Layers</span>
         <button className="settings-close-x" aria-label="Close" onClick={props.closeLayers}>✕</button>

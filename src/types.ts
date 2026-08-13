@@ -15,6 +15,7 @@ export type {
   ChairSize, LiftClass, LiftStatus, SavedFixedGripLift, SavedLift, SavedLiftBase,
 } from './types/lifts';
 export type { RoadType, SavedRoad } from './types/roads';
+export type { SavedSnowGrid, SnowGrid, SnowSurfaceCode } from './types/snow';
 export type {
   SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SnowgunVariantId,
   SnowmakingNodeKind, SnowmakingSourceRef,

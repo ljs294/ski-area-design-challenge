@@ -22,6 +22,9 @@ import { localContextGeoJSON } from './localContextGeoJSON';
 import { localContourGeoJSON } from './localContours';
 import { EMPTY_CONTOURS, GRADED_CONTOUR_SOURCE } from './terrainGradeMap';
 import { waterLinePixelWidth } from './waterLineStyle';
+import type { SnowGrid } from '../types/snow';
+import { registerSnowProtocol, snowProtocolUrl } from './snowProtocol';
+import type { SnowDisplayMode } from './snowStyle';
 export { localContourGeoJSON } from './localContours';
 export { localContextGeoJSON } from './localContextGeoJSON';
 
@@ -36,7 +39,7 @@ export interface LayerToggle {
   section?: 'Imagery' | 'Master plan' | 'Analysis' | 'Structures';
 }
 
-export type OverlayId = 'slope' | 'aspect' | 'groundcover';
+export type OverlayId = 'slope' | 'aspect' | 'groundcover' | 'snow';
 
 function basemapCategories(layers: maplibregl.LayerSpecification[]) {
   const water: string[] = [], roads: string[] = [], buildings: string[] = [], labels: string[] = [];
@@ -109,7 +112,9 @@ export function setupAnalysisLayers(
   coverDisplay?: CoverDisplayGeoJSON | null,
   localImageryUrl?: string | null,
   lakeNameOverrides: Record<string, string> = {},
-  streamWidthOverrides: Record<string, number> = {}
+  streamWidthOverrides: Record<string, number> = {},
+  snow?: SnowGrid | null,
+  snowMode: SnowDisplayMode = 'depth'
 ): LayerToggle[] {
   const local = terrain?.coverGrid && terrain.bounds ? terrain : null;
   const styleLayers = map.getStyle().layers ?? [];
@@ -331,6 +336,14 @@ export function setupAnalysisLayers(
   map.addLayer({ id: 'slope', type: 'raster', source: 'slope', layout: { visibility: 'none' }, paint: { 'raster-opacity': 1 } }, analysisAnchor);
   map.addSource('aspect', { type: 'raster', tiles: [local ? resortProtocolUrl(aspectProtocol, local) : `${aspectProtocol}://{z}/{x}/{y}`], tileSize: 256, maxzoom: 14, ...(bounds ? { bounds } : {}) });
   map.addLayer({ id: 'aspect', type: 'raster', source: 'aspect', layout: { visibility: 'none' }, paint: { 'raster-opacity': 1 } }, analysisAnchor);
+  if (local && snow) {
+    registerSnowProtocol();
+    map.addSource('snow', { type: 'raster', tiles: [snowProtocolUrl(snowMode)], tileSize: 256,
+      maxzoom: 18, ...(bounds ? { bounds } : {}) });
+    map.addLayer({ id: 'snow', type: 'raster', source: 'snow', layout: { visibility: 'none' },
+      paint: { 'raster-opacity': 1,
+        'raster-resampling': snowMode === 'conditions' ? 'nearest' : 'linear' } }, analysisAnchor);
+  }
   map.addLayer({
     id: 'contour-labels', type: 'symbol', source: 'contours', ...(local ? {} : { 'source-layer': 'contours' }),
     filter: ['==', ['coalesce', ['get', 'level'], 0], 1],
@@ -349,5 +362,7 @@ export function setupAnalysisLayers(
     { id: 'bm-labels', label: 'Labels', layerIds: basemap.labels, visible: true, section: 'Master plan' },
     { id: 'slope', label: 'Slope angle', layerIds: ['slope'], visible: false, exclusiveGroup: 'analysis', section: 'Analysis' },
     { id: 'aspect', label: 'Aspect', layerIds: ['aspect'], visible: false, exclusiveGroup: 'analysis', section: 'Analysis' },
+    ...(local && snow ? [{ id: 'snow', label: 'Snow', layerIds: ['snow'], visible: false,
+      exclusiveGroup: 'analysis', section: 'Analysis' as const }] : []),
   ];
 }

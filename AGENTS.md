@@ -40,7 +40,7 @@ Keep imports flowing from dependency-neutral models and pure domain logic toward
 ## Save and storage contracts
 
 - `GameSave` is a compatibility boundary. Do not rename fields, change optionality, alter discriminators, or increase `schemaVersion` without an explicit migration plan and fixture coverage.
-- Newly created saves remain schema version 11 unless the user explicitly approves a schema migration.
+- Newly created saves remain schema version 13 unless the user explicitly approves a schema migration.
 - Preserve hydration support for representative older saves and terrain packages.
 - Persist terrain before a save that references it. A save/capture must observe one coherent committed document.
 - Keep `terrainStorageClient` browser fallback behavior and Electron storage IPC aligned.
