@@ -29,7 +29,7 @@ const TYPE_FACADE_MANIFEST = new Map([
   ['./types/gameSave', ['GameSave', 'GameSaveSummary', 'SavedSiteBox']],
   ['./types/geo', ['LatLonBounds']],
   ['./types/lifts', [
-    'ChairSize', 'LiftClass', 'LiftStatus', 'SavedFixedGripLift', 'SavedLift', 'SavedLiftBase',
+    'LiftCategoryId', 'LiftStatus', 'LiftTypeId', 'SavedLift',
   ]],
   ['./types/roads', ['RoadType', 'SavedRoad']],
   ['./types/snow', ['SavedSnowGrid', 'SnowGrid', 'SnowSurfaceCode']],

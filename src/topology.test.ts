@@ -60,7 +60,7 @@ describe('persisted trail topology', () => {
 
 describe('describeAnchorDetail', () => {
   const lift: SavedLift = {
-    id: 'lift', name: 'Summit Express', liftClass: 'fixed-grip', chairSize: 4,
+    id: 'lift', name: 'Summit Express', liftTypeId: 'fixed-grip-quad',
     points: [[-121.5, 46.929], [-121.5, 46.931]], endpointElevM: [200, 300],
     lengthM: 250, verticalM: 100, status: 'complete', createdAt: '2026-01-01T00:00:00.000Z',
   };
@@ -195,7 +195,7 @@ describe('adding and removing mid-run nodes', () => {
   it('numbers and labels every node, and pre-answers whether it can go', () => {
     const split = splitOnce();
     const lift: SavedLift = {
-      id: 'lift', name: 'Summit Express', liftClass: 'fixed-grip', chairSize: 4,
+      id: 'lift', name: 'Summit Express', liftTypeId: 'fixed-grip-quad',
       points: [[-121.5, 46.929], [-121.5, 46.931]], endpointElevM: [200, 300],
       lengthM: 250, verticalM: 100, status: 'complete', createdAt: '2026-01-01T00:00:00.000Z',
     };

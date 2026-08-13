@@ -301,7 +301,8 @@ export function MapGameDock(props: MapGameDockProps) {
             onSelect={liftController.select} onClose={props.closeDock} />
           : <LiftControl tool={liftTool} lifts={props.lifts}
             selectedId={liftTool.phase === 'idle' ? props.selectedLiftId : null} units={props.units}
-            onArm={liftController.arm} onCancel={liftController.cancel}
+            onArm={liftController.arm} onStartPlacement={liftController.startPlacement}
+            onTypeChange={liftController.setType} onCancel={liftController.cancel}
             onDraftChange={liftController.patchDraft} onConfirm={liftController.confirm}
             building={props.building} onSelect={liftController.select} onEditPatch={liftController.patch}
             onCloseEdit={() => props.setLiftEditing(false)} onDelete={liftController.remove}

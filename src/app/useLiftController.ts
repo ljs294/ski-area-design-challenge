@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
-import type { SavedLift } from '../types/lifts';
+import type { LiftTypeId, SavedLift } from '../types/lifts';
 import { haversineMeters } from '../geo';
 import { nextLiftIdentifier, nextLiftName } from '../lifts';
 import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS } from './liftLayers';
@@ -13,6 +13,7 @@ import {
   liftFromDraft,
   reduceLiftTool,
   type DraftLift,
+  type CommittedLiftPatch,
   type LiftTool,
 } from './liftControllerModel';
 
@@ -20,7 +21,7 @@ const MIN_LIFT_M = 50;
 
 export interface LiftCollectionCommands {
   add(lift: SavedLift): void;
-  patch(id: string, patch: Partial<SavedLift>): void;
+  patch(id: string, patch: CommittedLiftPatch): void;
   remove(id: string): void;
 }
 
@@ -52,13 +53,15 @@ export interface LiftController {
   readonly state: LiftTool;
   readonly contribution: ManagedMapContribution;
   arm(): void;
+  startPlacement(): void;
+  setType(liftTypeId: LiftTypeId): void;
   cancel(): void;
   dispose(): void;
   patchDraft(patch: Partial<DraftLift>): void;
   retryElevation(): void;
   confirm(): Promise<void>;
   select(id: string): void;
-  patch(id: string, patch: Partial<SavedLift>): void;
+  patch(id: string, patch: CommittedLiftPatch): void;
   remove(id: string): void;
 }
 
@@ -75,6 +78,11 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
   const liftsRef = useRef<readonly SavedLift[]>(options.lifts);
   const optionsRef = useRef(options);
   const sampleTokenRef = useRef(0);
+  const anchorSampleTokenRef = useRef(0);
+  const cursorSampleTokenRef = useRef(0);
+  const cursorFrameRef = useRef<number | null>(null);
+  const pendingCursorRef = useRef<[number, number] | null>(null);
+  const cancelRef = useRef<() => void>(() => {});
   stateRef.current = state;
   liftsRef.current = options.lifts;
   optionsRef.current = options;
@@ -124,10 +132,12 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
       const current = stateRef.current;
       if (current.phase === 'armed') {
         dispatch({ type: 'anchor', point });
+        sampleLiveAnchor(point);
         return;
       }
       if (current.phase !== 'anchored' || haversineMeters(current.a, point) < MIN_LIFT_M) return;
       const points: [[number, number], [number, number]] = [current.a, point];
+      cancelLiveSamples();
       dispatch({
         type: 'review',
         points,
@@ -138,10 +148,12 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
     };
     const onMove = (event: maplibregl.MapMouseEvent) => {
       if (stateRef.current.phase !== 'anchored') return;
-      dispatch({ type: 'move', point: [event.lngLat.lng, event.lngLat.lat] });
+      const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
+      dispatch({ type: 'move', point });
+      scheduleCursorSample(point);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') cancel();
+      if (event.key === 'Escape') cancelRef.current();
     };
     map.on('click', onClick);
     map.on('mousemove', onMove);
@@ -156,8 +168,62 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
 
   useEffect(() => () => {
     sampleTokenRef.current += 1;
+    cancelLiveSamples();
     optionsRef.current.release();
   }, []);
+
+  function cancelLiveSamples(): void {
+    anchorSampleTokenRef.current += 1;
+    cursorSampleTokenRef.current += 1;
+    pendingCursorRef.current = null;
+    if (cursorFrameRef.current != null) {
+      cancelAnimationFrame(cursorFrameRef.current);
+      cursorFrameRef.current = null;
+    }
+  }
+
+  function sampleLiveAnchor(point: [number, number]): void {
+    const map = optionsRef.current.mapRef.current;
+    const zoom = map ? Math.min(14, Math.max(10, Math.round(map.getZoom()))) : 13;
+    const token = ++anchorSampleTokenRef.current;
+    void optionsRef.current.sampleTerrain(point[0], point[1], zoom).then(
+      (sample) => {
+        if (token !== anchorSampleTokenRef.current) return;
+        if (sample) dispatch({ type: 'anchor-sample-succeeded', elevation: sample.elevation });
+        else dispatch({ type: 'anchor-sample-failed' });
+      },
+      () => {
+        if (token === anchorSampleTokenRef.current) dispatch({ type: 'anchor-sample-failed' });
+      },
+    );
+  }
+
+  function scheduleCursorSample(point: [number, number]): void {
+    pendingCursorRef.current = point;
+    // Invalidate an in-flight response immediately; waiting until the next
+    // animation frame would let the old elevation briefly attach to this point.
+    cursorSampleTokenRef.current += 1;
+    if (cursorFrameRef.current != null) return;
+    cursorFrameRef.current = requestAnimationFrame(() => {
+      cursorFrameRef.current = null;
+      const pending = pendingCursorRef.current;
+      pendingCursorRef.current = null;
+      if (!pending) return;
+      const map = optionsRef.current.mapRef.current;
+      const zoom = map ? Math.min(14, Math.max(10, Math.round(map.getZoom()))) : 13;
+      const token = cursorSampleTokenRef.current;
+      void optionsRef.current.sampleTerrain(pending[0], pending[1], zoom).then(
+        (sample) => {
+          if (token !== cursorSampleTokenRef.current) return;
+          if (sample) dispatch({ type: 'cursor-sample-succeeded', elevation: sample.elevation });
+          else dispatch({ type: 'cursor-sample-failed' });
+        },
+        () => {
+          if (token === cursorSampleTokenRef.current) dispatch({ type: 'cursor-sample-failed' });
+        },
+      );
+    });
+  }
 
   function sampleElevations(points: [[number, number], [number, number]]): void {
     const map = optionsRef.current.mapRef.current;
@@ -183,17 +249,27 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
   function arm(): void {
     if (!optionsRef.current.canArm() || !optionsRef.current.activate()) return;
     optionsRef.current.clearSelection();
-    dispatch({ type: 'arm' });
+    dispatch({ type: 'open' });
+  }
+
+  function startPlacement(): void {
+    dispatch({ type: 'start' });
+  }
+
+  function setType(liftTypeId: LiftTypeId): void {
+    dispatch({ type: 'set-type', liftTypeId });
   }
 
   function cancel(): void {
     sampleTokenRef.current += 1;
+    cancelLiveSamples();
     dispatch({ type: 'cancel' });
     optionsRef.current.release();
   }
 
   function dispose(): void {
     sampleTokenRef.current += 1;
+    cancelLiveSamples();
     optionsRef.current.release();
   }
 
@@ -217,6 +293,7 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
     );
     await optionsRef.current.runConstruction(async () => {
       sampleTokenRef.current += 1;
+      cancelLiveSamples();
       optionsRef.current.commands.add(lift);
       try {
         await new Promise(requestAnimationFrame);
@@ -233,7 +310,7 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
     optionsRef.current.select(id);
   }
 
-  function patch(id: string, patchValue: Partial<SavedLift>): void {
+  function patch(id: string, patchValue: CommittedLiftPatch): void {
     optionsRef.current.commands.patch(id, patchValue);
   }
 
@@ -242,10 +319,14 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
     optionsRef.current.clearSelected(id);
   }
 
+  cancelRef.current = cancel;
+
   return {
     state,
     contribution: contributionRef.current,
     arm,
+    startPlacement,
+    setType,
     cancel,
     dispose,
     patchDraft,

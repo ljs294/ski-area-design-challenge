@@ -8,7 +8,7 @@ import { applyDashboardGunLassoState, addDashboardMapLayers,
   snowmakingGunVisualState, snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
 
 const lift: SavedLift = {
-  id: 'lift-1', identifier: 'A', name: 'Summit', liftClass: 'fixed-grip', chairSize: 4,
+  id: 'lift-1', identifier: 'A', name: 'Summit', liftTypeId: 'fixed-grip-quad',
   points: [[-121.5, 46.9], [-121.49, 46.91]], endpointElevM: [1000, 1200],
   lengthM: 1000, verticalM: 200, status: 'complete', createdAt: '2026-01-01',
 };

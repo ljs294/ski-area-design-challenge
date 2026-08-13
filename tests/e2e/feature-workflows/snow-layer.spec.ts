@@ -11,7 +11,7 @@ async function openSnow(page: Parameters<typeof seedPreparedResort>[0]) {
   await expect(page.getByLabel('Snow layer controls')).toBeVisible();
 }
 
-test('snow overlay switches modes, survives restyle, and reloads its schema-13 snapshot', async ({ page }) => {
+test('snow overlay switches modes, survives restyle, and reloads its schema-14 snapshot', async ({ page }) => {
   await seedPreparedResort(page);
   await page.getByRole('button', { name: 'Continue Game' }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
@@ -58,7 +58,7 @@ test('snow overlay switches modes, survives restyle, and reloads its schema-13 s
   await page.getByRole('button', { name: /^Menu/ }).click();
   await page.locator('.hud-save').click();
   await expect.poll(() => page.evaluate(() =>
-    JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null')?.schemaVersion)).toBe(13);
+    JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null')?.schemaVersion)).toBe(14);
   await expect.poll(() => page.evaluate(() =>
     typeof JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null')?.snow?.cells)).toBe('string');
 

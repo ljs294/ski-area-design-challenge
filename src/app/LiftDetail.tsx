@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { SavedLift } from '../types';
 import type { Units } from './SettingsContext';
-import { CHAIR_LABELS, formatLiftLabel } from '../lifts';
+import { formatLiftLabel, liftTypeLabel } from '../lifts';
 import { ConditionToggle } from './ConditionToggle';
 import { LiftStatsBlock } from './LiftControl';
 
@@ -38,13 +38,13 @@ export function LiftDetail({
       </div>
       <div className="lift-detail-sub">
         <span className={`lift-row-dot lift-row-dot--${lift.status}`} aria-hidden="true" />
-        {CHAIR_LABELS[lift.chairSize]} · {lift.status === 'planning' ? 'Planning' : 'Complete'}
+        {liftTypeLabel(lift.liftTypeId)} · {lift.status === 'planning' ? 'Planning' : 'Complete'}
       </div>
 
       <LiftStatsBlock
         points={lift.points}
         elev={lift.endpointElevM}
-        chairSize={lift.chairSize}
+        liftTypeId={lift.liftTypeId}
         units={units}
       />
 

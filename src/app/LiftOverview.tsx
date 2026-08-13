@@ -1,6 +1,6 @@
 import type { SavedLift } from '../types';
 import type { Units } from './SettingsContext';
-import { CHAIR_LABELS, fmtDistance, formatLiftLabel, liftStats } from '../lifts';
+import { fmtDistance, formatLiftLabel, liftStats, liftTypeLabel } from '../lifts';
 
 /**
  * Dedicated overview of every ski lift, shown in the Lifts roll-up when the draw
@@ -51,7 +51,7 @@ export function LiftOverview({
                 <span className="lift-row-main">
                   <span className="lift-row-name">{formatLiftLabel(l)}</span>
                   <span className="lift-row-summary">
-                    {CHAIR_LABELS[l.chairSize]}
+                    {liftTypeLabel(l.liftTypeId)}
                     {vertM != null ? ` · ${fmtDistance(vertM, units)} vert` : ''}
                     {` · ${fmtDistance(l.lengthM, units)}`}
                     {l.status === 'planning' ? ' · Planning' : ''}

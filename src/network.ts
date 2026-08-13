@@ -1,8 +1,8 @@
 import { METERS_PER_DEGREE_LAT, haversineMeters } from './geo';
-import { fixedGripCapacityPph, fixedGripDerived, formatLiftLabel, liftStats } from './lifts';
+import { formatLiftLabel, liftPerformance, liftStats } from './lifts';
 import { difficultyForSlopes, trailAreaM2, trailStats } from './trails';
 import type { AnchorRef } from './types/anchors';
-import type { ChairSize, LiftClass, LiftStatus, SavedLift } from './types/lifts';
+import type { LiftStatus, LiftTypeId, SavedLift } from './types/lifts';
 import type { SavedJunction, SavedNode, SavedPath } from './types/topology';
 import type { SavedTrail, TrailDifficulty, TrailStatus } from './types/trails';
 
@@ -140,15 +140,11 @@ export interface LiftEdge extends NetworkEdgeBase {
   kind: 'lift';
   liftId: string;
   liftName: string;
-  liftClass: LiftClass;
-  chairSize: ChairSize;
+  liftTypeId: LiftTypeId;
   /** [base, top] in edge direction. */
   path: [[number, number], [number, number]];
   verticalM: number | null;
   rideTimeS: number;
-  headwayS: number;
-  carrierSpacingM: number;
-  carriersOnLine: number;
   capacityPph: number;
   /** PLACEHOLDER. Always 0 — there is no simulation yet. See withLiftQueues(). */
   peopleWaiting: number;
@@ -1645,7 +1641,7 @@ export function buildSkiNetwork(
   const liftEdgeIds = new Map<string, EdgeId>();
   for (const plan of liftPlans) {
     const { lift } = plan;
-    const derived = fixedGripDerived(lift.lengthM);
+    const performance = liftPerformance(lift.liftTypeId, lift.lengthM);
     const condition: EdgeCondition = lift.closed ? 'closed' : 'open';
     const id: EdgeId = `l:${lift.id}`;
     const edge: LiftEdge = {
@@ -1655,19 +1651,15 @@ export function buildSkiNetwork(
       to: nodeForSite(plan.topKey),
       liftId: lift.id,
       liftName: formatLiftLabel(lift),
-      liftClass: lift.liftClass,
-      chairSize: lift.chairSize,
+      liftTypeId: lift.liftTypeId,
       path: [plan.basePoint, plan.topPoint],
       lengthM: lift.lengthM,
       verticalM: lift.verticalM,
-      rideTimeS: derived.rideTimeS,
-      headwayS: derived.headwayS,
-      carrierSpacingM: derived.carrierSpacingM,
-      carriersOnLine: derived.carriersOnLine,
-      capacityPph: fixedGripCapacityPph(lift.chairSize),
+      rideTimeS: performance.rideTimeS,
+      capacityPph: performance.capacityPph,
       peopleWaiting: 0,
       waitTimeS: 0,
-      travelTimeS: derived.rideTimeS,
+      travelTimeS: performance.rideTimeS,
       condition,
       open: condition === 'open' && lift.status === 'complete',
       status: lift.status,

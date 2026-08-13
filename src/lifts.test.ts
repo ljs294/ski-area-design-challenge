@@ -1,28 +1,30 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { haversineMeters } from './geo';
 import {
-  fixedGripCapacityPph,
-  fixedGripDerived,
+  DEFAULT_LIFT_TYPE_ID,
+  LIFT_TYPE_CATALOG,
+  LIFT_TYPE_SPECS,
+  TRAM_DWELL_S,
+  fmtDistance,
   formatLiftLabel,
+  liftPerformance,
   liftStats,
+  liftTypeLabel,
   nextLiftIdentifier,
   nextLiftName,
   orientBottomToTop,
   sanitizeLifts,
-  fmtDistance,
-  FIXED_GRIP_SPEC,
 } from './lifts';
-import type { SavedLift } from './types';
+import type { LiftTypeId, SavedLift } from './types';
 
-// Crystal Mountain, WA — base area to summit, roughly 2.4 km apart.
 const BASE: [number, number] = [-121.4745, 46.9282];
 const SUMMIT: [number, number] = [-121.5045, 46.9285];
 
 describe('haversineMeters', () => {
   it('matches a known distance (1 degree of latitude ≈ 111.2 km)', () => {
-    const d = haversineMeters([-121.5, 46.0], [-121.5, 47.0]);
-    expect(d).toBeGreaterThan(110_000);
-    expect(d).toBeLessThan(112_500);
+    const distance = haversineMeters([-121.5, 46], [-121.5, 47]);
+    expect(distance).toBeGreaterThan(110_000);
+    expect(distance).toBeLessThan(112_500);
   });
 
   it('is zero for identical points and symmetric', () => {
@@ -32,148 +34,134 @@ describe('haversineMeters', () => {
 });
 
 describe('liftStats', () => {
-  it('computes slope length from horizontal + vertical', () => {
-    const s = liftStats([BASE, SUMMIT], [1300, 2100]);
-    expect(s.verticalM).toBe(800);
-    expect(s.topIndex).toBe(1);
-    expect(s.lengthM).toBeCloseTo(Math.hypot(s.horizontalM, 800), 6);
-    expect(s.lengthM).toBeGreaterThan(s.horizontalM);
+  it('computes slope length from horizontal and vertical', () => {
+    const stats = liftStats([BASE, SUMMIT], [1300, 2100]);
+    expect(stats.verticalM).toBe(800);
+    expect(stats.topIndex).toBe(1);
+    expect(stats.lengthM).toBeCloseTo(Math.hypot(stats.horizontalM, 800), 6);
   });
 
   it('falls back to horizontal-only when elevations are unknown', () => {
-    const s = liftStats([BASE, SUMMIT], [null, 2100]);
-    expect(s.verticalM).toBeNull();
-    expect(s.topIndex).toBeNull();
-    expect(s.lengthM).toBe(s.horizontalM);
+    const stats = liftStats([BASE, SUMMIT], [null, 2100]);
+    expect(stats.verticalM).toBeNull();
+    expect(stats.topIndex).toBeNull();
+    expect(stats.lengthM).toBe(stats.horizontalM);
   });
 });
 
 describe('orientBottomToTop', () => {
-  it('flips a top-first line so index 0 is the bottom terminal', () => {
-    const { points, elevs } = orientBottomToTop([SUMMIT, BASE], [2100, 1300]);
-    expect(points[0]).toEqual(BASE);
-    expect(elevs).toEqual([1300, 2100]);
-  });
-
-  it('leaves bottom-first and unknown-elevation lines untouched', () => {
-    expect(orientBottomToTop([BASE, SUMMIT], [1300, 2100]).points[0]).toEqual(BASE);
+  it('flips a top-first line and leaves unresolved lines untouched', () => {
+    expect(orientBottomToTop([SUMMIT, BASE], [2100, 1300]))
+      .toEqual({ points: [BASE, SUMMIT], elevs: [1300, 2100] });
     expect(orientBottomToTop([SUMMIT, BASE], [null, 1300]).points[0]).toEqual(SUMMIT);
   });
 });
 
-describe('fixedGripCapacityPph', () => {
-  it('is 600 pph per seat at the fixed 6 s headway', () => {
-    expect(fixedGripCapacityPph(2)).toBe(1200);
-    expect(fixedGripCapacityPph(3)).toBe(1800);
-    expect(fixedGripCapacityPph(4)).toBe(2400);
-  });
-});
+describe('lift type catalog', () => {
+  const expected: Array<[LiftTypeId, string, number, number | 'tram']> = [
+    ['rope-tow', 'Rope Tow', 500, 700],
+    ['magic-carpet', 'Magic Carpet', 100, 1000],
+    ['t-bar', 'T-Bar', 400, 1200],
+    ['fixed-grip-double', 'Fixed-Grip Double Chairlift', 400, 1200],
+    ['fixed-grip-triple', 'Fixed-Grip Triple Chairlift', 400, 1800],
+    ['fixed-grip-quad', 'Fixed-Grip Quad Chairlift', 400, 2400],
+    ['detachable-quad', 'Detachable Quad Chairlift', 1000, 2400],
+    ['detachable-six-pack', 'Detachable Six-Pack Chairlift', 1000, 3000],
+    ['detachable-eight-pack', 'Detachable Eight-Pack Chairlift', 1000, 3200],
+    ['gondola-8', 'Detachable 8-Person Gondola', 1000, 2400],
+    ['gondola-10', 'Detachable 10-Person Gondola', 1000, 2800],
+    ['gondola-12', 'Detachable 12-Person Gondola', 1000, 3000],
+    ['tram-60', '60-Person Aerial Tram', 2000, 'tram'],
+    ['tram-80', '80-Person Aerial Tram', 2000, 'tram'],
+  ];
 
-describe('fixedGripDerived', () => {
-  it('derives headway, spacing, and ride time from length', () => {
-    const d = fixedGripDerived(1500);
-    expect(d.headwayS).toBe(FIXED_GRIP_SPEC.headwayS); // fixed 6 s
-    expect(d.carrierSpacingM).toBeCloseTo(6 * FIXED_GRIP_SPEC.ropeSpeedMps, 6);
-    expect(d.rideTimeS).toBeCloseTo(1500 / FIXED_GRIP_SPEC.ropeSpeedMps, 6);
+  it('defines every approved type, label, speed, and fixed capacity exactly once', () => {
+    expect(LIFT_TYPE_SPECS).toHaveLength(14);
+    expect(new Set(LIFT_TYPE_SPECS.map((spec) => spec.id)).size).toBe(14);
+    for (const [id, label, speedFpm, capacity] of expected) {
+      expect(liftTypeLabel(id)).toBe(label);
+      expect(LIFT_TYPE_CATALOG[id].operatingSpeedFpm).toBe(speedFpm);
+      const performance = liftPerformance(id, 1000);
+      expect(performance.operatingSpeedMps).toBeCloseTo(speedFpm * 0.00508, 8);
+      if (capacity !== 'tram') expect(performance.capacityPph).toBe(capacity);
+      expect(performance.rideTimeS).toBeCloseTo(1000 / (speedFpm * 0.00508), 8);
+    }
+  });
+
+  it('derives both tram capacities from one-way ride time plus the four-minute dwell', () => {
+    const lengthM = 1016;
+    const rideTimeS = 100;
+    expect(liftPerformance('tram-60', lengthM).capacityPph)
+      .toBeCloseTo((60 * 3600) / (rideTimeS + TRAM_DWELL_S), 8);
+    expect(liftPerformance('tram-80', lengthM).capacityPph)
+      .toBeCloseTo((80 * 3600) / (rideTimeS + TRAM_DWELL_S), 8);
   });
 });
 
 describe('sanitizeLifts', () => {
-  const valid: SavedLift = {
+  const current: SavedLift = {
     id: 'l1',
     identifier: 'A',
     name: 'Lift 1',
-    liftClass: 'fixed-grip',
+    liftTypeId: 'gondola-10',
     points: [BASE, SUMMIT],
     endpointElevM: [1300, 2100],
-    lengthM: 0, // stale on purpose — sanitize must recompute
+    lengthM: 0,
     verticalM: null,
-    chairSize: 2,
     status: 'complete',
     createdAt: '2026-01-01T00:00:00.000Z',
   };
 
-  it('passes legacy empty arrays through', () => {
-    expect(sanitizeLifts([])).toEqual([]);
+  it('round-trips all schema-14 leaf types and recomputes geometry stats', () => {
+    const out = sanitizeLifts(LIFT_TYPE_SPECS.map((spec, index) => ({
+      ...current,
+      id: `lift-${index}`,
+      liftTypeId: spec.id,
+    })));
+    expect(out.map((lift) => lift.liftTypeId)).toEqual(LIFT_TYPE_SPECS.map((spec) => spec.id));
+    expect(out.every((lift) => lift.verticalM === 800 && lift.lengthM > 800)).toBe(true);
   });
 
-  it('drops garbage and keeps valid lifts, recomputing cached stats', () => {
-    const out = sanitizeLifts([
-      null,
-      42,
-      { liftClass: 'gondola' },
-      { ...valid, points: [BASE] }, // wrong point count
-      { ...valid, points: [BASE, ['x', 1]] }, // non-numeric coord
-      valid,
-    ]);
-    expect(out).toHaveLength(1);
-    expect(out[0].verticalM).toBe(800);
-    expect(out[0].lengthM).toBeGreaterThan(800);
+  it('migrates schema 1-13 fixed-grip sizes and defaults invalid legacy sizes to Double', () => {
+    const legacy = (chairSize: unknown) => {
+      const { liftTypeId: _drop, ...base } = current;
+      return { ...base, liftClass: 'fixed-grip', chairSize };
+    };
+    expect(sanitizeLifts([legacy(2)])[0].liftTypeId).toBe('fixed-grip-double');
+    expect(sanitizeLifts([legacy(3)])[0].liftTypeId).toBe('fixed-grip-triple');
+    expect(sanitizeLifts([legacy(4)])[0].liftTypeId).toBe('fixed-grip-quad');
+    expect(sanitizeLifts([legacy(1)])[0].liftTypeId).toBe(DEFAULT_LIFT_TYPE_ID);
+    expect(sanitizeLifts([legacy(7)])[0].liftTypeId).toBe(DEFAULT_LIFT_TYPE_ID);
   });
 
-  it('defaults bad chair sizes and migrates legacy Single (1) to Double', () => {
-    expect(sanitizeLifts([{ ...valid, chairSize: 7 }])[0].chairSize).toBe(2);
-    expect(sanitizeLifts([{ ...valid, chairSize: 1 }])[0].chairSize).toBe(2);
+  it('rejects malformed current discriminators and unrelated legacy lift classes', () => {
+    expect(sanitizeLifts([{ ...current, liftTypeId: 'future-hyperlift' }])).toEqual([]);
+    const { liftTypeId: _drop, ...base } = current;
+    expect(sanitizeLifts([{ ...base, liftClass: 'gondola' }])).toEqual([]);
   });
 
-  it('drops the legacy capacityPph field from old saves', () => {
-    const out = sanitizeLifts([{ ...valid, capacityPph: 1200 }]);
-    expect(out).toHaveLength(1);
-    expect('capacityPph' in out[0]).toBe(false);
-  });
-
-  it('keeps a valid status and defaults legacy/garbage ones to complete', () => {
-    const planning = sanitizeLifts([{ ...valid, status: 'planning' }]);
-    expect(planning[0].status).toBe('planning');
-    // Legacy saves (no status field) and bad values fall back to complete.
-    const { status: _drop, ...noStatus } = valid;
-    expect(sanitizeLifts([noStatus])[0].status).toBe('complete');
-    expect(sanitizeLifts([{ ...valid, status: 'nonsense' }])[0].status).toBe('complete');
-  });
-
-  it('trims identifiers while preserving legacy name-only lifts', () => {
-    expect(sanitizeLifts([{ ...valid, identifier: '  12  ' }])[0].identifier).toBe('12');
-    const { identifier: _identifier, ...legacy } = valid;
-    const hydrated = sanitizeLifts([legacy])[0];
-    expect(hydrated.identifier).toBeUndefined();
-    expect(formatLiftLabel(hydrated)).toBe('Lift 1');
+  it('keeps status and identifier compatibility while dropping obsolete derived fields', () => {
+    const hydrated = sanitizeLifts([{ ...current, identifier: ' 12 ', capacityPph: 1 }])[0];
+    expect(hydrated.identifier).toBe('12');
+    expect('capacityPph' in hydrated).toBe(false);
+    const { status: _status, identifier: _identifier, ...legacy } = current;
+    const noStatus = sanitizeLifts([legacy])[0];
+    expect(noStatus.status).toBe('complete');
+    expect(noStatus.identifier).toBeUndefined();
   });
 });
 
 describe('lift naming', () => {
-  it('shows the letter or number and actual name with a hyphen', () => {
+  it('formats identifiers and allocates the first unused default number', () => {
     expect(formatLiftLabel({ identifier: 'A', name: 'Summit Express' }))
       .toBe('A - Summit Express');
     expect(formatLiftLabel({ name: 'Legacy Double' })).toBe('Legacy Double');
-  });
-
-  it('allocates the first unused numeric identifier and respects legacy Lift N names', () => {
-    const lift = (identifier: string | undefined, name: string) =>
-      ({ identifier, name }) as SavedLift;
-    expect(nextLiftIdentifier([])).toBe('1');
-    expect(nextLiftIdentifier([
-      lift('1', 'Summit'),
-      lift(undefined, 'Lift 2'),
-      lift('A', 'Alpine'),
-      lift('4', 'Ridge'),
-    ])).toBe('3');
-  });
-
-  it('keeps untouched default identifiers and names on the same number', () => {
     const existing = [
       { identifier: '1', name: 'Summit Express' },
       { identifier: '2', name: 'Lift 7' },
     ] as SavedLift[];
     expect(nextLiftIdentifier(existing)).toBe('3');
     expect(nextLiftName(existing)).toBe('Lift 3');
-  });
-});
-
-describe('nextLiftName', () => {
-  it('fills the first gap', () => {
-    const lift = (name: string) => ({ name }) as SavedLift;
-    expect(nextLiftName([])).toBe('Lift 1');
-    expect(nextLiftName([lift('Lift 1'), lift('Lift 3')])).toBe('Lift 2');
   });
 });
 

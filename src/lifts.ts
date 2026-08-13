@@ -1,30 +1,110 @@
 import { haversineMeters } from './geo';
-import type { ChairSize, LiftStatus, SavedLift } from './types/lifts';
-
-// Fixed-grip chairlift operating envelope. Carriers grip the haul rope
-// permanently, so the whole line runs at loading speed — 450 ft/min (2.286 m/s)
-// is a typical full-speed line. Chairs are evenly spaced so one passes each
-// terminal every `headwayS` seconds, which fixes the hourly capacity.
-export const FIXED_GRIP_SPEC = {
-  ropeSpeedMps: 2.286, // 450 ft/min line speed
-  headwayS: 6, // one chair passes a terminal every 6 s
-  chairSizes: [2, 3, 4] as ChairSize[],
-  defaultChairSize: 2 as ChairSize,
-};
+import type { LiftCategoryId, LiftStatus, LiftTypeId, SavedLift } from './types/lifts';
 
 const M_TO_FT = 3.28084;
+const FPM_TO_MPS = 0.00508;
 
-/** Human names for each carrier size, keyed by seat count. */
-export const CHAIR_LABELS: Record<ChairSize, string> = {
-  2: 'Double',
-  3: 'Triple',
-  4: 'Quad',
-};
+export const TRAM_DWELL_S = 4 * 60;
+export const DEFAULT_LIFT_TYPE_ID: LiftTypeId = 'fixed-grip-double';
 
-/** Fixed-grip hourly capacity: one chair of `seats` every headwayS seconds
- *  (Double 1,200 / Triple 1,800 / Quad 2,400 pph). */
-export function fixedGripCapacityPph(chairSize: ChairSize): number {
-  return (chairSize * 3600) / FIXED_GRIP_SPEC.headwayS; // 600 × seats
+export interface LiftCategory {
+  id: LiftCategoryId;
+  label: string;
+}
+
+export const LIFT_CATEGORIES: readonly LiftCategory[] = [
+  { id: 'surface', label: 'Surface Lift' },
+  { id: 'fixed-grip-chairlift', label: 'Fixed-Grip Chairlift' },
+  { id: 'detachable-chairlift', label: 'Detachable Chairlift' },
+  { id: 'detachable-gondola', label: 'Detachable Gondola' },
+  { id: 'tram', label: 'Tram' },
+];
+
+export type LiftCapacityRule =
+  | { kind: 'fixed'; capacityPph: number }
+  | { kind: 'tram-cycle'; cabinSize: 60 | 80; dwellS: number };
+
+export interface LiftTypeSpec {
+  id: LiftTypeId;
+  categoryId: LiftCategoryId;
+  /** Full label used outside the chooser. */
+  label: string;
+  /** Leaf label shown beneath its category in the chooser. */
+  optionLabel: string;
+  operatingSpeedFpm: number;
+  capacity: LiftCapacityRule;
+}
+
+export const LIFT_TYPE_SPECS: readonly LiftTypeSpec[] = [
+  { id: 'rope-tow', categoryId: 'surface', label: 'Rope Tow', optionLabel: 'Rope Tow',
+    operatingSpeedFpm: 500, capacity: { kind: 'fixed', capacityPph: 700 } },
+  { id: 'magic-carpet', categoryId: 'surface', label: 'Magic Carpet', optionLabel: 'Magic Carpet',
+    operatingSpeedFpm: 100, capacity: { kind: 'fixed', capacityPph: 1000 } },
+  { id: 't-bar', categoryId: 'surface', label: 'T-Bar', optionLabel: 'T-Bar',
+    operatingSpeedFpm: 400, capacity: { kind: 'fixed', capacityPph: 1200 } },
+  { id: 'fixed-grip-double', categoryId: 'fixed-grip-chairlift',
+    label: 'Fixed-Grip Double Chairlift', optionLabel: 'Double', operatingSpeedFpm: 400,
+    capacity: { kind: 'fixed', capacityPph: 1200 } },
+  { id: 'fixed-grip-triple', categoryId: 'fixed-grip-chairlift',
+    label: 'Fixed-Grip Triple Chairlift', optionLabel: 'Triple', operatingSpeedFpm: 400,
+    capacity: { kind: 'fixed', capacityPph: 1800 } },
+  { id: 'fixed-grip-quad', categoryId: 'fixed-grip-chairlift',
+    label: 'Fixed-Grip Quad Chairlift', optionLabel: 'Quad', operatingSpeedFpm: 400,
+    capacity: { kind: 'fixed', capacityPph: 2400 } },
+  { id: 'detachable-quad', categoryId: 'detachable-chairlift',
+    label: 'Detachable Quad Chairlift', optionLabel: 'Quad', operatingSpeedFpm: 1000,
+    capacity: { kind: 'fixed', capacityPph: 2400 } },
+  { id: 'detachable-six-pack', categoryId: 'detachable-chairlift',
+    label: 'Detachable Six-Pack Chairlift', optionLabel: 'Six-Pack', operatingSpeedFpm: 1000,
+    capacity: { kind: 'fixed', capacityPph: 3000 } },
+  { id: 'detachable-eight-pack', categoryId: 'detachable-chairlift',
+    label: 'Detachable Eight-Pack Chairlift', optionLabel: 'Eight-Pack', operatingSpeedFpm: 1000,
+    capacity: { kind: 'fixed', capacityPph: 3200 } },
+  { id: 'gondola-8', categoryId: 'detachable-gondola',
+    label: 'Detachable 8-Person Gondola', optionLabel: '8-person', operatingSpeedFpm: 1000,
+    capacity: { kind: 'fixed', capacityPph: 2400 } },
+  { id: 'gondola-10', categoryId: 'detachable-gondola',
+    label: 'Detachable 10-Person Gondola', optionLabel: '10-person', operatingSpeedFpm: 1000,
+    capacity: { kind: 'fixed', capacityPph: 2800 } },
+  { id: 'gondola-12', categoryId: 'detachable-gondola',
+    label: 'Detachable 12-Person Gondola', optionLabel: '12-person', operatingSpeedFpm: 1000,
+    capacity: { kind: 'fixed', capacityPph: 3000 } },
+  { id: 'tram-60', categoryId: 'tram', label: '60-Person Aerial Tram', optionLabel: '60-person',
+    operatingSpeedFpm: 2000, capacity: { kind: 'tram-cycle', cabinSize: 60, dwellS: TRAM_DWELL_S } },
+  { id: 'tram-80', categoryId: 'tram', label: '80-Person Aerial Tram', optionLabel: '80-person',
+    operatingSpeedFpm: 2000, capacity: { kind: 'tram-cycle', cabinSize: 80, dwellS: TRAM_DWELL_S } },
+];
+
+export const LIFT_TYPE_CATALOG = Object.fromEntries(
+  LIFT_TYPE_SPECS.map((spec) => [spec.id, spec]),
+) as Record<LiftTypeId, LiftTypeSpec>;
+
+const LIFT_TYPE_IDS = new Set<string>(LIFT_TYPE_SPECS.map((spec) => spec.id));
+
+export function isLiftTypeId(value: unknown): value is LiftTypeId {
+  return typeof value === 'string' && LIFT_TYPE_IDS.has(value);
+}
+
+export interface LiftPerformance {
+  operatingSpeedFpm: number;
+  operatingSpeedMps: number;
+  rideTimeS: number;
+  capacityPph: number;
+}
+
+/** Shared builder/network performance model. Length is the two-terminal slope length. */
+export function liftPerformance(liftTypeId: LiftTypeId, lengthM: number): LiftPerformance {
+  const spec = LIFT_TYPE_CATALOG[liftTypeId];
+  const operatingSpeedMps = spec.operatingSpeedFpm * FPM_TO_MPS;
+  const rideTimeS = Math.max(0, lengthM) / operatingSpeedMps;
+  const capacityPph = spec.capacity.kind === 'fixed'
+    ? spec.capacity.capacityPph
+    : (spec.capacity.cabinSize * 3600) / (rideTimeS + spec.capacity.dwellS);
+  return { operatingSpeedFpm: spec.operatingSpeedFpm, operatingSpeedMps, rideTimeS, capacityPph };
+}
+
+export function liftTypeLabel(liftTypeId: LiftTypeId): string {
+  return LIFT_TYPE_CATALOG[liftTypeId].label;
 }
 
 export interface LiftStats {
@@ -38,7 +118,7 @@ export interface LiftStats {
 
 export function liftStats(
   points: [[number, number], [number, number]],
-  elevs: [number | null, number | null]
+  elevs: [number | null, number | null],
 ): LiftStats {
   const horizontalM = haversineMeters(points[0], points[1]);
   const [a, b] = elevs;
@@ -57,31 +137,13 @@ export function liftStats(
 /** Reorder so index 0 is the bottom terminal. No-op while elevations are unknown. */
 export function orientBottomToTop(
   points: [[number, number], [number, number]],
-  elevs: [number | null, number | null]
+  elevs: [number | null, number | null],
 ): { points: [[number, number], [number, number]]; elevs: [number | null, number | null] } {
   const [a, b] = elevs;
   if (a != null && b != null && a > b) {
     return { points: [points[1], points[0]], elevs: [b, a] };
   }
   return { points, elevs };
-}
-
-export interface FixedGripDerived {
-  headwayS: number; // seconds between carriers passing a terminal
-  carrierSpacingM: number;
-  carriersOnLine: number; // both directions of the loop
-  rideTimeS: number;
-}
-
-export function fixedGripDerived(lengthM: number): FixedGripDerived {
-  const headwayS = FIXED_GRIP_SPEC.headwayS;
-  const carrierSpacingM = headwayS * FIXED_GRIP_SPEC.ropeSpeedMps;
-  return {
-    headwayS,
-    carrierSpacingM,
-    carriersOnLine: Math.ceil((2 * lengthM) / carrierSpacingM),
-    rideTimeS: lengthM / FIXED_GRIP_SPEC.ropeSpeedMps,
-  };
 }
 
 function isLngLat(p: unknown): p is [number, number] {
@@ -96,47 +158,52 @@ function isLngLat(p: unknown): p is [number, number] {
 }
 
 /**
- * Hydration shield for `GameSave.lifts`: drops anything that isn't a valid
- * two-point fixed-grip lift and recomputes the cached length/vertical from the
- * stored geometry so they can never drift from it.
+ * Hydration shield for `GameSave.lifts`. Schema 1-13 fixed-grip lifts migrate
+ * from chairSize to the schema-14 leaf discriminator; current lifts validate
+ * that discriminator. Cached length/vertical are always recomputed.
  */
 export function sanitizeLifts(raw: unknown[]): SavedLift[] {
   const out: SavedLift[] = [];
   for (const item of raw) {
     if (typeof item !== 'object' || item === null) continue;
-    const l = item as Record<string, unknown>;
-    if (l.liftClass !== 'fixed-grip') continue;
-    if (typeof l.id !== 'string' || typeof l.name !== 'string') continue;
-    if (!Array.isArray(l.points) || l.points.length !== 2) continue;
-    if (!isLngLat(l.points[0]) || !isLngLat(l.points[1])) continue;
-    const points: [[number, number], [number, number]] = [l.points[0], l.points[1]];
-    const rawElevs = Array.isArray(l.endpointElevM) ? l.endpointElevM : [null, null];
+    const lift = item as Record<string, unknown>;
+    if (typeof lift.id !== 'string' || typeof lift.name !== 'string') continue;
+    if (!Array.isArray(lift.points) || lift.points.length !== 2) continue;
+    if (!isLngLat(lift.points[0]) || !isLngLat(lift.points[1])) continue;
+    const points: [[number, number], [number, number]] = [lift.points[0], lift.points[1]];
+    const rawElevs = Array.isArray(lift.endpointElevM) ? lift.endpointElevM : [null, null];
     const elevs: [number | null, number | null] = [
       typeof rawElevs[0] === 'number' && Number.isFinite(rawElevs[0]) ? rawElevs[0] : null,
       typeof rawElevs[1] === 'number' && Number.isFinite(rawElevs[1]) ? rawElevs[1] : null,
     ];
-    // Non-members (incl. legacy Single = 1) fall back to the default Double.
-    const chairSize = FIXED_GRIP_SPEC.chairSizes.includes(l.chairSize as ChairSize)
-      ? (l.chairSize as ChairSize)
-      : FIXED_GRIP_SPEC.defaultChairSize;
-    // Legacy saves predate `status`; treat an already-built lift as complete.
-    const status: LiftStatus = l.status === 'planning' || l.status === 'complete' ? l.status : 'complete';
+    let liftTypeId: LiftTypeId;
+    if ('liftTypeId' in lift) {
+      if (!isLiftTypeId(lift.liftTypeId)) continue;
+      liftTypeId = lift.liftTypeId;
+    } else {
+      if (lift.liftClass !== 'fixed-grip') continue;
+      liftTypeId = lift.chairSize === 3 ? 'fixed-grip-triple'
+        : lift.chairSize === 4 ? 'fixed-grip-quad'
+          : DEFAULT_LIFT_TYPE_ID;
+    }
+    const status: LiftStatus = lift.status === 'planning' || lift.status === 'complete'
+      ? lift.status
+      : 'complete';
     const stats = liftStats(points, elevs);
     out.push({
-      id: l.id,
-      identifier: typeof l.identifier === 'string' && l.identifier.trim()
-        ? l.identifier.trim()
+      id: lift.id,
+      identifier: typeof lift.identifier === 'string' && lift.identifier.trim()
+        ? lift.identifier.trim()
         : undefined,
-      name: l.name,
-      liftClass: 'fixed-grip',
+      name: lift.name,
+      liftTypeId,
       points,
       endpointElevM: elevs,
       lengthM: stats.lengthM,
       verticalM: stats.verticalM,
-      chairSize,
       status,
-      closed: l.closed === true,
-      createdAt: typeof l.createdAt === 'string' ? l.createdAt : new Date().toISOString(),
+      closed: lift.closed === true,
+      createdAt: typeof lift.createdAt === 'string' ? lift.createdAt : new Date().toISOString(),
     });
   }
   return out;

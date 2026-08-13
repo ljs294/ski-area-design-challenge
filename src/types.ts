@@ -12,7 +12,7 @@ export type { EarthworkEstimate } from './types/earthwork';
 export type { GameSave, GameSaveSummary, SavedSiteBox } from './types/gameSave';
 export type { LatLonBounds } from './types/geo';
 export type {
-  ChairSize, LiftClass, LiftStatus, SavedFixedGripLift, SavedLift, SavedLiftBase,
+  LiftCategoryId, LiftStatus, LiftTypeId, SavedLift,
 } from './types/lifts';
 export type { RoadType, SavedRoad } from './types/roads';
 export type { SavedSnowGrid, SnowGrid, SnowSurfaceCode } from './types/snow';

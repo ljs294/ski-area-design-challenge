@@ -123,8 +123,7 @@ const RUN_ONLY: [number, number] = [-121.495, 46.9055];
 const crossingLift = {
   id: 'lift-crossing',
   name: 'Crossing Double',
-  liftClass: 'fixed-grip',
-  chairSize: 2,
+  liftTypeId: 'fixed-grip-double',
   points: [[-121.4958, 46.905], [-121.4942, 46.905]],
   endpointElevM: [1000, 1030],
   lengthM: 122,

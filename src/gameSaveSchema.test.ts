@@ -18,7 +18,7 @@ import type { SavedTrail } from './types/trails';
 import type { SavedSnowGrid } from './types/snow';
 
 interface ExpectedGameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
   key: string;
   name: string;
   mountainId?: string;
@@ -152,8 +152,24 @@ describe('GameSave compatibility boundary', () => {
     expect(fixture.snow).toBeUndefined();
   });
 
-  it('keeps newly written saves on schema version 13', () => {
-    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(13);
-    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<13>();
+  it('migrates a representative schema-v13 fixed-grip lift', () => {
+    const fixture = {
+      ...currentFixture,
+      schemaVersion: 13,
+      key: 'legacy-v13-lift',
+      lifts: [{
+        id: 'legacy-quad', name: 'Legacy Quad', liftClass: 'fixed-grip', chairSize: 4,
+        points: [[-121.5, 46.9], [-121.49, 46.91]], endpointElevM: [1000, 1200],
+        lengthM: 1, verticalM: null, status: 'complete', createdAt: '2026-01-01',
+      }],
+    } as unknown as GameSave;
+    expect(hydrateDesignFixture(fixture).lifts[0]).toMatchObject({
+      id: 'legacy-quad', liftTypeId: 'fixed-grip-quad', verticalM: 200,
+    });
+  });
+
+  it('keeps newly written saves on schema version 14', () => {
+    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(14);
+    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<14>();
   });
 });

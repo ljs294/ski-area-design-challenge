@@ -62,7 +62,7 @@ describe('TrailControl terrain grading', () => {
   // Two runs both reading "On a run" is the failure this replaces: the panel has
   // to say WHICH run, which of its segments, and which graph nodes.
   const lift: SavedLift = {
-    id: 'L1', name: 'Summit Express', liftClass: 'fixed-grip', chairSize: 4,
+    id: 'L1', name: 'Summit Express', liftTypeId: 'fixed-grip-quad',
     points: [[0.5, 0], [0.5, 1]], endpointElevM: [80, 100], lengthM: 100, verticalM: 20,
     status: 'complete', createdAt: '2026-01-01T00:00:00.000Z',
   };

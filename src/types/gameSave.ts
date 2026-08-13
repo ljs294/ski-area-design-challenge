@@ -15,7 +15,7 @@ export interface SavedSiteBox {
 
 /** A player's persisted resort design. This is a compatibility boundary. */
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
   key: string;
   name: string;
   mountainId?: string;

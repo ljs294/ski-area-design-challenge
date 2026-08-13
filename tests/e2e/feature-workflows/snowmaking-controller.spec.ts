@@ -68,7 +68,7 @@ test('snowmaking façade owns contributions, reconciliation, editing, and persis
   await page.locator('.hud-save').click();
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
-  expect(saved).toMatchObject({ schemaVersion: 13, dams: [],
+  expect(saved).toMatchObject({ schemaVersion: 14, dams: [],
     ponds: [{ id: 'pond-seed', isSnowmaking: false }], snowmakingNodes: [] });
 });
 
@@ -88,7 +88,7 @@ test('an imported pond can be designated for snowmaking and persisted', async ({
   await page.locator('.hud-save').click();
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
-  expect(saved).toMatchObject({ schemaVersion: 13, snowmakingLakeIds: ['way/lake'],
+  expect(saved).toMatchObject({ schemaVersion: 14, snowmakingLakeIds: ['way/lake'],
     snowmakingNodes: [{ name: 'Context Lake Intake',
       source: { kind: 'lake', lakeId: 'way/lake' } }] });
 
@@ -251,7 +251,7 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
   expect(saved).toMatchObject({
-    schemaVersion: 13,
+    schemaVersion: 14,
     snowmakingPipes: [{ name: 'Summit Main', diameterIn: 12 }],
     snowmakingNodes: [
       { kind: 'pump', labelNumber: 1 },
@@ -593,7 +593,7 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
   await page.getByRole('button', { name: /^Menu/ }).click();
   await page.locator('.hud-save').click();
   const savedText = await page.evaluate(() => localStorage.getItem('gamesave:e2e-save') ?? '');
-  expect(JSON.parse(savedText)).toMatchObject({ schemaVersion: 13 });
+  expect(JSON.parse(savedText)).toMatchObject({ schemaVersion: 14 });
   expect(savedText).not.toContain('horsepowerHp');
   expect(savedText).not.toContain('selectedPipeIds');
   expect(savedText).not.toContain('selectedGunIds');

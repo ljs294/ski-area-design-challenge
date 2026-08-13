@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ConditionToggle } from './ConditionToggle';
-import { CHAIR_LABELS, fmtDistance } from '../lifts';
+import { fmtDistance, liftTypeLabel } from '../lifts';
 import {
   edgesForTrail,
   toMeters,
@@ -543,13 +543,13 @@ function NetworkInspector({
           <span className="dock-head-title">{liftEdge.liftName}</span>
         </div>
         <div className="network-sub">
-          {CHAIR_LABELS[liftEdge.chairSize]} · {liftEdge.planned ? 'Planning' : 'Complete'}
+          {liftTypeLabel(liftEdge.liftTypeId)} · {liftEdge.planned ? 'Planning' : 'Complete'}
         </div>
         <div className="network-stats">
           <Stat label="Vertical" value={fmtVertical(liftEdge.verticalM, units)} />
           <Stat label="Length" value={fmtDistance(liftEdge.lengthM, units)} />
           <Stat label="Ride time" value={fmtDuration(liftEdge.rideTimeS)} />
-          <Stat label="Capacity" value={`${liftEdge.capacityPph.toLocaleString()} p/h`} />
+          <Stat label="Capacity" value={`${Math.round(liftEdge.capacityPph).toLocaleString()} p/h`} />
           {/* Placeholder until a simulation drives them — see withLiftQueues. */}
           <Stat label="People waiting" value={`${liftEdge.peopleWaiting}`} />
           <Stat label="Wait time" value={fmtDuration(liftEdge.waitTimeS)} />

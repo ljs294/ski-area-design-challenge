@@ -414,10 +414,29 @@ describe('lifts', () => {
     expect(edge.orientationResolved).toBe(true);
     expect(net.nodeById.get(edge.from)?.elevM).toBeCloseTo(200, 6);
     expect(net.nodeById.get(edge.to)?.elevM).toBeCloseTo(500, 6);
-    expect(edge.rideTimeS).toBeCloseTo(lift.lengthM / 2.286, 6);
+    expect(edge.rideTimeS).toBeCloseTo(lift.lengthM / (400 * 0.00508), 6);
     expect(edge.capacityPph).toBe(1200);
     expect(edge.peopleWaiting).toBe(0);
     expect(edge.waitTimeS).toBe(0);
+  });
+
+  it('uses the shared type catalog for non-chair and tram performance', () => {
+    const carpet = mkLift('carpet', at(0, 0), at(0, 200), [200, 220], {
+      liftTypeId: 'magic-carpet',
+    });
+    const tram = mkLift('tram', at(300, 0), at(300, 800), [200, 700], {
+      liftTypeId: 'tram-80',
+    });
+    const net = buildSkiNetwork([], [carpet, tram]);
+    const carpetEdge = net.edgeById.get('l:carpet') as LiftEdge;
+    const tramEdge = net.edgeById.get('l:tram') as LiftEdge;
+    expect(carpetEdge).toMatchObject({ liftTypeId: 'magic-carpet', capacityPph: 1000 });
+    expect(carpetEdge.rideTimeS).toBeCloseTo(carpet.lengthM / (100 * 0.00508), 6);
+    expect(tramEdge.liftTypeId).toBe('tram-80');
+    expect(tramEdge.capacityPph).toBeCloseTo(
+      (80 * 3600) / (tramEdge.rideTimeS + 240),
+      6,
+    );
   });
 
   it('still emits a lift whose terminal elevations never resolved', () => {

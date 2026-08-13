@@ -48,6 +48,11 @@ test('double confirmation builds once and Save persists one coherent document', 
 
   await page.getByRole('button', { name: 'Ski lifts' }).click();
   await page.getByRole('button', { name: /Add ski lift/ }).click();
+  await expect(page.getByRole('tree', { name: 'Lift type' })).toBeVisible();
+  await page.getByRole('treeitem', { name: 'Detachable Chairlift', exact: true }).click();
+  await page.getByRole('treeitem', { name: 'Six-Pack', exact: true }).click();
+  const chooserBox = await page.locator('.lift-builder-panel').boundingBox();
+  await page.getByRole('button', { name: 'Draw lift', exact: true }).click();
   const base = await pointAt(page, BASE);
   const top = await pointAt(page, TOP);
   await page.mouse.click(base.x, base.y);
@@ -56,10 +61,23 @@ test('double confirmation builds once and Save persists one coherent document', 
   await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(0);
   await setCaptureTransients(page, false);
   await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(3);
+  await page.mouse.move(top.x, top.y);
+  await expect(page.getByText('Estimated Ride Time', { exact: true })).toBeVisible();
+  await expect(page.getByText('Vertical', { exact: true })).toBeVisible();
+  await expect(page.getByText('3,000/hr', { exact: true })).toBeVisible();
+  await expect(page.getByText('TBD', { exact: true })).toBeVisible();
+  const drawingBox = await page.locator('.lift-builder-panel').boundingBox();
+  expect(drawingBox?.width).toBeCloseTo(chooserBox?.width ?? 0, 0);
+  expect(drawingBox?.height).toBeCloseTo(chooserBox?.height ?? 0, 0);
   await page.mouse.click(top.x, top.y);
-  await expect(page.getByText('New fixed-grip chairlift', { exact: true })).toBeVisible();
+  await expect(page.getByText('Review lift', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Change', exact: true }).click();
+  await page.getByRole('treeitem', { name: 'Detachable Gondola', exact: true }).click();
+  await page.getByRole('treeitem', { name: '10-person', exact: true }).click();
+  await expect(page.getByText('Detachable 10-Person Gondola', { exact: true })).toBeVisible();
+  await expect(page.getByText('2,800/hr', { exact: true })).toBeVisible();
   await page.getByLabel('Letter / number').fill('A');
-  await page.locator('.lift-name-input').fill('Atomic Double');
+  await page.locator('.lift-name-input').fill('Atomic Gondola');
   await page.getByRole('button', { name: 'Complete', exact: true }).click();
 
   const build = page.getByRole('button', { name: 'Build lift', exact: true });
@@ -73,11 +91,12 @@ test('double confirmation builds once and Save persists one coherent document', 
 
   await expect(page.getByText('Ski Lifts (1)', { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(3);
-  await expect.poll(() => liftMapLabel(page)).toBe('A - Atomic Double');
-  await page.getByRole('button', { name: /A - Atomic Double/ }).click();
+  await expect.poll(() => liftMapLabel(page)).toBe('A - Atomic Gondola');
+  await page.getByRole('button', { name: /A - Atomic Gondola/ }).click();
+  await expect(page.locator('.lift-detail-sub')).toContainText('Detachable 10-Person Gondola');
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByLabel('Letter / number')).toHaveValue('A');
-  await expect(page.getByLabel('Name')).toHaveValue('Atomic Double');
+  await expect(page.getByLabel('Name')).toHaveValue('Atomic Gondola');
   await page.getByLabel('Letter / number').fill('B');
   await page.getByLabel('Name').fill('Atomic Express');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -133,9 +152,9 @@ test('double confirmation builds once and Save persists one coherent document', 
   });
 
   expect(persisted.save).toMatchObject({
-    schemaVersion: 13,
+    schemaVersion: 14,
     terrainKey: 'e2e-terrain',
-    lifts: [{ identifier: 'B', name: 'Atomic Express', status: 'complete' }],
+    lifts: [{ identifier: 'B', name: 'Atomic Express', liftTypeId: 'gondola-10', status: 'complete' }],
     trails: [{ id: 'trail-save-coherence', name: 'Renamed in save tick' }],
   });
   expect(persisted.save.lifts).toHaveLength(1);
@@ -185,7 +204,7 @@ test('road confirmation builds once and survives best-effort cover failure', asy
   const persisted = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
   expect(persisted).toMatchObject({
-    schemaVersion: 13,
+    schemaVersion: 14,
     terrainKey: 'e2e-terrain',
     roads: [{ name: 'Atomic Road', roadType: 'two-lane', terrainGraded: true }],
   });

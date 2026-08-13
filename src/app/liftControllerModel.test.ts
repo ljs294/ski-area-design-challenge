@@ -7,60 +7,73 @@ const A: [number, number] = [-121.5, 46.9];
 const B: [number, number] = [-121.49, 46.91];
 
 describe('lift controller model', () => {
-  it('moves through placement, review, sampling, and cancellation explicitly', () => {
-    const armed = reduceLiftTool(IDLE_LIFT_TOOL, { type: 'arm' });
+  it('moves through choosing, placement, live sampling, review, and cancellation', () => {
+    const choosing = reduceLiftTool(IDLE_LIFT_TOOL, { type: 'open' });
+    expect(choosing).toEqual({ phase: 'choosing', liftTypeId: 'fixed-grip-double' });
+    const selected = reduceLiftTool(choosing, { type: 'set-type', liftTypeId: 'gondola-10' });
+    const armed = reduceLiftTool(selected, { type: 'start' });
     const anchored = reduceLiftTool(armed, { type: 'anchor', point: A });
-    expect(reduceLiftTool(anchored, { type: 'move', point: B }))
-      .toMatchObject({ phase: 'anchored', cursor: B });
+    expect(anchored).toMatchObject({ phase: 'anchored', liftTypeId: 'gondola-10',
+      anchorElevStatus: 'pending' });
 
-    const review = reduceLiftTool(anchored, {
+    const withAnchor = reduceLiftTool(anchored, {
+      type: 'anchor-sample-succeeded', elevation: 1000,
+    });
+    const moved = reduceLiftTool(withAnchor, { type: 'move', point: B });
+    const sampledCursor = reduceLiftTool(moved, {
+      type: 'cursor-sample-succeeded', elevation: 1200,
+    });
+    expect(sampledCursor).toMatchObject({ phase: 'anchored', cursor: B,
+      elev: [1000, 1200], anchorElevStatus: 'ok', cursorElevStatus: 'ok' });
+
+    const review = reduceLiftTool(sampledCursor, {
       type: 'review', points: [A, B], identifier: '1', name: 'Lift 1',
     });
     expect(review).toMatchObject({ phase: 'review', draft: {
-      elevStatus: 'pending', chairSize: 2, status: 'planning',
-      identifier: '1', name: 'Lift 1',
+      liftTypeId: 'gondola-10', elevStatus: 'pending', status: 'planning',
     } });
-    const sampled = reduceLiftTool(review, {
-      type: 'sample-succeeded', elevations: [1000, 1100],
-    });
-    expect(sampled).toMatchObject({ phase: 'review', draft: {
-      elev: [1000, 1100], elevStatus: 'ok',
-    } });
-    expect(reduceLiftTool(sampled, { type: 'sample-failed' }))
-      .toMatchObject({ phase: 'review', draft: { elevStatus: 'error' } });
-    expect(reduceLiftTool(sampled, { type: 'cancel' })).toBe(IDLE_LIFT_TOOL);
+    const changed = reduceLiftTool(review, { type: 'set-type', liftTypeId: 'tram-80' });
+    expect(changed).toMatchObject({ phase: 'review', draft: { liftTypeId: 'tram-80' } });
+    expect(reduceLiftTool(changed, { type: 'cancel' })).toBe(IDLE_LIFT_TOOL);
   });
 
-  it('ignores phase-inapplicable actions rather than manufacturing state', () => {
+  it('represents live elevation failure without discarding placement', () => {
+    const choosing = reduceLiftTool(IDLE_LIFT_TOOL, { type: 'open' });
+    const armed = reduceLiftTool(choosing, { type: 'start' });
+    const anchored = reduceLiftTool(armed, { type: 'anchor', point: A });
+    const moved = reduceLiftTool(anchored, { type: 'move', point: B });
+    expect(reduceLiftTool(moved, { type: 'cursor-sample-failed' }))
+      .toMatchObject({ phase: 'anchored', cursor: B, elev: [null, null], cursorElevStatus: 'error' });
+  });
+
+  it('ignores phase-inapplicable actions', () => {
+    expect(reduceLiftTool(IDLE_LIFT_TOOL, { type: 'start' })).toBe(IDLE_LIFT_TOOL);
     expect(reduceLiftTool(IDLE_LIFT_TOOL, { type: 'move', point: B })).toBe(IDLE_LIFT_TOOL);
-    expect(reduceLiftTool(IDLE_LIFT_TOOL, { type: 'sample-failed' })).toBe(IDLE_LIFT_TOOL);
     expect(reduceLiftTool(IDLE_LIFT_TOOL, { type: 'patch', patch: { name: 'wrong' } }))
       .toBe(IDLE_LIFT_TOOL);
   });
 
-  it('orients the committed entity bottom-to-top and supplies a blank fallback name', () => {
+  it('commits the selected type, bottom-to-top geometry, and fallback identity', () => {
     const draft: DraftLift = {
       points: [A, B],
       elev: [1200, 1000],
       elevStatus: 'ok',
-      chairSize: 4,
+      liftTypeId: 'detachable-six-pack',
       status: 'complete',
       identifier: '  ',
       name: '  ',
     };
     const existing = [{ name: 'Lift 1' }] as SavedLift[];
-
     const lift = liftFromDraft(draft, existing, 'lift-new', '2026-01-01T00:00:00.000Z');
 
     expect(lift).toMatchObject({
       id: 'lift-new',
       identifier: '2',
       name: 'Lift 2',
+      liftTypeId: 'detachable-six-pack',
       points: [B, A],
       endpointElevM: [1000, 1200],
-      chairSize: 4,
       status: 'complete',
-      createdAt: '2026-01-01T00:00:00.000Z',
     });
     expect(lift.verticalM).toBe(200);
     expect(lift.lengthM).toBeGreaterThan(200);

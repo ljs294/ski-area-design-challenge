@@ -20,8 +20,7 @@ const TAIL: [number, number] = [-121.4942, 46.9035];
 const anchorLift = {
   id: 'lift-anchor',
   name: 'Anchor Double',
-  liftClass: 'fixed-grip',
-  chairSize: 2,
+  liftTypeId: 'fixed-grip-double',
   points: [[-121.4958, 46.905], [-121.4942, 46.905]],
   endpointElevM: [1000, 1030],
   lengthM: 122,
@@ -33,8 +32,7 @@ const anchorLift = {
 const destinationLift = {
   id: 'lift-destination',
   name: 'Destination Double',
-  liftClass: 'fixed-grip',
-  chairSize: 2,
+  liftTypeId: 'fixed-grip-double',
   points: [TAIL, [-121.4928, 46.9035]],
   endpointElevM: [980, 1020],
   lengthM: 106,
@@ -172,7 +170,7 @@ test('review retains a grade failure and commits trail topology coherently', asy
   await page.locator('.hud-save').click();
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
-  expect(saved.schemaVersion).toBe(13);
+  expect(saved.schemaVersion).toBe(14);
   expect(saved.trails).toHaveLength(1);
   expect(saved.trails[0]).toMatchObject({ name: 'Atomic Glade', status: 'planning',
     terrainGraded: false, anchor: { kind: 'lift', liftId: 'lift-anchor', end: 'top' } });

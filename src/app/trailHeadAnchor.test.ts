@@ -8,7 +8,7 @@ const at = (eastM: number, northM: number): [number, number] => [
   origin[1] + northM / 111_320,
 ];
 const lift: SavedLift = {
-  id: 'lift', name: 'Lift', liftClass: 'fixed-grip', chairSize: 2, points: [at(0, 0), at(0, 200)],
+  id: 'lift', name: 'Lift', liftTypeId: 'fixed-grip-double', points: [at(0, 0), at(0, 200)],
   endpointElevM: [100, 200], lengthM: 200, verticalM: 100,
   status: 'complete', createdAt: '',
 };

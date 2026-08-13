@@ -106,10 +106,9 @@ function lift(id: string, a: [number, number], b: [number, number]): SavedLift {
     {
       id,
       name: id,
-      liftClass: 'fixed-grip',
+      liftTypeId: 'fixed-grip-quad',
       points: [a, b],
       endpointElevM: [200, 500],
-      chairSize: 4,
       status: 'complete',
       createdAt: '2026-01-01T00:00:00.000Z',
     },
@@ -188,6 +187,7 @@ describe('NetworkMap', () => {
     expect(html).toContain('served');
     expect(html).toContain('People waiting');
     expect(html).toContain('placeholders');
+    expect(html).toContain('Fixed-Grip Quad Chairlift');
     expect(html).toContain('2,400 p/h'); // quad at 600 pph per seat
   });
 
