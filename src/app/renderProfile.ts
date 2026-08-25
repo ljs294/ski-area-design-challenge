@@ -33,7 +33,7 @@ const PROFILES: Record<RenderQuality, RenderProfile> = {
     tileWorkerCount: 1,
     hillshade: 'none',
     contourLabels: false,
-    menu: 'css',
+    menu: 'still',
   },
   standard: {
     quality: 'standard',

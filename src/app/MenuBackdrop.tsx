@@ -165,7 +165,7 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
   }, [ready, settings.reducedMotion, settings.renderQuality]);
 
   return (
-    <div className={`menu-backdrop${cssOnly ? ' menu-backdrop-css' : ''}`}>
+    <div className="menu-backdrop menu-backdrop-css">
       {!cssOnly && <div ref={containerRef} className="menu-backdrop-map" />}
       <div className="menu-backdrop-scrim" />
     </div>

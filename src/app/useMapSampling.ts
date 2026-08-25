@@ -64,7 +64,11 @@ export function useMapSampling(options: MapSamplingOptions): MapSampling {
     const token = ++options.sampleTokenRef.current;
     void (async () => {
       const localRecord = options.terrainRecordRef.current;
-      const terrain = await samplePoint(lngLat.lng, lngLat.lat, zoom);
+      // Avoid a Promise/microtask hop for the common gameplay path. Remote
+      // picker sampling remains asynchronous and keeps the same stale token.
+      const terrain = localRecord
+        ? sampleLocalTerrainAt(lngLat.lng, lngLat.lat)
+        : await samplePoint(lngLat.lng, lngLat.lat, zoom);
       if (!terrain || token !== options.sampleTokenRef.current) return;
       let coverLabel: string | null = null;
       const snow = overlay === 'snow' && options.snowGridRef.current

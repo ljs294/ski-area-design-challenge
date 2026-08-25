@@ -461,6 +461,13 @@ body {
   inset: 0;
 }
 
+/* MapLibre's lazy-loaded stylesheet also sets .maplibregl-map positioning.
+   Keep the menu scene filling its parent regardless of CSS chunk order. */
+.menu-backdrop-map.maplibregl-map {
+  position: absolute;
+  inset: 0;
+}
+
 .menu-backdrop-scrim {
   position: absolute;
   inset: 0;

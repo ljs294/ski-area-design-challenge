@@ -196,7 +196,10 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
     const sampleLatest = () => {
       if (!options.lastLngLatRef.current || map.isMoving()) return;
       const now = performance.now();
-      if (now - lastSampleAt < 100) return;
+      // Local typed-array sampling is cheap and only commits the leaf readout.
+      // Keep remote picker sampling conservative to avoid request churn.
+      const intervalMs = options.terrainRecordRef.current ? 1000 / 30 : 100;
+      if (now - lastSampleAt < intervalMs) return;
       lastSampleAt = now;
       options.doSampleRef.current(options.lastLngLatRef.current);
     };

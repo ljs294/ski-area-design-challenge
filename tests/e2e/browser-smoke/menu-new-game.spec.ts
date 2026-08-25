@@ -18,6 +18,20 @@ test('main menu enters the New Game site-picker shell', async ({ page }) => {
   await expect(page.getByRole('menuitem', { name: 'Save' })).toHaveCount(0);
 });
 
+test('Performance keeps the full-size terrain menu backdrop', async ({ page }) => {
+  await openMenu(page);
+  await page.evaluate(() => localStorage.setItem('skiapp:settings', JSON.stringify({
+    renderQuality: 'performance',
+  })));
+  await page.reload({ waitUntil: 'load' });
+
+  const backdrop = page.locator('.menu-backdrop-map');
+  await expect(backdrop).toBeVisible();
+  const box = await backdrop.boundingBox();
+  expect(box?.width).toBe(1280);
+  expect(box?.height).toBe(720);
+});
+
 test('a prepared resort reveals a usable, mutually exclusive construction dock', async ({ page }) => {
   await seedPreparedResort(page);
 

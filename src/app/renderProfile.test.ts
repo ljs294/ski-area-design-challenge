@@ -15,10 +15,13 @@ describe('render profiles', () => {
       coverMode: 'raster',
       derivedCacheBytes: 64 * 1024 * 1024,
       hillshade: 'none',
-      menu: 'css',
+      menu: 'still',
     });
     expect(renderProfileFor('standard').coverVertexBudget).toBe(150_000);
     expect(renderProfileFor('ultra').tileWorkerCount).toBe(2);
+    for (const quality of ['performance', 'standard', 'high', 'ultra'] as const) {
+      expect(renderProfileFor(quality).menu).not.toBe('css');
+    }
   });
 
   it('caps 1080p ratios by the tier preference', () => {
