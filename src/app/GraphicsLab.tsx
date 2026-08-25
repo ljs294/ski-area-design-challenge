@@ -8,7 +8,7 @@ import type { OverlayId } from './Legend';
 import { basemapFor, tuneBasemap } from './basemapStyle';
 import { mountTerrain, unmountTerrain, tilt3D } from './terrain3d';
 import { applyTileLod } from './terrainLod';
-import { pixelRatioFor, useSettings, type RenderQuality } from './SettingsContext';
+import { pixelRatioForElement, useSettings, type RenderQuality } from './SettingsContext';
 
 // A developer window for eyeballing graphics settings: two maps side by side
 // whose cameras stay locked together, but whose layers and render quality are
@@ -23,6 +23,7 @@ const CENTER = PRESETS[0].center;
 const ZOOM = 13;
 
 const QUALITY_OPTS: { value: RenderQuality; label: string }[] = [
+  { value: 'performance', label: 'Performance' },
   { value: 'standard', label: 'Standard' },
   { value: 'high', label: 'High' },
   { value: 'ultra', label: 'Ultra' },
@@ -115,7 +116,7 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
         style: basemapFor(resolvedTheme),
         center: CENTER,
         zoom: ZOOM,
-        pixelRatio: pixelRatioFor(initialQ[i]),
+        pixelRatio: pixelRatioForElement(initialQ[i], container),
         attributionControl: { compact: true },
       });
       m.addControl(
@@ -124,7 +125,9 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
       );
       m.on('style.load', () => {
         tuneBasemap(m);
-        setLayers[i](setupAnalysisLayers(m));
+        setLayers[i](setupAnalysisLayers(
+          m, null, 'imperial', null, null, {}, {}, null, 'depth', initialQ[i],
+        ));
         applyTileLod(m, initialQ[i]);
       });
       return m;
@@ -164,13 +167,13 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     const m = mapsRef.current[0];
     if (!m) return;
-    m.setPixelRatio(pixelRatioFor(quality0));
+    if (cont0.current) m.setPixelRatio(pixelRatioForElement(quality0, cont0.current));
     applyTileLod(m, quality0);
   }, [quality0]);
   useEffect(() => {
     const m = mapsRef.current[1];
     if (!m) return;
-    m.setPixelRatio(pixelRatioFor(quality1));
+    if (cont1.current) m.setPixelRatio(pixelRatioForElement(quality1, cont1.current));
     applyTileLod(m, quality1);
   }, [quality1]);
 
@@ -193,7 +196,7 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
     [a, b].forEach((m, i) => {
       if (!m || !m.isStyleLoaded()) return;
       if (is3D) {
-        mountTerrain(m);
+        mountTerrain(m, q[i]);
         tilt3D(m, true);
         applyTileLod(m, q[i]); // terrain-dem source is new; give it the curve
       } else {

@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import type { RoadType, SavedRoad } from '../types/roads';
 import type { TerrainRecord } from '../types/terrain';
@@ -69,6 +69,7 @@ export function useRoadController(options: RoadControllerOptions): RoadControlle
   const roadsRef = useRef<readonly SavedRoad[]>(options.roads);
   const optionsRef = useRef(options);
   const gradeResultRef = useRef<GradeSuccess | null>(null);
+  const draftFrameRef = useRef<number | null>(null);
   stateRef.current = state;
   roadsRef.current = options.roads;
   optionsRef.current = options;
@@ -91,9 +92,17 @@ export function useRoadController(options: RoadControllerOptions): RoadControlle
     cleanup: () => {},
   };
 
-  useEffect(() => { optionsRef.current.synchronizeMap(); }, [state, options.roads]);
-
+  useEffect(() => { optionsRef.current.synchronizeMap(); }, [options.roads]);
   useEffect(() => {
+    if (draftFrameRef.current != null) return;
+    draftFrameRef.current = requestAnimationFrame(() => {
+      draftFrameRef.current = null;
+      const map = optionsRef.current.mapRef.current;
+      if (map) setRoadDraftData(map, roadDraftOf(stateRef.current));
+    });
+  }, [state]);
+
+  useLayoutEffect(() => {
     const map = optionsRef.current.mapRef.current;
     if (!map || (state.phase !== 'armed' && state.phase !== 'drawing')) return;
     const interaction = optionsRef.current.acquireInteractions(map);
@@ -124,6 +133,7 @@ export function useRoadController(options: RoadControllerOptions): RoadControlle
   }, [state.phase]);
 
   useEffect(() => () => {
+    if (draftFrameRef.current != null) cancelAnimationFrame(draftFrameRef.current);
     optionsRef.current.gradeAdapter.stop();
     optionsRef.current.release();
   }, []);

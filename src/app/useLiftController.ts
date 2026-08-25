@@ -1,9 +1,9 @@
-import { useEffect, useReducer, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import type { LiftTypeId, SavedLift } from '../types/lifts';
 import { haversineMeters } from '../geo';
 import { nextLiftIdentifier, nextLiftName } from '../lifts';
-import { addLiftLayers, setLiftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS } from './liftLayers';
+import { addLiftLayers, setLiftData, setLiftDraftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS } from './liftLayers';
 import type { DraftLine } from './liftLayers';
 import { MAP_HIT_RANK, MAP_Z_ORDER } from './mapContribution';
 import type { ManagedMapContribution, MapVisibilityDescriptor } from './mapContribution';
@@ -81,6 +81,7 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
   const anchorSampleTokenRef = useRef(0);
   const cursorSampleTokenRef = useRef(0);
   const cursorFrameRef = useRef<number | null>(null);
+  const draftFrameRef = useRef<number | null>(null);
   const pendingCursorRef = useRef<[number, number] | null>(null);
   const cancelRef = useRef<() => void>(() => {});
   stateRef.current = state;
@@ -99,10 +100,10 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
         select: (id) => select(id),
       }],
       install: ({ map }) => addLiftLayers(map),
-      synchronizeData: ({ map }) => setLiftData(
-        map,
-        liftsToGeoJSON(liftsRef.current, draftLineOf(stateRef.current)),
-      ),
+      synchronizeData: ({ map }) => {
+        setLiftData(map, liftsToGeoJSON(liftsRef.current, null));
+        setLiftDraftData(map, draftLineOf(stateRef.current));
+      },
       visibility: (): MapVisibilityDescriptor[] =>
         optionsRef.current.structuresVisible() ? [{
           id: 'lifts',
@@ -111,19 +112,24 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
           visible: true,
           section: 'Structures',
         }] : [],
-      setCaptureTransient: ({ map }, hidden) => setLiftData(
-        map,
-        liftsToGeoJSON(liftsRef.current, hidden ? null : draftLineOf(stateRef.current)),
-      ),
+      setCaptureTransient: ({ map }, hidden) =>
+        setLiftDraftData(map, hidden ? null : draftLineOf(stateRef.current)),
       cleanup: () => {},
     };
   }
 
-  useEffect(() => {
-    optionsRef.current.synchronizeMap();
-  }, [state, options.lifts]);
+  useEffect(() => { optionsRef.current.synchronizeMap(); }, [options.lifts]);
 
   useEffect(() => {
+    if (draftFrameRef.current != null) return;
+    draftFrameRef.current = requestAnimationFrame(() => {
+      draftFrameRef.current = null;
+      const map = optionsRef.current.mapRef.current;
+      if (map) setLiftDraftData(map, draftLineOf(stateRef.current));
+    });
+  }, [state]);
+
+  useLayoutEffect(() => {
     const map = optionsRef.current.mapRef.current;
     if (!map || (state.phase !== 'armed' && state.phase !== 'anchored')) return;
     const interaction = optionsRef.current.acquireInteractions(map);
@@ -169,6 +175,7 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
   useEffect(() => () => {
     sampleTokenRef.current += 1;
     cancelLiveSamples();
+    if (draftFrameRef.current != null) cancelAnimationFrame(draftFrameRef.current);
     optionsRef.current.release();
   }, []);
 

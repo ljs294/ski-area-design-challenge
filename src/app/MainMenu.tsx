@@ -1,6 +1,11 @@
-import { useState } from 'react';
-import { MenuBackdrop } from './MenuBackdrop';
+import { lazy, Suspense } from 'react';
 import { isDesktop } from '../desktopBridge';
+import { useSettings } from './SettingsContext';
+import { renderProfileFor } from './renderProfile';
+
+const MenuBackdrop = lazy(() => import('./MenuBackdrop').then((module) => ({
+  default: module.MenuBackdrop,
+})));
 
 // Ski-trail difficulty ratings, reused as the visual "difficulty" of each menu
 // action. Rendered as the standard trail markers.
@@ -35,6 +40,7 @@ export interface MainMenuProps {
   onMapManagement: () => void;
   onSettings: () => void;
   onExit: () => void;
+  onPreloadGame?: () => void;
 }
 
 export function MainMenu({
@@ -45,7 +51,10 @@ export function MainMenu({
   onMapManagement,
   onSettings,
   onExit,
+  onPreloadGame,
 }: MainMenuProps) {
+  const { settings } = useSettings();
+  const cssBackdrop = renderProfileFor(settings.renderQuality).menu === 'css';
   const items: MenuItem[] = [
     { key: 'continue', label: 'Continue Game', rating: 'green', onClick: onContinue, disabled: !hasSaves },
     { key: 'new', label: 'New Game', rating: 'green', onClick: onNewGame },
@@ -56,19 +65,15 @@ export function MainMenu({
     { key: 'exit', label: 'Exit', rating: 'double-black', onClick: onExit, hidden: !isDesktop },
   ];
 
-  // Keep the menu hidden behind a minimal loading bar until the backdrop map has
-  // fully loaded, so it reveals as a finished scene, never mid-tile-load.
-  const [ready, setReady] = useState(false);
-
   return (
     <div className="main-menu">
-      <MenuBackdrop onReady={() => setReady(true)} />
+      {cssBackdrop
+        ? <div className="menu-backdrop menu-backdrop-css"><div className="menu-backdrop-scrim" /></div>
+        : <Suspense fallback={<div className="menu-backdrop menu-backdrop-css" />}>
+            <MenuBackdrop />
+          </Suspense>}
 
-      <div className={`menu-loading${ready ? ' menu-loading-done' : ''}`} aria-hidden={ready}>
-        <div className="menu-loading-bar" />
-      </div>
-
-      <div className={`menu-content${ready ? '' : ' menu-content-loading'}`} aria-hidden={!ready}>
+      <div className="menu-content">
         <div className="menu-logo">
           <svg className="menu-logo-mark" viewBox="0 0 100 80" aria-hidden>
             <path d="M10,70 L50,20 L90,70 Z" fill="none" strokeWidth="3" strokeLinejoin="round" />
@@ -87,6 +92,8 @@ export function MainMenu({
                 key={it.key}
                 className={`trail-slat${it.disabled ? ' trail-slat-disabled' : ''}`}
                 onClick={it.onClick}
+                onMouseEnter={it.key === 'continue' || it.key === 'new' ? onPreloadGame : undefined}
+                onFocus={it.key === 'continue' || it.key === 'new' ? onPreloadGame : undefined}
                 disabled={it.disabled}
               >
                 <span className="slat-chip">

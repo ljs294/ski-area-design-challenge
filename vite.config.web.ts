@@ -12,5 +12,6 @@ export default defineConfig({
   build: {
     outDir: 'dist-web',
     emptyOutDir: true,
+    manifest: true,
   },
 });

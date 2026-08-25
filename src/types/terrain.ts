@@ -105,19 +105,19 @@ export interface TerrainRecord {
   areaSizeMeters: AreaSizeMeters;
   bounds?: LatLonBounds;
   sampleGridSize: number;
-  sampleHeights: number[];
+  sampleHeights: number[] | Float32Array;
   surround?: SurroundElevation;
   coverGrid?: CoverGrid;
   coverMetadata?: CoverMetadata;
   originalCoverGrid?: SiteCoverGrid;
   originalCoverMetadata?: OriginalCoverMetadata;
-  coverBoundarySegments?: number[];
+  coverBoundarySegments?: number[] | Float32Array;
   coverGeometryMetadata?: CoverGeometryMetadata;
   coverDisplayGeometry?: number[] | Float32Array;
   coverDisplayMetadata?: CoverDisplayMetadata;
   localImagery?: Uint8Array | number[];
   localImageryMetadata?: LocalImageryMetadata;
-  contourSegments?: number[];
+  contourSegments?: number[] | Float32Array;
   contourMetadata?: ContourMetadata;
   packageManifest?: TerrainPackageManifest;
   climate: ClimateProfile;
@@ -131,3 +131,61 @@ export type TerrainSummary = Pick<
   TerrainRecord,
   'key' | 'mountainName' | 'latitude' | 'longitude' | 'areaSizeMeters' | 'sourceType' | 'createdAt' | 'updatedAt'
 >;
+
+/**
+ * In-memory package shape used after storage hydration. Persisted packages may
+ * still contain JSON number arrays; storage adapters normalize large binary
+ * assets to typed arrays before handing them to rendering and workers.
+ */
+export interface RuntimeTerrainPackage extends Omit<
+  TerrainRecord,
+  | 'sampleHeights'
+  | 'coverBoundarySegments'
+  | 'coverDisplayGeometry'
+  | 'contourSegments'
+  | 'localImagery'
+> {
+  sampleHeights: Float32Array;
+  coverBoundarySegments?: Float32Array;
+  coverDisplayGeometry?: Float32Array;
+  contourSegments?: Float32Array;
+  localImagery?: Uint8Array;
+}
+
+export type TerrainAssetName =
+  | 'elevation'
+  | 'cover'
+  | 'originalCover'
+  | 'coverGeometry'
+  | 'coverDisplay'
+  | 'contours'
+  | 'imagery';
+
+export type TerrainAssetMask = ReadonlySet<TerrainAssetName>;
+
+export type TerrainPackageMetadata = Omit<
+  TerrainRecord,
+  | 'sampleHeights'
+  | 'coverGrid'
+  | 'originalCoverGrid'
+  | 'coverBoundarySegments'
+  | 'coverDisplayGeometry'
+  | 'contourSegments'
+  | 'localImagery'
+>;
+
+export interface TerrainAssetRevision {
+  terrainRevision: string;
+  integrityReceipt?: string;
+}
+
+export interface TerrainAssetStore {
+  listSummaries(): Promise<TerrainSummary[]>;
+  loadMetadata(key: string): Promise<TerrainPackageMetadata | null>;
+  loadAssets(key: string, assetMask: TerrainAssetMask): Promise<Partial<RuntimeTerrainPackage> | null>;
+  commitAssets(
+    key: string,
+    expectedRevision: string,
+    changedAssets: Partial<RuntimeTerrainPackage>,
+  ): Promise<TerrainAssetRevision>;
+}

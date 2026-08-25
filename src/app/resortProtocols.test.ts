@@ -52,6 +52,21 @@ describe('resortWarmTileKeys', () => {
       expect(k.z).toBeLessThanOrEqual(15);
     }
   });
+
+  it('does not warm unused raster cover for a vector-cover package', () => {
+    const rec = makeRecord();
+    rec.coverDisplayGeometry = [1, 2, 3];
+    const standard = resortWarmTileKeys(rec, 'standard');
+    expect(new Set(standard.map((key) => key.kind))).toEqual(new Set(['dem']));
+  });
+
+  it('uses the bounded raster presentation for Performance', () => {
+    const rec = makeRecord();
+    rec.coverDisplayGeometry = [1, 2, 3];
+    const performance = resortWarmTileKeys(rec, 'performance');
+    expect(performance.some((key) => key.kind === 'cover')).toBe(true);
+    expect(Math.max(...performance.map((key) => key.z))).toBe(14);
+  });
 });
 
 describe('sampleLocalTerrainAt', () => {

@@ -60,6 +60,7 @@ export function useNodePathController(options: NodePathControllerOptions) {
   const [snapHover, setSnapHover] = useState<[number, number] | null>(null);
   const nodeRef = useRef(nodeTool), pathRef = useRef(pathTool);
   const snapHoverRef = useRef(snapHover), optionsRef = useRef(options);
+  const draftFrameRef = useRef<number | null>(null);
   nodeRef.current = nodeTool; pathRef.current = pathTool;
   snapHoverRef.current = snapHover; optionsRef.current = options;
 
@@ -78,7 +79,16 @@ export function useNodePathController(options: NodePathControllerOptions) {
   };
 
   useEffect(() => { optionsRef.current.synchronizeMap(); },
-    [options.nodes, options.paths, options.junctions, nodeTool, pathTool, snapHover]);
+    [options.nodes, options.paths, options.junctions]);
+  useEffect(() => {
+    if (draftFrameRef.current != null) return;
+    draftFrameRef.current = requestAnimationFrame(() => {
+      draftFrameRef.current = null;
+      const map = optionsRef.current.mapRef.current;
+      if (map) setNodePathDraftData(map,
+        draftOf(pathRef.current, nodeRef.current, snapHoverRef.current));
+    });
+  }, [nodeTool, pathTool, snapHover]);
 
   function trailAnchorAt(click: [number, number]): Extract<AnchorRef, { kind: 'trail' }> | null {
     const anchor = nearestTrailTailAnchor(click, [], [...optionsRef.current.trails], ANCHOR_PICK_M);
@@ -160,8 +170,11 @@ export function useNodePathController(options: NodePathControllerOptions) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathTool.phase]);
 
-  useEffect(() => () => { optionsRef.current.release('ski-node');
-    optionsRef.current.release('ski-path'); }, []);
+  useEffect(() => () => {
+    if (draftFrameRef.current != null) cancelAnimationFrame(draftFrameRef.current);
+    optionsRef.current.release('ski-node');
+    optionsRef.current.release('ski-path');
+  }, []);
 
   function armNode(phase: 'add' | 'remove'): void {
     if (!optionsRef.current.canArm() || !optionsRef.current.activate('ski-node')) return;

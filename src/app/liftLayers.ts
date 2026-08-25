@@ -8,6 +8,7 @@ import { formatLiftLabel } from '../lifts';
 // complete / planning / draft each get their own line layer over one source.
 
 export const LIFT_SOURCE = 'lifts';
+export const LIFT_DRAFT_SOURCE = 'lift-draft';
 
 // The built (persisted) lift layers, for a show/hide toggle. Excludes
 // 'lift-line-draft', which is the transient line drawn while placing a lift.
@@ -42,6 +43,7 @@ export function liftsToGeoJSON(
   for (const lift of lifts) {
     features.push({
       type: 'Feature',
+      id: `lift:${lift.id}:line`,
       properties: {
         id: lift.id,
         name: lift.name,
@@ -57,6 +59,7 @@ export function liftsToGeoJSON(
     lift.points.forEach((p, i) => {
       features.push({
         type: 'Feature',
+        id: `lift:${lift.id}:terminal:${i}`,
         properties: {
           id: lift.id,
           kind: 'terminal',
@@ -71,12 +74,14 @@ export function liftsToGeoJSON(
   if (draft) {
     features.push({
       type: 'Feature',
+      id: 'lift:draft:line',
       properties: { kind: 'line', draft: true },
       geometry: { type: 'LineString', coordinates: draft.points },
     });
     for (const p of draft.points) {
       features.push({
         type: 'Feature',
+        id: `lift:draft:terminal:${features.length}`,
         properties: { kind: 'terminal', role: 'unknown', draft: true },
         geometry: { type: 'Point', coordinates: p },
       });
@@ -90,6 +95,7 @@ export function addLiftLayers(map: maplibregl.Map): void {
   if (map.getSource(LIFT_SOURCE)) return;
 
   map.addSource(LIFT_SOURCE, { type: 'geojson', data: EMPTY });
+  map.addSource(LIFT_DRAFT_SOURCE, { type: 'geojson', data: EMPTY });
   // White casing under every built line for contrast on any basemap.
   map.addLayer({
     id: 'lift-line-casing',
@@ -143,8 +149,8 @@ export function addLiftLayers(map: maplibregl.Map): void {
   map.addLayer({
     id: 'lift-line-draft',
     type: 'line',
-    source: LIFT_SOURCE,
-    filter: ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], true]],
+    source: LIFT_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'line'],
     paint: {
       'line-color': LIFT_RED,
       'line-width': LIFT_DRAFT_LINE_WIDTH_PX,
@@ -157,6 +163,18 @@ export function addLiftLayers(map: maplibregl.Map): void {
     id: 'lift-terminals',
     type: 'circle',
     source: LIFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'terminal'],
+    paint: {
+      'circle-radius': 4.5,
+      'circle-color': LIFT_RED,
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2,
+    },
+  });
+  map.addLayer({
+    id: 'lift-draft-terminals',
+    type: 'circle',
+    source: LIFT_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'terminal'],
     paint: {
       'circle-radius': 4.5,
@@ -192,4 +210,9 @@ export function setLiftData(map: maplibregl.Map, fc: GeoJSON.FeatureCollection):
   const src = map.getSource(LIFT_SOURCE) as maplibregl.GeoJSONSource | undefined;
   if (!src) return;
   src.setData(fc);
+}
+
+export function setLiftDraftData(map: maplibregl.Map, draft: DraftLine | null): void {
+  const source = map.getSource(LIFT_DRAFT_SOURCE) as maplibregl.GeoJSONSource | undefined;
+  source?.setData(liftsToGeoJSON([], draft));
 }

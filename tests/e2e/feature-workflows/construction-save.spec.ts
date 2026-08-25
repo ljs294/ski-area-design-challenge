@@ -56,11 +56,12 @@ test('double confirmation builds once and Save persists one coherent document', 
   const base = await pointAt(page, BASE);
   const top = await pointAt(page, TOP);
   await page.mouse.click(base.x, base.y);
-  await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(3);
-  await setCaptureTransients(page, true);
+  await expect.poll(() => sourceFeatureCount(page, 'lift-draft')).toBe(3);
   await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(0);
+  await setCaptureTransients(page, true);
+  await expect.poll(() => sourceFeatureCount(page, 'lift-draft')).toBe(0);
   await setCaptureTransients(page, false);
-  await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(3);
+  await expect.poll(() => sourceFeatureCount(page, 'lift-draft')).toBe(3);
   await page.mouse.move(top.x, top.y);
   await expect(page.getByText('Estimated Ride Time', { exact: true })).toBeVisible();
   await expect(page.getByText('Vertical', { exact: true })).toBeVisible();
@@ -129,16 +130,17 @@ test('double confirmation builds once and Save persists one coherent document', 
   const persisted = await page.evaluate(async () => {
     const save = JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null');
     const terrain = await new Promise<Record<string, unknown>>((resolve, reject) => {
-      const request = indexedDB.open('mountain-planner-terrain', 1);
+      const request = indexedDB.open('mountain-planner-terrain');
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const database = request.result;
-        const transaction = database.transaction('terrains', 'readonly');
-        const read = transaction.objectStore('terrains').get(save.terrainKey);
-        read.onerror = () => reject(read.error);
-        read.onsuccess = () => {
+        const transaction = database.transaction(['terrain-metadata', 'terrain-assets'], 'readonly');
+        const metadata = transaction.objectStore('terrain-metadata').get(save.terrainKey);
+        const assets = transaction.objectStore('terrain-assets').get(save.terrainKey);
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => {
           database.close();
-          resolve(read.result);
+          resolve({ ...metadata.result, ...assets.result });
         };
       };
     });

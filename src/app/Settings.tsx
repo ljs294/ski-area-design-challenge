@@ -219,6 +219,7 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
     { value: 'metric', label: 'Meters' },
   ];
   const qualityOptions: { value: RenderQuality; label: string }[] = [
+    { value: 'performance', label: 'Performance' },
     { value: 'standard', label: 'Standard' },
     { value: 'high', label: 'High' },
     { value: 'ultra', label: 'Ultra' },
@@ -299,7 +300,7 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
             onChange={setRenderQuality}
           />
           <p className="setting-hint">
-            Sharper map textures at higher GPU cost. Standard matches your display.
+            Performance keeps 3D terrain while reducing resolution and decorative effects for integrated graphics.
           </p>
 
           <div className="setting-row">

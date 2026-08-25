@@ -4,10 +4,13 @@ import { desktop } from '../desktopBridge';
 import type { WindowMode } from '../ipcContract';
 import type { GameAction, Keybinds } from '../keybinds';
 import { DEFAULT_KEYBINDS, mergeKeybinds } from '../keybinds';
+import { isRenderQuality } from './renderProfile';
+export { pixelRatioFor, pixelRatioForElement, renderProfileFor } from './renderProfile';
+export type { RenderProfile, RenderQuality } from './renderProfile';
+import type { RenderQuality } from './renderProfile';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type Units = 'imperial' | 'metric';
-export type RenderQuality = 'standard' | 'high' | 'ultra';
 
 export interface Settings {
   theme: Theme;
@@ -16,24 +19,6 @@ export interface Settings {
   reducedMotion: boolean;
   renderQuality: RenderQuality;
   keybinds: Keybinds;
-}
-
-/**
- * Map a quality tier to a MapLibre pixelRatio (canvas supersampling factor).
- * 'standard' matches the display's own DPR (what MapLibre does by default, so
- * Retina/4K displays never regress); higher tiers push above it for a crisper
- * map at the cost of fill-rate. Clamped to never fall below native DPR.
- */
-export function pixelRatioFor(quality: RenderQuality): number {
-  const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
-  switch (quality) {
-    case 'ultra':
-      return Math.max(dpr, 3);
-    case 'high':
-      return Math.max(dpr, 2);
-    default:
-      return dpr;
-  }
 }
 
 const STORAGE_KEY = 'skiapp:settings';
@@ -53,6 +38,7 @@ function loadSettings(): Settings {
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     const merged = { ...DEFAULTS, ...parsed };
+    if (!isRenderQuality(parsed.renderQuality)) merged.renderQuality = DEFAULTS.renderQuality;
     // A shallow spread would let a stored (possibly stale/partial) keybinds
     // object silently clobber DEFAULTS.keybinds instead of merging with it —
     // always rebuild it as a fully-populated Keybinds via mergeKeybinds.

@@ -67,14 +67,18 @@ test('live providers prepare and persist a New Game resort package', async ({ pa
       terrainKey?: string;
     } | null;
     const terrain = await new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const request = indexedDB.open('mountain-planner-terrain', 1);
+      const request = indexedDB.open('mountain-planner-terrain');
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const database = request.result;
-        const transaction = database.transaction('terrains', 'readonly');
-        const read = transaction.objectStore('terrains').get(save?.terrainKey);
-        read.onerror = () => reject(read.error);
-        read.onsuccess = () => { database.close(); resolve(read.result ?? null); };
+        const transaction = database.transaction(['terrain-metadata', 'terrain-assets'], 'readonly');
+        const metadata = transaction.objectStore('terrain-metadata').get(save?.terrainKey);
+        const assets = transaction.objectStore('terrain-assets').get(save?.terrainKey);
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => {
+          database.close();
+          resolve(metadata.result && assets.result ? { ...metadata.result, ...assets.result } : null);
+        };
       };
     });
     return {

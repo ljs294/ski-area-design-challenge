@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { MapView, type GameSessionControls } from './MapView';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import type { GameSessionControls } from './MapView';
 import { MainMenu } from './MainMenu';
-import { MapManagement } from './MapManagement';
 import { Settings } from './Settings';
 import { LoadGameModal } from './LoadGameModal';
-import { GraphicsLab } from './GraphicsLab';
 import { ResortLoadingScreen } from './ResortLoadingScreen';
 import { SettingsProvider } from './SettingsContext';
 import { listGames, loadGame, loadGamePreview, mostRecentGame } from '../gameSaveClient';
 import { desktop } from '../desktopBridge';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import type { GameSave } from '../types';
+
+const loadMapView = () => import('./MapView');
+const MapView = lazy(() => loadMapView().then((module) => ({ default: module.MapView })));
+const MapManagement = lazy(() => import('./MapManagement').then((module) => ({ default: module.MapManagement })));
+const GraphicsLab = lazy(() => import('./GraphicsLab').then((module) => ({ default: module.GraphicsLab })));
 
 // 'loadingGame' mounts nothing: it exists so the menu (and its live backdrop
 // map) is torn down before the save/package lookup begins. The loading screen
@@ -232,9 +235,11 @@ function AppInner() {
           onMapManagement={() => setScreen('mapMgmt')}
           onSettings={() => setShowSettings(true)}
           onExit={() => desktop?.exit()}
+          onPreloadGame={() => { void loadMapView(); }}
         />
       )}
 
+      <Suspense fallback={<div className="route-loading" role="status">Loading…</div>}>
       {screen === 'newGame' && (
         <MapView
           mode="picking"
@@ -265,6 +270,7 @@ function AppInner() {
       {screen === 'mapMgmt' && <MapManagement onBack={toMenu} />}
 
       {screen === 'graphicsLab' && <GraphicsLab onExit={toMenu} />}
+      </Suspense>
 
       {boot && (
         <ResortLoadingScreen

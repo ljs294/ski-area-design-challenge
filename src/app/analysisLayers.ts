@@ -16,15 +16,16 @@ import {
 import { MASTER_PLAN_LAYER_IDS } from './masterPlanStyle';
 import { unitToLngLat } from '../geo';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
-import { addCoverLayers, COVER_LAYER_IDS } from './coverVectorize';
+import { addCoverLayers, COVER_LAYER_IDS, COVER_SOURCE } from './coverVectorize';
 import { LOCAL_ROAD_PAINT } from './roadLayers';
 import { localContextGeoJSON } from './localContextGeoJSON';
 import { localContourGeoJSON } from './localContours';
 import { EMPTY_CONTOURS, GRADED_CONTOUR_SOURCE } from './terrainGradeMap';
 import { waterLinePixelWidth } from './waterLineStyle';
 import type { SnowGrid } from '../types/snow';
-import { registerSnowProtocol, snowProtocolUrl } from './snowProtocol';
+import { registerSnowProtocol, setSnowRenderQuality, snowProtocolUrl } from './snowProtocol';
 import type { SnowDisplayMode } from './snowStyle';
+import { renderProfileFor, type RenderQuality } from './renderProfile';
 export { localContourGeoJSON } from './localContours';
 export { localContextGeoJSON } from './localContextGeoJSON';
 
@@ -59,6 +60,98 @@ function contourDemFor(url: string): InstanceType<typeof mlcontour.DemSource> {
   const dem = new mlcontour.DemSource({ url, encoding: 'terrarium', maxzoom: 15, worker: false });
   dem.setupMaplibre(maplibregl);
   return dem;
+}
+
+function remoteContourTiles(imperial: boolean): string[] {
+  const dem = contourDemFor(TERRARIUM_TILES);
+  return [dem.contourProtocolUrl({
+    multiplier: imperial ? 3.28084 : 1,
+    overzoom: 1,
+    thresholds: imperial
+      ? { 10: [200, 1000], 12: [100, 500], 13: [40, 200], 15: [20, 100] }
+      : { 10: [50, 250], 12: [25, 100], 13: [10, 50], 15: [5, 25] },
+    elevationKey: 'ele', levelKey: 'level', contourLayer: 'contours',
+  })];
+}
+
+/** Update contour units without rebuilding the entire MapLibre style. */
+export function setContourUnits(
+  map: maplibregl.Map | null,
+  terrain: TerrainRecord | null,
+  units: 'imperial' | 'metric',
+): void {
+  if (!map) return;
+  const imperial = units === 'imperial';
+  const source = map.getSource('contours') as
+    | maplibregl.GeoJSONSource
+    | { setTiles?: (tiles: string[]) => void }
+    | undefined;
+  if (terrain?.coverGrid && terrain.bounds && source && 'setData' in source) {
+    source.setData(localContourGeoJSON(terrain, imperial));
+  } else if (source && 'setTiles' in source) {
+    source.setTiles?.(remoteContourTiles(imperial));
+  }
+  if (map.getLayer('contour-labels')) {
+    map.setLayoutProperty('contour-labels', 'text-field', [
+      'concat',
+      ['number-format', ['coalesce', ['get', 'ele'], 0], { 'max-fraction-digits': 0 }],
+      imperial ? "'" : ' m',
+    ]);
+  }
+}
+
+export function applyAnalysisRenderProfile(
+  map: maplibregl.Map,
+  quality: RenderQuality,
+  isOverhead: boolean,
+  requested: { hillshade?: boolean; contours?: boolean } = {},
+): void {
+  const profile = renderProfileFor(quality);
+  if (map.getLayer('hillshade')) {
+    const allowed = profile.hillshade === 'full' ||
+      (profile.hillshade === 'overhead' && isOverhead);
+    map.setLayoutProperty(
+      'hillshade',
+      'visibility',
+      allowed && requested.hillshade !== false ? 'visible' : 'none',
+    );
+  }
+  if (map.getLayer('contour-labels')) {
+    map.setLayoutProperty(
+      'contour-labels',
+      'visibility',
+      profile.contourLabels && requested.contours !== false ? 'visible' : 'none',
+    );
+  }
+  if (map.getLayer('contour-lines')) {
+    map.setFilter('contour-lines', profile.contourLabels
+      ? null
+      : ['==', ['coalesce', ['get', 'level'], 0], 1] as maplibregl.FilterSpecification);
+  }
+}
+
+const ANALYSIS_PRESENTATION_LAYERS = [
+  'satellite', 'hillshade', ...COVER_LAYER_IDS, 'groundcover',
+  'cover-boundary-halo', 'cover-boundaries',
+  'local-water-fill', 'local-water-selected', 'local-water-lines',
+  'local-water-line-selected', 'local-water-line-hit', 'local-water-labels',
+  'local-roads', 'contour-lines', 'graded-contour-lines', 'contour-labels',
+  'slope', 'aspect', 'snow',
+] as const;
+
+const ANALYSIS_PRESENTATION_SOURCES = [
+  'satellite', 'dem', COVER_SOURCE, 'worldcover', 'cover-boundaries',
+  'local-context', 'contours', GRADED_CONTOUR_SOURCE, 'slope', 'aspect', 'snow',
+] as const;
+
+/** Remove only the analysis family's presentation before a live profile rebuild. */
+export function removeAnalysisLayers(map: maplibregl.Map): void {
+  for (const id of ANALYSIS_PRESENTATION_LAYERS) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+  for (const id of ANALYSIS_PRESENTATION_SOURCES) {
+    if (map.getSource(id)) map.removeSource(id);
+  }
 }
 
 function localCoverBoundaryGeoJSON(record: TerrainRecord): GeoJSON.FeatureCollection {
@@ -114,9 +207,13 @@ export function setupAnalysisLayers(
   lakeNameOverrides: Record<string, string> = {},
   streamWidthOverrides: Record<string, number> = {},
   snow?: SnowGrid | null,
-  snowMode: SnowDisplayMode = 'depth'
+  snowMode: SnowDisplayMode = 'depth',
+  quality: RenderQuality = 'standard',
 ): LayerToggle[] {
+  setSnowRenderQuality(quality);
+  const profile = renderProfileFor(quality);
   const local = terrain?.coverGrid && terrain.bounds ? terrain : null;
+  const activeCoverDisplay = profile.coverMode === 'vector' ? coverDisplay : null;
   const styleLayers = map.getStyle().layers ?? [];
   const roadAnchor = styleLayers.find((l) => (l as { 'source-layer'?: string })['source-layer'] === 'transportation')?.id;
   const before = roadAnchor ?? styleLayers.find((l) => l.type === 'symbol')?.id;
@@ -184,7 +281,7 @@ export function setupAnalysisLayers(
     bounds = localTileBounds(local);
     demBounds = resortDemBounds(local);
     demUrl = resortProtocolUrl(RESORT_DEM_PROTOCOL, local);
-    if (!coverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(local.key)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 18, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
+    if (!activeCoverDisplay) map.addSource('worldcover', { type: 'raster', tiles: [`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(local.key)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: profile.terrainMaxZoom, bounds, attribution: 'ESA WorldCover 2021 · 10 m © ESA / Copernicus' });
     map.addSource('local-context', { type: 'geojson', data: localContextGeoJSON(local, lakeNameOverrides, streamWidthOverrides), attribution: 'Local OSM context © OpenStreetMap contributors' });
     coverVisible = true;
     coverLabel = local.coverGrid?.source === 'usgs-four-class-v1' ? 'Detailed terrain cover (local)' : 'ESA WorldCover 2021 · 10 m (local)';
@@ -194,12 +291,13 @@ export function setupAnalysisLayers(
   }
 
   // Hillshade lands below cover; later additions before the same anchor draw above it.
-  map.addSource('dem', { type: 'raster-dem', tiles: [demUrl], encoding: 'terrarium', tileSize: 256, maxzoom: 15, ...(demBounds ? { bounds: demBounds } : {}), attribution: local ? 'Local resort elevation package' : 'Terrain: Terrarium tiles, Mapzen/AWS Open Data' });
+  if (profile.hillshade !== 'none') map.addSource('dem', { type: 'raster-dem', tiles: [demUrl], encoding: 'terrarium', tileSize: 256, maxzoom: profile.terrainMaxZoom, ...(demBounds ? { bounds: demBounds } : {}), attribution: local ? 'Local resort elevation package' : 'Terrain: Terrarium tiles, Mapzen/AWS Open Data' });
   // Over the aerial base the photo already carries relief, so ease the hillshade
   // to a subtle deepening and mute the highlights that would otherwise bleach
   // sunlit slopes. On the paper fallback keep the stronger, brighter relief.
-  map.addLayer({
+  if (profile.hillshade !== 'none') map.addLayer({
     id: 'hillshade', type: 'hillshade', source: 'dem',
+    layout: { visibility: profile.hillshade === 'overhead' && map.getPitch() > 0.5 ? 'none' : 'visible' },
     paint: {
       'hillshade-method': 'multidirectional',
       'hillshade-illumination-direction': [315, 45, 225],
@@ -212,9 +310,9 @@ export function setupAnalysisLayers(
       'hillshade-accent-color': '#4b514c',
     },
   } as maplibregl.HillshadeLayerSpecification, coverAnchor);
-  if (local && coverDisplay) addCoverLayers(map, coverDisplay, coverVisible, 'hillshade', satelliteVisible);
+  if (local && activeCoverDisplay) addCoverLayers(map, activeCoverDisplay, coverVisible, 'hillshade', satelliteVisible);
   else map.addLayer({ id: 'groundcover', type: 'raster', source: 'worldcover', layout: { visibility: coverVisible ? 'visible' : 'none' }, paint: { 'raster-opacity': local ? 0.78 : 0.9, 'raster-resampling': 'nearest' } }, coverAnchor);
-  if (local && !coverDisplay) {
+  if (local && !activeCoverDisplay) {
     map.addSource('cover-boundaries', { type: 'geojson', data: localCoverBoundaryGeoJSON(local) });
     map.addLayer({
       id: 'cover-boundary-halo', type: 'line', source: 'cover-boundaries',
@@ -291,20 +389,15 @@ export function setupAnalysisLayers(
   if (local) {
     map.addSource('contours', { type: 'geojson', data: localContourGeoJSON(local, imperial) });
   } else {
-    const dem = contourDemFor(demUrl);
     map.addSource('contours', {
       type: 'vector',
-      tiles: [dem.contourProtocolUrl({
-        multiplier: imperial ? 3.28084 : 1,
-        overzoom: 1,
-        thresholds: imperial ? { 10: [200, 1000], 12: [100, 500], 13: [40, 200], 15: [20, 100] } : { 10: [50, 250], 12: [25, 100], 13: [10, 50], 15: [5, 25] },
-        elevationKey: 'ele', levelKey: 'level', contourLayer: 'contours',
-      })],
+      tiles: remoteContourTiles(imperial),
       maxzoom: 15,
     });
   }
   map.addLayer({
     id: 'contour-lines', type: 'line', source: 'contours', ...(local ? {} : { 'source-layer': 'contours' }),
+    ...(profile.contourLabels ? {} : { filter: ['==', ['coalesce', ['get', 'level'], 0], 1] }),
     paint: {
       'line-color': ['match', ['coalesce', ['get', 'level'], 0], 1, 'rgba(248,246,237,0.84)', 'rgba(244,242,232,0.48)'],
       'line-width': ['match', ['coalesce', ['get', 'level'], 0], 1, 1.25, 0.55],
@@ -347,14 +440,14 @@ export function setupAnalysisLayers(
   map.addLayer({
     id: 'contour-labels', type: 'symbol', source: 'contours', ...(local ? {} : { 'source-layer': 'contours' }),
     filter: ['==', ['coalesce', ['get', 'level'], 0], 1],
-    layout: { 'symbol-placement': 'line', 'text-font': ['Noto Sans Regular'], 'text-size': 10, 'text-field': ['concat', ['number-format', ['coalesce', ['get', 'ele'], 0], { 'max-fraction-digits': 0 }], imperial ? "'" : ' m'] },
+    layout: { visibility: profile.contourLabels ? 'visible' : 'none', 'symbol-placement': 'line', 'text-font': ['Noto Sans Regular'], 'text-size': 10, 'text-field': ['concat', ['number-format', ['coalesce', ['get', 'ele'], 0], { 'max-fraction-digits': 0 }], imperial ? "'" : ' m'] },
     paint: { 'text-color': '#3d4542', 'text-halo-color': 'rgba(248,246,237,0.9)', 'text-halo-width': 1.4 },
   }, contourAnchor);
 
   return [
     { id: 'satellite', label: 'Satellite imagery', layerIds: [satelliteLayer], visible: satelliteVisible, section: 'Imagery' },
-    { id: 'groundcover', label: coverLabel, layerIds: local && coverDisplay ? COVER_LAYER_IDS : local ? ['groundcover', 'cover-boundary-halo', 'cover-boundaries'] : ['groundcover'], visible: coverVisible, section: 'Master plan' },
-    { id: 'hillshade', label: 'Terrain relief', layerIds: ['hillshade'], visible: true, section: 'Master plan' },
+    { id: 'groundcover', label: coverLabel, layerIds: local && activeCoverDisplay ? COVER_LAYER_IDS : local ? ['groundcover', 'cover-boundary-halo', 'cover-boundaries'] : ['groundcover'], visible: coverVisible, section: 'Master plan' },
+    { id: 'hillshade', label: 'Terrain relief', layerIds: profile.hillshade === 'none' ? [] : ['hillshade'], visible: profile.hillshade !== 'none', section: 'Master plan' },
     { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'graded-contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
     { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-selected', 'local-water-lines', 'local-water-line-selected', 'local-water-line-hit', 'local-water-labels'] : basemap.water, visible: true, section: 'Master plan' },
     { id: 'bm-roads', label: 'Roads', layerIds: local ? [...basemap.roads, 'local-roads'] : basemap.roads, visible: true, section: 'Master plan' },

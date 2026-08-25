@@ -4,15 +4,15 @@ import maplibregl from 'maplibre-gl';
 import type { GameSave } from '../types/gameSave';
 import type { TerrainRecord } from '../types/terrain';
 import { basemapFor, tuneBasemap } from './basemapStyle';
-import type { LayerToggle } from './analysisLayers';
+import { applyAnalysisRenderProfile, setContourUnits, type LayerToggle } from './analysisLayers';
 import type { Readout } from './CursorReadout';
 import type { MapInteractionLease } from './mapInteractionLease';
 import type { MapContributionRegistry } from './mapContribution';
 import { resortCameraBounds, getResortRenderStats, setRenderConcurrency,
-  warmResortTiles } from './resortProtocols';
+  setResortRenderQuality, warmResortTiles } from './resortProtocols';
 import { resumeCameraOf } from './resumeCheckpoint';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
-import { pixelRatioFor, type RenderQuality, type Units } from './SettingsContext';
+import { pixelRatioForElement, type RenderQuality, type Units } from './SettingsContext';
 import type { SiteBox } from './sitePicker';
 import type { SiteMode } from './SiteControl';
 import { applyTileLod } from './terrainLod';
@@ -34,6 +34,7 @@ interface MapRuntimeOptions {
   containerRef: RefObject<HTMLDivElement | null>;
   terrainRecordRef: MutableRefObject<TerrainRecord | null>;
   renderQualityRef: MutableRefObject<RenderQuality>;
+  layersRef: MutableRefObject<LayerToggle[]>;
   siteBoxRef: MutableRefObject<SiteBox | null>;
   siteModeRef: MutableRefObject<SiteMode>;
   is3DRef: MutableRefObject<boolean>;
@@ -43,24 +44,25 @@ interface MapRuntimeOptions {
   bootControlsRef?: MutableRefObject<BootControls | null>;
   mapInteractionLeaseRef: MutableRefObject<MapInteractionLease | null>;
   registry: MapContributionRegistry;
+  reconfigureAnalysisProfileRef: MutableRefObject<(map: maplibregl.Map) => void>;
   canDispatchHit(): boolean;
   doSampleRef: MutableRefObject<(lngLat: { lng: number; lat: number }) => void>;
   lastLngLatRef: MutableRefObject<{ lng: number; lat: number } | null>;
   rafPendingRef: MutableRefObject<boolean>;
   setLayers: Dispatch<SetStateAction<LayerToggle[]>>;
   setReadout: Dispatch<SetStateAction<Readout | null>>;
-  setPitchDeg: Dispatch<SetStateAction<number>>;
+  setIsOverhead: Dispatch<SetStateAction<boolean>>;
   setIs3D: Dispatch<SetStateAction<boolean>>;
   reportBoot(event: BootEvent): void;
   reportStage(progress: BootProgress): void;
   showLocalBoot(progress: BootProgress | null): void;
+  reportGraphicsFailure(message: string): void;
 }
 
 /** Owns MapLibre creation, style restoration, camera warm-up, and live settings. */
 export function useMapRuntime(options: MapRuntimeOptions): void {
-  const firstQualityRun = useRef(true);
-  const firstThemeRun = useRef(true);
-  const firstUnitsStyleRun = useRef(true);
+  const firstModeRun = useRef(true);
+  const appliedProfileRef = useRef(options.renderQuality);
 
   const reinitializeStyle = (map: maplibregl.Map) => {
     tuneBasemap(map);
@@ -69,8 +71,12 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
       layerIds: [...descriptor.layerIds],
     }));
     applyTileLod(map, options.renderQualityRef.current);
+    applyAnalysisRenderProfile(map, options.renderQualityRef.current, map.getPitch() < 0.5, {
+      hillshade: applied.find((entry) => entry.id === 'hillshade')?.visible,
+      contours: applied.find((entry) => entry.id === 'contours')?.visible,
+    });
     if (options.terrainRecordRef.current && !TERRAIN_DISABLED) {
-      mountTerrain(map);
+      mountTerrain(map, options.renderQualityRef.current);
       if (!options.resortReadyRef.current) {
         options.resortReadyRef.current = true;
         const want3D = options.initialSave?.is3D ?? true;
@@ -108,7 +114,7 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
               if (completed < total && now - lastReport < 120) return;
               lastReport = now;
               options.reportStage({ stage: 'warm', completed, total });
-            }, controller.signal);
+            }, controller.signal, options.renderQualityRef.current);
           }
           if (controller.signal.aborted) return;
           options.reportStage({ stage: 'settle' });
@@ -151,10 +157,18 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
       zoom: start.zoom,
       bearing: start.bearing,
       pitch: start.pitch,
-      pixelRatio: pixelRatioFor(options.renderQuality),
+      pixelRatio: pixelRatioForElement(options.renderQuality, options.containerRef.current),
       attributionControl: false,
     });
     options.mapRef.current = map;
+    const canvas = map.getCanvas();
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      options.reportGraphicsFailure(
+        'The graphics context was lost. Select Performance in Settings, then reload the resort.',
+      );
+    };
+    canvas.addEventListener('webglcontextlost', onContextLost);
     options.registry.attach(map, options.canDispatchHit);
     (window as unknown as { appMap: maplibregl.Map }).appMap = map;
     map.dragRotate.enable();
@@ -178,28 +192,50 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
         else if (options.siteBoxRef.current) map.setMaxBounds(options.siteBoxRef.current.bounds);
       }
     });
+    let lastSampleAt = -Infinity;
+    const sampleLatest = () => {
+      if (!options.lastLngLatRef.current || map.isMoving()) return;
+      const now = performance.now();
+      if (now - lastSampleAt < 100) return;
+      lastSampleAt = now;
+      options.doSampleRef.current(options.lastLngLatRef.current);
+    };
     const onMove = (event: maplibregl.MapMouseEvent) => {
       options.lastLngLatRef.current = { lng: event.lngLat.lng, lat: event.lngLat.lat };
-      if (options.rafPendingRef.current) return;
+      if (options.rafPendingRef.current || map.isMoving()) return;
       options.rafPendingRef.current = true;
       requestAnimationFrame(() => {
         options.rafPendingRef.current = false;
-        if (options.lastLngLatRef.current) options.doSampleRef.current(options.lastLngLatRef.current);
+        sampleLatest();
       });
     };
     map.on('mousemove', onMove);
+    map.on('moveend', sampleLatest);
     map.on('mouseout', () => {
       options.lastLngLatRef.current = null;
       options.setReadout(null);
     });
-    const onPitch = () => options.setPitchDeg(map.getPitch());
+    let overhead = map.getPitch() < 0.5;
+    const onPitch = () => {
+      const next = map.getPitch() < 0.5;
+      if (next === overhead) return;
+      overhead = next;
+      options.setIsOverhead(next);
+      const layers = options.layersRef.current;
+      applyAnalysisRenderProfile(map, options.renderQualityRef.current, next, {
+        hillshade: layers.find((entry) => entry.id === 'hillshade')?.visible,
+        contours: layers.find((entry) => entry.id === 'contours')?.visible,
+      });
+    };
     map.on('pitch', onPitch);
     map.on('pitchend', onPitch);
     return () => {
       options.warmAbortRef.current?.abort();
+      map.off('moveend', sampleLatest);
       setRenderConcurrency(1);
       options.mapInteractionLeaseRef.current?.dispose();
       options.registry.dispose();
+      canvas.removeEventListener('webglcontextlost', onContextLost);
       delete (window as unknown as { appSetCaptureTransients?: (hidden: boolean) => void })
         .appSetCaptureTransients;
       map.remove();
@@ -213,6 +249,17 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
   useEffect(() => {
     const map = options.mapRef.current;
     if (!map) return;
+    const profileChanged = appliedProfileRef.current !== options.renderQuality;
+    appliedProfileRef.current = options.renderQuality;
+    if (profileChanged && map.isStyleLoaded() && options.terrainRecordRef.current) {
+      options.reconfigureAnalysisProfileRef.current(map);
+    }
+  }, [options.mapRef, options.reconfigureAnalysisProfileRef, options.renderQuality,
+    options.terrainRecordRef]);
+
+  useEffect(() => {
+    const map = options.mapRef.current;
+    if (!map) return;
     const control = new maplibregl.ScaleControl({
       unit: options.units === 'metric' ? 'metric' : 'imperial',
     });
@@ -221,25 +268,50 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
   }, [options.mapRef, options.units]);
 
   useEffect(() => {
-    if (firstQualityRun.current) { firstQualityRun.current = false; return; }
     const map = options.mapRef.current;
     if (!map) return;
-    map.setPixelRatio(pixelRatioFor(options.renderQuality));
+    const updatePixelRatio = () => {
+      const container = options.containerRef.current;
+      if (!container) return;
+      const next = pixelRatioForElement(options.renderQuality, container);
+      if (Math.abs(map.getPixelRatio() - next) > 0.001) map.setPixelRatio(next);
+    };
+    updatePixelRatio();
+    setResortRenderQuality(options.renderQuality);
     applyTileLod(map, options.renderQuality);
-  }, [options.mapRef, options.renderQuality]);
+    const layers = options.layersRef.current;
+    applyAnalysisRenderProfile(map, options.renderQuality, map.getPitch() < 0.5, {
+      hillshade: layers.find((entry) => entry.id === 'hillshade')?.visible,
+      contours: layers.find((entry) => entry.id === 'contours')?.visible,
+    });
+    if (options.terrainRecordRef.current && !TERRAIN_DISABLED && map.isStyleLoaded()) {
+      mountTerrain(map, options.renderQuality);
+      applyTileLod(map, options.renderQuality);
+    }
+    let raf = 0;
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(updatePixelRatio);
+    };
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
+    if (options.containerRef.current) observer?.observe(options.containerRef.current);
+    window.addEventListener('resize', schedule);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+      window.removeEventListener('resize', schedule);
+    };
+  }, [options.containerRef, options.layersRef, options.mapRef,
+    options.reconfigureAnalysisProfileRef, options.renderQuality, options.terrainRecordRef]);
 
   useEffect(() => {
-    if (firstThemeRun.current) { firstThemeRun.current = false; return; }
-    options.mapRef.current?.setStyle(basemapFor(options.resolvedTheme, {
+    if (firstModeRun.current) { firstModeRun.current = false; return; }
+    options.mapRef.current?.setStyle(basemapFor('light', {
       offline: options.mode === 'playing',
     }));
-  }, [options.mapRef, options.mode, options.resolvedTheme]);
+  }, [options.mapRef, options.mode]);
 
   useEffect(() => {
-    if (firstUnitsStyleRun.current) { firstUnitsStyleRun.current = false; return; }
-    options.mapRef.current?.setStyle(basemapFor(options.resolvedTheme, {
-      offline: options.mode === 'playing',
-    }));
-    // Units intentionally drive a style rebuild even though they are not read here.
-  }, [options.mapRef, options.mode, options.resolvedTheme, options.units]);
+    setContourUnits(options.mapRef.current, options.terrainRecordRef.current, options.units);
+  }, [options.mapRef, options.terrainRecordRef, options.units]);
 }

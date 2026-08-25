@@ -2,7 +2,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { ConstructionActivity } from './constructionLock';
 import { ConstructionStatusBug } from './ConstructionStatusBug';
 import { CreditsPanel } from './CreditsPanel';
-import { CursorReadout, type Readout } from './CursorReadout';
+import { CursorReadoutSubscriber, type CursorReadoutStore } from './CursorReadout';
 import { GameMenu } from './GameMenu';
 import { MapGameDock, type MapGameDockProps } from './MapGameDock';
 import { MountainDashboards } from './MountainDashboards';
@@ -74,7 +74,7 @@ export interface MapViewChromeProps {
   dashboardToggle: { active: DashboardKind | null; change(kind: DashboardKind | null): void } | null;
   dashboardPipeHover?: Parameters<typeof SnowmakingPipeTooltip>[0] | null;
   dashboard: Parameters<typeof MountainDashboards>[0] | null;
-  readout: { value: Readout | null; units: Units } | null;
+  readout: { store: CursorReadoutStore; units: Units } | null;
   dock: MapGameDockProps | null;
   nameEntry: NameEntryProps | null;
   stats: Parameters<typeof ResortStatsPanel>[0] | null;
@@ -174,7 +174,7 @@ export function MapViewChrome(props: MapViewChromeProps) {
       </div>}
       {props.dashboardPipeHover && <SnowmakingPipeTooltip {...props.dashboardPipeHover} />}
       {props.dashboard && <MountainDashboards {...props.dashboard} />}
-      {props.readout && <CursorReadout readout={props.readout.value} units={props.readout.units} />}
+      {props.readout && <CursorReadoutSubscriber store={props.readout.store} units={props.readout.units} />}
       {props.dock && <MapGameDock {...props.dock} />}
       {props.bottomRightToolOptions && <div className="bottom-right-tool-stack">
         {props.bottomRightToolOptions}
