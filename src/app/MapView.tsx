@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
-import { setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers, type LayerToggle, type OverlayId } from './analysisLayers';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { applyAnalysisRenderProfile, removeAnalysisLayers, setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers, type LayerToggle, type OverlayId } from './analysisLayers';
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
 import { buildSkiNetwork } from '../network';
 import { sampleSiteCoverGrid } from './worldcoverProtocol';
@@ -17,8 +18,7 @@ import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath
   SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
-import { coverDisplayMetadataOf, manifestOf, validateTerrainPackage } from '../terrainPackage';
-import { coverDisplayToGeoJSON, deriveCoverDisplayGeometry, type CoverDisplayGeoJSON } from '../coverDisplay';
+import { validateTerrainPackage, withPreparedCoverDisplay } from '../terrainPackage';
 import { clearResortCoverCache, RESORT_COVER_PROTOCOL, resortCameraBounds,
   sampleLocalTerrainAt, setActiveResortTerrain } from './resortProtocols';
 import { useLiftController } from './useLiftController';
@@ -30,7 +30,7 @@ import { MapViewChrome, SnowmakingToolOptions, snowmakingDashboardProps, useMapC
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
 import { useMapRuntime } from './useMapRuntime';
-import { useMapSampling, useSnowLayer } from './useMapSampling';
+import { useMapSampling, useSnowLayer, useTerrainDisplayAssets } from './useMapSampling';
 import { useMapWorkers } from './useMapWorkers';
 import { initialResortDesign } from './initialResortDesign';
 import { TERRAIN_CLEAN, designHasEdits, designOf, flushTerrainEdits, terrainHasEdits, withTerrainEdit,
@@ -197,10 +197,8 @@ export function MapView({
     initialSave?.site ? 'locked' : 'explore');
   const [siteBox, setSiteBoxState] = useState<SiteBox | null>((initialSave?.site as SiteBox) ?? null);
   const [is3D, setIs3D] = useState(initialSave?.is3D ?? false);
-  // Live pitch drives the 2D/3D affordance.
-  const [pitchDeg, setPitchDeg] = useState(0);
-  // Perfectly overhead is pitch zero; the epsilon absorbs ease residue.
-  const isOverhead = pitchDeg < 0.5;
+  // Per-frame pitch stays in MapLibre; React only observes threshold crossings.
+  const [isOverhead, setIsOverhead] = useState(true);
   const warmAbortRef = useRef<AbortController | null>(null);
   // The ref keeps boot reporting current for once-registered map handlers.
   const onBootRef = useRef(onBoot);
@@ -236,6 +234,9 @@ export function MapView({
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
   const unsavedChoiceRef = useRef<((choice: 'save' | 'discard' | 'cancel') => void) | null>(null);
   const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
+  // New games become resort surfaces as soon as their local package is active;
+  // the entry route remains "picking" only for site-selection UI decisions.
+  const mapMode: MapMode = terrainRecord ? 'playing' : mode;
   const snow = useSnowLayer(mapRef);
   const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'optimizing' | 'error'>(
     mode === 'playing' ? 'loading' : 'ready'
@@ -362,9 +363,11 @@ export function MapView({
   const layersRef = useRef<LayerToggle[]>([]);
   const analysisTogglesRef = useRef<LayerToggle[]>([]);
   const mapContributionRegistryRef = useRef<MapContributionRegistry | null>(null);
+  const reconfigureAnalysisProfileRef = useRef<(map: maplibregl.Map) => void>(() => {});
   const siteBoxRef = useRef<SiteBox | null>(siteBox);
   const siteModeRef = useRef<'locked' | 'explore' | 'selecting'>(siteMode);
   const is3DRef = useRef(is3D);
+  const isOverheadRef = useRef(isOverhead);
   // Flips true the first time the resort's terrain is mounted, so the one-time
   // "default into 3D" camera ease fires once — not on every dark/light restyle.
   const resortReadyRef = useRef(false);
@@ -429,18 +432,19 @@ export function MapView({
   // Written only by the terrain document's publication, so a handler reading it
   // between a build and the next render sees the record that was committed.
   const terrainRecordRef = useRef<TerrainRecord | null>(null);
-  const terrainHeightCacheRef = useRef<{ checksum: string; heights: Float32Array } | null>(null);
-  const coverDisplayRef = useRef<CoverDisplayGeoJSON | null>(null);
+  const displayAssets = useTerrainDisplayAssets({ qualityRef: renderQualityRef, mapRef,
+    reconfigureRef: reconfigureAnalysisProfileRef, reportError: setCheckpointError });
+  const terrainHeightCacheRef = displayAssets.heightRef;
+  const coverDisplayRef = displayAssets.coverRef;
+  const localImageryUrlRef = displayAssets.imageryUrlRef;
   const dashboards = useInMapDashboards({ mapRef, registryRef: mapContributionRegistryRef,
     dark: resolvedTheme === 'dark', units: settings.units, network, dams, ponds, lakes: snowmakingLakes ?? [],
     trails, lifts, nodes: snowmakingNodes, pipes: snowmakingPipes, guns: snowguns,
     coverDisplay: coverDisplayRef.current, terrainRecord });
   useMapKeyboardControls({ mapRef, suspended: controlsSuspended, keybinds: settings.keybinds,
     activeDashboard: dashboards.active, toggle3D, setActiveDashboard: dashboards.setActive });
-  const localImageryUrlRef = useRef<string | null>(null);
-  const localImageryCacheKeyRef = useRef<string | null>(null);
   const {
-    readout,
+    readoutStore,
     setReadout,
     samplePoint: samplePlanningTerrainOrNull,
     sampleProfile,
@@ -702,28 +706,7 @@ export function MapView({
     source?.setTiles?.([`${RESORT_COVER_PROTOCOL}://${encodeURIComponent(record.key)}/{z}/{x}/{y}`]);
   }
 
-  function cacheTerrainDisplayAssets(record: TerrainRecord): void {
-    const heightChecksum = record.packageManifest?.elevationChecksum ?? record.updatedAt;
-    if (terrainHeightCacheRef.current?.checksum !== heightChecksum) {
-      terrainHeightCacheRef.current = {
-        checksum: heightChecksum,
-        heights: Float32Array.from(record.sampleHeights),
-      };
-    }
-    coverDisplayRef.current = record.coverDisplayGeometry && record.bounds
-      ? coverDisplayToGeoJSON(record.coverDisplayGeometry, record.bounds)
-      : null;
-    const imageryCacheKey = record.localImagery
-      ? `${record.localImageryMetadata?.checksum ?? record.localImagery.length}:${record.localImageryMetadata?.mimeType ?? 'image/jpeg'}`
-      : null;
-    if (localImageryCacheKeyRef.current !== imageryCacheKey) {
-      if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
-      localImageryUrlRef.current = record.localImagery
-        ? URL.createObjectURL(new Blob([Uint8Array.from(record.localImagery)], { type: record.localImageryMetadata?.mimeType ?? 'image/jpeg' }))
-        : null;
-      localImageryCacheKeyRef.current = imageryCacheKey;
-    }
-  }
+  const cacheTerrainDisplayAssets = displayAssets.cache;
 
   function setVisibleContours(
     record: TerrainRecordView,
@@ -779,6 +762,7 @@ export function MapView({
   siteBoxRef.current = siteBox;
   siteModeRef.current = siteMode;
   is3DRef.current = is3D;
+  isOverheadRef.current = isOverhead;
   liftsRef.current = lifts;
   trailsRef.current = trails;
   roadsRef.current = roads;
@@ -818,8 +802,6 @@ export function MapView({
     damAnalysis.dispose();
     coverEdit.dispose();
     terrainGrade.dispose();
-    if (localImageryUrlRef.current) URL.revokeObjectURL(localImageryUrlRef.current);
-    localImageryCacheKeyRef.current = null;
     // The document and the adapters are ref-held and never change identity, so
     // this stays a mount/unmount effect.
   }, [terrain, damAnalysis, coverEdit, terrainGrade, trailPaint]);
@@ -857,15 +839,7 @@ export function MapView({
         // Let React paint the one-time upgrade gate before the CPU-heavy trace.
         await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
         try {
-          const display = deriveCoverDisplayGeometry(record.coverGrid);
-          let upgraded: TerrainRecord = {
-            ...record,
-            schemaVersion: 5,
-            coverDisplayGeometry: display.geometry,
-            coverDisplayMetadata: coverDisplayMetadataOf(display.geometry, display.stats),
-            updatedAt: new Date().toISOString(),
-          };
-          upgraded = { ...upgraded, packageManifest: manifestOf(upgraded) };
+          const upgraded = withPreparedCoverDisplay({ ...record, updatedAt: new Date().toISOString() });
           const upgradeValidation = validateTerrainPackage(upgraded);
           if (!upgradeValidation.ok) throw new Error(upgradeValidation.errors.join(' '));
           const savedUpgrade = await saveTerrain(upgraded);
@@ -968,7 +942,8 @@ export function MapView({
       ? []
       : setupAnalysisLayers(map, terrainRecordRef.current, unitsRef.current, coverDisplayRef.current,
         localImageryUrlRef.current, lakeNameOverridesRef.current,
-        streamWidthOverridesRef.current, snow.gridRef.current, snow.modeRef.current);
+        streamWidthOverridesRef.current, snow.gridRef.current, snow.modeRef.current,
+        renderQualityRef.current);
     return fresh;
   }
 
@@ -1017,6 +992,13 @@ export function MapView({
         visibility: () => analysisTogglesRef.current,
         visibilityChanged: ({ map }, id, visible) => {
           if (id === 'satellite') applyCoverOpacity(map, visible);
+          if (id === 'hillshade' || id === 'contours') {
+            const descriptors = mapContributionRegistryRef.current?.visibilityDescriptors() ?? [];
+            applyAnalysisRenderProfile(map, renderQualityRef.current, isOverheadRef.current, {
+              hillshade: descriptors.find((entry) => entry.id === 'hillshade')?.visible,
+              contours: descriptors.find((entry) => entry.id === 'contours')?.visible,
+            });
+          }
         },
         presentationChanged: ({ map }, presentation) => setDashboardMapVisibility(map,
           presentation === 'dashboard-trails' ? 'trails'
@@ -1042,13 +1024,20 @@ export function MapView({
     mapContributionRegistryRef.current = new MapContributionRegistry(createMapContributions());
   }
   const mapContributions = mapContributionRegistryRef.current;
+  reconfigureAnalysisProfileRef.current = (map) => {
+    if (terrainRecordRef.current) cacheTerrainDisplayAssets(terrainRecordRef.current);
+    removeAnalysisLayers(map);
+    analysisTogglesRef.current = installAnalysisLayers(map);
+    dashboards.sync(map);
+    setLayers(layerTogglesOf(mapContributions.refreshVisibility()));
+  };
   useEffect(() => { if (toolCoordinatorState.activeTool) mapContributions.clearHitHovers(); },
     [toolCoordinatorState.activeTool, mapContributions]);
   const mapContext = useMapContextRecovery(terrain, mapContributions);
 
   useMapRuntime({
     canStart: mode !== 'playing' || packageState === 'ready',
-    mode,
+    mode: mapMode,
     initialSave,
     initialCenter: INITIAL_CENTER,
     initialZoom: INITIAL_ZOOM,
@@ -1059,6 +1048,7 @@ export function MapView({
     containerRef,
     terrainRecordRef,
     renderQualityRef,
+    layersRef,
     siteBoxRef,
     siteModeRef,
     is3DRef,
@@ -1068,17 +1058,19 @@ export function MapView({
     bootControlsRef,
     mapInteractionLeaseRef,
     registry: mapContributions,
+    reconfigureAnalysisProfileRef,
     canDispatchHit: () => toolCoordinator.snapshot.activeTool === null,
     doSampleRef,
     lastLngLatRef,
     rafPendingRef,
     setLayers,
     setReadout,
-    setPitchDeg,
+    setIsOverhead,
     setIs3D,
     reportBoot,
     reportStage,
     showLocalBoot,
+    reportGraphicsFailure: setCheckpointError,
   });
 
   // Drag-to-draw the site rectangle while in 'selecting' mode.
@@ -1309,8 +1301,8 @@ export function MapView({
       // failed to load has no map yet (mapCanStart was false), and the one it
       // is about to construct needs covering just as much as a restyle does.
       showLocalBoot({ stage: 'build' });
-      // A restyle re-mounts terrain and every custom tile source.
-      mapRef.current?.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
+      // The runtime observes mapMode changing to "playing" and performs the
+      // single picker-to-offline style handoff.
       return record;
     } catch (error) {
       if (controller.signal.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
@@ -1714,9 +1706,9 @@ export function MapView({
           onToggleSnowGunSelection: dashboards.toggleSnowGunSelection, onCancelSnowGunSelection: dashboards.cancelSnowGunSelection },
           onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation, onClose: dashboards.close,
         } : null}
-        readout={!saved ? { value: readout, units: settings.units } : null}
+        readout={!saved ? { store: readoutStore, units: settings.units } : null}
         dock={saved ? {
-          saved, units: settings.units, readout, building,
+          saved, units: settings.units, readoutStore, building,
           openDock, layersAlongsideBuild,
           coordinator: toolCoordinatorState, layers, activeOverlay,
           lifts, trails, roads, dams, ponds, snowmakingLakes: snowmakingLakes ?? [],

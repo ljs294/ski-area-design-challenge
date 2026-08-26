@@ -206,10 +206,12 @@ export async function seedPreparedResort(
       }]));
 
       await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open('mountain-planner-terrain', 1);
+        const request = indexedDB.open('mountain-planner-terrain', 2);
         request.onupgradeneeded = () => {
-          if (!request.result.objectStoreNames.contains('terrains')) {
-            request.result.createObjectStore('terrains', { keyPath: 'key' });
+          for (const name of ['terrains', 'terrain-summaries', 'terrain-metadata', 'terrain-assets']) {
+            if (!request.result.objectStoreNames.contains(name)) {
+              request.result.createObjectStore(name, { keyPath: 'key' });
+            }
           }
         };
         request.onerror = () => reject(request.error ?? new Error('Unable to seed terrain fixture'));

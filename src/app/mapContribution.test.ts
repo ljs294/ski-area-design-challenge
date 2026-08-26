@@ -352,6 +352,28 @@ describe('managed map contribution visibility', () => {
     expect(map.calls).toContain('visibility:player-roads:none');
   });
 
+  it('preserves a preference when an in-place profile rebuild changes layer IDs', () => {
+    const contributions = managedContributions([]);
+    let layerIds = ['cover-vector'];
+    contributions[0].visibility = () => [{
+      id: 'groundcover', label: 'Cover', layerIds, visible: true,
+    }];
+    const map = new FakeMap();
+    const registry = new MapContributionRegistry(contributions);
+    registry.attach(map as unknown as maplibregl.Map);
+    registry.synchronizeStyle();
+    registry.toggleVisibility('groundcover');
+
+    layerIds = ['groundcover-raster'];
+    const refreshed = registry.refreshVisibility();
+
+    expect(refreshed.find((entry) => entry.id === 'groundcover')).toMatchObject({
+      layerIds: ['groundcover-raster'],
+      visible: false,
+    });
+    expect(map.calls).toContain('visibility:groundcover-raster:none');
+  });
+
   it('rejects conflicting metadata for a shared descriptor', () => {
     const contributions = managedContributions([]);
     contributions[0].visibility = () => [

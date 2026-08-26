@@ -265,6 +265,15 @@ export class MapContributionRegistry {
     }
   }
 
+  /** Reconcile descriptor layer IDs after a family reconfigures sources in-place. */
+  refreshVisibility(): MapVisibilityDescriptor[] {
+    const context = this.context;
+    if (!context || context.styleGeneration === 0) return this.visibilityDescriptors();
+    this.reconcileVisibility(context);
+    this.applyPresentation(context);
+    return this.visibilityDescriptors();
+  }
+
   setCaptureTransients(hidden: boolean): void {
     const context = this.context;
     if (!context || context.styleGeneration === 0) return;

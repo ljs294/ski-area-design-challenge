@@ -47,7 +47,7 @@ describe('terrain package manifests', () => {
   });
   it('rejects a truncated contour cache', () => {
     const value = record();
-    value.contourSegments!.pop();
+    value.contourSegments = Array.from(value.contourSegments!).slice(0, -1);
     expect(validateTerrainPackage(value).ok).toBe(false);
   });
   it('rejects changed derived cover boundaries', () => {

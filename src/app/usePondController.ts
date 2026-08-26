@@ -1,10 +1,10 @@
-import { useEffect, useReducer, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import type { SavedPond } from '../types/snowmaking';
 import type { TerrainRecord } from '../types/terrain';
 import { haversineMeters } from '../geo';
 import { analyzeStandalonePond, nextPondName, suggestedPondTopElevationM } from '../pondAnalysis';
-import { designPondEarthwork, MAX_POND_BERM_HEIGHT_M, pondTerrainPatch } from '../pondEarthwork';
+import { MAX_POND_BERM_HEIGHT_M, type PondEarthworkDesign } from '../pondEarthwork';
 import type { EarthworkTerrainPatch } from '../earthwork';
 import { applyTerrainGradeToRecord } from './terrainGradeCommit';
 import type { TerrainDocument } from './terrainDocument';
@@ -15,6 +15,7 @@ import { addPondLayers, POND_BUILT_LAYER_IDS, POND_HIT_LAYERS, setPondData,
   setPondDraftData, setSelectedPond, type PondDraftMapData } from './pondLayers';
 import { IDLE_POND_TOOL, pondFromDraft, reducePondTool,
   type DraftPond, type PondTool } from './pondControllerModel';
+import { PondEarthworkAdapter, type PondEarthworkResult } from './pondEarthworkClient';
 
 function pondDraftOf(tool: PondTool): PondDraftMapData | null {
   if (tool.phase === 'drawing') return {
@@ -76,6 +77,12 @@ export function usePondController(options: PondControllerOptions): PondControlle
   const pondsRef = useRef(options.ponds);
   const optionsRef = useRef(options);
   const gradeRef = useRef<EarthworkTerrainPatch | null>(null);
+  const designRef = useRef<PondEarthworkDesign | null>(null);
+  const gradeRevisionRef = useRef<number | null>(null);
+  const earthworkRef = useRef<PondEarthworkAdapter | null>(null);
+  const pendingGradeRef = useRef<Promise<PondEarthworkResult> | null>(null);
+  if (!earthworkRef.current) earthworkRef.current = new PondEarthworkAdapter();
+  const draftFrameRef = useRef<number | null>(null);
   stateRef.current = state;
   pondsRef.current = options.ponds;
   optionsRef.current = options;
@@ -102,9 +109,17 @@ export function usePondController(options: PondControllerOptions): PondControlle
   };
 
   useEffect(() => { optionsRef.current.synchronizeMap(); },
-    [state, options.ponds, options.selectedId, options.terrainRevision]);
-
+    [options.ponds, options.selectedId, options.terrainRevision]);
   useEffect(() => {
+    if (draftFrameRef.current != null) return;
+    draftFrameRef.current = requestAnimationFrame(() => {
+      draftFrameRef.current = null;
+      const map = optionsRef.current.mapRef.current;
+      if (map) setPondDraftData(map, pondDraftOf(stateRef.current), optionsRef.current.terrainRecord());
+    });
+  }, [state]);
+
+  useLayoutEffect(() => {
     const map = optionsRef.current.mapRef.current;
     if (!map || (state.phase !== 'armed' && state.phase !== 'drawing')) return;
     const interaction = optionsRef.current.acquireInteractions(map);
@@ -141,14 +156,35 @@ export function usePondController(options: PondControllerOptions): PondControlle
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase]);
 
-  useEffect(() => () => { optionsRef.current.release(); }, []);
+  useEffect(() => () => {
+    if (draftFrameRef.current != null) cancelAnimationFrame(draftFrameRef.current);
+    earthworkRef.current?.cancel();
+    optionsRef.current.release();
+  }, []);
 
   function refreshGrade(topElevationM: number, excavationDepthM: number,
     boundary: [number, number][], areaM2: number): void {
     const record = optionsRef.current.terrainRecord();
-    const design = record && designPondEarthwork(record, boundary,
-      { topElevationM, excavationDepthM, poolAreaM2: areaM2 });
-    gradeRef.current = design && record ? pondTerrainPatch(record, design) : null;
+    const revision = optionsRef.current.terrain.snapshot().revision;
+    gradeRef.current = null;
+    designRef.current = null;
+    gradeRevisionRef.current = null;
+    if (!record) return;
+    const pending = earthworkRef.current!.run(record, revision, boundary,
+      topElevationM, excavationDepthM, areaM2);
+    pendingGradeRef.current = pending;
+    pending.then(({ design, grade }) => {
+      if (pendingGradeRef.current !== pending
+        || optionsRef.current.terrain.snapshot().revision !== revision) return;
+      designRef.current = design;
+      gradeRef.current = grade;
+      gradeRevisionRef.current = revision;
+      optionsRef.current.gradeChanged();
+    }, (error) => {
+      if (pendingGradeRef.current !== pending || error?.name === 'AbortError') return;
+      dispatch({ type: 'design-failed', topElevationM, excavationDepthM,
+        error: error instanceof Error ? error.message : 'Unable to grade the pond.' });
+    });
     optionsRef.current.gradeChanged();
   }
 
@@ -162,6 +198,10 @@ export function usePondController(options: PondControllerOptions): PondControlle
 
   function cancel(): void {
     gradeRef.current = null;
+    designRef.current = null;
+    gradeRevisionRef.current = null;
+    pendingGradeRef.current = null;
+    earthworkRef.current?.cancel();
     dispatch({ type: 'cancel' });
     optionsRef.current.gradeChanged();
     optionsRef.current.release();
@@ -213,27 +253,28 @@ export function usePondController(options: PondControllerOptions): PondControlle
     const current = stateRef.current;
     if (current.phase !== 'review' || current.error) return;
     const draft = current.draft;
+    try { await pendingGradeRef.current; } catch { return; }
     const outcome = await optionsRef.current.terrain.runConstruction(
       'pond', async (): Promise<EarthworkTerrainPatch | null> => {
       try {
         await new Promise(requestAnimationFrame);
         const { record, revision } = optionsRef.current.terrain.snapshot();
         if (!record) throw new Error('The local elevation package is unavailable.');
-        const design = designPondEarthwork(record, draft.boundary, {
-          topElevationM: draft.topElevationM,
-          excavationDepthM: draft.excavationDepthM ?? 0,
-          poolAreaM2: draft.areaM2,
-        });
-        if (!design) throw new Error('The pond could not be graded into this terrain.');
+        const design = designRef.current;
+        const patch = gradeRef.current;
+        if (!design || !patch || gradeRevisionRef.current !== revision)
+          throw new Error('The terrain changed after analysis. Redraw the pond.');
         if (design.truncated || design.maxBermHeightM > MAX_POND_BERM_HEIGHT_M)
           throw new Error('The berm no longer fits this terrain. Adjust the top of pond and try again.');
-        const patch = pondTerrainPatch(record, design);
         const result = optionsRef.current.terrain.commit({ expectedRevision: revision,
           record: applyTerrainGradeToRecord(record as TerrainRecord, patch), kind: 'elevation' });
         if (!result.ok) throw new Error('The terrain changed while building. Redraw the pond.');
         optionsRef.current.add(pondFromDraft(draft, design, pondsRef.current,
           optionsRef.current.createId(), optionsRef.current.now()));
         gradeRef.current = null;
+        designRef.current = null;
+        gradeRevisionRef.current = null;
+        pendingGradeRef.current = null;
         dispatch({ type: 'cancel' });
         optionsRef.current.release();
         return patch;

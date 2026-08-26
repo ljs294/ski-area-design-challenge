@@ -1,12 +1,14 @@
 import type maplibregl from 'maplibre-gl';
 import type { SkySpecification } from 'maplibre-gl';
 import { activeResortTerrain, resortDemBounds, resortProtocolUrl, RESORT_DEM_PROTOCOL } from './resortProtocols';
+import { renderProfileFor, type RenderQuality } from './renderProfile';
 
 // Same Terrarium tiles as the 'dem' source in analysisLayers.ts, but a
 // dedicated source: MapLibre v5 warns (and renders worse, with tile-reload
 // flashes) when hillshade and 3D terrain share one raster-dem source. The
 // browser HTTP cache dedupes the actual downloads.
 export const TERRAIN_DEM_SOURCE = 'terrain-dem';
+const mountedMaxZoom = new WeakMap<maplibregl.Map, number>();
 const TERRARIUM_TILES =
   'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
 
@@ -56,7 +58,12 @@ const SKY_OFF: SkySpecification = {
 // pop, no DEM-tile flash. Idempotent. At pitch 0 the mounted terrain looks flat
 // (straight-down view has no horizon, so the sky doesn't render either); the
 // relief simply reveals itself through perspective as the camera tilts.
-export function mountTerrain(map: maplibregl.Map): void {
+export function mountTerrain(map: maplibregl.Map, quality: RenderQuality = 'standard'): void {
+  const maxzoom = renderProfileFor(quality).terrainMaxZoom;
+  if (map.getSource(TERRAIN_DEM_SOURCE) && mountedMaxZoom.get(map) !== maxzoom) {
+    map.setTerrain(null);
+    map.removeSource(TERRAIN_DEM_SOURCE);
+  }
   if (!map.getSource(TERRAIN_DEM_SOURCE)) {
     const local = activeResortTerrain();
     map.addSource(TERRAIN_DEM_SOURCE, {
@@ -64,13 +71,14 @@ export function mountTerrain(map: maplibregl.Map): void {
       tiles: [local ? resortProtocolUrl(RESORT_DEM_PROTOCOL, local) : TERRARIUM_TILES],
       encoding: 'terrarium',
       tileSize: 256,
-      maxzoom: 15,
+      maxzoom,
       // Span the offline perimeter ring (falls back to the core) so MapLibre
       // requests DEM tiles past the property line: neighbouring relief renders
       // out to the ring edge, where the source ends in a clean floating clip.
       ...(local ? { bounds: resortDemBounds(local) } : {}),
       attribution: local ? 'Local resort elevation package' : 'Terrain: Terrarium tiles, Mapzen/AWS Open Data',
     });
+    mountedMaxZoom.set(map, maxzoom);
   }
   map.setMaxPitch(MAX_PITCH_3D);
   map.setTerrain({ source: TERRAIN_DEM_SOURCE, exaggeration: 1.0 });
@@ -84,6 +92,7 @@ export function unmountTerrain(map: maplibregl.Map): void {
   map.setSky(SKY_OFF);
   map.setMaxPitch(MAX_PITCH_2D);
   if (map.getSource(TERRAIN_DEM_SOURCE)) map.removeSource(TERRAIN_DEM_SOURCE);
+  mountedMaxZoom.delete(map);
 }
 
 /** Ease the camera between the 3D-native tilt and a perfectly overhead view.

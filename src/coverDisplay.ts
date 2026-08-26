@@ -37,7 +37,7 @@ export interface CoverDisplayStats {
 }
 
 export interface DerivedCoverDisplay {
-  geometry: number[];
+  geometry: number[] | Float32Array;
   stats: CoverDisplayStats;
 }
 

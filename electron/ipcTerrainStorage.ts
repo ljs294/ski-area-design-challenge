@@ -75,8 +75,26 @@ function toSummary(record: TerrainRecord): TerrainSummary {
   };
 }
 
+function float32View(buffer: Buffer): Float32Array {
+  const bytes = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  return new Float32Array(bytes);
+}
+
+function uint8View(buffer: Buffer): Uint8Array {
+  return new Uint8Array(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fsp.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function registerTerrainStorageHandlers(): void {
-  ipcMain.handle(TERRAIN_SAVE_CHANNEL, (_event, req: TerrainSaveRequest): TerrainSaveResponse => {
+  ipcMain.handle(TERRAIN_SAVE_CHANNEL, async (_event, req: TerrainSaveRequest): Promise<TerrainSaveResponse> => {
     try {
       const metaPath = safeFilePath(req.record.key, '.json');
       const heightsPath = safeFilePath(req.record.key, '.heights.bin');
@@ -104,82 +122,100 @@ export function registerTerrainStorageHandlers(): void {
       const contoursTmp = `${contoursPath}.${nonce}.tmp`;
       const imageryTmp = `${imageryPath}.${nonce}.tmp`;
       try {
-        fs.writeFileSync(heightsTmp, Buffer.from(Float32Array.from(sampleHeights).buffer));
-        if (coverGrid) fs.writeFileSync(coverTmp, Buffer.from(Uint8Array.from(coverGrid.data)));
-        if (originalCoverGrid) fs.writeFileSync(originalCoverTmp, Buffer.from(Uint8Array.from(originalCoverGrid.data)));
-        if (coverBoundarySegments) fs.writeFileSync(coverGeometryTmp, Buffer.from(Float32Array.from(coverBoundarySegments).buffer));
-        if (coverDisplayGeometry) fs.writeFileSync(coverDisplayTmp, Buffer.from(Float32Array.from(coverDisplayGeometry).buffer));
-        if (contourSegments) fs.writeFileSync(contoursTmp, Buffer.from(Float32Array.from(contourSegments).buffer));
-        if (localImagery) fs.writeFileSync(imageryTmp, Buffer.from(Uint8Array.from(localImagery)));
-        fs.writeFileSync(metaTmp, JSON.stringify(metadata), 'utf-8');
+        await Promise.all([
+          fsp.writeFile(heightsTmp, Buffer.from(Float32Array.from(sampleHeights).buffer)),
+          coverGrid ? fsp.writeFile(coverTmp, Buffer.from(Uint8Array.from(coverGrid.data))) : undefined,
+          originalCoverGrid
+            ? fsp.writeFile(originalCoverTmp, Buffer.from(Uint8Array.from(originalCoverGrid.data))) : undefined,
+          coverBoundarySegments
+            ? fsp.writeFile(coverGeometryTmp, Buffer.from(Float32Array.from(coverBoundarySegments).buffer)) : undefined,
+          coverDisplayGeometry
+            ? fsp.writeFile(coverDisplayTmp, Buffer.from(Float32Array.from(coverDisplayGeometry).buffer)) : undefined,
+          contourSegments
+            ? fsp.writeFile(contoursTmp, Buffer.from(Float32Array.from(contourSegments).buffer)) : undefined,
+          localImagery ? fsp.writeFile(imageryTmp, Buffer.from(Uint8Array.from(localImagery))) : undefined,
+          fsp.writeFile(metaTmp, JSON.stringify(metadata), 'utf-8'),
+        ]);
 
-        const verify = (file: string, expectedBytes: number, expectedChecksum: string, label: string) => {
-          const bytes = fs.readFileSync(file);
+        const verify = async (file: string, expectedBytes: number, expectedChecksum: string, label: string) => {
+          const bytes = await fsp.readFile(file);
           if (bytes.byteLength !== expectedBytes || checksumBytes(bytes) !== expectedChecksum) {
             throw new Error(`${label} temporary file failed validation`);
           }
         };
         if (metadata.packageManifest) {
-          verify(heightsTmp, metadata.packageManifest.elevationByteLength, metadata.packageManifest.elevationChecksum, 'Elevation');
-          if (coverGrid && metadata.coverMetadata) verify(coverTmp, metadata.coverMetadata.byteLength, metadata.coverMetadata.checksum, 'Ground cover');
-          if (originalCoverGrid && metadata.originalCoverMetadata) verify(originalCoverTmp, metadata.originalCoverMetadata.byteLength, metadata.originalCoverMetadata.checksum, 'Original WorldCover');
-          if (coverBoundarySegments && metadata.coverGeometryMetadata) verify(coverGeometryTmp, metadata.coverGeometryMetadata.byteLength, metadata.coverGeometryMetadata.checksum, 'Cover geometry');
-          if (coverDisplayGeometry && metadata.coverDisplayMetadata) verify(coverDisplayTmp, metadata.coverDisplayMetadata.byteLength, metadata.coverDisplayMetadata.checksum, 'Vector ground cover');
-          if (contourSegments && metadata.contourMetadata) verify(contoursTmp, metadata.contourMetadata.byteLength, metadata.contourMetadata.checksum, 'Contours');
-          if (localImagery && metadata.localImageryMetadata) verify(imageryTmp, metadata.localImageryMetadata.byteLength, metadata.localImageryMetadata.checksum, 'Local imagery');
+          await Promise.all([
+            verify(heightsTmp, metadata.packageManifest.elevationByteLength,
+              metadata.packageManifest.elevationChecksum, 'Elevation'),
+            coverGrid && metadata.coverMetadata
+              ? verify(coverTmp, metadata.coverMetadata.byteLength, metadata.coverMetadata.checksum, 'Ground cover') : undefined,
+            originalCoverGrid && metadata.originalCoverMetadata
+              ? verify(originalCoverTmp, metadata.originalCoverMetadata.byteLength,
+                metadata.originalCoverMetadata.checksum, 'Original WorldCover') : undefined,
+            coverBoundarySegments && metadata.coverGeometryMetadata
+              ? verify(coverGeometryTmp, metadata.coverGeometryMetadata.byteLength,
+                metadata.coverGeometryMetadata.checksum, 'Cover geometry') : undefined,
+            coverDisplayGeometry && metadata.coverDisplayMetadata
+              ? verify(coverDisplayTmp, metadata.coverDisplayMetadata.byteLength,
+                metadata.coverDisplayMetadata.checksum, 'Vector ground cover') : undefined,
+            contourSegments && metadata.contourMetadata
+              ? verify(contoursTmp, metadata.contourMetadata.byteLength,
+                metadata.contourMetadata.checksum, 'Contours') : undefined,
+            localImagery && metadata.localImageryMetadata
+              ? verify(imageryTmp, metadata.localImageryMetadata.byteLength,
+                metadata.localImageryMetadata.checksum, 'Local imagery') : undefined,
+          ]);
         }
-        JSON.parse(fs.readFileSync(metaTmp, 'utf-8'));
+        JSON.parse(await fsp.readFile(metaTmp, 'utf-8'));
 
         // Metadata is the commit marker: binary payloads land first, metadata last.
-        fs.rmSync(heightsPath, { force: true });
-        fs.renameSync(heightsTmp, heightsPath);
+        await fsp.rm(heightsPath, { force: true });
+        await fsp.rename(heightsTmp, heightsPath);
         if (coverGrid) {
-          fs.rmSync(coverPath, { force: true });
-          fs.renameSync(coverTmp, coverPath);
+          await fsp.rm(coverPath, { force: true });
+          await fsp.rename(coverTmp, coverPath);
         } else {
-          fs.rmSync(coverPath, { force: true });
+          await fsp.rm(coverPath, { force: true });
         }
         if (originalCoverGrid) {
-          fs.rmSync(originalCoverPath, { force: true });
-          fs.renameSync(originalCoverTmp, originalCoverPath);
+          await fsp.rm(originalCoverPath, { force: true });
+          await fsp.rename(originalCoverTmp, originalCoverPath);
         } else {
-          fs.rmSync(originalCoverPath, { force: true });
+          await fsp.rm(originalCoverPath, { force: true });
         }
         if (coverBoundarySegments) {
-          fs.rmSync(coverGeometryPath, { force: true });
-          fs.renameSync(coverGeometryTmp, coverGeometryPath);
+          await fsp.rm(coverGeometryPath, { force: true });
+          await fsp.rename(coverGeometryTmp, coverGeometryPath);
         } else {
-          fs.rmSync(coverGeometryPath, { force: true });
+          await fsp.rm(coverGeometryPath, { force: true });
         }
         if (coverDisplayGeometry) {
-          fs.rmSync(coverDisplayPath, { force: true });
-          fs.renameSync(coverDisplayTmp, coverDisplayPath);
+          await fsp.rm(coverDisplayPath, { force: true });
+          await fsp.rename(coverDisplayTmp, coverDisplayPath);
         } else {
-          fs.rmSync(coverDisplayPath, { force: true });
+          await fsp.rm(coverDisplayPath, { force: true });
         }
         if (contourSegments) {
-          fs.rmSync(contoursPath, { force: true });
-          fs.renameSync(contoursTmp, contoursPath);
+          await fsp.rm(contoursPath, { force: true });
+          await fsp.rename(contoursTmp, contoursPath);
         } else {
-          fs.rmSync(contoursPath, { force: true });
+          await fsp.rm(contoursPath, { force: true });
         }
         if (localImagery) {
-          fs.rmSync(imageryPath, { force: true });
-          fs.renameSync(imageryTmp, imageryPath);
+          await fsp.rm(imageryPath, { force: true });
+          await fsp.rename(imageryTmp, imageryPath);
         } else {
-          fs.rmSync(imageryPath, { force: true });
+          await fsp.rm(imageryPath, { force: true });
         }
-        fs.rmSync(metaPath, { force: true });
-        fs.renameSync(metaTmp, metaPath);
+        await fsp.rm(metaPath, { force: true });
+        await fsp.rename(metaTmp, metaPath);
       } finally {
-        fs.rmSync(metaTmp, { force: true });
-        fs.rmSync(heightsTmp, { force: true });
-        fs.rmSync(coverTmp, { force: true });
-        fs.rmSync(originalCoverTmp, { force: true });
-        fs.rmSync(coverGeometryTmp, { force: true });
-        fs.rmSync(coverDisplayTmp, { force: true });
-        fs.rmSync(contoursTmp, { force: true });
-        fs.rmSync(imageryTmp, { force: true });
+        await Promise.allSettled([
+          fsp.rm(metaTmp, { force: true }), fsp.rm(heightsTmp, { force: true }),
+          fsp.rm(coverTmp, { force: true }), fsp.rm(originalCoverTmp, { force: true }),
+          fsp.rm(coverGeometryTmp, { force: true }), fsp.rm(coverDisplayTmp, { force: true }),
+          fsp.rm(contoursTmp, { force: true }), fsp.rm(imageryTmp, { force: true }),
+        ]);
       }
 
       const index = readIndex().filter((s) => s.key !== req.record.key);
@@ -365,7 +401,7 @@ export function registerTerrainStorageHandlers(): void {
 
   ipcMain.handle(
     TERRAIN_SAVE_CONTEXT_CHANNEL,
-    (_event, req: TerrainMapContextSaveRequest): TerrainMapContextSaveResponse => {
+    async (_event, req: TerrainMapContextSaveRequest): Promise<TerrainMapContextSaveResponse> => {
       if (!req || typeof req.key !== 'string' || !req.vectorFeatures ||
           Number.isNaN(Date.parse(req.updatedAt))) {
         return { ok: false, error: 'Map-context update is invalid' };
@@ -378,14 +414,14 @@ export function registerTerrainStorageHandlers(): void {
       if (!metaPath) return { ok: false, error: 'Invalid terrain key' };
       const metaTmp = `${metaPath}.${process.pid}-${Date.now()}.tmp`;
       try {
-        const existing = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as TerrainRecord;
+        const existing = JSON.parse(await fsp.readFile(metaPath, 'utf-8')) as TerrainRecord;
         if (existing.key !== req.key) return { ok: false, error: 'Stored terrain key does not match' };
         const metadata: TerrainRecord = { ...existing,
           vectorFeatures: req.vectorFeatures, updatedAt: req.updatedAt };
-        fs.writeFileSync(metaTmp, JSON.stringify(metadata), 'utf-8');
-        JSON.parse(fs.readFileSync(metaTmp, 'utf-8'));
-        fs.rmSync(metaPath, { force: true });
-        fs.renameSync(metaTmp, metaPath);
+        await fsp.writeFile(metaTmp, JSON.stringify(metadata), 'utf-8');
+        JSON.parse(await fsp.readFile(metaTmp, 'utf-8'));
+        await fsp.rm(metaPath, { force: true });
+        await fsp.rename(metaTmp, metaPath);
         const index = readIndex().filter((summary) => summary.key !== req.key);
         index.push(toSummary(metadata));
         writeIndex(index);
@@ -394,12 +430,12 @@ export function registerTerrainStorageHandlers(): void {
         return { ok: false,
           error: error instanceof Error ? error.message : 'Unable to save map context' };
       } finally {
-        fs.rmSync(metaTmp, { force: true });
+        await fsp.rm(metaTmp, { force: true });
       }
     },
   );
 
-  ipcMain.handle(TERRAIN_LOAD_CHANNEL, (_event, req: TerrainLoadRequest): TerrainLoadResponse => {
+  ipcMain.handle(TERRAIN_LOAD_CHANNEL, async (_event, req: TerrainLoadRequest): Promise<TerrainLoadResponse> => {
     const metaPath = safeFilePath(req.key, '.json');
     const heightsPath = safeFilePath(req.key, '.heights.bin');
     const coverPath = safeFilePath(req.key, '.cover.bin');
@@ -410,24 +446,24 @@ export function registerTerrainStorageHandlers(): void {
     const imageryPath = safeFilePath(req.key, '.imagery.jpg');
     if (!metaPath || !heightsPath || !coverPath || !originalCoverPath || !coverGeometryPath || !coverDisplayPath || !contoursPath || !imageryPath) return null;
     try {
-      const metadata = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+      const metadata = JSON.parse(await fsp.readFile(metaPath, 'utf-8'));
 
       // Back-compat: terrains saved before the binary split have
       // sampleHeights embedded directly in the metadata JSON and no
       // .heights.bin file — fall back to reading it from there.
-      if (!fs.existsSync(heightsPath)) {
+      if (!await fileExists(heightsPath)) {
         return metadata as TerrainRecord;
       }
 
-      const buf = fs.readFileSync(heightsPath);
+      const buf = await fsp.readFile(heightsPath);
       if (metadata.packageManifest && (buf.byteLength !== metadata.packageManifest.elevationByteLength || checksumBytes(buf) !== metadata.packageManifest.elevationChecksum)) return null;
-      const floats = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+      const floats = float32View(buf);
       let coverGrid;
       if (metadata.coverMetadata) {
-        if (!fs.existsSync(coverPath)) return null;
-        const cover = fs.readFileSync(coverPath);
+        if (!await fileExists(coverPath)) return null;
+        const cover = await fsp.readFile(coverPath);
         if (cover.byteLength !== metadata.coverMetadata.byteLength || checksumBytes(cover) !== metadata.coverMetadata.checksum) return null;
-        coverGrid = { ...metadata.coverMetadata, data: metadata.coverMetadata.source === 'usgs-four-class-v1' ? Uint8Array.from(cover) : Array.from(cover) };
+        coverGrid = { ...metadata.coverMetadata, data: uint8View(cover) };
         delete coverGrid.byteLength;
         delete coverGrid.checksum;
       }
@@ -435,43 +471,40 @@ export function registerTerrainStorageHandlers(): void {
       let coverBoundarySegments;
       let coverDisplayGeometry;
       if (metadata.coverGeometryMetadata) {
-        if (!fs.existsSync(coverGeometryPath)) return null;
-        const geometryBuffer = fs.readFileSync(coverGeometryPath);
+        if (!await fileExists(coverGeometryPath)) return null;
+        const geometryBuffer = await fsp.readFile(coverGeometryPath);
         if (geometryBuffer.byteLength !== metadata.coverGeometryMetadata.byteLength || checksumBytes(geometryBuffer) !== metadata.coverGeometryMetadata.checksum) return null;
-        const values = new Float32Array(geometryBuffer.buffer, geometryBuffer.byteOffset, geometryBuffer.byteLength / 4);
-        coverBoundarySegments = Array.from(values);
+        coverBoundarySegments = float32View(geometryBuffer);
       }
       let originalCoverGrid;
       if (metadata.originalCoverMetadata) {
-        if (!fs.existsSync(originalCoverPath)) return null;
-        const original = fs.readFileSync(originalCoverPath);
+        if (!await fileExists(originalCoverPath)) return null;
+        const original = await fsp.readFile(originalCoverPath);
         if (original.byteLength !== metadata.originalCoverMetadata.byteLength || checksumBytes(original) !== metadata.originalCoverMetadata.checksum) return null;
-        originalCoverGrid = { ...metadata.originalCoverMetadata, data: Array.from(original) };
+        originalCoverGrid = { ...metadata.originalCoverMetadata, data: uint8View(original) };
         delete originalCoverGrid.byteLength;
         delete originalCoverGrid.checksum;
       }
       if (metadata.coverDisplayMetadata) {
-        if (!fs.existsSync(coverDisplayPath)) return null;
-        const displayBuffer = fs.readFileSync(coverDisplayPath);
+        if (!await fileExists(coverDisplayPath)) return null;
+        const displayBuffer = await fsp.readFile(coverDisplayPath);
         if (displayBuffer.byteLength !== metadata.coverDisplayMetadata.byteLength || checksumBytes(displayBuffer) !== metadata.coverDisplayMetadata.checksum) return null;
-        const values = new Float32Array(displayBuffer.buffer, displayBuffer.byteOffset, displayBuffer.byteLength / 4);
-        coverDisplayGeometry = Array.from(values);
+        coverDisplayGeometry = float32View(displayBuffer);
       }
       if (metadata.contourMetadata) {
-        if (!fs.existsSync(contoursPath)) return null;
-        const contourBuffer = fs.readFileSync(contoursPath);
+        if (!await fileExists(contoursPath)) return null;
+        const contourBuffer = await fsp.readFile(contoursPath);
         if (contourBuffer.byteLength !== metadata.contourMetadata.byteLength || checksumBytes(contourBuffer) !== metadata.contourMetadata.checksum) return null;
-        const values = new Float32Array(contourBuffer.buffer, contourBuffer.byteOffset, contourBuffer.byteLength / 4);
-        contourSegments = Array.from(values);
+        contourSegments = float32View(contourBuffer);
       }
       let localImagery;
       if (metadata.localImageryMetadata) {
-        if (!fs.existsSync(imageryPath)) return null;
-        const imagery = fs.readFileSync(imageryPath);
+        if (!await fileExists(imageryPath)) return null;
+        const imagery = await fsp.readFile(imageryPath);
         if (imagery.byteLength !== metadata.localImageryMetadata.byteLength || checksumBytes(imagery) !== metadata.localImageryMetadata.checksum) return null;
-        localImagery = Uint8Array.from(imagery);
+        localImagery = uint8View(imagery);
       }
-      return { ...metadata, sampleHeights: Array.from(floats), ...(coverGrid ? { coverGrid } : {}), ...(originalCoverGrid ? { originalCoverGrid } : {}), ...(coverBoundarySegments ? { coverBoundarySegments } : {}), ...(coverDisplayGeometry ? { coverDisplayGeometry } : {}), ...(contourSegments ? { contourSegments } : {}), ...(localImagery ? { localImagery } : {}) };
+      return { ...metadata, sampleHeights: floats, ...(coverGrid ? { coverGrid } : {}), ...(originalCoverGrid ? { originalCoverGrid } : {}), ...(coverBoundarySegments ? { coverBoundarySegments } : {}), ...(coverDisplayGeometry ? { coverDisplayGeometry } : {}), ...(contourSegments ? { contourSegments } : {}), ...(localImagery ? { localImagery } : {}) };
     } catch {
       return null;
     }

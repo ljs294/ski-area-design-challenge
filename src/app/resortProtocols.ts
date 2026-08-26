@@ -2,6 +2,8 @@ import maplibregl from 'maplibre-gl';
 import type { CoverClassCode, LandCoverClass, SurroundElevation, TerrainRecord, WorldCoverClassCode } from '../types';
 import { SURROUND_NODATA } from '../elevation';
 import { lngLatToUnit } from '../geo';
+import { renderProfileFor, type RenderQuality } from './renderProfile';
+import { ResortTileWorkerPool } from './resortTileWorkerClient';
 
 // Any surround cell at or below this is treated as "no data" (see sampleSurround).
 // Well below every real US land elevation, well above the -9999 nodata sentinel.
@@ -13,13 +15,17 @@ export const RESORT_SLOPE_PROTOCOL = 'resort-slope';
 export const RESORT_ASPECT_PROTOCOL = 'resort-aspect';
 
 let active: TerrainRecord | null = null;
+let activeQuality: RenderQuality = 'standard';
+const tileWorkers = new ResortTileWorkerPool();
 let registered = false;
-const tileCache = new Map<string, Promise<ArrayBuffer>>();
-// Large enough to hold the whole warmed diorama tile set (see warmResortTiles)
-// so preloaded tiles are never evicted before the camera reaches them.
-const CACHE_MAX = 2048;
+interface CachedTile { promise: Promise<ArrayBuffer>; bytes: number }
+const tileCache = new Map<string, CachedTile>();
+let tileCacheBytes = 0;
+let tileCacheBudget = renderProfileFor('standard').derivedCacheBytes;
+let cacheHits = 0;
+let cacheMisses = 0;
 type TileKind = 'dem' | 'cover' | 'slope' | 'aspect';
-const renderQueue: { kind: TileKind; url: string; resolve: (data: ArrayBuffer) => void; reject: (error: unknown) => void }[] = [];
+const renderQueue: { kind: TileKind; url: string; priority: 'visible' | 'warm'; resolve: (data: ArrayBuffer) => void; reject: (error: unknown) => void }[] = [];
 let activeRenders = 0;
 // Serial by default so on-demand renders never stutter interactive play; the
 // warm-up preload temporarily raises this (setRenderConcurrency) for throughput,
@@ -34,13 +40,48 @@ export function setRenderConcurrency(n: number): void {
 // ever grows; `pending` is the live queue depth. getResortRenderStats() reads
 // them so the veil can wait until the on-demand queue has fully drained.
 let tilesCompleted = 0;
-export function getResortRenderStats(): { pending: number; completed: number } {
-  return { pending: renderQueue.length + activeRenders, completed: tilesCompleted };
+export function getResortRenderStats(): {
+  pending: number; completed: number; cacheBytes: number; cacheEntries: number;
+  cacheHits: number; cacheMisses: number;
+} {
+  return {
+    pending: renderQueue.length + activeRenders,
+    completed: tilesCompleted,
+    cacheBytes: tileCacheBytes,
+    cacheEntries: tileCache.size,
+    cacheHits,
+    cacheMisses,
+  };
+}
+
+function deleteCachedTile(key: string, expected?: CachedTile): void {
+  const entry = tileCache.get(key);
+  if (!entry || (expected && entry !== expected)) return;
+  tileCache.delete(key);
+  tileCacheBytes -= entry.bytes;
+}
+
+function trimTileCache(): void {
+  for (const [key, entry] of tileCache) {
+    if (tileCacheBytes <= tileCacheBudget) break;
+    if (entry.bytes > 0) deleteCachedTile(key, entry);
+  }
+}
+
+export function setResortRenderQuality(quality: RenderQuality): void {
+  activeQuality = quality;
+  tileCacheBudget = renderProfileFor(quality).derivedCacheBytes;
+  trimTileCache();
+  tileWorkers.configure(active, quality);
 }
 
 export function setActiveResortTerrain(record: TerrainRecord | null): void {
-  if (active?.key !== record?.key) tileCache.clear();
+  if (active?.key !== record?.key) {
+    tileCache.clear();
+    tileCacheBytes = 0;
+  }
   active = record;
+  tileWorkers.configure(record, activeQuality);
 }
 
 export function activeResortTerrain(): TerrainRecord | null {
@@ -52,7 +93,7 @@ export function activeResortTerrain(): TerrainRecord | null {
  *  mutated grid. Leaves dem/slope/aspect tiles intact. */
 export function clearResortCoverCache(): void {
   for (const key of [...tileCache.keys()]) {
-    if (key.startsWith('cover:')) tileCache.delete(key);
+    if (key.startsWith('cover:')) deleteCachedTile(key);
   }
 }
 
@@ -60,7 +101,7 @@ export function clearResortCoverCache(): void {
 export function clearResortElevationCache(): void {
   for (const key of [...tileCache.keys()]) {
     if (key.startsWith('dem:') || key.startsWith('slope:') || key.startsWith('aspect:'))
-      tileCache.delete(key);
+      deleteCachedTile(key);
   }
 }
 
@@ -296,21 +337,27 @@ async function renderResortTile(record: TerrainRecord, kind: TileKind, z: number
   });
 }
 
-async function renderTile(kind: TileKind, url: string): Promise<ArrayBuffer> {
+async function renderTile(
+  kind: TileKind,
+  url: string,
+  priority: 'visible' | 'warm',
+): Promise<ArrayBuffer> {
   const p = parse(url);
   const record = active;
   if (!record || record.key !== p.key) throw new Error(`Local resort package is not loaded: ${p.key}`);
-  return renderResortTile(record, kind, p.z, p.x, p.y);
+  return tileWorkers.render(kind, p.z, p.x, p.y, priority) ??
+    renderResortTile(record, kind, p.z, p.x, p.y);
 }
 
 function pumpRenderQueue(): void {
   while (activeRenders < maxConcurrentRenders && renderQueue.length) {
-    const task = renderQueue.shift()!;
+    const visibleIndex = renderQueue.findIndex((task) => task.priority === 'visible');
+    const task = visibleIndex >= 0 ? renderQueue.splice(visibleIndex, 1)[0] : renderQueue.shift()!;
     activeRenders++;
     // Yield before CPU-heavy rasterization so controls/camera updates paint
     // immediately even when MapLibre requests a burst of terrain tiles.
     window.setTimeout(() => {
-      void renderTile(task.kind, task.url)
+      void renderTile(task.kind, task.url, task.priority)
         .then(task.resolve, task.reject)
         .finally(() => {
           activeRenders--;
@@ -321,18 +368,34 @@ function pumpRenderQueue(): void {
   }
 }
 
-function cached(kind: TileKind, url: string): Promise<ArrayBuffer> {
+function cached(
+  kind: TileKind,
+  url: string,
+  priority: 'visible' | 'warm' = 'visible',
+): Promise<ArrayBuffer> {
   const key = `${kind}:${url}`;
-  let promise = tileCache.get(key);
-  if (!promise) {
-    promise = new Promise<ArrayBuffer>((resolve, reject) => {
-      renderQueue.push({ kind, url, resolve, reject });
+  let entry = tileCache.get(key);
+  if (entry) {
+    cacheHits++;
+    tileCache.delete(key);
+    tileCache.set(key, entry);
+  } else {
+    cacheMisses++;
+    entry = { bytes: 0, promise: undefined as unknown as Promise<ArrayBuffer> };
+    entry.promise = new Promise<ArrayBuffer>((resolve, reject) => {
+      renderQueue.push({ kind, url, priority, resolve, reject });
       pumpRenderQueue();
     });
-    tileCache.set(key, promise);
-    if (tileCache.size > CACHE_MAX) tileCache.delete(tileCache.keys().next().value!);
+    const created = entry;
+    tileCache.set(key, created);
+    void created.promise.then((data) => {
+      if (tileCache.get(key) !== created) return;
+      created.bytes = data.byteLength;
+      tileCacheBytes += data.byteLength;
+      trimTileCache();
+    }, () => deleteCachedTile(key, created));
   }
-  return promise;
+  return entry.promise;
 }
 
 export function registerResortProtocols(): void {
@@ -427,11 +490,15 @@ function tilesForBounds(bounds: [number, number, number, number], zMin: number, 
  *  mesh + hillshade) and cover across the play box, over the zoom band the
  *  camera actually uses (a coarse fit level up to the source maxzoom 15). The
  *  slope/aspect analysis overlays are off by default, so they stay on-demand. */
-export function resortWarmTileKeys(record: TerrainRecord): { kind: 'dem' | 'cover'; z: number; x: number; y: number }[] {
+export function resortWarmTileKeys(
+  record: TerrainRecord,
+  quality: RenderQuality = 'standard',
+): { kind: 'dem' | 'cover'; z: number; x: number; y: number }[] {
+  const profile = renderProfileFor(quality);
   const ring = resortDemBounds(record);
   const core = localTileBounds(record);
   const keys: { kind: 'dem' | 'cover'; z: number; x: number; y: number }[] = [];
-  const zMax = 15;
+  const zMax = profile.terrainMaxZoom;
   const bandFor = (b: [number, number, number, number]) => {
     const widthDeg = Math.max(1e-6, b[2] - b[0]);
     // Coarsest level where the extent still spans ~1 tile, floored so we also
@@ -440,7 +507,10 @@ export function resortWarmTileKeys(record: TerrainRecord): { kind: 'dem' | 'cove
     return Math.max(11, Math.min(zMax, zFit));
   };
   if (ring) for (const t of tilesForBounds(ring, bandFor(ring), zMax)) keys.push({ kind: 'dem', ...t });
-  if (core) for (const t of tilesForBounds(core, bandFor(core), zMax)) keys.push({ kind: 'cover', ...t });
+  const usesRasterCover = profile.coverMode === 'raster' || !record.coverDisplayGeometry;
+  if (core && usesRasterCover) {
+    for (const t of tilesForBounds(core, bandFor(core), zMax)) keys.push({ kind: 'cover', ...t });
+  }
   return keys;
 }
 
@@ -453,14 +523,17 @@ export function resortWarmTileKeys(record: TerrainRecord): { kind: 'dem' | 'cove
 export async function warmResortTiles(
   record: TerrainRecord,
   onProgress?: (completed: number, total: number) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  quality: RenderQuality = 'standard',
 ): Promise<void> {
-  const keys = resortWarmTileKeys(record);
+  setResortRenderQuality(quality);
+  const profile = renderProfileFor(quality);
+  const keys = resortWarmTileKeys(record, quality);
   const total = keys.length;
   let done = 0;
   onProgress?.(0, total);
   if (!total) return;
-  setRenderConcurrency(4);
+  setRenderConcurrency(profile.tileWorkerCount);
   const key = encodeURIComponent(record.key);
   let idx = 0;
   const worker = async () => {
@@ -472,7 +545,7 @@ export async function warmResortTiles(
         ? `${protocol}://${key}/${k.z}/${k.x}/${k.y}?rev=${encodeURIComponent(record.packageManifest?.elevationChecksum ?? record.updatedAt)}`
         : `${protocol}://${key}/${k.z}/${k.x}/${k.y}`;
       try {
-        await cached(k.kind, url);
+        await cached(k.kind, url, 'warm');
       } catch {
         // Skip — the on-demand protocol path can retry this tile if the camera
         // ever requests it.
@@ -481,5 +554,5 @@ export async function warmResortTiles(
       onProgress?.(done, total);
     }
   };
-  await Promise.all([worker(), worker(), worker(), worker()]);
+  await Promise.all(Array.from({ length: profile.tileWorkerCount }, () => worker()));
 }

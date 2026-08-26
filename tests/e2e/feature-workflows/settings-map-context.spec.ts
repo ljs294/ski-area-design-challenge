@@ -18,16 +18,31 @@ async function persistedState(page: Page) {
   return page.evaluate(async () => {
     const save = localStorage.getItem('gamesave:e2e-save');
     const terrain = await new Promise<Record<string, unknown> | null>((resolve, reject) => {
-      const request = indexedDB.open('mountain-planner-terrain', 1);
+      const request = indexedDB.open('mountain-planner-terrain');
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const database = request.result;
-        const transaction = database.transaction('terrains', 'readonly');
-        const read = transaction.objectStore('terrains').get('e2e-terrain');
-        read.onerror = () => reject(read.error);
-        read.onsuccess = () => {
+        const transaction = database.transaction(
+          ['terrain-metadata', 'terrain-assets', 'terrains'], 'readonly');
+        const metadata = transaction.objectStore('terrain-metadata').get('e2e-terrain');
+        const assets = transaction.objectStore('terrain-assets').get('e2e-terrain');
+        const legacy = transaction.objectStore('terrains').get('e2e-terrain');
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => {
           database.close();
-          resolve((read.result as Record<string, unknown> | undefined) ?? null);
+          const result = metadata.result && assets.result
+            ? { ...metadata.result, ...assets.result } as Record<string, unknown>
+            : (legacy.result as Record<string, unknown> | undefined) ?? null;
+          if (!result) return resolve(null);
+          const coverGrid = result.coverGrid as { data?: ArrayLike<number> } | undefined;
+          resolve({
+            ...result,
+            sampleHeights: Array.from(result.sampleHeights as ArrayLike<number>),
+            contourSegments: result.contourSegments
+              ? Array.from(result.contourSegments as ArrayLike<number>) : undefined,
+            coverGrid: coverGrid ? { ...coverGrid,
+              data: Array.from(coverGrid.data ?? []) } : undefined,
+          });
         };
       };
     });

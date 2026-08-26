@@ -4,6 +4,7 @@ import type { DamAnalysisResult } from '../damAnalysis';
 import type { DamAnalysisRequest, DamAnalysisResponse } from './damAnalysisProtocol';
 import { DamAnalysisAdapter } from './damAnalysisClient';
 import type { WorkerLike } from './workerAdapter';
+import type { EarthworkTerrainPatch } from '../earthwork';
 
 interface FakeWorker extends WorkerLike<DamAnalysisRequest, DamAnalysisResponse> {
   posted: DamAnalysisRequest[];
@@ -50,10 +51,17 @@ function alignment(crestElevationM = 1000): Omit<DamAnalysisRequest, 'id'> {
     points: [[0.25, 0.25], [0.75, 0.75]],
     crestElevationM,
     streams: [],
+    contourGridSize: 2,
+    contourIntervalM: 6.096,
+    baseElevationChecksum: 'checksum',
   };
 }
 
 const analysis = { areaM2: 1234 } as DamAnalysisResult;
+const grade = { patchIndices: new Uint32Array(), patchHeights: new Float32Array(),
+  contourSegments: [], editedContourSegments: [], contourGridSize: 2,
+  contourIntervalM: 6.096, baseElevationChecksum: 'checksum',
+  disturbancePolygons: [] } satisfies EarthworkTerrainPatch;
 
 function handlers() {
   return { onResult: vi.fn(), onError: vi.fn() };
@@ -71,9 +79,9 @@ describe('DamAnalysisAdapter', () => {
     expect(created[0].posted[0].crestElevationM).toBe(1000);
     expect(created[0].transferred[0]).toEqual([request.heights.buffer]);
 
-    created[0].deliver({ id: 1, ok: true, result: analysis });
+    created[0].deliver({ id: 1, ok: true, result: analysis, grade });
     expect(bound.onResult).toHaveBeenCalledOnce();
-    expect(bound.onResult).toHaveBeenCalledWith(analysis);
+    expect(bound.onResult).toHaveBeenCalledWith(analysis, grade);
     // A settled analysis owns nothing: the worker is gone before review opens.
     expect(created[0].terminate).toHaveBeenCalledOnce();
   });
@@ -103,12 +111,12 @@ describe('DamAnalysisAdapter', () => {
     expect(created[1].posted[0].id).toBe(2);
 
     // The abandoned worker answering late must not reopen the old review.
-    created[0].deliver({ id: 1, ok: true, result: analysis });
+    created[0].deliver({ id: 1, ok: true, result: analysis, grade });
     created[0].crash();
     expect(first.onResult).not.toHaveBeenCalled();
     expect(first.onError).not.toHaveBeenCalled();
 
-    created[1].deliver({ id: 2, ok: true, result: analysis });
+    created[1].deliver({ id: 2, ok: true, result: analysis, grade });
     expect(second.onResult).toHaveBeenCalledOnce();
   });
 
@@ -118,12 +126,12 @@ describe('DamAnalysisAdapter', () => {
     const bound = handlers();
 
     adapter.run(alignment(), bound);
-    created[0].deliver({ id: 0, ok: true, result: analysis });
+    created[0].deliver({ id: 0, ok: true, result: analysis, grade });
     created[0].deliver({ id: 7, ok: false, error: 'from a request nobody made' });
     expect(bound.onResult).not.toHaveBeenCalled();
     expect(bound.onError).not.toHaveBeenCalled();
 
-    created[0].deliver({ id: 1, ok: true, result: analysis });
+    created[0].deliver({ id: 1, ok: true, result: analysis, grade });
     expect(bound.onResult).toHaveBeenCalledOnce();
   });
 
@@ -180,7 +188,7 @@ describe('DamAnalysisAdapter', () => {
     adapter.run(alignment(), cancelled);
     adapter.cancel();
     expect(created[0].terminate).toHaveBeenCalledOnce();
-    created[0].deliver({ id: 1, ok: true, result: analysis });
+    created[0].deliver({ id: 1, ok: true, result: analysis, grade });
     created[0].crash();
     expect(cancelled.onResult).not.toHaveBeenCalled();
     expect(cancelled.onError).not.toHaveBeenCalled();
@@ -189,13 +197,13 @@ describe('DamAnalysisAdapter', () => {
     adapter.run(alignment(), disposed);
     adapter.dispose();
     expect(created[1].terminate).toHaveBeenCalledOnce();
-    created[1].deliver({ id: 3, ok: true, result: analysis });
+    created[1].deliver({ id: 3, ok: true, result: analysis, grade });
     expect(disposed.onResult).not.toHaveBeenCalled();
 
     // Teardown is abandonment, not retirement: a StrictMode remount still works.
     const remounted = handlers();
     adapter.run(alignment(), remounted);
-    created[2].deliver({ id: created[2].posted[0].id, ok: true, result: analysis });
+    created[2].deliver({ id: created[2].posted[0].id, ok: true, result: analysis, grade });
     expect(remounted.onResult).toHaveBeenCalledOnce();
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SavedLift } from '../types/lifts';
 import { formatLiftLabel } from '../lifts';
-import { addLiftLayers, liftsToGeoJSON } from './liftLayers';
+import { addLiftLayers, LIFT_DRAFT_SOURCE, liftsToGeoJSON } from './liftLayers';
 
 const BASE: [number, number] = [-121.5, 46.9];
 const TOP: [number, number] = [-121.49, 46.91];
@@ -68,6 +68,7 @@ describe('lift layer styling', () => {
       return found as {
         paint?: Record<string, unknown>;
         layout?: Record<string, unknown>;
+        source?: string;
       };
     };
 
@@ -79,6 +80,8 @@ describe('lift layer styling', () => {
     expect(layer('lift-line-complete').paint?.['line-width']).toBe(1.5);
     expect(layer('lift-line-planning').paint?.['line-width']).toBe(1.5);
     expect(layer('lift-line-draft').paint?.['line-width']).toBe(1.25);
+    expect(layer('lift-line-draft').source).toBe(LIFT_DRAFT_SOURCE);
+    expect(layer('lift-draft-terminals').source).toBe(LIFT_DRAFT_SOURCE);
     expect(layer('lift-labels').layout?.['text-field']).toEqual(['get', 'label']);
   });
 });

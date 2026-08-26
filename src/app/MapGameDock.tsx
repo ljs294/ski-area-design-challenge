@@ -23,7 +23,7 @@ import { StreamDetail } from './StreamDetail';
 import { AnchorValue, TrailControl } from './TrailControl';
 import { TrailDetail } from './TrailDetail';
 import { TrailsPanel, type TrailsTool } from './TrailsPanel';
-import type { Readout } from './CursorReadout';
+import { useCursorReadout, type CursorReadoutStore } from './CursorReadout';
 import type { Units } from './SettingsContext';
 import type { DockId, ToolCoordinatorSnapshot } from './toolCoordinator';
 import type { LiftController } from './useLiftController';
@@ -40,7 +40,7 @@ type SnowmakingController = ReturnType<typeof useSnowmakingController>;
 export interface MapGameDockProps {
   saved: GameSave;
   units: Units;
-  readout: Readout | null;
+  readoutStore: CursorReadoutStore;
   building: boolean;
   openDock: DockId | null;
   layersAlongsideBuild: boolean;
@@ -111,6 +111,7 @@ export interface MapGameDockProps {
 }
 
 export function MapGameDock(props: MapGameDockProps) {
+  const readout = useCursorReadout(props.readoutStore);
   const { liftController, roadController, trailController, nodePathController,
     snowmakingController } = props;
   const liftTool = liftController.state, trailTool = trailController.state;
@@ -195,7 +196,7 @@ export function MapGameDock(props: MapGameDockProps) {
   return <div className="game-dock"><div className="dock-stack">
     {props.snowControl && <SnowLayerControl mode={props.snowControl.mode}
       onModeChange={props.snowControl.change} onClose={props.snowControl.close}
-      escapeEnabled={props.snowControl.escapeEnabled} readout={props.readout} units={props.units} />}
+      escapeEnabled={props.snowControl.escapeEnabled} readout={readout} units={props.units} />}
     <div className="dock-rollups">
     {selectedStream && <div className="dock-rollup dock-stream" data-panel="stream">
       <div className="dock-panel"><StreamDetail stream={selectedStream} units={props.units}
@@ -387,7 +388,7 @@ export function MapGameDock(props: MapGameDockProps) {
     <DockButton id="infrastructure" label="Infrastructure" open={infrastructureOpen}
       onClick={props.toggleDock} />
   </div></div><GameToolbar resortName={props.saved.name} onOpenStats={props.openStats}
-    readout={props.readout} units={props.units} /></div>;
+    readout={readout} units={props.units} /></div>;
 }
 
 function DockButton({ id, label, open, onClick }: {

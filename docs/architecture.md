@@ -12,6 +12,8 @@ The desktop shell starts at [`electron/main.ts`](../electron/main.ts). It create
 
 The web build uses [`vite.config.web.ts`](../vite.config.web.ts) and the same React renderer. The existing GitHub Pages workflow builds that static variant.
 
+Gameplay, Map Management, Graphics Lab, and the animated menu backdrop are lazy entry surfaces. The initial menu entry does not contain `MapView` or MapLibre JavaScript; a manifest-based build gate limits that entry to 370 KiB gzip.
+
 Two developer surfaces are supported:
 
 - [`src/app/GraphicsLab.tsx`](../src/app/GraphicsLab.tsx) is a React graphics lab opened through `npm run dev:lab` or the application shortcut.
@@ -23,7 +25,7 @@ Authoritative models live under [`src/types/`](../src/types/), ordered from depe
 
 [`src/types.ts`](../src/types.ts) is a type-only compatibility facade for aggregate UI and IPC consumers. Its exact named-export manifest, lack of runtime exports, and 100-line budget are enforced by the architecture checker. [`src/gameSaveSchema.ts`](../src/gameSaveSchema.ts) owns the schema version written by new saves; compile-time compatibility tests preserve the `GameSave` field types and optionality while representative schema-v1 and schema-v11 fixtures exercise hydration.
 
-Terrain preparation is orchestrated by [`src/terrainIngest.ts`](../src/terrainIngest.ts). It fetches elevation and surrounding elevation, NAIP data, and vector context; derives four-class cover and display assets; persists and verifies a `TerrainRecord`; and returns that persisted record directly. Browser-only WorldCover sampling enters through the required `ResortPreparationServices` port supplied by `MapView`; preparation progress and cancellation use a named options object. Browser storage fallback and Electron storage are accessed through [`src/terrainStorageClient.ts`](../src/terrainStorageClient.ts).
+Terrain preparation is orchestrated by [`src/terrainIngest.ts`](../src/terrainIngest.ts). It fetches elevation and surrounding elevation, NAIP data, and vector context; a terminable transferable worker derives four-class cover and compact display assets; the orchestrator persists and verifies a `TerrainRecord` and returns that persisted record directly. Browser-only WorldCover sampling enters through the required `ResortPreparationServices` port supplied by `MapView`; preparation progress and cancellation use a named options object. Browser storage fallback and Electron storage are accessed through [`src/terrainStorageClient.ts`](../src/terrainStorageClient.ts). IndexedDB separates summaries, metadata, and typed-array assets, with lazy hydration of legacy whole records; desktop binary sidecars remain typed through IPC and large reads/writes use promise-based filesystem operations.
 
 [`src/app/initialResortDesign.ts`](../src/app/initialResortDesign.ts) is the single load-time sanitizer and cross-entity topology hydration boundary for persisted design collections. [`src/app/useElevationBackfill.ts`](../src/app/useElevationBackfill.ts) isolates the one-time compatibility repair for saves lacking construction elevations, while [`src/app/useMapSampling.ts`](../src/app/useMapSampling.ts) owns picker/local terrain sampling and cursor readout.
 
@@ -64,6 +66,12 @@ Snowmaking pipes retain one authoritative editable vertex route while persisted 
 `MapView` constructs no workers. [`src/app/useMapWorkers.ts`](../src/app/useMapWorkers.ts) holds one stable adapter per protocol and supplies the shared [`coverClearService.ts`](../src/app/coverClearService.ts); session teardown disposes each adapter. Disposal abandons what is in flight without retiring the adapter, so a StrictMode remount stays usable. [`damAnalysisClient.ts`](../src/app/damAnalysisClient.ts) numbers each alignment and abandons the previous one, so a superseded pond can never reach review. [`terrainGradeClient.ts`](../src/app/terrainGradeClient.ts) is shared by the road and trail tools because one grade preview exists on the map; it checks the preview token, the elevation checksum, and the geometry key before a finished grade is applied, and reports a failure of any of them as superseded. [`trailPaintClient.ts`](../src/app/trailPaintClient.ts) drives the one stateful engine: requests are numbered so an out-of-order preview cannot repaint the canvas backwards, the watermark resets whenever a new engine starts, and one crash is recovered by starting a replacement and asking its owner to replay. [`coverEditClient.ts`](../src/app/coverEditClient.ts) settles one promise per edit — success, refusal, crash, timeout, or teardown — and terminates the worker on every ending.
 
 Worker protocol, engine, and worker entry files live under `src/app/`.
+
+Persistent resort and snow raster workers own tile sampling and PNG encoding with `OffscreenCanvas`. The manual render profile selects one worker for Performance/Standard and two for High/Ultra; unsupported platforms retain the chunked single-main-thread compatibility path. Tile caches are quality-budgeted, refresh recency on hits, discard failed promises, and invalidate by terrain/profile generation.
+
+## Render profiles
+
+[`src/app/renderProfile.ts`](../src/app/renderProfile.ts) is the single manual quality contract for gameplay, menu, Graphics Lab, terrain LOD, analysis sources, imagery sizing, cover mode, cache budgets, workers, contours, hillshade, and effects. Performance, Standard, High, and Ultra cap backing pixels and per-axis dimensions in addition to preferred DPR. Quality changes apply live through public MapLibre pixel-ratio and source-LOD APIs plus analysis source/layer reconfiguration; theme and unit changes do not rebuild the style. Performance retains 3D terrain while using raster cover, major contours, no hillshade, and the CSS menu backdrop.
 
 ## Map contributions
 

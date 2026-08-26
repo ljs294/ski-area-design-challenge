@@ -1,17 +1,18 @@
-import { useEffect, useState, type Dispatch, type MutableRefObject,
+import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject,
   type SetStateAction } from 'react';
 import type maplibregl from 'maplibre-gl';
 import { fillElevationGaps } from '../trails';
 import { compass8, sampleTerrainAt } from './terrainProtocols';
 import { COVER_LABELS, sampleCoverAt } from './worldcoverProtocol';
 import { sampleLocalCoverAt, sampleLocalTerrainAt, WORLD_COVER_LABELS } from './resortProtocols';
-import type { Readout } from './CursorReadout';
+import { CursorReadoutStore, type Readout } from './CursorReadout';
 import type { OverlayId } from './Legend';
 import type { TerrainRecord } from '../types/terrain';
 import type { SnowGrid } from '../types/snow';
 import { sampleSnowGrid } from '../snow';
 
 export { useSnowLayer } from './useSnowLayer';
+export { useTerrainDisplayAssets } from './useTerrainDisplayAssets';
 
 interface MapSamplingOptions {
   mapRef: MutableRefObject<maplibregl.Map | null>;
@@ -25,7 +26,7 @@ interface MapSamplingOptions {
 }
 
 export interface MapSampling {
-  readout: Readout | null;
+  readoutStore: CursorReadoutStore;
   setReadout: Dispatch<SetStateAction<Readout | null>>;
   samplePoint(lng: number, lat: number, zoom: number): Promise<{
     elevation: number;
@@ -37,7 +38,12 @@ export interface MapSampling {
 
 /** Cursor and construction sampling over either the local package or picker services. */
 export function useMapSampling(options: MapSamplingOptions): MapSampling {
-  const [readout, setReadout] = useState<Readout | null>(null);
+  const readoutStoreRef = useRef<CursorReadoutStore | null>(null);
+  if (!readoutStoreRef.current) readoutStoreRef.current = new CursorReadoutStore();
+  const readoutStore = readoutStoreRef.current;
+  const setReadout = useCallback<Dispatch<SetStateAction<Readout | null>>>((next) => {
+    readoutStore.set(typeof next === 'function' ? next(readoutStore.getSnapshot()) : next);
+  }, [readoutStore]);
   const samplePoint = (lng: number, lat: number, zoom: number) => {
     if (!options.terrainRecordRef.current) {
       return sampleTerrainAt(lng, lat, zoom).then((sample) => sample, () => null);
@@ -58,7 +64,11 @@ export function useMapSampling(options: MapSamplingOptions): MapSampling {
     const token = ++options.sampleTokenRef.current;
     void (async () => {
       const localRecord = options.terrainRecordRef.current;
-      const terrain = await samplePoint(lngLat.lng, lngLat.lat, zoom);
+      // Avoid a Promise/microtask hop for the common gameplay path. Remote
+      // picker sampling remains asynchronous and keeps the same stale token.
+      const terrain = localRecord
+        ? sampleLocalTerrainAt(lngLat.lng, lngLat.lat)
+        : await samplePoint(lngLat.lng, lngLat.lat, zoom);
       if (!terrain || token !== options.sampleTokenRef.current) return;
       let coverLabel: string | null = null;
       const snow = overlay === 'snow' && options.snowGridRef.current
@@ -71,7 +81,7 @@ export function useMapSampling(options: MapSamplingOptions): MapSampling {
         if (token !== options.sampleTokenRef.current) return;
         coverLabel = bucket ? COVER_LABELS[bucket] : '—';
       }
-      setReadout({
+      readoutStore.set({
         elevationM: terrain.elevation,
         overlay,
         slopeDeg: terrain.slopeDeg,
@@ -89,5 +99,5 @@ export function useMapSampling(options: MapSamplingOptions): MapSampling {
   }, [options.activeOverlay, options.activeOverlayRef,
     options.doSampleRef, options.lastLngLatRef]);
 
-  return { readout, setReadout, samplePoint, sampleProfile };
+  return { readoutStore, setReadout, samplePoint, sampleProfile };
 }

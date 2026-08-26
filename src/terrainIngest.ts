@@ -13,8 +13,9 @@ import { contourMetadataOf, coverDisplayMetadataOf, coverGeometryMetadataOf, cov
 import { traceContours } from './marchingSquares';
 import { deriveCoverBoundarySegments } from './coverAnalysis';
 import { deriveCoverDisplayGeometry, type DerivedCoverDisplay } from './coverDisplay';
-import { deriveFourClassCover, isFourClassGrid } from './fourClassCover';
+import { isFourClassGrid } from './fourClassCover';
 import { fetchNaipAcquisition } from './usgsTerrainCover';
+import { prepareTerrainCover } from './terrainPreparationClient';
 
 const CONTOUR_GRID_SIZE = 512;
 
@@ -52,7 +53,7 @@ async function finalizeAndSave(
   const contourIntervalM = 6.096; // 20 ft minor contours, matching the master-plan reference density.
   let contourSegments: number[] | undefined;
   let coverBoundarySegments: number[] | undefined;
-  let coverDisplayGeometry: number[] | undefined;
+  let coverDisplayGeometry: number[] | Float32Array | undefined;
   let coverDisplayMetadata: CoverDisplayMetadata | undefined;
   if (coverGrid) {
     const contourHeights = sampleGridSize === contourGridSize
@@ -223,20 +224,27 @@ export async function prepareResortPackage(
   if (contextResult.ok) vectorFeatures = contextResult.value;
   abort();
 
-  report('decoding', 'Classifying forest, alpine, grassland, and water', 3);
-  const coverGrid = deriveFourClassCover({
+  const preparedCover = await prepareTerrainCover({
     bounds,
     original: originalCoverGrid,
-    elevation: { heights: sampleHeights, width: elevation.width, height: elevation.height },
+    heights: sampleHeights,
+    elevationWidth: elevation.width,
+    elevationHeight: elevation.height,
     naip,
     vectors: vectorFeatures,
-    targetCellM: 2,
+  }, {
+    signal,
+    onProgress: (phase) => report(
+      phase === 'classifying' ? 'decoding' : 'vectorizing-cover',
+      phase === 'classifying'
+        ? 'Classifying forest, alpine, grassland, and water'
+        : 'Drawing detailed tree-cover polygons',
+      phase === 'classifying' ? 3 : 4,
+    ),
   });
   abort();
-
-  report('vectorizing-cover', 'Drawing detailed tree-cover polygons', 4);
-  const coverDisplay = deriveCoverDisplayGeometry(coverGrid);
-  abort();
+  const coverGrid = preparedCover.cover;
+  const coverDisplay = preparedCover.display;
 
   report('deriving', 'Preparing local contours', 5);
   abort();

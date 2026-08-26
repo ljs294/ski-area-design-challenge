@@ -1,9 +1,9 @@
-import { useEffect, useReducer, useRef, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useReducer, useRef, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import type { SavedDam } from '../types/snowmaking';
 import type { TerrainRecord } from '../types/terrain';
 import { damCrestElevationAt, nextDamName, snapDamEndpoint } from '../damAnalysis';
-import { earthworkTerrainPatch, type EarthworkTerrainPatch } from '../earthwork';
+import type { EarthworkTerrainPatch } from '../earthwork';
 import { applyTerrainGradeToRecord } from './terrainGradeCommit';
 import type { TerrainDocument } from './terrainDocument';
 import type { DamAnalysisAdapter } from './damAnalysisClient';
@@ -76,6 +76,7 @@ export function useDamController(options: DamControllerOptions): DamController {
   const optionsRef = useRef(options);
   const gradeRef = useRef<EarthworkTerrainPatch | null>(null);
   const gradeRevisionRef = useRef<number | null>(null);
+  const draftFrameRef = useRef<number | null>(null);
   stateRef.current = state;
   damsRef.current = options.dams;
   optionsRef.current = options;
@@ -102,9 +103,17 @@ export function useDamController(options: DamControllerOptions): DamController {
   };
 
   useEffect(() => { optionsRef.current.synchronizeMap(); },
-    [state, options.dams, options.selectedId, options.terrainRevision]);
-
+    [options.dams, options.selectedId, options.terrainRevision]);
   useEffect(() => {
+    if (draftFrameRef.current != null) return;
+    draftFrameRef.current = requestAnimationFrame(() => {
+      draftFrameRef.current = null;
+      const map = optionsRef.current.mapRef.current;
+      if (map) setDamDraftData(map, damDraftOf(stateRef.current), optionsRef.current.terrainRecord());
+    });
+  }, [state]);
+
+  useLayoutEffect(() => {
     const map = optionsRef.current.mapRef.current;
     if (!map || (state.phase !== 'armed' && state.phase !== 'anchored')) return;
     const interaction = optionsRef.current.acquireInteractions(map);
@@ -147,15 +156,17 @@ export function useDamController(options: DamControllerOptions): DamController {
         bounds: record.bounds, points, crestElevationM: current.crestElevationM,
         streams: (record.vectorFeatures?.waterLines ?? []).map((stream) => ({ ...stream,
           widthM: optionsRef.current.streamWidthOverrides()[stream.id] ?? stream.widthM })),
+        contourGridSize: record.contourMetadata?.gridSize ?? Math.min(512, record.sampleGridSize),
+        contourIntervalM: record.contourMetadata?.intervalM ?? 6.096,
+        baseElevationChecksum: record.packageManifest?.elevationChecksum ?? '',
       }, {
-        onResult: (analysis) => {
+        onResult: (analysis, grade) => {
           if (optionsRef.current.terrain.snapshot().revision !== revision) {
             dispatch({ type: 'analysis-failed', points,
               crestElevationM: current.crestElevationM,
               error: 'The terrain changed during analysis. Choose the opposite bank again.' });
             return;
           }
-          const grade = earthworkTerrainPatch(record, analysis.patchIndices, analysis.patchHeights);
           gradeRef.current = grade;
           gradeRevisionRef.current = revision;
           dispatch({ type: 'review', draft: {
@@ -186,6 +197,7 @@ export function useDamController(options: DamControllerOptions): DamController {
   }, [state.phase]);
 
   useEffect(() => () => {
+    if (draftFrameRef.current != null) cancelAnimationFrame(draftFrameRef.current);
     optionsRef.current.analysis.cancel();
     optionsRef.current.release();
   }, []);

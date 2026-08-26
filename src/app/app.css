@@ -63,7 +63,7 @@ body {
   color: var(--text);
 }
 
-.map-root {
+.map-root.maplibregl-map {
   position: absolute;
   inset: 0;
 }
@@ -457,6 +457,13 @@ body {
 
 .menu-backdrop,
 .menu-backdrop-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* MapLibre's lazy-loaded stylesheet also sets .maplibregl-map positioning.
+   Keep the menu scene filling its parent regardless of CSS chunk order. */
+.menu-backdrop-map.maplibregl-map {
   position: absolute;
   inset: 0;
 }
@@ -918,6 +925,21 @@ html.resume-capture .maplibregl-canvas {
   flex-direction: column;
   align-items: flex-start;
   gap: 10px;
+}
+
+.route-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
+.menu-backdrop-css {
+  background:
+    linear-gradient(160deg, rgba(224, 238, 247, 0.3), rgba(20, 55, 77, 0.68)),
+    radial-gradient(ellipse at 50% 100%, #708b91 0 18%, #466b7c 42%, #1c4059 100%);
 }
 
 .snow-layer-control {

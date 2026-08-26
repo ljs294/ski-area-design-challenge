@@ -12,7 +12,8 @@ import type {
   TerrainPackageValidation,
   TerrainRecord,
 } from './types/terrain';
-import { COVER_DISPLAY_VERTEX_BUDGET, inspectCoverDisplayGeometry, type CoverDisplayStats } from './coverDisplay';
+import { COVER_DISPLAY_VERTEX_BUDGET, deriveCoverDisplayGeometry,
+  inspectCoverDisplayGeometry, type CoverDisplayStats } from './coverDisplay';
 
 /** Small deterministic checksum used to detect truncated/corrupt package files. */
 export function checksumBytes(bytes: ArrayLike<number>): string {
@@ -39,12 +40,12 @@ export function coverMetadataOf(grid: CoverGrid): CoverMetadata {
   return { ...base, byteLength: bytes.byteLength, checksum: checksumBytes(bytes) };
 }
 
-export function contourMetadataOf(segments: number[], gridSize: number, intervalM: number) {
+export function contourMetadataOf(segments: ArrayLike<number>, gridSize: number, intervalM: number) {
   const bytes = float32Bytes(segments);
   return { intervalM, segmentCount: Math.floor(segments.length / 5), byteLength: bytes.byteLength, checksum: checksumBytes(bytes), gridSize };
 }
 
-export function coverGeometryMetadataOf(segments: number[]): CoverGeometryMetadata {
+export function coverGeometryMetadataOf(segments: ArrayLike<number>): CoverGeometryMetadata {
   const bytes = float32Bytes(segments);
   return { segmentCount: Math.floor(segments.length / 5), byteLength: bytes.byteLength, checksum: checksumBytes(bytes) };
 }
@@ -98,6 +99,20 @@ export function manifestWithUpdatedCover(record: TerrainRecord): TerrainPackageM
     },
     preparedAt: new Date().toISOString(),
   };
+}
+
+/** Upgrade a legacy prepared package with the current compact display asset. */
+export function withPreparedCoverDisplay(record: TerrainRecord): TerrainRecord {
+  if (!record.coverGrid) return record;
+  const display = deriveCoverDisplayGeometry(record.coverGrid);
+  let upgraded: TerrainRecord = {
+    ...record,
+    schemaVersion: 5,
+    coverDisplayGeometry: display.geometry,
+    coverDisplayMetadata: coverDisplayMetadataOf(display.geometry, display.stats),
+  };
+  upgraded = { ...upgraded, packageManifest: manifestOf(upgraded) };
+  return upgraded;
 }
 
 export function manifestOf(record: TerrainRecord): TerrainPackageManifest {
