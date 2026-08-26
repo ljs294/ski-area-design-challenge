@@ -3,6 +3,7 @@
 // when running as a plain web page. Legacy localStorage records are migrated
 // once on read, but no large package is ever written there.
 import { desktop } from './desktopBridge';
+import { deleteWeatherPackage } from './weatherStorageClient';
 import type {
   TerrainSaveResponse,
   TerrainCoverSaveRequest,
@@ -270,7 +271,11 @@ export async function listTerrains(): Promise<TerrainListResponse> {
 }
 
 export async function deleteTerrain(key: string): Promise<TerrainDeleteResponse> {
-  if (desktop) return desktop.terrain.delete(key);
+  if (desktop) {
+    const result = await desktop.terrain.delete(key);
+    if (result.ok) await deleteWeatherPackage(key);
+    return result;
+  }
 
   const db = await openTerrainDb();
   await new Promise<void>((resolve, reject) => {
@@ -283,6 +288,7 @@ export async function deleteTerrain(key: string): Promise<TerrainDeleteResponse>
     tx.onabort = tx.onerror;
   }).finally(() => db.close());
   localStorage.removeItem(LEGACY_PREFIX + key);
+  await deleteWeatherPackage(key);
   return { ok: true };
 }
 

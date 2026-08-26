@@ -12,6 +12,7 @@ import type {
   TerrainSummary,
   VectorFeatureSet,
 } from './types';
+import type { WeatherDataPackage } from './weather/weatherModel';
 
 export const TERRAIN_SAVE_CHANNEL = 'terrain:save';
 export const TERRAIN_SAVE_COVER_CHANNEL = 'terrain:save-cover';
@@ -19,6 +20,9 @@ export const TERRAIN_SAVE_CONTEXT_CHANNEL = 'terrain:save-context';
 export const TERRAIN_LOAD_CHANNEL = 'terrain:load';
 export const TERRAIN_LIST_CHANNEL = 'terrain:list';
 export const TERRAIN_DELETE_CHANNEL = 'terrain:delete';
+export const WEATHER_SAVE_CHANNEL = 'weather:save';
+export const WEATHER_LOAD_CHANNEL = 'weather:load';
+export const WEATHER_DELETE_CHANNEL = 'weather:delete';
 
 // --- Game saves (resort designs). Distinct from raw terrain records. ---
 export const GAMESAVE_SAVE_CHANNEL = 'gamesave:save';
@@ -114,3 +118,10 @@ export interface TerrainDeleteRequest {
 export interface TerrainDeleteResponse {
   ok: boolean;
 }
+
+export interface WeatherSaveRequest { weatherPackage: WeatherDataPackage; }
+export type WeatherSaveResponse = { ok: true } | { ok: false; error: string };
+export interface WeatherLoadRequest { terrainKey: string; }
+export type WeatherLoadResponse = WeatherDataPackage | null;
+export interface WeatherDeleteRequest { terrainKey: string; }
+export type WeatherDeleteResponse = { ok: true } | { ok: false; error: string };

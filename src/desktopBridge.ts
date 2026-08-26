@@ -10,6 +10,9 @@ import type {
   TerrainLoadResponse,
   TerrainListResponse,
   TerrainDeleteResponse,
+  WeatherSaveResponse,
+  WeatherLoadResponse,
+  WeatherDeleteResponse,
   GameSaveSaveResponse,
   GameSaveLoadResponse,
   GameSaveListResponse,
@@ -20,6 +23,7 @@ import type {
 } from './ipcContract';
 import type { TerrainRecord } from './types';
 import type { GameSave } from './types';
+import type { WeatherDataPackage } from './weather/weatherModel';
 
 export interface DesktopApi {
   isDesktop: true;
@@ -35,6 +39,11 @@ export interface DesktopApi {
     saveMapContext(request: TerrainMapContextSaveRequest): Promise<TerrainMapContextSaveResponse>;
     list(): Promise<TerrainListResponse>;
     delete(key: string): Promise<TerrainDeleteResponse>;
+  };
+  weather: {
+    save(weatherPackage: WeatherDataPackage): Promise<WeatherSaveResponse>;
+    load(terrainKey: string): Promise<WeatherLoadResponse>;
+    delete(terrainKey: string): Promise<WeatherDeleteResponse>;
   };
   games: {
     save(save: GameSave): Promise<GameSaveSaveResponse>;

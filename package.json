@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite",
     "dev:lab": "node scripts/devLab.mjs",
+    "dev:weather-lab": "node scripts/devWeatherLab.mjs",
+    "weather:service": "node weather-service/server.mjs",
     "build": "npm run typecheck && npm run build:desktop",
     "build:desktop": "vite build",
     "build:web": "vite build --config vite.config.web.ts",
