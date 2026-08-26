@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "vite",
     "dev:lab": "node scripts/devLab.mjs",
+    "sim:time": "tsx time-engine/src/cli.ts",
+    "sim:weather": "tsx weather-engine/src/cli.ts",
+    "sim:weather:refresh-jackson": "tsx weather-engine/src/refreshJacksonFixture.ts",
     "build": "npm run typecheck && npm run build:desktop",
     "build:desktop": "vite build",
     "build:web": "vite build --config vite.config.web.ts",
@@ -42,6 +45,7 @@
     "eslint": "10.8.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "playwright": "^1.61.1",
+    "tsx": "4.23.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
     "vite-plugin-electron": "^1.1.0",
