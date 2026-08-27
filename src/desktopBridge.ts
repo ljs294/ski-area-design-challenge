@@ -12,7 +12,10 @@ import type {
   TerrainDeleteResponse,
   WeatherSaveResponse,
   WeatherLoadResponse,
+  WeatherLoadByContentHashResponse,
+  WeatherLoadInstallByContentHashResponse,
   WeatherDeleteResponse,
+  WeatherPackageStorageInstall,
   GameSaveSaveResponse,
   GameSaveLoadResponse,
   GameSaveListResponse,
@@ -41,8 +44,12 @@ export interface DesktopApi {
     delete(key: string): Promise<TerrainDeleteResponse>;
   };
   weather: {
+    /** Backward-compatible v1 package writer. New callers should use install. */
     save(weatherPackage: WeatherDataPackage): Promise<WeatherSaveResponse>;
+    install(install: WeatherPackageStorageInstall): Promise<WeatherSaveResponse>;
     load(terrainKey: string): Promise<WeatherLoadResponse>;
+    loadByContentHash(contentHash: string): Promise<WeatherLoadByContentHashResponse>;
+    loadInstallByContentHash(contentHash: string): Promise<WeatherLoadInstallByContentHashResponse>;
     delete(terrainKey: string): Promise<WeatherDeleteResponse>;
   };
   games: {

@@ -1,5 +1,12 @@
 import type { TerrainRecord } from '../types/terrain';
-import type { TemperatureField, TerrainThermalModel, WeatherReferenceHour } from './weatherModel';
+import {
+  precipitationPhaseCode,
+  precipitationTypeFor,
+  type TemperatureField,
+  type TerrainThermalModel,
+  type TerrainWeatherField,
+  type WeatherReferenceHour,
+} from './weatherModel';
 
 const MAX_DIMENSION = 512;
 
@@ -47,6 +54,43 @@ export function temperatureFieldForHour(
     temperatureC[index] = hour.temperatureC + model.elevationDeltaM[index] / 1000 * lapseRate - model.coldAirDrainage[index] * inversion;
   }
   return { ...model, temperatureC };
+}
+
+function wetBulbAt(temperatureC: number, humidityPct: number): number {
+  const humidity = Math.max(1, Math.min(100, humidityPct));
+  // Stull's compact approximation is stable for each terrain grid cell and
+  // avoids coupling this pure terrain resolver to WeatherSession/runtime code.
+  return temperatureC * Math.atan(0.151977 * Math.sqrt(humidity + 8.313659)) +
+    Math.atan(temperatureC + humidity) - Math.atan(humidity - 1.676331) +
+    0.00391838 * humidity ** 1.5 * Math.atan(0.023101 * humidity) - 4.686035;
+}
+
+/**
+ * Resolve snow-cover-ready terrain fields from the immutable reference
+ * atmosphere. This is rebuilt after a terrain grade from its elevation grid;
+ * regional history is never fetched again.
+ */
+export function terrainWeatherFieldForHour(
+  model: TerrainThermalModel,
+  hour: WeatherReferenceHour,
+  options: { lapseRateCPerKm?: number; inversionStrengthC?: number } = {},
+): TerrainWeatherField {
+  const temperature = temperatureFieldForHour(model, hour, options);
+  const wetBulbC = new Float32Array(temperature.temperatureC.length);
+  const precipitationPhase = new Uint8Array(temperature.temperatureC.length);
+  const snowRatio = new Float32Array(temperature.temperatureC.length);
+  const humidityPct = Math.max(1, Math.min(100, hour.humidityPct));
+  for (let index = 0; index < temperature.temperatureC.length; index += 1) {
+    const localWetBulb = wetBulbAt(temperature.temperatureC[index], humidityPct);
+    const phase = precipitationTypeFor(temperature.temperatureC[index], localWetBulb, hour.precipitationMm);
+    wetBulbC[index] = localWetBulb;
+    precipitationPhase[index] = precipitationPhaseCode(phase);
+    if (phase === 'snow' || phase === 'mixed') {
+      const ratio = Math.max(8, Math.min(18, 8 + -localWetBulb * 0.8));
+      snowRatio[index] = phase === 'mixed' ? ratio * 0.5 : ratio;
+    }
+  }
+  return { ...temperature, wetBulbC, precipitationPhase, snowRatio };
 }
 
 export function sampleTemperatureField(field: TemperatureField, lng: number, lat: number): number | null {

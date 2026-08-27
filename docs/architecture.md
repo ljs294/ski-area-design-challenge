@@ -4,7 +4,7 @@ This document describes the repository as it is currently landed. Proposed refac
 
 ## Runtime surfaces
 
-The supported product renderer starts at [`index.html`](../index.html), which loads [`src/app/main.tsx`](../src/app/main.tsx). That entry mounts the React application. [`src/app/App.tsx`](../src/app/App.tsx) owns the top-level screen state for the menu, new-game picker, active game, map management, and graphics lab. It also coordinates save loading, boot progress, settings, and close checkpoints.
+The supported product renderer starts at [`index.html`](../index.html), which loads [`src/app/main.tsx`](../src/app/main.tsx). That entry mounts the React application. [`src/app/App.tsx`](../src/app/App.tsx) owns the top-level screen state for the menu, new-game picker, active game, map management, graphics lab, and weather lab. It also coordinates save loading, boot progress, settings, and close checkpoints.
 
 [`src/app/MapView.tsx`](../src/app/MapView.tsx) is the gameplay composition root. It owns the committed design collections and document ports, terrain preparation, save/load snapshots, centralized selection, contribution assembly, and capture composition. [`src/app/useMapRuntime.ts`](../src/app/useMapRuntime.ts) owns MapLibre creation, style restoration, camera warm-up, and live render settings; [`src/app/MapViewChrome.tsx`](../src/app/MapViewChrome.tsx) composes presentation overlays, and [`src/app/MapGameDock.tsx`](../src/app/MapGameDock.tsx) composes the feature panels. Every construction workflow is controller-owned. `MapView` remains deliberately within the enforced 1,800-line, 40-import, 15-effect, and zero-worker-construction budgets.
 
@@ -17,6 +17,7 @@ Gameplay, Map Management, Graphics Lab, and the animated menu backdrop are lazy 
 Two developer surfaces are supported:
 
 - [`src/app/GraphicsLab.tsx`](../src/app/GraphicsLab.tsx) is a React graphics lab opened through `npm run dev:lab` or the application shortcut.
+- [`src/app/WeatherLab.tsx`](../src/app/WeatherLab.tsx) is a lazy offline weather package and simulation harness opened through `#weather-lab`. `npm run dev:weather-lab` starts its browser-only renderer and a clearly labeled fixture package-builder service for local development.
 - [`spike.html`](../spike.html) with [`src/spike/spikeMain.ts`](../src/spike/spikeMain.ts) is a standalone MapLibre data-source spike served with the spike Vite configuration.
 
 ## Data and persistence
@@ -27,9 +28,11 @@ Authoritative models live under [`src/types/`](../src/types/), ordered from depe
 
 Terrain preparation is orchestrated by [`src/terrainIngest.ts`](../src/terrainIngest.ts). It fetches elevation and surrounding elevation, NAIP data, and vector context; a terminable transferable worker derives four-class cover and compact display assets; the orchestrator persists and verifies a `TerrainRecord` and returns that persisted record directly. Browser-only WorldCover sampling enters through the required `ResortPreparationServices` port supplied by `MapView`; preparation progress and cancellation use a named options object. Browser storage fallback and Electron storage are accessed through [`src/terrainStorageClient.ts`](../src/terrainStorageClient.ts). IndexedDB separates summaries, metadata, and typed-array assets, with lazy hydration of legacy whole records; desktop binary sidecars remain typed through IPC and large reads/writes use promise-based filesystem operations.
 
+Weather is a separate, immutable sidecar rather than a terrain-record or save payload. [`weather-service/`](../weather-service/) is the explicit service-time package builder: it normalizes Daymet daily constraints, MERRA-2 hourly fields, and optional quality-gated GHCNh corrections into checksummed `weather-hour-v2` chunks. [`src/weather/`](../src/weather/) is dependency-neutral and decodes those chunks into a pure `WeatherSession`; it owns local-calendar/DST behavior, deterministic analog events, radiation, and terrain-resolved temperature, wet-bulb, phase, and snow-ratio fields. [`src/weatherStorageClient.ts`](../src/weatherStorageClient.ts) stores content-addressed manifests/chunks and active terrain bindings in IndexedDB or the aligned Electron weather-sidecar IPC. Gameplay and the Lab load only an installed package and never contact a provider at runtime.
+
 [`src/app/initialResortDesign.ts`](../src/app/initialResortDesign.ts) is the single load-time sanitizer and cross-entity topology hydration boundary for persisted design collections. [`src/app/useElevationBackfill.ts`](../src/app/useElevationBackfill.ts) isolates the one-time compatibility repair for saves lacking construction elevations, while [`src/app/useMapSampling.ts`](../src/app/useMapSampling.ts) owns picker/local terrain sampling and cursor readout.
 
-`GameSave` currently supports schema versions 1 through 13. Snowmaking pipe segment and pump-port metadata was added at version 12. Version 13 adds the optional compact per-resort snow snapshot; older or malformed snapshots derive a deterministic midwinter baseline without blocking load. Browser storage uses local storage while Electron delegates through the preload bridge to filesystem-backed IPC handlers.
+`GameSave` currently supports schema versions 1 through 15. Snowmaking pipe segment and pump-port metadata was added at version 12. Version 13 adds the optional compact per-resort snow snapshot; older or malformed snapshots derive a deterministic midwinter baseline without blocking load. Version 15 adds an optional pinned `weatherRun` (package hash, terrain binding, deterministic seed/version, local start, and cursor); older saves remain weather-unprepared and never auto-download. Browser storage uses local storage while Electron delegates through the preload bridge to filesystem-backed IPC handlers.
 
 ## Map and worker ownership
 

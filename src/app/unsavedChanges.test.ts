@@ -112,6 +112,16 @@ describe('designHasEdits', () => {
     expect(designHasEdits(saved, { ...saved, name: 'Renamed' })).toBe(true);
   });
 
+  it('tracks a weather-session cursor as saveable read-only game state', () => {
+    const weatherRun = {
+      packageContentHash: 'weather-content', terrainBinding: 'terrain-binding', seed: 'game-terrain',
+      generatorVersion: 2, configurationVersion: 1, localStartAt: '2026-01-01T08:00:00.000Z', cursorHour: 0,
+    };
+    const persisted = designOf({ ...save, weatherRun });
+    const advanced = designOf({ ...save, weatherRun: { ...weatherRun, cursorHour: 1 } });
+    expect(designHasEdits(persisted, advanced)).toBe(true);
+  });
+
   it('stays dirty for an equal-but-rebuilt array, so a save is never skipped', () => {
     expect(designHasEdits(saved, { ...saved, lifts: [] })).toBe(true);
   });

@@ -47,6 +47,7 @@ const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
 const INITIAL_ZOOM = 12;
 
 export type MapMode = 'picking' | 'playing';
+type SavedWeatherRun = NonNullable<GameSave['weatherRun']>;
 
 /**
  * Editing the graph nodes along a run. A node is a junction in the trail
@@ -224,8 +225,10 @@ export function MapView({
   const reportFailure = (message: string) =>
     reportBoot({ type: 'failed', message, repair: () => repairRef.current() });
   const [saved, setSaved] = useState<GameSave | null>(initialSave);
-  // Unlike `saved`, this ref is never changed by live UI edits such as rename.
-  // Exit checkpoints spread this exact record so manual-save semantics remain.
+  // Weather is deterministic/read-only; its ref keeps snapshots coherent between renders.
+  const [weatherRun, setWeatherRun] = useState<SavedWeatherRun | undefined>(initialSave?.weatherRun);
+  const weatherRunRef = useRef<SavedWeatherRun | undefined>(initialSave?.weatherRun);
+  // Exit checkpoints spread this exact record, unaffected by unrelated live UI edits.
   const persistedSaveRef = useRef<GameSave | null>(initialSave);
   const [nameDraft, setNameDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -1444,6 +1447,7 @@ export function MapView({
       snowmakingLakeIds: snowmakingLakeIdsRef.current,
       streamWidthOverrides: streamWidthOverridesRef.current,
       snow: snow.snapshot(base?.snow),
+      weatherRun: weatherRunRef.current ?? base?.weatherRun,
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
       lastPlayedAt: base?.lastPlayedAt,
@@ -1472,8 +1476,11 @@ export function MapView({
       lakeNameOverrides: lakeNameOverridesRef.current,
       snowmakingLakeIds: snowmakingLakeIdsRef.current,
       streamWidthOverrides: streamWidthOverridesRef.current,
+      weatherRun: weatherRunRef.current,
     };
   }
+
+  function updateWeatherRun(next: SavedWeatherRun) { weatherRunRef.current = next; setWeatherRun(next); }
 
   function hasUnsavedChanges(): boolean {
     return terrainHasEdits(terrainDirtyRef.current) || designHasEdits(savedDesign, liveDesign());
@@ -1714,6 +1721,7 @@ export function MapView({
           lifts, trails, roads, dams, ponds, snowmakingLakes: snowmakingLakes ?? [],
           snowmakingNodes, snowmakingPipes, snowguns, skiNodes, skiPaths,
           junctions, terrainRecord, network,
+          weatherRun, onWeatherRunChange: updateWeatherRun,
           selectedLiftId, selectedTrailId,
           selectedDamId, selectedPondId,
           selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedSnowgunId, selectedNodeId,

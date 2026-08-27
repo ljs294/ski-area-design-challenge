@@ -12,6 +12,8 @@ import {
   TERRAIN_DELETE_CHANNEL,
   WEATHER_SAVE_CHANNEL,
   WEATHER_LOAD_CHANNEL,
+  WEATHER_LOAD_BY_CONTENT_HASH_CHANNEL,
+  WEATHER_LOAD_INSTALL_BY_CONTENT_HASH_CHANNEL,
   WEATHER_DELETE_CHANNEL,
   GAMESAVE_SAVE_CHANNEL,
   GAMESAVE_LOAD_CHANNEL,
@@ -40,7 +42,12 @@ const api = {
   },
   weather: {
     save: (weatherPackage: unknown) => ipcRenderer.invoke(WEATHER_SAVE_CHANNEL, { weatherPackage }),
+    install: (install: unknown) => ipcRenderer.invoke(WEATHER_SAVE_CHANNEL, { install }),
     load: (terrainKey: string) => ipcRenderer.invoke(WEATHER_LOAD_CHANNEL, { terrainKey }),
+    loadByContentHash: (contentHash: string) => ipcRenderer.invoke(
+      WEATHER_LOAD_BY_CONTENT_HASH_CHANNEL, { contentHash }),
+    loadInstallByContentHash: (contentHash: string) => ipcRenderer.invoke(
+      WEATHER_LOAD_INSTALL_BY_CONTENT_HASH_CHANNEL, { contentHash }),
     delete: (terrainKey: string) => ipcRenderer.invoke(WEATHER_DELETE_CHANNEL, { terrainKey }),
   },
   games: {

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath,
   SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
   TerrainRecord } from '../types';
+import type { SavedWeatherRun } from '../types/gameSave';
 import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource } from '../types/snowmaking';
 import { analyzeLake } from '../lakeAnalysis';
 import { analyzeStream } from '../streamAnalysis';
@@ -60,6 +61,8 @@ export interface MapGameDockProps {
   skiPaths: SavedPath[];
   junctions: SavedJunction[];
   terrainRecord: TerrainRecord | null;
+  weatherRun: SavedWeatherRun | undefined;
+  onWeatherRunChange(run: SavedWeatherRun): void;
   network: SkiNetwork;
   selectedLiftId: string | null;
   selectedTrailId: string | null;
@@ -388,7 +391,8 @@ export function MapGameDock(props: MapGameDockProps) {
     <DockButton id="infrastructure" label="Infrastructure" open={infrastructureOpen}
       onClick={props.toggleDock} />
   </div></div><GameToolbar resortName={props.saved.name} onOpenStats={props.openStats}
-    readout={readout} units={props.units} /></div>;
+    readout={readout} units={props.units} terrain={props.terrainRecord}
+    weatherRun={props.weatherRun} onWeatherRunChange={props.onWeatherRunChange} /></div>;
 }
 
 function DockButton({ id, label, open, onClick }: {

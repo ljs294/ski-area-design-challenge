@@ -8,7 +8,7 @@ import { sanitizeNodes, sanitizePaths } from './skiNodes';
 import { hydrateSnowmakingNetwork } from './snowmakingNetwork';
 import { sanitizeJunctions } from './topology';
 import { sanitizeTrails } from './trails';
-import type { GameSave, SavedSiteBox } from './types/gameSave';
+import { isSavedWeatherRun, type GameSave, type SavedSiteBox, type SavedWeatherRun } from './types/gameSave';
 import type { SavedLift } from './types/lifts';
 import type { SavedRoad } from './types/roads';
 import type { SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
@@ -18,7 +18,7 @@ import type { SavedTrail } from './types/trails';
 import type { SavedSnowGrid } from './types/snow';
 
 interface ExpectedGameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
   key: string;
   name: string;
   mountainId?: string;
@@ -46,6 +46,7 @@ interface ExpectedGameSave {
   snowmakingLakeIds?: string[];
   streamWidthOverrides?: Record<string, number>;
   snow?: SavedSnowGrid;
+  weatherRun?: SavedWeatherRun;
   createdAt: string;
   updatedAt: string;
   lastPlayedAt?: string;
@@ -168,8 +169,25 @@ describe('GameSave compatibility boundary', () => {
     });
   });
 
-  it('keeps newly written saves on schema version 14', () => {
-    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(14);
-    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<14>();
+  it('keeps legacy saves weather-unprepared and validates v15 pinned runs', () => {
+    expect((legacyFixture as GameSave).weatherRun).toBeUndefined();
+    const weatherRun = {
+      packageContentHash: 'a'.repeat(64),
+      terrainBinding: 'terrain-binding',
+      seed: 'winter-2030',
+      generatorVersion: 2,
+      configurationVersion: 1,
+      localStartAt: '2030-01-01T00:00:00-08:00',
+      cursorHour: 24,
+    } satisfies SavedWeatherRun;
+    expect(isSavedWeatherRun(weatherRun)).toBe(true);
+    expect(isSavedWeatherRun({ ...weatherRun, cursorHour: -1 })).toBe(false);
+    const schema15: GameSave = { ...currentFixture, schemaVersion: 15, weatherRun };
+    expect(schema15.weatherRun?.packageContentHash).toBe(weatherRun.packageContentHash);
+  });
+
+  it('keeps newly written saves on schema version 15', () => {
+    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(15);
+    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<15>();
   });
 });
