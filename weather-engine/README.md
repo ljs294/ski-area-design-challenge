@@ -1,7 +1,10 @@
 # Standalone Weather Engine
 
-This module is a deterministic development simulator for Mountain Planner. It uses the
-existing pure time engine but does not import React, Electron, or the game runtime.
+Version 2 is the dependency-neutral authority for standalone climate compilation,
+hourly simulation, forecasts, snapshots, canonical hashes, and comparison. The
+standalone CLI and Web Worker both use the incremental API exported by `src/index.ts`.
+The legacy winter simulator remains characterized during migration and is not used by
+the independent Weather Model Lab.
 
 ## Run it
 
@@ -14,47 +17,23 @@ npm run sim:weather
 On Windows, `run-weather-engine.bat` can also be double-clicked. The no-argument run
 uses Black Mountain in Jackson, New Hampshire at 1,300 / 1,825 / 2,350 feet.
 
-Useful commands inside the simulator:
-
-```text
-play
-speed 4
-speed 8x
-pause
-step 1d
-skip week
-skip ahead week
-skip to event
-weather hourly
-weather week
-weather off
-weather on
-weather toggle
-weather day 3
-weather band summit
-weather events
-weather seed my-test-seed
-```
-
-For a compact non-interactive check:
+Generate Jackson 2019 through the same canonical path as the worker:
 
 ```powershell
-npm run sim:weather -- --step 1w --json
-npm run sim:weather -- --skip event --json
+npm run sim:weather -- --seed Historical
+npm run sim:weather -- --seed Historical --difficulty severe --json
+npm run sim:weather -- --output jackson-2019.json
 ```
 
-Custom coordinates use the provider chain Daymet (North America), NASA POWER
-(worldwide), then a deterministic procedural fallback:
-
-```powershell
-npm run sim:weather -- --lat 39.6061 --lon -106.355 --base 2476 --mid 3000 --summit 3527
-```
+Other locations are prepared through the additive `/v1/weather-lab/` service APIs.
+Provider failures are explicit; no procedural or legacy analog series substitutes
+for an observed comparison.
 
 ## Jackson fixture
 
 Normal Jackson runs and all tests are offline. The committed fixture contains a
-52-bin normalized climate baseline derived only from NASA Daymet daily observations
-for 2010 through 2019. To deliberately refresh it:
+normalized source baseline derived from Daymet observations. To deliberately refresh
+the legacy characterization fixture:
 
 ```powershell
 npm run sim:weather:refresh-jackson
@@ -64,17 +43,7 @@ The fetched variables are daily minimum and maximum temperature, precipitation,
 vapor pressure, snow-water equivalent, and day length. A refresh requires network
 access and may change deterministic generated winters even when the seed is unchanged.
 
-## Model boundary
-
-`weatherEngine.ts` owns hidden truth, forecasts, weather events, random-stream state,
-and snapshots. It contains no terminal, filesystem, timer, browser, React, or Electron
-imports. `cli.ts` owns wall-clock scheduling, display, commands, and save files.
-
-Storm starts and continuation come from Jackson's measured dry-to-wet and wet-to-wet
-probabilities. Amounts use fitted weekly gamma distributions and local percentiles.
-Freeze/thaw and flash-freeze events are detected from generated hourly temperature
-and moisture; they are not independent random rolls.
-
-Snowpack, snowmaking, operations, construction, finance, attendance, and reputation
-are intentionally not implemented. They can later consume crossed weather hours and
-typed events without changing the time engine.
+`contracts.ts`, `climate/`, `engine/`, and `validation/` contain the pure v2 core.
+`scripts/weatherCli.ts` owns filesystem/stdout adaptation, while `weather-lab/` owns
+React, Canvas, and its worker lifecycle. Gameplay weather and schema-15 saves remain
+separate compatibility boundaries.

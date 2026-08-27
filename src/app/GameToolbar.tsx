@@ -64,12 +64,12 @@ function GameWeatherOverlay({
   weather: ReturnType<typeof useGameWeather>;
 }) {
   const model = useMemo(() => terrain ? createTerrainThermalModel(terrain) : null, [terrain]);
-  const temperatureRange = useMemo(() => {
-    if (!model || !weather.current) return null;
-    return range(temperatureFieldForHour(model, weather.current).temperatureC);
-  }, [model, weather.current]);
-  if (!weather.analysisOpen) return null;
   const current = weather.current;
+  const temperatureRange = useMemo(() => {
+    if (!model || !current) return null;
+    return range(temperatureFieldForHour(model, current).temperatureC);
+  }, [model, current]);
+  if (!weather.analysisOpen) return null;
   const source = current?.provenance.fields?.airTemperatureC;
   return <aside className="game-weather-overlay screen-panel" aria-label="Weather analysis overlay">
     <div className="game-weather-overlay-head"><strong>Weather analysis</strong><button className="ghost-btn" onClick={weather.toggleAnalysis}>Close</button></div>

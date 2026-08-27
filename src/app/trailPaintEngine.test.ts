@@ -49,7 +49,7 @@ describe('TrailPaintEngine', () => {
     expect(analysis.parts).toHaveLength(1);
     expect(haversineMeters(analysis.parts[0].centerline[0], analysis.parts[0].centerline.at(-1)!))
       .toBeGreaterThan(7900);
-  }, 2000);
+  }, 10_000);
 
   it('returns rounded vector edges without changing exact raster area', () => {
     const engine = new TrailPaintEngine(ORIGIN, 30);

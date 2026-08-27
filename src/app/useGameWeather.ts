@@ -119,19 +119,20 @@ export function useGameWeather({
     let cancelled = false;
     const publish = (next: GameWeatherState) => { if (!cancelled) setState(next); };
     const load = async () => {
+      const savedRun = latestRunRef.current;
       if (!terrain || !terrainBinding) {
         publish({ status: 'no-terrain', message: 'Weather requires a terrain map.', weatherPackage: null, session: null, playback: null });
         return;
       }
       publish({ status: 'loading', message: 'Loading installed offline weather package...', weatherPackage: null, session: null, playback: null });
       try {
-        if (weatherRun && weatherRun.terrainBinding !== terrainBinding) {
+        if (savedRun && savedRun.terrainBinding !== terrainBinding) {
           publish({ status: 'binding-mismatch', message: 'This saved weather run belongs to a different terrain revision.', weatherPackage: null, session: null, playback: null });
           return;
         }
         let weatherPackage: WeatherDataPackage | null = null;
-        if (weatherRun) {
-          weatherPackage = await loadWeatherPackageByContentHash(weatherRun.packageContentHash);
+        if (savedRun) {
+          weatherPackage = await loadWeatherPackageByContentHash(savedRun.packageContentHash);
           if (!weatherPackage) {
             publish({ status: 'package-unavailable', message: 'The weather package pinned by this save is unavailable locally.', weatherPackage: null, session: null, playback: null });
             return;
@@ -148,23 +149,23 @@ export function useGameWeather({
           publish({ status: 'binding-mismatch', message: 'The installed weather package belongs to a different terrain revision.', weatherPackage: null, session: null, playback: null });
           return;
         }
-        if (!weatherRun) {
+        if (!savedRun) {
           publish({ status: 'prepared', message: 'Offline weather is prepared. Start weather to create a deterministic game run.', weatherPackage, session: null, playback: null });
           return;
         }
-        if (weatherRun.generatorVersion !== weatherPackage.manifest.generatorVersion) {
+        if (savedRun.generatorVersion !== weatherPackage.manifest.generatorVersion) {
           publish({ status: 'version-mismatch', message: 'This save is pinned to an incompatible weather generator version.', weatherPackage: null, session: null, playback: null });
           return;
         }
         const session = await loadWeatherSession(weatherPackage, {
-          seed: weatherRun.seed,
-          startsAt: weatherRun.localStartAt,
+          seed: savedRun.seed,
+          startsAt: savedRun.localStartAt,
           latitude: terrain.latitude,
           longitude: terrain.longitude,
         });
         const historicalYear = session.historicalYears[0]?.year ?? weatherPackage.manifest.historicalStartYear;
         const basePlayback = createWeatherPlayback(session.plan, historicalYear);
-        const requestedCursor = new Date(new Date(session.plan.startsAt).getTime() + weatherRun.cursorHour * HOUR_MS).toISOString();
+        const requestedCursor = new Date(new Date(session.plan.startsAt).getTime() + savedRun.cursorHour * HOUR_MS).toISOString();
         const playback = seekWeatherPlayback(session.plan, basePlayback, requestedCursor);
         persistedCursorHourRef.current = cursorHour(session.plan.startsAt, playback.cursor);
         publish({ status: 'ready', message: 'Offline weather session ready.', weatherPackage, session, playback });

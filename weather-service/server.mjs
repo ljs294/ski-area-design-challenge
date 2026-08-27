@@ -8,6 +8,7 @@ import { WeatherPackageBuilder } from './lib/builder.mjs';
 import { asWeatherServiceError, WeatherServiceError } from './lib/errors.mjs';
 import { WeatherJobManager } from './lib/jobs.mjs';
 import { createProviderSet } from './lib/providers.mjs';
+import { WeatherLabService } from './lab/service.mjs';
 
 const MAX_REQUEST_BYTES = 256 * 1024;
 
@@ -103,6 +104,7 @@ export function createWeatherService(options = {}) {
   const providerSet = options.providerSet ?? createProviderSet({ mode, sourceCache, fetchImpl: options.fetchImpl ?? globalThis.fetch, environment });
   const builder = options.builder ?? new WeatherPackageBuilder({ providerSet, artifactStore, now: options.now });
   const jobs = options.jobs ?? new WeatherJobManager({ builder, now: options.now, idFactory: options.idFactory });
+  const weatherLab = options.weatherLab ?? new WeatherLabService({ cacheDirectory, mode });
 
   const handler = async (request, response) => {
     try {
@@ -120,6 +122,25 @@ export function createWeatherService(options = {}) {
           providerPolicy: providerSet.mode === 'fixture' ? 'fixture-v1' : 'daymet-v4r1-merra2-ghcnh-v1',
           providers: { daymet: providerSet.daymet.version, merra2: providerSet.merra2.version, ghcnh: providerSet.ghcnh.version },
         });
+      }
+
+      // Standalone Lab API. Its artifacts and jobs are intentionally isolated
+      // from installed gameplay weather packages under weather-lab-v1.
+      if (request.method === 'GET' && url.pathname === '/v1/weather-lab/stations') {
+        return sendJson(response, 200, { stations: weatherLab.stations(url.searchParams), mode });
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/weather-lab/preparations') {
+        return sendJson(response, 202, { preparation: await weatherLab.create(await readBody(request)) });
+      }
+      if (segments.length === 4 && segments[0] === 'v1' && segments[1] === 'weather-lab' && segments[2] === 'preparations') {
+        if (request.method === 'GET') return sendJson(response, 200, { preparation: await weatherLab.get(segments[3]) });
+        if (request.method === 'DELETE') return sendJson(response, 200, { preparation: await weatherLab.cancel(segments[3]) });
+      }
+      if (segments.length === 4 && segments[0] === 'v1' && segments[1] === 'weather-lab' && segments[2] === 'models' && request.method === 'GET') {
+        return sendJson(response, 200, await weatherLab.store.read('models', segments[3]));
+      }
+      if (segments.length === 4 && segments[0] === 'v1' && segments[1] === 'weather-lab' && segments[2] === 'observed-series' && request.method === 'GET') {
+        return sendJson(response, 200, await weatherLab.store.read('observations', segments[3]));
       }
 
       // Preferred asynchronous API.
@@ -183,7 +204,7 @@ export function createWeatherService(options = {}) {
       return sendError(response, error);
     }
   };
-  return { handler, jobs, builder, artifactStore, sourceCache, providerSet, cacheDirectory, mode };
+  return { handler, jobs, builder, artifactStore, sourceCache, providerSet, weatherLab, cacheDirectory, mode };
 }
 
 export function listenWeatherService(options = {}) {
