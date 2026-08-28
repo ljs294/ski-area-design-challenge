@@ -4,7 +4,7 @@ import { validateWeatherPackage } from './weatherStorageClient';
 import { weatherTerrainBinding } from './weather/terrainBinding';
 
 const DEFAULT_SERVICE_URL = 'http://127.0.0.1:8787';
-const SOURCE_POLICY_VERSION = 'daymet-v4r1-merra2-ghcnh-v1';
+const SOURCE_POLICY_VERSION = 'daymet-v4r1-merra2-v1';
 
 export interface WeatherPackageRequest {
   schemaVersion: 1;
@@ -26,7 +26,6 @@ export type WeatherBuildStage =
   | 'validating'
   | 'daymet'
   | 'merra2'
-  | 'ghcnh'
   | 'normalizing'
   | 'packing'
   | 'installing'

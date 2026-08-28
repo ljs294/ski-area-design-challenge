@@ -19,7 +19,7 @@ async function existingWeatherService() {
 const service = (await existingWeatherService()) ? null : spawn(process.execPath, ['weather-service/server.mjs'], {
   stdio: 'inherit',
   cwd: projectRoot,
-  env: { ...process.env, WEATHER_SERVICE_MODE: process.env.WEATHER_SERVICE_MODE ?? 'fixture' },
+  env: { ...process.env, WEATHER_SERVICE_MODE: process.env.WEATHER_SERVICE_MODE ?? 'live' },
 });
 const vite = spawn(process.execPath, [path.join(projectRoot, 'node_modules', 'vite', 'bin', 'vite.js'), '--config', 'vite.config.weatherLab.ts'], {
   stdio: 'inherit',

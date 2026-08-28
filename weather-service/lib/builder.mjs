@@ -150,26 +150,23 @@ function normalizedRadiation(dayHours, anchor, latitude, longitude) {
   return { global, constrainedTiming };
 }
 
-function fieldProvenance(providerSet, correction, flags) {
+function fieldProvenance(providerSet, flags) {
   const fixture = providerSet.mode === 'fixture';
   const quality = fixture ? 'limited' : 'estimated';
   const daymet = { provider: fixture ? 'legacy' : 'daymet', quality, sourceVersion: providerSet.daymet.version, correction: 'daymet-constrained' };
   const merra2 = { provider: fixture ? 'legacy' : 'merra-2', quality, sourceVersion: providerSet.merra2.version, correction: 'none' };
   const derived = { provider: 'derived', quality, sourceVersion: 'weather-builder-v2', correction: 'derived' };
-  const station = correction.applied
-    ? { provider: 'ghcnh', quality: correction.quality, sourceVersion: providerSet.ghcnh.version, correction: 'station-corrected' }
-    : merra2;
   return {
     airTemperatureC: daymet, wetBulbC: derived, relativeHumidityPct: daymet, surfacePressureHpa: merra2,
-    windUms: station, windVms: station, windGustKph: station, precipitationMm: daymet,
+    windUms: merra2, windVms: merra2, windGustKph: merra2, precipitationMm: daymet,
     precipitationType: derived, snowfallCm: derived, snowWaterEquivalentMm: daymet,
-    cloudCoverPct: station, cloudTransmissionPct: derived, visibilityKm: derived,
+    cloudCoverPct: merra2, cloudTransmissionPct: derived, visibilityKm: derived,
     globalHorizontalIrradianceWm2: daymet, directNormalIrradianceWm2: derived,
     diffuseHorizontalIrradianceWm2: derived, solarElevationDeg: derived, solarAzimuthDeg: derived,
   };
 }
 
-export function normalizeWeatherYear({ request, year, daily, hourly, correction, providerSet }) {
+export function normalizeWeatherYear({ request, year, daily, hourly, providerSet }) {
   const sourceHours = ensureSortedContinuousHours(hourly);
   const anchors = new Map(daily.map((anchor) => [anchor.date, anchor]));
   const output = [];
@@ -199,8 +196,8 @@ export function normalizeWeatherYear({ request, year, daily, hourly, correction,
       const temperatureC = temperatures[index];
       const humidityPct = humidity[index];
       const wetBulb = wetBulbC(temperatureC, humidityPct, source.pressureHpa);
-      const windSpeedKph = Math.hypot(source.uWindMps, source.vWindMps) * 3.6 * correction.windSpeedMultiplier;
-      const cloudCoverPct = clamp(source.cloudCoverPct + correction.cloudCoverBiasPct, 0, 100);
+      const windSpeedKph = Math.hypot(source.uWindMps, source.vWindMps) * 3.6;
+      const cloudCoverPct = clamp(source.cloudCoverPct, 0, 100);
       const geometry = solarGeometry(request.latitude, request.longitude, new Date(source.at));
       const global = radiation.global[index];
       const cloudTransmissionPct = geometry.clearSkyWm2 > 1 ? clamp(global / geometry.clearSkyWm2 * 100, 0, 100) : 0;
@@ -213,14 +210,14 @@ export function normalizeWeatherYear({ request, year, daily, hourly, correction,
       const phase = phaseAndSnowfall(precipitation.values[index], wetBulb);
       const fieldFlags = (providerSet.mode === 'fixture' ? 1 : 0)
         | (precipitation.constrainedTiming ? 2 : 0) | (radiation.constrainedTiming ? 4 : 0)
-        | (result.adjustedCalendar ? 8 : 0) | (correction.applied ? 16 : 0);
+        | (result.adjustedCalendar ? 8 : 0);
       output.push({
         at: source.at, temperatureC, wetBulbC: wetBulb, humidityPct, precipitationMm: precipitation.values[index], ...phase,
         windSpeedKph, windGustKph: windSpeedKph * (1.12 + cloudCoverPct / 300),
         windDirectionDeg: windDirectionDeg(source.uWindMps, source.vWindMps), cloudCoverPct,
         visibilityKm: clamp(35 - cloudCoverPct * 0.16 - precipitation.values[index] * 2.2, 0.2, 50),
-        pressureHpa: source.pressureHpa, radiationWm2: global, windUms: source.uWindMps * correction.windSpeedMultiplier,
-        windVms: source.vWindMps * correction.windSpeedMultiplier, snowWaterEquivalentMm: anchor.snowWaterEquivalentMm,
+        pressureHpa: source.pressureHpa, radiationWm2: global, windUms: source.uWindMps,
+        windVms: source.vWindMps, snowWaterEquivalentMm: anchor.snowWaterEquivalentMm,
         globalRadiationWm2: global, directRadiationWm2: directNormalWm2, diffuseRadiationWm2: global - directHorizontalWm2,
         cloudTransmissionPct, solarElevationDeg: geometry.elevationDeg, solarAzimuthDeg: geometry.azimuthDeg,
         provenance: { fieldFlags },
@@ -229,7 +226,7 @@ export function normalizeWeatherYear({ request, year, daily, hourly, correction,
   }
   return {
     hours: output,
-    provenance: fieldProvenance(providerSet, correction, { precipitationTiming, radiationTiming }),
+    provenance: fieldProvenance(providerSet, { precipitationTiming, radiationTiming }),
     flags: { precipitationTiming, radiationTiming, daymetCalendarAdjusted },
   };
 }
@@ -255,20 +252,16 @@ function sourceDescriptors(providerSet, sourceDetails) {
   return [
     source('daymet', providerSet.daymet.version, first.daymet?.grid?.id, 'https://daac.ornl.gov/DAYMET/guides/Daymet_Daily_V4R1.html', 'estimated'),
     source('merra-2', providerSet.merra2.version, first.merra2?.grid?.id, 'https://gmao.gsfc.nasa.gov/gmao-products/merra-2/', 'estimated'),
-    source('ghcnh', providerSet.ghcnh.version, first.ghcnh?.stations?.map((station) => station.id).filter(Boolean).join(',') || undefined,
-      'https://www.ncei.noaa.gov/products/global-historical-climatology-network-hourly', first.ghcnh?.applied ? 'verified' : 'limited'),
   ];
 }
 
-function sourcePayloadHashes(daymet, merra2, ghcnh) {
+function sourcePayloadHashes(daymet, merra2) {
   // These hashes are of normalized provider subsets, not their bulky raw
   // downloads. They let a package audit prove exactly which service-time
   // inputs produced each year without retaining provider files on a map.
   return {
     daymet: sha256(stableJson({ provider: daymet.provider, version: daymet.version, grid: daymet.sourceGrid, days: daymet.days })),
     merra2: sha256(stableJson({ provider: merra2.provider, version: merra2.version, grid: merra2.sourceGrid, hours: merra2.hours })),
-    ghcnh: sha256(stableJson({ provider: ghcnh.provider, version: ghcnh.version, stations: ghcnh.stations,
-      applied: ghcnh.applied, quality: ghcnh.quality, windSpeedMultiplier: ghcnh.windSpeedMultiplier, cloudCoverBiasPct: ghcnh.cloudCoverBiasPct })),
   };
 }
 
@@ -304,24 +297,21 @@ export class WeatherPackageBuilder {
     for (let index = 0; index < years.length; index += 1) {
       const year = years[index];
       context.throwIfAborted();
-      const base = index * 4;
-      onProgress({ stage: 'daymet', completed: base, total: years.length * 4, message: `Fetching Daymet daily constraints for ${year}.`, year });
+      const base = index * 3;
+      onProgress({ stage: 'daymet', completed: base, total: years.length * 3, message: `Fetching Daymet daily constraints for ${year}.`, year });
       const daymet = await this.providerSet.daymet.getDaily(request, year, context);
-      onProgress({ stage: 'merra2', completed: base + 1, total: years.length * 4, message: `Fetching MERRA-2 hourly atmosphere and local-day boundary for ${year}.`, year });
+      onProgress({ stage: 'merra2', completed: base + 1, total: years.length * 3, message: `Fetching MERRA-2 hourly atmosphere and local-day boundary for ${year}.`, year });
       const merra2 = prefetchedMerra2 ?? await this.providerSet.merra2.getHourly(request, year, context);
       const nextMerra2 = await this.providerSet.merra2.getHourly(request, year + 1, context);
       prefetchedMerra2 = nextMerra2;
-      onProgress({ stage: 'ghcnh', completed: base + 2, total: years.length * 4, message: `Applying quality-gated GHCNh correction for ${year}.`, year });
-      const ghcnh = await this.providerSet.ghcnh.getCorrection(request, year, context);
-      onProgress({ stage: 'normalizing', completed: base + 3, total: years.length * 4, message: `Normalizing hourly weather fields for ${year}.`, year });
-      const normalized = normalizeWeatherYear({ request, year, daily: daymet.days, hourly: [...merra2.hours, ...nextMerra2.hours], correction: ghcnh, providerSet: this.providerSet });
+      onProgress({ stage: 'normalizing', completed: base + 2, total: years.length * 3, message: `Normalizing hourly weather fields for ${year}.`, year });
+      const normalized = normalizeWeatherYear({ request, year, daily: daymet.days, hourly: [...merra2.hours, ...nextMerra2.hours], providerSet: this.providerSet });
       chunks.push(encodeWeatherHours(normalized.hours, year, normalized.provenance));
       sourceDetails.push({ year, daymet: { provider: daymet.provider, version: daymet.version, grid: daymet.sourceGrid },
         merra2: { provider: merra2.provider, version: merra2.version, grid: merra2.sourceGrid, localBoundaryYear: year + 1 },
-        ghcnh: { provider: ghcnh.provider, version: ghcnh.version, stations: ghcnh.stations, applied: ghcnh.applied, quality: ghcnh.quality },
-        sourceHashes: sourcePayloadHashes(daymet, merra2, ghcnh), flags: normalized.flags });
+        sourceHashes: sourcePayloadHashes(daymet, merra2), flags: normalized.flags });
     }
-    onProgress({ stage: 'packing', completed: years.length * 4, total: years.length * 4, message: 'Validating and compressing immutable weather chunks.' });
+    onProgress({ stage: 'packing', completed: years.length * 3, total: years.length * 3, message: 'Validating and compressing immutable weather chunks.' });
     const sources = sourceDescriptors(this.providerSet, sourceDetails);
     const coverage = {
       localCalendar: true,

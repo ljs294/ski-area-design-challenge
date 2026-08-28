@@ -7,3 +7,5 @@ export * from './engine/psychrometrics.ts';
 export * from './engine/weatherSimulation.ts';
 export * from './fixtures/jackson2019.ts';
 export * from './validation/comparison.ts';
+export * from './validation/daily.ts';
+export * from './validation/events.ts';

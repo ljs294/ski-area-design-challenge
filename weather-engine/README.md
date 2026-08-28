@@ -1,10 +1,8 @@
 # Standalone Weather Engine
 
-Version 2 is the dependency-neutral authority for standalone climate compilation,
+The dependency-neutral engine is the authority for standalone climate compilation,
 hourly simulation, forecasts, snapshots, canonical hashes, and comparison. The
 standalone CLI and Web Worker both use the incremental API exported by `src/index.ts`.
-The legacy winter simulator remains characterized during migration and is not used by
-the independent Weather Model Lab.
 
 ## Run it
 
@@ -14,8 +12,7 @@ From the repository folder:
 npm run sim:weather
 ```
 
-On Windows, `run-weather-engine.bat` can also be double-clicked. The no-argument run
-uses Black Mountain in Jackson, New Hampshire at 1,300 / 1,825 / 2,350 feet.
+On Windows, `run-weather-engine.bat` launches that same standalone command.
 
 Generate Jackson 2019 through the same canonical path as the worker:
 
@@ -31,17 +28,9 @@ for an observed comparison.
 
 ## Jackson fixture
 
-Normal Jackson runs and all tests are offline. The committed fixture contains a
-normalized source baseline derived from Daymet observations. To deliberately refresh
-the legacy characterization fixture:
-
-```powershell
-npm run sim:weather:refresh-jackson
-```
-
-The fetched variables are daily minimum and maximum temperature, precipitation,
-vapor pressure, snow-water equivalent, and day length. A refresh requires network
-access and may change deterministic generated winters even when the seed is unchanged.
+Normal Jackson runs and all tests are offline. The committed development fixture is
+implemented in `src/fixtures/jackson2019.ts`; live locations are prepared through the
+Weather Lab service and never fall back to the fixture.
 
 `contracts.ts`, `climate/`, `engine/`, and `validation/` contain the pure v2 core.
 `scripts/weatherCli.ts` owns filesystem/stdout adaptation, while `weather-lab/` owns

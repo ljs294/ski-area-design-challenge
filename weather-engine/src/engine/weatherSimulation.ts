@@ -2,9 +2,10 @@ import type {
   ForecastDayV1, ForecastHourV1, ForecastIssueV1, HourlyNormalV1, LocationClimateModelV1,
   MacroAirMassDefinitionV1, MacroAirMassId, MonthlyClimateModelV1, SimulatedElevationBandV1,
   SimulatedWeatherHourV1, WeatherCondition, WeatherDifficultyProfileV1, WeatherEngineSnapshotV2,
-  WeatherHazard, WeatherLabRunRequestV1, WeatherMonth, WeatherRandomStateV1,
+  WeatherHazard, WeatherLabRunRequest, WeatherMonth, WeatherRandomStateV1, WeatherSimulationTuningV1,
 } from '../contracts.ts';
-import { WEATHER_ENGINE_ID, WEATHER_GENERATOR_VERSION } from '../contracts.ts';
+import { simulationTuningForDifficulty, WEATHER_ENGINE_ID, WEATHER_GENERATOR_VERSION,
+  WEATHER_SIMULATION_TUNING_LIMITS } from '../contracts.ts';
 import { canonicalJson, hashWithout, hmacSha256, normalizeWorldSeed, sha256Hex } from './canonical.ts';
 import { monthBlend, weatherCalendarYear, type WeatherCalendarHour } from './calendar.ts';
 import { WeatherRandom } from './randomV2.ts';
@@ -12,9 +13,10 @@ import { angularDifference, clamp, precipitationPhase, pressureAtElevation, quan
 
 const MACROS: readonly MacroAirMassId[] = ['arctic', 'continental-polar', 'maritime-polar', 'warm-wet', 'frontal'];
 const PRECIPITATING = new Set<WeatherCondition>(['flurries', 'snow', 'heavy-snow', 'mixed', 'freezing-rain', 'rain']);
+export const V1_COMPATIBILITY_COMPARISON_STREAM_KEY = 'weather-v1-historical';
 
 export interface WeatherSimulationV2 {
-  readonly run: WeatherLabRunRequestV1;
+  readonly run: WeatherLabRunRequest;
   readonly model: LocationClimateModelV1;
   readonly calendar: readonly WeatherCalendarHour[];
   readonly snapshot: WeatherEngineSnapshotV2;
@@ -47,17 +49,42 @@ function assertDifficulty(profile: WeatherDifficultyProfileV1): void {
   }
 }
 
-function runIdentity(run: WeatherLabRunRequestV1): string {
+function assertTuning(tuning: WeatherSimulationTuningV1): void {
+  if (tuning.version !== 1 || !tuning.id.trim()) throw new Error('Weather simulation tuning identity is invalid');
+  for (const [key, [minimum, maximum]] of Object.entries(WEATHER_SIMULATION_TUNING_LIMITS) as
+    Array<[keyof typeof WEATHER_SIMULATION_TUNING_LIMITS, readonly [number, number]]>) {
+    const value = tuning[key];
+    if ((key === 'temperatureAr1' || key === 'dewPointAr1') && value == null) continue;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) {
+      throw new Error(`${key} must be between ${minimum} and ${maximum}`);
+    }
+  }
+  if (!Number.isInteger(tuning.hourlyNormalSmoothingRadius)) {
+    throw new Error('hourlyNormalSmoothingRadius must be an integer');
+  }
+}
+
+function tuningFor(run: WeatherLabRunRequest): WeatherSimulationTuningV1 {
+  return run.version === 2 ? run.tuning : simulationTuningForDifficulty(run.difficultyProfile);
+}
+
+function runIdentity(run: WeatherLabRunRequest): string {
   return sha256Hex({ engineId: WEATHER_ENGINE_ID, ...run, worldSeed: normalizeWorldSeed(run.worldSeed),
     difficultyProfileHash: sha256Hex(run.difficultyProfile) });
 }
 
-function monthStreams(run: WeatherLabRunRequestV1, month: WeatherMonth): WeatherEngineSnapshotV2['streams'] {
+function monthStreams(run: WeatherLabRunRequest, month: WeatherMonth): WeatherEngineSnapshotV2['streams'] {
   const seed = normalizeWorldSeed(run.worldSeed);
-  const base = { engineId: WEATHER_ENGINE_ID, generatorVersion: run.generatorVersion,
-    climateModelHash: run.climateModelHash, difficultyProfileHash: sha256Hex(run.difficultyProfile),
-    locationKey: run.location.id, validationYear: run.validationYear,
+  const shared = { engineId: WEATHER_ENGINE_ID, generatorVersion: run.generatorVersion,
+    climateModelHash: run.climateModelHash, locationKey: run.location.id, validationYear: run.validationYear,
     yyyyMm: `${run.validationYear}-${String(month).padStart(2, '0')}` };
+  // The compatibility key deliberately uses the original V1 payload shape so a
+  // historical V2 baseline starts every month from the exact V1 stream sequence.
+  const useV1CompatibilityStreams = run.version === 1
+    || run.comparisonStreamKey === V1_COMPATIBILITY_COMPARISON_STREAM_KEY;
+  const base = useV1CompatibilityStreams
+    ? { ...shared, difficultyProfileHash: sha256Hex(run.difficultyProfile) }
+    : { ...shared, comparisonStreamKey: run.comparisonStreamKey };
   const stream = (name: string): WeatherRandomStateV1 => WeatherRandom.fromDigest(hmacSha256(seed, { ...base, stream: name })).snapshot();
   return { macro: stream('macro'), local: stream('local'), emissions: stream('emissions'), forecastError: stream('forecast-error') };
 }
@@ -72,11 +99,11 @@ function blendNumber(current: number, previous: number, next: number, previousWe
   return current * (1 - previousWeight - nextWeight) + previous * previousWeight + next * nextWeight;
 }
 
-function blendedNormal(model: LocationClimateModelV1, calendar: WeatherCalendarHour): HourlyNormalV1 {
+function blendedNormalAtHour(model: LocationClimateModelV1, calendar: WeatherCalendarHour, hour: number): HourlyNormalV1 {
   const blend = monthBlend(calendar);
-  const current = modelMonth(model, blend.current).hourlyNormals[calendar.hour];
-  const previous = modelMonth(model, blend.previous).hourlyNormals[calendar.hour];
-  const next = modelMonth(model, blend.next).hourlyNormals[calendar.hour];
+  const current = modelMonth(model, blend.current).hourlyNormals[hour];
+  const previous = modelMonth(model, blend.previous).hourlyNormals[hour];
+  const next = modelMonth(model, blend.next).hourlyNormals[hour];
   const value = (key: keyof HourlyNormalV1) => blendNumber(current[key], previous[key], next[key], blend.previousWeight, blend.nextWeight);
   const directionDeltaPrevious = angularDifference(current.windDirectionDeg, previous.windDirectionDeg);
   const directionDeltaNext = angularDifference(current.windDirectionDeg, next.windDirectionDeg);
@@ -85,6 +112,25 @@ function blendedNormal(model: LocationClimateModelV1, calendar: WeatherCalendarH
     relativeHumidityPct: value('relativeHumidityPct'), windSpeedKph: value('windSpeedKph'),
     windDirectionDeg: (current.windDirectionDeg + directionDeltaPrevious * blend.previousWeight + directionDeltaNext * blend.nextWeight + 360) % 360,
     cloudCoverPct: value('cloudCoverPct'), visibilityKm: value('visibilityKm'), clearSkyRadiationWm2: value('clearSkyRadiationWm2') };
+}
+
+function blendedNormal(model: LocationClimateModelV1, calendar: WeatherCalendarHour, radius = 0): HourlyNormalV1 {
+  const center = blendedNormalAtHour(model, calendar, calendar.hour);
+  if (radius === 0) return center;
+  const normals = Array.from({ length: radius * 2 + 1 }, (_, index) =>
+    blendedNormalAtHour(model, calendar, (calendar.hour + index - radius + 24) % 24));
+  const mean = (key: Exclude<keyof HourlyNormalV1, 'windDirectionDeg'>) =>
+    normals.reduce((sum, normal) => sum + normal[key], 0) / normals.length;
+  return {
+    temperatureC: mean('temperatureC'), temperatureStdDevC: mean('temperatureStdDevC'),
+    dewPointC: mean('dewPointC'), dewPointStdDevC: mean('dewPointStdDevC'),
+    pressureHpa: mean('pressureHpa'), relativeHumidityPct: mean('relativeHumidityPct'),
+    windSpeedKph: mean('windSpeedKph'),
+    windDirectionDeg: (center.windDirectionDeg + normals.reduce((sum, normal) =>
+      sum + angularDifference(center.windDirectionDeg, normal.windDirectionDeg), 0) / normals.length + 360) % 360,
+    cloudCoverPct: mean('cloudCoverPct'), visibilityKm: mean('visibilityKm'),
+    clearSkyRadiationWm2: mean('clearSkyRadiationWm2'),
+  };
 }
 
 function definition(month: MonthlyClimateModelV1, id: MacroAirMassId): MacroAirMassDefinitionV1 {
@@ -104,30 +150,48 @@ function tilted(weights: readonly number[], multipliers: readonly number[]): num
   return adjusted.map((value) => value / total);
 }
 
+export function adjustedMacroTransitionRow(month: MonthlyClimateModelV1, priorMacro: MacroAirMassId,
+  tuning: WeatherSimulationTuningV1): readonly number[] {
+  const row = month.macro.transitionMatrix[MACROS.indexOf(priorMacro)];
+  const multipliers = MACROS.map((id) => id === 'arctic' ? tuning.coldOutbreakMultiplier
+    : id === 'warm-wet' ? tuning.warmIntrusionMultiplier
+      : id === 'frontal' ? tuning.extremeEventMultiplier : 1);
+  return tilted(row, multipliers);
+}
+
 function chooseMacro(snapshot: WeatherEngineSnapshotV2, month: MonthlyClimateModelV1, random: WeatherRandom,
-  difficulty: WeatherDifficultyProfileV1): { id: MacroAirMassId; duration: number; changed: boolean } {
-  if (snapshot.macroHoursRemaining > 0) return { id: snapshot.macroAirMass, duration: snapshot.macroHoursRemaining, changed: false };
-  const row = month.macro.transitionMatrix[MACROS.indexOf(snapshot.macroAirMass)];
-  const multipliers = MACROS.map((id) => id === 'arctic' ? difficulty.coldOutbreakMultiplier :
-    id === 'warm-wet' ? difficulty.warmIntrusionMultiplier : id === 'frontal' ? difficulty.extremeEventMultiplier : 1);
-  const id = MACROS[random.weighted(tilted(row, multipliers))];
+  tuning: WeatherSimulationTuningV1): { id: MacroAirMassId; duration: number; changed: boolean } {
+  if (snapshot.macroHoursRemaining > 0) {
+    return { id: snapshot.macroAirMass, duration: snapshot.macroHoursRemaining, changed: false };
+  }
+  const row = adjustedMacroTransitionRow(month, snapshot.macroAirMass, tuning);
+  const id = MACROS[random.weighted(row)];
   const selected = definition(month, id);
   const duration = Math.round(clamp(random.normal(selected.meanDurationHours, selected.durationStdDevHours) *
-    difficulty.stormPersistenceMultiplier, id === 'frontal' ? 3 : 12, 24 * 8));
+    tuning.macroDurationMultiplier, id === 'frontal' ? 3 : 12, 24 * 8));
   return { id, duration, changed: id !== snapshot.macroAirMass };
 }
 
-function chooseCondition(snapshot: WeatherEngineSnapshotV2, month: MonthlyClimateModelV1, macro: MacroAirMassId,
-  random: WeatherRandom, difficulty: WeatherDifficultyProfileV1): WeatherCondition {
-  const priorIndex = Math.max(0, month.local.states.indexOf(snapshot.localCondition));
+export function adjustedConditionTransitionRow(month: MonthlyClimateModelV1, macro: MacroAirMassId,
+  priorCondition: WeatherCondition, tuning: WeatherSimulationTuningV1): readonly number[] {
+  const priorIndex = Math.max(0, month.local.states.indexOf(priorCondition));
   const row = month.local.hourlyMatricesByMacro[macro][priorIndex] ?? month.local.backoffRows;
+  const priorIsPrecipitating = PRECIPITATING.has(priorCondition);
   const multipliers = month.local.states.map((condition) => {
-    let multiplier = PRECIPITATING.has(condition) ? difficulty.stormArrivalMultiplier : 1;
-    if (condition === snapshot.localCondition) multiplier *= difficulty.stormPersistenceMultiplier;
-    if (condition === 'heavy-snow' || condition === 'freezing-rain') multiplier *= difficulty.extremeEventMultiplier;
+    let multiplier = !priorIsPrecipitating && PRECIPITATING.has(condition)
+      ? tuning.stormArrivalMultiplier : 1;
+    if (condition === priorCondition) multiplier *= tuning.conditionPersistenceMultiplier;
+    if (condition === 'heavy-snow' || condition === 'freezing-rain') multiplier *= tuning.extremeEventMultiplier;
     return multiplier;
   });
-  return month.local.states[random.weighted(tilted(row, multipliers))];
+  return tilted(row, multipliers);
+}
+
+function chooseCondition(snapshot: WeatherEngineSnapshotV2, month: MonthlyClimateModelV1, macro: MacroAirMassId,
+  random: WeatherRandom, tuning: WeatherSimulationTuningV1): WeatherCondition {
+  const priorIndex = Math.max(0, month.local.states.indexOf(snapshot.localCondition));
+  const row = adjustedConditionTransitionRow(month, macro, snapshot.localCondition, tuning);
+  return month.local.states[random.weighted(row)] ?? month.local.states[priorIndex];
 }
 
 function cloudFor(condition: WeatherCondition, normal: number, random: WeatherRandom): number {
@@ -160,12 +224,16 @@ function elevationBand(hour: Omit<SimulatedWeatherHourV1, 'bands'>, referenceEle
     windSpeedKph: quantize(hour.windSpeedKph * (1 + clamp((elevationM - referenceElevationM) * 0.00012, -0.1, 0.35)), 1) };
 }
 
-export function createWeatherSimulation(run: WeatherLabRunRequestV1, model: LocationClimateModelV1): WeatherSimulationV2 {
+export function createWeatherSimulation(run: WeatherLabRunRequest, model: LocationClimateModelV1): WeatherSimulationV2 {
   if (run.generatorVersion !== WEATHER_GENERATOR_VERSION || model.generatorVersion !== WEATHER_GENERATOR_VERSION) throw new Error('Weather generator version mismatch');
   if (run.climateModelHash !== model.climateModelHash || model.climateModelHash !== hashWithout(model, ['climateModelHash'])) throw new Error('Climate model hash mismatch');
   if (model.excludedValidationYear !== run.validationYear || model.trainingPeriod.years.includes(run.validationYear)) throw new Error('Validation year leaked into the climate model');
   if (model.primaryStation.id !== run.stationId || model.primaryStation.timezone !== run.stationTimeZone) throw new Error('Run station does not match climate model');
   assertDifficulty(run.difficultyProfile);
+  if (run.version === 2) {
+    assertTuning(run.tuning);
+    if (!run.comparisonStreamKey.trim()) throw new Error('comparisonStreamKey must not be empty');
+  }
   const normalizedRun = { ...run, worldSeed: normalizeWorldSeed(run.worldSeed) };
   const calendar = weatherCalendarYear(run.validationYear, run.stationTimeZone);
   const streams = monthStreams(normalizedRun, 1);
@@ -178,7 +246,7 @@ export function createWeatherSimulation(run: WeatherLabRunRequestV1, model: Loca
   return Object.freeze({ run: normalizedRun, model, calendar, snapshot });
 }
 
-export function restoreWeatherSnapshot(run: WeatherLabRunRequestV1, model: LocationClimateModelV1, snapshot: WeatherEngineSnapshotV2): WeatherSimulationV2 {
+export function restoreWeatherSnapshot(run: WeatherLabRunRequest, model: LocationClimateModelV1, snapshot: WeatherEngineSnapshotV2): WeatherSimulationV2 {
   if (snapshot.schemaVersion !== 2 || snapshot.generatorVersion !== 2) throw new Error('Unsupported weather snapshot version');
   const initial = createWeatherSimulation(run, model);
   if (snapshot.runIdentityHash !== initial.snapshot.runIdentityHash) throw new Error('Weather snapshot run identity mismatch');
@@ -203,29 +271,36 @@ export function advanceWeatherHour(simulation: WeatherSimulationV2): WeatherAdva
   const macroRandom = new WeatherRandom(snapshot.streams.macro);
   const localRandom = new WeatherRandom(snapshot.streams.local);
   const emissionRandom = new WeatherRandom(snapshot.streams.emissions);
-  const macro = chooseMacro(snapshot, monthModel, macroRandom, simulation.run.difficultyProfile);
-  const initialCondition = chooseCondition(snapshot, monthModel, macro.id, localRandom, simulation.run.difficultyProfile);
-  const normal = blendedNormal(simulation.model, calendar);
+  const tuning = tuningFor(simulation.run);
+  const macro = chooseMacro(snapshot, monthModel, macroRandom, tuning);
+  const initialCondition = chooseCondition(snapshot, monthModel, macro.id, localRandom, tuning);
+  const normal = blendedNormal(simulation.model, calendar, tuning.hourlyNormalSmoothingRadius);
   const macroModel = definition(monthModel, macro.id);
-  const residualScale = normal.temperatureStdDevC * Math.sqrt(1 - monthModel.emissions.temperatureAr1 ** 2) * simulation.run.difficultyProfile.temperatureVolatilityMultiplier;
+  const temperatureAr1 = tuning.temperatureAr1 ?? monthModel.emissions.temperatureAr1;
+  const dewPointAr1 = tuning.dewPointAr1 ?? monthModel.emissions.dewPointAr1;
+  const residualScale = normal.temperatureStdDevC * Math.sqrt(1 - temperatureAr1 ** 2) * tuning.temperatureVolatilityMultiplier;
   const temperatureResidualC = macro.changed ? emissionRandom.normal(0, residualScale) :
-    monthModel.emissions.temperatureAr1 * snapshot.temperatureResidualC + emissionRandom.normal(0, residualScale);
-  const independentDew = emissionRandom.normal(0, normal.dewPointStdDevC * Math.sqrt(1 - monthModel.emissions.dewPointAr1 ** 2));
+    temperatureAr1 * snapshot.temperatureResidualC + emissionRandom.normal(0, residualScale);
+  const independentDew = emissionRandom.normal(0, normal.dewPointStdDevC * Math.sqrt(1 - dewPointAr1 ** 2));
   const correlatedDew = monthModel.emissions.temperatureDewPointCorrelation * temperatureResidualC +
     Math.sqrt(1 - monthModel.emissions.temperatureDewPointCorrelation ** 2) * independentDew;
-  const dewPointResidualC = macro.changed ? correlatedDew : monthModel.emissions.dewPointAr1 * snapshot.dewPointResidualC + correlatedDew;
-  const temperatureC = normal.temperatureC + macroModel.temperatureAnomalyC + temperatureResidualC;
+  const dewPointResidualC = macro.changed ? correlatedDew : dewPointAr1 * snapshot.dewPointResidualC + correlatedDew;
+  const rawTemperatureC = normal.temperatureC + macroModel.temperatureAnomalyC + temperatureResidualC;
+  const temperatureC = tuning.temperatureResponse === 1 ? rawTemperatureC
+    : snapshot.previousTemperatureC + (rawTemperatureC - snapshot.previousTemperatureC) * tuning.temperatureResponse;
   const dewPointC = Math.min(temperatureC, normal.dewPointC + macroModel.dewPointAnomalyC + dewPointResidualC);
   const pressureHpa = clamp(normal.pressureHpa + macroModel.pressureAnomalyHpa + emissionRandom.normal(0, 1.4), 850, 1050);
   const humidity = relativeHumidityPct(temperatureC, dewPointC);
   const wetBulbC = wetBulbTemperatureC(temperatureC, humidity, pressureHpa);
-  const precipitationMm = PRECIPITATING.has(initialCondition) ? emissionRandom.gamma(monthModel.emissions.precipitationShape,
-    monthModel.emissions.precipitationScaleMm) * macroModel.precipitationMultiplier * simulation.run.difficultyProfile.precipitationIntensityMultiplier : 0;
+  const precipitationDraw = PRECIPITATING.has(initialCondition)
+    ? emissionRandom.gamma(monthModel.emissions.precipitationShape, monthModel.emissions.precipitationScaleMm) : 0;
+  const precipitationMm = PRECIPITATING.has(initialCondition)
+    ? precipitationDraw * macroModel.precipitationMultiplier * tuning.precipitationIntensityMultiplier : 0;
   const phase = precipitationPhase(temperatureC, wetBulbC, precipitationMm);
   const condition = physicalCondition(initialCondition, phase, precipitationMm);
   const snowFraction = phase === 'snow' ? 1 : phase === 'mixed' ? 0.45 : 0;
   const snowfallCm = precipitationMm * clamp(monthModel.emissions.snowfallRatio - temperatureC * 0.35, 6, 20) * snowFraction / 10;
-  const windSpeedKph = emissionRandom.gamma(monthModel.emissions.windShape, monthModel.emissions.windScaleKph) * macroModel.windSpeedMultiplier * simulation.run.difficultyProfile.windSeverityMultiplier;
+  const windSpeedKph = emissionRandom.gamma(monthModel.emissions.windShape, monthModel.emissions.windScaleKph) * macroModel.windSpeedMultiplier * tuning.windSeverityMultiplier;
   const windDirectionDeg = (snapshot.windDirectionDeg + angularDifference(snapshot.windDirectionDeg, normal.windDirectionDeg) * 0.2 + emissionRandom.normal(0, macro.id === 'frontal' ? 35 : 12) + 360) % 360;
   const windGustKph = windSpeedKph * clamp(monthModel.emissions.gustFactor + emissionRandom.normal(0, 0.08), 1, 2.2);
   const cloudCoverPct = cloudFor(condition, normal.cloudCoverPct, emissionRandom);
@@ -273,7 +348,7 @@ export function advanceWeatherTo(simulation: WeatherSimulationV2, endExclusiveIn
   return { simulation: current, hours };
 }
 
-export function generateWeatherYear(run: WeatherLabRunRequestV1, model: LocationClimateModelV1,
+export function generateWeatherYear(run: WeatherLabRunRequest, model: LocationClimateModelV1,
   options: { onProgress?: (completedHours: number, totalHours: number) => void; shouldCancel?: () => boolean } = {}): GeneratedWeatherYearV2 {
   let simulation = createWeatherSimulation(run, model);
   const hours: SimulatedWeatherHourV1[] = [];
@@ -287,17 +362,17 @@ export function generateWeatherYear(run: WeatherLabRunRequestV1, model: Location
   return { runIdentityHash: simulation.snapshot.runIdentityHash, hours, snapshot: createWeatherSnapshot(simulation) };
 }
 
-function forecastRandom(run: WeatherLabRunRequestV1, month: WeatherMonth, state?: WeatherRandomStateV1): WeatherRandom {
+function forecastRandom(run: WeatherLabRunRequest, month: WeatherMonth, state?: WeatherRandomStateV1): WeatherRandom {
   return state ? new WeatherRandom(state) : new WeatherRandom(monthStreams(run, month).forecastError);
 }
 
-export function issueForecast(run: WeatherLabRunRequestV1, truth: readonly SimulatedWeatherHourV1[], issuedIndex: number,
+export function issueForecast(run: WeatherLabRunRequest, truth: readonly SimulatedWeatherHourV1[], issuedIndex: number,
   state?: WeatherRandomStateV1): { issue: ForecastIssueV1; state: WeatherRandomStateV1 } {
   const issued = truth[issuedIndex];
   if (!issued) throw new Error('Forecast issue index is outside generated truth');
   const month = Number(issued.localDateTime.slice(5, 7)) as WeatherMonth;
   const random = forecastRandom(run, month, state);
-  const multiplier = run.difficultyProfile.forecastErrorMultiplier;
+  const multiplier = tuningFor(run).forecastErrorMultiplier;
   const hourly: ForecastHourV1[] = truth.slice(issuedIndex, issuedIndex + 168).map((hour, leadHours) => {
     const uncertainty = (0.35 + leadHours * 0.025) * multiplier;
     const temperatureC = hour.temperatureC + random.normal(0, uncertainty);
@@ -324,7 +399,7 @@ export function issueForecast(run: WeatherLabRunRequestV1, truth: readonly Simul
   return { issue: { version: 1, issuedAt: issued.at, hourly, daily, signals }, state: random.snapshot() };
 }
 
-export function generateForecastIssues(run: WeatherLabRunRequestV1, truth: readonly SimulatedWeatherHourV1[]): { issues: readonly ForecastIssueV1[]; finalState: WeatherRandomStateV1 } {
+export function generateForecastIssues(run: WeatherLabRunRequest, truth: readonly SimulatedWeatherHourV1[]): { issues: readonly ForecastIssueV1[]; finalState: WeatherRandomStateV1 } {
   const issues: ForecastIssueV1[] = [];
   let activeMonth = 0;
   let state: WeatherRandomStateV1 | undefined;

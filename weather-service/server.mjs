@@ -104,7 +104,8 @@ export function createWeatherService(options = {}) {
   const providerSet = options.providerSet ?? createProviderSet({ mode, sourceCache, fetchImpl: options.fetchImpl ?? globalThis.fetch, environment });
   const builder = options.builder ?? new WeatherPackageBuilder({ providerSet, artifactStore, now: options.now });
   const jobs = options.jobs ?? new WeatherJobManager({ builder, now: options.now, idFactory: options.idFactory });
-  const weatherLab = options.weatherLab ?? new WeatherLabService({ cacheDirectory, mode });
+  const weatherLab = options.weatherLab ?? new WeatherLabService({ cacheDirectory, mode,
+    fetchImpl: options.fetchImpl ?? globalThis.fetch, environment, now: options.now });
 
   const handler = async (request, response) => {
     try {
@@ -119,15 +120,19 @@ export function createWeatherService(options = {}) {
       if (request.method === 'GET' && url.pathname === '/health') {
         return sendJson(response, 200, {
           ok: true, apiVersion: 2, mode: providerSet.mode, offlineRuntimeGuaranteed: true,
-          providerPolicy: providerSet.mode === 'fixture' ? 'fixture-v1' : 'daymet-v4r1-merra2-ghcnh-v1',
-          providers: { daymet: providerSet.daymet.version, merra2: providerSet.merra2.version, ghcnh: providerSet.ghcnh.version },
+          providerPolicy: providerSet.mode === 'fixture' ? 'fixture-v1' : 'daymet-v4r1-merra2-v1',
+          providers: { daymet: providerSet.daymet.version, merra2: providerSet.merra2.version },
         });
       }
 
       // Standalone Lab API. Its artifacts and jobs are intentionally isolated
       // from installed gameplay weather packages under weather-lab-v1.
+      if (request.method === 'GET' && url.pathname === '/v1/weather-lab/location-context') {
+        return sendJson(response, 200, { context: await weatherLab.locationContext({ latitude: url.searchParams.get('latitude'),
+          longitude: url.searchParams.get('longitude'), elevationOverrideM: url.searchParams.get('elevationM') ?? undefined }) });
+      }
       if (request.method === 'GET' && url.pathname === '/v1/weather-lab/stations') {
-        return sendJson(response, 200, { stations: weatherLab.stations(url.searchParams), mode });
+        return sendJson(response, 200, { stations: await weatherLab.stations(url.searchParams), mode });
       }
       if (request.method === 'POST' && url.pathname === '/v1/weather-lab/preparations') {
         return sendJson(response, 202, { preparation: await weatherLab.create(await readBody(request)) });

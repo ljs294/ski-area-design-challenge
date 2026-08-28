@@ -7,13 +7,13 @@ import { PackageArtifactStore, SourceCache } from './lib/cache.mjs';
 import { validateWeatherPackageRequest } from './lib/contract.mjs';
 import { decodeWeatherChunk, encodeWeatherHours } from './lib/codec.mjs';
 import { normalizeWeatherYear } from './lib/builder.mjs';
-import { createProviderSet, selectGhcnhStations } from './lib/providers.mjs';
+import { createProviderSet } from './lib/providers.mjs';
 import { createWeatherService } from './server.mjs';
 
 const request = {
   schemaVersion: 1, terrainKey: 'mountain-test', terrainBinding: 'terrain-bind-1234',
   latitude: 39.1911, longitude: -106.8175, timezone: 'auto',
-  historicalStartYear: 1991, historicalEndYear: 2020, sourcePolicyVersion: 'daymet-v4r1-merra2-ghcnh-v1',
+  historicalStartYear: 1991, historicalEndYear: 2020, sourcePolicyVersion: 'daymet-v4r1-merra2-v1',
 };
 
 function sampleHour() {
@@ -104,14 +104,13 @@ describe('weather service', () => {
       const providers = createProviderSet({ mode: 'fixture', sourceCache, fetchImpl: async () => { throw new Error('network must not run'); } });
       const normalizedRequest = validateWeatherPackageRequest(request);
       const context = { throwIfAborted() {}, signal: undefined };
-      const [daily, hourly, nextHourly, correction] = await Promise.all([
+      const [daily, hourly, nextHourly] = await Promise.all([
         providers.daymet.getDaily(normalizedRequest, 1991, context),
         providers.merra2.getHourly(normalizedRequest, 1991, context),
         providers.merra2.getHourly(normalizedRequest, 1992, context),
-        providers.ghcnh.getCorrection(normalizedRequest, 1991, context),
       ]);
       const normalized = normalizeWeatherYear({ request: normalizedRequest, year: 1991, daily: daily.days,
-        hourly: [...hourly.hours, ...nextHourly.hours], correction, providerSet: providers });
+        hourly: [...hourly.hours, ...nextHourly.hours], providerSet: providers });
       // Daymet daily constraints are local dates. The final local evening in
       // Colorado lives in the following UTC year, and must remain in 1991's
       // archive rather than being dropped or constrained as UTC Jan 1.
@@ -137,7 +136,7 @@ describe('weather service', () => {
     }
   });
 
-  it('normalizes configured Daymet, MERRA-2, and GHCNh adapter responses without live network access', async () => {
+  it('normalizes configured Daymet and MERRA-2 adapter responses without live network access', async () => {
     const root = await mkdtemp(join(tmpdir(), 'weather-provider-adapters-'));
     try {
       const seen: Array<{ url: string; options?: RequestInit }> = [];
@@ -146,29 +145,27 @@ describe('weather service', () => {
       const merraHours = Array.from({ length: 8760 }, (_, index) => ({
         // Standard native MERRA aliases: T2M/PS are Kelvin/Pascals and
         // PRECTOTCORR is a water-equivalent flux in kg m-2 s-1.
-        at: new Date(Date.UTC(1991, 0, 1, index)).toISOString(), T2M: 271.15, rh: 75, PS: 90_000,
-        U10M: 2, V10M: -1, PRECTOTCORR: 0.0001, SWGDN: 50, cloud: 55,
+        at: new Date(Date.UTC(1991, 0, 1, index)).toISOString(), T2M: 271.15, QV2M: 0.002, PS: 90_000,
+        U10M: 2, V10M: -1, PRECTOTCORR: 0.0001, SWGDN: 50, CLDTOT: 0.55,
       }));
       const fetchImpl = async (url: URL | string, options?: RequestInit) => {
         seen.push({ url: String(url), options });
         if (String(url).includes('daymet.example')) return new Response(daymetRows.join('\n'), { status: 200 });
         if (String(url).includes('merra.example')) return Response.json({ hours: merraHours, gridCell: { id: 'merra-grid' } });
-        return Response.json({ stations: [
-          { id: 'station-1', latitude: 39.2, longitude: -106.8, completeness: 0.95, qualityPassFraction: 0.96, windSpeedMultiplier: 1.1, cloudCoverBiasPct: 4 },
-        ] });
+        throw new Error(`Unexpected provider URL ${String(url)}`);
       };
       const sourceCache = new SourceCache(root);
       const providers = createProviderSet({
         mode: 'live', sourceCache, fetchImpl,
         environment: {
           DAYMET_SINGLE_PIXEL_URL: 'https://daymet.example/api', MERRA2_SUBSET_URL: 'https://merra.example/subset',
-          MERRA2_BEARER_TOKEN: 'service-token', GHCNH_ADAPTER_URL: 'https://ghcnh.example/subset',
+          MERRA2_BEARER_TOKEN: 'service-token',
         },
       });
       const normalizedRequest = validateWeatherPackageRequest(request);
       const context = { throwIfAborted() {}, signal: undefined };
-      const [daymet, merra2, ghcnh] = await Promise.all([
-        providers.daymet.getDaily(normalizedRequest, 1991, context), providers.merra2.getHourly(normalizedRequest, 1991, context), providers.ghcnh.getCorrection(normalizedRequest, 1991, context),
+      const [daymet, merra2] = await Promise.all([
+        providers.daymet.getDaily(normalizedRequest, 1991, context), providers.merra2.getHourly(normalizedRequest, 1991, context),
       ]);
       expect(daymet.days).toHaveLength(365);
       expect(daymet.days[0].tminC).toBe(-5);
@@ -176,27 +173,21 @@ describe('weather service', () => {
       expect(merra2.hours[0].pressureHpa).toBe(900);
       expect(merra2.hours[0].temperatureC).toBeCloseTo(-2, 6);
       expect(merra2.hours[0].precipitationMm).toBeCloseTo(0.36, 6);
-      expect(ghcnh.applied).toBe(true);
-      expect(ghcnh.stations[0].id).toBe('station-1');
+      expect(merra2.hours[0].cloudCoverPct).toBeCloseTo(55, 8);
+      expect(merra2.hours[0].relativeHumidityPct).toBeGreaterThan(0);
+      expect(Object.keys(providers).some((key) => key.toLowerCase().includes('ghcn'))).toBe(false);
       expect(seen.some((call) => call.url.includes('lat=39.1911') && call.url.includes('vars='))).toBe(true);
       const merraCall = seen.find((call) => call.url.includes('merra.example'));
       expect(merraCall?.options?.headers).toMatchObject({ authorization: 'Bearer service-token' });
+      const merraRequest = JSON.parse(String(merraCall?.options?.body));
+      expect(merraRequest.collections).toEqual([
+        { id: 'M2T1NXSLV', variables: ['T2M', 'QV2M', 'PS', 'U10M', 'V10M'] },
+        { id: 'M2T1NXFLX', variables: ['PRECTOTCORR'] },
+        { id: 'M2T1NXRAD', variables: ['SWGDN', 'CLDTOT'] },
+      ]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  });
-
-  it('rejects poor GHCNh QC and caps corrections at three stations', () => {
-    const selected = selectGhcnhStations([
-      { id: 'bad-qc', latitude: 39.2, longitude: -106.8, completeness: 0.99, qualityPassFraction: 0.4 },
-      { id: 'one', latitude: 39.2, longitude: -106.8, completeness: 0.9, qualityPassFraction: 0.95, windSpeedMultiplier: 1.1 },
-      { id: 'two', latitude: 39.3, longitude: -106.7, completeness: 0.9, qualityPassFraction: 0.95, windSpeedMultiplier: 0.9 },
-      { id: 'three', latitude: 39.4, longitude: -106.7, completeness: 0.9, qualityPassFraction: 0.95 },
-      { id: 'four', latitude: 41, longitude: -105, completeness: 0.9, qualityPassFraction: 0.95 },
-    ], request);
-    expect(selected.applied).toBe(true);
-    expect(selected.stations).toHaveLength(3);
-    expect(selected.stations.some((station: { id: string }) => station.id === 'bad-qc')).toBe(false);
   });
 
   it('reports job progress, serves validated chunks, and keeps legacy package loading compatible', async () => {
@@ -221,7 +212,7 @@ describe('weather service', () => {
         return { manifest, chunks: [{ descriptor: encoded.descriptor, dataBase64: encoded.data.toString('base64') }], historicalYears: [], contentHash: manifest.contentHash, cacheHit: false };
       },
     };
-    const providerSet = { mode: 'fixture', daymet: { version: 'fixture-v1' }, merra2: { version: 'fixture-v1' }, ghcnh: { version: 'fixture-v1' } };
+    const providerSet = { mode: 'fixture', daymet: { version: 'fixture-v1' }, merra2: { version: 'fixture-v1' } };
     const service = createWeatherService({ artifactStore, builder, providerSet, idFactory: () => 'job-1' });
     const server = createServer(service.handler);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

@@ -10,14 +10,14 @@
     "dev:weather-lab": "node scripts/devWeatherLab.mjs",
     "weather:service": "node weather-service/server.mjs",
     "sim:weather": "node --experimental-strip-types scripts/weatherCli.ts",
-    "sim:weather:refresh-jackson": "node --experimental-strip-types weather-engine/src/refreshJacksonFixture.ts",
     "typecheck:weather-engine": "tsc -p weather-engine/tsconfig.json --noEmit",
     "test:weather-engine": "vitest run weather-engine/test --testTimeout 10000",
     "typecheck:weather-lab": "tsc -p weather-lab/tsconfig.json --noEmit",
     "test:weather-lab": "vitest run weather-engine/test weather-lab/test weather-service/lab --testTimeout 20000",
     "build:weather-lab": "vite build --config vite.config.weatherLab.ts",
     "check:weather-lab-architecture": "node scripts/checkWeatherLabArchitecture.mjs",
-    "test:e2e:weather-lab": "npm run build:weather-lab && node scripts/runWeatherLabE2E.mjs",
+    "check:weather-lab": "npm run typecheck:weather-engine && npm run typecheck:weather-lab && npm run test:weather-lab && npm run check:weather-lab-architecture && npm run build:weather-lab",
+    "test:e2e:weather-lab": "node scripts/runWeatherLabE2E.mjs",
     "build": "npm run typecheck && npm run build:desktop",
     "build:desktop": "vite build",
     "build:web": "vite build --config vite.config.web.ts",
@@ -37,7 +37,7 @@
     "test:e2e:features": "npm run build:desktop && node scripts/runE2E.mjs --project=feature-workflows",
     "test:e2e": "npm run build:desktop && node scripts/runE2E.mjs --project=browser-smoke --project=feature-workflows",
     "check:e2e-harness": "node scripts/checkE2EHarness.mjs",
-    "check": "npm run check:agent-docs && npm run check:architecture && npm run lint && npm run typecheck && npm run test:unit && npm run build:desktop && npm run build:web && npm run check:bundle && npm run check:obsolete"
+    "check": "npm run check:agent-docs && npm run check:architecture && npm run lint && npm run typecheck && npm run test:unit && npm run build:desktop && npm run build:web && npm run check:bundle && npm run check:obsolete && npm run check:weather-lab"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
@@ -62,6 +62,7 @@
     "@loaders.gl/core": "^4.4.3",
     "@loaders.gl/las": "^4.4.3",
     "@math.gl/types": "^4.1.0",
+    "@photostructure/tz-lookup": "11.6.1",
     "geotiff": "^3.0.5",
     "maplibre-contour": "^0.1.0",
     "maplibre-gl": "^5.24.0",

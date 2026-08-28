@@ -272,7 +272,7 @@ export function WeatherLab({ onExit }: { onExit: () => void }) {
 
   const historyLabel = weatherPackage?.manifest.quality === 'limited'
     ? 'Development fixture hourly archive (not observed weather).'
-    : 'Daymet-constrained hourly reanalysis; GHCNh corrections appear only where quality-gated.';
+    : 'Daymet-constrained daily totals with MERRA-2 hourly atmospheric timing.';
 
   return <main className="weather-lab screen-view">
     <header className="weather-lab-bar">

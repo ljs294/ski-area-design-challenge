@@ -19,7 +19,7 @@ export type StormStyle =
   | 'lake-effect' | 'upslope' | 'frontal' | 'tropical-remnant' | 'convective';
 export type PrecipitationType = 'none' | 'rain' | 'mixed' | 'snow' | 'freezing-rain';
 
-/** Providers are intentionally named by data family, not by an implementation. */
+/** `ghcnh` remains decoder-only compatibility for already-installed packages. */
 export type WeatherSourceProvider = 'daymet' | 'merra-2' | 'ghcnh' | 'derived' | 'legacy';
 export type WeatherSourceCorrection = 'none' | 'daymet-constrained' | 'station-corrected' | 'derived';
 
@@ -46,8 +46,8 @@ export type WeatherHourlyField =
   | 'solarAzimuthDeg';
 
 /**
- * Provenance is deliberately field-level: MERRA-2 may supply an hourly shape
- * while Daymet constrains that field's daily total and GHCNh corrects wind.
+ * Provenance is deliberately field-level: MERRA-2 supplies hourly atmosphere
+ * while Daymet constrains daily temperature, precipitation, and radiation.
  */
 export interface WeatherFieldProvenance {
   provider: WeatherSourceProvider;
@@ -176,7 +176,8 @@ export interface WeatherSourceYearDetail {
   year: number;
   daymet: { provider: string; version: string; grid?: WeatherSourceGrid };
   merra2: { provider: string; version: string; grid?: WeatherSourceGrid; localBoundaryYear?: number };
-  ghcnh: {
+  /** Legacy package compatibility; new packages never include station corrections. */
+  ghcnh?: {
     provider: string;
     version: string;
     stations?: readonly Readonly<Record<string, unknown>>[];
@@ -184,7 +185,7 @@ export interface WeatherSourceYearDetail {
     quality?: WeatherQuality;
   };
   /** SHA-256 of each normalized service-time source subset. */
-  sourceHashes?: { daymet: string; merra2: string; ghcnh: string };
+  sourceHashes?: { daymet: string; merra2: string; ghcnh?: string };
   flags?: { precipitationTiming?: boolean; radiationTiming?: boolean; daymetCalendarAdjusted?: boolean };
 }
 
@@ -392,15 +393,16 @@ function isWeatherSourceYearDetail(value: unknown): value is WeatherSourceYearDe
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const detail = value as Partial<WeatherSourceYearDetail>;
   if (!Number.isInteger(detail.year) || !isSourceDetailPart(detail.daymet) || !isSourceDetailPart(detail.merra2) ||
-    !isSourceDetailPart(detail.ghcnh)) return false;
+    (detail.ghcnh !== undefined && !isSourceDetailPart(detail.ghcnh))) return false;
   const merra2 = detail.merra2 as { localBoundaryYear?: unknown };
   if (merra2.localBoundaryYear !== undefined && !Number.isInteger(merra2.localBoundaryYear)) return false;
-  const ghcnh = detail.ghcnh as { stations?: unknown; applied?: unknown; quality?: unknown };
-  if (ghcnh.stations !== undefined && !Array.isArray(ghcnh.stations)) return false;
-  if (ghcnh.applied !== undefined && typeof ghcnh.applied !== 'boolean') return false;
-  if (ghcnh.quality !== undefined && !isWeatherQuality(ghcnh.quality)) return false;
+  const ghcnh = detail.ghcnh as { stations?: unknown; applied?: unknown; quality?: unknown } | undefined;
+  if (ghcnh?.stations !== undefined && !Array.isArray(ghcnh.stations)) return false;
+  if (ghcnh?.applied !== undefined && typeof ghcnh.applied !== 'boolean') return false;
+  if (ghcnh?.quality !== undefined && !isWeatherQuality(ghcnh.quality)) return false;
   const hashes = detail.sourceHashes;
-  if (hashes && (!/^[a-f0-9]{64}$/.test(hashes.daymet) || !/^[a-f0-9]{64}$/.test(hashes.merra2) || !/^[a-f0-9]{64}$/.test(hashes.ghcnh))) return false;
+  if (hashes && (!/^[a-f0-9]{64}$/.test(hashes.daymet) || !/^[a-f0-9]{64}$/.test(hashes.merra2) ||
+    (hashes.ghcnh !== undefined && !/^[a-f0-9]{64}$/.test(hashes.ghcnh)))) return false;
   return true;
 }
 

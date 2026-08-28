@@ -301,7 +301,7 @@ export function wetBulbTemperatureC(temperatureC: number, humidityPct: number): 
     0.00391838 * humidity ** 1.5 * Math.atan(0.023101 * humidity) - 4.686035;
 }
 
-/** NOAA-style approximate solar geometry; provider radiation remains authoritative. */
+/** Approximate solar geometry; provider radiation remains authoritative. */
 export function solarPosition(at: string, coordinate: WeatherCoordinates): WeatherSolarPosition {
   const date = new Date(at);
   const yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);

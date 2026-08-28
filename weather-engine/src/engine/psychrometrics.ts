@@ -33,6 +33,15 @@ export function precipitationPhase(temperatureC: number, wetBulbC: number, preci
   return 'rain';
 }
 
+/** Shared liquid-equivalent to snowfall-depth fallback used for observations. */
+export function snowfallCentimetresFromLiquid(
+  precipitationMm: number, temperatureC: number, phase: PrecipitationPhase, snowfallRatio = 10,
+): number {
+  if (precipitationMm <= 0.005 || phase === 'none' || phase === 'rain' || phase === 'freezing-rain') return 0;
+  const snowFraction = phase === 'snow' ? 1 : 0.45;
+  return precipitationMm * clamp(snowfallRatio - temperatureC * 0.35, 6, 20) * snowFraction / 10;
+}
+
 export function pressureAtElevation(referencePressureHpa: number, referenceElevationM: number, elevationM: number): number {
   return referencePressureHpa * Math.exp(-(elevationM - referenceElevationM) / 8_400);
 }

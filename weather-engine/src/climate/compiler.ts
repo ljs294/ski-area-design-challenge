@@ -6,6 +6,7 @@ import type {
 import { WEATHER_GENERATOR_VERSION } from '../contracts.ts';
 import { hashWithout, sha256Hex } from '../engine/canonical.ts';
 import { clamp, relativeHumidityPct } from '../engine/psychrometrics.ts';
+import { fitWeatherEventThresholds } from '../validation/events.ts';
 
 const CONDITIONS: readonly WeatherCondition[] = ['clear', 'partly-cloudy', 'overcast', 'flurries', 'snow', 'heavy-snow', 'mixed', 'freezing-rain', 'rain'];
 const MACROS: readonly MacroAirMassId[] = ['arctic', 'continental-polar', 'maritime-polar', 'warm-wet', 'frontal'];
@@ -92,7 +93,8 @@ function macroDefinitions(hours: readonly ObservedWeatherHourV1[], meanTemperatu
   });
 }
 
-function buildMonthlyModel(month: WeatherMonth, allHours: readonly ObservedWeatherHourV1[]): MonthlyClimateModelV1 {
+function buildMonthlyModel(month: WeatherMonth, allHours: readonly ObservedWeatherHourV1[],
+  chronologies: readonly (readonly ObservedWeatherHourV1[])[]): MonthlyClimateModelV1 {
   const hours = allHours.filter((hour) => parsed(hour).month === month);
   const monthTemperatures = finite(hours.map((hour) => hour.temperatureC));
   const monthMean = mean(monthTemperatures, 5 - Math.abs(1 - month) * 0.8);
@@ -120,15 +122,21 @@ function buildMonthlyModel(month: WeatherMonth, allHours: readonly ObservedWeath
   const definitions = macroDefinitions(hours, monthMean, monthStd);
   const macroCounts = MACROS.map(() => MACROS.map(() => 1));
   const localCounts = Object.fromEntries(MACROS.map((macro) => [macro, CONDITIONS.map(() => CONDITIONS.map(() => 1))])) as Record<MacroAirMassId, number[][]>;
-  const sorted = [...hours].sort((left, right) => left.at.localeCompare(right.at));
-  for (let index = 1; index < sorted.length; index += 1) {
-    if (new Date(sorted[index].at).getTime() - new Date(sorted[index - 1].at).getTime() !== 3_600_000) continue;
-    const previousMacro = macroFor(sorted[index - 1], monthMean, monthStd);
-    const currentMacro = macroFor(sorted[index], monthMean, monthStd);
-    macroCounts[MACROS.indexOf(previousMacro)][MACROS.indexOf(currentMacro)] += 1;
-    const previousCondition = conditionFor(sorted[index - 1]);
-    const currentCondition = conditionFor(sorted[index]);
-    localCounts[currentMacro][CONDITIONS.indexOf(previousCondition)][CONDITIONS.indexOf(currentCondition)] += 1;
+  // Pool transition counts after traversing each station-year independently.
+  // Sorting equal timestamps from multiple stations into one sequence would
+  // discard within-station transitions and create cross-station transitions.
+  for (const chronology of chronologies) {
+    const sorted = chronology.filter((hour) => parsed(hour).month === month)
+      .sort((left, right) => left.at.localeCompare(right.at));
+    for (let index = 1; index < sorted.length; index += 1) {
+      if (new Date(sorted[index].at).getTime() - new Date(sorted[index - 1].at).getTime() !== 3_600_000) continue;
+      const previousMacro = macroFor(sorted[index - 1], monthMean, monthStd);
+      const currentMacro = macroFor(sorted[index], monthMean, monthStd);
+      macroCounts[MACROS.indexOf(previousMacro)][MACROS.indexOf(currentMacro)] += 1;
+      const previousCondition = conditionFor(sorted[index - 1]);
+      const currentCondition = conditionFor(sorted[index]);
+      localCounts[currentMacro][CONDITIONS.indexOf(previousCondition)][CONDITIONS.indexOf(currentCondition)] += 1;
+    }
   }
   const wet = hours.filter((hour) => (hour.precipitationMm ?? 0) > 0).map((hour) => hour.precipitationMm!);
   const wetMean = mean(wet, 0.7);
@@ -161,15 +169,17 @@ export function compileLocationClimateModel(input: ClimateTrainingInputV1): Loca
   if (input.trainingSeries.some((series) => series.validationYear === input.validationYear)) {
     throw new Error('Validation-year observations must not enter climate compilation');
   }
-  const hours = input.trainingSeries.flatMap((series) => series.hours.filter((hour) =>
+  const chronologies = input.trainingSeries.map((series) => series.hours.filter((hour) =>
     Object.values(hour.quality).every((quality) => quality !== 'suspect')));
+  const hours = chronologies.flat();
   if (hours.length < years.length * 5_000) throw new Error('Climate compilation does not have enough quality-controlled hourly observations');
   const sourceHash = sha256Hex({ sourceHashes: [...input.sourceHashes].sort(), stationIds: input.trainingStations.map((station) => station.id).sort(), years });
   const base = {
     version: 1 as const, generatorVersion: WEATHER_GENERATOR_VERSION, location: input.location,
     primaryStation: input.primaryStation, trainingStations: input.trainingStations,
     trainingPeriod: { years, policy: input.trainingPolicy }, excludedValidationYear: input.validationYear,
-    months: Array.from({ length: 12 }, (_, index) => buildMonthlyModel((index + 1) as WeatherMonth, hours)),
+    months: Array.from({ length: 12 }, (_, index) => buildMonthlyModel((index + 1) as WeatherMonth, hours, chronologies)),
+    eventThresholds: fitWeatherEventThresholds(input.trainingSeries),
     sourceHash, climateModelHash: '', provenance: { compilerVersion: input.compilerVersion ?? 'weather-compiler-v1',
       providers: [...input.providers], sourceHashes: [...input.sourceHashes], warnings: [] as string[] },
   } satisfies LocationClimateModelV1;

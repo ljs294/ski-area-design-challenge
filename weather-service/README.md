@@ -5,9 +5,10 @@
 is deterministic development data and is deliberately marked `limited` in
 every manifest. It never contacts a provider.
 
-`npm run dev:weather-lab` starts this fixture service automatically unless a
-healthy service is already listening on the configured URL. Open
-`http://localhost:5173/#weather-lab` after Vite reports that it is ready.
+`npm run dev:weather-lab` starts the independent coordinate-first Lab and a
+live service automatically unless a healthy service is already listening.
+Set `WEATHER_SERVICE_MODE=fixture` explicitly for the committed Jackson
+development workflow. Fixture data is never presented as a live comparison.
 
 ## API
 
@@ -21,6 +22,25 @@ healthy service is already listening on the configured URL. Open
 
 Errors always have `{ error: { code, message, retryable, details? } }`.
 
+The standalone Lab uses additive endpoints that do not modify installed game
+weather packages:
+
+- `GET /v1/weather-lab/location-context?latitude=…&longitude=…` probes Daymet
+  land coverage/elevation, resolves the MERRA-2 grid cell, and returns
+  eligible prior-30 validation years.
+- `POST /v1/weather-lab/preparations` starts Daymet/MERRA-2 normalization and
+  climate compilation. `GET` or `DELETE /v1/weather-lab/preparations/:id`
+  reads progress or cancels it. Equivalent completed requests reuse a
+  persisted preparation result across service instances.
+- `GET /v1/weather-lab/models/:hash` and
+  `/v1/weather-lab/observed-series/:hash` return immutable ready artifacts.
+
+Observed Lab artifacts preserve Daymet daily liquid-equivalent precipitation
+and temperature anchors, uses MERRA-2 for hourly atmospheric structure, and
+records explicit provenance for thermodynamically derived snowfall.
+Missing or suspect hourly observations remain missing rather than becoming
+zero precipitation.
+
 ## Live hosting configuration
 
 Set `WEATHER_SERVICE_MODE=live`. The game/browser never receives these values;
@@ -28,18 +48,16 @@ they belong only to the project-hosted builder:
 
 - `MERRA2_SUBSET_URL`: authenticated project-owned MERRA-2 subset gateway.
   It accepts `{ provider, version, year, latitude, longitude, variables }` and
-  returns `{ gridCell?, hours: [...] }` with all UTC hours of the requested
-  year.
+  a `collections` manifest. The gateway must combine `M2T1NXSLV` for surface
+  state/wind, `M2T1NXFLX` for `PRECTOTCORR`, and `M2T1NXRAD` for `SWGDN` and
+  `CLDTOT`, returning `{ gridCell?, hours: [...] }` with all UTC hours of the
+  requested year. Daymet remains authoritative for daily precipitation totals;
+  MERRA-2 supplies the within-day timing and shape.
 - `MERRA2_BEARER_TOKEN`: optional service-to-service token for that gateway.
-- `GHCNH_ADAPTER_URL`: optional project-owned station-search gateway. It
-  returns `{ stations }`; the builder applies only stations that pass its
-  completeness and QC thresholds.
 - `DAYMET_SINGLE_PIXEL_URL`: optional override of Daymet's lower-48 single
   pixel CSV endpoint. `DAYMET_NCSS_URL` is required for Alaska/Hawaii and must
   return equivalent CSV daily fields from a NetCDF subset route.
 
-The service caches normalized source subsets under
-`weather-service/.weather-cache` (or `WEATHER_CACHE_DIR`) and stores completed
-packages content-addressably. It writes chunks atomically and writes the ready
-manifest last. Runtime clients install those chunks locally and never call this
-service during play.
+The service caches gameplay sources under the existing cache and standalone
+Lab sources/artifacts under `weather-lab-v1`. It writes ready manifests last.
+Runtime game clients never call the Lab endpoints.

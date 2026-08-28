@@ -15,6 +15,19 @@ export type WeatherCondition =
 export type WeatherHazard = 'fog' | 'high-wind' | 'icing' | 'frontal-passage';
 export type PrecipitationPhase = 'none' | 'rain' | 'mixed' | 'snow' | 'freezing-rain';
 export type MacroAirMassId = 'arctic' | 'continental-polar' | 'maritime-polar' | 'warm-wet' | 'frontal';
+export type WeatherEventType = 'storm' | 'cold-snap' | 'warm-up' | 'dry-spell';
+export type WeatherEventSeverity = 'minor' | 'notable' | 'major';
+export type StormStyle =
+  | 'pacific-system'
+  | 'atmospheric-river'
+  | 'nor-easter'
+  | 'clipper'
+  | 'lake-effect'
+  | 'upslope'
+  | 'frontal'
+  | 'tropical-remnant'
+  | 'convective';
+export type StormStyleConfidence = 'low' | 'moderate' | 'high';
 export type WeatherVariable =
   | 'temperatureC'
   | 'dewPointC'
@@ -54,6 +67,29 @@ export interface ObservingStationMetadataV1 {
   timezone: string;
   distanceKm: number;
   score: number;
+  scoreComponents?: Readonly<{
+    coreFieldCompleteness: number;
+    distance: number;
+    elevationMatch: number;
+    trainingOverlap: number;
+  }>;
+  availableYears?: readonly number[];
+}
+
+export interface WeatherLabLocationContextV1 {
+  version: 1;
+  latitude: number;
+  longitude: number;
+  coverage: 'supported' | 'unsupported';
+  coverageReason?: string;
+  resolvedElevationM: number | null;
+  elevationSource: 'daymet' | 'fixture' | 'unavailable';
+  timezone: string | null;
+  timezoneResolution: 'coordinate' | 'fixture' | 'unavailable';
+  stations: readonly ObservingStationMetadataV1[];
+  selectedStation: ObservingStationMetadataV1 | null;
+  eligibleValidationYears: readonly number[];
+  warnings: readonly string[];
 }
 
 export type TrainingPeriodPolicyV1 =
@@ -75,6 +111,29 @@ export interface WeatherDifficultyProfileV1 {
   forecastErrorMultiplier: number;
 }
 
+/**
+ * A versioned, explicit overlay used by the standalone Weather Model Lab.
+ * Omitting this overlay retains the original generator-v2 behavior.
+ */
+export interface WeatherSimulationTuningV1 {
+  version: 1;
+  id: string;
+  stormArrivalMultiplier: number;
+  macroDurationMultiplier: number;
+  conditionPersistenceMultiplier: number;
+  precipitationIntensityMultiplier: number;
+  warmIntrusionMultiplier: number;
+  coldOutbreakMultiplier: number;
+  temperatureVolatilityMultiplier: number;
+  temperatureAr1: number | null;
+  dewPointAr1: number | null;
+  hourlyNormalSmoothingRadius: number;
+  temperatureResponse: number;
+  windSeverityMultiplier: number;
+  extremeEventMultiplier: number;
+  forecastErrorMultiplier: number;
+}
+
 export interface WeatherLabRunRequestV1 {
   version: 1;
   location: WeatherLocationV1;
@@ -86,6 +145,54 @@ export interface WeatherLabRunRequestV1 {
   difficultyProfile: WeatherDifficultyProfileV1;
   generatorVersion: 2;
   climateModelHash: string;
+}
+
+export interface WeatherLabRunRequestV2 extends Omit<WeatherLabRunRequestV1, 'version'> {
+  version: 2;
+  tuning: WeatherSimulationTuningV1;
+  /** Keeps baseline/candidate random draws paired without hiding tuning from run identity. */
+  comparisonStreamKey: string;
+}
+
+export type WeatherLabRunRequest = WeatherLabRunRequestV1 | WeatherLabRunRequestV2;
+
+export interface WeatherLabPreparationRequestV1 {
+  version: 1;
+  latitude: number;
+  longitude: number;
+  elevationOverrideM?: number;
+  validationYear: number;
+  trainingPolicy: TrainingPeriodPolicyV1;
+}
+
+export interface WeatherLabPreparationV1 {
+  version: 1;
+  id: string;
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  progress: Readonly<{
+    stage: string;
+    completed: number;
+    total: number;
+    message?: string;
+    detailCompleted?: number;
+    detailTotal?: number;
+  }>;
+  events?: readonly Readonly<{
+    sequence: number;
+    at: string;
+    stage: string;
+    message: string;
+  }>[];
+  context?: WeatherLabLocationContextV1;
+  result?: Readonly<{
+    modelHash: string;
+    observationHash: string;
+    modelUrl: string;
+    observedSeriesUrl: string;
+  }>;
+  error?: Readonly<{ code: string; message: string; retryable?: boolean }>;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export type ObservationQuality = 'accepted' | 'suspect' | 'missing';
@@ -121,6 +228,7 @@ export interface HistoricalWeatherSeriesV1 {
   startInclusive: string;
   endExclusive: string;
   hours: readonly ObservedWeatherHourV1[];
+  days?: readonly ObservedWeatherDayV1[];
   completeness: Readonly<Record<WeatherVariable, number>>;
   observationHash: string;
   provenance: Readonly<{
@@ -129,6 +237,67 @@ export interface HistoricalWeatherSeriesV1 {
     retrievedAt?: string;
     warnings: readonly string[];
   }>;
+}
+
+export interface ObservedWeatherDayV1 {
+  localDate: string;
+  minimumTemperatureC: number | null;
+  maximumTemperatureC: number | null;
+  precipitationMm: number | null;
+  snowfallCm: number | null;
+  snowDepthCm: number | null;
+  /** Optional for compatibility with daily artifacts prepared before explicit snow provenance. */
+  snowfallKind?: 'observed' | 'derived' | 'unavailable';
+  sources: Readonly<{
+    temperature: string | null;
+    precipitation: string | null;
+    snowfall: string | null;
+  }>;
+}
+
+export interface WeatherEventThresholdMonthV1 {
+  month: WeatherMonth;
+  stormMinimumTotalMm: number;
+  stormMinimumDurationHours: number;
+  rapidTemperatureChangeC: number;
+  temperatureMaintenanceHours: number;
+  drySpellMinimumHours: number;
+  stormSeverity: Readonly<{
+    totalP90Mm: number;
+    totalP98Mm: number;
+    peakP90Mm: number;
+    peakP98Mm: number;
+    durationP90Hours: number;
+    durationP98Hours: number;
+  }>;
+  temperatureSeverity: Readonly<{
+    changeP90C: number;
+    changeP98C: number;
+    durationP90Hours: number;
+    durationP98Hours: number;
+  }>;
+  drySeverity: Readonly<{
+    durationP90Hours: number;
+    durationP98Hours: number;
+  }>;
+  /** Sorted qualifying training-event samples used to report empirical event percentiles. */
+  empiricalDistributions?: Readonly<{
+    stormTotalMm: readonly number[];
+    stormPeakHourlyMm: readonly number[];
+    stormDurationHours: readonly number[];
+    temperatureChangeC: readonly number[];
+    temperatureDurationHours: readonly number[];
+    drySpellDurationHours: readonly number[];
+  }>;
+  sampleCounts: Readonly<{ wetSpells: number; temperatureChanges: number; drySpells: number }>;
+}
+
+export interface WeatherEventThresholdModelV1 {
+  version: 1;
+  measurablePrecipitationMm: 0.005;
+  stormDryGapHours: 3;
+  months: readonly WeatherEventThresholdMonthV1[];
+  fittedFromYears: readonly number[];
 }
 
 export interface MacroAirMassDefinitionV1 {
@@ -191,6 +360,7 @@ export interface LocationClimateModelV1 {
   trainingPeriod: Readonly<{ years: readonly number[]; policy: TrainingPeriodPolicyV1 }>;
   excludedValidationYear: number;
   months: readonly MonthlyClimateModelV1[];
+  eventThresholds?: WeatherEventThresholdModelV1;
   sourceHash: string;
   climateModelHash: string;
   provenance: Readonly<{
@@ -321,6 +491,77 @@ export interface WeatherDiagnosticsV1 {
   spellLengths: Readonly<Record<WeatherCondition, readonly number[]>>;
 }
 
+export interface WeatherDiagnosticsV2 extends WeatherDiagnosticsV1 {
+  macroTransitionCounts: Readonly<Record<string, number>>;
+  macroSpellLengths: Readonly<Record<MacroAirMassId, readonly number[]>>;
+}
+
+export interface WeatherConditionDiagnosticsV1 {
+  conditionOccupancy: Readonly<Record<WeatherCondition, number>>;
+  transitionCounts: Readonly<Record<string, number>>;
+  spellLengths: Readonly<Record<WeatherCondition, readonly number[]>>;
+}
+
+export interface WeatherDailySummaryV1 {
+  localDate: string;
+  expectedHours: number;
+  availableHours: number;
+  completeness: Readonly<Partial<Record<WeatherVariable, number>>>;
+  temperatureC: Readonly<{ minimum: number; mean: number; maximum: number }> | null;
+  wetBulbC: Readonly<{ minimum: number; mean: number; maximum: number }> | null;
+  snowmakingHours: number | null;
+  precipitationMm: number | null;
+  precipitationByPhaseMm: Readonly<Record<PrecipitationPhase, number>> | null;
+  snowfallCm: number | null;
+  snowfallSource: 'simulated' | 'observed' | 'derived' | 'unavailable';
+  conditionHours: Readonly<Partial<Record<WeatherCondition, number>>>;
+  dominantCondition: WeatherCondition | null;
+  hazards: readonly WeatherHazard[];
+  macroHours: Readonly<Partial<Record<MacroAirMassId, number>>> | null;
+  dominantMacro: MacroAirMassId | null;
+  eventIds: readonly string[];
+}
+
+export interface WeatherEventV1 {
+  version: 1;
+  id: string;
+  type: WeatherEventType;
+  startsAt: string;
+  endsAt: string;
+  localStartDate: string;
+  localEndDate: string;
+  durationHours: number;
+  severity: WeatherEventSeverity;
+  /** Percentile rank on a 0..100 scale. */
+  intensityPercentile: number;
+  totalPrecipitationMm: number;
+  peakPrecipitationMm: number;
+  precipitationByPhaseMm: Readonly<Record<PrecipitationPhase, number>>;
+  snowfallCm: number;
+  temperatureChangeC: number;
+  meanWindSpeedKph: number | null;
+  peakWindGustKph: number | null;
+  pressureChangeHpa: number | null;
+  stormStyle: StormStyle | null;
+  styleConfidence: StormStyleConfidence | null;
+  styleEvidence: readonly string[];
+}
+
+export interface WeatherComparisonScoresV1 {
+  temperatureMeanBiasC: number | null;
+  temperatureMeanMaeC: number | null;
+  wetBulbMeanBiasC: number | null;
+  wetBulbMeanMaeC: number | null;
+  precipitationBiasMm: number | null;
+  precipitationMaeMm: number | null;
+  dominantConditionAgreement: number | null;
+  eventCountDifference: number;
+  eventDurationDifferenceHours: number;
+  eventOverlapScore: number | null;
+  stormSeverityAgreement: number | null;
+  stormStyleAgreement: number | null;
+}
+
 export interface WeatherLabResultV1 {
   version: 1;
   runIdentityHash: string;
@@ -336,6 +577,25 @@ export interface WeatherLabResultV1 {
   warnings: readonly string[];
   finalSnapshot: WeatherEngineSnapshotV2;
 }
+
+export interface WeatherLabResultV2 extends Omit<WeatherLabResultV1, 'version' | 'run' | 'diagnostics'> {
+  version: 2;
+  run: WeatherLabRunRequestV2;
+  diagnostics: WeatherDiagnosticsV2;
+  daily: Readonly<{
+    simulated: readonly WeatherDailySummaryV1[];
+    observed: readonly WeatherDailySummaryV1[];
+  }>;
+  events: Readonly<{
+    simulated: readonly WeatherEventV1[];
+    observed: readonly WeatherEventV1[];
+  }>;
+  observedDiagnostics: WeatherConditionDiagnosticsV1;
+  eventThresholds: WeatherEventThresholdModelV1;
+  scores: WeatherComparisonScoresV1;
+}
+
+export type WeatherLabResult = WeatherLabResultV1 | WeatherLabResultV2;
 
 export const HISTORICAL_DIFFICULTY: WeatherDifficultyProfileV1 = Object.freeze({
   version: 1, id: 'historical', stormArrivalMultiplier: 1, stormPersistenceMultiplier: 1,
@@ -360,3 +620,58 @@ export const WEATHER_DIFFICULTY_PRESETS = Object.freeze({
   variable: profile('variable', [1.1, 1.1, 1, 1.25, 1.25, 1.35, 1.15, 1.25, 1.2]),
   severe: profile('severe', [1.5, 1.4, 1.5, 1.5, 1.5, 1.4, 1.6, 2, 1.5]),
 });
+
+export const WEATHER_SIMULATION_TUNING_LIMITS = Object.freeze({
+  stormArrivalMultiplier: [0.5, 2],
+  macroDurationMultiplier: [0.5, 2],
+  conditionPersistenceMultiplier: [0.5, 3],
+  precipitationIntensityMultiplier: [0.5, 2],
+  warmIntrusionMultiplier: [0.5, 2],
+  coldOutbreakMultiplier: [0.5, 2],
+  temperatureVolatilityMultiplier: [0.5, 1.75],
+  temperatureAr1: [0.5, 0.98],
+  dewPointAr1: [0.5, 0.98],
+  hourlyNormalSmoothingRadius: [0, 6],
+  temperatureResponse: [0.25, 1],
+  windSeverityMultiplier: [0.5, 2],
+  extremeEventMultiplier: [0.25, 2.5],
+  forecastErrorMultiplier: [0.5, 2],
+} satisfies Readonly<Record<Exclude<keyof WeatherSimulationTuningV1, 'version' | 'id'>, readonly [number, number]>>);
+
+export function simulationTuningForDifficulty(
+  difficulty: WeatherDifficultyProfileV1,
+  id = difficulty.id,
+): WeatherSimulationTuningV1 {
+  return {
+    version: 1,
+    id,
+    stormArrivalMultiplier: difficulty.stormArrivalMultiplier,
+    macroDurationMultiplier: difficulty.stormPersistenceMultiplier,
+    conditionPersistenceMultiplier: difficulty.stormPersistenceMultiplier,
+    precipitationIntensityMultiplier: difficulty.precipitationIntensityMultiplier,
+    warmIntrusionMultiplier: difficulty.warmIntrusionMultiplier,
+    coldOutbreakMultiplier: difficulty.coldOutbreakMultiplier,
+    temperatureVolatilityMultiplier: difficulty.temperatureVolatilityMultiplier,
+    temperatureAr1: null,
+    dewPointAr1: null,
+    hourlyNormalSmoothingRadius: 0,
+    temperatureResponse: 1,
+    windSeverityMultiplier: difficulty.windSeverityMultiplier,
+    extremeEventMultiplier: difficulty.extremeEventMultiplier,
+    forecastErrorMultiplier: difficulty.forecastErrorMultiplier,
+  };
+}
+
+export const HISTORICAL_SIMULATION_TUNING = Object.freeze(
+  simulationTuningForDifficulty(HISTORICAL_DIFFICULTY, 'historical'),
+);
+
+export const SMOOTHED_SIMULATION_TUNING = Object.freeze({
+  ...HISTORICAL_SIMULATION_TUNING,
+  id: 'smoothed',
+  temperatureAr1: 0.94,
+  dewPointAr1: 0.95,
+  hourlyNormalSmoothingRadius: 1,
+  temperatureResponse: 0.65,
+  conditionPersistenceMultiplier: 1.5,
+} satisfies WeatherSimulationTuningV1);

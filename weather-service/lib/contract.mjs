@@ -3,7 +3,7 @@ import { WeatherServiceError, invariant } from './errors.mjs';
 
 export const WEATHER_REQUEST_SCHEMA_VERSION = 1;
 export const WEATHER_PACKAGE_SCHEMA_VERSION = 2;
-export const DEFAULT_SOURCE_POLICY_VERSION = 'daymet-v4r1-merra2-ghcnh-v1';
+export const DEFAULT_SOURCE_POLICY_VERSION = 'daymet-v4r1-merra2-v1';
 export const HISTORICAL_START_YEAR = 1991;
 export const HISTORICAL_END_YEAR = 2020;
 
