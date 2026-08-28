@@ -148,7 +148,7 @@ describe('weather service', () => {
           requestedUrl = String(input); requestedOptions = options;
           return Response.json({ header: { fill_value: -999 }, geometry: { coordinates: [-106.875, 39] }, properties: { parameter: {
             T2M: values(-2), RH2M: values(75), PS: values(90), U10M: values(2), V10M: values(-1),
-            PRECTOT: values(.2), CLOUD_AMT: values(55), ALLSKY_SFC_SW_DWN: values(.05),
+            PRECTOTCORR: values(.2), CLOUD_AMT: values(55), ALLSKY_SFC_SW_DWN: values(.05),
           } } });
         } });
       const hourly = await providers.merra2.getHourly(validateWeatherPackageRequest(request), 1991,
@@ -159,12 +159,13 @@ describe('weather service', () => {
       expect(requestedUrl).toContain('https://power.larc.nasa.gov/api/temporal/hourly/point');
       expect(requestedUrl).toContain('time-standard=UTC');
       expect(requestedUrl).toContain('CLOUD_AMT');
+      expect(requestedUrl).toContain('PRECTOTCORR');
       expect(requestedOptions?.headers).toBeUndefined();
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
   it('rejects incomplete NASA POWER hours instead of inventing source values', () => {
-    const parameter = Object.fromEntries(['T2M', 'RH2M', 'PS', 'U10M', 'V10M', 'PRECTOT', 'CLOUD_AMT']
+    const parameter = Object.fromEntries(['T2M', 'RH2M', 'PS', 'U10M', 'V10M', 'PRECTOTCORR', 'CLOUD_AMT']
       .map((name) => [name, { '1991010100': 1 }]));
     expect(normalizePowerHourly({ properties: { parameter } }, 1991).hours).toEqual([]);
   });

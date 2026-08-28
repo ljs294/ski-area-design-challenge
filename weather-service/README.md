@@ -56,6 +56,9 @@ citations when publishing derived data.
   private service. Daymet remains authoritative for daily precipitation totals;
   NASA POWER supplies the within-day precipitation timing and hourly
   atmospheric fields. The endpoint is intentionally not environment-configurable.
+  The combined hourly field contract begins in 2001. Weather Lab therefore
+  resolves `prior-30` to every contiguous, source-complete prior year, requiring
+  at least 20 years and recording the exact fitted window in the climate model.
 - `DAYMET_SINGLE_PIXEL_URL`: optional override of Daymet's lower-48 single
   pixel CSV endpoint. `DAYMET_NCSS_URL` is required for Alaska/Hawaii and must
   return equivalent CSV daily fields from a NetCDF subset route.

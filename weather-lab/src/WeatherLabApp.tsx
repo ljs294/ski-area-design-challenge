@@ -457,7 +457,7 @@ export function WeatherLabApp() {
     appendLog('request', `Starting ${validationYear} comparison at ${latitude.toFixed(6)}, ${longitude.toFixed(6)} using ${context.selectedStation.id}.`);
     appendLog('coverage', 'Daymet coverage and provider eligibility confirmed.');
     appendLog('coverage', `Resolved source grid ${context.selectedStation.id} in ${context.timezone}.`);
-    appendLog('request', `Training prior-30; seed "${seedRef.current}"; elevation ${elevationOverride ? `${elevationText} m override` : `${context.resolvedElevationM} m resolved`}.`);
+    appendLog('request', `Training on up to 30 source-complete prior years; seed "${seedRef.current}"; elevation ${elevationOverride ? `${elevationText} m override` : `${context.resolvedElevationM} m resolved`}.`);
 
     if (artifactsRef.current?.key === key) {
       appendLog('artifacts', 'Reusing cached climate and observation artifacts; provider preparation skipped.');

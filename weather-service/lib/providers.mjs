@@ -3,7 +3,8 @@ import { sourceCacheKey } from './contract.mjs';
 
 const DAYMET_VARIABLES = ['dayl', 'prcp', 'srad', 'swe', 'tmax', 'tmin', 'vp'];
 const NASA_POWER_HOURLY_URL = 'https://power.larc.nasa.gov/api/temporal/hourly/point';
-const NASA_POWER_PARAMETERS = ['T2M', 'RH2M', 'PS', 'U10M', 'V10M', 'PRECTOT', 'CLOUD_AMT', 'ALLSKY_SFC_SW_DWN'];
+const NASA_POWER_PARAMETERS = ['T2M', 'RH2M', 'PS', 'U10M', 'V10M', 'PRECTOTCORR', 'CLOUD_AMT', 'ALLSKY_SFC_SW_DWN'];
+export const NASA_POWER_COMPLETE_START_YEAR = 2001;
 
 function number(value, fallback = 0) {
   const parsed = Number(value);
@@ -211,9 +212,14 @@ async function fetchResponse(fetchImpl, url, options, provider) {
     throw new WeatherServiceError('PROVIDER_UNAVAILABLE', `${provider} could not be reached.`, { retryable: true, cause });
   }
   if (!response.ok) {
-    throw new WeatherServiceError('PROVIDER_UNAVAILABLE', `${provider} returned HTTP ${response.status}.`, {
+    let upstreamMessage = '';
+    try {
+      const body = await response.clone().json();
+      upstreamMessage = Array.isArray(body?.messages) ? body.messages.filter((message) => typeof message === 'string').join(' ') : '';
+    } catch { /* The status remains useful when an upstream does not return JSON. */ }
+    throw new WeatherServiceError('PROVIDER_UNAVAILABLE', `${provider} returned HTTP ${response.status}${upstreamMessage ? `: ${upstreamMessage}` : '.'}`, {
       retryable: response.status >= 500 || response.status === 429,
-      details: { provider, upstreamStatus: response.status },
+      details: { provider, upstreamStatus: response.status, ...(upstreamMessage ? { upstreamMessage } : {}) },
     });
   }
   return response;
@@ -305,7 +311,7 @@ export function normalizePowerHourly(payload, year) {
     const pressureKpa = powerValue(parameters, 'PS', key, fillValue);
     const uWindMps = powerValue(parameters, 'U10M', key, fillValue);
     const vWindMps = powerValue(parameters, 'V10M', key, fillValue);
-    const precipitationMm = powerValue(parameters, 'PRECTOT', key, fillValue);
+    const precipitationMm = powerValue(parameters, 'PRECTOTCORR', key, fillValue);
     const cloudCoverPct = powerValue(parameters, 'CLOUD_AMT', key, fillValue);
     const solarKwhM2 = powerValue(parameters, 'ALLSKY_SFC_SW_DWN', key, fillValue);
     if ([temperatureC, relativeHumidityPct, pressureKpa, uWindMps, vWindMps,
@@ -324,7 +330,8 @@ export function normalizePowerHourly(payload, year) {
 export class Merra2Adapter {
   constructor({ sourceCache, fetchImpl = globalThis.fetch, environment = process.env } = {}) {
     this.id = 'merra2';
-    this.version = environment.NASA_POWER_VERSION ?? 'POWER-hourly-v1';
+    this.version = environment.NASA_POWER_VERSION ?? 'POWER-hourly-v2';
+    this.availableStartYear = NASA_POWER_COMPLETE_START_YEAR;
     this.sourceCache = sourceCache;
     this.fetchImpl = fetchImpl;
   }
@@ -371,7 +378,7 @@ export function createProviderSet({ mode = 'fixture', sourceCache, fetchImpl = g
     mode: 'live', daymet: new DaymetAdapter({ sourceCache, fetchImpl, environment }),
     merra2: new Merra2Adapter({ sourceCache, fetchImpl, environment }),
     sourceSummary: 'Daymet 1 km daily constraints + public NASA POWER MERRA-2-based hourly atmosphere.',
-    sourceVersion: `Daymet ${environment.DAYMET_VERSION ?? 'V4R1'}; NASA POWER ${environment.NASA_POWER_VERSION ?? 'POWER-hourly-v1'} (MERRA-2 meteorology)`,
+    sourceVersion: `Daymet ${environment.DAYMET_VERSION ?? 'V4R1'}; NASA POWER ${environment.NASA_POWER_VERSION ?? 'POWER-hourly-v2'} (MERRA-2 meteorology)`,
     quality: 'estimated',
   };
 }

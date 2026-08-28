@@ -11,6 +11,7 @@ const JACKSON = { id: 'KMWN', sourceIds: ['72613014755', 'KMWN'], name: 'Mount W
   scoreComponents: { coreFieldCompleteness: 1, distance: .89, elevationMatch: 1, trainingOverlap: 1 }, availableYears: [2019] };
 const VARIABLES = ['temperatureC','dewPointC','pressureHpa','relativeHumidityPct','wetBulbC','precipitationMm','snowfallCm',
   'windSpeedKph','windDirectionDeg','windGustKph','shortwaveRadiationWm2','cloudCoverPct','visibilityKm','condition'];
+const MINIMUM_PRIOR_TRAINING_YEARS = 20;
 
 function canonical(value) {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
@@ -46,8 +47,13 @@ export class WeatherLabArtifactStore {
   async readPreparedRequest(digest) { const entry = await readJson(this.requestPath(digest)); return entry?.complete ? entry.result : null; }
 }
 
-export function trainingYears(policy, validationYear) {
-  if (policy?.kind === 'prior-30') return Array.from({ length: 30 }, (_, index) => validationYear - 30 + index);
+export function trainingYears(policy, validationYear, availableYears) {
+  if (policy?.kind === 'prior-30') {
+    const requested = Array.from({ length: 30 }, (_, index) => validationYear - 30 + index);
+    if (!availableYears) return requested;
+    const available = new Set(availableYears);
+    return requested.filter((year) => available.has(year));
+  }
   if (policy?.kind === 'leave-one-out-1991-2020') return Array.from({ length: 30 }, (_, index) => 1991 + index).filter((year) => year !== validationYear);
   if (policy?.kind === 'fixed' && Number.isInteger(policy.startYear) && Number.isInteger(policy.endYear) && policy.startYear <= policy.endYear)
     return Array.from({ length: policy.endYear - policy.startYear + 1 }, (_, index) => policy.startYear + index).filter((year) => year !== validationYear);
@@ -56,17 +62,20 @@ export function trainingYears(policy, validationYear) {
 
 function eligibleYears(source, latestYear) {
   const available = new Set(source.availableYears ?? []);
-  return [...available].filter((year) => year <= latestYear && Array.from({ length: 30 }, (_, index) => year - 30 + index)
-    .every((candidate) => available.has(candidate))).sort((a, b) => b - a);
+  return [...available].filter((year) => {
+    if (year > latestYear) return false;
+    const training = Array.from({ length: 30 }, (_, index) => year - 30 + index).filter((candidate) => available.has(candidate));
+    return training.length >= MINIMUM_PRIOR_TRAINING_YEARS && training.every((candidate, index) => index === 0 || candidate === training[index - 1] + 1);
+  }).sort((a, b) => b - a);
 }
-function merraGrid(latitude, longitude, elevationM, timezone, latestYear) {
+function merraGrid(latitude, longitude, elevationM, timezone, latestYear, availableStartYear = 1980) {
   const gridLatitude = Math.round(latitude / .5) * .5;
   const gridLongitude = Math.round(longitude / .625) * .625;
   const id = `MERRA2-${gridLatitude.toFixed(3)}-${gridLongitude.toFixed(3)}`;
   return { id, sourceIds: [id], name: 'MERRA-2 reanalysis grid cell', latitude: gridLatitude, longitude: gridLongitude,
     elevationM, timezone, distanceKm: 0, score: 1,
     scoreComponents: { coreFieldCompleteness: 1, distance: 1, elevationMatch: 1, trainingOverlap: 1 },
-    availableYears: Array.from({ length: latestYear - 1980 + 1 }, (_, index) => 1980 + index) };
+    availableYears: Array.from({ length: Math.max(0, latestYear - availableStartYear + 1) }, (_, index) => availableStartYear + index) };
 }
 function dewPointFromHumidity(temperatureC, relativeHumidityPct) {
   if (temperatureC == null || relativeHumidityPct == null) return null;
@@ -283,12 +292,15 @@ export class WeatherLabService {
     if (!timezone) return { version: 1, latitude: normalizedLatitude, longitude: normalizedLongitude, coverage: 'supported',
       resolvedElevationM: elevation, elevationSource: 'daymet', timezone: null, timezoneResolution: 'unavailable', stations: [], selectedStation: null,
       eligibleValidationYears: [], warnings: ['No IANA timezone could be resolved for this Daymet coordinate.'] };
-    const selectedStation = merraGrid(normalizedLatitude, normalizedLongitude, elevation, timezone, latestYear);
+    const availableStartYear = Number.isInteger(this.merra2.availableStartYear) ? this.merra2.availableStartYear : 1980;
+    const selectedStation = merraGrid(normalizedLatitude, normalizedLongitude, elevation, timezone, latestYear, availableStartYear);
     const stations = [selectedStation]; const years = eligibleYears(selectedStation, latestYear);
     return { version: 1, latitude: normalizedLatitude, longitude: normalizedLongitude, coverage: 'supported',
       resolvedElevationM: elevation, elevationSource: 'daymet', timezone, timezoneResolution: 'coordinate',
       stations, selectedStation, eligibleValidationYears: years,
-      warnings: years.length ? [] : ['The selected station does not have a complete prior-30 period for an available validation year.'] };
+      warnings: years.length
+        ? availableStartYear > latestYear - 30 ? [`Complete NASA POWER hourly fields begin in ${availableStartYear}; prior-30 uses every source-complete prior year (minimum ${MINIMUM_PRIOR_TRAINING_YEARS}).`] : []
+        : [`The selected source does not have ${MINIMUM_PRIOR_TRAINING_YEARS} contiguous prior years for an available validation year.`] };
   }
   async stations(query) { return (await this.locationContext({ latitude: query.get('latitude'), longitude: query.get('longitude'), elevationOverrideM: query.get('elevationM') ?? undefined })).stations; }
   async create(body) {
@@ -300,7 +312,15 @@ export class WeatherLabService {
     if (context.coverage !== 'supported') throw new WeatherServiceError('UNSUPPORTED_LOCATION', context.coverageReason ?? 'Coordinate is outside Daymet land coverage.', { status: 422 });
     if (!context.selectedStation) throw new WeatherServiceError('NO_SOURCE_GRID', 'No qualifying MERRA-2 grid cell was resolved.', { status: 422 });
     if (!context.eligibleValidationYears.includes(request.validationYear)) throw new WeatherServiceError('INSUFFICIENT_HISTORY', `Validation year ${request.validationYear} lacks the requested training period.`, { status: 422 });
-    const years = trainingYears(request.trainingPolicy, request.validationYear); if (years.includes(request.validationYear)) throw new WeatherServiceError('TRAINING_LEAK', 'Validation year entered fitted inputs.', { status: 400 });
+    const years = trainingYears(request.trainingPolicy, request.validationYear,
+      this.mode === 'live' ? context.selectedStation.availableYears : undefined);
+    if (this.mode === 'live' && request.trainingPolicy.kind === 'prior-30' && years.length < MINIMUM_PRIOR_TRAINING_YEARS)
+      throw new WeatherServiceError('INSUFFICIENT_HISTORY', `At least ${MINIMUM_PRIOR_TRAINING_YEARS} source-complete prior years are required.`, { status: 422 });
+    const availableYears = new Set(context.selectedStation.availableYears ?? []);
+    const unavailableYears = this.mode === 'live' ? years.filter((year) => !availableYears.has(year)) : [];
+    if (unavailableYears.length) throw new WeatherServiceError('INSUFFICIENT_HISTORY',
+      `The complete hourly source contract is unavailable for training year${unavailableYears.length === 1 ? '' : 's'} ${unavailableYears.slice(0, 6).join(', ')}.`, { status: 422 });
+    if (years.includes(request.validationYear)) throw new WeatherServiceError('TRAINING_LEAK', 'Validation year entered fitted inputs.', { status: 400 });
     const requestKey = hash({ namespace: 'weather-lab-preparation-v2', mode: this.mode,
       request: { ...request, latitude: context.latitude, longitude: context.longitude }, stationId: context.selectedStation.id });
     const activeJob = this.requestJobs.get(requestKey);
@@ -402,8 +422,10 @@ export class WeatherLabService {
         name: `${job.context.latitude.toFixed(4)}, ${job.context.longitude.toFixed(4)}`, latitude: job.context.latitude,
         longitude: job.context.longitude, comparisonElevationM: elevation };
       const trainingSeries = series.filter((candidate) => years.includes(candidate.validationYear));
+      const resolvedTrainingPolicy = job.request.trainingPolicy.kind === 'prior-30' && years.length < 30
+        ? { kind: 'fixed', startYear: years[0], endYear: years.at(-1) } : job.request.trainingPolicy;
       const model = engine.compileLocationClimateModel({ version: 1, location, primaryStation: job.context.selectedStation,
-        trainingStations: [job.context.selectedStation], trainingPolicy: job.request.trainingPolicy, validationYear: job.request.validationYear,
+        trainingStations: [job.context.selectedStation], trainingPolicy: resolvedTrainingPolicy, validationYear: job.request.validationYear,
         trainingSeries, sourceHashes: [engine.sha256Hex(daymet), ...trainingSeries.map((candidate) => candidate.observationHash)],
         providers: ['Daymet V4', 'MERRA-2'], compilerVersion: 'weather-compiler-v1-live' });
       requireActive(job);

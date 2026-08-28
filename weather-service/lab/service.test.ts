@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { WeatherLabService, historicalSeries } from './service.mjs';
+import { WeatherLabService, historicalSeries, trainingYears } from './service.mjs';
 
 async function terminal(service: WeatherLabService, id: string) {
   let job = await service.get(id);
@@ -54,11 +54,15 @@ describe('Weather Lab MERRA-2 observation service', () => {
     try {
       const service = new WeatherLabService({ cacheDirectory: root, mode: 'live',
         daymet: { async request() { return { elevationM: 1655, days: dayRows(2025) }; } },
-        merra2: { async getHourly() { throw new Error('context must not download hourly data'); } },
+        merra2: { availableStartYear: 2001, async getHourly() { throw new Error('context must not download hourly data'); } },
         now: () => new Date('2026-08-27T00:00:00Z') });
       const context = await service.locationContext({ latitude: 39.74, longitude: -104.99 });
       expect(context.selectedStation?.id).toMatch(/^MERRA2-/); expect(context.stations).toHaveLength(1);
       expect(context.eligibleValidationYears[0]).toBe(2025); expect(context.timezone).toBe('America/Denver');
+      expect(context.selectedStation?.availableYears?.[0]).toBe(2001);
+      expect(context.warnings[0]).toContain('begin in 2001');
+      expect(trainingYears({ kind: 'prior-30' }, 2025, context.selectedStation?.availableYears)).toEqual(
+        Array.from({ length: 24 }, (_, index) => 2001 + index));
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
