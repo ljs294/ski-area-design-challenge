@@ -46,14 +46,16 @@ zero precipitation.
 Set `WEATHER_SERVICE_MODE=live`. The game/browser never receives these values;
 they belong only to the project-hosted builder:
 
-- `MERRA2_SUBSET_URL`: authenticated project-owned MERRA-2 subset gateway.
-  It accepts `{ provider, version, year, latitude, longitude, variables }` and
-  a `collections` manifest. The gateway must combine `M2T1NXSLV` for surface
-  state/wind, `M2T1NXFLX` for `PRECTOTCORR`, and `M2T1NXRAD` for `SWGDN` and
-  `CLDTOT`, returning `{ gridCell?, hours: [...] }` with all UTC hours of the
-  requested year. Daymet remains authoritative for daily precipitation totals;
-  MERRA-2 supplies the within-day timing and shape.
-- `MERRA2_BEARER_TOKEN`: optional service-to-service token for that gateway.
+The default source policy uses only public, no-cost NASA endpoints. NASA
+Earth-science data are open access and, absent a specifically marked
+restriction, are distributed under CC0; retain the recorded NASA/Daymet
+citations when publishing derived data.
+
+- The official NASA POWER hourly point API is the sole MERRA-2-based
+  meteorology route and requires no account, API key, token, paid plan, or
+  private service. Daymet remains authoritative for daily precipitation totals;
+  NASA POWER supplies the within-day precipitation timing and hourly
+  atmospheric fields. The endpoint is intentionally not environment-configurable.
 - `DAYMET_SINGLE_PIXEL_URL`: optional override of Daymet's lower-48 single
   pixel CSV endpoint. `DAYMET_NCSS_URL` is required for Alaska/Hawaii and must
   return equivalent CSV daily fields from a NetCDF subset route.

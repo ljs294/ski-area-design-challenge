@@ -251,7 +251,7 @@ function sourceDescriptors(providerSet, sourceDetails) {
   }
   return [
     source('daymet', providerSet.daymet.version, first.daymet?.grid?.id, 'https://daac.ornl.gov/DAYMET/guides/Daymet_Daily_V4R1.html', 'estimated'),
-    source('merra-2', providerSet.merra2.version, first.merra2?.grid?.id, 'https://gmao.gsfc.nasa.gov/gmao-products/merra-2/', 'estimated'),
+    source('merra-2', providerSet.merra2.version, first.merra2?.grid?.id, 'https://power.larc.nasa.gov/docs/services/api/temporal/hourly/', 'estimated'),
   ];
 }
 

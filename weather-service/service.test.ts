@@ -7,7 +7,7 @@ import { PackageArtifactStore, SourceCache } from './lib/cache.mjs';
 import { validateWeatherPackageRequest } from './lib/contract.mjs';
 import { decodeWeatherChunk, encodeWeatherHours } from './lib/codec.mjs';
 import { normalizeWeatherYear } from './lib/builder.mjs';
-import { createProviderSet } from './lib/providers.mjs';
+import { createProviderSet, normalizePowerHourly } from './lib/providers.mjs';
 import { createWeatherService } from './server.mjs';
 
 const request = {
@@ -136,58 +136,37 @@ describe('weather service', () => {
     }
   });
 
-  it('normalizes configured Daymet and MERRA-2 adapter responses without live network access', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'weather-provider-adapters-'));
+  it('uses the public NASA POWER MERRA-2 route without credentials or private services', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'weather-power-public-'));
     try {
-      const seen: Array<{ url: string; options?: RequestInit }> = [];
-      const daymetRows = ['year,yday,dayl,prcp,srad,swe,tmax,tmin,vp'];
-      for (let day = 1; day <= 365; day += 1) daymetRows.push(`1991,${day},36000,2,150,10,3,-5,500`);
-      const merraHours = Array.from({ length: 8760 }, (_, index) => ({
-        // Standard native MERRA aliases: T2M/PS are Kelvin/Pascals and
-        // PRECTOTCORR is a water-equivalent flux in kg m-2 s-1.
-        at: new Date(Date.UTC(1991, 0, 1, index)).toISOString(), T2M: 271.15, QV2M: 0.002, PS: 90_000,
-        U10M: 2, V10M: -1, PRECTOTCORR: 0.0001, SWGDN: 50, CLDTOT: 0.55,
-      }));
-      const fetchImpl = async (url: URL | string, options?: RequestInit) => {
-        seen.push({ url: String(url), options });
-        if (String(url).includes('daymet.example')) return new Response(daymetRows.join('\n'), { status: 200 });
-        if (String(url).includes('merra.example')) return Response.json({ hours: merraHours, gridCell: { id: 'merra-grid' } });
-        throw new Error(`Unexpected provider URL ${String(url)}`);
-      };
-      const sourceCache = new SourceCache(root);
-      const providers = createProviderSet({
-        mode: 'live', sourceCache, fetchImpl,
-        environment: {
-          DAYMET_SINGLE_PIXEL_URL: 'https://daymet.example/api', MERRA2_SUBSET_URL: 'https://merra.example/subset',
-          MERRA2_BEARER_TOKEN: 'service-token',
-        },
-      });
-      const normalizedRequest = validateWeatherPackageRequest(request);
-      const context = { throwIfAborted() {}, signal: undefined };
-      const [daymet, merra2] = await Promise.all([
-        providers.daymet.getDaily(normalizedRequest, 1991, context), providers.merra2.getHourly(normalizedRequest, 1991, context),
-      ]);
-      expect(daymet.days).toHaveLength(365);
-      expect(daymet.days[0].tminC).toBe(-5);
-      expect(merra2.hours).toHaveLength(8760);
-      expect(merra2.hours[0].pressureHpa).toBe(900);
-      expect(merra2.hours[0].temperatureC).toBeCloseTo(-2, 6);
-      expect(merra2.hours[0].precipitationMm).toBeCloseTo(0.36, 6);
-      expect(merra2.hours[0].cloudCoverPct).toBeCloseTo(55, 8);
-      expect(merra2.hours[0].relativeHumidityPct).toBeGreaterThan(0);
-      expect(Object.keys(providers).some((key) => key.toLowerCase().includes('ghcn'))).toBe(false);
-      expect(seen.some((call) => call.url.includes('lat=39.1911') && call.url.includes('vars='))).toBe(true);
-      const merraCall = seen.find((call) => call.url.includes('merra.example'));
-      expect(merraCall?.options?.headers).toMatchObject({ authorization: 'Bearer service-token' });
-      const merraRequest = JSON.parse(String(merraCall?.options?.body));
-      expect(merraRequest.collections).toEqual([
-        { id: 'M2T1NXSLV', variables: ['T2M', 'QV2M', 'PS', 'U10M', 'V10M'] },
-        { id: 'M2T1NXFLX', variables: ['PRECTOTCORR'] },
-        { id: 'M2T1NXRAD', variables: ['SWGDN', 'CLDTOT'] },
-      ]);
-    } finally {
-      await rm(root, { recursive: true, force: true });
-    }
+      const keys = Array.from({ length: 8760 }, (_, index) => new Date(Date.UTC(1991, 0, 1, index))
+        .toISOString().replace(/[-:T]/g, '').slice(0, 10));
+      const values = (value: number) => Object.fromEntries(keys.map((key) => [key, value]));
+      let requestedUrl = ''; let requestedOptions: RequestInit | undefined;
+      const providers = createProviderSet({ mode: 'live', sourceCache: new SourceCache(root),
+        fetchImpl: async (input: URL | string, options?: RequestInit) => {
+          requestedUrl = String(input); requestedOptions = options;
+          return Response.json({ header: { fill_value: -999 }, geometry: { coordinates: [-106.875, 39] }, properties: { parameter: {
+            T2M: values(-2), RH2M: values(75), PS: values(90), U10M: values(2), V10M: values(-1),
+            PRECTOT: values(.2), CLOUD_AMT: values(55), ALLSKY_SFC_SW_DWN: values(.05),
+          } } });
+        } });
+      const hourly = await providers.merra2.getHourly(validateWeatherPackageRequest(request), 1991,
+        { throwIfAborted() {}, signal: undefined });
+      expect(hourly.hours).toHaveLength(8760);
+      expect(hourly.hours[0]).toMatchObject({ temperatureC: -2, relativeHumidityPct: 75, pressureHpa: 900,
+        precipitationMm: .2, cloudCoverPct: 55, shortwaveWm2: 50 });
+      expect(requestedUrl).toContain('https://power.larc.nasa.gov/api/temporal/hourly/point');
+      expect(requestedUrl).toContain('time-standard=UTC');
+      expect(requestedUrl).toContain('CLOUD_AMT');
+      expect(requestedOptions?.headers).toBeUndefined();
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
+  it('rejects incomplete NASA POWER hours instead of inventing source values', () => {
+    const parameter = Object.fromEntries(['T2M', 'RH2M', 'PS', 'U10M', 'V10M', 'PRECTOT', 'CLOUD_AMT']
+      .map((name) => [name, { '1991010100': 1 }]));
+    expect(normalizePowerHourly({ properties: { parameter } }, 1991).hours).toEqual([]);
   });
 
   it('reports job progress, serves validated chunks, and keeps legacy package loading compatible', async () => {

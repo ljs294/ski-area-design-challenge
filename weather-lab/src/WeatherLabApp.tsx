@@ -54,7 +54,7 @@ type PreparedArtifacts = Readonly<{
 }>;
 
 const STEP_LABELS: Record<RunStep, string> = {
-  coverage: 'Coverage', daymet: 'Daymet daily', merra2: 'MERRA-2 hourly',
+  coverage: 'Coverage', daymet: 'Daymet daily', merra2: 'NASA POWER / MERRA-2 hourly',
   compiling: 'Climate compilation', artifacts: 'Artifacts', simulation: 'Simulation', forecasting: 'Forecasting', comparison: 'Comparison',
 };
 

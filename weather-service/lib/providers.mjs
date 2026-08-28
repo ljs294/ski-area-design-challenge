@@ -2,12 +2,8 @@ import { WeatherServiceError, invariant } from './errors.mjs';
 import { sourceCacheKey } from './contract.mjs';
 
 const DAYMET_VARIABLES = ['dayl', 'prcp', 'srad', 'swe', 'tmax', 'tmin', 'vp'];
-const MERRA_VARIABLES = ['temperatureC', 'relativeHumidityPct', 'pressureHpa', 'uWindMps', 'vWindMps', 'precipitationMm', 'shortwaveWm2', 'cloudCoverPct'];
-const MERRA_COLLECTIONS = Object.freeze([
-  { id: 'M2T1NXSLV', variables: ['T2M', 'QV2M', 'PS', 'U10M', 'V10M'] },
-  { id: 'M2T1NXFLX', variables: ['PRECTOTCORR'] },
-  { id: 'M2T1NXRAD', variables: ['SWGDN', 'CLDTOT'] },
-]);
+const NASA_POWER_HOURLY_URL = 'https://power.larc.nasa.gov/api/temporal/hourly/point';
+const NASA_POWER_PARAMETERS = ['T2M', 'RH2M', 'PS', 'U10M', 'V10M', 'PRECTOT', 'CLOUD_AMT', 'ALLSKY_SFC_SW_DWN'];
 
 function number(value, fallback = 0) {
   const parsed = Number(value);
@@ -293,92 +289,66 @@ export class DaymetAdapter {
   }
 }
 
-function merraTemperatureC(row) {
-  const explicitCelsius = row.temperatureC ?? row.temperature_c ?? row.t2mC;
-  if (explicitCelsius !== undefined) return number(explicitCelsius);
-  // Native MERRA-2 T2M is Kelvin. Retain a Celsius-looking value for adapters
-  // which have already converted it, but never silently treat 270 K as 270 C.
-  const native = number(row.t2m ?? row.T2M ?? row.temperature);
-  return native > 150 ? native - 273.15 : native;
+function powerValue(parameters, name, key, fillValue) {
+  const value = Number(parameters?.[name]?.[key]);
+  return Number.isFinite(value) && value !== fillValue && value > -900 ? value : null;
 }
 
-function merraPressureHpa(row) {
-  const pressure = number(row.pressureHpa ?? row.pressure_hpa ?? row.ps ?? row.PS, 1013);
-  // Native MERRA-2 PS is Pascals; the normalized weather contract is hPa.
-  return pressure > 2_000 ? pressure / 100 : pressure;
-}
-
-function merraHourlyPrecipitationMm(row) {
-  const total = row.precipitationMm ?? row.precipitation_mm ?? row.precip;
-  if (total !== undefined) return Math.max(0, number(total));
-  // PRECTOT/PRECTOTCORR-style fields are kg m-2 s-1 (= mm s-1 of water).
-  const flux = row.precipitationRateKgM2s ?? row.precipitation_rate ?? row.prectot ?? row.PRECTOT ?? row.prectotcorr ?? row.PRECTOTCORR;
-  return Math.max(0, number(flux) * 3_600);
-}
-
-function merraRelativeHumidityPct(row, temperatureC, pressureHpa) {
-  const explicit = row.relativeHumidityPct ?? row.rh ?? row.relative_humidity;
-  if (explicit !== undefined) return clamp(number(explicit, 50), 1, 100);
-  const specificHumidity = number(row.qv2m ?? row.QV2M, Number.NaN);
-  if (!Number.isFinite(specificHumidity)) return 50;
-  const vaporPressureHpa = specificHumidity * pressureHpa / (0.622 + 0.378 * specificHumidity);
-  const saturationHpa = 6.112 * Math.exp(17.67 * temperatureC / (temperatureC + 243.5));
-  return clamp(vaporPressureHpa / saturationHpa * 100, 1, 100);
-}
-
-function normalizeMerraHour(row) {
-  const at = row.at ?? row.time ?? row.timestamp;
-  invariant(typeof at === 'string' && Number.isFinite(new Date(at).getTime()), 'PROVIDER_RESPONSE_INVALID', 'MERRA-2 hourly row has an invalid timestamp.');
-  const temperatureC = merraTemperatureC(row); const pressureHpa = merraPressureHpa(row);
-  const nativeCloudFraction = row.cldtot ?? row.CLDTOT;
-  const cloudCover = nativeCloudFraction !== undefined ? number(nativeCloudFraction) * 100
-    : number(row.cloudCoverPct ?? row.cloud ?? row.cloud_cover ?? row.CLOUD, 50);
-  return {
-    at: new Date(at).toISOString(), temperatureC,
-    relativeHumidityPct: merraRelativeHumidityPct(row, temperatureC, pressureHpa),
-    pressureHpa,
-    uWindMps: number(row.uWindMps ?? row.u10m ?? row.U10M ?? row.u ?? row.U), vWindMps: number(row.vWindMps ?? row.v10m ?? row.V10M ?? row.v ?? row.V),
-    precipitationMm: merraHourlyPrecipitationMm(row),
-    shortwaveWm2: Math.max(0, number(row.shortwaveWm2 ?? row.swgdn ?? row.SWGDN ?? row.shortwave)),
-    cloudCoverPct: clamp(cloudCover, 0, 100),
-  };
+/** Normalizes the public NASA POWER hourly point response into the MERRA-2 contract. */
+export function normalizePowerHourly(payload, year) {
+  const parameters = payload?.properties?.parameter; const fillValue = Number(payload?.header?.fill_value ?? -999);
+  invariant(parameters && typeof parameters === 'object', 'PROVIDER_RESPONSE_INVALID', 'NASA POWER did not return hourly parameters.');
+  const keys = Object.keys(parameters.T2M ?? {}).filter((key) => key.startsWith(String(year)) && /^\d{10}$/.test(key)).sort();
+  const hours = keys.flatMap((key) => {
+    const temperatureC = powerValue(parameters, 'T2M', key, fillValue);
+    const relativeHumidityPct = powerValue(parameters, 'RH2M', key, fillValue);
+    const pressureKpa = powerValue(parameters, 'PS', key, fillValue);
+    const uWindMps = powerValue(parameters, 'U10M', key, fillValue);
+    const vWindMps = powerValue(parameters, 'V10M', key, fillValue);
+    const precipitationMm = powerValue(parameters, 'PRECTOT', key, fillValue);
+    const cloudCoverPct = powerValue(parameters, 'CLOUD_AMT', key, fillValue);
+    const solarKwhM2 = powerValue(parameters, 'ALLSKY_SFC_SW_DWN', key, fillValue);
+    if ([temperatureC, relativeHumidityPct, pressureKpa, uWindMps, vWindMps,
+      precipitationMm, cloudCoverPct, solarKwhM2].some((value) => value == null)) return [];
+    const [, month, day, hour] = key.match(/^\d{4}(\d{2})(\d{2})(\d{2})$/);
+    return [{ at: new Date(Date.UTC(year, Number(month) - 1, Number(day), Number(hour))).toISOString(),
+      temperatureC, relativeHumidityPct, pressureHpa: pressureKpa * 10, uWindMps, vWindMps,
+      precipitationMm: Math.max(0, precipitationMm), shortwaveWm2: Math.max(0, solarKwhM2 * 1_000),
+      cloudCoverPct: clamp(cloudCoverPct, 0, 100) }];
+  });
+  const coordinates = payload?.geometry?.coordinates;
+  return { hours, sourceGrid: { id: Array.isArray(coordinates) ? `nasa-power:${coordinates[1]},${coordinates[0]}` : `nasa-power:${year}`,
+    resolutionDegrees: .5 } };
 }
 
 export class Merra2Adapter {
   constructor({ sourceCache, fetchImpl = globalThis.fetch, environment = process.env } = {}) {
     this.id = 'merra2';
-    this.version = environment.MERRA2_VERSION ?? '5.12.4';
+    this.version = environment.NASA_POWER_VERSION ?? 'POWER-hourly-v1';
     this.sourceCache = sourceCache;
     this.fetchImpl = fetchImpl;
-    this.environment = environment;
   }
 
   async getHourly(request, year, context) {
     const grid = merra2Cell(request.latitude, request.longitude);
-    const cacheKey = sourceCacheKey(this.id, this.version, request, { year, grid: `${grid.latitude},${grid.longitude}`, location: grid });
+    const cacheKey = sourceCacheKey(this.id, this.version, request, { year, route: 'nasa-power', grid: `${grid.latitude},${grid.longitude}`, location: grid });
     const result = await this.sourceCache.getOrCreate(this.id, cacheKey, async () => {
       context.throwIfAborted();
-      const endpoint = this.environment.MERRA2_SUBSET_URL;
-      if (!endpoint) {
-        throw new WeatherServiceError('PROVIDER_CONFIGURATION', 'MERRA2_SUBSET_URL must point to the project-owned authenticated MERRA-2 subset adapter in live mode.', {
-          details: { provider: this.id, requiredEnvironment: 'MERRA2_SUBSET_URL' },
-        });
-      }
-      const headers = { 'content-type': 'application/json' };
-      if (this.environment.MERRA2_BEARER_TOKEN) headers.authorization = `Bearer ${this.environment.MERRA2_BEARER_TOKEN}`;
-      const response = await fetchResponse(this.fetchImpl, endpoint, {
-        method: 'POST', headers, signal: context.signal,
-        body: JSON.stringify({ provider: 'MERRA-2', version: this.version, year, latitude: request.latitude, longitude: request.longitude,
-          variables: MERRA_VARIABLES, collections: MERRA_COLLECTIONS }),
-      }, 'MERRA-2 subset adapter');
+      const url = new URL(NASA_POWER_HOURLY_URL); url.searchParams.set('parameters', NASA_POWER_PARAMETERS.join(','));
+      url.searchParams.set('community', 'RE'); url.searchParams.set('longitude', String(request.longitude));
+      const boundaryOnly = year >= new Date().getUTCFullYear();
+      url.searchParams.set('latitude', String(request.latitude)); url.searchParams.set('start', `${year}0101`);
+      url.searchParams.set('end', boundaryOnly ? `${year}0102` : `${year}1231`);
+      url.searchParams.set('format', 'JSON'); url.searchParams.set('time-standard', 'UTC');
+      const response = await fetchResponse(this.fetchImpl, url, { signal: context.signal }, 'NASA POWER MERRA-2 hourly API');
       let payload;
       try { payload = await response.json(); } catch (cause) {
-        throw new WeatherServiceError('PROVIDER_RESPONSE_INVALID', 'MERRA-2 subset adapter did not return JSON.', { cause });
+        throw new WeatherServiceError('PROVIDER_RESPONSE_INVALID', 'NASA POWER did not return JSON.', { cause });
       }
-      invariant(Array.isArray(payload?.hours), 'PROVIDER_RESPONSE_INVALID', 'MERRA-2 subset adapter response must contain an hours array.');
-      const hours = payload.hours.map(normalizeMerraHour).filter((hour) => hour.at.startsWith(`${year}-`));
-      invariant(hours.length >= 8_700, 'PROVIDER_RESPONSE_INVALID', `MERRA-2 returned only ${hours.length} hours for ${year}.`, { details: { provider: this.id, year } });
-      return { hours, sourceGrid: payload.gridCell ?? { id: `merra2:${request.latitude.toFixed(2)},${request.longitude.toFixed(2)}`, resolutionDegrees: 0.5 } };
+      const normalized = normalizePowerHourly(payload, year); const hours = normalized.hours;
+      const minimumHours = year >= new Date().getUTCFullYear() ? 24 : 8_700;
+      invariant(hours.length >= minimumHours, 'PROVIDER_RESPONSE_INVALID', `MERRA-2 returned only ${hours.length} hours for ${year}.`, { details: { provider: this.id, year } });
+      return normalized;
     });
     return { ...result.value, cacheHit: result.cacheHit, provider: this.id, version: this.version, quality: 'estimated' };
   }
@@ -400,8 +370,8 @@ export function createProviderSet({ mode = 'fixture', sourceCache, fetchImpl = g
   return {
     mode: 'live', daymet: new DaymetAdapter({ sourceCache, fetchImpl, environment }),
     merra2: new Merra2Adapter({ sourceCache, fetchImpl, environment }),
-    sourceSummary: 'Daymet 1 km daily constraints + MERRA-2 hourly atmosphere.',
-    sourceVersion: `Daymet ${environment.DAYMET_VERSION ?? 'V4R1'}; MERRA-2 ${environment.MERRA2_VERSION ?? '5.12.4'} (M2T1NXSLV + M2T1NXFLX + M2T1NXRAD)`,
+    sourceSummary: 'Daymet 1 km daily constraints + public NASA POWER MERRA-2-based hourly atmosphere.',
+    sourceVersion: `Daymet ${environment.DAYMET_VERSION ?? 'V4R1'}; NASA POWER ${environment.NASA_POWER_VERSION ?? 'POWER-hourly-v1'} (MERRA-2 meteorology)`,
     quality: 'estimated',
   };
 }
