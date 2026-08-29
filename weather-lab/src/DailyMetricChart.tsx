@@ -19,9 +19,9 @@ const WIDTH = 900;
 const HEIGHT = 260;
 const PLOT = Object.freeze({ left: 56, right: 18, top: 18, bottom: 36 });
 const SERIES = Object.freeze([
-  { key: 'observed', label: 'Observed', color: '#8aa4bd' },
-  { key: 'baseline', label: 'Baseline', color: '#d6ad55' },
-  { key: 'candidate', label: 'Candidate', color: '#ff7448' },
+  { key: 'observed', label: 'Observed', color: '#8aa4bd', dash: '7 4' },
+  { key: 'baseline', label: 'Pinned Baseline', color: '#d6ad55', dash: '2 4' },
+  { key: 'candidate', label: 'Simulation', color: '#ff7448', dash: undefined },
 ] as const);
 
 function valuesFor(rows: readonly DailyComparisonRow[], source: typeof SERIES[number]['key'], metric: DailyNumericMetric): readonly (DailyNumericValue | null)[] {
@@ -61,7 +61,8 @@ function unit(metric: DailyNumericMetric): string {
 export function DailyMetricChart({ series, metric, month, ariaLabel }: DailyMetricChartProps) {
   const titleId = useId();
   const rows = alignDailyComparison(series, month);
-  const all = SERIES.flatMap((entry) => valuesFor(rows, entry.key, metric).flatMap((value) => value == null ? [] : [value.minimum, value.maximum]));
+  const visibleSeries = series.baseline ? SERIES : SERIES.filter((entry) => entry.key !== 'baseline');
+  const all = visibleSeries.flatMap((entry) => valuesFor(rows, entry.key, metric).flatMap((value) => value == null ? [] : [value.minimum, value.maximum]));
   const dataMinimum = all.length > 0 ? Math.min(...all) : 0;
   const dataMaximum = all.length > 0 ? Math.max(...all) : 1;
   const shouldStartAtZero = metric !== 'temperature' && metric !== 'wet-bulb';
@@ -74,30 +75,28 @@ export function DailyMetricChart({ series, metric, month, ariaLabel }: DailyMetr
   const plotHeight = HEIGHT - PLOT.top - PLOT.bottom;
   const x = (index: number) => PLOT.left + index / Math.max(1, rows.length - 1) * plotWidth;
   const y = (value: number) => PLOT.top + (high - value) / (high - low) * plotHeight;
-  const title = ariaLabel ?? `Daily ${DAILY_METRIC_LABELS[metric].toLocaleLowerCase()} for observed, baseline, and candidate weather`;
+  const title = ariaLabel ?? `Daily ${DAILY_METRIC_LABELS[metric].toLocaleLowerCase()} for observed and Simulation weather${series.baseline ? ' with pinned Baseline' : ''}`;
   const metricUnit = unit(metric);
+  const yTicks = Array.from({ length: 5 }, (_, index) => high - (high - low) * index / 4);
+  const xTicks = [...new Set(Array.from({ length: Math.min(6, rows.length) }, (_, index) => Math.round(index * (rows.length - 1) / Math.max(1, Math.min(5, rows.length - 1)))))];
 
   if (rows.length === 0 || all.length === 0) return <p role="status">No {DAILY_METRIC_LABELS[metric].toLocaleLowerCase()} values are available for this period.</p>;
 
   return <figure className="weather-daily-chart">
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-labelledby={titleId}>
       <title id={titleId}>{title}</title>
-      <line x1={PLOT.left} x2={PLOT.left} y1={PLOT.top} y2={HEIGHT - PLOT.bottom} stroke="currentColor" opacity="0.35"/>
-      <line x1={PLOT.left} x2={WIDTH - PLOT.right} y1={HEIGHT - PLOT.bottom} y2={HEIGHT - PLOT.bottom} stroke="currentColor" opacity="0.35"/>
-      <text x={PLOT.left - 8} y={PLOT.top + 5} textAnchor="end" fontSize="11">{high.toFixed(1)}</text>
-      <text x={PLOT.left - 8} y={HEIGHT - PLOT.bottom} textAnchor="end" fontSize="11">{low.toFixed(1)}</text>
-      <text x={PLOT.left} y={HEIGHT - 10} textAnchor="start" fontSize="11">{rows[0].localDate}</text>
-      <text x={WIDTH - PLOT.right} y={HEIGHT - 10} textAnchor="end" fontSize="11">{rows.at(-1)?.localDate}</text>
-      {(metric === 'temperature' || metric === 'wet-bulb') && SERIES.map((entry) => {
+      {yTicks.map((tick) => <g key={tick}><line x1={PLOT.left} x2={WIDTH - PLOT.right} y1={y(tick)} y2={y(tick)} stroke="currentColor" opacity="0.16"/><text x={PLOT.left - 8} y={y(tick) + 4} textAnchor="end" fontSize="10">{tick.toFixed(1)}</text></g>)}
+      {xTicks.map((index) => <g key={index}><line x1={x(index)} x2={x(index)} y1={PLOT.top} y2={HEIGHT - PLOT.bottom} stroke="currentColor" opacity="0.08"/><text x={x(index)} y={HEIGHT - 10} textAnchor={index === 0 ? 'start' : index === rows.length - 1 ? 'end' : 'middle'} fontSize="10">{rows[index].localDate.slice(5)}</text></g>)}
+      {(metric === 'temperature' || metric === 'wet-bulb') && visibleSeries.map((entry) => {
         const values = valuesFor(rows, entry.key, metric);
         return <path key={`${entry.key}-band`} d={bandPath(values, x, y)} fill={entry.color} fillOpacity="0.12" stroke="none"/>;
       })}
-      {SERIES.map((entry) => {
+      {visibleSeries.map((entry) => {
         const values = valuesFor(rows, entry.key, metric);
-        return <path key={entry.key} d={linePath(values, x, y)} fill="none" stroke={entry.color} strokeWidth="2"/>;
+        return <g key={entry.key}><path d={linePath(values, x, y)} fill="none" stroke={entry.color} strokeWidth="2" strokeDasharray={entry.dash}/>{values.map((value, index) => value && <circle key={rows[index].localDate} cx={x(index)} cy={y(value.mean)} r="2.5" fill={entry.color} tabIndex={0}><title>{rows[index].localDate} · {entry.label}: {value.mean.toFixed(2)} {metricUnit} (min {value.minimum.toFixed(2)}, max {value.maximum.toFixed(2)})</title></circle>)}</g>;
       })}
     </svg>
     <figcaption>{DAILY_METRIC_LABELS[metric]} ({metricUnit}). Temperature charts include daily minimum/maximum bands.</figcaption>
-    <ul className="weather-chart-legend" aria-label="Chart series">{SERIES.map((entry) => <li key={entry.key}><i style={{ backgroundColor: entry.color }}/>{entry.label}</li>)}</ul>
+    <ul className="weather-chart-legend" aria-label="Chart series">{visibleSeries.map((entry) => <li key={entry.key}><i style={{ backgroundColor: entry.color, borderTop: entry.dash ? `2px dashed ${entry.color}` : undefined }}/>{entry.label}</li>)}</ul>
   </figure>;
 }

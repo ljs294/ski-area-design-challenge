@@ -27,16 +27,16 @@ export function DailyStateRibbons({ series, month }: DailyStateRibbonsProps) {
   const conditionTitle = useId(); const macroTitle = useId();
   const rows = alignDailyComparison(series, month);
   const cellWidth = (WIDTH - LABEL_WIDTH) / Math.max(1, rows.length);
-  const conditionSources = ['observed', 'baseline', 'candidate'] as const;
-  const macroSources = ['baseline', 'candidate'] as const;
+  const conditionSources = (series.baseline ? ['observed', 'baseline', 'candidate'] : ['observed', 'candidate']) as readonly ('observed' | 'baseline' | 'candidate')[];
+  const macroSources = (series.baseline ? ['baseline', 'candidate'] : ['candidate']) as readonly ('baseline' | 'candidate')[];
   if (rows.length === 0) return <p role="status">No daily state values are available for this period.</p>;
   return <section className="weather-state-ribbons">
     <h2>Daily condition and macro-state ribbons</h2>
     <p>Each cell shows the dominant reconciled state for one local calendar date.</p>
     <svg viewBox={`0 0 ${WIDTH} ${conditionSources.length * ROW_HEIGHT + 34}`} role="img" aria-labelledby={conditionTitle}>
-      <title id={conditionTitle}>Dominant condition ribbons for observed, baseline, and candidate weather</title>
+      <title id={conditionTitle}>Dominant condition ribbons for observed, Simulation, and optional pinned Baseline weather</title>
       {conditionSources.map((source, sourceIndex) => <g key={source}>
-        <text x={LABEL_WIDTH - 8} y={18 + sourceIndex * ROW_HEIGHT} textAnchor="end" fontSize="11">{words(source)}</text>
+        <text x={LABEL_WIDTH - 8} y={18 + sourceIndex * ROW_HEIGHT} textAnchor="end" fontSize="11">{source === 'candidate' ? 'Simulation' : words(source)}</text>
         {rows.map((row, index) => {
           const state = row[source]?.dominantCondition;
           return <rect key={row.localDate} x={LABEL_WIDTH + index * cellWidth} y={7 + sourceIndex * ROW_HEIGHT}
@@ -49,9 +49,9 @@ export function DailyStateRibbons({ series, month }: DailyStateRibbonsProps) {
     <ul className="weather-ribbon-legend" aria-label="Condition colors">{WEATHER_CONDITIONS.map((condition) =>
       <li key={condition}><i style={{ backgroundColor: CONDITION_COLORS[condition] }}/>{words(condition)}</li>)}</ul>
     <svg viewBox={`0 0 ${WIDTH} ${macroSources.length * ROW_HEIGHT + 34}`} role="img" aria-labelledby={macroTitle}>
-      <title id={macroTitle}>Dominant macro air-mass ribbons for baseline and candidate weather</title>
+      <title id={macroTitle}>Dominant macro air-mass ribbons for Simulation and optional pinned Baseline weather</title>
       {macroSources.map((source, sourceIndex) => <g key={source}>
-        <text x={LABEL_WIDTH - 8} y={18 + sourceIndex * ROW_HEIGHT} textAnchor="end" fontSize="11">{words(source)}</text>
+        <text x={LABEL_WIDTH - 8} y={18 + sourceIndex * ROW_HEIGHT} textAnchor="end" fontSize="11">{source === 'candidate' ? 'Simulation' : words(source)}</text>
         {rows.map((row, index) => {
           const state = row[source]?.dominantMacro;
           return <rect key={row.localDate} x={LABEL_WIDTH + index * cellWidth} y={7 + sourceIndex * ROW_HEIGHT}

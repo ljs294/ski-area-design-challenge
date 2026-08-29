@@ -64,11 +64,11 @@ const diagnostics: WeatherDiagnosticsV2 = {
 
 describe('Weather Lab comparison components', () => {
   it('renders all curated tuning controls with fitted-value semantics', () => {
-    const html = renderToStaticMarkup(<WeatherTuningControls value={SMOOTHED_SIMULATION_TUNING} onChange={() => undefined} onPreset={() => undefined}/>);
-    expect(html).toContain('Candidate tuning');
+    const html = renderToStaticMarkup(<WeatherTuningControls value={SMOOTHED_SIMULATION_TUNING} onChange={() => undefined} onPreset={() => undefined} hasBaseline/>);
+    expect(html).toContain('Simulation tuning');
     expect(html).toContain('Temperature persistence');
     expect(html).toContain('Use fitted climate value');
-    expect(html).toContain('Match baseline');
+    expect(html).toContain('Match pinned Baseline');
     expect((html.match(/type="range"/g) ?? [])).toHaveLength(14);
   });
 
@@ -111,7 +111,7 @@ describe('Weather Lab comparison components', () => {
     expect(markov).toContain('clear-&gt;snow');
     expect(markov).toContain('arctic-&gt;frontal');
     expect(markov).toContain('Macro air-mass transition probabilities');
-    expect(markov).toContain('candidate-adjusted');
+    expect(markov).toContain('Simulation-adjusted');
     expect(scorecard).toContain('Temperature daily MAE');
     expect(scorecard).toContain('-1.00 °C');
   });

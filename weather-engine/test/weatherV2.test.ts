@@ -39,6 +39,13 @@ describe('standalone weather v2', () => {
     expect(forecasts.issues[0].hourly).toHaveLength(168);
     expect(forecasts.issues[0].daily).toHaveLength(14);
     expect(forecasts.issues[0]).not.toHaveProperty('truth');
+    expect(forecasts.issues[0].hourly.every((hour) =>
+      hour.dewPointC! <= hour.temperatureC
+      && hour.wetBulbC! <= hour.temperatureC + 0.1
+      && hour.relativeHumidityPct! >= 0 && hour.relativeHumidityPct! <= 100
+      && hour.cloudCoverPct! >= 0 && hour.cloudCoverPct! <= 100
+      && hour.windGustKph! >= hour.windSpeedKph
+      && (hour.precipitationPhase === 'rain' || hour.precipitationPhase === 'freezing-rain' ? hour.snowfallCm === 0 : true))).toBe(true);
     expect(forecasts.finalState.draws).toBeGreaterThan(0);
   }, 20_000);
 });

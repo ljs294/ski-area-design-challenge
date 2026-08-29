@@ -444,9 +444,15 @@ export interface ForecastHourV1 {
   leadHours: number;
   confidencePct: number;
   temperatureC: number;
+  dewPointC?: number;
+  wetBulbC?: number;
+  relativeHumidityPct?: number;
   precipitationMm: number;
   precipitationPhase: PrecipitationPhase;
+  snowfallCm?: number;
   windSpeedKph: number;
+  windGustKph?: number;
+  cloudCoverPct?: number;
   condition: WeatherCondition;
 }
 

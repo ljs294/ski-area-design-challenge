@@ -17,12 +17,12 @@ export function WeatherComparisonScorecard({ baseline, candidate }: WeatherCompa
   if (!template) return <p role="status">No comparison scores are available.</p>;
   return <div className="weather-table-scroll"><table className="weather-comparison-scorecard">
     <caption>Daily and event comparison scores against observed weather</caption>
-    <thead><tr><th scope="col">Metric</th><th scope="col">Baseline</th><th scope="col">Candidate</th><th scope="col">Candidate change</th></tr></thead>
+    <thead><tr><th scope="col">Metric</th>{baseline && <th scope="col">Pinned Baseline</th>}<th scope="col">Simulation</th>{baseline && <th scope="col">Simulation change</th>}</tr></thead>
     <tbody>{comparisonScoreRows(template).map((row) => {
       const baselineValue = baseline?.[row.key];
       const candidateValue = candidate?.[row.key];
       const difference = baselineValue == null || candidateValue == null ? null : candidateValue - baselineValue;
-      return <tr key={row.key}><th scope="row">{row.label}</th><td>{display(baselineValue, row.unit)}</td><td>{display(candidateValue, row.unit)}</td><td>{display(difference, row.unit)}</td></tr>;
+      return <tr key={row.key}><th scope="row">{row.label}</th>{baseline && <td>{display(baselineValue, row.unit)}</td>}<td>{display(candidateValue, row.unit)}</td>{baseline && <td>{display(difference, row.unit)}</td>}</tr>;
     })}</tbody>
   </table></div>;
 }

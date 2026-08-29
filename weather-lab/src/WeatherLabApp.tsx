@@ -20,24 +20,29 @@ import type {
 import { DailyComparisonTable } from './DailyComparisonTable.tsx';
 import { DailyMetricChart } from './DailyMetricChart.tsx';
 import { DailyStateRibbons } from './DailyStateRibbons.tsx';
+import { ForecastBrowser } from './ForecastBrowser.tsx';
 import { LocationMap } from './LocationMap.tsx';
 import { MarkovDiagnosticsPanel } from './MarkovDiagnosticsPanel.tsx';
+import { MonthlyWeatherSummary } from './MonthlyWeatherSummary.tsx';
 import type { WeatherWorkerRequest, WeatherWorkerResponse } from './protocol.ts';
 import { WeatherChart } from './WeatherChart.tsx';
 import { WeatherComparisonScorecard } from './WeatherComparisonScorecard.tsx';
 import { WeatherEventTimeline } from './WeatherEventTimeline.tsx';
 import { WeatherTuningControls, type WeatherTuningPreset } from './WeatherTuningControls.tsx';
+import type { ForecastUnits } from './forecastViewModel.ts';
+import { deletePinnedBaseline, loadPinnedBaseline, storePinnedBaseline } from './pinnedBaselineStorage.ts';
 import {
+  baselineIsCompatible,
   comparisonExportJson,
   dailyComparisonCsv,
   hourlyComparisonCsv,
-  hourlySeriesFromResults,
   isWeatherLabResultV2,
   loadStoredTuning,
   monthDateRange,
   parseTuningJson,
   storeTuning,
   tuningJson,
+  tuningDraftMatches,
 } from './weatherLabViewModel.ts';
 import type { DailyComparisonSeries, DailyMetric, EventComparisonSeries } from './weatherLabViewModel.ts';
 
@@ -45,7 +50,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const SERVICE_URL = (import.meta.env.VITE_WEATHER_SERVICE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://127.0.0.1:8787';
 const RUN_STEPS = ['coverage', 'daymet', 'merra2', 'compiling', 'artifacts', 'simulation', 'forecasting', 'comparison'] as const;
 type RunStep = typeof RUN_STEPS[number];
-type SimulationRole = 'baseline' | 'candidate';
+type SimulationRole = 'simulation';
 type RunLogEntry = Readonly<{ id: number; at: string; stage: string; message: string }>;
 type PreparedArtifacts = Readonly<{
   key: string;
@@ -108,8 +113,6 @@ export function WeatherLabApp() {
   const operationRef = useRef<AbortController | null>(null);
   const preparationIdRef = useRef<string | null>(null);
   const contextSequence = useRef(0);
-  const candidateTimer = useRef<number | null>(null);
-  const baselineTimer = useRef<number | null>(null);
   const artifactsRef = useRef<PreparedArtifacts | null>(null);
   const baselineRef = useRef<WeatherLabResultV2 | null>(null);
   const tuningRef = useRef<WeatherSimulationTuningV1>(initialTuning());
@@ -126,13 +129,17 @@ export function WeatherLabApp() {
   const [validationYear, setValidationYear] = useState<number | null>(null);
   const [seed, setSeed] = useState('Historical');
   const [tuning, setTuning] = useState<WeatherSimulationTuningV1>(tuningRef.current);
+  const [appliedTuning, setAppliedTuning] = useState<WeatherSimulationTuningV1 | null>(null);
   const [tuningNotice, setTuningNotice] = useState<string | null>(null);
   const [status, setStatus] = useState('Enter coordinates to begin');
   const [progress, setProgress] = useState(0);
   const [running, setRunning] = useState(false);
   const [artifacts, setArtifacts] = useState<PreparedArtifacts | null>(null);
   const [baseline, setBaseline] = useState<WeatherLabResultV2 | null>(null);
+  const [baselinePinnedAt, setBaselinePinnedAt] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<WeatherLabResultV2 | null>(null);
+  const [selectedIssueAt, setSelectedIssueAt] = useState<string | null>(null);
+  const [units, setUnits] = useState<ForecastUnits>('us');
   const [month, setMonth] = useState(1);
   const [dailyMetric, setDailyMetric] = useState<DailyMetric>('temperature');
   const [runLog, setRunLog] = useState<RunLogEntry[]>([]);
@@ -148,13 +155,6 @@ export function WeatherLabApp() {
   function appendLog(stage: string, message: string, at = new Date().toISOString()) {
     const entry = { id: ++logSequence.current, at, stage, message };
     setRunLog((current) => [...current, entry].slice(-300));
-  }
-
-  function clearSimulationTimers() {
-    if (candidateTimer.current != null) window.clearTimeout(candidateTimer.current);
-    if (baselineTimer.current != null) window.clearTimeout(baselineTimer.current);
-    candidateTimer.current = null;
-    baselineTimer.current = null;
   }
 
   function stopWorker() {
@@ -191,25 +191,24 @@ export function WeatherLabApp() {
     worker.onmessage = (event: MessageEvent<WeatherWorkerResponse>) => {
       const message = event.data;
       if (message.requestId !== activeId.current) return;
-      const role = activeRole.current;
       if (message.type === 'started') {
-        setStatus(`Simulating ${role ?? 'weather'} with paired random draws...`);
-        appendLog('simulation', `${role ?? 'Weather'} simulation started for ${message.totalHours.toLocaleString()} hourly samples.`);
+        setStatus('Running Simulation with deterministic random streams...');
+        appendLog('simulation', `Simulation started for ${message.totalHours.toLocaleString()} hourly samples.`);
       }
       if (message.type === 'progress') {
         const fraction = message.completedHours / message.totalHours;
-        setProgress(role === 'baseline' ? .55 + fraction * .2 : .76 + fraction * .19);
-        setStepProgress((current) => ({ ...current, simulation: role === 'baseline' ? fraction * 50 : 50 + fraction * 50 }));
-        appendLog('simulation', `${role ?? 'Weather'} generated ${message.completedHours.toLocaleString()} of ${message.totalHours.toLocaleString()} hours (${Math.round(fraction * 100)}%).`);
+        setProgress(.55 + fraction * .4);
+        setStepProgress((current) => ({ ...current, simulation: fraction * 100 }));
+        appendLog('simulation', `Simulation generated ${message.completedHours.toLocaleString()} of ${message.totalHours.toLocaleString()} hours (${Math.round(fraction * 100)}%).`);
       }
       if (message.type === 'phase') {
-        setStatus(`${role === 'baseline' ? 'Baseline' : 'Candidate'}: ${message.message}`);
-        appendLog(message.phase, `${role ?? 'Weather'}: ${message.message}`);
-        if (role === 'candidate' && message.phase === 'forecasting') {
+        setStatus(`Simulation: ${message.message}`);
+        appendLog(message.phase, `Simulation: ${message.message}`);
+        if (message.phase === 'forecasting') {
           setProgress(.96);
           setStepProgress((current) => ({ ...current, simulation: 100, forecasting: 50 }));
         }
-        if (role === 'candidate' && message.phase === 'comparison') {
+        if (message.phase === 'comparison') {
           setProgress(.98);
           setStepProgress((current) => ({ ...current, forecasting: 100, comparison: 50 }));
         }
@@ -222,37 +221,26 @@ export function WeatherLabApp() {
           stopWorker();
           return;
         }
-        if (role === 'baseline') {
-          baselineRef.current = message.result;
-          setBaseline(message.result);
-          setCandidate(null);
-          setStatus('Historical baseline pinned; scheduling candidate...');
-          setProgress(.76);
-          appendLog('baseline', `Historical baseline pinned. Truth hash ${message.result.truthHash.slice(0, 16)}...`);
-          activeId.current = null;
-          activeRole.current = null;
-          scheduleCandidate(30);
-        } else {
-          setCandidate(message.result);
-          setStatus('Completed');
-          setProgress(1);
-          setStepProgress((current) => ({ ...current, simulation: 100, forecasting: 100, comparison: 100 }));
-          appendLog('completed', `Run completed for candidate. Truth hash ${message.result.truthHash.slice(0, 16)}...`);
-          setRunning(false);
-          activeId.current = null;
-          activeRole.current = null;
-          operationRef.current = null;
-        }
+        setCandidate(message.result);
+        setAppliedTuning(message.result.run.tuning);
+        setStatus('Completed');
+        setProgress(1);
+        setStepProgress((current) => ({ ...current, simulation: 100, forecasting: 100, comparison: 100 }));
+        appendLog('completed', `Simulation completed. Truth hash ${message.result.truthHash.slice(0, 16)}...`);
+        setRunning(false);
+        activeId.current = null;
+        activeRole.current = null;
+        operationRef.current = null;
       }
       if (message.type === 'cancelled') {
         setStatus('Cancelled');
-        appendLog('cancelled', `${role ?? 'Weather'} simulation cancelled.`);
+        appendLog('cancelled', 'Simulation cancelled.');
         setRunning(false);
         stopWorker();
       }
       if (message.type === 'failed') {
         setStatus(`Failed: ${message.message}`);
-        appendLog('failed', `${role ?? 'Weather'}: ${message.message}`);
+        appendLog('failed', `Simulation: ${message.message}`);
         setRunning(false);
         stopWorker();
       }
@@ -260,7 +248,7 @@ export function WeatherLabApp() {
     return worker;
   }
 
-  function startSimulation(role: SimulationRole, nextArtifacts: PreparedArtifacts, resolvedTuning: WeatherSimulationTuningV1) {
+  function startSimulation(nextArtifacts: PreparedArtifacts, resolvedTuning: WeatherSimulationTuningV1) {
     const requestId = crypto.randomUUID();
     const run: WeatherLabRunRequestV2 = {
       version: 2,
@@ -278,39 +266,11 @@ export function WeatherLabApp() {
     };
     const worker = makeWorker();
     activeId.current = requestId;
-    activeRole.current = role;
+    activeRole.current = 'simulation';
     setRunning(true);
-    setStatus(`${role === 'baseline' ? 'Pinning historical baseline' : 'Running tuned candidate'}...`);
-    appendLog('worker', `Sending ${role} run ${requestId.slice(0, 8)} to the standalone worker.`);
+    setStatus('Running Simulation...');
+    appendLog('worker', `Sending Simulation run ${requestId.slice(0, 8)} to the standalone worker.`);
     worker.postMessage({ type: 'run', requestId, run, model: nextArtifacts.model, observed: nextArtifacts.observed } satisfies WeatherWorkerRequest);
-  }
-
-  function scheduleCandidate(delay = 400) {
-    if (candidateTimer.current != null) window.clearTimeout(candidateTimer.current);
-    stopWorker();
-    candidateTimer.current = window.setTimeout(() => {
-      candidateTimer.current = null;
-      const nextArtifacts = artifactsRef.current;
-      if (!nextArtifacts || !baselineRef.current) return;
-      startSimulation('candidate', nextArtifacts, tuningRef.current);
-    }, delay);
-  }
-
-  function scheduleHistoricalBaseline(delay = 300) {
-    if (baselineTimer.current != null) window.clearTimeout(baselineTimer.current);
-    if (candidateTimer.current != null) window.clearTimeout(candidateTimer.current);
-    stopWorker();
-    candidateTimer.current = null;
-    baselineTimer.current = window.setTimeout(() => {
-      baselineTimer.current = null;
-      const nextArtifacts = artifactsRef.current;
-      if (!nextArtifacts) return;
-      baselineRef.current = null;
-      setBaseline(null);
-      setCandidate(null);
-      setStepProgress((current) => ({ ...current, simulation: 0, forecasting: 0, comparison: 0 }));
-      startSimulation('baseline', nextArtifacts, HISTORICAL_SIMULATION_TUNING);
-    }, delay);
   }
 
   function syncPreparation(preparation: WeatherLabPreparationV1) {
@@ -346,8 +306,16 @@ export function WeatherLabApp() {
   useEffect(() => () => {
     cancelServerPreparation();
     operationRef.current?.abort();
-    clearSimulationTimers();
     stopWorker();
+  }, []);
+
+  useEffect(() => {
+    void loadPinnedBaseline().then((record) => {
+      if (!record) return;
+      baselineRef.current = record.result;
+      setBaseline(record.result);
+      setBaselinePinnedAt(record.pinnedAt);
+    }).catch((error: unknown) => setTuningNotice(`Pinned Baseline could not be loaded: ${error instanceof Error ? error.message : String(error)}`));
   }, []);
 
   useEffect(() => {
@@ -357,20 +325,10 @@ export function WeatherLabApp() {
     } catch (error) {
       setTuningNotice(error instanceof Error ? error.message : String(error));
     }
-    if (artifactsRef.current && baselineRef.current) scheduleCandidate();
-    return () => {
-      if (candidateTimer.current != null) window.clearTimeout(candidateTimer.current);
-      candidateTimer.current = null;
-    };
   }, [tuning]);
 
   useEffect(() => {
     seedRef.current = seed;
-    if (artifactsRef.current && baselineRef.current) scheduleHistoricalBaseline();
-    return () => {
-      if (baselineTimer.current != null) window.clearTimeout(baselineTimer.current);
-      baselineTimer.current = null;
-    };
   }, [seed]);
 
   const contextElevation = elevationOverride ? elevationText : '';
@@ -379,13 +337,11 @@ export function WeatherLabApp() {
     const controller = new AbortController();
     cancelServerPreparation();
     operationRef.current?.abort();
-    clearSimulationTimers();
     stopWorker();
     artifactsRef.current = null;
-    baselineRef.current = null;
     setArtifacts(null);
-    setBaseline(null);
     setCandidate(null);
+    setAppliedTuning(null);
     setRunning(false);
     if (latitude == null || longitude == null) {
       setContext(null);
@@ -441,11 +397,9 @@ export function WeatherLabApp() {
     if (!key) return;
     cancelServerPreparation();
     operationRef.current?.abort();
-    clearSimulationTimers();
     stopWorker();
-    baselineRef.current = null;
-    setBaseline(null);
     setCandidate(null);
+    setAppliedTuning(null);
     setRunLog([]);
     setRunStartedAt(Date.now());
     setClockNow(Date.now());
@@ -463,7 +417,7 @@ export function WeatherLabApp() {
       appendLog('artifacts', 'Reusing cached climate and observation artifacts; provider preparation skipped.');
       setStepProgress(Object.fromEntries(RUN_STEPS.map((step) => [step, ['simulation', 'forecasting', 'comparison'].includes(step) ? 0 : 100])) as Record<RunStep, number>);
       setProgress(.55);
-      startSimulation('baseline', artifactsRef.current, HISTORICAL_SIMULATION_TUNING);
+      startSimulation(artifactsRef.current, tuningRef.current);
       return;
     }
 
@@ -525,7 +479,7 @@ export function WeatherLabApp() {
       setArtifacts(nextArtifacts);
       setStepProgress((current) => ({ ...current, artifacts: 100 }));
       appendLog('artifacts', `Cached 12 monthly climate models, ${observed.hours.length.toLocaleString()} hourly observations, and ${(observed.days?.length ?? 0).toLocaleString()} daily anchors.`);
-      startSimulation('baseline', nextArtifacts, HISTORICAL_SIMULATION_TUNING);
+      startSimulation(nextArtifacts, tuningRef.current);
     } catch (error) {
       if (controller.signal.aborted) return;
       cancelServerPreparation();
@@ -542,7 +496,6 @@ export function WeatherLabApp() {
   function cancel() {
     operationRef.current?.abort();
     cancelServerPreparation();
-    clearSimulationTimers();
     stopWorker();
     setStatus('Cancelled');
     appendLog('cancelled', 'Cancellation requested; stopped provider retrieval and any active simulation worker.');
@@ -552,13 +505,11 @@ export function WeatherLabApp() {
   function changeValidationYear(nextYear: number) {
     cancelServerPreparation();
     operationRef.current?.abort();
-    clearSimulationTimers();
     stopWorker();
     artifactsRef.current = null;
-    baselineRef.current = null;
     setArtifacts(null);
-    setBaseline(null);
     setCandidate(null);
+    setAppliedTuning(null);
     setValidationYear(nextYear);
   }
 
@@ -580,16 +531,42 @@ export function WeatherLabApp() {
   function importTuning(text: string) {
     const imported = parseTuningJson(text);
     setTuning(imported);
-    setTuningNotice(`Imported tuning "${imported.id}". Candidate rerun queued.`);
+    setTuningNotice(`Imported tuning "${imported.id}". Apply to run the Simulation.`);
   }
 
-  function pinCandidate() {
+  function applyTuning() {
+    const nextArtifacts = artifactsRef.current;
+    if (!nextArtifacts || running || tuningDraftMatches(appliedTuning, tuning)) return;
+    stopWorker();
+    setStepProgress((current) => ({ ...current, simulation: 0, forecasting: 0, comparison: 0 }));
+    setTuningNotice(null);
+    startSimulation(nextArtifacts, tuning);
+  }
+
+  async function pinCandidate() {
     if (!candidate) return;
-    baselineRef.current = candidate;
-    setBaseline(candidate);
-    setCandidate(null);
-    setStatus('Candidate pinned as baseline; adjust tuning to compare again.');
-    appendLog('baseline', `Candidate ${candidate.truthHash.slice(0, 16)}... pinned as the comparison baseline.`);
+    try {
+      const record = await storePinnedBaseline(candidate);
+      baselineRef.current = candidate;
+      setBaseline(candidate);
+      setBaselinePinnedAt(record.pinnedAt);
+      setStatus('Current Simulation pinned as Baseline.');
+      appendLog('baseline', `Simulation ${candidate.truthHash.slice(0, 16)}... pinned as the comparison Baseline.`);
+    } catch (error) {
+      setTuningNotice(`Baseline could not be pinned: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async function removePinnedBaseline() {
+    try {
+      await deletePinnedBaseline();
+      baselineRef.current = null;
+      setBaseline(null);
+      setBaselinePinnedAt(null);
+      appendLog('baseline', 'Pinned Baseline deleted.');
+    } catch (error) {
+      setTuningNotice(`Baseline could not be deleted: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   const runnable = context?.coverage === 'supported' && context.selectedStation != null && validationYear != null && !running;
@@ -604,19 +581,36 @@ export function WeatherLabApp() {
   const exportBase = exportResult
     ? `${exportResult.run.location.latitude.toFixed(4)}_${exportResult.run.location.longitude.toFixed(4)}_${exportResult.run.stationId}_${exportResult.run.validationYear}`.replace(/[^a-z0-9_.-]/gi, '_')
     : 'weather-lab';
-  const dailySeries: DailyComparisonSeries | null = baseline && candidate
-    ? { observed: candidate.daily.observed, baseline: baseline.daily.simulated, candidate: candidate.daily.simulated }
+  const compatibleBaseline = baselineIsCompatible(baseline, candidate) ? baseline : null;
+  const tuningDirty = !tuningDraftMatches(appliedTuning, tuning);
+  const dailySeries: DailyComparisonSeries | null = candidate
+    ? { observed: candidate.daily.observed, ...(compatibleBaseline ? { baseline: compatibleBaseline.daily.simulated } : {}), candidate: candidate.daily.simulated }
     : null;
-  const eventSeries: EventComparisonSeries | null = baseline && candidate
-    ? { observed: candidate.events.observed, baseline: baseline.events.simulated, candidate: candidate.events.simulated }
+  const eventSeries: EventComparisonSeries | null = candidate
+    ? { observed: candidate.events.observed, ...(compatibleBaseline ? { baseline: compatibleBaseline.events.simulated } : {}), candidate: candidate.events.simulated }
     : null;
+  const issueOptions = candidate?.forecasts.map((issue) => {
+    const matchingHour = candidate.simulated.find((hour) => hour.at === issue.issuedAt);
+    const localDateTime = matchingHour?.localDateTime ?? issue.issuedAt;
+    const hour = Number(localDateTime.slice(11, 13));
+    return { issue, date: localDateTime.slice(0, 10), cycle: hour < 12 ? 'AM' : 'PM' } as const;
+  }) ?? [];
+  const defaultIssue = issueOptions.find((option) => option.cycle === 'AM') ?? issueOptions[0];
+  const selectedIssueOption = issueOptions.find((option) => option.issue.issuedAt === selectedIssueAt) ?? defaultIssue;
+  const selectedIssue = selectedIssueOption?.issue ?? null;
+  const issueDates = [...new Set(issueOptions.map((option) => option.date))];
+  useEffect(() => {
+    if (candidate && selectedIssueOption && selectedIssueAt !== selectedIssueOption.issue.issuedAt) {
+      setSelectedIssueAt(selectedIssueOption.issue.issuedAt);
+    }
+  }, [candidate, selectedIssueAt, selectedIssueOption]);
   const dateRange = validationYear == null ? null : monthDateRange(validationYear, month);
 
   return <main>
     <header>
       <p className="eyebrow">MOUNTAIN PLANNER · STANDALONE</p>
       <h1>Weather Model Lab</h1>
-      <p>Prepare real North American history, pin a deterministic baseline, and tune a paired candidate live.</p>
+      <p>Build a Simulation, inspect it like a mountain forecast, and apply tuning changes when you are ready.</p>
     </header>
 
     <section className="location-layout">
@@ -632,7 +626,7 @@ export function WeatherLabApp() {
         <label className="elevation-control"><span><input type="checkbox" checked={elevationOverride} onChange={(event) => setElevationOverride(event.target.checked)}/> Override elevation</span>
           <input aria-label="Elevation metres" value={elevationText} disabled={!elevationOverride} onChange={(event) => setElevationText(event.target.value)} inputMode="numeric"/>
         </label>
-        <button onClick={() => void run()} disabled={!runnable}>Run weather comparison</button>
+        <button onClick={() => void run()} disabled={!runnable}>Run Simulation</button>
         <button className="secondary" onClick={cancel} disabled={!running}>Cancel</button>
       </section>
       {latitude != null && longitude != null && <LocationMap latitude={latitude} longitude={longitude}/>}
@@ -671,43 +665,81 @@ export function WeatherLabApp() {
         value={tuning}
         onChange={changeTuning}
         onPreset={applyPreset}
+        hasBaseline={baseline != null}
         onImportJson={importTuning}
         onExportJson={() => download(`${exportBase}.tuning.json`, tuningJson(tuning), 'application/json')}
       />
-      <div className="baseline-actions">
-        <button type="button" className="secondary" disabled={running} onClick={() => scheduleHistoricalBaseline(0)}>Re-pin historical baseline</button>
-        <button type="button" className="secondary" disabled={running || !candidate} onClick={pinCandidate}>Pin candidate as baseline</button>
-        <span>{running ? 'A stale candidate is replaced after the tuning debounce.' : 'Artifacts stay cached while tuning changes.'}</span>
+      <div className="apply-actions">
+        <button type="button" disabled={running || !tuningDirty} onClick={applyTuning}>Apply</button>
+        <span className={tuningDirty ? 'dirty' : ''}>{running ? 'Simulation is running.' : tuningDirty ? 'Draft has unapplied changes.' : 'Draft matches the displayed Simulation.'}</span>
       </div>
       {tuningNotice && <p role="status">{tuningNotice}</p>}
+    </section>}
+
+    {(baseline || candidate) && <section className="panel baseline-manager" aria-labelledby="baseline-manager-title">
+      <div><h2 id="baseline-manager-title">Pinned Baseline</h2><p>{baseline
+        ? `${baselinePinnedAt ? `Pinned ${new Date(baselinePinnedAt).toLocaleString()}. ` : ''}${candidate ? compatibleBaseline ? 'Compatible with the current Simulation.' : 'Stored, but incompatible with the current Simulation.' : 'Stored until a Simulation is run for comparison.'}`
+        : 'No Baseline is pinned. Baseline series stay hidden until you explicitly pin a Simulation.'}</p></div>
+      <div className="baseline-actions">
+        <button type="button" className="secondary" disabled={running || !candidate} onClick={() => void pinCandidate()}>{baseline ? 'Overwrite pinned Baseline' : 'Pin current Simulation'}</button>
+        {baseline && <button type="button" className="secondary" disabled={running} onClick={() => void removePinnedBaseline()}>Delete pinned Baseline</button>}
+      </div>
     </section>}
 
     {(baseline || candidate) && <nav className="months" aria-label="Month">
       {MONTHS.map((label, index) => <button className={month === index + 1 ? 'active' : ''} onClick={() => setMonth(index + 1)} key={label}>{label}</button>)}
     </nav>}
 
-    {baseline && candidate && dailySeries && eventSeries && <>
+    {candidate && dailySeries && eventSeries && <>
+      <section className="panel forecast-toolbar">
+        <div className="forecast-issue-selectors">
+          <label>Forecast issued<select value={selectedIssueOption?.date ?? ''} onChange={(event) => {
+            const next = issueOptions.find((option) => option.date === event.target.value && option.cycle === selectedIssueOption?.cycle)
+              ?? issueOptions.find((option) => option.date === event.target.value);
+            if (next) setSelectedIssueAt(next.issue.issuedAt);
+          }}>{issueDates.map((date) => <option key={date} value={date}>{date}</option>)}</select></label>
+          <label>Cycle<select value={selectedIssueOption?.cycle ?? 'AM'} onChange={(event) => {
+            const next = issueOptions.find((option) => option.date === selectedIssueOption?.date && option.cycle === event.target.value);
+            if (next) setSelectedIssueAt(next.issue.issuedAt);
+          }}>{issueOptions.filter((option) => option.date === selectedIssueOption?.date).map((option) => <option key={option.cycle} value={option.cycle}>{option.cycle}</option>)}</select></label>
+        </div>
+        <fieldset className="unit-toggle"><legend>Display units</legend>
+          <label><input type="radio" name="weather-units" checked={units === 'us'} onChange={() => setUnits('us')}/> US</label>
+          <label><input type="radio" name="weather-units" checked={units === 'metric'} onChange={() => setUnits('metric')}/> Metric</label>
+        </fieldset>
+      </section>
+
+      {selectedIssue && <section className="panel forecast-module"><ForecastBrowser
+        issue={selectedIssue} timezone={candidate.run.stationTimeZone} units={units}
+        simulation={candidate.simulated} observed={candidate.observed.hours} baseline={compatibleBaseline?.simulated}
+        onSelectedDateChange={(date) => setMonth(Number(date.slice(5, 7)))}
+      /></section>}
+
+      <MonthlyWeatherSummary month={month} units={units}
+        simulation={candidate.daily.simulated} observed={candidate.daily.observed} baseline={compatibleBaseline?.daily.simulated}
+        simulationEvents={candidate.events.simulated} observedEvents={candidate.events.observed} baselineEvents={compatibleBaseline?.events.simulated}/>
+
       <section className="panel export-panel">
-        <div className="panel-title"><div><h2>Comparison exports</h2><p>All precipitation values remain liquid-water equivalent; snowfall is reported separately.</p></div>
+        <div className="panel-title"><div><h2>Simulation exports</h2><p>Engine data and exports remain metric. Compatibility export keys continue to use <code>candidate</code>.</p></div>
           <div className="export-actions">
-            <button className="secondary" onClick={() => download(`${exportBase}.comparison.json`, comparisonExportJson(baseline, candidate), 'application/json')}>Export JSON</button>
+            <button className="secondary" onClick={() => download(`${exportBase}.${compatibleBaseline ? 'comparison' : 'simulation'}.json`, comparisonExportJson(compatibleBaseline, candidate), 'application/json')}>Export JSON</button>
             <button className="secondary" onClick={() => download(`${exportBase}.daily.csv`, dailyComparisonCsv(dailySeries), 'text/csv')}>Daily CSV</button>
-            <button className="secondary" onClick={() => download(`${exportBase}.hourly.csv`, hourlyComparisonCsv(hourlySeriesFromResults(candidate.observed, baseline, candidate)), 'text/csv')}>Hourly CSV</button>
+            <button className="secondary" onClick={() => download(`${exportBase}.hourly.csv`, hourlyComparisonCsv({ observed: candidate.observed.hours, ...(compatibleBaseline ? { baseline: compatibleBaseline.simulated } : {}), candidate: candidate.simulated }), 'text/csv')}>Hourly CSV</button>
           </div>
         </div>
       </section>
 
       <section className="summary">
-        <article><span>Candidate truth hash</span><strong>{candidate.truthHash.slice(0, 16)}</strong></article>
-        <article><span>Baseline truth hash</span><strong>{baseline.truthHash.slice(0, 16)}</strong></article>
+        <article><span>Simulation truth hash</span><strong>{candidate.truthHash.slice(0, 16)}</strong></article>
+        {compatibleBaseline && <article><span>Baseline truth hash</span><strong>{compatibleBaseline.truthHash.slice(0, 16)}</strong></article>}
         <article><span>Forecast issues</span><strong>{candidate.forecasts.length}</strong></article>
         <article><span>Detected events</span><strong>{candidate.events.simulated.length}</strong></article>
       </section>
 
-      <section className="panel"><h2>Baseline vs candidate scorecard</h2><WeatherComparisonScorecard baseline={baseline.scores} candidate={candidate.scores}/></section>
+      <section className="panel"><h2>{compatibleBaseline ? 'Baseline and Simulation scorecard' : 'Simulation scorecard'}</h2><WeatherComparisonScorecard baseline={compatibleBaseline?.scores} candidate={candidate.scores}/></section>
 
       <section className="panel daily-charts">
-        <div className="panel-title"><div><h2>{MONTHS[month - 1]} daily weather</h2><p>Observed, pinned baseline, and tuned candidate.</p></div></div>
+        <div className="panel-title"><div><h2>{MONTHS[month - 1]} daily weather</h2><p>Observed and Simulation weather{compatibleBaseline ? ', with the compatible pinned Baseline' : ''}.</p></div></div>
         <DailyMetricChart series={dailySeries} metric="temperature" month={month}/>
         <DailyMetricChart series={dailySeries} metric="wet-bulb" month={month}/>
         <DailyMetricChart series={dailySeries} metric="precipitation" month={month}/>
@@ -733,19 +765,19 @@ export function WeatherLabApp() {
       </section>
 
       <section className="panel">
-        <MarkovDiagnosticsPanel observed={candidate.observedDiagnostics} baseline={baseline.diagnostics} candidate={candidate.diagnostics}
-          monthModel={artifacts?.model.months[month - 1]} tuning={tuning} adjustedRow={adjustedConditionTransitionRow}
+        <MarkovDiagnosticsPanel observed={candidate.observedDiagnostics} baseline={compatibleBaseline?.diagnostics} candidate={candidate.diagnostics}
+          monthModel={artifacts?.model.months[month - 1]} tuning={appliedTuning ?? candidate.run.tuning} adjustedRow={adjustedConditionTransitionRow}
           adjustedMacroRow={adjustedMacroTransitionRow}/>
       </section>
 
       <details className="panel raw-hourly"><summary>Raw hourly temperature view</summary>
-        <p><i className="observed"/> observed <i className="simulated"/> tuned candidate</p>
+        <p><i className="observed"/> observed <i className="simulated"/> Simulation</p>
         <WeatherChart simulated={candidate.simulated} observed={candidate.observed} month={month}/>
       </details>
 
       <section className="panel">
         <h2>Monthly comparison</h2>
-        <table><thead><tr><th>Metric</th><th>Observed</th><th>Candidate</th><th>Status</th></tr></thead>
+        <table><thead><tr><th>Metric</th><th>Observed</th><th>Simulation</th><th>Status</th></tr></thead>
           <tbody>{candidate.monthly[month - 1].metrics.map((metric) => <tr key={`${metric.variable}-${metric.metric}`}>
             <td>{metric.variable} · {metric.metric}</td><td>{metric.observed?.toFixed(2) ?? 'Unavailable'}</td>
             <td>{metric.simulated?.toFixed(2) ?? 'Unavailable'}</td><td><span className={`badge ${metric.status}`}>{metric.status}</span></td>

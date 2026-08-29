@@ -59,7 +59,7 @@ export type DailyNumericMetric = Exclude<DailyMetric, 'conditions' | 'macro'>;
 
 export interface DailyComparisonSeries {
   observed: readonly WeatherDailySummaryV1[];
-  baseline: readonly WeatherDailySummaryV1[];
+  baseline?: readonly WeatherDailySummaryV1[];
   candidate: readonly WeatherDailySummaryV1[];
 }
 
@@ -72,13 +72,13 @@ export interface DailyComparisonRow {
 
 export interface EventComparisonSeries {
   observed: readonly WeatherEventV1[];
-  baseline: readonly WeatherEventV1[];
+  baseline?: readonly WeatherEventV1[];
   candidate: readonly WeatherEventV1[];
 }
 
 export interface HourlyComparisonSeries {
   observed: readonly ObservedWeatherHourV1[];
-  baseline: readonly SimulatedWeatherHourV1[];
+  baseline?: readonly SimulatedWeatherHourV1[];
   candidate: readonly SimulatedWeatherHourV1[];
 }
 
@@ -124,7 +124,7 @@ export function isWeatherLabResultV2(result: WeatherLabResult): result is Weathe
 export function alignDailyComparison(series: DailyComparisonSeries, month?: number): readonly DailyComparisonRow[] {
   const indexes = {
     observed: new Map(series.observed.map((day) => [day.localDate, day])),
-    baseline: new Map(series.baseline.map((day) => [day.localDate, day])),
+    baseline: new Map((series.baseline ?? []).map((day) => [day.localDate, day])),
     candidate: new Map(series.candidate.map((day) => [day.localDate, day])),
   };
   const dates = new Set<string>();
@@ -276,6 +276,25 @@ export function validateTuningDraft(value: unknown): WeatherSimulationTuningV1 {
   return result as unknown as WeatherSimulationTuningV1;
 }
 
+export function tuningDraftMatches(left: WeatherSimulationTuningV1 | null, right: WeatherSimulationTuningV1): boolean {
+  return left != null && JSON.stringify(validateTuningDraft(left)) === JSON.stringify(validateTuningDraft(right));
+}
+
+export function baselineIsCompatible(baseline: WeatherLabResultV2 | null, simulation: WeatherLabResultV2 | null): boolean {
+  if (!baseline || !simulation) return false;
+  const left = baseline.run; const right = simulation.run;
+  return baseline.observed.observationHash === simulation.observed.observationHash
+    && left.climateModelHash === right.climateModelHash
+    && left.stationId === right.stationId
+    && left.stationTimeZone === right.stationTimeZone
+    && left.validationYear === right.validationYear
+    && left.worldSeed === right.worldSeed
+    && left.generatorVersion === right.generatorVersion
+    && left.comparisonStreamKey === right.comparisonStreamKey
+    && JSON.stringify(left.location) === JSON.stringify(right.location)
+    && JSON.stringify(left.difficultyProfile) === JSON.stringify(right.difficultyProfile);
+}
+
 export function parseTuningJson(text: string): WeatherSimulationTuningV1 {
   let parsed: unknown;
   try {
@@ -372,7 +391,7 @@ function hourlyCells(hour: ComparisonHour | null): readonly unknown[] {
 export function hourlyComparisonCsv(series: HourlyComparisonSeries): string {
   const indexes = {
     observed: new Map(series.observed.map((hour) => [hour.at, hour])),
-    baseline: new Map(series.baseline.map((hour) => [hour.at, hour])),
+    baseline: new Map((series.baseline ?? []).map((hour) => [hour.at, hour])),
     candidate: new Map(series.candidate.map((hour) => [hour.at, hour])),
   };
   const instants = new Set<string>();
@@ -393,13 +412,13 @@ export function hourlyComparisonCsv(series: HourlyComparisonSeries): string {
 
 export interface WeatherComparisonExportV1 {
   version: 1;
-  baseline: WeatherLabResultV2;
+  baseline: WeatherLabResultV2 | null;
   candidate: WeatherLabResultV2;
   observationHash: string;
   comparisonStreamKey: string;
 }
 
-export function comparisonExportJson(baseline: WeatherLabResultV2, candidate: WeatherLabResultV2): string {
+export function comparisonExportJson(baseline: WeatherLabResultV2 | null, candidate: WeatherLabResultV2): string {
   const payload: WeatherComparisonExportV1 = {
     version: 1,
     baseline,

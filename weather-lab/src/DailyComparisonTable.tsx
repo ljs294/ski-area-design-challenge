@@ -37,13 +37,13 @@ export function DailyComparisonTable({ series, metric, month, caption }: DailyCo
   return <div className="weather-table-scroll">
     <table className="weather-daily-table">
       <caption>{caption ?? `Daily ${label.toLocaleLowerCase()} comparison`}</caption>
-      <thead><tr><th scope="col">Local date</th><th scope="col">Observed</th><th scope="col">Baseline</th><th scope="col">Candidate</th></tr></thead>
+      <thead><tr><th scope="col">Local date</th><th scope="col">Observed</th>{series.baseline && <th scope="col">Baseline</th>}<th scope="col">Simulation</th></tr></thead>
       <tbody>{rows.length === 0
-        ? <tr><td colSpan={4}>No daily values are available for this period.</td></tr>
+        ? <tr><td colSpan={series.baseline ? 4 : 3}>No daily values are available for this period.</td></tr>
         : rows.map((row) => <tr key={row.localDate}>
           <th scope="row"><time dateTime={row.localDate}>{row.localDate}</time></th>
           <MetricCell day={row.observed} metric={metric}/>
-          <MetricCell day={row.baseline} metric={metric}/>
+          {series.baseline && <MetricCell day={row.baseline} metric={metric}/>}
           <MetricCell day={row.candidate} metric={metric}/>
         </tr>)}</tbody>
     </table>

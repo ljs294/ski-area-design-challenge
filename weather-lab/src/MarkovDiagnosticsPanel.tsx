@@ -63,43 +63,43 @@ export function MarkovDiagnosticsPanel({
     <p>Occupancy and spell lengths describe generated outcomes. Transition matrices remain read-only.</p>
     <div className="weather-table-scroll"><table>
       <caption>Local-condition occupancy and spell length</caption>
-      <thead><tr><th scope="col">Condition</th><th scope="col">Observed occupancy</th><th scope="col">Baseline occupancy</th><th scope="col">Candidate occupancy</th><th scope="col">Observed mean / max spell</th><th scope="col">Baseline mean / max spell</th><th scope="col">Candidate mean / max spell</th></tr></thead>
+      <thead><tr><th scope="col">Condition</th><th scope="col">Observed occupancy</th>{baseline && <th scope="col">Pinned Baseline occupancy</th>}<th scope="col">Simulation occupancy</th><th scope="col">Observed mean / max spell</th>{baseline && <th scope="col">Pinned Baseline mean / max spell</th>}<th scope="col">Simulation mean / max spell</th></tr></thead>
       <tbody>{WEATHER_CONDITIONS.map((condition) => <tr key={condition}>
         <th scope="row">{condition}</th>
         <td>{percentage(observed?.conditionOccupancy[condition])}</td>
-        <td>{percentage(baseline?.conditionOccupancy[condition])}</td>
+        {baseline && <td>{percentage(baseline.conditionOccupancy[condition])}</td>}
         <td>{percentage(candidate?.conditionOccupancy[condition])}</td>
         <td>{mean(observed?.spellLengths[condition])} / {maximum(observed?.spellLengths[condition])}</td>
-        <td>{mean(baseline?.spellLengths[condition])} / {maximum(baseline?.spellLengths[condition])}</td>
+        {baseline && <td>{mean(baseline.spellLengths[condition])} / {maximum(baseline.spellLengths[condition])}</td>}
         <td>{mean(candidate?.spellLengths[condition])} / {maximum(candidate?.spellLengths[condition])}</td>
       </tr>)}</tbody>
     </table></div>
     {(baseline || candidate) && <div className="weather-table-scroll"><table>
       <caption>Macro air-mass occupancy</caption>
-      <thead><tr><th scope="col">Air mass</th><th scope="col">Baseline occupancy</th><th scope="col">Candidate occupancy</th><th scope="col">Baseline mean / max spell</th><th scope="col">Candidate mean / max spell</th></tr></thead>
-      <tbody>{MACRO_AIR_MASSES.map((macro) => <tr key={macro}><th scope="row">{macro}</th><td>{percentage(baseline?.macroOccupancy[macro])}</td><td>{percentage(candidate?.macroOccupancy[macro])}</td><td>{mean(baseline?.macroSpellLengths[macro])} / {maximum(baseline?.macroSpellLengths[macro])}</td><td>{mean(candidate?.macroSpellLengths[macro])} / {maximum(candidate?.macroSpellLengths[macro])}</td></tr>)}</tbody>
+      <thead><tr><th scope="col">Air mass</th>{baseline && <th scope="col">Pinned Baseline occupancy</th>}<th scope="col">Simulation occupancy</th>{baseline && <th scope="col">Pinned Baseline mean / max spell</th>}<th scope="col">Simulation mean / max spell</th></tr></thead>
+      <tbody>{MACRO_AIR_MASSES.map((macro) => <tr key={macro}><th scope="row">{macro}</th>{baseline && <td>{percentage(baseline.macroOccupancy[macro])}</td>}<td>{percentage(candidate?.macroOccupancy[macro])}</td>{baseline && <td>{mean(baseline.macroSpellLengths[macro])} / {maximum(baseline.macroSpellLengths[macro])}</td>}<td>{mean(candidate?.macroSpellLengths[macro])} / {maximum(candidate?.macroSpellLengths[macro])}</td></tr>)}</tbody>
     </table></div>}
     <details><summary>Generated macro transition counts ({macroTransitions.length})</summary>
       <div className="weather-table-scroll"><table>
-        <caption>Baseline and candidate macro transition counts</caption>
-        <thead><tr><th scope="col">Transition</th><th scope="col">Baseline</th><th scope="col">Candidate</th></tr></thead>
-        <tbody>{macroTransitions.length === 0 ? <tr><td colSpan={3}>No macro transition counts are available.</td></tr> : macroTransitions.map((key) => <tr key={key}>
-          <th scope="row">{key}</th><td>{baseline?.macroTransitionCounts[key] ?? 0}</td><td>{candidate?.macroTransitionCounts[key] ?? 0}</td>
+        <caption>Simulation and optional pinned Baseline macro transition counts</caption>
+        <thead><tr><th scope="col">Transition</th>{baseline && <th scope="col">Pinned Baseline</th>}<th scope="col">Simulation</th></tr></thead>
+        <tbody>{macroTransitions.length === 0 ? <tr><td colSpan={baseline ? 3 : 2}>No macro transition counts are available.</td></tr> : macroTransitions.map((key) => <tr key={key}>
+          <th scope="row">{key}</th>{baseline && <td>{baseline.macroTransitionCounts[key] ?? 0}</td>}<td>{candidate?.macroTransitionCounts[key] ?? 0}</td>
         </tr>)}</tbody>
       </table></div>
     </details>
     <details><summary>Generated transition counts ({transitions.length})</summary>
       <div className="weather-table-scroll"><table>
-        <caption>Observed, baseline, and candidate transition counts</caption>
-        <thead><tr><th scope="col">Transition</th><th scope="col">Observed</th><th scope="col">Baseline</th><th scope="col">Candidate</th></tr></thead>
-        <tbody>{transitions.length === 0 ? <tr><td colSpan={4}>No transition counts are available.</td></tr> : transitions.map((key) => <tr key={key}>
-          <th scope="row">{key}</th><td>{observed?.transitionCounts[key] ?? 0}</td><td>{baseline?.transitionCounts[key] ?? 0}</td><td>{candidate?.transitionCounts[key] ?? 0}</td>
+        <caption>Observed, Simulation, and optional pinned Baseline transition counts</caption>
+        <thead><tr><th scope="col">Transition</th><th scope="col">Observed</th>{baseline && <th scope="col">Pinned Baseline</th>}<th scope="col">Simulation</th></tr></thead>
+        <tbody>{transitions.length === 0 ? <tr><td colSpan={baseline ? 4 : 3}>No transition counts are available.</td></tr> : transitions.map((key) => <tr key={key}>
+          <th scope="row">{key}</th><td>{observed?.transitionCounts[key] ?? 0}</td>{baseline && <td>{baseline.transitionCounts[key] ?? 0}</td>}<td>{candidate?.transitionCounts[key] ?? 0}</td>
         </tr>)}</tbody>
       </table></div>
     </details>
     {monthModel && <details><summary>Read-only month {monthModel.month} transition matrices</summary>
       <div className="weather-table-scroll"><table>
-        <caption>Macro air-mass transition probabilities. Each cell shows fitted{tuning && adjustedMacroRow ? ' / candidate-adjusted' : ''}.</caption>
+        <caption>Macro air-mass transition probabilities. Each cell shows fitted{tuning && adjustedMacroRow ? ' / Simulation-adjusted' : ''}.</caption>
         <thead><tr><th scope="col">From \ to</th>{monthModel.macro.states.map(({ id }) => <th scope="col" key={id}>{id}</th>)}</tr></thead>
         <tbody>{monthModel.macro.states.map(({ id: prior }, rowIndex) => {
           const fitted = monthModel.macro.transitionMatrix[rowIndex];
@@ -111,7 +111,7 @@ export function MarkovDiagnosticsPanel({
       </table></div>
       {MACRO_AIR_MASSES.map((macro) => <details key={macro}><summary>{macro}</summary>
         <div className="weather-table-scroll"><table>
-          <caption>{macro} transition probabilities. Each cell shows fitted{tuning && adjustedRow ? ' / candidate-adjusted' : ''}.</caption>
+          <caption>{macro} transition probabilities. Each cell shows fitted{tuning && adjustedRow ? ' / Simulation-adjusted' : ''}.</caption>
           <thead><tr><th scope="col">From \ to</th>{monthModel.local.states.map((condition) => <th scope="col" key={condition}>{condition}</th>)}</tr></thead>
           <tbody>{monthModel.local.states.map((prior, rowIndex) => {
             const fitted = monthModel.local.hourlyMatricesByMacro[macro][rowIndex] ?? monthModel.local.backoffRows;

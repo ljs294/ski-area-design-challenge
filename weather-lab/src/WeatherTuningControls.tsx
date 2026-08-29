@@ -9,6 +9,7 @@ export interface WeatherTuningControlsProps {
   value: WeatherSimulationTuningV1;
   onChange: (value: WeatherSimulationTuningV1) => void;
   disabled?: boolean;
+  hasBaseline?: boolean;
   onPreset?: (preset: WeatherTuningPreset) => void;
   onImportJson?: (text: string) => void;
   onExportJson?: () => void;
@@ -24,6 +25,7 @@ export function WeatherTuningControls({
   value,
   onChange,
   disabled = false,
+  hasBaseline = false,
   onPreset,
   onImportJson,
   onExportJson,
@@ -51,14 +53,14 @@ export function WeatherTuningControls({
   return <section className="weather-tuning" aria-labelledby={`${prefix}-title`}>
     <div className="panel-title">
       <div>
-        <h2 id={`${prefix}-title`}>Candidate tuning</h2>
-        <p>Changes apply to the candidate run. Climate artifacts and the pinned baseline remain unchanged.</p>
+        <h2 id={`${prefix}-title`}>Simulation tuning</h2>
+        <p>Controls edit a saved draft. Select Apply below to run it; climate artifacts and any pinned Baseline remain unchanged.</p>
       </div>
       <div className="weather-tuning-actions">
         {onPreset && <>
           <button type="button" className="secondary" disabled={disabled} onClick={() => onPreset('smoothed')}>Reset to smoothed</button>
           <button type="button" className="secondary" disabled={disabled} onClick={() => onPreset('historical')}>Reset to historical</button>
-          <button type="button" className="secondary" disabled={disabled} onClick={() => onPreset('baseline')}>Match baseline</button>
+          {hasBaseline && <button type="button" className="secondary" disabled={disabled} onClick={() => onPreset('baseline')}>Match pinned Baseline</button>}
         </>}
         {onImportJson && <>
           <button type="button" className="secondary" disabled={disabled} onClick={() => fileInput.current?.click()}>Import tuning</button>

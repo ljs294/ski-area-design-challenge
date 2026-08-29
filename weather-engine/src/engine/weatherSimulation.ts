@@ -9,7 +9,8 @@ import { simulationTuningForDifficulty, WEATHER_ENGINE_ID, WEATHER_GENERATOR_VER
 import { canonicalJson, hashWithout, hmacSha256, normalizeWorldSeed, sha256Hex } from './canonical.ts';
 import { monthBlend, weatherCalendarYear, type WeatherCalendarHour } from './calendar.ts';
 import { WeatherRandom } from './randomV2.ts';
-import { angularDifference, clamp, precipitationPhase, pressureAtElevation, quantize, relativeHumidityPct, wetBulbTemperatureC } from './psychrometrics.ts';
+import { angularDifference, clamp, precipitationPhase, pressureAtElevation, quantize, relativeHumidityPct,
+  snowfallCentimetresFromLiquid, wetBulbTemperatureC } from './psychrometrics.ts';
 
 const MACROS: readonly MacroAirMassId[] = ['arctic', 'continental-polar', 'maritime-polar', 'warm-wet', 'frontal'];
 const PRECIPITATING = new Set<WeatherCondition>(['flurries', 'snow', 'heavy-snow', 'mixed', 'freezing-rain', 'rain']);
@@ -376,11 +377,22 @@ export function issueForecast(run: WeatherLabRunRequest, truth: readonly Simulat
   const hourly: ForecastHourV1[] = truth.slice(issuedIndex, issuedIndex + 168).map((hour, leadHours) => {
     const uncertainty = (0.35 + leadHours * 0.025) * multiplier;
     const temperatureC = hour.temperatureC + random.normal(0, uncertainty);
+    const dewPointC = Math.min(temperatureC, hour.dewPointC + random.normal(0, uncertainty * 0.55));
+    const relativeHumidity = relativeHumidityPct(temperatureC, dewPointC);
+    const wetBulbC = Math.min(temperatureC, wetBulbTemperatureC(temperatureC, relativeHumidity, hour.pressureHpa));
     const precipitationMm = Math.max(0, hour.precipitationMm * Math.exp(random.normal(0, uncertainty * 0.12)) + random.normal(0, uncertainty * 0.025));
-    const phase = precipitationPhase(temperatureC, hour.wetBulbC + random.normal(0, uncertainty * 0.3), precipitationMm);
+    const phase = precipitationPhase(temperatureC, wetBulbC, precipitationMm);
+    const snowfallCm = snowfallCentimetresFromLiquid(precipitationMm, temperatureC, phase);
+    const windSpeedKph = Math.max(0, hour.windSpeedKph + random.normal(0, uncertainty * 1.2));
+    const windGustKph = Math.max(windSpeedKph, hour.windGustKph + random.normal(0, uncertainty * 1.5));
+    const roundedWindSpeedKph = quantize(windSpeedKph, 1);
+    const roundedWindGustKph = Math.max(roundedWindSpeedKph, quantize(windGustKph, 1));
+    const cloudCoverPct = clamp(hour.cloudCoverPct + random.normal(0, uncertainty * 3), 0, 100);
     return { at: hour.at, leadHours, confidencePct: quantize(clamp(96 - leadHours * 0.32 * multiplier, 35, 96), 1),
-      temperatureC: quantize(temperatureC, 1), precipitationMm: quantize(precipitationMm, 2), precipitationPhase: phase,
-      windSpeedKph: quantize(Math.max(0, hour.windSpeedKph + random.normal(0, uncertainty * 1.2)), 1),
+      temperatureC: quantize(temperatureC, 1), dewPointC: quantize(dewPointC, 1), wetBulbC: quantize(wetBulbC, 1),
+      relativeHumidityPct: quantize(relativeHumidity, 1), precipitationMm: quantize(precipitationMm, 2), precipitationPhase: phase,
+      snowfallCm: quantize(snowfallCm, 2), windSpeedKph: roundedWindSpeedKph, windGustKph: roundedWindGustKph,
+      cloudCoverPct: quantize(cloudCoverPct, 1),
       condition: physicalCondition(hour.condition, phase, precipitationMm) };
   });
   const daily: ForecastDayV1[] = [];
