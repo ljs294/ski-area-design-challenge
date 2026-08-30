@@ -1,9 +1,10 @@
 import type maplibregl from 'maplibre-gl';
 import type { SavedRoad } from '../types';
+import { roadSurfacePolygons } from '../roads';
 
 export const ROAD_DRAFT_SOURCE = 'road-draft';
 export const ROAD_BUILT_SOURCE = 'player-roads';
-export const ROAD_BUILT_LAYER_IDS = ['player-roads'] as const;
+export const ROAD_BUILT_LAYER_IDS = ['player-roads', 'player-road-centerline'] as const;
 
 /** Shared by imported and player-built roads so their cartography is exactly identical. */
 export const LOCAL_ROAD_PAINT: maplibregl.LineLayerSpecification['paint'] = {
@@ -15,16 +16,26 @@ export const LOCAL_ROAD_PAINT: maplibregl.LineLayerSpecification['paint'] = {
 export interface RoadDraftLine {
   points: [number, number][];
   cursor: [number, number] | null;
+  widthM: number;
   gradingPolygons?: [number, number][][][];
   infeasibleLines?: [number, number][][];
 }
 
 export function playerRoadFeatures(roads: SavedRoad[]): GeoJSON.Feature[] {
-  return roads.map((road) => ({
-    type: 'Feature', properties: { kind: 'road', class: 'minor',
-      playerBuilt: true, roadId: road.id, name: road.name },
-    geometry: { type: 'LineString', coordinates: road.points },
-  }));
+  const features: GeoJSON.Feature[] = [];
+  for (const road of roads) {
+    const properties = { class: 'minor', playerBuilt: true,
+      roadId: road.id, name: road.name, widthM: road.widthM };
+    for (const polygon of roadSurfacePolygons(road.points, road.widthM)) features.push({
+      type: 'Feature', properties: { ...properties, kind: 'road-surface' },
+      geometry: { type: 'Polygon', coordinates: polygon },
+    });
+    features.push({
+      type: 'Feature', properties: { ...properties, kind: 'road-centerline' },
+      geometry: { type: 'LineString', coordinates: road.points },
+    });
+  }
+  return features;
 }
 
 export function playerRoadGeoJSON(roads: SavedRoad[]): GeoJSON.FeatureCollection {
@@ -46,8 +57,14 @@ export function roadDraftGeoJSON(draft: RoadDraftLine | null): GeoJSON.FeatureCo
     type: 'Feature', properties: { kind: 'infeasible' },
     geometry: { type: 'LineString', coordinates: line },
   });
+  if (coordinates.length >= 2) {
+    for (const polygon of roadSurfacePolygons(coordinates, draft.widthM)) features.unshift({
+      type: 'Feature', properties: { kind: 'road-surface', widthM: draft.widthM },
+      geometry: { type: 'Polygon', coordinates: polygon },
+    });
+  }
   if (coordinates.length >= 2) features.unshift({
-    type: 'Feature', properties: { kind: 'road', class: 'minor' },
+    type: 'Feature', properties: { kind: 'road-centerline', class: 'minor', widthM: draft.widthM },
     geometry: { type: 'LineString', coordinates },
   });
   return { type: 'FeatureCollection', features };
@@ -68,6 +85,11 @@ export function addRoadDraftLayers(map: maplibregl.Map): void {
       'line-width': 1.5, 'line-dasharray': [2, 1.5] },
   });
   map.addLayer({
+    id: 'road-draft-surface', type: 'fill', source: ROAD_DRAFT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'road-surface'],
+    paint: { 'fill-color': '#55534e', 'fill-opacity': 0.9 },
+  });
+  map.addLayer({
     id: 'road-draft-infeasible', type: 'line', source: ROAD_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'infeasible'],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -76,8 +98,10 @@ export function addRoadDraftLayers(map: maplibregl.Map): void {
   });
   map.addLayer({
     id: 'road-draft-line', type: 'line', source: ROAD_DRAFT_SOURCE,
-    filter: ['==', ['get', 'kind'], 'road'], layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { ...LOCAL_ROAD_PAINT, 'line-opacity': 0.95 },
+    filter: ['==', ['get', 'kind'], 'road-centerline'],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': '#f4d35e', 'line-width': 1,
+      'line-opacity': 0.95, 'line-dasharray': [4, 4] },
   });
   map.addLayer({
     id: 'road-draft-vertices', type: 'circle', source: ROAD_DRAFT_SOURCE,
@@ -93,9 +117,20 @@ export function addRoadLayers(map: maplibregl.Map): void {
   if (map.getSource(ROAD_BUILT_SOURCE)) return;
   map.addSource(ROAD_BUILT_SOURCE, { type: 'geojson', data: playerRoadGeoJSON([]) });
   map.addLayer({
-    id: ROAD_BUILT_LAYER_IDS[0], type: 'line', source: ROAD_BUILT_SOURCE,
+    id: ROAD_BUILT_LAYER_IDS[0], type: 'fill', source: ROAD_BUILT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'road-surface'],
+    paint: { 'fill-color': '#55534e', 'fill-opacity': 0.88 },
+  });
+  map.addLayer({
+    id: ROAD_BUILT_LAYER_IDS[1], type: 'line', source: ROAD_BUILT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'road-centerline'],
     layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: LOCAL_ROAD_PAINT,
+    paint: {
+      'line-color': ['interpolate', ['linear'], ['zoom'], 13, '#55534e', 15, '#e6c65c'],
+      'line-width': 1,
+      'line-opacity': 0.82,
+      'line-dasharray': ['step', ['zoom'], ['literal', [1, 0]], 15, ['literal', [4, 4]]],
+    },
   });
 }
 

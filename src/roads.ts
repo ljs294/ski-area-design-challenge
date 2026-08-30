@@ -73,11 +73,9 @@ export function nextRoadName(existing: SavedRoad[]): string {
   }
 }
 
-/** One rounded capsule per centerline segment. Their overlap is the exact road
- * clearing union for grid stamping and avoids expensive polygon boolean work at
- * bends and self-crossings. */
-export function roadClearingPolygons(points: [number, number][],
-  halfWidthM = TWO_LANE_CLEAR_HALF_WIDTH_M): Polygon[] {
+/** Shared bounded-detail geometry for physical pavement and wider clearing. */
+function roadCapsulePolygons(points: [number, number][], halfWidthM: number): Polygon[] {
+  if (!Number.isFinite(halfWidthM) || halfWidthM <= 0) return [];
   const polygons: Polygon[] = [];
   const capSteps = 12;
   for (let i = 1; i < points.length; i++) {
@@ -106,4 +104,22 @@ export function roadClearingPolygons(points: [number, number][],
     polygons.push([ring]);
   }
   return polygons;
+}
+
+/** The physical paved surface derived from a stored road centerline. Keeping
+ * this geometry out of the save preserves the compact compatibility contract
+ * while allowing fill layers to recede correctly in pitched terrain views. */
+export function roadSurfacePolygons(
+  points: [number, number][],
+  widthM: number,
+): Polygon[] {
+  return roadCapsulePolygons(points, widthM / 2);
+}
+
+/** One rounded capsule per centerline segment. Their overlap is the exact road
+ * clearing union for grid stamping and avoids expensive polygon boolean work at
+ * bends and self-crossings. */
+export function roadClearingPolygons(points: [number, number][],
+  halfWidthM = TWO_LANE_CLEAR_HALF_WIDTH_M): Polygon[] {
+  return roadCapsulePolygons(points, halfWidthM);
 }

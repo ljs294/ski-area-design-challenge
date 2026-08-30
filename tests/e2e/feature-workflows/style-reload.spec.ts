@@ -93,6 +93,7 @@ test('a restyle reinstalls every map family in the declared order and keeps hidd
   expect(await visibilityOf(page, 'trail-fill')).toBe('none');
   expect(await visibilityOf(page, 'local-roads')).toBe('none');
   expect(await visibilityOf(page, 'player-roads')).toBe('none');
+  expect(await visibilityOf(page, 'player-road-centerline')).toBe('none');
   expect(await visibilityOf(page, 'lift-line-casing')).not.toBe('none');
 
   await restyle(page);
@@ -103,6 +104,7 @@ test('a restyle reinstalls every map family in the declared order and keeps hidd
   expect(await visibilityOf(page, 'trail-fill')).toBe('none');
   expect(await visibilityOf(page, 'local-roads')).toBe('none');
   expect(await visibilityOf(page, 'player-roads')).toBe('none');
+  expect(await visibilityOf(page, 'player-road-centerline')).toBe('none');
   expect(await visibilityOf(page, 'lift-line-casing')).not.toBe('none');
   await expect(page.getByRole('checkbox', { name: 'Contours' })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Ski trails' })).not.toBeChecked();

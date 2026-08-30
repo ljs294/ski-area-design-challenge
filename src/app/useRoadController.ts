@@ -56,8 +56,11 @@ export interface RoadController {
 }
 
 function roadDraftOf(tool: RoadTool): RoadDraftLine | null {
-  if (tool.phase === 'drawing') return { points: tool.points, cursor: tool.cursor };
+  if (tool.phase === 'drawing') return {
+    points: tool.points, cursor: tool.cursor, widthM: TWO_LANE_ROAD_WIDTH_M,
+  };
   if (tool.phase === 'review') return { points: tool.draft.points, cursor: null,
+    widthM: TWO_LANE_ROAD_WIDTH_M,
     gradingPolygons: tool.draft.gradingPolygons,
     infeasibleLines: tool.draft.gradingInfeasibleLines };
   return null;
