@@ -60,7 +60,7 @@ type SelectionTarget =
   | { kind: 'lift' | 'trail' | 'dam' | 'pond' | 'snowmaking-node' | 'snowmaking-pipe' |
       'snowgun' |
       'ski-node' | 'ski-path'; id: string }
-  | { kind: 'lake' | 'stream'; id: string }
+  | { kind: 'road' | 'lake' | 'stream'; id: string }
   | { kind: 'none' };
 
 function layerTogglesOf(descriptors: readonly MapVisibilityDescriptor[]): LayerToggle[] {
@@ -256,7 +256,8 @@ export function MapView({
   const [trails, setTrails] = useState<SavedTrail[]>(initialDesign.trails);
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
   const [trailEditing, setTrailEditing] = useState(false);
-  const [roads, setRoads] = useState<SavedRoad[]>(initialDesign.roads);
+  const [roads, setRoads] = useState<SavedRoad[]>(initialDesign.roads); const [selectedRoadKey,
+    setSelectedRoadKey] = useState<string | null>(null);
   const [dams, setDams] = useState<SavedDam[]>(initialDesign.dams);
   const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
   const [ponds, setPonds] = useState<SavedPond[]>(initialDesign.ponds);
@@ -515,10 +516,9 @@ export function MapView({
     structuresVisible: () => packageStateRef.current !== 'preparing',
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('lift'),
   });
-
-  const roadController = useRoadController({
-    mapRef,
-    roads,
+  const roadController = useRoadController({ mapRef, roads,
+    importedRoads: terrainRecord?.vectorFeatures?.roads, selectedRoadKey,
+    selectRoad: (key) => transitionSelection({ kind: 'road', id: key }),
     addRoad: (road) => setRoads((existing) => [...existing, road]),
     canArm: () => siteModeRef.current !== 'selecting',
     activate: () => toolCoordinator.activate('road'),
@@ -551,7 +551,6 @@ export function MapView({
     roadsVisible: () => analysisTogglesRef.current.some((entry) => entry.id === 'bm-roads'),
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('road'),
   });
-
   const snowmakingController = useSnowmakingController({
     dam: {
       mapRef, dams, selectedId: selectedDamId,
@@ -893,7 +892,7 @@ export function MapView({
     setSelectedSnowmakingPipeId(null);
     setSelectedSnowgunId(null);
     setSelectedNodeId(null);
-    setSelectedPathId(null);
+    setSelectedPathId(null); setSelectedRoadKey(null);
     setSelectedLakeId(null);
     setSelectedStreamId(null);
     setLiftEditing(false);
@@ -914,6 +913,7 @@ export function MapView({
       case 'snowgun': setSelectedSnowgunId(target.id); setOpenDock('snowmaking'); break;
       case 'ski-node': setSelectedNodeId(target.id); break;
       case 'ski-path': setSelectedPathId(target.id); break;
+      case 'road': setSelectedRoadKey(target.id); setOpenDock('infrastructure'); break;
       case 'lake': setSelectedLakeId(target.id); setOpenDock(null); break;
       case 'stream': setSelectedStreamId(target.id); setOpenDock(null); break;
       case 'none': break;
@@ -1725,7 +1725,7 @@ export function MapView({
           selectedLiftId, selectedTrailId,
           selectedDamId, selectedPondId,
           selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedSnowgunId, selectedNodeId,
-          selectedPathId, selectedLakeId,
+          selectedPathId, selectedRoadKey, selectedLakeId,
           selectedStreamId, liftEditing, trailEditing,
           lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds,
           streamWidthOverrides,
@@ -1752,7 +1752,7 @@ export function MapView({
           clearSelectedSnowmakingPipe: () => setSelectedSnowmakingPipeId(null),
           clearSelectedSnowgun: () => setSelectedSnowgunId(null),
           clearSelectedNode: () => setSelectedNodeId(null),
-          clearSelectedPath: () => setSelectedPathId(null),
+          clearSelectedPath: () => setSelectedPathId(null), clearSelectedRoad: () => setSelectedRoadKey(null),
           clearSelectedLake: () => setSelectedLakeId(null),
           clearSelectedStream: () => setSelectedStreamId(null),
           setLakeName: (id, name) => setLakeNameOverrides((current) => {

@@ -34,6 +34,24 @@ describe('waterway ingestion', () => {
     expect(result.waterLines[0]).toMatchObject({ id: 'way/18', waterClass: 'river' });
   });
 
+  it('normalizes paved-road width, lanes, direction, and highway metadata', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ elements: [{
+        type: 'way', id: 19,
+        tags: { highway: 'primary', name: 'Pass Road', surface: 'asphalt',
+          width: '36 ft', lanes: '3', 'lanes:forward': '2', 'lanes:backward': '1', oneway: 'no' },
+        geometry: [{ lon: -121, lat: 46 }, { lon: -120.999, lat: 45.999 }],
+      }] }),
+    }));
+    const result = await fetchVectorFeatures({ west: -121, south: 45, east: -120, north: 46 });
+    expect(result.roads[0]).toMatchObject({
+      id: 'way/19', name: 'Pass Road', roadClass: 'major', highway: 'primary',
+      surfaceClass: 'paved', lanes: 3, lanesForward: 2, lanesBackward: 1, oneWay: false,
+    });
+    expect(result.roads[0].sourceWidthM).toBeCloseTo(10.9728, 4);
+  });
+
   it('falls through the providers in primary, VK Maps, Private.coffee order', async () => {
     const request = vi.fn()
       .mockResolvedValueOnce({ ok: false, status: 503, statusText: 'Unavailable' })
