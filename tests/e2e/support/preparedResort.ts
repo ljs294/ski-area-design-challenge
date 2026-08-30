@@ -89,6 +89,7 @@ function preparedTerrainFixture(includeMapContext = true, contourSegmentCount = 
     climate: { monthly: [] },
     vectorFeatures: {
       roads: [{ id: 'way/road', name: 'Context Road', roadClass: 'minor',
+        highway: 'residential', surfaceClass: 'paved', lanes: 2, oneWay: false,
         points: [[-121.499, 46.901], [-121.491, 46.909]] }],
       waterLines: [{ id: 'way/stream', name: 'Context Creek', waterClass: 'stream',
         sourceWidthM: 3, points: [[-121.498, 46.909], [-121.492, 46.901]] }],
@@ -130,6 +131,7 @@ function preparedTerrainFixture(includeMapContext = true, contourSegmentCount = 
 
 /** Structures merged into the fixture save, for tests that need built features. */
 export interface PreparedStructures {
+  roads?: Record<string, unknown>[];
   lifts?: Record<string, unknown>[];
   trails?: Record<string, unknown>[];
   dams?: Record<string, unknown>[];
@@ -167,7 +169,7 @@ function preparedSaveFixture(structures: PreparedStructures) {
     },
     lifts: structures.lifts ?? [],
     trails: structures.trails ?? [],
-    roads: [],
+    roads: structures.roads ?? [],
     dams: structures.dams ?? [],
     ponds: structures.ponds ?? [],
     nodes: [],

@@ -21,6 +21,7 @@ const HIT_LAYERS: Record<MapHitFamilyId, string[]> = {
   trail: ['trail-fill'],
   dam: ['dam-crest-hit', 'dam-pool-fill'],
   pond: ['pond-fill-hit'],
+  road: ['road-hit', 'road-pavement'],
   stream: ['local-water-line-hit'],
   lake: ['local-water-fill'],
 };
@@ -42,7 +43,7 @@ describe('map layer order', () => {
 describe('map hit priority', () => {
   it('is the required top-to-bottom order', () => {
     expect([...MAP_HIT_PRIORITY]).toEqual([
-      'snowmaking', 'lift', 'trail', 'dam', 'pond', 'stream', 'lake',
+      'snowmaking', 'lift', 'trail', 'dam', 'pond', 'road', 'stream', 'lake',
     ]);
   });
 
@@ -53,9 +54,9 @@ describe('map hit priority', () => {
 
     // A standalone pond is drawn over a dam's pool, but a dam picks first:
     // its crest is the structure you click, and the pool it impounds is not.
-    expect(painted).toEqual(['snowmaking', 'lift', 'trail', 'pond', 'dam']);
+    expect(painted).toEqual(['snowmaking', 'lift', 'trail', 'pond', 'dam', 'road']);
     expect(MAP_HIT_PRIORITY.filter((id) => (MAP_LAYER_ORDER as readonly string[]).includes(id)))
-      .toEqual(['snowmaking', 'lift', 'trail', 'dam', 'pond']);
+      .toEqual(['snowmaking', 'lift', 'trail', 'dam', 'pond', 'road']);
   });
 
   it('gives the topmost family no guard at all', () => {
@@ -78,11 +79,12 @@ describe('map hit priority', () => {
     ]);
     expect(hitGuardLayers('stream', contributions)).toEqual([
       'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
-      'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit',
+      'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'road-hit', 'road-pavement',
     ]);
     expect(hitGuardLayers('lake', contributions)).toEqual([
       'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
-      'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'local-water-line-hit',
+      'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'road-hit', 'road-pavement',
+      'local-water-line-hit',
     ]);
   });
 
@@ -185,6 +187,7 @@ function managedContributions(
     id,
     zOrder: MAP_Z_ORDER[id],
     hits: id === 'analysis' ? [hits.stream, hits.lake]
+      : id === 'road' ? [hits.road]
       : id === 'snowmaking' ? [hits.snowmaking]
       : id === 'lift' ? [hits.lift]
       : id === 'trail' ? [hits.trail]

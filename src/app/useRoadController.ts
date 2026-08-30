@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useReducer, useRef, type RefObject } from '
 import type maplibregl from 'maplibre-gl';
 import type { RoadType, SavedRoad } from '../types/roads';
 import type { TerrainRecord } from '../types/terrain';
+import type { RoadFeature } from '../types/vectorFeatures';
 import { haversineMeters } from '../geo';
 import { nextRoadName, roadClearingPolygons, TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import { strokeToPolygon } from './trailBrush';
@@ -9,20 +10,24 @@ import { terrainGradeGeometryKey, type TerrainGradeResponse } from './terrainGra
 import { applyTerrainGradeToRecord } from './terrainGradeCommit';
 import type { TerrainGradeAdapter } from './terrainGradeClient';
 import type { TerrainDocument } from './terrainDocument';
-import { MAP_Z_ORDER } from './mapContribution';
+import { MAP_HIT_RANK, MAP_Z_ORDER } from './mapContribution';
 import type { ManagedMapContribution, MapVisibilityDescriptor } from './mapContribution';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
-import { addRoadDraftLayers, addRoadLayers, ROAD_BUILT_LAYER_IDS, setRoadData,
-  setRoadDraftData, type RoadDraftLine } from './roadLayers';
+import { addRoadDraftLayers, addRoadLayers, ROAD_HIT_LAYER_IDS, ROAD_LAYER_IDS, setRoadData,
+  setRoadDraftData, setSelectedRoad, type RoadDraftLine } from './roadLayers';
 import { IDLE_ROAD_TOOL, reduceRoadTool, roadFromDraft,
   type DraftRoad, type RoadTool } from './roadControllerModel';
 
 const ROAD_GRADE_POLICY = { envelope: 'expand', maxWidthMultiplier: 3 } as const;
+const EMPTY_IMPORTED_ROADS: readonly RoadFeature[] = [];
 type GradeSuccess = Extract<TerrainGradeResponse, { ok: true }>;
 
 export interface RoadControllerOptions {
   mapRef: RefObject<maplibregl.Map | null>;
   roads: readonly SavedRoad[];
+  importedRoads?: readonly RoadFeature[];
+  selectedRoadKey: string | null;
+  selectRoad(key: string): void;
   addRoad(road: SavedRoad): void;
   canArm(): boolean;
   activate(): boolean;
@@ -70,24 +75,29 @@ export function useRoadController(options: RoadControllerOptions): RoadControlle
   const [state, dispatch] = useReducer(reduceRoadTool, IDLE_ROAD_TOOL);
   const stateRef = useRef<RoadTool>(state);
   const roadsRef = useRef<readonly SavedRoad[]>(options.roads);
+  const importedRoadsRef = useRef<readonly RoadFeature[]>(options.importedRoads ?? EMPTY_IMPORTED_ROADS);
   const optionsRef = useRef(options);
   const gradeResultRef = useRef<GradeSuccess | null>(null);
   const draftFrameRef = useRef<number | null>(null);
   stateRef.current = state;
   roadsRef.current = options.roads;
+  importedRoadsRef.current = options.importedRoads ?? EMPTY_IMPORTED_ROADS;
   optionsRef.current = options;
 
   const contributionRef = useRef<ManagedMapContribution | null>(null);
   if (!contributionRef.current) contributionRef.current = {
     id: 'road',
     zOrder: MAP_Z_ORDER.road,
+    hits: [{ id: 'road', priority: MAP_HIT_RANK.road, layerIds: ROAD_HIT_LAYER_IDS,
+      select: (id) => optionsRef.current.selectRoad(id) }],
     install: ({ map }) => { addRoadLayers(map); addRoadDraftLayers(map); },
     synchronizeData: ({ map }) => {
-      setRoadData(map, [...roadsRef.current]);
+      setRoadData(map, importedRoadsRef.current, roadsRef.current);
+      setSelectedRoad(map, optionsRef.current.selectedRoadKey);
       setRoadDraftData(map, roadDraftOf(stateRef.current));
     },
     visibility: (): MapVisibilityDescriptor[] => optionsRef.current.roadsVisible()
-      ? [{ id: 'bm-roads', label: 'Roads', layerIds: ROAD_BUILT_LAYER_IDS,
+      ? [{ id: 'bm-roads', label: 'Roads', layerIds: ROAD_LAYER_IDS,
         visible: true, section: 'Master plan' }]
       : [],
     setCaptureTransient: ({ map }, hidden) =>
@@ -95,7 +105,11 @@ export function useRoadController(options: RoadControllerOptions): RoadControlle
     cleanup: () => {},
   };
 
-  useEffect(() => { optionsRef.current.synchronizeMap(); }, [options.roads]);
+  useEffect(() => { optionsRef.current.synchronizeMap(); },
+    [options.roads, options.importedRoads]);
+  useEffect(() => {
+    setSelectedRoad(optionsRef.current.mapRef.current, options.selectedRoadKey);
+  }, [options.selectedRoadKey]);
   useEffect(() => {
     if (draftFrameRef.current != null) return;
     draftFrameRef.current = requestAnimationFrame(() => {

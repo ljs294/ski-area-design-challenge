@@ -48,7 +48,7 @@ Keep imports flowing from dependency-neutral models and pure domain logic toward
 ## High-risk map invariants
 
 - Map layer bottom-to-top order is: analysis, site boundary, road, dam, pond, ski-node/path, trail, lift, snowmaking nodes.
-- Hit priority is: snowmaking nodes, lift, trail, dam, pond, stream, lake.
+- Hit priority is: snowmaking nodes, lift, trail, dam, pond, road, stream, lake.
 - Style reload must restore sources, data, visibility, and exact ordering.
 - Capture must hide and restore lift, trail, road, dam, pond, and grade transients.
 - Only the active build tool may own cursor, drag-pan, or double-click-zoom overrides; cleanup restores prior state exactly once.

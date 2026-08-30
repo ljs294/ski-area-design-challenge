@@ -15,6 +15,7 @@ import type {
   VectorFeatureSet,
 } from './types/vectorFeatures';
 import { parseOsmWidthM } from './streamAnalysis';
+import { classifyRoadSurface, parseRoadLaneCount, parseRoadOneWay } from './roadAnalysis';
 import { OVERPASS_ENDPOINTS } from './overpassConfig';
 
 export { OVERPASS_ENDPOINTS } from './overpassConfig';
@@ -153,8 +154,10 @@ async function fetchOverpass(bounds: LatLonBounds, signal?: AbortSignal): Promis
   throw new MapContextProviderError(failures);
 }
 
-const MAJOR_HIGHWAY = new Set(['motorway', 'trunk', 'primary', 'secondary']);
-const MINOR_HIGHWAY = new Set(['tertiary', 'residential', 'unclassified', 'service']);
+const MAJOR_HIGHWAY = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link',
+  'primary', 'primary_link', 'secondary', 'secondary_link']);
+const MINOR_HIGHWAY = new Set(['tertiary', 'tertiary_link', 'residential', 'unclassified',
+  'service', 'living_street', 'road']);
 
 function classifyRoad(highway: string): RoadClass {
   if (MAJOR_HIGHWAY.has(highway)) return 'major';
@@ -255,7 +258,23 @@ export async function fetchVectorFeatures(
     const lonLat = toLonLat(points);
 
     if (tags.highway) {
-      roads.push({ id: `way/${el.id}`, name: tags.name, roadClass: classifyRoad(tags.highway), points: lonLat });
+      const sourceWidthM = parseOsmWidthM(tags.width);
+      const lanes = parseRoadLaneCount(tags.lanes);
+      const lanesForward = parseRoadLaneCount(tags['lanes:forward']);
+      const lanesBackward = parseRoadLaneCount(tags['lanes:backward']);
+      roads.push({
+        id: `way/${el.id}`,
+        name: tags.name,
+        roadClass: classifyRoad(tags.highway),
+        highway: tags.highway,
+        surfaceClass: classifyRoadSurface(tags.surface),
+        ...(sourceWidthM == null ? {} : { sourceWidthM }),
+        ...(lanes == null ? {} : { lanes }),
+        ...(lanesForward == null ? {} : { lanesForward }),
+        ...(lanesBackward == null ? {} : { lanesBackward }),
+        oneWay: parseRoadOneWay(tags.oneway, tags.highway),
+        points: lonLat,
+      });
       continue;
     }
 

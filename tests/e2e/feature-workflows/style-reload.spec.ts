@@ -1,5 +1,6 @@
 import { expect, test } from '../support/deterministicApp';
-import { jumpTo, layerIds, pointAt, sourceFeatureCount, visibilityOf } from '../support/mapProbe';
+import { countSourceUpdates, jumpTo, layerIds, pointAt, sourceFeatureCount,
+  sourceUpdateCounts, visibilityOf } from '../support/mapProbe';
 import { seedPreparedResort } from '../support/preparedResort';
 
 /**
@@ -20,7 +21,7 @@ import { seedPreparedResort } from '../support/preparedResort';
 const FAMILY_BLOCKS: { family: string; first: string; last: string }[] = [
   { family: 'analysis', first: 'cover-fill', last: 'contour-labels' },
   { family: 'site-boundary', first: 'site-mask-fill', last: 'site-box-line-solid' },
-  { family: 'road', first: 'player-roads', last: 'road-draft-vertices' },
+  { family: 'road', first: 'road-pavement', last: 'road-draft-vertices' },
   { family: 'dam', first: 'dam-embankment-fill', last: 'dam-preview-points' },
   { family: 'pond', first: 'standalone-pond-fill', last: 'standalone-pond-preview-points' },
   { family: 'ski-node-path', first: 'path-casing', last: 'path-draft-pick' },
@@ -40,6 +41,7 @@ const HIT_LAYERS = [
   'dam-hit',
   'dam-pond-hit',
   'standalone-pond-hit',
+  'road-hit',
   'local-water-line-hit',
   'local-water-fill',
 ];
@@ -82,7 +84,8 @@ test('a restyle reinstalls every map family in the declared order and keeps hidd
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   expectDeclaredOrder(await layerIds(page));
-  await expect.poll(() => sourceFeatureCount(page, 'local-context')).toBe(3);
+  await expect.poll(() => sourceFeatureCount(page, 'local-context')).toBe(2);
+  await expect.poll(() => sourceFeatureCount(page, 'roads')).toBeGreaterThan(0);
 
   // Hide analysis, structure, and shared analysis/road-family descriptors.
   await page.getByRole('button', { name: 'Layers' }).click();
@@ -91,20 +94,21 @@ test('a restyle reinstalls every map family in the declared order and keeps hidd
   await page.getByRole('checkbox', { name: 'Roads', exact: true }).uncheck();
   expect(await visibilityOf(page, 'contour-lines')).toBe('none');
   expect(await visibilityOf(page, 'trail-fill')).toBe('none');
-  expect(await visibilityOf(page, 'local-roads')).toBe('none');
-  expect(await visibilityOf(page, 'player-roads')).toBe('none');
-  expect(await visibilityOf(page, 'player-road-centerline')).toBe('none');
+  expect(await visibilityOf(page, 'road-pavement')).toBe('none');
+  expect(await visibilityOf(page, 'road-yellow-centerline')).toBe('none');
+  expect(await visibilityOf(page, 'road-white-divider')).toBe('none');
   expect(await visibilityOf(page, 'lift-line-casing')).not.toBe('none');
 
   await restyle(page);
 
   expectDeclaredOrder(await layerIds(page));
-  await expect.poll(() => sourceFeatureCount(page, 'local-context')).toBe(3);
+  await expect.poll(() => sourceFeatureCount(page, 'local-context')).toBe(2);
+  await expect.poll(() => sourceFeatureCount(page, 'roads')).toBeGreaterThan(0);
   expect(await visibilityOf(page, 'contour-lines')).toBe('none');
   expect(await visibilityOf(page, 'trail-fill')).toBe('none');
-  expect(await visibilityOf(page, 'local-roads')).toBe('none');
-  expect(await visibilityOf(page, 'player-roads')).toBe('none');
-  expect(await visibilityOf(page, 'player-road-centerline')).toBe('none');
+  expect(await visibilityOf(page, 'road-pavement')).toBe('none');
+  expect(await visibilityOf(page, 'road-yellow-centerline')).toBe('none');
+  expect(await visibilityOf(page, 'road-white-divider')).toBe('none');
   expect(await visibilityOf(page, 'lift-line-casing')).not.toBe('none');
   await expect(page.getByRole('checkbox', { name: 'Contours' })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Ski trails' })).not.toBeChecked();
@@ -115,6 +119,34 @@ test('a restyle reinstalls every map family in the declared order and keeps hidd
   await page.getByRole('button', { name: 'Menu' }).click();
   await page.getByRole('menuitem', { name: 'Main Menu' }).click();
   await expect(page.getByRole('navigation', { name: 'Main menu' })).toBeVisible();
+});
+
+test('imported and player-built paved roads open the same read-only detail', async ({ page }) => {
+  await seedPreparedResort(page, { roads: [{
+    id: 'road/seed', name: 'Seed Road', roadType: 'two-lane', widthM: 7,
+    points: [[-121.497, 46.902], [-121.493, 46.902]], lengthM: 305,
+    terrainGraded: true, createdAt: '2026-01-01T00:00:00.000Z',
+  }] });
+  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+  await jumpTo(page, [-121.495, 46.905], 12);
+  await countSourceUpdates(page, ['roads']);
+
+  const imported = await pointAt(page, [-121.495, 46.905]);
+  await page.mouse.click(imported.x, imported.y);
+  const importedDetail = page.locator('.road-detail');
+  await expect(importedDetail.getByText('Context Road', { exact: true })).toBeVisible();
+  await expect(importedDetail.getByText('Lane estimate', { exact: true })).toBeVisible();
+  await importedDetail.getByRole('button', { name: 'Close' }).click();
+
+  await jumpTo(page, [-121.495, 46.902], 16);
+  const built = await pointAt(page, [-121.495, 46.902]);
+  await page.mouse.click(built.x, built.y);
+  const builtDetail = page.locator('.road-detail');
+  await expect(builtDetail.getByText('Seed Road', { exact: true })).toBeVisible();
+  await expect(builtDetail.getByText('Player-built', { exact: true })).toBeVisible();
+  await expect(builtDetail.locator('input')).toHaveCount(0);
+  expect((await sourceUpdateCounts(page)).roads).toBe(0);
 });
 
 // A lift laid straight across the middle of a run, so one click point sits on

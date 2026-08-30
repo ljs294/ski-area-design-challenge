@@ -194,7 +194,7 @@ test('road confirmation builds once and survives best-effort cover failure', asy
   });
 
   await expect(page.getByText(/Infrastructure.*1 roads/)).toBeVisible({ timeout: 15_000 });
-  await expect.poll(() => sourceFeatureCount(page, 'player-roads')).toBeGreaterThan(0);
+  await expect.poll(() => sourceFeatureCount(page, 'roads')).toBeGreaterThan(0);
   await expect.poll(async () => (await workerEntries(page, 'coverEdit.worker')).length).toBe(1);
 
   await page.getByRole('button', { name: /^Menu/ }).click();

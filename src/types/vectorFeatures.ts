@@ -1,6 +1,7 @@
 // Raw real-world features fetched from OpenStreetMap. Geometry remains in
 // [longitude, latitude] order so rendering projections stay derived data.
 export type RoadClass = 'major' | 'minor' | 'path';
+export type RoadSurfaceClass = 'paved' | 'unpaved' | 'unknown';
 export type WaterLineClass = 'river' | 'stream';
 export type OsmLandCoverClass = 'forest' | 'grass' | 'rock' | 'scrub';
 
@@ -8,6 +9,14 @@ export interface RoadFeature {
   id: string;
   name?: string;
   roadClass: RoadClass;
+  /** Normalized OSM metadata. Optional so existing terrain packages hydrate unchanged. */
+  highway?: string;
+  surfaceClass?: RoadSurfaceClass;
+  sourceWidthM?: number;
+  lanes?: number;
+  lanesForward?: number;
+  lanesBackward?: number;
+  oneWay?: boolean;
   points: [number, number][];
 }
 

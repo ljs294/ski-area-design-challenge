@@ -37,6 +37,7 @@ export const MAP_HIT_PRIORITY = [
   'trail',
   'dam',
   'pond',
+  'road',
   'stream',
   'lake',
 ] as const;
