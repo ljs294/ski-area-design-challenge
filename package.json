@@ -9,6 +9,7 @@
     "dev:lab": "node scripts/devLab.mjs",
     "dev:weather-lab": "node scripts/devWeatherLab.mjs",
     "weather:service": "node weather-service/server.mjs",
+    "sim:time": "node --experimental-strip-types time-engine/src/cli.ts",
     "sim:weather": "node --experimental-strip-types scripts/weatherCli.ts",
     "typecheck:weather-engine": "tsc -p weather-engine/tsconfig.json --noEmit",
     "test:weather-engine": "vitest run weather-engine/test --testTimeout 10000",

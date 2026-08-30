@@ -18,7 +18,7 @@ import {
   type TimeBoundaryEvent,
   type TimeBoundaryTarget,
   type TimeScaleConfig,
-} from './timeEngine';
+} from './timeEngine.ts';
 
 const DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC',
