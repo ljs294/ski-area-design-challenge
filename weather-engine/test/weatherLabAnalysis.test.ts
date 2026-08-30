@@ -104,10 +104,10 @@ describe('Weather Lab temporal tuning', () => {
     }
   });
 
-  it('keeps the characterized V1 stream byte-stable', () => {
+  it('keeps the wind-coherent V1 stream byte-stable', () => {
     const model = createJacksonClimateModel();
     const generated = advanceWeatherTo(createWeatherSimulation(createJacksonRun('Historical'), model), 336);
-    expect(sha256Hex(generated.hours)).toBe('b17c40ce4bcb653ef89561885a77b527e5f07cc7011e55f513c88e6131e8f7cc');
+    expect(sha256Hex(generated.hours)).toBe('c6b27c9a00087e3cd2048b3b5c9f54734b15e897e8a6f410bbd2eaa5d0e0cf4e');
   });
 
   it('reproduces the complete V1 truth with historical V2 tuning and the compatibility stream key', () => {

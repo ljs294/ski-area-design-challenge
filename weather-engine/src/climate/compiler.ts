@@ -148,7 +148,9 @@ function buildMonthlyModel(month: WeatherMonth, allHours: readonly ObservedWeath
     local: { states: CONDITIONS, hourlyMatricesByMacro: Object.fromEntries(MACROS.map((macro) => [macro, localCounts[macro].map(normalizedRow)])) as unknown as Record<MacroAirMassId, readonly (readonly number[])[]>, backoffRows: normalizedRow(CONDITIONS.map((condition) => hours.filter((hour) => conditionFor(hour) === condition).length + 1)) },
     emissions: { temperatureAr1: 0.82, dewPointAr1: 0.86, temperatureDewPointCorrelation: 0.72,
       precipitationShape: shape, precipitationScaleMm: wetMean / shape, snowfallRatio: 10,
-      windShape: 2, windScaleKph: Math.max(2, mean(finite(hours.map((hour) => hour.windSpeedKph)), 12) / 1.77), gustFactor: 1.45 },
+      // Gamma mean is shape * scale. Dividing by the fitted shape keeps the
+      // stochastic draw centered on the observed training mean.
+      windShape: 2, windScaleKph: Math.max(1, mean(finite(hours.map((hour) => hour.windSpeedKph)), 12) / 2), gustFactor: 1.45 },
     sampleCounts: { hours: hours.length, wetHours: wet.length },
   };
 }

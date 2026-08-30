@@ -242,7 +242,9 @@ export function createWeatherSimulation(run: WeatherLabRunRequest, model: Locati
   const snapshot: WeatherEngineSnapshotV2 = { schemaVersion: 2, generatorVersion: 2, runIdentityHash: identity,
     nextHourIndex: 0, activeMonth: 1, macroAirMass: 'continental-polar', macroHoursRemaining: 0,
     localCondition: 'partly-cloudy', temperatureResidualC: 0, dewPointResidualC: 0,
-    pressureHpa: model.months[0].hourlyNormals[0].pressureHpa, windDirectionDeg: model.months[0].hourlyNormals[0].windDirectionDeg,
+    pressureHpa: model.months[0].hourlyNormals[0].pressureHpa,
+    windSpeedKph: model.months[0].hourlyNormals[0].windSpeedKph * 0.82,
+    windDirectionDeg: model.months[0].hourlyNormals[0].windDirectionDeg,
     previousMoisture: 0, previousTemperatureC: model.months[0].hourlyNormals[0].temperatureC, streams };
   return Object.freeze({ run: normalizedRun, model, calendar, snapshot });
 }
@@ -301,8 +303,18 @@ export function advanceWeatherHour(simulation: WeatherSimulationV2): WeatherAdva
   const condition = physicalCondition(initialCondition, phase, precipitationMm);
   const snowFraction = phase === 'snow' ? 1 : phase === 'mixed' ? 0.45 : 0;
   const snowfallCm = precipitationMm * clamp(monthModel.emissions.snowfallRatio - temperatureC * 0.35, 6, 20) * snowFraction / 10;
-  const windSpeedKph = emissionRandom.gamma(monthModel.emissions.windShape, monthModel.emissions.windScaleKph) * macroModel.windSpeedMultiplier * tuning.windSeverityMultiplier;
-  const windDirectionDeg = (snapshot.windDirectionDeg + angularDifference(snapshot.windDirectionDeg, normal.windDirectionDeg) * 0.2 + emissionRandom.normal(0, macro.id === 'frontal' ? 35 : 12) + 360) % 360;
+  const sampledWindSpeedKph = emissionRandom.gamma(monthModel.emissions.windShape, monthModel.emissions.windScaleKph);
+  const windTargetKph = clamp(
+    (normal.windSpeedKph * 0.8 + sampledWindSpeedKph * 0.2) * macroModel.windSpeedMultiplier * tuning.windSeverityMultiplier * 0.82,
+    0,
+    normal.windSpeedKph * 2.4 + 5,
+  );
+  const priorWindSpeedKph = snapshot.windSpeedKph ?? normal.windSpeedKph * tuning.windSeverityMultiplier * 0.82;
+  const windResponse = macro.changed ? 0.2 : 0.12;
+  const windSpeedKph = priorWindSpeedKph + (windTargetKph - priorWindSpeedKph) * windResponse;
+  const directionTargetDeg = (normal.windDirectionDeg + emissionRandom.normal(0, macro.id === 'frontal' ? 18 : 7) + 360) % 360;
+  const windDirectionDeg = (snapshot.windDirectionDeg
+    + angularDifference(snapshot.windDirectionDeg, directionTargetDeg) * (macro.id === 'frontal' ? 0.22 : 0.12) + 360) % 360;
   const windGustKph = windSpeedKph * clamp(monthModel.emissions.gustFactor + emissionRandom.normal(0, 0.08), 1, 2.2);
   const cloudCoverPct = cloudFor(condition, normal.cloudCoverPct, emissionRandom);
   const shortwaveRadiationWm2 = normal.clearSkyRadiationWm2 * clamp(1 - 0.75 * (cloudCoverPct / 100) ** 3.4, 0, 1);
@@ -332,7 +344,7 @@ export function advanceWeatherHour(simulation: WeatherSimulationV2): WeatherAdva
   const nextSnapshot: WeatherEngineSnapshotV2 = { ...snapshot, nextHourIndex: snapshot.nextHourIndex + 1,
     macroAirMass: macro.id, macroHoursRemaining: macro.duration - 1, localCondition: condition,
     temperatureResidualC: quantize(temperatureResidualC, 6), dewPointResidualC: quantize(dewPointResidualC, 6),
-    pressureHpa: hour.pressureHpa, windDirectionDeg: hour.windDirectionDeg,
+    pressureHpa: hour.pressureHpa, windSpeedKph: hour.windSpeedKph, windDirectionDeg: hour.windDirectionDeg,
     previousMoisture: quantize(snapshot.previousMoisture * 0.85 + precipitationMm, 6), previousTemperatureC: hour.temperatureC,
     streams: { macro: macroRandom.snapshot(), local: localRandom.snapshot(), emissions: emissionRandom.snapshot(), forecastError: snapshot.streams.forecastError } };
   return { simulation: Object.freeze({ ...simulation, snapshot: nextSnapshot }), hour };

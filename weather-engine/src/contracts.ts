@@ -428,6 +428,8 @@ export interface WeatherEngineSnapshotV2 {
   temperatureResidualC: number;
   dewPointResidualC: number;
   pressureHpa: number;
+  /** Optional so snapshots created before wind persistence was introduced still restore. */
+  windSpeedKph?: number;
   windDirectionDeg: number;
   previousMoisture: number;
   previousTemperatureC: number;

@@ -65,7 +65,7 @@ export function MonthlyWeatherSummary(props: MonthlyWeatherSummaryProps) {
   ], [props.baseline, props.baselineEvents, props.month, props.observed, props.observedEvents, props.simulation, props.simulationEvents]);
   const monthName = new Date(2000, props.month - 1, 1).toLocaleDateString([], { month: 'long' });
   return <section className="panel monthly-weather-summary" aria-labelledby="monthly-weather-summary-title">
-    <div className="panel-title"><div><h2 id="monthly-weather-summary-title">{monthName} weather overview</h2><p>Complete-month weather totals synchronized to the selected forecast day.</p></div></div>
+    <div className="panel-title"><div><h2 id="monthly-weather-summary-title">{monthName} weather overview</h2><p>Complete-month weather totals synchronized to the selected Simulation day.</p></div></div>
     <div className="monthly-summary-grid">{rows.map(({ label, value }) => <article key={label}>
       <h3>{label}</h3><dl>
         <dt>Daily low / mean / high</dt><dd>{formatRange(value.temperature, props.units, 'temperature')}</dd>

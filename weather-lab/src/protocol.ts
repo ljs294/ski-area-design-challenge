@@ -6,7 +6,7 @@ export type WeatherWorkerRequest =
 export type WeatherWorkerResponse =
   | { type: 'started'; requestId: string; totalHours: number }
   | { type: 'progress'; requestId: string; completedHours: number; totalHours: number }
-  | { type: 'phase'; requestId: string; phase: 'forecasting' | 'comparison'; message: string }
+  | { type: 'phase'; requestId: string; phase: 'comparison'; message: string }
   | { type: 'completed'; requestId: string; result: WeatherLabResult }
   | { type: 'cancelled'; requestId: string }
   | { type: 'failed'; requestId: string; message: string };

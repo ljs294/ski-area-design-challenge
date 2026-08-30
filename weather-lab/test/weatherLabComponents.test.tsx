@@ -69,7 +69,8 @@ describe('Weather Lab comparison components', () => {
     expect(html).toContain('Temperature persistence');
     expect(html).toContain('Use fitted climate value');
     expect(html).toContain('Match pinned Baseline');
-    expect((html.match(/type="range"/g) ?? [])).toHaveLength(14);
+    expect((html.match(/type="range"/g) ?? [])).toHaveLength(13);
+    expect(html).not.toContain('Forecast error');
   });
 
   it('renders aligned daily chart and accessible comparison table', () => {

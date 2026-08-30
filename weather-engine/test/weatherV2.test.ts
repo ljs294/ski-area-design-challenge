@@ -34,6 +34,17 @@ describe('standalone weather v2', () => {
   it('generates a complete year and advances a separate forecast-error stream', () => {
     const model = createJacksonClimateModel(); const run = createJacksonRun(); const year = generateWeatherYear(run, model);
     expect(year.hours).toHaveLength(8760);
+    const meanWindKph = year.hours.reduce((sum, hour) => sum + hour.windSpeedKph, 0) / year.hours.length;
+    const meanHourlyWindChangeKph = year.hours.slice(1).reduce((sum, hour, index) =>
+      sum + Math.abs(hour.windSpeedKph - year.hours[index].windSpeedKph), 0) / (year.hours.length - 1);
+    const meanHourlyDirectionChangeDeg = year.hours.slice(1).reduce((sum, hour, index) => {
+      const change = Math.abs(((hour.windDirectionDeg - year.hours[index].windDirectionDeg + 540) % 360) - 180);
+      return sum + change;
+    }, 0) / (year.hours.length - 1);
+    expect(meanWindKph).toBeGreaterThan(4);
+    expect(meanWindKph).toBeLessThan(14);
+    expect(meanHourlyWindChangeKph).toBeLessThan(1.5);
+    expect(meanHourlyDirectionChangeDeg).toBeLessThan(4);
     const forecasts = generateForecastIssues(run, year.hours);
     expect(forecasts.issues.length).toBeGreaterThan(700);
     expect(forecasts.issues[0].hourly).toHaveLength(168);

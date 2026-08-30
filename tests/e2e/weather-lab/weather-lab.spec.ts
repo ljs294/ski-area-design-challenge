@@ -5,7 +5,7 @@ async function runSimulation(page: import('@playwright/test').Page) {
   await expect(page.locator('.status > span').filter({ hasText: /^Completed$/ })).toBeVisible({ timeout: 30_000 });
 }
 
-test('Jackson 2019 opens as a Simulation-first five-day forecast and applies one tuning draft', async ({ page }) => {
+test('Jackson 2019 opens as a five-day Simulation truth view and applies one tuning draft', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Weather Model Lab' })).toBeVisible();
   await expect(page.getByLabel('Map showing 44.16729, -71.164239')).toBeVisible();
@@ -16,11 +16,19 @@ test('Jackson 2019 opens as a Simulation-first five-day forecast and applies one
   await expect(page.locator('.progress-overview')).toContainText('100%');
   await expect(page.locator('.step-progress')).toContainText('MERRA-2 hourly');
   await expect(page.getByRole('heading', { name: 'Simulation tuning' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Five-day hourly forecast' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Five-day Simulation weather' })).toBeVisible();
   await expect(page.locator('.forecast-days [role="tab"]')).toHaveCount(5);
+  await expect(page.locator('.forecast-days [role="tab"]').first().locator('.forecast-card-simulation')).toContainText('Simulation');
+  await expect(page.locator('.forecast-days [role="tab"]').first().locator('.forecast-card-simulation')).toContainText(/Wind .+\u00b0/);
+  await expect(page.locator('.forecast-days [role="tab"]').first()).toContainText('Actual historical');
+  await expect(page.locator('.forecast-series-toggles')).toContainText('Simulation weather');
+  await expect(page.locator('.forecast-series-toggles')).toContainText('Actual historical weather');
+  await expect(page.getByText('Simulation forecast', { exact: false })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Wet bulb/ })).toBeVisible();
   await page.getByRole('button', { name: /Precipitation/ }).click();
-  await expect(page.locator('.forecast-chart')).toHaveAttribute('aria-labelledby', /forecast-tab/);
+  await expect(page.locator('.forecast-chart')).toHaveAttribute('aria-labelledby', /simulation-tab/);
+  await page.getByRole('button', { name: /Wind \/ gust/ }).click();
+  await expect(page.locator('.forecast-crosshair .simulation-truth-readout')).toContainText(/Simulation .+gust .+\u00b0/);
   await page.locator('.unit-toggle').getByLabel('Metric').check();
   await expect(page.locator('.forecast-days [role="tab"]').first()).toContainText(/°/);
   await page.locator('.forecast-days [role="tab"]').nth(1).click();

@@ -48,7 +48,7 @@ import type { DailyComparisonSeries, DailyMetric, EventComparisonSeries } from '
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const SERVICE_URL = (import.meta.env.VITE_WEATHER_SERVICE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://127.0.0.1:8787';
-const RUN_STEPS = ['coverage', 'daymet', 'merra2', 'compiling', 'artifacts', 'simulation', 'forecasting', 'comparison'] as const;
+const RUN_STEPS = ['coverage', 'daymet', 'merra2', 'compiling', 'artifacts', 'simulation', 'comparison'] as const;
 type RunStep = typeof RUN_STEPS[number];
 type SimulationRole = 'simulation';
 type RunLogEntry = Readonly<{ id: number; at: string; stage: string; message: string }>;
@@ -60,7 +60,7 @@ type PreparedArtifacts = Readonly<{
 
 const STEP_LABELS: Record<RunStep, string> = {
   coverage: 'Coverage', daymet: 'Daymet daily', merra2: 'NASA POWER / MERRA-2 hourly',
-  compiling: 'Climate compilation', artifacts: 'Artifacts', simulation: 'Simulation', forecasting: 'Forecasting', comparison: 'Comparison',
+  compiling: 'Climate compilation', artifacts: 'Artifacts', simulation: 'Simulation', comparison: 'Comparison',
 };
 
 function formatDuration(seconds: number | null) {
@@ -138,7 +138,6 @@ export function WeatherLabApp() {
   const [baseline, setBaseline] = useState<WeatherLabResultV2 | null>(null);
   const [baselinePinnedAt, setBaselinePinnedAt] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<WeatherLabResultV2 | null>(null);
-  const [selectedIssueAt, setSelectedIssueAt] = useState<string | null>(null);
   const [units, setUnits] = useState<ForecastUnits>('us');
   const [month, setMonth] = useState(1);
   const [dailyMetric, setDailyMetric] = useState<DailyMetric>('temperature');
@@ -204,13 +203,9 @@ export function WeatherLabApp() {
       if (message.type === 'phase') {
         setStatus(`Simulation: ${message.message}`);
         appendLog(message.phase, `Simulation: ${message.message}`);
-        if (message.phase === 'forecasting') {
-          setProgress(.96);
-          setStepProgress((current) => ({ ...current, simulation: 100, forecasting: 50 }));
-        }
         if (message.phase === 'comparison') {
           setProgress(.98);
-          setStepProgress((current) => ({ ...current, forecasting: 100, comparison: 50 }));
+          setStepProgress((current) => ({ ...current, simulation: 100, comparison: 50 }));
         }
       }
       if (message.type === 'completed') {
@@ -225,7 +220,7 @@ export function WeatherLabApp() {
         setAppliedTuning(message.result.run.tuning);
         setStatus('Completed');
         setProgress(1);
-        setStepProgress((current) => ({ ...current, simulation: 100, forecasting: 100, comparison: 100 }));
+        setStepProgress((current) => ({ ...current, simulation: 100, comparison: 100 }));
         appendLog('completed', `Simulation completed. Truth hash ${message.result.truthHash.slice(0, 16)}...`);
         setRunning(false);
         activeId.current = null;
@@ -415,7 +410,7 @@ export function WeatherLabApp() {
 
     if (artifactsRef.current?.key === key) {
       appendLog('artifacts', 'Reusing cached climate and observation artifacts; provider preparation skipped.');
-      setStepProgress(Object.fromEntries(RUN_STEPS.map((step) => [step, ['simulation', 'forecasting', 'comparison'].includes(step) ? 0 : 100])) as Record<RunStep, number>);
+      setStepProgress(Object.fromEntries(RUN_STEPS.map((step) => [step, ['simulation', 'comparison'].includes(step) ? 0 : 100])) as Record<RunStep, number>);
       setProgress(.55);
       startSimulation(artifactsRef.current, tuningRef.current);
       return;
@@ -538,7 +533,7 @@ export function WeatherLabApp() {
     const nextArtifacts = artifactsRef.current;
     if (!nextArtifacts || running || tuningDraftMatches(appliedTuning, tuning)) return;
     stopWorker();
-    setStepProgress((current) => ({ ...current, simulation: 0, forecasting: 0, comparison: 0 }));
+    setStepProgress((current) => ({ ...current, simulation: 0, comparison: 0 }));
     setTuningNotice(null);
     startSimulation(nextArtifacts, tuning);
   }
@@ -589,28 +584,13 @@ export function WeatherLabApp() {
   const eventSeries: EventComparisonSeries | null = candidate
     ? { observed: candidate.events.observed, ...(compatibleBaseline ? { baseline: compatibleBaseline.events.simulated } : {}), candidate: candidate.events.simulated }
     : null;
-  const issueOptions = candidate?.forecasts.map((issue) => {
-    const matchingHour = candidate.simulated.find((hour) => hour.at === issue.issuedAt);
-    const localDateTime = matchingHour?.localDateTime ?? issue.issuedAt;
-    const hour = Number(localDateTime.slice(11, 13));
-    return { issue, date: localDateTime.slice(0, 10), cycle: hour < 12 ? 'AM' : 'PM' } as const;
-  }) ?? [];
-  const defaultIssue = issueOptions.find((option) => option.cycle === 'AM') ?? issueOptions[0];
-  const selectedIssueOption = issueOptions.find((option) => option.issue.issuedAt === selectedIssueAt) ?? defaultIssue;
-  const selectedIssue = selectedIssueOption?.issue ?? null;
-  const issueDates = [...new Set(issueOptions.map((option) => option.date))];
-  useEffect(() => {
-    if (candidate && selectedIssueOption && selectedIssueAt !== selectedIssueOption.issue.issuedAt) {
-      setSelectedIssueAt(selectedIssueOption.issue.issuedAt);
-    }
-  }, [candidate, selectedIssueAt, selectedIssueOption]);
   const dateRange = validationYear == null ? null : monthDateRange(validationYear, month);
 
   return <main>
     <header>
       <p className="eyebrow">MOUNTAIN PLANNER · STANDALONE</p>
       <h1>Weather Model Lab</h1>
-      <p>Build a Simulation, inspect it like a mountain forecast, and apply tuning changes when you are ready.</p>
+      <p>Build a Simulation, inspect its generated weather directly against history, and apply tuning changes when you are ready.</p>
     </header>
 
     <section className="location-layout">
@@ -692,28 +672,18 @@ export function WeatherLabApp() {
 
     {candidate && dailySeries && eventSeries && <>
       <section className="panel forecast-toolbar">
-        <div className="forecast-issue-selectors">
-          <label>Forecast issued<select value={selectedIssueOption?.date ?? ''} onChange={(event) => {
-            const next = issueOptions.find((option) => option.date === event.target.value && option.cycle === selectedIssueOption?.cycle)
-              ?? issueOptions.find((option) => option.date === event.target.value);
-            if (next) setSelectedIssueAt(next.issue.issuedAt);
-          }}>{issueDates.map((date) => <option key={date} value={date}>{date}</option>)}</select></label>
-          <label>Cycle<select value={selectedIssueOption?.cycle ?? 'AM'} onChange={(event) => {
-            const next = issueOptions.find((option) => option.date === selectedIssueOption?.date && option.cycle === event.target.value);
-            if (next) setSelectedIssueAt(next.issue.issuedAt);
-          }}>{issueOptions.filter((option) => option.date === selectedIssueOption?.date).map((option) => <option key={option.cycle} value={option.cycle}>{option.cycle}</option>)}</select></label>
-        </div>
+        <div><strong>Simulation truth view</strong><p>Values come directly from the generated hourly Simulation without a forecast-error layer.</p></div>
         <fieldset className="unit-toggle"><legend>Display units</legend>
           <label><input type="radio" name="weather-units" checked={units === 'us'} onChange={() => setUnits('us')}/> US</label>
           <label><input type="radio" name="weather-units" checked={units === 'metric'} onChange={() => setUnits('metric')}/> Metric</label>
         </fieldset>
       </section>
 
-      {selectedIssue && <section className="panel forecast-module"><ForecastBrowser
-        issue={selectedIssue} timezone={candidate.run.stationTimeZone} units={units}
+      <section className="panel forecast-module"><ForecastBrowser
+        timezone={candidate.run.stationTimeZone} units={units}
         simulation={candidate.simulated} observed={candidate.observed.hours} baseline={compatibleBaseline?.simulated}
         onSelectedDateChange={(date) => setMonth(Number(date.slice(5, 7)))}
-      /></section>}
+      /></section>
 
       <MonthlyWeatherSummary month={month} units={units}
         simulation={candidate.daily.simulated} observed={candidate.daily.observed} baseline={compatibleBaseline?.daily.simulated}
@@ -732,7 +702,7 @@ export function WeatherLabApp() {
       <section className="summary">
         <article><span>Simulation truth hash</span><strong>{candidate.truthHash.slice(0, 16)}</strong></article>
         {compatibleBaseline && <article><span>Baseline truth hash</span><strong>{compatibleBaseline.truthHash.slice(0, 16)}</strong></article>}
-        <article><span>Forecast issues</span><strong>{candidate.forecasts.length}</strong></article>
+        <article><span>Simulation hours</span><strong>{candidate.simulated.length.toLocaleString()}</strong></article>
         <article><span>Detected events</span><strong>{candidate.events.simulated.length}</strong></article>
       </section>
 

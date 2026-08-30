@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { advanceWeatherTo, compareWeatherSeries, compareWeatherSeriesV2, createWeatherSimulation, createWeatherSnapshot, generateForecastIssues } from '../../weather-engine/src/index.ts';
+import { advanceWeatherTo, compareWeatherSeries, compareWeatherSeriesV2, createWeatherSimulation, createWeatherSnapshot } from '../../weather-engine/src/index.ts';
 import type { SimulatedWeatherHourV1 } from '../../weather-engine/src/index.ts';
 import type { WeatherWorkerRequest, WeatherWorkerResponse } from './protocol.ts';
 
@@ -25,13 +25,11 @@ scope.onmessage = (event: MessageEvent<WeatherWorkerRequest>) => {
         await yieldToMessages();
       }
       if (activeId !== message.requestId) { send({ type: 'cancelled', requestId: message.requestId }); return; }
-      send({ type: 'phase', requestId: message.requestId, phase: 'forecasting', message: 'Issuing forecasts and measuring forecast error.' });
-      const forecasts = generateForecastIssues(message.run, hours).issues;
       send({ type: 'phase', requestId: message.requestId, phase: 'comparison', message: 'Comparing simulated and quality-controlled observed weather.' });
       const snapshot = createWeatherSnapshot(simulation);
       const result = message.run.version === 2
-        ? compareWeatherSeriesV2(message.run, hours, message.observed, forecasts, snapshot, message.model)
-        : compareWeatherSeries(message.run, hours, message.observed, forecasts, snapshot);
+        ? compareWeatherSeriesV2(message.run, hours, message.observed, [], snapshot, message.model)
+        : compareWeatherSeries(message.run, hours, message.observed, [], snapshot);
       send({ type: 'completed', requestId: message.requestId, result }); activeId = null;
     } catch (error) {
       send({ type: 'failed', requestId: message.requestId, message: error instanceof Error ? error.message : String(error) }); activeId = null;

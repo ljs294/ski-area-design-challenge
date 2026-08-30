@@ -15,7 +15,7 @@ export interface WeatherTuningControlsProps {
   onExportJson?: () => void;
 }
 
-const GROUPS = ['Atmosphere', 'Precipitation and events', 'Forecast'] as const;
+const GROUPS = ['Atmosphere', 'Precipitation and events'] as const;
 
 function displayedValue(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);

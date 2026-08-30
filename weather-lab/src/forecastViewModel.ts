@@ -1,8 +1,4 @@
-import type {
-  ForecastHourV1,
-  ForecastIssueV1,
-  PrecipitationPhase,
-} from '../../weather-engine/src/contracts.ts';
+import type { PrecipitationPhase } from '../../weather-engine/src/contracts.ts';
 
 export type ForecastUnits = 'us' | 'metric';
 export type ForecastMetric = 'temperature' | 'wetBulb' | 'precipitation' | 'snowfall' | 'wind' | 'cloud' | 'humidity';
@@ -15,35 +11,39 @@ export interface ForecastMetricHour {
   precipitationPhase?: PrecipitationPhase | null;
   snowfallCm?: number | null;
   windSpeedKph: number | null;
+  windDirectionDeg?: number | null;
   windGustKph?: number | null;
   cloudCoverPct?: number | null;
   relativeHumidityPct?: number | null;
 }
 
-const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+const COMPASS_POINTS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'] as const;
+
+export function normalizeWindDirection(directionDeg: number): number {
+  return ((directionDeg % 360) + 360) % 360;
+}
+
+export function formatWindDirection(directionDeg: number | null | undefined): string {
+  if (directionDeg == null || !Number.isFinite(directionDeg)) return 'direction unavailable';
+  const normalized = normalizeWindDirection(directionDeg);
+  const compass = COMPASS_POINTS[Math.round(normalized / 22.5) % COMPASS_POINTS.length];
+  return `${compass} (${Math.round(normalized)}°)`;
+}
+
+export function circularMeanWindDirection(directions: readonly (number | null | undefined)[]): number | null {
+  const available = directions.filter((value): value is number => value != null && Number.isFinite(value));
+  if (!available.length) return null;
+  const vectors = available.reduce((sum, direction) => {
+    const radians = normalizeWindDirection(direction) * Math.PI / 180;
+    return { x: sum.x + Math.cos(radians), y: sum.y + Math.sin(radians) };
+  }, { x: 0, y: 0 });
+  if (Math.abs(vectors.x) < 1e-10 && Math.abs(vectors.y) < 1e-10) return null;
+  return normalizeWindDirection(Math.atan2(vectors.y, vectors.x) * 180 / Math.PI);
+}
+
 const hourFormatters = new Map<string, Intl.DateTimeFormat>();
 
-function dateFormatter(timezone: string) {
-  let formatter = dateFormatters.get(timezone);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    dateFormatters.set(timezone, formatter);
-  }
-  return formatter;
-}
-
-export function forecastLocalDate(at: string, timezone: string): string {
-  const parts = dateFormatter(timezone).formatToParts(new Date(at));
-  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
-  return `${value('year')}-${value('month')}-${value('day')}`;
-}
-
-export function forecastLocalHour(at: string, timezone: string): string {
+export function localHourLabel(at: string, timezone: string): string {
   let formatter = hourFormatters.get(timezone);
   if (!formatter) {
     formatter = new Intl.DateTimeFormat([], {
@@ -55,17 +55,6 @@ export function forecastLocalHour(at: string, timezone: string): string {
     hourFormatters.set(timezone, formatter);
   }
   return formatter.format(new Date(at));
-}
-
-export function fiveForecastDays(issue: ForecastIssueV1, timezone: string): readonly (readonly ForecastHourV1[])[] {
-  const groups = new Map<string, ForecastHourV1[]>();
-  for (const hour of issue.hourly) {
-    const date = forecastLocalDate(hour.at, timezone);
-    const group = groups.get(date) ?? [];
-    group.push(hour);
-    groups.set(date, group);
-  }
-  return [...groups.values()].slice(0, 5);
 }
 
 export function displayValue(value: number, metric: ForecastMetric, units: ForecastUnits): number {
@@ -98,7 +87,7 @@ export function metricLabel(metric: ForecastMetric, units: ForecastUnits): strin
   return `${names[metric]} (${metricUnit(metric, units)})`;
 }
 
-export function metricValue(hour: ForecastMetricHour | ForecastHourV1, metric: ForecastMetric): number | null {
+export function metricValue(hour: ForecastMetricHour, metric: ForecastMetric): number | null {
   if (metric === 'temperature') return hour.temperatureC;
   if (metric === 'wetBulb') return hour.wetBulbC ?? null;
   if (metric === 'precipitation') return hour.precipitationMm;
