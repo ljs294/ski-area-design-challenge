@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { registerTerrainStorageHandlers } from './ipcTerrainStorage';
 import { registerGameSaveStorageHandlers } from './ipcGameSaveStorage';
+import { registerWeatherStorageHandlers } from './ipcWeatherStorage';
 import { registerOverpassRequestIdentity } from './overpassRequestIdentity';
 import {
   WINDOW_GET_MODE_CHANNEL,
@@ -58,7 +59,7 @@ function createWindow() {
 
   // GRAPHICS_LAB=1 (see `npm run dev:lab`) boots straight into the two-map
   // graphics dev tool, bypassing the menu.
-  const labHash = process.env.GRAPHICS_LAB ? 'graphics-lab' : '';
+  const labHash = process.env.GRAPHICS_LAB ? 'graphics-lab' : process.env.WEATHER_LAB ? 'weather-lab' : '';
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL + (labHash ? `#${labHash}` : ''));
   } else {
@@ -120,6 +121,7 @@ app.whenReady().then(() => {
   registerOverpassRequestIdentity(session.defaultSession.webRequest, app.getVersion());
   registerTerrainStorageHandlers();
   registerGameSaveStorageHandlers();
+  registerWeatherStorageHandlers();
   createWindow();
 
   app.on('activate', () => {

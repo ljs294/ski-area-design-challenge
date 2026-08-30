@@ -14,12 +14,13 @@ const loadMapView = () => import('./MapView');
 const MapView = lazy(() => loadMapView().then((module) => ({ default: module.MapView })));
 const MapManagement = lazy(() => import('./MapManagement').then((module) => ({ default: module.MapManagement })));
 const GraphicsLab = lazy(() => import('./GraphicsLab').then((module) => ({ default: module.GraphicsLab })));
+const WeatherLab = lazy(() => import('./WeatherLab').then((module) => ({ default: module.WeatherLab })));
 
 // 'loadingGame' mounts nothing: it exists so the menu (and its live backdrop
 // map) is torn down before the save/package lookup begins. The loading screen
 // itself is an overlay driven by `boot`, independent of the screen machine, so
 // it survives the switch to 'game' and stays up until the resort is drawn.
-type Screen = 'menu' | 'newGame' | 'game' | 'loadingGame' | 'mapMgmt' | 'graphicsLab';
+type Screen = 'menu' | 'newGame' | 'game' | 'loadingGame' | 'mapMgmt' | 'graphicsLab' | 'weatherLab';
 
 /** Everything the resort loading overlay needs; null when no load is running. */
 interface BootState {
@@ -44,6 +45,7 @@ function initialScreen(): Screen {
   const hash = window.location.hash.toLowerCase();
   const params = new URLSearchParams(window.location.search);
   if (hash.includes('graphics-lab') || params.has('lab')) return 'graphicsLab';
+  if (hash.includes('weather-lab') || params.has('weather-lab')) return 'weatherLab';
   return 'menu';
 }
 
@@ -93,6 +95,10 @@ function AppInner() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'g' || e.key === 'G')) {
         e.preventDefault();
         setScreen((s) => (s === 'graphicsLab' ? 'menu' : 'graphicsLab'));
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'w' || e.key === 'W')) {
+        e.preventDefault();
+        setScreen((s) => (s === 'weatherLab' ? 'menu' : 'weatherLab'));
       }
     };
     window.addEventListener('keydown', onKey);
@@ -270,6 +276,7 @@ function AppInner() {
       {screen === 'mapMgmt' && <MapManagement onBack={toMenu} />}
 
       {screen === 'graphicsLab' && <GraphicsLab onExit={toMenu} />}
+      {screen === 'weatherLab' && <WeatherLab onExit={toMenu} />}
       </Suspense>
 
       {boot && (

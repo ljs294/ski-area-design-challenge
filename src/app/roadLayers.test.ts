@@ -1,19 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { LOCAL_ROAD_PAINT, playerRoadFeatures, playerRoadGeoJSON,
-  roadDraftGeoJSON } from './roadLayers';
+import { ROAD_CENTER_MARKING_PAINT, ROAD_DIVIDER_PAINT, ROAD_PAVEMENT_PAINT,
+  ROAD_SELECTED_PAINT, roadFeatures, roadGeoJSON, roadDraftGeoJSON } from './roadLayers';
 import type { SavedRoad } from '../types';
+import type { RoadFeature } from '../types/vectorFeatures';
 
 describe('road draft GeoJSON', () => {
   it('renders vertices and a cursor segment without persisting the cursor', () => {
     const a: [number, number] = [-121.5, 46.93];
     const b: [number, number] = [-121.49, 46.94];
-    const data = roadDraftGeoJSON({ points: [a], cursor: b });
-    expect(data.features.map((feature) => feature.properties?.kind)).toEqual(['road', 'vertex']);
+    const data = roadDraftGeoJSON({ points: [a], cursor: b, widthM: 7 });
+    expect(data.features.map((feature) => feature.properties?.kind))
+      .toEqual(['road-centerline', 'road-surface', 'vertex']);
     expect((data.features[0].geometry as GeoJSON.LineString).coordinates).toEqual([a, b]);
   });
 
   it('returns no line until a segment exists', () => {
-    const data = roadDraftGeoJSON({ points: [[-121.5, 46.93]], cursor: null });
+    const data = roadDraftGeoJSON({ points: [[-121.5, 46.93]], cursor: null, widthM: 7 });
     expect(data.features).toHaveLength(1);
     expect(data.features[0].properties?.kind).toBe('vertex');
   });
@@ -24,22 +26,49 @@ describe('road draft GeoJSON', () => {
     const polygon: [number, number][][] = [[a, [b[0], a[1]], b,
       [a[0], b[1]], a]];
     const data = roadDraftGeoJSON({ points: [a, b], cursor: null,
-      gradingPolygons: [polygon], infeasibleLines: [[a, b]] });
+      widthM: 7, gradingPolygons: [polygon], infeasibleLines: [[a, b]] });
     expect(data.features.map((feature) => feature.properties?.kind))
       .toContain('grade');
     expect(data.features.map((feature) => feature.properties?.kind))
       .toContain('infeasible');
   });
 
-  it('emits confirmed roads in the dedicated player-road collection', () => {
+  it('emits imported and player roads through one attributed collection', () => {
     const road: SavedRoad = { id: 'r1', name: 'Access Road', roadType: 'two-lane', widthM: 7,
       points: [[-121.5, 46.93], [-121.49, 46.94]], lengthM: 1000, createdAt: 'now' };
-    const feature = playerRoadFeatures([road])[0];
-    expect(feature.properties).toMatchObject({ kind: 'road', class: 'minor', playerBuilt: true,
-      roadId: 'r1', name: 'Access Road' });
-    expect(playerRoadGeoJSON([road])).toEqual({
-      type: 'FeatureCollection', features: [feature],
+    const imported: RoadFeature = { id: 'way/1', name: 'Pass Road', roadClass: 'major',
+      highway: 'primary', surfaceClass: 'paved', lanes: 3,
+      points: [[-121.51, 46.93], [-121.50, 46.94]] };
+    const features = roadFeatures([imported], [road]);
+    const surface = features.find((feature) => feature.properties?.id === 'player:r1' &&
+      feature.properties?.kind === 'road-surface');
+    const centerline = features.find((feature) => feature.properties?.id === 'player:r1' &&
+      feature.properties?.kind === 'road-center-marking');
+    expect(surface?.properties).toMatchObject({ source: 'player',
+      roadId: 'r1', name: 'Access Road', widthM: 7, widthSource: 'player-built' });
+    expect(surface?.geometry.type).toBe('Polygon');
+    expect(centerline?.properties).toMatchObject({ source: 'player',
+      roadId: 'r1', name: 'Access Road', widthM: 7 });
+    expect(features.some((feature) => feature.properties?.id === 'osm:way/1')).toBe(true);
+    expect(roadGeoJSON([imported], [road])).toEqual({
+      type: 'FeatureCollection', features,
     });
-    expect(LOCAL_ROAD_PAINT).toMatchObject({ 'line-color': '#55534e', 'line-opacity': 0.72 });
+  });
+
+  it('drops unpaved imported roads but never drops player roads', () => {
+    const unpaved: RoadFeature = { id: 'way/dirt', roadClass: 'minor', highway: 'service',
+      surfaceClass: 'unpaved', points: [[0, 0], [0.001, 0]] };
+    expect(roadFeatures([unpaved], [])).toEqual([]);
+  });
+
+  it('keeps both traffic marking paints static in screen pixels', () => {
+    expect(ROAD_CENTER_MARKING_PAINT).toMatchObject({ 'line-width': 1, 'line-dasharray': [4, 4] });
+    expect(ROAD_DIVIDER_PAINT).toMatchObject({ 'line-width': 1, 'line-dasharray': [4, 4] });
+    expect(JSON.stringify([ROAD_CENTER_MARKING_PAINT, ROAD_DIVIDER_PAINT])).not.toContain('zoom');
+  });
+
+  it('uses opaque pavement passes so bounded segment overlaps do not darken', () => {
+    expect(ROAD_PAVEMENT_PAINT?.['fill-opacity']).toBe(1);
+    expect(ROAD_SELECTED_PAINT?.['fill-opacity']).toBe(1);
   });
 });

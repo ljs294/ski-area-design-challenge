@@ -109,7 +109,8 @@ test('Settings repairs missing map context after provider exhaustion without cha
 
   await page.getByRole('button', { name: 'Retry Map Context' }).click();
   await expect(page.getByText('Map context available')).toBeVisible();
-  await expect.poll(() => sourceFeatureCount(page, 'local-context')).toBe(2);
+  await expect.poll(() => sourceFeatureCount(page, 'local-context')).toBe(1);
+  await expect.poll(() => sourceFeatureCount(page, 'roads')).toBeGreaterThan(0);
   expect(overpassRequests).toBe(4);
 
   const after = await persistedState(page);

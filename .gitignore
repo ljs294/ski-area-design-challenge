@@ -26,5 +26,6 @@ dist-ssr
 # Build outputs
 dist-electron
 dist-web
+dist-weather-lab
 release
 test-results

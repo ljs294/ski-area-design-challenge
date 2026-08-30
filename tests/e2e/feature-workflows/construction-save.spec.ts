@@ -154,7 +154,7 @@ test('double confirmation builds once and Save persists one coherent document', 
   });
 
   expect(persisted.save).toMatchObject({
-    schemaVersion: 14,
+    schemaVersion: 15,
     terrainKey: 'e2e-terrain',
     lifts: [{ identifier: 'B', name: 'Atomic Express', liftTypeId: 'gondola-10', status: 'complete' }],
     trails: [{ id: 'trail-save-coherence', name: 'Renamed in save tick' }],
@@ -194,7 +194,7 @@ test('road confirmation builds once and survives best-effort cover failure', asy
   });
 
   await expect(page.getByText(/Infrastructure.*1 roads/)).toBeVisible({ timeout: 15_000 });
-  await expect.poll(() => sourceFeatureCount(page, 'player-roads')).toBeGreaterThan(0);
+  await expect.poll(() => sourceFeatureCount(page, 'roads')).toBeGreaterThan(0);
   await expect.poll(async () => (await workerEntries(page, 'coverEdit.worker')).length).toBe(1);
 
   await page.getByRole('button', { name: /^Menu/ }).click();
@@ -206,7 +206,7 @@ test('road confirmation builds once and survives best-effort cover failure', asy
   const persisted = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
   expect(persisted).toMatchObject({
-    schemaVersion: 14,
+    schemaVersion: 15,
     terrainKey: 'e2e-terrain',
     roads: [{ name: 'Atomic Road', roadType: 'two-lane', terrainGraded: true }],
   });

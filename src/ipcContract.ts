@@ -12,6 +12,7 @@ import type {
   TerrainSummary,
   VectorFeatureSet,
 } from './types';
+import type { WeatherChunkDescriptor, WeatherDataPackage } from './weather/weatherModel';
 
 export const TERRAIN_SAVE_CHANNEL = 'terrain:save';
 export const TERRAIN_SAVE_COVER_CHANNEL = 'terrain:save-cover';
@@ -19,6 +20,11 @@ export const TERRAIN_SAVE_CONTEXT_CHANNEL = 'terrain:save-context';
 export const TERRAIN_LOAD_CHANNEL = 'terrain:load';
 export const TERRAIN_LIST_CHANNEL = 'terrain:list';
 export const TERRAIN_DELETE_CHANNEL = 'terrain:delete';
+export const WEATHER_SAVE_CHANNEL = 'weather:save';
+export const WEATHER_LOAD_CHANNEL = 'weather:load';
+export const WEATHER_LOAD_BY_CONTENT_HASH_CHANNEL = 'weather:load-by-content-hash';
+export const WEATHER_LOAD_INSTALL_BY_CONTENT_HASH_CHANNEL = 'weather:load-install-by-content-hash';
+export const WEATHER_DELETE_CHANNEL = 'weather:delete';
 
 // --- Game saves (resort designs). Distinct from raw terrain records. ---
 export const GAMESAVE_SAVE_CHANNEL = 'gamesave:save';
@@ -114,3 +120,71 @@ export interface TerrainDeleteRequest {
 export interface TerrainDeleteResponse {
   ok: boolean;
 }
+
+/**
+ * Weather packages are stored as a content-addressed manifest plus immutable
+ * binary chunks. The source package manifest is retained verbatim so runtime
+ * code can expose provenance without knowing about the storage backend.
+ */
+export type WeatherStorageChunkEncoding = 'gzip-json' | 'binary';
+export type WeatherStoragePayloadFormat =
+  | 'legacy-weather-data-package-v1'
+  | 'weather-package-chunks-v1';
+
+export interface WeatherStorageChunkDescriptor {
+  key: string;
+  encoding: WeatherStorageChunkEncoding;
+  byteLength: number;
+  /** SHA-256 hex digest of the exact persisted chunk bytes. */
+  checksum: string;
+}
+
+export interface WeatherStorageChunk extends WeatherStorageChunkDescriptor {
+  data: Uint8Array;
+}
+
+/**
+ * Provider/runtime chunk metadata is retained separately from the storage
+ * envelope. Storage verifies opaque bytes; the weather runtime interprets this
+ * descriptor (for example, as a gzip weather-hour-v2 yearly record).
+ */
+export type WeatherSourceChunkDescriptor = WeatherChunkDescriptor;
+
+export interface WeatherPackageStorageManifest {
+  storageSchemaVersion: 2;
+  contentHash: string;
+  terrainKey: string;
+  terrainBinding: string;
+  /** SHA-256 of the decoded weather-package payload. */
+  payloadHash: string;
+  payloadFormat: WeatherStoragePayloadFormat;
+  /** The weather-domain manifest, including provider provenance. */
+  sourceManifest: WeatherDataPackage['manifest'];
+  /** Present when the provider already supplied native weather-hour-v2 chunks. */
+  sourceChunks?: WeatherSourceChunkDescriptor[];
+  chunks: WeatherStorageChunkDescriptor[];
+  complete: true;
+  createdAt: string;
+}
+
+export interface WeatherPackageStorageInstall {
+  manifest: WeatherPackageStorageManifest;
+  chunks: WeatherStorageChunk[];
+}
+
+/**
+ * `weatherPackage` remains accepted so an older preload caller can still save
+ * a v1 package. New renderer code sends a verified `install` directly.
+ */
+export interface WeatherSaveRequest {
+  install?: WeatherPackageStorageInstall;
+  weatherPackage?: WeatherDataPackage;
+}
+export type WeatherSaveResponse = { ok: true } | { ok: false; error: string };
+export interface WeatherLoadRequest { terrainKey: string; }
+export type WeatherLoadResponse = WeatherDataPackage | null;
+export interface WeatherLoadByContentHashRequest { contentHash: string; }
+export type WeatherLoadByContentHashResponse = WeatherDataPackage | null;
+export type WeatherLoadInstallByContentHashResponse = WeatherPackageStorageInstall | null;
+export interface WeatherDeleteRequest { terrainKey: string; }
+export type WeatherDeleteResponse = { ok: true } | { ok: false; error: string };

@@ -7,6 +7,7 @@ import {
   nextRoadName,
   roadClearingPolygons,
   roadLengthM,
+  roadSurfacePolygons,
   sanitizeRoads,
   TWO_LANE_CLEAR_HALF_WIDTH_M,
   TWO_LANE_ROAD_WIDTH_M,
@@ -49,6 +50,24 @@ describe('roads', () => {
     expect(haversineMeters([A[0], minLat], [A[0], maxLat]))
       .toBeCloseTo(TWO_LANE_CLEAR_HALF_WIDTH_M * 2, 1);
     expect(roadClearingPolygons([A, B, [B[0], B[1] + 0.001]])).toHaveLength(2);
+  });
+
+  it('derives a closed, bounded-detail pavement capsule at the saved width', () => {
+    const polygon = roadSurfacePolygons([A, B], TWO_LANE_ROAD_WIDTH_M)[0];
+    const ring = polygon[0];
+    expect(ring).toHaveLength(27);
+    expect(ring[0]).toEqual(ring.at(-1));
+    const minLat = Math.min(...ring.map((point) => point[1]));
+    const maxLat = Math.max(...ring.map((point) => point[1]));
+    expect(haversineMeters([A[0], minLat], [A[0], maxLat]))
+      .toBeCloseTo(TWO_LANE_ROAD_WIDTH_M, 1);
+  });
+
+  it('keeps surface cost linear and rejects invalid widths and segments', () => {
+    const c: [number, number] = [B[0], B[1] + 0.001];
+    expect(roadSurfacePolygons([A, B, c], 7)).toHaveLength(2);
+    expect(roadSurfacePolygons([A, B], 0)).toEqual([]);
+    expect(roadSurfacePolygons([A, A], 7)).toEqual([]);
   });
 
   it('stamps a 13 m corridor into cover while preserving water', () => {

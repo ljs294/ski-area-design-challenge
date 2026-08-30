@@ -10,6 +10,12 @@ import type {
   TerrainLoadResponse,
   TerrainListResponse,
   TerrainDeleteResponse,
+  WeatherSaveResponse,
+  WeatherLoadResponse,
+  WeatherLoadByContentHashResponse,
+  WeatherLoadInstallByContentHashResponse,
+  WeatherDeleteResponse,
+  WeatherPackageStorageInstall,
   GameSaveSaveResponse,
   GameSaveLoadResponse,
   GameSaveListResponse,
@@ -20,6 +26,7 @@ import type {
 } from './ipcContract';
 import type { TerrainRecord } from './types';
 import type { GameSave } from './types';
+import type { WeatherDataPackage } from './weather/weatherModel';
 
 export interface DesktopApi {
   isDesktop: true;
@@ -35,6 +42,15 @@ export interface DesktopApi {
     saveMapContext(request: TerrainMapContextSaveRequest): Promise<TerrainMapContextSaveResponse>;
     list(): Promise<TerrainListResponse>;
     delete(key: string): Promise<TerrainDeleteResponse>;
+  };
+  weather: {
+    /** Backward-compatible v1 package writer. New callers should use install. */
+    save(weatherPackage: WeatherDataPackage): Promise<WeatherSaveResponse>;
+    install(install: WeatherPackageStorageInstall): Promise<WeatherSaveResponse>;
+    load(terrainKey: string): Promise<WeatherLoadResponse>;
+    loadByContentHash(contentHash: string): Promise<WeatherLoadByContentHashResponse>;
+    loadInstallByContentHash(contentHash: string): Promise<WeatherLoadInstallByContentHashResponse>;
+    delete(terrainKey: string): Promise<WeatherDeleteResponse>;
   };
   games: {
     save(save: GameSave): Promise<GameSaveSaveResponse>;

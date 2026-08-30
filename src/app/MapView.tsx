@@ -47,6 +47,7 @@ const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
 const INITIAL_ZOOM = 12;
 
 export type MapMode = 'picking' | 'playing';
+type SavedWeatherRun = NonNullable<GameSave['weatherRun']>;
 
 /**
  * Editing the graph nodes along a run. A node is a junction in the trail
@@ -59,7 +60,7 @@ type SelectionTarget =
   | { kind: 'lift' | 'trail' | 'dam' | 'pond' | 'snowmaking-node' | 'snowmaking-pipe' |
       'snowgun' |
       'ski-node' | 'ski-path'; id: string }
-  | { kind: 'lake' | 'stream'; id: string }
+  | { kind: 'road' | 'lake' | 'stream'; id: string }
   | { kind: 'none' };
 
 function layerTogglesOf(descriptors: readonly MapVisibilityDescriptor[]): LayerToggle[] {
@@ -224,8 +225,10 @@ export function MapView({
   const reportFailure = (message: string) =>
     reportBoot({ type: 'failed', message, repair: () => repairRef.current() });
   const [saved, setSaved] = useState<GameSave | null>(initialSave);
-  // Unlike `saved`, this ref is never changed by live UI edits such as rename.
-  // Exit checkpoints spread this exact record so manual-save semantics remain.
+  // Weather is deterministic/read-only; its ref keeps snapshots coherent between renders.
+  const [weatherRun, setWeatherRun] = useState<SavedWeatherRun | undefined>(initialSave?.weatherRun);
+  const weatherRunRef = useRef<SavedWeatherRun | undefined>(initialSave?.weatherRun);
+  // Exit checkpoints spread this exact record, unaffected by unrelated live UI edits.
   const persistedSaveRef = useRef<GameSave | null>(initialSave);
   const [nameDraft, setNameDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -253,7 +256,8 @@ export function MapView({
   const [trails, setTrails] = useState<SavedTrail[]>(initialDesign.trails);
   const [selectedTrailId, setSelectedTrailId] = useState<string | null>(null);
   const [trailEditing, setTrailEditing] = useState(false);
-  const [roads, setRoads] = useState<SavedRoad[]>(initialDesign.roads);
+  const [roads, setRoads] = useState<SavedRoad[]>(initialDesign.roads); const [selectedRoadKey,
+    setSelectedRoadKey] = useState<string | null>(null);
   const [dams, setDams] = useState<SavedDam[]>(initialDesign.dams);
   const [selectedDamId, setSelectedDamId] = useState<string | null>(null);
   const [ponds, setPonds] = useState<SavedPond[]>(initialDesign.ponds);
@@ -512,10 +516,9 @@ export function MapView({
     structuresVisible: () => packageStateRef.current !== 'preparing',
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('lift'),
   });
-
-  const roadController = useRoadController({
-    mapRef,
-    roads,
+  const roadController = useRoadController({ mapRef, roads,
+    importedRoads: terrainRecord?.vectorFeatures?.roads, selectedRoadKey,
+    selectRoad: (key) => transitionSelection({ kind: 'road', id: key }),
     addRoad: (road) => setRoads((existing) => [...existing, road]),
     canArm: () => siteModeRef.current !== 'selecting',
     activate: () => toolCoordinator.activate('road'),
@@ -548,7 +551,6 @@ export function MapView({
     roadsVisible: () => analysisTogglesRef.current.some((entry) => entry.id === 'bm-roads'),
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('road'),
   });
-
   const snowmakingController = useSnowmakingController({
     dam: {
       mapRef, dams, selectedId: selectedDamId,
@@ -890,7 +892,7 @@ export function MapView({
     setSelectedSnowmakingPipeId(null);
     setSelectedSnowgunId(null);
     setSelectedNodeId(null);
-    setSelectedPathId(null);
+    setSelectedPathId(null); setSelectedRoadKey(null);
     setSelectedLakeId(null);
     setSelectedStreamId(null);
     setLiftEditing(false);
@@ -911,6 +913,7 @@ export function MapView({
       case 'snowgun': setSelectedSnowgunId(target.id); setOpenDock('snowmaking'); break;
       case 'ski-node': setSelectedNodeId(target.id); break;
       case 'ski-path': setSelectedPathId(target.id); break;
+      case 'road': setSelectedRoadKey(target.id); setOpenDock('infrastructure'); break;
       case 'lake': setSelectedLakeId(target.id); setOpenDock(null); break;
       case 'stream': setSelectedStreamId(target.id); setOpenDock(null); break;
       case 'none': break;
@@ -1444,6 +1447,7 @@ export function MapView({
       snowmakingLakeIds: snowmakingLakeIdsRef.current,
       streamWidthOverrides: streamWidthOverridesRef.current,
       snow: snow.snapshot(base?.snow),
+      weatherRun: weatherRunRef.current ?? base?.weatherRun,
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
       lastPlayedAt: base?.lastPlayedAt,
@@ -1472,8 +1476,11 @@ export function MapView({
       lakeNameOverrides: lakeNameOverridesRef.current,
       snowmakingLakeIds: snowmakingLakeIdsRef.current,
       streamWidthOverrides: streamWidthOverridesRef.current,
+      weatherRun: weatherRunRef.current,
     };
   }
+
+  function updateWeatherRun(next: SavedWeatherRun) { weatherRunRef.current = next; setWeatherRun(next); }
 
   function hasUnsavedChanges(): boolean {
     return terrainHasEdits(terrainDirtyRef.current) || designHasEdits(savedDesign, liveDesign());
@@ -1714,10 +1721,11 @@ export function MapView({
           lifts, trails, roads, dams, ponds, snowmakingLakes: snowmakingLakes ?? [],
           snowmakingNodes, snowmakingPipes, snowguns, skiNodes, skiPaths,
           junctions, terrainRecord, network,
+          weatherRun, onWeatherRunChange: updateWeatherRun,
           selectedLiftId, selectedTrailId,
           selectedDamId, selectedPondId,
           selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedSnowgunId, selectedNodeId,
-          selectedPathId, selectedLakeId,
+          selectedPathId, selectedRoadKey, selectedLakeId,
           selectedStreamId, liftEditing, trailEditing,
           lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds,
           streamWidthOverrides,
@@ -1744,7 +1752,7 @@ export function MapView({
           clearSelectedSnowmakingPipe: () => setSelectedSnowmakingPipeId(null),
           clearSelectedSnowgun: () => setSelectedSnowgunId(null),
           clearSelectedNode: () => setSelectedNodeId(null),
-          clearSelectedPath: () => setSelectedPathId(null),
+          clearSelectedPath: () => setSelectedPathId(null), clearSelectedRoad: () => setSelectedRoadKey(null),
           clearSelectedLake: () => setSelectedLakeId(null),
           clearSelectedStream: () => setSelectedStreamId(null),
           setLakeName: (id, name) => setLakeNameOverrides((current) => {

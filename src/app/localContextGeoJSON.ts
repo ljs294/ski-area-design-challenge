@@ -21,9 +21,6 @@ export function localContextGeoJSON(record: TerrainRecord,
         widthM: effective.widthM, widthSource: effective.source,
       }, geometry: { type: 'LineString', coordinates: water.points } });
     }
-    for (const road of vectors.roads) {
-      features.push({ type: 'Feature', properties: { kind: 'road', class: road.roadClass }, geometry: { type: 'LineString', coordinates: road.points } });
-    }
   }
   return { type: 'FeatureCollection', features };
 }

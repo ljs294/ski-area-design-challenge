@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath,
   SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
   TerrainRecord } from '../types';
+import type { SavedWeatherRun } from '../types/gameSave';
 import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource } from '../types/snowmaking';
 import { analyzeLake } from '../lakeAnalysis';
 import { analyzeStream } from '../streamAnalysis';
@@ -12,6 +13,7 @@ import { fmtDistance } from '../lifts';
 import type { LayerToggle } from './analysisLayers';
 import { GameToolbar } from './GameToolbar';
 import { InfrastructureControl } from './InfrastructureControl';
+import { RoadDetail } from './RoadDetail';
 import { LakeDetail } from './LakeDetail';
 import { LayerList } from './LayerPanel';
 import { Legend, type OverlayId } from './Legend';
@@ -33,6 +35,7 @@ import type { useNodePathController } from './useNodePathController';
 import type { useSnowmakingController } from './useSnowmakingController';
 import { SnowLayerControl } from './SnowLayerControl';
 import type { SnowDisplayMode } from './snowStyle';
+import { analyzeBuiltRoad, analyzeImportedRoad, type RoadAnalysis } from '../roadAnalysis';
 
 type NodePathController = ReturnType<typeof useNodePathController>;
 type SnowmakingController = ReturnType<typeof useSnowmakingController>;
@@ -60,6 +63,8 @@ export interface MapGameDockProps {
   skiPaths: SavedPath[];
   junctions: SavedJunction[];
   terrainRecord: TerrainRecord | null;
+  weatherRun: SavedWeatherRun | undefined;
+  onWeatherRunChange(run: SavedWeatherRun): void;
   network: SkiNetwork;
   selectedLiftId: string | null;
   selectedTrailId: string | null;
@@ -70,6 +75,7 @@ export interface MapGameDockProps {
   selectedSnowgunId: string | null;
   selectedNodeId: string | null;
   selectedPathId: string | null;
+  selectedRoadKey: string | null;
   selectedLakeId: string | null;
   selectedStreamId: string | null;
   liftEditing: boolean;
@@ -102,6 +108,7 @@ export interface MapGameDockProps {
   clearSelectedSnowgun(): void;
   clearSelectedNode(): void;
   clearSelectedPath(): void;
+  clearSelectedRoad(): void;
   clearSelectedLake(): void;
   clearSelectedStream(): void;
   setLakeName(id: string, name: string | null): void;
@@ -141,14 +148,24 @@ export function MapGameDock(props: MapGameDockProps) {
   const selectedStream = useMemo(() => selectedStreamFeature
     ? analyzeStream(selectedStreamFeature, props.streamWidthOverrides[selectedStreamFeature.id]) : null,
   [selectedStreamFeature, props.streamWidthOverrides]);
-  const waterDetailOpen = selectedLake !== null || selectedStream !== null;
-  const liftsOpen = !waterDetailOpen && (props.openDock === 'lifts' || liftActive);
-  const trailsOpen = !waterDetailOpen && !liftsOpen && (props.openDock === 'trails' || trailActive);
-  const snowmakingOpen = !waterDetailOpen && !liftsOpen && !trailsOpen &&
+  const selectedRoad = useMemo<RoadAnalysis | null>(() => {
+    if (!props.selectedRoadKey) return null;
+    if (props.selectedRoadKey.startsWith('player:')) {
+      const road = props.roads.find((entry) => `player:${entry.id}` === props.selectedRoadKey);
+      return road ? analyzeBuiltRoad(road) : null;
+    }
+    const road = props.terrainRecord?.vectorFeatures?.roads.find(
+      (entry) => `osm:${entry.id}` === props.selectedRoadKey);
+    return road ? analyzeImportedRoad(road) : null;
+  }, [props.selectedRoadKey, props.roads, props.terrainRecord]);
+  const contextDetailOpen = selectedLake !== null || selectedStream !== null || selectedRoad !== null;
+  const liftsOpen = !contextDetailOpen && (props.openDock === 'lifts' || liftActive);
+  const trailsOpen = !contextDetailOpen && !liftsOpen && (props.openDock === 'trails' || trailActive);
+  const snowmakingOpen = !contextDetailOpen && !liftsOpen && !trailsOpen &&
     (props.openDock === 'snowmaking' || snowmakingActive);
-  const infrastructureOpen = !waterDetailOpen && !liftsOpen && !trailsOpen &&
-    !snowmakingOpen && (props.openDock === 'infrastructure' || props.coordinator.activeTool === 'road');
-  const layersOpen = !waterDetailOpen && !liftsOpen &&
+  const infrastructureOpen = selectedRoad !== null || (!contextDetailOpen && !liftsOpen && !trailsOpen &&
+    !snowmakingOpen && (props.openDock === 'infrastructure' || props.coordinator.activeTool === 'road'));
+  const layersOpen = !contextDetailOpen && !liftsOpen &&
     (props.openDock === 'layers' || props.layersAlongsideBuild);
   const selectedLift = props.selectedLiftId
     ? props.lifts.find((lift) => lift.id === props.selectedLiftId) ?? null : null;
@@ -375,10 +392,11 @@ export function MapGameDock(props: MapGameDockProps) {
         building={props.building} onClose={props.closeDock} />
     </div></div>}
     {infrastructureOpen && <div className="dock-rollup dock-infrastructure"><div className="dock-panel">
-      <InfrastructureControl tool={roadTool} roads={props.roads} units={props.units}
+      {selectedRoad ? <RoadDetail road={selectedRoad} units={props.units}
+        onClose={props.clearSelectedRoad} /> : <InfrastructureControl tool={roadTool} roads={props.roads} units={props.units}
         onArm={roadController.arm} onCancel={roadController.cancel} onUndo={roadController.undo}
         onFinish={roadController.finish} onDraftChange={roadController.patchDraft}
-        onConfirm={roadController.confirm} building={props.building} onClose={props.closeDock} />
+        onConfirm={roadController.confirm} building={props.building} onClose={props.closeDock} />}
     </div></div>}
   </div><div className="dock-circles">
     <DockButton id="layers" label="Layers" open={layersOpen} onClick={props.toggleDock} />
@@ -388,7 +406,8 @@ export function MapGameDock(props: MapGameDockProps) {
     <DockButton id="infrastructure" label="Infrastructure" open={infrastructureOpen}
       onClick={props.toggleDock} />
   </div></div><GameToolbar resortName={props.saved.name} onOpenStats={props.openStats}
-    readout={readout} units={props.units} /></div>;
+    readout={readout} units={props.units} terrain={props.terrainRecord}
+    weatherRun={props.weatherRun} onWeatherRunChange={props.onWeatherRunChange} /></div>;
 }
 
 function DockButton({ id, label, open, onClick }: {

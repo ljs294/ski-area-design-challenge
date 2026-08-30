@@ -17,7 +17,6 @@ import { MASTER_PLAN_LAYER_IDS } from './masterPlanStyle';
 import { unitToLngLat } from '../geo';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import { addCoverLayers, COVER_LAYER_IDS, COVER_SOURCE } from './coverVectorize';
-import { LOCAL_ROAD_PAINT } from './roadLayers';
 import { localContextGeoJSON } from './localContextGeoJSON';
 import { localContourGeoJSON } from './localContours';
 import { EMPTY_CONTOURS, GRADED_CONTOUR_SOURCE } from './terrainGradeMap';
@@ -135,7 +134,7 @@ const ANALYSIS_PRESENTATION_LAYERS = [
   'cover-boundary-halo', 'cover-boundaries',
   'local-water-fill', 'local-water-selected', 'local-water-lines',
   'local-water-line-selected', 'local-water-line-hit', 'local-water-labels',
-  'local-roads', 'contour-lines', 'graded-contour-lines', 'contour-labels',
+  'contour-lines', 'graded-contour-lines', 'contour-labels',
   'slope', 'aspect', 'snow',
 ] as const;
 
@@ -414,14 +413,6 @@ export function setupAnalysisLayers(
       'line-opacity': 0.95,
     },
   }, contourAnchor);
-  if (local) {
-    map.addLayer({
-      id: 'local-roads', type: 'line', source: 'local-context',
-      filter: ['==', ['get', 'kind'], 'road'],
-      paint: LOCAL_ROAD_PAINT,
-    }, contourAnchor);
-  }
-
   const slopeProtocol = local ? RESORT_SLOPE_PROTOCOL : SLOPE_PROTOCOL;
   const aspectProtocol = local ? RESORT_ASPECT_PROTOCOL : ASPECT_PROTOCOL;
   if (!local) registerTerrainProtocols();
@@ -450,7 +441,7 @@ export function setupAnalysisLayers(
     { id: 'hillshade', label: 'Terrain relief', layerIds: profile.hillshade === 'none' ? [] : ['hillshade'], visible: profile.hillshade !== 'none', section: 'Master plan' },
     { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'graded-contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
     { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-selected', 'local-water-lines', 'local-water-line-selected', 'local-water-line-hit', 'local-water-labels'] : basemap.water, visible: true, section: 'Master plan' },
-    { id: 'bm-roads', label: 'Roads', layerIds: local ? [...basemap.roads, 'local-roads'] : basemap.roads, visible: true, section: 'Master plan' },
+    { id: 'bm-roads', label: 'Roads', layerIds: basemap.roads, visible: true, section: 'Master plan' },
     { id: 'bm-buildings', label: 'Buildings', layerIds: basemap.buildings, visible: true, section: 'Master plan' },
     { id: 'bm-labels', label: 'Labels', layerIds: basemap.labels, visible: true, section: 'Master plan' },
     { id: 'slope', label: 'Slope angle', layerIds: ['slope'], visible: false, exclusiveGroup: 'analysis', section: 'Analysis' },
