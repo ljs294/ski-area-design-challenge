@@ -32,5 +32,5 @@ export type {
 } from './types/trails';
 export type {
   LandCoverFeature, OsmLandCoverClass, PeakFeature, RoadClass, RoadFeature,
-  VectorFeatureSet, WaterLineClass, WaterLineFeature, WaterPolygonFeature,
+  BuildingFeature, VectorFeatureSet, WaterLineClass, WaterLineFeature, WaterPolygonFeature,
 } from './types/vectorFeatures';

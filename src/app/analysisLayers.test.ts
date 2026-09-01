@@ -12,6 +12,18 @@ const record = {
 } as unknown as TerrainRecord;
 
 describe('local lake context', () => {
+  it('publishes downloaded building footprints for the offline map layer', () => {
+    const buildingRecord = {
+      vectorFeatures: { ...record.vectorFeatures, buildings: [{ id: 'way/9', name: 'Base Lodge',
+        rings: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }] },
+    } as unknown as TerrainRecord;
+
+    expect(localContextGeoJSON(buildingRecord).features[0]).toMatchObject({
+      properties: { kind: 'building', id: 'way/9', name: 'Base Lodge' },
+      geometry: { type: 'Polygon' },
+    });
+  });
+
   it('publishes only a player override as the custom map label', () => {
     const unnamed = localContextGeoJSON(record).features[0];
     const named = localContextGeoJSON(record, { 'way/42': 'Mirror Pond' }).features[0];

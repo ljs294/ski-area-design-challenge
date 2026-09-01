@@ -34,6 +34,26 @@ describe('waterway ingestion', () => {
     expect(result.waterLines[0]).toMatchObject({ id: 'way/18', waterClass: 'river' });
   });
 
+  it('downloads building footprints into the offline map context', async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ elements: [{
+        type: 'way', id: 20, tags: { building: 'yes', name: 'Summit Lodge' },
+        geometry: [{ lon: -121, lat: 46 }, { lon: -120.999, lat: 46 },
+          { lon: -120.999, lat: 45.999 }, { lon: -121, lat: 46 }],
+      }] }),
+    });
+    vi.stubGlobal('fetch', request);
+
+    const result = await fetchVectorFeatures({ west: -121, south: 45, east: -120, north: 46 });
+
+    expect(result.buildings).toEqual([{
+      id: 'way/20', name: 'Summit Lodge',
+      rings: [[[-121, 46], [-120.999, 46], [-120.999, 45.999], [-121, 46]]],
+    }]);
+    expect(request.mock.calls[0]?.[1]?.body).toContain('way[building]');
+  });
+
   it('normalizes paved-road width, lanes, direction, and highway metadata', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,

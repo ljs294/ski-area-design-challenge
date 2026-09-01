@@ -46,7 +46,7 @@ const TYPE_FACADE_MANIFEST = new Map([
   ['./types/topology', ['SavedJunction', 'SavedNode', 'SavedPath', 'SavedTrailSegment']],
   ['./types/trails', ['SavedTrail', 'SavedTrailPart', 'TrailDifficulty', 'TrailStatus']],
   ['./types/vectorFeatures', [
-    'LandCoverFeature', 'OsmLandCoverClass', 'PeakFeature', 'RoadClass', 'RoadFeature',
+    'BuildingFeature', 'LandCoverFeature', 'OsmLandCoverClass', 'PeakFeature', 'RoadClass', 'RoadFeature',
     'VectorFeatureSet', 'WaterLineClass', 'WaterLineFeature', 'WaterPolygonFeature',
   ]],
 ]);

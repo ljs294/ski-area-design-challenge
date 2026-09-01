@@ -61,7 +61,10 @@ export function useMapContextRecovery(
     }), []);
 
   const repair = useCallback(async (record: TerrainRecord, signal: AbortSignal) => {
-    if (record.vectorFeatures) return { ok: true as const };
+    // `buildings` was added after the original map-context package. Its
+    // absence marks an older package that needs one explicit offline-data
+    // refresh; an empty array is a complete, valid result.
+    if (record.vectorFeatures?.buildings) return { ok: true as const };
     repairAbortRef.current?.abort();
     const controller = new AbortController();
     repairAbortRef.current = controller;

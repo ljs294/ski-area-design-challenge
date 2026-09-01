@@ -134,6 +134,7 @@ const ANALYSIS_PRESENTATION_LAYERS = [
   'cover-boundary-halo', 'cover-boundaries',
   'local-water-fill', 'local-water-selected', 'local-water-lines',
   'local-water-line-selected', 'local-water-line-hit', 'local-water-labels',
+  'local-building-fill',
   'contour-lines', 'graded-contour-lines', 'contour-labels',
   'slope', 'aspect', 'snow',
 ] as const;
@@ -328,6 +329,16 @@ export function setupAnalysisLayers(
 
   if (local) {
     map.addLayer({
+      id: 'local-building-fill', type: 'fill', source: 'local-context',
+      filter: ['==', ['get', 'kind'], 'building'],
+      minzoom: 13,
+      paint: {
+        'fill-color': '#a7988c',
+        'fill-opacity': 0.52,
+        'fill-outline-color': '#746a62',
+      },
+    }, contourAnchor);
+    map.addLayer({
       id: 'local-water-fill', type: 'fill', source: 'local-context',
       filter: ['==', ['get', 'kind'], 'water'],
       paint: { 'fill-color': '#6ca3be', 'fill-opacity': 0.72, 'fill-outline-color': '#397f9f' },
@@ -442,7 +453,7 @@ export function setupAnalysisLayers(
     { id: 'contours', label: 'Contours', layerIds: ['contour-lines', 'graded-contour-lines', 'contour-labels'], visible: true, section: 'Master plan' },
     { id: 'bm-water', label: 'Water', layerIds: local ? [...basemap.water, 'local-water-fill', 'local-water-selected', 'local-water-lines', 'local-water-line-selected', 'local-water-line-hit', 'local-water-labels'] : basemap.water, visible: true, section: 'Master plan' },
     { id: 'bm-roads', label: 'Roads', layerIds: basemap.roads, visible: true, section: 'Master plan' },
-    { id: 'bm-buildings', label: 'Buildings', layerIds: basemap.buildings, visible: true, section: 'Master plan' },
+    { id: 'bm-buildings', label: 'Buildings', layerIds: local ? [...basemap.buildings, 'local-building-fill'] : basemap.buildings, visible: true, section: 'Master plan' },
     { id: 'bm-labels', label: 'Labels', layerIds: basemap.labels, visible: true, section: 'Master plan' },
     { id: 'slope', label: 'Slope angle', layerIds: ['slope'], visible: false, exclusiveGroup: 'analysis', section: 'Analysis' },
     { id: 'aspect', label: 'Aspect', layerIds: ['aspect'], visible: false, exclusiveGroup: 'analysis', section: 'Analysis' },

@@ -44,6 +44,13 @@ export interface LandCoverFeature {
   rings: [number, number][][];
 }
 
+/** An OpenStreetMap building footprint. Index 0 is the outer ring. */
+export interface BuildingFeature {
+  id: string;
+  name?: string;
+  rings: [number, number][][];
+}
+
 export interface PeakFeature {
   id: string;
   name: string;
@@ -58,4 +65,6 @@ export interface VectorFeatureSet {
   waterPolygons: WaterPolygonFeature[];
   landCover: LandCoverFeature[];
   peaks: PeakFeature[];
+  /** Optional so terrain packages prepared before building ingest still hydrate. */
+  buildings?: BuildingFeature[];
 }

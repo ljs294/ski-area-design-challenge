@@ -1602,7 +1602,7 @@ export function MapView({
   useEffect(() => {
     if (!sessionControlsRef) return;
     sessionControlsRef.current = { checkpointForExit, confirmExit,
-      resortSettings: terrainRecord ? { mapContextAvailable: !!terrainRecord.vectorFeatures,
+      resortSettings: terrainRecord ? { mapContextAvailable: !!terrainRecord.vectorFeatures?.buildings,
         downloadMapContext: (signal) => mapContext.repair(terrainRecord, signal) } : undefined };
     return () => {
       sessionControlsRef.current = null;

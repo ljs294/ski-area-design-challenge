@@ -1,5 +1,5 @@
-// Fetches real-world map features (roads, hydrography, named peaks, land
-// cover) from OpenStreetMap via the Overpass API for a terrain's exact
+// Fetches real-world map features (roads, buildings, hydrography, named peaks,
+// and land cover) from OpenStreetMap via the Overpass API for a terrain's exact
 // ingest bounds. Raw lon/lat geometry is persisted in TerrainRecord so the
 // supported MapLibre renderer can consume it without legacy world projection.
 import type { LatLonBounds } from './types/geo';
@@ -12,6 +12,7 @@ import type {
   WaterPolygonFeature,
   LandCoverFeature,
   PeakFeature,
+  BuildingFeature,
   VectorFeatureSet,
 } from './types/vectorFeatures';
 import { parseOsmWidthM } from './streamAnalysis';
@@ -62,6 +63,8 @@ function buildQuery(bounds: LatLonBounds): string {
   return (
     `[out:json][timeout:${OVERPASS_SERVER_TIMEOUT_S}];(` +
     `way[highway](${bbox});` +
+    `way[building](${bbox});` +
+    `relation[building][type=multipolygon](${bbox});` +
     `way[natural=water](${bbox});` +
     `relation[natural=water][type=multipolygon](${bbox});` +
     `way[waterway=riverbank](${bbox});` +
@@ -237,6 +240,7 @@ export async function fetchVectorFeatures(
   const waterPolygons: WaterPolygonFeature[] = [];
   const landCover: LandCoverFeature[] = [];
   const peaks: PeakFeature[] = [];
+  const buildings: BuildingFeature[] = [];
 
   for (const el of data.elements) {
     const tags = el.tags ?? {};
@@ -256,6 +260,13 @@ export async function fetchVectorFeatures(
     const points = el.geometry.filter((p): p is OverpassLatLon => p !== null);
     if (points.length < 2) continue;
     const lonLat = toLonLat(points);
+
+    if (tags.building && tags.building !== 'no') {
+      if (lonLat.length >= 3) {
+        buildings.push({ id: `way/${el.id}`, name: tags.name, rings: [lonLat] });
+      }
+      continue;
+    }
 
     if (tags.highway) {
       const sourceWidthM = parseOsmWidthM(tags.width);
@@ -300,7 +311,9 @@ export async function fetchVectorFeatures(
   for (const el of data.elements) {
     if (el.type !== 'relation' || !el.members) continue;
     const tags = el.tags ?? {};
-    if (tags.natural !== 'water') continue;
+    const isWater = tags.natural === 'water';
+    const isBuilding = !!tags.building && tags.building !== 'no';
+    if (!isWater && !isBuilding) continue;
 
     const outerFragments = el.members
       .filter((m) => m.role === 'outer' && m.geometry)
@@ -313,9 +326,12 @@ export async function fetchVectorFeatures(
     if (outerRings.length === 0) continue;
 
     outerRings.forEach((outer, i) => {
-      waterPolygons.push({ id: `relation/${el.id}/${i}`, name: tags.name, rings: [outer, ...innerRings] });
+      const polygon = { id: `relation/${el.id}/${i}`, name: tags.name,
+        rings: [outer, ...innerRings] };
+      if (isBuilding) buildings.push(polygon);
+      else waterPolygons.push(polygon);
     });
   }
 
-  return { roads, waterLines, waterPolygons, landCover, peaks };
+  return { roads, waterLines, waterPolygons, landCover, peaks, buildings };
 }
