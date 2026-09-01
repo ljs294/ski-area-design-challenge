@@ -48,6 +48,9 @@ export interface LandCoverFeature {
 export interface BuildingFeature {
   id: string;
   name?: string;
+  /** Normalized extrusion dimensions in metres. Optional for older packages. */
+  heightM?: number;
+  minHeightM?: number;
   rings: [number, number][][];
 }
 

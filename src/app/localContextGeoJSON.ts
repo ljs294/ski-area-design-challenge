@@ -11,6 +11,8 @@ export function localContextGeoJSON(record: TerrainRecord,
     for (const building of vectors.buildings ?? []) {
       features.push({ type: 'Feature', id: building.id, properties: {
         kind: 'building', id: building.id, name: building.name ?? '',
+        heightM: building.heightM ?? 6,
+        minHeightM: building.minHeightM ?? 0,
       }, geometry: { type: 'Polygon', coordinates: building.rings } });
     }
     for (const water of vectors.waterPolygons) {

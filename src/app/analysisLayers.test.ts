@@ -19,7 +19,8 @@ describe('local lake context', () => {
     } as unknown as TerrainRecord;
 
     expect(localContextGeoJSON(buildingRecord).features[0]).toMatchObject({
-      properties: { kind: 'building', id: 'way/9', name: 'Base Lodge' },
+      properties: { kind: 'building', id: 'way/9', name: 'Base Lodge',
+        heightM: 6, minHeightM: 0 },
       geometry: { type: 'Polygon' },
     });
   });

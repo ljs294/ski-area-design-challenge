@@ -3,7 +3,7 @@ import { repairTerrainMapContext } from '../terrainMapContext';
 import type { MapContextDecision } from '../terrainIngest';
 import type { TerrainRecord } from '../types/terrain';
 import type { VectorFeatureSet } from '../types/vectorFeatures';
-import type { MapContextProviderError } from '../vectorFeatures';
+import { has3DBuildingContext, type MapContextProviderError } from '../vectorFeatures';
 
 interface MapContextPublisher {
   publishMapContext(features: VectorFeatureSet, updatedAt: string): unknown;
@@ -61,10 +61,10 @@ export function useMapContextRecovery(
     }), []);
 
   const repair = useCallback(async (record: TerrainRecord, signal: AbortSignal) => {
-    // `buildings` was added after the original map-context package. Its
-    // absence marks an older package that needs one explicit offline-data
-    // refresh; an empty array is a complete, valid result.
-    if (record.vectorFeatures?.buildings) return { ok: true as const };
+    // Buildings and their normalized heights were added after the original
+    // map-context package. Missing 3D metadata marks an older package that
+    // needs one explicit offline-data refresh; an empty array is valid.
+    if (has3DBuildingContext(record.vectorFeatures)) return { ok: true as const };
     repairAbortRef.current?.abort();
     const controller = new AbortController();
     repairAbortRef.current = controller;

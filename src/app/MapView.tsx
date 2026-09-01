@@ -41,6 +41,7 @@ import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication, ty
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
+import { has3DBuildingContext } from '../vectorFeatures';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
@@ -1602,7 +1603,8 @@ export function MapView({
   useEffect(() => {
     if (!sessionControlsRef) return;
     sessionControlsRef.current = { checkpointForExit, confirmExit,
-      resortSettings: terrainRecord ? { mapContextAvailable: !!terrainRecord.vectorFeatures?.buildings,
+      resortSettings: terrainRecord ? {
+        mapContextAvailable: has3DBuildingContext(terrainRecord.vectorFeatures),
         downloadMapContext: (signal) => mapContext.repair(terrainRecord, signal) } : undefined };
     return () => {
       sessionControlsRef.current = null;

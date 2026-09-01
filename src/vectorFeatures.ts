@@ -21,6 +21,14 @@ import { OVERPASS_ENDPOINTS } from './overpassConfig';
 
 export { OVERPASS_ENDPOINTS } from './overpassConfig';
 
+/** Whether persisted map context contains the normalized metadata required by
+ * the current offline 3D-building renderer. Empty building coverage is valid. */
+export function has3DBuildingContext(features: VectorFeatureSet | undefined): boolean {
+  return !!features?.buildings && features.buildings.every((building) =>
+    Number.isFinite(building.heightM) && building.heightM! > 0 &&
+    Number.isFinite(building.minHeightM) && building.minHeightM! >= 0);
+}
+
 // Overpass is a shared community resource, not a paid API — a descriptive
 // User-Agent and a short mirror list (not aggressive retries) is the
 // expected etiquette. Keep this centralized list aligned with OpenStreetMap's
@@ -176,6 +184,30 @@ function classifyLandCover(tags: Record<string, string>): OsmLandCoverClass | nu
   return null;
 }
 
+const DEFAULT_BUILDING_HEIGHT_M = 6;
+const BUILDING_LEVEL_HEIGHT_M = 3;
+
+function parseBuildingLevels(raw: string | undefined): number | null {
+  if (!raw) return null;
+  const value = Number(raw.trim().replace(',', '.'));
+  return Number.isFinite(value) && value > 0 && value <= 200 ? value : null;
+}
+
+/** Normalize raw OSM tags similarly to a vector tile's `render_height`.
+ * Explicit metric/imperial heights win, followed by storey counts. */
+function buildingDimensions(tags: Record<string, string>): {
+  heightM: number;
+  minHeightM: number;
+} {
+  const levels = parseBuildingLevels(tags['building:levels']);
+  const minLevels = parseBuildingLevels(tags['building:min_level']);
+  const heightM = parseOsmWidthM(tags.height)
+    ?? (levels == null ? DEFAULT_BUILDING_HEIGHT_M : levels * BUILDING_LEVEL_HEIGHT_M);
+  const requestedBase = parseOsmWidthM(tags.min_height)
+    ?? (minLevels == null ? 0 : minLevels * BUILDING_LEVEL_HEIGHT_M);
+  return { heightM, minHeightM: Math.min(Math.max(0, requestedBase), heightM - 0.25) };
+}
+
 function toLonLat(points: OverpassLatLon[]): [number, number][] {
   return points.map((p) => [p.lon, p.lat]);
 }
@@ -263,7 +295,8 @@ export async function fetchVectorFeatures(
 
     if (tags.building && tags.building !== 'no') {
       if (lonLat.length >= 3) {
-        buildings.push({ id: `way/${el.id}`, name: tags.name, rings: [lonLat] });
+        buildings.push({ id: `way/${el.id}`, name: tags.name,
+          ...buildingDimensions(tags), rings: [lonLat] });
       }
       continue;
     }
@@ -327,6 +360,7 @@ export async function fetchVectorFeatures(
 
     outerRings.forEach((outer, i) => {
       const polygon = { id: `relation/${el.id}/${i}`, name: tags.name,
+        ...(isBuilding ? buildingDimensions(tags) : {}),
         rings: [outer, ...innerRings] };
       if (isBuilding) buildings.push(polygon);
       else waterPolygons.push(polygon);

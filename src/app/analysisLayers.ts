@@ -329,13 +329,18 @@ export function setupAnalysisLayers(
 
   if (local) {
     map.addLayer({
-      id: 'local-building-fill', type: 'fill', source: 'local-context',
+      id: 'local-building-fill', type: 'fill-extrusion', source: 'local-context',
       filter: ['==', ['get', 'kind'], 'building'],
       minzoom: 13,
       paint: {
-        'fill-color': '#a7988c',
-        'fill-opacity': 0.52,
-        'fill-outline-color': '#746a62',
+        'fill-extrusion-color': [
+          'interpolate', ['linear'], ['get', 'heightM'],
+          3, '#b8aca0', 12, '#a39488', 40, '#81756c',
+        ],
+        'fill-extrusion-height': ['get', 'heightM'],
+        'fill-extrusion-base': ['get', 'minHeightM'],
+        'fill-extrusion-opacity': 0.88,
+        'fill-extrusion-vertical-gradient': true,
       },
     }, contourAnchor);
     map.addLayer({
