@@ -6,7 +6,7 @@ import type { TerrainRecord } from '../types/terrain';
 import type { ResolvedWeatherHour, WeatherDataPackage } from '../weather/weatherModel';
 import { loadWeatherPackageByContentHash, loadWeatherPackageResult, saveWeatherPackage } from '../weatherStorageClient';
 import { prepareWeatherPackage } from '../weatherServiceClient';
-import { forecastIssueAt, loadAnnualWeatherSession, weatherYearLabel,
+import { forecastIssueAt, historicalAverageAnnualSnowfallCm, loadAnnualWeatherSession, weatherYearLabel,
   WEATHER_YEAR_CONFIGURATION_VERSION } from '../weather/annualWeather';
 import { issueGameForecast, type GameForecastIssue } from '../weather/gameForecast';
 import { weatherInstantForLocal } from '../weather/localTime';
@@ -33,6 +33,7 @@ export interface GameSimulationController {
   clock: SimulationClock;
   weatherPackage: WeatherDataPackage | null;
   session: WeatherSession | null;
+  averageAnnualSnowfallCm: number | null;
   current: ResolvedWeatherHour | null;
   forecast: GameForecastIssue | null;
   analysisOpen: boolean;
@@ -306,6 +307,8 @@ export function useGameSimulation({
 
   const current = useMemo(() => session ? weatherAtSession(session, clock.calendarDate) : null,
     [session, clock.calendarDate]);
+  const averageAnnualSnowfallCm = useMemo(() => session
+    ? historicalAverageAnnualSnowfallCm(session.historicalYears, session.timezone) : null, [session]);
   useEffect(() => {
     setActiveTerrainWeather(terrain && current
       ? terrainWeatherFieldForHour(createTerrainThermalModel(terrain), current) : null);
@@ -372,7 +375,7 @@ export function useGameSimulation({
   }, [mapRef, current, reducedMotion, renderQuality]);
 
   return {
-    status, message, clock, weatherPackage, session, current, forecast, analysisOpen,
+    status, message, clock, weatherPackage, session, current, forecast, averageAnnualSnowfallCm, analysisOpen,
     togglePlayback: () => publishClock({ ...clockRef.current,
       runState: clockRef.current.runState === 'running' ? 'paused' : 'running' }),
     setSpeed: (speed) => publishClock({ ...clockRef.current, speed }),

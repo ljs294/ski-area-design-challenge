@@ -1789,7 +1789,7 @@ export function MapView({
           ponds,
           snowmakingLakes: snowmakingLakes ?? [],
           center: resortCenter(),
-          units: settings.units,
+          units: settings.units, averageAnnualSnowfallCm: simulation.averageAnnualSnowfallCm,
           onClose: () => setShowStats(false),
         } : null}
         closeCredits={showCredits ? () => setShowCredits(false) : null}

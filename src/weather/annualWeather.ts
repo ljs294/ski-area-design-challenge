@@ -1,4 +1,4 @@
-import type { WeatherDataPackage } from './weatherModel';
+import type { HistoricalWeatherYear, WeatherDataPackage } from './weatherModel';
 import { addWeatherLocalTime, weatherInstantForLocal, weatherLocalParts } from './localTime';
 import { loadWeatherSession, type WeatherSession } from './weatherSession';
 
@@ -20,6 +20,28 @@ export function weatherYearDayCount(year: number): number {
 
 export function annualWeatherSeed(baseSeed: string, year: number): string {
   return `${baseSeed}:weather-year:${year}`;
+}
+
+/** Mean snowfall across every complete September-August season in the archive. */
+export function historicalAverageAnnualSnowfallCm(
+  historicalYears: readonly HistoricalWeatherYear[],
+  timezone: string,
+): number | null {
+  const calendarYears = new Set(historicalYears.map(({ year }) => year));
+  const completeWeatherYears = new Set([...calendarYears]
+    .filter((year) => calendarYears.has(year + 1)));
+  if (completeWeatherYears.size === 0) return null;
+  const totals = new Map([...completeWeatherYears].map((year) => [year, 0]));
+  for (const historicalYear of historicalYears) {
+    for (const hour of historicalYear.hours) {
+      const weatherYear = weatherYearLabel(hour.at, timezone);
+      const total = totals.get(weatherYear);
+      if (total != null && Number.isFinite(hour.snowfallCm)) {
+        totals.set(weatherYear, total + Math.max(0, hour.snowfallCm));
+      }
+    }
+  }
+  return [...totals.values()].reduce((sum, value) => sum + value, 0) / totals.size;
 }
 
 export async function loadAnnualWeatherSession(
