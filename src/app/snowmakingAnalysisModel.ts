@@ -1,4 +1,6 @@
 import type { SnowmakingAnalysisResult, SnowmakingPumpAnalysisSetting } from '../snowmakingHydraulics';
+import type { SavedSnowmakingNode } from '../types/snowmaking';
+import { OWNED_PUMP_HOUSE_EFFICIENCY, OWNED_PUMP_HOUSE_HORSEPOWER_HP } from '../snowmakingHydraulics';
 
 export interface SnowmakingPumpAnalysisDraft {
   on: boolean;
@@ -124,9 +126,15 @@ export function snowmakingAnalysisReducer(state: SnowmakingAnalysisState,
   }
 }
 
-export function pumpAnalysisSetting(draft: SnowmakingPumpAnalysisDraft | undefined):
-SnowmakingPumpAnalysisSetting {
+export function pumpAnalysisSetting(
+  draft: SnowmakingPumpAnalysisDraft | undefined,
+  node?: Pick<SavedSnowmakingNode, 'kind' | 'ownerBuildingId'>,
+): SnowmakingPumpAnalysisSetting {
   const value = draft ?? DEFAULT_PUMP_ANALYSIS_DRAFT;
+  if (node?.kind === 'pump' && node.ownerBuildingId) {
+    return { on: value.on, horsepowerHp: OWNED_PUMP_HOUSE_HORSEPOWER_HP,
+      efficiency: OWNED_PUMP_HOUSE_EFFICIENCY };
+  }
   return { on: value.on,
     horsepowerHp: value.horsepowerHp.trim() === '' ? null : Number(value.horsepowerHp),
     efficiency: Number(value.efficiencyPercent) / 100 };

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchVectorFeatures, MapContextProviderError, OVERPASS_ENDPOINTS } from './vectorFeatures';
+import { fetchVectorFeatures, has3DBuildingContext, MapContextProviderError,
+  OVERPASS_ENDPOINTS } from './vectorFeatures';
 
 describe('waterway ingestion', () => {
   afterEach(() => {
@@ -32,6 +33,32 @@ describe('waterway ingestion', () => {
     }));
     const result = await fetchVectorFeatures({ west: -121, south: 45, east: -120, north: 46 });
     expect(result.waterLines[0]).toMatchObject({ id: 'way/18', waterClass: 'river' });
+  });
+
+  it('downloads building footprints into the offline map context', async () => {
+    const request = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ elements: [{
+        type: 'way', id: 20, tags: { building: 'yes', name: 'Summit Lodge',
+          height: '36 ft', min_height: '3 m', 'building:levels': '9' },
+        geometry: [{ lon: -121, lat: 46 }, { lon: -120.999, lat: 46 },
+          { lon: -120.999, lat: 45.999 }, { lon: -121, lat: 46 }],
+      }] }),
+    });
+    vi.stubGlobal('fetch', request);
+
+    const result = await fetchVectorFeatures({ west: -121, south: 45, east: -120, north: 46 });
+
+    expect(result.buildings).toMatchObject([{
+      id: 'way/20', name: 'Summit Lodge', minHeightM: 3,
+      rings: [[[-121, 46], [-120.999, 46], [-120.999, 45.999], [-121, 46]]],
+    }]);
+    expect(result.buildings?.[0].heightM).toBeCloseTo(10.9728, 4);
+    expect(request.mock.calls[0]?.[1]?.body).toContain('way[building]');
+    expect(has3DBuildingContext(result)).toBe(true);
+    expect(has3DBuildingContext({ ...result,
+      buildings: result.buildings?.map(({ heightM: _height, ...building }) => building) }))
+      .toBe(false);
   });
 
   it('normalizes paved-road width, lanes, direction, and highway metadata', async () => {

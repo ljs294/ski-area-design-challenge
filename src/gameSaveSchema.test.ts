@@ -16,6 +16,7 @@ import type { SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SavedSnowm
 import type { SavedJunction, SavedNode, SavedPath } from './types/topology';
 import type { SavedTrail } from './types/trails';
 import type { SavedSnowGrid } from './types/snow';
+import type { SavedBuilding } from './types/buildings';
 
 interface ExpectedGameSave {
   schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
@@ -47,6 +48,7 @@ interface ExpectedGameSave {
   streamWidthOverrides?: Record<string, number>;
   snow?: SavedSnowGrid;
   weatherRun?: SavedWeatherRun;
+  buildings?: SavedBuilding[];
   createdAt: string;
   updatedAt: string;
   lastPlayedAt?: string;

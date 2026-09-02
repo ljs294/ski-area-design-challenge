@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import type maplibregl from 'maplibre-gl';
+import { createSavedBuilding } from '../buildings';
 import { buildSkiNetwork } from '../network';
 import { snowmakingPipeSegments } from '../snowmakingNetwork';
 import type { SavedLift } from '../types';
 import { applyDashboardGunLassoState, addDashboardMapLayers,
   dashboardGeoJSON, dashboardLassoGeoJSON, orientedSnowmakingFlow,
+  dashboardBounds,
   snowmakingArrowGlyphRotation, snowmakingPumpArmMarker, snowmakingGunColor,
   snowmakingGunVisualState, snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
 
@@ -17,7 +20,7 @@ function data(kind: DashboardMapData['kind']): DashboardMapData {
   return {
     kind, dark: false, units: 'metric', network: buildSkiNetwork([], [lift]),
     selectedLiftId: null, selectedEdgeId: null, dams: [], ponds: [], lakes: [],
-    trails: [], lifts: [lift], nodes: [{ id: 'node-1', name: 'Pump', kind: 'pump',
+    trails: [], lifts: [lift], buildings: [], nodes: [{ id: 'node-1', name: 'Pump', kind: 'pump',
       labelNumber: 1, point: [-121.5, 46.9], elevM: 1000, createdAt: '2026-01-01' }],
     pipes: [{ id: 'pipe-1', name: 'Main', diameterIn: 8, lengthM: 100,
       verticalM: 10, vertices: [
@@ -74,6 +77,36 @@ describe('dashboard MapLibre projection', () => {
         port: 'discharge', portLabel: 'OUT' }),
     }));
     expect(result.features.filter((row) => row.properties?.kind === 'backdrop')).toHaveLength(1);
+  });
+
+  it('projects only reciprocal pump-house footprints and labels into the snowmaking plan', () => {
+    const input = data('snowmaking');
+    const building = createSavedBuilding({
+      id: 'building-1', name: 'North Pump House', center: [-121.5, 46.9],
+      foundation: { kind: 'flattened', finishedFloorElevationM: 1000,
+        terrainGraded: true, earthwork: { cutM3: 0, fillM3: 0, balanceM3: 0 } },
+      nodeId: 'node-1', createdAt: '2026-01-01',
+    });
+    input.buildings = [building];
+    input.nodes = [{ ...input.nodes[0], ownerBuildingId: building.id,
+      pumpRating: { horsepowerHp: 1000, efficiency: 0.85 } }];
+
+    const result = dashboardGeoJSON(input);
+    expect(result.features.find((row) => row.properties?.kind === 'snow-building'))
+      .toMatchObject({ id: 'snow-building:building-1', properties: {
+        name: 'North Pump House', pumpNodeId: 'node-1',
+      }, geometry: { type: 'Polygon' } });
+    expect(result.features.find((row) => row.properties?.kind === 'snow-building-label'))
+      .toMatchObject({ id: 'snow-building:building-1:label', geometry: {
+        type: 'Point', coordinates: building.center,
+      } });
+    const bounds = dashboardBounds(input) as maplibregl.LngLatBounds;
+    expect(bounds.getWest()).toBeLessThan(building.center[0]);
+    expect(bounds.getEast()).toBeGreaterThan(building.center[0]);
+
+    input.nodes = [{ ...input.nodes[0], ownerBuildingId: 'another-building' }];
+    expect(dashboardGeoJSON(input).features.some((row) =>
+      row.properties?.kind === 'snow-building')).toBe(false);
   });
 
   it('projects transient lasso geometry and highlighted gun properties', () => {

@@ -1,7 +1,8 @@
 import { haversineMeters } from '../geo';
 import { allocateSnowmakingNode, attachInlinePumpToSnowmakingPipe,
-  attachNodeToSnowmakingPipe, closestSnowmakingPipeLocation, snowmakingPipeSegments,
-  type SnowmakingNetworkState } from '../snowmakingNetwork';
+  attachNodeToSnowmakingPipe, closestSnowmakingPipeLocation,
+  snowmakingPipeSegments, type SnowmakingNetworkState } from '../snowmakingNetwork';
+import { isOwnedSnowmakingPump } from '../snowmakingOwnedPumps';
 import type { SavedSnowmakingNode, SavedSnowmakingPipe } from '../types/snowmaking';
 import type { SnowmakingNodeCandidate, SnowmakingNodeTool,
   SnowmakingPipeTool, SnowmakingSnapIntent } from './snowmakingNetworkControllerModel';
@@ -84,7 +85,8 @@ export function resolveSnowmakingPipeDraft(state: SnowmakingNetworkState,
     if (snap.kind === 'node') {
       const node = state.nodes.find((candidate) => candidate.id === snap.nodeId);
       if (!node) return 'A snapped node changed before this pipe was installed. Pick the connection again.';
-      if (node.kind === 'pump') return 'Connect new pipes at a junction, not directly to a pump.';
+      if (node.kind === 'pump' && !isOwnedSnowmakingPump(node))
+        return 'Connect new pipes at a junction, not directly to a pump.';
       points.push(node.point); nodeIds.push(node.id); continue;
     }
     const pipe = state.pipes.find((candidate) => candidate.id === snap.pipeId);
@@ -92,7 +94,8 @@ export function resolveSnowmakingPipeDraft(state: SnowmakingNetworkState,
     if (!pipe || !location || location.distanceM > 2) return 'A snapped connection is no longer available.';
     const existing = state.nodes.find((node) => haversineMeters(node.point, location.point) < 0.05);
     if (existing) {
-      if (existing.kind === 'pump') return 'Connect new pipes at a junction, not directly to a pump.';
+      if (existing.kind === 'pump' && !isOwnedSnowmakingPump(existing))
+        return 'Connect new pipes at a junction, not directly to a pump.';
       points.push(existing.point); nodeIds.push(existing.id); continue;
     }
     const allocation = allocateSnowmakingNode(state, { id: createId(), kind: 'junction',

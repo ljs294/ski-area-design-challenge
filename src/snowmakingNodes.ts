@@ -112,6 +112,19 @@ export function sanitizeSnowmakingNodes(raw: unknown[]): SavedSnowmakingNode[] {
     if (typeof n.createdAt !== 'string') continue;
     if (!isLngLat(n.point)) continue;
     if (typeof n.kind !== 'string' || !SNOWMAKING_NODE_KINDS.has(n.kind as SnowmakingNodeKind)) continue;
+    const ownerBuildingId = typeof n.ownerBuildingId === 'string' && n.ownerBuildingId.length > 0
+      ? n.ownerBuildingId : undefined;
+    const rawPumpRating = n.pumpRating;
+    const pumpRating = rawPumpRating && typeof rawPumpRating === 'object'
+      ? (() => {
+        const rating = rawPumpRating as Record<string, unknown>;
+        return typeof rating.horsepowerHp === 'number' && Number.isFinite(rating.horsepowerHp) &&
+          rating.horsepowerHp > 0 && typeof rating.efficiency === 'number' &&
+          Number.isFinite(rating.efficiency) && rating.efficiency > 0 && rating.efficiency <= 1
+          ? { horsepowerHp: rating.horsepowerHp, efficiency: rating.efficiency }
+          : undefined;
+      })()
+      : undefined;
     out.push({
       id: n.id,
       name: n.name,
@@ -121,6 +134,8 @@ export function sanitizeSnowmakingNodes(raw: unknown[]): SavedSnowmakingNode[] {
       point: n.point,
       elevM: typeof n.elevM === 'number' && Number.isFinite(n.elevM) ? n.elevM : null,
       source: sanitizeSource(n.source),
+      ...(ownerBuildingId ? { ownerBuildingId } : {}),
+      ...(pumpRating ? { pumpRating } : {}),
       createdAt: n.createdAt,
     });
   }

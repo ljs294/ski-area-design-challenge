@@ -10,6 +10,7 @@ import { hydrateSnowmakingNetwork } from '../snowmakingNetwork';
 import { sanitizeStreamWidthOverrides } from '../streamAnalysis';
 import { hydrateTopology } from '../topology';
 import { sanitizeTrails } from '../trails';
+import { sanitizeBuildingState } from '../buildings';
 import type { GameSave } from '../types/gameSave';
 
 /** One authoritative, sanitized projection of every persisted design collection. */
@@ -28,13 +29,15 @@ export function initialResortDesign(save?: GameSave | null) {
   const snowmaking = hydrateSnowmakingNetwork(reconcileSnowmakingNodes(
     sanitizeSnowmakingNodes(save?.snowmakingNodes ?? []), dams, ponds),
   save?.snowmakingPipes ?? [], save?.snowmakingNodeNextNumbers, save?.snowguns ?? []);
+  const buildingState = sanitizeBuildingState(save?.buildings ?? [], snowmaking.nodes);
   return {
     lifts,
     trails: topology.trails,
     roads: sanitizeRoads(save?.roads ?? []),
     dams,
     ponds,
-    snowmakingNodes: snowmaking.nodes,
+    buildings: buildingState.buildings,
+    snowmakingNodes: buildingState.nodes,
     snowmakingPipes: snowmaking.pipes,
     snowguns: snowmaking.guns,
     snowmakingNodeNextNumbers: snowmaking.nextNumbers,

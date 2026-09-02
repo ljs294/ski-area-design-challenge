@@ -21,6 +21,7 @@ export const MAP_LAYER_ORDER = [
   'ski-node-path',
   'trail',
   'lift',
+  'building',
   'snowmaking',
 ] as const;
 
@@ -33,6 +34,7 @@ export type MapFamilyId = (typeof MAP_LAYER_ORDER)[number];
  */
 export const MAP_HIT_PRIORITY = [
   'snowmaking',
+  'building',
   'lift',
   'trail',
   'dam',

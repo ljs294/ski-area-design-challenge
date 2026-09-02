@@ -1,5 +1,5 @@
-// Fetches real-world map features (roads, hydrography, named peaks, land
-// cover) from OpenStreetMap via the Overpass API for a terrain's exact
+// Fetches real-world map features (roads, buildings, hydrography, named peaks,
+// and land cover) from OpenStreetMap via the Overpass API for a terrain's exact
 // ingest bounds. Raw lon/lat geometry is persisted in TerrainRecord so the
 // supported MapLibre renderer can consume it without legacy world projection.
 import type { LatLonBounds } from './types/geo';
@@ -12,6 +12,7 @@ import type {
   WaterPolygonFeature,
   LandCoverFeature,
   PeakFeature,
+  BuildingFeature,
   VectorFeatureSet,
 } from './types/vectorFeatures';
 import { parseOsmWidthM } from './streamAnalysis';
@@ -19,6 +20,14 @@ import { classifyRoadSurface, parseRoadLaneCount, parseRoadOneWay } from './road
 import { OVERPASS_ENDPOINTS } from './overpassConfig';
 
 export { OVERPASS_ENDPOINTS } from './overpassConfig';
+
+/** Whether persisted map context contains the normalized metadata required by
+ * the current offline 3D-building renderer. Empty building coverage is valid. */
+export function has3DBuildingContext(features: VectorFeatureSet | undefined): boolean {
+  return !!features?.buildings && features.buildings.every((building) =>
+    Number.isFinite(building.heightM) && building.heightM! > 0 &&
+    Number.isFinite(building.minHeightM) && building.minHeightM! >= 0);
+}
 
 // Overpass is a shared community resource, not a paid API — a descriptive
 // User-Agent and a short mirror list (not aggressive retries) is the
@@ -62,6 +71,8 @@ function buildQuery(bounds: LatLonBounds): string {
   return (
     `[out:json][timeout:${OVERPASS_SERVER_TIMEOUT_S}];(` +
     `way[highway](${bbox});` +
+    `way[building](${bbox});` +
+    `relation[building][type=multipolygon](${bbox});` +
     `way[natural=water](${bbox});` +
     `relation[natural=water][type=multipolygon](${bbox});` +
     `way[waterway=riverbank](${bbox});` +
@@ -173,6 +184,30 @@ function classifyLandCover(tags: Record<string, string>): OsmLandCoverClass | nu
   return null;
 }
 
+const DEFAULT_BUILDING_HEIGHT_M = 6;
+const BUILDING_LEVEL_HEIGHT_M = 3;
+
+function parseBuildingLevels(raw: string | undefined): number | null {
+  if (!raw) return null;
+  const value = Number(raw.trim().replace(',', '.'));
+  return Number.isFinite(value) && value > 0 && value <= 200 ? value : null;
+}
+
+/** Normalize raw OSM tags similarly to a vector tile's `render_height`.
+ * Explicit metric/imperial heights win, followed by storey counts. */
+function buildingDimensions(tags: Record<string, string>): {
+  heightM: number;
+  minHeightM: number;
+} {
+  const levels = parseBuildingLevels(tags['building:levels']);
+  const minLevels = parseBuildingLevels(tags['building:min_level']);
+  const heightM = parseOsmWidthM(tags.height)
+    ?? (levels == null ? DEFAULT_BUILDING_HEIGHT_M : levels * BUILDING_LEVEL_HEIGHT_M);
+  const requestedBase = parseOsmWidthM(tags.min_height)
+    ?? (minLevels == null ? 0 : minLevels * BUILDING_LEVEL_HEIGHT_M);
+  return { heightM, minHeightM: Math.min(Math.max(0, requestedBase), heightM - 0.25) };
+}
+
 function toLonLat(points: OverpassLatLon[]): [number, number][] {
   return points.map((p) => [p.lon, p.lat]);
 }
@@ -237,6 +272,7 @@ export async function fetchVectorFeatures(
   const waterPolygons: WaterPolygonFeature[] = [];
   const landCover: LandCoverFeature[] = [];
   const peaks: PeakFeature[] = [];
+  const buildings: BuildingFeature[] = [];
 
   for (const el of data.elements) {
     const tags = el.tags ?? {};
@@ -256,6 +292,14 @@ export async function fetchVectorFeatures(
     const points = el.geometry.filter((p): p is OverpassLatLon => p !== null);
     if (points.length < 2) continue;
     const lonLat = toLonLat(points);
+
+    if (tags.building && tags.building !== 'no') {
+      if (lonLat.length >= 3) {
+        buildings.push({ id: `way/${el.id}`, name: tags.name,
+          ...buildingDimensions(tags), rings: [lonLat] });
+      }
+      continue;
+    }
 
     if (tags.highway) {
       const sourceWidthM = parseOsmWidthM(tags.width);
@@ -300,7 +344,9 @@ export async function fetchVectorFeatures(
   for (const el of data.elements) {
     if (el.type !== 'relation' || !el.members) continue;
     const tags = el.tags ?? {};
-    if (tags.natural !== 'water') continue;
+    const isWater = tags.natural === 'water';
+    const isBuilding = !!tags.building && tags.building !== 'no';
+    if (!isWater && !isBuilding) continue;
 
     const outerFragments = el.members
       .filter((m) => m.role === 'outer' && m.geometry)
@@ -313,9 +359,13 @@ export async function fetchVectorFeatures(
     if (outerRings.length === 0) continue;
 
     outerRings.forEach((outer, i) => {
-      waterPolygons.push({ id: `relation/${el.id}/${i}`, name: tags.name, rings: [outer, ...innerRings] });
+      const polygon = { id: `relation/${el.id}/${i}`, name: tags.name,
+        ...(isBuilding ? buildingDimensions(tags) : {}),
+        rings: [outer, ...innerRings] };
+      if (isBuilding) buildings.push(polygon);
+      else waterPolygons.push(polygon);
     });
   }
 
-  return { roads, waterLines, waterPolygons, landCover, peaks };
+  return { roads, waterLines, waterPolygons, landCover, peaks, buildings };
 }

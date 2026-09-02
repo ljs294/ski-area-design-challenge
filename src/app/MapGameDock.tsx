@@ -4,6 +4,7 @@ import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath
   TerrainRecord } from '../types';
 import type { SavedWeatherRun } from '../types/gameSave';
 import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource } from '../types/snowmaking';
+import type { SavedBuilding } from '../types/buildings';
 import { analyzeLake } from '../lakeAnalysis';
 import { analyzeStream } from '../streamAnalysis';
 import { describeAnchor, pathLengthM } from '../skiNodes';
@@ -33,6 +34,7 @@ import type { RoadController } from './useRoadController';
 import type { TrailController } from './useTrailController';
 import type { useNodePathController } from './useNodePathController';
 import type { useSnowmakingController } from './useSnowmakingController';
+import type { BuildingController } from './useBuildingController';
 import { SnowLayerControl } from './SnowLayerControl';
 import type { SnowDisplayMode } from './snowStyle';
 import { analyzeBuiltRoad, analyzeImportedRoad, type RoadAnalysis } from '../roadAnalysis';
@@ -58,6 +60,11 @@ export interface MapGameDockProps {
   snowmakingNodes: SavedSnowmakingNode[];
   snowmakingPipes: SavedSnowmakingPipe[];
   snowguns: SavedSnowgun[];
+  /** Optional pump-house UI port; the map integration may supply it when enabled. */
+  buildings?: SavedBuilding[];
+  selectedBuildingId?: string | null;
+  buildingController?: BuildingController;
+  clearSelectedBuilding?: () => void;
   snowmakingLakes: SnowmakingLakeSource[];
   skiNodes: SavedNode[];
   skiPaths: SavedPath[];
@@ -124,6 +131,15 @@ export function MapGameDock(props: MapGameDockProps) {
   const liftTool = liftController.state, trailTool = trailController.state;
   const roadTool = roadController.state, { nodeTool, pathTool } = nodePathController;
   const damTool = snowmakingController.dam.state, pondTool = snowmakingController.pond.state;
+  const buildings = props.buildings ?? props.saved.buildings ?? [];
+  const buildingTool = props.buildingController?.state;
+  const selectedBuildingFromNode = props.selectedSnowmakingNodeId
+    ? buildings.find((entry) => entry.connection.nodeId === props.selectedSnowmakingNodeId) ?? null : null;
+  const selectedBuilding = props.selectedBuildingId
+    ? buildings.find((entry) => entry.id === props.selectedBuildingId) ?? null : selectedBuildingFromNode;
+  const buildingConnectedPipeCount = selectedBuilding
+    ? props.snowmakingPipes.filter((pipe) => pipe.vertices.some((vertex) =>
+      vertex.nodeId === selectedBuilding.connection.nodeId)).length : 0;
   const liftActive = props.coordinator.activeTool === 'lift' || props.selectedLiftId !== null;
   const trailActive = props.coordinator.activeTool === 'trail' ||
     props.coordinator.activeTool === 'ski-node' || props.coordinator.activeTool === 'ski-path' ||
@@ -133,7 +149,9 @@ export function MapGameDock(props: MapGameDockProps) {
     props.coordinator.activeTool === 'snowmaking-node' || props.coordinator.activeTool === 'snowmaking-gun' ||
     props.selectedDamId !== null ||
     props.selectedPondId !== null || props.selectedSnowmakingNodeId !== null ||
-    props.selectedSnowmakingPipeId !== null || props.selectedSnowgunId !== null;
+    props.selectedSnowmakingPipeId !== null || props.selectedSnowgunId !== null ||
+    props.coordinator.activeTool === 'building' || selectedBuilding !== null ||
+    (buildingTool?.phase !== undefined && buildingTool.phase !== 'idle');
   const selectedLakeFeature = props.selectedLakeId
     ? props.terrainRecord?.vectorFeatures?.waterPolygons.find(
       (lake) => lake.id === props.selectedLakeId) ?? null : null;
@@ -389,6 +407,16 @@ export function MapGameDock(props: MapGameDockProps) {
         onConfirmMoveGun={snowmakingController.guns.confirmMove}
         onDeleteGun={snowmakingController.guns.remove} onCloseGun={props.clearSelectedSnowgun}
         onAnalyzeSystem={props.openSnowmakingAnalysis}
+        buildings={buildings} selectedBuilding={selectedBuilding} buildingTool={buildingTool}
+        onArmBuilding={props.buildingController?.startPlacement}
+        onCancelBuilding={props.buildingController?.cancel}
+        onPatchBuildingDraft={props.buildingController?.patchDraft}
+        onConfirmBuilding={props.buildingController?.confirm}
+        onSelectBuilding={props.buildingController?.select}
+        onRenameBuilding={props.buildingController?.rename}
+        onRemoveBuilding={props.buildingController?.remove}
+        onCloseBuilding={props.clearSelectedBuilding ?? props.closeDock}
+        buildingConnectedPipeCount={buildingConnectedPipeCount}
         building={props.building} onClose={props.closeDock} />
     </div></div>}
     {infrastructureOpen && <div className="dock-rollup dock-infrastructure"><div className="dock-panel">

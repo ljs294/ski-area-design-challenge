@@ -5,6 +5,7 @@ import type { SkiNetwork } from '../network';
 import { snowmakingPipeSegments, snowmakingPipeStats } from '../snowmakingNetwork';
 import type { SavedDam, SavedLift, SavedPond, SavedSnowmakingNode, SavedTrail,
   TerrainRecord } from '../types';
+import type { SavedBuilding } from '../types/buildings';
 import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource } from '../types/snowmaking';
 import { applyDashboardGunLassoState, applyDashboardMapPresentation, dashboardBounds,
   setDashboardLassoData, setDashboardMapData, type DashboardMapData,
@@ -29,6 +30,7 @@ export interface InMapDashboardInput {
   trails: readonly SavedTrail[];
   lifts: readonly SavedLift[];
   nodes: readonly SavedSnowmakingNode[];
+  buildings: readonly SavedBuilding[];
   pipes: readonly SavedSnowmakingPipe[];
   guns: readonly SavedSnowgun[];
   coverDisplay: CoverDisplayGeoJSON | null;
@@ -83,6 +85,7 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     kind: active, dark: input.dark, units: input.units, network: input.network,
     selectedLiftId: liftId, selectedEdgeId: edgeId, dams: input.dams, ponds: input.ponds,
     lakes: input.lakes, trails: input.trails, lifts: input.lifts, nodes: input.nodes,
+    buildings: input.buildings,
     pipes: input.pipes, guns: input.guns, coverDisplay: input.coverDisplay,
     terrainRecord: input.terrainRecord, selectedSnowmaking: snowSelection,
     snowmakingPresentation: presentationRef.current,
@@ -308,7 +311,7 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     syncRef.current(input.mapRef.current);
   }, [active, snowMode, liftId, edgeId, snowSelection,
     input.dark, input.units, input.network, input.dams, input.ponds, input.lakes,
-    input.trails, input.lifts, input.nodes, input.pipes, input.guns,
+    input.trails, input.lifts, input.nodes, input.buildings, input.pipes, input.guns,
     input.coverDisplay, input.terrainRecord, input.mapRef, input.registryRef]);
 
   const clear = () => {

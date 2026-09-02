@@ -5,6 +5,7 @@ import type { SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SavedSnowm
 import type { SavedJunction, SavedNode, SavedPath } from './topology';
 import type { SavedTrail } from './trails';
 import type { SavedSnowGrid } from './snow';
+import type { SavedBuilding } from './buildings';
 
 export interface SavedSiteBox {
   bounds: [[number, number], [number, number]];
@@ -76,6 +77,8 @@ export interface GameSave {
   snow?: SavedSnowGrid;
   /** Added in schema 15. Never triggers a provider request while loading a save. */
   weatherRun?: SavedWeatherRun;
+  /** Added in schema 15. Hydration defaults absent collections to an empty list. */
+  buildings?: SavedBuilding[];
   createdAt: string;
   updatedAt: string;
   lastPlayedAt?: string;

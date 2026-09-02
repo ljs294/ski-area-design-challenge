@@ -20,6 +20,7 @@ import {
   type SnowmakingHydrantRunLayout, type SnowmakingNetworkState, type SnowmakingPipeStation,
   type SnowmakingPipeStats,
 } from '../snowmakingNetwork';
+import { isOwnedSnowmakingPump } from '../snowmakingOwnedPumps';
 import { reconcileSnowmakingNodes } from '../snowmakingNodes';
 import { reconcileSnowgunConnections } from '../snowmakingGuns';
 import type { SavedDam, SavedPond, SavedSnowmakingNode, SavedSnowmakingPipe,
@@ -531,7 +532,7 @@ export function useSnowmakingNetworkController(
   function renameNode(id: string, name: string): void {
     const state = snowmakingNetworkProjection(optionsRef.current.network.snapshot());
     const node = state.nodes.find((candidate) => candidate.id === id);
-    if (!node || node.kind === 'junction') return;
+    if (!node || node.kind === 'junction' || isOwnedSnowmakingPump(node)) return;
     const edit = optionsRef.current.network.begin(); edit.replace({ ...state,
       nodes: state.nodes.map((candidate) => candidate.id === id ? { ...candidate, name } : candidate) });
     edit.commit();
@@ -539,7 +540,8 @@ export function useSnowmakingNetworkController(
   function removeNode(id: string): void {
     let state = snowmakingNetworkProjection(optionsRef.current.network.snapshot());
     const node = state.nodes.find((candidate) => candidate.id === id);
-    if (!node || node.kind === 'intake' || node.kind === 'junction') return;
+    if (!node || node.kind === 'intake' || node.kind === 'junction' ||
+        isOwnedSnowmakingPump(node)) return;
     state = { ...state, nodes: state.nodes.filter((candidate) => candidate.id !== id),
       pipes: detachSnowmakingNode(state.pipes, id, optionsRef.current.createId) };
     state = { ...state, guns: reconcileSnowgunConnections(state.guns, state.nodes) };
