@@ -1,4 +1,5 @@
 import maplibregl from 'maplibre-gl';
+import { buildingFootprint, isBuildingOwnedPump } from '../buildings';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
 import { haversineMeters } from '../geo';
 import { toLngLat, toMeters, trailsFromLift, type SkiNetwork } from '../network';
@@ -7,6 +8,7 @@ import { snowmakingNodeLabel, snowmakingPipeSegments, snowmakingPipeStats,
 import type { SnowmakingSegmentAnalysisResult } from '../snowmakingHydraulics';
 import type { SavedDam, SavedLift, SavedPond, SavedSnowmakingNode, SavedTrail,
   TerrainRecord } from '../types';
+import type { SavedBuilding } from '../types/buildings';
 import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource,
   SnowmakingPumpPort } from '../types/snowmaking';
 import { DIFFICULTY_COLORS } from '../trails';
@@ -24,7 +26,9 @@ export const DASHBOARD_LAYER_IDS = [
   'dashboard-snow-contours', 'dashboard-snow-water', 'dashboard-trail-ties',
   'dashboard-trail-edges', 'dashboard-trail-arrows', 'dashboard-trail-labels',
   'dashboard-trail-nodes', 'dashboard-lift-hit', 'dashboard-trail-hit',
-  'dashboard-snow-pipes', 'dashboard-snow-flow-arrows', 'dashboard-snow-flow-labels',
+  'dashboard-snow-buildings', 'dashboard-snow-building-outlines',
+  'dashboard-snow-building-labels', 'dashboard-snow-pipes',
+  'dashboard-snow-flow-arrows', 'dashboard-snow-flow-labels',
   'dashboard-snow-pump-arrows', 'dashboard-snow-pump-port-labels',
   'dashboard-snow-gun-connections', 'dashboard-snow-nodes',
   'dashboard-snow-hydrants', 'dashboard-snow-node-labels', 'dashboard-snow-gun-lasso-fill',
@@ -98,6 +102,7 @@ export interface DashboardMapData {
   trails: readonly SavedTrail[];
   lifts: readonly SavedLift[];
   nodes: readonly SavedSnowmakingNode[];
+  buildings: readonly SavedBuilding[];
   pipes: readonly SavedSnowmakingPipe[];
   guns: readonly SavedSnowgun[];
   coverDisplay: CoverDisplayGeoJSON | null;
@@ -290,9 +295,22 @@ function snowmakingFeatures(input: DashboardMapData): Feature[] {
   for (const dam of input.dams) for (const ring of dam.pondRings) {
     features.push(feature('snow-water', polygon(ring)));
   }
+  const nodeById = new Map(input.nodes.map((node) => [node.id, node]));
+  for (const building of input.buildings) {
+    if (!isBuildingOwnedPump(building, nodeById.get(building.connection.nodeId))) continue;
+    const properties = {
+      id: building.id,
+      name: building.name,
+      pumpNodeId: building.connection.nodeId,
+    };
+    features.push(feature('snow-building', polygon(buildingFootprint(building)), properties,
+      `snow-building:${building.id}`));
+    features.push(feature('snow-building-label', {
+      type: 'Point', coordinates: building.center,
+    }, properties, `snow-building:${building.id}:label`));
+  }
   const presentation = input.snowmakingPresentation;
   const solved = new Map((presentation?.segments ?? []).map((segment) => [segment.id, segment]));
-  const nodeById = new Map(input.nodes.map((node) => [node.id, node]));
   const endpointName = (id: string | null, fallback: string) => {
     const node = id ? nodeById.get(id) : null;
     if (!node) return fallback;
@@ -532,6 +550,21 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
     filter: allFilter(filter('trail-edge'), ['!=', ['get', 'edgeKind'], 'lift']),
     layout: { visibility: 'none' }, paint: { 'line-width': 16, 'line-color': '#000',
       'line-opacity': 0.01 } });
+  map.addLayer({ id: 'dashboard-snow-buildings', type: 'fill', source: DASHBOARD_SOURCE,
+    filter: filter('snow-building'), layout: { visibility: 'none' }, paint: {
+      'fill-color': '#a39488', 'fill-opacity': 0.42,
+    } });
+  map.addLayer({ id: 'dashboard-snow-building-outlines', type: 'line', source: DASHBOARD_SOURCE,
+    filter: filter('snow-building'), layout: { visibility: 'none' }, paint: {
+      'line-color': '#5f554d', 'line-width': 1.5, 'line-opacity': 0.9,
+    } });
+  map.addLayer({ id: 'dashboard-snow-building-labels', type: 'symbol', source: DASHBOARD_SOURCE,
+    filter: filter('snow-building-label'), layout: { visibility: 'none',
+      'text-field': ['get', 'name'], 'text-size': 11, 'text-offset': [0, 2],
+      'text-anchor': 'top', 'text-font': ['Noto Sans Regular'], 'text-optional': true,
+      'text-allow-overlap': true }, paint: {
+      'text-color': '#3f3732', 'text-halo-color': '#f4f1ea', 'text-halo-width': 1.5,
+    } });
   map.addLayer({ id: 'dashboard-snow-pipes', type: 'line', source: DASHBOARD_SOURCE,
     filter: filter('snow-pipe'), layout: { visibility: 'none', 'line-cap': 'round',
       'line-join': 'round' }, paint: { 'line-color': ['coalesce', ['feature-state', 'color'], ['get', 'color']],
@@ -689,7 +722,10 @@ export function dashboardBounds(input: DashboardMapData): maplibregl.LngLatBound
     : [...input.nodes.map((node) => node.point), ...input.pipes.flatMap((pipe) =>
       pipe.vertices.map((vertex) => vertex.point)), ...input.guns.map((gun) => gun.point),
       ...input.ponds.flatMap((pond) => pond.boundary), ...input.dams.flatMap((dam) => dam.pondRings.flat()),
-      ...input.lakes.flatMap((lake) => lake.boundary)];
+      ...input.lakes.flatMap((lake) => lake.boundary),
+      ...input.buildings.flatMap((building) => isBuildingOwnedPump(building,
+        input.nodes.find((node) => node.id === building.connection.nodeId))
+        ? buildingFootprint(building) : [])];
   if (!points.length) return null;
   return points.reduce((bounds, point) => bounds.extend(point),
     new maplibregl.LngLatBounds(points[0], points[0]));

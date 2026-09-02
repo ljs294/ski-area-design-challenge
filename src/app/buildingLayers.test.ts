@@ -3,6 +3,8 @@ import {
   addBuildingLayers,
   BUILDING_BUILT_LAYER_IDS,
   BUILDING_DRAFT_LAYER_IDS,
+  BUILDING_EXTRUSION_LAYER_ID,
+  buildingExtrusionHeightM,
   buildingDraftGeoJSON,
   buildingGeoJSON,
   setBuildingCaptureTransient,
@@ -37,6 +39,9 @@ describe('building GeoJSON support layers', () => {
       'building-footprint', 'building-foundation',
     ]);
     expect(fc.features[0].properties).toMatchObject({ id: 'pump-1', selected: true });
+    expect(fc.features[0].properties).toMatchObject({
+      heightM: buildingExtrusionHeightM(building), minHeightM: 0,
+    });
     expect(fc.features[1].geometry.type).toBe('Polygon');
     expect((fc.features[1].geometry as GeoJSON.Polygon).coordinates[0]).toHaveLength(5);
   });
@@ -59,6 +64,15 @@ describe('building GeoJSON support layers', () => {
     const map = new FakeMap();
     addBuildingLayers(map as never);
     expect(map.addLayerCalls).toEqual([...BUILDING_BUILT_LAYER_IDS, ...BUILDING_DRAFT_LAYER_IDS]);
+    expect(map.layers.get(BUILDING_EXTRUSION_LAYER_ID)).toMatchObject({
+      type: 'fill-extrusion',
+      paint: {
+        'fill-extrusion-height': ['get', 'heightM'],
+        'fill-extrusion-base': ['get', 'minHeightM'],
+        'fill-extrusion-opacity': 0.88,
+        'fill-extrusion-vertical-gradient': true,
+      },
+    });
     const draft = { center: building.center, lengthM: 18, widthM: 12, bearingDeg: 0 };
     const source = map.sources.get('building-draft')!;
     setBuildingCaptureTransient(map as never, false, draft); // no-op before a hide
@@ -72,4 +86,3 @@ describe('building GeoJSON support layers', () => {
     expect(source.setData.mock.calls[1][0].features).toHaveLength(2);
   });
 });
-

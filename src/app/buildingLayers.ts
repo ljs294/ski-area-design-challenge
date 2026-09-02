@@ -1,12 +1,14 @@
 import type maplibregl from 'maplibre-gl';
 import { orientedRectFootprint } from '../buildingMesh';
 
-/** GeoJSON companion layers for the non-queryable native building renderer. */
+/** Native MapLibre sources and layers for player-authored buildings. */
 export const BUILDING_SOURCE = 'player-buildings';
 export const BUILDING_DRAFT_SOURCE = 'building-draft';
+export const BUILDING_EXTRUSION_LAYER_ID = 'building-extrusion';
 export const BUILDING_BUILT_LAYER_IDS = [
   'building-foundation-fill',
   'building-footprint',
+  BUILDING_EXTRUSION_LAYER_ID,
   'building-foundation-outline',
   'building-selected-outline',
   'building-hit',
@@ -23,6 +25,9 @@ export const BUILDING_HIT_LAYERS = ['building-hit'] as const;
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
 const PAD_APRON_M = 1.8288;
 const METRES_PER_DEGREE = 111_320;
+const DEFAULT_EAVE_HEIGHT_M = 4.8768;
+const ROOF_PITCH_RISE = 4;
+const ROOF_PITCH_RUN = 12;
 
 export interface BuildingRenderRecord {
   readonly id: string;
@@ -98,6 +103,13 @@ function foundationPolygon(
     building.dimensions.widthM + PAD_APRON_M * 2, building.bearingDeg ?? 0);
 }
 
+/** Flat native extrusions reach the designed ridge of the 4:12 gable roof. */
+export function buildingExtrusionHeightM(building: BuildingRenderRecord): number {
+  const eaveHeightM = building.dimensions.eaveHeightM ?? DEFAULT_EAVE_HEIGHT_M;
+  const roofRiseM = building.dimensions.widthM / 2 * ROOF_PITCH_RISE / ROOF_PITCH_RUN;
+  return eaveHeightM + roofRiseM;
+}
+
 export function buildingGeoJSON(
   buildings: readonly BuildingRenderRecord[],
   selectedId: string | null = null,
@@ -109,6 +121,8 @@ export function buildingGeoJSON(
       name: building.name ?? '',
       kind: 'building-footprint',
       selected: building.id === selectedId,
+      heightM: buildingExtrusionHeightM(building),
+      minHeightM: 0,
     };
     features.push(feature(`building:${building.id}:footprint`, properties,
       polygonFor(building.center, building.dimensions.lengthM, building.dimensions.widthM,
@@ -141,7 +155,7 @@ export function buildingDraftGeoJSON(
   return { type: 'FeatureCollection', features };
 }
 
-/** Adds all ordinary GeoJSON layers used around the native custom layer. */
+/** Adds the native extrusion and its ordinary GeoJSON support layers. */
 export function addBuildingLayers(map: maplibregl.Map, beforeId?: string): void {
   if (map.getSource(BUILDING_SOURCE)) return;
   map.addSource(BUILDING_SOURCE, { type: 'geojson', data: EMPTY });
@@ -159,6 +173,20 @@ export function addBuildingLayers(map: maplibregl.Map, beforeId?: string): void 
     paint: { 'fill-color': '#c7cbd0', 'fill-opacity': 0.15 },
   }, anchor);
   map.addLayer({
+    id: BUILDING_EXTRUSION_LAYER_ID, type: 'fill-extrusion', source: BUILDING_SOURCE,
+    filter: ['==', ['get', 'kind'], 'building-footprint'],
+    paint: {
+      'fill-extrusion-color': [
+        'interpolate', ['linear'], ['get', 'heightM'],
+        3, '#b8aca0', 12, '#a39488', 40, '#81756c',
+      ],
+      'fill-extrusion-height': ['get', 'heightM'],
+      'fill-extrusion-base': ['get', 'minHeightM'],
+      'fill-extrusion-opacity': 0.88,
+      'fill-extrusion-vertical-gradient': true,
+    },
+  }, anchor);
+  map.addLayer({
     id: 'building-foundation-outline', type: 'line', source: BUILDING_SOURCE,
     filter: ['==', ['get', 'kind'], 'building-foundation'],
     paint: { 'line-color': '#696d70', 'line-width': 1.25, 'line-opacity': 0.7 },
@@ -168,8 +196,7 @@ export function addBuildingLayers(map: maplibregl.Map, beforeId?: string): void 
     filter: ['all', ['==', ['get', 'kind'], 'building-footprint'], ['==', ['get', 'selected'], true]],
     paint: { 'line-color': '#38bdf8', 'line-width': 3, 'line-opacity': 0.95 },
   }, anchor);
-  // A transparent, broad polygon is what MapLibre hit testing uses. The
-  // custom layer itself is deliberately not queryable.
+  // Keep a transparent broad polygon for stable hit testing at any pitch.
   map.addLayer({
     id: 'building-hit', type: 'fill', source: BUILDING_SOURCE,
     filter: ['==', ['get', 'kind'], 'building-footprint'],
@@ -224,7 +251,7 @@ export function setSelectedBuilding(map: maplibregl.Map, selectedId: string | nu
 
 /**
  * Hide only draft/grade presentation during capture. The committed footprint,
- * hit polygon, and custom 3D building remain visible. Repeated calls are
+ * hit polygon, and native 3D extrusion remain visible. Repeated calls are
  * idempotent and preserve the exact prior draft for restoration.
  */
 export function setBuildingCaptureTransient(

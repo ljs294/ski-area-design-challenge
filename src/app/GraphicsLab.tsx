@@ -9,8 +9,7 @@ import { basemapFor, tuneBasemap } from './basemapStyle';
 import { mountTerrain, unmountTerrain, tilt3D } from './terrain3d';
 import { applyTileLod } from './terrainLod';
 import { pixelRatioForElement, useSettings, type RenderQuality } from './SettingsContext';
-import { addBuildingLayers } from './buildingLayers';
-import { BuildingBatchRenderer } from './buildingRenderer';
+import { addBuildingLayers, setBuildingData } from './buildingLayers';
 import { fixedPumpHouseFixture } from './buildingFixture';
 
 // A developer window for eyeballing graphics settings: two maps side by side
@@ -136,9 +135,7 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
         // support layers, so pitch, terrain, theme, and quality changes can
         // be inspected without any game state or save data.
         addBuildingLayers(m);
-        const fixture = new BuildingBatchRenderer();
-        fixture.setBuildings([fixedPumpHouseFixture(CENTER)]);
-        if (!m.getLayer(fixture.id)) m.addLayer(fixture);
+        setBuildingData(m, [fixedPumpHouseFixture(CENTER)]);
       });
       return m;
     }) as [maplibregl.Map, maplibregl.Map];

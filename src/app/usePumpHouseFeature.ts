@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from 'react';
+import { useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import { BuildingDocument, buildingProjection } from '../buildingDocument';
 import type { SavedBuilding } from '../types/buildings';
@@ -14,6 +14,7 @@ import { useBuildingController } from './useBuildingController';
 export interface PumpHouseFeatureOptions {
   mapRef: RefObject<maplibregl.Map | null>;
   initialBuildings: SavedBuilding[];
+  committedRef?: MutableRefObject<SavedBuilding[]>;
   terrain: TerrainDocument;
   snowmaking: SnowmakingNetworkDocument;
   canArm(): boolean;
@@ -34,7 +35,8 @@ export interface PumpHouseFeatureOptions {
 export function usePumpHouseFeature(options: PumpHouseFeatureOptions) {
   const [buildings, setBuildings] = useState<SavedBuilding[]>(options.initialBuildings);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
-  const committedRef = useRef(buildings);
+  const localCommittedRef = useRef(buildings);
+  const committedRef = options.committedRef ?? localCommittedRef;
   const documentRef = useRef<BuildingDocument | null>(null);
   if (!documentRef.current) {
     documentRef.current = new BuildingDocument(buildings, ({ snapshot }) => {

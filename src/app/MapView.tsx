@@ -302,8 +302,8 @@ export function MapView({
     snowmakingNodeNextNumbers,
     lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds, streamWidthOverrides,
   }));
-  const [buildingActivity, setBuildingActivity] =
-    useState<Parameters<TerrainDocumentPorts['publishConstruction']>[0]>(null);
+  const [buildingActivity, setBuildingActivity] = useState<Parameters<TerrainDocumentPorts['publishConstruction']>[0]>(null);
+  const committedBuildingsRef = useRef(initialDesign.buildings);
   const building = buildingActivity !== null;
   const network = useMemo(
     () => buildSkiNetwork(trails, lifts, { nodes: skiNodes, paths: skiPaths, junctions }),
@@ -415,7 +415,7 @@ export function MapView({
   const localImageryUrlRef = displayAssets.imageryUrlRef;
   const dashboards = useInMapDashboards({ mapRef, registryRef: mapContributionRegistryRef,
     dark: resolvedTheme === 'dark', units: settings.units, network, dams, ponds, lakes: snowmakingLakes ?? [],
-    trails, lifts, nodes: snowmakingNodes, pipes: snowmakingPipes, guns: snowguns,
+    trails, lifts, nodes: snowmakingNodes, buildings: committedBuildingsRef.current, pipes: snowmakingPipes, guns: snowguns,
     coverDisplay: coverDisplayRef.current, terrainRecord });
   useMapKeyboardControls({ mapRef, suspended: controlsSuspended, keybinds: settings.keybinds,
     activeDashboard: dashboards.active, toggle3D, setActiveDashboard: dashboards.setActive });
@@ -603,7 +603,7 @@ export function MapView({
   });
 
   const pumpHouse = usePumpHouseFeature({
-    mapRef, initialBuildings: initialDesign.buildings, terrain, snowmaking: snowmakingNetwork,
+    mapRef, initialBuildings: initialDesign.buildings, committedRef: committedBuildingsRef, terrain, snowmaking: snowmakingNetwork,
     canArm: () => siteModeRef.current !== 'selecting',
     activate: () => toolCoordinator.activate('building'),
     release: () => { toolCoordinator.release('building'); },
@@ -617,7 +617,7 @@ export function MapView({
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('building'),
   });
   const { buildings, selectedBuildingId, setSelectedBuildingId,
-    committedRef: committedBuildingsRef, controller: buildingController } = pumpHouse;
+    controller: buildingController } = pumpHouse;
   buildingControllerCancelRef.current = buildingController.cancel;
 
   const nodePathController = useNodePathController({
