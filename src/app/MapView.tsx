@@ -454,8 +454,7 @@ export function MapView({
     });
   }
   const terrain = terrainDocumentRef.current;
-  const { damAnalysis, coverEdit, coverClear, terrainGrade, trailPaint } =
-    useMapWorkers(mapRef, terrain);
+  const { damAnalysis, coverEdit, coverClear, terrainGrade, trailPaint, trailPresentation } = useMapWorkers(mapRef, terrain);
   const liftController = useLiftController({
     mapRef,
     lifts,
@@ -635,8 +634,9 @@ export function MapView({
   });
 
   const trailController = useTrailController({
-    mapRef, lifts, trails, paths: skiPaths, topology, terrain,
-    gradeAdapter: terrainGrade, paintAdapter: trailPaint,
+    mapRef, lifts, trails, junctions, paths: skiPaths, selectedTrailId,
+    theme: resolvedTheme, topology, terrain,
+    gradeAdapter: terrainGrade, paintAdapter: trailPaint, presentationAdapter: trailPresentation,
     canArm: () => siteModeRef.current !== 'selecting',
     activate: () => toolCoordinator.activate('trail'),
     release: () => { toolCoordinator.release('trail'); },

@@ -1,8 +1,10 @@
 import type maplibregl from 'maplibre-gl';
 import type { SavedTrail, SavedTrailPart, TrailDifficulty } from '../types';
 import { DIFFICULTY_COLORS, DIFFICULTY_SYMBOL, TRAIL_DIFFICULTIES } from '../trails';
+import type { TrailPresentationResult } from '../types/trailPresentation';
 
 export const TRAIL_SOURCE = 'trails';
+export const TRAIL_HIT_SOURCE = 'trail-hits';
 export const TRAIL_DRAFT_SOURCE = 'trail-draft';
 export const TRAIL_PAINT_SOURCE = 'trail-paint-preview';
 
@@ -10,9 +12,17 @@ export const TRAIL_PAINT_SOURCE = 'trail-paint-preview';
 // transient draft/paint-preview layers used only while painting a run.
 export const TRAIL_BUILT_LAYER_IDS = [
   'trail-fill',
+  'trail-surface-shadow',
   'trail-outline',
-  'trail-outline-planning',
-  'trail-spine',
+  'trail-route',
+  'trail-route-planning',
+  'trail-direction',
+  'trail-closed-marks',
+  'trail-hover',
+  'trail-selected-halo',
+  'trail-selected',
+  'trail-hit',
+  'trail-head-labels',
   'trail-labels',
 ];
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -43,6 +53,50 @@ export function trailsToGeoJSON(trails: SavedTrail[]): GeoJSON.FeatureCollection
   for (const trail of trails) pushParts(features, trail.parts, {
     id: trail.id, name: trail.name, label: `${DIFFICULTY_SYMBOL[trail.difficulty]} ${trail.name}`,
     difficulty: trail.difficulty, status: trail.status,
+  });
+  return { type: 'FeatureCollection', features };
+}
+
+export function trailPresentationToGeoJSON(
+  presentation: TrailPresentationResult,
+): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = presentation.surface.map((polygon, index) => ({
+    type: 'Feature',
+    properties: { kind: 'surface', featureId: `surface:${index}` },
+    geometry: { type: 'Polygon', coordinates: polygon },
+  }));
+  for (const route of presentation.routes) features.push({
+    type: 'Feature',
+    properties: { kind: 'route', featureId: route.featureId, id: route.trailId,
+      name: route.name, label: route.label, difficulty: route.difficulty,
+      status: route.status, closed: route.closed },
+    geometry: { type: 'LineString', coordinates: route.coordinates },
+  });
+  for (const label of presentation.labels) features.push({
+    type: 'Feature',
+    properties: { kind: label.geometry.type === 'Point' ? 'head-label' : 'line-label',
+      featureId: label.featureId, id: label.trailId, name: label.name, label: label.label,
+      symbol: DIFFICULTY_SYMBOL[label.difficulty], difficulty: label.difficulty,
+      status: label.status, closed: label.closed },
+    geometry: label.geometry,
+  });
+  return { type: 'FeatureCollection', features };
+}
+
+export function trailsToHitGeoJSON(trails: SavedTrail[]): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+  for (const trail of trails) trail.parts.forEach((part, partIndex) => {
+    if (part.polygon.length) features.push({
+      type: 'Feature', properties: { kind: 'hit', id: trail.id,
+        featureId: `hit:${trail.id}:${partIndex}` },
+      geometry: { type: 'Polygon', coordinates: part.polygon },
+    });
+    if (part.centerline.length >= 2) features.push({
+      type: 'Feature', properties: { kind: 'identity', id: trail.id,
+        featureId: `identity:${trail.id}:${partIndex}`, difficulty: trail.difficulty,
+        closed: trail.closed === true },
+      geometry: { type: 'LineString', coordinates: part.centerline },
+    });
   });
   return { type: 'FeatureCollection', features };
 }
@@ -193,26 +247,70 @@ export function paintPreviewGeoJSON({ path, cursor, brushWidthM, candidate, head
 
 export function addTrailLayers(map: maplibregl.Map): void {
   if (map.getSource(TRAIL_SOURCE)) return;
-  map.addSource(TRAIL_SOURCE, { type: 'geojson', data: EMPTY });
+  map.addSource(TRAIL_SOURCE, { type: 'geojson', data: EMPTY, promoteId: 'featureId' });
+  map.addSource(TRAIL_HIT_SOURCE, { type: 'geojson', data: EMPTY, promoteId: 'featureId' });
   map.addSource(TRAIL_DRAFT_SOURCE, { type: 'geojson', data: EMPTY });
   map.addSource(TRAIL_PAINT_SOURCE, { type: 'geojson', data: EMPTY });
 
-  map.addLayer({ id: 'trail-fill', type: 'fill', source: TRAIL_SOURCE, filter: ['==', ['get', 'kind'], 'trail'],
-    paint: { 'fill-color': difficultyMatch('#888'), 'fill-opacity': 0.32, 'fill-antialias': true } });
+  map.addLayer({ id: 'trail-fill', type: 'fill', source: TRAIL_SOURCE,
+    filter: ['==', ['get', 'kind'], 'surface'],
+    paint: { 'fill-color': '#f7f8f4', 'fill-opacity': 0.58, 'fill-antialias': true } });
+  map.addLayer({ id: 'trail-surface-shadow', type: 'line', source: TRAIL_SOURCE,
+    filter: ['==', ['get', 'kind'], 'surface'], layout: { 'line-join': 'round' },
+    paint: { 'line-color': '#34424d', 'line-width': 4, 'line-opacity': 0.18,
+      'line-blur': 3 } });
   map.addLayer({ id: 'trail-outline', type: 'line', source: TRAIL_SOURCE,
-    filter: ['all', ['==', ['get', 'kind'], 'trail'], ['==', ['get', 'status'], 'complete']],
-    layout: { 'line-join': 'round' }, paint: { 'line-color': difficultyMatch('#888'), 'line-width': 2 } });
-  map.addLayer({ id: 'trail-outline-planning', type: 'line', source: TRAIL_SOURCE,
-    filter: ['all', ['==', ['get', 'kind'], 'trail'], ['==', ['get', 'status'], 'planning']],
-    layout: { 'line-join': 'round' }, paint: { 'line-color': difficultyMatch('#888'), 'line-width': 2, 'line-dasharray': [2, 1.5] } });
-  map.addLayer({ id: 'trail-spine', type: 'line', source: TRAIL_SOURCE, filter: ['==', ['get', 'kind'], 'spine'],
-    layout: { 'line-cap': 'round' }, paint: { 'line-color': 'rgba(255,255,255,.7)', 'line-width': 1.2, 'line-dasharray': [1, 2] } });
+    filter: ['==', ['get', 'kind'], 'surface'], layout: { 'line-join': 'round' },
+    paint: { 'line-color': '#53616c', 'line-width': 1.25, 'line-opacity': 0.62 } });
+  map.addLayer({ id: 'trail-route', type: 'line', source: TRAIL_SOURCE, minzoom: 14,
+    filter: ['all', ['==', ['get', 'kind'], 'route'], ['==', ['get', 'status'], 'complete']],
+    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {
+      'line-color': ['case', ['get', 'closed'], '#89939c', difficultyMatch('#66717b')],
+      'line-width': 1.35, 'line-opacity': ['case', ['get', 'closed'], 0.42, 0.72],
+    } });
+  map.addLayer({ id: 'trail-route-planning', type: 'line', source: TRAIL_SOURCE, minzoom: 14,
+    filter: ['all', ['==', ['get', 'kind'], 'route'], ['==', ['get', 'status'], 'planning']],
+    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {
+      'line-color': difficultyMatch('#66717b'), 'line-width': 1.35, 'line-opacity': 0.68,
+      'line-dasharray': [2, 2],
+    } });
+  map.addLayer({ id: 'trail-direction', type: 'symbol', source: TRAIL_SOURCE, minzoom: 14,
+    filter: ['all', ['==', ['get', 'kind'], 'route'], ['!', ['get', 'closed']]],
+    layout: { 'symbol-placement': 'line', 'symbol-spacing': 180, 'text-field': '▶',
+      'text-size': 8, 'text-font': ['Noto Sans Regular'], 'text-keep-upright': false,
+      'text-allow-overlap': false },
+    paint: { 'text-color': '#56636d', 'text-opacity': 0.48,
+      'text-halo-color': '#f7f8f4', 'text-halo-width': 1 } });
+  map.addLayer({ id: 'trail-closed-marks', type: 'symbol', source: TRAIL_SOURCE, minzoom: 14,
+    filter: ['all', ['==', ['get', 'kind'], 'route'], ['get', 'closed']],
+    layout: { 'symbol-placement': 'line', 'symbol-spacing': 120, 'text-field': '×',
+      'text-size': 13, 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': false },
+    paint: { 'text-color': '#6b7280', 'text-halo-color': '#f7f8f4', 'text-halo-width': 1.2 } });
+  map.addLayer({ id: 'trail-hover', type: 'line', source: TRAIL_HIT_SOURCE, minzoom: 12,
+    filter: ['all', ['==', ['get', 'kind'], 'identity'], ['==', ['get', 'id'], '']],
+    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {
+      'line-color': difficultyMatch('#64748b'), 'line-width': 3, 'line-opacity': 0.65,
+    } });
+  map.addLayer({ id: 'trail-selected-halo', type: 'line', source: TRAIL_HIT_SOURCE, minzoom: 11,
+    filter: ['all', ['==', ['get', 'kind'], 'identity'], ['==', ['get', 'id'], '']],
+    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {
+      'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.82, 'line-blur': 0.6,
+    } });
+  map.addLayer({ id: 'trail-selected', type: 'line', source: TRAIL_HIT_SOURCE, minzoom: 11,
+    filter: ['all', ['==', ['get', 'kind'], 'identity'], ['==', ['get', 'id'], '']],
+    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: {
+      'line-color': difficultyMatch('#334155'), 'line-width': 3.5, 'line-opacity': 0.95,
+    } });
+  map.addLayer({ id: 'trail-hit', type: 'fill', source: TRAIL_HIT_SOURCE,
+    filter: ['==', ['get', 'kind'], 'hit'],
+    paint: { 'fill-color': '#000000', 'fill-opacity': 0.01 } });
 
   map.addLayer({ id: 'trail-draft-fill', type: 'fill', source: TRAIL_DRAFT_SOURCE,
-    filter: ['==', ['get', 'kind'], 'trail'], paint: { 'fill-color': difficultyMatch('#38bdf8'), 'fill-opacity': 0.42 } });
+    filter: ['==', ['get', 'kind'], 'trail'],
+    paint: { 'fill-color': '#38bdf8', 'fill-opacity': 0.12 } });
   map.addLayer({ id: 'trail-draft-outline', type: 'line', source: TRAIL_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'trail'], layout: { 'line-join': 'round' },
-    paint: { 'line-color': difficultyMatch('#38bdf8'), 'line-width': 2.5, 'line-dasharray': [1.5, 1] } });
+    paint: { 'line-color': '#38bdf8', 'line-width': 2.5, 'line-dasharray': [1.5, 1] } });
   map.addLayer({ id: 'trail-draft-spine', type: 'line', source: TRAIL_DRAFT_SOURCE,
     filter: ['==', ['get', 'kind'], 'spine'], layout: { 'line-cap': 'round' },
     paint: { 'line-color': '#fff', 'line-width': 1.5, 'line-dasharray': [1, 2] } });
@@ -243,16 +341,29 @@ export function addTrailLayers(map: maplibregl.Map): void {
     filter: ['==', ['get', 'kind'], 'trailtail'],
     paint: { 'circle-radius': 6, 'circle-color': '#f59e0b',
       'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } });
-  map.addLayer({ id: 'trail-labels', type: 'symbol', source: TRAIL_SOURCE,
-    filter: ['==', ['get', 'kind'], 'trail'], layout: { 'text-field': ['get', 'label'], 'text-size': 13,
-      'text-font': ['Noto Sans Regular'], 'text-optional': true },
-    paint: { 'text-color': '#1f2937', 'text-halo-color': '#fff', 'text-halo-width': 1.6 } });
+  map.addLayer({ id: 'trail-head-labels', type: 'symbol', source: TRAIL_SOURCE, minzoom: 14,
+    filter: ['==', ['get', 'kind'], 'head-label'], layout: {
+      'text-field': ['concat', ['get', 'symbol'], ' ', ['get', 'label']], 'text-size': 12,
+      'text-font': ['Noto Sans Regular'], 'text-offset': [0.8, 0], 'text-anchor': 'left',
+      'text-optional': true, 'text-allow-overlap': false },
+    paint: { 'text-color': difficultyMatch('#29323b'), 'text-halo-color': '#f7f8f4',
+      'text-halo-width': 1.8 } });
+  map.addLayer({ id: 'trail-labels', type: 'symbol', source: TRAIL_SOURCE, minzoom: 12.5,
+    filter: ['==', ['get', 'kind'], 'line-label'], layout: {
+      'symbol-placement': 'line-center',
+      'text-field': ['concat', ['get', 'symbol'], ' ', ['get', 'label']], 'text-size': 12.5,
+      'text-font': ['Noto Sans Regular'], 'text-optional': true,
+      'text-max-angle': 35, 'text-allow-overlap': false },
+    paint: { 'text-color': difficultyMatch('#29323b'), 'text-halo-color': '#f7f8f4',
+      'text-halo-width': 1.8 } });
 }
 
 function setSource(map: maplibregl.Map, id: string, data: GeoJSON.FeatureCollection) {
   (map.getSource(id) as maplibregl.GeoJSONSource | undefined)?.setData(data);
 }
 export const setTrailData = (map: maplibregl.Map, data: GeoJSON.FeatureCollection) => setSource(map, TRAIL_SOURCE, data);
+export const setTrailHitData = (map: maplibregl.Map, data: GeoJSON.FeatureCollection) =>
+  setSource(map, TRAIL_HIT_SOURCE, data);
 export const setTrailDraftData = (map: maplibregl.Map, data: GeoJSON.FeatureCollection) => setSource(map, TRAIL_DRAFT_SOURCE, data);
 export const setTrailPaintPreview = (map: maplibregl.Map, preview: TrailPaintPreview) =>
   setSource(map, TRAIL_PAINT_SOURCE, paintPreviewGeoJSON(preview));
@@ -261,4 +372,30 @@ export function setTrailPaintMode(map: maplibregl.Map, mode: 'paint' | 'erase') 
   if (map.getLayer('trail-paint')) map.setPaintProperty('trail-paint', 'fill-color', color);
   for (const layer of ['trail-paint-guide', 'trail-paint-crosshair'])
     if (map.getLayer(layer)) map.setPaintProperty(layer, 'line-color', color);
+}
+
+function identityFilter(id: string | null): maplibregl.FilterSpecification {
+  return ['all', ['==', ['get', 'kind'], 'identity'], ['==', ['get', 'id'], id ?? '']];
+}
+
+export function setTrailSelection(map: maplibregl.Map, selectedId: string | null): void {
+  for (const layer of ['trail-selected-halo', 'trail-selected'])
+    if (map.getLayer(layer)) map.setFilter(layer, identityFilter(selectedId));
+}
+
+export function setTrailHover(map: maplibregl.Map, hoveredId: string | null): void {
+  if (map.getLayer('trail-hover')) map.setFilter('trail-hover', identityFilter(hoveredId));
+}
+
+export function applyTrailTheme(map: maplibregl.Map, theme: 'light' | 'dark'): void {
+  const dark = theme === 'dark';
+  const snow = dark ? '#dfe7ea' : '#f7f8f4';
+  const edge = dark ? '#91a0aa' : '#53616c';
+  if (map.getLayer('trail-fill')) {
+    map.setPaintProperty('trail-fill', 'fill-color', snow);
+    map.setPaintProperty('trail-fill', 'fill-opacity', dark ? 0.42 : 0.58);
+  }
+  if (map.getLayer('trail-outline')) map.setPaintProperty('trail-outline', 'line-color', edge);
+  for (const layer of ['trail-direction', 'trail-closed-marks', 'trail-head-labels', 'trail-labels'])
+    if (map.getLayer(layer)) map.setPaintProperty(layer, 'text-halo-color', snow);
 }

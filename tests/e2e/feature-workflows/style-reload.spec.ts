@@ -37,7 +37,7 @@ const HIT_LAYERS = [
   'snowmaking-pipe-hit',
   'lift-line-hit',
   'lift-terminals',
-  'trail-fill',
+  'trail-hit',
   'dam-hit',
   'dam-pond-hit',
   'standalone-pond-hit',

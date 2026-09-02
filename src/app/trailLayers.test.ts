@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { SavedTrailPart } from '../types';
+import type { SavedTrail, SavedTrailPart } from '../types';
+import type { TrailPresentationResult } from '../types/trailPresentation';
 import { haversineMeters } from '../geo';
-import { draftToGeoJSON, paintPreviewGeoJSON } from './trailLayers';
+import { draftToGeoJSON, paintPreviewGeoJSON, trailPresentationToGeoJSON,
+  trailsToHitGeoJSON } from './trailLayers';
 
 const CURSOR: [number, number] = [-121.5, 46.93];
 
@@ -75,5 +77,42 @@ describe('trail paint preview geometry', () => {
       name: 'Traverse', infeasibleLines: [[CURSOR, end]] });
     expect(data.features.map((feature) => feature.properties?.kind))
       .toContain('infeasible');
+  });
+});
+
+describe('compiled trail map data', () => {
+  const polygon: [number, number][][] = [[CURSOR, [-121.49, 46.93],
+    [-121.49, 46.92], [-121.5, 46.92], CURSOR]];
+  const trail: SavedTrail = {
+    id: 'run', name: 'Alpine Way', parts: [{ polygon,
+      centerline: [CURSOR, [-121.49, 46.92]], centerlineElevM: [100, 90] }],
+    brushWidthM: 30, areaM2: 1000, lengthM: 100, verticalM: 10,
+    avgSlopeDeg: 8, maxSlopeDeg: 10, difficulty: 'blue', status: 'complete',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+
+  it('keeps the unified surface separate from semantic run identity', () => {
+    const presentation: TrailPresentationResult = {
+      version: 1, surface: [polygon], junctions: [],
+      routes: [{ featureId: 'route:run', trailId: 'run', name: 'Alpine Way',
+        label: 'Alpine Way', difficulty: 'blue', status: 'complete', closed: false,
+        coordinates: [CURSOR, [-121.49, 46.92]] }],
+      labels: [{ featureId: 'label:run', trailId: 'run', name: 'Alpine Way',
+        label: 'Alpine Way', difficulty: 'blue', status: 'complete', closed: false,
+        geometry: { type: 'LineString', coordinates: [CURSOR, [-121.49, 46.92]] } }],
+    };
+    const data = trailPresentationToGeoJSON(presentation);
+    expect(data.features.map((feature) => feature.properties?.kind))
+      .toEqual(['surface', 'route', 'line-label']);
+    expect(data.features[0].properties).not.toHaveProperty('id');
+    expect(data.features[1].properties).toMatchObject({ id: 'run', difficulty: 'blue' });
+  });
+
+  it('keeps original polygons solely in the immediate hit source', () => {
+    const data = trailsToHitGeoJSON([trail]);
+    expect(data.features.map((feature) => feature.properties?.kind))
+      .toEqual(['hit', 'identity']);
+    expect(data.features.every((feature) => feature.properties?.id === 'run')).toBe(true);
+    expect(data.features[0].geometry).toEqual({ type: 'Polygon', coordinates: polygon });
   });
 });

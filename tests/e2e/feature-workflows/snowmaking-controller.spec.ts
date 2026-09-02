@@ -235,7 +235,7 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   });
   await page.mouse.move(dashboardPipe.x, dashboardPipe.y);
   await expect(page.locator('.snowmaking-pipe-tooltip')).toContainText('Summit Main ·');
-  await expect(page.locator('.snowmaking-pipe-tooltip')).toContainText('12"');
+  await expect(page.locator('.snowmaking-pipe-tooltip')).toContainText('12 in');
   await expect(page.locator('.dashboard-sidebar .snowmaking-pipe-hover-details'))
     .toContainText('Summit Main ·');
   await page.mouse.click(dashboardPipe.x, dashboardPipe.y);
@@ -568,7 +568,7 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
   await analyzer.getByRole('button', { name: 'Analyze', exact: true }).click();
 
   await expect(analyzer).toContainText('116 GPM');
-  await expect(analyzer).toContainText('6,960 gal/hr');
+  await expect(analyzer).toContainText('6960 gal/hr');
   await expect(analyzer).toContainText('All selected guns ready');
   await expect(analyzer.getByText('Ready', { exact: true })).toHaveCount(2);
 

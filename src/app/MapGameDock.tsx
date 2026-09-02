@@ -317,6 +317,8 @@ export function MapGameDock(props: MapGameDockProps) {
         paths={props.skiPaths} units={props.units} selectedTrailId={props.selectedTrailId}
         selectedNodeId={props.selectedNodeId} selectedPathId={props.selectedPathId}
         activeTool={activeTrailsTool} warnings={trailNetworkWarnings}
+        presentationError={trailController.presentationError}
+        onRetryPresentation={trailController.retryPresentation}
         onPaintRun={trailController.arm} onAddNode={() => nodePathController.armNode('add')}
         onRemoveNodeTool={() => nodePathController.armNode('remove')}
         onDrawPath={nodePathController.armPath} onSelectTrail={trailController.select}

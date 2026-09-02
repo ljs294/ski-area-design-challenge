@@ -28,6 +28,8 @@ export function TrailsPanel({
   selectedPathId,
   activeTool,
   warnings,
+  presentationError,
+  onRetryPresentation,
   onPaintRun,
   onAddNode,
   onRemoveNodeTool,
@@ -52,6 +54,8 @@ export function TrailsPanel({
   selectedPathId: string | null;
   activeTool: TrailsTool;
   warnings: string[];
+  presentationError?: string | null;
+  onRetryPresentation?: () => void;
   onPaintRun: () => void;
   onAddNode: () => void;
   onRemoveNodeTool: () => void;
@@ -254,6 +258,14 @@ export function TrailsPanel({
             ))}
           </ul>
         </>
+      )}
+      {presentationError && (
+        <div className="lift-warning" role="status">
+          <span>{presentationError}</span>
+          <button type="button" className="site-btn" onClick={onRetryPresentation}>
+            Retry run display
+          </button>
+        </div>
       )}
     </div>
   );

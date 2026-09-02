@@ -151,10 +151,13 @@ test('review retains a grade failure and commits trail topology coherently', asy
   const name = page.locator('.trail-panel .lift-name-input');
   await name.fill('Atomic Glade');
   await expect.poll(() => sourceFeatureCount(page, 'trail-draft')).toBeGreaterThan(0);
+  await expect.poll(() => sourceFeatureCount(page, 'trails')).toBeGreaterThan(0);
   await setCaptureTransients(page, true);
   await expect.poll(() => sourceFeatureCount(page, 'trail-draft')).toBe(0);
+  await expect.poll(() => sourceFeatureCount(page, 'trails')).toBe(0);
   await setCaptureTransients(page, false);
   await expect.poll(() => sourceFeatureCount(page, 'trail-draft')).toBeGreaterThan(0);
+  await expect.poll(() => sourceFeatureCount(page, 'trails')).toBeGreaterThan(0);
 
   const grade = page.getByRole('checkbox');
   await expect(grade).toBeEnabled({ timeout: 10_000 });

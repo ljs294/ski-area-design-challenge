@@ -6,6 +6,7 @@ import { DamAnalysisAdapter } from './damAnalysisClient';
 import { TerrainGradeAdapter } from './terrainGradeClient';
 import type { TerrainDocument } from './terrainDocument';
 import { TrailPaintAdapter } from './trailPaintClient';
+import { TrailPresentationAdapter } from './trailPresentationClient';
 
 /** Stable worker adapters and the cover service shared by all controllers. */
 export function useMapWorkers(
@@ -20,6 +21,8 @@ export function useMapWorkers(
   if (!terrainGradeRef.current) terrainGradeRef.current = new TerrainGradeAdapter();
   const trailPaintRef = useRef<TrailPaintAdapter | null>(null);
   if (!trailPaintRef.current) trailPaintRef.current = new TrailPaintAdapter();
+  const trailPresentationRef = useRef<TrailPresentationAdapter | null>(null);
+  if (!trailPresentationRef.current) trailPresentationRef.current = new TrailPresentationAdapter();
 
   const coverEdit = coverEditRef.current;
   return {
@@ -32,5 +35,6 @@ export function useMapWorkers(
     }),
     terrainGrade: terrainGradeRef.current,
     trailPaint: trailPaintRef.current,
+    trailPresentation: trailPresentationRef.current,
   };
 }

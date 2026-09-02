@@ -50,7 +50,7 @@ test('snow overlay switches modes, survives restyle, and reloads its schema-16 s
 
   await page.getByRole('button', { name: /^Menu/ }).click();
   await page.getByRole('menuitem', { name: 'Settings' }).click();
-  await page.getByRole('button', { name: 'Meters' }).click();
+  await page.getByRole('button', { name: 'Metric' }).click();
   await page.getByRole('button', { name: 'Close settings' }).click();
   await expect.poll(() => visibilityOf(page, 'snow')).toBe('visible');
   await expect(page.getByRole('button', { name: 'Conditions', exact: true })).toHaveAttribute('aria-pressed', 'true');
