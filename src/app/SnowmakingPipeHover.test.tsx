@@ -19,7 +19,7 @@ describe('Snowmaking pipe hover details', () => {
     const html = renderToStaticMarkup(<SnowmakingPipeHoverDetails hover={hover} units="metric" />);
     expect(html).toContain('Hovered pipe properties');
     expect(html).toContain('Summit Main · 1');
-    expect(html).toContain('8&quot;');
+    expect(html).toContain('203 mm');
     expect(html).toContain('142 m');
     expect(html).toContain('10 m');
     expect(html).not.toContain('285 m');
@@ -37,7 +37,7 @@ describe('Snowmaking pipe hover details', () => {
       units="imperial" />);
     expect(html).toContain('Pond Intake → Hydrant 1');
     expect(html).toContain('58.4 GPM');
-    expect(html).toContain('90 →');
+    expect(html).toContain('90 PSI →');
     expect(html).toContain('84 PSI');
     expect(html).toContain('4.2 ft');
     expect(html).toContain('466 ft');

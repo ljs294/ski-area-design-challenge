@@ -5,6 +5,7 @@ import type { SavedSnowgun, SavedSnowmakingNode } from '../types/snowmaking';
 import type { XY } from '../network';
 import type { Units } from './SettingsContext';
 import { snowmakingGunColor, snowmakingGunVisualState } from './dashboardMapLayers';
+import { formatFeet } from './unitFormat';
 
 export function SnowgunDashboardConnections({ guns, nodes, place }: {
   guns: SavedSnowgun[]; nodes: SavedSnowmakingNode[]; place(point: [number, number]): XY;
@@ -91,12 +92,12 @@ export function SnowgunDashboardInspector({ gun, nodes, units, move, remove }: {
     <div className="dock-head"><span className="dock-head-title">{label} · {variant.shortLabel}</span></div>
     <div className="network-sub">{variant.label}</div>
     {!hydrant && <div className="snowgun-disconnected-message" role="status">
-      <span className="snowgun-warning" aria-hidden="true">!</span>Disconnected — no free hydrant is within 50 ft.
+      <span className="snowgun-warning" aria-hidden="true">!</span>Disconnected — no free hydrant is within {formatFeet(50, units, 0)}.
     </div>}
     <div className="network-stats"><GunStat label="Model" value="HKD Impulse R5" />
       <GunStat label="Mount" value={variant.mount === 'sled' ? 'Sled' : 'Tower'} />
-      <GunStat label="Tower length" value={`${variant.towerLengthFt} ft`} />
-      <GunStat label="Throw" value={`${variant.throwFt} ft`} />
+      <GunStat label="Tower length" value={formatFeet(variant.towerLengthFt, units, 0)} />
+      <GunStat label="Throw" value={formatFeet(variant.throwFt, units, 0)} />
       <GunStat label="Catalog price" value={`$${variant.priceUsd.toLocaleString('en-US')}`} />
       <GunStat label="Elevation" value={gun.elevM == null ? '—' : fmtDistance(gun.elevM, units)} />
       <GunStat label="Hydrant" value={hydrant ? snowmakingNodeLabel(hydrant) : 'Disconnected'} />

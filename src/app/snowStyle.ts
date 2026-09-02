@@ -1,4 +1,5 @@
 import { SNOW_SURFACES } from '../snow';
+import type { Units } from './SettingsContext';
 
 export type SnowDisplayMode = 'depth' | 'conditions';
 
@@ -26,6 +27,18 @@ export const SNOW_DEPTH_LEGEND = SNOW_DEPTH_BANDS.map((band) => ({
   label: band.label,
   color: `rgb(${band.rgb.join(', ')})`,
 }));
+
+export function snowDepthLegend(units: Units): Array<{ label: string; color: string }> {
+  if (units === 'metric') return [...SNOW_DEPTH_LEGEND];
+  return SNOW_DEPTH_BANDS.map((band, index) => {
+    const minimum = index === 0 ? 0 : SNOW_DEPTH_BANDS[index - 1].maxM;
+    const minimumIn = Math.round(minimum * 39.37007874);
+    const label = Number.isFinite(band.maxM)
+      ? `${minimumIn}\u2013${Math.round(band.maxM * 39.37007874)} in`
+      : `${minimumIn}+ in`;
+    return { label, color: `rgb(${band.rgb.join(', ')})` };
+  });
+}
 
 export const SNOW_CONDITION_LEGEND = SNOW_SURFACE_STYLES.map((surface) => ({
   label: `${surface.code} · ${surface.name}`,

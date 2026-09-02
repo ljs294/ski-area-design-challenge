@@ -4,8 +4,7 @@ import type { SnowmakingSegmentAnalysisResult } from '../snowmakingHydraulics';
 import type { SnowmakingPipeStats } from '../snowmakingNetwork';
 import type { SavedSnowmakingPipe } from '../types/snowmaking';
 import type { Units } from './SettingsContext';
-
-const NUMBER = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+import { formatFeet, formatFlow, formatInches, formatPressure } from './unitFormat';
 
 export interface SnowmakingPipeHoverState {
   pipe: SavedSnowmakingPipe;
@@ -28,17 +27,17 @@ export function SnowmakingPipeHoverDetails({ hover, units, compact = false }: {
     <div className="snowmaking-pipe-hover-title"><span>Pipe segment</span>
       <strong>{hover.pipe.name} · {hover.segmentIndex + 1}</strong></div>
     <div className="snowmaking-pipe-hover-grid">
-      <div><span>Diameter</span><strong>{hover.pipe.diameterIn}&quot;</strong></div>
+      <div><span>Diameter</span><strong>{formatInches(hover.pipe.diameterIn, units, 0)}</strong></div>
       <div><span>Length</span><strong>{fmtDistance(hover.segmentStats.lengthM, units)}</strong></div>
       <div><span>Vertical</span><strong>{hover.segmentStats.verticalM == null
         ? '—' : fmtDistance(hover.segmentStats.verticalM, units)}</strong></div>
       {result && <>
         {hover.direction && <div className="snowmaking-pipe-hover-direction"><span>Flow direction</span>
           <strong>{hover.direction.from} → {hover.direction.to}</strong></div>}
-        <div><span>Flow</span><strong>{NUMBER.format(Math.abs(result.flowGpm))} GPM</strong></div>
-        <div><span>Pressure</span><strong>{NUMBER.format(result.upstreamPressurePsi)} →{' '}
-          {NUMBER.format(result.downstreamPressurePsi)} PSI</strong></div>
-        <div><span>Friction</span><strong>{NUMBER.format(result.frictionHeadFt)} ft</strong></div>
+        <div><span>Flow</span><strong>{formatFlow(Math.abs(result.flowGpm), units)}</strong></div>
+        <div><span>Pressure</span><strong>{formatPressure(result.upstreamPressurePsi, units, 0)} →{' '}
+          {formatPressure(result.downstreamPressurePsi, units, 0)}</strong></div>
+        <div><span>Friction</span><strong>{formatFeet(result.frictionHeadFt, units)}</strong></div>
       </>}
     </div>
   </section>;

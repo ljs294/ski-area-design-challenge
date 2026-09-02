@@ -5,6 +5,7 @@ import type { SavedSnowgun, SavedSnowmakingNode, SnowgunVariantId } from '../typ
 import type { Units } from './SettingsContext';
 import type { SnowgunTool } from './snowmakingGunControllerModel';
 import type { SnowgunPlanPreview } from './useSnowgunController';
+import { formatFeet, formatPressure } from './unitFormat';
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD',
   maximumFractionDigits: 0 });
@@ -35,7 +36,7 @@ export function SnowgunToolPanel({ tool, preview, units, setVariant, removeDraft
   if (tool.phase === 'moving') return <div className="site-control site-control-wide snowmaking-panel">
     <div className="dock-head"><span className="dock-head-title">Move sled snowgun</span>
       <button className="dock-close" onClick={cancel} aria-label="Cancel moving snowgun">×</button></div>
-    <div className="site-hint">Click the new location. The sled will use the nearest free hydrant within 50 ft.</div>
+    <div className="site-hint">Click the new location. The sled will use the nearest free hydrant within {formatFeet(50, units, 0)}.</div>
     {preview.candidate && <div className="lift-stats">
       <div className="readout-line"><span className="lift-stat-label">Connection</span>
         <span className="lift-stat-value">{preview.candidate.hydrantLabel ?? 'Disconnected'}</span></div>
@@ -61,7 +62,7 @@ export function SnowgunToolPanel({ tool, preview, units, setVariant, removeDraft
         <span className="lift-stat-value">{money.format(preview.totalUsd)}</span></div>
     </div>
     {preview.disconnectedCount > 0 && <div className="lift-warning">Disconnected guns will be built,
-      but cannot receive water until a free hydrant is available within 50 ft.</div>}
+      but cannot receive water until a free hydrant is available within {formatFeet(50, units, 0)}.</div>}
     {tool.error && <div className="lift-warning">{tool.error}</div>}
     <div className="site-actions"><button className="site-btn" onClick={back}>Back</button>
       <button className="site-btn site-btn-primary" disabled={preview.items.length === 0}
@@ -79,8 +80,8 @@ export function SnowgunToolPanel({ tool, preview, units, setVariant, removeDraft
         {SNOWGUN_VARIANTS.map((entry) => <option key={entry.id} value={entry.id}>
           {entry.label} · {money.format(entry.priceUsd)}</option>)}</select></label>
     <div className="site-hint">{variant.mount === 'sled' ? 'Movable sled' : 'Permanent tower'} ·
-      {' '}{variant.throwFt} ft throw · {HKD_IMPULSE_R5.minimumWaterPressurePsi} PSI water ·
-      {' '}{HKD_IMPULSE_R5.minimumAirPressurePsi} PSI air</div>
+      {' '}{formatFeet(variant.throwFt, units, 0)} throw · {formatPressure(HKD_IMPULSE_R5.minimumWaterPressurePsi, units, 0)} water ·
+      {' '}{formatPressure(HKD_IMPULSE_R5.minimumAirPressurePsi, units, 0)} air</div>
     {preview.items.length > 0 ? <PlanRows preview={preview} remove={removeDraft} />
       : <div className="lift-overview-empty">No snowguns planned yet.</div>}
     <div className="readout-line"><span className="lift-stat-label">Plan total</span>
@@ -103,12 +104,12 @@ export function SnowgunInspector({ gun, nodes, units, close, move, remove }: {
     <div className="dock-head"><span className="dock-head-title">{label} · {variant.label}</span>
       <button className="dock-close" onClick={close} aria-label="Close snowgun">×</button></div>
     {!hydrant && <div className="lift-warning"><span className="snowgun-warning" aria-hidden="true">!</span>
-      Disconnected — no free hydrant is available within 50 ft.</div>}
+      Disconnected — no free hydrant is available within {formatFeet(50, units, 0)}.</div>}
     <div className="lift-stats">
       <div className="readout-line"><span className="lift-stat-label">Mount</span>
-        <span className="lift-stat-value">{variant.mount === 'sled' ? 'Sled' : `${variant.towerLengthFt} ft tower`}</span></div>
+        <span className="lift-stat-value">{variant.mount === 'sled' ? 'Sled' : `${formatFeet(variant.towerLengthFt, units, 0)} tower`}</span></div>
       <div className="readout-line"><span className="lift-stat-label">Throw</span>
-        <span className="lift-stat-value">{variant.throwFt} ft</span></div>
+        <span className="lift-stat-value">{formatFeet(variant.throwFt, units, 0)}</span></div>
       <div className="readout-line"><span className="lift-stat-label">Catalog price</span>
         <span className="lift-stat-value">{money.format(variant.priceUsd)}</span></div>
       <div className="readout-line"><span className="lift-stat-label">Hydrant</span>

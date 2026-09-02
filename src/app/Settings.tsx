@@ -215,8 +215,8 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
     { value: 'system', label: 'System' },
   ];
   const unitOptions: { value: Units; label: string }[] = [
-    { value: 'imperial', label: 'Feet' },
-    { value: 'metric', label: 'Meters' },
+    { value: 'imperial', label: 'US Units' },
+    { value: 'metric', label: 'Metric' },
   ];
   const qualityOptions: { value: RenderQuality; label: string }[] = [
     { value: 'performance', label: 'Performance' },

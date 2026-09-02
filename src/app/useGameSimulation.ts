@@ -212,7 +212,11 @@ export function useGameSimulation({
   useEffect(() => () => snowWorkerRef.current?.cancel(), [terrain]);
 
   const ensureAnnualRun = useCallback(async (target: SimulationClock) => {
-    if (!terrain || !weatherPackage || !binding) return false;
+    if (!terrain || !weatherPackage || !binding) {
+      setStatus('design-only');
+      setMessage('Weather is not installed for this terrain. Prepare the historical package and try again.');
+      return false;
+    }
     const year = weatherYearLabel(target.calendarDate, weatherPackage.manifest.timezone);
     if (sessionRef.current && weatherYearLabel(sessionRef.current.plan.startsAt, sessionRef.current.timezone) === year) return true;
     setStatus('working'); setMessage(`Generating fixed ${year}-${year + 1} weather truth...`);

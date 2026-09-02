@@ -75,4 +75,6 @@ test('summer uses one confirmed September skip and weather panels have an opaque
   await expect(weather).toBeVisible();
   expect(await weather.evaluate((element) => getComputedStyle(element).backgroundColor))
     .not.toBe('rgba(0, 0, 0, 0)');
+  expect(await weather.evaluate((element) => getComputedStyle(element).overflow)).toBe('hidden');
+  expect((await weather.boundingBox())?.width).toBeGreaterThan(1_000);
 });

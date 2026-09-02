@@ -2,8 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { OverlayId } from './Legend';
 import type { Units } from './SettingsContext';
 import type { PrecipitationType } from '../weather/weatherModel';
-
-const M_TO_FT = 3.28084;
+import { formatElevation, formatTemperature } from './unitFormat';
 
 export interface Readout {
   elevationM: number;
@@ -61,10 +60,7 @@ export function useCursorReadout(store: CursorReadoutStore): Readout | null {
 export function CursorReadout({ readout, units }: { readout: Readout | null; units: Units }) {
   if (!readout) return null;
 
-  const elev =
-    units === 'imperial'
-      ? `${Math.round(readout.elevationM * M_TO_FT).toLocaleString()} ft`
-      : `${Math.round(readout.elevationM).toLocaleString()} m`;
+  const elev = formatElevation(readout.elevationM, units);
 
   let stat: { label: string; value: string } | null = null;
   if (readout.overlay === 'slope') stat = { label: 'Slope', value: `${Math.round(readout.slopeDeg)}°` };
@@ -85,7 +81,7 @@ export function CursorReadout({ readout, units }: { readout: Readout | null; uni
       )}
       {readout.temperatureC != null && <div className="readout-line">
         <span className="readout-label">Local weather</span>
-        <span className="readout-value">{readout.temperatureC.toFixed(1)} C / {readout.precipitationType}</span>
+        <span className="readout-value">{formatTemperature(readout.temperatureC, units)} / {readout.precipitationType}</span>
       </div>}
     </div>
   );
