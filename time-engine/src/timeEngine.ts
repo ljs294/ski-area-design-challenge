@@ -1,37 +1,21 @@
 // Standalone simulation calendar core. This module deliberately has no game,
 // browser, Electron, terminal, timer, or filesystem dependencies.
-export type Season = 'summer' | 'winter';
-export type DailyPhase = 'overnight' | 'preOpen' | 'operating' | 'evening';
-export type ClockRunState = 'paused' | 'running' | 'season-transition';
-export type SimulationSpeed = 1 | 2 | 4 | 8;
+import type {
+  AdvanceResult, DailyPhase, SimulationClock, TimeBoundaryEvent,
+  TimeBoundaryTarget, TimeEngineSnapshot, TimeScaleConfig,
+} from '../../src/types/simulation';
+import { localWeatherDateKey, weatherInstantForLocal, weatherLocalParts } from '../../src/weather/localTime';
 
-export interface DailyPhaseConfig {
-  overnightStart: number;
-  preOpenStart: number;
-  operatingStart: number;
-  eveningStart: number;
-}
-
-export interface TimeScaleConfig {
-  schemaVersion: 1;
-  configVersion: number;
-  winterWeeks: number;
-  summerPeriods: number;
-  realSecondsPerWinterWeek: number;
-  speedMultipliers: readonly SimulationSpeed[];
-  clockStepMinutes: number;
-  uiUpdateHz: number;
-  maxWallDeltaMs: number;
-  initialSummerStart: string;
-  winterStartMonth: number;
-  winterStartDay: number;
-  winterStartHour: number;
-  dailyPhases: DailyPhaseConfig;
-}
+export type {
+  AdvanceResult, ClockRunState, DailyPhase, DailyPhaseConfig, Season, SimulationClock,
+  SimulationSpeed, TimeAdvanceContext, TimeBoundaryEvent, TimeBoundaryTarget,
+  TimeEngineSnapshot, TimeEventConsumer, TimeScaleConfig,
+} from '../../src/types/simulation';
 
 export const DEFAULT_TIME_CONFIG: TimeScaleConfig = {
-  schemaVersion: 1,
-  configVersion: 1,
+  schemaVersion: 2,
+  configVersion: 2,
+  timezone: 'UTC',
   winterWeeks: 24,
   summerPeriods: 16,
   realSecondsPerWinterWeek: 900,
@@ -51,69 +35,17 @@ export const DEFAULT_TIME_CONFIG: TimeScaleConfig = {
   },
 };
 
-export interface SimulationClock {
-  schemaVersion: 1;
-  resortYear: number;
-  completedWinterSeasons: number;
-  season: Season;
-  seasonStartedAt: string;
-  summerPeriod: number | null;
-  winterWeek: number | null;
-  absoluteGameMinute: number;
-  calendarDate: string;
-  minuteOfDay: number;
-  weekday: number;
-  dailyPhase: DailyPhase;
-  speed: SimulationSpeed;
-  runState: ClockRunState;
-  transitionPending: Season | null;
-}
-
-export type TimeBoundaryEvent =
-  | { type: 'dailyPhaseChanged'; at: string; from: DailyPhase; to: DailyPhase }
-  | { type: 'dayStarted'; at: string; date: string; weekday: number }
-  | { type: 'weekStarted'; at: string; week: number }
-  | { type: 'weekEnded'; at: string; week: number }
-  | { type: 'summerPeriodStarted'; at: string; period: number }
-  | { type: 'summerPeriodEnded'; at: string; period: number }
-  | { type: 'seasonEnded'; at: string; season: Season }
-  | { type: 'seasonStarted'; at: string; season: Season }
-  | { type: 'yearStarted'; at: string; resortYear: number }
-  | { type: 'seasonTransitionPending'; at: string; target: Season };
-
-export interface AdvanceResult {
-  clock: SimulationClock;
-  events: TimeBoundaryEvent[];
-  simulatedMinutesAdvanced: number;
-}
-
-export type TimeBoundaryTarget =
-  | 'next-day'
-  | 'next-week'
-  | 'next-season'
-  | 'next-summer'
-  | 'next-winter'
-  | 'next-year';
-
-export interface TimeEngineSnapshot {
-  schemaVersion: 1;
-  configVersion: number;
-  clock: SimulationClock;
-}
-
-export interface TimeAdvanceContext {
-  before: SimulationClock;
-  after: SimulationClock;
-  simulatedMinutes: number;
-}
-
-export interface TimeEventConsumer {
-  onTimeAdvanced(context: TimeAdvanceContext): void;
-  onBoundaryEvent(event: TimeBoundaryEvent): void;
-}
-
 const MINUTES_PER_DAY = 1_440;
 export const MINUTES_PER_WEEK = 10_080;
+
+export function scaledSimulationMinutes(
+  wallMilliseconds: number,
+  speed: SimulationClock['speed'],
+  config: TimeScaleConfig = DEFAULT_TIME_CONFIG,
+): number {
+  return Math.max(0, wallMilliseconds) * MINUTES_PER_WEEK /
+    (config.realSecondsPerWinterWeek * 1_000) * speed;
+}
 
 function asDate(iso: string): Date {
   return new Date(iso);
@@ -131,8 +63,24 @@ function wholeMinutesBetween(from: Date, to: Date): number {
   return Math.max(0, Math.round((to.getTime() - from.getTime()) / 60_000));
 }
 
-function minuteOfDay(date: Date): number {
-  return date.getUTCHours() * 60 + date.getUTCMinutes();
+function localMinuteOfDay(date: Date, timezone: string): number {
+  const local = weatherLocalParts(date, timezone);
+  return local.hour * 60 + local.minute;
+}
+
+function localWeekday(date: Date, timezone: string): number {
+  const local = weatherLocalParts(date, timezone);
+  return new Date(Date.UTC(local.year, local.month - 1, local.day)).getUTCDay();
+}
+
+function minutesToNextLocalDay(date: Date, timezone: string): number {
+  const local = weatherLocalParts(date, timezone);
+  const nextDate = new Date(Date.UTC(local.year, local.month - 1, local.day + 1));
+  const next = new Date(weatherInstantForLocal({
+    year: nextDate.getUTCFullYear(), month: nextDate.getUTCMonth() + 1, day: nextDate.getUTCDate(),
+    hour: 0, minute: 0, second: 0,
+  }, timezone));
+  return Math.max(1, wholeMinutesBetween(date, next));
 }
 
 export function phaseAt(minute: number, config: TimeScaleConfig): DailyPhase {
@@ -145,7 +93,7 @@ export function phaseAt(minute: number, config: TimeScaleConfig): DailyPhase {
 
 function withDerived(clock: SimulationClock, config: TimeScaleConfig): SimulationClock {
   const date = asDate(clock.calendarDate);
-  const minute = minuteOfDay(date);
+  const minute = localMinuteOfDay(date, config.timezone);
   let winterWeek = clock.winterWeek;
   if (clock.season === 'winter') {
     const elapsed = wholeMinutesBetween(asDate(clock.seasonStartedAt), date);
@@ -154,23 +102,24 @@ function withDerived(clock: SimulationClock, config: TimeScaleConfig): Simulatio
   return {
     ...clock,
     minuteOfDay: minute,
-    weekday: date.getUTCDay(),
+    weekday: localWeekday(date, config.timezone),
     dailyPhase: phaseAt(minute, config),
     winterWeek,
   };
 }
 
 function firstWinterStartAfter(date: Date, config: TimeScaleConfig): Date {
-  let year = date.getUTCFullYear();
+  let year = weatherLocalParts(date, config.timezone).year;
   const candidateForYear = (candidateYear: number): Date => {
-    let value = new Date(Date.UTC(
-      candidateYear,
-      config.winterStartMonth,
-      config.winterStartDay,
-      config.winterStartHour,
-    ));
-    while (value.getUTCDay() !== 1) value = addMinutes(value, MINUTES_PER_DAY);
-    return value;
+    let day = config.winterStartDay;
+    for (;;) {
+      const value = new Date(weatherInstantForLocal({
+        year: candidateYear, month: config.winterStartMonth + 1, day,
+        hour: config.winterStartHour, minute: 0, second: 0,
+      }, config.timezone));
+      if (localWeekday(value, config.timezone) === 1) return value;
+      day += 1;
+    }
   };
   let candidate = candidateForYear(year);
   // Equality occurs after the final summer period has advanced exactly to the
@@ -240,7 +189,8 @@ export function createClock(
   if (initialState) return validateClock(initialState, config);
   const start = asDate(config.initialSummerStart);
   return withDerived({
-    schemaVersion: 1,
+    schemaVersion: 2,
+    timezone: config.timezone,
     resortYear: 1,
     completedWinterSeasons: 0,
     season: 'summer',
@@ -250,7 +200,7 @@ export function createClock(
     absoluteGameMinute: 0,
     calendarDate: iso(start),
     minuteOfDay: 0,
-    weekday: start.getUTCDay(),
+    weekday: localWeekday(start, config.timezone),
     dailyPhase: 'overnight',
     speed: 1,
     runState: 'paused',
@@ -291,7 +241,7 @@ export function advanceClock(
     const weekElapsed = elapsed % MINUTES_PER_WEEK;
     const untilWeek = MINUTES_PER_WEEK - weekElapsed;
     const untilSeason = config.winterWeeks * MINUTES_PER_WEEK - elapsed;
-    const untilDay = MINUTES_PER_DAY - next.minuteOfDay;
+    const untilDay = minutesToNextLocalDay(oldDate, config.timezone);
     const chunk = Math.min(
       simulatedMinutes - advanced,
       untilWeek,
@@ -313,13 +263,12 @@ export function advanceClock(
       next = transitionToSummer(next, config, events);
       break;
     }
-    if (oldDate.getUTCDate() !== nextDate.getUTCDate() ||
-      oldDate.getUTCMonth() !== nextDate.getUTCMonth() ||
-      oldDate.getUTCFullYear() !== nextDate.getUTCFullYear()) {
+    if (localWeatherDateKey(iso(oldDate), config.timezone) !==
+      localWeatherDateKey(iso(nextDate), config.timezone)) {
       events.push({
         type: 'dayStarted',
         at: next.calendarDate,
-        date: next.calendarDate.slice(0, 10),
+        date: localWeatherDateKey(next.calendarDate, config.timezone),
         weekday: next.weekday,
       });
     }
@@ -444,7 +393,7 @@ export function advanceToBoundary(
     if (clock.season !== 'winter') {
       throw new Error('Day skipping is available only during winter');
     }
-    const minutes = MINUTES_PER_DAY - clock.minuteOfDay;
+    const minutes = minutesToNextLocalDay(asDate(clock.calendarDate), config.timezone);
     return advanceClock(clock, minutes, config);
   }
   if (boundary === 'next-week') {
@@ -495,7 +444,7 @@ export function createTimeSnapshot(
   config: TimeScaleConfig = DEFAULT_TIME_CONFIG,
 ): TimeEngineSnapshot {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     configVersion: config.configVersion,
     clock: { ...clock, runState: 'paused' },
   };
@@ -506,7 +455,7 @@ function isIsoDate(value: unknown): value is string {
 }
 
 function validateClock(raw: SimulationClock, config: TimeScaleConfig): SimulationClock {
-  if (!raw || typeof raw !== 'object' || raw.schemaVersion !== 1) {
+  if (!raw || typeof raw !== 'object' || raw.schemaVersion !== 2) {
     throw new Error('Unsupported or invalid clock schema');
   }
   if (!Number.isInteger(raw.resortYear) || raw.resortYear < 1) throw new Error('Invalid resort year');
@@ -538,6 +487,7 @@ function validateClock(raw: SimulationClock, config: TimeScaleConfig): Simulatio
     : null;
   return withDerived({
     ...raw,
+    timezone: config.timezone,
     runState: 'paused',
     transitionPending,
     summerPeriod: raw.season === 'summer' ? raw.summerPeriod : null,
@@ -550,12 +500,58 @@ export function restoreTimeSnapshot(
   config: TimeScaleConfig = DEFAULT_TIME_CONFIG,
 ): SimulationClock {
   if (!raw || typeof raw !== 'object') throw new Error('Snapshot must be an object');
-  const snapshot = raw as Partial<TimeEngineSnapshot>;
-  if (snapshot.schemaVersion !== 1) throw new Error('Unsupported snapshot schema');
+  const snapshot = raw as { schemaVersion?: number; configVersion?: number;
+    clock?: Partial<SimulationClock> & { schemaVersion?: number; timezone?: string } };
+  if (snapshot.schemaVersion === 1 && snapshot.configVersion === 1 && snapshot.clock) {
+    return validateClock({ ...snapshot.clock, schemaVersion: 2, timezone: 'UTC' } as SimulationClock,
+      { ...config, timezone: 'UTC' });
+  }
+  if (snapshot.schemaVersion !== 2) throw new Error('Unsupported snapshot schema');
   if (snapshot.configVersion !== config.configVersion) {
     throw new Error(`Snapshot requires time config ${snapshot.configVersion}`);
   }
-  return validateClock(snapshot.clock as SimulationClock, config);
+  const timezone = snapshot.clock?.timezone;
+  return validateClock(snapshot.clock as SimulationClock, {
+    ...config,
+    ...(typeof timezone === 'string' ? { timezone } : {}),
+  });
+}
+
+/** Complete the one-time planning phase at the exact resort-local September 1 boundary. */
+export function advanceSummerToSeptember(
+  clock: SimulationClock,
+  config: TimeScaleConfig = DEFAULT_TIME_CONFIG,
+): AdvanceResult {
+  if (clock.season !== 'summer' || clock.runState === 'season-transition') {
+    return { clock: { ...clock }, events: [], simulatedMinutesAdvanced: 0 };
+  }
+  const local = weatherLocalParts(clock.calendarDate, config.timezone);
+  const year = local.month < 9 ? local.year : local.year + 1;
+  const target = new Date(weatherInstantForLocal(
+    { year, month: 9, day: 1, hour: 0, minute: 0, second: 0 }, config.timezone));
+  const advanced = wholeMinutesBetween(asDate(clock.calendarDate), target);
+  const at = iso(target);
+  const events: TimeBoundaryEvent[] = [
+    { type: 'summerPeriodEnded', at, period: clock.summerPeriod ?? 1 },
+    { type: 'seasonEnded', at, season: 'summer' },
+    { type: 'seasonStarted', at, season: 'winter' },
+    { type: 'weekStarted', at, week: 1 },
+  ];
+  return {
+    clock: withDerived({
+      ...clock,
+      season: 'winter',
+      seasonStartedAt: at,
+      summerPeriod: null,
+      winterWeek: 1,
+      calendarDate: at,
+      absoluteGameMinute: clock.absoluteGameMinute + advanced,
+      runState: 'paused',
+      transitionPending: null,
+    }, config),
+    events,
+    simulatedMinutesAdvanced: advanced,
+  };
 }
 
 export function describeTimeEvent(event: TimeBoundaryEvent): string {

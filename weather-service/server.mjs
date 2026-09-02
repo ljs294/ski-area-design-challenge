@@ -120,7 +120,7 @@ export function createWeatherService(options = {}) {
       if (request.method === 'GET' && url.pathname === '/health') {
         return sendJson(response, 200, {
           ok: true, apiVersion: 2, mode: providerSet.mode, offlineRuntimeGuaranteed: true,
-          providerPolicy: providerSet.mode === 'fixture' ? 'fixture-v1' : 'daymet-v4r1-merra2-v1',
+          providerPolicy: providerSet.mode === 'fixture' ? 'fixture-v1' : 'daymet-v4r1-power-hourly-v2',
           providers: { daymet: providerSet.daymet.version, merra2: providerSet.merra2.version },
         });
       }

@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { TerrainRecord } from '../types/terrain';
-import type { SavedWeatherRun } from '../types/gameSave';
-import { WEATHER_LAB_SPEEDS, type WeatherLabSpeed } from '../weather/playback';
+import type { SimulationSpeed } from '../types/simulation';
 import { createTerrainThermalModel, temperatureFieldForHour } from '../weather/terrainThermal';
 import type { Readout } from './CursorReadout';
 import type { Units } from './SettingsContext';
-import { useGameWeather } from './useGameWeather';
+import type { GameSimulationController } from './useGameSimulation';
+
+const SIMULATION_SPEEDS: readonly SimulationSpeed[] = [1, 2, 4, 8];
 
 const M_TO_FT = 3.28084;
 
@@ -49,10 +50,13 @@ function ToolbarReadout({ readout, units }: { readout: Readout | null; units: Un
     else if (readout.overlay === 'aspect') ctx = { label: 'Aspect', value: readout.aspectCompass };
     else if (readout.overlay === 'groundcover') ctx = { label: 'Cover', value: readout.coverLabel ?? '--' };
   }
+  const localWeather = readout?.temperatureC == null ? '' :
+    `${readout.temperatureC.toFixed(1)} C / ${readout.precipitationType ?? 'none'}`;
 
   return <div className="tb-readout" role="group" aria-label="Cursor terrain readout">
     <div className="tb-readout-cell"><span className="tb-readout-label">Elev</span><span className="tb-readout-value">{elev}</span></div>
     <div className="tb-readout-cell tb-readout-ctx"><span className="tb-readout-label">{ctx?.label ?? ''}</span><span className="tb-readout-value">{ctx?.value ?? ''}</span></div>
+    <div className="tb-readout-cell"><span className="tb-readout-label">Local weather</span><span className="tb-readout-value">{localWeather}</span></div>
   </div>;
 }
 
@@ -61,8 +65,9 @@ function GameWeatherOverlay({
   weather,
 }: {
   terrain: TerrainRecord | null;
-  weather: ReturnType<typeof useGameWeather>;
+  weather: GameSimulationController;
 }) {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const model = useMemo(() => terrain ? createTerrainThermalModel(terrain) : null, [terrain]);
   const current = weather.current;
   const temperatureRange = useMemo(() => {
@@ -74,9 +79,11 @@ function GameWeatherOverlay({
   return <aside className="game-weather-overlay screen-panel" aria-label="Weather analysis overlay">
     <div className="game-weather-overlay-head"><strong>Weather analysis</strong><button className="ghost-btn" onClick={weather.toggleAnalysis}>Close</button></div>
     {weather.status !== 'ready' || !current
-      ? <p>{weather.message}</p>
+      ? <><p>{weather.message}</p>{(weather.status === 'design-only' ||
+        weather.status === 'package-unavailable' || weather.status === 'corrupt') &&
+        <button className="ghost-btn" onClick={weather.prepareWeather}>Retry / Prepare Weather</button>}</>
       : <>
-        <p>{formatGameTime(weather.playback?.cursor, weather.session?.timezone)}</p>
+        <p>{formatGameTime(weather.clock.calendarDate, weather.session?.timezone)}</p>
         <p>{format(current.temperatureC)} C air / {format(current.wetBulbC)} C wet-bulb / {format(current.humidityPct)}% RH</p>
         <p>Wind {format(current.windSpeedKph)} kph / {format(current.precipitationMm, 2)} mm/h {current.precipitationType}</p>
         <p>Solar {format(current.globalRadiationWm2)} global / {format(current.directRadiationWm2)} direct / {format(current.diffuseRadiationWm2)} diffuse W/m2</p>
@@ -87,8 +94,19 @@ function GameWeatherOverlay({
           : source
             ? `${source.provider} / ${source.quality}${source.correction !== 'none' ? ` / ${source.correction}` : ''}`
             : `${weather.weatherPackage?.manifest.quality ?? 'unknown'} / ${weather.weatherPackage?.manifest.sourceSummary ?? 'no source metadata'}`}</p>
-        <h3>24-hour forecast</h3>
-        {weather.forecast?.hours.slice(1, 4).map((hour) => <p key={hour.at}>{formatGameTime(hour.at, weather.session?.timezone)}: {format(hour.temperatureC)} C, {format(hour.precipitationMm, 2)} mm/h</p>)}
+        <h3>Seven-day forecast</h3>
+        <div className="game-forecast-days">{weather.forecast?.days.map((day) => <button
+          key={day.date} className={selectedDate === day.date ? 'is-active' : ''}
+          onClick={() => setSelectedDate(selectedDate === day.date ? null : day.date)}>
+          <strong>{day.date.slice(5)}</strong><span>{day.condition}</span>
+          <span>{format(day.highC)} / {format(day.lowC)} C</span>
+          <span>{format(day.precipitationMm)} mm / {format(day.snowfallCm)} cm snow</span>
+          <span>{format(day.windSpeedKph)} / {format(day.windGustKph)} kph</span>
+          <span>{day.confidencePct}% confidence</span>
+        </button>)}</div>
+        {weather.forecast?.days.find((day) => day.date === selectedDate)?.hours.map((hour) =>
+          <p key={hour.at}>{formatGameTime(hour.at, weather.session?.timezone)}: {format(hour.temperatureC)} C,
+            {' '}{format(hour.precipitationMm, 2)} mm/h {hour.precipitationType}, wind {format(hour.windSpeedKph)} kph</p>)}
         {!weather.forecast?.hours.length && <p>No forecast available.</p>}
       </>}
   </aside>;
@@ -100,54 +118,48 @@ export function GameToolbar({
   readout,
   units,
   terrain,
-  weatherRun,
-  onWeatherRunChange,
+  simulation,
 }: {
   resortName: string;
   onOpenStats: () => void;
   readout: Readout | null;
   units: Units;
   terrain: TerrainRecord | null;
-  weatherRun: SavedWeatherRun | undefined;
-  onWeatherRunChange(run: SavedWeatherRun): void;
+  simulation: GameSimulationController;
 }) {
-  const weather = useGameWeather({ terrain, weatherRun, onWeatherRunChange });
-  const playback = weather.playback;
+  const [planningConfirmationOpen, setPlanningConfirmationOpen] = useState(false);
+  const weather = simulation;
   const current = weather.current;
-  const ready = weather.status === 'ready' && !!playback;
-  const playing = ready && playback.running;
-  const cursorHour = ready && weather.session
-    ? Math.max(0, Math.floor((new Date(playback.cursor).getTime() - new Date(weather.session.plan.startsAt).getTime()) / 3_600_000))
-    : 0;
-  const playTitle = weather.status === 'prepared'
-    ? 'Start deterministic offline weather'
-    : playing ? 'Pause weather clock' : 'Play weather clock';
+  const ready = weather.status === 'ready';
+  const playing = ready && weather.clock.runState === 'running';
+  const planning = weather.clock.season === 'summer';
+  const playTitle = planning ? 'Complete planning and skip to September 1' : playing ? 'Pause game clock' : 'Play game clock';
 
   return <>
     <div className="game-toolbar">
       <div className="tb-group">
         <button
           className="tb-play"
-          onClick={weather.status === 'prepared' ? weather.start : weather.togglePlayback}
+          onClick={planning ? () => setPlanningConfirmationOpen(true) : weather.togglePlayback}
           aria-pressed={playing}
-          disabled={!ready && weather.status !== 'prepared'}
+          disabled={weather.status === 'loading' || weather.status === 'working'}
           title={playTitle}
         >{playing ? '||' : '>'}</button>
       </div>
       <div className="tb-group">
         <div className="tb-clock" title={weather.message}>
-          <span className="tb-day">{ready ? `Weather day ${Math.floor(cursorHour / 24) + 1}` : weather.status === 'prepared' ? 'Weather prepared' : 'Weather unavailable'}</span>
-          <span className="tb-time">{ready ? formatGameTime(playback.cursor, weather.session?.timezone) : weather.message}</span>
+          <span className="tb-day">{planning ? `Summer planning ${weather.clock.summerPeriod ?? 1}` : `Winter week ${weather.clock.winterWeek ?? 1}`}</span>
+          <span className="tb-time">{formatGameTime(weather.clock.calendarDate, weather.clock.timezone)}</span>
         </div>
       </div>
       <div className="tb-group">
         <div className="tb-speeds" role="group" aria-label="Weather simulation speed">
-          {WEATHER_LAB_SPEEDS.map((speed) => <button
+          {SIMULATION_SPEEDS.map((speed) => <button
             key={speed}
-            className={`tb-speed${playback?.speed === speed ? ' is-active' : ''}`}
-            onClick={() => weather.setSpeed(speed as WeatherLabSpeed)}
-            disabled={!ready}
-            title={`${speed}x weather speed`}
+            className={`tb-speed${weather.clock.speed === speed ? ' is-active' : ''}`}
+            onClick={() => weather.setSpeed(speed)}
+            disabled={!ready || planning}
+            title={`${speed}x simulation speed`}
           >{speed}x</button>)}
         </div>
       </div>
@@ -165,5 +177,13 @@ export function GameToolbar({
       <div className="tb-group tb-group-right"><ToolbarReadout readout={readout} units={units} /></div>
     </div>
     <GameWeatherOverlay terrain={terrain} weather={weather} />
+    {planningConfirmationOpen && <div className="game-time-confirm-backdrop" role="presentation">
+      <section className="game-time-confirm" role="dialog" aria-modal="true" aria-labelledby="game-time-confirm-title">
+        <h2 id="game-time-confirm-title">Finish summer planning?</h2>
+        <p>This skips once to September 1, fixes the coming weather year, and enables the running game clock.</p>
+        <div className="game-time-confirm-actions"><button className="ghost-btn" onClick={() => setPlanningConfirmationOpen(false)}>Keep planning</button>
+          <button className="primary-btn" onClick={() => { setPlanningConfirmationOpen(false); void weather.advancePlanningPeriod(); }}>Skip to September 1</button></div>
+      </section>
+    </div>}
   </>;
 }

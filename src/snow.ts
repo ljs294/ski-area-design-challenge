@@ -123,6 +123,16 @@ export function generateSnowBaseline(record: TerrainRecord): SnowGrid {
   return { bounds: { ...record.bounds }, width, height, depthM, surface };
 }
 
+/** First simulated weather year begins on bare terrain, retaining grid geometry. */
+export function generateBareSnowGrid(record: TerrainRecord): SnowGrid {
+  const baseline = generateSnowBaseline(record);
+  return {
+    ...baseline,
+    depthM: new Float32Array(baseline.width * baseline.height),
+    surface: new Uint8Array(baseline.width * baseline.height),
+  };
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {

@@ -1242,12 +1242,32 @@ html.resume-capture .maplibregl-canvas {
   overflow: auto;
   transform: translateX(-50%);
   padding: 13px;
+  color: var(--text);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   box-shadow: var(--shadow);
 }
 .game-weather-overlay-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .game-weather-overlay h3 { margin: 10px 0 4px; font-size: .85rem; }
 .game-weather-overlay p { margin: 5px 0; font-size: .8rem; line-height: 1.35; }
+.game-forecast-days { display: grid; grid-template-columns: repeat(7, minmax(92px, 1fr)); gap: 5px; overflow-x: auto; }
+.game-forecast-days button { display: flex; flex-direction: column; gap: 2px; min-width: 92px; padding: 6px;
+  color: inherit; font: inherit; text-align: left; background: var(--panel-elev);
+  border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.game-forecast-days button.is-active { border-color: var(--accent); background: var(--panel-elev-hover); }
+.game-forecast-days span { font-size: .68rem; white-space: nowrap; }
+.game-weather-effects { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.resume-capture .game-weather-effects { display: none; }
+@media (prefers-reduced-motion: reduce) { .game-weather-effects { display: none; } }
 .game-weather-source { color: var(--text-muted); }
+.game-time-confirm-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  padding: 20px; background: rgba(4, 9, 16, .58); }
+.game-time-confirm { width: min(430px, 100%); padding: 20px; color: var(--text); background: var(--surface-solid);
+  border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.game-time-confirm h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.game-time-confirm p { margin: 0 0 18px; color: var(--text-muted); line-height: 1.45; }
+.game-time-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 .tb-money {
   display: flex;

@@ -242,8 +242,20 @@ function csvRows(text) {
     cells.push(current.trim());
     return cells;
   };
-  const headings = parse(lines[0]).map((heading) => heading.toLowerCase());
-  return lines.slice(1).map((line) => Object.fromEntries(parse(line).map((cell, index) => [headings[index] ?? `column${index}`, cell])));
+  const normalizeHeading = (heading) => heading.trim().replace(/^\ufeff/, '').toLowerCase()
+    .replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+/g, '_');
+  const parsed = lines.map(parse);
+  const headingIndex = parsed.findIndex((cells) => {
+    const headings = cells.map(normalizeHeading);
+    return headings.includes('date') || (headings.includes('year') && (headings.includes('yday') || headings.includes('day_of_year')));
+  });
+  if (headingIndex < 0 || headingIndex === parsed.length - 1) {
+    throw new WeatherServiceError('PROVIDER_RESPONSE_INVALID', 'Provider CSV has no recognizable date header or data rows.');
+  }
+  const headings = parsed[headingIndex].map(normalizeHeading);
+  return parsed.slice(headingIndex + 1)
+    .filter((cells) => cells.some((cell) => cell !== ''))
+    .map((cells) => Object.fromEntries(cells.map((cell, index) => [headings[index] ?? `column${index}`, cell])));
 }
 
 function daymetDate(row) {
@@ -252,6 +264,14 @@ function daymetDate(row) {
   const yday = Number(row.yday ?? row.day_of_year);
   invariant(Number.isInteger(year) && Number.isInteger(yday), 'PROVIDER_RESPONSE_INVALID', 'Daymet row has no date or year/yday.');
   return new Date(Date.UTC(year, 0, yday)).toISOString().slice(0, 10);
+}
+
+/** Normalize Daymet's metadata-prefixed, unit-bearing CSV response. */
+export function normalizeDaymetDaily(text, year) {
+  return csvRows(text).map((row) => ({
+    date: daymetDate(row), tminC: number(row.tmin), tmaxC: number(row.tmax), precipitationMm: number(row.prcp),
+    vaporPressurePa: number(row.vp), snowWaterEquivalentMm: number(row.swe), shortwaveWm2: number(row.srad), daylightSeconds: number(row.dayl),
+  })).filter((day) => day.date.startsWith(`${year}-`));
 }
 
 export class DaymetAdapter {
@@ -283,11 +303,7 @@ export class DaymetAdapter {
       url.searchParams.set('end', `${year}-12-31`);
       url.searchParams.set('format', 'csv');
       const response = await fetchResponse(this.fetchImpl, url, { signal: context.signal }, 'Daymet');
-      const rows = csvRows(await response.text());
-      const days = rows.map((row) => ({
-        date: daymetDate(row), tminC: number(row.tmin), tmaxC: number(row.tmax), precipitationMm: number(row.prcp),
-        vaporPressurePa: number(row.vp), snowWaterEquivalentMm: number(row.swe), shortwaveWm2: number(row.srad), daylightSeconds: number(row.dayl),
-      })).filter((day) => day.date.startsWith(`${year}-`));
+      const days = normalizeDaymetDaily(await response.text(), year);
       invariant(days.length >= 360, 'PROVIDER_RESPONSE_INVALID', `Daymet returned only ${days.length} days for ${year}.`, { details: { provider: this.id, year } });
       return { days, sourceGrid: { id: `${route}:${request.latitude.toFixed(5)},${request.longitude.toFixed(5)}`, resolutionMeters: 1000, route } };
     });

@@ -36,6 +36,11 @@ const TYPE_FACADE_MANIFEST = new Map([
     'LiftCategoryId', 'LiftStatus', 'LiftTypeId', 'SavedLift',
   ]],
   ['./types/roads', ['RoadType', 'SavedRoad']],
+  ['./types/simulation', [
+    'AdvanceResult', 'ClockRunState', 'DailyPhase', 'DailyPhaseConfig', 'Season',
+    'SimulationClock', 'SimulationSpeed', 'TimeBoundaryEvent', 'TimeBoundaryTarget',
+    'TimeEngineSnapshot', 'TimeScaleConfig',
+  ]],
   ['./types/snow', ['SavedSnowGrid', 'SnowGrid', 'SnowSurfaceCode']],
   ['./types/snowmaking', [
     'SavedDam', 'SavedPond', 'SavedSnowgun', 'SavedSnowmakingNode', 'SnowgunVariantId',

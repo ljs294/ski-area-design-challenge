@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { OverlayId } from './Legend';
 import type { Units } from './SettingsContext';
+import type { PrecipitationType } from '../weather/weatherModel';
 
 const M_TO_FT = 3.28084;
 
@@ -12,6 +13,8 @@ export interface Readout {
   coverLabel: string | null;
   snowDepthM?: number;
   snowSurface?: number;
+  temperatureC?: number;
+  precipitationType?: PrecipitationType;
 }
 
 function displayKey(readout: Readout | null): string {
@@ -24,6 +27,8 @@ function displayKey(readout: Readout | null): string {
     readout.coverLabel ?? '',
     readout.snowDepthM == null ? '' : Math.round(readout.snowDepthM * 100),
     readout.snowSurface ?? '',
+    readout.temperatureC == null ? '' : Math.round(readout.temperatureC * 10),
+    readout.precipitationType ?? '',
   ].join('|');
 }
 
@@ -78,6 +83,10 @@ export function CursorReadout({ readout, units }: { readout: Readout | null; uni
           <span className="readout-value">{stat.value}</span>
         </div>
       )}
+      {readout.temperatureC != null && <div className="readout-line">
+        <span className="readout-label">Local weather</span>
+        <span className="readout-value">{readout.temperatureC.toFixed(1)} C / {readout.precipitationType}</span>
+      </div>}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { validateWeatherPackage } from './weatherStorageClient';
 import { weatherTerrainBinding } from './weather/terrainBinding';
 
 const DEFAULT_SERVICE_URL = 'http://127.0.0.1:8787';
-const SOURCE_POLICY_VERSION = 'daymet-v4r1-merra2-v1';
+const SOURCE_POLICY_VERSION = 'daymet-v4r1-power-hourly-v2';
 
 export interface WeatherPackageRequest {
   schemaVersion: 1;
@@ -16,8 +16,8 @@ export interface WeatherPackageRequest {
   areaSizeMeters: number;
   /** The hosted builder resolves coordinates to an explicit IANA zone. */
   timezone: 'auto';
-  historicalStartYear: 1991;
-  historicalEndYear: 2020;
+  historicalStartYear: 2001;
+  historicalEndYear: 2025;
   sourcePolicyVersion: string;
 }
 
@@ -144,8 +144,8 @@ export function weatherPackageRequest(record: TerrainRecord): WeatherPackageRequ
     // A coordinate-to-timezone boundary dataset is held by the builder. The
     // package manifest always records the resolved, concrete IANA identifier.
     timezone: 'auto',
-    historicalStartYear: 1991,
-    historicalEndYear: 2020,
+    historicalStartYear: 2001,
+    historicalEndYear: 2025,
     sourcePolicyVersion: SOURCE_POLICY_VERSION,
   };
 }

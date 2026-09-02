@@ -6,6 +6,7 @@ import type { SavedJunction, SavedNode, SavedPath } from './topology';
 import type { SavedTrail } from './trails';
 import type { SavedSnowGrid } from './snow';
 import type { SavedBuilding } from './buildings';
+import type { TimeEngineSnapshot } from './simulation';
 
 export interface SavedSiteBox {
   bounds: [[number, number], [number, number]];
@@ -45,7 +46,7 @@ export function isSavedWeatherRun(value: unknown): value is SavedWeatherRun {
 
 /** A player's persisted resort design. This is a compatibility boundary. */
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
   key: string;
   name: string;
   mountainId?: string;
@@ -77,6 +78,8 @@ export interface GameSave {
   snow?: SavedSnowGrid;
   /** Added in schema 15. Never triggers a provider request while loading a save. */
   weatherRun?: SavedWeatherRun;
+  /** Added in schema 16. The authoritative clock always hydrates paused. */
+  time?: TimeEngineSnapshot;
   /** Added in schema 15. Hydration defaults absent collections to an empty list. */
   buildings?: SavedBuilding[];
   createdAt: string;

@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath,
   SavedPond, SavedRoad, SavedSnowmakingNode, SavedTrail,
   TerrainRecord } from '../types';
-import type { SavedWeatherRun } from '../types/gameSave';
 import type { SavedSnowgun, SavedSnowmakingPipe, SnowmakingLakeSource } from '../types/snowmaking';
 import type { SavedBuilding } from '../types/buildings';
 import { analyzeLake } from '../lakeAnalysis';
@@ -13,6 +12,7 @@ import { summarizeJunctions } from '../topology';
 import { fmtDistance } from '../lifts';
 import type { LayerToggle } from './analysisLayers';
 import { GameToolbar } from './GameToolbar';
+import type { GameSimulationController } from './useGameSimulation';
 import { InfrastructureControl } from './InfrastructureControl';
 import { RoadDetail } from './RoadDetail';
 import { LakeDetail } from './LakeDetail';
@@ -70,8 +70,7 @@ export interface MapGameDockProps {
   skiPaths: SavedPath[];
   junctions: SavedJunction[];
   terrainRecord: TerrainRecord | null;
-  weatherRun: SavedWeatherRun | undefined;
-  onWeatherRunChange(run: SavedWeatherRun): void;
+  simulation: GameSimulationController;
   network: SkiNetwork;
   selectedLiftId: string | null;
   selectedTrailId: string | null;
@@ -435,7 +434,7 @@ export function MapGameDock(props: MapGameDockProps) {
       onClick={props.toggleDock} />
   </div></div><GameToolbar resortName={props.saved.name} onOpenStats={props.openStats}
     readout={readout} units={props.units} terrain={props.terrainRecord}
-    weatherRun={props.weatherRun} onWeatherRunChange={props.onWeatherRunChange} /></div>;
+    simulation={props.simulation} /></div>;
 }
 
 function DockButton({ id, label, open, onClick }: {

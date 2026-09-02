@@ -13,7 +13,7 @@ import { createWeatherService } from './server.mjs';
 const request = {
   schemaVersion: 1, terrainKey: 'mountain-test', terrainBinding: 'terrain-bind-1234',
   latitude: 39.1911, longitude: -106.8175, timezone: 'auto',
-  historicalStartYear: 1991, historicalEndYear: 2020, sourcePolicyVersion: 'daymet-v4r1-merra2-v1',
+  historicalStartYear: 2001, historicalEndYear: 2025, sourcePolicyVersion: 'daymet-v4r1-power-hourly-v2',
 };
 
 function sampleHour() {
@@ -139,7 +139,7 @@ describe('weather service', () => {
   it('uses the public NASA POWER MERRA-2 route without credentials or private services', async () => {
     const root = await mkdtemp(join(tmpdir(), 'weather-power-public-'));
     try {
-      const keys = Array.from({ length: 8760 }, (_, index) => new Date(Date.UTC(1991, 0, 1, index))
+      const keys = Array.from({ length: 8760 }, (_, index) => new Date(Date.UTC(2001, 0, 1, index))
         .toISOString().replace(/[-:T]/g, '').slice(0, 10));
       const values = (value: number) => Object.fromEntries(keys.map((key) => [key, value]));
       let requestedUrl = ''; let requestedOptions: RequestInit | undefined;
@@ -151,7 +151,7 @@ describe('weather service', () => {
             PRECTOTCORR: values(.2), CLOUD_AMT: values(55), ALLSKY_SFC_SW_DWN: values(.05),
           } } });
         } });
-      const hourly = await providers.merra2.getHourly(validateWeatherPackageRequest(request), 1991,
+      const hourly = await providers.merra2.getHourly(validateWeatherPackageRequest(request), 2001,
         { throwIfAborted() {}, signal: undefined });
       expect(hourly.hours).toHaveLength(8760);
       expect(hourly.hours[0]).toMatchObject({ temperatureC: -2, relativeHumidityPct: 75, pressureHpa: 900,
