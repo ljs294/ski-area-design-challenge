@@ -44,7 +44,7 @@ describe('ToolCoordinator', () => {
     });
   });
 
-  it.each(['road', 'dam', 'pond', 'trail'] as const)(
+  it.each(['road', 'dam', 'pond', 'trail', 'building'] as const)(
     'keeps the active %s tool while toggling Layers alongside it',
     (toolId) => {
       const states: ToolCoordinatorSnapshot[] = [];

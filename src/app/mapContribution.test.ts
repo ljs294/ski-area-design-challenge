@@ -17,6 +17,7 @@ import type maplibregl from 'maplibre-gl';
 /** The layer ids the live map delegates each family's clicks to. */
 const HIT_LAYERS: Record<MapHitFamilyId, string[]> = {
   snowmaking: ['snowmaking-node-hit'],
+  building: ['building-hit'],
   lift: ['lift-line-hit', 'lift-terminals'],
   trail: ['trail-fill'],
   dam: ['dam-crest-hit', 'dam-pool-fill'],
@@ -34,7 +35,7 @@ describe('map layer order', () => {
   it('is the required bottom-to-top order', () => {
     expect([...MAP_LAYER_ORDER]).toEqual([
       'analysis', 'site-boundary', 'road', 'dam', 'pond', 'ski-node-path',
-      'trail', 'lift', 'snowmaking',
+      'trail', 'lift', 'building', 'snowmaking',
     ]);
   });
 
@@ -43,7 +44,7 @@ describe('map layer order', () => {
 describe('map hit priority', () => {
   it('is the required top-to-bottom order', () => {
     expect([...MAP_HIT_PRIORITY]).toEqual([
-      'snowmaking', 'lift', 'trail', 'dam', 'pond', 'road', 'stream', 'lake',
+      'snowmaking', 'building', 'lift', 'trail', 'dam', 'pond', 'road', 'stream', 'lake',
     ]);
   });
 
@@ -54,9 +55,9 @@ describe('map hit priority', () => {
 
     // A standalone pond is drawn over a dam's pool, but a dam picks first:
     // its crest is the structure you click, and the pool it impounds is not.
-    expect(painted).toEqual(['snowmaking', 'lift', 'trail', 'pond', 'dam', 'road']);
+    expect(painted).toEqual(['snowmaking', 'building', 'lift', 'trail', 'pond', 'dam', 'road']);
     expect(MAP_HIT_PRIORITY.filter((id) => (MAP_LAYER_ORDER as readonly string[]).includes(id)))
-      .toEqual(['snowmaking', 'lift', 'trail', 'dam', 'pond', 'road']);
+      .toEqual(['snowmaking', 'building', 'lift', 'trail', 'dam', 'pond', 'road']);
   });
 
   it('gives the topmost family no guard at all', () => {
@@ -66,23 +67,24 @@ describe('map hit priority', () => {
   it('guards each family with every layer that picks ahead of it, in priority order', () => {
     const contributions = hitContributions();
 
-    expect(hitGuardLayers('lift', contributions)).toEqual(['snowmaking-node-hit']);
+    expect(hitGuardLayers('building', contributions)).toEqual(['snowmaking-node-hit']);
+    expect(hitGuardLayers('lift', contributions)).toEqual(['snowmaking-node-hit', 'building-hit']);
     expect(hitGuardLayers('trail', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals',
+      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals',
     ]);
     expect(hitGuardLayers('dam', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
     ]);
     expect(hitGuardLayers('pond', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
       'dam-crest-hit', 'dam-pool-fill',
     ]);
     expect(hitGuardLayers('stream', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
       'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'road-hit', 'road-pavement',
     ]);
     expect(hitGuardLayers('lake', contributions)).toEqual([
-      'snowmaking-node-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
       'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'road-hit', 'road-pavement',
       'local-water-line-hit',
     ]);
@@ -189,6 +191,7 @@ function managedContributions(
     hits: id === 'analysis' ? [hits.stream, hits.lake]
       : id === 'road' ? [hits.road]
       : id === 'snowmaking' ? [hits.snowmaking]
+      : id === 'building' ? [hits.building]
       : id === 'lift' ? [hits.lift]
       : id === 'trail' ? [hits.trail]
       : id === 'dam' ? [hits.dam]
@@ -216,13 +219,16 @@ describe('managed map contribution lifecycle', () => {
     registry.synchronizeData('road');
     registry.synchronizeStyle();
 
-    expect(log.slice(0, 18)).toEqual(MAP_LAYER_ORDER.flatMap((id) => [
+    const installedEntries = MAP_LAYER_ORDER.length * 2;
+    expect(log.slice(0, installedEntries)).toEqual(MAP_LAYER_ORDER.flatMap((id) => [
       `install:${id}:m1s1`, `data:${id}:m1s1`,
     ]));
-    expect(log[18]).toBe('data:road:m1s1');
-    expect(log.slice(19, 28)).toEqual([...MAP_LAYER_ORDER].reverse()
+    expect(log[installedEntries]).toBe('data:road:m1s1');
+    const cleanupStart = installedEntries + 1;
+    const reinstallStart = cleanupStart + MAP_LAYER_ORDER.length;
+    expect(log.slice(cleanupStart, reinstallStart)).toEqual([...MAP_LAYER_ORDER].reverse()
       .map((id) => `cleanup:${id}:m1s1`));
-    expect(log.slice(28)).toEqual(MAP_LAYER_ORDER.flatMap((id) => [
+    expect(log.slice(reinstallStart)).toEqual(MAP_LAYER_ORDER.flatMap((id) => [
       `install:${id}:m1s2`, `data:${id}:m1s2`,
     ]));
   });

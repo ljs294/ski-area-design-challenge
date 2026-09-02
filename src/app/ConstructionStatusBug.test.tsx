@@ -8,6 +8,7 @@ describe('ConstructionStatusBug', () => {
     ['lift', 'Building lift…'],
     ['trail', 'Building run…'],
     ['road', 'Building road…'],
+    ['building', 'Building pump house…'],
   ] as [ConstructionActivity, string][])('labels %s construction', (activity, label) => {
     const html = renderToStaticMarkup(<ConstructionStatusBug activity={activity} />);
     expect(html).toContain('role="status"');

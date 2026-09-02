@@ -9,6 +9,10 @@ export type {
   TerrainCoverProvenance, WorldCoverClassCode,
 } from './types/cover';
 export type { EarthworkEstimate } from './types/earthwork';
+export type { AssetEconomics, MaintenanceCadence } from './types/economics';
+export type {
+  BuildingFoundation, BuildingFoundationMode, BuildingTypeId, SavedBuilding,
+} from './types/buildings';
 export type { GameSave, GameSaveSummary, SavedSiteBox } from './types/gameSave';
 export type { LatLonBounds } from './types/geo';
 export type {

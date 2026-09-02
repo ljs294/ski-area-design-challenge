@@ -1,7 +1,9 @@
 import { formatLakeVolume } from '../lakeAnalysis';
 import { fmtDistance } from '../lifts';
 import { SNOWMAKING_NODE_LABELS } from '../snowmakingNodes';
-import { snowmakingNodeLabel, snowmakingPipeSegments, snowmakingPipeStats } from '../snowmakingNetwork';
+import { snowmakingNodeLabel, snowmakingPipeSegments,
+  snowmakingPipeStats } from '../snowmakingNetwork';
+import { isOwnedSnowmakingPump } from '../snowmakingOwnedPumps';
 import { SNOWMAKING_PIPE_DIAMETERS_IN } from '../types/snowmaking';
 import type { SavedDam, SavedPond } from '../types';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
@@ -72,6 +74,7 @@ export function SnowmakingDashboardInspector({
     move={() => onMoveGun(selectedGun.id)} remove={() => onDeleteGun(selectedGun.id)} />;
   if (selectedNode) {
     const sourceInfo = snowmakingSourceInfo(selectedNode, dams, ponds, lakes);
+    const ownedPump = isOwnedSnowmakingPump(selectedNode);
     return <aside className="network-inspector" data-inspector="node">
       <div className="dock-head"><span className="dock-head-title">
         {selectedNode.kind === 'intake' ? selectedNode.name
@@ -84,12 +87,15 @@ export function SnowmakingDashboardInspector({
         <Stat label="Elevation" value={selectedNode.elevM != null
           ? fmtDistance(selectedNode.elevM, units) : '—'} />
       </div>
-      {selectedNode.kind !== 'junction' && <input className="name-entry-input"
+      {ownedPump && <div className="network-sub" data-owned-building={selectedNode.ownerBuildingId}>
+        Owned by building {selectedNode.ownerBuildingId}
+      </div>}
+      {!ownedPump && selectedNode.kind !== 'junction' && <input className="name-entry-input"
         aria-label="Node name" value={selectedNode.name}
         onChange={(event) => onRenameNode(selectedNode.id, event.target.value)} />}
       {selectedNode.kind === 'pump' && <SnowmakingPumpPortEditor pump={selectedNode}
         nodes={nodes} pipes={pipes} onSetPumpPort={onSetPumpPort} />}
-      {(selectedNode.kind === 'pump' || selectedNode.kind === 'hydrant') && (() => {
+      {!ownedPump && (selectedNode.kind === 'pump' || selectedNode.kind === 'hydrant') && (() => {
         const connectedGun = selectedNode.kind === 'hydrant'
           ? guns.find((gun) => gun.hydrantId === selectedNode.id) ?? null : null;
         if (connectedGun && pendingHydrantDeleteId === selectedNode.id) return <div className="snowgun-delete-warning">

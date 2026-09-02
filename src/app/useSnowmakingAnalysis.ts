@@ -61,8 +61,10 @@ export function useSnowmakingAnalysis(input: {
     };
     return [[node.id, resource]];
   })), [nodes, dams, ponds, lakes]);
-  const analysisPumpSettings = useMemo(() => Object.fromEntries(pumpIds.map((id) => [id,
-    pumpAnalysisSetting(state.pumpSettings[id])])), [pumpIds, state.pumpSettings]);
+  const analysisPumpSettings = useMemo(() => Object.fromEntries(
+    pumpIds.map((id) => [id,
+      pumpAnalysisSetting(state.pumpSettings[id], nodes.find((node) => node.id === id))]),
+  ), [pumpIds, state.pumpSettings, nodes]);
   const routingTopology = useMemo(() => prepareSnowmakingRoutingTopology({ nodes, pipes }),
     [nodes, pipes]);
   const routing = useMemo(() => deriveSnowmakingRoutingForest({ nodes, pipes, guns,

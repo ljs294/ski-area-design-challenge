@@ -20,6 +20,8 @@ import {
   snowmakingPipeStats,
   type SnowmakingNetworkState,
 } from './snowmakingNetwork';
+import { createOwnedSnowmakingPump, removeBuildingOwnedPump,
+  renameOwnedSnowmakingPump, snowmakingNodeInspectorCapabilities } from './snowmakingOwnedPumps';
 import type { SavedSnowmakingNode, SavedSnowmakingPipe } from './types/snowmaking';
 
 const A: [number, number] = [-121.5, 46.93];
@@ -247,5 +249,41 @@ describe('snowmaking detach and cleanup', () => {
     const cleaned = pruneAffectedJunctions(state, new Set(['junction']));
     expect(cleaned.nodes).toEqual([]);
     expect(cleaned.pipes[0].vertices.every((vertex) => vertex.nodeId == null)).toBe(true);
+  });
+
+  it('creates a numbered fixed-rating building pump and removes it with pipe ends detached', () => {
+    const state: SnowmakingNetworkState = { nodes: [], pipes: [pipe('route')], guns: [],
+      nextNumbers: { hydrant: 1, junction: 1, pump: 1 } };
+    const created = createOwnedSnowmakingPump(state, {
+      id: 'house-pump', ownerBuildingId: 'house', name: 'Alpine Pump House', point: A,
+      elevM: 100, createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(created?.node).toMatchObject({ kind: 'pump', labelNumber: 1,
+      ownerBuildingId: 'house', pumpRating: { horsepowerHp: 1000, efficiency: 0.85 } });
+    expect(created?.state.nextNumbers.pump).toBe(2);
+    if (!created) return;
+    const connected = { ...created.state, pipes: [buildSnowmakingPipe({
+      id: 'connected', name: 'Connected', diameterIn: 8,
+      points: [A, B], nodeIds: ['house-pump', null], createdAt: '2026-01-01T00:00:00.000Z',
+    }, () => 100)] };
+    const renamed = renameOwnedSnowmakingPump(connected, 'house', 'Renamed House');
+    expect(renamed?.nodes[0].name).toBe('Renamed House');
+    expect(snowmakingNodeInspectorCapabilities(renamed?.nodes[0])).toEqual({
+      canRename: false, canRemove: false, ownerBuildingId: 'house',
+    });
+    const removed = removeBuildingOwnedPump(renamed!, 'house');
+    expect(removed?.state.nodes).toEqual([]);
+    expect(removed?.connectedPipeIds).toEqual(['connected']);
+    expect(removed?.state.pipes[0].vertices[0].nodeId).toBeNull();
+  });
+
+  it('does not let building removal helpers affect a manual pump', () => {
+    const manual = node('manual', 'pump', 1);
+    const state: SnowmakingNetworkState = { nodes: [manual], pipes: [], guns: [],
+      nextNumbers: { hydrant: 1, junction: 1, pump: 2 } };
+    expect(removeBuildingOwnedPump(state, 'missing')).toBeNull();
+    expect(snowmakingNodeInspectorCapabilities(manual)).toEqual({
+      canRename: true, canRemove: true, ownerBuildingId: null,
+    });
   });
 });

@@ -22,6 +22,11 @@ import { SnowgunDirectory, SnowgunInspector, SnowgunToolPanel } from './SnowgunC
 import type { SnowgunTool } from './snowmakingGunControllerModel';
 import type { SnowgunPlanPreview } from './useSnowgunController';
 import { SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
+import type { SavedBuilding } from '../types/buildings';
+import type { BuildingReviewDraft, BuildingTool } from './buildingControllerModel';
+import { PumpHouseDetail } from './PumpHouseDetail';
+import { PumpHouseOverview } from './PumpHouseOverview';
+import { PumpHouseReview } from './PumpHouseReview';
 
 export type { DamTool, DraftDam } from './damControllerModel';
 export type { DraftPond, PondTool } from './pondControllerModel';
@@ -228,7 +233,11 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onSelectPipe, onPatchPipe, onDeletePipe, onClosePipe,
   onArmGuns, onCancelGuns, onSnowgunVariantChange, onRemoveDraftGun, onReviewGuns,
   onBackGuns, onConfirmGuns, onSelectGun, onMoveGun, onConfirmMoveGun, onDeleteGun, onCloseGun,
-  onAnalyzeSystem, onClose, building = false }: {
+  onAnalyzeSystem, onClose, building = false,
+  buildings = [], selectedBuilding = null, buildingTool,
+  onArmBuilding, onCancelBuilding, onPatchBuildingDraft, onConfirmBuilding,
+  onSelectBuilding, onRenameBuilding, onRemoveBuilding, onCloseBuilding,
+  buildingConnectedPipeCount = 0 }: {
   damTool: DamTool; pondTool: PondTool; dams: SavedDam[];
   ponds: SavedPond[]; selectedDam: SavedDam | null; selectedPond: SavedPond | null;
   lakes?: SnowmakingLakeSource[];
@@ -272,8 +281,37 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
   onConfirmMoveGun: () => void; onDeleteGun: (id: string) => void; onCloseGun: () => void;
   onAnalyzeSystem: () => void;
   onClose: () => void; building?: boolean;
+  /** Optional building UI port supplied by the map integration owner. */
+  buildings?: SavedBuilding[];
+  selectedBuilding?: SavedBuilding | null;
+  buildingTool?: BuildingTool;
+  onArmBuilding?: () => void;
+  onCancelBuilding?: () => void;
+  onPatchBuildingDraft?: (patch: Partial<BuildingReviewDraft>) => void;
+  onConfirmBuilding?: () => void | Promise<void>;
+  onSelectBuilding?: (id: string) => void;
+  onRenameBuilding?: (id: string, name: string) => void;
+  onRemoveBuilding?: (id: string) => void;
+  onCloseBuilding?: () => void;
+  buildingConnectedPipeCount?: number;
 }) {
   const [pendingHydrantDeleteId, setPendingHydrantDeleteId] = useState<string | null>(null);
+  const buildingUiReady = !!onArmBuilding && !!onCancelBuilding && !!onPatchBuildingDraft &&
+    !!onConfirmBuilding && !!onSelectBuilding && !!onRenameBuilding && !!onRemoveBuilding &&
+    !!onCloseBuilding;
+  if (buildingUiReady && buildingTool && buildingTool.phase !== 'idle') {
+    if (buildingTool.phase === 'review') return <PumpHouseReview draft={buildingTool.draft}
+      units={units} building={building} onPatch={onPatchBuildingDraft!}
+      onConfirm={onConfirmBuilding!} onCancel={onCancelBuilding!} />;
+    return <PumpHouseOverview buildings={buildings} units={units} onArm={onArmBuilding!}
+      onSelect={onSelectBuilding!} tool={buildingTool} onCancel={onCancelBuilding!} />;
+  }
+  if (buildingUiReady && selectedBuilding) {
+    const pump = nodes.find((node) => node.id === selectedBuilding.connection.nodeId) ?? null;
+    return <PumpHouseDetail building={selectedBuilding} pump={pump}
+      connectedPipeCount={buildingConnectedPipeCount} units={units}
+      onRename={onRenameBuilding!} onRemove={onRemoveBuilding!} onClose={onCloseBuilding!} />;
+  }
   if (gunTool.phase !== 'idle') return <SnowgunToolPanel tool={gunTool} preview={gunPreview}
     units={units} setVariant={onSnowgunVariantChange} removeDraft={onRemoveDraftGun}
     review={onReviewGuns} back={onBackGuns} confirm={onConfirmGuns} cancel={onCancelGuns}
@@ -571,6 +609,8 @@ export function SnowmakingControl({ damTool, pondTool, dams, ponds, lakes = [], 
       Analyze snowmaking system</button>
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmDam}>＋ Build dam</button>
     <button className="lift-add-btn site-btn site-btn-primary" onClick={onArmPond}>＋ Build standalone pond</button>
+    {buildingUiReady && <PumpHouseOverview buildings={buildings} units={units} onArm={onArmBuilding!}
+      onSelect={onSelectBuilding!} />}
     <div className="site-actions"><button className="site-btn" onClick={() => onArmNode('hydrant')}>Place one hydrant</button>
       <button className="site-btn" disabled={pipes.length === 0} onClick={onArmHydrantRun}>Place hydrants along pipe</button></div>
     <div className="site-actions">

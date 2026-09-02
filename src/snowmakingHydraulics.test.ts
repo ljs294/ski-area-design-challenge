@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeSnowmakingSystems, hazenWilliamsHeadLossFt, pumpHeadFt,
+import { analyzeSnowmakingSystems, hazenWilliamsHeadLossFt, OWNED_PUMP_HOUSE_EFFICIENCY,
+  OWNED_PUMP_HOUSE_HORSEPOWER_HP, projectSnowmakingPumpAnalysisSettings, pumpHeadFt,
   snowgunStageForWetBulb } from './snowmakingHydraulics';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe } from './types/snowmaking';
 
@@ -178,5 +179,35 @@ describe('analyzeSnowmakingSystems', () => {
       pipes: pipes.map((entry) => entry.id === broken.id ? broken : entry) });
     expect(unresolved.status).toBe('failed');
     expect(unresolved.diagnostics.map((entry) => entry.code)).toContain('missing-elevation');
+  });
+
+  it('projects owned pump ratings as fixed while preserving transient On/Off and manual settings', () => {
+    const owned = { ...pump, id: 'owned-pump', ownerBuildingId: 'pump-house' };
+    const manual = { ...pump, id: 'manual-pump' };
+    const projected = projectSnowmakingPumpAnalysisSettings([owned, manual], {
+      [owned.id]: { on: true, horsepowerHp: 12, efficiency: 0.2 },
+      [manual.id]: { on: true, horsepowerHp: 500, efficiency: 0.8 },
+    });
+    expect(projected[owned.id]).toEqual({ on: true,
+      horsepowerHp: OWNED_PUMP_HOUSE_HORSEPOWER_HP,
+      efficiency: OWNED_PUMP_HOUSE_EFFICIENCY });
+    expect(projected[manual.id]).toEqual({ on: true, horsepowerHp: 500, efficiency: 0.8 });
+    expect(projectSnowmakingPumpAnalysisSettings([owned], {})[owned.id]).toEqual({
+      on: false, horsepowerHp: 1000, efficiency: 0.85,
+    });
+  });
+
+  it('uses fixed owned ratings in solved output while On/Off remains transient', () => {
+    const ownedNodes = nodes.map((entry) => entry.id === pump.id
+      ? { ...entry, ownerBuildingId: 'pump-house' } : entry);
+    const on = analyzeSnowmakingSystems({ ...base, nodes: ownedNodes,
+      pumpSettings: { pump: { on: true, horsepowerHp: 1, efficiency: 0.01 } } });
+    expect(on.systems[0].pumps[0]).toMatchObject({ requestedOn: true,
+      horsepowerHp: 1000, efficiency: 0.85 });
+    const off = analyzeSnowmakingSystems({ ...base, nodes: ownedNodes,
+      pumpSettings: { pump: { on: false, horsepowerHp: null, efficiency: 0.01 } } });
+    expect(off.systems[0].pumps[0]).toMatchObject({ requestedOn: false,
+      status: 'off-passive', horsepowerHp: 1000, efficiency: 0.85,
+    });
   });
 });

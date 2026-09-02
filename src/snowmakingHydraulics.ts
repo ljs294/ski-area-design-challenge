@@ -20,6 +20,8 @@ export const FEET_HEAD_PER_PSI = 2.31;
 export const SNOWGUN_MINIMUM_PRESSURE_PSI = HKD_IMPULSE_R5.minimumWaterPressurePsi;
 export const HAZEN_WILLIAMS_C = 120;
 export const ACTIVE_SNOWMAKING_FLOW_GPM = 0.1;
+export const OWNED_PUMP_HOUSE_HORSEPOWER_HP = 1000;
+export const OWNED_PUMP_HOUSE_EFFICIENCY = 0.85;
 
 export interface SnowmakingPumpAnalysisSetting {
   on: boolean;
@@ -42,6 +44,29 @@ export interface SnowmakingAnalysisInput {
   wetBulbF: number;
   pumpSettings: Readonly<Record<string, SnowmakingPumpAnalysisSetting | undefined>>;
   sourceResourcesByIntakeId?: Readonly<Record<string, SnowmakingSourceResource | undefined>>;
+}
+
+/**
+ * Apply the fixed equipment contract for procedural pump-house pumps at the
+ * analysis boundary. Operating state remains transient and comes from the
+ * supplied setting; horsepower and efficiency cannot be overridden. Manual
+ * pumps are copied through unchanged so their existing scenario-editable
+ * behavior is preserved.
+ */
+export function projectSnowmakingPumpAnalysisSettings(
+  nodes: readonly SavedSnowmakingNode[],
+  settings: Readonly<Record<string, SnowmakingPumpAnalysisSetting | undefined>>,
+): Record<string, SnowmakingPumpAnalysisSetting | undefined> {
+  const projected = { ...settings };
+  for (const node of nodes) {
+    if (node.kind !== 'pump' || !node.ownerBuildingId) continue;
+    projected[node.id] = {
+      on: settings[node.id]?.on ?? false,
+      horsepowerHp: OWNED_PUMP_HOUSE_HORSEPOWER_HP,
+      efficiency: OWNED_PUMP_HOUSE_EFFICIENCY,
+    };
+  }
+  return projected;
 }
 
 export type SnowmakingAnalysisDiagnosticCode =
@@ -638,6 +663,11 @@ function aggregateSources(input: SnowmakingAnalysisInput,
 }
 
 export function analyzeSnowmakingSystems(input: SnowmakingAnalysisInput): SnowmakingAnalysisResult {
+  const projectedInput: SnowmakingAnalysisInput = {
+    ...input,
+    pumpSettings: projectSnowmakingPumpAnalysisSettings(input.nodes, input.pumpSettings),
+  };
+  input = projectedInput;
   const diagnostics: SnowmakingAnalysisDiagnostic[] = [];
   const stage = snowgunStageForWetBulb(input.wetBulbF);
   if (!Number.isFinite(input.wetBulbF)) addDiagnostic(diagnostics, 'invalid-wet-bulb',

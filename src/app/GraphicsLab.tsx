@@ -9,6 +9,9 @@ import { basemapFor, tuneBasemap } from './basemapStyle';
 import { mountTerrain, unmountTerrain, tilt3D } from './terrain3d';
 import { applyTileLod } from './terrainLod';
 import { pixelRatioForElement, useSettings, type RenderQuality } from './SettingsContext';
+import { addBuildingLayers } from './buildingLayers';
+import { BuildingBatchRenderer } from './buildingRenderer';
+import { fixedPumpHouseFixture } from './buildingFixture';
 
 // A developer window for eyeballing graphics settings: two maps side by side
 // whose cameras stay locked together, but whose layers and render quality are
@@ -129,6 +132,13 @@ export function GraphicsLab({ onExit }: { onExit: () => void }) {
           m, null, 'imperial', null, null, {}, {}, null, 'depth', initialQ[i],
         ));
         applyTileLod(m, initialQ[i]);
+        // The fixture deliberately goes through the production renderer and
+        // support layers, so pitch, terrain, theme, and quality changes can
+        // be inspected without any game state or save data.
+        addBuildingLayers(m);
+        const fixture = new BuildingBatchRenderer();
+        fixture.setBuildings([fixedPumpHouseFixture(CENTER)]);
+        if (!m.getLayer(fixture.id)) m.addLayer(fixture);
       });
       return m;
     }) as [maplibregl.Map, maplibregl.Map];

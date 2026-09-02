@@ -87,6 +87,13 @@ export interface SavedSnowmakingNode {
   point: [number, number];
   elevM: number | null;
   source?: SnowmakingSourceRef;
+  /** Set only for the reciprocal center pump owned by a player building. */
+  ownerBuildingId?: string;
+  /** Fixed for building-owned pumps; omitted for legacy/manual pumps. */
+  pumpRating?: {
+    horsepowerHp: number;
+    efficiency: number;
+  };
   createdAt: string;
 }
 

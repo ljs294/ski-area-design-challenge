@@ -6,6 +6,7 @@ const LABELS: Record<ConstructionActivity, string> = {
   road: 'Building road…',
   pond: 'Building pond…',
   dam: 'Building dam…',
+  building: 'Building pump house…',
 };
 
 export function ConstructionStatusBug({ activity }: { activity: ConstructionActivity }) {

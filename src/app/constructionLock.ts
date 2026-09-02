@@ -7,7 +7,7 @@
  * synchronously — before the operation's first await — so the second
  * confirmation is rejected instead of building on top of the first one's work.
  */
-export type ConstructionActivity = 'lift' | 'trail' | 'road' | 'pond' | 'dam';
+export type ConstructionActivity = 'lift' | 'trail' | 'road' | 'pond' | 'dam' | 'building';
 
 export interface ConstructionHandle {
   readonly activity: ConstructionActivity;

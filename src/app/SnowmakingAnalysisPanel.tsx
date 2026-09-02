@@ -1,6 +1,8 @@
 import { memo, useEffect, useRef } from 'react';
 import { snowgunLabel, snowgunVariant } from '../snowmakingGuns';
-import { snowmakingNodeLabel, snowmakingPipeSegments, snowmakingPipeStats } from '../snowmakingNetwork';
+import { snowmakingNodeLabel, snowmakingPipeSegments,
+  snowmakingPipeStats } from '../snowmakingNetwork';
+import { isOwnedSnowmakingPump } from '../snowmakingOwnedPumps';
 import type { SnowmakingAnalysisGroup, SnowmakingAnalysisResult,
   SnowmakingSourceResource } from '../snowmakingHydraulics';
 import type { SavedSnowgun, SavedSnowmakingNode, SavedSnowmakingPipe,
@@ -209,17 +211,20 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
 
     {relevantGroups.length > 0 && <><div className="network-section-title">Pumps in selected systems</div>
       {pumps.length ? <div className="snowmaking-analysis-pumps">{pumps.map((pump) => {
-        const setting = state.pumpSettings[pump.id] ?? DEFAULT_PUMP_ANALYSIS_DRAFT;
+        const ownedPump = isOwnedSnowmakingPump(pump);
+        const setting = ownedPump ? { ...(state.pumpSettings[pump.id] ?? DEFAULT_PUMP_ANALYSIS_DRAFT),
+          horsepowerHp: '1000', efficiencyPercent: '85' } :
+          state.pumpSettings[pump.id] ?? DEFAULT_PUMP_ANALYSIS_DRAFT;
         return <fieldset key={pump.id}><legend>{snowmakingNodeLabel(pump)} · {pump.name}</legend>
           <SnowmakingPumpPortEditor pump={pump} nodes={nodes} pipes={pipes}
             onSetPumpPort={onSetPumpPort} compact />
           <label className="snowmaking-analysis-pump-toggle"><input type="checkbox" checked={setting.on}
             onChange={(event) => setPumpOn(pump.id, event.target.checked)} /> Pump On</label>
           <label><span>Horsepower</span><input type="number" min="0" step="1"
-            disabled={!setting.on} value={setting.horsepowerHp} aria-label={`${pump.name} horsepower`}
+            disabled={ownedPump || !setting.on} value={setting.horsepowerHp} aria-label={`${pump.name} horsepower`}
             onChange={(event) => setPumpHp(pump.id, event.target.value)} /></label>
           <label><span>Efficiency</span><span><input type="number" min="1" max="100" step="1"
-            disabled={!setting.on} value={setting.efficiencyPercent}
+            disabled={ownedPump || !setting.on} value={setting.efficiencyPercent}
             aria-label={`${pump.name} efficiency percent`}
             onChange={(event) => setPumpEfficiency(pump.id, event.target.value)} /> %</span></label>
         </fieldset>;

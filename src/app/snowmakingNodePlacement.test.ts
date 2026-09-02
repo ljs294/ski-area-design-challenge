@@ -53,4 +53,17 @@ describe('inline snowmaking pump placement', () => {
       { point: [0.001, 0], snap: null }] }, () => 'new-id', () => '2026-01-01');
     expect(result).toBe('Connect new pipes at a junction, not directly to a pump.');
   });
+
+  it('allows a new pipe endpoint to attach to a free-standing pump-house pump', () => {
+    const pump: SavedSnowmakingNode = { id: 'pump-house-1', kind: 'pump', name: 'Pump House 1',
+      labelNumber: 1, point: [0, 0], elevM: 100, ownerBuildingId: 'building-1',
+      pumpRating: { horsepowerHp: 1000, efficiency: 0.85 }, createdAt: '2026-01-01' };
+    const result = resolveSnowmakingPipeDraft({ ...base, nodes: [pump] }, { phase: 'review',
+      name: 'Branch', error: null, points: [{ point: pump.point,
+        snap: { kind: 'node', nodeId: pump.id, point: pump.point } },
+      { point: [0.001, 0], snap: null }] }, () => 'new-id', () => '2026-01-01');
+    expect(typeof result).toBe('object');
+    if (typeof result === 'string') return;
+    expect(result.nodeIds).toEqual([pump.id, null]);
+  });
 });

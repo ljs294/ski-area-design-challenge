@@ -38,4 +38,25 @@ describe('SnowmakingNetworkDocument', () => {
     expect(stale.commit()).toEqual({ ok: false, reason: 'stale' });
     expect(stale.commit()).toEqual({ ok: false, reason: 'settled' });
   });
+
+  it('supports prepare/apply/publish without exposing a half-published snapshot', () => {
+    const changes: { revision: number; changed: Record<string, boolean> }[] = [];
+    const document = new SnowmakingNetworkDocument(initial,
+      ({ snapshot, changed }) => changes.push({ revision: snapshot.revision, changed }));
+    const edit = document.begin();
+    edit.replace({ ...initial, nextNumbers: { hydrant: 1, junction: 1, pump: 2 } });
+    const prepared = edit.prepareCommit();
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    expect(document.revision).toBe(0);
+    expect(changes).toEqual([]);
+    expect(document.applyPrepared(prepared.prepared)).toBe(true);
+    expect(document.revision).toBe(1);
+    expect(changes).toEqual([]);
+    document.publishPrepared(prepared.prepared);
+    document.publishPrepared(prepared.prepared);
+    expect(changes).toEqual([{ revision: 1,
+      changed: { nodes: true, pipes: true, guns: true, nextNumbers: true } }]);
+    expect(document.snapshot().nextNumbers.pump).toBe(2);
+  });
 });

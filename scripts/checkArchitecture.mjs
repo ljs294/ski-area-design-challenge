@@ -26,6 +26,10 @@ const TYPE_FACADE_MANIFEST = new Map([
     'TerrainCoverProvenance', 'WorldCoverClassCode',
   ]],
   ['./types/earthwork', ['EarthworkEstimate']],
+  ['./types/economics', ['AssetEconomics', 'MaintenanceCadence']],
+  ['./types/buildings', [
+    'BuildingFoundation', 'BuildingFoundationMode', 'BuildingTypeId', 'SavedBuilding',
+  ]],
   ['./types/gameSave', ['GameSave', 'GameSaveSummary', 'SavedSiteBox']],
   ['./types/geo', ['LatLonBounds']],
   ['./types/lifts', [
