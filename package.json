@@ -13,6 +13,7 @@
     "typecheck:time-engine": "tsc -p time-engine/tsconfig.json --noEmit",
     "test:time-engine": "vitest run time-engine/test --testTimeout 10000",
     "sim:weather": "node --experimental-strip-types scripts/weatherCli.ts",
+    "benchmark:guest-simulation": "node --experimental-strip-types scripts/benchmarkGuestSimulation.ts",
     "typecheck:weather-engine": "tsc -p weather-engine/tsconfig.json --noEmit",
     "test:weather-engine": "vitest run weather-engine/test --testTimeout 10000",
     "typecheck:weather-lab": "tsc -p weather-lab/tsconfig.json --noEmit",

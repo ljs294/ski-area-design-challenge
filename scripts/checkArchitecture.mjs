@@ -7,6 +7,8 @@ const repoRoot = process.cwd();
 const sourceRoot = path.join(repoRoot, 'src');
 const appRoot = path.join(sourceRoot, 'app');
 const typeModelRoot = path.join(sourceRoot, 'types');
+const guestSimulationRoot = path.join(sourceRoot, 'guestSimulation');
+const electronRoot = path.join(repoRoot, 'electron');
 const typeFacadePath = path.join(sourceRoot, 'types.ts');
 const sourceExtensions = new Set(['.ts', '.tsx']);
 
@@ -270,6 +272,7 @@ for (const filePath of files) {
   const sourceFile = sourceFileFor(filePath);
   const isAppFile = isWithin(filePath, appRoot);
   const isTypeFile = isWithin(filePath, typeModelRoot);
+  const isGuestSimulationFile = isWithin(filePath, guestSimulationRoot);
   const repositoryPath = path.relative(repoRoot, filePath).replaceAll('\\', '/');
 
   if (normalized(filePath) !== normalized(typeFacadePath)) {
@@ -300,6 +303,17 @@ for (const filePath of files) {
 
   for (const imported of moduleSpecifiers(sourceFile)) {
     const target = projectTarget(filePath, imported.specifier);
+    if (
+      isGuestSimulationFile
+      && (
+        /^(?:react|react-dom|maplibre-gl|electron)(?:\/|$)/.test(imported.specifier)
+        || (target && (isWithin(target, appRoot) || isWithin(target, electronRoot)))
+      )
+    ) {
+      errors.push(
+        `${repositoryPath}:${imported.line} ${imported.kind} crosses the dependency-neutral guest-simulation boundary: ${imported.specifier}`,
+      );
+    }
     if (!target) continue;
 
     if (!isAppFile && isWithin(target, appRoot)) {

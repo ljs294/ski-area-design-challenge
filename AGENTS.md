@@ -84,6 +84,7 @@ Keep imports flowing from dependency-neutral models and pure domain logic toward
 | Road domain | `src/roads.ts`, `src/app/roadLayers.ts` | Construction and cover edits |
 | Snowmaking | `src/snowmakingNodes.ts`, `src/app/SnowmakingControl.tsx` | Dam, pond, and node workflows |
 | Trail and topology | `src/trails.ts`, `src/topology.ts`, `src/skiNodes.ts` | Atomic nodes, paths, junctions, grading |
+| Guest simulation | `src/guestSimulation/` | Deterministic contracts, fixtures, event timing, and benchmarks |
 | Terrain preparation | `src/terrainIngest.ts`, `src/terrainPackage.ts` | Provider data, package validation, persistence |
 | Cover processing | `src/fourClassCover.ts`, `src/cover*.ts`, `src/app/cover*` | Classification, display, worker commits |
 | Saves | `src/types.ts`, `src/gameSaveClient.ts` | Schema compatibility and hydration |
