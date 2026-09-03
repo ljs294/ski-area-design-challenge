@@ -1,0 +1,34 @@
+import type { GuestSimulationEnvironmentSnapshot } from '../guestSimulation/contracts';
+import type { GuestSimulationEngineSnapshot, GuestSimulationNetwork } from '../guestSimulation/engine';
+
+interface RequestBase { readonly requestId: string; readonly sequence: number }
+
+export type GuestSimulationWorkerRequest =
+  | (RequestBase & { readonly type: 'initialize'; readonly runId: string; readonly seed: string;
+      readonly guestCount: number; readonly network: GuestSimulationNetwork;
+      readonly startTick: number; readonly endTick: number;
+      readonly environmentRevision: number; readonly topologyRevision: number })
+  | (RequestBase & { readonly type: 'restore'; readonly bytes: Uint8Array; readonly expectedTopologyRevision: number })
+  | (RequestBase & { readonly type: 'advance'; readonly toTick: number;
+      readonly expectedEnvironmentRevision: number; readonly expectedTopologyRevision: number })
+  | (RequestBase & { readonly type: 'snapshot' | 'checkpoint' });
+
+export type GuestSimulationWorkerResponse =
+  | { readonly type: 'ready' | 'advanced' | 'snapshot'; readonly requestId: string; readonly sequence: number;
+      readonly snapshot: GuestSimulationEngineSnapshot }
+  | { readonly type: 'checkpoint'; readonly requestId: string; readonly sequence: number;
+      readonly snapshot: GuestSimulationEngineSnapshot; readonly bytes: Uint8Array }
+  | { readonly type: 'error'; readonly requestId: string; readonly sequence: number;
+      readonly code: 'not-initialized' | 'stale-sequence' | 'stale-revision' | 'invalid-request' | 'simulation-failed';
+      readonly message: string };
+
+export function workerEnvironment(
+  request: Extract<GuestSimulationWorkerRequest, { type: 'initialize' }>,
+): GuestSimulationEnvironmentSnapshot {
+  return Object.freeze({ version: 1, tick: request.startTick,
+    environmentRevision: request.environmentRevision, topologyRevision: request.topologyRevision,
+    operating: true, portals: request.network.portals, incidents: [],
+    conditions: Object.freeze({ version: 1, tick: request.startTick, status: 'good', trend: 'stable',
+      temperatureC: -3, windKph: 8, visibilityKm: 25, precipitationMm: 0, snowfallCm: 0,
+      terrainOpenFraction: 1, liftOpenFraction: 1, trailOpenFraction: 1 }) });
+}

@@ -12,15 +12,13 @@ import { useSettings } from './SettingsContext';
 import { MapInteractionLease, type MapInteractionLeaseHandle, type MapInteractionOverrides } from './mapInteractionLease';
 import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot, type ToolId } from './toolCoordinator';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
-import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION, saveGame } from '../gameSaveClient';
+import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION } from '../gameSaveClient';
 import { isDesktop } from '../desktopBridge';
-import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath, SavedPond,
-  SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
+import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath, SavedPond, SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
 import { validateTerrainPackage, withPreparedCoverDisplay } from '../terrainPackage';
-import { clearResortCoverCache, RESORT_COVER_PROTOCOL, resortCameraBounds,
-  sampleLocalTerrainAt, setActiveResortTerrain } from './resortProtocols';
+import { clearResortCoverCache, RESORT_COVER_PROTOCOL, resortCameraBounds, sampleLocalTerrainAt, setActiveResortTerrain } from './resortProtocols';
 import { useLiftController } from './useLiftController';
 import { useRoadController } from './useRoadController';
 import { useCommittedSnowmakingNetwork, useSnowmakingController, useSnowmakingLakeSources } from './useSnowmakingController';
@@ -32,19 +30,17 @@ import { useElevationBackfill } from './useElevationBackfill';
 import { useMapRuntime } from './useMapRuntime';
 import { useGameSimulation, useMapSampling, useSnowLayer, useTerrainDisplayAssets } from './useMapSampling';
 import { useMapWorkers } from './useMapWorkers';
-import { TERRAIN_CLEAN, designHasEdits, designOf, flushTerrainEdits, terrainHasEdits, withTerrainEdit,
-  type DesignSnapshot, type TerrainDirty } from './unsavedChanges';
+import { TERRAIN_CLEAN, designHasEdits, designOf, flushTerrainEdits, terrainHasEdits, withTerrainEdit, type DesignSnapshot, type TerrainDirty } from './unsavedChanges';
 import { refreshTerrainGradeSources, setGradedContourPreview, setTerrainContourData } from './terrainGradeMap';
 import { withResumeCheckpoint } from './resumeCheckpoint';
 import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication, type TerrainRecordView } from './terrainDocument';
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
-import { has3DBuildingContext, initialResortDesign, usePumpHouseFeature } from './mapViewComposition';
+import { has3DBuildingContext, initialResortDesign, saveGameWithGuestCheckpoint, useGuestPortalController, useGuestSimulationRuntime, usePumpHouseFeature, type GuestRenderPoint, type PlacedGuestPortal } from './mapViewComposition';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
-const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
-const INITIAL_ZOOM = 12;
+const INITIAL_CENTER: [number, number] = [-121.474, 46.928], INITIAL_ZOOM = 12;
 export type MapMode = 'picking' | 'playing';
 
 /**
@@ -54,32 +50,21 @@ export type MapMode = 'picking' | 'playing';
  * accepts a node the run passes straight through. Both pick first and commit on
  * a button, so a misclick costs nothing.
  */
-type SelectionTarget =
-  | { kind: 'lift' | 'trail' | 'dam' | 'pond' | 'building' | 'snowmaking-node' | 'snowmaking-pipe' |
-      'snowgun' |
-      'ski-node' | 'ski-path'; id: string }
-  | { kind: 'road' | 'lake' | 'stream'; id: string }
-  | { kind: 'none' };
+type SelectionTarget = { kind: 'lift' | 'trail' | 'dam' | 'pond' | 'building' | 'snowmaking-node' | 'snowmaking-pipe' | 'snowgun' | 'ski-node' | 'ski-path'; id: string }
+  | { kind: 'road' | 'lake' | 'stream'; id: string } | { kind: 'none' };
 
-function layerTogglesOf(descriptors: readonly MapVisibilityDescriptor[]): LayerToggle[] {
-  return descriptors.map((descriptor) => ({ ...descriptor, layerIds: [...descriptor.layerIds] }));
-}
+function layerTogglesOf(descriptors: readonly MapVisibilityDescriptor[]): LayerToggle[] { return descriptors.map((descriptor) => ({ ...descriptor, layerIds: [...descriptor.layerIds] })); }
 
 /** crypto.randomUUID is gated to secure contexts (fails under packaged file://). */
 function genId(): string {
-  try {
-    return crypto.randomUUID();
-  } catch {
-    return 'save-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
-}
+  try { return crypto.randomUUID(); }
+  catch { return 'save-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); } }
 
 /** The visible member of the mutually-exclusive overlay group, if any. */
 function activeOverlayOf(layers: LayerToggle[]): OverlayId | null {
   const analysis = layers.find((l) => (l.exclusiveGroup === 'overlay' || l.exclusiveGroup === 'analysis') && l.visible);
   const on = analysis ?? layers.find((l) => l.id === 'groundcover' && l.visible);
-  return (on?.id as OverlayId) ?? null;
-}
+  return (on?.id as OverlayId) ?? null; }
 
 interface MapViewProps {
   mode: MapMode;
@@ -308,6 +293,11 @@ export function MapView({
     () => buildSkiNetwork(trails, lifts, { nodes: skiNodes, paths: skiPaths, junctions }),
     [trails, lifts, skiNodes, skiPaths, junctions]
   );
+  const [guestPortal, setGuestPortal] = useState<PlacedGuestPortal | null>(null);
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
+  const guestRuntime = useGuestSimulationRuntime({ saveKey: saved?.key ?? null, gameSaveUpdatedAt: saved ? `${saved.updatedAt}|${saved.lastPlayedAt}` : null,
+    network, portal: guestPortal, clock: simulation.clock, restorePortal: setGuestPortal });
+  const guestPoints: readonly GuestRenderPoint[] = guestRuntime.points;
   useEffect(() => {
     (window as unknown as { appNetwork?: typeof network }).appNetwork = network;
   }, [network]);
@@ -363,9 +353,11 @@ export function MapView({
   const renderQualityRef = useRef(settings.renderQuality);
   const unitsRef = useRef(settings.units);
   const buildingControllerCancelRef = useRef<() => void>(() => {});
+  const guestPortalCancelRef = useRef<() => void>(() => {});
   const toolCancellationRef = useRef<Record<ToolId, () => void>>({
     lift: () => {}, road: () => {}, dam: () => {}, pond: () => {},
     building: () => {},
+    'guest-portal': () => {},
     'ski-node': () => {}, 'ski-path': () => {}, trail: () => {},
     'snowmaking-pipe': () => {}, 'snowmaking-node': () => {}, 'snowmaking-gun': () => {},
   });
@@ -382,6 +374,7 @@ export function MapView({
     dam: cancelDamTool,
     pond: cancelPondTool,
     building: () => buildingControllerCancelRef.current(),
+    'guest-portal': () => guestPortalCancelRef.current(),
     'ski-node': cancelNodeTool,
     'ski-path': cancelPathTool,
     trail: cancelTrailTool,
@@ -402,6 +395,12 @@ export function MapView({
     if (!lease) throw new Error('Map interaction lease is unavailable.');
     return lease.acquire(owner, map, overrides);
   }
+  const guestPortalController = useGuestPortalController({ mapRef, network, portal: guestPortal, points: guestPoints,
+    setPortal: setGuestPortal, activate: () => toolCoordinator.activate('guest-portal'),
+    release: () => { toolCoordinator.release('guest-portal'); }, openDock: () => toolCoordinator.setOpenDock('infrastructure'),
+    acquireInteractions: (map) => acquireMapInteractions('guest-portal', map, { cursor: 'crosshair', dragPanEnabled: true,
+      doubleClickZoomEnabled: true }), synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('guest') });
+  guestPortalCancelRef.current = guestPortalController.cancel;
   // Loaded local package backing cursor sampling, MapLibre protocols, and
   // style reinitialization. Gameplay never populates it from network data.
   // Written only by the terrain document's publication, so a handler reading it
@@ -1013,6 +1012,7 @@ export function MapView({
       liftController.contribution,
       buildingController.contribution,
       snowmakingController.network.contribution,
+      guestPortalController.contribution,
     ];
   }
   if (!mapContributionRegistryRef.current) {
@@ -1173,7 +1173,7 @@ export function MapView({
             activeTool === 'snowmaking-node' || activeTool === 'snowmaking-gun' ||
             selectedDamId !== null || selectedPondId !== null || selectedSnowmakingNodeId !== null ||
             selectedSnowmakingPipeId !== null || selectedSnowgunId !== null || selectedBuildingId !== null
-            : openDock === 'infrastructure' || activeTool === 'road');
+            : openDock === 'infrastructure' || activeTool === 'road' || activeTool === 'guest-portal');
     if (toolCoordinator.toggleDock(which, isOpen) === 'layers-alongside') return;
 
     setSelectedLakeId(null);
@@ -1362,7 +1362,7 @@ export function MapView({
         bearing: map.getBearing(),
         pitch: map.getPitch(),
       }, is3DRef.current), ...runtime, snow: snow.snapshot(persisted.snow) };
-      const savedCheckpoint = await saveGame(checkpoint).catch((error: unknown) => ({
+      const savedCheckpoint = await saveGameWithGuestCheckpoint(checkpoint, guestRuntime).catch((error: unknown) => ({
         ok: false as const,
         error: error instanceof Error ? error.message : 'The save service did not respond.',
       }));
@@ -1513,7 +1513,7 @@ export function MapView({
       setCheckpointError(`The terrain package could not be saved: ${terrainError}`);
       return;
     }
-    const res = await saveGame(next);
+    const res = await saveGameWithGuestCheckpoint(next, guestRuntime);
     setSaving(false);
     if (res.ok) {
       persistedSaveRef.current = next;
@@ -1530,7 +1530,7 @@ export function MapView({
     const record = await prepareLocalPackage(base.name);
     if (!record) return;
     const next: GameSave = { ...base, terrainKey: record.key, updatedAt: new Date().toISOString() };
-    const result = await saveGame(next);
+    const result = await saveGameWithGuestCheckpoint(next, guestRuntime);
     if (result.ok) {
       persistedSaveRef.current = next;
       setSaved(next);
@@ -1554,7 +1554,7 @@ export function MapView({
       setCheckpointError(`The terrain package could not be saved: ${terrainError}`);
       return false;
     }
-    const res = await saveGame(next);
+    const res = await saveGameWithGuestCheckpoint(next, guestRuntime);
     setSaving(false);
     if (!res.ok) {
       setCheckpointError(`Could not save the resort: ${res.error}`);
@@ -1715,7 +1715,8 @@ export function MapView({
           coordinator: toolCoordinatorState, layers, activeOverlay,
           lifts, trails, roads, dams, ponds, buildings, snowmakingLakes: snowmakingLakes ?? [],
           snowmakingNodes, snowmakingPipes, snowguns, skiNodes, skiPaths,
-          junctions, terrainRecord, network, simulation,
+          junctions, terrainRecord, network, simulation, guestPortal, guestPortalController, guestRuntime,
+          selectedGuestId, selectGuest: (id) => { setSelectedGuestId(id); const point = guestPoints.find((guest) => guest.id === id); if (point) mapRef.current?.easeTo({ center: [point.lng, point.lat], zoom: Math.max(mapRef.current.getZoom(), 16) }); }, clearSelectedGuest: () => setSelectedGuestId(null),
           selectedLiftId, selectedTrailId,
           selectedDamId, selectedPondId, selectedBuildingId,
           selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedSnowgunId, selectedNodeId,

@@ -4,6 +4,7 @@ import { ROAD_CLEAR_BUFFER_M, ROAD_TYPE_LABELS, roadLengthM,
   TWO_LANE_CLEAR_HALF_WIDTH_M, TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import type { Units } from './SettingsContext';
 import type { DraftRoad, RoadTool } from './roadControllerModel';
+import type { GuestSimulationRuntime } from './useGuestSimulationRuntime';
 
 export type { DraftRoad, RoadTool } from './roadControllerModel';
 
@@ -54,16 +55,60 @@ function RoadStats({ points, units, draft }: { points: [number, number][]; units
 /** Roads only. Dams and ponds live in the Snowmaking dock beside the pipe
  *  network they feed — see SnowmakingControl. */
 export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onUndo,
-  onFinish, onDraftChange, onConfirm, onClose, building = false }: {
+  onFinish, onDraftChange, onConfirm, onClose, building = false,
+  guestPortal, guestPortalArmed = false, guestPortalError = null,
+  guestRuntime, selectedGuestId, onClearSelectedGuest,
+  onSelectGuest,
+  onArmGuestPortal, onCancelGuestPortal, onRemoveGuestPortal }: {
   tool: RoadTool; roads: SavedRoad[]; units: Units;
   onArm: (roadType: RoadType) => void; onCancel: () => void; onUndo: () => void; onFinish: () => void;
   onDraftChange: (patch: Partial<DraftRoad>) => void; onConfirm: () => void;
   onClose: () => void; building?: boolean;
+  guestPortal?: { label: string; nodeId: string } | null;
+  guestPortalArmed?: boolean;
+  guestPortalError?: string | null;
+  guestRuntime?: GuestSimulationRuntime;
+  selectedGuestId?: string | null;
+  onClearSelectedGuest?: () => void;
+  onSelectGuest?: (id: string) => void;
+  onArmGuestPortal?: () => void;
+  onCancelGuestPortal?: () => void;
+  onRemoveGuestPortal?: () => void;
 }) {
   if (tool.phase === 'idle') return <div className="lift-overview infrastructure-panel">
     <PanelHead title={`Infrastructure · ${roads.length} roads`} onClose={onClose} />
     <RoadTypeField value="two-lane" onChange={() => undefined} />
     <button className="lift-add-btn site-btn site-btn-primary" onClick={() => onArm('two-lane')}>＋ Build road</button>
+    <div className="lift-field"><span className="lift-field-label">Guest simulation</span>
+      {guestPortal ? <div className="site-hint">{guestPortal.label} connected at {guestPortal.nodeId}.</div>
+        : <div className="site-hint">A network-connected Guest Entrance is required before visitors arrive.</div>}
+      {guestPortalArmed ? <button className="site-btn" onClick={onCancelGuestPortal}>Cancel entrance placement</button>
+        : <button className="site-btn" onClick={onArmGuestPortal}>{guestPortal ? 'Move Guest Entrance' : 'Place Guest Entrance'}</button>}
+      {guestPortal && <button className="site-btn" onClick={onRemoveGuestPortal}>Remove Guest Entrance</button>}
+      {guestPortalError && <div className="lift-warning" role="alert">{guestPortalError}</div>}
+      {guestPortal && guestRuntime && <div className="lift-stats">
+        <div className="readout-line"><span className="lift-stat-label">Worker</span>
+          <span className="lift-stat-value">{guestRuntime.status}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">Guests active</span>
+          <span className="lift-stat-value">{guestRuntime.snapshot?.metrics.active.toLocaleString() ?? '0'}</span></div>
+        <div className="site-hint">{guestRuntime.message}</div>
+        {guestRuntime.snapshot?.guests.filter((guest) => guest.status !== 'scheduled' && guest.status !== 'departed').slice(0, 12)
+          .map((guest) => <button className="site-btn" key={guest.id} onClick={() => onSelectGuest?.(guest.id)}>
+            {guest.id} · {guest.status}</button>)}
+      </div>}
+      {selectedGuestId && guestRuntime?.snapshot && (() => {
+        const guest = guestRuntime.snapshot.guests.find((candidate) => candidate.id === selectedGuestId);
+        if (!guest) return null;
+        const thoughts = guestRuntime.snapshot.thoughtEvents.filter((thought) => thought.guestId === guest.id).slice(-3).reverse();
+        return <div className="lift-field"><span className="lift-field-label">Selected guest</span>
+          <div className="readout-line"><span className="lift-stat-label">ID</span><span className="lift-stat-value">{guest.id}</span></div>
+          <div className="readout-line"><span className="lift-stat-label">Ability</span><span className="lift-stat-value">{Math.round(guest.preferences.ability * 100)}%</span></div>
+          <div className="readout-line"><span className="lift-stat-label">State</span><span className="lift-stat-value">{guest.status}</span></div>
+          {thoughts.map((thought) => <div className="site-hint" key={thought.id}>{thought.text}</div>)}
+          <button className="site-btn" onClick={onClearSelectedGuest}>Clear guest selection</button>
+        </div>;
+      })()}
+    </div>
     {roads.length === 0 ? <div className="lift-overview-empty">No infrastructure yet — build your first road.</div> : <>
       {roads.length > 0 && <div className="lift-list">{roads.map((road) => <div key={road.id} className="lift-row">
         <span className="infrastructure-road-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{road.name}</span>

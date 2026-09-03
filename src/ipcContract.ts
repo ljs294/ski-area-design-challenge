@@ -34,6 +34,10 @@ export const GAMESAVE_DELETE_CHANNEL = 'gamesave:delete';
 export const GAMESAVE_CAPTURE_PREVIEW_CHANNEL = 'gamesave:capture-preview';
 export const GAMESAVE_LOAD_PREVIEW_CHANNEL = 'gamesave:load-preview';
 
+// --- Guest simulation binary sidecars (Electron only; never browser storage). ---
+export const GUEST_SIMULATION_SAVE_CHECKPOINT_CHANNEL = 'guest-simulation:save-checkpoint';
+export const GUEST_SIMULATION_LOAD_CHECKPOINT_CHANNEL = 'guest-simulation:load-checkpoint';
+
 // --- Window / shell control ---
 export const WINDOW_GET_MODE_CHANNEL = 'window:get-mode';
 export const WINDOW_SET_MODE_CHANNEL = 'window:set-mode';
@@ -73,6 +77,24 @@ export type GameSavePreviewCaptureResponse =
 export type GameSavePreviewLoadResponse =
   | { ok: true; dataUrl: string | null }
   | { ok: false; error: string };
+
+export interface GuestSimulationCheckpointSaveRequest {
+  saveKey: string;
+  gameSaveUpdatedAt: string;
+  bytes: Uint8Array;
+}
+export type GuestSimulationCheckpointSaveResponse =
+  | { ok: true; checksumSha256: string; byteLength: number }
+  | { ok: false; error: string };
+
+export interface GuestSimulationCheckpointLoadRequest {
+  saveKey: string;
+  gameSaveUpdatedAt: string;
+}
+export type GuestSimulationCheckpointLoadResponse =
+  | { status: 'ready'; source: 'current' | 'previous'; bytes: Uint8Array; checksumSha256: string }
+  | { status: 'missing' }
+  | { status: 'corrupt'; error: string };
 
 export interface TerrainSaveRequest {
   record: TerrainRecord;

@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { registerTerrainStorageHandlers } from './ipcTerrainStorage';
 import { registerGameSaveStorageHandlers } from './ipcGameSaveStorage';
+import { registerGuestSimulationStorageHandlers } from './ipcGuestSimulationStorage';
 import { registerWeatherStorageHandlers } from './ipcWeatherStorage';
 import { registerOverpassRequestIdentity } from './overpassRequestIdentity';
 import {
@@ -148,6 +149,7 @@ app.whenReady().then(async () => {
   registerOverpassRequestIdentity(session.defaultSession.webRequest, app.getVersion());
   registerTerrainStorageHandlers();
   registerGameSaveStorageHandlers();
+  registerGuestSimulationStorageHandlers();
   registerWeatherStorageHandlers();
   createWindow();
 

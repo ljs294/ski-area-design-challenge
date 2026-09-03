@@ -38,6 +38,9 @@ import type { BuildingController } from './useBuildingController';
 import { SnowLayerControl } from './SnowLayerControl';
 import type { SnowDisplayMode } from './snowStyle';
 import { analyzeBuiltRoad, analyzeImportedRoad, type RoadAnalysis } from '../roadAnalysis';
+import type { PlacedGuestPortal } from './guestPortalPlacement';
+import type { GuestPortalController } from './useGuestPortalController';
+import type { GuestSimulationRuntime } from './useGuestSimulationRuntime';
 
 type NodePathController = ReturnType<typeof useNodePathController>;
 type SnowmakingController = ReturnType<typeof useSnowmakingController>;
@@ -71,6 +74,12 @@ export interface MapGameDockProps {
   junctions: SavedJunction[];
   terrainRecord: TerrainRecord | null;
   simulation: GameSimulationController;
+  guestPortal: PlacedGuestPortal | null;
+  guestPortalController: GuestPortalController;
+  guestRuntime: GuestSimulationRuntime;
+  selectedGuestId: string | null;
+  selectGuest(id: string): void;
+  clearSelectedGuest(): void;
   network: SkiNetwork;
   selectedLiftId: string | null;
   selectedTrailId: string | null;
@@ -181,7 +190,8 @@ export function MapGameDock(props: MapGameDockProps) {
   const snowmakingOpen = !contextDetailOpen && !liftsOpen && !trailsOpen &&
     (props.openDock === 'snowmaking' || snowmakingActive);
   const infrastructureOpen = selectedRoad !== null || (!contextDetailOpen && !liftsOpen && !trailsOpen &&
-    !snowmakingOpen && (props.openDock === 'infrastructure' || props.coordinator.activeTool === 'road'));
+    !snowmakingOpen && (props.openDock === 'infrastructure' || props.coordinator.activeTool === 'road' ||
+      props.coordinator.activeTool === 'guest-portal'));
   const layersOpen = !contextDetailOpen && !liftsOpen &&
     (props.openDock === 'layers' || props.layersAlongsideBuild);
   const selectedLift = props.selectedLiftId
@@ -425,7 +435,14 @@ export function MapGameDock(props: MapGameDockProps) {
         onClose={props.clearSelectedRoad} /> : <InfrastructureControl tool={roadTool} roads={props.roads} units={props.units}
         onArm={roadController.arm} onCancel={roadController.cancel} onUndo={roadController.undo}
         onFinish={roadController.finish} onDraftChange={roadController.patchDraft}
-        onConfirm={roadController.confirm} building={props.building} onClose={props.closeDock} />}
+        onConfirm={roadController.confirm} building={props.building} onClose={props.closeDock}
+        guestPortal={props.guestPortal} guestPortalArmed={props.guestPortalController.armed}
+        guestPortalError={props.guestPortalController.error}
+        guestRuntime={props.guestRuntime} selectedGuestId={props.selectedGuestId}
+        onSelectGuest={props.selectGuest} onClearSelectedGuest={props.clearSelectedGuest}
+        onArmGuestPortal={props.guestPortalController.arm}
+        onCancelGuestPortal={props.guestPortalController.cancel}
+        onRemoveGuestPortal={props.guestPortalController.remove} />}
     </div></div>}
   </div><div className="dock-circles">
     <DockButton id="layers" label="Layers" open={layersOpen} onClick={props.toggleDock} />
