@@ -50,7 +50,18 @@ export interface MapHitContribution {
   readonly id: MapHitFamilyId;
   /** The layers a click on this family is delegated to. */
   readonly layerIds: readonly string[];
+  /** Resolve overlapping features within this family. Omit when normal
+   * rendered-feature order is already the intended choice. */
+  resolve?(
+    features: readonly maplibregl.MapGeoJSONFeature[],
+    lngLat: { lng: number; lat: number },
+  ): MapHitResolvedTarget | null;
   select(featureId: string, properties?: Readonly<Record<string, unknown>>): void;
+}
+
+export interface MapHitResolvedTarget {
+  readonly featureId: string;
+  readonly properties?: Readonly<Record<string, unknown>>;
 }
 
 function requireEach<Id, T extends { id: Id }>(
@@ -418,9 +429,8 @@ export class MapContributionRegistry {
         if (!this.hitEnabled()) return;
         const above = guard.filter((layerId) => map.getLayer(layerId));
         if (above.length && map.queryRenderedFeatures(event.point, { layers: above }).length) return;
-        const properties = event.features?.[0]?.properties;
-        const id = properties?.id;
-        if (typeof id === 'string') hit.select(id, properties as Record<string, unknown>);
+        const target = this.resolveHit(hit, event);
+        if (target) hit.select(target.featureId, target.properties);
       };
       this.bindHit(map, 'click', hit.layerIds, click);
       const hoverLayers = hit.hoverLayerIds ?? hit.layerIds;
@@ -440,14 +450,12 @@ export class MapContributionRegistry {
           return;
         }
         map.getCanvas().style.cursor = 'pointer';
-        const rendered = event.features?.[0];
-        const properties = rendered?.properties;
-        const id = properties?.id;
+        const target = this.resolveHit(hit, event);
         const canvasRect = map.getCanvas().getBoundingClientRect?.();
         const pointer = event.originalEvent;
-        hit.hover?.(typeof id === 'string' ? {
-          featureId: id,
-          properties: properties as Record<string, unknown>,
+        hit.hover?.(target ? {
+          featureId: target.featureId,
+          properties: target.properties ?? {},
           point: {
             x: pointer?.clientX ?? (canvasRect?.left ?? 0) + event.point.x,
             y: pointer?.clientY ?? (canvasRect?.top ?? 0) + event.point.y,
@@ -462,6 +470,14 @@ export class MapContributionRegistry {
       if (hit.hover) this.bindHit(map, 'mousemove', hoverLayers, hoverMove);
       this.bindHit(map, 'mouseleave', hoverLayers, hoverLeave);
     }
+  }
+
+  private resolveHit(hit: ManagedMapHitContribution, event: HitEvent): MapHitResolvedTarget | null {
+    const features = event.features ?? [];
+    if (hit.resolve) return hit.resolve(features, event.lngLat);
+    const properties = features[0]?.properties as Record<string, unknown> | undefined;
+    const id = properties?.id;
+    return typeof id === 'string' ? { featureId: id, properties } : null;
   }
 
   private bindHit(

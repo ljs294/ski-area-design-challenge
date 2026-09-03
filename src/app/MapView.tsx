@@ -30,7 +30,7 @@ import { MapViewChrome, SnowmakingToolOptions, snowmakingDashboardProps, useMapC
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
 import { useMapRuntime } from './useMapRuntime';
-import { useMapSampling, useSnowLayer, useTerrainDisplayAssets } from './useMapSampling';
+import { useGameSimulation, useMapSampling, useSnowLayer, useTerrainDisplayAssets } from './useMapSampling';
 import { useMapWorkers } from './useMapWorkers';
 import { TERRAIN_CLEAN, designHasEdits, designOf, flushTerrainEdits, terrainHasEdits, withTerrainEdit,
   type DesignSnapshot, type TerrainDirty } from './unsavedChanges';
@@ -45,9 +45,7 @@ import { has3DBuildingContext, initialResortDesign, usePumpHouseFeature } from '
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928];
 const INITIAL_ZOOM = 12;
-
 export type MapMode = 'picking' | 'playing';
-type SavedWeatherRun = NonNullable<GameSave['weatherRun']>;
 
 /**
  * Editing the graph nodes along a run. A node is a junction in the trail
@@ -213,8 +211,6 @@ export function MapView({
   const reportFailure = (message: string) =>
     reportBoot({ type: 'failed', message, repair: () => repairRef.current() });
   const [saved, setSaved] = useState<GameSave | null>(initialSave);
-  const [weatherRun, setWeatherRun] = useState<SavedWeatherRun | undefined>(initialSave?.weatherRun);
-  const weatherRunRef = useRef<SavedWeatherRun | undefined>(initialSave?.weatherRun);
   const persistedSaveRef = useRef<GameSave | null>(initialSave);
   const [nameDraft, setNameDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -224,6 +220,9 @@ export function MapView({
   const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
   const mapMode: MapMode = terrainRecord ? 'playing' : mode;
   const snow = useSnowLayer(mapRef);
+  const simulation = useGameSimulation({ terrain: terrainRecord, initialTime: initialSave?.time,
+    initialWeatherRun: initialSave?.weatherRun, snow, mapRef, renderQuality: settings.renderQuality,
+    reducedMotion: settings.reducedMotion });
   const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'optimizing' | 'error'>(
     mode === 'playing' ? 'loading' : 'ready'
   );
@@ -455,8 +454,7 @@ export function MapView({
     });
   }
   const terrain = terrainDocumentRef.current;
-  const { damAnalysis, coverEdit, coverClear, terrainGrade, trailPaint } =
-    useMapWorkers(mapRef, terrain);
+  const { damAnalysis, coverEdit, coverClear, terrainGrade, trailPaint, trailPresentation } = useMapWorkers(mapRef, terrain);
   const liftController = useLiftController({
     mapRef,
     lifts,
@@ -636,8 +634,9 @@ export function MapView({
   });
 
   const trailController = useTrailController({
-    mapRef, lifts, trails, paths: skiPaths, topology, terrain,
-    gradeAdapter: terrainGrade, paintAdapter: trailPaint,
+    mapRef, lifts, trails, junctions, paths: skiPaths, selectedTrailId,
+    theme: resolvedTheme, topology, terrain,
+    gradeAdapter: terrainGrade, paintAdapter: trailPaint, presentationAdapter: trailPresentation,
     canArm: () => siteModeRef.current !== 'selecting',
     activate: () => toolCoordinator.activate('trail'),
     release: () => { toolCoordinator.release('trail'); },
@@ -669,7 +668,8 @@ export function MapView({
     if (edit) markTerrainEdited(edit);
     else if (!preserveDirty) setTerrainDirty(TERRAIN_CLEAN);
     setTerrainRecord(record);
-    if (edit === 'elevation') snow.regenerate(record);
+    // Simulation rebuilds terrain coefficients on the next snow step; grading
+    // must not erase the accumulated snow grid.
   }
 
   /**
@@ -1286,6 +1286,8 @@ export function MapView({
       );
       const validation = validateTerrainPackage(record);
       if (!validation.ok) throw new Error(validation.errors.join(' '));
+      const weatherPreparation = await simulation.prepareWeatherForTerrain(record, controller.signal);
+      if (!weatherPreparation.ok) console.warn('Terrain prepared without weather:', weatherPreparation.error);
       // Ingest persisted this package itself, so it starts clean.
       terrain.replace(record);
       snow.regenerate(record);
@@ -1340,7 +1342,6 @@ export function MapView({
     .appSetCaptureTransients = setCaptureTransients;
 
   const checkpointPromiseRef = useRef<Promise<ExitCheckpointResult> | null>(null);
-
   async function checkpointForExit(interactive = true): Promise<ExitCheckpointResult> {
     if (checkpointPromiseRef.current) return checkpointPromiseRef.current;
     const run = (async (): Promise<ExitCheckpointResult> => {
@@ -1353,13 +1354,14 @@ export function MapView({
 
       setCheckpointError(null);
       setSaving(true);
-      const center = map.getCenter();
-      const checkpoint = withResumeCheckpoint(persisted, {
+      simulation.pause();
+      const runtime = simulation.snapshot(), center = map.getCenter();
+      const checkpoint = { ...withResumeCheckpoint(persisted, {
         center: [center.lng, center.lat],
         zoom: map.getZoom(),
         bearing: map.getBearing(),
         pitch: map.getPitch(),
-      }, is3DRef.current);
+      }, is3DRef.current), ...runtime, snow: snow.snapshot(persisted.snow) };
       const savedCheckpoint = await saveGame(checkpoint).catch((error: unknown) => ({
         ok: false as const,
         error: error instanceof Error ? error.message : 'The save service did not respond.',
@@ -1408,8 +1410,8 @@ export function MapView({
     if (!map) return base;
     const c = map.getCenter();
     const now = new Date().toISOString();
-    const committedTopology = committedTopologyRef.current;
-    const committedTerrain = terrain.snapshot().record;
+    const committedTopology = committedTopologyRef.current, committedTerrain = terrain.snapshot().record;
+    const runtime = simulation.snapshot();
     return {
       schemaVersion: CURRENT_GAME_SAVE_SCHEMA_VERSION,
       key: base?.key ?? genId(),
@@ -1440,7 +1442,8 @@ export function MapView({
       snowmakingLakeIds: snowmakingLakeIdsRef.current,
       streamWidthOverrides: streamWidthOverridesRef.current,
       snow: snow.snapshot(base?.snow),
-      weatherRun: weatherRunRef.current ?? base?.weatherRun,
+      weatherRun: runtime.weatherRun ?? base?.weatherRun,
+      time: runtime.time,
       createdAt: base?.createdAt ?? now,
       updatedAt: now,
       lastPlayedAt: base?.lastPlayedAt,
@@ -1470,11 +1473,8 @@ export function MapView({
       lakeNameOverrides: lakeNameOverridesRef.current,
       snowmakingLakeIds: snowmakingLakeIdsRef.current,
       streamWidthOverrides: streamWidthOverridesRef.current,
-      weatherRun: weatherRunRef.current,
     };
   }
-
-  function updateWeatherRun(next: SavedWeatherRun) { weatherRunRef.current = next; setWeatherRun(next); }
 
   function hasUnsavedChanges(): boolean {
     return terrainHasEdits(terrainDirtyRef.current) || designHasEdits(savedDesign, liveDesign());
@@ -1715,8 +1715,7 @@ export function MapView({
           coordinator: toolCoordinatorState, layers, activeOverlay,
           lifts, trails, roads, dams, ponds, buildings, snowmakingLakes: snowmakingLakes ?? [],
           snowmakingNodes, snowmakingPipes, snowguns, skiNodes, skiPaths,
-          junctions, terrainRecord, network,
-          weatherRun, onWeatherRunChange: updateWeatherRun,
+          junctions, terrainRecord, network, simulation,
           selectedLiftId, selectedTrailId,
           selectedDamId, selectedPondId, selectedBuildingId,
           selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedSnowgunId, selectedNodeId,
@@ -1790,7 +1789,7 @@ export function MapView({
           ponds,
           snowmakingLakes: snowmakingLakes ?? [],
           center: resortCenter(),
-          units: settings.units,
+          units: settings.units, averageAnnualSnowfallCm: simulation.averageAnnualSnowfallCm,
           onClose: () => setShowStats(false),
         } : null}
         closeCredits={showCredits ? () => setShowCredits(false) : null}

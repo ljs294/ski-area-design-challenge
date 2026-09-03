@@ -19,6 +19,11 @@ export type {
   LiftCategoryId, LiftStatus, LiftTypeId, SavedLift,
 } from './types/lifts';
 export type { RoadType, SavedRoad } from './types/roads';
+export type {
+  AdvanceResult, ClockRunState, DailyPhase, DailyPhaseConfig, Season, SimulationClock,
+  SimulationSpeed, TimeBoundaryEvent, TimeBoundaryTarget, TimeEngineSnapshot,
+  TimeScaleConfig,
+} from './types/simulation';
 export type { SavedSnowGrid, SnowGrid, SnowSurfaceCode } from './types/snow';
 export type {
   SavedDam, SavedPond, SavedSnowgun, SavedSnowmakingNode, SnowgunVariantId,

@@ -38,6 +38,7 @@ function loadSettings(): Settings {
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     const merged = { ...DEFAULTS, ...parsed };
+    if (parsed.units !== 'imperial' && parsed.units !== 'metric') merged.units = DEFAULTS.units;
     if (!isRenderQuality(parsed.renderQuality)) merged.renderQuality = DEFAULTS.renderQuality;
     // A shallow spread would let a stored (possibly stale/partial) keybinds
     // object silently clobber DEFAULTS.keybinds instead of merging with it —

@@ -17,9 +17,10 @@ import type { SavedJunction, SavedNode, SavedPath } from './types/topology';
 import type { SavedTrail } from './types/trails';
 import type { SavedSnowGrid } from './types/snow';
 import type { SavedBuilding } from './types/buildings';
+import type { TimeEngineSnapshot } from './types/simulation';
 
 interface ExpectedGameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
   key: string;
   name: string;
   mountainId?: string;
@@ -48,6 +49,7 @@ interface ExpectedGameSave {
   streamWidthOverrides?: Record<string, number>;
   snow?: SavedSnowGrid;
   weatherRun?: SavedWeatherRun;
+  time?: TimeEngineSnapshot;
   buildings?: SavedBuilding[];
   createdAt: string;
   updatedAt: string;
@@ -189,7 +191,7 @@ describe('GameSave compatibility boundary', () => {
   });
 
   it('keeps newly written saves on schema version 15', () => {
-    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(15);
-    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<15>();
+    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(16);
+    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<16>();
   });
 });

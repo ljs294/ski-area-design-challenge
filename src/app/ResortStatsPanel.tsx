@@ -7,6 +7,7 @@ import { fmtArea } from '../trails';
 import { resortElevations, resortTrailTotals, snowmakingWaterCapacityM3 } from './resortStats';
 import { reverseGeocode } from './SearchBox';
 import { formatLakeVolume } from '../lakeAnalysis';
+import { formatSnowfall } from './unitFormat';
 
 function StatRow({ label, value, tbd }: { label: string; value: string; tbd?: boolean }) {
   return (
@@ -20,7 +21,7 @@ function StatRow({ label, value, tbd }: { label: string; value: string; tbd?: bo
 /**
  * Ski-area overview, opened from the toolbar name. The name is editable in
  * place; elevations derive from the lift network; location reverse-geocodes the
- * resort center. Run count and snowfall are placeholders until those systems land.
+ * resort center. Snowfall is the historical September-August climate average.
  */
 export function ResortStatsPanel({
   name,
@@ -32,6 +33,7 @@ export function ResortStatsPanel({
   snowmakingLakes = [],
   center,
   units,
+  averageAnnualSnowfallCm,
   onClose,
 }: {
   name: string;
@@ -43,6 +45,7 @@ export function ResortStatsPanel({
   snowmakingLakes?: SnowmakingLakeSource[];
   center: [number, number];
   units: Units;
+  averageAnnualSnowfallCm: number | null;
   onClose: () => void;
 }) {
   const { summitM, baseM, verticalM } = resortElevations(lifts, trails);
@@ -98,7 +101,8 @@ export function ResortStatsPanel({
           )}
           <StatRow label="Snowmaking water capacity"
             value={formatLakeVolume(snowmakingCapacityM3, units)} />
-          <StatRow label="Avg. annual snowfall" value="TBD" tbd />
+          <StatRow label="Avg. annual snowfall" value={averageAnnualSnowfallCm == null
+            ? '--' : formatSnowfall(averageAnnualSnowfallCm, units)} />
         </div>
       </div>
     </div>

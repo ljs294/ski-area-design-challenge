@@ -19,7 +19,7 @@ const HIT_LAYERS: Record<MapHitFamilyId, string[]> = {
   snowmaking: ['snowmaking-node-hit'],
   building: ['building-hit'],
   lift: ['lift-line-hit', 'lift-terminals'],
-  trail: ['trail-fill'],
+  trail: ['trail-hit'],
   dam: ['dam-crest-hit', 'dam-pool-fill'],
   pond: ['pond-fill-hit'],
   road: ['road-hit', 'road-pavement'],
@@ -73,18 +73,18 @@ describe('map hit priority', () => {
       'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals',
     ]);
     expect(hitGuardLayers('dam', contributions)).toEqual([
-      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
     ]);
     expect(hitGuardLayers('pond', contributions)).toEqual([
-      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
       'dam-crest-hit', 'dam-pool-fill',
     ]);
     expect(hitGuardLayers('stream', contributions)).toEqual([
-      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
       'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'road-hit', 'road-pavement',
     ]);
     expect(hitGuardLayers('lake', contributions)).toEqual([
-      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-fill',
+      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
       'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'road-hit', 'road-pavement',
       'local-water-line-hit',
     ]);
@@ -157,10 +157,14 @@ class FakeMap {
 
   emit(type: string, layer: string, featureId = 'feature',
     properties: Record<string, unknown> = {}): void {
+    this.emitFeatures(type, layer, [{ properties: { id: featureId, ...properties } }]);
+  }
+
+  emitFeatures(type: string, layer: string, features: Array<{ properties: Record<string, unknown> }>): void {
     for (const binding of [...this.bindings]) {
       if (binding.type === type && binding.layers.includes(layer)) {
         binding.listener({ point: { x: 1, y: 2 },
-          features: [{ properties: { id: featureId, ...properties } }] });
+          lngLat: { lng: -121.5, lat: 46.9 }, features });
       }
     }
   }
@@ -399,6 +403,24 @@ describe('managed map contribution visibility', () => {
 });
 
 describe('managed map hit dispatch', () => {
+  it('lets a family deterministically resolve multiple rendered candidates', () => {
+    const selected: string[] = [];
+    const contributions = managedContributions([], selected);
+    const trail = contributions.find((entry) => entry.id === 'trail')!;
+    const hit = trail.hits![0];
+    (hit as { resolve: ManagedMapHitContribution['resolve'] }).resolve = (features, lngLat) => ({
+      featureId: String(features.at(-1)?.properties.id), properties: { longitude: lngLat.lng },
+    });
+    const map = new FakeMap();
+    const registry = new MapContributionRegistry(contributions);
+    registry.attach(map as unknown as maplibregl.Map);
+
+    map.emitFeatures('click', 'trail-hit', [
+      { properties: { id: 'first' } }, { properties: { id: 'nearest' } },
+    ]);
+    expect(selected).toEqual(['trail:nearest']);
+  });
+
   it('dispatches by priority, owns hover targets, and honors the enabled gate', () => {
     const selected: string[] = [];
     const hovered: string[] = [];
@@ -408,16 +430,16 @@ describe('managed map hit dispatch', () => {
     registry.attach(map as unknown as maplibregl.Map, () => enabled);
 
     map.guarded = true;
-    map.emit('click', 'trail-fill', 'run');
+    map.emit('click', 'trail-hit', 'run');
     expect(selected).toEqual([]);
     map.guarded = false;
-    map.emit('click', 'trail-fill', 'run');
+    map.emit('click', 'trail-hit', 'run');
     expect(selected).toEqual(['trail:run']);
-    map.emit('mouseenter', 'trail-fill');
-    map.emit('mousemove', 'trail-fill', 'run');
+    map.emit('mouseenter', 'trail-hit');
+    map.emit('mousemove', 'trail-hit', 'run');
     expect(map.canvas.style.cursor).toBe('pointer');
     expect(hovered.at(-1)).toBe('trail:run');
-    map.emit('mouseleave', 'trail-fill');
+    map.emit('mouseleave', 'trail-hit');
     expect(map.canvas.style.cursor).toBe('');
     expect(hovered.at(-1)).toBe('trail:none');
 

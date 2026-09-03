@@ -10,8 +10,8 @@ const bytes = new TextEncoder().encode('immutable-weather-chunk');
 const checksumSha256 = createHash('sha256').update(bytes).digest('hex');
 
 function descriptors(): WeatherChunkDescriptor[] {
-  return Array.from({ length: 30 }, (_, index) => {
-    const year = 1991 + index;
+  return Array.from({ length: 25 }, (_, index) => {
+    const year = 2001 + index;
     return {
       id: String(year), year,
       startsAt: `${year}-01-01T08:00:00.000Z`,
@@ -30,7 +30,7 @@ function completeJob(manifest: WeatherDataPackage['manifest']): WeatherBuildJob 
     request: {
       schemaVersion: 1, terrainKey: 'map-a', terrainBinding: 'binding-a', latitude: 46.9, longitude: -121.4,
       bounds: { west: -121.5, south: 46.8, east: -121.3, north: 47 }, areaSizeMeters: 2000,
-      timezone: 'auto', historicalStartYear: 1991, historicalEndYear: 2020, sourcePolicyVersion: 'test-v1',
+      timezone: 'auto', historicalStartYear: 2001, historicalEndYear: 2025, sourcePolicyVersion: 'daymet-v4r1-power-hourly-v2',
     },
     progress: { stage: 'complete', completed: 1, total: 1, message: 'Ready', updatedAt: '2026-08-25T00:00:00.000Z' },
     createdAt: '2026-08-25T00:00:00.000Z', updatedAt: '2026-08-25T00:00:00.000Z',
@@ -46,11 +46,11 @@ function manifest(): WeatherDataPackage['manifest'] {
   const years = descriptors().map((descriptor) => descriptor.year);
   return {
     schemaVersion: 2, terrainKey: 'map-a', terrainBinding: 'binding-a', timezone: 'America/Los_Angeles',
-    historicalStartYear: 1991, historicalEndYear: 2020, quality: 'limited', sourceSummary: 'test fixture',
+    historicalStartYear: 2001, historicalEndYear: 2025, quality: 'limited', sourceSummary: 'test fixture',
     sourceVersion: 'fixture-v1', generatorVersion: 2, contentHash: 'a'.repeat(64), complete: true,
     immutable: true, sourcePolicyVersion: 'test-v1', createdAt: '2026-08-25T00:00:00.000Z', chunks: descriptors(),
     timezoneResolution: 'coordinate-resolved',
-    coverage: { localCalendar: true, historicalStartYear: 1991, historicalEndYear: 2020, merraBoundaryEndYear: 2021 },
+    coverage: { localCalendar: true, historicalStartYear: 2001, historicalEndYear: 2025, merraBoundaryEndYear: 2026 },
     sourceDetails: years.map((year) => ({
       year,
       daymet: { provider: 'fixture-daymet', version: 'fixture-v1', grid: { id: 'daymet-cell', resolutionMeters: 1000 } },
@@ -78,9 +78,9 @@ describe('weather package build client', () => {
 
     expect(weatherPackage.manifest).toStrictEqual(expectedManifest);
     expect(weatherPackage.historicalYears).toEqual([]);
-    expect(weatherPackage.chunks).toHaveLength(30);
+    expect(weatherPackage.chunks).toHaveLength(25);
     expect(weatherPackage.chunks?.[0]?.dataBase64).toBe(Buffer.from(bytes).toString('base64'));
-    expect(fetchMock).toHaveBeenCalledTimes(31);
+    expect(fetchMock).toHaveBeenCalledTimes(26);
   });
 
   it('rejects a short binary chunk before it can be handed to offline storage', async () => {

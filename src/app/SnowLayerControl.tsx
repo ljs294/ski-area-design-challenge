@@ -2,8 +2,9 @@ import { useEffect } from 'react';
 import { snowSurfaceCode, snowSurfaceName } from '../snow';
 import type { Readout } from './CursorReadout';
 import type { Units } from './SettingsContext';
-import { SNOW_CONDITION_LEGEND, SNOW_DEPTH_LEGEND,
+import { SNOW_CONDITION_LEGEND, snowDepthLegend,
   type SnowDisplayMode } from './snowStyle';
+import { formatSnowDepth } from './unitFormat';
 
 export function SnowLayerControl({ mode, onModeChange, onClose, escapeEnabled = true, readout, units }: {
   mode: SnowDisplayMode;
@@ -24,12 +25,10 @@ export function SnowLayerControl({ mode, onModeChange, onClose, escapeEnabled = 
 
   const depth = readout?.snowDepthM;
   const surface = readout?.snowSurface ?? 0;
-  const depthText = depth == null ? '—' : units === 'imperial'
-    ? `${Math.round(depth * 39.3701)} in`
-    : `${Math.round(depth * 100)} cm`;
+  const depthText = depth == null ? '—' : formatSnowDepth(depth, units);
   const code = snowSurfaceCode(surface), name = snowSurfaceName(surface);
   const conditionText = code && name ? `${code} · ${name}` : depth == null ? '—' : 'No snow';
-  const rows = mode === 'depth' ? SNOW_DEPTH_LEGEND : SNOW_CONDITION_LEGEND;
+  const rows = mode === 'depth' ? snowDepthLegend(units) : SNOW_CONDITION_LEGEND;
   return (
     <div className="snow-layer-control" aria-label="Snow layer controls">
       <div className="dock-head snow-layer-heading"><span className="dock-head-title">Snow</span>

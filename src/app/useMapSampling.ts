@@ -10,9 +10,11 @@ import type { OverlayId } from './Legend';
 import type { TerrainRecord } from '../types/terrain';
 import type { SnowGrid } from '../types/snow';
 import { sampleSnowGrid } from '../snow';
+import { sampleActiveTerrainWeather } from './terrainWeatherCache';
 
 export { useSnowLayer } from './useSnowLayer';
 export { useTerrainDisplayAssets } from './useTerrainDisplayAssets';
+export { useGameSimulation } from './useGameSimulation';
 
 interface MapSamplingOptions {
   mapRef: MutableRefObject<maplibregl.Map | null>;
@@ -73,6 +75,7 @@ export function useMapSampling(options: MapSamplingOptions): MapSampling {
       let coverLabel: string | null = null;
       const snow = overlay === 'snow' && options.snowGridRef.current
         ? sampleSnowGrid(options.snowGridRef.current, lngLat.lng, lngLat.lat) : null;
+      const weather = sampleActiveTerrainWeather(lngLat.lng, lngLat.lat);
       if (localRecord) {
         const code = sampleLocalCoverAt(lngLat.lng, lngLat.lat);
         coverLabel = code == null ? '—' : WORLD_COVER_LABELS[code] ?? 'Unknown';
@@ -89,6 +92,8 @@ export function useMapSampling(options: MapSamplingOptions): MapSampling {
         coverLabel,
         snowDepthM: snow?.depthM,
         snowSurface: snow?.surface,
+        temperatureC: weather?.temperatureC,
+        precipitationType: weather?.precipitationType,
       });
     })();
   };

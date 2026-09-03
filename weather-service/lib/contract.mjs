@@ -3,9 +3,9 @@ import { WeatherServiceError, invariant } from './errors.mjs';
 
 export const WEATHER_REQUEST_SCHEMA_VERSION = 1;
 export const WEATHER_PACKAGE_SCHEMA_VERSION = 2;
-export const DEFAULT_SOURCE_POLICY_VERSION = 'daymet-v4r1-merra2-v1';
-export const HISTORICAL_START_YEAR = 1991;
-export const HISTORICAL_END_YEAR = 2020;
+export const DEFAULT_SOURCE_POLICY_VERSION = 'daymet-v4r1-power-hourly-v2';
+export const HISTORICAL_START_YEAR = 2001;
+export const HISTORICAL_END_YEAR = 2025;
 
 const TERRAIN_KEY = /^[a-z0-9][a-z0-9_.-]*$/i;
 const TIMEZONE = /^[A-Za-z_+\-/]+(?:\/[A-Za-z_+\-/]+)+$/;

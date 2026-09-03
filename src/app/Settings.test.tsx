@@ -56,6 +56,8 @@ describe('Settings tabs', () => {
     for (const label of ['Theme', 'Window', 'Units', 'Render quality', 'Reduced motion']) {
       expectLabel(html, label);
     }
+    expectLabel(html, 'US Units');
+    expectLabel(html, 'Metric');
   });
 
   it('omits Resort Data when no active-resort capability is supplied', () => {

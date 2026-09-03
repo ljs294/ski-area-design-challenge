@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import type { OverlayId } from './Legend';
 import type { Units } from './SettingsContext';
-
-const M_TO_FT = 3.28084;
+import type { PrecipitationType } from '../weather/weatherModel';
+import { formatElevation, formatTemperature } from './unitFormat';
 
 export interface Readout {
   elevationM: number;
@@ -12,6 +12,8 @@ export interface Readout {
   coverLabel: string | null;
   snowDepthM?: number;
   snowSurface?: number;
+  temperatureC?: number;
+  precipitationType?: PrecipitationType;
 }
 
 function displayKey(readout: Readout | null): string {
@@ -24,6 +26,8 @@ function displayKey(readout: Readout | null): string {
     readout.coverLabel ?? '',
     readout.snowDepthM == null ? '' : Math.round(readout.snowDepthM * 100),
     readout.snowSurface ?? '',
+    readout.temperatureC == null ? '' : Math.round(readout.temperatureC * 10),
+    readout.precipitationType ?? '',
   ].join('|');
 }
 
@@ -56,10 +60,7 @@ export function useCursorReadout(store: CursorReadoutStore): Readout | null {
 export function CursorReadout({ readout, units }: { readout: Readout | null; units: Units }) {
   if (!readout) return null;
 
-  const elev =
-    units === 'imperial'
-      ? `${Math.round(readout.elevationM * M_TO_FT).toLocaleString()} ft`
-      : `${Math.round(readout.elevationM).toLocaleString()} m`;
+  const elev = formatElevation(readout.elevationM, units);
 
   let stat: { label: string; value: string } | null = null;
   if (readout.overlay === 'slope') stat = { label: 'Slope', value: `${Math.round(readout.slopeDeg)}°` };
@@ -78,6 +79,10 @@ export function CursorReadout({ readout, units }: { readout: Readout | null; uni
           <span className="readout-value">{stat.value}</span>
         </div>
       )}
+      {readout.temperatureC != null && <div className="readout-line">
+        <span className="readout-label">Local weather</span>
+        <span className="readout-value">{formatTemperature(readout.temperatureC, units)} / {readout.precipitationType}</span>
+      </div>}
     </div>
   );
 }

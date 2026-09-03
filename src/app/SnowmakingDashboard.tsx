@@ -24,6 +24,7 @@ import type { SnowmakingLassoSelection } from './snowmakingLasso';
 import type { SnowgunSelectionPhase } from './dashboardMode';
 import { SnowmakingDashboardInspector } from './SnowmakingDashboardInspector';
 import { SnowmakingPipeHoverDetails, type SnowmakingPipeHoverState } from './SnowmakingPipeHover';
+import { formatFeet, formatFlow, formatInches, formatPressure } from './unitFormat';
 
 type SnowmakingDashboardProps = Parameters<typeof SnowmakingDashboard>[0];
 
@@ -70,7 +71,6 @@ const NODE_COLORS: Record<SnowmakingNodeKind, string> = {
   hydrant: '#22c55e',
 };
 const SYSTEM_COLORS = ['#e08b24', '#8b5cf6', '#0f9f8f', '#d9468f', '#2563eb', '#65a30d'];
-const FLOW_NUMBER = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
 
 interface View {
   x: number;
@@ -431,12 +431,12 @@ export function SnowmakingDashboard({
         onClick={onClose}>✕</button>
     </div>
     {mode === 'analysis' && pressureRange && <div className="snowmaking-pressure-legend"
-      aria-label={`Pipe pressure heat map from ${FLOW_NUMBER.format(pressureRange.minPsi)} to ${FLOW_NUMBER.format(pressureRange.maxPsi)} PSI`}>
+      aria-label={`Pipe pressure heat map from ${formatPressure(pressureRange.minPsi, units)} to ${formatPressure(pressureRange.maxPsi, units)}`}>
       <div className="snowmaking-pressure-legend-title">Operating pressure</div>
       <div className="snowmaking-pressure-legend-ramp" aria-hidden="true" />
-      <div className="snowmaking-pressure-legend-values"><span>{FLOW_NUMBER.format(pressureRange.minPsi)} PSI</span>
-        <span>{FLOW_NUMBER.format((pressureRange.minPsi + pressureRange.maxPsi) / 2)} PSI</span>
-        <span>{FLOW_NUMBER.format(pressureRange.maxPsi)} PSI</span></div>
+      <div className="snowmaking-pressure-legend-values"><span>{formatPressure(pressureRange.minPsi, units)}</span>
+        <span>{formatPressure((pressureRange.minPsi + pressureRange.maxPsi) / 2, units)}</span>
+        <span>{formatPressure(pressureRange.maxPsi, units)}</span></div>
     </div>}
     {empty && <div className="dashboard-sidebar-empty"><strong>Nothing to map yet</strong>
       <span>Build a pond or snowmaking network to populate this dashboard.</span></div>}
@@ -456,7 +456,7 @@ export function SnowmakingDashboard({
       setPumpHp={setAnalysisPumpHp}
       setPumpEfficiency={setAnalysisPumpEfficiency}
       onSetPumpPort={onSetPumpPort} setHoveredGun={setHoveredGunId}
-      hoveredSegmentId={hoveredSegmentId} />
+      hoveredSegmentId={hoveredSegmentId} units={units} />
       : <SnowmakingDashboardInspector selectedNode={selectedNode} selectedPipe={selectedPipe}
         selectedPipeSegmentId={selectedPipeSegmentId}
         selectedGun={selectedGun} dams={dams} ponds={ponds} lakes={lakes} nodes={nodes}
@@ -596,7 +596,7 @@ export function SnowmakingDashboard({
               const path = <path key={segment.id} d={d} className={className}
                 data-pipe-id={pipe.id} data-segment-id={segment.id}
                 {...(mode === 'inspect' ? { role: 'button', tabIndex: 0 } : {})}
-                aria-label={`${pipe.name}, segment ${segment.segmentIndex + 1}, ${pipe.diameterIn} inch pipe`}
+                aria-label={`${pipe.name}, segment ${segment.segmentIndex + 1}, ${formatInches(pipe.diameterIn, units)} pipe`}
                 vectorEffect="non-scaling-stroke" style={flow && pressureRange
                   ? { stroke: `url(#snow-pressure-${segment.id.replace(/[^a-zA-Z0-9_-]/g, '-')})` }
                   : mode === 'analysis' && relevantColor ? { stroke: relevantColor } : undefined}
@@ -611,14 +611,14 @@ export function SnowmakingDashboard({
               const fontSize = active.w / 92;
               return <g key={segment.id} data-analysis-segment-id={segment.id}>{path}
                 <path d={d} className="snowmaking-dashboard-pipe-hit" data-segment-hover-id={segment.id}
-                  role="button" tabIndex={0} aria-label={`${pipe.name}, segment ${segment.segmentIndex + 1}. ${FLOW_NUMBER.format(Math.abs(flow.flowGpm))} GPM. ${FLOW_NUMBER.format(flow.upstreamPressurePsi)} to ${FLOW_NUMBER.format(flow.downstreamPressurePsi)} PSI. ${FLOW_NUMBER.format(flow.frictionHeadFt)} feet friction head.`}
+                  role="button" tabIndex={0} aria-label={`${pipe.name}, segment ${segment.segmentIndex + 1}. ${formatFlow(Math.abs(flow.flowGpm), units)}. ${formatPressure(flow.upstreamPressurePsi, units)} to ${formatPressure(flow.downstreamPressurePsi, units)}. ${formatFeet(flow.frictionHeadFt, units)} friction head.`}
                   vectorEffect="non-scaling-stroke"
                   onMouseEnter={() => setHoveredSegmentId(segment.id)}
                   onMouseLeave={() => setHoveredSegmentId(null)}
                   onFocus={() => setHoveredSegmentId(segment.id)}
                   onBlur={() => setHoveredSegmentId(null)} />
                 <g className="snowmaking-dashboard-segment-annotation" aria-label={
-                  `${FLOW_NUMBER.format(Math.abs(flow.flowGpm))} GPM, ${FLOW_NUMBER.format(flow.upstreamPressurePsi)} to ${FLOW_NUMBER.format(flow.downstreamPressurePsi)} PSI`}>
+                  `${formatFlow(Math.abs(flow.flowGpm), units)}, ${formatPressure(flow.upstreamPressurePsi, units)} to ${formatPressure(flow.downstreamPressurePsi, units)}`}>
                   {flow.active && annotation.arrows.map((arrow, index) => <path
                     key={`${segment.id}:arrow:${index}`} className="snowmaking-dashboard-flow-arrow"
                     data-flow-arrow="true" d="M-8,-5 L8,0 L-8,5 Z"
@@ -628,12 +628,12 @@ export function SnowmakingDashboard({
                     transform={`rotate(${annotation.labelAngleDeg} ${annotation.flowLabel.x} ${annotation.flowLabel.y})`}
                     className="snowmaking-dashboard-flow-label" textAnchor="middle"
                     dominantBaseline="central" style={{ fontSize }}>
-                    {FLOW_NUMBER.format(Math.abs(flow.flowGpm))} GPM</text>
+                    {formatFlow(Math.abs(flow.flowGpm), units)}</text>
                   <text x={annotation.pressureLabel.x} y={annotation.pressureLabel.y}
                     transform={`rotate(${annotation.labelAngleDeg} ${annotation.pressureLabel.x} ${annotation.pressureLabel.y})`}
                     className="snowmaking-dashboard-pressure-label" textAnchor="middle"
                     dominantBaseline="central" style={{ fontSize }}>
-                    {FLOW_NUMBER.format(flow.upstreamPressurePsi)} → {FLOW_NUMBER.format(flow.downstreamPressurePsi)} PSI</text>
+                    {formatPressure(flow.upstreamPressurePsi, units)} → {formatPressure(flow.downstreamPressurePsi, units)}</text>
                 </g>
               </g>;
             }))}
@@ -706,12 +706,12 @@ export function SnowmakingDashboard({
         </svg>
 
         {mode === 'analysis' && pressureRange && <div className="snowmaking-pressure-legend"
-          aria-label={`Pipe pressure heat map from ${FLOW_NUMBER.format(pressureRange.minPsi)} to ${FLOW_NUMBER.format(pressureRange.maxPsi)} PSI`}>
+          aria-label={`Pipe pressure heat map from ${formatPressure(pressureRange.minPsi, units)} to ${formatPressure(pressureRange.maxPsi, units)}`}>
           <div className="snowmaking-pressure-legend-title">Operating pressure</div>
           <div className="snowmaking-pressure-legend-ramp" aria-hidden="true" />
-          <div className="snowmaking-pressure-legend-values"><span>{FLOW_NUMBER.format(pressureRange.minPsi)} PSI</span>
-            <span>{FLOW_NUMBER.format((pressureRange.minPsi + pressureRange.maxPsi) / 2)} PSI</span>
-            <span>{FLOW_NUMBER.format(pressureRange.maxPsi)} PSI</span></div>
+          <div className="snowmaking-pressure-legend-values"><span>{formatPressure(pressureRange.minPsi, units)}</span>
+            <span>{formatPressure((pressureRange.minPsi + pressureRange.maxPsi) / 2, units)}</span>
+            <span>{formatPressure(pressureRange.maxPsi, units)}</span></div>
         </div>}
 
         <div className="network-chrome-tl">
@@ -761,7 +761,7 @@ export function SnowmakingDashboard({
         setPumpEfficiency={setAnalysisPumpEfficiency}
         onSetPumpPort={onSetPumpPort}
         setHoveredGun={setHoveredGunId}
-        hoveredSegmentId={hoveredSegmentId} /> : <SnowmakingDashboardInspector
+        hoveredSegmentId={hoveredSegmentId} units={units} /> : <SnowmakingDashboardInspector
         selectedNode={selectedNode}
         selectedPipe={selectedPipe}
         selectedPipeSegmentId={selectedPipeSegmentId}

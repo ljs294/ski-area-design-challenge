@@ -10,6 +10,8 @@
     "dev:weather-lab": "node scripts/devWeatherLab.mjs",
     "weather:service": "node weather-service/server.mjs",
     "sim:time": "node --experimental-strip-types time-engine/src/cli.ts",
+    "typecheck:time-engine": "tsc -p time-engine/tsconfig.json --noEmit",
+    "test:time-engine": "vitest run time-engine/test --testTimeout 10000",
     "sim:weather": "node --experimental-strip-types scripts/weatherCli.ts",
     "typecheck:weather-engine": "tsc -p weather-engine/tsconfig.json --noEmit",
     "test:weather-engine": "vitest run weather-engine/test --testTimeout 10000",
@@ -38,7 +40,7 @@
     "test:e2e:features": "npm run build:desktop && node scripts/runE2E.mjs --project=feature-workflows",
     "test:e2e": "npm run build:desktop && node scripts/runE2E.mjs --project=browser-smoke --project=feature-workflows",
     "check:e2e-harness": "node scripts/checkE2EHarness.mjs",
-    "check": "npm run check:agent-docs && npm run check:architecture && npm run lint && npm run typecheck && npm run test:unit && npm run build:desktop && npm run build:web && npm run check:bundle && npm run check:obsolete && npm run check:weather-lab"
+    "check": "npm run check:agent-docs && npm run check:architecture && npm run lint && npm run typecheck && npm run typecheck:time-engine && npm run test:unit && npm run build:desktop && npm run build:web && npm run check:bundle && npm run check:obsolete && npm run check:weather-lab"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
@@ -67,6 +69,7 @@
     "geotiff": "^3.0.5",
     "maplibre-contour": "^0.1.0",
     "maplibre-gl": "^5.24.0",
+    "polygon-clipping": "0.15.7",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
@@ -79,6 +82,13 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "weather-service",
+        "to": "weather-service",
+        "filter": ["**/*", "!.weather-cache/**/*"]
+      }
     ],
     "win": {
       "target": "portable"

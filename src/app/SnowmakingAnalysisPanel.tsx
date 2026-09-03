@@ -11,9 +11,10 @@ import { DEFAULT_PUMP_ANALYSIS_DRAFT, type SnowmakingAnalysisState } from './sno
 import { snowmakingPumpDirectionSummary, SnowmakingPumpPortEditor } from './SnowmakingPumpPortEditor';
 import type { SnowmakingLassoSelection } from './snowmakingLasso';
 import type { SnowgunSelectionPhase } from './dashboardMode';
+import type { Units } from './SettingsContext';
+import { formatElevation, formatFeet, formatFlow, formatGallons, formatInches, formatPressure } from './unitFormat';
 
 const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
-const whole = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
 function runtime(hours: number | null): string {
   if (hours == null) return 'Unavailable';
@@ -67,7 +68,7 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
   sourceResourcesByIntakeId, result, toggleGun, setGuns, toggleIntake, setWetBulb,
   setPumpOn, setPumpHp, setPumpEfficiency, onSetPumpPort, setHoveredGun,
   hoveredSegmentId, analyze, lasso = null, gunSelectionPhase = 'idle',
-  toggleGunSelection, cancelGunSelection }: {
+  toggleGunSelection, cancelGunSelection, units }: {
   state: SnowmakingAnalysisState;
   nodes: readonly SavedSnowmakingNode[];
   pipes: readonly SavedSnowmakingPipe[];
@@ -92,6 +93,7 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
   gunSelectionPhase?: SnowgunSelectionPhase;
   toggleGunSelection(): void;
   cancelGunSelection(): void;
+  units: Units;
 }) {
   const selectedGuns = new Set(state.selectedGunIds);
   const selectedIntakes = new Set(state.selectedIntakeNodeIds);
@@ -129,22 +131,26 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
         <div className="snowmaking-segment-peek-head"><span>Pipe segment</span>
           <strong>{hoveredPipe?.name ?? hoveredSegment.pipeId} · {hoveredSegment.segmentIndex + 1}</strong></div>
         <div className="snowmaking-segment-peek-grid">
-          <div><span>Pressure</span><strong>{number.format(hoveredSegment.upstreamPressurePsi)} → {number.format(hoveredSegment.downstreamPressurePsi)} PSI</strong></div>
-          <div><span>Flow</span><strong>{number.format(Math.abs(hoveredSegment.flowGpm))} GPM</strong></div>
-          <div><span>Friction head</span><strong>{number.format(hoveredSegment.frictionHeadFt)} ft</strong></div>
-          <div><span>Diameter</span><strong>{hoveredPipe?.diameterIn ?? '—'} in</strong></div>
-          <div><span>Length</span><strong>{whole.format(hoveredSegment.lengthFt)} ft</strong></div>
+          <div><span>Pressure</span><strong>{formatPressure(hoveredSegment.upstreamPressurePsi, units)} → {formatPressure(hoveredSegment.downstreamPressurePsi, units)}</strong></div>
+          <div><span>Flow</span><strong>{formatFlow(Math.abs(hoveredSegment.flowGpm), units)}</strong></div>
+          <div><span>Friction head</span><strong>{formatFeet(hoveredSegment.frictionHeadFt, units)}</strong></div>
+          <div><span>Diameter</span><strong>{formatInches(hoveredPipe?.diameterIn, units)}</strong></div>
+          <div><span>Length</span><strong>{formatFeet(hoveredSegment.lengthFt, units, 0)}</strong></div>
           <div><span>Vertical</span><strong>{hoveredStats?.verticalM == null
-            ? '—' : `${whole.format(hoveredStats.verticalM * 3.28084)} ft`}</strong></div>
+            ? '—' : formatElevation(hoveredStats.verticalM, units)}</strong></div>
         </div>
       </> : <div className="snowmaking-segment-peek-empty">Hover or focus a colored pipe segment to inspect its hydraulic performance.</div>}
     </section>
 
     <label className="snowmaking-analysis-temperature">
       <span>Wet-bulb temperature</span>
-      <span><input type="number" step="1" value={state.wetBulbF}
-        aria-label="Wet-bulb temperature in Fahrenheit"
-        onChange={(event) => setWetBulb(event.target.value)} /> °F</span>
+      <span><input type="number" step="1" value={units === 'imperial' ? state.wetBulbF
+        : state.wetBulbF === '' ? '' : ((Number(state.wetBulbF) - 32) * 5 / 9).toFixed(1)}
+        aria-label={`Wet-bulb temperature in ${units === 'imperial' ? 'Fahrenheit' : 'Celsius'}`}
+        onChange={(event) => {
+          if (units === 'imperial' || event.target.value === '') setWetBulb(event.target.value);
+          else setWetBulb(String(Number(event.target.value) * 9 / 5 + 32));
+        }} /> °{units === 'imperial' ? 'F' : 'C'}</span>
     </label>
 
     <div className="snowmaking-analysis-actions">
@@ -266,21 +272,21 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
         </ul></div>}
         <div className="network-stats">
           <div className="network-stat"><span className="network-stat-label">Requested demand</span>
-            <span className="network-stat-value">{whole.format(result.summary.requestedDemandGpm)} GPM</span></div>
+            <span className="network-stat-value">{formatFlow(result.summary.requestedDemandGpm, units, 0)}</span></div>
           <div className="network-stat"><span className="network-stat-label">Water use</span>
-            <span className="network-stat-value">{whole.format(result.summary.waterUseGalPerHour)} gal/hr</span></div>
+            <span className="network-stat-value">{formatGallons(result.summary.waterUseGalPerHour, units)}/hr</span></div>
           <div className="network-stat"><span className="network-stat-label">Minimum gun pressure</span>
             <span className="network-stat-value">{result.summary.minimumGunPressurePsi == null ? 'Unavailable'
-              : `${number.format(result.summary.minimumGunPressurePsi)} PSI`}</span></div>
+              : formatPressure(result.summary.minimumGunPressurePsi, units)}</span></div>
           <div className="network-stat"><span className="network-stat-label">First source depletion</span>
             <span className="network-stat-value">{runtime(result.summary.limitingSourceRuntimeHours)}</span></div>
         </div>
         {result.sources.length > 0 && <details open><summary>Water sources ({result.sources.length})</summary>
           <div className="snowmaking-analysis-table">{result.sources.map((source) => <div key={source.sourceKey}>
             <strong>{source.name} — {source.status}</strong>
-            <span>{number.format(Math.abs(source.netWithdrawalGpm))} GPM</span>
+            <span>{formatFlow(Math.abs(source.netWithdrawalGpm), units)}</span>
             <small>{source.capacityGallons == null ? 'Storage unavailable'
-              : `${whole.format(source.capacityGallons)} gal · ${runtime(source.runtimeHours)}`}</small>
+              : `${formatGallons(source.capacityGallons, units)} · ${runtime(source.runtimeHours)}`}</small>
           </div>)}</div>
         </details>}
         {result.systems.map((system, index) => <details open key={system.systemId}
@@ -291,23 +297,23 @@ export function SnowmakingAnalysisPanel({ state, nodes, pipes, guns, groups, rel
           <div className="snowmaking-analysis-table">
             {system.pumps.map((pump) => <div key={pump.nodeId}><strong>
               {nodeById.get(pump.nodeId)?.name ?? pump.nodeId} — {pump.status}</strong>
-              <span>{number.format(pump.flowGpm)} GPM · +{number.format(pump.pressureAddedPsi)} PSI</span>
+              <span>{formatFlow(pump.flowGpm, units)} · +{formatPressure(pump.pressureAddedPsi, units)}</span>
               <small>{pump.suctionPressurePsi == null ? 'Pressure unavailable'
-                : `Water enters at ${number.format(pump.suctionPressurePsi)} PSI · pump pushes out at ${number.format(pump.dischargePressurePsi ?? 0)} PSI`}</small>
+                : `Water enters at ${formatPressure(pump.suctionPressurePsi, units)} · pump pushes out at ${formatPressure(pump.dischargePressurePsi ?? 0, units)}`}</small>
             </div>)}
             {system.segments.map((segment) => <div key={segment.id}
               className={hoveredSegmentId === segment.id ? 'is-hovered' : undefined}><strong>
               {pipeById.get(segment.pipeId)?.name ?? segment.pipeId} · segment {segment.segmentIndex + 1}</strong>
-              <span>{number.format(segment.flowGpm)} GPM · {number.format(segment.upstreamPressurePsi)} →
-                {' '}{number.format(segment.downstreamPressurePsi)} PSI</span>
-              <small>{number.format(segment.frictionHeadFt)} ft friction</small>
+              <span>{formatFlow(segment.flowGpm, units)} · {formatPressure(segment.upstreamPressurePsi, units)} →
+                {' '}{formatPressure(segment.downstreamPressurePsi, units)}</span>
+              <small>{formatFeet(segment.frictionHeadFt, units)} friction</small>
             </div>)}
             {system.guns.map((gun) => <div key={gun.gunId} tabIndex={0}
               onMouseEnter={() => setHoveredGun(gun.gunId)} onMouseLeave={() => setHoveredGun(null)}
               onFocus={() => setHoveredGun(gun.gunId)} onBlur={() => setHoveredGun(null)}
               className={gun.status === 'ready' ? 'is-ready' : 'is-failed'}><strong>
                 {gunById.has(gun.gunId) ? `${snowgunLabel(gunById.get(gun.gunId)!, nodes)} · ${snowgunVariant(gunById.get(gun.gunId)!.variantId).shortLabel}` : gun.gunId}</strong>
-              <span>{gun.demandGpm} GPM · {gun.pressurePsi == null ? '—' : number.format(gun.pressurePsi)} PSI</span>
+              <span>{formatFlow(gun.demandGpm, units)} · {gun.pressurePsi == null ? '—' : formatPressure(gun.pressurePsi, units)}</span>
               <small>{GUN_STATUS[gun.status]}</small>
             </div>)}
           </div>

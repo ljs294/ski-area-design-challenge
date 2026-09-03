@@ -151,10 +151,13 @@ test('review retains a grade failure and commits trail topology coherently', asy
   const name = page.locator('.trail-panel .lift-name-input');
   await name.fill('Atomic Glade');
   await expect.poll(() => sourceFeatureCount(page, 'trail-draft')).toBeGreaterThan(0);
+  await expect.poll(() => sourceFeatureCount(page, 'trails')).toBeGreaterThan(0);
   await setCaptureTransients(page, true);
   await expect.poll(() => sourceFeatureCount(page, 'trail-draft')).toBe(0);
+  await expect.poll(() => sourceFeatureCount(page, 'trails')).toBe(0);
   await setCaptureTransients(page, false);
   await expect.poll(() => sourceFeatureCount(page, 'trail-draft')).toBeGreaterThan(0);
+  await expect.poll(() => sourceFeatureCount(page, 'trails')).toBeGreaterThan(0);
 
   const grade = page.getByRole('checkbox');
   await expect(grade).toBeEnabled({ timeout: 10_000 });
@@ -170,7 +173,7 @@ test('review retains a grade failure and commits trail topology coherently', asy
   await page.locator('.hud-save').click();
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
-  expect(saved.schemaVersion).toBe(15);
+  expect(saved.schemaVersion).toBe(16);
   expect(saved.trails).toHaveLength(1);
   expect(saved.trails[0]).toMatchObject({ name: 'Atomic Glade', status: 'planning',
     terrainGraded: false, anchor: { kind: 'lift', liftId: 'lift-anchor', end: 'top' } });

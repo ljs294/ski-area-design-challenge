@@ -26,6 +26,16 @@ import { weatherInstantForLocal } from '../weather/localTime';
 import type { ResolvedWeatherHour, WeatherDataPackage, WeatherFieldProvenance } from '../weather/weatherModel';
 import { weatherTerrainBinding } from '../weather/terrainBinding';
 import type { TerrainRecord, TerrainSummary } from '../types';
+import { useSettings, type Units } from './SettingsContext';
+import { formatLiquidPrecipitationRate, formatSnowfall, formatTemperature, formatTemperatureDelta,
+  formatVelocity, formatWindSpeed } from './unitFormat';
+
+export interface WeatherLabInitialState {
+  terrain: TerrainRecord;
+  weatherPackage: WeatherDataPackage;
+  session?: WeatherSession;
+  cursor?: string;
+}
 
 function format(value: number | undefined, digits = 1): string {
   return value == null || !Number.isFinite(value) ? '--' : value.toFixed(digits);
@@ -134,27 +144,40 @@ function SourceBadges({ hour, fallback }: { hour: ResolvedWeatherHour | null; fa
   </div>;
 }
 
-function ConditionRows({ hour }: { hour: ResolvedWeatherHour | null }) {
+function ConditionRows({ hour, units }: { hour: ResolvedWeatherHour | null; units: Units }) {
   return <>
-    <p>{format(hour?.temperatureC)} C air / {format(hour?.wetBulbC)} C wet-bulb / {format(hour?.humidityPct)}% RH</p>
-    <p>{format(hour?.precipitationMm, 2)} mm/h {hour?.precipitationType ?? '--'} / {format(hour?.snowfallCm, 2)} cm snow</p>
-    <p>Wind {format(hour?.windSpeedKph)} kph, U {format(hour?.windUms)} / V {format(hour?.windVms)} m/s</p>
+    <p>{formatTemperature(hour?.temperatureC, units)} air / {formatTemperature(hour?.wetBulbC, units)} wet-bulb / {format(hour?.humidityPct)}% RH</p>
+    <p>{formatLiquidPrecipitationRate(hour?.precipitationMm, units)} {hour?.precipitationType ?? '--'} / {formatSnowfall(hour?.snowfallCm, units, 2)} snow</p>
+    <p>Wind {formatWindSpeed(hour?.windSpeedKph, units)}, U {formatVelocity(hour?.windUms, units)} / V {formatVelocity(hour?.windVms, units)}</p>
   </>;
 }
 
-export function WeatherLab({ onExit }: { onExit: () => void }) {
+export function WeatherLab({
+  onExit,
+  initialState,
+}: {
+  onExit: () => void;
+  initialState?: WeatherLabInitialState;
+}) {
+  const { settings: { units } } = useSettings();
   const [summaries, setSummaries] = useState<TerrainSummary[]>([]);
-  const [terrain, setTerrain] = useState<TerrainRecord | null>(null);
-  const [weatherPackage, setWeatherPackage] = useState<WeatherDataPackage | null>(null);
-  const [session, setSession] = useState<WeatherSession | null>(null);
+  const [terrain, setTerrain] = useState<TerrainRecord | null>(initialState?.terrain ?? null);
+  const [weatherPackage, setWeatherPackage] = useState<WeatherDataPackage | null>(initialState?.weatherPackage ?? null);
+  const [session, setSession] = useState<WeatherSession | null>(initialState?.session ?? null);
   const [error, setError] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [starting, setStarting] = useState(false);
   const [buildJob, setBuildJob] = useState<WeatherBuildJob | null>(null);
   const [seed, setSeed] = useState('weather-lab');
-  const [historicalYear, setHistoricalYear] = useState(1991);
+  const [historicalYear, setHistoricalYear] = useState(() => initialState ? firstHistoricalYear(initialState.weatherPackage) : 2001);
   const [mapMode, setMapMode] = useState<'simulated' | 'historical' | 'difference'>('simulated');
-  const [playback, setPlayback] = useState<ReturnType<typeof createWeatherPlayback> | null>(null);
+  const [playback, setPlayback] = useState<ReturnType<typeof createWeatherPlayback> | null>(() => {
+    if (!initialState?.session || !initialState.cursor) return null;
+    return {
+      ...createWeatherPlayback(initialState.session.plan, firstHistoricalYear(initialState.weatherPackage)),
+      cursor: initialState.cursor,
+    };
+  });
   const [cursorSample, setCursorSample] = useState<{ longitude: number; latitude: number; temperatureC: number } | null>(null);
   const lastFrame = useRef<number | null>(null);
   const prepareAbortRef = useRef<AbortController | null>(null);
@@ -274,9 +297,13 @@ export function WeatherLab({ onExit }: { onExit: () => void }) {
     ? 'Development fixture hourly archive (not observed weather).'
     : 'Daymet-constrained daily totals with MERRA-2 hourly atmospheric timing.';
 
-  return <main className="weather-lab screen-view">
+  return <main className={`weather-lab screen-view${initialState ? ' weather-lab-current-game' : ''}`}>
     <header className="weather-lab-bar">
-      <div><strong>Weather Lab</strong><span>Offline historical comparison and deterministic simulation</span></div>
+      <div><strong>Weather Lab</strong><span>{initialState?.session
+        ? `Current game weather at ${localTime(playback?.cursor, initialState.session.timezone)}`
+        : initialState
+          ? 'Current game historical package loaded; start a simulation when ready.'
+        : 'Offline historical comparison and deterministic simulation'}</span></div>
       <button className="ghost-btn" onClick={onExit}>Close (Esc)</button>
     </header>
     <section className="weather-lab-controls screen-panel">
@@ -309,9 +336,9 @@ export function WeatherLab({ onExit }: { onExit: () => void }) {
         <button onClick={() => setPlayback(skipWeatherPlayback(session.plan, playback, 'month'))}>Skip month</button>
       </section>
       <section className="weather-lab-grid">
-        <div className="screen-panel"><h2>Simulated</h2><p>{localTime(playback.cursor, session.timezone)}</p><ConditionRows hour={current} /></div>
-        <div className="screen-panel"><h2>Historical {playback.historicalYear}</h2><p>{historyLabel}</p><ConditionRows hour={historical} />
-          <p>Delta: {current && historical ? `${format(current.temperatureC - historical.temperatureC)} C / ${format(current.precipitationMm - historical.precipitationMm, 2)} mm/h` : '--'}</p></div>
+        <div className="screen-panel"><h2>Simulated</h2><p>{localTime(playback.cursor, session.timezone)}</p><ConditionRows hour={current} units={units} /></div>
+        <div className="screen-panel"><h2>Historical {playback.historicalYear}</h2><p>{historyLabel}</p><ConditionRows hour={historical} units={units} />
+          <p>Delta: {current && historical ? `${formatTemperatureDelta(current.temperatureC - historical.temperatureC, units)} / ${formatLiquidPrecipitationRate(current.precipitationMm - historical.precipitationMm, units)}` : '--'}</p></div>
         <div className="screen-panel"><h2>Radiation and sky</h2><p>Global {format(current?.globalRadiationWm2)} W/m2 / direct {format(current?.directRadiationWm2)} / diffuse {format(current?.diffuseRadiationWm2)}</p>
           <p>Cloud {format(current?.cloudCoverPct)}%, transmission {format(current?.cloudTransmissionPct)}%, sun elevation {format(current?.solarElevationDeg)} deg</p>
           <SourceBadges hour={current} fallback={weatherPackage.manifest} /></div>
@@ -328,7 +355,7 @@ export function WeatherLab({ onExit }: { onExit: () => void }) {
         <div className="segmented" aria-label="Temperature map mode">
           {(['simulated', 'historical', 'difference'] as const).map((mode) => <button key={mode} className={mapMode === mode ? 'seg-btn seg-btn-active' : 'seg-btn'} onClick={() => setMapMode(mode)}>{mode}</button>)}
         </div>
-        {cursorSample && <p className="weather-lab-cursor">Cursor: {format(cursorSample.temperatureC)} C at {format(cursorSample.latitude, 4)}, {format(cursorSample.longitude, 4)}</p>}
+        {cursorSample && <p className="weather-lab-cursor">Cursor: {formatTemperature(cursorSample.temperatureC, units)} at {format(cursorSample.latitude, 4)}, {format(cursorSample.longitude, 4)}</p>}
         <FieldCanvas values={temperature} onSample={thermalModel ? (sample) => setCursorSample({
           temperatureC: sample.temperatureC,
           longitude: thermalModel.bounds.west + sample.u * (thermalModel.bounds.east - thermalModel.bounds.west),

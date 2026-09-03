@@ -57,6 +57,11 @@ Keep imports flowing from dependency-neutral models and pure domain logic toward
 - Grade failure retains review state. Cover editing is best-effort and never rolls back infrastructure already committed.
 - Cancellation invalidates pending worker responses and terminates workers owned by the cancelled operation.
 
+## High-risk UI invariants
+
+- The in-game toolbar/status bar has a fixed set of divisions. Do not add new `tb-group`, `tb-readout-cell`, or other persistent status-bar items without explicit user approval. Feature detail belongs in an existing approved division, contextual cursor readout, or feature panel.
+- Do not introduce a new fixed-position gameplay panel or split an existing fixed panel into additional persistent divisions without explicit user approval. Reuse the owning feature panel and preserve its established viewport-fitting behavior.
+
 ## Working rules
 
 - Preserve user changes and keep refactor commits narrow, reviewable, and reversible.

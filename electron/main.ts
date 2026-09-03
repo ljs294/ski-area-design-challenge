@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { app, BrowserWindow, ipcMain, session, utilityProcess, type UtilityProcess } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { registerTerrainStorageHandlers } from './ipcTerrainStorage';
@@ -23,6 +23,32 @@ let closeCheckpointPending = false;
 let closeCheckpointComplete = false;
 let closeCheckpointTimer: ReturnType<typeof setTimeout> | null = null;
 let quitAfterCheckpoint = false;
+let weatherServiceProcess: UtilityProcess | null = null;
+
+async function ensureWeatherPreparationService(): Promise<void> {
+  try {
+    const response = await fetch('http://127.0.0.1:8787/health', { signal: AbortSignal.timeout(500) });
+    if (response.ok) return;
+  } catch { /* start the bundled service below */ }
+  const entry = app.isPackaged
+    ? path.join(process.resourcesPath, 'weather-service', 'utility-entry.cjs')
+    : path.join(__dirname, '../weather-service/utility-entry.cjs');
+  weatherServiceProcess = utilityProcess.fork(entry, [], {
+    env: { ...process.env, WEATHER_SERVICE_MODE: process.env.WEATHER_SERVICE_MODE ?? 'live',
+      WEATHER_CACHE_DIR: path.join(app.getPath('userData'), 'weather-builder-cache') },
+    stdio: 'pipe',
+  });
+  weatherServiceProcess.stdout?.on('data', (chunk) => process.stdout.write(chunk));
+  weatherServiceProcess.stderr?.on('data', (chunk) => process.stderr.write(chunk));
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    try {
+      const response = await fetch('http://127.0.0.1:8787/health', { signal: AbortSignal.timeout(250) });
+      if (response.ok) return;
+    } catch { /* wait for the child to bind */ }
+  }
+  console.error('Weather preparation service did not become reachable.');
+}
 
 function finishCloseCheckpoint(win: BrowserWindow): void {
   if (closeCheckpointTimer) {
@@ -117,7 +143,8 @@ function applyWindowMode(win: BrowserWindow, mode: WindowMode): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await ensureWeatherPreparationService();
   registerOverpassRequestIdentity(session.defaultSession.webRequest, app.getVersion());
   registerTerrainStorageHandlers();
   registerGameSaveStorageHandlers();
@@ -135,6 +162,11 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  weatherServiceProcess?.kill();
+  weatherServiceProcess = null;
 });
 
 ipcMain.handle(WINDOW_GET_MODE_CHANNEL, (): WindowMode => {

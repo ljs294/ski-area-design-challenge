@@ -57,3 +57,24 @@ test('a prepared resort reveals a usable, mutually exclusive construction dock',
   await expect(page.locator('.dock-lifts')).toBeVisible();
   await expect(page.getByText('Ski Lifts (0)', { exact: true })).toBeVisible();
 });
+
+test('summer uses one confirmed September skip and weather panels have an opaque surface', async ({ page }) => {
+  await seedPreparedResort(page);
+  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+
+  await page.locator('.tb-play').click();
+  const confirmation = page.getByRole('dialog', { name: 'Finish summer planning?' });
+  await expect(confirmation).toBeVisible();
+  await expect(confirmation).toContainText('September 1');
+  await confirmation.getByRole('button', { name: 'Keep planning' }).click();
+  await expect(confirmation).toHaveCount(0);
+
+  await page.locator('.tb-weather').click();
+  const weather = page.getByLabel('Weather analysis overlay');
+  await expect(weather).toBeVisible();
+  expect(await weather.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .not.toBe('rgba(0, 0, 0, 0)');
+  expect(await weather.evaluate((element) => getComputedStyle(element).overflow)).toBe('hidden');
+  expect((await weather.boundingBox())?.width).toBeGreaterThan(1_000);
+});

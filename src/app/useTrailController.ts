@@ -8,17 +8,22 @@ import type { TerrainRecord } from '../types/terrain';
 import { jitterPolygon, TRAIL_CLEAR_JITTER_M, type CoverClearing } from '../coverEdit';
 import { trailAreaM2, trailPartsStats, difficultyForSlopes,
   pinTrailEndpoints, DEFAULT_BRUSH_WIDTH_M } from '../trails';
+import { resolveTrailHitId } from '../trailHit';
+import { TRAIL_PRESENTATION_VERSION,
+  type TrailPresentationResult } from '../types/trailPresentation';
 import { applyTerrainGradeToRecord } from './terrainGradeCommit';
 import type { TerrainGradeAdapter, TerrainGradeSuccess } from './terrainGradeClient';
 import { terrainGradeGeometryKey } from './terrainGradeProtocol';
 import type { TrailPaintAdapter } from './trailPaintClient';
+import type { TrailPresentationAdapter } from './trailPresentationClient';
 import type { TerrainDocument, TerrainCommitRequest } from './terrainDocument';
 import type { TopologyDocument } from './topologyDocument';
 import { commitDocuments } from './committedDocumentTransaction';
 import { MAP_HIT_RANK, MAP_Z_ORDER, type ManagedMapContribution } from './mapContribution';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
-import { addTrailLayers, draftToGeoJSON, setTrailData, setTrailDraftData,
-  setTrailPaintMode, setTrailPaintPreview, trailsToGeoJSON,
+import { addTrailLayers, applyTrailTheme, draftToGeoJSON, setTrailData, setTrailDraftData,
+  setTrailHitData, setTrailHover, setTrailPaintMode, setTrailPaintPreview,
+  setTrailSelection, trailPresentationToGeoJSON, trailsToHitGeoJSON,
   TRAIL_BUILT_LAYER_IDS } from './trailLayers';
 import { buildSavedTrail, createTrailDraft, IDLE_TRAIL_TOOL, reduceTrailTool,
   type DraftTrail, type TrailTool } from './trailControllerModel';
@@ -32,11 +37,15 @@ export interface TrailControllerOptions {
   mapRef: RefObject<maplibregl.Map | null>;
   lifts: readonly SavedLift[];
   trails: readonly SavedTrail[];
+  junctions: readonly SavedJunction[];
   paths: readonly SavedPath[];
+  selectedTrailId: string | null;
+  theme: 'light' | 'dark';
   topology: TopologyDocument;
   terrain: TerrainDocument;
   gradeAdapter: TerrainGradeAdapter;
   paintAdapter: TrailPaintAdapter;
+  presentationAdapter: TrailPresentationAdapter;
   canArm(): boolean;
   activate(): boolean;
   release(): void;
@@ -63,6 +72,7 @@ export interface TrailControllerOptions {
 export interface TrailController {
   readonly state: TrailTool;
   readonly brushWidthM: number;
+  readonly presentationError: string | null;
   readonly contribution: ManagedMapContribution;
   activeGradePreview(): TerrainGradeSuccess | null;
   arm(): void;
@@ -77,6 +87,7 @@ export interface TrailController {
   patchDraft(patch: Partial<DraftTrail>): void;
   setGrading(enabled: boolean): void;
   retryElevation(): void;
+  retryPresentation(): void;
   confirm(): Promise<void>;
   patch(id: string, patch: Partial<SavedTrail>): void;
   remove(id: string): void;
@@ -92,27 +103,70 @@ function draftGeoJSON(tool: TrailTool) {
   return draftToGeoJSON([]);
 }
 
+function presentationPreviewTrail(draft: DraftTrail): SavedTrail {
+  const stats = trailPartsStats(draft.parts);
+  return {
+    id: '__trail-review__', name: draft.name, parts: draft.parts,
+    brushWidthM: draft.brushWidthM, areaM2: draft.areaM2,
+    lengthM: stats.lengthM, verticalM: stats.verticalM,
+    avgSlopeDeg: stats.avgSlopeDeg, maxSlopeDeg: stats.maxSlopeDeg,
+    difficulty: draft.difficulty, status: draft.status, createdAt: 'preview',
+  };
+}
+
 export function useTrailController(options: TrailControllerOptions): TrailController {
   const [state, dispatch] = useReducer(reduceTrailTool, IDLE_TRAIL_TOOL);
   const [brushWidthM, setBrushWidthM] = useState(DEFAULT_BRUSH_WIDTH_M);
+  const [presentationError, setPresentationError] = useState<string | null>(null);
   const stateRef = useRef<TrailTool>(state), brushWidthRef = useRef(brushWidthM);
   const optionsRef = useRef(options), commandsRef = useRef<TrailPaintCommand[]>([]);
   const replayRef = useRef<TrailPaintCommand[]>([]), pendingUntilRef = useRef(0);
   const previewPathRef = useRef<[number, number][]>([]);
   const brushCursorRef = useRef<[number, number] | null>(null);
   const sampleTokenRef = useRef(0), gradeResultRef = useRef<TerrainGradeSuccess | null>(null);
+  const latestPresentationRef = useRef<TrailPresentationResult>({
+    version: TRAIL_PRESENTATION_VERSION, surface: [], routes: [], labels: [], junctions: [],
+  });
+  const previewPresentationRef = useRef<TrailPresentationResult | null>(null);
+  const hoveredTrailRef = useRef<string | null>(null);
+  const captureHiddenRef = useRef(false);
   stateRef.current = state; brushWidthRef.current = brushWidthM; optionsRef.current = options;
 
   const contributionRef = useRef<ManagedMapContribution | null>(null);
   if (!contributionRef.current) contributionRef.current = {
     id: 'trail', zOrder: MAP_Z_ORDER.trail,
     hits: [{ id: 'trail', priority: MAP_HIT_RANK.trail,
-      layerIds: ['trail-fill', 'dashboard-trail-hit'],
-      select: (id) => select(id) }],
+      layerIds: ['trail-hit', 'dashboard-trail-hit'],
+      resolve: (features, lngLat) => {
+        const dashboard = features.find((feature) =>
+          typeof feature.properties?.edgeKind === 'string');
+        if (dashboard && typeof dashboard.properties?.id === 'string') return {
+          featureId: dashboard.properties.id,
+          properties: dashboard.properties as Record<string, unknown>,
+        };
+        const candidates = features.map((feature) => feature.properties?.id)
+          .filter((id): id is string => typeof id === 'string');
+        const current = optionsRef.current;
+        const id = resolveTrailHitId(current.trails, candidates, [lngLat.lng, lngLat.lat],
+          current.selectedTrailId);
+        if (!id) return null;
+        return { featureId: id, properties: { id } };
+      },
+      select: (id) => select(id),
+      hover: (target) => {
+        hoveredTrailRef.current = target?.featureId ?? null;
+        const map = optionsRef.current.mapRef.current;
+        if (map) setTrailHover(map, hoveredTrailRef.current);
+      } }],
     install: ({ map }) => addTrailLayers(map),
     synchronizeData: ({ map }) => {
       const current = optionsRef.current;
-      setTrailData(map, trailsToGeoJSON([...current.trails]));
+      setTrailData(map, trailPresentationToGeoJSON(
+        previewPresentationRef.current ?? latestPresentationRef.current));
+      setTrailHitData(map, trailsToHitGeoJSON([...current.trails]));
+      setTrailSelection(map, current.selectedTrailId);
+      setTrailHover(map, hoveredTrailRef.current);
+      applyTrailTheme(map, current.theme);
       setTrailDraftData(map, draftGeoJSON(stateRef.current));
       current.restoreGradePreview(map);
       const tool = stateRef.current;
@@ -126,6 +180,9 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
     }] : [],
     setCaptureTransient: ({ map }, hidden) => {
       const tool = stateRef.current;
+      captureHiddenRef.current = hidden;
+      setTrailData(map, trailPresentationToGeoJSON(hidden ? latestPresentationRef.current :
+        previewPresentationRef.current ?? latestPresentationRef.current));
       setTrailDraftData(map, hidden ? draftToGeoJSON([]) : draftGeoJSON(tool));
       setTrailPaintPreview(map, hidden ? { path: [], cursor: null,
         brushWidthM: brushWidthRef.current } : {
@@ -141,8 +198,15 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
   const review = state.phase === 'review' ? state.draft : null;
   useEffect(() => {
     const map = optionsRef.current.mapRef.current;
-    if (map) setTrailData(map, trailsToGeoJSON([...optionsRef.current.trails]));
-  }, [options.trails]);
+    if (map) setTrailHitData(map, trailsToHitGeoJSON([...optionsRef.current.trails]));
+    compilePresentation(review);
+  }, [options.trails, options.junctions, review]);
+  useEffect(() => {
+    const map = optionsRef.current.mapRef.current;
+    if (!map) return;
+    setTrailSelection(map, options.selectedTrailId);
+    applyTrailTheme(map, options.theme);
+  }, [options.selectedTrailId, options.theme]);
   useEffect(() => {
     const map = optionsRef.current.mapRef.current;
     if (map) setTrailDraftData(map, draftGeoJSON(stateRef.current));
@@ -157,7 +221,7 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
       brushWidthM, ...trailHeadPreview(tool) });
   }, [brushWidthM]);
   useEffect(() => () => { sampleTokenRef.current++; optionsRef.current.paintAdapter.stop();
-    optionsRef.current.release(); }, []);
+    optionsRef.current.presentationAdapter.cancel(); optionsRef.current.release(); }, []);
 
   useTrailMapInput({ mapRef: options.mapRef, state, stateRef,
     lifts: options.lifts, trails: options.trails, brushWidthRef, commandsRef,
@@ -170,6 +234,32 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
     beginPainting, analyzeTail: () => optionsRef.current.paintAdapter.post({ type: 'finish' }),
     submit: submitCommand, cancel, backToPaint,
   });
+
+  function compilePresentation(preview: DraftTrail | null = null): void {
+    const current = optionsRef.current;
+    const previewTrail = preview ? presentationPreviewTrail(preview) : null;
+    current.presentationAdapter.compile({ trails: previewTrail
+      ? [...current.trails, previewTrail] : [...current.trails],
+      junctions: [...current.junctions] }, {
+      onResult: (result) => {
+        if (previewTrail) previewPresentationRef.current = result;
+        else {
+          previewPresentationRef.current = null;
+          latestPresentationRef.current = result;
+        }
+        setPresentationError(null);
+        const map = optionsRef.current.mapRef.current;
+        if (map) setTrailData(map, trailPresentationToGeoJSON(
+          previewTrail && captureHiddenRef.current ? latestPresentationRef.current : result));
+      },
+      onError: setPresentationError,
+    });
+  }
+
+  function retryPresentation(): void {
+    const current = stateRef.current;
+    compilePresentation(current.phase === 'review' ? current.draft : null);
+  }
 
   function clearGrade(): void { gradeResultRef.current = null;
     optionsRef.current.gradeChanged(); }
@@ -474,8 +564,9 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
   }
   function select(id: string): void { sampleTokenRef.current++; optionsRef.current.select(id); }
 
-  return { state, brushWidthM, contribution: contributionRef.current,
+  return { state, brushWidthM, presentationError, contribution: contributionRef.current,
     activeGradePreview: () => stateRef.current.phase === 'review' ? gradeResultRef.current : null,
     arm, cancel, setPaintMode, undoPaint, clearPaint, finishPaint, changeHead, backToPaint,
-    changeBrushWidth, patchDraft, setGrading, retryElevation, confirm, patch, remove, select };
+    changeBrushWidth, patchDraft, setGrading, retryElevation, retryPresentation,
+    confirm, patch, remove, select };
 }

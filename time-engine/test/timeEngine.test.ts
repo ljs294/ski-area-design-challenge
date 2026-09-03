@@ -4,11 +4,13 @@ import {
   MINUTES_PER_WEEK,
   advanceClock,
   advanceSummerPeriod,
+  advanceSummerToSeptember,
   advanceToBoundary,
   confirmSeasonTransition,
   createClock,
   createTimeSnapshot,
   restoreTimeSnapshot,
+  scaledSimulationMinutes,
 } from '../src/timeEngine';
 
 function startWinter() {
@@ -91,7 +93,51 @@ describe('time engine', () => {
   });
 
   it('rejects incompatible snapshots', () => {
-    const snapshot = { ...createTimeSnapshot(createClock()), schemaVersion: 2 };
+    const snapshot = { ...createTimeSnapshot(createClock()), schemaVersion: 3 };
     expect(() => restoreTimeSnapshot(snapshot)).toThrow(/schema/i);
+  });
+
+  it('maps real elapsed time through the configured scale and speed multiplier', () => {
+    expect(scaledSimulationMinutes(DEFAULT_TIME_CONFIG.realSecondsPerWinterWeek * 1_000, 1)).toBe(MINUTES_PER_WEEK);
+    expect(scaledSimulationMinutes(1_000, 8)).toBeCloseTo(
+      MINUTES_PER_WEEK / DEFAULT_TIME_CONFIG.realSecondsPerWinterWeek * 8,
+    );
+  });
+
+  it('completes planning in one exact skip to resort-local September 1', () => {
+    const config = { ...DEFAULT_TIME_CONFIG, timezone: 'America/Los_Angeles',
+      initialSummerStart: '2026-05-01T07:00:00.000Z' };
+    const result = advanceSummerToSeptember(createClock(config), config);
+    expect(result.clock.calendarDate).toBe('2026-09-01T07:00:00.000Z');
+    expect(result.clock.season).toBe('winter');
+    expect(result.clock.winterWeek).toBe(1);
+    expect(result.clock.runState).toBe('paused');
+    expect(result.events.map((event) => event.type)).toEqual([
+      'summerPeriodEnded', 'seasonEnded', 'seasonStarted', 'weekStarted',
+    ]);
+  });
+
+  it('derives winter start and daily phases in resort local time', () => {
+    const config = { ...DEFAULT_TIME_CONFIG, timezone: 'America/Los_Angeles',
+      initialSummerStart: '2026-05-01T07:00:00.000Z' };
+    let clock = createClock(config);
+    for (let index = 0; index < config.summerPeriods; index += 1) {
+      clock = advanceSummerPeriod(clock, config).clock;
+    }
+    const winter = confirmSeasonTransition(clock, config).clock;
+    expect(winter.calendarDate).toBe('2026-11-02T13:00:00.000Z');
+    expect(winter.minuteOfDay).toBe(300);
+    expect(winter.weekday).toBe(1);
+    expect(winter.timezone).toBe('America/Los_Angeles');
+  });
+
+  it('advances to the next local day across spring-forward', () => {
+    const config = { ...DEFAULT_TIME_CONFIG, timezone: 'America/Los_Angeles' };
+    const start = { ...createClock(config), season: 'winter' as const, winterWeek: 1,
+      summerPeriod: null, seasonStartedAt: '2027-03-08T13:00:00.000Z',
+      calendarDate: '2027-03-14T08:00:00.000Z' };
+    const result = advanceToBoundary(start, 'next-day', config);
+    expect(result.simulatedMinutesAdvanced).toBe(1_380);
+    expect(result.clock.calendarDate).toBe('2027-03-15T07:00:00.000Z');
   });
 });

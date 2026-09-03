@@ -13,6 +13,7 @@ export interface SnowLayerState {
   modeRef: MutableRefObject<SnowDisplayMode>;
   load: (terrain: TerrainRecord, saved?: SavedSnowGrid) => void;
   regenerate: (terrain: TerrainRecord) => void;
+  replace: (grid: SnowGrid, refresh?: boolean) => void;
   refresh: () => void;
   changeMode: (mode: SnowDisplayMode) => void;
   snapshot: (fallback?: SavedSnowGrid) => SavedSnowGrid | undefined;
@@ -40,6 +41,10 @@ export function useSnowLayer(mapRef: MutableRefObject<maplibregl.Map | null>): S
     modeRef,
     load: (terrain, saved) => publish(hydrateSnowGrid(saved, terrain)),
     regenerate: (terrain) => publish(generateSnowBaseline(terrain)),
+    replace: (next, shouldRefresh = true) => {
+      publish(next);
+      if (shouldRefresh) refreshSnowSource(mapRef.current, modeRef.current);
+    },
     refresh: () => refreshSnowSource(mapRef.current, modeRef.current),
     changeMode: (nextMode) => {
       modeRef.current = nextMode;

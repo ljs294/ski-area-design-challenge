@@ -378,7 +378,7 @@ describe('SnowmakingDashboard', () => {
     it('warns that a disconnected gun is not served using text as well as color', () => {
       const html = render({ guns: [disconnectedGun], selectedGunId: disconnectedGun.id });
       expect(html).toContain('Disconnected');
-      expect(html).toContain('no free hydrant is within 50 ft');
+      expect(html).toContain('no free hydrant is within 15 m');
       expect(html).not.toContain('Move sled gun');
       expect(html).toContain('Tower guns are fixed');
     });
