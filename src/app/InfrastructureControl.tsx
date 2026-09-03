@@ -57,8 +57,7 @@ function RoadStats({ points, units, draft }: { points: [number, number][]; units
 export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onUndo,
   onFinish, onDraftChange, onConfirm, onClose, building = false,
   guestPortal, guestPortalArmed = false, guestPortalError = null,
-  guestRuntime, selectedGuestId, onClearSelectedGuest,
-  onSelectGuest,
+  guestRuntime,
   onArmGuestPortal, onCancelGuestPortal, onRemoveGuestPortal }: {
   tool: RoadTool; roads: SavedRoad[]; units: Units;
   onArm: (roadType: RoadType) => void; onCancel: () => void; onUndo: () => void; onFinish: () => void;
@@ -68,9 +67,6 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
   guestPortalArmed?: boolean;
   guestPortalError?: string | null;
   guestRuntime?: GuestSimulationRuntime;
-  selectedGuestId?: string | null;
-  onClearSelectedGuest?: () => void;
-  onSelectGuest?: (id: string) => void;
   onArmGuestPortal?: () => void;
   onCancelGuestPortal?: () => void;
   onRemoveGuestPortal?: () => void;
@@ -92,22 +88,7 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
         <div className="readout-line"><span className="lift-stat-label">Guests active</span>
           <span className="lift-stat-value">{guestRuntime.snapshot?.metrics.active.toLocaleString() ?? '0'}</span></div>
         <div className="site-hint">{guestRuntime.message}</div>
-        {guestRuntime.snapshot?.guests.filter((guest) => guest.status !== 'scheduled' && guest.status !== 'departed').slice(0, 12)
-          .map((guest) => <button className="site-btn" key={guest.id} onClick={() => onSelectGuest?.(guest.id)}>
-            {guest.id} · {guest.status}</button>)}
       </div>}
-      {selectedGuestId && guestRuntime?.snapshot && (() => {
-        const guest = guestRuntime.snapshot.guests.find((candidate) => candidate.id === selectedGuestId);
-        if (!guest) return null;
-        const thoughts = guestRuntime.snapshot.thoughtEvents.filter((thought) => thought.guestId === guest.id).slice(-3).reverse();
-        return <div className="lift-field"><span className="lift-field-label">Selected guest</span>
-          <div className="readout-line"><span className="lift-stat-label">ID</span><span className="lift-stat-value">{guest.id}</span></div>
-          <div className="readout-line"><span className="lift-stat-label">Ability</span><span className="lift-stat-value">{Math.round(guest.preferences.ability * 100)}%</span></div>
-          <div className="readout-line"><span className="lift-stat-label">State</span><span className="lift-stat-value">{guest.status}</span></div>
-          {thoughts.map((thought) => <div className="site-hint" key={thought.id}>{thought.text}</div>)}
-          <button className="site-btn" onClick={onClearSelectedGuest}>Clear guest selection</button>
-        </div>;
-      })()}
     </div>
     {roads.length === 0 ? <div className="lift-overview-empty">No infrastructure yet — build your first road.</div> : <>
       {roads.length > 0 && <div className="lift-list">{roads.map((road) => <div key={road.id} className="lift-row">

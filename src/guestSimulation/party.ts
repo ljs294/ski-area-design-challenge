@@ -50,6 +50,8 @@ export interface PartyPlanRequest {
   readonly routes: readonly PartyRouteOption[];
   readonly worldSeed: string | number | bigint;
   readonly tick?: SimulatedSecond;
+  /** Keep a reachable route eligible even when it exceeds the weakest member's ability. */
+  readonly allowUnsafeSelection?: boolean;
 }
 
 export interface PartyPlan {
@@ -311,11 +313,11 @@ export function createPartyPlan(
   const leaderId = memberIds[0];
   const weakest = getWeakestPartyMember(request.members);
   const weakestAbility = memberAbility(weakest);
-  const safeRoutes = request.routes.filter((route) => {
+  const eligibleRoutes = request.routes.filter((route) => {
     assertNonEmptyString(route.id, 'route.id');
-    return routeMinimumAbility(route) <= weakestAbility;
+    return request.allowUnsafeSelection || routeMinimumAbility(route) <= weakestAbility;
   });
-  const selected = safeRoutes.slice().sort((left, right) => {
+  const selected = eligibleRoutes.slice().sort((left, right) => {
     const score = routeSortKey(right, leaderId, request.worldSeed) - routeSortKey(left, leaderId, request.worldSeed);
     return score || left.id.localeCompare(right.id);
   })[0] ?? null;

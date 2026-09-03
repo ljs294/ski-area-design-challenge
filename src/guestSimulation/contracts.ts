@@ -183,6 +183,8 @@ export interface ThoughtEvent {
   readonly kind: ThoughtEventKind;
   readonly sentiment: ThoughtSentiment;
   readonly text: string;
+  /** Stable machine-readable explanation used by aggregate guest views. */
+  readonly reasonCode?: string;
 }
 
 export type GuestStateStatus =

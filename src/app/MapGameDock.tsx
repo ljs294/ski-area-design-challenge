@@ -77,9 +77,6 @@ export interface MapGameDockProps {
   guestPortal: PlacedGuestPortal | null;
   guestPortalController: GuestPortalController;
   guestRuntime: GuestSimulationRuntime;
-  selectedGuestId: string | null;
-  selectGuest(id: string): void;
-  clearSelectedGuest(): void;
   network: SkiNetwork;
   selectedLiftId: string | null;
   selectedTrailId: string | null;
@@ -438,8 +435,7 @@ export function MapGameDock(props: MapGameDockProps) {
         onConfirm={roadController.confirm} building={props.building} onClose={props.closeDock}
         guestPortal={props.guestPortal} guestPortalArmed={props.guestPortalController.armed}
         guestPortalError={props.guestPortalController.error}
-        guestRuntime={props.guestRuntime} selectedGuestId={props.selectedGuestId}
-        onSelectGuest={props.selectGuest} onClearSelectedGuest={props.clearSelectedGuest}
+        guestRuntime={props.guestRuntime}
         onArmGuestPortal={props.guestPortalController.arm}
         onCancelGuestPortal={props.guestPortalController.cancel}
         onRemoveGuestPortal={props.guestPortalController.remove} />}

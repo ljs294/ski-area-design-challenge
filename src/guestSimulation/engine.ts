@@ -47,6 +47,13 @@ import {
   tick,
 } from './engineSupport.ts';
 import type { PartyPlan, PartyRendezvousPlan } from './party.ts';
+import { assertConditionSnapshot, createConditionSnapshot,
+  type ConditionSnapshot } from './conditions.ts';
+import { aggregateThoughtsByReason, calculateCrowdingEffect, calculateSatisfactionChannels,
+  calculateSuitableTerrainOutcome, evaluateEarlyDeparture, type EarlyDepartureDecision,
+  type ExperienceThoughtReasonCode } from './experience.ts';
+import { createPhase4SafetyRuntime, type Phase4SafetySnapshot } from './phase4Safety.ts';
+import type { InjuryIncident } from './injury.ts';
 
 export {
   chooseWeightedGuestItinerary,
@@ -88,6 +95,9 @@ interface MutableGuest extends GuestState {
   satisfaction: number;
   pendingDeparture: boolean;
   decisionOrdinal: number;
+  queueJoinedTick: SimulatedSecond | null;
+  lastQueueWaitSeconds: number;
+  traversalOrdinal: number;
 }
 
 interface MutableParty extends PartyState {
@@ -110,22 +120,21 @@ function environmentAt(base: GuestSimulationEnvironmentSnapshot, tickValue: Simu
 }
 
 function immutableGuest(guest: MutableGuest): GuestState {
-  const { pendingDeparture: _pendingDeparture, decisionOrdinal: _decisionOrdinal, ...state } = guest;
+  const { pendingDeparture: _pendingDeparture, decisionOrdinal: _decisionOrdinal,
+    queueJoinedTick: _queueJoinedTick, lastQueueWaitSeconds: _lastQueueWaitSeconds,
+    traversalOrdinal: _traversalOrdinal, ...state } = guest;
   return Object.freeze({ ...state });
 }
 
+function defaultThoughtReason(kind: ThoughtEvent['kind'], sentiment: ThoughtEvent['sentiment']): ExperienceThoughtReasonCode {
+  if (sentiment === 'positive') return 'positive-experience';
+  if (kind === 'arrived') return 'arrival';
+  if (kind === 'concerned') return 'terrain-mismatch';
+  return kind;
+}
+
 function checksumProjection(snapshot: Omit<GuestSimulationEngineSnapshot, 'checksum'>): string {
-  return eventCalendarChecksum({ tick: snapshot.tick, guests: snapshot.guests.map((guest) => ({ id: guest.id, status: guest.status,
-    currentResourceId: guest.currentResourceId, satisfaction: guest.satisfaction })),
-  parties: snapshot.parties.map((party) => ({ id: party.id, status: party.status })),
-  itineraries: snapshot.itineraries.map((itinerary) => ({ id: itinerary.id, guestId: itinerary.guestId })),
-  metrics: snapshot.metrics,
-  pendingEvents: snapshot.pendingEvents,
-  liftQueues: snapshot.liftQueues,
-  decisionOrdinals: snapshot.decisionOrdinals,
-  partyPlans: snapshot.partyPlans,
-  rendezvousPlans: snapshot.rendezvousPlans,
-  });
+  return eventCalendarChecksum(snapshot);
 }
 
 /** Pure, explicit-time simulation controller for the Phase 1A slice. */
@@ -145,9 +154,16 @@ export class GuestSimulationEngine {
   private readonly liftsById = new Map<string, MutableLiftLedger>();
   private readonly portalEntriesByTick = new Map<string, number>();
   private readonly thoughtEventsInternal: ThoughtEvent[] = [];
+  private readonly thoughtCountsInternal = new Map<string, { reasonCode: ExperienceThoughtReasonCode;
+    sentiment: ThoughtEvent['sentiment']; count: number }>();
+  private readonly earlyDeparturesInternal: { guestId: GuestId; tick: SimulatedSecond; decision: EarlyDepartureDecision }[] = [];
+  private readonly conditionHistoryInternal: ConditionSnapshot[] = [];
+  private readonly safetyRuntime;
+  private readonly finalizedSafetyIncidents = new Set<string>();
   private sequence = 0;
   private tickValue: SimulatedSecond;
   private environmentValue: GuestSimulationEnvironmentSnapshot;
+  private conditionSnapshotValue: ConditionSnapshot;
 
   constructor(options: GuestSimulationEngineOptions) {
     this.network = createGuestSimulationNetwork(options.network);
@@ -169,11 +185,23 @@ export class GuestSimulationEngine {
       portals: this.network.portals, incidents: freezeArray([]),
     });
     this.tickValue = this.environmentValue.tick;
+    this.safetyRuntime = createPhase4SafetyRuntime(this.network, this.tickValue);
+    this.conditionSnapshotValue = options.conditionSnapshot ?? createConditionSnapshot({
+      revision: 0, tick: this.tickValue, edges: this.network.edges.map((edge) => ({
+        edgeId: edge.id, baseDifficulty: edge.targetRating ?? 0.25,
+        grooming: edge.kind === 'descent' ? 0.5 : 1, snowQuality: 0.75, coverage: 1,
+        occupancy: { guests: 0, capacity: edge.kind === 'lift' ? edge.capacitySeats ?? 1 : 100 },
+      })),
+    });
+    assertConditionSnapshot(this.conditionSnapshotValue);
+    if (this.conditionSnapshotValue.tick !== this.tickValue) throw new RangeError('initial condition snapshot tick must match environment tick');
+    this.conditionHistoryInternal.push(this.conditionSnapshotValue);
     tick(this.tickValue, 'environment tick');
     this.calendar = new EventCalendar<EnginePayload>(this.tickValue);
     for (const guest of this.roster.guests) {
       const mutable: MutableGuest = { ...guest, status: 'scheduled', currentPortalId: guest.portalId,
-        currentResourceId: null, satisfaction: 1, pendingDeparture: false, decisionOrdinal: 0 };
+        currentResourceId: null, satisfaction: 1, pendingDeparture: false, decisionOrdinal: 0,
+        queueJoinedTick: null, lastQueueWaitSeconds: 0, traversalOrdinal: 0 };
       this.guestsById.set(guest.id, mutable);
       this.abilityTargetsByGuest.set(guest.id, guestAbilityTargets(guest, this.roster.seed));
       scheduleGuestEvent(this.calendar, { dueTick: guest.arrivalTick, phase: GUEST_EVENT_PHASE.bookingsArrivals,
@@ -229,11 +257,32 @@ export class GuestSimulationEngine {
 
   getThoughtEvents(): readonly ThoughtEvent[] { return freezeArray(this.thoughtEventsInternal); }
 
+  /** Apply a revision at its exact tick before same-tick decisions are dispatched. */
+  applyConditionSnapshot(snapshot: ConditionSnapshot): void {
+    assertConditionSnapshot(snapshot);
+    if (snapshot.tick < this.tickValue) throw new RangeError('condition snapshot cannot move simulation time backwards');
+    const networkEdgeIds = new Set(this.network.edges.map((edge) => edge.id));
+    if (snapshot.edges.length !== networkEdgeIds.size || snapshot.edges.some((edge) => !networkEdgeIds.has(edge.edgeId))) {
+      throw new RangeError('condition snapshot must cover every network edge exactly once');
+    }
+    if (snapshot.tick === this.tickValue) {
+      if (snapshot.checksum === this.conditionSnapshotValue.checksum) return;
+      throw new RangeError('condition snapshot cannot replace already-observed same-tick conditions');
+    }
+    if (snapshot.revision <= this.conditionSnapshotValue.revision) throw new RangeError('condition revision must increase monotonically');
+    this.advanceTo(snapshot.tick - 1);
+    this.conditionSnapshotValue = snapshot;
+    const previous = this.conditionHistoryInternal[this.conditionHistoryInternal.length - 1];
+    if (!previous || previous.checksum !== snapshot.checksum) this.conditionHistoryInternal.push(snapshot);
+  }
+
   snapshot(): GuestSimulationEngineSnapshot {
+    const safety = this.syncSafetyState();
     const guests = freezeArray([...this.guestsById.values()].sort(compareId).map(immutableGuest));
     const parties = freezeArray([...this.partiesById.values()].sort(compareId).map((party) => Object.freeze({ ...party })));
     const environment = environmentAt(this.environmentValue, this.tickValue);
     const metrics = this.metricsFor(guests);
+    const thoughtAggregation = aggregateThoughtsByReason([...this.thoughtCountsInternal.values()]);
     const base = {
       version: GUEST_SIMULATION_CONTRACT_VERSION,
       protocolVersion: GUEST_SIMULATION_PROTOCOL_VERSION,
@@ -259,6 +308,11 @@ export class GuestSimulationEngine {
       decisionOrdinals: freezeArray([...this.guestsById.values()].sort(compareId).map((guest) => Object.freeze({ guestId: guest.id, ordinal: guest.decisionOrdinal }))),
       partyPlans: freezeArray([...this.partyPlansByParty.values()].sort((left, right) => left.partyId.localeCompare(right.partyId))),
       rendezvousPlans: freezeArray([...this.rendezvousPlansByParty.values()].sort((left, right) => left.partyId.localeCompare(right.partyId))),
+      conditionSnapshot: this.conditionSnapshotValue,
+      conditionHistory: freezeArray(this.conditionHistoryInternal),
+      thoughtAggregation,
+      earlyDepartures: freezeArray(this.earlyDeparturesInternal),
+      safety,
     } satisfies Omit<GuestSimulationEngineSnapshot, 'checksum'>;
     const checksum = checksumProjection(base);
     return Object.freeze({ ...base, checksum });
@@ -280,24 +334,31 @@ export class GuestSimulationEngine {
   }
 
   private handle(payload: EnginePayload): void {
+    this.syncSafetyState();
     switch (payload.kind) {
       case 'arrival': this.handleArrival(payload.guestId); break;
       case 'portal-retry': this.handleArrival(payload.guestId); break;
       case 'reach-lift': this.handleReachLift(payload.guestId); break;
       case 'lift-dispatch': this.handleLiftDispatch(payload.liftId); break;
       case 'ride-complete': this.handleRideComplete(payload.guestId); break;
-      case 'descent-complete': this.handleDescentComplete(payload.guestId); break;
+      case 'descent-complete': this.handleDescentComplete(payload.guestId, payload.traversalId); break;
+      case 'injury': this.handleInjury(payload.guestId, payload.incident); break;
       case 'decide': this.handleDecision(payload.guestId); break;
       case 'depart': this.handleDeparture(payload.guestId); break;
     }
   }
 
-  private appendThought(guest: MutableGuest, kind: ThoughtEvent['kind'], sentiment: ThoughtEvent['sentiment'], text: string): void {
+  private appendThought(guest: MutableGuest, kind: ThoughtEvent['kind'], sentiment: ThoughtEvent['sentiment'], text: string,
+    reasonCode: ExperienceThoughtReasonCode = defaultThoughtReason(kind, sentiment)): void {
+    const aggregationKey = `${reasonCode}|${sentiment}`;
+    const aggregate = this.thoughtCountsInternal.get(aggregationKey);
+    if (aggregate) aggregate.count += 1;
+    else this.thoughtCountsInternal.set(aggregationKey, { reasonCode, sentiment, count: 1 });
     if (this.thoughtEventsInternal.length >= this.config.maxThoughtEventsPerSnapshot) return;
     this.sequence += 1;
     this.thoughtEventsInternal.push(Object.freeze({ version: GUEST_SIMULATION_CONTRACT_VERSION,
       id: `thought-${String(this.sequence).padStart(8, '0')}`, tick: this.tickValue,
-      guestId: guest.id, partyId: guest.partyId, kind, sentiment, text }));
+      guestId: guest.id, partyId: guest.partyId, kind, sentiment, text, reasonCode }));
   }
 
   private handleArrival(guestId: GuestId): void {
@@ -369,12 +430,12 @@ export class GuestSimulationEngine {
     if (members.length !== party.guestIds.length) return null;
     const weakestAbility = Math.min(...members.map((member) => member.preferences.ability));
     const selected = chooseWeightedGuestItinerary(this.network, guest, this.roster.seed, this.environmentValue,
-      this.tickValue, guest.decisionOrdinal, queueLengths, weakestAbility);
+      this.tickValue, guest.decisionOrdinal, queueLengths, weakestAbility, this.conditionSnapshotValue);
     if (!selected) return null;
     const routeMinimumAbility = selected.routeMinimumAbility ?? selected.targetRating;
     const plan = createPartyPlan({ party, members: members.map(memberProfile), worldSeed: this.roster.seed, tick: this.tickValue,
       routes: [{ id: selected.id, liftId: selected.liftId, trailId: selected.descentEdgeId,
-        minimumAbility: routeMinimumAbility, leaderAppeal: selected.weight }] });
+        minimumAbility: routeMinimumAbility, leaderAppeal: selected.weight }], allowUnsafeSelection: true });
     if (!plan.canProceed || plan.selectedRouteId !== selected.id) return null;
     const sharedItinerary = Object.freeze({ ...selected, guestId: leaderId, partyId: party.id,
       routeMinimumAbility, ownership: 'leader-owned-shared-plan' as const });
@@ -433,6 +494,7 @@ export class GuestSimulationEngine {
       return;
     }
     guest.status = 'lift-queue';
+    guest.queueJoinedTick = this.tickValue;
     if (!lift.partyOrder.includes(guest.partyId)) lift.partyOrder.push(guest.partyId);
     lift.queue.push(guest.id);
     this.appendThought(guest, 'queueing', 'neutral', 'Joined the lift queue.');
@@ -469,6 +531,8 @@ export class GuestSimulationEngine {
           const guest = this.guestsById.get(guestId);
           if (!guest) continue;
           guest.status = 'lift-ride';
+          guest.lastQueueWaitSeconds = Math.max(0, this.tickValue - (guest.queueJoinedTick ?? this.tickValue));
+          guest.queueJoinedTick = null;
           guest.currentResourceId = ledger.lift.id;
           ledger.inTransit.add(guest.id);
           ledger.dispatches += 1;
@@ -518,20 +582,67 @@ export class GuestSimulationEngine {
     guest.status = 'skiing';
     guest.currentResourceId = itinerary.descentEdgeId;
     this.appendThought(guest, 'skiing', 'positive', 'The descent looks good.');
-    scheduleGuestEvent(this.calendar, { dueTick: this.tickValue + itinerary.descentSeconds,
-      phase: GUEST_EVENT_PHASE.dueTravelServiceCompletions, ownerId: itinerary.descentEdgeId, guestId: guest.id,
-      payload: { kind: 'descent-complete', guestId: guest.id } });
+    const condition = this.conditionSnapshotValue.edges.find((edge) => edge.edgeId === itinerary.descentEdgeId);
+    const traversalOrdinal = guest.traversalOrdinal++;
+    const traversalId = `${guest.id}:${itinerary.descentEdgeId}:${traversalOrdinal}`;
+    const evaluation = this.safetyRuntime.evaluate({ worldSeed: this.roster.seed, guestId: guest.id,
+      runId: itinerary.descentEdgeId, traversalId, entryTick: this.tickValue,
+      durationSeconds: itinerary.descentSeconds, decisionOrdinal: traversalOrdinal,
+      ability: guest.preferences.ability, effectiveDifficulty: condition?.effectiveDifficulty ?? itinerary.targetRating,
+      traffic: condition?.occupancy.crowding.ratio ?? 0, coverage: condition?.coverage.fraction ?? 1,
+      grooming: condition?.grooming.quality ?? 0.5,
+      exposure: Math.min(1, 0.25 + guest.preferences.riskTolerance * 0.5) });
+    const token = this.calendar.generationFor(traversalId, guest.id);
+    const incident = evaluation.scheduledIncident;
+    scheduleGuestEvent(this.calendar, { dueTick: incident?.incidentTick ?? this.tickValue + itinerary.descentSeconds,
+      phase: incident ? GUEST_EVENT_PHASE.cancellationIncidents : GUEST_EVENT_PHASE.dueTravelServiceCompletions,
+      ownerId: traversalId, guestId: guest.id, generationToken: token,
+      payload: incident ? { kind: 'injury', guestId: guest.id, incident }
+        : { kind: 'descent-complete', guestId: guest.id, traversalId } });
   }
 
-  private handleDescentComplete(guestId: GuestId): void {
+  private handleDescentComplete(guestId: GuestId, traversalId: string): void {
     const guest = this.guestsById.get(guestId);
     if (!guest || guest.status !== 'skiing') return;
+    this.safetyRuntime.markNormal(traversalId);
+    this.calendar.generationFor(traversalId, guest.id);
     guest.status = 'appraising';
     guest.currentResourceId = null;
     const itinerary = this.itinerariesByGuest.get(guest.id);
     if (itinerary) {
-      const ratingGap = Math.abs(itinerary.targetRating - 0.5);
-      guest.satisfaction = bounded(guest.satisfaction + 0.01 - ratingGap * 0.005);
+      const edge = this.conditionSnapshotValue.edges.find((candidate) => candidate.edgeId === itinerary.descentEdgeId);
+      const terrain = calculateSuitableTerrainOutcome({ ability: guest.preferences.ability,
+        terrainDifficulty: edge?.effectiveDifficulty ?? itinerary.routeMinimumAbility ?? itinerary.targetRating,
+        hardcoreTerrainPreference: guest.preferences.hardcoreTerrainPreference,
+        riskTolerance: guest.preferences.riskTolerance, open: true });
+      const crowding = calculateCrowdingEffect({ occupancy: edge?.occupancy.guests ?? 0,
+        capacity: edge?.occupancy.capacity ?? 100, queueWaitSeconds: guest.lastQueueWaitSeconds,
+        expectedQueueWaitSeconds: 120, sensitivity: 1 - guest.preferences.patience });
+      const conditions = edge ? (edge.snowQuality.quality + edge.coverage.fraction) / 2 : 0.75;
+      const satisfaction = calculateSatisfactionChannels({ terrainFit: terrain.suitability,
+        queueWaitSeconds: guest.lastQueueWaitSeconds, expectedQueueWaitSeconds: 120, crowding,
+        comfort: edge?.comfort ?? 0.65, conditions, value: 0.7,
+        variety: guest.preferences.varietySeeking, safety: 1 - terrain.safetyPenalty });
+      guest.satisfaction = bounded(guest.satisfaction * 0.7 + satisfaction.overall * 0.3);
+      const departure = evaluateEarlyDeparture({ worldSeed: this.roster.seed, entityId: guest.id,
+        decisionOrdinal: guest.decisionOrdinal, currentTick: this.tickValue,
+        plannedDepartureTick: guest.plannedDepartureTick, satisfaction: guest.satisfaction,
+        channels: satisfaction, crowding, terrain, conditions, queueWaitSeconds: guest.lastQueueWaitSeconds,
+        expectedQueueWaitSeconds: 120 });
+      if (departure.departedEarly) {
+        this.earlyDeparturesInternal.push(Object.freeze({ guestId: guest.id, tick: this.tickValue, decision: departure }));
+        const reason = departure.primaryReasonCode ?? 'low-satisfaction';
+        this.appendThought(guest, 'leaving', 'negative', `Leaving early: ${reason.replace(/-/g, ' ')}.`, reason);
+        this.markDeparted(guest, false);
+        return;
+      }
+      const sentiment = satisfaction.overall >= 0.67 ? 'positive' : satisfaction.overall < 0.4 ? 'negative' : 'neutral';
+      const reason: ExperienceThoughtReasonCode = terrain.reasonCode === 'well-matched' ? 'positive-experience'
+        : terrain.reasonCode === 'too-difficult' || terrain.reasonCode === 'too-easy' ? 'terrain-mismatch'
+          : conditions < 0.5 ? 'poor-conditions' : 'waiting';
+      this.appendThought(guest, sentiment === 'negative' ? 'concerned' : 'waiting', sentiment,
+        terrain.reasonCode === 'well-matched' ? 'That run matched my ability and expectations.'
+          : `That terrain felt ${terrain.reasonCode.replace('too-', 'too ')}.`, reason);
     }
     if (guest.pendingDeparture || this.tickValue >= (guest.plannedDepartureTick ?? this.roster.demandPlan.endTick)) {
       this.markDeparted(guest);
@@ -539,6 +650,41 @@ export class GuestSimulationEngine {
     }
     this.appendThought(guest, 'waiting', 'neutral', 'Taking a short break before the next run.');
     this.scheduleDecision(guest, this.tickValue + 1);
+  }
+
+  private handleInjury(guestId: GuestId, incident: InjuryIncident): void {
+    const guest = this.guestsById.get(guestId);
+    const itinerary = this.itinerariesByGuest.get(guestId);
+    if (!guest || !itinerary || guest.status !== 'skiing') return;
+    this.calendar.generationFor(incident.traversalId, guest.id);
+    const edge = edgeById(this.network).get(incident.runId);
+    this.safetyRuntime.reportInjury(incident, guest.partyId, edge?.fromNodeId ?? this.network.portalConnections[0]!.nodeId);
+    guest.status = 'patrol-response';
+    guest.currentResourceId = incident.runId;
+    guest.satisfaction = bounded(guest.satisfaction * 0.7 + 0.05 * 0.3);
+    this.partyItinerariesByParty.delete(guest.partyId);
+    this.partyPlansByParty.delete(guest.partyId);
+    this.rendezvousPlansByParty.delete(guest.partyId);
+    this.appendThought(guest, 'concerned', 'negative',
+      `Injured on the run; ski patrol was notified (${incident.primaryReasonCode}).`, 'injury');
+  }
+
+  private syncSafetyState(): Phase4SafetySnapshot {
+    const safety = this.safetyRuntime.snapshot(this.tickValue);
+    for (const incident of safety.guestIncidents) {
+      if (this.finalizedSafetyIncidents.has(incident.id)) continue;
+      if (incident.status !== 'resolved' && incident.status !== 'failed'
+        && incident.status !== 'unreachable' && incident.status !== 'cancelled') continue;
+      this.finalizedSafetyIncidents.add(incident.id);
+      const guest = this.guestsById.get(incident.guestId);
+      if (!guest || guest.status === 'departed') continue;
+      const failed = incident.status !== 'resolved';
+      this.appendThought(guest, failed ? 'concerned' : 'leaving', failed ? 'negative' : 'neutral',
+        failed ? 'The patrol response failed; leaving the resort.' : 'Ski patrol completed the rescue; leaving to recover.',
+        failed ? 'safety-concern' : 'injury');
+      this.markDeparted(guest, false);
+    }
+    return safety;
   }
 
   private handleDeparture(guestId: GuestId): void {
@@ -554,7 +700,7 @@ export class GuestSimulationEngine {
     this.markDeparted(guest);
   }
 
-  private markDeparted(guest: MutableGuest): void {
+  private markDeparted(guest: MutableGuest, appendThought = true): void {
     if (guest.status === 'departed') return;
     if (guest.status === 'lift-ride') {
       guest.pendingDeparture = true;
@@ -564,7 +710,7 @@ export class GuestSimulationEngine {
     guest.currentPortalId = null;
     guest.currentResourceId = null;
     this.itinerariesByGuest.delete(guest.id);
-    this.appendThought(guest, 'leaving', 'neutral', 'Leaving the resort cleanly.');
+    if (appendThought) this.appendThought(guest, 'leaving', 'neutral', 'Leaving the resort cleanly.');
     const party = this.partiesById.get(guest.partyId);
     if (party && party.guestIds.every((id) => this.guestsById.get(id)?.status === 'departed')) party.status = 'departed';
   }

@@ -711,12 +711,13 @@ export function setDashboardMapVisibility(map: maplibregl.Map, kind: DashboardKi
     const snow = id.startsWith('dashboard-snow-');
     const trail = id.startsWith('dashboard-trail-') || id === 'dashboard-lift-hit';
     const common = id === 'dashboard-backdrop' || id === 'dashboard-grid';
-    const visible = !!kind && (common || kind === 'trails' && trail || kind === 'snowmaking' && snow);
+    const visible = kind === 'trails' && (common || trail) || kind === 'snowmaking' && (common || snow);
     map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
   }
 }
 
 export function dashboardBounds(input: DashboardMapData): maplibregl.LngLatBoundsLike | null {
+  if (input.kind === 'guests') return null;
   const points: [number, number][] = input.kind === 'trails'
     ? input.network.edges.flatMap((edge) => edge.id.endsWith(':r') ? [] : edge.path)
     : [...input.nodes.map((node) => node.point), ...input.pipes.flatMap((pipe) =>

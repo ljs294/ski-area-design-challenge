@@ -52,6 +52,12 @@ export function DashboardMenu({ active, onChange }: {
           {active === 'snowmaking' ? '✓' : ''}
         </span><span>Snowmaking</span>
       </button>
+      <button type="button" role="menuitemcheckbox" aria-checked={active === 'guests'}
+        onClick={() => choose('guests')}>
+        <span className="dashboard-menu-check" aria-hidden="true">
+          {active === 'guests' ? '✓' : ''}
+        </span><span>Guests</span>
+      </button>
     </div>}
   </div>;
 }

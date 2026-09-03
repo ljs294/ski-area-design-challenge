@@ -1,5 +1,6 @@
 import type { GuestSimulationEnvironmentSnapshot } from '../guestSimulation/contracts';
 import type { GuestSimulationEngineSnapshot, GuestSimulationNetwork } from '../guestSimulation/engine';
+import type { ConditionSnapshot } from '../guestSimulation/conditions';
 
 interface RequestBase { readonly requestId: string; readonly sequence: number }
 
@@ -7,10 +8,12 @@ export type GuestSimulationWorkerRequest =
   | (RequestBase & { readonly type: 'initialize'; readonly runId: string; readonly seed: string;
       readonly guestCount: number; readonly network: GuestSimulationNetwork;
       readonly startTick: number; readonly endTick: number;
-      readonly environmentRevision: number; readonly topologyRevision: number })
+      readonly environmentRevision: number; readonly topologyRevision: number;
+      readonly conditionSnapshot?: ConditionSnapshot })
   | (RequestBase & { readonly type: 'restore'; readonly bytes: Uint8Array; readonly expectedTopologyRevision: number })
   | (RequestBase & { readonly type: 'advance'; readonly toTick: number;
-      readonly expectedEnvironmentRevision: number; readonly expectedTopologyRevision: number })
+      readonly expectedEnvironmentRevision: number; readonly expectedTopologyRevision: number;
+      readonly conditionSnapshot?: ConditionSnapshot })
   | (RequestBase & { readonly type: 'snapshot' | 'checkpoint' });
 
 export type GuestSimulationWorkerResponse =

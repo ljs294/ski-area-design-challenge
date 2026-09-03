@@ -17,6 +17,10 @@ import type { GuestSimulationConfig } from './config.ts';
 import type { GuestEventPhase } from './eventPhases.ts';
 import { keyedRandomFloat, keyedRandomInt, type RandomSeed } from './random.ts';
 import type { PartyMemberProfile, PartyPlan, PartyRendezvousPlan } from './party.ts';
+import { scoreConditionAwareRoute, type ConditionSnapshot } from './conditions.ts';
+import type { EarlyDepartureDecision, ThoughtAggregation } from './experience.ts';
+import type { InjuryIncident } from './injury.ts';
+import type { Phase4SafetySnapshot } from './phase4Safety.ts';
 
 export type GuestNetworkNodeKind = 'portal' | 'lift-base' | 'lift-top' | 'junction';
 
@@ -148,6 +152,11 @@ export interface GuestSimulationEngineSnapshot extends GuestSimulationSnapshot {
   readonly decisionOrdinals: readonly { guestId: GuestId; ordinal: number }[];
   readonly partyPlans: readonly PartyPlan[];
   readonly rendezvousPlans: readonly PartyRendezvousPlan[];
+  readonly conditionSnapshot: ConditionSnapshot;
+  readonly conditionHistory: readonly ConditionSnapshot[];
+  readonly thoughtAggregation: ThoughtAggregation;
+  readonly earlyDepartures: readonly { guestId: GuestId; tick: SimulatedSecond; decision: EarlyDepartureDecision }[];
+  readonly safety: Phase4SafetySnapshot;
 }
 
 export interface GuestSimulationPendingEvent {
@@ -172,6 +181,7 @@ export interface GuestSimulationEngineOptions {
   readonly runId?: string;
   readonly config?: GuestSimulationConfig;
   readonly environment?: GuestSimulationEnvironmentSnapshot;
+  readonly conditionSnapshot?: ConditionSnapshot;
 }
 
 export type GuestSimulationEventPayload =
@@ -180,7 +190,8 @@ export type GuestSimulationEventPayload =
   | { readonly kind: 'reach-lift'; readonly guestId: GuestId }
   | { readonly kind: 'lift-dispatch'; readonly liftId: string }
   | { readonly kind: 'ride-complete'; readonly guestId: GuestId }
-  | { readonly kind: 'descent-complete'; readonly guestId: GuestId }
+  | { readonly kind: 'descent-complete'; readonly guestId: GuestId; readonly traversalId: string }
+  | { readonly kind: 'injury'; readonly guestId: GuestId; readonly incident: InjuryIncident }
   | { readonly kind: 'decide'; readonly guestId: GuestId }
   | { readonly kind: 'depart'; readonly guestId: GuestId };
 
@@ -404,7 +415,8 @@ function ratingForEdge(edge: GuestNetworkEdge): number { return bounded(edge.tar
 
 export function chooseWeightedGuestItinerary(network: GuestSimulationNetwork, guest: Guest, seed: RandomSeed,
   environment: GuestSimulationEnvironmentSnapshot, tickValue: SimulatedSecond, decisionOrdinal = 0,
-  queueLengths: ReadonlyMap<string, number> = new Map(), minimumAbility?: number): GuestItinerary | null {
+  queueLengths: ReadonlyMap<string, number> = new Map(), minimumAbility?: number,
+  conditions?: ConditionSnapshot): GuestItinerary | null {
   const portal = network.portals.find((candidate) => candidate.id === guest.portalId), startNodeId = portal ? portalNodeId(network, portal.id) : undefined;
   if (!portal || !startNodeId || !portalOpenAt(portal, environment, tickValue) || !environment.operating) return null;
   const edges = edgeById(network), candidates: { itinerary: GuestItinerary; score: number }[] = [];
@@ -414,12 +426,19 @@ export function chooseWeightedGuestItinerary(network: GuestSimulationNetwork, gu
     const connectorPath = findConnectorPath(network, startNodeId, lift.baseNodeId, environment, tickValue);
     if (!connectorPath || connectorPath.some((edge) => !edgeOpenAt(network, edge, environment, tickValue))) continue;
     const descents = network.edges.filter((edge) => edge.kind === 'descent' && edge.fromNodeId === lift.topNodeId
-      && edgeOpenAt(network, edge, environment, tickValue) && (minimumAbility === undefined || ratingForEdge(edge) <= minimumAbility));
+      && edgeOpenAt(network, edge, environment, tickValue));
     for (const descent of descents) {
       const target = guestAbilityTargets(guest, seed, decisionOrdinal).targetRating;
       const compatibility = 1 - Math.abs(target - ratingForEdge(descent));
       const waitPenalty = (queueLengths.get(lift.id) ?? 0) / Math.max(1, lift.capacitySeats);
-      const score = compatibility * 3 + guest.preferences.varietySeeking * 0.25 - waitPenalty * (1 + guest.preferences.patience);
+      const conditionScore = conditions?.edges.some((edge) => edge.edgeId === descent.id)
+        ? scoreConditionAwareRoute(conditions, [descent.id], { ability: minimumAbility ?? guest.preferences.ability,
+          targetDifficulty: target, comfortDemand: guest.preferences.comfortDemand,
+          hardcoreTerrainPreference: guest.preferences.hardcoreTerrainPreference,
+          crowdingSensitivity: 1 - guest.preferences.patience }) : null;
+      if (conditionScore && !conditionScore.canProceed) continue;
+      const score = compatibility * 3 + guest.preferences.varietySeeking * 0.25
+        + (conditionScore?.score ?? 0.5) * 2 - waitPenalty * (1 + guest.preferences.patience);
       const weight = Math.max(0.000001, Math.exp(score));
       candidates.push({ score, itinerary: Object.freeze({ id: `itinerary-${guest.id}-${decisionOrdinal + 1}-${lift.id}-${descent.id}`,
         guestId: guest.id, liftId: lift.id, connectorEdgeIds: freezeArray(connectorPath.map((edge) => edge.id)), liftEdgeId: lift.edgeId,

@@ -99,6 +99,24 @@ describe('guest simulation binary sidecar', () => {
     expect(resumedAtEnd.parties).toEqual(uninterruptedAtEnd.parties);
     expect(resumedAtEnd.thoughtEvents).toEqual(uninterruptedAtEnd.thoughtEvents);
   });
+
+  it('migrates a legacy checkpoint that predates Phase 2 condition fields', () => {
+    const portals = createGuestPortals(20);
+    const roster = createDailyGuestRoster({ seed: 'legacy-engine-replay', guestCount: 4, portals, endTick: 20 });
+    const engine = createGuestSimulationEngine({ network: createDefaultGuestSimulationNetwork(portals), roster });
+    engine.advanceTo(5);
+    const state = replayStateFromGuestSimulationEngine(engine);
+    const legacySnapshot = { ...state.snapshot } as Record<string, unknown>;
+    delete legacySnapshot.conditionSnapshot;
+    delete legacySnapshot.conditionHistory;
+    delete legacySnapshot.thoughtAggregation;
+    delete legacySnapshot.earlyDepartures;
+    legacySnapshot.checksum = 'phase-one-checksum';
+    const migrated = restoreGuestSimulationEngine({ ...state, snapshot: legacySnapshot as unknown as typeof state.snapshot });
+    expect(migrated.currentTick).toBe(5);
+    expect(migrated.snapshot().conditionHistory).toHaveLength(1);
+    expect(migrated.snapshot().thoughtAggregation.reconciled).toBe(true);
+  });
 });
 
 describe('guest simulation coherent checkpoint manager', () => {

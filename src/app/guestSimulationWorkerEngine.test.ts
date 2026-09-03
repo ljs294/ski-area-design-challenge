@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultGuestSimulationNetwork } from '../guestSimulation/engine';
 import type { GuestPortal } from '../guestSimulation/contracts';
 import { GuestSimulationWorkerEngine } from './guestSimulationWorkerEngine';
+import { createConditionSnapshot } from '../guestSimulation/conditions';
 
 const portal: GuestPortal = { version: 1, id: 'portal-1', kind: 'guest-entrance', type: 'guest-entrance',
   semantics: 'guest-entrance', direction: 'inbound', accepts: 'guests', label: 'Entrance',
@@ -57,5 +58,44 @@ describe('guest simulation worker engine', () => {
     const actual = restored.handle({ type: 'advance', requestId: 'after-load', sequence: 1, toTick: 900,
       expectedEnvironmentRevision: 2, expectedTopologyRevision: 3 });
     if (expected.type === 'advanced' && actual.type === 'advanced') expect(actual.snapshot.checksum).toBe(expected.snapshot.checksum);
+  });
+
+  it('applies condition revisions at their tick and replays them through a checkpoint', () => {
+    const network = createDefaultGuestSimulationNetwork([portal]);
+    const conditions = createConditionSnapshot({ revision: 1, tick: 300, edges: network.edges.map((edge) => ({
+      edgeId: edge.id, baseDifficulty: edge.targetRating ?? 0.1, grooming: 0.2,
+      snowQuality: 0.3, coverage: 0.8, occupancy: { guests: 8, capacity: 10 },
+    })) });
+    const runtime = new GuestSimulationWorkerEngine();
+    initialize(runtime);
+    const advanced = runtime.handle({ type: 'advance', requestId: 'conditions', sequence: 1, toTick: 600,
+      expectedEnvironmentRevision: 2, expectedTopologyRevision: 3, conditionSnapshot: conditions });
+    expect(advanced.type).toBe('advanced');
+    if (advanced.type !== 'advanced') return;
+    expect(advanced.snapshot.conditionSnapshot.checksum).toBe(conditions.checksum);
+    expect(advanced.snapshot.thoughtAggregation.reconciled).toBe(true);
+    const checkpoint = runtime.handle({ type: 'checkpoint', requestId: 'condition-checkpoint', sequence: 2 });
+    expect(checkpoint.type).toBe('checkpoint');
+    if (checkpoint.type !== 'checkpoint') return;
+    const restored = new GuestSimulationWorkerEngine();
+    const ready = restored.handle({ type: 'restore', requestId: 'condition-restore', sequence: 0,
+      bytes: checkpoint.bytes, expectedTopologyRevision: 3 });
+    expect(ready.type).toBe('ready');
+    if (ready.type === 'ready') expect(ready.snapshot.checksum).toBe(advanced.snapshot.checksum);
+  });
+
+  it('rejects a future condition without mutating the authoritative tick', () => {
+    const runtime = new GuestSimulationWorkerEngine();
+    initialize(runtime);
+    const network = createDefaultGuestSimulationNetwork([portal]);
+    const future = createConditionSnapshot({ revision: 1, tick: 500, edges: network.edges.map((edge) => ({
+      edgeId: edge.id, baseDifficulty: edge.targetRating ?? 0.1, grooming: 0.5,
+      snowQuality: 0.75, coverage: 1, occupancy: { guests: 0, capacity: 10 },
+    })) });
+    expect(runtime.handle({ type: 'advance', requestId: 'bad-future', sequence: 1, toTick: 100,
+      expectedEnvironmentRevision: 2, expectedTopologyRevision: 3, conditionSnapshot: future }))
+      .toMatchObject({ type: 'error', code: 'invalid-request' });
+    const snapshot = runtime.handle({ type: 'snapshot', requestId: 'after-bad-future', sequence: 2 });
+    if (snapshot.type === 'snapshot') expect(snapshot.snapshot.tick).toBe(0);
   });
 });

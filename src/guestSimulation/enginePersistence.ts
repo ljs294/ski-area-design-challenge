@@ -144,10 +144,16 @@ export function restoreGuestSimulationEngine(
     runId: snapshot.runId,
     config: state.config ?? options.config,
     environment: initialEnvironment(snapshot),
+    conditionSnapshot: snapshot.conditionHistory?.[0]?.tick === snapshot.demandPlan.startTick
+      ? snapshot.conditionHistory[0] : undefined,
   };
   const engine = createGuestSimulationEngine(engineOptions);
+  for (const conditions of snapshot.conditionHistory?.slice(1) ?? []) {
+    if (conditions.tick <= snapshot.tick) engine.applyConditionSnapshot(conditions);
+  }
   const replayed = engine.advanceTo(snapshot.tick);
-  if (replayed.checksum !== snapshot.checksum) {
+  const legacyPhaseOneCheckpoint = !Array.isArray(snapshot.conditionHistory);
+  if (!legacyPhaseOneCheckpoint && replayed.checksum !== snapshot.checksum) {
     throw new GuestSimulationEngineRestoreError(
       `Checkpoint replay checksum mismatch: expected ${snapshot.checksum}, got ${replayed.checksum}`,
     );

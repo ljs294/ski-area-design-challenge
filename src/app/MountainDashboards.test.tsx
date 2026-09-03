@@ -37,6 +37,9 @@ function render(dashboard: DashboardKind = 'trails') {
       dashboard={dashboard}
       networkProps={networkProps}
       snowmakingProps={snowmakingProps}
+      guestProps={{ summary: { guestCount: 12, activeGuestCount: 8, positiveThoughtCount: 4,
+        neutralThoughtCount: 2, negativeThoughtCount: 1 }, reasonAggregates: [], topThoughts: [], guests: [],
+        onSelectGuest: vi.fn() }}
       onFit={vi.fn()}
       onClose={vi.fn()}
     />
@@ -62,6 +65,13 @@ describe('MountainDashboards', () => {
     expect(html).toContain('aria-label="Snowmaking dashboard"');
     expect(html).not.toContain('aria-label="Snowmaking network map"');
     expect(html).not.toContain('aria-label="Mountain node map"');
+  });
+
+  it('renders the guest vibe check in the approved dashboard sidebar', () => {
+    const html = render('guests');
+    expect(html).toContain('aria-label="Guest dashboard"');
+    expect(html).toContain('Guest vibe check');
+    expect(html).toContain('12 guests');
   });
 
 });

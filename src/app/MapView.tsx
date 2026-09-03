@@ -37,7 +37,7 @@ import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication, ty
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
-import { has3DBuildingContext, initialResortDesign, saveGameWithGuestCheckpoint, useGuestPortalController, useGuestSimulationRuntime, usePumpHouseFeature, type GuestRenderPoint, type PlacedGuestPortal } from './mapViewComposition';
+import { guestVibePresentation, has3DBuildingContext, initialResortDesign, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928], INITIAL_ZOOM = 12;
@@ -293,11 +293,6 @@ export function MapView({
     () => buildSkiNetwork(trails, lifts, { nodes: skiNodes, paths: skiPaths, junctions }),
     [trails, lifts, skiNodes, skiPaths, junctions]
   );
-  const [guestPortal, setGuestPortal] = useState<PlacedGuestPortal | null>(null);
-  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
-  const guestRuntime = useGuestSimulationRuntime({ saveKey: saved?.key ?? null, gameSaveUpdatedAt: saved ? `${saved.updatedAt}|${saved.lastPlayedAt}` : null,
-    network, portal: guestPortal, clock: simulation.clock, restorePortal: setGuestPortal });
-  const guestPoints: readonly GuestRenderPoint[] = guestRuntime.points;
   useEffect(() => {
     (window as unknown as { appNetwork?: typeof network }).appNetwork = network;
   }, [network]);
@@ -395,11 +390,15 @@ export function MapView({
     if (!lease) throw new Error('Map interaction lease is unavailable.');
     return lease.acquire(owner, map, overrides);
   }
-  const guestPortalController = useGuestPortalController({ mapRef, network, portal: guestPortal, points: guestPoints,
-    setPortal: setGuestPortal, activate: () => toolCoordinator.activate('guest-portal'),
-    release: () => { toolCoordinator.release('guest-portal'); }, openDock: () => toolCoordinator.setOpenDock('infrastructure'),
-    acquireInteractions: (map) => acquireMapInteractions('guest-portal', map, { cursor: 'crosshair', dragPanEnabled: true,
-      doubleClickZoomEnabled: true }), synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('guest') });
+  const guests = useMapGuestSimulationFeature({ mapRef, network, clock: simulation.clock, snowGrid: snow.grid,
+    saveKey: saved?.key ?? null,
+    saveRevision: saved ? `${saved.updatedAt}|${saved.lastPlayedAt}` : null,
+    activate: () => toolCoordinator.activate('guest-portal'), release: () => { toolCoordinator.release('guest-portal'); },
+    openDock: () => toolCoordinator.setOpenDock('infrastructure'), acquireInteractions: (map) => acquireMapInteractions('guest-portal', map,
+      { cursor: 'crosshair', dragPanEnabled: true, doubleClickZoomEnabled: true }),
+    synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('guest') });
+  const { portal: guestPortal, selectedGuestId, runtime: guestRuntime, controller: guestPortalController } = guests;
+  const guestVibe = useMemo(() => guestVibePresentation(guestRuntime.snapshot, selectedGuestId), [guestRuntime.snapshot, selectedGuestId]);
   guestPortalCancelRef.current = guestPortalController.cancel;
   // Loaded local package backing cursor sampling, MapLibre protocols, and
   // style reinitialization. Gameplay never populates it from network data.
@@ -1706,6 +1705,8 @@ export function MapView({
             gunController: snowmakingController.guns,
           }), mapHoveredPipe: dashboards.snowHover, snowmakingLasso: dashboards.snowLasso, snowGunSelectionPhase: dashboards.snowGunSelectionPhase,
           onToggleSnowGunSelection: dashboards.toggleSnowGunSelection, onCancelSnowGunSelection: dashboards.cancelSnowGunSelection },
+          guestProps: { ...guestVibe, selectedGuestId, onSelectGuest: guests.selectGuest,
+            onClearSelectedGuest: guests.clearSelectedGuest },
           onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation, onClose: dashboards.close,
         } : null}
         readout={!saved ? { store: readoutStore, units: settings.units } : null}
@@ -1716,7 +1717,6 @@ export function MapView({
           lifts, trails, roads, dams, ponds, buildings, snowmakingLakes: snowmakingLakes ?? [],
           snowmakingNodes, snowmakingPipes, snowguns, skiNodes, skiPaths,
           junctions, terrainRecord, network, simulation, guestPortal, guestPortalController, guestRuntime,
-          selectedGuestId, selectGuest: (id) => { setSelectedGuestId(id); const point = guestPoints.find((guest) => guest.id === id); if (point) mapRef.current?.easeTo({ center: [point.lng, point.lat], zoom: Math.max(mapRef.current.getZoom(), 16) }); }, clearSelectedGuest: () => setSelectedGuestId(null),
           selectedLiftId, selectedTrailId,
           selectedDamId, selectedPondId, selectedBuildingId,
           selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedSnowgunId, selectedNodeId,

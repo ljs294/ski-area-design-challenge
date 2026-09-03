@@ -28,8 +28,10 @@ export class GuestSimulationClient {
     return this.send({ type: 'restore', bytes, expectedTopologyRevision }).then((response) => response.snapshot);
   }
 
-  advance(toTick: number, expectedEnvironmentRevision: number, expectedTopologyRevision: number) {
-    return this.send({ type: 'advance', toTick, expectedEnvironmentRevision, expectedTopologyRevision }).then((response) => response.snapshot);
+  advance(toTick: number, expectedEnvironmentRevision: number, expectedTopologyRevision: number,
+    conditionSnapshot?: import('../guestSimulation/conditions').ConditionSnapshot) {
+    return this.send({ type: 'advance', toTick, expectedEnvironmentRevision, expectedTopologyRevision,
+      ...(conditionSnapshot ? { conditionSnapshot } : {}) }).then((response) => response.snapshot);
   }
 
   snapshot() { return this.send({ type: 'snapshot' }).then((response) => response.snapshot); }

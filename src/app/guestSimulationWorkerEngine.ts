@@ -16,7 +16,7 @@ export class GuestSimulationWorkerEngine {
     this.lastSequence = request.sequence;
     try {
       if (request.type === 'initialize') {
-        if (!Number.isSafeInteger(request.guestCount) || request.guestCount < 0 || request.guestCount > 50_000 ||
+        if (!Number.isSafeInteger(request.guestCount) || request.guestCount <= 0 || request.guestCount > 50_000 ||
           !Number.isSafeInteger(request.startTick) || !Number.isSafeInteger(request.endTick) || request.endTick < request.startTick) {
           return { type: 'error', requestId: request.requestId, sequence: request.sequence, code: 'invalid-request',
             message: 'Guest count or simulation horizon is outside supported bounds.' };
@@ -24,7 +24,7 @@ export class GuestSimulationWorkerEngine {
         const roster = createDailyGuestRoster({ seed: request.seed, guestCount: request.guestCount,
           portals: request.network.portals, startTick: request.startTick, endTick: request.endTick });
         this.engine = new GuestSimulationEngine({ network: request.network, roster, runId: request.runId,
-          environment: workerEnvironment(request) });
+          environment: workerEnvironment(request), conditionSnapshot: request.conditionSnapshot });
         return { type: 'ready', requestId: request.requestId, sequence: request.sequence,
           snapshot: this.engine.snapshot() };
       }
@@ -47,6 +47,10 @@ export class GuestSimulationWorkerEngine {
       }
       if (request.type === 'checkpoint') return { type: 'checkpoint', requestId: request.requestId, sequence: request.sequence,
         snapshot, bytes: encodeGuestSimulationReplayState(replayStateFromGuestSimulationEngine(this.engine)) };
+      if (request.type === 'advance' && request.conditionSnapshot && request.conditionSnapshot.tick > request.toTick) return { type: 'error',
+        requestId: request.requestId, sequence: request.sequence, code: 'invalid-request',
+        message: 'Condition snapshot tick cannot be later than the requested target tick.' };
+      if (request.type === 'advance' && request.conditionSnapshot) this.engine.applyConditionSnapshot(request.conditionSnapshot);
       const next = request.type === 'advance' ? this.engine.advanceTo(request.toTick) : snapshot;
       return { type: request.type === 'advance' ? 'advanced' : 'snapshot', requestId: request.requestId,
         sequence: request.sequence, snapshot: next };
