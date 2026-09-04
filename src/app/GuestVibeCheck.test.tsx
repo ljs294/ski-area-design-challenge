@@ -4,7 +4,8 @@ import { GuestVibeCheck, type GuestVibeCheckProps } from './GuestVibeCheck';
 
 const baseProps: GuestVibeCheckProps = {
   summary: { guestCount: 1_000, activeGuestCount: 760, positiveThoughtCount: 44,
-    neutralThoughtCount: 12, negativeThoughtCount: 5 },
+    neutralThoughtCount: 12, negativeThoughtCount: 5, activeIncidentCount: 2,
+    resolvedIncidentCount: 7, patrolQueueCount: 1, safetyRate: 0.987 },
   reasonAggregates: [
     { reasonCode: 'short_queue', label: 'Short queue', count: 44, sentiment: 'positive' },
     { reasonCode: 'closed_trail', label: 'Closed trail', count: 5, sentiment: 'negative' },
@@ -32,6 +33,9 @@ describe('GuestVibeCheck', () => {
     expect(html).toContain('Short queue');
     expect(html).toContain('short_queue');
     expect(html).toContain('That lift is flying!');
+    expect(html).toContain('Guest safety summary');
+    expect(html).toContain('Patrol queue');
+    expect(html).toContain('99%');
   });
 
   it('bounds the guest list and exposes controlled selection state accessibly', () => {

@@ -440,9 +440,8 @@ export function assertInjuryTraversalResult(value: unknown): asserts value is In
     if (!['minor', 'moderate', 'major'].includes(incident.severity)) throw new InjuryValidationError('invalid-result', 'incident severity is invalid');
     if (!REASON_CODES.includes(incident.primaryReasonCode)) throw new InjuryValidationError('invalid-result', 'incident reason code is invalid');
     assertReasonVector(incident.reasonVector, 'incident reasonVector', 'invalid-result');
-    if (incident.severity !== result.severity || incident.reasonVector !== result.reasonVector) {
-      // The identity check is intentionally strict: generated incidents share
-      // the immutable vector with the result, preventing partial tampering.
+    if (incident.severity !== result.severity
+      || REASON_CODES.some((reason) => incident.reasonVector[reason] !== result.reasonVector[reason])) {
       throw new InjuryValidationError('invalid-result', 'scheduled incident details do not match result');
     }
   }

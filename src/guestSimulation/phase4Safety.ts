@@ -168,7 +168,8 @@ export class Phase4SafetyRuntime {
     for (const incident of guestIncidents) incidentsBySeverity[incident.severity] += 1;
     const traversalsCompleted = traversals.filter((record) => record.outcome !== 'pending').length;
     const safetyRate = traversalsCompleted === 0 ? 1 : Math.max(0, 1 - guestIncidents.length / traversalsCompleted);
-    const safetyReputationSignal = Math.max(-1, -(guestIncidents.length * 0.02 + failedIncidents * 0.05));
+    const safetyReputationSignal = guestIncidents.length === 0 ? 0
+      : Math.max(-1, -(guestIncidents.length * 0.02 + failedIncidents * 0.05));
     return Object.freeze({ traversals: Object.freeze(traversals), guestIncidents: Object.freeze(guestIncidents),
       partyIncidents: Object.freeze([...this.partyIncidentsById.values()].sort((a, b) => a.partyId.localeCompare(b.partyId))),
       patrol, metrics: Object.freeze({ traversalsStarted: traversals.length, traversalsCompleted,

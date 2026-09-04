@@ -35,6 +35,10 @@ export interface GuestVibeSummary {
   readonly positiveThoughtCount: number;
   readonly neutralThoughtCount: number;
   readonly negativeThoughtCount: number;
+  readonly activeIncidentCount?: number;
+  readonly resolvedIncidentCount?: number;
+  readonly patrolQueueCount?: number;
+  readonly safetyRate?: number;
 }
 
 export interface GuestVibeCheckProps {
@@ -250,6 +254,12 @@ export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests,
       <Metric label="Guests" value={formatCount(summary.guestCount)} />
       <Metric label="Active" value={formatCount(summary.activeGuestCount)} />
       <Metric label="Positive" value={formatCount(summary.positiveThoughtCount)} />
+    </div>
+
+    <div aria-label="Guest safety summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+      <Metric label="Incidents" value={formatCount(summary.activeIncidentCount ?? 0)} />
+      <Metric label="Patrol queue" value={formatCount(summary.patrolQueueCount ?? 0)} />
+      <Metric label="Safe runs" value={`${Math.round(Math.min(1, Math.max(0, summary.safetyRate ?? 1)) * 100)}%`} />
     </div>
 
     <div style={columnStyle}>

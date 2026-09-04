@@ -112,6 +112,7 @@ describe('Phase 4 traversal injury hazard', () => {
     const tampered = { ...result, probability: result.probability + 0.01 };
     expect(isInjuryTraversalResult(tampered)).toBe(false);
     expect(() => assertInjuryTraversalResult(tampered)).toThrow();
+    expect(isInjuryTraversalResult(JSON.parse(JSON.stringify(result)))).toBe(true);
   });
 
   it('is monotonic with longer exposure duration until the configured cap', () => {

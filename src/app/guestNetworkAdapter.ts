@@ -61,6 +61,17 @@ function edgePosition(edge: NetworkEdge | undefined, status: string): readonly [
   return edge.path[Math.floor((edge.path.length - 1) / 2)] ?? null;
 }
 
+function edgeProgressPosition(edge: NetworkEdge | undefined, progressQ16: number | undefined): readonly [number, number] | null {
+  if (!edge || progressQ16 === undefined || edge.path.length === 0) return null;
+  if (edge.path.length === 1) return edge.path[0] ?? null;
+  const scaled = Math.min(1, Math.max(0, progressQ16 / 65_535)) * (edge.path.length - 1);
+  const index = Math.min(edge.path.length - 2, Math.floor(scaled));
+  const fraction = scaled - index;
+  const from = edge.path[index]!;
+  const to = edge.path[index + 1]!;
+  return [from[0] + (to[0] - from[0]) * fraction, from[1] + (to[1] - from[1]) * fraction];
+}
+
 /** Low-cadence authoritative positions; the renderer may interpolate between published frames. */
 export function guestRenderPoints(
   snapshot: GuestSimulationEngineSnapshot,
@@ -70,12 +81,19 @@ export function guestRenderPoints(
   const itineraryByGuest = new Map(snapshot.itineraries.map((itinerary) => [itinerary.guestId, itinerary]));
   const liftEdgeByLift = new Map(network.edges.filter((edge): edge is LiftEdge => edge.kind === 'lift')
     .map((edge) => [edge.liftId, edge]));
+  const activeIncidentByGuest = new Map(snapshot.safety.guestIncidents
+    .filter((incident) => incident.status !== 'resolved' && incident.status !== 'failed'
+      && incident.status !== 'unreachable' && incident.status !== 'cancelled')
+    .map((incident) => [incident.guestId, incident]));
   return snapshot.guests.flatMap((guest) => {
     if (guest.status === 'scheduled' || guest.status === 'departed') return [];
     const itinerary = itineraryByGuest.get(guest.id);
     const resource = guest.currentResourceId ? network.edgeById.get(guest.currentResourceId) : undefined;
     const liftEdge = itinerary ? liftEdgeByLift.get(itinerary.liftId) : undefined;
-    const position = edgePosition(resource ?? liftEdge, guest.status) ?? portal.lngLat;
+    const incident = activeIncidentByGuest.get(guest.id);
+    const incidentEdge = incident ? network.edgeById.get(incident.edgeAnchor) : undefined;
+    const position = edgeProgressPosition(incidentEdge, incident?.progressQ16)
+      ?? edgePosition(resource ?? liftEdge, guest.status) ?? portal.lngLat;
     return [{ id: guest.id, lng: position[0], lat: position[1], status: guest.status }];
   });
 }

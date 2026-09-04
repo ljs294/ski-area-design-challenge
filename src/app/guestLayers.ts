@@ -21,7 +21,8 @@ export function addGuestLayers(map: maplibregl.Map, beforeId?: string): void {
   if (!map.getSource(GUEST_PORTAL_SOURCE_ID)) map.addSource(GUEST_PORTAL_SOURCE_ID, { type: 'geojson', data: EMPTY });
   const before = beforeId && map.getLayer(beforeId) ? beforeId : undefined;
   if (!map.getLayer(GUEST_LAYER_ID)) map.addLayer({ id: GUEST_LAYER_ID, type: 'circle', source: GUEST_SOURCE_ID,
-    paint: { 'circle-color': '#050505', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 15, 2.5],
+    paint: { 'circle-color': ['match', ['get', 'status'], 'incident', '#dc2626', 'patrol-response', '#dc2626', '#050505'],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 15, 2.5],
       'circle-opacity': 0.9, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 0.25 } }, before);
   if (!map.getLayer(GUEST_PORTAL_LAYER_ID)) map.addLayer({ id: GUEST_PORTAL_LAYER_ID, type: 'circle', source: GUEST_PORTAL_SOURCE_ID,
     paint: { 'circle-color': '#ef4444', 'circle-radius': 7, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } }, before);

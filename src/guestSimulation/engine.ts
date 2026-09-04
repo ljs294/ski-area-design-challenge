@@ -691,7 +691,8 @@ export class GuestSimulationEngine {
     const guest = this.guestsById.get(guestId);
     if (!guest || guest.status === 'departed') return;
     guest.pendingDeparture = true;
-    if (guest.status === 'lift-ride') return;
+    if (guest.status === 'lift-ride' || guest.status === 'skiing'
+      || guest.status === 'incident' || guest.status === 'patrol-response') return;
     const ledger = guest.currentResourceId ? this.liftsById.get(guest.currentResourceId) : undefined;
     if (ledger) {
       const index = ledger.queue.indexOf(guest.id);

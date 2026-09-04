@@ -52,5 +52,8 @@ export function guestVibePresentation(snapshot: GuestSimulationEngineSnapshot | 
   });
   return { summary: { guestCount: snapshot.metrics.population, activeGuestCount: snapshot.metrics.active,
     positiveThoughtCount: aggregate.positiveEvents, neutralThoughtCount: aggregate.neutralEvents,
-    negativeThoughtCount: aggregate.negativeEvents }, reasonAggregates, topThoughts, guests };
+    negativeThoughtCount: aggregate.negativeEvents, activeIncidentCount: snapshot.safety.metrics.activeIncidents,
+    resolvedIncidentCount: snapshot.safety.metrics.resolvedIncidents,
+    patrolQueueCount: snapshot.safety.patrol.metrics.queuedCount,
+    safetyRate: snapshot.safety.metrics.safetyRate }, reasonAggregates, topThoughts, guests };
 }
