@@ -17,6 +17,7 @@ import type { Units } from './SettingsContext';
 import type { SnowmakingPipeHoverState } from './SnowmakingPipeHover';
 import { appendLassoSample, closeLassoPath, connectedGunIdsInLasso,
   type LassoPoint, type SnowmakingLassoSelection, type SnowmakingLassoMapState } from './snowmakingLasso';
+import type { GuestConnectivity } from './guestConnectivity';
 
 export interface InMapDashboardInput {
   mapRef: RefObject<maplibregl.Map | null>;
@@ -35,6 +36,7 @@ export interface InMapDashboardInput {
   guns: readonly SavedSnowgun[];
   coverDisplay: CoverDisplayGeoJSON | null;
   terrainRecord: TerrainRecord | null;
+  guestConnectivity?: GuestConnectivity;
 }
 
 function samePresentationSource(
@@ -90,6 +92,7 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     terrainRecord: input.terrainRecord, selectedSnowmaking: snowSelection,
     snowmakingPresentation: presentationRef.current,
     snowmakingLasso: lassoMapRef.current,
+    guestConnectivity: input.guestConnectivity,
   };
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -312,7 +315,7 @@ export function useInMapDashboards(input: InMapDashboardInput) {
   }, [active, snowMode, liftId, edgeId, snowSelection,
     input.dark, input.units, input.network, input.dams, input.ponds, input.lakes,
     input.trails, input.lifts, input.nodes, input.buildings, input.pipes, input.guns,
-    input.coverDisplay, input.terrainRecord, input.mapRef, input.registryRef]);
+    input.coverDisplay, input.terrainRecord, input.guestConnectivity, input.mapRef, input.registryRef]);
 
   const clear = () => {
     presentationRef.current?.setHoveredSegment(null);

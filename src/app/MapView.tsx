@@ -391,7 +391,7 @@ export function MapView({
     return lease.acquire(owner, map, overrides);
   }
   const guests = useMapGuestSimulationFeature({ mapRef, network, roads, clock: simulation.clock, snowGrid: snow.grid,
-    saveKey: saved?.key ?? null,
+    timeDiscontinuity: simulation.timeDiscontinuity, reducedMotion: settings.reducedMotion, saveKey: saved?.key ?? null,
     saveRevision: saved ? `${saved.updatedAt}|${saved.lastPlayedAt}` : null,
     activate: () => toolCoordinator.activate('guest-portal'), release: () => { toolCoordinator.release('guest-portal'); },
     openDock: () => toolCoordinator.setOpenDock('infrastructure'), acquireInteractions: (map) => acquireMapInteractions('guest-portal', map,
@@ -413,7 +413,7 @@ export function MapView({
   const dashboards = useInMapDashboards({ mapRef, registryRef: mapContributionRegistryRef,
     dark: resolvedTheme === 'dark', units: settings.units, network, dams, ponds, lakes: snowmakingLakes ?? [],
     trails, lifts, nodes: snowmakingNodes, buildings: committedBuildingsRef.current, pipes: snowmakingPipes, guns: snowguns,
-    coverDisplay: coverDisplayRef.current, terrainRecord });
+    coverDisplay: coverDisplayRef.current, terrainRecord, guestConnectivity: guests.connectivity });
   useMapKeyboardControls({ mapRef, suspended: controlsSuspended, keybinds: settings.keybinds,
     activeDashboard: dashboards.active, toggle3D, setActiveDashboard: dashboards.setActive });
   const {
@@ -1685,7 +1685,7 @@ export function MapView({
         dashboard={saved && dashboards.active ? {
           dashboard: dashboards.active, snowmakingMode: dashboards.snowMode,
           networkProps: {
-            network, units: settings.units,
+            network, units: settings.units, guestConnectivity: guests.connectivity,
             selectedLiftId: dashboards.liftId, selectedEdgeId: dashboards.edgeId,
             onSelectLift: dashboards.setLiftId,
             onSelectEdge: (id) => { dashboards.setLiftId(null); dashboards.setEdgeId(id); },
@@ -1705,7 +1705,7 @@ export function MapView({
             gunController: snowmakingController.guns,
           }), mapHoveredPipe: dashboards.snowHover, snowmakingLasso: dashboards.snowLasso, snowGunSelectionPhase: dashboards.snowGunSelectionPhase,
           onToggleSnowGunSelection: dashboards.toggleSnowGunSelection, onCancelSnowGunSelection: dashboards.cancelSnowGunSelection },
-          guestProps: { ...guestVibe, selectedGuestId, onSelectGuest: guests.selectGuest,
+          guestProps: { ...guestVibe, connectivity: guests.connectivity, selectedGuestId, onSelectGuest: guests.selectGuest,
             onClearSelectedGuest: guests.clearSelectedGuest },
           onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation, onClose: dashboards.close,
         } : null}
@@ -1793,7 +1793,7 @@ export function MapView({
           units: settings.units, averageAnnualSnowfallCm: simulation.averageAnnualSnowfallCm,
           onClose: () => setShowStats(false),
         } : null}
-        closeCredits={showCredits ? () => setShowCredits(false) : null}
+        closeCredits={showCredits ? () => setShowCredits(false) : null} developerConsole={saved ? { clock: simulation.clock, skip: simulation.devSkipMinutes } : null}
       />
     </>
   );

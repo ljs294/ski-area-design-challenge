@@ -20,6 +20,7 @@ import {
   fmtVertical,
 } from '../trails';
 import type { Units } from './SettingsContext';
+import type { GuestConnectivity } from './guestConnectivity';
 
 /**
  * The node map: a deliberately plain, to-scale plan view of the mountain's
@@ -80,6 +81,7 @@ export function NetworkMap({
   onClose,
   panelOnly = false,
   onFit,
+  guestConnectivity,
 }: {
   network: SkiNetwork;
   units: Units;
@@ -93,6 +95,7 @@ export function NetworkMap({
   onClose: () => void;
   panelOnly?: boolean;
   onFit?: () => void;
+  guestConnectivity?: GuestConnectivity;
 }) {
   const [view, setView] = useState<View | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -273,6 +276,11 @@ export function NetworkMap({
       <button className="settings-close-x" type="button" aria-label="Close Trail Map dashboard"
         onClick={onClose}>✕</button>
     </div>
+    {guestConnectivity && <div className={guestConnectivity.reachable ? 'site-hint' : 'network-warn'}
+      role={guestConnectivity.reachable ? 'status' : 'alert'}>
+      <strong>{guestConnectivity.reachable ? 'Guest Entrance connected' : 'Resort unreachable'}</strong>
+      <div>{guestConnectivity.message}</div>
+    </div>}
     {empty && <div className="dashboard-sidebar-empty">
       <strong>Nothing to map yet</strong>
       <span>Paint a run or place a lift, and the Trail Map will wire it up.</span>
@@ -453,6 +461,20 @@ export function NetworkMap({
               );
             })}
           </g>
+
+          {guestConnectivity?.portal && (() => {
+            const portalPoint = nodePos.get(guestConnectivity.portal.nodeId);
+            if (!portalPoint) return null;
+            const color = guestConnectivity.reachable ? '#16a34a' : '#dc2626';
+            const path = guestConnectivity.connectionPath.map((point) => place(point)).map((point) =>
+              `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+            return <g aria-label={guestConnectivity.reachable ? 'Connected Guest Entrance' : 'Unreachable Guest Entrance'}>
+              {path && <polyline points={path} fill="none" stroke={color} strokeWidth={6}
+                strokeDasharray="8 4" vectorEffect="non-scaling-stroke" />}
+              <circle cx={portalPoint.x} cy={portalPoint.y} r={9 * (active.w / 900)} fill={color}
+                stroke="#fff" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+            </g>;
+          })()}
         </svg>
 
         <div className="network-chrome-tl">

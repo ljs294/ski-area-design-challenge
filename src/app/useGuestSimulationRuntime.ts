@@ -15,7 +15,12 @@ import { guestAccessFromRoads } from './guestAccessAdapter';
 import { conditionSnapshotFromSkiNetwork } from './guestConditionAdapter';
 import { createConditionSnapshot, type ConditionSnapshot } from '../guestSimulation/conditions';
 import type { GuestSimulationWorkerDemandInput } from './guestSimulationWorkerProtocol';
+import { guestCheckpointMatchesOperatingWindow, guestOperatingWindowForLocalDay,
+  guestSimulationWindowAfterDiscontinuity } from './guestRuntimeSchedule';
+import type { SimulationTimeDiscontinuity } from './developerConsoleCommands';
 
+const DEFAULT_DEMAND_BUCKET_SECONDS = 10 * 60;
+const DISCONTINUITY_DEMAND_BUCKET_SECONDS = 60;
 const DEFAULT_PHASE3_DEMAND: GuestSimulationWorkerDemandInput = Object.freeze({
   dayType: 'weekday',
   basePotentialGuests: 1_000,
@@ -28,7 +33,7 @@ const DEFAULT_PHASE3_DEMAND: GuestSimulationWorkerDemandInput = Object.freeze({
   availableCapacityGuests: 50_000,
   maxGuests: 50_000,
   maxParties: 20_000,
-  bucketSeconds: 10 * 60,
+  bucketSeconds: DEFAULT_DEMAND_BUCKET_SECONDS,
 });
 
 function withGuestOccupancy(base: ConditionSnapshot, network: SkiNetwork,
@@ -83,6 +88,7 @@ export function useGuestSimulationRuntime(options: {
   readonly gameSaveUpdatedAt?: string | null;
   readonly snowGrid?: SnowGrid | null;
   readonly roads?: readonly SavedRoad[];
+  readonly timeDiscontinuity?: SimulationTimeDiscontinuity | null;
   /** Optional day-start market inputs. They are frozen into the day roster. */
   readonly demand?: GuestSimulationWorkerDemandInput;
   restorePortal?(portal: PlacedGuestPortal): void;
@@ -94,21 +100,37 @@ export function useGuestSimulationRuntime(options: {
   const snapshotRef = useRef<GuestSimulationEngineSnapshot | null>(null);
   const clientRef = useRef<GuestSimulationClient | null>(null);
   const initializingRef = useRef<Promise<GuestSimulationEngineSnapshot> | null>(null);
-  const revision = useMemo(() => topologyRevision(options.network, options.portal, options.roads ?? []),
-    [options.network, options.portal, options.roads]);
-  const guestNetwork = useMemo(() => options.portal
-    ? guestNetworkFromSkiNetwork(options.network, options.portal) : null, [options.network, options.portal]);
-  const access = useMemo(() => options.portal ? guestAccessFromRoads(options.roads ?? [], options.portal) : undefined,
-    [options.portal, options.roads]);
-  const demand = useMemo(() => Object.freeze({ ...DEFAULT_PHASE3_DEMAND, ...options.demand }), [options.demand]);
+  const currentTick = options.clock.absoluteGameMinute * 60;
+  const localMidnightAbsoluteMinute = options.clock.absoluteGameMinute - options.clock.minuteOfDay;
+  const operatingWindow = useMemo(() => guestOperatingWindowForLocalDay(localMidnightAbsoluteMinute),
+    [localMidnightAbsoluteMinute]);
+  const dayStart = operatingWindow.startTick;
+  const discontinuityApplies = options.timeDiscontinuity?.localMidnightAbsoluteMinute === localMidnightAbsoluteMinute;
+  const simulationWindow = useMemo(() => guestSimulationWindowAfterDiscontinuity(operatingWindow,
+    localMidnightAbsoluteMinute, options.timeDiscontinuity, discontinuityApplies
+      ? DISCONTINUITY_DEMAND_BUCKET_SECONDS : DEFAULT_DEMAND_BUCKET_SECONDS),
+  [discontinuityApplies, localMidnightAbsoluteMinute, operatingWindow, options.timeDiscontinuity]);
+  const simulationStartTick = simulationWindow.startTick;
+  const skippedPastOperatingWindow = simulationWindow.startTick >= simulationWindow.endTick;
+  const runtimePortal = useMemo(() => options.portal ? Object.freeze({ ...options.portal,
+    openFromTick: operatingWindow.startTick, openUntilTick: operatingWindow.endTick }) : null,
+  [operatingWindow.endTick, operatingWindow.startTick, options.portal]);
+  const revision = useMemo(() => topologyRevision(options.network, runtimePortal, options.roads ?? []),
+    [options.network, options.roads, runtimePortal]);
+  const guestNetwork = useMemo(() => runtimePortal
+    ? guestNetworkFromSkiNetwork(options.network, runtimePortal, operatingWindow) : null,
+  [operatingWindow, options.network, runtimePortal]);
+  const access = useMemo(() => runtimePortal ? guestAccessFromRoads(options.roads ?? [], runtimePortal) : undefined,
+    [runtimePortal, options.roads]);
+  const demand = useMemo(() => Object.freeze({ ...DEFAULT_PHASE3_DEMAND, ...options.demand,
+    ...(discontinuityApplies ? { bucketSeconds: DISCONTINUITY_DEMAND_BUCKET_SECONDS } : {}) }),
+  [discontinuityApplies, options.demand]);
   const demandRef = useRef(demand);
   demandRef.current = demand;
-  const currentTick = options.clock.absoluteGameMinute * 60;
-  const dayStart = Math.floor(currentTick / 86_400) * 86_400;
   snapshotRef.current = snapshot;
   const conditionSnapshot = useMemo(() => withGuestOccupancy(conditionSnapshotFromSkiNetwork(options.network,
-    options.snowGrid, { tick: currentTick, revision: Math.max(0, currentTick - dayStart) }),
-  options.network, snapshotRef.current), [currentTick, dayStart, options.network, options.snowGrid]);
+    options.snowGrid, { tick: currentTick, revision: Math.max(0, currentTick - simulationStartTick) }),
+  options.network, snapshotRef.current), [currentTick, options.network, options.snowGrid, simulationStartTick]);
   const conditionSnapshotRef = useRef(conditionSnapshot);
   const lastAdvanceKeyRef = useRef<string | null>(null);
   conditionSnapshotRef.current = conditionSnapshot;
@@ -146,6 +168,12 @@ export function useGuestSimulationRuntime(options: {
     initializingRef.current = null;
     lastAdvanceKeyRef.current = null;
     setSnapshot(null);
+    if (options.clock.season !== 'winter' || skippedPastOperatingWindow) {
+      setStatus('unavailable');
+      setMessage(options.clock.season !== 'winter' ? 'Guest simulation resumes during winter.'
+        : 'The guest operating day has ended; arrivals resume at 08:00.');
+      return;
+    }
     if (!guestNetwork || !options.portal || guestNetwork.lifts.length === 0 ||
       !guestNetwork.edges.some((edge) => edge.kind === 'descent' && !edge.closed)) {
       setStatus('unavailable');
@@ -156,15 +184,20 @@ export function useGuestSimulationRuntime(options: {
     const client = new GuestSimulationClient();
     clientRef.current = client;
     setStatus('starting'); setMessage('Starting deterministic guest simulation…');
-    const initialize = () => client.initialize({ type: 'initialize' as const, runId: `guest-${options.saveKey ?? 'session'}-${dayStart}`,
+    const initialize = () => client.initialize({ type: 'initialize' as const,
+      runId: `guest-${options.saveKey ?? 'session'}-${simulationStartTick}`,
       seed: `${options.saveKey ?? 'unsaved'}:${dayStart}`, demand: demandRef.current, openingReputation, network: guestNetwork,
       ...(access || repeatVisitors ? { phase5to7: { ...(access ? { access } : {}),
         ...(repeatVisitors ? { repeatVisitors } : {}) } } : {}),
-      startTick: dayStart, endTick: dayStart + 43_200, environmentRevision: 1, topologyRevision: revision,
-      conditionSnapshot: conditionSnapshotFromSkiNetwork(networkRef.current, null, { tick: dayStart, revision: 0 }) });
+      startTick: simulationWindow.startTick, endTick: simulationWindow.endTick,
+      environmentRevision: 1, topologyRevision: revision,
+      conditionSnapshot: conditionSnapshotFromSkiNetwork(networkRef.current, null,
+        { tick: simulationWindow.startTick, revision: 0 }) });
     const pending = isDesktop && options.saveKey && options.gameSaveUpdatedAt
       ? loadGuestSimulationCheckpoint(options.saveKey, options.gameSaveUpdatedAt).then((loaded) => {
-        if (loaded.status === 'ready') return client.restore(loaded.bytes, revision).catch(() => initialize());
+        if (loaded.status === 'ready') return client.restore(loaded.bytes, revision)
+          .then((restored) => guestCheckpointMatchesOperatingWindow(restored, simulationWindow, revision)
+            ? restored : initialize()).catch(() => initialize());
         if (loaded.status === 'corrupt') throw new Error(`Guest checkpoint is corrupt: ${loaded.error}`);
         return initialize();
       }) : initialize();
@@ -177,7 +210,9 @@ export function useGuestSimulationRuntime(options: {
       setStatus('error'); setMessage(error instanceof Error ? error.message : 'Guest simulation failed to start.');
     });
     return () => client.dispose();
-  }, [access, dayStart, guestNetwork, options.gameSaveUpdatedAt, options.portal, options.saveKey, revision]);
+  }, [access, dayStart, guestNetwork, operatingWindow, options.clock.season,
+    options.gameSaveUpdatedAt, options.portal, options.saveKey, revision, simulationStartTick,
+    simulationWindow, skippedPastOperatingWindow]);
 
   useEffect(() => {
     const client = clientRef.current;

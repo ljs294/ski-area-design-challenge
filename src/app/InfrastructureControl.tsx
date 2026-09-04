@@ -5,6 +5,7 @@ import { ROAD_CLEAR_BUFFER_M, ROAD_TYPE_LABELS, roadLengthM,
 import type { Units } from './SettingsContext';
 import type { DraftRoad, RoadTool } from './roadControllerModel';
 import type { GuestSimulationRuntime } from './useGuestSimulationRuntime';
+import type { GuestConnectivity } from './guestConnectivity';
 
 export type { DraftRoad, RoadTool } from './roadControllerModel';
 
@@ -58,6 +59,7 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
   onFinish, onDraftChange, onConfirm, onClose, building = false,
   guestPortal, guestPortalArmed = false, guestPortalError = null,
   guestRuntime,
+  guestConnectivity,
   onArmGuestPortal, onCancelGuestPortal, onRemoveGuestPortal }: {
   tool: RoadTool; roads: SavedRoad[]; units: Units;
   onArm: (roadType: RoadType) => void; onCancel: () => void; onUndo: () => void; onFinish: () => void;
@@ -67,6 +69,7 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
   guestPortalArmed?: boolean;
   guestPortalError?: string | null;
   guestRuntime?: GuestSimulationRuntime;
+  guestConnectivity?: GuestConnectivity;
   onArmGuestPortal?: () => void;
   onCancelGuestPortal?: () => void;
   onRemoveGuestPortal?: () => void;
@@ -76,8 +79,13 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
     <RoadTypeField value="two-lane" onChange={() => undefined} />
     <button className="lift-add-btn site-btn site-btn-primary" onClick={() => onArm('two-lane')}>＋ Build road</button>
     <div className="lift-field"><span className="lift-field-label">Guest simulation</span>
-      {guestPortal ? <div className="site-hint">{guestPortal.label} connected at {guestPortal.nodeId}.</div>
-        : <div className="site-hint">A network-connected Guest Entrance is required before visitors arrive.</div>}
+      {guestConnectivity && <div className={guestConnectivity.reachable ? 'lift-stats' : 'lift-warning'}
+        role={guestConnectivity.reachable ? 'status' : 'alert'}>
+        <strong>{guestConnectivity.reachable ? 'Resort reachable' : 'Resort unreachable'}</strong>
+        <div>{guestConnectivity.message}</div>
+        {guestConnectivity.connectedLiftName && <div>Lift terminal: {guestConnectivity.connectedLiftName}</div>}
+        {guestPortal && <div>Road access: {guestConnectivity.roadAccessLabel}</div>}
+      </div>}
       {guestPortalArmed ? <button className="site-btn" onClick={onCancelGuestPortal}>Cancel entrance placement</button>
         : <button className="site-btn" onClick={onArmGuestPortal}>{guestPortal ? 'Move Guest Entrance' : 'Place Guest Entrance'}</button>}
       {guestPortal && <button className="site-btn" onClick={onRemoveGuestPortal}>Remove Guest Entrance</button>}
@@ -87,6 +95,8 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
           <span className="lift-stat-value">{guestRuntime.status}</span></div>
         <div className="readout-line"><span className="lift-stat-label">Guests active</span>
           <span className="lift-stat-value">{guestRuntime.snapshot?.metrics.active.toLocaleString() ?? '0'}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">Guests on map</span>
+          <span className="lift-stat-value">{guestRuntime.points.length.toLocaleString()}</span></div>
         <div className="site-hint">{guestRuntime.message}</div>
       </div>}
     </div>

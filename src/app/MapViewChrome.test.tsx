@@ -24,6 +24,7 @@ function props(): MapViewChromeProps {
     nameEntry: null,
     stats: null,
     closeCredits: null,
+    developerConsole: null,
   };
 }
 

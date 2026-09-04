@@ -436,6 +436,7 @@ export function MapGameDock(props: MapGameDockProps) {
         guestPortal={props.guestPortal} guestPortalArmed={props.guestPortalController.armed}
         guestPortalError={props.guestPortalController.error}
         guestRuntime={props.guestRuntime}
+        guestConnectivity={props.guestPortalController.connectivity}
         onArmGuestPortal={props.guestPortalController.arm}
         onCancelGuestPortal={props.guestPortalController.cancel}
         onRemoveGuestPortal={props.guestPortalController.remove} />}

@@ -7,6 +7,8 @@ import type { SavedRoad } from '../types/roads';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
 import { useGuestPortalController } from './useGuestPortalController';
 import { useGuestSimulationRuntime } from './useGuestSimulationRuntime';
+import { analyzeGuestConnectivity } from './guestConnectivity';
+import type { SimulationTimeDiscontinuity } from './developerConsoleCommands';
 
 /** Owns the gameplay-facing guest state while keeping MapView as composition only. */
 export function useMapGuestSimulationFeature(options: {
@@ -17,6 +19,8 @@ export function useMapGuestSimulationFeature(options: {
   readonly saveRevision: string | null;
   readonly snowGrid?: SnowGrid | null;
   readonly roads?: readonly SavedRoad[];
+  readonly timeDiscontinuity?: SimulationTimeDiscontinuity | null;
+  readonly reducedMotion: boolean;
   activate(): boolean;
   release(): void;
   openDock(): void;
@@ -37,9 +41,12 @@ export function useMapGuestSimulationFeature(options: {
     resortValue: 0.5, availableCapacityGuests: 50_000 }), [nextDayTicketPriceCents, options.clock.weekday]);
   const runtime = useGuestSimulationRuntime({ saveKey: options.saveKey, gameSaveUpdatedAt: options.saveRevision,
     network: options.network, portal, clock: options.clock, snowGrid: options.snowGrid, roads: options.roads,
-    demand, restorePortal: setPortal });
+    demand, timeDiscontinuity: options.timeDiscontinuity, restorePortal: setPortal });
+  const connectivity = useMemo(() => analyzeGuestConnectivity(options.network, portal, options.roads),
+    [options.network, options.roads, portal]);
   const controller = useGuestPortalController({ mapRef: options.mapRef, network: options.network, portal,
-    points: runtime.points, setPortal, activate: options.activate, release: options.release,
+    points: runtime.points, reducedMotion: options.reducedMotion, connectivity, setPortal,
+    activate: options.activate, release: options.release,
     openDock: options.openDock, acquireInteractions: options.acquireInteractions, synchronizeMap: options.synchronizeMap });
   const selectGuest = useCallback((id: string) => {
     setSelectedGuestId(id);
@@ -66,6 +73,6 @@ export function useMapGuestSimulationFeature(options: {
     const point = runtime.points.find((guest) => guest.id === followedGuestId);
     if (point) map.easeTo({ center: [point.lng, point.lat], duration: 250 });
   }, [options.mapRef, runtime.points]);
-  return { portal, selectedGuestId, runtime, controller, points: runtime.points, selectGuest,
+  return { portal, connectivity, selectedGuestId, runtime, controller, points: runtime.points, selectGuest,
     clearSelectedGuest, nextDayTicketPriceCents, setNextDayTicketPriceCents };
 }

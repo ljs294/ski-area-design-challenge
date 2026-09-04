@@ -18,6 +18,7 @@ import { SnowmakingPipeTooltip } from './SnowmakingPipeHover';
 import type { DashboardKind } from './dashboardMode';
 import type { BootProgress } from './resortBoot';
 import type { TerrainPackageProgress } from '../types/terrain';
+import { DeveloperConsole } from './DeveloperConsole';
 
 export { useMapContextRecovery } from './useMapContextRecovery';
 export { SnowmakingToolOptions } from './SnowmakingToolOptions';
@@ -80,6 +81,7 @@ export interface MapViewChromeProps {
   stats: Parameters<typeof ResortStatsPanel>[0] | null;
   closeCredits: (() => void) | null;
   bottomRightToolOptions?: ReactNode | null;
+  developerConsole: Parameters<typeof DeveloperConsole>[0] | null;
 }
 
 export function MapViewChrome(props: MapViewChromeProps) {
@@ -197,6 +199,7 @@ export function MapViewChrome(props: MapViewChromeProps) {
 
       {props.stats && <ResortStatsPanel {...props.stats} />}
       {props.closeCredits && <CreditsPanel onClose={props.closeCredits} />}
+      {props.developerConsole && <DeveloperConsole {...props.developerConsole} />}
     </>
   );
 }

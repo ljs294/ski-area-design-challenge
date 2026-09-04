@@ -23,6 +23,7 @@ describe('Guest Entrance placement', () => {
     const result = placeGuestPortal(network(), [-121.50001, 46.9]);
     expect(result.error).toBeNull();
     expect(result.portal?.nodeId).toBe('n:connected');
+    expect(result.portal?.openUntilTick).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   it('rejects a click outside the network snap distance', () => {

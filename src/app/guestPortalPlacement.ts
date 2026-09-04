@@ -40,7 +40,9 @@ export function placeGuestPortal(
   return { portal: Object.freeze({
     version: 1, id, kind: 'guest-entrance', type: 'guest-entrance', semantics: 'guest-entrance',
     direction: 'inbound', accepts: 'guests', label: 'Guest Entrance', capacityGuestsPerTick: 12,
-    openFromTick: 0, openUntilTick: 7 * 24 * 60 * 60,
+    // Placement is durable resort infrastructure, not a one-week reservation.
+    // The runtime projects this onto each day's exact operating window.
+    openFromTick: 0, openUntilTick: Number.MAX_SAFE_INTEGER,
     nodeId: nearest.id, lngLat: Object.freeze([...nearest.lngLat] as [number, number]),
   }), error: null };
 }

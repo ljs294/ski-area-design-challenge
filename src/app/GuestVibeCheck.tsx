@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import type { GuestConnectivity } from './guestConnectivity';
 
 /** The three labels used by the presentation layer for guest sentiment. */
 export type GuestVibeSentiment = 'positive' | 'neutral' | 'negative';
@@ -80,6 +81,7 @@ export interface GuestVibeCheckProps {
   readonly maxGuests?: number;
   readonly title?: string;
   readonly description?: string;
+  readonly connectivity?: GuestConnectivity;
 }
 
 const DEFAULT_MAX_GUESTS = 8;
@@ -308,7 +310,7 @@ function EconomySummary({ economy }: { economy: GuestVibeEconomySummary }) {
  */
 export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests, selectedGuestId,
   onSelectGuest, onClearSelectedGuest, maxGuests, title = 'Guest vibe check',
-  description = 'A quick read on what visitors are thinking right now.' }: GuestVibeCheckProps) {
+  description = 'A quick read on what visitors are thinking right now.', connectivity }: GuestVibeCheckProps) {
   const headingId = 'guest-vibe-check-heading';
   const guestLimit = clampGuestLimit(maxGuests);
   const visibleGuests = guests.slice(0, guestLimit);
@@ -333,6 +335,12 @@ export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests,
         {formatCount(summary.guestCount)} guests
       </span>
     </div>
+
+    {connectivity && <div className={connectivity.reachable ? 'site-hint' : 'lift-warning'}
+      role={connectivity.reachable ? 'status' : 'alert'}>
+      <strong>{connectivity.reachable ? 'Resort reachable' : 'Resort unreachable'}</strong>
+      <div>{connectivity.message}</div>
+    </div>}
 
     <div aria-label="Guest vibe summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
       <Metric label="Guests" value={formatCount(summary.guestCount)} />

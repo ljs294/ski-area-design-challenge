@@ -21,6 +21,8 @@ import { SnowStepClient } from './snowStepClient';
 import type { RenderQuality } from './renderProfile';
 import { createTerrainThermalModel, terrainWeatherFieldForHour } from '../weather/terrainThermal';
 import { setActiveTerrainWeather } from './terrainWeatherCache';
+import { isDeveloperConsoleEnabled, skipClockWithoutSimulation, type DeveloperClockSkip,
+  type SimulationTimeDiscontinuity } from './developerConsoleCommands';
 
 const HOUR_MS = 3_600_000;
 
@@ -36,6 +38,7 @@ export interface GameSimulationController {
   averageAnnualSnowfallCm: number | null;
   current: ResolvedWeatherHour | null;
   forecast: GameForecastIssue | null;
+  timeDiscontinuity: SimulationTimeDiscontinuity | null;
   analysisOpen: boolean;
   togglePlayback(): void;
   setSpeed(speed: SimulationSpeed): void;
@@ -46,6 +49,7 @@ export interface GameSimulationController {
   toggleAnalysis(): void;
   snapshot(): { time: TimeEngineSnapshot; weatherRun?: SavedWeatherRun };
   pause(): void;
+  devSkipMinutes(minutes: number): DeveloperClockSkip;
 }
 
 function configFor(timezone: string): TimeScaleConfig {
@@ -119,6 +123,7 @@ export function useGameSimulation({
   const [status, setStatus] = useState<GameSimulationStatus>(terrain ? 'loading' : 'no-terrain');
   const [message, setMessage] = useState('Loading simulation...');
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [timeDiscontinuity, setTimeDiscontinuity] = useState<SimulationTimeDiscontinuity | null>(null);
   const accumulatorRef = useRef(0);
   const busyRef = useRef(false);
   const snowWorkerRef = useRef(new SnowStepClient());
@@ -321,6 +326,20 @@ export function useGameSimulation({
     return issueGameForecast(session, issuedAt, runIdentity(run));
   }, [session, current, clock.calendarDate]);
 
+  const devSkipMinutes = useCallback((minutes: number): DeveloperClockSkip => {
+    if (!isDeveloperConsoleEnabled()) throw new Error('Developer time skipping is disabled in this build.');
+    if (busyRef.current) throw new Error('Wait for the current simulation update to finish.');
+    const result = skipClockWithoutSimulation(clockRef.current, minutes, configRef.current);
+    accumulatorRef.current = 0;
+    const run = runRef.current;
+    if (run) runRef.current = { ...run, cursorHour: projectedHour(run, result.after.calendarDate) };
+    publishClock(result.after);
+    setTimeDiscontinuity((previous) => Object.freeze({ revision: (previous?.revision ?? 0) + 1,
+      absoluteGameMinute: result.after.absoluteGameMinute,
+      localMidnightAbsoluteMinute: result.after.absoluteGameMinute - result.after.minuteOfDay }));
+    return result;
+  }, [publishClock]);
+
   useEffect(() => {
     const map = mapRef.current;
     const apply = () => applyMapEnvironment(map, current);
@@ -376,6 +395,7 @@ export function useGameSimulation({
 
   return {
     status, message, clock, weatherPackage, session, current, forecast, averageAnnualSnowfallCm, analysisOpen,
+    timeDiscontinuity,
     togglePlayback: () => publishClock({ ...clockRef.current,
       runState: clockRef.current.runState === 'running' ? 'paused' : 'running' }),
     setSpeed: (speed) => publishClock({ ...clockRef.current, speed }),
@@ -390,5 +410,6 @@ export function useGameSimulation({
         ...(run ? { weatherRun: { ...run, cursorHour: projectedHour(run, clockRef.current.calendarDate) } } : {}) };
     },
     pause: () => publishClock({ ...clockRef.current, runState: 'paused' }),
+    devSkipMinutes,
   };
 }

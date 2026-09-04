@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compileAccessGraph, routeAccessGraph } from '../guestSimulation/access';
+import { compileAccessGraph, routeAccessGraph, simulateVehicleAccess } from '../guestSimulation/access';
 import { guestAccessFromRoads } from './guestAccessAdapter';
 
 const portal = { version: 1 as const, id: 'portal', kind: 'guest-entrance' as const, type: 'guest-entrance' as const,
@@ -19,5 +19,22 @@ describe('guest road access adapter', () => {
 
   it('lets the worker fall back when no road exists', () => {
     expect(guestAccessFromRoads([], portal)).toBeUndefined();
+  });
+
+  it('hands road arrivals through a portal projected onto a later operating day', () => {
+    const startTick = 10_656_000;
+    const activePortal = { ...portal, openFromTick: startTick, openUntilTick: startTick + 43_200 };
+    const graph = compileAccessGraph(guestAccessFromRoads([{ id: 'road', name: 'Access', roadType: 'two-lane',
+      widthM: 8, points: [[0, 0], [1, 0], [2, 0]], lengthM: 800,
+      createdAt: '2026-01-01' }], activePortal)!);
+    const origin = graph.nodes.find((node) => node.kind === 'edge-of-map')!;
+    const ledger = simulateVehicleAccess({ graph, tick: startTick + 1_000, trips: [{ id: 'arrival',
+      edgeOfMapNodeId: origin.id, destinationPortalId: activePortal.id,
+      destinationFacilityId: 'base-parking', departureTick: startTick,
+      occupants: [{ guestId: 'guest-1' }] }] });
+
+    expect(ledger.handoffs).toEqual([expect.objectContaining({ guestId: 'guest-1',
+      portalId: activePortal.id })]);
+    expect(ledger.occupants[0]?.status).toBe('handed-off');
   });
 });
