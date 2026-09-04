@@ -152,14 +152,16 @@ export function restoreGuestSimulationEngine(
       demandForecast: snapshot.phase3.demandForecast ?? undefined,
       demandRealization: snapshot.phase3.demandRealization ?? undefined,
       openingReputation: snapshot.phase3.economy.openingReputation } : undefined,
+    phase5to7: snapshot.phase5to7 ? { facilities: snapshot.phase5to7.initialFacilities,
+      repeatVisitors: snapshot.phase5to7.initialRepeatVisitors, compiledAccess: snapshot.phase5to7.access.graph } : undefined,
   };
   const engine = createGuestSimulationEngine(engineOptions);
   for (const conditions of snapshot.conditionHistory?.slice(1) ?? []) {
     if (conditions.tick <= snapshot.tick) engine.applyConditionSnapshot(conditions);
   }
   const replayed = snapshot.tick === snapshot.demandPlan.startTick ? engine.snapshot() : engine.advanceTo(snapshot.tick);
-  const legacyPhaseOneCheckpoint = !Array.isArray(snapshot.conditionHistory);
-  if (!legacyPhaseOneCheckpoint && replayed.checksum !== snapshot.checksum) {
+  const legacyCheckpoint = !Array.isArray(snapshot.conditionHistory) || !snapshot.phase5to7;
+  if (!legacyCheckpoint && replayed.checksum !== snapshot.checksum) {
     throw new GuestSimulationEngineRestoreError(
       `Checkpoint replay checksum mismatch: expected ${snapshot.checksum}, got ${replayed.checksum}`,
     );

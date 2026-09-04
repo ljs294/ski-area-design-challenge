@@ -55,6 +55,7 @@ import { aggregateThoughtsByReason, calculateCrowdingEffect, calculateSatisfacti
 import { createPhase4SafetyRuntime, type Phase4SafetySnapshot } from './phase4Safety.ts';
 import type { InjuryIncident } from './injury.ts';
 import { Phase3Runtime } from './phase3Runtime.ts';
+import { RemainingPhasesRuntime } from './remainingPhasesRuntime.ts';
 
 export {
   chooseWeightedGuestItinerary,
@@ -162,6 +163,7 @@ export class GuestSimulationEngine {
   private readonly safetyRuntime;
   private readonly finalizedSafetyIncidents = new Set<string>();
   private readonly phase3Runtime: Phase3Runtime;
+  private readonly remainingPhases: RemainingPhasesRuntime;
   private sequence = 0;
   private tickValue: SimulatedSecond;
   private environmentValue: GuestSimulationEnvironmentSnapshot;
@@ -176,6 +178,7 @@ export class GuestSimulationEngine {
       dayId: `${this.roster.seed}:${this.roster.demandPlan.startTick}`,
       ticketPriceCents: 10_000,
     });
+    this.remainingPhases = new RemainingPhasesRuntime(this.network, this.roster, options.phase5to7);
     if (this.roster.guests.length > this.config.maxGuests || this.roster.parties.length > this.config.maxParties) {
       throw new RangeError('roster exceeds configured simulation bounds');
     }
@@ -210,8 +213,10 @@ export class GuestSimulationEngine {
         queueJoinedTick: null, lastQueueWaitSeconds: 0, traversalOrdinal: 0 };
       this.guestsById.set(guest.id, mutable);
       this.abilityTargetsByGuest.set(guest.id, guestAbilityTargets(guest, this.roster.seed));
-      scheduleGuestEvent(this.calendar, { dueTick: guest.arrivalTick, phase: GUEST_EVENT_PHASE.bookingsArrivals,
-        ownerId: guest.id, guestId: guest.id, payload: { kind: 'arrival', guestId: guest.id } });
+      const accessArrivalTick = this.remainingPhases.arrivalTickFor(guest.id);
+      if (accessArrivalTick !== null) scheduleGuestEvent(this.calendar, { dueTick: accessArrivalTick,
+        phase: GUEST_EVENT_PHASE.bookingsArrivals, ownerId: guest.id, guestId: guest.id,
+        payload: { kind: 'arrival', guestId: guest.id } });
       const departureTick = guest.plannedDepartureTick ?? this.roster.demandPlan.endTick;
       scheduleGuestEvent(this.calendar, { dueTick: Math.max(this.tickValue, departureTick), phase: GUEST_EVENT_PHASE.thresholdsDeparturesRouteFailures,
         ownerId: guest.id, guestId: guest.id, payload: { kind: 'depart', guestId: guest.id } });
@@ -244,6 +249,7 @@ export class GuestSimulationEngine {
       this.handle(event.payload);
     });
     this.tickValue = toTick;
+    this.remainingPhases.advanceTo(toTick);
     return this.snapshot();
   }
 
@@ -320,6 +326,8 @@ export class GuestSimulationEngine {
       earlyDepartures: freezeArray(this.earlyDeparturesInternal),
       safety,
       phase3: this.phase3Runtime.snapshot(this.tickValue, guests),
+      phase5to7: this.remainingPhases.snapshot(this.tickValue, guests,
+        environment.environmentRevision, environment.topologyRevision),
     } satisfies Omit<GuestSimulationEngineSnapshot, 'checksum'>;
     const checksum = checksumProjection(base);
     return Object.freeze({ ...base, checksum });
@@ -349,6 +357,7 @@ export class GuestSimulationEngine {
       case 'lift-dispatch': this.handleLiftDispatch(payload.liftId); break;
       case 'ride-complete': this.handleRideComplete(payload.guestId); break;
       case 'descent-complete': this.handleDescentComplete(payload.guestId, payload.traversalId); break;
+      case 'amenity-progress': this.handleAmenityProgress(payload.guestId, payload.requestId); break;
       case 'injury': this.handleInjury(payload.guestId, payload.incident); break;
       case 'decide': this.handleDecision(payload.guestId); break;
       case 'depart': this.handleDeparture(payload.guestId); break;
@@ -656,7 +665,34 @@ export class GuestSimulationEngine {
       return;
     }
     this.appendThought(guest, 'waiting', 'neutral', 'Taking a short break before the next run.');
+    const request = this.remainingPhases.considerAmenity(guest.id, this.tickValue);
+    if (request && (request.status === 'queued' || request.status === 'service')) {
+      guest.status = request.status === 'queued' ? 'facility-queue' : 'facility-service';
+      guest.currentResourceId = request.facilityId;
+      scheduleGuestEvent(this.calendar, { dueTick: Math.max(this.tickValue + 1, request.completionTick ?? this.tickValue + 1),
+        phase: GUEST_EVENT_PHASE.dueTravelServiceCompletions, ownerId: request.facilityId, guestId: guest.id,
+        generationToken: this.calendar.generationFor(request.facilityId, guest.id),
+        payload: { kind: 'amenity-progress', guestId: guest.id, requestId: request.requestId } });
+      return;
+    }
     this.scheduleDecision(guest, this.tickValue + 1);
+  }
+
+  private handleAmenityProgress(guestId: GuestId, requestId: string): void {
+    const guest = this.guestsById.get(guestId);
+    if (!guest || guest.status === 'departed') return;
+    const request = this.remainingPhases.amenityProgress(requestId, this.tickValue);
+    if (request && (request.status === 'queued' || request.status === 'service')) {
+      guest.status = request.status === 'queued' ? 'facility-queue' : 'facility-service';
+      scheduleGuestEvent(this.calendar, { dueTick: Math.max(this.tickValue + 1, request.completionTick ?? this.tickValue + 1),
+        phase: GUEST_EVENT_PHASE.dueTravelServiceCompletions, ownerId: request.facilityId, guestId,
+        generationToken: this.calendar.generationFor(request.facilityId, guestId),
+        payload: { kind: 'amenity-progress', guestId, requestId } });
+      return;
+    }
+    guest.satisfaction = this.remainingPhases.amenitySatisfaction(guestId) ?? guest.satisfaction;
+    guest.status = 'appraising'; guest.currentResourceId = null;
+    if (guest.pendingDeparture) this.markDeparted(guest); else this.scheduleDecision(guest, this.tickValue + 1);
   }
 
   private handleInjury(guestId: GuestId, incident: InjuryIncident): void {

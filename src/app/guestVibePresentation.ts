@@ -183,5 +183,10 @@ export function guestVibePresentation(snapshot: GuestSimulationEngineSnapshot | 
     negativeThoughtCount: aggregate.negativeEvents, activeIncidentCount: snapshot.safety.metrics.activeIncidents,
     resolvedIncidentCount: snapshot.safety.metrics.resolvedIncidents,
     patrolQueueCount: snapshot.safety.patrol.metrics.queuedCount,
-    safetyRate: snapshot.safety.metrics.safetyRate, economy: economyPresentation(snapshot) }, reasonAggregates, topThoughts, guests };
+    safetyRate: snapshot.safety.metrics.safetyRate, economy: economyPresentation(snapshot),
+    amenityRevenueCents: snapshot.phase5to7.amenities.metrics.revenueCents,
+    amenityQueueCount: snapshot.phase5to7.amenities.metrics.queuedServices,
+    accessHandoffCount: snapshot.phase5to7.access.ledger.conservation.handedOff,
+    accessTurnedAwayCount: snapshot.phase5to7.access.ledger.conservation.turnedAway,
+    publicationBytes: snapshot.phase5to7.scaling.publicationBytes }, reasonAggregates, topThoughts, guests };
 }

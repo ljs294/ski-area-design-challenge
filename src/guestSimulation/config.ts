@@ -122,7 +122,7 @@ export const DEFAULT_GUEST_SIMULATION_CONFIG: GuestSimulationConfigV1 = Object.f
   tickSeconds: 1,
   simulatedSecondsPerTick: 1,
   maxGuests: 50_000,
-  maxParties: 20_000,
+  maxParties: 50_000,
   maxThoughtEventsPerSnapshot: 2_000,
   maxIncidentsPerSnapshot: 256,
   operatingDaySeconds: 12 * 60 * 60,

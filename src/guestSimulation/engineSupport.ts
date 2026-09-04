@@ -22,6 +22,7 @@ import type { EarlyDepartureDecision, ThoughtAggregation } from './experience.ts
 import type { InjuryIncident } from './injury.ts';
 import type { Phase4SafetySnapshot } from './phase4Safety.ts';
 import type { Phase3RuntimeInput, Phase3SimulationSnapshot } from './phase3Runtime.ts';
+import type { RemainingPhasesInput, RemainingPhasesSnapshot } from './remainingPhasesRuntime.ts';
 
 export type GuestNetworkNodeKind = 'portal' | 'lift-base' | 'lift-top' | 'junction';
 
@@ -161,6 +162,7 @@ export interface GuestSimulationEngineSnapshot extends GuestSimulationSnapshot {
   readonly earlyDepartures: readonly { guestId: GuestId; tick: SimulatedSecond; decision: EarlyDepartureDecision }[];
   readonly safety: Phase4SafetySnapshot;
   readonly phase3: Phase3SimulationSnapshot;
+  readonly phase5to7: RemainingPhasesSnapshot;
 }
 
 export interface GuestSimulationPendingEvent {
@@ -187,6 +189,7 @@ export interface GuestSimulationEngineOptions {
   readonly environment?: GuestSimulationEnvironmentSnapshot;
   readonly conditionSnapshot?: ConditionSnapshot;
   readonly phase3?: Phase3RuntimeInput;
+  readonly phase5to7?: RemainingPhasesInput;
 }
 
 export type GuestSimulationEventPayload =
@@ -196,6 +199,7 @@ export type GuestSimulationEventPayload =
   | { readonly kind: 'lift-dispatch'; readonly liftId: string }
   | { readonly kind: 'ride-complete'; readonly guestId: GuestId }
   | { readonly kind: 'descent-complete'; readonly guestId: GuestId; readonly traversalId: string }
+  | { readonly kind: 'amenity-progress'; readonly guestId: GuestId; readonly requestId: string }
   | { readonly kind: 'injury'; readonly guestId: GuestId; readonly incident: InjuryIncident }
   | { readonly kind: 'decide'; readonly guestId: GuestId }
   | { readonly kind: 'depart'; readonly guestId: GuestId };

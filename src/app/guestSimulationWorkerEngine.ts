@@ -75,7 +75,7 @@ export class GuestSimulationWorkerEngine {
           phase3: { dayId: `${request.seed}:${request.startTick}`,
             ticketPriceCents: request.demand?.ticketPriceCents ?? 10_000,
             demandForecast: planned?.forecast, demandRealization: planned?.realization,
-            openingReputation: request.openingReputation } });
+            openingReputation: request.openingReputation }, phase5to7: request.phase5to7 });
         return { type: 'ready', requestId: request.requestId, sequence: request.sequence,
           snapshot: this.engine.snapshot() };
       }

@@ -390,7 +390,7 @@ export function MapView({
     if (!lease) throw new Error('Map interaction lease is unavailable.');
     return lease.acquire(owner, map, overrides);
   }
-  const guests = useMapGuestSimulationFeature({ mapRef, network, clock: simulation.clock, snowGrid: snow.grid,
+  const guests = useMapGuestSimulationFeature({ mapRef, network, roads, clock: simulation.clock, snowGrid: snow.grid,
     saveKey: saved?.key ?? null,
     saveRevision: saved ? `${saved.updatedAt}|${saved.lastPlayedAt}` : null,
     activate: () => toolCoordinator.activate('guest-portal'), release: () => { toolCoordinator.release('guest-portal'); },

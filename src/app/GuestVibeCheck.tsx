@@ -60,6 +60,11 @@ export interface GuestVibeSummary {
   readonly patrolQueueCount?: number;
   readonly safetyRate?: number;
   readonly economy?: GuestVibeEconomySummary;
+  readonly amenityRevenueCents?: number;
+  readonly amenityQueueCount?: number;
+  readonly accessHandoffCount?: number;
+  readonly accessTurnedAwayCount?: number;
+  readonly publicationBytes?: number;
 }
 
 export interface GuestVibeCheckProps {
@@ -342,6 +347,19 @@ export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests,
     </div>
 
     {summary.economy && <EconomySummary economy={summary.economy} />}
+
+    <div style={columnStyle}>
+      <h3 style={sectionTitleStyle}>Guest operations</h3>
+      <div aria-label="Guest amenity and access summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+        <Metric label="Amenity sales" value={formatCents(summary.amenityRevenueCents ?? 0)} />
+        <Metric label="Amenity queue" value={formatCount(summary.amenityQueueCount ?? 0)} />
+        <Metric label="Road arrivals" value={formatCount(summary.accessHandoffCount ?? 0)} />
+      </div>
+      {(summary.accessTurnedAwayCount ?? 0) > 0 && <p style={mutedStyle}>
+        {formatCount(summary.accessTurnedAwayCount ?? 0)} guests could not complete the road-to-entrance handoff.
+      </p>}
+      <p style={mutedStyle}>Compact guest publication: {formatCount(summary.publicationBytes ?? 0)} bytes.</p>
+    </div>
 
     <div style={columnStyle}>
       <h3 style={sectionTitleStyle}>Sentiment</h3>

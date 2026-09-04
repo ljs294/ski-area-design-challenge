@@ -10,6 +10,8 @@ import { isDesktop } from '../desktopBridge';
 import { loadGuestSimulationCheckpoint, saveGuestSimulationCheckpoint } from '../guestSimulationStorageClient';
 import { decodeGuestSimulationReplayState } from '../guestSimulation/replayPersistence';
 import type { SnowGrid } from '../types/snow';
+import type { SavedRoad } from '../types/roads';
+import { guestAccessFromRoads } from './guestAccessAdapter';
 import { conditionSnapshotFromSkiNetwork } from './guestConditionAdapter';
 import { createConditionSnapshot, type ConditionSnapshot } from '../guestSimulation/conditions';
 import type { GuestSimulationWorkerDemandInput } from './guestSimulationWorkerProtocol';
@@ -58,13 +60,15 @@ export interface GuestSimulationRuntime {
   persistBarrier(saveKey: string, gameSaveUpdatedAt: string): Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
-function topologyRevision(network: SkiNetwork, portal: PlacedGuestPortal | null): number {
+function topologyRevision(network: SkiNetwork, portal: PlacedGuestPortal | null, roads: readonly SavedRoad[]): number {
   let hash = 2_166_136_261;
   const values = [portal ? `portal|${portal.id}|${portal.nodeId}|${portal.capacityGuestsPerTick}|${portal.openFromTick}|${portal.openUntilTick}` : 'portal|none',
     ...[...network.nodes].sort((a, b) => a.id.localeCompare(b.id)).map((node) =>
       `node|${node.id}|${node.kind}|${node.lngLat.join(',')}|${node.liftBases.join(',')}|${node.liftTops.join(',')}`),
     ...[...network.edges].sort((a, b) => a.id.localeCompare(b.id)).map((edge) =>
       `edge|${edge.id}|${edge.kind}|${edge.from}|${edge.to}|${edge.open ? 1 : 0}|${edge.travelTimeS}|${edge.lengthM}|${edge.kind === 'lift' ? `${edge.liftTypeId}|${edge.capacityPph}|${edge.rideTimeS}` : edge.kind === 'trail' ? edge.difficulty : ''}`)];
+  values.push(...[...roads].sort((a, b) => a.id.localeCompare(b.id))
+    .map((road) => `road|${road.id}|${road.lengthM}|${road.points.map((point) => point.join(',')).join(';')}`));
   for (const value of values) {
     for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16_777_619) >>> 0;
   }
@@ -78,6 +82,7 @@ export function useGuestSimulationRuntime(options: {
   readonly clock: SimulationClock;
   readonly gameSaveUpdatedAt?: string | null;
   readonly snowGrid?: SnowGrid | null;
+  readonly roads?: readonly SavedRoad[];
   /** Optional day-start market inputs. They are frozen into the day roster. */
   readonly demand?: GuestSimulationWorkerDemandInput;
   restorePortal?(portal: PlacedGuestPortal): void;
@@ -89,9 +94,12 @@ export function useGuestSimulationRuntime(options: {
   const snapshotRef = useRef<GuestSimulationEngineSnapshot | null>(null);
   const clientRef = useRef<GuestSimulationClient | null>(null);
   const initializingRef = useRef<Promise<GuestSimulationEngineSnapshot> | null>(null);
-  const revision = useMemo(() => topologyRevision(options.network, options.portal), [options.network, options.portal]);
+  const revision = useMemo(() => topologyRevision(options.network, options.portal, options.roads ?? []),
+    [options.network, options.portal, options.roads]);
   const guestNetwork = useMemo(() => options.portal
     ? guestNetworkFromSkiNetwork(options.network, options.portal) : null, [options.network, options.portal]);
+  const access = useMemo(() => options.portal ? guestAccessFromRoads(options.roads ?? [], options.portal) : undefined,
+    [options.portal, options.roads]);
   const demand = useMemo(() => Object.freeze({ ...DEFAULT_PHASE3_DEMAND, ...options.demand }), [options.demand]);
   const demandRef = useRef(demand);
   demandRef.current = demand;
@@ -130,6 +138,7 @@ export function useGuestSimulationRuntime(options: {
 
   useEffect(() => {
     const previous = snapshotRef.current;
+    const repeatVisitors = previous?.phase5to7?.repeatVisitors;
     const openingReputation = previous && previous.demandPlan.endTick <= dayStart
       ? previous.phase3.economy.closing?.nextDayReputation : undefined;
     clientRef.current?.dispose();
@@ -149,6 +158,8 @@ export function useGuestSimulationRuntime(options: {
     setStatus('starting'); setMessage('Starting deterministic guest simulation…');
     const initialize = () => client.initialize({ type: 'initialize' as const, runId: `guest-${options.saveKey ?? 'session'}-${dayStart}`,
       seed: `${options.saveKey ?? 'unsaved'}:${dayStart}`, demand: demandRef.current, openingReputation, network: guestNetwork,
+      ...(access || repeatVisitors ? { phase5to7: { ...(access ? { access } : {}),
+        ...(repeatVisitors ? { repeatVisitors } : {}) } } : {}),
       startTick: dayStart, endTick: dayStart + 43_200, environmentRevision: 1, topologyRevision: revision,
       conditionSnapshot: conditionSnapshotFromSkiNetwork(networkRef.current, null, { tick: dayStart, revision: 0 }) });
     const pending = isDesktop && options.saveKey && options.gameSaveUpdatedAt
@@ -166,7 +177,7 @@ export function useGuestSimulationRuntime(options: {
       setStatus('error'); setMessage(error instanceof Error ? error.message : 'Guest simulation failed to start.');
     });
     return () => client.dispose();
-  }, [dayStart, guestNetwork, options.gameSaveUpdatedAt, options.portal, options.saveKey, revision]);
+  }, [access, dayStart, guestNetwork, options.gameSaveUpdatedAt, options.portal, options.saveKey, revision]);
 
   useEffect(() => {
     const client = clientRef.current;

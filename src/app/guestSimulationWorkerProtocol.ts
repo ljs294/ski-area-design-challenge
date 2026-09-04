@@ -2,6 +2,7 @@ import type { GuestSimulationEnvironmentSnapshot } from '../guestSimulation/cont
 import type { GuestSimulationEngineSnapshot, GuestSimulationNetwork } from '../guestSimulation/engine';
 import type { ConditionSnapshot } from '../guestSimulation/conditions';
 import type { ReputationProfile } from '../guestSimulation/phase3Economy';
+import type { RemainingPhasesInput } from '../guestSimulation/remainingPhasesRuntime';
 
 interface RequestBase { readonly requestId: string; readonly sequence: number }
 
@@ -33,6 +34,7 @@ export type GuestSimulationWorkerRequest =
       readonly startTick: number; readonly endTick: number;
       readonly environmentRevision: number; readonly topologyRevision: number;
       readonly openingReputation?: ReputationProfile;
+      readonly phase5to7?: RemainingPhasesInput;
       readonly conditionSnapshot?: ConditionSnapshot })
   | (RequestBase & { readonly type: 'restore'; readonly bytes: Uint8Array; readonly expectedTopologyRevision: number })
   | (RequestBase & { readonly type: 'advance'; readonly toTick: number;

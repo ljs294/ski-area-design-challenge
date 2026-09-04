@@ -3,6 +3,7 @@ import type maplibregl from 'maplibre-gl';
 import type { SkiNetwork } from '../network';
 import type { SimulationClock } from '../types/simulation';
 import type { SnowGrid } from '../types/snow';
+import type { SavedRoad } from '../types/roads';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
 import { useGuestPortalController } from './useGuestPortalController';
 import { useGuestSimulationRuntime } from './useGuestSimulationRuntime';
@@ -15,6 +16,7 @@ export function useMapGuestSimulationFeature(options: {
   readonly saveKey: string | null;
   readonly saveRevision: string | null;
   readonly snowGrid?: SnowGrid | null;
+  readonly roads?: readonly SavedRoad[];
   activate(): boolean;
   release(): void;
   openDock(): void;
@@ -34,7 +36,8 @@ export function useMapGuestSimulationFeature(options: {
     ticketPriceCents: nextDayTicketPriceCents, referencePriceCents: 10_000, reputation: 0.6,
     resortValue: 0.5, availableCapacityGuests: 50_000 }), [nextDayTicketPriceCents, options.clock.weekday]);
   const runtime = useGuestSimulationRuntime({ saveKey: options.saveKey, gameSaveUpdatedAt: options.saveRevision,
-    network: options.network, portal, clock: options.clock, snowGrid: options.snowGrid, demand, restorePortal: setPortal });
+    network: options.network, portal, clock: options.clock, snowGrid: options.snowGrid, roads: options.roads,
+    demand, restorePortal: setPortal });
   const controller = useGuestPortalController({ mapRef: options.mapRef, network: options.network, portal,
     points: runtime.points, setPortal, activate: options.activate, release: options.release,
     openDock: options.openDock, acquireInteractions: options.acquireInteractions, synchronizeMap: options.synchronizeMap });
