@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addGuestLayers, GUEST_LAYER_IDS, interpolateGuestPoints, setGuestPortalData,
-  updateGuestPointData } from './guestLayers';
+import { addGuestLayers, GUEST_HIT_LAYER_ID, GUEST_LAYER_IDS, interpolateGuestPoints, setGuestCompactFrame,
+  setGuestPortalData, updateGuestPointData } from './guestLayers';
 import type { GuestConnectivity } from './guestConnectivity';
 
 const portal = { version: 1 as const, id: 'entrance', kind: 'guest-entrance' as const,
@@ -54,5 +54,30 @@ describe('guest map connection presentation', () => {
     setGuestPortalData(map as never, portal, connectivity(true));
     expect(published[0]?.features.map((feature) => feature.properties?.kind)).toEqual(['connection', 'portal']);
     expect(published[0]?.features.every((feature) => feature.properties?.reachable === true)).toBe(true);
+  });
+
+  it('answers delegated guest queries from the exact interpolated GPU position', () => {
+    const sources = new Map<string, { setData: (data: unknown) => void; updateData: (data: unknown) => void }>();
+    const layers = new Map<string, unknown>();
+    const map = {
+      getSource: (id: string) => sources.get(id),
+      addSource: (id: string) => sources.set(id, { setData: () => {}, updateData: () => {} }),
+      getLayer: (id: string) => layers.has(id) ? layers.get(id) : undefined,
+      addLayer: (layer: { id: string }) => layers.set(layer.id, layer),
+      getLayoutProperty: () => undefined,
+      unproject: () => ({ lng: 0, lat: 0 }),
+      queryRenderedFeatures: () => [{ id: 'base' }],
+    };
+    addGuestLayers(map as never);
+    const frame = { ids: new Uint32Array([7]), guestIds: new Uint32Array([7]), edgeIndices: new Int32Array([-1]),
+      progress: new Float32Array([0]), statusFlags: new Uint32Array([64]), bytesPerGuest: 16 as const, byteLength: 16 };
+    setGuestCompactFrame(map as never, frame, [], [0, 0]);
+    const custom = layers.get('guest-simulation-dots') as { updateScreenHitIndex: (matrix: Float32Array, width: number, height: number, progress: number) => void };
+    custom.updateScreenHitIndex(new Float32Array([
+      1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+    ]), 100, 100, 1);
+    const hit = (map as never as { queryRenderedFeatures: (point: { x: number; y: number }, options: { layers: string[] }) => readonly { properties?: Record<string, unknown> }[] })
+      .queryRenderedFeatures({ x: 75, y: 25 }, { layers: [GUEST_HIT_LAYER_ID] });
+    expect(hit[0]?.properties?.id).toBe('guest-000007');
   });
 });

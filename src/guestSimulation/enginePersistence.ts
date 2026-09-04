@@ -149,6 +149,7 @@ export function restoreGuestSimulationEngine(
       ? snapshot.conditionHistory[0] : undefined,
     phase3: snapshot.phase3 ? { dayId: snapshot.phase3.economy.dayId,
       ticketPriceCents: snapshot.phase3.economy.ticketFinance?.ticketPriceCents ?? 10_000,
+      outcomeWeight: snapshot.phase3.weeklyEstimate?.outcomeWeight ?? 1,
       demandForecast: snapshot.phase3.demandForecast ?? undefined,
       demandRealization: snapshot.phase3.demandRealization ?? undefined,
       openingReputation: snapshot.phase3.economy.openingReputation } : undefined,

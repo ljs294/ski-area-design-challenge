@@ -1,5 +1,13 @@
 import { WorkerSession, type WorkerFactory } from './workerAdapter';
-import type { GuestSimulationWorkerRequest, GuestSimulationWorkerResponse } from './guestSimulationWorkerProtocol';
+import type {
+  GuestSimulationCompactAdvanceRequest,
+  GuestSimulationEnvironmentUpdateRequest,
+  GuestSimulationTopologyUpdateRequest,
+  GuestSimulationWorkerRequest,
+  GuestSimulationWorkerResponse,
+} from './guestSimulationWorkerProtocol';
+import type { GuestSimulationEngineSnapshot } from '../guestSimulation/engine';
+import type { GuestState } from '../guestSimulation/contracts';
 
 function browserWorker(): Worker {
   return new Worker(new URL('./guestSimulation.worker.ts', import.meta.url), { type: 'module' });
@@ -20,24 +28,82 @@ export class GuestSimulationClient {
     this.session = new WorkerSession(factory);
   }
 
-  initialize(request: Omit<Extract<GuestSimulationWorkerRequest, { type: 'initialize' }>, 'requestId' | 'sequence'>) {
-    return this.send({ ...request, type: 'initialize' }).then((response) => response.snapshot);
+  initialize(request: Omit<Extract<GuestSimulationWorkerRequest, { type: 'initialize' }>, 'requestId' | 'sequence'>): Promise<GuestSimulationEngineSnapshot> {
+    return this.send({ ...request, type: 'initialize' }).then((response) => {
+      if (!('snapshot' in response) || !response.snapshot) throw new Error('Guest simulation worker returned the wrong initialize response.');
+      return response.snapshot;
+    });
   }
 
-  restore(bytes: Uint8Array, expectedTopologyRevision: number) {
-    return this.send({ type: 'restore', bytes, expectedTopologyRevision }).then((response) => response.snapshot);
+  restore(bytes: Uint8Array, expectedTopologyRevision: number): Promise<GuestSimulationEngineSnapshot> {
+    return this.send({ type: 'restore', bytes, expectedTopologyRevision }).then((response) => {
+      if (!('snapshot' in response) || !response.snapshot) throw new Error('Guest simulation worker returned the wrong restore response.');
+      return response.snapshot;
+    });
   }
 
   advance(toTick: number, expectedEnvironmentRevision: number, expectedTopologyRevision: number,
+    conditionSnapshot?: import('../guestSimulation/conditions').ConditionSnapshot): Promise<GuestSimulationEngineSnapshot>;
+  advance(request: Omit<GuestSimulationCompactAdvanceRequest, 'requestId' | 'sequence' | 'type'>): Promise<Extract<GuestSimulationWorkerResponse, { type: 'advanced'; committedSecond: number }>>;
+  advance(toTickOrRequest: number | Omit<GuestSimulationCompactAdvanceRequest, 'requestId' | 'sequence' | 'type'>,
+    expectedEnvironmentRevision?: number, expectedTopologyRevision?: number,
     conditionSnapshot?: import('../guestSimulation/conditions').ConditionSnapshot) {
-    return this.send({ type: 'advance', toTick, expectedEnvironmentRevision, expectedTopologyRevision,
-      ...(conditionSnapshot ? { conditionSnapshot } : {}) }).then((response) => response.snapshot);
+    if (typeof toTickOrRequest !== 'number') {
+      return this.send({ ...toTickOrRequest, type: 'advance' }).then((response) => {
+        if (response.type !== 'advanced' || !('renderFrame' in response)) {
+          throw new Error('Guest simulation worker returned the wrong compact advance response.');
+        }
+        return response;
+      });
+    }
+    return this.send({ type: 'advance', toTick: toTickOrRequest,
+      expectedEnvironmentRevision: expectedEnvironmentRevision!, expectedTopologyRevision: expectedTopologyRevision!,
+      ...(conditionSnapshot ? { conditionSnapshot } : {}) }).then((response) => {
+      if (!('snapshot' in response) || !response.snapshot) throw new Error('Guest simulation worker returned the wrong advance response.');
+      return response.snapshot;
+    });
   }
 
-  snapshot() { return this.send({ type: 'snapshot' }).then((response) => response.snapshot); }
+  /** Named alias for coordinators that want to make the protocol mode explicit. */
+  advanceCompact(request: Omit<GuestSimulationCompactAdvanceRequest, 'requestId' | 'sequence' | 'type'>) {
+    return this.advance(request);
+  }
+
+  updateTopology(request: Omit<GuestSimulationTopologyUpdateRequest, 'requestId' | 'sequence' | 'type'>) {
+    return this.send({ ...request, type: 'topology-update' }).then((response) => {
+      if (response.type !== 'topology-updated') {
+        throw new Error('Guest simulation worker returned the wrong topology update response.');
+      }
+      return response;
+    });
+  }
+
+  updateEnvironment(request: Omit<GuestSimulationEnvironmentUpdateRequest, 'requestId' | 'sequence' | 'type'>): Promise<Extract<GuestSimulationWorkerResponse, { type: 'environment-updated' }>> {
+    return this.send({ ...request, type: 'updateEnvironment' }).then((response) => {
+      if (response.type !== 'environment-updated') {
+        throw new Error('Guest simulation worker returned the wrong environment update response.');
+      }
+      return response;
+    });
+  }
+
+  snapshot(): Promise<GuestSimulationEngineSnapshot> {
+    return this.send({ type: 'snapshot' }).then((response) => {
+      if (!('snapshot' in response) || !response.snapshot) throw new Error('Guest simulation worker returned the wrong snapshot response.');
+      return response.snapshot;
+    });
+  }
+
+  inspectGuest(guestId: string): Promise<GuestState | undefined> {
+    return this.send({ type: 'inspectGuest', guestId }).then((response) => {
+      if (response.type !== 'guest') throw new Error('Guest simulation worker returned the wrong guest inspection response.');
+      return response.guest ?? undefined;
+    });
+  }
+
   checkpoint() { return this.send({ type: 'checkpoint' }).then((response) => {
     if (response.type !== 'checkpoint') throw new Error('Guest simulation worker returned the wrong checkpoint response.');
-    return { snapshot: response.snapshot, bytes: response.bytes };
+    return { snapshot: response.snapshot, bytes: response.bytes, committedSecond: response.committedSecond };
   }); }
 
   dispose(): void {

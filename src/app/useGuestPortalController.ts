@@ -3,8 +3,8 @@ import type maplibregl from 'maplibre-gl';
 import type { SkiNetwork } from '../network';
 import { MAP_HIT_RANK, MAP_Z_ORDER, type ManagedMapContribution } from './mapContribution';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
-import { addGuestLayers, GUEST_LAYER_ID, GUEST_LAYER_IDS, setGuestPointData, setGuestPortalData,
-  interpolateGuestPoints, updateGuestPointData, type GuestRenderPoint } from './guestLayers';
+import { addGuestLayers, GUEST_HIT_LAYER_ID, GUEST_LAYER_IDS, setGuestPointData, setGuestPortalData,
+  updateGuestPointData, type GuestRenderPoint } from './guestLayers';
 import { placeGuestPortal, type PlacedGuestPortal } from './guestPortalPlacement';
 import type { GuestConnectivity } from './guestConnectivity';
 
@@ -42,7 +42,7 @@ export function useGuestPortalController(options: {
   const contributionRef = useRef<ManagedMapContribution | null>(null);
   if (!contributionRef.current) contributionRef.current = {
     id: 'guest', zOrder: MAP_Z_ORDER.guest,
-    hits: [{ id: 'guest', priority: MAP_HIT_RANK.guest, layerIds: [GUEST_LAYER_ID],
+    hits: [{ id: 'guest', priority: MAP_HIT_RANK.guest, layerIds: [GUEST_HIT_LAYER_ID],
       select: () => undefined }],
     install: ({ map }) => addGuestLayers(map),
     synchronizeData: ({ map }) => {
@@ -67,7 +67,6 @@ export function useGuestPortalController(options: {
     const target = options.points;
     const from = displayedPointsRef.current;
     animationGenerationRef.current += 1;
-    const generation = animationGenerationRef.current;
     if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
     animationFrameRef.current = null;
     if (!map || options.reducedMotion || document.hidden || from.length === 0) {
@@ -75,30 +74,11 @@ export function useGuestPortalController(options: {
       setGuestPointData(map, target);
       return;
     }
-    const durationMs = 240;
-    const frameIntervalMs = 1_000 / 30;
-    let startedAt: number | null = null;
-    let lastPublishedAt = Number.NEGATIVE_INFINITY;
-    const animate = (now: number) => {
-      if (animationGenerationRef.current !== generation) return;
-      startedAt ??= now;
-      const progress = Math.min(1, (now - startedAt) / durationMs);
-      if (progress >= 1 || now - lastPublishedAt >= frameIntervalMs) {
-        const displayed = interpolateGuestPoints(from, target, progress);
-        const previous = displayedPointsRef.current;
-        displayedPointsRef.current = displayed;
-        updateGuestPointData(map, previous, displayed);
-        lastPublishedAt = now;
-      }
-      if (progress < 1) animationFrameRef.current = requestAnimationFrame(animate);
-      else animationFrameRef.current = null;
-    };
-    animationFrameRef.current = requestAnimationFrame(animate);
-    return () => {
-      animationGenerationRef.current += 1;
-      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    };
+    // Upload one authoritative target frame. The custom MapLibre layer performs
+    // interpolation on the GPU; the transparent GeoJSON source is updated only
+    // once per commit for hit testing.
+    displayedPointsRef.current = target;
+    updateGuestPointData(map, from, target);
   }, [options.mapRef, options.points, options.reducedMotion]);
   useLayoutEffect(() => {
     const map = optionsRef.current.mapRef.current;

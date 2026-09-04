@@ -1,20 +1,14 @@
-/**
- * Phase 1A guest simulation orchestration. Pure network, roster, and routing
- * support lives in engineSupport.ts; this class owns explicit-time state.
- */
-
 import {
   GUEST_SIMULATION_CONTRACT_VERSION,
   GUEST_SIMULATION_PROTOCOL_VERSION,
   type GuestId,
   type GuestSimulationEnvironmentSnapshot,
   type GuestState,
-  type PartyState,
   type SimulatedSecond,
   type ThoughtEvent,
 } from './contracts.ts';
 import { DEFAULT_GUEST_SIMULATION_CONFIG, type GuestSimulationConfig } from './config.ts';
-import { eventCalendarChecksum, EventCalendar, type EventCalendarStateProjection } from './eventCalendar.ts';
+import { EventCalendar, type EventCalendarStateProjection } from './eventCalendar.ts';
 import { GUEST_EVENT_PHASE, scheduleGuestEvent, type GuestEventPhase } from './eventPhases.ts';
 import { createPartyPlan, createPartyRendezvous } from './party.ts';
 import {
@@ -56,6 +50,18 @@ import { createPhase4SafetyRuntime, type Phase4SafetySnapshot } from './phase4Sa
 import type { InjuryIncident } from './injury.ts';
 import { Phase3Runtime } from './phase3Runtime.ts';
 import { RemainingPhasesRuntime } from './remainingPhasesRuntime.ts';
+import type { GuestRenderFrameProjection } from './guestRenderFrame.ts';
+import { advanceCalendarToBudget, type BudgetedAdvanceResult } from './engineAdvance.ts';
+import {
+  checksumProjection,
+  defaultThoughtReason,
+  environmentAt,
+  immutableGuest,
+  type MutableGuest,
+  type MutableLiftLedger,
+  type MutableParty,
+} from './engineState.ts';
+import { replaceGuestTopology, type GuestTopologyMigrationResult } from './topologyMigration.ts';
 
 export {
   chooseWeightedGuestItinerary,
@@ -65,83 +71,20 @@ export {
   guestAbilityTargets,
   placeGuestPortal,
 } from './engineSupport.ts';
-export type {
-  GuestNetworkNodeKind,
-  GuestNetworkEdgeKind,
-  GuestNetworkEdge,
-  GuestNetworkNode,
-  GuestLift,
-  GuestPortalConnection,
-  GuestSimulationNetwork,
-  GuestPortalPlacementInput,
-  GuestNetworkInput,
-  GuestItinerary,
-  GuestAbilityTargets,
-  DailyRosterOptions,
-  DailyGuestRoster,
-  LiftSeatLedger,
-  GuestSimulationMetrics,
-  GuestSimulationEngineSnapshot,
-  GuestSimulationPendingEvent,
-  GuestSimulationLiftQueue,
-  GuestSimulationEngineOptions,
-  GuestSimulationEventPayload,
-} from './engineSupport.ts';
+export type { GuestNetworkNodeKind, GuestNetworkEdgeKind, GuestNetworkEdge, GuestNetworkNode,
+  GuestLift, GuestPortalConnection, GuestSimulationNetwork, GuestPortalPlacementInput,
+  GuestNetworkInput, GuestItinerary, GuestAbilityTargets, DailyRosterOptions, DailyGuestRoster,
+  LiftSeatLedger, GuestSimulationMetrics, GuestSimulationEngineSnapshot,
+  GuestSimulationPendingEvent, GuestSimulationLiftQueue, GuestSimulationEngineOptions,
+  GuestSimulationEventPayload } from './engineSupport.ts';
+export type { GuestTopologyMigrationResult } from './topologyMigration.ts';
 
 type EnginePayload = GuestSimulationEventPayload;
 
-interface MutableGuest extends GuestState {
-  status: GuestState['status'];
-  currentPortalId: string | null;
-  currentResourceId: string | null;
-  satisfaction: number;
-  pendingDeparture: boolean;
-  decisionOrdinal: number;
-  queueJoinedTick: SimulatedSecond | null;
-  lastQueueWaitSeconds: number;
-  traversalOrdinal: number;
-}
+export interface GuestSimulationAdvanceResult extends BudgetedAdvanceResult {}
 
-interface MutableParty extends PartyState {
-  status: PartyState['status'];
-}
-
-interface MutableLiftLedger {
-  readonly lift: GuestLift;
-  readonly queue: GuestId[];
-  readonly partyOrder: string[];
-  partyCursor: number;
-  readonly inTransit: Set<GuestId>;
-  dispatches: number;
-  completedRides: number;
-}
-
-function environmentAt(base: GuestSimulationEnvironmentSnapshot, tickValue: SimulatedSecond): GuestSimulationEnvironmentSnapshot {
-  return Object.freeze({ ...base, tick: tickValue, conditions: Object.freeze({ ...base.conditions, tick: tickValue }),
-    operating: base.operating });
-}
-
-function immutableGuest(guest: MutableGuest): GuestState {
-  const { pendingDeparture: _pendingDeparture, decisionOrdinal: _decisionOrdinal,
-    queueJoinedTick: _queueJoinedTick, lastQueueWaitSeconds: _lastQueueWaitSeconds,
-    traversalOrdinal: _traversalOrdinal, ...state } = guest;
-  return Object.freeze({ ...state });
-}
-
-function defaultThoughtReason(kind: ThoughtEvent['kind'], sentiment: ThoughtEvent['sentiment']): ExperienceThoughtReasonCode {
-  if (sentiment === 'positive') return 'positive-experience';
-  if (kind === 'arrived') return 'arrival';
-  if (kind === 'concerned') return 'terrain-mismatch';
-  return kind;
-}
-
-function checksumProjection(snapshot: Omit<GuestSimulationEngineSnapshot, 'checksum'>): string {
-  return eventCalendarChecksum(snapshot);
-}
-
-/** Pure, explicit-time simulation controller for the Phase 1A slice. */
 export class GuestSimulationEngine {
-  readonly network: GuestSimulationNetwork;
+  network: GuestSimulationNetwork;
   readonly roster: DailyGuestRoster;
   readonly config: GuestSimulationConfig;
   readonly runId: string;
@@ -235,41 +178,70 @@ export class GuestSimulationEngine {
       }
     }
   }
-
   get currentTick(): SimulatedSecond { return this.tickValue; }
-
   get tick(): SimulatedSecond { return this.tickValue; }
-
-  /** Advance through scheduled second-resolution events. */
+  get environmentRevision(): number { return this.environmentValue.environmentRevision; }
+  get topologyRevision(): number { return this.environmentValue.topologyRevision; }
+  replaceTopology(networkInput: GuestSimulationNetwork, topologyRevision: number): GuestTopologyMigrationResult {
+    const result = replaceGuestTopology({ networkInput, topologyRevision, tickValue: this.tickValue,
+      environmentValue: this.environmentValue, conditionSnapshotValue: this.conditionSnapshotValue,
+      conditionHistory: this.conditionHistoryInternal, guestsById: this.guestsById,
+      itinerariesByGuest: this.itinerariesByGuest, partyItinerariesByParty: this.partyItinerariesByParty,
+      partyPlansByParty: this.partyPlansByParty, rendezvousPlansByParty: this.rendezvousPlansByParty,
+      liftsById: this.liftsById, calendar: this.calendar, rosterEndTick: this.roster.demandPlan.endTick,
+      dispatchEnd: (liftId) => this.dispatchEnd(this.liftsById.get(liftId)!.lift),
+      activateTopology: (network, environment, conditions) => {
+        this.network = network;
+        this.environmentValue = environment;
+        this.conditionSnapshotValue = conditions;
+      },
+      appendThought: (guest, reason) => this.appendThought(guest, 'waiting', 'neutral',
+        'The resort layout changed; searching for a new route.', reason),
+      handleDecision: (guestId) => this.handleDecision(guestId) });
+    this.network = result.network;
+    this.environmentValue = result.environment;
+    this.conditionSnapshotValue = result.conditionSnapshot;
+    return result.migration;
+  }
+  get conditionRevision(): number { return this.conditionSnapshotValue.revision; }
   advanceTo(toTick: SimulatedSecond): GuestSimulationEngineSnapshot {
+    this.advanceEventsTo(toTick);
+    return this.snapshot();
+  }
+
+  advanceToBudget(toTick: SimulatedSecond, maxCpuMs: number): GuestSimulationAdvanceResult {
     tick(toTick, 'toTick');
     if (toTick < this.tickValue) throw new RangeError('toTick cannot move backwards');
-    this.calendar.advanceTo(toTick, (event) => {
-      this.tickValue = event.tick;
-      this.handle(event.payload);
-    });
-    this.tickValue = toTick;
-    this.remainingPhases.advanceTo(toTick);
-    return this.snapshot();
+    if (!Number.isFinite(maxCpuMs) || maxCpuMs <= 0) throw new RangeError('maxCpuMs must be a positive finite number');
+    return advanceCalendarToBudget({ calendar: this.calendar, fromTick: this.tickValue, toTick, maxCpuMs,
+      handle: (payload, eventTick) => { this.tickValue = eventTick; this.handle(payload); },
+      finish: (finishedTick) => { this.tickValue = finishedTick; this.remainingPhases.advanceTo(finishedTick); } });
+  }
+
+  compactRenderProjection(): GuestRenderFrameProjection {
+    const safety = this.syncSafetyState();
+    return {
+      tick: this.tickValue,
+      guests: freezeArray([...this.guestsById.values()].sort(compareId).map(immutableGuest)),
+      network: this.network,
+      itineraries: freezeArray([...this.itinerariesByGuest.values()].sort((left, right) =>
+        left.guestId.localeCompare(right.guestId))),
+      pendingEvents: this.pendingEvents(),
+      safety: { guestIncidents: safety.guestIncidents },
+    };
   }
 
   advanceBy(seconds: SimulatedSecond): GuestSimulationEngineSnapshot {
     tick(seconds, 'seconds');
     return this.advanceTo(this.tickValue + seconds);
   }
-
   advance(toTick: SimulatedSecond): GuestSimulationEngineSnapshot { return this.advanceTo(toTick); }
-
   getGuest(guestId: GuestId): GuestState | undefined {
     const guest = this.guestsById.get(guestId);
     return guest ? immutableGuest(guest) : undefined;
   }
-
   getItinerary(guestId: GuestId): GuestItinerary | undefined { return this.itinerariesByGuest.get(guestId); }
-
   getThoughtEvents(): readonly ThoughtEvent[] { return freezeArray(this.thoughtEventsInternal); }
-
-  /** Apply a revision at its exact tick before same-tick decisions are dispatched. */
   applyConditionSnapshot(snapshot: ConditionSnapshot): void {
     assertConditionSnapshot(snapshot);
     if (snapshot.tick < this.tickValue) throw new RangeError('condition snapshot cannot move simulation time backwards');
@@ -286,6 +258,23 @@ export class GuestSimulationEngine {
     this.conditionSnapshotValue = snapshot;
     const previous = this.conditionHistoryInternal[this.conditionHistoryInternal.length - 1];
     if (!previous || previous.checksum !== snapshot.checksum) this.conditionHistoryInternal.push(snapshot);
+  }
+
+  applyEnvironmentSnapshot(snapshot: GuestSimulationEnvironmentSnapshot): void {
+    if (!snapshot || snapshot.version !== GUEST_SIMULATION_CONTRACT_VERSION) {
+      throw new RangeError('environment snapshot version is unsupported');
+    }
+    tick(snapshot.tick, 'environment snapshot tick');
+    if (snapshot.tick <= this.tickValue) throw new RangeError('environment snapshot must apply in the future');
+    if (snapshot.topologyRevision !== this.topologyRevision) {
+      throw new RangeError('environment snapshot topology revision does not match the guest network');
+    }
+    if (snapshot.environmentRevision <= this.environmentRevision) {
+      throw new RangeError('environment snapshot revision must increase monotonically');
+    }
+    this.advanceTo(snapshot.tick - 1);
+    this.environmentValue = Object.freeze({ ...snapshot,
+      portals: freezeArray(snapshot.portals), incidents: freezeArray(snapshot.incidents) });
   }
 
   snapshot(): GuestSimulationEngineSnapshot {
@@ -333,7 +322,22 @@ export class GuestSimulationEngine {
     return Object.freeze({ ...base, checksum });
   }
 
-  getMetrics(): GuestSimulationMetrics { return this.snapshot().metrics; }
+  getMetrics(): GuestSimulationMetrics {
+    const guests = [...this.guestsById.values()].sort(compareId).map(immutableGuest);
+    return this.metricsFor(guests);
+  }
+
+  private advanceEventsTo(toTick: SimulatedSecond): number {
+    tick(toTick, 'toTick');
+    if (toTick < this.tickValue) throw new RangeError('toTick cannot move backwards');
+    const events = this.calendar.advanceTo(toTick, (event) => {
+      this.tickValue = event.tick;
+      this.handle(event.payload);
+    });
+    this.tickValue = toTick;
+    this.remainingPhases.advanceTo(toTick);
+    return events.length;
+  }
 
   private metricsFor(guests: readonly GuestState[]): GuestSimulationMetrics {
     const scheduled = guests.filter((guest) => guest.status === 'scheduled' || guest.status === 'arriving').length;
@@ -381,9 +385,17 @@ export class GuestSimulationEngine {
     const guest = this.guestsById.get(guestId);
     if (!guest || guest.status === 'departed') return;
     const portal = this.network.portals.find((candidate) => candidate.id === guest.portalId);
-    if (!portal || !portalOpenAt(portal, this.environmentValue, this.tickValue)) {
+    if (!portal) {
+      guest.status = 'waiting-for-route';
+      guest.routeStateReason = 'guest-entrance-removed';
+      this.appendThought(guest, 'waiting', 'negative', 'The guest entrance is no longer connected to the resort.', 'waiting');
+      this.scheduleRetry(guest);
+      return;
+    }
+    if (!portalOpenAt(portal, this.environmentValue, this.tickValue)) {
       guest.status = 'arriving';
-      this.appendThought(guest, 'waiting', 'neutral', 'Waiting for an open guest entrance.');
+      guest.routeStateReason = 'guest-entrance-closed';
+      this.appendThought(guest, 'waiting', 'neutral', 'Waiting for an open guest entrance.', 'waiting');
       this.scheduleRetry(guest);
       return;
     }
@@ -396,6 +408,7 @@ export class GuestSimulationEngine {
     }
     this.portalEntriesByTick.set(entryKey, used + 1);
     guest.status = 'choosing';
+    guest.routeStateReason = undefined;
     guest.currentPortalId = portal.id;
     this.partiesById.get(guest.partyId)!.status = 'active';
     this.appendThought(guest, 'arrived', 'positive', 'Arrived at the resort.');
@@ -414,14 +427,6 @@ export class GuestSimulationEngine {
       ownerId: guest.id, guestId: guest.id, payload: { kind: 'decide', guestId: guest.id } });
   }
 
-  /**
-   * Select once for the party leader, constrained by the weakest member, then
-   * hand the same lift/trail itinerary to every member.  Members retain their
-   * own target rating and event identity, but never split onto an unsafe
-   * route.  A follower waits briefly if the leader has not reached a decision
-   * yet, which keeps arrival waves cohesive without deadlocking a malformed
-   * roster.
-   */
   private sharedItineraryFor(guest: MutableGuest, queueLengths: ReadonlyMap<string, number>): GuestItinerary | null {
     const party = this.partiesById.get(guest.partyId);
     if (!party) return null;
@@ -474,14 +479,18 @@ export class GuestSimulationEngine {
     const queueLengths = new Map([...this.liftsById.entries()].map(([id, ledger]) => [id, ledger.queue.length]));
     const itinerary = this.sharedItineraryFor(guest, queueLengths);
     if (!itinerary) {
-      guest.status = 'choosing';
+      guest.status = 'waiting-for-route';
+      guest.routeStateReason = 'no-valid-route';
       guest.satisfaction = bounded(guest.satisfaction - 0.001);
-      this.appendThought(guest, 'concerned', 'negative', 'No open route is available right now.');
-      this.scheduleDecision(guest, this.tickValue + 1);
+      this.appendThought(guest, 'concerned', 'negative', 'No open route is available right now.', 'terrain-mismatch');
+      const departureTick = guest.plannedDepartureTick ?? this.roster.demandPlan.endTick;
+      const retryTick = Math.min(this.tickValue + 30, Math.max(this.tickValue, departureTick - 1));
+      if (retryTick > this.tickValue) this.scheduleDecision(guest, retryTick);
       return;
     }
     guest.decisionOrdinal += 1;
     this.itinerariesByGuest.set(guest.id, itinerary);
+    guest.routeStateReason = undefined;
     guest.status = 'travelling-to-lift';
     guest.currentResourceId = itinerary.liftId;
     scheduleGuestEvent(this.calendar, { dueTick: this.tickValue + itinerary.travelToLiftSeconds,
@@ -520,9 +529,6 @@ export class GuestSimulationEngine {
     const ledger = this.liftsById.get(liftId);
     if (!ledger) return;
     if (this.liftOpen(ledger.lift)) {
-      // One physical chair is dispatched per event. Members of one party are
-      // kept together in consecutive chairs, while the cursor rotates across
-      // parties so an oversized group cannot starve later arrivals.
       let selectedPartyIndex = -1;
       let selectedMembers: GuestId[] = [];
       for (let offset = 0; offset < ledger.partyOrder.length; offset += 1) {
@@ -770,7 +776,6 @@ export function createGuestSimulationEngine(options: GuestSimulationEngineOption
 export const createSimulationEngine = createGuestSimulationEngine;
 export const createGuestSimulation = createGuestSimulationEngine;
 
-/** Functional faÃƒÂ§ade for adapters that keep the engine instance in their own state. */
 export function advanceGuestSimulation(engine: GuestSimulationEngine, toTick: SimulatedSecond): GuestSimulationEngineSnapshot {
   return engine.advanceTo(toTick);
 }
@@ -779,7 +784,6 @@ export function snapshotGuestSimulation(engine: GuestSimulationEngine): GuestSim
   return engine.snapshot();
 }
 
-/** Small default network useful for unit tests and a first UI adapter. */
 
 export function createDefaultGuestSimulation(options: Omit<import('./engineSupport.ts').DailyRosterOptions, 'portals'> & { readonly portals?: readonly import('./contracts.ts').GuestPortal[] } = {
   seed: 'phase-1a', guestCount: DEFAULT_GUEST_COUNT, portals: [],

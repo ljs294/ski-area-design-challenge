@@ -190,6 +190,7 @@ export interface ThoughtEvent {
 export type GuestStateStatus =
   | 'scheduled'
   | 'arriving'
+  | 'waiting-for-route'
   | 'choosing'
   | 'travelling-to-lift'
   | 'lift-queue'
@@ -216,6 +217,8 @@ export interface GuestState extends Guest {
   readonly currentPortalId: GuestPortalId | null;
   readonly currentResourceId: string | null;
   readonly satisfaction: number;
+  /** Stable explanation while a topology change temporarily removes a route. */
+  readonly routeStateReason?: string;
 }
 
 export interface PartyState extends Party {

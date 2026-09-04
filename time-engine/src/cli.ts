@@ -2,8 +2,8 @@ import * as readline from 'node:readline';
 import { readFile, writeFile } from 'node:fs/promises';
 import {
   DEFAULT_TIME_CONFIG,
-  MINUTES_PER_WEEK,
-  advanceClock,
+  SIMULATION_SECONDS_PER_WEEK,
+  advanceClockSeconds,
   advanceSummerPeriod,
   advanceToBoundary,
   confirmSeasonTransition,
@@ -11,7 +11,9 @@ import {
   createTimeSnapshot,
   describeTimeEvent,
   getSummerPeriodRange,
+  normalizeSimulationSpeed,
   restoreTimeSnapshot,
+  simulationRate,
   type AdvanceResult,
   type SimulationClock,
   type SimulationSpeed,
@@ -40,7 +42,7 @@ const TIME_FORMAT = new Intl.DateTimeFormat('en-US', {
 const HELP = `
 status                    Redraw the complete dashboard
 play / pause              Start or stop real-time advancement
-speed 1|2|4|8             Change simulation speed
+speed slow|normal|fast|ultrafast  Change simulation speed
 step 1m|1h|1d|1w          Advance a fixed amount (winter only)
 skip day|week             Advance one day or one week
 skip season               Jump to the next season
@@ -77,15 +79,6 @@ function formatDuration(realSeconds: number): string {
     : `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-function winterElapsedMinutes(clock: SimulationClock): number {
-  return Math.max(
-    0,
-    Math.round(
-      (new Date(clock.calendarDate).getTime() - new Date(clock.seasonStartedAt).getTime()) / 60_000,
-    ),
-  );
-}
-
 function dashboard(
   clock: SimulationClock,
   config: TimeScaleConfig,
@@ -116,21 +109,19 @@ function dashboard(
   lines.push('');
 
   if (clock.season === 'winter') {
-    const elapsed = winterElapsedMinutes(clock);
-    const weekElapsed = elapsed % MINUTES_PER_WEEK;
-    const seasonMinutes = config.winterWeeks * MINUTES_PER_WEEK;
-    lines.push(pad('Day', bar(clock.minuteOfDay / 1_440), 10));
-    lines.push(pad('Week', bar(weekElapsed / MINUTES_PER_WEEK), 10));
-    lines.push(pad('Season', bar(elapsed / seasonMinutes), 10));
+    const elapsed = Math.max(0, clock.elapsedSimSecond);
+    const weekElapsed = clock.weekSecond;
+    const seasonSeconds = config.winterWeeks * SIMULATION_SECONDS_PER_WEEK;
+    lines.push(pad('Day', bar(weekElapsed / SIMULATION_SECONDS_PER_WEEK), 10));
+    lines.push(pad('Week', bar(weekElapsed / SIMULATION_SECONDS_PER_WEEK), 10));
+    lines.push(pad('Season', bar(elapsed / seasonSeconds), 10));
     lines.push('');
-    const simMinutesPerRealSecond =
-      (MINUTES_PER_WEEK / config.realSecondsPerWinterWeek) * clock.speed;
-    const toDay = 1_440 - clock.minuteOfDay;
-    const toWeek = MINUTES_PER_WEEK - weekElapsed;
-    const toSeason = seasonMinutes - elapsed;
-    lines.push(pad('Next day', `${formatDuration(toDay / simMinutesPerRealSecond)} real time`));
-    lines.push(pad('Next week', `${formatDuration(toWeek / simMinutesPerRealSecond)} real time`));
-    lines.push(pad('Season end', `${formatDuration(toSeason / simMinutesPerRealSecond)} real time`));
+    const rate = simulationRate(clock.speed);
+    const toWeek = SIMULATION_SECONDS_PER_WEEK - weekElapsed;
+    const toSeason = seasonSeconds - elapsed;
+    lines.push(pad('Next day', `${formatDuration(toWeek / rate)} real time`));
+    lines.push(pad('Next week', `${formatDuration(toWeek / rate)} real time`));
+    lines.push(pad('Season end', `${formatDuration(toSeason / rate)} real time`));
   } else {
     const period = clock.summerPeriod ?? 1;
     lines.push(pad('Summer', bar((period - 1) / config.summerPeriods), 10));
@@ -153,12 +144,12 @@ function compactStatus(clock: SimulationClock, running: boolean): string {
     `${DATE_FORMAT.format(new Date(clock.calendarDate))} ${TIME_FORMAT.format(new Date(clock.calendarDate))}`;
 }
 
-function parseStep(value: string): number {
+function parseStepSeconds(value: string): number {
   const match = /^(\d+)(m|h|d|w)$/i.exec(value);
   if (!match) throw new Error('Step must look like 1m, 1h, 1d, or 1w');
   const amount = Number(match[1]);
   const unit = match[2].toLowerCase();
-  const multiplier = unit === 'm' ? 1 : unit === 'h' ? 60 : unit === 'd' ? 1_440 : MINUTES_PER_WEEK;
+  const multiplier = unit === 'm' ? 60 : unit === 'h' ? 3_600 : SIMULATION_SECONDS_PER_WEEK;
   return amount * multiplier;
 }
 
@@ -187,7 +178,6 @@ class TerminalRuntime {
   private readonly rl: readline.Interface;
   private timer: NodeJS.Timeout | null = null;
   private running = false;
-  private accumulator = 0;
   private lastWallMs = performance.now();
   private lastRenderMs = 0;
   private history: TimeBoundaryEvent[] = [];
@@ -237,7 +227,6 @@ class TerminalRuntime {
     }
     this.running = running;
     this.clock = { ...this.clock, runState: running ? 'running' : 'paused' };
-    this.accumulator = 0;
     this.lastWallMs = performance.now();
     if (running && !this.timer) {
       this.timer = setInterval(() => this.tick(), 50);
@@ -250,17 +239,12 @@ class TerminalRuntime {
   private tick(): void {
     if (!this.running) return;
     const now = performance.now();
-    const elapsedMs = Math.min(this.config.maxWallDeltaMs, Math.max(0, now - this.lastWallMs));
+    const elapsedMs = Math.max(0, now - this.lastWallMs);
     this.lastWallMs = now;
-    const minutesPerMs =
-      MINUTES_PER_WEEK / (this.config.realSecondsPerWinterWeek * 1_000) * this.clock.speed;
-    this.accumulator += elapsedMs * minutesPerMs;
-    const steps = Math.floor(this.accumulator / this.config.clockStepMinutes) *
-      this.config.clockStepMinutes;
-    if (steps > 0) {
-      const result = advanceClock(this.clock, steps, this.config);
+    const seconds = elapsedMs / 1_000 * simulationRate(this.clock.speed);
+    if (seconds > 0) {
+      const result = advanceClockSeconds(this.clock, seconds, this.config);
       this.record(result);
-      this.accumulator -= result.simulatedMinutesAdvanced;
       if (this.clock.season !== 'winter') {
         this.setRunning(false);
         this.message = 'Winter completed. The clock is paused in summer.';
@@ -312,13 +296,14 @@ class TerminalRuntime {
       } else if (command === 'pause') {
         this.setRunning(false);
       } else if (command === 'speed') {
-        const speed = Number(words[1]) as SimulationSpeed;
-        if (!this.config.speedMultipliers.includes(speed)) throw new Error('Speed must be 1, 2, 4, or 8');
+        const value = words[1]?.toLowerCase();
+        const speed = normalizeSimulationSpeed(value && ['slow', 'normal', 'fast', 'ultrafast'].includes(value)
+          ? value as SimulationSpeed : Number(value));
         this.clock = { ...this.clock, speed };
         this.message = `Speed set to ${speed}×`;
       } else if (command === 'step') {
         this.setRunning(false);
-        this.record(advanceClock(this.clock, parseStep(words[1] ?? ''), this.config));
+        this.record(advanceClockSeconds(this.clock, parseStepSeconds(words[1] ?? ''), this.config));
       } else if (command === 'skip') {
         const boundary = parseBoundary(words.slice(1));
         if (boundary === 'next-day' || boundary === 'next-week') {
@@ -427,7 +412,7 @@ async function runDiagnostic(options: CliOptions): Promise<void> {
     simulatedMinutesAdvanced += result.simulatedMinutesAdvanced;
   }
   if (options.step) {
-    const result = advanceClock(clock, parseStep(options.step));
+    const result = advanceClockSeconds(clock, parseStepSeconds(options.step));
     clock = result.clock;
     events.push(...result.events);
     simulatedMinutesAdvanced += result.simulatedMinutesAdvanced;

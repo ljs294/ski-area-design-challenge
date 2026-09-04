@@ -18,6 +18,17 @@ export interface Phase3RuntimeInput {
   readonly demandForecast?: DemandForecastV1;
   readonly demandRealization?: DemandRealizationV1;
   readonly openingReputation?: ReputationProfile;
+  readonly outcomeWeight?: number;
+}
+
+export interface Phase3WeeklyEstimate {
+  readonly outcomeWeight: number;
+  readonly ticketCount: number;
+  readonly ticketRevenueCents: number;
+  readonly visitCount: number;
+  readonly satisfactionNumerator: number;
+  readonly satisfactionDenominator: number;
+  readonly averageSatisfaction: number | null;
 }
 
 export interface Phase3SimulationSnapshot {
@@ -30,6 +41,7 @@ export interface Phase3SimulationSnapshot {
   readonly departedGuests: number;
   readonly turnedAwayGuests: 0;
   readonly reconciled: boolean;
+  readonly weeklyEstimate: Phase3WeeklyEstimate;
 }
 
 export class Phase3Runtime {
@@ -39,6 +51,9 @@ export class Phase3Runtime {
   private readonly input: Phase3RuntimeInput;
 
   constructor(roster: DailyGuestRoster, input: Phase3RuntimeInput) {
+    if (input.outcomeWeight !== undefined && (!Number.isFinite(input.outcomeWeight) || input.outcomeWeight < 0)) {
+      throw new RangeError('outcomeWeight must be a finite non-negative number');
+    }
     this.roster = roster;
     this.input = input;
     const ticketFinance = createPrepaidTicketFinance({ dayId: input.dayId,
@@ -68,10 +83,22 @@ export class Phase3Runtime {
     const activeGuests = guests.length - scheduled - departedGuests;
     const arrivedGuests = activeGuests + departedGuests;
     const bookedGuests = guests.length;
+    const weight = this.input.outcomeWeight ?? 1;
+    const satisfactionNumerator = this.economyValue.visitOutcomes
+      .reduce((sum, outcome) => sum + outcome.satisfaction * weight, 0);
+    const satisfactionDenominator = this.economyValue.metrics.visitCount * weight;
+    const weeklyEstimate = Object.freeze({ outcomeWeight: weight,
+      ticketCount: this.economyValue.metrics.ticketCount * weight,
+      ticketRevenueCents: this.economyValue.metrics.ticketRevenueCents * weight,
+      visitCount: this.economyValue.metrics.visitCount * weight,
+      satisfactionNumerator, satisfactionDenominator,
+      averageSatisfaction: satisfactionDenominator > 0
+        ? satisfactionNumerator / satisfactionDenominator : null });
     return Object.freeze({ demandForecast: this.input.demandForecast ?? null,
       demandRealization: this.input.demandRealization ?? null, economy: this.economyValue,
       bookedGuests, arrivedGuests, activeGuests, departedGuests, turnedAwayGuests: 0 as const,
       reconciled: bookedGuests === scheduled + activeGuests + departedGuests
-        && this.economyValue.metrics.ticketCount === bookedGuests });
+        && this.economyValue.metrics.ticketCount === bookedGuests,
+      weeklyEstimate });
   }
 }

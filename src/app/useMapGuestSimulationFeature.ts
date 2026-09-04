@@ -7,6 +7,7 @@ import type { SavedRoad } from '../types/roads';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
 import { useGuestPortalController } from './useGuestPortalController';
 import { useGuestSimulationRuntime } from './useGuestSimulationRuntime';
+import { setGuestCompactFrame } from './guestLayers';
 import { analyzeGuestConnectivity } from './guestConnectivity';
 import type { SimulationTimeDiscontinuity } from './developerConsoleCommands';
 
@@ -19,6 +20,8 @@ export function useMapGuestSimulationFeature(options: {
   readonly saveRevision: string | null;
   readonly snowGrid?: SnowGrid | null;
   readonly roads?: readonly SavedRoad[];
+  readonly operationsRevision?: number;
+  readonly weatherRevision?: number;
   readonly timeDiscontinuity?: SimulationTimeDiscontinuity | null;
   readonly reducedMotion: boolean;
   activate(): boolean;
@@ -39,9 +42,19 @@ export function useMapGuestSimulationFeature(options: {
     basePotentialGuests: options.clock.weekday === 0 || options.clock.weekday === 6 ? 1_300 : 900,
     ticketPriceCents: nextDayTicketPriceCents, referencePriceCents: 10_000, reputation: 0.6,
     resortValue: 0.5, availableCapacityGuests: 50_000 }), [nextDayTicketPriceCents, options.clock.weekday]);
+  const weeklyDailyDemand = useMemo(() => {
+    const baseline = options.clock.weekday === 0 || options.clock.weekday === 6 ? 1_300 : 900;
+    const scale = demand.basePotentialGuests / baseline;
+    return [900, 900, 900, 900, 900, 1_300, 1_300].map((value) => Math.max(0, Math.round(value * scale)));
+  }, [demand.basePotentialGuests, options.clock.weekday]);
+  const publishRenderFrame = useCallback<NonNullable<Parameters<typeof useGuestSimulationRuntime>[0]['publishRenderFrame']>>(
+    (frame, edgePaths, portalLngLat) => setGuestCompactFrame(options.mapRef.current, frame, edgePaths, portalLngLat),
+    [options.mapRef]);
   const runtime = useGuestSimulationRuntime({ saveKey: options.saveKey, gameSaveUpdatedAt: options.saveRevision,
     network: options.network, portal, clock: options.clock, snowGrid: options.snowGrid, roads: options.roads,
-    demand, timeDiscontinuity: options.timeDiscontinuity, restorePortal: setPortal });
+    operationsRevision: options.operationsRevision, weatherRevision: options.weatherRevision,
+    demand, weeklyDailyDemand, timeDiscontinuity: options.timeDiscontinuity, restorePortal: setPortal,
+    publishRenderFrame });
   const connectivity = useMemo(() => analyzeGuestConnectivity(options.network, portal, options.roads),
     [options.network, options.roads, portal]);
   const controller = useGuestPortalController({ mapRef: options.mapRef, network: options.network, portal,

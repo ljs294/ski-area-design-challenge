@@ -9,13 +9,16 @@ import { prepareWeatherPackage } from '../weatherServiceClient';
 import { forecastIssueAt, historicalAverageAnnualSnowfallCm, loadAnnualWeatherSession, weatherYearLabel,
   WEATHER_YEAR_CONFIGURATION_VERSION } from '../weather/annualWeather';
 import { issueGameForecast, type GameForecastIssue } from '../weather/gameForecast';
-import { weatherInstantForLocal } from '../weather/localTime';
-import { weatherAtSession, type WeatherSession } from '../weather/weatherSession';
+import { localWeatherDateKey, weatherInstantForLocal, weatherLocalParts } from '../weather/localTime';
+import { resolveWeatherHour, weatherAtSession, type WeatherSession } from '../weather/weatherSession';
 import { weatherTerrainBinding } from '../weather/terrainBinding';
 import { generateBareSnowGrid } from '../snow';
-import { advanceClock, advanceSummerToSeptember, confirmSeasonTransition, createClock, createTimeSnapshot,
-  scaledSimulationMinutes,
-  DEFAULT_TIME_CONFIG, restoreTimeSnapshot } from '../../time-engine/src/timeEngine';
+import { advanceSummerToSeptember, confirmSeasonTransition, createClock, createTimeSnapshot,
+  advanceClockSeconds, DEFAULT_TIME_CONFIG, restoreTimeSnapshot,
+} from '../../time-engine/src/timeEngine';
+import { ContinuousSimulationCoordinator } from './continuousSimulationCoordinator';
+import { createCompositeWeekWeather, type CompositeWeekOutlook, type CompositeWeekWeather } from '../weather/compositeWeek';
+import { SIMULATION_SECONDS_PER_WEEK } from '../types/simulation';
 import type { SnowLayerState } from './useSnowLayer';
 import { SnowStepClient } from './snowStepClient';
 import type { RenderQuality } from './renderProfile';
@@ -37,6 +40,7 @@ export interface GameSimulationController {
   session: WeatherSession | null;
   averageAnnualSnowfallCm: number | null;
   current: ResolvedWeatherHour | null;
+  weeklyOutlook: CompositeWeekOutlook | null;
   forecast: GameForecastIssue | null;
   timeDiscontinuity: SimulationTimeDiscontinuity | null;
   analysisOpen: boolean;
@@ -69,13 +73,56 @@ function projectedHour(run: SavedWeatherRun, at: string): number {
   return Math.max(0, Math.floor((new Date(at).getTime() - new Date(run.localStartAt).getTime()) / HOUR_MS));
 }
 
-function hoursCrossed(session: WeatherSession, from: string, to: string): ResolvedWeatherHour[] {
-  const fromMs = new Date(from).getTime();
-  const toMs = new Date(to).getTime();
-  return session.plan.hours
-    .filter((hour) => new Date(hour.at).getTime() > fromMs && new Date(hour.at).getTime() <= toMs)
-    .map((hour) => weatherAtSession(session, hour.at))
-    .filter((hour): hour is ResolvedWeatherHour => hour !== null);
+function compositeWeekForDate(session: WeatherSession, at: string): CompositeWeekWeather | null {
+  const dateKey = localWeatherDateKey(at, session.timezone);
+  const startIndex = session.plan.hours.findIndex((hour) => {
+    const local = weatherLocalParts(hour.at, session.timezone);
+    return localWeatherDateKey(hour.at, session.timezone) === dateKey && local.hour === 0;
+  });
+  if (startIndex < 0) return null;
+  const source = session.plan.hours.slice(startIndex, startIndex + 168)
+    .map((hour) => resolveWeatherHour(hour, session.midpoint));
+  if (source.length !== 168) return null;
+  try {
+    return createCompositeWeekWeather(source, { timezone: session.timezone });
+  } catch {
+    // DST weeks can contain 167 or 169 local records. Keep the existing
+    // weather read model for that exceptional archive shape rather than
+    // fabricating or dropping a source hour.
+    return null;
+  }
+}
+
+function physicsHoursCrossed(
+  session: WeatherSession,
+  before: SimulationClock,
+  after: SimulationClock,
+): ResolvedWeatherHour[] {
+  if (before.season !== 'winter') return [];
+  const end = after.season === 'winter' ? after.elapsedSimSecond : after.elapsedSimSecond;
+  const start = Math.max(0, before.elapsedSimSecond);
+  if (!(end > start)) return [];
+  const firstWeek = Math.floor(start / SIMULATION_SECONDS_PER_WEEK);
+  const lastWeek = Math.floor(Math.max(0, end - Number.EPSILON) / SIMULATION_SECONDS_PER_WEEK);
+  const crossed: Array<{ due: number; hour: ResolvedWeatherHour }> = [];
+  for (let weekIndex = firstWeek; weekIndex <= lastWeek; weekIndex += 1) {
+    const weekStart = weekIndex * SIMULATION_SECONDS_PER_WEEK;
+    const composite = compositeWeekForDate(session, before.calendarDate);
+    // The source date advances with the synthetic calendar week. Re-resolve
+    // from the session plan for later weeks instead of reusing week one.
+    const weekDate = new Date(new Date(before.calendarDate).getTime() +
+      (weekIndex - firstWeek) * 7 * 86_400_000).toISOString();
+    const weekComposite = weekIndex === firstWeek ? composite : compositeWeekForDate(session, weekDate);
+    if (!weekComposite) continue;
+    const low = Math.max(start, weekStart);
+    const high = Math.min(end, weekStart + SIMULATION_SECONDS_PER_WEEK);
+    for (const step of weekComposite.physics) {
+      const due = weekStart + step.dueSecond;
+      if (due > low && due <= high) crossed.push({ due, hour: step.hour });
+    }
+  }
+  crossed.sort((left, right) => left.due - right.due);
+  return crossed.map((item) => item.hour);
 }
 
 function applyMapEnvironment(map: maplibregl.Map | null, current: ResolvedWeatherHour | null): void {
@@ -124,12 +171,20 @@ export function useGameSimulation({
   const [message, setMessage] = useState('Loading simulation...');
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [timeDiscontinuity, setTimeDiscontinuity] = useState<SimulationTimeDiscontinuity | null>(null);
-  const accumulatorRef = useRef(0);
   const busyRef = useRef(false);
+  const coordinatorRef = useRef<ContinuousSimulationCoordinator | null>(null);
+  const inFlightRef = useRef(false);
+  const lastDispatchMsRef = useRef(0);
   const snowWorkerRef = useRef(new SnowStepClient());
   const binding = useMemo(() => terrain ? weatherTerrainBinding(terrain) : null, [terrain]);
 
-  const publishClock = useCallback((next: SimulationClock) => {
+  const publishClock = useCallback((next: SimulationClock, resetCoordinator = true) => {
+    if (resetCoordinator && next.season === 'winter') {
+      const committed = Math.max(0, Math.floor(next.elapsedSimSecond));
+      if (coordinatorRef.current) coordinatorRef.current.reset(committed, performance.now());
+      else coordinatorRef.current = new ContinuousSimulationCoordinator(committed,
+        typeof next.speed === 'string' ? next.speed : 'normal');
+    }
     clockRef.current = next;
     setClock(next);
   }, []);
@@ -194,22 +249,42 @@ export function useGameSimulation({
     return () => { cancelled = true; };
   }, [terrain, binding, initialTime, publishClock]);
 
-  const commitAdvance = useCallback(async (next: SimulationClock, refresh = true) => {
+  const commitAdvance = useCallback(async (next: SimulationClock, refresh = true,
+    expectedElapsedSecond?: number) => {
     if (!terrain || busyRef.current) return;
+    if (expectedElapsedSecond != null && clockRef.current.elapsedSimSecond !== expectedElapsedSecond) return;
     busyRef.current = true;
+    const startedAt = performance.now();
+    const before = clockRef.current;
     try {
       const activeSession = sessionRef.current;
-      const crossed = activeSession ? hoursCrossed(activeSession, clockRef.current.calendarDate, next.calendarDate) : [];
+      const crossed = activeSession ? physicsHoursCrossed(activeSession, before, next) : [];
       if (crossed.length > 0 && snow.gridRef.current) {
         const result = await snowWorkerRef.current.run(binding ?? '', terrain, snow.gridRef.current, crossed);
+        // Playback, skip, topology/load replacement, or another commit may
+        // have changed the authoritative clock while snow work was in flight.
+        // Never publish either half of a stale clock/snow transaction.
+        if (clockRef.current !== before) return;
         snow.replace(result.grid, refresh && result.changedCells > 0);
       }
+      if (clockRef.current !== before
+        || (expectedElapsedSecond != null && before.elapsedSimSecond !== expectedElapsedSecond)) return;
       const run = runRef.current;
       if (run) runRef.current = { ...run, cursorHour: projectedHour(run, next.calendarDate) };
-      publishClock(next);
+      publishClock(next, false);
+      const coordinator = coordinatorRef.current;
+      if (coordinator && next.season === 'winter') {
+        const status = coordinator.acknowledge(Math.floor(next.elapsedSimSecond),
+          performance.now() - startedAt, performance.now());
+        if (status.throttled) {
+          setMessage(`Catching up — effective speed ${status.effectiveSpeed}; no simulation time was dropped.`);
+        }
+      }
     } catch (error) {
-      publishClock({ ...clockRef.current, runState: 'paused' });
-      setStatus('corrupt'); setMessage(error instanceof Error ? error.message : 'Snow simulation failed.');
+      if (clockRef.current === before) {
+        publishClock({ ...before, runState: 'paused' });
+        setStatus('corrupt'); setMessage(error instanceof Error ? error.message : 'Snow simulation failed.');
+      }
     } finally {
       busyRef.current = false;
     }
@@ -293,25 +368,61 @@ export function useGameSimulation({
 
   useEffect(() => {
     if (clock.runState !== 'running' || clock.season !== 'winter') return;
-    let last = performance.now();
-    const timer = window.setInterval(() => {
-      if (document.hidden) { last = performance.now(); return; }
-      const now = performance.now();
-      const wallMs = Math.min(configRef.current.maxWallDeltaMs, Math.max(0, now - last));
-      last = now;
-      accumulatorRef.current += scaledSimulationMinutes(wallMs, clockRef.current.speed, configRef.current);
-      if (busyRef.current) return;
-      const minutes = Math.floor(accumulatorRef.current);
-      if (minutes < 1) return;
-      accumulatorRef.current -= minutes;
-      const result = advanceClock(clockRef.current, minutes, configRef.current);
-      void commitAdvance(result.clock);
-    }, 1000 / configRef.current.uiUpdateHz);
-    return () => window.clearInterval(timer);
+    const coordinator = coordinatorRef.current ?? new ContinuousSimulationCoordinator(
+      Math.floor(clockRef.current.elapsedSimSecond),
+      typeof clockRef.current.speed === 'string' ? clockRef.current.speed : 'normal');
+    coordinatorRef.current = coordinator;
+    let frame = 0;
+    const onVisibilityChange = () => {
+      // Reset on both edges. Browsers commonly suspend rAF while hidden, so
+      // resetting only on hide would make the first visible frame catch up the
+      // entire background interval.
+      coordinator.advanceWall(performance.now(), true);
+    };
+    const tick = (now: number) => {
+      if (document.hidden) {
+        coordinator.advanceWall(now, true);
+      } else {
+        coordinator.advanceWall(now);
+        const dispatchDue = now - lastDispatchMsRef.current >= 50;
+        if (dispatchDue && !inFlightRef.current && !busyRef.current) {
+          const target = coordinator.nextTarget();
+          if (target != null) {
+            const before = clockRef.current;
+            const advance = advanceClockSeconds(before, target - before.elapsedSimSecond, configRef.current);
+            if (advance.simulatedSecondsAdvanced > 0) {
+              inFlightRef.current = true;
+              lastDispatchMsRef.current = now;
+              void commitAdvance(advance.clock, true, before.elapsedSimSecond)
+                .finally(() => { inFlightRef.current = false; });
+            }
+          }
+        }
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    frame = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [clock.runState, clock.season, commitAdvance]);
 
-  const current = useMemo(() => session ? weatherAtSession(session, clock.calendarDate) : null,
-    [session, clock.calendarDate]);
+  const compositeWeek = useMemo(() => {
+    if (!session || clock.season !== 'winter' || clock.winterWeek == null) return null;
+    return compositeWeekForDate(session, clockRef.current.calendarDate);
+  }, [session, clock.season, clock.winterWeek]);
+  const current = useMemo(() => {
+    if (!session) return null;
+    if (compositeWeek && clock.season === 'winter') {
+      const index = Math.min(compositeWeek.witness.operatingHours.length - 1,
+        Math.floor(clock.weekSecond / 3_600));
+      return compositeWeek.witness.operatingHours[Math.max(0, index)] ?? null;
+    }
+    return weatherAtSession(session, clock.calendarDate);
+  }, [session, compositeWeek, clock.season, clock.weekSecond, clock.calendarDate]);
+  const weeklyOutlook = compositeWeek?.outlook ?? null;
   const averageAnnualSnowfallCm = useMemo(() => session
     ? historicalAverageAnnualSnowfallCm(session.historicalYears, session.timezone) : null, [session]);
   useEffect(() => {
@@ -330,7 +441,8 @@ export function useGameSimulation({
     if (!isDeveloperConsoleEnabled()) throw new Error('Developer time skipping is disabled in this build.');
     if (busyRef.current) throw new Error('Wait for the current simulation update to finish.');
     const result = skipClockWithoutSimulation(clockRef.current, minutes, configRef.current);
-    accumulatorRef.current = 0;
+    coordinatorRef.current?.reset(Math.floor(result.after.elapsedSimSecond), performance.now());
+    lastDispatchMsRef.current = performance.now();
     const run = runRef.current;
     if (run) runRef.current = { ...run, cursorHour: projectedHour(run, result.after.calendarDate) };
     publishClock(result.after);
@@ -394,11 +506,18 @@ export function useGameSimulation({
   }, [mapRef, current, reducedMotion, renderQuality]);
 
   return {
-    status, message, clock, weatherPackage, session, current, forecast, averageAnnualSnowfallCm, analysisOpen,
+    status, message, clock, weatherPackage, session, current, weeklyOutlook, forecast, averageAnnualSnowfallCm, analysisOpen,
     timeDiscontinuity,
-    togglePlayback: () => publishClock({ ...clockRef.current,
-      runState: clockRef.current.runState === 'running' ? 'paused' : 'running' }),
-    setSpeed: (speed) => publishClock({ ...clockRef.current, speed }),
+    togglePlayback: () => {
+      const running = clockRef.current.runState === 'running';
+      if (!running && clockRef.current.season !== 'winter') return;
+      coordinatorRef.current?.reset(Math.floor(clockRef.current.elapsedSimSecond), performance.now());
+      publishClock({ ...clockRef.current, runState: running ? 'paused' : 'running' });
+    },
+    setSpeed: (speed) => {
+      coordinatorRef.current?.setSpeed(speed);
+      publishClock({ ...clockRef.current, speed }, false);
+    },
     advancePlanningPeriod,
     confirmTransition,
     prepareWeather,
@@ -409,7 +528,10 @@ export function useGameSimulation({
       return { time: createTimeSnapshot(clockRef.current, configRef.current),
         ...(run ? { weatherRun: { ...run, cursorHour: projectedHour(run, clockRef.current.calendarDate) } } : {}) };
     },
-    pause: () => publishClock({ ...clockRef.current, runState: 'paused' }),
+    pause: () => {
+      coordinatorRef.current?.reset(Math.floor(clockRef.current.elapsedSimSecond), performance.now());
+      publishClock({ ...clockRef.current, runState: 'paused' });
+    },
     devSkipMinutes,
   };
 }

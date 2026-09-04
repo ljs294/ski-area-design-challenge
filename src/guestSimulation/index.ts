@@ -16,3 +16,4 @@ export * from './needs.ts';
 export * from './phase5Amenities.ts';
 export * from './phase6Access.ts';
 export * from './phase7.ts';
+export * from './weeklyDemand.ts';

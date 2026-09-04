@@ -45,6 +45,10 @@ describe('in-game weather presentation', () => {
     expect(markup).toContain('class="game-forecast-hour-grid"');
     expect(markup.match(/<time>/g)).toHaveLength(24);
     expect(markup).toContain('title="Inspect this game weather package"');
+    expect(markup).toContain('>Slow</button>');
+    expect(markup).toContain('>Normal</button>');
+    expect(markup).toContain('>Fast</button>');
+    expect(markup).toContain('>Ultrafast</button>');
     expect(markup).not.toContain('Local weather');
     expect(markup).toContain('2.0 \u00b0C');
     expect(markup).toContain('12.0 km/h');

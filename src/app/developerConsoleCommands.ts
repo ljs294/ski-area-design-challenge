@@ -23,8 +23,9 @@ export interface DeveloperClockSkip {
 const UNIT_MINUTES: Readonly<Record<string, number>> = Object.freeze({
   m: 1, min: 1, mins: 1, minute: 1, minutes: 1,
   h: 60, hr: 60, hrs: 60, hour: 60, hours: 60,
-  d: 1_440, day: 1_440, days: 1_440,
-  w: 10_080, week: 10_080, weeks: 10_080,
+  // Composite winter days/weeks are the same twelve-hour operating window.
+  d: 720, day: 720, days: 720,
+  w: 720, week: 720, weeks: 720,
 });
 
 export const DEVELOPER_CONSOLE_HELP = Object.freeze([

@@ -10,7 +10,7 @@ import { formatElevation, formatLiquidPrecipitation, formatLiquidPrecipitationRa
 
 const CurrentGameWeatherLab = lazy(() => import('./WeatherLab').then((module) => ({ default: module.WeatherLab })));
 
-const SIMULATION_SPEEDS: readonly SimulationSpeed[] = [1, 2, 4, 8];
+const SIMULATION_SPEEDS: readonly SimulationSpeed[] = ['slow', 'normal', 'fast', 'ultrafast'];
 
 function format(value: number | undefined, digits = 1): string {
   return value == null || !Number.isFinite(value) ? '--' : value.toFixed(digits);
@@ -126,6 +126,13 @@ function GameWeatherOverlay({
           : source
             ? `${source.provider} / ${source.quality}${source.correction !== 'none' ? ` / ${source.correction}` : ''}`
             : `${weather.weatherPackage?.manifest.quality ?? 'unknown'} / ${weather.weatherPackage?.manifest.sourceSummary ?? 'no source metadata'}`}</p>
+        {weather.weeklyOutlook && <section className="game-weekly-outlook" aria-label="Weekly weather outlook">
+          <div className="game-forecast-title"><h3>Weekly outlook</h3><span>Composite source week</span></div>
+          <p>{formatTemperature(weather.weeklyOutlook.temperatureRangeC.minimum, units)} to {formatTemperature(weather.weeklyOutlook.temperatureRangeC.maximum, units)}
+            {' · '}{formatSnowfall(weather.weeklyOutlook.snowfallCm, units)} snow · {formatLiquidPrecipitation(weather.weeklyOutlook.rainMm, units)} rain</p>
+          <p>Wind max {formatWindSpeed(weather.weeklyOutlook.maxWindKph, units)} / gust {formatWindSpeed(weather.weeklyOutlook.maxWindGustKph, units)}
+            {' · '}{weather.weeklyOutlook.freezeThawTransitions} freeze/thaw · {weather.weeklyOutlook.snowmakingEligibleHours} snowmaking hours</p>
+        </section>}
         <div className="game-forecast-title"><h3>Seven-day forecast</h3><span>Issued {formatGameTime(weather.forecast?.issuedAt, weather.session?.timezone)}</span></div>
         <div className="game-forecast-days" role="tablist" aria-label="Seven-day weather forecast">{forecastDays.map((day) => <button
           key={day.date} id={`game-forecast-tab-${day.date}`} role="tab"
@@ -205,8 +212,8 @@ export function GameToolbar({
             className={`tb-speed${weather.clock.speed === speed ? ' is-active' : ''}`}
             onClick={() => weather.setSpeed(speed)}
             disabled={!ready || planning}
-            title={`${speed}x simulation speed`}
-          >{speed}x</button>)}
+            title={`${titleCase(speed)} simulation speed`}
+          >{titleCase(speed)}</button>)}
         </div>
       </div>
       <div className="tb-group tb-weather-group">

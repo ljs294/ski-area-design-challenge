@@ -23,7 +23,7 @@ The clock begins in summer. To start a visibly running winter:
 ```text
 skip to winter
 confirm
-speed 8
+speed ultrafast
 play
 ```
 
