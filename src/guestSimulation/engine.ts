@@ -54,6 +54,7 @@ import { aggregateThoughtsByReason, calculateCrowdingEffect, calculateSatisfacti
   type ExperienceThoughtReasonCode } from './experience.ts';
 import { createPhase4SafetyRuntime, type Phase4SafetySnapshot } from './phase4Safety.ts';
 import type { InjuryIncident } from './injury.ts';
+import { Phase3Runtime } from './phase3Runtime.ts';
 
 export {
   chooseWeightedGuestItinerary,
@@ -160,6 +161,7 @@ export class GuestSimulationEngine {
   private readonly conditionHistoryInternal: ConditionSnapshot[] = [];
   private readonly safetyRuntime;
   private readonly finalizedSafetyIncidents = new Set<string>();
+  private readonly phase3Runtime: Phase3Runtime;
   private sequence = 0;
   private tickValue: SimulatedSecond;
   private environmentValue: GuestSimulationEnvironmentSnapshot;
@@ -170,6 +172,10 @@ export class GuestSimulationEngine {
     this.roster = options.roster;
     this.config = options.config ?? DEFAULT_GUEST_SIMULATION_CONFIG;
     this.runId = options.runId ?? `guest-run-${this.roster.seed}`;
+    this.phase3Runtime = new Phase3Runtime(this.roster, options.phase3 ?? {
+      dayId: `${this.roster.seed}:${this.roster.demandPlan.startTick}`,
+      ticketPriceCents: 10_000,
+    });
     if (this.roster.guests.length > this.config.maxGuests || this.roster.parties.length > this.config.maxParties) {
       throw new RangeError('roster exceeds configured simulation bounds');
     }
@@ -313,6 +319,7 @@ export class GuestSimulationEngine {
       thoughtAggregation,
       earlyDepartures: freezeArray(this.earlyDeparturesInternal),
       safety,
+      phase3: this.phase3Runtime.snapshot(this.tickValue, guests),
     } satisfies Omit<GuestSimulationEngineSnapshot, 'checksum'>;
     const checksum = checksumProjection(base);
     return Object.freeze({ ...base, checksum });
@@ -349,7 +356,7 @@ export class GuestSimulationEngine {
   }
 
   private appendThought(guest: MutableGuest, kind: ThoughtEvent['kind'], sentiment: ThoughtEvent['sentiment'], text: string,
-    reasonCode: ExperienceThoughtReasonCode = defaultThoughtReason(kind, sentiment)): void {
+    reasonCode: ExperienceThoughtReasonCode = defaultThoughtReason(kind, sentiment), observedTick = this.tickValue): void {
     const aggregationKey = `${reasonCode}|${sentiment}`;
     const aggregate = this.thoughtCountsInternal.get(aggregationKey);
     if (aggregate) aggregate.count += 1;
@@ -357,7 +364,7 @@ export class GuestSimulationEngine {
     if (this.thoughtEventsInternal.length >= this.config.maxThoughtEventsPerSnapshot) return;
     this.sequence += 1;
     this.thoughtEventsInternal.push(Object.freeze({ version: GUEST_SIMULATION_CONTRACT_VERSION,
-      id: `thought-${String(this.sequence).padStart(8, '0')}`, tick: this.tickValue,
+      id: `thought-${String(this.sequence).padStart(8, '0')}`, tick: observedTick,
       guestId: guest.id, partyId: guest.partyId, kind, sentiment, text, reasonCode }));
   }
 
@@ -679,9 +686,11 @@ export class GuestSimulationEngine {
       const guest = this.guestsById.get(incident.guestId);
       if (!guest || guest.status === 'departed') continue;
       const failed = incident.status !== 'resolved';
+      const terminalTick = safety.patrol.dispatches.find((dispatch) => dispatch.incidentId === incident.id)?.completeTick
+        ?? incident.createdTick;
       this.appendThought(guest, failed ? 'concerned' : 'leaving', failed ? 'negative' : 'neutral',
         failed ? 'The patrol response failed; leaving the resort.' : 'Ski patrol completed the rescue; leaving to recover.',
-        failed ? 'safety-concern' : 'injury');
+        failed ? 'safety-concern' : 'injury', terminalTick);
       this.markDeparted(guest, false);
     }
     return safety;
@@ -707,6 +716,7 @@ export class GuestSimulationEngine {
       guest.pendingDeparture = true;
       return;
     }
+    this.phase3Runtime.recordDeparture(immutableGuest(guest), this.tickValue);
     guest.status = 'departed';
     guest.currentPortalId = null;
     guest.currentResourceId = null;

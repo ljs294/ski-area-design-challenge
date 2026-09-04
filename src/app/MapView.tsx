@@ -37,7 +37,7 @@ import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication, ty
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
-import { guestVibePresentation, has3DBuildingContext, initialResortDesign, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
+import { guestVibePresentation, withGuestEconomyControls, has3DBuildingContext, initialResortDesign, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928], INITIAL_ZOOM = 12;
@@ -398,7 +398,7 @@ export function MapView({
       { cursor: 'crosshair', dragPanEnabled: true, doubleClickZoomEnabled: true }),
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('guest') });
   const { portal: guestPortal, selectedGuestId, runtime: guestRuntime, controller: guestPortalController } = guests;
-  const guestVibe = useMemo(() => guestVibePresentation(guestRuntime.snapshot, selectedGuestId), [guestRuntime.snapshot, selectedGuestId]);
+  const guestVibe = useMemo(() => withGuestEconomyControls(guestVibePresentation(guestRuntime.snapshot, selectedGuestId), guests.nextDayTicketPriceCents, guests.setNextDayTicketPriceCents), [guestRuntime.snapshot, guests.nextDayTicketPriceCents, guests.setNextDayTicketPriceCents, selectedGuestId]);
   guestPortalCancelRef.current = guestPortalController.cancel;
   // Loaded local package backing cursor sampling, MapLibre protocols, and
   // style reinitialization. Gameplay never populates it from network data.

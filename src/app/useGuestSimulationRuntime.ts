@@ -12,6 +12,22 @@ import { decodeGuestSimulationReplayState } from '../guestSimulation/replayPersi
 import type { SnowGrid } from '../types/snow';
 import { conditionSnapshotFromSkiNetwork } from './guestConditionAdapter';
 import { createConditionSnapshot, type ConditionSnapshot } from '../guestSimulation/conditions';
+import type { GuestSimulationWorkerDemandInput } from './guestSimulationWorkerProtocol';
+
+const DEFAULT_PHASE3_DEMAND: GuestSimulationWorkerDemandInput = Object.freeze({
+  dayType: 'weekday',
+  basePotentialGuests: 1_000,
+  ticketPriceCents: 10_000,
+  referencePriceCents: 10_000,
+  reputation: 0.60,
+  resortValue: 0.50,
+  operatingFraction: 1,
+  conditionFactor: 1,
+  availableCapacityGuests: 50_000,
+  maxGuests: 50_000,
+  maxParties: 20_000,
+  bucketSeconds: 10 * 60,
+});
 
 function withGuestOccupancy(base: ConditionSnapshot, network: SkiNetwork,
   snapshot: GuestSimulationEngineSnapshot | null): ConditionSnapshot {
@@ -62,6 +78,8 @@ export function useGuestSimulationRuntime(options: {
   readonly clock: SimulationClock;
   readonly gameSaveUpdatedAt?: string | null;
   readonly snowGrid?: SnowGrid | null;
+  /** Optional day-start market inputs. They are frozen into the day roster. */
+  readonly demand?: GuestSimulationWorkerDemandInput;
   restorePortal?(portal: PlacedGuestPortal): void;
 }): GuestSimulationRuntime {
   const restorePortal = options.restorePortal;
@@ -74,6 +92,9 @@ export function useGuestSimulationRuntime(options: {
   const revision = useMemo(() => topologyRevision(options.network, options.portal), [options.network, options.portal]);
   const guestNetwork = useMemo(() => options.portal
     ? guestNetworkFromSkiNetwork(options.network, options.portal) : null, [options.network, options.portal]);
+  const demand = useMemo(() => Object.freeze({ ...DEFAULT_PHASE3_DEMAND, ...options.demand }), [options.demand]);
+  const demandRef = useRef(demand);
+  demandRef.current = demand;
   const currentTick = options.clock.absoluteGameMinute * 60;
   const dayStart = Math.floor(currentTick / 86_400) * 86_400;
   snapshotRef.current = snapshot;
@@ -108,6 +129,9 @@ export function useGuestSimulationRuntime(options: {
   }, [options.gameSaveUpdatedAt, options.network, options.portal, options.saveKey, restorePortal]);
 
   useEffect(() => {
+    const previous = snapshotRef.current;
+    const openingReputation = previous && previous.demandPlan.endTick <= dayStart
+      ? previous.phase3.economy.closing?.nextDayReputation : undefined;
     clientRef.current?.dispose();
     clientRef.current = null;
     initializingRef.current = null;
@@ -123,9 +147,8 @@ export function useGuestSimulationRuntime(options: {
     const client = new GuestSimulationClient();
     clientRef.current = client;
     setStatus('starting'); setMessage('Starting deterministic guest simulation…');
-    const dayStart = Math.floor(currentTickRef.current / 86_400) * 86_400;
     const initialize = () => client.initialize({ type: 'initialize' as const, runId: `guest-${options.saveKey ?? 'session'}-${dayStart}`,
-      seed: `${options.saveKey ?? 'unsaved'}:${dayStart}`, guestCount: 1_000, network: guestNetwork,
+      seed: `${options.saveKey ?? 'unsaved'}:${dayStart}`, demand: demandRef.current, openingReputation, network: guestNetwork,
       startTick: dayStart, endTick: dayStart + 43_200, environmentRevision: 1, topologyRevision: revision,
       conditionSnapshot: conditionSnapshotFromSkiNetwork(networkRef.current, null, { tick: dayStart, revision: 0 }) });
     const pending = isDesktop && options.saveKey && options.gameSaveUpdatedAt
@@ -137,13 +160,13 @@ export function useGuestSimulationRuntime(options: {
     initializingRef.current = pending;
     void pending.then((ready) => {
       if (clientRef.current !== client) return;
-      setSnapshot(ready); setStatus('ready'); setMessage('1,000 individually simulated guests ready.');
+      setSnapshot(ready); setStatus('ready'); setMessage(`${ready.metrics.population.toLocaleString()} individually simulated guests ready.`);
     }, (error: unknown) => {
       if (clientRef.current !== client) return;
       setStatus('error'); setMessage(error instanceof Error ? error.message : 'Guest simulation failed to start.');
     });
     return () => client.dispose();
-  }, [guestNetwork, options.gameSaveUpdatedAt, options.portal, options.saveKey, revision]);
+  }, [dayStart, guestNetwork, options.gameSaveUpdatedAt, options.portal, options.saveKey, revision]);
 
   useEffect(() => {
     const client = clientRef.current;

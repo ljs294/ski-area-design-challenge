@@ -131,6 +131,7 @@ export function restoreGuestSimulationEngine(
     portals: snapshot.network.portals,
     startTick: snapshot.demandPlan.startTick,
     endTick: snapshot.demandPlan.endTick,
+    demandPlan: snapshot.demandPlan,
   });
   // The deterministic roster generator is part of the engine's input.  A
   // mismatched roster is safer to reject than to silently replay another run.
@@ -146,12 +147,17 @@ export function restoreGuestSimulationEngine(
     environment: initialEnvironment(snapshot),
     conditionSnapshot: snapshot.conditionHistory?.[0]?.tick === snapshot.demandPlan.startTick
       ? snapshot.conditionHistory[0] : undefined,
+    phase3: snapshot.phase3 ? { dayId: snapshot.phase3.economy.dayId,
+      ticketPriceCents: snapshot.phase3.economy.ticketFinance?.ticketPriceCents ?? 10_000,
+      demandForecast: snapshot.phase3.demandForecast ?? undefined,
+      demandRealization: snapshot.phase3.demandRealization ?? undefined,
+      openingReputation: snapshot.phase3.economy.openingReputation } : undefined,
   };
   const engine = createGuestSimulationEngine(engineOptions);
   for (const conditions of snapshot.conditionHistory?.slice(1) ?? []) {
     if (conditions.tick <= snapshot.tick) engine.applyConditionSnapshot(conditions);
   }
-  const replayed = engine.advanceTo(snapshot.tick);
+  const replayed = snapshot.tick === snapshot.demandPlan.startTick ? engine.snapshot() : engine.advanceTo(snapshot.tick);
   const legacyPhaseOneCheckpoint = !Array.isArray(snapshot.conditionHistory);
   if (!legacyPhaseOneCheckpoint && replayed.checksum !== snapshot.checksum) {
     throw new GuestSimulationEngineRestoreError(

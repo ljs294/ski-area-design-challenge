@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import type { SkiNetwork } from '../network';
 import type { SimulationClock } from '../types/simulation';
@@ -23,13 +23,18 @@ export function useMapGuestSimulationFeature(options: {
 }) {
   const [portal, setPortal] = useState<import('./guestPortalPlacement').PlacedGuestPortal | null>(null);
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
+  const [nextDayTicketPriceCents, setNextDayTicketPriceCents] = useState(10_000);
   const followedGuestIdRef = useRef<string | null>(null);
   const followMapRef = useRef<maplibregl.Map | null>(null);
   const stopFollowingOnUserMoveRef = useRef((event: maplibregl.MapLibreEvent) => {
     if (event.originalEvent) followedGuestIdRef.current = null;
   });
+  const demand = useMemo(() => ({ dayType: options.clock.weekday === 0 || options.clock.weekday === 6 ? 'weekend' as const : 'weekday' as const,
+    basePotentialGuests: options.clock.weekday === 0 || options.clock.weekday === 6 ? 1_300 : 900,
+    ticketPriceCents: nextDayTicketPriceCents, referencePriceCents: 10_000, reputation: 0.6,
+    resortValue: 0.5, availableCapacityGuests: 50_000 }), [nextDayTicketPriceCents, options.clock.weekday]);
   const runtime = useGuestSimulationRuntime({ saveKey: options.saveKey, gameSaveUpdatedAt: options.saveRevision,
-    network: options.network, portal, clock: options.clock, snowGrid: options.snowGrid, restorePortal: setPortal });
+    network: options.network, portal, clock: options.clock, snowGrid: options.snowGrid, demand, restorePortal: setPortal });
   const controller = useGuestPortalController({ mapRef: options.mapRef, network: options.network, portal,
     points: runtime.points, setPortal, activate: options.activate, release: options.release,
     openDock: options.openDock, acquireInteractions: options.acquireInteractions, synchronizeMap: options.synchronizeMap });
@@ -59,5 +64,5 @@ export function useMapGuestSimulationFeature(options: {
     if (point) map.easeTo({ center: [point.lng, point.lat], duration: 250 });
   }, [options.mapRef, runtime.points]);
   return { portal, selectedGuestId, runtime, controller, points: runtime.points, selectGuest,
-    clearSelectedGuest };
+    clearSelectedGuest, nextDayTicketPriceCents, setNextDayTicketPriceCents };
 }

@@ -54,4 +54,17 @@ describe('GuestVibeCheck', () => {
     expect(html).toContain('No representative thoughts yet.');
     expect(html).toContain('No guests are available in this snapshot.');
   });
+
+  it('renders the Phase 3 market, ticket, and reconciliation readout in the existing panel', () => {
+    const html = render({ summary: { ...baseProps.summary, economy: {
+      ticketPriceCents: 2_500, expectedGuests: 1_240, bookedGuests: 1_000, arrivedGuests: 760,
+      unmetDemand: 240, ticketRevenueCents: 2_500_000, reputation: 0.74, hype: -0.12, reconciled: true,
+    } } });
+    expect(html).toContain('Market and finance');
+    expect(html).toContain('1,240');
+    expect(html).toContain('$25.00');
+    expect(html).toContain('$25,000.00');
+    expect(html).toContain('Reconciled');
+    expect(html).toContain('Ticket price is locked for this active day');
+  });
 });

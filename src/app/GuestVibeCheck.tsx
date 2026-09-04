@@ -19,6 +19,26 @@ export interface GuestVibeTopThought {
   readonly count?: number;
 }
 
+/**
+ * Compact Phase 3 market readout.  The worker owns the authoritative values;
+ * this component only formats the already-reconciled snapshot projection.
+ * Optional fields keep the dashboard compatible with pre-Phase-3 snapshots.
+ */
+export interface GuestVibeEconomySummary {
+  readonly ticketPriceCents?: number;
+  readonly expectedGuests?: number;
+  readonly bookedGuests?: number;
+  readonly arrivedGuests?: number;
+  readonly unmetDemand?: number;
+  readonly ticketRevenueCents?: number;
+  readonly reputation?: number;
+  readonly hype?: number;
+  readonly reconciled?: boolean;
+  /** Present only when a worker command can safely stage tomorrow's price. */
+  readonly nextDayTicketPriceCents?: number;
+  readonly onNextDayTicketPriceChange?: (ticketPriceCents: number) => void;
+}
+
 /** The small amount of per-guest information needed by the bounded picker. */
 export interface GuestVibeGuest {
   readonly id: string;
@@ -39,6 +59,7 @@ export interface GuestVibeSummary {
   readonly resolvedIncidentCount?: number;
   readonly patrolQueueCount?: number;
   readonly safetyRate?: number;
+  readonly economy?: GuestVibeEconomySummary;
 }
 
 export interface GuestVibeCheckProps {
@@ -101,6 +122,19 @@ function count(value: number): number {
 
 function formatCount(value: number): string {
   return count(value).toLocaleString();
+}
+
+function formatCents(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  return (Math.max(0, Math.round(value)) / 100).toLocaleString('en-US', {
+    style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+}
+
+function formatHype(value: number): string {
+  if (!Number.isFinite(value)) return '—';
+  const percent = Math.round(Math.min(1, Math.max(-1, value)) * 100);
+  return `${percent > 0 ? '+' : ''}${percent}%`;
 }
 
 function clampGuestLimit(value: number | undefined): number {
@@ -217,6 +251,51 @@ function GuestButton({ guest, selected, onSelect }: {
   </li>;
 }
 
+function EconomySummary({ economy }: { economy: GuestVibeEconomySummary }) {
+  const hasNextDayEditor = typeof economy.onNextDayTicketPriceChange === 'function';
+  const currentPrice = economy.ticketPriceCents;
+  const nextDayPrice = economy.nextDayTicketPriceCents ?? currentPrice ?? 1;
+  const onPriceChange = economy.onNextDayTicketPriceChange;
+  const priceControlId = 'guest-next-day-ticket-price';
+  return <div style={columnStyle}>
+    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+      <h3 style={sectionTitleStyle}>Market and finance</h3>
+      <span style={{ color: economy.reconciled === false ? 'var(--danger)' : 'var(--text-faint)', fontSize: 10 }}>
+        {economy.reconciled === undefined ? 'Current day' : economy.reconciled ? 'Reconciled' : 'Needs review'}
+      </span>
+    </div>
+    <div aria-label="Guest market summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+      <Metric label="Forecast" value={economy.expectedGuests === undefined ? '—' : formatCount(economy.expectedGuests)} />
+      <Metric label="Booked" value={economy.bookedGuests === undefined ? '—' : formatCount(economy.bookedGuests)} />
+      <Metric label="Unmet" value={economy.unmetDemand === undefined ? '—' : formatCount(economy.unmetDemand)} />
+    </div>
+    <div aria-label="Guest ticket finance summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+      <Metric label="Arrived" value={economy.arrivedGuests === undefined ? '—' : formatCount(economy.arrivedGuests)} />
+      <Metric label="Ticket revenue" value={economy.ticketRevenueCents === undefined ? '—' : formatCents(economy.ticketRevenueCents)} />
+      <Metric label="Reputation" value={economy.reputation === undefined ? '—' : `${Math.round(Math.min(1, Math.max(0, economy.reputation)) * 100)}%`} />
+    </div>
+    {(currentPrice !== undefined || economy.hype !== undefined) && <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+      {currentPrice !== undefined && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+        Current day ticket: <strong style={{ color: 'var(--text)' }}>{formatCents(currentPrice)}</strong>
+      </span>}
+      {economy.hype !== undefined && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+        Hype: <strong style={{ color: 'var(--text)' }}>{formatHype(economy.hype)}</strong>
+      </span>}
+    </div>}
+    {hasNextDayEditor ? <label htmlFor={priceControlId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+      color: 'var(--text-muted)', fontSize: 11 }}>
+      <span>Next-day ticket price</span>
+      <input id={priceControlId} type="number" min={1} step={1} value={Math.max(1, Math.round(nextDayPrice / 100))}
+        aria-label="Next-day ticket price in dollars"
+        onChange={(event) => onPriceChange?.(Math.max(1, Math.round(Number(event.target.value) * 100)))}
+        style={{ width: 92, boxSizing: 'border-box', padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 5,
+          background: 'var(--surface-solid)', color: 'var(--text)', font: 'inherit', fontVariantNumeric: 'tabular-nums' }} />
+    </label> : <p style={{ ...mutedStyle, margin: 0 }}>
+      Ticket price is locked for this active day; set the next-day price before opening the next roster.
+    </p>}
+  </div>;
+}
+
 /**
  * Compact RCT2-style guest mood readout for an existing dock/panel surface.
  * It deliberately owns no simulation state and never derives aggregates from
@@ -261,6 +340,8 @@ export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests,
       <Metric label="Patrol queue" value={formatCount(summary.patrolQueueCount ?? 0)} />
       <Metric label="Safe runs" value={`${Math.round(Math.min(1, Math.max(0, summary.safetyRate ?? 1)) * 100)}%`} />
     </div>
+
+    {summary.economy && <EconomySummary economy={summary.economy} />}
 
     <div style={columnStyle}>
       <h3 style={sectionTitleStyle}>Sentiment</h3>

@@ -2,6 +2,52 @@ import { createDailyGuestRoster, GuestSimulationEngine } from '../guestSimulatio
 import { workerEnvironment, type GuestSimulationWorkerRequest, type GuestSimulationWorkerResponse } from './guestSimulationWorkerProtocol';
 import { decodeGuestSimulationReplayState, encodeGuestSimulationReplayState } from '../guestSimulation/replayPersistence';
 import { replayStateFromGuestSimulationEngine, restoreGuestSimulationEngine } from '../guestSimulation/enginePersistence';
+import { planDailyArrivals, type DemandScenarioInputV1 } from '../guestSimulation/demand';
+import { blendedReputationScore } from '../guestSimulation/phase3Economy';
+
+const DEFAULT_DEMAND_BUCKET_SECONDS = 10 * 60;
+const DEFAULT_DEMAND_MAX_GUESTS = 50_000;
+const DEFAULT_DEMAND_MAX_PARTIES = 20_000;
+
+function isSafeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value);
+}
+
+function rosterFromWorkerRequest(request: Extract<GuestSimulationWorkerRequest, { type: 'initialize' }>){
+  if (!request.demand) {
+    const guestCount = request.guestCount;
+    if (!isSafeInteger(guestCount) || guestCount <= 0 || guestCount > DEFAULT_DEMAND_MAX_GUESTS) {
+      throw new RangeError('Guest count is outside supported bounds.');
+    }
+    return { roster: createDailyGuestRoster({ seed: request.seed, guestCount,
+      portals: request.network.portals, startTick: request.startTick, endTick: request.endTick }) };
+  }
+  const demand = request.demand;
+  const scenarioInput: DemandScenarioInputV1 = {
+    seed: request.seed,
+    startTick: request.startTick,
+    endTick: request.endTick,
+    bucketSeconds: demand.bucketSeconds ?? DEFAULT_DEMAND_BUCKET_SECONDS,
+    dayType: demand.dayType,
+    basePotentialGuests: demand.basePotentialGuests,
+    ticketPriceCents: demand.ticketPriceCents,
+    referencePriceCents: demand.referencePriceCents,
+    reputation: request.openingReputation
+      ? blendedReputationScore(request.openingReputation) / 10_000 : demand.reputation,
+    resortValue: demand.resortValue,
+    operatingFraction: demand.operatingFraction,
+    conditionFactor: demand.conditionFactor,
+    availableCapacityGuests: demand.availableCapacityGuests,
+    maxGuests: demand.maxGuests ?? DEFAULT_DEMAND_MAX_GUESTS,
+    maxParties: demand.maxParties ?? DEFAULT_DEMAND_MAX_PARTIES,
+  };
+  const planned = planDailyArrivals(scenarioInput);
+  // The demand plan is authoritative for arrival shape. The roster factory
+  // still owns stable guest/party identity and preference generation.
+  return { roster: createDailyGuestRoster({ seed: request.seed, guestCount: planned.realization.guestCount,
+    portals: request.network.portals, startTick: request.startTick, endTick: request.endTick,
+    demandPlan: planned.demandPlan }), planned };
+}
 
 /** Stateful worker body. Its only clock input is an explicit game-time command. */
 export class GuestSimulationWorkerEngine {
@@ -16,15 +62,20 @@ export class GuestSimulationWorkerEngine {
     this.lastSequence = request.sequence;
     try {
       if (request.type === 'initialize') {
-        if (!Number.isSafeInteger(request.guestCount) || request.guestCount <= 0 || request.guestCount > 50_000 ||
-          !Number.isSafeInteger(request.startTick) || !Number.isSafeInteger(request.endTick) || request.endTick < request.startTick) {
+        const legacyGuestCount = request.guestCount;
+        if (!isSafeInteger(request.startTick) || request.startTick < 0
+          || !isSafeInteger(request.endTick) || request.endTick <= request.startTick
+          || (!request.demand && (!isSafeInteger(legacyGuestCount) || legacyGuestCount <= 0 || legacyGuestCount > DEFAULT_DEMAND_MAX_GUESTS))) {
           return { type: 'error', requestId: request.requestId, sequence: request.sequence, code: 'invalid-request',
             message: 'Guest count or simulation horizon is outside supported bounds.' };
         }
-        const roster = createDailyGuestRoster({ seed: request.seed, guestCount: request.guestCount,
-          portals: request.network.portals, startTick: request.startTick, endTick: request.endTick });
+        const { roster, planned } = rosterFromWorkerRequest(request);
         this.engine = new GuestSimulationEngine({ network: request.network, roster, runId: request.runId,
-          environment: workerEnvironment(request), conditionSnapshot: request.conditionSnapshot });
+          environment: workerEnvironment(request), conditionSnapshot: request.conditionSnapshot,
+          phase3: { dayId: `${request.seed}:${request.startTick}`,
+            ticketPriceCents: request.demand?.ticketPriceCents ?? 10_000,
+            demandForecast: planned?.forecast, demandRealization: planned?.realization,
+            openingReputation: request.openingReputation } });
         return { type: 'ready', requestId: request.requestId, sequence: request.sequence,
           snapshot: this.engine.snapshot() };
       }

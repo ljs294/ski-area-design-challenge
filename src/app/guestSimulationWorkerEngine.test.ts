@@ -3,6 +3,7 @@ import { createDefaultGuestSimulationNetwork } from '../guestSimulation/engine';
 import type { GuestPortal } from '../guestSimulation/contracts';
 import { GuestSimulationWorkerEngine } from './guestSimulationWorkerEngine';
 import { createConditionSnapshot } from '../guestSimulation/conditions';
+import { planDailyArrivals } from '../guestSimulation/demand';
 
 const portal: GuestPortal = { version: 1, id: 'portal-1', kind: 'guest-entrance', type: 'guest-entrance',
   semantics: 'guest-entrance', direction: 'inbound', accepts: 'guests', label: 'Entrance',
@@ -15,6 +16,59 @@ function initialize(runtime: GuestSimulationWorkerEngine) {
 }
 
 describe('guest simulation worker engine', () => {
+  it('uses the deterministic Phase 3 realization as the roster authority', () => {
+    const runtime = new GuestSimulationWorkerEngine();
+    const demand = { dayType: 'weekend' as const, basePotentialGuests: 700, ticketPriceCents: 100,
+      referencePriceCents: 100, reputation: 0.85, resortValue: 0.75, availableCapacityGuests: 320,
+      maxGuests: 500, maxParties: 500, bucketSeconds: 600 };
+    const expected = planDailyArrivals({ seed: 'demand-seed', startTick: 0, endTick: 9_600,
+      ...demand });
+    const response = runtime.handle({ type: 'initialize', requestId: 'demand', sequence: 0, runId: 'demand-run',
+      seed: 'demand-seed', network: createDefaultGuestSimulationNetwork([portal]), startTick: 0, endTick: 9_600,
+      environmentRevision: 2, topologyRevision: 3, demand });
+    expect(response.type).toBe('ready');
+    if (response.type === 'ready') {
+      expect(response.snapshot.metrics.population).toBe(expected.realization.guestCount);
+      expect(response.snapshot.demandPlan.guestCount).toBe(expected.realization.guestCount);
+      expect(response.snapshot.demandPlan.seed).toBe('demand-seed');
+      expect(response.snapshot.demandPlan.waves.length).toBe(expected.demandPlan.waves.length);
+      expect(response.snapshot.phase3.demandForecast?.checksum).toBe(expected.forecast.checksum);
+      expect(response.snapshot.phase3.demandRealization?.checksum).toBe(expected.realization.checksum);
+      expect(response.snapshot.phase3.economy.metrics.ticketCount).toBe(expected.realization.guestCount);
+      expect(response.snapshot.phase3.economy.metrics.ticketRevenueCents)
+        .toBe(expected.realization.guestCount * demand.ticketPriceCents);
+      expect(response.snapshot.phase3.reconciled).toBe(true);
+      const checkpoint = runtime.handle({ type: 'checkpoint', requestId: 'demand-checkpoint', sequence: 1 });
+      expect(checkpoint.type).toBe('checkpoint');
+      if (checkpoint.type === 'checkpoint') {
+        const restored = new GuestSimulationWorkerEngine().handle({ type: 'restore', requestId: 'demand-restore',
+          sequence: 0, bytes: checkpoint.bytes, expectedTopologyRevision: 3 });
+        if (restored.type === 'error') throw new Error(restored.message);
+        expect(restored.type).toBe('ready');
+        if (restored.type === 'ready') expect(restored.snapshot.checksum).toBe(checkpoint.snapshot.checksum);
+      }
+    }
+  });
+
+  it('allows a Phase 3 scenario to produce zero guests without a sentinel roster record', () => {
+    const runtime = new GuestSimulationWorkerEngine();
+    const response = runtime.handle({ type: 'initialize', requestId: 'empty-demand', sequence: 0, runId: 'empty-run',
+      seed: 'empty-seed', network: createDefaultGuestSimulationNetwork([portal]), startTick: 0, endTick: 9_600,
+      environmentRevision: 2, topologyRevision: 3, demand: { dayType: 'weekday', basePotentialGuests: 0,
+        ticketPriceCents: 100, referencePriceCents: 100, reputation: 0.5, resortValue: 0.5,
+        availableCapacityGuests: 500, maxGuests: 500, maxParties: 500, bucketSeconds: 600 } });
+    expect(response.type).toBe('ready');
+    if (response.type === 'ready') {
+      expect(response.snapshot.metrics.population).toBe(0);
+      expect(response.snapshot.guests).toHaveLength(0);
+      expect(response.snapshot.parties).toHaveLength(0);
+    }
+    const advanced = runtime.handle({ type: 'advance', requestId: 'empty-advance', sequence: 1, toTick: 600,
+      expectedEnvironmentRevision: 2, expectedTopologyRevision: 3 });
+    expect(advanced.type).toBe('advanced');
+    if (advanced.type === 'advanced') expect(advanced.snapshot.metrics.population).toBe(0);
+  });
+
   it('rejects stale sequence and composite revisions', () => {
     const runtime = new GuestSimulationWorkerEngine();
     expect(initialize(runtime).type).toBe('ready');

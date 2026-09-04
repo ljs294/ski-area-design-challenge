@@ -34,6 +34,26 @@ function smallNetwork(portals: readonly GuestPortal[] = [portal('entrance')]) {
 }
 
 describe('Phase 1A guest simulation engine', () => {
+  it('uses a realized demand plan as roster authority and permits a zero-demand day', () => {
+    const network = smallNetwork();
+    const empty = createDailyGuestRoster({ seed: 'quiet-day', guestCount: 0, portals: network.portals,
+      startTick: 0, endTick: 100, demandPlan: { version: 1, seed: 'quiet-day', guestCount: 0,
+        partyCount: 0, startTick: 0, endTick: 100, heavyGroupCount: 0,
+        waves: [{ id: 'empty', kind: 'weekday', startTick: 0, endTick: 100, guestCount: 0, partyCount: 0 }] } });
+    expect(empty.guests).toHaveLength(0);
+    expect(createGuestSimulationEngine({ network, roster: empty }).snapshot().metrics.population).toBe(0);
+
+    const demandPlan = { version: 1 as const, seed: 'demand-shaped', guestCount: 6, partyCount: 4,
+      startTick: 0, endTick: 100, heavyGroupCount: 0,
+      waves: [{ id: 'early', kind: 'weekday' as const, startTick: 0, endTick: 50, guestCount: 2, partyCount: 1 },
+        { id: 'late', kind: 'weekday' as const, startTick: 50, endTick: 100, guestCount: 4, partyCount: 3 }] };
+    const roster = createDailyGuestRoster({ seed: demandPlan.seed, guestCount: 6, portals: network.portals,
+      startTick: 0, endTick: 100, demandPlan });
+    expect(roster.guests.filter((guest) => guest.arrivalTick < 50)).toHaveLength(2);
+    expect(roster.guests.filter((guest) => guest.arrivalTick >= 50)).toHaveLength(4);
+    expect(roster.demandPlan.waves.map((wave) => wave.guestCount)).toEqual([2, 4]);
+  });
+
   it('places only inbound portals on existing network nodes', () => {
     const network = smallNetwork();
     const placed = placeGuestPortal(network, { portalId: 'new-entrance', nodeId: 'portal-node', capacityGuestsPerTick: 3 });
@@ -97,6 +117,10 @@ describe('Phase 1A guest simulation engine', () => {
     const snapshot = engine.advanceTo(1_000);
     expect(snapshot.guests.every((guest) => guest.status === 'departed')).toBe(true);
     expect(snapshot.thoughtEvents.some((event) => event.kind === 'leaving')).toBe(true);
+    expect(snapshot.phase3.economy.visitOutcomes).toHaveLength(2);
+    expect(snapshot.phase3.economy.closed).toBe(true);
+    expect(snapshot.phase3.economy.closing?.nextDayReputation.checksum).toBeTruthy();
+    expect(snapshot.phase3.reconciled).toBe(true);
   });
 
   it('keeps a party on one leader-owned route constrained by its weakest member', () => {

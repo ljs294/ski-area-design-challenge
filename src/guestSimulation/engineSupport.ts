@@ -21,6 +21,7 @@ import { scoreConditionAwareRoute, type ConditionSnapshot } from './conditions.t
 import type { EarlyDepartureDecision, ThoughtAggregation } from './experience.ts';
 import type { InjuryIncident } from './injury.ts';
 import type { Phase4SafetySnapshot } from './phase4Safety.ts';
+import type { Phase3RuntimeInput, Phase3SimulationSnapshot } from './phase3Runtime.ts';
 
 export type GuestNetworkNodeKind = 'portal' | 'lift-base' | 'lift-top' | 'junction';
 
@@ -114,6 +115,8 @@ export interface DailyRosterOptions {
   readonly portals: readonly GuestPortal[];
   readonly startTick?: SimulatedSecond;
   readonly endTick?: SimulatedSecond;
+  /** Optional Phase 3 authority for the realised within-day arrival shape. */
+  readonly demandPlan?: DemandPlan;
 }
 
 export interface DailyGuestRoster {
@@ -157,6 +160,7 @@ export interface GuestSimulationEngineSnapshot extends GuestSimulationSnapshot {
   readonly thoughtAggregation: ThoughtAggregation;
   readonly earlyDepartures: readonly { guestId: GuestId; tick: SimulatedSecond; decision: EarlyDepartureDecision }[];
   readonly safety: Phase4SafetySnapshot;
+  readonly phase3: Phase3SimulationSnapshot;
 }
 
 export interface GuestSimulationPendingEvent {
@@ -182,6 +186,7 @@ export interface GuestSimulationEngineOptions {
   readonly config?: GuestSimulationConfig;
   readonly environment?: GuestSimulationEnvironmentSnapshot;
   readonly conditionSnapshot?: ConditionSnapshot;
+  readonly phase3?: Phase3RuntimeInput;
 }
 
 export type GuestSimulationEventPayload =
@@ -327,19 +332,41 @@ function preferenceFor(seed: RandomSeed, ordinal: number): GuestPreferences {
 }
 
 export function createDailyGuestRoster(options: DailyRosterOptions): DailyGuestRoster {
-  positiveInteger(options.guestCount, 'guestCount');
+  if (!Number.isSafeInteger(options.guestCount) || options.guestCount < 0) {
+    throw new RangeError('guestCount must be a non-negative safe integer');
+  }
   if (options.portals.length === 0) throw new RangeError('daily roster requires at least one guest portal');
   for (const portal of options.portals) validatePortal(portal);
   const seed = stringSeed(options.seed), startTick = options.startTick ?? 0, endTick = options.endTick ?? DEFAULT_DAY_END;
   tick(startTick, 'roster startTick'); tick(endTick, 'roster endTick');
   if (endTick <= startTick) throw new RangeError('roster endTick must be after startTick');
+  const suppliedPlan = options.demandPlan;
+  if (suppliedPlan && (suppliedPlan.seed !== seed || suppliedPlan.guestCount !== options.guestCount
+    || suppliedPlan.startTick !== startTick || suppliedPlan.endTick !== endTick)) {
+    throw new RangeError('demandPlan must match the roster seed, guest count, and horizon');
+  }
   const guests: Guest[] = [], parties: Party[] = [];
-  const waveCount = Math.min(3, endTick - startTick), waveLength = Math.max(1, Math.ceil((endTick - startTick) / waveCount));
+  const waveCount = suppliedPlan?.waves.length ?? Math.min(3, endTick - startTick);
+  const waveLength = Math.max(1, Math.ceil((endTick - startTick) / Math.max(1, waveCount)));
+  const rosterWaves = suppliedPlan?.waves ?? Array.from({ length: waveCount }, (_, index) => {
+    const waveStart = startTick + index * waveLength;
+    const baseGuests = Math.floor(options.guestCount / waveCount);
+    const allocatedGuests = baseGuests + (index < options.guestCount % waveCount ? 1 : 0);
+    return { id: `wave-${String(index + 1).padStart(2, '0')}`, kind: index === 1 ? 'weekend' as const : 'weekday' as const,
+      startTick: waveStart, endTick: index === waveCount - 1 ? endTick : Math.min(endTick, waveStart + waveLength),
+      guestCount: allocatedGuests, partyCount: 0 };
+  });
   let guestOrdinal = 0, partyOrdinal = 0;
+  let waveIndex = 0, guestsPlacedInWave = 0;
   while (guestOrdinal < options.guestCount) {
-    const partySize = Math.min(options.guestCount - guestOrdinal, keyedRandomInt(seed, `party-${partyOrdinal + 1}`, 'party-size', 0, 1, Math.min(4, options.guestCount - guestOrdinal)));
-    const waveIndex = partyOrdinal % waveCount, waveStart = startTick + waveIndex * waveLength;
-    const waveEnd = waveIndex === waveCount - 1 ? endTick : Math.min(endTick, waveStart + waveLength);
+    while (waveIndex < rosterWaves.length - 1 && guestsPlacedInWave >= rosterWaves[waveIndex]!.guestCount) {
+      waveIndex += 1; guestsPlacedInWave = 0;
+    }
+    const wave = rosterWaves[waveIndex]!;
+    const remainingInWave = Math.max(1, wave.guestCount - guestsPlacedInWave);
+    const maximumParty = Math.min(4, options.guestCount - guestOrdinal, remainingInWave);
+    const partySize = keyedRandomInt(seed, `party-${partyOrdinal + 1}`, 'party-size', 0, 1, maximumParty);
+    const waveStart = wave.startTick, waveEnd = wave.endTick;
     const arrivalTick = keyedRandomInt(seed, `party-${partyOrdinal + 1}`, 'arrival', 0, waveStart, Math.max(waveStart, waveEnd - 1));
     const departureTick = Math.min(endTick, arrivalTick + 4 * 60 * 60 + (partyOrdinal % 3) * 60 * 60);
     const partyId = `party-${String(partyOrdinal + 1).padStart(5, '0')}`;
@@ -351,15 +378,15 @@ export function createDailyGuestRoster(options: DailyRosterOptions): DailyGuestR
     for (let member = 0; member < partySize; member += 1) {
       const id = guestIds[member]!;
       guests.push(Object.freeze({ id, partyId, ordinal: guestOrdinal + member,
-        arrivalTick: Math.min(endTick - 1, arrivalTick + Math.min(member, 2)), plannedDepartureTick: departureTick,
+        arrivalTick: Math.min(waveEnd - 1, arrivalTick + Math.min(member, 2)), plannedDepartureTick: departureTick,
         portalId: partyPortalId, preferences: preferenceFor(seed, guestOrdinal + member), futurePartyId: null }));
     }
-    guestOrdinal += partySize; partyOrdinal += 1;
+    guestOrdinal += partySize; partyOrdinal += 1; guestsPlacedInWave += partySize;
   }
-  const waves = freezeArray(Array.from({ length: waveCount }, (_, index) => {
-    const waveStart = startTick + index * waveLength, waveEnd = index === waveCount - 1 ? endTick : Math.min(endTick, waveStart + waveLength);
+  const waves = freezeArray(rosterWaves.map((wave) => {
+    const waveStart = wave.startTick, waveEnd = wave.endTick;
     const selected = parties.filter((party) => party.arrivalTick >= waveStart && party.arrivalTick < waveEnd);
-    return Object.freeze({ id: `wave-${String(index + 1).padStart(2, '0')}`, kind: index === 1 ? 'weekend' as const : 'weekday' as const,
+    return Object.freeze({ id: wave.id, kind: wave.kind,
       startTick: waveStart, endTick: waveEnd, guestCount: selected.reduce((sum, party) => sum + party.size, 0), partyCount: selected.length });
   }));
   const demandPlan: DemandPlan = Object.freeze({ version: GUEST_SIMULATION_CONTRACT_VERSION, seed, guestCount: guests.length,
