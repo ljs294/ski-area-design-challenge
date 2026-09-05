@@ -30,7 +30,7 @@ test('live providers prepare and persist a New Game resort package', async ({ pa
 
   await page.goto('/?flat', { waitUntil: 'load' });
   await expect(page.getByRole('navigation', { name: 'Main menu' })).toBeVisible();
-  await page.getByRole('button', { name: 'New Game' }).click();
+  await page.getByRole('button', { name: 'New Resort' }).click();
   await expect(page.getByRole('button', { name: /Select site/ })).toBeVisible();
   await expect.poll(() => page.evaluate(() => Boolean(
     (globalThis as typeof globalThis & {

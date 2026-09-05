@@ -29,6 +29,7 @@ export function useMapKeyboardControls(options: MapKeyboardControlsOptions): voi
     const heldKeys = heldRef.current;
     function stepFrame(timestamp: number) {
       rafIdRef.current = null;
+      if (optionsRef.current.suspended || document.activeElement?.closest('[aria-modal="true"]') || isTypingTarget(document.activeElement)) heldKeys.clear();
       if (!heldKeys.size) { lastFrameRef.current = null; return; }
       const last = lastFrameRef.current ?? timestamp;
       const elapsed = Math.min(0.1, Math.max(0, (timestamp - last) / 1000));

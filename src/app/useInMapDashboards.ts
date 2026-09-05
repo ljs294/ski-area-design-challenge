@@ -322,10 +322,12 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     setLiftId(null); setEdgeId(null); setSnowSelection(null); setSnowHover(null);
   };
   const change = (kind: DashboardKind | null) => {
+    activeRef.current = kind;
     setSnowGunSelectionPhase('idle'); setActive(kind); clear();
     if (kind === 'snowmaking') setSnowMode('inspect');
   };
   const close = () => {
+    activeRef.current = null;
     setSnowGunSelectionPhase('idle'); setActive(null); setSnowMode('inspect'); clear();
   };
   const fit = () => {

@@ -1,5 +1,6 @@
 import type maplibregl from 'maplibre-gl';
 import { createGameBasemapStyle, createMasterPlanStyle } from './masterPlanStyle';
+import { themedBasemap } from './mapTheme';
 
 // Both styles are OpenMapTiles-schema vector basemaps (source-layers water /
 // transportation / building), so the analysis overlays + basemap feature
@@ -17,10 +18,10 @@ export const DARK_BASEMAP =
  * style so live imagery/labels are available while choosing a site.
  */
 export function basemapFor(
-  _theme: 'light' | 'dark',
+  theme: 'light' | 'dark',
   opts?: { offline?: boolean }
 ): maplibregl.StyleSpecification {
-  return opts?.offline ? createGameBasemapStyle() : createMasterPlanStyle();
+  return themedBasemap(opts?.offline ? createGameBasemapStyle() : createMasterPlanStyle(), theme);
 }
 
 /**
@@ -45,3 +46,5 @@ export function tuneBasemap(map: maplibregl.Map): void {
     }
   }
 }
+
+export { applyMapTheme } from './mapTheme';

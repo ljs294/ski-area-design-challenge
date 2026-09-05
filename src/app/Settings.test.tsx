@@ -60,11 +60,11 @@ describe('Settings tabs', () => {
     expectLabel(html, 'Metric');
   });
 
-  it('omits Resort Data when no active-resort capability is supplied', () => {
+  it('keeps Data available for downloaded terrain without an active resort', () => {
     const html = render();
 
-    expect(html).not.toContain('settings-tab-resort-data');
-    expect(html).not.toContain('settings-panel-resort-data');
+    expect(html).toContain('settings-tab-resort-data');
+    expect(html).toContain('settings-panel-resort-data');
     expect(html).not.toContain('Resort Data');
   });
 });

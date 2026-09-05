@@ -4,6 +4,7 @@ import maplibregl from 'maplibre-gl';
 import type { GameSave } from '../types/gameSave';
 import type { TerrainRecord } from '../types/terrain';
 import { basemapFor, tuneBasemap } from './basemapStyle';
+import { applyMapTheme } from './mapTheme';
 import { applyAnalysisRenderProfile, setContourUnits, type LayerToggle } from './analysisLayers';
 import type { Readout } from './CursorReadout';
 import type { MapInteractionLease } from './mapInteractionLease';
@@ -62,6 +63,8 @@ interface MapRuntimeOptions {
 /** Owns MapLibre creation, style restoration, camera warm-up, and live settings. */
 export function useMapRuntime(options: MapRuntimeOptions): void {
   const firstModeRun = useRef(true);
+  const themeRef = useRef(options.resolvedTheme);
+  themeRef.current = options.resolvedTheme;
   const appliedProfileRef = useRef(options.renderQuality);
 
   const reinitializeStyle = (map: maplibregl.Map) => {
@@ -139,6 +142,7 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
         options.showLocalBoot(null);
       }
     }
+    applyMapTheme(map, themeRef.current);
     options.setLayers(applied);
   };
 
@@ -309,10 +313,15 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
 
   useEffect(() => {
     if (firstModeRun.current) { firstModeRun.current = false; return; }
-    options.mapRef.current?.setStyle(basemapFor('light', {
+    options.mapRef.current?.setStyle(basemapFor(themeRef.current, {
       offline: options.mode === 'playing',
     }));
   }, [options.mapRef, options.mode]);
+
+  useEffect(() => {
+    const map = options.mapRef.current;
+    if (map?.isStyleLoaded()) applyMapTheme(map, options.resolvedTheme);
+  }, [options.mapRef, options.resolvedTheme, options.canStart]);
 
   useEffect(() => {
     setContourUnits(options.mapRef.current, options.terrainRecordRef.current, options.units);

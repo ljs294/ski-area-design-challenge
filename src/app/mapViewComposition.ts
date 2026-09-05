@@ -4,3 +4,5 @@ export { useMapGuestSimulationFeature } from './useMapGuestSimulationFeature';
 export { guestVibePresentation, withGuestEconomyControls } from './guestVibePresentation';
 export { saveGameWithGuestCheckpoint } from './guestSimulationSave';
 export { has3DBuildingContext } from '../vectorFeatures';
+
+export { createWorkspaceNavigation } from './workspaceNavigation';

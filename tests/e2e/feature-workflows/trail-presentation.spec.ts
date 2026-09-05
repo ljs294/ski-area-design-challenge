@@ -34,7 +34,7 @@ test('overlapping run swaths become one surface while repeated clicks cycle thei
   const beta = savedRun('beta', 'Beta Run', polygon,
     [[-121.49495, 46.9053], [-121.49495, 46.9047]]);
   await seedPreparedResort(page, { trails: [beta, alpha] });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, CENTER, 16);
 
@@ -69,7 +69,7 @@ test('a terminating branch yields while its same-run continuation remains drawn 
         fromJunctionId: 'branch-start', toJunctionId: 'join' },
     ]);
   await seedPreparedResort(page, { trails: [branch, through] });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   await expect.poll(async () => (await trailSource(page)).features

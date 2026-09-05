@@ -35,6 +35,7 @@ export function ResortStatsPanel({
   units,
   averageAnnualSnowfallCm,
   onClose,
+  embedded = false,
 }: {
   name: string;
   onRename: (name: string) => void;
@@ -47,6 +48,7 @@ export function ResortStatsPanel({
   units: Units;
   averageAnnualSnowfallCm: number | null;
   onClose: () => void;
+  embedded?: boolean;
 }) {
   const { summitM, baseM, verticalM } = resortElevations(lifts, trails);
   const runTotals = resortTrailTotals(trails);
@@ -68,7 +70,7 @@ export function ResortStatsPanel({
   const elev = (m: number | null) => (m == null ? '—' : fmtDistance(m, units));
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className={embedded ? 'resort-overview' : 'modal-overlay'} onClick={embedded ? undefined : onClose}>
       <div className="settings-panel resort-stats" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <input

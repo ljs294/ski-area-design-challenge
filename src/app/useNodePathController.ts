@@ -187,14 +187,16 @@ export function useNodePathController(options: NodePathControllerOptions) {
     const current = nodeRef.current;
     if (current.phase !== 'add' || !current.candidate) return;
     const edit = optionsRef.current.topology.begin();
-    if (!edit.splitTrail(current.candidate.trailId, current.candidate.point,
-      optionsRef.current.createId)) {
+    const junction = edit.splitTrail(current.candidate.trailId, current.candidate.point, optionsRef.current.createId);
+    if (!junction) {
       edit.abort(); nodeDispatch({ type: 'add-candidate', candidate: null,
         error: 'That run cannot be split there.' }); return;
     }
     if (!edit.changed.junctions) { edit.abort(); nodeDispatch({ type: 'add-candidate',
       candidate: null, error: 'There is already a node there.' }); return; }
-    edit.commit(); nodeDispatch({ type: 'committed' });
+    if (!edit.commit().ok) { nodeDispatch({ type: 'add-candidate', candidate: current.candidate,
+      error: 'The trail network changed. Pick the node location again.' }); return; }
+    cancelNode(); optionsRef.current.selectNode(junction.id);
   }
   function removeNode(id: string): void {
     const edit = optionsRef.current.topology.begin();
@@ -234,9 +236,11 @@ export function useNodePathController(options: NodePathControllerOptions) {
     if (!from) { edit.abort(); return; }
     const to = edit.splitTrail(current.to.trailId, current.to.point, optionsRef.current.createId);
     if (!to) { edit.abort(); return; }
-    edit.addPath(pathFromReview(current, optionsRef.current.paths, optionsRef.current.createId(),
-      optionsRef.current.now(), from.id, to.id));
+    const path = pathFromReview(current, optionsRef.current.paths, optionsRef.current.createId(),
+      optionsRef.current.now(), from.id, to.id);
+    edit.addPath(path);
     edit.commit(); pathDispatch({ type: 'cancel' }); optionsRef.current.release('ski-path');
+    optionsRef.current.selectPath(path.id);
   }
   function removePath(id: string): void { const edit = optionsRef.current.topology.begin();
     edit.removePath(id); edit.commit(); optionsRef.current.clearSelectedPath(id); }

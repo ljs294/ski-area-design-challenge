@@ -243,6 +243,7 @@ export function useDamController(options: DamControllerOptions): DamController {
         dispatch({ type: 'cancel' });
         optionsRef.current.release();
         committed = true;
+        optionsRef.current.select(dam.id);
       } catch (error) {
         dispatch({ type: 'build-failed',
           error: error instanceof Error ? error.message : 'Unable to build this dam.' });

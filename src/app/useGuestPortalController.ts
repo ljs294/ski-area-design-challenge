@@ -26,6 +26,7 @@ export function useGuestPortalController(options: {
   reducedMotion: boolean;
   connectivity: GuestConnectivity;
   setPortal(portal: PlacedGuestPortal | null): void;
+  selectGuest?(id: string): void;
   activate(): boolean;
   release(): void;
   openDock(): void;
@@ -43,7 +44,7 @@ export function useGuestPortalController(options: {
   if (!contributionRef.current) contributionRef.current = {
     id: 'guest', zOrder: MAP_Z_ORDER.guest,
     hits: [{ id: 'guest', priority: MAP_HIT_RANK.guest, layerIds: [GUEST_HIT_LAYER_ID],
-      select: () => undefined }],
+      select: (id) => optionsRef.current.selectGuest?.(id) }],
     install: ({ map }) => addGuestLayers(map),
     synchronizeData: ({ map }) => {
       animationGenerationRef.current += 1;

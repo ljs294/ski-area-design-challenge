@@ -9,6 +9,8 @@ import type { Theme, Units, RenderQuality } from './SettingsContext';
 import type { WindowMode } from '../ipcContract';
 import { isDesktop } from '../desktopBridge';
 import { GAME_ACTION_LABELS, GAME_ACTION_ORDER, actionForKey, normalizeKey } from '../keybinds';
+import { TerrainLibrary } from './MapManagement';
+import { useDialogFocus } from './ui';
 import type { GameAction } from '../keybinds';
 
 export interface ResortSettingsCapability {
@@ -38,7 +40,7 @@ type MapContextDownloadState =
 
 const GENERAL_TAB: SettingsTabDefinition = { id: 'general', label: 'General' };
 const CONTROLS_TAB: SettingsTabDefinition = { id: 'controls', label: 'Controls' };
-const RESORT_DATA_TAB: SettingsTabDefinition = { id: 'resort-data', label: 'Resort Data' };
+const RESORT_DATA_TAB: SettingsTabDefinition = { id: 'resort-data', label: 'Data' };
 
 /** A segmented row of mutually-exclusive choices. */
 function Segmented<T extends string>({
@@ -80,9 +82,10 @@ function panelId(tab: SettingsTab): string {
 }
 
 export function Settings({ onClose, resortSettings }: SettingsProps) {
+  const dialogRef = useDialogFocus();
   const {
     settings, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
-    setKeybind, resetKeybinds,
+    setKeybind, resetKeybinds, setInterfaceScale,
   } = useSettings();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [listeningFor, setListeningFor] = useState<GameAction | null>(null);
@@ -93,20 +96,19 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
   const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
   const downloadController = useRef<AbortController | null>(null);
 
-  const tabs: SettingsTabDefinition[] = resortSettings
-    ? [GENERAL_TAB, CONTROLS_TAB, RESORT_DATA_TAB]
-    : [GENERAL_TAB, CONTROLS_TAB];
+  const tabs: SettingsTabDefinition[] = [GENERAL_TAB, CONTROLS_TAB, RESORT_DATA_TAB];
 
   // Escape closes Settings unless a keybinding listener owns that key, in
   // which case Escape only cancels the in-progress binding.
   useEffect(() => {
     if (listeningFor !== null) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [listeningFor, onClose]);
+    const root = dialogRef.current;
+    root?.addEventListener('keydown', onKey);
+    return () => root?.removeEventListener('keydown', onKey);
+  }, [listeningFor, onClose, dialogRef]);
 
   // While rebinding, capture the next keydown before MapView's global camera
   // controls can observe it.
@@ -129,9 +131,10 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
       setKeybind(action, key);
       setListeningFor(null);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [listeningFor, settings.keybinds, setKeybind]);
+    const root = dialogRef.current;
+    root?.addEventListener('keydown', onKey);
+    return () => root?.removeEventListener('keydown', onKey);
+  }, [listeningFor, settings.keybinds, setKeybind, dialogRef]);
 
   useEffect(() => {
     if (!conflict) return;
@@ -240,7 +243,8 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="settings-panel settings-panel-tabbed" onClick={(event) => event.stopPropagation()}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Settings" tabIndex={-1} onKeyDown={(event) => event.stopPropagation()}
+        className="settings-panel settings-panel-tabbed" onClick={(event) => event.stopPropagation()}>
         <div className="settings-header">
           <h2 className="settings-title">Settings</h2>
           <button className="settings-close-x" aria-label="Close settings" onClick={onClose}>
@@ -287,6 +291,9 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
             options={windowOptions}
             onChange={setWindowMode}
           />
+          <Segmented label="Interface scale" value={settings.interfaceScale}
+            options={[{ value: '100', label: '100%' }, { value: '125', label: '125%' }, { value: '150', label: '150%' }]}
+            onChange={setInterfaceScale} />
           <Segmented
             label="Units"
             value={settings.units}
@@ -345,7 +352,7 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
           </button>
         </div>
 
-        {resortSettings && (
+        {(
           <div
             id={panelId('resort-data')}
             className="settings-body settings-tabpanel resort-data-panel"
@@ -354,7 +361,7 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
             aria-busy={mapContextDownload.status === 'downloading'}
             hidden={activeTab !== 'resort-data'}
           >
-            <h3 className="settings-section-title">Map context</h3>
+            {resortSettings && <><h3 className="settings-section-title">Map context</h3>
             {mapContextAvailable ? (
               <p className="resort-data-status" role="status">Map context available</p>
             ) : mapContextDownload.status === 'downloading' ? (
@@ -390,7 +397,8 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
                   Download Map Context
                 </button>
               </>
-            )}
+            )}</>}
+            {activeTab === 'resort-data' && <TerrainLibrary />}
           </div>
         )}
 

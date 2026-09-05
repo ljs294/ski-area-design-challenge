@@ -302,13 +302,13 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
       sampleTokenRef.current += 1;
       cancelLiveSamples();
       optionsRef.current.commands.add(lift);
+      dispatch({ type: 'cancel' });
+      optionsRef.current.release();
+      select(lift.id);
       try {
         await new Promise(requestAnimationFrame);
         await optionsRef.current.clearCover(lift);
-      } finally {
-        dispatch({ type: 'cancel' });
-        optionsRef.current.release();
-      }
+      } catch { /* Cover is best effort after the committed lift. */ }
     });
   }
 

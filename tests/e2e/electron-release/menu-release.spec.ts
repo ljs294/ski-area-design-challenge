@@ -11,7 +11,7 @@ test('packaged Electron release opens the main menu', async () => {
   try {
     const window = await application.firstWindow();
     await expect(window.getByRole('navigation', { name: 'Main menu' })).toBeVisible();
-    await expect(window.getByRole('button', { name: 'New Game' })).toBeEnabled();
+    await expect(window.getByRole('button', { name: 'New Resort' })).toBeEnabled();
 
     await application.evaluate(({ session }) => {
       const probe = globalThis as typeof globalThis & { overpassIdentityProbe?: string | null };

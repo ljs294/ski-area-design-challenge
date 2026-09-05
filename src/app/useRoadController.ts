@@ -272,6 +272,7 @@ export function useRoadController(options: RoadControllerOptions): RoadControlle
         dispatch({ type: 'cancel' });
         optionsRef.current.release();
         committed = true;
+        optionsRef.current.selectRoad(`player:${road.id}`);
       } catch (error) {
         failGrade(error instanceof Error ? error.message : 'Unable to save the road grade.');
       }

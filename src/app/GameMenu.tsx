@@ -1,3 +1,4 @@
+import { Icon } from './ui';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -34,11 +35,19 @@ export function GameMenu({
 
   useEffect(() => {
     if (!open) return;
+    rootRef.current?.querySelector<HTMLElement>('[role=menuitem]:not(:disabled)')?.focus();
     const onDown = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') { setOpen(false); rootRef.current?.querySelector<HTMLButtonElement>('.game-menu-btn')?.focus(); }
+      if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+        const items = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role=menuitem]:not(:disabled)') ?? []);
+        const index = items.indexOf(document.activeElement as HTMLButtonElement);
+        const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1
+          : (index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        e.preventDefault(); items[next]?.focus();
+      }
     };
     window.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
@@ -51,6 +60,7 @@ export function GameMenu({
   // Run an item's action and close the menu.
   const pick = (fn: () => void) => () => {
     setOpen(false);
+    rootRef.current?.querySelector<HTMLButtonElement>('.game-menu-btn')?.focus();
     fn();
   };
 
@@ -63,7 +73,7 @@ export function GameMenu({
         aria-haspopup="menu"
         title={unsaved ? 'Menu — unsaved changes' : 'Menu'}
       >
-        <span className="game-menu-icon" aria-hidden="true">☰</span>
+        <Icon name="menu" />
         <span className="game-menu-label">Menu</span>
         {unsaved && <span className="game-menu-dot" aria-label="Unsaved changes" role="status" />}
       </button>
@@ -91,7 +101,7 @@ export function GameMenu({
             </button>
           )}
           <button className="game-menu-item" role="menuitem" onClick={pick(onLoad)}>
-            Load
+            My Resorts
           </button>
           <button
             className="game-menu-item hud-settings"

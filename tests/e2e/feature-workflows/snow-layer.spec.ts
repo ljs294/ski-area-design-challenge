@@ -13,13 +13,14 @@ async function openSnow(page: Parameters<typeof seedPreparedResort>[0]) {
 
 test('snow overlay switches modes, survives restyle, and reloads its schema-16 snapshot', async ({ page }) => {
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await page.getByRole('button', { name: 'Layers' }).click();
   const layerMenu = page.locator('.dock-layers .dock-panel');
-  const layerMenuHeight = await layerMenu.evaluate((element) => element.clientHeight);
+  const layerMenuWidth = (await layerMenu.boundingBox())!.width;
   await page.getByRole('checkbox', { name: 'Snow', exact: true }).check();
-  await expect.poll(() => layerMenu.evaluate((element) => element.clientHeight)).toBe(layerMenuHeight);
+  // The temporary popover keeps its width as Snow opens in the workspace.
+  expect((await layerMenu.boundingBox())!.width).toBeCloseTo(layerMenuWidth, 0);
   await page.getByRole('button', { name: 'Close Snow layer' }).click();
   await expect(page.getByLabel('Snow layer controls')).toHaveCount(0);
   await expect.poll(() => visibilityOf(page, 'snow')).toBe('none');
@@ -36,7 +37,7 @@ test('snow overlay switches modes, survives restyle, and reloads its schema-16 s
   await page.mouse.move(center.x, center.y);
   await expect(page.getByLabel('Snow layer controls')).toContainText(/\d+ in/);
   await expect(page.getByLabel('Snow layer controls')).toContainText('P · Powder');
-  await page.locator('.dock-layers').getByRole('button', { name: 'Close' }).click();
+  await page.locator('.dock-layers').getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByLabel('Snow layer controls')).toBeVisible();
 
   await page.getByRole('button', { name: 'Conditions', exact: true }).click();
@@ -76,7 +77,7 @@ test('snow overlay switches modes, survives restyle, and reloads its schema-16 s
       east: -121.49, north: 46.91 }, width: 2, height: 2, cells: btoa(cell.repeat(4)) };
     localStorage.setItem(key, JSON.stringify(save));
   });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await openSnow(page);
   const reloadedCenter = await pointAt(page, CENTER);

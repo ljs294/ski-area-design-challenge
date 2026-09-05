@@ -1,3 +1,4 @@
+import { Dialog } from './ui';
 import { lazy, Suspense, useMemo, useState } from 'react';
 import type { TerrainRecord } from '../types/terrain';
 import type { SimulationSpeed } from '../types/simulation';
@@ -76,7 +77,7 @@ function ToolbarReadout({ readout, units }: { readout: Readout | null; units: Un
   </div>;
 }
 
-function GameWeatherOverlay({
+export function GameWeatherOverlay({
   terrain,
   weather,
   units,
@@ -107,8 +108,6 @@ function GameWeatherOverlay({
   } : null;
   return <><aside className="game-weather-overlay screen-panel" aria-label="Weather analysis overlay">
     <div className="game-weather-overlay-head"><strong>Weather analysis</strong><div className="game-weather-overlay-actions">
-      <button className="ghost-btn" onClick={() => setLabOpen(true)} disabled={!labState}
-        title={labState ? 'Inspect this game weather package' : 'Prepare weather before opening Weather Lab'}>Open in Weather Lab</button>
       <button className="ghost-btn" onClick={weather.toggleAnalysis}>Close</button>
     </div></div>
     {weather.status !== 'ready' || !current
@@ -118,14 +117,6 @@ function GameWeatherOverlay({
         <p>{formatGameTime(weather.clock.calendarDate, weather.session?.timezone)}</p>
         <p>{formatTemperature(current.temperatureC, units)} air / {formatTemperature(current.wetBulbC, units)} wet-bulb / {format(current.humidityPct)}% RH</p>
         <p>Wind {formatWindSpeed(current.windSpeedKph, units)} / {formatLiquidPrecipitationRate(current.precipitationMm, units)} {current.precipitationType}</p>
-        <p>Solar {format(current.globalRadiationWm2)} global / {format(current.directRadiationWm2)} direct / {format(current.diffuseRadiationWm2)} diffuse W/m2</p>
-        <p>Cloud transmission {format(current.cloudTransmissionPct)}% / sun elevation {format(current.solarElevationDeg)} deg</p>
-        {temperatureRange && <p>Terrain temperature field: {formatTemperature(temperatureRange.min, units)} to {formatTemperature(temperatureRange.max, units)}</p>}
-        <p className="game-weather-source">{weather.weatherPackage?.manifest.quality === 'limited'
-          ? `Limited/development package — ${weather.weatherPackage.manifest.sourceSummary}`
-          : source
-            ? `${source.provider} / ${source.quality}${source.correction !== 'none' ? ` / ${source.correction}` : ''}`
-            : `${weather.weatherPackage?.manifest.quality ?? 'unknown'} / ${weather.weatherPackage?.manifest.sourceSummary ?? 'no source metadata'}`}</p>
         {weather.weeklyOutlook && <section className="game-weekly-outlook" aria-label="Weekly weather outlook">
           <div className="game-forecast-title"><h3>Weekly outlook</h3><span>Composite source week</span></div>
           <p>{formatTemperature(weather.weeklyOutlook.temperatureRangeC.minimum, units)} to {formatTemperature(weather.weeklyOutlook.temperatureRangeC.maximum, units)}
@@ -136,7 +127,16 @@ function GameWeatherOverlay({
         <div className="game-forecast-title"><h3>Seven-day forecast</h3><span>Issued {formatGameTime(weather.forecast?.issuedAt, weather.session?.timezone)}</span></div>
         <div className="game-forecast-days" role="tablist" aria-label="Seven-day weather forecast">{forecastDays.map((day) => <button
           key={day.date} id={`game-forecast-tab-${day.date}`} role="tab"
-          aria-selected={activeDate === day.date} aria-controls="game-forecast-hourly"
+          aria-selected={activeDate === day.date} aria-controls="game-forecast-hourly" tabIndex={activeDate === day.date ? 0 : -1}
+          onKeyDown={(event) => {
+            if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault(); event.stopPropagation();
+            const index = forecastDays.findIndex((item) => item.date === day.date);
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? forecastDays.length - 1
+              : (index + (event.key === 'ArrowRight' ? 1 : -1) + forecastDays.length) % forecastDays.length;
+            setSelectedDate(forecastDays[next].date);
+            event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role=tab]')[next]?.focus();
+          }}
           onClick={() => setSelectedDate(day.date)}>
           <strong>{formatForecastDay(day.date)}</strong>
           <div className="game-forecast-card">
@@ -155,10 +155,25 @@ function GameWeatherOverlay({
               <time>{formatForecastHour(hour.at, weather.session?.timezone)}</time>
               <b>{formatTemperature(hour.temperatureC, units, 0)}</b>
               <small>{hour.precipitationType === 'none' ? 'Dry' : titleCase(hour.precipitationType)}</small>
+              <small>{formatLiquidPrecipitationRate(hour.precipitationMm, units)}</small><small>Wind {formatWindSpeed(hour.windSpeedKph, units)}</small>
             </div>)}</div>
         </div>}
         {!weather.forecast?.hours.length && <p>No forecast available.</p>}
       </>}
+    <details className="weather-technical"><summary>Technical details</summary>
+      <button className="ghost-btn" onClick={() => setLabOpen(true)} disabled={!labState}
+        title={labState ? 'Inspect this game weather package' : 'Prepare weather before opening Weather Lab'}>Open in Weather Lab</button>
+      {current && <>
+        <p>Solar {format(current.globalRadiationWm2)} global / {format(current.directRadiationWm2)} direct / {format(current.diffuseRadiationWm2)} diffuse W/m2</p>
+        <p>Cloud transmission {format(current.cloudTransmissionPct)}% / sun elevation {format(current.solarElevationDeg)} deg</p>
+        {temperatureRange && <p>Terrain temperature field: {formatTemperature(temperatureRange.min, units)} to {formatTemperature(temperatureRange.max, units)}</p>}
+        <p className="game-weather-source">{weather.weatherPackage?.manifest.quality === 'limited'
+          ? `Limited/development package — ${weather.weatherPackage.manifest.sourceSummary}`
+          : source
+            ? `${source.provider} / ${source.quality}${source.correction !== 'none' ? ` / ${source.correction}` : ''}`
+            : `${weather.weatherPackage?.manifest.quality ?? 'unknown'} / ${weather.weatherPackage?.manifest.sourceSummary ?? 'no source metadata'}`}</p>
+      </>}
+    </details>
   </aside>
   {labOpen && labState && <Suspense fallback={<div className="weather-lab-loading">Loading current game weather...</div>}>
     <CurrentGameWeatherLab initialState={labState} onExit={() => setLabOpen(false)} />
@@ -172,6 +187,9 @@ export function GameToolbar({
   units,
   terrain,
   simulation,
+  onOpenWeather,
+  showWeatherOverlay = true,
+  saveStatus,
 }: {
   resortName: string;
   onOpenStats: () => void;
@@ -179,6 +197,9 @@ export function GameToolbar({
   units: Units;
   terrain: TerrainRecord | null;
   simulation: GameSimulationController;
+  onOpenWeather?: () => void;
+  showWeatherOverlay?: boolean;
+  saveStatus?: string;
 }) {
   const [planningConfirmationOpen, setPlanningConfirmationOpen] = useState(false);
   const weather = simulation;
@@ -196,7 +217,7 @@ export function GameToolbar({
           onClick={planning ? () => setPlanningConfirmationOpen(true) : weather.togglePlayback}
           aria-pressed={playing}
           disabled={weather.status === 'loading' || weather.status === 'working'}
-          title={playTitle}
+          aria-label={playTitle} title={playTitle}
         >{playing ? '||' : '>'}</button>
       </div>
       <div className="tb-group">
@@ -217,26 +238,20 @@ export function GameToolbar({
         </div>
       </div>
       <div className="tb-group tb-weather-group">
-        <button className="tb-weather" onClick={weather.toggleAnalysis} title="Toggle weather analysis overlay">
+        <button className="tb-weather" onClick={onOpenWeather ?? weather.toggleAnalysis} title="Toggle weather analysis overlay">
           {current ? formatTemperature(current.temperatureC, units) : 'Weather'}
         </button>
       </div>
       <div className="tb-group">
-        <div className="tb-money"><span className="tb-balance">$0</span><span className="tb-income">Finance not simulated</span></div>
-      </div>
-      <div className="tb-group">
-        <button className="tb-resort" onClick={onOpenStats} title="Ski area details"><span className="hud-resort tb-resort-name">{resortName}</span><span className="tb-caret" aria-hidden="true">&gt;</span></button>
+        <button className="tb-resort" onClick={onOpenStats} title="Ski area details"><span className="hud-resort tb-resort-name">{resortName}</span><small className="tb-save-status" role="status">{saveStatus}</small></button>
       </div>
       <div className="tb-group tb-group-right"><ToolbarReadout readout={readout} units={units} /></div>
     </div>
-    <GameWeatherOverlay terrain={terrain} weather={weather} units={units} />
-    {planningConfirmationOpen && <div className="game-time-confirm-backdrop" role="presentation">
-      <section className="game-time-confirm" role="dialog" aria-modal="true" aria-labelledby="game-time-confirm-title">
-        <h2 id="game-time-confirm-title">Finish summer planning?</h2>
+    {showWeatherOverlay && <GameWeatherOverlay terrain={terrain} weather={weather} units={units} />}
+    {planningConfirmationOpen && <Dialog title="Finish summer planning?" onClose={() => setPlanningConfirmationOpen(false)} className="game-time-confirm">
         <p>This skips once to September 1, fixes the coming weather year, and enables the running game clock.</p>
         <div className="game-time-confirm-actions"><button className="ghost-btn" onClick={() => setPlanningConfirmationOpen(false)}>Keep planning</button>
           <button className="primary-btn" onClick={() => { setPlanningConfirmationOpen(false); void weather.advancePlanningPeriod(); }}>Skip to September 1</button></div>
-      </section>
-    </div>}
+    </Dialog>}
   </>;
 }

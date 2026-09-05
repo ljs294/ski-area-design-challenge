@@ -519,7 +519,6 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
       optionsRef.current.createId(), optionsRef.current.now(), head, tail);
     if (!built) { edit.abort(); return; }
     const gradePolygons = built.commitGrading ? gradeResultRef.current?.disturbancePolygons : undefined;
-    let confirmed = false;
     await optionsRef.current.terrain.runConstruction('trail', async () => {
       try {
         await new Promise(requestAnimationFrame);
@@ -530,14 +529,14 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
           ? 'The terrain changed after this grading preview. Recalculate the grade and try again.'
           : 'The trail network changed while building. Repaint the run.');
         sampleTokenRef.current++; optionsRef.current.paintAdapter.stop();
-        optionsRef.current.gradeAdapter.stop(); clearGrade(); confirmed = true;
+        optionsRef.current.gradeAdapter.stop(); clearGrade();
+        dispatch({ type: 'cancel' }); optionsRef.current.release(); select(built.trail.id);
         const source = gradePolygons ?? built.trail.parts.map((part) => part.polygon);
         try { await optionsRef.current.clearCover(source.map((polygon, index) => ({
           polygon: jitterPolygon(polygon, TRAIL_CLEAR_JITTER_M, `${built.trail.id}:${index}`),
         }))); } catch { /* Cover clearing is best-effort after the coherent commit. */ }
       } catch (error) { failGrade(error instanceof Error ? error.message
         : 'Unable to save the terrain grade.'); }
-      finally { if (confirmed) { dispatch({ type: 'cancel' }); optionsRef.current.release(); } }
     });
   }
 

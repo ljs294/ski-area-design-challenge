@@ -56,7 +56,7 @@ function RoadStats({ points, units, draft }: { points: [number, number][]; units
 /** Roads only. Dams and ponds live in the Snowmaking dock beside the pipe
  *  network they feed — see SnowmakingControl. */
 export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onUndo,
-  onFinish, onDraftChange, onConfirm, onClose, building = false,
+  onFinish, onDraftChange, onConfirm, onClose, onSelectRoad, building = false,
   guestPortal, guestPortalArmed = false, guestPortalError = null,
   guestRuntime,
   guestConnectivity,
@@ -64,7 +64,7 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
   tool: RoadTool; roads: SavedRoad[]; units: Units;
   onArm: (roadType: RoadType) => void; onCancel: () => void; onUndo: () => void; onFinish: () => void;
   onDraftChange: (patch: Partial<DraftRoad>) => void; onConfirm: () => void;
-  onClose: () => void; building?: boolean;
+  onClose: () => void; onSelectRoad?: (id: string) => void; building?: boolean;
   guestPortal?: { label: string; nodeId: string } | null;
   guestPortalArmed?: boolean;
   guestPortalError?: string | null;
@@ -101,9 +101,9 @@ export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onU
       </div>}
     </div>
     {roads.length === 0 ? <div className="lift-overview-empty">No infrastructure yet — build your first road.</div> : <>
-      {roads.length > 0 && <div className="lift-list">{roads.map((road) => <div key={road.id} className="lift-row">
+      {roads.length > 0 && <div className="lift-list">{roads.map((road) => <button key={road.id} className="lift-row" onClick={() => onSelectRoad?.(road.id)}>
         <span className="infrastructure-road-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{road.name}</span>
-          <span className="lift-row-summary">Two-lane · {fmtDistance(road.lengthM, units)}</span></span></div>)}</div>}
+          <span className="lift-row-summary">Two-lane · {fmtDistance(road.lengthM, units)}</span></span></button>)}</div>}
     </>}
   </div>;
   if (tool.phase === 'armed' || tool.phase === 'drawing') {

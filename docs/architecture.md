@@ -4,7 +4,7 @@ This document describes the repository as it is currently landed. Proposed refac
 
 ## Runtime surfaces
 
-The supported product renderer starts at [`index.html`](../index.html), which loads [`src/app/main.tsx`](../src/app/main.tsx). That entry mounts the React application. [`src/app/App.tsx`](../src/app/App.tsx) owns the top-level screen state for the menu, new-game picker, active game, map management, graphics lab, and weather lab. It also coordinates save loading, boot progress, settings, and close checkpoints.
+The supported product renderer starts at [`index.html`](../index.html), which loads [`src/app/main.tsx`](../src/app/main.tsx). That entry mounts the React application. [`src/app/App.tsx`](../src/app/App.tsx) owns the top-level screen state for the home, new-resort setup, active game, graphics lab, and weather lab. It also coordinates save loading, boot progress, settings, and close checkpoints.
 
 [`src/app/MapView.tsx`](../src/app/MapView.tsx) is the gameplay composition root. It owns the committed design collections and document ports, terrain preparation, save/load snapshots, centralized selection, contribution assembly, and capture composition. [`src/app/useMapRuntime.ts`](../src/app/useMapRuntime.ts) owns MapLibre creation, style restoration, camera warm-up, and live render settings; [`src/app/MapViewChrome.tsx`](../src/app/MapViewChrome.tsx) composes presentation overlays, and [`src/app/MapGameDock.tsx`](../src/app/MapGameDock.tsx) composes the feature panels. Every construction workflow is controller-owned. `MapView` remains deliberately within the enforced 1,800-line, 40-import, 15-effect, and zero-worker-construction budgets.
 
@@ -12,13 +12,24 @@ The desktop shell starts at [`electron/main.ts`](../electron/main.ts). It create
 
 The web build uses [`vite.config.web.ts`](../vite.config.web.ts) and the same React renderer. The existing GitHub Pages workflow builds that static variant.
 
-Gameplay, Map Management, Graphics Lab, and the animated menu backdrop are lazy entry surfaces. The initial menu entry does not contain `MapView` or MapLibre JavaScript; a manifest-based build gate limits that entry to 370 KiB gzip.
+Gameplay, Graphics Lab, Weather Lab, and the animated menu backdrop are lazy entry surfaces. Downloaded terrain management is embedded in Settings Data. The initial menu entry does not contain `MapView` or MapLibre JavaScript; a manifest-based build gate limits that entry to 370 KiB gzip.
 
 Two developer surfaces are supported:
 
 - [`src/app/GraphicsLab.tsx`](../src/app/GraphicsLab.tsx) is a React graphics lab opened through `npm run dev:lab` or the application shortcut.
 - [`src/app/WeatherLab.tsx`](../src/app/WeatherLab.tsx) is a lazy offline weather package and simulation harness opened through `#weather-lab`. `npm run dev:weather-lab` starts its browser-only renderer and a clearly labeled fixture package-builder service for local development.
 - [`spike.html`](../spike.html) with [`src/spike/spikeMain.ts`](../src/spike/spikeMain.ts) is a standalone MapLibre data-source spike served with the spike Vite configuration.
+
+## Player interface
+
+[`GameplayWorkspace.tsx`](../src/app/GameplayWorkspace.tsx) composes the 88px navigation rail, one 400px contextual workspace (680px when expanded), and the bottom simulation bar. [`workspaceModel.ts`](../src/app/workspaceModel.ts) defines section/view requests; [`workspaceNavigation.ts`](../src/app/workspaceNavigation.ts) routes them through the existing tool coordinator, selection transition, dashboards, weather, and resort statistics. It owns no construction drafts or committed data. Feature bodies remain in `MapGameDock`; selecting a built object opens its owning workspace, and successful construction selects the result before optional cover work finishes. Snowmaking exposes its network inspection and hydraulic analysis through separate workspace views. Layers remains a temporary popover and preserves the coordinator's alongside-construction rules; active snow controls remain in the workspace after the popover closes.
+
+[`SetupWorkspace.tsx`](../src/app/SetupWorkspace.tsx) presents location, boundary, terrain preparation, and naming in one surface. Terrain preparation and map-context decisions retain their existing owners. Boundary backtracking retains the selection; revisiting a prepared boundary remounts the map session with an explicit setup draft. `LoadGameModal` is the searchable resort library with separate load and confirmed deletion actions. `TerrainLibrary` in `MapManagement.tsx` lists local packages under Settings Data and protects packages referenced by saves.
+
+[`ui.css`](../src/app/ui.css) supplies semantic alpine theme tokens and workspace composition. [`ui.tsx`](../src/app/ui.tsx) supplies outline icons and modal focus containment/restoration. Dialog Escape handlers stop propagation before dismissal so construction listeners cannot receive the same event. Settings retains Light/Dark/System and adds persisted 100/125/150 percent interface scale with a backward-compatible 100 percent default. The HTML startup script establishes the saved theme before application styles load; system changes remain live. [`mapTheme.ts`](../src/app/mapTheme.ts) owns the typed cartographic palette, applied at installation, style restoration, analysis synchronization, and theme changes through paint updates. Camera, source geometry, visibility, and construction state remain owned by the existing map/features. This UI change does not change the repository's existing schema version 16 or its older-save hydration contracts.
+
+Deterministic `ui-overhaul.spec.ts` covers navigation, setup recovery, library deletion, persisted/system themes, and draft preservation across dialog/theme changes. `ui-reference.spec.ts` captures home, setup, construction review, inspection, and analysis in both themes at 1920?1080 and 2560?1440, and checks reachable controls at 1280?720 through 150 percent scale. Screenshots are written to the Playwright test output directory; the fixture uses local terrain and blocks external providers.
+
 
 ## Data and persistence
 

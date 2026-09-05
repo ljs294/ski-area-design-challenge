@@ -72,13 +72,13 @@ test('Settings repairs missing map context after provider exhaustion without cha
   const before = await persistedState(page);
   expect(before.terrain?.vectorFeatures).toBeUndefined();
 
-  // Resort Data is contextual and therefore absent from main-menu Settings.
+  // Data remains available for downloaded terrain from the main menu.
   await page.getByRole('button', { name: 'Settings' }).click();
   await expect(page.getByRole('tab', { name: 'General' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tab', { name: 'Resort Data' })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Data' })).toBeVisible();
   await page.getByRole('button', { name: 'Close settings' }).click();
 
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await expect.poll(() => sourceFeatureCount(page, 'local-context')).toBe(0);
 
@@ -93,10 +93,10 @@ test('Settings repairs missing map context after provider exhaustion without cha
   await expect(page.getByRole('tab', { name: 'Controls' })).toHaveAttribute('aria-selected', 'true');
   await page.locator('.keybind-btn').first().click();
   await expect(page.getByText('Press a key…')).toBeVisible();
-  await page.getByRole('tab', { name: 'Resort Data' }).click();
+  await page.getByRole('tab', { name: 'Data' }).click();
   await page.getByRole('tab', { name: 'Controls' }).click();
   await expect(page.getByText('Press a key…')).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Resort Data' }).click();
+  await page.getByRole('tab', { name: 'Data' }).click();
 
   await page.getByRole('button', { name: 'Download Map Context' }).click();
   await expect.poll(() => overpassRequests).toBe(1);
@@ -147,11 +147,11 @@ test('closing Settings cancels context acquisition before persistence', async ({
   });
 
   await seedPreparedResort(page, {}, { mapContext: 'missing' });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await page.getByRole('button', { name: 'Menu' }).click();
   await page.getByRole('menuitem', { name: 'Settings' }).click();
-  await page.getByRole('tab', { name: 'Resort Data' }).click();
+  await page.getByRole('tab', { name: 'Data' }).click();
   await page.getByRole('button', { name: 'Download Map Context' }).click();
   await expect.poll(() => overpassRequests).toBe(1);
   await expect(page.getByRole('button', { name: 'Downloading Map Context…' })).toBeDisabled();
@@ -165,6 +165,6 @@ test('closing Settings cancels context acquisition before persistence', async ({
 
   await page.getByRole('button', { name: 'Menu' }).click();
   await page.getByRole('menuitem', { name: 'Settings' }).click();
-  await page.getByRole('tab', { name: 'Resort Data' }).click();
+  await page.getByRole('tab', { name: 'Data' }).click();
   await expect(page.getByRole('button', { name: 'Download Map Context' })).toBeEnabled();
 });

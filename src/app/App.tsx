@@ -5,14 +5,15 @@ import { Settings } from './Settings';
 import { LoadGameModal } from './LoadGameModal';
 import { ResortLoadingScreen } from './ResortLoadingScreen';
 import { SettingsProvider } from './SettingsContext';
+import { CreditsPanel } from './CreditsPanel';
 import { listGames, loadGame, loadGamePreview, mostRecentGame } from '../gameSaveClient';
 import { desktop } from '../desktopBridge';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import type { GameSave } from '../types';
+import type { SiteBox } from './sitePicker';
 
 const loadMapView = () => import('./MapView');
 const MapView = lazy(() => loadMapView().then((module) => ({ default: module.MapView })));
-const MapManagement = lazy(() => import('./MapManagement').then((module) => ({ default: module.MapManagement })));
 const GraphicsLab = lazy(() => import('./GraphicsLab').then((module) => ({ default: module.GraphicsLab })));
 const WeatherLab = lazy(() => import('./WeatherLab').then((module) => ({ default: module.WeatherLab })));
 
@@ -20,7 +21,7 @@ const WeatherLab = lazy(() => import('./WeatherLab').then((module) => ({ default
 // map) is torn down before the save/package lookup begins. The loading screen
 // itself is an overlay driven by `boot`, independent of the screen machine, so
 // it survives the switch to 'game' and stays up until the resort is drawn.
-type Screen = 'menu' | 'newGame' | 'game' | 'loadingGame' | 'mapMgmt' | 'graphicsLab' | 'weatherLab';
+type Screen = 'menu' | 'newGame' | 'game' | 'loadingGame' | 'graphicsLab' | 'weatherLab';
 
 /** Everything the resort loading overlay needs; null when no load is running. */
 interface BootState {
@@ -52,8 +53,12 @@ function initialScreen(): Screen {
 function AppInner() {
   const [screen, setScreen] = useState<Screen>(initialScreen);
   const [currentSave, setCurrentSave] = useState<GameSave | null>(null);
+  const [setupVersion, setSetupVersion] = useState(0);
+  const [setupDraft, setSetupDraft] = useState<{ site: SiteBox | null; name: string }>();
   const [hasSaves, setHasSaves] = useState(false);
+  const [libraryRevision, setLibraryRevision] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCredits, setShowCredits] = useState(false);
   const [showLoad, setShowLoad] = useState(false);
   const [boot, setBoot] = useState<BootState | null>(null);
   // Populated by MapView while a resort boots, so the loading screen's
@@ -231,14 +236,15 @@ function AppInner() {
     <>
       {screen === 'menu' && (
         <MainMenu
-          hasSaves={hasSaves}
+          hasSaves={hasSaves} libraryRevision={libraryRevision}
           onContinue={() => void handleContinue()}
           onNewGame={() => {
+            setSetupDraft(undefined);
             setCurrentSave(null);
             setScreen('newGame');
           }}
           onLoadGame={() => setShowLoad(true)}
-          onMapManagement={() => setScreen('mapMgmt')}
+          onCredits={() => setShowCredits(true)}
           onSettings={() => setShowSettings(true)}
           onExit={() => desktop?.exit()}
           onPreloadGame={() => { void loadMapView(); }}
@@ -248,6 +254,9 @@ function AppInner() {
       <Suspense fallback={<div className="route-loading" role="status">Loading…</div>}>
       {screen === 'newGame' && (
         <MapView
+          key={setupVersion}
+          setupDraft={setupDraft}
+          onRestartSetup={(draft) => { setSetupDraft(draft); setSetupVersion((value) => value + 1); }}
           mode="picking"
           onQuit={() => void checkpointToMenu()}
           onOpenSettings={() => setShowSettings(true)}
@@ -273,7 +282,6 @@ function AppInner() {
         />
       )}
 
-      {screen === 'mapMgmt' && <MapManagement onBack={toMenu} />}
 
       {screen === 'graphicsLab' && <GraphicsLab onExit={toMenu} />}
       {screen === 'weatherLab' && <WeatherLab onExit={toMenu} />}
@@ -300,7 +308,8 @@ function AppInner() {
         />
       )}
 
-      {showLoad && <LoadGameModal onClose={() => setShowLoad(false)} onPick={(k, n) => void handleLoadPick(k, n)} />}
+      {showLoad && <LoadGameModal onClose={() => { setShowLoad(false); refreshHasSaves(); setLibraryRevision((value) => value + 1); }} onPick={(k, n) => void handleLoadPick(k, n)} />}
+      {showCredits && <CreditsPanel onClose={() => setShowCredits(false)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)}
         resortSettings={sessionControlsRef.current?.resortSettings} />}
     </>

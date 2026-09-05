@@ -11,8 +11,10 @@ import type { RenderQuality } from './renderProfile';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type Units = 'imperial' | 'metric';
+export type InterfaceScale = '100' | '125' | '150';
 
 export interface Settings {
+  interfaceScale: InterfaceScale;
   theme: Theme;
   units: Units;
   windowMode: WindowMode;
@@ -24,6 +26,7 @@ export interface Settings {
 const STORAGE_KEY = 'skiapp:settings';
 
 const DEFAULTS: Settings = {
+  interfaceScale: '100',
   theme: 'system',
   units: 'imperial',
   windowMode: 'windowed',
@@ -38,6 +41,8 @@ function loadSettings(): Settings {
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     const merged = { ...DEFAULTS, ...parsed };
+    if (!['100', '125', '150'].includes(parsed.interfaceScale ?? '')) merged.interfaceScale = '100';
+    if (!['light', 'dark', 'system'].includes(parsed.theme ?? '')) merged.theme = 'system';
     if (parsed.units !== 'imperial' && parsed.units !== 'metric') merged.units = DEFAULTS.units;
     if (!isRenderQuality(parsed.renderQuality)) merged.renderQuality = DEFAULTS.renderQuality;
     // A shallow spread would let a stored (possibly stale/partial) keybinds
@@ -61,14 +66,26 @@ function resolveTheme(theme: Theme, systemDark: boolean): 'light' | 'dark' {
 
 /** Stamp the resolved theme on <html> so all CSS + the map style react to it. */
 function applyThemeAttr(resolved: 'light' | 'dark'): void {
-  if (typeof document !== 'undefined') document.documentElement.dataset.theme = resolved;
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.theme = resolved;
+    document.documentElement.style.colorScheme = resolved;
+    document.documentElement.style.backgroundColor = resolved === 'dark' ? '#111B22' : '#F3F5F2';
+  }
+}
+
+function applyInterfaceSettings(settings: Settings): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty('--ui-scale', String(Number(settings.interfaceScale) / 100));
+  document.documentElement.dataset.reducedMotion = String(settings.reducedMotion);
 }
 
 // Apply the persisted theme at module load — before React's first paint — so
 // there is no light-mode flash when the app starts in dark mode.
 applyThemeAttr(resolveTheme(loadSettings().theme, systemPrefersDark()));
+applyInterfaceSettings(loadSettings());
 
 interface SettingsContextValue {
+  setInterfaceScale: (scale: InterfaceScale) => void;
   settings: Settings;
   resolvedTheme: 'light' | 'dark';
   setTheme: (t: Theme) => void;
@@ -117,6 +134,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [resolvedTheme]);
 
   useEffect(() => {
+    applyInterfaceSettings(settings);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
 
@@ -127,6 +145,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setTheme = useCallback((theme: Theme) => setSettings((s) => ({ ...s, theme })), []);
+  const setInterfaceScale = useCallback((interfaceScale: InterfaceScale) => setSettings((s) => ({ ...s, interfaceScale })), []);
   const setUnits = useCallback((units: Units) => setSettings((s) => ({ ...s, units })), []);
   const setReducedMotion = useCallback(
     (reducedMotion: boolean) => setSettings((s) => ({ ...s, reducedMotion })),
@@ -153,11 +172,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const value = useMemo<SettingsContextValue>(
     () => ({
       settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
-      setKeybind, resetKeybinds,
+      setKeybind, resetKeybinds, setInterfaceScale,
     }),
     [
       settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
-      setKeybind, resetKeybinds,
+      setKeybind, resetKeybinds, setInterfaceScale,
     ]
   );
 

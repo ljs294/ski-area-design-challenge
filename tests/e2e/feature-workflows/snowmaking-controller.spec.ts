@@ -27,7 +27,7 @@ const nodes = [
 
 test('snowmaking façade owns contributions, reconciliation, editing, and persistence', async ({ page }) => {
   await seedPreparedResort(page, { dams: [dam], ponds: [pond], snowmakingNodes: nodes });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   await expect.poll(() => sourceFeatureCount(page, 'player-dams')).toBeGreaterThan(0);
@@ -53,12 +53,12 @@ test('snowmaking façade owns contributions, reconciliation, editing, and persis
       .getSource('snowmaking-network');
     return source.serialize().data?.features?.map((feature) => feature.properties?.name) ?? [];
   })).toContain('Renamed Intake');
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
 
   await page.getByRole('button', { name: /^Pond Seed/ }).click();
   await page.getByRole('checkbox', { name: 'Snowmaking pond' }).uncheck();
   await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(1);
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('button', { name: /^Dam Seed/ }).click();
   await page.getByRole('button', { name: 'Remove dam' }).click();
   await expect.poll(() => sourceFeatureCount(page, 'player-dams')).toBe(0);
@@ -74,7 +74,7 @@ test('snowmaking façade owns contributions, reconciliation, editing, and persis
 
 test('an imported pond can be designated for snowmaking and persisted', async ({ page }) => {
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, [-121.4965, 46.9063], 17);
 
@@ -98,7 +98,7 @@ test('an imported pond can be designated for snowmaking and persisted', async ({
 
 test('draws and persists a numbered snowmaking pipe network', async ({ page }) => {
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, [-121.495, 46.905], 16);
 
@@ -119,6 +119,9 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await page.getByRole('button', { name: 'Install pipe' }).click();
   await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(1);
 
+  await expect(page.getByRole('button', { name: 'Build another', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.mouse.move(end.x + 20, end.y + 20);
   await page.mouse.move(end.x, end.y);
   await expect.poll(() => page.locator('.maplibregl-canvas')
     .evaluate((canvas) => canvas.style.cursor)).toBe('pointer');
@@ -135,7 +138,7 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
       feature.properties?.kind === 'pump-direction') ?? false;
   })).toBe(true);
   await page.getByRole('button', { name: 'Place pump' }).click();
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('button', { name: /Pump P1/ })).toBeVisible();
 
   await page.getByRole('button', { name: 'Place one hydrant' }).click();
@@ -149,7 +152,7 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   const hydrant = await pointAt(page, [-121.4945, 46.905]);
   await page.mouse.click(hydrant.x, hydrant.y);
   await page.getByRole('button', { name: 'Place hydrant' }).click();
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('button', { name: /Hydrant 1/ })).toBeVisible();
 
   await page.getByRole('button', { name: 'Place hydrants along pipe' }).click();
@@ -174,6 +177,8 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   await expect(page.getByRole('button', { name: 'Place 4 hydrants' })).toBeEnabled();
   await page.getByRole('button', { name: 'Place 4 hydrants' }).click();
   await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(7);
+  await expect(page.getByRole('button', { name: 'Build another', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('button', { name: /Hydrant 5/ })).toBeVisible();
 
   await page.getByRole('button', { name: '＋ Install snowguns' }).click();
@@ -194,9 +199,7 @@ test('draws and persists a numbered snowmaking pipe network', async ({ page }) =
   // Pipe + pump + five hydrants + two guns + the connected gun's hookup line.
   await expect.poll(() => sourceFeatureCount(page, 'snowmaking-network')).toBe(10);
 
-  await page.getByRole('button', { name: 'Dashboards' }).click();
-  await page.getByRole('menu', { name: 'Dashboards' })
-    .getByRole('menuitemcheckbox', { name: 'Snowmaking', exact: true }).click();
+  await page.getByRole('button', { name: 'Network', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Show snowgun types' })).not.toBeChecked();
   await expect(page.getByText('Catalog value').locator('..')).toContainText('$15,000');
   await expect.poll(() => page.evaluate(() => {
@@ -315,7 +318,7 @@ test('analyzes a branched snowmaking system without persisting the scenario', as
     snowguns: analysisGuns,
     snowmakingNodeNextNumbers: { hydrant: 3, junction: 2, pump: 2 },
   });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   await page.getByRole('button', { name: 'Snowmaking' }).click();

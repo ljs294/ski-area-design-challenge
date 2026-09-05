@@ -16,7 +16,7 @@ test('node/path controller commits one atomic connector and restores its draft',
   await seedPreparedResort(page, { trails: [
     trail('trail-west', 'West Run', -121.496), trail('trail-east', 'East Run', -121.494),
   ] });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, [-121.495, 46.905], 16);
 

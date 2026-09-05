@@ -441,6 +441,7 @@ export function useSnowmakingNetworkController(
     if (!result.ok) { pipeDispatch({ type: 'review-error',
       error: 'The network changed before installation. Review the pipe and try again.' }); return; }
     cancelPipe();
+    optionsRef.current.selectPipe(pipe.id);
   }
 
   function armNode(kind: 'pump' | 'hydrant'): void {
@@ -477,7 +478,9 @@ export function useSnowmakingNetworkController(
     const edit = optionsRef.current.network.begin(); edit.replace(next);
     if (!edit.commit().ok) { nodeDispatch({ type: 'candidate', candidate: current.candidate,
       error: 'The network changed. Pick the location again.' }); return; }
-    nodeDispatch({ type: 'committed' });
+    const placed = next.nodes.find((node) => !state.nodes.some((old) => old.id === node.id));
+    cancelNode();
+    if (placed) optionsRef.current.selectNode(placed.id);
   }
   function armHydrantRun(): void {
     if (!optionsRef.current.canArm() || !optionsRef.current.activate('snowmaking-node')) return;
@@ -528,6 +531,7 @@ export function useSnowmakingNetworkController(
       return;
     }
     cancelHydrantRun();
+    optionsRef.current.selectNode(populated.nodes[0].id);
   }
   function renameNode(id: string, name: string): void {
     const state = snowmakingNetworkProjection(optionsRef.current.network.snapshot());

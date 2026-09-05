@@ -1,3 +1,4 @@
+import { applyMapTheme } from './mapTheme';
 import maplibregl from 'maplibre-gl';
 import { buildingFootprint, isBuildingOwnedPump } from '../buildings';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
@@ -729,8 +730,7 @@ export function setDashboardMapData(map: maplibregl.Map | null, input: Dashboard
   setDashboardLassoData(map, input.snowmakingLasso ?? null);
   applyDashboardMapPresentation(map, input.snowmakingPresentation,
     null, input.guns.map((gun) => gun.id));
-  if (map?.getLayer('dashboard-backdrop')) map.setPaintProperty('dashboard-backdrop',
-    'fill-color', input.dark ? '#18202a' : '#f4f1ea');
+  if (map) applyMapTheme(map, input.dark ? 'dark' : 'light');
 }
 
 export function setDashboardLassoData(

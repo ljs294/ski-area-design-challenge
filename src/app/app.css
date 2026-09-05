@@ -574,76 +574,6 @@ body {
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
 }
 
-.trail-sign {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 9px;
-}
-
-.trail-sign-header {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #ffffff;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
-  margin-bottom: 2px;
-}
-
-.trail-slat {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 340px;
-  max-width: 82vw;
-  padding: 13px 16px;
-  background: var(--panel-elev);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 600;
-  text-align: left;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
-}
-
-.trail-slat:hover:not(.trail-slat-disabled) {
-  transform: translateX(5px);
-  background: var(--panel-elev-hover);
-  box-shadow: var(--shadow-lg);
-}
-
-.trail-slat-disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.slat-chip {
-  flex: 0 0 auto;
-  width: 24px;
-  display: flex;
-  justify-content: center;
-}
-
-.slat-label {
-  flex: 1;
-}
-
-.slat-arrow {
-  color: var(--text-faint);
-  font-size: 14px;
-}
-
-.menu-footer {
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.75);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
-}
-
 /* --- Trail rating chips --- */
 .chip {
   display: inline-block;
@@ -982,34 +912,6 @@ html.resume-capture .maplibregl-canvas {
   .dock-rollups:has(.dock-rollup + .dock-rollup) .dock-panel {
     max-height: min(30vh, 260px);
   }
-}
-
-.dock-circles {
-  display: flex;
-  gap: 10px;
-}
-
-.dock-circle {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface-solid);
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.dock-circle:hover {
-  border-color: var(--accent);
-}
-.dock-circle.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-contrast);
 }
 
 .infrastructure-road-swatch {
@@ -3327,59 +3229,6 @@ html.resume-capture .maplibregl-canvas {
 
 /* In-map dashboard selector and inspector. The map itself remains the only
    pan/zoom surface; these controls float above it. */
-.dashboard-menu { position: relative; width: max-content; }
-.dashboard-bubble {
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--panel-elev);
-  color: var(--text);
-  box-shadow: var(--shadow);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.dashboard-bubble:hover { background: var(--panel-elev-hover); }
-.dashboard-bubble.is-active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), var(--shadow);
-}
-.dashboard-bubble-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; }
-.dashboard-bubble-icon path { fill: currentColor; stroke: none; }
-.dashboard-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  width: 196px;
-  padding: 5px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel-elev);
-  box-shadow: var(--shadow);
-}
-.dashboard-popover button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 9px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.dashboard-popover button:hover { background: var(--panel-elev-hover); }
-.dashboard-popover button[aria-checked='true'] { color: var(--accent); font-weight: 700; }
-.dashboard-menu-check { width: 14px; text-align: center; }
-
 .dashboard-sidebar {
   position: fixed;
   top: 0;

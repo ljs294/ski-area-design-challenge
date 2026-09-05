@@ -1,3 +1,4 @@
+import { Dialog } from './ui';
 // Human-readable credits for the free data services the app depends on. The
 // map's compact ⓘ control (bottom-left) is the license-compliance surface; this
 // panel is the discoverable version, opened from the in-game Menu. Strings mirror
@@ -21,14 +22,7 @@ const CREDITS: Credit[] = [
 
 export function CreditsPanel({ onClose }: { onClose: () => void }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="settings-panel credits-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="settings-header">
-          <h2 className="settings-title">Data &amp; API credits</h2>
-          <button className="settings-close-x" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
+    <Dialog title="Data & API credits" onClose={onClose} className="credits-panel">
         <p className="credits-intro">
           Ski Area Design Challenge is built on these free, open data services.
         </p>
@@ -40,7 +34,6 @@ export function CreditsPanel({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

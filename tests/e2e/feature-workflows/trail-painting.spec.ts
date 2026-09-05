@@ -64,7 +64,7 @@ async function paintToReview(page: Page): Promise<void> {
 test('painting from a lift terminal seeds an engine and grows the reported footprint', async ({ page }) => {
   await installWorkerProbe(page);
   await seedPreparedResort(page, { lifts: [anchorLift] }, { contourSegmentCount: 5_000 });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, TOP, 17);
 
@@ -133,7 +133,7 @@ test('painting from a lift terminal seeds an engine and grows the reported footp
   await expect(paintedArea).toHaveText(seeded, { timeout: 10_000 });
   await expect(finish).toBeDisabled();
 
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await expect.poll(async () => workerEntries(page, 'trailPaint.worker')).toMatchObject([
     { terminationCount: 1 },
     { terminationCount: 1 },
@@ -143,7 +143,7 @@ test('painting from a lift terminal seeds an engine and grows the reported footp
 test('review retains a grade failure and commits trail topology coherently', async ({ page }) => {
   await installWorkerProbe(page, { failPostFor: 'terrainGrade.worker' });
   await seedPreparedResort(page, { lifts: [anchorLift, destinationLift] });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, [-121.4942, 46.90425], 17);
 
@@ -187,7 +187,7 @@ test('review retains a grade failure and commits trail topology coherently', asy
 test('graded trail confirmation is atomic and survives best-effort cover failure', async ({ page }) => {
   await installWorkerProbe(page, { failPostFor: 'coverEdit.worker' });
   await seedPreparedResort(page, { lifts: [anchorLift, destinationLift] });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, [-121.4942, 46.90425], 17);
   await paintToReview(page);

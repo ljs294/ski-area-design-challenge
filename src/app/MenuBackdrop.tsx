@@ -3,6 +3,7 @@ import maplibregl from 'maplibre-gl';
 import type { SkySpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { basemapFor, tuneBasemap } from './basemapStyle';
+import { applyMapTheme } from './mapTheme';
 import { useSettings } from './SettingsContext';
 import { pixelRatioForElement, renderProfileFor, type RenderQuality } from './renderProfile';
 import { applyTileLod } from './terrainLod';
@@ -120,9 +121,18 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
       mapRef.current = null;
       delete (window as unknown as { menuMap?: maplibregl.Map }).menuMap;
     };
-    // Crossing the CSS-only boundary owns map creation/removal. Theme does not alter the map style.
+    // Crossing the CSS-only boundary owns map creation/removal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cssOnly]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => applyMapTheme(map, resolvedTheme);
+    if (map.isStyleLoaded()) apply();
+    map.on('style.load', apply);
+    return () => { map.off('style.load', apply); };
+  }, [resolvedTheme, cssOnly]);
 
   useEffect(() => {
     const map = mapRef.current;
