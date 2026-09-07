@@ -25,6 +25,7 @@ import type {
   GuestSimulationCheckpointSaveResponse,
   GuestSimulationCheckpointLoadResponse,
   WindowMode,
+  WindowRestartResponse,
 } from './ipcContract';
 import type { TerrainRecord } from './types';
 import type { GameSave } from './types';
@@ -69,6 +70,7 @@ export interface DesktopApi {
   window: {
     getMode(): Promise<WindowMode>;
     setMode(mode: WindowMode): Promise<WindowMode>;
+    restart(saveKey: string): Promise<WindowRestartResponse>;
   };
   lifecycle: {
     onCloseCheckpointRequested(listener: () => void): () => void;

@@ -9,11 +9,12 @@ import { registerOverpassRequestIdentity } from './overpassRequestIdentity';
 import {
   WINDOW_GET_MODE_CHANNEL,
   WINDOW_SET_MODE_CHANNEL,
+  WINDOW_RESTART_CHANNEL,
   EXIT_CHANNEL,
   WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL,
   WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL,
 } from '../src/ipcContract';
-import type { WindowMode } from '../src/ipcContract';
+import type { WindowMode, WindowRestartResponse } from '../src/ipcContract';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,6 +26,7 @@ let closeCheckpointComplete = false;
 let closeCheckpointTimer: ReturnType<typeof setTimeout> | null = null;
 let quitAfterCheckpoint = false;
 let weatherServiceProcess: UtilityProcess | null = null;
+const restartClosingWindows = new WeakSet<BrowserWindow>();
 
 async function ensureWeatherPreparationService(): Promise<void> {
   try {
@@ -62,14 +64,15 @@ function finishCloseCheckpoint(win: BrowserWindow): void {
   else if (!win.isDestroyed()) win.close();
 }
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
+function createWindow(resumeSaveKey?: string, show = true): BrowserWindow {
+  const win = new BrowserWindow({
     width: 1024,
     height: 768,
     minWidth: 800,
     minHeight: 600,
     useContentSize: true,
     resizable: true,
+    show,
     backgroundColor: '#f4f3ec', // Subway Builder cream-beige matte background
     webPreferences: {
       // Renderer is a pure web app (MapLibre + React). It reaches the main
@@ -83,17 +86,26 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   });
+  mainWindow = win;
 
   // GRAPHICS_LAB=1 (see `npm run dev:lab`) boots straight into the two-map
   // graphics dev tool, bypassing the menu.
   const labHash = process.env.GRAPHICS_LAB ? 'graphics-lab' : process.env.WEATHER_LAB ? 'weather-lab' : '';
   if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL + (labHash ? `#${labHash}` : ''));
+    const url = new URL(process.env.VITE_DEV_SERVER_URL);
+    if (resumeSaveKey) url.searchParams.set('resume-save', resumeSaveKey);
+    if (labHash) url.hash = labHash;
+    void win.loadURL(url.toString());
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'), labHash ? { hash: labHash } : undefined);
+    const options = {
+      ...(labHash ? { hash: labHash } : {}),
+      ...(resumeSaveKey ? { query: { 'resume-save': resumeSaveKey } } : {}),
+    };
+    void win.loadFile(path.join(__dirname, '../dist/index.html'), options);
   }
 
-  mainWindow.on('closed', () => {
+  win.on('closed', () => {
+    if (mainWindow !== win) return;
     mainWindow = null;
     closeCheckpointPending = false;
     closeCheckpointComplete = false;
@@ -102,17 +114,18 @@ function createWindow() {
     closeCheckpointTimer = null;
   });
 
-  mainWindow.on('close', (event) => {
-    if (closeCheckpointComplete) return;
+  win.on('close', (event) => {
+    if (restartClosingWindows.has(win) || win !== mainWindow || closeCheckpointComplete) return;
     event.preventDefault();
-    if (closeCheckpointPending || !mainWindow) return;
+    if (closeCheckpointPending) return;
     closeCheckpointPending = true;
-    mainWindow.webContents.send(WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL);
+    win.webContents.send(WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL);
     // A renderer or storage failure must never make the application unclosable.
     closeCheckpointTimer = setTimeout(() => {
-      if (mainWindow) finishCloseCheckpoint(mainWindow);
+      if (mainWindow === win) finishCloseCheckpoint(win);
     }, 3000);
   });
+  return win;
 }
 
 /** Read the window's current mode for the Settings panel to reflect on open. */
@@ -178,6 +191,36 @@ ipcMain.handle(WINDOW_GET_MODE_CHANNEL, (): WindowMode => {
 ipcMain.handle(WINDOW_SET_MODE_CHANNEL, (_e, mode: WindowMode): WindowMode => {
   if (mainWindow) applyWindowMode(mainWindow, mode);
   return mainWindow ? getWindowMode(mainWindow) : 'windowed';
+});
+
+ipcMain.handle(WINDOW_RESTART_CHANNEL, (event, request: { saveKey?: unknown }): Promise<WindowRestartResponse> => {
+  const source = BrowserWindow.fromWebContents(event.sender);
+  if (!source || source !== mainWindow) return Promise.resolve({ ok: false, error: 'The current game window is unavailable.' });
+  const saveKey = typeof request?.saveKey === 'string' ? request.saveKey.trim() : '';
+  if (!saveKey) return Promise.resolve({ ok: false, error: 'A saved resort key is required.' });
+
+  const replacement = createWindow(saveKey, false);
+  return new Promise<WindowRestartResponse>((resolve) => {
+    let settled = false;
+    const finish = (result: WindowRestartResponse) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    replacement.webContents.once('did-finish-load', () => {
+      replacement.show();
+      if (!source.isDestroyed()) {
+        restartClosingWindows.add(source);
+        source.close();
+      }
+      finish({ ok: true });
+    });
+    replacement.webContents.once('did-fail-load', (_loadEvent, errorCode, errorDescription) => {
+      if (mainWindow === replacement) mainWindow = source;
+      if (!replacement.isDestroyed()) replacement.destroy();
+      finish({ ok: false, error: `The fresh game window could not load (${errorCode}: ${errorDescription}).` });
+    });
+  });
 });
 
 // Close the app from the main-menu Exit sign.

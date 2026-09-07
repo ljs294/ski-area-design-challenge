@@ -15,6 +15,8 @@ describe('developer console commands', () => {
     expect(parseDeveloperConsoleCommand('skip ahead 2h')).toEqual({ kind: 'skip', minutes: 120 });
     expect(parseDeveloperConsoleCommand('advance 15m')).toEqual({ kind: 'skip', minutes: 15 });
     expect(parseDeveloperConsoleCommand('time')).toEqual({ kind: 'time' });
+    expect(parseDeveloperConsoleCommand('restart')).toEqual({ kind: 'restart' });
+    expect(parseDeveloperConsoleCommand('restart-game')).toEqual({ kind: 'restart' });
     expect(() => parseDeveloperConsoleCommand('skip backwards')).toThrow(/Invalid duration/);
   });
 

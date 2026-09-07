@@ -1,12 +1,12 @@
-import { Dialog } from './ui';
-import { lazy, Suspense, useMemo, useState } from 'react';
+import { Dialog, Icon } from './ui';
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import type { TerrainRecord } from '../types/terrain';
 import type { SimulationSpeed } from '../types/simulation';
 import { createTerrainThermalModel, temperatureFieldForHour } from '../weather/terrainThermal';
-import type { Readout } from './CursorReadout';
 import type { Units } from './SettingsContext';
 import type { GameSimulationController } from './useGameSimulation';
-import { formatElevation, formatLiquidPrecipitation, formatLiquidPrecipitationRate, formatSnowfall,
+import { normalizeSimulationSpeed } from '../../time-engine/src/timeEngine';
+import { formatLiquidPrecipitation, formatLiquidPrecipitationRate, formatSnowfall,
   formatTemperature, formatWindSpeed } from './unitFormat';
 
 const CurrentGameWeatherLab = lazy(() => import('./WeatherLab').then((module) => ({ default: module.WeatherLab })));
@@ -59,22 +59,6 @@ function range(values: Float32Array): { min: number; max: number } {
     max = Math.max(max, value);
   }
   return { min: Number.isFinite(min) ? min : 0, max: Number.isFinite(max) ? max : 0 };
-}
-
-/** Cursor readout for the toolbar's right edge. */
-function ToolbarReadout({ readout, units }: { readout: Readout | null; units: Units }) {
-  const elev = formatElevation(readout?.elevationM, units);
-
-  let ctx: { label: string; value: string } | null = null;
-  if (readout) {
-    if (readout.overlay === 'slope') ctx = { label: 'Slope', value: `${Math.round(readout.slopeDeg)} deg` };
-    else if (readout.overlay === 'aspect') ctx = { label: 'Aspect', value: readout.aspectCompass };
-    else if (readout.overlay === 'groundcover') ctx = { label: 'Cover', value: readout.coverLabel ?? '--' };
-  }
-  return <div className="tb-readout" role="group" aria-label="Cursor terrain readout">
-    <div className="tb-readout-cell"><span className="tb-readout-label">Elev</span><span className="tb-readout-value">{elev}</span></div>
-    <div className="tb-readout-cell tb-readout-ctx"><span className="tb-readout-label">{ctx?.label ?? ''}</span><span className="tb-readout-value">{ctx?.value ?? ''}</span></div>
-  </div>;
 }
 
 export function GameWeatherOverlay({
@@ -183,23 +167,23 @@ export function GameWeatherOverlay({
 export function GameToolbar({
   resortName,
   onOpenStats,
-  readout,
   units,
   terrain,
   simulation,
   onOpenWeather,
   showWeatherOverlay = true,
-  saveStatus,
+  unsaved = false,
+  navigation,
 }: {
   resortName: string;
   onOpenStats: () => void;
-  readout: Readout | null;
   units: Units;
   terrain: TerrainRecord | null;
   simulation: GameSimulationController;
   onOpenWeather?: () => void;
   showWeatherOverlay?: boolean;
-  saveStatus?: string;
+  unsaved?: boolean;
+  navigation?: ReactNode;
 }) {
   const [planningConfirmationOpen, setPlanningConfirmationOpen] = useState(false);
   const weather = simulation;
@@ -207,10 +191,13 @@ export function GameToolbar({
   const ready = weather.status === 'ready';
   const playing = ready && weather.clock.runState === 'running';
   const planning = weather.clock.season === 'summer';
+  const activeSpeed = normalizeSimulationSpeed(weather.clock.speed);
+  const activeSpeedIndex = SIMULATION_SPEEDS.indexOf(activeSpeed);
   const playTitle = planning ? 'Complete planning and skip to September 1' : playing ? 'Pause game clock' : 'Play game clock';
 
   return <>
     <div className="game-toolbar">
+      {navigation}
       <div className="tb-group">
         <button
           className="tb-play"
@@ -218,7 +205,7 @@ export function GameToolbar({
           aria-pressed={playing}
           disabled={weather.status === 'loading' || weather.status === 'working'}
           aria-label={playTitle} title={playTitle}
-        >{playing ? '||' : '>'}</button>
+        >{playing ? 'Ⅱ' : '▶'}</button>
       </div>
       <div className="tb-group">
         <div className="tb-clock" title={weather.message}>
@@ -228,13 +215,15 @@ export function GameToolbar({
       </div>
       <div className="tb-group">
         <div className="tb-speeds" role="group" aria-label="Weather simulation speed">
-          {SIMULATION_SPEEDS.map((speed) => <button
+          {SIMULATION_SPEEDS.map((speed, index) => <button
             key={speed}
-            className={`tb-speed${weather.clock.speed === speed ? ' is-active' : ''}`}
+            className={`tb-speed${index <= activeSpeedIndex ? ' is-active' : ''}`}
             onClick={() => weather.setSpeed(speed)}
+            aria-label={`${titleCase(speed)} simulation speed`}
+            aria-pressed={activeSpeed === speed}
             disabled={!ready || planning}
             title={`${titleCase(speed)} simulation speed`}
-          >{titleCase(speed)}</button>)}
+          >→</button>)}
         </div>
       </div>
       <div className="tb-group tb-weather-group">
@@ -242,10 +231,13 @@ export function GameToolbar({
           {current ? formatTemperature(current.temperatureC, units) : 'Weather'}
         </button>
       </div>
-      <div className="tb-group">
-        <button className="tb-resort" onClick={onOpenStats} title="Ski area details"><span className="hud-resort tb-resort-name">{resortName}</span><small className="tb-save-status" role="status">{saveStatus}</small></button>
+      <div className="tb-group tb-resort-group">
+        <button className="tb-resort" onClick={onOpenStats} title="Ski area details"><span className="hud-resort tb-resort-name">{resortName}</span></button>
+        <span className={`tb-save-indicator${unsaved ? ' is-unsaved' : ''}`} role="status"
+          aria-label={unsaved ? 'Unsaved changes' : 'Saved'} title={unsaved ? 'Unsaved changes' : 'Saved'}>
+          <Icon name="save" />
+        </span>
       </div>
-      <div className="tb-group tb-group-right"><ToolbarReadout readout={readout} units={units} /></div>
     </div>
     {showWeatherOverlay && <GameWeatherOverlay terrain={terrain} weather={weather} units={units} />}
     {planningConfirmationOpen && <Dialog title="Finish summer planning?" onClose={() => setPlanningConfirmationOpen(false)} className="game-time-confirm">

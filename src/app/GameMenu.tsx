@@ -79,7 +79,7 @@ export function GameMenu({
       </button>
 
       {open && (
-        <div className="game-menu-pop" role="menu">
+        <div className="game-menu-pop menu-container" role="menu">
           <div className="game-menu-head">
             <span className="game-menu-head-title">Menu</span>
             <button

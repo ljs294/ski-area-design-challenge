@@ -12,6 +12,7 @@ import type { GeocodeResult } from './SearchBox';
 import type { SiteControl } from './SiteControl';
 import { SetupWorkspace } from './SetupWorkspace';
 import type { Units } from './SettingsContext';
+import type { ResortSettingsCapability } from './Settings';
 import { UnsavedChangesModal } from './UnsavedChangesModal';
 import { View3DControl } from './View3DControl';
 import { GameplayWorkspace } from './GameplayWorkspace';
@@ -71,6 +72,7 @@ export interface MapViewChromeProps {
   stats: Parameters<typeof ResortStatsPanel>[0] | null;
   closeCredits: (() => void) | null;
   bottomRightToolOptions?: ReactNode | null;
+  resortSettings?: ResortSettingsCapability;
   developerConsole: Parameters<typeof DeveloperConsole>[0] | null;
 }
 
@@ -96,7 +98,7 @@ export function MapViewChrome(props: MapViewChromeProps) {
 
       {!props.dock && <GameMenu {...props.menu} />}
       <div className="top-right-stack">
-        {props.view3D && <View3DControl {...props.view3D} />}
+        {props.view3D && !props.dashboard && !props.dock?.simulation.analysisOpen && <View3DControl {...props.view3D} />}
       </div>
       {props.buildingActivity && <ConstructionStatusBug activity={props.buildingActivity} />}
 

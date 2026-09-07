@@ -86,7 +86,8 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
     const container = containerRef.current;
     const map = new maplibregl.Map({
       container,
-      style: basemapFor(resolvedTheme),
+      style: basemapFor(resolvedTheme, { mapColorPreset: settings.mapColorPreset,
+        customMapColors: settings.customMapColors }),
       center: CRYSTAL,
       zoom: 15,
       bearing: -18,
@@ -128,11 +129,11 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const apply = () => applyMapTheme(map, resolvedTheme);
+    const apply = () => applyMapTheme(map, resolvedTheme, settings.mapColorPreset, settings.customMapColors);
     if (map.isStyleLoaded()) apply();
     map.on('style.load', apply);
     return () => { map.off('style.load', apply); };
-  }, [resolvedTheme, cssOnly]);
+  }, [resolvedTheme, settings.mapColorPreset, settings.customMapColors, cssOnly]);
 
   useEffect(() => {
     const map = mapRef.current;

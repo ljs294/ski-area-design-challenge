@@ -1323,15 +1323,17 @@ html.resume-capture .maplibregl-canvas {
   line-height: 1;
 }
 
+.menu-container {
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+}
 .game-menu-pop {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   min-width: 168px;
-  background: var(--surface-solid);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow-lg);
   padding: 6px;
   display: flex;
   flex-direction: column;

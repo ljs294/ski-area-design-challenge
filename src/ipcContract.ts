@@ -41,11 +41,19 @@ export const GUEST_SIMULATION_LOAD_CHECKPOINT_CHANNEL = 'guest-simulation:load-c
 // --- Window / shell control ---
 export const WINDOW_GET_MODE_CHANNEL = 'window:get-mode';
 export const WINDOW_SET_MODE_CHANNEL = 'window:set-mode';
+export const WINDOW_RESTART_CHANNEL = 'window:restart';
 export const EXIT_CHANNEL = 'exit-game';
 export const WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL = 'window:request-close-checkpoint';
 export const WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL = 'window:close-checkpoint-complete';
 
 export type WindowMode = 'windowed' | 'fullscreen' | 'borderless';
+
+export interface WindowRestartRequest {
+  saveKey: string;
+}
+export type WindowRestartResponse =
+  | { ok: true }
+  | { ok: false; error: string };
 
 export interface GameSaveSaveRequest {
   save: GameSave;

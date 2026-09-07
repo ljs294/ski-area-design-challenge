@@ -23,6 +23,7 @@ export interface ResortSettingsCapability {
 export interface SettingsProps {
   onClose: () => void;
   resortSettings?: ResortSettingsCapability;
+  presentation?: 'modal' | 'popover';
 }
 
 type SettingsTab = 'general' | 'controls' | 'resort-data';
@@ -81,7 +82,7 @@ function panelId(tab: SettingsTab): string {
   return `settings-panel-${tab}`;
 }
 
-export function Settings({ onClose, resortSettings }: SettingsProps) {
+export function Settings({ onClose, resortSettings, presentation = 'modal' }: SettingsProps) {
   const dialogRef = useDialogFocus();
   const {
     settings, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
@@ -241,10 +242,9 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
   const mapContextAvailable = resortSettings?.mapContextAvailable === true
     || mapContextDownload.status === 'success';
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Settings" tabIndex={-1} onKeyDown={(event) => event.stopPropagation()}
-        className="settings-panel settings-panel-tabbed" onClick={(event) => event.stopPropagation()}>
+  const panel = <div ref={dialogRef} role="dialog" aria-modal={presentation === 'modal' || undefined} aria-label="Settings" tabIndex={-1}
+    onKeyDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}
+    className={`settings-panel settings-panel-tabbed${presentation === 'popover' ? ' top-right-settings-popover' : ''}`}>
         <div className="settings-header">
           <h2 className="settings-title">Settings</h2>
           <button className="settings-close-x" aria-label="Close settings" onClick={onClose}>
@@ -291,9 +291,15 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
             options={windowOptions}
             onChange={setWindowMode}
           />
-          <Segmented label="Interface scale" value={settings.interfaceScale}
-            options={[{ value: '100', label: '100%' }, { value: '125', label: '125%' }, { value: '150', label: '150%' }]}
-            onChange={setInterfaceScale} />
+          <div className="setting-row">
+            <label className="setting-label" htmlFor="interface-scale">Interface scale</label>
+            <div className="interface-scale-control"><input id="interface-scale" type="range" min={50} max={150} step={5}
+              value={settings.interfaceScale} list="interface-scale-marks" aria-valuetext={`${settings.interfaceScale}%`}
+              onChange={(event) => setInterfaceScale(Number(event.target.value))} />
+              <datalist id="interface-scale-marks"><option value={50} /><option value={100} label="100%" /><option value={150} /></datalist>
+              <output htmlFor="interface-scale">{settings.interfaceScale}%</output>
+              <button className="site-btn" onClick={() => setInterfaceScale(100)}>Reset</button></div>
+          </div>
           <Segmented
             label="Units"
             value={settings.units}
@@ -405,7 +411,7 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
         <button className="settings-done-btn" onClick={onClose}>
           Done
         </button>
-      </div>
-    </div>
-  );
+    </div>;
+
+  return presentation === 'modal' ? <div className="modal-overlay" onClick={onClose}>{panel}</div> : panel;
 }

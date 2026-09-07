@@ -5,6 +5,7 @@ import type { GameSave } from '../types/gameSave';
 import type { TerrainRecord } from '../types/terrain';
 import { basemapFor, tuneBasemap } from './basemapStyle';
 import { applyMapTheme } from './mapTheme';
+import type { CustomMapColors, MapColorPreset } from './mapTheme';
 import { applyAnalysisRenderProfile, setContourUnits, type LayerToggle } from './analysisLayers';
 import type { Readout } from './CursorReadout';
 import type { MapInteractionLease } from './mapInteractionLease';
@@ -29,6 +30,8 @@ interface MapRuntimeOptions {
   initialCenter: [number, number];
   initialZoom: number;
   resolvedTheme: 'light' | 'dark';
+  mapColorPreset: MapColorPreset;
+  customMapColors: CustomMapColors;
   renderQuality: RenderQuality;
   units: Units;
   mapRef: MutableRefObject<maplibregl.Map | null>;
@@ -65,6 +68,10 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
   const firstModeRun = useRef(true);
   const themeRef = useRef(options.resolvedTheme);
   themeRef.current = options.resolvedTheme;
+  const mapColorPresetRef = useRef(options.mapColorPreset);
+  mapColorPresetRef.current = options.mapColorPreset;
+  const customMapColorsRef = useRef(options.customMapColors);
+  customMapColorsRef.current = options.customMapColors;
   const appliedProfileRef = useRef(options.renderQuality);
 
   const reinitializeStyle = (map: maplibregl.Map) => {
@@ -142,7 +149,7 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
         options.showLocalBoot(null);
       }
     }
-    applyMapTheme(map, themeRef.current);
+    applyMapTheme(map, themeRef.current, mapColorPresetRef.current, customMapColorsRef.current);
     options.setLayers(applied);
   };
 
@@ -156,7 +163,8 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
     });
     const map = new maplibregl.Map({
       container: options.containerRef.current,
-      style: basemapFor(options.resolvedTheme, { offline: options.mode === 'playing' }),
+      style: basemapFor(options.resolvedTheme, { offline: options.mode === 'playing',
+        mapColorPreset: options.mapColorPreset, customMapColors: options.customMapColors }),
       center: start.center,
       zoom: start.zoom,
       bearing: start.bearing,
@@ -315,13 +323,16 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
     if (firstModeRun.current) { firstModeRun.current = false; return; }
     options.mapRef.current?.setStyle(basemapFor(themeRef.current, {
       offline: options.mode === 'playing',
+      mapColorPreset: mapColorPresetRef.current,
+      customMapColors: customMapColorsRef.current,
     }));
   }, [options.mapRef, options.mode]);
 
   useEffect(() => {
     const map = options.mapRef.current;
-    if (map?.isStyleLoaded()) applyMapTheme(map, options.resolvedTheme);
-  }, [options.mapRef, options.resolvedTheme, options.canStart]);
+    if (map?.isStyleLoaded()) applyMapTheme(map, options.resolvedTheme,
+      options.mapColorPreset, options.customMapColors);
+  }, [options.mapRef, options.resolvedTheme, options.mapColorPreset, options.customMapColors, options.canStart]);
 
   useEffect(() => {
     setContourUnits(options.mapRef.current, options.terrainRecordRef.current, options.units);

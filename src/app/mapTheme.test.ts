@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { applyMapTheme, MAP_PALETTES } from './mapTheme';
+import { applyMapTheme, mapPaletteFor, MAP_PALETTES, normalizeCustomMapColors } from './mapTheme';
 import { basemapFor } from './basemapStyle';
 
 describe('cartographic themes', () => {
@@ -20,5 +20,13 @@ describe('cartographic themes', () => {
       getPaintProperty: () => null, setPaintProperty } as unknown as MapLibreMap;
     applyMapTheme(map, 'dark');
     expect(setPaintProperty.mock.calls).toEqual([['mp-paper', 'background-color', MAP_PALETTES.dark.paper]]);
+  });
+
+  it('applies selected presets and safe custom colors without changing map structure', () => {
+    const custom = normalizeCustomMapColors({ paper: '#102030', water: '#406080', road: '#7090a0', contour: '#b0c0d0', text: '#e0f0ff' });
+    const style = basemapFor('light', { offline: true, mapColorPreset: 'custom', customMapColors: custom });
+    expect(style.layers[0].paint).toEqual({ 'background-color': '#102030' });
+    expect(mapPaletteFor('dark', 'blueprint').paper).toBe('#08141f');
+    expect(normalizeCustomMapColors({ paper: 'not-a-color' }).paper).toBe('#e8e5dc');
   });
 });

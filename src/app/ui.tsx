@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
-export type IconName = 'resort' | 'lifts' | 'trails' | 'snowmaking' | 'infrastructure' | 'guests' | 'layers' | 'menu' | 'close' | 'expand' | 'arrow';
+export type IconName = 'resort' | 'lifts' | 'trails' | 'snowmaking' | 'infrastructure' | 'guests' | 'layers' | 'menu' | 'close' | 'expand' | 'arrow' | 'pin' | 'save' | 'palette' | 'edit';
 const paths: Record<IconName, string> = {
   resort: 'M2 20 10 5l5 9 3-5 4 11H2ZM7 11l3 3 3-3',
   lifts: 'M2 6 22 3M11 5v7H7v6h10v-6h-6M8 21v-3m8 3v-3',
@@ -13,6 +13,10 @@ const paths: Record<IconName, string> = {
   close: 'm6 6 12 12M6 18 18 6',
   expand: 'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5',
   arrow: 'M4 12h16m-6-6 6 6-6 6',
+  pin: 'M12 17v4M5 12h14l-4-4V3H9v5l-4 4Z',
+  save: 'M4 3h13l3 3v15H4V3Zm3 0v6h8V3M8 17h8',
+  palette: 'M12 3a9 9 0 1 0 0 18h1.3a1.7 1.7 0 0 0 0-3.4h-.8a1.5 1.5 0 0 1 0-3H15a3 3 0 0 0 0-6H12ZM7.5 11.5h.01M9 7.5h.01M14.5 7.5h.01M17 11.5h.01',
+  edit: 'm4 20 4.2-1 10.4-10.4a2.1 2.1 0 0 0-3-3L5.2 16 4 20ZM13.8 7.2l3 3',
 };
 export function Icon({ name }: { name: IconName }) {
   return <svg className="ui-icon" viewBox="0 0 24 24" width="22" height="22" fill="none"

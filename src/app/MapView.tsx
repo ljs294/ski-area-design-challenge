@@ -13,7 +13,7 @@ import { MapInteractionLease, type MapInteractionLeaseHandle, type MapInteractio
 import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot, type ToolId } from './toolCoordinator';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION } from '../gameSaveClient';
-import { isDesktop } from '../desktopBridge';
+import { desktop, isDesktop } from '../desktopBridge';
 import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath, SavedPond, SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
@@ -414,8 +414,9 @@ export function MapView({
   const terrainHeightCacheRef = displayAssets.heightRef;
   const coverDisplayRef = displayAssets.coverRef;
   const localImageryUrlRef = displayAssets.imageryUrlRef;
-  const dashboards = useInMapDashboards({ mapRef, registryRef: mapContributionRegistryRef,
-    dark: resolvedTheme === 'dark', units: settings.units, network, dams, ponds, lakes: snowmakingLakes ?? [],
+  const dashboards = useInMapDashboards({ mapRef, registryRef: mapContributionRegistryRef, weatherOpen: simulation.analysisOpen,
+    dark: resolvedTheme === 'dark', mapColorPreset: settings.mapColorPreset, customMapColors: settings.customMapColors,
+    units: settings.units, network, dams, ponds, lakes: snowmakingLakes ?? [],
     trails, lifts, nodes: snowmakingNodes, buildings: committedBuildingsRef.current, pipes: snowmakingPipes, guns: snowguns,
     coverDisplay: coverDisplayRef.current, terrainRecord, guestConnectivity: guests.connectivity });
   useMapKeyboardControls({ mapRef, suspended: controlsSuspended, keybinds: settings.keybinds,
@@ -1031,7 +1032,7 @@ export function MapView({
     removeAnalysisLayers(map);
     analysisTogglesRef.current = installAnalysisLayers(map);
     dashboards.sync(map);
-    applyMapTheme(map, resolvedTheme);
+    applyMapTheme(map, resolvedTheme, settings.mapColorPreset, settings.customMapColors);
     setLayers(layerTogglesOf(mapContributions.refreshVisibility()));
   };
   useEffect(() => { if (toolCoordinatorState.activeTool) mapContributions.clearHitHovers(); },
@@ -1046,6 +1047,8 @@ export function MapView({
       (setupDraft.site.bounds[0][1] + setupDraft.site.bounds[1][1]) / 2] : INITIAL_CENTER,
     initialZoom: INITIAL_ZOOM,
     resolvedTheme,
+    mapColorPreset: settings.mapColorPreset,
+    customMapColors: settings.customMapColors,
     renderQuality: settings.renderQuality,
     units: settings.units,
     mapRef,
@@ -1245,7 +1248,8 @@ export function MapView({
     reportBoot({ type: 'handoff' });
     setPackageProgress({ phase: 'elevation', message: 'Starting resort preparation', completed: 0, total: 10 });
     const controller = mapContext.startPreparation();
-    mapRef.current?.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
+    mapRef.current?.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing',
+      mapColorPreset: settings.mapColorPreset, customMapColors: settings.customMapColors }));
     try {
       const record = await prepareResortPackage(
         site,
@@ -1277,7 +1281,8 @@ export function MapView({
         setPackageProgress(null);
         packageStateRef.current = mode === 'playing' ? 'missing' : 'ready';
         setPackageState(mode === 'playing' ? 'missing' : 'ready');
-        if (mode !== 'playing') mapRef.current?.setStyle(basemapFor(resolvedTheme));
+        if (mode !== 'playing') mapRef.current?.setStyle(basemapFor(resolvedTheme, {
+          mapColorPreset: settings.mapColorPreset, customMapColors: settings.customMapColors }));
         return null;
       }
       setPackageError(error instanceof Error ? error.message : 'Resort preparation failed.');
@@ -1537,6 +1542,22 @@ export function MapView({
     return true;
   }
 
+  async function restartGameInNewWindow(): Promise<{ ok: true } | { ok: false; error: string }> {
+    const saveKey = persistedSaveRef.current?.key ?? saved?.key;
+    if (!saveKey) return { ok: false, error: 'No saved resort is open.' };
+    const browserWindow = desktop ? null : window.open('about:blank', '_blank');
+    if (!desktop && !browserWindow) return { ok: false, error: 'The browser blocked the new game window.' };
+    if (!(await saveProgress())) {
+      browserWindow?.close();
+      return { ok: false, error: 'The current progress could not be saved.' };
+    }
+    if (desktop) return desktop.window.restart(saveKey);
+    const url = new URL(window.location.href);
+    url.searchParams.set('resume-save', saveKey);
+    browserWindow!.location.replace(url.toString());
+    return { ok: true };
+  }
+
   /**
    * The unsaved-work gate, run before leaving the resort. Resolves true when it
    * is safe to navigate away — nothing pending, the player discarded, or the
@@ -1647,6 +1668,10 @@ export function MapView({
             ? () => { void repairAndContinue(); } : undefined,
           onQuit,
         }}
+        resortSettings={terrainRecord ? {
+          mapContextAvailable: has3DBuildingContext(terrainRecord.vectorFeatures),
+          downloadMapContext: (signal) => mapContext.repair(terrainRecord, signal),
+        } : undefined}
         searchResult={picking && !saved ? (result) => {
           mapRef.current?.flyTo({ center: [result.lng, result.lat], zoom: 12, duration: 1200 });
         } : null}
@@ -1654,7 +1679,7 @@ export function MapView({
           mode: siteMode, box: siteBox, onStart: startSelect, onConfirm: confirmSite,
           onCancel: cancelSelect, onExit: exitSite,
         } : null}
-        view3D={terrainRecord ? { is3D: !isOverhead, onToggle: toggle3D } : null}
+        view3D={terrainRecord ? { is3D: !isOverhead, onToggle: toggle3D, map: mapRef.current } : null}
         buildingActivity={buildingActivity}
         bottomRightToolOptions={saved ? <SnowmakingToolOptions
           controller={snowmakingController.network} gunController={snowmakingController.guns}
@@ -1773,7 +1798,9 @@ export function MapView({
           units: settings.units, averageAnnualSnowfallCm: simulation.averageAnnualSnowfallCm,
           onClose: () => setShowStats(false),
         } : null}
-        closeCredits={showCredits ? () => setShowCredits(false) : null} developerConsole={saved ? { clock: simulation.clock, skip: simulation.devSkipMinutes } : null}
+        closeCredits={showCredits ? () => setShowCredits(false) : null} developerConsole={saved ? {
+          clock: simulation.clock, skip: simulation.devSkipMinutes, restart: restartGameInNewWindow,
+        } : null}
       />
     </>
   );

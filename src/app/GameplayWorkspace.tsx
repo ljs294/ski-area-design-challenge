@@ -5,117 +5,190 @@ import { GameToolbar, GameWeatherOverlay } from './GameToolbar';
 import { GameMenu } from './GameMenu';
 import { MountainDashboards } from './MountainDashboards';
 import { ResortStatsPanel } from './ResortStatsPanel';
-import { useCursorReadout } from './CursorReadout';
+import { GameWindow, GameWindows } from './GameWindow';
+import { GameTabs } from './GameTabs';
+import { TrailDetail } from './TrailDetail';
+import { LiftDetail } from './LiftDetail';
+import { TrailProfile } from './TrailProfile';
 import { Icon } from './ui';
-import { WORKSPACE_LABELS, sectionForTool, constructionStage, type WorkspaceSection } from './workspaceModel';
+import { MapAppearanceMenu } from './MapAppearanceMenu';
+import { Settings } from './Settings';
+import type { ResortSettingsCapability } from './Settings';
+import { sectionForTool, type WorkspaceSection } from './workspaceModel';
+import './gameWindows.css';
 
-type Props = Pick<MapViewChromeProps, 'dock' | 'dashboard' | 'stats' | 'menu' | 'workspace' | 'bottomRightToolOptions'>;
-const SECTIONS = ['resort', 'lifts', 'trails', 'snowmaking', 'infrastructure', 'guests'] as const;
+type Props = Pick<MapViewChromeProps, 'dock' | 'dashboard' | 'stats' | 'menu' | 'workspace' | 'bottomRightToolOptions' | 'resortSettings'>;
+type Entity = { kind: 'trail' | 'lift'; id: string };
+type ToolTab = 'lifts' | 'trails' | 'snowmaking' | 'infrastructure';
+const TOOLS = [{ value: 'lifts', label: 'Lifts' }, { value: 'trails', label: 'Trails' },
+  { value: 'snowmaking', label: 'Snowmaking' }, { value: 'infrastructure', label: 'Infrastructure' }] as const;
+const DASHBOARDS = [{ value: 'trails', label: 'Trails Map' }, { value: 'snowmaking', label: 'Snowmaking' },
+  { value: 'guests', label: 'Guests' }, { value: 'weather', label: 'Weather' }] as const;
+const entityKey = (entity: Entity) => `${entity.kind}:${entity.id}`;
 
-/** Presentation is derived from domain owners; no parallel tool or selection state. */
 export function GameplayWorkspace(props: Props & { dock: NonNullable<Props['dock']> }) {
+  return <GameWindows><Workspace {...props} /></GameWindows>;
+}
+function Workspace(props: Props & { dock: NonNullable<Props['dock']> }) {
   const { dock, workspace } = props;
-  const [expanded, setExpanded] = useState(false);
-  const [networkSection, setNetworkSection] = useState<'lifts' | 'trails'>('trails');
-  const readout = useCursorReadout(dock.readoutStore);
+  const [lastToolTab, setLastToolTab] = useState<ToolTab>('lifts');
+  const [toolboxPinned, setToolboxPinned] = useState(false);
+  const [pinned, setPinned] = useState<Entity[]>([]);
+  const layersButtonRef = useRef<HTMLButtonElement>(null);
   const tool = dock.coordinator.activeTool;
-  const assetCount = dock.lifts.length + dock.trails.length + dock.roads.length + dock.dams.length + dock.ponds.length
-    + dock.snowmakingNodes.length + dock.snowmakingPipes.length + dock.snowguns.length + (dock.buildings?.length ?? 0) + dock.skiPaths.length;
-  const previousCount = useRef(assetCount);
-  const [feedback, setFeedback] = useState(false);
-  useEffect(() => {
-    if (assetCount > previousCount.current) setFeedback(true);
-    previousCount.current = assetCount;
-  }, [assetCount]);
-  useEffect(() => { if (!feedback) return; const timer = window.setTimeout(() => setFeedback(false), 4000);
-    return () => window.clearTimeout(timer); }, [feedback, assetCount]);
-  const selectedSnowNode = dock.snowmakingNodes.find((node) => node.id === dock.selectedSnowmakingNodeId);
-  const buildAnother = tool ? null : dock.selectedLiftId ? dock.liftController.arm
-    : dock.selectedTrailId ? dock.trailController.arm : dock.selectedPathId ? dock.nodePathController.armPath
-    : dock.selectedNodeId ? () => dock.nodePathController.armNode('add')
-    : dock.selectedRoadKey?.startsWith('player:') ? () => dock.roadController.arm('two-lane')
-    : dock.selectedDamId ? dock.snowmakingController.dam.arm : dock.selectedPondId ? dock.snowmakingController.pond.arm
-    : dock.selectedBuildingId ? dock.buildingController?.arm
-    : dock.selectedSnowmakingPipeId ? dock.snowmakingController.network.armPipe
-    : dock.selectedSnowgunId ? dock.snowmakingController.guns.arm
-    : selectedSnowNode?.kind === 'pump' || selectedSnowNode?.kind === 'hydrant'
-      ? () => dock.snowmakingController.network.armNode(selectedSnowNode.kind === 'pump' ? 'pump' : 'hydrant') : null;
-  let section: WorkspaceSection | null = dock.openDock;
-  if (dock.selectedLiftId) section = 'lifts';
-  if (dock.selectedTrailId || dock.selectedPathId || dock.selectedNodeId) section = 'trails';
-  if (dock.selectedDamId || dock.selectedPondId || dock.selectedBuildingId || dock.selectedLakeId || dock.selectedStreamId ||
-    dock.selectedSnowmakingNodeId || dock.selectedSnowmakingPipeId || dock.selectedSnowgunId) section = 'snowmaking';
-  if (dock.selectedRoadKey) section = 'infrastructure';
-  if (tool) section = sectionForTool(tool);
-  if (props.stats) section = 'resort';
-  if (dock.simulation.analysisOpen) section = 'weather';
-  if (props.dashboard) section = props.dashboard.dashboard === 'trails' ? networkSection : props.dashboard.dashboard;
-  const analysis = !!props.dashboard;
-  if (!section && dock.snowControl) section = 'layers';
-  const panelOpen = section !== null && (section !== 'layers' || !!dock.snowControl);
+  const weatherOpen = dock.simulation.analysisOpen;
+  const dashboardTab = weatherOpen ? 'weather' : props.dashboard?.dashboard ?? 'trails';
+  const dashboardOpen = !!props.dashboard || weatherOpen;
+  const edge = props.dashboard?.networkProps.selectedEdgeId
+    ? dock.network.edgeById.get(props.dashboard.networkProps.selectedEdgeId) : null;
+  const selected: Entity | null = tool || dock.liftEditing || dock.trailEditing ? null
+    : props.dashboard?.dashboard === 'trails' ? props.dashboard.networkProps.selectedLiftId
+      ? { kind: 'lift', id: props.dashboard.networkProps.selectedLiftId }
+      : edge?.kind === 'trail' ? { kind: 'trail', id: edge.trailId } : null
+    : dock.selectedLiftId ? { kind: 'lift', id: dock.selectedLiftId }
+    : dock.selectedTrailId ? { kind: 'trail', id: dock.selectedTrailId } : null;
+  const entityExists = (entity: Entity) => entity.kind === 'trail'
+    ? dock.trails.some((trail) => trail.id === entity.id) : dock.lifts.some((lift) => lift.id === entity.id);
+  const visiblePinned = pinned.filter(entityExists);
+  const inspectors = [...visiblePinned, ...(selected && !visiblePinned.some((entry) => entityKey(entry) === entityKey(selected)) ? [selected] : [])];
+  const section = tool ? sectionForTool(tool) : dock.openDock;
+  const toolTab: ToolTab = section && TOOLS.some((entry) => entry.value === section) ? section as ToolTab : lastToolTab;
+  const toolboxOpen = toolboxPinned || (!dashboardOpen && !props.stats && section !== 'layers' && section !== null);
   const layersOpen = dock.openDock === 'layers' || dock.layersAlongsideBuild;
-  const snowNode = dock.snowmakingController.network.nodeTool;
-  const skiNode = dock.nodePathController.nodeTool;
-  const hydrantRun = dock.snowmakingController.network.hydrantRunTool;
-  const phases: Record<string, string> = {
-    lift: dock.liftController.state.phase, trail: dock.trailController.state.phase,
-    road: dock.roadController.state.phase, dam: dock.snowmakingController.dam.state.phase,
-    pond: dock.snowmakingController.pond.state.phase,
-    'ski-path': dock.nodePathController.pathTool.phase,
-    'ski-node': (skiNode.phase === 'add' && skiNode.candidate) || (skiNode.phase === 'remove' && skiNode.junctionId) ? 'review' : 'placing',
-    'snowmaking-gun': dock.snowmakingController.guns.tool.phase,
-    'snowmaking-node': hydrantRun.phase !== 'idle' ? hydrantRun.phase : snowNode.phase === 'placing' && snowNode.candidate ? 'review' : 'placing',
-    'snowmaking-pipe': dock.snowmakingController.network.pipeTool.phase,
-    building: dock.buildingController?.state.phase ?? 'placing',
+  const navigate = (next: WorkspaceSection) => workspace?.navigate({ section: next });
+  const chooseTool = (next: ToolTab) => {
+    setLastToolTab(next);
+    if (section !== next || dashboardOpen || selected) navigate(next);
   };
-  const stage = dock.building ? 3 : constructionStage(phases[tool ?? ''] ?? 'placing');
-  const navigate = (next: WorkspaceSection) => { if (next === 'lifts' || next === 'trails') setNetworkSection(next); workspace?.navigate({ section: next }); };
-  return <div className={`workspace-shell${expanded ? ' is-expanded' : ''}${panelOpen ? ' has-panel' : ''}`}>
-    <nav className="workspace-rail" aria-label="Mountain workspace">
-      <div className="workspace-mark" title="Mountain Planner"><Icon name="resort" /></div>
-      {SECTIONS.map((id) => <button key={id} className={`workspace-nav${section === id ? ' is-active' : ''}`}
-        aria-label={id === 'lifts' ? 'Ski lifts' : id === 'trails' ? 'Ski runs' : WORKSPACE_LABELS[id]}
-        aria-pressed={section === id} onClick={() => navigate(id)}>
-        <Icon name={id} /><span>{WORKSPACE_LABELS[id]}</span>
-      </button>)}
-      <div className="workspace-rail-bottom"><button className={`workspace-nav${layersOpen ? ' is-active' : ''}`}
-        aria-pressed={layersOpen} onClick={() => navigate('layers')}><Icon name="layers" /><span>Layers</span></button>
-        <GameMenu {...props.menu} />
+  const chooseDashboard = (next: typeof DASHBOARDS[number]['value']) => {
+    if (next === 'weather') { if (!weatherOpen) navigate('weather'); }
+    else if (next === 'guests') { if (props.dashboard?.dashboard !== 'guests') navigate('guests'); }
+    else if (next !== props.dashboard?.dashboard || weatherOpen) workspace?.navigate({ section: next, view: 'network' });
+  };
+  const clearInspector = (entity: Entity) => {
+    setPinned((current) => current.filter((entry) => entityKey(entry) !== entityKey(entity)));
+    if (selected && entityKey(selected) === entityKey(entity)) {
+      if (props.dashboard?.dashboard === 'trails') {
+        props.dashboard.networkProps.onSelectLift(null); props.dashboard.networkProps.onSelectEdge(null);
+      } else if (entity.kind === 'trail') dock.clearSelectedTrail(); else dock.clearSelectedLift();
+    }
+  };
+  const edit = (entity: Entity) => {
+    workspace?.close();
+    if (entity.kind === 'trail') { dock.trailController.select(entity.id); dock.setTrailEditing(true); }
+    else { dock.liftController.select(entity.id); dock.setLiftEditing(true); }
+  };
+  // Catalog presentation does not acquire any additional controller ownership.
+  const catalog = { ...dock, openDock: toolTab, layersAlongsideBuild: false, snowControl: null,
+    selectedLiftId: selected?.kind === 'lift' && !dock.liftEditing ? null : dock.selectedLiftId,
+    selectedTrailId: selected?.kind === 'trail' && !dock.trailEditing ? null : dock.selectedTrailId };
+  return <div className="workspace-shell game-window-shell">
+    <div className="game-utilities">
+      <TopRightSettings resortSettings={props.resortSettings} />
+      <button ref={layersButtonRef} className="ui-icon-button" aria-label="Layers" aria-pressed={layersOpen} onClick={() => navigate('layers')}><Icon name="layers" /></button>
+      <MapAppearanceMenu />
+      <button className="ui-icon-button" aria-label="Settings" onClick={props.menu.onSettings}><span aria-hidden="true">⚙</span></button>
+      <GameMenu {...props.menu} />
+    </div>
+    {dashboardOpen && <GameWindow id="dashboards" title="Dashboards" onClose={() => workspace?.close()}
+      tabs={<GameTabs label="Dashboard views" value={dashboardTab} options={DASHBOARDS} onChange={chooseDashboard} panelId="dashboard-content" />}>
+      <div id="dashboard-content" role="tabpanel" aria-label={DASHBOARDS.find((entry) => entry.value === dashboardTab)?.label}>
+        {props.dashboard?.dashboard === 'snowmaking' && <GameTabs label="Snowmaking views" value={props.dashboard.snowmakingMode ?? 'inspect'}
+          options={[{ value: 'inspect', label: 'Network' }, { value: 'analysis', label: 'Pressure & flow' }]}
+          onChange={(next) => workspace?.navigate({ section: 'snowmaking', view: next === 'analysis' ? 'analysis' : 'network' })}
+          panelId="snowmaking-dashboard-content" />}
+        <div id="snowmaking-dashboard-content">
+          {props.dashboard ? <MountainDashboards {...props.dashboard} />
+            : <GameWeatherOverlay terrain={dock.terrainRecord} weather={dock.simulation} units={dock.units} />}
+        </div>
       </div>
-    </nav>
-    {panelOpen && <section className="workspace-panel" aria-label={`${section ? WORKSPACE_LABELS[section] : ''} workspace`}>
-      <header className="workspace-header"><div><span className="ui-eyebrow">{analysis ? 'Mountain analysis' : tool ? 'Construction' : 'Mountain workspace'}</span>
-        <h2>{WORKSPACE_LABELS[section!]}</h2></div>
-        <div className="ui-actions"><button className="ui-icon-button" aria-label={expanded ? 'Collapse workspace' : 'Expand workspace'}
-          aria-pressed={expanded} onClick={() => setExpanded(!expanded)}><Icon name="expand" /></button>
-          <button className="ui-icon-button" aria-label="Close workspace" onClick={() => { workspace?.close(); if (section === 'layers') dock.snowControl?.close(); }}><Icon name="close" /></button></div>
-      </header>
-      {tool && <ol className="construction-stages" aria-label="Construction progress">
-        {['Configure', 'Draw / place', 'Review', 'Build'].map((label, index) => <li key={label}
-          aria-current={stage === index ? 'step' : undefined} className={stage === index ? 'is-current' : ''}>{label}</li>)}
-      </ol>}
-      {!tool && section && ['lifts', 'trails', 'snowmaking'].includes(section) && <div className="workspace-view-switch" role="group" aria-label="Workspace view">
-        <button className="ui-button" aria-pressed={!analysis} onClick={() => { if (analysis) navigate(section!); }}>Build & inspect</button>
-        {section === 'snowmaking' && <button className="ui-button" aria-pressed={analysis && props.dashboard?.snowmakingMode === 'inspect'}
-          onClick={() => workspace?.navigate({ section: 'snowmaking', view: 'network' })}>Network</button>}
-        <button className="ui-button" aria-pressed={analysis && (section !== 'snowmaking' || props.dashboard?.snowmakingMode === 'analysis')} onClick={() => { if (section === 'lifts' || section === 'trails') setNetworkSection(section); workspace?.navigate({ section: section!, view: 'analysis' }); }}>Analysis</button>
-        {analysis && workspace?.canEditAnalysis && <button className="ui-button ui-button-primary" onClick={workspace.editAnalysis}>Edit selected</button>}
-      </div>}
-      {feedback && <div className="workspace-feedback" role="status">Construction complete</div>}
-      {buildAnother && <div className="workspace-view-switch"><button className="ui-button ui-button-primary" disabled={dock.building}
-        onClick={buildAnother}>Build another</button></div>}
-      <div className="workspace-body">
-        {props.dashboard ? <MountainDashboards {...props.dashboard} />
-          : dock.simulation.analysisOpen ? <GameWeatherOverlay terrain={dock.terrainRecord} weather={dock.simulation} units={dock.units} />
-          : props.stats ? <ResortStatsPanel {...props.stats} embedded />
-          : <MapGameDock {...dock} />}
+    </GameWindow>}
+    {toolboxOpen && <GameWindow id="toolbox" title="Toolbox" pinned={toolboxPinned} onPin={() => setToolboxPinned(!toolboxPinned)}
+      onClose={() => { setToolboxPinned(false); if (!dashboardOpen) workspace?.close(); }}
+      tabs={<GameTabs label="Construction systems" value={toolTab} options={TOOLS} onChange={chooseTool} panelId="toolbox-content" />}>
+      <div id="toolbox-content" role="tabpanel" aria-label={TOOLS.find((entry) => entry.value === toolTab)?.label}>
+        <MapGameDock {...catalog} />
         {tool && <div className="workspace-tool-options">{props.bottomRightToolOptions}</div>}
       </div>
-    </section>}
-    {!panelOpen && layersOpen && <div className="workspace-layers-only"><MapGameDock {...dock} /></div>}
-    <GameToolbar resortName={dock.saved.name} onOpenStats={() => navigate('resort')}
-      onOpenWeather={() => navigate('weather')} showWeatherOverlay={false}
-      saveStatus={props.menu.saving ? 'Saving…' : props.menu.unsaved ? 'Unsaved changes' : 'Saved'}
-      readout={readout} units={dock.units} terrain={dock.terrainRecord} simulation={dock.simulation} />
+    </GameWindow>}
+    {inspectors.map((entity) => <RunOrLiftInspector key={entityKey(entity)} entity={entity} dock={dock}
+      pinned={visiblePinned.some((entry) => entityKey(entry) === entityKey(entity))}
+      onPin={() => setPinned((current) => current.some((entry) => entityKey(entry) === entityKey(entity))
+        ? current.filter((entry) => entityKey(entry) !== entityKey(entity)) : [...current, entity])}
+      onClose={() => clearInspector(entity)} onEdit={() => edit(entity)}
+      onBuildAnother={() => { workspace?.close(); if (entity.kind === 'trail') dock.trailController.arm(); else dock.liftController.arm(); }} />)}
+    {(layersOpen || dock.snowControl) && <GameWindow id="layers" title="Layers" variant="menu" placement="below-anchor" anchorRef={layersButtonRef}
+      onClose={() => { dock.closeLayers(); dock.snowControl?.close(); }}>
+      <MapGameDock {...dock} openDock="layers" layersAlongsideBuild={false} selectedLiftId={null} selectedTrailId={null}
+        selectedRoadKey={null} selectedLakeId={null} selectedStreamId={null} selectedDamId={null} selectedPondId={null}
+        selectedSnowmakingNodeId={null} selectedSnowmakingPipeId={null} selectedSnowgunId={null} selectedBuildingId={null}
+        selectedNodeId={null} selectedPathId={null} coordinator={{ ...dock.coordinator, activeTool: null }} />
+    </GameWindow>}
+    {props.stats && <GameWindow id="resort" title="Resort" onClose={() => workspace?.close()}><ResortStatsPanel {...props.stats} embedded /></GameWindow>}
+    <GameToolbar resortName={dock.saved.name} onOpenStats={() => navigate('resort')} onOpenWeather={() => chooseDashboard('weather')}
+      showWeatherOverlay={false} unsaved={props.menu.unsaved}
+      units={dock.units} terrain={dock.terrainRecord} simulation={dock.simulation}
+      navigation={<nav className="game-mode-tabs" aria-label="Game windows">
+        <button aria-pressed={dashboardOpen} onClick={() => dashboardOpen ? workspace?.close() : chooseDashboard('trails')}><Icon name="trails" />Dashboards</button>
+        <button aria-pressed={toolboxOpen && !dashboardOpen} onClick={() => toolboxOpen && !dashboardOpen ? workspace?.close() : navigate(lastToolTab)}><Icon name="infrastructure" />Toolbox</button>
+      </nav>} />
   </div>;
+}
+function TopRightSettings({ resortSettings }: { resortSettings?: ResortSettingsCapability }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
+    window.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return <div className="top-right-settings" ref={rootRef}>
+    <button ref={buttonRef} type="button" className="ui-icon-button top-right-settings-toggle" aria-label="Settings"
+      aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <span aria-hidden="true">Settings</span>
+    </button>
+    {open && <Settings presentation="popover" onClose={() => setOpen(false)} resortSettings={resortSettings} />}
+  </div>;
+}
+function RunOrLiftInspector({ entity, dock, pinned, onPin, onClose, onEdit, onBuildAnother }: {
+  entity: Entity; dock: NonNullable<Props['dock']>; pinned: boolean; onPin(): void; onClose(): void; onEdit(): void; onBuildAnother(): void;
+}) {
+  const [tab, setTab] = useState<'overview' | 'conditions' | 'profile'>('overview');
+  const trail = entity.kind === 'trail' ? dock.trails.find((entry) => entry.id === entity.id) : null;
+  const lift = entity.kind === 'lift' ? dock.lifts.find((entry) => entry.id === entity.id) : null;
+  if (!trail && !lift) return null;
+  const title = trail?.name ?? lift!.name;
+  const panelId = `inspector-${entityKey(entity)}`;
+  return <GameWindow id={panelId} title={title} pinned={pinned} onPin={onPin} onClose={onClose}
+    tabs={<GameTabs<'overview' | 'conditions' | 'profile'> label={`${title} details`} value={tab}
+      options={trail ? [{ value: 'overview', label: 'Overview' }, { value: 'conditions', label: 'Conditions' }, { value: 'profile', label: 'Profile' }]
+        : [{ value: 'overview', label: 'Overview' }, { value: 'conditions', label: 'Operations' }]}
+      onChange={setTab} panelId={panelId} />}>
+    <div id={panelId} role="tabpanel" aria-label={`${title} ${tab}`} className="entity-inspector">
+      {tab === 'overview' ? trail ? <TrailDetail trail={trail} units={dock.units} onEdit={onEdit} onClose={onClose}
+        onRemove={() => dock.trailController.remove(trail.id)} onToggleClosed={(closed) => dock.trailController.patch(trail.id, { closed })} />
+        : <LiftDetail lift={lift!} units={dock.units} onEdit={onEdit} onClose={onClose}
+          onRemove={() => dock.liftController.remove(lift!.id)} onToggleClosed={(closed) => dock.liftController.patch(lift!.id, { closed })} />
+        : tab === 'profile' && trail ? <TrailProfile parts={trail.parts} units={dock.units} difficulty={trail.difficulty} />
+        : <dl className="inspector-metrics"><div><dt>State</dt><dd>{(trail ?? lift)?.closed ? 'Closed' : 'Open'}</dd></div>
+          <div><dt>{trail ? 'Traffic history' : 'Throughput history'}</dt><dd>Not recorded</dd></div>
+          {trail && <div><dt>Last groomed</dt><dd>Not recorded</dd></div>}</dl>}
+      <button className="site-btn inspector-build-another" disabled={dock.building} onClick={onBuildAnother}>Build another</button>
+    </div>
+  </GameWindow>;
 }

@@ -45,9 +45,16 @@ function initialScreen(): Screen {
   if (typeof window === 'undefined') return 'menu';
   const hash = window.location.hash.toLowerCase();
   const params = new URLSearchParams(window.location.search);
+  if (params.get('resume-save')?.trim()) return 'loadingGame';
   if (hash.includes('graphics-lab') || params.has('lab')) return 'graphicsLab';
   if (hash.includes('weather-lab') || params.has('weather-lab')) return 'weatherLab';
   return 'menu';
+}
+
+function pendingResumeSaveKey(): string | null {
+  if (typeof window === 'undefined') return null;
+  const key = new URLSearchParams(window.location.search).get('resume-save')?.trim();
+  return key || null;
 }
 
 function AppInner() {
@@ -157,6 +164,9 @@ function AppInner() {
       });
       setScreen('loadingGame');
       const [save, previewUrl] = await Promise.all([loadGame(key), loadGamePreview(key)]);
+      if (save) {
+        setBoot((previous) => previous ? { ...previous, title: save.name } : previous);
+      }
       if (previewUrl) {
         setBoot((previous) => previous
           ? { ...previous, imageryUrl: previewUrl, imageryKind: 'resume' }
@@ -172,6 +182,15 @@ function AppInner() {
     },
     [dismissBoot, openSave]
   );
+
+  useEffect(() => {
+    const key = pendingResumeSaveKey();
+    if (screen !== 'loadingGame' || !key) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('resume-save');
+    window.history.replaceState(null, '', url);
+    void beginBoot(key, 'Resuming resort');
+  }, [beginBoot, screen]);
 
   const handleContinue = useCallback(async () => {
     // Resolve the summary first — an index.json read, no map work — so the

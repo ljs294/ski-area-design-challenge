@@ -5,6 +5,7 @@ export type DeveloperConsoleCommand =
   | { readonly kind: 'help' }
   | { readonly kind: 'clear' }
   | { readonly kind: 'time' }
+  | { readonly kind: 'restart' }
   | { readonly kind: 'skip'; readonly minutes: number };
 
 export interface SimulationTimeDiscontinuity {
@@ -31,6 +32,7 @@ const UNIT_MINUTES: Readonly<Record<string, number>> = Object.freeze({
 export const DEVELOPER_CONSOLE_HELP = Object.freeze([
   'skip <duration>  Jump forward without simulating elapsed world time (examples: skip 30m, skip 3h, skip 1d).',
   'time             Show the current game timestamp.',
+  'restart          Save progress and reopen this resort in a fresh game window.',
   'clear            Clear console output.',
   'help             Show available commands.',
 ]);
@@ -56,6 +58,7 @@ export function parseDeveloperConsoleCommand(source: string): DeveloperConsoleCo
   if (command === 'help' || command === '?') return { kind: 'help' };
   if (command === 'clear' || command === 'cls') return { kind: 'clear' };
   if (command === 'time' || command === 'date') return { kind: 'time' };
+  if (command === 'restart' || command === 'relaunch' || command === 'restart-game') return { kind: 'restart' };
   const skip = /^(?:skip(?:\s+ahead)?|skip-ahead|skipahead|advance)(?:\s+(.*))?$/.exec(command);
   if (!skip) throw new Error('Unknown command. Type "help" for available commands.');
   const duration = skip[1]?.trim() || '1m';

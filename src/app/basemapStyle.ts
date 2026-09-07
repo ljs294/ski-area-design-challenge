@@ -1,6 +1,7 @@
 import type maplibregl from 'maplibre-gl';
 import { createGameBasemapStyle, createMasterPlanStyle } from './masterPlanStyle';
 import { themedBasemap } from './mapTheme';
+import type { CustomMapColors, MapColorPreset } from './mapTheme';
 
 // Both styles are OpenMapTiles-schema vector basemaps (source-layers water /
 // transportation / building), so the analysis overlays + basemap feature
@@ -19,9 +20,10 @@ export const DARK_BASEMAP =
  */
 export function basemapFor(
   theme: 'light' | 'dark',
-  opts?: { offline?: boolean }
+  opts?: { offline?: boolean; mapColorPreset?: MapColorPreset; customMapColors?: CustomMapColors }
 ): maplibregl.StyleSpecification {
-  return themedBasemap(opts?.offline ? createGameBasemapStyle() : createMasterPlanStyle(), theme);
+  return themedBasemap(opts?.offline ? createGameBasemapStyle() : createMasterPlanStyle(), theme,
+    opts?.mapColorPreset, opts?.customMapColors);
 }
 
 /**
