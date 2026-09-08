@@ -72,6 +72,23 @@ test('snowmaking façade owns contributions, reconciliation, editing, and persis
     ponds: [{ id: 'pond-seed', isSnowmaking: false }], snowmakingNodes: [] });
 });
 
+test('imported lake click opens properties with the toolbox closed', async ({ page }) => {
+  await seedPreparedResort(page);
+  await page.getByRole('button', { name: /^Continue / }).click();
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+  await jumpTo(page, [-121.4965, 46.9063], 17);
+  const lake = await pointAt(page, [-121.4965, 46.9063]);
+  await page.mouse.click(lake.x, lake.y);
+  const inspector = page.getByRole('region', { name: 'Context Lake', exact: true });
+  await expect(inspector).toBeVisible();
+  await expect(inspector.getByText('Surface area', { exact: true })).toBeVisible();
+  await expect(inspector.getByRole('checkbox', { name: 'Snowmaking pond' })).not.toBeChecked();
+  await inspector.getByRole('button', { name: 'Close Context Lake', exact: true }).click();
+  await expect(inspector).toHaveCount(0);
+  await page.mouse.click(lake.x, lake.y);
+  await expect(inspector).toBeVisible();
+});
+
 test('an imported pond can be designated for snowmaking and persisted', async ({ page }) => {
   await seedPreparedResort(page);
   await page.getByRole('button', { name: /^Continue /  }).click();

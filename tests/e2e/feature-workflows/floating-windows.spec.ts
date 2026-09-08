@@ -84,6 +84,16 @@ test('game popup frames use the shared toolbox radius', async ({ page }) => {
   const [layersToggleBox, layersBox] = await Promise.all([layersToggle.boundingBox(), layers.boundingBox()]);
   expect(layersBox!.y).toBeCloseTo(layersToggleBox!.y + layersToggleBox!.height + 6, 1);
   expect(layersBox!.x + layersBox!.width).toBeCloseTo(layersToggleBox!.x + layersToggleBox!.width, 1);
+  const mapNodes = layers.getByRole('checkbox', { name: 'Map nodes', exact: true });
+  await expect(mapNodes).toBeChecked();
+  await mapNodes.click();
+  await expect(mapNodes).not.toBeChecked();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { appMap: import('maplibre-gl').Map })
+    .appMap.getLayoutProperty('ski-nodes', 'visibility'))).toBe('none');
+  await mapNodes.click();
+  await expect(mapNodes).toBeChecked();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { appMap: import('maplibre-gl').Map })
+    .appMap.getLayoutProperty('ski-nodes', 'visibility'))).toBe('visible');
   await layers.getByLabel('Move Layers', { exact: true }).focus();
   await page.keyboard.press('ArrowRight');
   await layers.getByRole('button', { name: 'Close Layers', exact: true }).click();

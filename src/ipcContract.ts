@@ -49,6 +49,7 @@ export const WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL = 'window:close-checkpoint
 export type WindowMode = 'windowed' | 'fullscreen' | 'borderless';
 
 export interface WindowRestartRequest {
+  fullRestart?: boolean;
   saveKey: string;
 }
 export type WindowRestartResponse =

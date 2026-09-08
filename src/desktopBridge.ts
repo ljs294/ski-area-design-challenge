@@ -70,7 +70,7 @@ export interface DesktopApi {
   window: {
     getMode(): Promise<WindowMode>;
     setMode(mode: WindowMode): Promise<WindowMode>;
-    restart(saveKey: string): Promise<WindowRestartResponse>;
+    restart(saveKey: string, fullRestart?: boolean): Promise<WindowRestartResponse>;
   };
   lifecycle: {
     onCloseCheckpointRequested(listener: () => void): () => void;

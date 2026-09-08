@@ -10,9 +10,9 @@ import { nextPathName } from '../skiNodes';
 import { nearestTrailTailAnchor } from './trailHeadAnchor';
 import type { TopologyDocument } from './topologyDocument';
 import { MAP_Z_ORDER } from './mapContribution';
-import type { ManagedMapContribution } from './mapContribution';
+import type { ManagedMapContribution, MapVisibilityDescriptor } from './mapContribution';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
-import { addNodePathDraftLayers, addNodePathLayers, setNodePathData,
+import { addNodePathDraftLayers, addNodePathLayers, MAP_NODE_LAYER_IDS, setNodePathData,
   setNodePathDraftData, type NodePathDraft } from './nodePathLayers';
 import { IDLE_NODE_TOOL, IDLE_PATH_TOOL, pathFromReview, reduceNodeTool, reducePathTool,
   type NodeTool, type PathTool } from './nodePathControllerModel';
@@ -73,6 +73,10 @@ export function useNodePathController(options: NodePathControllerOptions) {
       setNodePathData(map, [...current.nodes], [...current.paths], [...current.junctions]);
       setNodePathDraftData(map, draftOf(pathRef.current, nodeRef.current, snapHoverRef.current));
     },
+    visibility: (): MapVisibilityDescriptor[] => [{
+      id: 'map-nodes', label: 'Map nodes', layerIds: MAP_NODE_LAYER_IDS,
+      visible: true, section: 'Master plan',
+    }],
     setCaptureTransient: ({ map }, hidden) => setNodePathDraftData(map,
       hidden ? null : draftOf(pathRef.current, nodeRef.current, snapHoverRef.current)),
     cleanup: () => {},

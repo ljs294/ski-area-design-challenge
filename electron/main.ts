@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, session, utilityProcess, type UtilityProcess } from 'electron';
 import path from 'path';
+import { restartArguments, resumeSaveArgument } from './restartArguments';
 import { fileURLToPath } from 'url';
 import { registerTerrainStorageHandlers } from './ipcTerrainStorage';
 import { registerGameSaveStorageHandlers } from './ipcGameSaveStorage';
@@ -164,7 +165,7 @@ app.whenReady().then(async () => {
   registerGameSaveStorageHandlers();
   registerGuestSimulationStorageHandlers();
   registerWeatherStorageHandlers();
-  createWindow();
+  createWindow(resumeSaveArgument(process.argv));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -193,11 +194,18 @@ ipcMain.handle(WINDOW_SET_MODE_CHANNEL, (_e, mode: WindowMode): WindowMode => {
   return mainWindow ? getWindowMode(mainWindow) : 'windowed';
 });
 
-ipcMain.handle(WINDOW_RESTART_CHANNEL, (event, request: { saveKey?: unknown }): Promise<WindowRestartResponse> => {
+ipcMain.handle(WINDOW_RESTART_CHANNEL, (event, request: { saveKey?: unknown; fullRestart?: unknown }): Promise<WindowRestartResponse> => {
   const source = BrowserWindow.fromWebContents(event.sender);
   if (!source || source !== mainWindow) return Promise.resolve({ ok: false, error: 'The current game window is unavailable.' });
   const saveKey = typeof request?.saveKey === 'string' ? request.saveKey.trim() : '';
   if (!saveKey) return Promise.resolve({ ok: false, error: 'A saved resort key is required.' });
+  if (request.fullRestart === true) {
+    app.relaunch({ args: restartArguments(process.argv.slice(1), saveKey) });
+    // The renderer has already committed the save; avoid a second close checkpoint.
+    closeCheckpointComplete = true;
+    setImmediate(() => app.quit());
+    return Promise.resolve({ ok: true });
+  }
 
   const replacement = createWindow(saveKey, false);
   return new Promise<WindowRestartResponse>((resolve) => {

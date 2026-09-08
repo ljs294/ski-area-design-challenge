@@ -42,7 +42,7 @@ body:has(.game-window-shell) :is(
   .snowmaking-lasso-popover,
   .developer-console
 ) { border-radius: var(--game-popup-radius); }
-.game-window--menu { padding: 6px; background: var(--surface-solid); box-shadow: var(--shadow-lg); }
+.game-window--menu { max-height: calc(100dvh / var(--ui-scale) - 92px); padding: 6px; background: var(--surface-solid); box-shadow: var(--shadow-lg); }
 .game-window--menu .game-window-header { min-height: 0; padding: 2px 4px 6px 8px; margin-bottom: 2px; border-bottom: 1px solid var(--border); }
 .game-window--menu .game-window-header h2 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
 .game-window--menu .game-window-header .ui-icon-button { width: auto; height: auto; padding: 4px 6px; border-radius: 6px; color: var(--text-faint); }

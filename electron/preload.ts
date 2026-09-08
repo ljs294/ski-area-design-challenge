@@ -70,7 +70,7 @@ const api = {
   window: {
     getMode: () => ipcRenderer.invoke(WINDOW_GET_MODE_CHANNEL),
     setMode: (mode: string) => ipcRenderer.invoke(WINDOW_SET_MODE_CHANNEL, mode),
-    restart: (saveKey: string) => ipcRenderer.invoke(WINDOW_RESTART_CHANNEL, { saveKey }),
+    restart: (saveKey: string, fullRestart?: boolean) => ipcRenderer.invoke(WINDOW_RESTART_CHANNEL, { saveKey, fullRestart }),
   },
   lifecycle: {
     onCloseCheckpointRequested: (listener: () => void) => {

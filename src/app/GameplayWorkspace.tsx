@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { analyzeLake } from '../lakeAnalysis';
+import { LakeDetail } from './LakeDetail';
 import type { MapViewChromeProps } from './MapViewChrome';
 import { MapGameDock } from './MapGameDock';
 import { GameToolbar, GameWeatherOverlay } from './GameToolbar';
@@ -10,6 +12,8 @@ import { GameTabs } from './GameTabs';
 import { TrailDetail } from './TrailDetail';
 import { LiftDetail } from './LiftDetail';
 import { TrailProfile } from './TrailProfile';
+import { PondDetail } from './PondDetail';
+import { isStandalonePond } from './pondSelection';
 import { Icon } from './ui';
 import { MapAppearanceMenu } from './MapAppearanceMenu';
 import { Settings } from './Settings';
@@ -18,7 +22,7 @@ import { sectionForTool, type WorkspaceSection } from './workspaceModel';
 import './gameWindows.css';
 
 type Props = Pick<MapViewChromeProps, 'dock' | 'dashboard' | 'stats' | 'menu' | 'workspace' | 'bottomRightToolOptions' | 'resortSettings'>;
-type Entity = { kind: 'trail' | 'lift'; id: string };
+type Entity = { kind: 'trail'; id: string } | { kind: 'lift'; id: string } | { kind: 'pond'; id: string };
 type ToolTab = 'lifts' | 'trails' | 'snowmaking' | 'infrastructure';
 const TOOLS = [{ value: 'lifts', label: 'Lifts' }, { value: 'trails', label: 'Trails' },
   { value: 'snowmaking', label: 'Snowmaking' }, { value: 'infrastructure', label: 'Infrastructure' }] as const;
@@ -36,19 +40,29 @@ function Workspace(props: Props & { dock: NonNullable<Props['dock']> }) {
   const [pinned, setPinned] = useState<Entity[]>([]);
   const layersButtonRef = useRef<HTMLButtonElement>(null);
   const tool = dock.coordinator.activeTool;
+  const selectedLake = useMemo(() => {
+    const feature = dock.terrainRecord?.vectorFeatures?.waterPolygons.find((lake) => lake.id === dock.selectedLakeId);
+    return feature && dock.terrainRecord ? analyzeLake(feature, dock.terrainRecord,
+      dock.lakeDepthOverrides[feature.id], dock.lakeNameOverrides[feature.id]) : null;
+  }, [dock.selectedLakeId, dock.terrainRecord, dock.lakeDepthOverrides, dock.lakeNameOverrides]);
   const weatherOpen = dock.simulation.analysisOpen;
   const dashboardTab = weatherOpen ? 'weather' : props.dashboard?.dashboard ?? 'trails';
   const dashboardOpen = !!props.dashboard || weatherOpen;
   const edge = props.dashboard?.networkProps.selectedEdgeId
     ? dock.network.edgeById.get(props.dashboard.networkProps.selectedEdgeId) : null;
+  const selectedPond = dock.selectedPondId
+    ? dock.ponds.find((pond) => pond.id === dock.selectedPondId) ?? null : null;
   const selected: Entity | null = tool || dock.liftEditing || dock.trailEditing ? null
     : props.dashboard?.dashboard === 'trails' ? props.dashboard.networkProps.selectedLiftId
       ? { kind: 'lift', id: props.dashboard.networkProps.selectedLiftId }
       : edge?.kind === 'trail' ? { kind: 'trail', id: edge.trailId } : null
     : dock.selectedLiftId ? { kind: 'lift', id: dock.selectedLiftId }
-    : dock.selectedTrailId ? { kind: 'trail', id: dock.selectedTrailId } : null;
+    : dock.selectedTrailId ? { kind: 'trail', id: dock.selectedTrailId }
+    : selectedPond && isStandalonePond(dock.ponds, selectedPond.id) ? { kind: 'pond', id: selectedPond.id } : null;
   const entityExists = (entity: Entity) => entity.kind === 'trail'
-    ? dock.trails.some((trail) => trail.id === entity.id) : dock.lifts.some((lift) => lift.id === entity.id);
+    ? dock.trails.some((trail) => trail.id === entity.id)
+    : entity.kind === 'lift' ? dock.lifts.some((lift) => lift.id === entity.id)
+    : isStandalonePond(dock.ponds, entity.id);
   const visiblePinned = pinned.filter(entityExists);
   const inspectors = [...visiblePinned, ...(selected && !visiblePinned.some((entry) => entityKey(entry) === entityKey(selected)) ? [selected] : [])];
   const section = tool ? sectionForTool(tool) : dock.openDock;
@@ -70,16 +84,18 @@ function Workspace(props: Props & { dock: NonNullable<Props['dock']> }) {
     if (selected && entityKey(selected) === entityKey(entity)) {
       if (props.dashboard?.dashboard === 'trails') {
         props.dashboard.networkProps.onSelectLift(null); props.dashboard.networkProps.onSelectEdge(null);
-      } else if (entity.kind === 'trail') dock.clearSelectedTrail(); else dock.clearSelectedLift();
+      } else if (entity.kind === 'trail') dock.clearSelectedTrail();
+      else if (entity.kind === 'lift') dock.clearSelectedLift(); else dock.clearSelectedPond();
     }
   };
   const edit = (entity: Entity) => {
     workspace?.close();
     if (entity.kind === 'trail') { dock.trailController.select(entity.id); dock.setTrailEditing(true); }
-    else { dock.liftController.select(entity.id); dock.setLiftEditing(true); }
+    else if (entity.kind === 'lift') { dock.liftController.select(entity.id); dock.setLiftEditing(true); }
   };
   // Catalog presentation does not acquire any additional controller ownership.
   const catalog = { ...dock, openDock: toolTab, layersAlongsideBuild: false, snowControl: null,
+    selectedLakeId: null,
     selectedLiftId: selected?.kind === 'lift' && !dock.liftEditing ? null : dock.selectedLiftId,
     selectedTrailId: selected?.kind === 'trail' && !dock.trailEditing ? null : dock.selectedTrailId };
   return <div className="workspace-shell game-window-shell">
@@ -111,7 +127,22 @@ function Workspace(props: Props & { dock: NonNullable<Props['dock']> }) {
         {tool && <div className="workspace-tool-options">{props.bottomRightToolOptions}</div>}
       </div>
     </GameWindow>}
-    {inspectors.map((entity) => <RunOrLiftInspector key={entityKey(entity)} entity={entity} dock={dock}
+    {selectedLake && !tool && <GameWindow key={selectedLake.id} id={`inspector-lake:${selectedLake.id}`}
+      title={selectedLake.name} onClose={dock.clearSelectedLake}>
+      <div className="entity-inspector" data-panel="lake"><LakeDetail lake={selectedLake} units={dock.units}
+        isSnowmaking={dock.snowmakingLakeIds.includes(selectedLake.id)}
+        onSnowmakingChange={(enabled) => dock.setLakeSnowmaking(selectedLake.id, enabled)}
+        onNameOverride={(name) => dock.setLakeName(selectedLake.id, name)}
+        onDepthOverride={(depth) => dock.setLakeDepth(selectedLake.id, depth)}
+        onClose={dock.clearSelectedLake} /></div>
+    </GameWindow>}
+    {inspectors.map((entity) => entity.kind === 'pond'
+      ? <PondInspector key={entityKey(entity)} entity={entity} dock={dock}
+        pinned={visiblePinned.some((entry) => entityKey(entry) === entityKey(entity))}
+        onPin={() => setPinned((current) => current.some((entry) => entityKey(entry) === entityKey(entity))
+          ? current.filter((entry) => entityKey(entry) !== entityKey(entity)) : [...current, entity])}
+        onClose={() => clearInspector(entity)} onBuildAnother={() => { workspace?.close(); dock.snowmakingController.pond.arm(); }} />
+      : <RunOrLiftInspector key={entityKey(entity)} entity={entity} dock={dock}
       pinned={visiblePinned.some((entry) => entityKey(entry) === entityKey(entity))}
       onPin={() => setPinned((current) => current.some((entry) => entityKey(entry) === entityKey(entity))
         ? current.filter((entry) => entityKey(entry) !== entityKey(entity)) : [...current, entity])}
@@ -166,7 +197,7 @@ function TopRightSettings({ resortSettings }: { resortSettings?: ResortSettingsC
   </div>;
 }
 function RunOrLiftInspector({ entity, dock, pinned, onPin, onClose, onEdit, onBuildAnother }: {
-  entity: Entity; dock: NonNullable<Props['dock']>; pinned: boolean; onPin(): void; onClose(): void; onEdit(): void; onBuildAnother(): void;
+  entity: Extract<Entity, { kind: 'trail' | 'lift' }>; dock: NonNullable<Props['dock']>; pinned: boolean; onPin(): void; onClose(): void; onEdit(): void; onBuildAnother(): void;
 }) {
   const [tab, setTab] = useState<'overview' | 'conditions' | 'profile'>('overview');
   const trail = entity.kind === 'trail' ? dock.trails.find((entry) => entry.id === entity.id) : null;
@@ -188,6 +219,19 @@ function RunOrLiftInspector({ entity, dock, pinned, onPin, onClose, onEdit, onBu
         : <dl className="inspector-metrics"><div><dt>State</dt><dd>{(trail ?? lift)?.closed ? 'Closed' : 'Open'}</dd></div>
           <div><dt>{trail ? 'Traffic history' : 'Throughput history'}</dt><dd>Not recorded</dd></div>
           {trail && <div><dt>Last groomed</dt><dd>Not recorded</dd></div>}</dl>}
+      <button className="site-btn inspector-build-another" disabled={dock.building} onClick={onBuildAnother}>Build another</button>
+    </div>
+  </GameWindow>;
+}
+function PondInspector({ entity, dock, pinned, onPin, onClose, onBuildAnother }: {
+  entity: Extract<Entity, { kind: 'pond' }>; dock: NonNullable<Props['dock']>; pinned: boolean; onPin(): void; onClose(): void; onBuildAnother(): void;
+}) {
+  const pond = isStandalonePond(dock.ponds, entity.id)
+    ? dock.ponds.find((entry) => entry.id === entity.id) ?? null : null;
+  if (!pond) return null;
+  return <GameWindow id={`inspector-${entityKey(entity)}`} title={pond.name} pinned={pinned} onPin={onPin} onClose={onClose}>
+    <div className="entity-inspector"><PondDetail pond={pond} units={dock.units}
+      onRemove={() => dock.snowmakingController.pond.remove(pond.id)} />
       <button className="site-btn inspector-build-another" disabled={dock.building} onClick={onBuildAnother}>Build another</button>
     </div>
   </GameWindow>;

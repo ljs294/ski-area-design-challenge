@@ -25,6 +25,7 @@ import { useCommittedSnowmakingNetwork, useSnowmakingController, useSnowmakingLa
 import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
 import { MapViewChrome, SnowmakingToolOptions, snowmakingDashboardProps, useMapContextRecovery } from './MapViewChrome';
+import { isStandalonePond } from './pondSelection';
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
 import { useMapRuntime } from './useMapRuntime';
@@ -904,7 +905,10 @@ export function MapView({
       case 'lift': setSelectedLiftId(target.id); setOpenDock('lifts'); break;
       case 'trail': setSelectedTrailId(target.id); setOpenDock('trails'); break;
       case 'dam': setSelectedDamId(target.id); setOpenDock('snowmaking'); break;
-      case 'pond': setSelectedPondId(target.id); setOpenDock('snowmaking'); break;
+      case 'pond':
+        setSelectedPondId(target.id);
+        if (!isStandalonePond(ponds, target.id)) setOpenDock('snowmaking');
+        break;
       case 'building': setSelectedBuildingId(target.id); setOpenDock('snowmaking'); break;
       case 'snowmaking-node': setSelectedSnowmakingNodeId(target.id); setOpenDock('snowmaking'); break;
       case 'snowmaking-pipe': setSelectedSnowmakingPipeId(target.id); setOpenDock('snowmaking'); break;
@@ -1542,7 +1546,8 @@ export function MapView({
     return true;
   }
 
-  async function restartGameInNewWindow(): Promise<{ ok: true } | { ok: false; error: string }> {
+  async function restartGameInNewWindow(fullRestart = false): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (fullRestart && !desktop) return { ok: false, error: 'restart-app requires the Electron desktop app.' };
     const saveKey = persistedSaveRef.current?.key ?? saved?.key;
     if (!saveKey) return { ok: false, error: 'No saved resort is open.' };
     const browserWindow = desktop ? null : window.open('about:blank', '_blank');
@@ -1551,7 +1556,7 @@ export function MapView({
       browserWindow?.close();
       return { ok: false, error: 'The current progress could not be saved.' };
     }
-    if (desktop) return desktop.window.restart(saveKey);
+    if (desktop) return desktop.window.restart(saveKey, fullRestart);
     const url = new URL(window.location.href);
     url.searchParams.set('resume-save', saveKey);
     browserWindow!.location.replace(url.toString());

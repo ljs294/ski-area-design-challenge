@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { nodePathDraftGeoJSON, nodePathsToGeoJSON } from './nodePathLayers';
+import { MAP_NODE_LAYER_IDS, nodePathDraftGeoJSON, nodePathsToGeoJSON } from './nodePathLayers';
 import type { SavedJunction } from '../types/topology';
 
 const junction = (id: string, lng: number): SavedJunction =>
   ({ id, point: [lng, 46.93], elevM: null, createdAt: '2026-01-01T00:00:00.000Z' });
 
 describe('nodePathsToGeoJSON', () => {
+  it('keeps node symbols separate from the path layers for map visibility', () => {
+    expect(MAP_NODE_LAYER_IDS).toEqual([
+      'ski-nodes', 'ski-node-labels', 'trail-junctions', 'trail-junction-labels',
+    ]);
+  });
+
   // The map label, the trails list and the run review panel all print the same
   // number for a node. That number is the junction's position in the saved list,
   // so it has to be derived here from order and nowhere else.

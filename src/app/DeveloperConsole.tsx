@@ -18,7 +18,7 @@ function displayTimestamp(clock: SimulationClock): string {
 export interface DeveloperConsoleProps {
   readonly clock: SimulationClock;
   skip(minutes: number): DeveloperClockSkip;
-  restart?(): Promise<{ ok: true } | { ok: false; error: string }>;
+  restart?(fullRestart?: boolean): Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
 export function DeveloperConsole({ clock, skip, restart }: DeveloperConsoleProps) {
@@ -58,10 +58,10 @@ export function DeveloperConsole({ clock, skip, restart }: DeveloperConsoleProps
       if (command.kind === 'clear') { setOutput([]); return; }
       if (command.kind === 'help') { append(`> ${source}`, ...DEVELOPER_CONSOLE_HELP); return; }
       if (command.kind === 'time') { append(`> ${source}`, displayTimestamp(clock)); return; }
-      if (command.kind === 'restart') {
+      if (command.kind === 'restart' || command.kind === 'restart-app') {
         if (!restart) throw new Error('Game restart is available only in the desktop game or a browser window that allows popups.');
         append(`> ${source}`, 'Saving progress and opening a fresh game window…');
-        const result = await restart();
+        const result = await restart(command.kind === 'restart-app');
         if (!result.ok) throw new Error(result.error);
         return;
       }
