@@ -8,7 +8,7 @@ for (const theme of ['light', 'dark']) {
       await openMenu(page);
       await page.evaluate((theme) => localStorage.setItem('skiapp:settings', JSON.stringify({ theme, reducedMotion: true })), theme);
       await page.reload();
-      await expect(page.getByRole('heading', { name: 'Mountain Planner', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Ski Area Design Challenge', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: /^Continue / })).toHaveCount(0);
       for (const name of ['New Resort', 'My Resorts', 'Settings', 'Credits']) {
         const button = page.getByRole('button', { name, exact: true });

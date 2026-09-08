@@ -4,7 +4,7 @@ import { seedPreparedResort } from '../support/preparedResort';
 test('home, library and setup use one consistent player journey', async ({ page }, info) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await openMenu(page);
-  await expect(page.getByRole('heading', { name: 'Mountain Planner', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ski Area Design Challenge', exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('home-light.png') });
   await page.getByRole('button', { name: 'My Resorts' }).click();
   await expect(page.getByRole('dialog', { name: 'My Resorts' })).toBeVisible();

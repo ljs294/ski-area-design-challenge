@@ -14,7 +14,7 @@ export function SetupWorkspace(props: Props) {
   const progress = gate?.progress;
   const percent = progress && progress.total > 0 ? Math.min(100, Math.round(progress.completed / progress.total * 100)) : 0;
   return <section className="setup-workspace" aria-label="New resort setup">
-    <header><span className="ui-eyebrow">Mountain Planner</span><h1>New resort</h1><p>Find the mountain you want to make your own.</p></header>
+    <header><span className="ui-eyebrow">Ski Area Design Challenge</span><h1>New resort</h1><p>Find the mountain you want to make your own.</p></header>
     <ol className="setup-steps">{STEPS.map((label, index) => <li key={label} aria-current={index === step ? 'step' : undefined}
       className={index === step ? 'is-current' : index < step ? 'is-complete' : ''}><span>{index < step ? '✓' : index + 1}</span>{label}</li>)}</ol>
     <div className="setup-body">

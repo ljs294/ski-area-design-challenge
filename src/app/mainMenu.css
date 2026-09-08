@@ -3,11 +3,22 @@
   background: radial-gradient(ellipse at 65% 40%, transparent 35%, #14221b55 100%); }
 .alpine-home .trail-signpost { position: relative; isolation: isolate; width: min(330px, 85vw);
   margin-top: auto; padding-bottom: 100px; zoom: var(--ui-scale); flex-shrink: 0; }
-.alpine-home .trail-signpost::before { content: ''; position: absolute; z-index: -1; top: 10px;
-  bottom: 0; left: 38px; width: 39px; border: 1px solid #45392b;
+.alpine-home .trail-timber-post { position: absolute; top: var(--post-top, 0);
+  bottom: -2px; left: var(--post-left, 0); width: var(--post-width, 24px); border: 1px solid #45392b;
+  pointer-events: none;
   background: repeating-linear-gradient(91deg, #ffffff08 0 2px, transparent 2px 9px),
     linear-gradient(90deg, #594a36, #8b7656 25%, #736044 75%, #4b3e2d);
   box-shadow: 4px 3px 5px #0004; }
+.alpine-home .trail-timber-post-second { left: var(--post-second-left, 0); }
+.alpine-home .trail-rating { width: 30px; height: 30px; flex-shrink: 0; }
+.alpine-home .trail-sign { gap: 12px; padding-left: 21px; padding-right: 18px; }
+.alpine-home .trail-sign > span { flex: 1; }
+body:has(.alpine-home) { --main-menu-radius: 2px; }
+body:has(.alpine-home) :is(.trail-sign, .trail-nameplate, .trail-menu-footer button,
+  .ui-dialog, .settings-panel, .settings-panel button, .settings-panel select,
+  .settings-panel input:not([type='range']):not([type='radio']):not([type='checkbox']),
+  .settings-panel .segmented, .ui-dialog button, .ui-dialog input, .ui-dialog select) {
+  border-radius: var(--main-menu-radius); }
 .alpine-home .trail-nameplate { display: flex; align-items: center; gap: 10px; padding: 15px 18px;
   margin: 0 12px 23px 0; background: #e8e1cf; color: #28382e; border: 2px solid #56614e;
   box-shadow: 2px 4px 5px #0004; border-radius: 2px; }
@@ -37,7 +48,20 @@
 .alpine-home .trail-menu-footer { display: flex; justify-content: flex-end; margin-top: auto; padding-top: 24px; }
 .alpine-home .trail-menu-footer nav { display: flex; flex-wrap: wrap; gap: 8px; zoom: var(--ui-scale); }
 .alpine-home .trail-menu-footer button { padding: 10px 16px; border: 1px solid var(--border);
-  background: var(--surface-solid); color: var(--text); border-radius: 4px; font: inherit; }
+  background: var(--surface-solid); color: var(--text); border-radius: 4px; font: inherit;
+  transition: transform 160ms ease-out, background-color 160ms ease-out,
+    border-color 160ms ease-out, box-shadow 160ms ease-out; }
+@media (hover: hover) {
+  .alpine-home .trail-menu-footer button:hover { transform: translateY(-2px);
+    background: var(--panel-elev-hover); border-color: var(--border-strong); box-shadow: 0 4px 9px #0003; }
+}
+.alpine-home .trail-menu-footer button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px;
+  background: var(--panel-elev-hover); border-color: var(--border-strong); }
+.alpine-home .trail-menu-footer button:active { transform: translateY(0); box-shadow: inset 0 1px 3px #0003; }
+:root[data-reduced-motion='true'] .alpine-home .trail-menu-footer button { transition: none; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .alpine-home .trail-menu-footer button { transition: none; transform: none; }
+}
 .alpine-home .menu-backdrop-css { background: linear-gradient(160deg, #89afc4 0%, #c4d2ce 38%, #a9afa0 39%, #73846b 65%, #3e604c 100%); }
 .alpine-home .menu-backdrop-scrim { background: linear-gradient(0deg, #172a2430, transparent 55%); }
 @media (max-height: 700px) { .alpine-home .trail-signpost { padding-bottom: 42px; } }

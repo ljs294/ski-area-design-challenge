@@ -10,6 +10,8 @@ interface Credit {
 }
 
 const CREDITS: Credit[] = [
+  { what: 'Menu ground cover', who: '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021), processed by ESA WorldCover consortium. CC BY 4.0; recolored by Mountain Planner.' },
+  { what: 'Menu elevation', who: 'Mapzen Terrain Tiles / USGS and other sources. Source notices included in menu-background/NOTICE.md.' },
   { what: 'Basemap', who: '© OpenStreetMap contributors · © CARTO' },
   { what: 'Preview satellite imagery', who: '© Esri, Maxar, Earthstar Geographics' },
   { what: 'Matched local imagery', who: 'USDA / USGS NAIP orthoimagery · public domain' },

@@ -1,18 +1,14 @@
-import { createMasterPlanStyle } from './masterPlanStyle';
+import type { StyleSpecification } from 'maplibre-gl';
 
 /** Natural menu colors are independent of gameplay presets and UI theme. */
-export function createMenuMapStyle() {
-  const style = createMasterPlanStyle();
-  for (const layer of style.layers) {
-    if (layer.type === 'background') layer.paint = { 'background-color': '#aca99a' };
-    if (layer.id === 'mp-context-landcover' && layer.type === 'fill') layer.paint = {
-      'fill-opacity': 0.9,
-      'fill-color': ['match', ['get', 'class'],
-        'wood', '#527259', 'grass', '#91a579', 'farmland', '#a8ad80',
-        'ice', '#e6eee9', 'rock', '#aaa69b', 'sand', '#b8b09a', '#8c987c'],
-    };
-    if (layer.id === 'mp-water' && layer.type === 'fill') layer.paint = { 'fill-color': '#528ca4', 'fill-opacity': 0.9 };
-    if (layer.id === 'mp-waterways' && layer.type === 'line') layer.paint = { ...layer.paint, 'line-color': '#528ca4' };
-  }
-  return style;
+export function createMenuMapStyle(): StyleSpecification {
+  return { version: 8, sources: {
+    'menu-cover': { type: 'raster', tiles: ['menu-background://cover/{z}/{x}/{y}'], tileSize: 256, maxzoom: 14,
+      attribution: '© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021), processed by ESA WorldCover consortium. Recolored. CC BY 4.0.' },
+  }, layers: [
+    { id: 'menu-ground', type: 'background', paint: { 'background-color': '#aca99a' } },
+    { id: 'menu-cover', type: 'raster', source: 'menu-cover', paint: {
+      'raster-opacity': 1, 'raster-fade-duration': 0, 'raster-resampling': 'linear',
+    } },
+  ] };
 }

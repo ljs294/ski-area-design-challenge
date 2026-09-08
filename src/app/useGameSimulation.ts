@@ -352,7 +352,7 @@ export function useGameSimulation({
       setStatus('design-only');
       const detail = error instanceof Error ? error.message : 'Weather preparation failed.';
       setMessage(detail === 'Failed to fetch'
-        ? 'Weather preparation service is not reachable. Restart Mountain Planner and try again.' : detail);
+        ? 'Weather preparation service is not reachable. Restart Ski Area Design Challenge and try again.' : detail);
     }
   }, [binding, publishClock, status, terrain]);
 

@@ -1,6 +1,6 @@
-# Mountain Planner
+# Ski Area Design Challenge
 
-Build and explore a ski resort on real terrain. Mountain Planner includes tools for lifts, trails, roads, ponds, and snowmaking, along with map layers, dashboards, weather, and guest simulation.
+Build and explore a ski resort on real terrain. Ski Area Design Challenge includes tools for lifts, trails, roads, ponds, and snowmaking, along with map layers, dashboards, weather, and guest simulation.
 
 The desktop app uses Electron, React, and MapLibre. Start with the desktop version for the full experience.
 
@@ -101,6 +101,10 @@ In the desktop game, press **F10** or the **backtick** key to open the console. 
 Restart commands require an open saved mountain. When updating Electron or preload code, restart the desktop app manually once so the running process picks up the new code.
 
 ## Checks and developer tools
+
+The opening Crystal Mountain scene includes local elevation and smoothed ESA WorldCover tiles (about 33 MB including regeneration sources), so it works without an internet connection. These are decorative assets, separate from your saved mountains.
+
+To explicitly regenerate the background, install Playwright Chromium and run `npm run prepare:menu-background` with internet access. Run `npm run check:menu-background` to verify every bundled tile against its manifest. Normal builds copy the existing assets; they do not download background data. Source licenses and attribution are included in `public/menu-background/NOTICE.md`.
 
 | Command | Purpose |
 | --- | --- |
