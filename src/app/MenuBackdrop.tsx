@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { SkySpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { basemapFor, tuneBasemap } from './basemapStyle';
-import { applyMapTheme } from './mapTheme';
+import { tuneBasemap } from './basemapStyle';
+import { createMenuMapStyle } from './menuMapStyle';
 import { useSettings } from './SettingsContext';
 import { pixelRatioForElement, renderProfileFor, type RenderQuality } from './renderProfile';
 import { applyTileLod } from './terrainLod';
@@ -68,7 +68,7 @@ function setupTerrain(map: maplibregl.Map, quality: RenderQuality): void {
 export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const { resolvedTheme, settings } = useSettings();
+  const { settings } = useSettings();
   const qualityRef = useRef(settings.renderQuality);
   qualityRef.current = settings.renderQuality;
   const profile = renderProfileFor(settings.renderQuality);
@@ -86,8 +86,7 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
     const container = containerRef.current;
     const map = new maplibregl.Map({
       container,
-      style: basemapFor(resolvedTheme, { mapColorPreset: settings.mapColorPreset,
-        customMapColors: settings.customMapColors }),
+      style: createMenuMapStyle(),
       center: CRYSTAL,
       zoom: 15,
       bearing: -18,
@@ -126,14 +125,6 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cssOnly]);
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const apply = () => applyMapTheme(map, resolvedTheme, settings.mapColorPreset, settings.customMapColors);
-    if (map.isStyleLoaded()) apply();
-    map.on('style.load', apply);
-    return () => { map.off('style.load', apply); };
-  }, [resolvedTheme, settings.mapColorPreset, settings.customMapColors, cssOnly]);
 
   useEffect(() => {
     const map = mapRef.current;
