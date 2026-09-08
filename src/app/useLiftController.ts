@@ -176,6 +176,9 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
     sampleTokenRef.current += 1;
     cancelLiveSamples();
     if (draftFrameRef.current != null) cancelAnimationFrame(draftFrameRef.current);
+    // Strict Mode replays setup after cleanup; a cancelled frame must not block
+    // the next setup (or every subsequent drawing update) from scheduling work.
+    draftFrameRef.current = null;
     optionsRef.current.release();
   }, []);
 
