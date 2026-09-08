@@ -19,7 +19,9 @@ const lift: SavedLift = {
 
 function data(kind: DashboardMapData['kind']): DashboardMapData {
   return {
-    kind, dark: false, units: 'metric', network: buildSkiNetwork([], [lift]),
+    kind, dark: false, mapColorPreset: 'cupertino',
+    customMapColors: { paper: '#e8e5dc', water: '#76a9c4', road: '#625f59', contour: '#deded0', text: '#263c43' },
+    units: 'metric', network: buildSkiNetwork([], [lift]),
     selectedLiftId: null, selectedEdgeId: null, dams: [], ponds: [], lakes: [],
     trails: [], lifts: [lift], buildings: [], nodes: [{ id: 'node-1', name: 'Pump', kind: 'pump',
       labelNumber: 1, point: [-121.5, 46.9], elevM: 1000, createdAt: '2026-01-01' }],

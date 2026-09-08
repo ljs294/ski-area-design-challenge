@@ -1,3 +1,4 @@
+import { applyMapTheme } from './mapTheme';
 import maplibregl from 'maplibre-gl';
 import { buildingFootprint, isBuildingOwnedPump } from '../buildings';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
@@ -19,6 +20,7 @@ import { snowmakingPressureColor } from './snowmakingPressureHeatmap';
 import type { Units } from './SettingsContext';
 import type { SnowmakingLassoMapState } from './snowmakingLasso';
 import type { GuestConnectivity } from './guestConnectivity';
+import type { CustomMapColors, MapColorPreset } from './mapTheme';
 
 export const DASHBOARD_SOURCE = 'dashboard-map';
 export const DASHBOARD_LASSO_SOURCE = 'dashboard-snowmaking-lasso';
@@ -94,6 +96,8 @@ export function snowmakingGunColor(state: SnowmakingGunVisualState): string {
 export interface DashboardMapData {
   kind: DashboardKind | null;
   dark: boolean;
+  mapColorPreset: MapColorPreset;
+  customMapColors: CustomMapColors;
   units: Units;
   network: SkiNetwork;
   selectedLiftId: string | null;
@@ -729,8 +733,7 @@ export function setDashboardMapData(map: maplibregl.Map | null, input: Dashboard
   setDashboardLassoData(map, input.snowmakingLasso ?? null);
   applyDashboardMapPresentation(map, input.snowmakingPresentation,
     null, input.guns.map((gun) => gun.id));
-  if (map?.getLayer('dashboard-backdrop')) map.setPaintProperty('dashboard-backdrop',
-    'fill-color', input.dark ? '#18202a' : '#f4f1ea');
+  if (map) applyMapTheme(map, input.dark ? 'dark' : 'light', input.mapColorPreset, input.customMapColors);
 }
 
 export function setDashboardLassoData(

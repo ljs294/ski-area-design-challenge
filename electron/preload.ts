@@ -25,6 +25,7 @@ import {
   GUEST_SIMULATION_LOAD_CHECKPOINT_CHANNEL,
   WINDOW_GET_MODE_CHANNEL,
   WINDOW_SET_MODE_CHANNEL,
+  WINDOW_RESTART_CHANNEL,
   EXIT_CHANNEL,
   WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL,
   WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL,
@@ -69,6 +70,7 @@ const api = {
   window: {
     getMode: () => ipcRenderer.invoke(WINDOW_GET_MODE_CHANNEL),
     setMode: (mode: string) => ipcRenderer.invoke(WINDOW_SET_MODE_CHANNEL, mode),
+    restart: (saveKey: string, fullRestart?: boolean) => ipcRenderer.invoke(WINDOW_RESTART_CHANNEL, { saveKey, fullRestart }),
   },
   lifecycle: {
     onCloseCheckpointRequested: (listener: () => void) => {

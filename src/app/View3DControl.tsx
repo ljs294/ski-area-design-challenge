@@ -1,5 +1,20 @@
-export function View3DControl({ is3D, onToggle }: { is3D: boolean; onToggle: () => void }) {
-  return (
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import type maplibregl from 'maplibre-gl';
+
+export function View3DControl({ is3D, onToggle, map }: {
+  is3D: boolean; onToggle: () => void; map?: maplibregl.Map | null;
+}) {
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!map) return;
+    const container = document.createElement('div');
+    container.className = 'maplibregl-ctrl view3d-map-control';
+    const control = { onAdd: () => container, onRemove: () => container.remove() };
+    map.addControl(control, 'bottom-right'); setHost(container);
+    return () => { if (map.hasControl(control)) map.removeControl(control); };
+  }, [map]);
+  const button = (
     <div className="view3d-control">
       <button
         className={`view3d-btn${is3D ? ' view3d-btn-active' : ''}`}
@@ -11,4 +26,5 @@ export function View3DControl({ is3D, onToggle }: { is3D: boolean; onToggle: () 
       </button>
     </div>
   );
+  return map !== undefined ? map && host ? createPortal(button, host) : null : button;
 }

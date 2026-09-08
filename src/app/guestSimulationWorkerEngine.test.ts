@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultGuestSimulationNetwork } from '../guestSimulation/engine';
 import type { GuestPortal } from '../guestSimulation/contracts';
 import { GuestSimulationWorkerEngine } from './guestSimulationWorkerEngine';
@@ -16,6 +16,7 @@ function initialize(runtime: GuestSimulationWorkerEngine) {
 }
 
 describe('guest simulation worker engine', () => {
+  afterEach(() => vi.restoreAllMocks());
   it('uses the deterministic Phase 3 realization as the roster authority', () => {
     const runtime = new GuestSimulationWorkerEngine();
     const demand = { dayType: 'weekend' as const, basePotentialGuests: 700, ticketPriceCents: 100,
@@ -159,6 +160,8 @@ describe('guest simulation worker engine', () => {
   });
 
   it('serves deterministic compact advances with a bounded transferable frame and no rich snapshot', () => {
+    // This checks the compact-frame contract, not host CPU throughput.
+    vi.spyOn(performance, 'now').mockReturnValue(0);
     const first = new GuestSimulationWorkerEngine();
     const second = new GuestSimulationWorkerEngine();
     initialize(first); initialize(second);
@@ -224,6 +227,8 @@ describe('guest simulation worker engine', () => {
   });
 
   it('queues hot condition revisions and applies them only at their effective second', () => {
+    // Keep the effective-second boundary independent of parallel test load.
+    vi.spyOn(performance, 'now').mockReturnValue(0);
     const runtime = new GuestSimulationWorkerEngine();
     const ready = initialize(runtime);
     if (ready.type !== 'ready') throw new Error('worker did not initialize');

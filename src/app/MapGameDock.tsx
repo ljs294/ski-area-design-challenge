@@ -11,7 +11,6 @@ import type { SkiNetwork } from '../network';
 import { summarizeJunctions } from '../topology';
 import { fmtDistance } from '../lifts';
 import type { LayerToggle } from './analysisLayers';
-import { GameToolbar } from './GameToolbar';
 import type { GameSimulationController } from './useGameSimulation';
 import { InfrastructureControl } from './InfrastructureControl';
 import { RoadDetail } from './RoadDetail';
@@ -121,6 +120,7 @@ export interface MapGameDockProps {
   clearSelectedNode(): void;
   clearSelectedPath(): void;
   clearSelectedRoad(): void;
+  selectRoad?(id: string): void;
   clearSelectedLake(): void;
   clearSelectedStream(): void;
   setLakeName(id: string, name: string | null): void;
@@ -432,7 +432,7 @@ export function MapGameDock(props: MapGameDockProps) {
         onClose={props.clearSelectedRoad} /> : <InfrastructureControl tool={roadTool} roads={props.roads} units={props.units}
         onArm={roadController.arm} onCancel={roadController.cancel} onUndo={roadController.undo}
         onFinish={roadController.finish} onDraftChange={roadController.patchDraft}
-        onConfirm={roadController.confirm} building={props.building} onClose={props.closeDock}
+        onSelectRoad={props.selectRoad} onConfirm={roadController.confirm} building={props.building} onClose={props.closeDock}
         guestPortal={props.guestPortal} guestPortalArmed={props.guestPortalController.armed}
         guestPortalError={props.guestPortalController.error}
         guestRuntime={props.guestRuntime}
@@ -441,37 +441,5 @@ export function MapGameDock(props: MapGameDockProps) {
         onCancelGuestPortal={props.guestPortalController.cancel}
         onRemoveGuestPortal={props.guestPortalController.remove} />}
     </div></div>}
-  </div><div className="dock-circles">
-    <DockButton id="layers" label="Layers" open={layersOpen} onClick={props.toggleDock} />
-    <DockButton id="lifts" label="Ski lifts" open={liftsOpen} onClick={props.toggleDock} />
-    <DockButton id="trails" label="Ski runs" open={trailsOpen} onClick={props.toggleDock} />
-    <DockButton id="snowmaking" label="Snowmaking" open={snowmakingOpen} onClick={props.toggleDock} />
-    <DockButton id="infrastructure" label="Infrastructure" open={infrastructureOpen}
-      onClick={props.toggleDock} />
-  </div></div><GameToolbar resortName={props.saved.name} onOpenStats={props.openStats}
-    readout={readout} units={props.units} terrain={props.terrainRecord}
-    simulation={props.simulation} /></div>;
-}
-
-function DockButton({ id, label, open, onClick }: {
-  id: Exclude<DockId, null>; label: string; open: boolean; onClick(id: DockId): void;
-}) {
-  return <button className={`dock-circle dock-circle-${id}${open ? ' is-active' : ''}`}
-    onClick={() => onClick(id)} aria-pressed={open} title={label} aria-label={label}>
-    {id === 'layers' ? <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-      <path d="M12 3 2 8l10 5 10-5-10-5Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M2 12l10 5 10-5M2 16l10 5 10-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
-      : id === 'lifts' ? <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-        <path d="M3 6l18-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        <circle cx="10" cy="5.4" r="1.1" fill="currentColor" /><path d="M10 6.5v2.8m-2.4 0h4.8l-.7 3.4H8.3l-.7-3.4Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
-        : id === 'trails' ? <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-          <path d="M3 20 12 4l9 16Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-          <path d="M8.5 12q2 2.4 3.5 0t3.5 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-          : id === 'snowmaking' ? <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-            <path d="M12 3v18M4.2 7.5l15.6 9M19.8 7.5l-15.6 9" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-            <path d="M9.6 4.8 12 7.2l2.4-2.4M9.6 19.2 12 16.8l2.4 2.4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            : <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <path d="M5 22c0-7 4-8 4-13 0-3-1-5-1-7M19 22c0-7-4-8-4-13 0-3 1-5 1-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-              <path d="M12 20v-3m0-3v-3m0-3V5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>}
-  </button>;
+  </div></div></div>;
 }

@@ -100,7 +100,7 @@ function DamEarthworkStats({ dam, units }: { dam: DraftDam | SavedDam; units: Un
   </>;
 }
 
-function PondStats({ pond, units }: { pond: DraftPond | SavedPond; units: Units }) {
+export function PondStats({ pond, units }: { pond: DraftPond | SavedPond; units: Units }) {
   return <div className="lift-stats">
     <div className="readout-line"><span className="lift-stat-label">Top elevation</span>
       <span className="lift-stat-value">{fmtDistance(pond.topElevationM, units)}</span></div>
@@ -120,7 +120,7 @@ function PondStats({ pond, units }: { pond: DraftPond | SavedPond; units: Units 
 }
 
 /** The berm that holds the pool in, and the earthwork bill for building it. */
-function PondEarthworkStats({ pond, units }: { pond: DraftPond | SavedPond; units: Units }) {
+export function PondEarthworkStats({ pond, units }: { pond: DraftPond | SavedPond; units: Units }) {
   if (!pond.earthwork) return null;
   return <>
     <div className="lift-stats">

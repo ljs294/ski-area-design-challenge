@@ -5,6 +5,9 @@
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
+    "prepare:menu-background": "node scripts/prepareMenuBackground.mjs",
+    "check:menu-background": "node scripts/checkMenuBackground.mjs",
+    "smooth:menu-background": "node scripts/smoothMenuBackground.mjs",
     "dev": "vite",
     "dev:lab": "node scripts/devLab.mjs",
     "dev:weather-lab": "node scripts/devWeatherLab.mjs",
@@ -76,7 +79,7 @@
   },
   "build": {
     "appId": "com.lukesmall.mountainplanner",
-    "productName": "Mountain Planner",
+    "productName": "Ski Area Design Challenge",
     "directories": {
       "output": "release"
     },

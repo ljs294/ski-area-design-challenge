@@ -13,17 +13,23 @@ import type { SavedJunction, SavedNode, SavedPath } from '../types/topology';
 export const NODE_PATH_SOURCE = 'node-paths';
 export const NODE_PATH_DRAFT_SOURCE = 'node-path-draft';
 
-// The built (persisted) node/path layers, for a show/hide toggle. Excludes
-// the transient path-draft-* layers drawn while placing a node or path.
-export const NODE_PATH_BUILT_LAYER_IDS = [
-  'path-casing',
-  'path-line',
-  'path-line-planning',
+// Persistent node symbols are independently toggleable. Construction previews
+// deliberately remain visible while an active tool owns the map interaction.
+export const MAP_NODE_LAYER_IDS = [
   'ski-nodes',
   'ski-node-labels',
   'trail-junctions',
   'trail-junction-labels',
-];
+] as const;
+
+// The complete persisted node/path family, retained for callers that need to
+// address both route paths and map nodes together. Excludes path-draft-*.
+export const NODE_PATH_BUILT_LAYER_IDS = [
+  'path-casing',
+  'path-line',
+  'path-line-planning',
+  ...MAP_NODE_LAYER_IDS,
+] as const;
 
 // Neutral slate — distinct from lift red, road taupe, and every trail
 // difficulty color so nodes/paths never get mistaken for those.

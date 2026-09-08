@@ -534,6 +534,7 @@ export function useBuildingController(options: BuildingControllerOptions): Build
     cancelSiteWork();
     dispatch({ type: 'cancel' });
     optionsRef.current.release?.();
+    selectBuilt(building.id);
     try {
       await optionsRef.current.clearCover?.(analysis.disturbancePolygons);
     } catch {

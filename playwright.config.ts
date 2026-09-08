@@ -59,7 +59,7 @@ export default defineConfig({
         {
           name: 'feature-workflows',
           testMatch: '**/feature-workflows/**/*.spec.ts',
-          use: chromiumUse,
+          use: { ...chromiumUse, viewport: { width: 1920, height: 1080 } },
         },
         {
           name: 'live-provider',

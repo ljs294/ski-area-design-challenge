@@ -4,12 +4,7 @@ import { GuestVibeCheck } from './GuestVibeCheck';
 import type { DashboardKind, SnowmakingDashboardMode } from './dashboardMode';
 import type { SnowmakingMapPresentation } from './dashboardMapLayers';
 
-// Thin picker + delegator over the two full-screen dashboards. Neither
-// NetworkMap nor SnowmakingDashboard is edited by this file — both already
-// own their own dialog chrome (role="dialog", a close affordance, Escape
-// handling). This wrapper only adds the segmented picker that switches
-// between them, positioned as its own fixed overlay so it survives which
-// dashboard is mounted underneath.
+// Compose existing analysis views inside the owning gameplay workspace.
 
 export type { DashboardKind } from './dashboardMode';
 

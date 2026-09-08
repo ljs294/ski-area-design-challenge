@@ -1,3 +1,4 @@
+import { Icon } from './ui';
 import { useEffect, useRef, useState } from 'react';
 import { bootBand, bootCaption, bootPercent } from './resortBoot';
 import type { BootProgress } from './resortBoot';
@@ -146,11 +147,7 @@ export function ResortLoadingScreen({
       <div className="resort-loading-scrim" aria-hidden />
 
       <div className="resort-loading-content">
-        <svg className="menu-logo-mark" viewBox="0 0 100 80" aria-hidden>
-          <path d="M10,70 L50,20 L90,70 Z" fill="none" strokeWidth="3" strokeLinejoin="round" />
-          <path d="M35,70 L60,40 L85,70 Z" fill="none" strokeWidth="2" strokeLinejoin="round" />
-          <line x1="5" y1="70" x2="95" y2="70" strokeWidth="3" />
-        </svg>
+        <Icon name="resort" />
 
         <h2 className="resort-loading-title">{title}</h2>
 

@@ -9,6 +9,8 @@ import type { Theme, Units, RenderQuality } from './SettingsContext';
 import type { WindowMode } from '../ipcContract';
 import { isDesktop } from '../desktopBridge';
 import { GAME_ACTION_LABELS, GAME_ACTION_ORDER, actionForKey, normalizeKey } from '../keybinds';
+import { TerrainLibrary } from './MapManagement';
+import { useDialogFocus } from './ui';
 import type { GameAction } from '../keybinds';
 
 export interface ResortSettingsCapability {
@@ -21,6 +23,7 @@ export interface ResortSettingsCapability {
 export interface SettingsProps {
   onClose: () => void;
   resortSettings?: ResortSettingsCapability;
+  presentation?: 'modal' | 'popover';
 }
 
 type SettingsTab = 'general' | 'controls' | 'resort-data';
@@ -38,7 +41,7 @@ type MapContextDownloadState =
 
 const GENERAL_TAB: SettingsTabDefinition = { id: 'general', label: 'General' };
 const CONTROLS_TAB: SettingsTabDefinition = { id: 'controls', label: 'Controls' };
-const RESORT_DATA_TAB: SettingsTabDefinition = { id: 'resort-data', label: 'Resort Data' };
+const RESORT_DATA_TAB: SettingsTabDefinition = { id: 'resort-data', label: 'Data' };
 
 /** A segmented row of mutually-exclusive choices. */
 function Segmented<T extends string>({
@@ -79,10 +82,11 @@ function panelId(tab: SettingsTab): string {
   return `settings-panel-${tab}`;
 }
 
-export function Settings({ onClose, resortSettings }: SettingsProps) {
+export function Settings({ onClose, resortSettings, presentation = 'modal' }: SettingsProps) {
+  const dialogRef = useDialogFocus();
   const {
     settings, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
-    setKeybind, resetKeybinds,
+    setKeybind, resetKeybinds, setInterfaceScale,
   } = useSettings();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [listeningFor, setListeningFor] = useState<GameAction | null>(null);
@@ -93,20 +97,19 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
   const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
   const downloadController = useRef<AbortController | null>(null);
 
-  const tabs: SettingsTabDefinition[] = resortSettings
-    ? [GENERAL_TAB, CONTROLS_TAB, RESORT_DATA_TAB]
-    : [GENERAL_TAB, CONTROLS_TAB];
+  const tabs: SettingsTabDefinition[] = [GENERAL_TAB, CONTROLS_TAB, RESORT_DATA_TAB];
 
   // Escape closes Settings unless a keybinding listener owns that key, in
   // which case Escape only cancels the in-progress binding.
   useEffect(() => {
     if (listeningFor !== null) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [listeningFor, onClose]);
+    const root = dialogRef.current;
+    root?.addEventListener('keydown', onKey);
+    return () => root?.removeEventListener('keydown', onKey);
+  }, [listeningFor, onClose, dialogRef]);
 
   // While rebinding, capture the next keydown before MapView's global camera
   // controls can observe it.
@@ -129,9 +132,10 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
       setKeybind(action, key);
       setListeningFor(null);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [listeningFor, settings.keybinds, setKeybind]);
+    const root = dialogRef.current;
+    root?.addEventListener('keydown', onKey);
+    return () => root?.removeEventListener('keydown', onKey);
+  }, [listeningFor, settings.keybinds, setKeybind, dialogRef]);
 
   useEffect(() => {
     if (!conflict) return;
@@ -238,9 +242,9 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
   const mapContextAvailable = resortSettings?.mapContextAvailable === true
     || mapContextDownload.status === 'success';
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="settings-panel settings-panel-tabbed" onClick={(event) => event.stopPropagation()}>
+  const panel = <div ref={dialogRef} role="dialog" aria-modal={presentation === 'modal' || undefined} aria-label="Settings" tabIndex={-1}
+    onKeyDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}
+    className={`settings-panel settings-panel-tabbed${presentation === 'popover' ? ' top-right-settings-popover' : ''}`}>
         <div className="settings-header">
           <h2 className="settings-title">Settings</h2>
           <button className="settings-close-x" aria-label="Close settings" onClick={onClose}>
@@ -287,6 +291,15 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
             options={windowOptions}
             onChange={setWindowMode}
           />
+          <div className="setting-row">
+            <label className="setting-label" htmlFor="interface-scale">Interface scale</label>
+            <div className="interface-scale-control"><input id="interface-scale" type="range" min={50} max={150} step={5}
+              value={settings.interfaceScale} list="interface-scale-marks" aria-valuetext={`${settings.interfaceScale}%`}
+              onChange={(event) => setInterfaceScale(Number(event.target.value))} />
+              <datalist id="interface-scale-marks"><option value={50} /><option value={100} label="100%" /><option value={150} /></datalist>
+              <output htmlFor="interface-scale">{settings.interfaceScale}%</output>
+              <button className="site-btn" onClick={() => setInterfaceScale(100)}>Reset</button></div>
+          </div>
           <Segmented
             label="Units"
             value={settings.units}
@@ -345,7 +358,7 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
           </button>
         </div>
 
-        {resortSettings && (
+        {(
           <div
             id={panelId('resort-data')}
             className="settings-body settings-tabpanel resort-data-panel"
@@ -354,7 +367,7 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
             aria-busy={mapContextDownload.status === 'downloading'}
             hidden={activeTab !== 'resort-data'}
           >
-            <h3 className="settings-section-title">Map context</h3>
+            {resortSettings && <><h3 className="settings-section-title">Map context</h3>
             {mapContextAvailable ? (
               <p className="resort-data-status" role="status">Map context available</p>
             ) : mapContextDownload.status === 'downloading' ? (
@@ -390,14 +403,15 @@ export function Settings({ onClose, resortSettings }: SettingsProps) {
                   Download Map Context
                 </button>
               </>
-            )}
+            )}</>}
+            {activeTab === 'resort-data' && <TerrainLibrary />}
           </div>
         )}
 
         <button className="settings-done-btn" onClick={onClose}>
           Done
         </button>
-      </div>
-    </div>
-  );
+    </div>;
+
+  return presentation === 'modal' ? <div className="modal-overlay" onClick={onClose}>{panel}</div> : panel;
 }

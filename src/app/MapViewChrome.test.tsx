@@ -17,7 +17,6 @@ function props(): MapViewChromeProps {
     siteControl: null,
     view3D: null,
     buildingActivity: null,
-    dashboardToggle: null,
     dashboard: null,
     readout: null,
     dock: null,

@@ -38,23 +38,25 @@ describe('in-game weather presentation', () => {
       bounds: { west: -71.2, south: 44, east: -71, north: 44.2 },
     } as never;
     const markup = renderToStaticMarkup(<GameToolbar resortName="Test Peak" onOpenStats={() => undefined}
-      readout={null} units="metric" terrain={terrain} simulation={simulation} />);
+      unsaved units="metric" terrain={terrain} simulation={simulation} />);
 
     expect(markup.match(/role="tab"/g)).toHaveLength(7);
     expect(markup).toContain('aria-selected="true"');
     expect(markup).toContain('class="game-forecast-hour-grid"');
     expect(markup.match(/<time>/g)).toHaveLength(24);
     expect(markup).toContain('title="Inspect this game weather package"');
-    expect(markup).toContain('>Slow</button>');
-    expect(markup).toContain('>Normal</button>');
-    expect(markup).toContain('>Fast</button>');
-    expect(markup).toContain('>Ultrafast</button>');
+    expect(markup.match(/>→<\/button>/g)).toHaveLength(4);
+    expect(markup).toContain('aria-label="Normal simulation speed"');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup.match(/class="tb-speed is-active"/g)).toHaveLength(2);
+    expect(markup).toContain('class="tb-save-indicator is-unsaved"');
+    expect(markup).toContain('aria-label="Unsaved changes"');
     expect(markup).not.toContain('Local weather');
     expect(markup).toContain('2.0 \u00b0C');
     expect(markup).toContain('12.0 km/h');
 
     const usMarkup = renderToStaticMarkup(<GameToolbar resortName="Test Peak" onOpenStats={() => undefined}
-      readout={null} units="imperial" terrain={terrain} simulation={simulation} />);
+      units="imperial" terrain={terrain} simulation={simulation} />);
     expect(usMarkup).toContain('35.6 \u00b0F');
     expect(usMarkup).toContain('7.5 mph');
     expect(usMarkup).toContain('0.04 in liquid');

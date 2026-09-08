@@ -6,14 +6,14 @@ import { applyCoverOpacity, setCoverData } from './coverVectorize';
 import { buildSkiNetwork } from '../network';
 import { sampleSiteCoverGrid } from './worldcoverProtocol';
 import { addSiteBoxLayers, setSiteBox, setBoundaryMode, computeBox, siteBoxFromBounds, type SiteBox } from './sitePicker';
-import { basemapFor } from './basemapStyle';
+import { basemapFor, applyMapTheme } from './basemapStyle';
 import { tilt3D } from './terrain3d';
 import { useSettings } from './SettingsContext';
 import { MapInteractionLease, type MapInteractionLeaseHandle, type MapInteractionOverrides } from './mapInteractionLease';
 import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot, type ToolId } from './toolCoordinator';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION } from '../gameSaveClient';
-import { isDesktop } from '../desktopBridge';
+import { desktop, isDesktop } from '../desktopBridge';
 import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath, SavedPond, SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
 import { prepareResortPackage } from '../terrainIngest';
@@ -25,6 +25,7 @@ import { useCommittedSnowmakingNetwork, useSnowmakingController, useSnowmakingLa
 import { useNodePathController } from './useNodePathController';
 import { useTrailController } from './useTrailController';
 import { MapViewChrome, SnowmakingToolOptions, snowmakingDashboardProps, useMapContextRecovery } from './MapViewChrome';
+import { isStandalonePond } from './pondSelection';
 import { useMapKeyboardControls } from './useMapKeyboardControls';
 import { useElevationBackfill } from './useElevationBackfill';
 import { useMapRuntime } from './useMapRuntime';
@@ -37,7 +38,7 @@ import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication, ty
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
-import { guestVibePresentation, withGuestEconomyControls, has3DBuildingContext, initialResortDesign, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
+import { createWorkspaceNavigation, guestVibePresentation, withGuestEconomyControls, has3DBuildingContext, initialResortDesign, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928], INITIAL_ZOOM = 12;
@@ -67,6 +68,8 @@ function activeOverlayOf(layers: LayerToggle[]): OverlayId | null {
   return (on?.id as OverlayId) ?? null; }
 
 interface MapViewProps {
+  setupDraft?: { site: SiteBox | null; name: string };
+  onRestartSetup?: (draft: { site: SiteBox | null; name: string }) => void;
   mode: MapMode;
   initialSave?: GameSave | null;
   onQuit: () => void;
@@ -143,6 +146,8 @@ export function MapView({
   bootControlsRef,
   sessionControlsRef,
   controlsSuspended = false,
+  setupDraft,
+  onRestartSetup,
 }: MapViewProps) {
   const { settings, resolvedTheme } = useSettings();
 
@@ -169,8 +174,8 @@ export function MapView({
   const [showStats, setShowStats] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
   const [siteMode, setSiteMode] = useState<'locked' | 'explore' | 'selecting'>(
-    initialSave?.site ? 'locked' : 'explore');
-  const [siteBox, setSiteBoxState] = useState<SiteBox | null>((initialSave?.site as SiteBox) ?? null);
+    initialSave?.site ? 'locked' : setupDraft?.site ? 'selecting' : 'explore');
+  const [siteBox, setSiteBoxState] = useState<SiteBox | null>((initialSave?.site as SiteBox) ?? setupDraft?.site ?? null);
   const [is3D, setIs3D] = useState(initialSave?.is3D ?? false);
   const [isOverhead, setIsOverhead] = useState(true);
   const warmAbortRef = useRef<AbortController | null>(null);
@@ -197,7 +202,7 @@ export function MapView({
     reportBoot({ type: 'failed', message, repair: () => repairRef.current() });
   const [saved, setSaved] = useState<GameSave | null>(initialSave);
   const persistedSaveRef = useRef<GameSave | null>(initialSave);
-  const [nameDraft, setNameDraft] = useState('');
+  const [nameDraft, setNameDraft] = useState(setupDraft?.name ?? '');
   const [saving, setSaving] = useState(false);
   const [checkpointError, setCheckpointError] = useState<string | null>(null);
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
@@ -390,7 +395,7 @@ export function MapView({
     if (!lease) throw new Error('Map interaction lease is unavailable.');
     return lease.acquire(owner, map, overrides);
   }
-  const guests = useMapGuestSimulationFeature({ mapRef, network, roads, clock: simulation.clock, snowGrid: snow.grid,
+  const guests = useMapGuestSimulationFeature({ inspectGuest: (id) => { openWorkspaceDashboard('guests'); guests.selectGuest(id); }, mapRef, network, roads, clock: simulation.clock, snowGrid: snow.grid,
     timeDiscontinuity: simulation.timeDiscontinuity, reducedMotion: settings.reducedMotion, saveKey: saved?.key ?? null,
     saveRevision: saved ? `${saved.updatedAt}|${saved.lastPlayedAt}` : null,
     activate: () => toolCoordinator.activate('guest-portal'), release: () => { toolCoordinator.release('guest-portal'); },
@@ -410,12 +415,13 @@ export function MapView({
   const terrainHeightCacheRef = displayAssets.heightRef;
   const coverDisplayRef = displayAssets.coverRef;
   const localImageryUrlRef = displayAssets.imageryUrlRef;
-  const dashboards = useInMapDashboards({ mapRef, registryRef: mapContributionRegistryRef,
-    dark: resolvedTheme === 'dark', units: settings.units, network, dams, ponds, lakes: snowmakingLakes ?? [],
+  const dashboards = useInMapDashboards({ mapRef, registryRef: mapContributionRegistryRef, weatherOpen: simulation.analysisOpen,
+    dark: resolvedTheme === 'dark', mapColorPreset: settings.mapColorPreset, customMapColors: settings.customMapColors,
+    units: settings.units, network, dams, ponds, lakes: snowmakingLakes ?? [],
     trails, lifts, nodes: snowmakingNodes, buildings: committedBuildingsRef.current, pipes: snowmakingPipes, guns: snowguns,
     coverDisplay: coverDisplayRef.current, terrainRecord, guestConnectivity: guests.connectivity });
   useMapKeyboardControls({ mapRef, suspended: controlsSuspended, keybinds: settings.keybinds,
-    activeDashboard: dashboards.active, toggle3D, setActiveDashboard: dashboards.setActive });
+    activeDashboard: dashboards.active, toggle3D, setActiveDashboard: (kind) => openWorkspaceDashboard(typeof kind === 'function' ? kind(dashboards.active) : kind) });
   const {
     readoutStore,
     setReadout,
@@ -889,19 +895,26 @@ export function MapView({
 
   function transitionSelection(target: SelectionTarget) {
     toolCoordinator.cancelActive();
+    dashboards.close();
+    setShowStats(false);
+    if (simulation.analysisOpen) simulation.toggleAnalysis();
+    setOpenDock(null);
     clearSelectionState();
 
     switch (target.kind) {
-      case 'lift': setSelectedLiftId(target.id); break;
-      case 'trail': setSelectedTrailId(target.id); break;
+      case 'lift': setSelectedLiftId(target.id); setOpenDock('lifts'); break;
+      case 'trail': setSelectedTrailId(target.id); setOpenDock('trails'); break;
       case 'dam': setSelectedDamId(target.id); setOpenDock('snowmaking'); break;
-      case 'pond': setSelectedPondId(target.id); setOpenDock('snowmaking'); break;
+      case 'pond':
+        setSelectedPondId(target.id);
+        if (!isStandalonePond(ponds, target.id)) setOpenDock('snowmaking');
+        break;
       case 'building': setSelectedBuildingId(target.id); setOpenDock('snowmaking'); break;
       case 'snowmaking-node': setSelectedSnowmakingNodeId(target.id); setOpenDock('snowmaking'); break;
       case 'snowmaking-pipe': setSelectedSnowmakingPipeId(target.id); setOpenDock('snowmaking'); break;
       case 'snowgun': setSelectedSnowgunId(target.id); setOpenDock('snowmaking'); break;
-      case 'ski-node': setSelectedNodeId(target.id); break;
-      case 'ski-path': setSelectedPathId(target.id); break;
+      case 'ski-node': setSelectedNodeId(target.id); setOpenDock('trails'); break;
+      case 'ski-path': setSelectedPathId(target.id); setOpenDock('trails'); break;
       case 'road': setSelectedRoadKey(target.id); setOpenDock('infrastructure'); break;
       case 'lake': setSelectedLakeId(target.id); setOpenDock(null); break;
       case 'stream': setSelectedStreamId(target.id); setOpenDock(null); break;
@@ -1023,6 +1036,7 @@ export function MapView({
     removeAnalysisLayers(map);
     analysisTogglesRef.current = installAnalysisLayers(map);
     dashboards.sync(map);
+    applyMapTheme(map, resolvedTheme, settings.mapColorPreset, settings.customMapColors);
     setLayers(layerTogglesOf(mapContributions.refreshVisibility()));
   };
   useEffect(() => { if (toolCoordinatorState.activeTool) mapContributions.clearHitHovers(); },
@@ -1033,9 +1047,12 @@ export function MapView({
     canStart: mode !== 'playing' || packageState === 'ready',
     mode: mapMode,
     initialSave,
-    initialCenter: INITIAL_CENTER,
+    initialCenter: setupDraft?.site ? [(setupDraft.site.bounds[0][0] + setupDraft.site.bounds[1][0]) / 2,
+      (setupDraft.site.bounds[0][1] + setupDraft.site.bounds[1][1]) / 2] : INITIAL_CENTER,
     initialZoom: INITIAL_ZOOM,
     resolvedTheme,
+    mapColorPreset: settings.mapColorPreset,
+    customMapColors: settings.customMapColors,
     renderQuality: settings.renderQuality,
     units: settings.units,
     mapRef,
@@ -1158,68 +1175,29 @@ export function MapView({
   }
 
 
-  /** Close/open a bottom dock, yielding any active draw tool of the others. */
-  function toggleDock(which: DockId) {
-    const waterDetailOpen = selectedLakeId !== null || selectedStreamId !== null;
-    const activeTool = toolCoordinator.snapshot.activeTool;
-    const isOpen = !waterDetailOpen && (which === 'layers'
-      ? openDock === 'layers' || layersAlongsideBuild
-      : which === 'lifts' ? openDock === 'lifts' || activeTool === 'lift' || selectedLiftId !== null
-        : which === 'trails' ? openDock === 'trails' || activeTool === 'trail' ||
-          activeTool === 'ski-node' || activeTool === 'ski-path' || selectedTrailId !== null
-          : which === 'snowmaking' ? openDock === 'snowmaking' || activeTool === 'dam' ||
-            activeTool === 'pond' || activeTool === 'snowmaking-pipe' ||
-            activeTool === 'snowmaking-node' || activeTool === 'snowmaking-gun' ||
-            selectedDamId !== null || selectedPondId !== null || selectedSnowmakingNodeId !== null ||
-            selectedSnowmakingPipeId !== null || selectedSnowgunId !== null || selectedBuildingId !== null
-            : openDock === 'infrastructure' || activeTool === 'road' || activeTool === 'guest-portal');
-    if (toolCoordinator.toggleDock(which, isOpen) === 'layers-alongside') return;
-
-    setSelectedLakeId(null);
-    setSelectedStreamId(null);
-    if (which !== 'lifts') {
-      setSelectedLiftId(null);
-      setLiftEditing(false);
-    }
-    if (which !== 'trails') {
-      setSelectedTrailId(null);
-      setTrailEditing(false);
-    }
-    if (which !== 'snowmaking') {
-      setSelectedDamId(null); setSelectedPondId(null); setSelectedSnowmakingNodeId(null);
-      setSelectedSnowmakingPipeId(null); }
-    if (isOpen) {
-      if (which === 'lifts') {
-        setSelectedLiftId(null);
-        setLiftEditing(false);
-      }
-      if (which === 'trails') {
-        setSelectedTrailId(null);
-        setTrailEditing(false);
-      }
-      if (which === 'snowmaking') {
-        setSelectedDamId(null); setSelectedPondId(null); setSelectedSnowmakingNodeId(null);
-        setSelectedSnowmakingPipeId(null); }
-    }
-  }
+  const { toggleDock, closeWorkspace, openWorkspaceDashboard, navigateWorkspace, editAnalysisSelection } = createWorkspaceNavigation({
+    toolCoordinator, openDock, layersAlongsideBuild, dashboards, simulation, guests, showStats, network,
+    selectedLakeId, selectedStreamId, selectedLiftId, selectedTrailId, selectedDamId, selectedPondId,
+    selectedSnowmakingNodeId, selectedSnowmakingPipeId, selectedSnowgunId, selectedBuildingId,
+    setOpenDock, setShowStats, clearSelectionState, transitionSelection, setLiftEditing, setTrailEditing,
+    setSelectedLakeId, setSelectedStreamId, setSelectedLiftId, setSelectedTrailId, setSelectedDamId,
+    setSelectedPondId, setSelectedSnowmakingNodeId, setSelectedSnowmakingPipeId,
+  });
 
   function startSelect() {
     const map = mapRef.current;
     if (map) {
-      setSiteBox(map, null);
+      setSiteBox(map, siteBox);
       setBoundaryMode(map, 'selecting');
     }
-    setSiteBoxState(null);
     setSiteMode('selecting');
   }
 
   function cancelSelect() {
     const map = mapRef.current;
     if (map) {
-      setSiteBox(map, null);
       setBoundaryMode(map, 'off');
     }
-    setSiteBoxState(null);
     setSiteMode('explore');
   }
 
@@ -1274,7 +1252,8 @@ export function MapView({
     reportBoot({ type: 'handoff' });
     setPackageProgress({ phase: 'elevation', message: 'Starting resort preparation', completed: 0, total: 10 });
     const controller = mapContext.startPreparation();
-    mapRef.current?.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing' }));
+    mapRef.current?.setStyle(basemapFor(resolvedTheme, { offline: mode === 'playing',
+      mapColorPreset: settings.mapColorPreset, customMapColors: settings.customMapColors }));
     try {
       const record = await prepareResortPackage(
         site,
@@ -1306,7 +1285,8 @@ export function MapView({
         setPackageProgress(null);
         packageStateRef.current = mode === 'playing' ? 'missing' : 'ready';
         setPackageState(mode === 'playing' ? 'missing' : 'ready');
-        if (mode !== 'playing') mapRef.current?.setStyle(basemapFor(resolvedTheme));
+        if (mode !== 'playing') mapRef.current?.setStyle(basemapFor(resolvedTheme, {
+          mapColorPreset: settings.mapColorPreset, customMapColors: settings.customMapColors }));
         return null;
       }
       setPackageError(error instanceof Error ? error.message : 'Resort preparation failed.');
@@ -1497,6 +1477,7 @@ export function MapView({
   }
 
   async function createSave() {
+    if (saving) return;
     setSaving(true);
     const name = nameDraft.trim() || 'Untitled Resort';
     const record = terrainRecordRef.current ?? await prepareLocalPackage(name);
@@ -1563,6 +1544,23 @@ export function MapView({
     setSaved(next);
     setSavedDesign(designOf(next));
     return true;
+  }
+
+  async function restartGameInNewWindow(fullRestart = false): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (fullRestart && !desktop) return { ok: false, error: 'restart-app requires the Electron desktop app.' };
+    const saveKey = persistedSaveRef.current?.key ?? saved?.key;
+    if (!saveKey) return { ok: false, error: 'No saved resort is open.' };
+    const browserWindow = desktop ? null : window.open('about:blank', '_blank');
+    if (!desktop && !browserWindow) return { ok: false, error: 'The browser blocked the new game window.' };
+    if (!(await saveProgress())) {
+      browserWindow?.close();
+      return { ok: false, error: 'The current progress could not be saved.' };
+    }
+    if (desktop) return desktop.window.restart(saveKey, fullRestart);
+    const url = new URL(window.location.href);
+    url.searchParams.set('resume-save', saveKey);
+    browserWindow!.location.replace(url.toString());
+    return { ok: true };
   }
 
   /**
@@ -1632,6 +1630,14 @@ export function MapView({
     <>
       <div ref={containerRef} className="map-root" />
       <MapViewChrome
+        setup={picking && !saved ? { prepared: !!terrainRecord,
+          prepare: () => { void prepareLocalPackage(nameDraft.trim() || 'New Resort'); },
+          back: () => {
+            if (terrainRecord && onRestartSetup) onRestartSetup({ site: siteBox, name: nameDraft });
+            else { setPackageState('ready'); setPackageError(null); mapRef.current?.setMaxBounds(null); startSelect(); }
+          } } : undefined}
+        workspace={{ navigate: navigateWorkspace, close: closeWorkspace,
+          canEditAnalysis: !!(dashboards.liftId || dashboards.edgeId || dashboards.snowSelection), editAnalysis: editAnalysisSelection }}
         checkpointError={checkpointError}
         dismissCheckpointError={() => setCheckpointError(null)}
         unsaved={unsavedPrompt ? {
@@ -1645,7 +1651,7 @@ export function MapView({
           mapContextError: mapContext.error,
           cancel: mapContext.cancelPreparation,
           back: onQuit,
-          prepare: () => { void createSave(); },
+          prepare: () => { void prepareLocalPackage(nameDraft.trim() || 'New Resort'); },
           decideMapContext: mapContext.decide,
         } : null}
         localBoot={localBoot ? {
@@ -1667,6 +1673,10 @@ export function MapView({
             ? () => { void repairAndContinue(); } : undefined,
           onQuit,
         }}
+        resortSettings={terrainRecord ? {
+          mapContextAvailable: has3DBuildingContext(terrainRecord.vectorFeatures),
+          downloadMapContext: (signal) => mapContext.repair(terrainRecord, signal),
+        } : undefined}
         searchResult={picking && !saved ? (result) => {
           mapRef.current?.flyTo({ center: [result.lng, result.lat], zoom: 12, duration: 1200 });
         } : null}
@@ -1674,12 +1684,11 @@ export function MapView({
           mode: siteMode, box: siteBox, onStart: startSelect, onConfirm: confirmSite,
           onCancel: cancelSelect, onExit: exitSite,
         } : null}
-        view3D={terrainRecord ? { is3D: !isOverhead, onToggle: toggle3D } : null}
+        view3D={terrainRecord ? { is3D: !isOverhead, onToggle: toggle3D, map: mapRef.current } : null}
         buildingActivity={buildingActivity}
         bottomRightToolOptions={saved ? <SnowmakingToolOptions
           controller={snowmakingController.network} gunController={snowmakingController.guns}
           units={settings.units} /> : null}
-        dashboardToggle={saved ? { active: dashboards.active, change: dashboards.change } : null}
         dashboardPipeHover={dashboards.active === 'snowmaking' && dashboards.snowHover ?
           { hover: dashboards.snowHover, units: settings.units } : null}
         dashboard={saved && dashboards.active ? {
@@ -1707,7 +1716,7 @@ export function MapView({
           onToggleSnowGunSelection: dashboards.toggleSnowGunSelection, onCancelSnowGunSelection: dashboards.cancelSnowGunSelection },
           guestProps: { ...guestVibe, connectivity: guests.connectivity, selectedGuestId, onSelectGuest: guests.selectGuest,
             onClearSelectedGuest: guests.clearSelectedGuest },
-          onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation, onClose: dashboards.close,
+          onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation, onClose: () => navigateWorkspace({ section: dashboards.active ?? 'resort' }),
         } : null}
         readout={!saved ? { store: readoutStore, units: settings.units } : null}
         dock={saved ? {
@@ -1729,8 +1738,8 @@ export function MapView({
           liftController,
           roadController, trailController,
           nodePathController, snowmakingController, buildingController,
-          toggleDock, openSnowmakingAnalysis: dashboards.openAnalysis,
-          closeDock: () => setOpenDock(null),
+          toggleDock, openSnowmakingAnalysis: () => navigateWorkspace({ section: 'snowmaking', view: 'analysis' }),
+          closeDock: closeWorkspace,
           closeLayers: () => {
             setLayersAlongsideBuild(false);
             setOpenDock((current) => current === 'layers' ? null : current);
@@ -1753,6 +1762,7 @@ export function MapView({
           clearSelectedSnowgun: () => setSelectedSnowgunId(null),
           clearSelectedNode: () => setSelectedNodeId(null),
           clearSelectedPath: () => setSelectedPathId(null), clearSelectedRoad: () => setSelectedRoadKey(null),
+          selectRoad: (id) => transitionSelection({ kind: 'road', id: `player:${id}` }),
           clearSelectedLake: () => setSelectedLakeId(null),
           clearSelectedStream: () => setSelectedStreamId(null),
           setLakeName: (id, name) => setLakeNameOverrides((current) => {
@@ -1793,7 +1803,9 @@ export function MapView({
           units: settings.units, averageAnnualSnowfallCm: simulation.averageAnnualSnowfallCm,
           onClose: () => setShowStats(false),
         } : null}
-        closeCredits={showCredits ? () => setShowCredits(false) : null} developerConsole={saved ? { clock: simulation.clock, skip: simulation.devSkipMinutes } : null}
+        closeCredits={showCredits ? () => setShowCredits(false) : null} developerConsole={saved ? {
+          clock: simulation.clock, skip: simulation.devSkipMinutes, restart: restartGameInNewWindow,
+        } : null}
       />
     </>
   );

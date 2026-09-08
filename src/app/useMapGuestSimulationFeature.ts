@@ -24,6 +24,7 @@ export function useMapGuestSimulationFeature(options: {
   readonly weatherRevision?: number;
   readonly timeDiscontinuity?: SimulationTimeDiscontinuity | null;
   readonly reducedMotion: boolean;
+  inspectGuest?(id: string): void;
   activate(): boolean;
   release(): void;
   openDock(): void;
@@ -59,7 +60,7 @@ export function useMapGuestSimulationFeature(options: {
     [options.network, options.roads, portal]);
   const controller = useGuestPortalController({ mapRef: options.mapRef, network: options.network, portal,
     points: runtime.points, reducedMotion: options.reducedMotion, connectivity, setPortal,
-    activate: options.activate, release: options.release,
+    selectGuest: options.inspectGuest, activate: options.activate, release: options.release,
     openDock: options.openDock, acquireInteractions: options.acquireInteractions, synchronizeMap: options.synchronizeMap });
   const selectGuest = useCallback((id: string) => {
     setSelectedGuestId(id);
