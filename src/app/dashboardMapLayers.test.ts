@@ -9,6 +9,7 @@ import { applyDashboardGunLassoState, addDashboardMapLayers,
   dashboardBounds,
   snowmakingArrowGlyphRotation, snowmakingPumpArmMarker, snowmakingGunColor,
   snowmakingGunVisualState, snowmakingSegmentMidpoint, type DashboardMapData } from './dashboardMapLayers';
+import { analyzeGuestConnectivity } from './guestConnectivity';
 
 const lift: SavedLift = {
   id: 'lift-1', identifier: 'A', name: 'Summit', liftTypeId: 'fixed-grip-quad',
@@ -18,7 +19,9 @@ const lift: SavedLift = {
 
 function data(kind: DashboardMapData['kind']): DashboardMapData {
   return {
-    kind, dark: false, units: 'metric', network: buildSkiNetwork([], [lift]),
+    kind, dark: false, mapColorPreset: 'cupertino',
+    customMapColors: { paper: '#e8e5dc', water: '#76a9c4', road: '#625f59', contour: '#deded0', text: '#263c43' },
+    units: 'metric', network: buildSkiNetwork([], [lift]),
     selectedLiftId: null, selectedEdgeId: null, dams: [], ponds: [], lakes: [],
     trails: [], lifts: [lift], buildings: [], nodes: [{ id: 'node-1', name: 'Pump', kind: 'pump',
       labelNumber: 1, point: [-121.5, 46.9], elevM: 1000, createdAt: '2026-01-01' }],
@@ -57,11 +60,19 @@ describe('dashboard MapLibre projection', () => {
   });
 
   it('projects the ski graph with grid, edge identity, and lift hit identity', () => {
-    const result = dashboardGeoJSON(data('trails'));
+    const input = data('trails');
+    const base = input.network.nodes.find((node) => node.liftBases.includes('lift-1'))!;
+    input.guestConnectivity = analyzeGuestConnectivity(input.network, { version: 1, id: 'entrance',
+      kind: 'guest-entrance', type: 'guest-entrance', semantics: 'guest-entrance', direction: 'inbound',
+      accepts: 'guests', label: 'Guest Entrance', capacityGuestsPerTick: 12, openFromTick: 0,
+      openUntilTick: 86_400, nodeId: base.id, lngLat: base.lngLat });
+    const result = dashboardGeoJSON(input);
     expect(result.features.some((row) => row.properties?.kind === 'grid')).toBe(true);
     expect(result.features).toContainEqual(expect.objectContaining({
       properties: expect.objectContaining({ kind: 'trail-edge', edgeKind: 'lift', id: 'lift-1' }),
     }));
+    expect(result.features.some((row) => row.properties?.kind === 'guest-portal')).toBe(true);
+    expect(result.features.some((row) => row.properties?.kind === 'guest-connection')).toBe(true);
   });
 
   it('projects snowmaking entities without mounting a second map surface', () => {

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useDialogFocus } from './ui';
 
 export type UnsavedChoice = 'save' | 'discard' | 'cancel';
 
@@ -17,13 +18,15 @@ export function UnsavedChangesModal({
   saving: boolean;
   onChoice: (choice: UnsavedChoice) => void;
 }) {
+  const focusRef = useDialogFocus();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !saving) onChoice('cancel');
+      if (e.key === 'Escape') { e.stopPropagation(); if (!saving) onChoice('cancel'); }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onChoice, saving]);
+    const root = focusRef.current;
+    root?.addEventListener('keydown', onKey);
+    return () => root?.removeEventListener('keydown', onKey);
+  }, [onChoice, saving, focusRef]);
 
   return (
     <div
@@ -31,7 +34,7 @@ export function UnsavedChangesModal({
       onClick={() => { if (!saving) onChoice('cancel'); }}
     >
       <div
-        className="settings-panel unsaved-panel"
+        ref={focusRef} tabIndex={-1} onKeyDown={(event) => event.stopPropagation()} className="settings-panel unsaved-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="unsaved-title"

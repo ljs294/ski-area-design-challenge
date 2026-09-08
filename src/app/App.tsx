@@ -5,14 +5,15 @@ import { Settings } from './Settings';
 import { LoadGameModal } from './LoadGameModal';
 import { ResortLoadingScreen } from './ResortLoadingScreen';
 import { SettingsProvider } from './SettingsContext';
+import { CreditsPanel } from './CreditsPanel';
 import { listGames, loadGame, loadGamePreview, mostRecentGame } from '../gameSaveClient';
 import { desktop } from '../desktopBridge';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
 import type { GameSave } from '../types';
+import type { SiteBox } from './sitePicker';
 
 const loadMapView = () => import('./MapView');
 const MapView = lazy(() => loadMapView().then((module) => ({ default: module.MapView })));
-const MapManagement = lazy(() => import('./MapManagement').then((module) => ({ default: module.MapManagement })));
 const GraphicsLab = lazy(() => import('./GraphicsLab').then((module) => ({ default: module.GraphicsLab })));
 const WeatherLab = lazy(() => import('./WeatherLab').then((module) => ({ default: module.WeatherLab })));
 
@@ -20,7 +21,7 @@ const WeatherLab = lazy(() => import('./WeatherLab').then((module) => ({ default
 // map) is torn down before the save/package lookup begins. The loading screen
 // itself is an overlay driven by `boot`, independent of the screen machine, so
 // it survives the switch to 'game' and stays up until the resort is drawn.
-type Screen = 'menu' | 'newGame' | 'game' | 'loadingGame' | 'mapMgmt' | 'graphicsLab' | 'weatherLab';
+type Screen = 'menu' | 'newGame' | 'game' | 'loadingGame' | 'graphicsLab' | 'weatherLab';
 
 /** Everything the resort loading overlay needs; null when no load is running. */
 interface BootState {
@@ -44,16 +45,27 @@ function initialScreen(): Screen {
   if (typeof window === 'undefined') return 'menu';
   const hash = window.location.hash.toLowerCase();
   const params = new URLSearchParams(window.location.search);
+  if (params.get('resume-save')?.trim()) return 'loadingGame';
   if (hash.includes('graphics-lab') || params.has('lab')) return 'graphicsLab';
   if (hash.includes('weather-lab') || params.has('weather-lab')) return 'weatherLab';
   return 'menu';
 }
 
+function pendingResumeSaveKey(): string | null {
+  if (typeof window === 'undefined') return null;
+  const key = new URLSearchParams(window.location.search).get('resume-save')?.trim();
+  return key || null;
+}
+
 function AppInner() {
   const [screen, setScreen] = useState<Screen>(initialScreen);
   const [currentSave, setCurrentSave] = useState<GameSave | null>(null);
+  const [setupVersion, setSetupVersion] = useState(0);
+  const [setupDraft, setSetupDraft] = useState<{ site: SiteBox | null; name: string }>();
   const [hasSaves, setHasSaves] = useState(false);
+  const [libraryRevision, setLibraryRevision] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCredits, setShowCredits] = useState(false);
   const [showLoad, setShowLoad] = useState(false);
   const [boot, setBoot] = useState<BootState | null>(null);
   // Populated by MapView while a resort boots, so the loading screen's
@@ -152,6 +164,9 @@ function AppInner() {
       });
       setScreen('loadingGame');
       const [save, previewUrl] = await Promise.all([loadGame(key), loadGamePreview(key)]);
+      if (save) {
+        setBoot((previous) => previous ? { ...previous, title: save.name } : previous);
+      }
       if (previewUrl) {
         setBoot((previous) => previous
           ? { ...previous, imageryUrl: previewUrl, imageryKind: 'resume' }
@@ -167,6 +182,15 @@ function AppInner() {
     },
     [dismissBoot, openSave]
   );
+
+  useEffect(() => {
+    const key = pendingResumeSaveKey();
+    if (screen !== 'loadingGame' || !key) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('resume-save');
+    window.history.replaceState(null, '', url);
+    void beginBoot(key, 'Resuming resort');
+  }, [beginBoot, screen]);
 
   const handleContinue = useCallback(async () => {
     // Resolve the summary first — an index.json read, no map work — so the
@@ -231,14 +255,15 @@ function AppInner() {
     <>
       {screen === 'menu' && (
         <MainMenu
-          hasSaves={hasSaves}
+          hasSaves={hasSaves} libraryRevision={libraryRevision}
           onContinue={() => void handleContinue()}
           onNewGame={() => {
+            setSetupDraft(undefined);
             setCurrentSave(null);
             setScreen('newGame');
           }}
           onLoadGame={() => setShowLoad(true)}
-          onMapManagement={() => setScreen('mapMgmt')}
+          onCredits={() => setShowCredits(true)}
           onSettings={() => setShowSettings(true)}
           onExit={() => desktop?.exit()}
           onPreloadGame={() => { void loadMapView(); }}
@@ -248,6 +273,9 @@ function AppInner() {
       <Suspense fallback={<div className="route-loading" role="status">Loading…</div>}>
       {screen === 'newGame' && (
         <MapView
+          key={setupVersion}
+          setupDraft={setupDraft}
+          onRestartSetup={(draft) => { setSetupDraft(draft); setSetupVersion((value) => value + 1); }}
           mode="picking"
           onQuit={() => void checkpointToMenu()}
           onOpenSettings={() => setShowSettings(true)}
@@ -273,7 +301,6 @@ function AppInner() {
         />
       )}
 
-      {screen === 'mapMgmt' && <MapManagement onBack={toMenu} />}
 
       {screen === 'graphicsLab' && <GraphicsLab onExit={toMenu} />}
       {screen === 'weatherLab' && <WeatherLab onExit={toMenu} />}
@@ -300,7 +327,8 @@ function AppInner() {
         />
       )}
 
-      {showLoad && <LoadGameModal onClose={() => setShowLoad(false)} onPick={(k, n) => void handleLoadPick(k, n)} />}
+      {showLoad && <LoadGameModal onClose={() => { setShowLoad(false); refreshHasSaves(); setLibraryRevision((value) => value + 1); }} onPick={(k, n) => void handleLoadPick(k, n)} />}
+      {showCredits && <CreditsPanel onClose={() => setShowCredits(false)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)}
         resortSettings={sessionControlsRef.current?.resortSettings} />}
     </>

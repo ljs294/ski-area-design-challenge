@@ -71,6 +71,7 @@ export function TrailProfile({
         aria-label="Run elevation profile"
       >
         {profiles.map((profile, i) => <g key={i}><polygon points={profile.area} fill={color} fillOpacity={0.18} />
+          <polyline points={profile.top} fill="none" stroke="var(--profile-halo, transparent)" strokeWidth={4} vectorEffect="non-scaling-stroke" />
           <polyline points={profile.top} fill="none" stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" /></g>)}
       </svg>
       <div className="trail-profile-axis">

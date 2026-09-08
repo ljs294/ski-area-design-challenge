@@ -1,7 +1,21 @@
 export type Season = 'summer' | 'winter';
 export type DailyPhase = 'overnight' | 'preOpen' | 'operating' | 'evening';
 export type ClockRunState = 'paused' | 'running' | 'season-transition';
-export type SimulationSpeed = 1 | 2 | 4 | 8;
+/** Named player-facing speed tiers. */
+export type SimulationSpeed = 'slow' | 'normal' | 'fast' | 'ultrafast';
+
+/** Numeric values accepted while hydrating saves written by the v2 engine. */
+export type LegacySimulationSpeed = 1 | 2 | 4 | 8;
+export type SimulationSpeedValue = SimulationSpeed | LegacySimulationSpeed;
+
+/** The composite winter operating day is twelve hours represented by seconds. */
+export const SIMULATION_SECONDS_PER_WEEK = 43_200;
+export const SIMULATION_SPEED_RATES: Readonly<Record<SimulationSpeed, number>> = Object.freeze({
+  slow: 30,
+  normal: 60,
+  fast: 240,
+  ultrafast: 960,
+});
 
 export interface DailyPhaseConfig {
   overnightStart: number;
@@ -11,13 +25,14 @@ export interface DailyPhaseConfig {
 }
 
 export interface TimeScaleConfig {
-  schemaVersion: 2;
+  schemaVersion: 3;
   configVersion: number;
   timezone: string;
   winterWeeks: number;
   summerPeriods: number;
+  /** Kept for save/config compatibility. Normal is 720 real seconds. */
   realSecondsPerWinterWeek: number;
-  speedMultipliers: readonly SimulationSpeed[];
+  speedMultipliers: readonly SimulationSpeedValue[];
   clockStepMinutes: number;
   uiUpdateHz: number;
   maxWallDeltaMs: number;
@@ -29,7 +44,7 @@ export interface TimeScaleConfig {
 }
 
 export interface SimulationClock {
-  schemaVersion: 2;
+  schemaVersion: 3;
   timezone: string;
   resortYear: number;
   completedWinterSeasons: number;
@@ -37,14 +52,21 @@ export interface SimulationClock {
   seasonStartedAt: string;
   summerPeriod: number | null;
   winterWeek: number | null;
+  /** Authoritative elapsed simulation seconds for the active winter. */
+  elapsedSimSecond: number;
+  /** Seconds elapsed in the current composite operating day (0..43,199). */
+  weekSecond: number;
   absoluteGameMinute: number;
   calendarDate: string;
   minuteOfDay: number;
   weekday: number;
   dailyPhase: DailyPhase;
-  speed: SimulationSpeed;
+  /** New saves contain named speeds; numeric values are retained for old callers during rollout. */
+  speed: SimulationSpeedValue;
   runState: ClockRunState;
   transitionPending: Season | null;
+  /** Compatibility projection base; omitted by old snapshots and reconstructed during migration. */
+  winterStartAbsoluteGameMinute?: number;
 }
 
 export type TimeBoundaryEvent =
@@ -63,6 +85,7 @@ export interface AdvanceResult {
   clock: SimulationClock;
   events: TimeBoundaryEvent[];
   simulatedMinutesAdvanced: number;
+  simulatedSecondsAdvanced: number;
 }
 
 export type TimeBoundaryTarget =
@@ -74,7 +97,7 @@ export type TimeBoundaryTarget =
   | 'next-year';
 
 export interface TimeEngineSnapshot {
-  schemaVersion: 2;
+  schemaVersion: 3;
   configVersion: number;
   clock: SimulationClock;
 }
@@ -83,6 +106,7 @@ export interface TimeAdvanceContext {
   before: SimulationClock;
   after: SimulationClock;
   simulatedMinutes: number;
+  simulatedSeconds?: number;
 }
 
 export interface TimeEventConsumer {

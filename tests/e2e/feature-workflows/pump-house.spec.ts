@@ -9,7 +9,7 @@ import { seedPreparedResort } from '../support/preparedResort';
  */
 test('places, edits, saves, selects, and removes a pump house', async ({ page }) => {
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   await page.getByRole('button', { name: 'Snowmaking' }).click();
@@ -35,7 +35,8 @@ test('places, edits, saves, selects, and removes a pump house', async ({ page })
   await expect(page.getByTestId('confirm-pump-house')).toBeEnabled({ timeout: 15_000 });
   await page.getByTestId('confirm-pump-house').click();
 
-  await expect(page.getByTestId('pump-house-overview')).toContainText('North Pump House');
+  await expect(page.getByTestId('pump-house-detail')).toContainText('North Pump House');
+  await page.getByTestId('pump-house-detail').getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('button', { name: '3D', exact: true }).click();
   await expect.poll(() => page.evaluate(() =>
     (window as unknown as { appMap: { getPitch(): number } }).appMap.getPitch()))
@@ -76,7 +77,7 @@ test('places, edits, saves, selects, and removes a pump house', async ({ page })
     buildingNodeId: expect.any(String), pumpNodeId: expect.any(String) });
 
   await page.reload();
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await page.getByRole('button', { name: 'Snowmaking' }).click();
   await expect(page.getByTestId('pump-house-overview')).toContainText('North Pump House');
@@ -112,6 +113,7 @@ test('places, edits, saves, selects, and removes a pump house', async ({ page })
   await expect.poll(() => page.evaluate(() =>
     (window as unknown as { appMap: { getLayoutProperty(id: string, property: string): unknown } })
       .appMap.getLayoutProperty('building-extrusion', 'visibility'))).toBe('visible');
+  await page.getByRole('button', { name: 'Snowmaking', exact: true }).click();
   await page.locator('[data-testid^="pump-house-row-"]').filter({ hasText: 'North Pump House' }).click();
   await expect(page.getByTestId('pump-house-detail')).toContainText('Dimensions, heading, roof, and foundation are locked');
   await expect(page.getByTestId('pump-house-detail')).toContainText('Capital cost');

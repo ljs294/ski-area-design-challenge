@@ -4,6 +4,8 @@ import { ROAD_CLEAR_BUFFER_M, ROAD_TYPE_LABELS, roadLengthM,
   TWO_LANE_CLEAR_HALF_WIDTH_M, TWO_LANE_ROAD_WIDTH_M } from '../roads';
 import type { Units } from './SettingsContext';
 import type { DraftRoad, RoadTool } from './roadControllerModel';
+import type { GuestSimulationRuntime } from './useGuestSimulationRuntime';
+import type { GuestConnectivity } from './guestConnectivity';
 
 export type { DraftRoad, RoadTool } from './roadControllerModel';
 
@@ -54,20 +56,54 @@ function RoadStats({ points, units, draft }: { points: [number, number][]; units
 /** Roads only. Dams and ponds live in the Snowmaking dock beside the pipe
  *  network they feed — see SnowmakingControl. */
 export function InfrastructureControl({ tool, roads, units, onArm, onCancel, onUndo,
-  onFinish, onDraftChange, onConfirm, onClose, building = false }: {
+  onFinish, onDraftChange, onConfirm, onClose, onSelectRoad, building = false,
+  guestPortal, guestPortalArmed = false, guestPortalError = null,
+  guestRuntime,
+  guestConnectivity,
+  onArmGuestPortal, onCancelGuestPortal, onRemoveGuestPortal }: {
   tool: RoadTool; roads: SavedRoad[]; units: Units;
   onArm: (roadType: RoadType) => void; onCancel: () => void; onUndo: () => void; onFinish: () => void;
   onDraftChange: (patch: Partial<DraftRoad>) => void; onConfirm: () => void;
-  onClose: () => void; building?: boolean;
+  onClose: () => void; onSelectRoad?: (id: string) => void; building?: boolean;
+  guestPortal?: { label: string; nodeId: string } | null;
+  guestPortalArmed?: boolean;
+  guestPortalError?: string | null;
+  guestRuntime?: GuestSimulationRuntime;
+  guestConnectivity?: GuestConnectivity;
+  onArmGuestPortal?: () => void;
+  onCancelGuestPortal?: () => void;
+  onRemoveGuestPortal?: () => void;
 }) {
   if (tool.phase === 'idle') return <div className="lift-overview infrastructure-panel">
     <PanelHead title={`Infrastructure · ${roads.length} roads`} onClose={onClose} />
     <RoadTypeField value="two-lane" onChange={() => undefined} />
     <button className="lift-add-btn site-btn site-btn-primary" onClick={() => onArm('two-lane')}>＋ Build road</button>
+    <div className="lift-field"><span className="lift-field-label">Guest simulation</span>
+      {guestConnectivity && <div className={guestConnectivity.reachable ? 'lift-stats' : 'lift-warning'}
+        role={guestConnectivity.reachable ? 'status' : 'alert'}>
+        <strong>{guestConnectivity.reachable ? 'Resort reachable' : 'Resort unreachable'}</strong>
+        <div>{guestConnectivity.message}</div>
+        {guestConnectivity.connectedLiftName && <div>Lift terminal: {guestConnectivity.connectedLiftName}</div>}
+        {guestPortal && <div>Road access: {guestConnectivity.roadAccessLabel}</div>}
+      </div>}
+      {guestPortalArmed ? <button className="site-btn" onClick={onCancelGuestPortal}>Cancel entrance placement</button>
+        : <button className="site-btn" onClick={onArmGuestPortal}>{guestPortal ? 'Move Guest Entrance' : 'Place Guest Entrance'}</button>}
+      {guestPortal && <button className="site-btn" onClick={onRemoveGuestPortal}>Remove Guest Entrance</button>}
+      {guestPortalError && <div className="lift-warning" role="alert">{guestPortalError}</div>}
+      {guestPortal && guestRuntime && <div className="lift-stats">
+        <div className="readout-line"><span className="lift-stat-label">Worker</span>
+          <span className="lift-stat-value">{guestRuntime.status}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">Guests active</span>
+          <span className="lift-stat-value">{guestRuntime.snapshot?.metrics.active.toLocaleString() ?? '0'}</span></div>
+        <div className="readout-line"><span className="lift-stat-label">Guests on map</span>
+          <span className="lift-stat-value">{guestRuntime.points.length.toLocaleString()}</span></div>
+        <div className="site-hint">{guestRuntime.message}</div>
+      </div>}
+    </div>
     {roads.length === 0 ? <div className="lift-overview-empty">No infrastructure yet — build your first road.</div> : <>
-      {roads.length > 0 && <div className="lift-list">{roads.map((road) => <div key={road.id} className="lift-row">
+      {roads.length > 0 && <div className="lift-list">{roads.map((road) => <button key={road.id} className="lift-row" onClick={() => onSelectRoad?.(road.id)}>
         <span className="infrastructure-road-swatch" aria-hidden="true" /><span className="lift-row-main"><span className="lift-row-name">{road.name}</span>
-          <span className="lift-row-summary">Two-lane · {fmtDistance(road.lengthM, units)}</span></span></div>)}</div>}
+          <span className="lift-row-summary">Two-lane · {fmtDistance(road.lengthM, units)}</span></span></button>)}</div>}
     </>}
   </div>;
   if (tool.phase === 'armed' || tool.phase === 'drawing') {

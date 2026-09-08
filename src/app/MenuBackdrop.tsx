@@ -2,14 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { SkySpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { basemapFor, tuneBasemap } from './basemapStyle';
+import { tuneBasemap } from './basemapStyle';
+import { createMenuMapStyle } from './menuMapStyle';
+import { registerMenuBackgroundProtocol } from './menuBackgroundAssets';
 import { useSettings } from './SettingsContext';
 import { pixelRatioForElement, renderProfileFor, type RenderQuality } from './renderProfile';
 import { applyTileLod } from './terrainLod';
 
 const CRYSTAL: [number, number] = [-121.474, 46.928];
-const TERRARIUM_TILES =
-  'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png';
+const TERRARIUM_TILES = 'menu-background://terrain/{z}/{x}/{y}';
 const MENU_TERRAIN_DEM = 'menu-terrain-dem';
 const MENU_HILLSHADE_DEM = 'menu-hillshade-dem';
 const MENU_PITCH = 70;
@@ -30,7 +31,7 @@ function demSource(quality: RenderQuality): maplibregl.RasterDEMSourceSpecificat
     tiles: [TERRARIUM_TILES],
     encoding: 'terrarium',
     tileSize: 256,
-    maxzoom: renderProfileFor(quality).terrainMaxZoom,
+    maxzoom: Math.min(14, renderProfileFor(quality).terrainMaxZoom),
   };
 }
 
@@ -67,7 +68,7 @@ function setupTerrain(map: maplibregl.Map, quality: RenderQuality): void {
 export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const { resolvedTheme, settings } = useSettings();
+  const { settings } = useSettings();
   const qualityRef = useRef(settings.renderQuality);
   qualityRef.current = settings.renderQuality;
   const profile = renderProfileFor(settings.renderQuality);
@@ -83,9 +84,10 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
     if (mapRef.current || !containerRef.current) return;
     setReady(false);
     const container = containerRef.current;
+    registerMenuBackgroundProtocol();
     const map = new maplibregl.Map({
       container,
-      style: basemapFor(resolvedTheme),
+      style: createMenuMapStyle(),
       center: CRYSTAL,
       zoom: 15,
       bearing: -18,
@@ -99,30 +101,41 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
     (window as unknown as { menuMap: maplibregl.Map }).menuMap = map;
 
     let reportedReady = false;
+    let failed = false;
     let readyTimeout = 0;
     const reportReady = () => {
-      if (reportedReady) return;
+      if (reportedReady || failed || !map.areTilesLoaded() || !map.isSourceLoaded('menu-cover')) return;
       reportedReady = true;
       setReady(true);
       onReady?.();
     };
     const onStyle = () => {
       setupTerrain(map, qualityRef.current);
-      map.once('render', reportReady);
-      readyTimeout = window.setTimeout(reportReady, 800);
+      map.on('render', reportReady);
+      readyTimeout = window.setTimeout(() => {
+        if (!reportedReady) console.error('Bundled menu background did not finish loading; retaining fallback.');
+      }, 15000);
     };
+    const onError = (event: { error: Error }) => {
+      failed = true; setReady(false);
+      console.error('Bundled menu background failed; retaining fallback.', event.error);
+    };
+    map.on('error', onError);
     map.on('style.load', onStyle);
 
     return () => {
       map.off('style.load', onStyle);
+      map.off('render', reportReady);
+      map.off('error', onError);
       window.clearTimeout(readyTimeout);
       map.remove();
       mapRef.current = null;
       delete (window as unknown as { menuMap?: maplibregl.Map }).menuMap;
     };
-    // Crossing the CSS-only boundary owns map creation/removal. Theme does not alter the map style.
+    // Crossing the CSS-only boundary owns map creation/removal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cssOnly]);
+
 
   useEffect(() => {
     const map = mapRef.current;
@@ -166,7 +179,7 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
 
   return (
     <div className="menu-backdrop menu-backdrop-css">
-      {!cssOnly && <div ref={containerRef} className="menu-backdrop-map" />}
+      {!cssOnly && <div ref={containerRef} className="menu-backdrop-map" style={{ opacity: ready ? 1 : 0 }} data-ready={ready} />}
       <div className="menu-backdrop-scrim" />
     </div>
   );

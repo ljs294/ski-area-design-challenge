@@ -5,15 +5,26 @@ import type { WindowMode } from '../ipcContract';
 import type { GameAction, Keybinds } from '../keybinds';
 import { DEFAULT_KEYBINDS, mergeKeybinds } from '../keybinds';
 import { isRenderQuality } from './renderProfile';
+import { DEFAULT_CUSTOM_MAP_COLORS, isMapColorPreset, normalizeCustomMapColors } from './mapTheme';
+import type { CustomMapColors, MapColorPreset } from './mapTheme';
 export { pixelRatioFor, pixelRatioForElement, renderProfileFor } from './renderProfile';
 export type { RenderProfile, RenderQuality } from './renderProfile';
 import type { RenderQuality } from './renderProfile';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type Units = 'imperial' | 'metric';
+export type InterfaceScale = number;
+
+export function normalizeInterfaceScale(value: unknown): InterfaceScale {
+  const numeric = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
+  return Number.isFinite(numeric) && numeric >= 50 && numeric <= 150 ? Math.round(numeric / 5) * 5 : 100;
+}
 
 export interface Settings {
+  interfaceScale: InterfaceScale;
   theme: Theme;
+  mapColorPreset: MapColorPreset;
+  customMapColors: CustomMapColors;
   units: Units;
   windowMode: WindowMode;
   reducedMotion: boolean;
@@ -24,7 +35,10 @@ export interface Settings {
 const STORAGE_KEY = 'skiapp:settings';
 
 const DEFAULTS: Settings = {
+  interfaceScale: 100,
   theme: 'system',
+  mapColorPreset: 'cupertino',
+  customMapColors: DEFAULT_CUSTOM_MAP_COLORS,
   units: 'imperial',
   windowMode: 'windowed',
   reducedMotion: false,
@@ -38,6 +52,10 @@ function loadSettings(): Settings {
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     const merged = { ...DEFAULTS, ...parsed };
+    merged.interfaceScale = normalizeInterfaceScale(parsed.interfaceScale);
+    if (!['light', 'dark', 'system'].includes(parsed.theme ?? '')) merged.theme = 'system';
+    if (!isMapColorPreset(parsed.mapColorPreset)) merged.mapColorPreset = DEFAULTS.mapColorPreset;
+    merged.customMapColors = normalizeCustomMapColors(parsed.customMapColors);
     if (parsed.units !== 'imperial' && parsed.units !== 'metric') merged.units = DEFAULTS.units;
     if (!isRenderQuality(parsed.renderQuality)) merged.renderQuality = DEFAULTS.renderQuality;
     // A shallow spread would let a stored (possibly stale/partial) keybinds
@@ -61,17 +79,31 @@ function resolveTheme(theme: Theme, systemDark: boolean): 'light' | 'dark' {
 
 /** Stamp the resolved theme on <html> so all CSS + the map style react to it. */
 function applyThemeAttr(resolved: 'light' | 'dark'): void {
-  if (typeof document !== 'undefined') document.documentElement.dataset.theme = resolved;
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.theme = resolved;
+    document.documentElement.style.colorScheme = resolved;
+    document.documentElement.style.backgroundColor = resolved === 'dark' ? '#111B22' : '#F3F5F2';
+  }
+}
+
+function applyInterfaceSettings(settings: Settings): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.style.setProperty('--ui-scale', String(Number(settings.interfaceScale) / 100));
+  document.documentElement.dataset.reducedMotion = String(settings.reducedMotion);
 }
 
 // Apply the persisted theme at module load — before React's first paint — so
 // there is no light-mode flash when the app starts in dark mode.
 applyThemeAttr(resolveTheme(loadSettings().theme, systemPrefersDark()));
+applyInterfaceSettings(loadSettings());
 
 interface SettingsContextValue {
+  setInterfaceScale: (scale: InterfaceScale) => void;
   settings: Settings;
   resolvedTheme: 'light' | 'dark';
   setTheme: (t: Theme) => void;
+  setMapColorPreset: (preset: MapColorPreset) => void;
+  setCustomMapColor: (color: keyof CustomMapColors, value: string) => void;
   setUnits: (u: Units) => void;
   setWindowMode: (m: WindowMode) => void;
   setReducedMotion: (v: boolean) => void;
@@ -117,6 +149,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [resolvedTheme]);
 
   useEffect(() => {
+    applyInterfaceSettings(settings);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
 
@@ -127,6 +160,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setTheme = useCallback((theme: Theme) => setSettings((s) => ({ ...s, theme })), []);
+  const setMapColorPreset = useCallback(
+    (mapColorPreset: MapColorPreset) => setSettings((s) => ({ ...s, mapColorPreset })),
+    []
+  );
+  const setCustomMapColor = useCallback((color: keyof CustomMapColors, value: string) => {
+    if (!/^#[0-9a-f]{6}$/i.test(value)) return;
+    setSettings((s) => ({ ...s, mapColorPreset: 'custom', customMapColors: { ...s.customMapColors, [color]: value } }));
+  }, []);
+  const setInterfaceScale = useCallback((interfaceScale: InterfaceScale) => setSettings((s) => ({ ...s, interfaceScale: normalizeInterfaceScale(interfaceScale) })), []);
   const setUnits = useCallback((units: Units) => setSettings((s) => ({ ...s, units })), []);
   const setReducedMotion = useCallback(
     (reducedMotion: boolean) => setSettings((s) => ({ ...s, reducedMotion })),
@@ -152,12 +194,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<SettingsContextValue>(
     () => ({
-      settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
-      setKeybind, resetKeybinds,
+      settings, resolvedTheme, setTheme, setMapColorPreset, setCustomMapColor, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
+      setKeybind, resetKeybinds, setInterfaceScale,
     }),
     [
-      settings, resolvedTheme, setTheme, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
-      setKeybind, resetKeybinds,
+      settings, resolvedTheme, setTheme, setMapColorPreset, setCustomMapColor, setUnits, setWindowMode, setReducedMotion, setRenderQuality,
+      setKeybind, resetKeybinds, setInterfaceScale,
     ]
   );
 

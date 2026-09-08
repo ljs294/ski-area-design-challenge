@@ -8,6 +8,7 @@ import type { SavedNode, SavedPath } from '../types/topology';
 import { sanitizeTrails } from '../trails';
 import type { SavedLift, SavedTrail } from '../types';
 import { NetworkMap } from './NetworkMap';
+import { analyzeGuestConnectivity } from './guestConnectivity';
 
 // Matches the DOM-free component-test pattern in InfrastructureControl.test.tsx:
 // render to a string and assert on markup, so no jsdom is needed.
@@ -143,6 +144,25 @@ function mountain(extra: Record<string, unknown> = {}) {
 }
 
 describe('NetworkMap', () => {
+  it('shows the Guest Entrance connection and warns when its lift has no open descent', () => {
+    const reachableNetwork = mountain();
+    const base = reachableNetwork.nodes.find((candidate) => candidate.liftBases.includes('L'))!;
+    const portal = { version: 1 as const, id: 'entrance', kind: 'guest-entrance' as const,
+      type: 'guest-entrance' as const, semantics: 'guest-entrance' as const, direction: 'inbound' as const,
+      accepts: 'guests' as const, label: 'Guest Entrance', capacityGuestsPerTick: 12,
+      openFromTick: 0, openUntilTick: 86_400, nodeId: base.id, lngLat: base.lngLat };
+    const connected = analyzeGuestConnectivity(reachableNetwork, portal);
+    expect(connected.reachable).toBe(true);
+    expect(connected.connectedLiftName).toBe('L');
+    expect(render(reachableNetwork, { guestConnectivity: connected })).toContain('Connected Guest Entrance');
+
+    const closedNetwork = mountain({ closed: true });
+    const closedBase = closedNetwork.nodes.find((candidate) => candidate.liftBases.includes('L'))!;
+    const unreachable = analyzeGuestConnectivity(closedNetwork, { ...portal, nodeId: closedBase.id, lngLat: closedBase.lngLat });
+    expect(unreachable.state).toBe('no-open-descent');
+    expect(render(closedNetwork, { guestConnectivity: unreachable, panelOnly: true })).toContain('Resort unreachable');
+  });
+
   it('draws one element per edge, tagged for selection', () => {
     const net = mountain();
     const html = render(net);

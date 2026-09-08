@@ -204,6 +204,7 @@ export function useSnowgunController(options: SnowgunControllerOptions): Snowgun
     if (!result.ok) { dispatch({ type: 'review-error', revision: document.revision,
       error: 'The snowmaking network changed. Hookups were refreshed; confirm again.' }); return; }
     cancel();
+    optionsRef.current.selectGun(built[0].id);
   }
   function armMove(gunId: string): void {
     const gun = optionsRef.current.guns.find((candidate) => candidate.id === gunId);

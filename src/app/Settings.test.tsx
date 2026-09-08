@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { GAME_ACTION_LABELS, GAME_ACTION_ORDER, DEFAULT_KEYBINDS } from '../keybinds';
 import { Settings } from './Settings';
 import type { ResortSettingsCapability } from './Settings';
-import { SettingsProvider } from './SettingsContext';
+import { normalizeInterfaceScale, SettingsProvider } from './SettingsContext';
 
 // The component tests in this directory render without a browser DOM. These
 // checks cover the complete tab structure and initial resort-data states;
@@ -19,6 +19,19 @@ function render(resortSettings?: ResortSettingsCapability) {
 function expectLabel(html: string, label: string): void {
   expect(html).toContain(label.replace(/&/g, '&amp;'));
 }
+
+describe('interface scaling', () => {
+  it('hydrates prior string settings and validates the slider range', () => {
+    expect(normalizeInterfaceScale('125')).toBe(125);
+    expect(normalizeInterfaceScale(50)).toBe(50);
+    expect(normalizeInterfaceScale(150)).toBe(150);
+    expect(normalizeInterfaceScale(108)).toBe(110);
+    for (const value of [null, undefined, NaN, 0, 151, 'bad']) expect(normalizeInterfaceScale(value)).toBe(100);
+  });
+  it('provides a labeled slider centered on the default', () => {
+    expect(render()).toContain('id="interface-scale" type="range" min="50" max="150" step="5"');
+  });
+});
 
 const missingMapContext: ResortSettingsCapability = {
   mapContextAvailable: false,
@@ -60,11 +73,11 @@ describe('Settings tabs', () => {
     expectLabel(html, 'Metric');
   });
 
-  it('omits Resort Data when no active-resort capability is supplied', () => {
+  it('keeps Data available for downloaded terrain without an active resort', () => {
     const html = render();
 
-    expect(html).not.toContain('settings-tab-resort-data');
-    expect(html).not.toContain('settings-panel-resort-data');
+    expect(html).toContain('settings-tab-resort-data');
+    expect(html).toContain('settings-panel-resort-data');
     expect(html).not.toContain('Resort Data');
   });
 });

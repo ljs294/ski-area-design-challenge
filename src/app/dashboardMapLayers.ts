@@ -1,3 +1,4 @@
+import { applyMapTheme } from './mapTheme';
 import maplibregl from 'maplibre-gl';
 import { buildingFootprint, isBuildingOwnedPump } from '../buildings';
 import type { CoverDisplayGeoJSON } from '../coverDisplay';
@@ -18,6 +19,8 @@ import { localContourGeoJSON } from './localContours';
 import { snowmakingPressureColor } from './snowmakingPressureHeatmap';
 import type { Units } from './SettingsContext';
 import type { SnowmakingLassoMapState } from './snowmakingLasso';
+import type { GuestConnectivity } from './guestConnectivity';
+import type { CustomMapColors, MapColorPreset } from './mapTheme';
 
 export const DASHBOARD_SOURCE = 'dashboard-map';
 export const DASHBOARD_LASSO_SOURCE = 'dashboard-snowmaking-lasso';
@@ -26,6 +29,7 @@ export const DASHBOARD_LAYER_IDS = [
   'dashboard-snow-contours', 'dashboard-snow-water', 'dashboard-trail-ties',
   'dashboard-trail-edges', 'dashboard-trail-arrows', 'dashboard-trail-labels',
   'dashboard-trail-nodes', 'dashboard-lift-hit', 'dashboard-trail-hit',
+  'dashboard-guest-connection', 'dashboard-guest-halo', 'dashboard-guest-marker', 'dashboard-guest-label',
   'dashboard-snow-buildings', 'dashboard-snow-building-outlines',
   'dashboard-snow-building-labels', 'dashboard-snow-pipes',
   'dashboard-snow-flow-arrows', 'dashboard-snow-flow-labels',
@@ -92,6 +96,8 @@ export function snowmakingGunColor(state: SnowmakingGunVisualState): string {
 export interface DashboardMapData {
   kind: DashboardKind | null;
   dark: boolean;
+  mapColorPreset: MapColorPreset;
+  customMapColors: CustomMapColors;
   units: Units;
   network: SkiNetwork;
   selectedLiftId: string | null;
@@ -111,6 +117,7 @@ export interface DashboardMapData {
     { kind: 'pipe'; id: string; segmentId: string | null } | null;
   snowmakingPresentation: SnowmakingMapPresentation | null;
   snowmakingLasso?: SnowmakingLassoMapState | null;
+  guestConnectivity?: GuestConnectivity;
 }
 
 type Props = Record<string, string | number | boolean | null>;
@@ -176,6 +183,19 @@ function trailFeatures(input: DashboardMapData): Feature[] {
     type: 'Point', coordinates: node.lngLat,
   }, { terminal: node.liftBases.length > 0 || node.liftTops.length > 0,
     user: node.kind === 'user-node' }));
+  return features;
+}
+
+function guestConnectivityFeatures(input: DashboardMapData): Feature[] {
+  const status = input.guestConnectivity;
+  if (!status?.portal) return [];
+  const features = [feature('guest-portal', { type: 'Point', coordinates: [...status.portal.lngLat] }, {
+    reachable: status.reachable, label: status.reachable
+      ? `Guest Entrance - ${status.connectedLiftName ?? 'connected'}` : 'Resort unreachable',
+  }, 'dashboard-guest-portal')];
+  if (status.connectionPath.length >= 2) features.unshift(feature('guest-connection', {
+    type: 'LineString', coordinates: [...status.connectionPath],
+  }, { reachable: status.reachable }, 'dashboard-guest-connection'));
   return features;
 }
 
@@ -395,6 +415,7 @@ export function dashboardGeoJSON(input: DashboardMapData): GeoJSON.FeatureCollec
   const features: Feature[] = [feature('backdrop', WORLD)];
   if (input.kind === 'trails') features.push(...trailFeatures(input));
   if (input.kind === 'snowmaking') features.push(...snowmakingFeatures(input));
+  if (input.kind === 'trails' || input.kind === 'snowmaking') features.push(...guestConnectivityFeatures(input));
   return { type: 'FeatureCollection', features };
 }
 
@@ -542,6 +563,24 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
       'circle-color': ['case', ['get', 'user'], '#efb84f', ['get', 'terminal'], '#27303f', '#f4f1ea'],
       'circle-stroke-color': '#6b7280', 'circle-stroke-width': 1.5,
     } });
+  const guestColor = ['case', ['get', 'reachable'], '#16a34a', '#dc2626'] as maplibregl.ExpressionSpecification;
+  map.addLayer({ id: 'dashboard-guest-connection', type: 'line', source: DASHBOARD_SOURCE,
+    filter: filter('guest-connection'), layout: { visibility: 'none' }, paint: {
+      'line-color': guestColor, 'line-width': 6, 'line-opacity': 0.85, 'line-dasharray': [2, 1],
+    } });
+  map.addLayer({ id: 'dashboard-guest-halo', type: 'circle', source: DASHBOARD_SOURCE,
+    filter: filter('guest-portal'), layout: { visibility: 'none' }, paint: {
+      'circle-color': guestColor, 'circle-radius': 14, 'circle-opacity': 0.22,
+    } });
+  map.addLayer({ id: 'dashboard-guest-marker', type: 'circle', source: DASHBOARD_SOURCE,
+    filter: filter('guest-portal'), layout: { visibility: 'none' }, paint: {
+      'circle-color': guestColor, 'circle-radius': 8, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2,
+    } });
+  map.addLayer({ id: 'dashboard-guest-label', type: 'symbol', source: DASHBOARD_SOURCE,
+    filter: filter('guest-portal'), layout: { visibility: 'none', 'text-field': ['get', 'label'],
+      'text-size': 12, 'text-offset': [0, 1.5], 'text-anchor': 'top', 'text-font': ['Noto Sans Regular'],
+      'text-allow-overlap': true }, paint: { 'text-color': guestColor,
+      'text-halo-color': '#f4f1ea', 'text-halo-width': 2 } });
   map.addLayer({ id: 'dashboard-lift-hit', type: 'line', source: DASHBOARD_SOURCE,
     filter: allFilter(filter('trail-edge'), ['==', ['get', 'edgeKind'], 'lift']),
     layout: { visibility: 'none' }, paint: { 'line-width': 16, 'line-color': '#000',
@@ -694,8 +733,7 @@ export function setDashboardMapData(map: maplibregl.Map | null, input: Dashboard
   setDashboardLassoData(map, input.snowmakingLasso ?? null);
   applyDashboardMapPresentation(map, input.snowmakingPresentation,
     null, input.guns.map((gun) => gun.id));
-  if (map?.getLayer('dashboard-backdrop')) map.setPaintProperty('dashboard-backdrop',
-    'fill-color', input.dark ? '#18202a' : '#f4f1ea');
+  if (map) applyMapTheme(map, input.dark ? 'dark' : 'light', input.mapColorPreset, input.customMapColors);
 }
 
 export function setDashboardLassoData(
@@ -710,13 +748,14 @@ export function setDashboardMapVisibility(map: maplibregl.Map, kind: DashboardKi
   for (const id of DASHBOARD_LAYER_IDS) if (map.getLayer(id)) {
     const snow = id.startsWith('dashboard-snow-');
     const trail = id.startsWith('dashboard-trail-') || id === 'dashboard-lift-hit';
-    const common = id === 'dashboard-backdrop' || id === 'dashboard-grid';
-    const visible = !!kind && (common || kind === 'trails' && trail || kind === 'snowmaking' && snow);
+    const common = id === 'dashboard-backdrop' || id === 'dashboard-grid' || id.startsWith('dashboard-guest-');
+    const visible = kind === 'trails' && (common || trail) || kind === 'snowmaking' && (common || snow);
     map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
   }
 }
 
 export function dashboardBounds(input: DashboardMapData): maplibregl.LngLatBoundsLike | null {
+  if (input.kind === 'guests') return null;
   const points: [number, number][] = input.kind === 'trails'
     ? input.network.edges.flatMap((edge) => edge.id.endsWith(':r') ? [] : edge.path)
     : [...input.nodes.map((node) => node.point), ...input.pipes.flatMap((pipe) =>
@@ -726,6 +765,8 @@ export function dashboardBounds(input: DashboardMapData): maplibregl.LngLatBound
       ...input.buildings.flatMap((building) => isBuildingOwnedPump(building,
         input.nodes.find((node) => node.id === building.connection.nodeId))
         ? buildingFootprint(building) : [])];
+  if (input.guestConnectivity?.portal) points.push([...input.guestConnectivity.portal.lngLat]);
+  for (const point of input.guestConnectivity?.connectionPath ?? []) points.push([...point]);
   if (!points.length) return null;
   return points.reduce((bounds, point) => bounds.extend(point),
     new maplibregl.LngLatBounds(points[0], points[0]));

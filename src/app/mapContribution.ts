@@ -23,6 +23,7 @@ export const MAP_LAYER_ORDER = [
   'lift',
   'building',
   'snowmaking',
+  'guest',
 ] as const;
 
 export type MapFamilyId = (typeof MAP_LAYER_ORDER)[number];
@@ -33,6 +34,7 @@ export type MapFamilyId = (typeof MAP_LAYER_ORDER)[number];
  * structure, so hit order names them in their own right.
  */
 export const MAP_HIT_PRIORITY = [
+  'guest',
   'snowmaking',
   'building',
   'lift',

@@ -42,7 +42,7 @@ export function SiteControl({
             View this area
           </button>
           <button className="site-btn" onClick={onCancel}>
-            Cancel
+            Back
           </button>
         </div>
       </div>

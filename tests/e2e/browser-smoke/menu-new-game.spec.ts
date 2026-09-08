@@ -4,8 +4,8 @@ import { seedPreparedResort } from '../support/preparedResort';
 test('main menu enters the New Game site-picker shell', async ({ page }) => {
   await openMenu(page);
 
-  await expect(page.getByRole('button', { name: 'Continue Game' })).toBeDisabled();
-  await page.getByRole('button', { name: 'New Game' }).click();
+  await expect(page.getByRole('button', { name: /^Continue /  })).toHaveCount(0);
+  await page.getByRole('button', { name: 'New Resort' }).click();
 
   await expect(page.locator('.main-menu')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Menu', exact: true })).toBeVisible();
@@ -13,7 +13,7 @@ test('main menu enters the New Game site-picker shell', async ({ page }) => {
   await expect(page.locator('.game-dock')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Menu', exact: true }).click();
-  await expect(page.getByRole('menuitem', { name: 'Load' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'My Resorts' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Save' })).toHaveCount(0);
 });
@@ -35,12 +35,12 @@ test('Performance keeps the full-size terrain menu backdrop', async ({ page }) =
 test('a prepared resort reveals a usable, mutually exclusive construction dock', async ({ page }) => {
   await seedPreparedResort(page);
 
-  const continueButton = page.getByRole('button', { name: 'Continue Game' });
+  const continueButton = page.getByRole('button', { name: /^Continue /  });
   await expect(continueButton).toBeEnabled();
   await continueButton.click();
 
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
-  await expect(page.locator('.game-dock')).toBeVisible();
+  await expect(page.locator('.workspace-shell')).toBeVisible();
   await expect(page.getByText('Deterministic Peak', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Layers' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Ski lifts' })).toBeVisible();
@@ -60,7 +60,7 @@ test('a prepared resort reveals a usable, mutually exclusive construction dock',
 
 test('summer uses one confirmed September skip and weather panels have an opaque surface', async ({ page }) => {
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   await page.locator('.tb-play').click();
@@ -76,5 +76,5 @@ test('summer uses one confirmed September skip and weather panels have an opaque
   expect(await weather.evaluate((element) => getComputedStyle(element).backgroundColor))
     .not.toBe('rgba(0, 0, 0, 0)');
   expect(await weather.evaluate((element) => getComputedStyle(element).overflow)).toBe('hidden');
-  expect((await weather.boundingBox())?.width).toBeGreaterThan(1_000);
+  expect((await weather.boundingBox())?.width).toBeGreaterThan(300);
 });

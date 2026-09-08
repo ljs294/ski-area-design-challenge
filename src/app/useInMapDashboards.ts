@@ -17,11 +17,17 @@ import type { Units } from './SettingsContext';
 import type { SnowmakingPipeHoverState } from './SnowmakingPipeHover';
 import { appendLassoSample, closeLassoPath, connectedGunIdsInLasso,
   type LassoPoint, type SnowmakingLassoSelection, type SnowmakingLassoMapState } from './snowmakingLasso';
+import type { GuestConnectivity } from './guestConnectivity';
+import { useDashboardCamera } from './dashboardCamera';
+import type { CustomMapColors, MapColorPreset } from './mapTheme';
 
 export interface InMapDashboardInput {
+  weatherOpen?: boolean;
   mapRef: RefObject<maplibregl.Map | null>;
   registryRef: MutableRefObject<MapContributionRegistry | null>;
   dark: boolean;
+  mapColorPreset: MapColorPreset;
+  customMapColors: CustomMapColors;
   units: Units;
   network: SkiNetwork;
   dams: readonly SavedDam[];
@@ -35,6 +41,7 @@ export interface InMapDashboardInput {
   guns: readonly SavedSnowgun[];
   coverDisplay: CoverDisplayGeoJSON | null;
   terrainRecord: TerrainRecord | null;
+  guestConnectivity?: GuestConnectivity;
 }
 
 function samePresentationSource(
@@ -58,6 +65,7 @@ function samePresentationSource(
 
 export function useInMapDashboards(input: InMapDashboardInput) {
   const [active, setActive] = useState<DashboardKind | null>(null);
+  useDashboardCamera(input.mapRef, active !== null || input.weatherOpen === true);
   const [liftId, setLiftId] = useState<string | null>(null);
   const [edgeId, setEdgeId] = useState<string | null>(null);
   const [snowSelection, setSnowSelection] = useState<
@@ -82,7 +90,8 @@ export function useInMapDashboards(input: InMapDashboardInput) {
   const snowGunSelectionActive = snowGunSelectionPhase !== 'idle';
 
   const data: DashboardMapData = {
-    kind: active, dark: input.dark, units: input.units, network: input.network,
+    kind: active, dark: input.dark, mapColorPreset: input.mapColorPreset,
+    customMapColors: input.customMapColors, units: input.units, network: input.network,
     selectedLiftId: liftId, selectedEdgeId: edgeId, dams: input.dams, ponds: input.ponds,
     lakes: input.lakes, trails: input.trails, lifts: input.lifts, nodes: input.nodes,
     buildings: input.buildings,
@@ -90,6 +99,7 @@ export function useInMapDashboards(input: InMapDashboardInput) {
     terrainRecord: input.terrainRecord, selectedSnowmaking: snowSelection,
     snowmakingPresentation: presentationRef.current,
     snowmakingLasso: lassoMapRef.current,
+    guestConnectivity: input.guestConnectivity,
   };
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -310,19 +320,21 @@ export function useInMapDashboards(input: InMapDashboardInput) {
   useEffect(() => {
     syncRef.current(input.mapRef.current);
   }, [active, snowMode, liftId, edgeId, snowSelection,
-    input.dark, input.units, input.network, input.dams, input.ponds, input.lakes,
+    input.dark, input.mapColorPreset, input.customMapColors, input.units, input.network, input.dams, input.ponds, input.lakes,
     input.trails, input.lifts, input.nodes, input.buildings, input.pipes, input.guns,
-    input.coverDisplay, input.terrainRecord, input.mapRef, input.registryRef]);
+    input.coverDisplay, input.terrainRecord, input.guestConnectivity, input.mapRef, input.registryRef]);
 
   const clear = () => {
     presentationRef.current?.setHoveredSegment(null);
     setLiftId(null); setEdgeId(null); setSnowSelection(null); setSnowHover(null);
   };
   const change = (kind: DashboardKind | null) => {
+    activeRef.current = kind;
     setSnowGunSelectionPhase('idle'); setActive(kind); clear();
     if (kind === 'snowmaking') setSnowMode('inspect');
   };
   const close = () => {
+    activeRef.current = null;
     setSnowGunSelectionPhase('idle'); setActive(null); setSnowMode('inspect'); clear();
   };
   const fit = () => {

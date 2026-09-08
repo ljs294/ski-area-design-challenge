@@ -4,7 +4,7 @@ import { setCaptureTransients, sourceFeatureCount, visibilityOf } from '../suppo
 
 test('Layers can remain beside an active trail tool and switching tools cancels it', async ({ page }) => {
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   await page.getByRole('button', { name: 'Ski runs' }).click();
@@ -24,7 +24,7 @@ test('Layers can remain beside an active trail tool and switching tools cancels 
 
 test('capture hides and exactly restores an active family transient', async ({ page }) => {
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   await page.getByRole('button', { name: 'Infrastructure' }).click();
@@ -45,34 +45,19 @@ test('capture hides and exactly restores an active family transient', async ({ p
 
 test('dashboard shortcuts open, switch, and close the requested dashboard', async ({ page }) => {
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
-  const bubble = page.getByRole('button', { name: 'Dashboards' });
-  const menu = page.getByRole('menu', { name: 'Dashboards' });
-  await bubble.click();
-  await expect(menu).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(menu).toHaveCount(0);
-
-  await bubble.click();
-  await page.locator('.maplibregl-canvas').click({ position: { x: 400, y: 400 } });
-  await expect(menu).toHaveCount(0);
-
-  await bubble.click();
-  await menu.getByRole('menuitemcheckbox', { name: 'Trail Map' }).click();
+  await page.getByRole('button', { name: 'Ski runs' }).click();
+  await page.getByRole('button', { name: 'Analysis', exact: true }).click();
   await expect(page.getByRole('complementary', { name: 'Trail Map dashboard' })).toBeVisible();
-  await bubble.click();
-  await expect(menu.getByRole('menuitemcheckbox', { name: 'Trail Map' }))
-    .toHaveAttribute('aria-checked', 'true');
-  await menu.getByRole('menuitemcheckbox', { name: 'Trail Map' }).click();
-  await expect(page.getByRole('complementary', { name: 'Trail Map dashboard' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Close workspace' }).click();
 
   await page.keyboard.press('1');
   const trailDashboard = page.getByRole('complementary', { name: 'Trail Map dashboard' });
   const snowDashboard = page.getByRole('complementary', { name: 'Snowmaking dashboard' });
   await expect(trailDashboard).toBeVisible();
-  await expect(bubble).toHaveClass(/is-active/);
+  await expect(page.getByRole('button', { name: 'Ski runs' })).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => visibilityOf(page, 'dashboard-backdrop')).toBe('visible');
   await expect.poll(() => visibilityOf(page, 'hillshade')).toBe('none');
 
@@ -82,7 +67,7 @@ test('dashboard shortcuts open, switch, and close the requested dashboard', asyn
 
   await page.keyboard.press('2');
   await expect(snowDashboard).toHaveCount(0);
-  await expect(bubble).not.toHaveClass(/is-active/);
+  await expect(page.locator('.workspace-panel')).toHaveCount(0);
   await expect.poll(() => visibilityOf(page, 'dashboard-backdrop')).toBe('none');
   await expect.poll(() => visibilityOf(page, 'hillshade')).toBe('visible');
 });

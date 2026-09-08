@@ -7,9 +7,9 @@ const callbacks = {
   onDraftChange: vi.fn(), onConfirm: vi.fn(), onClose: vi.fn(),
 };
 
-function render(tool: RoadTool) {
+function render(tool: RoadTool, extra: Partial<Parameters<typeof InfrastructureControl>[0]> = {}) {
   return renderToStaticMarkup(<InfrastructureControl tool={tool} roads={[]}
-    units="metric" {...callbacks} />);
+    units="metric" {...callbacks} {...extra} />);
 }
 
 describe('InfrastructureControl', () => {
@@ -24,6 +24,17 @@ describe('InfrastructureControl', () => {
     const html = render({ phase: 'idle' });
     expect(html).not.toContain('Build dam');
     expect(html).not.toContain('Build standalone pond');
+  });
+
+  it('shows a human-readable unreachable warning and connected lift status', () => {
+    const base = { state: 'no-open-descent' as const, reachable: false, portal: null,
+      message: 'Resort unreachable: Summit has no reachable open descent.', connectedLiftId: 'lift-1',
+      connectedLiftName: 'Summit', reachableRunCount: 0, connectionPath: [],
+      roadAccessLabel: 'Virtual edge-of-map access' };
+    expect(render({ phase: 'idle' }, { guestConnectivity: base })).toContain('Resort unreachable');
+    expect(render({ phase: 'idle' }, { guestConnectivity: { ...base, state: 'reachable', reachable: true,
+      message: 'Summit connects the entrance to 2 open runs.', reachableRunCount: 2 } }))
+      .toContain('Resort reachable');
   });
 
   it('requires two placed points before route review', () => {

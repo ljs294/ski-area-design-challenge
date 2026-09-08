@@ -16,6 +16,7 @@ import type maplibregl from 'maplibre-gl';
 
 /** The layer ids the live map delegates each family's clicks to. */
 const HIT_LAYERS: Record<MapHitFamilyId, string[]> = {
+  guest: ['guest-simulation-dots'],
   snowmaking: ['snowmaking-node-hit'],
   building: ['building-hit'],
   lift: ['lift-line-hit', 'lift-terminals'],
@@ -35,7 +36,7 @@ describe('map layer order', () => {
   it('is the required bottom-to-top order', () => {
     expect([...MAP_LAYER_ORDER]).toEqual([
       'analysis', 'site-boundary', 'road', 'dam', 'pond', 'ski-node-path',
-      'trail', 'lift', 'building', 'snowmaking',
+      'trail', 'lift', 'building', 'snowmaking', 'guest',
     ]);
   });
 
@@ -44,7 +45,7 @@ describe('map layer order', () => {
 describe('map hit priority', () => {
   it('is the required top-to-bottom order', () => {
     expect([...MAP_HIT_PRIORITY]).toEqual([
-      'snowmaking', 'building', 'lift', 'trail', 'dam', 'pond', 'road', 'stream', 'lake',
+      'guest', 'snowmaking', 'building', 'lift', 'trail', 'dam', 'pond', 'road', 'stream', 'lake',
     ]);
   });
 
@@ -55,36 +56,37 @@ describe('map hit priority', () => {
 
     // A standalone pond is drawn over a dam's pool, but a dam picks first:
     // its crest is the structure you click, and the pool it impounds is not.
-    expect(painted).toEqual(['snowmaking', 'building', 'lift', 'trail', 'pond', 'dam', 'road']);
+    expect(painted).toEqual(['guest', 'snowmaking', 'building', 'lift', 'trail', 'pond', 'dam', 'road']);
     expect(MAP_HIT_PRIORITY.filter((id) => (MAP_LAYER_ORDER as readonly string[]).includes(id)))
-      .toEqual(['snowmaking', 'building', 'lift', 'trail', 'dam', 'pond', 'road']);
+      .toEqual(['guest', 'snowmaking', 'building', 'lift', 'trail', 'dam', 'pond', 'road']);
   });
 
   it('gives the topmost family no guard at all', () => {
-    expect(hitGuardLayers('snowmaking', hitContributions())).toEqual([]);
+    expect(hitGuardLayers('guest', hitContributions())).toEqual([]);
   });
 
   it('guards each family with every layer that picks ahead of it, in priority order', () => {
     const contributions = hitContributions();
 
-    expect(hitGuardLayers('building', contributions)).toEqual(['snowmaking-node-hit']);
-    expect(hitGuardLayers('lift', contributions)).toEqual(['snowmaking-node-hit', 'building-hit']);
+    expect(hitGuardLayers('snowmaking', contributions)).toEqual(['guest-simulation-dots']);
+    expect(hitGuardLayers('building', contributions)).toEqual(['guest-simulation-dots', 'snowmaking-node-hit']);
+    expect(hitGuardLayers('lift', contributions)).toEqual(['guest-simulation-dots', 'snowmaking-node-hit', 'building-hit']);
     expect(hitGuardLayers('trail', contributions)).toEqual([
-      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals',
+      'guest-simulation-dots', 'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals',
     ]);
     expect(hitGuardLayers('dam', contributions)).toEqual([
-      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
+      'guest-simulation-dots', 'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
     ]);
     expect(hitGuardLayers('pond', contributions)).toEqual([
-      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
+      'guest-simulation-dots', 'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
       'dam-crest-hit', 'dam-pool-fill',
     ]);
     expect(hitGuardLayers('stream', contributions)).toEqual([
-      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
+      'guest-simulation-dots', 'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
       'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'road-hit', 'road-pavement',
     ]);
     expect(hitGuardLayers('lake', contributions)).toEqual([
-      'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
+      'guest-simulation-dots', 'snowmaking-node-hit', 'building-hit', 'lift-line-hit', 'lift-terminals', 'trail-hit',
       'dam-crest-hit', 'dam-pool-fill', 'pond-fill-hit', 'road-hit', 'road-pavement',
       'local-water-line-hit',
     ]);
@@ -200,6 +202,7 @@ function managedContributions(
       : id === 'trail' ? [hits.trail]
       : id === 'dam' ? [hits.dam]
       : id === 'pond' ? [hits.pond]
+      : id === 'guest' ? [hits.guest]
       : [],
     install: ({ mapGeneration, styleGeneration }) =>
       log.push(`install:${id}:m${mapGeneration}s${styleGeneration}`),

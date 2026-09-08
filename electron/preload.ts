@@ -21,8 +21,11 @@ import {
   GAMESAVE_DELETE_CHANNEL,
   GAMESAVE_CAPTURE_PREVIEW_CHANNEL,
   GAMESAVE_LOAD_PREVIEW_CHANNEL,
+  GUEST_SIMULATION_SAVE_CHECKPOINT_CHANNEL,
+  GUEST_SIMULATION_LOAD_CHECKPOINT_CHANNEL,
   WINDOW_GET_MODE_CHANNEL,
   WINDOW_SET_MODE_CHANNEL,
+  WINDOW_RESTART_CHANNEL,
   EXIT_CHANNEL,
   WINDOW_REQUEST_CLOSE_CHECKPOINT_CHANNEL,
   WINDOW_CLOSE_CHECKPOINT_COMPLETE_CHANNEL,
@@ -58,9 +61,16 @@ const api = {
     capturePreview: (key: string) => ipcRenderer.invoke(GAMESAVE_CAPTURE_PREVIEW_CHANNEL, { key }),
     loadPreview: (key: string) => ipcRenderer.invoke(GAMESAVE_LOAD_PREVIEW_CHANNEL, { key }),
   },
+  guestSimulation: {
+    saveCheckpoint: (saveKey: string, gameSaveUpdatedAt: string, bytes: Uint8Array) => ipcRenderer.invoke(
+      GUEST_SIMULATION_SAVE_CHECKPOINT_CHANNEL, { saveKey, gameSaveUpdatedAt, bytes }),
+    loadCheckpoint: (saveKey: string, gameSaveUpdatedAt: string) => ipcRenderer.invoke(
+      GUEST_SIMULATION_LOAD_CHECKPOINT_CHANNEL, { saveKey, gameSaveUpdatedAt }),
+  },
   window: {
     getMode: () => ipcRenderer.invoke(WINDOW_GET_MODE_CHANNEL),
     setMode: (mode: string) => ipcRenderer.invoke(WINDOW_SET_MODE_CHANNEL, mode),
+    restart: (saveKey: string, fullRestart?: boolean) => ipcRenderer.invoke(WINDOW_RESTART_CHANNEL, { saveKey, fullRestart }),
   },
   lifecycle: {
     onCloseCheckpointRequested: (listener: () => void) => {

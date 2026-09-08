@@ -269,14 +269,16 @@ export function usePondController(options: PondControllerOptions): PondControlle
         const result = optionsRef.current.terrain.commit({ expectedRevision: revision,
           record: applyTerrainGradeToRecord(record as TerrainRecord, patch), kind: 'elevation' });
         if (!result.ok) throw new Error('The terrain changed while building. Redraw the pond.');
-        optionsRef.current.add(pondFromDraft(draft, design, pondsRef.current,
-          optionsRef.current.createId(), optionsRef.current.now()));
+        const pond = pondFromDraft(draft, design, pondsRef.current,
+          optionsRef.current.createId(), optionsRef.current.now());
+        optionsRef.current.add(pond);
         gradeRef.current = null;
         designRef.current = null;
         gradeRevisionRef.current = null;
         pendingGradeRef.current = null;
         dispatch({ type: 'cancel' });
         optionsRef.current.release();
+        optionsRef.current.select(pond.id);
         return patch;
       } catch (error) {
         dispatch({ type: 'design-failed', topElevationM: draft.topElevationM,

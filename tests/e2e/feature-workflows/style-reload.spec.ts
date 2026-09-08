@@ -65,12 +65,16 @@ function expectDeclaredOrder(ids: string[]): void {
   }
 }
 
-/** Switch the basemap theme, which is the in-game trigger for a full restyle. */
+/** Explicitly rebuild the style; theme changes now update paint in place. */
 async function restyle(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Menu' }).click();
-  await page.getByRole('menuitem', { name: 'Settings' }).click();
-  await page.getByRole('button', { name: 'Dark', exact: true }).click();
-  await page.getByRole('button', { name: 'Close settings' }).click();
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const map = (window as unknown as { appMap: import('maplibre-gl').Map }).appMap;
+    const style = map.getStyle();
+    map.once('style.load', () => resolve());
+    // A fresh basemap exercises registry restoration, without serializing custom renderer layers.
+    map.setStyle({ version: 8, glyphs: style.glyphs, sources: {},
+      layers: [{ id: 'mp-paper', type: 'background', paint: { 'background-color': '#e8e5dc' } }] }, { diff: false });
+  }));
   // The restyle drops every added layer and reinstalls the registry on
   // style.load; wait for the topmost family to come back before asserting.
   await expect
@@ -80,7 +84,7 @@ async function restyle(page: Page): Promise<void> {
 
 test('a restyle reinstalls every map family in the declared order and keeps hidden layers hidden', async ({ page }) => {
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   expectDeclaredOrder(await layerIds(page));
@@ -127,7 +131,7 @@ test('imported and player-built paved roads open the same read-only detail', asy
     points: [[-121.497, 46.902], [-121.493, 46.902]], lengthM: 305,
     terrainGraded: true, createdAt: '2026-01-01T00:00:00.000Z',
   }] });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, [-121.495, 46.905], 12);
   await countSourceUpdates(page, ['roads']);
@@ -137,7 +141,7 @@ test('imported and player-built paved roads open the same read-only detail', asy
   const importedDetail = page.locator('.road-detail');
   await expect(importedDetail.getByText('Context Road', { exact: true })).toBeVisible();
   await expect(importedDetail.getByText('Lane estimate', { exact: true })).toBeVisible();
-  await importedDetail.getByRole('button', { name: 'Close' }).click();
+  await importedDetail.getByRole('button', { name: 'Close', exact: true }).click();
 
   await jumpTo(page, [-121.495, 46.902], 16);
   const built = await pointAt(page, [-121.495, 46.902]);
@@ -190,7 +194,7 @@ const crossingRun = {
 
 test('a click where a lift crosses a run picks the lift, and the run alone picks the run', async ({ page }) => {
   await seedPreparedResort(page, { lifts: [crossingLift], trails: [crossingRun] });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
 
   await jumpTo(page, CROSSING, 16);

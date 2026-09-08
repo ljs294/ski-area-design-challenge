@@ -42,7 +42,7 @@ const seededTrail = {
 
 test('double confirmation builds once and Save persists one coherent document', async ({ page }) => {
   await seedPreparedResort(page, { trails: [seededTrail] });
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, CENTER, 16);
 
@@ -90,10 +90,10 @@ test('double confirmation builds once and Save persists one coherent document', 
     button.click();
   });
 
-  await expect(page.getByText('Ski Lifts (1)', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.lift-detail')).toContainText('Atomic Gondola', { timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Build another', exact: true })).toBeEnabled();
   await expect.poll(() => sourceFeatureCount(page, 'lifts')).toBe(3);
   await expect.poll(() => liftMapLabel(page)).toBe('A - Atomic Gondola');
-  await page.getByRole('button', { name: /A - Atomic Gondola/ }).click();
   await expect(page.locator('.lift-detail-sub')).toContainText('Detachable 10-Person Gondola');
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByLabel('Letter / number')).toHaveValue('A');
@@ -172,7 +172,7 @@ test('double confirmation builds once and Save persists one coherent document', 
 test('road confirmation builds once and survives best-effort cover failure', async ({ page }) => {
   await installWorkerProbe(page, { failPostFor: 'coverEdit.worker' });
   await seedPreparedResort(page);
-  await page.getByRole('button', { name: 'Continue Game' }).click();
+  await page.getByRole('button', { name: /^Continue /  }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, CENTER, 16);
 
@@ -193,7 +193,8 @@ test('road confirmation builds once and survives best-effort cover failure', asy
     button.click();
   });
 
-  await expect(page.getByText(/Infrastructure.*1 roads/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.road-detail')).toContainText('Atomic Road', { timeout: 15_000 });
+  await expect(page.getByRole('button', { name: 'Build another', exact: true })).toBeEnabled();
   await expect.poll(() => sourceFeatureCount(page, 'roads')).toBeGreaterThan(0);
   await expect.poll(async () => (await workerEntries(page, 'coverEdit.worker')).length).toBe(1);
 

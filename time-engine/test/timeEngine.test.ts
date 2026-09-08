@@ -2,142 +2,170 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_TIME_CONFIG,
   MINUTES_PER_WEEK,
+  SECONDS_PER_WEEK,
+  SIMULATION_SPEED_RATES,
   advanceClock,
+  advanceClockSeconds,
   advanceSummerPeriod,
-  advanceSummerToSeptember,
   advanceToBoundary,
   confirmSeasonTransition,
   createClock,
   createTimeSnapshot,
+  normalizeSimulationSpeed,
   restoreTimeSnapshot,
   scaledSimulationMinutes,
+  scaledSimulationSeconds,
+  simulationRate,
 } from '../src/timeEngine';
 
-function startWinter() {
-  let clock = createClock();
-  for (let i = 0; i < DEFAULT_TIME_CONFIG.summerPeriods; i += 1) {
-    clock = advanceSummerPeriod(clock).clock;
-  }
-  return confirmSeasonTransition(clock).clock;
+function startWinter(config = DEFAULT_TIME_CONFIG) {
+  let clock = createClock(config);
+  for (let i = 0; i < config.summerPeriods; i += 1) clock = advanceSummerPeriod(clock, config).clock;
+  return confirmSeasonTransition(clock, config).clock;
 }
 
-describe('time engine', () => {
-  it('starts in the first summer planning period', () => {
+describe('time engine v3', () => {
+  it('starts paused in deliberate summer planning', () => {
     const clock = createClock();
+    expect(clock.schemaVersion).toBe(3);
     expect(clock.season).toBe('summer');
     expect(clock.summerPeriod).toBe(1);
+    expect(clock.winterWeek).toBeNull();
+    expect(clock.elapsedSimSecond).toBe(0);
     expect(clock.runState).toBe('paused');
+    expect(clock.speed).toBe('normal');
   });
 
-  it('moves through summer and begins winter on Monday at 5 AM', () => {
+  it('begins winter at the first composite operating day', () => {
     const winter = startWinter();
     expect(winter.season).toBe('winter');
     expect(winter.winterWeek).toBe(1);
-    expect(winter.weekday).toBe(1);
-    expect(winter.minuteOfDay).toBe(300);
+    expect(winter.weekSecond).toBe(0);
+    expect(winter.elapsedSimSecond).toBe(0);
+    expect(winter.minuteOfDay).toBe(480);
+    expect(winter.calendarDate).toBe('2026-11-02T08:00:00.000Z');
     expect(winter.runState).toBe('paused');
-    expect(winter.calendarDate).toBe('2026-11-02T05:00:00.000Z');
   });
 
-  it('defines a winter week as exactly 10,080 minutes', () => {
-    const clock = startWinter();
-    const result = advanceClock(clock, MINUTES_PER_WEEK);
-    expect(result.simulatedMinutesAdvanced).toBe(MINUTES_PER_WEEK);
-    expect(result.clock.winterWeek).toBe(2);
-    expect(result.clock.weekday).toBe(clock.weekday);
-    expect(result.clock.minuteOfDay).toBe(clock.minuteOfDay);
-  });
-
-  it('produces the same state when advancing batched or minute by minute', () => {
+  it('uses exactly 43,200 seconds per displayed week', () => {
     const start = startWinter();
-    const batched = advanceClock(start, 3_000).clock;
-    let stepped = start;
-    for (let i = 0; i < 3_000; i += 1) stepped = advanceClock(stepped, 1).clock;
-    expect(stepped).toEqual(batched);
+    const result = advanceClockSeconds(start, SECONDS_PER_WEEK);
+    expect(result.simulatedSecondsAdvanced).toBe(SECONDS_PER_WEEK);
+    expect(result.simulatedMinutesAdvanced).toBe(720);
+    expect(result.clock.winterWeek).toBe(2);
+    expect(result.clock.weekSecond).toBe(0);
+    expect(result.clock.elapsedSimSecond).toBe(SECONDS_PER_WEEK);
+    expect(result.clock.minuteOfDay).toBe(480);
+    expect(result.clock.weekday).toBe(start.weekday);
   });
 
-  it('skip week retains weekday and time', () => {
-    const start = advanceClock(startWinter(), 2_345).clock;
+  it('derives the operating local time continuously without rounding', () => {
+    const result = advanceClockSeconds(startWinter(), 3_600.25);
+    expect(result.clock.elapsedSimSecond).toBe(3_600.25);
+    expect(result.clock.weekSecond).toBe(3_600.25);
+    expect(result.clock.calendarDate).toBe('2026-11-02T09:00:00.250Z');
+    expect(result.clock.minuteOfDay).toBe(540);
+  });
+
+  it('is deterministic across worker slicing and legacy minute calls', () => {
+    const start = startWinter();
+    const batched = advanceClockSeconds(start, 12_345.5).clock;
+    let sliced = start;
+    for (let left = 12_345.5; left > 0; left -= 37.25) {
+      sliced = advanceClockSeconds(sliced, Math.min(37.25, left)).clock;
+    }
+    expect(sliced).toEqual(batched);
+    expect(advanceClock(start, 60).clock).toEqual(advanceClockSeconds(start, 3_600).clock);
+  });
+
+  it('exposes the approved named speed tiers and exact rates', () => {
+    expect(SIMULATION_SPEED_RATES).toEqual({ slow: 30, normal: 60, fast: 240, ultrafast: 960 });
+    expect(['slow', 'normal', 'fast', 'ultrafast'].map(simulationRate)).toEqual([30, 60, 240, 960]);
+    expect(normalizeSimulationSpeed(1)).toBe('normal');
+    expect(normalizeSimulationSpeed(2)).toBe('fast');
+    expect(normalizeSimulationSpeed(4)).toBe('ultrafast');
+    expect(normalizeSimulationSpeed(8)).toBe('ultrafast');
+    expect(scaledSimulationSeconds(1_000, 'slow')).toBe(30);
+    expect(scaledSimulationMinutes(1_000, 'normal')).toBe(1);
+    expect(scaledSimulationSeconds(24 * 60 * 1_000, 'slow')).toBe(SECONDS_PER_WEEK);
+    expect(scaledSimulationSeconds(12 * 60 * 1_000, 'normal')).toBe(SECONDS_PER_WEEK);
+    expect(scaledSimulationSeconds(3 * 60 * 1_000, 'fast')).toBe(SECONDS_PER_WEEK);
+    expect(scaledSimulationSeconds(45 * 1_000, 'ultrafast')).toBe(SECONDS_PER_WEEK);
+  });
+
+  it('keeps summer period advancement deliberate and non-continuous', () => {
+    const summer = createClock();
+    const result = advanceClockSeconds(summer, 10_000);
+    expect(result.simulatedSecondsAdvanced).toBe(0);
+    expect(result.clock).toEqual(summer);
+    expect(advanceSummerPeriod(summer).clock.summerPeriod).toBe(2);
+  });
+
+  it('writes v3 snapshots paused and migrates numeric v2 speed values', () => {
+    const running = { ...advanceClockSeconds(startWinter(), 999.5).clock,
+      runState: 'running' as const, speed: 'ultrafast' as const };
+    const snapshot = createTimeSnapshot(running);
+    expect(snapshot.schemaVersion).toBe(3);
+    expect(snapshot.clock.runState).toBe('paused');
+    expect(restoreTimeSnapshot(snapshot)).toEqual({ ...running, runState: 'paused' });
+
+    const legacy = {
+      schemaVersion: 2, configVersion: 2,
+      clock: {
+        schemaVersion: 2, timezone: 'UTC', resortYear: 1, completedWinterSeasons: 0,
+        season: 'winter', seasonStartedAt: '2026-11-02T05:00:00.000Z',
+        summerPeriod: null, winterWeek: 2, absoluteGameMinute: 10_000,
+        calendarDate: '2026-11-09T12:00:00.000Z', minuteOfDay: 720, weekday: 1,
+        dailyPhase: 'operating', speed: 2, runState: 'running', transitionPending: null,
+      },
+    };
+    const restored = restoreTimeSnapshot(legacy);
+    expect(restored.schemaVersion).toBe(3);
+    expect(restored.speed).toBe('fast');
+    expect(restored.winterWeek).toBe(2);
+    expect(restored.weekSecond).toBe(14_400);
+    expect(restored.runState).toBe('paused');
+
+    // v2 stored the player-facing tier as a numeric multiplier.  Keep the
+    // mapping explicit at the persistence boundary, including the two old
+    // fast encodings that now collapse into Ultrafast.
+    for (const [legacySpeed, expectedSpeed] of [[1, 'normal'], [2, 'fast'], [4, 'ultrafast'], [8, 'ultrafast']] as const) {
+      const migrated = restoreTimeSnapshot({ ...legacy,
+        clock: { ...legacy.clock, speed: legacySpeed },
+      });
+      expect(migrated.speed).toBe(expectedSpeed);
+      expect(migrated.runState).toBe('paused');
+    }
+  });
+
+  it('rejects unknown snapshot schemas and retains compatibility constants', () => {
+    expect(MINUTES_PER_WEEK).toBe(10_080);
+    expect(() => restoreTimeSnapshot({ schemaVersion: 4, configVersion: 4, clock: {} })).toThrow(/schema/i);
+  });
+
+  it('skips a composite week without changing the witnessed time of day', () => {
+    const start = advanceClockSeconds(startWinter(), 2_345.75).clock;
     const skipped = advanceToBoundary(start, 'next-week').clock;
     expect(skipped.weekday).toBe(start.weekday);
-    expect(skipped.minuteOfDay).toBe(start.minuteOfDay);
+    expect(skipped.weekSecond).toBe(0);
+    expect(skipped.winterWeek).toBe(2);
   });
 
-  it('stops at summer when skipping the winter season', () => {
-    const start = advanceClock(startWinter(), 5_000).clock;
-    const result = advanceToBoundary(start, 'next-season');
+  it('completes the 24-week winter at summer and pauses', () => {
+    const result = advanceToBoundary(startWinter(), 'next-summer');
+    expect(result.simulatedSecondsAdvanced).toBe(24 * SECONDS_PER_WEEK);
     expect(result.clock.season).toBe('summer');
-    expect(result.clock.summerPeriod).toBe(1);
+    expect(result.clock.winterWeek).toBeNull();
     expect(result.clock.runState).toBe('paused');
-    expect(result.events.some((event) => event.type === 'seasonEnded')).toBe(true);
+    expect(result.events.filter((event) => event.type === 'weekEnded')).toHaveLength(24);
   });
 
-  it('skips to the equivalent point in the following winter year', () => {
-    const start = advanceClock(startWinter(), 12_345).clock;
-    const nextYear = advanceToBoundary(start, 'next-year').clock;
-    expect(nextYear.season).toBe('winter');
-    expect(nextYear.resortYear).toBe(start.resortYear + 1);
-    expect(nextYear.winterWeek).toBe(start.winterWeek);
-    expect(nextYear.weekday).toBe(start.weekday);
-    expect(nextYear.minuteOfDay).toBe(start.minuteOfDay);
-  });
-
-  it('round trips a snapshot and always restores paused', () => {
-    const running = {
-      ...advanceClock(startWinter(), 999).clock,
-      runState: 'running' as const,
-      speed: 8 as const,
-    };
-    const restored = restoreTimeSnapshot(createTimeSnapshot(running));
-    expect(restored).toEqual({ ...running, runState: 'paused' });
-  });
-
-  it('rejects incompatible snapshots', () => {
-    const snapshot = { ...createTimeSnapshot(createClock()), schemaVersion: 3 };
-    expect(() => restoreTimeSnapshot(snapshot)).toThrow(/schema/i);
-  });
-
-  it('maps real elapsed time through the configured scale and speed multiplier', () => {
-    expect(scaledSimulationMinutes(DEFAULT_TIME_CONFIG.realSecondsPerWinterWeek * 1_000, 1)).toBe(MINUTES_PER_WEEK);
-    expect(scaledSimulationMinutes(1_000, 8)).toBeCloseTo(
-      MINUTES_PER_WEEK / DEFAULT_TIME_CONFIG.realSecondsPerWinterWeek * 8,
-    );
-  });
-
-  it('completes planning in one exact skip to resort-local September 1', () => {
-    const config = { ...DEFAULT_TIME_CONFIG, timezone: 'America/Los_Angeles',
-      initialSummerStart: '2026-05-01T07:00:00.000Z' };
-    const result = advanceSummerToSeptember(createClock(config), config);
-    expect(result.clock.calendarDate).toBe('2026-09-01T07:00:00.000Z');
-    expect(result.clock.season).toBe('winter');
-    expect(result.clock.winterWeek).toBe(1);
-    expect(result.clock.runState).toBe('paused');
-    expect(result.events.map((event) => event.type)).toEqual([
-      'summerPeriodEnded', 'seasonEnded', 'seasonStarted', 'weekStarted',
-    ]);
-  });
-
-  it('derives winter start and daily phases in resort local time', () => {
-    const config = { ...DEFAULT_TIME_CONFIG, timezone: 'America/Los_Angeles',
-      initialSummerStart: '2026-05-01T07:00:00.000Z' };
-    let clock = createClock(config);
-    for (let index = 0; index < config.summerPeriods; index += 1) {
-      clock = advanceSummerPeriod(clock, config).clock;
-    }
-    const winter = confirmSeasonTransition(clock, config).clock;
-    expect(winter.calendarDate).toBe('2026-11-02T13:00:00.000Z');
-    expect(winter.minuteOfDay).toBe(300);
-    expect(winter.weekday).toBe(1);
-    expect(winter.timezone).toBe('America/Los_Angeles');
-  });
-
-  it('advances to the next local day across spring-forward', () => {
-    const config = { ...DEFAULT_TIME_CONFIG, timezone: 'America/Los_Angeles' };
-    const start = { ...createClock(config), season: 'winter' as const, winterWeek: 1,
-      summerPeriod: null, seasonStartedAt: '2027-03-08T13:00:00.000Z',
-      calendarDate: '2027-03-14T08:00:00.000Z' };
-    const result = advanceToBoundary(start, 'next-day', config);
-    expect(result.simulatedMinutesAdvanced).toBe(1_380);
-    expect(result.clock.calendarDate).toBe('2027-03-15T07:00:00.000Z');
+  it('normalizes a persisted exact winter boundary instead of restoring week 25', () => {
+    const boundary = { ...startWinter(), elapsedSimSecond: 24 * SECONDS_PER_WEEK,
+      winterWeek: 24, runState: 'paused' as const };
+    const restored = restoreTimeSnapshot({ schemaVersion: 3, configVersion: 3, clock: boundary });
+    expect(restored.season).toBe('summer');
+    expect(restored.winterWeek).toBeNull();
+    expect(restored.completedWinterSeasons).toBe(1);
   });
 });

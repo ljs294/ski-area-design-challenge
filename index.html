@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Establish the persisted appearance before styles or application chunks load.
+      try {
+        const saved = JSON.parse(localStorage.getItem('skiapp:settings') || '{}');
+        const dark = saved.theme === 'dark' || (saved.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        document.documentElement.style.backgroundColor = dark ? '#111B22' : '#F3F5F2';
+      } catch { /* Application settings supply defaults when storage is unavailable. */ }
+    </script>
     <title>Ski Area Design Challenge</title>
   </head>
   <body>

@@ -1,4 +1,4 @@
-export type DashboardKind = 'trails' | 'snowmaking';
+export type DashboardKind = 'trails' | 'snowmaking' | 'guests';
 
 export type SnowmakingDashboardMode = 'inspect' | 'analysis';
 
