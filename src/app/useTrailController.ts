@@ -21,8 +21,9 @@ import type { TopologyDocument } from './topologyDocument';
 import { commitDocuments } from './committedDocumentTransaction';
 import { MAP_HIT_RANK, MAP_Z_ORDER, type ManagedMapContribution } from './mapContribution';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
-import { addTrailLayers, applyTrailTheme, draftToGeoJSON, setTrailData, setTrailDraftData,
-  setTrailHitData, setTrailHover, setTrailPaintMode, setTrailPaintPreview,
+import { addTrailLayers, applyTrailTheme, clearTrailPaintPreview, draftToGeoJSON,
+  setTrailData, setTrailDraftData, setTrailHitData, setTrailHover, setTrailPaintMode,
+  setTrailPaintPreview,
   setTrailSelection, trailPresentationToGeoJSON, trailsToHitGeoJSON,
   TRAIL_BUILT_LAYER_IDS } from './trailLayers';
 import { buildSavedTrail, createTrailDraft, IDLE_TRAIL_TOOL, reduceTrailTool,
@@ -121,6 +122,7 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
   const stateRef = useRef<TrailTool>(state), brushWidthRef = useRef(brushWidthM);
   const optionsRef = useRef(options), commandsRef = useRef<TrailPaintCommand[]>([]);
   const replayRef = useRef<TrailPaintCommand[]>([]), pendingUntilRef = useRef(0);
+  const paintGenerationRef = useRef(0);
   const previewPathRef = useRef<[number, number][]>([]);
   const brushCursorRef = useRef<[number, number] | null>(null);
   const sampleTokenRef = useRef(0), gradeResultRef = useRef<TerrainGradeSuccess | null>(null);
@@ -184,8 +186,8 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
       setTrailData(map, trailPresentationToGeoJSON(hidden ? latestPresentationRef.current :
         previewPresentationRef.current ?? latestPresentationRef.current));
       setTrailDraftData(map, hidden ? draftToGeoJSON([]) : draftGeoJSON(tool));
-      setTrailPaintPreview(map, hidden ? { path: [], cursor: null,
-        brushWidthM: brushWidthRef.current } : {
+      if (hidden) clearTrailPaintPreview(map, brushWidthRef.current);
+      else setTrailPaintPreview(map, {
         path: previewPathRef.current, cursor: brushCursorRef.current,
         brushWidthM: brushWidthRef.current, ...trailHeadPreview(tool),
       });
@@ -220,7 +222,8 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
       cursor: tool.phase === 'paint' ? brushCursorRef.current : null,
       brushWidthM, ...trailHeadPreview(tool) });
   }, [brushWidthM]);
-  useEffect(() => () => { sampleTokenRef.current++; optionsRef.current.paintAdapter.stop();
+  useEffect(() => () => { sampleTokenRef.current++; paintGenerationRef.current++;
+    optionsRef.current.paintAdapter.stop();
     optionsRef.current.presentationAdapter.cancel(); optionsRef.current.release(); }, []);
 
   useTrailMapInput({ mapRef: options.mapRef, state, stateRef,
@@ -266,6 +269,7 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
 
   function arm(): void {
     if (!optionsRef.current.canArm() || !optionsRef.current.activate()) return;
+    paintGenerationRef.current++;
     optionsRef.current.clearSelection(); optionsRef.current.openDock();
     commandsRef.current = []; pendingUntilRef.current = 0;
     optionsRef.current.gradeAdapter.stop(); clearGrade();
@@ -273,34 +277,39 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
   }
 
   function beginPainting(anchor: TrailHeadAnchor): void {
+    paintGenerationRef.current++;
     const seed: TrailPaintCommand = { mode: 'paint', path: [anchor.point, anchor.point], seed: true };
     commandsRef.current = [seed]; optionsRef.current.paintAdapter.allowRestart();
     dispatch({ type: 'begin-paint', anchor }); startPaintWorker(brushWidthRef.current, [seed]);
   }
 
-  function changeHead(): void { optionsRef.current.paintAdapter.stop(); commandsRef.current = [];
+  function changeHead(): void { paintGenerationRef.current++; optionsRef.current.paintAdapter.stop(); commandsRef.current = [];
     pendingUntilRef.current = 0; previewPathRef.current = []; brushCursorRef.current = null;
+    const map = optionsRef.current.mapRef.current;
+    if (map) clearTrailPaintPreview(map, brushWidthRef.current);
     dispatch({ type: 'arm' }); }
 
   function cancel(): void {
-    sampleTokenRef.current++; optionsRef.current.terrain.preview.invalidate();
+    sampleTokenRef.current++; paintGenerationRef.current++; optionsRef.current.terrain.preview.invalidate();
     optionsRef.current.gradeAdapter.stop(); clearGrade(); optionsRef.current.paintAdapter.stop();
     commandsRef.current = []; pendingUntilRef.current = 0;
     previewPathRef.current = []; brushCursorRef.current = null;
     const map = optionsRef.current.mapRef.current;
-    if (map) setTrailPaintPreview(map, { path: [], cursor: null,
-      brushWidthM: brushWidthRef.current });
+    if (map) clearTrailPaintPreview(map, brushWidthRef.current);
     dispatch({ type: 'cancel' }); optionsRef.current.release();
   }
 
   function startPaintWorker(widthM: number, replay: TrailPaintCommand[]): void {
+    const generation = paintGenerationRef.current;
     replayRef.current = replay;
     const center = optionsRef.current.mapRef.current?.getCenter();
     const origin: [number, number] = center ? [center.lng, center.lat] : [-121.474, 46.928];
     optionsRef.current.paintAdapter.start({ origin, brushWidthM: widthM }, {
-      onReady: () => { const pending = replayRef.current; replayRef.current = [];
+      onReady: () => { if (generation !== paintGenerationRef.current) return;
+        const pending = replayRef.current; replayRef.current = [];
         for (const command of pending) submitCommand(command); },
       onFailure: (error) => {
+        if (generation !== paintGenerationRef.current) return;
         const current = stateRef.current;
         if (current.phase === 'paint' && current.pending && commandsRef.current.length > 1)
           commandsRef.current.pop();
@@ -313,9 +322,10 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
         else if (current.phase === 'analyzing') dispatch({ type: 'analysis-failed',
           error, canUndo, hasUserStroke });
       },
-      onPreview: (message) => { previewPathRef.current = [];
+      onPreview: (message) => { if (generation !== paintGenerationRef.current) return;
+        previewPathRef.current = [];
         const map = optionsRef.current.mapRef.current;
-        if (map) setTrailPaintPreview(map, { path: [], cursor: brushCursorRef.current,
+        if (map && !captureHiddenRef.current) setTrailPaintPreview(map, { path: [], cursor: brushCursorRef.current,
           brushWidthM: brushWidthRef.current, ...trailHeadPreview(stateRef.current) });
         const current = stateRef.current;
         if (current.phase === 'paint') dispatch({ type: 'paint-patch', patch: {
@@ -325,6 +335,7 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
           pending: message.id < pendingUntilRef.current, error: null } });
       },
       onAnalysis: (message) => {
+        if (generation !== paintGenerationRef.current) return;
         const current = stateRef.current;
         if (current.phase !== 'analyzing') return;
         const canUndo = commandsRef.current.length > 1;
@@ -340,12 +351,14 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
         dispatch({ type: 'review', draft });
         sampleElevations(parts, current.anchor, current.tailAnchor);
       },
-      onRestart: () => { replayRef.current = commandsRef.current.map((command) =>
+      onRestart: () => { if (generation !== paintGenerationRef.current) return;
+        replayRef.current = commandsRef.current.map((command) =>
         ({ ...command, path: command.path.slice() }));
         dispatch({ type: 'paint-patch', patch: { pending: replayRef.current.length > 0,
           error: 'Restarting trail analysis…' } }); },
-      onLost: () => dispatch({ type: 'paint-patch', patch: { pending: false,
-        error: 'Trail analysis worker stopped. Cancel and reopen the painter to retry.' } }),
+      onLost: () => { if (generation !== paintGenerationRef.current) return;
+        dispatch({ type: 'paint-patch', patch: { pending: false,
+          error: 'Trail analysis worker stopped. Cancel and reopen the painter to retry.' } }); },
     });
   }
 
@@ -393,7 +406,7 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
       path: [current.anchor.point, current.anchor.point], seed: true };
     commandsRef.current = [seed]; dispatch({ type: 'paint-patch', patch: { polygons: [],
       areaM2: 0, activeAreaM2: null, pending: true, canUndo: false, error: null } });
-    startPaintWorker(widthM, [seed]); }
+    paintGenerationRef.current++; startPaintWorker(widthM, [seed]); }
   function patchDraft(patch: Partial<DraftTrail>): void {
     dispatch({ type: 'review-patch', patch }); }
 
@@ -528,9 +541,7 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
         if (!commit.ok) throw new Error(commit.reason === 'terrain-stale'
           ? 'The terrain changed after this grading preview. Recalculate the grade and try again.'
           : 'The trail network changed while building. Repaint the run.');
-        sampleTokenRef.current++; optionsRef.current.paintAdapter.stop();
-        optionsRef.current.gradeAdapter.stop(); clearGrade();
-        dispatch({ type: 'cancel' }); optionsRef.current.release(); select(built.trail.id);
+        cancel(); select(built.trail.id);
         const source = gradePolygons ?? built.trail.parts.map((part) => part.polygon);
         try { await optionsRef.current.clearCover(source.map((polygon, index) => ({
           polygon: jitterPolygon(polygon, TRAIL_CLEAR_JITTER_M, `${built.trail.id}:${index}`),

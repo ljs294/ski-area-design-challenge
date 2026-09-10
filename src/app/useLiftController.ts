@@ -3,7 +3,16 @@ import type maplibregl from 'maplibre-gl';
 import type { LiftTypeId, SavedLift } from '../types/lifts';
 import { haversineMeters } from '../geo';
 import { nextLiftIdentifier, nextLiftName } from '../lifts';
-import { addLiftLayers, setLiftData, setLiftDraftData, liftsToGeoJSON, LIFT_BUILT_LAYER_IDS } from './liftLayers';
+import {
+  addLiftLayers,
+  setLiftData,
+  setLiftLabelData,
+  setLiftDraftData,
+  setLiftHover,
+  liftLabelsToGeoJSON,
+  liftsToGeoJSON,
+  LIFT_BUILT_LAYER_IDS,
+} from './liftLayers';
 import type { DraftLine } from './liftLayers';
 import { MAP_HIT_RANK, MAP_Z_ORDER } from './mapContribution';
 import type { ManagedMapContribution, MapVisibilityDescriptor } from './mapContribution';
@@ -83,6 +92,8 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
   const cursorFrameRef = useRef<number | null>(null);
   const draftFrameRef = useRef<number | null>(null);
   const pendingCursorRef = useRef<[number, number] | null>(null);
+  const hoveredLiftIdRef = useRef<string | null>(null);
+  const captureHiddenRef = useRef(false);
   const cancelRef = useRef<() => void>(() => {});
   stateRef.current = state;
   liftsRef.current = options.lifts;
@@ -98,11 +109,44 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
         priority: MAP_HIT_RANK.lift,
         layerIds: ['lift-line-hit', 'lift-terminals', 'dashboard-lift-hit'],
         select: (id) => select(id),
+        hover: (target) => {
+          const map = optionsRef.current.mapRef.current;
+          const id = target?.featureId ?? null;
+          const valid = id && liftsRef.current.some((lift) => lift.id === id) ? id : null;
+          // Pointer exit, tool activation, and style/presentation changes send
+          // a null target through the ranked hit system. Always retire the
+          // remembered target for those invalidations, even while capture has
+          // hidden transient layers; otherwise capture restoration can revive
+          // a stale highlight after the pointer has left.
+          if (!valid) {
+            hoveredLiftIdRef.current = null;
+            if (map) setLiftHover(map, null);
+            return;
+          }
+          // Capture hides presentation only. Ignore fresh positive hit updates
+          // until it ends while retaining a still-valid target for a normal
+          // capture round-trip to restore.
+          if (captureHiddenRef.current) {
+            if (map) setLiftHover(map, null);
+            return;
+          }
+          hoveredLiftIdRef.current = valid;
+          if (map) setLiftHover(map, valid);
+        },
       }],
       install: ({ map }) => addLiftLayers(map),
       synchronizeData: ({ map }) => {
         setLiftData(map, liftsToGeoJSON(liftsRef.current, null));
+        setLiftLabelData(map, liftLabelsToGeoJSON(liftsRef.current));
         setLiftDraftData(map, draftLineOf(stateRef.current));
+        if (hoveredLiftIdRef.current &&
+          !liftsRef.current.some((lift) => lift.id === hoveredLiftIdRef.current)) {
+          clearLiftHover(map);
+        } else if (captureHiddenRef.current) {
+          setLiftHover(map, null);
+        } else {
+          restoreLiftHover(map);
+        }
       },
       visibility: (): MapVisibilityDescriptor[] =>
         optionsRef.current.structuresVisible() ? [{
@@ -112,8 +156,15 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
           visible: true,
           section: 'Structures',
         }] : [],
-      setCaptureTransient: ({ map }, hidden) =>
-        setLiftDraftData(map, hidden ? null : draftLineOf(stateRef.current)),
+      visibilityChanged: ({ map }, descriptorId, visible) => {
+        if (descriptorId === 'lifts' && !visible) clearLiftHover(map);
+      },
+      setCaptureTransient: ({ map }, hidden) => {
+        captureHiddenRef.current = hidden;
+        if (hidden) setLiftHover(map, null);
+        else restoreLiftHover(map);
+        setLiftDraftData(map, hidden ? null : draftLineOf(stateRef.current));
+      },
       cleanup: () => {},
     };
   }
@@ -258,6 +309,7 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
 
   function arm(): void {
     if (!optionsRef.current.canArm() || !optionsRef.current.activate()) return;
+    clearLiftHover();
     optionsRef.current.clearSelection();
     dispatch({ type: 'open' });
   }
@@ -325,8 +377,21 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
   }
 
   function remove(id: string): void {
+    if (hoveredLiftIdRef.current === id) clearLiftHover();
     optionsRef.current.commands.remove(id);
     optionsRef.current.clearSelected(id);
+  }
+
+  function clearLiftHover(map = optionsRef.current.mapRef.current): void {
+    hoveredLiftIdRef.current = null;
+    if (map) setLiftHover(map, null);
+  }
+
+  function restoreLiftHover(map: maplibregl.Map): void {
+    const id = hoveredLiftIdRef.current;
+    const valid = id && liftsRef.current.some((lift) => lift.id === id) ? id : null;
+    if (!valid) hoveredLiftIdRef.current = null;
+    setLiftHover(map, valid);
   }
 
   cancelRef.current = cancel;

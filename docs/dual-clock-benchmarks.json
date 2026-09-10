@@ -1,0 +1,85 @@
+﻿{
+    "baselineCommit":  "9988f4f774de92103c497788a69cf777c147d4a3",
+    "implementationState":  "Uncommitted working tree; fixture measurements, not integrated-resort or Electron certification",
+    "domain":  {
+                   "cpu":  "AMD Ryzen 5 5600X 6-Core Processor             ",
+                   "ramGiB":  15.927959442138672,
+                   "node":  "v22.20.0",
+                   "grid":  "512x512",
+                   "attendancePerDay":  10000,
+                   "lifts":  1,
+                   "trails":  1,
+                   "amenityServices":  2,
+                   "initializationMs":  110.31529999999998,
+                   "weekMs":  2654.7324000000003,
+                   "winterMs":  53936.8897,
+                   "admitted":  1680000,
+                   "retainedGuests":  0,
+                   "cohorts":  0,
+                   "heapMiB":  12.193458557128906
+               },
+    "browserWorker":  {
+                          "initializationMs":  185.19999992847443,
+                          "coldWeekMs":  2309.100000023842,
+                          "weekMs":  1740.7000000476837,
+                          "winterMs":  40921.5,
+                          "messages":  391,
+                          "bytes":  5693014,
+                          "frameP95":  16.799999999995634,
+                          "admitted":  1680000,
+                          "cpu":  "AMD Ryzen 5 5600X 6-Core Processor             ",
+                          "ramGiB":  15.927959442138672,
+                          "browser":  "149.0.7827.55",
+                          "grid":  "512x512",
+                          "dailyDemand":  10000,
+                          "lifts":  1,
+                          "trails":  1,
+                          "amenities":  2,
+                          "graphics":  "ANGLE Direct3D11 (hardware)",
+                          "scope":  "Shipped browser worker, prepared weather, progress and final snow transfers; menu UI remains responsive. Cold and warmed weeks reported separately. No Electron certification."
+                      },
+    "renderer":  {
+                     "renderer":  "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Ti (0x00002486) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+                     "viewport":  [
+                                      1920,
+                                      1080
+                                  ],
+                     "results":  [
+                                     {
+                                         "preset":  1,
+                                         "guests":  3000,
+                                         "fps":  59.995500338189835,
+                                         "frameMsP50":  16.799999952316284,
+                                         "frameMsP95":  18.200000047683716,
+                                         "frameMsP99":  19.199999928474426
+                                     },
+                                     {
+                                         "preset":  2,
+                                         "guests":  3000,
+                                         "fps":  60.001995908566265,
+                                         "frameMsP50":  16.700000047683716,
+                                         "frameMsP95":  18.09999990463257,
+                                         "frameMsP99":  18.5
+                                     },
+                                     {
+                                         "preset":  4,
+                                         "guests":  3000,
+                                         "fps":  60.01125210977058,
+                                         "frameMsP50":  16.799999952316284,
+                                         "frameMsP95":  18.100000023841858,
+                                         "frameMsP99":  18.5
+                                     }
+                                 ],
+                     "cpu":  "AMD Ryzen 5 5600X 6-Core Processor             ",
+                     "ramGiB":  15.927959442138672,
+                     "browser":  "149.0.7827.55",
+                     "scope":  "Production MapLibre renderer and 10 Hz movement publication; simulation paused; decorative network map tiles blocked. This is not an integrated resort or Electron certification."
+                 },
+    "cancellationHardware":  {
+                                 "visualCancelMs":  8.5,
+                                 "workerCancelMs":  16.399999976158142,
+                                 "coherent":  true,
+                                 "headless":  true,
+                                 "movementRoundTrip":  true
+                             }
+}

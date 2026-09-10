@@ -4,6 +4,9 @@ import { createClock, createTimeSnapshot } from '../../time-engine/src/timeEngin
 import { saveGame } from '../gameSaveClient';
 import type { GuestSimulationRuntime } from './useGuestSimulationRuntime';
 import { saveGameWithGuestCheckpoint } from './guestSimulationSave';
+import { DualClockEngine } from '../dualClock/engine';
+import { dualFixture } from '../dualClock/fixtures';
+import { resortRevision } from '../dualClock/revision';
 
 vi.mock('../gameSaveClient', () => ({
   saveGame: vi.fn(async () => ({ ok: true as const, key: 'coherent-save' })),
@@ -31,6 +34,19 @@ function runtime(persistBarrier: GuestSimulationRuntime['persistBarrier']): Gues
 
 describe('guest checkpoint save barrier', () => {
   beforeEach(() => mockedSaveGame.mockClear());
+  it('writes paired schema-17 authority only for the same infrastructure revision', async () => {
+    const fixture = dualFixture(); fixture.resort = { ...fixture.resort, edges: [], trails: [], portal: null, revision: resortRevision([], []) };
+    const checkpoint = new DualClockEngine(fixture).checkpoint();
+    checkpoint.snow!.depthM[0] = Math.fround(0.123456);
+    const save = { ...game(), schemaVersion: 17 as const };
+    const guestRuntime = { ...runtime(vi.fn()), dualCheckpoint: vi.fn(async () => checkpoint) };
+    expect(await saveGameWithGuestCheckpoint(save, guestRuntime)).toMatchObject({ ok: true });
+    expect(save.dualClock?.snow?.depthM[0]).toBe(checkpoint.snow!.depthM[0]);
+    expect(save.time?.clock.calendarDate).toBe(checkpoint.clock.at);
+    mockedSaveGame.mockClear(); checkpoint.resortRevision++;
+    expect(await saveGameWithGuestCheckpoint(save, guestRuntime)).toMatchObject({ ok: false });
+    expect(mockedSaveGame).not.toHaveBeenCalled();
+  });
 
   it('passes the saved clock second to the sidecar barrier before writing GameSave', async () => {
     const persistBarrier = vi.fn(async (_key: string, _revision: string, expected?: number) => ({

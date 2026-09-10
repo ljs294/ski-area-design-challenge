@@ -17,7 +17,12 @@ describe('developer console commands', () => {
     expect(parseDeveloperConsoleCommand('time')).toEqual({ kind: 'time' });
     expect(parseDeveloperConsoleCommand('restart')).toEqual({ kind: 'restart' });
     expect(parseDeveloperConsoleCommand('restart-game')).toEqual({ kind: 'restart' });
+    expect(parseDeveloperConsoleCommand('snow add 50cm')).toEqual({ kind: 'snow-add', meters: 0.5 });
+    expect(parseDeveloperConsoleCommand('snow add 0.5m')).toEqual({ kind: 'snow-add', meters: 0.5 });
     expect(() => parseDeveloperConsoleCommand('skip backwards')).toThrow(/Invalid duration/);
+    expect(() => parseDeveloperConsoleCommand('snow add')).toThrow(/amount is required/i);
+    expect(() => parseDeveloperConsoleCommand('snow add 0cm')).toThrow(/positive number/i);
+    expect(() => parseDeveloperConsoleCommand('snow add 4in')).toThrow(/positive number in cm or m/i);
   });
 
   it('teleports only the clock to a paused future timestamp', () => {

@@ -12,7 +12,6 @@ import { useSettings } from './SettingsContext';
 import { MapInteractionLease, type MapInteractionLeaseHandle, type MapInteractionOverrides } from './mapInteractionLease';
 import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot, type ToolId } from './toolCoordinator';
 import type { BootControls, BootEvent, BootProgress } from './resortBoot';
-import { captureGamePreview, CURRENT_GAME_SAVE_SCHEMA_VERSION } from '../gameSaveClient';
 import { desktop, isDesktop } from '../desktopBridge';
 import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath, SavedPond, SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
@@ -38,7 +37,7 @@ import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication, ty
 import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
-import { createWorkspaceNavigation, guestVibePresentation, withGuestEconomyControls, has3DBuildingContext, initialResortDesign, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
+import { captureGamePreview, gameSaveHeader, createWorkspaceNavigation, has3DBuildingContext, initialResortDesign, liftOperationsFor, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
 
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928], INITIAL_ZOOM = 12;
@@ -210,7 +209,7 @@ export function MapView({
   const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
   const mapMode: MapMode = terrainRecord ? 'playing' : mode;
   const snow = useSnowLayer(mapRef);
-  const simulation = useGameSimulation({ terrain: terrainRecord, initialTime: initialSave?.time,
+  const simulation = useGameSimulation({ initialSave, terrain: terrainRecord, initialTime: initialSave?.time,
     initialWeatherRun: initialSave?.weatherRun, snow, mapRef, renderQuality: settings.renderQuality,
     reducedMotion: settings.reducedMotion });
   const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'optimizing' | 'error'>(
@@ -396,14 +395,13 @@ export function MapView({
     return lease.acquire(owner, map, overrides);
   }
   const guests = useMapGuestSimulationFeature({ inspectGuest: (id) => { openWorkspaceDashboard('guests'); guests.selectGuest(id); }, mapRef, network, roads, clock: simulation.clock, snowGrid: snow.grid,
-    timeDiscontinuity: simulation.timeDiscontinuity, reducedMotion: settings.reducedMotion, saveKey: saved?.key ?? null,
+    trails, dual: simulation.dual, timeDiscontinuity: simulation.timeDiscontinuity, reducedMotion: settings.reducedMotion, saveKey: saved?.key ?? null,
     saveRevision: saved ? `${saved.updatedAt}|${saved.lastPlayedAt}` : null,
     activate: () => toolCoordinator.activate('guest-portal'), release: () => { toolCoordinator.release('guest-portal'); },
     openDock: () => toolCoordinator.setOpenDock('infrastructure'), acquireInteractions: (map) => acquireMapInteractions('guest-portal', map,
       { cursor: 'crosshair', dragPanEnabled: true, doubleClickZoomEnabled: true }),
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('guest') });
   const { portal: guestPortal, selectedGuestId, runtime: guestRuntime, controller: guestPortalController } = guests;
-  const guestVibe = useMemo(() => withGuestEconomyControls(guestVibePresentation(guestRuntime.snapshot, selectedGuestId), guests.nextDayTicketPriceCents, guests.setNextDayTicketPriceCents), [guestRuntime.snapshot, guests.nextDayTicketPriceCents, guests.setNextDayTicketPriceCents, selectedGuestId]);
   guestPortalCancelRef.current = guestPortalController.cancel;
   // Loaded local package backing cursor sampling, MapLibre protocols, and
   // style reinitialization. Gameplay never populates it from network data.
@@ -1385,23 +1383,14 @@ export function MapView({
 
   /** Snapshot the current camera + site + 3D into a GameSave shape. */
   function snapshot(base: GameSave | null): GameSave | null {
+    if (simulation.dual) simulation.pause();
     const map = mapRef.current;
     if (!map) return base;
-    const c = map.getCenter();
-    const now = new Date().toISOString();
     const committedTopology = committedTopologyRef.current, committedTerrain = terrain.snapshot().record;
     const runtime = simulation.snapshot();
     return {
-      schemaVersion: CURRENT_GAME_SAVE_SCHEMA_VERSION,
-      key: base?.key ?? genId(),
-      name: base?.name ?? (nameDraft.trim() || 'Untitled Resort'),
-      mountainId: base?.mountainId,
-      terrainKey: committedTerrain?.key ?? base?.terrainKey,
-      center: [c.lng, c.lat],
-      zoom: map.getZoom(),
-      bearing: map.getBearing(),
-      pitch: map.getPitch(),
-      is3D: is3DRef.current,
+      ...gameSaveHeader({ base, name: nameDraft, terrainKey: committedTerrain?.key, map,
+        dual: !!simulation.dual, is3D: is3DRef.current, createId: genId }),
       site: siteBoxRef.current,
       lifts: liftsRef.current,
       trails: committedTopology.trails,
@@ -1423,9 +1412,6 @@ export function MapView({
       snow: snow.snapshot(base?.snow),
       weatherRun: runtime.weatherRun ?? base?.weatherRun,
       time: runtime.time,
-      createdAt: base?.createdAt ?? now,
-      updatedAt: now,
-      lastPlayedAt: base?.lastPlayedAt,
     };
   }
 
@@ -1694,7 +1680,8 @@ export function MapView({
         dashboard={saved && dashboards.active ? {
           dashboard: dashboards.active, snowmakingMode: dashboards.snowMode,
           networkProps: {
-            network, units: settings.units, guestConnectivity: guests.connectivity,
+            network, units: settings.units, guestConnectivity: guests.connectivity, liftQueues: simulation.dual?.publication?.flow.queues,
+            liftOperations: dashboards.liftId ? liftOperationsFor(dashboards.liftId, network, simulation.dual?.publication) : null,
             selectedLiftId: dashboards.liftId, selectedEdgeId: dashboards.edgeId,
             onSelectLift: dashboards.setLiftId,
             onSelectEdge: (id) => { dashboards.setLiftId(null); dashboards.setEdgeId(id); },
@@ -1714,8 +1701,8 @@ export function MapView({
             gunController: snowmakingController.guns,
           }), mapHoveredPipe: dashboards.snowHover, snowmakingLasso: dashboards.snowLasso, snowGunSelectionPhase: dashboards.snowGunSelectionPhase,
           onToggleSnowGunSelection: dashboards.toggleSnowGunSelection, onCancelSnowGunSelection: dashboards.cancelSnowGunSelection },
-          guestProps: { ...guestVibe, connectivity: guests.connectivity, selectedGuestId, onSelectGuest: guests.selectGuest,
-            onClearSelectedGuest: guests.clearSelectedGuest },
+          guestProps: { ...guests.vibe, ...guests.inspectionProps, connectivity: guests.connectivity, selectedGuestId,
+            onSelectGuest: guests.selectGuest, onClearSelectedGuest: guests.clearSelectedGuest },
           onFit: dashboards.fit, onSnowmakingPresentationChange: dashboards.setSnowPresentation, onClose: () => navigateWorkspace({ section: dashboards.active ?? 'resort' }),
         } : null}
         readout={!saved ? { store: readoutStore, units: settings.units } : null}
@@ -1804,7 +1791,7 @@ export function MapView({
           onClose: () => setShowStats(false),
         } : null}
         closeCredits={showCredits ? () => setShowCredits(false) : null} developerConsole={saved ? {
-          clock: simulation.clock, skip: simulation.devSkipMinutes, restart: restartGameInNewWindow,
+          clock: simulation.clock, skip: simulation.devSkipMinutes, onSnowAdd: simulation.addSnow, restart: restartGameInNewWindow,
         } : null}
       />
     </>

@@ -8,7 +8,7 @@ import { trailPartContains } from '../trails';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
 import type { TrailHeadAnchor } from './trailHeadAnchor';
 import { TrailAnchorIndex } from './trailHeadAnchor';
-import { setTrailPaintPreview } from './trailLayers';
+import { clearTrailPaintPreview, setTrailPaintPreview } from './trailLayers';
 import type { TrailTool, TrailToolAction } from './trailControllerModel';
 
 const ANCHOR_PICK_M = 60;
@@ -89,13 +89,15 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     if (!map || currentOptions.stateRef.current.phase !== 'place-head') return;
     const canvas = map.getCanvas();
     const interaction = currentOptions.acquireInteractions({ cursor: 'crosshair' });
+    let active = true;
     let previewRaf = 0, previewCandidate: TrailHeadAnchor | null = null;
-    const renderCandidate = () => { previewRaf = 0;
+    const renderCandidate = () => { previewRaf = 0; if (!active) return;
       const state = optionsRef.current.stateRef.current;
       setTrailPaintPreview(map, { path: [], cursor: null,
         brushWidthM: optionsRef.current.brushWidthRef.current,
         ...trailHeadPreview(state), candidate: previewCandidate?.point ?? null }); };
     const scheduleCandidate = (candidate: TrailHeadAnchor | null) => {
+      if (!active) return;
       previewCandidate = candidate;
       if (!previewRaf) previewRaf = requestAnimationFrame(renderCandidate);
     };
@@ -127,7 +129,9 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     canvas.addEventListener('mouseleave', onLeave); window.addEventListener('keydown', onKey);
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
       canvas.removeEventListener('mouseleave', onLeave); window.removeEventListener('keydown', onKey);
+      active = false;
       if (previewRaf) cancelAnimationFrame(previewRaf);
+      clearTrailPaintPreview(map, optionsRef.current.brushWidthRef.current);
       interaction.release(); };
   }, [options.state.phase]);
 
@@ -136,13 +140,15 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     const map = currentOptions.mapRef.current;
     if (!map || currentOptions.stateRef.current.phase !== 'place-tail') return;
     const interaction = currentOptions.acquireInteractions({ cursor: 'crosshair' });
+    let active = true;
     let previewRaf = 0, previewCandidate: TrailHeadAnchor | null = null;
-    const renderCandidate = () => { previewRaf = 0;
+    const renderCandidate = () => { previewRaf = 0; if (!active) return;
       const state = optionsRef.current.stateRef.current;
       setTrailPaintPreview(map, { path: [], cursor: null,
         brushWidthM: optionsRef.current.brushWidthRef.current,
         ...trailHeadPreview(state), candidate: previewCandidate?.point ?? null }); };
     const scheduleCandidate = (candidate: TrailHeadAnchor | null) => {
+      if (!active) return;
       previewCandidate = candidate;
       if (!previewRaf) previewRaf = requestAnimationFrame(renderCandidate);
     };
@@ -181,7 +187,9 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     };
     map.on('mousemove', onMove); map.on('click', onClick); window.addEventListener('keydown', onKey);
     return () => { map.off('mousemove', onMove); map.off('click', onClick);
-      window.removeEventListener('keydown', onKey); if (previewRaf) cancelAnimationFrame(previewRaf);
+      window.removeEventListener('keydown', onKey); active = false;
+      if (previewRaf) cancelAnimationFrame(previewRaf);
+      clearTrailPaintPreview(map, optionsRef.current.brushWidthRef.current);
       interaction.release(); };
   }, [options.state.phase]);
 
@@ -192,18 +200,19 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     const canvas = map.getCanvas();
     const interaction = currentOptions.acquireInteractions({ cursor: 'none',
       dragPanEnabled: false, doubleClickZoomEnabled: false });
-    const renderPreview = () => setTrailPaintPreview(map, {
+    let active = true;
+    const renderPreview = () => { if (!active) return; setTrailPaintPreview(map, {
       path: optionsRef.current.previewPathRef.current,
       cursor: optionsRef.current.brushCursorRef.current,
       brushWidthM: optionsRef.current.brushWidthRef.current,
       ...trailHeadPreview(optionsRef.current.stateRef.current),
-    });
+    }); };
     renderPreview();
     let painting = false, path: [number, number][] = [], previewPath: [number, number][] = [];
     let previewRaf = 0, lastMetricAt = 0, strokeLengthM = 0;
     let lastPreviewPixel: { x: number; y: number } | null = null;
-    const drawPreview = () => { previewRaf = 0; renderPreview(); };
-    const schedulePreview = () => { if (!previewRaf) previewRaf = requestAnimationFrame(drawPreview); };
+    const drawPreview = () => { previewRaf = 0; if (active) renderPreview(); };
+    const schedulePreview = () => { if (active && !previewRaf) previewRaf = requestAnimationFrame(drawPreview); };
     const finish = () => {
       painting = false;
       if (path.length === 1) path.push(path[0]);
@@ -266,11 +275,24 @@ export function useTrailMapInput(options: TrailMapInputOptions): void {
     canvas.addEventListener('mouseleave', leave); window.addEventListener('keydown', onKey);
     return () => { map.off('mousedown', down); map.off('mousemove', move);
       window.removeEventListener('mouseup', up); canvas.removeEventListener('mouseleave', leave);
-      window.removeEventListener('keydown', onKey); if (previewRaf) cancelAnimationFrame(previewRaf);
+      window.removeEventListener('keydown', onKey); active = false;
+      if (previewRaf) cancelAnimationFrame(previewRaf);
       optionsRef.current.previewPathRef.current = []; optionsRef.current.brushCursorRef.current = null;
-      setTrailPaintPreview(map, { path: [], cursor: null,
-        brushWidthM: optionsRef.current.brushWidthRef.current,
-        ...trailHeadPreview(optionsRef.current.stateRef.current) });
+      clearTrailPaintPreview(map, optionsRef.current.brushWidthRef.current);
       interaction.release(); };
+  }, [options.state.phase]);
+
+  // Phase changes with no dedicated pointer handler (analysis, review, and
+  // idle) still need to publish the authoritative marker set. This runs after
+  // the phase-specific effect setup, so the previous phase's cleanup cannot
+  // erase the new phase's payload.
+  useEffect(() => {
+    const map = optionsRef.current.mapRef.current;
+    if (!map) return;
+    const state = optionsRef.current.stateRef.current;
+    setTrailPaintPreview(map, { path: state.phase === 'paint'
+      ? optionsRef.current.previewPathRef.current : [],
+      cursor: state.phase === 'paint' ? optionsRef.current.brushCursorRef.current : null,
+      brushWidthM: optionsRef.current.brushWidthRef.current, ...trailHeadPreview(state) });
   }, [options.state.phase]);
 }

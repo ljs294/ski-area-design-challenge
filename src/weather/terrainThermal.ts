@@ -56,7 +56,7 @@ export function temperatureFieldForHour(
   return { ...model, temperatureC };
 }
 
-function wetBulbAt(temperatureC: number, humidityPct: number): number {
+export function wetBulbAt(temperatureC: number, humidityPct: number): number {
   const humidity = Math.max(1, Math.min(100, humidityPct));
   // Stull's compact approximation is stable for each terrain grid cell and
   // avoids coupling this pure terrain resolver to WeatherSession/runtime code.

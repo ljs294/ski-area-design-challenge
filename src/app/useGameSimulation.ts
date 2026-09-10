@@ -13,6 +13,8 @@ import { localWeatherDateKey, weatherInstantForLocal, weatherLocalParts } from '
 import { resolveWeatherHour, weatherAtSession, type WeatherSession } from '../weather/weatherSession';
 import { weatherTerrainBinding } from '../weather/terrainBinding';
 import { generateBareSnowGrid } from '../snow';
+import { addFreshSnow } from '../dualClock/snowAdd';
+import type { SnowAddResult } from '../types/dualClock';
 import { advanceSummerToSeptember, confirmSeasonTransition, createClock, createTimeSnapshot,
   advanceClockSeconds, DEFAULT_TIME_CONFIG, restoreTimeSnapshot,
 } from '../../time-engine/src/timeEngine';
@@ -26,6 +28,7 @@ import { createTerrainThermalModel, terrainWeatherFieldForHour } from '../weathe
 import { setActiveTerrainWeather } from './terrainWeatherCache';
 import { isDeveloperConsoleEnabled, skipClockWithoutSimulation, type DeveloperClockSkip,
   type SimulationTimeDiscontinuity } from './developerConsoleCommands';
+import type { DualSimulationControls } from './useDualClockRuntime';
 
 const HOUR_MS = 3_600_000;
 
@@ -33,6 +36,8 @@ export type GameSimulationStatus = 'no-terrain' | 'loading' | 'design-only' | 'p
   'package-unavailable' | 'binding-mismatch' | 'version-mismatch' | 'corrupt' | 'working';
 
 export interface GameSimulationController {
+  dual?: DualSimulationControls;
+  prepareHours?(from: string, to: string): Promise<ResolvedWeatherHour[] | null>;
   status: GameSimulationStatus;
   message: string;
   clock: SimulationClock;
@@ -54,6 +59,7 @@ export interface GameSimulationController {
   snapshot(): { time: TimeEngineSnapshot; weatherRun?: SavedWeatherRun };
   pause(): void;
   devSkipMinutes(minutes: number): DeveloperClockSkip;
+  addSnow(meters: number): Promise<SnowAddResult>;
 }
 
 function configFor(timezone: string): TimeScaleConfig {
@@ -147,7 +153,7 @@ function applyMapEnvironment(map: maplibregl.Map | null, current: ResolvedWeathe
 }
 
 export function useGameSimulation({
-  terrain, initialTime, initialWeatherRun, snow, mapRef, renderQuality, reducedMotion,
+  terrain, initialTime, initialWeatherRun, snow, mapRef, renderQuality, reducedMotion, externalClock, playbackEnabled = true,
 }: {
   terrain: TerrainRecord | null;
   initialTime: GameSave['time'];
@@ -156,9 +162,13 @@ export function useGameSimulation({
   mapRef: MutableRefObject<maplibregl.Map | null>;
   renderQuality: RenderQuality;
   reducedMotion: boolean;
+  externalClock?: SimulationClock;
+  playbackEnabled?: boolean;
 }): GameSimulationController {
-  const [clock, setClock] = useState(() => createClock());
+  const [internalClock, setClock] = useState(() => createClock());
+  const clock = externalClock ?? internalClock;
   const clockRef = useRef(clock);
+  if (externalClock) clockRef.current = externalClock;
   const configRef = useRef<TimeScaleConfig>(DEFAULT_TIME_CONFIG);
   const runRef = useRef(initialTime && typeof initialWeatherRun?.configurationVersion === 'number' &&
     initialWeatherRun.configurationVersion >= 2
@@ -216,14 +226,16 @@ export function useGameSimulation({
             'Weather is not prepared. Design remains available, but time cannot cross September 1.');
           return;
         }
-        if (weather.manifest.terrainBinding !== binding || savedRun?.terrainBinding !== binding) {
+        if (weather.manifest.terrainBinding !== binding || (savedRun && savedRun.terrainBinding !== binding)) {
           setStatus('binding-mismatch'); setMessage('The installed weather package belongs to another terrain revision.');
           return;
         }
         const config = configFor(weather.manifest.timezone);
         configRef.current = config;
-        const restored = initialTime ? restoreTimeSnapshot(initialTime, config) : createClock(config);
-        publishClock(restored);
+        if (playbackEnabled) {
+          const restored = initialTime ? restoreTimeSnapshot(initialTime, config) : createClock(config);
+          publishClock(restored);
+        }
         setWeatherPackage(weather);
         if (!savedRun) {
           setStatus('prepared'); setMessage('Weather prepared. Complete summer planning to generate the September weather year.');
@@ -247,7 +259,7 @@ export function useGameSimulation({
     };
     void load();
     return () => { cancelled = true; };
-  }, [terrain, binding, initialTime, publishClock]);
+  }, [terrain, binding, initialTime, publishClock, playbackEnabled]);
 
   const commitAdvance = useCallback(async (next: SimulationClock, refresh = true,
     expectedElapsedSecond?: number) => {
@@ -313,11 +325,11 @@ export function useGameSimulation({
       localStartAt: loaded.plan.startsAt,
       cursorHour: projectedHour({ localStartAt: loaded.plan.startsAt } as SavedWeatherRun, target.calendarDate),
     };
-    if (!runRef.current && snow.gridRef.current) snow.replace(generateBareSnowGrid(terrain), false);
+    if (playbackEnabled && !runRef.current && snow.gridRef.current) snow.replace(generateBareSnowGrid(terrain), false);
     runRef.current = nextRun;
     setStatus('ready'); setMessage('Offline annual weather simulation ready.');
     return true;
-  }, [binding, snow, terrain, weatherPackage]);
+  }, [binding, snow, terrain, weatherPackage, playbackEnabled]);
 
   const advancePlanningPeriod = useCallback(async () => {
     if (clockRef.current.season !== 'summer' || busyRef.current) return;
@@ -367,7 +379,7 @@ export function useGameSimulation({
   }, []);
 
   useEffect(() => {
-    if (clock.runState !== 'running' || clock.season !== 'winter') return;
+    if (!playbackEnabled || clock.runState !== 'running' || clock.season !== 'winter') return;
     const coordinator = coordinatorRef.current ?? new ContinuousSimulationCoordinator(
       Math.floor(clockRef.current.elapsedSimSecond),
       typeof clockRef.current.speed === 'string' ? clockRef.current.speed : 'normal');
@@ -407,12 +419,12 @@ export function useGameSimulation({
       cancelAnimationFrame(frame);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [clock.runState, clock.season, commitAdvance]);
+  }, [clock.runState, clock.season, commitAdvance, playbackEnabled]);
 
   const compositeWeek = useMemo(() => {
-    if (!session || clock.season !== 'winter' || clock.winterWeek == null) return null;
+    if (!playbackEnabled || !session || clock.season !== 'winter' || clock.winterWeek == null) return null;
     return compositeWeekForDate(session, clockRef.current.calendarDate);
-  }, [session, clock.season, clock.winterWeek]);
+  }, [session, clock.season, clock.winterWeek, playbackEnabled]);
   const current = useMemo(() => {
     if (!session) return null;
     if (compositeWeek && clock.season === 'winter') {
@@ -451,6 +463,16 @@ export function useGameSimulation({
       localMidnightAbsoluteMinute: result.after.absoluteGameMinute - result.after.minuteOfDay }));
     return result;
   }, [publishClock]);
+  const addSnow = useCallback(async (meters: number): Promise<SnowAddResult> => {
+    if (!isDeveloperConsoleEnabled()) throw new Error('Developer snow controls are disabled in this build.');
+    const currentGrid = snow.gridRef.current;
+    if (!currentGrid) throw new Error('Wait for the snow grid to initialize before adding snow.');
+    coordinatorRef.current?.reset(Math.floor(clockRef.current.elapsedSimSecond), performance.now());
+    publishClock({ ...clockRef.current, runState: 'paused' });
+    const applied = addFreshSnow(currentGrid, meters);
+    snow.replace(applied.grid, true);
+    return applied.result;
+  }, [publishClock, snow]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -506,6 +528,17 @@ export function useGameSimulation({
   }, [mapRef, current, reducedMotion, renderQuality]);
 
   return {
+    prepareHours: async (from, to) => {
+      if (!terrain || !weatherPackage) return null;
+      const first = weatherYearLabel(from, weatherPackage.manifest.timezone), last = weatherYearLabel(to, weatherPackage.manifest.timezone);
+      const hours: ResolvedWeatherHour[] = [];
+      for (let year = first; year <= last; year++) {
+        const loaded = await loadAnnualWeatherSession(weatherPackage, runRef.current?.seed ?? `game-${terrain.key}`, year);
+        hours.push(...loaded.plan.hours.map(hour => resolveWeatherHour(hour, loaded.midpoint)));
+      }
+      await ensureAnnualRun({ ...clockRef.current, calendarDate: to });
+      return hours;
+    },
     status, message, clock, weatherPackage, session, current, weeklyOutlook, forecast, averageAnnualSnowfallCm, analysisOpen,
     timeDiscontinuity,
     togglePlayback: () => {
@@ -532,6 +565,6 @@ export function useGameSimulation({
       coordinatorRef.current?.reset(Math.floor(clockRef.current.elapsedSimSecond), performance.now());
       publishClock({ ...clockRef.current, runState: 'paused' });
     },
-    devSkipMinutes,
+    devSkipMinutes, addSnow,
   };
 }

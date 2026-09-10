@@ -142,6 +142,7 @@ function weeklyGuestWeightingFor(
 }
 
 export interface GuestSimulationRuntime {
+  dualCheckpoint?(): Promise<import('../dualClock/model').DualCheckpoint>;
   readonly status: 'unavailable' | 'starting' | 'ready' | 'error';
   readonly message: string;
   readonly snapshot: GuestSimulationEngineSnapshot | null;

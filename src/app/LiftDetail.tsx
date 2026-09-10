@@ -4,6 +4,7 @@ import type { Units } from './SettingsContext';
 import { formatLiftLabel, liftTypeLabel } from '../lifts';
 import { ConditionToggle } from './ConditionToggle';
 import { LiftStatsBlock } from './LiftControl';
+import { LiftOperationsRows, type LiftOperationsReadModel } from './liftOperations';
 
 /**
  * Read-only overview of a single lift, shown when a lift is clicked (on the map
@@ -18,6 +19,7 @@ export function LiftDetail({
   onRemove,
   onToggleClosed,
   onClose,
+  operations,
 }: {
   lift: SavedLift;
   units: Units;
@@ -25,6 +27,7 @@ export function LiftDetail({
   onRemove: () => void;
   onToggleClosed: (closed: boolean) => void;
   onClose: () => void;
+  operations?: LiftOperationsReadModel | null;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
 
@@ -47,6 +50,8 @@ export function LiftDetail({
         liftTypeId={lift.liftTypeId}
         units={units}
       />
+
+      <LiftOperationsRows operations={operations} />
 
       <ConditionToggle closed={lift.closed === true} onChange={onToggleClosed} />
 

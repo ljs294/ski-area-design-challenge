@@ -20,7 +20,7 @@ function floatMetadata(values: number[]) {
 }
 
 /** Small, fully valid schema-v5 package. It exercises the real browser stores. */
-function preparedTerrainFixture(includeMapContext = true, contourSegmentCount = 1) {
+export function preparedTerrainFixture(includeMapContext = true, contourSegmentCount = 1) {
   const sampleHeights = [1000, 1010, 1020, 1030];
   const coverGrid = {
     bounds,
@@ -134,6 +134,9 @@ export interface PreparedStructures {
   roads?: Record<string, unknown>[];
   lifts?: Record<string, unknown>[];
   trails?: Record<string, unknown>[];
+  nodes?: Record<string, unknown>[];
+  paths?: Record<string, unknown>[];
+  junctions?: Record<string, unknown>[];
   dams?: Record<string, unknown>[];
   ponds?: Record<string, unknown>[];
   snowmakingNodes?: Record<string, unknown>[];
@@ -172,9 +175,9 @@ function preparedSaveFixture(structures: PreparedStructures) {
     roads: structures.roads ?? [],
     dams: structures.dams ?? [],
     ponds: structures.ponds ?? [],
-    nodes: [],
-    paths: [],
-    junctions: [],
+    nodes: structures.nodes ?? [],
+    paths: structures.paths ?? [],
+    junctions: structures.junctions ?? [],
     snowmakingNodes: structures.snowmakingNodes ?? [],
     snowmakingPipes: structures.snowmakingPipes ?? [],
     snowguns: structures.snowguns ?? [],

@@ -3,7 +3,7 @@ import type maplibregl from 'maplibre-gl';
 import type { SkiNetwork } from '../network';
 import { MAP_HIT_RANK, MAP_Z_ORDER, type ManagedMapContribution } from './mapContribution';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
-import { addGuestLayers, GUEST_HIT_LAYER_ID, GUEST_LAYER_IDS, setGuestPointData, setGuestPortalData,
+import { addGuestLayers, GUEST_HIT_LAYER_ID, GUEST_LAYER_ID, GUEST_LAYER_IDS, GUEST_PORTAL_LABEL_LAYER_ID, setGuestPointData, setGuestPortalData,
   updateGuestPointData, type GuestRenderPoint } from './guestLayers';
 import { placeGuestPortal, type PlacedGuestPortal } from './guestPortalPlacement';
 import type { GuestConnectivity } from './guestConnectivity';
@@ -63,6 +63,36 @@ export function useGuestPortalController(options: {
   };
 
   useEffect(() => { optionsRef.current.synchronizeMap(); }, [options.connectivity, options.portal]);
+  // MapLibre excludes custom layers from getStyle(). A same-style replacement
+  // therefore retains the normal guest layers but discards only the GPU layer.
+  // Wait until the completed replacement becomes idle, then rebuild that one
+  // layer with the current authoritative presentation data.
+  useEffect(() => {
+    const map = optionsRef.current.mapRef.current;
+    if (!map) return;
+    let restoring = false;
+    const restoreCustomLayer = () => {
+      if (restoring || !map.isStyleLoaded() || map.getLayer(GUEST_LAYER_ID)) return;
+      restoring = true;
+      try {
+        const current = optionsRef.current;
+        const visibility = map.getLayoutProperty(GUEST_HIT_LAYER_ID, 'visibility') === 'none' ? 'none' : 'visible';
+        addGuestLayers(map, GUEST_PORTAL_LABEL_LAYER_ID);
+        setGuestPortalData(map, current.portal, current.connectivity);
+        setGuestPointData(map, current.points);
+        if (map.getLayer(GUEST_LAYER_ID)) map.setLayoutProperty(GUEST_LAYER_ID, 'visibility', visibility);
+      } finally {
+        restoring = false;
+      }
+    };
+    restoreCustomLayer();
+    map.on('styledata', restoreCustomLayer);
+    map.on('idle', restoreCustomLayer);
+    return () => {
+      map.off('styledata', restoreCustomLayer);
+      map.off('idle', restoreCustomLayer);
+    };
+  });
   useEffect(() => {
     const map = optionsRef.current.mapRef.current;
     const target = options.points;

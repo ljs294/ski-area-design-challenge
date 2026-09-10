@@ -20,7 +20,8 @@ import type { SavedBuilding } from './types/buildings';
 import type { TimeEngineSnapshot } from './types/simulation';
 
 interface ExpectedGameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+  dualClock?: import('./dualClock/model').DualCheckpoint;
   key: string;
   name: string;
   mountainId?: string;
@@ -190,8 +191,8 @@ describe('GameSave compatibility boundary', () => {
     expect(schema15.weatherRun?.packageContentHash).toBe(weatherRun.packageContentHash);
   });
 
-  it('keeps newly written saves on schema version 15', () => {
-    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(16);
-    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<16>();
+  it('writes explicitly approved new dual-clock games on schema 17', () => {
+    expect(CURRENT_GAME_SAVE_SCHEMA_VERSION).toBe(17);
+    expectTypeOf(CURRENT_GAME_SAVE_SCHEMA_VERSION).toEqualTypeOf<17>();
   });
 });

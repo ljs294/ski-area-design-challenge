@@ -1,8 +1,12 @@
 import type maplibregl from 'maplibre-gl';
 import type { PlacedGuestPortal } from './guestPortalPlacement';
 import type { GuestConnectivity } from './guestConnectivity';
-import { GuestGpuLayer, type GuestRenderPath, type GuestScreenHit } from './guestGpuLayer';
+import { GuestGpuLayer, interpolatedMotionPosition, type GuestRenderPath, type GuestScreenHit } from './guestGpuLayer';
 import type { GuestSimulationRenderFrame } from './guestSimulationWorkerProtocol';
+import type { AggregateFlowSnapshot } from '../dualClock/model';
+import type { NetworkEdge } from '../network';
+import type { GuestMotion } from '../types/dualClock';
+import type { PreparedRoute } from '../dualClock/geometry';
 
 export const GUEST_SOURCE_ID = 'guest-simulation-points';
 export const GUEST_LAYER_ID = 'guest-simulation-dots';
@@ -12,7 +16,12 @@ export const GUEST_PORTAL_CONNECTION_LAYER_ID = 'guest-portal-connection';
 export const GUEST_PORTAL_HALO_LAYER_ID = 'guest-portal-halo';
 export const GUEST_PORTAL_LAYER_ID = 'guest-portal-marker';
 export const GUEST_PORTAL_LABEL_LAYER_ID = 'guest-portal-label';
-export const GUEST_LAYER_IDS = [GUEST_PORTAL_CONNECTION_LAYER_ID,
+const FLOW_SOURCE = 'guest-aggregate-flow', FLOW_LINE = 'guest-aggregate-flow-line', FLOW_LABEL = 'guest-aggregate-flow-label';
+const flowData = new WeakMap<maplibregl.Map, GeoJSON.FeatureCollection>();
+const representativeMaps = new WeakSet<maplibregl.Map>();
+const retainedPoints = new WeakMap<maplibregl.Map, readonly GuestRenderPoint[]>();
+const motionRoutes = new WeakMap<maplibregl.Map, Record<string, PreparedRoute>>();
+export const GUEST_LAYER_IDS = [FLOW_LINE, FLOW_LABEL, GUEST_PORTAL_CONNECTION_LAYER_ID,
   GUEST_PORTAL_HALO_LAYER_ID, GUEST_PORTAL_LAYER_ID, GUEST_HIT_LAYER_ID, GUEST_LAYER_ID,
   GUEST_PORTAL_LABEL_LAYER_ID] as const;
 
@@ -29,12 +38,18 @@ export interface GuestRenderPoint {
   readonly lng: number;
   readonly lat: number;
   readonly status: string;
+  readonly motion?: GuestMotion;
+}
+export function setGuestMotionRoutes(map: maplibregl.Map | null, routes: Record<string, PreparedRoute>): void {
+  if (!map) return;
+  motionRoutes.set(map, routes); gpuLayers.get(map)?.setMotionRoutes(routes);
 }
 
 export function interpolateGuestPoints(
   previous: readonly GuestRenderPoint[],
   next: readonly GuestRenderPoint[],
   progress: number,
+  routes?: Readonly<Record<string, PreparedRoute>>,
 ): readonly GuestRenderPoint[] {
   const fraction = Math.min(1, Math.max(0, progress));
   if (fraction >= 1 || previous.length === 0) return next;
@@ -42,13 +57,35 @@ export function interpolateGuestPoints(
   return next.map((point) => {
     const from = previousById.get(point.id);
     if (!from) return point;
-    return { ...point,
-      lng: from.lng + (point.lng - from.lng) * fraction,
-      lat: from.lat + (point.lat - from.lat) * fraction };
+    const position = routes && point.motion
+      ? interpolatedMotionPosition(from, point, routes, fraction)
+      : [from.lng + (point.lng - from.lng) * fraction, from.lat + (point.lat - from.lat) * fraction] as const;
+    return { ...point, lng: position[0], lat: position[1] };
   });
 }
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+
+export function setRepresentativeGuestPresentation(map: maplibregl.Map | null, enabled: boolean,
+  aggregate: AggregateFlowSnapshot | null, edges: readonly NetworkEdge[]): void {
+  if (!map) return;
+  if (enabled) representativeMaps.add(map); else representativeMaps.delete(map);
+  const features: GeoJSON.Feature<GeoJSON.LineString>[] = aggregate ? edges.filter(edge => edge.kind !== 'path').map(edge => {
+    const queue = aggregate.queues[edge.id], trail = edge.kind === 'trail' ? aggregate.trails[edge.trailId] : undefined;
+    const waiting = queue?.guests ?? 0;
+    const riding = queue?.riders ?? 0;
+    const density = edge.kind === 'lift' ? waiting + riding : trail?.guests ?? 0;
+    const wait = !queue || queue.serviceAvailable === false || !Number.isFinite(queue.waitSeconds)
+      ? 'wait unavailable' : `${Math.ceil(queue.waitSeconds / 60)} min`;
+    return { type: 'Feature', id: edge.id, geometry: { type: 'LineString', coordinates: edge.path },
+      properties: { kind: edge.kind, density, label: edge.kind === 'lift'
+        ? `${edge.liftName}: ${wait} · ${waiting} waiting · ${riding} riding`
+        : `${edge.kind === 'trail' ? edge.trailName : ''}: ${density} guests ›` } };
+  }) : [];
+  const data: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features };
+  flowData.set(map, data);
+  (map.getSource(FLOW_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(data);
+}
 
 function pointFromQuery(value: unknown): { readonly x: number; readonly y: number } | null {
   if (Array.isArray(value) && value.length === 2
@@ -124,6 +161,14 @@ function guestPointFeature(point: GuestRenderPoint): GeoJSON.Feature<GeoJSON.Poi
 }
 
 export function addGuestLayers(map: maplibregl.Map, beforeId?: string): void {
+  if (!map.getSource(FLOW_SOURCE)) map.addSource(FLOW_SOURCE, { type: 'geojson', data: flowData.get(map) ?? EMPTY });
+  const flowBefore = beforeId && map.getLayer(beforeId) ? beforeId : undefined;
+  if (!map.getLayer(FLOW_LINE)) map.addLayer({ id: FLOW_LINE, type: 'line', source: FLOW_SOURCE,
+    paint: { 'line-color': ['case', ['==', ['get', 'kind'], 'lift'], '#edab36', '#42b6ac'],
+      'line-width': ['interpolate', ['linear'], ['get', 'density'], 0, 2, 100, 8, 500, 16], 'line-opacity': 0.7 } }, flowBefore);
+  if (!map.getLayer(FLOW_LABEL)) map.addLayer({ id: FLOW_LABEL, type: 'symbol', source: FLOW_SOURCE,
+    layout: { 'symbol-placement': 'line', 'text-field': ['get', 'label'], 'text-size': 11, 'text-font': ['Noto Sans Regular'] },
+    paint: { 'text-color': '#ffffff', 'text-halo-color': '#18363b', 'text-halo-width': 2 } }, flowBefore);
   if (!map.getSource(GUEST_SOURCE_ID)) map.addSource(GUEST_SOURCE_ID, { type: 'geojson', data: EMPTY });
   if (!map.getSource(GUEST_PORTAL_SOURCE_ID)) map.addSource(GUEST_PORTAL_SOURCE_ID, { type: 'geojson', data: EMPTY });
   const before = beforeId && map.getLayer(beforeId) ? beforeId : undefined;
@@ -147,9 +192,11 @@ export function addGuestLayers(map: maplibregl.Map, beforeId?: string): void {
   installGuestHitQuery(map);
   if (!map.getLayer(GUEST_LAYER_ID)) {
     const layer = new GuestGpuLayer(GUEST_LAYER_ID);
+    layer.setMotionRoutes(motionRoutes.get(map) ?? {});
     gpuLayers.set(map, layer);
     const compact = compactFrames.get(map);
     if (compact) layer.setRenderFrame(compact.frame, compact.edgePaths, compact.portalLngLat, 0);
+    else layer.setPoints([], retainedPoints.get(map) ?? [], 0);
     map.addLayer(layer, before);
   }
   if (!map.getLayer(GUEST_PORTAL_LABEL_LAYER_ID)) map.addLayer({ id: GUEST_PORTAL_LABEL_LAYER_ID,
@@ -160,10 +207,11 @@ export function addGuestLayers(map: maplibregl.Map, beforeId?: string): void {
 }
 
 export function setGuestPointData(map: maplibregl.Map | null, points: readonly GuestRenderPoint[]): void {
+  if (map) retainedPoints.set(map, points);
   const layer = map ? gpuLayers.get(map) : undefined;
   if (layer?.hasCompactFrame()) return;
   const source = map?.getSource(GUEST_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
-  source?.setData({ type: 'FeatureCollection', features: points.map(guestPointFeature) });
+  if (!map || !representativeMaps.has(map)) source?.setData({ type: 'FeatureCollection', features: points.map(guestPointFeature) });
   if (map) {
     layer?.setPoints([], points, 0);
   }
@@ -186,11 +234,13 @@ export function setGuestCompactFrame(map: maplibregl.Map | null, frame: GuestSim
 /** Differential animation updates avoid reparsing the entire guest collection every frame. */
 export function updateGuestPointData(map: maplibregl.Map | null, previous: readonly GuestRenderPoint[],
   next: readonly GuestRenderPoint[]): void {
+  if (map) retainedPoints.set(map, next);
   const source = map?.getSource(GUEST_SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
   if (!source) return;
   const layer = map ? gpuLayers.get(map) : undefined;
   if (layer?.hasCompactFrame()) return;
   layer?.setPoints(previous, next);
+  if (map && representativeMaps.has(map)) return;
   const previousById = new Map(previous.map((point) => [point.id, point]));
   const nextIds = new Set(next.map((point) => point.id));
   const remove = previous.filter((point) => !nextIds.has(point.id)).map((point) => point.id);
@@ -222,6 +272,7 @@ export function setGuestPortalData(map: maplibregl.Map | null, portal: PlacedGue
 
 export function removeGuestLayers(map: maplibregl.Map): void {
   for (const layer of [...GUEST_LAYER_IDS].reverse()) if (map.getLayer(layer)) map.removeLayer(layer);
+  if (map.getSource(FLOW_SOURCE)) map.removeSource(FLOW_SOURCE);
   if (map.getSource(GUEST_SOURCE_ID)) map.removeSource(GUEST_SOURCE_ID);
   if (map.getSource(GUEST_PORTAL_SOURCE_ID)) map.removeSource(GUEST_PORTAL_SOURCE_ID);
   gpuLayers.delete(map);

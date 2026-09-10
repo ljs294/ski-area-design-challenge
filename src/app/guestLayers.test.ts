@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addGuestLayers, GUEST_HIT_LAYER_ID, GUEST_LAYER_IDS, interpolateGuestPoints, setGuestCompactFrame,
-  setGuestPortalData, updateGuestPointData } from './guestLayers';
+  removeGuestLayers, setGuestPointData, setGuestPortalData, setRepresentativeGuestPresentation, updateGuestPointData } from './guestLayers';
 import type { GuestConnectivity } from './guestConnectivity';
 
 const portal = { version: 1 as const, id: 'entrance', kind: 'guest-entrance' as const,
@@ -16,6 +16,16 @@ function connectivity(reachable: boolean): GuestConnectivity {
 }
 
 describe('guest map connection presentation', () => {
+  it('labels aggregate lifts with authoritative waiting and riding totals', () => {
+    const published: GeoJSON.FeatureCollection[] = [];
+    const map = { getSource: () => ({ setData: (data: GeoJSON.FeatureCollection) => published.push(data) }) };
+    setRepresentativeGuestPresentation(map as never, true, { admitted: 0, active: 0, departed: 0, turnedAway: 0,
+      ticketRevenueCents: 0, amenityRevenueCents: 0, completedRuns: 0, trails: {}, queues: {
+        lift: { guests: 12, riders: 8, boarded: 0, waitSeconds: 180, serviceAvailable: true },
+      } }, [{ id: 'lift', kind: 'lift', liftName: 'Summit', path: [[0, 0], [1, 1]] } as never]);
+    expect(published[0]?.features[0]?.properties).toMatchObject({ density: 20, label: 'Summit: 3 min · 12 waiting · 8 riding' });
+  });
+
   it('interpolates retained guests while admitting new guests at their authoritative position', () => {
     const previous = [{ id: 'a', lng: -121.5, lat: 46.9, status: 'skiing' }];
     const next = [{ id: 'a', lng: -121.4, lat: 47, status: 'skiing' },
@@ -54,6 +64,24 @@ describe('guest map connection presentation', () => {
     setGuestPortalData(map as never, portal, connectivity(true));
     expect(published[0]?.features.map((feature) => feature.properties?.kind)).toEqual(['connection', 'portal']);
     expect(published[0]?.features.every((feature) => feature.properties?.reachable === true)).toBe(true);
+  });
+
+  it('replays the latest point frame when guest layers are explicitly reattached', () => {
+    const layers = new Map<string, unknown>(), sources = new Map<string, { setData(data: GeoJSON.FeatureCollection): void }>();
+    const map = { getSource: (id: string) => sources.get(id),
+      addSource: (id: string) => sources.set(id, { setData: () => {} }),
+      getLayer: (id: string) => layers.get(id),
+      addLayer: (layer: { id: string }) => layers.set(layer.id, layer),
+      removeLayer: (id: string) => layers.delete(id), removeSource: (id: string) => sources.delete(id), getLayoutProperty: () => undefined,
+      unproject: () => ({ lng: 0, lat: 0 }), queryRenderedFeatures: () => [] };
+    const points = [{ id: 'dual-guest', lng: -121.495, lat: 46.902, status: 'lift-queue' }];
+    addGuestLayers(map as never);
+    setGuestPointData(map as never, points);
+    removeGuestLayers(map as never);
+
+    addGuestLayers(map as never);
+    const restored = layers.get('guest-simulation-dots') as unknown as { readonly count: number };
+    expect(restored.count).toBe(1);
   });
 
   it('answers delegated guest queries from the exact interpolated GPU position', () => {

@@ -201,12 +201,15 @@ describe('NetworkMap', () => {
     expect(classOf(servedEdge!.id)).not.toContain('is-dimmed');
   });
 
-  it('lists the runs a selected lift serves, with its placeholder queue', () => {
+  it('lists the runs a selected lift serves, with operations rows that do not invent telemetry', () => {
     const html = render(mountain(), { selectedLiftId: 'L' });
     expect(html).toContain('data-inspector="lift"');
     expect(html).toContain('served');
-    expect(html).toContain('People waiting');
-    expect(html).toContain('placeholders');
+    expect(html).toContain('People in line');
+    expect(html).toContain('Estimated wait');
+    expect(html).toContain('Currently riding');
+    expect(html).toContain('Served today');
+    expect(html).not.toContain('placeholders');
     expect(html).toContain('Fixed-Grip Quad Chairlift');
     expect(html).toContain('2,400 p/h'); // quad at 600 pph per seat
   });

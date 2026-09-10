@@ -21,6 +21,9 @@ const TEMPORARY_CORE_TO_APP_EXCEPTIONS = new Map();
 const TYPE_FACADE_MANIFEST = new Map([
   ['./types/anchors', ['AnchorRef']],
   ['./types/construction', ['ConstructionStatus']],
+  ['./types/dualClock', [
+    'AggregateFlowSnapshot', 'LiftFlowSnapshot', 'SnowAddResult',
+  ]],
   ['./types/cover', [
     'CoverClassCode', 'CoverDisplayMetadata', 'CoverGeometryMetadata', 'CoverGrid',
     'CoverGridData', 'CoverMetadata', 'LandCoverClass', 'OriginalCoverMetadata',

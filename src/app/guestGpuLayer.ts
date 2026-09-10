@@ -1,12 +1,14 @@
 import maplibregl, { type CustomLayerInterface, type CustomRenderMethodInput } from 'maplibre-gl';
 import type { GuestRenderPoint } from './guestLayers';
 import type { GuestSimulationRenderFrame } from './guestSimulationWorkerProtocol';
+import { routeLanePosition, type PreparedRoute } from '../dualClock/geometry';
 
 /** A worker edge's display path, kept outside React state. */
 export type GuestRenderPath = readonly (readonly [number, number])[];
 
 const FLOATS_PER_GUEST = 5;
 export const GUEST_GPU_BYTES_PER_GUEST = FLOATS_PER_GUEST * Float32Array.BYTES_PER_ELEMENT;
+export const GUEST_DOT_DIAMETER_CSS_PX = 9;
 const HIT_CELL_SIZE_PX = 24;
 const DEFAULT_HIT_RADIUS_PX = 8;
 
@@ -23,6 +25,7 @@ function statusCode(status: string): number {
   if (status === 'skiing') return 2;
   if (status === 'lift-ride') return 3;
   if (status === 'lift-queue') return 4;
+  if (status === 'trail-queue') return 4;
   if (status === 'facility-queue' || status === 'facility-service') return 5;
   if (status === 'walking') return 6;
   return 0;
@@ -41,29 +44,71 @@ function statusCodeFromFlags(flags: number): number {
 
 function clampUnit(value: number): number { return Math.min(1, Math.max(0, value)); }
 
+function usableRoute(route: PreparedRoute | undefined): route is PreparedRoute {
+  return !!route && route.length > 0 && route.lanes.length > 0 && route.lanes[0]!.length > 1
+    && route.distances.length === route.lanes[0]!.length;
+}
+
+function routeEndpointsJoin(previous: PreparedRoute, next: PreparedRoute, previousLane: number, nextLane: number): boolean {
+  const from = routeLanePosition(previous, 1, previousLane), to = routeLanePosition(next, 0, nextLane);
+  const scale = 111_320 * Math.cos(((from[1] + to[1]) / 2) * Math.PI / 180);
+  return Math.hypot((from[0] - to[0]) * scale, (from[1] - to[1]) * 111_320) <= 5;
+}
+
+/** Interpolate along the validated lane, never across a trail bend or polygon hole. */
+export function interpolatedMotionPosition(previous: GuestRenderPoint | undefined, next: GuestRenderPoint,
+  routes: Readonly<Record<string, PreparedRoute>>, fraction: number): readonly [number, number] {
+  const motion = next.motion, prior = previous?.motion, progress = clampUnit(fraction);
+  const nextRoute = motion ? routes[motion.routeId] : undefined;
+  const priorRoute = prior ? routes[prior.routeId] : undefined;
+  if (!motion || !usableRoute(nextRoute) || !prior || !usableRoute(priorRoute)) {
+    // A publication can skip a topology transition or arrive before its
+    // geometry snapshot. The point supplied by the simulation is authoritative;
+    // holding it avoids inventing a straight chord across unrelated terrain.
+    return [next.lng, next.lat];
+  }
+  if (prior.routeId === motion.routeId && prior.lane === motion.lane
+    && motion.progress >= prior.progress && motion.progress >= 0 && prior.progress >= 0) {
+    return routeLanePosition(nextRoute, prior.progress + (motion.progress - prior.progress) * progress, motion.lane);
+  }
+  // A new route is interpolable only when the previous publication was at its
+  // endpoint and the saved route endpoints meet. Otherwise use the next
+  // authoritative point for the whole frame rather than drawing a chord.
+  if (prior.progress >= 1 - 1e-3 && motion.progress >= 0 && motion.progress <= 1
+    && routeEndpointsJoin(priorRoute, nextRoute, prior.lane, motion.lane)) {
+    const remaining = Math.max(0, (1 - prior.progress) * Math.max(0, prior.duration));
+    const elapsed = Math.max(0, motion.progress * Math.max(0, motion.duration));
+    const boundary = remaining / Math.max(0.000001, remaining + elapsed);
+    if (progress < boundary) {
+      return routeLanePosition(priorRoute, prior.progress + (1 - prior.progress) * progress / Math.max(0.000001, boundary), prior.lane);
+    }
+    return routeLanePosition(nextRoute, motion.progress * (progress - boundary) / Math.max(0.000001, 1 - boundary), motion.lane);
+  }
+  return [next.lng, next.lat];
+}
+
+const pathLengths = new WeakMap<GuestRenderPath, Float64Array>();
 function pathProgressPosition(path: GuestRenderPath, progress: number): readonly [number, number] {
   if (path.length === 0) return [0, 0];
   if (path.length === 1) return path[0]!;
-  const lengths: number[] = [];
-  let total = 0;
-  for (let index = 1; index < path.length; index += 1) {
-    const from = path[index - 1]!, to = path[index]!;
-    const latitudeScale = Math.cos(((from[1] + to[1]) / 2) * Math.PI / 180);
-    const length = Math.hypot((to[0] - from[0]) * latitudeScale, to[1] - from[1]);
-    lengths.push(length); total += length;
-  }
-  if (total <= Number.EPSILON) return path[0]!;
-  let remaining = clampUnit(progress) * total;
-  for (let index = 0; index < lengths.length; index += 1) {
-    const length = lengths[index]!;
-    if (remaining <= length || index === lengths.length - 1) {
-      const from = path[index]!, to = path[index + 1]!;
-      const fraction = length <= Number.EPSILON ? 0 : clampUnit(remaining / length);
-      return [from[0] + (to[0] - from[0]) * fraction, from[1] + (to[1] - from[1]) * fraction];
+  let lengths = pathLengths.get(path);
+  if (!lengths) {
+    lengths = new Float64Array(path.length);
+    for (let index = 1; index < path.length; index += 1) {
+      const from = path[index - 1]!, to = path[index]!;
+      const latitudeScale = Math.cos(((from[1] + to[1]) / 2) * Math.PI / 180);
+      lengths[index] = lengths[index - 1] + Math.hypot((to[0] - from[0]) * latitudeScale, to[1] - from[1]);
     }
-    remaining -= length;
+    pathLengths.set(path, lengths);
   }
-  return path[path.length - 1]!;
+  const total = lengths[lengths.length - 1];
+  if (total <= Number.EPSILON) return path[0]!;
+  const distance = clampUnit(progress) * total;
+  let low = 1, high = lengths.length - 1;
+  while (low < high) { const mid = (low + high) >>> 1; if (lengths[mid] < distance) low = mid + 1; else high = mid; }
+  const from = path[low - 1], to = path[low], length = lengths[low] - lengths[low - 1];
+  const fraction = length <= Number.EPSILON ? 0 : clampUnit((distance - lengths[low - 1]) / length);
+  return [from[0] + (to[0] - from[0]) * fraction, from[1] + (to[1] - from[1]) * fraction];
 }
 
 export function guestGpuVertexData(previous: readonly GuestRenderPoint[], next: readonly GuestRenderPoint[]): Float32Array<ArrayBuffer> {
@@ -136,6 +181,12 @@ function shader(gl: WebGLRenderingContext | WebGL2RenderingContext, type: number
   return value;
 }
 
+/** MapLibre custom layers receive a matrix for normalized Mercator [0, 1] vertices. */
+export function guestLayerProjectionMatrix(options: Pick<CustomRenderMethodInput,
+  'defaultProjectionData' | 'modelViewProjectionMatrix'>): Float32Array {
+  return options.defaultProjectionData.mainMatrix as unknown as Float32Array;
+}
+
 /** GPU-backed point layer. React supplies authoritative frames; MapLibre owns interpolation. */
 export class GuestGpuLayer implements CustomLayerInterface {
   readonly id: string;
@@ -148,6 +199,7 @@ export class GuestGpuLayer implements CustomLayerInterface {
   private count = 0;
   private startedAt = 0;
   private durationMs = 50;
+  private revealAt = -Infinity;
   private pending: Float32Array<ArrayBuffer> = new Float32Array(0);
   private compactMode = false;
   private previousFrame: GuestSimulationRenderFrame | null = null;
@@ -166,10 +218,18 @@ export class GuestGpuLayer implements CustomLayerInterface {
   private hitColumns = 0;
   private hitRows = 0;
   private hitCount = 0;
+  private motionRoutes: Readonly<Record<string, PreparedRoute>> = {};
+  private motionPrevious = new Map<string, GuestRenderPoint>();
+  private motionNext: readonly GuestRenderPoint[] = [];
 
   constructor(id: string) { this.id = id; }
+  setMotionRoutes(routes: Readonly<Record<string, PreparedRoute>>): void { this.motionRoutes = routes; }
 
   setPoints(previous: readonly GuestRenderPoint[], next: readonly GuestRenderPoint[], durationMs = 50): void {
+    this.motionNext = next.some(point => point.motion) ? next : [];
+    this.motionPrevious = this.motionNext.length ? new Map(previous.map(point => [point.id, point])) : new Map();
+    if (this.motionNext.length && durationMs > 0) durationMs = 100;
+    if (this.motionNext.length && !previous.length) this.revealAt = performance.now();
     this.clearHitIndex();
     this.compactMode = false;
     this.previousFrame = null;
@@ -187,6 +247,7 @@ export class GuestGpuLayer implements CustomLayerInterface {
   /** Retain two authoritative compact frames; MapLibre interpolates them. */
   setRenderFrame(frame: GuestSimulationRenderFrame | null, edgePaths: readonly GuestRenderPath[],
     portalLngLat?: readonly [number, number], durationMs = 50): void {
+    this.motionNext = [];
     if (!frame) {
       this.compactMode = false;
       this.previousFrame = null;
@@ -281,8 +342,9 @@ export class GuestGpuLayer implements CustomLayerInterface {
         v_status = a_status;
       }
     `);
-    const fragment = shader(gl, gl.FRAGMENT_SHADER, `
-      precision mediump float;
+      const fragment = shader(gl, gl.FRAGMENT_SHADER, `
+        precision mediump float;
+        uniform float u_opacity;
       varying float v_status;
       vec3 colorFor(float value) {
         if (value < 0.5) return vec3(0.145, 0.388, 0.922);
@@ -298,9 +360,11 @@ export class GuestGpuLayer implements CustomLayerInterface {
         vec2 centered = gl_PointCoord - vec2(0.5);
         float radius = length(centered);
         if (radius > 0.5) discard;
-        float edge = smoothstep(0.5, 0.38, radius);
-        vec3 color = mix(vec3(1.0), colorFor(v_status), smoothstep(0.48, 0.40, radius));
-        gl_FragColor = vec4(color * edge, edge);
+        // GLSL smoothstep requires increasing edges. Reverse fades are
+        // undefined and some drivers return zero alpha for every point.
+        float edge = 1.0 - smoothstep(0.38, 0.5, radius);
+        vec3 color = mix(vec3(1.0), colorFor(v_status), 1.0 - smoothstep(0.40, 0.48, radius));
+        gl_FragColor = vec4(color * edge, edge) * u_opacity;
       }
     `);
     const program = gl.createProgram();
@@ -315,8 +379,21 @@ export class GuestGpuLayer implements CustomLayerInterface {
 
   render(gl: WebGLRenderingContext | WebGL2RenderingContext, options: CustomRenderMethodInput): void {
     if (!this.program || !this.buffer || this.count === 0) return;
+    // Guest vertices are normalized Mercator coordinates. MapLibre's generic
+    // model-view matrix expects world-pixel coordinates; its custom-layer
+    // projection is explicitly scaled for the normalized [0, 1] domain.
+    const matrix = guestLayerProjectionMatrix(options);
     const progress = this.durationMs === 0 ? 1 : Math.min(1, (performance.now() - this.startedAt) / this.durationMs);
-    this.rebuildHitIndex(progress, options.modelViewProjectionMatrix as unknown as Float32Array);
+    if (this.motionNext.length) {
+      for (let i = 0; i < this.motionNext.length; i++) {
+        const point = this.motionNext[i], position = interpolatedMotionPosition(this.motionPrevious.get(point.id), point, this.motionRoutes, progress);
+        const mercator = maplibregl.MercatorCoordinate.fromLngLat([position[0], position[1]]), offset = i * FLOATS_PER_GUEST;
+        this.pending[offset] = this.pending[offset + 2] = mercator.x;
+        this.pending[offset + 1] = this.pending[offset + 3] = mercator.y;
+      }
+      this.upload(gl);
+    }
+    this.rebuildHitIndex(progress, matrix);
     gl.useProgram(this.program); gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     const stride = GUEST_GPU_BYTES_PER_GUEST;
     const from = gl.getAttribLocation(this.program, 'a_from');
@@ -325,12 +402,13 @@ export class GuestGpuLayer implements CustomLayerInterface {
     gl.enableVertexAttribArray(from); gl.vertexAttribPointer(from, 2, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(to); gl.vertexAttribPointer(to, 2, gl.FLOAT, false, stride, 8);
     gl.enableVertexAttribArray(status); gl.vertexAttribPointer(status, 1, gl.FLOAT, false, stride, 16);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.program, 'u_matrix'), false,
-      options.modelViewProjectionMatrix as unknown as Float32Array);
+    gl.uniformMatrix4fv(gl.getUniformLocation(this.program, 'u_matrix'), false, matrix);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_progress'), progress);
-    gl.uniform1f(gl.getUniformLocation(this.program, 'u_size'), 7 * Math.min(2, window.devicePixelRatio || 1));
+    gl.uniform1f(gl.getUniformLocation(this.program, 'u_size'), GUEST_DOT_DIAMETER_CSS_PX * Math.min(2, window.devicePixelRatio || 1));
+    const opacity = Math.min(1, (performance.now() - this.revealAt) / 300);
+    gl.uniform1f(gl.getUniformLocation(this.program, 'u_opacity'), opacity);
     gl.drawArrays(gl.POINTS, 0, this.count);
-    if (progress < 1) this.map?.triggerRepaint();
+    if (progress < 1 || opacity < 1) this.map?.triggerRepaint();
   }
 
   onRemove(_map: maplibregl.Map, gl: WebGLRenderingContext | WebGL2RenderingContext): void {

@@ -2,7 +2,8 @@ import { snowSlopeRetention } from './snow';
 import type { SnowGrid } from './types/snow';
 import type { TerrainRecord } from './types/terrain';
 import type { ResolvedWeatherHour, TerrainThermalModel, TerrainWeatherField } from './weather/weatherModel';
-import { createTerrainThermalModel, terrainWeatherFieldForHour } from './weather/terrainThermal';
+import { createTerrainThermalModel, terrainWeatherFieldForHour, wetBulbAt } from './weather/terrainThermal';
+import { precipitationTypeFor } from './weather/weatherModel';
 
 export const SNOW_MODEL_VERSION = 1 as const;
 export const DEFAULT_SNOW_MODEL_CONFIG = {
@@ -109,4 +110,46 @@ export function stepNaturalSnow(
   let changedCells = 0;
   for (const hour of hours) changedCells += stepHour(depthM, surface, next, terrain, thermal, hour);
   return { grid: next, changedCells, hoursApplied: hours.length };
+}
+
+/** Persistent worker cache. Snow-only stepping avoids allocating unused humidity/phase fields. */
+export function createNaturalSnowStepper(terrain: TerrainRecord, grid: SnowGrid) {
+  const thermal = createTerrainThermalModel(terrain);
+  const retention = new Float32Array(grid.depthM.length);
+  const thermalIndex = new Uint32Array(grid.depthM.length);
+  for (let row = 0; row < grid.height; row++) for (let col = 0; col < grid.width; col++) {
+    const i = row * grid.width + col;
+    retention[i] = slopeRetention(terrain, grid.width, grid.height, col, row);
+    thermalIndex[i] = Math.round(row / Math.max(1, grid.height - 1) * (thermal.height - 1)) * thermal.width
+      + Math.round(col / Math.max(1, grid.width - 1) * (thermal.width - 1));
+  }
+  return function* step(source: SnowGrid, hour: ResolvedWeatherHour, exposure: Float64Array): Generator<void, SnowGrid> {
+    const next = { ...source, depthM: source.depthM.slice(), surface: source.surface.slice() };
+    const c = DEFAULT_SNOW_MODEL_CONFIG, humidity = Math.max(1, Math.min(100, hour.humidityPct));
+    const inversion = hour.cloudCoverPct < 35 && hour.windSpeedKph < 12 ? 1.5 : 0;
+    const wind = Math.max(0.55, 1 - Math.max(0, hour.windSpeedKph - 20) / 140);
+    for (let i = 0; i < next.depthM.length; i++) {
+      const t = thermalIndex[i];
+      const temperature = Math.fround(hour.temperatureC + thermal.elevationDeltaM[t] / 1000 * -6.5 - thermal.coldAirDrainage[t] * inversion);
+      let ratio = 0;
+      if (hour.precipitationMm > 0) {
+        const wetBulb = wetBulbAt(temperature, humidity);
+        const phase = precipitationTypeFor(temperature, wetBulb, hour.precipitationMm);
+        if (phase === 'snow' || phase === 'mixed') ratio = Math.fround(Math.max(8, Math.min(18, 8 + -wetBulb * 0.8)) * (phase === 'mixed' ? 0.5 : 1));
+      }
+      const accumulation = ratio > 0 ? hour.precipitationMm * ratio / 1000 * retention[i] * wind : 0;
+      const rain = ratio === 0 ? hour.precipitationMm * c.rainMeltMPerMm : 0;
+      let depth = Math.max(0, Math.min(c.maxDepthM, source.depthM[i] * c.hourlyCompaction + accumulation - rain
+        - Math.max(0, temperature) * c.positiveDegreeMeltMPerC - Math.max(0, hour.globalRadiationWm2) * c.radiationMeltMPerWm2));
+      let surface = source.surface[i];
+      if (depth < c.visibleDepthM) { depth = 0; surface = 0; }
+      else if (accumulation >= 0.005) { surface = temperature > -0.5 ? 11 : 1; exposure[i] = 0; }
+      else if (temperature > 1 || rain > 0) surface = 10;
+      else if (temperature < -2 && (surface === 10 || surface === 11)) surface = 5;
+      else if (surface === 1 && accumulation === 0) surface = 2;
+      next.depthM[i] = depth; next.surface[i] = surface;
+      if ((i & 2047) === 2047) yield;
+    }
+    return next;
+  };
 }

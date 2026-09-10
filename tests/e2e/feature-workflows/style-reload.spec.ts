@@ -209,13 +209,15 @@ test('a click where a lift crosses a run picks the lift, and the run alone picks
     .toBe('pointer');
 
   await page.mouse.click(liftHitPoint.x, liftHitPoint.y);
-  await expect(page.locator('.dock-lifts')).toBeVisible();
-  await expect(page.getByText('Crossing Double')).toBeVisible();
+  const liftDock = page.locator('.dock-lifts');
+  await expect(liftDock).toBeVisible();
+  await expect(liftDock.getByText('Crossing Double', { exact: true })).toBeVisible();
   await expect(page.locator('.dock-trails')).toHaveCount(0);
 
   const runOnly = await pointAt(page, RUN_ONLY);
   await page.mouse.click(runOnly.x, runOnly.y);
-  await expect(page.locator('.dock-trails')).toBeVisible();
-  await expect(page.getByText('Crossed Run')).toBeVisible();
+  const trailDock = page.locator('.dock-trails');
+  await expect(trailDock).toBeVisible();
+  await expect(trailDock.getByText('Crossed Run', { exact: true })).toBeVisible();
   await expect(page.locator('.dock-lifts')).toHaveCount(0);
 });

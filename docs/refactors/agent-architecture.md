@@ -186,6 +186,14 @@ projection rather than four render-timed React refs.
 
 ## Open decisions and blockers
 
+### Dual-clock working-tree delivery
+
+Base commit: `9988f4f774de92103c497788a69cf777c147d4a3`. The implementation is uncommitted; this SHA identifies the baseline, not the new code. No immutable implementation SHA is available until a commit is made.
+
+The paired-clock worker, aggregate cohorts, traffic wear, lateral corridors, player controls, precise schema-17 checkpoint and isolated legacy path are implemented. Characterization tests preceded the shared facility/surface extraction and renderer changes. Required `npm.cmd run check` gates passed during integration, including both builds, architecture/lint/type checks and the deterministic unit suites. The dedicated dual-clock browser workflow covers new saves and the legacy schema-16 write path. See the [implementation and verification record](../dual-clock-implementation.md) for exact scope and remaining release limits.
+
+Pinned fixture benchmarks passed: three-winter retained-state soak; 3,000-guest hardware renderer at about 60 FPS; hardware browser-worker cold/warm weeks at 2.31/1.74 seconds and winter at 40.92 seconds. The software-renderer diagnostic missed the cold-week target. Full Electron/integrated-resort certification and the broader browser suite remain outstanding; these fixture results do not establish those gates.
+
 - The B3 backup prerequisite is satisfied by `refs/heads/legacy/v0.1` at `3f5eb2378342053906719c75650d785ea2249241`; creating or pushing a remote tag still requires separate user authorization.
 - Repository settings must make the pull-request workflow required; a workflow file alone cannot enforce the branch rule.
 - Live USGS, WorldCover, Overpass, GPU, and Electron release checks remain opt-in where the environment cannot supply their external prerequisites.

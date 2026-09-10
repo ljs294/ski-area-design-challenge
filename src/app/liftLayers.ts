@@ -1,5 +1,6 @@
 import type maplibregl from 'maplibre-gl';
 import type { SavedLift } from '../types';
+import { haversineMeters } from '../geo';
 import { formatLiftLabel } from '../lifts';
 
 // Lift rendering: every lift is a red line under a white casing (classic
@@ -9,6 +10,7 @@ import { formatLiftLabel } from '../lifts';
 
 export const LIFT_SOURCE = 'lifts';
 export const LIFT_DRAFT_SOURCE = 'lift-draft';
+export const LIFT_LABEL_SOURCE = 'lift-labels';
 
 // The built (persisted) lift layers, for a show/hide toggle. Excludes
 // 'lift-line-draft', which is the transient line drawn while placing a lift.
@@ -17,6 +19,7 @@ export const LIFT_BUILT_LAYER_IDS = [
   'lift-line-hit',
   'lift-line-complete',
   'lift-line-planning',
+  'lift-hover',
   'lift-terminals',
   'lift-labels',
 ];
@@ -90,12 +93,68 @@ export function liftsToGeoJSON(
   return { type: 'FeatureCollection', features };
 }
 
+/** Return the point reached at a distance halfway along a geographic line. */
+export function liftLineMidpoint(
+  points: readonly [number, number][],
+): [number, number] | null {
+  if (!points.length) return null;
+  if (points.length === 1) return points[0];
+  const lengths = points.slice(1).map((point, index) =>
+    haversineMeters(points[index], point));
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  if (!(total > 0)) return points[0];
+  const halfway = total / 2;
+  let traveled = 0;
+  for (let index = 0; index < lengths.length; index += 1) {
+    const length = lengths[index];
+    if (traveled + length >= halfway) {
+      const ratio = length > 0 ? (halfway - traveled) / length : 0;
+      return [
+        points[index][0] + (points[index + 1][0] - points[index][0]) * ratio,
+        points[index][1] + (points[index + 1][1] - points[index][1]) * ratio,
+      ];
+    }
+    traveled += length;
+  }
+  return points.at(-1) ?? null;
+}
+
+/** One point feature per lift keeps labels independent from the line source.
+ * The line source deliberately remains three features per lift (one line and
+ * two terminals) for existing hit and geometry consumers. */
+export function liftLabelsToGeoJSON(
+  lifts: readonly SavedLift[],
+): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: lifts.flatMap((lift) => {
+      const point = liftLineMidpoint(lift.points);
+      if (!point) return [];
+      return [{
+        type: 'Feature' as const,
+        id: `lift:${lift.id}:label`,
+        properties: {
+          id: lift.id,
+          name: lift.name,
+          identifier: lift.identifier ?? '',
+          label: formatLiftLabel(lift),
+          kind: 'label',
+          draft: false,
+          status: lift.status,
+        },
+        geometry: { type: 'Point' as const, coordinates: point },
+      }];
+    }),
+  };
+}
+
 /** Adds the lift source + layers on top of the current style. Idempotent. */
 export function addLiftLayers(map: maplibregl.Map): void {
   if (map.getSource(LIFT_SOURCE)) return;
 
   map.addSource(LIFT_SOURCE, { type: 'geojson', data: EMPTY });
   map.addSource(LIFT_DRAFT_SOURCE, { type: 'geojson', data: EMPTY });
+  map.addSource(LIFT_LABEL_SOURCE, { type: 'geojson', data: EMPTY });
   // White casing under every built line for contrast on any basemap.
   map.addLayer({
     id: 'lift-line-casing',
@@ -145,6 +204,17 @@ export function addLiftLayers(map: maplibregl.Map): void {
       'line-dasharray': [2, 1.5],
     },
   });
+  // Transient hover: a thicker red line filtered to the lift under the pointer.
+  map.addLayer({
+    id: 'lift-hover',
+    type: 'line',
+    source: LIFT_SOURCE,
+    minzoom: 12,
+    filter: ['all', ['==', ['get', 'kind'], 'line'],
+      ['==', ['get', 'draft'], false], ['==', ['get', 'id'], '']],
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-color': LIFT_RED, 'line-width': 3, 'line-opacity': 0.65 },
+  });
   // In-progress draft while placing the second terminal.
   map.addLayer({
     id: 'lift-line-draft',
@@ -186,10 +256,10 @@ export function addLiftLayers(map: maplibregl.Map): void {
   map.addLayer({
     id: 'lift-labels',
     type: 'symbol',
-    source: LIFT_SOURCE,
-    filter: ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], false]],
+    source: LIFT_LABEL_SOURCE,
+    filter: ['==', ['get', 'kind'], 'label'],
     layout: {
-      'symbol-placement': 'line-center',
+      'symbol-placement': 'point',
       'text-field': ['get', 'label'],
       'text-size': 20,
       // Noto Sans Bold 404s on the dark (Carto) basemap — Regular is the only
@@ -210,6 +280,24 @@ export function setLiftData(map: maplibregl.Map, fc: GeoJSON.FeatureCollection):
   const src = map.getSource(LIFT_SOURCE) as maplibregl.GeoJSONSource | undefined;
   if (!src) return;
   src.setData(fc);
+}
+
+export function setLiftLabelData(
+  map: maplibregl.Map,
+  fc: GeoJSON.FeatureCollection,
+): void {
+  const source = map.getSource(LIFT_LABEL_SOURCE) as maplibregl.GeoJSONSource | undefined;
+  source?.setData(fc);
+}
+
+function liftIdentityFilter(id: string | null): maplibregl.FilterSpecification {
+  return ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], false],
+    ['==', ['get', 'id'], id ?? '']];
+}
+
+/** Display one transient highlight for the lift currently under the pointer. */
+export function setLiftHover(map: maplibregl.Map, hoveredId: string | null): void {
+  if (map.getLayer('lift-hover')) map.setFilter('lift-hover', liftIdentityFilter(hoveredId));
 }
 
 export function setLiftDraftData(map: maplibregl.Map, draft: DraftLine | null): void {

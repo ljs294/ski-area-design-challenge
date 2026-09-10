@@ -36,6 +36,7 @@ export type {
   TerrainRecord, TerrainSummary,
 } from './types/terrain';
 export type { SavedJunction, SavedNode, SavedPath, SavedTrailSegment } from './types/topology';
+export type { AggregateFlowSnapshot, LiftFlowSnapshot, SnowAddResult } from './types/dualClock';
 export type {
   SavedTrail, SavedTrailPart, TrailDifficulty, TrailStatus,
 } from './types/trails';

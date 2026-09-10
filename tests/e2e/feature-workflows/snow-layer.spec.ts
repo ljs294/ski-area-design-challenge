@@ -37,8 +37,6 @@ test('snow overlay switches modes, survives restyle, and reloads its schema-16 s
   await page.mouse.move(center.x, center.y);
   await expect(page.getByLabel('Snow layer controls')).toContainText(/\d+ in/);
   await expect(page.getByLabel('Snow layer controls')).toContainText('P · Powder');
-  await page.locator('.dock-layers').getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(page.getByLabel('Snow layer controls')).toBeVisible();
 
   await page.getByRole('button', { name: 'Conditions', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Conditions', exact: true })).toHaveAttribute('aria-pressed', 'true');

@@ -6,6 +6,8 @@ import { createTerrainThermalModel, temperatureFieldForHour } from '../weather/t
 import type { Units } from './SettingsContext';
 import type { GameSimulationController } from './useGameSimulation';
 import { normalizeSimulationSpeed } from '../../time-engine/src/timeEngine';
+import { DUAL_SPEEDS } from '../dualClock/model';
+import { DualClockMenu } from './DualClockControls';
 import { formatLiquidPrecipitation, formatLiquidPrecipitationRate, formatSnowfall,
   formatTemperature, formatWindSpeed } from './unitFormat';
 
@@ -193,7 +195,7 @@ export function GameToolbar({
   const planning = weather.clock.season === 'summer';
   const activeSpeed = normalizeSimulationSpeed(weather.clock.speed);
   const activeSpeedIndex = SIMULATION_SPEEDS.indexOf(activeSpeed);
-  const playTitle = planning ? 'Complete planning and skip to September 1' : playing ? 'Pause game clock' : 'Play game clock';
+  const playTitle = planning ? weather.dual ? 'Skip to Winter' : 'Complete planning and skip to September 1' : playing ? 'Pause game clock' : 'Play game clock';
 
   return <>
     <div className="game-toolbar">
@@ -201,21 +203,28 @@ export function GameToolbar({
       <div className="tb-group">
         <button
           className="tb-play"
-          onClick={planning ? () => setPlanningConfirmationOpen(true) : weather.togglePlayback}
+          onClick={planning ? () => { if (weather.dual) void weather.dual.advance('winter'); else setPlanningConfirmationOpen(true); } : weather.togglePlayback}
           aria-pressed={playing}
           disabled={weather.status === 'loading' || weather.status === 'working'}
           aria-label={playTitle} title={playTitle}
         >{playing ? 'Ⅱ' : '▶'}</button>
       </div>
       <div className="tb-group">
-        <div className="tb-clock" title={weather.message}>
+        {weather.dual ? <DualClockMenu controls={weather.dual}>
+          <span className="tb-day">{planning ? 'Summer planning' : 'Mountain time'}</span>
+          <span className="tb-time">{formatGameTime(weather.clock.calendarDate, weather.clock.timezone)}</span>
+        </DualClockMenu> : <div className="tb-clock" title={weather.message}>
           <span className="tb-day">{planning ? `Summer planning ${weather.clock.summerPeriod ?? 1}` : `Winter week ${weather.clock.winterWeek ?? 1}`}</span>
           <span className="tb-time">{formatGameTime(weather.clock.calendarDate, weather.clock.timezone)}</span>
-        </div>
+        </div>}
       </div>
       <div className="tb-group">
         <div className="tb-speeds" role="group" aria-label="Weather simulation speed">
-          {SIMULATION_SPEEDS.map((speed, index) => <button
+          {weather.dual ? DUAL_SPEEDS.map((speed, index) => <button key={speed}
+            className={`tb-speed${index <= DUAL_SPEEDS.indexOf(weather.dual?.publication?.clock.speed ?? 1) ? ' is-active' : ''}`}
+            onClick={() => weather.dual?.setSpeed(speed)} aria-label={`${speed}× simulation speed`}
+            aria-pressed={weather.dual?.publication?.clock.speed === speed} disabled={!ready || planning}
+            title={`${speed}× simulation speed`}><span className="tb-drawn-arrow" aria-hidden="true" /></button>) : SIMULATION_SPEEDS.map((speed, index) => <button
             key={speed}
             className={`tb-speed${index <= activeSpeedIndex ? ' is-active' : ''}`}
             onClick={() => weather.setSpeed(speed)}
