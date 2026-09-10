@@ -1,12 +1,21 @@
 import { expect, openMenu, test } from '../support/deterministicApp';
 
-test('bundled menu covers a full orbit with providers blocked', async ({ page }, info) => {
+for (const viewport of [{ width: 800, height: 600 }, { width: 1440, height: 900 }]) {
+test(`bundled menu covers a full orbit with providers blocked at ${viewport.width}px`, async ({ page }, info) => {
   test.setTimeout(180000);
-  await page.setViewportSize({ width: 800, height: 600 });
+  await page.setViewportSize(viewport);
+  await page.addInitScript(() => localStorage.setItem('skiapp:settings', JSON.stringify({
+    renderQuality: 'high', reducedMotion: true,
+  })));
   const errors: string[] = [];
   page.on('console', (event) => { if (event.type() === 'error') errors.push(event.text()); });
   await openMenu(page);
   await expect(page.locator('.menu-backdrop-map')).toHaveAttribute('data-ready', 'true', { timeout: 30000 });
+  // Inspect the full scene at native resolution on the software GPU. The
+  // renderProfile tests separately cover backing-resolution quality policy.
+  await page.evaluate(() => {
+    (window as unknown as { menuMap: import('maplibre-gl').Map }).menuMap.setPixelRatio(1);
+  });
   await expect(page.locator('.trail-timber-post')).toHaveCount(2);
   for (const post of await page.locator('.trail-timber-post').all()) {
     const bounds = await post.boundingBox();
@@ -24,6 +33,10 @@ test('bundled menu covers a full orbit with providers blocked', async ({ page },
       return map.areTilesLoaded();
     }), { timeout: 30000 }).toBe(true);
     await expect(page.locator('.menu-backdrop-map')).toHaveAttribute('data-ready', 'true');
+    expect(await page.evaluate(() => {
+      const map = (window as unknown as { menuMap: import('maplibre-gl').Map }).menuMap;
+      return map.getPaintProperty('menu-hillshade', 'hillshade-illumination-anchor');
+    })).toBe('map');
     await page.screenshot({ path: info.outputPath(`orbit-${bearing}.png`) });
   }
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -32,6 +45,7 @@ test('bundled menu covers a full orbit with providers blocked', async ({ page },
   expect(new Set(radii)).toEqual(new Set(['2px']));
   expect(errors).toEqual([]);
 });
+}
 
 test('missing background asset retains a usable fallback', async ({ page }) => {
   await page.route('**/menu-background/manifest.json', (route) => route.fulfill({ status: 404, body: 'missing' }));

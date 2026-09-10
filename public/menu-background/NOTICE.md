@@ -14,4 +14,6 @@ The bundled TERRAIN-SOURCES.md reproduces the upstream attribution notice.
 
 The manifest lists every tile's SHA-256 checksum. Regenerate with `npm run prepare:menu-background`.
 
-The displayed cover tiles additionally use a two-pixel blur with neighboring-tile gutters to soften classification edges. Raw recolored tiles remain available for reproducible regeneration with `npm run smooth:menu-background`. Elevation data is not blurred.
+The displayed cover tiles depict a fixed decorative alpine morning. A two-pixel blur with neighboring-tile gutters softens the input classification edges. The offline material bake then adds evergreen and rock color variation using deterministic global Web Mercator coordinates, plus ivory snow based on elevation and slope. Snow is artistic, not observed snow cover or gameplay weather. Steep slopes retain exposed rock and water retains its own color. Fine texture fades out in coarse overview tiles. Missing neighbors at the package boundary extend the edge pixel; X coordinates wrap at the world boundary.
+
+Preserved recolored cover and original terrain tiles remain available for reproducible, offline regeneration with `npm run smooth:menu-background`. Elevation data is never blurred or modified. `manifest.json` records the bake version and updated SHA-256 checksums for the derived `smooth-cover` tiles.
