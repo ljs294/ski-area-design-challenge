@@ -11,6 +11,7 @@ import { formatLiftLabel } from '../lifts';
 export const LIFT_SOURCE = 'lifts';
 export const LIFT_DRAFT_SOURCE = 'lift-draft';
 export const LIFT_LABEL_SOURCE = 'lift-labels';
+export const LIFT_RED = '#d42027';
 
 // The built (persisted) lift layers, for a show/hide toggle. Excludes
 // 'lift-line-draft', which is the transient line drawn while placing a lift.
@@ -25,7 +26,6 @@ export const LIFT_BUILT_LAYER_IDS = [
 ];
 
 // Classic ski-map lift red (matches the capacity emblems at the base).
-const LIFT_RED = '#d42027';
 export const LIFT_LINE_CASING_WIDTH_PX = 3;
 export const LIFT_LINE_WIDTH_PX = 1.5;
 export const LIFT_DRAFT_LINE_WIDTH_PX = 1.25;
@@ -119,11 +119,63 @@ export function liftLineMidpoint(
   return points.at(-1) ?? null;
 }
 
+function mercatorY(latitude: number): number {
+  const clamped = Math.max(-85.051129, Math.min(85.051129, latitude));
+  const radians = clamped * Math.PI / 180;
+  return 0.5 - Math.log((1 + Math.sin(radians)) / (1 - Math.sin(radians))) / (4 * Math.PI);
+}
+
+/** Return the clockwise-from-east angle in the map's downward Mercator plane. */
+export function localMercatorSegmentAngle(
+  from: [number, number],
+  to: [number, number],
+): number {
+  let deltaX = (to[0] - from[0]) / 360;
+  if (deltaX > 0.5) deltaX -= 1;
+  if (deltaX < -0.5) deltaX += 1;
+  const deltaY = mercatorY(to[1]) - mercatorY(from[1]);
+  if (Math.abs(deltaX) < 1e-12 && Math.abs(deltaY) < 1e-12) return 0;
+  return Math.atan2(deltaY, deltaX) * 180 / Math.PI;
+}
+
+function normalizeDegrees(value: number): number {
+  return ((value + 180) % 360 + 360) % 360 - 180;
+}
+
+function normalizeRotation(value: number): number {
+  return ((value % 360) + 360) % 360;
+}
+
+/** Keep a point label readable as the map bearing changes. */
+export function liftLabelRotation(
+  points: readonly [number, number][],
+  mapBearing = 0,
+): number {
+  if (points.length < 2) return 0;
+  const lengths = points.slice(1).map((point, index) =>
+    haversineMeters(points[index], point));
+  const total = lengths.reduce((sum, length) => sum + length, 0);
+  if (!(total > 0)) return 0;
+  const halfway = total / 2;
+  let traveled = 0;
+  for (let index = 0; index < lengths.length; index += 1) {
+    const length = lengths[index];
+    if (traveled + length >= halfway && length > 0) {
+      const angle = localMercatorSegmentAngle(points[index], points[index + 1]);
+      const relative = normalizeDegrees(angle - mapBearing);
+      return normalizeRotation(relative > 90 || relative < -90 ? angle + 180 : angle);
+    }
+    traveled += length;
+  }
+  return 0;
+}
+
 /** One point feature per lift keeps labels independent from the line source.
  * The line source deliberately remains three features per lift (one line and
  * two terminals) for existing hit and geometry consumers. */
 export function liftLabelsToGeoJSON(
   lifts: readonly SavedLift[],
+  mapBearing = 0,
 ): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -138,6 +190,7 @@ export function liftLabelsToGeoJSON(
           name: lift.name,
           identifier: lift.identifier ?? '',
           label: formatLiftLabel(lift),
+          angle: liftLabelRotation(lift.points, mapBearing),
           kind: 'label',
           draft: false,
           status: lift.status,
@@ -265,6 +318,9 @@ export function addLiftLayers(map: maplibregl.Map): void {
       // Noto Sans Bold 404s on the dark (Carto) basemap — Regular is the only
       // weight both fontstacks ship, so labels stay visible after a theme swap.
       'text-font': ['Noto Sans Regular'],
+      'text-rotate': ['get', 'angle'],
+      'text-rotation-alignment': 'map',
+      'text-pitch-alignment': 'map',
       'text-optional': true,
     },
     paint: {

@@ -3,8 +3,10 @@ import type { SavedLift } from '../types/lifts';
 import { formatLiftLabel } from '../lifts';
 import {
   addLiftLayers,
+  liftLabelRotation,
   liftLabelsToGeoJSON,
   liftLineMidpoint,
+  localMercatorSegmentAngle,
   LIFT_DRAFT_SOURCE,
   LIFT_LABEL_SOURCE,
   liftsToGeoJSON,
@@ -79,6 +81,22 @@ describe('lift map labels', () => {
     expect(midpoint?.[0]).toBeCloseTo(0.0055, 5);
     expect(midpoint?.[1]).toBe(0);
   });
+
+  it('uses local Mercator segment angles and flips reversed labels upright', () => {
+    expect(localMercatorSegmentAngle([0, 0], [0.01, 0])).toBeCloseTo(0, 6);
+    expect(localMercatorSegmentAngle([0, 0], [0, 0.01])).toBeCloseTo(-90, 6);
+    expect(localMercatorSegmentAngle([0, 0], [0.01, 0.01])).toBeCloseTo(-45, 4);
+    expect(liftLabelRotation([[0, 0], [0.01, 0]], 0)).toBeCloseTo(0, 6);
+    expect(liftLabelRotation([[0.01, 0], [0, 0]], 0)).toBeCloseTo(0, 6);
+  });
+
+  it('uses the segment containing the midpoint on a bent lift', () => {
+    const points: [number, number][] = [[0, 0], [0.01, 0], [0.011, 0.01]];
+    expect(liftLabelRotation(points)).toBeCloseTo(
+      (localMercatorSegmentAngle(points[1], points[2]) + 360) % 360, 4);
+    expect(liftLabelRotation(points, 180)).toBeCloseTo(
+      (localMercatorSegmentAngle(points[1], points[2]) + 180) % 360, 4);
+  });
 });
 
 describe('lift layer styling', () => {
@@ -124,6 +142,12 @@ describe('lift layer styling', () => {
     expect(layer('lift-labels').source).toBe(LIFT_LABEL_SOURCE);
     expect(layer('lift-labels').layout?.['symbol-placement']).toBe('point');
     expect(layer('lift-labels').layout?.['text-field']).toEqual(['get', 'label']);
+    expect(layer('lift-labels').layout?.['text-rotate']).toEqual(['get', 'angle']);
+    expect(layer('lift-labels').layout?.['text-rotation-alignment']).toBe('map');
+    expect(layer('lift-labels').layout?.['text-pitch-alignment']).toBe('map');
+    expect(layer('lift-labels').paint).toMatchObject({
+      'text-color': '#d42027', 'text-halo-color': '#ffffff', 'text-halo-width': 2,
+    });
   });
 
   it('filters the transient hover to one lift identity and clears it', () => {

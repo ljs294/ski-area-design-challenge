@@ -95,6 +95,14 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
   const hoveredLiftIdRef = useRef<string | null>(null);
   const captureHiddenRef = useRef(false);
   const cancelRef = useRef<() => void>(() => {});
+  const labelRotationMapRef = useRef<maplibregl.Map | null>(null);
+  const syncLiftLabels = (map: maplibregl.Map): void => {
+    setLiftLabelData(map, liftLabelsToGeoJSON(liftsRef.current, map.getBearing()));
+  };
+  const onMapRotateRef = useRef<() => void>(() => {
+    const map = labelRotationMapRef.current;
+    if (map) syncLiftLabels(map);
+  });
   stateRef.current = state;
   liftsRef.current = options.lifts;
   optionsRef.current = options;
@@ -134,10 +142,17 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
           if (map) setLiftHover(map, valid);
         },
       }],
-      install: ({ map }) => addLiftLayers(map),
+      install: ({ map }) => {
+        addLiftLayers(map);
+        if (labelRotationMapRef.current !== map) {
+          labelRotationMapRef.current?.off('rotate', onMapRotateRef.current);
+          labelRotationMapRef.current = map;
+          map.on('rotate', onMapRotateRef.current);
+        }
+      },
       synchronizeData: ({ map }) => {
         setLiftData(map, liftsToGeoJSON(liftsRef.current, null));
-        setLiftLabelData(map, liftLabelsToGeoJSON(liftsRef.current));
+        syncLiftLabels(map);
         setLiftDraftData(map, draftLineOf(stateRef.current));
         if (hoveredLiftIdRef.current &&
           !liftsRef.current.some((lift) => lift.id === hoveredLiftIdRef.current)) {
@@ -165,7 +180,10 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
         else restoreLiftHover(map);
         setLiftDraftData(map, hidden ? null : draftLineOf(stateRef.current));
       },
-      cleanup: () => {},
+      cleanup: ({ map }) => {
+        map.off('rotate', onMapRotateRef.current);
+        if (labelRotationMapRef.current === map) labelRotationMapRef.current = null;
+      },
     };
   }
 
@@ -332,6 +350,11 @@ export function useLiftController(options: LiftControllerOptions): LiftControlle
   function dispose(): void {
     sampleTokenRef.current += 1;
     cancelLiveSamples();
+    const map = labelRotationMapRef.current;
+    if (map) {
+      map.off('rotate', onMapRotateRef.current);
+      labelRotationMapRef.current = null;
+    }
     optionsRef.current.release();
   }
 
