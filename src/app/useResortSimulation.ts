@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import type { GameSave } from '../types/gameSave';
+import type { GameSave, SavedWeatherRun } from '../types/gameSave';
 import type { DualPublication, ResortSimulationInput } from '../dualClock/model';
+import type { SimulationClock, TimeEngineSnapshot } from '../types/simulation';
 import { createDualClock, projectDualClock } from '../dualClock/clock';
 import { resolveWeatherHour } from '../weather/weatherSession';
 import { generateBareSnowGrid } from '../snow';
@@ -12,6 +13,18 @@ import { useDualClockRuntime } from './useDualClockRuntime';
 
 const EMPTY_RESORT: ResortSimulationInput = { revision: 0, edges: [], trails: [], portal: null,
   dailyDemand: 900, ticketPriceCents: 10000, amenities: [] };
+
+/** Compose a schema-17 read model without asking the legacy clock to validate dual elapsed time. */
+export function dualSimulationSnapshot(
+  clock: SimulationClock,
+  snapshotWeatherRun: (at: string) => SavedWeatherRun | undefined,
+): { time: TimeEngineSnapshot; weatherRun?: SavedWeatherRun } {
+  const weatherRun = snapshotWeatherRun(clock.calendarDate);
+  return {
+    time: { schemaVersion: 3, configVersion: 1, clock },
+    ...(weatherRun ? { weatherRun } : {}),
+  };
+}
 
 /** One orchestration owner for new games; the old hook only supplies weather services. */
 export function useResortSimulation(options: Parameters<typeof useGameSimulation>[0] & { initialSave?: GameSave | null }): GameSimulationController {
@@ -53,6 +66,6 @@ export function useResortSimulation(options: Parameters<typeof useGameSimulation
     togglePlayback: dual.togglePlayback, pause: dual.pause,
     addSnow: dual.addSnow,
     advancePlanningPeriod: () => dual.advance('winter'), confirmTransition: () => dual.advance('winter'),
-    snapshot: () => ({ ...legacy.snapshot(), time: { schemaVersion: 3, configVersion: 1, clock } }),
+    snapshot: () => dualSimulationSnapshot(clock, legacy.snapshotWeatherRun),
   };
 }

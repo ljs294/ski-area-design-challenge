@@ -48,6 +48,29 @@ describe('guest checkpoint save barrier', () => {
     expect(mockedSaveGame).not.toHaveBeenCalled();
   });
 
+  it('persists a cumulative winter checkpoint beyond the legacy clock limit', async () => {
+    const fixture = dualFixture();
+    fixture.resort = { ...fixture.resort, edges: [], trails: [], portal: null, revision: resortRevision([], []) };
+    const checkpoint = new DualClockEngine(fixture).checkpoint();
+    checkpoint.clock.macroSecond = 16_016_490 as typeof checkpoint.clock.macroSecond;
+    checkpoint.clock.microSecond = 400_412.25 as typeof checkpoint.clock.microSecond;
+    checkpoint.clock.at = '2026-11-02T13:01:30.000Z';
+    checkpoint.snow!.depthM[0] = Math.fround(0.123456);
+    const save = { ...game(), schemaVersion: 17 as const, weatherRun: {
+      packageContentHash: 'weather', terrainBinding: 'terrain', seed: 'seed', generatorVersion: 2,
+      configurationVersion: 2, localStartAt: '2026-05-01T04:00:00.000Z', cursorHour: 0,
+    } };
+    const guestRuntime = { ...runtime(vi.fn()), dualCheckpoint: vi.fn(async () => checkpoint) };
+
+    expect(await saveGameWithGuestCheckpoint(save, guestRuntime)).toMatchObject({ ok: true });
+    expect(save.time?.clock.elapsedSimSecond).toBe(16_016_490);
+    expect(save.time?.clock.calendarDate).toBe(checkpoint.clock.at);
+    expect(save.weatherRun.cursorHour).toBe(Math.floor((Date.parse(checkpoint.clock.at)
+      - Date.parse(save.weatherRun.localStartAt)) / 3_600_000));
+    expect(save.dualClock?.snow?.depthM[0]).toBe(Math.fround(0.123456));
+    expect(mockedSaveGame).toHaveBeenCalledWith(save);
+  });
+
   it('passes the saved clock second to the sidecar barrier before writing GameSave', async () => {
     const persistBarrier = vi.fn(async (_key: string, _revision: string, expected?: number) => ({
       ok: true as const, committedSecond: expected ?? -1,

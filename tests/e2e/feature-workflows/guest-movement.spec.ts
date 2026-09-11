@@ -11,13 +11,15 @@ import type { DualCheckpoint, TrailQueueState } from '../../../src/types/dualClo
 import { weatherTerrainBinding } from '../../../src/weather/terrainBinding';
 import type { SavedLift } from '../../../src/types/lifts';
 import type { SavedTrail } from '../../../src/types/trails';
+import { GUEST_GPU_BYTES_PER_GUEST } from '../../../src/app/guestGpuLayer';
 import { mkdirSync } from 'node:fs';
 
 type MotionPoint = { id: string; lng: number; lat: number; status: string;
   motion?: { routeId: string; lane: number; progress: number; duration: number } };
 type RouteProbe = { id: string; lanes: [number, number][][]; distances: number[]; length: number };
 type GpuProbe = { count: number; hitCount: number; statusCodes: number[]; motion: MotionPoint[];
-  routes: RouteProbe[]; hit: { id: string; x: number; y: number } | null; dpr: number };
+  routes: RouteProbe[]; hit: { id: string; x: number; y: number } | null; dpr: number;
+  terrainElevation: number | null; alignmentErrorPx: number | null };
 
 /** A bent path long enough that the first three queue releases remain visible. */
 function curvedGuestFixture() {
@@ -124,11 +126,13 @@ async function putDualCheckpoint(page: Parameters<typeof seedPreparedResort>[0],
 }
 
 async function gpuProbe(page: Parameters<typeof seedPreparedResort>[0]): Promise<GpuProbe> {
-  return page.evaluate(() => {
+  return page.evaluate((floatsPerGuest) => {
     const empty: GpuProbe = { count: 0, hitCount: 0, statusCodes: [], motion: [], routes: [], hit: null,
-      dpr: window.devicePixelRatio || 1 };
+      dpr: window.devicePixelRatio || 1, terrainElevation: null, alignmentErrorPx: null };
     const map = (window as unknown as { appMap?: {
       getLayer(id: string): { implementation?: Record<string, unknown> } | undefined;
+      project(point: [number, number]): { x: number; y: number };
+      queryTerrainElevation(point: [number, number]): number | null;
       getSource?(id: string): { _data?: { geojson?: {
         type?: string; features?: { id?: string | number; properties?: Record<string, unknown>;
           geometry?: { type?: string; coordinates?: unknown[] } }[]
@@ -211,7 +215,7 @@ async function gpuProbe(page: Parameters<typeof seedPreparedResort>[0]): Promise
     const legacyIds = (layer.legacyGuestIds as readonly string[] | undefined) ?? [];
     const pending = layer.pending as Float32Array | undefined;
     const legacyPoints: MotionPoint[] = legacyIds.flatMap((id, index) => {
-      const offset = index * 5;
+      const offset = index * floatsPerGuest;
       if (!pending || pending.length < offset + 4) return [];
       const position = mercatorPosition(pending[offset + 2]!, pending[offset + 3]!);
       const status = statusById.get(id) ?? ({ 2: 'skiing', 3: 'lift-ride', 4: 'lift-queue', 6: 'walking' }[
@@ -230,9 +234,27 @@ async function gpuProbe(page: Parameters<typeof seedPreparedResort>[0]): Promise
       hit = found ? { id: found.id.startsWith('guest-')
         ? `representative-${Number(found.id.slice('guest-'.length))}` : found.id, x, y } : null;
     }
+    let alignmentErrorPx: number | null = null;
+    let terrainElevation: number | null = null;
+    const startedAt = Number(layer.startedAt ?? 0), durationMs = Number(layer.durationMs ?? 0);
+    const fraction = durationMs === 0 ? 1 : Math.min(1, (performance.now() - startedAt) / durationMs);
+    if (hitCount > 0 && pending && hitXs && hitYs) {
+      for (let guestIndex = 0; guestIndex < Number(layer.count ?? 0); guestIndex += 1) {
+        const offset = guestIndex * floatsPerGuest;
+        const x = pending[offset]! + (pending[offset + 2]! - pending[offset]!) * fraction;
+        const y = pending[offset + 1]! + (pending[offset + 3]! - pending[offset + 1]!) * fraction;
+        const position = mercatorPosition(x, y);
+        const expected = map.project(position);
+        terrainElevation ??= map.queryTerrainElevation(position);
+        for (let accepted = 0; accepted < hitCount; accepted += 1) {
+          const error = Math.hypot(hitXs[accepted]! - expected.x, hitYs[accepted]! - expected.y);
+          alignmentErrorPx = alignmentErrorPx === null ? error : Math.min(alignmentErrorPx, error);
+        }
+      }
+    }
     return { count: Number(layer.count ?? 0), hitCount, statusCodes: Array.from((layer.legacyStatusCodes as ArrayLike<number> | undefined) ?? []),
-      motion, routes, hit, dpr: window.devicePixelRatio || 1 };
-  });
+      motion, routes, hit, dpr: window.devicePixelRatio || 1, terrainElevation, alignmentErrorPx };
+  }, GUEST_GPU_BYTES_PER_GUEST / Float32Array.BYTES_PER_ELEMENT);
 }
 
 function representativeSamples(entries: WorkerProbeEntry[], ids: readonly string[]) {
@@ -318,4 +340,102 @@ test('curved trail guests cross the worker, route decoder and GPU with FIFO move
   expect(moving.dpr).toBeGreaterThan(0);
   mkdirSync('test-results/guest-movement', { recursive: true });
   await page.locator('.maplibregl-canvas').screenshot({ path: 'test-results/guest-movement/curved-centerline-9px-dots.png' });
+});
+
+test('guest dots and hit targets follow terrain through camera and fast-forward transitions', async ({ page }) => {
+  test.setTimeout(180_000);
+  const fixture = curvedGuestFixture();
+  await seedPreparedResort(page, { lifts: [fixture.lift], trails: [fixture.trail] });
+  await putDualCheckpoint(page, fixture.checkpoint, fixture.weather);
+  await page.reload({ waitUntil: 'load' });
+  await page.getByRole('button', { name: /^Continue / }).click();
+  await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.getByRole('button', { name: 'Play game clock', exact: true })).toBeVisible({ timeout: 20_000 });
+
+  await page.evaluate(async (center) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 256;
+    const context = canvas.getContext('2d')!;
+    // Terrarium RGB(131,232,0) encodes a constant 1,000 metre elevation.
+    context.fillStyle = 'rgb(131, 232, 0)'; context.fillRect(0, 0, 256, 256);
+    const map = (window as unknown as { appMap: {
+      addSource(id: string, source: unknown): void; setTerrain(value: unknown): void;
+      jumpTo(options: unknown): void; once(event: string, listener: () => void): void;
+    } }).appMap;
+    map.addSource('guest-test-dem', { type: 'raster-dem', tiles: [canvas.toDataURL()],
+      encoding: 'terrarium', tileSize: 256, maxzoom: 14 });
+    map.setTerrain({ source: 'guest-test-dem', exaggeration: 1 });
+    map.jumpTo({ center, zoom: 16.5, pitch: 0, bearing: 0 });
+    await new Promise<void>(resolve => map.once('idle', resolve));
+  }, fixture.centerline[1]);
+  const expectAligned = async () => {
+    await expect.poll(async () => (await gpuProbe(page)).terrainElevation ?? 0,
+      { timeout: 20_000 }).toBeGreaterThan(100);
+    await expect.poll(async () => (await gpuProbe(page)).alignmentErrorPx ?? 1_000,
+      { timeout: 20_000 }).toBeLessThanOrEqual(3);
+  };
+
+  await expect.poll(async () => (await gpuProbe(page)).hitCount, { timeout: 20_000 }).toBeGreaterThan(0);
+  await expectAligned();
+  await page.getByRole('button', { name: 'Play game clock', exact: true }).click();
+  await expect.poll(async () => (await gpuProbe(page)).motion.some(point => point.status === 'skiing'),
+    { timeout: 20_000 }).toBe(true);
+  await page.getByRole('button', { name: 'Pause game clock', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Play game clock', exact: true })).toBeVisible();
+  await expect.poll(async () => (await gpuProbe(page)).hitCount, { timeout: 20_000 }).toBeGreaterThan(0);
+  await expectAligned();
+
+  for (const camera of [{ pitch: 60, bearing: 25, zoom: 16 }, { pitch: 0, bearing: 0, zoom: 17 }]) {
+    await page.evaluate(({ center, view }) => {
+      (window as unknown as { appMap: { jumpTo(options: unknown): void } }).appMap
+        .jumpTo({ center, ...view });
+    }, { center: fixture.centerline[1], view: camera });
+    await expectAligned();
+  }
+
+  await page.getByRole('button', { name: '4× simulation speed', exact: true }).click();
+  await expect(page.getByRole('button', { name: '4× simulation speed', exact: true }))
+    .toHaveAttribute('aria-pressed', 'true');
+  await expectAligned();
+  for (const speed of [8, 16, 64] as const) {
+    await page.getByRole('button', { name: `${speed}× simulation speed`, exact: true }).click();
+    await expect(page.getByRole('button', { name: `${speed}× simulation speed`, exact: true }))
+      .toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(async () => (await gpuProbe(page)).count, { timeout: 15_000 }).toBe(0);
+  }
+
+  await page.getByRole('button', { name: '1× simulation speed', exact: true }).click();
+  await expect.poll(async () => (await gpuProbe(page)).hitCount, { timeout: 20_000 }).toBeGreaterThan(0);
+  await expectAligned();
+
+  await page.evaluate(() => {
+    const map = (window as unknown as { appMap: {
+      getStyle(): unknown; setStyle(style: unknown, options: unknown): void;
+      getSource(id: string): unknown; removeSource(id: string): void; setTerrain(value: unknown): void;
+    } }).appMap;
+    // Do not carry a data-URL raster DEM through MapLibre's full style clone;
+    // remove and remount the deterministic terrain around the reload instead.
+    map.setTerrain(null);
+    if (map.getSource('guest-test-dem')) map.removeSource('guest-test-dem');
+    map.setStyle(map.getStyle(), { diff: false });
+  });
+  await expect.poll(() => page.evaluate(() => (window as unknown as {
+    appMap: { isStyleLoaded(): boolean }
+  }).appMap.isStyleLoaded()), { timeout: 20_000 }).toBe(true);
+  await page.evaluate(() => {
+    const map = (window as unknown as { appMap: {
+      addSource(id: string, source: unknown): void; setTerrain(value: unknown): void;
+    } }).appMap;
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 256;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = 'rgb(131, 232, 0)'; context.fillRect(0, 0, 256, 256);
+    map.addSource('guest-test-dem', { type: 'raster-dem', tiles: [canvas.toDataURL()],
+      encoding: 'terrarium', tileSize: 256, maxzoom: 14 });
+    map.setTerrain({ source: 'guest-test-dem', exaggeration: 1 });
+  });
+  await expect.poll(async () => (await gpuProbe(page)).hitCount, { timeout: 20_000 }).toBeGreaterThan(0);
+  await expectAligned();
+  await page.getByRole('button', { name: 'Play game clock', exact: true }).click();
+  await expectAligned();
 });

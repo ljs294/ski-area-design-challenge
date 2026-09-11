@@ -6,7 +6,7 @@ import { routeLanePosition, type PreparedRoute } from '../dualClock/geometry';
 /** A worker edge's display path, kept outside React state. */
 export type GuestRenderPath = readonly (readonly [number, number])[];
 
-const FLOATS_PER_GUEST = 5;
+const FLOATS_PER_GUEST = 6;
 export const GUEST_GPU_BYTES_PER_GUEST = FLOATS_PER_GUEST * Float32Array.BYTES_PER_ELEMENT;
 export const GUEST_DOT_DIAMETER_CSS_PX = 9;
 const HIT_CELL_SIZE_PX = 24;
@@ -168,6 +168,26 @@ export function guestGpuFrameVertexData(
     data[offset + 4] = statusCodeFromFlags(next.statusFlags[index] ?? 0);
   }
   return data;
+}
+
+/** Refresh the terrain-relative Z value for each guest's current interpolated XY position. */
+export function updateGuestTerrainElevations(
+  data: Float32Array,
+  count: number,
+  progress: number,
+  elevationAt: (lngLat: [number, number]) => number | null,
+): void {
+  const fraction = clampUnit(progress);
+  for (let index = 0; index < count; index += 1) {
+    const offset = index * FLOATS_PER_GUEST;
+    const x = data[offset]! + (data[offset + 2]! - data[offset]!) * fraction;
+    const y = data[offset + 1]! + (data[offset + 3]! - data[offset + 1]!) * fraction;
+    const lngLat = new maplibregl.MercatorCoordinate(x, y).toLngLat();
+    const position: [number, number] = [lngLat.lng, lngLat.lat];
+    const sampled = elevationAt(position);
+    const elevation = sampled !== null && Number.isFinite(sampled) ? sampled : 0;
+    data[offset + 5] = maplibregl.MercatorCoordinate.fromLngLat(position, elevation).z;
+  }
 }
 
 function shader(gl: WebGLRenderingContext | WebGL2RenderingContext, type: number, source: string): WebGLShader {
@@ -332,12 +352,13 @@ export class GuestGpuLayer implements CustomLayerInterface {
       attribute vec2 a_from;
       attribute vec2 a_to;
       attribute float a_status;
+      attribute float a_z;
       uniform mat4 u_matrix;
       uniform float u_progress;
       uniform float u_size;
       varying float v_status;
       void main() {
-        gl_Position = u_matrix * vec4(mix(a_from, a_to, u_progress), 0.0, 1.0);
+        gl_Position = u_matrix * vec4(mix(a_from, a_to, u_progress), a_z, 1.0);
         gl_PointSize = u_size;
         v_status = a_status;
       }
@@ -391,17 +412,21 @@ export class GuestGpuLayer implements CustomLayerInterface {
         this.pending[offset] = this.pending[offset + 2] = mercator.x;
         this.pending[offset + 1] = this.pending[offset + 3] = mercator.y;
       }
-      this.upload(gl);
     }
+    updateGuestTerrainElevations(this.pending, this.count, progress,
+      lngLat => this.map?.queryTerrainElevation(lngLat) ?? null);
+    this.upload(gl);
     this.rebuildHitIndex(progress, matrix);
     gl.useProgram(this.program); gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     const stride = GUEST_GPU_BYTES_PER_GUEST;
     const from = gl.getAttribLocation(this.program, 'a_from');
     const to = gl.getAttribLocation(this.program, 'a_to');
     const status = gl.getAttribLocation(this.program, 'a_status');
+    const z = gl.getAttribLocation(this.program, 'a_z');
     gl.enableVertexAttribArray(from); gl.vertexAttribPointer(from, 2, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(to); gl.vertexAttribPointer(to, 2, gl.FLOAT, false, stride, 8);
     gl.enableVertexAttribArray(status); gl.vertexAttribPointer(status, 1, gl.FLOAT, false, stride, 16);
+    gl.enableVertexAttribArray(z); gl.vertexAttribPointer(z, 1, gl.FLOAT, false, stride, 20);
     gl.uniformMatrix4fv(gl.getUniformLocation(this.program, 'u_matrix'), false, matrix);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_progress'), progress);
     gl.uniform1f(gl.getUniformLocation(this.program, 'u_size'), GUEST_DOT_DIAMETER_CSS_PX * Math.min(2, window.devicePixelRatio || 1));
@@ -472,9 +497,10 @@ export class GuestGpuLayer implements CustomLayerInterface {
       const offset = index * FLOATS_PER_GUEST;
       const worldX = this.pending[offset]! + (this.pending[offset + 2]! - this.pending[offset]!) * fraction;
       const worldY = this.pending[offset + 1]! + (this.pending[offset + 3]! - this.pending[offset + 1]!) * fraction;
-      const clipX = matrix[0]! * worldX + matrix[4]! * worldY + matrix[12]!;
-      const clipY = matrix[1]! * worldX + matrix[5]! * worldY + matrix[13]!;
-      const clipW = matrix[3]! * worldX + matrix[7]! * worldY + matrix[15]!;
+      const worldZ = this.pending[offset + 5]!;
+      const clipX = matrix[0]! * worldX + matrix[4]! * worldY + matrix[8]! * worldZ + matrix[12]!;
+      const clipY = matrix[1]! * worldX + matrix[5]! * worldY + matrix[9]! * worldZ + matrix[13]!;
+      const clipW = matrix[3]! * worldX + matrix[7]! * worldY + matrix[11]! * worldZ + matrix[15]!;
       if (!(clipW > 0)) continue;
       const x = (clipX / clipW * 0.5 + 0.5) * width;
       const y = (1 - (clipY / clipW * 0.5 + 0.5)) * height;

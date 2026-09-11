@@ -5,6 +5,11 @@ import { DualClockEngine } from '../../../src/dualClock/engine';
 import { dualFixture, fixtureHour, fixtureTerrain } from '../../../src/dualClock/fixtures';
 import { weatherTerrainBinding } from '../../../src/weather/terrainBinding';
 import type { DualWorkerResponse } from '../../../src/app/dualClockProtocol';
+import { buildSkiNetwork } from '../../../src/network';
+import { sanitizeTrails } from '../../../src/trails';
+import { generateBareSnowGrid } from '../../../src/snow';
+import type { SavedLift } from '../../../src/types/lifts';
+import type { SavedTrail } from '../../../src/types/trails';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 if (process.env.DUAL_CLOCK_GPU === '1') test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=d3d11'] } });
@@ -12,10 +17,24 @@ if (process.env.DUAL_CLOCK_GPU === '1') test.use({ launchOptions: { args: ['--us
 test('dual clocks expose macro time, all presets, warnings and precise paused saves', async ({ page }) => {
   test.setTimeout(90_000);
   await installWorkerProbe(page);
-  await seedPreparedResort(page);
   const fixture = dualFixture(0, 2), terrain = preparedTerrainFixture();
-  fixture.snow!.bounds = terrain.bounds;
-  fixture.resort = { ...fixture.resort, edges: [], trails: [], portal: null };
+  fixture.at = '2026-05-01T07:00:00.000Z';
+  const base: [number, number] = [-121.495, 46.902], top: [number, number] = [-121.495, 46.908];
+  const lift: SavedLift = { id: 'dual-save-lift', identifier: 'A', name: 'Save Lift', liftTypeId: 'fixed-grip-quad',
+    points: [base, top], endpointElevM: [1000, 1250], lengthM: 670, verticalM: 250,
+    status: 'complete', createdAt: '2026-01-01T00:00:00.000Z' };
+  const trail: SavedTrail = sanitizeTrails([{ id: 'dual-save-trail', name: 'Save Run', brushWidthM: 36,
+    areaM2: 24_000, lengthM: 670, verticalM: 250, avgSlopeDeg: 22, maxSlopeDeg: 22,
+    difficulty: 'blue', status: 'complete', createdAt: '2026-01-01T00:00:00.000Z', parts: [{
+      polygon: [[[-121.4954, 46.9018], [-121.4946, 46.9018], [-121.4946, 46.9082],
+        [-121.4954, 46.9082], [-121.4954, 46.9018]]], centerline: [top, base], centerlineElevM: [1250, 1000],
+    }] }])[0]!;
+  const network = buildSkiNetwork([trail], [lift]);
+  fixture.snow = generateBareSnowGrid(terrain); fixture.snow.depthM.fill(1); fixture.snow.surface.fill(1);
+  fixture.resort = { ...fixture.resort, edges: network.edges, trails: [trail], dailyDemand: 900,
+    portal: { id: 'dual-save-portal', nodeId: network.edges.find(edge => edge.kind === 'lift')!.from,
+      lngLat: base, capacityPerMinute: 1000 } };
+  await seedPreparedResort(page, { lifts: [lift], trails: [trail] });
   const checkpoint = new DualClockEngine(fixture).checkpoint();
   const weather = { terrainKey: terrain.key, manifest: {
     schemaVersion: 1, terrainKey: terrain.key, terrainBinding: weatherTerrainBinding(terrain), timezone: 'UTC',
@@ -48,7 +67,48 @@ test('dual clocks expose macro time, all presets, warnings and precise paused sa
   await page.getByRole('button', { name: /^Continue / }).click();
   const clock = page.getByRole('button', { name: 'Date and time: simulation advances' });
   await expect(clock).toBeVisible();
-  await expect(clock).toContainText(/8:00/);
+  await expect(clock).toContainText(/May 1/);
+  await clock.click();
+  await expect(page.getByLabel('Advance to')).toHaveValue('winter');
+  await page.getByRole('button', { name: 'Simulate to Winter', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Advance simulation' })).toContainText('Advance completed', { timeout: 30_000 });
+  await expect(clock).toContainText(/Nov 2/);
+  await page.keyboard.press('Escape');
+
+  // Regression: saving after the May-to-winter jump used to call the legacy
+  // clock serializer and throw before the save handler could report an error.
+  await page.getByRole('button', { name: 'Play game clock', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pause game clock', exact: true })).toBeVisible();
+  await expect.poll(async () => workerEntries(page, 'dualClock.worker').then(entries => entries
+    .some(entry => entry.publications?.some(publication =>
+      ((publication.flow as { active?: number } | undefined)?.active ?? 0) > 0))), { timeout: 20_000 }).toBe(true);
+  await page.locator('.game-menu-btn').click(); await page.locator('.hud-save').click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(async () => new Promise<{
+    macroSecond: number; at: string; paused: boolean; snowCells: number
+  } | null>((resolve) => {
+    const open = indexedDB.open('mountain-planner-dual-saves', 1);
+    open.onsuccess = () => { const db = open.result;
+      const request = db.transaction('games').objectStore('games').get('e2e-save');
+      request.onsuccess = () => { const save = request.result; db.close(); resolve(save?.dualClock ? {
+        macroSecond: save.dualClock.clock.macroSecond, at: save.dualClock.clock.at,
+        paused: save.dualClock.clock.paused, snowCells: save.dualClock.snow?.depthM?.length ?? 0,
+      } : null); };
+    };
+  })), { timeout: 20_000 }).toMatchObject({ paused: true });
+  const firstSaved = await page.evaluate(async () => new Promise<{ macroSecond: number; at: string; snowCells: number }>((resolve) => {
+    const open = indexedDB.open('mountain-planner-dual-saves', 1);
+    open.onsuccess = () => { const db = open.result;
+      const request = db.transaction('games').objectStore('games').get('e2e-save');
+      request.onsuccess = () => { const save = request.result; db.close(); resolve({
+        macroSecond: save.dualClock.clock.macroSecond, at: save.dualClock.clock.at,
+        snowCells: save.dualClock.snow.depthM.length }); };
+    };
+  }));
+  expect(firstSaved.macroSecond).toBeGreaterThan(24 * 43_200);
+  expect(firstSaved.at).toMatch(/^2026-11-02/);
+  expect(firstSaved.snowCells).toBeGreaterThan(0);
+
   for (const speed of [1, 2, 4, 8, 16, 64]) {
     const control = page.getByRole('button', { name: `${speed}× simulation speed`, exact: true });
     await expect(control).toBeEnabled({ timeout: 20_000 });
@@ -56,7 +116,7 @@ test('dual clocks expose macro time, all presets, warnings and precise paused sa
     await expect(control).toHaveAttribute('aria-pressed', 'true');
   }
   await page.getByRole('button', { name: /^Warnings/ }).click();
-  await expect(page.getByRole('region', { name: 'Mountain warnings' })).toContainText('No active warnings');
+  await expect(page.getByRole('region', { name: 'Mountain warnings' })).toContainText('Mountain warnings');
   await page.keyboard.press('Escape');
   await clock.click();
   await expect(page.getByRole('dialog', { name: 'Advance simulation' })).toBeVisible();

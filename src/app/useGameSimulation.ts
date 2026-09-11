@@ -56,6 +56,7 @@ export interface GameSimulationController {
   prepareWeather(): Promise<void>;
   prepareWeatherForTerrain(terrain: TerrainRecord, signal?: AbortSignal): Promise<{ ok: boolean; error?: string }>;
   toggleAnalysis(): void;
+  snapshotWeatherRun(at: string): SavedWeatherRun | undefined;
   snapshot(): { time: TimeEngineSnapshot; weatherRun?: SavedWeatherRun };
   pause(): void;
   devSkipMinutes(minutes: number): DeveloperClockSkip;
@@ -77,6 +78,10 @@ function runIdentity(run: SavedWeatherRun): string {
 
 function projectedHour(run: SavedWeatherRun, at: string): number {
   return Math.max(0, Math.floor((new Date(at).getTime() - new Date(run.localStartAt).getTime()) / HOUR_MS));
+}
+
+export function weatherRunSnapshot(run: SavedWeatherRun | undefined, at: string): SavedWeatherRun | undefined {
+  return run ? { ...run, cursorHour: projectedHour(run, at) } : undefined;
 }
 
 function compositeWeekForDate(session: WeatherSession, at: string): CompositeWeekWeather | null {
@@ -527,6 +532,10 @@ export function useGameSimulation({
     return () => { cancelAnimationFrame(frame); canvas.remove(); };
   }, [mapRef, current, reducedMotion, renderQuality]);
 
+  const snapshotWeatherRun = (at: string): SavedWeatherRun | undefined => {
+    return weatherRunSnapshot(runRef.current, at);
+  };
+
   return {
     prepareHours: async (from, to) => {
       if (!terrain || !weatherPackage) return null;
@@ -556,10 +565,11 @@ export function useGameSimulation({
     prepareWeather,
     prepareWeatherForTerrain,
     toggleAnalysis: () => setAnalysisOpen((open) => !open),
+    snapshotWeatherRun,
     snapshot: () => {
-      const run = runRef.current;
+      const weatherRun = snapshotWeatherRun(clockRef.current.calendarDate);
       return { time: createTimeSnapshot(clockRef.current, configRef.current),
-        ...(run ? { weatherRun: { ...run, cursorHour: projectedHour(run, clockRef.current.calendarDate) } } : {}) };
+        ...(weatherRun ? { weatherRun } : {}) };
     },
     pause: () => {
       coordinatorRef.current?.reset(Math.floor(clockRef.current.elapsedSimSecond), performance.now());

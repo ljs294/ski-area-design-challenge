@@ -1331,49 +1331,41 @@ export function MapView({
 
       setCheckpointError(null);
       setSaving(true);
-      simulation.pause();
-      const runtime = simulation.snapshot(), center = map.getCenter();
-      const checkpoint = { ...withResumeCheckpoint(persisted, {
-        center: [center.lng, center.lat],
-        zoom: map.getZoom(),
-        bearing: map.getBearing(),
-        pitch: map.getPitch(),
-      }, is3DRef.current), ...runtime, snow: snow.snapshot(persisted.snow) };
-      const savedCheckpoint = await saveGameWithGuestCheckpoint(checkpoint, guestRuntime).catch((error: unknown) => ({
-        ok: false as const,
-        error: error instanceof Error ? error.message : 'The save service did not respond.',
-      }));
-      if (!savedCheckpoint.ok) {
-        setSaving(false);
-        const error = `Could not save the resume position: ${savedCheckpoint.error}`;
+      try {
+        simulation.pause();
+        const runtime = simulation.snapshot(), center = map.getCenter();
+        const checkpoint = { ...withResumeCheckpoint(persisted, {
+          center: [center.lng, center.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch(),
+        }, is3DRef.current), ...runtime, snow: snow.snapshot(persisted.snow) };
+        const savedCheckpoint = await saveGameWithGuestCheckpoint(checkpoint, guestRuntime);
+        if (!savedCheckpoint.ok) throw new Error(savedCheckpoint.error);
+        persistedSaveRef.current = checkpoint;
+
+        // The image is best effort. A failed capture keeps the prior JPEG and
+        // never blocks a successfully saved camera checkpoint.
+        try {
+          document.documentElement.classList.add('resume-capture');
+          setCaptureTransients(true);
+          const browserDataUrl = await waitForCaptureFrame(map);
+          const preview = await captureGamePreview(checkpoint.key, browserDataUrl).catch(
+            (error: unknown) => ({ ok: false as const,
+              error: error instanceof Error ? error.message : 'The preview service did not respond.' })
+          );
+          if (!preview.ok) console.warn('Unable to refresh the resort loading preview.', preview.error);
+        } finally {
+          try { setCaptureTransients(false); }
+          catch (error) { console.warn('Unable to restore transient map layers after preview capture.', error); }
+          document.documentElement.classList.remove('resume-capture');
+        }
+        return { ok: true };
+      } catch (reason) {
+        const detail = reason instanceof Error ? reason.message : 'The save service did not respond.';
+        const error = `Could not save the resume position: ${detail}`;
         if (interactive) setCheckpointError(error);
         return { ok: false, error };
-      }
-      persistedSaveRef.current = checkpoint;
-
-      // The image is best effort. A failed capture keeps the prior JPEG and
-      // never blocks a successfully saved camera checkpoint.
-      try {
-        document.documentElement.classList.add('resume-capture');
-        setCaptureTransients(true);
-        const browserDataUrl = await waitForCaptureFrame(map);
-        const preview = await captureGamePreview(checkpoint.key, browserDataUrl).catch(
-          (error: unknown) => ({
-            ok: false as const,
-            error: error instanceof Error ? error.message : 'The preview service did not respond.',
-          })
-        );
-        if (!preview.ok) console.warn('Unable to refresh the resort loading preview.', preview.error);
       } finally {
-        try {
-          setCaptureTransients(false);
-        } catch (error) {
-          console.warn('Unable to restore transient map layers after preview capture.', error);
-        }
-        document.documentElement.classList.remove('resume-capture');
         setSaving(false);
       }
-      return { ok: true };
     })().finally(() => {
       checkpointPromiseRef.current = null;
     });
@@ -1464,30 +1456,24 @@ export function MapView({
 
   async function createSave() {
     if (saving) return;
+    setCheckpointError(null);
     setSaving(true);
-    const name = nameDraft.trim() || 'Untitled Resort';
-    const record = terrainRecordRef.current ?? await prepareLocalPackage(name);
-    if (!record) {
-      setSaving(false);
-      return;
-    }
-    const next = snapshot(null);
-    if (!next) { setSaving(false); return; }
-    const terrainError = await flushTerrain();
-    if (terrainError) {
-      setSaving(false);
-      setCheckpointError(`The terrain package could not be saved: ${terrainError}`);
-      return;
-    }
-    const res = await saveGameWithGuestCheckpoint(next, guestRuntime);
-    setSaving(false);
-    if (res.ok) {
+    try {
+      const name = nameDraft.trim() || 'Untitled Resort';
+      const record = terrainRecordRef.current ?? await prepareLocalPackage(name);
+      if (!record) return;
+      const next = snapshot(null);
+      if (!next) return;
+      const terrainError = await flushTerrain();
+      if (terrainError) throw new Error(`The terrain package could not be saved: ${terrainError}`);
+      const res = await saveGameWithGuestCheckpoint(next, guestRuntime);
+      if (!res.ok) throw new Error(`Could not save the resort: ${res.error}`);
       persistedSaveRef.current = next;
       setSaved(next);
       setSavedDesign(designOf(next));
-    } else {
-      setCheckpointError(`Could not save the resort: ${res.error}`);
-    }
+    } catch (error) {
+      setCheckpointError(error instanceof Error ? error.message : 'Could not save the resort.');
+    } finally { setSaving(false); }
   }
 
   async function repairAndContinue() {
@@ -1511,25 +1497,23 @@ export function MapView({
    *  goes first — a GameSave whose runs reference ungraded ground is the worse
    *  of the two half-written outcomes. */
   async function saveProgress(): Promise<boolean> {
-    const next = snapshot(saved);
-    if (!next) return false;
+    setCheckpointError(null);
     setSaving(true);
-    const terrainError = await flushTerrain();
-    if (terrainError) {
-      setSaving(false);
-      setCheckpointError(`The terrain package could not be saved: ${terrainError}`);
+    try {
+      const next = snapshot(saved);
+      if (!next) throw new Error('Could not create a resort snapshot.');
+      const terrainError = await flushTerrain();
+      if (terrainError) throw new Error(`The terrain package could not be saved: ${terrainError}`);
+      const res = await saveGameWithGuestCheckpoint(next, guestRuntime);
+      if (!res.ok) throw new Error(`Could not save the resort: ${res.error}`);
+      persistedSaveRef.current = next;
+      setSaved(next);
+      setSavedDesign(designOf(next));
+      return true;
+    } catch (error) {
+      setCheckpointError(error instanceof Error ? error.message : 'Could not save the resort.');
       return false;
-    }
-    const res = await saveGameWithGuestCheckpoint(next, guestRuntime);
-    setSaving(false);
-    if (!res.ok) {
-      setCheckpointError(`Could not save the resort: ${res.error}`);
-      return false;
-    }
-    persistedSaveRef.current = next;
-    setSaved(next);
-    setSavedDesign(designOf(next));
-    return true;
+    } finally { setSaving(false); }
   }
 
   async function restartGameInNewWindow(fullRestart = false): Promise<{ ok: true } | { ok: false; error: string }> {

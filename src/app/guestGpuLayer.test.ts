@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GUEST_DOT_DIAMETER_CSS_PX, GUEST_GPU_BYTES_PER_GUEST, GuestGpuLayer, guestGpuFrameVertexData,
-  guestGpuVertexData, guestLayerProjectionMatrix, interpolatedMotionPosition } from './guestGpuLayer';
+  guestGpuVertexData, guestLayerProjectionMatrix, interpolatedMotionPosition,
+  updateGuestTerrainElevations } from './guestGpuLayer';
 import type { PreparedRoute } from '../dualClock/geometry';
 import type { CustomRenderMethodInput } from 'maplibre-gl';
 import type { GuestSimulationRenderFrame } from './guestSimulationWorkerProtocol';
@@ -17,9 +18,11 @@ describe('guest GPU layer data', () => {
   });
 
   it('uses no more than the 24-byte per guest budget', () => {
-    expect(GUEST_GPU_BYTES_PER_GUEST).toBe(20);
+    expect(GUEST_GPU_BYTES_PER_GUEST).toBe(24);
     const data = guestGpuVertexData([], [{ id: 'g1', lng: -110, lat: 43, status: 'skiing' }]);
-    expect(data.byteLength).toBeLessThanOrEqual(24);
+    expect(data).toHaveLength(6);
+    expect(data.byteLength).toBe(24);
+    expect(data[5]).toBe(0);
   });
 
   it('retains separate previous and next positions for interpolation', () => {
@@ -28,14 +31,44 @@ describe('guest GPU layer data', () => {
     expect(data[0]).not.toBe(data[2]);
     expect(data[1]).not.toBe(data[3]);
     expect(data[4]).toBe(2);
+    expect(data[5]).toBe(0);
   });
 
   it('projects compact typed-array frames without allocating guest point objects', () => {
     const data = guestGpuFrameVertexData(frame(0), frame(1), [[[-110, 43], [-109, 44]]]);
-    expect(data).toHaveLength(5);
+    expect(data).toHaveLength(6);
     expect(data[0]).not.toBe(data[2]);
     expect(data[1]).not.toBe(data[3]);
     expect(data[4]).toBe(2);
+    expect(data[5]).toBe(0);
+  });
+
+  it('refreshes terrain elevation and uses the same elevated position for hit testing', () => {
+    const layer = new GuestGpuLayer('guest-terrain');
+    layer.setPoints([], [{ id: 'guest-terrain', lng: 0, lat: 0, status: 'skiing' }], 0);
+    const pending = (layer as unknown as { pending: Float32Array }).pending;
+    const matrix = new Float32Array([
+      1, 0, 0, 0, 0, 1, 0, 0, 10_000, 0, 1, 0, 0, 0, 0, 1,
+    ]);
+
+    updateGuestTerrainElevations(pending, 1, 1, () => null);
+    expect(pending[5]).toBe(0);
+    layer.updateScreenHitIndex(matrix, 100, 100, 1);
+    expect(layer.hitTest({ x: 75, y: 25 }, 1)?.id).toBe('guest-terrain');
+
+    updateGuestTerrainElevations(pending, 1, 1, () => 1_000);
+    const raisedX = (0.5 + 10_000 * pending[5]!) * 50 + 50;
+    expect(pending[5]).toBeGreaterThan(0);
+    layer.updateScreenHitIndex(matrix, 100, 100, 1);
+    expect(layer.hitTest({ x: raisedX, y: 25 }, 1)?.id).toBe('guest-terrain');
+    expect(layer.hitTest({ x: 75, y: 25 }, 1)).toBeNull();
+
+    const raisedZ = pending[5]!;
+    updateGuestTerrainElevations(pending, 1, 1, () => -250);
+    expect(pending[5]).toBeLessThan(0);
+    expect(pending[5]).not.toBe(raisedZ);
+    updateGuestTerrainElevations(pending, 1, 1, () => Number.NaN);
+    expect(pending[5]).toBe(0);
   });
 
   it('hits the interpolated GPU position through a screen-space grid', () => {
