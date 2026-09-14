@@ -1,10 +1,48 @@
 import { haversineMeters } from '../geo';
 import type { NetworkNode, SkiNetwork } from '../network';
 import type { GuestPortal } from '../guestSimulation/contracts';
+import { buildingFootprint, type BuildingRectangle } from '../buildingGeometry';
+import type { BuildingRenderRecord } from './buildingLayers';
 
 export interface PlacedGuestPortal extends GuestPortal {
   readonly nodeId: string;
   readonly lngLat: readonly [number, number];
+}
+
+/** The entrance is a presentation building, not a saved player building. */
+export const GUEST_ENTRANCE_DIMENSIONS = Object.freeze({
+  lengthM: 10,
+  widthM: 6,
+  eaveHeightM: 3.5,
+});
+
+const GUEST_ENTRANCE_RECTANGLE = Object.freeze({
+  lengthM: GUEST_ENTRANCE_DIMENSIONS.lengthM,
+  widthM: GUEST_ENTRANCE_DIMENSIONS.widthM,
+  bearingDeg: 0,
+});
+
+/**
+ * Project the durable portal onto the existing building renderer. The record
+ * is intentionally transient: callers must keep it out of the building
+ * document and the save payload.
+ */
+export function guestEntranceBuilding(portal: PlacedGuestPortal): BuildingRenderRecord {
+  return {
+    id: `guest-entrance-building:${portal.id}`,
+    name: portal.label,
+    center: portal.lngLat,
+    bearingDeg: 0,
+    dimensions: GUEST_ENTRANCE_DIMENSIONS,
+  };
+}
+
+/** North-aligned 10 m × 6 m footprint shared by the SVG and dashboard maps. */
+export function guestEntranceFootprint(portal: PlacedGuestPortal): [number, number][] {
+  return buildingFootprint({
+    ...GUEST_ENTRANCE_RECTANGLE,
+    center: [...portal.lngLat] as [number, number],
+  } satisfies BuildingRectangle);
 }
 
 export interface GuestPortalPlacementResult {

@@ -1,7 +1,8 @@
-import { useRef, useState, type MutableRefObject, type RefObject } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import type maplibregl from 'maplibre-gl';
 import { BuildingDocument, buildingProjection } from '../buildingDocument';
 import type { SavedBuilding } from '../types/buildings';
+import type { BuildingRenderRecord } from './buildingLayers';
 import { createOwnedSnowmakingPump, removeBuildingOwnedPump,
   renameOwnedSnowmakingPump } from '../snowmakingOwnedPumps';
 import { commitBuildingDocuments } from './buildingCommitCoordinator';
@@ -10,10 +11,15 @@ import type { MapInteractionLeaseHandle } from './mapInteractionLease';
 import type { SnowmakingNetworkDocument } from './snowmakingNetworkDocument';
 import type { TerrainDocument } from './terrainDocument';
 import { useBuildingController } from './useBuildingController';
+import { guestEntranceBuilding, type PlacedGuestPortal } from './guestPortalPlacement';
 
 export interface PumpHouseFeatureOptions {
   mapRef: RefObject<maplibregl.Map | null>;
   initialBuildings: SavedBuilding[];
+  /** Current guest entrance, projected into the building renderer only. */
+  guestPortal?: PlacedGuestPortal | null;
+  /** Presentation-only buildings, kept out of the saved building document. */
+  transientBuildings?: () => readonly BuildingRenderRecord[];
   committedRef?: MutableRefObject<SavedBuilding[]>;
   terrain: TerrainDocument;
   snowmaking: SnowmakingNetworkDocument;
@@ -46,9 +52,20 @@ export function usePumpHouseFeature(options: PumpHouseFeatureOptions) {
     });
   }
   const document = documentRef.current;
+  const guestPortal = options.guestPortal;
+  const synchronizeMapRef = useRef(options.synchronizeMap);
+  synchronizeMapRef.current = options.synchronizeMap;
+
+  useEffect(() => {
+    if (guestPortal !== undefined) synchronizeMapRef.current();
+  }, [guestPortal]);
 
   const controller = useBuildingController({
-    mapRef: options.mapRef, buildings, selectedBuildingId,
+    mapRef: options.mapRef, buildings,
+    transientBuildings: guestPortal !== undefined
+      ? () => guestPortal ? [guestEntranceBuilding(guestPortal)] : []
+      : options.transientBuildings,
+    selectedBuildingId,
     selectBuilding: options.selectBuilding,
     clearSelected: (id) => setSelectedBuildingId((selected) => selected === id ? null : selected),
     canArm: options.canArm, activate: options.activate, release: options.release,

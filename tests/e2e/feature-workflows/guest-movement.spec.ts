@@ -1,4 +1,5 @@
 import { expect, test } from '../support/deterministicApp';
+import type { Page } from '@playwright/test';
 import { seedPreparedResort, preparedTerrainFixture } from '../support/preparedResort';
 import { installWorkerProbe, workerEntries, type WorkerProbeEntry } from '../support/workerProbe';
 import { buildSkiNetwork, type TrailEdge } from '../../../src/network';
@@ -12,7 +13,7 @@ import { weatherTerrainBinding } from '../../../src/weather/terrainBinding';
 import type { SavedLift } from '../../../src/types/lifts';
 import type { SavedTrail } from '../../../src/types/trails';
 import { GUEST_GPU_BYTES_PER_GUEST } from '../../../src/app/guestGpuLayer';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 type MotionPoint = { id: string; lng: number; lat: number; status: string;
   motion?: { routeId: string; lane: number; progress: number; duration: number } };
@@ -265,6 +266,106 @@ function representativeSamples(entries: WorkerProbeEntry[], ids: readonly string
   return [...latest.values()];
 }
 
+export async function findGuestClickTarget(page: Page, guestIds: readonly string[]): Promise<{
+  guestId: string; clientX: number; clientY: number;
+}> {
+  for (const title of ['Toolbox', 'Curved Return']) {
+    const close = page.getByRole('button', { name: `Close ${title}`, exact: true });
+    if (await close.isVisible()) await close.click();
+  }
+  const pause = page.getByRole('button', { name: 'Pause game clock', exact: true });
+  if (await pause.isVisible()) await pause.click();
+  await expect(page.getByRole('button', { name: 'Play game clock', exact: true })).toBeVisible({ timeout: 5_000 });
+  return page.evaluate(async (wanted) => {
+    type Candidate = { x: number; y: number; hitId: string | null; publicId: string | null; domTarget: string };
+    const appMap = (window as unknown as { appMap?: {
+      getCanvas(): HTMLCanvasElement;
+      getLayer(id: string): { implementation?: Record<string, unknown> } | undefined;
+      getCenter(): { lng: number; lat: number }; getZoom(): number; getPitch(): number; getBearing(): number;
+      on(event: string, listener: () => void): void; off?(event: string, listener: () => void): void;
+      triggerRepaint?(): void;
+      queryRenderedFeatures(point: { x: number; y: number }, options: { layers: string[] }): Array<{
+        id?: string | number; properties?: { id?: string | number };
+      }>;
+    } }).appMap;
+    const layer = appMap?.getLayer('guest-simulation-dots')?.implementation;
+    const canvas = appMap?.getCanvas();
+    if (!appMap || !layer || !canvas) throw new Error('Guest GPU layer or map canvas is unavailable');
+    const hitTest = (layer.hitTest as ((point: { x: number; y: number }) => { id: string } | null)).bind(layer);
+    const camera = () => {
+      const center = appMap.getCenter();
+      return [center.lng, center.lat, appMap.getZoom(), appMap.getPitch(), appMap.getBearing()];
+    };
+    const deadline = performance.now() + 7_500;
+    const waitForRender = () => new Promise<void>((resolve, reject) => {
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) { reject(new Error('Guest render did not complete before the acquisition deadline')); return; }
+      let settled = false;
+      const listener = () => { if (settled) return; settled = true; window.clearTimeout(timeout); appMap.off?.('render', listener); resolve(); };
+      const timeout = window.setTimeout(() => {
+        if (settled) return; settled = true; appMap.off?.('render', listener); reject(new Error('Guest render did not complete'));
+      }, remaining);
+      appMap.on('render', listener);
+      appMap.triggerRepaint?.();
+    });
+    const readCandidates = (): Candidate[] => {
+      const hitCount = Number(layer.hitCount ?? 0);
+      const hitXs = layer.hitXs as ArrayLike<number> | undefined;
+      const hitYs = layer.hitYs as ArrayLike<number> | undefined;
+      if (!hitXs || !hitYs || hitCount <= 0) return [];
+      return Array.from({ length: hitCount }, (_, index) => {
+        const x = Number(hitXs[index]), y = Number(hitYs[index]);
+        const hit = hitTest({ x, y });
+        const features = appMap.queryRenderedFeatures({ x, y }, { layers: ['guest-simulation-hit'] });
+        const feature = features[0];
+        const publicId = feature?.properties?.id ?? feature?.id;
+        const element = document.elementFromPoint(canvas.getBoundingClientRect().left + x, canvas.getBoundingClientRect().top + y);
+        return { x, y, hitId: hit?.id ?? null, publicId: publicId === undefined ? null : String(publicId),
+          domTarget: element ? `${element.tagName.toLowerCase()}#${element.id}.${String(element.className ?? '').replace(/\s+/g, '.')}` : 'null' };
+      });
+    };
+    const rect = canvas.getBoundingClientRect();
+    const stableTarget = (first: Candidate[], second: Candidate[]) => first.flatMap((candidate) => {
+      const matching = second.find((next) => candidate.hitId !== null && next.hitId === candidate.hitId
+        && Math.abs(next.x - candidate.x) <= 0.01 && Math.abs(next.y - candidate.y) <= 0.01);
+      if (!matching || !wanted.includes(candidate.hitId ?? '') || candidate.publicId !== candidate.hitId
+        || matching.publicId !== candidate.hitId) return [];
+      const clientX = Math.round(rect.left + candidate.x), clientY = Math.round(rect.top + candidate.y);
+      const queryPoint = { x: clientX - rect.left, y: clientY - rect.top };
+      const roundedHit = hitTest(queryPoint);
+      const roundedFeatures = appMap.queryRenderedFeatures(queryPoint, { layers: ['guest-simulation-hit'] });
+      const roundedFeature = roundedFeatures[0];
+      const roundedPublicId = roundedFeature?.properties?.id ?? roundedFeature?.id;
+      const element = document.elementFromPoint(clientX, clientY);
+      if (!roundedHit || roundedHit.id !== candidate.hitId || String(roundedPublicId ?? '') !== candidate.hitId
+        || !(element === canvas || canvas.contains(element))) return [];
+      return [{ guestId: candidate.hitId, clientX, clientY, rawX: candidate.x, rawY: candidate.y,
+        mapX: queryPoint.x, mapY: queryPoint.y, canvasRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+        domTarget: element ? `${element.tagName.toLowerCase()}#${element.id}.${String(element.className ?? '').replace(/\s+/g, '.')}` : 'null' }];
+    });
+    let previous: { camera: number[]; candidates: Candidate[] } | null = null;
+    let latest: Record<string, unknown> = { wanted, canvasRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } };
+    while (performance.now() < deadline) {
+      await waitForRender();
+      const current = { camera: camera(), candidates: readCandidates() };
+      if (previous) {
+        const stable = stableTarget(previous.candidates, current.candidates);
+        latest = { wanted, firstCamera: previous.camera, secondCamera: current.camera,
+          first: previous.candidates, second: current.candidates, stable,
+          canvasRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } };
+        (window as unknown as { guestClickDiagnostics?: Record<string, unknown> }).guestClickDiagnostics = latest;
+        const cameraStable = previous.camera.every((value, index) => value === current.camera[index]);
+        if (cameraStable && stable.length > 0) {
+          return { guestId: stable[0]!.guestId, clientX: stable[0]!.clientX, clientY: stable[0]!.clientY };
+        }
+      }
+      previous = current;
+    }
+    (window as unknown as { guestClickDiagnostics?: Record<string, unknown> }).guestClickDiagnostics = latest;
+    throw new Error(`No stable guest hit target matched canonical IDs before the acquisition deadline: ${wanted.join(', ')}`);
+  }, guestIds);
+}
+
 test('curved trail guests cross the worker, route decoder and GPU with FIFO movement', async ({ page }) => {
   test.setTimeout(90_000);
   await installWorkerProbe(page);
@@ -275,7 +376,6 @@ test('curved trail guests cross the worker, route decoder and GPU with FIFO move
   await page.getByRole('button', { name: /^Continue / }).click();
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 20_000 });
   await expect(page.getByRole('button', { name: 'Play game clock', exact: true })).toBeVisible({ timeout: 20_000 });
-
   const queueIds = fixture.checkpoint.guests.slice(0, 3).map((guest) => guest.id);
   await page.evaluate((center) => {
     const map = (window as unknown as { appMap: { jumpTo(options: unknown): void } }).appMap;
@@ -305,22 +405,77 @@ test('curved trail guests cross the worker, route decoder and GPU with FIFO move
     .map((point) => [point.id, point.lng, point.lat])).toEqual(waitingSnapshot);
   expect(waitingWorker.some((entry) => entry.movementStatuses?.some((counts) => (counts['trail-queue'] ?? 0) === 3))).toBe(true);
 
-  await page.getByRole('button', { name: 'Play game clock', exact: true }).click();
-  await expect.poll(async () => {
-    const entries = await workerEntries(page, 'dualClock.worker');
-    return representativeSamples(entries, queueIds).filter((guest) => guest.status === 'skiing').length;
-  }, { timeout: 20_000 }).toBe(3);
-  const workerAfterRelease = await workerEntries(page, 'dualClock.worker');
-  const released = representativeSamples(workerAfterRelease, queueIds).sort((left, right) => left.id!.localeCompare(right.id!));
-  expect(released.map((guest) => guest.started)).toEqual([0, 2, 4]);
-  expect(new Set(released.map((guest) => Number((guest.due! - guest.started!).toFixed(6)))).size).toBeGreaterThan(1);
-  expect(workerAfterRelease.some((entry) => entry.movementStatuses?.some((counts) => (counts.skiing ?? 0) === 3))).toBe(true);
-
+  const playButton = page.getByRole('button', { name: 'Play game clock', exact: true });
+  await expect(playButton).toBeEnabled({ timeout: 20_000 });
+  await playButton.click();
+  await expect(page.getByRole('button', { name: 'Pause game clock', exact: true })).toBeVisible({ timeout: 5_000 });
   await expect.poll(async () => {
     const probe = await gpuProbe(page);
     const motion = probe.motion.filter((point) => queueIds.includes(point.id));
     return motion.length === queueIds.length && motion.every((point) => point.status === 'skiing');
   }, { timeout: 20_000 }).toBe(true);
+  const workerAfterRelease = await workerEntries(page, 'dualClock.worker');
+  const released = representativeSamples(workerAfterRelease, queueIds).sort((left, right) => left.id!.localeCompare(right.id!));
+  expect(released.map((guest) => guest.started)).toEqual([0, 2, 4]);
+  expect(new Set(released.map((guest) => Number((guest.due! - guest.started!).toFixed(6)))).size).toBeGreaterThan(1);
+  let pickTarget: { guestId: string; clientX: number; clientY: number };
+  try {
+    pickTarget = await findGuestClickTarget(page, queueIds);
+  } catch (error) {
+    const diagnostics = await page.evaluate((message) => ({
+      ...(window as unknown as { guestClickDiagnostics?: Record<string, unknown> }).guestClickDiagnostics,
+      error: message,
+    }), error instanceof Error ? error.message : String(error));
+    mkdirSync('test-results/guest-movement', { recursive: true });
+    writeFileSync('test-results/guest-movement/curved-guest-pick-failure.json', JSON.stringify(diagnostics, null, 2));
+    throw error;
+  }
+  let selectedId: string | null = null;
+  let clickError: unknown = null;
+  await page.evaluate(() => {
+    const map = (window as unknown as { appMap?: { on(event: string, listener: (event: unknown) => void): void;
+      off?(event: string, listener: (event: unknown) => void): void } }).appMap;
+    if (!map) return;
+    const diagnostics = (window as unknown as { guestClickDiagnostics?: Record<string, unknown> }).guestClickDiagnostics ?? {};
+    const listener = (event: unknown) => {
+      const point = (event as { point?: { x?: number; y?: number } }).point;
+      diagnostics.actualMapClickEvent = { point: { x: point?.x ?? null, y: point?.y ?? null } };
+    };
+    map.on('click', listener);
+    (window as unknown as { guestClickDiagnostics?: Record<string, unknown>; guestClickCleanup?: () => void }).guestClickDiagnostics = diagnostics;
+    (window as unknown as { guestClickCleanup?: () => void }).guestClickCleanup = () => map.off?.('click', listener);
+  });
+  const selectionBaseline = (await workerEntries(page, 'dualClock.worker'))
+    .flatMap((entry) => entry.publications ?? [])
+    .reduce((latest, publication) => publication.generation > latest.generation
+      || (publication.generation === latest.generation && publication.id > latest.id)
+      ? { generation: publication.generation, id: publication.id } : latest,
+    { generation: -1, id: -1 });
+  try {
+    await page.mouse.click(pickTarget.clientX, pickTarget.clientY);
+    await expect(page.getByRole('tabpanel', { name: 'Guests' })).toBeVisible({ timeout: 5_000 });
+    await expect.poll(async () => {
+      const entries = await workerEntries(page, 'dualClock.worker');
+      const newer = entries.flatMap((entry) => entry.publications ?? [])
+        .filter((publication) => publication.generation > selectionBaseline.generation
+          || (publication.generation === selectionBaseline.generation && publication.id > selectionBaseline.id));
+      selectedId = newer.at(-1)?.selectedId ?? null;
+      return selectedId;
+    }, { timeout: 5_000 }).toBe(pickTarget.guestId);
+  } catch (error) {
+    clickError = error;
+    throw error;
+  } finally {
+    const diagnostics = await page.evaluate((payload: { actualSelectedId: string | null; selectionBaseline: { generation: number; id: number } }) => {
+      const state = (window as unknown as { guestClickDiagnostics?: Record<string, unknown> }).guestClickDiagnostics ?? {};
+      (window as unknown as { guestClickCleanup?: () => void }).guestClickCleanup?.();
+      return { ...state, selectionBaseline: payload.selectionBaseline, selectedId: payload.actualSelectedId };
+    }, { actualSelectedId: selectedId, selectionBaseline });
+    if (clickError) {
+      mkdirSync('test-results/guest-movement', { recursive: true });
+      writeFileSync('test-results/guest-movement/curved-guest-pick-failure.json', JSON.stringify(diagnostics, null, 2));
+    }
+  }
   await expect.poll(async () => (await gpuProbe(page)).hitCount, { timeout: 5_000 }).toBeGreaterThan(0);
   const moving = await gpuProbe(page);
   const movingMotion = moving.motion.filter((point) => queueIds.includes(point.id));

@@ -15,6 +15,8 @@ import {
   WEATHER_LOAD_BY_CONTENT_HASH_CHANNEL,
   WEATHER_LOAD_INSTALL_BY_CONTENT_HASH_CHANNEL,
   WEATHER_DELETE_CHANNEL,
+  PREPARED_WEATHER_READ_CHANNEL,
+  PREPARED_WEATHER_WRITE_CHANNEL,
   GAMESAVE_SAVE_CHANNEL,
   GAMESAVE_LOAD_CHANNEL,
   GAMESAVE_LIST_CHANNEL,
@@ -52,6 +54,11 @@ const api = {
     loadInstallByContentHash: (contentHash: string) => ipcRenderer.invoke(
       WEATHER_LOAD_INSTALL_BY_CONTENT_HASH_CHANNEL, { contentHash }),
     delete: (terrainKey: string) => ipcRenderer.invoke(WEATHER_DELETE_CHANNEL, { terrainKey }),
+  },
+  preparedWeather: {
+    read: (identity: unknown) => ipcRenderer.invoke(PREPARED_WEATHER_READ_CHANNEL, { identity }),
+    write: (identity: unknown, bytes: unknown) => ipcRenderer.invoke(
+      PREPARED_WEATHER_WRITE_CHANNEL, { identity, bytes }),
   },
   games: {
     save: (save: unknown) => ipcRenderer.invoke(GAMESAVE_SAVE_CHANNEL, { save }),

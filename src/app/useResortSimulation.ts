@@ -2,17 +2,25 @@ import { useMemo, useState } from 'react';
 import type { GameSave, SavedWeatherRun } from '../types/gameSave';
 import type { DualPublication, ResortSimulationInput } from '../dualClock/model';
 import type { SimulationClock, TimeEngineSnapshot } from '../types/simulation';
+import type { SnowGrid } from '../types/snow';
+import type { TerrainRecord } from '../types/terrain';
 import { createDualClock, projectDualClock } from '../dualClock/clock';
-import { resolveWeatherHour } from '../weather/weatherSession';
 import { generateBareSnowGrid } from '../snow';
 import { buildSkiNetwork } from '../network';
 import { resortRevision } from '../dualClock/revision';
 import { defaultDualAmenities } from '../dualClock/amenities';
 import { useGameSimulation, type GameSimulationController } from './useGameSimulation';
 import { useDualClockRuntime } from './useDualClockRuntime';
+import { canonicalResortSimulationInput } from './resortSimulationInput';
+import { preparedHoursWindow } from './useGameSimulation';
 
-const EMPTY_RESORT: ResortSimulationInput = { revision: 0, edges: [], trails: [], portal: null,
-  dailyDemand: 900, ticketPriceCents: 10000, amenities: [] };
+const EMPTY_RESORT: ResortSimulationInput = canonicalResortSimulationInput({
+  revision: 0, edges: [], trails: [], portal: null, ticketPriceCents: 10000, amenities: [],
+});
+
+export function restorationSnowInput(terrain: TerrainRecord | null, checkpointSnow: unknown): SnowGrid | null {
+  return checkpointSnow ? null : terrain ? generateBareSnowGrid(terrain) : null;
+}
 
 /** Compose a schema-17 read model without asking the legacy clock to validate dual elapsed time. */
 export function dualSimulationSnapshot(
@@ -35,15 +43,20 @@ export function useResortSimulation(options: Parameters<typeof useGameSimulation
   [options.initialSave, options.initialTime]);
   const legacy = useGameSimulation({ ...options, playbackEnabled: !enabled,
     externalClock: enabled ? projectDualClock(lastPublication?.clock ?? fallback) : undefined });
-  const weather = useMemo(() => legacy.session?.plan.hours.map(hour => resolveWeatherHour(hour, legacy.session!.midpoint)) ?? [], [legacy.session]);
-  const initialSnow = useMemo(() => options.terrain ? generateBareSnowGrid(options.terrain) : null, [options.terrain]);
+  const weather = useMemo(() => legacy.preparedHours
+    ? preparedHoursWindow(legacy.preparedHours, fallback.at, new Date(Date.parse(fallback.at) + 72 * 3600000).toISOString())
+    : [], [legacy.preparedHours, fallback.at]);
+  const initialSnow = useMemo(() => restorationSnowInput(options.terrain, options.initialSave?.dualClock?.snow),
+    [options.initialSave?.dualClock?.snow, options.terrain]);
   const initialResort = useMemo(() => {
     const save = options.initialSave; if (!save?.dualClock) return EMPTY_RESORT;
     const network = buildSkiNetwork(save.trails, save.lifts, { nodes: save.nodes ?? [], paths: save.paths ?? [], junctions: save.junctions ?? [] });
-    return { ...EMPTY_RESORT, edges: network.edges, trails: save.trails, portal: save.dualClock.portal,
+    return canonicalResortSimulationInput({
+      edges: network.edges, trails: save.trails, portal: save.dualClock.portal,
       amenities: defaultDualAmenities(save.dualClock.portal?.nodeId ?? null),
       ticketPriceCents: save.dualClock.nextTicketPriceCents,
-      revision: resortRevision(network.edges, save.trails) };
+      revision: resortRevision(network.edges, save.trails),
+    });
   }, [options.initialSave]);
   const initialization = useMemo(() => options.terrain && options.snow.grid ? {
     seed: `game-${options.terrain.key}`, at: fallback.at,
@@ -53,8 +66,8 @@ export function useResortSimulation(options: Parameters<typeof useGameSimulation
   } : null, [options.terrain, options.snow.grid, initialSnow, initialResort, fallback, legacy.weatherPackage, weather, options.initialSave]);
   const invalid = options.initialSave?.schemaVersion === 17 && !options.initialSave.dualClock;
   const runtime = useDualClockRuntime({ enabled: enabled && !invalid, initialization, snow: options.snow,
-    prepareWeather: async (from, to) => legacy.prepareHours?.(from, to) ?? null });
-  const dual = { ...runtime, weatherReady: !!legacy.weatherPackage, initialPortal: options.initialSave?.dualClock?.portal ?? null,
+    prepareWeather: async (from, to, signal) => legacy.prepareHours?.(from, to, signal) ?? null });
+  const dual = { ...runtime, weatherReady: runtime.weatherReady, initialPortal: options.initialSave?.dualClock?.portal ?? null,
     initialTicketPriceCents: options.initialSave?.dualClock?.nextTicketPriceCents ?? 10000 };
   // Publish the committed projection to weather presentation without another advancing clock.
   if (dual.publication !== lastPublication) setLastPublication(dual.publication);

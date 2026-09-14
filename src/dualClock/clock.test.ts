@@ -1,16 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { advanceDestination, createDualClock, microRate, projectDualClock } from './clock';
+import { advanceDestination, createDualClock, microRate, projectDualClock, DUAL_MICRO_RUNTIME_MULTIPLIER } from './clock';
 import { DEFAULT_DUAL_CONFIG, DUAL_SPEEDS } from './model';
 
 describe('dual clocks', () => {
-  it('makes an eight-hour day twelve real minutes at baseline, with independently clamped motion', () => {
+  it('keeps the calendar profile unchanged while accelerating every interactive micro rate by 3x', () => {
     expect(8 * 3600 / DEFAULT_DUAL_CONFIG.macroSecondsPerSecond).toBe(720);
+    const clock = createDualClock('2026-11-02T08:00:00Z', 'UTC');
+    const expected = [3, 5.25, 8.25, 24, 48, 192];
+    for (const speed of DUAL_SPEEDS) {
+      clock.speed = speed;
+      const index = DUAL_SPEEDS.indexOf(speed);
+      expect(microRate(clock, false, DEFAULT_DUAL_CONFIG) * 40 * speed).toBe(expected[index]);
+      expect(expected[index]).toBe(DEFAULT_DUAL_CONFIG.microRates[speed] * DUAL_MICRO_RUNTIME_MULTIPLIER);
+    }
+    expect(DEFAULT_DUAL_CONFIG.microRates).toEqual({ 1: 1, 2: 1.75, 4: 2.75, 8: 8, 16: 16, 64: 64 });
+    expect(projectDualClock(clock).calendarDate).toBe(clock.at);
+  });
+  it('uses the same accelerated base ratio for explicit headless calendar advances', () => {
     const clock = createDualClock('2026-11-02T08:00:00Z', 'UTC');
     for (const speed of DUAL_SPEEDS) {
       clock.speed = speed;
-      expect(microRate(clock, false, DEFAULT_DUAL_CONFIG) * 40 * speed).toBe(DEFAULT_DUAL_CONFIG.microRates[speed]);
+      expect(microRate(clock, true, DEFAULT_DUAL_CONFIG) * DEFAULT_DUAL_CONFIG.macroSecondsPerSecond)
+        .toBe(DUAL_MICRO_RUNTIME_MULTIPLIER);
     }
-    expect(projectDualClock(clock).calendarDate).toBe(clock.at);
   });
   it('preserves civil time across DST and clamps month ends', () => {
     const clock = createDualClock('2027-01-31T20:00:00Z', 'America/Los_Angeles');

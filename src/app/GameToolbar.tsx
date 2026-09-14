@@ -196,6 +196,7 @@ export function GameToolbar({
   const activeSpeed = normalizeSimulationSpeed(weather.clock.speed);
   const activeSpeedIndex = SIMULATION_SPEEDS.indexOf(activeSpeed);
   const playTitle = planning ? weather.dual ? 'Skip to Winter' : 'Complete planning and skip to September 1' : playing ? 'Pause game clock' : 'Play game clock';
+  const weatherPending = !!weather.dual && weather.dual.weatherReady === false;
 
   return <>
     <div className="game-toolbar">
@@ -205,7 +206,7 @@ export function GameToolbar({
           className="tb-play"
           onClick={planning ? () => { if (weather.dual) void weather.dual.advance('winter'); else setPlanningConfirmationOpen(true); } : weather.togglePlayback}
           aria-pressed={playing}
-          disabled={weather.status === 'loading' || weather.status === 'working'}
+          disabled={weather.status === 'loading' || weather.status === 'working' || weatherPending}
           aria-label={playTitle} title={playTitle}
         >{playing ? 'Ⅱ' : '▶'}</button>
       </div>

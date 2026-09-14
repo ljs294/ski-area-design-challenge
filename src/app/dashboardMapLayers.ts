@@ -21,6 +21,7 @@ import type { Units } from './SettingsContext';
 import type { SnowmakingLassoMapState } from './snowmakingLasso';
 import type { GuestConnectivity } from './guestConnectivity';
 import type { CustomMapColors, MapColorPreset } from './mapTheme';
+import { guestEntranceFootprint } from './guestPortalPlacement';
 
 export const DASHBOARD_SOURCE = 'dashboard-map';
 export const DASHBOARD_LASSO_SOURCE = 'dashboard-snowmaking-lasso';
@@ -30,6 +31,7 @@ export const DASHBOARD_LAYER_IDS = [
   'dashboard-trail-edges', 'dashboard-trail-arrows', 'dashboard-trail-labels',
   'dashboard-trail-nodes', 'dashboard-lift-hit', 'dashboard-trail-hit',
   'dashboard-guest-connection', 'dashboard-guest-halo', 'dashboard-guest-marker', 'dashboard-guest-label',
+  'dashboard-guest-building', 'dashboard-guest-building-outline', 'dashboard-guest-building-label',
   'dashboard-snow-buildings', 'dashboard-snow-building-outlines',
   'dashboard-snow-building-labels', 'dashboard-snow-pipes',
   'dashboard-snow-flow-arrows', 'dashboard-snow-flow-labels',
@@ -189,14 +191,14 @@ function trailFeatures(input: DashboardMapData): Feature[] {
 function guestConnectivityFeatures(input: DashboardMapData): Feature[] {
   const status = input.guestConnectivity;
   if (!status?.portal) return [];
-  const features = [feature('guest-portal', { type: 'Point', coordinates: [...status.portal.lngLat] }, {
-    reachable: status.reachable, label: status.reachable
-      ? `Guest Entrance - ${status.connectedLiftName ?? 'connected'}` : 'Resort unreachable',
-  }, 'dashboard-guest-portal')];
-  if (status.connectionPath.length >= 2) features.unshift(feature('guest-connection', {
-    type: 'LineString', coordinates: [...status.connectionPath],
-  }, { reachable: status.reachable }, 'dashboard-guest-connection'));
-  return features;
+  const label = status.reachable
+    ? `Guest Entrance - ${status.connectedLiftName ?? 'connected'}` : 'Resort unreachable';
+  return [feature('guest-portal-building', {
+    type: 'Polygon', coordinates: [guestEntranceFootprint(status.portal)],
+  }, { reachable: status.reachable, label }, 'dashboard-guest-portal-building'),
+  feature('guest-portal-building-label', {
+    type: 'Point', coordinates: [...status.portal.lngLat],
+  }, { reachable: status.reachable, label }, 'dashboard-guest-portal-building-label')];
 }
 
 function polygon(ring: readonly [number, number][]): GeoJSON.Polygon {
@@ -564,6 +566,19 @@ export function addDashboardMapLayers(map: maplibregl.Map): void {
       'circle-stroke-color': '#6b7280', 'circle-stroke-width': 1.5,
     } });
   const guestColor = ['case', ['get', 'reachable'], '#16a34a', '#dc2626'] as maplibregl.ExpressionSpecification;
+  map.addLayer({ id: 'dashboard-guest-building', type: 'fill', source: DASHBOARD_SOURCE,
+    filter: filter('guest-portal-building'), layout: { visibility: 'none' }, paint: {
+      'fill-color': guestColor, 'fill-opacity': 0.22,
+    } });
+  map.addLayer({ id: 'dashboard-guest-building-outline', type: 'line', source: DASHBOARD_SOURCE,
+    filter: filter('guest-portal-building'), layout: { visibility: 'none' }, paint: {
+      'line-color': guestColor, 'line-width': 2,
+    } });
+  map.addLayer({ id: 'dashboard-guest-building-label', type: 'symbol', source: DASHBOARD_SOURCE,
+    filter: filter('guest-portal-building-label'), layout: { visibility: 'none',
+      'text-field': ['get', 'label'], 'text-size': 11, 'text-offset': [0, -1.1],
+      'text-anchor': 'bottom', 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': true },
+    paint: { 'text-color': guestColor, 'text-halo-color': '#f4f1ea', 'text-halo-width': 1.5 } });
   map.addLayer({ id: 'dashboard-guest-connection', type: 'line', source: DASHBOARD_SOURCE,
     filter: filter('guest-connection'), layout: { visibility: 'none' }, paint: {
       'line-color': guestColor, 'line-width': 6, 'line-opacity': 0.85, 'line-dasharray': [2, 1],
@@ -765,8 +780,8 @@ export function dashboardBounds(input: DashboardMapData): maplibregl.LngLatBound
       ...input.buildings.flatMap((building) => isBuildingOwnedPump(building,
         input.nodes.find((node) => node.id === building.connection.nodeId))
         ? buildingFootprint(building) : [])];
-  if (input.guestConnectivity?.portal) points.push([...input.guestConnectivity.portal.lngLat]);
-  for (const point of input.guestConnectivity?.connectionPath ?? []) points.push([...point]);
+  for (const point of input.guestConnectivity?.portal
+    ? guestEntranceFootprint(input.guestConnectivity.portal) : []) points.push([...point]);
   if (!points.length) return null;
   return points.reduce((bounds, point) => bounds.extend(point),
     new maplibregl.LngLatBounds(points[0], points[0]));

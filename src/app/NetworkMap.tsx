@@ -23,6 +23,7 @@ import type { Units } from './SettingsContext';
 import type { GuestConnectivity } from './guestConnectivity';
 import type { AggregateFlowSnapshot } from '../types/dualClock';
 import { LiftOperationsRows, liftOperationsFromQueue, type LiftOperationsReadModel } from './liftOperations';
+import { guestEntranceFootprint } from './guestPortalPlacement';
 
 /**
  * The node map: a deliberately plain, to-scale plan view of the mountain's
@@ -469,16 +470,18 @@ export function NetworkMap({
           </g>
 
           {guestConnectivity?.portal && (() => {
-            const portalPoint = nodePos.get(guestConnectivity.portal.nodeId);
-            if (!portalPoint) return null;
+            const portalPoint = place(guestConnectivity.portal.lngLat as [number, number]);
             const color = guestConnectivity.reachable ? '#16a34a' : '#dc2626';
-            const path = guestConnectivity.connectionPath.map((point) => place(point)).map((point) =>
-              `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
-            return <g aria-label={guestConnectivity.reachable ? 'Connected Guest Entrance' : 'Unreachable Guest Entrance'}>
-              {path && <polyline points={path} fill="none" stroke={color} strokeWidth={6}
-                strokeDasharray="8 4" vectorEffect="non-scaling-stroke" />}
-              <circle cx={portalPoint.x} cy={portalPoint.y} r={9 * (active.w / 900)} fill={color}
-                stroke="#fff" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+            const footprint = guestEntranceFootprint(guestConnectivity.portal).map((point) => place(point));
+            const points = footprint.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+            return <g aria-label={guestConnectivity.reachable ? 'Connected Guest Entrance' : 'Unreachable Guest Entrance'}
+              data-guest-entrance="true">
+              <polygon points={points} fill={color} fillOpacity={0.22} stroke={color} strokeWidth={2}
+                vectorEffect="non-scaling-stroke" />
+              <text x={portalPoint.x} y={portalPoint.y - 8 * (active.w / 900)} textAnchor="middle"
+                className="network-label" style={{ fill: color, fontSize: active.w / 70 }}>
+                Guest Entrance
+              </text>
             </g>;
           })()}
         </svg>

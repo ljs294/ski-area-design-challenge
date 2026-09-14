@@ -7,20 +7,21 @@ import { createNaturalSnowStepper } from '../snowSimulation';
 import type { SnowGrid } from '../types/snow';
 import { weatherLocalParts, localWeatherDateKey, weatherInstantForLocal } from '../weather/localTime';
 import { createDualClock, microRate, winterBounds } from './clock';
-import { prepareFootprint, prepareTrailCoverage, prepareRoute, routePosition, stableHash, type PreparedRoute, type TrailFootprint } from './geometry';
+import { routePosition, stableHash, type PreparedRoute, type TrailFootprint } from './geometry';
+import { journeyEdge, prepareResortGeometry, resortGeometryKey } from './resortGeometry';
 import { applyTrafficWear, refreshTrailSignals } from './wear';
 import { addFreshSnow } from './snowAdd';
 import { deriveGuestSpeedZ, representativeGuestDuration } from './guestMovement';
 import { drainRepresentativeEvents } from './representativeEvents';
+import { boundedGuestInspection } from './publication';
 import { enqueueTrailGuest, hasTrailEntrance, reconcileTrailQueues as reconcileTrailQueueState, releaseTrailGuest as releaseTrailGuestState,
   trailEntrySpacing } from './trailQueue';
 import { validateDualCheckpoint } from './validation';
 export { validateDualCheckpoint } from './validation';
 import { DEFAULT_DUAL_CONFIG, type DualInitialization, type DualCheckpoint, type DualPublication,
   type ResortSimulationInput, type RepresentativeGuest, type DualSpeed,
-  type MacroSecond, type MicroSecond, type OperationalSignal, type AdvanceRequest, type TransitRoute, type MacroCohort, type SnowAddResult,
+  type MacroSecond, type MicroSecond, type OperationalSignal, type AdvanceRequest, type MacroCohort, type SnowAddResult,
   DEFAULT_GUEST_MOVEMENT } from './model';
-
 const EMPTY_FLOW = () => ({ admitted: 0, active: 0, departed: 0, turnedAway: 0, ticketRevenueCents: 0,
   amenityRevenueCents: 0, completedRuns: 0, queues: {}, trails: {} });
 const ARRIVAL_WEIGHTS = [0.38, 0.3, 0.16, 0.09, 0.04, 0.02, 0.01, 0];
@@ -31,6 +32,7 @@ export class DualClockEngine {
   snow: SnowGrid | null;
   exposure: Float64Array;
   geometryRevision = 0;
+  private geometryKey: string | null = null;
   private resort: ResortSimulationInput;
   private edges = new Map<string, NetworkEdge>();
   private outgoing = new Map<string, NetworkEdge[]>();
@@ -45,7 +47,6 @@ export class DualClockEngine {
   private snowStepper: ReturnType<typeof createNaturalSnowStepper> | null = null;
   private weatherByHour = new Map<number, DualInitialization['weather'][number]>();
   private closedForDay = false;
-
   constructor(input: DualInitialization) {
     this.resort = input.resort;
     if (input.checkpoint) {
@@ -100,7 +101,10 @@ export class DualClockEngine {
     this.normalizeDailyLiftBoardings(false);
   }
   setResort(resort: ResortSimulationInput): void {
-    this.geometryRevision++;
+    const nextGeometryKey = resortGeometryKey(resort, this.snow);
+    const geometryChanged = this.geometryKey !== nextGeometryKey;
+    if (geometryChanged) this.geometryRevision++;
+    if (geometryChanged) {
     const incoming = new Map(resort.edges.map(edge => [edge.id, edge]));
     // Freeze only journeys already in progress. New admissions use the edited network immediately.
     for (const edge of this.edges.values()) {
@@ -118,27 +122,25 @@ export class DualClockEngine {
       for (const guest of guests) { guest.laneEdgeId = edge.id; guest.edgeId = id; }
       for (const cohort of cohorts) cohort.edgeId = id;
     }
+    const prepared = prepareResortGeometry(resort, this.snow, this.state.transitRoutes);
     this.resort = resort; this.state.portal = resort.portal; this.state.resortRevision = resort.revision;
     this.state.nextTicketPriceCents = resort.ticketPriceCents;
-    this.edges = new Map(resort.edges.map(edge => [edge.id, edge]));
-    this.outgoing.clear(); this.routes.clear(); this.footprints.clear(); this.trailCoverage.clear(); this.routeCache.clear();
-    const trails = new Map(resort.trails.map(trail => [trail.id, trail]));
-    for (const edge of resort.edges) {
-      const list = this.outgoing.get(edge.from) ?? []; list.push(edge); this.outgoing.set(edge.from, list);
-      const trail = edge.kind === 'trail' ? trails.get(edge.trailId) : undefined;
-      this.routes.set(edge.id, prepareRoute(edge, trail));
-      if (this.snow) { const fp = prepareFootprint(edge, trail, this.snow); if (fp) this.footprints.set(edge.id, fp); }
-      if (this.snow && trail && !this.trailCoverage.has(trail.id)) {
-        const coverage = prepareTrailCoverage(edge, trail, this.snow); if (coverage) this.trailCoverage.set(trail.id, coverage);
-      }
-    }
-    for (const list of this.outgoing.values()) list.sort((a, b) => a.id.localeCompare(b.id));
+    this.edges = prepared.edges; this.outgoing = prepared.outgoing; this.routes = prepared.routes;
+    this.footprints = prepared.footprints; this.trailCoverage = prepared.trailCoverage; this.routeCache.clear();
     for (const amenity of resort.amenities) this.state.amenityInventory[amenity.id] ??= amenity.inventory;
-    for (const transit of this.state.transitRoutes) {
-      this.routes.set(transit.id, { lanes: transit.lanes, distances: Float64Array.from(transit.distances), length: transit.distances.at(-1) ?? 0 });
-      if (transit.footprint) this.footprints.set(transit.id, { ...transit.footprint, edgeId: transit.id, trailId: transit.trailId,
-        lengthM: transit.lengthM, indices: Uint32Array.from(transit.footprint.indices), areas: Float64Array.from(transit.footprint.areas) });
+    this.geometryKey = nextGeometryKey;
     }
+    this.resort = resort; this.state.portal = resort.portal; this.state.resortRevision = resort.revision;
+    this.state.nextTicketPriceCents = resort.ticketPriceCents;
+    if (!geometryChanged) {
+      this.edges = new Map(resort.edges.map(edge => [edge.id, edge]));
+      this.outgoing.clear();
+      for (const edge of resort.edges) {
+        const list = this.outgoing.get(edge.from) ?? []; list.push(edge); this.outgoing.set(edge.from, list);
+      }
+      for (const list of this.outgoing.values()) list.sort((a, b) => a.id.localeCompare(b.id));
+    }
+    for (const amenity of resort.amenities) this.state.amenityInventory[amenity.id] ??= amenity.inventory;
     for (const cohort of this.state.cohorts) if (cohort.status === 'queue' && !this.edges.has(cohort.edgeId!)) {
       cohort.status = 'choosing'; cohort.edgeId = null;
     }
@@ -146,9 +148,6 @@ export class DualClockEngine {
     this.reconcileTrailQueues();
     this.releaseUnviableLiftQueues();
     this.refreshLiftTelemetry(this.operatingAt(Date.parse(this.state.clock.at)));
-  }
-  private journeyEdge(id: string): NetworkEdge | TransitRoute | undefined {
-    return this.edges.get(id) ?? this.state.transitRoutes.find(route => route.id === id);
   }
   setSpeed(speed: DualSpeed): void {
     this.state.clock.speed = speed;
@@ -423,7 +422,7 @@ export class DualClockEngine {
       const begin = state.guests.length;
       this.spawn(cohort.count, cohort.nodeId, localWeatherDateKey(state.clock.at, state.clock.timezone), forceSamples);
       for (let i = begin; i < state.guests.length; i++) {
-        const guest = state.guests[i], edge = cohort.edgeId ? this.journeyEdge(cohort.edgeId) : null;
+        const guest = state.guests[i], edge = cohort.edgeId ? journeyEdge(this.edges, this.state.transitRoutes, cohort.edgeId) : null;
         guest.groupId = `tracked-cohort-${cohort.id}`; guest.ability = cohort.ability;
         const position = edge?.path[0] ?? this.outgoing.get(cohort.nodeId)?.[0]?.path[0];
         if (position) guest.lastPosition = [...position];
@@ -482,7 +481,7 @@ export class DualClockEngine {
     for (const cohort of state.cohorts) {
       if (cohort.status === 'amenity' && cohort.due <= now) cohort.status = 'choosing';
       if (cohort.status === 'travel' && cohort.due <= now) {
-        const edge = this.journeyEdge(cohort.edgeId!);
+        const edge = journeyEdge(this.edges, this.state.transitRoutes, cohort.edgeId!);
         if (edge) {
           cohort.nodeId = edge.to;
           if (edge.kind === 'trail') {
@@ -612,7 +611,7 @@ export class DualClockEngine {
         edge => this.surfaceEligible(edge), (representative, edge) => representativeGuestDuration(state.seed, representative, edge, state.config.guestMovement));
       return;
     }
-    const completedEdge = guest.edgeId ? this.journeyEdge(guest.edgeId) : undefined;
+    const completedEdge = guest.edgeId ? journeyEdge(this.edges, this.state.transitRoutes, guest.edgeId) : undefined;
     if (completedEdge) {
       guest.nodeId = completedEdge.to;
       guest.lastPosition = [...completedEdge.path[completedEdge.path.length - 1]];
@@ -773,6 +772,7 @@ export class DualClockEngine {
   }
   publication(render = true): DualPublication {
     const state = this.state, selected = state.guests.find(g => g.id === state.selectedGuestId) ?? null;
+    const guests = boundedGuestInspection(state.guests, selected);
     const points = render && state.clock.speed < 8 && state.advance?.state !== 'running' ? state.guests.flatMap(g => {
       if (g.status === 'departed') return [];
       const route = g.edgeId ? this.routes.get(g.edgeId) : null;
@@ -788,7 +788,7 @@ export class DualClockEngine {
           progress: clamp(progress), duration: g.due - g.started } } : {}) }] : [];
     }) : [];
     return structuredClone({ clock: state.clock, flow: state.flow, signals: state.signals,
-      guests: state.guests.slice(0, 12), selected, autoTrack: state.autoTrack, advance: state.advance, points });
+      guests, selected, autoTrack: state.autoTrack, advance: state.advance, points });
   }
   geometry(): Record<string, PreparedRoute> {
     return Object.fromEntries([...this.routes].map(([id, route]) => [this.edges.has(id) ? `${id}@${this.state.resortRevision}` : id, route]));

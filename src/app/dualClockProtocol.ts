@@ -28,4 +28,5 @@ export interface DualWorkerResponse {
   snowPatch?: DualSnowPatch;
   movement?: DualMovementFrame;
   geometry?: Record<string, PreparedRoute>;
+  weatherAck?: { requestId: number; generation: number; acceptedFrom: string; acceptedTo: string };
 }

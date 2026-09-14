@@ -10,6 +10,8 @@ import {
   WEATHER_LOAD_CHANNEL,
   WEATHER_LOAD_INSTALL_BY_CONTENT_HASH_CHANNEL,
   WEATHER_SAVE_CHANNEL,
+  PREPARED_WEATHER_READ_CHANNEL,
+  PREPARED_WEATHER_WRITE_CHANNEL,
   type WeatherDeleteRequest,
   type WeatherDeleteResponse,
   type WeatherLoadByContentHashRequest,
@@ -24,7 +26,15 @@ import {
   type WeatherSaveResponse,
   type WeatherStorageChunk,
   type WeatherStorageChunkDescriptor,
+  type PreparedWeatherReadRequest,
+  type PreparedWeatherReadResponse,
+  type PreparedWeatherWriteRequest,
+  type PreparedWeatherWriteResponse,
 } from '../src/ipcContract';
+import {
+  isPreparedWeatherIdentity,
+  preparedWeatherIdentityKey,
+} from '../src/weather/preparedWeatherModel';
 import { isSavedWeatherRun } from '../src/types/gameSave';
 import { isWeatherDataPackage, type HistoricalWeatherYear, type WeatherDataPackage } from '../src/weather/weatherModel';
 
@@ -329,6 +339,16 @@ function weatherRoot(): string {
   return dir;
 }
 
+function preparedWeatherFile(identity: Parameters<typeof preparedWeatherIdentityKey>[0]): string {
+  const directory = path.join(weatherRoot(), 'prepared-weather-v1');
+  fs.mkdirSync(directory, { recursive: true });
+  return safeChild(directory, `${hash(preparedWeatherIdentityKey(identity))}.bin`);
+}
+
+function isOpaqueBytes(value: unknown): value is Uint8Array {
+  return value instanceof Uint8Array && value.byteLength > 0;
+}
+
 function safeChild(parent: string, segment: string): string {
   const resolvedParent = path.resolve(parent);
   const resolved = path.resolve(resolvedParent, segment);
@@ -561,6 +581,31 @@ async function loadActivePackage(terrainKey: string): Promise<WeatherDataPackage
 }
 
 export function registerWeatherStorageHandlers(): void {
+  ipcMain.handle(
+    PREPARED_WEATHER_READ_CHANNEL,
+    async (_event, request: PreparedWeatherReadRequest): Promise<PreparedWeatherReadResponse> => {
+      if (!request || !isPreparedWeatherIdentity(request.identity)) return null;
+      try {
+        return new Uint8Array(await fsp.readFile(preparedWeatherFile(request.identity)));
+      } catch {
+        return null;
+      }
+    },
+  );
+
+  ipcMain.handle(
+    PREPARED_WEATHER_WRITE_CHANNEL,
+    async (_event, request: PreparedWeatherWriteRequest): Promise<PreparedWeatherWriteResponse> => {
+      if (!request || !isPreparedWeatherIdentity(request.identity) || !isOpaqueBytes(request.bytes)) return false;
+      try {
+        await atomicWrite(preparedWeatherFile(request.identity), Uint8Array.from(request.bytes));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  );
+
   ipcMain.handle(WEATHER_SAVE_CHANNEL, async (_event, request: WeatherSaveRequest): Promise<WeatherSaveResponse> => {
     try {
       const install = request?.install ? await validateInstall(request.install) :

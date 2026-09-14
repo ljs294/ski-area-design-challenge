@@ -192,12 +192,11 @@ function preparedSaveFixture(structures: PreparedStructures) {
   };
 }
 
-export async function seedPreparedResort(
+export async function seedPreparedResortStorage(
   page: Page,
   structures: PreparedStructures = {},
   options: PreparedResortOptions = {},
 ): Promise<void> {
-  await page.goto('/?flat', { waitUntil: 'load' });
   await page.evaluate(
     async ({ save, terrain }) => {
       localStorage.clear();
@@ -231,10 +230,23 @@ export async function seedPreparedResort(
           };
         };
       });
+      const desktop = (window as unknown as { desktop?: { terrain?: { save(record: unknown): Promise<unknown> };
+        games?: { save(save: unknown): Promise<unknown> } } }).desktop;
+      if (desktop?.terrain?.save) await desktop.terrain.save(terrain);
+      if (desktop?.games?.save) await desktop.games.save(save);
     },
     { save: preparedSaveFixture(structures),
       terrain: preparedTerrainFixture(options.mapContext !== 'missing',
         options.contourSegmentCount ?? 1) },
   );
+}
+
+export async function seedPreparedResort(
+  page: Page,
+  structures: PreparedStructures = {},
+  options: PreparedResortOptions = {},
+): Promise<void> {
+  await page.goto('/?flat', { waitUntil: 'load' });
+  await seedPreparedResortStorage(page, structures, options);
   await page.reload({ waitUntil: 'load' });
 }

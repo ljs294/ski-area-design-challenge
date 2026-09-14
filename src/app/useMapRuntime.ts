@@ -11,9 +11,9 @@ import type { Readout } from './CursorReadout';
 import type { MapInteractionLease } from './mapInteractionLease';
 import type { MapContributionRegistry } from './mapContribution';
 import { resortCameraBounds, getResortRenderStats, setRenderConcurrency,
-  setResortRenderQuality, warmResortTiles } from './resortProtocols';
+  setResortRenderQuality, warmResortTiles, invalidateResortRenderQueue } from './resortProtocols';
 import { resumeCameraOf } from './resumeCheckpoint';
-import type { BootControls, BootEvent, BootProgress } from './resortBoot';
+import { isLoadReadinessReady, nextLoadSceneDrawCount, type BootControls, type BootEvent, type BootProgress, type LoadReadiness } from './resortBoot';
 import { pixelRatioForElement, type RenderQuality, type Units } from './SettingsContext';
 import type { SiteBox } from './sitePicker';
 import type { SiteMode } from './SiteControl';
@@ -61,6 +61,7 @@ interface MapRuntimeOptions {
   reportStage(progress: BootProgress): void;
   showLocalBoot(progress: BootProgress | null): void;
   reportGraphicsFailure(message: string): void;
+  loadReadiness: MutableRefObject<Pick<LoadReadiness, 'simulationRestored' | 'weatherReady'>>;
 }
 
 /** Owns MapLibre creation, style restoration, camera warm-up, and live settings. */
@@ -73,6 +74,9 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
   const customMapColorsRef = useRef(options.customMapColors);
   customMapColorsRef.current = options.customMapColors;
   const appliedProfileRef = useRef(options.renderQuality);
+  const readinessGenerationRef = useRef(0);
+  const readinessRevealedRef = useRef(false);
+  const loadReadinessRef = options.loadReadiness;
 
   const reinitializeStyle = (map: maplibregl.Map) => {
     tuneBasemap(map);
@@ -86,7 +90,10 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
       contours: applied.find((entry) => entry.id === 'contours')?.visible,
     });
     if (options.terrainRecordRef.current && !TERRAIN_DISABLED) {
+      invalidateResortRenderQueue(new Error('Resort style generation changed.'));
       mountTerrain(map, options.renderQualityRef.current);
+      const generation = ++readinessGenerationRef.current;
+      options.warmAbortRef.current?.abort();
       if (!options.resortReadyRef.current) {
         options.resortReadyRef.current = true;
         const want3D = options.initialSave?.is3D ?? true;
@@ -101,46 +108,73 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
         } else {
           map.jumpTo({ pitch: want3D ? PITCH_3D : 0 });
         }
+      }
+      if (!readinessRevealedRef.current) {
         const record = options.terrainRecordRef.current;
+        let sceneDraws = 0;
         let revealed = false;
-        const reveal = () => {
-          if (revealed) return;
+        const controller = new AbortController();
+        const readiness = (mapReady: boolean): LoadReadiness => ({
+          generation,
+          mapReady,
+          simulationRestored: loadReadinessRef.current.simulationRestored,
+          weatherReady: loadReadinessRef.current.weatherReady,
+        });
+        const finishReveal = () => {
+          if (revealed || readinessGenerationRef.current !== generation || controller.signal.aborted) return;
           revealed = true;
+          readinessRevealedRef.current = true;
+          map.off('render', onRender);
           setRenderConcurrency(1);
           options.bootControls.current = null;
           if (options.bootControlsRef) options.bootControlsRef.current = null;
           options.reportBoot({ type: 'ready' });
         };
-        const controller = new AbortController();
+        const onRender = () => {
+          if (readinessGenerationRef.current !== generation || controller.signal.aborted) return;
+          const stats = getResortRenderStats();
+          sceneDraws = nextLoadSceneDrawCount(sceneDraws,
+            readiness(map.areTilesLoaded() && stats.visiblePending === 0 && map.loaded()), generation);
+        };
+        map.on('render', onRender);
+        const reveal = () => {
+          const stats = getResortRenderStats();
+          if (isLoadReadinessReady(readiness(map.areTilesLoaded() && stats.visiblePending === 0 && map.loaded()),
+            generation, sceneDraws)) finishReveal();
+        };
+        controller.signal.addEventListener('abort', () => map.off('render', onRender), { once: true });
         options.warmAbortRef.current = controller;
         options.bootControls.current = { reveal, abort: () => controller.abort() };
         if (options.bootControlsRef) options.bootControlsRef.current = options.bootControls.current;
-        void (async () => {
-          options.reportStage({ stage: 'warm' });
-          if (record) {
-            let lastReport = 0;
-            await warmResortTiles(record, (completed, total) => {
-              const now = performance.now();
-              if (completed < total && now - lastReport < 120) return;
-              lastReport = now;
-              options.reportStage({ stage: 'warm', completed, total });
-            }, controller.signal, options.renderQualityRef.current);
+        options.reportStage({ stage: 'warm' });
+        if (record) {
+          let lastReport = 0;
+          void warmResortTiles(record, (completed, total) => {
+            const now = performance.now();
+            if (completed < total && now - lastReport < 120) return;
+            lastReport = now;
+            options.reportStage({ stage: 'warm', completed, total });
+          }, controller.signal, options.renderQualityRef.current).catch(() => undefined);
+        }
+        options.reportStage({ stage: 'settle' });
+        const settle = () => {
+          if (revealed || controller.signal.aborted || readinessGenerationRef.current !== generation) return;
+          const stats = getResortRenderStats();
+          const current = readiness(map.areTilesLoaded() && stats.visiblePending === 0 && map.loaded());
+          if (!current.mapReady || !current.simulationRestored) sceneDraws = 0;
+          const ready = isLoadReadinessReady(current, readinessGenerationRef.current, sceneDraws);
+          if (ready) finishReveal();
+          else {
+            map.triggerRepaint();
+            requestAnimationFrame(settle);
           }
-          if (controller.signal.aborted) return;
-          options.reportStage({ stage: 'settle' });
-          let stable = 0;
-          const settle = () => {
-            if (revealed || controller.signal.aborted) return;
-            const ready = map.areTilesLoaded() &&
-              getResortRenderStats().pending === 0 && map.loaded();
-            stable = ready ? stable + 1 : 0;
-            if (stable >= 2) reveal();
-            else requestAnimationFrame(settle);
-          };
-          requestAnimationFrame(settle);
-        })();
+        };
+        requestAnimationFrame(settle);
       }
     } else {
+      invalidateResortRenderQueue(new Error('Resort style generation changed.'));
+      readinessGenerationRef.current++;
+      options.warmAbortRef.current?.abort();
       unmountTerrain(map);
       if (options.mode === 'playing' && !options.resortReadyRef.current) {
         options.resortReadyRef.current = true;
@@ -244,8 +278,10 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
     };
     map.on('pitch', onPitch);
     map.on('pitchend', onPitch);
+    const invalidateReadiness = () => { readinessGenerationRef.current++; };
     return () => {
       options.warmAbortRef.current?.abort();
+      invalidateReadiness();
       map.off('moveend', sampleLatest);
       setRenderConcurrency(1);
       options.mapInteractionLeaseRef.current?.dispose();

@@ -3,6 +3,14 @@ import type { SimulationClock } from '../types/simulation';
 import { DEFAULT_DUAL_CONFIG, type AdvanceDestination, type DualClockSnapshot, type MacroSecond, type MicroSecond,
   type SimulationSpeedProfile } from './model';
 
+/**
+ * Runtime-only movement pacing.  The authored `microRates` values are part of
+ * the schema-17 checkpoint contract and describe the original presentation
+ * profile, so the approved pacing adjustment belongs here rather than in the
+ * persisted configuration.
+ */
+export const DUAL_MICRO_RUNTIME_MULTIPLIER = 3;
+
 export function winterBounds(at: string, timezone: string, weeks = 24): { start: string; end: string } {
   const local = weatherLocalParts(at, timezone);
   const startFor = (year: number) => {
@@ -39,8 +47,16 @@ export function advanceDestination(clock: DualClockSnapshot, destination: Advanc
   return stopAtWinterEnd(addWeatherLocalTime(at, timezone, destination === 'day' ? { days: 1 } : destination === 'week' ? { weeks: 1 } : { months: 1 }));
 }
 export function microRate(clock: DualClockSnapshot, headless: boolean, config: SimulationSpeedProfile): number {
-  return headless || clock.speed >= 8 ? 1 / config.macroSecondsPerSecond
-    : config.microRates[clock.speed] / (config.macroSecondsPerSecond * clock.speed);
+  // Headless advances have an explicit calendar target rather than a wall
+  // clock selected by the player.  Keep their movement ratio at the 1x base
+  // while applying the same runtime acceleration as ordinary play.  At 8x and
+  // above ordinary presentation already follows the selected calendar rate;
+  // the existing high-speed branch therefore remains speed-based.
+  const configuredMicroPerRealSecond = headless ? 1
+    : clock.speed >= 8 ? clock.speed : config.microRates[clock.speed];
+  const configuredMacroPerRealSecond = headless ? config.macroSecondsPerSecond
+    : config.macroSecondsPerSecond * clock.speed;
+  return DUAL_MICRO_RUNTIME_MULTIPLIER * configuredMicroPerRealSecond / configuredMacroPerRealSecond;
 }
 /** Compatibility presentation only. The legacy time engine never advances this projection. */
 export function projectDualClock(clock: DualClockSnapshot): SimulationClock {

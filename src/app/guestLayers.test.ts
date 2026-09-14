@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { addGuestLayers, GUEST_HIT_LAYER_ID, GUEST_LAYER_IDS, interpolateGuestPoints, setGuestCompactFrame,
-  removeGuestLayers, setGuestPointData, setGuestPortalData, setRepresentativeGuestPresentation, updateGuestPointData } from './guestLayers';
+import { addGuestLayers, GUEST_HIT_LAYER_ID, GUEST_LAYER_IDS, getGuestRenderedPosition,
+  interpolateGuestPoints, setGuestCompactFrame, removeGuestLayers, setGuestPointData,
+  setGuestPortalData, setRepresentativeGuestPresentation, updateGuestPointData } from './guestLayers';
 import type { GuestConnectivity } from './guestConnectivity';
 
 const portal = { version: 1 as const, id: 'entrance', kind: 'guest-entrance' as const,
@@ -49,20 +50,21 @@ describe('guest map connection presentation', () => {
         addOrUpdateProperties: [{ key: 'status', value: 'skiing' }] }] }]);
   });
 
-  it('installs the connection, halo, marker, and label in declared order', () => {
+  it('installs the flow, halo, marker, hit, GPU, and label in declared order', () => {
     const layers: string[] = [], sources = new Set<string>();
     const map = { getSource: (id: string) => sources.has(id) ? {} : undefined,
       addSource: (id: string) => sources.add(id), getLayer: () => undefined,
       addLayer: (layer: { id: string }) => layers.push(layer.id) };
     addGuestLayers(map as never);
     expect(layers).toEqual([...GUEST_LAYER_IDS]);
+    expect(layers).not.toContain('guest-portal-connection');
   });
 
-  it('publishes a status marker and connected-lift line from one reachability result', () => {
+  it('publishes a status marker without a main-map connectivity line', () => {
     const published: GeoJSON.FeatureCollection[] = [];
     const map = { getSource: () => ({ setData: (next: GeoJSON.FeatureCollection) => { published.push(next); } }) };
     setGuestPortalData(map as never, portal, connectivity(true));
-    expect(published[0]?.features.map((feature) => feature.properties?.kind)).toEqual(['connection', 'portal']);
+    expect(published[0]?.features.map((feature) => feature.properties?.kind)).toEqual(['portal']);
     expect(published[0]?.features.every((feature) => feature.properties?.reachable === true)).toBe(true);
   });
 
@@ -107,5 +109,40 @@ describe('guest map connection presentation', () => {
     const hit = (map as never as { queryRenderedFeatures: (point: { x: number; y: number }, options: { layers: string[] }) => readonly { properties?: Record<string, unknown> }[] })
       .queryRenderedFeatures({ x: 75, y: 25 }, { layers: [GUEST_HIT_LAYER_ID] });
     expect(hit[0]?.properties?.id).toBe('guest-000007');
+  });
+
+  it('retains compact frames through explicit layer removal and clears them on an empty frame', () => {
+    const layers = new Map<string, unknown>(), sources = new Map<string, { setData(data: unknown): void }>();
+    const map = { getSource: (id: string) => sources.get(id),
+      addSource: (id: string) => sources.set(id, { setData: () => {} }),
+      getLayer: (id: string) => layers.get(id),
+      addLayer: (layer: { id: string }) => layers.set(layer.id, layer),
+      removeLayer: (id: string) => layers.delete(id), removeSource: (id: string) => sources.delete(id),
+      getLayoutProperty: () => undefined, unproject: () => ({ lng: 0, lat: 0 }), queryRenderedFeatures: () => [] };
+    const frame = { ids: new Uint32Array([7]), guestIds: new Uint32Array([7]), edgeIndices: new Int32Array([-1]),
+      progress: new Float32Array([0]), statusFlags: new Uint32Array([64]), bytesPerGuest: 16 as const, byteLength: 16 };
+    addGuestLayers(map as never);
+    setGuestCompactFrame(map as never, frame, [], [1, 2]);
+    removeGuestLayers(map as never);
+    addGuestLayers(map as never);
+    expect((layers.get('guest-simulation-dots') as { readonly count: number }).count).toBe(1);
+    setGuestCompactFrame(map as never, { ...frame, ids: new Uint32Array(), guestIds: new Uint32Array(),
+      edgeIndices: new Int32Array(), progress: new Float32Array(), statusFlags: new Uint32Array(), byteLength: 0 }, [], [1, 2]);
+    removeGuestLayers(map as never);
+    addGuestLayers(map as never);
+    expect((layers.get('guest-simulation-dots') as { readonly count: number }).count).toBe(0);
+  });
+
+  it('exposes only the last drawn position through the camera lookup', () => {
+    const layers = new Map<string, unknown>(), sources = new Map<string, { setData(data: unknown): void }>();
+    const map = { getSource: (id: string) => sources.get(id), addSource: (id: string) => sources.set(id, { setData: () => {} }),
+      getLayer: (id: string) => layers.get(id), addLayer: (layer: { id: string }) => layers.set(layer.id, layer),
+      getLayoutProperty: () => undefined, unproject: () => ({ lng: 0, lat: 0 }), queryRenderedFeatures: () => [] };
+    addGuestLayers(map as never);
+    setGuestPointData(map as never, [{ id: 'camera-guest', lng: 0, lat: 0, status: 'skiing' }]);
+    const layer = layers.get('guest-simulation-dots') as { updateScreenHitIndex(matrix: Float32Array, width: number, height: number, progress: number): void };
+    layer.updateScreenHitIndex(new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]), 100, 100, 1);
+    expect(getGuestRenderedPosition(map as never, 'camera-guest')).toEqual([0, 0]);
+    expect(getGuestRenderedPosition(map as never, 'missing')).toBeNull();
   });
 });

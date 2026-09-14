@@ -92,7 +92,7 @@ describe('dual-clock runtime', () => {
     advance(engine, start + 481000);
     expect(queued).toMatchObject({ status: 'walking', nodeId: 'base', edgeId: null, nextPlan: 'Wait for a suitable route' });
 
-    const ridingEngine = new DualClockEngine(fixture); ridingEngine.play(); advance(ridingEngine, start + 481000);
+    const ridingEngine = new DualClockEngine(fixture); ridingEngine.play(); advance(ridingEngine, start + 180000);
     const rider = ridingEngine.state.guests[0]!;
     expect(rider).toMatchObject({ status: 'lift-ride', edgeId: 'lift-edge', nodeId: 'base' });
     ridingEngine.setResort(blocked);
@@ -176,6 +176,41 @@ describe('dual-clock runtime', () => {
     });
     for (const output of outputs.slice(1)) expect(output).toEqual(outputs[0]);
   });
+  it('advances the runtime micro clock at the approved rate for every ordinary preset', () => {
+    const expected = [3, 5.25, 8.25, 24, 48, 192];
+    for (const [index, speed] of DUAL_SPEEDS.entries()) {
+      const fixture = dualFixture(0), engine = new DualClockEngine(fixture), start = Date.parse(fixture.at);
+      engine.setSpeed(speed); engine.play();
+      advance(engine, start + engine.state.config.macroSecondsPerSecond * speed * 1000);
+      expect(engine.state.clock.macroSecond).toBeCloseTo(engine.state.config.macroSecondsPerSecond * speed, 8);
+      expect(engine.state.clock.microSecond).toBeCloseTo(expected[index], 8);
+    }
+  });
+  it('keeps bulk advances on the accelerated base micro ratio regardless of the selected presentation preset', () => {
+    for (const speed of DUAL_SPEEDS) {
+      const fixture = dualFixture(0), engine = new DualClockEngine(fixture), start = Date.parse(fixture.at);
+      const target = new Date(start + engine.state.config.macroSecondsPerSecond * 1000).toISOString();
+      engine.setSpeed(speed); engine.beginAdvance({ destination: 'day', target });
+      advance(engine, Date.parse(target), true);
+      expect(engine.state.clock.microSecond).toBeCloseTo(3, 8);
+      expect(engine.state.advance?.state).toBe('completed');
+    }
+  });
+  it('suspends and resumes a bulk advance without changing its committed micro time', () => {
+    const fixture = dualFixture(0), engine = new DualClockEngine(fixture), start = Date.parse(fixture.at);
+    const target = new Date(start + 80 * 1000).toISOString();
+    engine.setSpeed(4); engine.beginAdvance({ destination: 'day', target });
+    const work = engine.advanceTo(Date.parse(target), true);
+    expect(work.next().done).toBe(false);
+    const suspendedAt = engine.state.clock.microSecond;
+    engine.pause(); work.return();
+    expect(engine.state.advance).toMatchObject({ state: 'suspended', request: { target } });
+    expect(engine.state.clock.microSecond).toBe(suspendedAt);
+    engine.resumeAdvance(); advance(engine, Date.parse(target), true);
+    expect(engine.state.advance?.state).toBe('completed');
+    expect(engine.state.clock.microSecond).toBeCloseTo(6, 8);
+    expect(engine.state.clock.paused).toBe(true);
+  });
   it('preserves sub-centimeter depth and residual credits across frequent JSON checkpoints', () => {
     const fixture = dualFixture(100), target = Date.parse(fixture.at) + 3600000;
     const direct = new DualClockEngine(fixture); advance(direct, target);
@@ -189,6 +224,22 @@ describe('dual-clock runtime', () => {
     expect(resumed.exposure).toEqual(direct.exposure);
     expect(resumed.state.flow).toEqual(direct.state.flow);
     expect(resumed.state.dailyLiftBoardings).toEqual(direct.state.dailyLiftBoardings);
+  });
+  it('does not compound runtime pacing or rewrite representative deadlines across repeated schema-17 reloads', () => {
+    const fixture = dualFixture(1000), start = Date.parse(fixture.at);
+    let engine = new DualClockEngine(fixture); engine.setSpeed(2); engine.play();
+    advance(engine, start + 80_000);
+    const expectedConfig = { ...engine.state.config.microRates };
+    for (let round = 0; round < 3; round++) {
+      const before = engine.state.guests.map(guest => ({ id: guest.id, started: guest.started, due: guest.due }));
+      const checkpoint = JSON.parse(JSON.stringify(engine.checkpoint()));
+      expect(checkpoint.config.microRates).toEqual(expectedConfig);
+      const restored = new DualClockEngine({ ...fixture, checkpoint });
+      expect(restored.state.config.microRates).toEqual(expectedConfig);
+      expect(restored.state.guests.map(guest => ({ id: guest.id, started: guest.started, due: guest.due }))).toEqual(before);
+      expect(restored.state.clock.microSecond).toBeCloseTo(engine.state.clock.microSecond, 8);
+      engine = restored; engine.play(); advance(engine, start + (round + 2) * 80_000);
+    }
   });
   it('retains a completed selected visit and ignores advisory warnings for playback', () => {
     const fixture = dualFixture(100), engine = new DualClockEngine(fixture);
@@ -266,6 +317,18 @@ describe('dual-clock runtime', () => {
     expect(engine.publication().selected?.spendingCents).toBe(0);
     expect(engine.state.flow).toEqual(before); expect(engine.state.clock).toEqual(clock);
     expect(engine.publication().points).toHaveLength(0);
+  });
+  it('publishes the selected representative while aggregate presentation is active at high speed', () => {
+    const fixture = dualFixture(1000), engine = new DualClockEngine(fixture), start = Date.parse(fixture.at);
+    engine.play(); advance(engine, start + 120_000);
+    const guest = engine.state.guests.at(-1)!;
+    engine.select(guest.id); engine.setSpeed(8);
+    expect(engine.state.presentationMode).toBe('aggregate');
+    expect(engine.publication().selected?.id).toBe(guest.id);
+    expect(engine.publication().guests.some(item => item.id === guest.id)).toBe(true);
+    expect(engine.publication().points).toHaveLength(0);
+    const restored = new DualClockEngine({ ...fixture, checkpoint: JSON.parse(JSON.stringify(engine.checkpoint())) });
+    expect(restored.publication().selected?.id).toBe(guest.id);
   });
   it('keeps an in-progress lane stable across editing and precise save/load', () => {
     const fixture = dualFixture(100), engine = new DualClockEngine(fixture);

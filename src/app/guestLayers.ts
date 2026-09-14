@@ -12,7 +12,6 @@ export const GUEST_SOURCE_ID = 'guest-simulation-points';
 export const GUEST_LAYER_ID = 'guest-simulation-dots';
 export const GUEST_HIT_LAYER_ID = 'guest-simulation-hit';
 export const GUEST_PORTAL_SOURCE_ID = 'guest-portal';
-export const GUEST_PORTAL_CONNECTION_LAYER_ID = 'guest-portal-connection';
 export const GUEST_PORTAL_HALO_LAYER_ID = 'guest-portal-halo';
 export const GUEST_PORTAL_LAYER_ID = 'guest-portal-marker';
 export const GUEST_PORTAL_LABEL_LAYER_ID = 'guest-portal-label';
@@ -21,8 +20,7 @@ const flowData = new WeakMap<maplibregl.Map, GeoJSON.FeatureCollection>();
 const representativeMaps = new WeakSet<maplibregl.Map>();
 const retainedPoints = new WeakMap<maplibregl.Map, readonly GuestRenderPoint[]>();
 const motionRoutes = new WeakMap<maplibregl.Map, Record<string, PreparedRoute>>();
-export const GUEST_LAYER_IDS = [FLOW_LINE, FLOW_LABEL, GUEST_PORTAL_CONNECTION_LAYER_ID,
-  GUEST_PORTAL_HALO_LAYER_ID, GUEST_PORTAL_LAYER_ID, GUEST_HIT_LAYER_ID, GUEST_LAYER_ID,
+export const GUEST_LAYER_IDS = [FLOW_LINE, FLOW_LABEL, GUEST_PORTAL_HALO_LAYER_ID, GUEST_PORTAL_LAYER_ID, GUEST_HIT_LAYER_ID, GUEST_LAYER_ID,
   GUEST_PORTAL_LABEL_LAYER_ID] as const;
 
 const gpuLayers = new WeakMap<maplibregl.Map, GuestGpuLayer>();
@@ -173,12 +171,7 @@ export function addGuestLayers(map: maplibregl.Map, beforeId?: string): void {
   if (!map.getSource(GUEST_PORTAL_SOURCE_ID)) map.addSource(GUEST_PORTAL_SOURCE_ID, { type: 'geojson', data: EMPTY });
   const before = beforeId && map.getLayer(beforeId) ? beforeId : undefined;
   const portalFilter = ['==', ['get', 'kind'], 'portal'] as maplibregl.FilterSpecification;
-  const connectionFilter = ['==', ['get', 'kind'], 'connection'] as maplibregl.FilterSpecification;
   const statusColor = ['case', ['get', 'reachable'], '#16a34a', '#dc2626'] as maplibregl.ExpressionSpecification;
-  if (!map.getLayer(GUEST_PORTAL_CONNECTION_LAYER_ID)) map.addLayer({ id: GUEST_PORTAL_CONNECTION_LAYER_ID,
-    type: 'line', source: GUEST_PORTAL_SOURCE_ID, filter: connectionFilter,
-    paint: { 'line-color': statusColor, 'line-width': 5, 'line-opacity': 0.8,
-      'line-dasharray': [2, 1] } }, before);
   if (!map.getLayer(GUEST_PORTAL_HALO_LAYER_ID)) map.addLayer({ id: GUEST_PORTAL_HALO_LAYER_ID,
     type: 'circle', source: GUEST_PORTAL_SOURCE_ID, filter: portalFilter,
     paint: { 'circle-color': statusColor, 'circle-radius': 13, 'circle-opacity': 0.22 } }, before);
@@ -223,12 +216,26 @@ export function setGuestCompactFrame(map: maplibregl.Map | null, frame: GuestSim
   if (!map) return;
   if (!frame) {
     compactFrames.delete(map);
+    retainedPoints.delete(map);
     gpuLayers.get(map)?.setRenderFrame(null, edgePaths, portalLngLat, 0);
     (map.getSource(GUEST_SOURCE_ID) as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY);
     return;
   }
   compactFrames.set(map, { frame, edgePaths, portalLngLat });
   gpuLayers.get(map)?.setRenderFrame(frame, edgePaths, portalLngLat);
+  if (frame.ids.length === 0) {
+    retainedPoints.delete(map);
+    (map.getSource(GUEST_SOURCE_ID) as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY);
+  }
+}
+
+/** Return the last GPU-drawn position used by both picking and camera follow. */
+export function getGuestRenderedPosition(map: maplibregl.Map | null, id: string): readonly [number, number] | null {
+  if (!map) return null;
+  const layer = gpuLayers.get(map);
+  if (layer) return layer.renderedPosition(id);
+  const point = retainedPoints.get(map)?.find((candidate) => candidate.id === id);
+  return point ? [point.lng, point.lat] : null;
 }
 
 /** Differential animation updates avoid reparsing the entire guest collection every frame. */
@@ -264,9 +271,6 @@ export function setGuestPortalData(map: maplibregl.Map | null, portal: PlacedGue
     properties: { kind: 'portal', id: portal.id, nodeId: portal.nodeId, label: portal.label, reachable,
       statusLabel: reachable ? `Guest Entrance - ${connectivity?.connectedLiftName ?? 'connected'}` : 'Resort unreachable' },
     geometry: { type: 'Point', coordinates: [...portal.lngLat] } }];
-  if ((connectivity?.connectionPath.length ?? 0) >= 2) features.unshift({ type: 'Feature',
-    id: `${portal.id}:connection`, properties: { kind: 'connection', reachable },
-    geometry: { type: 'LineString', coordinates: [...connectivity!.connectionPath] } });
   source?.setData({ type: 'FeatureCollection', features });
 }
 
@@ -276,7 +280,8 @@ export function removeGuestLayers(map: maplibregl.Map): void {
   if (map.getSource(GUEST_SOURCE_ID)) map.removeSource(GUEST_SOURCE_ID);
   if (map.getSource(GUEST_PORTAL_SOURCE_ID)) map.removeSource(GUEST_PORTAL_SOURCE_ID);
   gpuLayers.delete(map);
-  compactFrames.delete(map);
+  // Keep the last compact publication across a style replacement. An
+  // explicit empty publication clears this cache through setGuestCompactFrame.
   const original = originalQueries.get(map);
   if (original) {
     (map as maplibregl.Map & { queryRenderedFeatures: maplibregl.Map['queryRenderedFeatures'] }).queryRenderedFeatures = original;

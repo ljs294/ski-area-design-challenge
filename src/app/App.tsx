@@ -71,6 +71,7 @@ function AppInner() {
   // Populated by MapView while a resort boots, so the loading screen's
   // "Enter anyway" / "Back to menu" can drive the warm-up it can't see.
   const bootControlsRef = useRef<BootControls | null>(null);
+  const bootGenerationRef = useRef(0);
   const sessionControlsRef = useRef<GameSessionControls | null>(null);
   const bootFadeRef = useRef<number | null>(null);
 
@@ -149,6 +150,8 @@ function AppInner() {
    *  map) so it cannot issue Terrarium requests during the resume transition. */
   const beginBoot = useCallback(
     async (key: string, title: string) => {
+      const generation = ++bootGenerationRef.current;
+      bootControlsRef.current?.abort();
       if (bootFadeRef.current !== null) {
         window.clearTimeout(bootFadeRef.current);
         bootFadeRef.current = null;
@@ -164,6 +167,7 @@ function AppInner() {
       });
       setScreen('loadingGame');
       const [save, previewUrl] = await Promise.all([loadGame(key), loadGamePreview(key)]);
+      if (generation !== bootGenerationRef.current) return;
       if (save) {
         setBoot((previous) => previous ? { ...previous, title: save.name } : previous);
       }
@@ -244,6 +248,7 @@ function AppInner() {
   );
 
   const handleBootBack = useCallback(() => {
+    bootGenerationRef.current++;
     bootControlsRef.current?.abort();
     // Drop the overlay before MapView unmounts — it revokes the imagery blob
     // URL the backdrop is showing.

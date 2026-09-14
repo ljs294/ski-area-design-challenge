@@ -144,7 +144,7 @@ function mountain(extra: Record<string, unknown> = {}) {
 }
 
 describe('NetworkMap', () => {
-  it('shows the Guest Entrance connection and warns when its lift has no open descent', () => {
+  it('shows the Guest Entrance building and warns when its lift has no open descent', () => {
     const reachableNetwork = mountain();
     const base = reachableNetwork.nodes.find((candidate) => candidate.liftBases.includes('L'))!;
     const portal = { version: 1 as const, id: 'entrance', kind: 'guest-entrance' as const,
@@ -154,7 +154,11 @@ describe('NetworkMap', () => {
     const connected = analyzeGuestConnectivity(reachableNetwork, portal);
     expect(connected.reachable).toBe(true);
     expect(connected.connectedLiftName).toBe('L');
-    expect(render(reachableNetwork, { guestConnectivity: connected })).toContain('Connected Guest Entrance');
+    const connectedMarkup = render(reachableNetwork, { guestConnectivity: connected });
+    expect(connectedMarkup).toContain('Connected Guest Entrance');
+    expect(connectedMarkup).toContain('data-guest-entrance="true"');
+    expect(connectedMarkup).toContain('Guest Entrance');
+    expect(connectedMarkup).not.toContain('stroke-dasharray="8 4"');
 
     const closedNetwork = mountain({ closed: true });
     const closedBase = closedNetwork.nodes.find((candidate) => candidate.liftBases.includes('L'))!;

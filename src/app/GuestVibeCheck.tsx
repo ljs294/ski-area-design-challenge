@@ -72,6 +72,9 @@ export interface GuestVibeSummary {
 export interface GuestVibeCheckProps {
   readonly inspection?: GuestInspectionSnapshot | null;
   readonly autoTracking?: boolean;
+  readonly following?: boolean;
+  readonly onStartFollowing?: () => void;
+  readonly onStopFollowing?: () => void;
   readonly onAutoTrack?: () => void;
   readonly onStopAutoTrack?: () => void;
   readonly onFollow?: () => void;
@@ -315,7 +318,8 @@ function EconomySummary({ economy }: { economy: GuestVibeEconomySummary }) {
  * raw events; the caller supplies a snapshot-consistent presentation model.
  */
 export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests, selectedGuestId,
-  onSelectGuest, onClearSelectedGuest, maxGuests, inspection, autoTracking, onAutoTrack, onStopAutoTrack, onFollow, title = 'Guest vibe check',
+  onSelectGuest, onClearSelectedGuest, maxGuests, inspection, autoTracking, following, onStartFollowing, onStopFollowing,
+  onAutoTrack, onStopAutoTrack, onFollow, title = 'Guest vibe check',
   description = 'A quick read on what visitors are thinking right now.', connectivity }: GuestVibeCheckProps) {
   const headingId = 'guest-vibe-check-heading';
   const guestLimit = clampGuestLimit(maxGuests);
@@ -425,7 +429,13 @@ export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests,
         {inspection.status === 'departed' ? <div>
           <button type="button" className="site-btn" onClick={onAutoTrack}>Auto-track another active guest</button>
           <button type="button" className="site-btn" onClick={onClearSelectedGuest}>Return to Mountain Overview</button>
-        </div> : <button type="button" className="site-btn" onClick={onFollow}>Follow at 1×</button>}
+        </div> : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {(onStartFollowing || onStopFollowing) && <button type="button" className="site-btn"
+            onClick={following ? onStopFollowing : (onStartFollowing ?? onFollow)}>
+            {following ? 'Stop following' : 'Follow'}
+          </button>}
+          {onFollow && <button type="button" className="site-btn" onClick={onFollow}>Follow at 1×</button>}
+        </div>}
       </article>}
       {selectedGuest && !inspection && <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 6, padding: 8 }} aria-label={`Selected guest ${selectedGuest.label || selectedGuest.id}`}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -436,6 +446,13 @@ export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests,
           <span>Status</span><strong style={{ color: 'var(--text)', textTransform: 'capitalize' }}>{selectedGuest.status}</strong>
         </div>
         {selectedGuest.latestThought && <p style={mutedStyle}>{selectedGuest.latestThought}</p>}
+        {(onStartFollowing || onStopFollowing || onFollow) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {(onStartFollowing || onStopFollowing) && <button type="button" className="site-btn"
+            onClick={following ? onStopFollowing : (onStartFollowing ?? onFollow)}>
+            {following ? 'Stop following' : 'Follow'}
+          </button>}
+          {onFollow && <button type="button" className="site-btn" onClick={onFollow}>Follow at 1×</button>}
+        </div>}
         {onClearSelectedGuest && <button type="button" className="site-btn" onClick={onClearSelectedGuest}>Clear guest selection</button>}
       </div>}
     </div>

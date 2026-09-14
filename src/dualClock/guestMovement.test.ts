@@ -58,7 +58,7 @@ describe('dual-clock individual movement', () => {
     const engine = new DualClockEngine(fixture);
     const first = representative('guest-1', 1, edge.from, [...edge.path[0]], fixture.at);
     engine.state.guests = [first]; engine.play();
-    advance(engine, Date.parse(fixture.at) + 1 * 60_000);
+    advance(engine, Date.parse(fixture.at) + 20_000);
     expect(first.status).toBe('skiing');
     const second = representative('guest-2', 2, edge.from, [...edge.path[0]], fixture.at);
     second.due = first.started + 0.5;
@@ -74,7 +74,7 @@ describe('dual-clock individual movement', () => {
     const first = representative('guest-1', 1, edge.from, [...edge.path[0]], fixture.at);
     const retired = representative('guest-2', 2, edge.from, [...edge.path[0]], fixture.at);
     engine.state.guests = [first, retired]; engine.play();
-    advance(engine, Date.parse(fixture.at) + 1 * 60_000);
+    advance(engine, Date.parse(fixture.at) + 20_000);
     expect(retired.status).toBe('trail-queue');
     engine.state.guests = engine.state.guests.filter(guest => guest.id !== retired.id);
     const replacement = representative('guest-3', 3, edge.from, [...edge.path[0]], fixture.at);
@@ -112,7 +112,7 @@ describe('dual-clock individual movement', () => {
     const first = representative('guest-1', 1, edge.from, [...edge.path[0]], fixture.at);
     const queued = representative('guest-2', 2, edge.from, [...edge.path[0]], fixture.at);
     engine.state.guests = [first, queued]; engine.play();
-    advance(engine, Date.parse(fixture.at) + 1 * 60_000);
+    advance(engine, Date.parse(fixture.at) + 20_000);
     expect(queued.status).toBe('trail-queue');
     const closed = structuredClone(fixture.resort);
     closed.revision++;
@@ -132,7 +132,7 @@ describe('dual-clock individual movement', () => {
     const first = representative('guest-1', 1, edge.from, [...edge.path[0]], fixture.at);
     const second = representative('guest-2', 2, branch.from, [...branch.path[0]], fixture.at);
     engine.state.guests = [first, second]; engine.play();
-    advance(engine, Date.parse(fixture.at) + 1 * 60_000);
+    advance(engine, Date.parse(fixture.at) + 20_000);
     expect(first.status).toBe('skiing');
     expect(second.status).toBe('skiing');
     expect(first.started).toBe(0);
@@ -152,7 +152,7 @@ describe('dual-clock individual movement', () => {
     const guest = representative('guest-1', 1, first.from, [...top], fixture.at);
     guest.status = 'skiing'; guest.edgeId = first.id; guest.started = 0; guest.due = 1; guest.lastTrailId = 'run';
     engine.state.guests = [guest]; engine.play();
-    advance(engine, Date.parse(fixture.at) + 60_000);
+    advance(engine, Date.parse(fixture.at) + 20_000);
     expect(guest.status).toBe('skiing');
     expect(guest.edgeId).toBe(second.id);
     expect(guest.started).toBe(1);
@@ -194,7 +194,7 @@ describe('dual-clock individual movement', () => {
     const first = representative('guest-1', 1, edge.from, [...edge.path[0]], fixture.at);
     const second = representative('guest-2', 2, edge.from, [...edge.path[0]], fixture.at);
     engine.state.guests = [first, second]; engine.play();
-    advance(engine, Date.parse(fixture.at) + 60_000);
+    advance(engine, Date.parse(fixture.at) + 20_000);
     const checkpoint = JSON.parse(JSON.stringify(engine.checkpoint()));
     const restored = new DualClockEngine({ ...fixture, checkpoint });
     expect(restored.state.trailQueues?.['run|top']?.entries[0]?.releaseMicroSecond).toBe(2);

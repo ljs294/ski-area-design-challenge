@@ -79,4 +79,13 @@ describe('GuestVibeCheck', () => {
     expect(html).toContain('Reconciled');
     expect(html).toContain('Ticket price is locked for this active day');
   });
+
+  it('keeps camera follow controls separate from the explicit one-times follow action', () => {
+    const html = render({ inspection: { id: 'sample', groupId: 'party', status: 'skiing',
+      runs: 1, spendingCents: 1000, satisfaction: 0.86, nextPlan: 'Ski', thought: 'Great snow.',
+      trackingBeganAt: '2026-11-02T08:00:00Z', history: [] }, following: true,
+      onStartFollowing: vi.fn(), onStopFollowing: vi.fn(), onFollow: vi.fn() });
+    expect(html).toContain('Stop following');
+    expect(html).toContain('Follow at 1×');
+  });
 });

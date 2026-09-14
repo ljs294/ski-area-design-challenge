@@ -71,8 +71,9 @@ describe('dashboard MapLibre projection', () => {
     expect(result.features).toContainEqual(expect.objectContaining({
       properties: expect.objectContaining({ kind: 'trail-edge', edgeKind: 'lift', id: 'lift-1' }),
     }));
-    expect(result.features.some((row) => row.properties?.kind === 'guest-portal')).toBe(true);
-    expect(result.features.some((row) => row.properties?.kind === 'guest-connection')).toBe(true);
+    expect(result.features.some((row) => row.properties?.kind === 'guest-portal-building')).toBe(true);
+    expect(result.features.some((row) => row.properties?.kind === 'guest-portal-building-label')).toBe(true);
+    expect(result.features.some((row) => row.properties?.kind === 'guest-connection')).toBe(false);
   });
 
   it('projects snowmaking entities without mounting a second map surface', () => {

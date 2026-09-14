@@ -10,6 +10,7 @@ interface Pending {
   x: number;
   y: number;
   priority: 'visible' | 'warm';
+  promise: Promise<ArrayBuffer>;
   resolve(data: ArrayBuffer): void;
   reject(error: Error): void;
 }
@@ -88,15 +89,38 @@ export class ResortTileWorkerPool {
     priority: 'visible' | 'warm',
   ): Promise<ArrayBuffer> | null {
     if (!this.slots.length) return null;
-    return new Promise<ArrayBuffer>((resolve, reject) => {
-      const task: Pending = {
-        id: ++this.requestId, generation: this.generation, kind, z, x, y,
-        priority, resolve, reject,
-      };
-      this.pending.set(task.id, task);
-      (priority === 'visible' ? this.visible : this.warm).push(task);
-      this.pump();
+    const existing = [...this.visible, ...this.warm]
+      .find((task) => task.kind === kind && task.z === z && task.x === x && task.y === y);
+    if (existing) {
+      if (priority === 'visible') this.promote(kind, z, x, y);
+      return existing.promise;
+    }
+    let resolveTask!: (data: ArrayBuffer) => void;
+    let rejectTask!: (error: Error) => void;
+    const promise = new Promise<ArrayBuffer>((resolve, reject) => {
+      resolveTask = resolve;
+      rejectTask = reject;
     });
+    const task: Pending = {
+      id: ++this.requestId, generation: this.generation, kind, z, x, y,
+      priority, promise, resolve: resolveTask, reject: rejectTask,
+    };
+    this.pending.set(task.id, task);
+    (priority === 'visible' ? this.visible : this.warm).push(task);
+    this.pump();
+    return promise;
+  }
+
+  /** Move a queued warm tile ahead of the remaining warm queue. */
+  promote(kind: ResortTileKind, z: number, x: number, y: number): boolean {
+    const index = this.warm.findIndex((task) =>
+      task.kind === kind && task.z === z && task.x === x && task.y === y);
+    if (index < 0) return false;
+    const [task] = this.warm.splice(index, 1);
+    task.priority = 'visible';
+    this.visible.unshift(task);
+    this.pump();
+    return true;
   }
 
   stop(reason = new Error('Terrain tile workers stopped.')): void {

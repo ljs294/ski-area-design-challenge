@@ -8,6 +8,7 @@ export interface WorkerProbeEntry {
   /** Bounded control/publication identities for correlating a movement frame with worker state. */
   publications?: { id: number; type: string; generation: number; operationGeneration: number; committedRevision: number;
     macroSecond?: number; microSecond?: number; at?: string;
+    selectedId: string | null;
     representatives?: { id?: string; status?: string; nodeId?: string; edgeId?: string | null; started?: number; due?: number; runs?: number; nextPlan?: string }[];
     flow?: unknown }[];
 }
@@ -34,6 +35,7 @@ export async function installWorkerProbe(
           const data = event.data as { id?: number; type?: string; generation?: number; operationGeneration?: number; committedRevision?: number;
             publication?: { clock?: { macroSecond?: number; microSecond?: number; at?: string };
               guests?: { id?: string; status?: string; nodeId?: string; edgeId?: string | null; started?: number; due?: number; runs?: number; nextPlan?: string }[];
+              selected?: { id?: string } | null;
               flow?: unknown };
             movement?: { count?: number; capacity?: number; buffer?: ArrayBuffer } };
           if (typeof data.id === 'number' && typeof data.type === 'string' && typeof data.generation === 'number'
@@ -42,6 +44,7 @@ export async function installWorkerProbe(
               operationGeneration: data.operationGeneration, committedRevision: data.committedRevision,
               macroSecond: data.publication?.clock?.macroSecond, microSecond: data.publication?.clock?.microSecond,
               at: data.publication?.clock?.at,
+              selectedId: data.publication?.selected?.id ?? null,
               representatives: data.publication?.guests?.map(({ id, status, nodeId, edgeId, started, due, runs, nextPlan }) =>
                 ({ id, status, nodeId, edgeId, started, due, runs, nextPlan })), flow: data.publication?.flow });
             if (entry.publications!.length > 240) entry.publications!.shift();

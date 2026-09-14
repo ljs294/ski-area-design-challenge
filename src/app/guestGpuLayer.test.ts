@@ -43,6 +43,23 @@ describe('guest GPU layer data', () => {
     expect(data[5]).toBe(0);
   });
 
+  it('keeps the previous edge geometry when a compact frame crosses a topology edit', () => {
+    const layer = new GuestGpuLayer('guest-geometry-edit');
+    layer.setRenderFrame(frame(0), [[[0, 0], [1, 0]]], [0, 0], 50);
+    layer.setRenderFrame(frame(1), [[[10, 0], [11, 0]]], [0, 0], 50);
+    const pending = (layer as unknown as { pending: Float32Array }).pending;
+    expect(pending[0]).toBeCloseTo(0.5);
+    expect(pending[2]).toBeCloseTo((180 + 11) / 360);
+  });
+
+  it('marks a snapped compact frame for a fresh GPU upload', () => {
+    const layer = new GuestGpuLayer('guest-snap');
+    layer.setRenderFrame(frame(0), [], [0, 0], 50);
+    (layer as unknown as { bufferDirty: boolean }).bufferDirty = false;
+    layer.snapCompactFrame();
+    expect((layer as unknown as { bufferDirty: boolean }).bufferDirty).toBe(true);
+  });
+
   it('refreshes terrain elevation and uses the same elevated position for hit testing', () => {
     const layer = new GuestGpuLayer('guest-terrain');
     layer.setPoints([], [{ id: 'guest-terrain', lng: 0, lat: 0, status: 'skiing' }], 0);
@@ -82,6 +99,29 @@ describe('guest GPU layer data', () => {
     expect(layer.hitTest({ x: 40, y: 25 }, 1)).toBeNull();
   });
 
+  it('keeps the prior picking index available across a frame replacement', () => {
+    const layer = new GuestGpuLayer('guest-frame-replacement');
+    const matrix = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+    layer.setRenderFrame(frame(0), [], [0, 0], 0);
+    layer.updateScreenHitIndex(matrix, 100, 100, 1);
+    layer.setRenderFrame(frame(0.5), [], [0, 0], 0);
+    expect(layer.hitTest({ x: 75, y: 25 }, 8)?.id).toBe('guest-000001');
+  });
+
+  it('skips shader-discarded guests and resolves overlapping dots by distance then id', () => {
+    const layer = new GuestGpuLayer('guest-overlap');
+    layer.setRenderFrame({ ids: new Uint32Array([9, 3, 5]), guestIds: new Uint32Array([9, 3, 5]),
+      edgeIndices: new Int32Array([-1, -1, -1]), progress: new Float32Array([0, 0, 0]),
+      statusFlags: new Uint32Array([512, 64, 64]), bytesPerGuest: 16, byteLength: 48 }, [], [0, 0], 0);
+    layer.updateScreenHitIndex(new Float32Array([
+      1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
+    ]), 100, 100, 1);
+    expect(layer.hitTest({ x: 75, y: 25 }, 1)?.id).toBe('guest-000003');
+    expect(layer.hitTest({ x: 75, y: 25 }, 0)?.id).toBe('guest-000003');
+    expect(layer.renderedPosition('guest-000009')).toBeNull();
+    expect(layer.renderedPosition('guest-000003')).toEqual([0, 0]);
+  });
+
   it('uses MapLibre’s normalized-Mercator custom-layer matrix instead of its world-pixel model matrix', () => {
     const layer = new GuestGpuLayer('guest-projection');
     layer.setPoints([], [{ id: 'fixture-base', lng: -121.495, lat: 46.902, status: 'lift-queue' }], 0);
@@ -112,5 +152,20 @@ describe('guest GPU layer data', () => {
     expect(interpolatedMotionPosition(previous, next, routes, 0.5)).toEqual([1, 0]);
     expect(interpolatedMotionPosition(previous, { ...next, motion: { ...next.motion, routeId: 'missing' } }, routes, 0.5))
       .toEqual([88, 88]);
+  });
+
+  it('keeps compact projection allocation bounded for the 1k, 3k, and 10k renderer fixtures', () => {
+    for (const count of [1_000, 3_000, 10_000]) {
+      const ids = Uint32Array.from({ length: count }, (_, index) => index + 1);
+      const edges = new Int32Array(count); edges.fill(-1);
+      const progress = new Float32Array(count); progress.fill(0);
+      const statuses = new Uint32Array(count); statuses.fill(64);
+      const next: GuestSimulationRenderFrame = { ids, guestIds: ids, edgeIndices: edges, progress,
+        statusFlags: statuses, bytesPerGuest: 16, byteLength: count * 16 };
+      const data = guestGpuFrameVertexData(null, next, [], [-121.5, 46.9]);
+      expect(data).toHaveLength(count * 6);
+      expect(data.byteLength).toBe(count * GUEST_GPU_BYTES_PER_GUEST);
+      expect(data[4]).toBe(2);
+    }
   });
 });

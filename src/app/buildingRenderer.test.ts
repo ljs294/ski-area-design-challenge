@@ -5,6 +5,7 @@ import {
 } from './buildingLayers';
 import { createBuildingContribution } from './buildingRenderer';
 import { fixedPumpHouseFixture } from './buildingFixture';
+import { guestEntranceBuilding } from './guestPortalPlacement';
 
 class FakeMap {
   readonly sources = new Map<string, { setData: ReturnType<typeof vi.fn> }>();
@@ -57,5 +58,23 @@ describe('native building contribution', () => {
 
     contribution.visibilityChanged?.(context, 'buildings', true);
     for (const id of BUILDING_BUILT_LAYER_IDS) expect(visibility(map, id)).toBe('visible');
+  });
+
+  it('publishes transient entrance geometry alongside saved buildings without changing the document', () => {
+    const map = new FakeMap();
+    const portal = guestEntranceBuilding({ id: 'entrance', nodeId: 'base', lngLat: [-121.47, 46.92],
+      version: 1, kind: 'guest-entrance', type: 'guest-entrance', semantics: 'guest-entrance',
+      direction: 'inbound', accepts: 'guests', label: 'Guest Entrance', capacityGuestsPerTick: 12,
+      openFromTick: 0, openUntilTick: Number.MAX_SAFE_INTEGER });
+    const contribution = createBuildingContribution({
+      getBuildings: () => [fixedPumpHouseFixture([-121.47, 46.92])],
+      getTransientBuildings: () => [portal],
+    });
+    const context = { map: map as never, mapGeneration: 1, styleGeneration: 1 };
+    contribution.install(context);
+    contribution.synchronizeData(context);
+    const features = (map.sources.get('player-buildings')?.setData.mock.calls[0]?.[0] as GeoJSON.FeatureCollection).features;
+    expect(features).toHaveLength(4);
+    expect(features.some((feature) => feature.properties?.id === 'guest-entrance-building:entrance')).toBe(true);
   });
 });

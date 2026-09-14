@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useReducer, useRef, type RefObject } from '
 import type maplibregl from 'maplibre-gl';
 import type { TerrainRecord } from '../types/terrain';
 import type { SavedBuilding } from '../types/buildings';
+import type { BuildingRenderRecord } from './buildingLayers';
 import type { BuildingSiteAnalysisResult } from '../buildingSiteAnalysis';
 import { hasBuildingCollision, isBuildingFootprintInsideBounds } from '../buildings';
 import {
@@ -64,6 +65,8 @@ export interface BuildingTerrainPort {
 export interface BuildingControllerOptions {
   mapRef: RefObject<maplibregl.Map | null>;
   buildings: readonly SavedBuilding[];
+  /** Presentation-only buildings, never considered for persistence or edits. */
+  transientBuildings?: () => readonly BuildingRenderRecord[];
   selectedBuildingId?: string | null;
   /** `selectedId` is retained as a small compatibility alias for controllers. */
   selectedId?: string | null;
@@ -216,6 +219,7 @@ export function useBuildingController(options: BuildingControllerOptions): Build
   if (!contributionRef.current) {
     contributionRef.current = createBuildingContribution({
       getBuildings: () => buildingsRef.current,
+      getTransientBuildings: () => optionsRef.current.transientBuildings?.() ?? [],
       getSelectedId: () => selectedId(optionsRef.current),
       getDraft: () => buildingDraftMapData(stateRef.current),
       setSelected: (id) => selectBuilt(id),
