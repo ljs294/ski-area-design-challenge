@@ -2,6 +2,7 @@ import maplibregl, { type CustomLayerInterface, type CustomRenderMethodInput } f
 import type { GuestRenderPoint } from './guestLayers';
 import type { GuestSimulationRenderFrame } from './guestSimulationWorkerProtocol';
 import { routeLanePosition, type PreparedRoute } from '../dualClock/geometry';
+import { benchmarkCorrelationFor, markBenchmarkTelemetry, type BenchmarkCorrelation } from './integratedBenchmarkTelemetry';
 
 /** A worker edge's display path, kept outside React state. */
 export type GuestRenderPath = readonly (readonly [number, number])[];
@@ -298,6 +299,8 @@ export class GuestGpuLayer implements CustomLayerInterface {
   private motionRoutes: Readonly<Record<string, PreparedRoute>> = {};
   private motionPrevious = new Map<string, GuestRenderPoint>();
   private motionNext: readonly GuestRenderPoint[] = [];
+  private benchmarkCorrelation: BenchmarkCorrelation | null = null;
+  private lastBenchmarkDraw = '';
 
   constructor(id: string) { this.id = id; }
   setMotionRoutes(routes: Readonly<Record<string, PreparedRoute>>): void { this.motionRoutes = routes; }
@@ -312,6 +315,8 @@ export class GuestGpuLayer implements CustomLayerInterface {
   }
 
   setPoints(previous: readonly GuestRenderPoint[], next: readonly GuestRenderPoint[], durationMs = 50): void {
+    this.benchmarkCorrelation = benchmarkCorrelationFor(next as object);
+    if (this.benchmarkCorrelation) markBenchmarkTelemetry('guest-gpu-accepted', { ...this.benchmarkCorrelation, count: next.length });
     this.motionNext = next.some(point => point.motion) ? next : [];
     this.motionPrevious = this.motionNext.length ? new Map(previous.map(point => [point.id, point])) : new Map();
     if (this.motionNext.length && durationMs > 0) durationMs = 100;
@@ -336,6 +341,8 @@ export class GuestGpuLayer implements CustomLayerInterface {
   /** Retain two authoritative compact frames; MapLibre interpolates them. */
   setRenderFrame(frame: GuestSimulationRenderFrame | null, edgePaths: readonly GuestRenderPath[],
     portalLngLat?: readonly [number, number], durationMs = 50): void {
+    this.benchmarkCorrelation = benchmarkCorrelationFor(frame);
+    if (this.benchmarkCorrelation) markBenchmarkTelemetry('guest-gpu-accepted', { ...this.benchmarkCorrelation, count: frame?.ids.length ?? 0 });
     this.motionNext = [];
     if (!frame) {
       this.compactMode = false;
@@ -534,6 +541,14 @@ export class GuestGpuLayer implements CustomLayerInterface {
     const opacity = Math.min(1, (performance.now() - this.revealAt) / 300);
     if (this.opacityUniform) gl.uniform1f(this.opacityUniform, opacity);
     gl.drawArrays(gl.POINTS, 0, this.count);
+    const correlation = this.benchmarkCorrelation;
+    if (correlation) {
+      const key = `${correlation.generation}:${correlation.publicationSequence ?? correlation.requestId}:${correlation.committedRevision}`;
+      if (key !== this.lastBenchmarkDraw) {
+        this.lastBenchmarkDraw = key;
+        markBenchmarkTelemetry('guest-gpu-first-draw', { ...correlation, count: this.count });
+      }
+    }
     if (progress < 1 || opacity < 1) this.map?.triggerRepaint();
   }
 

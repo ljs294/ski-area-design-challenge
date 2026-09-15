@@ -13,7 +13,7 @@ import type { MapContributionRegistry } from './mapContribution';
 import { resortCameraBounds, getResortRenderStats, setRenderConcurrency,
   setResortRenderQuality, warmResortTiles, invalidateResortRenderQueue } from './resortProtocols';
 import { resumeCameraOf } from './resumeCheckpoint';
-import { isLoadReadinessReady, nextLoadSceneDrawCount, type BootControls, type BootEvent, type BootProgress, type LoadReadiness } from './resortBoot';
+import { canRevealLoad, isLoadReadinessReady, nextLoadSceneDrawCount, type BootControls, type BootEvent, type BootProgress, type LoadReadiness } from './resortBoot';
 import { pixelRatioForElement, type RenderQuality, type Units } from './SettingsContext';
 import type { SiteBox } from './sitePicker';
 import type { SiteMode } from './SiteControl';
@@ -137,9 +137,9 @@ export function useMapRuntime(options: MapRuntimeOptions): void {
             readiness(map.areTilesLoaded() && stats.visiblePending === 0 && map.loaded()), generation);
         };
         map.on('render', onRender);
-        const reveal = () => {
+        const reveal = (force = false) => {
           const stats = getResortRenderStats();
-          if (isLoadReadinessReady(readiness(map.areTilesLoaded() && stats.visiblePending === 0 && map.loaded()),
+          if (canRevealLoad(force, readiness(map.areTilesLoaded() && stats.visiblePending === 0 && map.loaded()),
             generation, sceneDraws)) finishReveal();
         };
         controller.signal.addEventListener('abort', () => map.off('render', onRender), { once: true });

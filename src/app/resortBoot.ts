@@ -39,6 +39,12 @@ export function isLoadReadinessReady(readiness: LoadReadiness, currentGeneration
     readiness.simulationRestored && completedSceneDraws >= 2;
 }
 
+/** The explicit stalled-load action may reveal; automatic reveal still needs full readiness. */
+export function canRevealLoad(force: boolean, readiness: LoadReadiness, currentGeneration: number,
+  completedSceneDraws: number): boolean {
+  return force || isLoadReadinessReady(readiness, currentGeneration, completedSceneDraws);
+}
+
 export function nextLoadSceneDrawCount(previous: number, readiness: LoadReadiness,
   currentGeneration: number): number {
   return readiness.generation === currentGeneration && readiness.mapReady && readiness.simulationRestored
@@ -116,6 +122,6 @@ export type BootEvent =
 
 /** Imperative handles MapView hands App so the screen can force or abort a load. */
 export interface BootControls {
-  reveal(): void;
+  reveal(force?: boolean): void;
   abort(): void;
 }

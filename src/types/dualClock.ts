@@ -78,6 +78,10 @@ export interface SnowAddResult {
   affectedCells: number;
   clippedCells: number;
 }
+export interface SnowAddArea {
+  readonly center: readonly [number, number];
+  readonly radiusM: number;
+}
 export interface AggregateFlowSnapshot {
   admitted: number; active: number; departed: number; turnedAway: number;
   ticketRevenueCents: number; amenityRevenueCents: number; completedRuns: number;

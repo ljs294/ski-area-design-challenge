@@ -38,7 +38,6 @@ import { TopologyDocument, topologyProjection, type TopologyState } from './topo
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
 import { captureGamePreview, gameSaveHeader, createWorkspaceNavigation, has3DBuildingContext, initialResortDesign, liftOperationsFor, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
-
 // Crystal Mountain, WA — our canonical test site (used as the New Game start).
 const INITIAL_CENTER: [number, number] = [-121.474, 46.928], INITIAL_ZOOM = 12;
 export type MapMode = 'picking' | 'playing';
@@ -210,8 +209,7 @@ export function MapView({
   const mapMode: MapMode = terrainRecord ? 'playing' : mode;
   const snow = useSnowLayer(mapRef);
   const simulation = useGameSimulation({ initialSave, terrain: terrainRecord, initialTime: initialSave?.time,
-    initialWeatherRun: initialSave?.weatherRun, snow, mapRef, renderQuality: settings.renderQuality,
-    reducedMotion: settings.reducedMotion });
+    initialWeatherRun: initialSave?.weatherRun, snow, mapRef, renderQuality: settings.renderQuality, reducedMotion: settings.reducedMotion });
   const weatherConfigured = !!simulation.dual && (simulation.weatherPackage !== null || !!initialSave?.weatherRun || !['design-only', 'no-terrain'].includes(simulation.status)), weatherBlocked = weatherMutationBlocked(weatherConfigured, !!simulation.dual?.weatherReady);
   const initialWeatherReadyRef = useRef(false); useEffect(() => { if (simulation.dual?.weatherReady) initialWeatherReadyRef.current = true; }, [simulation.dual?.weatherReady]);
   const gatedSimulation = weatherBlocked ? { ...simulation, togglePlayback: () => undefined, advancePlanningPeriod: () => Promise.resolve(), confirmTransition: () => Promise.resolve(), addSnow: () => Promise.reject(new Error('Weather is still loading.')) } : simulation;
@@ -399,6 +397,7 @@ export function MapView({
   const guestPresentationVersionRef = useRef(0);
   const guests = useMapGuestSimulationFeature({ inspectGuest: (id) => { openWorkspaceDashboard('guests'); guests.selectGuest(id); }, mapRef, network, roads, clock: simulation.clock, snowGrid: snow.grid,
     trails, dual: simulation.dual, timeDiscontinuity: simulation.timeDiscontinuity, reducedMotion: settings.reducedMotion, saveKey: saved?.key ?? null,
+    integratedBenchmarkScenario: simulation.integratedBenchmarkScenario,
     saveRevision: saved ? `${saved.updatedAt}|${saved.lastPlayedAt}` : null,
     activate: () => !weatherBlocked && toolCoordinator.activate('guest-portal'), release: () => { toolCoordinator.release('guest-portal'); },
     openDock: () => toolCoordinator.setOpenDock('infrastructure'), acquireInteractions: (map) => acquireMapInteractions('guest-portal', map,
@@ -1648,7 +1647,7 @@ export function MapView({
           title: saved?.name || nameDraft.trim() || 'Your resort',
           imageryUrl: localImageryUrlRef.current,
           back: onQuit,
-          reveal: () => bootControls.current?.reveal(),
+          reveal: () => bootControls.current?.reveal(true),
         } : null}
         menu={{
           canSave: !!saved && !weatherBlocked,

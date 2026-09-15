@@ -352,4 +352,60 @@ describe('dual-clock runtime', () => {
     const terrain = fixtureTerrain(fixture); terrain.bounds = { ...terrain.bounds!, east: terrain.bounds!.east + 1 };
     expect(() => new DualClockEngine({ ...fixture, terrain })).toThrow(/bounds/);
   });
+  it('prepares an exact paused representative checkpoint from coherent active cohorts', () => {
+    const fixture = dualFixture(10_000);
+    const engine = new DualClockEngine(fixture);
+    engine.play();
+    const target = Date.parse(fixture.at) + 3_600_000;
+    const advance = engine.advanceTo(target);
+    while (!advance.next().done) { /* fixture preparation uses normal domain advancement */ }
+    engine.pause();
+    expect(engine.state.flow.active).toBeGreaterThanOrEqual(3_000);
+    const checkpoint = engine.prepareRepresentativeCheckpoint(3_000);
+    expect(checkpoint.guests).toHaveLength(3_000);
+    expect(checkpoint.guests.every(guest => guest.status !== 'departed')).toBe(true);
+    expect(checkpoint.config.representativeLimit).toBe(3_000);
+    expect(() => validateDualCheckpoint(checkpoint)).not.toThrow();
+    const restored = new DualClockEngine({ ...fixture, checkpoint });
+    expect(restored.state.guests).toHaveLength(3_000);
+    expect(restored.state.clock.paused).toBe(true);
+    expect(restored.state.clock.speed).toBe(1);
+    expect(restored.publication().points).toHaveLength(3_000);
+  });
+  it.each([1, 2, 4] as const)('keeps at least 95%% of a prepared detailed population for the 150 second %sx workload', (speed) => {
+    const fixture = dualFixture(10_000);
+    const preparing = new DualClockEngine(fixture);
+    preparing.play();
+    const preparation = preparing.advanceTo(Date.parse(fixture.at) + 3_600_000);
+    while (!preparation.next().done) { /* normal admissions before the measurement checkpoint */ }
+    preparing.pause();
+    const checkpoint = preparing.prepareRepresentativeCheckpoint(3_000);
+    const engine = new DualClockEngine({ ...fixture, checkpoint });
+    engine.setSpeed(speed);
+    engine.play();
+    const trial = engine.advanceTo(Date.parse(checkpoint.clock.at) + 150 * 40 * speed * 1_000);
+    while (!trial.next().done) { /* deterministic equivalent of warm-up plus measurement */ }
+    expect(engine.state.guests.filter(guest => guest.status !== 'departed').length).toBeGreaterThanOrEqual(2_850);
+  });
+  it('rejects exact representative preparation while running or beyond active flow', () => {
+    const fixture = dualFixture(10_000);
+    const engine = new DualClockEngine(fixture);
+    engine.play();
+    expect(() => engine.prepareRepresentativeCheckpoint(1_000)).toThrow(/Pause/);
+    engine.pause();
+    expect(() => engine.prepareRepresentativeCheckpoint(1_000)).toThrow(/active cohort flow/);
+  });
+  it('restores its authoritative state if offline representative preparation fails', () => {
+    const fixture = dualFixture(10_000);
+    const engine = new DualClockEngine(fixture);
+    engine.play();
+    const advance = engine.advanceTo(Date.parse(fixture.at) + 3_600_000);
+    while (!advance.next().done) { /* normal preparation inputs */ }
+    engine.pause();
+    const before = engine.checkpoint();
+    const internal = engine as unknown as { reconcileTrailQueues(): void };
+    internal.reconcileTrailQueues = () => { throw new Error('injected preparation failure'); };
+    expect(() => engine.prepareRepresentativeCheckpoint(1_000)).toThrow(/injected/);
+    expect(engine.checkpoint()).toEqual(before);
+  });
 });

@@ -1,4 +1,5 @@
 import type { SimulationClock, TimeScaleConfig } from '../types/simulation';
+import type { SnowAddArea } from '../types/dualClock';
 import { advanceClock, DEFAULT_TIME_CONFIG } from '../../time-engine/src/timeEngine';
 
 export type DeveloperConsoleCommand =
@@ -8,7 +9,7 @@ export type DeveloperConsoleCommand =
   | { readonly kind: 'restart' }
   | { readonly kind: 'restart-app' }
   | { readonly kind: 'skip'; readonly minutes: number }
-  | { readonly kind: 'snow-add'; readonly meters: number };
+  | { readonly kind: 'snow-add'; readonly meters: number; readonly area?: SnowAddArea };
 
 export interface SimulationTimeDiscontinuity {
   readonly revision: number;
@@ -33,6 +34,7 @@ const UNIT_MINUTES: Readonly<Record<string, number>> = Object.freeze({
 
 export const DEVELOPER_CONSOLE_HELP = Object.freeze([
   'snow add <amount>cm|m  Add a uniform fresh-snow layer (examples: snow add 50cm, snow add 0.5m).',
+  'snow add <amount>cm|m at <lng>,<lat> radius <meters>m  Add a localized circular patch.',
   'skip <duration>  Jump forward without simulating elapsed world time (examples: skip 30m, skip 3h, skip 1d).',
   'time             Show the current game timestamp.',
   'restart          Save progress and reopen this resort in a fresh game window.',
@@ -68,11 +70,16 @@ export function parseDeveloperConsoleCommand(source: string): DeveloperConsoleCo
   if (snowAdd) {
     const amount = snowAdd[1]?.trim();
     if (!amount) throw new Error('Snow amount is required. Try "snow add 50cm" or "snow add 0.5m".');
-    const match = /^(\d+(?:\.\d+)?)\s*(cm|m)$/.exec(amount);
+    const match = /^(\d+(?:\.\d+)?)\s*(cm|m)(?:\s+at\s+(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\s+radius\s+(\d+(?:\.\d+)?)m)?$/.exec(amount);
     if (!match) throw new Error('Snow amount must be a positive number in cm or m.');
     const meters = Number(match[1]) * (match[2] === 'cm' ? 0.01 : 1);
     if (!Number.isFinite(meters) || meters <= 0) throw new Error('Snow amount must be a positive number in cm or m.');
-    return { kind: 'snow-add', meters };
+    if (match[3] === undefined) return { kind: 'snow-add', meters };
+    const center = [Number(match[3]), Number(match[4])] as const, radiusM = Number(match[5]);
+    if (Math.abs(center[0]) > 180 || Math.abs(center[1]) > 90 || !(radiusM > 0)) {
+      throw new Error('Localized snow requires a valid longitude, latitude, and positive radius.');
+    }
+    return { kind: 'snow-add', meters, area: { center, radiusM } };
   }
   const skip = /^(?:skip(?:\s+ahead)?|skip-ahead|skipahead|advance)(?:\s+(.*))?$/.exec(command);
   if (!skip) throw new Error('Unknown command. Type "help" for available commands.');

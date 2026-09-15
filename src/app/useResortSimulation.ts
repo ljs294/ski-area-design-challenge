@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { GameSave, SavedWeatherRun } from '../types/gameSave';
 import type { DualPublication, ResortSimulationInput } from '../dualClock/model';
 import type { SimulationClock, TimeEngineSnapshot } from '../types/simulation';
@@ -13,6 +13,7 @@ import { useGameSimulation, type GameSimulationController } from './useGameSimul
 import { useDualClockRuntime } from './useDualClockRuntime';
 import { canonicalResortSimulationInput } from './resortSimulationInput';
 import { preparedHoursWindow } from './useGameSimulation';
+import { installedIntegratedBenchmarkScenario, type IntegratedBenchmarkScenario } from '../integratedBenchmarkScenario';
 
 const EMPTY_RESORT: ResortSimulationInput = canonicalResortSimulationInput({
   revision: 0, edges: [], trails: [], portal: null, ticketPriceCents: 10000, amenities: [],
@@ -35,8 +36,13 @@ export function dualSimulationSnapshot(
 }
 
 /** One orchestration owner for new games; the old hook only supplies weather services. */
-export function useResortSimulation(options: Parameters<typeof useGameSimulation>[0] & { initialSave?: GameSave | null }): GameSimulationController {
+export function useResortSimulation(options: Parameters<typeof useGameSimulation>[0] & {
+  initialSave?: GameSave | null;
+  integratedBenchmarkScenario?: IntegratedBenchmarkScenario | null;
+}): GameSimulationController & { integratedBenchmarkScenario: IntegratedBenchmarkScenario | null } {
   const enabled = !options.initialSave || options.initialSave.schemaVersion === 17;
+  const [integratedBenchmarkScenario] = useState(() => options.integratedBenchmarkScenario
+    ?? installedIntegratedBenchmarkScenario({ saveKey: options.initialSave?.key, terrainKey: options.initialSave?.terrainKey }));
   const [lastPublication, setLastPublication] = useState<DualPublication | null>(null);
   const fallback = useMemo(() => options.initialSave?.dualClock?.clock ? { ...options.initialSave.dualClock.clock, paused: true } : createDualClock(
     options.initialTime?.clock.calendarDate ?? '2026-05-01T07:00:00.000Z', options.initialTime?.clock.timezone ?? 'America/Los_Angeles'),
@@ -56,8 +62,8 @@ export function useResortSimulation(options: Parameters<typeof useGameSimulation
       amenities: defaultDualAmenities(save.dualClock.portal?.nodeId ?? null),
       ticketPriceCents: save.dualClock.nextTicketPriceCents,
       revision: resortRevision(network.edges, save.trails),
-    });
-  }, [options.initialSave]);
+    }, integratedBenchmarkScenario);
+  }, [options.initialSave, integratedBenchmarkScenario]);
   const initialization = useMemo(() => options.terrain && options.snow.grid ? {
     seed: `game-${options.terrain.key}`, at: fallback.at,
     timezone: options.initialSave?.dualClock?.clock.timezone ?? legacy.weatherPackage?.manifest.timezone ?? fallback.timezone,
@@ -67,13 +73,20 @@ export function useResortSimulation(options: Parameters<typeof useGameSimulation
   const invalid = options.initialSave?.schemaVersion === 17 && !options.initialSave.dualClock;
   const runtime = useDualClockRuntime({ enabled: enabled && !invalid, initialization, snow: options.snow,
     prepareWeather: async (from, to, signal) => legacy.prepareHours?.(from, to, signal) ?? null });
+  const benchmarkSpeedApplied = useRef<string | null>(null);
+  useEffect(() => {
+    const scenario = integratedBenchmarkScenario;
+    if (!scenario || !runtime.ready || benchmarkSpeedApplied.current === scenario.runId) return;
+    benchmarkSpeedApplied.current = scenario.runId;
+    runtime.setSpeed(scenario.requestedSpeed);
+  }, [integratedBenchmarkScenario, runtime]);
   const dual = { ...runtime, weatherReady: runtime.weatherReady, initialPortal: options.initialSave?.dualClock?.portal ?? null,
     initialTicketPriceCents: options.initialSave?.dualClock?.nextTicketPriceCents ?? 10000 };
   // Publish the committed projection to weather presentation without another advancing clock.
   if (dual.publication !== lastPublication) setLastPublication(dual.publication);
-  if (!enabled) return legacy;
+  if (!enabled) return { ...legacy, integratedBenchmarkScenario };
   const clock = projectDualClock(dual.publication?.clock ?? fallback);
-  return { ...legacy, dual, clock,
+  return { ...legacy, dual, clock, integratedBenchmarkScenario,
     status: invalid || dual.error ? 'corrupt' : dual.ready && legacy.weatherPackage ? 'ready' : legacy.status,
     message: invalid ? 'This schema-17 save is missing its simulation checkpoint.' : dual.error ?? legacy.message,
     togglePlayback: dual.togglePlayback, pause: dual.pause,

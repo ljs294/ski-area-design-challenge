@@ -101,6 +101,24 @@ function sampleElevation(record: RasterTerrainRecord, lng: number, lat: number):
   return core * weight + surrounding * (1 - weight);
 }
 
+function tileBounds(z: number, x: number, y: number): LatLonBounds {
+  const n = 2 ** z;
+  const latitude = (edgeY: number) => Math.atan(Math.sinh(Math.PI * (1 - 2 * edgeY / n))) * 180 / Math.PI;
+  return { west: x / n * 360 - 180, east: (x + 1) / n * 360 - 180,
+    north: latitude(y), south: latitude(y + 1) };
+}
+
+function paddedDemElevation(record: RasterTerrainRecord, lng: number, lat: number): number | null {
+  const sampled = sampleElevation(record, lng, lat);
+  if (sampled != null) return sampled;
+  const bounds = record.surround?.bounds ?? record.bounds;
+  const outside = lng < bounds.west || lng > bounds.east || lat < bounds.south || lat > bounds.north;
+  if (!outside) return null;
+  return sampleElevation(record,
+    Math.min(bounds.east, Math.max(bounds.west, lng)),
+    Math.min(bounds.north, Math.max(bounds.south, lat)));
+}
+
 function sampleCover(record: RasterTerrainRecord, lng: number, lat: number): CoverClassCode | null {
   const grid = record.coverGrid;
   if (!grid) return null;
@@ -136,11 +154,15 @@ export function renderResortTilePixels(
 ): Uint8ClampedArray {
   const axes = tileAxes(z, x, y);
   const output = new Uint8ClampedArray(256 * 256 * 4);
+  const demBounds = record.surround?.bounds ?? record.bounds;
+  const tile = tileBounds(z, x, y);
+  const demTileIntersectsSource = tile.east >= demBounds.west && tile.west <= demBounds.east &&
+    tile.south <= demBounds.north && tile.north >= demBounds.south;
   for (let py = 0; py < 256; py++) for (let px = 0; px < 256; px++) {
     const lng = axes.lng[px + 1], lat = axes.lat[py + 1], index = (py * 256 + px) * 4;
     let rgba: [number, number, number, number];
     if (kind === 'dem') {
-      const elevation = sampleElevation(record, lng, lat);
+      const elevation = demTileIntersectsSource ? paddedDemElevation(record, lng, lat) : null;
       const encoded = Math.max(0, Math.min(65535.996, (elevation ?? 0) + 32768));
       rgba = [Math.floor(encoded / 256), Math.floor(encoded) % 256,
         Math.floor((encoded - Math.floor(encoded)) * 256), elevation == null ? 0 : 255];

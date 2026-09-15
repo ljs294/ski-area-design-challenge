@@ -1,20 +1,10 @@
 import { spawnSync } from 'node:child_process';
-import { createRequire } from 'node:module';
+import { createServer } from 'node:net';
 import path from 'node:path';
-
-const require = createRequire(import.meta.url);
-let cli;
-try {
-  const packageJson = require.resolve('@playwright/test/package.json');
-  cli = path.join(path.dirname(packageJson), 'cli.js');
-} catch {
-  console.error('Install the pinned @playwright/test development dependency before checking the E2E harness.');
-  process.exit(1);
-}
 
 const result = spawnSync(
   process.execPath,
-  [cli, 'test', '--config=playwright.config.ts', '--project=negative-control'],
+  [path.join('scripts', 'runE2E.mjs'), '--project=negative-control'],
   {
     cwd: process.cwd(),
     env: {
@@ -45,4 +35,10 @@ if (!output.includes('E2E_NEGATIVE_CONTROL_EXPECTED_FAILURE')
   process.exit(1);
 }
 
-console.log(`E2E harness correctly propagated the negative-control failure (exit ${result.status}).`);
+await new Promise((resolve, reject) => {
+  const probe = createServer();
+  probe.once('error', error => reject(new Error(`E2E runner left port 44173 occupied: ${error.message}`)));
+  probe.listen(44173, '127.0.0.1', () => probe.close(error => error ? reject(error) : resolve()));
+});
+
+console.log(`E2E harness propagated the negative-control failure (exit ${result.status}) and released its managed server.`);

@@ -325,7 +325,7 @@ function AppInner() {
           // handle — i.e. from the tile preload onward.
           onEnterAnyway={
             boot.progress.stage === 'warm' || boot.progress.stage === 'settle'
-              ? () => bootControlsRef.current?.reveal()
+              ? () => bootControlsRef.current?.reveal(true)
               : undefined
           }
           onRepair={boot.failure?.repair}

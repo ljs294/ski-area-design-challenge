@@ -18,6 +18,7 @@ import type { SavedTrail } from '../types/trails';
 import { dualGuestPresentation } from './dualGuestPresentation';
 import { guestVibePresentation, withGuestEconomyControls } from './guestVibePresentation';
 import { canonicalResortSimulationInput } from './resortSimulationInput';
+import type { IntegratedBenchmarkScenario } from '../integratedBenchmarkScenario';
 
 /** Owns the gameplay-facing guest state while keeping MapView as composition only. */
 export function useMapGuestSimulationFeature(options: {
@@ -34,6 +35,7 @@ export function useMapGuestSimulationFeature(options: {
   readonly reducedMotion: boolean;
   readonly dual?: DualSimulationControls;
   readonly trails?: readonly SavedTrail[];
+  readonly integratedBenchmarkScenario?: IntegratedBenchmarkScenario | null;
   inspectGuest?(id: string): void;
   activate(): boolean;
   release(): void;
@@ -72,7 +74,8 @@ export function useMapGuestSimulationFeature(options: {
   const publishRenderFrame = useCallback<NonNullable<Parameters<typeof useGuestSimulationRuntime>[0]['publishRenderFrame']>>(
     (frame, edgePaths, portalLngLat) => { const map = guestMapRef.current; setGuestCompactFrame(map, frame, edgePaths, portalLngLat); if (map?.getLayer(GUEST_LAYER_ID)) onPresentationCommitted?.(); },
     [guestMapRef, onPresentationCommitted]);
-  const legacyRuntime = useGuestSimulationRuntime({ saveKey: options.dual ? null : options.saveKey, gameSaveUpdatedAt: options.saveRevision,
+  const legacyRuntime = useGuestSimulationRuntime({ enabled: !options.dual,
+    saveKey: options.dual ? null : options.saveKey, gameSaveUpdatedAt: options.saveRevision,
     network: options.network, portal: options.dual ? null : portal, clock: options.clock, snowGrid: options.snowGrid, roads: options.roads,
     operationsRevision: options.operationsRevision, weatherRevision: options.weatherRevision,
     demand, weeklyDailyDemand, timeDiscontinuity: options.timeDiscontinuity, restorePortal: setPortal,
@@ -99,8 +102,9 @@ export function useMapGuestSimulationFeature(options: {
       portal: portal ? { id: portal.id, nodeId: portal.nodeId, lngLat: portal.lngLat,
         capacityPerMinute: portal.capacityGuestsPerTick * 60 } : null,
       ticketPriceCents: nextDayTicketPriceCents, amenities: defaultDualAmenities(portal?.nodeId ?? null),
-    }));
-  }, [dualReady, updateDualResort, options.network, options.trails, portal, nextDayTicketPriceCents]);
+    }, options.integratedBenchmarkScenario));
+  }, [dualReady, updateDualResort, options.network, options.trails, portal, nextDayTicketPriceCents,
+    options.integratedBenchmarkScenario]);
   useEffect(() => {
     const publication = options.dual?.publication;
     if (options.dual) setGuestMotionRoutes(options.mapRef.current, options.dual.geometry);

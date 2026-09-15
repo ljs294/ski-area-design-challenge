@@ -1,6 +1,7 @@
 import type { NetworkEdge } from '../network';
 import type { DualAmenity, DualPortal, ResortSimulationInput } from '../dualClock/model';
 import type { SavedTrail } from '../types/trails';
+import type { IntegratedBenchmarkScenario } from '../integratedBenchmarkScenario';
 
 export const DAILY_DEMAND_BY_WEEKDAY = [1300, 900, 900, 900, 900, 900, 1300] as const;
 
@@ -11,16 +12,16 @@ export function canonicalResortSimulationInput(input: {
   portal: DualPortal | null;
   ticketPriceCents: number;
   amenities: readonly DualAmenity[];
-}): ResortSimulationInput {
+}, scenario?: IntegratedBenchmarkScenario | null): ResortSimulationInput {
   return {
     revision: input.revision,
     edges: input.edges,
     trails: input.trails,
     portal: input.portal,
-    dailyDemand: 900,
-    dailyDemandByWeekday: DAILY_DEMAND_BY_WEEKDAY,
+    dailyDemand: scenario?.dailyDemand ?? 900,
+    dailyDemandByWeekday: scenario?.dailyDemandByWeekday ?? DAILY_DEMAND_BY_WEEKDAY,
     ticketPriceCents: input.ticketPriceCents,
-    amenities: input.amenities,
+    amenities: scenario?.amenities ?? input.amenities,
   };
 }
 

@@ -3,7 +3,9 @@ import type { CoverClassCode, LandCoverClass, SurroundElevation, TerrainRecord, 
 import { SURROUND_NODATA } from '../elevation';
 import { lngLatToUnit } from '../geo';
 import { renderProfileFor, type RenderQuality } from './renderProfile';
+import { benchmarkTelemetryEnabled, markBenchmarkTelemetry } from './integratedBenchmarkTelemetry';
 import { ResortTileWorkerPool } from './resortTileWorkerClient';
+import { renderResortTilePixels } from './resortTileEngine';
 
 // Any surround cell at or below this is treated as "no data" (see sampleSurround).
 // Well below every real US land elevation, well above the -9999 nodata sentinel.
@@ -15,6 +17,7 @@ export const RESORT_SLOPE_PROTOCOL = 'resort-slope';
 export const RESORT_ASPECT_PROTOCOL = 'resort-aspect';
 
 let active: TerrainRecord | null = null;
+let activeTerrainGeneration = 0;
 let activeQuality: RenderQuality = 'standard';
 const tileWorkers = new ResortTileWorkerPool();
 let registered = false;
@@ -120,9 +123,13 @@ function promoteActiveResortRenderEntry(kind: TileKind, url: string): boolean {
 /** Reject protocol work made obsolete by a style or terrain generation change. */
 export function invalidateResortRenderQueue(reason = new Error('Resort render generation changed.')): void {
   const queued = renderQueue.splice(0);
-  for (const task of queued) task.reject(reason);
+  for (const task of queued) {
+    if (task.kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-cancelled', { detail: task.url });
+    task.reject(reason);
+  }
   for (const task of activeRenderEntries) {
     task.invalidated = true;
+    if (task.kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-cancelled', { detail: task.url });
     task.reject(reason);
     if (task.visibleCounted) {
       task.visibleCounted = false;
@@ -160,6 +167,7 @@ export function setActiveResortTerrain(record: TerrainRecord | null): void {
     tileCacheBytes = 0;
   }
   active = record;
+  activeTerrainGeneration++;
   tileWorkers.configure(record, activeQuality);
 }
 
@@ -381,20 +389,20 @@ function analysisColor(kind: 'slope' | 'aspect', slope: number, aspect: number):
 /** Rasterize one resort tile straight from an explicit record — no dependency
  *  on the module-global `active`, so ingest/warm-up can call it for any package. */
 async function renderResortTile(record: TerrainRecord, kind: TileKind, z: number, x: number, y: number): Promise<ArrayBuffer> {
+  if (!record.bounds) throw new Error('Terrain bounds are unavailable.');
+  const bounds = record.bounds;
+  if (kind === 'dem') return canvasPng((out) => out.set(renderResortTilePixels({ key: record.key, bounds,
+    sampleGridSize: record.sampleGridSize, sampleHeights: Float32Array.from(record.sampleHeights),
+    surround: record.surround ? { bounds: record.surround.bounds, width: record.surround.width,
+      height: record.surround.height, heights: Float32Array.from(record.surround.heights) } : undefined,
+  }, kind, z, x, y)));
   const axes = tileAxes(z, x, y);
   return canvasPng((out) => {
     for (let py = 0; py < 256; py++) for (let px = 0; px < 256; px++) {
       const lng = axes.lng[px + 1];
       const lat = axes.lat[py + 1];
       const i = (py * 256 + px) * 4;
-      if (kind === 'dem') {
-        const elevation = sampleElevation(record, lng, lat);
-        const encoded = Math.max(0, Math.min(65535.996, (elevation ?? 0) + 32768));
-        out[i] = Math.floor(encoded / 256);
-        out[i + 1] = Math.floor(encoded) % 256;
-        out[i + 2] = Math.floor((encoded - Math.floor(encoded)) * 256);
-        out[i + 3] = elevation == null ? 0 : 255;
-      } else if (kind === 'cover') {
+      if (kind === 'cover') {
         const code = sampleCoverForRecord(record, lng, lat) ?? 255;
         const rgba = COVER_RGBA[code] ?? COVER_RGBA[255];
         out[i] = rgba[0]; out[i + 1] = rgba[1]; out[i + 2] = rgba[2]; out[i + 3] = rgba[3];
@@ -424,8 +432,13 @@ async function renderTile(
   const p = parse(url);
   const record = active;
   if (!record || record.key !== p.key) throw new Error(`Local resort package is not loaded: ${p.key}`);
-  return tileWorkers.render(kind, p.z, p.x, p.y, priority) ??
-    renderResortTile(record, kind, p.z, p.x, p.y);
+  const terrainGeneration = activeTerrainGeneration;
+  const data = await (tileWorkers.render(kind, p.z, p.x, p.y, priority) ??
+    renderResortTile(record, kind, p.z, p.x, p.y));
+  if (kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-generated', {
+    bytes: data.byteLength, terrainGeneration, terrainKey: record.key, detail: url,
+  });
+  return data;
 }
 
 function pumpRenderQueue(): void {
@@ -447,8 +460,14 @@ function pumpRenderQueue(): void {
         return;
       }
       const priority = task.priority;
+      if (task.kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-render-start', { detail: task.url });
       void renderTile(task.kind, task.url, priority)
-        .then(task.resolve, task.reject)
+        .then(task.resolve, (error) => {
+          if (task.kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-failed', {
+            detail: `${task.url};${error instanceof Error ? error.message : String(error)}`,
+          });
+          task.reject(error);
+        })
         .finally(() => finishRenderTask(task));
     }, 8);
   }
@@ -474,6 +493,9 @@ function cached(
   priority: 'visible' | 'warm' = 'visible',
 ): Promise<ArrayBuffer> {
   const key = `${kind}:${url}`;
+  if (kind === 'dem' && priority === 'visible' && benchmarkTelemetryEnabled()) {
+    markBenchmarkTelemetry('terrain-dem-requested', { detail: url });
+  }
   let entry = tileCache.get(key);
   if (entry) {
     cacheHits++;
@@ -490,6 +512,7 @@ function cached(
     entry = { bytes: 0, promise: undefined as unknown as Promise<ArrayBuffer> };
     entry.promise = new Promise<ArrayBuffer>((resolve, reject) => {
       renderQueue.push({ kind, url, priority, resolve, reject });
+      if (kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-queued', { detail: url });
       pumpRenderQueue();
     });
     const created = entry;

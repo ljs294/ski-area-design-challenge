@@ -1,5 +1,5 @@
 import type { DualCheckpoint, DualInitialization, DualPublication, DualSpeed, AdvanceRequest, ResortSimulationInput, OperationalSignal } from '../dualClock/model';
-import type { SnowAddResult } from '../types/dualClock';
+import type { SnowAddArea, SnowAddResult } from '../types/dualClock';
 import type { SnowGrid } from '../types/snow';
 import type { PreparedRoute } from '../dualClock/geometry';
 import type { DualSnowPatch } from './dualSnowPublication';
@@ -12,7 +12,7 @@ export type DualCommand =
   | { type: 'weather'; hours: DualInitialization['weather'] }
   | { type: 'timezone'; timezone: string }
   | { type: 'terrain'; terrain: NonNullable<DualInitialization['terrain']> }
-  | { type: 'snow-add'; meters: number }
+  | { type: 'snow-add'; meters: number; area?: SnowAddArea }
   | { type: 'advance'; targetMs: number }
   | { type: 'skip'; request: AdvanceRequest }
   | { type: 'speed'; speed: DualSpeed }
@@ -20,7 +20,18 @@ export type DualCommand =
   | { type: 'acknowledge'; id: string }
   | { type: 'signal'; signal: OperationalSignal }
   | { type: 'pause' | 'play' | 'cancel' | 'resume' | 'follow' | 'checkpoint' };
-export type DualWorkerRequest = DualCommand & { generation: number; requestId: number; committedRevision: number };
+export type DualWorkerRequest = DualCommand & {
+  generation: number; requestId: number; committedRevision: number;
+  /** Fixed for the lifetime of a worker generation by the initialize request. */
+  benchmarkTelemetry?: boolean;
+};
+export interface DualWorkerBenchmarkTelemetry {
+  publicationSequence: number;
+  workerTimeOrigin: number;
+  workerAt: number;
+  publicationBuildMs: number;
+  transferBytes: number;
+}
 export interface DualWorkerResponse {
   generation: number; id: number; type: 'publication' | 'checkpoint' | 'error';
   committedRevision: number; operationGeneration: number;
@@ -29,4 +40,5 @@ export interface DualWorkerResponse {
   movement?: DualMovementFrame;
   geometry?: Record<string, PreparedRoute>;
   weatherAck?: { requestId: number; generation: number; acceptedFrom: string; acceptedTo: string };
+  benchmarkTelemetry?: DualWorkerBenchmarkTelemetry;
 }

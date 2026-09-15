@@ -62,6 +62,11 @@ export default defineConfig({
           use: { ...chromiumUse, viewport: { width: 1920, height: 1080 } },
         },
         {
+          name: 'integrated-diagnostic',
+          testMatch: '**/performance/integrated-benchmark.spec.ts',
+          use: { ...chromiumUse, viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 },
+        },
+        {
           name: 'live-provider',
           testMatch: '**/live-provider/**/*.spec.ts',
           use: chromiumUse,

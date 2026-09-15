@@ -14,14 +14,11 @@ import { addFreshSnow } from './snowAdd';
 import { deriveGuestSpeedZ, representativeGuestDuration } from './guestMovement';
 import { drainRepresentativeEvents } from './representativeEvents';
 import { boundedGuestInspection } from './publication';
-import { enqueueTrailGuest, hasTrailEntrance, reconcileTrailQueues as reconcileTrailQueueState, releaseTrailGuest as releaseTrailGuestState,
-  trailEntrySpacing } from './trailQueue';
+import { enqueueTrailGuest, hasTrailEntrance, reconcileTrailQueues as reconcileTrailQueueState, releaseTrailGuest as releaseTrailGuestState, trailEntrySpacing } from './trailQueue';
+import { prepareRepresentativeCheckpoint as prepareCheckpoint } from './representativeCheckpointPreparation';
 import { validateDualCheckpoint } from './validation';
-export { validateDualCheckpoint } from './validation';
-import { DEFAULT_DUAL_CONFIG, type DualInitialization, type DualCheckpoint, type DualPublication,
-  type ResortSimulationInput, type RepresentativeGuest, type DualSpeed,
-  type MacroSecond, type MicroSecond, type OperationalSignal, type AdvanceRequest, type MacroCohort, type SnowAddResult,
-  DEFAULT_GUEST_MOVEMENT } from './model';
+export { validateDualCheckpoint };
+import { DEFAULT_DUAL_CONFIG, DEFAULT_GUEST_MOVEMENT, type DualInitialization, type DualCheckpoint, type DualPublication, type ResortSimulationInput, type RepresentativeGuest, type DualSpeed, type MacroSecond, type MicroSecond, type OperationalSignal, type AdvanceRequest, type MacroCohort, type SnowAddArea, type SnowAddResult } from './model';
 const EMPTY_FLOW = () => ({ admitted: 0, active: 0, departed: 0, turnedAway: 0, ticketRevenueCents: 0,
   amenityRevenueCents: 0, completedRuns: 0, queues: {}, trails: {} });
 const ARRIVAL_WEIGHTS = [0.38, 0.3, 0.16, 0.09, 0.04, 0.02, 0.01, 0];
@@ -181,6 +178,9 @@ export class DualClockEngine {
     this.state.clock.speed = 1; this.state.clock.paused = false;
     this.changePresentation(false);
   }
+  prepareRepresentativeCheckpoint(target: number): DualCheckpoint {
+    return prepareCheckpoint(this.state, target, { track: (cohort, count) => this.trackCohort(cohort, count), reconcile: () => this.reconcileTrailQueues(), checkpoint: () => this.checkpoint(), restore: checkpoint => { this.state = checkpoint; } });
+  }
   settlePresentation(): void { this.changePresentation(this.state.advance?.state === 'running' || this.state.clock.speed >= 8); }
   acknowledge(id: string): void { const signal = this.state.signals.find(s => s.id === id); if (signal) signal.acknowledged = true; }
   signal(signal: OperationalSignal): void {
@@ -323,9 +323,9 @@ export class DualClockEngine {
       else delete ledger.serviceUnavailableReason;
     }
   }
-  addSnow(meters: number): SnowAddResult {
+  addSnow(meters: number, area?: SnowAddArea): SnowAddResult {
     if (!this.snow) throw new Error('Snow addition requires an initialized snow grid.');
-    const before = this.snow, applied = addFreshSnow(before, meters);
+    const before = this.snow, applied = addFreshSnow(before, meters, area);
     for (let index = 0; index < before.depthM.length; index++) if (applied.grid.depthM[index]! > before.depthM[index]!) this.exposure[index] = 0;
     this.snow = applied.grid;
     this.refreshConditions();

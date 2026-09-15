@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SimulationClock } from '../types/simulation';
 import type { GuestSimulationEngineSnapshot } from '../guestSimulation/engine';
 import { GUEST_RENDER_STATUS_FLAGS, type GuestRenderFrame } from '../guestSimulation/guestRenderFrame';
-import { guestRenderPointsFromCompactFrame } from './useGuestSimulationRuntime';
+import { guestRenderPointsFromCompactFrame, legacyGuestClockPosition } from './useGuestSimulationRuntime';
 import { guestCheckpointMatchesOperatingWindow, guestOperatingWindow,
   guestOperatingWindowForWeek, guestSimulationWindowAfterClockDiscontinuity,
   guestSimulationWindowAfterDiscontinuity } from './guestRuntimeSchedule';
@@ -10,6 +10,13 @@ import { guestCheckpointMatchesOperatingWindow, guestOperatingWindow,
 const winterClock = { absoluteGameMinute: 177_120, minuteOfDay: 0 } as SimulationClock;
 
 describe('guest runtime operating schedule', () => {
+  it('keeps a disabled legacy adapter outside the schema-17 week projection', () => {
+    const dualProjection = { elapsedSimSecond: 3_600, winterWeek: 10, season: 'winter',
+      absoluteGameMinute: 60 } as SimulationClock;
+    expect(legacyGuestClockPosition(dualProjection, false)).toEqual({ currentSecond: 0, winterWeekIndex: 0 });
+    expect(legacyGuestClockPosition(dualProjection, true)).toEqual({ currentSecond: 3_600, winterWeekIndex: 9 });
+  });
+
   it('anchors a winter roster to elapsed seconds and a single 43,200-second week', () => {
     const clock = { elapsedSimSecond: 43_200 + 123.5, winterWeek: 2, season: 'winter' } as SimulationClock;
     expect(guestOperatingWindow(clock)).toEqual({ startTick: 43_200, endTick: 86_400 });

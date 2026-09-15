@@ -25,4 +25,14 @@ describe('development snow blanket', () => {
     const snow = grid([0, 0, 0, 0]);
     for (const value of [0, -0.1, Infinity, NaN]) expect(() => addFreshSnow(snow, value)).toThrow(/positive finite/);
   });
+
+  it('changes only cells inside a localized geographic patch', () => {
+    const snow = { bounds: { west: 0, south: 0, east: .002, north: .002 }, width: 3, height: 3,
+      depthM: new Float32Array(9), surface: new Uint8Array(9) };
+    const applied = addFreshSnow(snow, .1, { center: [.001, .001], radiusM: 20 });
+    expect(applied.result).toEqual({ requestedMeters: .1, affectedCells: 1, clippedCells: 0 });
+    expect([...applied.grid.depthM].filter(value => value > 0)).toHaveLength(1);
+    expect(applied.grid.depthM[4]).toBeCloseTo(.1);
+    expect([...applied.grid.surface].filter(value => value !== 0)).toHaveLength(1);
+  });
 });

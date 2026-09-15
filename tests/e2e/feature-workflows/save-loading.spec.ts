@@ -14,6 +14,20 @@ import { startStaticProductionServer, stopStaticProductionServer, verifiedDescen
 
 const WEATHER_YEAR = 1992;
 
+function legacyPortalStructures() {
+  const base: [number, number] = [-121.495, 46.902], top: [number, number] = [-121.495, 46.90218];
+  const halfWidth = 0.00022;
+  return { base, lift: { id: 'legacy-short-lift', identifier: 'A', name: 'Legacy Summit',
+    liftTypeId: 'detachable-six-pack', points: [base, top], endpointElevM: [1000, 1020], lengthM: 20,
+    verticalM: 20, status: 'complete', createdAt: '2026-01-01T00:00:00.000Z' }, trail: {
+    id: 'legacy-short-trail', name: 'Legacy Return', brushWidthM: 30, areaM2: 600, lengthM: 20,
+    verticalM: 20, avgSlopeDeg: 45, maxSlopeDeg: 45, difficulty: 'blue', status: 'complete',
+    createdAt: '2026-01-01T00:00:00.000Z', parts: [{ polygon: [[
+      [top[0] - halfWidth, top[1]], [top[0] + halfWidth, top[1]], [base[0] + halfWidth, base[1]],
+      [base[0] - halfWidth, base[1]], [top[0] - halfWidth, top[1]],
+    ]], centerline: [top, base], centerlineElevM: [1020, 1000] }] } };
+}
+
 function dualFixtureForBrowser(demand: number) {
   const terrain = preparedTerrainFixture();
   const input = dualFixture(demand, 2);
@@ -65,6 +79,30 @@ async function putDualSave(page: Parameters<typeof seedPreparedResort>[0], deman
     if (desktop?.games?.save) await desktop.games.save(save);
   }, { checkpoint, weather });
   await page.reload({ waitUntil: 'load' });
+}
+
+async function putPreparedWeather(page: Parameters<typeof seedPreparedResort>[0]): Promise<void> {
+  const { weather } = dualFixtureForBrowser(900);
+  await page.evaluate(async (packageValue) => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('mountain-planner-weather', 3);
+      request.onupgradeneeded = () => {
+        for (const [name, keyPath] of [['packages', 'terrainKey'], ['manifests', 'contentHash'], ['chunks', 'id'], ['active', 'terrainKey']] as const) {
+          if (!request.result.objectStoreNames.contains(name)) {
+            const store = request.result.createObjectStore(name, { keyPath });
+            if (name === 'chunks') store.createIndex('contentHash', 'contentHash', { unique: false });
+          }
+        }
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result, tx = db.transaction('packages', 'readwrite');
+        tx.objectStore('packages').put(packageValue);
+        tx.onerror = () => reject(tx.error);
+        tx.oncomplete = () => { db.close(); resolve(); };
+      };
+    });
+  }, weather);
 }
 
 async function openPrepared(page: Parameters<typeof seedPreparedResort>[0], demand: number): Promise<void> {
@@ -155,6 +193,7 @@ test.describe('schema-17 save loading', () => {
       await installWorkerProbe(page);
       await openPrepared(page, demand);
       await waitForPreparedWeatherReady(page);
+      expect(await workerEntries(page, 'guestSimulation.worker')).toHaveLength(0);
       const preparedWorkers = await workerEntries(page, 'preparedWeather.worker');
       expect(preparedWorkers.length).toBe(1);
       await expect(page.getByRole('button', { name: 'Play game clock', exact: true })).toBeEnabled();
@@ -180,19 +219,58 @@ test.describe('schema-17 save loading', () => {
     await waitForPreparedWeatherReady(page);
     const warmCacheEvidence = await page.evaluate(() => (window as unknown as { saveLoadingMetrics: { preparedWeatherCacheBytes: boolean[] } }).saveLoadingMetrics.preparedWeatherCacheBytes);
     expect(warmCacheEvidence).toEqual([false]);
+    expect(await workerEntries(page, 'guestSimulation.worker')).toHaveLength(0);
     expect((await workerEntries(page, 'preparedWeather.worker')).length).toBe(1);
     await expect(page.getByRole('button', { name: 'Play game clock', exact: true })).toBeEnabled();
   });
 
   test('legacy saves retain the old controls and schema-16 write path', async ({ page }) => {
+    await installWorkerProbe(page);
     await seedPreparedResort(page);
     await page.getByRole('button', { name: /^Continue / }).click();
     await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 30_000 });
     await expect(page.locator('.tb-speed')).toHaveCount(4);
     await expect(page.getByRole('button', { name: 'Date and time: simulation advances' })).toHaveCount(0);
+    expect(await workerEntries(page, 'dualClock.worker')).toHaveLength(0);
+    expect(await workerEntries(page, 'guestSimulation.worker')).toHaveLength(0);
     await page.locator('.game-menu-btn').click();
     await page.locator('.hud-save').click();
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null')?.schemaVersion)).toBe(16);
+    await page.reload({ waitUntil: 'load' }); await page.getByRole('button', { name: /^Continue / }).click();
+    await expect(page.locator('.tb-speed')).toHaveCount(4);
+    expect(await workerEntries(page, 'dualClock.worker')).toHaveLength(0);
+  });
+
+  test('a portal-bearing schema-16 resort starts only the legacy guest worker', async ({ page }) => {
+    test.setTimeout(90_000);
+    await installWorkerProbe(page);
+    const fixture = legacyPortalStructures();
+    await seedPreparedResort(page, { lifts: [fixture.lift], trails: [fixture.trail] });
+    await putPreparedWeather(page);
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: /^Continue / }).click();
+    await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 30_000 });
+    const point = await page.evaluate((lngLat) => {
+      const map = (globalThis as typeof globalThis & { appMap: { jumpTo(options: unknown): void;
+        project(value: [number, number]): { x: number; y: number }; getCanvas(): HTMLCanvasElement } }).appMap;
+      map.jumpTo({ center: lngLat, zoom: 18, pitch: 0, bearing: 0 });
+      const projected = map.project(lngLat), rect = map.getCanvas().getBoundingClientRect();
+      return { x: rect.left + projected.x, y: rect.top + projected.y };
+    }, fixture.base);
+    await page.getByRole('button', { name: 'Toolbox', exact: true }).click();
+    await page.getByRole('tab', { name: 'Infrastructure', exact: true }).click();
+    await page.getByRole('button', { name: 'Place Guest Entrance', exact: true }).click();
+    await page.mouse.click(point.x, point.y);
+    const completePlanning = page.getByRole('button', { name: 'Complete planning and skip to September 1', exact: true });
+    if (await completePlanning.isVisible()) {
+      await completePlanning.click();
+      await page.getByRole('button', { name: 'Skip to September 1', exact: true }).click();
+    }
+    const skipToWinter = page.getByRole('button', { name: 'Skip to Winter', exact: true });
+    if (await skipToWinter.isVisible()) await skipToWinter.click();
+    await expect.poll(async () => (await workerEntries(page, 'guestSimulation.worker')).some(entry =>
+      (entry.messageCount ?? 0) > 0), { timeout: 30_000 }).toBe(true);
+    expect(await workerEntries(page, 'dualClock.worker')).toHaveLength(0);
   });
 
   test('delayed weather leaves the restored map inspectable and pending exit skips checkpointing', async ({ page }) => {

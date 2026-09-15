@@ -23,11 +23,10 @@ if (development) await server.listen();
 let child;
 
 async function closeServer() {
-  if (development) return server.close();
-  await new Promise((resolve, reject) => {
-    server.httpServer.close((error) => error ? reject(error) : resolve());
-    server.httpServer.closeAllConnections?.();
-  });
+  // Vite's close() also releases its internal environment/module runners.
+  // Closing only the HTTP listener leaves those handles alive after a failed
+  // Playwright run and can keep the native build bindings locked on Windows.
+  await server.close();
 }
 
 try {

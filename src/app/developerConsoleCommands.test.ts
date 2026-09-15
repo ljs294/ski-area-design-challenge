@@ -19,6 +19,9 @@ describe('developer console commands', () => {
     expect(parseDeveloperConsoleCommand('restart-game')).toEqual({ kind: 'restart' });
     expect(parseDeveloperConsoleCommand('snow add 50cm')).toEqual({ kind: 'snow-add', meters: 0.5 });
     expect(parseDeveloperConsoleCommand('snow add 0.5m')).toEqual({ kind: 'snow-add', meters: 0.5 });
+    expect(parseDeveloperConsoleCommand('snow add 1cm at -71.165,44.166 radius 250m')).toEqual({
+      kind: 'snow-add', meters: .01, area: { center: [-71.165, 44.166], radiusM: 250 },
+    });
     expect(() => parseDeveloperConsoleCommand('skip backwards')).toThrow(/Invalid duration/);
     expect(() => parseDeveloperConsoleCommand('snow add')).toThrow(/amount is required/i);
     expect(() => parseDeveloperConsoleCommand('snow add 0cm')).toThrow(/positive number/i);

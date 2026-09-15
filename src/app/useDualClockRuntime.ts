@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DualCheckpoint, DualInitialization, DualPublication, DualSpeed, ResortSimulationInput, AdvanceDestination } from '../dualClock/model';
 import { advanceDestination } from '../dualClock/clock';
 import type { DualCommand, DualWorkerRequest, DualWorkerResponse } from './dualClockProtocol';
@@ -6,8 +6,10 @@ import type { SnowLayerState } from './useSnowLayer';
 import type { PreparedRoute } from '../dualClock/geometry';
 import { applyDualSnowPatch } from './dualSnowPublication';
 import { decodeDualMovement } from './dualMovementPublication';
-import type { SnowAddResult } from '../types/dualClock';
+import type { SnowAddArea, SnowAddResult } from '../types/dualClock';
 import { resortSimulationInputKey } from './resortSimulationInput';
+import { benchmarkCorrelationFor, benchmarkTelemetryEnabled, bindBenchmarkCorrelation,
+  markBenchmarkTelemetry, type BenchmarkCorrelation } from './integratedBenchmarkTelemetry';
 
 export interface DualSimulationControls {
   publication: DualPublication | null;
@@ -28,7 +30,7 @@ export interface DualSimulationControls {
   acknowledge(id: string): void;
   follow(): Promise<void>;
   checkpoint(): Promise<DualCheckpoint>;
-  addSnow(meters: number): Promise<SnowAddResult>;
+  addSnow(meters: number, area?: SnowAddArea): Promise<SnowAddResult>;
 }
 
 export interface WeatherReadinessAck {
@@ -87,8 +89,10 @@ export function useDualClockRuntime(options: {
     const requestId = ++id.current;
     if (command.type !== 'advance') minimumPublicationId.current = requestId;
     beforePost?.(requestId);
-    worker.current?.postMessage({ ...command, requestId, generation: generation.current,
-      committedRevision: published.current?.clock.revision ?? 0 } satisfies DualWorkerRequest);
+    const request: DualWorkerRequest = { ...command, requestId, generation: generation.current,
+      committedRevision: published.current?.clock.revision ?? 0 };
+    if (benchmarkTelemetryEnabled()) request.benchmarkTelemetry = true;
+    worker.current?.postMessage(request);
     return requestId;
   }, []);
   const binding = options.enabled && options.initialization?.terrain ? options.initialization.terrain.key : null;
@@ -146,6 +150,14 @@ export function useDualClockRuntime(options: {
     instance.onmessage = (event: MessageEvent<DualWorkerResponse>) => {
       const response = event.data;
       if (response.generation !== active || instance !== worker.current) return;
+      const correlation: BenchmarkCorrelation | null = response.benchmarkTelemetry ? {
+        requestId: response.id, generation: response.generation,
+        operationGeneration: response.operationGeneration, committedRevision: response.committedRevision,
+        publicationSequence: response.benchmarkTelemetry.publicationSequence } : null;
+      if (correlation) markBenchmarkTelemetry('dual-worker-receive', { ...correlation,
+        durationMs: response.benchmarkTelemetry!.publicationBuildMs,
+        bytes: response.benchmarkTelemetry!.transferBytes,
+        detail: `worker-origin=${response.benchmarkTelemetry!.workerTimeOrigin};worker-at=${response.benchmarkTelemetry!.workerAt}` });
       if (response.weatherAck) {
         const pending = pendingWeather.current;
         const requiredAt = pending?.requiredAt ?? response.publication?.clock.at ?? initial.current?.at;
@@ -156,7 +168,11 @@ export function useDualClockRuntime(options: {
         }
       }
       if (response.movement) {
+        const decodeStarted = correlation ? performance.now() : 0;
         if (response.id >= minimumPublicationId.current && response.publication) response.publication.points = decodeDualMovement(response.movement);
+        if (correlation) markBenchmarkTelemetry('dual-movement-decode', { ...correlation,
+          durationMs: performance.now() - decodeStarted, bytes: response.movement.buffer.byteLength,
+          count: response.movement.count });
         instance.postMessage({ type: 'recycle-movement', buffer: response.movement.buffer, generation: active,
           requestId: response.id, committedRevision: response.committedRevision } satisfies DualWorkerRequest, [response.movement.buffer]);
       }
@@ -173,11 +189,27 @@ export function useDualClockRuntime(options: {
         for (const waiter of snowAddWaiters.values()) waiter.reject(new Error(response.error)); snowAddWaiters.clear();
       }
       if (response.publication) {
+        if (correlation) {
+          bindBenchmarkCorrelation(response.publication, correlation);
+          bindBenchmarkCorrelation(response.publication.points as object, correlation);
+        }
         published.current = response.publication; paused.current = response.publication.clock.paused;
         setPublication(response.publication); setReady(true);
+        if (correlation) markBenchmarkTelemetry('dual-react-scheduled', correlation);
       }
-      if (response.snow) optionsRef.current.snow.replace(response.snow, true);
-      else if (response.snowPatch && optionsRef.current.snow.gridRef.current) optionsRef.current.snow.replace(applyDualSnowPatch(optionsRef.current.snow.gridRef.current, response.snowPatch), true);
+      if (response.snow) {
+        if (correlation) bindBenchmarkCorrelation(response.snow, correlation);
+        optionsRef.current.snow.replace(response.snow, true);
+        if (correlation) markBenchmarkTelemetry('dual-snow-applied', { ...correlation, count: response.snow.depthM.length,
+          bytes: response.snow.depthM.byteLength + response.snow.surface.byteLength }); }
+      else if (response.snowPatch && optionsRef.current.snow.gridRef.current) {
+        const nextSnow = applyDualSnowPatch(optionsRef.current.snow.gridRef.current, response.snowPatch);
+        if (correlation) bindBenchmarkCorrelation(nextSnow, correlation);
+        optionsRef.current.snow.replace(nextSnow, true);
+        if (correlation) markBenchmarkTelemetry('dual-snow-patch-applied', { ...correlation,
+          count: response.snowPatch.width * response.snowPatch.height,
+          bytes: response.snowPatch.depthM.byteLength + response.snowPatch.surface.byteLength });
+      }
       if (response.geometry) setGeometry(response.geometry);
       if (response.snowAdd) { snowAddWaiters.get(response.id)?.resolve(response.snowAdd); snowAddWaiters.delete(response.id); }
     };
@@ -193,6 +225,10 @@ export function useDualClockRuntime(options: {
       for (const waiter of waiters.values()) waiter.reject(new Error('Simulation replaced.')); waiters.clear();
       for (const waiter of snowAddWaiters.values()) waiter.reject(new Error('Simulation replaced.')); snowAddWaiters.clear(); };
   }, [abortWeatherPreparation, binding, post]);
+  useLayoutEffect(() => {
+    const correlation = benchmarkCorrelationFor(publication);
+    if (correlation) markBenchmarkTelemetry('dual-react-commit', correlation);
+  }, [publication]);
   useEffect(() => {
     const terrain = options.initialization?.terrain;
     if (ready && terrain && preparedTerrain.current !== terrain) { preparedTerrain.current = terrain; post({ type: 'terrain', terrain }); }
@@ -247,11 +283,11 @@ export function useDualClockRuntime(options: {
     preparationGeneration.current++; paused.current = true;
     return new Promise((resolve, reject) => post({ type: 'checkpoint' }, requestId => pending.current.set(requestId, { resolve, reject })));
   }, [post]);
-  const addSnow = useCallback((meters: number): Promise<SnowAddResult> => {
+  const addSnow = useCallback((meters: number, area?: SnowAddArea): Promise<SnowAddResult> => {
     if (!worker.current) return Promise.reject(new Error('Wait for the simulation to initialize before adding snow.'));
     if (!weatherReady.current) return Promise.reject(new Error('Wait for the weather window to be ready before changing snow.'));
     preparationGeneration.current++; abortWeatherPreparation(); paused.current = true;
-    return new Promise((resolve, reject) => post({ type: 'snow-add', meters }, requestId => pendingSnowAdd.current.set(requestId, { resolve, reject })));
+    return new Promise((resolve, reject) => post({ type: 'snow-add', meters, area }, requestId => pendingSnowAdd.current.set(requestId, { resolve, reject })));
   }, [abortWeatherPreparation, post]);
   const updateResort = useCallback((input: ResortSimulationInput) => {
     const key = resortSimulationInputKey(input);

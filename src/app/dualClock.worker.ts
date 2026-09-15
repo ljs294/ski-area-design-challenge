@@ -12,6 +12,7 @@ let headlessOperation = false;
 const snowPublisher = new DualSnowPublisher();
 const movementPublisher = new DualMovementPublisher();
 let publishedGeometry = -1;
+let benchmarkTelemetry = false, publicationSequence = 0;
 const slices = new MessageChannel();
 const scheduled: (() => void)[] = [];
 slices.port1.onmessage = () => scheduled.shift()?.();
@@ -19,6 +20,7 @@ function scheduleSlice(task: () => void): void { scheduled.push(task); slices.po
 function publish(id: number, snow = false, checkpoint = false, geometry = false, snowAdd?: SnowAddResult,
   weatherAck?: { acceptedFrom: string; acceptedTo: string }): void {
   if (!engine) return;
+  const publicationStarted = benchmarkTelemetry ? performance.now() : 0;
   const response: DualWorkerResponse = { generation, id, type: checkpoint ? 'checkpoint' : 'publication',
     committedRevision: engine.state.clock.revision, operationGeneration: operation,
     publication: engine.publication(), busy: work !== null };
@@ -32,6 +34,14 @@ function publish(id: number, snow = false, checkpoint = false, geometry = false,
   const transfer: Transferable[] = response.snow ? [response.snow.depthM.buffer, response.snow.surface.buffer] : [];
   if (response.snowPatch) transfer.push(response.snowPatch.depthM.buffer, response.snowPatch.surface.buffer);
   if (response.movement) transfer.push(response.movement.buffer);
+  if (benchmarkTelemetry) {
+    let transferBytes = 0;
+    for (const item of transfer) if (item instanceof ArrayBuffer) transferBytes += item.byteLength;
+    const workerAt = performance.now();
+    response.benchmarkTelemetry = { publicationSequence: ++publicationSequence,
+      workerTimeOrigin: performance.timeOrigin, workerAt,
+      publicationBuildMs: workerAt - publicationStarted, transferBytes };
+  }
   self.postMessage(response, { transfer }); lastPublication = performance.now();
   if (snow) lastSnowPublication = lastPublication;
 }
@@ -68,7 +78,9 @@ self.onmessage = (event: MessageEvent<DualWorkerRequest>) => {
   if (request.type === 'recycle-movement') { movementPublisher.recycle(request.buffer); return; }
   try {
     if (request.type === 'initialize') {
-      stop(); snowPublisher.invalidate(); generation = request.generation; engine = new DualClockEngine(request.input);
+      stop(); snowPublisher.invalidate(); generation = request.generation;
+      benchmarkTelemetry = request.benchmarkTelemetry === true;
+      publicationSequence = 0; engine = new DualClockEngine(request.input);
       const initialWeather = request.input.weather;
       const initialCoverage = initialWeather.length ? {
         acceptedFrom: initialWeather.reduce((min, hour) => Date.parse(hour.at) < Date.parse(min.at) ? hour : min).at,
@@ -101,7 +113,7 @@ self.onmessage = (event: MessageEvent<DualWorkerRequest>) => {
       case 'terrain': engine.setTerrain(request.terrain); break;
       case 'snow-add': {
         engine.pause();
-        const result = engine.addSnow(request.meters);
+        const result = engine.addSnow(request.meters, request.area);
         engine.settlePresentation();
         publish(request.requestId, true, false, false, result);
         return;

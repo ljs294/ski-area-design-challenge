@@ -186,6 +186,14 @@ projection rather than four render-timed React refs.
 
 ## Open decisions and blockers
 
+### Integrated gameplay performance harness working-tree delivery
+
+Base commit: `b915aef292da1bc31cd780b3555f3176a78ab5a7`. The integrated harness implementation is uncommitted, so this SHA identifies the clean starting point and **is not a measured implementation SHA**. No performance result from the dirty working tree can certify a release. All implementation and review after the execution-plan change used Sol Medium.
+
+The working tree contains the opt-in scenario and telemetry path, immutable Jackson fixture contract, browser and packaged-Electron Playwright workflows, hardware and source preflight, fixed AB/BA runner, and paired comparison analyzer. The packaged path launches an actual release executable as an owned process and attaches through loopback CDP; it does not substitute development Electron. The runbook at [`docs/performance/integrated-benchmark.md`](../performance/integrated-benchmark.md) records commands, fixture hashes, observed diagnostic failures, and the distinction between infrastructure checks and performance qualification.
+
+Focused analyzer tests passed 12/12. Focused runner/hardware and packaged-control tests, source lint/type checks, Playwright collection, and fixture validation have passed at intermediate milestones; exact final aggregate counts belong in the runbook after the stable tree is checked. Browser diagnostics have demonstrated failure propagation through real App, worker, terrain, snow, and MapLibre paths, but no 30-second warm-up plus 120-second hardware trial has completed. The 20-minute soak, ten reopen cycles, full scenario/speed/profile matrix, five paired telemetry trials, five paired optimization trials, and packaged Electron qualification remain unmeasured. The Jackson assets remain below ignored `test-results`, and the final fixture lock must remain sufficient to reproduce and verify them from tracked source before qualification.
+
 ### Dual-clock working-tree delivery
 
 Base commit: `9988f4f774de92103c497788a69cf777c147d4a3`. The implementation is uncommitted; this SHA identifies the baseline, not the new code. No immutable implementation SHA is available until a commit is made.

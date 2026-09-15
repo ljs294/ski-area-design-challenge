@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLoadReadinessReady, nextLoadSceneDrawCount, skipsInitialWeatherCheckpoint, weatherMutationBlocked } from './resortBoot';
+import { canRevealLoad, isLoadReadinessReady, nextLoadSceneDrawCount, skipsInitialWeatherCheckpoint, weatherMutationBlocked } from './resortBoot';
 
 const current = { generation: 4, mapReady: true, simulationRestored: true, weatherReady: false } as const;
 
@@ -16,9 +16,11 @@ describe('resort load readiness', () => {
     expect(nextLoadSceneDrawCount(2, { ...current, simulationRestored: false }, 4)).toBe(0);
   });
 
-  it('cannot force reveal before restored terrain and draws are ready', () => {
+  it('keeps automatic reveal gated while allowing the explicit stalled-load action', () => {
     expect(isLoadReadinessReady({ ...current, mapReady: false }, 4, 99)).toBe(false);
     expect(isLoadReadinessReady({ ...current, simulationRestored: false }, 4, 99)).toBe(false);
+    expect(canRevealLoad(false, { ...current, mapReady: false }, 4, 99)).toBe(false);
+    expect(canRevealLoad(true, { ...current, mapReady: false }, 4, 0)).toBe(true);
   });
 
   it('ignores background warm completion and allows paused reveal before weather', () => {

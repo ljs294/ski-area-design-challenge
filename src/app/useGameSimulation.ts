@@ -16,7 +16,7 @@ import { weatherTerrainBinding } from '../weather/terrainBinding';
 import { resolvePreparedWeather } from './preparedWeatherClient';
 import { generateBareSnowGrid } from '../snow';
 import { addFreshSnow } from '../dualClock/snowAdd';
-import type { SnowAddResult } from '../types/dualClock';
+import type { SnowAddArea, SnowAddResult } from '../types/dualClock';
 import { advanceSummerToSeptember, confirmSeasonTransition, createClock, createTimeSnapshot,
   advanceClockSeconds, DEFAULT_TIME_CONFIG, restoreTimeSnapshot,
 } from '../../time-engine/src/timeEngine';
@@ -63,7 +63,7 @@ export interface GameSimulationController {
   snapshot(): { time: TimeEngineSnapshot; weatherRun?: SavedWeatherRun };
   pause(): void;
   devSkipMinutes(minutes: number): DeveloperClockSkip;
-  addSnow(meters: number): Promise<SnowAddResult>;
+  addSnow(meters: number, area?: SnowAddArea): Promise<SnowAddResult>;
 }
 
 function configFor(timezone: string): TimeScaleConfig {
@@ -622,13 +622,13 @@ export function useGameSimulation({
       localMidnightAbsoluteMinute: result.after.absoluteGameMinute - result.after.minuteOfDay }));
     return result;
   }, [publishClock]);
-  const addSnow = useCallback(async (meters: number): Promise<SnowAddResult> => {
+  const addSnow = useCallback(async (meters: number, area?: SnowAddArea): Promise<SnowAddResult> => {
     if (!isDeveloperConsoleEnabled()) throw new Error('Developer snow controls are disabled in this build.');
     const currentGrid = snow.gridRef.current;
     if (!currentGrid) throw new Error('Wait for the snow grid to initialize before adding snow.');
     coordinatorRef.current?.reset(Math.floor(clockRef.current.elapsedSimSecond), performance.now());
     publishClock({ ...clockRef.current, runState: 'paused' });
-    const applied = addFreshSnow(currentGrid, meters);
+    const applied = addFreshSnow(currentGrid, meters, area);
     snow.replace(applied.grid, true);
     return applied.result;
   }, [publishClock, snow]);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { SimulationClock } from '../types/simulation';
-import type { SnowAddResult } from '../types/dualClock';
+import type { SnowAddArea, SnowAddResult } from '../types/dualClock';
 import { DEVELOPER_CONSOLE_HELP, parseDeveloperConsoleCommand,
   isDeveloperConsoleEnabled, type DeveloperClockSkip } from './developerConsoleCommands';
 import './developerConsole.css';
@@ -19,19 +19,21 @@ function displayTimestamp(clock: SimulationClock): string {
 export interface DeveloperConsoleProps {
   readonly clock: SimulationClock;
   skip(minutes: number): DeveloperClockSkip;
-  onSnowAdd?(meters: number): Promise<SnowAddResult>;
+  onSnowAdd?(meters: number, area?: SnowAddArea): Promise<SnowAddResult>;
   restart?(fullRestart?: boolean): Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
 /** Resolves only after the owning simulation has committed and published snow. */
 export async function addSnowConsoleLines(meters: number,
-  onSnowAdd: ((meters: number) => Promise<SnowAddResult>) | undefined): Promise<readonly string[]> {
+  onSnowAdd: ((meters: number, area?: SnowAddArea) => Promise<SnowAddResult>) | undefined,
+  area?: SnowAddArea): Promise<readonly string[]> {
   if (!onSnowAdd) throw new Error('Snow controls are not ready.');
-  const result = await onSnowAdd(meters);
+  const result = await onSnowAdd(meters, area);
   const amount = result.requestedMeters >= 1
     ? `${result.requestedMeters.toLocaleString()} m`
     : `${Math.round(result.requestedMeters * 100).toLocaleString()} cm`;
-  return [`Added ${amount} of fresh snow across ${result.affectedCells.toLocaleString()} terrain cells.`,
+  const location = area ? ` within ${area.radiusM.toLocaleString()} m of ${area.center[0]}, ${area.center[1]}` : '';
+  return [`Added ${amount} of fresh snow${location} across ${result.affectedCells.toLocaleString()} terrain cells.`,
     result.clippedCells > 0
       ? `${result.clippedCells.toLocaleString()} cells reached the snow-depth limit. The simulation is paused; game time did not advance.`
       : 'The simulation is paused; game time did not advance.'];
@@ -75,7 +77,7 @@ export function DeveloperConsole({ clock, skip, onSnowAdd, restart }: DeveloperC
       if (command.kind === 'help') { append(`> ${source}`, ...DEVELOPER_CONSOLE_HELP); return; }
       if (command.kind === 'time') { append(`> ${source}`, displayTimestamp(clock)); return; }
       if (command.kind === 'snow-add') {
-        append(`> ${source}`, ...await addSnowConsoleLines(command.meters, onSnowAdd));
+        append(`> ${source}`, ...await addSnowConsoleLines(command.meters, onSnowAdd, command.area));
         return;
       }
       if (command.kind === 'restart' || command.kind === 'restart-app') {
