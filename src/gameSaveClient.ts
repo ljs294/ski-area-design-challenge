@@ -9,6 +9,8 @@ import type {
   GameSaveDeleteResponse,
 } from './ipcContract';
 import type { GameSave, GameSaveSummary } from './types/gameSave';
+import { writeDualGame, readDualGame, deleteDualGame } from './dualGameStorage';
+import { validateDualCheckpoint } from './dualClock/validation';
 
 export { CURRENT_GAME_SAVE_SCHEMA_VERSION } from './gameSaveSchema';
 
@@ -41,9 +43,14 @@ function toSummary(save: GameSave): GameSaveSummary {
 }
 
 export async function saveGame(save: GameSave): Promise<GameSaveSaveResponse> {
+  if (save.schemaVersion === 17) {
+    try { validateDualCheckpoint(save.dualClock); }
+    catch (error) { return { ok: false, error: error instanceof Error ? error.message : 'Invalid simulation checkpoint.' }; }
+  }
   if (desktop) return desktop.games.save(save);
   try {
-    localStorage.setItem(PREFIX + save.key, JSON.stringify(save));
+    if (save.schemaVersion === 17) { await writeDualGame(save); localStorage.removeItem(PREFIX + save.key); }
+    else localStorage.setItem(PREFIX + save.key, JSON.stringify(save));
     localWriteIndex([...localList().filter((s) => s.key !== save.key), toSummary(save)]);
     return { ok: true, key: save.key };
   } catch (e) {
@@ -54,6 +61,9 @@ export async function saveGame(save: GameSave): Promise<GameSaveSaveResponse> {
 export async function loadGame(key: string): Promise<GameSaveLoadResponse> {
   if (desktop) return desktop.games.load(key);
   const raw = localStorage.getItem(PREFIX + key);
+  if (raw) { const legacy = JSON.parse(raw); if (legacy.schemaVersion !== 17) return legacy; }
+  const dual = await readDualGame(key);
+  if (dual) return dual;
   return raw ? JSON.parse(raw) : null;
 }
 
@@ -64,6 +74,7 @@ export async function listGames(): Promise<GameSaveListResponse> {
 
 export async function deleteGame(key: string): Promise<GameSaveDeleteResponse> {
   if (desktop) return desktop.games.delete(key);
+  await deleteDualGame(key);
   localStorage.removeItem(PREFIX + key);
   localStorage.removeItem(PREVIEW_PREFIX + key);
   localWriteIndex(localList().filter((s) => s.key !== key));

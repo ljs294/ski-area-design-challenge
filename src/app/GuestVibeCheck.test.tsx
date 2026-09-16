@@ -25,6 +25,18 @@ function render(overrides: Partial<GuestVibeCheckProps> = {}): string {
 }
 
 describe('GuestVibeCheck', () => {
+  it('shows independent completed-visit totals even after the itinerary has been truncated', () => {
+    const html = render({ inspection: { id: 'sample', groupId: 'party', status: 'departed',
+      runs: 17, spendingCents: 11800, satisfaction: 0.86, nextPlan: 'Visit complete', thought: 'A good day.',
+      trackingBeganAt: '2026-11-02T08:00:00Z', history: [{ at: '2026-11-02T16:00:00Z', text: 'Departed' }] },
+      autoTracking: true, onAutoTrack: vi.fn(), onFollow: vi.fn() });
+    expect(html).toContain('Visit Completed'); expect(html).toContain('17 simulated runs');
+    expect(html).toContain('$118.00'); expect(html).toContain('86% satisfaction');
+    expect(html).toContain('This visit represents wider mountain activity');
+    expect(html).toContain('Auto-track another active guest'); expect(html).toContain('Return to Mountain Overview');
+    expect(html).not.toContain('Follow at 1');
+    expect(html).toContain('Waiting for an active guest.');
+  });
   it('renders aggregate counts, sentiment, coded reasons, and top thoughts', () => {
     const html = render();
     expect(html).toContain('Guest vibe check');
@@ -66,5 +78,14 @@ describe('GuestVibeCheck', () => {
     expect(html).toContain('$25,000.00');
     expect(html).toContain('Reconciled');
     expect(html).toContain('Ticket price is locked for this active day');
+  });
+
+  it('keeps camera follow controls separate from the explicit one-times follow action', () => {
+    const html = render({ inspection: { id: 'sample', groupId: 'party', status: 'skiing',
+      runs: 1, spendingCents: 1000, satisfaction: 0.86, nextPlan: 'Ski', thought: 'Great snow.',
+      trackingBeganAt: '2026-11-02T08:00:00Z', history: [] }, following: true,
+      onStartFollowing: vi.fn(), onStopFollowing: vi.fn(), onFollow: vi.fn() });
+    expect(html).toContain('Stop following');
+    expect(html).toContain('Follow at 1×');
   });
 });

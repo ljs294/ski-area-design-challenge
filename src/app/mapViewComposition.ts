@@ -6,3 +6,6 @@ export { saveGameWithGuestCheckpoint } from './guestSimulationSave';
 export { has3DBuildingContext } from '../vectorFeatures';
 
 export { createWorkspaceNavigation } from './workspaceNavigation';
+export { gameSaveHeader } from './gameSaveHeader';
+export { captureGamePreview } from '../gameSaveClient';
+export { liftOperationsFor } from './liftOperations';

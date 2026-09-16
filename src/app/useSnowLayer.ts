@@ -8,6 +8,7 @@ import type { SnowDisplayMode } from './snowStyle';
 
 export interface SnowLayerState {
   grid: SnowGrid | null;
+  publicationVersion: number;
   gridRef: MutableRefObject<SnowGrid | null>;
   mode: SnowDisplayMode;
   modeRef: MutableRefObject<SnowDisplayMode>;
@@ -22,12 +23,14 @@ export interface SnowLayerState {
 /** Owns the persisted snow grid and its session-only map presentation. */
 export function useSnowLayer(mapRef: MutableRefObject<maplibregl.Map | null>): SnowLayerState {
   const [grid, setGrid] = useState<SnowGrid | null>(null);
+  const [publicationVersion, setPublicationVersion] = useState(0);
   const gridRef = useRef<SnowGrid | null>(null);
   const [mode, setMode] = useState<SnowDisplayMode>('depth');
   const modeRef = useRef<SnowDisplayMode>('depth');
 
   function publish(next: SnowGrid): void {
     gridRef.current = next;
+    setPublicationVersion((version) => version + 1);
     setActiveSnowGrid(next);
     setGrid(next);
   }
@@ -36,6 +39,7 @@ export function useSnowLayer(mapRef: MutableRefObject<maplibregl.Map | null>): S
 
   return {
     grid,
+    publicationVersion,
     gridRef,
     mode,
     modeRef,

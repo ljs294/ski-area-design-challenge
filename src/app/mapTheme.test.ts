@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Map as MapLibreMap } from 'maplibre-gl';
-import { applyMapTheme, mapPaletteFor, MAP_PALETTES, normalizeCustomMapColors } from './mapTheme';
+import { applyMapTheme, mapPaletteFor, MAP_PALETTES, normalizeCustomMapColors, themePaint } from './mapTheme';
 import { basemapFor } from './basemapStyle';
 
 describe('cartographic themes', () => {
@@ -28,5 +28,15 @@ describe('cartographic themes', () => {
     expect(style.layers[0].paint).toEqual({ 'background-color': '#102030' });
     expect(mapPaletteFor('dark', 'blueprint').paper).toBe('#08141f');
     expect(normalizeCustomMapColors({ paper: 'not-a-color' }).paper).toBe('#e8e5dc');
+  });
+
+  it('keeps lift labels red with a white halo across theme presets', () => {
+    for (const theme of ['light', 'dark'] as const) {
+      for (const preset of ['cupertino', 'classic', 'blueprint'] as const) {
+        expect(themePaint('lift-labels', theme, preset)).toEqual({
+          'text-color': '#d42027', 'text-halo-color': '#ffffff',
+        });
+      }
+    }
   });
 });

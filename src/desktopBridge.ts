@@ -15,6 +15,8 @@ import type {
   WeatherLoadByContentHashResponse,
   WeatherLoadInstallByContentHashResponse,
   WeatherDeleteResponse,
+  PreparedWeatherReadResponse,
+  PreparedWeatherWriteResponse,
   WeatherPackageStorageInstall,
   GameSaveSaveResponse,
   GameSaveLoadResponse,
@@ -30,6 +32,7 @@ import type {
 import type { TerrainRecord } from './types';
 import type { GameSave } from './types';
 import type { WeatherDataPackage } from './weather/weatherModel';
+import type { PreparedWeatherIdentity } from './weather/preparedWeatherModel';
 
 export interface DesktopApi {
   isDesktop: true;
@@ -54,6 +57,10 @@ export interface DesktopApi {
     loadByContentHash(contentHash: string): Promise<WeatherLoadByContentHashResponse>;
     loadInstallByContentHash(contentHash: string): Promise<WeatherLoadInstallByContentHashResponse>;
     delete(terrainKey: string): Promise<WeatherDeleteResponse>;
+  };
+  preparedWeather: {
+    read(identity: PreparedWeatherIdentity): Promise<PreparedWeatherReadResponse>;
+    write(identity: PreparedWeatherIdentity, bytes: Uint8Array): Promise<PreparedWeatherWriteResponse>;
   };
   games: {
     save(save: GameSave): Promise<GameSaveSaveResponse>;

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 216 300" width="216" height="300">
+  <!-- Double chairlift badge: red trail-map plaque, white front-view chair emblem -->
+  <rect x="20" y="54" width="176" height="210" rx="34" ry="34" fill="#C41434" stroke="#ffffff" stroke-width="18" stroke-linejoin="round"/>
+  <g stroke="#ffffff" stroke-linecap="round" fill="none">
+    <!-- haul cable and hanger stem -->
+    <line x1="40" y1="90" x2="176" y2="90" stroke-width="13"/>
+    <line x1="108" y1="90" x2="108" y2="195" stroke-width="13"/>
+  </g>
+  <g fill="#ffffff">
+    <!-- riders: torso then head -->
+    <rect x="51" y="166" width="52" height="44" rx="17" ry="17"/>
+    <rect x="113" y="166" width="52" height="44" rx="17" ry="17"/>
+    <circle cx="77" cy="152" r="21"/>
+    <circle cx="139" cy="152" r="21"/>
+  </g>
+  <!-- safety bar reads as a red slot across the laps -->
+  <line x1="34" y1="192" x2="182" y2="192" stroke="#C41434" stroke-width="9" stroke-linecap="round"/>
+  <g stroke="#ffffff" stroke-linecap="round" fill="none">
+    <!-- legs and footrest -->
+    <line x1="56" y1="210" x2="56" y2="226" stroke-width="11"/>
+    <line x1="160" y1="210" x2="160" y2="226" stroke-width="11"/>
+    <line x1="50" y1="230" x2="166" y2="230" stroke-width="12"/>
+  </g>
+</svg>

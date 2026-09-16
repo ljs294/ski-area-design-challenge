@@ -130,6 +130,7 @@ export function themePaint(
   if (['dashboard-grid', 'dashboard-snow-contours', 'dashboard-trail-ties', 'dashboard-snow-building-outlines'].includes(id)) return { 'line-color': p.text };
   if (id === 'dashboard-snow-water') return { 'fill-color': p.water, 'fill-outline-color': p.waterLine };
   if (id === 'dashboard-snow-buildings') return { 'fill-color': p.building };
+  if (id === 'lift-labels') return { 'text-color': '#d42027', 'text-halo-color': '#ffffff' };
   if (id === 'dashboard-trail-nodes') return { 'circle-color': ['case', ['get', 'user'], '#efb84f', ['get', 'terminal'], p.text, p.paper], 'circle-stroke-color': p.text };
   if (id === 'dashboard-guest-label') return { 'text-halo-color': p.halo };
   if (['local-water-selected', 'local-water-line-selected'].includes(id)) return { 'line-color': p.selection };
@@ -140,7 +141,7 @@ export function themePaint(
   if (id === 'mp-roads') return { 'line-color': p.road };
   if (id === 'mp-buildings') return { 'fill-color': p.building };
   if (id === 'contour-lines') return { 'line-color': ['match', ['coalesce', ['get', 'level'], 0], 1, p.contour, p.minorContour] };
-  if (['mp-place-labels', 'contour-labels', 'local-water-labels', 'trail-labels', 'lift-labels'].includes(id)) {
+  if (['mp-place-labels', 'contour-labels', 'local-water-labels', 'trail-labels'].includes(id)) {
     return { 'text-color': p.text, 'text-halo-color': p.halo };
   }
   return null;

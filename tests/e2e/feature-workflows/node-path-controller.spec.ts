@@ -20,7 +20,8 @@ test('node/path controller commits one atomic connector and restores its draft',
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, [-121.495, 46.905], 16);
 
-  await page.getByRole('button', { name: 'Ski runs' }).click();
+  await page.getByRole('button', { name: 'Toolbox', exact: true }).click();
+  await page.getByRole('tab', { name: 'Trails', exact: true }).click();
   await page.getByRole('button', { name: /Draw path/ }).click();
   const from = await pointAt(page, [-121.496, 46.905]);
   const to = await pointAt(page, [-121.494, 46.905]);
@@ -38,7 +39,7 @@ test('node/path controller commits one atomic connector and restores its draft',
   await page.getByRole('button', { name: 'Build path' }).click();
   await expect.poll(() => sourceFeatureCount(page, 'node-paths')).toBeGreaterThan(0);
 
-  await page.getByRole('button', { name: /^Menu/ }).click();
+  await page.locator('.game-menu-btn').click();
   await page.locator('.hud-save').click();
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));

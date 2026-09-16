@@ -142,6 +142,7 @@ function weeklyGuestWeightingFor(
 }
 
 export interface GuestSimulationRuntime {
+  dualCheckpoint?(): Promise<import('../dualClock/model').DualCheckpoint>;
   readonly status: 'unavailable' | 'starting' | 'ready' | 'error';
   readonly message: string;
   readonly snapshot: GuestSimulationEngineSnapshot | null;
@@ -161,7 +162,24 @@ export interface GuestSimulationRuntime {
     Promise<{ ok: true; committedSecond: number } | { ok: false; error: string }>;
 }
 
+/** Keep the dormant legacy adapter independent of schema-17's calendar projection. */
+export function legacyGuestClockPosition(clock: SimulationClock, enabled: boolean): {
+  readonly currentSecond: number; readonly winterWeekIndex: number;
+} {
+  const currentSecond = enabled && clock.season === 'winter'
+    ? Number.isFinite(clock.elapsedSimSecond) ? clock.elapsedSimSecond
+      : Math.max(0, clock.absoluteGameMinute * 60)
+    : 0;
+  const winterWeekIndex = enabled && clock.season === 'winter'
+    ? Number.isSafeInteger(clock.winterWeek) && (clock.winterWeek ?? 0) > 0
+      ? (clock.winterWeek ?? 1) - 1 : Math.floor(currentSecond / 43_200)
+    : 0;
+  return { currentSecond, winterWeekIndex };
+}
+
 export function useGuestSimulationRuntime(options: {
+  /** False when the schema-17 dual-clock runtime owns guest simulation. */
+  readonly enabled?: boolean;
   readonly saveKey: string | null;
   readonly network: SkiNetwork;
   readonly portal: PlacedGuestPortal | null;
@@ -181,6 +199,7 @@ export function useGuestSimulationRuntime(options: {
   publishRenderFrame?(frame: GuestSimulationRenderFrame | null, edgePaths: readonly GuestRenderPath[],
     portalLngLat?: readonly [number, number]): void;
 }): GuestSimulationRuntime {
+  const enabled = options.enabled ?? true;
   const [snapshot, setSnapshot] = useState<GuestSimulationEngineSnapshot | null>(null);
   const [points, setPoints] = useState<readonly GuestRenderPoint[]>([]);
   const [status, setStatus] = useState<GuestSimulationRuntime['status']>('unavailable');
@@ -205,17 +224,10 @@ export function useGuestSimulationRuntime(options: {
   const lastConditionSnowGridRef = useRef<SnowGrid | null | undefined>(undefined);
   const targetSecondRef = useRef(0);
   const committedSecondRef = useRef(0);
-  const currentSecond = options.clock.season === 'winter'
-    ? Number.isFinite(options.clock.elapsedSimSecond) ? options.clock.elapsedSimSecond
-      : Math.max(0, options.clock.absoluteGameMinute * 60)
-    : 0;
+  const { currentSecond, winterWeekIndex } = legacyGuestClockPosition(options.clock, enabled);
   const currentSecondRef = useRef(currentSecond);
   currentSecondRef.current = currentSecond;
   targetSecondRef.current = Math.max(targetSecondRef.current, currentSecond);
-  const winterWeekIndex = options.clock.season === 'winter'
-    ? Number.isSafeInteger(options.clock.winterWeek) && (options.clock.winterWeek ?? 0) > 0
-      ? (options.clock.winterWeek ?? 1) - 1 : Math.floor(currentSecond / 43_200)
-    : 0;
   const operatingWindow = useMemo(() => guestOperatingWindowForWeek(winterWeekIndex), [winterWeekIndex]);
   const discontinuityRevision = options.timeDiscontinuity?.revision ?? null;
   const simulationWindow = useMemo(() => guestSimulationWindowAfterClockDiscontinuity(operatingWindow,
@@ -341,7 +353,7 @@ export function useGuestSimulationRuntime(options: {
   }, [refreshRichSnapshot]);
 
   useEffect(() => {
-    if (!isDesktop || options.portal || !options.saveKey || !options.gameSaveUpdatedAt || !options.restorePortal) return;
+    if (!enabled || !isDesktop || options.portal || !options.saveKey || !options.gameSaveUpdatedAt || !options.restorePortal) return;
     let cancelled = false;
     void loadGuestSimulationCheckpoint(options.saveKey, options.gameSaveUpdatedAt).then((loaded) => {
       if (cancelled) return;
@@ -357,7 +369,7 @@ export function useGuestSimulationRuntime(options: {
     }).catch((error: unknown) => { if (!cancelled) { setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Guest checkpoint could not be loaded.'); } });
     return () => { cancelled = true; };
-  }, [options.gameSaveUpdatedAt, options.network, options.portal, options.restorePortal, options.saveKey]);
+  }, [enabled, options.gameSaveUpdatedAt, options.network, options.portal, options.restorePortal, options.saveKey]);
 
   useEffect(() => {
     const previous = snapshotRef.current;
@@ -385,6 +397,11 @@ export function useGuestSimulationRuntime(options: {
     targetSecondRef.current = Math.max(simulationStartTick, currentSecondRef.current);
     setCommittedSecond(simulationStartTick); setBacklogSeconds(0); setSnapshot(null); setPoints([]);
     publishRenderFrameRef.current?.(null, renderEdgePathsRef.current, portalLngLatRef.current);
+    if (!enabled) {
+      setStatus('unavailable');
+      setMessage('Legacy guest simulation is disabled for this save.');
+      return;
+    }
     if (options.clock.season !== 'winter' || skippedPastOperatingWindow) {
       setStatus('unavailable');
       setMessage(options.clock.season !== 'winter' ? 'Guest simulation resumes during winter.'
@@ -445,7 +462,7 @@ export function useGuestSimulationRuntime(options: {
       setStatus('error'); setMessage(error instanceof Error ? error.message : 'Guest simulation failed to start.');
     });
     return () => client.dispose();
-  }, [drainCompact, options.clock.season, options.gameSaveUpdatedAt, options.portal?.id,
+  }, [drainCompact, enabled, options.clock.season, options.gameSaveUpdatedAt, options.portal?.id,
     options.saveKey, simulationStartTick, simulationWindow, skippedPastOperatingWindow,
     updateReadyState]);
 

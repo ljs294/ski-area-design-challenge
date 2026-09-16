@@ -1,0 +1,184 @@
+{
+  "_buildingLayers-D31Ekfp4.js": {
+    "file": "assets/buildingLayers-D31Ekfp4.js",
+    "name": "buildingLayers",
+    "imports": [
+      "index.html",
+      "_terrainLod-tVjoelVF.js"
+    ],
+    "dynamicImports": [
+      "node_modules/geotiff/dist-module/compression/raw.js",
+      "node_modules/geotiff/dist-module/compression/lzw.js",
+      "node_modules/geotiff/dist-module/compression/jpeg.js",
+      "node_modules/geotiff/dist-module/compression/deflate.js",
+      "node_modules/geotiff/dist-module/compression/packbits.js",
+      "node_modules/geotiff/dist-module/compression/lerc.js",
+      "node_modules/geotiff/dist-module/compression/zstd.js",
+      "node_modules/geotiff/dist-module/compression/webimage.js"
+    ]
+  },
+  "_pako.esm-CKAy9xRv.js": {
+    "file": "assets/pako.esm-CKAy9xRv.js",
+    "name": "pako.esm"
+  },
+  "_terrainLod-B2k4QVOw.css": {
+    "file": "assets/terrainLod-B2k4QVOw.css",
+    "src": "_terrainLod-B2k4QVOw.css"
+  },
+  "_terrainLod-tVjoelVF.js": {
+    "file": "assets/terrainLod-tVjoelVF.js",
+    "name": "terrainLod",
+    "imports": [
+      "index.html"
+    ],
+    "css": [
+      "assets/terrainLod-B2k4QVOw.css"
+    ]
+  },
+  "_weatherServiceClient-Devppwgd.js": {
+    "file": "assets/weatherServiceClient-Devppwgd.js",
+    "name": "weatherServiceClient",
+    "imports": [
+      "index.html"
+    ]
+  },
+  "index.html": {
+    "file": "assets/index-DJLsocal.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "dynamicImports": [
+      "src/app/MenuBackdrop.tsx",
+      "src/app/MapView.tsx",
+      "src/app/GraphicsLab.tsx",
+      "src/app/WeatherLab.tsx"
+    ],
+    "css": [
+      "assets/index-M9DmUgFn.css"
+    ]
+  },
+  "node_modules/geotiff/dist-module/compression/deflate.js": {
+    "file": "assets/deflate-8V3azEsN.js",
+    "name": "deflate",
+    "src": "node_modules/geotiff/dist-module/compression/deflate.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_pako.esm-CKAy9xRv.js",
+      "_buildingLayers-D31Ekfp4.js"
+    ]
+  },
+  "node_modules/geotiff/dist-module/compression/jpeg.js": {
+    "file": "assets/jpeg-D5gonPz9.js",
+    "name": "jpeg",
+    "src": "node_modules/geotiff/dist-module/compression/jpeg.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_buildingLayers-D31Ekfp4.js"
+    ]
+  },
+  "node_modules/geotiff/dist-module/compression/lerc.js": {
+    "file": "assets/lerc-DRCx2xwa.js",
+    "name": "lerc",
+    "src": "node_modules/geotiff/dist-module/compression/lerc.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_pako.esm-CKAy9xRv.js",
+      "_buildingLayers-D31Ekfp4.js"
+    ]
+  },
+  "node_modules/geotiff/dist-module/compression/lzw.js": {
+    "file": "assets/lzw-NEhyyudb.js",
+    "name": "lzw",
+    "src": "node_modules/geotiff/dist-module/compression/lzw.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_buildingLayers-D31Ekfp4.js"
+    ]
+  },
+  "node_modules/geotiff/dist-module/compression/packbits.js": {
+    "file": "assets/packbits-BFQVJB2z.js",
+    "name": "packbits",
+    "src": "node_modules/geotiff/dist-module/compression/packbits.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_buildingLayers-D31Ekfp4.js"
+    ]
+  },
+  "node_modules/geotiff/dist-module/compression/raw.js": {
+    "file": "assets/raw-D1SYFKOv.js",
+    "name": "raw",
+    "src": "node_modules/geotiff/dist-module/compression/raw.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_buildingLayers-D31Ekfp4.js"
+    ]
+  },
+  "node_modules/geotiff/dist-module/compression/webimage.js": {
+    "file": "assets/webimage-DlSNZebR.js",
+    "name": "webimage",
+    "src": "node_modules/geotiff/dist-module/compression/webimage.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_buildingLayers-D31Ekfp4.js"
+    ]
+  },
+  "node_modules/geotiff/dist-module/compression/zstd.js": {
+    "file": "assets/zstd-CypFk3sl.js",
+    "name": "zstd",
+    "src": "node_modules/geotiff/dist-module/compression/zstd.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_buildingLayers-D31Ekfp4.js"
+    ]
+  },
+  "src/app/GraphicsLab.tsx": {
+    "file": "assets/GraphicsLab-BV6PZiVu.js",
+    "name": "GraphicsLab",
+    "src": "src/app/GraphicsLab.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_buildingLayers-D31Ekfp4.js",
+      "_terrainLod-tVjoelVF.js"
+    ]
+  },
+  "src/app/MapView.tsx": {
+    "file": "assets/MapView-Foz4_W5f.js",
+    "name": "MapView",
+    "src": "src/app/MapView.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_buildingLayers-D31Ekfp4.js",
+      "_terrainLod-tVjoelVF.js",
+      "_weatherServiceClient-Devppwgd.js"
+    ],
+    "dynamicImports": [
+      "src/app/WeatherLab.tsx"
+    ],
+    "css": [
+      "assets/MapView-SI9R4aIQ.css"
+    ]
+  },
+  "src/app/MenuBackdrop.tsx": {
+    "file": "assets/MenuBackdrop-BM5GVz-9.js",
+    "name": "MenuBackdrop",
+    "src": "src/app/MenuBackdrop.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_terrainLod-tVjoelVF.js"
+    ]
+  },
+  "src/app/WeatherLab.tsx": {
+    "file": "assets/WeatherLab-BmArEXDh.js",
+    "name": "WeatherLab",
+    "src": "src/app/WeatherLab.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_weatherServiceClient-Devppwgd.js"
+    ]
+  }
+}

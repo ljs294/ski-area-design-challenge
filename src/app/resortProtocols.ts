@@ -3,7 +3,9 @@ import type { CoverClassCode, LandCoverClass, SurroundElevation, TerrainRecord, 
 import { SURROUND_NODATA } from '../elevation';
 import { lngLatToUnit } from '../geo';
 import { renderProfileFor, type RenderQuality } from './renderProfile';
+import { benchmarkTelemetryEnabled, markBenchmarkTelemetry } from './integratedBenchmarkTelemetry';
 import { ResortTileWorkerPool } from './resortTileWorkerClient';
+import { renderResortTilePixels } from './resortTileEngine';
 
 // Any surround cell at or below this is treated as "no data" (see sampleSurround).
 // Well below every real US land elevation, well above the -9999 nodata sentinel.
@@ -15,6 +17,7 @@ export const RESORT_SLOPE_PROTOCOL = 'resort-slope';
 export const RESORT_ASPECT_PROTOCOL = 'resort-aspect';
 
 let active: TerrainRecord | null = null;
+let activeTerrainGeneration = 0;
 let activeQuality: RenderQuality = 'standard';
 const tileWorkers = new ResortTileWorkerPool();
 let registered = false;
@@ -25,8 +28,21 @@ let tileCacheBudget = renderProfileFor('standard').derivedCacheBytes;
 let cacheHits = 0;
 let cacheMisses = 0;
 type TileKind = 'dem' | 'cover' | 'slope' | 'aspect';
-const renderQueue: { kind: TileKind; url: string; priority: 'visible' | 'warm'; resolve: (data: ArrayBuffer) => void; reject: (error: unknown) => void }[] = [];
+export interface ResortRenderQueueEntry {
+  kind: TileKind;
+  url: string;
+  priority: 'visible' | 'warm';
+  resolve: (data: ArrayBuffer) => void;
+  reject: (error: unknown) => void;
+  invalidated?: boolean;
+  submitted?: boolean;
+  visibleCounted?: boolean;
+  finished?: boolean;
+}
+const renderQueue: ResortRenderQueueEntry[] = [];
 let activeRenders = 0;
+let activeVisibleRenders = 0;
+const activeRenderEntries: ResortRenderQueueEntry[] = [];
 // Serial by default so on-demand renders never stutter interactive play; the
 // warm-up preload temporarily raises this (setRenderConcurrency) for throughput,
 // then restores it once the resort is revealed.
@@ -42,7 +58,7 @@ export function setRenderConcurrency(n: number): void {
 let tilesCompleted = 0;
 export function getResortRenderStats(): {
   pending: number; completed: number; cacheBytes: number; cacheEntries: number;
-  cacheHits: number; cacheMisses: number;
+  cacheHits: number; cacheMisses: number; visiblePending: number;
 } {
   return {
     pending: renderQueue.length + activeRenders,
@@ -51,7 +67,76 @@ export function getResortRenderStats(): {
     cacheEntries: tileCache.size,
     cacheHits,
     cacheMisses,
+    visiblePending: renderQueue.filter((task) => task.priority === 'visible').length + activeVisibleRenders,
   };
+}
+
+/** Promote a queued warm tile when the current scene requests it. */
+export function promoteResortRenderQueueEntry(
+  queue: Array<Pick<ResortRenderQueueEntry, 'kind' | 'url' | 'priority'>>,
+  kind: TileKind,
+  url: string,
+): boolean {
+  const entry = queue.find((candidate) => candidate.kind === kind && candidate.url === url);
+  if (!entry || entry.priority === 'visible') return false;
+  entry.priority = 'visible';
+  return true;
+}
+
+export interface ResortSceneReadiness {
+  generation: number;
+  currentGeneration: number;
+  cancelled: boolean;
+  visibleTilesLoaded: boolean;
+  visiblePending: number;
+  mapLoaded: boolean;
+  completedSceneDraws: number;
+  /** Whole background warm-up is intentionally excluded from this gate. */
+  backgroundPending?: number;
+}
+
+/** The veil only depends on the current scene; background warm-up is separate. */
+export function isResortSceneReady(readiness: ResortSceneReadiness): boolean {
+  return readiness.generation === readiness.currentGeneration &&
+    !readiness.cancelled &&
+    readiness.visibleTilesLoaded &&
+    readiness.visiblePending === 0 &&
+    readiness.mapLoaded &&
+    readiness.completedSceneDraws >= 2;
+}
+
+export function nextResortSceneDrawCount(previous: number, prerequisitesReady: boolean): number {
+  return prerequisitesReady ? previous + 1 : 0;
+}
+
+function promoteActiveResortRenderEntry(kind: TileKind, url: string): boolean {
+  const entry = activeRenderEntries.find((candidate) => candidate.kind === kind && candidate.url === url);
+  if (!entry || entry.invalidated || entry.priority === 'visible') return false;
+  entry.priority = 'visible';
+  if (!entry.visibleCounted) {
+    entry.visibleCounted = true;
+    activeVisibleRenders++;
+  }
+  return true;
+}
+
+/** Reject protocol work made obsolete by a style or terrain generation change. */
+export function invalidateResortRenderQueue(reason = new Error('Resort render generation changed.')): void {
+  const queued = renderQueue.splice(0);
+  for (const task of queued) {
+    if (task.kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-cancelled', { detail: task.url });
+    task.reject(reason);
+  }
+  for (const task of activeRenderEntries) {
+    task.invalidated = true;
+    if (task.kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-cancelled', { detail: task.url });
+    task.reject(reason);
+    if (task.visibleCounted) {
+      task.visibleCounted = false;
+      activeVisibleRenders = Math.max(0, activeVisibleRenders - 1);
+    }
+  }
+  pumpRenderQueue();
 }
 
 function deleteCachedTile(key: string, expected?: CachedTile): void {
@@ -77,10 +162,12 @@ export function setResortRenderQuality(quality: RenderQuality): void {
 
 export function setActiveResortTerrain(record: TerrainRecord | null): void {
   if (active?.key !== record?.key) {
+    invalidateResortRenderQueue();
     tileCache.clear();
     tileCacheBytes = 0;
   }
   active = record;
+  activeTerrainGeneration++;
   tileWorkers.configure(record, activeQuality);
 }
 
@@ -302,20 +389,20 @@ function analysisColor(kind: 'slope' | 'aspect', slope: number, aspect: number):
 /** Rasterize one resort tile straight from an explicit record — no dependency
  *  on the module-global `active`, so ingest/warm-up can call it for any package. */
 async function renderResortTile(record: TerrainRecord, kind: TileKind, z: number, x: number, y: number): Promise<ArrayBuffer> {
+  if (!record.bounds) throw new Error('Terrain bounds are unavailable.');
+  const bounds = record.bounds;
+  if (kind === 'dem') return canvasPng((out) => out.set(renderResortTilePixels({ key: record.key, bounds,
+    sampleGridSize: record.sampleGridSize, sampleHeights: Float32Array.from(record.sampleHeights),
+    surround: record.surround ? { bounds: record.surround.bounds, width: record.surround.width,
+      height: record.surround.height, heights: Float32Array.from(record.surround.heights) } : undefined,
+  }, kind, z, x, y)));
   const axes = tileAxes(z, x, y);
   return canvasPng((out) => {
     for (let py = 0; py < 256; py++) for (let px = 0; px < 256; px++) {
       const lng = axes.lng[px + 1];
       const lat = axes.lat[py + 1];
       const i = (py * 256 + px) * 4;
-      if (kind === 'dem') {
-        const elevation = sampleElevation(record, lng, lat);
-        const encoded = Math.max(0, Math.min(65535.996, (elevation ?? 0) + 32768));
-        out[i] = Math.floor(encoded / 256);
-        out[i + 1] = Math.floor(encoded) % 256;
-        out[i + 2] = Math.floor((encoded - Math.floor(encoded)) * 256);
-        out[i + 3] = elevation == null ? 0 : 255;
-      } else if (kind === 'cover') {
+      if (kind === 'cover') {
         const code = sampleCoverForRecord(record, lng, lat) ?? 255;
         const rgba = COVER_RGBA[code] ?? COVER_RGBA[255];
         out[i] = rgba[0]; out[i + 1] = rgba[1]; out[i + 2] = rgba[2]; out[i + 3] = rgba[3];
@@ -345,8 +432,13 @@ async function renderTile(
   const p = parse(url);
   const record = active;
   if (!record || record.key !== p.key) throw new Error(`Local resort package is not loaded: ${p.key}`);
-  return tileWorkers.render(kind, p.z, p.x, p.y, priority) ??
-    renderResortTile(record, kind, p.z, p.x, p.y);
+  const terrainGeneration = activeTerrainGeneration;
+  const data = await (tileWorkers.render(kind, p.z, p.x, p.y, priority) ??
+    renderResortTile(record, kind, p.z, p.x, p.y));
+  if (kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-generated', {
+    bytes: data.byteLength, terrainGeneration, terrainKey: record.key, detail: url,
+  });
+  return data;
 }
 
 function pumpRenderQueue(): void {
@@ -354,18 +446,45 @@ function pumpRenderQueue(): void {
     const visibleIndex = renderQueue.findIndex((task) => task.priority === 'visible');
     const task = visibleIndex >= 0 ? renderQueue.splice(visibleIndex, 1)[0] : renderQueue.shift()!;
     activeRenders++;
+    activeRenderEntries.push(task);
+    if (task.priority === 'visible') {
+      activeVisibleRenders++;
+      task.visibleCounted = true;
+    }
     // Yield before CPU-heavy rasterization so controls/camera updates paint
     // immediately even when MapLibre requests a burst of terrain tiles.
     window.setTimeout(() => {
-      void renderTile(task.kind, task.url, task.priority)
-        .then(task.resolve, task.reject)
-        .finally(() => {
-          activeRenders--;
-          tilesCompleted++;
-          pumpRenderQueue();
-        });
+      task.submitted = true;
+      if (task.invalidated) {
+        finishRenderTask(task);
+        return;
+      }
+      const priority = task.priority;
+      if (task.kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-render-start', { detail: task.url });
+      void renderTile(task.kind, task.url, priority)
+        .then(task.resolve, (error) => {
+          if (task.kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-failed', {
+            detail: `${task.url};${error instanceof Error ? error.message : String(error)}`,
+          });
+          task.reject(error);
+        })
+        .finally(() => finishRenderTask(task));
     }, 8);
   }
+}
+
+function finishRenderTask(task: ResortRenderQueueEntry): void {
+  if (task.finished) return;
+  task.finished = true;
+  const index = activeRenderEntries.indexOf(task);
+  if (index >= 0) activeRenderEntries.splice(index, 1);
+  activeRenders = Math.max(0, activeRenders - 1);
+  if (task.visibleCounted) {
+    task.visibleCounted = false;
+    activeVisibleRenders = Math.max(0, activeVisibleRenders - 1);
+  }
+  tilesCompleted++;
+  pumpRenderQueue();
 }
 
 function cached(
@@ -374,9 +493,18 @@ function cached(
   priority: 'visible' | 'warm' = 'visible',
 ): Promise<ArrayBuffer> {
   const key = `${kind}:${url}`;
+  if (kind === 'dem' && priority === 'visible' && benchmarkTelemetryEnabled()) {
+    markBenchmarkTelemetry('terrain-dem-requested', { detail: url });
+  }
   let entry = tileCache.get(key);
   if (entry) {
     cacheHits++;
+    if (priority === 'visible') {
+      promoteResortRenderQueueEntry(renderQueue, kind, url);
+      promoteActiveResortRenderEntry(kind, url);
+      const tile = parse(url);
+      tileWorkers.promote(kind, tile.z, tile.x, tile.y);
+    }
     tileCache.delete(key);
     tileCache.set(key, entry);
   } else {
@@ -384,6 +512,7 @@ function cached(
     entry = { bytes: 0, promise: undefined as unknown as Promise<ArrayBuffer> };
     entry.promise = new Promise<ArrayBuffer>((resolve, reject) => {
       renderQueue.push({ kind, url, priority, resolve, reject });
+      if (kind === 'dem' && benchmarkTelemetryEnabled()) markBenchmarkTelemetry('terrain-dem-queued', { detail: url });
       pumpRenderQueue();
     });
     const created = entry;
@@ -396,6 +525,15 @@ function cached(
     }, () => deleteCachedTile(key, created));
   }
   return entry.promise;
+}
+
+/** Shared request path used by the MapLibre protocol handlers. */
+export function requestResortTile(
+  kind: TileKind,
+  url: string,
+  priority: 'visible' | 'warm' = 'visible',
+): Promise<ArrayBuffer> {
+  return cached(kind, url, priority);
 }
 
 export function registerResortProtocols(): void {

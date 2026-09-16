@@ -25,6 +25,43 @@ export interface BootProgress {
   note?: string;
 }
 
+export interface LoadReadiness {
+  readonly generation: number;
+  readonly mapReady: boolean;
+  readonly simulationRestored: boolean;
+  readonly weatherReady: boolean;
+}
+
+/** Scene reveal is independent of background warm work and delayed weather. */
+export function isLoadReadinessReady(readiness: LoadReadiness, currentGeneration: number,
+  completedSceneDraws: number): boolean {
+  return readiness.generation === currentGeneration && readiness.mapReady &&
+    readiness.simulationRestored && completedSceneDraws >= 2;
+}
+
+/** The explicit stalled-load action may reveal; automatic reveal still needs full readiness. */
+export function canRevealLoad(force: boolean, readiness: LoadReadiness, currentGeneration: number,
+  completedSceneDraws: number): boolean {
+  return force || isLoadReadinessReady(readiness, currentGeneration, completedSceneDraws);
+}
+
+export function nextLoadSceneDrawCount(previous: number, readiness: LoadReadiness,
+  currentGeneration: number): number {
+  return readiness.generation === currentGeneration && readiness.mapReady && readiness.simulationRestored
+    ? previous + 1 : 0;
+}
+
+export function weatherMutationBlocked(weatherConfigured: boolean, weatherReady: boolean): boolean {
+  return weatherConfigured && !weatherReady;
+}
+
+export function skipsInitialWeatherCheckpoint(weatherConfigured: boolean, weatherReady: boolean,
+  initialWeatherLoad = true): boolean {
+  return initialWeatherLoad && weatherMutationBlocked(weatherConfigured, weatherReady);
+}
+
+export { gateGuestVibe } from './weatherMutationGate';
+
 export const BOOT_STAGES: { stage: BootStage; label: string; weight: number }[] = [
   { stage: 'save', label: 'Reading your save', weight: 3 },
   { stage: 'package', label: 'Loading resort package', weight: 20 },
@@ -85,6 +122,6 @@ export type BootEvent =
 
 /** Imperative handles MapView hands App so the screen can force or abort a load. */
 export interface BootControls {
-  reveal(): void;
+  reveal(force?: boolean): void;
   abort(): void;
 }

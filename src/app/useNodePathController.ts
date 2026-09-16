@@ -12,8 +12,8 @@ import type { TopologyDocument } from './topologyDocument';
 import { MAP_Z_ORDER } from './mapContribution';
 import type { ManagedMapContribution, MapVisibilityDescriptor } from './mapContribution';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
-import { addNodePathDraftLayers, addNodePathLayers, MAP_NODE_LAYER_IDS, setNodePathData,
-  setNodePathDraftData, type NodePathDraft } from './nodePathLayers';
+import { addNodePathDraftLayers, addNodePathLayers, clearNodePathDraftData,
+  MAP_NODE_LAYER_IDS, setNodePathData, setNodePathDraftData, type NodePathDraft } from './nodePathLayers';
 import { IDLE_NODE_TOOL, IDLE_PATH_TOOL, pathFromReview, reduceNodeTool, reducePathTool,
   type NodeTool, type PathTool } from './nodePathControllerModel';
 
@@ -61,6 +61,7 @@ export function useNodePathController(options: NodePathControllerOptions) {
   const nodeRef = useRef(nodeTool), pathRef = useRef(pathTool);
   const snapHoverRef = useRef(snapHover), optionsRef = useRef(options);
   const draftFrameRef = useRef<number | null>(null);
+  const draftGenerationRef = useRef(0);
   nodeRef.current = nodeTool; pathRef.current = pathTool;
   snapHoverRef.current = snapHover; optionsRef.current = options;
 
@@ -86,8 +87,10 @@ export function useNodePathController(options: NodePathControllerOptions) {
     [options.nodes, options.paths, options.junctions]);
   useEffect(() => {
     if (draftFrameRef.current != null) return;
+    const generation = ++draftGenerationRef.current;
     draftFrameRef.current = requestAnimationFrame(() => {
       draftFrameRef.current = null;
+      if (generation !== draftGenerationRef.current) return;
       const map = optionsRef.current.mapRef.current;
       if (map) setNodePathDraftData(map,
         draftOf(pathRef.current, nodeRef.current, snapHoverRef.current));
@@ -142,7 +145,8 @@ export function useNodePathController(options: NodePathControllerOptions) {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelNode(); };
     map.on('click', onClick); map.on('mousemove', onMove); window.addEventListener('keydown', onKey);
     return () => { map.off('click', onClick); map.off('mousemove', onMove);
-      window.removeEventListener('keydown', onKey); interaction.release(); setSnapHover(null); };
+      window.removeEventListener('keydown', onKey); interaction.release(); setSnapHover(null);
+      clearNodePathDraftData(map); };
   }, [nodeTool.phase]);
 
   useEffect(() => {
@@ -169,13 +173,17 @@ export function useNodePathController(options: NodePathControllerOptions) {
     };
     map.on('click', onClick); map.on('mousemove', onMove); window.addEventListener('keydown', onKey);
     return () => { map.off('click', onClick); map.off('mousemove', onMove);
-      window.removeEventListener('keydown', onKey); interaction.release(); setSnapHover(null); };
+      window.removeEventListener('keydown', onKey); interaction.release(); setSnapHover(null);
+      clearNodePathDraftData(map); };
     // Tool callbacks intentionally read live refs; resubscribe only when the phase changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathTool.phase]);
 
   useEffect(() => () => {
+    draftGenerationRef.current++;
     if (draftFrameRef.current != null) cancelAnimationFrame(draftFrameRef.current);
+    const map = optionsRef.current.mapRef.current;
+    if (map) clearNodePathDraftData(map);
     optionsRef.current.release('ski-node');
     optionsRef.current.release('ski-path');
   }, []);
@@ -185,7 +193,9 @@ export function useNodePathController(options: NodePathControllerOptions) {
     optionsRef.current.clearSelection(); optionsRef.current.openDock();
     nodeDispatch({ type: 'arm', phase });
   }
-  function cancelNode(): void { nodeDispatch({ type: 'cancel' });
+  function cancelNode(): void { draftGenerationRef.current++; nodeDispatch({ type: 'cancel' });
+    const map = optionsRef.current.mapRef.current;
+    if (map) clearNodePathDraftData(map);
     optionsRef.current.release('ski-node'); }
   function confirmAddNode(): void {
     const current = nodeRef.current;
@@ -222,7 +232,9 @@ export function useNodePathController(options: NodePathControllerOptions) {
   function armPath(): void { if (!optionsRef.current.canArm() ||
     !optionsRef.current.activate('ski-path')) return;
     optionsRef.current.clearSelection(); optionsRef.current.openDock(); pathDispatch({ type: 'arm' }); }
-  function cancelPath(): void { pathDispatch({ type: 'cancel' });
+  function cancelPath(): void { draftGenerationRef.current++; pathDispatch({ type: 'cancel' });
+    const map = optionsRef.current.mapRef.current;
+    if (map) clearNodePathDraftData(map);
     optionsRef.current.release('ski-path'); }
   function finishPath(): void {
     const current = pathRef.current;

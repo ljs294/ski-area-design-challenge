@@ -1,6 +1,6 @@
 import { expect, test } from '../support/deterministicApp';
 import { seedPreparedResort } from '../support/preparedResort';
-import { jumpTo } from '../support/mapProbe';
+import { jumpTo, layerIds, pointAt, sourceFeatureCount, visibilityOf } from '../support/mapProbe';
 
 const run = (id: string, name: string, x: number) => ({ id, name,
   parts: [{ polygon: [[[x - .00012, 46.903], [x + .00012, 46.903], [x + .00012, 46.907], [x - .00012, 46.907], [x - .00012, 46.903]]],
@@ -136,6 +136,89 @@ test('game popup frames use the shared toolbox radius', async ({ page }) => {
   expect(settingsBox!.y).toBeCloseTo(settingsToggleBox!.y + settingsToggleBox!.height + 6, 1);
   expect(settingsBox!.x + settingsBox!.width).toBeCloseTo(settingsToggleBox!.x + settingsToggleBox!.width, 1);
 });
+
+const MAP_NODE_LAYERS = [
+  'ski-nodes', 'ski-node-labels', 'trail-junctions', 'trail-junction-labels',
+] as const;
+
+const mapNodeTrail = (id: string, name: string, x: number) => ({
+  id, name,
+  parts: [{
+    polygon: [[[x - 0.0003, 46.9035], [x + 0.0003, 46.9035],
+      [x + 0.0003, 46.9065], [x - 0.0003, 46.9035]]],
+    centerline: [[x, 46.906], [x, 46.904]], centerlineElevM: [1030, 1000],
+    segments: [{ id: `${id}:segment`, centerline: [[x, 46.906], [x, 46.904]],
+      centerlineElevM: [1030, 1000], fromJunctionId: id === 'map-node-west'
+        ? 'junction-seeded' : `${id}:start`, toJunctionId: `${id}:end` }],
+  }],
+  brushWidthM: 40, areaM2: 20_000, lengthM: 222, verticalM: 30,
+  avgSlopeDeg: 8, maxSlopeDeg: 12, difficulty: 'blue', status: 'complete',
+  createdAt: '2026-01-01T00:00:00.000Z',
+});
+
+test('Map nodes hides all persistent node layers through style reload while snap feedback remains available',
+  async ({ page }) => {
+    await seedPreparedResort(page, {
+      trails: [mapNodeTrail('map-node-west', 'West Run', -121.496),
+        mapNodeTrail('map-node-east', 'East Run', -121.494)],
+      nodes: [{ id: 'map-node', name: 'Midway Hut', point: [-121.495, 46.905],
+        elevM: 1015, createdAt: '2026-01-01T00:00:00.000Z' }],
+      junctions: [{ id: 'junction-seeded', point: [-121.496, 46.906], elevM: 1030,
+        createdAt: '2026-01-01T00:00:00.000Z' }],
+    });
+    await page.getByRole('button', { name: /^Continue / }).click();
+    await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
+    await jumpTo(page, [-121.495, 46.905], 16);
+
+    await expect.poll(() => sourceFeatureCount(page, 'node-paths')).toBeGreaterThanOrEqual(2);
+    const sourceCount = await sourceFeatureCount(page, 'node-paths');
+    const sourceBefore = await page.evaluate(() => {
+      const source = (window as unknown as { appMap: {
+        getSource(id: string): { serialize(): { data?: unknown } } | undefined;
+      } }).appMap.getSource('node-paths');
+      return (source?.serialize().data as { features?: Array<{ properties?: { id?: string } }> } | undefined)
+        ?.features?.map((feature) => feature.properties?.id) ?? [];
+    });
+    expect(sourceBefore).toEqual(expect.arrayContaining(['map-node', 'junction-seeded']));
+
+    await page.getByRole('button', { name: 'Toolbox', exact: true }).click();
+    await page.getByRole('button', { name: 'Layers', exact: true }).click();
+    const layers = page.locator('.game-window--menu[aria-label="Layers"]');
+    await expect(layers).toBeVisible();
+    const mapNodes = layers.getByRole('checkbox', { name: 'Map nodes', exact: true });
+    await expect(mapNodes).toBeChecked();
+    await mapNodes.uncheck();
+    for (const id of MAP_NODE_LAYERS) await expect.poll(() => visibilityOf(page, id)).toBe('none');
+
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      const map = (window as unknown as { appMap: import('maplibre-gl').Map }).appMap;
+      const style = map.getStyle();
+      map.once('style.load', () => resolve());
+      map.setStyle({ version: 8, glyphs: style.glyphs, sources: {},
+        layers: [{ id: 'mp-paper', type: 'background',
+          paint: { 'background-color': '#e8e5dc' } }] }, { diff: false });
+    }));
+    await expect.poll(() => layerIds(page)).toEqual(expect.arrayContaining([...MAP_NODE_LAYERS]));
+    for (const id of MAP_NODE_LAYERS) await expect.poll(() => visibilityOf(page, id)).toBe('none');
+    await expect.poll(() => sourceFeatureCount(page, 'node-paths')).toBe(sourceCount);
+
+    await layers.getByRole('button', { name: 'Close Layers', exact: true }).click();
+    await page.getByRole('button', { name: 'Toolbox', exact: true }).click();
+    await page.getByRole('tab', { name: 'Trails', exact: true }).click();
+    await page.getByRole('button', { name: /Draw path/ }).click();
+    const trailPoint = await pointAt(page, [-121.496, 46.905]);
+    await page.mouse.move(trailPoint.x, trailPoint.y);
+    await expect.poll(async () => page.evaluate(() => {
+      const source = (window as unknown as { appMap: {
+        getSource(id: string): { serialize(): { data?: unknown } } | undefined;
+      } }).appMap.getSource('node-path-draft');
+      const data = source?.serialize().data as { features?: Array<{ properties?: { kind?: string } }> } | undefined;
+      return data?.features?.some((feature) => feature.properties?.kind === 'highlight') ?? false;
+    })).toBe(true);
+    for (const id of MAP_NODE_LAYERS) await expect.poll(() => visibilityOf(page, id)).toBe('none');
+
+    await page.keyboard.press('Escape');
+  });
 
 test('dashboard orientation lock preserves pan and zoom, and scale remains reachable', async ({ page }, info) => {
   await seedPreparedResort(page);

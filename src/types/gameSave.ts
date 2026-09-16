@@ -7,6 +7,7 @@ import type { SavedTrail } from './trails';
 import type { SavedSnowGrid } from './snow';
 import type { SavedBuilding } from './buildings';
 import type { TimeEngineSnapshot } from './simulation';
+import type { DualCheckpoint } from './dualClock';
 
 export interface SavedSiteBox {
   bounds: [[number, number], [number, number]];
@@ -46,7 +47,9 @@ export function isSavedWeatherRun(value: unknown): value is SavedWeatherRun {
 
 /** A player's persisted resort design. This is a compatibility boundary. */
 export interface GameSave {
-  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16;
+  schemaVersion: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17;
+  /** Schema 17 new games only. Precise, coherent worker checkpoint. */
+  dualClock?: DualCheckpoint;
   key: string;
   name: string;
   mountainId?: string;

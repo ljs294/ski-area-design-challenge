@@ -7,6 +7,7 @@ import type {
   WeatherStorageChunkDescriptor,
 } from './ipcContract';
 import { isWeatherDataPackage, type HistoricalWeatherYear, type WeatherDataPackage } from './weather/weatherModel';
+import { readDualGame } from './dualGameStorage';
 
 const DB_NAME = 'mountain-planner-weather';
 const DB_VERSION = 3;
@@ -164,10 +165,7 @@ async function gzip(bytes: Uint8Array): Promise<Uint8Array> {
     throw new Error('This browser cannot create compressed offline weather packages.');
   }
   const stream = new CompressionStream('gzip');
-  const writer = stream.writable.getWriter();
-  await writer.write(ownedBytes(bytes));
-  await writer.close();
-  return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+  return new Uint8Array(await new Response(new Blob([ownedBytes(bytes)]).stream().pipeThrough(stream)).arrayBuffer());
 }
 
 async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
@@ -175,10 +173,7 @@ async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
     throw new Error('This browser cannot read compressed offline weather packages.');
   }
   const stream = new DecompressionStream('gzip');
-  const writer = stream.writable.getWriter();
-  await writer.write(ownedBytes(bytes));
-  await writer.close();
-  return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+  return new Uint8Array(await new Response(new Blob([ownedBytes(bytes)]).stream().pipeThrough(stream)).arrayBuffer());
 }
 
 function ownedBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
@@ -562,7 +557,7 @@ async function browserDeleteLegacyPackage(terrainKey: string): Promise<void> {
   }));
 }
 
-function isWeatherPackagePinnedByBrowserSave(contentHash: string): boolean {
+async function isWeatherPackagePinnedByBrowserSave(contentHash: string): Promise<boolean> {
   try {
     if (typeof localStorage === 'undefined') return false;
     const index: unknown = JSON.parse(localStorage.getItem(GAME_SAVE_INDEX_KEY) ?? '[]');
@@ -570,7 +565,11 @@ function isWeatherPackagePinnedByBrowserSave(contentHash: string): boolean {
     for (const summary of index) {
       if (!isRecord(summary) || typeof summary.key !== 'string') return true;
       const raw = localStorage.getItem(`${GAME_SAVE_PREFIX}${summary.key}`);
-      if (!raw) continue;
+      if (!raw) {
+        const save = await readDualGame(summary.key);
+        if (save?.weatherRun?.packageContentHash === contentHash) return true;
+        continue;
+      }
       try {
         const save: unknown = JSON.parse(raw);
         if (isRecord(save) && isRecord(save.weatherRun) && save.weatherRun.packageContentHash === contentHash) return true;
@@ -598,7 +597,7 @@ async function browserHasActiveReference(contentHash: string): Promise<boolean> 
 }
 
 async function browserGarbageCollect(contentHash: string): Promise<void> {
-  if (await browserHasActiveReference(contentHash) || isWeatherPackagePinnedByBrowserSave(contentHash)) return;
+  if (await browserHasActiveReference(contentHash) || await isWeatherPackagePinnedByBrowserSave(contentHash)) return;
   const manifest = await browserReadManifest(contentHash);
   if (!manifest) return;
   const database = await openDb();

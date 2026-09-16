@@ -13,6 +13,7 @@ import type {
   VectorFeatureSet,
 } from './types';
 import type { WeatherChunkDescriptor, WeatherDataPackage } from './weather/weatherModel';
+import type { PreparedWeatherIdentity } from './weather/preparedWeatherModel';
 
 export const TERRAIN_SAVE_CHANNEL = 'terrain:save';
 export const TERRAIN_SAVE_COVER_CHANNEL = 'terrain:save-cover';
@@ -25,6 +26,8 @@ export const WEATHER_LOAD_CHANNEL = 'weather:load';
 export const WEATHER_LOAD_BY_CONTENT_HASH_CHANNEL = 'weather:load-by-content-hash';
 export const WEATHER_LOAD_INSTALL_BY_CONTENT_HASH_CHANNEL = 'weather:load-install-by-content-hash';
 export const WEATHER_DELETE_CHANNEL = 'weather:delete';
+export const PREPARED_WEATHER_READ_CHANNEL = 'prepared-weather:read';
+export const PREPARED_WEATHER_WRITE_CHANNEL = 'prepared-weather:write';
 
 // --- Game saves (resort designs). Distinct from raw terrain records. ---
 export const GAMESAVE_SAVE_CHANNEL = 'gamesave:save';
@@ -219,3 +222,13 @@ export type WeatherLoadByContentHashResponse = WeatherDataPackage | null;
 export type WeatherLoadInstallByContentHashResponse = WeatherPackageStorageInstall | null;
 export interface WeatherDeleteRequest { terrainKey: string; }
 export type WeatherDeleteResponse = { ok: true } | { ok: false; error: string };
+
+export interface PreparedWeatherReadRequest {
+  identity: PreparedWeatherIdentity;
+}
+export type PreparedWeatherReadResponse = Uint8Array | null;
+export interface PreparedWeatherWriteRequest {
+  identity: PreparedWeatherIdentity;
+  bytes: Uint8Array;
+}
+export type PreparedWeatherWriteResponse = boolean;

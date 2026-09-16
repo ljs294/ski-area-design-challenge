@@ -22,6 +22,8 @@ import {
 
 export interface BuildingContributionOptions {
   readonly getBuildings: () => readonly BuildingRenderRecord[];
+  /** Ephemeral presentation buildings stay outside the building document. */
+  readonly getTransientBuildings?: () => readonly BuildingRenderRecord[];
   readonly getSelectedId?: () => string | null;
   readonly getDraft?: () => BuildingDraftMapData | null;
   readonly structuresVisible?: () => boolean;
@@ -60,7 +62,7 @@ export function createBuildingContribution(options: BuildingContributionOptions)
       setBuiltLayerVisibility(map, descriptorVisible, presentationMode);
     },
     synchronizeData: ({ map }) => {
-      const buildings = options.getBuildings();
+      const buildings = [...options.getBuildings(), ...(options.getTransientBuildings?.() ?? [])];
       const selected = options.getSelectedId?.() ?? null;
       const draft = options.getDraft?.() ?? null;
       setBuildingData(map, buildings, selected);

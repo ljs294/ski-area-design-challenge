@@ -21,6 +21,9 @@ import {
 } from '../trails';
 import type { Units } from './SettingsContext';
 import type { GuestConnectivity } from './guestConnectivity';
+import type { AggregateFlowSnapshot } from '../types/dualClock';
+import { LiftOperationsRows, liftOperationsFromQueue, type LiftOperationsReadModel } from './liftOperations';
+import { guestEntranceFootprint } from './guestPortalPlacement';
 
 /**
  * The node map: a deliberately plain, to-scale plan view of the mountain's
@@ -82,6 +85,8 @@ export function NetworkMap({
   panelOnly = false,
   onFit,
   guestConnectivity,
+  liftQueues,
+  liftOperations,
 }: {
   network: SkiNetwork;
   units: Units;
@@ -96,6 +101,8 @@ export function NetworkMap({
   panelOnly?: boolean;
   onFit?: () => void;
   guestConnectivity?: GuestConnectivity;
+  liftQueues?: AggregateFlowSnapshot['queues'];
+  liftOperations?: LiftOperationsReadModel | null;
 }) {
   const [view, setView] = useState<View | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -285,7 +292,7 @@ export function NetworkMap({
       <strong>Nothing to map yet</strong>
       <span>Paint a run or place a lift, and the Trail Map will wire it up.</span>
     </div>}
-    <NetworkInspector network={network} units={units} selectedLiftId={selectedLiftId}
+    <NetworkInspector network={network} units={units} selectedLiftId={selectedLiftId} liftQueues={liftQueues} liftOperations={liftOperations}
       selectedEdge={selectedEdge} servedDirect={served?.result.direct ?? []}
       servedReachable={served?.result.reachable ?? []} onSelectEdge={onSelectEdge}
       onToggleTrailClosed={onToggleTrailClosed} onToggleLiftClosed={onToggleLiftClosed}
@@ -463,16 +470,18 @@ export function NetworkMap({
           </g>
 
           {guestConnectivity?.portal && (() => {
-            const portalPoint = nodePos.get(guestConnectivity.portal.nodeId);
-            if (!portalPoint) return null;
+            const portalPoint = place(guestConnectivity.portal.lngLat as [number, number]);
             const color = guestConnectivity.reachable ? '#16a34a' : '#dc2626';
-            const path = guestConnectivity.connectionPath.map((point) => place(point)).map((point) =>
-              `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
-            return <g aria-label={guestConnectivity.reachable ? 'Connected Guest Entrance' : 'Unreachable Guest Entrance'}>
-              {path && <polyline points={path} fill="none" stroke={color} strokeWidth={6}
-                strokeDasharray="8 4" vectorEffect="non-scaling-stroke" />}
-              <circle cx={portalPoint.x} cy={portalPoint.y} r={9 * (active.w / 900)} fill={color}
-                stroke="#fff" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+            const footprint = guestEntranceFootprint(guestConnectivity.portal).map((point) => place(point));
+            const points = footprint.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+            return <g aria-label={guestConnectivity.reachable ? 'Connected Guest Entrance' : 'Unreachable Guest Entrance'}
+              data-guest-entrance="true">
+              <polygon points={points} fill={color} fillOpacity={0.22} stroke={color} strokeWidth={2}
+                vectorEffect="non-scaling-stroke" />
+              <text x={portalPoint.x} y={portalPoint.y - 8 * (active.w / 900)} textAnchor="middle"
+                className="network-label" style={{ fill: color, fontSize: active.w / 70 }}>
+                Guest Entrance
+              </text>
             </g>;
           })()}
         </svg>
@@ -506,6 +515,8 @@ export function NetworkMap({
 
       <NetworkInspector
         network={network}
+        liftQueues={liftQueues}
+        liftOperations={liftOperations}
         units={units}
         selectedLiftId={selectedLiftId}
         selectedEdge={selectedEdge}
@@ -533,6 +544,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function NetworkInspector({
   network,
+  liftQueues,
+  liftOperations,
   units,
   selectedLiftId,
   selectedEdge,
@@ -544,6 +557,8 @@ function NetworkInspector({
   onTogglePathClosed,
 }: {
   network: SkiNetwork;
+  liftQueues?: AggregateFlowSnapshot['queues'];
+  liftOperations?: LiftOperationsReadModel | null;
   units: Units;
   selectedLiftId: string | null;
   selectedEdge: NetworkEdge | undefined;
@@ -558,6 +573,7 @@ function NetworkInspector({
   const liftEdge = liftEdgeId ? (network.edgeById.get(liftEdgeId) as LiftEdge | undefined) : undefined;
 
   if (liftEdge) {
+    const operations = liftOperations ?? liftOperationsFromQueue(liftQueues?.[liftEdge.id]);
     const onward = servedReachable.filter((id) => !servedDirect.includes(id)).length;
     return (
       <aside className="network-inspector" data-inspector="lift">
@@ -572,11 +588,9 @@ function NetworkInspector({
           <Stat label="Length" value={fmtDistance(liftEdge.lengthM, units)} />
           <Stat label="Ride time" value={fmtDuration(liftEdge.rideTimeS)} />
           <Stat label="Capacity" value={`${Math.round(liftEdge.capacityPph).toLocaleString()} p/h`} />
-          {/* Placeholder until a simulation drives them — see withLiftQueues. */}
-          <Stat label="People waiting" value={`${liftEdge.peopleWaiting}`} />
-          <Stat label="Wait time" value={fmtDuration(liftEdge.waitTimeS)} />
         </div>
-        <div className="network-note">Queue figures are placeholders until the simulation runs.</div>
+        <LiftOperationsRows operations={operations} />
+        <div className="network-note">Counts are committed passenger totals. Map dots are sampled guests.</div>
 
         <ConditionToggle
           closed={liftEdge.condition === 'closed'}

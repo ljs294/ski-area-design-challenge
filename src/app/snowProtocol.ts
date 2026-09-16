@@ -1,9 +1,12 @@
 import maplibregl from 'maplibre-gl';
 import type { SnowGrid } from '../types/snow';
+import { sampleSnowGrid } from '../snow';
 import type { SnowDisplayMode } from './snowStyle';
+import { snowRgba } from './snowStyle';
 import { renderSnowTilePixels } from './snowTileEngine';
 import { SnowTileWorkerClient } from './snowTileWorkerClient';
 import { renderProfileFor, type RenderQuality } from './renderProfile';
+import { benchmarkCorrelationFor, benchmarkTelemetryEnabled, markBenchmarkTelemetry } from './integratedBenchmarkTelemetry';
 
 export const RESORT_SNOW_PROTOCOL = 'resort-snow';
 
@@ -17,12 +20,43 @@ const renderQueue: { grid: SnowGrid; url: string; resolve(data: ArrayBuffer): vo
   reject(error: unknown): void }[] = [];
 let rendering = false;
 
+function exposeBenchmarkDiagnostic(): void {
+  if (!benchmarkTelemetryEnabled()) return;
+  (globalThis as typeof globalThis & Record<string, unknown>).__MOUNTAIN_PLANNER_SNOW_DIAGNOSTIC__ = {
+    sample: (lng: number, lat: number, mode: SnowDisplayMode = 'depth') => {
+      const value = active ? sampleSnowGrid(active, lng, lat) : null;
+      return value ? { ...value, rgba: snowRgba(value.depthM, value.surface, mode), revision } : null;
+    },
+    tilePixel: async (lng: number, lat: number, zoom = 15, mode: SnowDisplayMode = 'depth') => {
+      if (!active) return null;
+      const scale = 2 ** zoom;
+      const worldX = (lng + 180) / 360 * scale;
+      const worldY = (1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * scale;
+      const x = Math.floor(worldX), y = Math.floor(worldY);
+      const png = await render(active, `${RESORT_SNOW_PROTOCOL}://snow/${zoom}/${x}/${y}?mode=${mode}&rev=${revision}`);
+      const bitmap = await createImageBitmap(new Blob([png], { type: 'image/png' }));
+      const canvas = new OffscreenCanvas(256, 256), context = canvas.getContext('2d')!;
+      context.drawImage(bitmap, 0, 0);
+      const pixelX = Math.min(255, Math.floor((worldX - x) * 256));
+      const pixelY = Math.min(255, Math.floor((worldY - y) * 256));
+      const rgba = Array.from(context.getImageData(pixelX, pixelY, 1, 1).data);
+      bitmap.close();
+      return { revision, zoom, x, y, pixelX, pixelY, rgba };
+    },
+  };
+}
+
+function snowTelemetry(grid: SnowGrid, url: string, stage: string, fields: { bytes?: number; detail?: string } = {}): void {
+  markBenchmarkTelemetry(stage, { ...(benchmarkCorrelationFor(grid) ?? {}), detail: url, ...fields });
+}
+
 export function setActiveSnowGrid(grid: SnowGrid | null): void {
   if (active === grid) return;
   active = grid;
   revision += 1;
   cache.clear();
   workerClient.configure(grid, activeQuality);
+  exposeBenchmarkDiagnostic();
 }
 
 export function setSnowRenderQuality(quality: RenderQuality): void {
@@ -68,7 +102,14 @@ function pumpRenderQueue(): void {
   const task = renderQueue.shift()!;
   rendering = true;
   window.setTimeout(() => {
-    void render(task.grid, task.url).then(task.resolve, task.reject).finally(() => {
+    snowTelemetry(task.grid, task.url, 'snow-tile-render-start');
+    void render(task.grid, task.url).then((data) => {
+      snowTelemetry(task.grid, task.url, 'snow-tile-generated', { bytes: data.byteLength });
+      task.resolve(data);
+    }, (error) => {
+      snowTelemetry(task.grid, task.url, 'snow-tile-failed', { detail: `${task.url};${error instanceof Error ? error.message : String(error)}` });
+      task.reject(error);
+    }).finally(() => {
       rendering = false;
       pumpRenderQueue();
     });
@@ -80,8 +121,10 @@ function cached(url: string): Promise<ArrayBuffer> {
   if (!promise) {
     const grid = active;
     if (!grid) return Promise.reject(new Error('The resort snow grid is not loaded.'));
+    snowTelemetry(grid, url, 'snow-tile-requested');
     promise = new Promise<ArrayBuffer>((resolve, reject) => {
       renderQueue.push({ grid, url, resolve, reject });
+      snowTelemetry(grid, url, 'snow-tile-queued');
       pumpRenderQueue();
     });
     cache.set(url, promise);

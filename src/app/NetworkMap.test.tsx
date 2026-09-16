@@ -144,7 +144,7 @@ function mountain(extra: Record<string, unknown> = {}) {
 }
 
 describe('NetworkMap', () => {
-  it('shows the Guest Entrance connection and warns when its lift has no open descent', () => {
+  it('shows the Guest Entrance building and warns when its lift has no open descent', () => {
     const reachableNetwork = mountain();
     const base = reachableNetwork.nodes.find((candidate) => candidate.liftBases.includes('L'))!;
     const portal = { version: 1 as const, id: 'entrance', kind: 'guest-entrance' as const,
@@ -154,7 +154,11 @@ describe('NetworkMap', () => {
     const connected = analyzeGuestConnectivity(reachableNetwork, portal);
     expect(connected.reachable).toBe(true);
     expect(connected.connectedLiftName).toBe('L');
-    expect(render(reachableNetwork, { guestConnectivity: connected })).toContain('Connected Guest Entrance');
+    const connectedMarkup = render(reachableNetwork, { guestConnectivity: connected });
+    expect(connectedMarkup).toContain('Connected Guest Entrance');
+    expect(connectedMarkup).toContain('data-guest-entrance="true"');
+    expect(connectedMarkup).toContain('Guest Entrance');
+    expect(connectedMarkup).not.toContain('stroke-dasharray="8 4"');
 
     const closedNetwork = mountain({ closed: true });
     const closedBase = closedNetwork.nodes.find((candidate) => candidate.liftBases.includes('L'))!;
@@ -201,12 +205,15 @@ describe('NetworkMap', () => {
     expect(classOf(servedEdge!.id)).not.toContain('is-dimmed');
   });
 
-  it('lists the runs a selected lift serves, with its placeholder queue', () => {
+  it('lists the runs a selected lift serves, with operations rows that do not invent telemetry', () => {
     const html = render(mountain(), { selectedLiftId: 'L' });
     expect(html).toContain('data-inspector="lift"');
     expect(html).toContain('served');
-    expect(html).toContain('People waiting');
-    expect(html).toContain('placeholders');
+    expect(html).toContain('People in line');
+    expect(html).toContain('Estimated wait');
+    expect(html).toContain('Currently riding');
+    expect(html).toContain('Served today');
+    expect(html).not.toContain('placeholders');
     expect(html).toContain('Fixed-Grip Quad Chairlift');
     expect(html).toContain('2,400 p/h'); // quad at 600 pph per seat
   });

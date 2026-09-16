@@ -21,6 +21,8 @@ import type { NetworkEdge, SkiNetwork } from '../network';
 import { sampleSnowGrid } from '../snow';
 import type { SnowGrid } from '../types/snow';
 import type { TrailDifficulty } from '../types/trails';
+import { SNOW_SURFACE_QUALITY } from '../guestSimulation/snowSurfaceQuality';
+export { SNOW_SURFACE_QUALITY } from '../guestSimulation/snowSurfaceQuality';
 import type { SimulatedSecond } from '../guestSimulation/contracts.ts';
 import {
   createConditionSnapshot,
@@ -57,19 +59,6 @@ export const DEFAULT_DESCENT_SAMPLE_COUNT = 9;
  * applied separately, so deep powder is better than trace powder while icy
  * surfaces remain poor regardless of depth.
  */
-export const SNOW_SURFACE_QUALITY: Readonly<Record<number, number>> = Object.freeze({
-  1: 0.96, // P  powder
-  2: 0.9, // PP packed powder
-  3: 0.94, // MG machine groomed
-  4: 0.68, // HP hard packed
-  5: 0.16, // IS icy surface
-  6: 0.84, // CO corn snow
-  7: 0.42, // FG frozen granular
-  8: 0.64, // LG loose granular
-  9: 0.58, // SC spring conditions
-  10: 0.5, // WG wet granular
-  11: 0.78, // WP wet powder
-});
 
 export interface GuestConditionAdapterOptions {
   /** Domain revision for this coherent source observation. Defaults to 0. */

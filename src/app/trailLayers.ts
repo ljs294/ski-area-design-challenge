@@ -367,6 +367,15 @@ export const setTrailHitData = (map: maplibregl.Map, data: GeoJSON.FeatureCollec
 export const setTrailDraftData = (map: maplibregl.Map, data: GeoJSON.FeatureCollection) => setSource(map, TRAIL_DRAFT_SOURCE, data);
 export const setTrailPaintPreview = (map: maplibregl.Map, preview: TrailPaintPreview) =>
   setSource(map, TRAIL_PAINT_SOURCE, paintPreviewGeoJSON(preview));
+
+/** Clear every transient trail construction marker in one operation. The
+ * preview source is shared by the brush guide and the head/tail snap rings,
+ * so callers must clear the complete payload when a tool phase ends. */
+export function clearTrailPaintPreview(map: maplibregl.Map, brushWidthM: number): void {
+  setTrailPaintPreview(map, { path: [], cursor: null, brushWidthM,
+    candidate: null, head: null, tail: null });
+}
+
 export function setTrailPaintMode(map: maplibregl.Map, mode: 'paint' | 'erase') {
   const color = mode === 'paint' ? '#38bdf8' : '#f97316';
   if (map.getLayer('trail-paint')) map.setPaintProperty('trail-paint', 'fill-color', color);

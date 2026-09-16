@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { NetworkNode, SkiNetwork } from '../network';
-import { placeGuestPortal } from './guestPortalPlacement';
+import { GUEST_ENTRANCE_DIMENSIONS, guestEntranceBuilding, guestEntranceFootprint, placeGuestPortal } from './guestPortalPlacement';
 
 function network(): SkiNetwork {
   const connected: NetworkNode = { id: 'n:connected', lngLat: [-121.5, 46.9], elevM: 1_000,
@@ -28,5 +28,14 @@ describe('Guest Entrance placement', () => {
 
   it('rejects a click outside the network snap distance', () => {
     expect(placeGuestPortal(network(), [-122, 47]).portal).toBeNull();
+  });
+
+  it('projects a transient north-aligned building presentation without pump metadata', () => {
+    const portal = placeGuestPortal(network(), [-121.5, 46.9]).portal!;
+    const building = guestEntranceBuilding(portal);
+    expect(building).toMatchObject({ bearingDeg: 0, dimensions: GUEST_ENTRANCE_DIMENSIONS });
+    expect(building).not.toHaveProperty('connection');
+    expect(building).not.toHaveProperty('foundation');
+    expect(guestEntranceFootprint(portal)).toHaveLength(4);
   });
 });

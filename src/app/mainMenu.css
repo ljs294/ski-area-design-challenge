@@ -1,6 +1,6 @@
 .alpine-home .trail-menu-foreground { position: absolute; inset: 0; overflow: auto; display: flex;
   flex-direction: column; padding: clamp(28px, 7vh, 80px) 5vw 24px; box-sizing: border-box;
-  background: radial-gradient(ellipse at 65% 40%, transparent 35%, #14221b55 100%); }
+  background: radial-gradient(ellipse at 12% 65%, #142b3233, transparent 48%); }
 .alpine-home .trail-signpost { position: relative; isolation: isolate; width: min(330px, 85vw);
   margin-top: auto; padding-bottom: 100px; zoom: var(--ui-scale); flex-shrink: 0; }
 .alpine-home .trail-timber-post { position: absolute; top: var(--post-top, 0);
@@ -62,6 +62,6 @@ body:has(.alpine-home) :is(.trail-sign, .trail-nameplate, .trail-menu-footer but
 @media (prefers-reduced-motion: reduce) {
   .alpine-home .trail-menu-footer button { transition: none; transform: none; }
 }
-.alpine-home .menu-backdrop-css { background: linear-gradient(160deg, #89afc4 0%, #c4d2ce 38%, #a9afa0 39%, #73846b 65%, #3e604c 100%); }
-.alpine-home .menu-backdrop-scrim { background: linear-gradient(0deg, #172a2430, transparent 55%); }
+.alpine-home .menu-backdrop-css { background: linear-gradient(165deg, #83b3d3 0%, #f3eddf 30%, #e4e8e3 31%, #bdcfdd 44%, #657e77 65%, #305346 100%); }
+.alpine-home .menu-backdrop-scrim { background: linear-gradient(0deg, #152e363d, transparent 30%); }
 @media (max-height: 700px) { .alpine-home .trail-signpost { padding-bottom: 42px; } }

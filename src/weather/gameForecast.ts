@@ -2,7 +2,7 @@ import {
   precipitationTypeFor, type PrecipitationType, type ResolvedWeatherHour,
 } from './weatherModel';
 import { localWeatherDateKey } from './localTime';
-import { forecastForSession, wetBulbTemperatureC, type WeatherSession } from './weatherSession';
+import { forecastForSession, wetBulbTemperatureC, type GameplayWeatherSession } from './weatherSession';
 
 export const FORECAST_CONFIDENCE = [99, 98, 96, 85, 72, 58, 45] as const;
 
@@ -98,7 +98,7 @@ function dominantCondition(hours: readonly GameForecastHour[]): PrecipitationTyp
 }
 
 export function issueGameForecast(
-  session: WeatherSession,
+  session: GameplayWeatherSession,
   issuedAt: string,
   annualRunIdentity: string,
 ): GameForecastIssue {

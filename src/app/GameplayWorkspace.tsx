@@ -11,6 +11,7 @@ import { GameWindow, GameWindows } from './GameWindow';
 import { GameTabs } from './GameTabs';
 import { TrailDetail } from './TrailDetail';
 import { LiftDetail } from './LiftDetail';
+import { liftOperationsFor } from './liftOperations';
 import { TrailProfile } from './TrailProfile';
 import { PondDetail } from './PondDetail';
 import { isStandalonePond } from './pondSelection';
@@ -20,6 +21,7 @@ import { Settings } from './Settings';
 import type { ResortSettingsCapability } from './Settings';
 import { sectionForTool, type WorkspaceSection } from './workspaceModel';
 import './gameWindows.css';
+import { SimulationWarnings } from './DualClockControls';
 
 type Props = Pick<MapViewChromeProps, 'dock' | 'dashboard' | 'stats' | 'menu' | 'workspace' | 'bottomRightToolOptions' | 'resortSettings'>;
 type Entity = { kind: 'trail'; id: string } | { kind: 'lift'; id: string } | { kind: 'pond'; id: string };
@@ -106,6 +108,11 @@ function Workspace(props: Props & { dock: NonNullable<Props['dock']> }) {
       <button className="ui-icon-button" aria-label="Settings" onClick={props.menu.onSettings}><span aria-hidden="true">⚙</span></button>
       <GameMenu {...props.menu} />
     </div>
+    {dock.simulation.dual && <SimulationWarnings controls={dock.simulation.dual} inspect={signal => {
+      if (signal.entityKind === 'trail') { dock.trailController.select(signal.entityId); workspace?.close(); }
+      else if (signal.entityKind === 'lift') { dock.liftController.select(signal.entityId); workspace?.close(); }
+      else navigate('guests');
+    }} />}
     {dashboardOpen && <GameWindow id="dashboards" title="Dashboards" onClose={() => workspace?.close()}
       tabs={<GameTabs label="Dashboard views" value={dashboardTab} options={DASHBOARDS} onChange={chooseDashboard} panelId="dashboard-content" />}>
       <div id="dashboard-content" role="tabpanel" aria-label={DASHBOARDS.find((entry) => entry.value === dashboardTab)?.label}>
@@ -213,7 +220,8 @@ function RunOrLiftInspector({ entity, dock, pinned, onPin, onClose, onEdit, onBu
     <div id={panelId} role="tabpanel" aria-label={`${title} ${tab}`} className="entity-inspector">
       {tab === 'overview' ? trail ? <TrailDetail trail={trail} units={dock.units} onEdit={onEdit} onClose={onClose}
         onRemove={() => dock.trailController.remove(trail.id)} onToggleClosed={(closed) => dock.trailController.patch(trail.id, { closed })} />
-        : <LiftDetail lift={lift!} units={dock.units} onEdit={onEdit} onClose={onClose}
+        : <LiftDetail lift={lift!} units={dock.units}
+          operations={liftOperationsFor(lift!.id, dock.network, dock.simulation.dual?.publication)} onEdit={onEdit} onClose={onClose}
           onRemove={() => dock.liftController.remove(lift!.id)} onToggleClosed={(closed) => dock.liftController.patch(lift!.id, { closed })} />
         : tab === 'profile' && trail ? <TrailProfile parts={trail.parts} units={dock.units} difficulty={trail.difficulty} />
         : <dl className="inspector-metrics"><div><dt>State</dt><dd>{(trail ?? lift)?.closed ? 'Closed' : 'Open'}</dd></div>

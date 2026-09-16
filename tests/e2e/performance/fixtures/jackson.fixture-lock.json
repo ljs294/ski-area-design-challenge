@@ -1,0 +1,48 @@
+{
+  "contractVersion": 1,
+  "fixtureId": "jackson-black-mountain-live-v1",
+  "terrainKey": "jackson-black-mountain-benchmark-44.1660_-71.1650",
+  "manifestSha256": "418d9cf6e9ef0afe5de1ce3e91b29336e86417badf592c7a5db371b2dc7afec0",
+  "preparation": {
+    "entrypoint": "scripts/acquireIntegratedTerrain.mjs",
+    "codeSha256": "31eb840a720729561224e6714144c5b587acd8908fdfba2c438c20859af151cd",
+    "syntheticInputsAllowed": false
+  },
+  "location": {
+    "name": "Jackson / Black Mountain, White Mountains",
+    "bounds": [-71.20255, 44.13905, -71.12745, 44.19295]
+  },
+  "sources": {
+    "elevation": { "id": "USGS 3DEP ImageServer", "license": "US public domain" },
+    "imagery": { "id": "USDA/USGS NAIP scene IDs 125416,125417,125418,125419,125421,125423", "license": "US public domain" },
+    "cover": { "id": "esa-worldcover-2021-v200", "license": "CC-BY-4.0" },
+    "weatherDaily": { "id": "Daymet V4R1 single-pixel:44.16600,-71.16500", "license": "NASA Earth data policy" },
+    "weatherHourly": { "id": "NASA POWER hourly v2 nasa-power:44.166,-71.165", "license": "NASA open data policy" }
+  },
+  "artifacts": {
+    "terrainRecord": { "path": "terrain.json", "bytes": 119239579, "sha256": "39357d446502e5687f6764a79e736c48006229955d35ed7ff334dc7eea858a8b" },
+    "imagery": { "path": "imagery.jpg", "bytes": 1589576, "sha256": "051aceaf60cbf5675a216c804fc5ca79b20ef1be2c6e577bcd1e8ad087116dce" },
+    "weatherPackage": { "path": "weather-package.json", "bytes": 18445249, "sha256": "561120c54127c7a65ebda581b8e7834efec9ad3f1396cb9ad069c76744761b5a" },
+    "checkpointEmpty": { "path": "save-0.json", "bytes": 6758901, "sha256": "d3085e134c36c3fc0870d2745f396b7e6a51d15b2f049598ab175d4178d9270c" },
+    "checkpoint1000": { "path": "save-1000.json", "bytes": 8229816, "sha256": "a1d9dce0aa206bd2f877730154e99040c3abab53bd2903c8ea849f2cfdc9c211" },
+    "checkpoint3000": { "path": "save-3000.json", "bytes": 10021106, "sha256": "2759fb5bb88d5f5a9351594581c8b6230fb364e74cd4b01578290cbb67bc7ebd" }
+  },
+  "presentationAssets": [
+    { "role": "glyph:Noto Sans Regular:0-255", "path": "fonts/Noto Sans Regular/0-255.pbf", "bytes": 76580, "sha256": "ef1f38a3f1978591e846e9eaddf8a54f7047f546fc6aaed7872cc53151a5de78", "license": "SIL-OFL-1.1" },
+    { "role": "glyph:Noto Sans Regular:8192-8447", "path": "fonts/Noto Sans Regular/8192-8447.pbf", "bytes": 34070, "sha256": "f061e5b4e42e5925228534d8822b423a029569263db09f5ce44573600d45295f", "license": "SIL-OFL-1.1" },
+    { "role": "glyph-license:Noto Sans", "path": "fonts/OFL.txt", "bytes": 4396, "sha256": "cee9892f9f0cc8fe882c9e9537ee6a89621d86ee7ceaf70b02e2b2b1c25c061a", "license": "SIL-OFL-1.1" }
+  ],
+  "inventory": {
+    "lifts": 8,
+    "trails": 25,
+    "interconnectedTrails": 25,
+    "amenities": 3,
+    "nodes": 135,
+    "routes": 219,
+    "lanes": 219,
+    "segments": 211,
+    "geometryVertices": 438,
+    "snow": { "width": 512, "height": 512, "cellSizeM": 11.742012751566963 },
+    "terrain": { "sampleGridSize": 2000, "demSpacingM": 3.0015747873940217, "elevationMinM": 222.2288360595703, "elevationMaxM": 929.75244140625 }
+  }
+}

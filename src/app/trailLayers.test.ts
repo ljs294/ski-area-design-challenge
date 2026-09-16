@@ -1,13 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SavedTrail, SavedTrailPart } from '../types';
 import type { TrailPresentationResult } from '../types/trailPresentation';
 import { haversineMeters } from '../geo';
-import { draftToGeoJSON, paintPreviewGeoJSON, trailPresentationToGeoJSON,
-  trailsToHitGeoJSON } from './trailLayers';
+import { clearTrailPaintPreview, draftToGeoJSON, paintPreviewGeoJSON,
+  trailPresentationToGeoJSON, trailsToHitGeoJSON } from './trailLayers';
 
 const CURSOR: [number, number] = [-121.5, 46.93];
 
 describe('trail paint preview geometry', () => {
+  it('clears the shared preview source including endpoint markers', () => {
+    const setData = vi.fn();
+    const map = { getSource: () => ({ setData }) } as never;
+    clearTrailPaintPreview(map, 40);
+    expect(setData).toHaveBeenCalledWith({ type: 'FeatureCollection', features: [] });
+  });
+
   it('renders a stationary dab plus an accurate geographic brush guide', () => {
     const data = paintPreviewGeoJSON({ path: [CURSOR], cursor: CURSOR, brushWidthM: 40 });
     expect(data.features.map((feature) => feature.properties?.kind))

@@ -61,6 +61,8 @@ export interface WeatherSession {
   readonly midpoint?: WeatherCoordinates;
 }
 
+export type GameplayWeatherSession = Pick<WeatherSession, 'plan' | 'timezone' | 'midpoint'>;
+
 interface SourceDay {
   dateKey: string;
   month: number;
@@ -401,7 +403,7 @@ function indexAtOrBefore(hours: readonly WeatherReferenceHour[], at: string): nu
   return answer;
 }
 
-export function clampWeatherSessionCursor(session: WeatherSession, cursor: string): string {
+export function clampWeatherSessionCursor(session: GameplayWeatherSession, cursor: string): string {
   const start = new Date(session.plan.startsAt).getTime();
   const end = new Date(session.plan.endsAt).getTime();
   const candidate = new Date(cursor).getTime();
@@ -409,7 +411,7 @@ export function clampWeatherSessionCursor(session: WeatherSession, cursor: strin
   return new Date(clamp(candidate, start, end)).toISOString();
 }
 
-export function weatherAtSession(session: WeatherSession, cursor: string): ResolvedWeatherHour | null {
+export function weatherAtSession(session: GameplayWeatherSession, cursor: string): ResolvedWeatherHour | null {
   const index = indexAtOrBefore(session.plan.hours, clampWeatherSessionCursor(session, cursor));
   const hour = index >= 0 ? session.plan.hours[index] : null;
   return hour ? resolveWeatherHour(hour, session.midpoint) : null;
@@ -435,7 +437,7 @@ export function historicalAtSession(session: WeatherSession, year: number, curso
   return hour ? resolveWeatherHour(hour, session.midpoint) : null;
 }
 
-export function forecastForSession(session: WeatherSession, cursor: string, hours = 72): WeatherForecast {
+export function forecastForSession(session: GameplayWeatherSession, cursor: string, hours = 72): WeatherForecast {
   const clamped = clampWeatherSessionCursor(session, cursor);
   const startIndex = indexAtOrBefore(session.plan.hours, clamped);
   const entries = startIndex < 0 ? [] : session.plan.hours.slice(startIndex, startIndex + Math.max(0, Math.floor(hours)))

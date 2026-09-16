@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SavedLift } from '../types/lifts';
 import { formatLiftLabel } from '../lifts';
-import { addLiftLayers, LIFT_DRAFT_SOURCE, liftsToGeoJSON } from './liftLayers';
+import {
+  addLiftLayers,
+  liftLabelRotation,
+  liftLabelsToGeoJSON,
+  liftLineMidpoint,
+  localMercatorSegmentAngle,
+  LIFT_DRAFT_SOURCE,
+  LIFT_LABEL_SOURCE,
+  liftsToGeoJSON,
+  setLiftHover,
+} from './liftLayers';
 
 const BASE: [number, number] = [-121.5, 46.9];
 const TOP: [number, number] = [-121.49, 46.91];
@@ -49,6 +59,44 @@ describe('lift map labels', () => {
       label: 'Legacy Double',
     });
   });
+
+  it('keeps line geometry at three features per lift and puts one label at its midpoint', () => {
+    const geometry = liftsToGeoJSON([lift()], null);
+    const labels = liftLabelsToGeoJSON([lift()]);
+
+    expect(geometry.features).toHaveLength(3);
+    expect(labels.features).toHaveLength(1);
+    expect(labels.features[0]).toMatchObject({
+      id: 'lift:lift-1:label',
+      properties: { id: 'lift-1', kind: 'label', label: 'A - Summit Express' },
+      geometry: { type: 'Point', coordinates: [-121.495, 46.905] },
+    });
+  });
+
+  it('finds the distance midpoint on a bent, unevenly sampled line', () => {
+    const midpoint = liftLineMidpoint([
+      [0, 0], [0.01, 0], [0.011, 0],
+    ]);
+
+    expect(midpoint?.[0]).toBeCloseTo(0.0055, 5);
+    expect(midpoint?.[1]).toBe(0);
+  });
+
+  it('uses local Mercator segment angles and flips reversed labels upright', () => {
+    expect(localMercatorSegmentAngle([0, 0], [0.01, 0])).toBeCloseTo(0, 6);
+    expect(localMercatorSegmentAngle([0, 0], [0, 0.01])).toBeCloseTo(-90, 6);
+    expect(localMercatorSegmentAngle([0, 0], [0.01, 0.01])).toBeCloseTo(-45, 4);
+    expect(liftLabelRotation([[0, 0], [0.01, 0]], 0)).toBeCloseTo(0, 6);
+    expect(liftLabelRotation([[0.01, 0], [0, 0]], 0)).toBeCloseTo(0, 6);
+  });
+
+  it('uses the segment containing the midpoint on a bent lift', () => {
+    const points: [number, number][] = [[0, 0], [0.01, 0], [0.011, 0.01]];
+    expect(liftLabelRotation(points)).toBeCloseTo(
+      (localMercatorSegmentAngle(points[1], points[2]) + 360) % 360, 4);
+    expect(liftLabelRotation(points, 180)).toBeCloseTo(
+      (localMercatorSegmentAngle(points[1], points[2]) + 180) % 360, 4);
+  });
 });
 
 describe('lift layer styling', () => {
@@ -69,6 +117,7 @@ describe('lift layer styling', () => {
         paint?: Record<string, unknown>;
         layout?: Record<string, unknown>;
         source?: string;
+        filter?: unknown;
       };
     };
 
@@ -77,11 +126,45 @@ describe('lift layer styling', () => {
       'line-color': 'rgba(0,0,0,0)',
       'line-width': 8,
     });
+    expect(layer('lift-hover').source).toBe('lifts');
+    expect(layer('lift-hover').filter).toEqual([
+      'all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], false],
+      ['==', ['get', 'id'], ''],
+    ]);
+    expect(layer('lift-hover').paint).toMatchObject({
+      'line-color': '#d42027', 'line-width': 3, 'line-opacity': 0.65,
+    });
     expect(layer('lift-line-complete').paint?.['line-width']).toBe(1.5);
     expect(layer('lift-line-planning').paint?.['line-width']).toBe(1.5);
     expect(layer('lift-line-draft').paint?.['line-width']).toBe(1.25);
     expect(layer('lift-line-draft').source).toBe(LIFT_DRAFT_SOURCE);
     expect(layer('lift-draft-terminals').source).toBe(LIFT_DRAFT_SOURCE);
+    expect(layer('lift-labels').source).toBe(LIFT_LABEL_SOURCE);
+    expect(layer('lift-labels').layout?.['symbol-placement']).toBe('point');
     expect(layer('lift-labels').layout?.['text-field']).toEqual(['get', 'label']);
+    expect(layer('lift-labels').layout?.['text-rotate']).toEqual(['get', 'angle']);
+    expect(layer('lift-labels').layout?.['text-rotation-alignment']).toBe('map');
+    expect(layer('lift-labels').layout?.['text-pitch-alignment']).toBe('map');
+    expect(layer('lift-labels').paint).toMatchObject({
+      'text-color': '#d42027', 'text-halo-color': '#ffffff', 'text-halo-width': 2,
+    });
+  });
+
+  it('filters the transient hover to one lift identity and clears it', () => {
+    const filters: unknown[] = [];
+    const map = {
+      getLayer: vi.fn(() => ({})),
+      setFilter: vi.fn((_id: string, filter: unknown) => filters.push(filter)),
+    } as unknown as Parameters<typeof setLiftHover>[0];
+
+    setLiftHover(map, 'lift-1');
+    setLiftHover(map, null);
+
+    expect(filters).toEqual([
+      ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], false],
+        ['==', ['get', 'id'], 'lift-1']],
+      ['all', ['==', ['get', 'kind'], 'line'], ['==', ['get', 'draft'], false],
+        ['==', ['get', 'id'], '']],
+    ]);
   });
 });

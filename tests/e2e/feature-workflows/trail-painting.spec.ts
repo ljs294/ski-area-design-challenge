@@ -41,8 +41,31 @@ const destinationLift = {
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
+async function openTrailTools(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Toolbox', exact: true }).click();
+  await page.getByRole('tab', { name: 'Trails', exact: true }).click();
+}
+
+async function trailPaintPreviewKinds(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const map = (window as unknown as { appMap: {
+      getSource(id: string): { serialize(): { data?: unknown } } | undefined;
+    } }).appMap;
+    const data = map.getSource('trail-paint-preview')?.serialize().data as {
+      features?: { properties?: { kind?: unknown } }[];
+    } | undefined;
+    return (data?.features ?? []).map((feature) => feature.properties?.kind)
+      .filter((kind): kind is string => typeof kind === 'string');
+  });
+}
+
+async function expectNoHeadCandidate(page: Page): Promise<void> {
+  await expect.poll(async () => (await trailPaintPreviewKinds(page)).includes('head-candidate'))
+    .toBe(false);
+}
+
 async function paintToReview(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Ski runs' }).click();
+  await openTrailTools(page);
   await page.getByRole('button', { name: /Create Trail/ }).click();
   const head = await pointAt(page, TOP);
   const tail = await pointAt(page, TAIL);
@@ -68,7 +91,7 @@ test('painting from a lift terminal seeds an engine and grows the reported footp
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, TOP, 17);
 
-  await page.getByRole('button', { name: 'Ski runs' }).click();
+  await openTrailTools(page);
   await page.getByRole('button', { name: /Create Trail/ }).click();
   await expect(page.getByText('Place Trailhead', { exact: true })).toBeVisible();
 
@@ -134,6 +157,7 @@ test('painting from a lift terminal seeds an engine and grows the reported footp
   await expect(finish).toBeDisabled();
 
   await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect.poll(() => sourceFeatureCount(page, 'trail-paint-preview')).toBe(0);
   await expect.poll(async () => workerEntries(page, 'trailPaint.worker')).toMatchObject([
     { terminationCount: 1 },
     { terminationCount: 1 },
@@ -148,6 +172,7 @@ test('review retains a grade failure and commits trail topology coherently', asy
   await jumpTo(page, [-121.4942, 46.90425], 17);
 
   await paintToReview(page);
+  await expectNoHeadCandidate(page);
   const name = page.locator('.trail-panel .lift-name-input');
   await name.fill('Atomic Glade');
   await expect.poll(() => sourceFeatureCount(page, 'trail-draft')).toBeGreaterThan(0);
@@ -168,8 +193,9 @@ test('review retains a grade failure and commits trail topology coherently', asy
   await grade.uncheck();
   await page.getByRole('button', { name: 'Add to plan' }).click();
   await expect.poll(() => sourceFeatureCount(page, 'trails')).toBeGreaterThan(0);
+  await expect.poll(() => sourceFeatureCount(page, 'trail-paint-preview')).toBe(0);
 
-  await page.getByRole('button', { name: /^Menu/ }).click();
+  await page.locator('.game-menu-btn').click();
   await page.locator('.hud-save').click();
   const saved = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('gamesave:e2e-save') ?? 'null'));
@@ -191,6 +217,7 @@ test('graded trail confirmation is atomic and survives best-effort cover failure
   await expect(page.locator('.resort-loading')).toHaveCount(0, { timeout: 15_000 });
   await jumpTo(page, [-121.4942, 46.90425], 17);
   await paintToReview(page);
+  await expectNoHeadCandidate(page);
 
   await page.locator('.trail-panel .lift-name-input').fill('Graded Glade');
   await page.getByRole('button', { name: 'Complete', exact: true }).click();
@@ -202,8 +229,9 @@ test('graded trail confirmation is atomic and survives best-effort cover failure
   await build.evaluate((button) => { button.click(); button.click(); });
 
   await expect.poll(() => sourceFeatureCount(page, 'trails')).toBeGreaterThan(0);
+  await expect.poll(() => sourceFeatureCount(page, 'trail-paint-preview')).toBe(0);
   await expect.poll(async () => (await workerEntries(page, 'coverEdit.worker')).length).toBe(1);
-  await page.getByRole('button', { name: /^Menu/ }).click();
+  await page.locator('.game-menu-btn').click();
   await page.locator('.hud-save').click();
   await expect.poll(() => page.evaluate(() =>
     (window as unknown as { appSaveState: { unsaved: boolean } }).appSaveState.unsaved,

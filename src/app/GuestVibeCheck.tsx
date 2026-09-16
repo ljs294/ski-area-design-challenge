@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { GuestConnectivity } from './guestConnectivity';
+import type { GuestInspectionSnapshot } from '../dualClock/model';
 
 /** The three labels used by the presentation layer for guest sentiment. */
 export type GuestVibeSentiment = 'positive' | 'neutral' | 'negative';
@@ -69,6 +70,14 @@ export interface GuestVibeSummary {
 }
 
 export interface GuestVibeCheckProps {
+  readonly inspection?: GuestInspectionSnapshot | null;
+  readonly autoTracking?: boolean;
+  readonly following?: boolean;
+  readonly onStartFollowing?: () => void;
+  readonly onStopFollowing?: () => void;
+  readonly onAutoTrack?: () => void;
+  readonly onStopAutoTrack?: () => void;
+  readonly onFollow?: () => void;
   readonly summary: GuestVibeSummary;
   readonly reasonAggregates: readonly GuestVibeReasonAggregate[];
   readonly topThoughts: readonly GuestVibeTopThought[];
@@ -309,7 +318,8 @@ function EconomySummary({ economy }: { economy: GuestVibeEconomySummary }) {
  * raw events; the caller supplies a snapshot-consistent presentation model.
  */
 export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests, selectedGuestId,
-  onSelectGuest, onClearSelectedGuest, maxGuests, title = 'Guest vibe check',
+  onSelectGuest, onClearSelectedGuest, maxGuests, inspection, autoTracking, following, onStartFollowing, onStopFollowing,
+  onAutoTrack, onStopAutoTrack, onFollow, title = 'Guest vibe check',
   description = 'A quick read on what visitors are thinking right now.', connectivity }: GuestVibeCheckProps) {
   const headingId = 'guest-vibe-check-heading';
   const guestLimit = clampGuestLimit(maxGuests);
@@ -408,7 +418,26 @@ export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests,
             selected={guest.id === selectedGuestId} onSelect={onSelectGuest} />)}
         </ul>}
       {hiddenGuestCount > 0 && <p style={mutedStyle} aria-live="polite">Showing {formatCount(visibleGuests.length)} of {formatCount(guests.length)} guests.</p>}
-      {selectedGuest && <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 6, padding: 8 }} aria-label={`Selected guest ${selectedGuest.label || selectedGuest.id}`}>
+      {autoTracking && <p role="status">Auto-tracking enabled. {(!inspection || inspection.status === 'departed') && 'Waiting for an active guest.'} <button type="button" className="site-btn" onClick={onStopAutoTrack}>Stop auto-tracking</button></p>}
+      {inspection && <article style={{ ...cardStyle, padding: 10 }} aria-label={inspection.status === 'departed' ? 'Visit Completed' : 'Representative visit'}>
+        <h3>{inspection.status === 'departed' ? 'Visit Completed' : 'Representative visit'}</h3>
+        <p>{inspection.id} · Group {inspection.groupId}</p>
+        <p>{inspection.runs} simulated runs · {formatCents(inspection.spendingCents)} spent · {Math.round(inspection.satisfaction * 100)}% satisfaction</p>
+        <p>{inspection.nextPlan}</p><p>{inspection.thought}</p>
+        <small>Detailed tracking began {inspection.trackingBeganAt}. This visit represents wider mountain activity.</small>
+        <ol>{inspection.history.slice(-8).map((activity, index) => <li key={`${activity.at}:${index}`}>{activity.text}</li>)}</ol>
+        {inspection.status === 'departed' ? <div>
+          <button type="button" className="site-btn" onClick={onAutoTrack}>Auto-track another active guest</button>
+          <button type="button" className="site-btn" onClick={onClearSelectedGuest}>Return to Mountain Overview</button>
+        </div> : <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {(onStartFollowing || onStopFollowing) && <button type="button" className="site-btn"
+            onClick={following ? onStopFollowing : (onStartFollowing ?? onFollow)}>
+            {following ? 'Stop following' : 'Follow'}
+          </button>}
+          {onFollow && <button type="button" className="site-btn" onClick={onFollow}>Follow at 1×</button>}
+        </div>}
+      </article>}
+      {selectedGuest && !inspection && <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 6, padding: 8 }} aria-label={`Selected guest ${selectedGuest.label || selectedGuest.id}`}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <strong style={{ color: 'var(--text)', fontSize: 12 }}>{selectedGuest.label || selectedGuest.id}</strong>
           {selectedGuest.sentiment && <SentimentPill sentiment={selectedGuest.sentiment} />}
@@ -417,6 +446,13 @@ export function GuestVibeCheck({ summary, reasonAggregates, topThoughts, guests,
           <span>Status</span><strong style={{ color: 'var(--text)', textTransform: 'capitalize' }}>{selectedGuest.status}</strong>
         </div>
         {selectedGuest.latestThought && <p style={mutedStyle}>{selectedGuest.latestThought}</p>}
+        {(onStartFollowing || onStopFollowing || onFollow) && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {(onStartFollowing || onStopFollowing) && <button type="button" className="site-btn"
+            onClick={following ? onStopFollowing : (onStartFollowing ?? onFollow)}>
+            {following ? 'Stop following' : 'Follow'}
+          </button>}
+          {onFollow && <button type="button" className="site-btn" onClick={onFollow}>Follow at 1×</button>}
+        </div>}
         {onClearSelectedGuest && <button type="button" className="site-btn" onClick={onClearSelectedGuest}>Clear guest selection</button>}
       </div>}
     </div>

@@ -292,3 +292,10 @@ export function setNodePathDraftData(map: maplibregl.Map, draft: NodePathDraft |
   (map.getSource(NODE_PATH_DRAFT_SOURCE) as maplibregl.GeoJSONSource | undefined)
     ?.setData(nodePathDraftGeoJSON(draft));
 }
+
+/** Clear the transient node/path construction source without touching saved
+ * nodes, junctions, or paths. Persistent Map nodes visibility is owned by the
+ * map contribution registry; this helper only retires active-tool feedback. */
+export function clearNodePathDraftData(map: maplibregl.Map): void {
+  setNodePathDraftData(map, null);
+}

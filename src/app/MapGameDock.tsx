@@ -19,6 +19,7 @@ import { LayerList } from './LayerPanel';
 import { Legend, type OverlayId } from './Legend';
 import { LiftControl } from './LiftControl';
 import { LiftDetail } from './LiftDetail';
+import { liftOperationsFor } from './liftOperations';
 import { LiftOverview } from './LiftOverview';
 import { SnowmakingControl } from './SnowmakingControl';
 import { StreamDetail } from './StreamDetail';
@@ -337,6 +338,7 @@ export function MapGameDock(props: MapGameDockProps) {
     {liftsOpen && <div className="dock-rollup dock-lifts"><div className="dock-panel">
       {liftTool.phase === 'idle' && selectedLift && !props.liftEditing
         ? <LiftDetail lift={selectedLift} units={props.units}
+          operations={liftOperationsFor(selectedLift.id, props.network, props.simulation.dual?.publication)}
           onEdit={() => props.setLiftEditing(true)} onRemove={() => liftController.remove(selectedLift.id)}
           onToggleClosed={(closed) => liftController.patch(selectedLift.id, { closed })}
           onClose={props.clearSelectedLift} />

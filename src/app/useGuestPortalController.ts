@@ -3,7 +3,7 @@ import type maplibregl from 'maplibre-gl';
 import type { SkiNetwork } from '../network';
 import { MAP_HIT_RANK, MAP_Z_ORDER, type ManagedMapContribution } from './mapContribution';
 import type { MapInteractionLeaseHandle } from './mapInteractionLease';
-import { addGuestLayers, GUEST_HIT_LAYER_ID, GUEST_LAYER_IDS, setGuestPointData, setGuestPortalData,
+import { addGuestLayers, GUEST_HIT_LAYER_ID, GUEST_LAYER_ID, GUEST_LAYER_IDS, GUEST_PORTAL_HALO_LAYER_ID, GUEST_PORTAL_LABEL_LAYER_ID, GUEST_PORTAL_LAYER_ID, setGuestPointData, setGuestPortalData,
   updateGuestPointData, type GuestRenderPoint } from './guestLayers';
 import { placeGuestPortal, type PlacedGuestPortal } from './guestPortalPlacement';
 import type { GuestConnectivity } from './guestConnectivity';
@@ -32,6 +32,7 @@ export function useGuestPortalController(options: {
   openDock(): void;
   acquireInteractions(map: maplibregl.Map): MapInteractionLeaseHandle;
   synchronizeMap(): void;
+  onPresentationCommitted?: () => void;
 }): GuestPortalController {
   const [armed, setArmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,10 +53,18 @@ export function useGuestPortalController(options: {
       animationFrameRef.current = null;
       displayedPointsRef.current = optionsRef.current.points;
       setGuestPortalData(map, optionsRef.current.portal, optionsRef.current.connectivity);
-      setGuestPointData(map, optionsRef.current.points);
+      setGuestPointData(map, optionsRef.current.points); if (map.getLayer(GUEST_LAYER_ID)) optionsRef.current.onPresentationCommitted?.();
     },
     visibility: () => [{ id: 'guest-simulation', label: 'Guests', layerIds: GUEST_LAYER_IDS,
       visible: true, section: 'Master plan' }],
+    // The entrance is drawn through the existing building contribution. Keep
+    // the worker-owned status label, while retiring the old point marker so a
+    // portal never reads as a second saved building or a map pin.
+    presentationChanged: ({ map }) => {
+      for (const id of [GUEST_PORTAL_HALO_LAYER_ID, GUEST_PORTAL_LAYER_ID] as const) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+      }
+    },
     setCaptureTransient: ({ map }, hidden) => {
       for (const id of GUEST_LAYER_IDS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', hidden ? 'none' : 'visible');
     },
@@ -63,6 +72,36 @@ export function useGuestPortalController(options: {
   };
 
   useEffect(() => { optionsRef.current.synchronizeMap(); }, [options.connectivity, options.portal]);
+  // MapLibre excludes custom layers from getStyle(). A same-style replacement
+  // therefore retains the normal guest layers but discards only the GPU layer.
+  // Wait until the completed replacement becomes idle, then rebuild that one
+  // layer with the current authoritative presentation data.
+  useEffect(() => {
+    const map = optionsRef.current.mapRef.current;
+    if (!map) return;
+    let restoring = false;
+    const restoreCustomLayer = () => {
+      if (restoring || !map.isStyleLoaded() || map.getLayer(GUEST_LAYER_ID)) return;
+      restoring = true;
+      try {
+        const current = optionsRef.current;
+        const visibility = map.getLayoutProperty(GUEST_HIT_LAYER_ID, 'visibility') === 'none' ? 'none' : 'visible';
+        addGuestLayers(map, GUEST_PORTAL_LABEL_LAYER_ID);
+        setGuestPortalData(map, current.portal, current.connectivity);
+        setGuestPointData(map, current.points); if (map.getLayer(GUEST_LAYER_ID)) current.onPresentationCommitted?.();
+        if (map.getLayer(GUEST_LAYER_ID)) map.setLayoutProperty(GUEST_LAYER_ID, 'visibility', visibility);
+      } finally {
+        restoring = false;
+      }
+    };
+    restoreCustomLayer();
+    map.on('styledata', restoreCustomLayer);
+    map.on('idle', restoreCustomLayer);
+    return () => {
+      map.off('styledata', restoreCustomLayer);
+      map.off('idle', restoreCustomLayer);
+    };
+  });
   useEffect(() => {
     const map = optionsRef.current.mapRef.current;
     const target = options.points;
@@ -72,14 +111,14 @@ export function useGuestPortalController(options: {
     animationFrameRef.current = null;
     if (!map || options.reducedMotion || document.hidden || from.length === 0) {
       displayedPointsRef.current = target;
-      setGuestPointData(map, target);
+      setGuestPointData(map, target); if (map && map.getLayer(GUEST_LAYER_ID)) optionsRef.current.onPresentationCommitted?.();
       return;
     }
     // Upload one authoritative target frame. The custom MapLibre layer performs
     // interpolation on the GPU; the transparent GeoJSON source is updated only
     // once per commit for hit testing.
     displayedPointsRef.current = target;
-    updateGuestPointData(map, from, target);
+    updateGuestPointData(map, from, target); if (map.getLayer(GUEST_LAYER_ID)) optionsRef.current.onPresentationCommitted?.();
   }, [options.mapRef, options.points, options.reducedMotion]);
   useLayoutEffect(() => {
     const map = optionsRef.current.mapRef.current;

@@ -18,6 +18,17 @@ function forecastHour(index: number): GameForecastHour {
 }
 
 describe('in-game weather presentation', () => {
+  it('disables the clock mutation while a dual weather window is pending', () => {
+    const simulation = { status: 'ready', current: forecastHour(0), weatherPackage: {}, analysisOpen: false,
+      forecast: { schemaVersion: 1, issuedAt: forecastHour(0).at, endsAt: forecastHour(0).at, annualRunIdentity: 'test', hours: [forecastHour(0)], days: [] },
+      clock: { season: 'winter', winterWeek: 1, calendarDate: forecastHour(0).at, timezone: 'UTC', speed: 1, runState: 'paused' },
+      dual: { weatherReady: false }, togglePlayback() {}, setSpeed() {}, toggleAnalysis() {} } as unknown as GameSimulationController;
+    const markup = renderToStaticMarkup(<GameToolbar resortName="Test Peak" onOpenStats={() => undefined}
+      units="metric" terrain={null} simulation={simulation} />);
+    expect(markup).toContain('aria-label="Play game clock"');
+    expect(markup).toContain('disabled=""');
+  });
+
   it('renders seven fluid forecast tabs and a compact 24-hour grid', () => {
     const hours = Array.from({ length: 24 }, (_, index) => forecastHour(index));
     const days: GameForecastDay[] = Array.from({ length: 7 }, (_, index) => ({

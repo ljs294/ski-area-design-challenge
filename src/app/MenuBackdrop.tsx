@@ -9,19 +9,21 @@ import { useSettings } from './SettingsContext';
 import { pixelRatioForElement, renderProfileFor, type RenderQuality } from './renderProfile';
 import { applyTileLod } from './terrainLod';
 
-const CRYSTAL: [number, number] = [-121.474, 46.928];
+// Orbit the upper ridge (~2,090 m) rather than the valley floor: the camera
+// clears the nearby slopes throughout the rotation at the same zoom/pitch.
+const CRYSTAL: [number, number] = [-121.5005, 46.935];
 const TERRARIUM_TILES = 'menu-background://terrain/{z}/{x}/{y}';
 const MENU_TERRAIN_DEM = 'menu-terrain-dem';
 const MENU_HILLSHADE_DEM = 'menu-hillshade-dem';
-const MENU_PITCH = 70;
+const MENU_PITCH = 75;
 
 const ALPINE_SKY: SkySpecification = {
-  'sky-color': '#5f9ed6',
-  'horizon-color': '#eef4fb',
-  'fog-color': '#dce7f0',
-  'sky-horizon-blend': 0.6,
-  'horizon-fog-blend': 0.7,
-  'fog-ground-blend': 0.8,
+  'sky-color': '#83b3d3',
+  'horizon-color': '#f3eddf',
+  'fog-color': '#bdcfdd',
+  'sky-horizon-blend': 0.7,
+  'horizon-fog-blend': 0.65,
+  'fog-ground-blend': 0.55,
   'atmosphere-blend': 0,
 };
 
@@ -53,7 +55,14 @@ function setupTerrain(map: maplibregl.Map, quality: RenderQuality): void {
       id: 'menu-hillshade',
       type: 'hillshade',
       source: MENU_HILLSHADE_DEM,
-      paint: { 'hillshade-exaggeration': 0.6 },
+      paint: {
+        'hillshade-exaggeration': 0.32,
+        'hillshade-illumination-anchor': 'map',
+        'hillshade-illumination-direction': 110,
+        'hillshade-shadow-color': '#526d83',
+        'hillshade-highlight-color': '#fff1d5',
+        'hillshade-accent-color': '#7d8c92',
+      },
     });
   } else if (map.getLayer('menu-hillshade')) {
     map.setLayoutProperty(
@@ -89,7 +98,7 @@ export function MenuBackdrop({ onReady }: { onReady?: () => void }) {
       container,
       style: createMenuMapStyle(),
       center: CRYSTAL,
-      zoom: 15,
+      zoom: 14.2,
       bearing: -18,
       pitch: MENU_PITCH,
       maxPitch: 85,

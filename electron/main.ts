@@ -7,6 +7,7 @@ import { registerGameSaveStorageHandlers } from './ipcGameSaveStorage';
 import { registerGuestSimulationStorageHandlers } from './ipcGuestSimulationStorage';
 import { registerWeatherStorageHandlers } from './ipcWeatherStorage';
 import { registerOverpassRequestIdentity } from './overpassRequestIdentity';
+import { integratedBenchmarkQuery } from './benchmarkArguments';
 import {
   WINDOW_GET_MODE_CHANNEL,
   WINDOW_SET_MODE_CHANNEL,
@@ -18,7 +19,6 @@ import {
 import type { WindowMode, WindowRestartResponse } from '../src/ipcContract';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
 let mainWindow: BrowserWindow | null = null;
@@ -95,12 +95,15 @@ function createWindow(resumeSaveKey?: string, show = true): BrowserWindow {
   if (process.env.VITE_DEV_SERVER_URL) {
     const url = new URL(process.env.VITE_DEV_SERVER_URL);
     if (resumeSaveKey) url.searchParams.set('resume-save', resumeSaveKey);
+    for (const [key, value] of Object.entries(integratedBenchmarkQuery(process.argv))) url.searchParams.set(key, value);
     if (labHash) url.hash = labHash;
     void win.loadURL(url.toString());
   } else {
     const options = {
       ...(labHash ? { hash: labHash } : {}),
-      ...(resumeSaveKey ? { query: { 'resume-save': resumeSaveKey } } : {}),
+      ...((resumeSaveKey || Object.keys(integratedBenchmarkQuery(process.argv)).length) ? {
+        query: { ...(resumeSaveKey ? { 'resume-save': resumeSaveKey } : {}), ...integratedBenchmarkQuery(process.argv) },
+      } : {}),
     };
     void win.loadFile(path.join(__dirname, '../dist/index.html'), options);
   }

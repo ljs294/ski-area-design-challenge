@@ -14,7 +14,7 @@ import { sampleActiveTerrainWeather } from './terrainWeatherCache';
 
 export { useSnowLayer } from './useSnowLayer';
 export { useTerrainDisplayAssets } from './useTerrainDisplayAssets';
-export { useGameSimulation } from './useGameSimulation';
+export { useResortSimulation as useGameSimulation } from './useResortSimulation';
 
 interface MapSamplingOptions {
   mapRef: MutableRefObject<maplibregl.Map | null>;
