@@ -70,6 +70,20 @@ describe('TerrainDocument revisions', () => {
     expect(calls).toEqual(['cache', 'protocols', 'state', 'sources']);
   });
 
+  it('continues publication after a fallible presentation port throws', () => {
+    const { spies, calls } = ports();
+    const failures: string[] = [];
+    spies.cacheDisplayAssets = vi.fn(() => { calls.push('cache'); throw new Error('upload failed'); });
+    spies.reportPublicationFailure = (failure) => failures.push(String(failure.target));
+    const document = new TerrainDocument(spies);
+
+    expect(() => document.replace(record('base'))).not.toThrow();
+
+    expect(document.snapshot().record?.key).toBe('base');
+    expect(calls).toEqual(['cache', 'protocols', 'state', 'sources']);
+    expect(failures).toEqual(['cacheDisplayAssets']);
+  });
+
   it('lands a load or package replacement clean rather than as an edit', () => {
     const { spies, publications } = ports();
     const document = new TerrainDocument(spies);
@@ -98,20 +112,35 @@ describe('TerrainDocument revisions', () => {
     expect(publications.at(-1)).toMatchObject({ edit: null, preserveDirty: true });
   });
 
-  it('takes ownership of the record shell and exposes a frozen snapshot', () => {
+  it('takes ownership of the record and its source buffers', () => {
     const { spies } = ports();
     const document = new TerrainDocument(spies);
     const input = record('owned');
+    input.sampleHeights = new Float32Array([0, 1, 2, 3]);
 
     const snapshot = document.replace(input);
     input.key = 'changed-by-caller';
+    input.sampleHeights[0] = 99;
 
     expect(snapshot.record).not.toBe(input);
+    expect(snapshot.record?.sampleHeights).not.toBe(input.sampleHeights);
+    expect(snapshot.record?.sampleHeights[0]).toBe(0);
     expect(Object.isFrozen(snapshot.record)).toBe(true);
     expect(document.snapshot().record?.key).toBe('owned');
     expect(() => {
       (snapshot.record as TerrainRecord).key = 'changed-through-snapshot';
     }).toThrow();
+  });
+
+  it('retains unchanged owned source buffers across metadata-only publications', () => {
+    const { spies } = ports();
+    const document = new TerrainDocument(spies);
+    const first = document.replace(record('owned'));
+
+    const next = document.publishMapContext({ roads: [], waterLines: [], waterPolygons: [],
+      landCover: [], peaks: [] }, '2026-02-01');
+
+    expect(next.record?.sampleHeights).toBe(first.record?.sampleHeights);
   });
 
   it('rejects a stale commit without touching any published state', () => {

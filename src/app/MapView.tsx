@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { applyAnalysisRenderProfile, removeAnalysisLayers, setLocalContextData, setSelectedLake, setSelectedStream, setupAnalysisLayers, type LayerToggle, type OverlayId } from './analysisLayers';
 import { applyCoverOpacity, setCoverData } from './coverVectorize';
-import { buildSkiNetwork } from '../network';
 import { sampleSiteCoverGrid } from './worldcoverProtocol';
 import { addSiteBoxLayers, setSiteBox, setBoundaryMode, computeBox, siteBoxFromBounds, type SiteBox } from './sitePicker';
 import { basemapFor, applyMapTheme } from './basemapStyle';
@@ -11,7 +10,7 @@ import { tilt3D } from './terrain3d';
 import { useSettings } from './SettingsContext';
 import { MapInteractionLease, type MapInteractionLeaseHandle, type MapInteractionOverrides } from './mapInteractionLease';
 import { ToolCoordinator, TOOL_IDS, type DockId, type ToolCoordinatorSnapshot, type ToolId } from './toolCoordinator';
-import { gateGuestVibe, weatherMutationBlocked, skipsInitialWeatherCheckpoint, type BootControls, type BootEvent, type BootProgress } from './resortBoot';
+import { gateGuestVibe, weatherMutationBlocked, type BootControls, type BootEvent, type BootProgress } from './resortBoot';
 import { desktop, isDesktop } from '../desktopBridge';
 import type { GameSave, SavedDam, SavedJunction, SavedLift, SavedNode, SavedPath, SavedPond, SavedRoad, SavedTrail, TerrainPackageProgress, TerrainRecord } from '../types';
 import { loadTerrain, saveTerrain, saveTerrainCover } from '../terrainStorageClient';
@@ -33,8 +32,9 @@ import { useMapWorkers } from './useMapWorkers';
 import { TERRAIN_CLEAN, designHasEdits, designOf, flushTerrainEdits, terrainHasEdits, withTerrainEdit, type DesignSnapshot, type TerrainDirty } from './unsavedChanges';
 import { refreshTerrainGradeSources, setGradedContourPreview, setTerrainContourData } from './terrainGradeMap';
 import { withResumeCheckpoint } from './resumeCheckpoint';
-import { TerrainDocument, type TerrainDocumentPorts, type TerrainPublication, type TerrainRecordView } from './terrainDocument';
-import { TopologyDocument, topologyProjection, type TopologyState } from './topologyDocument';
+import type { TerrainDocumentPorts, TerrainPublication, TerrainRecordView } from './terrainDocument';
+import { topologyProjection } from './topologyDocument';
+import { DesignSession } from './session/designSession';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
 import { captureGamePreview, gameSaveHeader, createWorkspaceNavigation, has3DBuildingContext, initialResortDesign, liftOperationsFor, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
@@ -211,7 +211,6 @@ export function MapView({
   const simulation = useGameSimulation({ initialSave, terrain: terrainRecord, initialTime: initialSave?.time,
     initialWeatherRun: initialSave?.weatherRun, snow, mapRef, renderQuality: settings.renderQuality, reducedMotion: settings.reducedMotion });
   const weatherConfigured = !!simulation.dual && (simulation.weatherPackage !== null || !!initialSave?.weatherRun || !['design-only', 'no-terrain'].includes(simulation.status)), weatherBlocked = weatherMutationBlocked(weatherConfigured, !!simulation.dual?.weatherReady);
-  const initialWeatherReadyRef = useRef(false); useEffect(() => { if (simulation.dual?.weatherReady) initialWeatherReadyRef.current = true; }, [simulation.dual?.weatherReady]);
   const gatedSimulation = weatherBlocked ? { ...simulation, togglePlayback: () => undefined, advancePlanningPeriod: () => Promise.resolve(), confirmTransition: () => Promise.resolve(), addSnow: () => Promise.reject(new Error('Weather is still loading.')) } : simulation;
   const [packageState, setPackageState] = useState<'ready' | 'loading' | 'missing' | 'preparing' | 'optimizing' | 'error'>(
     mode === 'playing' ? 'loading' : 'ready'
@@ -244,24 +243,45 @@ export function MapView({
   const [skiNodes, setSkiNodes] = useState<SavedNode[]>(initialDesign.nodes);
   const [skiPaths, setSkiPaths] = useState<SavedPath[]>(initialDesign.paths);
   const [junctions, setJunctions] = useState<SavedJunction[]>(initialDesign.junctions);
-  const committedTopologyRef = useRef<TopologyState>(
-    { trails, nodes: skiNodes, paths: skiPaths, junctions }
-  );
-  const topologyDocumentRef = useRef<TopologyDocument | null>(null);
-  if (!topologyDocumentRef.current) {
-    topologyDocumentRef.current = new TopologyDocument(
-      { trails, nodes: skiNodes, paths: skiPaths, junctions },
-      ({ snapshot, changed }) => {
+  const terrainPortsRef = useRef<TerrainDocumentPorts>({
+    cacheDisplayAssets: () => {},
+    activateProtocols: () => {},
+    publishState: () => {},
+    refreshSources: () => {},
+    publishPersisted: () => {},
+    publishConstruction: () => {},
+  });
+  const designSessionRef = useRef<DesignSession | null>(null);
+  if (!designSessionRef.current) {
+    designSessionRef.current = new DesignSession({
+      identity: { id: initialSave?.key ?? genId(), terrainKey: initialSave?.terrainKey ?? null },
+      topology: { trails, nodes: skiNodes, paths: skiPaths, junctions },
+      lifts,
+      ports: {
+        terrain: {
+          cacheDisplayAssets: (record) => terrainPortsRef.current.cacheDisplayAssets(record),
+          activateProtocols: (record) => terrainPortsRef.current.activateProtocols(record),
+          publishState: (publication) => terrainPortsRef.current.publishState(publication),
+          refreshSources: (publication) => terrainPortsRef.current.refreshSources(publication),
+          publishPersisted: () => terrainPortsRef.current.publishPersisted(),
+          publishConstruction: (activity) => terrainPortsRef.current.publishConstruction(activity),
+          reportPublicationFailure: (failure) => terrainPortsRef.current.reportPublicationFailure?.(failure),
+        },
+        publishTopology: ({ snapshot, changed }) => {
         const projection = topologyProjection(snapshot);
-        committedTopologyRef.current = projection;
         if (changed.trails) setTrails(projection.trails);
         if (changed.nodes) setSkiNodes(projection.nodes);
         if (changed.paths) setSkiPaths(projection.paths);
         if (changed.junctions) setJunctions(projection.junctions);
-      }
-    );
+        },
+        publishLifts: (next) => setLifts(structuredClone(next) as SavedLift[]),
+        publishFailure: (failure) => console.warn('Design presentation publication failed.', failure),
+      },
+    });
   }
-  const topology = topologyDocumentRef.current;
+  const designSession = designSessionRef.current;
+  const topology = designSession.topology;
+  const terrain = designSession.terrain;
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
   const [selectedLakeId, setSelectedLakeId] = useState<string | null>(null);
@@ -283,21 +303,25 @@ export function MapView({
   };
   const markTerrainEdited = (kind: 'elevation' | 'cover') =>
     setTerrainDirty(withTerrainEdit(terrainDirtyRef.current, kind));
-  const [savedDesign, setSavedDesign] = useState<DesignSnapshot>(() => ({
-    name: initialSave?.name ?? '',
-    site: initialSave?.site ?? null,
-    lifts, trails, roads, dams, ponds, buildings: initialDesign.buildings,
-    nodes: skiNodes, paths: skiPaths, junctions, snowmakingNodes, snowmakingPipes, snowguns,
-    snowmakingNodeNextNumbers,
-    lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds, streamWidthOverrides,
-  }));
+  const [savedDesign, setSavedDesign] = useState<DesignSnapshot>(() => {
+    const committed = designSession.read.persistenceSnapshot();
+    return {
+      name: initialSave?.name ?? '',
+      site: initialSave?.site ?? null,
+      lifts: committed.lifts as unknown as SavedLift[],
+      trails: committed.trails as unknown as SavedTrail[],
+      roads, dams, ponds, buildings: initialDesign.buildings,
+      nodes: committed.nodes as unknown as SavedNode[],
+      paths: committed.paths as unknown as SavedPath[],
+      junctions: committed.junctions as unknown as SavedJunction[],
+      snowmakingNodes, snowmakingPipes, snowguns, snowmakingNodeNextNumbers,
+      lakeDepthOverrides, lakeNameOverrides, snowmakingLakeIds, streamWidthOverrides,
+    };
+  });
   const [buildingActivity, setBuildingActivity] = useState<Parameters<TerrainDocumentPorts['publishConstruction']>[0]>(null);
   const committedBuildingsRef = useRef(initialDesign.buildings);
   const building = buildingActivity !== null;
-  const network = useMemo(
-    () => buildSkiNetwork(trails, lifts, { nodes: skiNodes, paths: skiPaths, junctions }),
-    [trails, lifts, skiNodes, skiPaths, junctions]
-  );
+  const network = designSession.read.snapshot().network;
   useEffect(() => {
     (window as unknown as { appNetwork?: typeof network }).appNetwork = network;
   }, [network]);
@@ -404,7 +428,9 @@ export function MapView({
       { cursor: 'crosshair', dragPanEnabled: true, doubleClickZoomEnabled: true }),
     synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('guest'), onPresentationCommitted: () => { guestPresentationVersionRef.current += 1; } });
   const { portal: guestPortal, selectedGuestId, runtime: guestRuntime, controller: guestPortalController } = guests;
-  const loadReadinessRef = useRef({ simulationRestored: false, weatherReady: false }); loadReadinessRef.current = simulation.dual ? { simulationRestored: !!simulation.dual.ready && !!simulation.dual.publication && snow.publicationVersion > 1 && guestPresentationVersionRef.current > 0, weatherReady: !!simulation.dual.weatherReady } : { simulationRestored: simulation.status === 'ready' && guestRuntime.status === 'ready' && snow.publicationVersion > 0 && guestPresentationVersionRef.current > 0, weatherReady: true };
+  const loadReadinessRef = useRef({ simulationRestored: false, weatherReady: false }); loadReadinessRef.current = simulation.dual
+    ? { simulationRestored: !!simulation.dual.ready && !!simulation.dual.publication && snow.publicationVersion > 1 && guestPresentationVersionRef.current > 0, weatherReady: !!simulation.dual.weatherReady }
+    : { simulationRestored: simulation.status === 'ready' && guestRuntime.status === 'ready' && snow.publicationVersion > 0 && guestPresentationVersionRef.current > 0, weatherReady: true };
   guestPortalCancelRef.current = guestPortalController.cancel;
   const stopGuestFollowing = guests.stopFollowing;
   useEffect(() => {
@@ -442,37 +468,16 @@ export function MapView({
     doSampleRef,
     snowGridRef: snow.gridRef,
   });
-  const terrainPortsRef = useRef<TerrainDocumentPorts>({
-    cacheDisplayAssets: () => {},
-    activateProtocols: () => {},
-    publishState: () => {},
-    refreshSources: () => {},
-    publishPersisted: () => {},
-    publishConstruction: () => {},
-  });
-  const terrainDocumentRef = useRef<TerrainDocument | null>(null);
-  if (!terrainDocumentRef.current) {
-    terrainDocumentRef.current = new TerrainDocument({
-      cacheDisplayAssets: (record) => terrainPortsRef.current.cacheDisplayAssets(record),
-      activateProtocols: (record) => terrainPortsRef.current.activateProtocols(record),
-      publishState: (publication) => terrainPortsRef.current.publishState(publication),
-      refreshSources: (publication) => terrainPortsRef.current.refreshSources(publication),
-      publishPersisted: () => terrainPortsRef.current.publishPersisted(),
-      publishConstruction: (activity) => terrainPortsRef.current.publishConstruction(activity),
-    });
-  }
-  const terrain = terrainDocumentRef.current;
   const { damAnalysis, coverEdit, coverClear, terrainGrade, trailPaint, trailPresentation } = useMapWorkers(mapRef, terrain);
   const liftController = useLiftController({
     mapRef,
     lifts,
     commands: {
-      add: (lift) => setLifts((existing) => [...existing, lift]),
-      patch: (id, patch) => setLifts((existing) =>
-        existing.map((lift) => lift.id === id ? { ...lift, ...patch } : lift)),
-      remove: (id) => setLifts((existing) => existing.filter((lift) => lift.id !== id)),
+      add: (lift) => { designSession.commands.addLift(lift); },
+      patch: (id, patch) => { designSession.commands.patchLift(id, patch); },
+      remove: (id) => { designSession.commands.removeLift(id); },
     },
-    canArm: () => siteModeRef.current !== 'selecting' && !weatherBlocked,
+    canArm: () => siteModeRef.current !== 'selecting',
     activate: () => toolCoordinator.activate('lift'),
     release: () => { toolCoordinator.release('lift'); },
     clearSelection: clearSelectionState,
@@ -497,7 +502,7 @@ export function MapView({
     importedRoads: terrainRecord?.vectorFeatures?.roads, selectedRoadKey,
     selectRoad: (key) => transitionSelection({ kind: 'road', id: key }),
     addRoad: (road) => setRoads((existing) => [...existing, road]),
-    canArm: () => siteModeRef.current !== 'selecting' && !weatherBlocked,
+    canArm: () => siteModeRef.current !== 'selecting',
     activate: () => toolCoordinator.activate('road'),
     release: () => { toolCoordinator.release('road'); },
     openDock: () => setOpenDock('infrastructure'),
@@ -535,7 +540,7 @@ export function MapView({
       remove: (id) => setDams((existing) => existing.filter((dam) => dam.id !== id)),
       select: (id) => transitionSelection({ kind: 'dam', id }),
       clearSelected: (id) => setSelectedDamId((selected) => selected === id ? null : selected),
-      canArm: () => siteModeRef.current !== 'selecting' && !weatherBlocked,
+      canArm: () => siteModeRef.current !== 'selecting',
       activate: () => toolCoordinator.activate('dam'),
       release: () => { toolCoordinator.release('dam'); },
       openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
@@ -557,7 +562,7 @@ export function MapView({
       remove: (id) => setPonds((existing) => existing.filter((pond) => pond.id !== id)),
       select: (id) => transitionSelection({ kind: 'pond', id }),
       clearSelected: (id) => setSelectedPondId((selected) => selected === id ? null : selected),
-      canArm: () => siteModeRef.current !== 'selecting' && !weatherBlocked,
+      canArm: () => siteModeRef.current !== 'selecting',
       activate: () => toolCoordinator.activate('pond'),
       release: () => { toolCoordinator.release('pond'); },
       openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
@@ -574,7 +579,7 @@ export function MapView({
       selected: selectedSnowmakingNodeId ? { kind: 'node', id: selectedSnowmakingNodeId } :
         selectedSnowmakingPipeId ? { kind: 'pipe', id: selectedSnowmakingPipeId } :
           selectedSnowgunId ? { kind: 'gun', id: selectedSnowgunId } : null,
-      canArm: () => siteModeRef.current !== 'selecting' && !weatherBlocked,
+      canArm: () => siteModeRef.current !== 'selecting',
       activate: (tool) => toolCoordinator.activate(tool),
       release: (tool) => { toolCoordinator.release(tool); },
       openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
@@ -595,7 +600,7 @@ export function MapView({
       synchronizeMap: () => mapContributionRegistryRef.current?.synchronizeData('snowmaking'),
     },
     guns: { mapRef, nodes: snowmakingNodes, guns: snowguns, network: snowmakingNetwork,
-      canArm: () => siteModeRef.current !== 'selecting' && !weatherBlocked,
+      canArm: () => siteModeRef.current !== 'selecting',
       activate: (tool) => toolCoordinator.activate(tool),
       release: (tool) => { toolCoordinator.release(tool); },
       openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
@@ -611,7 +616,7 @@ export function MapView({
   const pumpHouse = usePumpHouseFeature({
     mapRef, initialBuildings: initialDesign.buildings, committedRef: committedBuildingsRef,
     guestPortal, terrain, snowmaking: snowmakingNetwork,
-    canArm: () => siteModeRef.current !== 'selecting' && !weatherBlocked,
+    canArm: () => siteModeRef.current !== 'selecting',
     activate: () => toolCoordinator.activate('building'),
     release: () => { toolCoordinator.release('building'); },
     openDock: () => setOpenDock('snowmaking'), clearSelection: clearSelectionState,
@@ -629,7 +634,7 @@ export function MapView({
 
   const nodePathController = useNodePathController({
     mapRef, trails, nodes: skiNodes, paths: skiPaths, junctions, topology,
-    canArm: () => siteModeRef.current !== 'selecting' && !weatherBlocked,
+    canArm: () => siteModeRef.current !== 'selecting',
     activate: (tool) => toolCoordinator.activate(tool),
     release: (tool) => { toolCoordinator.release(tool); },
     openDock: () => setOpenDock('trails'), clearSelection: clearSelectionState,
@@ -646,7 +651,7 @@ export function MapView({
     mapRef, lifts, trails, junctions, paths: skiPaths, selectedTrailId,
     theme: resolvedTheme, topology, terrain,
     gradeAdapter: terrainGrade, paintAdapter: trailPaint, presentationAdapter: trailPresentation,
-    canArm: () => siteModeRef.current !== 'selecting' && !weatherBlocked,
+    canArm: () => siteModeRef.current !== 'selecting',
     activate: () => toolCoordinator.activate('trail'),
     release: () => { toolCoordinator.release('trail'); },
     openDock: () => setOpenDock('trails'), clearSelection: clearSelectionState,
@@ -794,7 +799,7 @@ export function MapView({
     // Drops construction ownership and invalidates queued cover work and any
     // outstanding grade preview. The document stays usable, so a StrictMode
     // remount does not retire it.
-    terrain.dispose();
+    designSession.dispose();
     // Without this a cancelled load leaves warmResortTiles rasterizing against
     // a torn-down map for the rest of the tile set.
     warmAbortRef.current?.abort();
@@ -804,7 +809,7 @@ export function MapView({
     terrainGrade.dispose();
     // The document and the adapters are ref-held and never change identity, so
     // this stays a mount/unmount effect.
-  }, [terrain, damAnalysis, coverEdit, terrainGrade, trailPaint]);
+  }, [designSession, damAnalysis, coverEdit, terrainGrade, trailPaint]);
 
   // A saved resort does not enter gameplay until its mandatory local package
   // has loaded and passed manifest validation.
@@ -1133,7 +1138,8 @@ export function MapView({
   useElevationBackfill({
     getLifts: () => liftsRef.current,
     getTrails: () => trailsRef.current,
-    setLifts,
+    setLifts: (update) => { designSession.updateLifts((current) =>
+      typeof update === 'function' ? update(current) : update); },
     topology,
     samplePoint: samplePlanningTerrainOrNull,
     sampleProfile,
@@ -1332,10 +1338,6 @@ export function MapView({
   async function checkpointForExit(interactive = true): Promise<ExitCheckpointResult> {
     if (checkpointPromiseRef.current) return checkpointPromiseRef.current;
     const run = (async (): Promise<ExitCheckpointResult> => {
-      if (mode === 'playing' && skipsInitialWeatherCheckpoint(weatherConfigured, !!simulation.dual?.weatherReady, !initialWeatherReadyRef.current)) {
-        simulation.pause();
-        return { ok: true };
-      }
       const persisted = persistedSaveRef.current;
       const map = mapRef.current;
       if (!persisted) return { ok: true };
@@ -1392,21 +1394,22 @@ export function MapView({
     if (simulation.dual) simulation.pause();
     const map = mapRef.current;
     if (!map) return base;
-    const committedTopology = committedTopologyRef.current, committedTerrain = terrain.snapshot().record;
+    const committedDesign = designSession.read.persistenceSnapshot();
+    const committedTerrain = committedDesign.terrain;
     const runtime = simulation.snapshot();
     return {
       ...gameSaveHeader({ base, name: nameDraft, terrainKey: committedTerrain?.key, map,
         dual: !!simulation.dual, is3D: is3DRef.current, createId: genId }),
       site: siteBoxRef.current,
-      lifts: liftsRef.current,
-      trails: committedTopology.trails,
+      lifts: committedDesign.lifts as unknown as SavedLift[],
+      trails: committedDesign.trails as unknown as SavedTrail[],
       roads: roadsRef.current,
       dams: damsRef.current,
       ponds: pondsRef.current,
       buildings: committedBuildingsRef.current,
-      nodes: committedTopology.nodes,
-      paths: committedTopology.paths,
-      junctions: committedTopology.junctions,
+      nodes: committedDesign.nodes as unknown as SavedNode[],
+      paths: committedDesign.paths as unknown as SavedPath[],
+      junctions: committedDesign.junctions as unknown as SavedJunction[],
       snowmakingNodes: committedSnowmakingRef.current.nodes,
       snowmakingPipes: committedSnowmakingRef.current.pipes,
       snowguns: committedSnowmakingRef.current.guns,
@@ -1423,19 +1426,19 @@ export function MapView({
 
   /** The live design, for comparison against the last one written to disk. */
   function liveDesign(): DesignSnapshot {
-    const committedTopology = committedTopologyRef.current;
+    const committedDesign = designSession.read.persistenceSnapshot();
     return {
       name: saved?.name ?? initialSave?.name ?? '',
       site: siteBoxRef.current,
-      lifts: liftsRef.current,
-      trails: committedTopology.trails,
+      lifts: committedDesign.lifts as unknown as SavedLift[],
+      trails: committedDesign.trails as unknown as SavedTrail[],
       roads: roadsRef.current,
       dams: damsRef.current,
       ponds: pondsRef.current,
       buildings: committedBuildingsRef.current,
-      nodes: committedTopology.nodes,
-      paths: committedTopology.paths,
-      junctions: committedTopology.junctions,
+      nodes: committedDesign.nodes as unknown as SavedNode[],
+      paths: committedDesign.paths as unknown as SavedPath[],
+      junctions: committedDesign.junctions as unknown as SavedJunction[],
       snowmakingNodes: committedSnowmakingRef.current.nodes,
       snowmakingPipes: committedSnowmakingRef.current.pipes,
       snowguns: committedSnowmakingRef.current.guns,
@@ -1469,7 +1472,6 @@ export function MapView({
   }
 
   async function createSave() {
-    if (weatherBlocked) { setCheckpointError('Weather is still loading; the resort cannot be saved yet.'); return; }
     if (saving) return;
     setCheckpointError(null);
     setSaving(true);
@@ -1512,7 +1514,6 @@ export function MapView({
    *  goes first — a GameSave whose runs reference ungraded ground is the worse
    *  of the two half-written outcomes. */
   async function saveProgress(): Promise<boolean> {
-    if (weatherBlocked) { setCheckpointError('Weather is still loading; the resort cannot be saved yet.'); return false; }
     setCheckpointError(null);
     setSaving(true);
     try {
@@ -1533,7 +1534,6 @@ export function MapView({
   }
 
   async function restartGameInNewWindow(fullRestart = false): Promise<{ ok: true } | { ok: false; error: string }> {
-    if (weatherBlocked) return { ok: false, error: 'Weather is still loading; the resort cannot be restarted yet.' };
     if (fullRestart && !desktop) return { ok: false, error: 'restart-app requires the Electron desktop app.' };
     const saveKey = persistedSaveRef.current?.key ?? saved?.key;
     if (!saveKey) return { ok: false, error: 'No saved resort is open.' };
@@ -1556,7 +1556,6 @@ export function MapView({
    * save they asked for succeeded.
    */
   async function confirmExit(): Promise<boolean> {
-    if (mode === 'playing' && skipsInitialWeatherCheckpoint(weatherConfigured, !!simulation.dual?.weatherReady, !initialWeatherReadyRef.current)) return true;
     if (!saved || !hasUnsavedChanges()) return true;
     const choice = await new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
       unsavedChoiceRef.current = resolve;
@@ -1650,14 +1649,14 @@ export function MapView({
           reveal: () => bootControls.current?.reveal(true),
         } : null}
         menu={{
-          canSave: !!saved && !weatherBlocked,
+          canSave: !!saved,
           saving,
           unsaved: !!saved && hasUnsavedChanges(),
-          onSave: () => { if (!weatherBlocked) void saveProgress(); },
+          onSave: () => { void saveProgress(); },
           onLoad: onLoadGame,
           onSettings: onOpenSettings,
           onCredits: () => setShowCredits(true),
-          onRebuildCover: terrainRecord && terrainRecord.schemaVersion < 6 && !weatherBlocked
+          onRebuildCover: terrainRecord && terrainRecord.schemaVersion < 6
             ? () => { void repairAndContinue(); } : undefined,
           onQuit,
         }}
@@ -1687,9 +1686,9 @@ export function MapView({
             selectedLiftId: dashboards.liftId, selectedEdgeId: dashboards.edgeId,
             onSelectLift: dashboards.setLiftId,
             onSelectEdge: (id) => { dashboards.setLiftId(null); dashboards.setEdgeId(id); },
-            onToggleTrailClosed: (id, closed) => { if (!weatherBlocked) patchTrail(id, { closed }); },
-            onToggleLiftClosed: (id, closed) => { if (!weatherBlocked) patchLift(id, { closed }); },
-            onTogglePathClosed: (id, closed) => { if (!weatherBlocked) patchSkiPath(id, { closed }); },
+            onToggleTrailClosed: (id, closed) => { patchTrail(id, { closed }); },
+            onToggleLiftClosed: (id, closed) => { patchLift(id, { closed }); },
+            onTogglePathClosed: (id, closed) => { patchSkiPath(id, { closed }); },
           },
           snowmakingProps: { ...snowmakingDashboardProps({
             dams, ponds, lakes: snowmakingLakes ?? [], trails, lifts, nodes: snowmakingNodes,
@@ -1752,20 +1751,20 @@ export function MapView({
           selectRoad: (id) => transitionSelection({ kind: 'road', id: `player:${id}` }),
           clearSelectedLake: () => setSelectedLakeId(null),
           clearSelectedStream: () => setSelectedStreamId(null),
-          setLakeName: (id, name) => { if (weatherBlocked) return; setLakeNameOverrides((current) => {
+          setLakeName: (id, name) => { setLakeNameOverrides((current) => {
             const next = { ...current };
             if (name == null) delete next[id]; else next[id] = name;
             return next;
           }); },
-          setLakeDepth: (id, depth) => { if (weatherBlocked) return; setLakeDepthOverrides((current) => {
+          setLakeDepth: (id, depth) => { setLakeDepthOverrides((current) => {
             const next = { ...current };
             if (depth == null) delete next[id]; else next[id] = depth;
             return next;
           }); },
-          setLakeSnowmaking: (id, enabled) => { if (weatherBlocked) return; setSnowmakingLakeIds((current) => enabled
+          setLakeSnowmaking: (id, enabled) => { setSnowmakingLakeIds((current) => enabled
             ? current.includes(id) ? current : [...current, id]
             : current.filter((lakeId) => lakeId !== id)); },
-          setStreamWidth: (id, width) => { if (weatherBlocked) return; setStreamWidthOverrides((current) => {
+          setStreamWidth: (id, width) => { setStreamWidthOverrides((current) => {
             const next = { ...current };
             if (width == null) delete next[id]; else next[id] = width;
             return next;

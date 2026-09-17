@@ -55,6 +55,13 @@ export interface TopologyChange {
   readonly changed: TopologyChanged;
 }
 
+export interface TopologyPublicationFailure {
+  readonly document: 'topology';
+  readonly target: 'publishChange';
+  readonly revision: number;
+  readonly error: unknown;
+}
+
 export type TopologyCommitResult =
   | { ok: true; revision: number; changed: boolean }
   | { ok: false; reason: 'stale' | 'settled' };
@@ -304,15 +311,21 @@ export class TopologyTransaction {
 export class TopologyDocument {
   private current: MutableTopologySnapshot;
   private readonly onChange: (change: TopologyChange) => void;
+  private readonly onPublicationFailure: (failure: TopologyPublicationFailure) => void;
 
   /**
    * The clean load: hydrated, sanitized collections seeded at revision zero.
    * There is no runtime replacement command because opening another resort
    * remounts the session rather than swapping a document underneath it.
    */
-  constructor(initial: TopologyState, onChange: (change: TopologyChange) => void = () => {}) {
+  constructor(
+    initial: TopologyState,
+    onChange: (change: TopologyChange) => void = () => {},
+    onPublicationFailure: (failure: TopologyPublicationFailure) => void = () => {},
+  ) {
     this.current = ownedSnapshot(initial, 0);
     this.onChange = onChange;
+    this.onPublicationFailure = onPublicationFailure;
   }
 
   snapshot(): TopologySnapshot {
@@ -374,7 +387,12 @@ export class TopologyDocument {
     if (state.owner !== this || !state.applied || state.published) return;
     state.published = true;
     if (prepared.changed) {
-      this.onChange({ snapshot: state.snapshot, changed: state.changedCollections });
+      try { this.onChange({ snapshot: state.snapshot, changed: state.changedCollections }); }
+      catch (error) {
+        try { this.onPublicationFailure({
+          document: 'topology', target: 'publishChange', revision: prepared.revision, error,
+        }); } catch { /* Failure reporting is non-authoritative. */ }
+      }
     }
   }
 }

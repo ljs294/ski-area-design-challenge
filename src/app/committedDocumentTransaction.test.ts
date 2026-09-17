@@ -153,4 +153,42 @@ describe('committed terrain/topology transaction', () => {
     expect(result).toEqual({ ok: false, reason: 'topology-settled' });
     expect(terrain.snapshot().record?.key).toBe('base');
   });
+
+  it('keeps an accepted commit successful and completes required notifications after presentation throws', () => {
+    const failures: string[] = [];
+    let topology!: TopologyDocument;
+    const state = vi.fn();
+    const sources = vi.fn();
+    const terrain = new TerrainDocument({
+      cacheDisplayAssets: () => { throw new Error('GPU cache failed'); },
+      activateProtocols: vi.fn(),
+      publishState: state,
+      refreshSources: sources,
+      publishPersisted: vi.fn(),
+      publishConstruction: vi.fn(),
+      reportPublicationFailure: (failure) => failures.push(`${failure.document}:${failure.target}`),
+    });
+    terrain.replace(record('base'));
+    state.mockClear(); sources.mockClear(); failures.length = 0;
+    const topologyState = vi.fn(() => { throw new Error('React projection failed'); });
+    topology = new TopologyDocument(emptyTopology(), topologyState,
+      (failure) => failures.push(`${failure.document}:${failure.target}`));
+    const edit = topology.begin();
+    edit.addNode(node('accepted-once'));
+
+    const result = commitDocuments({
+      terrain,
+      topology: edit,
+      terrainCommit: { expectedRevision: 1, record: record('graded'), kind: 'elevation' },
+    });
+
+    expect(result).toMatchObject({ ok: true, terrainRevision: 2, topologyRevision: 1 });
+    expect(terrain.snapshot().record?.key).toBe('graded');
+    expect(topology.snapshot().nodes.map((entry) => entry.id)).toEqual(['accepted-once']);
+    expect(state).toHaveBeenCalledTimes(1);
+    expect(sources).toHaveBeenCalledTimes(1);
+    expect(topologyState).toHaveBeenCalledTimes(1);
+    expect(failures).toEqual(['terrain:cacheDisplayAssets', 'topology:publishChange']);
+    expect(edit.commit()).toEqual({ ok: false, reason: 'settled' });
+  });
 });

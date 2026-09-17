@@ -66,6 +66,62 @@ export type TerrainPrepareResult =
   | { ok: true; prepared: PreparedTerrainCommit }
   | { ok: false; reason: 'stale' };
 
+type NumericAsset = number[] | Float32Array | Uint8Array;
+
+function ownAsset<T extends NumericAsset | undefined>(asset: T, retained?: T): T {
+  if (asset === undefined || asset === retained) return asset;
+  const owned = asset.slice() as T;
+  if (Array.isArray(owned)) Object.freeze(owned);
+  return owned;
+}
+
+function freezeMetadata(value: unknown): void {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value) || ArrayBuffer.isView(value)) return;
+  for (const child of Object.values(value)) freezeMetadata(child);
+  Object.freeze(value);
+}
+
+/** Take ownership of source buffers once. Assets retained from the current
+ * snapshot keep their identity; replacement assets are copied so a caller can
+ * neither mutate nor transfer the session's only authoritative buffer. */
+function ownedRecord(record: TerrainRecord, current: TerrainRecord | null): TerrainRecord {
+  const ownGrid = <T extends TerrainRecord['coverGrid'] | TerrainRecord['originalCoverGrid']>(
+    grid: T, retained: T,
+  ): T => {
+    if (!grid || grid === retained) return grid;
+    const { data, ...metadata } = grid;
+    return { ...structuredClone(metadata), data: ownAsset(data) } as T;
+  };
+  let surround = record.surround;
+  if (surround && surround !== current?.surround) {
+    const { heights, ...metadata } = surround;
+    surround = { ...structuredClone(metadata), heights: ownAsset(heights) };
+  }
+  const owned: TerrainRecord = {
+    ...record,
+    sampleHeights: ownAsset(record.sampleHeights, current?.sampleHeights),
+    surround,
+    coverGrid: ownGrid(record.coverGrid, current?.coverGrid),
+    originalCoverGrid: ownGrid(record.originalCoverGrid, current?.originalCoverGrid),
+    coverBoundarySegments: ownAsset(record.coverBoundarySegments, current?.coverBoundarySegments),
+    coverDisplayGeometry: ownAsset(record.coverDisplayGeometry, current?.coverDisplayGeometry),
+    localImagery: ownAsset(record.localImagery, current?.localImagery),
+    contourSegments: ownAsset(record.contourSegments, current?.contourSegments),
+    bounds: record.bounds === current?.bounds ? record.bounds : structuredClone(record.bounds),
+    coverMetadata: record.coverMetadata === current?.coverMetadata ? record.coverMetadata : structuredClone(record.coverMetadata),
+    originalCoverMetadata: record.originalCoverMetadata === current?.originalCoverMetadata ? record.originalCoverMetadata : structuredClone(record.originalCoverMetadata),
+    coverGeometryMetadata: record.coverGeometryMetadata === current?.coverGeometryMetadata ? record.coverGeometryMetadata : structuredClone(record.coverGeometryMetadata),
+    coverDisplayMetadata: record.coverDisplayMetadata === current?.coverDisplayMetadata ? record.coverDisplayMetadata : structuredClone(record.coverDisplayMetadata),
+    localImageryMetadata: record.localImageryMetadata === current?.localImageryMetadata ? record.localImageryMetadata : structuredClone(record.localImageryMetadata),
+    contourMetadata: record.contourMetadata === current?.contourMetadata ? record.contourMetadata : structuredClone(record.contourMetadata),
+    packageManifest: record.packageManifest === current?.packageManifest ? record.packageManifest : structuredClone(record.packageManifest),
+    climate: record.climate === current?.climate ? record.climate : structuredClone(record.climate),
+    vectorFeatures: record.vectorFeatures === current?.vectorFeatures ? record.vectorFeatures : structuredClone(record.vectorFeatures),
+  };
+  freezeMetadata(owned);
+  return owned;
+}
+
 /**
  * Everything one terrain change has to touch, in the order a coherent
  * publication needs it: the caches feed the protocols and the map sources, and
@@ -79,6 +135,16 @@ export interface TerrainDocumentPorts {
   /** The pending edits reached disk; the document is clean again. */
   publishPersisted(): void;
   publishConstruction(activity: ConstructionActivity | null): void;
+  /** Publication is best-effort after an authoritative commit. Failures are
+   * reported as renderer/application status and never escape as command failure. */
+  reportPublicationFailure?(failure: TerrainPublicationFailure): void;
+}
+
+export interface TerrainPublicationFailure {
+  readonly document: 'terrain';
+  readonly target: keyof Omit<TerrainDocumentPorts, 'reportPublicationFailure'>;
+  readonly revision: number;
+  readonly error: unknown;
 }
 
 /**
@@ -166,7 +232,7 @@ export class TerrainDocument {
   prepareCommit(request: TerrainCommitRequest): TerrainPrepareResult {
     if (request.expectedRevision !== this.current.revision) return { ok: false, reason: 'stale' };
     const revision = this.current.revision + 1;
-    const record = Object.freeze({ ...request.record });
+    const record = ownedRecord(request.record, this.current.record);
     const publication = Object.freeze({ record, revision, edit: request.kind });
     return { ok: true, prepared: {
       revision,
@@ -254,11 +320,7 @@ export class TerrainDocument {
     preserveDirty = false,
   ): void {
     const revision = this.current.revision + 1;
-    // Copy and freeze the record shell once at publication. Large elevation,
-    // cover, contour, and imagery payloads are deliberately not deep-cloned;
-    // the public snapshot projects them recursively read-only and every edit
-    // creates replacement payloads before it reaches this ownership boundary.
-    const owned = Object.freeze({ ...record });
+    const owned = ownedRecord(record, this.current.record);
     this.current = Object.freeze({ record: owned, revision });
     const publication: TerrainPublication = Object.freeze({ record: owned, revision, edit,
       ...(preserveDirty ? { preserveDirty: true } : {}) });
@@ -266,9 +328,22 @@ export class TerrainDocument {
   }
 
   private publishToPorts(publication: TerrainPublication): void {
-    this.ports.cacheDisplayAssets(publication.record);
-    this.ports.activateProtocols(publication.record);
-    this.ports.publishState(publication);
-    this.ports.refreshSources(publication);
+    const calls: Array<[TerrainPublicationFailure['target'], () => void]> = [
+      ['cacheDisplayAssets', () => this.ports.cacheDisplayAssets(publication.record)],
+      ['activateProtocols', () => this.ports.activateProtocols(publication.record)],
+      ['publishState', () => this.ports.publishState(publication)],
+      ['refreshSources', () => this.ports.refreshSources(publication)],
+    ];
+    for (const [target, publish] of calls) {
+      try { publish(); }
+      catch (error) { this.reportPublicationFailure({
+        document: 'terrain', target, revision: publication.revision, error,
+      }); }
+    }
+  }
+
+  private reportPublicationFailure(failure: TerrainPublicationFailure): void {
+    try { this.ports.reportPublicationFailure?.(failure); }
+    catch { /* A status reporter is never allowed to reverse an accepted commit. */ }
   }
 }
