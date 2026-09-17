@@ -23,6 +23,9 @@ import {
   GAMESAVE_DELETE_CHANNEL,
   GAMESAVE_CAPTURE_PREVIEW_CHANNEL,
   GAMESAVE_LOAD_PREVIEW_CHANNEL,
+  DESIGN_SAVE_CHANNEL,
+  DESIGN_LOAD_CHANNEL,
+  DESIGN_LIST_CHANNEL,
   GUEST_SIMULATION_SAVE_CHECKPOINT_CHANNEL,
   GUEST_SIMULATION_LOAD_CHECKPOINT_CHANNEL,
   WINDOW_GET_MODE_CHANNEL,
@@ -67,6 +70,11 @@ const api = {
     delete: (key: string) => ipcRenderer.invoke(GAMESAVE_DELETE_CHANNEL, { key }),
     capturePreview: (key: string) => ipcRenderer.invoke(GAMESAVE_CAPTURE_PREVIEW_CHANNEL, { key }),
     loadPreview: (key: string) => ipcRenderer.invoke(GAMESAVE_LOAD_PREVIEW_CHANNEL, { key }),
+  },
+  designs: {
+    save: (draft: unknown) => ipcRenderer.invoke(DESIGN_SAVE_CHANNEL, { draft }),
+    load: (key: string) => ipcRenderer.invoke(DESIGN_LOAD_CHANNEL, { key }),
+    list: () => ipcRenderer.invoke(DESIGN_LIST_CHANNEL),
   },
   guestSimulation: {
     saveCheckpoint: (saveKey: string, gameSaveUpdatedAt: string, bytes: Uint8Array) => ipcRenderer.invoke(

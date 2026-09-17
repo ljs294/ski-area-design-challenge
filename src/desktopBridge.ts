@@ -24,6 +24,9 @@ import type {
   GameSaveDeleteResponse,
   GameSavePreviewCaptureResponse,
   GameSavePreviewLoadResponse,
+  DesignSaveIpcResponse,
+  DesignLoadIpcResponse,
+  DesignListIpcResponse,
   GuestSimulationCheckpointSaveResponse,
   GuestSimulationCheckpointLoadResponse,
   WindowMode,
@@ -31,6 +34,7 @@ import type {
 } from './ipcContract';
 import type { TerrainRecord } from './types';
 import type { GameSave } from './types';
+import type { DesignSaveDraft } from './types/designSave';
 import type { WeatherDataPackage } from './weather/weatherModel';
 import type { PreparedWeatherIdentity } from './weather/preparedWeatherModel';
 
@@ -69,6 +73,11 @@ export interface DesktopApi {
     delete(key: string): Promise<GameSaveDeleteResponse>;
     capturePreview(key: string): Promise<GameSavePreviewCaptureResponse>;
     loadPreview(key: string): Promise<GameSavePreviewLoadResponse>;
+  };
+  designs: {
+    save(draft: DesignSaveDraft): Promise<DesignSaveIpcResponse>;
+    load(key: string): Promise<DesignLoadIpcResponse>;
+    list(): Promise<DesignListIpcResponse>;
   };
   guestSimulation: {
     saveCheckpoint(saveKey: string, gameSaveUpdatedAt: string, bytes: Uint8Array): Promise<GuestSimulationCheckpointSaveResponse>;

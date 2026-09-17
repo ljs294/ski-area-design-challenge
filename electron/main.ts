@@ -4,6 +4,7 @@ import { restartArguments, resumeSaveArgument } from './restartArguments';
 import { fileURLToPath } from 'url';
 import { registerTerrainStorageHandlers } from './ipcTerrainStorage';
 import { registerGameSaveStorageHandlers } from './ipcGameSaveStorage';
+import { registerDesignStorageHandlers } from './ipcDesignStorage';
 import { registerGuestSimulationStorageHandlers } from './ipcGuestSimulationStorage';
 import { registerWeatherStorageHandlers } from './ipcWeatherStorage';
 import { registerOverpassRequestIdentity } from './overpassRequestIdentity';
@@ -166,6 +167,7 @@ app.whenReady().then(async () => {
   registerOverpassRequestIdentity(session.defaultSession.webRequest, app.getVersion());
   registerTerrainStorageHandlers();
   registerGameSaveStorageHandlers();
+  registerDesignStorageHandlers();
   registerGuestSimulationStorageHandlers();
   registerWeatherStorageHandlers();
   createWindow(resumeSaveArgument(process.argv));

@@ -12,6 +12,9 @@ import type {
   TerrainSummary,
   VectorFeatureSet,
 } from './types';
+import type {
+  DesignLoadResponse, DesignSaveDraft, DesignSaveResponse, DesignSaveSummary,
+} from './types/designSave';
 import type { WeatherChunkDescriptor, WeatherDataPackage } from './weather/weatherModel';
 import type { PreparedWeatherIdentity } from './weather/preparedWeatherModel';
 
@@ -36,6 +39,11 @@ export const GAMESAVE_LIST_CHANNEL = 'gamesave:list';
 export const GAMESAVE_DELETE_CHANNEL = 'gamesave:delete';
 export const GAMESAVE_CAPTURE_PREVIEW_CHANNEL = 'gamesave:capture-preview';
 export const GAMESAVE_LOAD_PREVIEW_CHANNEL = 'gamesave:load-preview';
+
+// --- Three.js fork design saves. Isolated from upstream GameSave storage. ---
+export const DESIGN_SAVE_CHANNEL = 'three-design:save';
+export const DESIGN_LOAD_CHANNEL = 'three-design:load';
+export const DESIGN_LIST_CHANNEL = 'three-design:list';
 
 // --- Guest simulation binary sidecars (Electron only; never browser storage). ---
 export const GUEST_SIMULATION_SAVE_CHECKPOINT_CHANNEL = 'guest-simulation:save-checkpoint';
@@ -89,6 +97,12 @@ export type GameSavePreviewCaptureResponse =
 export type GameSavePreviewLoadResponse =
   | { ok: true; dataUrl: string | null }
   | { ok: false; error: string };
+
+export interface DesignSaveRequest { draft: DesignSaveDraft }
+export type DesignSaveIpcResponse = DesignSaveResponse;
+export interface DesignLoadRequest { key: string }
+export type DesignLoadIpcResponse = DesignLoadResponse;
+export type DesignListIpcResponse = DesignSaveSummary[];
 
 export interface GuestSimulationCheckpointSaveRequest {
   saveKey: string;
