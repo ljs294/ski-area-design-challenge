@@ -267,7 +267,8 @@ export function usePondController(options: PondControllerOptions): PondControlle
         if (design.truncated || design.maxBermHeightM > MAX_POND_BERM_HEIGHT_M)
           throw new Error('The berm no longer fits this terrain. Adjust the top of pond and try again.');
         const result = optionsRef.current.terrain.commit({ expectedRevision: revision,
-          record: applyTerrainGradeToRecord(record as TerrainRecord, patch), kind: 'elevation' });
+          record: applyTerrainGradeToRecord(record as TerrainRecord, patch), kind: 'elevation',
+          changedSampleIndices: patch.patchIndices });
         if (!result.ok) throw new Error('The terrain changed while building. Redraw the pond.');
         const pond = pondFromDraft(draft, design, pondsRef.current,
           optionsRef.current.createId(), optionsRef.current.now());

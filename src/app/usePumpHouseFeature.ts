@@ -95,7 +95,8 @@ export function usePumpHouseFeature(options: PumpHouseFeatureOptions) {
       const terrainCommit = analysis.terrainGraded && terrainSnapshot.record
         ? { expectedRevision: terrainRevision,
           record: applyTerrainGradeToRecord(terrainSnapshot.record, analysis.terrainPatch),
-          kind: 'elevation' as const }
+          kind: 'elevation' as const,
+          changedSampleIndices: analysis.terrainPatch.patchIndices }
         : undefined;
       const result = commitBuildingDocuments({ terrain: options.terrain, building: buildingTx,
         snowmaking: networkTx, terrainCommit });

@@ -508,7 +508,8 @@ export function useTrailController(options: TrailControllerOptions): TrailContro
     if (result.trailGeometryKey !== gradeKey(draft)) throw new Error(
       'The trail changed after this grading preview. Recalculate the grade and try again.');
     return { expectedRevision: revision,
-      record: applyTerrainGradeToRecord(record as TerrainRecord, result), kind: 'elevation' };
+      record: applyTerrainGradeToRecord(record as TerrainRecord, result), kind: 'elevation',
+      changedSampleIndices: result.patchIndices };
   }
 
   async function confirm(): Promise<void> {

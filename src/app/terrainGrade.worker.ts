@@ -15,6 +15,7 @@ scope.onmessage = (event: MessageEvent<TerrainGradeRequest>) => {
     };
     scope.postMessage(response, [
       result.patchIndices.buffer, result.patchHeights.buffer,
+      result.gradedHeights.buffer,
       result.contourSegments.buffer, result.editedContourSegments.buffer,
     ]);
   } catch (error) {

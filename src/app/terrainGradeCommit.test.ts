@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { SiteCoverGrid, TerrainRecord } from '../types';
 import {
   contourMetadataOf,
+  checksumBytes,
   coverGeometryMetadataOf,
   coverMetadataOf,
   manifestOf,
+  float32Bytes,
   validateTerrainPackage,
 } from '../terrainPackage';
 import { applyTerrainGradeToRecord } from './terrainGradeCommit';
@@ -88,5 +90,23 @@ describe('terrain grade commit', () => {
       patchIndices: Uint32Array.from([99]),
       baseElevationChecksum: original.packageManifest!.elevationChecksum,
     })).toThrow(/invalid elevation/i);
+  });
+
+  it('accepts worker verification metadata without changing immutable asset metadata', () => {
+    const original = record();
+    const heights = Float32Array.from([1000, 1005, 1020, 1030]);
+    const contours = Float32Array.from([0, .25, 1, .75, 1005]);
+    const contourMetadata = contourMetadataOf(contours, 2, 6.096);
+    const upgraded = applyTerrainGradeToRecord(original, {
+      patchIndices: Uint32Array.of(1), patchHeights: Float32Array.of(1005),
+      contourSegments: contours, contourGridSize: 2, contourIntervalM: 6.096,
+      baseElevationChecksum: original.packageManifest!.elevationChecksum,
+      elevationChecksum: checksumBytes(float32Bytes(heights)), contourMetadata,
+    });
+
+    expect(upgraded.packageManifest?.elevationChecksum)
+      .toBe(checksumBytes(float32Bytes(heights)));
+    expect(upgraded.packageManifest?.cover).toEqual(original.packageManifest?.cover);
+    expect(validateTerrainPackage(upgraded)).toEqual({ ok: true, errors: [] });
   });
 });

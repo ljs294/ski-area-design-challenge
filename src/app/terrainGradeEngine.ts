@@ -3,6 +3,8 @@ import type { SavedTrailPart } from '../types';
 import { lngLatToUnit, unitToLngLat } from '../geo';
 import { traceContours } from '../marchingSquares';
 import { maskToPolygons } from '../coverPolygons';
+import { checksumBytes, contourMetadataOf, float32Bytes } from '../terrainPackage';
+import type { ContourMetadata } from '../types/terrain';
 import type { GradeEnvelope, TerrainGradePolicy } from './terrainGradeProtocol';
 import { designGradeLine, smoothTrailProfile, TRAVERSE_MAX_GRADE,
   TRAVERSE_MIN_GRADE } from './trailGradeLine';
@@ -39,6 +41,7 @@ export interface TerrainGradeInput extends TerrainGradePolicy {
 export interface TerrainGradeResult {
   patchIndices: Uint32Array;
   patchHeights: Float32Array;
+  gradedHeights: Float32Array;
   contourSegments: Float32Array;
   /** The subset of `contourSegments` lying on ground the grade changed — what
    * the map highlights so the player can see the shape of the edit. */
@@ -61,6 +64,10 @@ export interface TerrainGradeResult {
   maxDisturbedWidthM: number;
   infeasibleLines: [number, number][][];
   baseElevationChecksum: string;
+  /** Verification metadata computed while the worker owns the complete graded
+   * arrays, avoiding a second UI-thread pass over the mountain at commit. */
+  elevationChecksum: string;
+  contourMetadata: ContourMetadata;
 }
 
 type XY = { x: number; y: number };
@@ -668,10 +675,12 @@ export function gradeTerrainForTrail(input: TerrainGradeInput): TerrainGradeResu
   const flatten = (segments: typeof contours) => Float32Array.from(
     segments.flatMap((s) => [s.x1, s.y1, s.x2, s.y2, s.level]));
 
+  const contourSegments = flatten(contours);
   return {
     patchIndices: Uint32Array.from(patch.map(([index]) => index)),
     patchHeights: Float32Array.from(patch.map(([, value]) => value)),
-    contourSegments: flatten(contours),
+    gradedHeights: working,
+    contourSegments,
     // `traceContours` is called with mapSize 1, so segment coordinates are unit
     // [0,1] — scale them back onto the contour grid to test the edited mask.
     editedContourSegments: flatten(contours.filter((segment) => {
@@ -682,6 +691,8 @@ export function gradeTerrainForTrail(input: TerrainGradeInput): TerrainGradeResu
     })),
     contourGridSize,
     contourIntervalM,
+    elevationChecksum: checksumBytes(float32Bytes(working)),
+    contourMetadata: contourMetadataOf(contourSegments, contourGridSize, contourIntervalM),
     gradedElevations,
     expandedPolygons,
     disturbancePolygons,

@@ -32,6 +32,10 @@ export interface TerrainPublication {
   readonly revision: number;
   /** The edit this publication carries; `null` for a clean load or replacement. */
   readonly edit: TerrainEditKind | null;
+  /** Sparse source-height samples carried by an elevation edit. Renderers may
+   * use this provenance to update only affected chunks. Absence means the
+   * consumer must conservatively rebuild from the complete record. */
+  readonly changedSampleIndices?: readonly number[];
   /** Context was already persisted independently; retain any unrelated dirty flag. */
   readonly preserveDirty?: boolean;
 }
@@ -40,6 +44,7 @@ export interface TerrainCommitRequest {
   readonly expectedRevision: number;
   readonly record: TerrainRecord;
   readonly kind: TerrainEditKind;
+  readonly changedSampleIndices?: ArrayLike<number>;
 }
 
 export type TerrainCommitResult =
@@ -233,7 +238,11 @@ export class TerrainDocument {
     if (request.expectedRevision !== this.current.revision) return { ok: false, reason: 'stale' };
     const revision = this.current.revision + 1;
     const record = ownedRecord(request.record, this.current.record);
-    const publication = Object.freeze({ record, revision, edit: request.kind });
+    const changedSampleIndices = request.changedSampleIndices === undefined
+      ? undefined
+      : Object.freeze(Array.from(request.changedSampleIndices));
+    const publication = Object.freeze({ record, revision, edit: request.kind,
+      ...(changedSampleIndices ? { changedSampleIndices } : {}) });
     return { ok: true, prepared: {
       revision,
       [TERRAIN_PREPARATION]: {

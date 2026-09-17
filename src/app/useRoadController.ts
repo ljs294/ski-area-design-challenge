@@ -264,7 +264,8 @@ export function useRoadController(options: RoadControllerOptions): RoadControlle
         const { record, revision } = optionsRef.current.terrain.snapshot();
         if (!record) throw new Error('The local elevation package is unavailable.');
         const commit = optionsRef.current.terrain.commit({ expectedRevision: revision,
-          record: applyTerrainGradeToRecord(record as TerrainRecord, result), kind: 'elevation' });
+          record: applyTerrainGradeToRecord(record as TerrainRecord, result), kind: 'elevation',
+          changedSampleIndices: result.patchIndices });
         if (!commit.ok) throw new Error('The terrain changed while building. Refinish the route.');
         optionsRef.current.addRoad(road);
         gradeResultRef.current = null;

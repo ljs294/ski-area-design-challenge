@@ -13,6 +13,7 @@ import { useSettings } from '../../src/app/SettingsContext';
 import { Dialog, Icon } from '../../src/app/ui';
 import { ThreeViewport, type ThreeAnalysisOverlay, type ThreeViewportHandle } from './ThreeViewport';
 import type { ThreeFeatureSelection } from './terrainScene';
+import type { TerrainPresentationStatus } from './terrainPresentation';
 import './threeGameplay.css';
 
 interface Props {
@@ -37,6 +38,7 @@ export function DesignGameplayView({ bundle, onLoad, onQuit, onSaved }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [quitPrompt, setQuitPrompt] = useState(false);
   const [ready, setReady] = useState(false);
+  const [presentationStatus, setPresentationStatus] = useState<TerrainPresentationStatus | null>(null);
   const cameraDirty = JSON.stringify(camera) !== JSON.stringify(bundle.save.camera);
   const session = useMemo(() => new DesignSession({
     identity: { id: bundle.save.key, terrainKey: bundle.terrain.key },
@@ -45,7 +47,8 @@ export function DesignGameplayView({ bundle, onLoad, onQuit, onSaved }: Props) {
     topology: { trails: bundle.save.trails, nodes: bundle.save.nodes,
       paths: bundle.save.paths, junctions: bundle.save.junctions },
     ports: { terrain: {
-      cacheDisplayAssets: () => {}, activateProtocols: () => {}, publishState: () => {},
+      cacheDisplayAssets: () => {}, activateProtocols: () => {},
+      publishState: (publication) => viewport.current?.publishTerrain(publication),
       refreshSources: () => {}, publishPersisted: () => {}, publishConstruction: () => {},
     } },
   }), [bundle]);
@@ -83,7 +86,8 @@ export function DesignGameplayView({ bundle, onLoad, onQuit, onSaved }: Props) {
 
   return <GameWindows><main className="three-game-root">
     <ThreeViewport ref={viewport} bundle={bundle} overlay={overlay} selected={selected}
-      onSelect={select} onCameraChange={cameraChanged} onReady={rendererReady} />
+      onSelect={select} onCameraChange={cameraChanged} onPresentationStatus={setPresentationStatus}
+      onReady={rendererReady} />
     {!ready && <div className="three-loading">Building the Three.js mountain…</div>}
     <div className="workspace-shell game-window-shell three-game-chrome">
       <GameToolbar resortName={bundle.save.name} onOpenStats={() => setStatsOpen(true)}
@@ -98,7 +102,12 @@ export function DesignGameplayView({ bundle, onLoad, onQuit, onSaved }: Props) {
       <div className="top-right-stack"><View3DControl is3D={camera.is3D}
         onToggle={() => viewport.current?.toggleOverhead()} /></div>
       {toolboxOpen && <GameWindow id="three-build" title="Mountain design" onClose={() => setToolboxOpen(false)}>
-        <p className="three-capability-note">This Phase 2A workspace displays the saved design. Construction tools arrive in Phase 3.</p>
+        <p className="three-capability-note">The Three.js terrain now supports coherent graded-terrain updates. Construction tools arrive in Phase 3.</p>
+        {presentationStatus?.state !== 'ready' && <p className="three-capability-note" role="status">
+          {presentationStatus?.state === 'failed'
+            ? `Terrain display needs recovery: ${presentationStatus.message}`
+            : `Updating terrain display to revision ${presentationStatus?.committedRevision ?? ''}…`}
+        </p>}
         <h3>Lifts ({bundle.save.lifts.length})</h3>
         <div className="three-feature-list">{bundle.save.lifts.map((lift) => <button key={lift.id}
           onClick={() => setSelected({ kind: 'lift', id: lift.id })}>{lift.identifier ? `${lift.identifier} · ` : ''}{lift.name}</button>)}</div>

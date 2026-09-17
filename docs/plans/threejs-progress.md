@@ -1,11 +1,11 @@
 # Three.js migration progress
 
-Plan revision: 6  
-Branch / base / current SHA: `3js-edition` / `b915aef292da1bc31cd780b3555f3176a78ab5a7` / standalone-app working tree on `862667619c4e`
-Dirty work to preserve: the current P2-A host/interface implementation and these plan records.
+Plan revision: 7
+Branch / base / current SHA: `3js-edition` / `b915aef292da1bc31cd780b3555f3176a78ab5a7` / P2-B working tree on `dc54351`
+Dirty work to preserve: the current P2-B deformation implementation and these plan records.
 
-Completed/current task: P2-A — dedicated Three.js host and interface integration.
-Next task: P2-B — cumulative terrain deformation and coherent GPU activation.
+Completed/current task: P2-B — cumulative terrain deformation and coherent frame-boundary activation.
+Next task: P2-C — recovery, races, context recreation and lifecycle evidence.
 Implementation/review: primary Codex agent, direct implementation; no sub-agent was used because repository instructions did not request delegation.
 
 Changed decisions: select mixed display detail / active-neighborhood refinement because the 257² fixed display mesh measured 32.0 m maximum midpoint error on Doublehead. Proceed visually after fixing the core/surround color seam. Full evidence and budgets: [threejs-p0-evidence.md](threejs-p0-evidence.md).
@@ -44,6 +44,12 @@ Checks:
 - Original `npm run build:desktop` and standalone `npm run build:three` → pass; existing large-chunk warnings remain.
 - Dedicated Electron development application smoke → pass: standalone title, desktop preload bridge, menu and New Resort available with no page errors.
 - Electron-builder unpacked Windows package → pass using the pinned local Electron distribution; the independently named packaged executable remained running in a launch smoke.
+- P2-B standalone Three.js terrain/presentation suite → pass, 11 tests.
+- P2-B focused grade engine/protocol/client/commit/package suite → pass, 37 tests.
+- P2-B root and standalone type checks and root lint → pass.
+- P2-B focused changed-file lint, architecture/docs checks, standalone production build and original desktop production build → pass; existing large-chunk warnings remain.
+- P2-B real 2000² standalone terrain measurement, 20 samples → p95 worker-input copy 14.1 ms, verified record construction 1.2 ms, authoritative ownership 22.0 ms, sparse preparation wall time 21.5 ms, longest preparation slice 1.9 ms, CPU activation 3.3 ms, confirm-to-CPU-visible 46.7 ms; four affected chunks, 40,500 staged bytes and about 58.3 MB estimated simultaneous source/worker/edited/staging memory. Physical-GPU upload/frame tails remain unavailable.
+- P2-B full root unit attempt → 1,496 tests passed and 4 skipped; the same two pre-existing Node-test files were discovered as empty Vitest suites and kept the aggregate command at exit 1.
 
 Unavailable checks: qualified physical-GPU FPS/timing and full current/proposed matched camera capture. Existing current-game save preview and proposed near/typical/overhead captures were inspected; physical-GPU acceptance remains a P2/P4 requirement.
 
@@ -54,3 +60,5 @@ P1-B result: fork saves use their own format, schema and storage namespace and d
 P1-C result: injected failure after a new terrain generation but before head publication reloads the prior complete browser pair; a failed IndexedDB manifest add cannot move the head; stale/failed summaries reconstruct from the committed manifest. A real Electron launch saves through preload/IPC, restarts with a corrupted current head, and loads the previous complete design/terrain pair from the isolated namespace. Head replacement interruption restores the prior desktop head. Pending saves acknowledge only their captured revisions, detached worker staging leaves session-owned arrays intact, preview writes do not mutate authoritative saves, and accepted commits remain saveable when presentation consumers fail. No simulation engine is initialized by these fixtures.
 
 P2-A result: the product fork now lives under top-level `threejs-game/` as a separately launchable Electron application with its own main process, renderer entrypoint, launcher, package/build output, application-data directory and portable Windows packaging target. The original MapLibre game remains independently launchable. Selection/preparation writes a coherent design fork and hands its key to the Three.js screen machine without entering MapLibre gameplay. The host directly restores fork saves, committed session data, camera pose, terrain/surround elevations, cover colors, matched imagery, contours, site boundary, lifts, trails, paths and node/junction handles. Analytical heightfield picking remains independent of display triangles; feature hits use explicit handle/path/lift/trail priority. Existing menu, settings, credits, draggable windows, interface scaling and the fixed toolbar divisions are retained. Simulation, weather and construction are clearly unavailable rather than initialized or imitated. Camera saves and unsaved-exit handling work in the design-only host, and renderer/session resources dispose on exit.
+
+P2-B result: accepted elevation edits now publish owned sparse source-sample provenance. The Three.js presentation owner unions all unpresented edits, rejects stale prepared work, retains invalidation after failed activation and swaps a complete revision only at the world-frame boundary. Stable terrain topology/index buffers use dynamic position/normal/color ranges; sparse updates expand for interpolation/normal halos and shared chunks, while missing provenance uses an explicit full refresh. Shared-border normals derive from the same global height sampler. Contours, analytical picking state and an analytical-resolution interaction-neighborhood mesh activate with the terrain revision; terrain-dependent hits pause while presentation lags. Renderer staging arrays remain separate from authoritative/worker buffers. The grade worker returns its complete verified elevation grid plus checksums, eliminating the prior UI-thread whole-package re-hash while the terrain document still takes authoritative ownership. The real-package measurement meets the P0 application-thread, confirm-to-visible and memory budgets in the CPU lane; physical-GPU upload/frame-tail qualification remains outstanding.

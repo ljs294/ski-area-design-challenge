@@ -1,5 +1,6 @@
 import type { LatLonBounds } from '../types/geo';
 import type { SavedTrailPart } from '../types';
+import type { ContourMetadata } from '../types/terrain';
 
 /** How far grading may stray from the drawn feature. Trails must stay inside
  * the painted footprint — widening the run is the player's lever for making a
@@ -31,8 +32,10 @@ export interface TerrainGradeRequest extends TerrainGradePolicy {
 
 export type TerrainGradeResponse =
   | { id: number; ok: true; patchIndices: Uint32Array; patchHeights: Float32Array;
+      gradedHeights: Float32Array;
       contourSegments: Float32Array; editedContourSegments: Float32Array;
       contourGridSize: number; contourIntervalM: number;
+      elevationChecksum: string; contourMetadata: ContourMetadata;
       gradedElevations: number[][]; expandedPolygons: [number, number][][][];
       disturbancePolygons: [number, number][][][];
       cutM3: number; fillM3: number; balanceM3: number;

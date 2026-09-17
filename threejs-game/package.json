@@ -11,6 +11,7 @@
     "build": "node ../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json && node ../node_modules/vite/bin/vite.js build --config vite.config.ts",
     "typecheck": "node ../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
     "test": "node ../node_modules/vitest/vitest.mjs run src --testTimeout 10000",
+    "benchmark:terrain": "node ../node_modules/vitest/vitest.mjs run scripts/measureTerrainPresentation.test.ts --testTimeout 60000 --disableConsoleIntercept",
     "package": "npm run build && node ../node_modules/electron-builder/out/cli/cli.js"
   },
   "dependencies": {

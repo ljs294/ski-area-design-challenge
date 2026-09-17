@@ -455,7 +455,8 @@ export function useBuildingController(options: BuildingControllerOptions): Build
         throw new Error('The terrain commit service is unavailable.');
       const updated = applyTerrainGradeToRecord(terrainState.record, analysis.terrainPatch);
       const result = optionsValue.terrain.commit({ expectedRevision: terrainState.revision,
-        record: updated, kind: 'elevation' });
+        record: updated, kind: 'elevation',
+        changedSampleIndices: analysis.terrainPatch.patchIndices });
       if (!result.ok) throw new Error('The terrain changed while building. Redraw the pump house.');
     }
     const add = optionsValue.commands?.add ?? optionsValue.addBuilding;

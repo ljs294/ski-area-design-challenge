@@ -41,7 +41,7 @@ The in-progress Three.js version is a separate design-only Electron app under `t
 npm run dev:three
 ```
 
-It launches its own Electron process, independently of the original game. New Resort uses the shared map component only to choose and prepare terrain, then hands the saved fork to the Three.js workspace. The standalone edition uses its own application-data directory, executable configuration, build output, and fork saves. Simulation, weather, and construction are intentionally unavailable at the current Phase 2A milestone.
+It launches its own Electron process, independently of the original game. New Resort uses the shared map component only to choose and prepare terrain, then hands the saved fork to the Three.js workspace. The standalone edition uses its own application-data directory, executable configuration, build output, and fork saves. Phase 2B includes revision-safe incremental terrain deformation; simulation, weather, and construction tools remain intentionally unavailable until their planned phases.
 
 ## Start a mountain
 

@@ -70,6 +70,20 @@ describe('TerrainDocument revisions', () => {
     expect(calls).toEqual(['cache', 'protocols', 'state', 'sources']);
   });
 
+  it('owns sparse elevation provenance for renderer publication', () => {
+    const { spies, publications } = ports();
+    const document = new TerrainDocument(spies);
+    document.replace(record('base'));
+    const changed = Uint32Array.from([1, 3]);
+
+    document.commit({ expectedRevision: 1, record: record('graded'), kind: 'elevation',
+      changedSampleIndices: changed });
+    changed[0] = 0;
+
+    expect(publications.at(-1)?.changedSampleIndices).toEqual([1, 3]);
+    expect(Object.isFrozen(publications.at(-1)?.changedSampleIndices)).toBe(true);
+  });
+
   it('continues publication after a fallible presentation port throws', () => {
     const { spies, calls } = ports();
     const failures: string[] = [];

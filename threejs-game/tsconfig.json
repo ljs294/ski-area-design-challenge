@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": { "noEmit": true },
-  "include": ["src", "electron", "../electron/preload.ts"]
+  "include": ["src", "electron", "scripts", "../electron/preload.ts"]
 }

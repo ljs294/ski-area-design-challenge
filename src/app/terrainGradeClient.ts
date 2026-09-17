@@ -112,5 +112,8 @@ function isTerrainGradeResponse(value: unknown): value is TerrainGradeResponse {
   if (!Number.isSafeInteger(response.id) || typeof response.ok !== 'boolean') return false;
   if (!response.ok) return typeof response.error === 'string';
   return typeof response.baseElevationChecksum === 'string' &&
+    typeof response.elevationChecksum === 'string' &&
+    response.gradedHeights instanceof Float32Array &&
+    !!response.contourMetadata && typeof response.contourMetadata === 'object' &&
     typeof response.trailGeometryKey === 'string';
 }

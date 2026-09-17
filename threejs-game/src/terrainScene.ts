@@ -1,17 +1,8 @@
 import * as THREE from 'three';
 import type { DesignSaveDocument } from '../../src/types/designSave';
 import type { TerrainRecord } from '../../src/types/terrain';
-import { sampleTerrainCover, sampleTerrainElevation, type LocalTerrainFrame } from './terrainSurface';
-
-const COVER_COLORS: Record<number, THREE.Color> = {
-  1: new THREE.Color('#264f37'), 10: new THREE.Color('#264f37'),
-  2: new THREE.Color('#879b61'), 20: new THREE.Color('#6f8955'),
-  3: new THREE.Color('#a4af69'), 30: new THREE.Color('#a4af69'),
-  4: new THREE.Color('#315f72'), 80: new THREE.Color('#315f72'),
-  40: new THREE.Color('#b0aa72'), 50: new THREE.Color('#857d70'),
-  60: new THREE.Color('#a59b81'), 70: new THREE.Color('#e5e5dc'),
-  90: new THREE.Color('#668878'), 95: new THREE.Color('#55796f'), 100: new THREE.Color('#8b9570'),
-};
+import { sampleTerrainElevation, type LocalTerrainFrame } from './terrainSurface';
+import { createTerrainMeshPresentation, type TerrainMeshStage } from './terrainMeshPresentation';
 
 export type ThreeFeatureKind = 'lift' | 'trail' | 'node' | 'path' | 'junction';
 export interface ThreeFeatureSelection { kind: ThreeFeatureKind; id: string }
@@ -20,7 +11,18 @@ export interface TerrainSceneResult {
   pickables: THREE.Object3D[];
   contours: THREE.Group;
   imagery: THREE.Group;
+  prepareTerrain(record: TerrainRecord, changedSampleIndices?: readonly number[]): Promise<TerrainSceneStage>;
+  activateTerrain(stage: TerrainSceneStage): void;
+  refineTerrainAt(record: TerrainRecord, x: number, z: number): void;
   dispose(): void;
+}
+
+export interface TerrainSceneStage {
+  readonly record: TerrainRecord;
+  readonly mesh: TerrainMeshStage;
+  readonly contourPositions: Float32Array;
+  readonly imageryPositions?: Float32Array;
+  readonly boundaryPositions?: Float32Array;
 }
 
 function sampledPoint(frame: LocalTerrainFrame, record: TerrainRecord,
@@ -51,48 +53,9 @@ function disposeTree(root: THREE.Object3D): void {
   });
 }
 
-function terrainMeshes(record: TerrainRecord, frame: LocalTerrainFrame,
-  resolution = 257, chunkCells = 64): THREE.Group {
-  const group = new THREE.Group(), cells = resolution - 1;
-  for (let rowStart = 0; rowStart < cells; rowStart += chunkCells) {
-    for (let columnStart = 0; columnStart < cells; columnStart += chunkCells) {
-      const rows = Math.min(chunkCells, cells - rowStart), columns = Math.min(chunkCells, cells - columnStart);
-      const positions = new Float32Array((rows + 1) * (columns + 1) * 3);
-      const colors = new Float32Array(positions.length);
-      const indices = new Uint32Array(rows * columns * 6);
-      let vertex = 0;
-      for (let row = 0; row <= rows; row++) for (let column = 0; column <= columns; column++) {
-        const u = (columnStart + column) / cells, v = (rowStart + row) / cells;
-        const x = (u - .5) * frame.widthM, z = (v - .5) * frame.depthM;
-        const [lng, lat] = frame.toLngLat(x, z);
-        const elevation = sampleTerrainElevation(record, lng, lat) ?? frame.centerElevationM;
-        const height = THREE.MathUtils.clamp((elevation - frame.centerElevationM + 300) / 1_100, 0, 1);
-        const base = new THREE.Color('#66745f').lerp(new THREE.Color('#d9ddd1'), height);
-        const cover = COVER_COLORS[sampleTerrainCover(record, lng, lat) ?? -1];
-        const color = cover ? base.clone().lerp(cover, .86) : base;
-        positions.set([x, elevation - frame.centerElevationM, z], vertex * 3);
-        colors.set([color.r, color.g, color.b], vertex * 3); vertex++;
-      }
-      let index = 0;
-      for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
-        const a = row * (columns + 1) + column, b = a + 1, c = a + columns + 1, d = c + 1;
-        indices.set([a, c, b, b, c, d], index); index += 6;
-      }
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-      geometry.setIndex(new THREE.BufferAttribute(indices, 1)); geometry.computeVertexNormals();
-      geometry.computeBoundingSphere();
-      group.add(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true,
-        roughness: .92, metalness: 0, side: THREE.DoubleSide })));
-    }
-  }
-  return group;
-}
-
-function contourLines(record: TerrainRecord, frame: LocalTerrainFrame): THREE.Group {
-  const group = new THREE.Group(), segments = record.contourSegments ?? [], bounds = record.bounds;
-  if (!bounds) return group;
+function contourPositions(record: TerrainRecord, frame: LocalTerrainFrame): Float32Array {
+  const segments = record.contourSegments ?? [], bounds = record.bounds;
+  if (!bounds) return new Float32Array();
   const points: number[] = [];
   for (let index = 0; index + 4 < segments.length; index += 5) {
     for (const offset of [0, 2]) {
@@ -102,12 +65,15 @@ function contourLines(record: TerrainRecord, frame: LocalTerrainFrame): THREE.Gr
       points.push(local[0], local[1] + 1.2, local[2]);
     }
   }
-  if (points.length) {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-    group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0xf4f0da,
-      transparent: true, opacity: .55 })));
-  }
+  return Float32Array.from(points);
+}
+
+function contourLines(record: TerrainRecord, frame: LocalTerrainFrame): THREE.Group {
+  const group = new THREE.Group();
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(contourPositions(record, frame), 3));
+  group.add(new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ color: 0xf4f0da,
+    transparent: true, opacity: .55 })));
   return group;
 }
 
@@ -153,31 +119,48 @@ function boundary(save: DesignSaveDocument, record: TerrainRecord, frame: LocalT
     { kind: 'junction', id: '__site-boundary' }, 2);
 }
 
+function boundaryPositions(save: DesignSaveDocument, record: TerrainRecord,
+  frame: LocalTerrainFrame): Float32Array | undefined {
+  if (!save.site) return undefined;
+  const [[west, south], [east, north]] = save.site.bounds;
+  const points: [number, number][] = [[west, north], [east, north], [east, south], [west, south], [west, north]];
+  return Float32Array.from(points.flatMap((point) => sampledPoint(frame, record, point).toArray()));
+}
+
+function drapeImagery(record: TerrainRecord, frame: LocalTerrainFrame,
+  geometry: THREE.BufferGeometry): Float32Array {
+  const source = geometry.getAttribute('position') as THREE.BufferAttribute;
+  const positions = new Float32Array(source.count * 3);
+  for (let index = 0; index < source.count; index++) {
+    const x = source.getX(index), z = source.getZ(index);
+    const [lng, lat] = frame.toLngLat(x, z);
+    const elevation = sampleTerrainElevation(record, lng, lat) ?? frame.centerElevationM;
+    positions.set([x, elevation - frame.centerElevationM + 1.5, z], index * 3);
+  }
+  return positions;
+}
+
 function imageryOverlay(record: TerrainRecord, frame: LocalTerrainFrame): THREE.Group {
   const group = new THREE.Group(), metadata = record.localImageryMetadata, bytes = record.localImagery;
   if (!metadata || !bytes) return group;
+  const geometry = new THREE.PlaneGeometry(
+    (metadata.bounds.east - metadata.bounds.west) / (frame.bounds.east - frame.bounds.west) * frame.widthM,
+    (metadata.bounds.north - metadata.bounds.south) / (frame.bounds.north - frame.bounds.south) * frame.depthM,
+    64, 64);
+  geometry.rotateX(-Math.PI / 2);
+  const centerLng = (metadata.bounds.west + metadata.bounds.east) / 2;
+  const centerLat = (metadata.bounds.south + metadata.bounds.north) / 2;
+  const center = frame.toLocal(centerLng, centerLat);
+  geometry.translate(center[0], 0, center[2]);
+  (geometry.getAttribute('position') as THREE.BufferAttribute).set(drapeImagery(record, frame, geometry));
+  geometry.computeVertexNormals();
+  const material = new THREE.MeshBasicMaterial({ transparent: true, opacity: .58, depthWrite: false });
+  const mesh = new THREE.Mesh(geometry, material); group.add(mesh);
   const url = URL.createObjectURL(new Blob([Uint8Array.from(bytes).buffer], { type: metadata.mimeType }));
   new THREE.TextureLoader().load(url, (texture) => {
     URL.revokeObjectURL(url); texture.colorSpace = THREE.SRGBColorSpace;
     if (group.userData.disposed) { texture.dispose(); return; }
-    const geometry = new THREE.PlaneGeometry(
-      (metadata.bounds.east - metadata.bounds.west) / (frame.bounds.east - frame.bounds.west) * frame.widthM,
-      (metadata.bounds.north - metadata.bounds.south) / (frame.bounds.north - frame.bounds.south) * frame.depthM,
-      64, 64);
-    geometry.rotateX(-Math.PI / 2);
-    const positions = geometry.attributes.position as THREE.BufferAttribute;
-    const centerLng = (metadata.bounds.west + metadata.bounds.east) / 2;
-    const centerLat = (metadata.bounds.south + metadata.bounds.north) / 2;
-    const center = frame.toLocal(centerLng, centerLat);
-    for (let index = 0; index < positions.count; index++) {
-      const x = positions.getX(index) + center[0], z = positions.getZ(index) + center[2];
-      const [lng, lat] = frame.toLngLat(x, z);
-      const elevation = sampleTerrainElevation(record, lng, lat) ?? frame.centerElevationM;
-      positions.setXYZ(index, x, elevation - frame.centerElevationM + 1.5, z);
-    }
-    geometry.computeVertexNormals();
-    group.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture,
-      transparent: true, opacity: .58, depthWrite: false })));
+    material.map = texture; material.needsUpdate = true;
   }, undefined, () => URL.revokeObjectURL(url));
   return group;
 }
@@ -185,11 +168,43 @@ function imageryOverlay(record: TerrainRecord, frame: LocalTerrainFrame): THREE.
 export function createTerrainScene(save: DesignSaveDocument, record: TerrainRecord,
   frame: LocalTerrainFrame): TerrainSceneResult {
   const root = new THREE.Group();
-  root.add(terrainMeshes(record, frame));
+  const terrain = createTerrainMeshPresentation(record, frame); root.add(terrain.group);
   const contours = contourLines(record, frame); contours.visible = false; root.add(contours);
   const imagery = imageryOverlay(record, frame); imagery.visible = false; root.add(imagery);
   const features = designFeatures(save, record, frame); root.add(features.group);
   const site = boundary(save, record, frame); if (site) root.add(site);
-  return { root, pickables: features.pickables, contours, imagery,
-    dispose: () => disposeTree(root) };
+  const prepareTerrain = async (next: TerrainRecord,
+    changedSampleIndices?: readonly number[]): Promise<TerrainSceneStage> => ({
+    record: next,
+    mesh: await terrain.prepareAsync(next, changedSampleIndices),
+    contourPositions: contourPositions(next, frame),
+    ...(imagery.children[0] instanceof THREE.Mesh
+      ? { imageryPositions: drapeImagery(next, frame, imagery.children[0].geometry) } : {}),
+    ...(boundaryPositions(save, next, frame) ? { boundaryPositions: boundaryPositions(save, next, frame) } : {}),
+  });
+  const activateTerrain = (stage: TerrainSceneStage) => {
+    terrain.activate(stage.mesh);
+    const line = contours.children[0] as THREE.LineSegments;
+    const oldGeometry = line.geometry;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(stage.contourPositions, 3));
+    line.geometry = geometry; oldGeometry.dispose();
+    const imageryMesh = imagery.children[0];
+    if (stage.imageryPositions && imageryMesh instanceof THREE.Mesh) {
+      const attribute = imageryMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+      (attribute.array as Float32Array).set(stage.imageryPositions);
+      attribute.clearUpdateRanges(); attribute.addUpdateRange(0, stage.imageryPositions.length);
+      attribute.needsUpdate = true; imageryMesh.geometry.computeBoundingBox();
+      imageryMesh.geometry.computeBoundingSphere();
+    }
+    if (stage.boundaryPositions && site) {
+      const attribute = site.geometry.getAttribute('position') as THREE.BufferAttribute;
+      (attribute.array as Float32Array).set(stage.boundaryPositions);
+      attribute.clearUpdateRanges(); attribute.addUpdateRange(0, stage.boundaryPositions.length);
+      attribute.needsUpdate = true; site.geometry.computeBoundingBox(); site.geometry.computeBoundingSphere();
+    }
+  };
+  return { root, pickables: features.pickables, contours, imagery, prepareTerrain, activateTerrain,
+    refineTerrainAt: (next, x, z) => terrain.refineAt(next, x, z),
+    dispose: () => { terrain.dispose(); disposeTree(root); } };
 }

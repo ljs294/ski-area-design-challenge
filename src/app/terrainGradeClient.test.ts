@@ -61,7 +61,10 @@ function gradeRequest(id: number, identity: TerrainGradeIdentity = IDENTITY): Te
 }
 
 function graded(id: number, identity: TerrainGradeIdentity = IDENTITY): TerrainGradeSuccess {
-  return { id, ok: true, cutM3: 100, fillM3: 40, ...identity } as TerrainGradeSuccess;
+  return { id, ok: true, cutM3: 100, fillM3: 40, elevationChecksum: 'fnv1a32-graded',
+    gradedHeights: Float32Array.of(1),
+    contourMetadata: { intervalM: 6, segmentCount: 0, byteLength: 0,
+      checksum: 'fnv1a32-empty', gridSize: 2 }, ...identity } as TerrainGradeSuccess;
 }
 
 /** Handlers whose preview token and live identity default to matching. */

@@ -2,13 +2,19 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { DesignCameraState, DesignSaveBundle } from '../../src/types/designSave';
+import type { TerrainPublication } from '../../src/app/terrainDocument';
 import { useSettings } from '../../src/app/SettingsContext';
 import { intersectTerrainRay } from './terrainPicking';
 import { createTerrainScene, type TerrainSceneResult, type ThreeFeatureSelection } from './terrainScene';
 import { createLocalTerrainFrame } from './terrainSurface';
+import { TerrainPresentationCoordinator, type TerrainPresentationStatus } from './terrainPresentation';
 
 export type ThreeAnalysisOverlay = 'none' | 'contours' | 'imagery';
-export interface ThreeViewportHandle { toggleOverhead(): void; resetView(): void }
+export interface ThreeViewportHandle {
+  toggleOverhead(): void;
+  resetView(): void;
+  publishTerrain(publication: TerrainPublication): void;
+}
 
 export const ThreeViewport = forwardRef<ThreeViewportHandle, {
   bundle: DesignSaveBundle;
@@ -16,16 +22,20 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, {
   selected: ThreeFeatureSelection | null;
   onSelect(selection: ThreeFeatureSelection | null): void;
   onCameraChange(camera: DesignCameraState): void;
+  onPresentationStatus?(status: TerrainPresentationStatus): void;
   onReady?(): void;
-}>(function ThreeViewport({ bundle, overlay, selected, onSelect, onCameraChange, onReady }, forwardedRef) {
+}>(function ThreeViewport({ bundle, overlay, selected, onSelect, onCameraChange,
+  onPresentationStatus, onReady }, forwardedRef) {
   const hostRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
-  const controlRef = useRef<{ toggleOverhead(): void; resetView(): void } | null>(null);
+  const controlRef = useRef<{ toggleOverhead(): void; resetView(): void;
+    publishTerrain(publication: TerrainPublication): void } | null>(null);
   const worldRef = useRef<TerrainSceneResult | null>(null);
   const { resolvedTheme, settings } = useSettings();
   useImperativeHandle(forwardedRef, () => ({
     toggleOverhead: () => controlRef.current?.toggleOverhead(),
     resetView: () => controlRef.current?.resetView(),
+    publishTerrain: (publication) => controlRef.current?.publishTerrain(publication),
   }), []);
 
   useEffect(() => {
@@ -58,6 +68,23 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, {
       controls.target.z + Math.cos(restoredBearing) * horizontal + (save.camera.is3D ? 0 : .001));
     controls.update();
     const world = createTerrainScene(save, record, frame); worldRef.current = world; scene.add(world.root);
+    let presentedRecord = record;
+    const presentation = new TerrainPresentationCoordinator({
+      record, revision: 1, edit: null,
+    }, {
+      prepare: (publication, changedSampleIndices) =>
+        world.prepareTerrain(publication.record, changedSampleIndices),
+      activate: (prepared) => {
+        world.activateTerrain(prepared.stage);
+        presentedRecord = prepared.publication.record;
+      },
+      schedule: (task) => window.setTimeout(task, 0),
+      onStatus: onPresentationStatus,
+      onActivated: (publication, preparationMs, activationMs) => {
+        console.info('[three-terrain] activated', { revision: publication.revision,
+          preparationMs, activationMs });
+      },
+    });
     scene.add(new THREE.HemisphereLight(0xe8f3ff, 0x44503d, resolvedTheme === 'dark' ? 1.35 : 1.7));
     const sun = new THREE.DirectionalLight(0xfff2d4, 2.2);
     sun.position.set(-span, span * 1.6, span * .5); scene.add(sun);
@@ -91,7 +118,8 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, {
       }
       camera.lookAt(controls.target); controls.update(); emitCamera();
     };
-    controlRef.current = { toggleOverhead, resetView };
+    controlRef.current = { toggleOverhead, resetView,
+      publishTerrain: (publication) => presentation.enqueue(publication) };
     controls.addEventListener('end', emitCamera);
     const updatePointer = (event: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -109,11 +137,13 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, {
       label.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     };
     const pointerMove = (event: PointerEvent) => {
+      if (!presentation.isCurrent) { hoverPoint = null; moveLabel(null); return; }
       updatePointer(event);
-      const hit = intersectTerrainRay(raycaster.ray, record, frame);
+      const hit = intersectTerrainRay(raycaster.ray, presentedRecord, frame);
       hoverPoint = hit ? new THREE.Vector3(...hit.point) : null; moveLabel(hoverPoint);
     };
     const click = (event: PointerEvent) => {
+      if (!presentation.isCurrent) return;
       updatePointer(event);
       const priority = { node: 0, junction: 0, path: 1, lift: 2, trail: 3 } as const;
       const hit = raycaster.intersectObjects(world.pickables, false).sort((left, right) => {
@@ -130,16 +160,23 @@ export const ThreeViewport = forwardRef<ThreeViewportHandle, {
       renderer.setSize(width, height, false); camera.aspect = width / Math.max(1, height); camera.updateProjectionMatrix();
     };
     const observer = new ResizeObserver(resize); observer.observe(host); resize();
-    const render = () => { controls.update(); if (hoverPoint) moveLabel(hoverPoint); renderer.render(scene, camera);
+    let refinedHover: THREE.Vector3 | null = null;
+    const render = () => { presentation.activateAtFrameBoundary(); controls.update();
+      if (hoverPoint && (!refinedHover || refinedHover.distanceToSquared(hoverPoint) > 1)) {
+        world.refineTerrainAt(presentedRecord, hoverPoint.x, hoverPoint.z);
+        refinedHover = hoverPoint.clone();
+      }
+      if (hoverPoint) moveLabel(hoverPoint); renderer.render(scene, camera);
       animation = requestAnimationFrame(render); };
     animation = requestAnimationFrame(render); onReady?.();
     return () => {
-      cancelAnimationFrame(animation); observer.disconnect(); controls.removeEventListener('end', emitCamera);
+      cancelAnimationFrame(animation); presentation.dispose(); observer.disconnect(); controls.removeEventListener('end', emitCamera);
       controls.dispose(); renderer.domElement.removeEventListener('pointermove', pointerMove);
       renderer.domElement.removeEventListener('click', click); world.dispose(); renderer.dispose(); renderer.domElement.remove();
       controlRef.current = null; if (worldRef.current === world) worldRef.current = null;
     };
-  }, [bundle, onCameraChange, onReady, onSelect, resolvedTheme, settings.reducedMotion, settings.renderQuality]);
+  }, [bundle, onCameraChange, onPresentationStatus, onReady, onSelect, resolvedTheme,
+    settings.reducedMotion, settings.renderQuality]);
 
   useEffect(() => {
     const world = worldRef.current;

@@ -7,6 +7,7 @@ import type {
   SiteCoverGrid,
 } from './types/cover';
 import type {
+  ContourMetadata,
   LocalImageryMetadata,
   TerrainPackageManifest,
   TerrainPackageValidation,
@@ -99,6 +100,61 @@ export function manifestWithUpdatedCover(record: TerrainRecord): TerrainPackageM
     },
     preparedAt: new Date().toISOString(),
   };
+}
+
+/** Refresh the two assets produced by the terrain-grade worker while carrying
+ * forward metadata for immutable package assets already verified on load. */
+export function manifestWithUpdatedElevation(
+  record: TerrainRecord,
+  elevationChecksum: string,
+  contours: ContourMetadata,
+): TerrainPackageManifest {
+  const previous = record.packageManifest;
+  if (!previous) return manifestOf(record);
+  return {
+    ...previous,
+    terrainKey: record.key,
+    elevationByteLength: record.sampleHeights.length * Float32Array.BYTES_PER_ELEMENT,
+    elevationChecksum,
+    contours,
+    assets: { ...previous.assets,
+      elevation: previous.assets.elevation || `${record.key}.heights.bin`,
+      contours: previous.assets.contours || `${record.key}.contours.bin` },
+    preparedAt: new Date().toISOString(),
+  };
+}
+
+/** Validate a grade assembled from a worker-verified elevation/contour pair.
+ * Large unchanged assets retain metadata from the previously valid package;
+ * the storage writer verifies the new bytes against these checksums again. */
+export function validateTerrainElevationEdit(record: TerrainRecord): TerrainPackageValidation {
+  const errors: string[] = [];
+  const manifest = record.packageManifest, contours = record.contourMetadata;
+  if (!manifest) errors.push('Package manifest is missing.');
+  if (record.sampleHeights.length !== record.sampleGridSize * record.sampleGridSize) {
+    errors.push('Elevation grid dimensions do not match its data.');
+  }
+  if (!manifest?.elevationChecksum || manifest.elevationByteLength
+      !== record.sampleHeights.length * Float32Array.BYTES_PER_ELEMENT) {
+    errors.push('Elevation verification metadata is incomplete.');
+  }
+  if (!record.contourSegments || !contours) errors.push('Prepared contours are missing.');
+  if (record.contourSegments && contours && (contours.byteLength
+      !== record.contourSegments.length * Float32Array.BYTES_PER_ELEMENT
+      || contours.segmentCount !== Math.floor(record.contourSegments.length / 5)
+      || manifest?.contours?.checksum !== contours.checksum)) {
+    errors.push('Contour verification metadata does not match.');
+  }
+  if (!record.coverGrid || !record.coverMetadata || !record.coverBoundarySegments
+      || !record.coverGeometryMetadata) errors.push('Verified ground-cover assets are missing.');
+  if (record.schemaVersion >= 5 && (!record.coverDisplayGeometry || !record.coverDisplayMetadata)) {
+    errors.push('Prepared vector ground cover is missing.');
+  }
+  if (record.schemaVersion >= 6 && (!record.originalCoverGrid || !record.originalCoverMetadata)) {
+    errors.push('Original WorldCover recovery grid is missing.');
+  }
+  if (manifest && !manifest.complete) errors.push('Package was not marked complete.');
+  return { ok: errors.length === 0, errors };
 }
 
 /** Upgrade a legacy prepared package with the current compact display asset. */

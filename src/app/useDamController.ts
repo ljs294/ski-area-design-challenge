@@ -235,7 +235,8 @@ export function useDamController(options: DamControllerOptions): DamController {
         if (!grade || gradeRevision !== revision)
           throw new Error('The terrain changed after analysis. Redraw the dam.');
         const result = optionsRef.current.terrain.commit({ expectedRevision: revision,
-          record: applyTerrainGradeToRecord(record as TerrainRecord, grade), kind: 'elevation' });
+          record: applyTerrainGradeToRecord(record as TerrainRecord, grade), kind: 'elevation',
+          changedSampleIndices: grade.patchIndices });
         if (!result.ok) throw new Error('The terrain changed while building. Redraw the dam.');
         optionsRef.current.add(dam);
         gradeRef.current = null;
