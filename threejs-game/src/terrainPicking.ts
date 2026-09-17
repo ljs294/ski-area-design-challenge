@@ -1,5 +1,5 @@
 import type { Ray } from 'three';
-import type { TerrainRecord } from '../../types/terrain';
+import type { TerrainRecord } from '../../src/types/terrain';
 import { sampleTerrainElevation, type LocalTerrainFrame } from './terrainSurface';
 
 export interface TerrainHit { point: [number, number, number]; lngLat: [number, number]; distance: number }

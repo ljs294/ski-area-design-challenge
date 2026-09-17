@@ -1,3 +1,4 @@
+/* Standalone Three.js game presentation layered over its world canvas. */
 .three-game-root, .three-world { position: fixed; inset: 0; overflow: hidden; }
 .three-world canvas { display: block; width: 100%; height: 100%; }
 .three-world-label { position: absolute; inset: 0 auto auto 0; pointer-events: none; padding: 4px 7px; border-radius: 5px;

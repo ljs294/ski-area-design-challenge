@@ -1,6 +1,6 @@
-import type { CoverClassCode } from '../../types/cover';
-import type { LatLonBounds } from '../../types/geo';
-import type { TerrainRecord } from '../../types/terrain';
+import type { CoverClassCode } from '../../src/types/cover';
+import type { LatLonBounds } from '../../src/types/geo';
+import type { TerrainRecord } from '../../src/types/terrain';
 
 const METERS_PER_DEGREE = 111_320;
 const NODATA_FLOOR = -1_000;

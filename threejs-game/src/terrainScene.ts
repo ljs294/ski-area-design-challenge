@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type { DesignSaveDocument } from '../../types/designSave';
-import type { TerrainRecord } from '../../types/terrain';
+import type { DesignSaveDocument } from '../../src/types/designSave';
+import type { TerrainRecord } from '../../src/types/terrain';
 import { sampleTerrainCover, sampleTerrainElevation, type LocalTerrainFrame } from './terrainSurface';
 
 const COVER_COLORS: Record<number, THREE.Color> = {

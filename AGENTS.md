@@ -9,16 +9,19 @@ This file is the canonical repository guidance for Codex, Claude Code, and other
 - The static web build uses `vite.config.web.ts` and the same React entrypoint.
 - `spike.html` and `src/spike/spikeMain.ts` are a supported MapLibre data-source developer harness, not the product entrypoint.
 - `src/app/GraphicsLab.tsx`, reached with `npm run dev:lab`, is a supported graphics developer harness.
+- `threejs-game/` is the separately launchable Three.js design-fork application. It reuses shared domain/UI modules but owns its Electron entrypoint, renderer entrypoint, saves, build output, and launcher.
 
 ## Commands
 
 - Install the pinned dependency graph: `npm ci`.
 - Start the desktop development app: `npm run dev`.
 - Start the graphics lab: `npm run dev:lab`.
+- Start the standalone Three.js edition: `npm run dev:three` or `threejs-game/run-threejs.bat`.
 - Run deterministic offline unit tests: `npm test`.
 - Run opt-in live-provider tests: `npm run test:integration:live`.
 - Type-check and build the desktop renderer: `npm run build`.
 - Build the static web renderer: `npm run build:web`.
+- Build the standalone Three.js edition: `npm run build:three`.
 - Run the required deterministic gate: `npm run check`.
 - Prove browser-test failure propagation: `npm run check:e2e-harness`.
 - Run deterministic browser smoke and feature workflows: `npm run test:e2e`.

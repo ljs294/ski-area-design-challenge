@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import type { TerrainRecord } from '../../types/terrain';
+import type { TerrainRecord } from '../../src/types/terrain';
 import { createLocalTerrainFrame, sampleTerrainElevation } from './terrainSurface';
 import { intersectTerrainRay } from './terrainPicking';
 

@@ -1,8 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { DesignCameraState, DesignSaveBundle } from '../../types/designSave';
-import { useSettings } from '../SettingsContext';
+import type { DesignCameraState, DesignSaveBundle } from '../../src/types/designSave';
+import { useSettings } from '../../src/app/SettingsContext';
 import { intersectTerrainRay } from './terrainPicking';
 import { createTerrainScene, type TerrainSceneResult, type ThreeFeatureSelection } from './terrainScene';
 import { createLocalTerrainFrame } from './terrainSurface';

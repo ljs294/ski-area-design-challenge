@@ -1,6 +1,6 @@
 # Ski Area Design Challenge — Three.js design fork
 
-**Revision:** 6 — orchestrator-selected models for high-quality work and efficient use of a ChatGPT Pro allowance; retains the approved product and all revision-4 correctness contracts.
+**Revision:** 7 — adds the owner-required standalone application and side-by-side comparison boundary; retains all revision-6 correctness contracts.
 **Date:** 2026-09-16.
 **Purpose:** an executable phased plan for Codex. This is a planning deliverable; no implementation was performed.
 **Source baseline:** [simulation branch at b915aef292da1bc31cd780b3555f3176a78ab5a7][source-01]. Review changes since this commit before implementation.
@@ -19,6 +19,7 @@ Start with P0-A. Complete one requested task through implementation, verificatio
 
 Create a design-focused fork of the existing game:
 
+- **Standalone application:** keep the Three.js edition under top-level `threejs-game/` with its own Electron/renderer entrypoints, launcher, build/package configuration, output, application-data directory and fork saves. It must launch independently beside the original MapLibre game for direct comparison. Shared renderer-neutral domain/storage code and approved React UI may be imported from the main source tree; Three.js-specific application code stays in the standalone folder.
 - **MapLibre:** mountain location selection and the existing terrain-download workflow.
 - **Three.js:** all mountain/world rendering after the downloaded package is ready.
 - **React/HTML/CSS:** retain the current polished interface, components, styling and layout over the Three.js canvas.
@@ -72,6 +73,7 @@ All product questions have answers. Exact hardware and representative fixture si
 | 14 | 2D means camera perpendicular to ground for overhead view | Reset viewing direction to local vertical. This does not require switching to an orthographic projection. |
 | 15 | Remaining build features, then simulation | Construction parity precedes operational gameplay. |
 | 16 | Desktop 60 FPS is desirable | Target 60 FPS on recorded GPU hardware with defined terrain/workload and frame-time measurements. |
+| 17 | A separately launchable game for direct comparison | Keep all Three.js-specific application code in `threejs-game/`; give it an independent Electron process, launcher, data directory, build output and portable packaging target without replacing the original game. |
 
 **Practical default:** preserve existing UI divisions and positions. Leave future-only controls disabled or unavailable within their current owning surfaces, with brief explanations where needed. Do not run a hidden simulation to make the old UI props convenient, and do not display fabricated live metrics. This is a capability adaptation, not a redesign.
 
@@ -123,11 +125,11 @@ Neither Three.js objects nor React state setters belong in saved/domain models. 
 
 Suggested new modules; names can be refined while preserving these owners:
 
-- `src/app/DesignGameplayView.tsx`: React host composing session, existing UI and Three.js viewport.
+- `threejs-game/src/DesignGameplayView.tsx`: React host composing session, existing UI and Three.js viewport.
 - `src/app/session/`: committed design owner, narrow selectors/commands, capabilities and persistence coordination.
-- `src/app/interaction/`: camera, picking, terrain sampling and tool-input ports.
-- `src/app/three/`: scene lifecycle, terrain, materials, feature presentations and camera.
-- `src/app/simulation/`: later adapter around the existing engine/worker, implemented in P6. No new engine adapter is required in first-release gameplay.
+- `threejs-game/src/interaction/`: camera, picking, terrain sampling and tool-input ports.
+- `threejs-game/src/`: scene lifecycle, terrain, materials, feature presentations and camera.
+- `threejs-game/src/simulation/`: later adapter around the existing engine/worker, implemented in P6. No new engine adapter is required in first-release gameplay.
 - Shared contracts beside their existing owning `src/types/` models.
 
 These paths are proposals. Do not create a replacement generic “core” hierarchy or duplicate lift/trail/topology models.
@@ -736,4 +738,3 @@ The review was source-based; no application build, UI screenshot capture or perf
 [source-47]: https://github.com/ljs294/ski-area-design-challenge/blob/b915aef292da1bc31cd780b3555f3176a78ab5a7/src/app/dualMovementPublication.ts
 [source-48]: https://github.com/ljs294/ski-area-design-challenge/blob/b915aef292da1bc31cd780b3555f3176a78ab5a7/src/app/dualSnowPublication.ts
 [source-49]: https://github.com/ljs294/ski-area-design-challenge/blob/b915aef292da1bc31cd780b3555f3176a78ab5a7/src/app/guestGpuLayer.ts
-

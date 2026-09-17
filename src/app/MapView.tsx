@@ -34,7 +34,7 @@ import { refreshTerrainGradeSources, setGradedContourPreview, setTerrainContourD
 import { withResumeCheckpoint } from './resumeCheckpoint';
 import type { TerrainDocumentPorts, TerrainPublication, TerrainRecordView } from './terrainDocument';
 import { topologyProjection } from './topologyDocument';
-import { DesignSession } from './session/designSession';
+import { DesignSession, type DesignPersistenceSnapshot } from './session/designSession';
 import { MAP_HIT_RANK, MAP_Z_ORDER, MapContributionRegistry, type ManagedMapContribution, type MapVisibilityDescriptor } from './mapContribution';
 import { addDashboardMapLayers, setDashboardMapVisibility, useInMapDashboards } from './inMapDashboards';
 import { captureGamePreview, gameSaveHeader, createWorkspaceNavigation, has3DBuildingContext, initialResortDesign, liftOperationsFor, saveGameWithGuestCheckpoint, useMapGuestSimulationFeature, usePumpHouseFeature } from './mapViewComposition';
@@ -85,7 +85,7 @@ interface MapViewProps {
    *  through. */
   controlsSuspended?: boolean;
   /** Persist a renderer-neutral fork, then leave MapLibre before gameplay. */
-  onForkCreated?: (key: string) => void;
+  onForkCreated?: (snapshot: DesignPersistenceSnapshot, name: string, site: SiteBox | null, camera: { center: [number, number]; zoom: number; bearing: number; pitch: number; is3D: boolean }) => Promise<void>;
 }
 
 export interface ExitCheckpointResult {
@@ -1477,9 +1477,9 @@ export function MapView({
       if (onForkCreated) {
         const map = mapRef.current; if (!map) throw new Error('The selection map is not ready.');
         const terrainError = await flushTerrain(); if (terrainError) throw new Error(`The terrain package could not be saved: ${terrainError}`);
-        const center = map.getCenter(), { saveInitialDesignFork } = await import('./session/createDesignFork');
-        onForkCreated(await saveInitialDesignFork(designSession.read.persistenceSnapshot(), name, siteBoxRef.current,
-          { center: [center.lng, center.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch(), is3D: true })); return;
+        const center = map.getCenter(); await onForkCreated(designSession.read.persistenceSnapshot(), name,
+          siteBoxRef.current, { center: [center.lng, center.lat], zoom: map.getZoom(), bearing: map.getBearing(),
+            pitch: map.getPitch(), is3D: true }); return;
       }
       const next = snapshot(null);
       if (!next) return;

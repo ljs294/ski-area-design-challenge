@@ -1,14 +1,15 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { listDesigns, loadDesign } from '../../designSaveClient';
-import type { DesignSaveBundle, DesignSaveSummary } from '../../types/designSave';
-import { desktop } from '../../desktopBridge';
-import { MainMenu } from '../MainMenu';
-import { Settings } from '../Settings';
-import { CreditsPanel } from '../CreditsPanel';
-import { Dialog } from '../ui';
+import { listDesigns, loadDesign } from '../../src/designSaveClient';
+import type { DesignSaveBundle, DesignSaveSummary } from '../../src/types/designSave';
+import { desktop } from '../../src/desktopBridge';
+import { MainMenu } from '../../src/app/MainMenu';
+import { Settings } from '../../src/app/Settings';
+import { CreditsPanel } from '../../src/app/CreditsPanel';
+import { Dialog } from '../../src/app/ui';
 import { DesignGameplayView } from './DesignGameplayView';
+import { saveInitialDesignFork } from './saveInitialDesignFork';
 
-const MapView = lazy(() => import('../MapView').then((module) => ({ default: module.MapView })));
+const MapView = lazy(() => import('../../src/app/MapView').then((module) => ({ default: module.MapView })));
 type Screen = 'menu' | 'selecting' | 'loading' | 'game';
 
 export function ThreeApp() {
@@ -52,7 +53,9 @@ export function ThreeApp() {
     {screen === 'selecting' && <Suspense fallback={<div className="three-loading">Opening terrain selection…</div>}>
       <MapView mode="picking" onQuit={menu} onOpenSettings={() => setSettingsOpen(true)}
         onLoadGame={() => setLibraryOpen(true)} controlsSuspended={settingsOpen || libraryOpen || creditsOpen}
-        onForkCreated={(key) => { void openDesign(key); }} />
+        onForkCreated={async (snapshot, name, site, camera) => {
+          const key = await saveInitialDesignFork(snapshot, name, site, camera); await openDesign(key);
+        }} />
     </Suspense>}
     {screen === 'loading' && <div className="three-loading">Loading the Three.js design…</div>}
     {screen === 'game' && bundle && <DesignGameplayView bundle={bundle} onQuit={menu}

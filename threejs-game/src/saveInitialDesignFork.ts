@@ -1,10 +1,10 @@
-import { saveDesign } from '../../designSaveClient';
-import type { SavedSiteBox } from '../../types/gameSave';
-import type { DesignCameraState } from '../../types/designSave';
-import { designSaveDraft } from './designSaveSnapshot';
-import type { DesignPersistenceSnapshot } from './designSession';
+import { saveDesign } from '../../src/designSaveClient';
+import type { SavedSiteBox } from '../../src/types/gameSave';
+import type { DesignCameraState } from '../../src/types/designSave';
+import { designSaveDraft } from '../../src/app/session/designSaveSnapshot';
+import type { DesignPersistenceSnapshot } from '../../src/app/session/designSession';
 
-/** The selection host's one-way persistence handoff into Three.js gameplay. */
+/** Owns the standalone game's one-way selection-to-Three.js save handoff. */
 export async function saveInitialDesignFork(snapshot: DesignPersistenceSnapshot, name: string,
   site: SavedSiteBox | null, camera: DesignCameraState): Promise<string> {
   const now = new Date().toISOString();

@@ -1,6 +1,7 @@
 {
   "name": "ski-area-design-challenge",
   "private": true,
+  "workspaces": ["threejs-game"],
   "version": "0.0.0",
   "type": "module",
   "main": "dist-electron/main.js",
@@ -10,7 +11,7 @@
     "smooth:menu-background": "node scripts/smoothMenuBackground.mjs",
     "dev": "vite",
     "dev:lab": "node scripts/devLab.mjs",
-    "dev:three": "vite --config vite.config.three.ts",
+    "dev:three": "npm --prefix threejs-game run dev",
     "dev:weather-lab": "node scripts/devWeatherLab.mjs",
     "weather:service": "node weather-service/server.mjs",
     "sim:time": "node --experimental-strip-types time-engine/src/cli.ts",
@@ -36,11 +37,11 @@
     "build": "npm run typecheck && npm run build:desktop",
     "build:desktop": "vite build",
     "build:web": "vite build --config vite.config.web.ts",
-    "build:three": "vite build --config vite.config.three.ts",
+    "build:three": "npm --prefix threejs-game run build",
     "build:integrated-profiling": "vite build --config vite.config.integratedProfiling.ts",
     "preview": "vite preview",
     "package": "tsc && vite build && electron-builder",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && npm --prefix threejs-game run typecheck",
     "lint": "eslint . --max-warnings=0 --report-unused-disable-directives",
     "check:agent-docs": "node scripts/checkAgentDocs.mjs",
     "check:architecture": "node scripts/checkArchitecture.mjs",
@@ -49,6 +50,7 @@
     "metrics:refactor": "node scripts/refactorMetrics.mjs",
     "test": "npm run test:unit",
     "test:unit": "vitest run --exclude \"**/*.integration.test.ts\" --exclude \"tests/e2e/**\" --exclude \"tests/p1c/**\" --exclude \"release/**\" --exclude \"scripts/analyzeIntegratedBenchmark.test.mjs\" --testTimeout 10000",
+    "test:three": "npm --prefix threejs-game test",
     "test:integration:live": "vitest run integration.test",
     "test:e2e:smoke": "npm run build:desktop && node scripts/runE2E.mjs --project=browser-smoke",
     "test:e2e:features": "npm run build:desktop && node scripts/runE2E.mjs --project=feature-workflows",
@@ -56,7 +58,7 @@
     "test:e2e": "npm run build:desktop && node scripts/runE2E.mjs --project=browser-smoke --project=feature-workflows --project=integrated-diagnostic",
     "test:p1c": "npm run build:desktop && playwright test --config=playwright.p1c.config.ts",
     "check:e2e-harness": "node scripts/checkE2EHarness.mjs",
-    "check": "npm run check:agent-docs && npm run check:architecture && npm run lint && npm run typecheck && npm run typecheck:time-engine && npm run test:unit && npm run test:integrated-benchmark-analyzer && npm run test:integrated-benchmark-hardware && npm run build:desktop && npm run build:web && npm run check:bundle && npm run check:obsolete && npm run check:weather-lab"
+    "check": "npm run check:agent-docs && npm run check:architecture && npm run lint && npm run typecheck && npm run typecheck:time-engine && npm run test:unit && npm run test:three && npm run test:integrated-benchmark-analyzer && npm run test:integrated-benchmark-hardware && npm run build:desktop && npm run build:web && npm run build:three && npm run check:bundle && npm run check:obsolete && npm run check:weather-lab"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
@@ -82,14 +84,12 @@
     "@loaders.gl/las": "^4.4.3",
     "@math.gl/types": "^4.1.0",
     "@photostructure/tz-lookup": "11.6.1",
-    "@types/three": "^0.180.0",
     "geotiff": "^3.0.5",
     "maplibre-contour": "^0.1.0",
     "maplibre-gl": "^5.24.0",
     "polygon-clipping": "0.15.7",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "three": "^0.180.0"
+    "react-dom": "^19.2.7"
   },
   "build": {
     "appId": "com.lukesmall.mountainplanner",

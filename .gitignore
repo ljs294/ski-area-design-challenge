@@ -26,7 +26,11 @@ dist-ssr
 # Build outputs
 dist-electron
 dist-web
-dist-three
 dist-weather-lab
 release
 test-results
+
+# Standalone Three.js edition outputs
+threejs-game/dist
+threejs-game/dist-electron
+threejs-game/release

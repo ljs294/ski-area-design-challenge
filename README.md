@@ -35,13 +35,13 @@ The desktop app starts its local weather preparation service automatically. You 
 
 ### Phase 2 Three.js design fork
 
-The in-progress Three.js version is a separate design-only app. On Windows, double-click `run-threejs.bat`, or run:
+The in-progress Three.js version is a separate design-only Electron app under `threejs-game/`. On Windows, double-click `threejs-game/run-threejs.bat`, or run:
 
 ```sh
 npm run dev:three
 ```
 
-It opens `three.html`. New Resort uses the existing map only to choose and prepare terrain, then hands the saved fork to the Three.js workspace. Its saves are separate from the original playable game. Simulation, weather, and construction are intentionally unavailable at the current Phase 2A milestone.
+It launches its own Electron process, independently of the original game. New Resort uses the shared map component only to choose and prepare terrain, then hands the saved fork to the Three.js workspace. The standalone edition uses its own application-data directory, executable configuration, build output, and fork saves. Simulation, weather, and construction are intentionally unavailable at the current Phase 2A milestone.
 
 ## Start a mountain
 

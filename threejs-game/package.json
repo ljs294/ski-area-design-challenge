@@ -1,0 +1,39 @@
+{
+  "name": "ski-area-design-challenge-threejs",
+  "description": "Standalone Three.js design fork of Ski Area Design Challenge",
+  "author": "Ski Area Design Challenge",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "node ../node_modules/vite/bin/vite.js --config vite.config.ts",
+    "build": "node ../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json && node ../node_modules/vite/bin/vite.js build --config vite.config.ts",
+    "typecheck": "node ../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
+    "test": "node ../node_modules/vitest/vitest.mjs run src --testTimeout 10000",
+    "package": "npm run build && node ../node_modules/electron-builder/out/cli/cli.js"
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "electron": "43.1.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vite-plugin-electron": "^1.1.0",
+    "vitest": "^4.1.10"
+  },
+  "build": {
+    "appId": "com.lukesmall.mountainplanner.threejs",
+    "productName": "Ski Area Design Challenge - Three.js Edition",
+    "electronDist": "../node_modules/electron/dist",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "dist-electron/**/*"],
+    "win": { "target": "portable" }
+  }
+}
