@@ -18,6 +18,8 @@ function TrailRating({ kind }: { kind: 'green' | 'blue' | 'black' }) {
 }
 export interface MainMenuProps {
   hasSaves: boolean;
+  /** A renderer-specific library can supply its own most-recent design. */
+  recentOverride?: { name: string } | null;
   libraryRevision?: number;
   onContinue(): void;
   onNewGame(): void;
@@ -48,13 +50,17 @@ export function MainMenu(props: MainMenuProps) {
   const { settings } = useSettings();
   const [recent, setRecent] = useState<GameSaveSummary | null>(null);
   useEffect(() => {
+    if (props.recentOverride !== undefined) {
+      setRecent(props.recentOverride as GameSaveSummary | null);
+      return;
+    }
     let alive = true;
     void mostRecentGame().then((save) => {
       if (!alive) return;
       setRecent(save);
     }).catch(() => { /* Storage errors are exposed by the resort library. */ });
     return () => { alive = false; };
-  }, [props.hasSaves, props.libraryRevision]);
+  }, [props.hasSaves, props.libraryRevision, props.recentOverride]);
   return <main ref={rootRef} className="main-menu alpine-home">
     {renderProfileFor(settings.renderQuality).menu === 'css'
       ? <div className="menu-backdrop menu-backdrop-css" />

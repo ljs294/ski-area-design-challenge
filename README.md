@@ -33,6 +33,16 @@ npm.cmd run dev
 
 The desktop app starts its local weather preparation service automatically. You normally do not need to start another service manually.
 
+### Phase 2 Three.js design fork
+
+The in-progress Three.js version is a separate design-only app. On Windows, double-click `run-threejs.bat`, or run:
+
+```sh
+npm run dev:three
+```
+
+It opens `three.html`. New Resort uses the existing map only to choose and prepare terrain, then hands the saved fork to the Three.js workspace. Its saves are separate from the original playable game. Simulation, weather, and construction are intentionally unavailable at the current Phase 2A milestone.
+
 ## Start a mountain
 
 1. Create a new game from the main menu and follow the mountain setup prompts.

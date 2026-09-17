@@ -181,13 +181,30 @@ export function GameToolbar({
   onOpenStats: () => void;
   units: Units;
   terrain: TerrainRecord | null;
-  simulation: GameSimulationController;
+  /** Omitted by the design-only Three.js host until simulation is attached in P6. */
+  simulation?: GameSimulationController;
   onOpenWeather?: () => void;
   showWeatherOverlay?: boolean;
   unsaved?: boolean;
   navigation?: ReactNode;
 }) {
   const [planningConfirmationOpen, setPlanningConfirmationOpen] = useState(false);
+  if (!simulation) return <div className="game-toolbar" data-capability="design-only">
+    {navigation}
+    <div className="tb-group"><button className="tb-play" disabled aria-label="Simulation unavailable in design mode">▶</button></div>
+    <div className="tb-group"><div className="tb-clock" title="Simulation is not attached in design mode">
+      <span className="tb-day">Design mode</span><span className="tb-time">Simulation unavailable</span>
+    </div></div>
+    <div className="tb-group"><div className="tb-speeds" role="group" aria-label="Simulation speed unavailable">
+      {[1, 2, 3].map((value) => <button key={value} className="tb-speed" disabled aria-label="Simulation unavailable"><span className="tb-drawn-arrow" aria-hidden="true" /></button>)}
+    </div></div>
+    <div className="tb-group tb-weather-group"><button className="tb-weather" disabled title="Weather arrives with simulation in a later phase">Weather unavailable</button></div>
+    <div className="tb-group tb-resort-group">
+      <button className="tb-resort" onClick={onOpenStats} title="Ski area details"><span className="hud-resort tb-resort-name">{resortName}</span></button>
+      <span className={`tb-save-indicator${unsaved ? ' is-unsaved' : ''}`} role="status"
+        aria-label={unsaved ? 'Unsaved changes' : 'Saved'} title={unsaved ? 'Unsaved changes' : 'Saved'}><Icon name="save" /></span>
+    </div>
+  </div>;
   const weather = simulation;
   const current = weather.current;
   const ready = weather.status === 'ready';

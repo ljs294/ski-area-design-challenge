@@ -10,6 +10,7 @@
     "smooth:menu-background": "node scripts/smoothMenuBackground.mjs",
     "dev": "vite",
     "dev:lab": "node scripts/devLab.mjs",
+    "dev:three": "vite --config vite.config.three.ts",
     "dev:weather-lab": "node scripts/devWeatherLab.mjs",
     "weather:service": "node weather-service/server.mjs",
     "sim:time": "node --experimental-strip-types time-engine/src/cli.ts",
@@ -35,6 +36,7 @@
     "build": "npm run typecheck && npm run build:desktop",
     "build:desktop": "vite build",
     "build:web": "vite build --config vite.config.web.ts",
+    "build:three": "vite build --config vite.config.three.ts",
     "build:integrated-profiling": "vite build --config vite.config.integratedProfiling.ts",
     "preview": "vite preview",
     "package": "tsc && vite build && electron-builder",
@@ -80,12 +82,14 @@
     "@loaders.gl/las": "^4.4.3",
     "@math.gl/types": "^4.1.0",
     "@photostructure/tz-lookup": "11.6.1",
+    "@types/three": "^0.180.0",
     "geotiff": "^3.0.5",
     "maplibre-contour": "^0.1.0",
     "maplibre-gl": "^5.24.0",
     "polygon-clipping": "0.15.7",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "three": "^0.180.0"
   },
   "build": {
     "appId": "com.lukesmall.mountainplanner",
@@ -101,7 +105,13 @@
       {
         "from": "weather-service",
         "to": "weather-service",
-        "filter": ["utility-entry.cjs", "server.mjs", "lib/**/*.mjs", "lab/service.mjs", "lab/providers.mjs"]
+        "filter": [
+          "utility-entry.cjs",
+          "server.mjs",
+          "lib/**/*.mjs",
+          "lab/service.mjs",
+          "lab/providers.mjs"
+        ]
       }
     ],
     "win": {

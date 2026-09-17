@@ -84,6 +84,8 @@ interface MapViewProps {
    *  doesn't drift and stray keydowns from a keybind-rebind UI don't leak
    *  through. */
   controlsSuspended?: boolean;
+  /** Persist a renderer-neutral fork, then leave MapLibre before gameplay. */
+  onForkCreated?: (key: string) => void;
 }
 
 export interface ExitCheckpointResult {
@@ -135,17 +137,8 @@ function waitForCaptureFrame(map: maplibregl.Map): Promise<string | null> {
 }
 
 export function MapView({
-  mode,
-  initialSave = null,
-  onQuit,
-  onOpenSettings,
-  onLoadGame,
-  onBoot,
-  bootControlsRef,
-  sessionControlsRef,
-  controlsSuspended = false,
-  setupDraft,
-  onRestartSetup,
+  mode, initialSave = null, onQuit, onOpenSettings, onLoadGame, onBoot, bootControlsRef,
+  sessionControlsRef, controlsSuspended = false, setupDraft, onRestartSetup, onForkCreated,
 }: MapViewProps) {
   const { settings, resolvedTheme } = useSettings();
 
@@ -206,9 +199,9 @@ export function MapView({
   const [unsavedPrompt, setUnsavedPrompt] = useState(false);
   const unsavedChoiceRef = useRef<((choice: 'save' | 'discard' | 'cancel') => void) | null>(null);
   const [terrainRecord, setTerrainRecord] = useState<TerrainRecord | null>(null);
-  const mapMode: MapMode = terrainRecord ? 'playing' : mode;
+  const mapMode: MapMode = terrainRecord && !onForkCreated ? 'playing' : mode;
   const snow = useSnowLayer(mapRef);
-  const simulation = useGameSimulation({ initialSave, terrain: terrainRecord, initialTime: initialSave?.time,
+  const simulation = useGameSimulation({ initialSave, terrain: onForkCreated ? null : terrainRecord, initialTime: initialSave?.time,
     initialWeatherRun: initialSave?.weatherRun, snow, mapRef, renderQuality: settings.renderQuality, reducedMotion: settings.reducedMotion });
   const weatherConfigured = !!simulation.dual && (simulation.weatherPackage !== null || !!initialSave?.weatherRun || !['design-only', 'no-terrain'].includes(simulation.status)), weatherBlocked = weatherMutationBlocked(weatherConfigured, !!simulation.dual?.weatherReady);
   const gatedSimulation = weatherBlocked ? { ...simulation, togglePlayback: () => undefined, advancePlanningPeriod: () => Promise.resolve(), confirmTransition: () => Promise.resolve(), addSnow: () => Promise.reject(new Error('Weather is still loading.')) } : simulation;
@@ -1278,11 +1271,13 @@ export function MapView({
       );
       const validation = validateTerrainPackage(record);
       if (!validation.ok) throw new Error(validation.errors.join(' '));
-      const weatherPreparation = await simulation.prepareWeatherForTerrain(record, controller.signal);
-      if (!weatherPreparation.ok) console.warn('Terrain prepared without weather:', weatherPreparation.error);
+      if (!onForkCreated) {
+        const weatherPreparation = await simulation.prepareWeatherForTerrain(record, controller.signal);
+        if (!weatherPreparation.ok) console.warn('Terrain prepared without weather:', weatherPreparation.error);
+      }
       // Ingest persisted this package itself, so it starts clean.
       terrain.replace(record);
-      snow.regenerate(record);
+      if (!onForkCreated) snow.regenerate(record);
       packageStateRef.current = 'ready';
       setPackageState('ready');
       // Cover the first resort render; the style.load reveal drops it once the
@@ -1479,6 +1474,13 @@ export function MapView({
       const name = nameDraft.trim() || 'Untitled Resort';
       const record = terrainRecordRef.current ?? await prepareLocalPackage(name);
       if (!record) return;
+      if (onForkCreated) {
+        const map = mapRef.current; if (!map) throw new Error('The selection map is not ready.');
+        const terrainError = await flushTerrain(); if (terrainError) throw new Error(`The terrain package could not be saved: ${terrainError}`);
+        const center = map.getCenter(), { saveInitialDesignFork } = await import('./session/createDesignFork');
+        onForkCreated(await saveInitialDesignFork(designSession.read.persistenceSnapshot(), name, siteBoxRef.current,
+          { center: [center.lng, center.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch(), is3D: true })); return;
+      }
       const next = snapshot(null);
       if (!next) return;
       const terrainError = await flushTerrain();

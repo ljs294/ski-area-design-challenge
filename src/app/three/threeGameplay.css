@@ -1,0 +1,21 @@
+.three-game-root, .three-world { position: fixed; inset: 0; overflow: hidden; }
+.three-world canvas { display: block; width: 100%; height: 100%; }
+.three-world-label { position: absolute; inset: 0 auto auto 0; pointer-events: none; padding: 4px 7px; border-radius: 5px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--text); font: 600 11px/1.2 system-ui; }
+.three-game-chrome { position: fixed; inset: 0; pointer-events: none; }
+.three-game-chrome button, .three-game-chrome input, .three-game-chrome .game-window, .three-game-chrome .game-toolbar,
+.three-game-chrome .top-right-stack { pointer-events: auto; }
+.three-toolbar-nav { display: flex; align-items: center; gap: 6px; }
+.three-toolbar-nav .tb-nav-btn { display: flex; align-items: center; gap: 5px; min-height: 32px; }
+.three-toolbar-nav .ui-icon { width: 18px; height: 18px; }
+.three-capability-note { max-width: 270px; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+.three-feature-list { display: grid; gap: 4px; max-height: 145px; overflow: auto; margin: 0 0 10px; }
+.three-feature-list button { text-align: left; }
+.three-layer-list { display: grid; gap: 9px; min-width: 190px; text-transform: capitalize; }
+.three-layer-list label { display: flex; gap: 8px; align-items: center; }
+.three-inspector { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; min-width: 220px; }
+.three-inspector dt { color: var(--text-muted); } .three-inspector dd { margin: 0; font-weight: 650; }
+.three-loading { position: fixed; inset: 0; display: grid; place-items: center; background: var(--surface); z-index: 50; font-weight: 700; }
+.three-status { position: fixed; left: 50%; bottom: 52px; translate: -50%; padding: 10px 12px; border-radius: 8px;
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow); pointer-events: auto; }
+.three-status button { margin-left: 12px; }

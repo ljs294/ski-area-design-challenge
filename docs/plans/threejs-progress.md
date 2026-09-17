@@ -1,16 +1,16 @@
 # Three.js migration progress
 
 Plan revision: 6  
-Branch / base / current SHA: `3js-edition` / `b915aef292da1bc31cd780b3555f3176a78ab5a7` / `681b78877a509d1e7535def8516d88ce7c2e711f`
-Dirty work to preserve: the current P1-C evidence implementation and these plan records.
+Branch / base / current SHA: `3js-edition` / `b915aef292da1bc31cd780b3555f3176a78ab5a7` / P2-A working tree on `240c3ea11f6c`
+Dirty work to preserve: the current P2-A host/interface implementation and these plan records.
 
-Completed/current task: P1-C — failure-injection and real-adapter recovery evidence.
-Next task: P2-A — dedicated Three.js host and interface integration.
+Completed/current task: P2-A — dedicated Three.js host and interface integration.
+Next task: P2-B — cumulative terrain deformation and coherent GPU activation.
 Implementation/review: primary Codex agent, direct implementation; no sub-agent was used because repository instructions did not request delegation.
 
 Changed decisions: select mixed display detail / active-neighborhood refinement because the 257² fixed display mesh measured 32.0 m maximum midpoint error on Doublehead. Proceed visually after fixing the core/surround color seam. Full evidence and budgets: [threejs-p0-evidence.md](threejs-p0-evidence.md).
 
-Current entry points: the standalone P0 prototype remains under `prototypes/three-terrain/`. P1-A landed in the renderer-independent design session and current `MapView.tsx` composition. P1-B adds the isolated `mountain-planner-three-design` format through `designSaveClient.ts`, with browser IndexedDB and Electron `three-designs` adapters. P1-C adds a non-product real-browser/Electron evidence harness under `tests/p1c/`. The dedicated Three.js gameplay host will consume this boundary in P2.
+Current entry points: the standalone P0 prototype remains under `prototypes/three-terrain/`. The original playable game remains at `index.html`. The P2 product fork starts at `three.html`, `npm run dev:three`, or `run-threejs.bat`; it uses MapLibre only for selection/preparation and mounts the dedicated Three.js gameplay host after the fork save commits. Direct fork loads bypass MapLibre.
 
 Checks:
 
@@ -34,6 +34,11 @@ Checks:
 - P1-C focused save/session/terrain/preview/presentation suite → pass, 60 tests across 7 files.
 - P1-C real Chromium IndexedDB interruption/atomicity/isolation workflow → pass.
 - P1-C real Electron preload/IPC/filesystem recovery workflow → pass, including restart from a corrupted current head.
+- P2-A `npm run typecheck` and `npm run lint` → pass.
+- P2-A analytical production terrain/picking suite → pass, 3 tests.
+- P2-A `npm run build:three`, `npm run build:desktop`, and `npm run build:web` → pass; existing large-chunk warnings remain.
+- P2-A real Chromium direct-load smoke → pass: one Three.js canvas, no MapLibre gameplay canvas, design-only toolbar capability, contour overlay toggle, and no page errors.
+- P2-A full unit attempt → 1,484 tests passed; the same two baseline empty-suite failures remained. Two weather tests timed out at 10 seconds while lint/typecheck ran concurrently, then passed 37/37 alone with a 30-second ceiling.
 
 Unavailable checks: qualified physical-GPU FPS/timing, Electron prototype run, and full current/proposed matched camera capture. Existing current-game save preview and proposed near/typical/overhead captures were inspected; physical-GPU acceptance remains a P2/P4 requirement.
 
@@ -42,3 +47,5 @@ P1-A result: `DesignSession` owns stable design/terrain identity, committed terr
 P1-B result: fork saves use their own format, schema and storage namespace and do not alter `GameSave`. The repository captures and serializes each save-key snapshot, writes and verifies immutable terrain generations, then publishes a complete design manifest and authoritative head. Browser publication uses one IndexedDB transaction; desktop publication retains a recoverable previous head and atomically replaces files. Secondary index failure returns a warning without reversing the committed design, and listings reconstruct current summaries from authoritative heads. Save receipts identify the exact committed revisions.
 
 P1-C result: injected failure after a new terrain generation but before head publication reloads the prior complete browser pair; a failed IndexedDB manifest add cannot move the head; stale/failed summaries reconstruct from the committed manifest. A real Electron launch saves through preload/IPC, restarts with a corrupted current head, and loads the previous complete design/terrain pair from the isolated namespace. Head replacement interruption restores the prior desktop head. Pending saves acknowledge only their captured revisions, detached worker staging leaves session-owned arrays intact, preview writes do not mutate authoritative saves, and accepted commits remain saveable when presentation consumers fail. No simulation engine is initialized by these fixtures.
+
+P2-A result: selection/preparation writes a coherent design fork and hands its key to the Three.js screen machine without entering MapLibre gameplay. The host directly restores fork saves, committed session data, camera pose, terrain/surround elevations, cover colors, matched imagery, contours, site boundary, lifts, trails, paths and node/junction handles. Analytical heightfield picking remains independent of display triangles; feature hits use explicit handle/path/lift/trail priority. Existing menu, settings, credits, draggable windows, interface scaling and the fixed toolbar divisions are retained. Simulation, weather and construction are clearly unavailable rather than initialized or imitated. Camera saves and unsaved-exit handling work in the design-only host, and renderer/session resources dispose on exit.
