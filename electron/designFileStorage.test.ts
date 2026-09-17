@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -7,6 +7,7 @@ import type { DesignSaveDocument, DesignTerrainGeneration } from '../src/types/d
 
 const roots: string[] = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -36,16 +37,20 @@ function manifest(id: string, name: string): DesignSaveDocument {
 }
 
 describe('FileDesignStorage', () => {
-  it('round-trips typed terrain assets and reconstructs a missing index', async () => {
+  it('round-trips typed terrain assets and reconstructs a missing or stale index', async () => {
     const storage = new FileDesignStorage(root());
     await storage.writeTerrainGeneration(generation());
     await storage.publishManifestAndHead(manifest('first', 'First'));
+    await storage.writeSummary({ key: 'save', name: 'First', createdAt: '2026-01-01',
+      updatedAt: '2026-01-01', revisions: manifest('first', 'First').revisions,
+      terrain: manifest('first', 'First').terrain });
+    await storage.publishManifestAndHead(manifest('second', 'Second'));
 
     const loaded = await storage.readTerrainGeneration('terrain-generation');
 
     expect(loaded?.record.sampleHeights).toBeInstanceOf(Float32Array);
     expect(loaded?.record.localImagery).toBeInstanceOf(Uint8Array);
-    expect(await storage.listSummaries()).toMatchObject([{ key: 'save', name: 'First' }]);
+    expect(await storage.listSummaries()).toMatchObject([{ key: 'save', name: 'Second' }]);
   });
 
   it('falls back to the previous complete head when the current head is unreadable', async () => {
@@ -58,6 +63,29 @@ describe('FileDesignStorage', () => {
     expect(head).toBeDefined();
     fs.writeFileSync(path.join(directory, 'heads', head!), '{interrupted', 'utf8');
 
+    expect(await storage.readCurrentManifest('save')).toMatchObject({ manifestId: 'first', name: 'First' });
+  });
+
+  it('restores the prior head when atomic replacement is interrupted', async () => {
+    const directory = root();
+    const storage = new FileDesignStorage(directory);
+    await storage.writeTerrainGeneration(generation());
+    await storage.publishManifestAndHead(manifest('first', 'First'));
+    const rename = fs.renameSync.bind(fs);
+    let injected = false;
+    const spy = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      if (!injected && String(from).endsWith('.tmp') && String(to).endsWith('.head.json')) {
+        injected = true;
+        throw new Error('injected head replacement interruption');
+      }
+      return rename(from, to);
+    });
+
+    await expect(storage.publishManifestAndHead(manifest('second', 'Second')))
+      .rejects.toThrow('injected head replacement interruption');
+    spy.mockRestore();
+
+    expect(injected).toBe(true);
     expect(await storage.readCurrentManifest('save')).toMatchObject({ manifestId: 'first', name: 'First' });
   });
 });

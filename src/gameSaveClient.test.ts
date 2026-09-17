@@ -47,11 +47,28 @@ describe('game preview fallback storage', () => {
 
   it('stores previews outside the save and removes both together', async () => {
     await saveGame(game('alpine', '2026-01-01T00:00:00.000Z'));
+    const beforePreview = await loadGame('alpine');
     expect(await captureGamePreview('alpine', 'data:image/jpeg;base64,abc')).toEqual({ ok: true });
     expect(await loadGamePreview('alpine')).toBe('data:image/jpeg;base64,abc');
+    expect(await loadGame('alpine')).toEqual(beforePreview);
 
     await deleteGame('alpine');
     expect(await loadGamePreview('alpine')).toBeNull();
+  });
+
+  it('reports preview failure without mutating the authoritative save', async () => {
+    await saveGame(game('preview-failure', '2026-01-01T00:00:00.000Z'));
+    const beforePreview = await loadGame('preview-failure');
+    const storage = localStorage;
+    const setItem = storage.setItem.bind(storage);
+    storage.setItem = (key, value) => {
+      if (key.startsWith('gamesave-preview:')) throw new Error('injected preview failure');
+      setItem(key, value);
+    };
+
+    expect(await captureGamePreview('preview-failure', 'data:image/jpeg;base64,abc'))
+      .toEqual({ ok: false, error: 'injected preview failure' });
+    expect(await loadGame('preview-failure')).toEqual(beforePreview);
   });
 
   it('uses the newest explicit save or exit checkpoint for Continue', async () => {

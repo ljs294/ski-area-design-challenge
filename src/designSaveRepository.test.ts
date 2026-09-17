@@ -155,10 +155,11 @@ describe('DesignSaveRepository', () => {
     const secondDraft = draft(1);
     const second = repository.save(secondDraft);
     secondDraft.name = 'Changed after save started';
+    secondDraft.revisions.design = 99;
 
     releaseFirst();
     expect((await first).ok).toBe(true);
-    expect((await second).ok).toBe(true);
+    expect(await second).toMatchObject({ ok: true, receipt: { revisions: { design: 1 } } });
     expect(storage.publishedNames).toEqual(['Design 0', 'Design 1']);
     expect(await repository.load('design')).toMatchObject({ ok: true, bundle: { save: { name: 'Design 1' } } });
   });

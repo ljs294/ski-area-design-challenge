@@ -132,6 +132,22 @@ describe('TerrainDocument revisions', () => {
     }).toThrow();
   });
 
+  it('keeps authoritative arrays intact when transferred staging is cancelled', () => {
+    const { spies } = ports();
+    const document = new TerrainDocument(spies);
+    const input = record('owned-before-worker');
+    const staging = new Float32Array([0, 1, 2, 3]);
+    input.sampleHeights = staging;
+
+    const snapshot = document.replace(input);
+    structuredClone(staging, { transfer: [staging.buffer] });
+
+    expect(staging.byteLength).toBe(0);
+    expect(snapshot.record?.sampleHeights).toBeInstanceOf(Float32Array);
+    expect(snapshot.record?.sampleHeights).toEqual(new Float32Array([0, 1, 2, 3]));
+    expect(document.snapshot().record?.sampleHeights).toBe(snapshot.record?.sampleHeights);
+  });
+
   it('retains unchanged owned source buffers across metadata-only publications', () => {
     const { spies } = ports();
     const document = new TerrainDocument(spies);

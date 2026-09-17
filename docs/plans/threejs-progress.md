@@ -1,16 +1,16 @@
 # Three.js migration progress
 
 Plan revision: 6  
-Branch / base / current SHA: `3js-edition` / `b915aef292da1bc31cd780b3555f3176a78ab5a7` / `1cca4e0808b96fa0fc43d48c4289a118b29b30ec`  
-Dirty work to preserve: P0 files in `prototypes/three-terrain/` and these plan records; no pre-existing dirty work was present.
+Branch / base / current SHA: `3js-edition` / `b915aef292da1bc31cd780b3555f3176a78ab5a7` / `681b78877a509d1e7535def8516d88ce7c2e711f`
+Dirty work to preserve: the current P1-C evidence implementation and these plan records.
 
-Completed/current task: P1-B — recoverable fork storage and atomic design/terrain publication.
-Next task: P1-C — failure-injection and real-adapter recovery evidence.
+Completed/current task: P1-C — failure-injection and real-adapter recovery evidence.
+Next task: P2-A — dedicated Three.js host and interface integration.
 Implementation/review: primary Codex agent, direct implementation; no sub-agent was used because repository instructions did not request delegation.
 
 Changed decisions: select mixed display detail / active-neighborhood refinement because the 257² fixed display mesh measured 32.0 m maximum midpoint error on Doublehead. Proceed visually after fixing the core/surround color seam. Full evidence and budgets: [threejs-p0-evidence.md](threejs-p0-evidence.md).
 
-Current entry points: the standalone P0 prototype remains under `prototypes/three-terrain/`. P1-A landed in the renderer-independent design session and current `MapView.tsx` composition. P1-B adds the isolated `mountain-planner-three-design` format through `designSaveClient.ts`, with browser IndexedDB and Electron `three-designs` adapters. The dedicated Three.js gameplay host will consume this boundary in P2.
+Current entry points: the standalone P0 prototype remains under `prototypes/three-terrain/`. P1-A landed in the renderer-independent design session and current `MapView.tsx` composition. P1-B adds the isolated `mountain-planner-three-design` format through `designSaveClient.ts`, with browser IndexedDB and Electron `three-designs` adapters. P1-C adds a non-product real-browser/Electron evidence harness under `tests/p1c/`. The dedicated Three.js gameplay host will consume this boundary in P2.
 
 Checks:
 
@@ -31,9 +31,14 @@ Checks:
 - P1-B repository, desktop filesystem and session-snapshot suites → pass, 8 tests.
 - P1-B desktop and static-web production builds → pass; existing large-chunk warnings remain.
 - P1-B `npm test` → the same two baseline empty-suite failures remain in `scripts/integratedBenchmarkConfiguration.test.mjs` and `scripts/runIntegratedBenchmark.test.mjs`.
+- P1-C focused save/session/terrain/preview/presentation suite → pass, 60 tests across 7 files.
+- P1-C real Chromium IndexedDB interruption/atomicity/isolation workflow → pass.
+- P1-C real Electron preload/IPC/filesystem recovery workflow → pass, including restart from a corrupted current head.
 
 Unavailable checks: qualified physical-GPU FPS/timing, Electron prototype run, and full current/proposed matched camera capture. Existing current-game save preview and proposed near/typical/overhead captures were inspected; physical-GPU acceptance remains a P2/P4 requirement.
 
 P1-A result: `DesignSession` owns stable design/terrain identity, committed terrain/topology/lifts, revisions, derived network, capabilities, narrow read/command ports and persistence snapshots. Terrain buffers are copied on first ownership and retained by identity when unchanged. Accepted terrain/topology/lift commits remain authoritative when presentation consumers throw, with isolated failure status. Current design boot/edit/save no longer waits for weather readiness; operational simulation controls remain gated. Headless session tests do not initialize simulation.
 
-P1-B result: fork saves use their own format, schema and storage namespace and do not alter `GameSave`. The repository captures and serializes each save-key snapshot, writes and verifies immutable terrain generations, then publishes a complete design manifest and authoritative head. Browser publication uses one IndexedDB transaction; desktop publication retains a recoverable previous head and atomically replaces files. Secondary index failure returns a warning without reversing the committed design, and listings reconstruct current summaries from authoritative heads. Save receipts identify the exact committed revisions. P1-C retains responsibility for the exhaustive real-browser/preload failure matrix required by section 5.1.
+P1-B result: fork saves use their own format, schema and storage namespace and do not alter `GameSave`. The repository captures and serializes each save-key snapshot, writes and verifies immutable terrain generations, then publishes a complete design manifest and authoritative head. Browser publication uses one IndexedDB transaction; desktop publication retains a recoverable previous head and atomically replaces files. Secondary index failure returns a warning without reversing the committed design, and listings reconstruct current summaries from authoritative heads. Save receipts identify the exact committed revisions.
+
+P1-C result: injected failure after a new terrain generation but before head publication reloads the prior complete browser pair; a failed IndexedDB manifest add cannot move the head; stale/failed summaries reconstruct from the committed manifest. A real Electron launch saves through preload/IPC, restarts with a corrupted current head, and loads the previous complete design/terrain pair from the isolated namespace. Head replacement interruption restores the prior desktop head. Pending saves acknowledge only their captured revisions, detached worker staging leaves session-owned arrays intact, preview writes do not mutate authoritative saves, and accepted commits remain saveable when presentation consumers fail. No simulation engine is initialized by these fixtures.
