@@ -80,6 +80,32 @@ Details in [0.5](phase0-0.5-art-direction.md#9-decisions-owner-approval-2026-09-
 |---|---|
 | A1 | Diorama base with rock-strata walls at the ring edge |
 | A2 | Bare rock on faces steeper than about 55° (visual only) |
-| A3 | NLCD forest classes place deciduous trees |
+| A3 | Superseded by TR3 (BIGMAP species data places deciduous trees) |
 | A4 | Moonlit night included |
 | A5 | Model-railway / Parkitect diorama look, not photoreal |
+
+## Trees: decided 2026-09-25
+
+| ID | Decision |
+|---|---|
+| TR1 | **Real species with a stylized look:** the right species in the right places, rendered in the diorama style (A5). Phase 1 set: subalpine fir, mountain hemlock, Pacific silver fir, Douglas-fir, lodgepole pine, quaking aspen, krummholz |
+| TR2 | **Free tools only:** Tree It, EZ-Tree (MIT), Blender (Sapling / Geometry Nodes). No SpeedTree or paid tree tools; paid renderers only with explicit OK. Our own instancing and impostor baker |
+| TR3 | Species data from USFS FIA **BIGMAP** (30 m, 327 species), falling back to **LANDFIRE** Existing Vegetation Type; BIGMAP licence and area download verified in the data spike |
+| TR4 | One tree shader with **wind, snow load and season** inputs; trees built with separate leaf geometry. Iteration 1: full snow load, winter (deciduous trees bare) |
+
+## 0.6 Milestone plan: approved 2026-09-25
+
+| ID | Decision |
+|---|---|
+| M1 | No RTX 2060 available. Phase 1 stand-in: this PC reaches about 55 FPS at Medium within a 6 GB VRAM budget. Phase 2: a tester's PC or a rented cloud GPU. The old laptop is a Low-preset smoke test |
+| M2 | Drawing (Phase 3) before simulation (Phase 4) |
+| M3 | First shareable build at the end of Phase 2, to chosen testers |
+
+## 0.7 Detailed Phase 1 plan: approved 2026-09-25
+
+| ID | Decision |
+|---|---|
+| P1 | Phase 1: 12–14 weeks |
+| P2 | Blender and Tree It installed for the free tree pipeline |
+| P3 | Review gates: data spike (01), style tile (08), Phase 1 exit (16) |
+| P4 | The owner approves every PR before merge; PRs include demo steps |

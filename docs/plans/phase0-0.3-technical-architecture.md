@@ -166,11 +166,19 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - The canopy map is built from satellite imagery of the 2010s. The package records the source date, and a **sanity check** compares its forest fraction with WorldCover's; the archive's lidar-forest failure showed why (0.1 §5).
 - **US-only, public-domain alternative:** USGS Annual NLCD at 30 m. It is coarser; kept as a fallback only.
 
+**Tree species (TR3).** Which species grow in each 30 m cell comes from the USFS **FIA BIGMAP** tree-species biomass layers: 30 m, 327 species, 2018 conditions, contiguous US. If BIGMAP is unavailable or unusable for an area, **LANDFIRE Existing Vegetation Type** (30 m, public domain) gives forest community types instead. The package stores a compact species table (top species and weights per 30 m cell). The data spike verifies BIGMAP's licence and a way to download just a site's area (it is distributed nationally, one file per species); LANDFIRE has a web service for that.
+
 ### 4.5 Forest (T7)
 
 - **Placement:** Poisson-disc sampling per 64 m tile, seeded by `hash(resortSeed, tileX, tileY)`. Deterministic, never saved (it can be cached).
-- **Density** comes from canopy cover and slope. **Tree size comes from canopy height**, so tall old stands and short regrowth look different. Species vary by altitude and aspect.
-- **Rendering:** GPU-culled `RenderMeshIndirect` or `BatchRendererGroup`; LODs down to an impostor beyond about 300 m; vertex wind; snow on branches.
+- **Density** comes from canopy cover and slope. **Tree size comes from canopy height**, so tall old stands and short regrowth look different.
+- **Species** are drawn per tree from the cell's BIGMAP species weights (TR3). Each species maps to a model in the species library (0.5 §3); unmapped species fall back to the nearest look-alike. Krummholz forms replace trees in the band just below the local treeline.
+- **Rendering:** our own GPU-culled `RenderMeshIndirect` instancing and our own octahedral **impostor baker**; LODs down to an impostor beyond about 300 m. Paid renderers or impostor tools (GPU Instancer Pro, Nature Renderer Pro, Amplify Impostors) are used only with the owner's explicit OK (TR2); the free Nature Renderer 6 may be evaluated.
+- **One tree shader (TR4)** for every species, with three inputs:
+  - **wind:** trunk sway, branch bend and leaf flutter, from weights baked into vertex colours
+  - **snow load:** 0–1, snow on upward-facing branch surfaces; fixed at full in iteration 1, and later driven by weather
+  - **season:** 0–1, the leaf colour ramp plus leaf shrink or fade; winter in iteration 1, so deciduous trees and larches are bare
+- Trees are built with **separate leaf geometry and materials**, so seasons need no new models later.
 - **Estimate:** about 650,000 trees on a 5 km site at 65% forest, plus the ring. Ring trees use impostors only.
 - **Later:** a clearing mask (for trails and lift lines) multiplies into density, so drawing tools remove trees tile by tile.
 
@@ -291,6 +299,8 @@ It runs off the main thread with progress, cancellation, retries, polite rate li
 | Water, roads, buildings | OpenStreetMap via Overpass (configurable endpoint) | ODbL; fair-use limits | **Yes** |
 | Place search | Nominatim | Maximum 1 request/s, user-triggered, no autocomplete, attribution | Search box |
 | Picker basemap | USGS National Map tiles (imagery, topo) in a UI Toolkit slippy map, with an S1M coverage overlay | Public domain | **Recommended** |
+| Tree species | USFS FIA BIGMAP (30 m, 327 species) | Federal data; licence verified in the data spike | **Yes** |
+| Tree species fallback | LANDFIRE Existing Vegetation Type (30 m) | Public domain | Fallback |
 | Fallback land cover | USGS Annual NLCD 30 m | Public domain | Fallback only |
 | Satellite imagery layer (nice to have) | USGS NAIP | Public domain | Optional layer (G7) |
 | Not used | Cesium ion; Esri World Imagery; CARTO; OSM Foundation tiles; NAIP (not needed now) | Commercial or usage restrictions (see first draft) | No |
@@ -375,7 +385,7 @@ Measured with Unity's Performance Testing package in a benchmark scene with a fi
 
 **Simulation:**
 - A real clock implementing `IGameClock` on a dedicated thread; snapshots out, commands in; roadmap §5 and §7 become the active rules; the simulation writes the snow-depth texture.
-- **What iteration 1 does now for this:** the placeholder clock, the snow-depth texture seam, water-body surface states (frozen now; the weather engine later freezes and thaws them), keyed randomness and the engine-free domain.
+- **What iteration 1 does now for this:** the placeholder clock, the snow-depth texture seam, water-body surface states (frozen now; the weather engine later freezes and thaws them), the tree shader's snow-load and season inputs (TR4), keyed randomness and the engine-free domain.
 
 **The clock placeholder** (`MountainPlanner.Simulation`):
 

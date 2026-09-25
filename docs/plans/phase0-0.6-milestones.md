@@ -1,6 +1,6 @@
 # Phase 0 · 0.6 Milestone plan, Phases 1–4
 
-**Audience:** the project owner and coding agents. **Status:** draft for review (2026-09-25). Built on the approved [0.2](phase0-0.2-game-design.md), [0.3](phase0-0.3-technical-architecture.md), [0.4](phase0-0.4-ui-ux.md), [0.5](phase0-0.5-art-direction.md) and the [decision record](phase0-decisions.md). This replaces the phase table in [roadmap §13](unity-rebuild-roadmap.md#13-phases-and-planning-approach). Questions are in §7.
+**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25 (decisions in §7). Built on the approved [0.2](phase0-0.2-game-design.md), [0.3](phase0-0.3-technical-architecture.md), [0.4](phase0-0.4-ui-ux.md), [0.5](phase0-0.5-art-direction.md) and the [decision record](phase0-decisions.md). This replaces the phase table in [roadmap §13](unity-rebuild-roadmap.md#13-phases-and-planning-approach). Questions are in §7.
 
 ## 1. How the phases map to iterations
 
@@ -19,7 +19,7 @@
 **Goal:** prove the whole iteration-1 pipeline and the look on real data, with just enough UI to drive it.
 
 **Scope:**
-- **Data spike first:** S1M block reads, the fallback service, canopy, WorldCover and NLCD access, and the coverage-index format (T4, T6, T10).
+- **Data spike first:** S1M block reads, the fallback service, canopy, WorldCover, BIGMAP species and LANDFIRE access, and the coverage-index format (T4, T6, T10).
 - **Assemblies migrated** to the T1 layout.
 - **Acquisition command-line tool:**
   - builds the **2 km test terrain** (committed to the repo) and **Crystal Mountain** (5 km, fallback path)
@@ -28,7 +28,7 @@
 - **World:**
   - Unity Terrain tiles, 1 m core and 2 m ring, seamless (T4)
   - non-blocky ground cover (T6)
-  - forest with five archetypes (T7, 0.5 §3)
+  - forest of 7 real species from the free tree pipeline (T7, TR1–TR4, 0.5 §3)
   - flat 12 in snow with bare rock over about 55° (T8, A2)
   - frozen lakes (T8)
   - the diorama-base edge (A1)
@@ -46,7 +46,7 @@
 2. A downloaded mountain opens in ≤10 s **with the network disabled**.
 3. The style-tile review passes: no blocky cover, no tile seams, no data seams.
 4. Reference PC (RTX 3060 Ti): frame p95 ≤20 ms at 1080p High on Crystal Mountain.
-5. Minimum-spec proxy: 30 FPS or better at Medium. It is verified on a real RTX 2060 in Phase 2 (question M1).
+5. **Minimum-spec stand-in (M1):** this PC reaches about 55 FPS (p95 ≤18 ms) at 1080p Medium, with VRAM within a 6 GB budget. That implies 30 FPS or better on an RTX 2060, which is about 55–60% as fast.
 6. Golden tests are stable across repeated runs. Engine-free tests run in CI.
 7. Velocity versus estimate is recorded, and the Phase 2 detailed plan is written.
 
@@ -72,7 +72,7 @@
 - **Background downloads** with resume (G5).
 - **The satellite imagery layer** from NAIP (G7, nice to have; cut first if time is short).
 - **The Crystal Mountain demo bundled** into the build (G2).
-- **Performance on real minimum-spec hardware** (RTX 2060) at Medium; a 1-hour soak with no memory growth beyond 10%.
+- **Performance on real minimum-spec hardware** (RTX 2060) at Medium, verified on a tester's RTX 2060-class PC or a few hours on a rented cloud GPU (M1). The 10-year-old laptop gets a Low-preset "starts and runs" check; a 1-hour soak with no memory growth beyond 10%.
 - **Build and release:** a Windows build pipeline and installer (or zip), a version number, crash logging, and a first build to share with testers.
 - **Formats frozen:** from this build on, the package format has migrations (T11).
 
@@ -136,15 +136,10 @@
   - Scope creep back toward the old game's full feature set (mitigated by this phase order).
   - Solo velocity. Each phase ends with a velocity review, and the next phase's estimate is revised.
 
-## 7. Questions for you
+## 7. Decisions (owner answers, 2026-09-25)
 
-Write your answer after each **Comment:**; "OK" accepts the recommendation.
-
-**M1 · Minimum-spec hardware for testing.** Do you have access to an RTX 2060 (or similar) PC for Phase 2 verification? If not, Phase 1 uses a proxy (the reference PC at reduced settings), and a real test is arranged in Phase 2.
-**Comment:**
-
-**M2 · Phase order.** OK with drawing (Phase 3) before simulation (Phase 4)?
-**Comment:**
-
-**M3 · First shareable build.** Recommendation: at the end of Phase 2, to a few testers you choose, not public.
-**Comment:**
+| ID | Decision |
+|---|---|
+| M1 | No RTX 2060 is available (only this RTX 3060 Ti PC and a 10-year-old laptop). Phase 1 uses the stand-in in §2, criterion 5. Phase 2 verifies on a tester's PC or a rented cloud GPU. The laptop is a Low-preset smoke test |
+| M2 | Drawing (Phase 3) before simulation (Phase 4): preferred |
+| M3 | First shareable build at the end of Phase 2, to testers you choose |

@@ -37,25 +37,28 @@
 
 ## 3. Forest
 
-**Five tree archetypes** cover the US mountain West and East in winter:
+**A species library, not generic types (TR1).** Trees are real species, placed where they actually grow (from BIGMAP, 0.3 §4.5), with recognizable silhouettes, bark and foliage colours. They are rendered in the stylized diorama look (A5): simplified materials, no photoreal detail.
 
-| Archetype | Stands in for | Where |
+**Phase 1 set** (Crystal Mountain and the style tile):
+
+| Species | Form | Notes |
 |---|---|---|
-| Spire conifer | Subalpine fir, Engelmann spruce, Pacific silver fir | High montane, north-facing slopes |
-| Broad conifer | Douglas-fir, western and eastern hemlock, white pine | Mid and low montane |
-| Open pine | Ponderosa, lodgepole, whitebark pine | Dry and south-facing slopes, treeline |
-| Bare deciduous | Aspen, birch, maple, oak (winter, leafless) | Low elevations, eastern forests |
-| Krummholz | Stunted treeline shrubs and trees | The band just below local treeline |
+| Subalpine fir | Narrow spire | High elevations; holds snow on its tiers |
+| Mountain hemlock | Drooping-top conifer | Crystal Mountain's upper forest |
+| Pacific silver fir | Dense, symmetric conifer | Mid-elevation Cascades |
+| Douglas-fir | Tall, irregular conifer | Lower slopes |
+| Lodgepole pine | Tall, thin, open crown | Dry sites |
+| Quaking aspen | Bare white-barked deciduous | Leafless in winter |
+| Krummholz | Stunted, wind-shaped forms | Just below the local treeline |
 
-**Choosing an archetype per tree** (deterministic, T12):
-- Height above local treeline, aspect and canopy height (T7).
-- A regional mix (West / East) from longitude and latitude.
-- **Optionally** USGS NLCD's evergreen/deciduous/mixed forest classes (30 m, public domain), to place deciduous trees correctly. **Recommendation:** use it. It is a small download and fixes "all-conifer" eastern hills.
+The library grows in later phases, prioritized by how often each species appears on the mountains players download.
+
+**Mapping:** a `species-map` file links BIGMAP species codes to models. Unmapped species fall back to the nearest look-alike (same genus first, then the same form).
 
 **Variation:**
-- Each archetype has 3 mesh variants.
+- Each species has 3 mesh variants.
 - Per instance: size from canopy height (±10%), rotation, a slight lean, and colour jitter from the palette (§5).
-- Snow load on branches, scaled by archetype: spires hold snow on their tiers; deciduous trees get only a dusting on the branches.
+- **Snow load** comes from the tree shader (TR4): spires and firs hold snow on their tiers; bare deciduous trees get a dusting on their branches.
 
 **Style:**
 - Faceted, low-poly-ish forms with smooth shading. No individual needles; clumped foliage masses.
@@ -91,7 +94,7 @@ The UI palette (0.4 §7) is separate; its accent blue `#155ab6` is chosen so tha
 
 | Asset | Count | Source | Budget (LOD0 / LOD1 / impostor) |
 |---|---|---|---|
-| Trees | 5 archetypes × 3 variants | **Procedural in Blender** (Geometry Nodes, scripted from `tools/assets/`), exported as glTF | ≤1,500 / ≤300 triangles / octahedral impostor (roadmap §12) |
+| Trees | 7 Phase 1 species × 3 variants, growing later | **Free tools (TR2):** Tree It, EZ-Tree (MIT) or Blender Sapling / Geometry Nodes, then the Blender finishing script | ≤1,500 / ≤300 triangles / octahedral impostor (roadmap §12) |
 | Tree textures | One shared atlas | Hand-painted / generated, palette-quantized | 1k |
 | Terrain layers | 5 + snow | Painted and procedural, each with albedo, normal and height | 1k–2k per layer |
 | Strata wall material | 1 | Procedural | 1k |
@@ -99,16 +102,19 @@ The UI palette (0.4 §7) is separate; its accent blue `#155ab6` is chosen so tha
 | UI icons | ~30 | SVG, outline style (0.4 §7) | — |
 | Menu scene | Crystal Mountain (G2) | The acquisition tool | — |
 
-**Buy versus build (roadmap §9):**
-- Trees are built, because the style must match and the archetypes are few.
-- **Impostor baking and GPU-instanced rendering** are evaluated in Phase 1: an Asset Store package (for example Amplify Impostors, GPU Instancer or Nature Renderer) versus our own. The licence must allow redistribution in a commercial game.
+**Free tree pipeline (TR2):**
+1. **Shape** the species in Tree It (free; its exports are free for any engine), EZ-Tree (MIT) or Blender Sapling / Geometry Nodes.
+2. **Finish** it with a Blender script in `tools/assets/`: build LODs, bake wind weights into vertex colours, split leaf / branch / bark materials, add a snow mask, and export glTF.
+3. **Import** into Unity, where our own **impostor baker** makes the distant version.
+
+**No subscriptions or paid tree tools.** Paid renderers or impostor tools need the owner's explicit OK; the free Nature Renderer 6 may be evaluated.
 
 **Generative 3D** (roadmap §12) is not needed in iteration 1.
 
 ## 7. The style tile: the first art milestone in Phase 1
 
 The style tile is one Unity scene that locks the look before scaling up:
-- A 1 km patch of the 2 km test terrain with every ground layer, all five tree archetypes, a frozen lake and a strata-wall edge.
+- A 1 km patch of the 2 km test terrain with every ground layer, three species (subalpine fir, mountain hemlock, bare aspen) built with the free pipeline and the tree shader, a frozen lake and a strata-wall edge.
 - Four lighting presets (dawn, noon, golden hour, night) with their LUTs.
 - The UI's S6 HUD overlaid (0.4), in both themes.
 - **Captured and reviewed with you before the forest and terrain are scaled to full sites.** A slice with blocky cover or noisy forest fails (T6).
@@ -125,6 +131,6 @@ The style tile is one Unity scene that locks the look before scaling up:
 |---|---|
 | A1 | Ring edge: a **diorama base** (clean cut, rock-strata walls, thin plinth) |
 | A2 | Very steep faces (over about 55°) show **bare rock** as a visual touch; the snow depth texture stays a flat 12 in |
-| A3 | Use **USGS NLCD** forest classes to place leafless deciduous trees |
+| A3 | Superseded by TR3: **BIGMAP species data** places deciduous trees along with every other species |
 | A4 | Include a readable, **moonlit night** in the time scrubber |
 | A5 | Target: a **model-railway / Parkitect-style diorama**, not photoreal |
