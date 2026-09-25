@@ -1,5 +1,7 @@
 # Mountain Planner agent guide
 
+**Archived:** this is the final MapLibre version (`archive/maplibre`, tag `maplibre-final`); active development is the Unity rebuild on `main`.
+
 This file is the canonical repository guidance for Codex, Claude Code, and other repository-aware agents. `CLAUDE.md` must contain only `@AGENTS.md`. If a nested `AGENTS.md` is added, add the same-directory `CLAUDE.md` import with it.
 
 ## Product and entrypoints

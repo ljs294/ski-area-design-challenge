@@ -1,5 +1,9 @@
 # Ski Area Design Challenge
 
+> **Archived.** This is the final version of the MapLibre/TypeScript game, preserved on branch `archive/maplibre` and tag `maplibre-final`. Active development is a from-scratch Unity rebuild on `main`; see [the Unity rebuild roadmap](docs/plans/unity-rebuild-roadmap.md). The game below still builds and runs as documented.
+>
+> Gate result at archive time (2026-09-25): `npm run check:agent-docs`, `lint`, `typecheck`, `build:desktop` and `build:web` pass. `npm run check` exits 1 at `test:unit`: all 1,462 unit tests pass, but Vitest also collects `scripts/integratedBenchmarkConfiguration.test.mjs` and `scripts/runIntegratedBenchmark.test.mjs` (Node test-runner files) and reports "No test suite found". This is pre-existing and was left unfixed so the archive preserves the game as it was.
+
 Build and explore a ski resort on real terrain. Ski Area Design Challenge includes tools for lifts, trails, roads, ponds, and snowmaking, along with map layers, dashboards, weather, and guest simulation.
 
 The desktop app uses Electron, React, and MapLibre. Start with the desktop version for the full experience.
