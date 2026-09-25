@@ -203,6 +203,7 @@ Owner requirement: the player can toggle ground cover on and off.
 | Ground cover | Terrain textured by cover class (forest floor, grass, rock, developed, water) versus plain shaded terrain | On |
 | Forest | The trees | On |
 | Cover map | A flat-colour overlay of the cover classes, for reading the data, like the old game's analysis layer | Off |
+| Satellite imagery (nice to have, G7) | USGS NAIP aerial imagery (about 0.6 m, public domain) draped on the terrain in place of the stylized ground. Downloaded with the mountain if enabled in the picker (about 50–100 MB extra for 5 km) | Off |
 
 **Performance:** toggling costs nothing noticeable. Layers are shader switches and render-list visibility, never a rebuild of terrain or forest.
 
@@ -290,6 +291,7 @@ It runs off the main thread with progress, cancellation, retries, polite rate li
 | Place search | Nominatim | Maximum 1 request/s, user-triggered, no autocomplete, attribution | Search box |
 | Picker basemap | USGS National Map tiles (imagery, topo) in a UI Toolkit slippy map, with an S1M coverage overlay | Public domain | **Recommended** |
 | Fallback land cover | USGS Annual NLCD 30 m | Public domain | Fallback only |
+| Satellite imagery layer (nice to have) | USGS NAIP | Public domain | Optional layer (G7) |
 | Not used | Cesium ion; Esri World Imagery; CARTO; OSM Foundation tiles; NAIP (not needed now) | Commercial or usage restrictions (see first draft) | No |
 
 **Coverage is US-only** (contiguous US now; Hawaii and Puerto Rico are planned by USGS).
@@ -350,6 +352,7 @@ Measured with Unity's Performance Testing package in a benchmark scene with a fi
 - **Most tests are engine-free EditMode tests:** georeferencing, the COG reader (LZW, predictor, block stitching, voids), package and cache formats, 16-bit conversion error bounds, cover and canopy processing, forest placement, solar position. Provider responses are **recorded, never live**.
 - **PlayMode:** scene boot; opening a resort; tile seams (no cracks, matched edges); `TerrainData` matching the authoritative grid within the 16-bit step.
 - **Checked-in test terrain:** a real 2 km S1M site built by the acquisition tool and committed through Git LFS. It is public domain, works offline, and is Phase 1's test area.
+- **Crystal Mountain demo (G2):** built by the same tool and bundled into release builds for the demo and the menu background. At about 650 MB it is **not** committed to Git by default (LFS quota); the build script regenerates or caches it. It is not currently in S1M, so it exercises the fallback path.
 - **Performance and live-provider tests:** opt-in only.
 - **Continuous integration:**
   - Now: `repo-checks`.

@@ -44,3 +44,18 @@ Details in [0.3](phase0-0.3-technical-architecture.md).
 | T17 | Map layers: Snow, Ground cover, Forest (on by default) and a Cover map overlay (off); instant toggles | [§4.8](phase0-0.3-technical-architecture.md#48-map-layers-t17) |
 | T18 | A terrain quality score (0–100) and a one-line data summary after download. Weights: S1M 100, 1 m lidar 95, about 3 m 60, about 10 m 30 | [§4.2](phase0-0.3-technical-architecture.md#42-elevation-extent-and-resolution-t4) |
 | T19 | Site picker: a pop-up mini-map with search, a 2–5 km slider (0.1 km steps), click to centre, and a required map name with a suggestion | [§6.1](phase0-0.3-technical-architecture.md#61-site-picker-t19) |
+
+## 0.2 Game design and flow: approved 2026-09-25
+
+Details in [0.2](phase0-0.2-game-design.md#8-decisions-owner-answers-2026-09-25).
+
+| ID | Decision |
+|---|---|
+| G1 | Title: **Ski Area Design Challenge** (for now) |
+| G2 | Bundled demo and menu background: **Crystal Mountain, Washington** (fallback 1 m lidar; not yet in S1M) |
+| G3 | Photo mode in iteration 1 |
+| G4 | Free-fly down to a few metres above the snow; no walking; bounded to the ring |
+| G5 | Background downloads, one at a time |
+| G7 | Optional satellite imagery layer from USGS NAIP (nice to have) |
+| G8 | Unity-native graphics settings menu |
+| G9 | Other keep/change/drop decisions accepted |

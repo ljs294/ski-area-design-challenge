@@ -1,6 +1,6 @@
 # Phase 0 · 0.2 Game design and flow
 
-**Audience:** the project owner and coding agents. **Status:** draft for review (2026-09-25). Builds on [0.1](phase0-0.1-reference-inventory.md), [0.3](phase0-0.3-technical-architecture.md) and the [decision record](phase0-decisions.md). Questions for you are in §8.
+**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25 (answers in §8).  **Title:** *Ski Area Design Challenge* (G1). Builds on [0.1](phase0-0.1-reference-inventory.md), [0.3](phase0-0.3-technical-architecture.md) and the [decision record](phase0-decisions.md). Questions for you are in §8.
 
 ## 1. What the game is
 
@@ -34,7 +34,7 @@ Discover ──► Download ──► Explore ──► Collect ──► Return
 ## 3. Player journey
 
 **Launch**
-- The main menu, over a slowly moving view of a mountain. That mountain comes from the bundled demo (G2) or the last one opened, so the menu works offline.
+- The main menu, over a slowly moving view of the bundled **Crystal Mountain, Washington** demo (G2), so the menu works offline.
 - Entries: **Continue** (last mountain), **My Mountains** (library), **New Mountain** (picker), **Settings**, **Credits**, **Quit**.
 - **First launch** with an empty library: *Continue* is hidden, and the menu invites *New Mountain* or *Open the demo mountain*.
 
@@ -58,7 +58,8 @@ Discover ──► Download ──► Explore ──► Collect ──► Return
 **Explore the mountain**, with a minimal HUD:
 - **Camera:** orbit / RTS style by default, with free-fly as a toggle; bounded to the surround ring; "reset view" and "north up".
 - **Time and date scrubber:** sun position and shadows. Snow stays at a flat 12 in (T8).
-- **Layers panel:** Snow, Ground cover, Forest, Cover map (T17).
+- **Layers panel:** Snow, Ground cover, Forest, Cover map (T17), and Satellite imagery (nice to have; see §4).
+- **Photo mode** (G3): hide the UI, frame the shot, save a PNG.
 - **Info:** mountain name, a compass, a scale bar, elevation under the cursor, and the quality badge.
 - **Menu (Esc):** Settings, Library, Main menu, Quit.
 - The camera, view time and layer choices are remembered per mountain.
@@ -69,7 +70,7 @@ Discover ──► Download ──► Explore ──► Collect ──► Return
 - Shows total disk use and the data folder location.
 
 **Settings**
-- **Graphics:** preset (Performance / Standard / High / Ultra), resolution, window mode.
+- **Graphics, redesigned to feel native to Unity games:** a quality preset (Low / Medium / High / Ultra, one Unity quality level each) plus individual overrides: resolution, window mode, V-Sync, frame-rate cap, render scale, anti-aliasing, shadow quality and distance, texture quality, forest density and draw distance, terrain detail. Detailed in 0.4.
 - **Interface:** UI scale 50–150%, units (US / metric), theme (light / dark / system).
 - **Controls:** rebindable keys; the old game's defaults W/A/S/D, Q/E, R/F, N.
 - **Data:** the data folder and storage use.
@@ -88,9 +89,9 @@ Only the parts relevant to iteration 1 are listed.
 | Resort library with protected packages | **Keep**, as "My Mountains" | |
 | Surround ring beyond the site | **Keep**, at 2 m | No cliff at the edge |
 | 2D/3D toggle | **Drop** | Always 3D; a top-down camera preset covers the need |
-| Satellite imagery layer (Esri) | **Drop** | Licensing (T10) |
+| Satellite imagery layer (Esri) | **Change** → an optional **satellite imagery layer from USGS NAIP** (public domain), a nice to have | Esri licensing (T10); NAIP is free |
 | Analysis layers (hillshade, contours, slope, aspect) | **Later**, as 0.4 candidates | Iteration 1 keeps four layers |
-| Render quality tiers | **Keep** the four names | Familiar; now also drive forest and shadows |
+| Render quality tiers and graphics menu | **Change** → a Unity-native graphics menu (presets plus individual options) | Owner decision |
 | Themes, UI scale 50–150%, units, rebindable keys | **Keep** | |
 | Developer console | **Keep**, development builds only | |
 | Graphics Lab | **Replace** with a benchmark scene | Performance budgets (T13) |
@@ -121,29 +122,16 @@ The rules in 0.1 §6 and §9 are the starting reference for each.
 - The layers, time scrubber and camera feel immediate (T13 budgets).
 - The minimum-spec PC runs it at 30 FPS or better.
 
-## 8. Questions for you
+## 8. Decisions (owner answers, 2026-09-25)
 
-Write your answer after each **Comment:**; "OK" accepts the recommendation.
-
-**G1 · Product name.**
-The repo is *ski-area-design-challenge*, the code is *MountainPlanner*, and the old game's title was *Ski Area Design Challenge*. **Recommendation:** keep *Mountain Planner* as the working title and decide the final name later.
-**Comment:**
-
-**G2 · Bundled demo mountain.**
-**Recommendation:** ship the 2 km test site (T14) as a demo, so the first launch and the main menu work offline immediately.
-**Comment:**
-
-**G3 · Photo mode.**
-Hide the UI, frame the shot, save a PNG. It fits the "admire" payoff and is cheap. **Recommendation:** include it in iteration 1.
-**Comment:**
-
-**G4 · Camera freedom.**
-**Recommendation:** free-fly may go down to a few metres above the snow, with no walking mode, bounded to the surround ring.
-**Comment:**
-
-**G5 · Downloads in the background.**
-**Recommendation:** you can browse the library or explore another mountain while a download runs, one download at a time.
-**Comment:**
-
-**G6 · Anything to add to the journey (§3) or to the done criteria (§7)?**
-**Comment:**
+| ID | Decision |
+|---|---|
+| G1 | The game is titled **Ski Area Design Challenge** for now |
+| G2 | **Crystal Mountain, Washington** ships as a bundled demo mountain and is the main-menu background scene. It is not yet covered by S1M (checked 2026-09-25), so it uses the fallback 1 m project lidar; the Phase 1 data spike confirms this |
+| G3 | **Photo mode** is in iteration 1 |
+| G4 | Free-fly goes down to a few metres above the snow; no walking mode; bounded to the surround ring |
+| G5 | **Background downloads:** keep using the game while one download runs |
+| G6 | No further journey or done-criteria changes |
+| G7 | **Satellite imagery** as an optional map layer (USGS NAIP, public domain): nice to have |
+| G8 | The graphics settings menu is redesigned to feel **native to Unity games** |
+| G9 | All other keep/change/drop decisions in §4 are accepted |
