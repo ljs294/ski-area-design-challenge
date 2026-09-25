@@ -1,6 +1,6 @@
 # Phase 0 · 0.1 Reference inventory: the archived MapLibre game
 
-**Audience:** the project owner and coding agents. **Status:** draft for review (2026-09-25). **Source:** tag `maplibre-final` (commit `c29228f`). Comment in [phase0-review.md](phase0-review.md).
+**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25. **Source:** tag `maplibre-final` (commit `c29228f`). Decisions: [phase0-decisions.md](phase0-decisions.md).
 
 This is a record of what the archived game does, the rules behind it, and what was learned building it. It describes behaviour, not code. Nothing here is carried into Unity: it is the input to deliverable 0.2, which decides what to keep, change, add or drop. Every link points at the frozen tag.
 

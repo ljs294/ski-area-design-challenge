@@ -1,6 +1,6 @@
 # Phase 0 · 0.3 Technical architecture
 
-**Audience:** the project owner and coding agents. **Status:** draft for review (revised 2026-09-25 with the owner's first answers). Decisions are numbered **T1–T19**; comment in [phase0-review.md](phase0-review.md). Inputs: the [roadmap](unity-rebuild-roadmap.md) and the [reference inventory](phase0-0.1-reference-inventory.md).
+**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25. Decisions are numbered **T1–T19** and summarized in [phase0-decisions.md](phase0-decisions.md). Inputs: the [roadmap](unity-rebuild-roadmap.md) and the [reference inventory](phase0-0.1-reference-inventory.md).
 
 ## 1. Scope
 
@@ -298,7 +298,7 @@ It runs off the main thread with progress, cancellation, retries, polite rate li
 
 **How it works (owner's design, 2026-09-25).** A pop-up window holding a small built-in map:
 1. **Search** for a place, or pan and zoom the map.
-2. **Size the square** with a slider, 2–5 km (proposed step: 0.1 km).
+2. **Size the square** with a slider, 2–5 km (0.1 km steps).
 3. **Click the map** to centre the square on that point. Clicking again moves it.
 4. **Name the map.** A name is required before downloading. It is prefilled with a suggestion (the nearest named peak or place), and the player can edit it.
 5. **Download.** The picker shows the site's expected quality score and download size first (§4.2), then the download progress.
