@@ -1,23 +1,21 @@
 # Phase 0 · 0.3 Technical architecture
 
-**Audience:** the project owner and coding agents. **Status:** draft for review (2026-09-25). Decisions are numbered **T1–T16**; comment on them in [phase0-review.md](phase0-review.md). Inputs: the [roadmap](unity-rebuild-roadmap.md) and the [reference inventory](phase0-0.1-reference-inventory.md).
+**Audience:** the project owner and coding agents. **Status:** draft for review (revised 2026-09-25 with the owner's first answers). Decisions are numbered **T1–T16**; comment in [phase0-review.md](phase0-review.md). Inputs: the [roadmap](unity-rebuild-roadmap.md) and the [reference inventory](phase0-0.1-reference-inventory.md).
 
 ## 1. Scope
 
 **Iteration 1 is just the mountain:**
-1. Pick a real site on a world map.
+1. Pick a real site (a **square of 2–5 km**) on a world map.
 2. Download its elevation from USGS 1 m lidar, specifically the **Seamless 1-meter DEM (S1M)**.
-3. The game renders it as a stylized 3D mountain, supplying the **lighting, camera, ground cover, forest and snow**.
+3. The game renders it with its own **lighting, camera, ground cover, forest and snow**.
 
-There are no player drawing tools and no simulation.
+**Offline after the first download.** Downloading may take a while, and a resort may use **about 1 GB on disk**. After that, opening and playing a resort needs no internet. Only the site picker, which browses and downloads new sites, is online.
 
 **Future iterations are planned, not built:**
-- **Drawing on the terrain:** ski lifts, trails and the other tools recorded in 0.1 §6.
-- **Simulation:** time, weather, snow, guests (0.1 §7).
+- **Drawing on the terrain:** lifts, trails and the other tools recorded in 0.1 §6.
+- **Simulation:** 0.1 §7.
 
-§10 says what iteration 1 must do now so these can be added without rework. Beyond that, this document only records their direction.
-
-**Deferred to other deliverables:** game design (0.2), UI (0.4), art (0.5).
+§10 lists what iteration 1 does now so those fit without rework. **Deferred to other deliverables:** game design (0.2), UI (0.4), art (0.5).
 
 ## 2. Assemblies (T1)
 
@@ -25,9 +23,9 @@ There are no player drawing tools and no simulation.
 |---|---|---|---|
 | `MountainPlanner.Domain` | None (`noEngineReferences`) | — | Identifiers, units, georeferencing, grids, keyed hash randomness, the resort model. Later: the design document and construction math |
 | `MountainPlanner.Simulation` | None | Domain | **Placeholder:** the clock interface and a manual view clock (§10) |
-| `MountainPlanner.Persistence` | None | Domain | Resort-package and library formats, versioning. Later: saves |
-| `MountainPlanner.Acquisition` | None | Domain, Persistence | S1M and other provider clients, the Cloud Optimized GeoTIFF reader, package building and validation |
-| `MountainPlanner.World` | Yes | Domain, Simulation, Persistence | Unity Terrain tiles, splat and cover masks, forest generation (Burst), water surfaces, spatial queries |
+| `MountainPlanner.Persistence` | None | Domain | Resort-package, cache and library formats, versioning. Later: saves |
+| `MountainPlanner.Acquisition` | None | Domain, Persistence | Provider clients, the Cloud Optimized GeoTIFF reader, package building and validation |
+| `MountainPlanner.World` | Yes | Domain, Simulation, Persistence | Unity Terrain tiles, splat and masks, forest generation (Burst), water, spatial queries |
 | `MountainPlanner.Presentation` | Yes | World (+ below) | Terrain and snow materials, forest rendering, sky and lighting, camera |
 | `MountainPlanner.UI` | Yes | Presentation (+ below) | UI Toolkit screens, site picker, themes, view models |
 | `MountainPlanner.App` | Yes | All | Bootstrap, scene flow, input routing, background-task host |
@@ -35,221 +33,289 @@ There are no player drawing tools and no simulation.
 **Rules:**
 - References only point down the table, never up.
 - Engine-free assemblies use the .NET base library plus approved precompiled DLLs only (Newtonsoft.Json).
-- **Migration from the M0 skeleton:** rename `Simulation` to `Domain`, re-add `Simulation` as the placeholder, add `Persistence`, `Acquisition` and `App`, extend the architecture tests, and update `AGENTS.md`, all in the same PR.
-
-**Why engine-free matters:**
-- The core is unit-testable in milliseconds, even outside Unity (§9).
-- Acquisition can run as a command-line tool that builds test fixtures.
-- The drawing tools and simulation can later be built and tested on the same foundation.
+- **Migration from the M0 skeleton:** rename `Simulation` to `Domain`, re-add `Simulation` as the placeholder, add `Persistence`, `Acquisition` and `App`, extend the architecture tests, and update `AGENTS.md`, all in one PR.
+- **Why engine-free matters:** the core is unit-testable in milliseconds, even outside Unity (§9); acquisition doubles as a command-line tool; the future tools and simulation build on the same foundation.
 
 ## 3. Runtime structure (T2)
 
 **State in iteration 1:**
-- The **resort package**: downloaded data, immutable (§5).
-- A small **view state** per resort: last camera, bookmarks, view time and display settings.
+- The **resort package**: downloaded source data, immutable.
+- Its **terrain cache**: Unity-ready data, regenerable (§5).
+- A small **view state** per resort: camera, bookmarks, view time, display settings.
 - Nothing the player makes needs saving yet.
 
 **Threading:**
-- **Main thread:** Unity scene, input, UI, and applying finished data to `TerrainData` and GPU buffers.
-- **Background .NET tasks,** with progress and cancellation: acquisition (downloads, decoding, package build) and package loading.
-- **Burst jobs** (World): building splat and cover masks, forest instances and terrain normals when a resort opens.
-- **No simulation thread** (§10).
+- **Main thread:** Unity scene, input, UI, handing finished data to `TerrainData` and GPU buffers.
+- **Background .NET tasks,** with progress and cancellation: downloads, decoding, package and cache building, loading.
+- **Burst jobs:** splat, masks and forest instances.
+- **No simulation thread.**
 
-**Derived data is never saved:** splat maps, forest instances and meshes are rebuilt from the package when a resort opens (0.1 §9, doctrine 1).
+**Source data vs derived data:** the source layers are the authority. Everything derived from them (terrain tiles, splat, forest) can be rebuilt from them at any time. It may be *cached* on disk for speed, but it is never the only copy of anything.
 
 ## 4. World representation
 
 ### 4.1 Coordinates: keep S1M's native grid (T3)
 
 **The data:**
-- S1M tiles use **NAD83(2011) CONUS Albers Equal Area (EPSG:6350)**, horizontal units in metres.
+- S1M uses **NAD83(2011) CONUS Albers Equal Area (EPSG:6350)**, with metre units, 1 m pixels, and tile corners on whole kilometres.
 - Heights are **NAVD88 (GEOID18) metres**.
-- Pixels are exactly 1 m, and tile corners fall on whole kilometres.
 
 **Decision:**
-- The resort package uses **the same grid**, so the lidar heights are **never resampled** and the full 1 m detail survives.
-- Unity world `x` = Albers x − x₀ and `z` = Albers y − y₀, with a local origin at the site centre; `y` = elevation. One unit is one metre.
+- The package uses the **same grid**, so the lidar heights are **never resampled**.
+- Unity world `x` = Albers x − x₀ and `z` = Albers y − y₀, with a local origin at the site centre; `y` = elevation; one unit is one metre.
+- Albers scale error is within about ±1% across the contiguous US and effectively constant across one site. The manifest stores the site's scale factors for future measuring tools; rendering ignores them.
+- Other layers (canopy, land cover, water) are reprojected onto this grid at download time.
+- **Rejected alternative:** UTM, which would resample and blur the lidar.
 
-**Scale:**
-- Albers is equal-area, not true-distance. The local scale error is within about ±1% across the contiguous US, and effectively constant across one site.
-- The manifest stores the site's scale factors. Future measuring tools (trail length, lift length) apply them; rendering ignores them.
+### 4.2 Elevation extent and resolution (T4)
 
-**Other layers** (land cover, imagery, water) are reprojected onto this grid at download time.
+- **Site:** a square of **2–5 km** (decided), at full **1 m** resolution. A 5 km site is 25 million heights.
+- **Surround ring:** 3 km beyond the site on every side (so a 5 km site sits in an 11 km square). It uses S1M's built-in **2 m** copy: same source, same datum, no seam. The 1 GB budget allows 2 m rather than the 8 m in the first draft.
+- **Coverage:**
+  - S1M production is still in progress.
+  - **Recommendation** (open question T4-Q2): the picker only allows sites fully inside S1M coverage, and draws the coverage on the map.
+  - Ring gaps fall back to USGS 3DEP 1/3 arc-second (about 10 m).
 
-**Rejected alternative:** UTM. It is true to scale, but it would resample the 1 m lidar and blur it.
+### 4.3 From lidar to Unity terrain (T4)
 
-### 4.2 Elevation: S1M core, overview ring (T4)
+This is the full path, from USGS files to what the player sees.
 
-- **Core site:** S1M at full 1 m resolution.
-- **Recommended site size: square boxes of 2–5 km.** A 5 km box is 25 million heights: 100 MB as float32 in memory, and 25 Unity Terrain tiles of 1,025² covering 1,024 m each. A 10 km box at 1 m would be four times that. Decision T4-Q in the review.
-- **Surround ring**, out to 3 km beyond the box, so the edge is never a cliff (0.1 §3). It uses S1M's built-in **8 m overview**: same source, same datum, no seam.
-- **Where S1M has no tile yet:**
-  - S1M production is still in progress; tiles are added as they are published.
-  - The **picker only allows boxes fully inside S1M coverage.**
-  - Ring gaps fall back to USGS 3DEP 1/3 arc-second (about 10 m) from the 3DEP web service.
-  - Decision T4-Q2.
-- **Rendering:** Unity Terrain tiles behind an `ITerrainSurface` interface. A custom mesh can replace them if the look demands it (roadmap §8). With 16-bit heights, 1,500 m of relief gives about 2.3 cm steps.
-- The authoritative height grid lives in Domain; `TerrainData` is only a view of it. That is what later drawing tools will edit (§10).
+```
+USGS S3: S1M Cloud Optimized GeoTIFF tiles (10 km, 1 m, float32)
+   │ ① range-read only the 512² blocks we need (core: 1 m level; ring: 2 m level)
+   ▼
+Decode: LZW → floating-point predictor → float32 metres; stitch blocks across tiles; fill voids
+   │ ② write the authoritative grids (lossless)
+   ▼
+Resort package:  heights-core.f32 (1 m)  +  heights-ring.f32 (2 m)  + manifest
+   │ ③ once, after download (and whenever the cache version changes)
+   ▼
+Terrain cache: 1,024 m tiles → 16-bit heightmaps (core 1,025², ring 513²), control/splat maps
+   │ ④ on opening a resort
+   ▼
+Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest, water
+```
 
-### 4.3 Ground cover (T6)
+**① Download.**
+- A 5 km site touches up to four 10 km S1M tiles, depending on where it falls.
+- The game reads the files' internal directories, then fetches only the **512 × 512 blocks** that overlap the site (1 m level) and the ring (2 m level), using HTTP range requests.
+- **Estimate:** about 100 blocks for the core and a similar volume for the ring, roughly 100–200 MB compressed. Phase 1 measures it.
+- Transfers are resumable per block.
 
-- **Classes:** forest, alpine/rock, grassland, water, plus developed land (new; used for existing towns and roads).
-- **Source:** ESA WorldCover 10 m classes (CC BY 4.0), taken from the classified GeoTIFF tiles rather than the archive's coloured map tiles.
-- **Refinement to 1 m:**
-  - Forest edges use USGS NAIP aerial imagery (NDVI and texture), so they don't look like 10 m blocks next to 1 m terrain. The archive proved this recipe (0.1 §5).
-  - Water comes from OpenStreetMap lake and stream geometry, never from imagery alone.
-- **Terrain material:** a splat blended from cover, slope (rock above about 35–40°), altitude and snow; the art direction is 0.5's job.
+**② Decode and store.**
+- A small built-in reader handles exactly what S1M uses: TIFF directories, tile offsets, **LZW** decompression and the **floating-point predictor**. Output is float32 metres.
+- Blocks from neighbouring USGS tiles are stitched into one continuous grid; the tiles share one grid, so there is no resampling.
+- **No-data cells** (−999999):
+  - Small voids are filled by interpolation.
+  - The core must have none after filling, or the site is refused.
+  - The ring falls back to the 10 m product.
+- The result is saved **losslessly as float32**. This is the authoritative terrain; future drawing tools edit on top of it (§10).
 
-### 4.4 Forest (T7)
+**③ Build the terrain cache** (once per resort, a few seconds to a minute; Phase 1 measures):
+- Split the grids into **1,024 m tiles on the Albers kilometre grid.**
+  - Core tiles hold 1,025 × 1,025 heights (1 m).
+  - Ring tiles hold 513 × 513 heights (2 m).
+  - Neighbouring tiles share their edge row, so there are no cracks.
+  - Where a 2 m ring tile meets a 1 m core tile, the core edge is matched to the ring's samples.
+- **Heights to 16-bit:** Unity Terrain stores heights as 16-bit fractions of a height range. Heights are mapped over the site's lowest-to-highest range. With 1,500 m of relief that is **2.3 cm steps**, well below lidar's own vertical accuracy (about 10 cm), so nothing visible is lost. The float32 source keeps full precision for later.
+- Also cached per tile: the splat/control maps (from cover and slope) and the cover and canopy grids at tile resolution.
+- **Size:** a 5 km site in an 11 km square makes 121 tiles: 25 core and 96 ring.
 
-Roadmap §9, unchanged:
-- **Placement:** Poisson-disc sampling per 64 m tile, seeded by `hash(resortSeed, tileX, tileY)`. Deterministic and never saved.
-- **Density** = forest fraction × slope mask (under 40°) × treeline falloff. Species vary by altitude and aspect.
-- **Rendering:** GPU-culled `RenderMeshIndirect` (or `BatchRendererGroup`); LODs down to an impostor beyond about 300 m; vertex wind; snow on branches.
-- **Estimate:** about 650,000 trees on a 5 km site (25 km²) at 65% forest.
-- **Later:** a clearings mask (for trails and lift lines) multiplies into density, so drawing tools can remove trees by tile.
+**④ Load.**
+- One Unity `Terrain` object per tile. Heights go in through `TerrainData` (the fast GPU path where possible, `SetHeights` otherwise).
+- Neighbours are linked so level of detail blends across tile edges.
+- Unity Terrain's built-in quadtree level of detail and draw-instancing render the whole area; each quality preset sets the pixel-error tolerance.
+- The terrain material, the forest (§4.5) and water surfaces are then built on top.
+- **Target:** ≤10 s from opening to a playable view (§8).
 
-### 4.5 Snow (T8)
+**Why Unity Terrain:**
+- It already does level of detail, instancing, normal calculation, collision and height editing, which are exactly what future drawing tools need.
+- Everything sits behind an `ITerrainSurface` interface, so a custom mesh can replace it if the look demands it (roadmap §8).
 
-- **No snow model.** Snow is **stylized and procedural**, driven by elevation, slope, aspect and the **view date**: a seasonal snow line that rises and falls, less snow on steep and sun-facing slopes, and snow loading on trees.
-- **The seam for later:** the shader reads snow from a **snow-depth texture**. Iteration 1 fills that texture procedurally; a future simulation writes the same texture by dirty rectangle (roadmap §8). The look does not change when simulation arrives, only where the numbers come from.
+### 4.4 Ground cover: sources (T6)
 
-### 4.6 Lighting and camera (T9)
+| Class | Source | Resolution | Terms |
+|---|---|---|---|
+| **Forest** (plus tree height) | **Meta / WRI High Resolution Canopy Height** (AWS open data, GeoTIFF). Forest = canopy ≥3 m | 1 m | CC BY 4.0, commercial use allowed |
+| Grassland, alpine/rock, snow/ice | **ESA WorldCover 2021 (v200)** classified tiles (AWS open data) | 10 m | CC BY 4.0 |
+| **Developed** (decided) | WorldCover "built-up" + OpenStreetMap roads and buildings for crisp shapes | 10 m + vectors | CC BY 4.0; ODbL |
+| Water | OpenStreetMap lakes and streams, checked against WorldCover water | Vectors | ODbL |
 
-- **Sun:** position from the site's latitude and longitude and the view time, using the NOAA solar-position algorithm. There is one directional light and a sky that follows the sun.
-- **Shadows:** cascaded shadows. Only the near cascade has tree casters; a baked canopy-shadow term handles the distance.
-- **View time:** set by a scrubber (time of day and date); it drives the sun and the snow line. This is the clock placeholder (§10).
-- **Camera:** orbit / RTS-style with terrain collision, bounded to the surround ring, plus a free-fly mode. Default keys carry over from the archive: W/A/S/D pan, Q/E rotate, R/F tilt, N north (0.1 §2); 0.4 finalises them.
+**Why this combination:**
+- The canopy map gives the forest the **same 1 m detail as the lidar**, plus a real **tree height** for every cell, which the forest generator uses (§4.5).
+- WorldCover alone is 10 m, which looks blocky next to 1 m terrain; it fills in the non-forest classes.
+- It replaces the archive's WorldCover + NAIP imagery recipe, so NAIP is **not needed** in iteration 1.
 
-## 5. Package and library formats (T5, T11)
+**Cautions:**
+- The canopy map is built from satellite imagery of the 2010s. The package records the source date, and a **sanity check** compares its forest fraction with WorldCover's; the archive's lidar-forest failure showed why (0.1 §5).
+- **US-only, public-domain alternative:** USGS Annual NLCD at 30 m. It is coarser; kept as a fallback only.
 
-**Resort package: immutable after download.** The archive mutated its terrain package in place, and that caused save-ordering bugs (0.1 §8). Here a package is written once. Later drawing edits will live in saves as sparse deltas on top of it (§10).
-- **Location:** `<data>/Resorts/<packageId>/`, where `packageId` is a content hash.
-- **`manifest.json`:**
+### 4.5 Forest (T7)
+
+- **Placement:** Poisson-disc sampling per 64 m tile, seeded by `hash(resortSeed, tileX, tileY)`. Deterministic, never saved (it can be cached).
+- **Density** comes from canopy cover and slope. **Tree size comes from canopy height**, so tall old stands and short regrowth look different. Species vary by altitude and aspect.
+- **Rendering:** GPU-culled `RenderMeshIndirect` or `BatchRendererGroup`; LODs down to an impostor beyond about 300 m; vertex wind; snow on branches.
+- **Estimate:** about 650,000 trees on a 5 km site at 65% forest, plus the ring. Ring trees use impostors only.
+- **Later:** a clearing mask (for trails and lift lines) multiplies into density, so drawing tools remove trees tile by tile.
+
+### 4.6 Snow (T8)
+
+- **Iteration 1 (decided):** a **flat 12 in (0.305 m) of snow across the entire map**: every land cell white, trees carrying snow. There is no snow model and no variation.
+- **The seam for later:**
+  - The terrain shader reads snow from a **snow-depth texture**. Iteration 1 fills it with a constant 0.305 m.
+  - Varied snow (snow line, sun and wind effects) or a future simulation writes the same texture by dirty rectangle.
+  - Nothing else changes when that happens.
+- **Open (T8-Q):** whether lakes show frozen and snow-covered, or as open water.
+
+### 4.7 Lighting and camera (T9)
+
+- **Sun:** position from the site's latitude and longitude and the view time (NOAA solar-position algorithm). One directional light, and a sky that follows the sun.
+- **Shadows:** cascaded. Tree shadows only in the near cascade, with a baked canopy-shadow term for distance.
+- **View time:** a time-of-day and date scrubber. It drives the sun only; snow stays flat in iteration 1. This is the clock placeholder (§10).
+- **Camera:** orbit / RTS-style with terrain collision, bounded to the ring, plus free-fly. Default keys follow the archive (W/A/S/D, Q/E, R/F, N); 0.4 finalises them.
+
+## 5. Package, cache and library (T5, T11)
+
+**Resort package: immutable source data, written once.**
+- Location: `<data>/Resorts/<packageId>/`, where `packageId` is a content hash.
+- `manifest.json`:
   - format version
-  - site box
-  - EPSG:6350, local origin and scale factors
-  - per-layer provenance (provider, product, tile IDs and dates, request time)
-  - attribution text
+  - site
+  - EPSG:6350, origin and scale factors
+  - per-layer provenance (provider, product, tile IDs and dates)
+  - **attribution text**
   - per-file hashes
-- **Layers:**
-  - `heights-core.f32` (1 m) and `heights-ring.f32` (8 m); little-endian, row-major, NaN for no data
-  - `cover.u8` (1 m classes)
-  - `imagery/` (compressed tiles, used for cover refinement)
-  - `water.json` (lakes and streams)
-- **Validation:** alignment and hashes are checked when the package is built and again when it is opened.
+- Layers:
+  - `heights-core.f32` and `heights-ring.f32`
+  - `canopy.u8` (height in 0.25 m steps)
+  - `cover.u8`
+  - `water.json` and `developed.json`
 
-**Library:** a list of downloaded resorts with name, location, size on disk and a thumbnail. Deletion needs confirmation.
+**Terrain cache:** `<data>/Resorts/<packageId>/cache-v<N>/`, holding per-tile 16-bit heightmaps, control maps and forest tile data. It is rebuilt automatically if missing or if the cache version changes.
+
+**Estimated size, 5 km site (budget about 1 GB):**
+
+| Item | Size |
+|---|---|
+| Core heights, 1 m float32 | 100 MB |
+| Ring heights, 2 m float32 | 96 MB |
+| Canopy and cover grids (1 m core, 2 m ring) | 100 MB |
+| Water, developed, manifest | <10 MB |
+| Terrain cache: 16-bit tiles (~100 MB), control/splat maps (~200 MB), forest (~20 MB) | ~320 MB |
+| **Total** | **about 650 MB** |
+
+**Offline:** the package holds everything the game needs to open a resort, including attribution text for the credits screen. Opening a resort makes **no network calls**.
+
+**Library:** downloaded resorts with name, location, size on disk and a thumbnail. Deletion needs confirmation.
 
 **View state:** a small versioned JSON per resort.
 
-**Serialization:** Newtonsoft.Json (MIT, via `com.unity.nuget.newtonsoft-json`) for JSON; hand-written binary readers and writers for grids; no reflection-based binary serializers.
+**Serialization:** Newtonsoft.Json (MIT, via `com.unity.nuget.newtonsoft-json`); hand-written binary readers and writers for grids.
 
-**Versioning:** every format carries an integer version. **Recommendation:** formats may change freely until the first build shared with other players; after that, readers migrate older versions with fixture-tested functions.
+**Versioning:** integer versions everywhere. Formats may change freely until the first build shared with other players; after that, fixture-tested migrations.
 
-## 6. Data acquisition and provider terms (T10)
+## 6. Acquisition and provider terms (T10)
 
 **S1M access** (checked 2026-09-25):
-- The files are on USGS's public S3 bucket: `prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/S1M/`.
-- Each tile is a **Cloud Optimized GeoTIFF** covering 10 km × 10 km at 1 m (10,000²), 200–450 MB.
-  - Compression is LZW with a floating-point predictor, in 512² internal tiles.
-  - Overviews exist at 2, 4, 8, 16 and 32 m.
-  - No data is −999999.
-- Tile names encode the Albers corner in kilometres; for example `n0470e1490` starts at x = 1,490,000 m, y = 470,000 m.
-- A coverage index, `FullExtentSpatialMetadata/S1M_Products.gpkg` (18 MB), is updated daily.
-- All 3DEP products are **public domain**.
+- Public S3: `prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/S1M/`. Each tile is a 10 km × 10 km **Cloud Optimized GeoTIFF**, 200–450 MB.
+  - LZW compression with a floating-point predictor, in 512² internal blocks.
+  - Overviews at 2, 4, 8, 16 and 32 m. No data is −999999.
+- Names encode the Albers corner in kilometres: `n0470e1490` starts at x = 1,490,000 m, y = 470,000 m.
+- A daily coverage index: `FullExtentSpatialMetadata/S1M_Products.gpkg`.
+- Public domain.
 
-**How the game downloads:**
-- It **never downloads whole tiles.** It reads only the internal 512² blocks covering the box (and the 8 m overview blocks for the ring) with HTTP range requests.
-- **Estimate:** about 100 blocks for a 5 km site, on the order of 50–100 MB. Phase 1 measures it.
-- **Reader:** a small custom Cloud Optimized GeoTIFF reader in Acquisition. It covers only TIFF directory parsing, tile offsets, LZW and the floating-point predictor, and is verified against a reference fixture. That is simpler and more controllable than wrapping a general TIFF library around range requests.
-
-**Coverage lookup:** the picker must show where S1M exists.
-- **Recommended:** a coverage service built from the daily index (tile names → availability), fetched when the picker opens and cached. It also allows a direct check by listing the tile's S3 folder.
-- Phase 1 confirms the index format. It is SQLite-based, so either the game reads it with a small SQLite dependency, or a tiny step converts it; decided in the Phase 1 spike.
+**Coverage lookup:**
+- The picker needs to know where S1M exists. **Recommended:** a coverage map built from the daily index, fetched when the picker opens and cached.
+- The index is a SQLite-based file, so the Phase 1 spike decides whether to read it with a small SQLite library or convert it.
+- A direct check (listing the tile's S3 folder) confirms a tile before download.
 
 **Pipeline:**
-1. Select a site in covered area.
-2. Download core heights and ring.
-3. Download land cover and NAIP.
-4. Download water.
-5. Build the package.
-6. Validate.
-7. Add it to the library.
+1. Choose a covered site.
+2. Download core and ring heights.
+3. Download canopy.
+4. Download land cover.
+5. Download OSM water and developed shapes.
+6. Build the package.
+7. Validate alignment and hashes.
+8. Build the terrain cache.
+9. Add it to the library.
 
-It runs off the main thread with progress, cancellation, retries with backoff, polite rate limits and an identifying User-Agent. Each stage caches its result, so a failed run resumes. The same code runs as a command-line tool.
+It runs off the main thread with progress, cancellation, retries, polite rate limits and an identifying User-Agent, and resumes after failures. The same code runs as a command-line tool.
 
 **Providers:**
 
-| Data | Provider | Terms | Recommendation |
+| Data | Provider | Terms | Use |
 |---|---|---|---|
-| Core and ring elevation | USGS 3DEP **S1M** (public S3, Cloud Optimized GeoTIFF) | Public domain | **Use** |
-| Ring gap fill | USGS 3DEP 1/3 arc-second via the 3DEP ImageServer | Public domain | Use only for ring gaps |
-| Land cover | ESA WorldCover 10 m classified tiles (AWS open data) | CC BY 4.0 | **Use** |
-| Cover refinement | USGS NAIP imagery | Public domain | **Use** |
-| Lakes and streams | OpenStreetMap via Overpass (configurable endpoint) | ODbL: attribution; fair-use limits on public servers | **Use** |
-| Place search | Nominatim | Maximum 1 request/s, user-triggered, no autocomplete, attribution | Use for a search box |
+| Elevation | USGS 3DEP **S1M** | Public domain | **Yes** |
+| Ring gap fill | USGS 3DEP 1/3 arc-second (3DEP ImageServer) | Public domain | Ring gaps only |
+| Forest, tree height | Meta / WRI High Resolution Canopy Height (AWS) | CC BY 4.0 | **Yes** |
+| Other land cover | ESA WorldCover 2021 v200 (AWS) | CC BY 4.0 | **Yes** |
+| Water, roads, buildings | OpenStreetMap via Overpass (configurable endpoint) | ODbL; fair-use limits | **Yes** |
+| Place search | Nominatim | Maximum 1 request/s, user-triggered, no autocomplete, attribution | Search box |
 | Picker basemap | USGS National Map tiles (imagery, topo) in a UI Toolkit slippy map, with an S1M coverage overlay | Public domain | **Recommended** |
-| Picker basemap | Cesium for Unity + Cesium ion | Free tier only under $50K revenue or funding; embedding ion in a product sold to others needs an integration licence | Reject |
-| Picker basemap | OpenStreetMap Foundation tile servers; Esri World Imagery; CARTO | OSM Foundation forbids bulk/prefetch; Esri needs an account token and restricts commercial use; CARTO needs a key | Reject |
+| Fallback land cover | USGS Annual NLCD 30 m | Public domain | Fallback only |
+| Not used | Cesium ion; Esri World Imagery; CARTO; OSM Foundation tiles; NAIP (not needed now) | Commercial or usage restrictions (see first draft) | No |
 
-**Coverage is US-only**, which S1M already implies. It covers the contiguous US now, with Hawaii and Puerto Rico planned. A worldwide option (for example Copernicus DEM, 30 m) would be a separate, lower-detail provider behind the same interface. It is not planned.
+**Coverage is US-only** (contiguous US now; Hawaii and Puerto Rico are planned by USGS).
 
 ## 7. Determinism (T12)
 
-Iteration 1 computes, rather than stores, the splat, cover refinement and forest. They must come out identically every time a resort opens.
+Every open of a resort must produce the same terrain tiles, splat and forest, which is what makes caching and future golden tests safe.
 
-**Rules for engine-free code and reproducible Burst output:**
+**Rules:**
 - Keyed hash randomness only. No `System.Random`, `UnityEngine.Random`, `Guid.NewGuid`, `DateTime.Now` or unordered parallel reductions.
 - Stable iteration order.
-- `FloatMode.Deterministic` for Burst jobs whose output must be reproducible, such as forest placement. Burst supports this on 64-bit platforms.
+- `FloatMode.Deterministic` for Burst jobs with reproducible output (forest placement); supported on 64-bit.
 
-**Scope:** same build, Windows x64.
+**Scope:** same build, Windows x64. **Tests:** golden hashes on the checked-in test terrain.
 
-**Tests:** golden hashes for forest tiles and cover refinement on the checked-in test terrain.
+## 8. Performance budgets and hardware (T13)
 
-## 8. Performance budgets (T13)
-
-Frozen before features are built. Measured with Unity's Performance Testing package in a benchmark scene with a fixed camera path; results are recorded as JSON with the commit SHA.
+**Hardware:**
+- **Minimum spec (decided: around an RTX 2060):** NVIDIA RTX 2060 (6 GB) with a Ryzen 5 3600 / Core i5-9600K-class CPU, 16 GB RAM and an SSD. The CPU and RAM are open question T13-Q.
+- **Reference PC:** RTX 3060 Ti, Ryzen 5 5600X, about 16 GB RAM (the archive's measurement machine).
 
 | Budget | Target | Conditions |
 |---|---|---|
-| Frame time | p95 ≤20 ms, p99 ≤33.3 ms, <1% of frames over 50 ms | 1080p, High preset, reference PC, 5 km site, full forest, snow, shadows |
-| Integrated GPU | ≥30 FPS | 1080p, Performance preset; reference device to be chosen (T13-Q) |
+| Frame time, reference PC | p95 ≤20 ms, p99 ≤33.3 ms, <1% over 50 ms | 1080p, High preset, 5 km site + ring, full forest, snow, shadows |
+| Frame time, minimum spec | p95 ≤33.3 ms (30 FPS or better) | 1080p, Standard preset, same scene |
+| VRAM | ≤5 GB at Standard; ≤7 GB at High | 5 km site |
+| RAM | ≤8 GB process | 5 km site |
 | Camera and input response | p95 ≤100 ms | Any preset |
-| Garbage collection | 0 bytes allocated per frame in steady state | Camera moving |
-| Open a downloaded resort | ≤10 s | 5 km site, SSD |
-| Download and build a package | ≤5 min | 5 km site, 50 Mbit/s connection; provisional |
-| Memory | Provisional: ≤4 GB RAM, ≤3 GB VRAM at High; ≤1.5 GB VRAM at Performance | 5 km site |
+| Garbage collection | 0 bytes per frame in steady state | Camera moving |
+| Open a downloaded resort | ≤10 s | SSD, cache present |
+| First download and build | No hard limit; show progress and a time estimate; resumable | 5 km site |
+| Disk per resort | ≤1 GB | 5 km site |
 
-**Reference PC:** Ryzen 5 5600X, about 16 GB RAM, RTX 3060 Ti. This is the archive's measurement machine.
+Measured with Unity's Performance Testing package in a benchmark scene with a fixed camera path. Results are recorded as JSON with the commit SHA.
 
 ## 9. Testing (T14)
 
-- **Most tests are engine-free EditMode tests:** georeferencing and scale factors, the COG reader, package format and validation, cover refinement, forest placement, solar position. Provider responses are **recorded, never live**.
-- **PlayMode:** scene boot; opening a resort; `TerrainData` staying in sync with the authoritative grid.
-- **Checked-in test terrain:** a real 2 km S1M site built by the acquisition tool and committed through Git LFS. It is public domain, reproducible offline, and it doubles as Phase 1's test area.
+- **Most tests are engine-free EditMode tests:** georeferencing, the COG reader (LZW, predictor, block stitching, voids), package and cache formats, 16-bit conversion error bounds, cover and canopy processing, forest placement, solar position. Provider responses are **recorded, never live**.
+- **PlayMode:** scene boot; opening a resort; tile seams (no cracks, matched edges); `TerrainData` matching the authoritative grid within the 16-bit step.
+- **Checked-in test terrain:** a real 2 km S1M site built by the acquisition tool and committed through Git LFS. It is public domain, works offline, and is Phase 1's test area.
 - **Performance and live-provider tests:** opt-in only.
 - **Continuous integration:**
   - Now: `repo-checks`.
-  - **Recommended next:** a `tools/domain-tests` .NET project that compiles the engine-free sources and runs their tests with `dotnet test` on GitHub Actions. It needs no Unity licence.
-  - A GameCI Unity run needs licence secrets; Personal-licence activation in CI has changed several times, so verify it first.
+  - **Recommended next:** a `dotnet test` job for the engine-free code, which needs no Unity licence.
+  - A GameCI Unity run needs licence secrets; verify Personal-licence activation first.
 - **Guard rail:** a repo check that fails if engine-free folders use banned APIs (§7) or `UnityEngine`.
 
 ## 10. Future iterations and the seams iteration 1 keeps (T15)
 
 **Drawing on the terrain** (lifts, trails and the rest):
-- A revisioned **design document**: immutable snapshots, typed commands against a named revision, stale commands rejected, derived data never saved. This also makes undo cheap.
-- Edits to terrain and cover are stored in the **save as sparse 64 m delta tiles** over the immutable package.
-- The construction rules and doctrines recorded in 0.1 §6 and §9 are the starting reference.
+- A revisioned design document: immutable snapshots, typed commands against a named revision, stale commands rejected. This also makes undo cheap.
+- Terrain and cover edits are stored in a small **save file as sparse 64 m delta tiles** over the immutable package; the affected cache tiles are rebuilt.
+- 0.1 §6 and §9 are the starting reference.
 - **What iteration 1 does now for this:**
-  - The authoritative height grid is engine-free, with `TerrainData` as a view.
+  - The authoritative float32 heights are separate from Unity's 16-bit view.
   - Forest density already takes a clearing mask (empty for now).
   - The package is immutable.
+  - The tile grid is also the edit granularity.
 
 **Simulation:**
 - A real clock implementing `IGameClock` on a dedicated thread; snapshots out, commands in; roadmap §5 and §7 become the active rules; the simulation writes the snow-depth texture.
-- **What iteration 1 does now for this:** the simulation placeholder, the snow-depth texture seam (§4.5), keyed randomness and the engine-free domain.
+- **What iteration 1 does now for this:** the placeholder clock, the snow-depth texture seam, keyed randomness and the engine-free domain.
 
 **The clock placeholder** (`MountainPlanner.Simulation`):
 
@@ -263,13 +329,14 @@ public sealed class ManualViewClock : IGameClock { /* set by the time-of-day/dat
 
 - **Keep:** URP 17.3, Input System, Test Framework and the IDE integrations.
 - **Add:** Performance Testing, Burst, Collections, Mathematics and Newtonsoft JSON.
-- **Remove until needed:** AI Navigation and Timeline. Splines comes back with the drawing tools.
-- **Not now:** Entities / Entities Graphics; revisit only if measurements demand them.
+- **Remove until needed:** AI Navigation and Timeline. Splines returns with the drawing tools.
+- **Not now:** Entities / Entities Graphics.
 
 ## 12. Risks
 
-- **S1M coverage is incomplete.** Mitigated by showing coverage in the picker, only allowing covered boxes, and the 10 m ring fallback. USGS is producing tiles continuously.
-- **S1M layout or index changes** while production continues. Mitigated by recorded-response tests and a single provider module.
-- **1 m terrain memory and rendering cost.** Mitigated by the 2–5 km site size, tiled terrains and presets; Phase 1 measures.
+- **S1M coverage is incomplete.** Mitigated by showing coverage in the picker, only allowing covered sites, and the 10 m ring fallback.
+- **S1M layout or index changes** during production. Mitigated by one provider module and recorded-response tests.
+- **Canopy map age or local errors.** Mitigated by recording the date, the WorldCover sanity check and the NLCD fallback.
+- **1 m terrain cost on the minimum spec.** Mitigated by the 2–5 km limit, 2 m ring tiles, per-preset pixel error and Phase 1 measurement.
 - **Unity Terrain look at 1 m.** Fallback: a custom mesh behind `ITerrainSurface`.
-- **Forest at scale on integrated GPUs.** Mitigated by impostors, culling and the Performance preset.
+- **Forest at scale on the minimum spec.** Mitigated by impostors, culling and presets.
