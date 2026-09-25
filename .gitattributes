@@ -23,3 +23,4 @@
 *.controller merge=unityyamlmerge eol=lf
 *.physicMaterial merge=unityyamlmerge eol=lf
 *.meta eol=lf
+tools/data-spike/tests/DataSpike.Tests/fixtures/*.bin filter=lfs diff=lfs merge=lfs -text

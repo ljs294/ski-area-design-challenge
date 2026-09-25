@@ -27,3 +27,9 @@ test-results/
 # OS
 .DS_Store
 Thumbs.db
+
+# .NET tool build output
+tools/**/bin/
+tools/**/obj/
+# ...except the .NET tool projects under tools/, which are hand-written
+!tools/**/*.csproj

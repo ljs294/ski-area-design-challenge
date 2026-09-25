@@ -1,0 +1,177 @@
+{
+  "site": {
+    "name": "Jackson Hole (test site)",
+    "lat": 43.593,
+    "lon": -110.848,
+    "km": 2,
+    "albersX": -1188827.5,
+    "albersY": 2381975.7,
+    "parallelScale": 0.995551
+  },
+  "elevationCore": {
+    "tiles": [
+      {
+        "Name": "n2390w1190",
+        "available": true
+      }
+    ],
+    "s1mMegabytes": 13.8,
+    "s1mRequests": 7,
+    "s1mSeconds": 1.1,
+    "s1mMissingPercent": 0,
+    "fallbackMegabytes": 0,
+    "fallbackSeconds": 0,
+    "remainingNaN": 0,
+    "min": 1946.4,
+    "max": 2869.9,
+    "qualityScore": 100,
+    "oneLiner": "Terrain quality 100/100: 100% S1M 1 m",
+    "sourceMix": {
+      "S1M 1 m": 25
+    }
+  },
+  "overviewCheck": {
+    "block": [
+      2,
+      15
+    ],
+    "nanCells": 0,
+    "meanAbsDiffMetres": 0.0221,
+    "maxAbsDiffMetres": 0.626,
+    "pass": true
+  },
+  "elevationRing": {
+    "sizeKm": 8,
+    "cellMetres": 2,
+    "s1mMegabytes": 44.7,
+    "totalMegabytes": 44.7,
+    "requests": 26,
+    "seconds": 5.1,
+    "s1mMissingPercent": 0,
+    "remainingNaN": 0
+  },
+  "elevationAlignment": {
+    "bestShiftMetres": [
+      0,
+      0
+    ],
+    "bestMadMetres": 0.022,
+    "zeroShiftMadMetres": 0.022,
+    "samples": 245025
+  },
+  "canopy": {
+    "tiles": [
+      "021322030"
+    ],
+    "megabytes": 28.5,
+    "requests": 7,
+    "seconds": 4.4,
+    "canopyCoverFraction": 0.181,
+    "cellsWithTreeCover10pct": 0.336,
+    "treeHeightPercentiles": {
+      "p10": 3,
+      "p50": 7,
+      "p90": 15,
+      "max": 32
+    }
+  },
+  "worldCover": {
+    "tiles": [
+      "ESA_WorldCover_10m_2021_v200_N42W111_Map.tif"
+    ],
+    "megabytes": 0.1,
+    "requests": 2,
+    "seconds": 0.9,
+    "classFractions": {
+      "10": 0.679,
+      "30": 0.257,
+      "50": 0,
+      "60": 0.043,
+      "100": 0.02
+    }
+  },
+  "coverAlignment": {
+    "agreementAtZero": 0.614,
+    "bestAgreement": 0.614,
+    "bestShiftCells": [
+      -1,
+      0
+    ]
+  },
+  "bigmap": {
+    "sampleGrid": "10x10 getSamples",
+    "sampleSeconds": 8.7,
+    "topSpecies": [
+      {
+        "Spcd": 19,
+        "CommonName": "subalpine fir",
+        "shareOfBiomass": 0.547
+      },
+      {
+        "Spcd": 93,
+        "CommonName": "Engelmann spruce",
+        "shareOfBiomass": 0.32
+      },
+      {
+        "Spcd": 101,
+        "CommonName": "whitebark pine",
+        "shareOfBiomass": 0.087
+      },
+      {
+        "Spcd": 113,
+        "CommonName": "limber pine",
+        "shareOfBiomass": 0.032
+      },
+      {
+        "Spcd": 15,
+        "CommonName": "white fir",
+        "shareOfBiomass": 0.01
+      },
+      {
+        "Spcd": 65,
+        "CommonName": "Utah juniper",
+        "shareOfBiomass": 0.003
+      },
+      {
+        "Spcd": 475,
+        "CommonName": "curlleaf mountain-mahogany",
+        "shareOfBiomass": 0.001
+      }
+    ],
+    "exports": [
+      {
+        "Spcd": 19,
+        "CommonName": "subalpine fir",
+        "seconds": 1.2,
+        "kilobytes": 65,
+        "cells": 4489,
+        "presentFraction": 0.42
+      },
+      {
+        "Spcd": 93,
+        "CommonName": "Engelmann spruce",
+        "seconds": 1.7,
+        "kilobytes": 65,
+        "cells": 4489,
+        "presentFraction": 0.26
+      },
+      {
+        "Spcd": 101,
+        "CommonName": "whitebark pine",
+        "seconds": 1,
+        "kilobytes": 65,
+        "cells": 4489,
+        "presentFraction": 0.302
+      }
+    ],
+    "megabytes": 0.23
+  },
+  "landfireEvt": {
+    "seconds": 0.5,
+    "kilobytes": 33,
+    "width": 66,
+    "height": 66,
+    "bits": 16,
+    "compression": 1
+  }
+}

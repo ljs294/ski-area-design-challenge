@@ -1,0 +1,181 @@
+{
+  "site": {
+    "name": "Crystal Mountain (demo)",
+    "lat": 46.93,
+    "lon": -121.49,
+    "km": 5,
+    "albersX": -1926410.3,
+    "albersY": 2919856.7,
+    "parallelScale": 1.004382
+  },
+  "elevationCore": {
+    "tiles": [
+      {
+        "Name": "n2920w1930",
+        "available": false
+      },
+      {
+        "Name": "n2930w1930",
+        "available": false
+      }
+    ],
+    "s1mMegabytes": 0,
+    "s1mRequests": 2,
+    "s1mSeconds": 0.3,
+    "s1mMissingPercent": 100,
+    "fallbackMegabytes": 90,
+    "fallbackSeconds": 12.9,
+    "remainingNaN": 0,
+    "min": 1023.5,
+    "max": 2135.4,
+    "qualityScore": 48,
+    "oneLiner": "Terrain quality 48/100: 60% ~10 m (n47w122), 24% ~3 m (ned19_n47x00_w121x75_wa_mounttrainier_2008), 16% 1 m lidar (WA_EasternCascades_2019_B19)",
+    "sourceMix": {
+      "1 m lidar (WA_EasternCascades_2019_B19)": 4,
+      "~10 m (n47w122)": 15,
+      "~3 m (ned19_n47x00_w121x75_wa_mounttrainier_2008)": 6
+    }
+  },
+  "elevationRing": {
+    "sizeKm": 11,
+    "cellMetres": 2,
+    "s1mMegabytes": 0,
+    "totalMegabytes": 112.6,
+    "requests": 40,
+    "seconds": 24.6,
+    "s1mMissingPercent": 100,
+    "remainingNaN": 0
+  },
+  "canopy": {
+    "tiles": [
+      "021230211"
+    ],
+    "megabytes": 143.2,
+    "requests": 11,
+    "seconds": 10.9,
+    "canopyCoverFraction": 0.474,
+    "cellsWithTreeCover10pct": 0.622,
+    "treeHeightPercentiles": {
+      "p10": 4,
+      "p50": 12,
+      "p90": 22,
+      "max": 42
+    }
+  },
+  "worldCover": {
+    "tiles": [
+      "ESA_WorldCover_10m_2021_v200_N45W123_Map.tif"
+    ],
+    "megabytes": 0.2,
+    "requests": 2,
+    "seconds": 1.2,
+    "classFractions": {
+      "10": 0.746,
+      "20": 0.002,
+      "30": 0.219,
+      "50": 0.005,
+      "60": 0.02,
+      "80": 0.002,
+      "100": 0.006
+    }
+  },
+  "coverAlignment": {
+    "agreementAtZero": 0.827,
+    "bestAgreement": 0.827,
+    "bestShiftCells": [
+      0,
+      0
+    ]
+  },
+  "bigmap": {
+    "sampleGrid": "10x10 getSamples",
+    "sampleSeconds": 20.4,
+    "topSpecies": [
+      {
+        "Spcd": 264,
+        "CommonName": "mountain hemlock",
+        "shareOfBiomass": 0.556
+      },
+      {
+        "Spcd": 263,
+        "CommonName": "western hemlock",
+        "shareOfBiomass": 0.315
+      },
+      {
+        "Spcd": 21,
+        "CommonName": "Shasta red fir",
+        "shareOfBiomass": 0.066
+      },
+      {
+        "Spcd": 42,
+        "CommonName": "Alaska yellow-cedar",
+        "shareOfBiomass": 0.041
+      },
+      {
+        "Spcd": 72,
+        "CommonName": "subalpine larch",
+        "shareOfBiomass": 0.012
+      },
+      {
+        "Spcd": 351,
+        "CommonName": "red alder",
+        "shareOfBiomass": 0.008
+      },
+      {
+        "Spcd": 312,
+        "CommonName": "bigleaf maple",
+        "shareOfBiomass": 0.001
+      },
+      {
+        "Spcd": 431,
+        "CommonName": "giant chinkapin, golden chinkapin",
+        "shareOfBiomass": 0
+      },
+      {
+        "Spcd": 117,
+        "CommonName": "sugar pine",
+        "shareOfBiomass": 0
+      },
+      {
+        "Spcd": 81,
+        "CommonName": "incense-cedar",
+        "shareOfBiomass": 0
+      }
+    ],
+    "exports": [
+      {
+        "Spcd": 264,
+        "CommonName": "mountain hemlock",
+        "seconds": 1.8,
+        "kilobytes": 257,
+        "cells": 27889,
+        "presentFraction": 0.778
+      },
+      {
+        "Spcd": 263,
+        "CommonName": "western hemlock",
+        "seconds": 2.8,
+        "kilobytes": 257,
+        "cells": 27889,
+        "presentFraction": 0.384
+      },
+      {
+        "Spcd": 21,
+        "CommonName": "Shasta red fir",
+        "seconds": 2,
+        "kilobytes": 257,
+        "cells": 27889,
+        "presentFraction": 0.437
+      }
+    ],
+    "megabytes": 0.85
+  },
+  "landfireEvt": {
+    "seconds": 0.6,
+    "kilobytes": 129,
+    "width": 166,
+    "height": 166,
+    "bits": 16,
+    "compression": 1
+  }
+}
