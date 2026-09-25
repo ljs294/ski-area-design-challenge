@@ -1,124 +1,119 @@
 # Phase 0 review sheet: 0.1 and 0.3 drafts
 
-**For:** the project owner. **Purpose:** one place to comment on both drafts. Each item links to the detail. Under each item, write your answer after **Comment:**. "OK" is enough to accept a recommendation. Once you're done, I fold your answers into the drafts and turn this sheet into a short decision record.
+**For:** the project owner.
 
-- Draft 0.1: [Reference inventory](phase0-0.1-reference-inventory.md), a record of the archived game.
-- Draft 0.3: [Technical architecture](phase0-0.3-technical-architecture.md), for the mountain-painter scope.
+**How to use it:** three short parts. Write your answer after each **Comment:**; "OK" accepts a recommendation. Links go to the detail. When you're done, I fold your answers into the drafts and turn this sheet into a short decision record.
 
-## Scope (please answer these first)
+## Part 1 · Scope: please confirm
 
-### S1 · What is in the mountain painter?
-Tick what the first playable painter should include. **Recommended first set:** the items marked ★. Everything else goes to later phases.
+**Iteration 1 is just the mountain:**
+- A real-world site picker.
+- Elevation from USGS 1 m lidar, the **S1M** product.
+- The game renders it with its own **lighting, camera, ground cover, forest and snow**.
+- **No drawing tools and no simulation.**
 
-- [ ] ★ Site picker, download, and the resort library
-- [ ] ★ Stylized 3D mountain: terrain, cover, forest, static snow, time-of-day lighting
-- [ ] ★ Trails: paint, difficulty, grading (level bench, 45° faces), tree clearing
-- [ ] ★ Lifts: two-point placement, type catalog, towers, haul rope and chairs (static or animated on a loop)
-- [ ] ★ Nodes, connector paths and junctions (the ski network graph and the connectivity check)
-- [ ] Roads
-- [ ] Ponds and dams (earthwork)
-- [ ] Snowmaking network layout (pipes, hydrants, guns), with or without the hydraulic check
-- [ ] Buildings (pump house, lodges)
-- [ ] Guest Entrance marker
-- [ ] Undo/redo
-- [ ] Trail-map / "poster" view
+**Future iterations are planned, not built:**
+- Drawing on the terrain (lifts, trails and so on).
+- Simulation (time, weather, snow, guests).
+
+The architecture keeps room for both ([0.3 §10](phase0-0.3-technical-architecture.md#10-future-iterations-and-the-seams-iteration-1-keeps-t15)).
+
+The roadmap's Phase 1 still describes guests and lifts. Deliverable 0.6 (the milestone plan) will rewrite Phases 1–4 to match this scope.
 
 **Comment:**
 
-### S2 · US-only or worldwide sites?
-USGS elevation and NAIP imagery are US-only and give the best data. **Recommendation:** US-only for now, behind a provider interface that allows a worldwide set later ([0.3 §6](phase0-0.3-technical-architecture.md#6-data-acquisition-and-provider-terms-t8-t9)).
+## Part 2 · 0.1 Reference inventory
+
+[0.1](phase0-0.1-reference-inventory.md) is a **record of the old MapLibre game**. It lists lifts, trails, snowmaking and guests because the old game had them. Those sections are reference for future iterations, not work for iteration 1. For iteration 1, only §2–§5 and §10 matter.
+
+### A1 · Is anything wrong or missing?
 
 **Comment:**
 
-### S3 · Snow without simulation
-**Proposal:** static, stylized snow cover from elevation, slope, aspect and the view date; trails and clearings look groomed ([0.3 §4.5](phase0-0.3-technical-architecture.md#45-snow-without-simulation)).
+### A2 · Real brand names (can wait until the drawing iteration)
+The old game named a real snowgun (HKD Impulse R5) and cited a lift standard (ANSI B77.1). **Recommendation:** use generic names unless you get permission.
 
 **Comment:**
 
-### S4 · Update the roadmap to match
-The roadmap's Phase 1 slice (§6) still lists 3,000 guests and a simulation bar. **Proposal:** the 0.6 milestone plan redefines Phases 1–4 around the painter, and a small roadmap edit records the scope change.
+## Part 3 · 0.3 Technical architecture: decisions
+
+[0.3](phase0-0.3-technical-architecture.md) covers iteration 1 only. **Four items need your input** (marked ❓). The rest are recommendations; "OK" is fine.
+
+### ❓ T4 · Elevation: S1M core and surround ring
+1 m S1M for the site; S1M's own 8 m overview for a 3 km surround ring ([§4.2](phase0-0.3-technical-architecture.md#42-elevation-s1m-core-overview-ring-t4)).
+- **Question 1, site size:** 1 m data is heavy. **Recommendation:** square sites of 2–5 km; 10 km would be four times the memory of 5 km.
+- **Question 2, coverage:** S1M isn't finished nationwide yet. **Recommendation:** the picker only allows sites fully covered by S1M, and shows the coverage on the map.
 
 **Comment:**
 
-## 0.1 Reference inventory
-
-### A1 · Accuracy and gaps
-Is anything wrong or missing, especially in §2 (screens), §6 (construction rules) and §11 (not built)?
+### ❓ T6 · Ground cover
+ESA WorldCover (10 m) refined to 1 m with USGS aerial imagery (NAIP), plus OpenStreetMap lakes and streams. This adds a new "developed" class for towns and roads ([§4.3](phase0-0.3-technical-architecture.md#43-ground-cover-t6)).
 
 **Comment:**
 
-### A2 · Real brand and standard names
-The archive modelled the HKD Impulse R5 snowgun by name and cited ANSI B77.1 for lift speeds ([0.1 §12](phase0-0.1-reference-inventory.md#12-third-party-names-and-data-terms-to-revisit)). **Recommendation:** use generic equipment names unless you get permission.
+### ❓ T8 · Snow
+Stylized, procedural snow from elevation, slope, aspect and the chosen date: a seasonal snow line and snow on trees. It is drawn from a snow-depth texture, which a future simulation can fill instead ([§4.5](phase0-0.3-technical-architecture.md#45-snow-t8)).
 
 **Comment:**
 
-## 0.3 Technical architecture: decisions
-
-### T1 · Assemblies
-Rename the engine-free `Simulation` assembly to `Domain` (design model, construction math, network graph). Keep `Simulation` as the clock placeholder only. Add `Persistence`, `Acquisition` and `App` ([§2](phase0-0.3-technical-architecture.md#2-assemblies-t1)).
-
-**Comment:**
-
-### T2 · One revisioned design document
-All player edits are commands against immutable, revisioned snapshots; stale commands are rejected; derived data is never saved. This makes undo cheap ([§3.1](phase0-0.3-technical-architecture.md#31-one-authored-design-document-t2)).
+### ❓ T13 · Performance budgets
+Frame p95 ≤20 ms at 1080p High on your RTX 3060 Ti PC with the full forest; ≥30 FPS on an integrated GPU at the Performance preset; open a resort in ≤10 s; download a 5 km site in ≤5 min ([§8](phase0-0.3-technical-architecture.md#8-performance-budgets-t13)).
+- **Question:** which laptop or integrated GPU should be the minimum target?
 
 **Comment:**
 
-### T3 · Threading
-Main thread for the scene and UI; .NET tasks for engine-free math; Burst jobs for grid and forest work; results tagged with a revision. No simulation thread ([§3.3](phase0-0.3-technical-architecture.md#33-threading-t3)).
+### T1 · Code modules (assemblies)
+Engine-free `Domain`, `Persistence` and `Acquisition`; `Simulation` becomes a clock placeholder; then `World`, `Presentation`, `UI` and `App` ([§2](phase0-0.3-technical-architecture.md#2-assemblies-t1)).
 
 **Comment:**
 
-### T4 · Coordinates
-Store packages in the site's UTM zone, in metres, with a local origin; Unity units are metres ([§4.1](phase0-0.3-technical-architecture.md#41-coordinates-t4)).
+### T2 · Runtime
+Main thread for the scene; background tasks for downloads and loading; Burst jobs for forest and splat building; nothing the player makes needs saving yet ([§3](phase0-0.3-technical-architecture.md#3-runtime-structure-t2)).
 
 **Comment:**
 
-### T5 · Terrain resolution and representation
-Authoritative 2 m float grid (1 m optional where lidar exists), a 10 m surround ring, and Unity Terrain tiles behind an interface so a custom mesh can replace them ([§4.2](phase0-0.3-technical-architecture.md#42-heights-and-terrain-t5)). **Question:** 2 m by default, or push for 1 m?
+### T3 · Coordinates
+Keep S1M's own map grid (CONUS Albers, metres), so the 1 m lidar is never resampled; store scale factors for future measuring tools ([§4.1](phase0-0.3-technical-architecture.md#41-coordinates-keep-s1ms-native-grid-t3)).
 
 **Comment:**
 
-### T6 · Immutable package; edits in the save
-The downloaded package never changes; the save stores sparse height and clearing deltas. This removes the archive's write-ordering hazard ([§4.3](phase0-0.3-technical-architecture.md#43-package-is-immutable-edits-live-in-the-save-t6)).
+### T5 / T11 · Package and library
+A downloaded resort is an immutable folder with a JSON manifest and binary layers. A library lists downloaded resorts; a small JSON per resort holds the camera and view settings. Formats may change freely until the first build shared with other players ([§5](phase0-0.3-technical-architecture.md#5-package-and-library-formats-t5-t11)).
 
 **Comment:**
 
-### T7 · File formats
-Package folder with a JSON manifest and binary layers. The save is one zip (`.mpsave`) containing a JSON design document, binary deltas and a thumbnail. Newtonsoft.Json; atomic writes; keep a `.bak` ([§5](phase0-0.3-technical-architecture.md#5-data-formats-t7)). **Question:** saves may break freely until when? **Recommendation:** until the first build shared with other players.
+### T7 · Forest
+Procedural, deterministic trees per 64 m tile, never saved; about 650,000 trees on a 5 km site; GPU instancing with impostors ([§4.4](phase0-0.3-technical-architecture.md#44-forest-t7)).
 
 **Comment:**
 
-### T8 · Providers
-Keep USGS 3DEP, NAIP, WorldCover (switch to the classified GeoTIFFs), OSM via Overpass and Nominatim. **Drop** Esri, CARTO and OSM tile servers. **Reject** Cesium ion for a commercial game. Use a UI Toolkit slippy map over USGS National Map tiles for the picker ([§6](phase0-0.3-technical-architecture.md#6-data-acquisition-and-provider-terms-t8-t9)).
+### T9 · Lighting and camera
+The sun from real location and a time/date scrubber; cascaded shadows; an orbit camera bounded to the surround ring, plus free-fly ([§4.6](phase0-0.3-technical-architecture.md#46-lighting-and-camera-t9)).
 
 **Comment:**
 
-### T9 · Coverage
-Answered by S2.
-
-### T10 · Determinism for construction and generation
-Same inputs, same outputs; keyed randomness; banned non-deterministic APIs in engine-free code; deterministic Burst mode for the forest; golden fixtures ([§7](phase0-0.3-technical-architecture.md#7-determinism-t10)).
+### T10 · Download method and providers
+Read only the needed parts of S1M files from USGS's public S3 bucket, with a small built-in reader. The picker map uses public-domain USGS map tiles with an S1M coverage overlay. Reject Cesium ion, Esri, CARTO and OSM tile servers on licensing grounds ([§6](phase0-0.3-technical-architecture.md#6-data-acquisition-and-provider-terms-t10)).
 
 **Comment:**
 
-### T11 · Performance budgets
-Frame p95 ≤20 ms at 1080p High on the reference PC with the full forest; ≥30 FPS on an integrated GPU at Performance; ≤100 ms tool response and grading preview; zero per-frame allocations; open ≤10 s; save ≤1 s ([§8](phase0-0.3-technical-architecture.md#8-performance-budgets-t11)). **Question:** which integrated GPU or laptop is the minimum target?
+### T12 · Determinism
+Forest, cover and splat come out identically every time a resort opens: keyed randomness, banned non-deterministic APIs, golden tests ([§7](phase0-0.3-technical-architecture.md#7-determinism-t12)).
 
 **Comment:**
 
-### T12 · Testing and CI
-Mostly engine-free tests; a checked-in 2 km test terrain in Git LFS; add a `dotnet test` CI job for the engine-free code (no Unity licence needed); Unity CI later ([§9](phase0-0.3-technical-architecture.md#9-testing-t12)).
+### T14 · Testing and CI
+Mostly engine-free tests; a real 2 km S1M test site checked in; add a `dotnet test` CI job (no Unity licence needed) ([§9](phase0-0.3-technical-architecture.md#9-testing-t14)).
 
 **Comment:**
 
-### T13 · Simulation placeholder
-`IGameClock` plus a manual view clock for lighting and the snow preview. Nothing advances time ([§10](phase0-0.3-technical-architecture.md#10-the-simulation-placeholder-t13)).
+### T15 · Seams for future iterations
+Height grid owned by engine-free code; a clearing mask in forest density; an immutable package; a snow-depth texture; the clock placeholder ([§10](phase0-0.3-technical-architecture.md#10-future-iterations-and-the-seams-iteration-1-keeps-t15)).
 
 **Comment:**
 
-### T14 · Packages
-Add Performance Testing, Burst, Collections, Mathematics, Splines, Newtonsoft JSON and LibTiff.NET. Remove AI Navigation and Timeline for now. No Entities ([§11](phase0-0.3-technical-architecture.md#11-packages-for-phase-1-t14)).
+### T16 · Unity packages
+Add Performance Testing, Burst, Collections, Mathematics and Newtonsoft JSON. Remove AI Navigation and Timeline for now ([§11](phase0-0.3-technical-architecture.md#11-packages-for-phase-1-t16)).
 
 **Comment:**
 

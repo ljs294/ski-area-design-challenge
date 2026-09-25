@@ -4,7 +4,7 @@
 
 This is a record of what the archived game does, the rules behind it, and what was learned building it. It describes behaviour, not code. Nothing here is carried into Unity: it is the input to deliverable 0.2, which decides what to keep, change, add or drop. Every link points at the frozen tag.
 
-**Current scope (decided 2026-09-25):** the Unity game is, for now, purely a **mountain painter**: real terrain, a stylized mountain, and design tools. Simulation is limited to a placeholder for future clocks. This inventory stays complete as reference; §7 (Simulation) and the simulation-related parts of §2, §6 and §8 describe features for later phases, not the current build.
+**Current scope (decided 2026-09-25):** Unity iteration 1 is **just the mountain**: a real-world picker, USGS 1 m lidar elevation (the S1M product), and the game's own lighting, camera, ground cover, forest and snow. Drawing on the terrain (lifts, trails, etc.) and simulation are **future iterations**. This inventory records the whole archived game, so most of it, especially §6 (construction) and §7 (simulation), is reference for those future iterations, not for iteration 1. The parts that matter now are §2 (screens), §3 (terrain data), §4 (layers), §5 (ground cover) and §10 (performance).
 
 **Status tags used below:**
 - **Shipped:** works in new (schema-17) games.
