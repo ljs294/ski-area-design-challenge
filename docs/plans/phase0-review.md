@@ -2,7 +2,7 @@
 
 **For:** the project owner.
 
-**How to use it:** write your answer after each **Comment:**; "OK" accepts a recommendation. ✅ marks what you have already decided; ❓ marks what still needs you. When everything is answered, I fold it into the drafts and turn this sheet into a short decision record.
+**How to use it:** write your answer after each **Comment:**; "OK" accepts a recommendation. ✅ marks what you have already decided. The rest are recommendations, where "OK" is enough. When everything is answered, I fold it into the drafts and turn this sheet into a short decision record.
 
 ## Part 1 · Scope (recorded from your answers, 2026-09-25)
 
@@ -34,39 +34,14 @@
 ### Decided
 
 - ✅ **Site size:** squares of 2–5 km ([§4.2](phase0-0.3-technical-architecture.md#42-elevation-extent-and-resolution-t4)).
-- ✅ **Snow:** a flat 12 in (0.305 m) across the whole map, drawn from a snow-depth texture that later versions can vary ([§4.6](phase0-0.3-technical-architecture.md#46-snow-t8)).
-- ✅ **"Developed" ground-cover class** added ([§4.4](phase0-0.3-technical-architecture.md#44-ground-cover-sources-t6)).
-- ✅ **Minimum hardware:** around an RTX 2060; 30 FPS or better at 1080p Standard ([§8](phase0-0.3-technical-architecture.md#8-performance-budgets-and-hardware-t13)).
-
-### ❓ T6 · Ground-cover sources
-**Proposal:**
-- **Forest and tree height** from the Meta/WRI 1 m canopy-height map (CC BY 4.0), matching the lidar's 1 m detail.
-- **Other classes** from ESA WorldCover 10 m (CC BY 4.0).
-- **Water and developed shapes** from OpenStreetMap.
-- **NAIP imagery is no longer needed.**
-
-Caution: the canopy map comes from 2010s satellite imagery, so the game checks it against WorldCover ([§4.4](phase0-0.3-technical-architecture.md#44-ground-cover-sources-t6)).
-
-**Comment:**
-
-### ❓ T4 · S1M coverage rule and ring detail
-S1M isn't finished nationwide.
-- **Recommendation:** the picker only allows sites fully covered by S1M and shows coverage on the map.
-- The 3 km surround ring uses S1M's 2 m level (upgraded from 8 m, thanks to the 1 GB budget).
-
-Details of how the lidar becomes Unity terrain are in [§4.3](phase0-0.3-technical-architecture.md#43-from-lidar-to-unity-terrain-t4).
-
-**Comment:**
-
-### ❓ T8-Q · Lakes under the snow
-Should lakes show **frozen and snow-covered** (consistent with "12 in everywhere") or as **open water**?
-
-**Comment:**
-
-### ❓ T13-Q · Minimum CPU and RAM
-**Proposal:** Ryzen 5 3600 / Core i5-9600K class, 16 GB RAM, SSD, alongside the RTX 2060.
-
-**Comment:**
+- ✅ **Elevation fallback:** verified that S1M already backfills gaps inside its tiles. Where no S1M tile exists, the game fills automatically from USGS's other elevation products (1 m lidar, then about 3 m, then about 10 m), so any site in the contiguous US works ([§4.2](phase0-0.3-technical-architecture.md#42-elevation-extent-and-resolution-t4)).
+- ✅ **Data-quality score:** shown after download, with a one-line summary of the data used ([§4.2](phase0-0.3-technical-architecture.md#42-elevation-extent-and-resolution-t4)).
+- ✅ **Ground-cover sources:** Meta/WRI 1 m canopy for forest, ESA WorldCover for the other classes, OpenStreetMap for water and developed land; **must not look blocky** ([§4.4](phase0-0.3-technical-architecture.md#44-ground-cover-sources-t6)).
+- ✅ **"Developed" class** added.
+- ✅ **Snow:** a flat 12 in across the whole map ([§4.6](phase0-0.3-technical-architecture.md#46-snow-t8)).
+- ✅ **Lakes:** frozen for now. Each lake has a surface state a future weather engine will change ([§4.6](phase0-0.3-technical-architecture.md#46-snow-t8)).
+- ✅ **Map layer to toggle ground cover** ([§4.8](phase0-0.3-technical-architecture.md#48-map-layers-t17)).
+- ✅ **Minimum hardware:** RTX 2060, Ryzen 5 3600 / Core i5-9600K class, 16 GB RAM, SSD; 30 FPS or better at 1080p Standard ([§8](phase0-0.3-technical-architecture.md#8-performance-budgets-and-hardware-t13)).
 
 ### Recommendations ("OK" is enough)
 
@@ -98,6 +73,12 @@ Should lakes show **frozen and snow-covered** (consistent with "12 in everywhere
 **Comment:**
 
 **T15 · Seams for later.** Float32 source heights separate from Unity's 16-bit view; a clearing mask in forest density; an immutable package; the snow-depth texture; the clock placeholder ([§10](phase0-0.3-technical-architecture.md#10-future-iterations-and-the-seams-iteration-1-keeps-t15)).
+**Comment:**
+
+**T17 · Map layers.** Snow, Ground cover, Forest (all on by default) and a Cover map overlay (off). Toggles are instant, with no rebuild ([§4.8](phase0-0.3-technical-architecture.md#48-map-layers-t17)).
+**Comment:**
+
+**T18 · Quality-score weights.** S1M 1 m = 100, 1 m lidar = 95, about 3 m = 60, about 10 m = 30, area-weighted over the site ([§4.2](phase0-0.3-technical-architecture.md#42-elevation-extent-and-resolution-t4)).
 **Comment:**
 
 **T16 · Unity packages.** Add Performance Testing, Burst, Collections, Mathematics and Newtonsoft JSON; remove AI Navigation and Timeline ([§11](phase0-0.3-technical-architecture.md#11-packages-for-phase-1-t16)).

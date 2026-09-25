@@ -1,6 +1,6 @@
 # Phase 0 · 0.3 Technical architecture
 
-**Audience:** the project owner and coding agents. **Status:** draft for review (revised 2026-09-25 with the owner's first answers). Decisions are numbered **T1–T16**; comment in [phase0-review.md](phase0-review.md). Inputs: the [roadmap](unity-rebuild-roadmap.md) and the [reference inventory](phase0-0.1-reference-inventory.md).
+**Audience:** the project owner and coding agents. **Status:** draft for review (revised 2026-09-25 with the owner's first answers). Decisions are numbered **T1–T18**; comment in [phase0-review.md](phase0-review.md). Inputs: the [roadmap](unity-rebuild-roadmap.md) and the [reference inventory](phase0-0.1-reference-inventory.md).
 
 ## 1. Scope
 
@@ -71,10 +71,18 @@
 
 - **Site:** a square of **2–5 km** (decided), at full **1 m** resolution. A 5 km site is 25 million heights.
 - **Surround ring:** 3 km beyond the site on every side (so a 5 km site sits in an 11 km square). It uses S1M's built-in **2 m** copy: same source, same datum, no seam. The 1 GB budget allows 2 m rather than the 8 m in the first draft.
-- **Coverage:**
-  - S1M production is still in progress.
-  - **Recommendation** (open question T4-Q2): the picker only allows sites fully inside S1M coverage, and draws the coverage on the map.
-  - Ring gaps fall back to USGS 3DEP 1/3 arc-second (about 10 m).
+- **Fallback to the next-best data (decided; verified 2026-09-25):**
+  - **Inside a published S1M tile, USGS has already done the fallback.** Voids wider than 10 m are backfilled from 3DEP 1/9 arc-second (about 3 m) or 1/3 arc-second (about 10 m) with a 50 m slope-weighted blend; smaller voids are interpolated. What remains as no-data is only where USGS has nothing at all.
+  - **Where no S1M tile exists yet, or no-data remains, the game fills from the USGS 3DEP dynamic elevation service** (`3DEPElevation/ImageServer`). It mosaics every published 3DEP elevation product: project-based 1 m lidar where S1M has not been produced yet, otherwise 1/9 or 1/3 arc-second. It returns up to 8,000 × 8,000 pixels at 1 m per request and can deliver directly in EPSG:6350.
+  - **Chain, per 1 km tile:** S1M (1 m) → 3DEP 1 m project lidar → 1/9 arc-second → 1/3 arc-second. The last covers the whole contiguous US, so **every site gets complete terrain**.
+  - Where an S1M tile meets fallback data, the edge gets the same 50 m slope-weighted blend USGS uses, so there is no step.
+  - **The manifest records the source and effective resolution of every tile.** The picker shows a data-quality overlay (1 m S1M / 1 m lidar / 3 m / 10 m) and warns before downloading a site that is not all 1 m.
+  - The Phase 1 spike verifies that the dynamic service picks the finest source at a location, and reads which source it used.
+
+**Data-quality score after download (T18, owner request).** When a download finishes, the game shows a terrain quality score and a one-line summary of the data used. Both are stored in the manifest and shown on the library card.
+- **Score (0–100):** the core site's area-weighted source quality: S1M 1 m = 100, 1 m project lidar = 95, 1/9 arc-second (about 3 m) = 60, 1/3 arc-second (about 10 m) = 30. The ring is listed but not scored, because it is scenery.
+- **Example one-liner:** *"Terrain quality 97/100: 96% USGS S1M 1 m lidar, 4% 3DEP 10 m · forest: Meta/WRI canopy (2019 imagery) · cover: ESA WorldCover 2021."*
+- The weights are a first proposal and can be tuned.
 
 ### 4.3 From lidar to Unity terrain (T4)
 
@@ -105,10 +113,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 **② Decode and store.**
 - A small built-in reader handles exactly what S1M uses: TIFF directories, tile offsets, **LZW** decompression and the **floating-point predictor**. Output is float32 metres.
 - Blocks from neighbouring USGS tiles are stitched into one continuous grid; the tiles share one grid, so there is no resampling.
-- **No-data cells** (−999999):
-  - Small voids are filled by interpolation.
-  - The core must have none after filling, or the site is refused.
-  - The ring falls back to the 10 m product.
+- **No-data cells** (−999999), and 1 km tiles with no S1M file: filled from the fallback chain in §4.2, blended at the seams. The finished grid has no holes.
 - The result is saved **losslessly as float32**. This is the authoritative terrain; future drawing tools edit on top of it (§10).
 
 **③ Build the terrain cache** (once per resort, a few seconds to a minute; Phase 1 measures):
@@ -146,6 +151,17 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - WorldCover alone is 10 m, which looks blocky next to 1 m terrain; it fills in the non-forest classes.
 - It replaces the archive's WorldCover + NAIP imagery recipe, so NAIP is **not needed** in iteration 1.
 
+**Ground cover must never look blocky (owner requirement).** WorldCover's 10 m cells must not show as squares on 1 m terrain. How:
+- **Forest** comes from the 1 m canopy map, so it is already at terrain resolution.
+- **Soft class weights, not hard classes.** Each 10 m class is turned into a per-class weight (1 inside, 0 outside) and upsampled smoothly to 1 m. The terrain blends layers by weight rather than switching at a cell edge.
+- **Terrain-aware boundaries.**
+  - Slope and elevation from the 1 m lidar decide rock versus grass locally: rock on steep faces, alpine above the treeline.
+  - Fine noise breaks any remaining straight 10 m edges.
+  - The rules are deterministic (§7).
+- **Vectors are rasterized at 1 m with anti-aliasing:** OpenStreetMap water, roads and buildings.
+- **Height-based texture blending** in the terrain shader, so transitions look like grass giving way to rock, not a cross-fade.
+- **Acceptance check:** a Phase 1 visual review at close camera range, including a test view where the snow layer is off. A slice with visible 10 m stair edges fails.
+
 **Cautions:**
 - The canopy map is built from satellite imagery of the 2010s. The package records the source date, and a **sanity check** compares its forest fraction with WorldCover's; the archive's lidar-forest failure showed why (0.1 §5).
 - **US-only, public-domain alternative:** USGS Annual NLCD at 30 m. It is coarser; kept as a fallback only.
@@ -165,7 +181,10 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
   - The terrain shader reads snow from a **snow-depth texture**. Iteration 1 fills it with a constant 0.305 m.
   - Varied snow (snow line, sun and wind effects) or a future simulation writes the same texture by dirty rectangle.
   - Nothing else changes when that happens.
-- **Open (T8-Q):** whether lakes show frozen and snow-covered, or as open water.
+- **Lakes (decided): frozen and snow-covered in iteration 1.**
+  - Each lake and stream is a water body with a **surface state**: open water, ice, or snow-covered ice, plus ice and snow thickness.
+  - Iteration 1 sets every water body to snow-covered ice; the renderer draws whatever the state says.
+  - A future weather engine will freeze and thaw each lake by changing that state. The lake itself and the rendering do not change.
 
 ### 4.7 Lighting and camera (T9)
 
@@ -173,6 +192,23 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - **Shadows:** cascaded. Tree shadows only in the near cascade, with a baked canopy-shadow term for distance.
 - **View time:** a time-of-day and date scrubber. It drives the sun only; snow stays flat in iteration 1. This is the clock placeholder (§10).
 - **Camera:** orbit / RTS-style with terrain collision, bounded to the ring, plus free-fly. Default keys follow the archive (W/A/S/D, Q/E, R/F, N); 0.4 finalises them.
+
+### 4.8 Map layers (T17)
+
+Owner requirement: the player can toggle ground cover on and off.
+
+| Layer | What it toggles | Default |
+|---|---|---|
+| Snow | The 12 in snow cover. With it off, the ground cover underneath shows | On |
+| Ground cover | Terrain textured by cover class (forest floor, grass, rock, developed, water) versus plain shaded terrain | On |
+| Forest | The trees | On |
+| Cover map | A flat-colour overlay of the cover classes, for reading the data, like the old game's analysis layer | Off |
+
+**Performance:** toggling costs nothing noticeable. Layers are shader switches and render-list visibility, never a rebuild of terrain or forest.
+
+**Note:** with 12 in of snow everywhere, the ground cover mostly shows through only when the Snow layer is off. The forest shows either way.
+
+The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §4) are candidates for 0.4 (UI) to add later.
 
 ## 5. Package, cache and library (T5, T11)
 
@@ -225,13 +261,13 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - Public domain.
 
 **Coverage lookup:**
-- The picker needs to know where S1M exists. **Recommended:** a coverage map built from the daily index, fetched when the picker opens and cached.
+- Any site in the contiguous US can be downloaded (the fallback chain in §4.2 guarantees complete terrain). The picker shows a **data-quality overlay**, built from the daily S1M index and fetched when the picker opens, then cached. It warns before a site that is not all 1 m.
 - The index is a SQLite-based file, so the Phase 1 spike decides whether to read it with a small SQLite library or convert it.
 - A direct check (listing the tile's S3 folder) confirms a tile before download.
 
 **Pipeline:**
-1. Choose a covered site.
-2. Download core and ring heights.
+1. Choose a site.
+2. Download core and ring heights: S1M first, then fallback tiles.
 3. Download canopy.
 4. Download land cover.
 5. Download OSM water and developed shapes.
@@ -247,7 +283,7 @@ It runs off the main thread with progress, cancellation, retries, polite rate li
 | Data | Provider | Terms | Use |
 |---|---|---|---|
 | Elevation | USGS 3DEP **S1M** | Public domain | **Yes** |
-| Ring gap fill | USGS 3DEP 1/3 arc-second (3DEP ImageServer) | Public domain | Ring gaps only |
+| Fallback elevation | USGS 3DEP dynamic elevation service (`3DEPElevation/ImageServer`): 1 m project lidar, 1/9 and 1/3 arc-second | Public domain | **Yes**, wherever S1M is missing (core and ring) |
 | Forest, tree height | Meta / WRI High Resolution Canopy Height (AWS) | CC BY 4.0 | **Yes** |
 | Other land cover | ESA WorldCover 2021 v200 (AWS) | CC BY 4.0 | **Yes** |
 | Water, roads, buildings | OpenStreetMap via Overpass (configurable endpoint) | ODbL; fair-use limits | **Yes** |
@@ -272,7 +308,7 @@ Every open of a resort must produce the same terrain tiles, splat and forest, wh
 ## 8. Performance budgets and hardware (T13)
 
 **Hardware:**
-- **Minimum spec (decided: around an RTX 2060):** NVIDIA RTX 2060 (6 GB) with a Ryzen 5 3600 / Core i5-9600K-class CPU, 16 GB RAM and an SSD. The CPU and RAM are open question T13-Q.
+- **Minimum spec (decided: around an RTX 2060):** NVIDIA RTX 2060 (6 GB) with a Ryzen 5 3600 / Core i5-9600K-class CPU, 16 GB RAM and an SSD (CPU and RAM decided).
 - **Reference PC:** RTX 3060 Ti, Ryzen 5 5600X, about 16 GB RAM (the archive's measurement machine).
 
 | Budget | Target | Conditions |
@@ -315,7 +351,7 @@ Measured with Unity's Performance Testing package in a benchmark scene with a fi
 
 **Simulation:**
 - A real clock implementing `IGameClock` on a dedicated thread; snapshots out, commands in; roadmap §5 and §7 become the active rules; the simulation writes the snow-depth texture.
-- **What iteration 1 does now for this:** the placeholder clock, the snow-depth texture seam, keyed randomness and the engine-free domain.
+- **What iteration 1 does now for this:** the placeholder clock, the snow-depth texture seam, water-body surface states (frozen now; the weather engine later freezes and thaws them), keyed randomness and the engine-free domain.
 
 **The clock placeholder** (`MountainPlanner.Simulation`):
 
@@ -334,7 +370,8 @@ public sealed class ManualViewClock : IGameClock { /* set by the time-of-day/dat
 
 ## 12. Risks
 
-- **S1M coverage is incomplete.** Mitigated by showing coverage in the picker, only allowing covered sites, and the 10 m ring fallback.
+- **S1M coverage is incomplete.** Mitigated by the automatic fallback chain, the data-quality overlay in the picker and the post-download quality score.
+- **Seams between S1M and fallback data.** Mitigated by the 50 m slope-weighted blend; checked in the Phase 1 visual review.
 - **S1M layout or index changes** during production. Mitigated by one provider module and recorded-response tests.
 - **Canopy map age or local errors.** Mitigated by recording the date, the WorldCover sanity check and the NLCD fallback.
 - **1 m terrain cost on the minimum spec.** Mitigated by the 2–5 km limit, 2 m ring tiles, per-preset pixel error and Phase 1 measurement.
