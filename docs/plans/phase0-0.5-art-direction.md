@@ -1,6 +1,6 @@
 # Phase 0 · 0.5 Art direction and asset plan
 
-**Audience:** the project owner and coding agents. **Status:** draft for review (2026-09-25). Builds on [0.2](phase0-0.2-game-design.md) (the look is the payoff) and [0.3](phase0-0.3-technical-architecture.md) (terrain, cover, forest, snow, lighting). Questions are in §9.
+**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25 (decisions in §9). Builds on [0.2](phase0-0.2-game-design.md) (the look is the payoff) and [0.3](phase0-0.3-technical-architecture.md) (terrain, cover, forest, snow, lighting). Questions are in §9.
 
 ## 1. The look in one sentence
 
@@ -18,7 +18,7 @@
 
 ## 2. Terrain and snow
 
-- **Snow** (iteration 1: a flat 12 in everywhere, T8):
+- **Snow** (iteration 1: a flat 12 in everywhere, T8; bare rock shows on faces over about 55°, A2):
   - A bright, slightly cool white; shadows pushed to a soft blue; fine wind-texture detail in the normal map.
   - A subtle view-dependent sparkle in low sun. The sparkle can be turned off (Ultra only).
 - **Terrain relief** comes from the lidar alone. There is no extra noise displacement, because the 1 m data *is* the detail.
@@ -119,21 +119,12 @@ The style tile is one Unity scene that locks the look before scaling up:
 - Terrain uses one pass with five layers plus snow. No more than 8 texture samples per layer per pixel at Medium.
 - No per-frame allocation from art systems. Wind is animated in the vertex shader.
 
-## 9. Questions for you
+## 9. Decisions (owner approval, 2026-09-25)
 
-Write your answer after each **Comment:**; "OK" accepts the recommendation.
-
-**A1 · Ring edge.** **Recommendation:** a diorama base (clean cut, rock-strata walls, thin plinth). The alternative is the old game's "floating edge" with no walls.
-**Comment:**
-
-**A2 · Flat snow on cliffs.** With a flat 12 in everywhere, cliffs turn white too. Show bare rock on very steep faces (over about 55°) as a purely visual touch, or keep them literally all white?
-**Comment:**
-
-**A3 · Deciduous trees from NLCD.** Use the extra small NLCD download to place leafless deciduous trees correctly?
-**Comment:**
-
-**A4 · Night.** Include a readable, moonlit night in the time scrubber, or keep daylight only?
-**Comment:**
-
-**A5 · Reference feel.** Is "model railway / Parkitect diorama, not photoreal" the right target? Name any games or images you'd like it to feel like.
-**Comment:**
+| ID | Decision |
+|---|---|
+| A1 | Ring edge: a **diorama base** (clean cut, rock-strata walls, thin plinth) |
+| A2 | Very steep faces (over about 55°) show **bare rock** as a visual touch; the snow depth texture stays a flat 12 in |
+| A3 | Use **USGS NLCD** forest classes to place leafless deciduous trees |
+| A4 | Include a readable, **moonlit night** in the time scrubber |
+| A5 | Target: a **model-railway / Parkitect-style diorama**, not photoreal |

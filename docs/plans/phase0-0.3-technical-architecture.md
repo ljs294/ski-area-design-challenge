@@ -177,6 +177,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 ### 4.6 Snow (T8)
 
 - **Iteration 1 (decided):** a **flat 12 in (0.305 m) of snow across the entire map**: every land cell white, trees carrying snow. There is no snow model and no variation.
+- **Visual exception (A2):** faces steeper than about 55° render bare rock. The snow-depth data stays a flat 12 in; only the shader lets rock show through.
 - **The seam for later:**
   - The terrain shader reads snow from a **snow-depth texture**. Iteration 1 fills it with a constant 0.305 m.
   - Varied snow (snow line, sun and wind effects) or a future simulation writes the same texture by dirty rectangle.

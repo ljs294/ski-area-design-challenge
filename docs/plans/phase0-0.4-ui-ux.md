@@ -1,6 +1,6 @@
 # Phase 0 · 0.4 UI/UX spec and style guide
 
-**Audience:** the project owner and coding agents. **Status:** draft for review (2026-09-25). Builds on [0.2](phase0-0.2-game-design.md) (journey) and [0.3](phase0-0.3-technical-architecture.md) (T17 layers, T18 quality score, T19 picker). Questions are in §9.
+**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25 (decisions in §9). Builds on [0.2](phase0-0.2-game-design.md) (journey) and [0.3](phase0-0.3-technical-architecture.md) (T17 layers, T18 quality score, T19 picker). Questions are in §9.
 
 **Stack:** Unity UI Toolkit: UXML for layout, USS for style, TSS themes, runtime data binding. Icons are SVG vector images; text uses signed-distance-field fonts. The resolution-independent reasons are in roadmap §11.
 
@@ -267,21 +267,12 @@ Built as UI Toolkit custom controls and shared USS:
 - Every control responds in ≤100 ms. HUD updates (elevation readout, time scrubber) allocate nothing per frame.
 - Visual review screenshots of S1, S3, S5, S6 and S8 in both themes at 1080p and 1440p.
 
-## 9. Questions for you
+## 9. Decisions (owner approval, 2026-09-25)
 
-Write your answer after each **Comment:**; "OK" accepts the recommendation.
-
-**U1 · Layout.** Are the layouts for the picker (S3), the quality card (S5) and the mountain HUD (S6) right?
-**Comment:**
-
-**U2 · Controls.** OK with free-fly on **C**, keeping R/F for tilt, and 1–5 as layer toggles (§6)?
-**Comment:**
-
-**U3 · Graphics menu.** Is the option list in S8 the right set?
-**Comment:**
-
-**U4 · Font.** OK with Inter?
-**Comment:**
-
-**U5 · Time scrubber default.** Reset to 10:30 on January 15?
-**Comment:**
+| ID | Decision |
+|---|---|
+| U1 | The layouts for the picker (S3), quality card (S5) and mountain HUD (S6) are approved |
+| U2 | Controls as in §6: free-fly on **C**, R/F tilt, 1–5 layer toggles |
+| U3 | The graphics option list in S8 is approved |
+| U4 | Font: **Inter** |
+| U5 | The time scrubber resets to **10:30 on January 15** |

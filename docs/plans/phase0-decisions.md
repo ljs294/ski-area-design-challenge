@@ -59,3 +59,27 @@ Details in [0.2](phase0-0.2-game-design.md#8-decisions-owner-answers-2026-09-25)
 | G7 | Optional satellite imagery layer from USGS NAIP (nice to have) |
 | G8 | Unity-native graphics settings menu |
 | G9 | Other keep/change/drop decisions accepted |
+
+## 0.4 UI/UX spec: approved 2026-09-25
+
+Details in [0.4](phase0-0.4-ui-ux.md#9-decisions-owner-approval-2026-09-25).
+
+| ID | Decision |
+|---|---|
+| U1 | Screen layouts for the picker, quality card and mountain HUD approved |
+| U2 | Controls: free-fly C, tilt R/F, layers 1–5, hide UI H, photo mode P |
+| U3 | Unity-native graphics menu option list approved |
+| U4 | Font: Inter |
+| U5 | Time scrubber resets to 10:30, January 15 |
+
+## 0.5 Art direction: approved 2026-09-25
+
+Details in [0.5](phase0-0.5-art-direction.md#9-decisions-owner-approval-2026-09-25).
+
+| ID | Decision |
+|---|---|
+| A1 | Diorama base with rock-strata walls at the ring edge |
+| A2 | Bare rock on faces steeper than about 55° (visual only) |
+| A3 | NLCD forest classes place deciduous trees |
+| A4 | Moonlit night included |
+| A5 | Model-railway / Parkitect diorama look, not photoreal |
