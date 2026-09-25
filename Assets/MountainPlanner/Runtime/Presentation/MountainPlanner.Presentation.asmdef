@@ -1,0 +1,14 @@
+{
+    "name": "MountainPlanner.Presentation",
+    "rootNamespace": "MountainPlanner.Presentation",
+    "references": ["MountainPlanner.Simulation", "MountainPlanner.World"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
