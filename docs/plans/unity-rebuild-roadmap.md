@@ -2,6 +2,8 @@
 
 **Audience:** the project owner and coding agents. **Status:** decided. **Unity is the chosen engine.** The game is being rebuilt completely from scratch. **Facts current as of:** September 2026 (see Sources).
 
+> **Scope update (2026-09-25).** The rebuild proceeds in iterations. Iteration 1 is **just the mountain**: a real-world picker, USGS S1M 1 m lidar, and game-made lighting, camera, ground cover, forest and snow, offline after download. Drawing tools and simulation follow. Phases are now defined in [0.6 Milestone plan](phase0-0.6-milestones.md), and all Phase 0 decisions are in the [decision record](phase0-decisions.md); both take precedence over older text below.
+
 ## 1. Decision and ground rules
 
 **Engine: Unity 6.3 LTS.** Universal Render Pipeline, Burst and Jobs, Entities Graphics where it pays, Splines, Shader Graph, VFX Graph, and UI Toolkit. Windows desktop first.
@@ -95,7 +97,9 @@ World units are metres in a local frame centred on the resort. At a 5 km extent 
   - <1% of frames over 50 ms.
   - Pause/selection response ≤100 ms.
 
-## 6. Phase 1 vertical slice: validation milestone
+## 6. Simulation vertical slice: validation milestone (now Phase 4)
+
+**Moved (2026-09-25):** this slice is now the Phase 4 milestone in [0.6](phase0-0.6-milestones.md#5-phase-4-simulation-foundations-iteration-3). Phase 1 is the mountain vertical slice. The integrated-GPU target is replaced by an RTX 2060 minimum spec (T13).
 
 This proves the architecture and the budgets; it does not reopen the engine choice. Built from scratch:
 - One real resort area via the new C# acquisition pipeline, or a checked-in test area.
@@ -279,7 +283,9 @@ Candidate improvements to evaluate:
 | 0.6 | Milestone plan, Phases 1–4 | Scope, exit criteria, dependencies, risks |
 | 0.7 | Detailed Phase 1 plan | Task breakdown, order, acceptance tests |
 
-**Estimates** (rough, solo + AI, from scratch; uncertain):
+**Estimates:** superseded by [0.6](phase0-0.6-milestones.md) (2026-09-25): Phase 1 mountain vertical slice (12–14 weeks), Phase 2 iteration 1 complete (2–3 months), Phase 3 drawing (3–5 months), Phase 4 simulation foundations (4–6 months). The original table is kept below for the record.
+
+**Original estimates** (rough, solo + AI, from scratch; uncertain):
 
 | Phase | Duration | Outcome | Detailed plan written |
 |---|---|---|---|
