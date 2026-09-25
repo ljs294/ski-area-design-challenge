@@ -1,6 +1,6 @@
 # Phase 0 · 0.3 Technical architecture
 
-**Audience:** the project owner and coding agents. **Status:** draft for review (revised 2026-09-25 with the owner's first answers). Decisions are numbered **T1–T18**; comment in [phase0-review.md](phase0-review.md). Inputs: the [roadmap](unity-rebuild-roadmap.md) and the [reference inventory](phase0-0.1-reference-inventory.md).
+**Audience:** the project owner and coding agents. **Status:** draft for review (revised 2026-09-25 with the owner's first answers). Decisions are numbered **T1–T19**; comment in [phase0-review.md](phase0-review.md). Inputs: the [roadmap](unity-rebuild-roadmap.md) and the [reference inventory](phase0-0.1-reference-inventory.md).
 
 ## 1. Scope
 
@@ -293,6 +293,26 @@ It runs off the main thread with progress, cancellation, retries, polite rate li
 | Not used | Cesium ion; Esri World Imagery; CARTO; OSM Foundation tiles; NAIP (not needed now) | Commercial or usage restrictions (see first draft) | No |
 
 **Coverage is US-only** (contiguous US now; Hawaii and Puerto Rico are planned by USGS).
+
+### 6.1 Site picker (T19)
+
+**How it works (owner's design, 2026-09-25).** A pop-up window holding a small built-in map:
+1. **Search** for a place, or pan and zoom the map.
+2. **Size the square** with a slider, 2–5 km (proposed step: 0.1 km).
+3. **Click the map** to centre the square on that point. Clicking again moves it.
+4. **Name the map.** A name is required before downloading. It is prefilled with a suggestion (the nearest named peak or place), and the player can edit it.
+5. **Download.** The picker shows the site's expected quality score and download size first (§4.2), then the download progress.
+
+**Technical notes:**
+- **Map engine:** a lightweight tile map built in UI Toolkit, not a third-party map SDK.
+  - Shows USGS National Map imagery or topo tiles (public domain).
+  - Dragging pans; the scroll wheel zooms.
+  - Tiles are cached in memory, and on disk only as provider terms allow.
+  - The picker is the only part of the game that needs internet.
+- **The square is exact in real metres.** It is defined on the package grid (CONUS Albers) around the clicked centre, then drawn projected onto the map, so on screen it may look very slightly skewed. What you see is exactly what downloads.
+- **Overlays:** S1M coverage and data quality (§6), and the square with its size label.
+- **Search:** Nominatim, run only when the player presses Enter (no autocomplete), at most 1 request per second, with attribution shown. The name suggestion uses one reverse lookup when the square is placed.
+- **Layout, wording and states:** designed and wireframed in 0.4 (UI/UX).
 
 ## 7. Determinism (T12)
 

@@ -41,6 +41,7 @@
 - ✅ **Snow:** a flat 12 in across the whole map ([§4.6](phase0-0.3-technical-architecture.md#46-snow-t8)).
 - ✅ **Lakes:** frozen for now. Each lake has a surface state a future weather engine will change ([§4.6](phase0-0.3-technical-architecture.md#46-snow-t8)).
 - ✅ **Map layer to toggle ground cover** ([§4.8](phase0-0.3-technical-architecture.md#48-map-layers-t17)).
+- ✅ **Site picker:** a pop-up mini-map with search, a 2–5 km size slider, click to centre the square, and a required map name. Layout goes to 0.4 ([§6.1](phase0-0.3-technical-architecture.md#61-site-picker-t19)).
 - ✅ **Minimum hardware:** RTX 2060, Ryzen 5 3600 / Core i5-9600K class, 16 GB RAM, SSD; 30 FPS or better at 1080p Standard ([§8](phase0-0.3-technical-architecture.md#8-performance-budgets-and-hardware-t13)).
 
 ### Recommendations ("OK" is enough)
