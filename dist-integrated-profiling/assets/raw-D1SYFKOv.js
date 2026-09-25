@@ -1,1 +1,0 @@
-import{Ct as e}from"./buildingLayers-D31Ekfp4.js";var t=class extends e{decodeBlock(e){return e}};export{t as default};

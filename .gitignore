@@ -1,31 +1,29 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Unity generated folders
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
+# IDE and generated project files
+.vs/
+.idea/
+.vscode/
+*.csproj
 *.sln
-*.sw?
+*.slnx
+*.pidb
+*.userprefs
+*.suo
+*.user
+sysinfo.txt
 
-# Build outputs
-dist-electron
-dist-web
-dist-weather-lab
-release
-test-results
+# Test results
+test-results/
+
+# OS
+.DS_Store
+Thumbs.db

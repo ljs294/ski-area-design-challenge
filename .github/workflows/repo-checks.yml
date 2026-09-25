@@ -1,0 +1,24 @@
+name: repo-checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  repo-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Self-test the checks
+        run: node --test tools/repo-checks/check.test.mjs
+      - name: Agent docs and .meta integrity
+        run: node tools/repo-checks/check.mjs

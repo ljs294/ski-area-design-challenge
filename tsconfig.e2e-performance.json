@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "include": [
-    "tests/e2e/performance/**/*.ts",
-    "playwright.integratedBenchmark.config.ts",
-    "playwright.snowReproducer.config.ts",
-    "vite.config.snowReproducer.ts"
-  ]
-}
