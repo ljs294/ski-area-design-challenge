@@ -1,12 +1,14 @@
 {
-    "name": "MountainPlanner.UI",
-    "rootNamespace": "MountainPlanner.UI",
+    "name": "MountainPlanner.App",
+    "rootNamespace": "MountainPlanner.App",
     "references": [
         "MountainPlanner.Domain",
         "MountainPlanner.Simulation",
         "MountainPlanner.Persistence",
+        "MountainPlanner.Acquisition",
         "MountainPlanner.World",
-        "MountainPlanner.Presentation"
+        "MountainPlanner.Presentation",
+        "MountainPlanner.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

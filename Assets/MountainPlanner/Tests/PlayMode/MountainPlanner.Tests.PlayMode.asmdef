@@ -4,10 +4,14 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
+        "MountainPlanner.Domain",
         "MountainPlanner.Simulation",
+        "MountainPlanner.Persistence",
+        "MountainPlanner.Acquisition",
         "MountainPlanner.World",
         "MountainPlanner.Presentation",
-        "MountainPlanner.UI"
+        "MountainPlanner.UI",
+        "MountainPlanner.App"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
