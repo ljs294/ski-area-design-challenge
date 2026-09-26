@@ -1,5 +1,5 @@
 {
-    "name": "MountainPlanner.Tests.EditMode",
+    "name": "MountainPlanner.Tests.Core",
     "rootNamespace": "MountainPlanner.Tests",
     "references": [
         "UnityEngine.TestRunner",
@@ -7,11 +7,7 @@
         "MountainPlanner.Domain",
         "MountainPlanner.Simulation",
         "MountainPlanner.Persistence",
-        "MountainPlanner.Acquisition",
-        "MountainPlanner.World",
-        "MountainPlanner.Presentation",
-        "MountainPlanner.UI",
-        "MountainPlanner.App"
+        "MountainPlanner.Acquisition"
     ],
     "includePlatforms": [
         "Editor"
