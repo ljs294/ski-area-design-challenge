@@ -117,7 +117,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - The result is saved **losslessly as float32**. This is the authoritative terrain; future drawing tools edit on top of it (§10).
 
 **③ Build the terrain cache** (once per resort, a few seconds to a minute; Phase 1 measures):
-- Split the grids into **1,024 m tiles on the Albers kilometre grid.**
+- Split the grids into **1,024 m tiles**, starting at the ring's north-west corner (task 03: `TileGrid`). The site centre snaps to whole 2 m, so every core edge lies on an S1M 1 m pixel edge and every ring edge on a 2 m overview pixel edge.
   - Core tiles hold 1,025 × 1,025 heights (1 m).
   - Ring tiles hold 513 × 513 heights (2 m).
   - Neighbouring tiles share their edge row, so there are no cracks.
