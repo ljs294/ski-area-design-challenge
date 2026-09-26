@@ -1,0 +1,60 @@
+{
+  "_about": "Species parameters for build_trees.py (0.5 §3, TR1). Heights in metres; angles in degrees. Colours are the preview tints; in the game the tree shader applies the palette (0.5 §5) with per-instance jitter.",
+  "species": [
+    {
+      "id": "subalpine_fir",
+      "name": "Subalpine fir",
+      "bigmapSpcd": 19,
+      "form": "conifer",
+      "height": [13.0, 17.0],
+      "crownBase": 0.03,
+      "crownRadius": 0.155,
+      "crownExponent": 0.95,
+      "whorlSpacing": 0.45,
+      "branchesPerWhorl": [4, 6],
+      "branchElevation": [8.0, -12.0],
+      "droop": 0.18,
+      "padWidth": 0.6,
+      "padThickness": 0.34,
+      "trunkRadius": 0.013,
+      "nod": 0.0,
+      "bark": "#5B4B40",
+      "foliage": ["#233B2E", "#2F4A3A", "#26402F"]
+    },
+    {
+      "id": "mountain_hemlock",
+      "name": "Mountain hemlock",
+      "bigmapSpcd": 264,
+      "form": "conifer",
+      "height": [16.0, 22.0],
+      "crownBase": 0.08,
+      "crownRadius": 0.2,
+      "crownExponent": 0.85,
+      "whorlSpacing": 0.7,
+      "branchesPerWhorl": [4, 5],
+      "branchElevation": [-5.0, -22.0],
+      "droop": 0.42,
+      "padWidth": 0.7,
+      "padThickness": 0.26,
+      "trunkRadius": 0.014,
+      "nod": 55.0,
+      "bark": "#4E3F37",
+      "foliage": ["#2F4A3A", "#3E5C45", "#35523F"]
+    },
+    {
+      "id": "quaking_aspen",
+      "name": "Quaking aspen",
+      "bigmapSpcd": 746,
+      "form": "deciduous",
+      "height": [12.0, 16.0],
+      "crownBase": 0.45,
+      "primaryBranches": [16, 22],
+      "branchAngleFromVertical": [30.0, 55.0],
+      "branchLength": [0.17, 0.25],
+      "twigsPerBranch": [5, 8],
+      "trunkRadius": 0.015,
+      "bark": "#D3D0C2",
+      "leaves": "#6F8F3F"
+    }
+  ]
+}

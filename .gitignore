@@ -34,3 +34,5 @@ tools/**/obj/
 # ...except the .NET tool projects under tools/, which are hand-written
 !tools/**/*.csproj
 tools/data-spike/results/local/
+tools/assets/trees/out/
+__pycache__/
