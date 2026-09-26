@@ -1,0 +1,12 @@
+{
+  "s1mTiles": 14468,
+  "listSeconds": 7.1,
+  "requests": 58,
+  "bytes": 20960604,
+  "folderListing": {
+    "tiles": 14340,
+    "seconds": 1.4,
+    "requests": 268,
+    "megabytes": 1.49
+  }
+}

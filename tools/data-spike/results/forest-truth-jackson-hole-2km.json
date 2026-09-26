@@ -1,0 +1,64 @@
+{
+  "ept": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/WY_NConverse_5_2020/ept.json",
+  "points": 171319786,
+  "pointsPerM2": 42.83,
+  "sizeMetres": 2000,
+  "treesAtLeast2m": {
+    "truthForestShare": 0.545,
+    "truthCanopyCover": 0.288,
+    "metaCanopy": {
+      "accuracy": 0.759,
+      "precision": 0.953,
+      "recall": 0.587,
+      "forestShare": 0.336
+    },
+    "worldCover": {
+      "accuracy": 0.735,
+      "precision": 0.706,
+      "recall": 0.88,
+      "forestShare": 0.679
+    },
+    "metaCoverMeanAbsError": 0.158,
+    "metaCoverBias": -0.107
+  },
+  "treesAtLeast3m": {
+    "truthForestShare": 0.512,
+    "truthCanopyCover": 0.266,
+    "metaCanopy": {
+      "accuracy": 0.786,
+      "precision": 0.943,
+      "recall": 0.619,
+      "forestShare": 0.336
+    },
+    "worldCover": {
+      "accuracy": 0.724,
+      "precision": 0.674,
+      "recall": 0.894,
+      "forestShare": 0.679
+    },
+    "metaCoverMeanAbsError": 0.141,
+    "metaCoverBias": -0.086
+  },
+  "treesAtLeast5m": {
+    "truthForestShare": 0.47,
+    "truthCanopyCover": 0.234,
+    "metaCanopy": {
+      "accuracy": 0.818,
+      "precision": 0.928,
+      "recall": 0.663,
+      "forestShare": 0.336
+    },
+    "worldCover": {
+      "accuracy": 0.704,
+      "precision": 0.628,
+      "recall": 0.907,
+      "forestShare": 0.679
+    },
+    "metaCoverMeanAbsError": 0.121,
+    "metaCoverBias": -0.054
+  },
+  "truthTreeHeight": {
+    "p50": 11.9,
+    "p90": 22.4
+  }
+}

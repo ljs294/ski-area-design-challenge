@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Engine-free spike code. netstandard2.1 + C# 9 match Unity 6.3's scripting profile,
+       so this code can move into the Acquisition assembly (task 04) unchanged. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>MountainPlanner.DataSpike</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="10.0.12" />
+  </ItemGroup>
+</Project>
