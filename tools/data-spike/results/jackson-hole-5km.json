@@ -3,7 +3,7 @@
     "name": "Jackson Hole",
     "lat": 43.593,
     "lon": -110.848,
-    "km": 2,
+    "km": 5,
     "albersX": -1188827.5,
     "albersY": 2381975.7,
     "parallelScale": 0.995551
@@ -11,19 +11,31 @@
   "elevationCore": {
     "tiles": [
       {
+        "Name": "n2380w1200",
+        "available": true
+      },
+      {
+        "Name": "n2390w1200",
+        "available": true
+      },
+      {
+        "Name": "n2380w1190",
+        "available": true
+      },
+      {
         "Name": "n2390w1190",
         "available": true
       }
     ],
-    "s1mMegabytes": 13.8,
-    "s1mRequests": 7,
-    "s1mSeconds": 1.3,
+    "s1mMegabytes": 72.3,
+    "s1mRequests": 32,
+    "s1mSeconds": 4.8,
     "s1mMissingPercent": 0,
     "fallbackMegabytes": 0,
     "fallbackSeconds": 0,
     "remainingNaN": 0,
-    "min": 1946.4,
-    "max": 2869.9,
+    "min": 1908.9,
+    "max": 3184.9,
     "qualityScore": 100,
     "oneLiner": "Terrain quality 100/100: 100% S1M 1 m",
     "sourceMix": {
@@ -41,12 +53,12 @@
     "pass": true
   },
   "elevationRing": {
-    "sizeKm": 8,
+    "sizeKm": 11,
     "cellMetres": 2,
-    "s1mMegabytes": 44.7,
-    "totalMegabytes": 44.7,
-    "requests": 26,
-    "seconds": 5.2,
+    "s1mMegabytes": 78.7,
+    "totalMegabytes": 78.7,
+    "requests": 32,
+    "seconds": 4.4,
     "s1mMissingPercent": 0,
     "remainingNaN": 0
   },
@@ -61,75 +73,80 @@
   },
   "canopy": {
     "tiles": [
+      "021322032",
       "021322030"
     ],
-    "megabytes": 28.5,
-    "requests": 7,
-    "seconds": 4.4,
-    "canopyCoverFraction": 0.181,
-    "cellsWithTreeCover10pct": 0.336,
+    "megabytes": 67.7,
+    "requests": 15,
+    "seconds": 10.1,
+    "canopyCoverFraction": 0.227,
+    "cellsWithTreeCover10pct": 0.364,
     "treeHeightPercentiles": {
       "p10": 3,
-      "p50": 7,
-      "p90": 15,
-      "max": 32
+      "p50": 8,
+      "p90": 17,
+      "max": 38
     }
   },
   "worldCover": {
     "tiles": [
       "ESA_WorldCover_10m_2021_v200_N42W111_Map.tif"
     ],
-    "megabytes": 0.1,
+    "megabytes": 0.2,
     "requests": 2,
     "seconds": 1.3,
     "classFractions": {
-      "10": 0.679,
-      "30": 0.257,
-      "50": 0,
-      "60": 0.043,
-      "100": 0.02
+      "10": 0.615,
+      "20": 0,
+      "30": 0.207,
+      "40": 0.019,
+      "50": 0.014,
+      "60": 0.129,
+      "70": 0,
+      "80": 0.002,
+      "100": 0.013
     }
   },
   "coverAlignment": {
-    "agreementAtZero": 0.614,
-    "bestAgreement": 0.614,
+    "agreementAtZero": 0.712,
+    "bestAgreement": 0.713,
     "bestShiftCells": [
-      -1,
-      0
+      0,
+      1
     ]
   },
   "bigmap": {
     "sampleGrid": "10x10 getSamples",
-    "sampleSeconds": 11,
+    "sampleSeconds": 19.8,
     "topSpecies": [
-      {
-        "Spcd": 19,
-        "CommonName": "subalpine fir",
-        "shareOfBiomass": 0.547
-      },
       {
         "Spcd": 93,
         "CommonName": "Engelmann spruce",
-        "shareOfBiomass": 0.32
+        "shareOfBiomass": 0.465
+      },
+      {
+        "Spcd": 19,
+        "CommonName": "subalpine fir",
+        "shareOfBiomass": 0.429
       },
       {
         "Spcd": 101,
         "CommonName": "whitebark pine",
-        "shareOfBiomass": 0.087
-      },
-      {
-        "Spcd": 113,
-        "CommonName": "limber pine",
-        "shareOfBiomass": 0.032
+        "shareOfBiomass": 0.061
       },
       {
         "Spcd": 15,
         "CommonName": "white fir",
-        "shareOfBiomass": 0.01
+        "shareOfBiomass": 0.021
       },
       {
-        "Spcd": 65,
-        "CommonName": "Utah juniper",
+        "Spcd": 113,
+        "CommonName": "limber pine",
+        "shareOfBiomass": 0.019
+      },
+      {
+        "Spcd": 749,
+        "CommonName": "narrowleaf cottonwood",
         "shareOfBiomass": 0.003
       },
       {
@@ -140,37 +157,37 @@
     ],
     "exports": [
       {
-        "Spcd": 19,
-        "CommonName": "subalpine fir",
-        "seconds": 1.4,
-        "kilobytes": 65,
-        "cells": 4489,
-        "presentFraction": 0.42
-      },
-      {
         "Spcd": 93,
         "CommonName": "Engelmann spruce",
         "seconds": 3.7,
-        "kilobytes": 65,
-        "cells": 4489,
-        "presentFraction": 0.26
+        "kilobytes": 257,
+        "cells": 27889,
+        "presentFraction": 0.316
+      },
+      {
+        "Spcd": 19,
+        "CommonName": "subalpine fir",
+        "seconds": 4.7,
+        "kilobytes": 257,
+        "cells": 27889,
+        "presentFraction": 0.444
       },
       {
         "Spcd": 101,
         "CommonName": "whitebark pine",
-        "seconds": 2.2,
-        "kilobytes": 65,
-        "cells": 4489,
-        "presentFraction": 0.302
+        "seconds": 3.8,
+        "kilobytes": 257,
+        "cells": 27889,
+        "presentFraction": 0.315
       }
     ],
-    "megabytes": 0.23
+    "megabytes": 0.82
   },
   "landfireEvt": {
-    "seconds": 0.4,
-    "kilobytes": 33,
-    "width": 66,
-    "height": 66,
+    "seconds": 0.6,
+    "kilobytes": 129,
+    "width": 166,
+    "height": 166,
     "bits": 16,
     "compression": 1
   }

@@ -154,6 +154,8 @@ namespace MountainPlanner.DataSpike.Tiff
         public async Task<float[]> ReadWindowAsync(int dirIndex, int x0, int y0, int width, int height, CancellationToken ct = default, int parallelism = 8)
         {
             var dir = Directories[dirIndex];
+            if (width <= 0 || height <= 0 || x0 < 0 || y0 < 0 || x0 + width > dir.Width || y0 + height > dir.Height)
+                throw new ArgumentOutOfRangeException(nameof(x0), $"window ({x0}, {y0}, {width}×{height}) is outside the {dir.Width}×{dir.Height} image");
             var result = new float[width * height];
             for (int i = 0; i < result.Length; i++) result[i] = float.NaN;
             float? noData = dir.NoData != null && float.TryParse(dir.NoData, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float nd) ? nd : (float?)null;

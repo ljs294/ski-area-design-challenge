@@ -34,7 +34,7 @@ Discover ──► Download ──► Explore ──► Collect ──► Return
 ## 3. Player journey
 
 **Launch**
-- The main menu, over a slowly moving view of the bundled **Crystal Mountain, Washington** demo (G2), so the menu works offline.
+- The main menu, over a slowly moving view of the bundled **Jackson Hole, Wyoming** demo (G2), so the menu works offline.
 - Entries: **Continue** (last mountain), **My Mountains** (library), **New Mountain** (picker), **Settings**, **Credits**, **Quit**.
 - **First launch** with an empty library: *Continue* is hidden, and the menu invites *New Mountain* or *Open the demo mountain*.
 
@@ -127,7 +127,7 @@ The rules in 0.1 §6 and §9 are the starting reference for each.
 | ID | Decision |
 |---|---|
 | G1 | The game is titled **Ski Area Design Challenge** for now |
-| G2 | **Crystal Mountain, Washington** ships as a bundled demo mountain and is the main-menu background scene. It is not yet covered by S1M (checked 2026-09-25), so it uses the fallback 1 m project lidar; the Phase 1 data spike confirms this |
+| G2 | **Jackson Hole, Wyoming** (5 km, S1M 1 m lidar, quality 100/100) ships as the bundled demo mountain and is the main-menu background scene. Changed from Crystal Mountain at review gate 1 (data-spike report D1): Crystal Mountain is not yet in S1M and scores 48/100. It remains a regular download |
 | G3 | **Photo mode** is in iteration 1 |
 | G4 | Free-fly goes down to a few metres above the snow; no walking mode; bounded to the surround ring |
 | G5 | **Background downloads:** keep using the game while one download runs |

@@ -8,7 +8,7 @@ using MountainPlanner.DataSpike.Raster;
 using MountainPlanner.DataSpike.Tiff;
 
 // Phase 1 task 01 data spike (docs/plans/phase0-0.7-phase1-plan.md).
-//   site      --name N --lat L --lon L [--km 5] [--out file.json] [--record dir]
+//   site      --name N --lat L --lon L [--km 5] [--out file.json] [--record dir] [--grids dir]
 //   coverage  [--out file.json]
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 var opts = ParseArgs(args);
@@ -26,7 +26,7 @@ try
                                   $"epsg {d.Epsg} scale [{string.Join(",", d.PixelScale ?? Array.Empty<double>())}] tie [{string.Join(",", d.TiePoint ?? Array.Empty<double>())}] nodata {d.NoData}");
             break;
         default:
-            Console.WriteLine("usage: site --name N --lat L --lon L [--km 5] [--out f.json] [--record dir] | coverage [--out f.json]");
+            Console.WriteLine("usage: site --name N --lat L --lon L [--km 5] [--out f.json] [--record dir] [--grids dir] | coverage [--out f.json]");
             return 2;
     }
 }
@@ -76,7 +76,9 @@ static async Task Site(Dictionary<string, string> o, Dictionary<string, object?>
     int size = (int)(km * 1000);
     var coreGrid = new GeoRaster(Filled(size * size, float.NaN), size, size, core.West, core.North, 1, 1);
     var tiles = new List<(string Name, string? Url)>();
-    TiffImage? firstS1m = null;
+    // The overview check reads the block at the site centre, so it needs the tile holding the centre.
+    TiffImage? centreS1m = null;
+    string centreTile = S1m.TileName(cx, cy, out _, out _, out _);
     foreach (var (tx, ty) in TilePoints(core))
     {
         string tile = S1m.TileName(tx, ty, out string folder, out _, out _);
@@ -84,7 +86,7 @@ static async Task Site(Dictionary<string, string> o, Dictionary<string, object?>
         tiles.Add((tile, url));
         if (url == null) continue;
         var tiff = await TiffImage.OpenAsync(new HttpRangeSource(url, elevStats));
-        firstS1m ??= tiff;
+        if (tile == centreTile) centreS1m = tiff;
         var part = await GeoRaster.ReadBoxAsync(tiff, 0, core.West, core.South, core.East, core.North, default);
         if (part != null) Paste(part, coreGrid);
     }
@@ -140,8 +142,8 @@ static async Task Site(Dictionary<string, string> o, Dictionary<string, object?>
     };
 
     // ---- acceptance: 1 m blocks average to the file's own 2 m overview ----
-    if (firstS1m != null)
-        report["overviewCheck"] = await OverviewCheck(firstS1m, core, o.GetValueOrDefault("record"));
+    if (centreS1m != null)
+        report["overviewCheck"] = await OverviewCheck(centreS1m, core, o.GetValueOrDefault("record"));
 
     // ---- elevation, surround ring at 2 m ----
     var ringStats = new TransferStats();
@@ -173,7 +175,7 @@ static async Task Site(Dictionary<string, string> o, Dictionary<string, object?>
     Console.WriteLine($"  Ring 2 m ({ring.Width / 1000} km): {ringStats.Bytes / 1e6:F1} MB, {sw.Elapsed.TotalSeconds:F1}s; S1M missing {100.0 * ringMissing / ringGrid.Data.Length:F1}%");
 
     // ---- alignment: S1M vs the 3DEP service over 1 km at the centre ----
-    if (firstS1m != null && s1mMissing < coreGrid.Data.Length)
+    if (centreS1m != null && s1mMissing < coreGrid.Data.Length)
         report["elevationAlignment"] = await ElevationAlignment(coreGrid, AlbersBox.Around(cx, cy, 1000));
 
     // ---- ground cover and species on a common 10 m Albers grid ----
@@ -181,6 +183,15 @@ static async Task Site(Dictionary<string, string> o, Dictionary<string, object?>
     var canopy10 = await CanopyOn10m(core, cells, report);
     var cover10 = await WorldCoverOn10m(core, cells, report);
     report["coverAlignment"] = CoverAlignment(canopy10, cover10, cells);
+    if (o.TryGetValue("grids", out string? gridDir))
+    {
+        // Row-major float32 grids (north row first) for the forest-truth comparison in research/.
+        Directory.CreateDirectory(gridDir);
+        File.WriteAllBytes(Path.Combine(gridDir, "canopy10.f32"), ToBytes(canopy10));
+        File.WriteAllBytes(Path.Combine(gridDir, "worldcover10.f32"), ToBytes(cover10));
+        File.WriteAllText(Path.Combine(gridDir, "grid.json"), JsonSerializer.Serialize(new { epsg = 6350, west = core.West, south = core.South, east = core.East, north = core.North, cell = 10, cells }));
+        Console.WriteLine($"  10 m grids → {gridDir}");
+    }
     await Species(core, cx, cy, report);
     await LandfireCheck(core, report);
 }
@@ -496,16 +507,7 @@ static void Paste(GeoRaster src, GeoRaster dst)
         }
 }
 
-static void FillNaN(GeoRaster src, GeoRaster dst)
-{
-    for (int r = 0; r < dst.Height; r++)
-        for (int c = 0; c < dst.Width; c++)
-        {
-            int i = r * dst.Width + c;
-            if (!float.IsNaN(dst.Data[i])) continue;
-            dst.Data[i] = src.SampleNearest(dst.OriginX + (c + 0.5) * dst.PixelX, dst.OriginY - (r + 0.5) * dst.PixelY);
-        }
-}
+static byte[] ToBytes(float[] a) { var b = new byte[a.Length * 4]; Buffer.BlockCopy(a, 0, b, 0, b.Length); return b; }
 
 static float[] Filled(int n, float v) { var a = new float[n]; Array.Fill(a, v); return a; }
 

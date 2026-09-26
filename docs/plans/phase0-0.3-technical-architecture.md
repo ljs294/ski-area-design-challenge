@@ -141,7 +141,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 
 | Class | Source | Resolution | Terms |
 |---|---|---|---|
-| **Forest** (plus tree height) | **Meta / WRI High Resolution Canopy Height** (AWS open data, GeoTIFF). Forest = canopy ≥3 m | 1 m | CC BY 4.0, commercial use allowed |
+| **Forest** (plus tree height) | **Meta / WRI High Resolution Canopy Height** (AWS open data, GeoTIFF). Forest = canopy ≥3 m; the primary forest layer (D4) | 1 m | CC BY 4.0, commercial use allowed |
 | Grassland, alpine/rock, snow/ice | **ESA WorldCover 2021 (v200)** classified tiles (AWS open data) | 10 m | CC BY 4.0 |
 | **Developed** (decided) | WorldCover "built-up" + OpenStreetMap roads and buildings for crisp shapes | 10 m + vectors | CC BY 4.0; ODbL |
 | Water | OpenStreetMap lakes and streams, checked against WorldCover water | Vectors | ODbL |
@@ -164,6 +164,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 
 **Cautions:**
 - The canopy map is built from satellite imagery of the 2010s. The package records the source date, and a **sanity check** compares its forest fraction with WorldCover's; the archive's lidar-forest failure showed why (0.1 §5).
+- **Measured against lidar (data-spike report §6, D4):** the canopy map was 82% correct against WorldCover's 72%. It under-counts sparse and short trees (cover 18% against a true 27%) and reads heights low (median 7 m against 12 m). So a 10 m cell is forest if **any** canopy sample reaches 3 m, and density and height get calibration factors (about 1.5× and 1.5–1.7× at Jackson Hole), refined as more lidar truth sites are added.
 - **US-only, public-domain alternative:** USGS Annual NLCD at 30 m. It is coarser; kept as a fallback only.
 
 **Tree species (TR3).** Which species grow in each 30 m cell comes from the USFS **FIA BIGMAP** tree-species biomass layers: 30 m, 327 species, 2018 conditions, contiguous US. If BIGMAP is unavailable or unusable for an area, **LANDFIRE Existing Vegetation Type** (30 m, public domain) gives forest community types instead. The package stores a compact species table (top species and weights per 30 m cell). The data spike verifies BIGMAP's licence and a way to download just a site's area (it is distributed nationally, one file per species); LANDFIRE has a web service for that.
@@ -171,7 +172,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 ### 4.5 Forest (T7)
 
 - **Placement:** Poisson-disc sampling per 64 m tile, seeded by `hash(resortSeed, tileX, tileY)`. Deterministic, never saved (it can be cached).
-- **Density** comes from canopy cover and slope. **Tree size comes from canopy height**, so tall old stands and short regrowth look different.
+- **Density** comes from calibrated canopy cover and slope. **Tree size comes from calibrated canopy height** (D4), so tall old stands and short regrowth look different.
 - **Species** are drawn per tree from the cell's BIGMAP species weights (TR3). Each species maps to a model in the species library (0.5 §3); unmapped species fall back to the nearest look-alike. Krummholz forms replace trees in the band just below the local treeline.
 - **Rendering:** our own GPU-culled `RenderMeshIndirect` instancing and our own octahedral **impostor baker**; LODs down to an impostor beyond about 300 m. Paid renderers or impostor tools (GPU Instancer Pro, Nature Renderer Pro, Amplify Impostors) are used only with the owner's explicit OK (TR2); the free Nature Renderer 6 may be evaluated.
 - **One tree shader (TR4)** for every species, with three inputs:
@@ -363,7 +364,8 @@ Measured with Unity's Performance Testing package in a benchmark scene with a fi
 - **Most tests are engine-free EditMode tests:** georeferencing, the COG reader (LZW, predictor, block stitching, voids), package and cache formats, 16-bit conversion error bounds, cover and canopy processing, forest placement, solar position. Provider responses are **recorded, never live**.
 - **PlayMode:** scene boot; opening a resort; tile seams (no cracks, matched edges); `TerrainData` matching the authoritative grid within the 16-bit step.
 - **Checked-in test terrain:** a real 2 km S1M site built by the acquisition tool and committed through Git LFS. It is public domain, works offline, and is Phase 1's test area.
-- **Crystal Mountain demo (G2):** built by the same tool and bundled into release builds for the demo and the menu background. At about 650 MB it is **not** committed to Git by default (LFS quota); the build script regenerates or caches it. It is not currently in S1M, so it exercises the fallback path.
+- **Jackson Hole demo (G2, D1):** the 5 km site, built by the same tool and bundled into release builds for the demo and the menu background. At several hundred MB it is **not** committed to Git by default (LFS quota); the build script regenerates or caches it.
+- **Crystal Mountain (5 km):** built locally, never committed. It is not currently in S1M, so it exercises the fallback path.
 - **Performance and live-provider tests:** opt-in only.
 - **Continuous integration:**
   - Now: `repo-checks`.
@@ -407,7 +409,7 @@ public sealed class ManualViewClock : IGameClock { /* set by the time-of-day/dat
 - **S1M coverage is incomplete.** Mitigated by the automatic fallback chain, the data-quality overlay in the picker and the post-download quality score.
 - **Seams between S1M and fallback data.** Mitigated by the 50 m slope-weighted blend; checked in the Phase 1 visual review.
 - **S1M layout or index changes** during production. Mitigated by one provider module and recorded-response tests.
-- **Canopy map age or local errors.** Mitigated by recording the date, the WorldCover sanity check and the NLCD fallback.
+- **Canopy map age or local errors.** Mitigated by recording the date, the WorldCover sanity check, the NLCD fallback, and calibration against lidar truth sites (D4).
 - **1 m terrain cost on the minimum spec.** Mitigated by the 2–5 km limit, 2 m ring tiles, per-preset pixel error and Phase 1 measurement.
 - **Unity Terrain look at 1 m.** Fallback: a custom mesh behind `ITerrainSurface`.
 - **Forest at scale on the minimum spec.** Mitigated by impostors, culling and presets.

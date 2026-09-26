@@ -22,7 +22,7 @@
 - **Data spike first:** S1M block reads, the fallback service, canopy, WorldCover, BIGMAP species and LANDFIRE access, and the coverage-index format (T4, T6, T10).
 - **Assemblies migrated** to the T1 layout.
 - **Acquisition command-line tool:**
-  - builds the **2 km test terrain** (committed to the repo) and **Crystal Mountain** (5 km, fallback path)
+  - builds the **2 km test terrain** (Jackson Hole, committed to the repo), the **Jackson Hole demo** (5 km) and **Crystal Mountain** (5 km, fallback path)
   - produces package, cache and library entries (T5/T11)
   - produces the quality score and one-liner (T18)
 - **World:**
@@ -45,7 +45,7 @@
 1. The picker downloads a new 2–5 km site from live providers, including a fallback area, and shows an honest quality score.
 2. A downloaded mountain opens in ≤10 s **with the network disabled**.
 3. The style-tile review passes: no blocky cover, no tile seams, no data seams.
-4. Reference PC (RTX 3060 Ti): frame p95 ≤20 ms at 1080p High on Crystal Mountain.
+4. Reference PC (RTX 3060 Ti): frame p95 ≤20 ms at 1080p High on the Jackson Hole demo.
 5. **Minimum-spec stand-in (M1):** this PC reaches about 55 FPS (p95 ≤18 ms) at 1080p Medium, with VRAM within a 6 GB budget. That implies 30 FPS or better on an RTX 2060, which is about 55–60% as fast.
 6. Golden tests are stable across repeated runs. Engine-free tests run in CI.
 7. Velocity versus estimate is recorded, and the Phase 2 detailed plan is written.
@@ -63,7 +63,7 @@
 
 **Scope:**
 - **All screens from 0.4 at final quality, in both themes:**
-  - the main menu over the live Crystal Mountain scene (G2)
+  - the main menu over the live Jackson Hole scene (G2)
   - the full library (rename, delete, resume, disk use)
   - settings with the Unity-native graphics menu (G8, U3), display, interface, controls and data
   - credits generated from manifests
@@ -71,7 +71,7 @@
   - dialogs and the offline states
 - **Background downloads** with resume (G5).
 - **The satellite imagery layer** from NAIP (G7, nice to have; cut first if time is short).
-- **The Crystal Mountain demo bundled** into the build (G2).
+- **The Jackson Hole demo bundled** into the build (G2, D1).
 - **Performance on real minimum-spec hardware** (RTX 2060) at Medium, verified on a tester's RTX 2060-class PC or a few hours on a rented cloud GPU (M1). The 10-year-old laptop gets a Low-preset "starts and runs" check; a 1-hour soak with no memory growth beyond 10%.
 - **Build and release:** a Windows build pipeline and installer (or zip), a version number, crash logging, and a first build to share with testers.
 - **Formats frozen:** from this build on, the package format has migrations (T11).

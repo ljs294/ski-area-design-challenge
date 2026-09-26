@@ -17,7 +17,7 @@
 
 | # | Screen | Kind | Reached from |
 |---|---|---|---|
-| S1 | Main menu | Full screen over the live Crystal Mountain scene | Launch; in-game menu |
+| S1 | Main menu | Full screen over the live Jackson Hole scene | Launch; in-game menu |
 | S2 | My Mountains (library) | Full-screen panel | Main menu |
 | S3 | Site picker | Modal pop-up with a mini-map | Main menu (New Mountain); library |
 | S4 | Download progress | Docked card; can be minimised to a status pill | After S3 |
@@ -42,7 +42,7 @@ Launch ─► S1 Main menu ─► New Mountain ─► S3 Picker ─► S4 Downlo
              └─ Quit
 ```
 
-**First launch** (empty library): S1 hides *Continue* and highlights **Open the demo: Crystal Mountain** and **New Mountain**.
+**First launch** (empty library): S1 hides *Continue* and highlights **Open the demo: Jackson Hole** and **New Mountain**.
 
 **Offline:** S3 shows an offline panel with a Retry button. Everything else works; downloads pause and resume automatically when the connection returns.
 
@@ -55,7 +55,7 @@ Launch ─► S1 Main menu ─► New Mountain ─► S3 Picker ─► S4 Downlo
 │  SKI AREA DESIGN CHALLENGE                                                    │
 │                                                                               │
 │  ● Continue            Crystal Mountain · last opened today                   │
-│  ■ My Mountains        (live, slowly orbiting 3D view of Crystal Mountain     │
+│  ■ My Mountains        (live, slowly orbiting 3D view of Jackson Hole         │
 │  ◆ New Mountain         behind a soft left-side scrim)                        │
 │  ◆◆ Settings                                                                  │
 │     Credits · Quit                                     ⬇ Downloading 42% ▸   │

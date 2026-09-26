@@ -52,7 +52,7 @@ Details in [0.2](phase0-0.2-game-design.md#8-decisions-owner-answers-2026-09-25)
 | ID | Decision |
 |---|---|
 | G1 | Title: **Ski Area Design Challenge** (for now) |
-| G2 | Bundled demo and menu background: **Crystal Mountain, Washington** (fallback 1 m lidar; not yet in S1M) |
+| G2 | Bundled demo and menu background: **Jackson Hole, Wyoming** (S1M 1 m, 100/100). Was Crystal Mountain; changed by D1 |
 | G3 | Photo mode in iteration 1 |
 | G4 | Free-fly down to a few metres above the snow; no walking; bounded to the ring |
 | G5 | Background downloads, one at a time |
@@ -88,7 +88,7 @@ Details in [0.5](phase0-0.5-art-direction.md#9-decisions-owner-approval-2026-09-
 
 | ID | Decision |
 |---|---|
-| TR1 | **Real species with a stylized look:** the right species in the right places, rendered in the diorama style (A5). Phase 1 set: subalpine fir, mountain hemlock, Pacific silver fir, Douglas-fir, lodgepole pine, quaking aspen, krummholz |
+| TR1 | **Real species with a stylized look:** the right species in the right places, rendered in the diorama style (A5). Phase 1 set revised by D3 |
 | TR2 | **Free tools only:** Tree It, EZ-Tree (MIT), Blender (Sapling / Geometry Nodes). No SpeedTree or paid tree tools; paid renderers only with explicit OK. Our own instancing and impostor baker |
 | TR3 | Species data from USFS FIA **BIGMAP** (30 m, 327 species), falling back to **LANDFIRE** Existing Vegetation Type; BIGMAP licence and area download verified in the data spike |
 | TR4 | One tree shader with **wind, snow load and season** inputs; trees built with separate leaf geometry. Iteration 1: full snow load, winter (deciduous trees bare) |
@@ -109,3 +109,16 @@ Details in [0.5](phase0-0.5-art-direction.md#9-decisions-owner-approval-2026-09-
 | P2 | Blender and Tree It installed for the free tree pipeline |
 | P3 | Review gates: data spike (01), style tile (08), Phase 1 exit (16) |
 | P4 | The owner approves every PR before merge; PRs include demo steps |
+
+## Data spike (review gate 1): decided 2026-09-25
+
+Details in [phase1-data-spike-report.md](phase1-data-spike-report.md) §5–6.
+
+| ID | Decision |
+|---|---|
+| D1 | The bundled demo, menu background and benchmark site is **Jackson Hole** (5 km, 100/100). Crystal Mountain stays as a regular download and the fallback-path test site |
+| D2 | The checked-in test terrain is **Jackson Hole 2 km** |
+| D3 | Phase 1 species: **Jackson Hole** (Engelmann spruce, subalpine fir, whitebark pine, limber pine, krummholz) and **Crystal Mountain** (mountain hemlock, western hemlock, Alaska yellow-cedar, noble fir; BIGMAP's Shasta red fir maps to noble fir), plus **quaking aspen** as the deciduous test species |
+| D4 | The **canopy map is the primary forest layer**: any tree in a 10 m cell counts, with density and height calibrated. Scored against lidar truth it was 82% correct against WorldCover's 72%. WorldCover supplies the non-forest classes. Task 07 keeps a lidar-truth regression test; more truth sites follow |
+| D5 | BIGMAP is treated as public-domain federal data and credited in the game |
+| D6 | Hands-on demos run from **`demo.bat`** at the repo root; each phase adds its entries, and the game gets a Play entry once it builds |

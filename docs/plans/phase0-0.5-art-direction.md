@@ -39,16 +39,19 @@
 
 **A species library, not generic types (TR1).** Trees are real species, placed where they actually grow (from BIGMAP, 0.3 §4.5), with recognizable silhouettes, bark and foliage colours. They are rendered in the stylized diorama look (A5): simplified materials, no photoreal detail.
 
-**Phase 1 set** (Crystal Mountain and the style tile):
+**Phase 1 set** (Jackson Hole, Crystal Mountain and the style tile; D3, from the species BIGMAP reports at each site):
 
-| Species | Form | Notes |
+| Species | Form | Where |
 |---|---|---|
-| Subalpine fir | Narrow spire | High elevations; holds snow on its tiers |
-| Mountain hemlock | Drooping-top conifer | Crystal Mountain's upper forest |
-| Pacific silver fir | Dense, symmetric conifer | Mid-elevation Cascades |
-| Douglas-fir | Tall, irregular conifer | Lower slopes |
-| Lodgepole pine | Tall, thin, open crown | Dry sites |
-| Quaking aspen | Bare white-barked deciduous | Leafless in winter |
+| Engelmann spruce | Dense spire, drooping branch tips | Jackson Hole (47%) |
+| Subalpine fir | Narrow spire; holds snow on its tiers | Jackson Hole (43%) |
+| Whitebark pine | Broad, often multi-stemmed crown | Jackson Hole ridges (6%) |
+| Limber pine | Open, irregular crown | Jackson Hole's exposed slopes (2–3%) |
+| Mountain hemlock | Drooping-top conifer | Crystal Mountain's upper forest (56%) |
+| Western hemlock | Tall, feathery, drooping leader | Crystal Mountain's lower slopes (32%) |
+| Noble fir | Tall, stiff, blue-green | Crystal Mountain (stands in for BIGMAP's "Shasta red fir", 7%) |
+| Alaska yellow-cedar | Weeping, drooping sprays | Crystal Mountain (4%) |
+| Quaking aspen | Bare white-barked deciduous | Jackson Hole's lower slopes; tests the season path (TR4) |
 | Krummholz | Stunted, wind-shaped forms | Just below the local treeline |
 
 The library grows in later phases, prioritized by how often each species appears on the mountains players download.
@@ -100,7 +103,7 @@ The UI palette (0.4 §7) is separate; its accent blue `#155ab6` is chosen so tha
 | Strata wall material | 1 | Procedural | 1k |
 | Sky, LUTs | 1 sky shader, 4 LUTs | Authored in Unity | — |
 | UI icons | ~30 | SVG, outline style (0.4 §7) | — |
-| Menu scene | Crystal Mountain (G2) | The acquisition tool | — |
+| Menu scene | Jackson Hole (G2, D1) | The acquisition tool | — |
 
 **Free tree pipeline (TR2):**
 1. **Shape** the species in Tree It (free; its exports are free for any engine), EZ-Tree (MIT) or Blender Sapling / Geometry Nodes.
