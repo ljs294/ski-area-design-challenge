@@ -76,6 +76,20 @@ namespace MountainPlanner.Tests
             Assert.That(Albers6350.ScaleAt(lat).MaxDistortion, Is.LessThan(0.01), name);
         }
 
+        // True north's bearing on the grid, measured with PROJ by stepping 0.001° north.
+        [TestCase("Jackson Hole", 43.593, -110.848, 8.9519)]
+        [TestCase("Crystal Mountain", 46.93, -121.49, 15.3680)]
+        [TestCase("Killington", 43.6045, -72.8201, -13.9752)]
+        public void GridConvergenceMatchesProj(string name, double lat, double lon, double expected)
+        {
+            Assert.That(Albers6350.GridConvergence(lon), Is.EqualTo(expected).Within(0.001), name);
+            // And it agrees with the projection itself: a step due north moves along that grid bearing.
+            var a = Albers6350.Forward(new GeoPoint(lat, lon));
+            var b = Albers6350.Forward(new GeoPoint(lat + 0.001, lon));
+            double bearing = Math.Atan2(b.X - a.X, b.Y - a.Y) * 180 / Math.PI;
+            Assert.That(bearing, Is.EqualTo(Albers6350.GridConvergence(lon)).Within(0.001), name);
+        }
+
         [Test]
         public void ScaleIsExactlyOneOnTheStandardParallels()
         {

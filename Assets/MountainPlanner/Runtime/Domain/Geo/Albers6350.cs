@@ -71,6 +71,13 @@ namespace MountainPlanner.Domain.Geo
             return new ScaleFactors(k, 1 / k);
         }
 
+        /// <summary>
+        /// Meridian convergence: the angle in degrees from grid north (+Y) clockwise to true north at
+        /// a longitude. About +9° at Jackson Hole, +15° at Crystal Mountain, −14° in Vermont. Sun and
+        /// compass bearings add it to become grid bearings (0.3 §4.1).
+        /// </summary>
+        public static double GridConvergence(double longitude) => -N * (longitude - ToDegrees(Lon0));
+
         static double Q(double phi)
         {
             double s = Math.Sin(phi);
