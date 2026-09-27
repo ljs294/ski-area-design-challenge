@@ -8,7 +8,8 @@
         "MountainPlanner.Acquisition",
         "MountainPlanner.World",
         "MountainPlanner.Presentation",
-        "MountainPlanner.UI"
+        "MountainPlanner.UI",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

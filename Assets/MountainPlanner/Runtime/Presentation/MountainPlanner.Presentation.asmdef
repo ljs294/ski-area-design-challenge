@@ -5,7 +5,8 @@
         "MountainPlanner.Domain",
         "MountainPlanner.Simulation",
         "MountainPlanner.Persistence",
-        "MountainPlanner.World"
+        "MountainPlanner.World",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
