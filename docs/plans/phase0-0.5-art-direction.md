@@ -62,6 +62,7 @@ The library grows in later phases, prioritized by how often each species appears
 - Each species has 3 mesh variants.
 - Per instance: size from canopy height (±10%), rotation, a slight lean, and colour jitter from the palette (§5).
 - **Snow load** comes from the tree shader (TR4): spires and firs hold snow on their tiers; bare deciduous trees get a dusting on their branches.
+- **Seasons (T9):** one model per tree all year. The shader's leaves-present, colour-turn, spring-tint and snow-load inputs follow a phenology table per species; see the [trees review](phase1-trees-first-look.md#seasons-the-plan).
 
 **Style:**
 - Faceted, low-poly-ish forms with smooth shading. No individual needles; clumped foliage masses.

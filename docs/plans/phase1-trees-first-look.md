@@ -1,6 +1,6 @@
 # Phase 1 · Trees, first look
 
-**Audience:** the project owner. **Status:** round 3, ready for owner review. **Date:** 2026-09-27. **Part of:** task 08, the style tile ([0.7](phase0-0.7-phase1-plan.md)); the look is set in [0.5 §3](phase0-0.5-art-direction.md).
+**Audience:** the project owner. **Status:** round 3 answered 2026-09-27; the look, seasons plan and budgets are approved. **Date:** 2026-09-27. **Part of:** task 08, the style tile ([0.7](phase0-0.7-phase1-plan.md)); the look is set in [0.5 §3](phase0-0.5-art-direction.md).
 
 These trees are built by a Blender script ([`tools/assets/trees/`](../../tools/assets/trees/README.md)), not modelled by hand, so each new species costs a parameter block rather than an artist's day. These are **Blender renders, not the game**. In Unity the tree shader adds wind, per-tree colour jitter and the real snow material.
 
@@ -123,13 +123,13 @@ Every PR that touches rendering states before-and-after numbers.
 Write your answer after each **Comment:**; "OK" accepts the recommendation.
 
 **R5 · Density.** Do the individual conifers look full enough now, compared with round 2?
-**Comment:**
+**Comment:** They look great. Thank you.
 
 **R6 · Seasons plan.** One model per tree, driven by the four season inputs and a phenology table per species (above). **Recommendation:** adopt it. The data is already in the trees, and the shader inputs are built in the style tile.
-**Comment:**
+**Comment:** OK.
 
 **R7 · Tree budgets.** LOD0 ≤10,000, LOD1 ≤2,500 and LOD2 ≤500 triangles, enforced at build time, with the Unity measurements in task 08 confirming or tightening them. **Recommendation:** adopt these as the starting budgets.
-**Comment:**
+**Comment:** OK.
 
 ### Round 2 questions (answered)
 
