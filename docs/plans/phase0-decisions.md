@@ -118,7 +118,7 @@ Details in [phase1-data-spike-report.md](phase1-data-spike-report.md) §5–6.
 |---|---|
 | D1 | The bundled demo, menu background and benchmark site is **Jackson Hole** (5 km, 100/100). Crystal Mountain stays as a regular download and the fallback-path test site |
 | D2 | The checked-in test terrain is **Jackson Hole 2 km** |
-| D3 | Phase 1 species: **Jackson Hole** (Engelmann spruce, subalpine fir, whitebark pine, limber pine, krummholz) and **Crystal Mountain** (mountain hemlock, western hemlock, Alaska yellow-cedar, noble fir; BIGMAP's Shasta red fir maps to noble fir), plus **quaking aspen** as the deciduous test species |
+| D3 | Phase 1 species: every species over 3% at **Jackson Hole** or **Crystal Mountain**: Douglas-fir, Engelmann spruce, quaking aspen, subalpine fir, lodgepole pine, Pacific silver fir, mountain hemlock, western hemlock and noble fir, plus the krummholz form. **Corrected 2026-09-26** after the species-sampling bug (spike report §8) |
 | D4 | The **canopy map is the primary forest layer**: any tree in a 10 m cell counts, with density and height calibrated. Scored against lidar truth it was 82% correct against WorldCover's 72%. WorldCover supplies the non-forest classes. Task 07 keeps a lidar-truth regression test; more truth sites follow |
 | D5 | BIGMAP is treated as public-domain federal data and credited in the game |
 | D6 | Hands-on demos run from **`demo.bat`** at the repo root; each phase adds its entries, and the game gets a Play entry once it builds |

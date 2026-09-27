@@ -29,7 +29,7 @@
     ],
     "s1mMegabytes": 72.3,
     "s1mRequests": 32,
-    "s1mSeconds": 4.8,
+    "s1mSeconds": 4.6,
     "s1mMissingPercent": 0,
     "fallbackMegabytes": 0,
     "fallbackSeconds": 0,
@@ -58,7 +58,7 @@
     "s1mMegabytes": 78.7,
     "totalMegabytes": 78.7,
     "requests": 32,
-    "seconds": 4.4,
+    "seconds": 4.7,
     "s1mMissingPercent": 0,
     "remainingNaN": 0
   },
@@ -78,7 +78,7 @@
     ],
     "megabytes": 67.7,
     "requests": 15,
-    "seconds": 10.1,
+    "seconds": 9.7,
     "canopyCoverFraction": 0.227,
     "cellsWithTreeCover10pct": 0.364,
     "treeHeightPercentiles": {
@@ -94,7 +94,7 @@
     ],
     "megabytes": 0.2,
     "requests": 2,
-    "seconds": 1.3,
+    "seconds": 1.4,
     "classFractions": {
       "10": 0.615,
       "20": 0,
@@ -117,71 +117,86 @@
   },
   "bigmap": {
     "sampleGrid": "10x10 getSamples",
-    "sampleSeconds": 19.8,
+    "sampleSeconds": 13.6,
     "topSpecies": [
+      {
+        "Spcd": 202,
+        "CommonName": "Douglas-fir",
+        "shareOfBiomass": 0.233
+      },
       {
         "Spcd": 93,
         "CommonName": "Engelmann spruce",
-        "shareOfBiomass": 0.465
+        "shareOfBiomass": 0.2
+      },
+      {
+        "Spcd": 746,
+        "CommonName": "quaking aspen",
+        "shareOfBiomass": 0.19
       },
       {
         "Spcd": 19,
         "CommonName": "subalpine fir",
-        "shareOfBiomass": 0.429
+        "shareOfBiomass": 0.184
+      },
+      {
+        "Spcd": 108,
+        "CommonName": "lodgepole pine",
+        "shareOfBiomass": 0.118
       },
       {
         "Spcd": 101,
         "CommonName": "whitebark pine",
-        "shareOfBiomass": 0.061
+        "shareOfBiomass": 0.026
       },
       {
         "Spcd": 15,
         "CommonName": "white fir",
-        "shareOfBiomass": 0.021
+        "shareOfBiomass": 0.009
+      },
+      {
+        "Spcd": 322,
+        "CommonName": "bigtooth maple",
+        "shareOfBiomass": 0.008
       },
       {
         "Spcd": 113,
         "CommonName": "limber pine",
-        "shareOfBiomass": 0.019
+        "shareOfBiomass": 0.008
       },
       {
-        "Spcd": 749,
-        "CommonName": "narrowleaf cottonwood",
-        "shareOfBiomass": 0.003
-      },
-      {
-        "Spcd": 475,
-        "CommonName": "curlleaf mountain-mahogany",
-        "shareOfBiomass": 0.001
+        "Spcd": 122,
+        "CommonName": "ponderosa pine",
+        "shareOfBiomass": 0.007
       }
     ],
     "exports": [
       {
+        "Spcd": 202,
+        "CommonName": "Douglas-fir",
+        "seconds": 2.2,
+        "kilobytes": 257,
+        "cells": 27889,
+        "presentFraction": 0.418
+      },
+      {
         "Spcd": 93,
         "CommonName": "Engelmann spruce",
-        "seconds": 3.7,
+        "seconds": 1.7,
         "kilobytes": 257,
         "cells": 27889,
         "presentFraction": 0.316
       },
       {
-        "Spcd": 19,
-        "CommonName": "subalpine fir",
-        "seconds": 4.7,
+        "Spcd": 746,
+        "CommonName": "quaking aspen",
+        "seconds": 1.9,
         "kilobytes": 257,
         "cells": 27889,
-        "presentFraction": 0.444
-      },
-      {
-        "Spcd": 101,
-        "CommonName": "whitebark pine",
-        "seconds": 3.8,
-        "kilobytes": 257,
-        "cells": 27889,
-        "presentFraction": 0.315
+        "presentFraction": 0.38
       }
     ],
-    "megabytes": 0.82
+    "megabytes": 0.88
   },
   "landfireEvt": {
     "seconds": 0.6,
