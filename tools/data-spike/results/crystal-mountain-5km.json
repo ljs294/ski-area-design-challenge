@@ -1,6 +1,6 @@
 {
   "site": {
-    "name": "Crystal Mountain (demo)",
+    "name": "Crystal Mountain",
     "lat": 46.93,
     "lon": -121.49,
     "km": 5,
@@ -24,7 +24,7 @@
     "s1mSeconds": 0.3,
     "s1mMissingPercent": 100,
     "fallbackMegabytes": 90,
-    "fallbackSeconds": 12.9,
+    "fallbackSeconds": 14.8,
     "remainingNaN": 0,
     "min": 1023.5,
     "max": 2135.4,
@@ -42,7 +42,7 @@
     "s1mMegabytes": 0,
     "totalMegabytes": 112.6,
     "requests": 40,
-    "seconds": 24.6,
+    "seconds": 23.1,
     "s1mMissingPercent": 100,
     "remainingNaN": 0
   },
@@ -52,7 +52,7 @@
     ],
     "megabytes": 143.2,
     "requests": 11,
-    "seconds": 10.9,
+    "seconds": 9.3,
     "canopyCoverFraction": 0.474,
     "cellsWithTreeCover10pct": 0.622,
     "treeHeightPercentiles": {
@@ -89,89 +89,89 @@
   },
   "bigmap": {
     "sampleGrid": "10x10 getSamples",
-    "sampleSeconds": 20.4,
+    "sampleSeconds": 30.1,
     "topSpecies": [
+      {
+        "Spcd": 11,
+        "CommonName": "Pacific silver fir",
+        "shareOfBiomass": 0.304
+      },
       {
         "Spcd": 264,
         "CommonName": "mountain hemlock",
-        "shareOfBiomass": 0.556
+        "shareOfBiomass": 0.188
+      },
+      {
+        "Spcd": 202,
+        "CommonName": "Douglas-fir",
+        "shareOfBiomass": 0.121
       },
       {
         "Spcd": 263,
         "CommonName": "western hemlock",
-        "shareOfBiomass": 0.315
+        "shareOfBiomass": 0.106
+      },
+      {
+        "Spcd": 19,
+        "CommonName": "subalpine fir",
+        "shareOfBiomass": 0.067
+      },
+      {
+        "Spcd": 22,
+        "CommonName": "noble fir",
+        "shareOfBiomass": 0.058
+      },
+      {
+        "Spcd": 93,
+        "CommonName": "Engelmann spruce",
+        "shareOfBiomass": 0.033
+      },
+      {
+        "Spcd": 17,
+        "CommonName": "grand fir",
+        "shareOfBiomass": 0.024
       },
       {
         "Spcd": 21,
         "CommonName": "Shasta red fir",
-        "shareOfBiomass": 0.066
+        "shareOfBiomass": 0.022
       },
       {
-        "Spcd": 42,
-        "CommonName": "Alaska yellow-cedar",
-        "shareOfBiomass": 0.041
-      },
-      {
-        "Spcd": 72,
-        "CommonName": "subalpine larch",
-        "shareOfBiomass": 0.012
-      },
-      {
-        "Spcd": 351,
-        "CommonName": "red alder",
-        "shareOfBiomass": 0.008
-      },
-      {
-        "Spcd": 312,
-        "CommonName": "bigleaf maple",
-        "shareOfBiomass": 0.001
-      },
-      {
-        "Spcd": 431,
-        "CommonName": "giant chinkapin, golden chinkapin",
-        "shareOfBiomass": 0
-      },
-      {
-        "Spcd": 117,
-        "CommonName": "sugar pine",
-        "shareOfBiomass": 0
-      },
-      {
-        "Spcd": 81,
-        "CommonName": "incense-cedar",
-        "shareOfBiomass": 0
+        "Spcd": 108,
+        "CommonName": "lodgepole pine",
+        "shareOfBiomass": 0.02
       }
     ],
     "exports": [
       {
+        "Spcd": 11,
+        "CommonName": "Pacific silver fir",
+        "seconds": 2.5,
+        "kilobytes": 257,
+        "cells": 27889,
+        "presentFraction": 0.725
+      },
+      {
         "Spcd": 264,
         "CommonName": "mountain hemlock",
-        "seconds": 1.8,
+        "seconds": 1.9,
         "kilobytes": 257,
         "cells": 27889,
         "presentFraction": 0.778
       },
       {
-        "Spcd": 263,
-        "CommonName": "western hemlock",
-        "seconds": 2.8,
-        "kilobytes": 257,
-        "cells": 27889,
-        "presentFraction": 0.384
-      },
-      {
-        "Spcd": 21,
-        "CommonName": "Shasta red fir",
+        "Spcd": 202,
+        "CommonName": "Douglas-fir",
         "seconds": 2,
         "kilobytes": 257,
         "cells": 27889,
-        "presentFraction": 0.437
+        "presentFraction": 0.419
       }
     ],
-    "megabytes": 0.85
+    "megabytes": 1.03
   },
   "landfireEvt": {
-    "seconds": 0.6,
+    "seconds": 0.9,
     "kilobytes": 129,
     "width": 166,
     "height": 166,

@@ -10,6 +10,7 @@ using MountainPlanner.DataSpike.Tiff;
 // Phase 1 task 01 data spike (docs/plans/phase0-0.7-phase1-plan.md).
 //   site      --name N --lat L --lon L [--km 5] [--out file.json] [--record dir] [--grids dir]
 //   coverage  [--out file.json]
+//   species   --lat L --lon L [--km 5] [--out file.json]   (BIGMAP species mix only)
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 var opts = ParseArgs(args);
 var report = new Dictionary<string, object?>();
@@ -19,6 +20,7 @@ try
     {
         case "site": await Site(opts, report); break;
         case "coverage": await Coverage(report); break;
+        case "species": await SpeciesOnly(opts, report); break;
         case "tiffinfo":
             var info = await TiffImage.OpenAsync(new HttpRangeSource(args[1]));
             foreach (var d in info.Directories)
@@ -26,7 +28,7 @@ try
                                   $"epsg {d.Epsg} scale [{string.Join(",", d.PixelScale ?? Array.Empty<double>())}] tie [{string.Join(",", d.TiePoint ?? Array.Empty<double>())}] nodata {d.NoData}");
             break;
         default:
-            Console.WriteLine("usage: site --name N --lat L --lon L [--km 5] [--out f.json] [--record dir] [--grids dir] | coverage [--out f.json]");
+            Console.WriteLine("usage: site --name N --lat L --lon L [--km 5] [--out f.json] [--record dir] [--grids dir] | coverage [--out f.json] | species --lat L --lon L [--km 5]");
             return 2;
     }
 }
@@ -57,6 +59,23 @@ static async Task Coverage(Dictionary<string, object?> report)
     var folders = await S1m.ListTileFoldersAsync(stats, default);
     report["folderListing"] = new { tiles = folders.Count, seconds = Math.Round(sw.Elapsed.TotalSeconds, 1), requests = stats.Requests, megabytes = Math.Round(stats.Bytes / 1e6, 2) };
     Console.WriteLine($"S1M coverage (folders only): {folders.Count} tiles in {sw.Elapsed.TotalSeconds:F1}s, {stats.Requests} requests, {stats.Bytes / 1e6:F2} MB");
+}
+
+static async Task SpeciesOnly(Dictionary<string, string> o, Dictionary<string, object?> report)
+{
+    double lat = double.Parse(o["lat"]), lon = double.Parse(o["lon"]), km = double.Parse(o.GetValueOrDefault("km", "5"));
+    Albers6350.Forward(lat, lon, out double cx, out double cy);
+    var box = AlbersBox.Around(cx, cy, km * 1000);
+    var stats = new TransferStats();
+    var sw = Stopwatch.StartNew();
+    var layers = await Bigmap.CatalogItemsAsync(box, stats, default);
+    var mix = await Bigmap.SpeciesMixAsync(box, 10, stats, default);
+    double total = mix.Sum(s => s.TonsPerAcre);
+    Console.WriteLine($"BIGMAP at ({lat}, {lon}), {km} km: {layers.Count} species layers cover the site; {mix.Count} have biomass on the 10×10 grid ({sw.Elapsed.TotalSeconds:F1}s)");
+    if (Bigmap.SkippedLayers.Count > 0) Console.WriteLine($"  (skipped {Bigmap.SkippedLayers.Count} layers the service refused: {string.Join(",", Bigmap.SkippedLayers)})");
+    foreach (var s in mix.Take(15)) Console.WriteLine($"  {100 * s.TonsPerAcre / total,5:F1}%  {s.CommonName} ({s.Spcd})");
+    report["bigmap"] = new { layersCovering = layers.Count, seconds = Math.Round(sw.Elapsed.TotalSeconds, 1),
+        species = mix.Select(s => new { s.Spcd, s.CommonName, shareOfBiomass = Math.Round(s.TonsPerAcre / total, 3) }).ToArray() };
 }
 
 static async Task Site(Dictionary<string, string> o, Dictionary<string, object?> report)

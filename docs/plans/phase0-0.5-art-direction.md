@@ -39,19 +39,19 @@
 
 **A species library, not generic types (TR1).** Trees are real species, placed where they actually grow (from BIGMAP, 0.3 §4.5), with recognizable silhouettes, bark and foliage colours. They are rendered in the stylized diorama look (A5): simplified materials, no photoreal detail.
 
-**Phase 1 set** (Jackson Hole, Crystal Mountain and the style tile; D3, from the species BIGMAP reports at each site):
+**Phase 1 set** (Jackson Hole, Crystal Mountain and the style tile; D3, from BIGMAP's biomass shares at each 5 km site, corrected 2026-09-26):
 
 | Species | Form | Where |
 |---|---|---|
-| Engelmann spruce | Dense spire, drooping branch tips | Jackson Hole (47%) |
-| Subalpine fir | Narrow spire; holds snow on its tiers | Jackson Hole (43%) |
-| Whitebark pine | Broad, often multi-stemmed crown | Jackson Hole ridges (6%) |
-| Limber pine | Open, irregular crown | Jackson Hole's exposed slopes (2–3%) |
-| Mountain hemlock | Drooping-top conifer | Crystal Mountain's upper forest (56%) |
-| Western hemlock | Tall, feathery, drooping leader | Crystal Mountain's lower slopes (32%) |
-| Noble fir | Tall, stiff, blue-green | Crystal Mountain (stands in for BIGMAP's "Shasta red fir", 7%) |
-| Alaska yellow-cedar | Weeping, drooping sprays | Crystal Mountain (4%) |
-| Quaking aspen | Bare white-barked deciduous | Jackson Hole's lower slopes; tests the season path (TR4) |
+| Douglas-fir | Tall, irregular conifer, open crown | Jackson Hole (23%), Crystal (12%) |
+| Engelmann spruce | Dense spire, drooping branch tips | Jackson Hole (20%), Crystal (3%) |
+| Quaking aspen | Bare, white-barked deciduous; clonal groves | Jackson Hole (19%); tests the season path (TR4) |
+| Subalpine fir | Narrow spire; holds snow on its tiers | Jackson Hole (18%), Crystal (7%) |
+| Lodgepole pine | Tall, thin, open crown | Jackson Hole (12%) |
+| Pacific silver fir | Dense, symmetric conifer | Crystal Mountain (30%) |
+| Mountain hemlock | Drooping-top conifer | Crystal Mountain's upper forest (19%) |
+| Western hemlock | Tall, feathery, drooping leader | Crystal Mountain's lower slopes (11%) |
+| Noble fir | Tall, stiff, blue-green | Crystal Mountain (6%) |
 | Krummholz | Stunted, wind-shaped forms | Just below the local treeline |
 
 The library grows in later phases, prioritized by how often each species appears on the mountains players download.

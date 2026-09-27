@@ -1,6 +1,6 @@
 # Phase 1 · Task 01 data-spike report
 
-**Audience:** the project owner and coding agents. **Status:** decisions D1–D5 answered 2026-09-25 (§5); PR awaiting approval (review gate 1). **Date:** 2026-09-25. Plan: [0.7 task 01](phase0-0.7-phase1-plan.md).
+**Audience:** the project owner and coding agents. **Status:** gate 1 approved 2026-09-25. **Corrected 2026-09-26:** the species results were wrong (§8); D3 is revised to the corrected data. **Date:** 2026-09-25. Plan: [0.7 task 01](phase0-0.7-phase1-plan.md).
 
 The spike is a small engine-free C# library, a command-line tool and offline tests in [`tools/data-spike/`](../../tools/data-spike/README.md). It read every planned data source live, for two sites:
 
@@ -31,7 +31,7 @@ Raw results: [`jackson-hole-2km.json`](../../tools/data-spike/results/jackson-ho
 | **Surround ring, 2 m** | 44.7 MB, 5.1 s (8 km) | 112.6 MB, 24.6 s (11 km, fallback) | S1M's built-in 2 m copy works |
 | **Canopy (Meta/WRI)** | 28.5 MB, 4.4 s | **143 MB, 10.9 s** | The files have no lower-resolution copies and store full-width pixel rows, so a site downloads whole rows. The heaviest item |
 | **WorldCover** | 0.1 MB, 0.9 s | 0.2 MB, 1.2 s | Tiny |
-| **BIGMAP species mix** (10×10 sample grid, one request) | 8.7 s | 20.4 s | A single-point query takes 37–63 s and can land on a ski run; the grid is reliable |
+| **BIGMAP species mix** (10×10 sample grid, every species layer; corrected, §8) | 22 s | 33 s | The service mosaics only 20 layers per request, so the grid is sampled in batches of 20 |
 | **BIGMAP per-species export** (30 m) | ~1–2 s, 65 KB each | ~2–3 s, 257 KB each | One export per species present |
 | **LANDFIRE vegetation type** (fallback) | 0.5 s, 33 KB | 0.6 s, 129 KB | Fast, 16-bit |
 | **S1M coverage listing** | — | — | Full file listing: 7 s and 21 MB. **Folder names only: 14,340 tiles in 1.4 s and 1.5 MB** |
@@ -56,9 +56,9 @@ Raw results: [`jackson-hole-2km.json`](../../tools/data-spike/results/jackson-ho
    - Jackson Hole's upper mountain is a mix of ski runs, meadows and short subalpine trees (median canopy 7 m). There, WorldCover's 10 m cells call mixed ground "trees", and the canopy map may miss short trees.
    - A lidar truth test (§6) settles it: **the canopy map is the more accurate of the two at Jackson Hole** (**D4**).
 7. **Species reality differs from the planned Phase 1 set** (TR1):
-   - Jackson Hole 2 km: subalpine fir 55%, Engelmann spruce 32%, whitebark pine 9%, limber pine 3%. At 5 km: Engelmann spruce 47%, subalpine fir 43%, whitebark pine 6%, white fir 2%, limber pine 2%. The only broadleaf tree is narrowleaf cottonwood (0.3%); neither sample found aspen.
-   - Crystal Mountain: mountain hemlock 56%, western hemlock 32%, Shasta red fir 7%, Alaska yellow-cedar 4%, subalpine larch 1%.
-   - BIGMAP is modelled data and sometimes names implausible species (Shasta red fir lives in California and Oregon). Species under about 3% of biomass should be dropped or merged. **D3.**
+   - **Corrected (§8):** Jackson Hole 5 km: Douglas-fir 23%, Engelmann spruce 20%, quaking aspen 19%, subalpine fir 18%, lodgepole pine 12%, whitebark pine 3%.
+   - **Corrected (§8):** Crystal Mountain 5 km: Pacific silver fir 30%, mountain hemlock 19%, Douglas-fir 12%, western hemlock 11%, subalpine fir 7%, noble fir 6%, Engelmann spruce 3%.
+   - Species under about 3% of biomass are dropped or merged. **D3.**
 8. **No SQLite needed for coverage.** Listing folder names is enough for the picker, refreshed once a day in the background.
 9. **For task 04:** when this code moves into Unity, `System.Text.Json` becomes Newtonsoft (T11). HTTP retries, the identifying User-Agent and parallel range reads are already in place.
 
@@ -94,10 +94,12 @@ Options:
 - If Crystal Mountain stays in Phase 1, add **mountain hemlock** and **western hemlock**.
 - Species under 3% are dropped or merged.
 
-**Comment:** Proceed with species from Jackson, but being I live near Crystal I'd like to see Crystal's trees too! → **Decided:** the Phase 1 set is
-- **Jackson Hole:** Engelmann spruce, subalpine fir, whitebark pine, limber pine, plus the krummholz form.
-- **Crystal Mountain:** mountain hemlock, western hemlock, Alaska yellow-cedar and noble fir. BIGMAP's "Shasta red fir" (7%) is mapped to noble fir, its close relative that does grow in the Washington Cascades.
-- **Quaking aspen** stays as the one deciduous species, to test the bare-winter and season path (TR4). It's common on Jackson Hole's lower slopes, though neither BIGMAP sample included it.
+**Comment:** Proceed with species from Jackson, but being I live near Crystal I'd like to see Crystal's trees too! → **Decided, then corrected on 2026-09-26 (§8):** the Phase 1 set is every species over 3% at either site:
+- **Jackson Hole:** Douglas-fir, Engelmann spruce, quaking aspen, subalpine fir and lodgepole pine.
+- **Crystal Mountain:** Pacific silver fir, mountain hemlock, Douglas-fir, western hemlock, subalpine fir, noble fir and Engelmann spruce.
+- Also the **krummholz** form at treeline.
+
+That is 9 species. Quaking aspen is now a real Jackson Hole species (19%), not just a test. The first version of this list (whitebark and limber pine, Alaska yellow-cedar, "Shasta red fir" as noble fir) came from the sampling bug.
 
 **D4 · Forest rule.** Decide in the style tile (task 08) how canopy and WorldCover combine, by comparing both against satellite imagery at Jackson Hole.
 **Comment:** While by eye is ok for now, we will need to methodically attack this in the future. Can you research which one is more accurate? → **Researched (§6):** the canopy map is more accurate (82% of cells correct vs 72% against lidar). **Decided:** canopy is the primary forest layer. Task 07 scores the rule against lidar truth sets, and task 08 confirms it by eye.
@@ -152,6 +154,7 @@ cd tools/data-spike
 dotnet test tests/DataSpike.Tests          # offline, ~1 s
 dotnet run --project src/DataSpike.Cli -- site --name "Jackson Hole" --lat 43.593 --lon -110.848 --km 2 --out results/jh.json
 dotnet run --project src/DataSpike.Cli -- coverage --out results/coverage.json
+dotnet run --project src/DataSpike.Cli -- species --lat 43.593 --lon -110.848 --km 5   # species only, ~30 s
 
 # D4 lidar truth (Python 3 with numpy, laspy[lazrs] and pyproj)
 dotnet run --project src/DataSpike.Cli -- site --name "Jackson Hole" --lat 43.593 --lon -110.848 --km 2 --grids grids/jh2
@@ -159,3 +162,17 @@ python research/forest_truth.py --grids grids/jh2 --ept https://s3-us-west-2.ama
 ```
 
 Or double-click **`demo.bat`** at the repo root for a menu of these runs.
+
+## 8. Correction (2026-09-26): species sampling
+
+**The bug.** The BIGMAP service mosaics at most 20 of its 328 layers per request (`maxMosaicImageCount`), and 60–140 species layers cover a typical site. The spike's single `getSamples` request therefore saw only the first 20 layers in the service's default order, so its species mixes were arbitrary subsets. It was found on 2026-09-26, when a sample around Jackson, New Hampshire, returned 74% paper birch and no maples.
+
+**The fix.** List the layers covering the site (`query`), then sample the grid in batches of 20, each locked to its layers (`esriMosaicLockRaster`). A batch the service rejects is split until the bad layer is isolated. At Crystal Mountain, 10 lowland layers (oaks, willows, elms) are refused and skipped; they aren't present at that elevation. The new `species` command runs just this in 20–40 s.
+
+| Site | Before (buggy) | After |
+|---|---|---|
+| Jackson Hole 5 km | Engelmann spruce 47, subalpine fir 43, whitebark pine 6 | Douglas-fir 23, Engelmann spruce 20, **quaking aspen 19**, subalpine fir 18, lodgepole pine 12 |
+| Crystal Mountain 5 km | mountain hemlock 56, western hemlock 32, "Shasta red fir" 7 | **Pacific silver fir 30**, mountain hemlock 19, Douglas-fir 12, western hemlock 11, subalpine fir 7, noble fir 6 |
+| Jackson, NH 3 km | paper birch 74, quaking aspen 25 | red maple 19, yellow birch 14, eastern hemlock 11, sugar maple 9, red spruce 9, American beech 8 |
+
+The corrected lists match published descriptions of these forests: Douglas-fir, lodgepole and aspen in the Tetons; silver fir and hemlocks in the Cascades; northern hardwoods in the White Mountains. D3 is revised accordingly.
