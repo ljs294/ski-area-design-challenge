@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Acquisition;
@@ -13,6 +14,8 @@ using MountainPlanner.Persistence;
 //   acquire library [--library <root>]            list downloaded mountains
 //   acquire prepare --package <folder>            (re)build a package's terrain cache
 //   acquire validate --package <folder>           check a package's files
+//   acquire cover-map --package <folder> --out <file.ppm> [--core] [--snow]
+//                                                 draw the prepared ground cover (whole ring at 4 m, or the core tiles at 1 m)
 // Interrupt a download at any time (Ctrl+C) and run it again: it resumes from the cache.
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 string command = args.Length > 0 && !args[0].StartsWith("--") ? args[0] : "download";
@@ -36,6 +39,44 @@ switch (command)
         var problems = PackageValidator.Validate(opts["package"]);
         Console.WriteLine(problems.Count == 0 ? "The package is sound." : string.Join(Environment.NewLine, problems));
         return problems.Count == 0 ? 0 : 1;
+    }
+
+    case "cover-map":
+    {
+        string folder = opts["package"];
+        var cache = TerrainCache.ReadManifest(folder);
+        bool coreOnly = args.Contains("--core"), snow = args.Contains("--snow");
+        var tiles = cache.Tiles.Where(t => !coreOnly || t.Core).ToList();
+        int texel = coreOnly ? TerrainCache.CoreCoverResolution - 1 : 256;   // pixels per 1,024 m tile
+        int minC = tiles.Min(t => t.Column), minR = tiles.Min(t => t.Row);
+        int w = (tiles.Max(t => t.Column) - minC + 1) * texel, h = (tiles.Max(t => t.Row) - minR + 1) * texel;
+        var rgb = new byte[w * h * 3];
+        // Forest floor, grass, rock, developed, water (flat class colours, like the in-game overlay).
+        var colours = new (double R, double G, double B)[] { (40, 74, 52), (178, 170, 98), (132, 134, 140), (196, 88, 64), (48, 110, 196) };
+        foreach (var t in tiles)
+        {
+            byte[] cover = TerrainCache.ReadCover(folder, t);
+            int n = t.CoverResolution, bands = TerrainCache.CoverBands;
+            for (int y = 0; y < texel; y++)
+                for (int x = 0; x < texel; x++)
+                {
+                    int i = Math.Min(n - 1, x * (n - 1) / texel), j = Math.Min(n - 1, y * (n - 1) / texel);
+                    int o = (j * n + i) * bands;
+                    double r = 0, g = 0, b = 0;
+                    for (int k = 0; k < 5; k++) { double v = cover[o + k] / 255.0; r += colours[k].R * v; g += colours[k].G * v; b += colours[k].B * v; }
+                    if (snow) { double s2 = cover[o + 5] / 255.0 * 0.85; r += (245 - r) * s2; g += (248 - g) * s2; b += (252 - b) * s2; }
+                    int px = ((t.Row - minR) * texel + y) * w + (t.Column - minC) * texel + x;
+                    rgb[px * 3] = (byte)r; rgb[px * 3 + 1] = (byte)g; rgb[px * 3 + 2] = (byte)b;
+                }
+        }
+        using (var fs = File.Create(opts["out"]))
+        {
+            byte[] header = System.Text.Encoding.ASCII.GetBytes($"P6\n{w} {h}\n255\n");
+            fs.Write(header, 0, header.Length);
+            fs.Write(rgb, 0, rgb.Length);
+        }
+        Console.WriteLine($"Wrote {w}×{h} cover map to {opts["out"]}");
+        return 0;
     }
 
     case "prepare":

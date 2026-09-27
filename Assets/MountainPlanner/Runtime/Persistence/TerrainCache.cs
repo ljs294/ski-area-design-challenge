@@ -46,6 +46,10 @@ namespace MountainPlanner.Persistence
         public bool Core { get; set; }
         public string File { get; set; } = "";
         public string Sha256 { get; set; } = "";
+        /// <summary>Ground cover (task 07): <see cref="CoverResolution"/>² texels × <see cref="TerrainCache.CoverBands"/> bytes.</summary>
+        public string CoverFile { get; set; } = "";
+        public int CoverResolution { get; set; }
+        public string CoverSha256 { get; set; } = "";
     }
 
     /// <summary>
@@ -61,7 +65,14 @@ namespace MountainPlanner.Persistence
     public static class TerrainCache
     {
         /// <summary>Bump when the tile format or sampling changes: existing caches are then rebuilt.</summary>
-        public const int Version = 1;
+        public const int Version = 2;
+
+        /// <summary>
+        /// Splat texels per tile edge: 1 m in core tiles, 4 m in the ring (Unity needs powers of two).
+        /// </summary>
+        public const int CoreCoverResolution = 1024, RingCoverResolution = 256;
+        /// <summary>Bytes per cover texel: five ground-layer weights (sum 255), then snow cover.</summary>
+        public const int CoverBands = 6;
 
         /// <summary>
         /// Unity terrain heightmaps hold 0–32,766 (15 effective bits; normalised 1.0 = 32,766), so the
@@ -85,7 +96,8 @@ namespace MountainPlanner.Persistence
             {
                 var m = JsonConvert.DeserializeObject<CacheManifest>(File.ReadAllText(path));
                 return m != null && m.CacheVersion == Version && m.PackageId == package.PackageId
-                       && m.Tiles.All(t => File.Exists(Path.Combine(FolderFor(packageFolder), t.File)));
+                       && m.Tiles.All(t => File.Exists(Path.Combine(FolderFor(packageFolder), t.File))
+                                           && File.Exists(Path.Combine(FolderFor(packageFolder), t.CoverFile)));
             }
             catch (JsonException) { return false; }
         }
@@ -93,6 +105,15 @@ namespace MountainPlanner.Persistence
         public static CacheManifest ReadManifest(string packageFolder) =>
             JsonConvert.DeserializeObject<CacheManifest>(File.ReadAllText(Path.Combine(FolderFor(packageFolder), ManifestFile)))
             ?? throw new InvalidDataException("Empty cache manifest.");
+
+        /// <summary>A tile's ground cover texels (see <see cref="CoverField.BuildTile"/>), verified against their hash.</summary>
+        public static byte[] ReadCover(string packageFolder, CacheTile tile)
+        {
+            byte[] values;
+            using (var fs = File.OpenRead(Path.Combine(FolderFor(packageFolder), tile.CoverFile))) values = GridFile.ReadBytes(fs, out _);
+            if (GridFile.HashValues(values) != tile.CoverSha256) throw new InvalidDataException($"Cache cover {tile.CoverFile} doesn't match its hash.");
+            return values;
+        }
 
         public static ushort[] ReadTile(string packageFolder, CacheTile tile)
         {
@@ -110,6 +131,7 @@ namespace MountainPlanner.Persistence
             var coreLayer = package.Layers.First(l => l.Id == "heights-core");
             var ringLayer = package.Layers.First(l => l.Id == "heights-ring");
             var heights = new HeightField(core, coreHeader, ring, ringHeader);
+            var cover = new CoverField(package, packageFolder, heights);
 
             var site = SiteSquare.Create(new AlbersPoint(package.Site.CentreX, package.Site.CentreY), package.Site.SizeMetres / 1000.0);
             var tiles = TileGrid.For(site);
@@ -145,10 +167,18 @@ namespace MountainPlanner.Persistence
                 string file = $"t{key.Column}_{key.Row}.h16";
                 using (var fs = File.Create(Path.Combine(folder, file)))
                     GridFile.Write(fs, new GridHeader(GridValueType.UInt16, res, res, b.West, b.North, spacing), values);
+
+                int coverRes = tiles.IsCore(key) ? CoreCoverResolution : RingCoverResolution;
+                byte[] texels = cover.BuildTile(b, coverRes);
+                string coverFile = $"t{key.Column}_{key.Row}.cover";
+                using (var fs = File.Create(Path.Combine(folder, coverFile)))
+                    GridFile.Write(fs, new GridHeader(GridValueType.UInt8, coverRes * CoverBands, coverRes, b.West, b.North, (b.East - b.West) / (coverRes - 1)), texels);
+
                 built[n] = new CacheTile
                 {
                     Column = key.Column, Row = key.Row, Resolution = res, Spacing = spacing, West = b.West, North = b.North,
                     Core = tiles.IsCore(key), File = file, Sha256 = GridFile.HashValues(values),
+                    CoverFile = coverFile, CoverResolution = coverRes, CoverSha256 = GridFile.HashValues(texels),
                 };
                 progress?.Report(new CacheProgress(Interlocked.Increment(ref done), keys.Count));
             });

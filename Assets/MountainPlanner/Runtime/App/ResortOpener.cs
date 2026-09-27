@@ -34,6 +34,12 @@ namespace MountainPlanner.App
         public Dictionary<(int, int), Terrain> Tiles;
         public ITerrainSurface Surface;
         public LocalFrame Frame;
+        public GroundLayers Ground;
+        public string PackageFolder;
+        public bool SnowOn = true;
+        /// <summary>Completes when every tile's ground cover is painted (it streams in after the terrain is playable).</summary>
+        public Task CoverReady = Task.CompletedTask;
+        public double CoverSeconds;
         public double Seconds;
     }
 
@@ -64,13 +70,16 @@ namespace MountainPlanner.App
 
             var root = new GameObject($"Resort: {manifest.Site.Name}");
             if (parent != null) root.transform.SetParent(parent, false);
-            var layers = new[] { SnowGround.CreateLayer() };
+            var ground = new GroundLayers();
+            var layers = ground.Layers;
             var tiles = new Dictionary<(int, int), Terrain>();
 
             // Decode every tile on worker threads (in order of distance from the centre, so the view fills in
             // from the middle); create Terrains on the main thread as they become ready.
             var order = cache.Tiles.OrderBy(t => Distance(t, cache, frame)).ToList();
             var decoded = order.Select(t => Task.Run(() => TerrainTiles.LoadHeights(packageFolder, t), ct)).ToList();
+            // Cover decodes alongside; it's painted after the terrain is up (snow is layer 0, so tiles already read as snow).
+            var covers = order.Select(t => Task.Run(() => SplatTexels.Load(packageFolder, t, snow: true), ct)).ToList();
             float start = progress == null ? 0 : 0.5f;
             double waited = 0, created = 0;
             var part = Stopwatch.StartNew();
@@ -81,7 +90,7 @@ namespace MountainPlanner.App
                 waited += part.Elapsed.TotalSeconds;
                 part.Restart();
                 var tile = order[n];
-                tiles[(tile.Column, tile.Row)] = TerrainTiles.Create(root.transform, cache, tile, heights, frame, material, layers, detail);
+                tiles[(tile.Column, tile.Row)] = TerrainTiles.Create(root.transform, cache, tile, heights, frame, material, layers, detail, TerrainTiles.UnpaintedSplatResolution);
                 created += part.Elapsed.TotalSeconds;
                 progress?.Report(new OpenProgress($"Opening terrain: tile {n + 1} of {order.Count}", start + (1 - start) * (n + 1) / order.Count));
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
@@ -95,10 +104,46 @@ namespace MountainPlanner.App
             var (tw, tn) = frame.ToLocal(new AlbersPoint(first.West, first.North));
             var surface = new UnityTerrainSurface(tiles, (float)tw, (float)tn, (float)cache.TileMetres, new Rect((float)w, (float)s, (float)ring.Width, (float)ring.Height));
             progress?.Report(new OpenProgress("Ready", 1));
-            return new OpenedResort
+            var resort = new OpenedResort
             {
                 Manifest = manifest, Cache = cache, Root = root, Tiles = tiles, Surface = surface, Frame = frame, Seconds = clock.Elapsed.TotalSeconds,
+                Ground = ground, PackageFolder = packageFolder,
             };
+            resort.CoverReady = PaintCoverAsync(resort, order, covers, clock, ct);
+            return resort;
+        }
+
+        /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
+        static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, Stopwatch clock, CancellationToken ct)
+        {
+            for (int n = 0; n < order.Count; n++)
+            {
+                var splat = await covers[n];
+                ct.ThrowIfCancellationRequested();
+                if (resort.Root == null) return; // closed meanwhile
+                TerrainTiles.ApplySplat(resort.Tiles[(order[n].Column, order[n].Row)].terrainData, splat);
+                if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
+            }
+            resort.CoverSeconds = clock.Elapsed.TotalSeconds;
+            UnityEngine.Debug.Log($"[ResortOpener] ground cover painted at {resort.CoverSeconds:F2} s");
+        }
+
+        /// <summary>
+        /// Shows or hides the snow (the "under the snow" view, T17): recomposes every tile's splat from the
+        /// cache on worker threads, then uploads a few tiles per frame.
+        /// </summary>
+        public static async Task SetSnowAsync(OpenedResort resort, bool snow, CancellationToken ct = default)
+        {
+            await resort.CoverReady;
+            resort.SnowOn = snow;
+            var jobs = resort.Cache.Tiles.Select(t => (Tile: t, Splat: Task.Run(() => SplatTexels.Load(resort.PackageFolder, t, snow), ct))).ToList();
+            int n = 0;
+            foreach (var (tile, splat) in jobs)
+            {
+                var texels = await splat;
+                if (resort.Tiles.TryGetValue((tile.Column, tile.Row), out var terrain)) TerrainTiles.ApplySplat(terrain.terrainData, texels);
+                if (++n % 8 == 0) await Task.Yield();
+            }
         }
 
         static double Distance(CacheTile t, CacheManifest cache, LocalFrame frame)

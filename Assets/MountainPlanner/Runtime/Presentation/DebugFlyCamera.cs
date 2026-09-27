@@ -39,6 +39,12 @@ namespace MountainPlanner.Presentation
             Distance = _distanceGoal = distance;
         }
 
+        public void SetAngles(float yaw, float pitch)
+        {
+            Yaw = _yawGoal = yaw;
+            Pitch = _pitchGoal = pitch;
+        }
+
         void LateUpdate()
         {
             if (!_initialised)

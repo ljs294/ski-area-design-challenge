@@ -69,6 +69,12 @@ namespace MountainPlanner.World
         public static bool DrawInstanced;
 
         /// <summary>
+        /// A tile starts with a tiny splat map (all snow, layer 0) and grows to its cover resolution when
+        /// its cover is painted: allocating 1024² six-layer maps up front added over a second to opening.
+        /// </summary>
+        public const int UnpaintedSplatResolution = 16;
+
+        /// <summary>
         /// A tile's heights as Unity wants them: [row from the south, column from the west], normalised
         /// 0–1 of the cache's height range. Safe on any thread (no Unity API).
         /// </summary>
@@ -113,7 +119,7 @@ namespace MountainPlanner.World
         /// origin is the site centre. Main thread only.
         /// </summary>
         public static Terrain Create(Transform parent, CacheManifest cache, CacheTile tile, float[,] heights, LocalFrame frame,
-                                     Material material, TerrainLayer[] layers, TerrainDetail detail)
+                                     Material material, TerrainLayer[] layers, TerrainDetail detail, int splatResolution = 0)
         {
             var data = new TerrainData
             {
@@ -121,6 +127,7 @@ namespace MountainPlanner.World
                 name = $"t{tile.Column}_{tile.Row}",
             };
             data.size = new Vector3((float)cache.TileMetres, (float)cache.HeightRange, (float)cache.TileMetres);
+            if (splatResolution > 0) data.alphamapResolution = splatResolution;
             if (layers != null && layers.Length > 0) data.terrainLayers = layers;
 
             // A Terrain without a TerrainCollider: cooking a million-sample physics heightfield per tile is most
@@ -143,6 +150,45 @@ namespace MountainPlanner.World
             data.SyncHeightmap();
             return terrain;
         }
+
+        /// <summary>
+        /// Uploads composed splat texels straight into the tile's alphamap textures (no float[,,] detour:
+        /// 1024² × 6 layers as floats would be 25 MB per tile). Main thread only.
+        /// </summary>
+        public static void ApplySplat(TerrainData data, SplatTexels splat)
+        {
+            int n = splat.Resolution;
+            if (data.alphamapResolution != n) data.alphamapResolution = n;
+            // Unity's supported fast path (the one its paint tools use): stage the bytes in a texture, blit
+            // to a render texture, then copy that into the alphamap on the GPU. Writing alphamapTextures
+            // directly only reaches the basemap; the terrain shader keeps Unity's own copy.
+            if (!Staging.TryGetValue(n, out var staging))
+            {
+                staging = new Texture2D(n, n, TextureFormat.RGBA32, false, true) { name = "SplatStaging" + n, filterMode = FilterMode.Point };
+                Staging[n] = staging;
+            }
+            var previous = RenderTexture.active;
+            var rt = RenderTexture.GetTemporary(n, n, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+            try
+            {
+                for (int t = 0; t < data.alphamapTextureCount && t < splat.Textures.Length; t++)
+                {
+                    staging.SetPixelData(splat.Textures[t], 0);
+                    staging.Apply(false);
+                    Graphics.Blit(staging, rt);
+                    RenderTexture.active = rt;
+                    data.CopyActiveRenderTextureToTexture(TerrainData.AlphamapTextureName, t, new RectInt(0, 0, n, n), Vector2Int.zero, true);
+                }
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(rt);
+            }
+            data.SetBaseMapDirty();
+        }
+
+        static readonly Dictionary<int, Texture2D> Staging = new Dictionary<int, Texture2D>();
 
         /// <summary>Adds physics to a tile when something needs raycasts against it (drawing tools, later).</summary>
         public static TerrainCollider AddCollider(Terrain terrain)

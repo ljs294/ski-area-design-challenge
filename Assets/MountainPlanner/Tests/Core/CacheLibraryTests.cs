@@ -133,6 +133,44 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void GroundCoverTilesMeetWithoutSeams()
+        {
+            // Texel i sits at West + i·size/(n−1), so a tile's last column is its neighbour's first. Where
+            // tiles of the same resolution meet, those texels are computed at the same point: identical.
+            var byKey = _cache.Tiles.ToDictionary(t => (t.Column, t.Row));
+            int compared = 0;
+            foreach (var t in _cache.Tiles)
+            {
+                if (!byKey.TryGetValue((t.Column + 1, t.Row), out var east) || east.CoverResolution != t.CoverResolution) continue;
+                byte[] a = TerrainCache.ReadCover(_package, t), b = TerrainCache.ReadCover(_package, east);
+                int n = t.CoverResolution, bands = TerrainCache.CoverBands;
+                for (int j = 0; j < n; j++)
+                    for (int k = 0; k < bands; k++)
+                        Assert.That(a[(j * n + n - 1) * bands + k], Is.EqualTo(b[(j * n) * bands + k]), $"{t.File} | {east.File} row {j}");
+                compared++;
+            }
+            Assert.That(compared, Is.GreaterThan(10));
+        }
+
+        [Test]
+        public void GroundCoverWeightsSumTo255AndSteepSlopesTurnToRock()
+        {
+            var tile = _cache.Tiles.First(t => t.Core);
+            byte[] cover = TerrainCache.ReadCover(_package, tile);
+            int bands = TerrainCache.CoverBands, rocky = 0;
+            for (int o = 0; o < cover.Length; o += bands)
+            {
+                int sum = 0;
+                for (int k = 0; k < MountainPlanner.Domain.Cover.GroundCover.Layers; k++) sum += cover[o + k];
+                Assert.That(sum, Is.EqualTo(255));
+                if (cover[o + (int)MountainPlanner.Domain.Cover.GroundLayer.Rock] > 128) rocky++;
+            }
+            // The synthetic ridge has no cover layers, so everything is meadow except its steepest flanks.
+            Assert.That(cover.Length / bands, Is.EqualTo(TerrainCache.CoreCoverResolution * TerrainCache.CoreCoverResolution));
+            TestContext.Progress.WriteLine($"{tile.File}: {rocky} rocky texels of {cover.Length / bands}");
+        }
+
+        [Test]
         public void TheCacheIsCurrentUntilItsVersionOrPackageChanges()
         {
             Assert.That(TerrainCache.IsCurrent(_package, _manifest), Is.True);

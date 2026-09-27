@@ -1,0 +1,13 @@
+{
+  "description": "Lidar forest truth per 10 m cell of the core: band 0 = % of 1 m cells with trees >= 3 m (255 = no lidar), band 1 = tallest tree in 0.25 m steps. Bands are stored one after another.",
+  "west": -1189828.0,
+  "north": 2382976.0,
+  "cellSize": 10,
+  "columns": 200,
+  "rows": 200,
+  "bands": 2,
+  "source": "https://s3-us-west-2.amazonaws.com/usgs-lidar-public/WY_NConverse_5_2020/ept.json",
+  "points": 171319786,
+  "script": "tools/data-spike/research/truth_fixture.py",
+  "truthForestShare": 0.512
+}
