@@ -62,6 +62,7 @@ The library grows in later phases, prioritized by how often each species appears
 - Each species has 3 mesh variants.
 - Per instance: size from canopy height (±10%), rotation, a slight lean, and colour jitter from the palette (§5).
 - **Snow load** comes from the tree shader (TR4): spires and firs hold snow on their tiers; bare deciduous trees get a dusting on their branches.
+- **Seasons (T9):** one model per tree all year. The shader's leaves-present, colour-turn, spring-tint and snow-load inputs follow a phenology table per species; see the [trees review](phase1-trees-first-look.md#seasons-the-plan).
 
 **Style:**
 - Faceted, low-poly-ish forms with smooth shading. No individual needles; clumped foliage masses.
@@ -85,6 +86,7 @@ The library grows in later phases, prioritized by how often each species appears
 | Ice rim | `#BFD9E6` | Frozen lakes |
 | Conifer dark / mid / light | `#233B2E` / `#2F4A3A` / `#3E5C45` | Jittered per instance |
 | Deciduous bark | `#5A4A3F` | Bare trees |
+| Aspen and birch bark | `#D3D0C2` | Pale bark (T5) |
 | Rock | `#6E6A66` | Cliffs, strata walls |
 | Forest floor | `#4A3B30` | Snow-off view |
 | Meadow | `#8C8A5C` | Snow-off view, dormant |
@@ -107,7 +109,7 @@ The UI palette (0.4 §7) is separate; its accent blue `#155ab6` is chosen so tha
 
 **Free tree pipeline (TR2):**
 1. **Shape** the species in Tree It (free; its exports are free for any engine), EZ-Tree (MIT) or Blender Sapling / Geometry Nodes.
-2. **Finish** it with a Blender script in `tools/assets/`: build LODs, bake wind weights into vertex colours, split leaf / branch / bark materials, add a snow mask, and export glTF.
+2. **Finish** it with a Blender script in `tools/assets/`: build LODs, bake wind weights into vertex colours, split leaf / branch / bark materials, add a snow mask, and export FBX, which Unity imports natively (T3). Since round 2, the script also builds the skeleton and generates every texture itself ([trees review](phase1-trees-first-look.md)).
 3. **Import** into Unity, where our own **impostor baker** makes the distant version.
 
 **No subscriptions or paid tree tools.** Paid renderers or impostor tools need the owner's explicit OK; the free Nature Renderer 6 may be evaluated.

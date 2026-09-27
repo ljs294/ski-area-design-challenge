@@ -1,0 +1,514 @@
+{
+  "_about": "Species parameters for build_trees.py (0.5 §3, TR1). Heights in metres; angles in degrees; colours are sRGB hex. 'where' cites BIGMAP biomass shares from the corrected data spike (report §8).",
+  "species": [
+    {
+      "id": "subalpine_fir",
+      "name": "Subalpine fir",
+      "bigmapSpcd": 19,
+      "form": "conifer",
+      "where": "Jackson Hole 18%, Crystal 7%",
+      "height": [
+        13.0,
+        17.0
+      ],
+      "crownBase": 0.03,
+      "crownRadius": 0.13,
+      "crownExponent": 1.0,
+      "whorlSpacing": 0.45,
+      "branchesPerWhorl": [
+        4,
+        6
+      ],
+      "branchElevation": [
+        12.0,
+        -14.0
+      ],
+      "droop": 0.2,
+      "needles": "fir",
+      "spray": [
+        0.6,
+        0.34
+      ],
+      "spraysPerMetre": 3.2,
+      "trunkRadius": 0.013,
+      "nod": 0.0,
+      "bark": [
+        "beech",
+        "#8C8983"
+      ],
+      "foliage": [
+        "#243F33",
+        "#2E4C3E",
+        "#39594A"
+      ]
+    },
+    {
+      "id": "engelmann_spruce",
+      "name": "Engelmann spruce",
+      "bigmapSpcd": 93,
+      "form": "conifer",
+      "where": "Jackson Hole 20%, Crystal 3%",
+      "height": [
+        18.0,
+        25.0
+      ],
+      "crownBase": 0.04,
+      "crownRadius": 0.135,
+      "crownExponent": 1.0,
+      "whorlSpacing": 0.5,
+      "branchesPerWhorl": [
+        5,
+        7
+      ],
+      "branchElevation": [
+        8.0,
+        -28.0
+      ],
+      "droop": 0.38,
+      "needles": "spruce",
+      "spray": [
+        0.55,
+        0.32
+      ],
+      "spraysPerMetre": 3.0,
+      "crossed": true,
+      "trunkRadius": 0.014,
+      "nod": 0.0,
+      "bark": [
+        "scaly",
+        "#7A6D63"
+      ],
+      "foliage": [
+        "#2B4643",
+        "#365551",
+        "#41625D"
+      ],
+      "sprayDensity": 1.05
+    },
+    {
+      "id": "douglas_fir",
+      "name": "Douglas-fir",
+      "bigmapSpcd": 202,
+      "form": "conifer",
+      "where": "Jackson Hole 23%, Crystal 12%",
+      "height": [
+        22.0,
+        30.0
+      ],
+      "crownBase": 0.28,
+      "crownRadius": 0.18,
+      "crownExponent": 0.8,
+      "whorlSpacing": 0.6,
+      "branchesPerWhorl": [
+        4,
+        6
+      ],
+      "branchElevation": [
+        18.0,
+        -12.0
+      ],
+      "droop": 0.25,
+      "needles": "douglas",
+      "spray": [
+        0.75,
+        0.46
+      ],
+      "spraysPerMetre": 3.2,
+      "trunkRadius": 0.016,
+      "nod": 0.0,
+      "bark": [
+        "douglas",
+        "#6E4A33"
+      ],
+      "foliage": [
+        "#2C4629",
+        "#385533",
+        "#43623B"
+      ]
+    },
+    {
+      "id": "lodgepole_pine",
+      "name": "Lodgepole pine",
+      "bigmapSpcd": 108,
+      "form": "conifer",
+      "where": "Jackson Hole 12%",
+      "height": [
+        18.0,
+        24.0
+      ],
+      "crownBase": 0.55,
+      "crownRadius": 0.1,
+      "crownExponent": 0.85,
+      "whorlSpacing": 0.6,
+      "branchesPerWhorl": [
+        4,
+        6
+      ],
+      "branchElevation": [
+        22.0,
+        -6.0
+      ],
+      "droop": 0.1,
+      "needles": "pine",
+      "spray": [
+        0.7,
+        0.7
+      ],
+      "spraysPerMetre": 3.0,
+      "tufts": true,
+      "trunkRadius": 0.011,
+      "nod": 0.0,
+      "bark": [
+        "scaly",
+        "#6F5E4F"
+      ],
+      "foliage": [
+        "#34502C",
+        "#415D33",
+        "#4C693A"
+      ]
+    },
+    {
+      "id": "mountain_hemlock",
+      "name": "Mountain hemlock",
+      "bigmapSpcd": 264,
+      "form": "conifer",
+      "where": "Crystal 19%",
+      "height": [
+        16.0,
+        22.0
+      ],
+      "crownBase": 0.08,
+      "crownRadius": 0.18,
+      "crownExponent": 0.85,
+      "whorlSpacing": 0.6,
+      "branchesPerWhorl": [
+        4,
+        5
+      ],
+      "branchElevation": [
+        -4.0,
+        -26.0
+      ],
+      "droop": 0.45,
+      "needles": "hemlock",
+      "spray": [
+        0.65,
+        0.42
+      ],
+      "spraysPerMetre": 3.0,
+      "trunkRadius": 0.014,
+      "nod": 55.0,
+      "bark": [
+        "furrowed",
+        "#5E4B40"
+      ],
+      "foliage": [
+        "#2A4639",
+        "#355545",
+        "#406250"
+      ]
+    },
+    {
+      "id": "quaking_aspen",
+      "name": "Quaking aspen",
+      "bigmapSpcd": 746,
+      "form": "deciduous",
+      "where": "Jackson Hole 19%, Jackson NH 1%",
+      "height": [
+        12.0,
+        17.0
+      ],
+      "crownBase": 0.5,
+      "crownShape": "narrow",
+      "crownRadius": 0.16,
+      "stems": [
+        1,
+        1
+      ],
+      "leaders": 1,
+      "primaries": [
+        18,
+        24
+      ],
+      "primaryAngle": [
+        30.0,
+        50.0
+      ],
+      "primaryLength": 0.24,
+      "upward": 0.5,
+      "secondaries": [
+        4,
+        6
+      ],
+      "trunkRadius": 0.012,
+      "leaf": "aspen",
+      "bark": [
+        "aspen",
+        "#D3D0C2"
+      ],
+      "twig": "#8C877C",
+      "summer": [
+        "#6E9A3A",
+        "#7FA844"
+      ],
+      "autumn": [
+        "#E8C23A",
+        "#D9A826",
+        "#F0D050"
+      ]
+    },
+    {
+      "id": "paper_birch",
+      "name": "Paper birch",
+      "bigmapSpcd": 375,
+      "form": "deciduous",
+      "where": "Jackson NH 4%",
+      "height": [
+        15.0,
+        20.0
+      ],
+      "crownBase": 0.4,
+      "crownShape": "narrow",
+      "crownRadius": 0.2,
+      "stems": [
+        1,
+        3
+      ],
+      "leaders": 1,
+      "primaries": [
+        14,
+        18
+      ],
+      "primaryAngle": [
+        35.0,
+        60.0
+      ],
+      "primaryLength": 0.26,
+      "upward": 0.3,
+      "secondaries": [
+        4,
+        7
+      ],
+      "trunkRadius": 0.011,
+      "leaf": "birch",
+      "bark": [
+        "birch",
+        "#ECE9E2"
+      ],
+      "twig": "#6E5446",
+      "summer": [
+        "#5E8A34",
+        "#6F9A3A"
+      ],
+      "autumn": [
+        "#E3B92E",
+        "#D4A020",
+        "#EACB4A"
+      ]
+    },
+    {
+      "id": "yellow_birch",
+      "name": "Yellow birch",
+      "bigmapSpcd": 371,
+      "form": "deciduous",
+      "where": "Jackson NH 14%",
+      "height": [
+        18.0,
+        24.0
+      ],
+      "crownBase": 0.35,
+      "crownShape": "irregular",
+      "crownRadius": 0.3,
+      "stems": [
+        1,
+        1
+      ],
+      "leaders": 2,
+      "primaries": [
+        10,
+        14
+      ],
+      "primaryAngle": [
+        45.0,
+        70.0
+      ],
+      "primaryLength": 0.33,
+      "upward": 0.15,
+      "secondaries": [
+        5,
+        7
+      ],
+      "trunkRadius": 0.016,
+      "leaf": "birch",
+      "bark": [
+        "yellowbirch",
+        "#B8966A"
+      ],
+      "twig": "#5B4636",
+      "summer": [
+        "#557F30",
+        "#628C36"
+      ],
+      "autumn": [
+        "#E6C340",
+        "#D8B030",
+        "#C9A02A"
+      ]
+    },
+    {
+      "id": "sugar_maple",
+      "name": "Sugar maple",
+      "bigmapSpcd": 318,
+      "form": "deciduous",
+      "where": "Jackson NH 9%",
+      "height": [
+        20.0,
+        26.0
+      ],
+      "crownBase": 0.3,
+      "crownShape": "oval",
+      "crownRadius": 0.3,
+      "stems": [
+        1,
+        1
+      ],
+      "leaders": 3,
+      "primaries": [
+        10,
+        14
+      ],
+      "primaryAngle": [
+        30.0,
+        55.0
+      ],
+      "primaryLength": 0.36,
+      "upward": 0.35,
+      "secondaries": [
+        5,
+        8
+      ],
+      "trunkRadius": 0.017,
+      "leaf": "maple",
+      "bark": [
+        "furrowed",
+        "#7D776E"
+      ],
+      "twig": "#5E4A3A",
+      "summer": [
+        "#3F6B2A",
+        "#4F7A32"
+      ],
+      "autumn": [
+        "#E0701E",
+        "#D9A21B",
+        "#C23B22",
+        "#E88A1A"
+      ]
+    },
+    {
+      "id": "red_maple",
+      "name": "Red maple",
+      "bigmapSpcd": 316,
+      "form": "deciduous",
+      "where": "Jackson NH 19%",
+      "height": [
+        16.0,
+        22.0
+      ],
+      "crownBase": 0.3,
+      "crownShape": "oval",
+      "crownRadius": 0.26,
+      "stems": [
+        1,
+        2
+      ],
+      "leaders": 2,
+      "primaries": [
+        12,
+        16
+      ],
+      "primaryAngle": [
+        30.0,
+        50.0
+      ],
+      "primaryLength": 0.32,
+      "upward": 0.4,
+      "secondaries": [
+        5,
+        7
+      ],
+      "trunkRadius": 0.014,
+      "leaf": "maple",
+      "bark": [
+        "beech",
+        "#8E8B85"
+      ],
+      "twig": "#7A3A2C",
+      "summer": [
+        "#48702E",
+        "#567D35"
+      ],
+      "autumn": [
+        "#C0271E",
+        "#D23A22",
+        "#A81E1E",
+        "#E05A2A"
+      ]
+    },
+    {
+      "id": "american_beech",
+      "name": "American beech",
+      "bigmapSpcd": 531,
+      "form": "deciduous",
+      "where": "Jackson NH 8%",
+      "height": [
+        18.0,
+        24.0
+      ],
+      "crownBase": 0.2,
+      "crownShape": "spreading",
+      "crownRadius": 0.36,
+      "stems": [
+        1,
+        1
+      ],
+      "leaders": 2,
+      "primaries": [
+        14,
+        18
+      ],
+      "primaryAngle": [
+        55.0,
+        80.0
+      ],
+      "primaryLength": 0.4,
+      "upward": 0.12,
+      "secondaries": [
+        6,
+        9
+      ],
+      "trunkRadius": 0.017,
+      "leaf": "beech",
+      "bark": [
+        "beech",
+        "#9A9790"
+      ],
+      "twig": "#6A5A48",
+      "summer": [
+        "#4E7A2E",
+        "#5C8A36"
+      ],
+      "autumn": [
+        "#C98A2E",
+        "#B8742A",
+        "#D9A04A"
+      ],
+      "marcescent": [
+        "#C9A873",
+        "#B8935A",
+        "#D2B489"
+      ]
+    }
+  ]
+}
