@@ -109,9 +109,11 @@ Launch ─► S1 Main menu ─► New Mountain ─► S3 Picker ─► S4 Downlo
 
 ```
 ┌─ Crystal Mountain North is ready ────────────────────┐
-│   97 / 100   Excellent terrain detail                 │
+│   Terrain  97 / 100   Excellent detail                │
 │   96% USGS S1M 1 m lidar · 4% 3DEP 10 m               │
-│   Forest: Meta/WRI canopy (2019) · Cover: ESA 2021    │
+│   Flora    83 / 100   Good                            │
+│   93% of forest as its real species · sources agree   │
+│   on 76% · canopy 2017–2020 · species BIGMAP 30 m     │
 │   [ Open mountain ]   [ Back to library ]             │
 └───────────────────────────────────────────────────────┘
 ```

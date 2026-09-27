@@ -413,6 +413,8 @@ namespace MountainPlanner.Tests
             foreach (string f in System.IO.Directory.GetFiles(dir, "*.grid")) TestData.Bytes(dir, System.IO.Path.GetFileName(f));
             var m = ResortPackage.ReadManifest(dir);
             Assert.That(m.Quality.Score, Is.EqualTo(100));
+            Assert.That(m.Flora.Score, Is.InRange(60, 100), "flora quality (F1)");
+            Assert.That(m.Flora.OneLiner, Does.StartWith("Flora quality "));
             float[] core = ResortPackage.ReadLayer(dir, m, "heights-core", out var header);
             Assert.That((header.Width, header.Height, header.CellSize), Is.EqualTo((2000, 2000, 1.0)));
             Assert.That(core.Any(float.IsNaN), Is.False, "no holes");
@@ -421,6 +423,172 @@ namespace MountainPlanner.Tests
             float[] ring = ResortPackage.ReadLayer(dir, m, "heights-ring", out var ringHeader);
             Assert.That(ringHeader.CellSize, Is.EqualTo(2.0));
             Assert.That(ring.Any(float.IsNaN), Is.False);
+
+            // Task 04b layers: canopy on the core, WorldCover and species over the ring.
+            byte[] canopy = ResortPackage.ReadByteLayer(dir, m, "canopy-core", out var canopyHeader);
+            Assert.That(canopyHeader.Width, Is.EqualTo(2000));
+            double forested = canopy.Count(v => v >= 12) / (double)canopy.Length;
+            Assert.That(forested, Is.InRange(0.05, 0.6), "some but not all of the site is under canopy of 3 m or more");
+            byte[] cover = ResortPackage.ReadByteLayer(dir, m, "cover", out var coverHeader);
+            Assert.That(coverHeader.CellSize, Is.EqualTo(10.0));
+            Assert.That(cover.Count(v => v == 10), Is.GreaterThan(0), "WorldCover tree class present");
+            Assert.That(m.Species.Select(sp => sp.CommonName), Does.Contain("Douglas-fir").And.Contain("quaking aspen"));
+            byte[] ids = ResortPackage.ReadByteLayer(dir, m, "species-ids", out var speciesHeader);
+            Assert.That(m.Layers.Single(l => l.Id == "species-ids").Bands, Is.EqualTo(4));
+            Assert.That(ids.Max(), Is.LessThanOrEqualTo((byte)m.Species.Count));
+        }
+    }
+}
+
+namespace MountainPlanner.Tests
+{
+    public sealed class CoverTests
+    {
+        [TestCase(46.935, -121.474, "021230211")]
+        [TestCase(43.593, -110.848, "021322030")]
+        public void CanopyTilesAreLevelNineQuadKeys(double lat, double lon, string expected)
+        {
+            var (x, y) = MountainPlanner.Domain.Geo.WebMercator.Tile(new MountainPlanner.Domain.Geo.GeoPoint(lat, lon), 9);
+            Assert.That(MountainPlanner.Domain.Geo.WebMercator.QuadKey(x, y, 9), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void TheReprojectionLatticeMatchesTheExactTransformToAMillimetre()
+        {
+            var grid = new MountainPlanner.Domain.Geo.GridSpec(-1189828, 2382976, 1, 2000, 300);
+            System.Func<MountainPlanner.Domain.Geo.AlbersPoint, (double, double)> exact =
+                p => MountainPlanner.Domain.Geo.WebMercator.Forward(MountainPlanner.Domain.Geo.Albers6350.Inverse(p));
+            var lattice = new MountainPlanner.Domain.Geo.GridReprojector(grid, 100, 200, exact);
+            double worst = 0;
+            for (int r = 100; r < 300; r += 7)
+                for (int c = 0; c < 2000; c += 13)
+                {
+                    var (x, y) = lattice.At(c, r);
+                    var (ex, ey) = exact(grid.CellCentre(c, r));
+                    worst = Math.Max(worst, Math.Max(Math.Abs(x - ex), Math.Abs(y - ey)));
+                }
+            Assert.That(worst, Is.LessThan(0.001));
+        }
+
+        [TestCase(0f, 0)]
+        [TestCase(-2f, 0)]
+        [TestCase(0.1f, 0)]
+        [TestCase(0.125f, 1)]
+        [TestCase(17.3f, 69)]
+        [TestCase(63.75f, 255)]
+        [TestCase(80f, 255)]
+        public void CanopyHeightsStoreInQuarterMetres(float metres, int expected)
+        {
+            Assert.That(CoverAssembler.EncodeCanopy(metres), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void EachCellKeepsItsFourLargestSpeciesWithShares()
+        {
+            // Cells: 0 has five species, 1 has one, 2 has none.
+            var biomass = new[]
+            {
+                new[] { 1f, 0f, 0f },
+                new[] { 5f, 0f, float.NaN },
+                new[] { 3f, 7f, 0f },
+                new[] { 9f, 0f, 0f },
+                new[] { 2f, 0f, 0f },
+            };
+            var (ids, weights) = CoverAssembler.TopFour(biomass, 3);
+            Assert.That(ids.Take(4), Is.EqualTo(new byte[] { 4, 2, 3, 5 }), "largest first; the smallest of five is dropped");
+            Assert.That(weights.Take(4).Select(w => (int)w), Is.EqualTo(new[] { 121, 67, 40, 27 }), "shares of the top four, 0-255");
+            Assert.That(ids.Skip(4).Take(4), Is.EqualTo(new byte[] { 3, 0, 0, 0 }));
+            Assert.That(weights[4], Is.EqualTo(255));
+            Assert.That(ids.Skip(8), Is.All.EqualTo(0));
+        }
+
+        [Test]
+        public void PhasesKeepTheOverallBarMovingForward()
+        {
+            var tracker = new ProgressTracker(null, new TransferMeter());
+            tracker.DefineStage("Terrain", 100);
+            tracker.BeginStage("Terrain");
+            double last = -1;
+            tracker.SetPhase(0, 0.1);
+            for (int s = 1; s <= 36; s++)
+            {
+                tracker.BeginStep("downloading sector", s, 36, () => 1.0);
+                Assert.That(tracker.Snapshot().Overall, Is.GreaterThanOrEqualTo(last));
+                last = tracker.Snapshot().Overall;
+            }
+            tracker.SetPhase(0.1, 1);
+            for (int s = 1; s <= 36; s++)
+            {
+                tracker.BeginStep("filling from 3DEP, sector", s, 36, () => 0.0);
+                Assert.That(tracker.Snapshot().Overall, Is.GreaterThanOrEqualTo(last), $"sector {s}");
+                last = tracker.Snapshot().Overall;
+            }
+        }
+
+        [Test]
+        public void TheWaitingHintNamesTheServer()
+        {
+            var tracker = new ProgressTracker(null, new TransferMeter());
+            tracker.DefineStage("Tree species", 1);
+            tracker.BeginStage("Tree species");
+            tracker.BeginStep("sampling species, batch", 1, 4, () => 0, "the USDA Forest Service");
+            Thread.Sleep(2300);
+            Assert.That(tracker.Snapshot().Detail, Does.Contain("waiting for the USDA Forest Service"));
+        }
+    }
+}
+
+namespace MountainPlanner.Tests
+{
+    using MountainPlanner.Domain.Flora;
+
+    public sealed class FloraQualityTests
+    {
+        [Test]
+        public void TheScoreWeightsItsFourParts()
+        {
+            // Coverage 100, agreement 76, fidelity 93, data 9 years old (recency 58):
+            // 0.35*100 + 0.25*76 + 0.25*93 + 0.15*58 = 35 + 19 + 23.25 + 8.7 = 85.95 -> 86.
+            var f = new FloraInputs(1, 1, 0.76, 0.93, 2017, 2026);
+            Assert.That(FloraQuality.Recency(2017, 2026), Is.EqualTo(58));
+            Assert.That(FloraQuality.Score(f), Is.EqualTo(86));
+            Assert.That(FloraQuality.OneLiner(f, "canopy 1 m (2017–2020 imagery)", "species from BIGMAP 30 m"),
+                Is.EqualTo("Flora quality 86/100: canopy 1 m (2017–2020 imagery), species from BIGMAP 30 m, 93% of forest shown as its real species, sources agree on 76% of forest"));
+        }
+
+        [Test]
+        public void GapsInTheCanopyLowerTheScoreAndAreNamed()
+        {
+            var full = new FloraInputs(1, 1, 0.8, 0.9, 2024, 2026);
+            var gappy = new FloraInputs(0.8, 1, 0.8, 0.9, 2024, 2026);
+            Assert.That(FloraQuality.Score(gappy), Is.LessThan(FloraQuality.Score(full)));
+            Assert.That(FloraQuality.OneLiner(gappy, "canopy", "species"), Does.Contain("(20% without canopy data)"));
+        }
+
+        [TestCase(2025, 2026, 100)]
+        [TestCase(2020, 2026, 76)]
+        [TestCase(1990, 2026, 20)]
+        public void RecencyFallsSixPointsAYearAfterTwoYears(int data, int build, double expected)
+        {
+            Assert.That(FloraQuality.Recency(data, build), Is.EqualTo(expected));
+        }
+
+        [Test]
+        public void FloraMeasurementsCompareCanopyWithWorldCover()
+        {
+            // A 40 m core of 1 m cells over a ring cover grid at 10 m, offset by one cell.
+            var core = new MountainPlanner.Domain.Geo.GridSpec(10, 50, 1, 40, 40);
+            var coverGrid = new MountainPlanner.Domain.Geo.GridSpec(0, 60, 10, 6, 6);
+            var canopy = new byte[40 * 40];
+            for (int r = 0; r < 40; r++) for (int c = 0; c < 20; c++) canopy[r * 40 + c] = 40; // west half forested (10 m tall)
+            var cover = Enumerable.Repeat((byte)30, 36).ToArray();                              // grass everywhere...
+            for (int r = 1; r <= 4; r++) for (int c = 1; c <= 4; c++) cover[r * 6 + c] = 10;   // ...except trees over the whole core
+            var speciesGrid = new MountainPlanner.Domain.Geo.GridSpec(0, 60, 30, 2, 2);
+            var ids = new byte[2 * 2 * 4];
+            ids[0] = 1;                                                                          // only the north-west species cell has data
+            var (agreement, speciesCoverage) = CoverAssembler.MeasureFlora(core, canopy, coverGrid, cover, speciesGrid, ids);
+            Assert.That(agreement, Is.EqualTo(0.5), "canopy says the west half, WorldCover all of it");
+            Assert.That(speciesCoverage, Is.EqualTo(4 / 16.0), "4 of the 16 WorldCover forest cells fall in the species cell with data");
         }
     }
 }

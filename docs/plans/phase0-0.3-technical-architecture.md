@@ -84,6 +84,14 @@
 - **Example one-liner:** *"Terrain quality 97/100: 96% USGS S1M 1 m lidar, 4% 3DEP 10 m · forest: Meta/WRI canopy (2019 imagery) · cover: ESA WorldCover 2021."*
 - The weights are a first proposal and can be tuned.
 
+**Flora quality score (F1, owner request).** Shown beside the terrain score, measured from the package's own layers (no extra downloads):
+- **Coverage, 35%:** 60% the share of the core with canopy data, plus 40% the share of the ring's WorldCover forest that has species data.
+- **Agreement, 25%:** the share of the core's 10 m cells where canopy (any 1 m cell ≥3 m, D4) and WorldCover agree on forest. It's a confidence signal: the Jackson Hole lidar test showed disagreement can mean WorldCover is the one that's wrong.
+- **Species fidelity, 25%:** the share of the forest's biomass whose species has a real model rather than a look-alike. It rises as the tree library grows (task 09).
+- **Recency, 15%:** 100 for imagery up to two years old, then 6 points less per year (minimum 20).
+- **Example one-liner:** *"Flora quality 83/100: canopy 1 m (2017–2020 imagery), species from BIGMAP 30 m, 93% of forest shown as its real species, sources agree on 76% of forest."*
+- **Measured:** Jackson Hole 5 km 83; Crystal Mountain 5 km 75 (Pacific silver fir, western hemlock and noble fir have no models yet).
+
 ### 4.3 From lidar to Unity terrain (T4)
 
 This is the full path, from USGS files to what the player sees.
@@ -232,11 +240,12 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
   - per-layer provenance (provider, product, tile IDs and dates)
   - **attribution text**
   - per-file hashes
-- Layers:
-  - `heights-core.f32` and `heights-ring.f32`
-  - `canopy.u8` (height in 0.25 m steps)
-  - `cover.u8`
-  - `water.json` and `developed.json`
+- Layers (compressed `.grid` files, P5; built by `tools/acquire`, tasks 04a and 04b):
+  - `heights-core` (1 m float32) and `heights-ring` (2 m float32, the whole 3 km surround)
+  - `canopy-core` (1 m, height in 0.25 m steps; **core only**, P7)
+  - `cover` (ESA WorldCover classes at 10 m over the ring)
+  - `species-ids` and `species-weights` (the top four BIGMAP species per 30 m cell over the ring, with shares), indexing the manifest's species table
+  - `water.json` and `developed.json` (task 07)
 
 **Terrain cache:** `<data>/Resorts/<packageId>/cache-v<N>/`, holding per-tile 16-bit heightmaps, control maps and forest tile data. It is rebuilt automatically if missing or if the cache version changes.
 
@@ -246,7 +255,7 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
 |---|---|
 | Core heights, 1 m float32 | 100 MB |
 | Ring heights, 2 m float32 | 96 MB |
-| Canopy and cover grids (1 m core, 2 m ring) | 100 MB |
+| Canopy (1 m core), cover (10 m) and species (30 m) grids, compressed | 5 MB |
 | Water, developed, manifest | <10 MB |
 | Terrain cache: 16-bit tiles (~100 MB), control/splat maps (~200 MB), forest (~20 MB) | ~320 MB |
 | **Total** | **about 650 MB** |

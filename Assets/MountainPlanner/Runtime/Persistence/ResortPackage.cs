@@ -26,7 +26,13 @@ namespace MountainPlanner.Persistence
         public CrsInfo Crs { get; set; } = new CrsInfo();
         public List<LayerInfo> Layers { get; set; } = new List<LayerInfo>();
         public QualityInfo Quality { get; set; } = new QualityInfo();
+
+        /// <summary>The flora quality score (F1), beside the terrain score.</summary>
+        public FloraQualityInfo Flora { get; set; } = new FloraQualityInfo();
         public List<ProvenanceInfo> Provenance { get; set; } = new List<ProvenanceInfo>();
+
+        /// <summary>The species the species layers index (1-based; 0 means no tree).</summary>
+        public List<SpeciesInfo> Species { get; set; } = new List<SpeciesInfo>();
         public List<string> Attribution { get; set; } = new List<string>();
 
         /// <summary>When the package was built. Not part of the package id.</summary>
@@ -65,6 +71,10 @@ namespace MountainPlanner.Persistence
         public double West { get; set; }
         public double North { get; set; }
         public double CellSize { get; set; }
+        /// <summary>Values per cell, interleaved along each row (the file is Width × Bands wide).</summary>
+        public int Bands { get; set; } = 1;
+        /// <summary>What a value means, e.g. "canopy height in 0.25 m steps".</summary>
+        public string Units { get; set; } = "";
         /// <summary>SHA-256 of the uncompressed values.</summary>
         public string Sha256 { get; set; } = "";
         public double Min { get; set; }
@@ -76,6 +86,23 @@ namespace MountainPlanner.Persistence
         public int Score { get; set; }
         public string OneLiner { get; set; } = "";
         public Dictionary<string, double> SourceShares { get; set; } = new Dictionary<string, double>();
+    }
+
+    public sealed class FloraQualityInfo
+    {
+        public int Score { get; set; }
+        public string OneLiner { get; set; } = "";
+        /// <summary>Coverage, agreement, species fidelity and recency, each 0–100.</summary>
+        public Dictionary<string, double> Components { get; set; } = new Dictionary<string, double>();
+    }
+
+    public sealed class SpeciesInfo
+    {
+        public int Index { get; set; }
+        public int Spcd { get; set; }
+        public string CommonName { get; set; } = "";
+        /// <summary>Share of the ring's sampled biomass, 0–1.</summary>
+        public double ShareOfBiomass { get; set; }
     }
 
     public sealed class ProvenanceInfo
@@ -119,6 +146,27 @@ namespace MountainPlanner.Persistence
             });
         }
 
+        /// <summary>Writes a uint8 layer (class codes, scaled heights, band-interleaved tables).</summary>
+        public static void AddLayer(string folder, PackageManifest manifest, string id, GridHeader header, byte[] values, int bands = 1, string units = "")
+        {
+            if (header.Width % bands != 0) throw new ArgumentException("The file width must be a whole number of cells × bands.");
+            string file = id + ".grid";
+            using (var fs = File.Create(Path.Combine(folder, file))) GridFile.Write(fs, header, values);
+            byte min = 255, max = 0;
+            foreach (byte v in values)
+            {
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+            manifest.Layers.RemoveAll(l => l.Id == id);
+            manifest.Layers.Add(new LayerInfo
+            {
+                Id = id, File = file, Type = "uint8", Width = header.Width / bands, Height = header.Height, Bands = bands, Units = units,
+                West = header.West, North = header.North, CellSize = header.CellSize,
+                Sha256 = GridFile.HashValues(values), Min = min, Max = max,
+            });
+        }
+
         /// <summary>
         /// The package id: SHA-256 over the format, the site definition and every layer's hash, in
         /// layer-id order. Timestamps and tool versions are excluded, so re-runs give the same id.
@@ -132,6 +180,8 @@ namespace MountainPlanner.Persistence
               .Append(m.Site.SizeMetres).Append('|').Append(m.Site.RingMetres);
             foreach (var layer in m.Layers.OrderBy(l => l.Id, StringComparer.Ordinal))
                 sb.Append('|').Append(layer.Id).Append('=').Append(layer.Sha256);
+            foreach (var sp in m.Species.OrderBy(x => x.Index))
+                sb.Append("|s").Append(sp.Index).Append('=').Append(sp.Spcd);
             using (var sha = SHA256.Create())
             {
                 byte[] h = sha.ComputeHash(Encoding.UTF8.GetBytes(sb.ToString()));
@@ -156,6 +206,16 @@ namespace MountainPlanner.Persistence
             if (manifest.FormatVersion != PackageManifest.CurrentFormat)
                 throw new InvalidDataException($"Package format {manifest.FormatVersion} is not supported.");
             return manifest;
+        }
+
+        /// <summary>Reads a uint8 layer and verifies it against the manifest's hash.</summary>
+        public static byte[] ReadByteLayer(string folder, PackageManifest manifest, string id, out GridHeader header)
+        {
+            var layer = manifest.Layers.FirstOrDefault(l => l.Id == id) ?? throw new KeyNotFoundException($"No layer '{id}'.");
+            byte[] values;
+            using (var fs = File.OpenRead(Path.Combine(folder, layer.File))) values = GridFile.ReadBytes(fs, out header);
+            if (GridFile.HashValues(values) != layer.Sha256) throw new InvalidDataException($"Layer '{id}' doesn't match its hash.");
+            return values;
         }
 
         /// <summary>Reads a float32 layer and verifies it against the manifest's hash.</summary>

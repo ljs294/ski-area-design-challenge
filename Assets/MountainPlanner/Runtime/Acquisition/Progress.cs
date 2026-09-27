@@ -53,9 +53,11 @@ namespace MountainPlanner.Acquisition
 
         int _stage = -1, _step, _stepCount;
         string _verb = "";
+        string _server = "the server";
         Func<double> _stepFraction = () => 0;
         double _completedWeight;
         double _stepStarted;
+        double _spanStart, _spanEnd = 1;
         long _stepBytes;
 
         public ProgressTracker(IProgress<AcquisitionProgress>? sink, TransferMeter meter)
@@ -86,18 +88,34 @@ namespace MountainPlanner.Acquisition
                 _stepCount = 0;
                 _verb = "";
                 _stepFraction = () => 0;
+                _spanStart = 0;
+                _spanEnd = 1;
             }
             Publish();
+        }
+
+        /// <summary>
+        /// Maps the following steps into part of the current stage, e.g. S1M downloads 0–0.4 and the
+        /// 3DEP fallback 0.4–1, so a stage with phases never makes the overall bar go backwards.
+        /// </summary>
+        public void SetPhase(double start, double end)
+        {
+            lock (_gate)
+            {
+                _spanStart = Clamp01(start);
+                _spanEnd = Math.Max(_spanStart, Clamp01(end));
+            }
         }
 
         /// <summary>
         /// Starts step <paramref name="step"/> of <paramref name="count"/>, e.g. ("downloading sector", 5, 19).
         /// <paramref name="fraction"/> reports the step's own progress when polled.
         /// </summary>
-        public void BeginStep(string verb, int step, int count, Func<double> fraction)
+        public void BeginStep(string verb, int step, int count, Func<double> fraction, string server = "the server")
         {
             lock (_gate)
             {
+                _server = server;
                 _verb = verb;
                 _step = step;
                 _stepCount = count;
@@ -126,7 +144,8 @@ namespace MountainPlanner.Acquisition
                 double total = 0;
                 foreach (var s in _stages) total += s.Weight;
                 double stepFraction = Clamp01(_stepFraction());
-                double stageFraction = _stepCount > 0 ? ((_step - 1) + stepFraction) / _stepCount : stepFraction;
+                double phaseFraction = _stepCount > 0 ? ((_step - 1) + stepFraction) / _stepCount : stepFraction;
+                double stageFraction = _spanStart + (_spanEnd - _spanStart) * Clamp01(phaseFraction);
                 double current = _stage >= 0 && _stage < _stages.Count ? _stages[_stage].Weight * Clamp01(stageFraction) : 0;
                 double overall = finished ? 1 : Clamp01((_completedWeight + current) / Math.Max(total, 1e-9));
 
@@ -142,7 +161,7 @@ namespace MountainPlanner.Acquisition
                 // A server preparing a response sends nothing for a while; say so rather than sit at 0%.
                 double quiet = now - _stepStarted;
                 string waiting = !finished && _stepCount > 0 && _meter.Bytes == _stepBytes && quiet > 2
-                    ? $" · waiting for USGS ({quiet:F0} s)" : "";
+                    ? $" · waiting for {_server} ({quiet:F0} s)" : "";
                 string detail = finished ? "Finished"
                     : _stepCount > 0 ? $"{stage}: {_verb} {_step} of {_stepCount} · {Pct(stepFraction)}{waiting}"
                     : _verb.Length > 0 ? $"{stage}: {_verb} · {Pct(stepFraction)}"
