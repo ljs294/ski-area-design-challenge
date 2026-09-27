@@ -46,9 +46,16 @@ namespace MountainPlanner.Acquisition.IO
             return client;
         }
 
+        /// <summary>
+        /// Blocks every request when true. Tests set it to prove that opening a resort never touches the
+        /// network (task 06: the game plays offline after the first download).
+        /// </summary>
+        public static bool NetworkDisabled;
+
         /// <summary>A request with up to four attempts and exponential backoff; non-success statuses retry too.</summary>
         public static async Task<byte[]> GetBytesAsync(Func<HttpRequestMessage> build, TransferMeter? meter, CancellationToken ct)
         {
+            if (NetworkDisabled) throw new InvalidOperationException("Network access is disabled.");
             Exception? last = null;
             for (int attempt = 0; attempt < 4; attempt++)
             {

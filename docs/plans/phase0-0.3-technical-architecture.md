@@ -130,21 +130,24 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
   - Ring tiles hold 513 × 513 heights (2 m).
   - Neighbouring tiles share their edge row, so there are no cracks.
   - Where a 2 m ring tile meets a 1 m core tile, the core edge is matched to the ring's samples.
-- **Heights to 16-bit:** Unity Terrain stores heights as 16-bit values but uses only 0–32,766 (15 effective bits; normalised 1.0 = 32,766), so the cache stores exactly that. Heights are mapped over the package's lowest-to-highest range (ring included): at Jackson Hole 5 km that's 1,437 m in **4.4 cm steps** (measured, task 05), still below lidar's own vertical accuracy of about 10 cm. The float32 source keeps full precision for later. Task 06 confirms the 32,766 figure against real `TerrainData`.
+- **Heights to 16-bit:** Unity Terrain stores heights as 16-bit values but uses only 0–32,766 (15 effective bits; normalised 1.0 = 32,766), so the cache stores exactly that. Heights are mapped over the package's lowest-to-highest range (ring included): at Jackson Hole 5 km that's 1,437 m in **4.4 cm steps** (measured, task 05), still below lidar's own vertical accuracy of about 10 cm. The float32 source keeps full precision for later. Task 06 confirmed the 32,766 figure against real `TerrainData` (Unity stores exactly v / 32,766).
 - **Sampling:** heights are one continuous function of position (bilinear between cell centres; the 1 m core eased into the 2 m ring over 16 m at the core's edge), and every tile samples it at its vertices. Neighbouring tiles therefore share identical edges, and where a 1 m tile meets a 2 m tile, its in-between edge samples are the midpoints of the 2 m edge (no T-junction cracks at full detail).
-- **Risk for task 06:** Unity's terrain level-of-detail stitching assumes neighbours of equal heightmap resolution. Where 1,025² core tiles meet 513² ring tiles, cracks could appear at coarser LODs. Task 06 tests it, with 1,025² everywhere (ring upsampled; about 4× the ring's cache) as the fallback.
+- **Ring upsampling (task 06):** Unity's terrain level-of-detail stitching assumes neighbours of equal heightmap resolution, so ring tiles are upsampled from 513² to 1,025² when loaded (integer midpoints, exactly reproducing the 2 m surface). The cache stays at 513²; only memory in the running game grows.
 - Also cached per tile: the splat/control maps (from cover and slope) and the cover and canopy grids at tile resolution.
 - **Size:** a 5 km site in an 11 km square makes 121 tiles: 25 core and 96 ring.
 
 **④ Load.**
-- One Unity `Terrain` object per tile. Heights go in through `TerrainData` (the fast GPU path where possible, `SetHeights` otherwise).
+- One Unity `Terrain` object per tile. Tiles are decoded on worker threads, nearest the centre first, and created four per frame; heights go in through `SetHeightsDelayLOD` then `SyncHeightmap`.
 - Neighbours are linked so level of detail blends across tile edges.
-- Unity Terrain's built-in quadtree level of detail and draw-instancing render the whole area; each quality preset sets the pixel-error tolerance.
+- Unity Terrain's built-in quadtree level of detail renders the whole area; each quality preset sets the pixel-error tolerance and basemap distance.
+- **No colliders yet:** cooking a physics heightfield per tile was most of the open time. The camera samples heights instead; drawing tools add colliders where they need them.
+- **Not instanced yet:** URP draw-instanced terrain rendered flat-lit and untextured when created from script (tried: order, the per-pixel-normal keyword, basemap distance, enabling late). Non-instanced terrain renders correctly at 300+ FPS at 1080p, so task 15 revisits instancing with the benchmark.
+- **Measured (task 06):** Jackson Hole 5 km, 121 tiles, opens in 8.6–9.1 s on the reference PC.
 - The terrain material, the forest (§4.5) and water surfaces are then built on top.
 - **Target:** ≤10 s from opening to a playable view (§8).
 
 **Why Unity Terrain:**
-- It already does level of detail, instancing, normal calculation, collision and height editing, which are exactly what future drawing tools need.
+- It already does level of detail, normal calculation, collision and height editing, which are exactly what future drawing tools need.
 - Everything sits behind an `ITerrainSurface` interface, so a custom mesh can replace it if the look demands it (roadmap §8).
 
 ### 4.4 Ground cover: sources (T6)

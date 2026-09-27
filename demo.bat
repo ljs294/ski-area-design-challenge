@@ -11,6 +11,7 @@ title Ski Area Design Challenge - demos
 set "SPIKE=%~dp0tools\data-spike"
 set "OUT=%SPIKE%\results\local"
 set "PACKAGES=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts"
+set "GAME=%~dp0Builds\Windows\SkiAreaDesignChallenge.exe"
 set "UNITY=C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe"
 
 where dotnet >nul 2>nul
@@ -49,6 +50,10 @@ echo     15 Open your library folder
 echo     16 List your mountains (names, both quality scores, disk use)
 echo        Tip: press Ctrl+C during a download, then choose it again - it resumes.
 echo.
+echo   Phase 1, task 06: the mountain in Unity
+echo     17 Fly over your mountain in the game (builds the game the first time: about 2 minutes)
+echo     18 Rebuild the game (after pulling new code; close the Unity editor first)
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -79,6 +84,8 @@ if /i "%CHOICE%"=="12" call :acquire "Jackson Hole" 43.593 -110.848 5 & goto don
 if /i "%CHOICE%"=="13" call :acquire "Crystal Mountain" 46.93 -121.49 2 & goto done
 if /i "%CHOICE%"=="14" goto acquirecustom
 if /i "%CHOICE%"=="16" goto library
+if /i "%CHOICE%"=="17" goto play
+if /i "%CHOICE%"=="18" goto buildgame
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -130,6 +137,32 @@ if errorlevel 1 (
 ) else (
   echo   %1: passed
 )
+exit /b 0
+
+:play
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game. Right-drag to orbit, middle-drag to pan, wheel to zoom, WASD to move, Esc to quit.
+start "" "%GAME%"
+goto menu
+
+:buildgame
+call :buildplayer
+goto done
+
+:buildplayer
+if not exist "%UNITY%" (
+  echo Unity 6000.3.25f1 was not found at "%UNITY%".
+  exit /b 1
+)
+tasklist /fi "imagename eq Unity.exe" | find /i "Unity.exe" >nul
+if not errorlevel 1 (
+  echo The Unity editor is open. Close it first, then try again.
+  exit /b 1
+)
+echo Building the game player (about 2 minutes)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.ViewerSetup.BuildWindows -logFile "%~dp0test-results\build.log" <nul
+if errorlevel 1 (echo   The build failed - see test-results\build.log) else (echo   Built %GAME%)
 exit /b 0
 
 :library
