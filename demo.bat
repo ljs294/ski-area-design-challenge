@@ -142,7 +142,7 @@ exit /b 0
 :play
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
-echo Starting the game. Right-drag to orbit, middle-drag to pan, wheel to zoom, WASD to move, Esc to quit.
+echo Starting the game. WASD move, Q/E rotate, R/F tilt, wheel zoom, middle-drag rotate, right-drag move, Esc quit.
 start "" "%GAME%"
 goto menu
 

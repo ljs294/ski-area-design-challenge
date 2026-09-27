@@ -24,6 +24,8 @@ namespace MountainPlanner.App
         /// <summary>URP Terrain/Lit, referenced from the scene so builds keep the shader.</summary>
         public Material TerrainMaterial;
         public DebugFlyCamera Camera;
+        /// <summary>Unlit colour for landmark lines, referenced from the scene so builds keep the shader.</summary>
+        public Material HighlightMaterial;
 
         string _status = "Starting";
         float _fraction;
@@ -31,6 +33,7 @@ namespace MountainPlanner.App
         string _error;
         float _fps;
         bool _help = true;
+        System.Collections.Generic.List<Landmarks.Placed> _landmarks = new System.Collections.Generic.List<Landmarks.Placed>();
 
         public static string DataRoot =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkiAreaDesignChallenge");
@@ -58,6 +61,8 @@ namespace MountainPlanner.App
                     float centre = _resort.Surface.HeightAt(0, 0);
                     Camera.Frame(new Vector3(0, float.IsNaN(centre) ? 2500 : centre, 0), _resort.Manifest.Site.SizeMetres * 1.1f);
                 }
+                _landmarks = Landmarks.Place(_resort.Root.transform, _resort.Frame, _resort.Surface, HighlightMaterial);
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-landmark") >= 0) FlyToLandmark();
                 // Unattended check: -screenshot <file.png> captures the view once it has settled, then quits.
                 string[] args = Environment.GetCommandLineArgs();
                 int shot = Array.IndexOf(args, "-screenshot");
@@ -100,11 +105,29 @@ namespace MountainPlanner.App
             var keys = Keyboard.current;
             if (keys != null && keys.hKey.wasPressedThisFrame) _help = !_help;
             if (keys != null && keys.escapeKey.wasPressedThisFrame) Application.Quit();
+            if (keys != null && keys.cKey.wasPressedThisFrame) FlyToLandmark();
+
+            // Keep lines a few pixels wide at any distance.
+            if (Camera != null)
+                foreach (var landmark in _landmarks)
+                {
+                    float width = Mathf.Max(3f, Vector3.Distance(Camera.transform.position, landmark.Centre) * 0.004f);
+                    landmark.Line.widthMultiplier = width;
+                }
+        }
+
+        void FlyToLandmark()
+        {
+            if (Camera == null || _landmarks.Count == 0) return;
+            var landmark = _landmarks[0];
+            Camera.Frame(landmark.Centre, 600f);
         }
 
         void OnGUI()
         {
             var style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 15, wordWrap = true };
+            style.normal.textColor = Color.white;
+            GUI.backgroundColor = new Color(0f, 0f, 0f, 2f); // the default box is too pale to read over snow
             if (_error != null)
             {
                 GUI.Box(new Rect(20, 20, 520, 90), _error, style);
@@ -114,9 +137,27 @@ namespace MountainPlanner.App
                 ? $"{_status}\n[{new string('#', (int)(_fraction * 30)).PadRight(30, '.')}] {_fraction * 100:F0}%"
                 : $"{_resort.Manifest.Site.Name} · {_resort.Manifest.Site.SizeMetres / 1000.0:0.#} km · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
+            if (_resort != null && _help && _landmarks.Count > 0)
+                text += $"\nC: fly to {_landmarks[0].Name} · run lines © OpenStreetMap contributors";
             if (_resort != null && _help)
-                text += "\nRight-drag orbit · Middle-drag pan · Wheel zoom · WASD move · Q/E down/up · Shift faster · H hide · Esc quit";
-            GUI.Box(new Rect(20, 20, 760, _resort == null ? 60 : (_help ? 110 : 88)), text, style);
+                text += "\nWASD move · Q/E rotate · R/F tilt · Wheel or PgUp/PgDn zoom · Middle-drag rotate · Right-drag move · Shift faster · H hide · Esc quit";
+            GUI.Box(new Rect(20, 20, 820, _resort == null ? 60 : (_help ? 142 : 88)), text, style);
+            GUI.backgroundColor = Color.white;
+
+            if (Camera == null) return;
+            var cam = Camera.GetComponent<UnityEngine.Camera>();
+            var label = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.LowerCenter };
+            label.normal.textColor = Color.white;
+            foreach (var landmark in _landmarks)
+            {
+                Vector3 screen = cam.WorldToScreenPoint(landmark.LabelAt);
+                if (screen.z <= 0) continue;
+                var rect = new Rect(screen.x - 120, Screen.height - screen.y - 28, 240, 26);
+                GUI.color = new Color(0, 0, 0, 0.6f);
+                GUI.Label(new Rect(rect.x + 1, rect.y + 1, rect.width, rect.height), landmark.Name, label);
+                GUI.color = Color.white;
+                GUI.Label(rect, landmark.Name, label);
+            }
         }
     }
 }

@@ -44,6 +44,22 @@ namespace MountainPlanner.Editor
             return material;
         }
 
+        const string HighlightMaterialPath = "Assets/MountainPlanner/Art/Highlight/Highlight.mat";
+
+        /// <summary>A bright unlit red for landmark lines.</summary>
+        static Material HighlightMaterial()
+        {
+            var material = AssetDatabase.LoadAssetAtPath<Material>(HighlightMaterialPath);
+            if (material != null) return material;
+            Directory.CreateDirectory(Path.GetDirectoryName(HighlightMaterialPath));
+            var shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) throw new System.InvalidOperationException("URP Unlit shader not found.");
+            material = new Material(shader) { name = "Highlight" };
+            material.SetColor("_BaseColor", new Color(1f, 0.12f, 0.1f));
+            AssetDatabase.CreateAsset(material, HighlightMaterialPath);
+            return material;
+        }
+
         [MenuItem("Mountain Planner/Create Viewer Scene")]
         public static void CreateViewerScene()
         {
@@ -69,6 +85,7 @@ namespace MountainPlanner.Editor
             var viewer = viewerGo.AddComponent<MountainViewer>();
             viewer.Camera = fly;
             viewer.TerrainMaterial = TerrainMaterial();
+            viewer.HighlightMaterial = HighlightMaterial();
 
             // A procedural sky until task 11's sky and lighting presets.
             var sky = AssetDatabase.LoadAssetAtPath<Material>("Assets/MountainPlanner/Art/Sky/ProceduralSky.mat");
