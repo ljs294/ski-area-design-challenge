@@ -289,6 +289,8 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
 
 It runs off the main thread with progress, cancellation, retries, polite rate limits and an identifying User-Agent, and resumes after failures. The same code runs as a command-line tool.
 
+**Progress contract (U6).** The pipeline reports, at least 4 times a second: the stage (index, count and name), the step within it (for example sector 5 of 19), that step's own fraction, an overall fraction weighted by expected work, bytes downloaded, speed and an estimated time remaining, plus a ready-made detail line for the UI. Expected bytes come from the Cloud Optimized GeoTIFF directories, so download percentages are exact rather than guessed. The CLI prints the same progress live, and the S4 screen (0.4) renders it.
+
 **Providers:**
 
 | Data | Provider | Terms | Use |

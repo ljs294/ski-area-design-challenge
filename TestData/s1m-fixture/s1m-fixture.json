@@ -1,0 +1,10 @@
+{
+  "source": "https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/S1M/n23w11/n2390w1190/S1M_n2390w1190_20250714.tif",
+  "l0Offset": 233917409,
+  "l1Offset": 60611059,
+  "l0Col": 1024,
+  "l0Row": 7680,
+  "width": 512,
+  "height": 512,
+  "meanAbsDiff": 0.022056
+}

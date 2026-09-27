@@ -1,0 +1,73 @@
+{
+  "FormatVersion": 1,
+  "PackageId": "2e6d79d256b2ece0",
+  "Site": {
+    "Name": "Jackson Hole",
+    "Latitude": 43.593002,
+    "Longitude": -110.848007,
+    "CentreX": -1188828.0,
+    "CentreY": 2381976.0,
+    "SizeMetres": 2000,
+    "RingMetres": 3000
+  },
+  "Crs": {
+    "Epsg": 6350,
+    "VerticalDatum": "NAVD88 (GEOID18), metres",
+    "ScaleParallel": 0.995551262,
+    "ScaleMeridian": 1.004468618,
+    "GridConvergenceDegrees": 8.951904
+  },
+  "Layers": [
+    {
+      "Id": "heights-core",
+      "File": "heights-core.grid",
+      "Type": "float32",
+      "Width": 2000,
+      "Height": 2000,
+      "West": -1189828.0,
+      "North": 2382976.0,
+      "CellSize": 1.0,
+      "Sha256": "9bbcf3bf6eb3246cd13b97c096533edf741e40a2bb17dbf2da81c694df5d6b37",
+      "Min": 1946.408935546875,
+      "Max": 2869.934326171875
+    },
+    {
+      "Id": "heights-ring",
+      "File": "heights-ring.grid",
+      "Type": "float32",
+      "Width": 4000,
+      "Height": 4000,
+      "West": -1192828.0,
+      "North": 2385976.0,
+      "CellSize": 2.0,
+      "Sha256": "e11277d4d113290b38ec00f411598c306398f9f0aa5c0b1c9a9840c1d4f38211",
+      "Min": 1899.8375244140625,
+      "Max": 3278.68212890625
+    }
+  ],
+  "Quality": {
+    "Score": 100,
+    "OneLiner": "Terrain quality 100/100: 100% USGS S1M 1 m lidar",
+    "SourceShares": {
+      "USGS S1M 1 m lidar": 1.0
+    }
+  },
+  "Provenance": [
+    {
+      "Layer": "heights-core, heights-ring",
+      "Provider": "USGS 3DEP",
+      "Product": "Standard 1 m DEM (S1M), 2 m overview for the ring",
+      "Items": [
+        "n2380w1190",
+        "n2380w1200",
+        "n2390w1190",
+        "n2390w1200"
+      ]
+    }
+  ],
+  "Attribution": [
+    "Elevation: U.S. Geological Survey, 3D Elevation Program (public domain)."
+  ],
+  "CreatedUtc": "2026-09-27T18:26:55Z",
+  "Tool": "MountainPlanner.Acquisition 0.1"
+}

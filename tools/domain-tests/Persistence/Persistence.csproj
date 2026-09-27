@@ -5,6 +5,7 @@
     <AssemblyName>MountainPlanner.Persistence</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <Compile Include="$(AssetsRoot)Runtime\Persistence\**\*.cs" />
     <ProjectReference Include="..\Domain\Domain.csproj" />
   </ItemGroup>
