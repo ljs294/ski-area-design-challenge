@@ -1,7 +1,11 @@
 {
     "name": "MountainPlanner.World",
     "rootNamespace": "MountainPlanner.World",
-    "references": ["MountainPlanner.Simulation"],
+    "references": [
+        "MountainPlanner.Domain",
+        "MountainPlanner.Simulation",
+        "MountainPlanner.Persistence"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

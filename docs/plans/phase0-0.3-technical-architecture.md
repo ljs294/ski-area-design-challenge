@@ -117,7 +117,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - The result is saved **losslessly as float32**. This is the authoritative terrain; future drawing tools edit on top of it (§10).
 
 **③ Build the terrain cache** (once per resort, a few seconds to a minute; Phase 1 measures):
-- Split the grids into **1,024 m tiles on the Albers kilometre grid.**
+- Split the grids into **1,024 m tiles**, starting at the ring's north-west corner (task 03: `TileGrid`). The site centre snaps to whole 2 m, so every core edge lies on an S1M 1 m pixel edge and every ring edge on a 2 m overview pixel edge.
   - Core tiles hold 1,025 × 1,025 heights (1 m).
   - Ring tiles hold 513 × 513 heights (2 m).
   - Neighbouring tiles share their edge row, so there are no cracks.
@@ -368,8 +368,8 @@ Measured with Unity's Performance Testing package in a benchmark scene with a fi
 - **Crystal Mountain (5 km):** built locally, never committed. It is not currently in S1M, so it exercises the fallback path.
 - **Performance and live-provider tests:** opt-in only.
 - **Continuous integration:**
-  - Now: `repo-checks`.
-  - **Recommended next:** a `dotnet test` job for the engine-free code, which needs no Unity licence.
+  - `repo-checks`, including the banned-API guard below.
+  - `dotnet-tests` (Phase 1 task 02): the engine-free assemblies and `Tests/Core`, built from the same sources by `tools/domain-tests`, plus the data-spike tests. No Unity licence needed.
   - A GameCI Unity run needs licence secrets; verify Personal-licence activation first.
 - **Guard rail:** a repo check that fails if engine-free folders use banned APIs (§7) or `UnityEngine`.
 

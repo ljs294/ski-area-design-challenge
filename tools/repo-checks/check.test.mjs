@@ -94,3 +94,40 @@ test('.meta integrity: folders need a .meta too', async () => {
   });
   assert.deepEqual(errors, ['Assets/Folder has no .meta file.']);
 });
+
+const guide = { 'AGENTS.md': validAgents, 'CLAUDE.md': '@AGENTS.md\n' };
+function engineFreeFile(folder, source) {
+  const base = `Assets/MountainPlanner/${folder}`;
+  const parts = base.split('/');
+  const files = { ...guide, [`${base}/Code.cs`]: source, [`${base}/Code.cs.meta`]: 'guid' };
+  for (let i = 1; i < parts.length; i++) files[`${parts.slice(0, i + 1).join('/')}.meta`] = 'guid';
+  return files;
+}
+
+test('engine-free: a planted System.Random in Domain fails', async () => {
+  const errors = await errorsFor(engineFreeFile('Runtime/Domain', 'class A {\n  int X() => new System.Random(1).Next();\n}\n'));
+  assert.deepEqual(errors, ['Assets/MountainPlanner/Runtime/Domain/Code.cs:2 uses a banned API in engine-free code: unkeyed randomness (use keyed hash randomness).']);
+});
+
+test('engine-free: wall-clock time and Guid.NewGuid fail in Simulation', async () => {
+  const errors = await errorsFor(engineFreeFile('Runtime/Simulation', 'var a = DateTime.UtcNow;\nvar b = Guid.NewGuid();\n'));
+  assert.equal(errors.length, 2);
+  assert.match(errors.join('\n'), /Code.cs:1 .*wall-clock time/);
+  assert.match(errors.join('\n'), /Code.cs:2 .*Guid.NewGuid/);
+});
+
+test('engine-free: UnityEngine fails anywhere in the core, including core tests', async () => {
+  for (const folder of ['Runtime/Persistence', 'Runtime/Acquisition', 'Tests/Core']) {
+    const errors = await errorsFor(engineFreeFile(folder, 'using UnityEngine;\n'));
+    assert.match(errors.join('\n'), /banned API in engine-free code: UnityEngine/, folder);
+  }
+});
+
+test('engine-free: comments and strings are ignored; Acquisition may read the clock', async () => {
+  assert.deepEqual(await errorsFor(engineFreeFile('Runtime/Domain', '// never System.Random\n/* DateTime.Now */\nvar s = "Guid.NewGuid";\n')), []);
+  assert.deepEqual(await errorsFor(engineFreeFile('Runtime/Acquisition', 'var t = DateTime.UtcNow; var w = Stopwatch.StartNew();\n')), []);
+});
+
+test('engine code outside the core may use Unity and randomness', async () => {
+  assert.deepEqual(await errorsFor(engineFreeFile('Runtime/World', 'using UnityEngine;\nvar r = Random.Range(0, 1);\n')), []);
+});

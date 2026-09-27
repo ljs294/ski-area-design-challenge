@@ -1,0 +1,12 @@
+<Project>
+  <!-- Mirror Unity's compiler profile: C# 9, no implicit usings, nullable off (Unity's default). -->
+  <PropertyGroup>
+    <LangVersion>9.0</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+    <AssetsRoot>$(MSBuildThisFileDirectory)..\..\Assets\MountainPlanner\</AssetsRoot>
+  </PropertyGroup>
+</Project>

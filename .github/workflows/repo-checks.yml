@@ -22,3 +22,17 @@ jobs:
         run: node --test tools/repo-checks/check.test.mjs
       - name: Agent docs and .meta integrity
         run: node tools/repo-checks/check.mjs
+
+  dotnet-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Engine-free core (the same sources Unity compiles)
+        run: dotnet test tools/domain-tests/Tests
+      - name: Data spike (offline, recorded fixtures)
+        run: dotnet test tools/data-spike/tests/DataSpike.Tests
