@@ -201,13 +201,20 @@ namespace MountainPlanner.DataSpike.Providers
             return result.OrderByDescending(s => s.TonsPerAcre).ToList();
         }
 
+        /// <summary>The service mosaics at most this many catalog items per request (maxMosaicImageCount).</summary>
+        public const int MaxMosaicItems = 20;
+
         /// <summary>
-        /// Species mix over a box from one getSamples request on an n×n grid of points: total
-        /// biomass per species summed over the samples, largest first. A single point is fragile
-        /// (it may fall on a ski run); a grid describes the site.
+        /// Species mix over a box: total biomass per species over an n×n grid of points, largest first.
+        /// A single point is fragile (it may fall on a ski run); a grid describes the site.
+        ///
+        /// The service only mosaics 20 of its 328 species layers per request, and 100+ can cover a
+        /// site, so a plain getSamples silently drops most species. Instead: list the layers covering
+        /// the box, then sample them 20 at a time, each batch locked by object id.
         /// </summary>
         public static async Task<List<SpeciesValue>> SpeciesMixAsync(AlbersBox box, int n, TransferStats? stats, CancellationToken ct)
         {
+            var layers = await CatalogItemsAsync(box, stats, ct).ConfigureAwait(false);
             var pts = new StringBuilder("{\"points\":[");
             for (int j = 0; j < n; j++)
                 for (int i = 0; i < n; i++)
@@ -217,25 +224,74 @@ namespace MountainPlanner.DataSpike.Providers
                         Math.Round(box.West + (i + 0.5) * box.Width / n), Math.Round(box.South + (j + 0.5) * box.Height / n));
                 }
             pts.Append("],\"spatialReference\":{\"wkid\":102039}}");
-            string body = "geometry=" + Uri.EscapeDataString(pts.ToString()) +
-                          "&geometryType=esriGeometryMultipoint&returnFirstValueOnly=false&outFields=spcd,common_name&f=json";
+            string geometry = Uri.EscapeDataString(pts.ToString());
+
+            var totals = new Dictionary<int, SpeciesValue>();
+            using var gate = new SemaphoreSlim(4);
+            var batches = layers.Select((l, i) => (l, i)).GroupBy(t => t.i / MaxMosaicItems, t => t.l.ObjectId).Select(g => g.ToList()).ToList();
+            await Task.WhenAll(batches.Select(async batch =>
+            {
+                await gate.WaitAsync(ct).ConfigureAwait(false);
+                try { await SampleLockedAsync(batch, geometry, totals, stats, ct).ConfigureAwait(false); }
+                finally { gate.Release(); }
+            })).ConfigureAwait(false);
+            return totals.Values.OrderByDescending(sv => sv.TonsPerAcre).ThenBy(sv => sv.Spcd).ToList();
+        }
+
+        /// <summary>Layers the service refused to sample (a few items reject getSamples); reported, not fatal.</summary>
+        public static readonly List<int> SkippedLayers = new List<int>();
+
+        // Samples one batch of locked layers. The service rejects a whole batch if one layer is bad,
+        // so a failing batch is split in half until the bad layer is isolated and skipped.
+        static async Task SampleLockedAsync(List<int> ids, string geometry, Dictionary<int, SpeciesValue> totals, TransferStats? stats, CancellationToken ct)
+        {
+            string rule = Uri.EscapeDataString("{\"mosaicMethod\":\"esriMosaicLockRaster\",\"lockRasterIds\":[" +
+                string.Join(",", ids.Select(id => id.ToString(CultureInfo.InvariantCulture))) + "]}");
+            string body = "geometry=" + geometry + "&geometryType=esriGeometryMultipoint&returnFirstValueOnly=false" +
+                          "&outFields=spcd,common_name&mosaicRule=" + rule + "&f=json";
             byte[] response = await Http.GetBytesAsync(() => new HttpRequestMessage(HttpMethod.Post, Service + "/getSamples")
             {
                 Content = new StringContent(body, System.Text.Encoding.UTF8, "application/x-www-form-urlencoded"),
             }, stats, ct).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(response);
-            var totals = new Dictionary<int, SpeciesValue>();
-            foreach (var s in doc.RootElement.GetProperty("samples").EnumerateArray())
+            if (!doc.RootElement.TryGetProperty("samples", out var samples))
             {
-                if (!double.TryParse(s.GetProperty("value").GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double v) || v <= 0) continue;
-                var a = s.GetProperty("attributes");
-                int spcd = a.GetProperty("spcd").GetInt32();
-                if (spcd == 0) continue;
-                if (!totals.TryGetValue(spcd, out var sv))
-                    totals[spcd] = sv = new SpeciesValue { Spcd = spcd, CommonName = a.GetProperty("common_name").GetString() ?? "" };
-                sv.TonsPerAcre += v;
+                if (ids.Count == 1) { lock (SkippedLayers) SkippedLayers.Add(ids[0]); return; }
+                int half = ids.Count / 2;
+                await SampleLockedAsync(ids.Take(half).ToList(), geometry, totals, stats, ct).ConfigureAwait(false);
+                await SampleLockedAsync(ids.Skip(half).ToList(), geometry, totals, stats, ct).ConfigureAwait(false);
+                return;
             }
-            return totals.Values.OrderByDescending(s => s.TonsPerAcre).ToList();
+            lock (totals)
+                foreach (var smp in samples.EnumerateArray())
+                {
+                    if (!double.TryParse(smp.GetProperty("value").GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double v) || v <= 0) continue;
+                    var a = smp.GetProperty("attributes");
+                    int spcd = a.GetProperty("spcd").GetInt32();
+                    if (spcd == 0) continue; // the "Total" layer
+                    if (!totals.TryGetValue(spcd, out var sv))
+                        totals[spcd] = sv = new SpeciesValue { Spcd = spcd, CommonName = a.GetProperty("common_name").GetString() ?? "" };
+                    sv.TonsPerAcre += v;
+                }
+        }
+
+        public sealed class CatalogItem { public int ObjectId; public int Spcd; public string CommonName = ""; }
+
+        /// <summary>The species layers whose footprints cover the box (excluding the "Total" layer).</summary>
+        public static async Task<List<CatalogItem>> CatalogItemsAsync(AlbersBox box, TransferStats? stats, CancellationToken ct)
+        {
+            string env = Uri.EscapeDataString(string.Format(CultureInfo.InvariantCulture,
+                "{{\"xmin\":{0},\"ymin\":{1},\"xmax\":{2},\"ymax\":{3},\"spatialReference\":{{\"wkid\":102039}}}}", box.West, box.South, box.East, box.North));
+            string url = $"{Service}/query?geometry={env}&geometryType=esriGeometryEnvelope&inSR=102039&spatialRel=esriSpatialRelIntersects" +
+                         "&where=spcd%3E0&outFields=objectid,spcd,common_name&returnGeometry=false&f=json";
+            byte[] body = await Http.GetBytesAsync(() => new HttpRequestMessage(HttpMethod.Get, url), stats, ct).ConfigureAwait(false);
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.GetProperty("features").EnumerateArray().Select(f => f.GetProperty("attributes")).Select(a => new CatalogItem
+            {
+                ObjectId = a.GetProperty("objectid").GetInt32(),
+                Spcd = a.GetProperty("spcd").GetInt32(),
+                CommonName = a.GetProperty("common_name").GetString() ?? "",
+            }).OrderBy(c => c.ObjectId).ToList();
         }
 
         /// <summary>Export one species' biomass over a box at 30 m as a float32 GeoTIFF.</summary>
