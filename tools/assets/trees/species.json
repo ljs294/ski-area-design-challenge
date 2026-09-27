@@ -82,7 +82,8 @@
         "#2B4643",
         "#365551",
         "#41625D"
-      ]
+      ],
+      "sprayDensity": 1.05
     },
     {
       "id": "douglas_fir",
@@ -484,8 +485,8 @@
       "primaryLength": 0.4,
       "upward": 0.12,
       "secondaries": [
-        7,
-        10
+        6,
+        9
       ],
       "trunkRadius": 0.017,
       "leaf": "beech",

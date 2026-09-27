@@ -13,6 +13,8 @@ Mesh data the tree shader reads (see README.md):
   UV0             texture coordinates
   UV1 "Data"      x = snow mask (0..1), y = seasonal flag (1 = leaf that drops, 0.5 = leaf kept dry
                   through winter, 0 = permanent)
+  UV2 "Season"    x = per-card random (0..1): the order leaves come out, turn and fall
+                  y = height in the crown (0 = crown base, 1 = top)
   Submeshes       0 bark, 1 foliage or leaves, 2 bare twigs (deciduous), 3 winter-kept leaves (beech)
 """
 import json
@@ -37,11 +39,20 @@ TEX = 512
 # Detail per LOD.
 LODS = [
     {"sides": 8, "branchSides": 4, "segments": 4, "spacing": 1.0, "cards": 1.0, "card": 1.0, "level2": 1.0},
-    {"sides": 6, "branchSides": 3, "segments": 3, "spacing": 1.8, "cards": 0.45, "card": 1.45, "level2": 0.45},
+    {"sides": 6, "branchSides": 3, "segments": 3, "spacing": 1.8, "cards": 0.35, "card": 1.55, "level2": 0.35},
     {"sides": 5, "branchSides": 0, "segments": 2, "spacing": 3.6, "cards": 0.0, "card": 1.0, "level2": 0.0},
 ]
 
 BARK, FOLIAGE, TWIGS, KEPT = 0, 1, 2, 3
+
+# Performance budgets per tree (triangles), enforced: the build fails if any variant exceeds them.
+# Distances are the planned LOD switch points; beyond LOD2 an impostor (2 triangles) takes over.
+# A 5 km site holds ~650,000 trees, so these, not the frame budget alone, keep the forest affordable.
+BUDGET = [
+    {"lod": "LOD0", "until_m": 30, "max_tris": 10000},
+    {"lod": "LOD1", "until_m": 80, "max_tris": 2500},
+    {"lod": "LOD2", "until_m": 150, "max_tris": 500},
+]
 
 
 def smoothstep(a, b, x):
@@ -57,7 +68,7 @@ class MeshBuilder:
     """Collects vertices, faces and the per-vertex / per-corner data the tree shader needs."""
 
     def __init__(self):
-        self.verts, self.wind, self.faces, self.mats, self.uv0, self.data = [], [], [], [], [], []
+        self.verts, self.wind, self.faces, self.mats, self.uv0, self.data, self.season = [], [], [], [], [], [], []
 
     def vert(self, p, wind):
         self.verts.append(tuple(p))
@@ -72,11 +83,12 @@ class MeshBuilder:
             n += Vector(((a.y - b.y) * (a.z + b.z), (a.z - b.z) * (a.x + b.x), (a.x - b.x) * (a.y + b.y)))
         return n.normalized().z if n.length > 1e-12 else 0.0
 
-    def face(self, idx, uvs, mat, snow, flag=0.0):
+    def face(self, idx, uvs, mat, snow, flag=0.0, season=(0.0, 0.0)):
         self.faces.append(tuple(idx))
         self.mats.append(mat)
         self.uv0.extend(uvs)
         self.data.extend([(snow, flag)] * len(idx))
+        self.season.extend([season] * len(idx))
 
     def tube(self, pts, radii, sides, winds, snow_scale=0.6, v_scale=1.0):
         """A tapered bark tube along pts; closes to a point when the last radius is 0."""
@@ -109,7 +121,7 @@ class MeshBuilder:
                 uvs = [(u0, v0), (u1, v0), (u0, v1)] if len(idx) == 3 else [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
                 self.face(idx, uvs, BARK, smoothstep(0.2, 0.8, self.normal_z(idx)) * snow_scale)
 
-    def card(self, base, direction, side, length, width, winds, mat, flag=0.0, snow_scale=1.0):
+    def card(self, base, direction, side, length, width, winds, mat, flag=0.0, snow_scale=1.0, season=(0.0, 0.0)):
         """An alpha-textured card: u runs from base along direction, v across side (centred)."""
         d, s = direction.normalized(), side.normalized()
         if d.cross(s).z < 0:  # keep the textured face up so snow lands on it
@@ -121,7 +133,7 @@ class MeshBuilder:
         w0, w1 = winds
         idx = [self.vert(a, w0), self.vert(b, w1), self.vert(c, w1), self.vert(e, w0)]
         snow = smoothstep(0.1, 0.7, self.normal_z(idx)) * snow_scale
-        self.face(idx, [(0, 0), (1, 0), (1, 1), (0, 1)], mat, snow, flag)
+        self.face(idx, [(0, 0), (1, 0), (1, 1), (0, 1)], mat, snow, flag, season)
 
     def to_object(self, name, materials):
         mesh = bpy.data.meshes.new(name)
@@ -135,6 +147,8 @@ class MeshBuilder:
         uv.data.foreach_set("uv", [c for p in self.uv0 for c in p])
         data = mesh.uv_layers.new(name="Data")
         data.data.foreach_set("uv", [c for p in self.data for c in p])
+        season = mesh.uv_layers.new(name="Season")
+        season.data.foreach_set("uv", [c for p in self.season for c in p])
         mesh.uv_layers.active_index = 0
         col = mesh.color_attributes.new(name="Wind", type="FLOAT_COLOR", domain="POINT")
         col.data.foreach_set("color", [c for w in self.wind for c in w])
@@ -194,14 +208,23 @@ def build_conifer(sp, rng, lod, height):
     z, k = crown_base, 0
     lo, hi = sp["branchesPerWhorl"]
     top_z = height - max(0.8, 0.05 * height)
+    # Main whorls, plus shorter internodal branches halfway between them (real firs and spruces
+    # carry both), so the crown has no see-through gaps between tiers.
+    tiers = []
     while z < top_z:
-        count = rng.randint(lo, hi)
+        tiers.append((z, rng.randint(lo, hi), 1.0))
+        if lod["cards"] >= 1.0 and sp.get("internodal", True):
+            tiers.append((z + spacing * 0.5, max(2, (lo + hi) // 3), 0.7))
+        z += spacing * rng.uniform(0.85, 1.15)
+    for z, count, reach in tiers:
+        if z >= top_z:
+            continue
         h = (z - crown_base) / (height - crown_base)
         for j in range(count):
             if rng.random() < 0.08:
                 continue
-            az = k * GOLDEN + j * 2 * math.pi / count + rng.uniform(-0.25, 0.25)
-            length = max(0.35, crown_radius(z) * rng.uniform(0.85, 1.1))
+            az = k * GOLDEN + j * 2 * math.pi / count + rng.uniform(-0.25, 0.25) + (0.0 if reach == 1.0 else math.pi / count)
+            length = max(0.35, crown_radius(z) * rng.uniform(0.85, 1.1) * reach)
             elev = math.radians(lerp(sp["branchElevation"][1], sp["branchElevation"][0], h))
             base = trunk_point(z / height)
             d = Vector((math.cos(az), math.sin(az), 0))
@@ -219,9 +242,12 @@ def build_conifer(sp, rng, lod, height):
                 return (branch_point(min(1, t + 0.02)) - branch_point(max(0, t - 0.02))).normalized()
 
             winds = [(sway(p.z), s / segs, phase, 0.0) for s, p in enumerate(pts)]
-            if lod["branchSides"]:
+            if lod["branchSides"] and reach == 1.0:
+                # Conifer branches are mostly hidden by their sprays: a 3-sided tube through every
+                # other point is enough (internodal branches get none).
                 r0 = max(0.015, trunk_r * 0.22 * (1 - h * 0.6))
-                b.tube(pts, [r0 * (1 - s / segs * 0.85) for s in range(segs + 1)], lod["branchSides"], winds, snow_scale=0.4)
+                keep = list(range(0, segs + 1, 2)) if segs > 2 else list(range(segs + 1))
+                b.tube([pts[i] for i in keep], [r0 * (1 - i / segs * 0.85) for i in keep], 3, [winds[i] for i in keep], snow_scale=0.4)
 
             if lod["cards"] == 0:
                 # LOD2: two broad crossed spray cards per branch keep the silhouette.
@@ -232,7 +258,7 @@ def build_conifer(sp, rng, lod, height):
                 continue
 
             # Sprays along the branch, alternating sides, plus one at the tip.
-            n_sprays = max(2, int(length * sp["spraysPerMetre"] * 1.6 * lod["cards"]))
+            n_sprays = max(2, int(length * sp["spraysPerMetre"] * sp.get("sprayDensity", 1.2) * lod["cards"]))
             size = lod["card"]
             start = 0.55 if sp.get("tufts") else 0.12
             for i in range(n_sprays):
@@ -247,16 +273,18 @@ def build_conifer(sp, rng, lod, height):
                 dirn.z -= sp["droop"] * 0.3
                 ln = spray_len * 1.5 * size * (1 - 0.3 * t) * rng.uniform(0.85, 1.15)
                 wd = spray_w * 1.6 * size * (1 - 0.25 * t)
-                roll = rng.uniform(-0.35, 0.35)
+                roll = rng.uniform(-0.6, 0.6)
                 wn = [(sway(p.z), t, phase, 0.5), (sway(p.z), min(1.0, t + 0.2), phase, 1.0)]
                 b.card(p, dirn, horizontal_side(dirn, roll), ln, wd, wn, FOLIAGE, snow_scale=0.38)
                 if sp.get("crossed") or sp.get("tufts"):
                     b.card(p, dirn, horizontal_side(dirn, roll + 1.4), ln * 0.9, wd * 0.9, wn, FOLIAGE, snow_scale=0.25)
+                elif lod["cards"] >= 1.0 and i % 2 == 0:
+                    # A tilted second spray every other station gives flat sprays volume from the side.
+                    b.card(p, dirn, horizontal_side(dirn, roll + rng.choice((-1, 1)) * 1.1), ln * 0.75, wd * 0.8, wn, FOLIAGE, snow_scale=0.2)
             tip = pts[-1]
             tan = branch_tangent(0.97)
             b.card(tip - tan * spray_len * 0.3, tan, horizontal_side(tan, 0.0), spray_len * size, spray_w * size,
                    [(sway(tip.z), 0.9, phase, 0.8), (sway(tip.z), 1.0, phase, 1.0)], FOLIAGE)
-        z += spacing * rng.uniform(0.85, 1.15)
         k += 1
 
     # Leader: upright sprays to the tip so the top is never bare.
@@ -322,7 +350,7 @@ def build_deciduous(sp, rng, lod, height):
         if branch_len < 0.6:
             return  # crowded stubs near the top would pile cards into dark clumps
         scale = min(1.0, branch_len / 1.8)
-        count = max(1, int(5 * lod["cards"] * scale + 0.5))
+        count = max(1, int(4 * lod["cards"] * scale + 0.5))
         for i in range(count):
             p, tan = along(pts, lerp(0.35, 1.0, (i + rng.random() * 0.5) / count))
             a = rng.uniform(-0.9, 0.9)
@@ -336,9 +364,10 @@ def build_deciduous(sp, rng, lod, height):
             for _ in range(2):
                 ld = (dirn + Vector((rng.uniform(-0.6, 0.6), rng.uniform(-0.6, 0.6), rng.uniform(-0.2, 0.3)))).normalized()
                 kept = "marcescent" in sp and p.z < crown_base + 0.45 * (height - crown_base) and rng.random() < 0.7
+                rel = min(1.0, max(0.0, (p.z - crown_base) / (height - crown_base)))
                 b.card(p, ld, horizontal_side(ld, rng.uniform(-0.6, 0.6)), 1.1 * size, 1.0 * size,
                        [(sway(p.z), 0.8, phase, 1.0), (sway(p.z), 1.0, phase, 1.0)],
-                       KEPT if kept else FOLIAGE, flag=0.5 if kept else 1.0, snow_scale=0.0)
+                       KEPT if kept else FOLIAGE, flag=0.5 if kept else 1.0, snow_scale=0.0, season=(rng.random(), rel))
 
     stems = rng.randint(*sp["stems"])
     for stem in range(stems):
@@ -351,8 +380,9 @@ def build_deciduous(sp, rng, lod, height):
         trunk = curve(offset - Vector((0, 0, 0.3)), lean, s_height * split + 0.3, 1.0, 8)
         tr = trunk_r * (1.0 if stem == 0 else 0.75)
         ph = rng.random()
-        b.tube(trunk, [tr * (1 - 0.5 * i / 8) for i in range(9)], lod["sides"], [(sway(p.z), 0.0, ph, 0.0) for p in trunk],
-               snow_scale=0.2, v_scale=0.5)
+        rings = range(0, 9, 1 if lod["cards"] else 2)  # LOD2: half the trunk rings
+        b.tube([trunk[i] for i in rings], [tr * (1 - 0.5 * i / 8) for i in rings], lod["sides"],
+               [(sway(trunk[i].z), 0.0, ph, 0.0) for i in rings], snow_scale=0.2, v_scale=0.5)
 
         # Leaders continue the trunk (maples, beech and yellow birch fork into several).
         leaders = []
@@ -371,7 +401,7 @@ def build_deciduous(sp, rng, lod, height):
 
         # Primaries: the lower half from the trunk above the crown base, the rest from the leaders.
         lo, hi = sp["primaries"]
-        count = max(4, int(rng.randint(lo, hi) * 1.4 / stems ** 0.5 * (1.0 if lod["cards"] else 0.7)))
+        count = max(4, int(rng.randint(lo, hi) * 1.4 / stems ** 0.8 * (1.0 if lod["cards"] else 0.4)))
         for i in range(count):
             if i < count // 2 or not leaders:
                 h = lerp(crown_base, trunk[-1].z, (i + rng.random() * 0.6) / max(1, count // 2))
@@ -406,7 +436,8 @@ def build_deciduous(sp, rng, lod, height):
                 b.card(mid, tan, horizontal_side(tan, 0.3), length * 0.7, length * 0.6,
                        [(sway(mid.z), 0.6, phase, 0.8), (sway(pts[-1].z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.3)
                 b.card(mid, tan, horizontal_side(tan, 1.2), length * 0.7, length * 0.6,
-                       [(sway(mid.z), 0.6, phase, 1.0), (sway(pts[-1].z), 1.0, phase, 1.0)], FOLIAGE, flag=1.0, snow_scale=0.0)
+                       [(sway(mid.z), 0.6, phase, 1.0), (sway(pts[-1].z), 1.0, phase, 1.0)], FOLIAGE, flag=1.0, snow_scale=0.0,
+                       season=(rng.random(), 0.5))
                 continue
             for j in range(n2):
                 tj = lerp(0.3, 0.95, (j + rng.random() * 0.5) / n2)
@@ -446,7 +477,7 @@ def image(name, pixels, out_dir):
     return img
 
 
-def material(name, img, snow_load=1.0, cutout=False, leaf=False):
+def material(name, img, snow_load=1.0, cutout=False, leaf=False, img2=None):
     """Preview material: texture, snow from UV1.x on up-facing fronts, winter hide from UV1.y."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
@@ -498,10 +529,37 @@ def material(name, img, snow_load=1.0, cutout=False, leaf=False):
         link(trans.outputs["BSDF"], blend.inputs[2])
         surface = blend.outputs["Shader"]
     if cutout:
-        hide = node("ShaderNodeValue", name="WinterHide")
-        hide.outputs[0].default_value = 0.0
-        dropped = math_node("MULTIPLY", math_node("GREATER_THAN", sep.outputs["Y"], 0.75), hide.outputs[0])
-        alpha = math_node("MULTIPLY", tex.outputs["Alpha"], math_node("SUBTRACT", 1.0, dropped))
+        # Season controls (the game's tree shader does the same): LeafShow is the fraction of
+        # seasonal leaves present (leaf-out and leaf drop, card by card in random order), ColourMix
+        # moves cards from Tex to Tex2 (autumn) with a per-card stagger, and Tint lightens new
+        # spring leaves.
+        season = node("ShaderNodeUVMap", uv_map="Season")
+        sep2 = node("ShaderNodeSeparateXYZ")
+        link(season.outputs["UV"], sep2.inputs[0])
+        show = node("ShaderNodeValue", name="LeafShow")
+        show.outputs[0].default_value = 1.0
+        colour = node("ShaderNodeValue", name="ColourMix")
+        colour.outputs[0].default_value = 0.0
+        tint = node("ShaderNodeValue", name="Tint")
+        tint.outputs[0].default_value = 0.0
+        tex2 = node("ShaderNodeTexImage", name="Tex2")
+        tex2.image = img2 or img
+        uv0 = node("ShaderNodeUVMap", uv_map="UVMap")
+        link(uv0.outputs["UV"], tex.inputs["Vector"])
+        link(uv0.outputs["UV"], tex2.inputs["Vector"])
+        turn = math_node("MULTIPLY", math_node("SUBTRACT", colour.outputs[0], math_node("MULTIPLY", sep2.outputs["X"], 0.5)), 2.0, clamp=True)
+        seasonal = node("ShaderNodeMix", data_type="RGBA")
+        link(tex.outputs["Color"], seasonal.inputs["A"])
+        link(tex2.outputs["Color"], seasonal.inputs["B"])
+        link(turn, seasonal.inputs["Factor"])
+        spring = node("ShaderNodeMix", data_type="RGBA", blend_type="MULTIPLY")
+        spring.inputs["B"].default_value = (1.35, 1.5, 0.75, 1)
+        link(seasonal.outputs["Result"], spring.inputs["A"])
+        link(tint.outputs[0], spring.inputs["Factor"])
+        link(spring.outputs["Result"], mix.inputs["A"])
+        drops = math_node("GREATER_THAN", sep.outputs["Y"], 0.75)
+        gone = math_node("MULTIPLY", drops, math_node("GREATER_THAN", sep2.outputs["X"], show.outputs[0]))
+        alpha = math_node("MULTIPLY", tex.outputs["Alpha"], math_node("SUBTRACT", 1.0, gone))
         cut = node("ShaderNodeMixShader")
         link(alpha, cut.inputs[0])
         link(node("ShaderNodeBsdfTransparent").outputs["BSDF"], cut.inputs[1])
@@ -527,7 +585,7 @@ def species_materials(sp, out_dir):
         seasons["kept"] = image(f"{sp['id']}_leaves_kept", textures.leaf_card(sp["leaf"], sp["marcescent"], seed + 1, TEX, sp["twig"]), out_dir)
     twigs = image(f"{sp['id']}_twigs", textures.twig_card(seed, TEX, sp["twig"]), out_dir)
     mats = [bark,
-            material(f"{sp['id']}_Leaves", seasons["summer"], 0.0, cutout=True, leaf=True),
+            material(f"{sp['id']}_Leaves", seasons["summer"], 0.0, cutout=True, leaf=True, img2=seasons["autumn"]),
             material(f"{sp['id']}_Twigs", twigs, 0.5, cutout=True),
             material(f"{sp['id']}_LeavesKept", seasons.get("kept", seasons["autumn"]), 0.0, cutout=True, leaf=True)]
     return mats, seasons
@@ -535,6 +593,11 @@ def species_materials(sp, out_dir):
 
 def tri_count(obj):
     return sum(len(p.vertices) - 2 for p in obj.data.polygons)
+
+
+def card_area(obj):
+    """Square metres of alpha-tested cards (foliage, leaves, twigs): a proxy for GPU overdraw."""
+    return round(sum(p.area for p in obj.data.polygons if p.material_index != BARK), 1)
 
 
 def build_species(sp, out_dir):
@@ -552,7 +615,8 @@ def build_species(sp, out_dir):
         bpy.ops.export_scene.fbx(filepath=os.path.join(out_dir, f"{sp['id']}_v{v}.fbx"), use_selection=True,
                                  apply_unit_scale=True, axis_forward="-Z", axis_up="Y", mesh_smooth_type="FACE",
                                  colors_type="LINEAR", use_triangles=True, bake_space_transform=True, path_mode="RELATIVE")
-        made.append({"variant": v, "height": round(height, 2), "objects": lods, "triangles": [tri_count(o) for o in lods]})
+        made.append({"variant": v, "height": round(height, 2), "objects": lods, "triangles": [tri_count(o) for o in lods],
+                     "cardAreaM2": [card_area(o) for o in lods]})
     return made, seasons
 
 
@@ -571,14 +635,22 @@ def main():
     for sp in species:
         built[sp["id"]], seasons[sp["id"]] = build_species(sp, out_dir)
         report[sp["id"]] = [{k: v for k, v in m.items() if k != "objects"} for m in built[sp["id"]]]
-        print(f"{sp['name']}: " + "; ".join(f"v{m['variant']} {m['height']} m, tris {m['triangles']}" for m in built[sp["id"]]), flush=True)
+        print(f"{sp['name']}: " + "; ".join(f"v{m['variant']} {m['height']} m, tris {m['triangles']}, cards {m['cardAreaM2'][0]} m2"
+                                             for m in built[sp["id"]]), flush=True)
+    over = [f"{sid} v{m['variant']} {BUDGET[i]['lod']}: {t:,} tris > {BUDGET[i]['max_tris']:,}"
+            for sid, ms in report.items() for m in ms for i, t in enumerate(m["triangles"]) if t > BUDGET[i]["max_tris"]]
     with open(os.path.join(out_dir, "trees.json"), "w") as f:
-        json.dump(report, f, indent=2)
+        json.dump({"budget": BUDGET, "species": report, "overBudget": over}, f, indent=2)
+    print("Budget check: " + ("all trees within budget" if not over else "OVER BUDGET"), flush=True)
+    for line in over:
+        print("  " + line, flush=True)
 
     if "render" in opts:
         import render_preview
         render_preview.render_all(species, built, seasons, opts["render"], opts.get("shots"))
+    return over
 
 
 if __name__ == "__main__":
-    main()
+    # A tree over budget fails the build (non-zero exit), like a failing test.
+    sys.exit(1 if main() else 0)

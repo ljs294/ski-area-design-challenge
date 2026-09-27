@@ -9,8 +9,8 @@ if not exist "%BLENDER%" (
   exit /b 1
 )
 echo Building 11 species x 3 variants x 3 LODs and rendering the review set (about 8 minutes)...
-"%BLENDER%" -b --factory-startup --python "%HERE%build_trees.py" -- --out "%HERE%out" --render "%HERE%out\renders" <nul | findstr /r /c:"tris" /c:"rendered" /c:"Error" /c:"Traceback"
-if errorlevel 1 echo (no build output - check that Blender ran)
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%HERE%build_trees.py" -- --out "%HERE%out" --render "%HERE%out\renders" <nul | findstr /r /c:"tris" /c:"Budget" /c:"rendered" /c:"Error" /c:"Traceback"
+findstr /c:"tris >" "%HERE%out\trees.json" >nul 2>nul && echo WARNING: some trees are over their performance budget - see out\trees.json
 start "" "%HERE%out\renders"
 start "" "%HERE%out"
 pause

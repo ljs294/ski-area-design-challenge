@@ -4,7 +4,8 @@ Shots:
   trees-conifers.png          the conifers, two variants each, snow-loaded, with a 1.8 m skier for scale
   trees-deciduous-winter.png  the deciduous species bare, with a dusting of snow (beech keeps dry leaves)
   trees-deciduous-autumn.png  the same in autumn colour
-  trees-seasons.png           sugar maple and paper birch in winter, summer and autumn
+  trees-season-*.png          sugar maple and paper birch through five stages: winter, spring leaf-out,
+                              summer, peak autumn, late-autumn leaf drop
   trees-closeup.png           conifers from a few metres away, to judge needles and bark
   trees-grove-rockies.png     a Jackson Hole mix from a game-like camera
   trees-grove-newengland.png  a Jackson, NH mix from a game-like camera
@@ -159,24 +160,39 @@ def render(path):
     print("rendered", path, flush=True)
 
 
+# Season stages, as the game's tree shader will drive them (see the review page, "Seasons").
+STAGES = {
+    "winter":      dict(show=0.0, colour=0.0, tint=0.0, kept="kept"),
+    "spring":      dict(show=0.35, colour=0.0, tint=1.0, kept="kept"),
+    "summer":      dict(show=1.0, colour=0.0, tint=0.0, kept="summer"),
+    "autumn":      dict(show=1.0, colour=1.0, tint=0.0, kept="autumn"),
+    "late-autumn": dict(show=0.2, colour=1.0, tint=0.0, kept="kept"),
+}
+
+
 def set_season(species, seasons, season):
-    """Swap leaf textures and snow for winter, summer or autumn."""
+    """Drive leaves, colour and snow for a season stage."""
+    stage = STAGES[season]
     winter = season == "winter"
     for m in bpy.data.materials:
-        if "SnowLoad" in (m.node_tree.nodes if m.node_tree else []):
+        nodes = m.node_tree.nodes if m.node_tree else []
+        if "SnowLoad" in nodes:
             base = 0.6 if m.name.endswith("_Bark") else 0.5 if m.name.endswith("_Twigs") else 1.0
             if m.name.endswith("_Leaves") or m.name.endswith("_LeavesKept"):
                 base = 0.0
-            m.node_tree.nodes["SnowLoad"].outputs[0].default_value = base if winter else 0.0
+            nodes["SnowLoad"].outputs[0].default_value = base if winter else 0.0
+        if "LeafShow" in nodes:
+            nodes["LeafShow"].outputs[0].default_value = stage["show"]
+            nodes["ColourMix"].outputs[0].default_value = stage["colour"]
+            nodes["Tint"].outputs[0].default_value = stage["tint"]
     for sp in species:
         imgs = seasons.get(sp["id"]) or {}
         if not imgs:
             continue
-        leaves = bpy.data.materials[f"{sp['id']}_Leaves"].node_tree.nodes
-        leaves["Tex"].image = imgs["autumn" if season == "autumn" else "summer"]
-        leaves["WinterHide"].outputs[0].default_value = 1.0 if winter else 0.0
         kept = bpy.data.materials[f"{sp['id']}_LeavesKept"].node_tree.nodes
-        kept["Tex"].image = imgs.get("kept", imgs["autumn"]) if season != "summer" else imgs["summer"]
+        img = imgs.get(stage["kept"]) or imgs["autumn"]
+        kept["Tex"].image = img
+        kept["Tex2"].image = img
 
 
 def override(kind):
@@ -313,10 +329,12 @@ def render_all(species, built, seasons, out_dir, shots=None):
     if deciduous and want("seasons"):
         # Seasons: the same trees in winter, summer and autumn, side by side (three renders).
         pick = [sid for sid in ("sugar_maple", "paper_birch") if sid in by_id] or [deciduous[0]["id"]]
-        for season in ("winter", "summer", "autumn"):
-            entries = [(lod0(sid), f"{by_id[sid]['name']}, {season}") for sid in pick]
+        grounds = {"winter": SNOW, "spring": srgb("#6F7A45"), "summer": srgb("#5E6B3A"), "autumn": srgb("#6B5A45"),
+                   "late-autumn": srgb("#5E5040")}
+        for season in STAGES:
+            entries = [(lod0(sid), f"{by_id[sid]['name']}, {season.replace('-', ' ')}") for sid in pick]
             lineup_shot(entries, os.path.join(out_dir, f"trees-season-{season}.png"), season, species, seasons, originals,
-                        top=SNOW if season == "winter" else srgb("#6B5A45" if season == "autumn" else "#5E6B3A"))
+                        top=grounds[season], label_size=0.9)
 
     if conifers and want("closeup"):
         # Close-up at eye level.

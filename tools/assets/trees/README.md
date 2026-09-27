@@ -38,19 +38,25 @@ Each FBX holds `<species>_v<N>_LOD0`, `_LOD1` and `_LOD2`. Unity turns that nami
 | **UV0** | Texture coordinates. Cards are alpha-tested: needle sprays, leaves and twigs |
 | **UV1 x** | **Snow mask:** how much snow the up-facing side can hold. The shader multiplies it by the snow-load input and applies it to front faces only |
 | **UV1 y** | **Season flag:** 1 = a leaf that drops in autumn; 0.5 = a leaf kept, dry, through winter (beech); 0 = permanent |
+| **UV2 x** | **Season order:** a random value per leaf card, which sets when it comes out, turns colour and falls |
+| **UV2 y** | **Crown height** of the card (0 = crown base, 1 = top), so the season can move up or down the crown |
 | **Submesh 0** | Bark |
 | **Submesh 1** | Needles (conifers) or leaves (deciduous; swap summer and autumn textures, hide in winter) |
 | **Submesh 2** | Bare twigs (deciduous): the fine winter crown |
 | **Submesh 3** | Leaves kept through winter (beech) |
 
-## Budgets (measured)
+## Performance budgets (enforced)
 
-| | LOD0 | LOD1 | LOD2 |
+A 5 km site holds about 650,000 trees, so every build checks each variant against a per-tree budget and **exits non-zero if any tree is over**, like a failing test. The budgets are `BUDGET` in `build_trees.py`; the audit plan is 0.3 §8.1.
+
+| Level | Used for (planned) | Budget | Current range |
 |---|---|---|---|
-| Conifers | 1.6–14.7 k tris | 0.6–4.4 k | 160–400 |
-| Deciduous | 7–17 k tris | 2–4.7 k | 350–900 |
+| LOD0 | 0–30 m | ≤ 10,000 triangles | 2.3k–9.7k |
+| LOD1 | 30–80 m | ≤ 2,500 | 0.7k–2.4k |
+| LOD2 | 80–150 m | ≤ 500 | 190–470 |
+| Impostor | beyond 150 m | 2 | baked in Unity |
 
-LOD0 is only drawn close to the camera; beyond about 300 m an impostor takes over (0.3 §4.5). Phase 1 task 15 measures the whole forest against the frame budget.
+`out/trees.json` records the triangles and the **alpha-card area** (m², a proxy for overdraw) of every LOD, plus any budget failures.
 
 ## Adding a species
 

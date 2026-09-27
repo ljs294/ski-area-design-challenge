@@ -174,7 +174,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - **Placement:** Poisson-disc sampling per 64 m tile, seeded by `hash(resortSeed, tileX, tileY)`. Deterministic, never saved (it can be cached).
 - **Density** comes from calibrated canopy cover and slope. **Tree size comes from calibrated canopy height** (D4), so tall old stands and short regrowth look different.
 - **Species** are drawn per tree from the cell's BIGMAP species weights (TR3). Each species maps to a model in the species library (0.5 §3); unmapped species fall back to the nearest look-alike. Krummholz forms replace trees in the band just below the local treeline.
-- **Rendering:** our own GPU-culled `RenderMeshIndirect` instancing and our own octahedral **impostor baker**; LODs down to an impostor beyond about 300 m. Paid renderers or impostor tools (GPU Instancer Pro, Nature Renderer Pro, Amplify Impostors) are used only with the owner's explicit OK (TR2); the free Nature Renderer 6 may be evaluated.
+- **Rendering:** our own GPU-culled `RenderMeshIndirect` instancing and our own octahedral **impostor baker**; LODs down to an impostor beyond about 150 m, with per-tree triangle budgets enforced at build time (§8.1). Paid renderers or impostor tools (GPU Instancer Pro, Nature Renderer Pro, Amplify Impostors) are used only with the owner's explicit OK (TR2); the free Nature Renderer 6 may be evaluated.
 - **One tree shader (TR4)** for every species, with three inputs:
   - **wind:** trunk sway, branch bend and leaf flutter, from weights baked into vertex colours
   - **snow load:** 0–1, snow on upward-facing branch surfaces; fixed at full in iteration 1, and later driven by weather
@@ -358,6 +358,21 @@ Every open of a resort must produce the same terrain tiles, splat and forest, wh
 | Disk per resort | ≤1 GB | 5 km site |
 
 Measured with Unity's Performance Testing package in a benchmark scene with a fixed camera path. Results are recorded as JSON with the commit SHA.
+
+### 8.1 Performance audit: continuous, not a final check (owner request, 2026-09-27)
+
+Performance is checked at every layer, as early as that layer exists:
+
+| Layer | Check | When | Fails the build or PR? |
+|---|---|---|---|
+| **Tree assets** | Per-tree triangle budgets: LOD0 ≤10,000 (to 30 m), LOD1 ≤2,500 (to 80 m), LOD2 ≤500 (to 150 m), then a 2-triangle impostor | Every tree build (`tools/assets/trees`), now | Yes |
+| **Tree assets** | Alpha-card overdraw: card area per tree reported beside triangles | Tree builds (task 08) | Reported; limits set from Unity measurements |
+| **Engine-free code** | No per-frame allocations or banned APIs (repo check and tests) | Every PR | Yes |
+| **Forest in Unity** | GPU time for 1,000 trees at each LOD, shadow cost, draw calls, overdraw view | Style tile (08), then at scale (09) | Numbers in the PR; regressions block the merge |
+| **Whole scene** | Frame p95/p99, VRAM, RAM and GC on the benchmark path (budget table above) | Task 15, then every PR that touches rendering | Yes, against the stored baseline |
+| **Minimum spec** | The stand-in on the reference PC (M1), then a real RTX 2060-class machine | Task 15, then Phase 2 | Yes |
+
+Every PR that touches rendering states its before and after numbers (AGENTS.md: measure before and after perf work).
 
 ## 9. Testing (T14)
 
