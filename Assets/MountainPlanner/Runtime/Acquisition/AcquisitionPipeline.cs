@@ -45,6 +45,7 @@ namespace MountainPlanner.Acquisition
         public const string StageCover = "Ground cover";
         public const string StageSpecies = "Tree species";
         public const string StageBuild = "Building";
+        public const string StagePrepare = "Preparing terrain";
 
         public const double CoverCellMetres = 10;
         public const double SpeciesCellMetres = 30;
@@ -71,7 +72,7 @@ namespace MountainPlanner.Acquisition
                     (int)Math.Ceiling(ringBox.Width / SpeciesCellMetres), (int)Math.Ceiling(ringBox.Height / SpeciesCellMetres));
 
                 // Plan first, so the overall bar and time remaining are honest from the start.
-                foreach (string stage in new[] { StageCore, StageRing, StageForest, StageCover, StageSpecies, StageBuild }) tracker.DefineStage(stage, 1);
+                foreach (string stage in new[] { StageCore, StageRing, StageForest, StageCover, StageSpecies, StageBuild, StagePrepare }) tracker.DefineStage(stage, 1);
                 tracker.BeginStage(StageCore);
                 tracker.BeginStep("planning the download", 1, 1, () => 0.5);
                 var corePlan = await assembler.PlanAsync(site.CoreGrid, 0, ct).ConfigureAwait(false);
@@ -86,6 +87,9 @@ namespace MountainPlanner.Acquisition
                 tracker.SetStageWeight(StageSpecies, CoverAssembler.SpeciesWeight(speciesLayers.Count));
                 // Building takes roughly as long as downloading a few MB; weight it by cells.
                 tracker.SetStageWeight(StageBuild, (site.CoreGrid.CellCount + site.RingGrid.CellCount) * 0.5);
+                // Preparing the terrain cache samples every tile vertex once (task 05).
+                var tileGrid = TileGrid.For(site);
+                tracker.SetStageWeight(StagePrepare, tileGrid.All().Sum(k => (double)tileGrid.Resolution(k) * tileGrid.Resolution(k)) * 0.4);
 
                 var core = await assembler.ExecuteAsync(corePlan, tracker, classify: true, ct).ConfigureAwait(false);
                 tracker.BeginStage(StageRing);
@@ -104,6 +108,9 @@ namespace MountainPlanner.Acquisition
                 AddFloraScore(manifest, site, canopy, canopyMissing, coverPlan.Grid, cover, speciesGrid, species);
                 tracker.BeginStep("writing manifest", 1, 1, () => 0.9);
                 ResortPackage.WriteManifest(packageFolder, manifest);
+
+                tracker.BeginStage(StagePrepare);
+                TerrainCache.Build(packageFolder, manifest, new TileProgress(tracker), ct);
                 tracker.Finish();
                 return manifest;
             }
@@ -165,6 +172,14 @@ namespace MountainPlanner.Acquisition
             manifest.Attribution.Add("Elevation: U.S. Geological Survey, 3D Elevation Program (public domain).");
 
             return manifest;
+        }
+
+        /// <summary>Forwards cache-building progress to the tracker as "preparing terrain tile 17 of 121".</summary>
+        sealed class TileProgress : IProgress<CacheProgress>
+        {
+            readonly ProgressTracker _tracker;
+            public TileProgress(ProgressTracker tracker) => _tracker = tracker;
+            public void Report(CacheProgress p) => _tracker.BeginStep("preparing terrain tile", p.Tile, p.Tiles, () => 0);
         }
 
         /// <summary>Year of the oldest flora imagery: Meta/WRI canopy uses 2017–2020 imagery.</summary>
