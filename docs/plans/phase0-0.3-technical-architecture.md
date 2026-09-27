@@ -232,11 +232,12 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
   - per-layer provenance (provider, product, tile IDs and dates)
   - **attribution text**
   - per-file hashes
-- Layers:
-  - `heights-core.f32` and `heights-ring.f32`
-  - `canopy.u8` (height in 0.25 m steps)
-  - `cover.u8`
-  - `water.json` and `developed.json`
+- Layers (compressed `.grid` files, P5; built by `tools/acquire`, tasks 04a and 04b):
+  - `heights-core` (1 m float32) and `heights-ring` (2 m float32, the whole 3 km surround)
+  - `canopy-core` (1 m, height in 0.25 m steps; **core only**, P7)
+  - `cover` (ESA WorldCover classes at 10 m over the ring)
+  - `species-ids` and `species-weights` (the top four BIGMAP species per 30 m cell over the ring, with shares), indexing the manifest's species table
+  - `water.json` and `developed.json` (task 07)
 
 **Terrain cache:** `<data>/Resorts/<packageId>/cache-v<N>/`, holding per-tile 16-bit heightmaps, control maps and forest tile data. It is rebuilt automatically if missing or if the cache version changes.
 
@@ -246,7 +247,7 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
 |---|---|
 | Core heights, 1 m float32 | 100 MB |
 | Ring heights, 2 m float32 | 96 MB |
-| Canopy and cover grids (1 m core, 2 m ring) | 100 MB |
+| Canopy (1 m core), cover (10 m) and species (30 m) grids, compressed | 5 MB |
 | Water, developed, manifest | <10 MB |
 | Terrain cache: 16-bit tiles (~100 MB), control/splat maps (~200 MB), forest (~20 MB) | ~320 MB |
 | **Total** | **about 650 MB** |

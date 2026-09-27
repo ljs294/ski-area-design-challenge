@@ -133,13 +133,15 @@ namespace MountainPlanner.Acquisition
             var heights = new float[grid.CellCount];
             for (long i = 0; i < heights.LongLength; i++) heights[i] = float.NaN;
 
-            // 1. S1M, sector by sector, with exact byte progress.
+            // 1. S1M, sector by sector, with exact byte progress. Phases share the stage by expected bytes.
+            double s1mShare = plan.ExpectedBytes > 0 ? (double)plan.S1mBytes / plan.ExpectedBytes : 1;
+            progress.SetPhase(0, s1mShare);
             for (int s = 0; s < plan.Sectors.Count; s++)
             {
                 var sector = plan.Sectors[s];
                 long start = _meter.Bytes;
                 long expected = Math.Max(1, sector.Bytes);
-                progress.BeginStep("downloading sector", s + 1, plan.Sectors.Count, () => (_meter.Bytes - start) / (double)expected);
+                progress.BeginStep("downloading sector", s + 1, plan.Sectors.Count, () => (_meter.Bytes - start) / (double)expected, "USGS");
                 foreach (var w in sector.Windows)
                 {
                     float[] block = await w.Tile.ReadWindowAsync(plan.Level, w.X0, w.Y0, w.Width, w.Height, ct).ConfigureAwait(false);
@@ -161,6 +163,7 @@ namespace MountainPlanner.Acquisition
             }
 
             // 2. Fallback: every sector with a gap, or within the blend band of one, from 3DEP.
+            progress.SetPhase(s1mShare, 0.98);
             float[] gapDistance = DistanceToGaps(fromS1m, grid.Columns, grid.Rows, grid.CellSize, BlendMetres);
             var fallbackSectors = plan.Sectors.Where(sec => AnyWithin(gapDistance, grid.Columns, sec, BlendMetres)).ToList();
             result.FallbackSectors = fallbackSectors.Count;
@@ -172,7 +175,7 @@ namespace MountainPlanner.Acquisition
             long perSector = (long)SectorCells * SectorCells * 4;
             long batchStart = _meter.Bytes;
             progress.BeginStep("filling from 3DEP, sector", 1, fallbackSectors.Count,
-                () => (_meter.Bytes - batchStart) / (double)(perSector * Math.Min(4, fallbackSectors.Count)));
+                () => (_meter.Bytes - batchStart) / (double)(perSector * Math.Min(4, fallbackSectors.Count)), "USGS");
             var fetched = new float[fallbackSectors.Count][];
             var identified = new (string Source, double CellSize)?[fallbackSectors.Count];
             var gaps = fallbackSectors.Select(sec =>
@@ -198,7 +201,7 @@ namespace MountainPlanner.Acquisition
                         long doneBytes = _meter.Bytes;
                         if (d < fallbackSectors.Count)
                             progress.BeginStep("filling from 3DEP, sector", d + 1, fallbackSectors.Count,
-                                () => (_meter.Bytes - doneBytes) / (double)(perSector * Math.Min(4, fallbackSectors.Count - d)));
+                                () => (_meter.Bytes - doneBytes) / (double)(perSector * Math.Min(4, fallbackSectors.Count - d)), "USGS");
                     }
                     finally { gate.Release(); }
                 })).ConfigureAwait(false);
@@ -218,6 +221,7 @@ namespace MountainPlanner.Acquisition
             }
 
             // 3. Blend: fallback in the gaps; within 50 m of a gap, ease from fallback to S1M.
+            progress.SetPhase(0.98, 1);
             progress.BeginStep("blending seams", 1, 1, () => 0.5);
             Blend(heights, fromS1m, fallback, gapDistance);
             result.FilledHoles = FillRemaining(heights, grid.Columns, grid.Rows);

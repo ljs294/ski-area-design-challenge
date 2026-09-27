@@ -1,6 +1,6 @@
 {
   "FormatVersion": 1,
-  "PackageId": "2e6d79d256b2ece0",
+  "PackageId": "abcf9fd712a9b1fb",
   "Site": {
     "Name": "Jackson Hole",
     "Latitude": 43.593002,
@@ -19,6 +19,36 @@
   },
   "Layers": [
     {
+      "Id": "canopy-core",
+      "File": "canopy-core.grid",
+      "Type": "uint8",
+      "Width": 2000,
+      "Height": 2000,
+      "West": -1189828.0,
+      "North": 2382976.0,
+      "CellSize": 1.0,
+      "Bands": 1,
+      "Units": "canopy height in 0.25 m steps (0 = open, 255 = 63.75 m or more)",
+      "Sha256": "fce891d43af4c9467874b7f97b6407168bacb85c5268c904e0838507c6826585",
+      "Min": 0.0,
+      "Max": 132.0
+    },
+    {
+      "Id": "cover",
+      "File": "cover.grid",
+      "Type": "uint8",
+      "Width": 800,
+      "Height": 800,
+      "West": -1192828.0,
+      "North": 2385976.0,
+      "CellSize": 10.0,
+      "Bands": 1,
+      "Units": "ESA WorldCover 2021 class (10 trees, 20 shrubs, 30 grass, 60 bare, 70 snow and ice, 80 water, 50 built-up)",
+      "Sha256": "94c4eec252c8cbee10b4d51f6e1e0f58e3c10917be63796235a1d2bd80faea7a",
+      "Min": 10.0,
+      "Max": 100.0
+    },
+    {
       "Id": "heights-core",
       "File": "heights-core.grid",
       "Type": "float32",
@@ -27,6 +57,8 @@
       "West": -1189828.0,
       "North": 2382976.0,
       "CellSize": 1.0,
+      "Bands": 1,
+      "Units": "",
       "Sha256": "9bbcf3bf6eb3246cd13b97c096533edf741e40a2bb17dbf2da81c694df5d6b37",
       "Min": 1946.408935546875,
       "Max": 2869.934326171875
@@ -40,9 +72,41 @@
       "West": -1192828.0,
       "North": 2385976.0,
       "CellSize": 2.0,
+      "Bands": 1,
+      "Units": "",
       "Sha256": "e11277d4d113290b38ec00f411598c306398f9f0aa5c0b1c9a9840c1d4f38211",
       "Min": 1899.8375244140625,
       "Max": 3278.68212890625
+    },
+    {
+      "Id": "species-ids",
+      "File": "species-ids.grid",
+      "Type": "uint8",
+      "Width": 267,
+      "Height": 267,
+      "West": -1192828.0,
+      "North": 2385976.0,
+      "CellSize": 30.0,
+      "Bands": 4,
+      "Units": "top four species per cell, as 1-based indices into Species (0 = none)",
+      "Sha256": "c92fab5219a73c150f88f9f2f8c01bfe451d02d2404a4691d9b68337fe04858a",
+      "Min": 0.0,
+      "Max": 22.0
+    },
+    {
+      "Id": "species-weights",
+      "File": "species-weights.grid",
+      "Type": "uint8",
+      "Width": 267,
+      "Height": 267,
+      "West": -1192828.0,
+      "North": 2385976.0,
+      "CellSize": 30.0,
+      "Bands": 4,
+      "Units": "each top species' share of those four (0–255)",
+      "Sha256": "1552c18ff3750b44dc7adfa8df131c7aaff1a93881cd791f59795c7dbdc1b6eb",
+      "Min": 0.0,
+      "Max": 255.0
     }
   ],
   "Quality": {
@@ -63,11 +127,172 @@
         "n2390w1190",
         "n2390w1200"
       ]
+    },
+    {
+      "Layer": "canopy-core",
+      "Provider": "Meta and World Resources Institute",
+      "Product": "High Resolution Canopy Height Maps (v1, 1 m, core only)",
+      "Items": [
+        "021322030"
+      ]
+    },
+    {
+      "Layer": "cover",
+      "Provider": "ESA",
+      "Product": "WorldCover 2021 v200 (10 m)",
+      "Items": [
+        "ESA_WorldCover_10m_2021_v200_N42W111_Map"
+      ]
+    },
+    {
+      "Layer": "species-ids, species-weights",
+      "Provider": "USDA Forest Service",
+      "Product": "FIA BIGMAP 2018 tree species aboveground biomass (30 m)",
+      "Items": [
+        "60 species layers cover the site; 22 present"
+      ]
+    }
+  ],
+  "Species": [
+    {
+      "Index": 1,
+      "Spcd": 202,
+      "CommonName": "Douglas-fir",
+      "ShareOfBiomass": 0.2545
+    },
+    {
+      "Index": 2,
+      "Spcd": 93,
+      "CommonName": "Engelmann spruce",
+      "ShareOfBiomass": 0.209
+    },
+    {
+      "Index": 3,
+      "Spcd": 19,
+      "CommonName": "subalpine fir",
+      "ShareOfBiomass": 0.2029
+    },
+    {
+      "Index": 4,
+      "Spcd": 108,
+      "CommonName": "lodgepole pine",
+      "ShareOfBiomass": 0.1395
+    },
+    {
+      "Index": 5,
+      "Spcd": 746,
+      "CommonName": "quaking aspen",
+      "ShareOfBiomass": 0.1275
+    },
+    {
+      "Index": 6,
+      "Spcd": 101,
+      "CommonName": "whitebark pine",
+      "ShareOfBiomass": 0.0247
+    },
+    {
+      "Index": 7,
+      "Spcd": 113,
+      "CommonName": "limber pine",
+      "ShareOfBiomass": 0.0112
+    },
+    {
+      "Index": 8,
+      "Spcd": 122,
+      "CommonName": "ponderosa pine",
+      "ShareOfBiomass": 0.0061
+    },
+    {
+      "Index": 9,
+      "Spcd": 18,
+      "CommonName": "corkbark fir",
+      "ShareOfBiomass": 0.005
+    },
+    {
+      "Index": 10,
+      "Spcd": 15,
+      "CommonName": "white fir",
+      "ShareOfBiomass": 0.0049
+    },
+    {
+      "Index": 11,
+      "Spcd": 814,
+      "CommonName": "Gambel oak",
+      "ShareOfBiomass": 0.0044
+    },
+    {
+      "Index": 12,
+      "Spcd": 322,
+      "CommonName": "bigtooth maple",
+      "ShareOfBiomass": 0.0037
+    },
+    {
+      "Index": 13,
+      "Spcd": 96,
+      "CommonName": "blue spruce",
+      "ShareOfBiomass": 0.0034
+    },
+    {
+      "Index": 14,
+      "Spcd": 102,
+      "CommonName": "Rocky Mountain bristlecone pine",
+      "ShareOfBiomass": 0.001
+    },
+    {
+      "Index": 15,
+      "Spcd": 66,
+      "CommonName": "Rocky Mountain juniper",
+      "ShareOfBiomass": 0.0009
+    },
+    {
+      "Index": 16,
+      "Spcd": 749,
+      "CommonName": "narrowleaf cottonwood",
+      "ShareOfBiomass": 0.0003
+    },
+    {
+      "Index": 17,
+      "Spcd": 475,
+      "CommonName": "curlleaf mountain-mahogany",
+      "ShareOfBiomass": 0.0002
+    },
+    {
+      "Index": 18,
+      "Spcd": 65,
+      "CommonName": "Utah juniper",
+      "ShareOfBiomass": 0.0002
+    },
+    {
+      "Index": 19,
+      "Spcd": 106,
+      "CommonName": "common or two-needle pinyon",
+      "ShareOfBiomass": 0.0002
+    },
+    {
+      "Index": 20,
+      "Spcd": 69,
+      "CommonName": "oneseed juniper",
+      "ShareOfBiomass": 0.0001
+    },
+    {
+      "Index": 21,
+      "Spcd": 114,
+      "CommonName": "southwestern white pine ",
+      "ShareOfBiomass": 0.0001
+    },
+    {
+      "Index": 22,
+      "Spcd": 747,
+      "CommonName": "black cottonwood",
+      "ShareOfBiomass": 0.0001
     }
   ],
   "Attribution": [
-    "Elevation: U.S. Geological Survey, 3D Elevation Program (public domain)."
+    "Elevation: U.S. Geological Survey, 3D Elevation Program (public domain).",
+    "Canopy height: © Meta and World Resources Institute, High Resolution Canopy Height Maps (CC BY 4.0).",
+    "Land cover: © ESA WorldCover project 2021, contains modified Copernicus Sentinel data (2021) processed by the ESA WorldCover consortium (CC BY 4.0).",
+    "Tree species: USDA Forest Service, Forest Inventory and Analysis, BIGMAP 2018 (public domain)."
   ],
-  "CreatedUtc": "2026-09-27T18:26:55Z",
+  "CreatedUtc": "2026-09-27T18:44:34Z",
   "Tool": "MountainPlanner.Acquisition 0.1"
 }
