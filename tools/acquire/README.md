@@ -3,10 +3,13 @@
 The command-line face of the game's downloader (Phase 1 task 04; [0.3 §6](../../docs/plans/phase0-0.3-technical-architecture.md)). It runs the same engine-free code the game does: `Assets/MountainPlanner/Runtime/Acquisition` and `Persistence`, built for plain .NET by `tools/domain-tests`.
 
 ```sh
-dotnet run --project tools/acquire -- --name "Jackson Hole" --lat 43.593 --lon -110.848 --km 2 --out tools/acquire/out/jh2
+dotnet run --project tools/acquire -- --name "Jackson Hole" --lat 43.593 --lon -110.848 --km 2   # into your library
+dotnet run --project tools/acquire -- library                                                      # list your mountains
+dotnet run --project tools/acquire -- prepare --package <folder>                                   # rebuild a terrain cache
+dotnet run --project tools/acquire -- validate --package <folder>                                  # check a package's files
 ```
 
-Or double-click `demo.bat` and choose 11–14.
+Without `--out`, a download goes into the library at `%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts\<packageId>` (`--library` changes the root). Or double-click `demo.bat` and choose 11–16.
 
 ## What it does (tasks 04a and 04b)
 1. **Plans the download.** It opens the S1M tile directories and splits the site into 1,000 × 1,000-cell sectors (1 km in the core, 2 km in the ring), with the exact bytes each needs.
@@ -16,7 +19,8 @@ Or double-click `demo.bat` and choose 11–14.
 5. **Forest:** Meta/WRI canopy height on the 1 m core (P7), reprojected from Web Mercator.
 6. **Ground cover:** ESA WorldCover classes on a 10 m grid over the ring.
 7. **Tree species:** lists the BIGMAP layers covering the ring, samples them in locked batches of 20 to find which species are present, downloads a 30 m map of each (up to 24), and keeps the top four per cell with their shares.
-8. **Building:** writes the compressed grids and `manifest.json`, which records provenance, attribution, the species table, the **terrain** quality score and one-liner (T18), the **flora** quality score and one-liner (F1), and a content-hash package id.
+8. **Preparing terrain** (task 05): cuts the heights into 1,024 m Unity-ready tiles (1,025² in the core, 513² in the ring), which share their edges exactly, with detail like "preparing terrain tile 17 of 121".
+9. **Building:** writes the compressed grids and `manifest.json`, which records provenance, attribution, the species table, the **terrain** quality score and one-liner (T18), the **flora** quality score and one-liner (F1), and a content-hash package id.
 
 ## Progress (U6)
 Progress is reported at least 4 times a second: stage, step (for example "downloading sector 5 of 19 · 35%"), overall percentage, megabytes downloaded, speed and time remaining. When a server (USGS, the USDA Forest Service or AWS) is still preparing a response, it says which one, rather than sitting at 0%. Stages with several phases share their part of the bar by expected work, so the bar never moves backwards.

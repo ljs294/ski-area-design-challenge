@@ -130,7 +130,9 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
   - Ring tiles hold 513 × 513 heights (2 m).
   - Neighbouring tiles share their edge row, so there are no cracks.
   - Where a 2 m ring tile meets a 1 m core tile, the core edge is matched to the ring's samples.
-- **Heights to 16-bit:** Unity Terrain stores heights as 16-bit fractions of a height range. Heights are mapped over the site's lowest-to-highest range. With 1,500 m of relief that is **2.3 cm steps**, well below lidar's own vertical accuracy (about 10 cm), so nothing visible is lost. The float32 source keeps full precision for later.
+- **Heights to 16-bit:** Unity Terrain stores heights as 16-bit values but uses only 0–32,766 (15 effective bits; normalised 1.0 = 32,766), so the cache stores exactly that. Heights are mapped over the package's lowest-to-highest range (ring included): at Jackson Hole 5 km that's 1,437 m in **4.4 cm steps** (measured, task 05), still below lidar's own vertical accuracy of about 10 cm. The float32 source keeps full precision for later. Task 06 confirms the 32,766 figure against real `TerrainData`.
+- **Sampling:** heights are one continuous function of position (bilinear between cell centres; the 1 m core eased into the 2 m ring over 16 m at the core's edge), and every tile samples it at its vertices. Neighbouring tiles therefore share identical edges, and where a 1 m tile meets a 2 m tile, its in-between edge samples are the midpoints of the 2 m edge (no T-junction cracks at full detail).
+- **Risk for task 06:** Unity's terrain level-of-detail stitching assumes neighbours of equal heightmap resolution. Where 1,025² core tiles meet 513² ring tiles, cracks could appear at coarser LODs. Task 06 tests it, with 1,025² everywhere (ring upsampled; about 4× the ring's cache) as the fallback.
 - Also cached per tile: the splat/control maps (from cover and slope) and the cover and canopy grids at tile resolution.
 - **Size:** a 5 km site in an 11 km square makes 121 tiles: 25 core and 96 ring.
 
@@ -257,7 +259,7 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
 | Ring heights, 2 m float32 | 96 MB |
 | Canopy (1 m core), cover (10 m) and species (30 m) grids, compressed | 5 MB |
 | Water, developed, manifest | <10 MB |
-| Terrain cache: 16-bit tiles (~100 MB), control/splat maps (~200 MB), forest (~20 MB) | ~320 MB |
+| Terrain cache: 16-bit tiles (measured 30 MB for Jackson Hole 5 km, 121 tiles, 3.5 s to build), control/splat maps (~200 MB), forest (~20 MB) | ~250 MB |
 | **Total** | **about 650 MB** |
 
 **Offline:** the package holds everything the game needs to open a resort, including attribution text for the credits screen. Opening a resort makes **no network calls**.

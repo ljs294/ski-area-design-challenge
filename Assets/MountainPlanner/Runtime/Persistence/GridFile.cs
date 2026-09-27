@@ -11,6 +11,8 @@ namespace MountainPlanner.Persistence
     {
         Float32 = 1,
         UInt8 = 2,
+        /// <summary>Unity-ready terrain heights in the cache (task 05).</summary>
+        UInt16 = 3,
     }
 
     /// <summary>A grid's georeferencing: north-up on EPSG:6350, row 0 at the north edge (0.3 §4.1).</summary>
@@ -35,7 +37,7 @@ namespace MountainPlanner.Persistence
             CellSize = cellSize;
         }
 
-        public int BytesPerCell => Type == GridValueType.Float32 ? 4 : 1;
+        public int BytesPerCell => Type == GridValueType.Float32 ? 4 : Type == GridValueType.UInt16 ? 2 : 1;
     }
 
     /// <summary>
@@ -75,6 +77,31 @@ namespace MountainPlanner.Persistence
             var values = new float[header.Width * header.Height];
             Buffer.BlockCopy(raw, 0, values, 0, raw.Length);
             return values;
+        }
+
+        public static void Write(Stream output, GridHeader header, ushort[] values)
+        {
+            if (header.Type != GridValueType.UInt16) throw new ArgumentException("Header type must be UInt16 for ushort values.");
+            CheckLength(header, values.Length);
+            var raw = new byte[values.Length * 2];
+            Buffer.BlockCopy(values, 0, raw, 0, raw.Length);
+            WriteRaw(output, header, raw);
+        }
+
+        public static ushort[] ReadShorts(Stream input, out GridHeader header)
+        {
+            byte[] raw = ReadRaw(input, out header);
+            if (header.Type != GridValueType.UInt16) throw new InvalidDataException("The grid is not uint16.");
+            var values = new ushort[header.Width * header.Height];
+            Buffer.BlockCopy(raw, 0, values, 0, raw.Length);
+            return values;
+        }
+
+        public static string HashValues(ushort[] values)
+        {
+            var raw = new byte[values.Length * 2];
+            Buffer.BlockCopy(values, 0, raw, 0, raw.Length);
+            return Hex(raw);
         }
 
         public static byte[] ReadBytes(Stream input, out GridHeader header)
@@ -122,6 +149,7 @@ namespace MountainPlanner.Persistence
                 var chunk = new byte[rows * rowBytes];
                 Buffer.BlockCopy(raw, c * ChunkRows * rowBytes, chunk, 0, chunk.Length);
                 if (header.Type == GridValueType.Float32) FloatPredictor.Encode(chunk, header.Width, rows);
+                else if (header.Type == GridValueType.UInt16) ShortPredictor.Encode(chunk, header.Width, rows);
                 else BytePredictor.Encode(chunk, header.Width, rows);
                 compressed[c] = Deflate(chunk);
             }
@@ -149,7 +177,7 @@ namespace MountainPlanner.Persistence
             ushort version = r.ReadUInt16();
             if (version != Version) throw new InvalidDataException($"Unsupported grid file version {version}.");
             var type = (GridValueType)r.ReadByte();
-            if (type != GridValueType.Float32 && type != GridValueType.UInt8) throw new InvalidDataException($"Unknown grid type {(byte)type}.");
+            if (type != GridValueType.Float32 && type != GridValueType.UInt8 && type != GridValueType.UInt16) throw new InvalidDataException($"Unknown grid type {(byte)type}.");
             if (r.ReadByte() != 1) throw new InvalidDataException("Unknown grid compression.");
             var header = new GridHeader(type, r.ReadInt32(), r.ReadInt32(), r.ReadDouble(), r.ReadDouble(), r.ReadDouble());
             int chunkRows = r.ReadInt32();
@@ -173,6 +201,7 @@ namespace MountainPlanner.Persistence
                 if (packed.Length != lengths[c]) throw new InvalidDataException("The grid file is truncated.");
                 byte[] chunk = Inflate(packed, rows * rowBytes);
                 if (header.Type == GridValueType.Float32) FloatPredictor.Decode(chunk, header.Width, rows);
+                else if (header.Type == GridValueType.UInt16) ShortPredictor.Decode(chunk, header.Width, rows);
                 else BytePredictor.Decode(chunk, header.Width, rows);
                 Buffer.BlockCopy(chunk, 0, raw, c * ChunkRows * rowBytes, chunk.Length);
             }
@@ -239,6 +268,36 @@ namespace MountainPlanner.Persistence
                     for (int k = 0; k < 4; k++)
                         data[o + i * 4 + (3 - k)] = planar[k * width + i];
             }
+        }
+    }
+
+    /// <summary>Horizontal differencing of 16-bit values per row, for uint16 grids (little-endian).</summary>
+    public static class ShortPredictor
+    {
+        public static void Encode(byte[] data, int width, int rows)
+        {
+            for (int r = 0; r < rows; r++)
+                for (int i = width - 1; i > 0; i--)
+                {
+                    int o = (r * width + i) * 2;
+                    ushort v = (ushort)(data[o] | data[o + 1] << 8), prev = (ushort)(data[o - 2] | data[o - 1] << 8);
+                    ushort d = (ushort)(v - prev);
+                    data[o] = (byte)d;
+                    data[o + 1] = (byte)(d >> 8);
+                }
+        }
+
+        public static void Decode(byte[] data, int width, int rows)
+        {
+            for (int r = 0; r < rows; r++)
+                for (int i = 1; i < width; i++)
+                {
+                    int o = (r * width + i) * 2;
+                    ushort d = (ushort)(data[o] | data[o + 1] << 8), prev = (ushort)(data[o - 2] | data[o - 1] << 8);
+                    ushort v = (ushort)(d + prev);
+                    data[o] = (byte)v;
+                    data[o + 1] = (byte)(v >> 8);
+                }
         }
     }
 

@@ -10,7 +10,7 @@ set "EMPTY=0"
 title Ski Area Design Challenge - demos
 set "SPIKE=%~dp0tools\data-spike"
 set "OUT=%SPIKE%\results\local"
-set "PACKAGES=%~dp0tools\acquire\out"
+set "PACKAGES=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts"
 set "UNITY=C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe"
 
 where dotnet >nul 2>nul
@@ -40,12 +40,13 @@ echo     8  Engine-free tests in plain .NET (no Unity, a few seconds)
 echo     9  Repository checks, including the banned-API guard
 echo     10 Unity tests, EditMode and PlayMode (close the Unity editor first; a few minutes)
 echo.
-echo   Phase 1, task 04a: download a mountain as a resort package
+echo   Phase 1, tasks 04-05: download a mountain into your library
 echo     11 Jackson Hole, 2 km (S1M lidar; about 10 seconds the first time)
 echo     12 Jackson Hole, 5 km (the demo mountain; about a minute)
 echo     13 Crystal Mountain, 2 km (fallback terrain from 3DEP; about 20 seconds)
 echo     14 Any site: enter a name, latitude, longitude and size
-echo     15 Open the downloaded packages folder
+echo     15 Open your library folder
+echo     16 List your mountains (names, both quality scores, disk use)
 echo        Tip: press Ctrl+C during a download, then choose it again - it resumes.
 echo.
 echo     Q  Quit
@@ -77,6 +78,7 @@ if /i "%CHOICE%"=="11" call :acquire "Jackson Hole" 43.593 -110.848 2 & goto don
 if /i "%CHOICE%"=="12" call :acquire "Jackson Hole" 43.593 -110.848 5 & goto done
 if /i "%CHOICE%"=="13" call :acquire "Crystal Mountain" 46.93 -121.49 2 & goto done
 if /i "%CHOICE%"=="14" goto acquirecustom
+if /i "%CHOICE%"=="16" goto library
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -130,6 +132,11 @@ if errorlevel 1 (
 )
 exit /b 0
 
+:library
+chcp 65001 >nul
+dotnet run --project "%~dp0tools\acquire" -- library <nul
+goto done
+
 :acquirecustom
 set "NAME=My site"
 set /p "NAME=Site name: "
@@ -144,11 +151,11 @@ goto done
 set "FILE=%~1"
 set "FILE=%FILE: =-%"
 echo.
-echo Downloading %~1 (%~4 km) into %PACKAGES%\%FILE%-%~4km
+echo Downloading %~1 (%~4 km) into your library (%PACKAGES%)
 echo.
 chcp 65001 >nul
 rem No "<nul" here, so Ctrl+C reaches the tool and it stops cleanly (then resumes next time).
-dotnet run --project "%~dp0tools\acquire" -- --name "%~1" --lat %2 --lon %3 --km %4 --out "%PACKAGES%\%FILE%-%~4km"
+dotnet run --project "%~dp0tools\acquire" -- --name "%~1" --lat %2 --lon %3 --km %4
 exit /b 0
 
 :custom
