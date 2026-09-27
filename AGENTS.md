@@ -61,6 +61,8 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
 | App | `Assets/MountainPlanner/Runtime/App/` | Bootstrap, scene flow, background tasks |
 | Tests | `Assets/MountainPlanner/Tests/` | Core (engine-free), EditMode and PlayMode |
 | Repo checks | `tools/repo-checks/` | Docs pairing, .meta integrity, banned APIs |
-| .NET tools | `tools/domain-tests/`, `tools/data-spike/` | Unity-free builds and tests |
+| .NET tools | `tools/domain-tests/`, `tools/acquire/`, `tools/data-spike/` | Unity-free builds, the downloader CLI |
+| Test data | `TestData/` (Git LFS) | Jackson Hole 2 km package, S1M fixture |
+| Tree assets | `tools/assets/trees/` | Blender species pipeline, enforced budgets |
 | Plans | `docs/plans/` | Roadmap and phase plans |
 | Archived reference | `docs/reference/maplibre-archive.md` | Links into the frozen MapLibre game |

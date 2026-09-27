@@ -100,7 +100,9 @@ Launch ─► S1 Main menu ─► New Mountain ─► S3 Picker ─► S4 Downlo
 ### S4 Download progress
 
 - **Stages with ticks:** Terrain · Forest · Ground cover · Water · (Imagery) · Building.
-- Overall bar, time remaining, **Minimise** and **Cancel** (confirmation: keep the partial download for resuming, or discard it).
+- **Overall bar** with percentage and time remaining.
+- **A detail line that updates at least 4 times a second** (U6, owner requirement), naming the current step and its own progress, for example *"Terrain: downloading sector 5 of 19 · 35%"*, *"Terrain: filling 2 sectors from 3DEP 10 m · 1 of 2"* or *"Building: compressing heights · 60%"*. Also shown: megabytes so far and download speed. Long work is fine; silent work is not.
+- **Minimise** and **Cancel** (confirmation: keep the partial download for resuming, or discard it).
 - Minimised, it becomes a status pill on S1, S2 and S6; clicking restores it.
 
 ### S5 Quality result (T18)

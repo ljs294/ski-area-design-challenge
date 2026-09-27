@@ -143,3 +143,11 @@ Details in [phase1-trees-first-look.md](phase1-trees-first-look.md).
 | T8 | Keep the Jackson, NH hardwoods (sugar maple, red maple, yellow birch, paper birch, beech) in the library |
 | T9 | **Seasons: one model per tree for the whole year.** Shader inputs for leaves present, colour turn, spring tint and snow load, driven by a phenology table per species (dates shifted by latitude and elevation, with a per-tree offset) and the view date; per-card season data is in the meshes |
 | T10 | **Tree budgets, enforced at build time:** LOD0 ≤10,000, LOD1 ≤2,500, LOD2 ≤500 triangles, then an impostor beyond 150 m; confirmed or tightened by the Unity measurements in task 08 (0.3 §8.1) |
+
+## Acquisition: decided 2026-09-27
+
+| ID | Decision |
+|---|---|
+| U6 | **Download progress is always visible and specific:** an overall bar with time remaining, plus a detail line naming the current step and its progress (for example "Terrain: downloading sector 5 of 19 · 35%"), updated at least 4 times a second. Long downloads and preparation are acceptable; silent ones are not |
+| P5 | Resort package files are **losslessly compressed**. Only the 2 km Jackson Hole test terrain is committed (Git LFS); CI fetches only small test fixtures, and tests that need the test terrain run locally |
+| P6 | Task 04 ships in two PRs: **04a** terrain (heights, fallback and blend, package format, resume, quality score, CLI, progress) and **04b** the other layers (canopy, land cover, species) |

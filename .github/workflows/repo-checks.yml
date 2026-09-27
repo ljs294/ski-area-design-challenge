@@ -28,11 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          lfs: true
+          lfs: false
+      # Only the small fixtures: the test terrain (TestData/jackson-hole-2km, ~35 MB) is tested locally,
+      # to stay inside GitHub's free Git LFS bandwidth (P5).
+      - name: Fetch small LFS fixtures
+        run: git lfs pull --include="tools/data-spike/tests/DataSpike.Tests/fixtures/*,TestData/s1m-fixture/*"
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
       - name: Engine-free core (the same sources Unity compiles)
         run: dotnet test tools/domain-tests/Tests
+      - name: Acquisition CLI builds
+        run: dotnet build tools/acquire
       - name: Data spike (offline, recorded fixtures)
         run: dotnet test tools/data-spike/tests/DataSpike.Tests

@@ -5,6 +5,7 @@
     <AssemblyName>MountainPlanner.Acquisition</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <Compile Include="$(AssetsRoot)Runtime\Acquisition\**\*.cs" />
     <ProjectReference Include="..\Domain\Domain.csproj" />
     <ProjectReference Include="..\Persistence\Persistence.csproj" />
