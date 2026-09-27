@@ -1,0 +1,82 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dae7c0ac00831c441a2f253a7575107a, type: 3}
+  m_Name: TreePrototypes
+  m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.TreePrototypeSet
+  Prefabs:
+  - {fileID: 2606859624175012428, guid: 968171f5fe777a747a27b7a447c066f4, type: 3}
+  - {fileID: 2113758476918473355, guid: 8d9f10ede61a7d14bb1f95eb06a9df72, type: 3}
+  - {fileID: 2529414623135940077, guid: e3f8ecd0599cfcc40ba4bdc95375ba2c, type: 3}
+  - {fileID: 376867563922604945, guid: eab8b5bc1d0ac0e4d946c19a22404583, type: 3}
+  - {fileID: 8049646160131131098, guid: 71547a7270476544a83795f6807e00a1, type: 3}
+  - {fileID: 8183739748405428012, guid: 502dea65d93aae24eac4586a54b765d7, type: 3}
+  - {fileID: 4992573312181496987, guid: 09bbe8bcf0ec6454fb2665496973003e, type: 3}
+  - {fileID: 6670374654972425856, guid: ac3b6330736291144b7b3e7f10c07a6d, type: 3}
+  - {fileID: 9166097449707470728, guid: 038d8493fb1b34948accc4be6769761c, type: 3}
+  - {fileID: 229121833784676142, guid: fb60340288db1fa4c9c1cbb9f9024306, type: 3}
+  - {fileID: 4523859071352998830, guid: 0c7a4af07da57154284987823976bc25, type: 3}
+  - {fileID: 3261955247545571045, guid: 7e48e0db5d3fa81479a1d770d60d9519, type: 3}
+  - {fileID: 3292872604418097333, guid: 0a2c1f065ef114b478dfab7daa55419d, type: 3}
+  - {fileID: 6163877780266238597, guid: d1727c2428f02e44f96546a615294a78, type: 3}
+  - {fileID: 4540036191467936994, guid: 82852879db83bfd4182a392b3be7d053, type: 3}
+  - {fileID: 8115513098008917990, guid: 23521e0200f08104a8e2d272be3ac612, type: 3}
+  - {fileID: 1922283038299421726, guid: 1ec7fae583035cc44bcce55e6cd8b2b9, type: 3}
+  - {fileID: 1481758955788959330, guid: c0ea1c6b240478c45a8ce64a3729e975, type: 3}
+  - {fileID: 7458287859582178290, guid: 091aea3a862124d42be1c6b386d4a885, type: 3}
+  - {fileID: 5759915935253092567, guid: ac54b6a025f4d824a8a778abe1fa4a9a, type: 3}
+  - {fileID: 1158770641767853958, guid: 44a78b9d6bc102643a140f1f92ef4fe8, type: 3}
+  - {fileID: 8516965546312045349, guid: 16793f2a9f2b3eb4eaf2dffc44e78575, type: 3}
+  - {fileID: 6781867957533388772, guid: 2a63566f1b3642b4495eca77af4913d1, type: 3}
+  - {fileID: 7000980454489705435, guid: d1139b6292941f841b4f5d0d32209186, type: 3}
+  - {fileID: 7285773150283216039, guid: f186e7b9eadbcbb4c808ea3dd2a7322e, type: 3}
+  - {fileID: 1151862917824052629, guid: 6e55b174d3dc03840bda46de11019ebe, type: 3}
+  - {fileID: 446031600964717877, guid: 28f179466ade42d4f912cf2d11cfeff8, type: 3}
+  - {fileID: 5966213332941406858, guid: d22dc32b45b702547804c434a5130360, type: 3}
+  - {fileID: 5477278757144268870, guid: 1d2aadbb4c323eb45bdd621614e9642d, type: 3}
+  - {fileID: 7598997554904098122, guid: 7041d33c4d6466645adcd4d410aa618a, type: 3}
+  - {fileID: 112623038824980282, guid: 5383cd84580a0db42b36f58cb73ef862, type: 3}
+  - {fileID: 6877449599014433026, guid: d1e2b881afad5ce4ab7f76d24f770071, type: 3}
+  - {fileID: 3913815230886025, guid: f74aeaea8c0fc9f41a741808c9d4f989, type: 3}
+  NativeHeights:
+  - 17.295643
+  - 14.844849
+  - 16.673828
+  - 23.29527
+  - 19.400982
+  - 19.657787
+  - 28.974316
+  - 29.642406
+  - 28.358273
+  - 20.048342
+  - 20.969877
+  - 19.685724
+  - 20.688461
+  - 17.905764
+  - 18.223597
+  - 17.13764
+  - 16.856506
+  - 17.856657
+  - 18.58297
+  - 15.559132
+  - 18.917116
+  - 22.507885
+  - 21.125586
+  - 19.100512
+  - 23.472057
+  - 25.268583
+  - 24.57308
+  - 22.7057
+  - 19.205914
+  - 21.535212
+  - 19.343441
+  - 22.249254
+  - 19.260056

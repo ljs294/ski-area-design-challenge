@@ -54,6 +54,7 @@ echo   Phase 1, task 06: the mountain in Unity
 echo     17 Fly over your mountain in the game (builds the game the first time: about 2 minutes)
 echo     18 Rebuild the game (after pulling new code; close the Unity editor first)
 echo        Tip: re-run 12 once to add OpenStreetMap water and roads to an older Jackson Hole download.
+echo     19 Rebuild the trees from tools\assets\trees and import them (Blender 5.2; close the Unity editor), then 18
 echo.
 echo     Q  Quit
 echo.
@@ -87,6 +88,7 @@ if /i "%CHOICE%"=="14" goto acquirecustom
 if /i "%CHOICE%"=="16" goto library
 if /i "%CHOICE%"=="17" goto play
 if /i "%CHOICE%"=="18" goto buildgame
+if /i "%CHOICE%"=="19" goto trees
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -146,6 +148,17 @@ if not exist "%GAME%" goto done
 echo Starting the game. WASD move, Q/E rotate, R/F tilt, wheel zoom, N snow on/off, V cover map, C Corbet's Couloir, Esc quit.
 start "" "%GAME%"
 goto menu
+
+:trees
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+echo Building the tree library in Blender (about 10 seconds)...
+"%BLENDER%" -b --factory-startup --python "%~dp0tools\assets\trees\build_trees.py" -- --out "%~dp0tools\assets\trees\out" <nul
+if errorlevel 1 (echo   The tree build failed. & goto done)
+echo Importing the trees into Unity (about 2 minutes)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.TreeImport.Import -quit -logFile "%~dp0test-results\trees.log" <nul
+if errorlevel 1 (echo   The import failed - see test-results\trees.log) else (echo   Trees imported. Choose 18 to rebuild the game.)
+goto done
 
 :buildgame
 call :buildplayer

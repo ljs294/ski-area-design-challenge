@@ -1,0 +1,171 @@
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using MountainPlanner.World;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace MountainPlanner.Presentation
+{
+    /// <summary>
+    /// Our own GPU-instanced forest (0.3 §4.5, TR2). All trees live in one GPU buffer; each frame a
+    /// compute shader (ForestCull.compute) culls them against the camera and picks each tree's LOD by
+    /// its height on screen, then a few hundred indirect draws (prototype × LOD × submesh) render every
+    /// visible tree with the tree shader (TreeInstanced.shader). The CPU cost doesn't grow with the
+    /// number of trees, and nothing is allocated per frame.
+    /// </summary>
+    public sealed class ForestRenderer : IDisposable
+    {
+        public const int Lods = 4;
+        /// <summary>Screen-height fractions where LOD0→1, 1→2, 2→card and card→culled (a 20 m tree's card lasts to about 4.5 km).</summary>
+        public static readonly Vector4 Transitions = new Vector4(0.30f, 0.12f, 0.05f, 0.004f);
+
+        readonly ComputeShader _cull;
+        readonly int _clear, _cullKernel, _writeArgs;
+        readonly GraphicsBuffer _trees, _nativeHeights, _prototypeStart, _visible, _counts, _args, _drawCounter;
+        readonly List<Draw> _draws = new List<Draw>();
+        readonly Vector4[] _planes = new Vector4[6];
+        readonly Plane[] _planeScratch = new Plane[6];
+        readonly List<Material> _materials = new List<Material>();
+        readonly int _treeCount, _countSlots;
+        public int TreeCount => _treeCount;
+        public int DrawCount => _draws.Count;
+
+        struct Draw
+        {
+            public Mesh Mesh;
+            public RenderParams Params;
+        }
+
+        public ForestRenderer(TreePrototypeSet set, ForestInstance[] trees, ComputeShader cull, Shader shader, float snowLoad = 1)
+        {
+            _cull = cull;
+            _clear = cull.FindKernel("Clear");
+            _cullKernel = cull.FindKernel("Cull");
+            _writeArgs = cull.FindKernel("WriteArgs");
+            int prototypes = set.Prefabs.Length;
+            _treeCount = trees.Length;
+            _countSlots = prototypes * Lods;
+
+            var perPrototype = new int[prototypes];
+            foreach (var t in trees) perPrototype[t.Prototype]++;
+            var start = new uint[prototypes];
+            for (int p = 1; p < prototypes; p++) start[p] = start[p - 1] + (uint)perPrototype[p - 1];
+
+            _trees = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.Max(1, trees.Length), Marshal.SizeOf<ForestInstance>());
+            if (trees.Length > 0) _trees.SetData(trees);
+            _nativeHeights = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(float));
+            _nativeHeights.SetData(set.NativeHeights);
+            _prototypeStart = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(uint));
+            _prototypeStart.SetData(start);
+            _visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.Max(1, trees.Length * Lods), sizeof(uint));
+            _counts = new GraphicsBuffer(GraphicsBuffer.Target.Structured, _countSlots, sizeof(uint));
+
+            // One indirect draw per prototype, LOD and visible submesh.
+            var args = new List<GraphicsBuffer.IndirectDrawIndexedArgs>();
+            var counters = new List<uint>();
+            var bounds = new Bounds(Vector3.zero, new Vector3(40000, 20000, 40000));
+            for (int p = 0; p < prototypes; p++)
+            {
+                var group = set.Prefabs[p].GetComponent<LODGroup>();
+                var lods = group.GetLODs();
+                for (int l = 0; l < Lods && l < lods.Length; l++)
+                {
+                    var renderer = lods[l].renderers[0];
+                    var mesh = renderer.GetComponent<MeshFilter>().sharedMesh;
+                    var materials = renderer.sharedMaterials;
+                    for (int s = 0; s < mesh.subMeshCount && s < materials.Length; s++)
+                    {
+                        var source = materials[s];
+                        if (source == null || source.name.StartsWith("Hidden")) continue;     // winter: no summer leaves
+                        var material = new Material(shader) { name = source.name + " (forest)" };
+                        material.SetTexture("_BaseMap", source.GetTexture("_BaseMap"));
+                        bool cutout = source.IsKeywordEnabled("_ALPHATEST_ON");
+                        material.SetFloat("_Cutoff", cutout ? 0.5f : 0);
+                        material.SetFloat("_SnowLoad", snowLoad);
+                        // Cards have no snow mask: a flat dusting on their upper side matches the snowy near trees.
+                        if (l == Lods - 1) material.SetFloat("_SnowFlat", 0.45f * snowLoad);
+                        _materials.Add(material);
+                        var props = new MaterialPropertyBlock();
+                        props.SetInt("_VisibleOffset", (int)(l * trees.Length + start[p]));
+                        props.SetBuffer("_Trees", _trees);
+                        props.SetBuffer("_Visible", _visible);
+                        _draws.Add(new Draw
+                        {
+                            Mesh = mesh,
+                            Params = new RenderParams(material)
+                            {
+                                worldBounds = bounds, matProps = props, receiveShadows = true,
+                                shadowCastingMode = l <= 1 ? ShadowCastingMode.On : ShadowCastingMode.Off,
+                            },
+                        });
+                        args.Add(new GraphicsBuffer.IndirectDrawIndexedArgs
+                        {
+                            indexCountPerInstance = mesh.GetIndexCount(s), startIndex = mesh.GetIndexStart(s),
+                            baseVertexIndex = mesh.GetBaseVertex(s), instanceCount = 0, startInstance = 0,
+                        });
+                        counters.Add((uint)(p * Lods + l));
+                    }
+                }
+            }
+            _args = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments | GraphicsBuffer.Target.Structured, Mathf.Max(1, args.Count),
+                                       GraphicsBuffer.IndirectDrawIndexedArgs.size);
+            _args.SetData(args);
+            _drawCounter = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.Max(1, counters.Count), sizeof(uint));
+            _drawCounter.SetData(counters);
+
+            _cull.SetBuffer(_clear, "_Counts", _counts);
+            _cull.SetBuffer(_cullKernel, "_Trees", _trees);
+            _cull.SetBuffer(_cullKernel, "_NativeHeights", _nativeHeights);
+            _cull.SetBuffer(_cullKernel, "_PrototypeStart", _prototypeStart);
+            _cull.SetBuffer(_cullKernel, "_Visible", _visible);
+            _cull.SetBuffer(_cullKernel, "_Counts", _counts);
+            _cull.SetBuffer(_writeArgs, "_Counts", _counts);
+            _cull.SetBuffer(_writeArgs, "_Args", _args);
+            _cull.SetBuffer(_writeArgs, "_DrawCounter", _drawCounter);
+        }
+
+        /// <summary>Culls and draws the forest for a camera. Call once per frame before rendering.</summary>
+        public void Render(Camera camera)
+        {
+            if (_treeCount == 0 || camera == null) return;
+            GeometryUtility.CalculateFrustumPlanes(camera, _planeScratch);
+            for (int i = 0; i < 6; i++) _planes[i] = new Vector4(_planeScratch[i].normal.x, _planeScratch[i].normal.y, _planeScratch[i].normal.z, _planeScratch[i].distance);
+            _cull.SetInt("_TreeCount", _treeCount);
+            _cull.SetInt("_CountSlots", _countSlots);
+            _cull.SetInt("_DrawCount", _draws.Count);
+            _cull.SetVectorArray("_Planes", _planes);
+            _cull.SetVector("_CameraPosition", camera.transform.position);
+            // Same measure as Unity's LODGroup: screen height fraction times the quality LOD bias.
+            _cull.SetFloat("_ScreenScale", QualitySettings.lodBias / (2f * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad)));
+            _cull.SetVector("_Transitions", Transitions);
+            _cull.Dispatch(_clear, (_countSlots + 63) / 64, 1, 1);
+            _cull.Dispatch(_cullKernel, (_treeCount + 63) / 64, 1, 1);
+            _cull.Dispatch(_writeArgs, (_draws.Count + 63) / 64, 1, 1);
+            for (int d = 0; d < _draws.Count; d++)
+                Graphics.RenderMeshIndirect(_draws[d].Params, _draws[d].Mesh, _args, 1, d);
+        }
+
+        public void Dispose()
+        {
+            foreach (var b in new[] { _trees, _nativeHeights, _prototypeStart, _visible, _counts, _args, _drawCounter }) b?.Dispose();
+            foreach (var m in _materials) UnityEngine.Object.Destroy(m);
+            _materials.Clear();
+        }
+    }
+
+    /// <summary>Draws a <see cref="ForestRenderer"/> every frame for the main camera and frees it with the resort.</summary>
+    public sealed class ForestView : MonoBehaviour
+    {
+        public ForestRenderer Renderer;
+        public Camera Camera;
+
+        void LateUpdate() => Renderer?.Render(Camera != null ? Camera : Camera.main);
+
+        void OnDestroy()
+        {
+            Renderer?.Dispose();
+            Renderer = null;
+        }
+    }
+}

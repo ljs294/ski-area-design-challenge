@@ -205,6 +205,14 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - **Estimate:** about 650,000 trees on a 5 km site at 65% forest, plus the ring. Ring trees use impostors only.
 - **Later:** a clearing mask (for trails and lift lines) multiplies into density, so drawing tools remove trees tile by tile.
 
+**As built (first forest, tasks 08-09 started early at the owner's request):**
+- **Placement (`ForestField`, cached per tile as `.trees`, 8 bytes a tree):** candidates come from keyed hashes of global 10 m cells, so each tree belongs to exactly one tile and the same package always grows the same forest. In the core, trees stand only on 1 m canopy pixels of 3 m or more (ski runs, glades and tree islands stay open); count per cell = tree share × density factor (1.5) × crowns per cell; dominant height = tallest canopy × 2.2, each tree 65-100% of it. The ring uses WorldCover forest cells, calibrated from the core (canopy tree share per WorldCover forest cell: 0.27 at Jackson Hole), thinning to 10% over 2 km with wider crowns.
+- **Species (`SpeciesMap`):** each tree draws from its 30 m BIGMAP cell's top-4 weights (else the site's mix); unmodelled species fall back to a genus look-alike (whitebark pine → lodgepole pine, blue spruce → Engelmann spruce, cottonwood → aspen). Three variants per model.
+- **Library in Unity (`TreeImport`, Mountain Planner ▸ Import Trees; demo.bat 19):** the Blender FBX files become URP prefabs with LOD0-2 plus a baked **card** (two crossed quads, alpha from a black/white double render). Deciduous summer leaves are hidden for winter.
+- **Rendering (`ForestRenderer`):** plain Unity terrain trees managed 7-16 FPS with 810,000 trees, so the forest is our own GPU instancing as planned: one buffer of all trees, a compute shader (`ForestCull.compute`) that frustum-culls and picks each tree's LOD by screen height (Unity's LOD bias included), and 237 indirect draws (prototype × LOD × submesh). The tree shader (`TreeInstanced.shader`) adds wrapped lighting, sun shadows (LOD0-1) and **snow on up-facing branches** from the model's snow mask (TR4); cards get a flat dusting.
+- **Measured (Jackson Hole 5 km, reference PC, 1080p):** 810,249 trees (about 230,000 in the core), planted 0.05 s after the ground cover, so everything is on screen by about 9.6 s; **180-275 FPS** depending on the view, against 7-16 FPS with terrain trees. GPU memory for the forest buffers is about 40 MB.
+- **Still to do (tasks 08-09):** wind and seasons in the tree shader, octahedral impostors instead of single-view cards, fuller mid-distance LODs (the owner's branch-density note), krummholz at treeline, per-region calibration, and the GPU-time-per-1,000-trees audit (0.3 §8.1).
+
 ### 4.6 Snow (T8)
 
 - **Iteration 1 (decided):** a **flat 12 in (0.305 m) of snow across the entire map**: every land cell white, trees carrying snow. There is no snow model and no variation.

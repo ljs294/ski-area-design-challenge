@@ -50,6 +50,10 @@ namespace MountainPlanner.Persistence
         public string CoverFile { get; set; } = "";
         public int CoverResolution { get; set; }
         public string CoverSha256 { get; set; } = "";
+        /// <summary>The tile's trees (task 08): <see cref="ForestField.BytesPerTree"/> bytes each.</summary>
+        public string TreesFile { get; set; } = "";
+        public int TreeCount { get; set; }
+        public string TreesSha256 { get; set; } = "";
     }
 
     /// <summary>
@@ -65,7 +69,7 @@ namespace MountainPlanner.Persistence
     public static class TerrainCache
     {
         /// <summary>Bump when the tile format or sampling changes: existing caches are then rebuilt.</summary>
-        public const int Version = 2;
+        public const int Version = 3;
 
         /// <summary>
         /// Splat texels per tile edge: 1 m in core tiles, 4 m in the ring (Unity needs powers of two).
@@ -97,7 +101,8 @@ namespace MountainPlanner.Persistence
                 var m = JsonConvert.DeserializeObject<CacheManifest>(File.ReadAllText(path));
                 return m != null && m.CacheVersion == Version && m.PackageId == package.PackageId
                        && m.Tiles.All(t => File.Exists(Path.Combine(FolderFor(packageFolder), t.File))
-                                           && File.Exists(Path.Combine(FolderFor(packageFolder), t.CoverFile)));
+                                           && File.Exists(Path.Combine(FolderFor(packageFolder), t.CoverFile))
+                                           && File.Exists(Path.Combine(FolderFor(packageFolder), t.TreesFile)));
             }
             catch (JsonException) { return false; }
         }
@@ -112,6 +117,14 @@ namespace MountainPlanner.Persistence
             byte[] values;
             using (var fs = File.OpenRead(Path.Combine(FolderFor(packageFolder), tile.CoverFile))) values = GridFile.ReadBytes(fs, out _);
             if (GridFile.HashValues(values) != tile.CoverSha256) throw new InvalidDataException($"Cache cover {tile.CoverFile} doesn't match its hash.");
+            return values;
+        }
+
+        /// <summary>A tile's packed trees (see <see cref="ForestField.Decode"/>), verified against their hash.</summary>
+        public static byte[] ReadTrees(string packageFolder, CacheTile tile)
+        {
+            byte[] values = File.ReadAllBytes(Path.Combine(FolderFor(packageFolder), tile.TreesFile));
+            if (GridFile.HashValues(values) != tile.TreesSha256) throw new InvalidDataException($"Cache trees {tile.TreesFile} don't match their hash.");
             return values;
         }
 
@@ -132,6 +145,7 @@ namespace MountainPlanner.Persistence
             var ringLayer = package.Layers.First(l => l.Id == "heights-ring");
             var heights = new HeightField(core, coreHeader, ring, ringHeader);
             var cover = new CoverField(package, packageFolder, heights);
+            var forest = new ForestField(package, packageFolder);
 
             var site = SiteSquare.Create(new AlbersPoint(package.Site.CentreX, package.Site.CentreY), package.Site.SizeMetres / 1000.0);
             var tiles = TileGrid.For(site);
@@ -174,11 +188,16 @@ namespace MountainPlanner.Persistence
                 using (var fs = File.Create(Path.Combine(folder, coverFile)))
                     GridFile.Write(fs, new GridHeader(GridValueType.UInt8, coverRes * CoverBands, coverRes, b.West, b.North, (b.East - b.West) / (coverRes - 1)), texels);
 
+                byte[] trees = ForestField.Encode(forest.BuildTile(b), TileGrid.TileMetres);
+                string treesFile = $"t{key.Column}_{key.Row}.trees";
+                File.WriteAllBytes(Path.Combine(folder, treesFile), trees);
+
                 built[n] = new CacheTile
                 {
                     Column = key.Column, Row = key.Row, Resolution = res, Spacing = spacing, West = b.West, North = b.North,
                     Core = tiles.IsCore(key), File = file, Sha256 = GridFile.HashValues(values),
                     CoverFile = coverFile, CoverResolution = coverRes, CoverSha256 = GridFile.HashValues(texels),
+                    TreesFile = treesFile, TreeCount = trees.Length / ForestField.BytesPerTree, TreesSha256 = GridFile.HashValues(trees),
                 };
                 progress?.Report(new CacheProgress(Interlocked.Increment(ref done), keys.Count));
             });

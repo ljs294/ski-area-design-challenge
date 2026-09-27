@@ -115,6 +115,10 @@ namespace MountainPlanner.Editor
             viewer.TerrainMaterial = TerrainMaterial();
             viewer.HighlightMaterial = HighlightMaterial();
             viewer.KeepShaders = TerrainPassMaterials();
+            viewer.Trees = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.TreePrototypeSet>(TreeImport.SetPath);
+            viewer.ForestCull = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/ForestCull.compute");
+            viewer.TreeShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeInstanced.shader");
+            if (viewer.Trees == null) Debug.LogWarning("[ViewerSetup] No tree library yet: run Mountain Planner > Import Trees.");
 
             // A procedural sky until task 11's sky and lighting presets.
             var sky = AssetDatabase.LoadAssetAtPath<Material>("Assets/MountainPlanner/Art/Sky/ProceduralSky.mat");

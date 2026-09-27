@@ -28,6 +28,10 @@ namespace MountainPlanner.App
         public Material HighlightMaterial;
         /// <summary>Materials for the terrain's hidden passes, referenced only so builds keep their shaders.</summary>
         public Material[] KeepShaders;
+        /// <summary>The tree library (Mountain Planner, Import Trees); without it the mountain is bare.</summary>
+        public TreePrototypeSet Trees;
+        public ComputeShader ForestCull;
+        public Shader TreeShader;
 
         string _status = "Starting";
         float _fraction;
@@ -54,7 +58,8 @@ namespace MountainPlanner.App
             try
             {
                 var progress = new Progress<OpenProgress>(p => { _status = p.Detail; _fraction = p.Fraction; });
-                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial);
+                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial,
+                    new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader });
                 _status = $"Opened in {_resort.Seconds:F1} s";
                 Debug.Log($"[MountainViewer] {_resort.Manifest.Site.Name}: {_resort.Tiles.Count} tiles opened in {_resort.Seconds:F2} s");
                 if (Camera != null)
