@@ -1,8 +1,9 @@
 {
-    "name": "MountainPlanner.Simulation",
-    "rootNamespace": "MountainPlanner.Simulation",
+    "name": "MountainPlanner.Acquisition",
+    "rootNamespace": "MountainPlanner.Acquisition",
     "references": [
-        "MountainPlanner.Domain"
+        "MountainPlanner.Domain",
+        "MountainPlanner.Persistence"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

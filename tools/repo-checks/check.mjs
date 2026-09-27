@@ -4,6 +4,7 @@
 //   table has at most 20 rows; local Markdown links resolve.
 // - Unity .meta integrity under Assets/: every asset file and folder has a .meta, and every
 //   .meta has its asset.
+// - Engine-free code: no Unity APIs; Domain and Simulation also ban nondeterministic APIs.
 // Usage: node tools/repo-checks/check.mjs [root]   (root defaults to the current directory)
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -182,6 +183,53 @@ async function checkMetaIntegrity(directory, errors, relative) {
   }
 }
 
+// Engine-free code (docs/plans/phase0-0.3-technical-architecture.md §2, §7, §9): never Unity, and the
+// deterministic assemblies never use wall-clock time, unkeyed randomness or unordered parallelism.
+const engineFreeFolders = [
+  'Assets/MountainPlanner/Runtime/Domain',
+  'Assets/MountainPlanner/Runtime/Simulation',
+  'Assets/MountainPlanner/Runtime/Persistence',
+  'Assets/MountainPlanner/Runtime/Acquisition',
+  'Assets/MountainPlanner/Tests/Core',
+];
+const deterministicFolders = [
+  'Assets/MountainPlanner/Runtime/Domain',
+  'Assets/MountainPlanner/Runtime/Simulation',
+];
+const engineApis = [
+  [/\bUnityEngine\b/, 'UnityEngine'],
+  [/\bUnityEditor\b/, 'UnityEditor'],
+];
+const nondeterministicApis = [
+  [/\bSystem\.Random\b|\bnew\s+Random\s*\(|\bRandom\.(?:Shared|Range|value|InitState)\b/, 'unkeyed randomness (use keyed hash randomness)'],
+  [/\bGuid\.NewGuid\b/, 'Guid.NewGuid'],
+  [/\bDateTime(?:Offset)?\.(?:Now|UtcNow|Today)\b/, 'wall-clock time'],
+  [/\bEnvironment\.TickCount|\bStopwatch\b/, 'wall-clock timing'],
+  [/\bParallel\.(?:For|ForEach|Invoke)\b|\.AsParallel\s*\(/, 'unordered parallelism'],
+];
+
+// Blanks comments and string literals so that only code is matched; keeps line numbers.
+function codeOnly(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
+    .split('\n')
+    .map((line) => line.replace(/@?\$?"(?:[^"\\]|\\.)*"/g, '""').replace(/'(?:[^'\\]|\\.)'/g, "' '").replace(/\/\/.*$/, ''))
+    .join('\n');
+}
+
+async function checkEngineFreeSources(root, files, errors, relative) {
+  const inside = (file, folders) => folders.some((folder) => relative(file).startsWith(`${folder}/`));
+  for (const file of files.filter((candidate) => candidate.endsWith('.cs') && inside(candidate, engineFreeFolders))) {
+    const rules = inside(file, deterministicFolders) ? [...engineApis, ...nondeterministicApis] : engineApis;
+    const lines = codeOnly(normalizedText(await readFile(file, 'utf8'))).split('\n');
+    lines.forEach((line, index) => {
+      for (const [pattern, label] of rules) {
+        if (pattern.test(line)) errors.push(`${relative(file)}:${index + 1} uses a banned API in engine-free code: ${label}.`);
+      }
+    });
+  }
+}
+
 export async function runChecks(root) {
   const errors = [];
   const relative = (file) => path.relative(root, file).replaceAll(path.sep, '/');
@@ -189,6 +237,7 @@ export async function runChecks(root) {
   await checkGuidancePairs(root, files, errors, relative);
   await checkRootRoutingTable(root, errors);
   await checkLocalLinks(files, errors, relative);
+  await checkEngineFreeSources(root, files, errors, relative);
 
   const assets = path.join(root, 'Assets');
   const hasAssets = await exists(assets);

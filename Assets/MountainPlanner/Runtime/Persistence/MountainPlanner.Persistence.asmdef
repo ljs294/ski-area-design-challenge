@@ -1,6 +1,6 @@
 {
-    "name": "MountainPlanner.Simulation",
-    "rootNamespace": "MountainPlanner.Simulation",
+    "name": "MountainPlanner.Persistence",
+    "rootNamespace": "MountainPlanner.Persistence",
     "references": [
         "MountainPlanner.Domain"
     ],

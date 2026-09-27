@@ -368,8 +368,8 @@ Measured with Unity's Performance Testing package in a benchmark scene with a fi
 - **Crystal Mountain (5 km):** built locally, never committed. It is not currently in S1M, so it exercises the fallback path.
 - **Performance and live-provider tests:** opt-in only.
 - **Continuous integration:**
-  - Now: `repo-checks`.
-  - **Recommended next:** a `dotnet test` job for the engine-free code, which needs no Unity licence.
+  - `repo-checks`, including the banned-API guard below.
+  - `dotnet-tests` (Phase 1 task 02): the engine-free assemblies and `Tests/Core`, built from the same sources by `tools/domain-tests`, plus the data-spike tests. No Unity licence needed.
   - A GameCI Unity run needs licence secrets; verify Personal-licence activation first.
 - **Guard rail:** a repo check that fails if engine-free folders use banned APIs (§7) or `UnityEngine`.
 
