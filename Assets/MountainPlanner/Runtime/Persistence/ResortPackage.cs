@@ -26,6 +26,9 @@ namespace MountainPlanner.Persistence
         public CrsInfo Crs { get; set; } = new CrsInfo();
         public List<LayerInfo> Layers { get; set; } = new List<LayerInfo>();
         public QualityInfo Quality { get; set; } = new QualityInfo();
+
+        /// <summary>The flora quality score (F1), beside the terrain score.</summary>
+        public FloraQualityInfo Flora { get; set; } = new FloraQualityInfo();
         public List<ProvenanceInfo> Provenance { get; set; } = new List<ProvenanceInfo>();
 
         /// <summary>The species the species layers index (1-based; 0 means no tree).</summary>
@@ -83,6 +86,14 @@ namespace MountainPlanner.Persistence
         public int Score { get; set; }
         public string OneLiner { get; set; } = "";
         public Dictionary<string, double> SourceShares { get; set; } = new Dictionary<string, double>();
+    }
+
+    public sealed class FloraQualityInfo
+    {
+        public int Score { get; set; }
+        public string OneLiner { get; set; } = "";
+        /// <summary>Coverage, agreement, species fidelity and recency, each 0–100.</summary>
+        public Dictionary<string, double> Components { get; set; } = new Dictionary<string, double>();
     }
 
     public sealed class SpeciesInfo

@@ -40,6 +40,7 @@ try
     display.Done();
     Console.WriteLine($"Package {manifest.PackageId} written to {Path.GetFullPath(opts["out"])} in {(DateTime.UtcNow - started).TotalSeconds:F0} s");
     Console.WriteLine(manifest.Quality.OneLiner);
+    Console.WriteLine(manifest.Flora.OneLiner);
     long size = 0;
     foreach (var f in Directory.GetFiles(opts["out"])) size += new FileInfo(f).Length;
     Console.WriteLine($"Package size {size / 1e6:F1} MB");

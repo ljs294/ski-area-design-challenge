@@ -82,15 +82,60 @@ namespace MountainPlanner.Acquisition
             return plan;
         }
 
-        /// <summary>Canopy height per 1 m core cell, in 0.25 m steps (0 = open ground, 255 = 63.75 m or taller).</summary>
-        public async Task<byte[]> CanopyAsync(CoverPlan plan, ProgressTracker progress, CancellationToken ct)
+        /// <summary>
+        /// Canopy height per 1 m core cell, in 0.25 m steps (0 = open ground, 255 = 63.75 m or taller),
+        /// and how many cells the source had no data for (the flora score's coverage).
+        /// </summary>
+        public async Task<(byte[] Heights, long Missing)> CanopyAsync(CoverPlan plan, ProgressTracker progress, CancellationToken ct)
         {
             var result = new byte[plan.Grid.CellCount];
+            long missing = 0;
             await ResampleAsync(plan, progress, "downloading canopy, band", ToMercator, (i, v) =>
             {
-                if (!float.IsNaN(v)) result[i] = EncodeCanopy(v);
+                if (float.IsNaN(v)) missing++;
+                else result[i] = EncodeCanopy(v);
             }, ct).ConfigureAwait(false);
-            return result;
+            return (result, missing);
+        }
+
+        /// <summary>A 10 m cell counts as forest when any of its 1 m canopy cells reaches 3 m (D4).</summary>
+        public const byte ForestCanopy = 12;
+        public const byte WorldCoverTrees = 10;
+
+        /// <summary>
+        /// The flora score's measurements (F1): on the core's 10 m cells, how often canopy and WorldCover
+        /// agree on forest; over the ring, the share of WorldCover forest that has species data.
+        /// </summary>
+        public static (double Agreement, double SpeciesCoverage) MeasureFlora(GridSpec core, byte[] canopy, GridSpec coverGrid, byte[] cover,
+                                                                             GridSpec speciesGrid, byte[] speciesIds)
+        {
+            int block = (int)Math.Round(coverGrid.CellSize / core.CellSize);
+            int offC = (int)Math.Round((core.West - coverGrid.West) / coverGrid.CellSize);
+            int offR = (int)Math.Round((coverGrid.North - core.North) / coverGrid.CellSize);
+            long agree = 0, compared = 0;
+            for (int br = 0; br < core.Rows / block; br++)
+                for (int bc = 0; bc < core.Columns / block; bc++)
+                {
+                    byte cls = cover[(long)(br + offR) * coverGrid.Columns + bc + offC];
+                    if (cls == 0) continue; // no WorldCover data
+                    bool canopyForest = false;
+                    for (int r = 0; r < block && !canopyForest; r++)
+                        for (int c = 0; c < block && !canopyForest; c++)
+                            canopyForest = canopy[(long)(br * block + r) * core.Columns + bc * block + c] >= ForestCanopy;
+                    compared++;
+                    if (canopyForest == (cls == WorldCoverTrees)) agree++;
+                }
+
+            long forest = 0, withSpecies = 0;
+            for (int r = 0; r < coverGrid.Rows; r++)
+                for (int c = 0; c < coverGrid.Columns; c++)
+                {
+                    if (cover[(long)r * coverGrid.Columns + c] != WorldCoverTrees) continue;
+                    forest++;
+                    var p = coverGrid.CellCentre(c, r);
+                    if (speciesGrid.TryCellAt(p, out int sc, out int sr) && speciesIds[((long)sr * speciesGrid.Columns + sc) * 4] != 0) withSpecies++;
+                }
+            return (compared > 0 ? (double)agree / compared : 0, forest > 0 ? (double)withSpecies / forest : 1);
         }
 
         public static byte EncodeCanopy(float metres)

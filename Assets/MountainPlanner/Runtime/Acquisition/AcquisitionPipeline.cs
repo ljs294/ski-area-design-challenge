@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using MountainPlanner.Acquisition.IO;
 using MountainPlanner.Acquisition.Providers;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Domain.Flora;
 using MountainPlanner.Domain.Terrain;
 using MountainPlanner.Persistence;
 
@@ -90,7 +91,7 @@ namespace MountainPlanner.Acquisition
                 tracker.BeginStage(StageRing);
                 var ring = await assembler.ExecuteAsync(ringPlan, tracker, classify: false, ct).ConfigureAwait(false);
                 tracker.BeginStage(StageForest);
-                byte[] canopy = await covers.CanopyAsync(canopyPlan, tracker, ct).ConfigureAwait(false);
+                var (canopy, canopyMissing) = await covers.CanopyAsync(canopyPlan, tracker, ct).ConfigureAwait(false);
                 tracker.BeginStage(StageCover);
                 byte[] cover = await covers.CoverAsync(coverPlan, tracker, ct).ConfigureAwait(false);
                 tracker.BeginStage(StageSpecies);
@@ -99,6 +100,8 @@ namespace MountainPlanner.Acquisition
                 tracker.BeginStage(StageBuild);
                 var manifest = Build(request, site, corePlan, core, ringPlan, ring, packageFolder, tracker);
                 AddCover(manifest, packageFolder, site, canopyPlan, canopy, coverPlan, cover, speciesGrid, species);
+                tracker.BeginStep("scoring flora", 1, 1, () => 0.5);
+                AddFloraScore(manifest, site, canopy, canopyMissing, coverPlan.Grid, cover, speciesGrid, species);
                 tracker.BeginStep("writing manifest", 1, 1, () => 0.9);
                 ResortPackage.WriteManifest(packageFolder, manifest);
                 tracker.Finish();
@@ -162,6 +165,25 @@ namespace MountainPlanner.Acquisition
             manifest.Attribution.Add("Elevation: U.S. Geological Survey, 3D Elevation Program (public domain).");
 
             return manifest;
+        }
+
+        /// <summary>Year of the oldest flora imagery: Meta/WRI canopy uses 2017–2020 imagery.</summary>
+        public const int FloraDataYear = 2017;
+
+        static void AddFloraScore(PackageManifest manifest, SiteSquare site, byte[] canopy, long canopyMissing, GridSpec coverGrid, byte[] cover,
+                                  GridSpec speciesGrid, CoverAssembler.SpeciesResult species)
+        {
+            var (agreement, speciesCoverage) = CoverAssembler.MeasureFlora(site.CoreGrid, canopy, coverGrid, cover, speciesGrid, species.Ids);
+            double modelled = species.Species.Where(s => TreeLibrary.ModelledSpecies.Contains(s.Spcd)).Sum(s => s.ShareOfBiomass)
+                              / Math.Max(1e-9, species.Species.Sum(s => s.ShareOfBiomass));
+            var inputs = new FloraInputs(1 - canopyMissing / (double)canopy.Length, speciesCoverage, agreement,
+                                         species.Species.Count > 0 ? modelled : 0, FloraDataYear, DateTime.UtcNow.Year);
+            manifest.Flora = new FloraQualityInfo
+            {
+                Score = FloraQuality.Score(inputs),
+                OneLiner = FloraQuality.OneLiner(inputs, "canopy 1 m (2017–2020 imagery)", "species from BIGMAP 30 m"),
+                Components = FloraQuality.Components(inputs).ToDictionary(kv => kv.Key, kv => kv.Value),
+            };
         }
 
         static void AddCover(PackageManifest manifest, string folder, SiteSquare site, CoverPlan canopyPlan, byte[] canopy,

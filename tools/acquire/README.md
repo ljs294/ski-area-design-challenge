@@ -16,7 +16,7 @@ Or double-click `demo.bat` and choose 11–14.
 5. **Forest:** Meta/WRI canopy height on the 1 m core (P7), reprojected from Web Mercator.
 6. **Ground cover:** ESA WorldCover classes on a 10 m grid over the ring.
 7. **Tree species:** lists the BIGMAP layers covering the ring, samples them in locked batches of 20 to find which species are present, downloads a 30 m map of each (up to 24), and keeps the top four per cell with their shares.
-8. **Building:** writes the compressed grids and `manifest.json`, which records provenance, attribution, the species table, the quality score and one-liner (T18), and a content-hash package id.
+8. **Building:** writes the compressed grids and `manifest.json`, which records provenance, attribution, the species table, the **terrain** quality score and one-liner (T18), the **flora** quality score and one-liner (F1), and a content-hash package id.
 
 ## Progress (U6)
 Progress is reported at least 4 times a second: stage, step (for example "downloading sector 5 of 19 · 35%"), overall percentage, megabytes downloaded, speed and time remaining. When a server (USGS, the USDA Forest Service or AWS) is still preparing a response, it says which one, rather than sitting at 0%. Stages with several phases share their part of the bar by expected work, so the bar never moves backwards.
@@ -27,11 +27,11 @@ Progress is reported at least 4 times a second: stage, step (for example "downlo
 
 ## Measured (2026-09-27, reference PC)
 
-| Site | Quality | Downloaded | Time | Package |
-|---|---|---|---|---|
-| Jackson Hole 2 km | 100/100 (S1M) | about 85 MB | about 40 s | 36 MB |
-| Jackson Hole 5 km | 100/100 (S1M) | 252 MB | 69 s | 98 MB |
-| Crystal Mountain 5 km | 48/100 (60% 10 m, 24% 3 m, 16% 1 m) | 484 MB | 101 s | 107 MB |
+| Site | Terrain | Flora | Downloaded | Time | Package |
+|---|---|---|---|---|---|
+| Jackson Hole 2 km | 100/100 (S1M) | 81/100 | about 85 MB | about 40 s | 36 MB |
+| Jackson Hole 5 km | 100/100 (S1M) | 83/100 | 252 MB | 69 s | 98 MB |
+| Crystal Mountain 5 km | 48/100 (60% 10 m, 24% 3 m, 16% 1 m) | 75/100 (42% of forest modelled) | 484 MB | 101 s | 107 MB |
 
 Most of the time goes on the species service (sampling and maps) and, where S1M is missing, on 3DEP generating exports.
 

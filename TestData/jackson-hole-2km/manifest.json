@@ -116,6 +116,16 @@
       "USGS S1M 1 m lidar": 1.0
     }
   },
+  "Flora": {
+    "Score": 81,
+    "OneLiner": "Flora quality 81/100: canopy 1 m (2017–2020 imagery), species from BIGMAP 30 m, 93% of forest shown as its real species, sources agree on 68% of forest",
+    "Components": {
+      "coverage": 91.9,
+      "agreement": 67.9,
+      "speciesFidelity": 93.3,
+      "recency": 58.0
+    }
+  },
   "Provenance": [
     {
       "Layer": "heights-core, heights-ring",
@@ -293,6 +303,6 @@
     "Land cover: © ESA WorldCover project 2021, contains modified Copernicus Sentinel data (2021) processed by the ESA WorldCover consortium (CC BY 4.0).",
     "Tree species: USDA Forest Service, Forest Inventory and Analysis, BIGMAP 2018 (public domain)."
   ],
-  "CreatedUtc": "2026-09-27T18:44:34Z",
+  "CreatedUtc": "2026-09-27T18:55:45Z",
   "Tool": "MountainPlanner.Acquisition 0.1"
 }

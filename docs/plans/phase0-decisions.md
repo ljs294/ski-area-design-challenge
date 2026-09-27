@@ -152,3 +152,4 @@ Details in [phase1-trees-first-look.md](phase1-trees-first-look.md).
 | P5 | Resort package files are **losslessly compressed**. Only the 2 km Jackson Hole test terrain is committed (Git LFS); CI fetches only small test fixtures, and tests that need the test terrain run locally |
 | P6 | Task 04 ships in two PRs: **04a** terrain (heights, fallback and blend, package format, resume, quality score, CLI, progress) and **04b** the other layers (canopy, land cover, species) |
 | P7 | **Canopy covers the 1 m core only.** Its files have no overviews, so the 11 km ring would add 500–700 MB per map. The ring's forest comes from WorldCover (10 m) and BIGMAP species (30 m); it's scenery |
+| F1 | **Flora quality score** beside the terrain score: coverage 35%, canopy/WorldCover agreement 25%, species fidelity 25%, recency 15%, with a one-liner; measured from the package's own layers (0.3 §4.2) |
