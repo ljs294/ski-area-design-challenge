@@ -8,8 +8,8 @@ if not exist "%BLENDER%" (
   pause
   exit /b 1
 )
-echo Building 3 species x 3 variants x 3 LODs and rendering previews (about a minute)...
-"%BLENDER%" -b --factory-startup --python "%HERE%build_trees.py" -- --out "%HERE%out" --render "%HERE%out\renders" <nul | findstr /r /c:"^Subalpine" /c:"^Mountain" /c:"^Quaking" /c:"rendered" /c:"Error" /c:"Traceback"
+echo Building 11 species x 3 variants x 3 LODs and rendering the review set (about 8 minutes)...
+"%BLENDER%" -b --factory-startup --python "%HERE%build_trees.py" -- --out "%HERE%out" --render "%HERE%out\renders" <nul | findstr /r /c:"tris" /c:"rendered" /c:"Error" /c:"Traceback"
 if errorlevel 1 echo (no build output - check that Blender ran)
 start "" "%HERE%out\renders"
 start "" "%HERE%out"

@@ -11,7 +11,7 @@
   - Unity EditMode and PlayMode tests in batchmode, locally
 - **Owner gates:** tasks marked **⛳** stop for your review: the data-spike report, the style tile, and the Phase 1 exit.
 - **Live providers** are used only by the acquisition tool and opt-in tests. Everything else uses recorded fixtures.
-- **Prerequisites (your actions):** install **Blender 4.x LTS** and **Tree It** (both free) for tree assets (task 08). The .NET 10 SDK is already installed.
+- **Prerequisites (your actions):** install **Blender 5.2 LTS** (T4) and **Tree It** (both free) for tree assets (task 08). The .NET 10 SDK is already installed.
 
 ## 2. Task order
 

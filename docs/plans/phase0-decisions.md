@@ -122,3 +122,14 @@ Details in [phase1-data-spike-report.md](phase1-data-spike-report.md) §5–6.
 | D4 | The **canopy map is the primary forest layer**: any tree in a 10 m cell counts, with density and height calibrated. Scored against lidar truth it was 82% correct against WorldCover's 72%. WorldCover supplies the non-forest classes. Task 07 keeps a lidar-truth regression test; more truth sites follow |
 | D5 | BIGMAP is treated as public-domain federal data and credited in the game |
 | D6 | Hands-on demos run from **`demo.bat`** at the repo root; each phase adds its entries, and the game gets a Play entry once it builds |
+
+## Trees review, round 1: decided 2026-09-26
+
+Details in [phase1-trees-first-look.md](phase1-trees-first-look.md).
+
+| ID | Decision |
+|---|---|
+| T1 | More realistic than round 1, still stylized: skeleton plus alpha-textured cards (round 2). Show Jackson, NH hardwoods too |
+| T3 | Trees export as **FBX** (Unity-native), not glTF |
+| T4 | **Blender 5.2 LTS** is the pinned tree tool |
+| T5 | Palette adds pale aspen and birch bark, `#D3D0C2` |

@@ -1,16 +1,19 @@
-"""Builds the stylized species library in Blender, with no manual steps (0.5 §3, TR1, TR2, TR4).
+"""Builds the species library in Blender, with no manual steps (0.5 §3, TR1, TR2, TR4).
 
     blender -b --factory-startup --python tools/assets/trees/build_trees.py -- [--out DIR] [--render DIR] [--species id,id]
 
-For every species in species.json it makes 3 variants x 3 LODs, deterministically (seeded by
-species and variant), and exports one FBX per variant with objects <id>_v<N>_LOD0..2, which Unity
-groups into an LODGroup on import. With --render it also writes review images.
+For every species in species.json it makes 3 variants x 3 LODs, deterministically (seeded by species
+and variant), and exports one FBX per variant with objects <id>_v<N>_LOD0..2 (Unity groups them into an
+LODGroup) plus the generated textures. Trees are a branching skeleton with textured bark, dressed with
+alpha-textured cards: needle sprays (conifers), leaf clusters and bare-twig silhouettes (deciduous).
+With --render it also writes review images.
 
 Mesh data the tree shader reads (see README.md):
   Color (vertex)  R trunk sway weight, G branch flex, B per-branch phase, A leaf/needle flutter
-  UV0             bark and foliage texture coordinates
-  UV1 "Data"      x = snow mask (0..1, faces that can hold snow), y = seasonal leaf flag (1 = drops)
-  Submesh 0 bark, submesh 1 foliage (conifers) or leaves (deciduous)
+  UV0             texture coordinates
+  UV1 "Data"      x = snow mask (0..1), y = seasonal flag (1 = leaf that drops, 0.5 = leaf kept dry
+                  through winter, 0 = permanent)
+  Submeshes       0 bark, 1 foliage or leaves, 2 bare twigs (deciduous), 3 winter-kept leaves (beech)
 """
 import json
 import math
@@ -20,18 +23,25 @@ import sys
 import zlib
 
 import bpy
+import numpy as np
 from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import textures  # noqa: E402
+
 UP = Vector((0.0, 0.0, 1.0))
 GOLDEN = math.radians(137.508)
+TEX = 512
 
-# Detail per LOD: tube sides, segments per branch, whorl-spacing multiplier, foliage style.
+# Detail per LOD.
 LODS = [
-    {"sides": 8, "branchSides": 4, "segments": 5, "spacing": 1.0, "pads": True, "twigs": 1.0, "leafCards": 6},
-    {"sides": 6, "branchSides": 3, "segments": 3, "spacing": 1.9, "pads": True, "twigs": 0.5, "leafCards": 3},
-    {"sides": 5, "branchSides": 3, "segments": 2, "spacing": 4.0, "pads": False, "twigs": 0.0, "leafCards": 0},
+    {"sides": 8, "branchSides": 4, "segments": 4, "spacing": 1.0, "cards": 1.0, "card": 1.0, "level2": 1.0},
+    {"sides": 6, "branchSides": 3, "segments": 3, "spacing": 1.8, "cards": 0.45, "card": 1.45, "level2": 0.45},
+    {"sides": 5, "branchSides": 0, "segments": 2, "spacing": 3.6, "cards": 0.0, "card": 1.0, "level2": 0.0},
 ]
+
+BARK, FOLIAGE, TWIGS, KEPT = 0, 1, 2, 3
 
 
 def smoothstep(a, b, x):
@@ -54,104 +64,64 @@ class MeshBuilder:
         self.wind.append(wind)
         return len(self.verts) - 1
 
-    def face(self, idx, uvs, mat, snow_scale, leaf=0.0, roles=None, snow_from=0.15):
-        """roles: optional per-corner snow weights (1 = ridge that carries the load, 0 = underside)."""
+    def normal_z(self, idx):
         pts = [Vector(self.verts[i]) for i in idx]
         n = Vector((0, 0, 0))
         for i in range(len(pts)):  # Newell normal
             a, b = pts[i], pts[(i + 1) % len(pts)]
             n += Vector(((a.y - b.y) * (a.z + b.z), (a.z - b.z) * (a.x + b.x), (a.x - b.x) * (a.y + b.y)))
-        nz = n.normalized().z if n.length > 1e-12 else 0.0
+        return n.normalized().z if n.length > 1e-12 else 0.0
+
+    def face(self, idx, uvs, mat, snow, flag=0.0):
         self.faces.append(tuple(idx))
         self.mats.append(mat)
         self.uv0.extend(uvs)
-        if roles is None:
-            snow = smoothstep(snow_from, snow_from + 0.6, nz) * snow_scale
-            self.data.extend([(snow, leaf)] * len(idx))
-        else:  # snow rides on the ridges of upward-facing surfaces only
-            gate = smoothstep(-0.05, 0.45, nz) * snow_scale
-            self.data.extend([(r * gate, leaf) for r in roles])
+        self.data.extend([(snow, flag)] * len(idx))
 
-    def tube(self, pts, radii, sides, winds, mat, snow_scale, v_scale=1.0, snow_from=0.15):
-        """A tapered tube along pts; closes to a point when the last radius is 0."""
-        rings, frame = [], None
-        length = 0.0
+    def tube(self, pts, radii, sides, winds, snow_scale=0.6, v_scale=1.0):
+        """A tapered bark tube along pts; closes to a point when the last radius is 0."""
+        if sides < 3:
+            return
+        rings, frame, length = [], None, 0.0
         for i, p in enumerate(pts):
             t = (pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized()
             if frame is None:
                 side = t.cross(UP if abs(t.z) < 0.99 else Vector((1, 0, 0))).normalized()
-            else:  # parallel transport keeps the twist steady
+            else:
                 side = (frame - t * frame.dot(t)).normalized()
             frame = side
             fwd = t.cross(side).normalized()
             if i > 0:
                 length += (p - pts[i - 1]).length
-            ring = []
             if radii[i] <= 1e-6:
                 ring = [self.vert(p, winds[i])] * sides
             else:
-                for k in range(sides):
-                    a = 2 * math.pi * k / sides
-                    ring.append(self.vert(p + (side * math.cos(a) + fwd * math.sin(a)) * radii[i], winds[i]))
+                ring = [self.vert(p + (side * math.cos(2 * math.pi * k / sides) + fwd * math.sin(2 * math.pi * k / sides)) * radii[i], winds[i])
+                        for k in range(sides)]
             rings.append((ring, length))
-        circ = 2 * math.pi * max(radii[0], 0.01)
+        circ = 2 * math.pi * max(radii[0], 0.02)
         for i in range(len(rings) - 1):
             (r0, l0), (r1, l1) = rings[i], rings[i + 1]
             for k in range(sides):
                 k1 = (k + 1) % sides
-                u0, u1 = k / sides, (k + 1) / sides
-                v0, v1 = l0 / circ * v_scale, l1 / circ * v_scale
-                if r1[k] == r1[k1]:
-                    self.face([r0[k], r0[k1], r1[k]], [(u0, v0), (u1, v0), (u0, v1)], mat, snow_scale, snow_from=snow_from)
-                else:
-                    self.face([r0[k], r0[k1], r1[k1], r1[k]], [(u0, v0), (u1, v0), (u1, v1), (u0, v1)], mat, snow_scale, snow_from=snow_from)
+                u0, u1, v0, v1 = k / sides, (k + 1) / sides, l0 / circ * v_scale, l1 / circ * v_scale
+                idx = [r0[k], r0[k1], r1[k]] if r1[k] == r1[k1] else [r0[k], r0[k1], r1[k1], r1[k]]
+                uvs = [(u0, v0), (u1, v0), (u0, v1)] if len(idx) == 3 else [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+                self.face(idx, uvs, BARK, smoothstep(0.2, 0.8, self.normal_z(idx)) * snow_scale)
 
-    def pad(self, pts, widths, thick, winds, mat):
-        """A flattened foliage mass (diamond cross-section) along a branch, closing at the tip."""
-        rings = []
-        for i, p in enumerate(pts):
-            t = (pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized()
-            lat = t.cross(UP)
-            lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
-            up = lat.cross(t).normalized()
-            w = widths[i]
-            if w <= 1e-6:
-                rings.append([self.vert(p, winds[i])] * 4)
-                continue
-            rings.append([
-                self.vert(p - lat * w, winds[i]),
-                self.vert(p + up * w * thick, winds[i]),
-                self.vert(p + lat * w, winds[i]),
-                self.vert(p - up * w * thick * 0.6, winds[i]),
-            ])
-        n = len(rings) - 1
-        role = [0.0, 0.9, 0.0, 0.0]  # left edge, top ridge, right edge, underside
-        for i in range(n):
-            r0, r1 = rings[i], rings[i + 1]
-            for k in range(4):
-                k1 = (k + 1) % 4
-                uvs = [(k / 4, i / n), ((k + 1) / 4, i / n), ((k + 1) / 4, (i + 1) / n), (k / 4, (i + 1) / n)]
-                if r1[k] == r1[k1]:
-                    self.face([r0[k], r0[k1], r1[k]], uvs[:3], mat, 1.0, roles=[role[k], role[k1], 0.5])
-                else:
-                    self.face([r0[k], r0[k1], r1[k1], r1[k]], uvs, mat, 1.0, roles=[role[k], role[k1], role[k1], role[k]])
-        # Close the trunk end so the mass reads solid from any angle.
-        r0 = rings[0]
-        if r0[0] != r0[1]:
-            self.face([r0[3], r0[2], r0[1], r0[0]], [(0, 0), (1, 0), (1, 1), (0, 1)], mat, 1.0, roles=[0, 0, 0, 0])
-
-    def skirt(self, centre, top_r, bottom_r, height, sides, droop, wind, mat):
-        """LOD2 conifer tier: a drooping cone skirt with a closed underside."""
-        top = [self.vert(centre + Vector((math.cos(2 * math.pi * k / sides) * top_r, math.sin(2 * math.pi * k / sides) * top_r, height)), wind(0.0)) for k in range(sides)]
-        bot = [self.vert(centre + Vector((math.cos(2 * math.pi * (k + 0.5) / sides) * bottom_r, math.sin(2 * math.pi * (k + 0.5) / sides) * bottom_r, -droop)), wind(1.0)) for k in range(sides)]
-        mid = self.vert(centre + Vector((0, 0, -droop * 0.3)), wind(0.0))
-        apex = self.vert(centre + Vector((0, 0, height + 0.05)), wind(0.0))
-        for k in range(sides):
-            k1 = (k + 1) % sides
-            self.face([top[k], bot[k], top[k1]], [(0, 1), (0.5, 0), (1, 1)], mat, 1.0, roles=[0.9, 0.15, 0.9])
-            self.face([top[k1], bot[k], bot[k1]], [(1, 1), (0.5, 0), (1, 0)], mat, 1.0, roles=[0.9, 0.15, 0.15])
-            self.face([apex, top[k], top[k1]], [(0.5, 1), (0, 0.8), (1, 0.8)], mat, 1.0, roles=[1.0, 0.9, 0.9])
-            self.face([mid, bot[k1], bot[k]], [(0.5, 0.5), (1, 0), (0, 0)], mat, 1.0, roles=[0, 0, 0])
+    def card(self, base, direction, side, length, width, winds, mat, flag=0.0, snow_scale=1.0):
+        """An alpha-textured card: u runs from base along direction, v across side (centred)."""
+        d, s = direction.normalized(), side.normalized()
+        if d.cross(s).z < 0:  # keep the textured face up so snow lands on it
+            s = -s
+        a = base - s * width / 2
+        b = base + d * length - s * width / 2
+        c = base + d * length + s * width / 2
+        e = base + s * width / 2
+        w0, w1 = winds
+        idx = [self.vert(a, w0), self.vert(b, w1), self.vert(c, w1), self.vert(e, w0)]
+        snow = smoothstep(0.1, 0.7, self.normal_z(idx)) * snow_scale
+        self.face(idx, [(0, 0), (1, 0), (1, 1), (0, 1)], mat, snow, flag)
 
     def to_object(self, name, materials):
         mesh = bpy.data.meshes.new(name)
@@ -174,21 +144,30 @@ class MeshBuilder:
         return obj
 
 
-# ---------------------------------------------------------------------------------------------
-# Conifers: a spire of whorled branches carrying flattened foliage masses (fir, hemlock).
+def horizontal_side(direction, roll):
+    """A card's across-vector: horizontal and perpendicular to direction, rolled about it."""
+    d = direction.normalized()
+    s = d.cross(UP)
+    s = s.normalized() if s.length > 1e-6 else Vector((1, 0, 0))
+    n = s.cross(d).normalized()
+    return s * math.cos(roll) + n * math.sin(roll)
 
-def build_conifer(sp, rng, lod, height, mats):
+
+# ---------------------------------------------------------------------------------------------
+# Conifers: whorled branches dressed with needle-spray cards.
+
+def build_conifer(sp, rng, lod, height):
     b = MeshBuilder()
     trunk_r = sp["trunkRadius"] * height
     phase_trunk = rng.random()
     nod = math.radians(sp["nod"] * rng.uniform(0.7, 1.1))
     nod_dir = rng.uniform(0, 2 * math.pi)
-    lean = Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), 0)) * 0.012
+    lean = Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), 0)) * 0.01
 
-    def trunk_point(h):  # h in 0..1
+    def trunk_point(h):
         p = Vector((0, 0, h * height)) + lean * h * height
-        if nod > 0 and h > 0.9:  # the hemlock's nodding leader
-            s = (h - 0.9) / 0.1
+        if nod > 0 and h > 0.92:
+            s = (h - 0.92) / 0.08
             bend = nod * s * s
             p += Vector((math.cos(nod_dir), math.sin(nod_dir), 0)) * math.sin(bend) * 0.05 * height * s
             p.z -= (1 - math.cos(bend)) * 0.05 * height * s
@@ -197,202 +176,390 @@ def build_conifer(sp, rng, lod, height, mats):
     def sway(z):
         return min(1.0, max(0.0, z / height)) ** 2
 
-    n = 10
+    n = 12
     tpts = [trunk_point(i / n) for i in range(n + 1)]
-    tpts[0] = tpts[0] - Vector((0, 0, 0.3))  # sink into the ground
-    b.tube(tpts, [trunk_r * (1 - i / n) ** 1.1 + (0.01 if i < n else 0) for i in range(n + 1)], lod["sides"],
-           [(sway(p.z), 0.0, phase_trunk, 0.0) for p in tpts], 0, 0.5)
+    tpts[0] = tpts[0] - Vector((0, 0, 0.3))
+    b.tube(tpts, [trunk_r * (1 - i / n) ** 1.1 + (0.012 if i < n else 0) for i in range(n + 1)], lod["sides"],
+           [(sway(p.z), 0.0, phase_trunk, 0.0) for p in tpts], snow_scale=0.3)
 
     crown_base = sp["crownBase"] * height
     r_max = sp["crownRadius"] * height * rng.uniform(0.9, 1.1)
 
     def crown_radius(z):
         h = (z - crown_base) / (height - crown_base)
-        return r_max * max(0.0, 1 - h) ** sp["crownExponent"] * (0.55 + 0.45 * smoothstep(0.0, 0.06, h))
+        return r_max * max(0.0, 1 - h) ** sp["crownExponent"] * (0.6 + 0.4 * smoothstep(0.0, 0.08, h))
 
-    if not lod["pads"]:
-        tiers = max(3, int((height - crown_base) / (sp["whorlSpacing"] * lod["spacing"] * 1.2)))
-        for i in range(tiers):
-            z0 = crown_base + (height - crown_base) * i / tiers
-            z1 = crown_base + (height - crown_base) * (i + 1) / tiers
-            r = crown_radius(z0) * 1.05
-            c = trunk_point(z0 / height)
-            b.skirt(c, crown_radius(z1) * 0.35, r, (z1 - z0) * 1.15, 7, r * sp["droop"] * 0.5,
-                    lambda f, z=z0: (sway(z), f, rng.random(), f), 1)
-        return b
-
+    spray_len, spray_w = sp["spray"]
     spacing = sp["whorlSpacing"] * lod["spacing"]
     z, k = crown_base, 0
-    leader_z = height - max(1.6, 0.11 * height)  # the top is one slim spire, not tiny branches
-    last_z = leader_z
     lo, hi = sp["branchesPerWhorl"]
-    while z < leader_z:
+    top_z = height - max(0.8, 0.05 * height)
+    while z < top_z:
         count = rng.randint(lo, hi)
+        h = (z - crown_base) / (height - crown_base)
         for j in range(count):
             if rng.random() < 0.08:
-                continue  # a few missing branches break up the symmetry
+                continue
             az = k * GOLDEN + j * 2 * math.pi / count + rng.uniform(-0.25, 0.25)
-            length = crown_radius(z) * rng.uniform(0.85, 1.1) * (lod["spacing"] ** 0.15)
-            length = max(length, 0.45)
-            h = (z - crown_base) / (height - crown_base)
+            length = max(0.35, crown_radius(z) * rng.uniform(0.85, 1.1))
             elev = math.radians(lerp(sp["branchElevation"][1], sp["branchElevation"][0], h))
             base = trunk_point(z / height)
             d = Vector((math.cos(az), math.sin(az), 0))
             phase = rng.random()
             segs = lod["segments"]
-            pts, widths, winds = [], [], []
-            for s in range(segs + 1):
-                t = s / segs
-                along = d * length * t
-                drop = math.tan(elev) * length * t - sp["droop"] * length * t * t
-                pts.append(base + along + Vector((0, 0, drop)))
-                w = sp["padWidth"] * length * (0.45 + 0.55 * math.sin(math.pi * min(1.0, 0.25 + t * 0.75))) * (1 - t) ** 0.35
-                widths.append(w * (lod["spacing"] ** 0.35) if s < segs else 0.0)
-                winds.append((sway(pts[-1].z), t, phase, 0.5 + 0.5 * t))
-            b.pad(pts, widths, sp["padThickness"], winds, 1)
+            pts = [base + d * length * (s / segs) + Vector((0, 0, math.tan(elev) * length * s / segs - sp["droop"] * length * (s / segs) ** 2))
+                   for s in range(segs + 1)]
+
+            def branch_point(t, pts=pts, segs=segs):
+                f = t * segs
+                i = min(int(f), segs - 1)
+                return pts[i].lerp(pts[i + 1], f - i)
+
+            def branch_tangent(t):
+                return (branch_point(min(1, t + 0.02)) - branch_point(max(0, t - 0.02))).normalized()
+
+            winds = [(sway(p.z), s / segs, phase, 0.0) for s, p in enumerate(pts)]
+            if lod["branchSides"]:
+                r0 = max(0.015, trunk_r * 0.22 * (1 - h * 0.6))
+                b.tube(pts, [r0 * (1 - s / segs * 0.85) for s in range(segs + 1)], lod["branchSides"], winds, snow_scale=0.4)
+
+            if lod["cards"] == 0:
+                # LOD2: two broad crossed spray cards per branch keep the silhouette.
+                tan = branch_tangent(0.5)
+                for roll in (0.0, 0.9):
+                    b.card(base, tan, horizontal_side(tan, roll), length * 1.05, length * 0.75,
+                           [(sway(base.z), 0.0, phase, 0.4), (sway(pts[-1].z), 1.0, phase, 1.0)], FOLIAGE)
+                continue
+
+            # Sprays along the branch, alternating sides, plus one at the tip.
+            n_sprays = max(2, int(length * sp["spraysPerMetre"] * 1.6 * lod["cards"]))
+            size = lod["card"]
+            start = 0.55 if sp.get("tufts") else 0.12
+            for i in range(n_sprays):
+                t = lerp(start, 0.95, (i + rng.random() * 0.5) / n_sprays)
+                p = branch_point(t)
+                tan = branch_tangent(t)
+                side = 1 if i % 2 else -1
+                lat = tan.cross(UP)
+                lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
+                a = math.radians(rng.uniform(25, 55)) * side
+                dirn = (tan * math.cos(a) + lat * math.sin(a)).normalized()
+                dirn.z -= sp["droop"] * 0.3
+                ln = spray_len * 1.5 * size * (1 - 0.3 * t) * rng.uniform(0.85, 1.15)
+                wd = spray_w * 1.6 * size * (1 - 0.25 * t)
+                roll = rng.uniform(-0.35, 0.35)
+                wn = [(sway(p.z), t, phase, 0.5), (sway(p.z), min(1.0, t + 0.2), phase, 1.0)]
+                b.card(p, dirn, horizontal_side(dirn, roll), ln, wd, wn, FOLIAGE, snow_scale=0.38)
+                if sp.get("crossed") or sp.get("tufts"):
+                    b.card(p, dirn, horizontal_side(dirn, roll + 1.4), ln * 0.9, wd * 0.9, wn, FOLIAGE, snow_scale=0.25)
+            tip = pts[-1]
+            tan = branch_tangent(0.97)
+            b.card(tip - tan * spray_len * 0.3, tan, horizontal_side(tan, 0.0), spray_len * size, spray_w * size,
+                   [(sway(tip.z), 0.9, phase, 0.8), (sway(tip.z), 1.0, phase, 1.0)], FOLIAGE)
         z += spacing * rng.uniform(0.85, 1.15)
         k += 1
-    # The leader: a slim foliage spire from the last whorl to the tip, so the top is never bare.
-    base_h = last_z / height
-    lpts = [trunk_point(lerp(base_h, 1.0, i / 4)) for i in range(5)]
-    lpts[-1] = lpts[-1] + (lpts[-1] - lpts[-2]).normalized() * 0.4
-    r0 = max(0.22, crown_radius(last_z) * 0.4)
-    b.tube(lpts, [r0 * (1 - i / 4) ** 0.9 for i in range(5)], 5,
-           [(sway(p.z), 0.0, phase_trunk, 0.5) for p in lpts], 1, 0.8, snow_from=-0.35)
+
+    # Leader: upright sprays to the tip so the top is never bare.
+    base = trunk_point((top_z - 0.3) / height)
+    up = (trunk_point(1.0) - base).normalized()
+    for i in range(3 if lod["cards"] else 2):
+        a = i * 2 * math.pi / 3
+        b.card(base, up, Vector((math.cos(a), math.sin(a), 0)), (trunk_point(1.0) - base).length + 0.4, spray_w * 0.9,
+               [(sway(base.z), 0.0, phase_trunk, 0.6), (1.0, 0.3, phase_trunk, 1.0)], FOLIAGE, snow_scale=0.6)
     return b
 
 
 # ---------------------------------------------------------------------------------------------
-# Deciduous: ascending primary branches with twigs; separate leaf cards for the seasons (TR4).
+# Deciduous: a recursive branching skeleton with twig and leaf cards.
 
-def build_deciduous(sp, rng, lod, height, mats):
+def crown_envelope(shape, h):
+    """Relative crown radius at relative crown height h (0 at the crown base, 1 at the top)."""
+    h = min(1.0, max(0.0, h))
+    if shape == "narrow":
+        return math.sin(math.pi * min(1.0, h * 0.95 + 0.05)) ** 0.8
+    if shape == "oval":
+        return math.sin(math.pi * min(1.0, h * 0.9 + 0.1)) ** 0.55
+    if shape == "spreading":
+        return (math.sin(math.pi * min(1.0, h * 0.8 + 0.2)) ** 0.4) * (1.1 - 0.3 * h)
+    if shape == "irregular":
+        return math.sin(math.pi * min(1.0, h * 0.9 + 0.1)) ** 0.6 * (0.85 + 0.15 * math.sin(h * 11))
+    raise ValueError(shape)
+
+
+def build_deciduous(sp, rng, lod, height):
     b = MeshBuilder()
     trunk_r = sp["trunkRadius"] * height
-    wob = [Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), 0)) * 0.12 for _ in range(4)]
-
-    def trunk_point(h):
-        p = Vector((0, 0, h * height))
-        for i, w in enumerate(wob):
-            p += w * math.sin(math.pi * h * (i + 1) * 0.9)
-        return p
+    crown_base = sp["crownBase"] * height
+    r_crown = sp["crownRadius"] * height
 
     def sway(z):
         return min(1.0, max(0.0, z / height)) ** 2
 
-    n = 10
-    tpts = [trunk_point(i / n) for i in range(n + 1)]
-    tpts[0] = tpts[0] - Vector((0, 0, 0.3))
-    ph = rng.random()
-    b.tube(tpts, [trunk_r * (1 - 0.85 * i / n) if i < n else 0.0 for i in range(n + 1)], lod["sides"],
-           [(sway(p.z), 0.0, ph, 0.0) for p in tpts], 0, 0.5, v_scale=0.5)
+    def fit(tip):
+        """How much to shorten a branch whose tip leaves the crown envelope."""
+        h = (tip.z - crown_base) / max(1.0, height - crown_base)
+        allowed = r_crown * crown_envelope(sp["crownShape"], h) + 0.3
+        d = math.hypot(tip.x, tip.y)
+        return max(0.35, allowed / d) if d > allowed and d > 1e-3 else 1.0
 
-    lo, hi = sp["primaryBranches"]
-    count = max(4, int(rng.randint(lo, hi) * (1.0 if lod["twigs"] > 0 else 0.6)))
-    for i in range(count):
-        h = lerp(sp["crownBase"], 0.93, (i + rng.random() * 0.6) / count)
-        base = trunk_point(h)
-        az = i * GOLDEN + rng.uniform(-0.3, 0.3)
-        ang = math.radians(lerp(sp["branchAngleFromVertical"][1], sp["branchAngleFromVertical"][0], h) + rng.uniform(-6, 6))
-        length = height * rng.uniform(*sp["branchLength"]) * (1.15 - h * 0.6)
-        d = Vector((math.cos(az) * math.sin(ang), math.sin(az) * math.sin(ang), math.cos(ang)))
-        segs = lod["segments"] + 1
-        phase = rng.random()
-        pts = [base + d * length * (s / segs) + Vector((0, 0, 0.35 * length * math.sin(math.pi * s / segs) * 0.25)) for s in range(segs + 1)]
-        r0 = trunk_r * (1 - 0.6 * h) * 0.8
-        b.tube(pts, [r0 * (1 - s / segs) + (0.004 if s < segs else 0) for s in range(segs + 1)], lod["branchSides"],
-               [(sway(p.z), s / segs, phase, 0.0) for s, p in enumerate(pts)], 0, 0.6)
-        twigs = int(rng.randint(*sp["twigsPerBranch"]) * lod["twigs"])
-        for t in range(twigs):
-            f = lerp(0.35, 0.95, (t + 0.5) / max(1, twigs))
-            tb = pts[0].lerp(pts[-1], f)
-            taz = az + rng.uniform(-1.2, 1.2)
-            td = Vector((math.cos(taz) * 0.7, math.sin(taz) * 0.7, rng.uniform(0.3, 0.9))).normalized()
-            tl = length * rng.uniform(0.25, 0.4)
-            tpts2 = [tb, tb + td * tl * 0.5 + Vector((0, 0, 0.05)), tb + td * tl]
-            b.tube(tpts2, [r0 * 0.55 * (1 - f * 0.4), r0 * 0.3, 0.0], 3,
-                   [(sway(p.z), f + (1 - f) * s / 2, phase, 0.2) for s, p in enumerate(tpts2)], 0, 0.6)
-            # Leaf cards (summer/autumn only; the leaf flag lets the shader drop them).
-            for c in range(lod["leafCards"]):
-                lp = tpts2[1].lerp(tpts2[2], rng.random()) + Vector((rng.uniform(-0.3, 0.3), rng.uniform(-0.3, 0.3), rng.uniform(-0.2, 0.3)))
-                s = rng.uniform(0.25, 0.4)
-                a = rng.uniform(0, math.pi)
-                ax, ay = Vector((math.cos(a), math.sin(a), 0.2)) * s, Vector((-math.sin(a), math.cos(a), 0.6)).normalized() * s
-                wind = (sway(lp.z), 1.0, phase, 1.0)
-                q = [b.vert(lp - ax - ay, wind), b.vert(lp + ax - ay, wind), b.vert(lp + ax + ay, wind), b.vert(lp - ax + ay, wind)]
-                b.face(q, [(0, 0), (1, 0), (1, 1), (0, 1)], 1, 0.0, leaf=1.0)
+    def curve(start, direction, length, upward, segs):
+        pts = [start]
+        d = direction.normalized()
+        step = length / segs
+        for _ in range(segs):
+            d = (d + UP * upward * 0.35 + Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-0.5, 0.5))) * 0.12).normalized()
+            pts.append(pts[-1] + d * step)
+        return pts
+
+    def along(pts, t):
+        f = t * (len(pts) - 1)
+        i = min(int(f), len(pts) - 2)
+        return pts[i].lerp(pts[i + 1], f - i), (pts[i + 1] - pts[i]).normalized()
+
+    def dress(pts, phase):
+        """Twig cards (winter) and leaf cards (summer and autumn) along a small branch."""
+        branch_len = sum((pts[i + 1] - pts[i]).length for i in range(len(pts) - 1))
+        if branch_len < 0.6:
+            return  # crowded stubs near the top would pile cards into dark clumps
+        scale = min(1.0, branch_len / 1.8)
+        count = max(1, int(5 * lod["cards"] * scale + 0.5))
+        for i in range(count):
+            p, tan = along(pts, lerp(0.35, 1.0, (i + rng.random() * 0.5) / count))
+            a = rng.uniform(-0.9, 0.9)
+            lat = tan.cross(UP)
+            lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
+            dirn = (tan * math.cos(a) + lat * math.sin(a) + UP * rng.uniform(-0.1, 0.4)).normalized()
+            size = lod["card"] * rng.uniform(0.9, 1.25) * (0.55 + 0.45 * scale)
+            if i % 2 == 0:
+                b.card(p, dirn, horizontal_side(dirn, rng.uniform(-0.8, 0.8)), 1.5 * size, 1.2 * size,
+                       [(sway(p.z), 0.7, phase, 0.6), (sway(p.z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.35)
+            for _ in range(2):
+                ld = (dirn + Vector((rng.uniform(-0.6, 0.6), rng.uniform(-0.6, 0.6), rng.uniform(-0.2, 0.3)))).normalized()
+                kept = "marcescent" in sp and p.z < crown_base + 0.45 * (height - crown_base) and rng.random() < 0.7
+                b.card(p, ld, horizontal_side(ld, rng.uniform(-0.6, 0.6)), 1.1 * size, 1.0 * size,
+                       [(sway(p.z), 0.8, phase, 1.0), (sway(p.z), 1.0, phase, 1.0)],
+                       KEPT if kept else FOLIAGE, flag=0.5 if kept else 1.0, snow_scale=0.0)
+
+    stems = rng.randint(*sp["stems"])
+    for stem in range(stems):
+        # Clumped stems (birch) lean apart a little.
+        ring = Vector((math.cos(stem * 2.4), math.sin(stem * 2.4), 0))
+        offset = Vector((0, 0, 0)) if stem == 0 else ring * 0.35
+        lean = UP if stem == 0 else (ring * 0.18 + UP).normalized()
+        s_height = height * (1.0 if stem == 0 else rng.uniform(0.8, 0.95))
+        split = 0.55 if sp["leaders"] > 1 else 0.92
+        trunk = curve(offset - Vector((0, 0, 0.3)), lean, s_height * split + 0.3, 1.0, 8)
+        tr = trunk_r * (1.0 if stem == 0 else 0.75)
+        ph = rng.random()
+        b.tube(trunk, [tr * (1 - 0.5 * i / 8) for i in range(9)], lod["sides"], [(sway(p.z), 0.0, ph, 0.0) for p in trunk],
+               snow_scale=0.2, v_scale=0.5)
+
+        # Leaders continue the trunk (maples, beech and yellow birch fork into several).
+        leaders = []
+        for li in range(max(1, sp["leaders"])):
+            if sp["leaders"] == 1:
+                d = lean
+            else:
+                a = li * 2 * math.pi / sp["leaders"] + rng.uniform(-0.4, 0.4)
+                d = (UP + Vector((math.cos(a), math.sin(a), 0)) * rng.uniform(0.35, 0.6)).normalized()
+            ln = s_height * (1 - split) * rng.uniform(0.9, 1.05) + (0 if sp["leaders"] == 1 else s_height * 0.05)
+            pts = curve(trunk[-1], d, ln, 0.6, 5)
+            r0 = tr * 0.5 * (0.8 if sp["leaders"] > 1 else 1)
+            b.tube(pts, [r0 * (1 - i / 5) + (0.01 if i < 5 else 0) for i in range(6)], max(3, lod["sides"] - 2),
+                   [(sway(p.z), 0.3 * i / 5, ph, 0.0) for i, p in enumerate(pts)])
+            leaders.append(pts)
+
+        # Primaries: the lower half from the trunk above the crown base, the rest from the leaders.
+        lo, hi = sp["primaries"]
+        count = max(4, int(rng.randint(lo, hi) * 1.4 / stems ** 0.5 * (1.0 if lod["cards"] else 0.7)))
+        for i in range(count):
+            if i < count // 2 or not leaders:
+                h = lerp(crown_base, trunk[-1].z, (i + rng.random() * 0.6) / max(1, count // 2))
+                t = min(1.0, max(0.0, (h - trunk[0].z) / (trunk[-1].z - trunk[0].z)))
+                parent, pr = trunk, tr * 0.8
+            else:
+                parent, pr = leaders[i % len(leaders)], tr * 0.45
+                t = rng.uniform(0.2, 0.85)
+            start, _ = along(parent, t)
+            if start.z < crown_base - 0.5:
+                continue
+            az = i * GOLDEN + rng.uniform(-0.3, 0.3)
+            ang = math.radians(rng.uniform(*sp["primaryAngle"]))
+            d = Vector((math.cos(az) * math.sin(ang), math.sin(az) * math.sin(ang), math.cos(ang)))
+            rel = (start.z - crown_base) / max(1.0, height - crown_base)
+            length = height * sp["primaryLength"] * rng.uniform(0.8, 1.2) * (1.1 - 0.55 * rel)
+            segs = lod["segments"] + 1
+            pts = curve(start, d, length, sp["upward"], segs)
+            k_fit = fit(pts[-1])
+            if k_fit < 1:
+                length *= k_fit
+                pts = curve(start, d, length, sp["upward"], segs)
+            phase = rng.random()
+            r0 = max(0.02, pr * 0.55 * (1 - 0.5 * rel))
+            b.tube(pts, [r0 * (1 - 0.8 * s / segs) for s in range(segs + 1)], max(3, lod["branchSides"]),
+                   [(sway(p.z), s / segs, phase, 0.0) for s, p in enumerate(pts)])
+
+            n2 = int(rng.randint(*sp["secondaries"]) * 1.6 * lod["level2"])
+            if n2 == 0:
+                # LOD2: large twig and leaf cards straight on the primaries.
+                mid, tan = along(pts, 0.5)
+                b.card(mid, tan, horizontal_side(tan, 0.3), length * 0.7, length * 0.6,
+                       [(sway(mid.z), 0.6, phase, 0.8), (sway(pts[-1].z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.3)
+                b.card(mid, tan, horizontal_side(tan, 1.2), length * 0.7, length * 0.6,
+                       [(sway(mid.z), 0.6, phase, 1.0), (sway(pts[-1].z), 1.0, phase, 1.0)], FOLIAGE, flag=1.0, snow_scale=0.0)
+                continue
+            for j in range(n2):
+                tj = lerp(0.3, 0.95, (j + rng.random() * 0.5) / n2)
+                s0, tan = along(pts, tj)
+                a2 = rng.uniform(0.5, 0.9) * (1 if j % 2 else -1)
+                lat = tan.cross(UP)
+                lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
+                d2 = (tan * math.cos(a2) + lat * math.sin(a2) + UP * sp["upward"] * 0.5).normalized()
+                p2 = curve(s0, d2, length * rng.uniform(0.3, 0.45) * (1 - 0.4 * tj), sp["upward"], 3)
+                if lod["branchSides"]:
+                    b.tube(p2, [r0 * 0.4, r0 * 0.25, r0 * 0.12, 0.0], 3,
+                           [(sway(p.z), tj + (1 - tj) * s / 3, phase, 0.2) for s, p in enumerate(p2)])
+                dress(p2, phase)
     return b
 
 
 # ---------------------------------------------------------------------------------------------
+# Materials and textures
 
-def material(name, hex_colour, snow_load=1.0, hide=False):
-    """Preview material: the palette tint blended to snow by the mesh's snow mask (UV1.x)."""
+def image(name, pixels, out_dir):
+    """A Blender image from an RGBA numpy array (row 0 = top), saved as PNG beside the FBX files."""
+    img = bpy.data.images.get(name)
+    if img is None:
+        n = pixels.shape[0]
+        img = bpy.data.images.new(name, n, n, alpha=True)
+        pixels = pixels.copy()
+        clear = pixels[..., 3] < 0.02
+        if clear.any() and (~clear).any():
+            # Bleed colour into transparent pixels so filtering never pulls in black fringes.
+            pixels[clear, :3] = pixels[~clear, :3].mean(axis=0)
+        img.pixels.foreach_set(np.flipud(pixels).astype(np.float32).ravel())
+        tex_dir = os.path.join(out_dir, "textures")
+        os.makedirs(tex_dir, exist_ok=True)
+        img.filepath_raw = os.path.join(tex_dir, name + ".png")
+        img.file_format = "PNG"
+        img.save()
+    return img
+
+
+def material(name, img, snow_load=1.0, cutout=False, leaf=False):
+    """Preview material: texture, snow from UV1.x on up-facing fronts, winter hide from UV1.y."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
     nt.nodes.clear()
-    out = nt.nodes.new("ShaderNodeOutputMaterial")
-    bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
-    bsdf.inputs["Roughness"].default_value = 0.85
-    uv = nt.nodes.new("ShaderNodeUVMap")
-    uv.uv_map = "Data"
-    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
-    mix = nt.nodes.new("ShaderNodeMix")
-    mix.data_type = "RGBA"
-    c = tuple(int(hex_colour[i:i + 2], 16) / 255 for i in (1, 3, 5))
-    mix.inputs["A"].default_value = (c[0] ** 2.2, c[1] ** 2.2, c[2] ** 2.2, 1)
-    mix.inputs["B"].default_value = (0.90, 0.93, 0.95, 1)  # snow lit #F4F7FA (linear)
-    mul = nt.nodes.new("ShaderNodeMath")
-    mul.operation = "MULTIPLY"
-    mul.inputs[1].default_value = snow_load
-    nt.links.new(uv.outputs["UV"], sep.inputs[0])
-    nt.links.new(sep.outputs["X"], mul.inputs[0])
-    nt.links.new(mul.outputs[0], mix.inputs["Factor"])
-    nt.links.new(mix.outputs["Result"], bsdf.inputs["Base Color"])
-    if hide:
-        bsdf.inputs["Alpha"].default_value = 0.0
-    nt.links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
+    link = nt.links.new
+
+    def node(kind, **props):
+        n = nt.nodes.new(kind)
+        for k, v in props.items():
+            setattr(n, k, v)
+        return n
+
+    def math_node(op, a=None, b=None, clamp=False):
+        n = node("ShaderNodeMath", operation=op, use_clamp=clamp)
+        for i, v in enumerate((a, b)):
+            if isinstance(v, (int, float)):
+                n.inputs[i].default_value = v
+            elif v is not None:
+                link(v, n.inputs[i])
+        return n.outputs[0]
+
+    out = node("ShaderNodeOutputMaterial")
+    bsdf = node("ShaderNodeBsdfPrincipled")
+    bsdf.inputs["Roughness"].default_value = 0.8
+    tex = node("ShaderNodeTexImage", name="Tex")
+    tex.image = img
+    data = node("ShaderNodeUVMap", uv_map="Data")
+    sep = node("ShaderNodeSeparateXYZ")
+    link(data.outputs["UV"], sep.inputs[0])
+    front = math_node("SUBTRACT", 1.0, node("ShaderNodeNewGeometry").outputs["Backfacing"])
+    load = node("ShaderNodeValue", name="SnowLoad")
+    load.outputs[0].default_value = snow_load
+    snow = math_node("MULTIPLY", math_node("MULTIPLY", sep.outputs["X"], load.outputs[0]), front, clamp=True)
+    mix = node("ShaderNodeMix", data_type="RGBA")
+    mix.inputs["B"].default_value = (0.90, 0.93, 0.95, 1)
+    link(tex.outputs["Color"], mix.inputs["A"])
+    link(snow, mix.inputs["Factor"])
+    link(mix.outputs["Result"], bsdf.inputs["Base Color"])
+
+    surface = bsdf.outputs["BSDF"]
+    if leaf:
+        # Thin leaves and needles let some light through.
+        trans = node("ShaderNodeBsdfTranslucent")
+        link(mix.outputs["Result"], trans.inputs["Color"])
+        blend = node("ShaderNodeMixShader")
+        blend.inputs[0].default_value = 0.25
+        link(surface, blend.inputs[1])
+        link(trans.outputs["BSDF"], blend.inputs[2])
+        surface = blend.outputs["Shader"]
+    if cutout:
+        hide = node("ShaderNodeValue", name="WinterHide")
+        hide.outputs[0].default_value = 0.0
+        dropped = math_node("MULTIPLY", math_node("GREATER_THAN", sep.outputs["Y"], 0.75), hide.outputs[0])
+        alpha = math_node("MULTIPLY", tex.outputs["Alpha"], math_node("SUBTRACT", 1.0, dropped))
+        cut = node("ShaderNodeMixShader")
+        link(alpha, cut.inputs[0])
+        link(node("ShaderNodeBsdfTransparent").outputs["BSDF"], cut.inputs[1])
+        link(surface, cut.inputs[2])
+        surface = cut.outputs["Shader"]
+    link(surface, out.inputs["Surface"])
     return m
+
+
+def species_materials(sp, out_dir):
+    """Returns (materials by submesh, season images) for a species."""
+    seed = zlib.crc32(sp["id"].encode())
+    style, colour = sp["bark"]
+    bark = material(f"{sp['id']}_Bark", image(f"{sp['id']}_bark", textures.bark(style, colour, seed, TEX), out_dir), 0.6)
+    if sp["form"] == "conifer":
+        spray = image(f"{sp['id']}_spray", textures.needle_spray(sp["needles"], sp["foliage"], seed, TEX), out_dir)
+        return [bark, material(f"{sp['id']}_Foliage", spray, 1.0, cutout=True, leaf=True)], {}
+    seasons = {
+        "summer": image(f"{sp['id']}_leaves_summer", textures.leaf_card(sp["leaf"], sp["summer"], seed, TEX, sp["twig"]), out_dir),
+        "autumn": image(f"{sp['id']}_leaves_autumn", textures.leaf_card(sp["leaf"], sp["autumn"], seed, TEX, sp["twig"]), out_dir),
+    }
+    if "marcescent" in sp:
+        seasons["kept"] = image(f"{sp['id']}_leaves_kept", textures.leaf_card(sp["leaf"], sp["marcescent"], seed + 1, TEX, sp["twig"]), out_dir)
+    twigs = image(f"{sp['id']}_twigs", textures.twig_card(seed, TEX, sp["twig"]), out_dir)
+    mats = [bark,
+            material(f"{sp['id']}_Leaves", seasons["summer"], 0.0, cutout=True, leaf=True),
+            material(f"{sp['id']}_Twigs", twigs, 0.5, cutout=True),
+            material(f"{sp['id']}_LeavesKept", seasons.get("kept", seasons["autumn"]), 0.0, cutout=True, leaf=True)]
+    return mats, seasons
 
 
 def tri_count(obj):
     return sum(len(p.vertices) - 2 for p in obj.data.polygons)
 
 
-def build_species(sp, out_dir, winter=True):
+def build_species(sp, out_dir):
+    mats, seasons = species_materials(sp, out_dir)
     made = []
     for v in range(3):
-        rng_seed = zlib.crc32(f"{sp['id']}:{v}".encode())
-        height = lerp(sp["height"][0], sp["height"][1], random.Random(rng_seed).random())
-        if sp["form"] == "conifer":
-            mats = [material(f"{sp['id']}_Bark", sp["bark"]),
-                    material(f"{sp['id']}_Foliage_v{v}", sp["foliage"][v % len(sp["foliage"])])]
-            builder = build_conifer
-        else:
-            mats = [material(f"{sp['id']}_Bark", sp["bark"], 0.6),
-                    material(f"{sp['id']}_Leaves", sp["leaves"], 0.0, hide=winter)]
-            builder = build_deciduous
-        lods = []
-        for li, lod in enumerate(LODS):
-            rng = random.Random(rng_seed)  # same seed per LOD: same tree, less detail
-            obj = builder(sp, rng, lod, height, mats).to_object(f"{sp['id']}_v{v}_LOD{li}", mats)
-            lods.append(obj)
-        if out_dir:
-            bpy.ops.object.select_all(action="DESELECT")
-            for o in lods:
-                o.select_set(True)
-            bpy.ops.export_scene.fbx(filepath=os.path.join(out_dir, f"{sp['id']}_v{v}.fbx"), use_selection=True,
-                                     apply_unit_scale=True, axis_forward="-Z", axis_up="Y", mesh_smooth_type="FACE",
-                                     colors_type="LINEAR", use_triangles=True, bake_space_transform=True)
-        made.append({"variant": v, "height": round(height, 2), "objects": lods,
-                     "triangles": [tri_count(o) for o in lods]})
-    return made
+        seed = zlib.crc32(f"{sp['id']}:{v}".encode())
+        height = lerp(sp["height"][0], sp["height"][1], random.Random(seed).random())
+        builder = build_conifer if sp["form"] == "conifer" else build_deciduous
+        lods = [builder(sp, random.Random(seed), lod, height).to_object(f"{sp['id']}_v{v}_LOD{li}", mats)
+                for li, lod in enumerate(LODS)]
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in lods:
+            o.select_set(True)
+        bpy.ops.export_scene.fbx(filepath=os.path.join(out_dir, f"{sp['id']}_v{v}.fbx"), use_selection=True,
+                                 apply_unit_scale=True, axis_forward="-Z", axis_up="Y", mesh_smooth_type="FACE",
+                                 colors_type="LINEAR", use_triangles=True, bake_space_transform=True, path_mode="RELATIVE")
+        made.append({"variant": v, "height": round(height, 2), "objects": lods, "triangles": [tri_count(o) for o in lods]})
+    return made, seasons
 
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     opts = {argv[i][2:]: argv[i + 1] for i in range(0, len(argv) - 1, 2) if argv[i].startswith("--")}
-    out_dir = opts.get("out", os.path.join(HERE, "out"))
+    out_dir = os.path.abspath(opts.get("out", os.path.join(HERE, "out")))
     os.makedirs(out_dir, exist_ok=True)
     species = json.load(open(os.path.join(HERE, "species.json"), encoding="utf-8"))["species"]
     if "species" in opts:
@@ -400,19 +567,17 @@ def main():
 
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
-    report = {}
-    built = {}
+    report, built, seasons = {}, {}, {}
     for sp in species:
-        built[sp["id"]] = build_species(sp, out_dir)
+        built[sp["id"]], seasons[sp["id"]] = build_species(sp, out_dir)
         report[sp["id"]] = [{k: v for k, v in m.items() if k != "objects"} for m in built[sp["id"]]]
         print(f"{sp['name']}: " + "; ".join(f"v{m['variant']} {m['height']} m, tris {m['triangles']}" for m in built[sp["id"]]), flush=True)
     with open(os.path.join(out_dir, "trees.json"), "w") as f:
         json.dump(report, f, indent=2)
 
     if "render" in opts:
-        sys.path.insert(0, HERE)
         import render_preview
-        render_preview.render_all(species, built, opts["render"])
+        render_preview.render_all(species, built, seasons, opts["render"], opts.get("shots"))
 
 
 if __name__ == "__main__":
