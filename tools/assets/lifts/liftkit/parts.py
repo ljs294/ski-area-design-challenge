@@ -79,14 +79,24 @@ def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train
             asset.pivots[key] = {"pos": tuple(centre), "axis": (0.0, 1.0, 0.0)}
             if lod == 0:   # axle boss from the rocker plate
                 prims.cylinder(mb, (centre.x, pv, wz), (centre.x, v_rope + inboard * width / 2, wz), 0.035, 8, st["rod"])
-    plate_t = 0.02
+    plate_t, bar = 0.02, 0.06
     v0, v1 = sorted((pv - plate_t / 2, pv + plate_t / 2))
-    for i in range(0, n - 1, 2):   # rockers: one plate per pair, from the axles to the rocker pin
+    pins = []
+    for i in range(0, n - 1, 2):   # rockers: a slim bar through each pair's axles, a lug up (or down) to the rocker pin
         a_u, b_u = u_c + offs[i] - 0.07, u_c + offs[i + 1] + 0.07
-        prims.box(mb, (a_u, v0, min(wz, w_rock) - 0.05), (b_u, v1, max(wz, w_rock) + 0.05), st["steel"])
-    half = pitch * (n // 2) / 2 + 0.1   # main beam between the rocker pins, just inboard of the rockers
-    b0, b1 = sorted((pv + inboard * plate_t, pv + inboard * (plate_t + 0.1)))
-    prims.box(mb, (u_c - half, b0, min(w_rock, w_beam) - 0.05), (u_c + half, b1, max(w_rock, w_beam) + 0.05), st["steel"])
+        prims.box(mb, (a_u, v0, wz - bar), (b_u, v1, wz + bar), st["steel"])
+        rc = u_c + (offs[i] + offs[i + 1]) / 2
+        if lod <= 1:
+            lo_, hi_ = sorted((wz + up * bar, w_rock + up * 0.04))
+            prims.box(mb, (rc - 0.06, v0, lo_), (rc + 0.06, v1, hi_), st["steel"])
+        pins.append((rc, w_rock))
+    half = pitch * (n // 2) / 2 + 0.1   # main beam between the rocker pins, against the rockers
+    b0, b1 = sorted((pv + inboard * plate_t / 2, pv + inboard * (plate_t / 2 + 0.1)))
+    beam_c = (w_rock + w_beam) / 2
+    prims.box(mb, (u_c - half, b0, beam_c - 0.08), (u_c + half, b1, beam_c + 0.08), st["steel"])
+    if lod == 0:   # rocker pins through the beam and rockers
+        for pu, pw in pins:
+            prims.cylinder(mb, (pu, min(b0, v0) - 0.01, pw), (pu, max(b1, v1) + 0.01, pw), 0.03, 8, st["rod"])
     if plate:   # plate on the structure face, down past the beam, with the beam's pin through both
         side = -inboard
         p0, p1 = sorted((side * plate["v"][0], side * plate["v"][1]))

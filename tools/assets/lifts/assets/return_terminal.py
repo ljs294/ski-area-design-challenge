@@ -313,76 +313,146 @@ def guides(mb, a, c, r, lod, st):
 
 
 def lifting_frame(mb, lf, lod, st):
-    """The lifting frame at the entry: two curved plate legs from the rails to the crossbeam, adjusting rods, the
-    crossbeam with its shallower end stubs and end plates, the portal (legs, top beam, lug plates) and the
-    platform railed across its outer end, with knee braces."""
+    """The lifting frame at the entry (the integrated first tower): two curved plate legs from the rails up to a
+    flat top under a plate, seated on a joint plate against the crossbeam; the adjusting rods through the leg-top
+    plates and the rod plates on the crossbeam; the crossbeam with narrower end stubs closed by plates with a V
+    pendant and a ring boss; the portal (legs cut level on bolted foot plates and under the beam, end lug plates,
+    small U-lugs, ring bosses on the beam ends); and the platform (channel frame with grating, brackets and an
+    inner-end plate at the crossbeam, flat-bar knee braces to the hoop posts, the railing hoop across its outer
+    end with a centre post)."""
     cb = lf["crossbeam"]
-    cu0, cu1 = m(cb["uFrom"]), m(cb["uTo"])
-    half, stub = m(cb["v"]) / 2, m(cb["stubTo"]) / 2
-    prims.box(mb, (cu0, -half, m(cb["bottom"])), (cu1, half, m(cb["top"])), st["steel"])
+    cu0, cu1, cb0, cb1 = m(cb["uFrom"]), m(cb["uTo"]), m(cb["bottom"]), m(cb["top"])
+    half = m(cb["v"]) / 2
+    prims.box(mb, (cu0, -half, cb0), (cu1, half, cb1), st["steel"])
+    sb = cb["stub"]
+    su0, su1, stub = m(sb["uFrom"]), m(sb["uTo"]), m(sb["to"])
+    for s in (-1, 1):   # narrower end stubs
+        v0, v1 = sorted((s * half, s * stub))
+        prims.box(mb, (su0, v0, m(sb["bottom"])), (su1, v1, cb1), st["steel"], skip=("-1",) if s > 0 else ("+1",))
+    ep = cb["endPlate"]
+    if lod <= 1:   # stub end plates: the stub outline with a V pendant, and a ring boss
+        outline = [(m(u), m(w)) for u, w in ep["outline"]]
+        th = m(ep["thick"])
+        rg = ep["ring"]
+        for s in (-1, 1):
+            prims.prism(mb, outline, (0, stub if s > 0 else -stub - th, 0), U, W, V, th, st["steel"])
+            if lod == 0:
+                vr = s * (stub + th)
+                prims.cylinder(mb, (m(rg["at"][0]), vr, m(rg["at"][1])), (m(rg["at"][0]), vr + s * m(rg["proud"]), m(rg["at"][1])),
+                               m(rg["dia"]) / 2, 16, st["steel"])
+    rp = cb["rodPlates"]
     if lod <= 2:
         for s in (-1, 1):
-            v0, v1 = sorted((s * half, s * stub))
-            prims.box(mb, (cu0, v0, m(cb["stubBottom"])), (cu1, v1, m(cb["top"])), st["steel"])
-            if lod <= 1:
-                e0, e1 = sorted((s * stub, s * (stub + 0.02)))
-                prims.box(mb, (cu0 - 0.01, e0, m(cb["plate"])), (cu1 + 0.01, e1, m(cb["top"]) + 0.01), st["steel"])
+            v0, v1 = sorted((s * m(rp["v"][0]), s * m(rp["v"][1])))
+            prims.box(mb, (m(rp["u"][0]), v0, m(rp["w"][0])), (m(rp["u"][1]), v1, m(rp["w"][1])), st["steel"])
 
     lg = lf["legs"]
     edge_a = [(m(u), m(w)) for u, w in lg["edgeA"]]
     edge_b = [(m(u), m(w)) for u, w in lg["edgeB"]]
     if lod == 3:
-        edge_a, edge_b = [edge_a[0], edge_a[-1]], [edge_b[0], edge_b[-1]]
-    else:
-        edge_a, edge_b = thin(edge_a, lod), (edge_b if lod <= 1 else [edge_b[0], edge_b[-1]])
-    for s in (-1, 1):   # curved upper edge A up to the crossbeam, straight 60-degree lower edge B back down
-        vc = s * m(lg["vCentre"])
-        prims.prism(mb, edge_a + edge_b, (0, vc - m(lg["thick"]) / 2, 0), U, W, V, m(lg["thick"]), st["steel"])
+        edge_a, edge_b = [edge_a[0], edge_a[-2], edge_a[-1]], [edge_b[0], edge_b[-1]]
+    elif lod >= 1:   # fewer points on the curve; the flat top and the back edge stay
+        edge_a = thin(edge_a[:-2], lod) + edge_a[-2:]
+        edge_b = edge_b if lod == 1 else [edge_b[0], edge_b[1], edge_b[-1]]
+    vlo, vhi = m(lg["vCentre"]) - m(lg["thick"]) / 2, m(lg["vCentre"]) + m(lg["thick"]) / 2
+    tp, jp = lg["topPlate"], lg["jointPlate"]
+    for s in (-1, 1):   # curved upper edge A to a flat top, vertical back edge, straight 60-degree lower edge B
+        prims.prism(mb, edge_a + edge_b, (0, s * m(lg["vCentre"]) - m(lg["thick"]) / 2, 0), U, W, V, m(lg["thick"]), st["steel"])
+        if lod <= 2:
+            v0, v1 = sorted((s * m(tp["v"][0]), s * m(tp["v"][1])))
+            prims.box(mb, (m(tp["u"][0]), v0, m(tp["w"][0])), (m(tp["u"][1]), v1, m(tp["w"][1])), st["steel"])
+            j0, j1 = sorted((s * vlo, s * vhi))
+            prims.box(mb, (m(jp["u"][0]), j0, m(jp["w"][0])), (m(jp["u"][1]), j1, m(jp["w"][1])), st["steel"])
 
-    pv = lf["pivot"]
-    if lod <= 1:   # adjusting rods beside the legs, with nuts above the crossbeam
-        rd = pv["rod"]
+    rd = lf["rods"]
+    if lod <= 1:   # adjusting rods through the leg-top plates and the rod plates, with nuts and a washer
         for s in (-1, 1):
-            p0 = Vector((m(rd["u"]), s * m(rd["v"]), m(rd["bottom"])))
-            p1 = Vector((m(rd["u"]), s * m(rd["v"]), m(rd["top"])))
-            prims.cylinder(mb, p0, p1, m(rd["dia"]) / 2, parts.sides(lod, 8, 5), st["rod"])
+            ru, rv = m(rd["u"]), s * m(rd["v"])
+            prims.cylinder(mb, (ru, rv, m(rd["bottom"])), (ru, rv, m(rd["top"])), m(rd["dia"]) / 2, parts.sides(lod, 8, 5), st["rod"])
             if lod == 0:
-                prims.box(mb, tuple(p1 - Vector((0.035, 0.035, 0.09))), tuple(p1 + Vector((0.035, 0.035, -0.03))), st["rod"])
+                circ = m(rd["nut"]) / 2 / math.cos(math.pi / 6)
+                for n0, n1 in rd["nuts"]:
+                    prims.cylinder(mb, (ru, rv, m(n0)), (ru, rv, m(n1)), circ, 6, st["rod"], phase=0.0)
+                wa = rd["washer"]
+                prims.cylinder(mb, (ru, rv, m(wa["w"][0])), (ru, rv, m(wa["w"][1])), m(wa["dia"]) / 2, 10, st["rod"])
 
     po = lf["portal"]
     pu0, pu1 = m(po["uFrom"]), m(po["uTo"])
-    pc = (pu0 + pu1) / 2
     t_lo, t_hi = m(po["bottom"]), m(po["top"])
-    prims.box(mb, (pu0, -m(po["v"]) / 2, t_lo), (pu1, m(po["v"]) / 2, t_hi), st["steel"])
-    for s in (-1, 1):
-        prims.beam(mb, (pc, s * m(po["legFoot"]), m(cb["top"])), (pc, s * m(po["legHead"]), t_lo), m(po["leg"]), m(po["leg"]), st["steel"], up=U)
-    lu = po["lugs"]
-    if lod <= 1:   # twin lug plates under each end of the top beam, eye pin through them; small lugs near the middle
+    hv = m(po["v"]) / 2
+    prims.box(mb, (pu0, -hv, t_lo), (pu1, hv, t_hi), st["steel"])
+    lgp = po["leg"]
+    for s in (-1, 1):   # legs square in u, leaning out in v, cut level on the foot plates and under the beam
+        f0, f1 = sorted((s * m(lgp["foot"][0]), s * m(lgp["foot"][1])))
+        h0, h1 = sorted((s * m(lgp["head"][0]), s * m(lgp["head"][1])))
+        prims.prism(mb, [(f0, m(lgp["footW"])), (f1, m(lgp["footW"])), (h1, t_lo), (h0, t_lo)], (pu0, 0, 0), V, W, U, pu1 - pu0, st["steel"])
+    fpl = po["footPlates"]
+    if lod <= 2:
         for s in (-1, 1):
-            for pv_ in lu["v"]:
-                v0 = s * m(pv_)
-                prims.box(mb, (pc - 0.06, v0 - 0.01, m(lu["bottom"])), (pc + 0.06, v0 + 0.01, t_lo), st["steel"])
+            v0, v1 = sorted((s * m(fpl["v"][0]), s * m(fpl["v"][1])))
+            prims.box(mb, (m(fpl["u"][0]), v0, m(fpl["w"][0])), (m(fpl["u"][1]), v1, m(fpl["w"][1])), st["steel"])
             if lod == 0:
-                w_pin = m(lu["bottom"]) + 0.06
-                prims.cylinder(mb, (pc, s * (m(lu["v"][0]) - 0.03), w_pin), (pc, s * (m(lu["v"][1]) + 0.03), w_pin), 0.03, 8, st["rod"])
-                prims.box(mb, (pc - 0.04, s * m(po["smallLugs"]) - 0.01, t_lo - 0.08), (pc + 0.04, s * m(po["smallLugs"]) + 0.01, t_lo), st["steel"])
+                for bu in fpl["boltsU"]:
+                    prims.cylinder(mb, (m(bu), s * m(fpl["boltV"]), m(fpl["w"][1])), (m(bu), s * m(fpl["boltV"]), m(fpl["w"][1]) + 0.02),
+                                   0.018, 6, st["rod"])
+    if lod <= 1:
+        lu = po["lugs"]   # end lug plates through the beam, narrowing to a round-bottomed lobe
+        a0, a1 = m(lu["top"][0]), m(lu["top"][1])
+        l0, l1 = m(lu["lobe"][0]), m(lu["lobe"][1])
+        sh, lr = m(lu["shoulder"]), (m(lu["lobe"][1]) - m(lu["lobe"][0])) / 2
+        lc, ctr = (l0 + l1) / 2, m(lu["bottom"]) + lr
+        outline = [(a0, t_hi), (a0, sh), (l0, ctr + 0.035), (l0, ctr)]
+        outline += [(lc + lr * math.cos(a_), ctr + lr * math.sin(a_)) for a_ in (math.pi * (1 + k / 6) for k in range(1, 6))]
+        outline += [(l1, ctr), (l1, ctr + 0.035), (a1, sh), (a1, t_hi)]
+        th = m(lu["thick"])
+        for s in (-1, 1):
+            for vl in lu["v"]:
+                prims.prism(mb, outline, (0, s * m(vl) - th / 2, 0), U, W, V, th, st["steel"])
+        er = po["endRing"]
+        for s in (-1, 1):
+            prims.cylinder(mb, (m(er["at"][0]), s * hv, m(er["at"][1])), (m(er["at"][0]), s * (hv + m(er["proud"])), m(er["at"][1])),
+                           m(er["dia"]) / 2, parts.sides(lod, 16, 10), st["steel"])
+        sl = po["smallLugs"]   # U-lugs under the beam, facing along u
+        sv0, sv1 = m(sl["v"][0]), m(sl["v"][1])
+        r_, c_ = (sv1 - sv0) / 2, (sv0 + sv1) / 2
+        wc = m(sl["bottom"]) + r_
+        for s in (-1, 1):
+            pts = [(s * sv0, t_lo), (s * sv0, wc)]
+            pts += [(s * (c_ - r_ * math.cos(a_)), wc - r_ * math.sin(a_)) for a_ in (math.pi * k / 6 for k in range(1, 6))]
+            pts += [(s * sv1, wc), (s * sv1, t_lo)]
+            prims.prism(mb, pts, (m(sl["u"][0]), 0, 0), V, W, U, m(sl["u"][1]) - m(sl["u"][0]), st["steel"])
 
     pf = lf["platform"]
     if lod <= 2:
-        hv = m(pf["v"]) / 2
-        deck = m(pf["top"])
-        prims.box(mb, (m(pf["uFrom"]), -hv, deck - 0.05), (m(pf["uTo"]), hv, deck), st["grating"])
-        if lod <= 1:   # knee braces from the crossbeam out under the deck edge
-            (bu0, bw0), (bu1, bw1) = [(m(u), m(w)) for u, w in pf["brace"]]
+        pu0_, pu1_ = m(pf["uFrom"]), m(pf["uTo"])
+        ho, deck, ch, si = m(pf["v"]) / 2, m(pf["top"]), m(pf["channel"]), m(pf["sides"])
+        if lod <= 1:   # channel frame (sides and both ends) with grating set in, tied to the crossbeam
             for s in (-1, 1):
-                vb = s * (hv - 0.15)
-                prims.beam(mb, (cu1, vb, bw0), (bu0, vb, bw0), 0.06, 0.06, st["steel"])
-                prims.beam(mb, (bu0, vb, bw0), (bu1, vb, bw1), 0.06, 0.06, st["steel"])
-        ho = pf["hoop"]
-        uh, vh = m(ho["u"]), m(ho["v"])
-        hoop(mb, ((uh, -vh, 0.0), (uh, vh, 0.0)), m(ho["top"]), deck, m(ho["corner"]), lod, st["galv"])
+                v0, v1 = sorted((s * si, s * ho))
+                prims.box(mb, (pu0_, v0, deck - ch), (pu1_, v1, deck), st["steel"])
+            prims.box(mb, (pu0_, -si, deck - ch), (m(pf["innerEnd"]), si, deck), st["steel"])
+            prims.box(mb, (m(pf["outerEnd"]), -si, deck - ch), (pu1_, si, deck), st["steel"])
+            prims.box(mb, (m(pf["innerEnd"]), -si, deck - m(pf["grating"])), (m(pf["outerEnd"]), si, deck), st["grating"])
+            bk = pf["brackets"]
+            for s in (-1, 1):
+                v0, v1 = sorted((s * m(bk["v"][0]), s * m(bk["v"][1])))
+                prims.box(mb, (m(bk["u"][0]), v0, deck - ch), (m(bk["u"][1]), v1, deck), st["steel"])
+            ip = pf["innerPlate"]
+            prims.box(mb, (m(ip["u"][0]), -ho, m(ip["w"][0])), (m(ip["u"][1]), ho, m(ip["w"][1])), st["steel"])
+            br = pf["braces"]
+            for s in (-1, 1):
+                vb = s * m(br["v"])
+                prims.beam(mb, (m(br["from"][0]), vb, m(br["from"][1])), (m(br["to"][0]), vb, m(br["to"][1])), m(br["thick"]), m(br["depth"]),
+                           st["steel"])
+        else:
+            prims.box(mb, (pu0_, -ho, deck - ch), (pu1_, ho, deck), st["grating"])
+        hp = pf["hoop"]
+        uh, vh = m(hp["u"]), m(hp["v"])
+        hoop(mb, ((uh, -vh, 0.0), (uh, vh, 0.0)), m(hp["top"]), m(hp["postFoot"]), m(hp["corner"]), lod, st["galv"])
         if lod <= 1:
-            prims.cylinder(mb, (uh, -vh, m(ho["mid"])), (uh, vh, m(ho["mid"])), 0.02, 6 if lod == 0 else 4, st["galv"], caps=(False, False))
+            n = 6 if lod == 0 else 4
+            prims.cylinder(mb, (uh, -vh, m(hp["mid"])), (uh, vh, m(hp["mid"])), 0.02, n, st["galv"], caps=(False, False))
+            prims.cylinder(mb, (uh, 0, deck), (uh, 0, m(hp["top"])), m(hp["dia"]) / 2, n, st["galv"], caps=(False, False))
 
 
 def entry_trains(mb, a, c, et, lod, st):
@@ -391,9 +461,11 @@ def entry_trains(mb, a, c, et, lod, st):
     tr = c["sheaveTrain"]
     train = {"n": tr["n"], "pitch": m(tr["pitch"]), "rocker": m(tr["rocker"]), "beam": m(tr["beam"])}
     gs, hg = c["guideSheave"], m(c["lineGauge"]) / 2
+    pl = et["plate"]   # hung from plates on the stub undersides, clear of the crossbeam step
+    plate = {"v": (m(pl["v"][0]), m(pl["v"][1])), "top": m(pl["top"]), "width": m(pl["width"]), "pin": m(pl["pin"])}
     for side, name in ((-1, "l"), (1, "r")):
         parts.sheave_train(mb, a, name, m(et["u"]), side * hg, m(c["ropeElevation"]), m(c["ropeDiameter"]) / 2, m(gs["dia"]),
-                           m(gs["width"]), train, et["mode"], (side * m(et["attach"][0]), m(et["attach"][1])), lod, st)
+                           m(gs["width"]), train, et["mode"], None, lod, st, plate=plate)
 
 
 def bullwheel(mb, centre, pitch, bw, lod, st):
@@ -485,7 +557,8 @@ def build(spec, lod, stage):
         bullwheel(body, centre, c["bullwheel"]["pitch"], r["bullwheel"], lod, st)
 
     lf = r["liftingFrame"]
-    ul = m(lf["u"])
+    tr, et = c["sheaveTrain"], r["entryTrains"]
+    ul = m(et["u"]) + (tr["n"] - 1) / 2 * m(tr["pitch"])   # the rope leaves over the outermost train sheave
     a.body = body
     a.sockets = {
         "line": (0.0, 0.0, 0.0),
