@@ -7,7 +7,7 @@ Shots:
   lods    every LOD of every asset side by side, with triangle counts.
   photos  Cycles photos: the chair (angles, close-ups, a line of chairs, snowfall) and each terminal on snow
           with its rope loop and chairs (hero, back, side, approach, high, bullwheel, entry, snowfall, livery);
-          terminal_photos renders only the terminals' sets.
+          terminal_photos renders only the terminals' sets; LIFT_PHOTOS=hero,back limits either to those shots.
 Blender's metadata stamp is off so the PNGs carry no paths.
 """
 import json
@@ -463,7 +463,11 @@ def _shooter(prefix, out_dir):
     cam.data.sensor_width = 36
     cam.data.clip_start, cam.data.clip_end = 0.05, 800
 
+    only = [s for s in os.environ.get("LIFT_PHOTOS", "").split(",") if s]   # optional subset, e.g. "hero,back"
+
     def shoot(name, target, az, el, dist, lens=50):
+        if only and name not in only:
+            return
         a, e = math.radians(az), math.radians(el)
         d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
         eye = Vector(target) + d * dist
