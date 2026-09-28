@@ -56,7 +56,7 @@ namespace MountainPlanner.Presentation
             for (int i = 0; i < _materials.Count; i++)
             {
                 int l = _materialLods[i];
-                _materials[i].SetFloat("_SnowLoad", SnowLoad * LodSnow[l]);
+                _materials[i].SetFloat("_SnowLoad", SnowLoad * _lodSnow[l]);
                 if (l == Lods - 1) _materials[i].SetFloat("_SnowFlat", 0.2f * SnowLoad);
             }
         }
@@ -67,8 +67,16 @@ namespace MountainPlanner.Presentation
             public RenderParams Params;
         }
 
-        public ForestRenderer(TreePrototypeSet set, ForestInstance[] trees, ComputeShader cull, Shader shader, float snowLoad = 1)
+        readonly float[] _lodSnow;
+
+        /// <summary>Per-LOD tuning for things that aren't trees (rocks keep their size and snow at every distance).</summary>
+        public static readonly float[] RockLodWidth = { 1f, 1f, 1f, 1.05f }, RockLodSnow = { 1f, 1f, 1f, 1f };
+
+        public ForestRenderer(TreePrototypeSet set, ForestInstance[] trees, ComputeShader cull, Shader shader, float snowLoad = 1,
+                              float[] lodWidth = null, float[] lodSnow = null)
         {
+            lodWidth ??= LodWidth;
+            _lodSnow = lodSnow ?? LodSnow;
             _cull = cull;
             _clear = cull.FindKernel("Clear");
             _cullKernel = cull.FindKernel("Cull");
@@ -112,14 +120,19 @@ namespace MountainPlanner.Presentation
                         material.SetTexture("_BaseMap", source.GetTexture("_BaseMap"));
                         bool cutout = source.IsKeywordEnabled("_ALPHATEST_ON");
                         material.SetFloat("_Cutoff", cutout ? 0.4f : 0);   // a little lower than 0.5: soft edges would otherwise thin the crowns
-                        material.SetFloat("_SnowLoad", snowLoad * LodSnow[l]);
+                        material.SetFloat("_SnowLoad", snowLoad * _lodSnow[l]);
+                        if (source.HasProperty("_Triplanar"))
+                        {
+                            material.SetFloat("_Triplanar", source.GetFloat("_Triplanar"));
+                            material.SetFloat("_TriplanarScale", source.GetFloat("_TriplanarScale"));
+                        }
                         // Cards have no snow mask: a light flat dusting on their upper side.
-                        if (l == Lods - 1) material.SetFloat("_SnowFlat", 0.2f * snowLoad);
+                        if (l == Lods - 1 && lodSnow == null) material.SetFloat("_SnowFlat", 0.2f * snowLoad);
                         _materials.Add(material);
                         _materialLods.Add(l);
                         var props = new MaterialPropertyBlock();
                         props.SetInt("_VisibleOffset", (int)(l * trees.Length + start[p]));
-                        props.SetFloat("_LodWidth", LodWidth[l]);
+                        props.SetFloat("_LodWidth", lodWidth[l]);
                         props.SetBuffer("_Trees", _trees);
                         props.SetBuffer("_Visible", _visible);
                         _draws.Add(new Draw

@@ -29,6 +29,8 @@ namespace MountainPlanner.App
     public sealed class ForestAssets
     {
         public TreePrototypeSet Trees;
+        /// <summary>Procedural rocks (optional): the same GPU instancing as the trees.</summary>
+        public TreePrototypeSet Rocks;
         public ComputeShader Cull;
         public Shader Shader;
         public bool IsComplete => Trees != null && Cull != null && Shader != null && SystemInfo.supportsComputeShaders;
@@ -50,6 +52,7 @@ namespace MountainPlanner.App
         public Task CoverReady = Task.CompletedTask;
         public double CoverSeconds;
         public long TreesPlanted;
+        public long RocksPlaced;
         public double ForestSeconds;
         public double Seconds;
     }
@@ -83,6 +86,14 @@ namespace MountainPlanner.App
             var root = new GameObject($"Resort: {manifest.Site.Name}");
             if (parent != null) root.transform.SetParent(parent, false);
             var ground = new GroundLayers();
+            var ringBox = SiteSquare.Create(frame.Origin, manifest.Site.SizeMetres / 1000.0).Ring;
+            var (rw, rs) = frame.ToLocal(new AlbersPoint(ringBox.West, ringBox.South));
+            var ringRect = new Rect((float)rw, (float)rs, (float)ringBox.Width, (float)ringBox.Height);
+            if (TerrainTiles.UsesMountainShader(material))
+            {
+                material = new Material(material) { name = material.name + " (" + manifest.Site.Name + ")" };
+                ground.Configure(material, ringRect);
+            }
             // Tiles start with just the snow layer (all a fresh tile shows); the ground layers join when its
             // cover is painted. Six layers per tile up front added about half a second to opening.
             var layers = new[] { ground.Layers[0] };
@@ -108,6 +119,21 @@ namespace MountainPlanner.App
                                                                       await heightsTask.ConfigureAwait(false), origin, tileMetres, heightMin, heightRange), ct);
                 }).ToList();
             }
+            List<Task<ForestInstance[]>> rockTasks = null;
+            if (forest != null && forest.IsComplete && forest.Rocks != null)
+            {
+                float[] rockHeights = forest.Rocks.NativeHeights;
+                float tileMetres = (float)cache.TileMetres, heightMin = (float)cache.HeightMin, heightRange = (float)cache.HeightRange;
+                rockTasks = order.Select((t, i) =>
+                {
+                    var (ox, oz) = frame.ToLocal(new AlbersPoint(t.West, t.North - cache.TileMetres));
+                    var origin = new Vector3((float)ox, 0, (float)oz);
+                    var heightsTask = decoded[i];
+                    // Rocks sit a third of their height into the ground (or snow), so they look embedded, not dropped.
+                    return Task.Run(async () => ForestInstance.Decode(TerrainCache.ReadRocks(packageFolder, t), rockHeights,
+                                                                      await heightsTask.ConfigureAwait(false), origin, tileMetres, heightMin, heightRange, 0, 0.33f), ct);
+                }).ToList();
+            }
             float start = progress == null ? 0 : 0.5f;
             double waited = 0, created = 0;
             var part = Stopwatch.StartNew();
@@ -124,35 +150,36 @@ namespace MountainPlanner.App
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
             }
             TerrainTiles.ConnectNeighbours(tiles);
-            UnityEngine.Debug.Log($"[ResortOpener] {order.Count} tiles: waiting for decode {waited:F2} s, creating terrains {created:F2} s, total {clock.Elapsed.TotalSeconds:F2} s");
+            UnityEngine.Debug.Log($"[ResortOpener] {order.Count} tiles: waiting for decode {waited:F2} s, creating terrains {created:F2} s " +
+                                  $"(setup {TerrainTiles.ProfileSetup:F2}, heights {TerrainTiles.ProfileSetHeights:F2}, sync {TerrainTiles.ProfileSync:F2}), total {clock.Elapsed.TotalSeconds:F2} s");
 
-            var ring = SiteSquare.Create(frame.Origin, manifest.Site.SizeMetres / 1000.0).Ring;
-            var (w, s) = frame.ToLocal(new AlbersPoint(ring.West, ring.South));
             var first = cache.Tiles.OrderBy(t => t.Row).ThenBy(t => t.Column).First();
             var (tw, tn) = frame.ToLocal(new AlbersPoint(first.West, first.North));
-            var surface = new UnityTerrainSurface(tiles, (float)tw, (float)tn, (float)cache.TileMetres, new Rect((float)w, (float)s, (float)ring.Width, (float)ring.Height));
+            var surface = new UnityTerrainSurface(tiles, (float)tw, (float)tn, (float)cache.TileMetres, ringRect);
             progress?.Report(new OpenProgress("Ready", 1));
             var resort = new OpenedResort
             {
                 Manifest = manifest, Cache = cache, Root = root, Tiles = tiles, Surface = surface, Frame = frame, Seconds = clock.Elapsed.TotalSeconds,
                 Ground = ground, PackageFolder = packageFolder,
             };
-            resort.CoverReady = PaintCoverAsync(resort, order, covers, forests, forest, clock, ct);
+            resort.CoverReady = PaintCoverAsync(resort, order, covers, forests, rockTasks, forest, clock, ct);
             return resort;
         }
 
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
         static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers,
-                                          List<Task<ForestInstance[]>> forests, ForestAssets forest, Stopwatch clock, CancellationToken ct)
+                                          List<Task<ForestInstance[]>> forests, List<Task<ForestInstance[]>> rockTasks, ForestAssets forest,
+                                          Stopwatch clock, CancellationToken ct)
         {
             for (int n = 0; n < order.Count; n++)
             {
                 var splat = await covers[n];
                 ct.ThrowIfCancellationRequested();
                 if (resort.Root == null) return; // closed meanwhile
-                var data = resort.Tiles[(order[n].Column, order[n].Row)].terrainData;
-                data.terrainLayers = resort.Ground.Layers;
-                TerrainTiles.ApplySplat(data, splat);
+                var terrain = resort.Tiles[(order[n].Column, order[n].Row)];
+                terrain.terrainData.terrainLayers = resort.Ground.Layers;
+                TerrainTiles.ApplySplat(terrain.terrainData, splat);
+                TerrainTiles.BindSplat(terrain);
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
             }
             resort.CoverSeconds = clock.Elapsed.TotalSeconds;
@@ -170,6 +197,16 @@ namespace MountainPlanner.App
             resort.TreesPlanted = instances.Length;
             resort.ForestSeconds = clock.Elapsed.TotalSeconds;
             UnityEngine.Debug.Log($"[ResortOpener] {instances.Length:N0} trees planted at {resort.ForestSeconds:F2} s ({renderer.DrawCount} indirect draws)");
+            if (rockTasks == null) return;
+
+            var rocks = await Task.WhenAll(rockTasks);
+            if (resort.Root == null) return;
+            var rockInstances = await Task.Run(() => rocks.SelectMany(a => a).ToArray(), ct);
+            var rockRenderer = new ForestRenderer(forest.Rocks, rockInstances, UnityEngine.Object.Instantiate(forest.Cull), forest.Shader, 1,
+                                                  ForestRenderer.RockLodWidth, ForestRenderer.RockLodSnow);
+            resort.Root.AddComponent<ForestView>().Renderer = rockRenderer;
+            resort.RocksPlaced = rockInstances.Length;
+            UnityEngine.Debug.Log($"[ResortOpener] {rockInstances.Length:N0} rocks placed at {clock.Elapsed.TotalSeconds:F2} s ({rockRenderer.DrawCount} indirect draws)");
         }
 
         /// <summary>
@@ -185,7 +222,11 @@ namespace MountainPlanner.App
             foreach (var (tile, splat) in jobs)
             {
                 var texels = await splat;
-                if (resort.Tiles.TryGetValue((tile.Column, tile.Row), out var terrain)) TerrainTiles.ApplySplat(terrain.terrainData, texels);
+                if (resort.Tiles.TryGetValue((tile.Column, tile.Row), out var terrain))
+                {
+                    TerrainTiles.ApplySplat(terrain.terrainData, texels);
+                    TerrainTiles.BindSplat(terrain);
+                }
                 if (++n % 8 == 0) await Task.Yield();
             }
         }

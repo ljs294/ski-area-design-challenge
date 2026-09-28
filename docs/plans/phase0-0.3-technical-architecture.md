@@ -132,7 +132,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
   - Where a 2 m ring tile meets a 1 m core tile, the core edge is matched to the ring's samples.
 - **Heights to 16-bit:** Unity Terrain stores heights as 16-bit values but uses only 0–32,766 (15 effective bits; normalised 1.0 = 32,766), so the cache stores exactly that. Heights are mapped over the package's lowest-to-highest range (ring included): at Jackson Hole 5 km that's 1,437 m in **4.4 cm steps** (measured, task 05), still below lidar's own vertical accuracy of about 10 cm. The float32 source keeps full precision for later. Task 06 confirmed the 32,766 figure against real `TerrainData` (Unity stores exactly v / 32,766).
 - **Sampling:** heights are one continuous function of position (bilinear between cell centres; the 1 m core eased into the 2 m ring over 16 m at the core's edge), and every tile samples it at its vertices. Neighbouring tiles therefore share identical edges, and where a 1 m tile meets a 2 m tile, its in-between edge samples are the midpoints of the 2 m edge (no T-junction cracks at full detail).
-- **Ring upsampling (task 06):** Unity's terrain level-of-detail stitching assumes neighbours of equal heightmap resolution, so ring tiles are upsampled from 513² to 1,025² when loaded (integer midpoints, exactly reproducing the 2 m surface). The cache stays at 513²; only memory in the running game grows.
+- **Ring tiles at their own 513² (style tile; task 06 had upsampled them to 1,025²):** the cache already makes every 2 m edge vertex identical on both sides of a 1 m / 2 m boundary (`MatchRingEdges`), and screenshots of the seams at several distances show no cracks. Loading the ring natively halved the open time (Jackson Hole 5 km: 9.3 s → 4.9 s in the game, 9.9 s → 5.4 s in the editor). The PlayMode test checks every shared edge vertex.
 - Also cached per tile (task 07, cache version 2): the ground cover as `.cover` texels, 1,024² in core tiles (1 m) and 256² in the ring (4 m). Each texel holds the five ground-layer weights (summing to 255) plus a snow cover, laid out like Unity's splat maps (texel *i* at West + *i*·size/(*n*−1)), so neighbouring tiles share identical edge texels.
 - **Size:** a 5 km site in an 11 km square makes 121 tiles: 25 core and 96 ring.
 
@@ -142,7 +142,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - Unity Terrain's built-in quadtree level of detail renders the whole area; each quality preset sets the pixel-error tolerance and basemap distance.
 - **No colliders yet:** cooking a physics heightfield per tile was most of the open time. The camera samples heights instead; drawing tools add colliders where they need them.
 - **Not instanced yet:** URP draw-instanced terrain rendered flat-lit and untextured when created from script (tried: order, the per-pixel-normal keyword, basemap distance, enabling late). Non-instanced terrain renders correctly at 300+ FPS at 1080p, so task 15 revisits instancing with the benchmark.
-- **Measured (task 06):** Jackson Hole 5 km, 121 tiles, opens in 8.6–9.1 s on the reference PC.
+- **Measured:** Jackson Hole 5 km, 121 tiles, opens in 4.9 s on the reference PC (8.6–9.1 s in task 06, before the ring loaded natively). Of that, `SetHeights` is 2.6 s, tile setup 0.9 s and heightmap sync 0.7 s; the GPU heightmap copy was tried and was slower, because it reads the heights back to the CPU.
 - The terrain material, the forest (§4.5) and water surfaces are then built on top.
 - **Target:** ≤10 s from opening to a playable view (§8).
 
@@ -204,6 +204,10 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - Trees are built with **separate leaf geometry and materials**, so seasons need no new models later.
 - **Estimate:** about 650,000 trees on a 5 km site at 65% forest, plus the ring. Ring trees use impostors only.
 - **Later:** a clearing mask (for trails and lift lines) multiplies into density, so drawing tools remove trees tile by tile.
+
+**Terrain shader (style tile):** `MountainTerrain.shader` replaces URP Terrain/Lit: all six layers in one pass (URP needs two past four), height-based blending, triplanar rock on steep faces (no stretching on cliffs), frozen-lake shading with an ice rim, the cover-map overlay, and a clean cut at the edge of the downloaded data. Ground textures are generated (`GroundTextures`, tileable keyed noise) as albedo+height and normal arrays.
+
+**Rocks (style tile, owner request):** `RockPlacement` / `RockField` place boulders on steep (36°+) and bare ground and crag outcrops on faces over 48°, never on water or roads, fewer in forest; cached per tile like the trees. `RockImport` generates 6 boulder and 4 stepped-strata outcrop meshes (4 LODs each) from keyed noise; they draw with the forest's GPU instancing in a triplanar granite mode of the tree shader, with snow on their upper faces. Jackson Hole 5 km: about 46,000 rocks in 40 indirect draws.
 
 **As built (first forest, tasks 08-09 started early at the owner's request):**
 - **Placement (`ForestField`, cached per tile as `.trees`, 8 bytes a tree):** candidates come from keyed hashes of global 10 m cells, so each tree belongs to exactly one tile and the same package always grows the same forest. In the core, trees stand only on 1 m canopy pixels of 3 m or more (ski runs, glades and tree islands stay open); count per cell = tree share × density factor (1.5) × crowns per cell; dominant height = tallest canopy × 2.2, each tree 65-100% of it. The ring uses WorldCover forest cells, calibrated from the core (canopy tree share per WorldCover forest cell: 0.27 at Jackson Hole), thinning to 10% over 2 km with wider crowns.

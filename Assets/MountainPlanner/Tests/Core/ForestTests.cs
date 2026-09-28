@@ -56,6 +56,53 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void RocksFollowSlopeAndStayOffWater()
+        {
+            Assert.That(RockPlacement.Rockiness(10, 0, 0), Is.EqualTo(0), "gentle meadows have no rocks");
+            Assert.That(RockPlacement.Rockiness(50, 0, 0), Is.EqualTo(1), "steep faces are rocky");
+            Assert.That(RockPlacement.Rockiness(50, 0, 1), Is.LessThan(0.5), "fewer under forest");
+            Assert.That(RockPlacement.Rockiness(5, 1, 0), Is.GreaterThan(0.3), "bare alpine ground is rocky");
+            Assert.That(RockPlacement.Rockiness(30, 0, 0), Is.EqualTo(0), "in winter, rocks on skiable slopes are buried");
+            Assert.That(RockPlacement.OutcropChance(30), Is.EqualTo(0));
+            Assert.That(RockPlacement.OutcropChance(70), Is.EqualTo(0.3));
+            Assert.That(RockPlacement.BoulderSize(0), Is.EqualTo(0.5));
+            Assert.That(RockPlacement.BoulderSize(0.5), Is.LessThan(1.0), "most boulders are small");
+        }
+
+        [Test]
+        public void JacksonHoleRocksAreDeterministicAndOnSteepGround()
+        {
+            string dir = TestData.Folder("jackson-hole-2km");
+            foreach (string f in Directory.GetFiles(dir, "*.grid")) TestData.Bytes(dir, Path.GetFileName(f));
+            var manifest = ResortPackage.ReadManifest(dir);
+            float[] core = ResortPackage.ReadLayer(dir, manifest, "heights-core", out var coreHeader);
+            float[] ring = ResortPackage.ReadLayer(dir, manifest, "heights-ring", out var ringHeader);
+            var heights = new TerrainCache.HeightField(core, coreHeader, ring, ringHeader);
+            var site = SiteSquare.Create(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY), manifest.Site.SizeMetres / 1000.0);
+            var tiles = TileGrid.For(site);
+            long boulders = 0, outcrops = 0;
+            string hash = null;
+            foreach (var key in tiles.All())
+            {
+                var rocks = new RockField(manifest, dir, heights).BuildTile(tiles.Bounds(key));
+                foreach (var r in rocks)
+                {
+                    if (r.Prototype < RockPlacement.BoulderVariants) boulders++; else outcrops++;
+                    Assert.That(r.Prototype, Is.LessThan(RockPlacement.Prototypes));
+                }
+                if (hash == null && rocks.Count > 0)
+                {
+                    hash = GridFile.HashValues(ForestField.Encode(rocks, 1024));
+                    var again = new RockField(manifest, dir, heights).BuildTile(tiles.Bounds(key));
+                    Assert.That(GridFile.HashValues(ForestField.Encode(again, 1024)), Is.EqualTo(hash), "the same package gets the same rocks");
+                }
+            }
+            TestContext.Progress.WriteLine($"Rocks: {boulders:N0} boulders, {outcrops:N0} outcrops");
+            Assert.That(boulders, Is.GreaterThan(500), "Jackson Hole is a rocky mountain");
+            Assert.That(outcrops, Is.GreaterThan(50));
+        }
+
+        [Test]
         public void JacksonHoleTreesStandOnCanopyAndFollowBigmap()
         {
             string dir = TestData.Folder("jackson-hole-2km");

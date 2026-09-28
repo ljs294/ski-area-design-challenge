@@ -246,14 +246,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: MountainPlanner.App::MountainPlanner.App.MountainViewer
   Detail: 2
-  TerrainMaterial: {fileID: 2100000, guid: 43475efefa0daf347b53bb0d91004460, type: 2}
+  TerrainMaterial: {fileID: 2100000, guid: 7c108c9abb6bed448b026bc7fe126a85, type: 2}
   Camera: {fileID: 1783688403}
   HighlightMaterial: {fileID: 2100000, guid: aaddfdc2f814e314e85e47d238967f3b, type: 2}
-  KeepShaders:
-  - {fileID: 2100000, guid: d167ae7adb06be243bf3ccc9de948188, type: 2}
-  - {fileID: 2100000, guid: 4dca1cbdda832614881e7eec5c1020f8, type: 2}
-  - {fileID: 2100000, guid: e98c2037f42d1bc49832f0f918a119f6, type: 2}
   Trees: {fileID: 11400000, guid: b8dd485d786cab44e86a916a54ae9f7f, type: 2}
+  Rocks: {fileID: 11400000, guid: 3faded93aa76bf245934374dd34e35c7, type: 2}
   ForestCull: {fileID: 7200000, guid: 697c1da6fb58c6b4f8d071fa2b7ebfa8, type: 3}
   TreeShader: {fileID: 4800000, guid: c72e133dbef05a3469a5b8d57ee72054, type: 3}
 --- !u!4 &491018615
