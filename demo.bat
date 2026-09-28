@@ -56,6 +56,10 @@ echo     18 Rebuild the game (after pulling new code; close the Unity editor fir
 echo        Tip: re-run 12 once to add OpenStreetMap water and roads to an older Jackson Hole download.
 echo     19 Rebuild the trees from tools\assets\trees and import them (Blender 5.2; close the Unity editor), then 18
 echo.
+echo   Phase 1, tree realism review
+echo     20 Tree lineup: every species at every LOD, trunks, and a stand from 300 m to 3 km (screenshots, about 15 seconds)
+echo     21 Forest benchmark: 8 fixed views of Jackson Hole, GPU times and screenshots (about 2 minutes; needs 12)
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -89,6 +93,8 @@ if /i "%CHOICE%"=="16" goto library
 if /i "%CHOICE%"=="17" goto play
 if /i "%CHOICE%"=="18" goto buildgame
 if /i "%CHOICE%"=="19" goto trees
+if /i "%CHOICE%"=="20" goto lineup
+if /i "%CHOICE%"=="21" goto benchmark
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -158,6 +164,25 @@ if errorlevel 1 (echo   The tree build failed. & goto done)
 echo Importing the trees into Unity (about 2 minutes)...
 "%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.TreeImport.Import -quit -logFile "%~dp0test-results\trees.log" <nul
 if errorlevel 1 (echo   The import failed - see test-results\trees.log) else (echo   Trees imported. Choose 18 to rebuild the game.)
+goto done
+
+:lineup
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\lineup" mkdir "%~dp0test-results\lineup"
+echo Capturing the tree lineup (the game window opens and closes by itself)...
+"%GAME%" -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -lineup "%~dp0test-results\lineup\lineup" -logFile "%~dp0test-results\lineup\lineup.log" <nul
+start "" "%~dp0test-results\lineup"
+goto done
+
+:benchmark
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\benchmark" mkdir "%~dp0test-results\benchmark"
+echo Running the forest benchmark (the game flies 8 views, then closes by itself)...
+"%GAME%" -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -benchmark "%~dp0test-results\benchmark\bench.json" -logFile "%~dp0test-results\benchmark\bench.log" <nul
+findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\bench.log"
+start "" "%~dp0test-results\benchmark"
 goto done
 
 :buildgame

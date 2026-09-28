@@ -31,6 +31,7 @@ float4 _Planes[6];
 float3 _CameraPosition;
 float _ScreenScale;                         // 1 / (2 tan(fov / 2)): screen-height fraction = size * this / distance
 float4 _Transitions;                        // screen heights where LOD0→1, 1→2, 2→card, card→culled
+int _ForcedLod;                             // -1: by screen size; 0-3: every visible tree at this LOD (review tools)
 
 [numthreads(64, 1, 1)]
 void Clear(uint3 id : SV_DispatchThreadID)
@@ -52,6 +53,7 @@ void Cull(uint3 id : SV_DispatchThreadID)
     float distance = max(length(centre - _CameraPosition), 0.01);
     float screen = height * _ScreenScale / distance;
     uint lod = screen > _Transitions.x ? 0 : screen > _Transitions.y ? 1 : screen > _Transitions.z ? 2 : screen > _Transitions.w ? 3 : 4;
+    if (_ForcedLod >= 0) lod = (uint)_ForcedLod;
     if (lod == 4) return;
 
     uint slot;

@@ -12,6 +12,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: engelmann_spruce_Cluster
+    second: {fileID: 2100000, guid: d8ae7e78a3b1cb148b795326c442a3b4, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: engelmann_spruce_Foliage
     second: {fileID: 2100000, guid: 2afa5ed051d1c1e45bf52cf37f6e1e0a, type: 2}
   materials:
@@ -41,7 +46,7 @@ ModelImporter:
     extraExposedTransformPaths: []
     extraUserProperties: []
     clipAnimations: []
-    isReadable: 0
+    isReadable: 1
   meshes:
     lODScreenPercentages:
     - 0.25

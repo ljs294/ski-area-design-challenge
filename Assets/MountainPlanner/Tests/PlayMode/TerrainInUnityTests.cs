@@ -153,6 +153,7 @@ namespace MountainPlanner.Tests
                 Trees = UnityEditor.AssetDatabase.LoadAssetAtPath<TreePrototypeSet>("Assets/MountainPlanner/Art/Trees/TreePrototypes.asset"),
                 Cull = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/ForestCull.compute"),
                 Shader = UnityEditor.AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeInstanced.shader"),
+                ImpostorShader = UnityEditor.AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeImpostor.shader"),
             };
             if (!forest.IsComplete) Assert.Ignore("The tree library isn't imported, or this GPU has no compute shaders.");
             var camera = new GameObject("Test camera").AddComponent<Camera>();

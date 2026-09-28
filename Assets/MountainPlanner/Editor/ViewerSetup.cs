@@ -107,6 +107,7 @@ namespace MountainPlanner.Editor
             viewer.CliffMaterial = CliffMaterial();
             viewer.ForestCull = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/ForestCull.compute");
             viewer.TreeShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeInstanced.shader");
+            viewer.TreeImpostorShader = AssetDatabase.LoadAssetAtPath<Shader>(TreeImport.ImpostorShaderPath);
             if (viewer.Trees == null) Debug.LogWarning("[ViewerSetup] No tree library yet: run Mountain Planner > Import Trees.");
 
             // A procedural sky until task 11's sky and lighting presets.
@@ -144,6 +145,10 @@ namespace MountainPlanner.Editor
             CreateViewerScene();
             PlayerSettings.companyName = "Ski Area Design Challenge";
             PlayerSettings.productName = "Ski Area Design Challenge";
+            PlayerSettings.enableFrameTimingStats = true;   // GPU frame times for -benchmark
+            // Keep running when the window loses focus: loading a mountain shouldn't stall on alt-tab, and
+            // unattended captures and benchmarks froze whenever another window took focus.
+            PlayerSettings.runInBackground = true;
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },

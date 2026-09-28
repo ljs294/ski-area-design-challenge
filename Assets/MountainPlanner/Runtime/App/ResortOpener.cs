@@ -33,7 +33,9 @@ namespace MountainPlanner.App
         public Material Cliff;
         public ComputeShader Cull;
         public Shader Shader;
-        public bool IsComplete => Trees != null && Cull != null && Shader != null && SystemInfo.supportsComputeShaders;
+        /// <summary>Far trees (TreeImpostor.shader).</summary>
+        public Shader ImpostorShader;
+        public bool IsComplete => Trees != null && Cull != null && Shader != null && ImpostorShader != null && SystemInfo.supportsComputeShaders;
     }
 
     /// <summary>A resort on screen.</summary>
@@ -200,7 +202,7 @@ namespace MountainPlanner.App
             ct.ThrowIfCancellationRequested();
             if (resort.Root == null) return;
             var instances = await Task.Run(() => all.SelectMany(a => a).ToArray(), ct);
-            var renderer = new ForestRenderer(forest.Trees, instances, forest.Cull, forest.Shader);
+            var renderer = new ForestRenderer(forest.Trees, instances, forest.Cull, forest.Shader, forest.ImpostorShader);
             var view = resort.Root.AddComponent<ForestView>();
             view.Renderer = renderer;
             resort.TreesPlanted = instances.Length;

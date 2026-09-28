@@ -12,6 +12,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: subalpine_fir_Cluster
+    second: {fileID: 2100000, guid: fb0ff0bb48dd0ae4e9f93fe6253a943c, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: subalpine_fir_Foliage
     second: {fileID: 2100000, guid: ec583a6c08a7c6d4295fc8ff497715e7, type: 2}
   materials:
@@ -41,7 +46,7 @@ ModelImporter:
     extraExposedTransformPaths: []
     extraUserProperties: []
     clipAnimations: []
-    isReadable: 0
+    isReadable: 1
   meshes:
     lODScreenPercentages:
     - 0.25

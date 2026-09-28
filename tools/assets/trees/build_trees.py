@@ -13,7 +13,8 @@ Mesh data the tree shader reads (see README.md):
   UV0             texture coordinates
   UV1 "Data"      x = snow mask (0..1), y = seasonal flag (1 = leaf that drops, 0.5 = leaf kept dry
                   through winter, 0 = permanent)
-  UV2 "Season"    x = per-card random (0..1): the order leaves come out, turn and fall
+  UV2 "Season"    x = per-card random (0..1): the order leaves come out, turn and fall, and where snow
+                  clumps on a card (every card has one)
                   y = height in the crown (0 = crown base, 1 = top)
   Submeshes       0 bark, 1 foliage or leaves, 2 bare twigs (deciduous), 3 winter-kept leaves (beech)
 """
@@ -36,12 +37,23 @@ UP = Vector((0.0, 0.0, 1.0))
 GOLDEN = math.radians(137.508)
 TEX = 512
 
-# Detail per LOD.
+# Detail per LOD. Conifer LOD1 and LOD2 are built from branch-cluster cards ("cluster": cards per branch):
+# a whole branch of fronds on one card, so mid-distance crowns keep their foliage at a fraction of the
+# triangles (the first version thinned the sprays instead and kept 22-49% of the crown: tree realism
+# review). "internodal" keeps the short branches between whorls.
+# "flare" lists the root-flare rings above the ground (fractions of the flare height, see trunk_rings).
 LODS = [
-    {"sides": 8, "branchSides": 4, "segments": 4, "spacing": 1.0, "cards": 1.0, "card": 1.0, "level2": 1.0},
-    {"sides": 6, "branchSides": 3, "segments": 3, "spacing": 1.8, "cards": 0.35, "card": 1.55, "level2": 0.35},
-    {"sides": 5, "branchSides": 0, "segments": 2, "spacing": 3.6, "cards": 0.0, "card": 1.0, "level2": 0.0},
+    {"sides": 12, "branchSides": 4, "segments": 4, "spacing": 1.0, "cards": 1.0, "card": 1.0, "level2": 1.0, "internodal": True,
+     "flare": [0.35, 1.0, 2.2]},
+    {"sides": 6, "branchSides": 3, "segments": 3, "spacing": 1.0, "cards": 0.45, "card": 1.75, "level2": 0.34, "cluster": 2, "internodal": True,
+     "flare": [1.0]},
+    {"sides": 5, "branchSides": 0, "segments": 2, "spacing": 1.5, "cards": 0.0, "card": 1.0, "level2": 0.0, "cluster": 1, "internodal": False,
+     "flare": []},
 ]
+
+# Trunks start this far below the ground so they meet it on steep slopes too (a trunk ending 0.3 m down
+# showed its cut end on the downhill side of 30-degree slopes: tree realism review).
+BURIED = 1.0
 
 BARK, FOLIAGE, TWIGS, KEPT = 0, 1, 2, 3
 
@@ -90,8 +102,9 @@ class MeshBuilder:
         self.data.extend([(snow, flag)] * len(idx))
         self.season.extend([season] * len(idx))
 
-    def tube(self, pts, radii, sides, winds, snow_scale=0.6, v_scale=1.0):
-        """A tapered bark tube along pts; closes to a point when the last radius is 0."""
+    def tube(self, pts, radii, sides, winds, snow_scale=0.6, v_scale=1.0, flare=None):
+        """A tapered bark tube along pts; closes to a point when the last radius is 0. flare = (amount per
+        ring, lobes, phase) swells rings into buttress roots: widest on the lobes, never narrower."""
         if sides < 3:
             return
         rings, frame, length = [], None, 0.0
@@ -108,8 +121,14 @@ class MeshBuilder:
             if radii[i] <= 1e-6:
                 ring = [self.vert(p, winds[i])] * sides
             else:
-                ring = [self.vert(p + (side * math.cos(2 * math.pi * k / sides) + fwd * math.sin(2 * math.pi * k / sides)) * radii[i], winds[i])
-                        for k in range(sides)]
+                ring = []
+                for k in range(sides):
+                    a = 2 * math.pi * k / sides
+                    r = radii[i]
+                    if flare and flare[0][i] > 0:
+                        amount, lobes, phase = flare[0][i], flare[1], flare[2]
+                        r *= 1 + amount * (0.45 + 0.55 * max(0.0, math.cos(lobes * a + phase)) ** 2)
+                    ring.append(self.vert(p + (side * math.cos(a) + fwd * math.sin(a)) * r, winds[i]))
             rings.append((ring, length))
         circ = 2 * math.pi * max(radii[0], 0.02)
         for i in range(len(rings) - 1):
@@ -133,6 +152,10 @@ class MeshBuilder:
         w0, w1 = winds
         idx = [self.vert(a, w0), self.vert(b, w1), self.vert(c, w1), self.vert(e, w0)]
         snow = smoothstep(0.1, 0.7, self.normal_z(idx)) * snow_scale
+        if season == (0.0, 0.0):
+            # Cards without a season order still get their own random (snow clumps): a golden-ratio
+            # sequence over the card count, so the tree's random stream (its shape) is unchanged.
+            season = ((len(self.faces) * 0.6180339887) % 1.0, 0.0)
         self.face(idx, [(0, 0), (1, 0), (1, 1), (0, 1)], mat, snow, flag, season)
 
     def to_object(self, name, materials):
@@ -156,6 +179,22 @@ class MeshBuilder:
         obj = bpy.data.objects.new(name, mesh)
         bpy.context.scene.collection.objects.link(obj)
         return obj
+
+
+def trunk_rings(sp, lod, height, trunk_r, above, seed_key):
+    """Ring heights for a trunk and its root flare: one ring BURIED underground, then (if the LOD has
+    flare rings) one at the ground and the flare rings, then the trunk's own rings (`above`: heights) clear
+    of the flare. Returns (heights, flare amount per ring, (lobes, phase)). The flare swells the base into
+    3-5 buttress lobes and fades over roughly three trunk radii (tree realism review: trunks met the
+    ground as uniform pipes). LOD2 has no flare rings: its buried ring alone tapers into the trunk."""
+    frng = random.Random(zlib.crc32(seed_key.encode()))   # its own stream, so branches are unchanged
+    flare_h = max(0.4, 3.0 * trunk_r)
+    amount = sp.get("flare", 0.6 if sp["form"] == "conifer" else 0.45) * frng.uniform(0.8, 1.2)
+    low = [-BURIED] + ([0.0] + [flare_h * f for f in lod["flare"]] if lod["flare"] else [])
+    clear = (low[-1] + 0.3) if lod["flare"] else 0.3
+    zs = low + [z for z in above if z > clear]
+    amounts = [amount * math.exp(-max(z, 0.0) / flare_h) if z <= low[-1] + 1e-6 else 0.0 for z in zs]
+    return zs, amounts, (frng.randint(3, 5), frng.uniform(0, 2 * math.pi))
 
 
 def horizontal_side(direction, roll):
@@ -191,10 +230,11 @@ def build_conifer(sp, rng, lod, height):
         return min(1.0, max(0.0, z / height)) ** 2
 
     n = 12
-    tpts = [trunk_point(i / n) for i in range(n + 1)]
-    tpts[0] = tpts[0] - Vector((0, 0, 0.3))
-    b.tube(tpts, [trunk_r * (1 - i / n) ** 1.1 + (0.012 if i < n else 0) for i in range(n + 1)], lod["sides"],
-           [(sway(p.z), 0.0, phase_trunk, 0.0) for p in tpts], snow_scale=0.3)
+    zs, amounts, (lobes, lobe_phase) = trunk_rings(sp, lod, height, trunk_r, [height * i / n for i in range(1, n + 1)],
+                                                  f"{sp['id']}:{height:.4f}")
+    tpts = [trunk_point(z / height) for z in zs]
+    b.tube(tpts, [trunk_r * max(0.0, 1 - max(z, 0.0) / height) ** 1.1 + (0.012 if z < height - 1e-6 else 0) for z in zs], lod["sides"],
+           [(sway(p.z), 0.0, phase_trunk, 0.0) for p in tpts], snow_scale=0.3, flare=(amounts, lobes, lobe_phase))
 
     crown_base = sp["crownBase"] * height
     r_max = sp["crownRadius"] * height * rng.uniform(0.9, 1.1)
@@ -213,7 +253,7 @@ def build_conifer(sp, rng, lod, height):
     tiers = []
     while z < top_z:
         tiers.append((z, rng.randint(lo, hi), 1.0))
-        if lod["cards"] >= 1.0 and sp.get("internodal", True):
+        if lod.get("internodal") and sp.get("internodal", True):
             tiers.append((z + spacing * 0.5, max(2, (lo + hi) // 3), 0.7))
         z += spacing * rng.uniform(0.85, 1.15)
     for z, count, reach in tiers:
@@ -242,6 +282,20 @@ def build_conifer(sp, rng, lod, height):
                 return (branch_point(min(1, t + 0.02)) - branch_point(max(0, t - 0.02))).normalized()
 
             winds = [(sway(p.z), s / segs, phase, 0.0) for s, p in enumerate(pts)]
+            if lod.get("cluster"):
+                # Mid-distance LODs: the branch as one or two branch-cluster cards (no branch tube: the
+                # cluster hides it). A flat card along the branch, and on LOD1 a second one rolled up or
+                # down so the crown stays full from the side.
+                tan = branch_tangent(0.5)
+                span = min(3.2, max(1.1, 0.55 * length + 0.9)) * (0.8 if reach < 1.0 else 1.0)
+                # LOD2 has one card per branch: alternate a strong roll so the crown isn't edge-on from the side.
+                roll = rng.uniform(-0.25, 0.25) + (0.0 if lod["cluster"] >= 2 else (0.6 if (k + j) % 2 else -0.6))
+                ends = [(sway(base.z), 0.0, phase, 0.4), (sway(pts[-1].z), 1.0, phase, 1.0)]
+                b.card(base, tan, horizontal_side(tan, roll), length * 1.08, span, ends, FOLIAGE, snow_scale=0.4)
+                if lod["cluster"] >= 2 and reach == 1.0:
+                    b.card(base + tan * length * 0.08, tan, horizontal_side(tan, roll + rng.choice((-1, 1)) * 1.15), length * 0.95, span * 0.8,
+                           ends, FOLIAGE, snow_scale=0.25)
+                continue
             if lod["branchSides"] and reach == 1.0:
                 # Conifer branches are mostly hidden by their sprays: a 3-sided tube through every
                 # other point is enough (internodal branches get none).
@@ -361,11 +415,12 @@ def build_deciduous(sp, rng, lod, height):
             if i % 2 == 0:
                 b.card(p, dirn, horizontal_side(dirn, rng.uniform(-0.8, 0.8)), 1.5 * size, 1.2 * size,
                        [(sway(p.z), 0.7, phase, 0.6), (sway(p.z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.35)
-            for _ in range(2):
+            leaves = 2 if lod["cards"] >= 1.0 else 1   # LOD1: one larger leaf card per twig
+            for _ in range(leaves):
                 ld = (dirn + Vector((rng.uniform(-0.6, 0.6), rng.uniform(-0.6, 0.6), rng.uniform(-0.2, 0.3)))).normalized()
                 kept = "marcescent" in sp and p.z < crown_base + 0.45 * (height - crown_base) and rng.random() < 0.7
                 rel = min(1.0, max(0.0, (p.z - crown_base) / (height - crown_base)))
-                b.card(p, ld, horizontal_side(ld, rng.uniform(-0.6, 0.6)), 1.1 * size, 1.0 * size,
+                b.card(p, ld, horizontal_side(ld, rng.uniform(-0.6, 0.6)), 1.1 * size * (2 / leaves) ** 0.5, 1.0 * size * (2 / leaves) ** 0.5,
                        [(sway(p.z), 0.8, phase, 1.0), (sway(p.z), 1.0, phase, 1.0)],
                        KEPT if kept else FOLIAGE, flag=0.5 if kept else 1.0, snow_scale=0.0, season=(rng.random(), rel))
 
@@ -381,8 +436,22 @@ def build_deciduous(sp, rng, lod, height):
         tr = trunk_r * (1.0 if stem == 0 else 0.75)
         ph = rng.random()
         rings = range(0, 9, 1 if lod["cards"] else 2)  # LOD2: half the trunk rings
-        b.tube([trunk[i] for i in rings], [tr * (1 - 0.5 * i / 8) for i in rings], lod["sides"],
-               [(sway(trunk[i].z), 0.0, ph, 0.0) for i in rings], snow_scale=0.2, v_scale=0.5)
+        zs, amounts, (lobes, lobe_phase) = trunk_rings(sp, lod, height, tr, [trunk[i].z for i in rings if i > 0],
+                                                      f"{sp['id']}:{height:.4f}:{stem}")
+
+        def trunk_at(z, trunk=trunk):
+            """The point on the trunk polyline at height z (extended straight down below its base)."""
+            if z <= trunk[0].z:
+                return trunk[0] + (trunk[1] - trunk[0]).normalized() * ((z - trunk[0].z) / max(1e-3, (trunk[1] - trunk[0]).normalized().z))
+            for i in range(len(trunk) - 1):
+                if trunk[i + 1].z >= z:
+                    return trunk[i].lerp(trunk[i + 1], (z - trunk[i].z) / max(1e-6, trunk[i + 1].z - trunk[i].z))
+            return trunk[-1]
+
+        span = trunk[-1].z - trunk[0].z
+        tube_pts = [trunk_at(z) for z in zs]
+        b.tube(tube_pts, [tr * (1 - 0.5 * min(1.0, max(0.0, (z - trunk[0].z) / span))) for z in zs], lod["sides"],
+               [(sway(p.z), 0.0, ph, 0.0) for p in tube_pts], snow_scale=0.2, v_scale=0.5, flare=(amounts, lobes, lobe_phase))
 
         # Leaders continue the trunk (maples, beech and yellow birch fork into several).
         leaders = []
@@ -431,13 +500,15 @@ def build_deciduous(sp, rng, lod, height):
 
             n2 = int(rng.randint(*sp["secondaries"]) * 1.6 * lod["level2"])
             if n2 == 0:
-                # LOD2: large twig and leaf cards straight on the primaries.
-                mid, tan = along(pts, 0.5)
-                b.card(mid, tan, horizontal_side(tan, 0.3), length * 0.7, length * 0.6,
-                       [(sway(mid.z), 0.6, phase, 0.8), (sway(pts[-1].z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.3)
-                b.card(mid, tan, horizontal_side(tan, 1.2), length * 0.7, length * 0.6,
-                       [(sway(mid.z), 0.6, phase, 1.0), (sway(pts[-1].z), 1.0, phase, 1.0)], FOLIAGE, flag=1.0, snow_scale=0.0,
-                       season=(rng.random(), 0.5))
+                # LOD2: large crossed twig cards and a leaf card straight on the primaries.
+                mid, tan = along(pts, 0.35)
+                for roll in (0.3, 1.6):
+                    b.card(mid, tan, horizontal_side(tan, roll), length * 0.95, length * 0.85,
+                           [(sway(mid.z), 0.6, phase, 0.8), (sway(pts[-1].z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.3)
+                kept = "marcescent" in sp and mid.z < crown_base + 0.45 * (height - crown_base)
+                b.card(mid, tan, horizontal_side(tan, 1.2), length * 0.8, length * 0.7,
+                       [(sway(mid.z), 0.6, phase, 1.0), (sway(pts[-1].z), 1.0, phase, 1.0)], KEPT if kept else FOLIAGE,
+                       flag=0.5 if kept else 1.0, snow_scale=0.0, season=(rng.random(), 0.5))
                 continue
             for j in range(n2):
                 tj = lerp(0.3, 0.95, (j + rng.random() * 0.5) / n2)
@@ -457,12 +528,15 @@ def build_deciduous(sp, rng, lod, height):
 # ---------------------------------------------------------------------------------------------
 # Materials and textures
 
-def image(name, pixels, out_dir):
-    """A Blender image from an RGBA numpy array (row 0 = top), saved as PNG beside the FBX files."""
+def image(name, pixels, out_dir, data=False):
+    """A Blender image from an RGBA numpy array (row 0 = top), saved as PNG beside the FBX files. data:
+    not a colour (a normal map)."""
     img = bpy.data.images.get(name)
     if img is None:
         n = pixels.shape[0]
         img = bpy.data.images.new(name, n, n, alpha=True)
+        if data:
+            img.colorspace_settings.name = "Non-Color"
         pixels = pixels.copy()
         clear = pixels[..., 3] < 0.02
         if clear.any() and (~clear).any():
@@ -477,8 +551,9 @@ def image(name, pixels, out_dir):
     return img
 
 
-def material(name, img, snow_load=1.0, cutout=False, leaf=False, img2=None):
-    """Preview material: texture, snow from UV1.x on up-facing fronts, winter hide from UV1.y."""
+def material(name, img, snow_load=1.0, cutout=False, leaf=False, img2=None, normal=None):
+    """Preview material: texture, snow from UV1.x on up-facing fronts, winter hide from UV1.y, and an
+    optional tangent-space normal map (bark)."""
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
@@ -517,6 +592,12 @@ def material(name, img, snow_load=1.0, cutout=False, leaf=False, img2=None):
     link(tex.outputs["Color"], mix.inputs["A"])
     link(snow, mix.inputs["Factor"])
     link(mix.outputs["Result"], bsdf.inputs["Base Color"])
+    if normal is not None:
+        ntex = node("ShaderNodeTexImage", name="Normal")
+        ntex.image = normal
+        nmap = node("ShaderNodeNormalMap", uv_map="UVMap")
+        link(ntex.outputs["Color"], nmap.inputs["Color"])
+        link(nmap.outputs["Normal"], bsdf.inputs["Normal"])
 
     surface = bsdf.outputs["BSDF"]
     if leaf:
@@ -570,13 +651,18 @@ def material(name, img, snow_load=1.0, cutout=False, leaf=False, img2=None):
 
 
 def species_materials(sp, out_dir):
-    """Returns (materials by submesh, season images) for a species."""
+    """Returns (materials by submesh for LOD0, for LOD1-2, season images) for a species."""
     seed = zlib.crc32(sp["id"].encode())
     style, colour = sp["bark"]
-    bark = material(f"{sp['id']}_Bark", image(f"{sp['id']}_bark", textures.bark(style, colour, seed, TEX), out_dir), 0.6)
+    albedo, height, strength = textures.bark(style, colour, seed, TEX)
+    bark = material(f"{sp['id']}_Bark", image(f"{sp['id']}_bark", albedo, out_dir), 0.6,
+                    normal=image(f"{sp['id']}_bark_normal", textures.bark_normal(height, strength), out_dir, data=True))
     if sp["form"] == "conifer":
         spray = image(f"{sp['id']}_spray", textures.needle_spray(sp["needles"], sp["foliage"], seed, TEX), out_dir)
-        return [bark, material(f"{sp['id']}_Foliage", spray, 1.0, cutout=True, leaf=True)], {}
+        cluster = image(f"{sp['id']}_cluster", textures.branch_cluster(sp["needles"], sp["foliage"], seed, TEX), out_dir)
+        near = [bark, material(f"{sp['id']}_Foliage", spray, 1.0, cutout=True, leaf=True)]
+        far = [bark, material(f"{sp['id']}_Cluster", cluster, 1.0, cutout=True, leaf=True)]
+        return near, far, {}
     seasons = {
         "summer": image(f"{sp['id']}_leaves_summer", textures.leaf_card(sp["leaf"], sp["summer"], seed, TEX, sp["twig"]), out_dir),
         "autumn": image(f"{sp['id']}_leaves_autumn", textures.leaf_card(sp["leaf"], sp["autumn"], seed, TEX, sp["twig"]), out_dir),
@@ -588,7 +674,7 @@ def species_materials(sp, out_dir):
             material(f"{sp['id']}_Leaves", seasons["summer"], 0.0, cutout=True, leaf=True, img2=seasons["autumn"]),
             material(f"{sp['id']}_Twigs", twigs, 0.5, cutout=True),
             material(f"{sp['id']}_LeavesKept", seasons.get("kept", seasons["autumn"]), 0.0, cutout=True, leaf=True)]
-    return mats, seasons
+    return mats, mats, seasons
 
 
 def tri_count(obj):
@@ -601,13 +687,13 @@ def card_area(obj):
 
 
 def build_species(sp, out_dir):
-    mats, seasons = species_materials(sp, out_dir)
+    near, far, seasons = species_materials(sp, out_dir)
     made = []
     for v in range(3):
         seed = zlib.crc32(f"{sp['id']}:{v}".encode())
         height = lerp(sp["height"][0], sp["height"][1], random.Random(seed).random())
         builder = build_conifer if sp["form"] == "conifer" else build_deciduous
-        lods = [builder(sp, random.Random(seed), lod, height).to_object(f"{sp['id']}_v{v}_LOD{li}", mats)
+        lods = [builder(sp, random.Random(seed), lod, height).to_object(f"{sp['id']}_v{v}_LOD{li}", near if li == 0 else far)
                 for li, lod in enumerate(LODS)]
         bpy.ops.object.select_all(action="DESELECT")
         for o in lods:

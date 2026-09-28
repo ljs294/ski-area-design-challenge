@@ -11,29 +11,27 @@ namespace MountainPlanner.Presentation
     /// Our own GPU-instanced forest (0.3 §4.5, TR2). All trees live in one GPU buffer; each frame a
     /// compute shader (ForestCull.compute) culls them against the camera and picks each tree's LOD by
     /// its height on screen, then a few hundred indirect draws (prototype × LOD × submesh) render every
-    /// visible tree with the tree shader (TreeInstanced.shader). The CPU cost doesn't grow with the
-    /// number of trees, and nothing is allocated per frame.
+    /// visible tree: mesh LODs with TreeInstanced.shader, far trees as impostors (TreeImpostor.shader,
+    /// one quad each). The CPU cost doesn't grow with the number of trees, and nothing is allocated per
+    /// frame.
     /// </summary>
     public sealed class ForestRenderer : IDisposable
     {
         public const int Lods = 4;
         /// <summary>
-        /// Screen-height fractions where LOD0→1, 1→2, 2→card and card→culled. The full models stay on well
-        /// into the middle distance, where the sparser LODs made forests look thin (owner review).
+        /// Screen-height fractions where LOD0→1, 1→2, 2→impostor and impostor→culled. For a 20 m tree at the
+        /// PC preset's LOD bias of 2: LOD0 to about 140 m, LOD1 to 350 m, LOD2 to 700 m, the impostor beyond.
+        /// The LODs keep LOD0's crown, brightness and snow (TreeImport's fidelity check), so the full model no
+        /// longer has to stay on far into the distance.
         /// </summary>
-        public static readonly Vector4 Transitions = new Vector4(0.15f, 0.06f, 0.025f, 0.003f);
+        public static readonly Vector4 Transitions = new Vector4(0.25f, 0.10f, 0.05f, 0.003f);
 
         /// <summary>
-        /// Crown width per LOD: simpler LODs and cards are drawn a little wider, so a distant stand closes
-        /// up the way a real canopy does instead of showing every gap.
+        /// Distance fade, continuous so nothing pops at a LOD switch (TreeCommon.hlsl): between x and y metres,
+        /// branches keep z of their snow (forests keep their dark green against the snowfield) and crowns
+        /// grow by w (a far canopy closes up rather than showing every gap).
         /// </summary>
-        public static readonly float[] LodWidth = { 1f, 1.1f, 1.25f, 1.4f };
-
-        /// <summary>
-        /// Snow on branches per LOD: full up close, less in the distance, so forests keep their dark
-        /// green against the snowfield and read as lush rather than frosted.
-        /// </summary>
-        public static readonly float[] LodSnow = { 1f, 0.6f, 0.35f, 0.25f };
+        public static readonly Vector4 Fade = new Vector4(150f, 1600f, 0.35f, 0.08f);
 
         readonly ComputeShader _cull;
         readonly int _clear, _cullKernel, _writeArgs;
@@ -42,10 +40,12 @@ namespace MountainPlanner.Presentation
         readonly Vector4[] _planes = new Vector4[6];
         readonly Plane[] _planeScratch = new Plane[6];
         readonly List<Material> _materials = new List<Material>();
-        readonly List<int> _materialLods = new List<int>();
         readonly int _treeCount, _countSlots;
         public int TreeCount => _treeCount;
         public int DrawCount => _draws.Count;
+        /// <summary>-1: LOD by screen size. 0–3: draw every visible tree at that LOD (lineups and reviews).</summary>
+        public int ForcedLod = -1;
+        readonly double[] _slotTriangles;
         /// <summary>Snow on the branches, 0 (bare) to 1 (fresh snowfall); iteration 1 opens at 1.</summary>
         public float SnowLoad { get; private set; } = 1;
 
@@ -53,12 +53,7 @@ namespace MountainPlanner.Presentation
         public void SetSnowLoad(float load)
         {
             SnowLoad = Mathf.Clamp01(load);
-            for (int i = 0; i < _materials.Count; i++)
-            {
-                int l = _materialLods[i];
-                _materials[i].SetFloat("_SnowLoad", SnowLoad * _lodSnow[l]);
-                if (l == Lods - 1) _materials[i].SetFloat("_SnowFlat", 0.2f * SnowLoad);
-            }
+            foreach (var m in _materials) m.SetFloat("_SnowLoad", SnowLoad);
         }
 
         struct Draw
@@ -67,11 +62,9 @@ namespace MountainPlanner.Presentation
             public RenderParams Params;
         }
 
-        readonly float[] _lodSnow;
-
-        public ForestRenderer(TreePrototypeSet set, ForestInstance[] trees, ComputeShader cull, Shader shader, float snowLoad = 1)
+        public ForestRenderer(TreePrototypeSet set, ForestInstance[] trees, ComputeShader cull, Shader shader, Shader impostorShader, float snowLoad = 1)
         {
-            _lodSnow = LodSnow;
+            SnowLoad = snowLoad;
             _cull = cull;
             _clear = cull.FindKernel("Clear");
             _cullKernel = cull.FindKernel("Cull");
@@ -111,18 +104,37 @@ namespace MountainPlanner.Presentation
                     {
                         var source = materials[s];
                         if (source == null || source.name.StartsWith("Hidden")) continue;     // winter: no summer leaves
-                        var material = new Material(shader) { name = source.name + " (forest)" };
-                        material.SetTexture("_BaseMap", source.GetTexture("_BaseMap"));
-                        bool cutout = source.IsKeywordEnabled("_ALPHATEST_ON");
-                        material.SetFloat("_Cutoff", cutout ? 0.4f : 0);   // a little lower than 0.5: soft edges would otherwise thin the crowns
-                        material.SetFloat("_SnowLoad", snowLoad * _lodSnow[l]);
-                        // Cards have no snow mask: a light flat dusting on their upper side.
-                        if (l == Lods - 1) material.SetFloat("_SnowFlat", 0.2f * snowLoad);
+                        Material material;
+                        if (source.HasProperty("_ImpAlbedo"))
+                        {
+                            // The impostor: one camera-facing quad, lit like the mesh LODs.
+                            material = new Material(impostorShader) { name = source.name + " (forest)" };
+                            foreach (string t in new[] { "_ImpAlbedo", "_ImpData" }) material.SetTexture(t, source.GetTexture(t));
+                            foreach (string f in new[] { "_ImpFrames", "_ImpFrameSize" }) material.SetFloat(f, source.GetFloat(f));
+                            foreach (string v in new[] { "_ImpCenter", "_ImpSize" }) material.SetVector(v, source.GetVector(v));
+                        }
+                        else
+                        {
+                            material = new Material(shader) { name = source.name + " (forest)" };
+                            material.SetTexture("_BaseMap", source.GetTexture("_BaseMap"));
+                            bool cutout = source.IsKeywordEnabled("_ALPHATEST_ON");
+                            material.SetFloat("_Cutoff", cutout ? 0.4f : 0);   // a little lower than 0.5: soft edges would otherwise thin the crowns
+                            material.SetFloat("_Foliage", cutout ? 1 : 0);
+                            // Bark relief (the shader builds the tangent frame itself).
+                            var bump = !cutout && source.HasProperty("_BumpMap") ? source.GetTexture("_BumpMap") : null;
+                            if (bump != null)
+                            {
+                                material.SetTexture("_BumpMap", bump);
+                                material.SetFloat("_BumpScale", 1f);
+                            }
+                        }
+                        material.SetFloat("_SnowLoad", snowLoad);
+                        material.SetVector("_TreeFade", Fade);
+                        material.SetFloat("_Brightness", set.Brightness(p, l));
+                        material.SetFloat("_SnowScale", set.Snow(p, l));
                         _materials.Add(material);
-                        _materialLods.Add(l);
                         var props = new MaterialPropertyBlock();
                         props.SetInt("_VisibleOffset", (int)(l * trees.Length + start[p]));
-                        props.SetFloat("_LodWidth", LodWidth[l]);
                         props.SetBuffer("_Trees", _trees);
                         props.SetBuffer("_Visible", _visible);
                         _draws.Add(new Draw
@@ -148,6 +160,8 @@ namespace MountainPlanner.Presentation
             _args.SetData(args);
             _drawCounter = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.Max(1, counters.Count), sizeof(uint));
             _drawCounter.SetData(counters);
+            _slotTriangles = new double[_countSlots];
+            for (int d = 0; d < args.Count; d++) _slotTriangles[counters[d]] += args[d].indexCountPerInstance / 3.0;
 
             _cull.SetBuffer(_clear, "_Counts", _counts);
             _cull.SetBuffer(_cullKernel, "_Trees", _trees);
@@ -174,11 +188,33 @@ namespace MountainPlanner.Presentation
             // Same measure as Unity's LODGroup: screen height fraction times the quality LOD bias.
             _cull.SetFloat("_ScreenScale", QualitySettings.lodBias / (2f * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad)));
             _cull.SetVector("_Transitions", Transitions);
+            _cull.SetInt("_ForcedLod", ForcedLod);
             _cull.Dispatch(_clear, (_countSlots + 63) / 64, 1, 1);
             _cull.Dispatch(_cullKernel, (_treeCount + 63) / 64, 1, 1);
             _cull.Dispatch(_writeArgs, (_draws.Count + 63) / 64, 1, 1);
             for (int d = 0; d < _draws.Count; d++)
                 Graphics.RenderMeshIndirect(_draws[d].Params, _draws[d].Mesh, _args, 1, d);
+        }
+
+        /// <summary>
+        /// Reads back the last frame's visible trees per LOD and the triangles they drew (benchmarks). The
+        /// callback runs a frame or two later, on the main thread.
+        /// </summary>
+        public void RequestLodCounts(Action<int[], double> done)
+        {
+            AsyncGPUReadback.Request(_counts, r =>
+            {
+                if (r.hasError) { done(new int[Lods], 0); return; }
+                var data = r.GetData<uint>();
+                var perLod = new int[Lods];
+                double triangles = 0;
+                for (int slot = 0; slot < data.Length; slot++)
+                {
+                    perLod[slot % Lods] += (int)data[slot];
+                    triangles += data[slot] * _slotTriangles[slot];
+                }
+                done(perLod, triangles);
+            });
         }
 
         public void Dispose()

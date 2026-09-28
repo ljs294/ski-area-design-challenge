@@ -12,6 +12,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: douglas_fir_Cluster
+    second: {fileID: 2100000, guid: 8f85c03a498bd9345a0b380177598917, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: douglas_fir_Foliage
     second: {fileID: 2100000, guid: 5613291d96b2eb545b5b435aecc0f182, type: 2}
   materials:
@@ -41,7 +46,7 @@ ModelImporter:
     extraExposedTransformPaths: []
     extraUserProperties: []
     clipAnimations: []
-    isReadable: 0
+    isReadable: 1
   meshes:
     lODScreenPercentages:
     - 0.25
