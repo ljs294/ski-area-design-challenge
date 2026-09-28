@@ -250,11 +250,13 @@ namespace MountainPlanner.Editor
                 int solid = 0;
                 for (int i = 0; i < pixels.Length; i++)
                 {
+                    // A low threshold keeps thin needle sprays that a 50% cut would drop at card resolution.
                     float a = Mathf.Clamp01(1 - (white[i].g - black[i].g));
                     var c = a > 0.01f ? black[i] / a : Color.black;
-                    pixels[i] = new Color(c.r, c.g, c.b, a > 0.5f ? 1 : 0);
-                    if (a > 0.5f) { sum += pixels[i]; solid++; }
+                    pixels[i] = new Color(c.r, c.g, c.b, a > 0.2f ? 1 : 0);
+                    if (a > 0.2f) { sum += pixels[i]; solid++; }
                 }
+                Thicken(pixels, CardWidth, CardHeight, 2);
                 // Transparent pixels take the average colour, so mipmaps don't fringe the card dark.
                 var fill = solid > 0 ? sum / solid : Color.gray;
                 for (int i = 0; i < pixels.Length; i++) if (pixels[i].a == 0) pixels[i] = new Color(fill.r, fill.g, fill.b, 0);
@@ -278,6 +280,31 @@ namespace MountainPlanner.Editor
                 AssetDatabase.DeleteAsset(meshPath);
                 AssetDatabase.CreateAsset(mesh, meshPath);
                 return (mesh, material);
+            }
+
+            /// <summary>
+            /// Grows the foliage by a few pixels, darkening the new edge slightly, so a far card reads as a
+            /// full crown rather than a lace of sprays. The trunk columns aren't widened much (they're narrow).
+            /// </summary>
+            static void Thicken(Color[] pixels, int w, int h, int passes)
+            {
+                for (int pass = 0; pass < passes; pass++)
+                {
+                    var copy = (Color[])pixels.Clone();
+                    for (int y = 1; y < h - 1; y++)
+                        for (int x = 1; x < w - 1; x++)
+                        {
+                            int i = y * w + x;
+                            if (copy[i].a > 0) continue;
+                            Color sum = Color.clear;
+                            int n = 0;
+                            foreach (int j in new[] { i - 1, i + 1, i - w, i + w })
+                                if (copy[j].a > 0) { sum += copy[j]; n++; }
+                            if (n < 2) continue;   // only fill between sprays, don't bloat single lines
+                            var c = sum / n * 0.85f;
+                            pixels[i] = new Color(c.r, c.g, c.b, 1);
+                        }
+                }
             }
 
             Color[] Grab(Color background)

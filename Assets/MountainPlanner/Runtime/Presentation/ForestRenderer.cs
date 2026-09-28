@@ -17,8 +17,23 @@ namespace MountainPlanner.Presentation
     public sealed class ForestRenderer : IDisposable
     {
         public const int Lods = 4;
-        /// <summary>Screen-height fractions where LOD0→1, 1→2, 2→card and card→culled (a 20 m tree's card lasts to about 4.5 km).</summary>
-        public static readonly Vector4 Transitions = new Vector4(0.30f, 0.12f, 0.05f, 0.004f);
+        /// <summary>
+        /// Screen-height fractions where LOD0→1, 1→2, 2→card and card→culled. The full models stay on well
+        /// into the middle distance, where the sparser LODs made forests look thin (owner review).
+        /// </summary>
+        public static readonly Vector4 Transitions = new Vector4(0.15f, 0.06f, 0.025f, 0.003f);
+
+        /// <summary>
+        /// Crown width per LOD: simpler LODs and cards are drawn a little wider, so a distant stand closes
+        /// up the way a real canopy does instead of showing every gap.
+        /// </summary>
+        public static readonly float[] LodWidth = { 1f, 1.1f, 1.25f, 1.4f };
+
+        /// <summary>
+        /// Snow on branches per LOD: full up close, less in the distance, so forests keep their dark
+        /// green against the snowfield and read as lush rather than frosted.
+        /// </summary>
+        public static readonly float[] LodSnow = { 1f, 0.6f, 0.35f, 0.25f };
 
         readonly ComputeShader _cull;
         readonly int _clear, _cullKernel, _writeArgs;
@@ -82,12 +97,13 @@ namespace MountainPlanner.Presentation
                         material.SetTexture("_BaseMap", source.GetTexture("_BaseMap"));
                         bool cutout = source.IsKeywordEnabled("_ALPHATEST_ON");
                         material.SetFloat("_Cutoff", cutout ? 0.5f : 0);
-                        material.SetFloat("_SnowLoad", snowLoad);
-                        // Cards have no snow mask: a flat dusting on their upper side matches the snowy near trees.
-                        if (l == Lods - 1) material.SetFloat("_SnowFlat", 0.45f * snowLoad);
+                        material.SetFloat("_SnowLoad", snowLoad * LodSnow[l]);
+                        // Cards have no snow mask: a light flat dusting on their upper side.
+                        if (l == Lods - 1) material.SetFloat("_SnowFlat", 0.2f * snowLoad);
                         _materials.Add(material);
                         var props = new MaterialPropertyBlock();
                         props.SetInt("_VisibleOffset", (int)(l * trees.Length + start[p]));
+                        props.SetFloat("_LodWidth", LodWidth[l]);
                         props.SetBuffer("_Trees", _trees);
                         props.SetBuffer("_Visible", _visible);
                         _draws.Add(new Draw

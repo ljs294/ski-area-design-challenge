@@ -41,6 +41,7 @@ Shader "MountainPlanner/TreeInstanced"
             float _SnowFlat;
         CBUFFER_END
         uint _VisibleOffset;
+        float _LodWidth;
         TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
 
         void Place(uint instance, float3 positionOS, float3 normalOS, out float3 positionWS, out float3 normalWS)
@@ -48,9 +49,10 @@ Shader "MountainPlanner/TreeInstanced"
             Tree t = _Trees[_Visible[_VisibleOffset + instance]];
             float s, c;
             sincos(t.rotation, s, c);
-            float3 p = positionOS * float3(t.widthScale, t.heightScale, t.widthScale);
+            float w = t.widthScale * _LodWidth;
+            float3 p = positionOS * float3(w, t.heightScale, w);
             positionWS = t.position + float3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
-            float3 n = normalOS / float3(t.widthScale, t.heightScale, t.widthScale);
+            float3 n = normalOS / float3(w, t.heightScale, w);
             normalWS = normalize(float3(c * n.x + s * n.z, n.y, -s * n.x + c * n.z));
         }
         ENDHLSL
