@@ -56,8 +56,8 @@
       "breaks": [3862, 4017, 6254, 6290, 6363],
       "windows": {"bays": 6, "firstU": 470, "bay": 700, "rib": 100, "low": 4017, "high": 6363},
       "whiteBand": {"low": 3484, "high": 3648},
-      "farWall": {"slots": {"vIn": 150, "vOut": 550, "low": 4017, "high": 6200}, "side": {"vIn": 1050, "inset": 140, "low": 4017, "high": 5900}},
-      "lineWall": {"door": {"vFrom": 300, "vTo": 1300, "low": 3459, "high": 5800, "glassLow": 4017}, "side": {"vIn": 1050, "inset": 140, "low": 4017, "high": 5900}},
+      "farWall": {"slots": {"vIn": 150, "vOut": 550, "low": 4017, "high": 6363}, "side": {"vIn": 950, "inset": 140, "low": 4017, "high": 6363}},
+      "lineWall": {"door": {"vFrom": 300, "vTo": 1300, "low": 3459, "high": 5800, "glassLow": 4017, "transom": {"low": 5860, "high": 6363}}, "side": {"vIn": 950, "inset": 140, "low": 4017, "high": 6363}},
       "downSpout": {"dia": 60, "from": [360, 2533, 3825], "to": [360, 3313, 3343]}
     }
   },  "return": {

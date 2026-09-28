@@ -146,34 +146,45 @@ def end_openings(mb, h, half, st, lod):
     far, line = h["farEnd"], h["lineEnd"]
     proud = 0.012
 
+    def rows(end, w0, w1, n):
+        """Heights for a pane's edges: n even steps plus the end wall's creases in between, so every vertex sits on
+        the raked wall or the vertical cap."""
+        creases = [m(end["rakeBottom"][1]), m(end["rakeTop"][1]), m(end["capFrom"])]
+        return sorted({w0, w1} | {w0 + (w1 - w0) * k / n for k in range(1, n)} | {c for c in creases if w0 < c < w1})
+
     def pane(end, sign, pts, style):
         if style is st["glass"] and lod <= 1:
             mb.face(mb.verts_lift([(end_u(end, w) + sign * proud * 0.5, v, w) for v, w in pts]), st["interior"], (sign, 0, 0))
         mb.face(mb.verts_lift([(end_u(end, w) + sign * proud, v, w) for v, w in pts]), style, (sign, 0, 0))
 
-    def panel(end, sign, v0, v1, w0, w1, style, arc=None):
-        rows = [w0 + (w1 - w0) * k / 6 for k in range(7)] if arc else [w0, w1]
-        left = [(v0, w) for w in rows]
-        right = [((arc_v(half, w) - arc) if arc else v1, w) for w in rows]
+    def panel(end, sign, v0, v1, w0, w1, style, inset=None, arc=False):
+        """v0 to v1 between w0 and w1. arc: the outer edge follows the barrel, inset from it (v1 unused); inset
+        without arc: v1, but kept that far inside the barrel. Negative v0 mirrors to the -v side."""
+        ws = rows(end, w0, w1, 6 if inset is not None else 1)
+        s = -1.0 if v0 < 0 else 1.0
+        left = [(v0, w) for w in ws]
+        if arc:
+            right = [(s * (arc_v(half, w) - inset), w) for w in ws]
+        elif inset is not None:
+            right = [(s * min(abs(v1), arc_v(half, w) - inset), w) for w in ws]
+        else:
+            right = [(v1, w) for w in ws]
         pane(end, sign, left + list(reversed(right)), style)
 
+    # every end window shares the side windows' band: bottoms and tops on the side glass lines (owner request)
     fw, lw = h["farWall"], h["lineWall"]
-    for s in (-1, 1):   # far end: two slots either side of the axis and two barrel-following side windows
-        sl = fw["slots"]
+    for s in (-1, 1):   # far end: two slots either side of the axis and two barrel-following corner windows
+        sl, sd = fw["slots"], fw["side"]
         a, b = sorted((s * m(sl["vIn"]), s * m(sl["vOut"])))
         panel(far, -1, a, b, m(sl["low"]), m(sl["high"]), st["glass"])
-        sd = fw["side"]
-        if s > 0:
-            panel(far, -1, m(sd["vIn"]), None, m(sd["low"]), m(sd["high"]), st["glass"], arc=m(sd["inset"]))
-        else:
-            rows = [m(sd["low"]) + (m(sd["high"]) - m(sd["low"])) * k / 6 for k in range(7)]
-            pane(far, -1, [(-(arc_v(half, w) - m(sd["inset"])), w) for w in rows] + [(-m(sd["vIn"]), w) for w in reversed(rows)], st["glass"])
-    door = lw["door"]   # line end: door on +v (steel lower panel, glazed upper), one window on -v
+        panel(far, -1, s * m(sd["vIn"]), None, m(sd["low"]), m(sd["high"]), st["glass"], inset=m(sd["inset"]), arc=True)
+    door = lw["door"]   # line end: door on +v (steel lower panel, glazed upper, transom above), one window on -v
     panel(line, 1, m(door["vFrom"]), m(door["vTo"]), m(door["low"]), m(door["glassLow"]), st["trim"])
     panel(line, 1, m(door["vFrom"]), m(door["vTo"]), m(door["glassLow"]), m(door["high"]), st["glass"])
+    tr = door["transom"]
+    panel(line, 1, m(door["vFrom"]), m(door["vTo"]), m(tr["low"]), m(tr["high"]), st["glass"], inset=m(lw["side"]["inset"]))
     sd = lw["side"]
-    rows = [m(sd["low"]) + (m(sd["high"]) - m(sd["low"])) * k / 6 for k in range(7)]
-    pane(line, 1, [(-(arc_v(half, w) - m(sd["inset"])), w) for w in rows] + [(-m(sd["vIn"]), w) for w in reversed(rows)], st["glass"])
+    panel(line, 1, -m(sd["vIn"]), None, m(sd["low"]), m(sd["high"]), st["glass"], inset=m(sd["inset"]), arc=True)
 
 
 # -- entry end -------------------------------------------------------------------------------------
