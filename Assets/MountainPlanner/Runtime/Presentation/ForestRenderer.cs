@@ -42,9 +42,24 @@ namespace MountainPlanner.Presentation
         readonly Vector4[] _planes = new Vector4[6];
         readonly Plane[] _planeScratch = new Plane[6];
         readonly List<Material> _materials = new List<Material>();
+        readonly List<int> _materialLods = new List<int>();
         readonly int _treeCount, _countSlots;
         public int TreeCount => _treeCount;
         public int DrawCount => _draws.Count;
+        /// <summary>Snow on the branches, 0 (bare) to 1 (fresh snowfall); iteration 1 opens at 1.</summary>
+        public float SnowLoad { get; private set; } = 1;
+
+        /// <summary>Sets the snow load on every tree (the tree shader's TR4 input; later driven by weather).</summary>
+        public void SetSnowLoad(float load)
+        {
+            SnowLoad = Mathf.Clamp01(load);
+            for (int i = 0; i < _materials.Count; i++)
+            {
+                int l = _materialLods[i];
+                _materials[i].SetFloat("_SnowLoad", SnowLoad * LodSnow[l]);
+                if (l == Lods - 1) _materials[i].SetFloat("_SnowFlat", 0.2f * SnowLoad);
+            }
+        }
 
         struct Draw
         {
@@ -101,6 +116,7 @@ namespace MountainPlanner.Presentation
                         // Cards have no snow mask: a light flat dusting on their upper side.
                         if (l == Lods - 1) material.SetFloat("_SnowFlat", 0.2f * snowLoad);
                         _materials.Add(material);
+                        _materialLods.Add(l);
                         var props = new MaterialPropertyBlock();
                         props.SetInt("_VisibleOffset", (int)(l * trees.Length + start[p]));
                         props.SetFloat("_LodWidth", LodWidth[l]);
