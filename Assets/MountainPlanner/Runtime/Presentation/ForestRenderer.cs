@@ -96,7 +96,7 @@ namespace MountainPlanner.Presentation
                         var material = new Material(shader) { name = source.name + " (forest)" };
                         material.SetTexture("_BaseMap", source.GetTexture("_BaseMap"));
                         bool cutout = source.IsKeywordEnabled("_ALPHATEST_ON");
-                        material.SetFloat("_Cutoff", cutout ? 0.5f : 0);
+                        material.SetFloat("_Cutoff", cutout ? 0.4f : 0);   // a little lower than 0.5: soft edges would otherwise thin the crowns
                         material.SetFloat("_SnowLoad", snowLoad * LodSnow[l]);
                         // Cards have no snow mask: a light flat dusting on their upper side.
                         if (l == Lods - 1) material.SetFloat("_SnowFlat", 0.2f * snowLoad);

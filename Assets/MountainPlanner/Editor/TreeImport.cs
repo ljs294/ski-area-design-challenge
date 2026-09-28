@@ -253,7 +253,8 @@ namespace MountainPlanner.Editor
                     // A low threshold keeps thin needle sprays that a 50% cut would drop at card resolution.
                     float a = Mathf.Clamp01(1 - (white[i].g - black[i].g));
                     var c = a > 0.01f ? black[i] / a : Color.black;
-                    pixels[i] = new Color(c.r, c.g, c.b, a > 0.2f ? 1 : 0);
+                    // Soft edges (for alpha to coverage) but solid wherever the tree is at all dense.
+                    pixels[i] = new Color(c.r, c.g, c.b, a > 0.2f ? Mathf.Clamp01(0.5f + (a - 0.2f) * 2.5f) : 0);
                     if (a > 0.2f) { sum += pixels[i]; solid++; }
                 }
                 Thicken(pixels, CardWidth, CardHeight, 2);

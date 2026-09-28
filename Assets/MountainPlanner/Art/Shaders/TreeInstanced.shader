@@ -61,6 +61,9 @@ Shader "MountainPlanner/TreeInstanced"
         {
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
+            // Alpha to coverage (with MSAA): needle and leaf edges become partial coverage, so distant
+            // foliage blends softly instead of snapping on and off (shimmer) as the camera moves.
+            AlphaToMask On
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
@@ -88,7 +91,9 @@ Shader "MountainPlanner/TreeInstanced"
             half4 Frag(Varyings i, bool front : SV_IsFrontFace) : SV_Target
             {
                 half4 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _Tint;
-                clip(albedo.a - _Cutoff);
+                // Sharpened coverage: crisp up close, a soft one-pixel edge in the distance.
+                half coverage = _Cutoff > 0 ? saturate((albedo.a - _Cutoff) / max(fwidth(albedo.a), 0.0001) + 0.5) : 1;
+                clip(coverage - 0.01);
                 float3 n = normalize(front ? i.normalWS : -i.normalWS);
                 // Snow sits on the up-facing side of branches that can hold it.
                 float snow = saturate(i.snow * saturate(n.y * 1.6 + 0.1) + _SnowFlat * saturate(n.y + 0.2));
@@ -97,7 +102,7 @@ Shader "MountainPlanner/TreeInstanced"
                 // Wrapped diffuse: needles and leaves pass light, so crowns never go black on the shaded side.
                 half wrap = saturate((dot(n, sun.direction) + 0.5) / 1.5);
                 half3 light = sun.color * wrap * sun.shadowAttenuation + SampleSH(n);
-                return half4(albedo.rgb * light, 1);
+                return half4(albedo.rgb * light, coverage);
             }
             ENDHLSL
         }

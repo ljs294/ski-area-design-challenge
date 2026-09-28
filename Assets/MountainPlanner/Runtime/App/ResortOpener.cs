@@ -83,7 +83,9 @@ namespace MountainPlanner.App
             var root = new GameObject($"Resort: {manifest.Site.Name}");
             if (parent != null) root.transform.SetParent(parent, false);
             var ground = new GroundLayers();
-            var layers = ground.Layers;
+            // Tiles start with just the snow layer (all a fresh tile shows); the ground layers join when its
+            // cover is painted. Six layers per tile up front added about half a second to opening.
+            var layers = new[] { ground.Layers[0] };
             var tiles = new Dictionary<(int, int), Terrain>();
 
             // Decode every tile on worker threads (in order of distance from the centre, so the view fills in
@@ -148,7 +150,9 @@ namespace MountainPlanner.App
                 var splat = await covers[n];
                 ct.ThrowIfCancellationRequested();
                 if (resort.Root == null) return; // closed meanwhile
-                TerrainTiles.ApplySplat(resort.Tiles[(order[n].Column, order[n].Row)].terrainData, splat);
+                var data = resort.Tiles[(order[n].Column, order[n].Row)].terrainData;
+                data.terrainLayers = resort.Ground.Layers;
+                TerrainTiles.ApplySplat(data, splat);
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
             }
             resort.CoverSeconds = clock.Elapsed.TotalSeconds;
