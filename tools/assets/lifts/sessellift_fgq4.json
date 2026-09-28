@@ -13,6 +13,7 @@
     "loadedRope": "right when looking uphill: v+ at the return terminal, v- at the drive terminal",
     "snowAllowance": 305,
     "guideSheave": {"dia": 370, "width": 110},
+    "sheaveTrain": {"n": 4, "pitch": 450, "rocker": 160, "beam": 300, "source": "photos; the terminal drawings leave the entry trains to the line drawings"},
     "bullwheel": {
       "pitch": 4120, "rimTop": 104, "rimBottom": -55, "plateOuter": 4630, "plateInner": 3560, "plateThick": 38, "plateBelowTop": true,
       "hubDia": 1170, "spokes": 8, "spokeWidth": 140, "spokeDepth": 220,
@@ -36,6 +37,7 @@
     "portal": {"u": 3116, "leg": {"along": 150, "across": 170, "foot": [1138, 3305], "head": [1514, 4821]},
                "beam": {"uFrom": 3040, "uTo": 3192, "v": 4508, "bottom": 4821, "top": 4973},
                "lugs": {"v": [2060, 2210], "bottom": 4654}},
+    "entryTrains": {"u": 3116, "mode": "support", "attach": [1846, 2937]},
     "walkway": {"deck": 3459, "stringer": 280, "uFrom": 668, "uTo": 2862, "vFrom": 433, "vTo": 1497,
                 "hoodWing": {"uFrom": 635, "uTo": 1650, "vFrom": -110},
                 "landing": {"uFrom": 2560, "uTo": 2862, "vFrom": -320},
@@ -69,6 +71,7 @@
     "bracket": {"uFrom": 1273, "uTo": 2076, "bottom": 2403, "slopeTo": 2337},
     "lowerFrame": {"vIn": 440, "vOut": 560, "bottom": 1995, "top": 2201, "uFrom": -1451, "uTo": 3013},
     "cylinder": {"dia": 216, "w": 2125, "from": 1840, "to": 4540, "eye": [4622, 2068], "eyeDia": 70},
+    "entryTrains": {"u": 4040, "mode": "hold", "attach": [1900, 3828]},
     "carriageTravel": [-1990, -4430],
     "carriageAt": -1990,
     "carriage": {"head": {"uFrom": -442, "uTo": 666, "v": 412, "top": 2790, "bottom": 2430, "chamfer": [146, 370, 2252]},

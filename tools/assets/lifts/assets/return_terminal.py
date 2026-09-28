@@ -7,8 +7,9 @@ checked by the Gate 1 review):
   cylinder lugs, side and centre members forward to a front plate) with a railed catwalk over the wheel; the
   guide sheaves on a cross member, hung from overhead frames on posts; a rope guard on the left and the
   loading-side chair guide on the right (two rails flared at both ends, on C-frame hangers); and the lifting
-  frame at the entry: two curved plate legs from the rails to the crossbeam, adjusting rods, a portal with lug
-  plates and a small platform railed across its outer end.
+  frame at the entry (the integrated first tower): two curved plate legs from the rails to the crossbeam,
+  adjusting rods, a portal with lug plates, a small platform railed across its outer end, and a four-sheave
+  hold-down train on each rope (from photos: the drawing leaves the trains to the line drawings).
 
 Loaded chairs leave on the right rope (v+); the bullwheel turns counter-clockwise seen from above. The carriage
 is shown as drawn, at the near end of its 2.44 m travel (bullwheel centre 1.99 m behind the pier).
@@ -384,6 +385,17 @@ def lifting_frame(mb, lf, lod, st):
             prims.cylinder(mb, (uh, -vh, m(ho["mid"])), (uh, vh, m(ho["mid"])), 0.02, 6 if lod == 0 else 4, st["galv"], caps=(False, False))
 
 
+def entry_trains(mb, a, c, et, lod, st):
+    """Hold-down trains on both ropes, hung from the lifting-frame stubs (as photographed; see spec
+    common.sheaveTrain)."""
+    tr = c["sheaveTrain"]
+    train = {"n": tr["n"], "pitch": m(tr["pitch"]), "rocker": m(tr["rocker"]), "beam": m(tr["beam"])}
+    gs, hg = c["guideSheave"], m(c["lineGauge"]) / 2
+    for side, name in ((-1, "l"), (1, "r")):
+        parts.sheave_train(mb, a, name, m(et["u"]), side * hg, m(c["ropeElevation"]), m(c["ropeDiameter"]) / 2, m(gs["dia"]),
+                           m(gs["width"]), train, et["mode"], (side * m(et["attach"][0]), m(et["attach"][1])), lod, st)
+
+
 def bullwheel(mb, centre, pitch, bw, lod, st):
     """The exposed bullwheel: rim channel with the rope groove and a spacer ring, the top ring plate, eight spokes
     whose undersides rise from the hub to the rim (I-sections up close), the hub drum and bearing cap, and hook
@@ -461,6 +473,7 @@ def build(spec, lod, stage):
     catwalk(body, r["catwalk"], u_bw, lod, st)
     guides(body, a, c, r, lod, st)
     lifting_frame(body, r["liftingFrame"], lod, st)
+    entry_trains(body, a, c, r["entryTrains"], lod, st)
 
     centre = Vector((u_bw, 0.0, rope))
     if lod <= 2:

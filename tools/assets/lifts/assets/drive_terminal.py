@@ -35,6 +35,7 @@ def styles(lod):
         "glass": Style("glass", slot=GLASS, smooth=False) if lod <= 1 else Style("glass", smooth=False),
         "interior": Style("interior"),
         "yellow": Style("safety_yellow"),
+        "rod": Style("machined"),
     }
 
 
@@ -139,16 +140,22 @@ def arc_v(half, w):
 
 
 def end_openings(mb, h, half, st, lod):
-    """Windows and the door on the end walls, as thin panels just proud of the wall."""
+    """Windows and the door on the end walls, as thin panels just proud of the wall. Each pane has a dark backing
+    between it and the wall, so the end windows read like the side windows (tinted glass over a dark interior)
+    rather than glass over the hood colour."""
     far, line = h["farEnd"], h["lineEnd"]
     proud = 0.012
+
+    def pane(end, sign, pts, style):
+        if style is st["glass"] and lod <= 1:
+            mb.face(mb.verts_lift([(end_u(end, w) + sign * proud * 0.5, v, w) for v, w in pts]), st["interior"], (sign, 0, 0))
+        mb.face(mb.verts_lift([(end_u(end, w) + sign * proud, v, w) for v, w in pts]), style, (sign, 0, 0))
 
     def panel(end, sign, v0, v1, w0, w1, style, arc=None):
         rows = [w0 + (w1 - w0) * k / 6 for k in range(7)] if arc else [w0, w1]
         left = [(v0, w) for w in rows]
         right = [((arc_v(half, w) - arc) if arc else v1, w) for w in rows]
-        pts = left + list(reversed(right))
-        mb.face(mb.verts_lift([(end_u(end, w) + sign * proud, v, w) for v, w in pts]), style, (sign, 0, 0))
+        pane(end, sign, left + list(reversed(right)), style)
 
     fw, lw = h["farWall"], h["lineWall"]
     for s in (-1, 1):   # far end: two slots either side of the axis and two barrel-following side windows
@@ -160,15 +167,13 @@ def end_openings(mb, h, half, st, lod):
             panel(far, -1, m(sd["vIn"]), None, m(sd["low"]), m(sd["high"]), st["glass"], arc=m(sd["inset"]))
         else:
             rows = [m(sd["low"]) + (m(sd["high"]) - m(sd["low"])) * k / 6 for k in range(7)]
-            pts = [(-(arc_v(half, w) - m(sd["inset"])), w) for w in rows] + [(-m(sd["vIn"]), w) for w in reversed(rows)]
-            mb.face(mb.verts_lift([(end_u(far, w) - proud, v, w) for v, w in pts]), st["glass"], (-1, 0, 0))
+            pane(far, -1, [(-(arc_v(half, w) - m(sd["inset"])), w) for w in rows] + [(-m(sd["vIn"]), w) for w in reversed(rows)], st["glass"])
     door = lw["door"]   # line end: door on +v (steel lower panel, glazed upper), one window on -v
     panel(line, 1, m(door["vFrom"]), m(door["vTo"]), m(door["low"]), m(door["glassLow"]), st["trim"])
     panel(line, 1, m(door["vFrom"]), m(door["vTo"]), m(door["glassLow"]), m(door["high"]), st["glass"])
     sd = lw["side"]
     rows = [m(sd["low"]) + (m(sd["high"]) - m(sd["low"])) * k / 6 for k in range(7)]
-    pts = [(-(arc_v(half, w) - m(sd["inset"])), w) for w in rows] + [(-m(sd["vIn"]), w) for w in reversed(rows)]
-    mb.face(mb.verts_lift([(end_u(line, w) + proud, v, w) for v, w in pts]), st["glass"], (1, 0, 0))
+    pane(line, 1, [(-(arc_v(half, w) - m(sd["inset"])), w) for w in rows] + [(-m(sd["vIn"]), w) for w in reversed(rows)], st["glass"])
 
 
 # -- entry end -------------------------------------------------------------------------------------
@@ -294,6 +299,12 @@ def build(spec, lod, stage):
         prims.cylinder(body, tuple(m(x) for x in ds["from"]), tuple(m(x) for x in ds["to"]), m(ds["dia"]) / 2, 8 if lod == 0 else 5, st["trim"])
 
     build_entry(body, d, lod, st)
+    # support trains on both ropes at the entry frame (rope on top; from photos, see spec common.sheaveTrain)
+    et, tr = d["entryTrains"], c["sheaveTrain"]
+    train = {"n": tr["n"], "pitch": m(tr["pitch"]), "rocker": m(tr["rocker"]), "beam": m(tr["beam"])}
+    for side, name in ((-1, "l"), (1, "r")):
+        parts.sheave_train(body, a, name, m(et["u"]), side * hg, rope, rope_r, m(c["guideSheave"]["dia"]), m(c["guideSheave"]["width"]),
+                           train, et["mode"], (side * m(et["attach"][0]), m(et["attach"][1])), lod, st)
 
     # guide sheaves between the pier and the bullwheel (rope rides on top), hung inboard from the base frame
     gs = c["guideSheave"]
