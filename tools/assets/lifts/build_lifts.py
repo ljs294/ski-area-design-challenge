@@ -21,7 +21,7 @@ import bpy
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "assets"))
-from liftkit import export, frame, materials, palette  # noqa: E402
+from liftkit import ao, export, frame, materials, palette  # noqa: E402
 
 MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair"}
 
@@ -90,6 +90,12 @@ def main():
         bpy.context.scene.collection.children.link(coll)
         mats = [chair_mat] if kind == "chair" else [structure, glass]
         objs, rep = export.make_objects(assets, mats, coll)
+        if opts.get("ao", "on") != "off":
+            t_ao = time.time()
+            ao_stats = [ao.bake([o for o in objs if o.type == "MESH" and o.name.endswith(f"_LOD{lod}")],
+                                rays=32 if lod == 0 else 16, ground=kind != "chair") for lod in range(len(assets))]
+            print(f"{aid}: ambient occlusion baked in {time.time() - t_ao:.1f} s (min/mean per LOD: "
+                  + ", ".join(f"{lo:.2f}/{mean:.2f}" for lo, mean in ao_stats) + ")", flush=True)
         path = os.path.join(out_dir, f"{aid}.fbx")
         export.export_fbx(objs, path)
         problems = check_asset(kind, assets, rep, budgets, spec)

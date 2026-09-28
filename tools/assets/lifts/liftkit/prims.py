@@ -71,6 +71,13 @@ def ibeam(mb, p0, p1, depth, flange, tf, tw, style, up=W):
     obox(mb, mid, (x, y, z), (half, tw / 2, depth / 2 - tf), style, skip=("+2", "-2"))
 
 
+def winding(poly):
+    """+1 for a counter-clockwise 2D polygon, -1 for clockwise (sign of the shoelace area)."""
+    n = len(poly)
+    area2 = sum(poly[k][0] * poly[(k + 1) % n][1] - poly[(k + 1) % n][0] * poly[k][1] for k in range(n))
+    return 1.0 if area2 > 0 else -1.0
+
+
 # -- round things -----------------------------------------------------------------------------
 def ring_points(center, axis, radius, sides, phase=0.0):
     x, y, z = basis_along(axis)
@@ -169,14 +176,16 @@ def lathe(mb, center, axis, profile, segments, style, closed=True, smooth=True, 
     n = len(profile)
     cr = sum(r for r, _ in profile) / n
     ch = sum(h for _, h in profile) / n
+    wind = winding(profile) if closed else 0.0
     segs = n if closed else n - 1
     st = style.but(smooth=smooth)
     for j in range(segs):
         j1 = (j + 1) % n
         (r0, h0), (r1, h1) = profile[j], profile[j1]
         nr, nh = (h1 - h0), -(r1 - r0)
-        mr, mh = (r0 + r1) / 2 - cr, (h0 + h1) / 2 - ch
-        if nr * mr + nh * mh < 0:
+        if closed:   # outward from the section's winding (right of each edge when counter-clockwise)
+            nr, nh = nr * wind, nh * wind
+        elif nr * ((r0 + r1) / 2 - cr) + nh * ((h0 + h1) / 2 - ch) < 0:
             nr, nh = -nr, -nh
         flat_seg = st if abs(nh) < 0.8 * math.hypot(nr, nh) else st.but(smooth=False)   # discs / annuli stay flat
         for k in range(len(rings) if full else len(rings) - 1):
@@ -199,20 +208,26 @@ def prism(mb, poly, origin, ea, eb, en, depth, style, caps=(True, True), side_st
     fi = mb.verts_lift(front)
     bi = mb.verts_lift(back)
     n = len(poly)
-    ca = sum(a for a, _ in poly) / n
-    cb = sum(bb for _, bb in poly) / n
+    wind = winding(poly)
     ss = side_style or style
     for k in range(n):
         k1 = (k + 1) % n
         (a0, b0), (a1, b1) = poly[k], poly[k1]
-        na, nb = (b1 - b0), -(a1 - a0)
-        if na * ((a0 + a1) / 2 - ca) + nb * ((b0 + b1) / 2 - cb) < 0:
-            na, nb = -na, -nb
+        na, nb = (b1 - b0) * wind, -(a1 - a0) * wind   # outward for any simple polygon, concave included
         mb.face([fi[k], fi[k1], bi[k1], bi[k]], ss, tuple(ea * na + eb * nb))
     if caps[0]:
         mb.face(mb.verts_lift(front), style.but(smooth=False), tuple(-en))
     if caps[1]:
         mb.face(mb.verts_lift(back), style.but(smooth=False), tuple(en))
+
+
+def plate(mb, poly, origin, ea, eb, en, depth, style):
+    """A thin plate: the polygon's two faces only (front at origin, back at origin + en * depth), no edges."""
+    o, ea, eb, en = vec(origin), vec(ea), vec(eb), vec(en)
+    front = [tuple(o + ea * a + eb * b) for a, b in poly]
+    back = [tuple(o + ea * a + eb * b + en * depth) for a, b in poly]
+    mb.face(mb.verts_lift(front), style.but(smooth=False), tuple(-en))
+    mb.face(mb.verts_lift(back), style.but(smooth=False), tuple(en))
 
 
 def quad(mb, pts, style, outward):

@@ -124,10 +124,11 @@ namespace MountainPlanner.Editor
             if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", null);
             if (m.HasProperty("_LiveryColor")) m.SetColor("_LiveryColor", new Color(0.72f, 0.12f, 0.09f));
             if (m.HasProperty("_Glass")) m.SetFloat("_Glass", glass ? 1 : 0);
+            if (glass) m.EnableKeyword("_LIFT_GLASS"); else m.DisableKeyword("_LIFT_GLASS");
             if (glass)
             {
                 m.SetOverrideTag("RenderType", "Transparent");
-                if (m.HasProperty("_SrcBlend")) m.SetFloat("_SrcBlend", (float)BlendMode.One);
+                if (m.HasProperty("_SrcBlend")) m.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
                 if (m.HasProperty("_DstBlend")) m.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
                 if (m.HasProperty("_ZWrite")) m.SetFloat("_ZWrite", 0);
                 m.renderQueue = (int)RenderQueue.Transparent;
@@ -198,22 +199,21 @@ namespace MountainPlanner.Editor
             }
 
             var group = go.AddComponent<LODGroup>();
+            // The group's size comes from its renderers, so assign them first (placeholder heights), measure,
+            // then set the heights that put each switch at its budgets.json distance (at lodBias 1).
+            var lods = new LOD[lodCount];
+            for (int i = 0; i < lodCount; i++) lods[i] = new LOD(0.5f / (i + 1), byLod[i].ToArray());
+            group.SetLODs(lods);
             group.RecalculateBounds();
             float size = group.size;
             float tanHalf = Mathf.Tan(ReferenceFov * 0.5f * Mathf.Deg2Rad);
-            var lods = new LOD[lodCount];
             for (int i = 0; i < lodCount; i++)
-            {
-                float until = (float)lodSpecs[i]["untilM"];
-                float height = size / (2f * until * tanHalf);
-                lods[i] = new LOD(height, byLod[i].ToArray());
-            }
+                lods[i].screenRelativeTransitionHeight = Mathf.Min(0.999f, size / (2f * (float)lodSpecs[i]["untilM"] * tanHalf));
             for (int i = 1; i < lodCount; i++) lods[i].screenRelativeTransitionHeight = Mathf.Min(lods[i].screenRelativeTransitionHeight, lods[i - 1].screenRelativeTransitionHeight * 0.99f);
             bool crossFade = (bool)budget["crossFade"];
             group.fadeMode = crossFade ? LODFadeMode.CrossFade : LODFadeMode.None;
             group.animateCrossFading = crossFade;
             group.SetLODs(lods);
-            group.RecalculateBounds();
 
             var rig = go.AddComponent<LiftRig>();
             rig.AssetId = id;

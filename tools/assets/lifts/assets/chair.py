@@ -1,15 +1,19 @@
-"""Sessellift FGQ-4 quad chair, built along traced outlines (sessellift_fgq4.json "chair"):
+"""Sessellift FGQ-4 quad chair, built along the drawn outlines (sessellift_fgq4.json "chair", checked by the
+Gate 1 review):
 
-  grip on the rope, a question-mark hanger bowing outboard into a clamp on the top bar, the top bar with
-  large rounded corners, two J-shaped side frames (down behind the seat, forward under it), an open tubular
-  backrest frame hung from the top bar on two rods, the restraint bar lowered in front of the riders on two
-  arms (its mirror image) with the footrest along its foot, and the seat tray with padded top and front.
+  the grip and its spring cap on the rope; the question-mark hanger into a clamp on the top bar, with the
+  lens-shaped web plate under the bar and the safety bar's pivot sleeves on it; two side frames, each a
+  closed loop: a 60 mm tube down behind the seat and forward under it, then a 52 mm edge rail around the
+  front and back along the seat edge; a thin bench tilted back, a bottom cross member and a low slatted
+  backrest; and the safety bar, raised behind the seat on arms from the front sleeves, with its handles,
+  footrest stubs and the rod through its eyes.
 
 The origin is the grip on the rope. Chair frame (the lift frame's axes, reused): u = direction of travel
 (Unity +Z), v = outboard, away from the bullwheel (Unity +X), w = up. The chair is symmetric about
-v = axisV (the drawn chair sits 32 mm inboard of the rope). Close-up detail beyond the 800-triangle budget
-(padding seams, bolts) comes from the baked detail map.
+v = axisV (the drawn chair sits 32 mm inboard of the rope).
 """
+import math
+
 from mathutils import Vector
 
 from liftkit import prims
@@ -27,120 +31,124 @@ def m(x):
 def build(spec, lod, stage):
     ch = spec["chair"]
     steel = Style("chair_steel", snow=0.4)
-    pad = Style("seat_pad", snow=1.0)
+    seat = Style("seat_pad", snow=1.0)
     grip_st = Style("grip")
     a = Asset("sessellift_fgq4_chair")
     mb = MeshBuilder()
     ax = m(ch["axisV"])
-    r_hanger, r_frame, r_rail = (m(ch["tube"][k]) / 2 for k in ("hanger", "frame", "rail"))
+    tube = {k: m(v) / 2 for k, v in ch["tube"].items()}   # radii
 
-    def sym(u, hw, w, s):
-        """A point on side s (+1 outboard, -1 inboard) of the chair's symmetry axis."""
+    def sym(u, hw, w, s=1):
         return Vector((m(u), ax + s * m(hw), m(w)))
 
-    g = ch["grip"]
     top = ch["topBar"]
-    if lod == 2:
-        # distant stand-in: hanger, top bar, backrest, bar and seat as boxes
-        prims.box(mb, (-0.04, ax - 0.04, m(top["w"])), (0.04, ax + 0.04, 0.0), steel)
-        prims.box(mb, (-0.04, ax - m(top["halfLength"]) - 0.25, m(top["w"]) - 0.04), (0.04, ax + m(top["halfLength"]) + 0.25, m(top["w"]) + 0.04), steel)
-        bk, br = ch["backrest"], ch["bar"]
-        prims.box(mb, (m(bk["top"][0]) - 0.02, ax - m(bk["bottomHalfWidth"]), m(bk["bottom"][1])), (m(bk["bottom"][0]), ax + m(bk["bottomHalfWidth"]), m(bk["top"][1])), steel)
-        prims.box(mb, (m(br["bottom"][0]), ax - m(br["bottomHalfWidth"]), m(br["footEnd"][1])), (m(br["top"][0]) + 0.02, ax + m(br["bottomHalfWidth"]), m(br["top"][1])), steel)
-        prof = ch["seat"]["profile"]
-        prims.box(mb, (m(min(p[0] for p in prof)), ax - m(ch["seat"]["halfWidth"]), m(min(p[1] for p in prof))),
-                  (m(max(p[0] for p in prof)), ax + m(ch["seat"]["halfWidth"]), m(max(p[1] for p in prof))), pad)
-        return finish(a, mb, ch, lod)
-
-    n_hanger, n_frame, n_rail = ((6, 5, 4), (4, 4, 3))[lod]
-
-    # grip clamped on the rope, and the hanger's question mark into the clamp on the top bar
-    prims.box(mb, (-m(g["u"]) / 2, m(g["vFrom"]), m(g["wFrom"])), (m(g["u"]) / 2, m(g["vTo"]), m(g["wTo"])), grip_st)
-    hanger = [Vector((0.0, m(v), m(w))) for v, w in ch["hanger"]]
-    if lod == 1:
-        hanger = [hanger[i] for i in (0, 3, 6, 9, 12)]
-    prims.tube_path(mb, hanger, r_hanger, n_hanger, steel)
-    cl = ch["clamp"]
-    if lod == 0:
-        prims.box(mb, (-m(cl["u"]) / 2, ax - m(cl["halfWidth"]), m(cl["wTo"])), (m(cl["u"]) / 2, ax + m(cl["halfWidth"]), m(cl["wFrom"])), grip_st)
-
-    # top bar and the two J side frames
-    prims.cylinder(mb, sym(0, -top["halfLength"], top["w"], 1), sym(0, top["halfLength"], top["w"], 1), r_frame, n_frame, steel, caps=(False, False))
     frame = ch["sideFrame"]
-    if lod == 1:
-        frame = [frame[i] for i in (0, 2, 4, 6, 9, 12, 15)]
-    for s in (-1, 1):
-        prims.tube_path(mb, [sym(u, hw, w, s) for u, hw, w in frame], r_frame, n_frame, steel)
+    bench = ch["bench"]
+    g = ch["grip"]
 
-    # the open backrest frame behind the seat and the lowered restraint bar in front, mirror images of each
-    # other in side view: each hangs from the top bar on two rods (backRods / barArms)
-    def plane_u(d, w):
-        (ut, wt), (ub, wb) = d["top"], d["bottom"]
-        return ut + (ub - ut) * (wt - w) / (wt - wb)
-
-    def pt(u, hw, w):
-        return Vector((m(u), ax + m(hw), m(w)))
-
-    bk = ch["backrest"]
-    th, bh, c = bk["topHalfWidth"], bk["bottomHalfWidth"], bk["corner"]
-    wt, wb = bk["top"][1], bk["bottom"][1]
-    back = [(th - c, wt), (th, wt - c), (bh, wb + c), (bh - c, wb), (-(bh - c), wb), (-bh, wb + c), (-th, wt - c), (-(th - c), wt)]
-    if lod == 1:
-        back = [back[i] for i in (0, 2, 4, 6)]
-    prims.tube_path(mb, [pt(plane_u(bk, w), hw, w) for hw, w in back], r_rail, n_rail, steel, closed=True)
-    if lod == 0:   # legs below the backrest and the rear feet, as drawn
+    if lod == 2:   # distant stand-in: hanger, top bar, side frames and bench as boxes
+        prims.box(mb, (-0.04, -0.04, m(top["w"])), (0.04, 0.3, 0.0), steel)
+        prims.box(mb, (-0.03, ax - m(top["halfLength"]) - 0.25, m(top["w"]) - 0.03), (0.03, ax + m(top["halfLength"]) + 0.25, m(top["w"]) + 0.03), steel)
         for s in (-1, 1):
-            prims.tube_path(mb, [sym(plane_u(bk, wb + c), bh, wb + c, s), sym(*_uhw(bk["legEnd"], bh), s), sym(*_uhw(bk["footEnd"], bh), s)],
-                            r_rail, n_rail, steel)
+            prims.box(mb, (-0.30, ax + s * m(1080) - 0.03, m(-2600)), (0.0, ax + s * m(1080) + 0.03, m(top["w"])), steel)
+        us = [p[0] for p in bench["profile"]]
+        ws = [p[1] for p in bench["profile"]]
+        prims.box(mb, (m(min(us)), ax - m(bench["halfWidth"]), m(min(ws))), (m(max(us)), ax + m(bench["halfWidth"]), m(max(ws))), seat)
+        return finish(a, mb, ch)
 
-    br = ch["bar"]
-    th, bh, c = br["topHalfWidth"], br["bottomHalfWidth"], br["corner"]
-    wt, wb = br["top"][1], br["bottom"][1]
-    (lu, lw), (fu, fw) = br["legEnd"], br["footEnd"]
-    # one closed loop: top rail, sides, legs, footrest arms and the footrest bar across their ends
-    bar = [(plane_u(br, wt), th - c, wt), (plane_u(br, wt - c), th, wt - c), (plane_u(br, wb), bh, wb), (lu, bh, lw), (fu, bh, fw),
-           (fu, -bh, fw), (lu, -bh, lw), (plane_u(br, wb), -bh, wb), (plane_u(br, wt - c), -th, wt - c), (plane_u(br, wt), -(th - c), wt)]
-    if lod == 1:
-        bar = [bar[i] for i in (0, 2, 4, 5, 7, 9)]
-    prims.tube_path(mb, [pt(u, hw, w) for u, hw, w in bar], r_rail, n_rail, steel, closed=True)
-    if lod == 0:
-        for key in ("backRods", "barArms"):
-            rd = ch[key]
-            for s in (-1, 1):
-                prims.tube_path(mb, [sym(u, rd["halfWidth"], w, s) for u, w in rd["path"]], r_rail, n_rail, steel, caps=False)
+    near = lod == 0
+    n_hanger, n_frame, n_thin = (6, 5, 4) if near else (4, 4, 3)
 
-    # seat tray: the traced side profile extruded across the seat; padded top and front, steel below
-    st = ch["seat"]
-    prof = st["profile"] if lod == 0 else [st["profile"][i] for i in (0, 1, 3, 6, 8)]
-    padded = st["cushionEdges"] if lod == 0 else 1
-    hw = m(st["halfWidth"])
-    near = [mb.vert((m(u), ax - hw, m(w))) for u, w in prof]
-    far = [mb.vert((m(u), ax + hw, m(w))) for u, w in prof]
-    cu = sum(u for u, _ in prof) / len(prof)
-    cw = sum(w for _, w in prof) / len(prof)
-    for k in range(len(prof)):
-        k1 = (k + 1) % len(prof)
-        (u0, w0), (u1, w1) = prof[k], prof[k1]
-        out = ((u0 + u1) / 2 - cu, 0.0, (w0 + w1) / 2 - cw)
-        mb.face([near[k], near[k1], far[k1], far[k]], pad if k < padded else steel, out)
-    mb.face(list(near), steel, (0, -1, 0))
-    mb.face(list(far), steel, (0, 1, 0))
-    return finish(a, mb, ch, lod)
+    # grip on the rope and its outboard spring cap
+    prims.box(mb, (-m(g["u"]) / 2, m(g["vFrom"]), m(g["wFrom"])), (m(g["u"]) / 2, m(g["vTo"]), m(g["wTo"])), grip_st)
+    if near:
+        cap = g["cap"]
+        prims.cylinder(mb, (0, m(cap["vFrom"]), 0), (0, m(cap["vTo"]), 0), m(cap["dia"]) / 2, 6, grip_st)
+
+    # hanger: the question mark from the grip into the clamp
+    hanger = [Vector((0.0, m(v), m(w))) for v, w in ch["hanger"]]
+    if not near:
+        hanger = [hanger[i] for i in (0, 3, 6, 9, 12)]
+    prims.tube_path(mb, hanger, tube["hanger"], n_hanger, steel, caps=False)
+    cl = ch["clamp"]
+    prims.box(mb, (-m(cl["u"]) / 2, ax - m(cl["halfWidth"]), m(cl["wTo"])), (m(cl["u"]) / 2, ax + m(cl["halfWidth"]), m(cl["wFrom"])), grip_st)
+
+    # top bar, the web plate under it and the safety bar's pivot sleeves on it
+    prims.cylinder(mb, sym(0, -top["halfLength"], top["w"]), sym(0, top["halfLength"], top["w"]), tube["frame"], n_frame, steel, caps=(False, False))
+    if near:
+        web = ch["web"]
+        lower = web["lower"]
+        poly = [(-m(lower[-1][0]), m(web["top"])), (m(lower[-1][0]), m(web["top"]))]
+        poly += [(m(hw), m(w)) for hw, w in reversed(lower) if hw > 0]
+        poly += [(-m(hw), m(w)) for hw, w in lower if hw > 0]
+        prims.plate(mb, poly, (-m(web["thick"]) / 2, ax, 0), Vector((0, 1, 0)), Vector((0, 0, 1)), Vector((1, 0, 0)), m(web["thick"]), steel)
+        sl = ch["sleeves"]
+        for s in (-1, 1):
+            prims.cylinder(mb, sym(sl["u"], sl["from"], sl["w"], s), sym(sl["u"], sl["to"], sl["w"], s), tube["sleeve"], 5, steel, caps=(False, False))
+
+    # side frames: 60 mm loop down behind and under the seat, then the 52 mm edge rail around the front and back
+    main = frame if near else [frame[i] for i in (0, 3, 4, 5, 7, 9, 10)]
+    edge = [ch["edgeRail"][i] for i in (0, 2, 3, 4, 6, 7, 8, 9)]
+    for s in (-1, 1):
+        prims.tube_path(mb, [sym(u, hw, w, s) for u, hw, w in main], tube["frame"], n_frame, steel, caps=near)
+        if near:
+            prims.tube_path(mb, [sym(u, hw, w, s) for u, hw, w in edge], tube["edge"], n_thin, steel)
+
+    # bench (thin, tilted back), bottom cross member and the low slatted backrest
+    hwb = m(bench["halfWidth"])
+    prims.prism(mb, [(m(u), m(w)) for u, w in bench["profile"]], (0, ax - hwb, 0), Vector((1, 0, 0)), Vector((0, 0, 1)), Vector((0, 1, 0)),
+                2 * hwb, seat)
+    bm = ch["bottomMember"]
+    if near:
+        half = m(bm["size"]) / 2
+        prims.box(mb, (m(bm["u"]) - half, ax - m(bm["halfWidth"]), m(bm["w"]) - half), (m(bm["u"]) + half, ax + m(bm["halfWidth"]), m(bm["w"]) + half), steel, skip=("-1", "+1"))
+    br = ch["backrest"]
+    (tu, tw), (bu, bw) = br["top"], br["bottom"]
+    along = Vector((m(tu - bu), 0, m(tw - bw)))
+    length = along.length
+    along.normalize()
+    across = Vector((0, 1, 0))
+    normal = along.cross(across).normalized()
+    slats = br["slats"] if near else 1
+    gap = 0.4 if near else 0.0
+    pitch = length / slats
+    for k in range(slats):
+        centre = Vector((m(bu), ax, m(bw))) + along * (pitch * (k + 0.5))
+        prims.obox(mb, centre, (along, across, normal), (pitch * (1 - gap) / 2 if slats > 1 else length / 2, m(br["halfWidth"]), m(br["thick"]) / 2), seat,
+                   skip=("-1", "+1"))
+
+    # safety bar, raised behind the seat: arms from the front sleeves, rail, legs, footrest stubs, rod, handles
+    bar = ch["bar"]
+    rail = bar["rail"]
+    for s in ((-1, 1) if near else ()):
+        prims.tube_path(mb, [sym(u, bar["armHalfWidth"], w, s) for u, w in bar["arm"]], tube["bar"], n_thin, steel)
+    leg = bar["leg"]
+    c = rail["corner"]
+    right = [leg[i] for i in (4, 3, 2, 1, 0)] if near else [leg[4], leg[3], leg[0]]
+    path = [sym(u, hw, w, 1) for u, hw, w in right]
+    path += [sym(rail["u"], rail["halfWidth"] + c * 0.5, rail["w"] - c * 0.5, 1), sym(rail["u"], rail["halfWidth"], rail["w"], 1),
+             sym(rail["u"], rail["halfWidth"], rail["w"], -1), sym(rail["u"], rail["halfWidth"] + c * 0.5, rail["w"] - c * 0.5, -1)]
+    path += [sym(u, hw, w, -1) for u, hw, w in reversed(right)]
+    prims.tube_path(mb, path, tube["bar"], n_thin, steel)
+    if near:
+        rod = bar["rod"]
+        prims.cylinder(mb, sym(rod["u"], -rod["halfWidth"], rod["w"]), sym(rod["u"], rod["halfWidth"], rod["w"]), tube["rod"], 3, steel, caps=(False, False))
+        hd = bar["handle"]
+        for s in (-1, 1):
+            prims.cylinder(mb, sym(hd["from"][0], hd["halfWidth"], hd["from"][1], s), sym(hd["to"][0], hd["halfWidth"], hd["to"][1], s),
+                           tube["handle"], 4, grip_st, caps=(False, False))
+    return finish(a, mb, ch)
 
 
-def _uhw(uw, hw):
-    """(u, w) plus a half width -> (u, hw, w) for sym()."""
-    return uw[0], hw, uw[1]
-
-
-def finish(a, mb, ch, lod):
+def finish(a, mb, ch):
     a.body = mb
     ax = m(ch["axisV"])
-    top = ch["topBar"]
-    a.sockets = {"grip": (0.0, 0.0, 0.0), "bar_hinge": (m(ch["barArms"]["path"][0][0]), ax, m(top["w"]))}
-    seat_w = m(max(w for _, w in ch["seat"]["profile"]))
-    hw = m(ch["seat"]["halfWidth"])
+    pivot = ch["bar"]["pivot"]
+    a.sockets = {"grip": (0.0, 0.0, 0.0), "bar_hinge": (m(pivot[0]), ax, m(pivot[1]))}
+    prof = ch["bench"]["profile"]
+    top_w = m(max(w for _, w in prof))
+    hw = m(ch["bench"]["halfWidth"])
     for i in range(ch["seats"]):
         vs = ax - hw + (i + 0.5) * (2 * hw / ch["seats"])
-        a.sockets[f"seat_{i + 1}"] = (0.05, vs, seat_w)
+        a.sockets[f"seat_{i + 1}"] = (0.14, vs, top_w - 0.05)
     return a

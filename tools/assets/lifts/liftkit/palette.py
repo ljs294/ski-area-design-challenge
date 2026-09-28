@@ -21,7 +21,7 @@ CLASSES = [
     ("livery", "#F4F4F2", 0, 0.50),         # hood paint: tinted by the player's colour in the shader
     ("glass", "#1B252D", 0, 0.88),          # tinted hood glass
     ("interior", "#2A2C2E", 0, 0.30),       # machinery seen through the glass
-    ("seat_pad", "#9DAFBF", 0, 0.30),       # chair seat padding (light blue-grey, as photographed)
+    ("seat_pad", "#4F5A66", 0, 0.30),       # chair bench and backrest slats (dark blue-grey)
     ("chair_steel", "#AEB4BA", 1, 0.40),    # chair frame, hanger, bar (galvanised)
     ("safety_yellow", "#D6A11E", 0, 0.40),  # ladder rungs, lifting eyes
     ("grating", "#80868B", 1, 0.35),        # deck grating (reads darker than plate)

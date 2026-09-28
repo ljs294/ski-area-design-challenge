@@ -49,6 +49,22 @@ def sheave_bracket(mb, centre, width, from_w, lod, style):
         prims.cylinder(mb, (c.x, pv, c.z), (c.x, c.y + inboard * (width / 2), c.z), 0.045, sides(lod, 10, 6), style.but(cls="machined"))
 
 
+def bullwheel_spec(common):
+    """The shared bullwheel dimensions from sessellift_fgq4.json "common" (mm), in metres, for bullwheel()."""
+    bw = common["bullwheel"]
+    spec = {k: v / 1000.0 for k, v in bw.items() if isinstance(v, (int, float)) and k != "spokes"}
+    spec["spokes"] = bw["spokes"]
+    if "hub" in bw:
+        spec["hub"] = {k: v / 1000.0 for k, v in bw["hub"].items()}
+        spec["hubDia"] = spec["hub"]["flangeDia"]
+        spec["hubBottom"] = spec["hub"]["baseBottom"]
+        spec["hubTop"] = spec["hub"]["flangeTop"]
+    if "stubs" in bw:
+        spec["stubs"] = {"count": bw["stubs"]["count"], "dia": bw["stubs"]["dia"] / 1000.0, "reach": bw["stubs"]["reach"] / 1000.0}
+    spec["plateBelowTop"] = bool(bw.get("plateBelowTop", False))
+    return spec
+
+
 def bullwheel(mb, center, spec, lod, style):
     """Horizontal bullwheel (vertical axle through center at rope elevation).
 
@@ -59,34 +75,54 @@ def bullwheel(mb, center, spec, lod, style):
     rp = spec["pitch"] / 2
     top, bot = spec["rimTop"], spec["rimBottom"]
     ri = spec["plateInner"] / 2
+    thick = spec["plateThick"]
+    # the top plate either caps the rim (flush with its top, as drawn) or sits on it
+    p_lo, p_hi = (top - thick, top) if spec.get("plateBelowTop") else (top, top + thick)
+    rim_top = p_lo
     st = style
     liner = style.but(cls="rubber")
     if lod <= 1:
         # rim channel with the rope groove on its outer face
         rim = [(ri + 0.05, bot), (rp + 0.045, bot), (rp + 0.045, -0.03), (rp + 0.012, -0.018), (rp + 0.012, 0.018),
-               (rp + 0.045, 0.03), (rp + 0.045, top), (ri + 0.05, top)]
+               (rp + 0.045, 0.03), (rp + 0.045, rim_top), (ri + 0.05, rim_top)]
         prims.lathe(mb, c, W, rim, n, st)
         if lod == 0:
             prims.lathe(mb, c, W, [(rp + 0.012, -0.018), (rp + 0.002, -0.01), (rp + 0.002, 0.01), (rp + 0.012, 0.018)], n, liner, closed=False)
         # top annulus plate
-        plate = [(ri, top), (spec["plateOuter"] / 2, top), (spec["plateOuter"] / 2, top + spec["plateThick"]), (ri, top + spec["plateThick"])]
+        plate = [(ri, p_lo), (spec["plateOuter"] / 2, p_lo), (spec["plateOuter"] / 2, p_hi), (ri, p_hi)]
         prims.lathe(mb, c, W, plate, n, st.but(snow=0.7))
     else:
-        prims.lathe(mb, c, W, [(ri, bot), (spec["plateOuter"] / 2, bot), (spec["plateOuter"] / 2, top + spec["plateThick"]),
-                                (ri, top + spec["plateThick"])], n, st.but(snow=0.7))
+        prims.lathe(mb, c, W, [(ri, bot), (spec["plateOuter"] / 2, bot), (spec["plateOuter"] / 2, p_hi), (ri, p_hi)], n, st.but(snow=0.7))
         if lod >= 3:
             return
-    # hub
-    hr = spec["hubDia"] / 2
-    hb, ht = spec["hubBottom"], spec["hubTop"]
-    prims.cylinder(mb, c + W * hb, c + W * ht, hr, sides(lod, 24, 16, 8), st)
+    # hub: a drawn base, flange and shaft where given, else a plain drum
+    hub = spec.get("hub")
+    if hub and lod <= 1:
+        hs = sides(lod, 24, 16)
+        prims.cylinder(mb, c + W * hub["baseBottom"], c + W * hub["baseTop"], hub["baseDia"] / 2, hs, st)
+        prims.cylinder(mb, c + W * hub["flangeBottom"], c + W * hub["flangeTop"], hub["flangeDia"] / 2, hs, st)
+        prims.cylinder(mb, c + W * hub["flangeTop"], c + W * hub["shaftTop"], hub["shaftDia"] / 2, sides(lod, 12, 8), st.but(cls="machined"))
+        hr = hub["flangeDia"] / 2
+        spoke_w = (hub["flangeBottom"] + hub["flangeTop"]) / 2
+    else:
+        hr = spec["hubDia"] / 2
+        hb, ht = spec["hubBottom"], spec["hubTop"]
+        prims.cylinder(mb, c + W * hb, c + W * ht, hr, sides(lod, 24, 16, 8), st)
+        spoke_w = hb + (ht - hb) * 0.35
     # spokes (sloping from the hub up to the rim), I-section at LOD0, boxes further out
     k = spec["spokes"] if lod <= 1 else spec["spokes"] // 2
+    stubs = spec.get("stubs")
+    if stubs and lod == 0:   # chair-guide mounting stubs beyond the plate, one per spoke
+        for i in range(stubs["count"]):
+            a = 2 * math.pi * i / stubs["count"]
+            d = U * math.cos(a) + V * math.sin(a)
+            prims.cylinder(mb, c + d * (spec["plateOuter"] / 2 - 0.02) + W * (p_lo - 0.05), c + d * stubs["reach"] + W * (p_lo - 0.05),
+                           stubs["dia"] / 2, 6, st)
     for i in range(k):   # spokes on the u and v axes and the diagonals
         a = 2 * math.pi * i / k
         d = U * math.cos(a) + V * math.sin(a)
-        p0 = c + d * (hr * 0.9) + W * (hb + (ht - hb) * 0.35)
-        p1 = c + d * (ri + 0.06) + W * (bot + (top - bot) * 0.5)
+        p0 = c + d * (hr * 0.9) + W * spoke_w
+        p1 = c + d * (ri + 0.06) + W * (bot + (rim_top - bot) * 0.5)
         if lod == 0:
             prims.ibeam(mb, p0, p1, spec["spokeDepth"], spec["spokeWidth"], 0.018, 0.012, st, up=W)
         else:
@@ -97,14 +133,21 @@ def bullwheel(mb, center, spec, lod, style):
         prims.lathe(mb, c, W, ring, n // 2, st)
 
 
-def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=False):
-    """A handrail along a polyline on a deck: posts, top and knee rails, toe board."""
+def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=False, posts_at=None):
+    """A handrail along a polyline on a deck: posts, top and knee rails, toe board. posts_at: explicit post
+    feet (lift points) instead of posts spaced evenly along each segment."""
     pts = [vec(p) for p in points]
     if closed:
         pts.append(pts[0])
     r_post = 0.024
     if lod >= 3:
         return
+    if posts_at is not None and lod <= 1:
+        for p in (vec(q) for q in posts_at):
+            if lod == 0:
+                prims.cylinder(mb, p, p + W * height, r_post, 6, style)
+            else:
+                prims.beam(mb, p, p + W * height, 0.045, 0.045, style, up=U)
     for a, b in zip(pts, pts[1:]):
         seg = b - a
         length = seg.length
@@ -112,13 +155,14 @@ def railing(mb, points, height, lod, style, posts_every=1.2, toe=True, closed=Fa
             continue
         d = seg / length
         if lod <= 1:
-            n_posts = max(1, round(length / (posts_every * (1 if lod == 0 else 2))))
-            for i in range(n_posts + 1):
-                p = a + d * (length * i / n_posts)
-                if lod == 0:
-                    prims.cylinder(mb, p, p + W * height, r_post, 6, style)
-                else:
-                    prims.beam(mb, p, p + W * height, 0.045, 0.045, style, up=U if abs(d.dot(U)) < 0.9 else V)
+            if posts_at is None:
+                n_posts = max(1, round(length / (posts_every * (1 if lod == 0 else 2))))
+                for i in range(n_posts + 1):
+                    p = a + d * (length * i / n_posts)
+                    if lod == 0:
+                        prims.cylinder(mb, p, p + W * height, r_post, 6, style)
+                    else:
+                        prims.beam(mb, p, p + W * height, 0.045, 0.045, style, up=U if abs(d.dot(U)) < 0.9 else V)
             n_rail = 6 if lod == 0 else 4
             prims.cylinder(mb, a + W * height, b + W * height, r_post, n_rail, style)
             prims.cylinder(mb, a + W * (height * 0.5), b + W * (height * 0.5), r_post * 0.8, n_rail, style)

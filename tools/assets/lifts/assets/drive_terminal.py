@@ -1,8 +1,10 @@
 """Sessellift FGQ-4 drive terminal (top station): a barrel hood over the drive and a horizontal bullwheel,
-cantilevered 3.23 m behind a concrete pier, with an entry platform, ladder and lifting portal toward the line.
+cantilevered 3.23 m behind a concrete pier, with an entry deck, a lower entry platform, a ladder and a
+lifting portal toward the line.
 
 Loaded chairs arrive on the left rope (v-) and unload over the pier; the bullwheel turns counter-clockwise
-seen from above. Dimensions: sessellift_fgq4.json "drive" and "common" (millimetres).
+seen from above. Dimensions: sessellift_fgq4.json "drive" and "common" (millimetres), checked against the
+source elevations by the adversarial review (review record, Gate 1).
 """
 from mathutils import Vector
 
@@ -30,102 +32,223 @@ def styles(lod):
         "hood": Style("livery", livery=1.0, snow=1.0),
         "band": Style("white", snow=0.0),
         "trim": Style("trim_dark", snow=0.0),
-        "glass": Style("glass", slot=GLASS, smooth=True) if lod <= 1 else Style("glass", smooth=True),
+        "glass": Style("glass", slot=GLASS, smooth=False) if lod <= 1 else Style("glass", smooth=False),
         "interior": Style("interior"),
+        "yellow": Style("safety_yellow"),
     }
 
 
-def hood_profile(spec, lod):
-    """Full closed hood outline in the (v, w) plane, metres, from the left base over the crown to the right."""
-    h = spec["drive"]["hood"]
+# -- hood ------------------------------------------------------------------------------------------
+def end_u(end, w):
+    """u of a hood end at height w: vertical roof cap, raked end wall, set-in vertical band (metres)."""
+    cap_from = m(end["capFrom"])
+    (ut, wt), (ub, wb) = [(m(a), m(b)) for a, b in (end["rakeTop"], end["rakeBottom"])]
+    if w >= cap_from:
+        return m(end["cap"])
+    if w >= wt:
+        return ut + (m(end["cap"]) - ut) * (w - wt) / (cap_from - wt)
+    if w >= wb - 1e-6:
+        return ub + (ut - ub) * (w - wb) / (wt - wb)
+    return m(end["band"])
+
+
+def hood_profile(h, lod):
+    """Half profile (v >= 0, w) from the soffit's inner edge to the crown, with rows at every break height."""
     half = [(m(v), m(w)) for v, w in h["profile"]]
-    # glass edges become profile vertices so window faces start and stop exactly there
-    win = h["windows"]
-    for edge in (m(win["low"]), m(win["high"])):
+    for edge in [m(b) for b in h["breaks"]]:
         for i in range(len(half) - 1):
             (v0, w0), (v1, w1) = half[i], half[i + 1]
             if w0 < edge < w1:
                 t = (edge - w0) / (w1 - w0)
                 half.insert(i + 1, (v0 + (v1 - v0) * t, edge))
                 break
-    # subdivide the long arc segments near the camera for a rounder barrel
-    if lod == 0:
+    if lod == 0:   # rounder barrel near the camera: subdivide the long arc segments
         fine = [half[0]]
         for (v0, w0), (v1, w1) in zip(half, half[1:]):
-            n = max(1, round(((v1 - v0) ** 2 + (w1 - w0) ** 2) ** 0.5 / 0.3)) if w0 >= m(h["whiteBand"]["high"]) - 1e-6 else 1
+            n = max(1, round(((v1 - v0) ** 2 + (w1 - w0) ** 2) ** 0.5 / 0.3)) if w0 >= 3.873 and w1 <= 6.42 else 1
             for k in range(1, n + 1):
-                t = k / n
-                fine.append((v0 + (v1 - v0) * t, w0 + (w1 - w0) * t))
+                fine.append((v0 + (v1 - v0) * k / n, w0 + (w1 - w0) * k / n))
         half = fine
     elif lod >= 2:
         keep = {0, len(half) - 1}
-        step = 2 if lod == 2 else 3
+        step = 2 if lod == 2 else 4
         half = [p for i, p in enumerate(half) if i in keep or i % step == 0]
-    left = [(-v, w) for v, w in half]
-    right = [(v, w) for v, w in reversed(half[:-1])]
-    return left + right
+    return half
 
 
 def build_hood(spec, lod, st):
-    """The barrel hood: profile extruded along u between raked end walls, glazed bays along both sides."""
-    h = spec["drive"]["hood"]
+    d = spec["drive"]
+    h = d["hood"]
     mb = MeshBuilder()
-    prof = hood_profile(spec, lod)
-    base, crown = m(h["base"]), max(w for _, w in prof)
-
-    def end_u(which, w):
-        e = h[which]
-        t = (w - base) / (crown - base)
-        return m(e["bottom"]) + (m(e["top"]) - m(e["bottom"])) * t
-
+    half = hood_profile(h, lod)
+    prof = [(-v, w) for v, w in half] + [(v, w) for v, w in reversed(half[:-1])]   # left base, over the crown, right base
     win = h["windows"]
-    cols = []   # interior u breakpoints from the far end toward the line, and whether each span is a window bay
+    breaks = []
     for j in reversed(range(win["bays"])):
         u0 = m(win["firstU"]) - j * m(win["bay"] + win["rib"])
-        cols.append((u0 - m(win["bay"]), u0))
-    breaks = []
-    for a, b in cols:
-        breaks += [a, b]
-    bay_spans = set(range(1, 2 * len(cols), 2)) if lod <= 2 else set()   # span k between breaks[k-1], breaks[k]
+        breaks += [u0 - m(win["bay"]), u0]
+    if lod >= 3:   # far away: no window columns, just the shell
+        breaks = []
+    bay_spans = set(range(1, len(breaks), 2)) if lod <= 2 else set()
     low, high = m(win["low"]), m(win["high"])
     band_lo, band_hi = m(h["whiteBand"]["low"]), m(h["whiteBand"]["high"])
-
-    # vertex grid: rows follow the profile, columns: far end, breaks..., line end
+    far, line = h["farEnd"], h["lineEnd"]
     grid = []
     for v, w in prof:
-        row = [mb.vert((end_u("farEnd", w), v, w))]
-        row += [mb.vert((u, v, w)) for u in breaks]
-        row.append(mb.vert((end_u("lineEnd", w), v, w)))
-        grid.append(row)
+        grid.append([mb.vert((end_u(far, w), v, w))] + [mb.vert((u, v, w)) for u in breaks] + [mb.vert((end_u(line, w), v, w))])
     n_rows = len(prof)
     for i in range(n_rows):
         i1 = (i + 1) % n_rows
         (v0, w0), (v1, w1) = prof[i], prof[i1]
-        wmid, vmid = (w0 + w1) / 2, (v0 + v1) / 2
         bottom = i1 == 0
-        side_normal = Vector((0, v1 - v0, w1 - w0)).cross(Vector((1, 0, 0)))   # perpendicular to the segment
-        out = (0.0, vmid, wmid - (base + 1.2))
         for k in range(len(breaks) + 1):
-            if bottom:
+            lo_w, hi_w = min(w0, w1), max(w0, w1)
+            if bottom or hi_w <= band_lo + 1e-6:
                 style = st["trim"]
-            elif band_lo - 1e-6 <= min(w0, w1) and max(w0, w1) <= band_hi + 1e-6 and abs(v1 - v0) < 1e-3:
+            elif hi_w <= band_hi + 1e-6:
                 style = st["band"]
-            elif min(w0, w1) < band_lo - 1e-6:
-                style = st["trim"]
-            elif k in bay_spans and low - 1e-6 <= min(w0, w1) and max(w0, w1) <= high + 1e-6:
+            elif k in bay_spans and low - 1e-6 <= lo_w and hi_w <= high + 1e-6:
                 style = st["glass"]
             else:
-                style = st["hood"].but(smooth=True)
-            if bottom:
-                out_k = (0, 0, -1)
-            else:
-                out_k = out
-            mb.face([grid[i][k], grid[i][k + 1], grid[i1][k + 1], grid[i1][k]], style, out_k)
-    # end walls (planar: u is linear in w along each raked end)
-    for which, col, direction in (("farEnd", 0, -1), ("lineEnd", -1, 1)):
-        ring = [mb.vert((end_u(which, w), v, w)) for v, w in prof]
-        mb.face(ring, st["hood"].but(smooth=False), (direction, 0, 0))
+                style = st["hood"].but(smooth=lo_w > 3.87)
+            out = (0.0, 0.0, -1.0) if bottom else (0.0, (v0 + v1) / 2, (w0 + w1) / 2 - 4.5)
+            mb.face([grid[i][k], grid[i][k + 1], grid[i1][k + 1], grid[i1][k]], style, out)
+    # end walls: horizontal strips between matching left/right rows, sharing their vertices so the wall is
+    # one continuous surface (each strip is planar; strips meet at the rake and cap creases only)
+    for end, sign in ((far, -1), (line, 1)):
+        rows = []
+        for v, w in half:
+            u = end_u(end, w)
+            left = mb.vert((u, -v, w))
+            right = left if v < 1e-6 else mb.vert((u, v, w))
+            rows.append((left, right))
+        for (la, ra), (lb, rb) in zip(rows, rows[1:]):
+            idx = [la, ra, rb, lb] if rb != lb else [la, ra, rb]
+            mb.face(idx, st["hood"].but(smooth=False), (sign, 0, 0))
+    if lod <= 2:
+        end_openings(mb, h, half, st, lod)
     return mb
+
+
+def arc_v(half, w):
+    """The hood's outer half-width at height w (metres), from the profile."""
+    for (v0, w0), (v1, w1) in zip(half, half[1:]):
+        if w0 <= w <= w1 and w1 > w0:
+            return v0 + (v1 - v0) * (w - w0) / (w1 - w0)
+    return half[-1][0]
+
+
+def end_openings(mb, h, half, st, lod):
+    """Windows and the door on the end walls, as thin panels just proud of the wall."""
+    far, line = h["farEnd"], h["lineEnd"]
+    proud = 0.012
+
+    def panel(end, sign, v0, v1, w0, w1, style, arc=None):
+        rows = [w0 + (w1 - w0) * k / 6 for k in range(7)] if arc else [w0, w1]
+        left = [(v0, w) for w in rows]
+        right = [((arc_v(half, w) - arc) if arc else v1, w) for w in rows]
+        pts = left + list(reversed(right))
+        mb.face(mb.verts_lift([(end_u(end, w) + sign * proud, v, w) for v, w in pts]), style, (sign, 0, 0))
+
+    fw, lw = h["farWall"], h["lineWall"]
+    for s in (-1, 1):   # far end: two slots either side of the axis and two barrel-following side windows
+        sl = fw["slots"]
+        a, b = sorted((s * m(sl["vIn"]), s * m(sl["vOut"])))
+        panel(far, -1, a, b, m(sl["low"]), m(sl["high"]), st["glass"])
+        sd = fw["side"]
+        if s > 0:
+            panel(far, -1, m(sd["vIn"]), None, m(sd["low"]), m(sd["high"]), st["glass"], arc=m(sd["inset"]))
+        else:
+            rows = [m(sd["low"]) + (m(sd["high"]) - m(sd["low"])) * k / 6 for k in range(7)]
+            pts = [(-(arc_v(half, w) - m(sd["inset"])), w) for w in rows] + [(-m(sd["vIn"]), w) for w in reversed(rows)]
+            mb.face(mb.verts_lift([(end_u(far, w) - proud, v, w) for v, w in pts]), st["glass"], (-1, 0, 0))
+    door = lw["door"]   # line end: door on +v (steel lower panel, glazed upper), one window on -v
+    panel(line, 1, m(door["vFrom"]), m(door["vTo"]), m(door["low"]), m(door["glassLow"]), st["trim"])
+    panel(line, 1, m(door["vFrom"]), m(door["vTo"]), m(door["glassLow"]), m(door["high"]), st["glass"])
+    sd = lw["side"]
+    rows = [m(sd["low"]) + (m(sd["high"]) - m(sd["low"])) * k / 6 for k in range(7)]
+    pts = [(-(arc_v(half, w) - m(sd["inset"])), w) for w in rows] + [(-m(sd["vIn"]), w) for w in reversed(rows)]
+    mb.face(mb.verts_lift([(end_u(line, w) + proud, v, w) for v, w in pts]), st["glass"], (1, 0, 0))
+
+
+# -- entry end -------------------------------------------------------------------------------------
+def build_entry(mb, d, lod, st):
+    cb = d["crossbeam"]
+    prims.box(mb, (m(cb["uFrom"]), -m(cb["v"]) / 2, m(cb["bottom"])), (m(cb["uTo"]), m(cb["v"]) / 2, m(cb["top"])), st["steel"])
+    fp = cb["footPlates"]
+    for s in ((-1, 1) if lod <= 2 else ()):
+        prims.box(mb, (m(fp["uFrom"]), s * m(fp["v"]) - m(fp["halfWidth"]), m(fp["bottom"])),
+                  (m(fp["uTo"]), s * m(fp["v"]) + m(fp["halfWidth"]), m(fp["top"])), st["steel"])
+    # lifting portal: legs lean inward going down onto the crossbeam's foot plates
+    po = d["portal"]
+    if lod <= 2:
+        leg = po["leg"]
+        for s in (-1, 1):
+            foot = (m(po["u"]), s * m(leg["foot"][0]), m(leg["foot"][1]))
+            head = (m(po["u"]), s * m(leg["head"][0]), m(leg["head"][1]))
+            prims.beam(mb, foot, head, m(leg["across"]), m(leg["along"]), st["steel"], up=U)
+        bm = po["beam"]
+        prims.box(mb, (m(bm["uFrom"]), -m(bm["v"]) / 2, m(bm["bottom"])), (m(bm["uTo"]), m(bm["v"]) / 2, m(bm["top"])), st["steel"])
+        if lod <= 1:
+            for s in (-1, 1):
+                for vl in po["lugs"]["v"]:
+                    prims.box(mb, (m(po["u"]) - 0.012, s * m(vl) - 0.06, m(po["lugs"]["bottom"])),
+                              (m(po["u"]) + 0.012, s * m(vl) + 0.06, m(bm["bottom"])), st["yellow"])
+    # upper walkway on the +v longitudinal beam, with the hood wing and the ladder landing
+    wk = d["walkway"]
+    deck, t = m(wk["deck"]), 0.05
+    stringer = m(wk["stringer"])
+    u0, u1, v0, v1 = m(wk["uFrom"]), m(wk["uTo"]), m(wk["vFrom"]), m(wk["vTo"])
+    wing, land = wk["hoodWing"], wk["landing"]
+    decks = [((u0, v0, deck - t), (u1, v1, deck)),
+             ((m(wing["uFrom"]), m(wing["vFrom"]), deck - t), (m(wing["uTo"]), v0, deck)),
+             ((m(land["uFrom"]), m(land["vFrom"]), deck - t), (m(land["uTo"]), v0, deck))]
+    for lo_, hi_ in (decks if lod <= 2 else decks[:1]):
+        parts.deck(mb, lo_, hi_, lod, st["galv"])
+    if lod <= 2:
+        for vs in (v0 + 0.05, v1 - 0.05):   # stringers under the walkway
+            prims.box(mb, (u0, vs - 0.05, deck - stringer), (u1, vs + 0.05, deck - t), st["steel"])
+    rl = wk["rail"]
+    rail_h = m(rl["top"]) - deck
+    wing_v = m(wing["vFrom"])
+    posts = [(m(pu), v1 - 0.03, deck) for pu in rl["posts"]] + [(u1 - 0.03, v0 + 0.03, deck)]   # as drawn: ends and a gate pair
+    parts.railing(mb, [(u0 + 0.03, v1 - 0.03, deck), (u1 - 0.03, v1 - 0.03, deck), (u1 - 0.03, v0 + 0.03, deck)], rail_h, lod, st["galv"],
+                  posts_at=posts)
+    parts.railing(mb, [(m(land["uFrom"]), v0 + 0.03, deck), (m(wing["uTo"]), v0 + 0.03, deck), (m(wing["uTo"]), wing_v + 0.03, deck),
+                       (u0 + 0.03, wing_v + 0.03, deck)], rail_h, lod, st["galv"])
+    gate = wk["gate"]
+    if lod <= 1:
+        prims.box(mb, (m(gate["u"]) - 0.02, m(gate["vFrom"]), deck + 0.15), (m(gate["u"]) + 0.02, m(gate["vTo"]), m(gate["top"])), st["yellow"])
+    # lower entry platform beyond the crossbeam, with a U hoop across its end and a strut under it
+    ep = d["entryPlatform"]
+    hv = m(ep["v"]) / 2
+    parts.deck(mb, (m(ep["uFrom"]), -hv, m(ep["under"])), (m(ep["uTo"]), hv, m(ep["deck"])), lod, st["galv"])
+    if lod <= 2:
+        hp = ep["hoop"]
+        c = m(hp["corner"])
+        pts = [(m(hp["u"]), -hv + 0.03, m(ep["deck"])), (m(hp["u"]), -hv + 0.03, m(hp["top"]) - c), (m(hp["u"]), -hv + 0.03 + c, m(hp["top"])),
+               (m(hp["u"]), hv - 0.03 - c, m(hp["top"])), (m(hp["u"]), hv - 0.03, m(hp["top"]) - c), (m(hp["u"]), hv - 0.03, m(ep["deck"]))]
+        prims.tube_path(mb, [Vector(p) for p in pts], 0.02, 6 if lod == 0 else 4, st["galv"])
+        if lod <= 1:
+            prims.cylinder(mb, (m(hp["u"]), -hv + 0.03, m(hp["mid"])), (m(hp["u"]), hv - 0.03, m(hp["mid"])), 0.016, 6 if lod == 0 else 4, st["galv"])
+        sf, stt = ep["strut"]["from"], ep["strut"]["to"]
+        for s in (-1, 1):
+            prims.beam(mb, (m(sf[0]), s * (hv - 0.2), m(sf[1])), (m(stt[0]), s * (hv - 0.2), m(stt[1])), 0.08, 0.08, st["steel"])
+    # ladder from the landing plate up to the walkway, with handrails and goosenecks
+    ld = d["ladder"]
+    foot = Vector((m(ld["foot"][0]), m(ld["foot"][1]), m(ld["foot"][2])))
+    head = Vector((m(ld["head"][0]), m(ld["head"][1]), m(ld["head"][2])))
+    parts.ladder(mb, foot, head, 2 * m(ld["halfWidth"]), lod, st["galv"], rung_every=m(ld["rungs"]), handrails=False)
+    if lod <= 1:
+        hr = m(ld["handrail"])
+        gn = ld["gooseneck"]
+        for s in (-1, 1):
+            vv = s * (m(ld["halfWidth"]) + 0.03)
+            pts = [foot + Vector((0.05, vv, hr)), head + Vector((0, vv, hr)), Vector((m(gn[0]), vv, m(gn[1]))), Vector((m(gn[0]) + 0.05, vv, deck + 0.05))]
+            prims.tube_path(mb, pts, 0.019, 6 if lod == 0 else 4, st["galv"])
+    lp = d["landingPlate"]
+    if lod <= 2:
+        prims.box(mb, (m(lp["uFrom"]), -m(lp["v"]) / 2, m(lp["bottom"])), (m(lp["uTo"]), m(lp["v"]) / 2, m(lp["top"])), st["galv"].but(snow=0.9))
 
 
 def build(spec, lod, stage):
@@ -138,15 +261,16 @@ def build(spec, lod, stage):
     rope_r = m(c["ropeDiameter"]) / 2
     u_bw = m(d["bullwheel"]["u"])
 
-    # foundation and pier
-    f = d["foundation"]
-    prims.box(body, (-m(f["u"]) / 2, -m(f["v"]) / 2, m(f["bottom"])), (m(f["u"]) / 2, m(f["v"]) / 2, m(f["top"])), st["concrete"])
-    col = d["column"]
-    prims.box(body, (-m(col["u"]) / 2, -m(col["v"]) / 2, m(f["top"])), (m(col["u"]) / 2, m(col["v"]) / 2, m(col["top"])), st["concrete"],
-              skip=("-2",))
-    # steel head on the pier and the drive base frame under the hood
-    hb = d["headBox"]
-    prims.box(body, (-m(hb["u"]) / 2, -m(hb["v"]) / 2, m(hb["bottom"])), (m(hb["u"]) / 2, m(hb["v"]) / 2, m(hb["top"])), st["steel"])
+    # pier and footing (LP7), steel pier head, longitudinal beams and the drive base frame
+    pi, fo = d["pier"], d["footing"]
+    prims.box(body, (-m(fo["u"]) / 2, -m(fo["v"]) / 2, m(fo["bottom"])), (m(fo["u"]) / 2, m(fo["v"]) / 2, m(fo["top"])), st["concrete"])
+    prims.box(body, (-m(pi["u"]) / 2, -m(pi["v"]) / 2, m(pi["bottom"])), (m(pi["u"]) / 2, m(pi["v"]) / 2, m(pi["top"])), st["concrete"], skip=("-2",))
+    ph = d["pierHead"]
+    prims.box(body, (-m(ph["u"]) / 2, -m(ph["v"]) / 2, m(ph["bottom"])), (m(ph["u"]) / 2, m(ph["v"]) / 2, m(ph["top"])), st["steel"])
+    eb = d["entryBeams"]
+    for s in (-1, 1):
+        a_, b_ = sorted((s * m(eb["vIn"]), s * m(eb["vOut"])))
+        prims.box(body, (m(eb["uFrom"]), a_, m(eb["bottom"])), (m(eb["uTo"]), b_, m(eb["top"])), st["steel"])
     bf = d["baseFrame"]
     prims.box(body, (m(bf["uTo"]), -m(bf["v"]) / 2, m(bf["bottom"])), (m(bf["uFrom"]), m(bf["v"]) / 2, m(bf["top"])), st["steel"])
 
@@ -157,69 +281,35 @@ def build(spec, lod, stage):
         mo = d["motor"]
         prims.cylinder(body, (m(mo["from"]), 0, m(mo["w"])), (m(mo["to"]), 0, m(mo["w"])), m(mo["dia"]) / 2, parts.sides(lod, 12, 8), st["interior"])
         cb = d["cabinet"]
-        prims.box(body, (m(cb["uFrom"]), -m(cb["v"]) / 2, m(cb["bottom"])), (m(cb["uTo"]), m(cb["v"]) / 2, m(cb["top"])), st["interior"])
+        prims.box(body, (m(cb["uFrom"]), m(cb["vFrom"]), m(cb["bottom"])), (m(cb["uTo"]), m(cb["vTo"]), m(cb["top"])), st["interior"])
 
-    # hood
+    # hood, with its gutter lip in the profile and the down spout on the +v side
     hood = build_hood(spec, lod, st)
     lo, hi = hood.bounds_lift()
     a.dims.update({"hoodTopLength": round((hi[0] - lo[0]) * 1000), "hoodWidth": round((hi[1] - lo[1]) * 1000),
                    "hoodCrown": round(hi[2] * 1000), "hoodLineEndTop": round(hi[0] * 1000), "hoodFarEndTop": round(lo[0] * 1000)})
     body.merge(hood)
+    if lod <= 1:
+        ds = d["hood"]["downSpout"]
+        prims.cylinder(body, tuple(m(x) for x in ds["from"]), tuple(m(x) for x in ds["to"]), m(ds["dia"]) / 2, 8 if lod == 0 else 5, st["trim"])
 
-    # entry toward the line: beams from the head to the crossbeam, platform, ladder, portal
-    e = d["entry"]
-    ue = m(e["u"])
-    cbm = e["crossbeam"]
-    pl = d["platform"]
-    for s in (-1, 1):
-        prims.box(body, (m(hb["u"]) / 2 - 0.05, s * 0.45 - 0.15, m(cbm["top"])), (ue + m(cbm["du"]) / 2, s * 0.45 + 0.15, m(pl["top"] - pl["thick"])), st["steel"])
-    prims.box(body, (ue - m(cbm["du"]) / 2, -m(cbm["v"]) / 2, m(cbm["bottom"])), (ue + m(cbm["du"]) / 2, m(cbm["v"]) / 2, m(cbm["top"])), st["steel"])
-    # platform deck (with the ladder opening) and railings
-    top = m(pl["top"])
-    t = m(pl["thick"])
-    op = pl["ladderOpening"]
-    u0, u1, hv = m(pl["uFrom"]), m(pl["uTo"]), m(pl["v"]) / 2
-    ou0, ou1, ov0, ov1 = m(op["uFrom"]), m(op["uTo"]), m(op["vFrom"]), m(op["vTo"])
-    for lo_, hi_ in (((u0, -hv, top - t), (ou0, hv, top)), ((ou1, -hv, top - t), (u1, hv, top)),
-                     ((ou0, -hv, top - t), (ou1, ov0, top)), ((ou0, ov1, top - t), (ou1, hv, top))):
-        parts.deck(body, lo_, hi_, lod, st["galv"])
-    rail_h = m(pl["railing"])
-    parts.railing(body, [(u0 + 0.05, hv - 0.03, top), (u1 - 0.03, hv - 0.03, top), (u1 - 0.03, -hv + 0.03, top), (u0 + 0.05, -hv + 0.03, top)],
-                  rail_h, lod, st["galv"])
-    lad = d["ladder"]
-    ltop = Vector((m(lad["top"][0]), m(lad["top"][1]), m(lad["top"][2])))
-    lbot = Vector((m(lad["bottom"][0]), m(lad["bottom"][1]), m(lad["bottom"][2])))
-    parts.ladder(body, lbot, ltop, m(lad["width"]), lod, st["galv"])
-    # lifting portal over the entry
-    po = e["portal"]
-    if lod <= 2:
-        tw, th = m(po["topHalfWidth"]), m(po["top"])
-        beam = m(po["beam"])
-        prims.box(body, (ue - beam / 2, -tw - 0.1, th - beam), (ue + beam / 2, tw + 0.1, th), st["steel"])
-        for s in (-1, 1):
-            prims.beam(body, (ue, s * m(po["legFootHalfWidth"]), m(cbm["top"])), (ue, s * tw, th - beam), 0.16, 0.16, st["steel"], up=U)
+    build_entry(body, d, lod, st)
 
-    # rope sheaves: guide sheaves between pier and bullwheel, entry sheaves at the crossbeam (rope rides on top)
+    # guide sheaves between the pier and the bullwheel (rope rides on top), hung inboard from the base frame
     gs = c["guideSheave"]
-    es = e["sheave"]
-    sheaves = [("l1", m(d["guideSheaves"]["u"]), -1, gs), ("r1", m(d["guideSheaves"]["u"]), 1, gs),
-               ("l2", ue, -1, es), ("r2", ue, 1, es)]
-    for name, us, side, sh in sheaves:
-        r = m(sh["dia"]) / 2
-        centre = Vector((us, side * hg, rope - rope_r - r))
+    for name, side in (("l1", -1), ("r1", 1)):
+        r = m(gs["dia"]) / 2
+        centre = Vector((m(d["guideSheaves"]["u"]), side * hg, rope - rope_r - r))
         target = MeshBuilder() if lod <= 1 else body
         if lod <= 2:
-            parts.sheave(target, centre, V, m(sh["dia"]), m(sh["width"]), lod, st["red"], st["rubber"])
+            parts.sheave(target, centre, V, m(gs["dia"]), m(gs["width"]), lod, st["red"], st["rubber"])
+            parts.sheave_bracket(body, centre, m(gs["width"]), m(bf["bottom"]), lod, st["steel"])
         if lod <= 1:
             a.parts[f"sheave_{name}"] = target
             a.pivots[f"sheave_{name}"] = {"pos": tuple(centre), "axis": (0.0, 1.0, 0.0)}
-        # inboard bracket from the drive frame (guide sheaves) or the entry crossbeam, so grips pass outboard
-        if lod <= 2:
-            parts.sheave_bracket(body, centre, m(sh["width"]), m(cbm["bottom"]) if us == ue else m(bf["bottom"]), lod, st["steel"])
 
-    # bullwheel (pivoted on its vertical axle at rope elevation)
-    bw_spec = {k: m(v) if isinstance(v, (int, float)) and k not in ("spokes",) else v for k, v in c["bullwheel"].items()}
-    bw_spec.update({"hubBottom": m(d["bullwheel"]["hubBottom"]), "hubTop": m(d["bullwheel"]["hubTop"])})
+    # bullwheel (pivoted on its vertical axle at rope elevation), sheltered by the hood (no snow)
+    bw_spec = parts.bullwheel_spec(c)
     bw_centre = Vector((u_bw, 0.0, rope))
     if lod <= 2:
         bw = MeshBuilder()
@@ -230,13 +320,14 @@ def build(spec, lod, stage):
         parts.bullwheel(body, bw_centre, bw_spec, lod, st["dark"])
 
     a.body = body
+    cbm = d["crossbeam"]
     a.sockets = {
         "line": (0.0, 0.0, 0.0),
         "rope_left_bw": (u_bw, -hg, rope), "rope_right_bw": (u_bw, hg, rope),
-        "rope_left_out": (ue, -hg, rope), "rope_right_out": (ue, hg, rope),
+        "rope_left_out": (m(cbm["uTo"]), -hg, rope), "rope_right_out": (m(cbm["uTo"]), hg, rope),
         "chair_unload": (0.0, -hg, rope),
-        "foundation_base": (0.0, 0.0, m(f["bottom"])),
+        "foundation_base": (0.0, 0.0, m(d["footing"]["bottom"])),
     }
-    a.dims.update({"bullwheelU": round(u_bw * 1000), "guideSheaveU": d["guideSheaves"]["u"], "columnU": col["u"],
-                   "columnV": col["v"], "columnTop": col["top"], "platformEnd": pl["uTo"], "entryU": e["u"]})
+    a.dims.update({"bullwheelU": round(u_bw * 1000), "guideSheaveU": d["guideSheaves"]["u"], "columnU": pi["u"],
+                   "columnV": pi["v"], "columnTop": pi["top"], "platformEnd": d["entryPlatform"]["uTo"], "entryU": d["portal"]["u"]})
     return a

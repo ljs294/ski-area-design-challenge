@@ -82,6 +82,21 @@ namespace MountainPlanner.Tests
         }
 
         [TestCaseSource(nameof(Cases))]
+        public void LodsSwitchAtTheBudgetedDistances(GameObject prefab)
+        {
+            // At lodBias 1 and the reference 60-degree field of view, LODn must hand over at budgets.json untilM.
+            var budget = BudgetFor(LoadBudgets(), prefab.GetComponent<LiftRig>().Kind);
+            var group = prefab.GetComponent<LODGroup>();
+            var lods = group.GetLODs();
+            float tanHalf = Mathf.Tan(30f * Mathf.Deg2Rad);
+            for (int i = 0; i < lods.Length; i++)
+            {
+                float metres = group.size / (2f * tanHalf * lods[i].screenRelativeTransitionHeight);
+                Assert.That(metres, Is.EqualTo(budget.lods[i].untilM).Within(budget.lods[i].untilM * 0.05f), $"LOD{i} switches at {metres:F0} m");
+            }
+        }
+
+        [TestCaseSource(nameof(Cases))]
         public void OnlyTheNearLodsCastShadows(GameObject prefab)
         {
             var budget = BudgetFor(LoadBudgets(), prefab.GetComponent<LiftRig>().Kind);
