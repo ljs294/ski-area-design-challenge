@@ -1,0 +1,22 @@
+{
+  "_about": "Enforced triangle budgets per asset kind and LOD, and the LOD switch distances (metres at lodBias 1; the PC quality level uses lodBias 2, which doubles them). The Blender build and the Unity tests both read this file. Decision LP2.",
+  "terminal": {
+    "lods": [
+      {"lod": 0, "maxTris": 24000, "untilM": 20},
+      {"lod": 1, "maxTris": 10000, "untilM": 55},
+      {"lod": 2, "maxTris": 2500, "untilM": 175},
+      {"lod": 3, "maxTris": 500, "untilM": 1000}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "chair": {
+    "lods": [
+      {"lod": 0, "maxTris": 800, "untilM": 10},
+      {"lod": 1, "maxTris": 250, "untilM": 35},
+      {"lod": 2, "maxTris": 60, "untilM": 300}
+    ],
+    "shadowLods": 2,
+    "crossFade": false
+  }
+}

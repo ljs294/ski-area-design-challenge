@@ -1,0 +1,91 @@
+{
+  "_about": "Sessellift FGQ-4 fixed-grip quad: our design dimensions in millimetres, in the lift frame (u toward the other terminal, v right looking along u, w up; origin mast centreline at the 0.00 load/unload level). Positions are [u, v, w]. See README.md.",
+  "catalog": {
+    "maker": "Sessellift",
+    "name": "Sessellift FGQ-4",
+    "parts": {"drive": "Drive terminal", "return": "Return terminal", "chair": "Quad chair"}
+  },
+  "common": {
+    "ropeElevation": 3039,
+    "lineGauge": 4120,
+    "ropeDiameter": 36,
+    "travel": "ccw",
+    "loadedRope": "right when looking uphill: v+ at the return terminal, v- at the drive terminal",
+    "snowAllowance": 305,
+    "guideSheave": {"dia": 370, "width": 110},
+    "bullwheel": {
+      "pitch": 4120, "rimTop": 104, "rimBottom": -55, "plateOuter": 4660, "plateInner": 3560, "plateThick": 30,
+      "hubDia": 890, "spokes": 8, "spokeWidth": 140, "spokeDepth": 220
+    }
+  },
+  "drive": {
+    "column": {"u": 1508, "v": 613, "top": 2700},
+    "foundation": {"u": 4000, "v": 7000, "top": -305, "bottom": -2500},
+    "headBox": {"u": 1600, "v": 900, "bottom": 2700, "top": 3180},
+    "baseFrame": {"uFrom": 950, "uTo": -4600, "v": 4400, "bottom": 3180, "top": 3330},
+    "bullwheel": {"u": -3230, "hubBottom": -439, "hubTop": 11},
+    "gearbox": {"u": 1200, "v": 1200, "bottom": 3330, "top": 3950},
+    "motor": {"dia": 560, "from": -2550, "to": -1450, "w": 3700},
+    "cabinet": {"uFrom": -4200, "uTo": -3700, "v": 1600, "bottom": 3330, "top": 5200},
+    "guideSheaves": {"u": -680},
+    "entry": {
+      "u": 3080, "crossbeam": {"du": 360, "v": 4000, "bottom": 2700, "top": 2950},
+      "sheave": {"dia": 300, "width": 90},
+      "portal": {"top": 4960, "beam": 200, "topHalfWidth": 2250, "legFootHalfWidth": 1300}
+    },
+    "platform": {"uFrom": 1000, "uTo": 3970, "v": 2790, "top": 3190, "thick": 60, "railing": 1100,
+                 "ladderOpening": {"uFrom": 2240, "uTo": 2890, "vFrom": -250, "vTo": 350}},
+    "ladder": {"top": [2890, 50, 3190], "bottom": [1600, 50, 0], "width": 550},
+    "hood": {
+      "base": 3330,
+      "lineEnd": {"top": 1013, "bottom": 689},
+      "farEnd": {"top": -4787, "bottom": -4502},
+      "profile": [[1527, 3362], [2530, 3517], [2530, 3825], [2426, 4382], [2240, 4982], [1900, 5620], [1528, 6053],
+                  [1095, 6424], [959, 6598], [0, 6722]],
+      "windows": {"bays": 6, "firstU": 470, "bay": 700, "rib": 100, "low": 4010, "high": 6370},
+      "whiteBand": {"low": 3517, "high": 3825}
+    }
+  },
+  "return": {
+    "pedestal": {"u": 1502, "v": 641, "top": 1527, "bottom": -1500},
+    "footing": {"u": 3000, "v": 2200, "top": -1500, "bottom": -2500},
+    "mastHead": {"u": 1669, "v": 1222, "bottom": 1527, "top": 1930},
+    "underFrame": {"uFrom": -1450, "uTo": 1280, "v": 1320, "bottom": 1930, "top": 2280},
+    "rails": {"vCentre": 510, "width": 310, "bottom": 2280, "top": 2630, "uFrom": -4350, "uTo": 4700},
+    "carriageTravel": [-1990, -4430],
+    "carriageAt": -1990,
+    "carriage": {"uFrom": 300, "uTo": 3500, "v": 500, "bottom": 2630, "top": 3000},
+    "bullwheel": {"hubBottom": -339, "hubTop": -89, "hubDia": 640},
+    "cylinder": {"dia": 200, "w": 2455, "uTo": 3660},
+    "catwalk": {"uFrom": 270, "uTo": 3490, "v": 600, "top": 3480, "thick": 50, "railing": 1060},
+    "guideSheaves": {"u": 490, "arm": {"bottom": 2570, "top": 2700}},
+    "liftingFrame": {
+      "u": 4050, "crossbeam": {"du": 240, "v": 4920, "bottom": 3720, "top": 4030},
+      "portal": {"top": 5780, "beam": 160, "topHalfWidth": 2260, "legTopHalfWidth": 1600, "legFootHalfWidth": 1100},
+      "legs": {"from": [2070, 2630], "to": [3830, 3720], "vCentre": 550},
+      "platform": {"uFrom": 4200, "uTo": 4870, "v": 2800, "top": 4030, "railing": 900},
+      "sheave": {"dia": 300, "width": 90, "pitch": 380}
+    }
+  },
+  "chair": {
+    "_about": "Chair points are [u, halfWidth or v, w]: u along travel, v outboard from the rope (the hanger side), w below the rope (negative); millimetres. The chair is symmetric about v = axisV; halfWidth is measured from that axis.",
+    "seats": 4, "axisV": -32,
+    "tube": {"hanger": 80, "frame": 60, "rail": 38},
+    "grip": {"u": 360, "vFrom": -30, "vTo": 120, "wFrom": -70, "wTo": 130},
+    "hanger": [[98, 0], [257, -71], [305, -198], [337, -357], [364, -515], [384, -674], [389, -753], [375, -841], [337, -928], [273, -1000], [202, -1036], [130, -1055], [60, -1063]],
+    "clamp": {"halfWidth": 129, "u": 120, "wFrom": -1023, "wTo": -1285},
+    "topBar": {"w": -1160, "halfLength": 780},
+    "sideFrame": [[0, 780, -1160], [-12, 921, -1219], [-40, 985, -1340], [-79, 1006, -1407], [-206, 1063, -1880],
+                  [-262, 1095, -2073], [-278, 1117, -2157], [-265, 1113, -2245], [-225, 1092, -2369], [-163, 1076, -2491], [-87, 1063, -2578],
+                  [0, 1053, -2646], [56, 1051, -2673], [310, 1051, -2613], [381, 1051, -2562], [400, 1051, -2489]],
+    "backRods": {"halfWidth": 460, "path": [[-79, -1157], [-119, -1435], [-500, -1578]]},
+    "backrest": {"top": [-500, -1587], "bottom": [-358, -2249], "legEnd": [-325, -2403], "footEnd": [-579, -2546],
+                 "topHalfWidth": 940, "bottomHalfWidth": 1020, "corner": 80},
+    "barArms": {"halfWidth": 460, "path": [[77, -1157], [111, -1435], [508, -1590]]},
+    "bar": {"top": [508, -1590], "bottom": [370, -2249], "legEnd": [341, -2423], "footEnd": [579, -2546],
+            "topHalfWidth": 940, "bottomHalfWidth": 1020, "corner": 80, "footrestHalfWidth": 960},
+    "seat": {"halfWidth": 990, "profile": [[-200, -2349], [270, -2317], [360, -2349], [400, -2439], [380, -2549], [300, -2609],
+                                          [56, -2669], [-90, -2639], [-180, -2539], [-220, -2419]],
+             "cushionEdges": 2}
+  }
+}
