@@ -1,0 +1,67 @@
+// GPU culling and LOD selection for the forest (0.3 §4.5, TR2): every tree is tested against the camera
+// frustum each frame and sorted into its prototype's visible list for one LOD, so the CPU only issues a
+// few hundred indirect draws however many trees there are.
+
+#pragma kernel Clear
+#pragma kernel Cull
+#pragma kernel WriteArgs
+
+struct Tree
+{
+    float3 position;   // base of the trunk, in world space
+    float rotation;    // radians about +Y
+    float heightScale;
+    float widthScale;
+    uint prototype;
+    uint pad;
+};
+
+StructuredBuffer<Tree> _Trees;
+StructuredBuffer<float> _NativeHeights;     // per prototype
+StructuredBuffer<uint> _PrototypeStart;     // first slot of each prototype in a LOD band
+RWStructuredBuffer<uint> _Visible;          // LOD band l, prototype p: [l * _TreeCount + _PrototypeStart[p] + k]
+RWStructuredBuffer<uint> _Counts;           // [p * 4 + l]
+RWStructuredBuffer<uint> _Args;             // IndirectDrawIndexedArgs, 5 uints per draw
+StructuredBuffer<uint> _DrawCounter;        // per draw: the _Counts slot whose count it draws
+
+uint _TreeCount;
+uint _CountSlots;
+uint _DrawCount;
+float4 _Planes[6];
+float3 _CameraPosition;
+float _ScreenScale;                         // 1 / (2 tan(fov / 2)): screen-height fraction = size * this / distance
+float4 _Transitions;                        // screen heights where LOD0→1, 1→2, 2→card, card→culled
+
+[numthreads(64, 1, 1)]
+void Clear(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < _CountSlots) _Counts[id.x] = 0;
+}
+
+[numthreads(64, 1, 1)]
+void Cull(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _TreeCount) return;
+    Tree t = _Trees[id.x];
+    float height = _NativeHeights[t.prototype] * t.heightScale;
+    float3 centre = t.position + float3(0, height * 0.5, 0);
+    float radius = height * 0.6;
+    [unroll] for (int i = 0; i < 6; i++)
+        if (dot(_Planes[i].xyz, centre) + _Planes[i].w < -radius) return;
+
+    float distance = max(length(centre - _CameraPosition), 0.01);
+    float screen = height * _ScreenScale / distance;
+    uint lod = screen > _Transitions.x ? 0 : screen > _Transitions.y ? 1 : screen > _Transitions.z ? 2 : screen > _Transitions.w ? 3 : 4;
+    if (lod == 4) return;
+
+    uint slot;
+    InterlockedAdd(_Counts[t.prototype * 4 + lod], 1, slot);
+    _Visible[lod * _TreeCount + _PrototypeStart[t.prototype] + slot] = id.x;
+}
+
+[numthreads(64, 1, 1)]
+void WriteArgs(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _DrawCount) return;
+    _Args[id.x * 5 + 1] = _Counts[_DrawCounter[id.x]];
+}

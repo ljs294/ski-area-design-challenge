@@ -141,6 +141,45 @@ namespace MountainPlanner.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheForestGrowsOnTheTestTerrainAndDraws()
+        {
+#if UNITY_EDITOR
+            var forest = new ForestAssets
+            {
+                Trees = UnityEditor.AssetDatabase.LoadAssetAtPath<TreePrototypeSet>("Assets/MountainPlanner/Art/Trees/TreePrototypes.asset"),
+                Cull = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/ForestCull.compute"),
+                Shader = UnityEditor.AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeInstanced.shader"),
+            };
+            if (!forest.IsComplete) Assert.Ignore("The tree library isn't imported, or this GPU has no compute shaders.");
+            var camera = new GameObject("Test camera").AddComponent<Camera>();
+            camera.tag = "MainCamera";
+            camera.farClipPlane = 20000;
+            camera.transform.SetPositionAndRotation(new Vector3(0, 3500, -2500), Quaternion.Euler(30, 0, 0));
+            var open = ResortOpener.OpenAsync(_package, null, TerrainDetail.High, null, default, null, forest);
+            yield return Await(open);
+            var resort = open.Result;
+            yield return AwaitTask(resort.CoverReady);
+            try
+            {
+                var view = resort.Root.GetComponent<MountainPlanner.Presentation.ForestView>();
+                Assert.That(view, Is.Not.Null, "the forest is attached to the resort");
+                Assert.That(resort.TreesPlanted, Is.GreaterThan(100000), "the 2 km test site and its ring are forested");
+                Assert.That(view.Renderer.DrawCount, Is.GreaterThan(100), "every prototype, LOD and visible submesh has a draw");
+                for (int i = 0; i < 10; i++) yield return null;   // cull and draw a few frames without errors
+                TestContext.WriteLine($"{resort.TreesPlanted:N0} trees, {view.Renderer.DrawCount} indirect draws, planted by {resort.ForestSeconds:F2} s");
+            }
+            finally
+            {
+                Object.Destroy(resort.Root);
+                Object.Destroy(camera.gameObject);
+            }
+#else
+            Assert.Ignore("Editor only.");
+            yield break;
+#endif
+        }
+
+        [UnityTest]
         public IEnumerator TheDemoMountainOpensWithinTenSeconds()
         {
             var demo = ResortLibrary.Scan(MountainViewer.DataRoot).Where(e => e.Name == "Jackson Hole")

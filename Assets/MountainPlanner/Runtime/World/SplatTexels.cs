@@ -11,6 +11,14 @@ namespace MountainPlanner.World
     /// </summary>
     public sealed class SplatTexels
     {
+        /// <summary>
+        /// Under a full forest canopy, this share of the snow gives way to the forest floor: shaded snow
+        /// and needle litter, so a stand reads as a dark mass from a distance instead of trees on white.
+        /// </summary>
+        public const int ForestShade = 115; // of 255 (45%)
+        /// <summary>Forest density is judged over this many metres, so lone trees and specks cast no stand shade.</summary>
+        public const float ShadeRadiusMetres = 8;
+
         public int Resolution;
         public byte[][] Textures;
 
@@ -23,6 +31,7 @@ namespace MountainPlanner.World
         {
             const int bands = TerrainCache.CoverBands;
             int n = resolution;
+            var shade = StandShade(cover, n, snow);
             var t0 = new byte[n * n * 4];
             var t1 = new byte[n * n * 4];
             for (int j = 0; j < n; j++)
@@ -30,7 +39,7 @@ namespace MountainPlanner.World
                 int src = j * n * bands, dst = (n - 1 - j) * n * 4;
                 for (int i = 0; i < n; i++, src += bands, dst += 4)
                 {
-                    int s = snow ? cover[src + GroundCover.Layers] : 0;
+                    int s = snow ? cover[src + GroundCover.Layers] * (255 - shade[j * n + i]) / 255 : 0;
                     int keep = 255 - s;
                     // Scale the ground weights by what the snow leaves; rounding leftovers go to the largest.
                     int f = cover[src] * keep / 255, g = cover[src + 1] * keep / 255, r = cover[src + 2] * keep / 255;
@@ -54,6 +63,48 @@ namespace MountainPlanner.World
                 }
             }
             return new SplatTexels { Resolution = n, Textures = new[] { t0, t1 } };
+        }
+
+        /// <summary>
+        /// Shade per texel (0–<see cref="ForestShade"/>): the forest-floor weight averaged over
+        /// <see cref="ShadeRadiusMetres"/> (separable box), eased so only real stands get it.
+        /// </summary>
+        static byte[] StandShade(byte[] cover, int n, bool snow)
+        {
+            var shade = new byte[n * n];
+            if (!snow) return shade;
+            const int bands = TerrainCache.CoverBands;
+            float texel = 1024f / (n - 1);
+            int r = System.Math.Max(1, (int)System.Math.Round(ShadeRadiusMetres / texel));
+            var rows = new int[n * n];
+            for (int j = 0; j < n; j++)
+            {
+                int sum = 0;
+                for (int i = -r; i <= r; i++) if (i >= 0 && i < n) sum += cover[(j * n + i) * bands];
+                for (int i = 0; i < n; i++)
+                {
+                    rows[j * n + i] = sum;
+                    int add = i + r + 1, drop = i - r;
+                    if (add < n) sum += cover[(j * n + add) * bands];
+                    if (drop >= 0) sum -= cover[(j * n + drop) * bands];
+                }
+            }
+            float count = (2 * r + 1) * (2 * r + 1) * 255f;
+            for (int i = 0; i < n; i++)
+            {
+                int sum = 0;
+                for (int j = -r; j <= r; j++) if (j >= 0 && j < n) sum += rows[j * n + i];
+                for (int j = 0; j < n; j++)
+                {
+                    float density = sum / count;
+                    float t = System.Math.Min(1f, System.Math.Max(0f, (density - 0.35f) / 0.45f));
+                    shade[j * n + i] = (byte)(ForestShade * t * t * (3 - 2 * t));
+                    int add = j + r + 1, drop = j - r;
+                    if (add < n) sum += rows[add * n + i];
+                    if (drop >= 0) sum -= rows[drop * n + i];
+                }
+            }
+            return shade;
         }
 
         public static SplatTexels Load(string packageFolder, CacheTile tile, bool snow) =>

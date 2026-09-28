@@ -80,25 +80,9 @@ namespace MountainPlanner.Domain.Flora
         }
     }
 
-    /// <summary>
-    /// Species with a real model in the tree library (tools/assets/trees/species.json), by FIA species
-    /// code. Task 09's species map replaces this list; until then it's kept in step by hand.
-    /// </summary>
+    /// <summary>Species with a real model in the tree library, by FIA species code (from <see cref="SpeciesMap"/>).</summary>
     public static class TreeLibrary
     {
-        public static readonly IReadOnlyCollection<int> ModelledSpecies = new HashSet<int>
-        {
-            19,  // subalpine fir
-            93,  // Engelmann spruce
-            108, // lodgepole pine
-            202, // Douglas-fir
-            264, // mountain hemlock
-            316, // red maple
-            318, // sugar maple
-            371, // yellow birch
-            375, // paper birch
-            531, // American beech
-            746, // quaking aspen
-        };
+        public static readonly IReadOnlyCollection<int> ModelledSpecies = new HashSet<int>(SpeciesMap.ModelledCodes);
     }
 }

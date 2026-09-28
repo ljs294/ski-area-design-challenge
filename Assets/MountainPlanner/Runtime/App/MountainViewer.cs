@@ -28,6 +28,10 @@ namespace MountainPlanner.App
         public Material HighlightMaterial;
         /// <summary>Materials for the terrain's hidden passes, referenced only so builds keep their shaders.</summary>
         public Material[] KeepShaders;
+        /// <summary>The tree library (Mountain Planner, Import Trees); without it the mountain is bare.</summary>
+        public TreePrototypeSet Trees;
+        public ComputeShader ForestCull;
+        public Shader TreeShader;
 
         string _status = "Starting";
         float _fraction;
@@ -54,7 +58,8 @@ namespace MountainPlanner.App
             try
             {
                 var progress = new Progress<OpenProgress>(p => { _status = p.Detail; _fraction = p.Fraction; });
-                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial);
+                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial,
+                    new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader });
                 _status = $"Opened in {_resort.Seconds:F1} s";
                 Debug.Log($"[MountainViewer] {_resort.Manifest.Site.Name}: {_resort.Tiles.Count} tiles opened in {_resort.Seconds:F2} s");
                 if (Camera != null)
@@ -69,6 +74,7 @@ namespace MountainPlanner.App
                 // and -screenshot <file.png>, which captures the view once it has settled, then quits.
                 string[] args = Environment.GetCommandLineArgs();
                 if (Array.IndexOf(args, "-covermap") >= 0) ToggleOverlay();
+                if (Array.IndexOf(args, "-baretrees") >= 0) StartCoroutine(WhenForestReady(ToggleTreeSnow));
                 else if (Array.IndexOf(args, "-nosnow") >= 0) await ResortOpener.SetSnowAsync(_resort, false, destroyCancellationToken);
                 int view = Array.IndexOf(args, "-view");
                 if (view >= 0 && view + 1 < args.Length && Camera != null)
@@ -120,6 +126,7 @@ namespace MountainPlanner.App
             if (keys != null && keys.cKey.wasPressedThisFrame) FlyToLandmark();
             if (_resort != null && keys != null && keys.nKey.wasPressedThisFrame) _ = ResortOpener.SetSnowAsync(_resort, !_resort.SnowOn, destroyCancellationToken);
             if (_resort != null && keys != null && keys.vKey.wasPressedThisFrame) ToggleOverlay();
+            if (_resort != null && keys != null && keys.tKey.wasPressedThisFrame) ToggleTreeSnow();
 
             // Keep lines a few pixels wide at any distance.
             if (Camera != null)
@@ -136,6 +143,21 @@ namespace MountainPlanner.App
             bool on = !_resort.Ground.OverlayOn;
             _resort.Ground.SetOverlay(on);
             if (on == _resort.SnowOn) await ResortOpener.SetSnowAsync(_resort, !on, destroyCancellationToken);
+        }
+
+        ForestRenderer Forest => _resort?.Root != null ? _resort.Root.GetComponent<ForestView>()?.Renderer : null;
+
+        /// <summary>T: fresh snow on the trees, or bare evergreens (the ground keeps its snow).</summary>
+        void ToggleTreeSnow()
+        {
+            var forest = Forest;
+            if (forest != null) forest.SetSnowLoad(forest.SnowLoad > 0.5f ? 0 : 1);
+        }
+
+        System.Collections.IEnumerator WhenForestReady(Action action)
+        {
+            while (Forest == null) yield return null;
+            action();
         }
 
         void FlyToLandmark()
@@ -160,7 +182,7 @@ namespace MountainPlanner.App
                 : $"{_resort.Manifest.Site.Name} · {_resort.Manifest.Site.SizeMetres / 1000.0:0.#} km · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
             if (_resort != null && _help && _landmarks.Count > 0)
-                text += $"\nC: fly to {_landmarks[0].Name} · N: snow {(_resort.SnowOn ? "on" : "off")} · V: cover map {(_resort.Ground.OverlayOn ? "on" : "off")} · map data © OpenStreetMap contributors";
+                text += $"\nC: fly to {_landmarks[0].Name} · N: snow {(_resort.SnowOn ? "on" : "off")} · V: cover map {(_resort.Ground.OverlayOn ? "on" : "off")} · T: tree snow {(Forest == null || Forest.SnowLoad > 0.5f ? "on" : "off")} · map data © OpenStreetMap contributors";
             if (_resort != null && _help)
                 text += "\nWASD move · Q/E rotate · R/F tilt · Wheel or PgUp/PgDn zoom · Middle-drag rotate · Right-drag move · Shift faster · H hide · Esc quit";
             GUI.Box(new Rect(20, 20, 820, _resort == null ? 60 : (_help ? 142 : 88)), text, style);

@@ -25,6 +25,15 @@ namespace MountainPlanner.App
         }
     }
 
+    /// <summary>What the forest needs: the tree library, the culling compute shader and the tree shader.</summary>
+    public sealed class ForestAssets
+    {
+        public TreePrototypeSet Trees;
+        public ComputeShader Cull;
+        public Shader Shader;
+        public bool IsComplete => Trees != null && Cull != null && Shader != null && SystemInfo.supportsComputeShaders;
+    }
+
     /// <summary>A resort on screen.</summary>
     public sealed class OpenedResort
     {
@@ -40,6 +49,8 @@ namespace MountainPlanner.App
         /// <summary>Completes when every tile's ground cover is painted (it streams in after the terrain is playable).</summary>
         public Task CoverReady = Task.CompletedTask;
         public double CoverSeconds;
+        public long TreesPlanted;
+        public double ForestSeconds;
         public double Seconds;
     }
 
@@ -53,7 +64,8 @@ namespace MountainPlanner.App
         public const int TilesPerFrame = 4;
 
         public static async Task<OpenedResort> OpenAsync(string packageFolder, Transform parent, TerrainDetail detail,
-                                                         IProgress<OpenProgress> progress, CancellationToken ct = default, Material material = null)
+                                                         IProgress<OpenProgress> progress, CancellationToken ct = default, Material material = null,
+                                                         ForestAssets forest = null)
         {
             var clock = Stopwatch.StartNew();
             progress?.Report(new OpenProgress("Opening: reading the package", 0));
@@ -71,7 +83,9 @@ namespace MountainPlanner.App
             var root = new GameObject($"Resort: {manifest.Site.Name}");
             if (parent != null) root.transform.SetParent(parent, false);
             var ground = new GroundLayers();
-            var layers = ground.Layers;
+            // Tiles start with just the snow layer (all a fresh tile shows); the ground layers join when its
+            // cover is painted. Six layers per tile up front added about half a second to opening.
+            var layers = new[] { ground.Layers[0] };
             var tiles = new Dictionary<(int, int), Terrain>();
 
             // Decode every tile on worker threads (in order of distance from the centre, so the view fills in
@@ -80,6 +94,20 @@ namespace MountainPlanner.App
             var decoded = order.Select(t => Task.Run(() => TerrainTiles.LoadHeights(packageFolder, t), ct)).ToList();
             // Cover decodes alongside; it's painted after the terrain is up (snow is layer 0, so tiles already read as snow).
             var covers = order.Select(t => Task.Run(() => SplatTexels.Load(packageFolder, t, snow: true), ct)).ToList();
+            List<Task<ForestInstance[]>> forests = null;
+            if (forest != null && forest.IsComplete)
+            {
+                float[] nativeHeights = forest.Trees.NativeHeights;
+                float tileMetres = (float)cache.TileMetres, heightMin = (float)cache.HeightMin, heightRange = (float)cache.HeightRange;
+                forests = order.Select((t, i) =>
+                {
+                    var (ox, oz) = frame.ToLocal(new AlbersPoint(t.West, t.North - cache.TileMetres));
+                    var origin = new Vector3((float)ox, 0, (float)oz);
+                    var heightsTask = decoded[i];
+                    return Task.Run(async () => ForestInstance.Decode(TerrainCache.ReadTrees(packageFolder, t), nativeHeights,
+                                                                      await heightsTask.ConfigureAwait(false), origin, tileMetres, heightMin, heightRange), ct);
+                }).ToList();
+            }
             float start = progress == null ? 0 : 0.5f;
             double waited = 0, created = 0;
             var part = Stopwatch.StartNew();
@@ -109,23 +137,39 @@ namespace MountainPlanner.App
                 Manifest = manifest, Cache = cache, Root = root, Tiles = tiles, Surface = surface, Frame = frame, Seconds = clock.Elapsed.TotalSeconds,
                 Ground = ground, PackageFolder = packageFolder,
             };
-            resort.CoverReady = PaintCoverAsync(resort, order, covers, clock, ct);
+            resort.CoverReady = PaintCoverAsync(resort, order, covers, forests, forest, clock, ct);
             return resort;
         }
 
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
-        static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, Stopwatch clock, CancellationToken ct)
+        static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers,
+                                          List<Task<ForestInstance[]>> forests, ForestAssets forest, Stopwatch clock, CancellationToken ct)
         {
             for (int n = 0; n < order.Count; n++)
             {
                 var splat = await covers[n];
                 ct.ThrowIfCancellationRequested();
                 if (resort.Root == null) return; // closed meanwhile
-                TerrainTiles.ApplySplat(resort.Tiles[(order[n].Column, order[n].Row)].terrainData, splat);
+                var data = resort.Tiles[(order[n].Column, order[n].Row)].terrainData;
+                data.terrainLayers = resort.Ground.Layers;
+                TerrainTiles.ApplySplat(data, splat);
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
             }
             resort.CoverSeconds = clock.Elapsed.TotalSeconds;
             UnityEngine.Debug.Log($"[ResortOpener] ground cover painted at {resort.CoverSeconds:F2} s");
+            if (forests == null) return;
+
+            // Then the forest: every tile's trees go into one GPU buffer (ForestRenderer).
+            var all = await Task.WhenAll(forests);
+            ct.ThrowIfCancellationRequested();
+            if (resort.Root == null) return;
+            var instances = await Task.Run(() => all.SelectMany(a => a).ToArray(), ct);
+            var renderer = new ForestRenderer(forest.Trees, instances, forest.Cull, forest.Shader);
+            var view = resort.Root.AddComponent<ForestView>();
+            view.Renderer = renderer;
+            resort.TreesPlanted = instances.Length;
+            resort.ForestSeconds = clock.Elapsed.TotalSeconds;
+            UnityEngine.Debug.Log($"[ResortOpener] {instances.Length:N0} trees planted at {resort.ForestSeconds:F2} s ({renderer.DrawCount} indirect draws)");
         }
 
         /// <summary>
