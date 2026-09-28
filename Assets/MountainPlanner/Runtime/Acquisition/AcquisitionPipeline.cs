@@ -25,7 +25,7 @@ namespace MountainPlanner.Acquisition
 
     /// <summary>
     /// Downloads a site and writes its resort package (0.3 §6 pipeline; tasks 04a and 04b):
-    /// terrain, forest canopy, land cover and tree species. OSM water and developed land come in task 07.
+    /// terrain, forest canopy, land cover, tree species, and OpenStreetMap water and developed land.
     /// Resumable: every remote read goes through <see cref="DiskCache"/>, so a killed run continues
     /// where it stopped. Idempotent: the same inputs give an identical package id.
     /// </summary>
@@ -38,12 +38,16 @@ namespace MountainPlanner.Acquisition
         public const string CoverLayer = "cover";
         public const string SpeciesIdsLayer = "species-ids";
         public const string SpeciesWeightsLayer = "species-weights";
+        /// <summary>OpenStreetMap coverage, two bands (water, developed), 0–255: 1 m over the core, 2 m over the ring.</summary>
+        public const string OsmCoreLayer = "osm-core";
+        public const string OsmRingLayer = "osm-ring";
 
         public const string StageCore = "Terrain";
         public const string StageRing = "Terrain surroundings";
         public const string StageForest = "Forest";
         public const string StageCover = "Ground cover";
         public const string StageSpecies = "Tree species";
+        public const string StageOsm = "Water and roads";
         public const string StageBuild = "Building";
         public const string StagePrepare = "Preparing terrain";
 
@@ -72,7 +76,7 @@ namespace MountainPlanner.Acquisition
                     (int)Math.Ceiling(ringBox.Width / SpeciesCellMetres), (int)Math.Ceiling(ringBox.Height / SpeciesCellMetres));
 
                 // Plan first, so the overall bar and time remaining are honest from the start.
-                foreach (string stage in new[] { StageCore, StageRing, StageForest, StageCover, StageSpecies, StageBuild, StagePrepare }) tracker.DefineStage(stage, 1);
+                foreach (string stage in new[] { StageCore, StageRing, StageForest, StageCover, StageSpecies, StageOsm, StageBuild, StagePrepare }) tracker.DefineStage(stage, 1);
                 tracker.BeginStage(StageCore);
                 tracker.BeginStep("planning the download", 1, 1, () => 0.5);
                 var corePlan = await assembler.PlanAsync(site.CoreGrid, 0, ct).ConfigureAwait(false);
@@ -85,6 +89,8 @@ namespace MountainPlanner.Acquisition
                 tracker.SetStageWeight(StageForest, canopyPlan.Bytes);
                 tracker.SetStageWeight(StageCover, coverPlan.Bytes);
                 tracker.SetStageWeight(StageSpecies, CoverAssembler.SpeciesWeight(speciesLayers.Count));
+                // One Overpass query (a few MB) plus rasterizing it at 1-2 m.
+                tracker.SetStageWeight(StageOsm, 8e6 + (site.CoreGrid.CellCount + site.RingGrid.CellCount) * 0.1);
                 // Building takes roughly as long as downloading a few MB; weight it by cells.
                 tracker.SetStageWeight(StageBuild, (site.CoreGrid.CellCount + site.RingGrid.CellCount) * 0.5);
                 // Preparing the terrain cache samples every tile vertex once (task 05).
@@ -100,10 +106,13 @@ namespace MountainPlanner.Acquisition
                 byte[] cover = await covers.CoverAsync(coverPlan, tracker, ct).ConfigureAwait(false);
                 tracker.BeginStage(StageSpecies);
                 var species = await covers.SpeciesAsync(speciesGrid, speciesLayers, tracker, ct).ConfigureAwait(false);
+                tracker.BeginStage(StageOsm);
+                var osm = await OsmAsync(new OsmFeatures(_cache, meter), site, tracker, meter, ct).ConfigureAwait(false);
 
                 tracker.BeginStage(StageBuild);
                 var manifest = Build(request, site, corePlan, core, ringPlan, ring, packageFolder, tracker);
                 AddCover(manifest, packageFolder, site, canopyPlan, canopy, coverPlan, cover, speciesGrid, species);
+                AddOsm(manifest, packageFolder, site, osm);
                 tracker.BeginStep("scoring flora", 1, 1, () => 0.5);
                 AddFloraScore(manifest, site, canopy, canopyMissing, coverPlan.Grid, cover, speciesGrid, species);
                 tracker.BeginStep("writing manifest", 1, 1, () => 0.9);
@@ -199,6 +208,64 @@ namespace MountainPlanner.Acquisition
                 OneLiner = FloraQuality.OneLiner(inputs, "canopy 1 m (2017–2020 imagery)", "species from BIGMAP 30 m"),
                 Components = FloraQuality.Components(inputs).ToDictionary(kv => kv.Key, kv => kv.Value),
             };
+        }
+
+        sealed class OsmResult
+        {
+            public byte[]? Core, Ring;
+            public int Shapes;
+            public string? Failure;
+        }
+
+        /// <summary>
+        /// OpenStreetMap water and developed land. Optional: if Overpass is down, the package is built
+        /// without it and WorldCover's water and built-up classes stand in (recorded in provenance).
+        /// </summary>
+        static async Task<OsmResult> OsmAsync(OsmFeatures osm, SiteSquare site, ProgressTracker tracker, TransferMeter meter, CancellationToken ct)
+        {
+            long start = meter.Bytes;
+            double rasterized = 0;
+            tracker.BeginStep("downloading map features", 1, 3, () => Math.Min(0.95, (meter.Bytes - start) / 4e6), "OpenStreetMap (Overpass)");
+            byte[] response;
+            try
+            {
+                response = await osm.DownloadAsync(site.Ring, ct).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex) when (!ct.IsCancellationRequested)
+            {
+                return new OsmResult { Failure = ex.Message };
+            }
+            var shapes = OsmFeatures.Parse(response);
+            tracker.BeginStep($"drawing {shapes.Count:N0} map features, core at 1 m", 2, 3, () => rasterized);
+            var (cw, cd) = OsmFeatures.Rasterize(shapes, site.CoreGrid);
+            rasterized = 1;
+            tracker.BeginStep($"drawing {shapes.Count:N0} map features, surroundings at 2 m", 3, 3, () => 0.5);
+            var (rw, rd) = OsmFeatures.Rasterize(shapes, site.RingGrid);
+            return new OsmResult { Core = OsmFeatures.Interleave(cw, cd), Ring = OsmFeatures.Interleave(rw, rd), Shapes = shapes.Count };
+        }
+
+        static void AddOsm(PackageManifest manifest, string folder, SiteSquare site, OsmResult osm)
+        {
+            if (osm.Core == null || osm.Ring == null)
+            {
+                manifest.Provenance.Add(new ProvenanceInfo
+                {
+                    Layer = "(none)", Provider = "OpenStreetMap contributors", Product = "Unavailable during this download; WorldCover water and built-up used instead",
+                    Items = new List<string> { osm.Failure ?? "" },
+                });
+                return;
+            }
+            const string units = "OpenStreetMap coverage 0-255, bands: water, developed";
+            var cg = site.CoreGrid;
+            ResortPackage.AddLayer(folder, manifest, OsmCoreLayer, new GridHeader(GridValueType.UInt8, cg.Columns * 2, cg.Rows, cg.West, cg.North, cg.CellSize), osm.Core, 2, units);
+            var rg = site.RingGrid;
+            ResortPackage.AddLayer(folder, manifest, OsmRingLayer, new GridHeader(GridValueType.UInt8, rg.Columns * 2, rg.Rows, rg.West, rg.North, rg.CellSize), osm.Ring, 2, units);
+            manifest.Provenance.Add(new ProvenanceInfo
+            {
+                Layer = OsmCoreLayer + ", " + OsmRingLayer, Provider = "OpenStreetMap contributors", Product = "Water, roads, buildings and built-up land use via the Overpass API",
+                Items = new List<string> { $"{osm.Shapes} features" },
+            });
+            manifest.Attribution.Add("Water and roads: © OpenStreetMap contributors (ODbL).");
         }
 
         static void AddCover(PackageManifest manifest, string folder, SiteSquare site, CoverPlan canopyPlan, byte[] canopy,

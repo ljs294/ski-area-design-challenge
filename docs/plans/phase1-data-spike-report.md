@@ -143,7 +143,7 @@ That is 9 species. Quaking aspen is now a real Jackson Hole species (19%), not j
 **The methodical follow-up:**
 1. Build lidar truth sets for 3–5 varied sites. Crystal Mountain has no public point cloud on AWS, but Washington's free lidar portal covers it.
 2. Fit the density and height factors per region.
-3. Keep the scoring as a regression test in task 07.
+3. Keep the scoring as a regression test in task 07. **Done:** the truth set is a fixture, and CI scores the rule on every PR (82.8%).
 
 **Later option:** where a point cloud exists, compute canopy straight from lidar. That's the most accurate source, but it's heavy (171 million points for this 2 km site alone), so it's recorded as a candidate for a later iteration.
 

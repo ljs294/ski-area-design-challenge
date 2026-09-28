@@ -15,7 +15,7 @@ using Object = UnityEngine.Object;
 namespace MountainPlanner.Tests
 {
     /// <summary>
-    /// Task 06 acceptance (docs/plans/phase0-0.7-phase1-plan.md): neighbouring edge heights equal;
+    /// Task 06 acceptance, plus task 07's splat check (docs/plans/phase0-0.7-phase1-plan.md): neighbouring edge heights equal;
     /// TerrainData matches the source within one step; the demo opens in ≤10 s; opening runs with the
     /// network disabled. Uses the committed Jackson Hole test terrain (Git LFS).
     /// </summary>
@@ -49,6 +49,12 @@ namespace MountainPlanner.Tests
             if (task.IsFaulted) throw task.Exception!.InnerException!;
         }
 
+        static IEnumerator AwaitTask(Task task)
+        {
+            while (!task.IsCompleted) yield return null;
+            if (task.IsFaulted) throw task.Exception!.InnerException!;
+        }
+
         [UnityTest]
         public IEnumerator TheTestTerrainOpensOfflineAsCracklessTerrainMatchingItsSource()
         {
@@ -56,6 +62,7 @@ namespace MountainPlanner.Tests
             var open = ResortOpener.OpenAsync(_package, null, TerrainDetail.High, null);
             yield return Await(open);
             var resort = open.Result;
+            yield return AwaitTask(resort.CoverReady);
             try
             {
                 Assert.That(resort.Tiles.Count, Is.EqualTo(64));
@@ -104,6 +111,27 @@ namespace MountainPlanner.Tests
                 }
                 Assert.That(worst, Is.LessThanOrEqualTo(step), $"one step is {step * 100:F2} cm");
                 Assert.That(worstStored, Is.LessThan(1e-6), "Unity keeps the cache's 15-bit values exactly");
+
+                // Task 07: the ground cover reached Unity's splat maps (six layers, texel for texel).
+                foreach (var tile in resort.Cache.Tiles.Where(t => t.Core).Take(2).Concat(resort.Cache.Tiles.Where(t => !t.Core).Take(1)))
+                {
+                    var data = resort.Tiles[(tile.Column, tile.Row)].terrainData;
+                    Assert.That(data.alphamapLayers, Is.EqualTo(6));
+                    Assert.That(data.alphamapResolution, Is.EqualTo(tile.CoverResolution));
+                    data.SyncTexture(TerrainData.AlphamapTextureName);
+                    int n = tile.CoverResolution;
+                    float[,,] maps = data.GetAlphamaps(0, 0, n, n);
+                    var expected = SplatTexels.Load(_package, tile, snow: true);
+                    double worstSplat = 0;
+                    for (int y = 0; y < n; y += 29)
+                        for (int x = 0; x < n; x += 31)
+                            for (int k = 0; k < 6; k++)
+                            {
+                                byte e = expected.Textures[k / 4][(y * n + x) * 4 + k % 4];
+                                worstSplat = Math.Max(worstSplat, Math.Abs(maps[y, x, k] - e / 255.0));
+                            }
+                    Assert.That(worstSplat, Is.LessThan(1.5 / 255), $"{tile.CoverFile} splat matches the cache");
+                }
             }
             finally
             {
@@ -115,17 +143,19 @@ namespace MountainPlanner.Tests
         [UnityTest]
         public IEnumerator TheDemoMountainOpensWithinTenSeconds()
         {
-            var demo = ResortLibrary.Scan(MountainViewer.DataRoot).Where(e => e.Name == "Jackson Hole").OrderByDescending(e => e.SizeKm).FirstOrDefault();
+            var demo = ResortLibrary.Scan(MountainViewer.DataRoot).Where(e => e.Name == "Jackson Hole")
+                .OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
             if (demo == null || demo.SizeKm < 5) Assert.Ignore("Download the 5 km Jackson Hole demo first (demo.bat option 12).");
             if (!demo.CacheReady) Assert.Ignore("The demo's terrain isn't prepared yet; the 10 s budget is for a prepared mountain (0.3 §8).");
             Http.NetworkDisabled = true;
             var open = ResortOpener.OpenAsync(demo.Folder, null, TerrainDetail.High, null);
             yield return Await(open);
+            yield return AwaitTask(open.Result.CoverReady);
             try
             {
                 Assert.That(open.Result.Tiles.Count, Is.EqualTo(121));
                 Assert.That(open.Result.Seconds, Is.LessThanOrEqualTo(10.0), $"opened in {open.Result.Seconds:F1} s");
-                TestContext.WriteLine($"Jackson Hole 5 km opened in {open.Result.Seconds:F2} s");
+                TestContext.WriteLine($"Jackson Hole 5 km opened in {open.Result.Seconds:F2} s; ground cover painted by {open.Result.CoverSeconds:F2} s");
             }
             finally
             {

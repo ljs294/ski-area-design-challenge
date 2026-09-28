@@ -32,14 +32,14 @@ namespace MountainPlanner.Editor
         }
 
         /// <summary>
-        /// Instanced terrain is lit from per-pixel normals, a material keyword the Material Inspector normally
-        /// turns on; without it, instanced terrain renders flat-lit.
+        /// Instancing is off (task 06), so the instanced per-pixel-normal keyword is cleared: without an
+        /// instanced normal map it lit the ground with garbage normals (a wavy sheen along layer edges).
         /// </summary>
         static Material ConfigureTerrainMaterial(Material material)
         {
             material.enableInstancing = true;
-            material.SetFloat("_EnableInstancedPerPixelNormal", 1f);
-            material.EnableKeyword("_TERRAIN_INSTANCED_PERPIXEL_NORMAL");
+            material.SetFloat("_EnableInstancedPerPixelNormal", 0f);
+            material.DisableKeyword("_TERRAIN_INSTANCED_PERPIXEL_NORMAL");
             EditorUtility.SetDirty(material);
             return material;
         }
@@ -58,6 +58,34 @@ namespace MountainPlanner.Editor
             material.SetColor("_BaseColor", new Color(1f, 0.12f, 0.1f));
             AssetDatabase.CreateAsset(material, HighlightMaterialPath);
             return material;
+        }
+
+        /// <summary>
+        /// The terrain's hidden passes: more than four layers need the add pass, and far tiles use the
+        /// basemap passes. Builds strip shaders nothing references, so the scene references these.
+        /// </summary>
+        static Material[] TerrainPassMaterials()
+        {
+            string[] shaders =
+            {
+                "Hidden/Universal Render Pipeline/Terrain/Lit (Add Pass)",
+                "Hidden/Universal Render Pipeline/Terrain/Lit (Base Pass)",
+                "Hidden/Universal Render Pipeline/Terrain/Lit (Basemap Gen)",
+            };
+            var result = new Material[shaders.Length];
+            for (int i = 0; i < shaders.Length; i++)
+            {
+                string path = $"Assets/MountainPlanner/Art/Terrain/TerrainPass{i}.mat";
+                var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (material == null)
+                {
+                    var shader = Shader.Find(shaders[i]) ?? throw new System.InvalidOperationException(shaders[i] + " not found.");
+                    material = new Material(shader) { name = "TerrainPass" + i };
+                    AssetDatabase.CreateAsset(material, path);
+                }
+                result[i] = material;
+            }
+            return result;
         }
 
         [MenuItem("Mountain Planner/Create Viewer Scene")]
@@ -86,6 +114,7 @@ namespace MountainPlanner.Editor
             viewer.Camera = fly;
             viewer.TerrainMaterial = TerrainMaterial();
             viewer.HighlightMaterial = HighlightMaterial();
+            viewer.KeepShaders = TerrainPassMaterials();
 
             // A procedural sky until task 11's sky and lighting presets.
             var sky = AssetDatabase.LoadAssetAtPath<Material>("Assets/MountainPlanner/Art/Sky/ProceduralSky.mat");

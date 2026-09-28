@@ -53,6 +53,7 @@ echo.
 echo   Phase 1, task 06: the mountain in Unity
 echo     17 Fly over your mountain in the game (builds the game the first time: about 2 minutes)
 echo     18 Rebuild the game (after pulling new code; close the Unity editor first)
+echo        Tip: re-run 12 once to add OpenStreetMap water and roads to an older Jackson Hole download.
 echo.
 echo     Q  Quit
 echo.
@@ -142,7 +143,7 @@ exit /b 0
 :play
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
-echo Starting the game. WASD move, Q/E rotate, R/F tilt, wheel zoom, middle-drag rotate, right-drag move, Esc quit.
+echo Starting the game. WASD move, Q/E rotate, R/F tilt, wheel zoom, N snow on/off, V cover map, C Corbet's Couloir, Esc quit.
 start "" "%GAME%"
 goto menu
 

@@ -77,22 +77,10 @@ def fill_nearest(a):
     return a
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--grids", required=True)
-    ap.add_argument("--ept", required=True)
-    ap.add_argument("--out")
-    ap.add_argument("--save-chm", help="optional .npy path for the 1 m canopy height model")
-    a = ap.parse_args()
-
-    g = json.load(open(os.path.join(a.grids, "grid.json")))
-    n = g["cells"]
-    canopy = np.fromfile(os.path.join(a.grids, "canopy10.f32"), np.float32).reshape(n, n)
-    cover = np.fromfile(os.path.join(a.grids, "worldcover10.f32"), np.float32).reshape(n, n)
-    W, S, E, N = g["west"], g["south"], g["east"], g["north"]
-
-    meta = json.loads(get(a.ept))
-    base = a.ept.rsplit("/", 1)[0]
+def canopy_height_model(ept, W, S, E, N):
+    """A 1 m canopy height model over the Albers box (north-up rows): highest return minus lidar ground."""
+    meta = json.loads(get(ept))
+    base = ept.rsplit("/", 1)[0]
     ept_epsg = meta["srs"].get("horizontal")
     to_ept = Transformer.from_crs(6350, int(ept_epsg), always_xy=True)
     to_alb = Transformer.from_crs(int(ept_epsg), 6350, always_xy=True)
@@ -127,6 +115,26 @@ def main():
     ground = np.repeat(np.repeat(ground2, 2, 0), 2, 1)[:size, :size]
     chm = np.where(np.isfinite(top), top - ground, np.nan)
     chm = np.clip(chm, 0, 80)
+
+    return chm, total
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--grids", required=True)
+    ap.add_argument("--ept", required=True)
+    ap.add_argument("--out")
+    ap.add_argument("--save-chm", help="optional .npy path for the 1 m canopy height model")
+    a = ap.parse_args()
+
+    g = json.load(open(os.path.join(a.grids, "grid.json")))
+    n = g["cells"]
+    canopy = np.fromfile(os.path.join(a.grids, "canopy10.f32"), np.float32).reshape(n, n)
+    cover = np.fromfile(os.path.join(a.grids, "worldcover10.f32"), np.float32).reshape(n, n)
+    W, S, E, N = g["west"], g["south"], g["east"], g["north"]
+
+    chm, total = canopy_height_model(a.ept, W, S, E, N)
+    size = chm.shape[0]
     if a.save_chm:
         np.save(a.save_chm, chm.astype(np.float32))
 
