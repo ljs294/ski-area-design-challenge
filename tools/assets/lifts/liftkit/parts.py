@@ -49,10 +49,12 @@ def sheave_bracket(mb, centre, width, from_w, lod, style):
         prims.cylinder(mb, (c.x, pv, c.z), (c.x, c.y + inboard * (width / 2), c.z), 0.045, sides(lod, 10, 6), style.but(cls="machined"))
 
 
-def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train, mode, attach, lod, st, first=2):
+def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train, mode, attach, lod, st, first=2, plate=None):
     """A balanced sheave train on one rope: sheaves in pairs on rockers, the rockers on a main beam pivoted on a
     hanger that runs to the structure at attach = (v, w). mode "hold": sheaves above the rope (rope under them);
     "support": below it (rope on top). Rockers and hanger sit inboard of the sheaves, so grips pass outboard.
+    plate: instead of that hanger, a plate bolted to a structure face, {"v": (from, to) unsigned, "top": w,
+    "width": along u, "pin": dia} in metres, with the beam's pin through it.
     Sheaves are moving parts on their axles at LOD0-1 (sheave_<name><first>...), merged into the body at LOD2;
     LOD3 keeps a box for the whole train. train: n, pitch, rocker, beam (metres)."""
     r = dia / 2
@@ -77,14 +79,23 @@ def sheave_train(mb, asset, name, u_c, v_rope, rope_w, rope_r, dia, width, train
             asset.pivots[key] = {"pos": tuple(centre), "axis": (0.0, 1.0, 0.0)}
             if lod == 0:   # axle boss from the rocker plate
                 prims.cylinder(mb, (centre.x, pv, wz), (centre.x, v_rope + inboard * width / 2, wz), 0.035, 8, st["rod"])
-    plate = 0.02
-    v0, v1 = sorted((pv - plate / 2, pv + plate / 2))
+    plate_t = 0.02
+    v0, v1 = sorted((pv - plate_t / 2, pv + plate_t / 2))
     for i in range(0, n - 1, 2):   # rockers: one plate per pair, from the axles to the rocker pin
         a_u, b_u = u_c + offs[i] - 0.07, u_c + offs[i + 1] + 0.07
         prims.box(mb, (a_u, v0, min(wz, w_rock) - 0.05), (b_u, v1, max(wz, w_rock) + 0.05), st["steel"])
     half = pitch * (n // 2) / 2 + 0.1   # main beam between the rocker pins, just inboard of the rockers
-    b0, b1 = sorted((pv + inboard * plate, pv + inboard * (plate + 0.1)))
+    b0, b1 = sorted((pv + inboard * plate_t, pv + inboard * (plate_t + 0.1)))
     prims.box(mb, (u_c - half, b0, min(w_rock, w_beam) - 0.05), (u_c + half, b1, max(w_rock, w_beam) + 0.05), st["steel"])
+    if plate:   # plate on the structure face, down past the beam, with the beam's pin through both
+        side = -inboard
+        p0, p1 = sorted((side * plate["v"][0], side * plate["v"][1]))
+        hw = plate["width"] / 2
+        prims.box(mb, (u_c - hw, p0, w_beam - 0.05), (u_c + hw, p1, plate["top"]), st["steel"])
+        if lod <= 1:
+            q0, q1 = min(b0, p0), max(b1, p1)
+            prims.cylinder(mb, (u_c, q0 - 0.01, w_beam), (u_c, q1 + 0.01, w_beam), plate["pin"] / 2, sides(lod, 10, 6), st["rod"])
+        return
     av, aw = attach   # hanger from the beam's centre pin to the structure
     h0, h1 = min(b0, av), max(b1, av)
     prims.box(mb, (u_c - 0.08, h0, min(w_beam, aw)), (u_c + 0.08, h1, max(w_beam, aw)), st["steel"])

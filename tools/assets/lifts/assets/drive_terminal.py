@@ -6,6 +6,8 @@ Loaded chairs arrive on the left rope (v-) and unload over the pier; the bullwhe
 seen from above. Dimensions: sessellift_fgq4.json "drive" and "common" (millimetres), checked against the
 source elevations by the adversarial review (review record, Gate 1).
 """
+import math
+
 from mathutils import Vector
 
 from liftkit import parts, prims
@@ -189,27 +191,85 @@ def end_openings(mb, h, half, st, lod):
 
 # -- entry end -------------------------------------------------------------------------------------
 def build_entry(mb, d, lod, st):
+    """The entry head (integrated first tower) and the walkways: the chamfered crossbeam at rope height with its
+    foot plates, tied to the entry beams by the drawn link (end plates, rods with tabs, a member against the
+    crossbeam); the lifting portal (152 mm square legs cut level at both ends, top beam with through-bolts,
+    25 mm lug plates with eyes, J-handrails); the upper walkway with its railings and tube gate; the lower
+    entry platform with its end member, U hoop and struts; the ladder."""
     cb = d["crossbeam"]
-    prims.box(mb, (m(cb["uFrom"]), -m(cb["v"]) / 2, m(cb["bottom"])), (m(cb["uTo"]), m(cb["v"]) / 2, m(cb["top"])), st["steel"])
+    u0c, u1c, wb0, wb1 = m(cb["uFrom"]), m(cb["uTo"]), m(cb["bottom"]), m(cb["top"])
+    hvc = m(cb["v"]) / 2
+    if lod <= 1:   # section with chamfered long edges
+        c = m(cb["chamfer"])
+        sec = [(u0c + c, wb0), (u1c - c, wb0), (u1c, wb0 + c), (u1c, wb1 - c), (u1c - c, wb1), (u0c + c, wb1), (u0c, wb1 - c), (u0c, wb0 + c)]
+        prims.prism(mb, sec, (0, -hvc, 0), U, W, V, 2 * hvc, st["steel"])
+    else:
+        prims.box(mb, (u0c, -hvc, wb0), (u1c, hvc, wb1), st["steel"])
     fp = cb["footPlates"]
     for s in ((-1, 1) if lod <= 2 else ()):
         prims.box(mb, (m(fp["uFrom"]), s * m(fp["v"]) - m(fp["halfWidth"]), m(fp["bottom"])),
                   (m(fp["uTo"]), s * m(fp["v"]) + m(fp["halfWidth"]), m(fp["top"])), st["steel"])
-    # lifting portal: legs lean inward going down onto the crossbeam's foot plates
-    po = d["portal"]
+    # link to the terminal: end plates on the entry beams, a member against the crossbeam, rods with tabs
+    lk, eb = d["link"], d["entryBeams"]
+    mem = lk["member"]
+    prims.box(mb, (m(mem["u"][0]), -m(mem["v"]), m(mem["w"][0])), (m(mem["u"][1]), m(mem["v"]), m(mem["w"][1])), st["steel"])
     if lod <= 2:
-        leg = po["leg"]
+        pl = lk["plates"]
         for s in (-1, 1):
-            foot = (m(po["u"]), s * m(leg["foot"][0]), m(leg["foot"][1]))
-            head = (m(po["u"]), s * m(leg["head"][0]), m(leg["head"][1]))
-            prims.beam(mb, foot, head, m(leg["across"]), m(leg["along"]), st["steel"], up=U)
-        bm = po["beam"]
+            vc = s * (m(eb["vIn"]) + m(eb["vOut"])) / 2
+            prims.box(mb, (m(pl["u"][0]), vc - m(pl["thick"]) / 2, m(pl["w"][0])), (m(pl["u"][1]), vc + m(pl["thick"]) / 2, m(pl["w"][1])), st["steel"])
+    if lod <= 1:
+        rd, tb, lw = lk["rods"], lk["tab"], lk["lower"]
+        for s in (-1, 1):
+            vr = s * m(rd["v"])
+            if lod == 0:
+                prims.cylinder(mb, (m(rd["u"]), vr, m(rd["w"][0])), (m(rd["u"]), vr, m(rd["w"][1])), m(rd["dia"]) / 2, 6, st["rod"])
+            prims.box(mb, (m(tb["u"][0]), vr - m(tb["width"]) / 2, m(tb["w"][0])), (m(tb["u"][1]), vr + m(tb["width"]) / 2, m(tb["w"][1])), st["steel"])
+            prims.box(mb, (m(lw["u"][0]), vr - m(lw["width"]) / 2, m(lw["w"][0])), (m(lw["u"][1]), vr + m(lw["width"]) / 2, m(lw["w"][1])), st["steel"])
+    # lifting portal
+    po = d["portal"]
+    bm = po["beam"]
+    if lod <= 2:
+        lg = po["leg"]
+        for s in (-1, 1):   # 152 mm square legs leaning out 14 degrees, cut level on the foot plate and under the beam
+            f0, f1 = sorted((s * m(lg["footV"][0]), s * m(lg["footV"][1])))
+            h0, h1 = sorted((s * m(lg["headV"][0]), s * m(lg["headV"][1])))
+            poly = [(f0, m(lg["footW"])), (f1, m(lg["footW"])), (h1, m(lg["headW"])), (h0, m(lg["headW"]))]
+            prims.prism(mb, poly, (m(lg["uFrom"]), 0, 0), V, W, U, m(lg["uTo"]) - m(lg["uFrom"]), st["steel"])
         prims.box(mb, (m(bm["uFrom"]), -m(bm["v"]) / 2, m(bm["bottom"])), (m(bm["uTo"]), m(bm["v"]) / 2, m(bm["top"])), st["steel"])
-        if lod <= 1:
-            for s in (-1, 1):
-                for vl in po["lugs"]["v"]:
-                    prims.box(mb, (m(po["u"]) - 0.012, s * m(vl) - 0.06, m(po["lugs"]["bottom"])),
-                              (m(po["u"]) + 0.012, s * m(vl) + 0.06, m(bm["bottom"])), st["yellow"])
+        if lod == 0:   # through-bolts, heads on both faces
+            bo = bm["bolts"]
+            for vb in bo["v"]:
+                for uf, du in ((m(bm["uFrom"]), -0.015), (m(bm["uTo"]), 0.015)):
+                    prims.cylinder(mb, (uf, m(vb), m(bo["w"])), (uf + du, m(vb), m(bo["w"])), m(bo["dia"]) / 2, 6, st["rod"])
+    if lod <= 1:   # 25 mm lug plates across the beam ends, narrowing below it to a round end with the eye
+        lu = po["lugs"]
+        t0, t1 = m(lu["top"][0]), m(lu["top"][1])
+        n0, n1 = m(lu["neck"][0]), m(lu["neck"][1])
+        bw0, bw1, cr = m(bm["bottom"]), m(bm["top"]), m(lu["corner"])
+        nr = (n1 - n0) / 2
+        cu_ = (n0 + n1) / 2
+        ctr = m(lu["bottom"]) + nr
+        outline = [(t0, bw0), (t0, bw1 - cr), (t0 + cr, bw1), (t1 - cr, bw1), (t1, bw1 - cr), (t1, bw0), (n1, m(lu["neckW"])), (n1, ctr)]
+        outline += [(cu_ + nr * math.cos(a_), ctr + nr * math.sin(a_)) for a_ in (math.pi * k / 6 for k in range(-1, -6, -1))]
+        outline += [(n0, ctr), (n0, m(lu["neckW"]))]
+        th = m(lu["thick"])
+        for s in (-1, 1):
+            for vl in lu["v"]:
+                vc = s * m(vl)
+                prims.prism(mb, outline, (0, vc - th / 2, 0), U, W, V, th, st["yellow"])
+                if lod == 0:
+                    eu, ew = m(lu["eye"][0]), m(lu["eye"][1])
+                    prims.cylinder(mb, (eu, vc - th / 2 - 0.012, ew), (eu, vc + th / 2 + 0.012, ew), m(lu["boss"]) / 2, 10, st["yellow"])
+        jr = po["jRails"]   # J-handrails in the portal plane: from the beam, round a bend, level to the legs
+        vt, drop, bend, wl, to = m(jr["v"]), m(jr["drop"]), m(jr["bend"]), m(jr["w"]), m(jr["to"])
+        n_arc = 4 if lod == 0 else 2
+        for s in (-1, 1):
+            pts = [Vector((m(po["u"]), s * vt, bw0))]
+            pts += [Vector((m(po["u"]), s * (vt + bend * (1 - math.cos(a_))), drop - bend * math.sin(a_)))
+                    for a_ in (math.pi / 2 * k / n_arc for k in range(n_arc + 1))]
+            pts.append(Vector((m(po["u"]), s * to, wl)))
+            prims.tube_path(mb, pts, m(jr["dia"]) / 2, 6 if lod == 0 else 4, st["galv"], caps=False)
     # upper walkway on the +v longitudinal beam, with the hood wing and the ladder landing
     wk = d["walkway"]
     deck, t = m(wk["deck"]), 0.05
@@ -233,13 +293,22 @@ def build_entry(mb, d, lod, st):
     parts.railing(mb, [(m(land["uFrom"]), v0 + 0.03, deck), (m(wing["uTo"]), v0 + 0.03, deck), (m(wing["uTo"]), wing_v + 0.03, deck),
                        (u0 + 0.03, wing_v + 0.03, deck)], rail_h, lod, st["galv"])
     gate = wk["gate"]
-    if lod <= 1:
-        prims.box(mb, (m(gate["u"]) - 0.02, m(gate["vFrom"]), deck + 0.15), (m(gate["u"]) + 0.02, m(gate["vTo"]), m(gate["top"])), st["yellow"])
-    # lower entry platform beyond the crossbeam, with a U hoop across its end and a strut under it
+    if lod <= 1:   # tube-frame gate, two open panels
+        gr, gu = m(gate["tube"]) / 2, m(gate["u"])
+        gv0, gv1, gb, gt = m(gate["vFrom"]), m(gate["vTo"]), m(gate["bottom"]), m(gate["top"])
+        frame = [Vector((gu, gv0, gb)), Vector((gu, gv1, gb)), Vector((gu, gv1, gt)), Vector((gu, gv0, gt))]
+        prims.tube_path(mb, frame, gr, 6 if lod == 0 else 4, st["yellow"], closed=True)
+        prims.cylinder(mb, (gu, gv0, m(gate["mid"])), (gu, gv1, m(gate["mid"])), gr * 0.8, 6 if lod == 0 else 4, st["yellow"], caps=(False, False))
+        if lod == 0:
+            gm = (gv0 + gv1) / 2
+            prims.cylinder(mb, (gu, gm, gb), (gu, gm, gt), gr * 0.8, 6, st["yellow"], caps=(False, False))
+    # lower entry platform beyond the crossbeam: end member on the crossbeam face, U hoop across its end, struts
     ep = d["entryPlatform"]
     hv = m(ep["v"]) / 2
     parts.deck(mb, (m(ep["uFrom"]), -hv, m(ep["under"])), (m(ep["uTo"]), hv, m(ep["deck"])), lod, st["galv"])
     if lod <= 2:
+        em = ep["endMember"]
+        prims.box(mb, (m(em[0]), -hv, wb0), (m(em[1]), hv, wb1), st["steel"])
         hp = ep["hoop"]
         c = m(hp["corner"])
         pts = [(m(hp["u"]), -hv + 0.03, m(ep["deck"])), (m(hp["u"]), -hv + 0.03, m(hp["top"]) - c), (m(hp["u"]), -hv + 0.03 + c, m(hp["top"])),
@@ -247,10 +316,12 @@ def build_entry(mb, d, lod, st):
         prims.tube_path(mb, [Vector(p) for p in pts], 0.02, 6 if lod == 0 else 4, st["galv"])
         if lod <= 1:
             prims.cylinder(mb, (m(hp["u"]), -hv + 0.03, m(hp["mid"])), (m(hp["u"]), hv - 0.03, m(hp["mid"])), 0.016, 6 if lod == 0 else 4, st["galv"])
-        sf, stt = ep["strut"]["from"], ep["strut"]["to"]
-        for s in (-1, 1):
-            prims.beam(mb, (m(sf[0]), s * (hv - 0.2), m(sf[1])), (m(stt[0]), s * (hv - 0.2), m(stt[1])), 0.08, 0.08, st["steel"])
-    # ladder from the landing plate up to the walkway, with handrails and goosenecks
+            sr = ep["strut"]
+            sf, stt, sz = sr["from"], sr["to"], m(sr["size"])
+            for s in (-1, 1):
+                vs_ = s * m(sr["v"])
+                prims.beam(mb, (m(sf[0]), vs_, m(sf[1])), (m(stt[0]), vs_, m(stt[1])), sz, sz, st["steel"])
+    # ladder from the landing plate up to the walkway; handrails rise with it to capped ends (no return leg)
     ld = d["ladder"]
     foot = Vector((m(ld["foot"][0]), m(ld["foot"][1]), m(ld["foot"][2])))
     head = Vector((m(ld["head"][0]), m(ld["head"][1]), m(ld["head"][2])))
@@ -260,7 +331,7 @@ def build_entry(mb, d, lod, st):
         gn = ld["gooseneck"]
         for s in (-1, 1):
             vv = s * (m(ld["halfWidth"]) + 0.03)
-            pts = [foot + Vector((0.05, vv, hr)), head + Vector((0, vv, hr)), Vector((m(gn[0]), vv, m(gn[1]))), Vector((m(gn[0]) + 0.05, vv, deck + 0.05))]
+            pts = [foot + Vector((0.05, vv, hr)), head + Vector((0, vv, hr)), Vector((m(gn[0]), vv, m(gn[1])))]
             prims.tube_path(mb, pts, 0.019, 6 if lod == 0 else 4, st["galv"])
     lp = d["landingPlate"]
     if lod <= 2:
@@ -313,9 +384,12 @@ def build(spec, lod, stage):
     # support trains on both ropes at the entry frame (rope on top; from photos, see spec common.sheaveTrain)
     et, tr = d["entryTrains"], c["sheaveTrain"]
     train = {"n": tr["n"], "pitch": m(tr["pitch"]), "rocker": m(tr["rocker"]), "beam": m(tr["beam"])}
+    pl = et["plate"]   # hung from plates bolted to the crossbeam ends
+    plate = {"v": (m(pl["v"][0]), m(pl["v"][1])), "top": m(pl["top"]), "width": m(pl["width"]), "pin": m(pl["pin"])}
     for side, name in ((-1, "l"), (1, "r")):
         parts.sheave_train(body, a, name, m(et["u"]), side * hg, rope, rope_r, m(c["guideSheave"]["dia"]), m(c["guideSheave"]["width"]),
-                           train, et["mode"], (side * m(et["attach"][0]), m(et["attach"][1])), lod, st)
+                           train, et["mode"], None, lod, st, plate=plate)
+    u_out = m(et["u"]) + (tr["n"] - 1) / 2 * m(tr["pitch"])   # the rope leaves over the outermost train sheave
 
     # guide sheaves between the pier and the bullwheel (rope rides on top), hung inboard from the base frame
     gs = c["guideSheave"]
@@ -346,7 +420,7 @@ def build(spec, lod, stage):
     a.sockets = {
         "line": (0.0, 0.0, 0.0),
         "rope_left_bw": (u_bw, -hg, rope), "rope_right_bw": (u_bw, hg, rope),
-        "rope_left_out": (m(cbm["uTo"]), -hg, rope), "rope_right_out": (m(cbm["uTo"]), hg, rope),
+        "rope_left_out": (u_out, -hg, rope), "rope_right_out": (u_out, hg, rope),
         "chair_unload": (0.0, -hg, rope),
         "foundation_base": (0.0, 0.0, m(d["footing"]["bottom"])),
     }
