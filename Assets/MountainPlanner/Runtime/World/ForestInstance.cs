@@ -22,7 +22,7 @@ namespace MountainPlanner.World
         /// <param name="heights">The tile's normalised heights, as <see cref="TerrainTiles.LoadHeights"/> returns them ([z, x], south row first).</param>
         /// <param name="origin">The tile's south-west corner in the local frame, at height 0.</param>
         public static ForestInstance[] Decode(byte[] packed, float[] nativeHeights, float[,] heights, Vector3 origin,
-                                              float tileMetres, float heightMin, float heightRange, float sink = 0.3f, float sinkShare = 0)
+                                              float tileMetres, float heightMin, float heightRange)
         {
             int n = packed.Length / ForestField.BytesPerTree, res = heights.GetLength(0);
             var result = new ForestInstance[n];
@@ -37,7 +37,7 @@ namespace MountainPlanner.World
                 float scale = height / Mathf.Max(1, nativeHeights[prototype]);
                 result[i] = new ForestInstance
                 {
-                    Position = new Vector3(origin.x + fx * tileMetres, heightMin + h * heightRange - sink - sinkShare * height, origin.z + fz * tileMetres),
+                    Position = new Vector3(origin.x + fx * tileMetres, heightMin + h * heightRange - 0.3f, origin.z + fz * tileMetres),
                     Rotation = rotation, HeightScale = scale, WidthScale = scale * width, Prototype = (uint)prototype,
                 };
             }

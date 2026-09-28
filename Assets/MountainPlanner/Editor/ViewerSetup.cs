@@ -40,6 +40,22 @@ namespace MountainPlanner.Editor
             return material;
         }
 
+        /// <summary>The cliff-shell material (Cliff.shader) with the generated ground textures.</summary>
+        static Material CliffMaterial()
+        {
+            const string path = "Assets/MountainPlanner/Art/Terrain/Cliff.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/Cliff.shader")) { name = "Cliff" };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.SetTexture("_Albedo", AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.AlbedoPath));
+            material.SetTexture("_Normals", AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.NormalPath));
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
         const string HighlightMaterialPath = "Assets/MountainPlanner/Art/Highlight/Highlight.mat";
 
         /// <summary>A bright unlit red for landmark lines.</summary>
@@ -88,7 +104,7 @@ namespace MountainPlanner.Editor
             viewer.TerrainMaterial = TerrainMaterial();
             viewer.HighlightMaterial = HighlightMaterial();
             viewer.Trees = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.TreePrototypeSet>(TreeImport.SetPath);
-            viewer.Rocks = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.TreePrototypeSet>(RockImport.SetPath);
+            viewer.CliffMaterial = CliffMaterial();
             viewer.ForestCull = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/ForestCull.compute");
             viewer.TreeShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeInstanced.shader");
             if (viewer.Trees == null) Debug.LogWarning("[ViewerSetup] No tree library yet: run Mountain Planner > Import Trees.");

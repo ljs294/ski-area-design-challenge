@@ -11,8 +11,6 @@ Shader "MountainPlanner/TreeInstanced"
         _SnowColor ("Snow colour", Color) = (0.93, 0.95, 0.98, 1)
         _Tint ("Tint", Color) = (1, 1, 1, 1)
         _SnowFlat ("Snow without a mask (cards)", Range(0, 1)) = 0
-        _Triplanar ("Triplanar rock mode", Float) = 0
-        _TriplanarScale ("Triplanar repeats per metre", Float) = 0.15
     }
     SubShader
     {
@@ -41,8 +39,6 @@ Shader "MountainPlanner/TreeInstanced"
             float4 _SnowColor;
             float4 _Tint;
             float _SnowFlat;
-            float _Triplanar;
-            float _TriplanarScale;
         CBUFFER_END
         uint _VisibleOffset;
         float _LodWidth;
@@ -95,29 +91,12 @@ Shader "MountainPlanner/TreeInstanced"
             half4 Frag(Varyings i, bool front : SV_IsFrontFace) : SV_Target
             {
                 float3 n = normalize(front ? i.normalWS : -i.normalWS);
-                half4 albedo;
-                half coverage = 1;
-                float snow;
-                if (_Triplanar > 0.5)
-                {
-                    // Rocks: granite projected from three axes in world space (no UVs, no stretching), with
-                    // snow lying on their upper faces.
-                    float3 w = pow(abs(n), 4);
-                    w /= w.x + w.y + w.z;
-                    float3 p = i.positionWS * _TriplanarScale;
-                    albedo = (SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, p.zy) * w.x + SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, p.xz) * w.y
-                              + SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, p.xy) * w.z) * _Tint;
-                    snow = _SnowLoad * smoothstep(0.35, 0.8, n.y) * 0.95;
-                }
-                else
-                {
-                    albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _Tint;
-                    // Sharpened coverage: crisp up close, a soft one-pixel edge in the distance.
-                    coverage = _Cutoff > 0 ? saturate((albedo.a - _Cutoff) / max(fwidth(albedo.a), 0.0001) + 0.5) : 1;
-                    // Snow sits on the up-facing side of branches that can hold it.
-                    snow = saturate(i.snow * saturate(n.y * 1.6 + 0.1) + _SnowFlat * saturate(n.y + 0.2));
-                }
+                half4 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _Tint;
+                // Sharpened coverage: crisp up close, a soft one-pixel edge in the distance.
+                half coverage = _Cutoff > 0 ? saturate((albedo.a - _Cutoff) / max(fwidth(albedo.a), 0.0001) + 0.5) : 1;
                 clip(coverage - 0.01);
+                // Snow sits on the up-facing side of branches that can hold it.
+                float snow = saturate(i.snow * saturate(n.y * 1.6 + 0.1) + _SnowFlat * saturate(n.y + 0.2));
                 albedo.rgb = lerp(albedo.rgb, _SnowColor.rgb, snow);
                 Light sun = GetMainLight(TransformWorldToShadowCoord(i.positionWS));
                 // Wrapped diffuse: needles and leaves pass light, so crowns never go black on the shaded side.
