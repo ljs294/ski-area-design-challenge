@@ -537,10 +537,59 @@ def chair_photos(built, spec, out_dir, mats):
     _photo_end(sc, extras + [fig])
 
 
+HILL_FROM, HILL_SLOPE = 12.0, math.radians(12.0)   # where the ground starts rising past the return, and how steeply
+
+
+def _hill_w(u):
+    """Ground height up the line from the return terminal (flat to HILL_FROM, then HILL_SLOPE)."""
+    return max(0.0, u - HILL_FROM) * math.tan(HILL_SLOPE)
+
+
+def _hillside():
+    """The slope the line climbs past the return terminal: a snow sheet from HILL_FROM up the line."""
+    u0, u1, half = HILL_FROM, 300.0, 300.0
+    mesh = bpy.data.meshes.new("PhotoHill")
+    corners = [(u0, -half, 0.0), (u1, -half, _hill_w(u1)), (u1, half, _hill_w(u1)), (u0, half, 0.0)]
+    mesh.from_pydata([frame.b(p) for p in corners], [], [(0, 1, 2, 3)])
+    if mesh.polygons[0].normal.z < 0:
+        mesh.flip_normals()
+    hill = bpy.data.objects.new("PhotoHill", mesh)
+    bpy.context.scene.collection.objects.link(hill)
+    hill.data.materials.append(_photo_material("PhotoSnowMat", (0.88, 0.91, 0.95), 0.55))
+    return hill
+
+
+def _rope_out_path(spec, a0, rope_w, far):
+    """The rope from the bullwheel up the line, as (u, w): level to the hold-down row when the terminal has one
+    (the return), round its arc and then climbing at the exit angle; otherwise level."""
+    if "rope_right_hold" not in a0.sockets:
+        return [(far, rope_w)]
+    from liftkit import parts as lk_parts
+    et = spec["return"]["entryTrains"]
+    asm = lk_parts.line_spec(spec)
+    arc, theta = lk_parts.hold_rope(asm, et["count"], asm["arcs"][et["arc"]], a0.sockets["rope_right_hold"][0], rope_w)
+    eu, ew = arc[-1]
+    s = (far - eu) / math.cos(theta)
+    return arc + [(eu + s * math.cos(theta), ew + s * math.sin(theta))]
+
+
+def _w_on(path, u, rope_w):
+    """Rope height at u along a (u, w) path that starts level at rope_w."""
+    prev = (-1e9, rope_w)
+    for p in path:
+        if u <= p[0]:
+            f = 0.0 if p[0] == prev[0] else (u - prev[0]) / (p[0] - prev[0])
+            return prev[1] + f * (p[1] - prev[1])
+        prev = p
+    return path[-1][1]
+
+
 def terminal_photos(key, built, spec, out_dir, mats, chairs):
     """Cycles "photos" of a terminal on snow: the haul rope looped round the bullwheel with chairs on it
     (13.8 m apart) and a 1.8 m figure; hero, back, side, approach and high views, close-ups of the bullwheel and
-    the entry, one after snowfall and, for the drive, the hood in other livery colours."""
+    the entry, one after snowfall and, for the drive, the hood in other livery colours. At the return, the line
+    leaves the station climbing: the rope bends up under the hold-down rows and runs up a hillside, and a
+    close-up looks at the hold-down row from the side."""
     sc, sun = _photo_scene()
     c = spec["common"]
     rope_w, hg = c["ropeElevation"] / 1000, c["lineGauge"] / 2000
@@ -548,10 +597,13 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
     a0 = built["assets"][0]
     u_bw = a0.pivots["bullwheel"]["pos"][0]
     u_out = a0.sockets["rope_right_out"][0]
+    climbing = "rope_right_hold" in a0.sockets
     # rope loop: in along the left rope, round the back of the wheel, out along the right rope
-    far = 90.0
-    pts = [(far, -hg, rope_w)] + [(u_bw - hg * math.sin(t), -hg * math.cos(t), rope_w)
-                                   for t in (math.pi * k / 24 for k in range(25))] + [(far, hg, rope_w)]
+    far = 400.0 if climbing else 90.0
+    path = _rope_out_path(spec, a0, rope_w, far)
+    pts = ([(u, -hg, w) for u, w in reversed(path)]
+           + [(u_bw - hg * math.sin(t), -hg * math.cos(t), rope_w) for t in (math.pi * k / 24 for k in range(25))]
+           + [(u, hg, w) for u, w in path])
     curve = bpy.data.curves.new("PhotoRopeCurve" + key, "CURVE")
     curve.dimensions = "3D"
     curve.bevel_depth = c["ropeDiameter"] / 2000
@@ -563,12 +615,12 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
     rope = bpy.data.objects.new("PhotoRope" + key, curve)
     sc.collection.objects.link(rope)
     rope.data.materials.append(_rope_material())
-    extras = [rope, _snow_plane(0.0), sun]
+    extras = [rope, _snow_plane(0.0), sun] + ([_hillside()] if climbing else [])
     hung = []
     if chairs:
         pos = [(u_bw - hg, 0.0, rope_w)]
-        pos += [(u_bw + 3.0 + 13.8 * k, hg, rope_w) for k in range(4)]
-        pos += [(u_bw + 9.9 + 13.8 * k, -hg, rope_w) for k in range(4)]
+        pos += [(u, hg, _w_on(path, u, rope_w)) for u in (u_bw + 3.0 + 13.8 * k for k in range(4))]
+        pos += [(u, -hg, _w_on(path, u, rope_w)) for u in (u_bw + 9.9 + 13.8 * k for k in range(4))]
         hung = hang_chairs(chairs, [(p, _yaw_for(p, u_bw)) for p in pos])
     fig = _photo_figure((1.2, hg + 1.4, 0.0) if key == "return" else (1.5, -(hg + 1.4), 0.0))
     show_only(objs + extras + hung + [fig])
@@ -577,12 +629,26 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
     lo.z = max(lo.z, 0.0)
     centre = (lo + hi) / 2
     radius = (hi - lo).length / 2
-    shoot = _shooter(key, out_dir)
+    shoot_at = _shooter(key, out_dir)
+
+    def shoot(name, target, az, el, dist, lens=50):   # up the line, lift the camera clear of the hillside
+        while climbing and el < 60:
+            a, e = math.radians(az), math.radians(el)
+            eye_u, eye_w = target[0] + dist * math.cos(a) * math.cos(e), target[2] + dist * math.sin(e)
+            if eye_w > _hill_w(eye_u) + 2.0:
+                break
+            el += 2
+        shoot_at(name, target, az, el, dist, lens)
+
     shoot("hero", tuple(centre), 35, 12, radius * 2.3, lens=40)
     shoot("back", tuple(centre), 215, 18, radius * 2.3, lens=40)
     shoot("side", tuple(centre), 90, 5, radius * 2.3, lens=40)
     shoot("approach", (centre.x, 0.0, 2.2), 4, 3, radius * 3.2, lens=45)
     shoot("high", tuple(centre), 60, 45, radius * 2.4, lens=40)
+    if climbing:   # the hold-down row from outboard of the right rope, and the line leaving up the hill
+        u_hold = a0.sockets["rope_right_hold"][0]
+        shoot("holddown", ((u_hold + u_out) / 2, hg, rope_w + 0.3), 90, -2, 6.5, lens=40)
+        shoot("leaving", (u_out + 10.0, 0.0, _w_on(path, u_out + 10.0, rope_w) - 1.0), 200, 6, 32.0, lens=40)
     if key == "drive":   # under the hood: from low, looking up at the wheel
         shoot("bullwheel", (u_bw, 0.0, rope_w), 150, -7, 9.5, lens=35)
     else:

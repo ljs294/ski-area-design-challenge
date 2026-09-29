@@ -457,18 +457,27 @@ def lifting_frame(mb, lf, lod, st):
 
 def entry_trains(mb, a, spec, r, lod, st):
     """The integrated first tower is a hold-down tower (owner): on each rope, the line towers' hold-down assembly
-    (liftkit.parts.line_assembly, after the owner's reference model) on a flat arc, so every sheave bears on the
-    level rope, its equaliser hung directly under the lifting frame's crossbeam end through two lug plates."""
+    (liftkit.parts.line_assembly, after the owner's reference model), its equaliser hung directly under the lifting
+    frame's crossbeam end through two lug plates. On the reference arc levelled at its first sheave (spec "level":
+    "first"), the rope runs level from the bullwheel through the loading area and bends up under the assembly, so
+    the line leaves the station climbing (owner). Returns the first axle's u (where the level rope meets the row),
+    the rope's exit point (u, w) over the last sheave and its exit angle above level (radians)."""
     c, et = spec["common"], r["entryTrains"]
     asm = parts.line_spec(spec)
     radius = asm["arcs"][et["arc"]]
+    level = et.get("level", "apex")
     hg, rope = m(c["lineGauge"]) / 2, m(c["ropeElevation"])
     cb0 = m(r["liftingFrame"]["crossbeam"]["bottom"])
     lg, X = et["lugs"], asm["x"]
+    # a row levelled at its first sheave tilts, which moves its main pin along the line: a trial at full detail
+    # finds that offset, so the pin lands under the crossbeam (et.u) at every LOD
+    pin_off, _ = parts.line_assembly(MeshBuilder(), Asset("trial"), "t", 0.0, hg, rope, asm, et["count"], "hold", 0, st,
+                                     radius, level=level)
+    u0 = m(et["u"]) - pin_off
     for side, name in ((-1, "l"), (1, "r")):
         v_rope = side * hg
-        pin_u, pin_w = parts.line_assembly(mb, a, name, m(et["u"]), v_rope, rope, asm, et["count"], "hold", lod, st, radius,
-                                           first=2, parts_lod=1)
+        pin_u, pin_w = parts.line_assembly(mb, a, name, u0, v_rope, rope, asm, et["count"], "hold", lod, st, radius,
+                                           first=2, parts_lod=1, level=level)
         b_in, b_out = v_rope - side * X["beam"][1], v_rope - side * X["beam"][0]
         lt = m(lg["thick"])
         if lod <= 2:   # lug plates either side of the equaliser, from the crossbeam's underside down past the pin
@@ -477,7 +486,12 @@ def entry_trains(mb, a, spec, r, lod, st):
         if lod <= 1:
             prims.cylinder(mb, (pin_u, b_in - side * (lt + 0.012), pin_w), (pin_u, b_out + side * (lt + 0.012), pin_w),
                            asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
-    return m(et["u"]) + parts.arc_axles(asm, et["count"], radius)[-1][0]   # the rope leaves over the outermost sheave
+    axles = parts.arc_axles(asm, et["count"], radius, level)
+    u_first = u0 + axles[0][0]
+    if level == "first":
+        path, theta = parts.hold_rope(asm, et["count"], radius, u_first, rope)
+        return u_first, path[-1], theta
+    return u_first, (u0 + axles[-1][0], rope), 0.0   # a level rope leaves over the outermost sheave
 
 
 def bullwheel(mb, centre, pitch, bw, lod, st):
@@ -557,7 +571,7 @@ def build(spec, lod, stage):
     catwalk(body, r["catwalk"], u_bw, lod, st)
     guides(body, a, c, r, lod, st)
     lifting_frame(body, r["liftingFrame"], lod, st)
-    u_out = entry_trains(body, a, spec, r, lod, st)
+    u_hold, (u_out, w_out), exit_angle = entry_trains(body, a, spec, r, lod, st)
 
     centre = Vector((u_bw, 0.0, rope))
     if lod <= 2:
@@ -569,16 +583,17 @@ def build(spec, lod, stage):
         bullwheel(body, centre, c["bullwheel"]["pitch"], r["bullwheel"], lod, st)
 
     lf = r["liftingFrame"]
-    ul = u_out
     a.body = body
-    a.sockets = {
+    a.sockets = {   # the rope: level from the bullwheel to the hold-down row (hold), leaving it climbing (out)
         "line": (0.0, 0.0, 0.0),
         "rope_left_bw": (u_bw, -hg, rope), "rope_right_bw": (u_bw, hg, rope),
-        "rope_left_out": (ul, -hg, rope), "rope_right_out": (ul, hg, rope),
+        "rope_left_hold": (u_hold, -hg, rope), "rope_right_hold": (u_hold, hg, rope),
+        "rope_left_out": (u_out, -hg, w_out), "rope_right_out": (u_out, hg, w_out),
         "chair_load": (0.0, hg, rope),   # riders sit down over the pier, along the chair guide
         "foundation_base": (0.0, 0.0, m(r["footing"]["bottom"])),
     }
     a.dims.update({"bullwheelU": round(u_bw * 1000), "guideSheaveU": r["guideSheaves"]["u"], "liftingFrameU": lf["u"],
                    "railsEnd": r["rails"]["uTo"], "pedestalTop": r["pedestal"]["top"], "portalTop": lf["portal"]["top"],
-                   "catwalkTop": r["catwalk"]["top"], "hubDia": r["bullwheel"]["hubDia"]})
+                   "catwalkTop": r["catwalk"]["top"], "hubDia": r["bullwheel"]["hubDia"],
+                   "ropeExitDeg": round(math.degrees(exit_angle), 2)})
     return a

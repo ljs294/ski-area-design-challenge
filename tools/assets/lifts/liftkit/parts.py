@@ -161,20 +161,40 @@ def line_sheave(mb, center, axis, s, lod, st, n, face):
     prims.cylinder(mb, c - ax * (hw + 0.012), c + ax * (hw + 0.012), s["hub"] / 2, 10, st["rod"])
 
 
-def arc_axles(a, count, radius):
-    """Axle positions (u, dw) for `count` sheaves on an axle circle of `radius` (metres), apex at u = 0: pairs on
-    rockers (pitch), two rockers to a train (rockerGap), trains or a train and a lone rocker on the main beam
-    (trainGap). dw is the drop from the apex (>= 0)."""
+def arc_axles(a, count, radius, level="apex"):
+    """Axle positions (u, dw) for `count` sheaves on an axle circle of `radius` (metres): pairs on rockers (pitch),
+    two rockers to a train (rockerGap), trains or a train and a lone rocker on the main beam (trainGap). dw is the
+    distance from the arc's apex (>= 0). level "apex": the apex is midway, at u = 0, as on a line tower, where the
+    rope bends equally either side. level "first": the apex is at the first (lowest u) axle, so the rope runs level
+    up to the row and bends through all of it, as at the return terminal where the line leaves the station
+    climbing; u = 0 is then the middle of the chord."""
     p, g, t = a["pitch"], a["rockerGap"], a["trainGap"]
     chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p]}[count]
     angs = [0.0]
     for ch in chords:
         angs.append(angs[-1] + 2 * math.asin(ch / (2 * radius)))
+    if level == "first":
+        pts = [(radius * math.sin(x), radius * (1 - math.cos(x))) for x in angs]
+        mid_u = (pts[0][0] + pts[-1][0]) / 2
+        return [(du - mid_u, dw) for du, dw in pts]
     mid = (angs[0] + angs[-1]) / 2
     return [(radius * math.sin(x - mid), radius * (1 - math.cos(x - mid))) for x in angs]
 
 
-def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, parts_lod, outer_yoke):
+def hold_rope(a, count, radius, u_first, rope_w, steps=16):
+    """The rope under a hold-down row levelled at its first sheave (arc_axles level "first"): (u, w) points along
+    the rope's circle from the first sheave's contact, where the rope is level at rope_w, to the last sheave's,
+    where it leaves climbing; and the exit angle above level (radians). u_first is the first axle's u."""
+    rho = a["ropeR"] + a["sheave"]["dia"] / 2          # axle to the rope's centreline
+    p, g, t = a["pitch"], a["rockerGap"], a["trainGap"]
+    chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p]}[count]
+    theta = sum(2 * math.asin(ch / (2 * radius)) for ch in chords)
+    rr = radius + rho                                  # the rope's circle, about the axle circle's centre
+    cu, cw = u_first, rope_w + rr
+    return [(cu + rr * math.sin(theta * k / steps), cw - rr * math.cos(theta * k / steps)) for k in range(steps + 1)], theta
+
+
+def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, parts_lod, outer_yoke, level="apex"):
     """One row of a line assembly: sheaves (moving parts up to parts_lod), rockers (twin plates through both axles,
     pinned at their middle) and train yokes (twin bridge plates, legs down to the rocker pins; only the inboard one
     when outer_yoke is False). Returns what the frame above it needs: axles, rocker pins, train pins with their
@@ -196,14 +216,17 @@ def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, f
         return d, nrm
 
     apex = rope_w + sg * (a["ropeR"] + r)
-    axles = [Vector((u0 + du, 0.0, apex + sg * dw)) for du, dw in arc_axles(a, count, radius)]
+    axles = [Vector((u0 + du, 0.0, apex + sg * dw)) for du, dw in arc_axles(a, count, radius, level)]
+    # the far LODs pin at the axles' centroid: the load centre of the rockers and trains up close, so a curved row
+    # hangs at the same height at every LOD (the chord between the end axles runs well off a tight arc)
+    centroid = sum(axles, Vector()) / len(axles)
     if lod >= 3:   # one block for the row: sheaves, rockers and yokes
         va, vb = span(X["rockerOut"][0], X["yokeIn"][1])
         d, nrm = local(axles[0], axles[-1])
         mid = (axles[0] + axles[-1]) / 2 + nrm * 0.05
         length = (axles[-1] - axles[0]).length + 2 * r
         prims.obox(mb, (mid.x, (va + vb) / 2, mid.z), (d, V, nrm), (length / 2, (vb - va) / 2, r + 0.05), st["steel"])
-        pins = [((axles[0] + axles[-1]) / 2 + nrm * a["yoke"]["pinOffset"], count)]
+        pins = [(centroid + nrm * a["yoke"]["pinOffset"], count)]
         return {"axles": axles, "rockers": [axles[0], axles[-1]], "trains": pins, "local": local, "span": span, "sg": sg}
     n_side = sides(lod, *a["sides"])
     for k, c in enumerate(axles):
@@ -220,7 +243,7 @@ def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, f
         mid = (axles[0] + axles[-1]) / 2 + nrm * 0.06
         length = (axles[-1] - axles[0]).length + 0.2
         prims.obox(mb, (mid.x, (va + vb) / 2, mid.z), (d, V, nrm), (length / 2, (vb - va) / 2, 0.08), st["steel"])
-        pins = [((axles[0] + axles[-1]) / 2 + nrm * a["yoke"]["pinOffset"], count)]
+        pins = [(centroid + nrm * a["yoke"]["pinOffset"], count)]
         return {"axles": axles, "rockers": [], "trains": pins, "local": local, "span": span, "sg": sg}
 
     rocker_pins = []
@@ -265,15 +288,15 @@ def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, f
     return {"axles": axles, "rockers": rocker_pins, "trains": trains, "local": local, "span": span, "sg": sg}
 
 
-def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, radius, first=1, parts_lod=0):
+def line_assembly(mb, asset, name, u0, v_rope, rope_w, a, count, mode, lod, st, radius, first=1, parts_lod=0, level="apex"):
     """A line-tower sheave assembly on one rope, after the owner's reference model (spec "tower.assembly", metres):
     a row of sheaves on an arc of `radius` (support: the rope rides on them and the chain hangs below; hold: the
     mirror image, pressing down on the rope), rockers and train yokes (see _row), a cross tube from each yoke's
     middle to the main beam (163 mm square, inboard of the sheaves) that carries two trains or a train and a lone
     rocker and is pinned at the load centre; a single train takes the pin in a short block. The first and last
-    sheave are red, the rest galvanised. Returns (u, w) of the main pin."""
+    sheave are red, the rest galvanised. level: see arc_axles. Returns (u, w) of the main pin."""
     X = a["x"]
-    row = _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, parts_lod, True)
+    row = _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, parts_lod, True, level)
     span, local = row["span"], row["local"]
     carry = row["trains"]
     if lod <= 1:   # cross tubes from the yokes to the beam

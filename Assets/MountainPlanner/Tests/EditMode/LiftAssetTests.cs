@@ -159,7 +159,17 @@ namespace MountainPlanner.Tests
                 var p = prefab.transform.InverseTransformPoint(s.position);
                 var l = prefab.transform.InverseTransformPoint(line.position);
                 Assert.That(Mathf.Abs(Mathf.Abs(p.x - l.x) - common.lineGauge * Mm / 2), Is.LessThan(2 * Mm), s.name);
-                Assert.That(Mathf.Abs(p.y - common.ropeElevation * Mm), Is.LessThan(2 * Mm), s.name);
+                // level at the rope elevation, except where the rope leaves a hold-down row climbing (the return's
+                // out sockets, owner): above it by less than a metre and a half, further up the line than the row
+                string name = s.name.Substring(s.name.IndexOf("_socket_", StringComparison.Ordinal) + "_socket_".Length);
+                var hold = name.EndsWith("_out", StringComparison.Ordinal) ? rig.Socket(name.Substring(0, name.Length - 4) + "_hold") : null;
+                if (hold != null)
+                {
+                    Assert.That(p.y, Is.GreaterThan(common.ropeElevation * Mm + Mm).And.LessThan(common.ropeElevation * Mm + 1.5f), s.name);
+                    Assert.That(p.z, Is.GreaterThan(prefab.transform.InverseTransformPoint(hold.position).z), s.name);
+                }
+                else
+                    Assert.That(Mathf.Abs(p.y - common.ropeElevation * Mm), Is.LessThan(2 * Mm), s.name);
                 Assert.That(s.localRotation, Is.EqualTo(Quaternion.identity), s.name);
             }
         }

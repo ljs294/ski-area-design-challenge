@@ -46,7 +46,7 @@ under the crossarm, the connection the owner approved first on the return termin
 height at the head therefore depends on the type. Measured from the crossarm's underside:
 - support heads (s4, s6) carry it 0.05 m above, as the rope passes the drive's entry head;
 - the breakover head carries it 0.11 m above;
-- the hold-down head carries it 0.75 m below (the return, whose assembly is flat, 0.69 m);
+- the hold-down head carries it 0.75 m below;
 - the combination carries it 0.32 m below, at its pin.
 
 The head records that height in its rope sockets, so the game sets the mast height from the rope's height at
@@ -63,12 +63,21 @@ the tower.
 
 ## The return terminal's integrated tower
 
-The owner asked for the base terminal's integrated tower to be treated as a hold-down tower. Each rope now
-carries the towers' 8-sheave hold-down assembly on a flat arc (the rope is level through the station). It hangs
-under the lifting frame's crossbeam end on the same lug plates. This replaces the 4-sheave trains of the pilot
-(LP9 → LP13). The return is now 19,864 / 7,028 / 1,836 / 316 triangles, within the terminal budget.
+The owner asked for the base terminal's integrated tower to be treated as a hold-down tower, and then for it
+to look like a true hold-down, with the line going up out of the station:
+- **Assembly:** each rope carries the towers' 8-sheave hold-down assembly, hung under the lifting frame's
+  crossbeam end on the same lug plates. This replaces the 4-sheave trains of the pilot (LP9 → LP13).
+- **Rope path:** the row is levelled at its first sheave (spec `"level": "first"`). The rope comes off the
+  bullwheel level through the loading area, meets sheave 1 level, bends up through all eight sheaves and leaves
+  the station climbing at 16°.
+- **Arc:** the towers' reference arc (10.4 m) would bend the rope 20°, but the row's tilted equaliser would then
+  cut 9 mm into the crossbeam. The rope's height and the crossbeam's both come from the drawings, so the return
+  uses the tightest arc that clears it: 13 m, with a 40 mm gap. Its main pin hangs 143 mm under the crossbeam.
+- **Sockets:** `rope_*_hold` marks where the level rope meets the row, and `rope_*_out` where it leaves, 0.5 m
+  higher. The Lift Lab's return mode (key 2) draws the rope through them and 100 m up the line.
+- **Triangles:** 19,864 / 7,028 / 1,836 / 316, within the terminal budget.
 
-![The return terminal before and after](images/lift-towers-return.jpg)
+![The return terminal: the pilot's trains, and the hold-down row with the line leaving climbing](images/lift-towers-return.jpg)
 
 ## Budgets and performance
 
@@ -82,20 +91,22 @@ reference PC (an NVIDIA GeForce RTX 3060 Ti). The stress scene now has two tower
 
 | Scene | p50 | p95 | p99 | Batches | SetPass | Triangles |
 |---|---|---|---|---|---|---|
-| Empty (snow plane, sky) | 0.58 ms | 0.79 ms | 0.96 ms | 8 | 8 | 2,085 |
+| Empty (snow plane, sky) | 0.59 ms | 0.79 ms | 0.98 ms | 8 | 9 | 2,085 |
 | Stress in the pilot (40 terminals, 500 chairs) | 0.76 ms | 1.07 ms | 1.26 ms | 389 | 24 | 116,823 |
-| **Stress with towers** (plus 40 towers) | 0.84 ms | **1.30 ms** | 2.06 ms | 691 | 27 | 229,695 |
+| **Stress with towers** (plus 40 towers) | 0.85 ms | **1.22 ms** | 1.82 ms | 714 | 27 | 235,285 |
 
-- The towers, with the return's larger trains, add about 0.2 ms at p95. All the lifts together cost 0.5 ms
+- The towers, with the return's larger trains, add about 0.15 ms at p95. All the lifts together cost 0.4 ms
   over the empty scene, against the 2 ms soft target and the 20 ms frame budget. The three runs' p95 ranged
-  from 1.17 to 1.65 ms.
-- Batches rise from 389 to 691. Each tower is drawn as a base, its mast sections and a head, and a head at LOD0
+  from 1.17 to 2.07 ms.
+- The stress scene's ground is flat, so its lines run level from the return's exit to the drive; the towers
+  carry the rope where that line passes them.
+- Batches rise from 389 to 714. Each tower is drawn as a base, its mast sections and a head, and a head at LOD0
   draws each sheave separately. When the game places towers along a line, it can merge each tower's static
   pieces (future work, with the instanced chair path in Phase 3).
 - A Development build measured 0 B of garbage per frame on average. One frame in the stress run allocated
   2.1 KB, as in the pilot.
 
-![Towers in the Lift Lab](images/lift-towers-ingame.jpg)
+![Towers and the return in the Lift Lab (Unity URP)](images/lift-towers-ingame.jpg)
 
 ## Review record
 
@@ -109,6 +120,7 @@ The owner reviewed each round. Each row is a round and what came of it:
 | 4 | Attach trains directly to the crossarm; don't change the head; no platforms along the sheaves | Extra baskets and brackets removed; assemblies pinned at the crossarm ends |
 | 5 | The base terminal's integrated tower is a hold-down tower; sheaves hang below the crossarm | Return rebuilt; approved as "accurate and correct" |
 | 6 | Apply that connection to every tower head type | All types hang from lug plates 320 mm under the crossarm; approved with "red sheaves 1 and 8 only" |
+| 7 | Make the return's sheaves a true hold-down, with the line going up out of the station | Row levelled at its first sheave on a 13 m arc, the rope leaving at 16°; photos on a hillside; approved ("Amazing") |
 
 ## Retrospective
 
@@ -121,5 +133,8 @@ The owner reviewed each round. Each row is a round and what came of it:
 - **Over-reach cost a round.** Round 3 added maintenance baskets and changed the crossbeam from photos of other
   lifts; the owner rolled that back ("do not change the heads"). Keeping to the stated scope, and asking before
   adding, would have saved it.
+- **Measure before rendering.** A geometry check (the mesh's edges under the crossbeam) showed the reference
+  arc's tilted equaliser cutting 9 mm into the return's crossbeam before any photo was made. It also exposed
+  that the far LODs of curved rows pinned 9 cm off the close ones; they now pin at the axles' centroid.
 - **Reuse:** the kit's pieces (`line_assembly`, `combo_assembly`, the shared head, the tower photo scene)
   carry over to other Sessellift models. A detachable or six-seat lift is mostly a new spec.

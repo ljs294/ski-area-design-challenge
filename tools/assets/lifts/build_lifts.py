@@ -59,9 +59,17 @@ def check_asset(kind, assets, report, budgets, spec):
     if kind == "terminal":
         c = spec["common"]
         line_v = assets[0].sockets.get("line", (0, 0, 0))[1]
+        rope = c["ropeElevation"] / 1000
         for name, p in assets[0].sockets.items():
             if name.startswith("rope_"):
-                if abs(abs(p[1] - line_v) - c["lineGauge"] / 2000) > 0.001 or abs(p[2] - c["ropeElevation"] / 1000) > 0.001:
+                # on the line gauge; level at the rope elevation, except where the rope leaves a hold-down row
+                # climbing (the return's out sockets): above it, by less than a metre and a half
+                off_gauge = abs(abs(p[1] - line_v) - c["lineGauge"] / 2000) > 0.001
+                if name.endswith("_out") and f"{name[:-4]}_hold" in assets[0].sockets:
+                    off_height = not (rope + 0.001 < p[2] < rope + 1.5)
+                else:
+                    off_height = abs(p[2] - rope) > 0.001
+                if off_gauge or off_height:
                     problems.append(f"socket {name} at {p} is off the rope")
     if kind == "tower_head":   # ropes at the line gauge, level with each other, at the head's declared height
         g = spec["common"]["lineGauge"] / 2000

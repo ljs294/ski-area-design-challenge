@@ -14,8 +14,8 @@ approved every model before it was imported. Each asset is within its triangle b
 
 **Since the pilot:** a kit of line towers ([lift-towers-sessellift-fgq4.md](lift-towers-sessellift-fgq4.md))
 changed two things here:
-- the return's entry trains are now the towers' 8-sheave hold-down assembly (LP13; 19,864 / 7,028 / 1,836 /
-  316 triangles);
+- the return's entry trains are now the towers' 8-sheave hold-down assembly, curved so the line leaves the
+  station climbing at 16° (LP13; 19,864 / 7,028 / 1,836 / 316 triangles);
 - in every sheave row only the first and last sheave are red (LP14).
 
 The numbers below are the pilot's.

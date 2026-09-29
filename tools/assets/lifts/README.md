@@ -81,7 +81,10 @@ trains on a 163 mm square equaliser, sheaves on an arc.
 
 **Connection:** every assembly hangs from below the crossbeam end. Two lug plates under the end carry its pin,
 320 mm below the crossbeam, as on the return terminal's integrated tower (itself a hold-down tower). The rope
-height at the head therefore depends on the type, and the head records it in its rope sockets.
+height at the head therefore depends on the type, and the head records it in its rope sockets. At the return,
+the row is levelled at its first sheave (`"level": "first"` on the 13 m `station` arc): the rope runs level
+through the loading area and leaves climbing at about 16°, and the sockets `rope_*_hold` and `rope_*_out` mark
+where it meets and leaves the row.
 
 **Finish:** towers are galvanised throughout; the number plate is black. In every sheave row the first and last
 sheave are red (lightning grounding) and the rest galvanised, on the terminals too (`parts.row_face`). Sheaves
