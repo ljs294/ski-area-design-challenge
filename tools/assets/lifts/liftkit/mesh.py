@@ -1,19 +1,54 @@
 """MeshBuilder: vertices, faces and the per-face data the lift shader reads (see ../README.md).
 
 Per face: palette class (-> UV2 swatch), snow capacity (UV1.x), livery mask (UV1.y), material slot
-(0 structure, 1 glass), flat or smooth shading, and per-corner UV0 (detail/trim coordinates).
+(0 structure, 1 glass), flat or smooth shading, and per-corner UV0 (box-mapped detail-atlas coordinates).
 Vertices are stored in Blender space; faces are oriented against an explicit outward direction.
 """
 import hashlib
 import struct
 
 import bpy
-from mathutils import Vector
+from mathutils import Vector, geometry
 
-from . import frame, palette
+from . import frame, palette, textures
 
 STRUCTURE, GLASS = 0, 1
-PLAIN_UV = (0.5, 0.5)
+TILE_SPAN = 256.0   # UV0.x = tile * TILE_SPAN + metres; the shader splits it back (LiftStructure.shader)
+ORIGIN = 128.0      # keeps box-mapped metres positive
+FLUSH_GAP = 0.002   # how far separate_flush pulls the smaller of two flush faces into its own part (m)
+
+
+def detail_uv(points_lift, tile):
+    """Box-mapped UV0 for one face: its corners projected on the plane of its dominant axis, in metres, with
+    the detail-atlas tile in the integer part of U (see textures.py)."""
+    n = newell([Vector(p) for p in points_lift])
+    ax = max(range(3), key=lambda k: abs(n[k]))
+    a, b = {0: (1, 2), 1: (0, 2), 2: (0, 1)}[ax]   # u-facing -> (v, w); v-facing -> (u, w); up -> (u, v)
+    return [(tile * TILE_SPAN + p[a] + ORIGIN, p[b] + ORIGIN) for p in points_lift]
+
+
+def _overlap(tris_a, tris_b, eps=0.001):
+    """True if two sets of 2D triangles overlap by more than eps (separating-axis test; touching is not)."""
+    for p in tris_a:
+        for q in tris_b:
+            for tri in (p, q):
+                sep = False
+                for i in range(3):
+                    e = tri[(i + 1) % 3] - tri[i]
+                    ln = e.length
+                    if ln < 1e-9:
+                        continue
+                    nx, ny = -e.y / ln, e.x / ln
+                    pa = [v.x * nx + v.y * ny for v in p]
+                    pb = [v.x * nx + v.y * ny for v in q]
+                    if max(pa) <= min(pb) + eps or max(pb) <= min(pa) + eps:
+                        sep = True
+                        break
+                if sep:
+                    break
+            else:
+                return True
+    return False
 
 
 def newell(points):
@@ -57,12 +92,13 @@ class MeshBuilder:
     def face(self, idx, style, outward_lift=None, uv0=None):
         """Adds a face; if outward_lift is given the face is flipped as needed to face that way."""
         idx = list(idx)
-        uv = list(uv0) if uv0 is not None else [PLAIN_UV] * len(idx)
+        uv = list(uv0) if uv0 is not None else None   # None: box-mapped when the object is made
         if outward_lift is not None:
             n = newell([self.verts[i] for i in idx])
             if n.dot(frame.b(outward_lift)) < 0:
                 idx.reverse()
-                uv.reverse()
+                if uv is not None:
+                    uv.reverse()
         self.faces.append(tuple(idx))
         self.style.append(style)
         self.uv0.append(uv)
@@ -82,6 +118,44 @@ class MeshBuilder:
         d = frame.b(d_lift)
         m.verts = [v + d for v in m.verts]
         return m
+
+    def separate_flush(self, gap=FLUSH_GAP):
+        """Parts are built as overlapping solids, so where two meet flush (a brace across a frame, spoke tops level
+        with the rim) two faces of one slot share a plane, face the same way and overlap: they z-fight in Unity and
+        render black in Cycles. Pull the smaller face of each such pair `gap` into its own part, moving its
+        corners, so the part shrinks by that much. Deterministic: faces in index order. Returns faces moved."""
+        planes = {}
+        for fi, f in enumerate(self.faces):
+            pts = [self.verts[i] for i in f]
+            n = newell(pts)
+            if n.length < 1e-12:
+                continue
+            n = n.normalized()
+            key = (tuple(round(c, 3) for c in n), round(n.dot(pts[0]), 3), self.style[fi].slot)
+            planes.setdefault(key, []).append(fi)
+        moved = set()
+        for (nk, _, _), group in planes.items():
+            if len(group) < 2:
+                continue
+            n = Vector(nk).normalized()
+            ax = max(range(3), key=lambda k: abs(n[k]))
+            a, b = [k for k in range(3) if k != ax]
+            info = []
+            for fi in group:
+                flat = [Vector((self.verts[i][a], self.verts[i][b], 0.0)) for i in self.faces[fi]]
+                tris = [[flat[k] for k in tri] for tri in geometry.tessellate_polygon([flat])]
+                area = sum(abs((t[1] - t[0]).cross(t[2] - t[0]).z) for t in tris) / 2
+                info.append((fi, tris, area))
+            for x in range(len(info)):
+                for y in range(x + 1, len(info)):
+                    (fa, ta, aa), (fb, tb, ab) = info[x], info[y]
+                    if fa in moved or fb in moved or not _overlap(ta, tb):
+                        continue
+                    small = fb if ab <= aa else fa
+                    for i in set(self.faces[small]):
+                        self.verts[i] = self.verts[i] - n * gap
+                    moved.add(small)
+        return len(moved)
 
     # -- queries ------------------------------------------------------------------------------
     def tri_count(self):
@@ -113,8 +187,10 @@ class MeshBuilder:
         mesh.polygons.foreach_set("use_smooth", [s.smooth for s in self.style])
         corners = [(fi, k) for fi, f in enumerate(self.faces) for k in range(len(f))]
         # Blender keeps polygon corner order as given by from_pydata.
+        uvs = [u if u is not None else detail_uv([frame.lift(self.verts[i]) for i in f], textures.tile_of(s))
+               for f, s, u in zip(self.faces, self.style, self.uv0)]
         uv0 = mesh.uv_layers.new(name="UVMap")
-        uv0.data.foreach_set("uv", [c for fi, k in corners for c in self.uv0[fi][k]])
+        uv0.data.foreach_set("uv", [c for fi, k in corners for c in uvs[fi][k]])
         data = mesh.uv_layers.new(name="Data")
         data.data.foreach_set("uv", [c for fi, k in corners for c in (self.style[fi].snow, self.style[fi].livery)])
         pal = mesh.uv_layers.new(name="Palette")

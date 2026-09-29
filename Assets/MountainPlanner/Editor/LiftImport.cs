@@ -105,7 +105,7 @@ namespace MountainPlanner.Editor
             {
                 ["LiftStructure"] = MakeMaterial("LiftStructure", shader, palette, trim, false),
                 ["LiftGlass"] = MakeMaterial("LiftGlass", shader, palette, trim, true),
-                ["LiftChair"] = MakeMaterial("LiftChair", shader, palette, chairDetail, false),
+                ["LiftChair"] = MakeMaterial("LiftChair", shader, palette, chairDetail != null ? chairDetail : trim, false),
             };
         }
 

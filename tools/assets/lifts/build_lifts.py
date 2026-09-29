@@ -1,7 +1,7 @@
 """Builds the lift assets in Blender, with no manual steps (decisions LP1-LP8).
 
     blender -b --factory-startup --python-exit-code 1 --python tools/assets/lifts/build_lifts.py -- \
-        [--out DIR] [--assets drive,return,chair] [--stage blockout|detail] [--render DIR] [--shots a,b]
+        [--out DIR] [--assets drive,return,chair] [--stage blockout|detail] [--render DIR] [--shots a,b] [--ao off] [--detail off]
 
 Each asset is written in the lift frame (liftkit/frame.py) from the dimensions in sessellift_fgq4.json and
 exported as one FBX: <id>_LOD0..N bodies, moving parts <id>_<part>_LODn under <id>_pivot_<part> empties
@@ -21,7 +21,7 @@ import bpy
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "assets"))
-from liftkit import ao, export, frame, materials, palette  # noqa: E402
+from liftkit import ao, export, frame, materials, palette, textures  # noqa: E402
 
 MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair"}
 
@@ -76,9 +76,12 @@ def main():
     t0 = time.time()
     clear_scene()
     pal = materials.palette_image(palette.image(), os.path.join(tex_dir, "lift_palette.png"))
-    structure = materials.make("LiftStructure", pal)
-    glass = materials.make("LiftGlass", pal, glass=True)
-    chair_mat = materials.make("LiftChair", pal)
+    trim = materials.detail_image(textures.image(), os.path.join(tex_dir, "lift_trim.png"))
+    if opts.get("detail", "on") == "off":   # diagnostic: preview materials without the detail atlas
+        trim = None
+    structure = materials.make("LiftStructure", pal, detail_img=trim)
+    glass = materials.make("LiftGlass", pal, glass=True, detail_img=trim)
+    chair_mat = materials.make("LiftChair", pal, detail_img=trim)
 
     result, failures, built = {"stage": stage, "budgets": budgets, "assets": {}}, [], {}
     for name in names:

@@ -2,8 +2,9 @@
 
 For every corner, `rays` directions on the hemisphere around the corner's normal (a Fibonacci spiral, so the
 result is deterministic) are cast against the whole asset at that LOD plus the ground plane (w = 0 for
-terminals, the rope for chairs is ignored). Cosine-weighted hits within `reach` metres darken the corner;
-the shader multiplies the result into its occlusion.
+terminals, the rope for chairs is ignored). Cosine-weighted hits within `reach` metres darken the corner
+(scaled by `strength`, never below `floor`); rays start a little way in from the corner toward its face's centre.
+The shader multiplies the result into its occlusion.
 """
 import math
 
@@ -33,7 +34,7 @@ def frame_to(n):
     return b1, b2, n
 
 
-def bake(objects, rays=32, reach=1.5, ground=True, strength=1.0):
+def bake(objects, rays=32, reach=1.0, ground=True, strength=0.8, floor=0.25):
     """Bakes AO for every mesh object in `objects` (one LOD of one asset, world transforms applied)."""
     verts, polys = [], []
     for o in objects:
@@ -55,25 +56,33 @@ def bake(objects, rays=32, reach=1.5, ground=True, strength=1.0):
         nm = mw.to_3x3().inverted().transposed()
         mesh.calc_loop_triangles()
         corner_normals = [nm @ c.vector for c in mesh.corner_normals]
+        # sample a little way in from each corner toward its face's centre: corners sit on edges where parts meet
+        # or overlap, and rays starting there begin inside the neighbouring steel
+        centre = {}
+        for poly in mesh.polygons:
+            c = mw @ poly.center
+            for li in poly.loop_indices:
+                centre[li] = c
         col = mesh.color_attributes.get("AO")
         values = [1.0] * (4 * len(mesh.loops))
         cache = {}
         for loop in mesh.loops:
             n = corner_normals[loop.index].normalized()
             p = mw @ mesh.vertices[loop.vertex_index].co
-            key = (loop.vertex_index, round(n.x, 3), round(n.y, 3), round(n.z, 3))
+            p = p.lerp(centre[loop.index], 0.15)
+            key = (round(p.x, 4), round(p.y, 4), round(p.z, 4), round(n.x, 3), round(n.y, 3), round(n.z, 3))
             if key in cache:
                 ao = cache[key]
             else:
                 b1, b2, nn = frame_to(n)
-                origin = p + nn * 0.004
+                origin = p + nn * 0.01
                 blocked = 0.0
                 for d in dirs:
                     w = b1 * d.x + b2 * d.y + nn * d.z
                     hit = tree.ray_cast(origin, w, reach)
                     if hit[0] is not None:
                         blocked += 1.0 - (hit[3] / reach) * 0.5     # nearer hits occlude more
-                ao = max(0.0, 1.0 - strength * blocked / len(dirs))
+                ao = max(floor, 1.0 - strength * blocked / len(dirs))
                 cache[key] = ao
             i = loop.index * 4
             values[i] = values[i + 1] = values[i + 2] = ao

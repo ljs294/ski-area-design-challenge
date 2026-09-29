@@ -26,14 +26,15 @@ def sheave(mb, center, axis, dia, width, lod, style_wheel, style_liner, spokes=T
         return
     # rim (flanges) and liner groove, as one lathe section: (radius, height along axis)
     groove = 0.35 * width
-    rim = [(r * 0.80, -hw), (r + 0.012, -hw), (r + 0.012, -groove), (r - 0.02, -groove * 0.5),
-           (r - 0.02, groove * 0.5), (r + 0.012, groove), (r + 0.012, hw), (r * 0.80, hw)]
-    prims.lathe(mb, c, ax, rim, n, style_wheel)
+    rim = [(r * 0.88, -hw), (r + 0.012, -hw), (r + 0.012, -groove), (r - 0.02, -groove * 0.5),
+           (r - 0.02, groove * 0.5), (r + 0.012, groove), (r + 0.012, hw), (r * 0.88, hw)]
+    prims.lathe(mb, c, ax, rim, n, style_wheel.but(cls="sheave_rim"))   # light rims, red faces (photo)
     if lod == 0:
         prims.lathe(mb, c, ax, [(r - 0.02, -groove * 0.5), (r - 0.005, -groove * 0.3), (r - 0.005, groove * 0.3), (r - 0.02, groove * 0.5)],
                     n, style_liner, closed=False)
     # web and hub
-    prims.cylinder(mb, c - ax * (width * 0.12), c + ax * (width * 0.12), r * 0.80, n, style_wheel, caps=(True, True))
+    # web: red faces nearly flush with the light rim, as photographed
+    prims.cylinder(mb, c - ax * (hw - 0.012), c + ax * (hw - 0.012), r * 0.88, n, style_wheel, caps=(True, True))
     prims.cylinder(mb, c - ax * (hw + 0.02), c + ax * (hw + 0.02), r * 0.22, sides(lod, 12, 8), style_wheel.but(cls="machined"))
 
 

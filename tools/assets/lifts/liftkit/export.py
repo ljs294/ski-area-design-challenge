@@ -40,6 +40,10 @@ def make_objects(assets, materials, collection):
         collection.objects.link(e)
         objs.append(e)
     for lod, a in enumerate(assets):
+        for mb in [a.body, *a.parts.values()]:
+            for _ in range(3):   # a moved face can land flush on another; repeat until nothing moves
+                if not mb.separate_flush():
+                    break
         body = a.body.to_object(f"{aid}_LOD{lod}", materials, collection)
         objs.append(body)
         entry = {"lod": lod, "body": a.body.tri_count(), "parts": {}, "digest": {"body": a.body.digest()}}

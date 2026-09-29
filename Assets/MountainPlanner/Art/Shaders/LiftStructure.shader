@@ -1,7 +1,7 @@
 // The lift assets' shader (decisions LP2, LP5, LP6; tools/assets/lifts/README.md): physically based URP
 // lighting over a shared palette, with the model's own data doing the rest.
 //   UV2 (palette)  one swatch per face: RGB albedo, A packs metallic (A >= 0.5) and smoothness ((A mod 0.5) * 2)
-//   UV0 (detail)   detail/trim map: RG tangent-space normal, B cavity, A brightness (0.5 = neutral)
+//   UV0 (detail)   box-mapped metres + atlas tile (SampleDetail): RG tangent-space normal, B cavity, A brightness (0.5 = neutral)
 //   UV1 (data)     x = snow capacity, y = livery mask (the drive hood takes _LiveryColor)
 //   colour R       baked ambient occlusion
 // Snow settles on up-facing surfaces (the tree formula), scaled by capacity and _SnowLoad. Glass is the same
@@ -13,6 +13,7 @@ Shader "MountainPlanner/LiftStructure"
         [NoScaleOffset] _PaletteMap ("Palette (point sampled)", 2D) = "grey" {}
         [NoScaleOffset] _DetailMap ("Detail (RG normal, B cavity, A brightness)", 2D) = "linearGrey" {}
         _DetailStrength ("Detail strength", Range(0, 1)) = 1
+        _DetailDensity ("Detail tiles per metre", Float) = 1
         _AOStrength ("Baked AO strength", Range(0, 1)) = 1
         _LiveryColor ("Livery colour", Color) = (0.72, 0.12, 0.09, 1)
         _SnowLoad ("Snow load", Range(0, 1)) = 1
@@ -33,6 +34,7 @@ Shader "MountainPlanner/LiftStructure"
 
         CBUFFER_START(UnityPerMaterial)
             float _DetailStrength;
+            float _DetailDensity;
             float _AOStrength;
             float4 _LiveryColor;
             float _SnowLoad;
@@ -43,6 +45,18 @@ Shader "MountainPlanner/LiftStructure"
         CBUFFER_END
         TEXTURE2D(_PaletteMap);   // sampled with the core library's sampler_PointClamp: flat swatches, no bleeding
         TEXTURE2D(_DetailMap); SAMPLER(sampler_DetailMap);
+
+        // UV0 is box-mapped metres with the detail-atlas tile in the integer part of U (tile * 256 + metres; see
+        // tools/assets/lifts/liftkit/textures.py). Sample inside that tile's 4 x 4 atlas cell, repeating every
+        // metre, with the gradients of the unwrapped coordinates so mips don't jump at the wrap.
+        half4 SampleDetail(float2 uv0)
+        {
+            float tile = floor(uv0.x / 256.0);
+            float2 local = float2(uv0.x - tile * 256.0, uv0.y) * _DetailDensity;
+            float2 cell = float2(tile - 4.0 * floor(tile / 4.0), floor(tile / 4.0));
+            return SAMPLE_TEXTURE2D_GRAD(_DetailMap, sampler_DetailMap, (cell + frac(local)) * 0.25,
+                                         ddx(local) * 0.25, ddy(local) * 0.25);
+        }
         ENDHLSL
 
         Pass
@@ -130,7 +144,7 @@ Shader "MountainPlanner/LiftStructure"
                 half4 pal = SAMPLE_TEXTURE2D(_PaletteMap, sampler_PointClamp, i.palette);
                 half metallic = pal.a >= 0.5h ? 1.0h : 0.0h;
                 half smoothness = saturate((pal.a - 0.5h * metallic) * 2.0h);
-                half4 detail = SAMPLE_TEXTURE2D(_DetailMap, sampler_DetailMap, i.uv0);
+                half4 detail = SampleDetail(i.uv0);
                 half3 normalTS = normalize(half3((detail.rg * 2.0h - 1.0h) * _DetailStrength, 1.0h));
                 half cavity = lerp(1.0h, saturate(detail.b * 2.0h), _DetailStrength);
                 half3 albedo = pal.rgb * lerp(1.0h, detail.a * 2.0h, _DetailStrength);

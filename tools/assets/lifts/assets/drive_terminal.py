@@ -366,7 +366,7 @@ def build_entry(mb, d, lod, st):
             prims.tube_path(mb, pts, 0.019, 6 if lod == 0 else 4, st["galv"])
     lp = d["landingPlate"]
     if lod <= 2:
-        prims.box(mb, (m(lp["uFrom"]), -m(lp["v"]) / 2, m(lp["bottom"])), (m(lp["uTo"]), m(lp["v"]) / 2, m(lp["top"])), st["galv"].but(snow=0.9))
+        prims.box(mb, (m(lp["uFrom"]), -m(lp["v"]) / 2, m(lp["bottom"])), (m(lp["uTo"]), m(lp["v"]) / 2, m(lp["top"])), st["galv"].but(snow=0.9, trim="checker"))
 
 
 def build(spec, lod, stage):

@@ -474,8 +474,25 @@ def _shooter(prefix, out_dir):
         cam.data.lens = lens
         cam.location = frame.b(tuple(eye))
         cam.rotation_euler = (frame.b(tuple(target)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+        if os.environ.get("LIFT_PICK"):   # debug: name what the camera sees at "x,y;x,y" pixels
+            _pick(cam, os.environ["LIFT_PICK"])
         render(os.path.join(out_dir, f"{prefix}_photo_{name}.png"))
     return shoot
+
+
+def _pick(cam, spec):
+    sc = bpy.context.scene
+    bpy.context.view_layer.update()
+    rx, ry = sc.render.resolution_x, sc.render.resolution_y
+    tl, bl = cam.data.view_frame(scene=sc)[3], cam.data.view_frame(scene=sc)[2]
+    tr = cam.data.view_frame(scene=sc)[0]
+    for xy in spec.split(";"):
+        x, y = (float(s) for s in xy.split(","))
+        local = tl + (tr - tl) * (x / rx) + (bl - tl) * (y / ry)
+        origin = cam.matrix_world.translation
+        d = (cam.matrix_world.to_3x3() @ local).normalized()
+        hit, loc, nrm, idx, obj, _ = sc.ray_cast(bpy.context.evaluated_depsgraph_get(), origin, d)
+        print(f"PICK {xy}: {obj.name if hit else None} face {idx} at lift {frame.lift(tuple(loc)) if hit else None} n {tuple(round(c, 2) for c in nrm) if hit else None}", flush=True)
 
 
 def chair_photos(built, spec, out_dir, mats):

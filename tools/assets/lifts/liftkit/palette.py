@@ -21,13 +21,14 @@ CLASSES = [
     ("livery", "#F4F4F2", 0, 0.50),         # hood paint: tinted by the player's colour in the shader
     ("glass", "#1B252D", 0, 0.88),          # tinted hood glass
     ("interior", "#2A2C2E", 0, 0.30),       # machinery seen through the glass
-    ("seat_pad", "#4F5A66", 0, 0.30),       # chair bench and backrest slats (dark blue-grey)
+    ("seat_pad", "#161719", 0, 0.28),       # chair bench and backrest padding (black vinyl)
     ("chair_steel", "#AEB4BA", 1, 0.40),    # chair frame, hanger, bar (galvanised)
     ("safety_yellow", "#D6A11E", 0, 0.40),  # ladder rungs, lifting eyes
     ("grating", "#80868B", 1, 0.35),        # deck grating (reads darker than plate)
     ("trim_dark", "#3A3D41", 0, 0.35),      # gutters, frames, rubber seals
     ("white", "#E7E8E8", 0, 0.45),          # hood base band
     ("grip", "#6C7176", 1, 0.55),           # grip body
+    ("sheave_rim", "#D9DAD6", 0, 0.45),     # light rims round the red sheave faces (as photographed)
 ]
 INDEX = {name: i for i, (name, *_) in enumerate(CLASSES)}
 
