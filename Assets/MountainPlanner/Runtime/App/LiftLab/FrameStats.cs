@@ -18,7 +18,7 @@ namespace MountainPlanner.App
         long _batchSum, _setPassSum, _triangleSum, _gcSum, _gcMax;
         int _counterFrames;
 
-        public FrameStats(int capacity = 8192)
+        public FrameStats(int capacity = 1 << 17)   // 30 s at over 4,000 fps; 512 KB allocated once
         {
             _ms = new float[capacity];
             _batches = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Batches Count");

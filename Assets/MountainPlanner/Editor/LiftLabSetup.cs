@@ -11,7 +11,7 @@ namespace MountainPlanner.Editor
 {
     /// <summary>
     /// Creates the Lift Lab scene (decision LP1) and builds it as its own small Windows player, for reviewing
-    /// the lift assets hands-on (demo.bat 21). The game's scene list and player settings are never touched:
+    /// the lift assets hands-on (demo.bat 23). The game's scene list and player settings are never touched:
     /// the build passes its one scene directly.
     ///   Unity -batchmode -executeMethod MountainPlanner.Editor.LiftLabSetup.BuildPlayer -quit
     /// </summary>

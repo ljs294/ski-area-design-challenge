@@ -58,7 +58,7 @@ namespace MountainPlanner.Tests
         public void TheLiftLibraryIsImported()
         {
             var set = AssetDatabase.LoadAssetAtPath<LiftModelSet>(SetPath);
-            Assert.That(set, Is.Not.Null, "Run Mountain Planner ▸ Import Lifts (demo.bat 20).");
+            Assert.That(set, Is.Not.Null, "Run Mountain Planner ▸ Import Lifts (demo.bat 22).");
             Assert.That(set.Prefabs, Is.Not.Empty);
             Assert.That(set.Prefabs, Has.None.Null);
         }
