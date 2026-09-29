@@ -65,6 +65,7 @@ namespace MountainPlanner.App
         {
             Application.targetFrameRate = -1;
             string[] startArgs = Environment.GetCommandLineArgs();
+            if (Array.IndexOf(startArgs, "-nohud") >= 0) _ui = false;   // clean captures: as if H was pressed
             if (Hud != null)
             {
                 Hud.SetVisible(_hudShown = false);   // shown once a mountain is open
