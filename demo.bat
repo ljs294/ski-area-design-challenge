@@ -12,6 +12,7 @@ set "SPIKE=%~dp0tools\data-spike"
 set "OUT=%SPIKE%\results\local"
 set "PACKAGES=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts"
 set "GAME=%~dp0Builds\Windows\SkiAreaDesignChallenge.exe"
+set "LIFTLAB=%~dp0Builds\LiftLab\LiftLab.exe"
 set "UNITY=C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe"
 
 where dotnet >nul 2>nul
@@ -60,6 +61,10 @@ echo   Phase 1, tree realism review
 echo     20 Tree lineup: every species at every LOD, trunks, and a stand from 300 m to 3 km (screenshots, about 15 seconds)
 echo     21 Forest benchmark: 8 fixed views of Jackson Hole, GPU times and screenshots (about 2 minutes; needs 12)
 echo.
+echo   Lift asset pilot: Sessellift FGQ-4 chairlift
+echo     22 Rebuild the lift models in Blender, import them into Unity and build the Lift Lab (about 3 minutes)
+echo     23 Open the Lift Lab: drive and return terminals, quad chair, LODs, snow, colours, benchmark (B)
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -95,6 +100,8 @@ if /i "%CHOICE%"=="18" goto buildgame
 if /i "%CHOICE%"=="19" goto trees
 if /i "%CHOICE%"=="20" goto lineup
 if /i "%CHOICE%"=="21" goto benchmark
+if /i "%CHOICE%"=="22" goto lifts
+if /i "%CHOICE%"=="23" goto liftlab
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -184,6 +191,43 @@ echo Running the forest benchmark (the game flies 8 views, then closes by itself
 findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\bench.log"
 start "" "%~dp0test-results\benchmark"
 goto done
+
+:lifts
+set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
+call :projectfree || goto done
+if not exist "%~dp0test-results" mkdir "%~dp0test-results"
+echo Building the lift models in Blender (about 15 seconds)...
+"%BLENDER%" -b --factory-startup --python-exit-code 1 --python "%~dp0tools\assets\lifts\build_lifts.py" -- --out "%~dp0tools\assets\lifts\out" <nul
+if errorlevel 1 (echo   The lift build failed. & goto done)
+echo Importing the lifts into Unity (about 30 seconds)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.LiftImport.Import -quit -logFile "%~dp0test-results\lifts.log" <nul
+if errorlevel 1 (echo   The import failed - see test-results\lifts.log & goto done)
+call :buildliftlab
+goto done
+
+:liftlab
+if not exist "%LIFTLAB%" call :projectfree && call :buildliftlab
+if not exist "%LIFTLAB%" goto done
+echo Starting the Lift Lab. 1-5 drive/return/chair/line-up/stress, Tab next, L LOD, N snow, C colour, T turntable, B benchmark, H help, Esc quit.
+start "" "%LIFTLAB%"
+goto menu
+
+:buildliftlab
+if not exist "%~dp0test-results" mkdir "%~dp0test-results"
+echo Building the Lift Lab (about a minute)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.LiftLabSetup.BuildPlayer -quit -logFile "%~dp0test-results\liftlab-build.log" <nul
+if errorlevel 1 (echo   The build failed - see test-results\liftlab-build.log) else (echo   Built %LIFTLAB%)
+exit /b 0
+
+:projectfree
+rem Only an editor with this project open gets in the way (it holds Temp\UnityLockfile open);
+rem editors on other projects are fine.
+if not exist "%UNITY%" (echo Unity 6000.3.25f1 was not found at "%UNITY%". & exit /b 1)
+if exist "%~dp0Temp\UnityLockfile" (
+  2>nul (>>"%~dp0Temp\UnityLockfile" (call )) || (echo The Unity editor has this project open. Close it first, then try again. & exit /b 1)
+)
+exit /b 0
 
 :buildgame
 call :buildplayer

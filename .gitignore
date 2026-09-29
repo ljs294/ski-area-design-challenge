@@ -35,6 +35,7 @@ tools/**/obj/
 !tools/**/*.csproj
 tools/data-spike/results/local/
 tools/assets/trees/out/
+tools/assets/lifts/out/
 __pycache__/
 tools/acquire/out/
 Builds/

@@ -153,3 +153,20 @@ Details in [phase1-trees-first-look.md](phase1-trees-first-look.md).
 | P6 | Task 04 ships in two PRs: **04a** terrain (heights, fallback and blend, package format, resume, quality score, CLI, progress) and **04b** the other layers (canopy, land cover, species) |
 | P7 | **Canopy covers the 1 m core only.** Its files have no overviews, so the 11 km ring would add 500–700 MB per map. The ring's forest comes from WorldCover (10 m) and BIGMAP species (30 m); it's scenery |
 | F1 | **Flora quality score** beside the terrain score: coverage 35%, canopy/WorldCover agreement 25%, species fidelity 25%, recency 15%, with a one-liner; measured from the package's own layers (0.3 §4.2) |
+
+## Lift asset pilot: decided 2026-09-28
+
+Details in [lift-pilot-sessellift-fgq4.md](lift-pilot-sessellift-fgq4.md). The pilot comes ahead of Phase 3 (lifts) to test whether Claude can author game-ready 3D assets.
+
+| ID | Decision |
+|---|---|
+| LP1 | **Pilot scope:** one fixed-grip quad chairlift from a fictional maker: a drive terminal, a return terminal and one quad chair. Modelled: machinery, mast and column, hood, sheave trains, catwalks and railings, ladders, lifting frame, tension carriage, and the pedestal and footing below grade. Left out: conveyor and vault, huts, gates, fences, ramps, the bullwheel chair-guide ring and the load and unload interfaces |
+| LP2 | **Budgets, enforced at build time** (`tools/assets/lifts/budgets.json`): terminal LOD0 ≤24,000, LOD1 ≤10,000, LOD2 ≤2,500, LOD3 ≤500 triangles; chair ≤800, 250 and 60. They replace the roadmap's terminal ≤8k (§12). Assets export as FBX (T3) |
+| LP3 | **Maker code names:** Sessellift (German), Monta (French) and Chairworks (American); defunct classic makers get fictional homage names later. Real makers, resorts, drawings and other sources are never named in the repo, commits or PRs; the models are our own designs |
+| LP4 | **Moving parts sit on their real axles:** the bullwheel and every sheave are separate child meshes with their pivot on the axle, static for now |
+| LP5 | **Livery on the drive hood only.** The player picks the hood colour at runtime; everything else keeps the maker's colours |
+| LP6 | **Snow through `_SnowLoad`** on up-facing surfaces, like the trees |
+| LP7 | Terminal pedestals and footings extend **2.5 m below grade**, so terminals meet sloping ground |
+| LP8 | **Hood windows are tinted glass** with a dark interior lining and a cheap machinery silhouette behind them; end windows match the side glass in tint and band |
+| LP9 | **Entry sheave trains come from photos** where the terminal drawings leave them out: 4-sheave trains on both terminals, support at the drive and hold-down at the return |
+| LP10 | **The owner approves every model change** from review photos before it's imported into Unity |
