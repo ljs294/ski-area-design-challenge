@@ -75,8 +75,11 @@ namespace MountainPlanner.App
                 _landmarks = Landmarks.Place(_resort.Root.transform, _resort.Frame, _resort.Surface, HighlightMaterial);
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), "-landmark") >= 0) FlyToLandmark();
                 // Unattended checks: -nosnow, -covermap, -view x,z,distance,yaw,pitch (metres from the centre, degrees),
-                // and -screenshot <file.png>, which captures the view once it has settled, then quits.
+                // -wind calm|breeze|strong, and -screenshot <file.png>, which captures the view once it has settled, then quits.
                 string[] args = Environment.GetCommandLineArgs();
+                int wind = Array.IndexOf(args, "-wind");
+                if (wind >= 0 && wind + 1 < args.Length && Enum.TryParse(args[wind + 1], true, out ForestWind.Level level))
+                    StartCoroutine(WhenForestReady(() => Forest.Wind.Set(level)));
                 if (Array.IndexOf(args, "-covermap") >= 0) ToggleOverlay();
                 if (Array.IndexOf(args, "-baretrees") >= 0) StartCoroutine(WhenForestReady(ToggleTreeSnow));
                 else if (Array.IndexOf(args, "-nosnow") >= 0) await ResortOpener.SetSnowAsync(_resort, false, destroyCancellationToken);
@@ -91,6 +94,8 @@ namespace MountainPlanner.App
                 if (bench >= 0 && bench + 1 < args.Length) StartCoroutine(RunBenchmark(args[bench + 1]));
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
+                int clip = Array.IndexOf(args, "-clip");
+                if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
             }
             catch (OperationCanceledException) { }
             catch (Exception e)
@@ -133,6 +138,7 @@ namespace MountainPlanner.App
             if (_resort != null && keys != null && keys.nKey.wasPressedThisFrame) _ = ResortOpener.SetSnowAsync(_resort, !_resort.SnowOn, destroyCancellationToken);
             if (_resort != null && keys != null && keys.vKey.wasPressedThisFrame) ToggleOverlay();
             if (_resort != null && keys != null && keys.tKey.wasPressedThisFrame) ToggleTreeSnow();
+            if (keys != null && keys.bKey.wasPressedThisFrame) Forest?.Wind.Cycle();
 
             // Keep lines a few pixels wide at any distance.
             if (Camera != null)
@@ -189,10 +195,10 @@ namespace MountainPlanner.App
                 : $"{_resort.Manifest.Site.Name} · {_resort.Manifest.Site.SizeMetres / 1000.0:0.#} km · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
             if (_resort != null && _help && _landmarks.Count > 0)
-                text += $"\nC: fly to {_landmarks[0].Name} · N: snow {(_resort.SnowOn ? "on" : "off")} · V: cover map {(_resort.Ground.OverlayOn ? "on" : "off")} · T: tree snow {(Forest == null || Forest.SnowLoad > 0.5f ? "on" : "off")} · map data © OpenStreetMap contributors";
+                text += $"\nC: fly to {_landmarks[0].Name} · N: snow {(_resort.SnowOn ? "on" : "off")} · V: cover map {(_resort.Ground.OverlayOn ? "on" : "off")} · T: tree snow {(Forest == null || Forest.SnowLoad > 0.5f ? "on" : "off")} · B: wind {(Forest == null ? "breeze" : Forest.Wind.Target.ToString().ToLowerInvariant())} · map data © OpenStreetMap contributors";
             if (_resort != null && _help)
                 text += "\nWASD move · Q/E rotate · R/F tilt · Wheel or PgUp/PgDn zoom · Middle-drag rotate · Right-drag move · Shift faster · H hide · Esc quit";
-            GUI.Box(new Rect(20, 20, 820, _resort == null ? 60 : (_help ? 142 : 88)), text, style);
+            GUI.Box(new Rect(20, 20, 820, style.CalcHeight(new GUIContent(text), 820)), text, style);   // sized to the wrapped text
             GUI.backgroundColor = Color.white;
 
             if (Camera == null) return;

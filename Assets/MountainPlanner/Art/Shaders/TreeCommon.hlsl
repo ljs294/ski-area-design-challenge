@@ -38,12 +38,22 @@ float TreeFade(float3 treePosition)
     return smoothstep(_TreeFade.x, _TreeFade.y, d);
 }
 
-// A few percent of brightness and warmth per tree, from its index: stands stop looking cloned.
-half3 TreeTint(uint index)
+// Wind (TR4), set globally every frame by ForestRenderer (ForestWind): xy the direction it blows toward
+// (world xz, unit length), z strength (0 calm, 1 strong), w the wind clock in seconds. The clock wraps
+// every 600 s, so every wind frequency must be a whole number of cycles per 600 s.
+float4 _Wind;
+
+uint TreeHash(uint index)
 {
     uint h = index * 747796405u + 2891336453u;
     h = ((h >> ((h >> 28u) + 4u)) ^ h) * 277803737u;
-    h = (h >> 22u) ^ h;
+    return (h >> 22u) ^ h;
+}
+
+// A few percent of brightness and warmth per tree, from its index: stands stop looking cloned.
+half3 TreeTint(uint index)
+{
+    uint h = TreeHash(index);
     half a = (h & 1023u) / 1023.0, b = ((h >> 10) & 1023u) / 1023.0;
     half3 warm = half3(1.05, 1.0, 0.9), cool = half3(0.94, 1.0, 1.07);
     return lerp(0.86, 1.1, a) * lerp(warm, cool, b);
