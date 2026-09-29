@@ -219,6 +219,8 @@ namespace MountainPlanner.App
             await resort.CoverReady;
             resort.SnowOn = snow;
             if (resort.CliffMaterial != null) resort.CliffMaterial.SetFloat("_SnowLoad", snow ? 1 : 0);
+            // Lakes keep their water weight either way; the shader draws snow on ice or bare ice.
+            if (resort.Ground?.Material != null) resort.Ground.Material.SetFloat("_SnowOn", snow ? 1 : 0);
             var jobs = resort.Cache.Tiles.Select(t => (Tile: t, Splat: Task.Run(() => SplatTexels.Load(resort.PackageFolder, t, snow), ct))).ToList();
             int n = 0;
             foreach (var (tile, splat) in jobs)
