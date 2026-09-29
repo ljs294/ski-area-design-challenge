@@ -61,9 +61,9 @@ echo   Phase 1, tree realism review
 echo     20 Tree lineup: every species at every LOD, trunks, and a stand from 300 m to 3 km (screenshots, about 15 seconds)
 echo     21 Forest benchmark: 8 fixed views of Jackson Hole, GPU times and screenshots (about 2 minutes; needs 12)
 echo.
-echo   Lift asset pilot: Sessellift FGQ-4 chairlift
-echo     22 Rebuild the lift models in Blender, import them into Unity and build the Lift Lab (about 3 minutes)
-echo     23 Open the Lift Lab: terminals, quad chair, line towers (6), LODs, snow, colours, benchmark (B)
+echo   Lift assets: Sessellift FGQ-4 chairlift and SLE snow guns
+echo     22 Rebuild the lift and snow gun models in Blender, import them into Unity and build the Lift Lab (about 3 minutes)
+echo     23 Open the Lift Lab: terminals, quad chair, line towers (6), snow guns (7), gun field (8), LODs, snow, benchmark (B)
 echo.
 echo     Q  Quit
 echo.
@@ -209,7 +209,7 @@ goto done
 :liftlab
 if not exist "%LIFTLAB%" call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
-echo Starting the Lift Lab. 1-6 drive/return/chair/line-up/stress/towers, Tab next, L LOD, N snow, C colour, T turntable, B benchmark, H help, Esc quit.
+echo Starting the Lift Lab. 1-8 drive/return/chair/line-up/stress/towers/snow guns/gun field, Tab next, L LOD, N snow, C colour, T turntable, B benchmark, H help, Esc quit.
 start "" "%LIFTLAB%"
 goto menu
 

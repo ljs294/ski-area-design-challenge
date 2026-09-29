@@ -27,6 +27,10 @@ ORTHO = {
     "drive": [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "+v")],
     "return": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "chair": [("front", "-v", "+w"), ("side", "+u", "+w")],
+    "sle_stick_gun_10": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
+    "sle_stick_gun_20": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
+    "sle_stick_gun_30": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
+    "sle_ground_gun": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
 }
 AXES = {"u": Vector((1, 0, 0)), "v": Vector((0, 1, 0)), "w": Vector((0, 0, 1))}
 
@@ -271,9 +275,9 @@ def clay_views(key, built, spec, out_dir, chairs):
     sc.world = sc.world or bpy.data.worlds.new("World")
     objs = lod_objects(built, 0)
     extras = []
-    c = spec["common"]
-    rope = c["ropeElevation"] / 1000
-    hg = c["lineGauge"] / 2000
+    c = spec.get("common", {})   # a snow gun's spec has no lift of its own
+    rope = c.get("ropeElevation", 0) / 1000
+    hg = c.get("lineGauge", 0) / 2000
     if key in ("drive", "return") and chairs:
         u_bw = built["assets"][0].pivots["bullwheel"]["pos"][0]
         # chairs: travel +u on the right rope, -u on the left rope, and one at the far end of the wheel
@@ -283,6 +287,8 @@ def clay_views(key, built, spec, out_dir, chairs):
         extras.append(figure((1.5 if key == "drive" else 2.5, 3.2 if key == "drive" else -2.6, 0.0)))
     elif key == "chair":
         extras.append(figure((0.0, 1.6, -3.04)))
+    elif key.startswith("sle_stick"):   # beside the post, clear of the lance's lean (the ground gun's close views
+        extras.append(figure((-1.0, -1.2, 0.0)))   # leave it out: it would stand in front of the camera)
     g = ground(60, 0.0 if key != "chair" else -3.04)
     extras.append(g)
     show_only(objs + extras)
@@ -295,10 +301,14 @@ def clay_views(key, built, spec, out_dir, chairs):
     cam.data.lens = 35
     cam.data.clip_end = 500
     sc.render.resolution_x, sc.render.resolution_y = 1600, 1000
+    if key.startswith("sle_stick"):   # tall and thin: frame what stands above the snow, from further out
+        lo = Vector((lo.x, lo.y, max(lo.z, 0.0)))
+        centre, radius = (lo + hi) / 2, (hi - lo).length / 2
+    dist = 3.0 if key.startswith("sle_stick") else 2.4
     for name, (az, el) in {"threequarter_line": (35, 18), "threequarter_back": (215, 22), "low": (120, 6)}.items():
         a, e = math.radians(az), math.radians(el)
         d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
-        eye = centre + d * radius * 2.4
+        eye = centre + d * radius * dist
         cam.location = frame.b(tuple(eye))
         look = frame.b(tuple(centre)) - cam.location
         cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
@@ -306,6 +316,45 @@ def clay_views(key, built, spec, out_dir, chairs):
     for o in extras:
         if o.name.startswith("ReviewChair"):
             bpy.data.objects.remove(o)
+    restore_uv(objs)
+
+
+def sle_views(key, built, out_dir):
+    """Snow guns up close in their palette colours: the stick gun's head and base and the whole gun; the ground gun
+    from the angles of the owner's photos of a real unit (front three-quarter, the mount from the side, the tripod
+    from behind, the hose block from behind and above)."""
+    sc = scene_setup()
+    sc.display.shading.show_shadows = True
+    sc.render.film_transparent = False
+    sc.world = sc.world or bpy.data.worlds.new("World")
+    objs = lod_objects(built, 0)
+    g = ground(40, 0.0)
+    show_only(objs + [g])
+    use_palette_uv(objs)
+    cam = camera("GunCam")
+    cam.data.type = "PERSP"
+    cam.data.clip_start, cam.data.clip_end = 0.01, 200
+    sc.render.resolution_x, sc.render.resolution_y = 1200, 900
+    nozzle = Vector(built["assets"][0].sockets["nozzle"])
+    if key == "sle_ground_gun":   # name: (azimuth from +u toward +v, elevation, distance, target, lens)
+        # the valve paddle and the mount are on the gun's left (-v), as in the owner's photos
+        views = {"side": (242, 22, 2.0, Vector((0.02, 0.03, 0.9)), 40),
+                 "front": (320, 18, 2.2, Vector((0.05, 0.03, 0.85)), 40),
+                 "mount": (270, 6, 1.0, Vector((-0.03, 0.02, 1.07)), 45),
+                 "behind": (165, 36, 3.0, Vector((0.0, 0.0, 0.7)), 35),
+                 "hose_block": (160, 42, 1.3, Vector((-0.12, 0.03, 1.08)), 45)}
+    else:
+        pivot = Vector(built["assets"][0].pivots["lance"]["pos"])   # on the base mast's top
+        views = {"head": (60, 12, 1.4, nozzle - Vector((0.3, 0.0, 0.05)), 45),
+                 "base": (305, 12, 2.9, Vector((0.05, 0.0, pivot.z * 0.6)), 40),   # the mast, from the valve side (-v)
+                 "whole": (40, 12, nozzle.z * 1.6 + 2.0, Vector((nozzle.x * 0.45, 0.0, nozzle.z * 0.5)), 35)}
+    for name, (az, el, dist, tgt, lens) in views.items():
+        cam.data.lens = lens
+        a, e = math.radians(az), math.radians(el)
+        d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
+        cam.location = frame.b(tuple(tgt + d * dist))
+        cam.rotation_euler = (frame.b(tuple(tgt)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+        render(os.path.join(out_dir, f"{key}_view_{name}.png"))
     restore_uv(objs)
 
 
@@ -535,6 +584,86 @@ def chair_photos(built, spec, out_dir, mats):
     shoot("snowfall", whole, 32, 14, 8.0)
     materials.set_snow(mats, 0.0)
     _photo_end(sc, extras + [fig])
+
+
+def gun_photos(key, built, out_dir, mats):
+    """Cycles "photos" of a snow gun on snow with a 1.8 m figure: the whole gun, close-ups (the stick gun's head
+    and base; the ground gun from its valve side, its mount and from behind) and one after snowfall."""
+    sc, sun = _photo_scene()
+    objs = lod_objects(built, 0)
+    snow = _snow_plane(0.0)
+    extras = [snow, sun]
+    nozzle = Vector(built["assets"][0].sockets["nozzle"])
+    ground = key == "sle_ground_gun"
+    fig = _photo_figure((0.2, 1.6, 0.0) if ground else (-1.0, -1.2, 0.0))
+    show_only(objs + extras + [fig])
+    restore_uv(objs)
+    shoot = _shooter(key, out_dir)
+    if ground:   # the valve paddle and the mount are on the gun's left (-v), as in the owner's photos
+        mid = (0.02, 0.03, 0.85)
+        shoot("hero", mid, 242, 20, 2.8, lens=40)
+        shoot("front", mid, 320, 16, 2.8, lens=40)
+        shoot("mount", (-0.03, 0.02, 1.07), 270, 6, 1.15, lens=45)
+        shoot("behind", (0.0, 0.0, 0.8), 165, 30, 3.2, lens=35)
+        shoot("head", (0.1, 0.0, 1.2), 300, 25, 1.3, lens=45)
+        whole = mid
+    else:
+        pivot = Vector(built["assets"][0].pivots["lance"]["pos"])   # on the base mast's top
+        whole = (nozzle.x * 0.45, 0.0, nozzle.z * 0.5)
+        shoot("hero", whole, 35, 10, nozzle.z * 1.55 + 2.0, lens=35)
+        shoot("side", whole, 90, 4, nozzle.z * 1.7 + 2.0, lens=35)
+        shoot("head", tuple(nozzle - Vector((0.3, 0.0, 0.05))), 60, 12, 1.6, lens=45)
+        shoot("head_back", tuple(nozzle - Vector((0.3, 0.0, 0.05))), 230, 16, 1.6, lens=45)
+        shoot("base", (0.05, 0.0, pivot.z * 0.6), 305, 12, 3.2, lens=40)   # the mast, from the valve side (-v)
+    materials.set_snow(mats, 1.0)
+    if ground:
+        shoot("snowfall", whole, 242, 20, 2.8, lens=40)
+    else:
+        shoot("snowfall", whole, 35, 10, nozzle.z * 1.55 + 2.0, lens=35)
+    materials.set_snow(mats, 0.0)
+    _photo_end(sc, extras + [fig])
+
+
+SLE_LINEUP = (("sle_ground_gun", -2.6), ("sle_stick_gun_10", 0.0), ("sle_stick_gun_20", 2.6), ("sle_stick_gun_30", 6.2))
+
+
+def sle_lineup(built_all, out_dir, mats):
+    """All the SLE guns side by side on snow with a 1.8 m figure, seen from the side and from three-quarter."""
+    sc, sun = _photo_scene()
+    snow = _snow_plane(0.0)
+    objs = []
+    for key, du in SLE_LINEUP:
+        _move(built_all[key], (du, 0.0, 0.0))
+        objs += lod_objects(built_all[key], 0)
+    fig = _photo_figure((-4.2, 0.0, 0.0))
+    show_only(objs + [snow, sun, fig])
+    restore_uv(objs)
+    shoot = _shooter("sle", out_dir)
+    shoot("lineup", (3.0, 0.0, 3.6), -90, 6, 20.0, lens=40)
+    shoot("lineup_threequarter", (3.0, 0.0, 3.2), -55, 12, 22.0, lens=40)
+    for key, du in SLE_LINEUP:
+        _move(built_all[key], (-du, 0.0, 0.0))
+    _photo_end(sc, [snow, sun, fig])
+
+
+def sle_heads(built_all, out_dir, mats, stick="sle_stick_gun_20"):
+    """The two heads at one scale: the ground gun (its gun, without the tripod) lifted level with the stick gun's
+    head and set 0.9 m behind it, seen from the side and from three-quarter."""
+    sc, sun = _photo_scene()
+    sg, gg = built_all[stick], built_all["sle_ground_gun"]
+    tip_s = Vector(sg["assets"][0].sockets["nozzle"])
+    tip_g = Vector(gg["assets"][0].sockets["nozzle"])
+    off = tuple(tip_s - tip_g - Vector((0.9, 0.0, 0.0)))
+    _move(gg, off)
+    objs = lod_objects(sg, 0) + [o for o in lod_objects(gg, 0) if o.name.startswith("sle_ground_gun_gun")]
+    show_only(objs + [sun])
+    restore_uv(objs)
+    shoot = _shooter("sle", out_dir)
+    mid = tuple(tip_s - Vector((0.75, 0.0, 0.12)))
+    shoot("heads_side", mid, 90, 3, 3.0, lens=50)
+    shoot("heads_threequarter", mid, 55, 14, 3.0, lens=50)
+    _move(gg, tuple(-x for x in off))
+    _photo_end(sc, [sun])
 
 
 HILL_FROM, HILL_SLOPE = 12.0, math.radians(12.0)   # where the ground starts rising past the return, and how steeply
@@ -954,8 +1083,10 @@ def render_all(built, spec, out_dir, shots, mats):
                 # model pose, and the chair has its own views
                 ortho_views(key, built[key], out_dir)
         for key in built:
-            if key in ("drive", "return", "chair"):
-                clay_views(key, built[key], spec, out_dir, chairs)
+            if key in ("drive", "return", "chair") or key.startswith("sle_"):
+                clay_views(key, built[key], built[key].get("spec", spec), out_dir, chairs)
+            if key.startswith("sle_"):
+                sle_views(key, built[key], out_dir)
     if "lods" in shots:
         lod_lineup({k: v for k, v in built.items() if k in ("drive", "return", "chair")}, out_dir)
     if "data" in shots:
@@ -970,8 +1101,13 @@ def render_all(built, spec, out_dir, shots, mats):
         for key in built:
             if key == "chair" and "photos" in shots:
                 chair_photos(built[key], spec, out_dir, mats)
+            elif key.startswith("sle_") and "photos" in shots:
+                gun_photos(key, built[key], out_dir, mats)
             elif key in ("drive", "return"):
                 terminal_photos(key, built[key], spec, out_dir, mats, chairs)
+    if "photos" in shots and all(k in built for k, _ in SLE_LINEUP):
+        sle_lineup(built, out_dir, mats)
+        sle_heads(built, out_dir, mats)
     if ("photos" in shots or "tower_photos" in shots) and "tower_base" in built and "tower_mast" in built:
         tower_photos({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir, mats, chairs)
     print(f"Review renders in {out_dir}", flush=True)

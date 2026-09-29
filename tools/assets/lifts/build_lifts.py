@@ -23,11 +23,15 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "assets"))
 from liftkit import ao, export, frame, materials, palette, textures  # noqa: E402
 
-MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair"}
+MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair", "sle_ground_gun": "sle_ground_gun",
+           # name -> (module, variant): the stick gun's lance in feet of pipe
+           "sle_stick_gun_10": ("sle_stick_gun", 10), "sle_stick_gun_20": ("sle_stick_gun", 20),
+           "sle_stick_gun_30": ("sle_stick_gun", 30)}
 # the line tower kit (assets/tower.py): name -> variant
 TOWER = {"tower_s4": "s4", "tower_s6": "s6", "tower_b8": "b8", "tower_d8": "d8", "tower_c8": "c8",
          "tower_mast": "mast", "tower_base": "base"}
-ALL = "drive,return,chair," + ",".join(TOWER)
+SLE = ("sle_stick_gun_10", "sle_stick_gun_20", "sle_stick_gun_30", "sle_ground_gun")
+ALL = "drive,return,chair," + ",".join(TOWER) + "," + ",".join(SLE)
 
 
 def clear_scene():
@@ -90,6 +94,14 @@ def main():
     stage = opts.get("stage", "detail")
     names = opts.get("assets", ALL).split(",")
     spec = json.load(open(os.path.join(HERE, "sessellift_fgq4.json"), encoding="utf-8"))
+    specs = {"sessellift_fgq4.json": spec}
+
+    def spec_for(mod):
+        """A module's spec (its SPEC file, the Sessellift's by default)."""
+        name = getattr(mod, "SPEC", "sessellift_fgq4.json")
+        if name not in specs:
+            specs[name] = json.load(open(os.path.join(HERE, name), encoding="utf-8"))
+        return specs[name]
     budgets = json.load(open(os.path.join(HERE, "budgets.json"), encoding="utf-8"))
 
     t0 = time.time()
@@ -109,9 +121,12 @@ def main():
             kind = mod.kind_of(TOWER[name])
             assets = [mod.build(spec, lod, stage, TOWER[name]) for lod in range(mod.LODS)]
         else:
-            mod = importlib.import_module(MODULES[name])
+            entry = MODULES[name]
+            modname, variant = entry if isinstance(entry, tuple) else (entry, None)
+            mod = importlib.import_module(modname)
             kind = mod.KIND
-            assets = [mod.build(spec, lod, stage) for lod in range(mod.LODS)]
+            extra = () if variant is None else (variant,)
+            assets = [mod.build(spec_for(mod), lod, stage, *extra) for lod in range(mod.LODS)]
         aid = assets[0].id
         coll = bpy.data.collections.new(aid)
         bpy.context.scene.collection.children.link(coll)
@@ -125,7 +140,8 @@ def main():
                   + ", ".join(f"{lo:.2f}/{mean:.2f}" for lo, mean in ao_stats) + ")", flush=True)
         path = os.path.join(out_dir, f"{aid}.fbx")
         export.export_fbx(objs, path)
-        problems = check_asset(kind, assets, rep, budgets, spec)
+        own = spec if name in TOWER else spec_for(mod)
+        problems = check_asset(kind, assets, rep, budgets, own)
         a0 = assets[0]
         result["assets"][aid] = {
             "kind": kind,
@@ -140,7 +156,11 @@ def main():
             "partTargets": a0.budget_targets,
             "problems": problems,
         }
-        built[name] = {"assets": assets, "objects": objs, "collection": coll}
+        cat = own.get("catalog", {})   # the name the game shows, when the spec names this asset
+        shown = cat.get("parts", {}).get(aid) or cat.get("parts", {}).get(name)
+        if shown:
+            result["assets"][aid]["catalog"] = {"maker": cat["maker"], "model": cat["name"], "name": shown}
+        built[name] = {"assets": assets, "objects": objs, "collection": coll, "spec": own}
         print(f"{aid}: tris per LOD {[e['total'] for e in rep['lods']]}" + (f"  PROBLEMS: {problems}" if problems else ""), flush=True)
         failures += [f"{aid}: {p}" for p in problems]
     result["failures"] = failures

@@ -30,6 +30,8 @@ CLASSES = [
     ("grip", "#6C7176", 1, 0.55),           # grip body
     ("sheave_rim", "#D9DAD6", 0, 0.45),     # light rims round the red sheave faces (as photographed)
     ("sign_black", "#121315", 0, 0.35),     # tower number plates (black, white number)
+    ("aluminium", "#C8CCCF", 1, 0.55),      # snow gun lances, heads and barrels (bare aluminium)
+    ("valve_maroon", "#6E2A33", 0, 0.40),   # snow gun valve paddles
 ]
 INDEX = {name: i for i, (name, *_) in enumerate(CLASSES)}
 

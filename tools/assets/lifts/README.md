@@ -5,16 +5,19 @@ spec always produces the same meshes (the build compares hashes). The first prod
 **Sessellift FGQ-4**, a fixed-grip quad: a drive (top) terminal, a return (bottom) terminal, a quad chair and
 a kit of line towers.
 Its review, decisions and retrospective are in
-[lift-pilot-sessellift-fgq4.md](../../../docs/plans/lift-pilot-sessellift-fgq4.md).
+[lift-pilot-sessellift-fgq4.md](../../../docs/plans/lift-pilot-sessellift-fgq4.md). The same pipeline builds
+the **SLE snow guns** ([snow-guns-sle.md](../../../docs/plans/snow-guns-sle.md)): a stick gun on a 10, 20 or 30 ft
+lance and a ground gun on a tripod.
 
 | File | Purpose |
 |---|---|
 | `sessellift_fgq4.json` | Our dimensions in millimetres: `common` (rope elevation, line gauge, rope, sheaves, bullwheel), then one section per asset |
+| `sle_guns.json` | The snow guns' dimensions (`stickGun`, `groundGun`, `tripod`) and their `catalog` names; an asset module names its spec with `SPEC` |
 | `budgets.json` | Triangle budgets per LOD and LOD switch distances. The build and the Unity tests both read it |
 | `build_lifts.py` | Builds every asset and LOD, bakes AO, exports one FBX per asset plus the textures, and checks budgets, pivots and sockets |
-| `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair`, and `tower` (the line tower kit, see below) |
+| `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair`, `tower` (the line tower kit, see below), `sle_stick_gun` (three lance lengths from one module) and `sle_ground_gun` |
 | `liftkit/` | The shared kit: `frame` (lift frame to Blender), `prims` (boxes, beams, cylinders, prisms, lathes), `parts` (sheaves, sheave trains, line assemblies, railings, ladders), `heads` (the entry head shared by the drive terminal and the towers), `mesh` (MeshBuilder, per-face data, flush-face separation), `palette`, `textures` (detail atlas), `ao`, `materials`, `export` |
-| `render_review.py` | Review renders: orthographic views with dimensions (`gate1`), LOD lineup (`lods`), shader data (`data`), Cycles photos on snow (`photos`, `terminal_photos`, `tower_photos`), the tower kit in clay (`towers`) |
+| `render_review.py` | Review renders: orthographic views with dimensions (`gate1`), LOD lineup (`lods`), shader data (`data`), Cycles photos on snow (`photos`, `terminal_photos`, `tower_photos`; the snow guns' photos, line-up and both heads at one scale come with `photos`), the tower kit in clay (`towers`) |
 | `build-lifts.bat` | Double-click: builds everything and opens the photos |
 
 ```sh
@@ -36,13 +39,16 @@ runs at w = 3039 mm, and the line gauge (bullwheel pitch diameter) is 4120 mm.
 ## What each FBX holds
 
 - `<id>_LOD0..3`: the body (chair: LOD0..2).
-- `<id>_<part>_LODn` under the empty `<id>_pivot_<part>`: moving parts (the bullwheel and every sheave), with the
-  origin on the real axle.
+- `<id>_<part>_LODn` under the empty `<id>_pivot_<part>`: moving parts (the bullwheel and every sheave, a snow
+  gun's hinged lance or gun), with the origin on the real axle or hinge pin.
 - `<id>_socket_<name>` empties:
   - terminals: `line`, `rope_{left,right}_{bw,out}`, `chair_load` or `chair_unload`, `foundation_base`;
-  - chair: `grip`, `seat_1..4`, `bar_hinge`.
+  - chair: `grip`, `seat_1..4`, `bar_hinge`;
+  - snow guns: `base` (the origin, at grade), `nozzle`, and the hose couplers (`hose_side`, and `hose_bottom` or
+    `hose_rear`).
 
-LiftImport checks every pivot and socket against `out/lifts.json` to 1 mm.
+LiftImport checks every pivot and socket against `out/lifts.json` to 1 mm. When an asset's spec has a `catalog`,
+`lifts.json` carries its maker and the name the game shows (`LiftRig.Maker`, `LiftRig.CatalogName`).
 
 | Channel | Meaning |
 |---|---|
@@ -90,6 +96,23 @@ where it meets and leaves the row.
 sheave are red (lightning grounding) and the rest galvanised, on the terminals too (`parts.row_face`). Sheaves
 spin only at LOD0 on towers; from LOD1 a head is one mesh.
 
+## SLE snow guns (LP16-LP19)
+
+| Asset | Origin | What it is |
+|---|---|---|
+| `sle_stick_gun_10`, `_20`, `_30` | grade, on the base mast's axis | a 4 in base mast (1.08 m above grade, 0.45 m below) with a base plate and ears; the lance (10, 20 or 30 ft of pipe on a U-channel) pinned 1.15 m up, held by a stay from a clevis on the mast; the head on the pipe's end: a Y block carrying the fan block, the barrel and the nucleator cap |
+| `sle_ground_gun` | grade, under the tripod's pivot | the same head on a black valve body with the hose block, valve paddle, couplers and gauge, on an aluminium tripod (an inverted-U arch, a crossbar, a rear leg, a quadrant disc and T-pin) |
+
+- **Frame:** +Z (u) is the way the gun fires, +Y up. The stick gun's spec is measured in the reference's frame,
+  whose zero is its snow line; `grade` sets the asset's origin 845 mm below it, so the mast stands on the ground.
+- **Aim:** one hinged moving part, the lance (`pivot_lance`) or the ground gun's gun (`pivot_gun`), tilted about
+  X on its pivot; the build doesn't check a hinged part for centring on its axle (`"hinge": true`). The stay rides
+  with the lance, so keep its tilt within a few degrees. Turning the whole gun about +Y is the placement's yaw.
+- **One head:** both guns carry the ground gun's head dimensions (`make_gun_spec.py` keeps them in one place): a
+  fan block with a 100 × 100 mm, 12-nozzle face, a 2 in barrel 305 mm long and a 74 mm cap with an octagonal nose.
+- **Lance lengths:** one module builds all three (`MODULES` maps each id to the module and its variant); the head
+  rides on the pipe's end, and the channel stops 5 ft short of it.
+
 ## Budgets (enforced)
 
 The build exits non-zero if an LOD is over budget, if totals don't decrease, if a moving part is off its
@@ -111,6 +134,9 @@ axle, or if a rope socket is off the rope.
 | Mast section | 144 | 88 | 40 | 12 |
 | Tower base budget | 400 | 300 | 60 | 40 |
 | Tower base | 314 | 278 | 58 | 36 |
+| Snow gun budget | 600 | 160 | 40 | 12 |
+| Stick gun (10, 20 or 30 ft) | 598 | 154 | 38 | 8 |
+| Ground gun | 534 | 156 | 30 | 12 |
 
 ## Modelling rules learned in the pilot
 
@@ -129,5 +155,6 @@ axle, or if a rope socket is off the rope.
 ## Adding a lift
 
 Copy `sessellift_fgq4.json` and an asset module, change the dimensions, and add the ids to `MODULES` in
-`build_lifts.py`. Maker names are code names (Sessellift, Monta, Chairworks); never use a real maker, resort or
-drawing name in this folder.
+`build_lifts.py` (and to `ALL`, to build them by default). A new spec names its maker and each asset in a
+`catalog` section. Maker names are code names (Sessellift, Monta, Chairworks, SLE); never use a real maker, resort
+or drawing name in this folder.

@@ -220,8 +220,10 @@ namespace MountainPlanner.Editor
             var rig = go.AddComponent<LiftRig>();
             rig.AssetId = id;
             rig.Kind = (string)info["kind"];
+            // the asset's own catalog entry (lifts.json, from its spec), else the Sessellift spec's name for its part
             string part = id.Substring(id.LastIndexOf('_') + 1);
-            rig.CatalogName = (string)spec["catalog"]["parts"]?[part] ?? id;
+            rig.Maker = (string)info["catalog"]?["maker"] ?? (string)spec["catalog"]["maker"];
+            rig.CatalogName = (string)info["catalog"]?["name"] ?? (string)spec["catalog"]["parts"]?[part] ?? id;
             var all = go.GetComponentsInChildren<Transform>(true);
             var pivots = ((JObject)info["pivots"]).Properties().ToList();
             rig.Pivots = pivots.Select(p => all.First(t => t.name == $"{id}_pivot_{p.Name}")).ToArray();

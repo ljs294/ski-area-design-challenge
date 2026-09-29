@@ -182,3 +182,14 @@ Details in [lift-towers-sessellift-fgq4.md](lift-towers-sessellift-fgq4.md). The
 | LP13 | **Every sheave assembly hangs from below the crossarm end** on two lug plates, its pin 320 mm under the crossarm. The return terminal's integrated tower is a hold-down tower with the same connection (8 sheaves per rope), and replaces LP9's 4-sheave hold-down trains there. Its row is levelled at the first sheave, so the rope runs level through the loading area and the line leaves the station climbing at 16° (a 13 m arc, the tightest whose tilted equaliser clears the crossbeam) |
 | LP14 | **Towers are galvanised throughout; in every sheave row only the first and last sheave are red** (lightning grounding) and the rest galvanised, on the terminals' trains too. Tower number plates are black |
 | LP15 | **Tower budgets, enforced at build time:** head LOD0 ≤16,000, LOD1 ≤5,000, LOD2 ≤1,000, LOD3 ≤200 triangles, switching at 15, 45, 150 and 800 m (doubled by the PC lodBias); mast section ≤150 and base ≤400 at LOD0. Sheaves spin only at LOD0; from LOD1 a head is one mesh |
+
+## SLE snow guns: decided 2026-09-29
+
+Details in [snow-guns-sle.md](snow-guns-sle.md). The guns follow the owner's own reference model of a stick gun for their dimensions and the owner's photos of real units for the heads and the tripod; the model stays local and is never named.
+
+| ID | Decision |
+|---|---|
+| LP16 | **SLE is the code name of our snowmaking maker** (LP3 applies: no real maker is named). Two guns: a stick gun on a lance of 10, 20 or 30 ft of pipe (one build, three variants) and a ground gun on an aluminium tripod. Both carry the same head: the fan block with its 100 × 100 mm, 12-nozzle face, a 2 in barrel 305 mm long and a 74 mm nucleator cap; on the stick gun it sits on a Y block at the lance's end |
+| LP17 | **A snow gun's origin is at grade:** on the stick gun's base mast (a 4 in post standing 1.08 m above grade and 0.45 m below it, the lance pinned 1.15 m up) or under the ground gun's tripod pivot. +Z is the way it fires |
+| LP18 | **Aim is per instance:** each gun has one hinged moving part (the lance, or the ground gun's gun), tilted about X on its pivot; turning the whole gun about +Y is the placement's yaw. The stick gun's stay rides with the lance, so its tilt stays within a few degrees |
+| LP19 | **Snow gun budgets, enforced at build time:** LOD0 ≤600, LOD1 ≤160, LOD2 ≤40, LOD3 ≤12 triangles, switching at 12, 40, 150 and 600 m (doubled by the PC lodBias). Shadows from LOD0-1. Built for hundreds on a mountain |

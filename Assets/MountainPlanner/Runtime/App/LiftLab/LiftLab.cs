@@ -19,10 +19,13 @@ namespace MountainPlanner.App
     ///   1 drive terminal · 2 return terminal (its rope climbing out up the line) · 3 chair · 4 line-up
     ///   5 stress (20 lifts with towers, ~500 chairs)
     ///   6 towers (every tower head type on a full tower)
+    ///   7 snow guns (the SLE ground gun and the 10, 20 and 30 ft stick guns side by side)
+    ///   8 gun field (500 snow guns along 20 trails, each turned and aimed its own way)
     ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · T turntable · G ground on/off
     ///   B benchmark · P screenshot · H help · Esc quit (camera: DebugFlyCamera's keys)
-    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers, -lod n, -snow 0..1, -view yaw,pitch,distance,
-    /// -screenshot file.png (captures once settled, then quits), -benchmark file.json (runs, writes, quits).
+    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield, -lod n, -snow 0..1,
+    /// -view yaw,pitch,distance, -screenshot file.png (captures once settled, then quits), -benchmark file.json (runs,
+    /// writes, quits).
     /// </summary>
     public sealed class LiftLab : MonoBehaviour
     {
@@ -45,13 +48,20 @@ namespace MountainPlanner.App
             new Color(0.72f, 0.12f, 0.09f), new Color(0.10f, 0.26f, 0.62f), new Color(0.11f, 0.42f, 0.22f), new Color(0.93f, 0.70f, 0.10f),
             new Color(0.12f, 0.12f, 0.13f), new Color(0.90f, 0.90f, 0.88f), new Color(0.90f, 0.42f, 0.08f), new Color(0.05f, 0.47f, 0.50f),
         };
-        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers" };
+        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield" };
+        /// <summary>The snow guns in the line-up's order, and where each stands along +Z (m).</summary>
+        static readonly (string id, float z)[] SnowGuns =
+            { ("sle_ground_gun", -2.6f), ("sle_stick_gun_10", 0f), ("sle_stick_gun_20", 2.6f), ("sle_stick_gun_30", 6.2f) };
+        const int GunLines = 20;                     // gun field: trails side by side
+        const int GunsPerLine = 25;                  // gun field: guns along each trail
+        const float GunLineSpacing = 40f;            // between trails
+        const float GunSpacing = 30f;                // between guns along a trail
         /// <summary>The tower head types (LP11), in the line-up's order.</summary>
         static readonly string[] TowerHeads = { "tower_s4", "tower_s6", "tower_b8", "tower_d8", "tower_c8" };
         const float TowerRope = 9.5f;                // rope height of the towers in the towers mode
         const float LineShown = 100f;                // how far up the line the return mode draws the rope
 
-        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers }
+        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField }
 
         readonly List<GameObject> _spawned = new List<GameObject>();
         readonly Dictionary<GameObject, int[]> _lodTriangles = new Dictionary<GameObject, int[]>();
@@ -167,6 +177,7 @@ namespace MountainPlanner.App
         }
 
         GameObject Prefab(string part) => Models != null ? Models.Find("sessellift_fgq4_" + part) : null;
+        GameObject Asset(string id) => Models != null ? Models.Find(id) : null;
 
         void Show(Mode mode)
         {
@@ -223,6 +234,19 @@ namespace MountainPlanner.App
                 }
                 case Mode.Empty:
                     if (Camera != null) { Camera.Frame(new Vector3(0, 2, TerminalSpacing / 2), 120f); Camera.SetAngles(200f, 20f); }
+                    break;
+                case Mode.Guns:
+                    foreach (var (id, z) in SnowGuns)
+                    {
+                        var prefab = Asset(id);
+                        if (prefab == null) continue;
+                        var gun = Spawn(prefab, new Vector3(0, 0, z), Quaternion.identity, livery);
+                        if (id == "sle_stick_gun_20") _focus = gun;
+                    }
+                    if (Camera != null) { Camera.MinDistance = 1.5f; Camera.Frame(new Vector3(0, 3.2f, 3f), 20f); Camera.SetAngles(90f, 6f); }
+                    break;
+                case Mode.GunField:
+                    BuildGunField();
                     break;
             }
             _materials.SetSnowLoad(_snow);
@@ -289,6 +313,34 @@ namespace MountainPlanner.App
                 AddRope(rr.Socket("rope_left_out").position, dr.Socket("rope_right_out").position, chair, livery, false);
             }
             if (Camera != null) { Camera.Frame(new Vector3(0, 3, 20f), 140f); Camera.SetAngles(205f, 22f); }
+        }
+
+        /// <summary>500 snow guns along 20 trails (40 m apart, a gun every 30 m): mostly stick guns of each lance length,
+        /// every fifth a ground gun, each turned across its trail give or take 30 degrees and aimed on its own hinge (the
+        /// lance a few degrees, the ground gun's elevation more). Seeded, so every run builds the same field.</summary>
+        void BuildGunField()
+        {
+            var random = new System.Random(20260929);
+            string[] mix = { "sle_stick_gun_20", "sle_stick_gun_30", "sle_stick_gun_10", "sle_stick_gun_20", "sle_ground_gun" };
+            var livery = Liveries[_livery % Liveries.Length];
+            for (int line = 0; line < GunLines; line++)
+                for (int k = 0; k < GunsPerLine; k++)
+                {
+                    var prefab = Asset(mix[(line * 3 + k) % mix.Length]);
+                    if (prefab == null) continue;
+                    float x = (line - (GunLines - 1) / 2f) * GunLineSpacing;
+                    float z = (k - (GunsPerLine - 1) / 2f) * GunSpacing;
+                    float yaw = (line % 2 == 0 ? 90f : -90f) + (float)(random.NextDouble() * 60.0 - 30.0);
+                    var gun = Spawn(prefab, new Vector3(x, 0, z), Quaternion.Euler(0, yaw, 0), livery);
+                    var rig = gun.GetComponent<LiftRig>();
+                    if (rig != null && rig.Pivots.Length > 0)   // the per-instance aim: a tilt on the gun's own hinge
+                    {
+                        float range = prefab.name == "sle_ground_gun" ? 10f : 3f;
+                        rig.Pivots[0].localRotation = Quaternion.AngleAxis((float)(random.NextDouble() * 2.0 - 1.0) * range, rig.PivotAxes[0]);
+                    }
+                    if (line == GunLines / 2 && k == GunsPerLine / 2) _focus = gun;
+                }
+            if (Camera != null) { Camera.Frame(new Vector3(0, 3, 0), 140f); Camera.SetAngles(205f, 22f); }
         }
 
         void AddRope(Vector3 from, Vector3 to, GameObject chair, Color livery, bool uphill)
@@ -423,6 +475,8 @@ namespace MountainPlanner.App
                 if (keys.digit4Key.wasPressedThisFrame) Show(Mode.Lineup);
                 if (keys.digit5Key.wasPressedThisFrame) Show(Mode.Stress);
                 if (keys.digit6Key.wasPressedThisFrame) Show(Mode.Towers);
+                if (keys.digit7Key.wasPressedThisFrame) Show(Mode.Guns);
+                if (keys.digit8Key.wasPressedThisFrame) Show(Mode.GunField);
                 if (keys.tabKey.wasPressedThisFrame) Show(_mode < Mode.Chair ? _mode + 1 : Mode.Drive);
                 if (keys.lKey.wasPressedThisFrame) CycleLod();
                 if (keys.nKey.wasPressedThisFrame) { _snow = _snow > 0.75f ? 0f : _snow + 0.5f; _materials.SetSnowLoad(_snow); }
@@ -480,7 +534,11 @@ namespace MountainPlanner.App
                     if (_forcedLod >= 0) active = Mathf.Min(_forcedLod, lods.Length - 1);
                     var prefab = Models.Prefabs.FirstOrDefault(p => p != null && _focus.name.StartsWith(p.name));
                     int[] tris = prefab != null && _lodTriangles.TryGetValue(prefab, out var t) ? t : Array.Empty<int>();
-                    _text.Append(_focus.name.Replace("(Clone)", "")).Append(" · LOD ").Append(active < lods.Length ? active.ToString() : "culled")
+                    var focusRig = _focus.GetComponent<LiftRig>();
+                    _text.Append(_focus.name.Replace("(Clone)", ""));
+                    if (focusRig != null && !string.IsNullOrEmpty(focusRig.CatalogName))
+                        _text.Append(" (").Append(focusRig.Maker).Append(' ').Append(focusRig.CatalogName).Append(')');
+                    _text.Append(" · LOD ").Append(active < lods.Length ? active.ToString() : "culled")
                          .Append(_forcedLod >= 0 ? " (forced)" : " (auto)");
                     if (active < tris.Length) _text.Append(" · ").Append(tris[active].ToString("N0")).Append(" triangles");
                     _text.Append(" · ").Append(distance.ToString("F0")).Append(" m\nLOD switches at");
@@ -491,7 +549,7 @@ namespace MountainPlanner.App
             }
             _text.Append("Snow ").Append((_snow * 100).ToString("F0")).Append("% · livery ").Append(_livery % Liveries.Length + 1).Append('/').Append(Liveries.Length);
             if (Help)
-                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · Tab next · L LOD · N snow · C colour · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
+                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · Tab next · L LOD · N snow · C colour · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
                      .Append("\nWASD move · Q/E rotate · R/F tilt · wheel zoom · middle-drag rotate · right-drag move · Shift faster");
             return _text.ToString();
         }
@@ -504,7 +562,9 @@ namespace MountainPlanner.App
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = -1;
             if (Overlay != null) Overlay.enabled = false;
-            var centre = _mode == Mode.Stress ? new Vector3(0, 3, TerminalSpacing * 0.5f) : (_focus != null ? Bounds(_focus).center : Vector3.up * 3);
+            var centre = _mode == Mode.Stress ? new Vector3(0, 3, TerminalSpacing * 0.5f)
+                : _mode == Mode.GunField ? new Vector3(0, 3, 0)
+                : (_focus != null ? Bounds(_focus).center : Vector3.up * 3);
             float start = Time.unscaledTime;
             while (Time.unscaledTime - start < 5f) { CameraPath(centre, 0f); yield return null; }
             _stats.Reset();

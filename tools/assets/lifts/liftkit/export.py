@@ -72,9 +72,12 @@ def export_fbx(objs, path):
 
 
 def pivot_centering_error(asset):
-    """Max distance (m) between each moving part's bounds centre and its axle, measured across the axle."""
+    """Max distance (m) between each moving part's bounds centre and its axle, measured across the axle. Hinged
+    parts (a snow gun's lance: pivot "hinge": true) swing about an axle at one end and are not checked."""
     worst = 0.0
     for name, mb in asset.parts.items():
+        if asset.pivots[name].get("hinge"):
+            continue
         piv = Vector(asset.pivots[name]["pos"])
         axis = Vector(asset.pivots[name]["axis"]).normalized()
         lo, hi = mb.bounds_lift()

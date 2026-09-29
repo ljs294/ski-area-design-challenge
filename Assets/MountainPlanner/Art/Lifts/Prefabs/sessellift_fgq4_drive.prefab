@@ -2107,6 +2107,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Lifts.LiftRig
   AssetId: sessellift_fgq4_drive
   Kind: terminal
+  Maker: Sessellift
   CatalogName: Drive terminal
   Pivots:
   - {fileID: 4251745774149088026}
