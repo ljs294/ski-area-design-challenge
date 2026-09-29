@@ -11,7 +11,7 @@ Shader "MountainPlanner/LiftStructure"
     Properties
     {
         [NoScaleOffset] _PaletteMap ("Palette (point sampled)", 2D) = "grey" {}
-        [NoScaleOffset] _DetailMap ("Detail (RG normal, B cavity, A brightness)", 2D) = "grey" {}
+        [NoScaleOffset] _DetailMap ("Detail (RG normal, B cavity, A brightness)", 2D) = "linearGrey" {}
         _DetailStrength ("Detail strength", Range(0, 1)) = 1
         _AOStrength ("Baked AO strength", Range(0, 1)) = 1
         _LiveryColor ("Livery colour", Color) = (0.72, 0.12, 0.09, 1)

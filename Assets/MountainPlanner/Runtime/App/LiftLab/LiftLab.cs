@@ -70,6 +70,8 @@ namespace MountainPlanner.App
         void Start()
         {
             Application.targetFrameRate = -1;
+            DynamicGI.UpdateEnvironment();   // ambient light from the sky: the scene is built in code, nothing is baked
+            SkyReflection();
             _materials = new LiftMaterials(Structure, Glass, Chair);
             _stats = new FrameStats();
             _ground = MakeGround();
@@ -90,6 +92,21 @@ namespace MountainPlanner.App
             if (bench != null) StartCoroutine(Benchmark(bench, true));
             string shot = Arg(args, "-screenshot");
             if (shot != null) StartCoroutine(CaptureAndQuit(shot));
+        }
+
+        /// <summary>A sky-only realtime reflection probe, rendered once. Without baked lighting the default
+        /// reflection is black, and metallic parts (galvanised steel, the chairs) would render nearly black.</summary>
+        static void SkyReflection()
+        {
+            var probe = new GameObject("SkyReflection").AddComponent<ReflectionProbe>();
+            probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime;
+            probe.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.ViaScripting;
+            probe.timeSlicingMode = UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.AllFacesAtOnce;
+            probe.clearFlags = UnityEngine.Rendering.ReflectionProbeClearFlags.Skybox;
+            probe.cullingMask = 0;
+            probe.size = new Vector3(20000f, 20000f, 20000f);
+            probe.resolution = 128;
+            probe.RenderProbe();
         }
 
         static string Arg(string[] args, string name)

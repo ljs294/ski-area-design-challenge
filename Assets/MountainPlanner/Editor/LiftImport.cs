@@ -121,6 +121,8 @@ namespace MountainPlanner.Editor
             m.shader = shader;
             if (m.HasProperty("_PaletteMap")) m.SetTexture("_PaletteMap", palette);
             if (m.HasProperty("_DetailMap")) m.SetTexture("_DetailMap", detail);
+            // no trim/detail texture yet (Gate 2): switch the detail off rather than rely on the default texture
+            if (m.HasProperty("_DetailStrength")) m.SetFloat("_DetailStrength", detail != null ? 1f : 0f);
             if (m.HasProperty("_BaseMap")) m.SetTexture("_BaseMap", null);
             if (m.HasProperty("_LiveryColor")) m.SetColor("_LiveryColor", new Color(0.72f, 0.12f, 0.09f));
             if (m.HasProperty("_Glass")) m.SetFloat("_Glass", glass ? 1 : 0);
