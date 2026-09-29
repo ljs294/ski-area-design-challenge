@@ -1,7 +1,7 @@
 <title>Brand Boards</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=B612:wght@400;700&family=B612+Mono:wght@400;700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;0,9..144,900;1,9..144,400;1,9..144,600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=B612:wght@400;700&family=B612+Mono:wght@400;700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;0,9..144,900;1,9..144,400;1,9..144,600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=Overpass:wght@400;500;600;700;800;900&display=swap">
 <style>
 /* Basic branding for each art direction: logo, palette, type, app icon, title screen, store banner,
    one signature item and a sample of voice. Boards are 1280 wide and scale to the page; #a, #b and #c show one alone. */
@@ -70,6 +70,23 @@ body.solo .frame { width: 1280px; border-radius: 0; }
 .bC .chip span { font: italic 400 12px 'Fraunces', serif; color: #5b6680; }
 .bC .lead { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; font: 500 17px 'Fraunces', serif; }
 .bC .lead i { flex: 1; border-bottom: 1.5px dotted #5b6680; transform: translateY(-4px); }
+
+/* ---------- D · Trailhead (the MapLibre edition's title) ---------- */
+.bD { height: 944px; color: #28382e; font-family: 'Overpass', sans-serif; background: linear-gradient(180deg, #d9e3ea, #eef2f3 55%, #e4e8e3); }
+.bD .plate { position: absolute; background: #efe8d6; color: #28382e; border: 2px solid #56614e; border-radius: 2px; box-shadow: 2px 4px 7px rgba(0, 0, 0, 0.22); }
+.bD .sign { position: relative; color: #fff9e9; background: var(--face, #303735); border: 1px solid #e4e5d5; outline: 3px solid var(--face, #303735); border-radius: 2px;
+  box-shadow: 3px 5px 7px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.16); }
+.bD .sign.abs { position: absolute; }
+.bD .bolt { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #b3b6a6; box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.55); }
+.bD .post { position: absolute; width: 20px; border: 1px solid #45392b; background: repeating-linear-gradient(91deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 9px), linear-gradient(90deg, #594a36, #8b7656 25%, #736044 75%, #4b3e2d); box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.25); }
+.bD .lbl { font: 800 11px 'Overpass', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #56614e; }
+.bD .sw { display: grid; gap: 6px; font: 800 12px 'Overpass', sans-serif; }
+.bD .sw i { display: block; height: 52px; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+.bD .sw span { font: 500 11px 'Overpass', sans-serif; color: #66705f; }
+.bD .msign { display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 24px; font: 800 17px 'Overpass', sans-serif; }
+.bD .msign small { display: block; font: 500 11px 'Overpass', sans-serif; margin-top: 2px; }
+.bD .msign > span { flex: 1; }
+.bD .arr { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -81,6 +98,8 @@ body.solo .frame { width: 1280px; border-radius: 0; }
   <symbol id="p-road" viewBox="0 0 24 24"><path d="M8.2 21.5L10.8 2.5h2.4l2.6 19z"/><path d="M11.4 5.4h1.2v2.8h-1.2zM11.3 10.6h1.4v3.2h-1.4zM11.2 16.2h1.6v3.8h-1.6z" style="fill:var(--cut)"/></symbol>
   <symbol id="p-terrain" viewBox="0 0 24 24"><path d="M1.2 21L8.6 7.6l4.2 6.8 3.1-4.6L22.8 21z"/></symbol>
   <symbol id="p-remove" viewBox="0 0 24 24"><path d="M4.5 4.5l15 15M19.5 4.5l-15 15" stroke="currentColor" stroke-width="3.4" fill="none"/></symbol>
+  <symbol id="d-mark" viewBox="0 0 24 24"><path d="M1.5 20.5L9.5 6l4.6 8.2 2.9-4.7 5.5 11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M6.4 11.6l2.1 2 1.9-1.8 1.9 1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-arrow" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></symbol>
   <symbol id="p-views" viewBox="0 0 24 24"><path d="M1.3 12c3.1-5.2 7.2-7.8 10.7-7.8s7.6 2.6 10.7 7.8c-3.1 5.2-7.2 7.8-10.7 7.8S4.4 17.2 1.3 12z"/><circle cx="12" cy="12" r="3.9" style="fill:var(--cut)"/><circle cx="12" cy="12" r="1.9"/></symbol>
 
   <!-- A: a mountain drawn as a flight-plan route inside an instrument bezel -->
@@ -132,7 +151,7 @@ body.solo .frame { width: 1280px; border-radius: 0; }
 <div class="wrap">
   <div class="top">
     <h1>Brand boards</h1>
-    <p>Basic branding for each art direction, all for the working title Mountain Planner. Each board has the logo, palette and typefaces, then the brand in use: an app icon, a title screen and a store banner over our Unity mountain. It ends with one signature item and a sample of how the game talks to you. Logos and names are first sketches, not final artwork.</p>
+    <p>Basic branding for each art direction. A, B and C use the working title Mountain Planner; D keeps the MapLibre edition's own title, Ski Area Design Challenge. Each board has the logo, palette and typefaces, then the brand in use: an app icon, a title screen and a store banner over our Unity mountain. It ends with one signature item and a sample of how the game talks to you. Logos and names are first sketches, not final artwork.</p>
   </div>
 
   <!-- =============================== A =============================== -->
@@ -350,6 +369,82 @@ body.solo .frame { width: 1280px; border-radius: 0; }
       </div>
     </div></div>
   </section>
+  <!-- =============================== D =============================== -->
+  <section id="secD">
+    <h2>D · Trailhead <small>the MapLibre edition's title, grown into a brand</small></h2>
+    <div class="frame" style="aspect-ratio:1280/944"><div class="board bD" id="boardD">
+      <span class="cap" style="left:32px;top:14px">Logo</span>
+      <div class="plate" style="left:32px;top:34px;width:720px;height:220px;background:linear-gradient(180deg,#f4efe2,#ebe3cf)">
+        <i class="post" style="left:94px;top:112px;bottom:0"></i><i class="post" style="left:246px;top:112px;bottom:0"></i>
+        <div class="plate" style="left:46px;top:34px;width:260px;padding:14px 16px;display:flex;align-items:center;gap:12px"><svg width="38" height="38" style="flex:none"><use href="#d-mark"/></svg><b style="font:800 20px 'Overpass';line-height:1.12;letter-spacing:-.2px">Ski Area Design Challenge</b></div>
+        <div class="abs" style="left:352px;top:30px;display:grid;gap:6px">
+          <div style="font:900 38px 'Overpass';letter-spacing:-.01em;line-height:.98">Ski Area<br>Design Challenge</div>
+          <div style="font:600 15px 'Overpass';color:#56614e">Design the mountain. Run the resort.</div>
+        </div>
+        <div class="sign abs msign" style="--face:#303735;left:352px;top:156px;width:250px"><i class="bolt" style="left:9px;top:8px"></i><i class="bolt" style="left:9px;bottom:8px"></i><span data-rating="black" data-size="24"></span><span style="font-size:14px;letter-spacing:.06em">SKI AREA DESIGN CHALLENGE</span></div>
+      </div>
+      <span class="cap" style="left:776px;top:14px">Palette</span>
+      <div class="plate" style="left:776px;top:34px;width:472px;height:220px;padding:18px 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+        <div class="sw"><i style="background:#245840"></i>Trail green<span>#245840</span></div>
+        <div class="sw"><i style="background:#335f80"></i>Trail blue<span>#335F80</span></div>
+        <div class="sw"><i style="background:#303735"></i>Trail black<span>#303735</span></div>
+        <div class="sw"><i style="background:#fff9e9"></i>Sign cream<span>#FFF9E9</span></div>
+        <div class="sw"><i style="background:#56614e"></i>Moss<span>#56614E</span></div>
+        <div class="sw"><i style="background:linear-gradient(90deg,#594a36,#8b7656 25%,#736044 75%,#4b3e2d)"></i>Timber<span>#8B7656</span></div>
+        <div class="sw"><i style="background:#e8731c"></i>Flagging<span>#E8731C</span></div>
+        <div class="sw"><i style="background:#f2a41c"></i>Caution<span>#F2A41C</span></div>
+      </div>
+
+      <span class="cap" style="left:32px;top:274px">Title screen</span>
+      <div class="shot" style="left:32px;top:294px;width:640px;height:360px;box-shadow:0 10px 24px rgba(0,0,0,.25)">
+        <img src="assets/game-overview.jpg" alt="">
+        <div class="abs" style="inset:0;background:radial-gradient(ellipse at 12% 65%, rgba(20,43,50,.34), transparent 48%),linear-gradient(0deg, rgba(21,46,54,.3), transparent 30%)"></div>
+        <i class="post" style="left:51px;top:138px;bottom:-2px;width:12px"></i><i class="post" style="left:166px;top:138px;bottom:-2px;width:12px"></i>
+        <div class="abs" style="left:32px;top:131px;width:165px;display:grid;gap:9px">
+          <div class="plate" style="position:relative;padding:7px 8px;display:flex;gap:6px;align-items:center;margin-right:6px;margin-bottom:3px"><svg width="18" height="18" style="flex:none"><use href="#d-mark"/></svg><b style="font:800 10.5px 'Overpass';line-height:1.1">Ski Area Design Challenge</b></div>
+          <div class="sign msign" style="--face:#245840;padding:8px 8px 8px 12px;gap:7px;font-size:12.5px"><span data-rating="green" data-size="15"></span><span>Continue<small style="font-size:7.5px">Jackson Peaks</small></span><svg class="arr" style="width:12px;height:12px"><use href="#d-arrow"/></svg></div>
+          <div class="sign msign" style="--face:#335f80;padding:8px 8px 8px 12px;gap:7px;font-size:12.5px"><span data-rating="blue" data-size="15"></span><span>New Resort</span><svg class="arr" style="width:12px;height:12px"><use href="#d-arrow"/></svg></div>
+          <div class="sign msign" style="--face:#303735;padding:8px 8px 8px 12px;gap:7px;font-size:12.5px"><span data-rating="black" data-size="15"></span><span>My Resorts</span><svg class="arr" style="width:12px;height:12px"><use href="#d-arrow"/></svg></div>
+        </div>
+        <div class="abs" style="right:18px;bottom:14px;display:flex;gap:5px;font:700 10px 'Overpass'"><span class="plate" style="position:relative;padding:4px 8px">Settings</span><span class="plate" style="position:relative;padding:4px 8px">Credits</span><span class="plate" style="position:relative;padding:4px 8px">Quit</span></div>
+      </div>
+
+      <span class="cap" style="left:696px;top:274px">App icon</span>
+      <div class="abs" style="left:696px;top:294px;width:170px;height:170px;border-radius:38px;background:#245840;box-shadow:inset 0 0 0 9px #245840,inset 0 0 0 11px #e4e5d5,0 10px 24px rgba(0,0,0,.25);display:grid;place-items:center;color:#fff9e9">
+        <svg width="104" height="104"><use href="#d-mark"/></svg>
+        <i class="bolt" style="left:22px;top:22px"></i><i class="bolt" style="right:22px;top:22px"></i><i class="bolt" style="left:22px;bottom:22px"></i><i class="bolt" style="right:22px;bottom:22px"></i>
+      </div>
+      <span class="cap" style="left:890px;top:274px">Signature: lift status board</span>
+      <div class="sign abs" style="--face:#303735;left:892px;top:296px;width:354px;padding:0 0 10px;overflow:hidden">
+        <div style="background:#efe8d6;color:#28382e;padding:7px 14px;font:900 12px 'Overpass';letter-spacing:.14em;display:flex;justify-content:space-between"><span>LIFT STATUS</span><span>JACKSON PEAKS</span></div>
+        <div id="statusBoardD" style="padding:4px 14px 0"></div>
+      </div>
+      <span class="cap" style="left:696px;top:490px">Voice</span>
+      <div class="abs" style="left:696px;top:510px;width:552px;display:grid;gap:12px">
+        <div style="font:900 32px 'Overpass';letter-spacing:-.01em">See you at the top.</div>
+        <div class="sign msign" style="--face:#f2a41c;color:#1d1d1b;border-color:#1d1d1b;box-shadow:inset 0 0 0 2px #f2a41c,inset 0 0 0 4px #1d1d1b,3px 5px 7px rgba(0,0,0,.3);padding:12px 18px 12px 26px"><i class="bolt" style="left:10px;top:9px;background:#5b4300"></i><i class="bolt" style="left:10px;bottom:9px;background:#5b4300"></i><span><span style="font-size:16px;letter-spacing:.08em">RIDGE SIX · 12 MIN LINE</span><small style="font-size:13px;font-weight:600;margin-top:3px">Aspen Quad is moving faster, 7 min →</small></span></div>
+        <div style="color:#56614e;font-size:13.5px;line-height:1.45">Friendly and directional, like the signs on a mountain: a name, a number, an arrow, and a better way when there is one.</div>
+      </div>
+
+      <span class="cap" style="left:32px;top:680px">Store banner</span>
+      <div class="shot" style="left:32px;top:700px;width:460px;height:215px;box-shadow:0 10px 24px rgba(0,0,0,.25)">
+        <img src="assets/game-overview.jpg" alt="" style="object-position:70% 45%">
+        <div class="abs" style="inset:0;background:linear-gradient(90deg,rgba(20,43,50,.55),rgba(20,43,50,0) 55%)"></div>
+        <i class="post" style="left:46px;top:96px;bottom:-2px;width:14px"></i><i class="post" style="left:176px;top:96px;bottom:-2px;width:14px"></i>
+        <div class="plate" style="left:24px;top:28px;width:196px;padding:10px 12px;display:flex;gap:9px;align-items:center"><svg width="28" height="28" style="flex:none"><use href="#d-mark"/></svg><b style="font:800 15px 'Overpass';line-height:1.1">Ski Area Design Challenge</b></div>
+        <div class="sign abs msign" style="--face:#245840;left:24px;top:108px;width:188px;padding:9px 10px 9px 20px;font-size:14px"><i class="bolt" style="left:8px;top:7px"></i><i class="bolt" style="left:8px;bottom:7px"></i><span>Build your mountain</span><svg class="arr" style="width:16px;height:16px"><use href="#d-arrow"/></svg></div>
+      </div>
+      <span class="cap" style="left:516px;top:680px">Type</span>
+      <div class="plate" style="left:516px;top:700px;width:732px;height:215px;padding:22px 26px;display:grid;grid-template-columns:auto 1fr;gap:12px 28px;align-items:end">
+        <div style="font:900 110px 'Overpass';line-height:.85;letter-spacing:-.02em">Aa</div>
+        <div style="display:grid;gap:6px"><b style="font:800 20px 'Overpass'">Overpass</b><span style="color:#56614e;font-size:14px;line-height:1.45">Descended from Highway Gothic, the lettering of American road signs. Heavy for signs and titles, regular for the rest.</span></div>
+        <div style="grid-column:span 2;display:flex;align-items:center;gap:18px;border-top:2px solid #56614e;padding-top:12px">
+          <div class="sign msign" style="--face:#303735;padding:8px 14px 8px 22px;font-size:15px;letter-spacing:.06em"><i class="bolt" style="left:8px;top:7px"></i><i class="bolt" style="left:8px;bottom:7px"></i><span>RIDGE SIX</span><svg class="arr" style="width:16px;height:16px"><use href="#d-arrow"/></svg></div>
+          <b style="font:900 32px 'Overpass'">2,400</b><span style="font:600 16px 'Overpass'">riders per hour</span><b style="font:900 28px 'Overpass';margin-left:auto;color:#245840">$4.12M</b>
+        </div>
+      </div>
+    </div></div>
+  </section>
   <p class="pagenote">Sketches for choosing a direction: Mountain Planner is the working title, the resort and numbers are invented, and the backdrop is a capture of our Unity build.</p>
 </div>
 
@@ -357,8 +452,8 @@ body.solo .frame { width: 1280px; border-radius: 0; }
 (() => {
   'use strict';
   const solo = location.hash.replace('#', '');
-  if (['a', 'b', 'c'].includes(solo)) { document.body.classList.add('solo'); document.getElementById('sec' + solo.toUpperCase()).classList.add('solo-on'); }
-  for (const id of ['A', 'B', 'C']) {
+  if (['a', 'b', 'c', 'd'].includes(solo)) { document.body.classList.add('solo'); document.getElementById('sec' + solo.toUpperCase()).classList.add('solo-on'); }
+  for (const id of ['A', 'B', 'C', 'D']) {
     const b = document.getElementById('board' + id), f = b.parentElement;
     const fit = () => { b.style.transform = `scale(${f.clientWidth / 1280})`; };
     new ResizeObserver(fit).observe(f); fit();
@@ -386,5 +481,17 @@ body.solo .frame { width: 1280px; border-radius: 0; }
   let bars = '', x = 0, seed = 7;
   while (x < 148) { seed = (seed * 9301 + 49297) % 233280; const w = 1 + Math.floor(seed / 233280 * 3); bars += `<rect x="${x}" y="0" width="${w}" height="22" fill="#1d2a44"/>`; x += w + 1 + Math.floor(((seed * 7) % 233280) / 233280 * 3); }
   document.getElementById('barcodeC').innerHTML = bars;
+  // D: trail-rating plates, and the base-area lift status board.
+  const rating = (kind, size) => {
+    const sym = kind === 'green' ? '<circle cx="16" cy="16" r="10.5" fill="#247343"/>' : kind === 'blue' ? '<rect x="6.5" y="6.5" width="19" height="19" fill="#235f99"/>' : '<path d="M16 3.5L28.5 16 16 28.5 3.5 16z" fill="#151b18"/>';
+    return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" style="flex:none" aria-hidden="true"><rect width="32" height="32" rx="2" fill="#fff9e9"/>${sym}</svg>`;
+  };
+  document.querySelectorAll('[data-rating]').forEach((el) => { el.outerHTML = rating(el.dataset.rating, Number(el.dataset.size) || 30); });
+  const lifts = [['Meadow Carpet', 'open', '3 min'], ['Aspen Quad', 'open', '7 min'], ['Ridge Six', 'line', '12 min'], ['Summit Quad', 'flagged', 'planned']];
+  document.getElementById('statusBoardD').innerHTML = lifts.map(([n, st, w]) => {
+    const pip = st === 'open' ? '#3ecf6e' : st === 'line' ? '#f2a41c' : '#e8731c', label = st === 'open' ? 'OPEN' : st === 'line' ? 'LINE' : 'FLAGGED';
+    return `<div style="display:grid;grid-template-columns:14px 70px 1fr auto;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(228,229,213,.18);font:700 14px Overpass">
+      <i style="width:10px;height:10px;border-radius:50%;background:${pip};box-shadow:0 0 6px ${pip}"></i><span style="font:800 10.5px Overpass;letter-spacing:.12em;color:${pip}">${label}</span><span>${n}</span><span style="font:800 14px Overpass;color:${st === 'line' ? '#f2a41c' : '#fff9e9'}">${w}</span></div>`;
+  }).join('');
 })();
 </script>
