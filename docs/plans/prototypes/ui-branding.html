@@ -1,0 +1,390 @@
+<title>Brand Boards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=B612:wght@400;700&family=B612+Mono:wght@400;700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;0,9..144,900;1,9..144,400;1,9..144,600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+/* Basic branding for each art direction: logo, palette, type, app icon, title screen, store banner,
+   one signature item and a sample of voice. Boards are 1280 wide and scale to the page; #a, #b and #c show one alone. */
+:root {
+  --bg: #efefec; --fg: #1a1c1f; --muted: #5d6268; --line: #d6d6d0;
+  --font: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #111214; --fg: #ececea; --muted: #a2a6ab; --line: #2c2e32; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #111214; --fg: #ececea; --muted: #a2a6ab; --line: #2c2e32; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); padding-inline: 16px; padding-block: 22px 40px; margin: 0; }
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 36px; }
+.top h1 { margin: 0 0 8px; font-weight: 800; font-size: 30px; letter-spacing: -0.01em; }
+.top p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5; max-width: 80ch; }
+section { display: grid; gap: 10px; }
+section h2 { margin: 0; font-weight: 800; font-size: 22px; }
+section h2 small { font-weight: 500; color: var(--muted); font-size: 16px; margin-left: 8px; }
+.frame { position: relative; width: 100%; border-radius: 10px; overflow: hidden; }
+.board { position: absolute; left: 0; top: 0; width: 1280px; transform-origin: 0 0; }
+.abs { position: absolute; }
+.cap { position: absolute; font: 600 11px 'Archivo', sans-serif; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; }
+.pagenote { margin: 0; color: var(--muted); font-size: 14px; }
+body.solo { padding: 0; }
+body.solo .wrap { max-width: none; gap: 0; }
+body.solo .top, body.solo section > h2, body.solo .pagenote, body.solo section:not(.solo-on) { display: none; }
+body.solo .frame { width: 1280px; border-radius: 0; }
+.shot { position: absolute; overflow: hidden; }
+.shot img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------- A · Ops console ---------- */
+.bA { height: 944px; background: radial-gradient(900px 500px at 20% 0%, #232830, #121417 70%); color: #d6dbe0; font-family: 'B612', sans-serif; }
+.bA .plate { position: absolute; background: linear-gradient(180deg, #30353b, #24282d 55%, #1d2024); border: 1px solid #0b0c0e; border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.55), 0 12px 30px rgba(0, 0, 0, 0.45); }
+.bA .screen { position: absolute; background: radial-gradient(120% 90% at 50% 40%, #0c1310, #050806); border: 1px solid #000; border-radius: 4px;
+  box-shadow: inset 0 8px 22px rgba(0, 0, 0, 0.85); font-family: 'B612 Mono', monospace; color: #58f09a; }
+.bA .screw { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #8a929b, #2a2e33 72%); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55); }
+.bA .engr { color: #dfe4e9; text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.07); }
+.bA .sw { display: grid; gap: 6px; font: 700 10px 'B612', sans-serif; letter-spacing: 0.08em; color: #aeb5bc; }
+.bA .sw i { display: block; height: 42px; border-radius: 3px; border: 1px solid #060708; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+.bA .sw span { font: 400 10px 'B612 Mono', monospace; color: #6f7a74; }
+.bA .soft { display: flex; align-items: center; gap: 10px; height: 30px; font: 700 13px 'B612 Mono', monospace; letter-spacing: 0.04em; }
+.bA .soft .k { width: 20px; height: 14px; border-radius: 2px; background: linear-gradient(180deg, #474d54, #2b2f34); border: 1px solid #0b0c0e; margin-left: -34px; }
+
+/* ---------- B · Swiss signage ---------- */
+.bB { height: 944px; background: #f2f2ef; color: #111; font-family: 'Archivo', sans-serif; --red: #e2231a; }
+.bB .sheet { position: absolute; background: #fff; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08), 0 10px 26px rgba(0, 0, 0, 0.1); }
+.bB .sw { display: grid; gap: 7px; font: 700 12px 'Archivo', sans-serif; }
+.bB .sw i { display: block; height: 56px; }
+.bB .sw span { font: 500 11px 'Archivo', sans-serif; color: #6b6b6b; }
+.bB .tile { width: 56px; height: 56px; display: grid; place-items: center; background: #111; color: #fff; --cut: #111; }
+.bB .tile svg { width: 32px; height: 32px; fill: currentColor; }
+.bB .tile.red { background: var(--red); --cut: var(--red); }
+
+/* ---------- C · Trail-map print ---------- */
+.bC { height: 944px; color: #1d2a44; font-family: 'IBM Plex Sans Condensed', sans-serif;
+  --paper: #f3ead8; --ink: #1d2a44; --soft: #5b6680; --red: #c23b27; --pine: #2e5e4c; --sky: #336fae;
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .32  0 0 0 0 .25  0 0 0 0 .15  0 0 0 .12 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background: var(--grain), #e3d6bb; }
+.bC .paper { position: absolute; background: var(--grain), linear-gradient(170deg, #f8f1e2, var(--paper) 60%, #eee2cb); box-shadow: 0 1px 1px rgba(60, 40, 10, 0.18), 0 10px 24px rgba(40, 30, 10, 0.22); }
+.bC .serif { font-family: 'Fraunces', serif; }
+.bC .chip { display: grid; gap: 6px; font: 600 12px 'IBM Plex Sans Condensed', sans-serif; }
+.bC .chip i { display: block; height: 56px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(29, 42, 68, 0.15); }
+.bC .chip span { font: italic 400 12px 'Fraunces', serif; color: #5b6680; }
+.bC .lead { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; font: 500 17px 'Fraunces', serif; }
+.bC .lead i { flex: 1; border-bottom: 1.5px dotted #5b6680; transform: translateY(-4px); }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="p-lift" viewBox="0 0 24 24"><path d="M1.5 5.2L22.5 9.6" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M11.1 7.4h1.9v4.4h-1.9zM6.5 11.8h11v3.8h-11zM6.5 15.6h2.2v3.6h8.8v2.2h-11z"/></symbol>
+  <symbol id="p-ski" viewBox="0 0 24 24"><circle cx="15.8" cy="4.3" r="2.4"/><path d="M13.8 7.6l-4 5.1 3.3 3.2-2.3 3.4" stroke="currentColor" stroke-width="2.7" fill="none" stroke-linejoin="round" stroke-linecap="round"/><path d="M14.6 9.6l3.7 2.4M3 20.9l18-3.4" stroke="currentColor" stroke-width="2.1" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="p-snow" viewBox="0 0 24 24"><path d="M12 2.2v19.6M3.5 7.1l17 9.8M3.5 16.9l17-9.8" stroke="currentColor" stroke-width="2.6" fill="none"/><path d="M9.3 3.8L12 6.3l2.7-2.5M9.3 20.2L12 17.7l2.7 2.5" stroke="currentColor" stroke-width="2" fill="none"/></symbol>
+  <symbol id="p-groom" viewBox="0 0 24 24"><path d="M3 15V10.4l3-4.1h7.2l3.6 4.6H20V15z"/><path d="M7 9.8l1.6-2.1h4l1.7 2.1z" style="fill:var(--cut)"/><path d="M2.5 16.4h15.3a2.4 2.4 0 0 1 0 4.8H4.9a2.4 2.4 0 0 1-2.4-2.4z"/><path d="M20.4 11.2l2.2.9v8.6h-2.2z"/></symbol>
+  <symbol id="p-lodge" viewBox="0 0 24 24"><path d="M2.3 11.6L12 3.4l9.7 8.2V21.5h-7.3v-5.6h-4.8v5.6H2.3z"/></symbol>
+  <symbol id="p-road" viewBox="0 0 24 24"><path d="M8.2 21.5L10.8 2.5h2.4l2.6 19z"/><path d="M11.4 5.4h1.2v2.8h-1.2zM11.3 10.6h1.4v3.2h-1.4zM11.2 16.2h1.6v3.8h-1.6z" style="fill:var(--cut)"/></symbol>
+  <symbol id="p-terrain" viewBox="0 0 24 24"><path d="M1.2 21L8.6 7.6l4.2 6.8 3.1-4.6L22.8 21z"/></symbol>
+  <symbol id="p-remove" viewBox="0 0 24 24"><path d="M4.5 4.5l15 15M19.5 4.5l-15 15" stroke="currentColor" stroke-width="3.4" fill="none"/></symbol>
+  <symbol id="p-views" viewBox="0 0 24 24"><path d="M1.3 12c3.1-5.2 7.2-7.8 10.7-7.8s7.6 2.6 10.7 7.8c-3.1 5.2-7.2 7.8-10.7 7.8S4.4 17.2 1.3 12z"/><circle cx="12" cy="12" r="3.9" style="fill:var(--cut)"/><circle cx="12" cy="12" r="1.9"/></symbol>
+
+  <!-- A: a mountain drawn as a flight-plan route inside an instrument bezel -->
+  <symbol id="markA" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="57" fill="#1a1d21" stroke="#4a5058" stroke-width="2.5"/>
+    <circle cx="60" cy="60" r="46" fill="#060a08" stroke="#000"/>
+    <g stroke="#8a939d" stroke-width="1.6" id="ticksA"></g>
+    <path d="M22 82L44 50l12 14 17-30 25 48" fill="none" stroke="#ff5ed3" stroke-width="3.2" stroke-dasharray="6 4" stroke-linejoin="round"/>
+    <path d="M18 88h84" stroke="#58f09a" stroke-width="1.6"/>
+    <path d="M22 76l6 6-6 6-6-6zM44 44l6 6-6 6-6-6zM56 58l6 6-6 6-6-6zM98 76l6 6-6 6-6-6z" fill="#060a08" stroke="#ff5ed3" stroke-width="2"/>
+    <path d="M73 26l7.5 8-7.5 8-7.5-8z" fill="#ff5ed3"/>
+    <path d="M63 18v-4h-4M83 18v-4h4M63 50v4h-4M83 50v4h4" fill="none" stroke="#5fd6ff" stroke-width="1.6" transform="translate(-2 0)"/>
+  </symbol>
+  <!-- B: signal-red square, cable, chair and mountain -->
+  <symbol id="markB" viewBox="0 0 120 120">
+    <rect width="120" height="120" fill="#e2231a"/>
+    <path d="M8 16L112 40" stroke="#fff" stroke-width="6"/>
+    <path d="M57 28h7v14h-7zM44 41h32v11H44zM44 52h7v9h25v6H44z" fill="#fff"/>
+    <path d="M6 112L40 80l16 17 18-21 40 36z" fill="#fff"/>
+  </symbol>
+  <!-- C: a vintage crest with the mountain inked and the lift in red pencil -->
+  <symbol id="markC" viewBox="0 0 200 200">
+    <defs>
+      <path id="arcTop" d="M34.2 123.9A70 70 0 1 1 165.8 123.9"/>
+      <path id="arcBot" d="M28.6 126A76 76 0 0 0 171.4 126"/>
+      <pattern id="hatchC" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(40)"><line x1="0" y1="0" x2="0" y2="5" stroke="#1d2a44" stroke-width="1.1"/></pattern>
+      <clipPath id="clipC"><circle cx="100" cy="100" r="54"/></clipPath>
+    </defs>
+    <circle cx="100" cy="100" r="96" fill="#f3ead8" stroke="#1d2a44" stroke-width="4"/>
+    <circle cx="100" cy="100" r="86" fill="none" stroke="#1d2a44" stroke-width="1.4"/>
+    <circle cx="100" cy="100" r="56" fill="#fbf6ea" stroke="#1d2a44" stroke-width="2.2"/>
+    <text style="font:700 16px Fraunces,serif;letter-spacing:.2em;fill:#1d2a44"><textPath href="#arcTop" startOffset="50%" text-anchor="middle">MOUNTAIN PLANNER</textPath></text>
+    <text style="font:600 10px 'IBM Plex Sans Condensed',sans-serif;letter-spacing:.2em;fill:#1d2a44" dy="10"><textPath href="#arcBot" startOffset="50%" text-anchor="middle">A RESORT IN THE MAKING</textPath></text>
+    <circle cx="31" cy="129" r="3" fill="#c23b27"/><circle cx="169" cy="129" r="3" fill="#c23b27"/>
+    <g clip-path="url(#clipC)">
+      <circle cx="128" cy="78" r="12" fill="#e8b8a0"/>
+      <path d="M40 150L78 88l14 18 20-30 50 74z" fill="#fbf6ea" stroke="#1d2a44" stroke-width="2.2" stroke-linejoin="round"/>
+      <path d="M78 88l14 18 20-30 12 18-8-3-6 9-8-6-8 10-10-12-9 13z" fill="url(#hatchC)"/>
+      <path d="M112 76l10 15-7-2" fill="none" stroke="#1d2a44" stroke-width="1.6"/>
+      <path d="M40 150c20-10 40-8 60-14s40-2 60 4" fill="none" stroke="#2e5e4c" stroke-width="2"/>
+      <path d="M52 146l3-9 3 9zM62 144l3-10 3 10zM138 146l3-9 3 9zM148 148l3-8 3 8z" fill="#2e5e4c"/>
+      <path d="M58 140L108 82" stroke="#c23b27" stroke-width="2.4" stroke-dasharray="6 3.5"/>
+      <path d="M68 128l4 3M78 117l4 3M88 105l4 3M98 94l4 3" stroke="#c23b27" stroke-width="2"/>
+    </g>
+    <text x="100" y="170" text-anchor="middle" style="font:italic 600 10px Fraunces,serif;letter-spacing:.1em;fill:#1d2a44">est. 2026</text>
+  </symbol>
+</svg>
+
+<div class="wrap">
+  <div class="top">
+    <h1>Brand boards</h1>
+    <p>Basic branding for each art direction, all for the working title Mountain Planner. Each board has the logo, palette and typefaces, then the brand in use: an app icon, a title screen and a store banner over our Unity mountain. It ends with one signature item and a sample of how the game talks to you. Logos and names are first sketches, not final artwork.</p>
+  </div>
+
+  <!-- =============================== A =============================== -->
+  <section id="secA">
+    <h2>A · Ops console <small>run the mountain</small></h2>
+    <div class="frame" style="aspect-ratio:1280/944"><div class="board bA" id="boardA">
+      <span class="cap" style="left:32px;top:14px;color:#aeb5bc">Logo</span>
+      <div class="plate" style="left:32px;top:34px;width:720px;height:220px">
+        <i class="screw" style="left:9px;top:9px"></i><i class="screw" style="right:9px;top:9px"></i><i class="screw" style="left:9px;bottom:9px"></i><i class="screw" style="right:9px;bottom:9px"></i>
+        <svg class="abs" style="left:40px;top:34px" width="152" height="152"><use href="#markA"/></svg>
+        <div class="abs engr" style="left:222px;top:66px;font:700 38px 'B612',sans-serif;letter-spacing:.14em">MOUNTAIN</div>
+        <div class="abs engr" style="left:222px;top:110px;font:700 38px 'B612',sans-serif;letter-spacing:.14em">PLANNER</div>
+        <div class="abs" style="left:224px;top:164px;font:700 12px 'B612 Mono',monospace;letter-spacing:.24em;color:#58f09a;text-shadow:0 0 8px rgba(88,240,154,.5)">RESORT OPERATIONS SIMULATOR</div>
+      </div>
+      <span class="cap" style="left:776px;top:14px;color:#aeb5bc">Palette</span>
+      <div class="plate" style="left:776px;top:34px;width:472px;height:220px;padding:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px 12px">
+        <div class="sw"><i style="background:#23272c"></i>GRAPHITE<span>#23272C</span></div>
+        <div class="sw"><i style="background:#d6dbe0"></i>ENGRAVE<span>#D6DBE0</span></div>
+        <div class="sw"><i style="background:#58f09a"></i>ACTIVE<span>#58F09A</span></div>
+        <div class="sw"><i style="background:#ff5ed3"></i>ROUTE<span>#FF5ED3</span></div>
+        <div class="sw"><i style="background:#5fd6ff"></i>SELECTED<span>#5FD6FF</span></div>
+        <div class="sw"><i style="background:#ffb238"></i>CAUTION<span>#FFB238</span></div>
+        <div class="sw"><i style="background:#ff4b3e"></i>WARNING<span>#FF4B3E</span></div>
+        <div class="sw"><i style="background:#060a08"></i>SCREEN<span>#060A08</span></div>
+      </div>
+
+      <span class="cap" style="left:32px;top:274px;color:#aeb5bc">Title screen</span>
+      <div class="shot" style="left:32px;top:294px;width:640px;height:360px;border-radius:6px;box-shadow:0 12px 30px rgba(0,0,0,.5)">
+        <img src="assets/game-overview.jpg" alt="" style="filter:saturate(.55) brightness(.5) contrast(1.15) hue-rotate(-8deg)">
+        <div class="abs" style="inset:0;background:linear-gradient(90deg,rgba(5,8,10,.85),rgba(5,8,10,.15) 55%,rgba(5,8,10,0)),linear-gradient(0deg,rgba(5,8,10,.7),transparent 30%)"></div>
+        <svg class="abs" style="left:28px;top:26px" width="54" height="54"><use href="#markA"/></svg>
+        <div class="abs engr" style="left:92px;top:32px;font:700 19px 'B612',sans-serif;letter-spacing:.14em;line-height:1.15">MOUNTAIN<br>PLANNER</div>
+        <div class="plate" style="left:28px;top:112px;width:262px;height:192px;padding:12px">
+          <div class="screen" style="left:34px;right:12px;top:12px;bottom:12px;padding:10px 12px">
+            <div class="soft" style="color:#f1f4f6"><i class="k"></i><span style="outline:1px solid #5fd6ff;outline-offset:2px;color:#5fd6ff">NEW RESORT</span></div>
+            <div class="soft"><i class="k"></i>CONTINUE <span style="color:#5d6e64;font-size:10px">JACKSON PKS</span></div>
+            <div class="soft"><i class="k"></i>SANDBOX</div>
+            <div class="soft"><i class="k"></i>SETTINGS</div>
+            <div class="soft" style="color:#5d6e64"><i class="k"></i>QUIT</div>
+          </div>
+        </div>
+        <div class="abs" style="left:28px;bottom:18px;font:700 10px 'B612 Mono',monospace;letter-spacing:.14em;color:#58f09a">BUILD 0.1 · 43.58°N 110.83°W · SYS NOMINAL</div>
+        <svg class="abs" style="left:0;top:0" width="640" height="360" viewBox="0 0 640 360"><path d="M388 294L474 158 L508 102" fill="none" stroke="#ff5ed3" stroke-width="2" stroke-dasharray="7 5"/><path d="M474 152l6 6-6 6-6-6zM508 96l6 6-6 6-6-6z" fill="#060a08" stroke="#ff5ed3" stroke-width="1.8"/></svg>
+      </div>
+
+      <span class="cap" style="left:696px;top:274px;color:#aeb5bc">App icon</span>
+      <div class="abs" style="left:696px;top:294px;width:170px;height:170px;border-radius:38px;background:linear-gradient(180deg,#30353b,#1a1d21);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 12px 28px rgba(0,0,0,.5);display:grid;place-items:center"><svg width="128" height="128"><use href="#markA"/></svg></div>
+      <span class="cap" style="left:890px;top:274px;color:#aeb5bc">Signature: crew patch</span>
+      <svg class="abs" style="left:900px;top:292px" width="340" height="176" viewBox="0 0 340 176" id="patchA"></svg>
+      <span class="cap" style="left:696px;top:490px;color:#aeb5bc">Voice</span>
+      <div class="abs" style="left:696px;top:510px;width:552px;display:grid;gap:12px">
+        <div class="engr" style="font:700 30px 'B612',sans-serif;letter-spacing:.04em">Run the mountain.</div>
+        <div class="screen" style="position:relative;height:84px;padding:12px 16px;font-size:13px;line-height:1.6">
+          <div style="color:#ffb238">▲ CAUTION  LINES › RIDGE SIX 12 MIN</div>
+          <div>180 GUESTS AT BASE. RECOMMEND: ADD CHAIRS.</div>
+          <div style="color:#5d6e64">[ SHOW ]  [ ACK ]</div>
+        </div>
+        <div style="color:#8a939d;font-size:13px;line-height:1.45">Terse, like a dispatcher on the radio. States, then advises. Numbers first.</div>
+      </div>
+
+      <span class="cap" style="left:32px;top:680px;color:#aeb5bc">Store banner</span>
+      <div class="shot" style="left:32px;top:700px;width:460px;height:215px;border-radius:4px;box-shadow:0 12px 30px rgba(0,0,0,.5)">
+        <img src="assets/game-overview.jpg" alt="" style="filter:saturate(.6) brightness(.55) contrast(1.15);object-position:70% 40%">
+        <div class="abs" style="inset:0;background:linear-gradient(90deg,rgba(5,8,10,.9) 0%,rgba(5,8,10,.2) 60%)"></div>
+        <svg class="abs" style="left:0;top:0" width="460" height="215" viewBox="0 0 460 215"><path d="M300 190L352 110 372 64" fill="none" stroke="#ff5ed3" stroke-width="2.2" stroke-dasharray="7 5"/><path d="M352 104l6 6-6 6-6-6zM372 58l6 6-6 6-6-6z" fill="#060a08" stroke="#ff5ed3" stroke-width="1.8"/><text x="382" y="58" style="font:700 10px 'B612 Mono';fill:#ff5ed3">STN-B 3506</text></svg>
+        <svg class="abs" style="left:22px;top:52px" width="64" height="64"><use href="#markA"/></svg>
+        <div class="abs engr" style="left:98px;top:58px;font:700 22px 'B612',sans-serif;letter-spacing:.14em;line-height:1.1">MOUNTAIN<br>PLANNER</div>
+        <div class="abs" style="left:24px;top:140px;font:700 10px 'B612 Mono',monospace;letter-spacing:.2em;color:#58f09a">BUILD · RUN · EXPAND</div>
+      </div>
+      <span class="cap" style="left:516px;top:680px;color:#aeb5bc">Type</span>
+      <div class="plate" style="left:516px;top:700px;width:732px;height:215px;padding:22px 26px;display:grid;grid-template-columns:auto 1fr;gap:10px 26px;align-items:end">
+        <div class="engr" style="font:700 96px 'B612',sans-serif;line-height:.9">Aa</div>
+        <div style="display:grid;gap:6px"><b style="font:700 18px 'B612',sans-serif">B612</b><span style="color:#8a939d;font-size:13px;line-height:1.45">Designed for aircraft cockpit displays. Titles, labels and keys.</span></div>
+        <div class="screen" style="position:relative;grid-column:span 2;height:54px;padding:0 16px;display:flex;align-items:center;gap:26px;font-size:17px"><span class="w" style="color:#f1f4f6">B612 MONO</span><span>2400/H</span><span style="color:#5fd6ff">RIDE 2:28</span><span style="color:#ff5ed3">$4.12M</span><span style="color:#ffb238">▲ 12 MIN</span></div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- =============================== B =============================== -->
+  <section id="secB">
+    <h2>B · Swiss signage <small>build a ski resort</small></h2>
+    <div class="frame" style="aspect-ratio:1280/944"><div class="board bB" id="boardB">
+      <span class="cap" style="left:32px;top:14px">Logo</span>
+      <div class="sheet" style="left:32px;top:34px;width:720px;height:220px">
+        <svg class="abs" style="left:40px;top:40px" width="140" height="140"><use href="#markB"/></svg>
+        <div class="abs" style="left:208px;top:48px;font:800 58px 'Archivo',sans-serif;letter-spacing:-.03em;line-height:.95">Mountain<br>Planner</div>
+        <div class="abs" style="left:212px;top:176px;font:500 16px 'Archivo',sans-serif;color:#6b6b6b">Build a ski resort.</div>
+        <div class="abs" style="right:32px;top:40px;width:120px;height:140px;background:#e2231a;display:grid;place-items:center;color:#fff;font:800 17px 'Archivo',sans-serif;letter-spacing:-.01em;text-align:center;line-height:1.05">Mountain<br>Planner</div>
+      </div>
+      <span class="cap" style="left:776px;top:14px">Palette</span>
+      <div class="sheet" style="left:776px;top:34px;width:472px;height:220px;padding:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px 12px">
+        <div class="sw"><i style="background:#e2231a"></i>Signal red<span>#E2231A</span></div>
+        <div class="sw"><i style="background:#111"></i>Ink<span>#111111</span></div>
+        <div class="sw"><i style="background:#fff;box-shadow:inset 0 0 0 1px #ddd"></i>Snow<span>#FFFFFF</span></div>
+        <div class="sw"><i style="background:#6b6b6b"></i>Stone<span>#6B6B6B</span></div>
+        <div class="sw"><i style="background:#188a3c"></i>Piste green<span>#188A3C</span></div>
+        <div class="sw"><i style="background:#1c5aa6"></i>Piste blue<span>#1C5AA6</span></div>
+        <div class="sw"><i style="background:#111;box-shadow:inset 0 0 0 4px #fff,inset 0 0 0 5px #111"></i>Piste black<span>#111111</span></div>
+        <div class="sw"><i style="background:#ffcc00"></i>Warning<span>#FFCC00</span></div>
+      </div>
+
+      <span class="cap" style="left:32px;top:274px">Title screen</span>
+      <div class="shot" style="left:32px;top:294px;width:640px;height:360px;box-shadow:0 10px 26px rgba(0,0,0,.18)">
+        <img src="assets/game-overview.jpg" alt="">
+        <div class="abs" style="left:24px;top:24px;width:232px;background:#fff;box-shadow:0 10px 26px rgba(0,0,0,.22)">
+          <div style="height:5px;background:#e2231a"></div>
+          <div style="padding:16px 18px 10px;display:flex;gap:10px;align-items:center;border-bottom:2px solid #111"><svg width="38" height="38"><use href="#markB"/></svg><b style="font:800 20px 'Archivo',sans-serif;letter-spacing:-.02em;line-height:1">Mountain<br>Planner</b></div>
+          <div style="padding:4px 18px 12px;font:600 17px 'Archivo',sans-serif">
+            <div style="padding:9px 0;border-bottom:1px solid #e3e3e3;display:flex;justify-content:space-between"><span>New resort</span><span style="color:#e2231a">→</span></div>
+            <div style="padding:9px 0;border-bottom:1px solid #e3e3e3;color:#111">Continue<div style="font:500 12px 'Archivo';color:#6b6b6b;margin-top:2px">Jackson Peaks · day 214</div></div>
+            <div style="padding:9px 0;border-bottom:1px solid #e3e3e3">Settings</div>
+            <div style="padding:9px 0;color:#8a8a8a">Quit</div>
+          </div>
+        </div>
+        <div class="abs" style="left:0;right:0;bottom:0;height:36px;background:#111;color:#fff;display:flex;align-items:center;gap:14px;padding:0 16px;font:600 12px 'Archivo'"><svg width="22" height="22" viewBox="0 0 100 100" id="clockTiny"></svg><span>10:30</span><span style="color:#9a9a9a">Jackson Hole, Wyoming · 43.58° N</span><span style="margin-left:auto;color:#9a9a9a">Version 0.1</span></div>
+      </div>
+
+      <span class="cap" style="left:696px;top:274px">App icon</span>
+      <div class="abs" style="left:696px;top:294px;width:170px;height:170px;border-radius:38px;overflow:hidden;box-shadow:0 10px 26px rgba(0,0,0,.2)"><svg width="170" height="170"><use href="#markB"/></svg></div>
+      <span class="cap" style="left:890px;top:274px">Signature: pictograms</span>
+      <div class="abs" style="left:890px;top:294px;width:358px;display:grid;grid-template-columns:repeat(5,56px);gap:10px 18px" id="pictosB"></div>
+      <span class="cap" style="left:696px;top:490px">Voice</span>
+      <div class="abs" style="left:696px;top:510px;width:552px;display:grid;gap:12px">
+        <div style="font:800 34px 'Archivo',sans-serif;letter-spacing:-.02em">Build a ski resort.</div>
+        <div class="sheet" style="position:relative;display:grid;grid-template-columns:56px 1fr;--cut:#ffcc00"><span style="background:#ffcc00;display:grid;place-items:center"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 2.5L23 21.5H1z" fill="#111"/><path d="M10.8 8.5h2.4l-.4 7h-1.6zM10.9 17.2h2.2v2.2h-2.2z" fill="#ffcc00"/></svg></span><div style="padding:14px 16px"><b style="font-size:17px">Ridge Six: 12 min wait</b><div style="color:#6b6b6b;margin-top:3px">180 people at the base. More chairs would help.</div></div></div>
+        <div style="color:#6b6b6b;font-size:13px;line-height:1.45">Plain and factual, like a station announcement. Sentence case, no exclamation marks, the number first.</div>
+      </div>
+
+      <span class="cap" style="left:32px;top:680px">Store banner</span>
+      <div class="shot" style="left:32px;top:700px;width:460px;height:215px;box-shadow:0 10px 26px rgba(0,0,0,.18)">
+        <img src="assets/game-overview.jpg" alt="" style="object-position:75% 45%">
+        <div class="abs" style="left:0;top:0;bottom:0;width:190px;background:#e2231a;padding:22px 20px;color:#fff;display:grid;align-content:space-between">
+          <svg width="56" height="56" viewBox="0 0 120 120"><path d="M8 16L112 40" stroke="#fff" stroke-width="6"/><path d="M57 28h7v14h-7zM44 41h32v11H44zM44 52h7v9h25v6H44z" fill="#fff"/><path d="M6 112L40 80l16 17 18-21 40 36z" fill="#fff"/></svg>
+          <div style="font:800 30px 'Archivo',sans-serif;letter-spacing:-.03em;line-height:.95">Mountain<br>Planner</div>
+          <div style="font:600 12px 'Archivo'">Build a ski resort.</div>
+        </div>
+      </div>
+      <span class="cap" style="left:516px;top:680px">Type</span>
+      <div class="sheet" style="left:516px;top:700px;width:732px;height:215px;padding:22px 26px;display:grid;grid-template-columns:auto 1fr;gap:12px 28px;align-items:end">
+        <div style="font:800 110px 'Archivo',sans-serif;letter-spacing:-.04em;line-height:.85">Aa</div>
+        <div style="display:grid;gap:6px"><b style="font:800 20px 'Archivo'">Archivo</b><span style="color:#6b6b6b;font-size:14px;line-height:1.45">A grotesque in the Swiss tradition. Extra bold for headings and figures, medium for text.</span></div>
+        <div style="grid-column:span 2;display:flex;align-items:baseline;gap:22px;border-top:2px solid #111;padding-top:12px"><b style="font:800 40px 'Archivo';letter-spacing:-.03em">2,400</b><span style="font:500 16px 'Archivo'">riders per hour</span><b style="font:800 40px 'Archivo';letter-spacing:-.03em;color:#e2231a;margin-left:auto">$4.12M</b></div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- =============================== C =============================== -->
+  <section id="secC">
+    <h2>C · Trail-map print <small>every mountain starts as a sketch</small></h2>
+    <div class="frame" style="aspect-ratio:1280/944"><div class="board bC" id="boardC">
+      <span class="cap" style="left:32px;top:14px">Logo</span>
+      <div class="paper" style="left:32px;top:34px;width:720px;height:220px">
+        <svg class="abs" style="left:34px;top:14px" width="192" height="192"><use href="#markC"/></svg>
+        <div class="abs serif" style="left:254px;top:52px;font-weight:900;font-size:56px;letter-spacing:-.01em;line-height:.95">Mountain<br>Planner</div>
+        <div class="abs serif" style="left:258px;top:172px;font-style:italic;font-size:19px;color:#5b6680">a ski resort in the making</div>
+      </div>
+      <span class="cap" style="left:776px;top:14px">Palette</span>
+      <div class="paper" style="left:776px;top:34px;width:472px;height:220px;padding:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px 12px">
+        <div class="chip"><i style="background:#f3ead8"></i>Paper<span>#F3EAD8</span></div>
+        <div class="chip"><i style="background:#1d2a44"></i>Ink<span>#1D2A44</span></div>
+        <div class="chip"><i style="background:#c23b27"></i>Red pencil<span>#C23B27</span></div>
+        <div class="chip"><i style="background:#2e5e4c"></i>Pine<span>#2E5E4C</span></div>
+        <div class="chip"><i style="background:#336fae"></i>Sky<span>#336FAE</span></div>
+        <div class="chip"><i style="background:#e3d6bb"></i>Kraft<span>#E3D6BB</span></div>
+        <div class="chip"><i style="background:#5b6680"></i>Slate<span>#5B6680</span></div>
+        <div class="chip"><i style="background:#e8b8a0"></i>Alpenglow<span>#E8B8A0</span></div>
+      </div>
+
+      <span class="cap" style="left:32px;top:274px">Title screen</span>
+      <div class="shot" style="left:32px;top:294px;width:640px;height:360px;background:#f3ead8;padding:12px;box-shadow:0 10px 24px rgba(40,30,10,.3)">
+        <div class="shot" style="left:12px;top:12px;right:12px;bottom:12px"><img src="assets/game-overview.jpg" alt="" style="filter:sepia(.35) saturate(.85) contrast(1.05) brightness(1.03)"></div>
+        <div class="paper" style="left:36px;top:36px;width:246px;padding:18px 20px 16px;transform:rotate(-1deg)">
+          <svg width="82" height="82" style="display:block;margin:0 auto 4px"><use href="#markC"/></svg>
+          <div class="serif" style="text-align:center;font-weight:900;font-size:24px;line-height:1">Mountain Planner</div>
+          <div style="height:0;border-top:1.5px solid #1d2a44;margin:12px 0 6px"></div>
+          <div class="lead" style="position:relative"><span>New resort</span><i></i><span style="color:#c23b27">●</span>
+            <svg class="abs" style="left:-10px;top:-2px" width="112" height="34" viewBox="0 0 112 34"><path d="M6 20C4 6 70 2 100 8s6 20-30 22S8 30 12 14" fill="none" stroke="#c23b27" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          <div class="lead"><span>Continue</span><i></i><span style="font:italic 400 13px Fraunces;color:#5b6680">Jackson Peaks</span></div>
+          <div class="lead"><span>Settings</span><i></i><span></span></div>
+          <div class="lead" style="color:#5b6680"><span>Quit</span><i></i><span></span></div>
+        </div>
+      </div>
+
+      <span class="cap" style="left:696px;top:274px">App icon</span>
+      <div class="abs" style="left:696px;top:294px;width:170px;height:170px;border-radius:38px;background:var(--grain),#f3ead8;box-shadow:0 10px 24px rgba(40,30,10,.28);display:grid;place-items:center"><svg width="150" height="150"><use href="#markC"/></svg></div>
+      <span class="cap" style="left:890px;top:274px">Signature: season pass</span>
+      <div class="paper" style="left:890px;top:294px;width:358px;height:170px;display:grid;grid-template-columns:1fr 92px" id="ticketC">
+        <div style="padding:16px 18px;border-right:2px dotted rgba(29,42,68,.35)">
+          <div style="font:600 11px 'IBM Plex Sans Condensed';letter-spacing:.18em;color:#c23b27">SEASON PASS · 2026–27</div>
+          <div class="serif" style="font-weight:900;font-size:25px;line-height:1.05;margin-top:6px">Mountain<br>Planner</div>
+          <div class="serif" style="font-style:italic;color:#5b6680;margin-top:6px">Jackson Peaks · all lifts</div>
+          <svg width="150" height="22" style="margin-top:10px" id="barcodeC"></svg>
+        </div>
+        <div style="display:grid;place-items:center;align-content:center;gap:6px"><svg width="66" height="66"><use href="#markC"/></svg><span class="serif" style="font:italic 600 12px Fraunces">No. 0214</span></div>
+      </div>
+      <span class="cap" style="left:696px;top:490px">Voice</span>
+      <div class="abs" style="left:696px;top:510px;width:552px;display:grid;gap:12px">
+        <div class="serif" style="font-weight:900;font-size:32px;letter-spacing:-.01em">Every mountain starts as a sketch.</div>
+        <div class="paper" style="position:relative;padding:14px 18px;transform:rotate(-.6deg)"><div class="serif" style="font-weight:700;font-size:18px">The line at Ridge Six is getting long</div><div style="color:#5b6680;margin-top:4px;font-size:14.5px">180 skiers are waiting at the bottom, about 12 minutes. A few more chairs would move them along.</div></div>
+        <div style="color:#5b6680;font-size:13px;line-height:1.45">Warm and a little old-fashioned, like the resort's own trail map. Full sentences, a human tone, still to the point.</div>
+      </div>
+
+      <span class="cap" style="left:32px;top:680px">Store banner</span>
+      <div class="shot" style="left:32px;top:700px;width:460px;height:215px;background:var(--grain),#f3ead8;box-shadow:0 10px 24px rgba(40,30,10,.3)">
+        <div class="shot" style="left:200px;top:16px;right:16px;bottom:16px;box-shadow:inset 0 0 0 1px rgba(29,42,68,.3)"><img src="assets/game-overview.jpg" alt="" style="filter:sepia(.45) saturate(.8) contrast(1.05);object-position:70% 45%"></div>
+        <svg class="abs" style="left:20px;top:18px" width="92" height="92"><use href="#markC"/></svg>
+        <div class="abs serif" style="left:22px;top:118px;font-weight:900;font-size:27px;line-height:.95">Mountain<br>Planner</div>
+        <div class="abs serif" style="left:23px;top:180px;font-style:italic;font-size:13px;color:#5b6680">a ski resort in the making</div>
+      </div>
+      <span class="cap" style="left:516px;top:680px">Type</span>
+      <div class="paper" style="left:516px;top:700px;width:732px;height:215px;padding:22px 26px;display:grid;grid-template-columns:auto 1fr;gap:12px 28px;align-items:end">
+        <div class="serif" style="font-weight:900;font-size:108px;line-height:.85">Aa</div>
+        <div style="display:grid;gap:6px"><b class="serif" style="font-size:20px">Fraunces <span style="font-weight:400;font-style:italic">and</span> IBM Plex Sans Condensed</b><span style="color:#5b6680;font-size:14.5px;line-height:1.45">A soft old-style serif for names and headings; a narrow sans for figures and fine print, like a printed trail map.</span></div>
+        <div style="grid-column:span 2;display:flex;align-items:baseline;gap:22px;border-top:1.5px solid #1d2a44;padding-top:12px"><span class="serif" style="font-weight:700;font-size:30px">Ridge Six</span><span style="font:500 17px 'IBM Plex Sans Condensed'">2,400 an hour · 5.0 m/s · 2:28 ride</span><span class="serif" style="font-style:italic;font-size:22px;color:#c23b27;margin-left:auto">$4.12M</span></div>
+      </div>
+    </div></div>
+  </section>
+  <p class="pagenote">Sketches for choosing a direction: Mountain Planner is the working title, the resort and numbers are invented, and the backdrop is a capture of our Unity build.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const solo = location.hash.replace('#', '');
+  if (['a', 'b', 'c'].includes(solo)) { document.body.classList.add('solo'); document.getElementById('sec' + solo.toUpperCase()).classList.add('solo-on'); }
+  for (const id of ['A', 'B', 'C']) {
+    const b = document.getElementById('board' + id), f = b.parentElement;
+    const fit = () => { b.style.transform = `scale(${f.clientWidth / 1280})`; };
+    new ResizeObserver(fit).observe(f); fit();
+  }
+  const f1 = (n) => n.toFixed(1);
+  // A: bezel ticks around the mark.
+  let t = '';
+  for (let i = 0; i < 36; i++) { const a = i * 10 * Math.PI / 180, big = i % 3 === 0, r1 = big ? 49 : 51, r2 = 54; t += `<line x1="${f1(60 + r1 * Math.sin(a))}" y1="${f1(60 - r1 * Math.cos(a))}" x2="${f1(60 + r2 * Math.sin(a))}" y2="${f1(60 - r2 * Math.cos(a))}"/>`; }
+  document.getElementById('ticksA').innerHTML = t;
+  // A: an embroidered crew patch.
+  document.getElementById('patchA').innerHTML = `<defs><path id="patchTop" d="M28 88a60 60 0 0 1 120 0"/><path id="patchBot" d="M22 88a66 66 0 0 0 132 0"/></defs>
+    <circle cx="88" cy="88" r="84" fill="#1e2226"/><circle cx="88" cy="88" r="84" fill="none" stroke="#58f09a" stroke-width="6"/><circle cx="88" cy="88" r="77" fill="none" stroke="#0d0f11" stroke-width="1.5" stroke-dasharray="3 3"/>
+    <text style="font:700 13px B612,sans-serif;letter-spacing:.22em;fill:#dfe4e9"><textPath href="#patchTop" startOffset="50%" text-anchor="middle">MOUNTAIN PLANNER</textPath></text>
+    <text dy="9" style="font:700 10px B612,sans-serif;letter-spacing:.3em;fill:#58f09a"><textPath href="#patchBot" startOffset="50%" text-anchor="middle">OPS · CREW</textPath></text>
+    <use href="#markA" x="48" y="48" width="80" height="80"/>
+    <g transform="translate(194 60)" style="font:400 11.5px 'B612 Mono',monospace;fill:#aeb5bc"><text>Achievements and</text><text y="18">milestones share</text><text y="36">one stitched form.</text></g>`;
+  // B: the pictogram family, and a tiny station clock.
+  const pics = [['p-lift', 'Lifts', 1], ['p-ski', 'Runs'], ['p-snow', 'Snow'], ['p-groom', 'Grooming'], ['p-lodge', 'Lodges'], ['p-road', 'Roads'], ['p-terrain', 'Terrain'], ['p-remove', 'Remove'], ['p-views', 'Views']];
+  document.getElementById('pictosB').innerHTML = pics.map(([ic, lb, red]) => `<div style="display:grid;gap:5px;justify-items:start"><span class="tile${red ? ' red' : ''}"><svg viewBox="0 0 24 24"><use href="#${ic}"/></svg></span><span style="font:600 11px Archivo">${lb}</span></div>`).join('');
+  let c = `<circle cx="50" cy="50" r="48" fill="#fff"/>`;
+  for (let i = 0; i < 12; i++) { const a = i * 30 * Math.PI / 180; c += `<line x1="${f1(50 + 34 * Math.sin(a))}" y1="${f1(50 - 34 * Math.cos(a))}" x2="${f1(50 + 45 * Math.sin(a))}" y2="${f1(50 - 45 * Math.cos(a))}" stroke="#111" stroke-width="7"/>`; }
+  c += `<rect x="45" y="22" width="10" height="36" fill="#111" transform="rotate(315 50 50)"/><rect x="46" y="8" width="8" height="50" fill="#111" transform="rotate(180 50 50)"/><g transform="rotate(72 50 50)"><rect x="48.5" y="20" width="3" height="44" fill="#e2231a"/><circle cx="50" cy="20" r="9" fill="#e2231a"/></g>`;
+  document.getElementById('clockTiny').innerHTML = c;
+  // C: a barcode on the season pass.
+  let bars = '', x = 0, seed = 7;
+  while (x < 148) { seed = (seed * 9301 + 49297) % 233280; const w = 1 + Math.floor(seed / 233280 * 3); bars += `<rect x="${x}" y="0" width="${w}" height="22" fill="#1d2a44"/>`; x += w + 1 + Math.floor(((seed * 7) % 233280) / 233280 * 3); }
+  document.getElementById('barcodeC').innerHTML = bars;
+})();
+</script>
