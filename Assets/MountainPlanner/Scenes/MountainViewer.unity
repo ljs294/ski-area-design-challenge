@@ -251,6 +251,7 @@ MonoBehaviour:
   HighlightMaterial: {fileID: 2100000, guid: aaddfdc2f814e314e85e47d238967f3b, type: 2}
   Trees: {fileID: 11400000, guid: b8dd485d786cab44e86a916a54ae9f7f, type: 2}
   CliffMaterial: {fileID: 2100000, guid: 90f2f283d1bfd704395e5719d1612ff1, type: 2}
+  EdgeMaterial: {fileID: 2100000, guid: 62c631e33ae5ab54dadb8c4ddd13a9fa, type: 2}
   ForestCull: {fileID: 7200000, guid: 697c1da6fb58c6b4f8d071fa2b7ebfa8, type: 3}
   TreeShader: {fileID: 4800000, guid: c72e133dbef05a3469a5b8d57ee72054, type: 3}
   TreeImpostorShader: {fileID: 4800000, guid: 18db3481e7a65424c8dcf714160b57e9, type: 3}

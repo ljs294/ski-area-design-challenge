@@ -56,6 +56,21 @@ namespace MountainPlanner.Editor
             return material;
         }
 
+        /// <summary>The diorama base material (DioramaWall.shader) with the generated ground textures.</summary>
+        static Material EdgeMaterial()
+        {
+            const string path = "Assets/MountainPlanner/Art/Terrain/DioramaWall.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/DioramaWall.shader")) { name = "DioramaWall" };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.SetTexture("_Albedo", AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.AlbedoPath));
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
         const string HighlightMaterialPath = "Assets/MountainPlanner/Art/Highlight/Highlight.mat";
 
         /// <summary>A bright unlit red for landmark lines.</summary>
@@ -105,6 +120,7 @@ namespace MountainPlanner.Editor
             viewer.HighlightMaterial = HighlightMaterial();
             viewer.Trees = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.TreePrototypeSet>(TreeImport.SetPath);
             viewer.CliffMaterial = CliffMaterial();
+            viewer.EdgeMaterial = EdgeMaterial();
             viewer.ForestCull = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/ForestCull.compute");
             viewer.TreeShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeInstanced.shader");
             viewer.TreeImpostorShader = AssetDatabase.LoadAssetAtPath<Shader>(TreeImport.ImpostorShaderPath);

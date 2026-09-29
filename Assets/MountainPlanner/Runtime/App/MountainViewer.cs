@@ -30,6 +30,8 @@ namespace MountainPlanner.App
         public TreePrototypeSet Trees;
         /// <summary>Cliff shells (Cliff.shader), referenced from the scene so builds keep it.</summary>
         public Material CliffMaterial;
+        /// <summary>The diorama base's walls and plinth (DioramaWall.shader), referenced from the scene so builds keep it.</summary>
+        public Material EdgeMaterial;
         public ComputeShader ForestCull;
         public Shader TreeShader;
         public Shader TreeImpostorShader;
@@ -63,7 +65,7 @@ namespace MountainPlanner.App
             {
                 var progress = new Progress<OpenProgress>(p => { _status = p.Detail; _fraction = p.Fraction; });
                 _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial,
-                    new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader, ImpostorShader = TreeImpostorShader, Cliff = CliffMaterial != null ? new Material(CliffMaterial) : null });
+                    new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader, ImpostorShader = TreeImpostorShader, Cliff = CliffMaterial != null ? new Material(CliffMaterial) : null, Edge = EdgeMaterial });
                 _status = $"Opened in {_resort.Seconds:F1} s";
                 Debug.Log($"[MountainViewer] {_resort.Manifest.Site.Name}: {_resort.Tiles.Count} tiles opened in {_resort.Seconds:F2} s");
                 if (Camera != null)

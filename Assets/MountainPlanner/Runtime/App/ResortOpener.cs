@@ -31,6 +31,8 @@ namespace MountainPlanner.App
         public TreePrototypeSet Trees;
         /// <summary>Cliff shells (optional): the Cliff.shader material.</summary>
         public Material Cliff;
+        /// <summary>The diorama base at the edge of the data (optional): the DioramaWall.shader material.</summary>
+        public Material Edge;
         public ComputeShader Cull;
         public Shader Shader;
         /// <summary>Far trees (TreeImpostor.shader).</summary>
@@ -56,6 +58,8 @@ namespace MountainPlanner.App
         public long TreesPlanted;
         public long CliffTriangles;
         public Material CliffMaterial;
+        /// <summary>The diorama walls (their snow cap follows the snow).</summary>
+        public Material EdgeMaterial;
         public double ForestSeconds;
         public double Seconds;
     }
@@ -153,6 +157,13 @@ namespace MountainPlanner.App
                 Manifest = manifest, Cache = cache, Root = root, Tiles = tiles, Surface = surface, Frame = frame, Seconds = clock.Elapsed.TotalSeconds,
                 Ground = ground, PackageFolder = packageFolder,
             };
+            if (forest?.Edge != null)
+            {
+                // Sampled a few centimetres inside the cut, where the terrain has data on every side.
+                float Edge(float x, float z) => surface.HeightAt(Mathf.Clamp(x, ringRect.xMin + 0.05f, ringRect.xMax - 0.05f),
+                                                                 Mathf.Clamp(z, ringRect.yMin + 0.05f, ringRect.yMax - 0.05f));
+                resort.EdgeMaterial = DioramaBase.Create(root.transform, ringRect, Edge, (float)cache.HeightMin - DioramaBase.BaseDepth, forest.Edge).Walls;
+            }
             resort.CoverReady = PaintCoverAsync(resort, order, covers, cliffTasks, forests, forest, clock, ct);
             return resort;
         }
@@ -221,6 +232,7 @@ namespace MountainPlanner.App
             if (resort.CliffMaterial != null) resort.CliffMaterial.SetFloat("_SnowLoad", snow ? 1 : 0);
             // Lakes keep their water weight either way; the shader draws snow on ice or bare ice.
             if (resort.Ground?.Material != null) resort.Ground.Material.SetFloat("_SnowOn", snow ? 1 : 0);
+            if (resort.EdgeMaterial != null) resort.EdgeMaterial.SetFloat("_SnowOn", snow ? 1 : 0);
             var jobs = resort.Cache.Tiles.Select(t => (Tile: t, Splat: Task.Run(() => SplatTexels.Load(resort.PackageFolder, t, snow), ct))).ToList();
             int n = 0;
             foreach (var (tile, splat) in jobs)
