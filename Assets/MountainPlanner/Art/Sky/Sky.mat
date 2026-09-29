@@ -7,12 +7,11 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: ProceduralSky
-  m_Shader: {fileID: 106, guid: 0000000000000000f000000000000000, type: 0}
+  m_Name: Sky
+  m_Shader: {fileID: 4800000, guid: 1162e74ac79d24940be43f0e39c980c3, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords:
-  - _SUNDISK_HIGH_QUALITY
+  m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
@@ -26,13 +25,12 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _AtmosphereThickness: 0.8
-    - _Exposure: 1.2
-    - _SunDisk: 2
-    - _SunSize: 0.04
-    - _SunSizeConvergence: 5
+    - _DiscCos: 0.99992
+    - _Stars: 0
     m_Colors:
-    - _GroundColor: {r: 0.36899996, g: 0.34899998, b: 0.34099993, a: 1}
-    - _SkyTint: {r: 0.5, g: 0.5, b: 0.5, a: 1}
+    - _Below: {r: 0.76, g: 0.82, b: 0.86, a: 1}
+    - _Horizon: {r: 0.86, g: 0.92, b: 0.96999997, a: 1}
+    - _SunColor: {r: 1, g: 0.96999997, b: 0.92, a: 1}
+    - _Zenith: {r: 0.36999997, g: 0.61, b: 0.8399999, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

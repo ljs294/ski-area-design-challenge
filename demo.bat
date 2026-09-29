@@ -151,7 +151,7 @@ exit /b 0
 :play
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
-echo Starting the game. WASD move, Q/E rotate, R/F tilt, wheel zoom, N snow on/off, T tree snow, B wind (calm, breeze, strong), V cover map, C Corbet's Couloir, Esc quit.
+echo Starting the game. WASD move, Q/E rotate, R/F tilt, wheel zoom, N snow on/off, T tree snow, B wind (calm, breeze, strong), L light (dawn, noon, golden hour, night), V cover map, C Corbet's Couloir, Esc quit.
 start "" "%GAME%"
 goto menu
 

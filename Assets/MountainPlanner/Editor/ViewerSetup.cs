@@ -103,7 +103,9 @@ namespace MountainPlanner.Editor
             light.intensity = 1.3f;
             light.color = new Color(1f, 0.96f, 0.9f);
             light.shadows = LightShadows.Soft;
-            sun.transform.rotation = Quaternion.Euler(32f, 160f, 0f); // a winter morning sun from the south-east (task 11 computes the real one)
+            // Direction, colour and strength come from the lighting preset (SceneLighting; task 11 computes the real sun).
+            var lighting = GetOrAdd<SceneLighting>(sun);
+            lighting.Sun = light;
 
             var camGo = Find("Main Camera");
             camGo.tag = "MainCamera";
@@ -111,11 +113,18 @@ namespace MountainPlanner.Editor
             cam.nearClipPlane = 1f;
             cam.farClipPlane = 30000f;
             cam.clearFlags = CameraClearFlags.Skybox;
+            var camData = GetOrAdd<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>(camGo);
+            camData.renderPostProcessing = true;   // the lighting preset's grading
+            // Nothing samples the depth or opaque textures (the project template's defaults ask for both). With
+            // post-processing and MSAA on, making them drew the whole scene a second time: 2x the GPU time.
+            camData.requiresDepthOption = UnityEngine.Rendering.Universal.CameraOverrideOption.Off;
+            camData.requiresColorOption = UnityEngine.Rendering.Universal.CameraOverrideOption.Off;
             var fly = GetOrAdd<DebugFlyCamera>(camGo);
 
             var viewerGo = Find("Mountain Viewer");
             var viewer = GetOrAdd<MountainViewer>(viewerGo);
             viewer.Camera = fly;
+            viewer.Lighting = lighting;
             viewer.TerrainMaterial = TerrainMaterial();
             viewer.HighlightMaterial = HighlightMaterial();
             viewer.Trees = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.TreePrototypeSet>(TreeImport.SetPath);
@@ -126,19 +135,19 @@ namespace MountainPlanner.Editor
             viewer.TreeImpostorShader = AssetDatabase.LoadAssetAtPath<Shader>(TreeImport.ImpostorShaderPath);
             if (viewer.Trees == null) Debug.LogWarning("[ViewerSetup] No tree library yet: run Mountain Planner > Import Trees.");
 
-            // A procedural sky until task 11's sky and lighting presets.
-            var sky = AssetDatabase.LoadAssetAtPath<Material>("Assets/MountainPlanner/Art/Sky/ProceduralSky.mat");
+            // The gradient sky (Sky.shader); the lighting preset sets its colours.
+            const string skyPath = "Assets/MountainPlanner/Art/Sky/Sky.mat";
+            var sky = AssetDatabase.LoadAssetAtPath<Material>(skyPath);
             if (sky == null)
             {
                 Directory.CreateDirectory("Assets/MountainPlanner/Art/Sky");
-                sky = new Material(Shader.Find("Skybox/Procedural")) { name = "ProceduralSky" };
-                sky.SetFloat("_AtmosphereThickness", 0.8f);
-                sky.SetFloat("_Exposure", 1.2f);
-                AssetDatabase.CreateAsset(sky, "Assets/MountainPlanner/Art/Sky/ProceduralSky.mat");
+                sky = new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/Sky.shader")) { name = "Sky" };
+                AssetDatabase.CreateAsset(sky, skyPath);
             }
+            lighting.Sky = sky;
             RenderSettings.skybox = sky;
             RenderSettings.sun = light;
-            RenderSettings.ambientMode = AmbientMode.Skybox;
+            RenderSettings.ambientMode = AmbientMode.Trilight;   // sky light from the preset
             RenderSettings.fog = false;
 
             EditorSceneManager.SaveScene(scene, ScenePath);

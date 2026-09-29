@@ -24,6 +24,8 @@ namespace MountainPlanner.App
         /// <summary>The mountain terrain material (MountainTerrain.shader), referenced from the scene so builds keep it.</summary>
         public Material TerrainMaterial;
         public DebugFlyCamera Camera;
+        /// <summary>The lighting presets (dawn, noon, golden hour, night): L cycles them, -light picks one.</summary>
+        public SceneLighting Lighting;
         /// <summary>Unlit colour for landmark lines, referenced from the scene so builds keep the shader.</summary>
         public Material HighlightMaterial;
         /// <summary>The tree library (Mountain Planner, Import Trees); without it the mountain is bare.</summary>
@@ -52,6 +54,12 @@ namespace MountainPlanner.App
         async void Start()
         {
             Application.targetFrameRate = -1;
+            string[] startArgs = Environment.GetCommandLineArgs();
+            int light = Array.IndexOf(startArgs, "-light");
+            if (Lighting != null && light >= 0 && light + 1 < startArgs.Length) Lighting.Set(LightingPreset.IndexOf(startArgs[light + 1]), instant: true);
+            // -nopost: no grading or tonemapping, to measure what post-processing costs.
+            if (Array.IndexOf(startArgs, "-nopost") >= 0 && Camera != null)
+                UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(Camera.GetComponent<UnityEngine.Camera>()).renderPostProcessing = false;
             if (StartReviewTools()) return;   // -lineup: a tree lineup instead of a mountain
             // Task 15 investigates instanced terrain; -instancing turns it on for that work.
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-instancing") >= 0) TerrainTiles.DrawInstanced = true;
@@ -141,6 +149,7 @@ namespace MountainPlanner.App
             if (_resort != null && keys != null && keys.vKey.wasPressedThisFrame) ToggleOverlay();
             if (_resort != null && keys != null && keys.tKey.wasPressedThisFrame) ToggleTreeSnow();
             if (keys != null && keys.bKey.wasPressedThisFrame) Forest?.Wind.Cycle();
+            if (keys != null && keys.lKey.wasPressedThisFrame && Lighting != null) Lighting.Cycle();
 
             // Keep lines a few pixels wide at any distance.
             if (Camera != null)
@@ -197,7 +206,7 @@ namespace MountainPlanner.App
                 : $"{_resort.Manifest.Site.Name} · {_resort.Manifest.Site.SizeMetres / 1000.0:0.#} km · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
             if (_resort != null && _help && _landmarks.Count > 0)
-                text += $"\nC: fly to {_landmarks[0].Name} · N: snow {(_resort.SnowOn ? "on" : "off")} · V: cover map {(_resort.Ground.OverlayOn ? "on" : "off")} · T: tree snow {(Forest == null || Forest.SnowLoad > 0.5f ? "on" : "off")} · B: wind {(Forest == null ? "breeze" : Forest.Wind.Target.ToString().ToLowerInvariant())} · map data © OpenStreetMap contributors";
+                text += $"\nC: fly to {_landmarks[0].Name} · N: snow {(_resort.SnowOn ? "on" : "off")} · V: cover map {(_resort.Ground.OverlayOn ? "on" : "off")} · T: tree snow {(Forest == null || Forest.SnowLoad > 0.5f ? "on" : "off")} · B: wind {(Forest == null ? "breeze" : Forest.Wind.Target.ToString().ToLowerInvariant())} · L: {(Lighting == null ? "noon" : Lighting.CurrentName.ToLowerInvariant())} · map data © OpenStreetMap contributors";
             if (_resort != null && _help)
                 text += "\nWASD move · Q/E rotate · R/F tilt · Wheel or PgUp/PgDn zoom · Middle-drag rotate · Right-drag move · Shift faster · H hide · Esc quit";
             GUI.Box(new Rect(20, 20, 820, style.CalcHeight(new GUIContent(text), 820)), text, style);   // sized to the wrapped text
