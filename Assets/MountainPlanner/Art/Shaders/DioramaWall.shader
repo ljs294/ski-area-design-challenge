@@ -40,6 +40,7 @@ Shader "MountainPlanner/DioramaWall"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Haze.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings
@@ -88,7 +89,7 @@ Shader "MountainPlanner/DioramaWall"
                 {
                     // A model's base board: flat and dark, its top ledge a shade lighter.
                     float3 board = _PlinthColor.rgb * (n.y > 0.5 ? 1.35 : 1);
-                    return half4(board * (sun.color * ndl * 0.8 + ambient), 1);
+                    return half4(ApplyHaze(board * (sun.color * ndl * 0.8 + ambient), p), 1);
                 }
 
                 // Strata: beds about 20-90 m thick, dipping about 3 degrees and warped along the wall, so they read
@@ -128,7 +129,7 @@ Shader "MountainPlanner/DioramaWall"
                 colour *= lerp(1, 0.75, saturate(depth / 1500));
 
                 float3 lit = colour * (sun.color * ndl * sun.shadowAttenuation + ambient);
-                return half4(lit, 1);
+                return half4(ApplyHaze(lit, p), 1);
             }
             ENDHLSL
         }

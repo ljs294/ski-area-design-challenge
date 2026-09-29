@@ -57,6 +57,7 @@ Shader "MountainPlanner/Terrain"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Haze.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings
@@ -263,7 +264,7 @@ Shader "MountainPlanner/Terrain"
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation + SampleSH(normal))
                            + sun.color * spec * sun.shadowAttenuation;
                 lit = MixFog(lit, i.fog);
-                return half4(lit, 1);
+                return half4(ApplyHaze(lit, i.positionWS), 1);
             }
             ENDHLSL
         }

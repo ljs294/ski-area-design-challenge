@@ -120,6 +120,7 @@ Shader "MountainPlanner/TreeInstanced"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "TreeLighting.hlsl"
+            #include "Haze.hlsl"
 
             struct Attributes
             {
@@ -187,7 +188,7 @@ Shader "MountainPlanner/TreeInstanced"
                 half3 colour = lerp(albedo.rgb * i.tint * _Brightness, _SnowColor.rgb, snow);
                 half ao = lerp(i.shade.y, 1, snow * 0.3);
                 half3 lit = TreeLight(colour, SnowNormal(n, snow), ao, positionWS, _Translucency * _Foliage * (1 - snow));
-                return half4(lit, coverage);
+                return half4(ApplyHaze(lit, positionWS), coverage);
             }
             ENDHLSL
         }

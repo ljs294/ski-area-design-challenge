@@ -57,6 +57,7 @@ namespace MountainPlanner.App
             string[] startArgs = Environment.GetCommandLineArgs();
             int light = Array.IndexOf(startArgs, "-light");
             if (Lighting != null && light >= 0 && light + 1 < startArgs.Length) Lighting.Set(LightingPreset.IndexOf(startArgs[light + 1]), instant: true);
+            if (Lighting != null && Array.IndexOf(startArgs, "-nohaze") >= 0) Lighting.SetHaze(false);
             // -nopost: no grading or tonemapping, to measure what post-processing costs.
             if (Array.IndexOf(startArgs, "-nopost") >= 0 && Camera != null)
                 UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(Camera.GetComponent<UnityEngine.Camera>()).renderPostProcessing = false;
@@ -150,6 +151,7 @@ namespace MountainPlanner.App
             if (_resort != null && keys != null && keys.tKey.wasPressedThisFrame) ToggleTreeSnow();
             if (keys != null && keys.bKey.wasPressedThisFrame) Forest?.Wind.Cycle();
             if (keys != null && keys.lKey.wasPressedThisFrame && Lighting != null) Lighting.Cycle();
+            if (keys != null && keys.mKey.wasPressedThisFrame && Lighting != null) Lighting.SetHaze(!Lighting.HazeOn);
 
             // Keep lines a few pixels wide at any distance.
             if (Camera != null)
@@ -206,7 +208,7 @@ namespace MountainPlanner.App
                 : $"{_resort.Manifest.Site.Name} · {_resort.Manifest.Site.SizeMetres / 1000.0:0.#} km · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
             if (_resort != null && _help && _landmarks.Count > 0)
-                text += $"\nC: fly to {_landmarks[0].Name} · N: snow {(_resort.SnowOn ? "on" : "off")} · V: cover map {(_resort.Ground.OverlayOn ? "on" : "off")} · T: tree snow {(Forest == null || Forest.SnowLoad > 0.5f ? "on" : "off")} · B: wind {(Forest == null ? "breeze" : Forest.Wind.Target.ToString().ToLowerInvariant())} · L: {(Lighting == null ? "noon" : Lighting.CurrentName.ToLowerInvariant())} · map data © OpenStreetMap contributors";
+                text += $"\nC: fly to {_landmarks[0].Name} · N: snow {(_resort.SnowOn ? "on" : "off")} · V: cover map {(_resort.Ground.OverlayOn ? "on" : "off")} · T: tree snow {(Forest == null || Forest.SnowLoad > 0.5f ? "on" : "off")} · B: wind {(Forest == null ? "breeze" : Forest.Wind.Target.ToString().ToLowerInvariant())} · L: {(Lighting == null ? "noon" : Lighting.CurrentName.ToLowerInvariant())} · M: haze {(Lighting == null || Lighting.HazeOn ? "on" : "off")} · map data © OpenStreetMap contributors";
             if (_resort != null && _help)
                 text += "\nWASD move · Q/E rotate · R/F tilt · Wheel or PgUp/PgDn zoom · Middle-drag rotate · Right-drag move · Shift faster · H hide · Esc quit";
             GUI.Box(new Rect(20, 20, 820, style.CalcHeight(new GUIContent(text), 820)), text, style);   // sized to the wrapped text

@@ -18,6 +18,9 @@ namespace MountainPlanner.Presentation
         public const float BlendSeconds = 1.5f;
         /// <summary>How far toward each preset's split-toning tints the grading goes.</summary>
         public const float SplitStrength = 0.4f;
+        /// <summary>Distance haze (Haze.hlsl): none within the start, easing in to the strongest by the full distance.</summary>
+        public const float HazeStart = 3000, HazeFull = 18000, HazeStrongest = 0.35f;
+        public bool HazeOn { get; private set; } = true;
 
         public int Current { get; private set; } = 1;   // noon
         LightingPreset _from, _shown;
@@ -31,7 +34,8 @@ namespace MountainPlanner.Presentation
         static readonly int ZenithId = Shader.PropertyToID("_Zenith"), HorizonId = Shader.PropertyToID("_Horizon"),
                             BelowId = Shader.PropertyToID("_Below"), SunColorId = Shader.PropertyToID("_SunColor"),
                             DiscId = Shader.PropertyToID("_DiscCos"), StarsId = Shader.PropertyToID("_Stars"),
-                            SunDirectionId = Shader.PropertyToID("_SkySunDirection");
+                            SunDirectionId = Shader.PropertyToID("_SkySunDirection"),
+                            HazeId = Shader.PropertyToID("_Haze"), HazeColorId = Shader.PropertyToID("_HazeColor");
 
         public string CurrentName => LightingPreset.All[Current].Name;
 
@@ -53,6 +57,14 @@ namespace MountainPlanner.Presentation
             RenderSettings.ambientMode = AmbientMode.Trilight;
             _shown = LightingPreset.All[Current];
             Apply(_shown);
+            SetHaze(HazeOn);
+        }
+
+        /// <summary>M: the distance haze on or off (0.5 §4 asks for a toggle).</summary>
+        public void SetHaze(bool on)
+        {
+            HazeOn = on;
+            Shader.SetGlobalVector(HazeId, new Vector4(HazeStart, HazeFull, HazeStrongest, on ? 1 : 0));
         }
 
         /// <summary>Dawn, noon, golden hour, night, dawn…, blended.</summary>
@@ -98,6 +110,7 @@ namespace MountainPlanner.Presentation
                 Sky.SetFloat(StarsId, p.Stars);
             }
             Shader.SetGlobalVector(SunDirectionId, toSun);
+            Shader.SetGlobalColor(HazeColorId, p.Horizon);   // far ridges fade toward the sky's horizon
             _adjust.postExposure.Override(p.Exposure);
             _adjust.contrast.Override(p.Contrast);
             _adjust.saturation.Override(p.Saturation);

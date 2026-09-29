@@ -155,6 +155,7 @@ Shader "MountainPlanner/TreeImpostor"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "TreeLighting.hlsl"
+            #include "Haze.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; uint instance : SV_InstanceID; };
             struct Varyings
@@ -197,7 +198,7 @@ Shader "MountainPlanner/TreeImpostor"
                 half3 colour = lerp(albedo.rgb * i.tint * _Brightness, _SnowColor.rgb, snow);
                 half ao = lerp(data.b, 1, snow * 0.3);
                 half3 lit = TreeLight(colour, SnowNormal(n, snow), ao, i.positionWS, _Translucency * (1 - snow));
-                return half4(lit, coverage);
+                return half4(ApplyHaze(lit, i.positionWS), coverage);
             }
             ENDHLSL
         }
