@@ -128,9 +128,40 @@ def build_hood(spec, lod, st):
         for (la, ra), (lb, rb) in zip(rows, rows[1:]):
             idx = [la, ra, rb, lb] if rb != lb else [la, ra, rb]
             mb.face(idx, st["hood"].but(smooth=False), (sign, 0, 0))
+    if lod <= 1:
+        interior_lining(mb, h, half, st)
     if lod <= 2:
         end_openings(mb, h, half, st, lod)
     return mb
+
+
+def interior_lining(mb, h, half, st):
+    """A dark shell just inside the hood, facing in, closed at both ends and along the floor. In game the hood's
+    own faces are culled from inside, so without it the side glass would show straight through the hood; with it
+    every window reads as tinted glass over a dark interior, like the photos. The drive machinery sits inside."""
+    band = m(h["whiteBand"]["high"])
+    ring = [(v, w) for v, w in half if w >= band]
+    inset = 0.08
+    right = []
+    for i, (v, w) in enumerate(ring):   # offset inward along the profile's normal
+        (va, wa), (vb, wb) = ring[max(0, i - 1)], ring[min(len(ring) - 1, i + 1)]
+        ln = math.hypot(vb - va, wb - wa) or 1.0
+        right.append((max(0.0, v - (wb - wa) / ln * inset), w + (vb - va) / ln * inset))
+    prof = right + [(-v, w) for v, w in reversed(right[:-1])]   # right side up over the crown, down the left side
+    u_a = m(h["farEnd"]["band"]) + 0.05   # the end walls are innermost at the band
+    u_b = m(h["lineEnd"]["band"]) - 0.05
+    centre = (0.0, (band + prof[len(prof) // 2][1]) / 2)
+    dark = st["interior"].but(smooth=False)
+    for (v0, w0), (v1, w1) in zip(prof, prof[1:]):
+        mv, mw = (v0 + v1) / 2, (w0 + w1) / 2
+        nv, nw = w1 - w0, -(v1 - v0)
+        if nv * (centre[0] - mv) + nw * (centre[1] - mw) < 0:
+            nv, nw = -nv, -nw
+        mb.face(mb.verts_lift([(u_a, v0, w0), (u_b, v0, w0), (u_b, v1, w1), (u_a, v1, w1)]), dark, (0.0, nv, nw))
+    vf = prof[0][0]   # floor, and the two ends closed by the profile and its floor chord
+    mb.face(mb.verts_lift([(u_a, -vf, band), (u_b, -vf, band), (u_b, vf, band), (u_a, vf, band)]), dark, (0.0, 0.0, 1.0))
+    for u, facing in ((u_a, 1.0), (u_b, -1.0)):
+        mb.face(mb.verts_lift([(u, v, w) for v, w in prof]), dark, (facing, 0.0, 0.0))
 
 
 def arc_v(half, w):
