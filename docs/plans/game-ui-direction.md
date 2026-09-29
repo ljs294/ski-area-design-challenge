@@ -2,13 +2,13 @@
 
 **Audience:** the project owner and coding agents. **Status:** draft for your review. **Date:** 2026-09-29. **Applies to:** the whole game: iteration 1's mountain HUD now ([0.4 S6](phase0-0.4-ui-ux.md)), the drawing tools in Phase 3 and the simulation in Phase 4 ([0.6](phase0-0.6-milestones.md)). **Inputs:** your answers of 2026-09-29, the archived game's layout ([0.1 §2](phase0-0.1-reference-inventory.md#2-player-journey-and-screens)), and a study of Cities: Skylines II and Subway Builder (sources at the end).
 
-**In one line:** a mountain you want to look at, with light, flat panels over it; tools in a colourful bar at the bottom centre; each tool opening one floating window with its options; and Subway Builder's rhythm of **plan blueprints, build, operate, then learn from what the guests do**.
+**In one line:** a mountain you want to look at, with light frosted-glass panels over it; tools in a colourful bar at the bottom centre; each tool opening one floating window with its options; and Subway Builder's rhythm of **plan blueprints, build, operate, then learn from what the guests do**.
 
 ## 1. Decisions (owner, 2026-09-29)
 
 | # | Decision |
 |---|---|
-| UI-1 | **Look:** Subway Builder's flat, minimal panels in light and dark, with Cities: Skylines II's colourful category icons |
+| UI-1 | **Look:** Subway Builder's minimal frosted-glass panels in light and dark, with Cities: Skylines II's colourful category icons |
 | UI-2 | **Build tools** sit in a bar at the bottom centre (Cities: Skylines II). Choosing a tool opens a **floating window** with its in-depth options (Subway Builder) |
 | UI-3 | **Game flow** follows Subway Builder: blueprints first, then build and pay, then operate, then analyse and improve (§3) |
 | UI-4 | **Windows float**, as in the archived game and Subway Builder: draggable, keyboard-movable, pinnable |
@@ -98,7 +98,7 @@ The seasons give the loop its beat, as in the archived game: **summer is for pla
 
 ## 5. Look and weight
 
-- **Panels:** flat surfaces at about 90% opacity, a 1 px border, 6 px corners on windows and 12 px on cards; soft shadows at most. Light and dark themes from the 0.4 tokens.
+- **Panels:** frosted glass. Translucent surfaces (about 60% opacity) over a blurred copy of the world, so the mountain shows through. Each has a 1 px light edge with a highlight along the top, 8 px corners on windows and 6 px inside them, and soft shadows at most. Light and dark themes come from the 0.4 tokens.
 - **Icons:** colour only in the build bar (one hue per category). Everything else is monochrome outline at 1.5 px.
 - **Type:** Inter, 13 px in windows and 14 px elsewhere, with tabular numbers.
 - **Weight rules**, so it stays light:
@@ -108,7 +108,16 @@ The seasons give the loop its beat, as in the archived game: **summer is for pla
   4. Nothing on screen all the time beyond the status strip, build bar, top-right cluster and camera controls.
   5. Data on the mountain before data in windows.
   6. Panels move in 120–200 ms with no bounce; only the money change animates.
-- **Colour meanings:** difficulty (green, blue, black), money (green, red), warnings (amber). Category colours stay in the build bar.
+- **Colour meanings:**
+  - difficulty: green, blue and black; double black is black with two diamonds, as on trail signs;
+  - money: green and red;
+  - warnings: amber;
+  - blueprints: yellow, used for nothing else;
+  - lift-line waits: green, orange and red.
+
+  Lift colours stay clear of all of these. Category colours stay in the build bar.
+- **States in the world:** solid means built, dashed means planned, and a soft glow means selected. The blueprint being dragged shows its handles and one readout card beside the pointer.
+- **Buttons:** one filled button per window, the commit (Build). Toggles and tabs show selection with a tint or a white segment, never with the commit's fill. Each blueprint has its own remove (×).
 
 ## 6. What makes it fun
 
@@ -137,6 +146,10 @@ This doc covers the interface only. Game mechanics (construction time, milestone
 - **Our own control library** (`[UxmlElement]` custom controls): `GameWindow` (drag, keyboard move, pin, clamp, the one-tool rule), build bar and tool buttons, asset cards, tabs, status strip, info-view menu and legend, toasts, warnings, the drawing readout. Key controls don't lean on the default theme's visuals (the style tile's checkbox collapsed to nothing).
 - **Labels in the world** (lift names, the drawing readout, lift-line bubbles): screen-space elements moved each frame with the `DynamicTransform` usage hint, or world-space panels (available since Unity 6.2) where a sign should sit in 3D.
 - **Performance** (Unity's UI Toolkit guide): hide with `display: none` rather than zero opacity; animate transforms, not layout; virtualized ListViews for long lists; sprite and dynamic atlases to keep batches together; `[GeneratePropertyBag]` and `[CreateProperty]` so bindings don't use reflection; profile with the UI Toolkit Debugger, Profiler and Frame Debugger. Budget: the whole HUD within 0.3 ms GPU with no per-frame allocations (the mock measures 0.02-0.2 ms).
+- **Frosted glass:**
+  - Unity 6.6 adds a `backdrop-filter` USS property that blurs whatever is behind an element (URP only).
+  - The project is pinned to 6.3 LTS, which lacks it, so the same look needs our own pass. URP blurs a downsampled copy of the frame once per frame, and the panels draw it behind themselves with a UI Shader Graph material.
+  - A spike proves that path and measures its cost before the build bar lands. Upgrading instead is your call.
 - **Icons:** SVGs imported as vector images; one hue per build category.
 - **Tests:** view models in EditMode; PlayMode tests open panels and send events; review screenshots through the player flags (`-theme`, `-light`, `-nohud`, `-withhud`).
 
@@ -149,4 +162,4 @@ The clickable prototype of the build flow (4.1-4.4, with info views, the status 
 Patterns only; no art or code is copied.
 - Subway Builder: [official site and screenshots](https://www.subwaybuilder.com/), [Steam page](https://store.steampowered.com/app/4039140/Subway_Builder/), [Wikipedia](https://en.wikipedia.org/wiki/Subway_Builder), [The Punished Backlog review](https://punishedbacklog.com/subway-builder-review/).
 - Cities: Skylines II: [Steam page and screenshots](https://store.steampowered.com/app/949230/Cities_Skylines_II/), [Info views (wiki)](https://cs2.paradoxwikis.com/Info_views), [UI modding (wiki)](https://cs2.paradoxwikis.com/UI_Modding).
-- Unity: [UI Toolkit performance](https://docs.unity3d.com/6000.4/Documentation/Manual/best-practice-guides/ui-toolkit-for-advanced-unity-developers/optimizing-performance.html), [data binding](https://docs.unity3d.com/6000.5/Documentation/Manual/best-practice-guides/ui-toolkit-for-advanced-unity-developers/data-binding.html), [world space UI](https://docs.unity3d.com/6000.3/Documentation/Manual/ui-systems/world-space-ui.html).
+- Unity: [backdrop filters (6.6)](https://docs.unity3d.com/6000.6/Documentation/Manual/ui-systems/backdrop-filter.html), [UI Shader Graph (6.3)](https://docs.unity3d.com/6000.3/Documentation/Manual/ui-systems/get-started-with-ui-shader-graph.html), [UI Toolkit performance](https://docs.unity3d.com/6000.4/Documentation/Manual/best-practice-guides/ui-toolkit-for-advanced-unity-developers/optimizing-performance.html), [data binding](https://docs.unity3d.com/6000.5/Documentation/Manual/best-practice-guides/ui-toolkit-for-advanced-unity-developers/data-binding.html), [world space UI](https://docs.unity3d.com/6000.3/Documentation/Manual/ui-systems/world-space-ui.html).
