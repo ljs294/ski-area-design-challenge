@@ -14,7 +14,7 @@
 | UI-4 | **Windows float**, as in the archived game and Subway Builder: draggable, keyboard-movable, pinnable |
 | UI-5 | **Not too heavy, and really nice to look at:** the weight rules in §5 keep it light |
 
-The archived game's layout was already modelled on Subway Builder (round tool buttons, a slim bottom bar, top-right utilities, floating windows). This direction keeps those bones and adds Cities: Skylines II's build bar, live construction readouts and info views.
+**This is a new game, not a port.** The archived MapLibre edition is a starting reference (its layout was itself modelled on Subway Builder), never a constraint: where Cities: Skylines II or Subway Builder does something better, we follow them. Two side-by-side mockups, one leaning on each game, are in [`prototypes/ui-style-mockups.html`](prototypes/ui-style-mockups.html).
 
 ## 2. The screen
 
@@ -115,7 +115,6 @@ The seasons give the loop its beat, as in the archived game: **summer is for pla
 - **Every drag answers at once:** numbers and cost move with the pointer, so you design by feel.
 - **The mountain shows the results:** lift-line bubbles grow, runs glow with traffic, snow thins where it's thin.
 - **Small moments:** the first chair of the season, the first black run, opening day; a short toast and a sound, never a modal.
-- **Goals to reach:** the resort rating and milestones, like Cities: Skylines II's city tiers (from "Rope tow hill" to "Destination resort"), unlocking bigger lifts.
 - **Guests talk:** the archived game's vibe check becomes short thought bubbles on the map in the Guests info view.
 
 ## 7. Iteration 1's HUD, aligned
@@ -126,12 +125,9 @@ The style-tile HUD mock ([S6](phase0-0.4-ui-ux.md)) moves into this frame when t
 - the compass and zoom move bottom-right; the scale bar and elevation readout sit beside them;
 - the build bar appears in Phase 3; until then the bottom centre stays clear.
 
-## 8. Open questions
+## 8. Scope
 
-1. **Construction time:** as far as the sources show, Subway Builder builds once you pay. Build instantly, or over summer days (with a progress bar on the blueprint)?
-2. **Milestones and unlocks:** yes, and what should they be?
-3. **Ticket price and passes:** in the status strip's money menu, or a Finance window?
-4. **Sound:** clicks, placement and confirmation sounds from Phase 3?
+This doc covers the interface only. Game mechanics (construction time, milestones, pricing, sound) belong to the Phase 3 and Phase 4 plans; the UI leaves room for them without deciding them.
 
 ## 9. Building it in Unity
 
