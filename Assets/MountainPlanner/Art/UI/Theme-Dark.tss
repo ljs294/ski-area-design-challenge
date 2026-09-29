@@ -1,0 +1,19 @@
+@import url("unity-theme://default");
+
+/* Design tokens, dark theme (0.4 §7). HUD panels are 85% opaque. */
+:root {
+    --app-bg: #111b22;
+    --surface: #1b2933;
+    --hud-surface: rgba(27, 41, 51, 0.85);
+    --panel-hover: #263943;
+    --text: #eaf1f4;
+    --text-muted: #b0c1ca;
+    --border: #3b515e;
+    --border-strong: #78929f;
+    --accent: #80bef2;
+    --accent-contrast: #102536;
+    --danger: #ff9a9f;
+    --success: #8cd5ac;
+    --fair: #f0c36d;
+    --focus-ring: #80bef2;
+}

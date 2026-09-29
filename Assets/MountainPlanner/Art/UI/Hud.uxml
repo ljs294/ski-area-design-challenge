@@ -1,0 +1,81 @@
+<!-- S6 Mountain view HUD (0.4 §4), style-tile mock: top bar, layers panel, readouts and time bar. MountainHud binds it. -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="Hud.uss" />
+    <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
+        <ui:VisualElement name="top-bar" class="panel top-bar">
+            <ui:Label name="site-name" class="site-name" text="Mountain" />
+            <ui:Label name="quality" class="badge" text="97 · Excellent" />
+            <ui:VisualElement class="spacer" picking-mode="Ignore" />
+            <ui:Label name="camera-chip" class="chip" text="Orbit camera" tooltip="Free-fly comes with the camera task (11)" />
+            <ui:Button name="menu-button" class="icon-button" tooltip="Menu (Esc)">
+                <ui:VisualElement class="menu-bar" picking-mode="Ignore" />
+                <ui:VisualElement class="menu-bar" picking-mode="Ignore" />
+                <ui:VisualElement class="menu-bar" picking-mode="Ignore" />
+            </ui:Button>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="middle" class="middle" picking-mode="Ignore">
+            <ui:VisualElement name="menu" class="panel menu hidden">
+                <ui:Label class="panel-title" text="Menu" />
+                <ui:Button name="menu-resume" class="menu-item" text="Resume" />
+                <ui:Button name="menu-theme" class="menu-item" text="Dark theme" />
+                <ui:Button name="menu-settings" class="menu-item" text="Settings (coming)" />
+                <ui:Button name="menu-quit" class="menu-item menu-item--danger" text="Quit to desktop" />
+            </ui:VisualElement>
+            <ui:VisualElement class="spacer" picking-mode="Ignore" />
+            <ui:VisualElement name="layers" class="panel layers">
+                <ui:Button name="layers-header" class="panel-header">
+                    <ui:Label class="panel-title" text="Layers" picking-mode="Ignore" />
+                    <ui:Label name="layers-caret" class="caret" text="–" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:VisualElement name="layers-body">
+                    <ui:Button name="layer-snow" class="layer" tooltip="N">
+                        <ui:Label class="layer-label" text="Snow" picking-mode="Ignore" />
+                        <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                    </ui:Button>
+                    <ui:Button name="layer-ground" class="layer" tooltip="Comes with map layers (task 12)">
+                        <ui:Label class="layer-label" text="Ground" picking-mode="Ignore" />
+                        <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                    </ui:Button>
+                    <ui:Button name="layer-forest" class="layer" tooltip="Show or hide the trees">
+                        <ui:Label class="layer-label" text="Forest" picking-mode="Ignore" />
+                        <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                    </ui:Button>
+                    <ui:Button name="layer-cover" class="layer" tooltip="V">
+                        <ui:Label class="layer-label" text="Cover map" picking-mode="Ignore" />
+                        <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                    </ui:Button>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:VisualElement name="bottom" class="bottom" picking-mode="Ignore">
+            <ui:VisualElement class="readouts" picking-mode="Ignore">
+                <ui:VisualElement name="compass" class="compass" tooltip="North up" />
+                <ui:VisualElement class="scale" picking-mode="Ignore">
+                    <ui:VisualElement name="scale-bar" class="scale-bar" picking-mode="Ignore" />
+                    <ui:Label name="scale-label" class="readout" text="500 m" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:Label name="elevation" class="readout readout--strong" text="Elev –" picking-mode="Ignore" />
+                <ui:VisualElement class="spacer" picking-mode="Ignore" />
+                <ui:Label name="attribution" class="attribution" text="Map data © OpenStreetMap contributors · F1 keys" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement name="time-bar" class="panel time-bar">
+                <ui:VisualElement name="sun-icon" class="sun-icon" picking-mode="Ignore" />
+                <ui:Label name="time" class="readout readout--strong time" text="12:20" />
+                <ui:VisualElement name="track" class="track">
+                    <ui:VisualElement name="track-fill" class="track-fill" picking-mode="Ignore" />
+                    <ui:VisualElement name="thumb" class="thumb" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:Label class="readout date" text="Jan 15" tooltip="The date scrubber comes with the camera and lighting task (11)" />
+                <ui:VisualElement name="presets" class="presets">
+                    <ui:Button name="preset-0" class="preset" text="Dawn" />
+                    <ui:Button name="preset-1" class="preset" text="Noon" />
+                    <ui:Button name="preset-2" class="preset" text="Golden hour" />
+                    <ui:Button name="preset-3" class="preset" text="Night" />
+                </ui:VisualElement>
+                <ui:Button name="reset" class="text-button" text="Reset" tooltip="Back to noon" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

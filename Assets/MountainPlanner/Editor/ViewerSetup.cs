@@ -71,6 +71,27 @@ namespace MountainPlanner.Editor
             return material;
         }
 
+        const string UiFolder = "Assets/MountainPlanner/Art/UI/";
+
+        /// <summary>The HUD's panel settings: scaled with the screen height from a 1080p reference, light theme first.</summary>
+        static UnityEngine.UIElements.PanelSettings HudPanelSettings()
+        {
+            const string path = UiFolder + "HudPanel.asset";
+            var panel = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.PanelSettings>(path);
+            if (panel == null)
+            {
+                panel = ScriptableObject.CreateInstance<UnityEngine.UIElements.PanelSettings>();
+                AssetDatabase.CreateAsset(panel, path);
+            }
+            panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Theme-Light.tss");
+            panel.scaleMode = UnityEngine.UIElements.PanelScaleMode.ScaleWithScreenSize;
+            panel.referenceResolution = new Vector2Int(1920, 1080);
+            panel.screenMatchMode = UnityEngine.UIElements.PanelScreenMatchMode.MatchWidthOrHeight;
+            panel.match = 1;   // by height
+            EditorUtility.SetDirty(panel);
+            return panel;
+        }
+
         const string HighlightMaterialPath = "Assets/MountainPlanner/Art/Highlight/Highlight.mat";
 
         /// <summary>A bright unlit red for landmark lines.</summary>
@@ -125,6 +146,17 @@ namespace MountainPlanner.Editor
             var viewer = GetOrAdd<MountainViewer>(viewerGo);
             viewer.Camera = fly;
             viewer.Lighting = lighting;
+
+            // The S6 HUD (UI Toolkit).
+            var hudGo = Find("HUD");
+            var document = GetOrAdd<UnityEngine.UIElements.UIDocument>(hudGo);
+            document.panelSettings = HudPanelSettings();
+            document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.VisualTreeAsset>(UiFolder + "Hud.uxml");
+            var hud = GetOrAdd<MountainPlanner.UI.MountainHud>(hudGo);
+            hud.Document = document;
+            hud.LightTheme = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Theme-Light.tss");
+            hud.DarkTheme = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Theme-Dark.tss");
+            viewer.Hud = hud;
             viewer.TerrainMaterial = TerrainMaterial();
             viewer.HighlightMaterial = HighlightMaterial();
             viewer.Trees = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.TreePrototypeSet>(TreeImport.SetPath);

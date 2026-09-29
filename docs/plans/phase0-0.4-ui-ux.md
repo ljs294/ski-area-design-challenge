@@ -150,6 +150,8 @@ The number and the words always appear together.
 - **Camera-mode toggle:** Orbit ↔ Free-fly (`C`), shown as a small chip.
 - **Hide UI:** `H`. **Photo mode:** `P`.
 
+**As built (style-tile mock, UI Toolkit):** `Art/UI/Hud.uxml` and `Hud.uss` over the tokens in `Theme-Light.tss` / `Theme-Dark.tss`, bound by `MountainHud` (UI assembly), which only shows state and raises events. The panel scales with the screen height from a 1080p reference; the font is Inter, Unity 6's default. Working: the name and quality badge (band colour and word), Snow, Forest and Cover map rows (Ground waits for task 12, Imagery for its download), the compass (click for north up), a scale bar in round lengths, the elevation under the pointer, the menu (Esc: Resume, Light/Dark theme, Quit; Settings waits for S8), and the time bar showing the four lighting presets (the scrubbers come with task 11). The OpenStreetMap credit stays on screen. Readouts refresh ten times a second and change text only when their rounded value changes. Layer rows are buttons with our own checkbox, because the default theme's toggle checkmark collapsed to nothing in our layout. The old developer card (status, data quality, every key) is on F1. *Measured:* 0.02-0.2 ms GPU (`-withhud` keeps it on during the benchmark).
+
 ### S7 In-game menu
 
 Resume, Settings, My Mountains, Main menu, Quit to desktop.

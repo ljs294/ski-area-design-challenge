@@ -77,7 +77,7 @@ namespace MountainPlanner.App
 
         IEnumerator RunBenchmark(string outPath)
         {
-            _hud = false;
+            _hud = Array.IndexOf(Environment.GetCommandLineArgs(), "-withhud") >= 0;   // -withhud: measure with the HUD on
             while (Forest == null) yield return null;
             while (!_resort.CoverReady.IsCompleted) yield return null;
             string prefix = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".", Path.GetFileNameWithoutExtension(outPath));

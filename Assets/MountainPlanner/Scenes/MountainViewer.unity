@@ -264,6 +264,7 @@ MonoBehaviour:
   TerrainMaterial: {fileID: 2100000, guid: 7c108c9abb6bed448b026bc7fe126a85, type: 2}
   Camera: {fileID: 1783688403}
   Lighting: {fileID: 191903798}
+  Hud: {fileID: 664559336}
   HighlightMaterial: {fileID: 2100000, guid: aaddfdc2f814e314e85e47d238967f3b, type: 2}
   Trees: {fileID: 11400000, guid: b8dd485d786cab44e86a916a54ae9f7f, type: 2}
   CliffMaterial: {fileID: 2100000, guid: 90f2f283d1bfd704395e5719d1612ff1, type: 2}
@@ -278,6 +279,77 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 491018613}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &664559335
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 664559338}
+  - component: {fileID: 664559337}
+  - component: {fileID: 664559336}
+  m_Layer: 0
+  m_Name: HUD
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &664559336
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 664559335}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 144403ea1c9b87b419e3d983f4e3bdb8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: MountainPlanner.UI::MountainPlanner.UI.MountainHud
+  Document: {fileID: 664559337}
+  LightTheme: {fileID: -4733365628477956816, guid: 3318915e5a1a80c4a8e846a1c735bddb, type: 3}
+  DarkTheme: {fileID: -4733365628477956816, guid: a8b32120f09a56848ac9f148e5f111dc, type: 3}
+--- !u!114 &664559337
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 664559335}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 19102, guid: 0000000000000000e000000000000000, type: 0}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.dll::UnityEngine.UIElements.UIDocument
+  m_PanelSettings: {fileID: 11400000, guid: 4e1865ea0d2399d48adb99564095ee57, type: 2}
+  m_ParentUI: {fileID: 0}
+  sourceAsset: {fileID: 9197481963319205126, guid: 4a5cac6a1fd26cc4e9af13e3fe7eea72, type: 3}
+  m_SortingOrder: 0
+  m_Position: 0
+  m_WorldSpaceSizeMode: 1
+  m_WorldSpaceWidth: 1920
+  m_WorldSpaceHeight: 1080
+  m_PivotReferenceSize: 0
+  m_Pivot: 0
+  m_WorldSpaceCollider: {fileID: 0}
+--- !u!4 &664559338
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 664559335}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -445,3 +517,4 @@ SceneRoots:
   - {fileID: 191903797}
   - {fileID: 1783688405}
   - {fileID: 491018615}
+  - {fileID: 664559338}

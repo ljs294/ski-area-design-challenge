@@ -26,6 +26,8 @@ namespace MountainPlanner.App
         public DebugFlyCamera Camera;
         /// <summary>The lighting presets (dawn, noon, golden hour, night): L cycles them, -light picks one.</summary>
         public SceneLighting Lighting;
+        /// <summary>The S6 HUD (UI Toolkit, style-tile mock).</summary>
+        public MountainPlanner.UI.MountainHud Hud;
         /// <summary>Unlit colour for landmark lines, referenced from the scene so builds keep the shader.</summary>
         public Material HighlightMaterial;
         /// <summary>The tree library (Mountain Planner, Import Trees); without it the mountain is bare.</summary>
@@ -43,9 +45,17 @@ namespace MountainPlanner.App
         OpenedResort _resort;
         string _error;
         float _fps;
-        bool _help = true;
+        /// <summary>F1: the developer card (status, data quality, every key).</summary>
+        bool _help;
         /// <summary>The overlay; off for benchmarks and lineups so captures show only the scene.</summary>
         bool _hud = true;
+        /// <summary>H: hide all UI (0.4 S6).</summary>
+        bool _ui = true;
+        bool _hudShown = true;
+        float _nextReadout;
+        /// <summary>Clock times shown for the presets until task 11's scrubber (mid-January, Jackson Hole).</summary>
+        static readonly string[] PresetClock = { "07:45", "12:20", "16:15", "22:00" };
+        static readonly float[] PresetDay = { 7.75f / 24, 12.33f / 24, 16.25f / 24, 22f / 24 };
         System.Collections.Generic.List<Landmarks.Placed> _landmarks = new System.Collections.Generic.List<Landmarks.Placed>();
 
         public static string DataRoot =>
@@ -55,6 +65,12 @@ namespace MountainPlanner.App
         {
             Application.targetFrameRate = -1;
             string[] startArgs = Environment.GetCommandLineArgs();
+            if (Hud != null)
+            {
+                Hud.SetVisible(_hudShown = false);   // shown once a mountain is open
+                int theme = Array.IndexOf(startArgs, "-theme");
+                if (theme >= 0 && theme + 1 < startArgs.Length) Hud.SetTheme(startArgs[theme + 1] == "dark");
+            }
             int light = Array.IndexOf(startArgs, "-light");
             if (Lighting != null && light >= 0 && light + 1 < startArgs.Length) Lighting.Set(LightingPreset.IndexOf(startArgs[light + 1]), instant: true);
             if (Lighting != null && Array.IndexOf(startArgs, "-nohaze") >= 0) Lighting.SetHaze(false);
@@ -84,6 +100,7 @@ namespace MountainPlanner.App
                     Camera.Frame(new Vector3(0, float.IsNaN(centre) ? 2500 : centre, 0), _resort.Manifest.Site.SizeMetres * 1.1f);
                 }
                 _landmarks = Landmarks.Place(_resort.Root.transform, _resort.Frame, _resort.Surface, HighlightMaterial);
+                WireHud();
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), "-landmark") >= 0) FlyToLandmark();
                 // Unattended checks: -nosnow, -covermap, -view x,z,distance,yaw,pitch (metres from the centre, degrees),
                 // -wind calm|breeze|strong, and -screenshot <file.png>, which captures the view once it has settled, then quits.
@@ -143,8 +160,13 @@ namespace MountainPlanner.App
         {
             _fps = Mathf.Lerp(_fps, 1f / Mathf.Max(1e-4f, Time.unscaledDeltaTime), 0.05f);
             var keys = Keyboard.current;
-            if (keys != null && keys.hKey.wasPressedThisFrame) _help = !_help;
-            if (keys != null && keys.escapeKey.wasPressedThisFrame) Application.Quit();
+            if (keys != null && keys.hKey.wasPressedThisFrame) _ui = !_ui;
+            if (keys != null && keys.f1Key.wasPressedThisFrame) _help = !_help;
+            if (keys != null && keys.escapeKey.wasPressedThisFrame)
+            {
+                if (Hud != null && _resort != null) Hud.ToggleMenu();   // Quit is in the menu (0.4 S7)
+                else Application.Quit();
+            }
             if (keys != null && keys.cKey.wasPressedThisFrame) FlyToLandmark();
             if (_resort != null && keys != null && keys.nKey.wasPressedThisFrame) _ = ResortOpener.SetSnowAsync(_resort, !_resort.SnowOn, destroyCancellationToken);
             if (_resort != null && keys != null && keys.vKey.wasPressedThisFrame) ToggleOverlay();
@@ -153,6 +175,8 @@ namespace MountainPlanner.App
             if (keys != null && keys.lKey.wasPressedThisFrame && Lighting != null) Lighting.Cycle();
             if (keys != null && keys.mKey.wasPressedThisFrame && Lighting != null) Lighting.SetHaze(!Lighting.HazeOn);
 
+            UpdateHud();
+
             // Keep lines a few pixels wide at any distance.
             if (Camera != null)
                 foreach (var landmark in _landmarks)
@@ -160,6 +184,72 @@ namespace MountainPlanner.App
                     float width = Mathf.Max(3f, Vector3.Distance(Camera.transform.position, landmark.Centre) * 0.004f);
                     landmark.Line.widthMultiplier = width;
                 }
+        }
+
+        void WireHud()
+        {
+            if (Hud == null) return;
+            Hud.SetSite(_resort.Manifest.Site.Name, _resort.Manifest.Quality.Score);
+            Hud.LayerChanged += (layer, on) =>
+            {
+                if (layer == "snow" && on != _resort.SnowOn) _ = ResortOpener.SetSnowAsync(_resort, on, destroyCancellationToken);
+                else if (layer == "cover" && on != _resort.Ground.OverlayOn) ToggleOverlay();
+                else if (layer == "forest") { var view = _resort.Root.GetComponent<ForestView>(); if (view != null) view.enabled = on; }
+            };
+            Hud.PresetChosen += i => Lighting?.Set(i);
+            Hud.NorthUpChosen += () => Camera?.SetAngles(0, Camera.Pitch);
+            Hud.QuitChosen += Application.Quit;
+            DebugFlyCamera.PointerBlocked = Hud.IsPointerOverPanel;
+        }
+
+        /// <summary>Shows or hides the HUD and refreshes it ten times a second (0.4 §8: bounded, no per-frame allocation).</summary>
+        void UpdateHud()
+        {
+            if (Hud == null) return;
+            bool show = _resort != null && _hud && _ui;
+            if (show != _hudShown) Hud.SetVisible(_hudShown = show);
+            if (!show || Time.unscaledTime < _nextReadout || Camera == null) return;
+            _nextReadout = Time.unscaledTime + 0.1f;
+            var view = _resort.Root.GetComponent<ForestView>();
+            Hud.SetLayer("snow", _resort.SnowOn);
+            Hud.SetLayer("cover", _resort.Ground.OverlayOn);
+            Hud.SetLayer("forest", view == null || view.enabled);
+            int preset = Lighting != null ? Lighting.Current : 1;
+            Hud.SetPreset(preset, PresetClock[preset], PresetDay[preset]);
+            var cam = Camera.GetComponent<UnityEngine.Camera>();
+            float distance = Vector3.Distance(cam.transform.position, Camera.Target);
+            float metresPerPixel = 2 * distance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height);
+            var mouse = Mouse.current;
+            float elevation = mouse != null ? GroundUnder(cam.ScreenPointToRay(mouse.position.ReadValue())) : float.NaN;
+            Hud.SetReadouts(cam.transform.eulerAngles.y, metresPerPixel, elevation);
+        }
+
+        /// <summary>The terrain height where a ray meets the ground (NaN if it doesn't within 30 km): march, then bisect.</summary>
+        float GroundUnder(Ray ray)
+        {
+            float t = 0, step = 10, previous = 0;
+            while (t < 30000)
+            {
+                var p = ray.GetPoint(t);
+                float h = _resort.Surface.HeightAt(p.x, p.z);
+                if (!float.IsNaN(h) && p.y <= h)
+                {
+                    float lo = previous, hi = t;
+                    for (int i = 0; i < 12; i++)
+                    {
+                        float mid = (lo + hi) * 0.5f;
+                        var m = ray.GetPoint(mid);
+                        float hm = _resort.Surface.HeightAt(m.x, m.z);
+                        if (!float.IsNaN(hm) && m.y <= hm) hi = mid; else lo = mid;
+                    }
+                    var g = ray.GetPoint(hi);
+                    return _resort.Surface.HeightAt(g.x, g.z);
+                }
+                previous = t;
+                step = Mathf.Max(10, t * 0.01f);
+                t += step;
+            }
+            return float.NaN;
         }
 
         /// <summary>The cover-map overlay (task 07): flat class colours with the snow off, to check the cover.</summary>
@@ -207,14 +297,23 @@ namespace MountainPlanner.App
                 ? $"{_status}\n[{new string('#', (int)(_fraction * 30)).PadRight(30, '.')}] {_fraction * 100:F0}%"
                 : $"{_resort.Manifest.Site.Name} · {_resort.Manifest.Site.SizeMetres / 1000.0:0.#} km · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
+            if (_resort != null && !_help && Hud != null)
+            {
+                DrawLandmarkLabels();   // the HUD carries the rest; F1 shows the developer card
+                return;
+            }
             if (_resort != null && _help && _landmarks.Count > 0)
                 text += $"\nC: fly to {_landmarks[0].Name} · N: snow {(_resort.SnowOn ? "on" : "off")} · V: cover map {(_resort.Ground.OverlayOn ? "on" : "off")} · T: tree snow {(Forest == null || Forest.SnowLoad > 0.5f ? "on" : "off")} · B: wind {(Forest == null ? "breeze" : Forest.Wind.Target.ToString().ToLowerInvariant())} · L: {(Lighting == null ? "noon" : Lighting.CurrentName.ToLowerInvariant())} · M: haze {(Lighting == null || Lighting.HazeOn ? "on" : "off")} · map data © OpenStreetMap contributors";
             if (_resort != null && _help)
-                text += "\nWASD move · Q/E rotate · R/F tilt · Wheel or PgUp/PgDn zoom · Middle-drag rotate · Right-drag move · Shift faster · H hide · Esc quit";
+                text += "\nWASD move · Q/E rotate · R/F tilt · Wheel or PgUp/PgDn zoom · Middle-drag rotate · Right-drag move · Shift faster · H hide UI · F1 this card · Esc menu";
             GUI.Box(new Rect(20, 20, 820, style.CalcHeight(new GUIContent(text), 820)), text, style);   // sized to the wrapped text
             GUI.backgroundColor = Color.white;
+            DrawLandmarkLabels();
+        }
 
-            if (Camera == null) return;
+        void DrawLandmarkLabels()
+        {
+            if (Camera == null || !_ui) return;
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             var label = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.LowerCenter };
             label.normal.textColor = Color.white;
