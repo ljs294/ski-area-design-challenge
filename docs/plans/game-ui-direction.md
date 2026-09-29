@@ -16,11 +16,14 @@
 
 **This is a new game, not a port.** The archived MapLibre edition is a starting reference (its layout was itself modelled on Subway Builder), never a constraint: where Cities: Skylines II or Subway Builder does something better, we follow them. Two side-by-side mockups, one leaning on each game, are in [`prototypes/ui-style-mockups.html`](prototypes/ui-style-mockups.html).
 
-You leaned towards the Subway Builder one ("more elegant and more simulator based"). Our own identity grown from it, **Alpenglow**, is proposed in [`prototypes/ui-alpenglow.html`](prototypes/ui-alpenglow.html) for your review:
-- a ski trail map at night;
-- signage type;
-- one warm accent for what's yours;
-- a conditions board, a plan tray and a lift-ticket card.
+You leaned towards the Subway Builder one ("more elegant and more simulator based"). Our first identity grown from it, [`Alpenglow`](prototypes/ui-alpenglow.html), read as a generic AI web dashboard.
+
+Three art directions drawn from the resort's own world are in [`prototypes/ui-art-directions.html`](prototypes/ui-art-directions.html), for you to choose from:
+- an ops console;
+- Swiss signage;
+- trail-map print.
+
+They sit over a capture of our Unity mountain, with the status bar back at the bottom.
 
 ## 2. The screen
 
