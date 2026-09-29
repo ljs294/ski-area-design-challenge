@@ -12,6 +12,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: mountain_hemlock_Cluster
+    second: {fileID: 2100000, guid: ee8f9cecdab395b42ace397406c0320b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: mountain_hemlock_Foliage
     second: {fileID: 2100000, guid: 00669f719259a2f46997940b5cb84f2e, type: 2}
   materials:
@@ -41,7 +46,7 @@ ModelImporter:
     extraExposedTransformPaths: []
     extraUserProperties: []
     clipAnimations: []
-    isReadable: 0
+    isReadable: 1
   meshes:
     lODScreenPercentages:
     - 0.25

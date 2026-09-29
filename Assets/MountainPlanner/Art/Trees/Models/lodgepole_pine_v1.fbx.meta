@@ -12,6 +12,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: lodgepole_pine_Cluster
+    second: {fileID: 2100000, guid: 76ede64ea9287244e897f33ccb22718b, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: lodgepole_pine_Foliage
     second: {fileID: 2100000, guid: d3b50594260699049a7c7afefa879977, type: 2}
   materials:
@@ -41,7 +46,7 @@ ModelImporter:
     extraExposedTransformPaths: []
     extraUserProperties: []
     clipAnimations: []
-    isReadable: 0
+    isReadable: 1
   meshes:
     lODScreenPercentages:
     - 0.25

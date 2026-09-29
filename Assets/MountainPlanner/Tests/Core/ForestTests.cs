@@ -56,6 +56,69 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void CliffShellsJutOutOnCliffsAndTuckUnderElsewhere()
+        {
+            Assert.That(CliffShape.Weight(30), Is.EqualTo(0));
+            Assert.That(CliffShape.Weight(70), Is.EqualTo(1));
+            Assert.That(CliffShape.Displacement(1, 0, 0, 2500, 0), Is.EqualTo(-CliffShape.TuckMetres), "fades under the terrain");
+            double min = double.MaxValue, max = double.MinValue;
+            for (int k = 0; k < 20000; k++)
+            {
+                double d = CliffShape.Displacement(7, k * 0.37, k * 0.11, 2400 + k * 0.05, 1);
+                min = Math.Min(min, d);
+                max = Math.Max(max, d);
+            }
+            TestContext.Progress.WriteLine($"Cliff displacement {min:F2} to {max:F2} m");
+            Assert.That(min, Is.GreaterThanOrEqualTo(CliffShape.LiftMetres), "a full-strength shell always stands off the lidar surface (no flicker)");
+            Assert.That(max, Is.GreaterThan(3), "ledges and buttresses jut out metres from the face");
+        }
+
+        [Test]
+        public void JacksonHoleCliffShellsAreSeamlessAndDeterministic()
+        {
+            string dir = TestData.Folder("jackson-hole-2km");
+            foreach (string f in Directory.GetFiles(dir, "*.grid")) TestData.Bytes(dir, Path.GetFileName(f));
+            var manifest = ResortPackage.ReadManifest(dir);
+            float[] core = ResortPackage.ReadLayer(dir, manifest, "heights-core", out var coreHeader);
+            float[] ring = ResortPackage.ReadLayer(dir, manifest, "heights-ring", out var ringHeader);
+            var heights = new TerrainCache.HeightField(core, coreHeader, ring, ringHeader);
+            var site = SiteSquare.Create(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY), manifest.Site.SizeMetres / 1000.0);
+            var tiles = TileGrid.For(site);
+            var field = new CliffField(manifest, heights);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var meshes = tiles.All().ToDictionary(k => (k.Column, k.Row), k => field.BuildTile(tiles.Bounds(k)));
+            long triangles = meshes.Values.Sum(m => m.Indices.Length / 3L);
+            TestContext.Progress.WriteLine($"Cliff shells: {triangles:N0} triangles over {tiles.Count} tiles in {watch.Elapsed.TotalSeconds:F1} s");
+            Assert.That(triangles, Is.GreaterThan(10000), "Jackson Hole has real cliffs");
+
+            // Vertices on a shared tile edge are computed at the same world points by both tiles, so they
+            // must be bit-identical (no cracks in the shell): look for B's vertices, shifted into A's frame, in A.
+            int matched = 0, pairs = 0;
+            foreach (var ((c, r), a) in meshes)
+            {
+                if (!meshes.TryGetValue((c + 1, r), out var b) || a.VertexCount == 0 || b.VertexCount == 0) continue;
+                var inA = new HashSet<(float, float, float)>();
+                for (int v = 0; v < a.VertexCount; v++) inA.Add((a.Positions[v * 3], a.Positions[v * 3 + 1], a.Positions[v * 3 + 2]));
+                int edge = 0, found = 0;
+                for (int v = 0; v < b.VertexCount; v++)
+                {
+                    if (b.Positions[v * 3] > 6) continue;   // near B's west edge (displacement is at most a few metres)
+                    edge++;
+                    if (inA.Contains((b.Positions[v * 3] + 1024f, b.Positions[v * 3 + 1], b.Positions[v * 3 + 2]))) found++;
+                }
+                if (edge > 0) pairs++;
+                matched += found;
+            }
+            TestContext.Progress.WriteLine($"{matched} shell vertices shared exactly across {pairs} tile edges");
+            Assert.That(matched, Is.GreaterThan(0), "shells meet across tile edges with identical vertices");
+
+            var withCliffs = tiles.All().First(k => meshes[(k.Column, k.Row)].VertexCount > 0);
+            var again = new CliffField(manifest, heights).BuildTile(tiles.Bounds(withCliffs));
+            var first = meshes[(withCliffs.Column, withCliffs.Row)];
+            Assert.That(again.ToBytes(), Is.EqualTo(first.ToBytes()), "the same package builds the same cliffs");
+        }
+
+        [Test]
         public void JacksonHoleTreesStandOnCanopyAndFollowBigmap()
         {
             string dir = TestData.Folder("jackson-hole-2km");

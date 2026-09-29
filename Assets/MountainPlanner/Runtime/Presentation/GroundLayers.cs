@@ -57,12 +57,44 @@ namespace MountainPlanner.Presentation
             }
         }
 
+        /// <summary>Metres per texture repeat and smoothness per terrain slot (snow, forest floor, grass, rock, developed, ice).</summary>
+        static readonly float[] SlotTile = { 12, 6, 8, 14, 6, 20 };
+        static readonly float[] SlotSmooth = { 0.35f, 0.05f, 0.08f, 0.2f, 0.15f, 0.6f };
+
+        /// <summary>The terrain material this resort draws with (the mountain terrain shader), if any.</summary>
+        public Material Material { get; private set; }
+
+        /// <summary>
+        /// Sets up a resort's copy of the mountain terrain shader: per-layer tiling and smoothness, the
+        /// overlay colours, and the edge of the downloaded data (local frame) where the terrain is cut.
+        /// </summary>
+        public void Configure(Material material, Rect ring)
+        {
+            Material = material;
+            var tile = new float[Count];
+            var smooth = new float[Count];
+            var overlay = new Vector4[Count];
+            for (int k = 0; k < Count; k++)
+            {
+                int slot = Slot(k);
+                tile[slot] = SlotTile[slot];
+                smooth[slot] = SlotSmooth[slot];
+                overlay[slot] = Overlay[k];
+            }
+            material.SetFloatArray("_Tile", tile);
+            material.SetFloatArray("_Smooth", smooth);
+            material.SetVectorArray("_OverlayColor", overlay);
+            material.SetVector("_RingBounds", new Vector4(ring.xMin, ring.yMin, ring.xMax, ring.yMax));
+            material.SetFloat("_Overlay", OverlayOn ? 1 : 0);
+        }
+
         /// <summary>The terrain layer slot of cover layer k (0-4 ground in GroundLayer order, 5 = snow).</summary>
         public static int Slot(int k) => k == Snow ? 0 : k + 1;
 
         public void SetOverlay(bool on)
         {
             OverlayOn = on;
+            if (Material != null) Material.SetFloat("_Overlay", on ? 1 : 0);
             for (int k = 0; k < Count; k++)
             {
                 Layers[Slot(k)].diffuseTexture = on ? _flat[k] : _textures[k];

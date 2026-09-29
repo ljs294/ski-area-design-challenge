@@ -16,30 +16,42 @@ namespace MountainPlanner.Editor
     {
         public const string ScenePath = "Assets/MountainPlanner/Scenes/MountainViewer.unity";
         public const string PlayerPath = "Builds/Windows/SkiAreaDesignChallenge.exe";
-        public const string TerrainMaterialPath = "Assets/MountainPlanner/Art/Terrain/TerrainLit.mat";
-
-        /// <summary>A URP Terrain/Lit material asset; the scene references it so the shader is always in builds.</summary>
-        static Material TerrainMaterial()
-        {
-            var existing = AssetDatabase.LoadAssetAtPath<Material>(TerrainMaterialPath);
-            if (existing != null) return ConfigureTerrainMaterial(existing);
-            Directory.CreateDirectory(Path.GetDirectoryName(TerrainMaterialPath));
-            var shader = Shader.Find("Universal Render Pipeline/Terrain/Lit");
-            if (shader == null) throw new System.InvalidOperationException("URP Terrain/Lit shader not found.");
-            var material = new Material(shader) { name = "TerrainLit", enableInstancing = true };
-            AssetDatabase.CreateAsset(material, TerrainMaterialPath);
-            return ConfigureTerrainMaterial(material);
-        }
+        public const string TerrainMaterialPath = "Assets/MountainPlanner/Art/Terrain/MountainTerrain.mat";
 
         /// <summary>
-        /// Instancing is off (task 06), so the instanced per-pixel-normal keyword is cleared: without an
-        /// instanced normal map it lit the ground with garbage normals (a wavy sheen along layer edges).
+        /// The mountain terrain material (MountainTerrain.shader) with the generated ground textures; the
+        /// scene references it, so the shader and textures are always in builds.
         /// </summary>
-        static Material ConfigureTerrainMaterial(Material material)
+        static Material TerrainMaterial()
         {
-            material.enableInstancing = true;
-            material.SetFloat("_EnableInstancedPerPixelNormal", 0f);
-            material.DisableKeyword("_TERRAIN_INSTANCED_PERPIXEL_NORMAL");
+            if (AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.AlbedoPath) == null) GroundTextures.Generate();
+            var material = AssetDatabase.LoadAssetAtPath<Material>(TerrainMaterialPath);
+            if (material == null)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(TerrainMaterialPath));
+                var shader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/MountainTerrain.shader")
+                             ?? throw new System.InvalidOperationException("MountainTerrain.shader not found.");
+                material = new Material(shader) { name = "MountainTerrain" };
+                AssetDatabase.CreateAsset(material, TerrainMaterialPath);
+            }
+            material.SetTexture("_Albedo", AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.AlbedoPath));
+            material.SetTexture("_Normals", AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.NormalPath));
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        /// <summary>The cliff-shell material (Cliff.shader) with the generated ground textures.</summary>
+        static Material CliffMaterial()
+        {
+            const string path = "Assets/MountainPlanner/Art/Terrain/Cliff.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/Cliff.shader")) { name = "Cliff" };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            material.SetTexture("_Albedo", AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.AlbedoPath));
+            material.SetTexture("_Normals", AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.NormalPath));
             EditorUtility.SetDirty(material);
             return material;
         }
@@ -60,64 +72,42 @@ namespace MountainPlanner.Editor
             return material;
         }
 
-        /// <summary>
-        /// The terrain's hidden passes: more than four layers need the add pass, and far tiles use the
-        /// basemap passes. Builds strip shaders nothing references, so the scene references these.
-        /// </summary>
-        static Material[] TerrainPassMaterials()
-        {
-            string[] shaders =
-            {
-                "Hidden/Universal Render Pipeline/Terrain/Lit (Add Pass)",
-                "Hidden/Universal Render Pipeline/Terrain/Lit (Base Pass)",
-                "Hidden/Universal Render Pipeline/Terrain/Lit (Basemap Gen)",
-            };
-            var result = new Material[shaders.Length];
-            for (int i = 0; i < shaders.Length; i++)
-            {
-                string path = $"Assets/MountainPlanner/Art/Terrain/TerrainPass{i}.mat";
-                var material = AssetDatabase.LoadAssetAtPath<Material>(path);
-                if (material == null)
-                {
-                    var shader = Shader.Find(shaders[i]) ?? throw new System.InvalidOperationException(shaders[i] + " not found.");
-                    material = new Material(shader) { name = "TerrainPass" + i };
-                    AssetDatabase.CreateAsset(material, path);
-                }
-                result[i] = material;
-            }
-            return result;
-        }
-
         [MenuItem("Mountain Planner/Create Viewer Scene")]
         public static void CreateViewerScene()
         {
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            // Update the scene in place when it exists: recreating it gave every object a new id on each build
+            // (noisy diffs with no real change).
+            var scene = File.Exists(ScenePath)
+                ? EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single)
+                : EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            var sun = new GameObject("Sun");
-            var light = sun.AddComponent<Light>();
+            var sun = Find("Sun");
+            var light = GetOrAdd<Light>(sun);
             light.type = LightType.Directional;
             light.intensity = 1.3f;
             light.color = new Color(1f, 0.96f, 0.9f);
             light.shadows = LightShadows.Soft;
             sun.transform.rotation = Quaternion.Euler(32f, 160f, 0f); // a winter morning sun from the south-east (task 11 computes the real one)
 
-            var camGo = new GameObject("Main Camera") { tag = "MainCamera" };
-            var cam = camGo.AddComponent<Camera>();
+            var camGo = Find("Main Camera");
+            camGo.tag = "MainCamera";
+            var cam = GetOrAdd<Camera>(camGo);
             cam.nearClipPlane = 1f;
             cam.farClipPlane = 30000f;
             cam.clearFlags = CameraClearFlags.Skybox;
-            var fly = camGo.AddComponent<DebugFlyCamera>();
+            var fly = GetOrAdd<DebugFlyCamera>(camGo);
 
-            var viewerGo = new GameObject("Mountain Viewer");
-            var viewer = viewerGo.AddComponent<MountainViewer>();
+            var viewerGo = Find("Mountain Viewer");
+            var viewer = GetOrAdd<MountainViewer>(viewerGo);
             viewer.Camera = fly;
             viewer.TerrainMaterial = TerrainMaterial();
             viewer.HighlightMaterial = HighlightMaterial();
-            viewer.KeepShaders = TerrainPassMaterials();
             viewer.Trees = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.TreePrototypeSet>(TreeImport.SetPath);
+            viewer.CliffMaterial = CliffMaterial();
             viewer.ForestCull = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/ForestCull.compute");
             viewer.TreeShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeInstanced.shader");
+            viewer.TreeImpostorShader = AssetDatabase.LoadAssetAtPath<Shader>(TreeImport.ImpostorShaderPath);
             if (viewer.Trees == null) Debug.LogWarning("[ViewerSetup] No tree library yet: run Mountain Planner > Import Trees.");
 
             // A procedural sky until task 11's sky and lighting presets.
@@ -141,12 +131,24 @@ namespace MountainPlanner.Editor
             Debug.Log($"[ViewerSetup] Saved {ScenePath} and set it as the only scene in the build.");
         }
 
+        static GameObject Find(string name) => GameObject.Find(name) ?? new GameObject(name);
+
+        static T GetOrAdd<T>(GameObject go) where T : Component
+        {
+            var existing = go.GetComponent<T>();
+            return existing != null ? existing : go.AddComponent<T>();   // not ??: Unity's missing components are "fake null"
+        }
+
         [MenuItem("Mountain Planner/Build Windows Player")]
         public static void BuildWindows()
         {
             CreateViewerScene();
             PlayerSettings.companyName = "Ski Area Design Challenge";
             PlayerSettings.productName = "Ski Area Design Challenge";
+            PlayerSettings.enableFrameTimingStats = true;   // GPU frame times for -benchmark
+            // Keep running when the window loses focus: loading a mountain shouldn't stall on alt-tab, and
+            // unattended captures and benchmarks froze whenever another window took focus.
+            PlayerSettings.runInBackground = true;
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },

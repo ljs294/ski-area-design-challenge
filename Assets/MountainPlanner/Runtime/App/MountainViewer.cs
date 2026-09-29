@@ -18,20 +18,21 @@ namespace MountainPlanner.App
     /// (the demo), else the first mountain in the library. The library is
     /// %LOCALAPPDATA%\SkiAreaDesignChallenge, where tools/acquire (demo.bat 11–14) puts downloads.
     /// </summary>
-    public sealed class MountainViewer : MonoBehaviour
+    public sealed partial class MountainViewer : MonoBehaviour
     {
         public TerrainDetail Detail = TerrainDetail.High;
-        /// <summary>URP Terrain/Lit, referenced from the scene so builds keep the shader.</summary>
+        /// <summary>The mountain terrain material (MountainTerrain.shader), referenced from the scene so builds keep it.</summary>
         public Material TerrainMaterial;
         public DebugFlyCamera Camera;
         /// <summary>Unlit colour for landmark lines, referenced from the scene so builds keep the shader.</summary>
         public Material HighlightMaterial;
-        /// <summary>Materials for the terrain's hidden passes, referenced only so builds keep their shaders.</summary>
-        public Material[] KeepShaders;
         /// <summary>The tree library (Mountain Planner, Import Trees); without it the mountain is bare.</summary>
         public TreePrototypeSet Trees;
+        /// <summary>Cliff shells (Cliff.shader), referenced from the scene so builds keep it.</summary>
+        public Material CliffMaterial;
         public ComputeShader ForestCull;
         public Shader TreeShader;
+        public Shader TreeImpostorShader;
 
         string _status = "Starting";
         float _fraction;
@@ -39,6 +40,8 @@ namespace MountainPlanner.App
         string _error;
         float _fps;
         bool _help = true;
+        /// <summary>The overlay; off for benchmarks and lineups so captures show only the scene.</summary>
+        bool _hud = true;
         System.Collections.Generic.List<Landmarks.Placed> _landmarks = new System.Collections.Generic.List<Landmarks.Placed>();
 
         public static string DataRoot =>
@@ -47,6 +50,7 @@ namespace MountainPlanner.App
         async void Start()
         {
             Application.targetFrameRate = -1;
+            if (StartReviewTools()) return;   // -lineup: a tree lineup instead of a mountain
             // Task 15 investigates instanced terrain; -instancing turns it on for that work.
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-instancing") >= 0) TerrainTiles.DrawInstanced = true;
             string folder = PickPackage();
@@ -59,7 +63,7 @@ namespace MountainPlanner.App
             {
                 var progress = new Progress<OpenProgress>(p => { _status = p.Detail; _fraction = p.Fraction; });
                 _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial,
-                    new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader });
+                    new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader, ImpostorShader = TreeImpostorShader, Cliff = CliffMaterial != null ? new Material(CliffMaterial) : null });
                 _status = $"Opened in {_resort.Seconds:F1} s";
                 Debug.Log($"[MountainViewer] {_resort.Manifest.Site.Name}: {_resort.Tiles.Count} tiles opened in {_resort.Seconds:F2} s");
                 if (Camera != null)
@@ -83,6 +87,8 @@ namespace MountainPlanner.App
                     Camera.Frame(new Vector3(v[0], _resort.Surface.HeightAt(v[0], v[1]), v[1]), v[2]);
                     Camera.SetAngles(v[3], v[4]);
                 }
+                int bench = Array.IndexOf(args, "-benchmark");
+                if (bench >= 0 && bench + 1 < args.Length) StartCoroutine(RunBenchmark(args[bench + 1]));
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
             }
@@ -169,6 +175,7 @@ namespace MountainPlanner.App
 
         void OnGUI()
         {
+            if (!_hud) return;
             var style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 15, wordWrap = true };
             style.normal.textColor = Color.white;
             GUI.backgroundColor = new Color(0f, 0f, 0f, 2f); // the default box is too pale to read over snow

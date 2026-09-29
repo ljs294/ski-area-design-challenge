@@ -2,6 +2,8 @@
 
 **Audience:** the project owner. **Status:** round 3 answered 2026-09-27; the look, seasons plan and budgets are approved. **Date:** 2026-09-27. **Part of:** task 08, the style tile ([0.7](phase0-0.7-phase1-plan.md)); the look is set in [0.5 §3](phase0-0.5-art-direction.md).
 
+**Later:** the [tree realism review](phase1-trees-review.md) (2026-09-28) reworked the LODs, needle textures, trunks and bark, and the snow on branches, and added impostors.
+
 These trees are built by a Blender script ([`tools/assets/trees/`](../../tools/assets/trees/README.md)), not modelled by hand, so each new species costs a parameter block rather than an artist's day. These are **Blender renders, not the game**. In Unity the tree shader adds wind, per-tree colour jitter and the real snow material.
 
 ## Round 1 (2026-09-26): your answers

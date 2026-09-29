@@ -29,9 +29,13 @@ namespace MountainPlanner.App
     public sealed class ForestAssets
     {
         public TreePrototypeSet Trees;
+        /// <summary>Cliff shells (optional): the Cliff.shader material.</summary>
+        public Material Cliff;
         public ComputeShader Cull;
         public Shader Shader;
-        public bool IsComplete => Trees != null && Cull != null && Shader != null && SystemInfo.supportsComputeShaders;
+        /// <summary>Far trees (TreeImpostor.shader).</summary>
+        public Shader ImpostorShader;
+        public bool IsComplete => Trees != null && Cull != null && Shader != null && ImpostorShader != null && SystemInfo.supportsComputeShaders;
     }
 
     /// <summary>A resort on screen.</summary>
@@ -50,6 +54,8 @@ namespace MountainPlanner.App
         public Task CoverReady = Task.CompletedTask;
         public double CoverSeconds;
         public long TreesPlanted;
+        public long CliffTriangles;
+        public Material CliffMaterial;
         public double ForestSeconds;
         public double Seconds;
     }
@@ -83,6 +89,14 @@ namespace MountainPlanner.App
             var root = new GameObject($"Resort: {manifest.Site.Name}");
             if (parent != null) root.transform.SetParent(parent, false);
             var ground = new GroundLayers();
+            var ringBox = SiteSquare.Create(frame.Origin, manifest.Site.SizeMetres / 1000.0).Ring;
+            var (rw, rs) = frame.ToLocal(new AlbersPoint(ringBox.West, ringBox.South));
+            var ringRect = new Rect((float)rw, (float)rs, (float)ringBox.Width, (float)ringBox.Height);
+            if (TerrainTiles.UsesMountainShader(material))
+            {
+                material = new Material(material) { name = material.name + " (" + manifest.Site.Name + ")" };
+                ground.Configure(material, ringRect);
+            }
             // Tiles start with just the snow layer (all a fresh tile shows); the ground layers join when its
             // cover is painted. Six layers per tile up front added about half a second to opening.
             var layers = new[] { ground.Layers[0] };
@@ -108,6 +122,9 @@ namespace MountainPlanner.App
                                                                       await heightsTask.ConfigureAwait(false), origin, tileMetres, heightMin, heightRange), ct);
                 }).ToList();
             }
+            List<Task<CliffShells.Prepared>> cliffTasks = null;
+            if (forest != null && forest.Cliff != null)
+                cliffTasks = order.Select(t => Task.Run(() => CliffShells.Prepare(TerrainCache.ReadCliffs(packageFolder, t)), ct)).ToList();
             float start = progress == null ? 0 : 0.5f;
             double waited = 0, created = 0;
             var part = Stopwatch.StartNew();
@@ -124,39 +141,60 @@ namespace MountainPlanner.App
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
             }
             TerrainTiles.ConnectNeighbours(tiles);
-            UnityEngine.Debug.Log($"[ResortOpener] {order.Count} tiles: waiting for decode {waited:F2} s, creating terrains {created:F2} s, total {clock.Elapsed.TotalSeconds:F2} s");
+            UnityEngine.Debug.Log($"[ResortOpener] {order.Count} tiles: waiting for decode {waited:F2} s, creating terrains {created:F2} s " +
+                                  $"(setup {TerrainTiles.ProfileSetup:F2}, heights {TerrainTiles.ProfileSetHeights:F2}, sync {TerrainTiles.ProfileSync:F2}), total {clock.Elapsed.TotalSeconds:F2} s");
 
-            var ring = SiteSquare.Create(frame.Origin, manifest.Site.SizeMetres / 1000.0).Ring;
-            var (w, s) = frame.ToLocal(new AlbersPoint(ring.West, ring.South));
             var first = cache.Tiles.OrderBy(t => t.Row).ThenBy(t => t.Column).First();
             var (tw, tn) = frame.ToLocal(new AlbersPoint(first.West, first.North));
-            var surface = new UnityTerrainSurface(tiles, (float)tw, (float)tn, (float)cache.TileMetres, new Rect((float)w, (float)s, (float)ring.Width, (float)ring.Height));
+            var surface = new UnityTerrainSurface(tiles, (float)tw, (float)tn, (float)cache.TileMetres, ringRect);
             progress?.Report(new OpenProgress("Ready", 1));
             var resort = new OpenedResort
             {
                 Manifest = manifest, Cache = cache, Root = root, Tiles = tiles, Surface = surface, Frame = frame, Seconds = clock.Elapsed.TotalSeconds,
                 Ground = ground, PackageFolder = packageFolder,
             };
-            resort.CoverReady = PaintCoverAsync(resort, order, covers, forests, forest, clock, ct);
+            resort.CoverReady = PaintCoverAsync(resort, order, covers, cliffTasks, forests, forest, clock, ct);
             return resort;
         }
 
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
-        static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers,
-                                          List<Task<ForestInstance[]>> forests, ForestAssets forest, Stopwatch clock, CancellationToken ct)
+        static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, List<Task<CliffShells.Prepared>> cliffTasks,
+                                          List<Task<ForestInstance[]>> forests, ForestAssets forest,
+                                          Stopwatch clock, CancellationToken ct)
         {
             for (int n = 0; n < order.Count; n++)
             {
                 var splat = await covers[n];
                 ct.ThrowIfCancellationRequested();
                 if (resort.Root == null) return; // closed meanwhile
-                var data = resort.Tiles[(order[n].Column, order[n].Row)].terrainData;
-                data.terrainLayers = resort.Ground.Layers;
-                TerrainTiles.ApplySplat(data, splat);
+                var terrain = resort.Tiles[(order[n].Column, order[n].Row)];
+                terrain.terrainData.terrainLayers = resort.Ground.Layers;
+                TerrainTiles.ApplySplat(terrain.terrainData, splat);
+                TerrainTiles.BindSplat(terrain);
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
             }
             resort.CoverSeconds = clock.Elapsed.TotalSeconds;
             UnityEngine.Debug.Log($"[ResortOpener] ground cover painted at {resort.CoverSeconds:F2} s");
+
+            // Cliff shells: the rock volume the heightmap can't hold.
+            if (cliffTasks != null)
+            {
+                resort.CliffMaterial = forest.Cliff;
+                long triangles = 0;
+                for (int n = 0; n < order.Count; n++)
+                {
+                    var shell = await cliffTasks[n];
+                    if (resort.Root == null) return;
+                    if (shell == null) continue;
+                    var tile = order[n];
+                    var (ox, oz) = resort.Frame.ToLocal(new AlbersPoint(tile.West, tile.North - resort.Cache.TileMetres));
+                    CliffShells.Create(resort.Root.transform, $"Cliffs t{tile.Column}_{tile.Row}", new Vector3((float)ox, 0, (float)oz), shell, forest.Cliff);
+                    triangles += shell.Indices.Length / 3;
+                    if (n % TilesPerFrame == 0) await Task.Yield();
+                }
+                resort.CliffTriangles = triangles;
+                UnityEngine.Debug.Log($"[ResortOpener] cliff shells ({triangles:N0} triangles) at {clock.Elapsed.TotalSeconds:F2} s");
+            }
             if (forests == null) return;
 
             // Then the forest: every tile's trees go into one GPU buffer (ForestRenderer).
@@ -164,7 +202,7 @@ namespace MountainPlanner.App
             ct.ThrowIfCancellationRequested();
             if (resort.Root == null) return;
             var instances = await Task.Run(() => all.SelectMany(a => a).ToArray(), ct);
-            var renderer = new ForestRenderer(forest.Trees, instances, forest.Cull, forest.Shader);
+            var renderer = new ForestRenderer(forest.Trees, instances, forest.Cull, forest.Shader, forest.ImpostorShader);
             var view = resort.Root.AddComponent<ForestView>();
             view.Renderer = renderer;
             resort.TreesPlanted = instances.Length;
@@ -180,12 +218,17 @@ namespace MountainPlanner.App
         {
             await resort.CoverReady;
             resort.SnowOn = snow;
+            if (resort.CliffMaterial != null) resort.CliffMaterial.SetFloat("_SnowLoad", snow ? 1 : 0);
             var jobs = resort.Cache.Tiles.Select(t => (Tile: t, Splat: Task.Run(() => SplatTexels.Load(resort.PackageFolder, t, snow), ct))).ToList();
             int n = 0;
             foreach (var (tile, splat) in jobs)
             {
                 var texels = await splat;
-                if (resort.Tiles.TryGetValue((tile.Column, tile.Row), out var terrain)) TerrainTiles.ApplySplat(terrain.terrainData, texels);
+                if (resort.Tiles.TryGetValue((tile.Column, tile.Row), out var terrain))
+                {
+                    TerrainTiles.ApplySplat(terrain.terrainData, texels);
+                    TerrainTiles.BindSplat(terrain);
+                }
                 if (++n % 8 == 0) await Task.Yield();
             }
         }
