@@ -146,9 +146,9 @@ body.solo .frame { width: 1280px; border-radius: 0; }
 .dC .note { position: absolute; background: var(--grain), #fbf5e6; box-shadow: 0 1px 1px rgba(60, 40, 10, 0.2), 0 8px 18px rgba(40, 30, 10, 0.3); }
 
 /* ================= D · Trailhead: the MapLibre edition's title signpost, carried into the game ================= */
-.dD { font-family: 'Overpass', 'Segoe UI', sans-serif; color: #28382e; font-size: 14px; font-variant-numeric: tabular-nums;
-  --green: #245840; --blue: #335f80; --black: #303735; --cream: #fff9e9; --plate: #efe8d6; --moss: #56614e; --ink: #28382e; --bolt: #b3b6a6; --flag: #e8731c; --caution: #f2a41c; }
-.dD .sign { position: relative; color: var(--cream); background: var(--face, var(--black)); border: 1px solid #e4e5d5; outline: 3px solid var(--face, var(--black)); border-radius: 2px;
+.dD { font-family: 'Overpass', 'Segoe UI', sans-serif; color: #141719; font-size: 14px; font-variant-numeric: tabular-nums;
+  --green: #00703c; --blue: #0057b7; --black: #141719; --cream: #ffffff; --plate: #ffffff; --moss: #141719; --ink: #141719; --bolt: #a7b0b8; --flag: #ff5b1f; --caution: #ffcc00; }
+.dD .sign { position: relative; color: var(--cream); background: var(--face, var(--black)); border: 1px solid #ffffff; outline: 3px solid var(--face, var(--black)); border-radius: 2px;
   box-shadow: 3px 5px 6px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.16); }
 .dD .sign.abs { position: absolute; }
 .dD .bolts::before, .dD .bolts::after { content: ''; position: absolute; left: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--bolt); box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.55); }
@@ -156,28 +156,28 @@ body.solo .frame { width: 1280px; border-radius: 0; }
 .dD .bolts::after { bottom: 9px; }
 .dD .bolt-r { position: absolute; right: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--bolt); box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.55); }
 .dD .plate { position: absolute; background: var(--plate); color: var(--ink); border: 2px solid var(--moss); border-radius: 2px; box-shadow: 2px 4px 6px rgba(0, 0, 0, 0.28); }
-.dD .post { position: absolute; width: 24px; border: 1px solid #45392b;
-  background: repeating-linear-gradient(91deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 9px), linear-gradient(90deg, #594a36, #8b7656 25%, #736044 75%, #4b3e2d); box-shadow: 4px 3px 5px rgba(0, 0, 0, 0.27); }
+.dD .post { position: absolute; width: 24px; border: 1px solid #372e25;
+  background: repeating-linear-gradient(91deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 9px), linear-gradient(90deg, #4d4135, #7b6a58 25%, #6a5a49 75%, #3f352b); box-shadow: 4px 3px 5px rgba(0, 0, 0, 0.27); }
 .dD .menu-sign { display: flex; align-items: center; gap: 14px; min-height: 77px; padding: 17px 20px 17px 30px; font: 800 25px 'Overpass', sans-serif; line-height: 1.1; }
 .dD .menu-sign small { display: block; margin-top: 5px; font: 500 14px 'Overpass', sans-serif; }
 .dD .menu-sign > span { flex: 1; }
 .dD .arrow { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-.dD .lbl { font: 800 11px 'Overpass', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: var(--moss); }
+.dD .lbl { font: 800 11px 'Overpass', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #5d6770; }
 .dD .opt3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .dD .opt3 span { height: 32px; display: grid; place-items: center; font-weight: 700; border: 2px solid var(--moss); border-radius: 2px; }
-.dD .opt3 span.on { background: var(--black); border-color: var(--black); color: var(--cream); box-shadow: inset 0 0 0 2px var(--black), inset 0 0 0 3px #e4e5d5; }
+.dD .opt3 span.on { background: var(--black); border-color: var(--black); color: var(--cream); box-shadow: inset 0 0 0 2px var(--black), inset 0 0 0 3px #ffffff; }
 .dD .mrow { display: grid; grid-template-columns: 14px 1fr auto; gap: 10px; align-items: center; padding: 5px 8px; border-radius: 2px; }
 .dD .mrow .chk { width: 14px; height: 14px; border: 2px solid var(--moss); }
-.dD .mrow.on { background: rgba(48, 55, 53, 0.08); box-shadow: inset 3px 0 0 var(--black); }
+.dD .mrow.on { background: rgba(20, 23, 25, 0.06); box-shadow: inset 3px 0 0 var(--black); }
 .dD .mrow.on .chk { background: var(--black); border-color: var(--black); box-shadow: inset 0 0 0 2px var(--plate); }
 .dD .mrow b { font-weight: 700; }
-.dD .mrow small { color: #66705f; margin-left: 4px; }
+.dD .mrow small { color: #5d6770; margin-left: 4px; }
 .dD .sq { width: 30px; height: 30px; display: grid; place-items: center; border: 2px solid var(--moss); font-weight: 800; font-size: 18px; }
-.dD .prow { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; border-bottom: 1px solid rgba(86, 97, 78, 0.3); }
+.dD .prow { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; border-bottom: 1px solid rgba(20, 23, 25, 0.18); }
 .dD .prow .v { margin-left: auto; font-weight: 800; }
 .dD .tool { width: 44px; height: 44px; display: grid; place-items: center; background: var(--cream); border-radius: 2px; color: var(--black); box-shadow: 1px 2px 3px rgba(0, 0, 0, 0.35); }
 .dD .tool svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
-.dD .tool.on { background: var(--green); color: var(--cream); outline: 2px solid var(--green); border: 1px solid #e4e5d5; }
+.dD .tool.on { background: var(--green); color: var(--cream); outline: 2px solid var(--green); border: 1px solid #ffffff; }
 .dD .smallplate { background: var(--plate); color: var(--ink); border: 2px solid var(--moss); border-radius: 2px; padding: 8px 16px; font-weight: 700; box-shadow: 2px 3px 5px rgba(0, 0, 0, 0.25); }
 </style>
 
@@ -378,7 +378,7 @@ body.solo .frame { width: 1280px; border-radius: 0; }
     <h2>D · Trailhead <small>the MapLibre edition's title, carried into the game</small></h2>
     <ul class="traits">
       <li><b>The title screen keeps your signpost:</b> the nameplate, and Continue, New Resort and My Resorts as trail-rated signs on timber posts. It now stands on our Unity mountain.</li>
-      <li><b>In the game, windows are sign boards:</b> a painted header sign over a cream plate, square corners and bolt heads. Break Ground is a green trail sign with an arrow, and the status bar is one long sign on two posts.</li>
+      <li><b>In the game, windows are sign boards:</b> a painted header sign over a white sign face with a black border, square corners and bolt heads. Break Ground is a green trail sign with an arrow, and the status bar is one long sign on two posts.</li>
       <li><b>The mountain is signposted:</b> junction signs at the top of each run, a name board on each lift, orange survey flagging for plans, and yellow caution signs for trouble.</li>
     </ul>
     <div class="frame" id="frameD1"><div class="stage dD" id="stageD1">
@@ -388,26 +388,26 @@ body.solo .frame { width: 1280px; border-radius: 0; }
       <i class="post" style="left:332px;top:276px;bottom:-2px"></i>
       <div class="abs" style="left:64px;top:262px;width:330px">
         <div class="plate" style="position:relative;display:flex;align-items:center;gap:12px;padding:13px 16px;margin:0 12px 23px 0">
-          <svg width="36" height="36" style="color:#28382e;flex:none"><use href="#d-mark"/></svg>
+          <svg width="36" height="36" style="color:#141719;flex:none"><use href="#d-mark"/></svg>
           <h1 style="margin:0;font:800 21px 'Overpass',sans-serif;letter-spacing:-.2px;line-height:1.15">Ski Area Design Challenge</h1>
         </div>
-        <div class="sign bolts menu-sign" style="--face:#245840"><span data-rating="green"></span><span>Continue<small>Jackson Peaks · day 214</small></span><svg class="arrow"><use href="#d-arrow"/></svg></div>
-        <div class="sign bolts menu-sign" style="--face:#335f80;margin-top:18px"><span data-rating="blue"></span><span>New Resort</span><svg class="arrow"><use href="#d-arrow"/></svg></div>
-        <div class="sign bolts menu-sign" style="--face:#303735;margin-top:18px"><span data-rating="black"></span><span>My Resorts</span><svg class="arrow"><use href="#d-arrow"/></svg></div>
+        <div class="sign bolts menu-sign" style="--face:#00703c"><span data-rating="green"></span><span>Continue<small>Jackson Peaks · day 214</small></span><svg class="arrow"><use href="#d-arrow"/></svg></div>
+        <div class="sign bolts menu-sign" style="--face:#0057b7;margin-top:18px"><span data-rating="blue"></span><span>New Resort</span><svg class="arrow"><use href="#d-arrow"/></svg></div>
+        <div class="sign bolts menu-sign" style="--face:#141719;margin-top:18px"><span data-rating="black"></span><span>My Resorts</span><svg class="arrow"><use href="#d-arrow"/></svg></div>
       </div>
       <div class="abs smallplate" style="right:36px;top:32px;display:grid;gap:3px;padding:12px 18px">
         <span class="lbl">Conditions today</span>
         <span style="font:800 17px 'Overpass'">−8°  ·  12 cm new  ·  Wind W 15</span>
       </div>
       <div class="abs" style="right:36px;bottom:30px;display:flex;gap:8px"><span class="smallplate">Settings</span><span class="smallplate">Credits</span><span class="smallplate">Quit</span></div>
-      <div class="abs" style="left:430px;bottom:30px;font:600 12px 'Overpass';letter-spacing:.14em;color:#fff9e9;text-shadow:0 1px 3px rgba(0,0,0,.5)">VERSION 0.1 · JACKSON HOLE, WYOMING</div>
+      <div class="abs" style="left:430px;bottom:30px;font:600 12px 'Overpass';letter-spacing:.14em;color:#ffffff;text-shadow:0 1px 3px rgba(0,0,0,.5)">VERSION 0.1 · JACKSON HOLE, WYOMING</div>
     </div></div>
     <div class="frame" id="frameD2" style="margin-top:14px"><div class="stage dD" id="stageD2">
       <img class="bg" src="assets/game-overview.jpg" alt="">
       <svg class="world" id="worldD" viewBox="0 0 1280 720" aria-label="Mountain signposted like a ski area, with a lift flagged for building"></svg>
 
       <div class="abs" style="left:18px;top:16px;width:330px">
-        <div class="sign bolts" style="--face:#303735;display:flex;align-items:center;gap:12px;height:52px;padding:0 14px 0 28px">
+        <div class="sign bolts" style="--face:#141719;display:flex;align-items:center;gap:12px;height:52px;padding:0 14px 0 28px">
           <svg class="arrow" style="width:26px;height:26px;stroke-width:2.1"><use href="#t-lift"/></svg><b style="font:800 20px 'Overpass';letter-spacing:.08em">LIFTS</b><span style="margin-left:auto;font:700 24px 'Overpass';line-height:1">×</span><i class="bolt-r" style="top:9px"></i><i class="bolt-r" style="bottom:9px"></i>
         </div>
         <div class="plate" style="position:relative;margin-top:12px;padding:14px 16px 16px;display:grid;gap:10px">
@@ -420,29 +420,29 @@ body.solo .frame { width: 1280px; border-radius: 0; }
             <div class="mrow"><i class="chk"></i><span><b>Detachable six</b><small>3,000/h</small></span><span>$1.60M</span></div>
           </div>
           <div style="display:flex;align-items:center;gap:10px"><div style="display:grid"><span class="lbl">Capacity</span><span><b style="font:800 28px 'Overpass';letter-spacing:-.01em">2,400</b> per hour</span></div><span class="sq" style="margin-left:auto">−</span><span class="sq">+</span></div>
-          <div style="display:flex;justify-content:space-between"><span class="lbl">Profile</span><span style="font:700 12px 'Overpass';color:#c95f12">4 · Summit Quad · 739 m</span></div>
+          <div style="display:flex;justify-content:space-between"><span class="lbl">Profile</span><span style="font:700 12px 'Overpass';color:#e2531a">4 · Summit Quad · 739 m</span></div>
           <svg id="profD" width="294" height="54" style="margin-top:-4px" aria-label="Profile of the planned lift"></svg>
           <span class="lbl">Flagged to build</span>
-          <div style="margin-top:-4px"><div class="prow"><b>4 Summit Quad</b><span style="color:#66705f">739 m</span><span class="v">$4.12M</span><span style="color:#66705f">×</span></div>
-            <div class="prow"><b>Couloir ◆◆</b><span style="color:#66705f">770 m</span><span class="v">$0.58M</span><span style="color:#66705f">×</span></div></div>
-          <div class="sign bolts menu-sign" style="--face:#245840;min-height:58px;font-size:20px;padding:9px 16px 9px 28px;margin-top:6px"><span>Break ground<small>$4.70M · leaves $538,120</small></span><svg class="arrow"><use href="#d-arrow"/></svg></div>
+          <div style="margin-top:-4px"><div class="prow"><b>4 Summit Quad</b><span style="color:#5d6770">739 m</span><span class="v">$4.12M</span><span style="color:#5d6770">×</span></div>
+            <div class="prow"><b>Couloir ◆◆</b><span style="color:#5d6770">770 m</span><span class="v">$0.58M</span><span style="color:#5d6770">×</span></div></div>
+          <div class="sign bolts menu-sign" style="--face:#00703c;min-height:58px;font-size:20px;padding:9px 16px 9px 28px;margin-top:6px"><span>Break ground<small>$4.70M · leaves $538,120</small></span><svg class="arrow"><use href="#d-arrow"/></svg></div>
         </div>
       </div>
 
-      <div class="sign bolts abs" style="--face:#f2a41c;color:#1d1d1b;right:22px;top:20px;width:290px;padding:12px 16px 12px 28px;border-color:#1d1d1b;box-shadow:inset 0 0 0 2px #f2a41c,inset 0 0 0 4px #1d1d1b,3px 5px 6px rgba(0,0,0,.34)">
+      <div class="sign bolts abs" style="--face:#ffcc00;color:#111111;right:22px;top:20px;width:290px;padding:12px 16px 12px 28px;border-color:#111111;box-shadow:inset 0 0 0 2px #ffcc00,inset 0 0 0 4px #111111,3px 5px 6px rgba(0,0,0,.34)">
         <div style="font:900 15px 'Overpass';letter-spacing:.1em">LIFT LINE · RIDGE SIX</div>
-        <div style="font:600 14px 'Overpass';margin-top:3px">12 min · 180 waiting · <u>Show me</u> →</div><i class="bolt-r" style="top:9px;background:#5b4300"></i><i class="bolt-r" style="bottom:9px;background:#5b4300"></i>
+        <div style="font:600 14px 'Overpass';margin-top:3px">12 min · 180 waiting · <u>Show me</u> →</div><i class="bolt-r" style="top:9px;background:#5c4a00"></i><i class="bolt-r" style="bottom:9px;background:#5c4a00"></i>
       </div>
 
       <i class="post" style="left:200px;top:696px;height:30px"></i><i class="post" style="left:1056px;top:696px;height:30px"></i>
-      <div class="sign bolts abs" style="--face:#303735;left:16px;right:16px;bottom:22px;height:58px;display:flex;align-items:center;gap:18px;padding:0 20px 0 28px">
-        <div style="display:grid;line-height:1.05"><span class="lbl" style="color:#b3b6a6">Sat 15 Jan</span><b style="font:800 24px 'Overpass'">10:30</b></div>
+      <div class="sign bolts abs" style="--face:#141719;left:16px;right:16px;bottom:22px;height:58px;display:flex;align-items:center;gap:18px;padding:0 20px 0 28px">
+        <div style="display:grid;line-height:1.05"><span class="lbl" style="color:#a7b0b8">Sat 15 Jan</span><b style="font:800 24px 'Overpass'">10:30</b></div>
         <div style="display:flex;gap:4px" id="speedD"></div>
-        <div style="display:grid;line-height:1.1"><span class="lbl" style="color:#b3b6a6">Snow</span><b style="font:700 15px 'Overpass'">−8° · 12 cm</b></div>
+        <div style="display:grid;line-height:1.1"><span class="lbl" style="color:#a7b0b8">Snow</span><b style="font:700 15px 'Overpass'">−8° · 12 cm</b></div>
         <div id="toolsD" style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:6px"></div>
         <div style="margin-left:auto;display:flex;gap:22px;align-items:center">
-          <div style="display:grid;line-height:1.05;text-align:right"><span class="lbl" style="color:#b3b6a6">Skiers</span><b style="font:800 20px 'Overpass'">1,240</b></div>
-          <div style="display:grid;line-height:1.05;text-align:right"><span class="lbl" style="color:#b3b6a6">+$38,200 today</span><b style="font:800 20px 'Overpass'">$5,238,120</b></div>
+          <div style="display:grid;line-height:1.05;text-align:right"><span class="lbl" style="color:#a7b0b8">Skiers</span><b style="font:800 20px 'Overpass'">1,240</b></div>
+          <div style="display:grid;line-height:1.05;text-align:right"><span class="lbl" style="color:#a7b0b8">+$38,200 today</span><b style="font:800 20px 'Overpass'">$5,238,120</b></div>
         </div>
         <i class="bolt-r" style="top:9px"></i><i class="bolt-r" style="bottom:9px"></i>
       </div>
@@ -636,15 +636,15 @@ body.solo .frame { width: 1280px; border-radius: 0; }
   {
     // Trail-rating plates, as on real ski-area signs.
     const rating = (kind, size = 30) => {
-      const sym = kind === 'green' ? '<circle cx="16" cy="16" r="10.5" fill="#247343"/>'
-        : kind === 'blue' ? '<rect x="6.5" y="6.5" width="19" height="19" fill="#235f99"/>'
-        : kind === 'double' ? '<path d="M9.5 6.5l6.5 9.5-6.5 9.5L3 16zM22.5 6.5L29 16l-6.5 9.5L16 16z" fill="#151b18"/>'
-        : '<path d="M16 3.5L28.5 16 16 28.5 3.5 16z" fill="#151b18"/>';
-      return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" style="flex:none" aria-hidden="true"><rect width="32" height="32" rx="2" fill="#fff9e9"/>${sym}</svg>`;
+      const sym = kind === 'green' ? '<circle cx="16" cy="16" r="10.5" fill="#009a44"/>'
+        : kind === 'blue' ? '<rect x="6.5" y="6.5" width="19" height="19" fill="#0057b7"/>'
+        : kind === 'double' ? '<path d="M9.5 6.5l6.5 9.5-6.5 9.5L3 16zM22.5 6.5L29 16l-6.5 9.5L16 16z" fill="#111111"/>'
+        : '<path d="M16 3.5L28.5 16 16 28.5 3.5 16z" fill="#111111"/>';
+      return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" style="flex:none" aria-hidden="true"><rect width="32" height="32" rx="2" fill="#ffffff"/>${sym}</svg>`;
     };
     document.querySelectorAll('[data-rating]').forEach((el) => { el.outerHTML = rating(el.dataset.rating); });
-    const cream = '#fff9e9', ink = '#28382e', moss = '#56614e', flag = '#e8731c';
-    const runColour = { green: '#247343', blue: '#235f99', black: '#151b18' };
+    const cream = '#ffffff', ink = '#141719', moss = '#141719', flag = '#ff5b1f';
+    const runColour = { green: '#009a44', blue: '#0057b7', black: '#111111' };
     let s = `<defs><filter id="dSh" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="2" dy="3" stdDeviation="2" flood-color="#000" flood-opacity=".35"/></filter></defs>`;
     for (const r of RUNS) s += `<path d="${smooth(r.pts)}" fill="none" stroke="${cream}" stroke-width="7.5" stroke-linecap="round" opacity=".92"/><path d="${smooth(r.pts)}" fill="none" stroke="${runColour[r.diff]}" stroke-width="3.6" stroke-linecap="round"/>`;
     for (const l of LIFTS) {
@@ -652,7 +652,7 @@ body.solo .frame { width: 1280px; border-radius: 0; }
       for (const p of [l.a, l.b]) s += `<rect x="${p[0] - 5}" y="${p[1] - 5}" width="10" height="10" fill="${ink}" stroke="${cream}" stroke-width="1.8"/>`;
     }
     // Lift name boards: small painted signs.
-    const board = (x, y, text) => { const w = text.length * 8.4 + 26; return `<g filter="url(#dSh)"><rect x="${x}" y="${y}" width="${w}" height="24" rx="2" fill="#303735"/><rect x="${x + 2.5}" y="${y + 2.5}" width="${w - 5}" height="19" rx="1" fill="none" stroke="#e4e5d5" stroke-width="1"/><circle cx="${x + 7}" cy="${y + 12}" r="1.6" fill="#b3b6a6"/><text x="${x + 14}" y="${y + 16.5}" style="font:800 12px Overpass,sans-serif;letter-spacing:.08em;fill:${cream}">${text}</text></g>`; };
+    const board = (x, y, text) => { const w = text.length * 8.4 + 26; return `<g filter="url(#dSh)"><rect x="${x}" y="${y}" width="${w}" height="24" rx="2" fill="#141719"/><rect x="${x + 2.5}" y="${y + 2.5}" width="${w - 5}" height="19" rx="1" fill="none" stroke="#ffffff" stroke-width="1"/><circle cx="${x + 7}" cy="${y + 12}" r="1.6" fill="#a7b0b8"/><text x="${x + 14}" y="${y + 16.5}" style="font:800 12px Overpass,sans-serif;letter-spacing:.08em;fill:${cream}">${text}</text></g>`; };
     s += board(LIFTS[0].b[0] - 112, LIFTS[0].b[1] - 34, 'ASPEN QUAD') + board(LIFTS[1].b[0] - 112, LIFTS[1].b[1] - 22, 'RIDGE SIX');
     // Junction signs at the top of each run: a rating plate, the name and an arrow.
     const junction = (x, y, kind, name, planned) => {
@@ -664,7 +664,7 @@ body.solo .frame { width: 1280px; border-radius: 0; }
     };
     s += junction(548, 464, 'blue', 'BIGHORN') + junction(690, 490, 'black', 'CORNICE') + junction(842, 420, 'black', 'HEADWALL') + junction(918, 468, 'blue', 'TIMBERLINE');
     // Plans are flagged like a surveyor's line: orange, dashed, with flags on stakes.
-    const flagAt = (p, h = 18) => `<line x1="${p[0]}" y1="${p[1]}" x2="${p[0]}" y2="${p[1] - h}" stroke="${ink}" stroke-width="1.8"/><path d="M${p[0]} ${p[1] - h}l12 4-12 4z" fill="${flag}" stroke="#a14a0b" stroke-width=".8"/>`;
+    const flagAt = (p, h = 18) => `<line x1="${p[0]}" y1="${p[1]}" x2="${p[0]}" y2="${p[1] - h}" stroke="${ink}" stroke-width="1.8"/><path d="M${p[0]} ${p[1] - h}l12 4-12 4z" fill="${flag}" stroke="#b83a0c" stroke-width=".8"/>`;
     s += `<line x1="${PLAN.a[0]}" y1="${PLAN.a[1]}" x2="${PLAN.b[0]}" y2="${PLAN.b[1]}" stroke="${cream}" stroke-width="6"/><line x1="${PLAN.a[0]}" y1="${PLAN.a[1]}" x2="${PLAN.b[0]}" y2="${PLAN.b[1]}" stroke="${flag}" stroke-width="3.2" stroke-dasharray="10 6"/>`;
     s += `<path d="${smooth(COULOIR)}" fill="none" stroke="${cream}" stroke-width="6" stroke-linecap="round"/><path d="${smooth(COULOIR)}" fill="none" stroke="${flag}" stroke-width="3.2" stroke-dasharray="10 6" stroke-linecap="round"/>`;
     const mid = [(PLAN.a[0] + PLAN.b[0]) / 2, (PLAN.a[1] + PLAN.b[1]) / 2];
@@ -672,21 +672,21 @@ body.solo .frame { width: 1280px; border-radius: 0; }
     s += junction(1006, 312, 'double', 'COULOIR', true);
     // The readout: a cream plate headed in flagging orange.
     const [bx, by] = PLAN.b, rx = bx - 262, ry = by - 120;
-    s += `<g filter="url(#dSh)"><rect x="${rx}" y="${ry}" width="236" height="92" rx="2" fill="#efe8d6" stroke="${moss}" stroke-width="2"/><rect x="${rx}" y="${ry}" width="236" height="24" rx="2" fill="${flag}"/>
-      <text x="${rx + 12}" y="${ry + 16.5}" style="font:900 11.5px Overpass,sans-serif;letter-spacing:.14em;fill:#fff9e9">FLAGGED · 4 SUMMIT QUAD</text>
+    s += `<g filter="url(#dSh)"><rect x="${rx}" y="${ry}" width="236" height="92" rx="2" fill="#ffffff" stroke="${moss}" stroke-width="2"/><rect x="${rx}" y="${ry}" width="236" height="24" rx="2" fill="${flag}"/>
+      <text x="${rx + 12}" y="${ry + 16.5}" style="font:900 11.5px Overpass,sans-serif;letter-spacing:.14em;fill:#ffffff">FLAGGED · 4 SUMMIT QUAD</text>
       <text x="${rx + 12}" y="${ry + 46}" style="font:700 14px Overpass,sans-serif;fill:${ink}">739 m long · 406 m up · 29°</text>
-      <text x="${rx + 12}" y="${ry + 76}" style="font:900 22px Overpass,sans-serif;fill:${ink}">$4.12M</text><text x="${rx + 224}" y="${ry + 76}" text-anchor="end" style="font:600 13px Overpass,sans-serif;fill:#66705f">2:28 ride</text></g>
+      <text x="${rx + 12}" y="${ry + 76}" style="font:900 22px Overpass,sans-serif;fill:${ink}">$4.12M</text><text x="${rx + 224}" y="${ry + 76}" text-anchor="end" style="font:600 13px Overpass,sans-serif;fill:#5d6770">2:28 ride</text></g>
       <line x1="${rx + 236}" y1="${ry + 62}" x2="${bx - 6}" y2="${by - 14}" stroke="${ink}" stroke-width="1.6"/>`;
     // Trouble gets a caution sign at the base of Ridge Six.
     const [qx, qy] = LIFTS[1].a;
-    s += `<line x1="${qx + 30}" y1="${qy - 8}" x2="${qx + 30}" y2="${qy - 30}" stroke="#4b3e2d" stroke-width="3"/>
-      <g filter="url(#dSh)"><rect x="${qx - 6}" y="${qy - 78}" width="112" height="50" rx="3" fill="#f2a41c" stroke="#1d1d1b" stroke-width="2.5"/><rect x="${qx - 1.5}" y="${qy - 73.5}" width="103" height="41" rx="1.5" fill="none" stroke="#1d1d1b" stroke-width="1.2"/>
-      <text x="${qx + 50}" y="${qy - 58}" text-anchor="middle" style="font:900 11px Overpass,sans-serif;letter-spacing:.14em;fill:#1d1d1b">LIFT LINE</text><text x="${qx + 50}" y="${qy - 37}" text-anchor="middle" style="font:900 19px Overpass,sans-serif;fill:#1d1d1b">12 MIN</text></g>`;
+    s += `<line x1="${qx + 30}" y1="${qy - 8}" x2="${qx + 30}" y2="${qy - 30}" stroke="#3f352b" stroke-width="3"/>
+      <g filter="url(#dSh)"><rect x="${qx - 6}" y="${qy - 78}" width="112" height="50" rx="3" fill="#ffcc00" stroke="#111111" stroke-width="2.5"/><rect x="${qx - 1.5}" y="${qy - 73.5}" width="103" height="41" rx="1.5" fill="none" stroke="#111111" stroke-width="1.2"/>
+      <text x="${qx + 50}" y="${qy - 58}" text-anchor="middle" style="font:900 11px Overpass,sans-serif;letter-spacing:.14em;fill:#111111">LIFT LINE</text><text x="${qx + 50}" y="${qy - 37}" text-anchor="middle" style="font:900 19px Overpass,sans-serif;fill:#111111">12 MIN</text></g>`;
     document.getElementById('worldD').innerHTML = s;
-    document.getElementById('profD').innerHTML = profile(294, 54, { ground: ink, gw: 1.8, tower: ink, cable: flag, dash: '7 4', cw: 2.2, fill: 'rgba(86,97,78,0.13)' });
+    document.getElementById('profD').innerHTML = profile(294, 54, { ground: ink, gw: 1.8, tower: ink, cable: flag, dash: '7 4', cw: 2.2, fill: 'rgba(20,23,25,0.08)' });
     const toolsD = [['t-lift', 1], ['t-run'], ['t-snow'], ['t-groom'], ['t-lodge'], ['t-road'], ['t-terrain'], ['t-remove'], ['t-views']];
     document.getElementById('toolsD').innerHTML = toolsD.map(([ic, on], i) => `${i === 8 ? '<span style="width:8px"></span>' : ''}<span class="tool${on ? ' on' : ''}"><svg viewBox="0 0 24 24"><use href="#${ic}"/></svg></span>`).join('');
-    document.getElementById('speedD').innerHTML = ['❚❚', '▶', '▶▶', '▶▶▶'].map((g, i) => `<span style="height:24px;min-width:26px;padding:0 4px;display:grid;place-items:center;border:1.5px solid #fff9e9;border-radius:2px;font:700 10px Overpass;${i === 1 ? 'background:#fff9e9;color:#303735' : 'color:#fff9e9'}">${g}</span>`).join('');
+    document.getElementById('speedD').innerHTML = ['❚❚', '▶', '▶▶', '▶▶▶'].map((g, i) => `<span style="height:24px;min-width:26px;padding:0 4px;display:grid;place-items:center;border:1.5px solid #ffffff;border-radius:2px;font:700 10px Overpass;${i === 1 ? 'background:#ffffff;color:#141719' : 'color:#ffffff'}">${g}</span>`).join('');
   }
 })();
 </script>
