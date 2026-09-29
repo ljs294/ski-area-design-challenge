@@ -54,6 +54,10 @@ namespace MountainPlanner.Persistence
         public string TreesFile { get; set; } = "";
         public int TreeCount { get; set; }
         public string TreesSha256 { get; set; } = "";
+        /// <summary>The tile's cliff shell (<see cref="CliffMeshData"/>); empty where there are no cliffs.</summary>
+        public string CliffFile { get; set; } = "";
+        public int CliffTriangles { get; set; }
+        public string CliffSha256 { get; set; } = "";
     }
 
     /// <summary>
@@ -69,7 +73,7 @@ namespace MountainPlanner.Persistence
     public static class TerrainCache
     {
         /// <summary>Bump when the tile format or sampling changes: existing caches are then rebuilt.</summary>
-        public const int Version = 3;
+        public const int Version = 6;
 
         /// <summary>
         /// Splat texels per tile edge: 1 m in core tiles, 4 m in the ring (Unity needs powers of two).
@@ -102,7 +106,8 @@ namespace MountainPlanner.Persistence
                 return m != null && m.CacheVersion == Version && m.PackageId == package.PackageId
                        && m.Tiles.All(t => File.Exists(Path.Combine(FolderFor(packageFolder), t.File))
                                            && File.Exists(Path.Combine(FolderFor(packageFolder), t.CoverFile))
-                                           && File.Exists(Path.Combine(FolderFor(packageFolder), t.TreesFile)));
+                                           && File.Exists(Path.Combine(FolderFor(packageFolder), t.TreesFile))
+                                           && File.Exists(Path.Combine(FolderFor(packageFolder), t.CliffFile)));
             }
             catch (JsonException) { return false; }
         }
@@ -128,6 +133,14 @@ namespace MountainPlanner.Persistence
             return values;
         }
 
+        /// <summary>A tile's cliff shell, verified against its hash.</summary>
+        public static CliffMeshData ReadCliffs(string packageFolder, CacheTile tile)
+        {
+            byte[] values = File.ReadAllBytes(Path.Combine(FolderFor(packageFolder), tile.CliffFile));
+            if (GridFile.HashValues(values) != tile.CliffSha256) throw new InvalidDataException($"Cache cliffs {tile.CliffFile} don't match their hash.");
+            return CliffMeshData.FromBytes(values);
+        }
+
         public static ushort[] ReadTile(string packageFolder, CacheTile tile)
         {
             ushort[] values;
@@ -146,6 +159,7 @@ namespace MountainPlanner.Persistence
             var heights = new HeightField(core, coreHeader, ring, ringHeader);
             var cover = new CoverField(package, packageFolder, heights);
             var forest = new ForestField(package, packageFolder);
+            var cliffField = new CliffField(package, heights);
 
             var site = SiteSquare.Create(new AlbersPoint(package.Site.CentreX, package.Site.CentreY), package.Site.SizeMetres / 1000.0);
             var tiles = TileGrid.For(site);
@@ -191,6 +205,10 @@ namespace MountainPlanner.Persistence
                 byte[] trees = ForestField.Encode(forest.BuildTile(b), TileGrid.TileMetres);
                 string treesFile = $"t{key.Column}_{key.Row}.trees";
                 File.WriteAllBytes(Path.Combine(folder, treesFile), trees);
+                var cliff = cliffField.BuildTile(b);
+                byte[] cliffBytes = cliff.ToBytes();
+                string cliffFile = $"t{key.Column}_{key.Row}.cliff";
+                File.WriteAllBytes(Path.Combine(folder, cliffFile), cliffBytes);
 
                 built[n] = new CacheTile
                 {
@@ -198,6 +216,7 @@ namespace MountainPlanner.Persistence
                     Core = tiles.IsCore(key), File = file, Sha256 = GridFile.HashValues(values),
                     CoverFile = coverFile, CoverResolution = coverRes, CoverSha256 = GridFile.HashValues(texels),
                     TreesFile = treesFile, TreeCount = trees.Length / ForestField.BytesPerTree, TreesSha256 = GridFile.HashValues(trees),
+                    CliffFile = cliffFile, CliffTriangles = cliff.Indices.Length / 3, CliffSha256 = GridFile.HashValues(cliffBytes),
                 };
                 progress?.Report(new CacheProgress(Interlocked.Increment(ref done), keys.Count));
             });

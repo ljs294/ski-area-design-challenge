@@ -27,3 +27,5 @@ tools/data-spike/tests/DataSpike.Tests/fixtures/*.bin filter=lfs diff=lfs merge=
 *.bat text eol=crlf
 TestData/**/*.bin filter=lfs diff=lfs merge=lfs -text
 TestData/**/*.grid filter=lfs diff=lfs merge=lfs -text
+# Generated texture arrays (Mountain Planner > Generate Ground Textures): large, binary in effect.
+Assets/MountainPlanner/Art/Terrain/Ground*.asset filter=lfs diff=lfs merge=lfs -text

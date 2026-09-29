@@ -2,13 +2,17 @@
 
 A Blender script builds the species library from parameters, with no manual modelling. It's free and repeatable: the same species and variant always produce the same mesh and textures. The plan is in [0.5 §3 and §6](../../../docs/plans/phase0-0.5-art-direction.md), and the look is reviewed in [phase1-trees-first-look.md](../../../docs/plans/phase1-trees-first-look.md).
 
-Each tree is a branching skeleton with textured bark, dressed with **alpha-textured cards**: needle sprays for conifers, and leaf clusters plus bare-twig silhouettes for deciduous trees. This is the same technique Tree It and SpeedTree trees use.
+Each tree is a branching skeleton with textured bark, dressed with **alpha-textured cards**: needle sprays for conifers, and leaf clusters plus bare-twig silhouettes for deciduous trees. This is the same technique Tree It and SpeedTree trees use. The [tree realism review](../../../docs/plans/phase1-trees-review.md) explains the current LODs, textures and trunks.
+
+- **LOD0** has one card per needle frond (conifers) or twig. **Conifer LOD1 and LOD2** use **branch-cluster cards**, a whole branch of fronds on one card: two per branch on LOD1 (one rolled up or down) and one on LOD2, rolled alternately, so mid-distance crowns stay full. Deciduous LOD1 uses one larger leaf card per twig, and LOD2 crossed twig cards on the main branches.
+- **Needle textures are fronds**, styled per species (`FROND_STYLES` in `textures.py`): a tapering foliage body, side twigs and needles.
+- **Trunks** have 12 sides on LOD0, a root flare of 3-5 buttress lobes (`trunk_rings`) and reach `BURIED` (1 m) underground, so they meet steep slopes. **Bark** is generated as a height field in one of eight styles. It becomes the albedo, with its furrows shaded, and a tangent-space normal map, `<species>_bark_normal.png`.
 
 | File | Purpose |
 |---|---|
 | `species.json` | One entry per species: size, crown shape, branching, needle or leaf style, bark, and colours per season. `where` cites the BIGMAP share |
 | `build_trees.py` | Builds 3 variants × 3 LODs per species and exports one FBX per variant, plus its textures |
-| `textures.py` | Procedural textures (numpy): needle sprays, leaf clusters, twigs, bark |
+| `textures.py` | Procedural textures (numpy): needle fronds and branch clusters, leaf clusters, twigs, bark and its normal map |
 | `render_preview.py` | Review renders (Cycles): lineups, seasons, a close-up, groves, LODs and shader data |
 | `build-trees.bat` | Double-click: builds everything and opens the renders |
 
@@ -38,10 +42,10 @@ Each FBX holds `<species>_v<N>_LOD0`, `_LOD1` and `_LOD2`. Unity turns that nami
 | **UV0** | Texture coordinates. Cards are alpha-tested: needle sprays, leaves and twigs |
 | **UV1 x** | **Snow mask:** how much snow the up-facing side can hold. The shader multiplies it by the snow-load input and applies it to front faces only |
 | **UV1 y** | **Season flag:** 1 = a leaf that drops in autumn; 0.5 = a leaf kept, dry, through winter (beech); 0 = permanent |
-| **UV2 x** | **Season order:** a random value per leaf card, which sets when it comes out, turns colour and falls |
+| **UV2 x** | **Per-card random:** on leaf cards, when it comes out, turns colour and falls; on every card, where snow clumps |
 | **UV2 y** | **Crown height** of the card (0 = crown base, 1 = top), so the season can move up or down the crown |
 | **Submesh 0** | Bark |
-| **Submesh 1** | Needles (conifers) or leaves (deciduous; swap summer and autumn textures, hide in winter) |
+| **Submesh 1** | Needles (conifers: fronds on LOD0, branch clusters on LOD1-2) or leaves (deciduous; swap summer and autumn textures, hide in winter) |
 | **Submesh 2** | Bare twigs (deciduous): the fine winter crown |
 | **Submesh 3** | Leaves kept through winter (beech) |
 
@@ -51,10 +55,10 @@ A 5 km site holds about 650,000 trees, so every build checks each variant agains
 
 | Level | Used for (planned) | Budget | Current range |
 |---|---|---|---|
-| LOD0 | 0–30 m | ≤ 10,000 triangles | 2.3k–9.7k |
-| LOD1 | 30–80 m | ≤ 2,500 | 0.7k–2.4k |
-| LOD2 | 80–150 m | ≤ 500 | 190–470 |
-| Impostor | beyond 150 m | 2 | baked in Unity |
+| LOD0 | 0–30 m | ≤ 10,000 triangles | 2.4k–9.9k |
+| LOD1 | 30–80 m | ≤ 2,500 | 0.47k–2.3k |
+| LOD2 | 80–150 m | ≤ 500 | 197–489 |
+| Impostor | beyond 150 m | 2 | baked in Unity (64 views) |
 
 `out/trees.json` records the triangles and the **alpha-card area** (m², a proxy for overdraw) of every LOD, plus any budget failures.
 

@@ -8,7 +8,7 @@ namespace MountainPlanner.World
     [StructLayout(LayoutKind.Sequential)]
     public struct ForestInstance
     {
-        public Vector3 Position;    // trunk base, world space
+        public Vector3 Position;    // trunk base on the ground, world space (models reach a metre below it, so they meet slopes)
         public float Rotation;      // radians about +Y
         public float HeightScale;
         public float WidthScale;
@@ -37,7 +37,7 @@ namespace MountainPlanner.World
                 float scale = height / Mathf.Max(1, nativeHeights[prototype]);
                 result[i] = new ForestInstance
                 {
-                    Position = new Vector3(origin.x + fx * tileMetres, heightMin + h * heightRange - 0.3f, origin.z + fz * tileMetres),
+                    Position = new Vector3(origin.x + fx * tileMetres, heightMin + h * heightRange, origin.z + fz * tileMetres),
                     Rotation = rotation, HeightScale = scale, WidthScale = scale * width, Prototype = (uint)prototype,
                 };
             }

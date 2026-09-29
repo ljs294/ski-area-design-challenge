@@ -68,6 +68,9 @@ namespace MountainPlanner.World
         /// </summary>
         public static bool DrawInstanced;
 
+        /// <summary>Seconds spent in each step of <see cref="Create"/> since start-up (open-time profiling).</summary>
+        public static double ProfileSetup, ProfileSetHeights, ProfileSync;
+
         /// <summary>
         /// A tile starts with a tiny splat map (all snow, layer 0) and grows to its cover resolution when
         /// its cover is painted: allocating 1024² six-layer maps up front added over a second to opening.
@@ -77,6 +80,10 @@ namespace MountainPlanner.World
         /// <summary>
         /// A tile's heights as Unity wants them: [row from the south, column from the west], normalised
         /// 0–1 of the cache's height range. Safe on any thread (no Unity API).
+        /// </summary>
+        /// <summary>
+        /// A tile's heights, normalised as Unity takes them (stored value / 32,766), <see cref="Resolution"/>²
+        /// with row 0 at the south edge (1,025² in the core, 513² in the ring). Safe on worker threads.
         /// </summary>
         public static float[,] LoadHeights(string packageFolder, CacheTile tile)
         {
@@ -93,25 +100,15 @@ namespace MountainPlanner.World
                 }
                 return heights;
             }
-            if (res * 2 - 1 != Resolution) throw new InvalidOperationException($"Unexpected tile resolution {res}.");
-            for (int j = 0; j < Resolution; j++)
+            // Ring tiles load at their own 513² (2 m): upsampling them to 1,025² quadrupled the cost of opening
+            // for no visible gain. Their edges with 1 m core tiles already match (TerrainCache.MatchRingEdges).
+            var ring = new float[res, res];
+            for (int j = 0; j < res; j++)
             {
-                int j0 = j / 2, j1 = Math.Min(res - 1, (j + 1) / 2);
-                int row = Resolution - 1 - j;
-                for (int i = 0; i < Resolution; i++)
-                {
-                    int i0 = i / 2, i1 = Math.Min(res - 1, (i + 1) / 2);
-                    int a = v[j0 * res + i0], b = v[j0 * res + i1], c = v[j1 * res + i0], d = v[j1 * res + i1];
-                    // Integer midpoints, rounded exactly as the cache rounds 1 m edges that meet 2 m tiles,
-                    // so shared edge vertices are identical on both sides.
-                    int value = (i & 1) == 0 && (j & 1) == 0 ? a
-                              : (j & 1) == 0 ? (a + b + 1) >> 1
-                              : (i & 1) == 0 ? (a + c + 1) >> 1
-                              : (a + b + c + d + 2) >> 2;
-                    heights[row, i] = value * scale;
-                }
+                int row = res - 1 - j;
+                for (int i = 0; i < res; i++) ring[row, i] = v[j * res + i] * scale;
             }
-            return heights;
+            return ring;
         }
 
         /// <summary>
@@ -121,9 +118,10 @@ namespace MountainPlanner.World
         public static Terrain Create(Transform parent, CacheManifest cache, CacheTile tile, float[,] heights, LocalFrame frame,
                                      Material material, TerrainLayer[] layers, TerrainDetail detail, int splatResolution = 0)
         {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             var data = new TerrainData
             {
-                heightmapResolution = Resolution,
+                heightmapResolution = heights.GetLength(0),
                 name = $"t{tile.Column}_{tile.Row}",
             };
             data.size = new Vector3((float)cache.TileMetres, (float)cache.HeightRange, (float)cache.TileMetres);
@@ -146,13 +144,43 @@ namespace MountainPlanner.World
             terrain.allowAutoConnect = false;
             if (material != null) terrain.materialTemplate = material;
             TerrainDetailSettings.Apply(terrain, detail);
+            if (UsesMountainShader(material))
+            {
+                terrain.basemapDistance = 100000;   // our shader draws every distance; no baked basemap
+                BindSplat(terrain);
+            }
+            ProfileSetup += watch.Elapsed.TotalSeconds;
+            watch.Restart();
             data.SetHeightsDelayLOD(0, 0, heights);
+            ProfileSetHeights += watch.Elapsed.TotalSeconds;
+            watch.Restart();
             data.SyncHeightmap();
+            ProfileSync += watch.Elapsed.TotalSeconds;
             return terrain;
         }
 
+        public const string MountainShader = "MountainPlanner/Terrain";
+
+        public static bool UsesMountainShader(Material material) => material != null && material.shader != null && material.shader.name == MountainShader;
+
         /// <summary>
-        /// Uploads composed splat texels straight into the tile's alphamap textures (no float[,,] detour:
+        /// Hands the tile's splat maps to the mountain terrain shader, which reads both (six layers) in one
+        /// pass. Call after the tile's splat maps are (re)created. Main thread only.
+        /// </summary>
+        public static void BindSplat(Terrain terrain)
+        {
+            if (!UsesMountainShader(terrain.materialTemplate)) return;
+            var data = terrain.terrainData;
+            var textures = data.alphamapTextures;
+            var block = new MaterialPropertyBlock();
+            block.SetTexture("_Control0", textures.Length > 0 ? textures[0] : Texture2D.redTexture);
+            block.SetTexture("_Control1", textures.Length > 1 ? textures[1] : Texture2D.blackTexture);
+            block.SetFloat("_ControlRes", data.alphamapResolution);
+            terrain.SetSplatMaterialPropertyBlock(block);
+        }
+
+        /// <summary>
+        /// Uploads composed splat texels into the tile's alphamaps on the GPU (no float[,,] detour:
         /// 1024² × 6 layers as floats would be 25 MB per tile). Main thread only.
         /// </summary>
         public static void ApplySplat(TerrainData data, SplatTexels splat)

@@ -15,7 +15,7 @@ using Object = UnityEngine.Object;
 namespace MountainPlanner.Tests
 {
     /// <summary>
-    /// Task 06 acceptance, plus task 07's splat check (docs/plans/phase0-0.7-phase1-plan.md): neighbouring edge heights equal;
+    /// Task 06 acceptance (ring tiles now at their own 513², style tile), plus task 07's splat check (docs/plans/phase0-0.7-phase1-plan.md): neighbouring edge heights equal;
     /// TerrainData matches the source within one step; the demo opens in ≤10 s; opening runs with the
     /// network disabled. Uses the committed Jackson Hole test terrain (Git LFS).
     /// </summary>
@@ -66,26 +66,30 @@ namespace MountainPlanner.Tests
             try
             {
                 Assert.That(resort.Tiles.Count, Is.EqualTo(64));
-                Assert.That(resort.Tiles.Values.All(t => t.terrainData.heightmapResolution == TerrainTiles.Resolution), Is.True,
-                    "every tile at 1,025² so Unity stitches LOD between neighbours");
+                foreach (var tile in resort.Cache.Tiles)
+                    Assert.That(resort.Tiles[(tile.Column, tile.Row)].terrainData.heightmapResolution, Is.EqualTo(tile.Resolution),
+                        "core tiles at 1,025² (1 m), ring tiles at their own 513² (2 m)");
 
-                // Neighbouring edge heights are equal (east-west and north-south).
+                // Neighbouring edge heights are equal (east-west and north-south). Where a 1 m tile meets a 2 m
+                // tile, every 2 m vertex of the edge is shared exactly (in-between 1 m samples are midpoints).
                 int edges = 0;
+                void CompareEdge(Terrain a, Terrain b, bool eastWest, string label)
+                {
+                    int na = a.terrainData.heightmapResolution, nb = b.terrainData.heightmapResolution, n = Math.Min(na, nb);
+                    float[,] ea = eastWest ? a.terrainData.GetHeights(na - 1, 0, 1, na) : a.terrainData.GetHeights(0, 0, na, 1);
+                    float[,] eb = eastWest ? b.terrainData.GetHeights(0, 0, 1, nb) : b.terrainData.GetHeights(0, nb - 1, nb, 1);
+                    int sa = (na - 1) / (n - 1), sb = (nb - 1) / (n - 1);
+                    for (int k = 0; k < n; k++)
+                    {
+                        float va = eastWest ? ea[k * sa, 0] : ea[0, k * sa], vb = eastWest ? eb[k * sb, 0] : eb[0, k * sb];
+                        Assert.That(vb, Is.EqualTo(va), $"{label} at {k}");
+                    }
+                    edges++;
+                }
                 foreach (var ((c, r), t) in resort.Tiles)
                 {
-                    const int n = TerrainTiles.Resolution;
-                    if (resort.Tiles.TryGetValue((c + 1, r), out var east))
-                    {
-                        float[,] a = t.terrainData.GetHeights(n - 1, 0, 1, n), b = east.terrainData.GetHeights(0, 0, 1, n);
-                        for (int k = 0; k < n; k++) Assert.That(b[k, 0], Is.EqualTo(a[k, 0]), $"t{c}_{r} | t{c + 1}_{r} at {k}");
-                        edges++;
-                    }
-                    if (resort.Tiles.TryGetValue((c, r + 1), out var south)) // Unity row n-1 is a tile's north edge
-                    {
-                        float[,] a = t.terrainData.GetHeights(0, 0, n, 1), b = south.terrainData.GetHeights(0, n - 1, n, 1);
-                        for (int k = 0; k < n; k++) Assert.That(b[0, k], Is.EqualTo(a[0, k]), $"t{c}_{r} over t{c}_{r + 1} at {k}");
-                        edges++;
-                    }
+                    if (resort.Tiles.TryGetValue((c + 1, r), out var east)) CompareEdge(t, east, true, $"t{c}_{r} | t{c + 1}_{r}");
+                    if (resort.Tiles.TryGetValue((c, r + 1), out var south)) CompareEdge(t, south, false, $"t{c}_{r} over t{c}_{r + 1}");   // Unity row n-1 is a tile's north edge
                 }
                 Assert.That(edges, Is.EqualTo(112), "every neighbour pair of the 8 × 8 tiles, including core-ring edges");
 
@@ -97,12 +101,12 @@ namespace MountainPlanner.Tests
                 {
                     var terrain = resort.Tiles[(tile.Column, tile.Row)];
                     ushort[] stored = TerrainCache.ReadTile(_package, tile);
-                    int res = tile.Resolution, stride = tile.Core ? 1 : 2;
-                    float[,] unity = terrain.terrainData.GetHeights(0, 0, TerrainTiles.Resolution, TerrainTiles.Resolution);
+                    int res = tile.Resolution;
+                    float[,] unity = terrain.terrainData.GetHeights(0, 0, res, res);
                     for (int j = 0; j < res; j += 37)
                         for (int i = 0; i < res; i += 41)
                         {
-                            int ux = i * stride, uy = TerrainTiles.Resolution - 1 - j * stride;
+                            int ux = i, uy = res - 1 - j;
                             double metres = terrain.transform.position.y + terrain.terrainData.GetHeight(ux, uy);
                             double source = TerrainCache.Dequantize(stored[j * res + i], resort.Cache.HeightMin, resort.Cache.HeightRange);
                             worst = Math.Max(worst, Math.Abs(metres - source));
@@ -149,6 +153,7 @@ namespace MountainPlanner.Tests
                 Trees = UnityEditor.AssetDatabase.LoadAssetAtPath<TreePrototypeSet>("Assets/MountainPlanner/Art/Trees/TreePrototypes.asset"),
                 Cull = UnityEditor.AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/ForestCull.compute"),
                 Shader = UnityEditor.AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeInstanced.shader"),
+                ImpostorShader = UnityEditor.AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeImpostor.shader"),
             };
             if (!forest.IsComplete) Assert.Ignore("The tree library isn't imported, or this GPU has no compute shaders.");
             var camera = new GameObject("Test camera").AddComponent<Camera>();
