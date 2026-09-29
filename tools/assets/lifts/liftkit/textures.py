@@ -20,6 +20,7 @@ CLASS_TILE = {
     "rubber": "rubber", "sheave_red": "paint", "concrete": "concrete", "livery": "panel", "glass": "plain",
     "interior": "plain", "seat_pad": "seat", "chair_steel": "galvanised", "safety_yellow": "paint",
     "grating": "grating", "trim_dark": "paint", "white": "panel", "grip": "galvanised", "sheave_rim": "paint",
+    "sign_black": "paint",
 }
 
 

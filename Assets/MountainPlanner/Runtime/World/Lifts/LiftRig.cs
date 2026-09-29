@@ -3,7 +3,7 @@ using UnityEngine;
 namespace MountainPlanner.World.Lifts
 {
     /// <summary>
-    /// The attachment points of an imported lift asset (terminal or chair), filled by Mountain Planner ▸
+    /// The attachment points of an imported lift asset (terminal, chair or tower piece), filled by Mountain Planner ▸
     /// Import Lifts. The prefab's local frame is the lift frame: +Z along the line toward the other
     /// terminal, +X to the right looking along +Z, +Y up; the origin is the mast centreline at the 0.00
     /// load/unload level (a chair's origin is its grip on the rope).
@@ -14,7 +14,7 @@ namespace MountainPlanner.World.Lifts
     public sealed class LiftRig : MonoBehaviour
     {
         public string AssetId;
-        /// <summary>"terminal" or "chair" (budgets.json kind).</summary>
+        /// <summary>"terminal", "chair", "tower_head", "tower_mast" or "tower_base" (budgets.json kind).</summary>
         public string Kind;
         public string CatalogName;
         public Transform[] Pivots;

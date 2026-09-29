@@ -455,17 +455,29 @@ def lifting_frame(mb, lf, lod, st):
             prims.cylinder(mb, (uh, 0, deck), (uh, 0, m(hp["top"])), m(hp["dia"]) / 2, n, st["galv"], caps=(False, False))
 
 
-def entry_trains(mb, a, c, et, lod, st):
-    """Hold-down trains on both ropes, hung from the lifting-frame stubs (as photographed; see spec
-    common.sheaveTrain)."""
-    tr = c["sheaveTrain"]
-    train = {"n": tr["n"], "pitch": m(tr["pitch"]), "rocker": m(tr["rocker"]), "beam": m(tr["beam"])}
-    gs, hg = c["guideSheave"], m(c["lineGauge"]) / 2
-    pl = et["plate"]   # hung from plates on the stub undersides, clear of the crossbeam step
-    plate = {"v": (m(pl["v"][0]), m(pl["v"][1])), "top": m(pl["top"]), "width": m(pl["width"]), "pin": m(pl["pin"])}
+def entry_trains(mb, a, spec, r, lod, st):
+    """The integrated first tower is a hold-down tower (owner): on each rope, the line towers' hold-down assembly
+    (liftkit.parts.line_assembly, after the owner's reference model) on a flat arc, so every sheave bears on the
+    level rope, its equaliser hung directly under the lifting frame's crossbeam end through two lug plates."""
+    c, et = spec["common"], r["entryTrains"]
+    asm = parts.line_spec(spec)
+    radius = asm["arcs"][et["arc"]]
+    hg, rope = m(c["lineGauge"]) / 2, m(c["ropeElevation"])
+    cb0 = m(r["liftingFrame"]["crossbeam"]["bottom"])
+    lg, X = et["lugs"], asm["x"]
     for side, name in ((-1, "l"), (1, "r")):
-        parts.sheave_train(mb, a, name, m(et["u"]), side * hg, m(c["ropeElevation"]), m(c["ropeDiameter"]) / 2, m(gs["dia"]),
-                           m(gs["width"]), train, et["mode"], None, lod, st, plate=plate)
+        v_rope = side * hg
+        pin_u, pin_w = parts.line_assembly(mb, a, name, m(et["u"]), v_rope, rope, asm, et["count"], "hold", lod, st, radius,
+                                           first=2, parts_lod=1)
+        b_in, b_out = v_rope - side * X["beam"][1], v_rope - side * X["beam"][0]
+        lt = m(lg["thick"])
+        if lod <= 2:   # lug plates either side of the equaliser, from the crossbeam's underside down past the pin
+            for va, vb in (sorted((b_in, b_in - side * lt)), sorted((b_out, b_out + side * lt))):
+                prims.box(mb, (pin_u - m(lg["halfU"]), va, pin_w - m(lg["past"])), (pin_u + m(lg["halfU"]), vb, cb0), st["steel"])
+        if lod <= 1:
+            prims.cylinder(mb, (pin_u, b_in - side * (lt + 0.012), pin_w), (pin_u, b_out + side * (lt + 0.012), pin_w),
+                           asm["mainPin"] / 2, 12 if lod == 0 else 8, st["rod"])
+    return m(et["u"]) + parts.arc_axles(asm, et["count"], radius)[-1][0]   # the rope leaves over the outermost sheave
 
 
 def bullwheel(mb, centre, pitch, bw, lod, st):
@@ -545,7 +557,7 @@ def build(spec, lod, stage):
     catwalk(body, r["catwalk"], u_bw, lod, st)
     guides(body, a, c, r, lod, st)
     lifting_frame(body, r["liftingFrame"], lod, st)
-    entry_trains(body, a, c, r["entryTrains"], lod, st)
+    u_out = entry_trains(body, a, spec, r, lod, st)
 
     centre = Vector((u_bw, 0.0, rope))
     if lod <= 2:
@@ -557,8 +569,7 @@ def build(spec, lod, stage):
         bullwheel(body, centre, c["bullwheel"]["pitch"], r["bullwheel"], lod, st)
 
     lf = r["liftingFrame"]
-    tr, et = c["sheaveTrain"], r["entryTrains"]
-    ul = m(et["u"]) + (tr["n"] - 1) / 2 * m(tr["pitch"])   # the rope leaves over the outermost train sheave
+    ul = u_out
     a.body = body
     a.sockets = {
         "line": (0.0, 0.0, 0.0),

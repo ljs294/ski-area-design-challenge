@@ -170,3 +170,15 @@ Details in [lift-pilot-sessellift-fgq4.md](lift-pilot-sessellift-fgq4.md). The p
 | LP8 | **Hood windows are tinted glass** with a dark interior lining and a cheap machinery silhouette behind them; end windows match the side glass in tint and band |
 | LP9 | **Entry sheave trains come from photos** where the terminal drawings leave them out: 4-sheave trains on both terminals, support at the drive and hold-down at the return |
 | LP10 | **The owner approves every model change** from review photos before it's imported into Unity |
+
+## Line towers: decided 2026-09-28
+
+Details in [lift-towers-sessellift-fgq4.md](lift-towers-sessellift-fgq4.md). The sheave assemblies follow the owner's own reference model of a quad chairlift; the model stays local and is never named.
+
+| ID | Decision |
+|---|---|
+| LP11 | **Line towers are a modular kit:** a base (footing 2.5 m below grade, pier, base plate), 1 m mast sections with the ladder, and a head. The game stacks sections to any height in 1 m steps. The head is the drive terminal's entry head (shared code, `liftkit/heads.py`) on a mast cap, unchanged, with its platform kept inside the ropes |
+| LP12 | **Head types and sheave counts:** general support towers carry 4 or 6 sheaves per rope on a nearly flat arc; breakover towers 8 on the reference arc; hold-down towers 8 (the breakover assembly flipped); combination towers 4 hold-down sheaves directly over 4 support sheaves on triangular plates. The assemblies (rockers, train yokes, equaliser) follow the owner's reference model |
+| LP13 | **Every sheave assembly hangs from below the crossarm end** on two lug plates, its pin 320 mm under the crossarm. The return terminal's integrated tower is a hold-down tower with the same connection (8 sheaves per rope), and replaces LP9's 4-sheave hold-down trains there |
+| LP14 | **Towers are galvanised throughout; in every sheave row only the first and last sheave are red** (lightning grounding) and the rest galvanised, on the terminals' trains too. Tower number plates are black |
+| LP15 | **Tower budgets, enforced at build time:** head LOD0 ≤16,000, LOD1 ≤5,000, LOD2 ≤1,000, LOD3 ≤200 triangles, switching at 15, 45, 150 and 800 m (doubled by the PC lodBias); mast section ≤150 and base ≤400 at LOD0. Sheaves spin only at LOD0; from LOD1 a head is one mesh |

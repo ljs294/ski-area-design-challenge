@@ -601,6 +601,278 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
     _photo_end(sc, extras + [fig])
 
 
+def _move(built, offset_lift):
+    """Moves every root object of a built asset by a lift-frame offset (children follow their parents)."""
+    d = frame.b(offset_lift)
+    for o in built["objects"]:
+        if o.parent is None:
+            o.location = o.location + d
+
+
+def _stack(mast, foot_w, n, at_lift=(0.0, 0.0, 0.0)):
+    """n linked copies of the mast section's LOD0, stacked from foot_w; returns them."""
+    src = lod_objects(mast, 0)[0]
+    made = []
+    for i in range(n):
+        o = src.copy()
+        o.name = f"ReviewMast{len(bpy.data.objects)}"
+        o.location = frame.b((at_lift[0], at_lift[1], foot_w + i * 1.0 + at_lift[2]))
+        bpy.context.scene.collection.objects.link(o)
+        made.append(o)
+    return made
+
+
+def _reference(path_spec, shift_lift):
+    """An optional local reference OBJ (mm, Z up) for side-by-side views: "path;cx;cy;flip" puts its mast
+    centre (cx, cy) on the lift frame's origin, x along u (reversed if flip), y along v."""
+    path, cx, cy, flip = path_spec.split(";")
+    before = set(bpy.data.objects)
+    bpy.ops.wm.obj_import(filepath=path, forward_axis="Y", up_axis="Z")
+    objs = [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+    su = -1.0 if flip == "1" else 1.0
+    # lift (u, v, w) = (su * (x - cx), y - cy, z) / 1000;  blender = (-v, -u, w)
+    mt = Matrix(((0, -0.001, 0, float(cy) / 1000), (-0.001 * su, 0, 0, su * float(cx) / 1000), (0, 0, 0.001, 0), (0, 0, 0, 1)))
+    mt = Matrix.Translation(frame.b(shift_lift)) @ mt
+    grey = bpy.data.materials.new("ReferenceGrey")
+    grey.diffuse_color = (0.72, 0.62, 0.5, 1)
+    for o in objs:
+        o.data.transform(mt)
+        o.data.materials.clear()
+        o.data.materials.append(grey)
+    return objs
+
+
+def tower_views(built_all, spec, out_dir):
+    """Workbench review of the tower kit: a full tower (base, sections, support-8 head) from three sides next to
+    a 1.8 m figure, optionally beside a local reference model (LIFT_TOWER_REF), a line-up of the six heads, and
+    close-ups of the support-8 and combination assemblies."""
+    sc = scene_setup()
+    sc.display.shading.show_shadows = True
+    sc.render.film_transparent = False
+    sc.world = sc.world or bpy.data.worlds.new("World")
+    base, mast = built_all["tower_base"], built_all["tower_mast"]
+    heads = [k for k in built_all if k.startswith("tower_") and k not in ("tower_base", "tower_mast")]
+    foot = base["assets"][0].sockets["mast_foot"][2]
+    n = int(os.environ.get("LIFT_TOWER_SECTIONS", "9"))
+    cam = camera("TowerCam")
+    everything = [o for b in built_all.values() for o in b["objects"]]
+    use_palette_uv([o for o in everything if o.type == "MESH"])
+
+    def shoot(name, objs, az, el, lens=35, ortho=False, res=(1600, 1200), pad=1.08, dist=2.6):
+        show_only(objs)
+        bpy.context.view_layer.update()   # matrix_world lags a changed location until the layer updates
+        lo, hi = bounds_lift([o for o in objs if o.type == "MESH" and o.name != "ReviewGround"])
+        centre = (lo + hi) / 2
+        a, e = math.radians(az), math.radians(el)
+        d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
+        sc.render.resolution_x, sc.render.resolution_y = res
+        radius = (hi - lo).length / 2
+        cam.location = frame.b(tuple(centre + d * radius * (dist if not ortho else 4)))
+        cam.rotation_euler = (frame.b(tuple(centre)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+        cam.data.clip_end = 500
+        if ortho:
+            cam.data.type = "ORTHO"
+            rot = cam.rotation_euler.to_matrix()
+            right, up = rot.col[0], rot.col[1]
+            pts = [frame.b((x, y, z)) for x in (lo.x, hi.x) for y in (lo.y, hi.y) for z in (lo.z, hi.z)]
+            w_ = max(p.dot(right) for p in pts) - min(p.dot(right) for p in pts)
+            h_ = max(p.dot(up) for p in pts) - min(p.dot(up) for p in pts)
+            cam.data.ortho_scale = max(w_, h_ * res[0] / res[1]) * pad
+        else:
+            cam.data.type = "PERSP"
+            cam.data.lens = lens
+        render(os.path.join(out_dir, f"tower_{name}.png"))
+
+    at = {k: Vector((0.0, 0.0, 0.0)) for k in heads}
+
+    def place(k, target):   # moves a head (bodies, pivots, sockets) from where it is to target (lift frame)
+        target = Vector(target)
+        _move(built_all[k], tuple(target - at[k]))
+        at[k] = target
+
+    for i, k in enumerate(heads):   # park every head out of view
+        place(k, (0.0, 80.0 + 12.0 * i, 0.0))
+
+    # a full breakover (support-8) tower at the origin
+    s8 = built_all["tower_b8"]
+    place("tower_b8", (0.0, 0.0, foot + n))
+    stack = _stack(mast, foot, n)
+    fig = figure((-1.2, 1.0, 0.0))
+    g = ground(40, 0.0)
+    tower = lod_objects(base, 0) + stack + lod_objects(s8, 0) + [fig, g]
+    rope = s8["assets"][0].dims["rope"] / 1000 + foot + n
+    print(f"Review tower: {n} sections, rope {rope:.2f} m above grade", flush=True)
+    shoot("full_threequarter", tower, 215, 14)
+    shoot("full_front", tower, 180, 0, ortho=True, res=(1200, 1600))
+    shoot("full_side", tower, 90, 0, ortho=True, res=(1200, 1600))
+    ref = os.environ.get("LIFT_TOWER_REF")
+    if ref:
+        refs = _reference(ref, (0.0, 7.0, 0.0))
+        shoot("compare_front", tower + refs, 180, 0, ortho=True, res=(1800, 1600))
+        shoot("compare_threequarter", tower + refs, 215, 12, res=(1800, 1400))
+        for o in refs:
+            bpy.data.objects.remove(o)
+    for o in stack:
+        bpy.data.objects.remove(o)
+
+    # heads alone, and close-ups of one rope's assembly
+    for k, tag in (("tower_b8", "b8"), ("tower_c8", "c8"), ("tower_d8", "d8")):
+        if k not in built_all:
+            continue
+        place(k, (0.0, 0.0, 0.0))
+        objs = lod_objects(built_all[k], 0)
+        shoot(f"head_{tag}_threequarter", objs, 215, 22)
+        shoot(f"head_{tag}_under", objs, 140, -18)
+        right = [o for o in objs if "_sheave_r" in o.name]
+        bpy.context.view_layer.update()
+        if right:
+            shoot(f"assembly_{tag}_out", objs, 20, 10, lens=50, res=(1600, 1000))
+            lo, hi = bounds_lift(right)
+            c = (lo + hi) / 2
+            for name, az, el in ((f"assembly_{tag}_close", 25, 12), (f"assembly_{tag}_inboard", 205, 18)):
+                a, e = math.radians(az), math.radians(el)
+                d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
+                show_only(objs)
+                cam.data.type = "PERSP"
+                cam.data.lens = 50
+                cam.location = frame.b(tuple(c + d * 5.0))
+                cam.rotation_euler = (frame.b(tuple(c)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+                sc.render.resolution_x, sc.render.resolution_y = 1600, 1000
+                render(os.path.join(out_dir, f"tower_{name}.png"))
+        place(k, (0.0, 80.0 + 12.0 * heads.index(k), 0.0))
+
+    # line-up of every head on two sections, left to right in the heads table's order
+    placed = []
+    for i, k in enumerate(heads):
+        spot = (0.0, (i - (len(heads) - 1) / 2) * 6.0, 0.0)
+        place(k, (spot[0], spot[1], 2.0))
+        placed += lod_objects(built_all[k], 0) + _stack(mast, 0.0, 2, at_lift=spot)
+    shoot("heads_lineup", placed, 195, 14, lens=35, res=(2000, 1000), dist=2.3)
+    shoot("heads_lineup_side", placed, 158, 12, lens=35, res=(2000, 1000), dist=2.3)
+    for o in [x for x in placed if x.name.startswith("ReviewMast")]:
+        bpy.data.objects.remove(o)
+    for k in heads:
+        place(k, (0.0, 0.0, 0.0))
+    restore_uv([o for o in everything if o.type == "MESH"])
+
+
+def _rope_over_head(spec, variant, rope_w, v, far=60.0):
+    """The rope's path past a tower head (lift frame points): on a support head it rides over the sheaves' arc and
+    leaves along its tangents, on a hold-down head it passes under the arc, on a combination it runs straight."""
+    from liftkit import parts as lk_parts
+    t = spec["tower"]
+    cfg = t["heads"][variant]
+    a = lk_parts.line_spec(spec)
+    if "combo" in cfg:
+        return [Vector((-far, v, rope_w)), Vector((far, v, rope_w))]
+    mode = "support" if "support" in cfg else "hold"
+    radius = a["arcs"][cfg["arc"]]
+    ends = lk_parts.arc_axles(a, cfg[mode], radius)
+    rr = radius + a["sheave"]["dia"] / 2 + a["ropeR"]           # the rope's circle, about the axle circle's centre
+    phi = math.asin(ends[-1][0] / radius)
+    sg = 1.0 if mode == "support" else -1.0                       # support: centre below, rope over the top
+    centre_w = rope_w - sg * rr
+    pts = []
+    for k in range(-12, 13):
+        p = phi * k / 12
+        pts.append(Vector((rr * math.sin(p), v, centre_w + sg * rr * math.cos(p))))
+    for s in (-1, 1):   # tangents beyond the end sheaves
+        p = s * phi
+        e = Vector((rr * math.sin(p), v, centre_w + sg * rr * math.cos(p)))
+        d = Vector((math.cos(p), 0.0, -sg * math.sin(p)))
+        pts.insert(0 if s < 0 else len(pts), e + d * (s * far))
+    return pts
+
+
+def tower_photos(built_all, spec, out_dir, mats, chairs):
+    """Cycles "photos" of each tower head type on a full tower: base, mast sections to a rope about 9.5 m above the
+    snow, the haul rope over (or under) the sheaves with a chair on each side, and a 1.8 m figure; a hero view,
+    a close-up of the head and a view up from under the line."""
+    sc, sun = _photo_scene()
+    base, mast = built_all["tower_base"], built_all["tower_mast"]
+    heads = [k for k in built_all if k.startswith("tower_") and k not in ("tower_base", "tower_mast")]
+    foot = base["assets"][0].sockets["mast_foot"][2]
+    hg = spec["common"]["lineGauge"] / 2000
+    snow = _snow_plane(0.0)
+    fig = _photo_figure((0.9, -1.1, 0.0))
+    bpy.context.view_layer.update()
+    for k in heads:
+        b = built_all[k]
+        variant = k[len("tower_"):]
+        rope_head = b["assets"][0].sockets["rope_right"][2]
+        n = max(3, round(9.5 - foot - rope_head))
+        lift = foot + n
+        _move(b, (0.0, 0.0, lift))
+        stack = _stack(mast, foot, n)
+        rope_w = lift + rope_head
+        ropes = []
+        for side in (-1, 1):
+            pts = _rope_over_head(spec, variant, rope_w, side * hg)
+            curve = bpy.data.curves.new(f"TowerRope{side}", "CURVE")
+            curve.dimensions = "3D"
+            curve.bevel_depth = spec["common"]["ropeDiameter"] / 2000
+            curve.bevel_resolution = 2
+            sp = curve.splines.new("POLY")
+            sp.points.add(len(pts) - 1)
+            for i, p in enumerate(pts):
+                sp.points[i].co = (*frame.b(tuple(p)), 1.0)
+            ro = bpy.data.objects.new(f"TowerRope{side}", curve)
+            sc.collection.objects.link(ro)
+            ro.data.materials.append(_rope_material())
+            ropes.append((ro, pts))
+        hung = []
+        if chairs:   # a chair on each rope, 7 m out, on the rope's path
+            for (ro, pts), side, u in ((ropes[0], -1, -7.0), (ropes[1], 1, 7.0)):
+                pa = min(pts, key=lambda p: abs(p.x - u))
+                hung += hang_chairs(chairs, [((pa.x, pa.y, pa.z), 0.0 if side > 0 else math.pi)])
+        objs = lod_objects(base, 0) + stack + lod_objects(b, 0)
+        show_only(objs + [snow, fig, sun] + [r for r, _ in ropes] + hung)
+        restore_uv(objs)
+        bpy.context.view_layer.update()
+        shoot = _shooter(f"tower_{variant}", out_dir)
+        head_c = (0.0, 0.0, rope_w)
+        top = rope_w + 2.2                                  # the portal beam is about 1.9 m over the rope
+        shoot("hero", (0.0, 0.0, top / 2), 32, 8, top * 1.9 + 4.0, lens=40)
+        shoot("head", head_c, 28, 12, 7.5, lens=40)
+        shoot("under", head_c, 160, -28, 7.0, lens=32)
+        for o in hung + [r for r, _ in ropes] + stack:
+            bpy.data.objects.remove(o)
+        _move(b, (0.0, 0.0, -lift))
+    _photo_end(sc, [snow, fig])
+
+
+def head_match(drive, tower_head, spec, out_dir):
+    """The drive terminal's entry head and a tower head from the same camera, placed relative to each crossbeam's
+    centre, so the two can be compared directly."""
+    sc = scene_setup()
+    sc.display.shading.show_shadows = True
+    sc.render.film_transparent = False
+    sc.world = sc.world or bpy.data.worlds.new("World")
+    cb = spec["drive"]["crossbeam"]
+    tw = spec["tower"]
+    centre_drive = Vector(((cb["uFrom"] + cb["uTo"]) / 2000, 0.0, (cb["bottom"] + cb["top"]) / 2000))
+    ow = tw["head"]["cap"]["thick"] / 1000 - cb["bottom"] / 1000
+    centre_tower = Vector((0.0, 0.0, (cb["bottom"] + cb["top"]) / 2000 + ow))
+    bpy.context.view_layer.update()
+    cam = camera("HeadCam")
+    cam.data.type = "PERSP"
+    cam.data.lens = 35
+    cam.data.clip_end = 300
+    sc.render.resolution_x, sc.render.resolution_y = 1600, 1100
+    for key, built, centre in (("drive_entry", drive, centre_drive), ("tower_b8", tower_head, centre_tower)):
+        objs = lod_objects(built, 0)
+        show_only(objs)
+        use_palette_uv(objs)
+        for name, (az, el, dist) in {"left": (330, 18, 8.5), "right": (25, 10, 8.5)}.items():
+            a, e = math.radians(az), math.radians(el)
+            d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
+            target = centre + Vector((0.0, 0.0, 0.6))
+            cam.location = frame.b(tuple(target + d * dist))
+            cam.rotation_euler = (frame.b(tuple(target)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+            render(os.path.join(out_dir, f"headmatch_{name}_{key}.png"))
+        restore_uv(objs)
+
+
 def render_all(built, spec, out_dir, shots, mats):
     out_dir = os.path.abspath(out_dir)   # Blender resolves relative render paths against the .blend, not the cwd
     os.makedirs(out_dir, exist_ok=True)
@@ -623,6 +895,10 @@ def render_all(built, spec, out_dir, shots, mats):
     if "data" in shots:
         for key in built:
             data_views(key, built[key], out_dir)
+    if "towers" in shots and "tower_base" in built and "tower_mast" in built and "tower_b8" in built:
+        tower_views({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir)
+        if "drive" in built:
+            head_match(built["drive"], built["tower_b8"], spec, out_dir)
     materials.use_palette(mats, packed)
     if "photos" in shots or "terminal_photos" in shots:
         for key in built:
@@ -630,4 +906,6 @@ def render_all(built, spec, out_dir, shots, mats):
                 chair_photos(built[key], spec, out_dir, mats)
             elif key in ("drive", "return"):
                 terminal_photos(key, built[key], spec, out_dir, mats, chairs)
+    if ("photos" in shots or "tower_photos" in shots) and "tower_base" in built and "tower_mast" in built:
+        tower_photos({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir, mats, chairs)
     print(f"Review renders in {out_dir}", flush=True)
