@@ -63,6 +63,11 @@ body.solo .frame { border-radius: 0; }
 .hud .v { font: 600 14px 'Overpass Mono', monospace; }
 .hud .day { font: 800 14px 'Overpass'; }
 .hud .ampm { font-size: 10.5px; margin-left: 3px; color: var(--soft); }
+/* the day and time, with the weather in small text underneath (as today's earnings sit under the balance) */
+.hud .when { display: grid; gap: 2px; line-height: 1.1; }
+.hud .when .line1 { display: flex; align-items: baseline; gap: 10px; }
+.hud .wxline { display: flex; align-items: center; gap: 5px; font: 600 11.5px 'Overpass Mono', monospace; color: #d8d0c4; }
+.hud .wxline svg.g { width: 15px; height: 15px; }
 .hud .spd { display: flex; gap: 0; }
 .hud .spd span { width: 17px; height: 26px; display: grid; place-items: center; color: #5a534c; border-radius: 3px; }
 .hud .spd span:hover { background: #34302b; }
@@ -613,8 +618,7 @@ body.solo .frame { border-radius: 0; }
     h += `<div class="bar ${S.docked ? 'docked' : 'floating'}${S.paused ? ' paused' : ''}">
       <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (A)">${g('s-analysis')}Analysis</span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib" data-act="pause" id="playbtn" title="${S.paused ? 'Play' : 'Pause'} (Space)">${g(S.paused ? 's-play' : 's-pause')}</span></div>
-      <div class="cell sep" style="gap:10px"><span class="day" id="day">Day ${S.day}</span><span class="v" id="clock">${clockText()}</span><span id="arc" style="color:#cfc7bb" title="The sun's place in the day">${dayArc(S.t)}</span></div>
-      <div class="cell sep" id="wxcell" title="${wx.desc}, ${wx.temp}°C, wind ${wx.wind}"><span id="wx">${wxIcon(wx.kind)}</span><span class="v" id="temp">${wx.temp < 0 ? '−' : ''}${Math.abs(wx.temp)}°C</span></div>
+      <div class="cell sep" style="gap:10px"><span class="when"><span class="line1"><span class="day" id="day">Day ${S.day}</span><span class="v" id="clock">${clockText()}</span></span><span class="wxline" id="wxcell" title="${wx.desc}, ${wx.temp}°C, wind ${wx.wind}"><span id="wx">${wxIcon(wx.kind)}</span><span id="temp">${wx.temp < 0 ? '−' : ''}${Math.abs(wx.temp)}°C</span></span></span><span id="arc" style="color:#cfc7bb" title="The sun's place in the day">${dayArc(S.t)}</span></div>
       <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
       <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:#8fcf8a">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${money(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)} today</span></span></div>
       <div class="cell sep" title="Lifts operating"><span style="color:#cfc7bb">${g('s-lift')}</span><span class="count" id="lifts">${S.liftsTotal}</span></div>
