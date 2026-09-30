@@ -29,6 +29,7 @@ CLASSES = [
     ("white", "#E7E8E8", 0, 0.45),          # hood base band
     ("grip", "#6C7176", 1, 0.55),           # grip body
     ("sheave_rim", "#D9DAD6", 0, 0.45),     # light rims round the red sheave faces (as photographed)
+    ("sign_black", "#121315", 0, 0.35),     # tower number plates (black, white number)
 ]
 INDEX = {name: i for i, (name, *_) in enumerate(CLASSES)}
 

@@ -3,7 +3,10 @@
   "catalog": {
     "maker": "Sessellift",
     "name": "Sessellift FGQ-4",
-    "parts": {"drive": "Drive terminal", "return": "Return terminal", "chair": "Quad chair"}
+    "parts": {"drive": "Drive terminal", "return": "Return terminal", "chair": "Quad chair",
+      "s4": "Line tower head, support 4", "s6": "Line tower head, support 6", "b8": "Line tower head, breakover 8",
+      "d8": "Line tower head, hold-down 8", "c8": "Line tower head, combination 4/4",
+      "mast": "Line tower mast section, 1 m", "base": "Line tower base"}
   },
   "common": {
     "ropeElevation": 3039,
@@ -76,7 +79,9 @@
     "bracket": {"uFrom": 1273, "uTo": 2076, "bottom": 2403, "slopeTo": 2337},
     "lowerFrame": {"vIn": 440, "vOut": 560, "bottom": 1995, "top": 2201, "uFrom": -1451, "uTo": 3013},
     "cylinder": {"dia": 216, "w": 2125, "from": 1840, "to": 4540, "eye": [4622, 2068], "eyeDia": 70},
-    "entryTrains": {"u": 4040, "mode": "hold", "plate": {"v": [1910, 1955], "top": 3822, "width": 160, "pin": 60}},
+    "entryTrains": {"u": 4040, "mode": "hold", "count": 8, "arc": "station", "level": "first",
+                    "lugs": {"halfU": 120, "thick": 30, "past": 90},
+                    "_note": "the integrated tower is a hold-down tower (owner): the line towers' hold-down assembly hung directly under the crossbeam end, levelled at its first sheave, so the rope runs level through the loading area and leaves the station climbing (owner); on the station arc (13 m), the tightest whose tilted equaliser clears the crossbeam (40 mm; the 10.385 m reference arc clashes): the rope leaves at about 16 degrees"},
     "carriageTravel": [-1990, -4430],
     "carriageAt": -1990,
     "carriage": {"head": {"uFrom": -442, "uTo": 666, "v": 412, "top": 2790, "bottom": 2430, "chamfer": [146, 370, 2252]},
@@ -158,5 +163,32 @@
     "bench": {"halfWidth": 972, "profile": [[-60, -2595], [341, -2489], [352, -2528], [-48, -2635]]},
     "bottomMember": {"u": 50, "size": 60, "w": -2657, "halfWidth": 972},
     "backrest": {"top": [-300, -2255], "bottom": [-110, -2605], "halfWidth": 972, "slats": 1, "thick": 25}
+  },
+  "tower": {
+    "_about": "Line towers as a modular kit (LP11): base (origin at grade on the mast centreline), 1 m mast sections (origin at the section foot) and a head (origin on the mast top) in six sheave variants. The head is the drive terminal's entry head (drive.crossbeam, drive.portal, drive.entryPlatform, shared through liftkit/heads.py) seated on a mast cap, unchanged; every sheave assembly hangs from below the crossbeam end on lug plates, its pin 320 mm under the crossbeam as on the return terminal's integrated tower (owner-approved connection), so the rope's height at the head depends on its type; +u is the platform side, the drive frame's +u (toward the return terminal). The sheave assemblies follow the owner's reference model: its breakover assembly for support, the same mirrored for hold-down; general support towers keep 4 or 6 sheaves on a flat arc; combinations align 4 hold-down sheaves over 4 support sheaves on triangular frames (owner's photo). Towers are galvanised; the first and last sheave of each row are red. The numbers are ours.",
+    "mast": {"dia": 610, "section": 1000, "sides": [24, 12, 8, 6]},
+    "base": {"footing": {"half": 1200, "bottom": -2500, "top": -1900},
+             "pier": {"half": 457, "top": 600, "chamfer": 25},
+             "plate": {"half": 400, "thick": 40},
+             "bolts": {"count": 8, "radius": 330, "dia": 64, "height": 70},
+             "gussets": {"count": 8, "height": 320, "reach": 110, "thick": 25}},
+    "ladder": {"side": 1, "standoff": 200, "halfWidth": 200, "rungs": 250, "stringer": [12, 80]},
+    "head": {"entryU": 3115.5, "cap": {"half": 380, "thick": 40, "gusset": {"height": 260, "reach": 70, "thick": 20}},
+             "platformHalfV": 1600, "hatch": 300, "grabRail": 1000,
+             "lugs": {"halfU": 120, "thick": 30, "past": 90, "hang": 320},
+             "numberPlate": {"halfV": 200, "height": 260, "thick": 8, "standoff": 20}},
+    "assembly": {"sheave": {"dia": 432, "width": 135, "flange": 28, "recess": 302, "recessDepth": 18, "grooveTop": 388, "grooveBottom": 372, "hub": 110},
+                 "pitch": 484, "rockerGap": 511, "trainGap": 641,
+                 "arcs": {"flat": 40000, "breakover": 10385, "combo": 60000, "station": 13000},
+                 "rocker": {"length": 640, "height": 141},
+                 "yoke": {"bar": [80, 185], "leg": 110, "legPast": 60, "overhang": 50, "pinOffset": 132},
+                 "x": {"rockerOut": [-88.5, -67.5], "rockerIn": [67.5, 88.5], "yokeOut": [-139.5, -99.5], "yokeIn": [101.5, 141.5],
+                       "tube": [141.5, 180.5], "beam": [180.5, 343.5], "hanger": [343.5, 373.5]},
+                 "tube": 84, "beam": {"size": 163, "overhang": 252, "block": 400}, "axle": 60, "pin": 70, "mainPin": 90,
+                 "pinOffset": 132, "sides": [20, 10, 8, 6],
+                 "combo": {"apex": 100, "apexHalf": 90, "blockHalfU": 200, "blockHalfW": 170}},
+    "heads": {"s4": {"support": 4, "arc": "flat"}, "s6": {"support": 6, "arc": "flat"},
+              "b8": {"support": 8, "arc": "breakover"}, "d8": {"hold": 8, "arc": "breakover"},
+              "c8": {"combo": 4, "arc": "combo"}}
   }
 }

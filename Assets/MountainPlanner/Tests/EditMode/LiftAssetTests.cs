@@ -21,7 +21,7 @@ namespace MountainPlanner.Tests
 
         [Serializable] sealed class LodBudget { public int lod; public int maxTris; public float untilM; }
         [Serializable] sealed class KindBudget { public LodBudget[] lods; public int shadowLods; public bool crossFade; }
-        [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget chair; }
+        [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget chair; public KindBudget tower_head; public KindBudget tower_mast; public KindBudget tower_base; }
         [Serializable] sealed class Common { public float ropeElevation; public float lineGauge; }
         [Serializable] sealed class Spec { public Common common; }
 
@@ -34,6 +34,9 @@ namespace MountainPlanner.Tests
         {
             "terminal" => b.terminal,
             "chair" => b.chair,
+            "tower_head" => b.tower_head,
+            "tower_mast" => b.tower_mast,
+            "tower_base" => b.tower_base,
             _ => throw new ArgumentException(kind),
         };
 
@@ -132,7 +135,21 @@ namespace MountainPlanner.Tests
         {
             var rig = prefab.GetComponent<LiftRig>();
             if (rig.Kind == "chair") Assert.Ignore("Chairs hang from the rope; no rope sockets.");
+            if (rig.Kind == "tower_mast" || rig.Kind == "tower_base") Assert.Ignore("Mast sections and bases carry no rope.");
             var common = LoadSpec().common;
+            if (rig.Kind == "tower_head")
+            {
+                // a tower head carries both ropes at the line gauge, level with each other, at the height its type
+                // puts them (support over the crossbeam, hold-down below it)
+                var left = rig.Socket("rope_left");
+                var right = rig.Socket("rope_right");
+                Assert.That(left, Is.Not.Null, "socket_rope_left");
+                Assert.That(right, Is.Not.Null, "socket_rope_right");
+                Assert.That(Mathf.Abs(right.localPosition.x - common.lineGauge * Mm / 2), Is.LessThan(2 * Mm), "rope_right on the line gauge");
+                Assert.That(Mathf.Abs(left.localPosition.x + common.lineGauge * Mm / 2), Is.LessThan(2 * Mm), "rope_left on the line gauge");
+                Assert.That(Mathf.Abs(left.localPosition.y - right.localPosition.y), Is.LessThan(Mm), "both ropes at one height");
+                return;
+            }
             var line = rig.Socket("line");
             Assert.That(line, Is.Not.Null, "socket_line");
             var rope = rig.Sockets.Where(s => s.name.Contains("_socket_rope_")).ToArray();
@@ -142,7 +159,17 @@ namespace MountainPlanner.Tests
                 var p = prefab.transform.InverseTransformPoint(s.position);
                 var l = prefab.transform.InverseTransformPoint(line.position);
                 Assert.That(Mathf.Abs(Mathf.Abs(p.x - l.x) - common.lineGauge * Mm / 2), Is.LessThan(2 * Mm), s.name);
-                Assert.That(Mathf.Abs(p.y - common.ropeElevation * Mm), Is.LessThan(2 * Mm), s.name);
+                // level at the rope elevation, except where the rope leaves a hold-down row climbing (the return's
+                // out sockets, owner): above it by less than a metre and a half, further up the line than the row
+                string name = s.name.Substring(s.name.IndexOf("_socket_", StringComparison.Ordinal) + "_socket_".Length);
+                var hold = name.EndsWith("_out", StringComparison.Ordinal) ? rig.Socket(name.Substring(0, name.Length - 4) + "_hold") : null;
+                if (hold != null)
+                {
+                    Assert.That(p.y, Is.GreaterThan(common.ropeElevation * Mm + Mm).And.LessThan(common.ropeElevation * Mm + 1.5f), s.name);
+                    Assert.That(p.z, Is.GreaterThan(prefab.transform.InverseTransformPoint(hold.position).z), s.name);
+                }
+                else
+                    Assert.That(Mathf.Abs(p.y - common.ropeElevation * Mm), Is.LessThan(2 * Mm), s.name);
                 Assert.That(s.localRotation, Is.EqualTo(Quaternion.identity), s.name);
             }
         }

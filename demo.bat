@@ -63,7 +63,7 @@ echo     21 Forest benchmark: 8 fixed views of Jackson Hole, GPU times and scree
 echo.
 echo   Lift asset pilot: Sessellift FGQ-4 chairlift
 echo     22 Rebuild the lift models in Blender, import them into Unity and build the Lift Lab (about 3 minutes)
-echo     23 Open the Lift Lab: drive and return terminals, quad chair, LODs, snow, colours, benchmark (B)
+echo     23 Open the Lift Lab: terminals, quad chair, line towers (6), LODs, snow, colours, benchmark (B)
 echo.
 echo     Q  Quit
 echo.
@@ -209,7 +209,7 @@ goto done
 :liftlab
 if not exist "%LIFTLAB%" call :projectfree && call :buildliftlab
 if not exist "%LIFTLAB%" goto done
-echo Starting the Lift Lab. 1-5 drive/return/chair/line-up/stress, Tab next, L LOD, N snow, C colour, T turntable, B benchmark, H help, Esc quit.
+echo Starting the Lift Lab. 1-6 drive/return/chair/line-up/stress/towers, Tab next, L LOD, N snow, C colour, T turntable, B benchmark, H help, Esc quit.
 start "" "%LIFTLAB%"
 goto menu
 

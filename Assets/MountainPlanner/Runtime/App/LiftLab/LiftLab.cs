@@ -16,10 +16,12 @@ namespace MountainPlanner.App
     /// <summary>
     /// The Lift Lab (decision LP1): a standalone scene for reviewing the lift assets hands-on and measuring
     /// what they cost, away from the mountain viewer.
-    ///   1 drive terminal · 2 return terminal · 3 chair · 4 line-up · 5 stress (20 lifts, ~500 chairs)
+    ///   1 drive terminal · 2 return terminal (its rope climbing out up the line) · 3 chair · 4 line-up
+    ///   5 stress (20 lifts with towers, ~500 chairs)
+    ///   6 towers (every tower head type on a full tower)
     ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · T turntable · G ground on/off
     ///   B benchmark · P screenshot · H help · Esc quit (camera: DebugFlyCamera's keys)
-    /// Unattended: -mode drive|return|chair|lineup|stress|empty, -lod n, -snow 0..1, -view yaw,pitch,distance,
+    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers, -lod n, -snow 0..1, -view yaw,pitch,distance,
     /// -screenshot file.png (captures once settled, then quits), -benchmark file.json (runs, writes, quits).
     /// </summary>
     public sealed class LiftLab : MonoBehaviour
@@ -43,9 +45,13 @@ namespace MountainPlanner.App
             new Color(0.72f, 0.12f, 0.09f), new Color(0.10f, 0.26f, 0.62f), new Color(0.11f, 0.42f, 0.22f), new Color(0.93f, 0.70f, 0.10f),
             new Color(0.12f, 0.12f, 0.13f), new Color(0.90f, 0.90f, 0.88f), new Color(0.90f, 0.42f, 0.08f), new Color(0.05f, 0.47f, 0.50f),
         };
-        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty" };
+        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers" };
+        /// <summary>The tower head types (LP11), in the line-up's order.</summary>
+        static readonly string[] TowerHeads = { "tower_s4", "tower_s6", "tower_b8", "tower_d8", "tower_c8" };
+        const float TowerRope = 9.5f;                // rope height of the towers in the towers mode
+        const float LineShown = 100f;                // how far up the line the return mode draws the rope
 
-        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty }
+        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers }
 
         readonly List<GameObject> _spawned = new List<GameObject>();
         readonly Dictionary<GameObject, int[]> _lodTriangles = new Dictionary<GameObject, int[]>();
@@ -179,6 +185,7 @@ namespace MountainPlanner.App
                     if (prefab == null) break;
                     float lift = mode == Mode.Chair ? rope : 0f;
                     _focus = Spawn(prefab, new Vector3(0, lift, 0), Quaternion.identity, livery);
+                    if (mode == Mode.Return) AddReturnLine(_focus, livery);
                     FrameOn(_focus, mode == Mode.Chair ? 7f : 26f, mode == Mode.Chair ? 205f : 215f, 16f);
                     break;
                 }
@@ -196,11 +203,48 @@ namespace MountainPlanner.App
                 case Mode.Stress:
                     BuildStress();
                     break;
+                case Mode.Towers:
+                {
+                    var chair = Prefab("chair");
+                    for (int i = 0; i < TowerHeads.Length; i++)
+                    {
+                        var head = SpawnTower(TowerHeads[i], new Vector3((i - (TowerHeads.Length - 1) / 2f) * 9f, 0, 0), Quaternion.identity, TowerRope, livery);
+                        if (head == null) continue;
+                        if (TowerHeads[i] == "tower_b8") _focus = head;
+                        var rig = head.GetComponent<LiftRig>();
+                        foreach (string side in new[] { "left", "right" })   // a short rope through each head, a chair on the right
+                        {
+                            var s = rig.Socket("rope_" + side).position;
+                            AddRope(s + Vector3.back * 16f, s + Vector3.forward * 16f, side == "right" ? chair : null, livery, true);
+                        }
+                    }
+                    if (_focus != null) FrameOn(_focus, 34f, 205f, 12f);
+                    break;
+                }
                 case Mode.Empty:
                     if (Camera != null) { Camera.Frame(new Vector3(0, 2, TerminalSpacing / 2), 120f); Camera.SetAngles(200f, 20f); }
                     break;
             }
             _materials.SetSnowLoad(_snow);
+        }
+
+        /// <summary>A line tower of the given head type, its rope at ropeHeight above position: the base, as many 1 m mast
+        /// sections as fit, and the head; the base rides up or down by the remainder (under half a metre), as a
+        /// footing would be set. Returns the head.</summary>
+        GameObject SpawnTower(string headId, Vector3 position, Quaternion rotation, float ropeHeight, Color livery)
+        {
+            var head = Prefab(headId);
+            var mast = Prefab("tower_mast");
+            var foundation = Prefab("tower_base");
+            if (head == null || mast == null || foundation == null) return null;
+            float foot = foundation.GetComponent<LiftRig>().Socket("mast_foot").localPosition.y;
+            float ropeOnHead = head.GetComponent<LiftRig>().Socket("rope_right").localPosition.y;
+            int sections = Mathf.Max(1, Mathf.RoundToInt(ropeHeight - foot - ropeOnHead));
+            float lift = ropeHeight - (foot + sections + ropeOnHead);
+            Spawn(foundation, position + rotation * new Vector3(0, lift, 0), rotation, livery);
+            for (int i = 0; i < sections; i++)
+                Spawn(mast, position + rotation * new Vector3(0, lift + foot + i, 0), rotation, livery);
+            return Spawn(head, position + rotation * new Vector3(0, lift + foot + sections, 0), rotation, livery);
         }
 
         float LiftRope()
@@ -211,8 +255,9 @@ namespace MountainPlanner.App
             return s != null ? s.localPosition.y : 3.039f;
         }
 
-        /// <summary>20 lifts side by side, each a return and a drive terminal facing each other 175 m apart,
-        /// with ropes and chairs every 13.8 m on both sides: about 500 chairs.</summary>
+        /// <summary>20 lifts side by side, each a return and a drive terminal facing each other 175 m apart, two line
+        /// towers between them (the head types in turn) and ropes with chairs every 13.8 m on both sides: about
+        /// 500 chairs and 40 towers.</summary>
         void BuildStress()
         {
             var drive = Prefab("drive");
@@ -229,6 +274,16 @@ namespace MountainPlanner.App
                 if (i == lifts / 2) _focus = r;
                 var rr = r.GetComponent<LiftRig>();
                 var dr = d.GetComponent<LiftRig>();
+                // towers face the return (their platform side, +Z, points downhill) and carry the rope where the
+                // straight rope between the terminals passes them (the ground here is flat, so the line is too)
+                var rOut = rr.Socket("rope_right_out").position;
+                var dOut = dr.Socket("rope_left_out").position;
+                for (int k = 1; k <= 2; k++)
+                {
+                    float z = TerminalSpacing * k / 3f;
+                    float rope = Mathf.Lerp(rOut.y, dOut.y, Mathf.InverseLerp(rOut.z, dOut.z, z));
+                    SpawnTower(TowerHeads[(i * 2 + k) % TowerHeads.Length], new Vector3(x, 0, z), Quaternion.Euler(0, 180f, 0), rope, livery);
+                }
                 // the return's right rope meets the drive's left rope, and vice versa
                 AddRope(rr.Socket("rope_right_out").position, dr.Socket("rope_left_out").position, chair, livery, true);
                 AddRope(rr.Socket("rope_left_out").position, dr.Socket("rope_right_out").position, chair, livery, false);
@@ -250,10 +305,89 @@ namespace MountainPlanner.App
             if (chair == null) return;
             var dir = (to - from).normalized;
             float length = Vector3.Distance(from, to);
-            // chairs face the way they travel: uphill on the right rope, down on the left; outboard is +X in both
-            var rotation = Quaternion.LookRotation(uphill ? dir : -dir, Vector3.up);
+            // chairs hang plumb and face the way they travel: uphill on the right rope, down on the left; outboard
+            // is +X in both
+            var rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(uphill ? dir : -dir, Vector3.up).normalized, Vector3.up);
             for (float t = ChairSpacing * 0.5f; t < length; t += ChairSpacing)
                 Spawn(chair, from + dir * t, rotation, livery);
+        }
+
+        /// <summary>A rope along `points`, in travel order, with chairs every ChairSpacing along it, hanging plumb
+        /// and facing the way they travel.</summary>
+        void AddRope(IReadOnlyList<Vector3> points, GameObject chair, Color livery)
+        {
+            var go = new GameObject("Rope");
+            var line = go.AddComponent<LineRenderer>();
+            line.sharedMaterial = RopeMaterial;
+            line.widthMultiplier = 0.045f;
+            line.positionCount = points.Count;
+            for (int i = 0; i < points.Count; i++) line.SetPosition(i, points[i]);
+            line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _spawned.Add(go);
+            if (chair == null) return;
+            float next = ChairSpacing * 0.5f, walked = 0f;
+            for (int i = 1; i < points.Count; i++)
+            {
+                var seg = points[i] - points[i - 1];
+                float len = seg.magnitude;
+                if (len < 1e-4f) continue;
+                var flat = Vector3.ProjectOnPlane(seg, Vector3.up);
+                var rotation = flat.sqrMagnitude > 1e-8f ? Quaternion.LookRotation(flat.normalized, Vector3.up) : Quaternion.identity;
+                for (; next <= walked + len; next += ChairSpacing)
+                    Spawn(chair, points[i - 1] + seg * ((next - walked) / len), rotation, livery);
+                walked += len;
+            }
+        }
+
+        /// <summary>The return mode's rope: down the left rope from up the line, round the back of the bullwheel
+        /// and up the right rope, leaving the station climbing over the hold-down rows (owner), with chairs.</summary>
+        void AddReturnLine(GameObject terminal, Color livery)
+        {
+            var rig = terminal.GetComponent<LiftRig>();
+            if (rig == null || rig.Socket("rope_right_bw") == null || rig.Socket("rope_left_bw") == null) return;
+            var up = RopeUpTheLine(rig, "right", LineShown);
+            var down = RopeUpTheLine(rig, "left", LineShown);
+            down.Reverse();
+            var wheel = rig.Pivot("bullwheel");
+            var centre = wheel != null ? wheel.position : (up[0] + down[down.Count - 1]) / 2f;
+            var from = down[down.Count - 1] - centre;        // the left rope at the wheel
+            var rope = new List<Vector3>(down);
+            const int steps = 24;
+            for (int k = 1; k < steps; k++)                  // round the back of the wheel, away from the line
+                rope.Add(centre + Quaternion.AngleAxis(-180f * k / steps, Vector3.up) * from);
+            rope.AddRange(up);
+            AddRope(rope, Prefab("chair"), livery);
+        }
+
+        /// <summary>One side's rope from the bullwheel up the line, in travel order: level to the hold-down row
+        /// where the terminal has one (rope_*_hold, the return), round the rope's circle under it (level at
+        /// rope_*_hold, so its centre is straight above it) to where the rope leaves it climbing (rope_*_out), then
+        /// on along that tangent for `length` metres; without one, level out past rope_*_out.</summary>
+        static List<Vector3> RopeUpTheLine(LiftRig rig, string side, float length)
+        {
+            var along = rig.transform.forward;             // +Z: up the line
+            var exit = rig.Socket($"rope_{side}_out").position;
+            var hold = rig.Socket($"rope_{side}_hold");
+            var points = new List<Vector3> { rig.Socket($"rope_{side}_bw").position };
+            var dir = along;
+            if (hold != null)
+            {
+                var h0 = hold.position;
+                float d = Vector3.Dot(exit - h0, along), h = exit.y - h0.y;
+                float r = (d * d + h * h) / (2f * h);
+                float theta = Mathf.Asin(Mathf.Clamp(d / r, -1f, 1f));
+                const int steps = 12;
+                for (int k = 0; k <= steps; k++)
+                {
+                    float a = theta * k / steps;
+                    points.Add(h0 + along * (r * Mathf.Sin(a)) + Vector3.up * (r * (1f - Mathf.Cos(a))));
+                }
+                dir = along * Mathf.Cos(theta) + Vector3.up * Mathf.Sin(theta);
+            }
+            else
+                points.Add(exit);
+            points.Add(points[points.Count - 1] + dir * length);
+            return points;
         }
 
         void FrameOn(GameObject go, float distance, float yaw, float pitch)
@@ -288,6 +422,7 @@ namespace MountainPlanner.App
                 if (keys.digit3Key.wasPressedThisFrame) Show(Mode.Chair);
                 if (keys.digit4Key.wasPressedThisFrame) Show(Mode.Lineup);
                 if (keys.digit5Key.wasPressedThisFrame) Show(Mode.Stress);
+                if (keys.digit6Key.wasPressedThisFrame) Show(Mode.Towers);
                 if (keys.tabKey.wasPressedThisFrame) Show(_mode < Mode.Chair ? _mode + 1 : Mode.Drive);
                 if (keys.lKey.wasPressedThisFrame) CycleLod();
                 if (keys.nKey.wasPressedThisFrame) { _snow = _snow > 0.75f ? 0f : _snow + 0.5f; _materials.SetSnowLoad(_snow); }
@@ -356,7 +491,7 @@ namespace MountainPlanner.App
             }
             _text.Append("Snow ").Append((_snow * 100).ToString("F0")).Append("% · livery ").Append(_livery % Liveries.Length + 1).Append('/').Append(Liveries.Length);
             if (Help)
-                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · Tab next · L LOD · N snow · C colour · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
+                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · Tab next · L LOD · N snow · C colour · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
                      .Append("\nWASD move · Q/E rotate · R/F tilt · wheel zoom · middle-drag rotate · right-drag move · Shift faster");
             return _text.ToString();
         }

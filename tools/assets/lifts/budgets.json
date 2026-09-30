@@ -18,5 +18,36 @@
     ],
     "shadowLods": 2,
     "crossFade": false
+  },
+  "tower_head": {
+    "_about": "Many towers per lift and 16 round sheaves on the heaviest heads: switching earlier than terminals keeps a whole line of 20 towers near 30k triangles in view; sheaves spin only at LOD0.",
+    "lods": [
+      {"lod": 0, "maxTris": 16000, "untilM": 15},
+      {"lod": 1, "maxTris": 5000, "untilM": 45},
+      {"lod": 2, "maxTris": 1000, "untilM": 150},
+      {"lod": 3, "maxTris": 200, "untilM": 800}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "tower_mast": {
+    "lods": [
+      {"lod": 0, "maxTris": 150, "untilM": 15},
+      {"lod": 1, "maxTris": 100, "untilM": 45},
+      {"lod": 2, "maxTris": 50, "untilM": 150},
+      {"lod": 3, "maxTris": 16, "untilM": 800}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
+  },
+  "tower_base": {
+    "lods": [
+      {"lod": 0, "maxTris": 400, "untilM": 15},
+      {"lod": 1, "maxTris": 300, "untilM": 45},
+      {"lod": 2, "maxTris": 60, "untilM": 150},
+      {"lod": 3, "maxTris": 40, "untilM": 800}
+    ],
+    "shadowLods": 2,
+    "crossFade": true
   }
 }

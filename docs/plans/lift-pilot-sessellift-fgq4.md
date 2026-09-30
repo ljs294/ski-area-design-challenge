@@ -1,7 +1,7 @@
 # Lift asset pilot · Sessellift FGQ-4
 
-**Audience:** the project owner and coding agents. **Status:** Gates 1 and 2 approved; Gate 3 (this PR) is for
-your review. **Date:** 2026-09-28. **Decisions:** LP1-LP10 in [phase0-decisions.md](phase0-decisions.md).
+**Audience:** the project owner and coding agents. **Status:** all three gates approved; merged
+2026-09-28. **Date:** 2026-09-28. **Decisions:** LP1-LP10 in [phase0-decisions.md](phase0-decisions.md).
 
 **Question:** can Claude author game-ready 3D assets for Mountain Planner: accurate to engineering drawings, within
 a performance budget, and good-looking enough for you to approve?
@@ -11,6 +11,14 @@ and a quad chair from engineering drawings and photos. It used Blender scripts o
 approved every model before it was imported. Each asset is within its triangle budget (the terminals use under
 60% of LOD0), and a stress scene of 40 terminals and 500 chairs costs about 0.3 ms per frame
 (1.07 ms p95 at 1080p).
+
+**Since the pilot:** a kit of line towers ([lift-towers-sessellift-fgq4.md](lift-towers-sessellift-fgq4.md))
+changed two things here:
+- the return's entry trains are now the towers' 8-sheave hold-down assembly, curved so the line leaves the
+  station climbing at 16° (LP13; 19,864 / 7,028 / 1,836 / 316 triangles);
+- in every sheave row only the first and last sheave are red (LP14).
+
+The numbers below are the pilot's.
 
 ![The drive terminal (top station) with its hood, entry tower and chairs on the rope](images/lift-pilot-drive.jpg)
 
@@ -120,7 +128,7 @@ in the stress run allocated 2.1 KB. A GPU-instanced chair path for full lines is
 
 ![Flush faces before and after the separation pass](images/lift-pilot-flush-fix.jpg)
 
-**Gate 3, Unity and PR: this PR.** Added the benchmark, `demo.bat` 22 (rebuild and import) and 23 (Lift Lab),
+**Gate 3, Unity and PR: approved and merged 2026-09-28.** Added the benchmark, `demo.bat` 22 (rebuild and import) and 23 (Lift Lab),
 these docs and the decisions.
 
 ## Retrospective

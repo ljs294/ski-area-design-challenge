@@ -2,7 +2,8 @@
 
 Blender scripts build chairlift terminals and chairs from a dimension file, with no manual modelling. The same
 spec always produces the same meshes (the build compares hashes). The first product is the fictional
-**Sessellift FGQ-4**, a fixed-grip quad: a drive (top) terminal, a return (bottom) terminal and a quad chair.
+**Sessellift FGQ-4**, a fixed-grip quad: a drive (top) terminal, a return (bottom) terminal, a quad chair and
+a kit of line towers.
 Its review, decisions and retrospective are in
 [lift-pilot-sessellift-fgq4.md](../../../docs/plans/lift-pilot-sessellift-fgq4.md).
 
@@ -11,9 +12,9 @@ Its review, decisions and retrospective are in
 | `sessellift_fgq4.json` | Our dimensions in millimetres: `common` (rope elevation, line gauge, rope, sheaves, bullwheel), then one section per asset |
 | `budgets.json` | Triangle budgets per LOD and LOD switch distances. The build and the Unity tests both read it |
 | `build_lifts.py` | Builds every asset and LOD, bakes AO, exports one FBX per asset plus the textures, and checks budgets, pivots and sockets |
-| `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair` |
-| `liftkit/` | The shared kit: `frame` (lift frame to Blender), `prims` (boxes, beams, cylinders, prisms, lathes), `parts` (sheaves, sheave trains, railings, ladders), `mesh` (MeshBuilder, per-face data, flush-face separation), `palette`, `textures` (detail atlas), `ao`, `materials`, `export` |
-| `render_review.py` | Review renders: orthographic views with dimensions (`gate1`), LOD lineup (`lods`), shader data (`data`), Cycles photos on snow (`photos`) |
+| `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair`, and `tower` (the line tower kit, see below) |
+| `liftkit/` | The shared kit: `frame` (lift frame to Blender), `prims` (boxes, beams, cylinders, prisms, lathes), `parts` (sheaves, sheave trains, line assemblies, railings, ladders), `heads` (the entry head shared by the drive terminal and the towers), `mesh` (MeshBuilder, per-face data, flush-face separation), `palette`, `textures` (detail atlas), `ao`, `materials`, `export` |
+| `render_review.py` | Review renders: orthographic views with dimensions (`gate1`), LOD lineup (`lods`), shader data (`data`), Cycles photos on snow (`photos`, `terminal_photos`, `tower_photos`), the tower kit in clay (`towers`) |
 | `build-lifts.bat` | Double-click: builds everything and opens the photos |
 
 ```sh
@@ -57,6 +58,38 @@ galvanised, grating, checker plate, concrete formwork, hood panel, rubber and se
 RG normal, B cavity and A brightness, with 0.5 neutral. Faces pick a tile by palette class
 (`textures.CLASS_TILE`) or by `Style.trim`.
 
+## Line towers (LP11)
+
+The tower kit is modular, so the game can build a tower of any height in 1 m steps:
+
+| Piece | Origin | What it is |
+|---|---|---|
+| `tower_base` | grade, on the mast centreline | footing 2.5 m below grade, square pier, base plate with anchor nuts and gussets; socket `mast_foot` |
+| `tower_mast` | the section's foot | 1 m of the Ø610 mast with its ladder (rungs on a continuous 250 mm pitch); socket `top` |
+| `tower_<type>` | the mast top | the head: the drive terminal's entry head (`liftkit.heads`) on a mast cap, with a sheave assembly on each rope; sockets `rope_left`/`rope_right`, `mast_top`, `number_plate` |
+
+**Head types** (`tower.heads`), with the sheave assemblies rebuilt from the owner's reference model
+(`parts.line_assembly`, `parts.combo_assembly`): sheaves Ø432 in pairs on rockers, two rockers on a train yoke,
+trains on a 163 mm square equaliser, sheaves on an arc.
+
+| Type | Sheaves per rope | Arc |
+|---|---|---|
+| `s4`, `s6` general support | 4 or 6 | flat (40 m) |
+| `b8` breakover | 8 | the reference arc (10.385 m) |
+| `d8` hold-down | 8 | the same assembly flipped |
+| `c8` combination | 4 hold-down over 4 support, aligned, on triangular plates | flat |
+
+**Connection:** every assembly hangs from below the crossbeam end. Two lug plates under the end carry its pin,
+320 mm below the crossbeam, as on the return terminal's integrated tower (itself a hold-down tower). The rope
+height at the head therefore depends on the type, and the head records it in its rope sockets. At the return,
+the row is levelled at its first sheave (`"level": "first"` on the 13 m `station` arc): the rope runs level
+through the loading area and leaves climbing at about 16°, and the sockets `rope_*_hold` and `rope_*_out` mark
+where it meets and leaves the row.
+
+**Finish:** towers are galvanised throughout; the number plate is black. In every sheave row the first and last
+sheave are red (lightning grounding) and the rest galvanised, on the terminals too (`parts.row_face`). Sheaves
+spin only at LOD0 on towers; from LOD1 a head is one mesh.
+
 ## Budgets (enforced)
 
 The build exits non-zero if an LOD is over budget, if totals don't decrease, if a moving part is off its
@@ -66,9 +99,18 @@ axle, or if a rope socket is off the rope.
 |---|---|---|---|---|
 | Terminal budget | 24,000 | 10,000 | 2,500 | 500 |
 | Drive terminal | 13,914 | 6,794 | 1,788 | 254 |
-| Return terminal | 12,944 | 5,884 | 1,612 | 292 |
+| Return terminal | 19,864 | 7,028 | 1,836 | 316 |
 | Chair budget | 800 | 250 | 60 | - |
 | Quad chair | 768 | 236 | 60 | - |
+| Tower head budget | 16,000 | 5,000 | 1,000 | 200 |
+| Head `s4` | 7,512 | 2,384 | 484 | 96 |
+| Head `s6` | 10,720 | 3,248 | 620 | 96 |
+| Heads `b8`, `d8` | 13,848 | 4,064 | 732 | 96 |
+| Head `c8` | 13,792 | 4,008 | 732 | 120 |
+| Mast section budget | 150 | 100 | 50 | 16 |
+| Mast section | 144 | 88 | 40 | 12 |
+| Tower base budget | 400 | 300 | 60 | 40 |
+| Tower base | 314 | 278 | 58 | 36 |
 
 ## Modelling rules learned in the pilot
 

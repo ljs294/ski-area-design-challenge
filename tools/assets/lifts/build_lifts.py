@@ -24,6 +24,10 @@ sys.path.insert(0, os.path.join(HERE, "assets"))
 from liftkit import ao, export, frame, materials, palette, textures  # noqa: E402
 
 MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair"}
+# the line tower kit (assets/tower.py): name -> variant
+TOWER = {"tower_s4": "s4", "tower_s6": "s6", "tower_b8": "b8", "tower_d8": "d8", "tower_c8": "c8",
+         "tower_mast": "mast", "tower_base": "base"}
+ALL = "drive,return,chair," + ",".join(TOWER)
 
 
 def clear_scene():
@@ -55,10 +59,25 @@ def check_asset(kind, assets, report, budgets, spec):
     if kind == "terminal":
         c = spec["common"]
         line_v = assets[0].sockets.get("line", (0, 0, 0))[1]
+        rope = c["ropeElevation"] / 1000
         for name, p in assets[0].sockets.items():
             if name.startswith("rope_"):
-                if abs(abs(p[1] - line_v) - c["lineGauge"] / 2000) > 0.001 or abs(p[2] - c["ropeElevation"] / 1000) > 0.001:
+                # on the line gauge; level at the rope elevation, except where the rope leaves a hold-down row
+                # climbing (the return's out sockets): above it, by less than a metre and a half
+                off_gauge = abs(abs(p[1] - line_v) - c["lineGauge"] / 2000) > 0.001
+                if name.endswith("_out") and f"{name[:-4]}_hold" in assets[0].sockets:
+                    off_height = not (rope + 0.001 < p[2] < rope + 1.5)
+                else:
+                    off_height = abs(p[2] - rope) > 0.001
+                if off_gauge or off_height:
                     problems.append(f"socket {name} at {p} is off the rope")
+    if kind == "tower_head":   # ropes at the line gauge, level with each other, at the head's declared height
+        g = spec["common"]["lineGauge"] / 2000
+        rope = assets[0].dims["rope"] / 1000
+        for name in ("rope_left", "rope_right"):
+            p = assets[0].sockets[name]
+            if abs(abs(p[1]) - g) > 0.001 or abs(p[2] - rope) > 0.001:
+                problems.append(f"socket {name} at {p} is off the rope")
     return problems
 
 
@@ -69,7 +88,7 @@ def main():
     tex_dir = os.path.join(out_dir, "textures")
     os.makedirs(tex_dir, exist_ok=True)
     stage = opts.get("stage", "detail")
-    names = opts.get("assets", "drive,return,chair").split(",")
+    names = opts.get("assets", ALL).split(",")
     spec = json.load(open(os.path.join(HERE, "sessellift_fgq4.json"), encoding="utf-8"))
     budgets = json.load(open(os.path.join(HERE, "budgets.json"), encoding="utf-8"))
 
@@ -85,9 +104,14 @@ def main():
 
     result, failures, built = {"stage": stage, "budgets": budgets, "assets": {}}, [], {}
     for name in names:
-        mod = importlib.import_module(MODULES[name])
-        kind = mod.KIND
-        assets = [mod.build(spec, lod, stage) for lod in range(mod.LODS)]
+        if name in TOWER:
+            mod = importlib.import_module("tower")
+            kind = mod.kind_of(TOWER[name])
+            assets = [mod.build(spec, lod, stage, TOWER[name]) for lod in range(mod.LODS)]
+        else:
+            mod = importlib.import_module(MODULES[name])
+            kind = mod.KIND
+            assets = [mod.build(spec, lod, stage) for lod in range(mod.LODS)]
         aid = assets[0].id
         coll = bpy.data.collections.new(aid)
         bpy.context.scene.collection.children.link(coll)
