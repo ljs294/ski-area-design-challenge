@@ -4,7 +4,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=Overpass:wght@400;500;600;700;800;900&family=Overpass+Mono:wght@400;500;600;700&display=swap">
 <style>
 /* The owner's layout sketch (Ski-Area-Design-Challenge UI.pdf) as an interactive mockup in the Trailhead look, over a
-   capture of our Unity mountain. Everything happens in one 1280x720 stage scaled to the page; #solo shows it alone. */
+   capture of our Unity mountain. Everything happens in one 1280x720 stage scaled to the page; #solo shows it alone.
+   Sizes follow the sketch, which is drawn at screen pixels: a bar docked in the corner, 40 px map controls 10 px in. */
 :root {
   --bg: #efefec; --fg: #1a1c1f; --muted: #5d6268; --line: #d6d6d0;
   --font: 'Archivo', 'Segoe UI', system-ui, sans-serif;
@@ -37,156 +38,178 @@ body.solo .frame { border-radius: 0; }
 .stage.pick { cursor: pointer; }
 .stage.sketching { cursor: crosshair; }
 
-/* ---------- the HUD: warm graphite, hairlines, Overpass + Overpass Mono ---------- */
+/* ---------- the HUD: warm graphite, Overpass + Overpass Mono, solid sign-style symbols ---------- */
 .hud { font-family: 'Overpass', 'Segoe UI', sans-serif; color: #efe9df; font-size: 13px; font-variant-numeric: tabular-nums;
-  --panel: rgba(27, 24, 21, 0.95); --hair: #3b3632; --hair2: #4a443e; --soft: #a39b90; --dim: #8f877c; --white: #fbf8f2; --ink: #1f1c19;
-  --flag: #ff6a1f; --amber: #f0b43c; --green: #8fcf8a; --red: #ff7a66; }
+  --panel: rgba(28, 25, 22, 0.96); --knock: #1c1916; --hair: #3b3632; --hair2: #4a443e; --div: #3d3833; --soft: #a39b90; --dim: #8f877c;
+  --white: #fbf8f2; --ink: #1f1c19; --flag: #ff6a1f; --amber: #f0b43c; --green: #8fcf8a; --red: #ff7a66; }
 .hud .abs { position: absolute; }
 .hud .mono { font-family: 'Overpass Mono', ui-monospace, monospace; }
-.hud svg.ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.hud svg.g { display: block; width: 20px; height: 20px; fill: currentColor; flex: none; }
 .hud [data-act] { cursor: pointer; }
-.hud .bar { position: absolute; left: 14px; bottom: 14px; height: 36px; display: flex; align-items: stretch; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; box-shadow: 0 8px 22px rgba(10, 20, 35, 0.35); z-index: 5; }
-.hud .bar > .cell { display: flex; align-items: center; gap: 7px; padding: 0 11px; border-left: 1px solid #36312c; white-space: nowrap; }
-.hud .bar > .cell:first-child { border-left: 0; }
-.hud .btn { display: flex; align-items: center; gap: 7px; height: 26px; margin: 4px 0; padding: 0 10px; border-radius: 2px; font: 700 12.5px 'Overpass'; color: #efe9df; }
-.hud .btn:hover { background: #34302b; }
-.hud .btn.on, .hud .btn.on:hover { background: #efe9df; color: #1b1815; }
-.hud .v { font: 600 13.5px 'Overpass Mono', monospace; }
-.hud .k { font: 700 9.5px 'Overpass'; letter-spacing: 0.14em; color: var(--dim); text-transform: uppercase; }
-.hud .play { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 2px; }
-.hud .play:hover { background: #34302b; }
-.hud .play svg { width: 14px; height: 14px; fill: currentColor; }
-.hud .spd { display: flex; gap: 1px; }
-.hud .spd span { width: 18px; height: 22px; display: grid; place-items: center; color: #5d5750; border-radius: 2px; }
+
+/* status bar: docked into the corner (the sketch) or floating */
+.hud .bar { position: absolute; height: 52px; display: flex; align-items: stretch; background: var(--panel); z-index: 5; }
+.hud .bar.docked { left: 0; bottom: 0; border-top: 1px solid var(--hair); border-right: 1px solid var(--hair); border-radius: 0 8px 0 0; }
+.hud .bar.floating { left: 10px; bottom: 10px; border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 8px 22px rgba(10, 20, 35, 0.35); }
+.hud .bar .cell { position: relative; display: flex; align-items: center; gap: 8px; padding: 0 12px; white-space: nowrap; }
+.hud .bar .cell.sep::before { content: ''; position: absolute; left: 0; top: 13px; bottom: 13px; width: 1px; background: var(--div); }
+.hud .tbtn { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 10px; border-radius: 5px; font: 700 13.5px 'Overpass'; color: #efe9df; }
+.hud .tbtn:hover { background: #34302b; }
+.hud .tbtn.on, .hud .tbtn.on:hover { background: #efe9df; color: #1b1815; }
+.hud .tbtn svg.g { width: 18px; height: 18px; }
+.hud .ib { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 5px; color: #efe9df; }
+.hud .ib:hover { background: #34302b; }
+.hud .ib svg.g { width: 20px; height: 20px; }
+.hud .v { font: 600 14px 'Overpass Mono', monospace; }
+.hud .day { font: 800 14px 'Overpass'; }
+.hud .ampm { font-size: 10.5px; margin-left: 3px; color: var(--soft); }
+.hud .spd { display: flex; gap: 0; }
+.hud .spd span { width: 17px; height: 26px; display: grid; place-items: center; color: #5a534c; border-radius: 3px; }
 .hud .spd span:hover { background: #34302b; }
 .hud .spd span.on { color: #efe9df; }
-.hud .spd svg { width: 10px; height: 10px; fill: currentColor; }
 .hud .paused .spd span.on { color: #8f877c; }
-.hud .save { position: relative; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 2px; color: #6f675e; }
-.hud .save:hover { background: #34302b; }
-.hud .save.due { color: var(--amber); }
-.hud .save.due::after { content: ''; position: absolute; right: 0; top: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px #1b1815; }
-.hud .sq { width: 34px; height: 34px; display: grid; place-items: center; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; color: #efe9df; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.3); }
-.hud .sq:hover { background: #34302b; }
-.hud .sq.on, .hud .sq.on:hover { background: #efe9df; color: #1b1815; }
-.hud .sq svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
-.hud .group { display: flex; border: 1px solid var(--hair); border-radius: 3px; background: var(--panel); box-shadow: 0 6px 16px rgba(10, 20, 35, 0.3); }
-.hud .group .sq { border: 0; border-left: 1px solid #36312c; border-radius: 0; box-shadow: none; background: transparent; }
-.hud .group .sq.on { background: #efe9df; }
-.hud .group .sq:first-child { border-left: 0; }
-.hud .stack { display: grid; gap: 6px; }
-.hud .stack .sq { width: 30px; height: 30px; font: 800 11px 'Overpass'; }
-.hud .box { position: absolute; left: 14px; bottom: 58px; width: 344px; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 4; }
-.hud .tabs { display: flex; border-bottom: 1px solid var(--hair); }
-.hud .tabs span { padding: 9px 11px 8px; font: 700 12px 'Overpass'; color: var(--dim); }
-.hud .tabs span:hover { color: #cfc7bb; }
-.hud .tabs span.on { color: #fff; box-shadow: inset 0 -2px 0 #efe9df; }
-.hud .tools { display: flex; gap: 6px; padding: 10px; }
-.hud .tool { position: relative; width: 74px; height: 66px; display: grid; justify-items: center; align-content: center; gap: 6px; border: 1px solid var(--hair2); border-radius: 2px; font: 700 11px 'Overpass'; color: #cfc7bb; text-align: center; line-height: 1.1; }
-.hud .tool:hover { border-color: #8f877c; color: #fff; }
-.hud .tool svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
-.hud .tool i { position: absolute; right: 4px; top: 2px; font: 600 9px 'Overpass Mono'; font-style: normal; color: #7d756b; }
-.hud .tool.on, .hud .tool.on:hover { background: #efe9df; color: #1b1815; border-color: #efe9df; }
-.hud .boxhd { display: flex; justify-content: space-between; padding: 8px 12px 0; }
-.hud .pn { position: absolute; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 6; }
-.hud .pn .hd { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid var(--hair); font: 800 11.5px 'Overpass'; letter-spacing: 0.14em; cursor: grab; }
-.hud .pn .hd .x { margin-left: auto; color: var(--soft); font-weight: 600; letter-spacing: 0; padding: 4px 6px; border-radius: 2px; }
+.hud .spd svg { width: 11px; height: 13px; fill: currentColor; }
+.hud .money { display: grid; justify-items: end; line-height: 1.12; }
+.hud .money .bal { font: 700 15px 'Overpass Mono', monospace; }
+.hud .money .delta { font: 600 11.5px 'Overpass Mono', monospace; }
+.hud .count { font: 700 15px 'Overpass Mono', monospace; }
+.hud .save { color: #5d5750; }
+.hud .save.due { color: #fff; }
+.hud .elev { width: 62px; text-align: right; }
+
+/* map controls: top right and bottom right */
+.hud .tr { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 5; }
+.hud .br { position: absolute; right: 10px; bottom: 10px; display: grid; gap: 6px; z-index: 5; }
+.hud .sq { width: 40px; height: 40px; display: grid; place-items: center; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; color: #e6dfd4; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.28); font: 800 13px 'Overpass'; }
+.hud .sq:hover { background: #34302b; color: #fff; }
+.hud .sq.on, .hud .sq.on:hover { background: #efe9df; color: #1b1815; --knock: #efe9df; }
+.hud .pair { display: grid; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.28); overflow: hidden; }
+.hud .pair .sq { border: 0; border-radius: 0; box-shadow: none; background: transparent; width: 38px; height: 39px; }
+.hud .pair .sq + .sq { border-top: 1px solid var(--div); }
+.hud .pair .sq:hover { background: #34302b; }
+
+/* the toolbox tray */
+.hud .box { position: absolute; left: 10px; width: 420px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 4; }
+.hud .tabs { display: flex; gap: 2px; padding: 8px 8px 7px; }
+.hud .tabs span { padding: 5px 10px 4px; border-radius: 4px; font: 700 14.5px 'Overpass'; color: #9a9186; }
+.hud .tabs span:hover { color: #efe9df; }
+.hud .tabs span.on { background: #3b3631; color: #fff; }
+.hud .tabrule { height: 1px; background: #5b544d; margin: 0 8px; }
+.hud .toollabel { padding: 9px 12px 7px; font: 700 12.5px 'Overpass'; color: #fff; display: flex; gap: 8px; }
+.hud .toollabel .mono { color: var(--soft); font-weight: 500; }
+.hud .tools { display: flex; gap: 6px; padding: 0 10px 10px; }
+.hud .tool { --knock: #2d2926; width: 64px; height: 60px; display: grid; justify-items: center; align-content: center; gap: 5px; background: #2d2926; border-radius: 5px; font: 700 10.5px 'Overpass'; color: #e2dace; }
+.hud .tool:hover { --knock: #3a3531; background: #3a3531; color: #fff; }
+.hud .tool.on, .hud .tool.on:hover { --knock: #efe9df; background: #efe9df; color: #1b1815; }
+.hud .tool svg.g { width: 26px; height: 26px; }
+
+/* floating panels */
+.hud .pn { position: absolute; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 6; }
+.hud .pn .hd { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--hair); font: 800 14px 'Overpass'; cursor: grab; }
+.hud .pn .hd .nm { color: var(--soft); font-weight: 600; }
+.hud .pn .hd .x { margin-left: auto; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 4px; color: var(--soft); }
 .hud .pn .hd .x:hover { background: #34302b; color: #fff; }
-.hud .plate { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 3px; border-radius: 2px; font: 900 11px 'Overpass'; color: var(--flag); box-shadow: inset 0 0 0 1.5px var(--flag); }
+.hud .pn .hd svg.g { width: 18px; height: 18px; }
+.hud .plate { display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 3px; border-radius: 3px; font: 900 11.5px 'Overpass'; color: var(--flag); box-shadow: inset 0 0 0 1.5px var(--flag); }
 .hud .plate.built { color: var(--ink); background: var(--white); box-shadow: none; }
-.hud .seg { display: flex; border: 1px solid var(--hair2); border-radius: 2px; overflow: hidden; }
-.hud .seg span { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 4px 0; font: 700 11px 'Overpass'; color: var(--soft); border-left: 1px solid var(--hair2); }
+.hud .seg { display: flex; border: 1px solid var(--hair2); border-radius: 4px; overflow: hidden; }
+.hud .seg span { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 0 4px; font: 700 11.5px 'Overpass'; color: var(--soft); border-left: 1px solid var(--hair2); }
 .hud .seg span:hover { color: #fff; }
 .hud .seg span:first-child { border-left: 0; }
 .hud .seg span.on { background: #efe9df; color: #1b1815; }
 .hud .seg span.off { color: #5d5750; cursor: default; }
 .hud .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 7px 12px; margin: 0; }
-.hud .kv dt { color: var(--soft); font: 700 10.5px 'Overpass'; letter-spacing: 0.1em; text-transform: uppercase; align-self: center; }
+.hud .kv dt { color: var(--soft); font: 600 12.5px 'Overpass'; align-self: center; }
 .hud .kv dd { margin: 0; text-align: right; font: 500 12.5px 'Overpass Mono', monospace; }
 .hud .kv dd b { font-weight: 700; color: #fff; }
-.hud .sub { padding: 8px 12px 0; font: 700 10.5px 'Overpass'; letter-spacing: 0.14em; color: var(--dim); text-transform: uppercase; display: flex; justify-content: space-between; }
+.hud .sub { padding: 8px 12px 0; font: 700 12.5px 'Overpass'; color: #e6dfd4; display: flex; justify-content: space-between; }
+.hud .sub span + span { color: var(--soft); font-weight: 600; }
 .hud .rule { height: 1px; background: var(--hair); }
-.hud .hint { padding: 9px 12px; font: 500 12px 'Overpass'; color: #cfc7bb; line-height: 1.4; }
+.hud .hint { padding: 7px 12px; font: 500 12.5px 'Overpass'; color: #cfc7bb; line-height: 1.4; }
 .hud .hint b { color: #fff; }
 .hud .acts { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 4px 12px 12px; }
-.hud .go { white-space: nowrap; display: flex; justify-content: space-between; align-items: center; height: 34px; padding: 0 12px; background: #1a6b3c; color: #fff; border-radius: 2px; font: 800 12px 'Overpass'; letter-spacing: 0.12em; }
+.hud .go { white-space: nowrap; display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 12px; background: #1a6b3c; color: #fff; border-radius: 4px; font: 800 13px 'Overpass'; }
 .hud .go:hover { background: #1f7d47; }
 .hud .go.danger { background: #8e2b1f; }
 .hud .go.danger:hover { background: #a3342a; }
 .hud .go.dis { background: #2e2a26; color: #6f675e; cursor: default; }
-.hud .ghost { display: grid; place-items: center; height: 34px; padding: 0 12px; border: 1px solid var(--hair2); border-radius: 2px; font: 700 11px 'Overpass'; letter-spacing: 0.12em; color: #cfc7bb; white-space: nowrap; }
+.hud .ghost { display: grid; place-items: center; height: 36px; padding: 0 12px; border: 1px solid var(--hair2); border-radius: 4px; font: 700 12.5px 'Overpass'; color: #cfc7bb; white-space: nowrap; }
 .hud .ghost:hover { border-color: #8f877c; color: #fff; }
 .hud .ghost.dis { color: #5d5750; cursor: default; }
-.hud .drop { position: absolute; right: 14px; top: 54px; width: 220px; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); padding: 6px 0; z-index: 7; }
-.hud .drop .row { display: flex; align-items: center; gap: 10px; padding: 7px 12px; font: 600 13px 'Overpass'; }
+.hud .drop { position: absolute; right: 10px; top: 56px; width: 236px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); padding: 6px 0; z-index: 7; }
+.hud .drop .row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font: 600 13px 'Overpass'; }
 .hud .drop .row:hover { background: #34302b; }
-.hud .drop .row .mono { margin-left: auto; color: var(--dim); font-size: 11px; }
-.hud .chk { width: 14px; height: 14px; border: 1.5px solid #8f877c; border-radius: 2px; display: grid; place-items: center; }
+.hud .drop .row .r { margin-left: auto; color: var(--dim); font: 500 11.5px 'Overpass Mono'; }
+.hud .drop .row .r.val { color: #efe9df; font: 700 12px 'Overpass'; }
+.hud .drop .sepl { height: 1px; background: var(--hair); margin: 5px 0; }
+.hud .chk { width: 15px; height: 15px; border: 1.5px solid #8f877c; border-radius: 3px; display: grid; place-items: center; }
 .hud .chk.on { background: #efe9df; border-color: #efe9df; }
 .hud .chk.on::after { content: ''; width: 7px; height: 4px; border-left: 2px solid #1b1815; border-bottom: 2px solid #1b1815; transform: rotate(-45deg) translate(1px, -1px); }
-.hud .log { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; z-index: 8; pointer-events: none; }
-.hud .log div { display: grid; grid-template-columns: 3px auto; gap: 10px; align-items: center; padding: 7px 12px 7px 0; background: var(--panel); border: 1px solid var(--hair); border-radius: 2px; font: 600 12.5px 'Overpass'; white-space: nowrap; animation: logIn 0.2s ease; }
+.hud .log { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; z-index: 8; pointer-events: none; }
+.hud .log div { display: grid; grid-template-columns: 3px auto; gap: 10px; align-items: center; padding: 8px 12px 8px 0; background: var(--panel); border: 1px solid var(--hair); border-radius: 4px; font: 600 13px 'Overpass'; white-space: nowrap; overflow: hidden; animation: logIn 0.2s ease; }
 .hud .log div i { align-self: stretch; }
 @keyframes logIn { from { opacity: 0; transform: translateY(-6px); } }
-.hud .strip { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 12px; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; font: 600 12.5px 'Overpass'; z-index: 6; }
-.hud .strip .ghost { height: 26px; }
+.hud .strip { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 12px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; font: 600 13px 'Overpass'; z-index: 6; }
+.hud .strip .ghost { height: 28px; }
 .hud .modal { position: absolute; inset: 0; background: rgba(10, 16, 26, 0.45); display: grid; place-items: center; z-index: 9; }
-.hud .modal .pn { position: relative; width: 300px; }
+.hud .modal .pn { position: relative; width: 320px; }
 </style>
 
+<!-- Symbols: one solid set on a 24 px grid, drawn like trail and road signs: filled shapes, knock-outs in the
+     panel colour (--knock), no hairline strokes. Tools share a family glyph plus a badge: + new, pencil edit, x remove. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 5.5a4.5 4.5 0 0 0 5.6 5.6L12 19.2a2.1 2.1 0 0 1-3-3l8.1-8.1a4.5 4.5 0 0 1-2.6-2.6zM14.5 5.5l3.1-1.6 2.5 2.5-1.6 3.1"/><path d="M4 20l3-3"/></symbol>
-  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3.5 20.5h17M6.5 17V11M11 17V6.5M15.5 17v-4M20 17V8.5"/></symbol>
-  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5l12 7.5-12 7.5z"/></symbol>
-  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6.5 4.5h4v15h-4zM13.5 4.5h4v15h-4z"/></symbol>
-  <symbol id="i-tri" viewBox="0 0 10 10"><path d="M1.5 1l7 4-7 4z"/></symbol>
-  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></symbol>
-  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z"/></symbol>
-  <symbol id="i-cash" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/></symbol>
-  <symbol id="i-lift" viewBox="0 0 24 24"><path d="M2.5 5l19 4.2M12 7.2V12M7.5 12h9v2.6a2.9 2.9 0 0 1-2.9 2.9h-3.2a2.9 2.9 0 0 1-2.9-2.9zM8.5 20.5h7M10.3 17.5v3M13.7 17.5v3"/></symbol>
-  <symbol id="i-skier" viewBox="0 0 24 24"><circle cx="15.5" cy="4.5" r="2"/><path d="M13.5 8l-3.5 4.5 3 3-2 3.8M14.2 9.8l3.6 2.2M3.5 20.5l17-3.2"/></symbol>
-  <symbol id="i-save" viewBox="0 0 24 24"><path d="M4.5 4.5h12l3 3v12h-15z"/><path d="M8 4.5v4.5h7V4.5M8 19.5v-5.5h8v5.5"/></symbol>
-  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M15.5 4.5l4 4L9 19H5v-4zM13 7l4 4"/></symbol>
-  <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6l6-2.5 6 2.5 6-2.5v14.5L15 20.5 9 18 3 20.5zM9 3.5V18M15 6v14.5"/></symbol>
-  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
-  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 5.5l2.6 6.5h-5.2z" fill="currentColor"/><path d="M9.4 12h5.2L12 18.5z"/></symbol>
-  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
-  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M2.5 5l12 2.6M9.5 6.6V11M5 11h9v2.4a2.8 2.8 0 0 1-2.8 2.8H7.8A2.8 2.8 0 0 1 5 13.4zM6.5 20h5M17.5 11.5l3 3-6 6h-3v-3z"/></symbol>
-  <symbol id="i-remove" viewBox="0 0 24 24"><path d="M2.5 5l12 2.6M9.5 6.6V11M5 11h9v2.4a2.8 2.8 0 0 1-2.8 2.8H7.8A2.8 2.8 0 0 1 5 13.4zM6.5 20h5M16 14l5 5M21 14l-5 5"/></symbol>
-  <symbol id="i-trail" viewBox="0 0 24 24"><path d="M2.5 20.5L10.5 5l4 6 2-3 5 12.5z"/><path d="M10.5 8.5c-2.5 2.5 3 4.5-.5 7s-.5 3.3 2 5"/></symbol>
-  <symbol id="i-trail-edit" viewBox="0 0 24 24"><path d="M2.5 20.5L9.5 7l3.5 5.5M9.5 10c-2 2 2.5 3.8-.5 6s-.5 3 1.5 4.5M17.5 9.5l3 3-6 6h-3v-3z"/></symbol>
-  <symbol id="i-trail-remove" viewBox="0 0 24 24"><path d="M2.5 20.5L9.5 7l3.5 5.5M9.5 10c-2 2 2.5 3.8-.5 6s-.5 3 1.5 4.5M15 12l6 6M21 12l-6 6"/></symbol>
-  <symbol id="i-gun" viewBox="0 0 24 24"><g transform="rotate(-24 10.5 12)"><rect x="4.5" y="9.3" width="12" height="5.4" rx="2.7"/></g><path d="M8 21l3-6.2 3 6.2M18.5 3.5v3.4M16.8 5.2h3.4M21 9.5v2.2M19.9 10.6h2.2"/></symbol>
-  <symbol id="i-pipe" viewBox="0 0 24 24"><path d="M3 8h9a4 4 0 0 1 4 4v8M3 12h9M16 20h4M12 20h4"/><path d="M6.5 6v4M6.5 10v4"/></symbol>
-  <symbol id="i-pump" viewBox="0 0 24 24"><path d="M3.5 20.5v-10l8.5-6 8.5 6v10zM8 20.5v-6h8v6M12 8.5c-1.4 1.8-2 2.8-2 3.7a2 2 0 0 0 4 0c0-.9-.6-1.9-2-3.7z"/></symbol>
-  <symbol id="i-lodge" viewBox="0 0 24 24"><path d="M3 11.5L12 4l9 7.5M5.5 9.8v10.7h13V9.8M10 20.5v-5h4v5M16 6.8V4.5h2.2v4.2"/></symbol>
-  <symbol id="i-road" viewBox="0 0 24 24"><path d="M7.5 21L10.5 3.5M16.5 21L13.5 3.5M12 6.5v2M12 11.5v2.4M12 17v2.8"/></symbol>
-  <symbol id="i-parking" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9.5 17V7.5h3.8a2.8 2.8 0 0 1 0 5.6H9.5"/></symbol>
+  <symbol id="s-hammer" viewBox="0 0 24 24"><path d="M12.1 1.7l10.2 10.2-4 4L8.1 5.7l3.8-.2z" stroke="currentColor" stroke-width=".9" stroke-linejoin="round"/><path d="M13.2 10.8L4.7 19.3" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="s-analysis" viewBox="0 0 24 24"><rect x="2.6" y="2.8" width="2.2" height="18.4" rx="1.1"/><rect x="7" y="4.6" width="10.5" height="3.4" rx="1.2"/><rect x="7" y="10.3" width="14.4" height="3.4" rx="1.2"/><rect x="7" y="16" width="7.2" height="3.4" rx="1.2"/></symbol>
+  <symbol id="s-play" viewBox="0 0 24 24"><path d="M8.2 4.6a1.2 1.2 0 0 0-1.8 1v12.8a1.2 1.2 0 0 0 1.8 1l10.4-6.4a1.2 1.2 0 0 0 0-2z"/></symbol>
+  <symbol id="s-pause" viewBox="0 0 24 24"><rect x="6.2" y="4.8" width="4" height="14.4" rx="1.2"/><rect x="13.8" y="4.8" width="4" height="14.4" rx="1.2"/></symbol>
+  <symbol id="s-speed" viewBox="0 0 11 13"><path d="M2.4 1.6a.9.9 0 0 0-1.4.8v8.2a.9.9 0 0 0 1.4.8l6.9-4.1a.9.9 0 0 0 0-1.6z"/></symbol>
+  <symbol id="s-cash" viewBox="0 0 24 24"><rect x="2.6" y="6.2" width="18.8" height="11.6" rx="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.9"/><circle cx="6.4" cy="12" r="1.15"/><circle cx="17.6" cy="12" r="1.15"/></symbol>
+  <symbol id="s-lift" viewBox="0 0 24 24"><path d="M1.8 4h20.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="9.4" y="2.4" width="5.2" height="3" rx="1"/><rect x="11.1" y="4.5" width="1.8" height="3.6"/><path fill-rule="evenodd" d="M8 8h8a3.2 3.2 0 0 1 3.2 3.2v7.2a3 3 0 0 1-3 3H7.8a3 3 0 0 1-3-3v-7.2A3.2 3.2 0 0 1 8 8zM7.4 10.6v4.2h3.7v-4.2zM12.9 10.6v4.2h3.7v-4.2z"/></symbol>
+  <symbol id="s-skier" viewBox="0 0 24 24"><circle cx="16.4" cy="4.1" r="2.3"/><path d="M14.8 7.6l-3.9 4.8 3.6 2.9-1.9 3.9M10.9 12.4l-2.1 4.7" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.3 8.7l4.2 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M18.5 10.9l1.3 6.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M3 19.6l18.2-3.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="s-gun" viewBox="0 0 24 24"><g transform="rotate(-28 11 12)"><rect x="3.8" y="8.6" width="11" height="6.8" rx="2.2"/><rect x="15.6" y="7.6" width="2.4" height="8.8" rx="1"/></g><path d="M9.6 15.2L7 21.4M9.6 15.2l3 6.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="19.6" cy="4.3" r="1.2"/><circle cx="21.6" cy="7.6" r="1.05"/><circle cx="17.5" cy="2.2" r=".9"/><circle cx="21.9" cy="2.9" r=".8"/></symbol>
+  <symbol id="s-pipe" viewBox="0 0 24 24"><rect x="2" y="8.6" width="20" height="5.2" rx="1.2"/><rect x="5.6" y="6.8" width="2.6" height="8.8" rx=".8"/><rect x="15.8" y="6.8" width="2.6" height="8.8" rx=".8"/><path d="M12 16.4c-1.7 2-2.5 3.2-2.5 4.1a2.5 2.5 0 0 0 5 0c0-.9-.8-2.1-2.5-4.1z"/></symbol>
+  <symbol id="s-pump" viewBox="0 0 24 24"><path d="M3 11.2L12 3.4l9 7.8v9.2a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 20.4z"/><path d="M12 10.2c-2 2.4-3 3.9-3 5.2a3 3 0 0 0 6 0c0-1.3-1-2.8-3-5.2z" style="fill:var(--knock)"/></symbol>
+  <symbol id="s-lodge" viewBox="0 0 24 24"><path d="M1.8 20.2L12 3l10.2 17.2h-3.4L12 8.8 5.2 20.2z"/><path d="M7.4 20.2L12 12.4l4.6 7.8z"/><rect x="10.7" y="16.3" width="2.6" height="3.9" style="fill:var(--knock)"/><rect x="15.6" y="4.4" width="2.5" height="5.8" rx=".5"/><rect x="1.4" y="19.9" width="21.2" height="1.8" rx=".9"/></symbol>
+  <symbol id="s-road" viewBox="0 0 24 24"><path d="M8.8 3h6.4l6.3 18H2.5z"/><rect x="11.35" y="5" width="1.3" height="2.8" style="fill:var(--knock)"/><rect x="11.2" y="10" width="1.6" height="3.4" style="fill:var(--knock)"/><rect x="11" y="15.6" width="2" height="4" style="fill:var(--knock)"/></symbol>
+  <symbol id="s-parking" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3.2"/><path d="M9.6 17.6V6.8h3.3a3.4 3.4 0 0 1 0 6.8H9.6" fill="none" stroke-width="2.5" stroke-linejoin="round" style="stroke:var(--knock)"/></symbol>
+  <symbol id="s-save" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.2 3h11.4L21 7.4v11.4a2.2 2.2 0 0 1-2.2 2.2H5.2A2.2 2.2 0 0 1 3 18.8V5.2A2.2 2.2 0 0 1 5.2 3zM7.6 3v4.4a1 1 0 0 0 1 1h5.8a1 1 0 0 0 1-1V3zM7.8 12.4a1 1 0 0 0-1 1v5.2h10.4v-5.2a1 1 0 0 0-1-1z"/><rect x="11.9" y="3.9" width="1.8" height="3" rx=".4"/></symbol>
+  <symbol id="s-dock" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M3.9 14.8h9.4a1 1 0 0 1 1 1v3.3H5.4a1.5 1.5 0 0 1-1.5-1.5z"/></symbol>
+  <symbol id="s-float" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="6.2" y="12.4" width="9" height="3.8" rx="1"/></symbol>
+  <symbol id="s-pencil" viewBox="0 0 24 24"><g transform="rotate(45 12 12)"><rect x="9.6" y="1.4" width="4.8" height="3.4" rx="1.2"/><rect x="9.6" y="5.8" width="4.8" height="11"/><path d="M9.6 17.8h4.8L12 22.6z"/></g></symbol>
+  <symbol id="s-map" viewBox="0 0 24 24"><path d="M2.6 6.6l5.3-2v14.9l-5.3 2zM9.2 4.6l5.6 2v14.9l-5.6-2zM16.1 6.6l5.3-2v14.9l-5.3 2z"/></symbol>
+  <symbol id="s-menu" viewBox="0 0 24 24"><rect x="3.6" y="5.2" width="16.8" height="2.7" rx="1.35"/><rect x="3.6" y="10.65" width="16.8" height="2.7" rx="1.35"/><rect x="3.6" y="16.1" width="16.8" height="2.7" rx="1.35"/></symbol>
+  <symbol id="s-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.7" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 5.4l2.7 6.6H9.3z"/><path d="M9.3 12h5.4L12 18.6z" opacity=".38"/></symbol>
+  <symbol id="s-plus" viewBox="0 0 24 24"><rect x="10.9" y="4.8" width="2.4" height="14.4" rx="1.2"/><rect x="4.8" y="10.8" width="14.4" height="2.4" rx="1.2"/></symbol>
+  <symbol id="s-minus" viewBox="0 0 24 24"><rect x="4.8" y="10.8" width="14.4" height="2.4" rx="1.2"/></symbol>
+  <symbol id="s-elev" viewBox="0 0 24 24"><path d="M1.6 19.8L8.6 8.2l3.5 5.4 3-4.4 7.3 10.6z"/><rect x="1" y="14.6" width="22" height="1.5" style="fill:var(--knock)"/><path d="M8.6 2.6v3.6M6.9 4.4L8.6 2.6l1.7 1.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <!-- tool badges, in the lower right of a family glyph -->
+  <symbol id="b-new" viewBox="0 0 24 24"><circle cx="18.2" cy="18.2" r="5.9" style="fill:var(--knock)"/><circle cx="18.2" cy="18.2" r="4.6"/><rect x="17.55" y="15.4" width="1.3" height="5.6" style="fill:var(--knock)"/><rect x="15.4" y="17.55" width="5.6" height="1.3" style="fill:var(--knock)"/></symbol>
+  <symbol id="b-edit" viewBox="0 0 24 24"><circle cx="18.2" cy="18.2" r="5.9" style="fill:var(--knock)"/><circle cx="18.2" cy="18.2" r="4.6"/><g transform="rotate(45 18.2 18.2)" style="fill:var(--knock)"><rect x="17.45" y="14.9" width="1.5" height="4.4"/><path d="M17.45 19.8h1.5l-.75 1.4z"/></g></symbol>
+  <symbol id="b-remove" viewBox="0 0 24 24"><circle cx="18.2" cy="18.2" r="5.9" style="fill:var(--knock)"/><circle cx="18.2" cy="18.2" r="4.6"/><g transform="rotate(45 18.2 18.2)" style="fill:var(--knock)"><rect x="17.55" y="15.4" width="1.3" height="5.6"/><rect x="15.4" y="17.55" width="5.6" height="1.3"/></g></symbol>
 </svg>
 
 <div class="wrap">
   <div class="top">
     <h1>Your layout, playable</h1>
-    <p>The layout from your sketch as a clickable mockup, in the Trailhead look over our Unity mountain. The clock runs, the tools draw on the mountain, and building costs money. Nothing is saved when you reload.</p>
+    <p>The layout from your sketch as a clickable mockup, in the Trailhead look over our Unity mountain. The status bar docks into the corner as you drew it, or floats; the clock and weather run, the tools draw on the mountain, and building costs money. Nothing is saved when you reload.</p>
   </div>
   <ul class="try">
-    <li><b>Build a lift:</b> Toolbox → Lifts → New Lift, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
-    <li><b>Draw a trail:</b> Toolbox → Trails → New Trail, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure tools place guns, pipes, lodges, roads and parking the same way.</li>
-    <li><b>Also live:</b> play/pause and speed, save, Analysis, the sketch pencil (draw on the map), map layers, the menu, zoom and the compass. <b>Keys:</b> T toolbox, A analysis, Space pause, 1–3 speed, the letter on each tool, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
+    <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
+    <li><b>Also live:</b> the dock button at the right end of the bar (docked or floating), play/pause and four speeds, save (white when there are changes), Analysis, the sketch pencil, map layers, the menu, zoom and the compass. The bar shows the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, Space pause, 1–4 speed, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
     <div class="map" id="map"><img src="assets/game-bluebird.jpg" alt="The mountain on a bluebird day"><svg id="world" viewBox="0 0 1280 720"></svg></div>
     <div id="ui"></div>
   </div></div>
-  <p class="pagenote">An interactive style mockup, not the game: the mountain is a capture of our Unity build with the sky composited behind it, and the numbers, costs and names are placeholders (the opening values in the bar come from your sketch).</p>
+  <p class="pagenote">An interactive style mockup, not the game: the mountain is a capture of our Unity build with the sky composited behind it. The numbers, costs, weather and the elevation readout are placeholders (the opening values in the bar come from your sketch).</p>
 </div>
 
 <script>
 (() => {
   'use strict';
   const W = 1280, H = 720;
-  if (location.hash === '#solo') document.body.classList.add('solo');
+  if (location.hash.slice(1).split('&').includes('solo')) document.body.classList.add('solo');
   const stage = document.getElementById('stage'), frame = document.getElementById('frame'), mapEl = document.getElementById('map'), worldEl = document.getElementById('world'), ui = document.getElementById('ui');
   let K = 1;
   const fit = () => { K = frame.clientWidth / W; stage.style.transform = `scale(${K})`; frame.style.height = `${H * K}px`; };
@@ -195,16 +218,34 @@ body.solo .frame { border-radius: 0; }
   const f1 = (n) => n.toFixed(1);
   const money = (v) => (v < 0 ? '−' : '') + '$' + Math.round(Math.abs(v)).toLocaleString('en-US');
   const short = (v) => { const a = Math.abs(v), s = v < 0 ? '−' : v > 0 ? '+' : ''; return s + '$' + (a >= 1e6 ? (a / 1e6).toFixed(2) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(1) + 'K' : Math.round(a)); };
-  const ic = (id, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24"><use href="#${id}"/></svg>`;
+  const g = (id, extra = '') => `<svg class="g" viewBox="0 0 24 24" ${extra}><use href="#${id}"/></svg>`;
+  const tg = (id, badge) => `<svg class="g" viewBox="0 0 24 24"><use href="#${id}"/>${badge ? `<use href="#b-${badge}"/>` : ''}</svg>`;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
+  // ---------- placeholder terrain: the skyline from the capture's sky key, and heights placed by eye ----------
+  const SKYLINE = [406,399,393,386,379,373,365,359,353,346,339,333,327,320,313,307,301,295,295,294,293,293,292,291,291,290,289,289,288,288,287,286,285,285,284,283,283,283,281,281,279,279,278,277,277,276,275,275,274,274,273,272,271,271,270,269,269,267,267,266,265,265,264,263,263,262,261,261,260,259,259,258,257,256,255,254,254,252,250,249,249,247,245,244,240,239,234,232,230,226,224,219,217,214,210,206,203,202,201,203,203,201,201,199,200,200,199,195,193,193,193,193,196,193,193,190,188,191,192,193,195,195,204,217,218,217,220,223,226,228,230,231,233,235,237,240,243,245,249,252,255,258,261,265,267,271,276,280,283,293,295,291,293,307,299,301,301,306,307,313];
+  const skylineAt = (x) => { const i = Math.max(0, Math.min(SKYLINE.length - 1.001, x / 8)), i0 = Math.floor(i); return SKYLINE[i0] + (SKYLINE[i0 + 1] - SKYLINE[i0]) * (i - i0); };
+  const HEIGHTS = [
+    [946, 203, 3185], [900, 205, 3170], [990, 222, 3120], [830, 232, 3090], [760, 262, 3010], [1100, 242, 3050], [1200, 292, 2920], [1275, 318, 2860],
+    [886, 316, 2930], [960, 330, 2880], [1050, 420, 2740], [1160, 470, 2610], [1260, 450, 2680], [800, 440, 2540], [700, 330, 2600], [652, 402, 2590],
+    [770, 598, 2140], [548, 616, 2070], [640, 520, 2260], [880, 560, 2300], [1000, 620, 2330], [1180, 640, 2380],
+    [300, 700, 2080], [700, 705, 2150], [1000, 710, 2260], [1260, 710, 2330],
+    [60, 420, 1965], [200, 340, 1958], [400, 300, 1952], [590, 262, 1950], [150, 520, 1975], [380, 430, 1968], [520, 380, 1990], [60, 620, 2010],
+  ];
+  function elevAt(p) {
+    let num = 0, den = 0;
+    for (const [x, y, e] of HEIGHTS) { const d2 = (p[0] - x) ** 2 + (p[1] - y) ** 2; if (d2 < 1) return e; const w = 1 / (d2 * d2); num += w * e; den += w; }
+    return num / den;
+  }
+  const onTerrain = (p) => p[1] >= skylineAt(p[0]) - 1;
+
   // ---------- the world: a resort placed by eye on the capture (1280x720 space) ----------
-  const MPX = 5.8, RPX = 3.6;   // rough metres per pixel along the slope, and of rise per pixel of screen height
+  const MPX = 5.8;   // rough metres per pixel along the ground
   const MODELS = { 'Fixed 4': { cap: 1800, speed: 2.3, term: 1.2e6, perM: 1500 }, 'Detach 4': { cap: 2400, speed: 5.0, term: 1.86e6, perM: 2150 }, 'Detach 6': { cap: 3000, speed: 5.0, term: 2.4e6, perM: 2600 } };
   const DIFFS = { green: 'Green', blue: 'Blue', black: 'Black', double: 'Double' };
   const S = {
-    day: 148, t: 5 * 3600 + 27 * 60 + 47, paused: false, speed: 1,
-    cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true, history: [],
+    day: 148, t: 5 * 3600 + 27 * 60 + 47, paused: false, speed: 2, docked: true,
+    cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true,
     zoom: 1, layers: { lifts: true, trails: true, snow: true, infra: true, labels: true },
     toolbox: false, tab: 'lifts', tool: null, analysis: false, drop: null, sketch: false, modal: null,
     lifts: [
@@ -217,76 +258,112 @@ body.solo .frame { border-radius: 0; }
       { id: 't3', name: 'Headwall', diff: 'black', pts: [[880, 326], [838, 408], [801, 500], [778, 590]], built: true },
       { id: 't4', name: 'Timberline', diff: 'blue', pts: [[893, 322], [938, 384], [908, 470], [832, 556], [788, 596]], built: true },
     ],
-    things: [],      // points and lines from snowmaking and infrastructure: { id, kind, pts, built }
-    sketches: [],
-    draft: null, sel: null, hover: null, panelPos: { x: 14, y: 10 },
+    things: [], sketches: [],
+    draft: null, sel: null, hover: null, panelPos: { x: 10, y: 10 },
   };
-  let uid = 10;
+  let uid = 10, liftSeq = 0, trailSeq = 0;
   const nextLiftNumber = () => Math.max(...S.lifts.map((l) => l.n)) + 1;
   const LIFT_NAMES = ['Summit Quad', 'Couloir Chair', 'Sublette', 'Casper', 'Moose Creek', 'Teewinot', 'Apres Vous'];
   const TRAIL_NAMES = ['Couloir', 'Rendezvous Bowl', 'Laramie', 'Amphitheater', 'Gros Ventre', 'Wally World', 'Saratoga'];
+
+  // ---------- weather and the sun (placeholders: snow overnight, a bluebird day) ----------
+  const SUNRISE = 7.75, SUNSET = 16.9;
+  function weather(t) {
+    const h = t / 3600, temp = Math.round(-9.5 + 5.5 * Math.cos(2 * Math.PI * (h - 14.5) / 24));
+    const night = h < SUNRISE || h >= SUNSET;
+    let kind = night ? 'moon' : 'sun', desc = 'Clear', wind = 'W 8 km/h';
+    if (h < 3.5) { kind = 'snow'; desc = 'Light snow'; wind = 'W 18 km/h'; }
+    else if (h < 5) { kind = 'cloud'; desc = 'Clearing'; wind = 'W 14 km/h'; }
+    else if (h >= 14 && h < 16.5) { kind = 'few'; desc = 'Fair-weather cumulus'; wind = 'SW 12 km/h'; }
+    else if (h >= 22.5) { kind = 'cloud'; desc = 'Clouding over'; wind = 'W 15 km/h'; }
+    return { kind, desc, temp, wind };
+  }
+  function wxIcon(kind) {
+    const cloud = (dx, dy, s, style) => `<g transform="translate(${dx} ${dy}) scale(${s})" ${style}><circle cx="8.4" cy="13.4" r="4.2"/><circle cx="13.4" cy="10.4" r="5.2"/><circle cx="18" cy="13.9" r="3.6"/><rect x="4.2" y="13.4" width="17.4" height="4.4" rx="2.2"/></g>`;
+    const sun = (cx, cy, r, ray) => { let s = `<circle cx="${cx}" cy="${cy}" r="${r}"/>`; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, x = cx + Math.cos(a) * ray, y = cy + Math.sin(a) * ray; s += `<rect x="${f1(x - 1)}" y="${f1(y - 1.6)}" width="2" height="3.2" rx="1" transform="rotate(${k * 45 + 90} ${f1(x)} ${f1(y)})"/>`; } return s; };
+    const body = {
+      sun: `<g fill="#f0b43c">${sun(12, 12, 4.6, 8.6)}</g>`,
+      moon: `<path fill="#d9def0" d="M11.19 4.54A7.5 7.5 0 1 0 19.25 13.94A6.2 6.2 0 0 1 11.19 4.54Z"/><circle cx="19.2" cy="5.2" r="1" fill="#d9def0"/>`,
+      cloud: `<g fill="#d8d0c4">${cloud(0, 0, 1, '')}</g>`,
+      few: `<g fill="#f0b43c">${sun(8.6, 8.4, 3.3, 6.4)}</g><g fill="#e6dfd4" stroke="var(--knock)" stroke-width="1.6" paint-order="stroke">${cloud(3.2, 4.2, 0.8, '')}</g>`,
+      snow: `<g fill="#d8d0c4">${cloud(0, -3.2, 1, '')}</g><g fill="#fff"><circle cx="8" cy="19.4" r="1.3"/><circle cx="12.2" cy="21.2" r="1.3"/><circle cx="16.4" cy="19.4" r="1.3"/></g>`,
+    }[kind];
+    return `<svg class="g" viewBox="0 0 24 24">${body}</svg>`;
+  }
+  // The sun's place in its day: an arc from sunrise to sunset with the sun on it, or below the horizon at night.
+  function dayArc(t) {
+    const h = t / 3600, up = h >= SUNRISE && h < SUNSET, night = 24 - SUNSET + SUNRISE;
+    const th = up ? Math.PI * (1 - (h - SUNRISE) / (SUNSET - SUNRISE)) : -Math.PI * (((h - SUNSET + 24) % 24) / night);
+    const x = 12 + 7.6 * Math.cos(th), y = 12.6 - 7.6 * Math.sin(th);
+    return `<svg class="g" viewBox="0 0 24 24"><circle cx="12" cy="12.6" r="7.6" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".45"/><path d="M12 12.6m-7.6 0a7.6 7.6 0 0 0 15.2 0z" opacity=".22"/><rect x="1.6" y="11.7" width="20.8" height="1.8" rx=".9"/><circle cx="${f1(x)}" cy="${f1(y)}" r="2.7" fill="${up ? '#f0b43c' : '#d9def0'}" stroke="var(--knock)" stroke-width="1.2"/></svg>`;
+  }
+
 
   // ---------- tools ----------
   const TABS = [['lifts', 'Lifts'], ['trails', 'Trails'], ['snow', 'Snowmaking'], ['infra', 'Infrastructure']];
   const TOOLS = {
     lifts: [
-      { id: 'new-lift', name: 'New Lift', key: 'N', icon: 'i-lift', kind: 'lift' },
-      { id: 'edit-lift', name: 'Edit Lift', key: 'E', icon: 'i-edit', kind: 'pick', target: 'lift', mode: 'edit' },
-      { id: 'remove-lift', name: 'Remove Lift', key: 'X', icon: 'i-remove', kind: 'pick', target: 'lift', mode: 'remove' },
+      { id: 'new-lift', label: 'New', name: 'New lift', hint: 'click the base, then the top station', key: 'N', glyph: 's-lift', badge: 'new', kind: 'lift' },
+      { id: 'edit-lift', label: 'Edit', name: 'Edit lift', hint: 'change a lift\'s model', key: 'E', glyph: 's-lift', badge: 'edit', kind: 'pick', target: 'lift', mode: 'edit' },
+      { id: 'remove-lift', label: 'Remove', name: 'Remove lift', hint: 'take a lift out and salvage it', key: 'X', glyph: 's-lift', badge: 'remove', kind: 'pick', target: 'lift', mode: 'remove' },
     ],
     trails: [
-      { id: 'new-trail', name: 'New Trail', key: 'N', icon: 'i-trail', kind: 'trail' },
-      { id: 'edit-trail', name: 'Edit Trail', key: 'E', icon: 'i-trail-edit', kind: 'pick', target: 'trail', mode: 'edit' },
-      { id: 'remove-trail', name: 'Remove Trail', key: 'X', icon: 'i-trail-remove', kind: 'pick', target: 'trail', mode: 'remove' },
+      { id: 'new-trail', label: 'New', name: 'New trail', hint: 'click down the fall line', key: 'N', glyph: 's-skier', badge: 'new', kind: 'trail' },
+      { id: 'edit-trail', label: 'Edit', name: 'Edit trail', hint: 're-rate a trail', key: 'E', glyph: 's-skier', badge: 'edit', kind: 'pick', target: 'trail', mode: 'edit' },
+      { id: 'remove-trail', label: 'Remove', name: 'Remove trail', hint: 'let a trail grow back in', key: 'X', glyph: 's-skier', badge: 'remove', kind: 'pick', target: 'trail', mode: 'remove' },
     ],
     snow: [
-      { id: 'gun', name: 'Snow Gun', key: 'G', icon: 'i-gun', kind: 'points', unit: 'gun', each: 42000, layer: 'snow' },
-      { id: 'pipe', name: 'Water Line', key: 'P', icon: 'i-pipe', kind: 'line', perM: 310, layer: 'snow' },
-      { id: 'pump', name: 'Pump House', key: 'H', icon: 'i-pump', kind: 'points', unit: 'pump house', each: 1.2e6, layer: 'snow' },
+      { id: 'gun', label: 'Snow gun', name: 'Snow gun', hint: 'place fan guns along a trail', key: 'G', glyph: 's-gun', kind: 'points', unit: 'snow gun', each: 42000, layer: 'snow' },
+      { id: 'pipe', label: 'Water line', name: 'Water line', hint: 'run water up to the guns', key: 'W', glyph: 's-pipe', kind: 'line', perM: 310, layer: 'snow' },
+      { id: 'pump', label: 'Pump house', name: 'Pump house', hint: 'pressure for a snowmaking system', key: 'P', glyph: 's-pump', kind: 'points', unit: 'pump house', each: 1.2e6, layer: 'snow' },
     ],
     infra: [
-      { id: 'lodge', name: 'Lodge', key: 'L', icon: 'i-lodge', kind: 'points', unit: 'lodge', each: 6.5e6, layer: 'infra' },
-      { id: 'road', name: 'Road', key: 'R', icon: 'i-road', kind: 'line', perM: 900, layer: 'infra' },
-      { id: 'parking', name: 'Parking', key: 'K', icon: 'i-parking', kind: 'points', unit: 'lot', each: 850000, layer: 'infra' },
+      { id: 'lodge', label: 'Lodge', name: 'Lodge', hint: 'food, warmth and toilets', key: 'L', glyph: 's-lodge', kind: 'points', unit: 'lodge', each: 6.5e6, layer: 'infra' },
+      { id: 'road', label: 'Road', name: 'Road', hint: 'access for guests and crews', key: 'R', glyph: 's-road', kind: 'line', perM: 900, layer: 'infra' },
+      { id: 'parking', label: 'Parking', name: 'Parking', hint: 'a lot at the base', key: 'K', glyph: 's-parking', kind: 'points', unit: 'lot', each: 850000, layer: 'infra' },
     ],
   };
   const toolById = (id) => Object.values(TOOLS).flat().find((t) => t.id === id);
+  const toolGlyph = (t) => tg(t.glyph, t.badge);
 
   function chooseTool(id) {
     if (S.tool === id) { closeTool(); return; }
     S.tool = id; S.sel = null; S.sketch = false;
     const t = toolById(id);
-    if (t.kind === 'lift') S.draft = { kind: 'lift', pts: [], model: 'Detach 4', name: LIFT_NAMES[(nextLiftNumber() - 4) % LIFT_NAMES.length], n: nextLiftNumber() };
-    else if (t.kind === 'trail') S.draft = { kind: 'trail', pts: [], diff: 'blue', done: false, name: TRAIL_NAMES[S.trails.filter((x) => !x.seed).length % TRAIL_NAMES.length] };
+    if (t.kind === 'lift') S.draft = { kind: 'lift', pts: [], model: 'Detach 4', name: LIFT_NAMES[liftSeq % LIFT_NAMES.length], n: nextLiftNumber() };
+    else if (t.kind === 'trail') S.draft = { kind: 'trail', pts: [], diff: 'blue', done: false, name: TRAIL_NAMES[trailSeq % TRAIL_NAMES.length] };
     else if (t.kind === 'points' || t.kind === 'line') S.draft = { kind: t.kind, tool: t.id, pts: [], done: false };
     else S.draft = null;
     render();
   }
   function closeTool() { S.tool = null; S.draft = null; S.sel = null; render(); }
 
-  // ---------- numbers ----------
+  // ---------- numbers, from the placeholder heights ----------
+  const flat = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]) * MPX;
   function liftStats(a, b, model) {
-    const m = MODELS[model], px = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const len = px * MPX, rise = Math.max(0, (a[1] - b[1]) * RPX), deg = Math.asin(Math.min(0.95, rise / Math.max(len, 1))) * 180 / Math.PI;
+    const m = MODELS[model], run = Math.max(1, flat(a, b)), ea = elevAt(a), eb = elevAt(b), rise = eb - ea;
+    const len = Math.hypot(run, rise), deg = Math.atan2(Math.abs(rise), run) * 180 / Math.PI;
     const towers = Math.max(2, Math.ceil(len / 120)), grading = Math.round(len * 1.7);
     const cost = { term: m.term, line: len * m.perM, towers: towers * 83000, grading: grading * 140 };
     cost.total = cost.term + cost.line + cost.towers + cost.grading;
-    const ride = len / m.speed;
-    return { len, rise, deg, towers, grading, cost, ride, cap: m.cap, speed: m.speed };
+    return { len, rise, deg, ea, eb, towers, grading, cost, ride: len / m.speed, cap: m.cap, speed: m.speed };
   }
-  function pathLen(pts) { let s = 0; for (let i = 1; i < pts.length; i++) s += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return s * MPX; }
-  function trailStats(pts) {
-    const len = pathLen(pts), drop = pts.length > 1 ? Math.max(0, (pts[pts.length - 1][1] - pts[0][1]) * RPX) : 0;
-    let steep = 0;
-    for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]) * MPX, r = Math.max(0, (pts[i][1] - pts[i - 1][1]) * RPX); if (l > 0) steep = Math.max(steep, Math.atan2(r, Math.sqrt(Math.max(l * l - r * r, 1))) * 180 / Math.PI); }
-    const avg = len > 0 ? Math.atan2(drop, Math.sqrt(Math.max(len * len - drop * drop, 1))) * 180 / Math.PI : 0;
+  function pathStats(pts) {
+    let len = 0, run = 0, steep = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const r = flat(pts[i - 1], pts[i]), dz = elevAt(pts[i - 1]) - elevAt(pts[i]);
+      run += r; len += Math.hypot(r, dz); if (r > 1) steep = Math.max(steep, Math.atan2(dz, r) * 180 / Math.PI);
+    }
+    const drop = pts.length > 1 ? elevAt(pts[0]) - elevAt(pts[pts.length - 1]) : 0;
+    const avg = run > 1 ? Math.atan2(drop, run) * 180 / Math.PI : 0;
     const clearing = len * 38, grading = len * 24;
     return { len, drop, avg, steep, clearing, grading, total: clearing + grading };
   }
   const fmtTime = (s) => { const m = Math.floor(s / 60), r = Math.round(s % 60); return `${m}:${String(r).padStart(2, '0')}`; };
+  const metres = (e) => Math.round(e).toLocaleString('en-US');
 
   // ---------- drawing the world ----------
-  const white = '#fbf8f2', ink = '#1f1c19', flag = '#ff6a1f', graphite = 'rgba(27,24,21,.92)', sel = '#ffd34d';
+  const white = '#fbf8f2', ink = '#1f1c19', flag = '#ff6a1f', graphite = 'rgba(27,24,21,.92)', selC = '#ffd34d';
   const runColour = { green: '#1f8a4c', blue: '#2f6bb0', black: '#1f1c19', double: '#1f1c19' };
   const P = (p) => ({ x: p[0], y: p[1] });
   const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
@@ -304,12 +381,10 @@ body.solo .frame { border-radius: 0; }
     : kind === 'double' ? `<path d="M${x + 6.5} ${y + 4}l3.5 5-3.5 5-3.5-5zM${x + 12.5} ${y + 4}l3.5 5-3.5 5-3.5-5z" fill="#efe9df"/>` : `<path d="M${x + 9} ${y + 3.5}l5.5 5.5-5.5 5.5-5.5-5.5z" fill="#efe9df"/>`;
   const liftPlate = (x, y, n, planned) => planned ? `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="none" stroke="${flag}" stroke-width="1.4"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px Overpass,sans-serif;fill:${flag}">${n}</text>`
     : `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="${white}"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px Overpass,sans-serif;fill:${ink}">${n}</text>`;
-
   function drawLift(l, o = {}) {
-    const A = P(l.a), B = P(l.b), len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len;
-    const planned = !l.built, hi = o.hi;
+    const A = P(l.a), B = P(l.b), len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, planned = !l.built;
     let s = '';
-    if (hi) s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${sel}" stroke-width="9" opacity=".55" stroke-linecap="round"/>`;
+    if (o.hi) s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${selC}" stroke-width="9" opacity=".55" stroke-linecap="round"/>`;
     s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${white}" stroke-width="3.8" opacity=".8"/>`;
     if (planned) s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4"/>`;
     else {
@@ -319,7 +394,7 @@ body.solo .frame { border-radius: 0; }
     }
     for (const p of [A, B]) s += planned ? `<rect x="${f1(p.x - 4)}" y="${f1(p.y - 4)}" width="8" height="8" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<rect x="${p.x - 3.5}" y="${p.y - 3.5}" width="7" height="7" fill="${ink}" stroke="${white}" stroke-width="1.3"/>`;
     if (S.layers.labels && !o.noTag) {
-      const left = ux > 0 ? -1 : 1, tx = left < 0 ? A.x - (l.name.length * 7.4 + 28) - 8 : A.x + 10;
+      const tx = ux > 0 ? A.x - (l.name.length * 7.4 + 28) - 8 : A.x + 10;
       s += tagBox(tx, A.y - 9, liftPlate(tx, A.y - 9, l.n, planned), l.name, planned ? flag : '#4a443e', planned ? '3 2' : '');
     }
     return s;
@@ -337,42 +412,40 @@ body.solo .frame { border-radius: 0; }
   function drawTrail(t, o = {}) {
     const d = smooth(t.pts); if (!d) return '';
     let s = '';
-    if (o.hi) s += `<path d="${d}" fill="none" stroke="${sel}" stroke-width="10" opacity=".55" stroke-linecap="round"/>`;
+    if (o.hi) s += `<path d="${d}" fill="none" stroke="${selC}" stroke-width="10" opacity=".55" stroke-linecap="round"/>`;
     s += `<path d="${d}" fill="none" stroke="${white}" stroke-width="4.4" stroke-linecap="round" opacity=".75"/>`;
     s += t.built ? `<path d="${d}" fill="none" stroke="${runColour[t.diff]}" stroke-width="2.2" stroke-linecap="round"/>`
       : `<path d="${d}" fill="none" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4" stroke-linecap="round"/>`;
     if (S.layers.labels && !o.noTag && t.pts.length > 1) {
-      const m = t.pts[Math.floor((t.pts.length - 1) / 2)], n = t.pts[Math.min(t.pts.length - 1, Math.floor((t.pts.length - 1) / 2) + 1)];
+      const i = Math.floor((t.pts.length - 1) / 2), m = t.pts[i], n = t.pts[Math.min(t.pts.length - 1, i + 1)];
       const x = (m[0] + n[0]) / 2 - 30, y = (m[1] + n[1]) / 2 - 9;
       s += tagBox(x, y, diffSym(x, y, t.diff), t.name, t.built ? '#4a443e' : flag, t.built ? '' : '3 2');
     }
     return s;
   }
   function drawThing(th) {
-    const t = toolById(th.kind), planned = !th.built, c = planned ? flag : (th.kind === 'pipe' ? '#5fb3e6' : ink);
+    const t = toolById(th.kind), planned = !th.built;
     if (t.kind === 'line') {
       const d = smooth(th.pts); if (!d) return '';
-      return `<path d="${d}" fill="none" stroke="${white}" stroke-width="${th.kind === 'road' ? 6 : 4}" opacity=".8" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${th.kind === 'road' && !planned ? '#5d5750' : c}" stroke-width="${th.kind === 'road' ? 3.4 : 2}" stroke-linecap="round" ${planned ? 'stroke-dasharray="7 4"' : th.kind === 'pipe' ? 'stroke-dasharray="2 3"' : ''}/>`;
+      const c = planned ? flag : th.kind === 'road' ? '#5d5750' : '#5fb3e6';
+      return `<path d="${d}" fill="none" stroke="${white}" stroke-width="${th.kind === 'road' ? 6 : 4}" opacity=".8" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${c}" stroke-width="${th.kind === 'road' ? 3.4 : 2}" stroke-linecap="round" ${planned ? 'stroke-dasharray="7 4"' : th.kind === 'pipe' ? 'stroke-dasharray="2 3"' : ''}/>`;
     }
     const [x, y] = th.pts[0];
     if (th.kind === 'gun') return `<g><circle cx="${x}" cy="${y}" r="5" fill="${planned ? graphite : '#5fb3e6'}" stroke="${planned ? flag : white}" stroke-width="1.6"/><path d="M${x - 2} ${y}h4M${x} ${y - 2}v4" stroke="${planned ? flag : white}" stroke-width="1.2"/></g>`;
-    const glyph = { pump: 'i-pump', lodge: 'i-lodge', parking: 'i-parking' }[th.kind];
-    return `<g><rect x="${x - 11}" y="${y - 11}" width="22" height="22" rx="2" fill="${planned ? graphite : white}" stroke="${planned ? flag : ink}" stroke-width="1.5" ${planned ? 'stroke-dasharray="3 2"' : ''}/><svg x="${x - 8}" y="${y - 8}" width="16" height="16" viewBox="0 0 24 24" style="fill:none;stroke:${planned ? flag : ink};stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><use href="#${glyph}"/></svg></g>`;
+    return `<g style="--knock:${planned ? '#1c1916' : white}"><rect x="${x - 12}" y="${y - 12}" width="24" height="24" rx="3" fill="${planned ? graphite : white}" stroke="${planned ? flag : ink}" stroke-width="1.5" ${planned ? 'stroke-dasharray="3 2"' : ''}/><svg x="${x - 9}" y="${y - 9}" width="18" height="18" viewBox="0 0 24 24" style="fill:${planned ? flag : ink}"><use href="#${t.glyph}"/></svg></g>`;
   }
 
   let mouse = null;
   function drawWorld() {
     let s = '';
-    const t = S.tool ? toolById(S.tool) : null;
     const hiId = S.sel || S.hover;
     for (const th of S.things) if (S.layers[toolById(th.kind).layer]) s += drawThing(th);
     if (S.layers.trails) for (const tr of S.trails) s += drawTrail(tr, { hi: hiId === tr.id });
     if (S.layers.lifts) for (const l of S.lifts) s += drawLift(l, { hi: hiId === l.id });
-    // the draft, with a rubber band to the pointer
     const d = S.draft;
     if (d && d.kind === 'lift') {
       const pts = d.pts.slice(); if (pts.length === 1 && mouse) pts.push(mouse);
-      if (pts.length === 2) { const st = liftStats(pts[0], pts[1], d.model); s += drawLift({ n: d.n, name: d.name, a: pts[0], b: pts[1], built: false }, { noTag: d.pts.length < 2 }) + dimension(pts[0], pts[1], `${Math.round(st.len)} m · +${Math.round(st.rise)} · ${Math.round(st.deg)}°`); }
+      if (pts.length === 2) { const st = liftStats(pts[0], pts[1], d.model); s += drawLift({ n: d.n, name: d.name, a: pts[0], b: pts[1], built: false }, { noTag: d.pts.length < 2 }) + dimension(pts[0], pts[1], `${Math.round(st.len)} m · ${st.rise >= 0 ? '+' : '−'}${Math.abs(Math.round(st.rise))} · ${Math.round(st.deg)}°`); }
       else if (pts.length === 1) s += `<rect x="${f1(pts[0][0] - 4)}" y="${f1(pts[0][1] - 4)}" width="8" height="8" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>`;
     }
     if (d && (d.kind === 'trail' || d.kind === 'line')) {
@@ -380,210 +453,216 @@ body.solo .frame { border-radius: 0; }
       if (d.kind === 'trail') s += drawTrail({ name: d.name, diff: d.diff, pts, built: false }, { noTag: !d.done });
       else s += drawThing({ kind: d.tool, pts, built: false });
       for (const p of d.pts) s += `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="${white}" stroke="${flag}" stroke-width="1.4"/>`;
-      if (pts.length > 1) { const L = pathLen(pts); const e = pts[pts.length - 1]; s += `<g><rect x="${e[0] + 10}" y="${e[1] - 22}" width="${String(Math.round(L)).length * 6.6 + 30}" height="17" rx="2" fill="${graphite}"/><text x="${e[0] + 17}" y="${e[1] - 10}" style="font:600 10.5px 'Overpass Mono',monospace;fill:#efe9df">${Math.round(L)} m</text></g>`; }
+      if (pts.length > 1) { const L = pathStats(pts).len, e = pts[pts.length - 1], txt = `${metres(L)} m`; s += `<g><rect x="${e[0] + 10}" y="${e[1] - 22}" width="${txt.length * 6.6 + 14}" height="17" rx="2" fill="${graphite}"/><text x="${e[0] + 17}" y="${e[1] - 10}" style="font:600 10.5px 'Overpass Mono',monospace;fill:#efe9df">${txt}</text></g>`; }
     }
-    if (d && d.kind === 'points') { for (const p of d.pts) s += drawThing({ kind: d.tool, pts: [p], built: false }); if (mouse) s += drawThing({ kind: d.tool, pts: [mouse], built: false }).replace('<g>', '<g opacity=".5">'); }
-    // sketch strokes on top
+    if (d && d.kind === 'points') { for (const p of d.pts) s += drawThing({ kind: d.tool, pts: [p], built: false }); if (mouse) s += drawThing({ kind: d.tool, pts: [mouse], built: false }).replace('<g', '<g opacity=".5"'); }
     for (const k of S.sketches) if (k.length > 1) s += `<path d="M${k.map((p) => `${f1(p[0])} ${f1(p[1])}`).join('L')}" fill="none" stroke="#1f5fa8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`;
     worldEl.innerHTML = s;
   }
 
   // ---------- panels ----------
-  const liftProfile = (st) => {
-    const w = 344, h = 50, X = (t) => 12 + t * (w - 24), Y = (e) => h - 8 - e * (h - 18);
-    const G = [[0, 0], [0.18, 0.12], [0.35, 0.3], [0.52, 0.5], [0.7, 0.7], [0.86, 0.86], [1, 1]];
-    const at = (t) => { const i = G.findIndex((p) => p[0] >= t); const [t0, e0] = G[Math.max(0, i - 1)], [t1, e1] = G[i]; return e0 + (e1 - e0) * ((t - t0) / ((t1 - t0) || 1)); };
-    let s = `<rect x="12" y="4" width="${w - 24}" height="${h - 10}" fill="rgba(255,255,255,.02)" stroke="#36312c"/>`;
-    const g = G.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ');
-    s += `<path d="${g} L${f1(X(1))} ${h - 6} L${f1(X(0))} ${h - 6}z" fill="rgba(207,199,187,.10)"/><path d="${g}" fill="none" stroke="#cfc7bb" stroke-width="1.4"/>`;
-    const n = st ? st.towers : 5, pts = [];
-    for (let i = 0; i <= n + 1; i++) { const t = i / (n + 1); pts.push({ t, gy: Y(at(t)), ty: Y(at(t)) - (i === 0 || i === n + 1 ? 6 : 11) }); }
-    for (const p of pts.slice(1, -1)) s += `<line x1="${f1(X(p.t))}" y1="${f1(p.gy)}" x2="${f1(X(p.t))}" y2="${f1(p.ty)}" stroke="#cfc7bb" stroke-width="1.6"/>`;
-    if (st) s += `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${f1(X(p.t))} ${f1(p.ty)}`).join(' ')}" fill="none" stroke="${flag}" stroke-width="1.8" stroke-dasharray="6 3"/>`;
-    return `<svg width="344" height="50" style="display:block">${s}</svg>`;
-  };
-  function panelShell(head, body, width = 344) {
-    return `<div class="pn" id="pn" style="left:${S.panelPos.x}px;top:${S.panelPos.y}px;width:${width}px"><div class="hd" data-drag="1">${head}<span class="x" data-act="close">✕</span></div>${body}</div>`;
+  // The lift's profile: the ground along the line (from the placeholder heights), towers, and the planned cable.
+  function liftProfile(a, b, st) {
+    const w = 344, h = 46, n = 28, X = (t) => 12 + t * (w - 24);
+    if (!st) return `<svg width="${w}" height="${h}" style="display:block"><rect x="12" y="4" width="${w - 24}" height="${h - 12}" fill="rgba(255,255,255,.02)" stroke="#36312c"/></svg>`;
+    const ground = []; for (let i = 0; i <= n; i++) { const t = i / n; ground.push([t, elevAt([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])]); }
+    const lo = Math.min(...ground.map((p) => p[1])) - 10, hi = Math.max(...ground.map((p) => p[1])) + 30, Y = (e) => h - 8 - (e - lo) / (hi - lo) * (h - 16);
+    const gAt = (t) => { const i = Math.min(n - 1, Math.floor(t * n)), f = t * n - i; return ground[i][1] + (ground[i + 1][1] - ground[i][1]) * f; };
+    let s = `<rect x="12" y="4" width="${w - 24}" height="${h - 12}" fill="rgba(255,255,255,.02)" stroke="#36312c"/>`;
+    const gp = ground.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ');
+    s += `<path d="${gp} L${f1(X(1))} ${h - 8} L${f1(X(0))} ${h - 8}z" fill="rgba(207,199,187,.10)"/><path d="${gp}" fill="none" stroke="#cfc7bb" stroke-width="1.4"/>`;
+    const c0 = gAt(0) + 10, c1 = gAt(1) + 10, cable = (t) => c0 + (c1 - c0) * t;
+    const pts = [[0, c0]];
+    for (let k = 1; k <= st.towers; k++) { const t = k / (st.towers + 1), top = Math.max(cable(t), gAt(t) + 8); pts.push([t, top]); s += `<line x1="${f1(X(t))}" y1="${f1(Y(gAt(t)))}" x2="${f1(X(t))}" y2="${f1(Y(top))}" stroke="#cfc7bb" stroke-width="1.6"/>`; }
+    pts.push([1, c1]);
+    s += `<path d="${pts.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ')}" fill="none" stroke="${flag}" stroke-width="1.8" stroke-dasharray="6 3"/>`;
+    return `<svg width="${w}" height="${h}" style="display:block">${s}</svg>`;
   }
+  function panelShell(head, body, width = 344) {
+    return `<div class="pn" id="pn" style="left:${S.panelPos.x}px;top:${S.panelPos.y}px;width:${width}px"><div class="hd" data-drag="1">${head}<span class="x" data-act="close" title="Close (Esc)">✕</span></div>${body}</div>`;
+  }
+  const dash = '<span style="color:#6f675e">—</span>';
   function liftPanel() {
     const d = S.draft, ready = d.pts.length === 2, st = ready ? liftStats(d.pts[0], d.pts[1], d.model) : null;
-    const hint = d.pts.length === 0 ? 'Click the <b>base station</b> on the mountain.' : d.pts.length === 1 ? 'Now click the <b>top station</b>.' : 'Choose a model, then break ground. <b>Esc</b> redraws the line.';
+    const hint = d.pts.length === 0 ? 'Click the <b>base station</b> on the mountain.' : d.pts.length === 1 ? 'Now click the <b>top station</b>.' : 'Choose a model, then break ground. <b>Esc</b> redraws.';
     const kv = (label, val) => `<dt>${label}</dt><dd>${val}</dd>`;
-    const dash = '<span style="color:#6f675e">—</span>';
-    return panelShell(`<span class="plate">${d.n}</span>NEW LIFT<span style="color:#a39b90;font-weight:600;letter-spacing:.04em">· ${esc(d.name.toUpperCase())}</span>`, `
-      <div style="padding:10px 12px 4px;display:grid;gap:8px">
+    return panelShell(`<span class="plate">${d.n}</span>New lift <span class="nm">${esc(d.name)}</span>`, `
+      <div style="padding:9px 12px 2px;display:grid;gap:6px">
         <div class="seg"><span class="on">Chair</span><span class="off" title="Not in the mockup">Gondola</span><span class="off">T-bar</span><span class="off">Carpet</span></div>
         <div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === d.model ? 'on' : ''}" data-act="model" data-v="${m}">${m}</span>`).join('')}</div>
       </div>
       <dl class="kv">
-        ${kv('Slope length', st ? `<b>${Math.round(st.len)}</b> m` : dash)}
-        ${kv('Vertical rise', st ? `<b>${Math.round(st.rise)}</b> m · ${st.deg.toFixed(1)}°` : dash)}
+        ${kv('Slope length', st ? `<b>${metres(st.len)}</b> m` : dash)}
+        ${kv('Vertical rise', st ? `<b>${st.rise >= 0 ? '' : '−'}${metres(Math.abs(st.rise))}</b> m · ${st.deg.toFixed(1)}°` : dash)}
         ${kv('Line speed', `<b>${MODELS[d.model].speed.toFixed(1)}</b> m/s${st ? ` · ride ${fmtTime(st.ride)}` : ''}`)}
-        ${kv('Capacity', `<b>${MODELS[d.model].cap.toLocaleString('en-US')}</b> pph`)}
+        ${kv('Capacity', `<b>${MODELS[d.model].cap.toLocaleString('en-US')}</b> an hour`)}
       </dl>
       <div class="rule"></div>
-      <div class="sub"><span>Profile</span><span style="color:#cfc7bb;letter-spacing:.04em">${st ? `${st.towers} towers` : ''}</span></div>
-      ${liftProfile(st)}
+      <div class="sub"><span>Profile</span><span>${st ? `${metres(st.ea)} → ${metres(st.eb)} m · ${st.towers} towers` : ''}</span></div>
+      ${liftProfile(d.pts[0], d.pts[1], st)}
       <div class="rule"></div>
-      <div class="sub"><span>Cost estimate</span><span style="color:#cfc7bb;letter-spacing:.04em">±12 %</span></div>
+      <div class="sub"><span>Cost estimate</span><span>±12 %</span></div>
       <dl class="kv" style="padding-top:5px">
         ${kv('Terminals (2)', money(MODELS[d.model].term))}
-        ${kv(`Line${st ? ` · ${Math.round(st.len)} m × $${MODELS[d.model].perM.toLocaleString('en-US')}` : ''}`, st ? money(st.cost.line) : dash)}
+        ${kv(`Line${st ? ` · ${metres(st.len)} m × $${MODELS[d.model].perM.toLocaleString('en-US')}` : ''}`, st ? money(st.cost.line) : dash)}
         ${kv(`Towers${st ? ` (${st.towers})` : ''}`, st ? money(st.cost.towers) : dash)}
         ${kv(`Grading${st ? ` · ${st.grading.toLocaleString('en-US')} m³` : ''}`, st ? money(st.cost.grading) : dash)}
         <dt style="color:#efe9df">Total</dt><dd><b>${st ? money(st.cost.total) : dash}</b></dd>
       </dl>
       <div class="hint">${hint}</div>
-      <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>BREAK GROUND</span><span class="mono">${st ? short(st.cost.total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">SAVE PLAN</div></div>`);
+      <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Break ground</span><span class="mono">${st ? short(st.cost.total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`);
   }
+  const RATING = { green: '<svg width="11" height="11" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4.3" fill="#3fae6a"/></svg>', blue: '<svg width="11" height="11" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="#4d8ad6"/></svg>', black: '<svg width="11" height="11" viewBox="0 0 10 10"><path d="M5 .5L9.5 5 5 9.5.5 5z" fill="currentColor"/></svg>', double: '<svg width="16" height="11" viewBox="0 0 16 10"><path d="M4.5.5L8 5 4.5 9.5 1 5zM11.5.5L15 5l-3.5 4.5L8 5z" fill="currentColor"/></svg>' };
   function trailPanel() {
-    const d = S.draft, st = trailStats(d.pts), ready = d.done && d.pts.length > 1;
-    const hint = !d.pts.length ? 'Click where the trail <b>starts</b>, up the mountain.' : !d.done ? 'Keep clicking down the fall line. <b>Double-click</b> or press <b>Enter</b> to finish.' : 'Finished. Choose a rating, then build it or save it as a plan.';
-    const sym = { green: '<svg width="11" height="11" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4.3" fill="#3fae6a"/></svg>', blue: '<svg width="11" height="11" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="#4d8ad6"/></svg>', black: '<svg width="11" height="11" viewBox="0 0 10 10"><path d="M5 .5L9.5 5 5 9.5.5 5z" fill="currentColor"/></svg>', double: '<svg width="16" height="11" viewBox="0 0 16 10"><path d="M4.5.5L8 5 4.5 9.5 1 5zM11.5.5L15 5l-3.5 4.5L8 5z" fill="currentColor"/></svg>' };
-    return panelShell(`<span style="display:grid">${ic('i-trail')}</span>NEW TRAIL<span style="color:#a39b90;font-weight:600;letter-spacing:.04em">· ${esc(d.name.toUpperCase())}</span>`, `
-      <div style="padding:10px 12px 4px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === d.diff ? 'on' : ''}" data-act="diff" data-v="${k}">${sym[k]}${v}</span>`).join('')}</div></div>
+    const d = S.draft, st = pathStats(d.pts), ready = d.done && d.pts.length > 1;
+    const hint = !d.pts.length ? 'Click where the trail <b>starts</b>, up the mountain.' : !d.done ? 'Keep clicking down the fall line. <b>Double-click</b> or press <b>Enter</b> to finish.' : 'Finished. Choose a rating, then cut it or save it as a plan.';
+    return panelShell(`${g('s-skier')}New trail <span class="nm">${esc(d.name)}</span>`, `
+      <div style="padding:10px 12px 4px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === d.diff ? 'on' : ''}" data-act="diff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div>
       <dl class="kv">
-        <dt>Length</dt><dd><b>${Math.round(st.len)}</b> m</dd>
-        <dt>Vertical drop</dt><dd><b>${Math.round(st.drop)}</b> m</dd>
+        <dt>Length</dt><dd><b>${metres(st.len)}</b> m</dd>
+        <dt>Vertical drop</dt><dd><b>${metres(st.drop)}</b> m</dd>
         <dt>Average pitch</dt><dd><b>${st.avg.toFixed(0)}</b>°</dd>
         <dt>Steepest pitch</dt><dd><b>${st.steep.toFixed(0)}</b>°</dd>
       </dl>
       <div class="rule"></div>
-      <div class="sub"><span>Cost estimate</span><span style="color:#cfc7bb;letter-spacing:.04em">±15 %</span></div>
+      <div class="sub"><span>Cost estimate</span><span>±15 %</span></div>
       <dl class="kv" style="padding-top:5px">
         <dt>Tree clearing</dt><dd>${money(st.clearing)}</dd>
         <dt>Grading</dt><dd>${money(st.grading)}</dd>
         <dt style="color:#efe9df">Total</dt><dd><b>${money(st.total)}</b></dd>
       </dl>
       <div class="hint">${hint}</div>
-      <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>CUT TRAIL</span><span class="mono">${ready ? short(st.total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">SAVE PLAN</div></div>`);
+      <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Cut trail</span><span class="mono">${ready ? short(st.total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`);
   }
   function placePanel() {
     const d = S.draft, t = toolById(d.tool), line = t.kind === 'line';
-    const len = line ? pathLen(d.pts) : 0, count = d.pts.length, total = line ? len * t.perM : count * t.each;
+    const len = line ? pathStats(d.pts).len : 0, count = d.pts.length, total = line ? len * t.perM : count * t.each;
     const ready = line ? d.done && d.pts.length > 1 : count > 0;
     const hint = line ? (!d.pts.length ? 'Click where it <b>starts</b>.' : !d.done ? 'Keep clicking along the route. <b>Double-click</b> or <b>Enter</b> to finish.' : 'Finished. Build it or save it as a plan.')
       : `Click the mountain to place a ${t.unit}. Place as many as you like, then build them together.`;
-    return panelShell(`<span style="display:grid">${ic(t.icon)}</span>${t.name.toUpperCase()}`, `
-      <dl class="kv">${line ? `<dt>Length</dt><dd><b>${Math.round(len)}</b> m</dd><dt>Rate</dt><dd>$${t.perM.toLocaleString('en-US')} / m</dd>` : `<dt>Placed</dt><dd><b>${count}</b></dd><dt>Each</dt><dd>${money(t.each)}</dd>`}
+    return panelShell(`${toolGlyph(t)}${t.name}`, `
+      <dl class="kv">${line ? `<dt>Length</dt><dd><b>${metres(len)}</b> m</dd><dt>Rate</dt><dd>$${t.perM.toLocaleString('en-US')} a metre</dd>` : `<dt>Placed</dt><dd><b>${count}</b></dd><dt>Each</dt><dd>${money(t.each)}</dd>`}
         <dt style="color:#efe9df">Total</dt><dd><b>${money(total)}</b></dd></dl>
       <div class="hint">${hint}</div>
-      <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>BUILD</span><span class="mono">${ready ? short(total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">SAVE PLAN</div></div>`, 300);
+      <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Build</span><span class="mono">${ready ? short(total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`, 300);
   }
   function pickPanel() {
     const t = toolById(S.tool), obj = S.sel && (t.target === 'lift' ? S.lifts : S.trails).find((o) => o.id === S.sel);
-    const what = t.target === 'lift' ? 'lift' : 'trail';
-    const head = `<span style="display:grid">${ic(t.icon)}</span>${t.name.toUpperCase()}`;
-    if (!obj) return panelShell(head, `<div class="hint">Click a ${what} on the mountain.</div>`, 300);
+    const head = `${toolGlyph(t)}${t.name}`;
+    if (!obj) return panelShell(head, `<div class="hint">Click a ${t.target} on the mountain.</div>`, 300);
     if (t.target === 'lift') {
       const st = liftStats(obj.a, obj.b, obj.model);
       const top = `<div class="hint" style="padding-bottom:0;display:flex;gap:8px;align-items:center"><span class="plate${obj.built ? ' built' : ''}">${obj.n}</span><b style="font-size:14px">${esc(obj.name)}</b><span style="color:#a39b90">${obj.built ? 'operating' : 'planned'}</span></div>`;
-      const facts = `<dl class="kv"><dt>Slope length</dt><dd><b>${Math.round(st.len)}</b> m</dd><dt>Capacity</dt><dd><b>${st.cap.toLocaleString('en-US')}</b> pph</dd><dt>Ride</dt><dd>${fmtTime(st.ride)}</dd></dl>`;
-      if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px 0"><div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === obj.model ? 'on' : ''}" data-act="setmodel" data-v="${m}">${m}</span>`).join('')}</div></div>` + facts + `<div class="hint">Changing the model re-prices the line. ${obj.built ? 'Upgrading a running lift costs the difference.' : ''}</div>`, 300);
+      const facts = `<dl class="kv"><dt>Slope length</dt><dd><b>${metres(st.len)}</b> m</dd><dt>Capacity</dt><dd><b>${st.cap.toLocaleString('en-US')}</b> an hour</dd><dt>Ride</dt><dd>${fmtTime(st.ride)}</dd></dl>`;
+      if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px 0"><div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === obj.model ? 'on' : ''}" data-act="setmodel" data-v="${m}">${m}</span>`).join('')}</div></div>` + facts + `<div class="hint">Changing the model re-prices the line.${obj.built ? ' Upgrading a running lift costs the difference.' : ''}</div>`, 300);
       const refund = obj.built ? st.cost.total * 0.15 : 0;
-      return panelShell(head, top + facts + `<div class="hint">${obj.built ? `Removing it salvages about <b>${money(refund)}</b>.` : 'It\'s only a plan, so removing it is free.'}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>REMOVE ${esc(obj.name.toUpperCase())}</span><span class="mono">${obj.built ? short(refund) : ''}</span></div></div>`, 300);
+      return panelShell(head, top + facts + `<div class="hint">${obj.built ? `Removing it salvages about <b>${money(refund)}</b>.` : 'It\'s only a plan, so removing it is free.'}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>Remove ${esc(obj.name)}</span><span class="mono">${obj.built ? short(refund) : ''}</span></div></div>`, 300);
     }
-    const st = trailStats(obj.pts);
-    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:#a39b90">· ${Math.round(st.len)} m · ${Math.round(st.drop)} m drop</span></div>`;
-    if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === obj.diff ? 'on' : ''}" data-act="setdiff" data-v="${k}">${v}</span>`).join('')}</div></div><div class="hint" style="padding-top:0">The rating changes the signs and who skis it.</div>`, 300);
-    return panelShell(head, top + `<div class="hint">It will grow back in over a few seasons.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>REMOVE ${esc(obj.name.toUpperCase())}</span><span class="mono"></span></div></div>`, 300);
+    const st = pathStats(obj.pts);
+    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:#a39b90">· ${metres(st.len)} m · ${metres(st.drop)} m drop</span></div>`;
+    if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === obj.diff ? 'on' : ''}" data-act="setdiff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div><div class="hint" style="padding-top:0">The rating changes the signs and who skis it.</div>`, 300);
+    return panelShell(head, top + `<div class="hint">It will grow back in over a few seasons.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>Remove ${esc(obj.name)}</span><span class="mono"></span></div></div>`, 300);
   }
-  function analysisPanel() {
+  function analysisPanel(bottom) {
     const hrs = []; for (let h = 8; h <= 16; h++) hrs.push(h);
     const curve = (h) => Math.max(0, Math.sin(Math.PI * (h - 8) / 8.5)) * 3200 * (0.85 + 0.15 * Math.sin(S.day + h));
     const now = S.t / 3600, w = 318, hgt = 70, bw = (w - 24) / hrs.length;
     let bars = '';
-    hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 2)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 4)}" height="${f1(bh)}" fill="${past ? '#cfc7bb' : '#4a443e'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:#8f877c">${h}</text>`; });
-    const rows = S.lifts.filter((l) => l.built).map((l) => { const st = liftStats(l.a, l.b, l.model); const wait = S.skiers > 0 ? Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)) : 0; return [l, wait]; });
-    return `<div class="pn" style="left:14px;bottom:58px;width:344px;z-index:4"><div class="hd">ANALYSIS<span class="x" data-act="analysis">✕</span></div>
-      <div class="sub"><span>Skiers by hour · day ${S.day}</span><span style="color:#cfc7bb;letter-spacing:.04em">now ${S.skiers.toLocaleString('en-US')}</span></div>
+    hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 2)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 4)}" height="${f1(bh)}" rx="1" fill="${past ? '#cfc7bb' : '#4a443e'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:#8f877c">${h}</text>`; });
+    const rows = S.lifts.filter((l) => l.built).map((l) => { const st = liftStats(l.a, l.b, l.model); const wait = Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); return [l, wait]; });
+    return `<div class="pn" style="left:10px;bottom:${bottom}px;width:344px;z-index:4"><div class="hd">${g('s-analysis')}Analysis<span class="x" data-act="analysis">✕</span></div>
+      <div class="sub"><span>Skiers by hour, day ${S.day}</span><span>now ${S.skiers.toLocaleString('en-US')}</span></div>
       <svg width="${w}" height="${hgt + 4}" style="display:block;margin:6px 13px 0">${bars}</svg>
       <div class="rule" style="margin-top:6px"></div>
-      <div class="sub"><span>Lift waits</span><span>min</span></div>
-      <dl class="kv">${rows.map(([l, wt]) => `<dt style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-size:12.5px;color:#efe9df"><span class="plate built" style="font-size:10px">${l.n}</span>${esc(l.name)}</dt><dd style="color:${wt > 8 ? '#f0b43c' : '#efe9df'}">${S.skiers ? wt.toFixed(1) : 'closed'}</dd>`).join('')}</dl>
+      <div class="sub"><span>Lift waits</span><span>minutes</span></div>
+      <dl class="kv">${rows.map(([l, wt]) => `<dt style="display:flex;gap:6px;align-items:center;color:#efe9df"><span class="plate built" style="font-size:10px">${l.n}</span>${esc(l.name)}</dt><dd style="color:${wt > 8 ? '#f0b43c' : '#efe9df'}">${S.skiers ? wt.toFixed(1) : 'closed'}</dd>`).join('')}</dl>
       <div class="rule"></div>
       <dl class="kv"><dt>Today</dt><dd style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)}</dd><dt>Lift tickets</dt><dd>$189</dd></dl></div>`;
   }
 
   // ---------- the chrome ----------
+  const BAR_H = 52;
+  function clockText() {
+    const h24 = Math.floor(S.t / 3600), mm = Math.floor(S.t / 60) % 60, ss = Math.floor(S.t) % 60, h12 = ((h24 + 11) % 12) + 1;
+    return `${String(h12).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}<span class="ampm">${h24 < 12 ? 'AM' : 'PM'}</span>`;
+  }
   function render() {
     stage.classList.toggle('aim', !!S.draft && !S.sketch);
     stage.classList.toggle('pick', !!(S.tool && toolById(S.tool).kind === 'pick'));
     stage.classList.toggle('sketching', S.sketch);
     mapEl.style.transform = `scale(${S.zoom})`;
-    const hr = S.t / 3600, dayTime = hr >= 7 && hr < 18.5;
-    const h24 = Math.floor(S.t / 3600), mm = Math.floor(S.t / 60) % 60, ss = Math.floor(S.t) % 60, ampm = h24 < 12 ? 'AM' : 'PM', h12 = ((h24 + 11) % 12) + 1;
-    const spd = [1, 2, 3].map((n) => `<span class="${S.speed >= n ? 'on' : ''}" data-act="speed" data-v="${n}" title="${n}× speed">${'<svg viewBox="0 0 10 10"><use href="#i-tri"/></svg>'}</span>`).join('');
+    const trayBottom = (S.docked ? 0 : 10) + BAR_H + 10;
+    const wx = weather(S.t);
     let h = '';
     if (S.drop === 'layers') h += `<div class="drop">${[['lifts', 'Lifts'], ['trails', 'Trails'], ['snow', 'Snowmaking'], ['infra', 'Infrastructure'], ['labels', 'Labels']].map(([k, v]) => `<div class="row" data-act="layer" data-v="${k}"><span class="chk${S.layers[k] ? ' on' : ''}"></span>${v}</div>`).join('')}</div>`;
-    if (S.drop === 'menu') h += `<div class="drop">${[['resume', 'Resume', 'Esc'], ['savegame', 'Save game', 'Ctrl S'], ['settings', 'Settings', ''], ['help', 'Controls', ''], ['title', 'Exit to title', '']].map(([a, v, k]) => `<div class="row" data-act="${a}">${v}<span class="mono">${k}</span></div>`).join('')}</div>`;
-    h += `<div class="abs group" style="right:14px;top:14px;z-index:5"><span class="sq${S.sketch ? ' on' : ''}" data-act="sketch" title="Sketch">${ic('i-pencil', '')}</span><span class="sq${S.drop === 'layers' ? ' on' : ''}" data-act="drop" data-v="layers" title="Map layers">${ic('i-map', '')}</span><span class="sq${S.drop === 'menu' ? ' on' : ''}" data-act="drop" data-v="menu" title="Menu">${ic('i-menu', '')}</span></div>`;
-    h += `<div class="abs stack" style="right:14px;bottom:14px;z-index:5"><span class="sq" data-act="north" title="North up, reset zoom">${ic('i-compass', '')}</span><span class="sq on" data-act="3d" title="3D view">3D</span><span class="sq" data-act="zoom" data-v="1" title="Zoom in">${ic('i-plus', '')}</span><span class="sq" data-act="zoom" data-v="-1" title="Zoom out">${ic('i-minus', '')}</span></div>`;
-    if (S.sketch) h += `<div class="strip">${ic('i-pencil')}<span>Sketching: drag on the mountain to draw</span><span class="ghost" data-act="clearsketch">CLEAR</span><span class="ghost" data-act="sketch">DONE</span></div>`;
-    if (S.analysis) h += analysisPanel();
+    if (S.drop === 'menu') h += `<div class="drop">${[['resume', 'Resume', 'Esc'], ['savegame', 'Save game', 'Ctrl S']].map(([a, v, k]) => `<div class="row" data-act="${a}">${v}<span class="r">${k}</span></div>`).join('')}
+      <div class="sepl"></div><div class="row" data-act="dock">Status bar<span class="r val">${S.docked ? 'Docked' : 'Floating'}</span></div><div class="row" data-act="help">Controls</div><div class="row" data-act="settings">Settings</div>
+      <div class="sepl"></div><div class="row" data-act="title">Exit to title</div></div>`;
+    h += `<div class="tr"><span class="sq${S.sketch ? ' on' : ''}" data-act="sketch" title="Sketch">${g('s-pencil')}</span><span class="sq${S.drop === 'layers' ? ' on' : ''}" data-act="drop" data-v="layers" title="Map layers">${g('s-map')}</span><span class="sq${S.drop === 'menu' ? ' on' : ''}" data-act="drop" data-v="menu" title="Menu">${g('s-menu')}</span></div>`;
+    h += `<div class="br"><span class="sq" data-act="north" title="North up, reset the view">${g('s-compass')}</span><span class="sq" data-act="3d" title="3D view">3D</span><div class="pair"><span class="sq" data-act="zoom" data-v="1" title="Zoom in">${g('s-plus')}</span><span class="sq" data-act="zoom" data-v="-1" title="Zoom out">${g('s-minus')}</span></div></div>`;
+    if (S.sketch) h += `<div class="strip">${g('s-pencil')}<span>Sketching: drag on the mountain to draw</span><span class="ghost" data-act="clearsketch">Clear</span><span class="ghost" data-act="sketch">Done</span></div>`;
+    if (S.analysis) h += analysisPanel(trayBottom);
     if (S.toolbox && !S.analysis) {
-      h += `<div class="box"><div class="tabs">${TABS.map(([k, v]) => `<span class="${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${v}</span>`).join('')}</div>
-        <div class="boxhd"><span class="k">Select tool</span><span class="k" style="letter-spacing:.06em;text-transform:none;font-weight:600">${tabSummary()}</span></div>
-        <div class="tools">${TOOLS[S.tab].map((t) => `<span class="tool${S.tool === t.id ? ' on' : ''}" data-act="tool" data-v="${t.id}">${ic(t.icon, '')}<span>${t.name}</span><i>${t.key}</i></span>`).join('')}</div></div>`;
+      const cur = S.tool ? toolById(S.tool) : null;
+      h += `<div class="box" style="bottom:${trayBottom}px"><div class="tabs">${TABS.map(([k, v]) => `<span class="${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${v}</span>`).join('')}</div><div class="tabrule"></div>
+        <div class="toollabel" id="toollabel">${cur && TOOLS[S.tab].includes(cur) ? `${cur.name}<span class="mono">${cur.key}</span>` : 'Select tool'}</div>
+        <div class="tools">${TOOLS[S.tab].map((t) => `<span class="tool${S.tool === t.id ? ' on' : ''}" data-act="tool" data-v="${t.id}" data-name="${t.name}" data-key="${t.key}" data-hint="${esc(t.hint)}">${toolGlyph(t)}<span>${t.label}</span></span>`).join('')}</div></div>`;
     }
     if (S.tool) { const t = toolById(S.tool); h += t.kind === 'lift' ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
-    h += `<div class="bar${S.paused ? ' paused' : ''}">
-      <div class="cell" style="padding:0 4px;gap:2px"><span class="btn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${ic('i-wrench')}Toolbox</span><span class="btn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (A)">${ic('i-chart')}Analysis</span></div>
-      <div class="cell" style="gap:10px"><span class="play" data-act="pause" title="${S.paused ? 'Play' : 'Pause'} (Space)"><svg viewBox="0 0 24 24"><use href="#${S.paused ? 'i-play' : 'i-pause'}"/></svg></span><span style="font:800 13px Overpass">Day ${S.day}</span><span class="v">${String(h12).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}<span style="font-size:10px;margin-left:3px;color:#a39b90">${ampm}</span></span><span style="color:${dayTime ? '#f0b43c' : '#9db6ff'};display:grid" title="${dayTime ? 'Clear, −8°' : 'Clear night'}">${ic(dayTime ? 'i-sun' : 'i-moon')}</span></div>
-      <div class="cell"><div class="spd">${spd}</div></div>
-      <div class="cell"><span style="color:#8fcf8a;display:grid">${ic('i-cash')}</span><span class="v">${money(S.cash)}</span></div>
-      <div class="cell" title="Today's earnings"><span class="v" style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)}</span><span class="k">today</span></div>
-      <div class="cell" title="Lifts operating"><span style="display:grid;color:#cfc7bb">${ic('i-lift')}</span><span class="v">${S.liftsTotal}</span></div>
-      <div class="cell" title="Skiers on the mountain"><span style="display:grid;color:#cfc7bb">${ic('i-skier')}</span><span class="v">${S.skiers.toLocaleString('en-US')}</span></div>
-      <div class="cell" style="padding:0 6px"><span class="save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Saved'}">${ic('i-save')}</span></div>
+    const spd = [1, 2, 3, 4].map((n) => `<span class="${S.speed >= n ? 'on' : ''}" data-act="speed" data-v="${n}" title="Speed ${n}"><svg viewBox="0 0 11 13"><use href="#s-speed"/></svg></span>`).join('');
+    h += `<div class="bar ${S.docked ? 'docked' : 'floating'}${S.paused ? ' paused' : ''}">
+      <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (A)">${g('s-analysis')}Analysis</span></div>
+      <div class="cell sep" style="padding:0 6px"><span class="ib" data-act="pause" id="playbtn" title="${S.paused ? 'Play' : 'Pause'} (Space)">${g(S.paused ? 's-play' : 's-pause')}</span></div>
+      <div class="cell sep" style="gap:10px"><span class="day" id="day">Day ${S.day}</span><span class="v" id="clock">${clockText()}</span><span id="arc" style="color:#cfc7bb" title="The sun's place in the day">${dayArc(S.t)}</span></div>
+      <div class="cell sep" id="wxcell" title="${wx.desc}, ${wx.temp}°C, wind ${wx.wind}"><span id="wx">${wxIcon(wx.kind)}</span><span class="v" id="temp">${wx.temp < 0 ? '−' : ''}${Math.abs(wx.temp)}°C</span></div>
+      <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
+      <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:#8fcf8a">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${money(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)} today</span></span></div>
+      <div class="cell sep" title="Lifts operating"><span style="color:#cfc7bb">${g('s-lift')}</span><span class="count" id="lifts">${S.liftsTotal}</span></div>
+      <div class="cell" style="padding-left:6px" title="Skiers on the mountain"><span class="count" id="skiers">${S.skiers.toLocaleString('en-US')}</span></div>
+      <div class="cell sep" title="Elevation under the pointer"><span style="color:#cfc7bb">${g('s-elev')}</span><span class="v elev" id="elev"></span></div>
+      <div class="cell sep" style="padding:0 6px;gap:2px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span><span class="ib" data-act="dock" title="${S.docked ? 'Docked in the corner: click to float' : 'Floating: click to dock in the corner'}">${g(S.docked ? 's-dock' : 's-float')}</span></div>
     </div>`;
     h += `<div class="log" id="log">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
     if (S.modal) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${S.modal.title}<span class="x" data-act="modal">✕</span></div><div class="hint" style="padding:12px">${S.modal.body}</div><div class="acts" style="grid-template-columns:1fr"><div class="ghost" data-act="modal">OK</div></div></div></div>`;
     ui.innerHTML = h;
     drawWorld();
-  }
-  function tabSummary() {
-    if (S.tab === 'lifts') return `${S.liftsTotal} lifts · ${S.lifts.filter((l) => !l.built).length} planned`;
-    if (S.tab === 'trails') return `${S.trails.length} on the map · ${S.trails.filter((t) => !t.built).length} planned`;
-    if (S.tab === 'snow') return `${S.things.filter((t) => t.kind === 'gun' && t.built).length} guns built`;
-    return `${S.things.filter((t) => ['lodge', 'parking'].includes(t.kind) && t.built).length} buildings`;
+    showElev();
   }
 
   // ---------- the operations log (top centre) ----------
   const logs = [];
+  function renderLog() { const el = document.getElementById('log'); if (el) el.innerHTML = logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join(''); }
   function log(text, c = '#6f675e') {
     logs.push({ text, c });
     if (logs.length > 3) logs.shift();
-    render();
+    renderLog();
     setTimeout(() => { logs.shift(); renderLog(); }, 3600);
   }
 
   // ---------- actions ----------
-  function renderLog() { const el = document.getElementById('log'); if (el) el.innerHTML = logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join(''); }
   function commit(asPlan) {
     const d = S.draft, t = toolById(S.tool);
     let cost = 0, label = '';
     if (d.kind === 'lift') {
       const st = liftStats(d.pts[0], d.pts[1], d.model);
       S.lifts.push({ id: 'l' + (uid++), n: d.n, name: d.name, a: d.pts[0], b: d.pts[1], model: d.model, built: !asPlan });
-      cost = st.cost.total; label = `${d.n} ${d.name}`;
+      cost = st.cost.total; label = `${d.n} ${d.name}`; liftSeq++;
       if (!asPlan) S.liftsTotal++;
     } else if (d.kind === 'trail') {
-      const st = trailStats(d.pts);
+      const st = pathStats(d.pts);
       S.trails.push({ id: 't' + (uid++), name: d.name, diff: d.diff, pts: d.pts, built: !asPlan });
-      cost = st.total; label = d.name;
+      cost = st.total; label = d.name; trailSeq++;
     } else if (d.kind === 'line') {
       S.things.push({ id: 'x' + (uid++), kind: d.tool, pts: d.pts, built: !asPlan });
-      cost = pathLen(d.pts) * t.perM; label = t.name;
+      cost = pathStats(d.pts).len * t.perM; label = t.name;
     } else {
       for (const p of d.pts) S.things.push({ id: 'x' + (uid++), kind: d.tool, pts: [p], built: !asPlan });
-      cost = d.pts.length * t.each; label = d.pts.length > 1 ? `${d.pts.length} × ${t.name}` : t.name;
+      cost = d.pts.length * t.each; label = d.pts.length > 1 ? `${d.pts.length} × ${t.name.toLowerCase()}` : t.name;
     }
     S.saveDue = true;
     if (asPlan) log(`<span><b>${esc(label)}</b> saved as a plan <span class="mono" style="color:#a39b90">${short(cost).replace('+', '')}</span></span>`, '#ff6a1f');
     else { S.cash -= cost; S.today -= cost; log(`<span><b>${esc(label)}</b>: ground broken <span class="mono" style="color:#ff7a66">${short(-cost)}</span></span>`, '#1a6b3c'); }
-    chooseTool(S.tool); S.tool = t.id;   // start a fresh draft with the same tool
-    render();
+    const again = t.id; S.tool = null; chooseTool(again);
   }
   function act(a, v, e) {
     switch (a) {
@@ -597,7 +676,7 @@ body.solo .frame { border-radius: 0; }
       case 'build': commit(false); return;
       case 'plan': commit(true); return;
       case 'setmodel': { const l = S.lifts.find((x) => x.id === S.sel); if (l && l.model !== v) { const before = liftStats(l.a, l.b, l.model).cost.total; l.model = v; const diff = liftStats(l.a, l.b, v).cost.total - before; if (l.built && diff > 0) { S.cash -= diff; S.today -= diff; } S.saveDue = true; log(`<span><b>${esc(l.name)}</b> is now a ${v}${l.built && diff > 0 ? ` <span class="mono" style="color:#ff7a66">${short(-diff)}</span>` : ''}</span>`); } break; }
-      case 'setdiff': { const t = S.trails.find((x) => x.id === S.sel); if (t) { t.diff = v; S.saveDue = true; log(`<span><b>${esc(t.name)}</b> re-rated ${DIFFS[v]}</span>`); } break; }
+      case 'setdiff': { const t = S.trails.find((x) => x.id === S.sel); if (t) { t.diff = v; S.saveDue = true; log(`<span><b>${esc(t.name)}</b> re-rated ${DIFFS[v].toLowerCase()}</span>`); } break; }
       case 'remove': {
         const t = toolById(S.tool), list = t.target === 'lift' ? S.lifts : S.trails, i = list.findIndex((x) => x.id === S.sel);
         if (i >= 0) { const o = list[i]; list.splice(i, 1); if (t.target === 'lift' && o.built) { S.liftsTotal--; const r = liftStats(o.a, o.b, o.model).cost.total * 0.15; S.cash += r; S.today += r; } S.saveDue = true; log(`<span><b>${esc(o.name)}</b> removed</span>`, '#8e2b1f'); }
@@ -605,18 +684,19 @@ body.solo .frame { border-radius: 0; }
       }
       case 'pause': S.paused = !S.paused; break;
       case 'speed': S.speed = +v; S.paused = false; break;
-      case 'savegame': S.saveDue = false; S.drop = null; log('<span>Saved <span class="mono" style="color:#a39b90">Jackson Peaks · day ' + S.day + '</span></span>', '#8fcf8a'); return;
+      case 'savegame': S.saveDue = false; S.drop = null; render(); log(`<span>Saved <span class="mono" style="color:#a39b90">Jackson Peaks · day ${S.day}</span></span>`, '#8fcf8a'); return;
+      case 'dock': S.docked = !S.docked; log(`<span>Status bar ${S.docked ? 'docked in the corner' : 'floating'}</span>`); break;
       case 'sketch': S.sketch = !S.sketch; S.drop = null; if (S.sketch) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'clearsketch': S.sketches = []; break;
       case 'drop': S.drop = S.drop === v ? null : v; break;
       case 'layer': S.layers[v] = !S.layers[v]; break;
       case 'resume': S.drop = null; break;
-      case 'settings': S.drop = null; S.modal = { title: 'SETTINGS', body: 'Settings aren\'t part of this mockup. The real menu would hold graphics quality, lighting, units, autosave and controls.' }; break;
-      case 'help': S.drop = null; S.modal = { title: 'CONTROLS', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>Space</b> pause · <b>1–3</b> speed<br>Tool letters on each tile · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Zoom with the buttons at the bottom right; the compass resets.' }; break;
-      case 'title': S.drop = null; S.modal = { title: 'EXIT TO TITLE', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
-      case 'modal': case 'modalbg': if (a === 'modalbg' && e.target.closest('.pn')) return; S.modal = null; break;
+      case 'settings': S.drop = null; S.modal = { title: 'Settings', body: 'Settings aren\'t part of this mockup. The real menu would hold graphics quality, lighting, units, autosave and controls.' }; break;
+      case 'help': S.drop = null; S.modal = { title: 'Controls', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>Space</b> pause · <b>1–4</b> speed<br>Tool letters as shown in the tray · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Zoom with the buttons at the bottom right; the compass resets the view.' }; break;
+      case 'title': S.drop = null; S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
+      case 'modal': case 'modalbg': if (a === 'modalbg' && e && e.target.closest('.pn')) return; S.modal = null; break;
       case 'zoom': S.zoom = Math.min(1.8, Math.max(1, S.zoom + (+v) * 0.2)); break;
-      case 'north': S.zoom = 1; log('<span>View reset: north up</span>'); return;
+      case 'north': S.zoom = 1; render(); log('<span>View reset: north up</span>'); return;
       case '3d': log('<span>The top-down 2D view isn\'t in this mockup</span>'); return;
       default: return;
     }
@@ -628,7 +708,11 @@ body.solo .frame { border-radius: 0; }
     const r = stage.getBoundingClientRect(), sx = (e.clientX - r.left) / K, sy = (e.clientY - r.top) / K;
     return [640 + (sx - 640) / S.zoom, 400 + (sy - 400) / S.zoom];
   };
-  const onUi = (e) => e.target.closest('#ui .pn, #ui .bar, #ui .box, #ui .group, #ui .stack, #ui .drop, #ui .strip, #ui .modal');
+  const onUi = (e) => e.target.closest('#ui .pn, #ui .bar, #ui .box, #ui .tr, #ui .br, #ui .drop, #ui .strip, #ui .modal');
+  function showElev() {
+    const el = document.getElementById('elev'); if (!el) return;
+    const on = mouse && onTerrain(mouse); el.textContent = on ? `${metres(elevAt(mouse))} m` : '– – – m'; el.style.color = on ? '' : '#6f675e';
+  }
   function segDist(p, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1; let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2; t = Math.max(0, Math.min(1, t)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
   function pickAt(p, target) {
     let best = null, bd = 10 / S.zoom;
@@ -642,19 +726,26 @@ body.solo .frame { border-radius: 0; }
     if (hd && !e.target.closest('[data-act]')) { const pn = document.getElementById('pn'); drag = { dx: e.clientX / K - pn.offsetLeft, dy: e.clientY / K - pn.offsetTop }; e.preventDefault(); return; }
     if (onUi(e)) return;
     if (S.drop) { S.drop = null; render(); }
-    const p = toMap(e);
-    if (S.sketch) { sketching = [p]; S.sketches.push(sketching); stage.setPointerCapture(e.pointerId); return; }
+    if (S.sketch) { sketching = [toMap(e)]; S.sketches.push(sketching); stage.setPointerCapture(e.pointerId); }
   });
   stage.addEventListener('pointermove', (e) => {
     if (drag) { S.panelPos = { x: Math.max(0, Math.min(W - 120, e.clientX / K - drag.dx)), y: Math.max(0, Math.min(H - 60, e.clientY / K - drag.dy)) }; const pn = document.getElementById('pn'); pn.style.left = S.panelPos.x + 'px'; pn.style.top = S.panelPos.y + 'px'; return; }
     if (sketching) { sketching.push(toMap(e)); drawWorld(); return; }
-    if (onUi(e)) { if (mouse) { mouse = null; drawWorld(); } return; }
-    mouse = toMap(e);
-    if (S.tool && toolById(S.tool).kind === 'pick') S.hover = pickAt(mouse, toolById(S.tool).target);
-    if (S.draft || (S.tool && toolById(S.tool).kind === 'pick')) drawWorld();
+    if (onUi(e)) { if (mouse) { mouse = null; showElev(); if (S.draft) drawWorld(); } return; }
+    mouse = toMap(e); showElev();
+    const picking = S.tool && toolById(S.tool).kind === 'pick';
+    if (picking) S.hover = pickAt(mouse, toolById(S.tool).target);
+    if (S.draft || picking) drawWorld();
   });
-  stage.addEventListener('pointerleave', () => { mouse = null; drawWorld(); });
+  stage.addEventListener('pointerleave', () => { mouse = null; showElev(); if (S.draft) drawWorld(); });
   window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; });
+  // The tray's label names the tool under the pointer.
+  stage.addEventListener('mouseover', (e) => {
+    const lab = document.getElementById('toollabel'); if (!lab) return;
+    const t = e.target.closest('.tool');
+    if (t) lab.innerHTML = `${t.dataset.name}<span class="mono">${t.dataset.key}</span><span style="color:#a39b90;font-weight:500">${t.dataset.hint}</span>`;
+    else { const cur = S.tool && toolById(S.tool); lab.innerHTML = cur && TOOLS[S.tab].includes(cur) ? `${cur.name}<span class="mono">${cur.key}</span>` : 'Select tool'; }
+  });
   stage.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]');
     if (el && el.dataset.act) { act(el.dataset.act, el.dataset.v, e); return; }
@@ -663,18 +754,18 @@ body.solo .frame { border-radius: 0; }
     const d = S.draft;
     if (d) {
       if (d.kind === 'lift') { if (d.pts.length < 2) d.pts.push(p); }
-      else if (d.kind === 'trail' || d.kind === 'line') { if (d.done) return; if (dbl && d.pts.length > 1) { d.done = true; } else d.pts.push(p); }
+      else if (d.kind === 'trail' || d.kind === 'line') { if (d.done) return; if (dbl && d.pts.length > 1) d.done = true; else d.pts.push(p); }
       else d.pts.push(p);
       render(); return;
     }
-    if (S.tool && toolById(S.tool).kind === 'pick') { S.sel = pickAt(p, toolById(S.tool).target); render(); return; }
+    if (S.tool && toolById(S.tool).kind === 'pick') { S.sel = pickAt(p, toolById(S.tool).target); render(); }
   });
 
   // ---------- keys ----------
   window.addEventListener('keydown', (e) => {
-    if (e.target.closest && e.target.closest('input,textarea')) return;
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); act('savegame'); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === 'escape') {
       if (S.modal) S.modal = null;
       else if (S.drop) S.drop = null;
@@ -687,41 +778,61 @@ body.solo .frame { border-radius: 0; }
     }
     if (k === 'enter' && S.draft && (S.draft.kind === 'trail' || S.draft.kind === 'line') && S.draft.pts.length > 1) { S.draft.done = true; render(); return; }
     if (k === ' ') { e.preventDefault(); act('pause'); return; }
-    if (['1', '2', '3'].includes(k)) { act('speed', k); return; }
+    if (['1', '2', '3', '4'].includes(k)) { act('speed', k); return; }
     if (k === 't') { act('toolbox'); return; }
     if (k === 'a') { act('analysis'); return; }
-    if (S.toolbox) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t) { chooseTool(t.id); return; } }
+    if (S.toolbox) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t) chooseTool(t.id); }
   });
 
-  // ---------- the clock: 60 game seconds per real second at 1× ----------
+  // ---------- the clock: game seconds per real second at each speed ----------
+  const RATE = [0, 60, 180, 600, 1800];
   let last = performance.now(), acc = 0;
   function tick(now) {
     const dt = Math.min(0.25, (now - last) / 1000); last = now;
     if (!S.paused) {
-      const g = dt * 60 * [0, 1, 4, 12][S.speed];
-      S.t += g;
+      const gs = dt * RATE[S.speed];
+      S.t += gs;
       if (S.t >= 86400) { S.t -= 86400; S.day++; S.today = 0; log(`<span>Day ${S.day} begins</span>`); }
       const hr = S.t / 3600;
       const open = hr >= 8.5 && hr < 16.5, target = open ? Math.round(3300 * Math.sin(Math.PI * (hr - 8.5) / 8) * (1 + 0.1 * Math.sin(hr * 3.1)) * (S.liftsTotal / 48)) : Math.round(Math.max(0, S.skiers * 0.92));
-      S.skiers = Math.max(0, Math.round(S.skiers + (target - S.skiers) * Math.min(1, g / 1800)));
-      const income = (S.skiers * 189 / (8 * 3600)) * g * 0.35, ops = (2.1e6 / 86400) * g * 0.02;
+      S.skiers = Math.max(0, Math.round(S.skiers + (target - S.skiers) * Math.min(1, gs / 1800)));
+      const income = (S.skiers * 189 / (8 * 3600)) * gs * 0.35, ops = (2.1e6 / 86400) * gs * 0.02;
       S.cash += income - ops; S.today += income - ops;
     }
     acc += dt;
     if (acc > 0.2) { acc = 0; updateBar(); }
     requestAnimationFrame(tick);
   }
-  // Refresh only the bar's live numbers between full renders, so hovering and panels don't flicker.
+  // Refresh only the bar's live parts between full renders, so hovering and open panels don't flicker.
   function updateBar() {
-    const bar = ui.querySelector('.bar'); if (!bar) return;
-    const cells = bar.querySelectorAll('.cell');
-    const h24 = Math.floor(S.t / 3600), mm = Math.floor(S.t / 60) % 60, ss = Math.floor(S.t) % 60, h12 = ((h24 + 11) % 12) + 1;
-    cells[1].querySelector('span:nth-child(2)').textContent = `Day ${S.day}`;
-    cells[1].querySelector('.v').innerHTML = `${String(h12).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}<span style="font-size:10px;margin-left:3px;color:#a39b90">${h24 < 12 ? 'AM' : 'PM'}</span>`;
-    cells[3].querySelector('.v').textContent = money(S.cash);
-    const td = cells[4].querySelector('.v'); td.textContent = short(S.today); td.style.color = S.today < 0 ? '#ff7a66' : '#8fcf8a';
-    cells[5].querySelector('.v').textContent = S.liftsTotal;
-    cells[6].querySelector('.v').textContent = S.skiers.toLocaleString('en-US');
+    const set = (id, html) => { const el = document.getElementById(id); if (el && el.innerHTML !== html) el.innerHTML = html; };
+    set('day', `Day ${S.day}`);
+    set('clock', clockText());
+    set('arc', dayArc(S.t));
+    const wx = weather(S.t);
+    set('wx', wxIcon(wx.kind));
+    set('temp', `${wx.temp < 0 ? '−' : ''}${Math.abs(wx.temp)}°C`);
+    const cell = document.getElementById('wxcell'); if (cell) cell.title = `${wx.desc}, ${wx.temp}°C, wind ${wx.wind}`;
+    set('cash', money(S.cash));
+    const dl = document.getElementById('delta'); if (dl) { dl.textContent = `${short(S.today)} today`; dl.style.color = S.today < 0 ? '#ff7a66' : '#8fcf8a'; }
+    set('lifts', String(S.liftsTotal));
+    set('skiers', S.skiers.toLocaleString('en-US'));
+  }
+  // For screenshots only: #demo=tray,lift,trail,float,menu,layers,analysis,edit opens that state on load.
+  const demo = (location.hash.match(/demo=([a-z,]+)/) || [])[1];
+  if (demo) {
+    const d = demo.split(',');
+    if (d.includes('float')) S.docked = false;
+    if (d.includes('tray') || d.includes('lift') || d.includes('trail') || d.includes('edit')) S.toolbox = true;
+    if (d.includes('lift')) { chooseTool('new-lift'); S.draft.pts = [[886, 316], [946, 203]]; }
+    if (d.includes('trail')) { S.tab = 'trails'; chooseTool('new-trail'); S.draft.pts = [[962, 330], [1000, 410], [1012, 500], [990, 590]]; S.draft.done = true; S.draft.diff = 'black'; }
+    if (d.includes('edit')) { chooseTool('edit-lift'); S.sel = 'l3'; }
+    if (d.includes('snow')) { S.toolbox = true; S.tab = 'snow'; }
+    if (d.includes('infra')) { S.toolbox = true; S.tab = 'infra'; }
+    if (d.includes('menu')) S.drop = 'menu';
+    if (d.includes('layers')) S.drop = 'layers';
+    if (d.includes('analysis')) { S.analysis = true; S.t = 12.5 * 3600; }
+    mouse = [930, 260];
   }
   render();
   requestAnimationFrame(tick);
