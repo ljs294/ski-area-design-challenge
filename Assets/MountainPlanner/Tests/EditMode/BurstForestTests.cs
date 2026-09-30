@@ -59,6 +59,23 @@ namespace MountainPlanner.Tests
             for (int n = 0; n < a.Length; n++)
                 Assert.That(GridFile.HashValues(ForestField.Encode(b[n], TileGrid.TileMetres)),
                             Is.EqualTo(GridFile.HashValues(ForestField.Encode(a[n], TileGrid.TileMetres))), $"terrain tile {n} identical");
+
+            // The krummholz path too, forced on every core cell with a stand-in model.
+            ForestPlan Forced()
+            {
+                var plan = field.Prepare(tiles);
+                plan.KrummholzModel = 0;
+                for (int i = 0; i < plan.Cells.Length; i++)
+                    if (plan.Cells[i].Kind == MountainPlanner.Domain.Cover.ForestCell.Core) plan.Cells[i].Krummholz = 200;
+                return plan;
+            }
+            var km = Forced();
+            new ManagedForestPlanter().Plant(km);
+            var kb = Forced();
+            new BurstForestPlanter().Plant(kb);
+            Assert.That(kb.TileCount, Is.EqualTo(km.TileCount), "krummholz: same trees per tile");
+            Assert.That(kb.Points.Select(p => (p.X, p.Y, p.HeightCode, p.Prototype, p.Rotation, p.Width32)),
+                        Is.EqualTo(km.Points.Select(p => (p.X, p.Y, p.HeightCode, p.Prototype, p.Rotation, p.Width32))), "krummholz: identical trees");
         }
     }
 }
