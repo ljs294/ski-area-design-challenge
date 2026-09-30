@@ -1,0 +1,20 @@
+{
+  "_about": "The fixed grip every fixed-grip chair carries (liftkit.parts.fixed_grip): our own design, sized from the lift drawings' end and plan views and shaped after photographs of fixed grips in service. Millimetres, in the chair frame: origin on the rope's axis at the grip's middle, u along the rope, v outboard, w up.",
+  "_adjust": [
+    "the black jaw blades follow the photographs and the owner's review: about 300 mm each way over the top half of the rope only, just wider than it, their tops flaring up toward the jaw block; the drawings show the clamp's core only",
+    "no bolt head inboard of the rope (the owner's review)",
+    "the neck and housing are one cast arm swelling from the jaw into the housing, and the hanger flows out of its underside through a socket joined to the hanger's own tube, in place of the drawn boot (the owner's review, after the photographs); castings in the hanger's silver, the collar ring and the bolt's end dark, as photographed"
+  ],
+  "body": {"_note": "the jaw block on the rope, a chamfered block", "u": [-75, 75], "v": [-30, 74], "w": [-35, 40], "chamfer": 14},
+  "tails": {"_note": "the black jaw blades over the top half of the rope: arches from the rope's sides (w from) over the top (w to), half-width v",
+            "to": 380, "arc": 4, "root": {"v": 26, "w": [-2, 38]}, "tip": {"v": 22, "w": [-2, 22]}},
+  "axisW": -8,
+  "housing": {"_note": "one cast arm and housing from inside the jaw block out to the collar: (radius, v) turned round the stack's axis, 8-sided",
+              "profile": [[30, 55], [36, 100], [52, 160], [52, 270], [30, 292]], "sides": 8},
+  "socket": {"_note": "the housing flows down into the hanger, which starts w below the rope; the funnel's top is an ellipse inside the housing at the stack's axis",
+             "w": -120, "top": {"u": 44, "v": [165, 265]}},
+  "collar": {"v": [292, 334], "dia": 61},
+  "spring": {"_note": "the spring housing: a shoulder, then the full diameter", "v": [334, 442], "shoulder": 32, "dia": [67, 85]},
+  "nut": {"v": [442, 476], "af": 79},
+  "bolt": {"_note": "the bolt's threaded end past the nut", "v": [476, 508], "dia": 49}
+}

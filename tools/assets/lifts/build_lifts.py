@@ -27,13 +27,16 @@ MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "cha
            "monta_drive": "monta_drive", "monta_return": "monta_return",
            # name -> (module, variant): the stick gun's lance in feet of pipe
            "sle_stick_gun_10": ("sle_stick_gun", 10), "sle_stick_gun_20": ("sle_stick_gun", 20),
-           "sle_stick_gun_30": ("sle_stick_gun", 30)}
+           "sle_stick_gun_30": ("sle_stick_gun", 30),
+           # the Chairworks quad chair with either grip
+           "chairworks_chair_detach": ("chairworks_chair", "detach"), "chairworks_chair_fixed": ("chairworks_chair", "fixed")}
 # the line tower kit (assets/tower.py): name -> variant
 TOWER = {"tower_s4": "s4", "tower_s6": "s6", "tower_b8": "b8", "tower_d8": "d8", "tower_c8": "c8",
          "tower_mast": "mast", "tower_base": "base"}
 SLE = ("sle_stick_gun_10", "sle_stick_gun_20", "sle_stick_gun_30", "sle_ground_gun")
 MONTA = ("monta_drive", "monta_return")
-ALL = "drive,return,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA)
+CHAIRWORKS = ("chairworks_chair_detach", "chairworks_chair_fixed")
+ALL = "drive,return,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA) + "," + ",".join(CHAIRWORKS)
 
 
 def clear_scene():

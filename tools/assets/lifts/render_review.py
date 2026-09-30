@@ -27,6 +27,8 @@ ORTHO = {
     "drive": [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "+v")],
     "return": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "chair": [("front", "-v", "+w"), ("side", "+u", "+w")],
+    "chairworks_chair_detach": [("front", "-v", "+w"), ("side", "+u", "+w")],
+    "chairworks_chair_fixed": [("front", "-v", "+w"), ("side", "+u", "+w")],
     "sle_stick_gun_10": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "sle_stick_gun_20": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "sle_stick_gun_30": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
@@ -35,7 +37,7 @@ ORTHO = {
     "monta_return": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
 }
 TERMINALS = ("drive", "return", "monta_drive", "monta_return")
-CHAIRS = ("chair",)
+CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed")
 
 
 def chair_rope(built):
@@ -553,14 +555,19 @@ def _pick(cam, spec):
         print(f"PICK {xy}: {obj.name if hit else None} face {idx} at lift {frame.lift(tuple(loc)) if hit else None} n {tuple(round(c, 2) for c in nrm) if hit else None}", flush=True)
 
 
-def chair_photos(built, spec, out_dir, mats):
-    """Cycles "photos" of the chair: hung on a rope stub over snow at the load level, sky and sun light, from the
+def chair_photos(built, spec, out_dir, mats, key="chair"):
+    """Cycles "photos" of a chair: hung on a rope stub over snow at the load level, sky and sun light, from the
     front, sides and back, close-ups of the grip and seat, a line of chairs at the stress-layout spacing, and
     one after snowfall."""
     sc, sun = _photo_scene()
-    load = spec["common"]["ropeElevation"] / 1000   # grip on the rope, seat over the 0.00 load level
+    a0 = built["assets"][0]
+    if "common" in spec:   # grip on the rope, seat over the 0.00 load level
+        load = spec["common"]["ropeElevation"] / 1000
+    else:                  # a chair without a lift of its own yet: its seat 0.47 m over the snow
+        load = -a0.dims["seatW"] / 1000 + 0.47
+    rope_d = spec.get("common", {}).get("ropeDiameter", 42)
     objs = lod_objects(built, 0)
-    bpy.ops.mesh.primitive_cylinder_add(radius=spec["common"]["ropeDiameter"] / 2000, depth=200, vertices=12,
+    bpy.ops.mesh.primitive_cylinder_add(radius=rope_d / 2000, depth=200, vertices=12,
                                         location=frame.b((40.0, 0.0, 0.0)), rotation=(math.pi / 2, 0, 0))
     rope = bpy.context.active_object
     rope.name = "PhotoRope"
@@ -569,7 +576,7 @@ def chair_photos(built, spec, out_dir, mats):
     fig = _photo_figure((0.4, 1.7, -load))
     show_only(objs + extras)
     restore_uv(objs)
-    shoot = _shooter("chair", out_dir)
+    shoot = _shooter(key, out_dir)
     whole = (0.0, 0.0, -1.35)
     shoot("front_left", whole, 32, 8, 8.0)
     shoot("front_right", whole, -35, 12, 8.0)
@@ -579,6 +586,9 @@ def chair_photos(built, spec, out_dir, mats):
     shoot("high", whole, 40, 42, 8.5)
     shoot("rider_view", (0.05, -0.03, -2.35), 12, 18, 3.4, lens=35)
     shoot("grip_hanger", (0.0, 0.05, -0.55), 55, 10, 2.4)
+    shoot("grip", (0.0, 0.12, 0.0), 40, 16, 1.25, lens=45)
+    shoot("grip_back", (0.0, 0.12, 0.0), 215, 12, 1.25, lens=45)
+    shoot("grip_under", (0.0, 0.18, -0.08), 70, -16, 1.6, lens=45)   # from below and outboard, as riders see it
     shoot("seat_and_bar", (-0.05, -0.03, -2.25), 150, 28, 3.0)
     show_only(objs + extras + [fig])
     shoot("scale", (0.0, 0.8, -1.5), 20, 6, 9.5, lens=40)
@@ -1118,8 +1128,8 @@ def render_all(built, spec, out_dir, shots, mats):
     materials.use_palette(mats, packed)
     if "photos" in shots or "terminal_photos" in shots:
         for key in built:
-            if key == "chair" and "photos" in shots:
-                chair_photos(built[key], spec, out_dir, mats)
+            if key in CHAIRS and "photos" in shots:
+                chair_photos(built[key], built[key].get("spec", spec), out_dir, mats, key)
             elif key.startswith("sle_") and "photos" in shots:
                 gun_photos(key, built[key], out_dir, mats)
             elif key in TERMINALS:

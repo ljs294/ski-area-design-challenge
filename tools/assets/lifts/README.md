@@ -123,8 +123,8 @@ axle, or if a rope socket is off the rope.
 | Terminal budget | 24,000 | 10,000 | 2,500 | 500 |
 | Drive terminal | 13,914 | 6,794 | 1,788 | 254 |
 | Return terminal | 19,864 | 7,028 | 1,836 | 316 |
-| Chair budget | 800 | 250 | 60 | - |
-| Quad chair | 768 | 236 | 60 | - |
+| Chair budget | 1,600 | 250 | 60 | - |
+| Quad chair | 954 | 246 | 60 | - |
 | Tower head budget | 16,000 | 5,000 | 1,000 | 200 |
 | Head `s4` | 7,512 | 2,384 | 484 | 96 |
 | Head `s6` | 10,720 | 3,248 | 620 | 96 |
