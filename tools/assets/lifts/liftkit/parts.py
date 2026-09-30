@@ -181,17 +181,19 @@ def arc_axles(a, count, radius, level="apex"):
     return [(radius * math.sin(x - mid), radius * (1 - math.cos(x - mid))) for x in angs]
 
 
-def hold_rope(a, count, radius, u_first, rope_w, steps=16):
-    """The rope under a hold-down row levelled at its first sheave (arc_axles level "first"): (u, w) points along
-    the rope's circle from the first sheave's contact, where the rope is level at rope_w, to the last sheave's,
-    where it leaves climbing; and the exit angle above level (radians). u_first is the first axle's u."""
+def hold_rope(a, count, radius, u_first, rope_w, steps=16, mode="hold"):
+    """The rope along a row levelled at its first sheave (arc_axles level "first"): (u, w) points along the rope's
+    circle from the first sheave's contact, where the rope is level at rope_w, to the last sheave's; and the angle
+    it leaves at (radians). Under a hold-down row the rope leaves climbing; over a support row it leaves
+    descending (mode "support"). u_first is the first axle's u."""
     rho = a["ropeR"] + a["sheave"]["dia"] / 2          # axle to the rope's centreline
     p, g, t = a["pitch"], a["rockerGap"], a["trainGap"]
     chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p]}[count]
     theta = sum(2 * math.asin(ch / (2 * radius)) for ch in chords)
     rr = radius + rho                                  # the rope's circle, about the axle circle's centre
-    cu, cw = u_first, rope_w + rr
-    return [(cu + rr * math.sin(theta * k / steps), cw - rr * math.cos(theta * k / steps)) for k in range(steps + 1)], theta
+    sg = 1.0 if mode == "hold" else -1.0               # the centre is above a hold-down row, below a support row
+    return [(u_first + rr * math.sin(theta * k / steps), rope_w + sg * rr * (1 - math.cos(theta * k / steps)))
+            for k in range(steps + 1)], theta
 
 
 def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, parts_lod, outer_yoke, level="apex"):

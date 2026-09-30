@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.join(HERE, "assets"))
 from liftkit import ao, export, frame, materials, palette, textures  # noqa: E402
 
 MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "chair", "sle_ground_gun": "sle_ground_gun",
+           "monta_drive": "monta_drive", "monta_return": "monta_return",
            # name -> (module, variant): the stick gun's lance in feet of pipe
            "sle_stick_gun_10": ("sle_stick_gun", 10), "sle_stick_gun_20": ("sle_stick_gun", 20),
            "sle_stick_gun_30": ("sle_stick_gun", 30)}
@@ -31,7 +32,8 @@ MODULES = {"drive": "drive_terminal", "return": "return_terminal", "chair": "cha
 TOWER = {"tower_s4": "s4", "tower_s6": "s6", "tower_b8": "b8", "tower_d8": "d8", "tower_c8": "c8",
          "tower_mast": "mast", "tower_base": "base"}
 SLE = ("sle_stick_gun_10", "sle_stick_gun_20", "sle_stick_gun_30", "sle_ground_gun")
-ALL = "drive,return,chair," + ",".join(TOWER) + "," + ",".join(SLE)
+MONTA = ("monta_drive", "monta_return")
+ALL = "drive,return,chair," + ",".join(TOWER) + "," + ",".join(SLE) + "," + ",".join(MONTA)
 
 
 def clear_scene():
@@ -63,14 +65,15 @@ def check_asset(kind, assets, report, budgets, spec):
     if kind == "terminal":
         c = spec["common"]
         line_v = assets[0].sockets.get("line", (0, 0, 0))[1]
-        rope = c["ropeElevation"] / 1000
+        rope = assets[0].dims.get("rope", c.get("ropeElevation", 0)) / 1000   # a terminal's own rope height, if it has one
         for name, p in assets[0].sockets.items():
             if name.startswith("rope_"):
-                # on the line gauge; level at the rope elevation, except where the rope leaves a hold-down row
-                # climbing (the return's out sockets): above it, by less than a metre and a half
+                # on the line gauge; level at the rope elevation, except where the rope leaves a row levelled at
+                # its first sheave (the out sockets of a terminal with hold sockets): climbing out of a bottom
+                # station or arriving from below at a top one, within a metre and a half
                 off_gauge = abs(abs(p[1] - line_v) - c["lineGauge"] / 2000) > 0.001
                 if name.endswith("_out") and f"{name[:-4]}_hold" in assets[0].sockets:
-                    off_height = not (rope + 0.001 < p[2] < rope + 1.5)
+                    off_height = not (0.001 < abs(p[2] - rope) < 1.5)
                 else:
                     off_height = abs(p[2] - rope) > 0.001
                 if off_gauge or off_height:
@@ -97,10 +100,12 @@ def main():
     specs = {"sessellift_fgq4.json": spec}
 
     def spec_for(mod):
-        """A module's spec (its SPEC file, the Sessellift's by default)."""
+        """A module's spec (its SPEC file, the Sessellift's by default); other models share the Sessellift line
+        assemblies (tower.assembly)."""
         name = getattr(mod, "SPEC", "sessellift_fgq4.json")
         if name not in specs:
             specs[name] = json.load(open(os.path.join(HERE, name), encoding="utf-8"))
+            specs[name].setdefault("tower", spec["tower"])
         return specs[name]
     budgets = json.load(open(os.path.join(HERE, "budgets.json"), encoding="utf-8"))
 
