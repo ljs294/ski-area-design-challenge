@@ -63,11 +63,20 @@ body.solo .frame { border-radius: 0; }
 .hud .v { font: 600 14px 'Overpass Mono', monospace; }
 .hud .day { font: 800 14px 'Overpass'; }
 .hud .ampm { font-size: 10.5px; margin-left: 3px; color: var(--soft); }
-/* the day and time, with the weather in small text underneath (as today's earnings sit under the balance) */
-.hud .when { display: grid; gap: 2px; line-height: 1.1; }
-.hud .when .line1 { display: flex; align-items: baseline; gap: 10px; }
+/* the day, then the time with the weather centred in small text under it (as today's earnings sit under the balance) */
+.hud .when { display: grid; justify-items: center; gap: 2px; line-height: 1.1; }
 .hud .wxline { display: flex; align-items: center; gap: 5px; font: 600 11.5px 'Overpass Mono', monospace; color: #d8d0c4; }
 .hud .wxline svg.g { width: 15px; height: 15px; }
+.hud .wxline .pp { display: flex; align-items: center; gap: 3px; margin-left: 5px; color: #b9c8e2; }
+.hud .wxline .pp svg.g { width: 12px; height: 12px; }
+/* resort status, like a lift board: a lamp and a word, with the hours under it */
+.hud .status { display: grid; justify-items: center; gap: 3px; line-height: 1.1; }
+.hud .status .st { display: flex; align-items: center; gap: 6px; font: 800 13.5px 'Overpass'; }
+.hud .status .lamp { width: 9px; height: 9px; border-radius: 50%; background: var(--lamp); box-shadow: inset 0 -1.5px 0 rgba(0, 0, 0, 0.28), 0 0 0 1.5px rgba(0, 0, 0, 0.4); }
+.hud .status .hrs { font: 600 11px 'Overpass Mono', monospace; color: var(--soft); }
+/* a figure with a small label under it */
+.hud .fig { display: grid; justify-items: end; gap: 2px; line-height: 1.1; }
+.hud .fig .lab { font: 700 10.5px 'Overpass'; color: var(--soft); }
 .hud .spd { display: flex; gap: 0; }
 .hud .spd span { width: 17px; height: 26px; display: grid; place-items: center; color: #5a534c; border-radius: 3px; }
 .hud .spd span:hover { background: #34302b; }
@@ -80,7 +89,7 @@ body.solo .frame { border-radius: 0; }
 .hud .count { font: 700 15px 'Overpass Mono', monospace; }
 .hud .save { color: #5d5750; }
 .hud .save.due { color: #fff; }
-.hud .elev { width: 62px; text-align: right; }
+.hud .elev { min-width: 64px; text-align: right; }
 
 /* map controls: top right and bottom right */
 .hud .tr { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 5; }
@@ -186,7 +195,9 @@ body.solo .frame { border-radius: 0; }
   <symbol id="s-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.7" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 5.4l2.7 6.6H9.3z"/><path d="M9.3 12h5.4L12 18.6z" opacity=".38"/></symbol>
   <symbol id="s-plus" viewBox="0 0 24 24"><rect x="10.9" y="4.8" width="2.4" height="14.4" rx="1.2"/><rect x="4.8" y="10.8" width="14.4" height="2.4" rx="1.2"/></symbol>
   <symbol id="s-minus" viewBox="0 0 24 24"><rect x="4.8" y="10.8" width="14.4" height="2.4" rx="1.2"/></symbol>
-  <symbol id="s-elev" viewBox="0 0 24 24"><path d="M1.6 19.8L8.6 8.2l3.5 5.4 3-4.4 7.3 10.6z"/><rect x="1" y="14.6" width="22" height="1.5" style="fill:var(--knock)"/><path d="M8.6 2.6v3.6M6.9 4.4L8.6 2.6l1.7 1.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="s-flake" viewBox="0 0 24 24"><g><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="rotate(60 12 12)"><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="rotate(120 12 12)"><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g></symbol>
+  <symbol id="s-drop" viewBox="0 0 24 24"><path d="M12 2.6c-4 5-6.3 8.7-6.3 11.8a6.3 6.3 0 0 0 12.6 0c0-3.1-2.3-6.8-6.3-11.8z"/></symbol>
+  <symbol id="s-trail" viewBox="0 0 24 24"><path d="M1.4 20.8L9.3 6.2l3.7 5.6 3-4.2 6.6 13.2z"/><path d="M9.5 9.6c2.3 2.2-2.4 3.7 0 6.2 1.6 1.7 3.8 2 3.3 5.2" fill="none" stroke-width="1.8" stroke-linecap="round" style="stroke:var(--knock)"/></symbol>
   <!-- tool badges, in the lower right of a family glyph -->
   <symbol id="b-new" viewBox="0 0 24 24"><circle cx="18.2" cy="18.2" r="5.9" style="fill:var(--knock)"/><circle cx="18.2" cy="18.2" r="4.6"/><rect x="17.55" y="15.4" width="1.3" height="5.6" style="fill:var(--knock)"/><rect x="15.4" y="17.55" width="5.6" height="1.3" style="fill:var(--knock)"/></symbol>
   <symbol id="b-edit" viewBox="0 0 24 24"><circle cx="18.2" cy="18.2" r="5.9" style="fill:var(--knock)"/><circle cx="18.2" cy="18.2" r="4.6"/><g transform="rotate(45 18.2 18.2)" style="fill:var(--knock)"><rect x="17.45" y="14.9" width="1.5" height="4.4"/><path d="M17.45 19.8h1.5l-.75 1.4z"/></g></symbol>
@@ -276,12 +287,12 @@ body.solo .frame { border-radius: 0; }
   function weather(t) {
     const h = t / 3600, temp = Math.round(-9.5 + 5.5 * Math.cos(2 * Math.PI * (h - 14.5) / 24));
     const night = h < SUNRISE || h >= SUNSET;
-    let kind = night ? 'moon' : 'sun', desc = 'Clear', wind = 'W 8 km/h';
-    if (h < 3.5) { kind = 'snow'; desc = 'Light snow'; wind = 'W 18 km/h'; }
-    else if (h < 5) { kind = 'cloud'; desc = 'Clearing'; wind = 'W 14 km/h'; }
-    else if (h >= 14 && h < 16.5) { kind = 'few'; desc = 'Fair-weather cumulus'; wind = 'SW 12 km/h'; }
-    else if (h >= 22.5) { kind = 'cloud'; desc = 'Clouding over'; wind = 'W 15 km/h'; }
-    return { kind, desc, temp, wind };
+    let kind = night ? 'moon' : 'sun', desc = 'Clear', wind = 'W 8 km/h', pop = 5, rate = '';
+    if (h < 3.5) { kind = 'snow'; desc = 'Light snow'; wind = 'W 18 km/h'; pop = 100; rate = '0.8 cm an hour'; }
+    else if (h < 5) { kind = 'cloud'; desc = 'Clearing'; wind = 'W 14 km/h'; pop = 30; }
+    else if (h >= 14 && h < 16.5) { kind = 'few'; desc = 'Fair-weather cumulus'; wind = 'SW 12 km/h'; pop = 10; }
+    else if (h >= 22.5) { kind = 'cloud'; desc = 'Clouding over'; wind = 'W 15 km/h'; pop = 60; }
+    return { kind, desc, temp, wind, pop, rate, snow: temp <= 1 };
   }
   function wxIcon(kind) {
     const cloud = (dx, dy, s, style) => `<g transform="translate(${dx} ${dy}) scale(${s})" ${style}><circle cx="8.4" cy="13.4" r="4.2"/><circle cx="13.4" cy="10.4" r="5.2"/><circle cx="18" cy="13.9" r="3.6"/><rect x="4.2" y="13.4" width="17.4" height="4.4" rx="2.2"/></g>`;
@@ -295,13 +306,20 @@ body.solo .frame { border-radius: 0; }
     }[kind];
     return `<svg class="g" viewBox="0 0 24 24">${body}</svg>`;
   }
-  // The sun's place in its day: an arc from sunrise to sunset with the sun on it, or below the horizon at night.
-  function dayArc(t) {
-    const h = t / 3600, up = h >= SUNRISE && h < SUNSET, night = 24 - SUNSET + SUNRISE;
-    const th = up ? Math.PI * (1 - (h - SUNRISE) / (SUNSET - SUNRISE)) : -Math.PI * (((h - SUNSET + 24) % 24) / night);
-    const x = 12 + 7.6 * Math.cos(th), y = 12.6 - 7.6 * Math.sin(th);
-    return `<svg class="g" viewBox="0 0 24 24"><circle cx="12" cy="12.6" r="7.6" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".45"/><path d="M12 12.6m-7.6 0a7.6 7.6 0 0 0 15.2 0z" opacity=".22"/><rect x="1.6" y="11.7" width="20.8" height="1.8" rx=".9"/><circle cx="${f1(x)}" cy="${f1(y)}" r="2.7" fill="${up ? '#f0b43c' : '#d9def0'}" stroke="var(--knock)" stroke-width="1.2"/></svg>`;
+  const deg = (t) => `${t < 0 ? '−' : ''}${Math.abs(t)}°C`;
+  // The weather line: symbol, temperature, then the chance of snow (or rain, above freezing).
+  const wxLine = (w) => `${wxIcon(w.kind)}<span>${deg(w.temp)}</span><span class="pp">${g(w.snow ? 's-flake' : 's-drop')}${w.pop}%</span>`;
+  const wxTitle = (w) => `${w.desc}, ${deg(w.temp)}, wind ${w.wind}. ${w.pop}% chance of ${w.snow ? 'snow' : 'rain'}${w.rate ? `, ${w.rate}` : ''}.`;
+  // The resort's status, like a lift board: open, last chair, or closed, with the hours under it.
+  const LIFTS_OPEN = 8.5, LAST_CHAIR = 16.25, LIFTS_CLOSE = 16.5;
+  function resortStatus(t) {
+    const h = t / 3600;
+    if (h >= LIFTS_OPEN && h < LAST_CHAIR) return { label: 'Open', lamp: '#5fbf6a', sub: 'until 4:30 PM' };
+    if (h >= LAST_CHAIR && h < LIFTS_CLOSE) return { label: 'Last chair', lamp: '#f0b43c', sub: 'closes 4:30 PM' };
+    return { label: 'Closed', lamp: '#d4513f', sub: 'opens 8:30 AM' };
   }
+  const statusHtml = (st) => `<span class="st"><i class="lamp" style="--lamp:${st.lamp}"></i>${st.label}</span><span class="hrs">${st.sub}</span>`;
+
 
 
   // ---------- tools ----------
@@ -313,9 +331,9 @@ body.solo .frame { border-radius: 0; }
       { id: 'remove-lift', label: 'Remove', name: 'Remove lift', hint: 'take a lift out and salvage it', key: 'X', glyph: 's-lift', badge: 'remove', kind: 'pick', target: 'lift', mode: 'remove' },
     ],
     trails: [
-      { id: 'new-trail', label: 'New', name: 'New trail', hint: 'click down the fall line', key: 'N', glyph: 's-skier', badge: 'new', kind: 'trail' },
-      { id: 'edit-trail', label: 'Edit', name: 'Edit trail', hint: 're-rate a trail', key: 'E', glyph: 's-skier', badge: 'edit', kind: 'pick', target: 'trail', mode: 'edit' },
-      { id: 'remove-trail', label: 'Remove', name: 'Remove trail', hint: 'let a trail grow back in', key: 'X', glyph: 's-skier', badge: 'remove', kind: 'pick', target: 'trail', mode: 'remove' },
+      { id: 'new-trail', label: 'New', name: 'New trail', hint: 'click down the fall line', key: 'N', glyph: 's-trail', badge: 'new', kind: 'trail' },
+      { id: 'edit-trail', label: 'Edit', name: 'Edit trail', hint: 're-rate a trail', key: 'E', glyph: 's-trail', badge: 'edit', kind: 'pick', target: 'trail', mode: 'edit' },
+      { id: 'remove-trail', label: 'Remove', name: 'Remove trail', hint: 'let a trail grow back in', key: 'X', glyph: 's-trail', badge: 'remove', kind: 'pick', target: 'trail', mode: 'remove' },
     ],
     snow: [
       { id: 'gun', label: 'Snow gun', name: 'Snow gun', hint: 'place fan guns along a trail', key: 'G', glyph: 's-gun', kind: 'points', unit: 'snow gun', each: 42000, layer: 'snow' },
@@ -521,7 +539,7 @@ body.solo .frame { border-radius: 0; }
   function trailPanel() {
     const d = S.draft, st = pathStats(d.pts), ready = d.done && d.pts.length > 1;
     const hint = !d.pts.length ? 'Click where the trail <b>starts</b>, up the mountain.' : !d.done ? 'Keep clicking down the fall line. <b>Double-click</b> or press <b>Enter</b> to finish.' : 'Finished. Choose a rating, then cut it or save it as a plan.';
-    return panelShell(`${g('s-skier')}New trail <span class="nm">${esc(d.name)}</span>`, `
+    return panelShell(`${g('s-trail')}New trail <span class="nm">${esc(d.name)}</span>`, `
       <div style="padding:10px 12px 4px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === d.diff ? 'on' : ''}" data-act="diff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div>
       <dl class="kv">
         <dt>Length</dt><dd><b>${metres(st.len)}</b> m</dd>
@@ -618,12 +636,13 @@ body.solo .frame { border-radius: 0; }
     h += `<div class="bar ${S.docked ? 'docked' : 'floating'}${S.paused ? ' paused' : ''}">
       <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (A)">${g('s-analysis')}Analysis</span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib" data-act="pause" id="playbtn" title="${S.paused ? 'Play' : 'Pause'} (Space)">${g(S.paused ? 's-play' : 's-pause')}</span></div>
-      <div class="cell sep" style="gap:10px"><span class="when"><span class="line1"><span class="day" id="day">Day ${S.day}</span><span class="v" id="clock">${clockText()}</span></span><span class="wxline" id="wxcell" title="${wx.desc}, ${wx.temp}°C, wind ${wx.wind}"><span id="wx">${wxIcon(wx.kind)}</span><span id="temp">${wx.temp < 0 ? '−' : ''}${Math.abs(wx.temp)}°C</span></span></span><span id="arc" style="color:#cfc7bb" title="The sun's place in the day">${dayArc(S.t)}</span></div>
+      <div class="cell sep" style="gap:12px"><span class="day" id="day">Day ${S.day}</span><span class="when"><span class="v" id="clock">${clockText()}</span><span class="wxline" id="wxcell" title="${wxTitle(wx)}">${wxLine(wx)}</span></span></div>
+      <div class="cell sep"><span class="status" id="status" title="Lifts run 8:30 AM to 4:30 PM">${statusHtml(resortStatus(S.t))}</span></div>
       <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
       <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:#8fcf8a">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${money(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)} today</span></span></div>
       <div class="cell sep" title="Lifts operating"><span style="color:#cfc7bb">${g('s-lift')}</span><span class="count" id="lifts">${S.liftsTotal}</span></div>
-      <div class="cell" style="padding-left:6px" title="Skiers on the mountain"><span class="count" id="skiers">${S.skiers.toLocaleString('en-US')}</span></div>
-      <div class="cell sep" title="Elevation under the pointer"><span style="color:#cfc7bb">${g('s-elev')}</span><span class="v elev" id="elev"></span></div>
+      <div class="cell" style="padding-left:4px" title="Skiers on the mountain"><span style="color:#cfc7bb">${g('s-skier')}</span><span class="count" id="skiers">${S.skiers.toLocaleString('en-US')}</span></div>
+      <div class="cell sep" title="Elevation under the pointer"><span class="fig"><span class="v elev" id="elev"></span><span class="lab">Elev.</span></span></div>
       <div class="cell sep" style="padding:0 6px;gap:2px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span><span class="ib" data-act="dock" title="${S.docked ? 'Docked in the corner: click to float' : 'Floating: click to dock in the corner'}">${g(S.docked ? 's-dock' : 's-float')}</span></div>
     </div>`;
     h += `<div class="log" id="log">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
@@ -798,7 +817,7 @@ body.solo .frame { border-radius: 0; }
       S.t += gs;
       if (S.t >= 86400) { S.t -= 86400; S.day++; S.today = 0; log(`<span>Day ${S.day} begins</span>`); }
       const hr = S.t / 3600;
-      const open = hr >= 8.5 && hr < 16.5, target = open ? Math.round(3300 * Math.sin(Math.PI * (hr - 8.5) / 8) * (1 + 0.1 * Math.sin(hr * 3.1)) * (S.liftsTotal / 48)) : Math.round(Math.max(0, S.skiers * 0.92));
+      const open = hr >= LIFTS_OPEN && hr < LIFTS_CLOSE, target = open ? Math.round(3300 * Math.sin(Math.PI * (hr - 8.5) / 8) * (1 + 0.1 * Math.sin(hr * 3.1)) * (S.liftsTotal / 48)) : Math.round(Math.max(0, S.skiers * 0.92));
       S.skiers = Math.max(0, Math.round(S.skiers + (target - S.skiers) * Math.min(1, gs / 1800)));
       const income = (S.skiers * 189 / (8 * 3600)) * gs * 0.35, ops = (2.1e6 / 86400) * gs * 0.02;
       S.cash += income - ops; S.today += income - ops;
@@ -812,11 +831,10 @@ body.solo .frame { border-radius: 0; }
     const set = (id, html) => { const el = document.getElementById(id); if (el && el.innerHTML !== html) el.innerHTML = html; };
     set('day', `Day ${S.day}`);
     set('clock', clockText());
-    set('arc', dayArc(S.t));
     const wx = weather(S.t);
-    set('wx', wxIcon(wx.kind));
-    set('temp', `${wx.temp < 0 ? '−' : ''}${Math.abs(wx.temp)}°C`);
-    const cell = document.getElementById('wxcell'); if (cell) cell.title = `${wx.desc}, ${wx.temp}°C, wind ${wx.wind}`;
+    set('wxcell', wxLine(wx));
+    const cell = document.getElementById('wxcell'); if (cell && cell.title !== wxTitle(wx)) cell.title = wxTitle(wx);
+    set('status', statusHtml(resortStatus(S.t)));
     set('cash', money(S.cash));
     const dl = document.getElementById('delta'); if (dl) { dl.textContent = `${short(S.today)} today`; dl.style.color = S.today < 0 ? '#ff7a66' : '#8fcf8a'; }
     set('lifts', String(S.liftsTotal));
@@ -836,6 +854,8 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('menu')) S.drop = 'menu';
     if (d.includes('layers')) S.drop = 'layers';
     if (d.includes('analysis')) { S.analysis = true; S.t = 12.5 * 3600; }
+    if (d.includes('lastchair')) S.t = 16.3 * 3600;
+    if (d.includes('snowing')) S.t = 2 * 3600;
     mouse = [930, 260];
   }
   render();
