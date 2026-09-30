@@ -62,8 +62,8 @@ echo     20 Tree lineup: every species at every LOD, trunks, and a stand from 30
 echo     21 Forest benchmark: 8 fixed views of Jackson Hole, GPU times and screenshots (about 2 minutes; needs 12)
 echo.
 echo   Lift assets: Sessellift FGQ-4 chairlift and SLE snow guns
-echo     22 Rebuild the lift and snow gun models in Blender, import them into Unity and build the Lift Lab (about 3 minutes)
-echo     23 Open the Lift Lab: terminals, quad chair, line towers (6), snow guns (7), gun field (8), LODs, snow, benchmark (B)
+echo     22 Rebuild the lifts, chairs and snow guns in Blender, import them into Unity and build the Lift Lab (about 4 minutes)
+echo     23 Open the Lift Lab: terminals, chair, towers (6), snow guns (7, 8), Monta (9), chairs (0), LODs, snow, benchmark (B)
 echo.
 echo     Q  Quit
 echo.

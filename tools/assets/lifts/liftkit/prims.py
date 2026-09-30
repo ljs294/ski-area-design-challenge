@@ -86,15 +86,16 @@ def ring_points(center, axis, radius, sides, phase=0.0):
             for k in range(sides)]
 
 
-def cylinder(mb, p0, p1, r, sides, style, caps=(True, True), r1=None, phase=None):
-    """Cylinder (or frustum when r1 is given) from p0 to p1; sides smooth, caps flat."""
+def cylinder(mb, p0, p1, r, sides, style, caps=(True, True), r1=None, phase=None, smooth=None):
+    """Cylinder (or frustum when r1 is given) from p0 to p1; sides smooth (from six sides, unless smooth says
+    otherwise, as for a hex nut), caps flat."""
     p0, p1 = vec(p0), vec(p1)
     axis = p1 - p0
     r1 = r if r1 is None else r1
     ph = math.pi / sides if phase is None else phase
     a = mb.verts_lift(ring_points(p0, axis, r, sides, ph))
     b = mb.verts_lift(ring_points(p1, axis, r1, sides, ph))
-    side = style.but(smooth=sides >= 6)
+    side = style.but(smooth=sides >= 6 if smooth is None else smooth)
     x, y, z = basis_along(axis)
     for k in range(sides):
         k1 = (k + 1) % sides
@@ -111,9 +112,10 @@ def cylinder(mb, p0, p1, r, sides, style, caps=(True, True), r1=None, phase=None
 
 def tube_path(mb, pts, r, sides, style, caps=True, closed=False):
     """A round tube swept along a polyline (bent handrails, hangers), with parallel-transported rings.
-    closed: the path is a loop (the last point joins the first); no caps."""
+    closed: the path is a loop (the last point joins the first); no caps. Returns the rings: (vertex indices, y, z)
+    per point, so another part can join the tube on one of them."""
     pts = [vec(p) for p in pts]
-    rings, prev_y = [], None
+    rings, prev_y, prev_t = [], None, None
     n_pts = len(pts)
     for i, p in enumerate(pts):
         if closed:
@@ -126,9 +128,13 @@ def tube_path(mb, pts, r, sides, style, caps=True, closed=False):
         if prev_y is None:
             _, y, _ = basis_along(t)
         else:
-            y = (prev_y - t * prev_y.dot(t)).normalized()
+            y = prev_y - t * prev_y.dot(t)
+            if y.length < 0.5:   # a sharp turn (e.g. a chair frame's two corners): turn the previous ring's frame
+                y = prev_t.rotation_difference(t) @ prev_y     # with the tangent; projecting it would collapse
+                y = y - t * y.dot(t)
+            y = y.normalized()
         z = t.cross(y).normalized()
-        prev_y = y
+        prev_y, prev_t = y, t
         scale = 1.0
         if t_in is not None and t_out is not None:   # mitre: widen the ring at the bend
             scale = 1.0 / max(0.5, t_in.dot(t))
@@ -156,6 +162,23 @@ def tube_path(mb, pts, r, sides, style, caps=True, closed=False):
         flat = style.but(smooth=False)
         mb.face(list(rings[0][0]), flat, tuple(pts[0] - pts[1]))
         mb.face(list(rings[-1][0]), flat, tuple(pts[-1] - pts[-2]))
+    return rings
+
+
+def fillet(pts, i, radius, steps):
+    """A polyline with its corner at pts[i] rounded: an arc of `radius` (m, shrunk if a neighbouring segment is too
+    short) in `steps` segments, tangent to both segments. Returns the new list of points."""
+    a, p, b = vec(pts[i - 1]), vec(pts[i]), vec(pts[i + 1])
+    d1, d2 = (p - a).normalized(), (b - p).normalized()
+    theta = math.acos(max(-1.0, min(1.0, d1.dot(d2))))
+    if theta < 1e-3:
+        return list(pts)
+    t = min(radius * math.tan(theta / 2), 0.45 * (p - a).length, 0.45 * (b - p).length)
+    r = t / math.tan(theta / 2)
+    n = (d2 - d1 * d1.dot(d2)).normalized()     # toward the inside of the bend
+    c = p - d1 * t + n * r
+    arc = [tuple(c - n * (r * math.cos(f)) + d1 * (r * math.sin(f))) for f in (theta * k / steps for k in range(steps + 1))]
+    return list(pts[:i]) + arc + list(pts[i + 1:])
 
 
 def lathe(mb, center, axis, profile, segments, style, closed=True, smooth=True, phase=0.0, arc=None):
