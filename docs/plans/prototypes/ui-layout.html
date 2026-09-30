@@ -1,0 +1,300 @@
+<title>Owner Layout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=Overpass:wght@400;500;600;700;800;900&family=Overpass+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* The owner's layout sketch (Ski-Area-Design-Challenge UI.pdf) built out in the Trailhead look, over a capture of
+   our Unity mountain. Three frames: the general view, the toolbox open, and a tool's floating build panel.
+   #1, #2 and #3 show one frame alone. */
+:root {
+  --bg: #efefec; --fg: #1a1c1f; --muted: #5d6268; --line: #d6d6d0;
+  --font: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #111214; --fg: #ececea; --muted: #a2a6ab; --line: #2c2e32; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #111214; --fg: #ececea; --muted: #a2a6ab; --line: #2c2e32; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); padding-inline: 16px; padding-block: 22px 40px; margin: 0; }
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 34px; }
+.top h1 { margin: 0 0 8px; font-weight: 800; font-size: 30px; letter-spacing: -0.01em; }
+.top p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5; max-width: 82ch; }
+section { display: grid; gap: 10px; }
+section h2 { margin: 0; font-weight: 800; font-size: 22px; }
+section h2 small { font-weight: 500; color: var(--muted); font-size: 16px; margin-left: 8px; }
+.notes { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--muted); font-size: 15px; line-height: 1.45; max-width: 92ch; }
+.notes b { color: var(--fg); }
+.frame { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #cfd8e2; }
+.stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.stage img.bg { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; object-fit: cover; }
+.stage svg.world { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; }
+.pagenote { margin: 0; color: var(--muted); font-size: 14px; }
+body.solo { padding: 0; }
+body.solo .wrap { max-width: none; gap: 0; }
+body.solo .top, body.solo section > h2, body.solo .notes, body.solo .pagenote, body.solo section:not(.solo-on) { display: none; }
+body.solo .frame { width: 1280px; border-radius: 0; }
+
+/* ---------- the HUD: warm graphite, hairlines, Overpass + Overpass Mono ---------- */
+.hud { font-family: 'Overpass', 'Segoe UI', sans-serif; color: #efe9df; font-size: 13px; font-variant-numeric: tabular-nums;
+  --panel: rgba(27, 24, 21, 0.94); --hair: #3b3632; --hair2: #4a443e; --soft: #a39b90; --dim: #8f877c; --white: #fbf8f2; --ink: #1f1c19;
+  --flag: #ff6a1f; --amber: #f0b43c; --green: #8fcf8a; --red: #ff7a66; }
+.hud .abs { position: absolute; }
+.hud .mono { font-family: 'Overpass Mono', ui-monospace, monospace; }
+.hud svg.ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+/* status bar, bottom left */
+.hud .bar { position: absolute; left: 14px; bottom: 14px; height: 36px; display: flex; align-items: stretch; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; box-shadow: 0 8px 22px rgba(10, 20, 35, 0.35); }
+.hud .bar > .cell { display: flex; align-items: center; gap: 7px; padding: 0 11px; border-left: 1px solid #36312c; white-space: nowrap; }
+.hud .bar > .cell:first-child { border-left: 0; }
+.hud .btn { display: flex; align-items: center; gap: 7px; height: 26px; margin: 4px 0; padding: 0 10px; border-radius: 2px; font: 700 12.5px 'Overpass'; color: #efe9df; }
+.hud .btn.on { background: #efe9df; color: #1b1815; }
+.hud .v { font: 600 13.5px 'Overpass Mono', monospace; }
+.hud .k { font: 700 9.5px 'Overpass'; letter-spacing: 0.14em; color: var(--dim); text-transform: uppercase; }
+.hud .spd { display: flex; gap: 1px; }
+.hud .spd span { width: 17px; height: 20px; display: grid; place-items: center; color: #6f675e; }
+.hud .spd span.on { color: #efe9df; }
+.hud .spd svg { width: 10px; height: 10px; fill: currentColor; }
+.hud .save { position: relative; }
+.hud .save.due { color: var(--amber); }
+.hud .save.due::after { content: ''; position: absolute; right: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 2px #1b1815; }
+/* square controls: top right and bottom right */
+.hud .sq { width: 34px; height: 34px; display: grid; place-items: center; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; color: #efe9df; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.3); }
+.hud .sq svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.hud .group { display: flex; border: 1px solid var(--hair); border-radius: 3px; background: var(--panel); box-shadow: 0 6px 16px rgba(10, 20, 35, 0.3); }
+.hud .group .sq { border: 0; border-left: 1px solid #36312c; border-radius: 0; box-shadow: none; background: transparent; }
+.hud .group .sq:first-child { border-left: 0; }
+.hud .stack { display: grid; gap: 6px; }
+.hud .stack .sq { width: 30px; height: 30px; font: 800 11px 'Overpass'; }
+/* toolbox */
+.hud .box { position: absolute; left: 14px; bottom: 58px; width: 344px; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); }
+.hud .tabs { display: flex; border-bottom: 1px solid var(--hair); }
+.hud .tabs span { padding: 9px 11px 8px; font: 700 12px 'Overpass'; color: var(--dim); }
+.hud .tabs span.on { color: #fff; box-shadow: inset 0 -2px 0 #efe9df; }
+.hud .tools { display: flex; gap: 6px; padding: 10px; }
+.hud .tool { position: relative; width: 74px; height: 66px; display: grid; justify-items: center; align-content: center; gap: 6px; border: 1px solid var(--hair2); border-radius: 2px; font: 700 11px 'Overpass'; color: #cfc7bb; }
+.hud .tool svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.hud .tool i { position: absolute; right: 4px; top: 2px; font: 600 9px 'Overpass Mono'; font-style: normal; color: #7d756b; }
+.hud .tool.on i { color: #6f675e; }
+.hud .tool.on { background: #efe9df; color: #1b1815; border-color: #efe9df; }
+.hud .boxhd { display: flex; justify-content: space-between; padding: 8px 12px 0; }
+/* floating build panel */
+.hud .pn { position: absolute; background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); }
+.hud .pn .hd { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid var(--hair); font: 800 11.5px 'Overpass'; letter-spacing: 0.14em; }
+.hud .pn .hd .x { margin-left: auto; color: var(--soft); font-weight: 600; letter-spacing: 0; }
+.hud .plate { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 2px; font: 900 11px 'Overpass'; color: var(--flag); box-shadow: inset 0 0 0 1.5px var(--flag); }
+.hud .seg { display: flex; border: 1px solid var(--hair2); border-radius: 2px; overflow: hidden; }
+.hud .seg span { flex: 1; text-align: center; padding: 4px 0; font: 700 11px 'Overpass'; color: var(--soft); border-left: 1px solid var(--hair2); }
+.hud .seg span:first-child { border-left: 0; }
+.hud .seg span.on { background: #efe9df; color: #1b1815; }
+.hud .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 7px 12px; }
+.hud .kv dt { color: var(--soft); font: 700 10.5px 'Overpass'; letter-spacing: 0.1em; text-transform: uppercase; align-self: center; }
+.hud .kv dd { margin: 0; text-align: right; font: 500 12.5px 'Overpass Mono', monospace; }
+.hud .kv dd b { font-weight: 700; color: #fff; }
+.hud .sub { padding: 8px 12px 0; font: 700 10.5px 'Overpass'; letter-spacing: 0.14em; color: var(--dim); text-transform: uppercase; display: flex; justify-content: space-between; }
+.hud .rule { height: 1px; background: var(--hair); }
+.hud .go { white-space: nowrap; display: flex; justify-content: space-between; align-items: center; height: 34px; padding: 0 12px; background: #1a6b3c; color: #fff; border-radius: 2px; font: 800 12px 'Overpass'; letter-spacing: 0.12em; }
+.hud .ghost { display: grid; place-items: center; height: 34px; padding: 0 12px; border: 1px solid var(--hair2); border-radius: 2px; font: 700 11px 'Overpass'; letter-spacing: 0.12em; color: #cfc7bb; }
+.hud .tip { position: absolute; padding: 6px 9px; background: var(--panel); border: 1px solid var(--hair); border-radius: 2px; font: 600 11.5px 'Overpass'; color: #efe9df; white-space: nowrap; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 5.5a4.5 4.5 0 0 0 5.6 5.6L12 19.2a2.1 2.1 0 0 1-3-3l8.1-8.1a4.5 4.5 0 0 1-2.6-2.6zM14.5 5.5l3.1-1.6 2.5 2.5-1.6 3.1"/><path d="M4 20l3-3"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3.5 20.5h17M6.5 17V11M11 17V6.5M15.5 17v-4M20 17V8.5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-tri" viewBox="0 0 10 10"><path d="M1.5 1l7 4-7 4z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></symbol>
+  <symbol id="i-cash" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="1.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/></symbol>
+  <symbol id="i-lift" viewBox="0 0 24 24"><path d="M2.5 5l19 4.2M12 7.2V12M7.5 12h9v2.6a2.9 2.9 0 0 1-2.9 2.9h-3.2a2.9 2.9 0 0 1-2.9-2.9zM8.5 20.5h7M10.3 17.5v3M13.7 17.5v3"/></symbol>
+  <symbol id="i-skier" viewBox="0 0 24 24"><circle cx="15.5" cy="4.5" r="2"/><path d="M13.5 8l-3.5 4.5 3 3-2 3.8M14.2 9.8l3.6 2.2M3.5 20.5l17-3.2"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M4.5 4.5h12l3 3v12h-15z"/><path d="M8 4.5v4.5h7V4.5M8 19.5v-5.5h8v5.5"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M15.5 4.5l4 4L9 19H5v-4zM13 7l4 4"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6l6-2.5 6 2.5 6-2.5v14.5L15 20.5 9 18 3 20.5zM9 3.5V18M15 6v14.5"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 5.5l2.6 6.5h-5.2z" fill="currentColor"/><path d="M9.4 12h5.2L12 18.5z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-lift-edit" viewBox="0 0 24 24"><path d="M2.5 5l12 2.6M9.5 6.6V11M5 11h9v2.4a2.8 2.8 0 0 1-2.8 2.8H7.8A2.8 2.8 0 0 1 5 13.4zM6.5 20h5M17.5 11.5l3 3-6 6h-3v-3z"/></symbol>
+  <symbol id="i-lift-remove" viewBox="0 0 24 24"><path d="M2.5 5l12 2.6M9.5 6.6V11M5 11h9v2.4a2.8 2.8 0 0 1-2.8 2.8H7.8A2.8 2.8 0 0 1 5 13.4zM6.5 20h5M16 14l5 5M21 14l-5 5"/></symbol>
+</svg>
+
+<div class="wrap">
+  <div class="top">
+    <h1>Your layout, built out</h1>
+    <p>The layout from your sketch, in the Trailhead look, over the bluebird capture of our Unity mountain. The status bar is compact at the bottom left, the map controls sit at the top right, and the camera controls at the bottom right. The Toolbox opens a tabbed tray of tools, and each tool opens its own floating build panel.</p>
+  </div>
+
+  <section id="s1">
+    <h2>1 · General view <small>nothing open</small></h2>
+    <ul class="notes">
+      <li><b>Status bar, left to right:</b> Toolbox and Analysis; play, the day and the clock with the weather; speed; cash; today's earnings, red when negative; lifts operating; skiers on the mountain; and save, which turns amber with a dot when there are unsaved changes.</li>
+      <li><b>Top right:</b> sketch (blueprint), map layers and menu, as one group. <b>Bottom right:</b> compass (north up), 3D, zoom in and zoom out.</li>
+    </ul>
+    <div class="frame" id="f1"><div class="stage hud" id="g1"></div></div>
+  </section>
+
+  <section id="s2">
+    <h2>2 · Toolbox open <small>tabs, then tools with symbols</small></h2>
+    <ul class="notes">
+      <li><b>The Toolbox button turns white</b> while its tray is open. The tray sits just above the bar and has four tabs: Lifts, Trails, Snowmaking and Infrastructure.</li>
+      <li><b>Every tool is a symbol with its name:</b> New, Edit and Remove for lifts. The shortcut key sits in the corner of each tile.</li>
+    </ul>
+    <div class="frame" id="f2"><div class="stage hud" id="g2"></div></div>
+  </section>
+
+  <section id="s3">
+    <h2>3 · New Lift <small>the tool's floating build panel</small></h2>
+    <ul class="notes">
+      <li><b>Choosing New Lift opens a floating panel</b> that you can drag anywhere. It holds the lift type and model, the numbers as you draw, the profile, a cost breakdown and Break ground.</li>
+      <li><b>On the map, the plan is surveyor's orange:</b> a dashed line with a dimension, drawn from base to top station.</li>
+    </ul>
+    <div class="frame" id="f3"><div class="stage hud" id="g3"></div></div>
+  </section>
+  <p class="pagenote">A style frame, not a working UI. The mountain is a capture of our Unity build, with the sky and clouds composited behind it. The lifts, runs, names and numbers are placeholders; the ones in the bar come from your sketch.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const W = 1280, H = 720;
+  const solo = { '1': 's1', '2': 's2', '3': 's3' }[location.hash.replace('#', '')];
+  if (solo) { document.body.classList.add('solo'); document.getElementById(solo).classList.add('solo-on'); }
+
+  const f1 = (n) => n.toFixed(1);
+  const ic = (id, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24"><use href="#${id}"/></svg>`;
+
+  // ---------- the resort, placed by eye on the capture (1280x720 space) ----------
+  const LIFTS = [
+    { n: 2, name: 'ASPEN QUAD', a: [548, 616], b: [652, 402] },
+    { n: 3, name: 'RIDGE SIX', a: [770, 598], b: [886, 316] },
+  ];
+  const PLAN = { a: [886, 316], b: [946, 203] };
+  const RUNS = [
+    { name: 'BIGHORN', diff: 'blue', pts: [[648, 410], [612, 472], [584, 540], [560, 604]], tag: [536, 478] },
+    { name: 'CORNICE', diff: 'black', pts: [[660, 406], [706, 462], [673, 540], [602, 610]], tag: [694, 494] },
+    { name: 'HEADWALL', diff: 'black', pts: [[880, 326], [838, 408], [801, 500], [778, 590]], tag: [752, 430] },
+    { name: 'TIMBERLINE', diff: 'blue', pts: [[893, 322], [938, 384], [908, 470], [832, 556], [788, 596]], tag: [926, 470] },
+  ];
+  const P = (p) => ({ x: p[0], y: p[1] });
+  const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  function smooth(pts) {
+    const ps = pts.map(P); let d = `M${f1(ps[0].x)} ${f1(ps[0].y)}`;
+    for (let i = 0; i < ps.length - 1; i++) {
+      const p0 = ps[i - 1] || ps[i], p1 = ps[i], p2 = ps[i + 1], p3 = ps[i + 2] || p2;
+      d += ` C${f1(p1.x + (p2.x - p0.x) / 6)} ${f1(p1.y + (p2.y - p0.y) / 6)} ${f1(p2.x - (p3.x - p1.x) / 6)} ${f1(p2.y - (p3.y - p1.y) / 6)} ${f1(p2.x)} ${f1(p2.y)}`;
+    }
+    return d;
+  }
+  const white = '#fbf8f2', ink = '#1f1c19', flag = '#ff6a1f', graphite = 'rgba(27,24,21,.92)';
+  const runColour = { blue: '#2f6bb0', black: '#1f1c19' };
+  function world(plan) {
+    let s = '';
+    for (const r of RUNS) s += `<path d="${smooth(r.pts)}" fill="none" stroke="${white}" stroke-width="4.4" stroke-linecap="round" opacity=".75"/><path d="${smooth(r.pts)}" fill="none" stroke="${runColour[r.diff]}" stroke-width="2.2" stroke-linecap="round"/>`;
+    for (const l of LIFTS) {
+      const A = P(l.a), B = P(l.b), len = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, n = Math.round(len / 16);
+      s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${white}" stroke-width="3.8" opacity=".8"/><line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${ink}" stroke-width="1.5"/>`;
+      for (let k = 1; k < n; k++) { const p = lerp(A, B, k / n); s += `<line x1="${f1(p.x - uy * 3.5)}" y1="${f1(p.y + ux * 3.5)}" x2="${f1(p.x + uy * 3.5)}" y2="${f1(p.y - ux * 3.5)}" stroke="${ink}" stroke-width="1.3"/>`; }
+      for (const p of [A, B]) s += `<rect x="${p.x - 3.5}" y="${p.y - 3.5}" width="7" height="7" fill="${ink}" stroke="${white}" stroke-width="1.3"/>`;
+    }
+    const tag = (x, y, lead, text) => { const w = text.length * 7.4 + 28; return `<g><rect x="${x}" y="${y}" width="${w}" height="18" rx="2" fill="${graphite}" stroke="#4a443e"/>${lead}<text x="${x + 21}" y="${y + 12.8}" style="font:700 10.5px Overpass,sans-serif;letter-spacing:.06em;fill:#efe9df">${text}</text></g>`; };
+    const sym = (x, y, kind) => kind === 'blue' ? `<rect x="${x + 5}" y="${y + 5}" width="8" height="8" fill="#4d8ad6"/>` : `<path d="M${x + 9} ${y + 3.5}l5.5 5.5-5.5 5.5-5.5-5.5z" fill="#efe9df"/>`;
+    const plate = (x, y, n) => `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="${white}"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px Overpass,sans-serif;fill:${ink}">${n}</text>`;
+    s += tag(LIFTS[0].a[0] - 112, LIFTS[0].a[1] - 12, plate(LIFTS[0].a[0] - 112, LIFTS[0].a[1] - 12, 2), LIFTS[0].name);
+    s += tag(LIFTS[1].a[0] + 14, LIFTS[1].a[1] - 6, plate(LIFTS[1].a[0] + 14, LIFTS[1].a[1] - 6, 3), LIFTS[1].name);
+    for (const r of RUNS) s += tag(r.tag[0], r.tag[1], sym(r.tag[0], r.tag[1], r.diff), r.name);
+    if (plan) {
+      const A = P(PLAN.a), B = P(PLAN.b), len = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, nx = uy, ny = -ux;
+      s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${white}" stroke-width="4" opacity=".7"/><line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4"/>`;
+      for (let k = 1; k <= 6; k++) { const p = lerp(A, B, k / 7); s += `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="2.6" fill="${white}" stroke="${flag}" stroke-width="1.4"/>`; }
+      for (const p of [A, B]) s += `<rect x="${f1(p.x - 4)}" y="${f1(p.y - 4)}" width="8" height="8" fill="none" stroke="${flag}" stroke-width="1.8"/>`;
+      const off = 30, a2 = { x: A.x + nx * off, y: A.y + ny * off }, b2 = { x: B.x + nx * off, y: B.y + ny * off };
+      s += `<g stroke="${white}" stroke-width="1"><line x1="${f1(A.x + nx * 6)}" y1="${f1(A.y + ny * 6)}" x2="${f1(a2.x + nx * 4)}" y2="${f1(a2.y + ny * 4)}"/><line x1="${f1(B.x + nx * 6)}" y1="${f1(B.y + ny * 6)}" x2="${f1(b2.x + nx * 4)}" y2="${f1(b2.y + ny * 4)}"/><line x1="${f1(a2.x)}" y1="${f1(a2.y)}" x2="${f1(b2.x)}" y2="${f1(b2.y)}"/></g>`;
+      const m = lerp(a2, b2, 0.5), ang = Math.atan2(uy, ux) * 180 / Math.PI;
+      s += `<g transform="translate(${f1(m.x + nx * 11)} ${f1(m.y + ny * 11)}) rotate(${f1(ang)})"><rect x="-56" y="-9" width="112" height="17" rx="2" fill="${graphite}"/><text x="0" y="3.6" text-anchor="middle" style="font:600 10.5px 'Overpass Mono',monospace;fill:#efe9df">739 m · +406 · 29°</text></g>`;
+      // the cursor, dragging the top station
+      s += `<path d="M${B.x + 6} ${B.y + 6}l0 15 4-4 3 6 2.4-1.2-3-6 5.6-.4z" fill="${white}" stroke="${ink}" stroke-width="1.2"/>`;
+    }
+    return `<svg class="world" viewBox="0 0 1280 720">${s}</svg>`;
+  }
+
+  // ---------- the chrome ----------
+  function bar(toolboxOn) {
+    const spd = [1, 1, 0, 0].map((on, i) => `<span class="${on ? 'on' : ''}"><svg viewBox="0 0 10 10">${'<use href="#i-tri"/>'.repeat(1)}</svg></span>`).join('');
+    return `<div class="bar">
+      <div class="cell" style="padding:0 4px;gap:2px"><span class="btn${toolboxOn ? ' on' : ''}">${ic('i-wrench')}Toolbox</span><span class="btn">${ic('i-chart')}Analysis</span></div>
+      <div class="cell" style="gap:10px"><span style="display:grid;color:#efe9df">${ic('i-play')}</span><span style="font:800 13px Overpass">Day 148</span><span class="v">05:27:47<span style="font-size:10px;margin-left:3px;color:#a39b90">AM</span></span><span style="color:#f0b43c;display:grid" title="Clear">${ic('i-sun')}</span></div>
+      <div class="cell"><div class="spd">${spd}</div></div>
+      <div class="cell"><span style="color:#8fcf8a;display:grid">${ic('i-cash')}</span><span class="v">$961,967,638</span></div>
+      <div class="cell"><span class="v" style="color:#ff7a66">−$5.77M</span><span class="k">today</span></div>
+      <div class="cell" title="Lifts operating"><span style="display:grid;color:#cfc7bb">${ic('i-lift')}</span><span class="v">48</span></div>
+      <div class="cell" title="Skiers on the mountain"><span style="display:grid;color:#cfc7bb">${ic('i-skier')}</span><span class="v">2,387</span></div>
+      <div class="cell" style="padding:0 10px"><span class="save due" style="display:grid">${ic('i-save')}</span></div>
+    </div>`;
+  }
+  const corners = `
+    <div class="abs group" style="right:14px;top:14px"><span class="sq" title="Sketch">${ic('i-pencil', '')}</span><span class="sq" title="Map layers">${ic('i-map', '')}</span><span class="sq" title="Menu">${ic('i-menu', '')}</span></div>
+    <div class="abs stack" style="right:14px;bottom:14px"><span class="sq" title="North up">${ic('i-compass', '')}</span><span class="sq">3D</span><span class="sq" title="Zoom in">${ic('i-plus', '')}</span><span class="sq" title="Zoom out">${ic('i-minus', '')}</span></div>`;
+  function toolbox(active) {
+    const tools = [['i-lift', 'New Lift', 'N'], ['i-lift-edit', 'Edit Lift', 'E'], ['i-lift-remove', 'Remove Lift', 'X']];
+    return `<div class="box">
+      <div class="tabs"><span class="on">Lifts</span><span>Trails</span><span>Snowmaking</span><span>Infrastructure</span></div>
+      <div class="boxhd"><span class="k">Select tool</span><span class="k" style="letter-spacing:.06em;text-transform:none;font-weight:600">48 lifts · 2 planned</span></div>
+      <div class="tools">${tools.map(([id, name, key], i) => `<span class="tool${active === i ? ' on' : ''}">${ic(id, '')}<span>${name}</span><i>${key}</i></span>`).join('')}</div>
+    </div>`;
+  }
+  const buildPanel = `
+    <div class="pn" style="left:14px;top:10px;width:344px">
+      <div class="hd"><span class="plate">4</span>NEW LIFT<span style="color:#a39b90;font-weight:600;letter-spacing:.04em">· SUMMIT QUAD</span><span class="x">✕</span></div>
+      <div style="padding:10px 12px 4px;display:grid;gap:8px">
+        <div class="seg"><span class="on">Chair</span><span>Gondola</span><span>T-bar</span><span>Carpet</span></div>
+        <div class="seg"><span>Fixed 4</span><span class="on">Detach 4</span><span>Detach 6</span></div>
+      </div>
+      <dl class="kv">
+        <dt>Slope length</dt><dd><b>739</b> m</dd>
+        <dt>Vertical rise</dt><dd><b>406</b> m · 29.1°</dd>
+        <dt>Line speed</dt><dd><b>5.0</b> m/s · ride 2:28</dd>
+        <dt>Capacity</dt><dd><b>2,400</b> pph</dd>
+      </dl>
+      <div class="rule"></div>
+      <div class="sub"><span>Profile <span class="mono" style="letter-spacing:0;text-transform:none;color:#a39b90;font-weight:500">3,100→3,506 m</span></span><span style="color:#cfc7bb;letter-spacing:.04em">clear <b style="color:#efe9df">7.4 m</b></span></div>
+      <svg id="prof" width="344" height="50" style="display:block"></svg>
+      <div class="rule"></div>
+      <div class="sub"><span>Cost estimate</span><span style="color:#cfc7bb;letter-spacing:.04em">±12 %</span></div>
+      <dl class="kv" style="padding-top:5px">
+        <dt>Terminals (2)</dt><dd>$1,860,000</dd>
+        <dt>Line · 739 m × $2,150</dt><dd>$1,588,850</dd>
+        <dt>Towers (6)</dt><dd>$498,000</dd>
+        <dt>Grading · 1,240 m³</dt><dd>$173,150</dd>
+        <dt style="color:#efe9df">Total</dt><dd><b>$4,120,000</b></dd>
+      </dl>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:6px;padding:4px 12px 12px">
+        <div class="go"><span>BREAK GROUND</span><span class="mono">$4.12M</span></div>
+        <div class="ghost">SAVE PLAN</div>
+      </div>
+    </div>`;
+
+  const bg = '<img class="bg" src="assets/game-bluebird.jpg" alt="">';
+  document.getElementById('g1').innerHTML = bg + world(false) + corners + bar(false);
+  document.getElementById('g2').innerHTML = bg + world(false) + corners + toolbox(-1) + bar(true);
+  document.getElementById('g3').innerHTML = bg + world(true) + corners + buildPanel + toolbox(0) + bar(true);
+
+  // Profile in the build panel: ground, towers and the planned cable.
+  {
+    const w = 344, h = 50, X = (t) => 12 + t * (w - 24), Y = (e) => h - 8 - e / 112 * (h - 18);
+    const G = [[0, 0], [0.14, 14], [0.31, 36], [0.47, 58], [0.66, 80], [0.84, 96], [1, 110]];
+    let s = `<rect x="12" y="4" width="${w - 24}" height="${h - 10}" fill="rgba(255,255,255,.02)" stroke="#36312c"/>`;
+    const g = G.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ');
+    s += `<path d="${g} L${f1(X(1))} ${h - 6} L${f1(X(0))} ${h - 6}z" fill="rgba(207,199,187,.10)"/><path d="${g}" fill="none" stroke="#cfc7bb" stroke-width="1.4"/>`;
+    const at = (t) => { let i = G.findIndex((p) => p[0] >= t); const [t0, e0] = G[Math.max(0, i - 1)], [t1, e1] = G[i]; return e0 + (e1 - e0) * ((t - t0) / ((t1 - t0) || 1)); };
+    const pts = [0, 0.2, 0.4, 0.6, 0.8, 1].map((t) => ({ t, gy: Y(at(t)), ty: Y(at(t)) - (t === 0 || t === 1 ? 6 : 11) }));
+    for (const p of pts.slice(1, -1)) s += `<line x1="${f1(X(p.t))}" y1="${f1(p.gy)}" x2="${f1(X(p.t))}" y2="${f1(p.ty)}" stroke="#cfc7bb" stroke-width="1.6"/>`;
+    s += `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${f1(X(p.t))} ${f1(p.ty)}`).join(' ')}" fill="none" stroke="${flag}" stroke-width="1.8" stroke-dasharray="6 3"/>`;
+    document.getElementById('prof').innerHTML = s;
+  }
+
+  for (const n of ['1', '2', '3']) {
+    const f = document.getElementById('f' + n), s = document.getElementById('g' + n);
+    const fit = () => { const k = f.clientWidth / W; s.style.transform = `scale(${k})`; f.style.height = `${H * k}px`; };
+    new ResizeObserver(fit).observe(f); fit();
+  }
+})();
+</script>
