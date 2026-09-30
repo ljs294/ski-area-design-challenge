@@ -1,6 +1,6 @@
 # Phase 1 · Style tile review, part 2
 
-**Audience:** the project owner. **Status:** for your review. **Date:** 2026-09-29. **Part of:** task 08 ⛳, the style tile ([0.7](phase0-0.7-phase1-plan.md), [0.5 §7](phase0-0.5-art-direction.md#7-the-style-tile-the-first-art-milestone-in-phase-1)). It follows part 1 (terrain shader, ground textures, cliff shells) and [the tree realism review](phase1-trees-review.md), both in PR #36.
+**Audience:** the project owner. **Status:** approved by the owner on 2026-09-29; the HUD mock (S6) is a placeholder while the UI direction is worked out separately. **Date:** 2026-09-29. **Part of:** task 08 ⛳, the style tile ([0.7](phase0-0.7-phase1-plan.md), [0.5 §7](phase0-0.5-art-direction.md#7-the-style-tile-the-first-art-milestone-in-phase-1)). It follows part 1 (terrain shader, ground textures, cliff shells) and [the tree realism review](phase1-trees-review.md), both in PR #36.
 
 **Result:** the rest of the style tile is in. Trees move in the wind, frozen lakes show under the snow, the map sits on a diorama base, and four lighting presets set the mood, with light distance haze and the first real HUD. Every piece was measured: together they add **0.04-0.85 ms GPU**, and the slowest frame (p95) in any benchmark view is 13.2 ms, within the 20 ms budget.
 
