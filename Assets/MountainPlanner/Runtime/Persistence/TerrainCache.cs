@@ -162,7 +162,7 @@ namespace MountainPlanner.Persistence
             var ringLayer = package.Layers.First(l => l.Id == "heights-ring");
             var heights = new HeightField(core, coreHeader, ring, ringHeader);
             var cover = new CoverField(package, packageFolder, heights);
-            var forest = new ForestField(package, packageFolder);
+            var forest = new ForestField(package, packageFolder, heights);
             var cliffField = new CliffField(package, heights);
 
             var site = SiteSquare.Create(new AlbersPoint(package.Site.CentreX, package.Site.CentreY), package.Site.SizeMetres / 1000.0);

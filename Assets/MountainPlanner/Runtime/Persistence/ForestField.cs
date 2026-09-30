@@ -186,12 +186,18 @@ namespace MountainPlanner.Persistence
         readonly ulong _seed;
         readonly ForestCalibration _calibration = ForestCalibration.Default;
 
+        readonly TerrainCache.HeightField? _heights;
+
         /// <summary>How long the last <see cref="BuildAll"/> spent preparing cells and growing trees (seconds).</summary>
         public double PrepareSeconds, PlantSeconds;
+        /// <summary>The core's median treeline from the last <see cref="Prepare"/> (NaN: none, or no heights given).</summary>
+        public double TreelineMetres = double.NaN;
 
-        public ForestField(PackageManifest package, string folder)
+        /// <param name="heights">The package's heights, for krummholz at the treeline (without them, none grows).</param>
+        public ForestField(PackageManifest package, string folder, TerrainCache.HeightField? heights = null)
         {
             _package = package;
+            _heights = heights;
             _seed = CoverNoise.SeedFor(package.Site.CentreX, package.Site.CentreY) ^ 0x7EE5UL;
             var site = SiteSquare.Create(new AlbersPoint(package.Site.CentreX, package.Site.CentreY), package.Site.SizeMetres / 1000.0);
             _core = site.Core;
@@ -255,6 +261,7 @@ namespace MountainPlanner.Persistence
             {
                 Seed = _seed, TilesX = tiles.Columns * perTerrainTile, TilesY = tiles.Rows * perTerrainTile,
                 Models = SpeciesMap.Models.Length, Variants = SpeciesMap.VariantsPerModel, KrummholzModel = SpeciesMap.IndexOf("krummholz"),
+                DownwindRotation = Treeline.DownwindRotation,
             };
             const int m = ForestPlacement.CellMetres;
 
@@ -272,6 +279,7 @@ namespace MountainPlanner.Persistence
                 for (int i = 0; i < cellsX; i++) cells[j * cellsX + i] = PrepareCell(cellX0 + i, cellY0 + j);
             });
             plan.MaxSpacing256 = cells.Length == 0 ? 0 : cells.Max(c => c.Spacing256);
+            AddKrummholz(plan, cellX0, cellY0);
 
             if (_canopy != null)
             {
@@ -332,6 +340,40 @@ namespace MountainPlanner.Persistence
             for (int t = 0; t < quotas.Length; t++) plan.TileOffset[t + 1] = plan.TileOffset[t] + quotas[t];
             plan.Points = new ForestPoint[plan.TileOffset[quotas.Length]];
             return plan;
+        }
+
+        /// <summary>
+        /// Marks the core's cells just below the treeline (<see cref="Treeline"/>) with their chance of growing
+        /// krummholz, from each cell's elevation and whether it holds forest.
+        /// </summary>
+        void AddKrummholz(ForestPlan plan, long cellX0, long cellY0)
+        {
+            if (_heights == null || _canopy == null) return;
+            const int m = ForestPlacement.CellMetres;
+            var h = _canopyHeader;
+            // The cells whose centres lie on the canopy map (the core).
+            int i0 = (int)(Math.Ceiling((h.West - m / 2.0) / m) - cellX0), i1 = (int)(Math.Floor((h.West + h.Width * h.CellSize - m / 2.0 - 1e-9) / m) - cellX0);
+            int j0 = (int)(Math.Ceiling((h.North - h.Height * h.CellSize - m / 2.0 + 1e-9) / m) - cellY0), j1 = (int)(Math.Floor((h.North - m / 2.0) / m) - cellY0);
+            i0 = Math.Max(0, i0); j0 = Math.Max(0, j0); i1 = Math.Min(plan.CellsX - 1, i1); j1 = Math.Min(plan.CellsY - 1, j1);
+            int cols = i1 - i0 + 1, rows = j1 - j0 + 1;
+            if (cols <= 0 || rows <= 0) return;
+            var elevation = new float[cols * rows];
+            var forest = new bool[cols * rows];
+            var cells = plan.Cells;
+            var heights = _heights;
+            Parallel.For(0, rows, y =>
+            {
+                for (int x = 0; x < cols; x++)
+                {
+                    long cx = cellX0 + i0 + x, cy = cellY0 + j0 + y;
+                    elevation[y * cols + x] = (float)heights.At(cx * m + m / 2.0, cy * m + m / 2.0);
+                    forest[y * cols + x] = cells[(j0 + y) * plan.CellsX + i0 + x].Kind == ForestCell.Core;
+                }
+            });
+            byte[] chance = Treeline.Krummholz(elevation, forest, cols, rows, m, out TreelineMetres);
+            for (int y = 0; y < rows; y++)
+                for (int x = 0; x < cols; x++)
+                    cells[(j0 + y) * plan.CellsX + i0 + x].Krummholz = chance[y * cols + x];
         }
 
         /// <summary>One 10 m cell's forest (the rules of <see cref="ForestPlacement"/>), or an empty cell.</summary>

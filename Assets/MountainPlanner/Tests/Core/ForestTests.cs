@@ -58,6 +58,41 @@ namespace MountainPlanner.Tests
             Assert.That(ForestPlacement.RingDensity(5000), Is.EqualTo(ForestPlacement.RingMinDensity).Within(1e-9));
         }
 
+        /// <summary>A cone 4 km across rising from 2,000 to 3,600 m, forested below <paramref name="forestTop"/>.</summary>
+        static (float[] Elevation, bool[] Forest) Cone(double forestTop, int n = 400)
+        {
+            var elevation = new float[n * n];
+            var forest = new bool[n * n];
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    double r = Math.Sqrt((x - n / 2.0) * (x - n / 2.0) + (y - n / 2.0) * (y - n / 2.0)) * 10;
+                    double e = 3600 - 1600 * Math.Min(1, r / 2000);
+                    elevation[y * n + x] = (float)e;
+                    forest[y * n + x] = e < forestTop;
+                }
+            return (elevation, forest);
+        }
+
+        [Test]
+        public void KrummholzGrowsJustBelowTheTreeline()
+        {
+            var (elevation, forest) = Cone(3000);
+            byte[] chance = Treeline.Krummholz(elevation, forest, 400, 400, 10, out double line);
+            TestContext.Progress.WriteLine($"Treeline {line:F0} m");
+            Assert.That(line, Is.InRange(2960, 3000), "the forest's upper edge");
+            for (int i = 0; i < elevation.Length; i++)
+            {
+                if (!forest[i]) Assert.That(chance[i], Is.EqualTo(0), "only trees turn into krummholz");
+                else if (elevation[i] < 3000 - Treeline.BandMetres - 50) Assert.That(chance[i], Is.EqualTo(0), "none far below the treeline");
+                else if (elevation[i] > 3000 - 45) Assert.That(chance[i], Is.EqualTo(255), "all of them in the top 50 m");
+            }
+            // A mountain forested to its summit has no treeline, so no krummholz.
+            var (e2, f2) = Cone(9999);
+            Assert.That(Treeline.Krummholz(e2, f2, 400, 400, 10, out double none).All(c => c == 0), Is.True);
+            Assert.That(double.IsNaN(none), Is.True);
+        }
+
         [Test]
         public void CliffShellsJutOutOnCliffsAndTuckUnderElsewhere()
         {
