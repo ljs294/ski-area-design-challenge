@@ -33,6 +33,7 @@ namespace MountainPlanner.Persistence
         public int[] ModelOfIndex = new int[256];
         public int[] SiteCumulative = Array.Empty<int>();
         public int Models, Variants, KrummholzModel = -1, DownwindRotation;
+        public int[] KrummholzHeights = Treeline.HeightCodes();
         public int[] TileOffset = Array.Empty<int>();
         public int[] TileCount = Array.Empty<int>();
         public ForestPoint[] Points = Array.Empty<ForestPoint>();
@@ -68,6 +69,7 @@ namespace MountainPlanner.Persistence
                     SpeciesWest = p.SpeciesWest, SpeciesNorth = p.SpeciesNorth, SpeciesCell = p.SpeciesCell,
                     ModelOfIndex = (int*)Pin(p.ModelOfIndex), SiteCumulative = (int*)Pin(p.SiteCumulative),
                     Models = p.Models, Variants = p.Variants, KrummholzModel = p.KrummholzModel, DownwindRotation = p.DownwindRotation,
+                    KrummholzHeights = (int*)Pin(p.KrummholzHeights),
                     TileOffset = (int*)Pin(p.TileOffset), TileCount = (int*)Pin(p.TileCount), Points = (ForestPoint*)Pin(p.Points),
                 };
             }

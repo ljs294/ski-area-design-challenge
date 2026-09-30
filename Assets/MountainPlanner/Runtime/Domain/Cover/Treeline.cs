@@ -23,6 +23,30 @@ namespace MountainPlanner.Domain.Cover
         /// </summary>
         public const int DownwindRotation = 48;
 
+        /// <summary>The krummholz model's variants (tools/assets/trees): a low mat, a flag tree and a cushion.</summary>
+        public const int Mat = 0, FlagTree = 1, Cushion = 2;
+        /// <summary>
+        /// Each variant's height at scale 1 (metres; checked against the imported models in EditMode). Krummholz
+        /// stays within 15% of it: scaling a 0.8 m mat to 3.5 m would stretch it 13 m downwind.
+        /// </summary>
+        public static readonly double[] NativeHeights = { 0.80, 3.22, 1.52 };
+        public const double SizeJitter = 0.15;
+
+        /// <summary>Per variant, the lowest and highest height in 0.25 m steps within <see cref="SizeJitter"/> of its native height.</summary>
+        public static int[] HeightCodes()
+        {
+            var codes = new int[NativeHeights.Length * 2];
+            for (int v = 0; v < NativeHeights.Length; v++)
+            {
+                double h = NativeHeights[v];
+                int lo = (int)Math.Ceiling(h * (1 - SizeJitter) / 0.25 - 1e-9), hi = (int)Math.Floor(h * (1 + SizeJitter) / 0.25 + 1e-9);
+                if (lo > hi) lo = hi = Math.Max(1, (int)Math.Round(h / 0.25));
+                codes[2 * v] = lo;
+                codes[2 * v + 1] = hi;
+            }
+            return codes;
+        }
+
         /// <summary>
         /// The treeline over a grid of cells (row-major, rows from the south): per cell its elevation (NaN where
         /// the cell has no data) and whether it holds forest. Returns each cell's chance (0–255) of growing

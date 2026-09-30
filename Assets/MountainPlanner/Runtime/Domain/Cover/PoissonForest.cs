@@ -66,6 +66,8 @@ namespace MountainPlanner.Domain.Cover
         public int KrummholzModel;
         /// <summary>The rotation (1/256 turns) that points a krummholz flag downwind.</summary>
         public int DownwindRotation;
+        /// <summary>Per krummholz variant: its lowest and highest height (0.25 m steps), near its own size (<see cref="Treeline.HeightCodes"/>).</summary>
+        public int* KrummholzHeights;
 
         /// <summary>Per tile: where its trees start in <see cref="Points"/> (one extra entry: the end), and how many it has.</summary>
         public int* TileOffset;
@@ -197,9 +199,14 @@ namespace MountainPlanner.Domain.Cover
             int rotation = (int)((a >> 32) & 0xFF);
             if (f.KrummholzModel >= 0 && (int)(b & 0xFF) < cell.Krummholz)
             {
-                // Just below the treeline: a stunted, wind-shaped form, 1–3.5 m, its flag downwind.
+                // Just below the treeline: a stunted, wind-shaped form near its own size, its flag downwind. Where the
+                // band is fully krummholz (the most exposed ground) mostly mats and cushions; lower down mostly flag trees.
+                int r = (int)((b >> 24) & 0xFF);
+                variant = cell.Krummholz == 255 ? (r < 115 ? Treeline.Mat : r < 205 ? Treeline.Cushion : Treeline.FlagTree)
+                                                 : (r < 128 ? Treeline.FlagTree : r < 205 ? Treeline.Cushion : Treeline.Mat);
+                int lo = f.KrummholzHeights[2 * variant], hi = f.KrummholzHeights[2 * variant + 1];
                 model = f.KrummholzModel;
-                height = 4 + (int)(((b >> 8) & 0xFF) * 11 >> 8);
+                height = lo + (int)((((b >> 8) & 0xFF) * (ulong)(hi - lo + 1)) >> 8);
                 rotation = (f.DownwindRotation + (int)((b >> 16) & 0x1F) - 16) & 0xFF;
                 width = 32;
             }

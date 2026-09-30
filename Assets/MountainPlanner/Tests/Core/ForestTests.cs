@@ -220,6 +220,34 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void KrummholzStaysNearItsOwnSizeAndPointsDownwind()
+        {
+            var (manifest, dir) = JacksonHole2Km();
+            var plan = new ForestField(manifest, dir).Prepare(Grid(manifest));
+            // A stand-in model the site doesn't otherwise grow, and every core cell fully in the band.
+            plan.KrummholzModel = SpeciesMap.IndexOf("american_beech");
+            for (int i = 0; i < plan.Cells.Length; i++)
+                if (plan.Cells[i].Kind == ForestCell.Core) plan.Cells[i].Krummholz = 255;
+            new ManagedForestPlanter().Plant(plan);
+            int[] codes = Treeline.HeightCodes();
+            var perVariant = new int[3];
+            for (int t = 0; t < plan.TileCountTotal; t++)
+                for (int k = 0; k < plan.TileCount[t]; k++)
+                {
+                    var p = plan.Points[plan.TileOffset[t] + k];
+                    if (p.Prototype / plan.Variants != plan.KrummholzModel) continue;
+                    int v = p.Prototype % plan.Variants;
+                    perVariant[v]++;
+                    Assert.That(p.HeightCode, Is.InRange(codes[2 * v], codes[2 * v + 1]), "within 15% of the variant's own height");
+                    Assert.That(p.Rotation, Is.InRange(Treeline.DownwindRotation - 16, Treeline.DownwindRotation + 15), "flag downwind");
+                    Assert.That(p.Width32, Is.EqualTo(32));
+                }
+            TestContext.Progress.WriteLine($"Krummholz: {perVariant[Treeline.Mat]:N0} mats, {perVariant[Treeline.Cushion]:N0} cushions, {perVariant[Treeline.FlagTree]:N0} flag trees");
+            Assert.That(perVariant[Treeline.Mat], Is.GreaterThan(perVariant[Treeline.FlagTree]), "the most exposed ground grows mostly mats");
+            Assert.That(perVariant.Min(), Is.GreaterThan(0));
+        }
+
+        [Test]
         public void TreesKeepTheirSpacingAcrossCellsAndTiles()
         {
             var (manifest, dir) = JacksonHole2Km();
