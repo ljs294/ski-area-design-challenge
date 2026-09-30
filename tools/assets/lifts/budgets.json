@@ -19,6 +19,17 @@
     "shadowLods": 2,
     "crossFade": false
   },
+  "snowgun": {
+    "_about": "Hundreds of snow guns on a mountain: a few hundred triangles up close, switching early; far out the lance is one bar. The lance is the only moving part (LOD0-2).",
+    "lods": [
+      {"lod": 0, "maxTris": 600, "untilM": 12},
+      {"lod": 1, "maxTris": 160, "untilM": 40},
+      {"lod": 2, "maxTris": 40, "untilM": 150},
+      {"lod": 3, "maxTris": 12, "untilM": 600}
+    ],
+    "shadowLods": 2,
+    "crossFade": false
+  },
   "tower_head": {
     "_about": "Many towers per lift and 16 round sheaves on the heaviest heads: switching earlier than terminals keeps a whole line of 20 towers near 30k triangles in view; sheaves spin only at LOD0.",
     "lods": [

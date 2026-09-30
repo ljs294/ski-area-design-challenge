@@ -385,6 +385,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Lifts.LiftRig
   AssetId: sessellift_fgq4_tower_base
   Kind: tower_base
+  Maker: Sessellift
   CatalogName: Line tower base
   Pivots: []
   PivotAxes: []

@@ -1,0 +1,989 @@
+{
+ "_about": "SLE snow guns (a fictional snowmaking maker; code name SLE, owner 2026-09-29). Our own builds; every dimension from the owner's reference model, measured locally and never named. Millimetres. Stick gun frame, as measured: on the post's axis, w 0 at the reference's snow line, u the way the lance leans, v along the pivot pin, w up; the asset's origin is on the post's axis at grade (w = grade). Lance parts are placed along the lance: s along its axis, c across it (in the u-w plane, + toward its upper side), v sideways; a point is s * axis + (c0 + c) * across.",
+ "_adjust": [
+  "symmetric about the centre plane v = 0 (the reference's head parts sit up to 4 mm off it)",
+  "the sleeve's web drops 3.7 mm to sit under the lance channel rather than through it",
+  "the base mast: the reference's 5 ft post stands on the ground, the pivot 1150 mm above grade and 449 mm of post below it (the reference set it almost wholly below its snow line; the owner's photos show the lance pinned on a mast's top), so the stay's clevis on the mast shows and is built",
+  "the ground gun's head is sized from the owner's close-up photos of a real unit (the reference drew it small), and its tripod follows those photos; the stick gun's head takes the same dimensions (the owner: very similar): the fan block, a 305 mm barrel and the 74 mm cap, on the tower's own Y block",
+  "lance length procedural: 10, 20 or 30 ft of pipe (the reference is 20 ft); the head rides on the pipe's end, the channel stops 1524 mm (5 ft) short of it"
+ ],
+ "catalog": {
+  "maker": "SLE",
+  "name": "SLE snow guns",
+  "parts": {
+   "sle_stick_gun_10": "Stick gun, 10 ft lance",
+   "sle_stick_gun_20": "Stick gun, 20 ft lance",
+   "sle_stick_gun_30": "Stick gun, 30 ft lance",
+   "sle_ground_gun": "Ground gun on tripod"
+  }
+ },
+ "stickGun": {
+  "grade": -845.0,
+  "post": {
+   "dia": 101.6,
+   "bottom": -1294.0,
+   "top": 230.0
+  },
+  "basePlate": {
+   "lo": [
+    -51.0,
+    -51.0,
+    230.0
+   ],
+   "hi": [
+    50.5,
+    51.0,
+    236.0
+   ]
+  },
+  "ears": {
+   "outline": [
+    [
+     -11.5,
+     315.0
+    ],
+    [
+     -7.0,
+     320.0
+    ],
+    [
+     -0.5,
+     322.0
+    ],
+    [
+     6.5,
+     320.0
+    ],
+    [
+     11.0,
+     315.0
+    ],
+    [
+     50.5,
+     236.0
+    ],
+    [
+     -51.0,
+     236.0
+    ]
+   ],
+   "v": [
+    [
+     -51.0,
+     -45.0
+    ],
+    [
+     45.0,
+     51.0
+    ]
+   ]
+  },
+  "pin": {
+   "dia": 19.0,
+   "u": 0.0,
+   "w": 305.0,
+   "v": [
+    -57.0,
+    76.0
+   ]
+  },
+  "pivot": [
+   0.0,
+   0.0,
+   305.0
+  ],
+  "bottomClevis": {
+   "plate": {
+    "lo": [
+     47.0,
+     -51.0,
+     -143.0
+    ],
+    "hi": [
+     54.0,
+     51.0,
+     -42.0
+    ]
+   },
+   "tabs": {
+    "outline": [
+     [
+      143.0,
+      -99.0
+     ],
+     [
+      137.5,
+      -105.0
+     ],
+     [
+      128.5,
+      -110.5
+     ],
+     [
+      54.5,
+      -143.0
+     ],
+     [
+      54.5,
+      -41.5
+     ],
+     [
+      128.5,
+      -74.5
+     ],
+     [
+      143.0,
+      -86.0
+     ]
+    ],
+    "v": [
+     [
+      -45.0,
+      -41.5
+     ],
+     [
+      41.5,
+      45.0
+     ]
+    ]
+   }
+  },
+  "lance": {
+   "axis": [
+    0.38583,
+    0.0,
+    0.92257
+   ],
+   "across": [
+    -0.92257,
+    0.0,
+    0.38583
+   ],
+   "c0": 180.0,
+   "lengthFt": {
+    "reference": 20,
+    "variants": [
+     10,
+     20,
+     30
+    ]
+   },
+   "pipe": {
+    "dia": 50.8,
+    "s": [
+     51.5,
+     6147.5
+    ]
+   },
+   "channel": {
+    "_note": "a U stiffener under the pipe: web below, flanges up to the pipe's axis",
+    "profile": [
+     [
+      -35.5,
+      -35.0
+     ],
+     [
+      -35.5,
+      35.0
+     ],
+     [
+      0.0,
+      35.0
+     ],
+     [
+      0.0,
+      26.5
+     ],
+     [
+      -26.0,
+      26.5
+     ],
+     [
+      -26.0,
+      -26.5
+     ],
+     [
+      0.0,
+      -26.5
+     ],
+     [
+      0.0,
+      -35.0
+     ]
+    ],
+    "s": [
+     -63.0,
+     4623.5
+    ],
+    "freeTop": 1524.0
+   },
+   "inlet": {
+    "_note": "the hose block at the lance's foot",
+    "s": [
+     -63.0,
+     50.0
+    ],
+    "c": [
+     -35.5,
+     35.0
+    ],
+    "v": [
+     -35.0,
+     35.0
+    ]
+   },
+   "sleeve": {
+    "_note": "a U channel round the lance's foot, open on top; the pivot and bar tabs hang below it",
+    "profile": [
+     [
+      -38.5,
+      -44.5
+     ],
+     [
+      -38.5,
+      44.5
+     ],
+     [
+      19.0,
+      44.5
+     ],
+     [
+      19.0,
+      41.5
+     ],
+     [
+      -35.5,
+      41.5
+     ],
+     [
+      -35.5,
+      -41.5
+     ],
+     [
+      19.0,
+      -41.5
+     ],
+     [
+      19.0,
+      -44.5
+     ]
+    ],
+    "s": [
+     150.5,
+     760.0
+    ]
+   },
+   "tabs": [
+    {
+     "name": "pivot",
+     "outline": [
+      [
+       13.5,
+       295.0
+      ],
+      [
+       15.5,
+       304.5
+      ],
+      [
+       13.5,
+       314.5
+      ],
+      [
+       -4.0,
+       357.5
+      ],
+      [
+       -43.0,
+       263.5
+      ],
+      [
+       -0.0,
+       281.0
+      ],
+      [
+       5.5,
+       284.5
+      ]
+     ],
+     "v": [
+      [
+       -44.5,
+       -41.5
+      ],
+      [
+       41.5,
+       44.5
+      ]
+     ],
+     "strip": {
+      "outline": [
+       [
+        -46.0,
+        265.0
+       ],
+       [
+        -7.0,
+        358.5
+       ],
+       [
+        -4.0,
+        357.5
+       ],
+       [
+        -43.0,
+        263.5
+       ]
+      ],
+      "v": [
+       -51.0,
+       51.0
+      ]
+     }
+    },
+    {
+     "name": "bar",
+     "outline": [
+      [
+       161.0,
+       605.0
+      ],
+      [
+       171.0,
+       614.5
+      ],
+      [
+       172.0,
+       621.0
+      ],
+      [
+       167.5,
+       635.5
+      ],
+      [
+       134.5,
+       684.5
+      ],
+      [
+       95.5,
+       591.0
+      ],
+      [
+       153.5,
+       602.5
+      ]
+     ],
+     "v": [
+      [
+       -44.5,
+       -41.5
+      ],
+      [
+       41.5,
+       44.5
+      ]
+     ],
+     "strip": {
+      "outline": [
+       [
+        91.0,
+        593.0
+       ],
+       [
+        130.5,
+        686.5
+       ],
+       [
+        134.5,
+        684.5
+       ],
+       [
+        95.5,
+        591.0
+       ]
+      ],
+      "v": [
+       -51.0,
+       51.0
+      ]
+     }
+    }
+   ],
+   "bar": {
+    "_note": "the stay from the post's bottom clevis to the sleeve's bar tabs",
+    "outline": [
+     [
+      81.5,
+      -115.0
+     ],
+     [
+      127.5,
+      637.5
+     ],
+     [
+      203.5,
+      633.0
+     ],
+     [
+      157.5,
+      -119.5
+     ]
+    ],
+    "v": [
+     -32.0,
+     32.0
+    ]
+   },
+   "fittings": [
+    {
+     "name": "side",
+     "_note": "a nipple out of the inlet block's side (gun frame u, v, w), bending into a coupler that points 45 degrees down the lance",
+     "path": [
+      [
+       -156.0,
+       35.0,
+       93.5
+      ],
+      [
+       -156.0,
+       60.0,
+       93.5
+      ],
+      [
+       -158.7,
+       69.4,
+       85.0
+      ]
+     ],
+     "nippleDia": 38.0,
+     "coupler": {
+      "from": [
+       -158.7,
+       69.4,
+       85.0
+      ],
+      "to": [
+       -167.4,
+       91.8,
+       64.3
+      ],
+      "dia": 39.4
+     }
+    },
+    {
+     "name": "bottom",
+     "_note": "hose coupler under the inlet block, on the lance's axis",
+     "s": [
+      -63.0,
+      -112.0
+     ],
+     "dia": 40.0
+    }
+   ],
+   "valve": {
+    "_note": "a valve on the inlet block's other side: disc, boss, spindle and handle (s, c; v)",
+    "at": [
+     0.5,
+     0.0
+    ],
+    "disc": {
+     "dia": 76.0,
+     "v": [
+      -38.0,
+      -41.0
+     ]
+    },
+    "boss": {
+     "dia": 26.0,
+     "v": [
+      -35.0,
+      -41.0
+     ]
+    },
+    "paddle": {
+     "_note": "the reference's handle direction, the size of the owner's photographed valve",
+     "dir": [
+      46.5,
+      -19.5
+     ],
+     "length": 150.0,
+     "width": 30.0,
+     "v": [
+      -47.0,
+      -54.0
+     ]
+    },
+    "spindle": {
+     "dia": 6.0,
+     "v": [
+      -41.0,
+      -54.0
+     ]
+    }
+   },
+   "head": {
+    "_note": "rides on the pipe's end: a Y block on a flange, the fan head on its upper branch, the nozzle arm on a flange off its side, and the nozzle",
+    "lanceFlange": {
+     "outline": [
+      [
+       2177.5,
+       5753.5
+      ],
+      [
+       2182.5,
+       5765.0
+      ],
+      [
+       2241.0,
+       5740.5
+      ],
+      [
+       2236.0,
+       5729.0
+      ]
+     ],
+     "v": [
+      -32.0,
+      32.0
+     ]
+    },
+    "block": {
+     "outline": [
+      [
+       2182.5,
+       5765.0
+      ],
+      [
+       2234.0,
+       5889.0
+      ],
+      [
+       2199.0,
+       5935.0
+      ],
+      [
+       2249.5,
+       5973.5
+      ],
+      [
+       2281.0,
+       5932.0
+      ],
+      [
+       2305.5,
+       5942.0
+      ],
+      [
+       2329.5,
+       5883.5
+      ],
+      [
+       2294.5,
+       5869.0
+      ],
+      [
+       2241.0,
+       5740.5
+      ]
+     ],
+     "v": [
+      -32.0,
+      32.0
+     ]
+    },
+    "armFlange": {
+     "outline": [
+      [
+       2329.5,
+       5883.5
+      ],
+      [
+       2341.0,
+       5888.5
+      ],
+      [
+       2317.0,
+       5947.0
+      ],
+      [
+       2305.5,
+       5942.0
+      ]
+     ],
+     "v": [
+      -32.0,
+      32.0
+     ]
+    },
+    "fan": {
+     "_note": "the ground gun's fan block (100 x 100 mm, 12-nozzle face), on the Y block's upper branch with its base along the nozzle arm, as on the ground gun's barrel",
+     "side": [
+      [
+       2161.5,
+       5993.5
+      ],
+      [
+       2225.5,
+       6043.5
+      ],
+      [
+       2292.5,
+       5969.5
+      ],
+      [
+       2189.0,
+       5927.0
+      ]
+     ],
+     "halfBack": 37.0,
+     "halfFront": 50.0,
+     "bulge": 8.0
+    },
+    "arm": {
+     "_note": "the ground gun's 2 in barrel, its length too",
+     "from": [
+      2329.0,
+      0.0,
+      5918.0
+     ],
+     "to": [
+      2611.5,
+      0.0,
+      6033.5
+     ],
+     "dia": 50.8
+    },
+    "nozzle": {
+     "_note": "the ground gun's nucleator cap: an octagon with a chamfered nose",
+     "from": [
+      2611.5,
+      0.0,
+      6033.5
+     ],
+     "to": [
+      2699.0,
+      0.0,
+      6069.5
+     ],
+     "dia": 74.0,
+     "nose": 0.3368,
+     "noseDia": 44.0
+    }
+   }
+  }
+ },
+ "groundGun": {
+  "_note": "the ground gun: the reference's loose gun for its layout (barrel and nucleator cap forward, the valve body with the fan head on top, the hose block behind with its valve, couplers and air rod), sized from the owner's close-up photos on its 2 in barrel (the reference drew the head small): a 100 x 100 mm fan face, an 180 mm black valve body, a 74 mm cap with an octagonal nose, a maroon valve paddle and a pressure gauge. It hangs on a tapered side plate that pivots on the tripod's arch below it. Gun frame: x toward the nozzle, y across, z up, origin on the barrel's axis at the valve body's middle.",
+  "barrel": {
+   "from": [
+    90.0,
+    0.0,
+    0.0
+   ],
+   "to": [
+    395.0,
+    0.0,
+    0.0
+   ],
+   "dia": 50.8
+  },
+  "cap": {
+   "from": [
+    395.0,
+    0.0,
+    0.0
+   ],
+   "to": [
+    490.0,
+    0.0,
+    0.0
+   ],
+   "dia": 74.0,
+   "noseFrom": 458.0,
+   "noseDia": 44.0
+  },
+  "flange": {
+   "x": [
+    75.0,
+    90.0
+   ],
+   "y": [
+    -37.0,
+    37.0
+   ],
+   "z": [
+    -37.0,
+    37.0
+   ]
+  },
+  "body": {
+   "x": [
+    -105.0,
+    75.0
+   ],
+   "y": [
+    -37.0,
+    37.0
+   ],
+   "z": [
+    -37.0,
+    38.0
+   ]
+  },
+  "fan": {
+   "_note": "tapered, the 12-nozzle face forward and 20 degrees up; the stick gun carries the same block",
+   "side": [
+    [
+     -40.0,
+     110.0
+    ],
+    [
+     38.0,
+     132.0
+    ],
+    [
+     72.0,
+     38.0
+    ],
+    [
+     -40.0,
+     38.0
+    ]
+   ],
+   "halfBack": 37.0,
+   "halfFront": 50.0,
+   "bulge": 8.0
+  },
+  "rod": {
+   "path": [
+    [
+     -38.0,
+     98.0
+    ],
+    [
+     -85.0,
+     110.0
+    ],
+    [
+     -120.0,
+     92.0
+    ],
+    [
+     -130.0,
+     36.0
+    ]
+   ],
+   "dia": 16.0
+  },
+  "rear": {
+   "x": [
+    -225.0,
+    -105.0
+   ],
+   "y": [
+    -40.0,
+    40.0
+   ],
+   "z": [
+    -38.0,
+    38.0
+   ]
+  },
+  "valve": {
+   "at": [
+    -165.0,
+    0.0
+   ],
+   "dial": {
+    "dia": 84.0,
+    "y": [
+     -40.0,
+     -46.0
+    ]
+   },
+   "boss": {
+    "dia": 24.0,
+    "y": [
+     -46.0,
+     -52.0
+    ]
+   },
+   "paddle": {
+    "length": 150.0,
+    "width": 30.0,
+    "y": [
+     -52.0,
+     -60.0
+    ],
+    "deg": -15.0
+   }
+  },
+  "hex": {
+   "x": [
+    -262.0,
+    -225.0
+   ],
+   "r": 40.0
+  },
+  "coupler": {
+   "x": [
+    -330.0,
+    -262.0
+   ],
+   "r": 38.0
+  },
+  "side": {
+   "path": [
+    [
+     -142.0,
+     40.0,
+     0.0
+    ],
+    [
+     -142.0,
+     62.0,
+     0.0
+    ],
+    [
+     -142.0,
+     71.0,
+     0.0
+    ]
+   ],
+   "nippleDia": 38.0,
+   "coupler": {
+    "from": [
+     -142.0,
+     71.0,
+     0.0
+    ],
+    "to": [
+     -164.0,
+     93.0,
+     0.0
+    ],
+    "dia": 39.4
+   }
+  },
+  "gauge": {
+   "at": [
+    -243.0,
+    0.0
+   ],
+   "stem": {
+    "dia": 12.0,
+    "y": [
+     30.0,
+     55.0
+    ]
+   },
+   "dial": {
+    "dia": 66.0,
+    "y": [
+     55.0,
+     79.0
+    ]
+   }
+  },
+  "mount": {
+   "_note": "the tapered side plate bolted to the valve body's side, pivoting on the arch below",
+   "outline": [
+    [
+     -60.0,
+     20.0
+    ],
+    [
+     60.0,
+     20.0
+    ],
+    [
+     60.0,
+     -37.0
+    ],
+    [
+     34.0,
+     -130.0
+    ],
+    [
+     22.0,
+     -160.0
+    ],
+    [
+     0.0,
+     -170.0
+    ],
+    [
+     -22.0,
+     -160.0
+    ],
+    [
+     -34.0,
+     -130.0
+    ],
+    [
+     -60.0,
+     -37.0
+    ]
+   ],
+   "y": [
+    -45.0,
+    -37.0
+   ],
+   "pivot": [
+    0.0,
+    -146.0
+   ]
+  }
+ },
+ "tripod": {
+  "_note": "after the owner's photos of a real unit: an aluminium inverted-U arch across the gun (its apex tube is the gun's elevation pivot and carries a quadrant disc), a crossbar, and a rear leg welded to the disc; a T-pin in the disc's arc slot locks the elevation. Frame: origin on the snow under the pivot, u the way the gun fires at rest, v along the pivot, w up.",
+  "pivotHeight": 1000.0,
+  "elevationDeg": 25.0,
+  "gunOffsetV": 33.0,
+  "arch": {
+   "dia": 45.0,
+   "radius": 350.0,
+   "footV": 560.0
+  },
+  "crossbar": {
+   "dia": 38.0,
+   "w": 380.0
+  },
+  "rearLeg": {
+   "dia": 45.0,
+   "top": [
+    -45.0,
+    0.0,
+    950.0
+   ],
+   "foot": [
+    -780.0,
+    0.0,
+    0.0
+   ]
+  },
+  "disc": {
+   "dia": 150.0,
+   "v": [
+    -4.0,
+    4.0
+   ]
+  },
+  "tPin": {
+   "_note": "v from the disc's far side to the T-bar, outboard of the side plate",
+   "at": [
+    -39.0,
+    -39.0
+   ],
+   "dia": 10.0,
+   "v": [
+    6.0,
+    -22.0
+   ],
+   "bar": {
+    "dia": 8.0,
+    "length": 80.0
+   }
+  }
+ }
+}

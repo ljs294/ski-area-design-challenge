@@ -845,6 +845,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Lifts.LiftRig
   AssetId: sessellift_fgq4_tower_s6
   Kind: tower_head
+  Maker: Sessellift
   CatalogName: Line tower head, support 6
   Pivots:
   - {fileID: 1174049974075087281}

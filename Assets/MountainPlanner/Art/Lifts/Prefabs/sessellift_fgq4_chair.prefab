@@ -328,6 +328,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Lifts.LiftRig
   AssetId: sessellift_fgq4_chair
   Kind: chair
+  Maker: Sessellift
   CatalogName: Quad chair
   Pivots: []
   PivotAxes: []

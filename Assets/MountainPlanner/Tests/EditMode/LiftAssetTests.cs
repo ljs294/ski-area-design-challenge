@@ -12,16 +12,19 @@ namespace MountainPlanner.Tests
 {
     // Guards the imported lift assets (decisions LP1-LP8, tools/assets/lifts/README.md): triangle budgets
     // per LOD from budgets.json, shadows only on the near LODs, moving parts centred on their axles, sockets
-    // on the rope, the mesh channels the lift shader reads, the lift frame's handedness, and our naming.
+    // on the rope, the mesh channels the lift shader reads, the lift frame's handedness, snow guns standing at
+    // grade on a hinge, and our naming.
     public sealed class LiftAssetTests
     {
         const string SetPath = "Assets/MountainPlanner/Art/Lifts/LiftModels.asset";
         const string ArtRoot = "Assets/MountainPlanner/Art/Lifts";
         const float Mm = 0.001f;
+        /// <summary>Our makers' code names, as asset id prefixes (decision LP3).</summary>
+        static readonly string[] Makers = { "sessellift_fgq4_", "sle_" };
 
         [Serializable] sealed class LodBudget { public int lod; public int maxTris; public float untilM; }
         [Serializable] sealed class KindBudget { public LodBudget[] lods; public int shadowLods; public bool crossFade; }
-        [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget chair; public KindBudget tower_head; public KindBudget tower_mast; public KindBudget tower_base; }
+        [Serializable] sealed class Budgets { public KindBudget terminal; public KindBudget chair; public KindBudget tower_head; public KindBudget tower_mast; public KindBudget tower_base; public KindBudget snowgun; }
         [Serializable] sealed class Common { public float ropeElevation; public float lineGauge; }
         [Serializable] sealed class Spec { public Common common; }
 
@@ -37,6 +40,7 @@ namespace MountainPlanner.Tests
             "tower_head" => b.tower_head,
             "tower_mast" => b.tower_mast,
             "tower_base" => b.tower_base,
+            "snowgun" => b.snowgun,
             _ => throw new ArgumentException(kind),
         };
 
@@ -114,6 +118,8 @@ namespace MountainPlanner.Tests
         {
             var rig = prefab.GetComponent<LiftRig>();
             Assert.That(rig.Pivots.Length, Is.EqualTo(rig.PivotAxes.Length));
+            // a snow gun's lance (or gun) is hinged at one end: it swings about its axle rather than spinning on it
+            bool hinged = rig.Kind == "snowgun";
             for (int i = 0; i < rig.Pivots.Length; i++)
             {
                 var pivot = rig.Pivots[i];
@@ -123,6 +129,7 @@ namespace MountainPlanner.Tests
                 foreach (var filter in pivot.GetComponentsInChildren<MeshFilter>(true))
                 {
                     Assert.That(filter.transform.localPosition.magnitude, Is.LessThan(Mm), filter.name);
+                    if (hinged) continue;
                     var centre = filter.sharedMesh.bounds.center;
                     var across = centre - axis * Vector3.Dot(centre, axis);
                     Assert.That(across.magnitude, Is.LessThan(Mm), $"{filter.name} is off its axle by {across.magnitude * 1000:F1} mm");
@@ -136,6 +143,7 @@ namespace MountainPlanner.Tests
             var rig = prefab.GetComponent<LiftRig>();
             if (rig.Kind == "chair") Assert.Ignore("Chairs hang from the rope; no rope sockets.");
             if (rig.Kind == "tower_mast" || rig.Kind == "tower_base") Assert.Ignore("Mast sections and bases carry no rope.");
+            if (rig.Kind == "snowgun") Assert.Ignore("Snow guns carry no rope.");
             var common = LoadSpec().common;
             if (rig.Kind == "tower_head")
             {
@@ -197,8 +205,9 @@ namespace MountainPlanner.Tests
         [TestCaseSource(nameof(Cases))]
         public void EveryAssetUsesOurNaming(GameObject prefab)
         {
+            Assert.That(Makers.Any(m => prefab.name.StartsWith(m, StringComparison.Ordinal)), prefab.name);
             foreach (var t in prefab.GetComponentsInChildren<Transform>(true))
-                Assert.That(t.name, Does.StartWith("sessellift_fgq4_"), t.name);
+                Assert.That(t.name, Does.StartWith(prefab.name), t.name);
         }
 
         [Test]
@@ -207,8 +216,26 @@ namespace MountainPlanner.Tests
             foreach (string path in Directory.GetFiles(ArtRoot, "*", SearchOption.AllDirectories).Where(p => !p.EndsWith(".meta")))
             {
                 string name = Path.GetFileName(path);
-                Assert.That(name.StartsWith("sessellift_fgq4_") || name.StartsWith("lift_") || name.StartsWith("Lift"), name);
+                Assert.That(Makers.Any(m => name.StartsWith(m, StringComparison.Ordinal)) || name.StartsWith("lift_") || name.StartsWith("Lift"), name);
             }
+        }
+
+        [TestCaseSource(nameof(Cases))]
+        public void SnowGunsStandAtGradeAndAimOnAHinge(GameObject prefab)
+        {
+            // A snow gun's origin is on its mast (or under its tripod's pivot) at grade. Its one moving part, the lance
+            // or the ground gun's gun, hinges about X up on the mast or the tripod, and the nozzle is above and ahead
+            // of the hinge: the gun fires along +Z.
+            var rig = prefab.GetComponent<LiftRig>();
+            if (rig.Kind != "snowgun") Assert.Ignore("Snow guns only.");
+            Assert.That(rig.Socket("base").localPosition.magnitude, Is.LessThan(Mm), "the base socket is the origin, at grade");
+            Assert.That(rig.Pivots.Length, Is.EqualTo(1), "one hinged part");
+            Assert.That(Mathf.Abs(Vector3.Dot(rig.PivotAxes[0].normalized, Vector3.right)), Is.GreaterThan(0.999f), "hinged about X");
+            var hinge = rig.Pivots[0].localPosition;
+            Assert.That(hinge.y, Is.GreaterThan(0.9f), "the hinge stands on the mast or the tripod, not at the snow");
+            var nozzle = rig.Socket("nozzle").localPosition;
+            Assert.That(nozzle.y, Is.GreaterThan(hinge.y), "the nozzle is above the hinge");
+            Assert.That(nozzle.z, Is.GreaterThan(hinge.z), "the gun fires along +Z");
         }
 
         [TestCaseSource(nameof(Cases))]

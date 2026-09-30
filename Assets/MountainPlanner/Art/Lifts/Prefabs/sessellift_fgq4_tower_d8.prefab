@@ -1663,6 +1663,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Lifts.LiftRig
   AssetId: sessellift_fgq4_tower_d8
   Kind: tower_head
+  Maker: Sessellift
   CatalogName: Line tower head, hold-down 8
   Pivots:
   - {fileID: 452007591378431417}

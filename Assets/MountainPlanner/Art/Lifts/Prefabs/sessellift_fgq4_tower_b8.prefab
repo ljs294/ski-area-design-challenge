@@ -2274,6 +2274,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Lifts.LiftRig
   AssetId: sessellift_fgq4_tower_b8
   Kind: tower_head
+  Maker: Sessellift
   CatalogName: Line tower head, breakover 8
   Pivots:
   - {fileID: 6542087366340730501}

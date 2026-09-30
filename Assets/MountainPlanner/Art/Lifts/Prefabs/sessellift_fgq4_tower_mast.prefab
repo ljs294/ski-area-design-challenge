@@ -114,6 +114,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Lifts.LiftRig
   AssetId: sessellift_fgq4_tower_mast
   Kind: tower_mast
+  Maker: Sessellift
   CatalogName: Line tower mast section, 1 m
   Pivots: []
   PivotAxes: []

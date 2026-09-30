@@ -64,6 +64,6 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
 | .NET tools | `tools/domain-tests/`, `tools/acquire/`, `tools/data-spike/` | Unity-free builds, the downloader CLI |
 | Test data | `TestData/` (Git LFS) | Jackson Hole 2 km package, S1M fixture |
 | Tree assets | `tools/assets/trees/` | Blender species pipeline, enforced budgets |
-| Lift assets | `tools/assets/lifts/` | Blender lift pipeline, budgets, Lift Lab (demo 22/23) |
+| Lift assets | `tools/assets/lifts/` | Blender lift and snow gun pipeline, budgets, Lift Lab (demo 22/23) |
 | Plans | `docs/plans/` | Roadmap and phase plans |
 | Archived reference | `docs/reference/maplibre-archive.md` | Links into the frozen MapLibre game |
