@@ -153,6 +153,13 @@ namespace MountainPlanner.App
             int i = Array.IndexOf(args, "-package");
             if (i >= 0 && i + 1 < args.Length && Directory.Exists(args[i + 1])) return args[i + 1];
             var entries = ResortLibrary.Scan(DataRoot);
+            int site = Array.IndexOf(args, "-site");   // -site "Crystal Mountain": the largest, newest download with that name
+            if (site >= 0 && site + 1 < args.Length)
+            {
+                var named = entries.Where(e => string.Equals(e.Name, args[site + 1], StringComparison.OrdinalIgnoreCase))
+                                   .OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
+                if (named != null) return named.Folder;
+            }
             var demo = entries.Where(e => e.Name == "Jackson Hole").OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
             return (demo ?? entries.FirstOrDefault())?.Folder;
         }

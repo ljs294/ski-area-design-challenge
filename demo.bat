@@ -65,6 +65,13 @@ echo   Lift assets: Sessellift FGQ-4 chairlift and SLE snow guns
 echo     22 Rebuild the lift and snow gun models in Blender, import them into Unity and build the Lift Lab (about 3 minutes)
 echo     23 Open the Lift Lab: terminals, quad chair, line towers (6), snow guns (7), gun field (8), LODs, snow, benchmark (B)
 echo.
+echo   Phase 1, task 09: forest at scale
+echo     24 Crystal Mountain, 5 km: download it into your library (Cascades species; about 3 minutes)
+echo     25 Fly over Crystal Mountain in the game (needs 24)
+echo     26 Forest benchmark on Crystal Mountain: its own views, GPU times, draw calls (about 2 minutes; needs 24)
+echo     27 Forest report for every mountain you have: trees, species, treeline (a few seconds each)
+echo     28 Species survey: tree species at every US ski area, then the model priority report (about 3 hours; resumes)
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -102,6 +109,11 @@ if /i "%CHOICE%"=="20" goto lineup
 if /i "%CHOICE%"=="21" goto benchmark
 if /i "%CHOICE%"=="22" goto lifts
 if /i "%CHOICE%"=="23" goto liftlab
+if /i "%CHOICE%"=="24" call :acquire "Crystal Mountain" 46.93 -121.49 5 & goto done
+if /i "%CHOICE%"=="25" goto playcrystal
+if /i "%CHOICE%"=="26" goto benchcrystal
+if /i "%CHOICE%"=="27" goto forestinfo
+if /i "%CHOICE%"=="28" goto survey
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -161,6 +173,41 @@ if not exist "%GAME%" goto done
 echo Starting the game. WASD move, Q/E rotate, R/F tilt, wheel zoom, N snow on/off, T tree snow, B wind (calm, breeze, strong), L light (dawn, noon, golden hour, night), M haze, V cover map, C Corbet's Couloir, H hide the UI, F1 every key, Esc menu (Quit is there).
 start "" "%GAME%"
 goto menu
+
+:playcrystal
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game on Crystal Mountain (download it first with 24). The keys are the same as in 17.
+start "" "%GAME%" -site "Crystal Mountain"
+goto menu
+
+:benchcrystal
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\benchmark" mkdir "%~dp0test-results\benchmark"
+echo Running the forest benchmark on Crystal Mountain (the game flies 5 views, then closes by itself)...
+"%GAME%" -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -site "Crystal Mountain" -benchmark "%~dp0test-results\benchmark\crystal.json" -logFile "%~dp0test-results\benchmark\crystal.log" <nul
+findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\crystal.log"
+start "" "%~dp0test-results\benchmark"
+goto done
+
+:forestinfo
+chcp 65001 >nul
+dotnet run --project "%~dp0tools\acquire" -- forest-info <nul
+goto done
+
+:survey
+if not exist "%OUT%" mkdir "%OUT%"
+if not exist "%OUT%\ski_areas.geojson" (
+  echo Downloading the ski-area list from OpenSkiMap: about 5 MB, data from OpenStreetMap contributors ^(ODbL^)...
+  curl -s -o "%OUT%\ski_areas.geojson.gz" https://tiles.openskimap.org/geojson/ski_areas.geojson.gz
+  powershell -NoProfile -Command "$i=[IO.File]::OpenRead('%OUT%\ski_areas.geojson.gz'); $o=[IO.File]::Create('%OUT%\ski_areas.geojson'); $g=New-Object IO.Compression.GZipStream($i,[IO.Compression.CompressionMode]::Decompress); $g.CopyTo($o); $g.Close(); $o.Close(); $i.Close()"
+)
+chcp 65001 >nul
+echo Surveying tree species at every operating US ski area. Ctrl+C stops it; choose 28 again to resume.
+dotnet run --project "%~dp0tools\acquire" -- species-survey --areas "%OUT%\ski_areas.geojson" --out "%OUT%\species-survey.jsonl"
+dotnet run --project "%~dp0tools\acquire" -- species-report --survey "%OUT%\species-survey.jsonl" --out "%OUT%\species-priority.md" <nul
+goto done
 
 :trees
 set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
