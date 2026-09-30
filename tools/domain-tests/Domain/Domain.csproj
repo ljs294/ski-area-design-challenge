@@ -2,6 +2,7 @@
   <!-- Builds the same sources as Assets/MountainPlanner/Runtime/Domain/MountainPlanner.Domain.asmdef. -->
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>MountainPlanner.Domain</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
