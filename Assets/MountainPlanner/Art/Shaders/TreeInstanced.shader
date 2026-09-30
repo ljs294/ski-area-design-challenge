@@ -2,8 +2,10 @@
 // Foliage is lit as a crown, not card by card: import bakes crown-volume normals and ambient occlusion
 // (TreeImport), so crowns have a lit side, a shaded side and dark interiors. Bark has a normal map, so the
 // sun rakes across its ridges and scales. Snow sits on the upper side
-// of branches that can hold it (UV1.x capacity, UV3.y which way the card faces). Impostors
-// (TreeImpostor.shader) share the placement, tint and lighting in TreeCommon.hlsl.
+// of branches that can hold it (UV1.x capacity, UV3.y which way the card faces). Wind sways trunks, bends
+// branches and flutters needles from the weights in vertex colour (WindOffset). Impostors
+// (TreeImpostor.shader) share the placement, tint and lighting in TreeCommon.hlsl, and stand still: at
+// their distance the sway is under a pixel.
 Shader "MountainPlanner/TreeInstanced"
 {
     Properties
@@ -42,14 +44,56 @@ Shader "MountainPlanner/TreeInstanced"
         TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
         TEXTURE2D(_BumpMap); SAMPLER(sampler_BumpMap);
 
-        void Place(uint index, float3 positionOS, float3 normalOS, out float3 positionWS, out float3 normalWS, out float fade)
+        // Wind (TR4), from the weights the Blender build bakes into vertex colour: R trunk sway ((height /
+        // tree height)², 0 at the foot), G branch flex (0 at the branch's base, 1 at its tip), B the branch's
+        // phase, A needle and leaf flutter. p is the vertex relative to the trunk's foot, in world metres.
+        // Every pass calls this through Place(), so shadows and depth move with the trees. It fades out from
+        // 250 to 450 m, where even strong sway is under a pixel at 1080p. Only LOD0-1 compile it (_WIND, set
+        // by ForestRenderer, and off in calm): the code alone slows every vertex through occupancy, even
+        // where it is skipped, which cost up to 0.95 ms in the benchmark's ring view when every LOD had it.
+        float3 WindOffset(float3 treePosition, float3 p, half4 weights, uint index)
+        {
+        #if !defined(_WIND)
+            return 0;
+        #else
+            float strength = _Wind.z * saturate((450 - distance(treePosition, _WorldSpaceCameraPos)) / 200);
+            float3 offset = 0;
+            UNITY_BRANCH
+            if (strength > 0)   // calm, or too far to see
+            {
+                float2 dir = _Wind.xy;
+                float clock = _Wind.w;
+                float3 downwind = float3(dir.x, 0, dir.y);
+                float treePhase = (TreeHash(index) >> 20) / 4095.0 * TWO_PI;
+                // Gusts roll downwind across the forest: crests 60 m apart at about 7 m/s, varied across the wind.
+                float along = dot(treePosition.xz, dir), across = dot(treePosition.xz, float2(-dir.y, dir.x));
+                float gust = saturate(0.6 + 0.3 * sin(along * (TWO_PI / 60) - clock * (TWO_PI * 0.12))
+                                          + 0.15 * sin(across * (TWO_PI / 37) + clock * (TWO_PI * 0.05)));
+                // Trunk: leans downwind and sways about the lean (0.3 Hz), never back past upright. Height × the
+                // weight grows like a bending pole: the top of a 25 m tree moves about 0.5 m in strong wind.
+                float sway = (0.5 + 0.35 * sin(clock * (TWO_PI * 0.3) + treePhase)) * gust;
+                offset = downwind * (0.022 * sway * weights.r * max(p.y, 0));
+                // Branches bob and push downwind (1.2 Hz), each in its own phase.
+                float bob = sin(clock * (TWO_PI * 1.2) + weights.b * TWO_PI + treePhase);
+                offset += (float3(0, 0.12 * bob, 0) + downwind * (0.06 * (0.6 + 0.4 * bob))) * (weights.g * gust);
+                // Needles and leaves flutter: small and fast (6 Hz), different from card to card.
+                float flutter = sin(clock * (TWO_PI * 6) + dot(p, float3(3.1, 2.3, 4.7)));
+                offset += float3(dir.x * 0.5, 1, dir.y * 0.5) * (0.02 * flutter * weights.a * (0.4 + 0.6 * gust));
+                offset *= strength;
+            }
+            return offset;
+        #endif
+        }
+
+        void Place(uint index, float3 positionOS, float3 normalOS, half4 wind, out float3 positionWS, out float3 normalWS, out float fade)
         {
             Tree t = _Trees[index];
             float2 sc = TreeRotation(t);
             fade = TreeFade(t.position);
             float w = t.widthScale * (1 + _TreeFade.w * fade);
             float3 scale = float3(w, t.heightScale, w);
-            positionWS = t.position + RotateY(positionOS * scale, sc);
+            float3 p = RotateY(positionOS * scale, sc);
+            positionWS = t.position + p + WindOffset(t.position, p, wind, index);
             normalWS = normalize(RotateY(normalOS / scale, sc));
         }
 
@@ -71,10 +115,12 @@ Shader "MountainPlanner/TreeInstanced"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma target 4.5
+            #pragma multi_compile_local_vertex _ _WIND
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "TreeLighting.hlsl"
+            #include "Haze.hlsl"
 
             struct Attributes
             {
@@ -84,6 +130,7 @@ Shader "MountainPlanner/TreeInstanced"
                 float2 uv1 : TEXCOORD1;   // x: snow capacity
                 float2 uv2 : TEXCOORD2;   // x: per-card random (snow clumps; season order on leaves)
                 float2 uv3 : TEXCOORD3;   // x: ambient occlusion, y: which way the card faces (+1 up)
+                half4 color : COLOR;      // wind weights (WindOffset)
                 uint instance : SV_InstanceID;
             };
             struct Varyings
@@ -103,7 +150,7 @@ Shader "MountainPlanner/TreeInstanced"
                 uint index = TreeIndex(v.instance);
                 float fade;
                 float3 positionWS;
-                Place(index, v.positionOS.xyz, v.normalOS, positionWS, o.normalWS, fade);
+                Place(index, v.positionOS.xyz, v.normalOS, v.color, positionWS, o.normalWS, fade);
                 o.positionCS = TransformWorldToHClip(positionWS);
                 o.positionRWS = positionWS - _WorldSpaceCameraPos;
                 o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
@@ -141,7 +188,7 @@ Shader "MountainPlanner/TreeInstanced"
                 half3 colour = lerp(albedo.rgb * i.tint * _Brightness, _SnowColor.rgb, snow);
                 half ao = lerp(i.shade.y, 1, snow * 0.3);
                 half3 lit = TreeLight(colour, SnowNormal(n, snow), ao, positionWS, _Translucency * _Foliage * (1 - snow));
-                return half4(lit, coverage);
+                return half4(ApplyHaze(lit, positionWS), coverage);
             }
             ENDHLSL
         }
@@ -156,12 +203,13 @@ Shader "MountainPlanner/TreeInstanced"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma target 4.5
+            #pragma multi_compile_local_vertex _ _WIND
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
             float3 _LightDirection;
 
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; uint instance : SV_InstanceID; };
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; half4 color : COLOR; uint instance : SV_InstanceID; };
             struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; };
 
             Varyings Vert(Attributes v)
@@ -169,7 +217,7 @@ Shader "MountainPlanner/TreeInstanced"
                 Varyings o;
                 float3 positionWS, normalWS;
                 float fade;
-                Place(TreeIndex(v.instance), v.positionOS.xyz, v.normalOS, positionWS, normalWS, fade);
+                Place(TreeIndex(v.instance), v.positionOS.xyz, v.normalOS, v.color, positionWS, normalWS, fade);
                 float4 cs = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, _LightDirection));
                 #if UNITY_REVERSED_Z
                     cs.z = min(cs.z, UNITY_NEAR_CLIP_VALUE);
@@ -199,7 +247,8 @@ Shader "MountainPlanner/TreeInstanced"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma target 4.5
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; uint instance : SV_InstanceID; };
+            #pragma multi_compile_local_vertex _ _WIND
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; half4 color : COLOR; uint instance : SV_InstanceID; };
             struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; };
 
             Varyings Vert(Attributes v)
@@ -207,7 +256,7 @@ Shader "MountainPlanner/TreeInstanced"
                 Varyings o;
                 float3 positionWS, normalWS;
                 float fade;
-                Place(TreeIndex(v.instance), v.positionOS.xyz, v.normalOS, positionWS, normalWS, fade);
+                Place(TreeIndex(v.instance), v.positionOS.xyz, v.normalOS, v.color, positionWS, normalWS, fade);
                 o.positionCS = TransformWorldToHClip(positionWS);
                 o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
                 return o;

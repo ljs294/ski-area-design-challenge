@@ -1,0 +1,1032 @@
+<title>Ski Area Design Challenge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: a 1280x720 game screen scaled to fit the page; the mountain map underneath, flat floating panels over it,
+   a colourful build bar at the bottom centre and a slim status strip along the bottom (game-ui-direction.md). */
+:root {
+  --page: #e8ece6; --app-bg: #f3f5f2; --surface: #ffffff; --hud: rgba(255, 255, 255, 0.92); --hover: #edf2f3;
+  --text: #1e2a32; --muted: #526570; --border: #d6dfe1; --border-strong: #7c8e98;
+  --accent: #155ab6; --accent-contrast: #ffffff; --danger: #b33338; --success: #276748; --warn: #b7791f;
+  --c-lifts: #2f6fd6; --c-trails: #2e8b57; --c-snow: #1a9cc2; --c-groom: #df7a1c; --c-lodge: #9c6238;
+  --c-roads: #66727f; --c-terrain: #7d8a33; --c-bulldoze: #c8413b;
+  --d-green: #2e8b57; --d-blue: #2f6fd6; --d-black: #20262c; --d-double: #7a1f35;
+  --lift-line: #2b3640; --label-halo: rgba(255, 255, 255, 0.9);
+  --map-meadow: #dfe7d1; --map-alpine: #cfcbc2; --map-forest: #a3bb90; --map-tree: #86a174;
+  --map-snow: #f7f9fb; --map-snow-shade: #c2cedb; --map-forest-winter: #8ea596; --map-tree-winter: #5f7d6b;
+  --map-contour: rgba(55, 70, 60, 0.22); --map-contour-index: rgba(55, 70, 60, 0.38);
+  --font: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #0c141a; --app-bg: #111b22; --surface: #1b2933; --hud: rgba(27, 41, 51, 0.92); --hover: #263943;
+    --text: #eaf1f4; --muted: #b0c1ca; --border: #3b515e; --border-strong: #78929f;
+    --accent: #80bef2; --accent-contrast: #102536; --danger: #ff9a9f; --success: #8cd5ac; --warn: #f0c36d;
+    --c-lifts: #6ea8ff; --c-trails: #5cc98b; --c-snow: #5cc8e6; --c-groom: #f5a04e; --c-lodge: #d49a6e;
+    --c-roads: #a3b0bd; --c-terrain: #b8c46a; --c-bulldoze: #ff8a84;
+    --d-green: #4cc27d; --d-blue: #5e9bff; --d-black: #0e1216; --d-double: #9e2a4a;
+    --lift-line: #e6edf1; --label-halo: rgba(17, 27, 34, 0.9);
+    --map-meadow: #2f3d33; --map-alpine: #3b3b39; --map-forest: #26402f; --map-tree: #1d3326;
+    --map-snow: #c7d1da; --map-snow-shade: #7a8b9c; --map-forest-winter: #3d5647; --map-tree-winter: #2b4034;
+    --map-contour: rgba(230, 240, 235, 0.14); --map-contour-index: rgba(230, 240, 235, 0.26);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #0c141a; --app-bg: #111b22; --surface: #1b2933; --hud: rgba(27, 41, 51, 0.92); --hover: #263943;
+  --text: #eaf1f4; --muted: #b0c1ca; --border: #3b515e; --border-strong: #78929f;
+  --accent: #80bef2; --accent-contrast: #102536; --danger: #ff9a9f; --success: #8cd5ac; --warn: #f0c36d;
+  --c-lifts: #6ea8ff; --c-trails: #5cc98b; --c-snow: #5cc8e6; --c-groom: #f5a04e; --c-lodge: #d49a6e;
+  --c-roads: #a3b0bd; --c-terrain: #b8c46a; --c-bulldoze: #ff8a84;
+  --d-green: #4cc27d; --d-blue: #5e9bff; --d-black: #0e1216; --d-double: #9e2a4a;
+  --lift-line: #e6edf1; --label-halo: rgba(17, 27, 34, 0.9);
+  --map-meadow: #2f3d33; --map-alpine: #3b3b39; --map-forest: #26402f; --map-tree: #1d3326;
+  --map-snow: #c7d1da; --map-snow-shade: #7a8b9c; --map-forest-winter: #3d5647; --map-tree-winter: #2b4034;
+  --map-contour: rgba(230, 240, 235, 0.14); --map-contour-index: rgba(230, 240, 235, 0.26);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--page); color: var(--text); font-family: var(--font); font-size: 14px; padding-inline: 16px; padding-block: 16px 24px; }
+.page { max-width: 1440px; margin: 0 auto; display: grid; gap: 12px; }
+.page-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+.page-head h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.page-head p { margin: 0; color: var(--muted); font-size: 13px; }
+.narrow-note { display: none; margin: 0; color: var(--muted); font-size: 13px; }
+@media (max-width: 720px) { .narrow-note { display: block; } }
+.stage-wrap { position: relative; width: 100%; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); background: var(--app-bg); }
+.stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden;
+  font-size: 13px; font-variant-numeric: tabular-nums; user-select: none; -webkit-user-select: none; }
+.stage canvas, .stage svg.world { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; }
+.stage.dim #base { filter: saturate(0.45) brightness(1.03); }
+:root[data-theme="dark"] .stage.dim #base { filter: saturate(0.45) brightness(0.85); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .stage.dim #base { filter: saturate(0.45) brightness(0.85); } }
+svg.world { cursor: default; }
+svg.world.drawing { cursor: crosshair; }
+svg.world text { font-family: var(--font); font-size: 11px; fill: var(--text); paint-order: stroke; stroke: var(--label-halo); stroke-width: 3px; stroke-linejoin: round; }
+.panel { position: absolute; background: var(--hud); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+.icon { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* Top-left: info views */
+.views { left: 12px; top: 12px; display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 6px; }
+.views:hover { background: var(--surface); }
+.views .label { color: var(--muted); }
+.views .value { font-weight: 600; }
+.menu { position: absolute; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px; z-index: 40;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14); }
+.views-menu { left: 12px; top: 50px; display: grid; grid-template-columns: repeat(3, 118px); gap: 4px; }
+.views-menu button { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; padding: 8px; border-radius: 6px; text-align: left; }
+.views-menu button:hover { background: var(--hover); }
+.views-menu button[aria-pressed="true"] { background: var(--hover); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.views-menu small { color: var(--muted); font-size: 11px; line-height: 1.3; }
+.swatch { width: 100%; height: 6px; border-radius: 3px; }
+
+/* Top-right cluster */
+.cluster { right: 12px; top: 12px; display: flex; gap: 2px; padding: 3px; }
+.cluster button { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 4px; }
+.cluster button:hover { background: var(--hover); }
+.warn-chip { right: 128px; top: 12px; display: flex; align-items: center; gap: 6px; padding: 7px 10px; color: var(--warn); font-weight: 600; }
+.warn-chip:hover { background: var(--surface); }
+.warn-chip[data-count="0"] { color: var(--muted); font-weight: 500; }
+.warn-menu { right: 12px; top: 54px; width: 340px; display: grid; gap: 2px; }
+.warn-menu .item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px; border-radius: 6px; }
+.warn-menu .item:hover { background: var(--hover); }
+.warn-menu .show { color: var(--accent); font-weight: 500; }
+.warn-menu .empty { padding: 8px; color: var(--muted); }
+
+/* Windows */
+.win { position: absolute; width: 290px; background: var(--hud); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12); display: flex; flex-direction: column; max-height: 560px; }
+.win.tool { width: 300px; }
+.win-head { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 10px; cursor: grab; border-bottom: 1px solid var(--border); }
+.win-head:active { cursor: grabbing; }
+.win-head h2 { flex: 1; margin: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.win-head .cat { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; color: #fff; }
+.win-head .cat .icon { width: 15px; height: 15px; }
+.win-head button { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 4px; color: var(--muted); }
+.win-head button:hover { background: var(--hover); color: var(--text); }
+.win-head button[aria-pressed="true"] { color: var(--accent); background: var(--hover); }
+.win-body { padding: 10px; overflow-y: auto; display: grid; gap: 10px; }
+.tabs { display: flex; gap: 2px; padding: 2px; background: var(--hover); border-radius: 6px; }
+.tabs button { flex: 1; padding: 4px 8px; border-radius: 4px; color: var(--muted); font-weight: 500; }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--border); }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.card { display: grid; gap: 2px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; text-align: left; background: var(--surface); }
+.card:hover { border-color: var(--border-strong); }
+.card[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.card b { font-weight: 600; font-size: 12px; }
+.card span { color: var(--muted); font-size: 11px; }
+.hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.rows { display: grid; gap: 1px; }
+.rows div { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+.rows dt, .rows .k { color: var(--muted); }
+.rows.total div:last-child { border-top: 1px solid var(--border); margin-top: 3px; padding-top: 6px; font-weight: 600; }
+.sub { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; margin: 2px 0 -4px; }
+.bp-list { display: grid; gap: 2px; }
+.bp { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 5px; }
+.bp:hover { background: var(--hover); }
+.bp .x { color: var(--muted); width: 20px; height: 20px; display: grid; place-items: center; border-radius: 4px; }
+.bp .x:hover { color: var(--danger); background: var(--surface); }
+.actions { display: flex; gap: 6px; }
+.btn { flex: 1; padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); font-weight: 500; text-align: center; }
+.btn:hover { border-color: var(--border-strong); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn[disabled] { opacity: 0.5; cursor: default; }
+.error { color: var(--danger); font-size: 12px; margin: 0; }
+.error .btn { color: var(--text); }
+.field { display: grid; gap: 4px; }
+.field label, .check { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.check { justify-content: flex-start; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; }
+.seg { display: flex; gap: 2px; padding: 2px; background: var(--hover); border-radius: 6px; }
+.seg button { flex: 1; padding: 4px; border-radius: 4px; color: var(--muted); font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--border); }
+.diff { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.pill { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; background: var(--hover); color: var(--muted); }
+.pill.bp-pill { background: transparent; box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+.profile { width: 100%; height: 78px; }
+.profile path.area { fill: var(--hover); }
+.profile path.line { fill: none; stroke: var(--text); stroke-width: 1.5; }
+.profile text { font-size: 10px; fill: var(--muted); }
+
+/* Live readout while drawing */
+.readout { position: absolute; pointer-events: none; padding: 4px 8px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border-strong);
+  font-size: 12px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); z-index: 30; }
+.readout b { font-weight: 600; }
+
+/* Legend and camera */
+.legend { right: 12px; bottom: 104px; width: 190px; padding: 8px 10px; display: grid; gap: 4px; font-size: 12px; }
+.legend h3 { margin: 0 0 2px; font-size: 12px; font-weight: 600; }
+.legend .row { display: flex; justify-content: space-between; gap: 8px; }
+.legend .ramp { height: 8px; border-radius: 4px; }
+.legend small { color: var(--muted); }
+.camera { right: 12px; bottom: 50px; display: flex; gap: 2px; padding: 3px; }
+.camera button { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 4px; font-weight: 600; color: var(--muted); }
+.camera button:hover { background: var(--hover); color: var(--text); }
+
+/* Build bar */
+.buildbar { left: 50%; bottom: 46px; transform: translateX(-50%); display: flex; gap: 4px; padding: 5px; border-radius: 10px; }
+.tool-btn { position: relative; width: 42px; height: 42px; border-radius: 8px; display: grid; place-items: center; }
+.tool-btn .tile { width: 32px; height: 32px; border-radius: 7px; display: grid; place-items: center; color: #fff; }
+.tool-btn .tile .icon { width: 19px; height: 19px; stroke-width: 1.8; }
+.tool-btn:hover { background: var(--hover); }
+.tool-btn[aria-pressed="true"] { background: var(--hover); box-shadow: inset 0 0 0 2px var(--accent); }
+.tool-btn::after { content: attr(data-label); position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); padding: 3px 8px; border-radius: 5px;
+  background: var(--text); color: var(--app-bg); font-size: 11px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.12s ease-out; }
+.tool-btn:hover::after, .tool-btn:focus-visible::after { opacity: 1; }
+.sep { width: 1px; margin: 6px 3px; background: var(--border); }
+
+/* Status strip */
+.status { left: 8px; right: 8px; bottom: 8px; height: 32px; display: flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: 8px; }
+.status .grp { display: flex; align-items: center; gap: 6px; padding: 0 10px; height: 20px; border-left: 1px solid var(--border); white-space: nowrap; }
+.status .grp:first-child { border-left: 0; padding-left: 2px; }
+.status .play { display: flex; gap: 1px; }
+.status .play button { width: 26px; height: 24px; display: grid; place-items: center; border-radius: 4px; color: var(--muted); }
+.status .play button:hover { background: var(--hover); color: var(--text); }
+.status .play button[aria-pressed="true"] { color: var(--accent); background: var(--hover); }
+.status .muted { color: var(--muted); }
+.status .up { color: var(--success); }
+.status .down { color: var(--danger); }
+.status .spacer { flex: 1; }
+.status .strong { font-weight: 600; }
+.status .skip { color: var(--accent); font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+.status .skip:hover { background: var(--hover); }
+
+/* Toasts */
+.toasts { position: absolute; left: 50%; bottom: 104px; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; z-index: 50; pointer-events: none; }
+.toast { padding: 7px 14px; border-radius: 8px; background: var(--text); color: var(--app-bg); font-weight: 500; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  animation: toast-in 0.18s ease-out; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } .tool-btn::after { transition: none; } }
+
+.steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; color: var(--muted); font-size: 13px; line-height: 1.5; max-width: 72ch; }
+.steps b { color: var(--text); font-weight: 600; }
+.keys { color: var(--muted); font-size: 12px; margin: 0; }
+kbd { font-family: var(--font); font-size: 11px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-lift" viewBox="0 0 24 24"><path d="M3 5l18 5"/><path d="M12 7.5v4"/><path d="M8 11.5h8v3a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3z"/><path d="M8 20h8"/></symbol>
+  <symbol id="i-trail" viewBox="0 0 24 24"><path d="M6 3c5 3 7 5 3 8s-2 6 9 10"/><circle cx="6" cy="3" r="1"/></symbol>
+  <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.5 4.5L12 6l2.5-1.5M9.5 19.5L12 18l2.5 1.5"/></symbol>
+  <symbol id="i-groom" viewBox="0 0 24 24"><rect x="3" y="12" width="15" height="6" rx="3"/><path d="M6 12V8h6l3 4"/><path d="M18 15h3"/></symbol>
+  <symbol id="i-lodge" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></symbol>
+  <symbol id="i-road" viewBox="0 0 24 24"><path d="M8 3L4 21M16 3l4 18"/><path d="M12 4v3M12 11v3M12 18v2"/></symbol>
+  <symbol id="i-terrain" viewBox="0 0 24 24"><path d="M3 19l6-10 4 6 3-4 5 8z"/></symbol>
+  <symbol id="i-bulldoze" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-views" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/></symbol>
+  <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 4h6l-1 6 3 3H7l3-3z"/><path d="M12 13v7"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+  <symbol id="i-snowflake-s" viewBox="0 0 24 24"><path d="M12 4v16M5 8l14 8M5 16l14-8"/></symbol>
+  <symbol id="i-skier" viewBox="0 0 24 24"><circle cx="14" cy="4.5" r="1.5"/><path d="M7 9l5 1 2 4-3 3"/><path d="M4 18l16 3"/></symbol>
+</svg>
+
+<div class="page">
+  <header class="page-head">
+    <h1>Ski Area Design Challenge</h1>
+    <p>Prototype of the build flow in game-ui-direction.md. Every number here is a placeholder.</p>
+  </header>
+  <p class="narrow-note">This prototype is laid out for a laptop or desktop screen; on a phone it shows at reduced size.</p>
+
+  <div class="stage-wrap" id="stageWrap">
+    <div class="stage" id="stage">
+      <canvas id="base" width="1280" height="720" aria-label="Mountain map"></canvas>
+      <canvas id="overlay" width="1280" height="720" aria-hidden="true"></canvas>
+      <svg class="world" id="world" viewBox="0 0 1280 720" aria-label="Lifts and runs"></svg>
+
+      <button class="panel views" id="viewsBtn" aria-haspopup="true" aria-expanded="false">
+        <svg class="icon"><use href="#i-views"/></svg><span class="label">Info view</span><span class="value" id="viewName">None</span>
+      </button>
+      <div class="menu views-menu" id="viewsMenu" hidden></div>
+
+      <button class="panel warn-chip" id="warnChip" aria-haspopup="true" aria-expanded="false" data-count="0">
+        <svg class="icon"><use href="#i-warn"/></svg><span id="warnCount">0</span>
+      </button>
+      <div class="menu warn-menu" id="warnMenu" hidden></div>
+      <div class="panel cluster">
+        <button id="cubeBtn" aria-label="Switch to 3D (in the game)" title="2D / 3D (in the game)"><svg class="icon"><use href="#i-cube"/></svg></button>
+        <button id="themeBtn" aria-label="Switch light or dark theme" title="Light or dark theme"><svg class="icon"><use href="#i-theme"/></svg></button>
+        <button id="menuBtn" aria-label="Menu" title="Menu"><svg class="icon"><use href="#i-menu"/></svg></button>
+      </div>
+      <div class="menu" id="gameMenu" style="right:12px; top:54px; width:200px" hidden>
+        <button class="btn" id="resetBtn" style="width:100%">Reset the prototype</button>
+      </div>
+
+      <div class="panel legend" id="legend" hidden></div>
+      <div class="panel camera" aria-label="Camera">
+        <button title="North up" aria-label="North up">N</button>
+        <button title="Zoom in (in the game)" aria-label="Zoom in">+</button>
+        <button title="Zoom out (in the game)" aria-label="Zoom out">−</button>
+      </div>
+
+      <div id="windows"></div>
+      <div class="readout" id="readout" hidden></div>
+
+      <nav class="panel buildbar" id="buildbar" aria-label="Build tools"></nav>
+      <div class="toasts" id="toasts" aria-live="polite"></div>
+
+      <div class="panel status" id="status" aria-label="Resort status">
+        <div class="grp play">
+          <button id="playBtn" aria-label="Play" title="Play or pause (Space)"><svg class="icon"><use href="#i-play"/></svg></button>
+          <button data-speed="1" aria-label="Normal speed" aria-pressed="true">1×</button>
+          <button data-speed="2" aria-label="Fast" aria-pressed="false">2×</button>
+          <button data-speed="3" aria-label="Fastest" aria-pressed="false">3×</button>
+        </div>
+        <div class="grp"><span class="strong" id="date">Jun 3</span><span class="muted" id="phase">Summer planning</span><button class="skip" id="skipBtn" title="Finish summer planning and jump to opening day">Start the season ›</button></div>
+        <div class="grp" id="weather"></div>
+        <div class="grp"><svg class="icon" style="width:15px;height:15px"><use href="#i-skier"/></svg><span id="skiers">0</span><span class="muted">skiers today</span></div>
+        <div class="grp"><span class="strong" id="money">$12.0M</span><span id="delta"></span></div>
+        <div class="spacer"></div>
+        <div class="grp"><span class="muted">Rating</span><span class="strong" id="rating">–</span></div>
+      </div>
+    </div>
+  </div>
+
+  <ol class="steps">
+    <li><b>Plan a lift:</b> pick Lifts in the bar, choose a lift, then click a bottom terminal and a top terminal. Drag a blue handle to reshape a blueprint.</li>
+    <li><b>Paint a run:</b> pick Trails (the slope-angle view opens by itself), click down the hill, and press Enter or double-click to finish.</li>
+    <li><b>Build:</b> open the Cost tab and press Build blueprints. Nothing is paid until then.</li>
+    <li><b>Run a winter:</b> press play. The season opens on December 1; try the Lift lines and Skier traffic views, and click a lift or run.</li>
+  </ol>
+  <p class="keys"><kbd>Space</kbd> play or pause · <kbd>Enter</kbd> finish a run · <kbd>Backspace</kbd> remove the last point · <kbd>Esc</kbd> cancel or close</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const W = 1280, H = 720, CELL = 4, GW = W / CELL, GH = H / CELL, GX = GW + 1, GY = GH + 1, MPP = 4;   // a 5.1 km map, the size of a game site
+  const $ = (id) => document.getElementById(id);
+  const stage = $('stage'), stageWrap = $('stageWrap'), world = $('world');
+  const baseCtx = $('base').getContext('2d'), overCtx = $('overlay').getContext('2d');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- scaling ----------
+  let S = 1;
+  function fit() { S = stageWrap.clientWidth / W; stage.style.transform = `scale(${S})`; stageWrap.style.height = `${H * S}px`; }
+  new ResizeObserver(fit).observe(stageWrap); fit();
+  function toStage(e) { const r = stage.getBoundingClientRect(); return { x: (e.clientX - r.left) / S, y: (e.clientY - r.top) / S }; }
+
+  // ---------- terrain ----------
+  function hash(i, j) { let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+  function vnoise(x, y) {
+    const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    const a = hash(i, j), b = hash(i + 1, j), c = hash(i, j + 1), d = hash(i + 1, j + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x, y) { let s = 0, a = 0.5, f = 1; for (let k = 0; k < 4; k++) { s += a * vnoise(x * f, y * f); a *= 0.5; f *= 2; } return s; }
+  // One broad massif, a shoulder, and a steep summit band: about 23% green, 53% blue, 18% black, 6% double-black terrain.
+  const PEAKS = [[1120, 0, 1000, 600], [740, 170, 260, 300], [1210, 380, 200, 240], [1000, 95, 320, 75], [870, 70, 200, 65]];
+  function heightAt(x, y) {
+    let h = 1950;
+    for (const [px, py, a, s] of PEAKS) { const dx = x - px, dy = y - py; h += a * Math.exp(-(dx * dx + dy * dy) / (2 * s * s)); }
+    h += 40 * (fbm(x / 420, y / 420) - 0.5) + 4 * (fbm(x / 90 + 7, y / 90 + 3) - 0.5);
+    h += x * 0.02 - y * 0.06;
+    return h;
+  }
+  const HG = new Float32Array(GX * GY), SG = new Float32Array(GX * GY), SHADE = new Float32Array(GX * GY), FOREST = new Uint8Array(GX * GY);
+  for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++) HG[j * GX + i] = heightAt(i * CELL, j * CELL);
+  let HMIN = Infinity, HMAX = -Infinity;
+  for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++) {
+    const k = j * GX + i, h = HG[k]; HMIN = Math.min(HMIN, h); HMAX = Math.max(HMAX, h);
+    const hl = HG[j * GX + Math.max(0, i - 1)], hr = HG[j * GX + Math.min(GX - 1, i + 1)];
+    const hu = HG[Math.max(0, j - 1) * GX + i], hd = HG[Math.min(GY - 1, j + 1) * GX + i];
+    const run = 2 * CELL * MPP, dzdx = (hr - hl) / run, dzdy = (hd - hu) / run;
+    SG[k] = Math.atan(Math.hypot(dzdx, dzdy)) * 180 / Math.PI;
+    const n = [-dzdx, -dzdy, 1], nl = Math.hypot(...n), L = [-0.55, -0.55, 0.63];
+    SHADE[k] = Math.max(0, (n[0] * L[0] + n[1] * L[1] + n[2] * L[2]) / nl);
+    FOREST[k] = h < 2620 && SG[k] < 34 && fbm(i * CELL / 150 + 11, j * CELL / 150 + 5) > 0.47 ? 1 : 0;
+  }
+  function grid(arr, x, y) {
+    const gx = Math.min(GX - 1.001, Math.max(0, x / CELL)), gy = Math.min(GY - 1.001, Math.max(0, y / CELL));
+    const i = Math.floor(gx), j = Math.floor(gy), fx = gx - i, fy = gy - j, k = j * GX + i;
+    return arr[k] * (1 - fx) * (1 - fy) + arr[k + 1] * fx * (1 - fy) + arr[k + GX] * (1 - fx) * fy + arr[k + GX + 1] * fx * fy;
+  }
+  const hAt = (p) => grid(HG, p.x, p.y);
+
+  // ---------- colours ----------
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function rgb(hex) { const m = hex.replace('#', ''); return [parseInt(m.slice(0, 2), 16), parseInt(m.slice(2, 4), 16), parseInt(m.slice(4, 6), 16)]; }
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+  // ---------- game data ----------
+  const LIFTS = {
+    surface: { name: 'Surface lift', cap: 900, speed: 3.0, base: 450e3, perM: 900, op: 1500, maxRise: 300 },
+    quad: { name: 'Fixed-grip quad', cap: 2400, speed: 2.3, base: 1.2e6, perM: 1400, op: 4000 },
+    six: { name: 'Detachable six', cap: 3000, speed: 5.0, base: 3.5e6, perM: 2600, op: 7000 },
+    gondola: { name: 'Gondola', cap: 2800, speed: 6.0, base: 6e6, perM: 5000, op: 12000 },
+  };
+  const DIFF = [
+    { key: 'green', name: 'Green', sym: '●', max: 14, share: 0.3 },
+    { key: 'blue', name: 'Blue', sym: '■', max: 22, share: 0.4 },
+    { key: 'black', name: 'Black', sym: '◆', max: 30, share: 0.22 },
+    { key: 'double', name: 'Double black', sym: '◆◆', max: 90, share: 0.08 },
+  ];
+  const CATS = [
+    { key: 'lifts', label: 'Lifts', icon: 'i-lift', color: '--c-lifts' },
+    { key: 'trails', label: 'Trails', icon: 'i-trail', color: '--c-trails' },
+    { key: 'snow', label: 'Snowmaking', icon: 'i-snow', color: '--c-snow' },
+    { key: 'groom', label: 'Grooming', icon: 'i-groom', color: '--c-groom' },
+    { key: 'lodge', label: 'Lodges', icon: 'i-lodge', color: '--c-lodge' },
+    { key: 'roads', label: 'Roads and parking', icon: 'i-road', color: '--c-roads' },
+    { key: 'terrain', label: 'Terrain', icon: 'i-terrain', color: '--c-terrain' },
+    { key: 'bulldoze', label: 'Bulldoze', icon: 'i-bulldoze', color: '--c-bulldoze' },
+  ];
+  const VIEWS = [
+    { key: 'none', name: 'None', note: 'The mountain on its own' },
+    { key: 'slope', name: 'Slope angle', note: 'How steep, as run difficulty' },
+    { key: 'elev', name: 'Elevation', note: 'Height above sea level' },
+    { key: 'lines', name: 'Lift lines', note: 'Average wait at each lift' },
+    { key: 'traffic', name: 'Skier traffic', note: 'Skiers per hour on each run' },
+    { key: 'snow', name: 'Snow depth', note: 'Arrives with snowmaking' },
+  ];
+  const MONTHS = [['Jun', 30], ['Jul', 31], ['Aug', 31], ['Sep', 30], ['Oct', 31], ['Nov', 30], ['Dec', 31], ['Jan', 31], ['Feb', 28], ['Mar', 31], ['Apr', 30], ['May', 31]];
+  const WINTER_START = 183, WINTER_END = 318;
+
+  function sample() {
+    return {
+      day: 2, money: 16e6, delta: 0, playing: false, speed: 1, nextId: 5, season: 'summer', skiers: 0, rating: null,
+      base: 0, newSnow: 0, wait: 0, seasonSkiers: 0, seasonNet: 0, loans: 0, seed: 7,
+      lifts: [
+        { id: 1, name: 'Lift 1', type: 'quad', a: { x: 300, y: 610 }, b: { x: 585, y: 318 }, built: true, open: true },
+        { id: 4, name: 'Lift 2', type: 'six', a: { x: 470, y: 655 }, b: { x: 860, y: 250 }, built: false, open: true },
+      ],
+      runs: [
+        { id: 2, name: 'Run 1', pts: [{ x: 590, y: 330 }, { x: 520, y: 380 }, { x: 470, y: 450 }, { x: 400, y: 510 }, { x: 330, y: 600 }], width: 40, grade: false, clear: true, groom: true, built: true, open: true },
+        { id: 3, name: 'Run 2', pts: [{ x: 600, y: 320 }, { x: 640, y: 420 }, { x: 560, y: 520 }, { x: 420, y: 600 }, { x: 320, y: 630 }], width: 35, grade: false, clear: true, groom: false, built: true, open: true },
+      ],
+    };
+  }
+  function oriented(s) { s.lifts.forEach(orientLift); s.runs.forEach(orientRun); return s; }
+  let st = oriented(sample());
+
+  // ---------- measurements ----------
+  function liftStats(l) {
+    const t = LIFTS[l.type], horiz = Math.hypot(l.b.x - l.a.x, l.b.y - l.a.y) * MPP, rise = hAt(l.b) - hAt(l.a);
+    const length = Math.hypot(horiz, rise), ride = length / t.speed / 60, pitch = Math.atan2(rise, Math.max(1, horiz)) * 180 / Math.PI;
+    return { horiz, rise, length, ride, pitch, cap: t.cap, cost: t.base + t.perM * length };
+  }
+  function samplePath(pts, step = 4) {
+    const out = [];
+    for (let s = 0; s < pts.length - 1; s++) {
+      const a = pts[s], b = pts[s + 1], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / step));
+      for (let k = 0; k < n; k++) out.push({ x: a.x + (b.x - a.x) * k / n, y: a.y + (b.y - a.y) * k / n });
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+  function runStats(r) {
+    const s = samplePath(r.pts, 4);
+    let horiz = 0, maxPitch = 0, uphill = false, forest = 0; const prof = [{ d: 0, h: hAt(s[0]) }];
+    for (let k = 1; k < s.length; k++) {
+      const d = Math.hypot(s[k].x - s[k - 1].x, s[k].y - s[k - 1].y) * MPP; horiz += d;
+      prof.push({ d: horiz, h: hAt(s[k]) });
+      if (grid(FOREST, s[k].x, s[k].y) > 0.5) forest++;
+    }
+    for (let k = 0; k + 6 < prof.length; k += 3) {
+      const dh = prof[k].h - prof[k + 6].h, dd = prof[k + 6].d - prof[k].d, p = Math.atan2(dh, dd) * 180 / Math.PI;
+      if (p > maxPitch) maxPitch = p; if (p < -5) uphill = true;
+    }
+    const drop = prof[0].h - prof[prof.length - 1].h, diff = DIFF.find((d) => maxPitch < d.max) || DIFF[3];
+    const area = horiz * r.width, forestFrac = forest / Math.max(1, s.length - 1);
+    const cost = area * (12 + (r.grade ? 18 : 0) + (r.clear ? 25 * forestFrac : 0));
+    return { horiz, drop, maxPitch, diff, uphill, cost, prof, forestFrac };
+  }
+  function orientLift(l) { if (hAt(l.b) < hAt(l.a)) { const t = l.a; l.a = l.b; l.b = t; } }
+  function orientRun(r) { if (hAt(r.pts[r.pts.length - 1]) > hAt(r.pts[0])) r.pts.reverse(); }
+  const blueprints = () => [...st.lifts.filter((l) => !l.built), ...st.runs.filter((r) => !r.built)];
+  const costOf = (o) => (o.type ? liftStats(o).cost : runStats(o).cost);
+
+  // ---------- formatting ----------
+  function money(v) { const s = v < 0 ? '−' : '', a = Math.abs(v); if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1)}M`; if (a >= 1e3) return `${s}$${Math.round(a / 1e3)}k`; return `${s}$${Math.round(a)}`; }
+  const metres = (m) => `${Math.round(m).toLocaleString('en-US')} m`;
+  const deg = (d) => `${Math.round(d)}°`;
+  const num = (n) => Math.round(n).toLocaleString('en-US');
+  function dateOf(day) { let d = ((day % 365) + 365) % 365; for (const [m, n] of MONTHS) { if (d < n) return `${m} ${d + 1}`; d -= n; } return ''; }
+  const isWinter = (day) => { const d = ((day % 365) + 365) % 365; return d >= WINTER_START && d <= WINTER_END; };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ---------- base map ----------
+  const off = document.createElement('canvas'); off.width = GX; off.height = GY; const offCtx = off.getContext('2d');
+  function renderBase() {
+    const winter = st.season === 'winter';
+    const meadow = rgb(cssVar('--map-meadow')), alpine = rgb(cssVar('--map-alpine')), forest = rgb(cssVar('--map-forest'));
+    const snow = rgb(cssVar('--map-snow')), snowShade = rgb(cssVar('--map-snow-shade')), forestW = rgb(cssVar('--map-forest-winter'));
+    const img = offCtx.createImageData(GX, GY);
+    for (let k = 0; k < GX * GY; k++) {
+      const h = HG[k], sh = SHADE[k]; let c;
+      if (winter) { c = mix(snowShade, snow, Math.pow(sh, 0.9)); if (FOREST[k]) c = mix(c, forestW, 0.78); }
+      else { c = mix(meadow, alpine, smooth(2650, 2950, h)); if (FOREST[k]) c = mix(c, forest, 0.85); const f = 0.8 + 0.3 * sh; c = [c[0] * f, c[1] * f, c[2] * f]; }
+      img.data[k * 4] = Math.min(255, c[0]); img.data[k * 4 + 1] = Math.min(255, c[1]); img.data[k * 4 + 2] = Math.min(255, c[2]); img.data[k * 4 + 3] = 255;
+    }
+    offCtx.putImageData(img, 0, 0);
+    baseCtx.imageSmoothingEnabled = true; baseCtx.clearRect(0, 0, W, H);
+    baseCtx.drawImage(off, 0, 0, GX, GY, 0, 0, GX * CELL, GY * CELL);
+    baseCtx.fillStyle = cssVar(winter ? '--map-tree-winter' : '--map-tree');
+    for (let y = 3; y < H; y += 7) for (let x = 3; x < W; x += 7) {
+      const jx = x + (hash(x, y) - 0.5) * 5, jy = y + (hash(y, x) - 0.5) * 5;
+      if (grid(FOREST, jx, jy) > 0.6 && hash(x * 3, y * 7) > 0.3) { baseCtx.beginPath(); baseCtx.arc(jx, jy, 1.9, 0, Math.PI * 2); baseCtx.fill(); }
+    }
+    contours();
+  }
+  const SEG = { 1: [3, 2], 2: [2, 1], 3: [3, 1], 4: [0, 1], 5: [3, 0, 2, 1], 6: [0, 2], 7: [3, 0], 8: [3, 0], 9: [0, 2], 10: [0, 1, 3, 2], 11: [0, 1], 12: [3, 1], 13: [2, 1], 14: [3, 2] };
+  function contours() {
+    const lo = Math.ceil(HMIN / 50) * 50;
+    for (let lev = lo; lev <= HMAX; lev += 50) {
+      const index = lev % 250 === 0;
+      baseCtx.strokeStyle = cssVar(index ? '--map-contour-index' : '--map-contour'); baseCtx.lineWidth = index ? 1.2 : 0.7;
+      baseCtx.beginPath();
+      for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+        const a = HG[j * GX + i], b = HG[j * GX + i + 1], c = HG[(j + 1) * GX + i + 1], d = HG[(j + 1) * GX + i];
+        const code = (a > lev ? 8 : 0) | (b > lev ? 4 : 0) | (c > lev ? 2 : 0) | (d > lev ? 1 : 0);
+        const seg = SEG[code]; if (!seg) continue;
+        const pt = (e) => {
+          if (e === 0) return [i + (lev - a) / (b - a), j];
+          if (e === 1) return [i + 1, j + (lev - b) / (c - b)];
+          if (e === 2) return [i + (lev - d) / (c - d), j + 1];
+          return [i, j + (lev - a) / (d - a)];
+        };
+        for (let s = 0; s < seg.length; s += 2) { const p = pt(seg[s]), q = pt(seg[s + 1]); baseCtx.moveTo(p[0] * CELL, p[1] * CELL); baseCtx.lineTo(q[0] * CELL, q[1] * CELL); }
+      }
+      baseCtx.stroke();
+    }
+  }
+
+  // ---------- info view overlay ----------
+  let view = 'none', autoPrev = null;
+  const ovImg = document.createElement('canvas'); ovImg.width = GX; ovImg.height = GY; const ovCtx = ovImg.getContext('2d');
+  function renderOverlay() {
+    overCtx.clearRect(0, 0, W, H);
+    stage.classList.toggle('dim', view !== 'none');
+    if (view !== 'slope' && view !== 'elev') return;
+    const img = ovCtx.createImageData(GX, GY);
+    const cls = [rgb(cssVar('--d-green')), rgb(cssVar('--d-blue')), rgb(cssVar('--d-black')), rgb(cssVar('--d-double'))];
+    const ramp = [[46, 139, 87], [217, 194, 122], [176, 106, 79], [242, 242, 245]];
+    for (let k = 0; k < GX * GY; k++) {
+      let c, a;
+      if (view === 'slope') { const s = SG[k]; c = cls[s < 14 ? 0 : s < 22 ? 1 : s < 30 ? 2 : 3]; a = 150; }
+      else { const t = (HG[k] - HMIN) / (HMAX - HMIN) * 3, i = Math.min(2, Math.floor(t)); c = mix(ramp[i], ramp[i + 1], t - i); a = 130; }
+      img.data[k * 4] = c[0]; img.data[k * 4 + 1] = c[1]; img.data[k * 4 + 2] = c[2]; img.data[k * 4 + 3] = a;
+    }
+    ovCtx.putImageData(img, 0, 0);
+    overCtx.imageSmoothingEnabled = true;
+    overCtx.drawImage(ovImg, 0, 0, GX, GY, 0, 0, GX * CELL, GY * CELL);
+  }
+  function setView(v, auto = false) {
+    if (!auto) autoPrev = null;
+    view = v; $('viewName').textContent = VIEWS.find((x) => x.key === v).name;
+    renderOverlay(); renderLegend(); renderWorld(); renderViewsMenu();
+  }
+  function renderLegend() {
+    const el = $('legend');
+    if (view === 'none') { el.hidden = true; return; }
+    el.hidden = false;
+    if (view === 'slope') el.innerHTML = `<h3>Slope angle</h3>` + DIFF.map((d, i) =>
+      `<div class="row"><span><span style="color:var(--d-${d.key})">${d.sym}</span> ${d.name}</span><small>${i === 0 ? '< 14°' : i === 3 ? '> 30°' : `${DIFF[i - 1].max}–${d.max}°`}</small></div>`).join('');
+    else if (view === 'elev') el.innerHTML = `<h3>Elevation</h3><div class="ramp" style="background:linear-gradient(90deg,#2e8b57,#d9c27a,#b06a4f,#f2f2f5)"></div><div class="row"><small>${metres(HMIN)}</small><small>${metres(HMAX)}</small></div>`;
+    else if (view === 'lines') el.innerHTML = `<h3>Lift lines</h3><small>Bubbles at each lift's bottom terminal, sized by the average wait.</small>` +
+      (st.season === 'winter' ? '' : `<small style="color:var(--warn)">The lifts run in winter. Press play to reach December.</small>`);
+    else if (view === 'traffic') el.innerHTML = `<h3>Skier traffic</h3><div class="ramp" style="background:linear-gradient(90deg,#f3d36b,#e8893a,#c8413b)"></div><div class="row"><small>Quiet</small><small>Busy</small></div>` +
+      (st.season === 'winter' ? '' : `<small style="color:var(--warn)">Skiers arrive in winter. Press play to reach December.</small>`);
+    else el.innerHTML = `<h3>Snow depth</h3><small>Arrives with the snowmaking tools. Base depth today: ${st.season === 'winter' ? `${Math.round(st.base)} cm` : 'no snow'}.</small>`;
+  }
+  function renderViewsMenu() {
+    $('viewsMenu').innerHTML = VIEWS.map((v) => {
+      const sw = v.key === 'slope' ? 'linear-gradient(90deg,var(--d-green) 25%,var(--d-blue) 25% 50%,var(--d-black) 50% 75%,var(--d-double) 75%)'
+        : v.key === 'elev' ? 'linear-gradient(90deg,#2e8b57,#d9c27a,#b06a4f,#f2f2f5)' : v.key === 'lines' ? 'var(--warn)'
+        : v.key === 'traffic' ? 'linear-gradient(90deg,#f3d36b,#c8413b)' : v.key === 'snow' ? 'var(--c-snow)' : 'var(--border)';
+      return `<button data-view="${v.key}" aria-pressed="${v.key === view}"><span class="swatch" style="background:${sw}"></span><b>${v.name}</b><small>${v.note}</small></button>`;
+    }).join('');
+  }
+
+  // ---------- world (lifts, runs, labels) ----------
+  let traffic = new Map(), waits = new Map();
+  const diffColor = (d) => `var(--d-${d.key})`;
+  function trafficColor(t) { const c = t < 0.33 ? '#f3d36b' : t < 0.66 ? '#e8893a' : '#c8413b'; return c; }
+  function pathD(pts) { return pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '); }
+  function renderWorld() {
+    const winter = st.season === 'winter', out = [];
+    const maxT = Math.max(1, ...Array.from(traffic.values()));
+    for (const r of st.runs) {
+      const rs = runStats(r), w = r.width / MPP, d = pathD(r.pts);
+      const col = view === 'traffic' && r.built && winter ? trafficColor((traffic.get(r.id) || 0) / maxT) : diffColor(rs.diff);
+      const op = r.built ? (r.open ? 0.62 : 0.3) : 0.3;
+      out.push(`<path d="${d}" fill="none" stroke="${col}" stroke-opacity="${op}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"${r.built ? '' : ' stroke-dasharray="2 10"'}/>`);
+      out.push(`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" stroke-opacity="0.9"${r.built ? '' : ' stroke-dasharray="6 5"'}/>`);
+      out.push(`<path d="${d}" fill="none" stroke="transparent" stroke-width="${Math.max(18, w)}" stroke-linecap="round" data-kind="run" data-id="${r.id}" style="cursor:pointer;pointer-events:stroke"/>`);
+      const mid = r.pts[Math.floor(r.pts.length / 2)];
+      out.push(`<text x="${mid.x + 12}" y="${mid.y}"><tspan style="fill:${diffColor(rs.diff)};stroke:var(--label-halo)">${rs.diff.sym}</tspan> ${esc(r.name)}${r.built ? '' : ' · blueprint'}${r.built && !r.open ? ' · closed' : ''}</text>`);
+    }
+    for (const l of st.lifts) {
+      const ls = liftStats(l), dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, len = Math.hypot(dx, dy);
+      if (l.built) {
+        out.push(`<line x1="${l.a.x}" y1="${l.a.y}" x2="${l.b.x}" y2="${l.b.y}" stroke="var(--lift-line)" stroke-width="2.2" stroke-opacity="${l.open ? 1 : 0.45}"/>`);
+        const n = Math.max(1, Math.floor(ls.horiz / 170));
+        for (let k = 1; k < n; k++) { const x = l.a.x + dx * k / n, y = l.a.y + dy * k / n; out.push(`<rect x="${x - 2.5}" y="${y - 2.5}" width="5" height="5" fill="var(--lift-line)"/>`); }
+        for (const p of [l.a, l.b]) out.push(`<rect x="${p.x - 6}" y="${p.y - 4}" width="12" height="8" rx="2" fill="var(--surface)" stroke="var(--lift-line)" stroke-width="1.6"/>`);
+      } else {
+        out.push(`<line x1="${l.a.x}" y1="${l.a.y}" x2="${l.b.x}" y2="${l.b.y}" stroke="var(--accent)" stroke-width="2" stroke-dasharray="7 5"/>`);
+      }
+      out.push(`<line x1="${l.a.x}" y1="${l.a.y}" x2="${l.b.x}" y2="${l.b.y}" stroke="transparent" stroke-width="16" data-kind="lift" data-id="${l.id}" style="cursor:pointer;pointer-events:stroke"/>`);
+      const nx = -dy / len, ny = dx / len, nearRight = l.b.x > W - 260;
+      out.push(`<text x="${nearRight ? l.b.x - 12 : l.b.x + nx * 14 + 6}" y="${l.b.y + ny * 14 - 6}"${nearRight ? ' text-anchor="end"' : ''}>${esc(l.name)} · ${LIFTS[l.type].name.toLowerCase()}${l.built ? '' : ' · blueprint'}${l.built && !l.open ? ' · closed' : ''}</text>`);
+      if (view === 'lines' && winter && l.built && l.open) {
+        const wmin = waits.get(l.id) || 0, rad = 9 + Math.min(26, wmin * 1.1);
+        out.push(`<circle cx="${l.a.x}" cy="${l.a.y + rad + 6}" r="${rad}" fill="var(--warn)" fill-opacity="0.82" stroke="var(--surface)" stroke-width="1.5"/>`);
+        out.push(`<text x="${l.a.x}" y="${l.a.y + rad + 10}" text-anchor="middle" style="font-weight:600">${Math.round(wmin)} min</text>`);
+      }
+    }
+    for (const o of blueprints()) {
+      const pts = o.type ? [o.a, o.b] : o.pts;
+      pts.forEach((p, i) => out.push(`<circle cx="${p.x}" cy="${p.y}" r="6" fill="var(--surface)" stroke="var(--accent)" stroke-width="2" data-handle="${o.id}:${i}" style="cursor:move"/>`));
+    }
+    out.push(`<g id="anim"></g><g id="preview"></g>`);
+    world.innerHTML = out.join('');
+    world.classList.toggle('drawing', !!tool && (tool === 'lifts' || tool === 'trails' || tool === 'bulldoze'));
+  }
+
+  // ---------- drawing ----------
+  let tool = null, liftType = 'quad', runOpts = { width: 40, grade: false, clear: true }, draft = null, pointer = null, toolTab = 'plan', buildError = '';
+  function preview() {
+    const g = world.querySelector('#preview'), ro = $('readout'); if (!g) return;
+    if (!draft || !pointer) { g.innerHTML = ''; ro.hidden = true; return; }
+    if (draft.kind === 'lift') {
+      const l = { type: liftType, a: draft.a, b: pointer }, s = liftStats(l), up = s.rise >= 0;
+      g.innerHTML = `<line x1="${draft.a.x}" y1="${draft.a.y}" x2="${pointer.x}" y2="${pointer.y}" stroke="var(--accent)" stroke-width="2" stroke-dasharray="7 5"/><circle cx="${draft.a.x}" cy="${draft.a.y}" r="6" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>`;
+      ro.innerHTML = `<b>${metres(s.length)}</b> · ${up ? '+' : '−'}${metres(Math.abs(s.rise))} · ${deg(Math.abs(s.pitch))} avg · <b>${money(s.cost)}</b>`;
+    } else {
+      const pts = [...draft.pts, pointer], r = { pts: pts.slice(), width: runOpts.width, grade: runOpts.grade, clear: runOpts.clear };
+      if (hAt(pts[pts.length - 1]) > hAt(pts[0])) r.pts.reverse();
+      const s = runStats(r);
+      g.innerHTML = `<path d="${pathD(pts)}" fill="none" stroke="${diffColor(s.diff)}" stroke-opacity="0.45" stroke-width="${runOpts.width / MPP}" stroke-linecap="round" stroke-linejoin="round"/><path d="${pathD(pts)}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="6 5"/>` +
+        draft.pts.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>`).join('');
+      ro.innerHTML = `<b>${metres(s.horiz)}</b> · −${metres(Math.max(0, s.drop))} · max ${deg(s.maxPitch)} · <b style="color:${diffColor(s.diff)}">${s.diff.sym} ${s.diff.name}</b>${s.uphill ? ' · <span style="color:var(--danger)">climbs uphill</span>' : ''} · <b>${money(s.cost)}</b>`;
+    }
+    ro.hidden = false;
+    const rw = ro.offsetWidth;
+    ro.style.left = `${Math.min(W - rw - 8, pointer.x + 16)}px`; ro.style.top = `${Math.max(8, pointer.y - 38)}px`;
+  }
+  function finishRun() {
+    if (!draft || draft.kind !== 'run' || draft.pts.length < 2) return;
+    const r = { id: st.nextId++, name: `Run ${st.runs.length + 1}`, pts: draft.pts.slice(), width: runOpts.width, grade: runOpts.grade, clear: runOpts.clear, groom: true, built: false, open: true };
+    orientRun(r); st.runs.push(r); draft = null; pointer = null;
+    toast(`${r.name} added to the blueprints`); refresh();
+  }
+  function cancelDraft() { draft = null; preview(); renderTool(); }
+
+  let drag = null;
+  world.addEventListener('pointerdown', (e) => {
+    const p = toStage(e), h = e.target.getAttribute && e.target.getAttribute('data-handle');
+    closeMenus();
+    if (h && !draft) {
+      const [id, idx] = h.split(':').map(Number), o = [...st.lifts, ...st.runs].find((x) => x.id === id);
+      drag = { o, idx }; world.setPointerCapture(e.pointerId); e.preventDefault(); return;
+    }
+    const kind = e.target.getAttribute && e.target.getAttribute('data-kind');
+    if (tool === 'bulldoze' && kind) { remove(kind, Number(e.target.getAttribute('data-id'))); return; }
+    if (tool === 'lifts') {
+      if (!draft) { draft = { kind: 'lift', a: p }; pointer = p; preview(); renderTool(); }
+      else {
+        const l = { id: st.nextId++, name: `Lift ${st.lifts.length + 1}`, type: liftType, a: draft.a, b: p, built: false, open: true };
+        if (Math.hypot(l.b.x - l.a.x, l.b.y - l.a.y) < 20) return;
+        orientLift(l); st.lifts.push(l); draft = null; pointer = null; toast(`${l.name} added to the blueprints`); refresh();
+      }
+      return;
+    }
+    if (tool === 'trails') {
+      if (!draft) draft = { kind: 'run', pts: [p] };
+      else { const last = draft.pts[draft.pts.length - 1]; if (Math.hypot(p.x - last.x, p.y - last.y) > 6) draft.pts.push(p); }
+      pointer = p; preview(); renderTool(); return;
+    }
+    if (kind) openDetail(kind, Number(e.target.getAttribute('data-id')));
+  });
+  world.addEventListener('pointermove', (e) => {
+    const p = toStage(e);
+    if (drag) {
+      const o = drag.o; if (o.type) o[drag.idx === 0 ? 'a' : 'b'] = p; else o.pts[drag.idx] = p;
+      renderWorld(); renderTool(); return;
+    }
+    if (draft) { pointer = p; preview(); }
+  });
+  world.addEventListener('pointerup', () => {
+    if (!drag) return;
+    const o = drag.o; if (o.type) orientLift(o); else orientRun(o); drag = null; refresh();
+  });
+  world.addEventListener('dblclick', () => { if (tool === 'trails' && draft) finishRun(); });
+  world.addEventListener('pointerleave', () => { if (draft) { pointer = null; preview(); } });
+
+  // ---------- windows ----------
+  const winLayer = $('windows'); let zTop = 10;
+  function makeWin({ id, title, cat, x, y, pin, cls }) {
+    const el = document.createElement('section');
+    el.className = `win ${cls || ''}`; el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.zIndex = ++zTop; el.dataset.win = id;
+    el.setAttribute('aria-label', title);
+    el.innerHTML = `<header class="win-head">${cat ? `<span class="cat" style="background:var(${cat.color})"><svg class="icon"><use href="#${cat.icon}"/></svg></span>` : ''}<h2>${esc(title)}</h2>` +
+      `${pin ? `<button data-act="pin" aria-pressed="false" aria-label="Pin" title="Pin: keep this window open"><svg class="icon" style="width:15px;height:15px"><use href="#i-pin"/></svg></button>` : ''}` +
+      `<button data-act="close" aria-label="Close" title="Close"><svg class="icon" style="width:15px;height:15px"><use href="#i-close"/></svg></button></header><div class="win-body"></div>`;
+    winLayer.appendChild(el);
+    const head = el.querySelector('.win-head'); let d = null;
+    head.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button')) return;
+      const p = toStage(e); d = { dx: p.x - el.offsetLeft, dy: p.y - el.offsetTop }; head.setPointerCapture(e.pointerId);
+    });
+    head.addEventListener('pointermove', (e) => {
+      if (!d) return; const p = toStage(e);
+      el.style.left = `${Math.max(0, Math.min(W - el.offsetWidth, p.x - d.dx))}px`; el.style.top = `${Math.max(0, Math.min(H - 60, p.y - d.dy))}px`;
+    });
+    head.addEventListener('pointerup', () => { d = null; });
+    el.addEventListener('pointerdown', () => { el.style.zIndex = ++zTop; });
+    return el;
+  }
+
+  // Tool window
+  let toolWin = null, toolPos = { x: 12, y: 54 };
+  function selectTool(key) {
+    if (tool === key) { closeTool(); return; }
+    if (draft) draft = null;
+    tool = key; toolTab = 'plan'; buildError = '';
+    if (toolWin) { toolPos = { x: toolWin.offsetLeft, y: toolWin.offsetTop }; toolWin.remove(); }
+    const cat = CATS.find((c) => c.key === key);
+    toolWin = makeWin({ id: 'tool', title: cat.label, cat, x: toolPos.x, y: toolPos.y, cls: 'tool' });
+    toolWin.addEventListener('click', onToolClick); toolWin.addEventListener('input', onToolInput);
+    const auto = key === 'trails' ? 'slope' : key === 'lifts' ? 'elev' : null;
+    if (auto && view !== auto) { const prev = autoPrev ?? view; setView(auto, true); autoPrev = prev; }
+    renderBuildbar(); renderTool(); renderWorld();
+  }
+  function closeTool() {
+    if (toolWin) { toolPos = { x: toolWin.offsetLeft, y: toolWin.offsetTop }; toolWin.remove(); toolWin = null; }
+    tool = null; draft = null; pointer = null; $('readout').hidden = true;
+    if (autoPrev !== null) { const back = autoPrev; autoPrev = null; setView(back); }
+    renderBuildbar(); renderWorld();
+  }
+  function bpListHtml() {
+    const bps = blueprints();
+    if (!bps.length) return `<p class="hint">No blueprints yet. Anything you plan appears here with its cost; nothing is paid until you build.</p>`;
+    const total = bps.reduce((s, o) => s + costOf(o), 0), after = st.money - total;
+    return `<div class="bp-list">${bps.map((o) => {
+      const s = o.type ? liftStats(o) : runStats(o);
+      const what = o.type ? `${LIFTS[o.type].name.toLowerCase()} · ${metres(s.length)}` : `<span style="color:${diffColor(s.diff)}">${s.diff.sym}</span> ${metres(s.horiz)}`;
+      return `<div class="bp"><svg class="icon" style="width:15px;height:15px;color:var(${o.type ? '--c-lifts' : '--c-trails'})"><use href="#${o.type ? 'i-lift' : 'i-trail'}"/></svg><span>${esc(o.name)} <span style="color:var(--muted)">· ${what}</span></span><b>${money(s.cost)}</b><button class="x" data-act="rm-bp" data-id="${o.id}" aria-label="Remove ${esc(o.name)}"><svg class="icon" style="width:13px;height:13px"><use href="#i-close"/></svg></button></div>`;
+    }).join('')}</div>
+    <dl class="rows total"><div><dt>Total</dt><dd>${money(total)}</dd></div><div><dt>Money after building</dt><dd style="color:${after < 0 ? 'var(--danger)' : 'inherit'}">${money(after)}</dd></div></dl>
+    ${buildError ? `<p class="error">${buildError} <button class="btn" data-act="loan" style="margin-top:6px;width:100%">Take a $5M loan</button></p>` : ''}
+    <div class="actions"><button class="btn primary" data-act="build">Build blueprints</button><button class="btn" data-act="clear">Clear</button></div>`;
+  }
+  function renderTool() {
+    if (!toolWin) return;
+    const body = toolWin.querySelector('.win-body'); let html = '';
+    const tabs = (t) => `<div class="tabs" role="tablist"><button role="tab" data-act="tab" data-tab="plan" aria-selected="${t === 'plan'}">Plan</button><button role="tab" data-act="tab" data-tab="cost" aria-selected="${t === 'cost'}">Cost${blueprints().length ? ` · ${blueprints().length}` : ''}</button></div>`;
+    if (tool === 'lifts') {
+      html += tabs(toolTab);
+      if (toolTab === 'plan') {
+        html += `<div class="cards">${Object.entries(LIFTS).map(([k, t]) => `<button class="card" data-act="type" data-type="${k}" aria-pressed="${k === liftType}"><b>${t.name}</b><span>${num(t.cap)} skiers / h · ${t.speed} m/s</span><span>${money(t.base)} + ${num(t.perM)} / m</span></button>`).join('')}</div>`;
+        if (draft) {
+          html += `<p class="hint">Click the top terminal. <kbd>Esc</kbd> cancels.</p>`;
+        } else {
+          const last = [...st.lifts].reverse().find((l) => !l.built);
+          html += `<p class="hint">Click the bottom terminal, then the top. Drag a blue handle to reshape a blueprint.</p>`;
+          if (last) {
+            const s = liftStats(last), t = LIFTS[last.type];
+            html += `<div class="sub">${esc(last.name)} · blueprint</div><dl class="rows"><div><dt>Length</dt><dd>${metres(s.length)}</dd></div><div><dt>Vertical</dt><dd>${metres(s.rise)}</dd></div><div><dt>Average pitch</dt><dd>${deg(s.pitch)}</dd></div><div><dt>Capacity</dt><dd>${num(t.cap)} skiers / h</dd></div><div><dt>Ride</dt><dd>${s.ride.toFixed(1)} min</dd></div><div><dt>Cost</dt><dd><b>${money(s.cost)}</b></dd></div></dl>` +
+              (t.maxRise && s.rise > t.maxRise ? `<p class="error">Surface lifts climb at most ${t.maxRise} m. Choose a chairlift or shorten it.</p>` : '');
+          }
+        }
+      } else html += bpListHtml();
+    } else if (tool === 'trails') {
+      html += tabs(toolTab);
+      if (toolTab === 'plan') {
+        html += `<div class="field"><label for="w">Width <b>${runOpts.width} m</b></label><input id="w" type="range" min="20" max="70" step="5" value="${runOpts.width}" data-opt="width"></div>
+          <label class="check"><input type="checkbox" id="grade" data-opt="grade" ${runOpts.grade ? 'checked' : ''}> Grade the run level across its width</label>
+          <label class="check"><input type="checkbox" id="clear" data-opt="clear" ${runOpts.clear ? 'checked' : ''}> Clear trees in its path</label>
+          <p class="hint">${draft ? `Keep clicking down the hill. <kbd>Enter</kbd> or a double-click finishes; <kbd>Backspace</kbd> removes the last point.` : 'Click where the run starts, then down the hill. The slope-angle view shows how steep each part is.'}</p>`;
+        const last = [...st.runs].reverse().find((r) => !r.built);
+        if (last && !draft) {
+          const s = runStats(last);
+          html += `<div class="sub">${esc(last.name)} · blueprint</div><dl class="rows"><div><dt>Difficulty</dt><dd><span class="diff" style="color:${diffColor(s.diff)}">${s.diff.sym} ${s.diff.name}</span></dd></div><div><dt>Length</dt><dd>${metres(s.horiz)}</dd></div><div><dt>Vertical</dt><dd>${metres(s.drop)}</dd></div><div><dt>Steepest</dt><dd>${deg(s.maxPitch)}</dd></div><div><dt>Cost</dt><dd><b>${money(s.cost)}</b></dd></div></dl>` +
+            (s.uphill ? `<p class="error">Part of this run climbs uphill; skiers would have to walk.</p>` : '');
+        }
+      } else html += bpListHtml();
+    } else if (tool === 'groom') {
+      const built = st.runs.filter((r) => r.built);
+      html += `<p class="hint">Groomers work each night. Groomed runs rate better and cost $900 a night.</p>` +
+        (built.length ? built.map((r) => { const s = runStats(r); return `<label class="check"><input type="checkbox" data-groom="${r.id}" ${r.groom ? 'checked' : ''}> <span style="color:${diffColor(s.diff)}">${s.diff.sym}</span> ${esc(r.name)}</label>`; }).join('') : `<p class="hint">Build a run first.</p>`);
+    } else if (tool === 'bulldoze') {
+      html += `<p class="hint">Click a lift or run to remove it. Blueprints are removed for free; built lifts and runs are not refunded.</p>`;
+    } else {
+      const notes = { snow: 'Snow guns, pipes, pumps and ponds, with a pressure and flow view.', lodge: 'Base lodges, restaurants, rentals and patrol huts.', roads: 'Access roads and parking lots that bring guests in.', terrain: 'Grading, tree clearing and landscaping outside runs.' };
+      html += `<p class="hint">${notes[tool]}</p><p class="hint">This tool arrives with the Phase 3 drawing tools; the prototype covers lifts, trails, grooming and bulldozing.</p>`;
+    }
+    body.innerHTML = html;
+  }
+  function onToolClick(e) {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const act = b.dataset.act;
+    if (act === 'close') { closeTool(); return; }
+    if (act === 'tab') { toolTab = b.dataset.tab; buildError = ''; renderTool(); }
+    if (act === 'type') { liftType = b.dataset.type; renderTool(); }
+    if (act === 'rm-bp') { removeObj(Number(b.dataset.id)); refresh(); }
+    if (act === 'clear') { st.lifts = st.lifts.filter((l) => l.built); st.runs = st.runs.filter((r) => r.built); buildError = ''; toast('Blueprints cleared'); refresh(); }
+    if (act === 'loan') { st.money += 5e6; st.loans += 5e6; st.delta += 5e6; buildError = ''; toast('Loan of $5M taken · 5% a year'); refresh(); }
+    if (act === 'build') {
+      const bps = blueprints(), total = bps.reduce((s, o) => s + costOf(o), 0);
+      if (!bps.length) return;
+      const bad = st.lifts.find((l) => !l.built && LIFTS[l.type].maxRise && liftStats(l).rise > LIFTS[l.type].maxRise);
+      if (bad) { buildError = `${bad.name} is a surface lift that climbs too far.`; renderTool(); return; }
+      if (total > st.money) { buildError = `You need ${money(total - st.money)} more.`; renderTool(); return; }
+      st.money -= total; st.delta -= total; bps.forEach((o) => { o.built = true; o.open = true; }); buildError = '';
+      toast(`Built ${bps.length} blueprint${bps.length > 1 ? 's' : ''} · ${money(total)}`); refresh();
+    }
+  }
+  function onToolInput(e) {
+    const t = e.target;
+    if (t.dataset.opt) { runOpts[t.dataset.opt] = t.type === 'checkbox' ? t.checked : Number(t.value); if (t.type === 'range') t.previousElementSibling.querySelector('b').textContent = `${t.value} m`; preview(); }
+    if (t.dataset.groom) { const r = st.runs.find((x) => x.id === Number(t.dataset.groom)); r.groom = t.checked; refreshDetails(); }
+  }
+
+  // Detail windows
+  let details = [];
+  function openDetail(kind, id) {
+    const found = details.find((d) => d.kind === kind && d.id === id);
+    if (found) { found.el.style.zIndex = ++zTop; flash(kind, id); return; }
+    const o = (kind === 'lift' ? st.lifts : st.runs).find((x) => x.id === id); if (!o) return;
+    const unpinned = details.filter((d) => !d.pinned);
+    if (details.length >= 3 && unpinned.length) closeDetail(unpinned[0]);
+    const n = details.length, cat = CATS.find((c) => c.key === (kind === 'lift' ? 'lifts' : 'trails'));
+    const el = makeWin({ id: `${kind}:${id}`, title: o.name, cat, x: W - 310 - n * 26, y: 54 + n * 30, pin: true });
+    const d = { kind, id, pinned: false, el, tab: 'overview' }; details.push(d);
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-act]'); if (!b) return; const act = b.dataset.act;
+      if (act === 'close') closeDetail(d);
+      if (act === 'pin') { d.pinned = !d.pinned; b.setAttribute('aria-pressed', d.pinned); }
+      if (act === 'dtab') { d.tab = b.dataset.tab; renderDetail(d); }
+      if (act === 'open') { o.open = b.dataset.v === '1'; refresh(); }
+      if (act === 'groom') { o.groom = b.dataset.v === '1'; refresh(); }
+      if (act === 'remove') { remove(kind, id); }
+    });
+    renderDetail(d); flash(kind, id);
+  }
+  function closeDetail(d) { d.el.remove(); details = details.filter((x) => x !== d); }
+  function refreshDetails() { details = details.filter((d) => { const ok = (d.kind === 'lift' ? st.lifts : st.runs).some((x) => x.id === d.id); if (!ok) d.el.remove(); return ok; }); details.forEach(renderDetail); }
+  function renderDetail(d) {
+    const o = (d.kind === 'lift' ? st.lifts : st.runs).find((x) => x.id === d.id); if (!o) return;
+    d.el.querySelector('h2').textContent = o.name;
+    const winter = st.season === 'winter', body = d.el.querySelector('.win-body');
+    const status = o.built ? `<span class="pill">${o.open ? 'Open' : 'Closed'}</span>` : `<span class="pill bp-pill">Blueprint · not built</span>`;
+    const seg = (act, on, a, b) => `<div class="seg"><button data-act="${act}" data-v="1" aria-pressed="${on}">${a}</button><button data-act="${act}" data-v="0" aria-pressed="${!on}">${b}</button></div>`;
+    if (d.kind === 'lift') {
+      const s = liftStats(o), t = LIFTS[o.type], wmin = waits.get(o.id) || 0;
+      const tabs = `<div class="tabs"><button data-act="dtab" data-tab="overview" aria-selected="${d.tab === 'overview'}">Overview</button><button data-act="dtab" data-tab="ops" aria-selected="${d.tab === 'ops'}">Operations</button></div>`;
+      if (d.tab === 'overview') body.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span style="color:var(--muted)">${t.name}</span>${status}</div>${tabs}
+        <dl class="rows"><div><dt>Riders today</dt><dd>${winter && o.built && o.open ? num((liftRiders.get(o.id) || 0)) : '–'}</dd></div><div><dt>Average wait</dt><dd style="color:${wmin > 15 ? 'var(--danger)' : 'inherit'}">${winter && o.built && o.open ? `${Math.round(wmin)} min` : '–'}</dd></div>
+        <div><dt>Capacity</dt><dd>${num(t.cap)} skiers / h</dd></div><div><dt>Length</dt><dd>${metres(s.length)}</dd></div><div><dt>Vertical</dt><dd>${metres(s.rise)}</dd></div><div><dt>Ride</dt><dd>${s.ride.toFixed(1)} min</dd></div></dl>
+        ${o.built ? '' : `<p class="hint">Build it from the Lifts tool's Cost tab.</p>`}`;
+      else body.innerHTML = `${tabs}${o.built ? seg('open', o.open, 'Open', 'Closed') : '<p class="hint">Operations start once it is built.</p>'}
+        <dl class="rows"><div><dt>Hours</dt><dd>9:00–16:00</dd></div><div><dt>Running cost</dt><dd>${money(t.op)} a day</dd></div></dl>
+        <button class="btn" data-act="remove">Remove lift</button>`;
+    } else {
+      const s = runStats(o), t = traffic.get(o.id) || 0;
+      const tabs = `<div class="tabs"><button data-act="dtab" data-tab="overview" aria-selected="${d.tab === 'overview'}">Overview</button><button data-act="dtab" data-tab="profile" aria-selected="${d.tab === 'profile'}">Profile</button><button data-act="dtab" data-tab="ops" aria-selected="${d.tab === 'ops'}">Operations</button></div>`;
+      if (d.tab === 'overview') body.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span class="diff" style="color:${diffColor(s.diff)}">${s.diff.sym} ${s.diff.name}</span>${status}</div>${tabs}
+        <dl class="rows"><div><dt>Skiers per hour</dt><dd>${winter && o.built && o.open ? num(t) : '–'}</dd></div><div><dt>Conditions</dt><dd>${winter ? (o.groom ? 'Groomed · ' : 'Ungroomed · ') + `${Math.round(st.base)} cm base` : 'No snow yet'}</dd></div>
+        <div><dt>Length</dt><dd>${metres(s.horiz)}</dd></div><div><dt>Vertical</dt><dd>${metres(s.drop)}</dd></div><div><dt>Steepest</dt><dd>${deg(s.maxPitch)}</dd></div><div><dt>Width</dt><dd>${o.width} m</dd></div></dl>`;
+      else if (d.tab === 'profile') body.innerHTML = `${tabs}${profileSvg(s.prof)}`;
+      else body.innerHTML = `${tabs}${o.built ? seg('open', o.open, 'Open', 'Closed') : '<p class="hint">Operations start once it is built.</p>'}${o.built ? seg('groom', o.groom, 'Groom nightly', 'Leave ungroomed') : ''}<button class="btn" data-act="remove">Remove run</button>`;
+    }
+  }
+  function profileSvg(prof) {
+    const w = 268, h = 78, top = Math.max(...prof.map((p) => p.h)), bot = Math.min(...prof.map((p) => p.h)), len = prof[prof.length - 1].d || 1;
+    const x = (d) => 4 + d / len * (w - 8), y = (v) => 10 + (top - v) / Math.max(1, top - bot) * (h - 26);
+    const line = prof.map((p, i) => `${i ? 'L' : 'M'}${x(p.d).toFixed(1)} ${y(p.h).toFixed(1)}`).join(' ');
+    return `<svg class="profile" viewBox="0 0 ${w} ${h}" role="img" aria-label="Elevation profile from ${metres(top)} to ${metres(bot)}"><path class="area" d="${line} L${x(len)} ${h - 14} L${x(0)} ${h - 14} Z"/><path class="line" d="${line}"/><text x="4" y="8">${metres(top)}</text><text x="${w - 4}" y="${h - 2}" text-anchor="end">${metres(bot)} · ${metres(len)} long</text></svg>`;
+  }
+  function flash(kind, id) {
+    const el = world.querySelector(`[data-kind="${kind}"][data-id="${id}"]`); if (!el || reduceMotion) return;
+    el.setAttribute('stroke', 'var(--accent)'); el.setAttribute('stroke-opacity', '0.35');
+    setTimeout(() => { el.setAttribute('stroke', 'transparent'); el.removeAttribute('stroke-opacity'); }, 700);
+  }
+  function removeObj(id) { st.lifts = st.lifts.filter((l) => l.id !== id); st.runs = st.runs.filter((r) => r.id !== id); }
+  function remove(kind, id) {
+    const o = (kind === 'lift' ? st.lifts : st.runs).find((x) => x.id === id); if (!o) return;
+    removeObj(id); toast(`${o.name} removed`); refresh();
+  }
+
+  // ---------- simulation ----------
+  let liftRiders = new Map();
+  function rand() { st.seed = (Math.imul(st.seed, 1664525) + 1013904223) >>> 0; return st.seed / 4294967296; }
+  function simulateDay(quiet = false) {
+    st.day++; st.delta = 0;
+    const winter = isWinter(st.day), was = st.season;
+    st.season = winter ? 'winter' : 'summer';
+    const lifts = st.lifts.filter((l) => l.built && l.open), runs = st.runs.filter((r) => r.built && r.open);
+    const interest = st.loans * 0.05 / 365;
+    if (winter) {
+      if (was !== 'winter') { st.base = 45; st.seasonSkiers = 0; st.seasonNet = 0; }
+      st.newSnow = rand() < 0.35 ? Math.round(5 + rand() * 25) : 0; st.base = Math.max(20, st.base + st.newSnow * 0.6 - 0.5);
+      const kinds = new Set(runs.map((r) => runStats(r).diff.key)).size;
+      const snowF = st.base < 50 ? 0.55 : st.base < 90 ? 0.8 : 1, ratingF = 0.85 + 0.04 * (st.rating ?? 3);
+      const demand = lifts.length && runs.length ? (350 + 420 * runs.length + 260 * kinds + 150 * lifts.length) * snowF * ratingF * (0.85 + rand() * 0.3) : 0;
+      const uphill = lifts.reduce((s, l) => s + LIFTS[l.type].cap * 7, 0), u = uphill ? demand * 9 / uphill : 0;
+      st.wait = uphill ? 2 + 18 * Math.max(0, u - 0.45) + 45 * Math.max(0, u - 1) : 0;
+      st.skiers = Math.round(u > 1.3 ? demand * 1.3 / u : demand);
+      const capAvg = lifts.length ? lifts.reduce((s, l) => s + LIFTS[l.type].cap, 0) / lifts.length : 1;
+      waits = new Map(lifts.map((l) => [l.id, Math.min(60, st.wait * Math.sqrt(capAvg / LIFTS[l.type].cap))]));
+      liftRiders = new Map(lifts.map((l) => [l.id, st.skiers * 9 * LIFTS[l.type].cap / Math.max(1, lifts.reduce((s, x) => s + LIFTS[x.type].cap, 0))]));
+      const byKind = {}; runs.forEach((r) => { const k = runStats(r).diff.key; byKind[k] = (byKind[k] || 0) + 1; });
+      const shareSum = DIFF.filter((d) => byKind[d.key]).reduce((s, d) => s + d.share, 0) || 1;
+      traffic = new Map(runs.map((r) => { const dk = runStats(r).diff; return [r.id, st.skiers * 9 / 7 * (dk.share / shareSum) / byKind[dk.key]]; }));
+      const cost = lifts.reduce((s, l) => s + LIFTS[l.type].op, 0) + runs.filter((r) => r.groom).length * 900 + interest;
+      const net = st.skiers * 89 - cost; st.money += net; st.delta += net; st.seasonSkiers += st.skiers; st.seasonNet += net;
+      const groomed = runs.length ? runs.filter((r) => r.groom).length / runs.length : 0;
+      st.rating = lifts.length && runs.length ? Math.max(0.5, Math.min(5, 1.2 + 0.45 * kinds + 0.25 * Math.min(runs.length, 6) + 0.5 * groomed + (st.base >= 90 ? 0.6 : 0.2) - st.wait / 14)) : 0;
+      if (was !== 'winter' && !quiet) toast(lifts.length ? `Opening day · ${num(st.skiers)} skiers` : 'Winter is here, but nothing is open yet');
+    } else {
+      const upkeep = st.lifts.filter((l) => l.built).length * 1500 + interest;
+      st.money -= upkeep; st.delta -= upkeep; st.skiers = 0; st.wait = 0; st.newSnow = 0; waits = new Map(); traffic = new Map(); liftRiders = new Map();
+      if (was === 'winter') { st.base = 0; toast(`Season over · ${num(st.seasonSkiers)} skier days · ${money(st.seasonNet)}`); }
+    }
+    if (quiet) return;
+    if (was !== st.season) { renderBase(); renderLegend(); }
+    refresh();
+  }
+
+  // ---------- warnings ----------
+  function warnings() {
+    const out = [], builtLifts = st.lifts.filter((l) => l.built);
+    for (const r of st.runs) {
+      const top = r.pts[0], ok = st.lifts.some((l) => Math.hypot(l.b.x - top.x, l.b.y - top.y) < 70);
+      if (!ok) out.push({ text: `${r.name} has no lift near its top`, kind: 'run', id: r.id });
+      else if (r.built && !builtLifts.some((l) => Math.hypot(l.b.x - top.x, l.b.y - top.y) < 70)) out.push({ text: `${r.name}'s lift is still a blueprint`, kind: 'run', id: r.id });
+      if (runStats(r).uphill) out.push({ text: `${r.name} climbs uphill in places`, kind: 'run', id: r.id });
+    }
+    for (const l of st.lifts) {
+      const t = LIFTS[l.type];
+      if (t.maxRise && liftStats(l).rise > t.maxRise) out.push({ text: `${l.name} climbs more than a surface lift can`, kind: 'lift', id: l.id });
+      if ((waits.get(l.id) || 0) > 15) out.push({ text: `Long line at ${l.name}: ${Math.round(waits.get(l.id))} min`, kind: 'lift', id: l.id });
+    }
+    if (st.money < 0) out.push({ text: 'Money is below zero', kind: null });
+    return out;
+  }
+  function renderWarnings() {
+    const w = warnings(); $('warnCount').textContent = w.length; $('warnChip').dataset.count = w.length;
+    $('warnChip').setAttribute('aria-label', `${w.length} warning${w.length === 1 ? '' : 's'}`);
+    $('warnMenu').innerHTML = w.length ? w.map((x, i) => `<div class="item"><span>${esc(x.text)}</span>${x.kind ? `<button class="show" data-warn="${i}">Show me</button>` : ''}</div>`).join('') : `<div class="empty">No warnings.</div>`;
+    $('warnMenu').querySelectorAll('[data-warn]').forEach((b) => b.addEventListener('click', () => { const x = w[Number(b.dataset.warn)]; closeMenus(); openDetail(x.kind, x.id); }));
+  }
+
+  // ---------- status strip ----------
+  function renderStatus() {
+    const winter = st.season === 'winter';
+    $('date').textContent = dateOf(st.day);
+    $('phase').textContent = winter ? `Winter · week ${Math.floor((((st.day % 365) + 365) % 365 - WINTER_START) / 7) + 1}` : 'Summer planning';
+    const temp = winter ? -4 - Math.round(8 * Math.abs(Math.sin(st.day * 0.7))) : 13 + Math.round(8 * Math.abs(Math.sin(st.day * 0.3)));
+    $('weather').innerHTML = winter ? `<span>${temp} °C</span><svg class="icon" style="width:14px;height:14px;color:var(--c-snow)"><use href="#i-snowflake-s"/></svg><span>${st.newSnow} cm new</span><span class="muted">${Math.round(st.base)} cm base</span>` : `<span>${temp} °C</span><span class="muted">no snow</span>`;
+    $('skiers').textContent = num(st.skiers);
+    $('money').textContent = money(st.money); $('money').style.color = st.money < 0 ? 'var(--danger)' : '';
+    $('delta').className = st.delta > 0 ? 'up' : st.delta < 0 ? 'down' : 'muted';
+    $('delta').textContent = st.delta ? `${st.delta > 0 ? '+' : ''}${money(st.delta)} today` : '';
+    $('skipBtn').hidden = winter;
+    $('rating').textContent = st.rating === null ? '–' : `${st.rating.toFixed(1)} / 5`;
+    $('playBtn').innerHTML = `<svg class="icon"><use href="#${st.playing ? 'i-pause' : 'i-play'}"/></svg>`;
+    $('playBtn').setAttribute('aria-label', st.playing ? 'Pause' : 'Play'); $('playBtn').setAttribute('aria-pressed', st.playing);
+    document.querySelectorAll('[data-speed]').forEach((b) => b.setAttribute('aria-pressed', Number(b.dataset.speed) === st.speed));
+  }
+  function renderBuildbar() {
+    $('buildbar').innerHTML = CATS.map((c, i) => `${i === 7 ? '<span class="sep" aria-hidden="true"></span>' : ''}<button class="tool-btn" data-tool="${c.key}" data-label="${c.label}" aria-label="${c.label}" aria-pressed="${tool === c.key}"><span class="tile" style="background:var(${c.color})"><svg class="icon"><use href="#${c.icon}"/></svg></span></button>`).join('');
+  }
+
+  // ---------- menus, toasts ----------
+  function closeMenus() {
+    for (const [m, b] of [['viewsMenu', 'viewsBtn'], ['warnMenu', 'warnChip'], ['gameMenu', 'menuBtn']]) { $(m).hidden = true; $(b).setAttribute('aria-expanded', 'false'); }
+  }
+  function toggleMenu(m, b) { const open = $(m).hidden; closeMenus(); $(m).hidden = !open; $(b).setAttribute('aria-expanded', String(open)); }
+  $('viewsBtn').addEventListener('click', (e) => { e.stopPropagation(); renderViewsMenu(); toggleMenu('viewsMenu', 'viewsBtn'); });
+  $('viewsMenu').addEventListener('click', (e) => { const b = e.target.closest('[data-view]'); if (!b) return; setView(b.dataset.view); closeMenus(); });
+  $('warnChip').addEventListener('click', (e) => { e.stopPropagation(); renderWarnings(); toggleMenu('warnMenu', 'warnChip'); });
+  $('menuBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu('gameMenu', 'menuBtn'); });
+  $('resetBtn').addEventListener('click', () => {
+    closeMenus(); closeTool(); details.forEach((d) => d.el.remove()); details = []; st = oriented(sample()); waits = new Map(); traffic = new Map(); liftRiders = new Map();
+    renderBase(); setView('none'); refresh(); toast('Prototype reset');
+  });
+  $('cubeBtn').addEventListener('click', () => toast('3D is the game itself; this prototype stays on the map'));
+  $('themeBtn').addEventListener('click', () => {
+    const dark = document.documentElement.getAttribute('data-theme') ? document.documentElement.getAttribute('data-theme') === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark'); renderBase(); renderOverlay(); renderWorld();
+  });
+  $('buildbar').addEventListener('click', (e) => { const b = e.target.closest('[data-tool]'); if (b) { closeMenus(); selectTool(b.dataset.tool); } });
+  document.querySelectorAll('.camera button').forEach((b) => b.addEventListener('click', () => toast('Camera controls work in the game')));
+  stage.addEventListener('click', (e) => { if (!e.target.closest('.menu') && !e.target.closest('[aria-haspopup]') && !e.target.closest('#menuBtn')) closeMenus(); });
+  function toast(text) {
+    const t = document.createElement('div'); t.className = 'toast'; t.textContent = text; $('toasts').appendChild(t);
+    while ($('toasts').children.length > 3) $('toasts').firstChild.remove();
+    setTimeout(() => t.remove(), 3200);
+  }
+
+  // ---------- time ----------
+  let acc = 0, lastT = performance.now();
+  const DAY_SECONDS = { 1: 1.2, 2: 0.45, 3: 0.12 };
+  $('playBtn').addEventListener('click', () => { st.playing = !st.playing; renderStatus(); });
+  $('skipBtn').addEventListener('click', () => {
+    while (!isWinter(st.day + 1)) simulateDay(true);
+    simulateDay(); st.playing = true; renderStatus();
+  });
+  document.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => { st.speed = Number(b.dataset.speed); st.playing = true; renderStatus(); }));
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input, textarea')) return;
+    if (e.key === 'Escape') { if (draft) cancelDraft(); else if (!$('viewsMenu').hidden || !$('warnMenu').hidden || !$('gameMenu').hidden) closeMenus(); else if (tool) closeTool(); }
+    else if (e.key === 'Enter' && draft && draft.kind === 'run') { e.preventDefault(); finishRun(); }
+    else if (e.key === 'Backspace' && draft && draft.kind === 'run') { e.preventDefault(); draft.pts.pop(); if (!draft.pts.length) draft = null; preview(); renderTool(); }
+    else if (e.key === ' ' && !e.target.closest('button')) { e.preventDefault(); st.playing = !st.playing; renderStatus(); }
+  });
+
+  // ---------- animation (chairs and skiers) ----------
+  function frame(t) {
+    const dt = Math.min(0.25, (t - lastT) / 1000); lastT = t;
+    if (st.playing) { acc += dt; const per = DAY_SECONDS[st.speed]; while (acc >= per) { acc -= per; simulateDay(); } }
+    const g = world.querySelector('#anim');
+    if (g) {
+      const winter = st.season === 'winter', out = [], time = reduceMotion || !st.playing ? 0 : t / 1000;
+      if (winter) {
+        for (const l of st.lifts) {
+          if (!l.built || !l.open) continue;
+          const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y, len = Math.hypot(dx, dy), nx = -dy / len * 3.5, ny = dx / len * 3.5, n = Math.floor(len / 24);
+          for (let k = 0; k < n; k++) {
+            const f = ((k / n) + time * 0.03) % 1;
+            out.push(`<circle cx="${(l.a.x + dx * f + nx).toFixed(1)}" cy="${(l.a.y + dy * f + ny).toFixed(1)}" r="1.9" fill="var(--lift-line)"/>`);
+            const g2 = 1 - f; out.push(`<circle cx="${(l.a.x + dx * g2 - nx).toFixed(1)}" cy="${(l.a.y + dy * g2 - ny).toFixed(1)}" r="1.5" fill="var(--lift-line)" fill-opacity="0.6"/>`);
+          }
+        }
+        for (const r of st.runs) {
+          if (!r.built || !r.open) continue;
+          const count = Math.min(14, Math.round((traffic.get(r.id) || 0) / 45)); if (!count) continue;
+          const s = samplePath(r.pts, 6);
+          for (let k = 0; k < count; k++) {
+            const f = ((k / count) + time * 0.05 + hash(r.id, k) * 0.2) % 1, p = s[Math.min(s.length - 1, Math.floor(f * (s.length - 1)))];
+            const side = (hash(k, r.id) - 0.5) * r.width / MPP * 0.7;
+            out.push(`<circle cx="${(p.x + side * 0.6).toFixed(1)}" cy="${(p.y + side * 0.4).toFixed(1)}" r="2.2" fill="#c8413b" stroke="var(--surface)" stroke-width="0.8"/>`);
+          }
+        }
+      }
+      g.innerHTML = out.join('');
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- refresh ----------
+  function refresh() { renderWorld(); preview(); renderTool(); refreshDetails(); renderStatus(); renderWarnings(); if (view === 'lines' || view === 'traffic' || view === 'snow') renderLegend(); }
+
+  renderBase(); renderBuildbar(); setView('none'); refresh();
+  requestAnimationFrame((t) => { lastT = t; frame(t); });
+})();
+</script>

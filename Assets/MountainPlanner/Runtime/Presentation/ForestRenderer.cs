@@ -56,6 +56,17 @@ namespace MountainPlanner.Presentation
             foreach (var m in _materials) m.SetFloat("_SnowLoad", SnowLoad);
         }
 
+        /// <summary>The wind in the trees (TR4), advanced and handed to the tree shader once a frame by <see cref="Render"/>.</summary>
+        public ForestWind Wind { get; } = new ForestWind();
+        /// <summary>
+        /// LODs that sway. Farther LODs move under a pixel, and the wind code slows every vertex it's compiled
+        /// into even where it's skipped (TreeInstanced.shader), so they're drawn without it.
+        /// </summary>
+        public const int WindLods = 2;
+        readonly List<Material> _windMaterials = new List<Material>();
+        int _windFrame = -1;
+        bool _windOn;
+
         struct Draw
         {
             public Mesh Mesh;
@@ -127,6 +138,7 @@ namespace MountainPlanner.Presentation
                                 material.SetTexture("_BumpMap", bump);
                                 material.SetFloat("_BumpScale", 1f);
                             }
+                            if (l < WindLods) _windMaterials.Add(material);
                         }
                         material.SetFloat("_SnowLoad", snowLoad);
                         material.SetVector("_TreeFade", Fade);
@@ -178,6 +190,18 @@ namespace MountainPlanner.Presentation
         public void Render(Camera camera)
         {
             if (_treeCount == 0 || camera == null) return;
+            if (_windFrame != Time.frameCount)
+            {
+                _windFrame = Time.frameCount;
+                Wind.Advance(Time.deltaTime);
+                Shader.SetGlobalVector(ForestWind.WindId, Wind.ShaderValue);
+                if (_windOn != Wind.Strength > 0)
+                {
+                    _windOn = Wind.Strength > 0;   // calm: no wind code at all
+                    foreach (var m in _windMaterials)
+                        if (_windOn) m.EnableKeyword("_WIND"); else m.DisableKeyword("_WIND");
+                }
+            }
             GeometryUtility.CalculateFrustumPlanes(camera, _planeScratch);
             for (int i = 0; i < 6; i++) _planes[i] = new Vector4(_planeScratch[i].normal.x, _planeScratch[i].normal.y, _planeScratch[i].normal.z, _planeScratch[i].distance);
             _cull.SetInt("_TreeCount", _treeCount);
@@ -222,6 +246,7 @@ namespace MountainPlanner.Presentation
             foreach (var b in new[] { _trees, _nativeHeights, _prototypeStart, _visible, _counts, _args, _drawCounter }) b?.Dispose();
             foreach (var m in _materials) UnityEngine.Object.Destroy(m);
             _materials.Clear();
+            _windMaterials.Clear();
         }
     }
 

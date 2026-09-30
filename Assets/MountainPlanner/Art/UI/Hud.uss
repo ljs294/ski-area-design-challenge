@@ -1,0 +1,240 @@
+/* S6 Mountain view HUD (0.4 §4 and §7): tokens come from Theme-Light.tss / Theme-Dark.tss. Radii 4 / 6 / 12,
+   base text 14 px, panels 85% opaque, 120-200 ms ease-out on panels. */
+
+.hud {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    padding: 12px;
+    font-size: 14px;
+    color: var(--text);
+}
+
+.panel {
+    background-color: var(--hud-surface);
+    border-color: var(--border);
+    border-width: 1px;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+.spacer { flex-grow: 1; }
+.hidden { display: none; }
+
+/* Top bar: name, quality badge, camera chip, menu. */
+.top-bar {
+    flex-direction: row;
+    align-items: center;
+    height: 44px;
+}
+.site-name {
+    font-size: 18px;
+    -unity-font-style: bold;
+    margin-right: 10px;
+}
+.badge {
+    border-radius: 12px;
+    padding: 2px 10px;
+    color: var(--accent-contrast);
+    background-color: var(--accent);
+    -unity-font-style: bold;
+}
+.badge--excellent { background-color: var(--success); }
+.badge--good { background-color: var(--accent); }
+.badge--fair { background-color: var(--fair); }
+.badge--limited { background-color: var(--danger); }
+.chip {
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: var(--border-strong);
+    padding: 2px 10px;
+    color: var(--text-muted);
+    margin-right: 8px;
+}
+
+.icon-button, .text-button, .preset, .menu-item, .panel-header {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 4px;
+    color: var(--text);
+    margin: 0;
+    transition-property: background-color;
+    transition-duration: 0.12s;
+    transition-timing-function: ease-out;
+}
+.icon-button:hover, .text-button:hover, .preset:hover, .menu-item:hover, .panel-header:hover { background-color: var(--panel-hover); }
+.icon-button:focus, .text-button:focus, .preset:focus, .menu-item:focus { border-width: 2px; border-color: var(--focus-ring); }
+.icon-button {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    flex-shrink: 0;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+}
+.menu-bar {
+    width: 16px;
+    height: 2px;
+    min-height: 2px;
+    flex-shrink: 0;
+    margin: 2px 0;
+    background-color: var(--text);
+    border-radius: 1px;
+}
+
+/* Middle: menu on the left, layers on the right. */
+.middle {
+    flex-grow: 1;
+    flex-direction: row;
+    align-items: flex-start;
+    margin-top: 10px;
+}
+.panel-title {
+    -unity-font-style: bold;
+    color: var(--text);
+    margin: 2px 0 4px 0;
+}
+.menu {
+    width: 220px;
+    transition-property: opacity;
+    transition-duration: 0.16s;
+}
+.menu-item {
+    -unity-text-align: middle-left;
+    height: 32px;
+    padding-left: 8px;
+}
+.menu-item--danger { color: var(--danger); }
+.layers { width: 180px; }
+.panel-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 2px;
+    height: 28px;
+}
+.caret { color: var(--text-muted); }
+/* Layer rows: a button per layer with our own checkbox in the design tokens (a filled accent box when on). */
+.layer {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    height: 28px;
+    margin: 1px 0;
+    padding: 0 4px;
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 4px;
+}
+.layer:hover { background-color: var(--panel-hover); }
+.layer:focus { border-width: 2px; border-color: var(--focus-ring); }
+.layer-label { color: var(--text); margin: 0; padding: 0; }
+.layer:disabled .layer-label { color: var(--text-muted); }
+.layer-box {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    flex-shrink: 0;
+    border-width: 1.5px;
+    border-radius: 4px;
+    border-color: var(--border-strong);
+    background-color: var(--surface);
+}
+.layer--on .layer-box { background-color: var(--accent); border-color: var(--accent); }
+.layer:disabled .layer-box { opacity: 0.45; }
+
+/* Bottom: readouts, then the time bar. */
+.bottom { flex-direction: column; }
+.readouts {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.compass {
+    width: 44px;
+    height: 44px;
+    border-radius: 22px;
+    background-color: var(--hud-surface);
+    border-width: 1px;
+    border-color: var(--border);
+    margin-right: 14px;
+}
+.scale {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: var(--hud-surface);
+    margin-right: 14px;
+}
+.scale-bar {
+    height: 6px;
+    width: 100px;
+    border-left-width: 2px;
+    border-right-width: 2px;
+    border-bottom-width: 2px;
+    border-color: var(--text);
+    margin-right: 8px;
+}
+.readout {
+    color: var(--text);
+    -unity-text-align: middle-left;
+}
+.readout--strong { -unity-font-style: bold; }
+.readouts > .readout {
+    padding: 4px 8px;
+    border-radius: 4px;
+    background-color: var(--hud-surface);
+}
+.attribution {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: 4px;
+    background-color: var(--hud-surface);
+}
+.time-bar {
+    flex-direction: row;
+    align-items: center;
+    height: 48px;
+}
+.sun-icon { width: 22px; height: 22px; margin-right: 6px; }
+.time { width: 52px; }
+.track {
+    flex-grow: 1;
+    height: 20px;
+    margin: 0 14px;
+    justify-content: center;
+}
+.track-fill {
+    height: 4px;
+    border-radius: 2px;
+    background-color: var(--border-strong);
+}
+.thumb {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background-color: var(--accent);
+    border-width: 2px;
+    border-color: var(--surface);
+    translate: -8px 0;
+}
+.date { margin-right: 14px; }
+.presets {
+    flex-direction: row;
+    border-width: 1px;
+    border-color: var(--border);
+    border-radius: 6px;
+    padding: 2px;
+    margin-right: 10px;
+}
+.preset { height: 30px; padding: 0 10px; }
+.preset--on {
+    background-color: var(--accent);
+    color: var(--accent-contrast);
+}
+.preset--on:hover { background-color: var(--accent); }
+.text-button { height: 30px; padding: 0 10px; color: var(--accent); }

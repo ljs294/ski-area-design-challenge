@@ -23,6 +23,8 @@ namespace MountainPlanner.Presentation
         [Tooltip("Fraction of the distance each wheel notch zooms (0.25 = 25%).")]
         public float ZoomStep = 0.25f;
         public float MinDistance = 20f;
+        /// <summary>Set by the app: true while the pointer is over a UI panel, so the wheel scrolls the panel, not the camera.</summary>
+        public static System.Func<Vector2, bool> PointerBlocked;
         public float MaxDistance = 20000f;
         public float RotateSpeed = 90f;  // degrees per second, Q / E
         public float TiltSpeed = 45f;    // degrees per second, R / F
@@ -81,7 +83,7 @@ namespace MountainPlanner.Presentation
 
                 // Windows reports 120 per wheel notch; some devices report 1.
                 float scroll = mouse.scroll.ReadValue().y;
-                if (Mathf.Abs(scroll) > 0.01f)
+                if (Mathf.Abs(scroll) > 0.01f && !(PointerBlocked?.Invoke(mouse.position.ReadValue()) ?? false))
                 {
                     float notches = Mathf.Abs(scroll) >= 20f ? scroll / 120f : scroll;
                     _distanceGoal *= Mathf.Pow(1f - ZoomStep * (fast ? 2f : 1f), notches);

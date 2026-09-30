@@ -11,6 +11,7 @@ Shader "MountainPlanner/Terrain"
         _Normals ("Normals (array)", 2DArray) = "" {}
         _Overlay ("Cover-map overlay", Float) = 0
         _HeightBlend ("Height-blend sharpness", Range(0.01, 1)) = 0.2
+        _SnowOn ("Snow on the ground (lakes: snow on ice, or bare ice)", Float) = 1
     }
     SubShader
     {
@@ -27,8 +28,10 @@ Shader "MountainPlanner/Terrain"
         CBUFFER_START(UnityPerMaterial)
             float _Overlay;
             float _HeightBlend;
+            float _SnowOn;
         CBUFFER_END
         float _ControlRes;           // per tile (property block): splat texels per edge
+        float _TileSize;             // per tile: metres per splat uv
         float4 _RingBounds;          // xmin, zmin, xmax, zmax in world space: the data's edge
         float _Tile[6];              // metres per texture repeat, per layer
         float _Smooth[6];
@@ -54,6 +57,7 @@ Shader "MountainPlanner/Terrain"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Haze.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings
@@ -105,6 +109,96 @@ Shader "MountainPlanner/Terrain"
                 normal = normalize(n + nx * w.x + ny * w.y + nz * w.z);
             }
 
+            // An integer hash of a lattice cell: exact, so neighbouring cells always agree on a shared corner. (A
+            // float hash of world-sized coordinates rounded differently cell to cell, and noise patches broke
+            // along straight lattice lines on the ring's lakes.)
+            float Hash12(int2 c)
+            {
+                uint h = asuint(c.x) * 0x8DA6B343u ^ asuint(c.y) * 0xD8163841u;
+                h = (h ^ (h >> 15)) * 0x2C1B3C6Du;
+                h = (h ^ (h >> 12)) * 0x297A2D39u;
+                return (h >> 8) / 16777215.0;
+            }
+
+            float ValueNoise(float2 p)
+            {
+                int2 i = (int2)floor(p);
+                float2 f = frac(p);
+                f = f * f * (3 - 2 * f);
+                return lerp(lerp(Hash12(i), Hash12(i + int2(1, 0)), f.x), lerp(Hash12(i + int2(0, 1)), Hash12(i + int2(1, 1)), f.x), f.y);
+            }
+
+            // The water weight at a world offset (metres) from this pixel's splat uv.
+            float WaterAt(float2 cuv, float2 offsetMetres, float res)
+            {
+                return SAMPLE_TEXTURE2D_LOD(_Control1, sampler_Control0, cuv + offsetMetres / max(_TileSize, 1) * ((res - 1) / res), 0).g;
+            }
+
+            // Frozen lakes (T8, 0.5 §2): flat snow-covered ice, smoother and a touch brighter than land snow,
+            // with a thin rim of exposed blue-grey ice at the waterline and pressure cracks running along the
+            // shore. Streams stay snow-filled channels. With the snow off,
+            // lakes are bare dark ice. The shore is found from the water weight on rings 4 m and 12 m out:
+            // a lake's interior reads 1 on both, its waterline about 0.5; a stream a few metres wide reads
+            // low on the outer ring. Only water pixels pay for this (the layer is skipped elsewhere).
+            void SampleLake(float3 p, float3 n, float2 cuv, float res, float water, float footprint, out float4 albedo, out float3 normal, out float smooth)
+            {
+                float near = 0, far = 0;
+                [unroll] for (int k = 0; k < 8; k++)
+                {
+                    float2 d;
+                    sincos(k * (TWO_PI / 8) + 0.39, d.y, d.x);
+                    near += WaterAt(cuv, d * 4, res);
+                    far += WaterAt(cuv, d * 12, res);
+                }
+                near /= 8;
+                far /= 8;
+                float lake = smoothstep(0.3, 0.5, far);                  // 0 a stream, 1 a lake or a wide river
+                float inside = saturate((near - 0.5) * 2);               // 0 at the waterline, 1 from about 4 m out
+                float shore = saturate(near + far - 1);                  // 0 at the waterline, 1 about 12 m out
+
+                float4 snow, ice;
+                float3 snowN, iceN;
+                SampleTop(0, p, n, snow, snowN);
+                SampleTop(5, p, n, ice, iceN);
+
+                // Pressure cracks: two broken lines running along the shore, antialiased and faded with distance
+                // (footprint: metres per pixel, taken outside the branch; the shore field changes about 1/12 a metre).
+                float wobble = (ValueNoise(p.xz / 6) - 0.5) * 0.12;
+                float width = max(0.025, footprint / 12 * 1.5);
+                float crack = max(1 - smoothstep(0, width, abs(shore - 0.3 + wobble)),
+                                  1 - smoothstep(0, width, abs(shore - 0.62 - wobble)));
+                crack *= smoothstep(0.35, 0.6, ValueNoise(p.xz / 14 + 7)) * saturate(0.025 / width) * lake;
+
+                // Clear ice over dark water (0.5 §2: dark blue-green): the ice texture's clouds and cracks only
+                // as a faint grain, and a broad variation so its 20 m repeat never shows.
+                float grain = dot(ice.rgb, float3(0.3, 0.5, 0.2)) - 0.72;
+                float3 clear = max(float3(0.11, 0.18, 0.19) * (0.8 + 0.4 * ValueNoise(p.xz / 25)) + grain * 0.1, 0.02);
+                const float3 rimIce = float3(0.52, 0.69, 0.79);                  // #BFD9E6, the art direction's ice rim
+
+                if (_SnowOn > 0.5)
+                {
+                    // (Wind-scoured patches of bare ice were tried and read as grey smudges, so the snow is unbroken.)
+                    float rim = (1 - smoothstep(0, 0.35, inside)) * lake;       // about a metre of bare ice at the waterline
+                    float3 packed = snow.rgb * float3(1.02, 1.03, 1.05);          // wind-packed snow: brighter, a touch cool
+                    float3 colour = lerp(packed, rimIce, rim * 0.7);
+                    float bare = rim * 0.7;
+                    colour = lerp(colour, rimIce * 0.8, crack * (1 - bare) * 0.6);
+                    // Streams: a snow-filled channel, a little cooler toward the middle.
+                    colour = lerp(colour, snow.rgb * float3(0.93, 0.96, 1.0), (1 - lake) * saturate(water * 1.5 - 0.3));
+                    albedo = float4(colour, 0.12 + 0.18 * (1 - bare));
+                    normal = normalize(lerp(n, snowN, 0.35 * (1 - bare)));      // packed flat: less relief than land snow
+                    smooth = lerp(0.5, 0.8, bare);
+                }
+                else
+                {
+                    // Bare ice: clear and dark, whiter at the shore and along the cracks.
+                    float3 colour = lerp(clear, rimIce * 0.75, saturate((1 - inside) * 0.7 + crack * 0.4));
+                    albedo = float4(colour, 0.2);
+                    normal = normalize(lerp(n, iceN, 0.2));
+                    smooth = 0.6;
+                }
+            }
+
             half4 Frag(Varyings i) : SV_Target
             {
                 ClipToRing(i.positionWS);
@@ -129,16 +223,20 @@ Shader "MountainPlanner/Terrain"
                 // Height-based blend: a layer wins where its own relief rises above the others.
                 float4 albedos[6];
                 float3 normals[6];
+                float smooths[6];
                 float best = -10;
                 float heights[6];
+                float footprint = length(fwidth(i.positionWS));   // metres per pixel, for the lake's cracks
                 [unroll] for (int k = 0; k < 6; k++)
                 {
                     albedos[k] = 0;
                     normals[k] = n;
+                    smooths[k] = _Smooth[k];
                     heights[k] = -10;
                     [branch] if (weights[k] > 0.004)
                     {
                         if (k == 3) SampleTriplanar(k, i.positionWS, n, albedos[k], normals[k]);
+                        else if (k == 5) SampleLake(i.positionWS, n, cuv, res, weights[k], footprint, albedos[k], normals[k], smooths[k]);
                         else SampleTop(k, i.positionWS, n, albedos[k], normals[k]);
                         heights[k] = weights[k] + albedos[k].a * 0.6;
                         best = max(best, heights[k]);
@@ -146,25 +244,17 @@ Shader "MountainPlanner/Terrain"
                 }
                 float3 albedo = 0, normal = 0;
                 float total = 0, smooth = 0;
-                [unroll] for (int k = 0; k < 6; k++)
+                [unroll] for (int m = 0; m < 6; m++)
                 {
-                    float w = max(heights[k] - best + _HeightBlend, 0);
-                    albedo += albedos[k].rgb * w;
-                    normal += normals[k] * w;
-                    smooth += _Smooth[k] * w;
+                    float w = max(heights[m] - best + _HeightBlend, 0);
+                    albedo += albedos[m].rgb * w;
+                    normal += normals[m] * w;
+                    smooth += smooths[m] * w;
                     total += w;
                 }
                 albedo /= total;
                 normal = normalize(normal);
                 smooth /= total;
-
-                // Frozen lakes (T8): where snow lies on ice, the snow is smoother and faintly blue, and the
-                // shoreline shows a thin rim of exposed ice.
-                float ice = weights[5];
-                float rim = saturate(1 - abs(ice - 0.5) * 3) * saturate(ice * 4);
-                albedo = lerp(albedo, albedo * float3(0.94, 0.97, 1.0), saturate(ice * 2) * weights[0]);
-                albedo = lerp(albedo, float3(0.6, 0.72, 0.8), rim * 0.55);
-                smooth = lerp(smooth, 0.7, saturate(ice * 2));
 
                 Light sun = GetMainLight(TransformWorldToShadowCoord(i.positionWS));
                 float3 view = normalize(GetWorldSpaceViewDir(i.positionWS));
@@ -174,7 +264,7 @@ Shader "MountainPlanner/Terrain"
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation + SampleSH(normal))
                            + sun.color * spec * sun.shadowAttenuation;
                 lit = MixFog(lit, i.fog);
-                return half4(lit, 1);
+                return half4(ApplyHaze(lit, i.positionWS), 1);
             }
             ENDHLSL
         }

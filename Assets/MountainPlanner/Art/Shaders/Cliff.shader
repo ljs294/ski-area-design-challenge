@@ -39,6 +39,7 @@ Shader "MountainPlanner/Cliff"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Haze.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; float3 normalWS : TEXCOORD1; float weight : TEXCOORD2; };
@@ -88,7 +89,7 @@ Shader "MountainPlanner/Cliff"
                 float3 h = normalize(sun.direction + view);
                 float spec = pow(saturate(dot(normal, h)), exp2(10 * smooth + 1)) * smooth * 0.5;
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation + SampleSH(normal)) + sun.color * spec * sun.shadowAttenuation;
-                return half4(lit, 1);
+                return half4(ApplyHaze(lit, p), 1);
             }
             ENDHLSL
         }

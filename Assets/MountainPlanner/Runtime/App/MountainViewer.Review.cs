@@ -22,6 +22,7 @@ namespace MountainPlanner.App
     ///                            from the side, from above and against the sun, close-ups, trunks from a few
     ///                            metres, and a mixed stand seen from near to far at natural LOD. Then quits.
     ///   -shadows &lt;metres&gt;      the sun's shadow distance for this run (players only), to measure its cost.
+    ///   -clip &lt;out prefix&gt;      3 s of frames at a fixed 24 fps from the opened mountain (wind review), then quits.
     /// </summary>
     public sealed partial class MountainViewer
     {
@@ -76,14 +77,15 @@ namespace MountainPlanner.App
 
         IEnumerator RunBenchmark(string outPath)
         {
-            _hud = false;
+            _hud = Array.IndexOf(Environment.GetCommandLineArgs(), "-withhud") >= 0;   // -withhud: measure with the HUD on
             while (Forest == null) yield return null;
             while (!_resort.CoverReady.IsCompleted) yield return null;
             string prefix = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".", Path.GetFileNameWithoutExtension(outPath));
             var json = new StringBuilder();
             json.Append("{\n  \"screen\": [").Append(Screen.width).Append(", ").Append(Screen.height).Append("],\n  \"shadowDistance\": ")
                 .Append(ShadowDistance.ToString("F0", CultureInfo.InvariantCulture)).Append(",\n  \"trees\": ").Append(Forest.TreeCount)
-                .Append(",\n  \"views\": [\n");
+                .Append(",\n  \"wind\": \"").Append(Forest.Wind.Target.ToString().ToLowerInvariant())
+                .Append("\",\n  \"views\": [\n");
             var timings = new FrameTiming[1];
             for (int vi = 0; vi < BenchViews.Length; vi++)
             {
@@ -115,6 +117,27 @@ namespace MountainPlanner.App
             json.Append("  ]\n}\n");
             File.WriteAllText(outPath, json.ToString());
             Debug.Log($"[Benchmark] written to {outPath}");
+            Application.Quit();
+        }
+
+        /// <summary>
+        /// -clip &lt;prefix&gt;: once the view has settled, captures 3 s of frames at a fixed 24 fps (game time
+        /// steps exactly 1/24 s a frame, so the wind moves the same way every run), then quits.
+        /// </summary>
+        IEnumerator CaptureClipAndQuit(string prefix)
+        {
+            _hud = false;
+            for (int i = 0; i < 90; i++) yield return null;   // let LOD and shadows settle
+            Time.captureFramerate = 24;
+            for (int frame = 0; frame < 72; frame++)
+            {
+                ScreenCapture.CaptureScreenshot($"{prefix}_{frame:000}.png");
+                yield return null;
+            }
+            Time.captureFramerate = 0;
+            yield return null;
+            yield return null;
+            Debug.Log($"[MountainViewer] Clip saved to {prefix}_000..071.png");
             Application.Quit();
         }
 
@@ -168,6 +191,7 @@ namespace MountainPlanner.App
                     });
                 }
             var forest = new ForestRenderer(Trees, trees.ToArray(), ForestCull, TreeShader, TreeImpostorShader);
+            forest.Wind.Set(ForestWind.Level.Calm);   // still trees, so every capture is repeatable
             var forestGo = new GameObject("Lineup forest");
             forestGo.AddComponent<ForestView>().Renderer = forest;
 

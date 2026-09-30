@@ -1,0 +1,750 @@
+<title>Four Art Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=B612:wght@400;700&family=B612+Mono:wght@400;700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,400;1,9..144,600&family=IBM+Plex+Sans+Condensed:wght@400;500;600&family=Overpass:wght@400;500;600;700;800;900&family=Overpass+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* Three style frames of one moment (planning a summit lift) over a capture of our Unity mountain.
+   Each direction takes its look from the resort's own world, not from app UI. #a, #b and #c show one frame alone. */
+:root {
+  --bg: #efefec; --fg: #1a1c1f; --muted: #5d6268; --line: #d6d6d0; --card: #ffffff; --link: #b3402a;
+  --font: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #111214; --fg: #ececea; --muted: #a2a6ab; --line: #2c2e32; --card: #1a1c1f; --link: #f08c6f; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #111214; --fg: #ececea; --muted: #a2a6ab; --line: #2c2e32; --card: #1a1c1f; --link: #f08c6f; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); padding-inline: 16px; padding-block: 22px 40px; margin: 0; }
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 38px; }
+.top h1 { margin: 0 0 8px; font-weight: 800; font-size: 30px; letter-spacing: -0.01em; }
+.top p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.5; max-width: 80ch; }
+section { display: grid; gap: 12px; }
+section h2 { margin: 0; font-weight: 800; font-size: 22px; letter-spacing: -0.01em; }
+section h2 small { font-weight: 500; color: var(--muted); font-size: 16px; margin-left: 8px; }
+.traits { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--muted); font-size: 15px; line-height: 1.45; max-width: 92ch; }
+.traits b { color: var(--fg); }
+.frame { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #cfd8e2; }
+.stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.stage img.bg { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; object-fit: cover; }
+.stage svg.world { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; overflow: visible; }
+.abs { position: absolute; }
+.pagenote { margin: 0; color: var(--muted); font-size: 14px; }
+body.solo { padding: 0; }
+body.solo .wrap { max-width: none; gap: 0; }
+body.solo .top, body.solo section > h2, body.solo .traits, body.solo .pagenote, body.solo section:not(.solo-on) { display: none; }
+body.solo .frame { width: 1280px; border-radius: 0; }
+
+/* ================= A · Ops console ================= */
+.dA { font-family: 'B612', sans-serif; color: #d6dbe0; font-size: 12px; }
+.dA .mono { font-family: 'B612 Mono', monospace; }
+.dA .plate { position: absolute; background: linear-gradient(180deg, #30353b 0%, #24282d 55%, #1d2024 100%); border: 1px solid #0b0c0e; border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.55), 0 10px 26px rgba(0, 0, 0, 0.45); }
+.dA .screw { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #8a929b, #2a2e33 72%); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55); }
+.dA .screw::after { content: ''; position: absolute; left: 1px; right: 1px; top: 3px; height: 1px; background: rgba(0, 0, 0, 0.6); transform: rotate(35deg); }
+.dA .screen { position: absolute; background: radial-gradient(120% 90% at 50% 40%, #0c1310, #050806); border: 1px solid #000; border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(120, 255, 180, 0.05), inset 0 8px 22px rgba(0, 0, 0, 0.85); font-family: 'B612 Mono', monospace; font-size: 11.5px; color: #58f09a; }
+.dA .g { color: #58f09a; } .dA .c { color: #5fd6ff; } .dA .m { color: #ff5ed3; } .dA .a { color: #ffb238; } .dA .w { color: #f1f4f6; } .dA .d { color: #5d6e64; }
+.dA .glow { text-shadow: 0 0 6px currentColor; }
+.dA .key { position: absolute; width: 22px; height: 16px; border-radius: 2px; background: linear-gradient(180deg, #474d54, #2b2f34); border: 1px solid #0b0c0e; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 1px 0 rgba(0, 0, 0, 0.5); }
+.dA .key.lit::after { content: ''; position: absolute; left: 4px; right: 4px; top: 6px; height: 3px; border-radius: 1px; background: #f5f7f8; box-shadow: 0 0 6px #fff; }
+.dA .srow { position: absolute; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: baseline; white-space: pre; }
+.dA .box { outline: 1px solid #5fd6ff; outline-offset: 1px; }
+.dA .deck { left: 0; right: 0; bottom: 0; height: 88px; border-radius: 0; border-left: 0; border-right: 0; border-bottom: 0; }
+.dA .groove { position: absolute; top: 8px; bottom: 8px; width: 2px; background: linear-gradient(90deg, rgba(0, 0, 0, 0.6), rgba(255, 255, 255, 0.07)); }
+.dA .pb { position: absolute; top: 12px; width: 58px; height: 64px; border-radius: 4px; background: linear-gradient(180deg, #3a4047, #262a2f); border: 1px solid #0a0b0d;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.13), inset 0 -2px 0 rgba(0, 0, 0, 0.45), 0 2px 3px rgba(0, 0, 0, 0.5); display: grid; justify-items: center; align-content: end; gap: 5px; padding-bottom: 7px; }
+.dA .pb::before { content: ''; position: absolute; top: 6px; left: 17px; right: 17px; height: 3px; border-radius: 2px; background: #15191b; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.dA .pb.on { background: linear-gradient(180deg, #2c3136, #1f2226); box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.05); }
+.dA .pb.on::before { background: #58f09a; box-shadow: 0 0 8px #58f09a, 0 0 2px #fff; }
+.dA .pb svg { width: 22px; height: 22px; fill: none; stroke: #cdd3d9; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.dA .pb.on svg { stroke: #58f09a; filter: drop-shadow(0 0 3px rgba(88, 240, 154, 0.6)); }
+.dA .pb small { font-size: 9px; letter-spacing: 0.08em; color: #aeb5bc; }
+.dA .pb.on small { color: #58f09a; }
+.dA .knob { position: absolute; width: 50px; height: 50px; border-radius: 50%; background: repeating-conic-gradient(#474e56 0 5deg, #2a2f35 5deg 10deg);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(0, 0, 0, 0.6); }
+.dA .knob::before { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #5a626b, #262a2f 75%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+.dA .knob i { position: absolute; left: 24px; top: 9px; width: 2px; height: 14px; background: #f1f4f6; border-radius: 1px; transform-origin: 1px 16px; }
+.dA .ann { position: absolute; width: 50px; height: 26px; border-radius: 2px; background: #15181b; border: 1px solid #060708; display: grid; place-items: center;
+  font: 700 8.5px 'B612', sans-serif; letter-spacing: 0.06em; color: #4a5158; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8); }
+.dA .ann.amber { background: linear-gradient(180deg, #ffc15a, #e89a1c); color: #2a1800; box-shadow: 0 0 12px rgba(255, 178, 56, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+.dA .ann.white { background: linear-gradient(180deg, #f5f7f8, #c9ced3); color: #111; box-shadow: 0 0 10px rgba(255, 255, 255, 0.35); }
+
+/* ================= B · Swiss signage ================= */
+.dB { font-family: 'Archivo', sans-serif; color: #111; font-size: 13px; font-variant-numeric: tabular-nums; --red: #e2231a; --blue: #1c5aa6; --green: #188a3c; --yellow: #ffcc00; }
+.dB .sheet { position: absolute; background: #fff; border-radius: 2px; box-shadow: 0 1px 0 rgba(0, 0, 0, 0.12), 0 14px 34px rgba(0, 0, 0, 0.22); }
+.dB .sheet::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: var(--red); }
+.dB .shd { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 16px 18px 12px; border-bottom: 2px solid #111; }
+.dB .shd h3 { margin: 0; font-weight: 800; font-size: 30px; line-height: 1; letter-spacing: -0.02em; }
+.dB .shd p { margin: 3px 0 0; color: #6b6b6b; font-size: 14px; }
+.dB .pic { width: 44px; height: 44px; display: grid; place-items: center; background: #111; color: #fff; --cut: #111; }
+.dB .pic.red { background: var(--red); --cut: var(--red); }
+.dB .pic svg { width: 28px; height: 28px; fill: currentColor; }
+.dB .grp { padding: 9px 18px; border-bottom: 1px solid #dcdcdc; display: grid; gap: 6px; }
+.dB h4 { margin: 0; font-size: 13px; font-weight: 700; display: flex; justify-content: space-between; }
+.dB h4 span { font-weight: 500; color: #6b6b6b; }
+.dB .tabsB { display: flex; gap: 18px; font-size: 15px; font-weight: 600; color: #8a8a8a; }
+.dB .tabsB span.on { color: #111; box-shadow: inset 0 -3px 0 #111; padding-bottom: 3px; }
+.dB table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.dB td { padding: 4px 0; border-top: 1px solid #ececec; }
+.dB tr:first-child td { border-top: 0; }
+.dB td.r { text-align: right; }
+.dB tr.on td { font-weight: 700; }
+.dB .sq { display: inline-block; width: 12px; height: 12px; border: 2px solid #111; margin-right: 8px; vertical-align: -1px; }
+.dB tr.on .sq { background: #111; box-shadow: inset 0 0 0 2px #fff; }
+.dB .bigcap { display: flex; align-items: baseline; gap: 8px; }
+.dB .bigcap b { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
+.dB .bigcap .pm { margin-left: auto; display: flex; gap: 4px; }
+.dB .bigcap .pm span { width: 30px; height: 30px; display: grid; place-items: center; border: 2px solid #111; font-weight: 700; font-size: 18px; }
+.dB .plan { display: flex; align-items: baseline; gap: 10px; padding: 5px 0; border-top: 1px solid #ececec; }
+.dB .plan:first-of-type { border-top: 0; }
+.dB .plan b { font-weight: 700; }
+.dB .plan .v { margin-left: auto; font-weight: 700; }
+.dB .plan .x { color: #9a9a9a; font-size: 15px; }
+.dB .tot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 6px; border-top: 2px solid #111; }
+.dB .tot b { font-size: 22px; font-weight: 800; }
+.dB .btnB { height: 44px; display: grid; place-items: center; font-weight: 800; font-size: 16px; }
+.dB .btnB.red { background: var(--red); color: #fff; }
+.dB .btnB.line { border: 2px solid #111; }
+.dB .band { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: #111; color: #fff; display: flex; align-items: center; }
+.dB .tile { width: 50px; height: 50px; display: grid; place-items: center; background: #2c2c2c; color: #fff; --cut: #2c2c2c; }
+.dB .tile svg { width: 28px; height: 28px; fill: currentColor; }
+.dB .tile.on { background: var(--red); --cut: var(--red); }
+.dB .spd { width: 22px; height: 22px; display: grid; place-items: center; border: 2px solid #fff; }
+.dB .spd.on { background: #fff; color: #111; }
+.dB .spd svg { width: 10px; height: 10px; fill: currentColor; }
+
+/* ================= C · Trail-map print ================= */
+.dC { font-family: 'IBM Plex Sans Condensed', sans-serif; color: #1d2a44; font-size: 13.5px; font-variant-numeric: tabular-nums;
+  --paper: #f3ead8; --paper2: #e9ddc4; --ink: #1d2a44; --soft: #5b6680; --red: #c23b27; --pine: #2e5e4c; --sky: #336fae;
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .32  0 0 0 0 .25  0 0 0 0 .15  0 0 0 .11 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"); }
+.dC .serif { font-family: 'Fraunces', serif; }
+.dC .paper { position: absolute; background: var(--grain), linear-gradient(170deg, #f7f0e1, var(--paper) 60%, #eee2cb); box-shadow: 0 1px 1px rgba(60, 40, 10, 0.18), 0 10px 24px rgba(40, 30, 10, 0.28); }
+.dC .card h3 { margin: 0; font: 700 34px 'Fraunces', serif; letter-spacing: -0.01em; line-height: 1; }
+.dC .card .sub { margin: 4px 0 0; font: italic 400 16px 'Fraunces', serif; color: var(--soft); }
+.dC .rule { height: 0; border-top: 1.5px solid var(--ink); margin: 12px 0; opacity: 0.85; }
+.dC .lbl { font: 600 12px 'IBM Plex Sans Condensed', sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--soft); }
+.dC .dog { position: absolute; right: 0; top: 0; width: 34px; height: 34px; background: linear-gradient(225deg, transparent 50%, #d9c9a8 50%, #e8dcc2); box-shadow: -2px 2px 3px rgba(60, 40, 10, 0.15); }
+.dC .opts { display: flex; gap: 22px; font: 500 16px 'Fraunces', serif; }
+.dC .opts span { position: relative; }
+.dC .opts span.on::after { content: ''; position: absolute; left: -9px; right: -9px; top: -5px; bottom: -5px; border: 1.8px solid var(--red); border-radius: 50% 46% 52% 48%; transform: rotate(-3deg); }
+.dC .li { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: baseline; padding: 4px 0; }
+.dC .li .mk { color: var(--soft); }
+.dC .li.on .mk { color: var(--red); font-weight: 700; }
+.dC .li b { font-weight: 600; }
+.dC .li small { color: var(--soft); }
+.dC .lead { display: flex; align-items: baseline; gap: 6px; padding: 3px 0; }
+.dC .lead i { flex: 1; border-bottom: 1.5px dotted var(--soft); transform: translateY(-3px); }
+.dC .stamp { display: inline-grid; place-items: center; padding: 8px 16px; border: 2.5px solid var(--red); outline: 1.5px solid var(--red); outline-offset: 3px; color: var(--red); white-space: nowrap;
+  font: 700 15px 'Fraunces', serif; letter-spacing: 0.1em; text-transform: uppercase; transform: rotate(-2.5deg); background: rgba(194, 59, 39, 0.06); }
+.dC .strip { left: 16px; right: 16px; bottom: 12px; height: 62px; display: flex; align-items: center; }
+.dC .perf { align-self: stretch; width: 0; border-left: 2px dotted rgba(29, 42, 68, 0.35); margin: 8px 0; position: relative; }
+.dC .badge { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, #fffaf0, #eadfc8 70%); border: 2.5px solid var(--ink);
+  box-shadow: inset 0 0 0 2px #f7efdf, inset 0 0 0 3.5px rgba(29, 42, 68, 0.25), 0 2px 3px rgba(40, 30, 10, 0.25); color: var(--ink); }
+.dC .badge svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.dC .badge.on { background: radial-gradient(circle at 35% 30%, #e5634d, #b3321f 75%); border-color: #7d2214; color: #fff7ea; box-shadow: inset 0 0 0 2px #e9836f, 0 2px 4px rgba(40, 30, 10, 0.35); }
+.dC .note { position: absolute; background: var(--grain), #fbf5e6; box-shadow: 0 1px 1px rgba(60, 40, 10, 0.2), 0 8px 18px rgba(40, 30, 10, 0.3); }
+
+/* ================= D · Trailhead: the MapLibre title's signpost; in game, a warm simulator HUD ================= */
+.dD { font-family: 'Overpass', 'Segoe UI', sans-serif; color: #1f1c19; font-size: 13px; font-variant-numeric: tabular-nums;
+  --green: #1a6b3c; --blue: #22558f; --black: #1f1c19; --white: #fbf8f2; --bolt: #b9b2a6; --flag: #ff6a1f; --caution: #f0b43c; }
+.dD .mono { font-family: 'Overpass Mono', ui-monospace, monospace; }
+/* title: the signpost */
+.dD .sign { position: relative; color: var(--white); background: var(--face, var(--black)); border: 1px solid var(--white); outline: 3px solid var(--face, var(--black)); border-radius: 2px;
+  box-shadow: 4px 6px 8px rgba(40, 20, 5, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+.dD .bolts::before, .dD .bolts::after { content: ''; position: absolute; left: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--bolt); box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.55); }
+.dD .bolts::before { top: 9px; }
+.dD .bolts::after { bottom: 9px; }
+.dD .plate { position: absolute; background: var(--white); color: var(--black); border: 2px solid var(--black); border-radius: 2px; box-shadow: 4px 6px 8px rgba(40, 20, 5, 0.3); }
+.dD .post { position: absolute; width: 24px; border: 1px solid #3b2616;
+  background: repeating-linear-gradient(91deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 9px), linear-gradient(90deg, #5a3a22, #93643e 25%, #7e5434 75%, #4d321f); box-shadow: 5px 4px 6px rgba(40, 20, 5, 0.3); }
+.dD .menu-sign { display: flex; align-items: center; gap: 14px; min-height: 77px; padding: 17px 20px 17px 30px; font: 800 25px 'Overpass', sans-serif; line-height: 1.1; }
+.dD .menu-sign small { display: block; margin-top: 5px; font: 500 14px 'Overpass', sans-serif; }
+.dD .menu-sign > span { flex: 1; }
+.dD .arrow { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.dD .smallplate { background: var(--white); color: var(--black); border: 2px solid var(--black); border-radius: 2px; padding: 8px 16px; font-weight: 700; box-shadow: 3px 4px 6px rgba(40, 20, 5, 0.28); }
+.dD .lbl { font: 800 11px 'Overpass', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #6f675e; }
+/* in game: warm graphite instrument panels */
+.dD .pn { position: absolute; background: rgba(27, 24, 21, 0.94); color: #efe9df; border: 1px solid #3b3632; border-radius: 3px; box-shadow: 0 10px 26px rgba(20, 10, 0, 0.35); }
+.dD .pn .hd { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-bottom: 1px solid #3b3632; font: 800 11.5px 'Overpass'; letter-spacing: 0.14em; }
+.dD .pn .hd .x { margin-left: auto; color: #a39b90; font-weight: 600; letter-spacing: 0; }
+.dD .num-plate { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 2px; background: var(--white); color: var(--black); font: 900 11px 'Overpass'; }
+.dD .num-plate.plan { background: transparent; color: var(--flag); box-shadow: inset 0 0 0 1.5px var(--flag); }
+.dD .tabs { display: flex; border-bottom: 1px solid #3b3632; }
+.dD .tabs span { flex: 1; text-align: center; padding: 7px 0 6px; font: 700 10.5px 'Overpass'; letter-spacing: 0.14em; color: #8f877c; }
+.dD .tabs span.on { color: #efe9df; box-shadow: inset 0 -2px 0 var(--flag); }
+.dD .kv { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; padding: 9px 12px; font-size: 12.5px; }
+.dD .kv dt { color: #a39b90; font: 700 10.5px 'Overpass'; letter-spacing: 0.1em; text-transform: uppercase; align-self: center; }
+.dD .kv dd { margin: 0; text-align: right; font: 500 12.5px 'Overpass Mono', monospace; }
+.dD .kv dd b { font-weight: 700; color: #fff; }
+.dD .sub { padding: 0 12px; font: 700 10.5px 'Overpass'; letter-spacing: 0.14em; color: #8f877c; text-transform: uppercase; display: flex; justify-content: space-between; }
+.dD .rule { height: 1px; background: #3b3632; margin: 2px 0; }
+.dD .seg2 { display: flex; gap: 0; border: 1px solid #4a443e; border-radius: 2px; overflow: hidden; }
+.dD .seg2 span { flex: 1; text-align: center; padding: 4px 0; font: 700 11px 'Overpass'; color: #a39b90; border-left: 1px solid #4a443e; }
+.dD .seg2 span:first-child { border-left: 0; }
+.dD .seg2 span.on { background: #efe9df; color: #1b1815; }
+.dD .btn-go { display: flex; justify-content: space-between; align-items: center; height: 34px; padding: 0 12px; background: var(--green); color: #fff; border-radius: 2px; font: 800 12px 'Overpass'; letter-spacing: 0.12em; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15); }
+.dD .btn-ghost { display: grid; place-items: center; height: 34px; padding: 0 12px; border: 1px solid #4a443e; border-radius: 2px; font: 700 11px 'Overpass'; letter-spacing: 0.12em; color: #cfc7bb; }
+.dD .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; display: flex; align-items: stretch; background: rgba(24, 21, 18, 0.96); color: #efe9df; border-top: 1px solid #3b3632; }
+.dD .bar > div { display: flex; align-items: center; gap: 8px; padding: 0 14px; border-left: 1px solid #36312c; white-space: nowrap; }
+.dD .bar > div:first-child { border-left: 0; }
+.dD .bar .k { font: 700 9.5px 'Overpass'; letter-spacing: 0.14em; color: #8f877c; text-transform: uppercase; }
+.dD .bar .v { font: 600 13.5px 'Overpass Mono', monospace; }
+.dD .spd { display: flex; gap: 2px; }
+.dD .spd span { width: 22px; height: 20px; display: grid; place-items: center; border: 1px solid #4a443e; border-radius: 2px; font: 700 8.5px 'Overpass'; color: #a39b90; }
+.dD .spd span.on { background: #efe9df; color: #1b1815; border-color: #efe9df; }
+.dD .dock { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); display: flex; gap: 2px; padding: 3px; background: rgba(27, 24, 21, 0.94); border: 1px solid #3b3632; border-radius: 3px; }
+.dD .dock span { width: 38px; height: 36px; display: grid; place-items: center; color: #cfc7bb; border-radius: 2px; position: relative; }
+.dD .dock span.on { background: #34302b; color: #fff; box-shadow: inset 0 -2px 0 var(--flag); }
+.dD .dock svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.dD .dock i { position: absolute; right: 2px; bottom: 1px; font: 600 8px 'Overpass Mono'; font-style: normal; color: #7d756b; }
+.dD .alert { display: grid; grid-template-columns: 3px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px 8px 0; font-size: 12.5px; border-bottom: 1px solid #36312c; }
+.dD .alert:last-child { border-bottom: 0; }
+.dD .alert i { align-self: stretch; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- line icons (engraved in A, inked in C) -->
+  <symbol id="t-lift" viewBox="0 0 24 24"><path d="M2.5 5l19 4.2M12 7.2V12M7.5 12h9v2.6a2.9 2.9 0 0 1-2.9 2.9h-3.2a2.9 2.9 0 0 1-2.9-2.9zM8.5 20.5h7M10.3 17.5v3M13.7 17.5v3"/></symbol>
+  <symbol id="t-run" viewBox="0 0 24 24"><path d="M2.5 20.5L10.5 5l4 6 2-3 5 12.5z"/><path d="M10.5 8.5c-2.5 2.5 3 4.5-.5 7s-.5 3.3 2 5"/></symbol>
+  <symbol id="t-snow" viewBox="0 0 24 24"><g transform="rotate(-24 10.5 12)"><rect x="4.5" y="9.3" width="12" height="5.4" rx="2.7"/></g><path d="M8 21l3-6.2 3 6.2M18.5 3.5v3.4M16.8 5.2h3.4M21 9.5v2.2M19.9 10.6h2.2"/></symbol>
+  <symbol id="t-groom" viewBox="0 0 24 24"><path d="M4 15.5V11l2.6-3.8h5.9l3.1 4.3H19v4M7.2 10.5h4.9"/><rect x="3" y="15.5" width="15" height="4.5" rx="2.25"/><path d="M19 12.3l2.5 1v6.4H19"/></symbol>
+  <symbol id="t-lodge" viewBox="0 0 24 24"><path d="M3 11.5L12 4l9 7.5M5.5 9.8v10.7h13V9.8M10 20.5v-5h4v5M16 6.8V4.5h2.2v4.2"/></symbol>
+  <symbol id="t-road" viewBox="0 0 24 24"><path d="M7.5 21L10.5 3.5M16.5 21L13.5 3.5M12 6.5v2M12 11.5v2.4M12 17v2.8"/></symbol>
+  <symbol id="t-terrain" viewBox="0 0 24 24"><path d="M2.5 18c3-4 6-5 9-3s6 1 10-4M16 3.5l-3.6 7.2M10.4 9.9l3.7 1.8-1.5 3.6-3.7-1.8z"/></symbol>
+  <symbol id="t-remove" viewBox="0 0 24 24"><path d="M14.5 4.5l5 5-7.6 7.6H6.8l-3-3zM8.8 9.4l5 5M11.8 20H20"/></symbol>
+  <symbol id="t-views" viewBox="0 0 24 24"><path d="M12 4l9 5-9 5-9-5zM3 13.5l9 5 9-5"/></symbol>
+  <!-- bold pictograms for B, in the spirit of mid-century games signage -->
+  <symbol id="p-lift" viewBox="0 0 24 24"><path d="M1.5 5.2L22.5 9.6" stroke="currentColor" stroke-width="2.2" fill="none"/><path d="M11.1 7.4h1.9v4.4h-1.9zM6.5 11.8h11v3.8h-11zM6.5 15.6h2.2v3.6h8.8v2.2h-11z"/></symbol>
+  <symbol id="p-ski" viewBox="0 0 24 24"><circle cx="15.8" cy="4.3" r="2.4"/><path d="M13.8 7.6l-4 5.1 3.3 3.2-2.3 3.4" stroke="currentColor" stroke-width="2.7" fill="none" stroke-linejoin="round" stroke-linecap="round"/><path d="M14.6 9.6l3.7 2.4M3 20.9l18-3.4" stroke="currentColor" stroke-width="2.1" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="p-snow" viewBox="0 0 24 24"><path d="M12 2.2v19.6M3.5 7.1l17 9.8M3.5 16.9l17-9.8" stroke="currentColor" stroke-width="2.6" fill="none"/><path d="M9.3 3.8L12 6.3l2.7-2.5M9.3 20.2L12 17.7l2.7 2.5" stroke="currentColor" stroke-width="2" fill="none"/></symbol>
+  <symbol id="p-groom" viewBox="0 0 24 24"><path d="M3 15V10.4l3-4.1h7.2l3.6 4.6H20V15z"/><path d="M7 9.8l1.6-2.1h4l1.7 2.1z" style="fill:var(--cut)"/><path d="M2.5 16.4h15.3a2.4 2.4 0 0 1 0 4.8H4.9a2.4 2.4 0 0 1-2.4-2.4z"/><path d="M20.4 11.2l2.2.9v8.6h-2.2z"/></symbol>
+  <symbol id="p-lodge" viewBox="0 0 24 24"><path d="M2.3 11.6L12 3.4l9.7 8.2V21.5h-7.3v-5.6h-4.8v5.6H2.3z"/></symbol>
+  <symbol id="p-road" viewBox="0 0 24 24"><path d="M8.2 21.5L10.8 2.5h2.4l2.6 19z"/><path d="M11.4 5.4h1.2v2.8h-1.2zM11.3 10.6h1.4v3.2h-1.4zM11.2 16.2h1.6v3.8h-1.6z" style="fill:var(--cut)"/></symbol>
+  <symbol id="p-terrain" viewBox="0 0 24 24"><path d="M1.2 21L8.6 7.6l4.2 6.8 3.1-4.6L22.8 21z"/></symbol>
+  <symbol id="p-remove" viewBox="0 0 24 24"><path d="M4.5 4.5l15 15M19.5 4.5l-15 15" stroke="currentColor" stroke-width="3.4" fill="none"/></symbol>
+  <symbol id="p-views" viewBox="0 0 24 24"><path d="M1.3 12c3.1-5.2 7.2-7.8 10.7-7.8s7.6 2.6 10.7 7.8c-3.1 5.2-7.2 7.8-10.7 7.8S4.4 17.2 1.3 12z"/><circle cx="12" cy="12" r="3.9" style="fill:var(--cut)"/><circle cx="12" cy="12" r="1.9"/></symbol>
+  <symbol id="p-warn" viewBox="0 0 24 24"><path d="M12 2.5L23 21.5H1z"/><path d="M10.8 8.5h2.4l-.4 7h-1.6zM10.9 17.2h2.2v2.2h-2.2z" style="fill:var(--cut)"/></symbol>
+  <symbol id="i-p1" viewBox="0 0 16 16"><path d="M4 2.5l9 5.5-9 5.5z"/></symbol>
+  <!-- D: a two-peak mountain with a snowline, and the signs' arrow -->
+  <symbol id="d-mark" viewBox="0 0 24 24"><path d="M1.5 20.5L9.5 6l4.6 8.2 2.9-4.7 5.5 11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M6.4 11.6l2.1 2 1.9-1.8 1.9 1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-arrow" viewBox="0 0 24 24"><path d="M4 12h15M13 6l6 6-6 6"/></symbol>
+</svg>
+
+<div class="wrap">
+  <div class="top">
+    <h1>Four art directions</h1>
+    <p>You're right that Alpenglow read as a generic AI web dashboard: glass cards, pill badges, tiny spaced caps, thin line icons. These are four different directions instead, each built from things that belong to a ski resort rather than to a web app. They share one moment, planning a summit lift, over a capture of our actual Unity mountain. The status bar is back at the bottom in all four. D grows out of the MapLibre edition's own title screen and adds a title-screen frame. They're style frames for choosing a look, so the details are placeholders. Pick one, or name what you like in each.</p>
+  </div>
+
+  <section id="secA">
+    <h2>A · Ops console <small>the resort's control room</small></h2>
+    <ul class="traits">
+      <li><b>Hardware, not cards:</b> machined plates, illuminated push-buttons for the tools, a knurled knob for game speed, and an annunciator panel that lights up for trouble.</li>
+      <li><b>The tool window is a screen with side keys,</b> like a cockpit display. Break ground is the lit EXECUTE key.</li>
+      <li><b>Cockpit colour discipline:</b> magenta for your plans (as pilots see a flight plan), cyan for what you selected, green for active, amber for caution.</li>
+    </ul>
+    <div class="frame" id="frameA"><div class="stage dA" id="stageA">
+      <img class="bg" src="assets/game-overview.jpg" alt="">
+      <svg class="world" id="worldA" viewBox="0 0 1280 720" aria-label="Mountain with the planned lift drawn as a flight-plan route"></svg>
+
+      <div class="plate" style="left:12px;top:12px;width:344px;height:470px">
+        <i class="screw" style="left:6px;top:6px"></i><i class="screw" style="right:6px;top:6px"></i><i class="screw" style="left:6px;bottom:6px"></i><i class="screw" style="right:6px;bottom:6px"></i>
+        <i class="key" style="left:6px;top:48px"></i><i class="key" style="left:6px;top:78px"></i><i class="key" style="left:6px;top:176px"></i><i class="key" style="left:6px;top:224px"></i><i class="key" style="left:6px;top:328px"></i>
+        <i class="key" style="right:6px;top:48px"></i><i class="key" style="right:6px;top:398px"></i><i class="key lit" style="right:6px;top:432px"></i>
+        <div class="screen" style="left:34px;top:16px;right:34px;bottom:16px">
+          <div class="srow" style="top:9px"><span class="w">LIFT PLANNER</span><span class="d">PG 1/2</span></div>
+          <div class="srow" style="top:27px;border-top:1px solid rgba(88,240,154,.25)"></div>
+          <div class="srow" style="top:35px"><span class="w">◂TYPE</span><span><span class="c box glow">CHAIR</span>  <span class="d">GOND</span>  <span class="d">SURF</span></span></div>
+          <div class="srow" style="top:64px"><span class="w">◂MODEL</span><span class="d">CAP/H  M/S   $M</span></div>
+          <div class="srow" style="top:84px"><span class="d">  FG QUAD</span><span class="d">1800  2.3  0.80</span></div>
+          <div class="srow" style="top:104px"><span class="c glow">▸ DT QUAD</span><span class="c glow">2400  5.0  1.20</span></div>
+          <div class="srow" style="top:124px"><span class="d">  DT SIX</span><span class="d">3000  5.0  1.60</span></div>
+          <div class="srow" style="top:163px"><span class="w">◂CAPACITY</span><span class="c glow">2400 /H</span></div>
+          <svg class="abs" style="left:10px;top:181px" width="256" height="20" id="tapeA"></svg>
+          <div class="srow" style="top:211px"><span class="w">◂PROFILE</span><span class="m glow">L4 SUMMIT QUAD</span></div>
+          <svg class="abs" style="left:10px;top:229px" width="256" height="70" id="profA"></svg>
+          <div class="srow" style="top:315px"><span class="w">◂PLANS</span><span class="d">2</span></div>
+          <div class="srow" style="top:335px"><span class="m glow">L4 SUMMIT QUAD</span><span class="m glow">739M  4.12</span></div>
+          <div class="srow" style="top:353px"><span class="m glow">◆◆ COULOIR</span><span class="m glow">770M  0.58</span></div>
+          <div class="srow" style="top:371px"><span class="g">TOTAL 4.70M</span><span class="g">REMAIN 0.54M</span></div>
+          <div class="srow" style="top:385px;border-top:1px solid rgba(88,240,154,.25)"></div>
+          <div class="srow" style="top:385px"><span></span><span class="w">DISCARD▸</span></div>
+          <div class="srow" style="top:417px"><span class="d">4.70M</span><span class="w glow">BREAK GROUND▸</span></div>
+        </div>
+      </div>
+
+      <div class="plate" style="right:12px;top:12px;width:176px;height:48px">
+        <div class="ann amber" style="left:8px;top:10px;width:104px;height:28px;font-size:9.5px">MASTER CAUTION</div>
+        <div class="ann" style="left:120px;top:10px;width:48px;height:28px;color:#aeb5bc">MENU</div>
+      </div>
+
+      <div class="plate deck">
+        <div class="knob" style="left:30px;top:24px"><i style="transform:rotate(-20deg)"></i></div>
+        <span class="abs mono" style="left:18px;top:8px;font-size:9px;color:#aeb5bc">▮▮</span><span class="abs mono" style="left:44px;top:4px;font-size:9px;color:#58f09a">1</span><span class="abs mono" style="left:68px;top:8px;font-size:9px;color:#aeb5bc">2</span><span class="abs mono" style="left:84px;top:24px;font-size:9px;color:#aeb5bc">3</span>
+        <span class="abs" style="left:26px;top:76px;font-size:8.5px;letter-spacing:.1em;color:#8a939d">SPEED</span>
+        <div class="screen" style="left:104px;top:12px;width:236px;height:64px">
+          <div class="srow" style="top:6px"><span class="w" style="font-size:10px">SAT 15 JAN</span><span class="d" style="font-size:10px">DAY 214</span></div>
+          <div class="srow" style="top:19px"><span class="g glow" style="font-size:26px;line-height:1">10:30</span><span class="g" style="font-size:10px;line-height:1.35;text-align:right">−8°C  12CM<br>WIND W 15</span></div>
+        </div>
+        <i class="groove" style="left:354px"></i>
+        <div id="deckA"></div>
+        <i class="groove" style="left:924px"></i>
+        <div class="screen" style="left:938px;top:12px;width:176px;height:64px">
+          <div class="srow" style="top:6px"><span class="d" style="font-size:10px">CASH</span><span class="g" style="font-size:10px">+38.2K/D</span></div>
+          <div class="srow" style="top:19px"><span class="w glow" style="font-size:20px">$5,238,120</span></div>
+          <div class="srow" style="top:45px"><span class="d" style="font-size:10px">GUESTS</span><span class="g" style="font-size:10px">1,240</span></div>
+        </div>
+        <div class="ann amber" style="left:1122px;top:12px">LINES</div><div class="ann" style="left:1174px;top:12px">WIND</div><div class="ann" style="left:1226px;top:12px;width:46px">AVAL</div>
+        <div class="ann" style="left:1122px;top:44px">POWER</div><div class="ann" style="left:1174px;top:44px">SNOW</div><div class="ann white" style="left:1226px;top:44px;width:46px">MSG 2</div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="secB">
+    <h2>B · Swiss signage <small>information design, flat and bold</small></h2>
+    <ul class="traits">
+      <li><b>Signs, not panels:</b> solid white sheets with a red top bar, big numerals, hard rules and plain sentence case. No glass, no pills, no shadows beyond the sheet.</li>
+      <li><b>Pictograms</b> in the spirit of mid-century Winter Games signage, on square tiles in a black band. A station clock keeps the time.</li>
+      <li><b>On the mountain, labels are plates</b> like piste signs, the plan is signal red, and warnings are yellow squares.</li>
+    </ul>
+    <div class="frame" id="frameB"><div class="stage dB" id="stageB">
+      <img class="bg" src="assets/game-overview.jpg" alt="">
+      <svg class="world" id="worldB" viewBox="0 0 1280 720" aria-label="Mountain with signage-style lift and run plates"></svg>
+
+      <div class="sheet" style="left:16px;top:16px;width:340px">
+        <div class="shd"><span class="pic red"><svg><use href="#p-lift"/></svg></span><div><h3>Lifts</h3><p>Plan a new lift</p></div><span style="font-size:26px;line-height:1;align-self:start">×</span></div>
+        <div class="grp"><h4>Type</h4><div class="tabsB"><span class="on">Chair</span><span>Gondola</span><span>Surface</span></div></div>
+        <div class="grp"><h4>Model <span>per hour · speed · base price</span></h4>
+          <table><tr><td><i class="sq"></i>Fixed-grip quad</td><td class="r">1,800</td><td class="r">2.3</td><td class="r">$0.80M</td></tr>
+            <tr class="on"><td><i class="sq"></i>Detachable quad</td><td class="r">2,400</td><td class="r">5.0</td><td class="r">$1.20M</td></tr>
+            <tr><td><i class="sq"></i>Detachable six</td><td class="r">3,000</td><td class="r">5.0</td><td class="r">$1.60M</td></tr></table></div>
+        <div class="grp"><h4>Capacity</h4><div class="bigcap"><b>2,400</b><span>riders per hour</span><span class="pm"><span>−</span><span>+</span></span></div></div>
+        <div class="grp"><h4>Profile <span>4 Summit Quad</span></h4><svg id="profB" width="304" height="52" aria-label="Profile of the planned lift"></svg></div>
+        <div class="grp" style="border-bottom:0;gap:4px"><h4>Plans <span>2</span></h4>
+          <div class="plan"><b>4 Summit Quad</b><span style="color:#6b6b6b">739 m</span><span class="v">$4.12M</span><span class="x">×</span></div>
+          <div class="plan"><b>Couloir ◆◆</b><span style="color:#6b6b6b">770 m</span><span class="v">$0.58M</span><span class="x">×</span></div>
+          <div class="tot"><span>Total, leaves $538,120</span><b>$4.70M</b></div></div>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;padding:4px 18px 16px"><span class="btnB red">Break ground</span><span class="btnB line" style="padding:0 16px">Discard</span></div>
+      </div>
+
+      <div class="sheet" style="right:16px;top:16px;width:300px;display:grid;grid-template-columns:52px 1fr">
+        <span style="background:var(--yellow);display:grid;place-items:center;--cut:var(--yellow)"><svg width="28" height="28" style="fill:#111"><use href="#p-warn"/></svg></span>
+        <div style="padding:13px 14px 12px"><b style="font-size:15px">Ridge Six: 12 min wait</b><div style="color:#6b6b6b;margin-top:3px">180 guests at the base</div><div style="margin-top:8px;font-weight:700;text-decoration:underline;text-underline-offset:3px">Show me</div></div>
+      </div>
+
+      <div class="band">
+        <svg id="clockB" width="44" height="44" viewBox="0 0 100 100" style="margin-left:14px"></svg>
+        <div style="margin-left:12px;display:grid;line-height:1"><b style="font-size:28px;font-weight:800;letter-spacing:-.02em">10:30</b><span style="font-size:12px;color:#9a9a9a;margin-top:4px">Sat 15 Jan</span></div>
+        <div style="margin-left:18px;display:flex;gap:4px"><span class="spd">❚❚</span><span class="spd on"><svg><use href="#i-p1"/></svg></span><span class="spd"><svg><use href="#i-p1"/></svg></span><span class="spd"><svg><use href="#i-p1"/></svg></span></div>
+        <div style="margin-left:18px;display:flex;align-items:center;gap:8px;--cut:#111"><svg width="22" height="22" style="fill:#fff;color:#fff"><use href="#p-snow"/></svg><div style="display:grid;line-height:1"><b style="font-size:18px">−8°</b><span style="font-size:12px;color:#9a9a9a;margin-top:4px">12 cm new</span></div></div>
+        <div id="tilesB" style="position:absolute;left:50%;transform:translateX(-50%);display:flex;gap:4px"></div>
+        <div style="margin-left:auto;display:flex;align-items:baseline;gap:22px;padding-right:18px">
+          <div style="display:grid;line-height:1;text-align:right"><b style="font-size:22px;font-weight:800">1,240</b><span style="font-size:12px;color:#9a9a9a;margin-top:4px">skiers</span></div>
+          <div style="display:grid;line-height:1;text-align:right"><b style="font-size:22px;font-weight:800">$5,238,120</b><span style="font-size:12px;color:#7ccf95;margin-top:4px">+$38,200 today</span></div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="secC">
+    <h2>C · Trail-map print <small>the resort's printed matter</small></h2>
+    <ul class="traits">
+      <li><b>Paper, ink and red pencil:</b> tool windows are cards on the map table, plans are sketched in red pencil, and built things are inked.</li>
+      <li><b>A lift-ticket strip</b> across the bottom holds the date and time, the tools as enamel pin badges, and the takings.</li>
+      <li><b>Breaking ground is a rubber stamp.</b> Warnings are notes pinned to the map, and the problem is circled on the mountain.</li>
+    </ul>
+    <div class="frame" id="frameC"><div class="stage dC" id="stageC">
+      <img class="bg" src="assets/game-overview.jpg" alt="">
+      <svg class="world" id="worldC" viewBox="0 0 1280 720" aria-label="Mountain with inked lifts and runs and a lift sketched in red pencil"></svg>
+
+      <div class="paper card" style="left:16px;top:16px;width:334px;padding:20px 22px 22px">
+        <i class="dog"></i>
+        <h3>Lifts</h3><p class="sub">a new chair for the summit</p>
+        <div class="rule"></div>
+        <div class="lbl">Type</div>
+        <div class="opts" style="margin:10px 0 4px 8px"><span class="on">Chair</span><span>Gondola</span><span>Surface</span></div>
+        <div class="rule"></div>
+        <div class="lbl" style="margin-bottom:4px">Model</div>
+        <div class="li"><span class="mk">○</span><span><b>Fixed-grip quad</b> <small>1,800 an hour</small></span><span>$0.80M</span></div>
+        <div class="li on"><span class="mk">✓</span><span><b>Detachable quad</b> <small>2,400 an hour</small></span><span><b>$1.20M</b></span></div>
+        <div class="li"><span class="mk">○</span><span><b>Detachable six</b> <small>3,000 an hour</small></span><span>$1.60M</span></div>
+        <div class="rule"></div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="lbl">Profile</span><span class="serif" style="font-style:italic;color:var(--red)">Summit Quad, 739 m</span></div>
+        <svg id="profC" width="290" height="70" style="margin-top:6px" aria-label="Profile of the planned lift"></svg>
+        <div class="rule"></div>
+        <div class="lbl" style="margin-bottom:2px">Plans</div>
+        <div class="lead"><span>Summit Quad</span><i></i><b>$4.12M</b></div>
+        <div class="lead"><span>Couloir ◆◆</span><i></i><b>$0.58M</b></div>
+        <div class="lead" style="font-size:15px"><span class="serif" style="font-weight:700">Total</span><i></i><b class="serif" style="font-size:17px">$4.70M</b></div>
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-top:16px"><span class="stamp">Break ground</span><span class="serif" style="font-style:italic;font-size:14px;color:var(--soft);text-decoration:underline;text-underline-offset:3px;white-space:nowrap">tear them up</span></div>
+      </div>
+
+      <div class="note" style="right:26px;top:22px;width:250px;padding:16px 16px 14px;transform:rotate(1.4deg)">
+        <svg width="22" height="30" style="position:absolute;left:50%;top:-12px;margin-left:-11px" viewBox="0 0 22 30"><circle cx="11" cy="9" r="7.5" fill="#c23b27"/><circle cx="8.5" cy="6.5" r="2.4" fill="#e9836f"/><path d="M11 16v12" stroke="#6b6b6b" stroke-width="1.6"/></svg>
+        <div class="serif" style="font-weight:700;font-size:17px">Ridge Six line: 12 minutes</div>
+        <div style="color:var(--soft);margin-top:4px">180 guests waiting at the base. Circled on the map.</div>
+      </div>
+
+      <div class="paper strip abs">
+        <div style="padding:0 18px;display:grid;line-height:1.1"><span class="serif" style="font-style:italic;font-size:15px;color:var(--soft)">Saturday, 15 January</span><span class="serif" style="font-weight:700;font-size:25px">10:30 <span style="font-size:13px;font-weight:500;font-style:italic;color:var(--soft)">−8°, 12 cm fresh</span></span></div>
+        <div style="display:flex;gap:6px;padding-right:16px;color:var(--ink)"><span style="font:600 12px 'IBM Plex Sans Condensed';border:1.5px solid var(--ink);border-radius:50%;width:26px;height:26px;display:grid;place-items:center">❚❚</span><span style="font:600 12px 'IBM Plex Sans Condensed';border:1.5px solid var(--red);background:var(--red);color:#fff7ea;border-radius:50%;width:26px;height:26px;display:grid;place-items:center">▶</span><span style="font:600 11px 'IBM Plex Sans Condensed';border:1.5px solid var(--ink);border-radius:50%;width:26px;height:26px;display:grid;place-items:center">▶▶</span></div>
+        <i class="perf"></i>
+        <div id="badgesC" style="flex:1;display:flex;justify-content:center;gap:10px"></div>
+        <i class="perf"></i>
+        <div style="padding:0 18px;display:grid;line-height:1.1;text-align:right"><span class="serif" style="font-weight:700;font-size:22px">$5,238,120</span><span style="font-size:12.5px;color:var(--pine)">+$38,200 today · 1,240 skiers</span></div>
+      </div>
+    </div></div>
+  </section>
+  <section id="secD">
+    <h2>D · Trailhead <small>the MapLibre edition's title, carried into the game</small></h2>
+    <ul class="traits">
+      <li><b>The title screen keeps your signpost:</b> the nameplate, and Continue, New Resort and My Resorts as trail-rated signs on cedar posts, standing on our Unity mountain at golden hour.</li>
+      <li><b>In the game, it becomes an instrument:</b> warm graphite panels with hairline rules, Overpass for labels and Overpass Mono for figures. Every number has its units, and costs are broken down line by line.</li>
+      <li><b>Signage survives as accents:</b> lift-number plates, trail-rating symbols and surveyor's orange for anything planned. The map carries thin, precise overlays with dimensions, not signs.</li>
+    </ul>
+    <div class="frame" id="frameD1"><div class="stage dD" id="stageD1">
+      <img class="bg" src="assets/game-golden.jpg" alt="">
+      <div class="abs" style="inset:0;background:linear-gradient(180deg, rgba(52,40,58,.55), rgba(96,58,40,.18) 26%, transparent 42%)"></div>
+      <div class="abs" style="inset:0;background:radial-gradient(ellipse at 14% 70%, rgba(40,22,10,.38), transparent 50%),linear-gradient(0deg, rgba(40,24,12,.34), transparent 32%)"></div>
+      <i class="post" style="left:102px;top:276px;bottom:-2px"></i>
+      <i class="post" style="left:332px;top:276px;bottom:-2px"></i>
+      <div class="abs" style="left:64px;top:262px;width:330px">
+        <div class="plate" style="position:relative;display:flex;align-items:center;gap:12px;padding:13px 16px;margin:0 12px 23px 0">
+          <svg width="36" height="36" style="color:var(--black);flex:none"><use href="#d-mark"/></svg>
+          <h1 style="margin:0;font:800 21px 'Overpass',sans-serif;letter-spacing:-.2px;line-height:1.15">Ski Area Design Challenge</h1>
+        </div>
+        <div class="sign bolts menu-sign" style="--face:var(--green)"><span data-rating="green"></span><span>Continue<small>Jackson Peaks · day 214</small></span><svg class="arrow"><use href="#d-arrow"/></svg></div>
+        <div class="sign bolts menu-sign" style="--face:var(--blue);margin-top:18px"><span data-rating="blue"></span><span>New Resort</span><svg class="arrow"><use href="#d-arrow"/></svg></div>
+        <div class="sign bolts menu-sign" style="--face:var(--black);margin-top:18px"><span data-rating="black"></span><span>My Resorts</span><svg class="arrow"><use href="#d-arrow"/></svg></div>
+      </div>
+      <div class="abs smallplate" style="right:36px;top:32px;display:grid;gap:3px;padding:12px 18px">
+        <span class="lbl">Conditions today</span>
+        <span style="font:800 17px 'Overpass'">−8°  ·  12 cm new  ·  Wind W 15</span>
+      </div>
+      <div class="abs" style="right:36px;bottom:30px;display:flex;gap:8px"><span class="smallplate">Settings</span><span class="smallplate">Credits</span><span class="smallplate">Quit</span></div>
+      <div class="abs" style="left:430px;bottom:30px;font:600 12px 'Overpass';letter-spacing:.14em;color:#fbf8f2;text-shadow:0 1px 3px rgba(40,20,5,.6)">VERSION 0.1 · JACKSON HOLE, WYOMING</div>
+    </div></div>
+    <div class="frame" id="frameD2" style="margin-top:14px"><div class="stage dD" id="stageD2">
+      <img class="bg" src="assets/game-golden.jpg" alt="">
+      <div class="abs" style="inset:0;background:linear-gradient(180deg, rgba(52,40,58,.55), rgba(96,58,40,.18) 26%, transparent 42%)"></div>
+      <svg class="world" id="worldD" viewBox="0 0 1280 720" aria-label="The mountain with lifts and runs drawn as thin survey lines, and a planned lift dimensioned in orange"></svg>
+
+      <div class="pn" style="left:14px;top:14px;width:318px">
+        <div class="hd"><span class="num-plate plan">4</span>LIFT PLANNER<span style="color:#a39b90;font-weight:600;letter-spacing:.04em">· SUMMIT QUAD</span><span class="x">✕</span></div>
+        <div style="padding:10px 12px 4px;display:grid;gap:8px">
+          <div class="seg2"><span class="on">Chair</span><span>Gondola</span><span>T-bar</span><span>Carpet</span></div>
+          <div class="seg2"><span>Fixed 4</span><span class="on">Detach 4</span><span>Detach 6</span></div>
+        </div>
+        <dl class="kv">
+          <dt>Slope length</dt><dd><b>739</b> m</dd>
+          <dt>Vertical rise</dt><dd><b>406</b> m · 29.1°</dd>
+          <dt>Line speed</dt><dd><b>5.0</b> m/s · ride 2:28</dd>
+          <dt>Capacity</dt><dd><b>2,400</b> pph</dd>
+          <dt>Carriers</dt><dd>62 @ 11.0 s</dd>
+        </dl>
+        <div class="rule"></div>
+        <div class="sub" style="padding-top:8px"><span>Profile <span class="mono" style="letter-spacing:0;text-transform:none;color:#a39b90;font-weight:500">3,100→3,506 m</span></span><span style="color:#cfc7bb;letter-spacing:.04em">clear <b style="color:#efe9df">7.4 m</b> @ T3</span></div>
+        <svg id="profD" width="318" height="72" style="display:block" aria-label="Profile of the planned lift with towers and clearance"></svg>
+        <div class="rule"></div>
+        <div class="sub" style="padding-top:8px"><span>Cost estimate</span><span style="color:#cfc7bb;letter-spacing:.04em">±12 %</span></div>
+        <dl class="kv" style="padding-top:5px">
+          <dt>Terminals (2)</dt><dd>$1,860,000</dd>
+          <dt>Line · 739 m × $2,150</dt><dd>$1,588,850</dd>
+          <dt>Towers (6)</dt><dd>$498,000</dd>
+          <dt>Grading · 1,240 m³</dt><dd>$173,150</dd>
+          <dt style="color:#efe9df">Total</dt><dd><b>$4,120,000</b></dd>
+        </dl>
+        <div class="rule"></div>
+        <div class="sub" style="padding-top:8px"><span>Hourly demand · Ridge Six</span><span style="color:#f0b43c;letter-spacing:.04em">−38 % after</span></div>
+        <svg id="demandD" width="318" height="46" style="display:block" aria-label="Demand against capacity through the day"></svg>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px 12px 12px">
+          <div class="btn-go"><span>BREAK GROUND</span><span class="mono">$4.70M</span></div>
+          <div class="btn-ghost">QUEUE</div>
+          <div style="grid-column:1/-1;font:500 11.5px 'Overpass';color:#a39b90">Includes Couloir run ($580,000). Leaves <span class="mono" style="color:#efe9df">$538,120</span> · build 26 days.</div>
+        </div>
+      </div>
+
+      <div class="pn" style="right:14px;top:14px;width:300px">
+        <div class="hd">OPERATIONS<span class="x" style="font:600 11px 'Overpass Mono'">3</span></div>
+        <div class="alert" style="padding-left:0"><i style="background:#f0b43c"></i><span><b style="font-weight:700">Ridge Six queue 12 min</b><br><span style="color:#a39b90">180 waiting · 2,850 pph arriving</span></span><span class="mono" style="color:#a39b90;font-size:11px">10:28</span></div>
+        <div class="alert"><i style="background:#6f675e"></i><span>Headwall groomed<br><span style="color:#a39b90">Cat 2 · 41 min</span></span><span class="mono" style="color:#a39b90;font-size:11px">10:02</span></div>
+        <div class="alert"><i style="background:#6f675e"></i><span>Wind W 15 km/h, gusts 32<br><span style="color:#a39b90">Summit lifts on watch above 55</span></span><span class="mono" style="color:#a39b90;font-size:11px">09:40</span></div>
+      </div>
+
+      <div class="dock" id="dockD"></div>
+
+      <div class="bar">
+        <div><span class="v" style="font-size:15px">10:30</span><span class="k">Sat 15 Jan</span><span class="spd" id="speedD"></span></div>
+        <div><span class="k">Weather</span><span class="v">−8° · 12 cm · W 15</span></div>
+        <div id="liftsD"><span class="k">Lifts</span></div>
+        <div style="margin-left:auto"><span class="k">Skiers</span><span class="v">1,240</span><svg id="sparkG" width="64" height="20" aria-hidden="true"></svg></div>
+        <div><span class="k">Today</span><span class="v" style="color:#8fcf8a">+$38,200</span><svg id="sparkC" width="64" height="20" aria-hidden="true"></svg></div>
+        <div><span class="k">Cash</span><span class="v" style="font-size:15px">$5,238,120</span></div>
+      </div>
+    </div></div>
+  </section>
+  <p class="pagenote">Style frames only: the mountain is a capture of our Unity build (Jackson Hole; noon for A–C, golden hour for D); the lifts, runs, names and numbers are invented, and no other game's art or logos are used.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const W = 1280, H = 720;
+  const solo = location.hash.replace('#', '');
+  const soloSec = { a: 'secA', b: 'secB', c: 'secC', d: 'secD', d1: 'secD', d2: 'secD' }[solo];
+  if (soloSec) {
+    document.body.classList.add('solo'); document.getElementById(soloSec).classList.add('solo-on');
+    if (solo === 'd1') document.getElementById('frameD2').style.display = 'none';
+    if (solo === 'd2') { document.getElementById('frameD1').style.display = 'none'; document.getElementById('frameD2').style.marginTop = '0'; }
+  }
+  for (const id of ['A', 'B', 'C', 'D1', 'D2']) {
+    const f = document.getElementById('frame' + id), s = document.getElementById('stage' + id);
+    const fit = () => { const k = f.clientWidth / W; s.style.transform = `scale(${k})`; f.style.height = `${H * k}px`; };
+    new ResizeObserver(fit).observe(f); fit();
+  }
+
+  // ---------- the resort, placed by eye on the captured mountain (1280x720 space) ----------
+  const LIFTS = [
+    { n: 2, name: 'Aspen Quad', a: [548, 616], b: [652, 402] },
+    { n: 3, name: 'Ridge Six', a: [770, 598], b: [886, 316] },
+  ];
+  const PLAN = { n: 4, name: 'Summit Quad', a: [886, 316], b: [946, 203] };
+  const RUNS = [
+    { name: 'Bighorn', diff: 'blue', pts: [[648, 410], [612, 472], [584, 540], [560, 604]] },
+    { name: 'Cornice', diff: 'black', pts: [[660, 406], [706, 462], [673, 540], [602, 610]] },
+    { name: 'Headwall', diff: 'black', pts: [[880, 326], [838, 408], [801, 500], [778, 590]] },
+    { name: 'Timberline', diff: 'blue', pts: [[893, 322], [938, 384], [908, 470], [832, 556], [788, 596]] },
+  ];
+  const COULOIR = [[948, 206], [987, 252], [997, 306], [968, 352]];
+  const f1 = (n) => n.toFixed(1);
+  const P = (p) => ({ x: p[0], y: p[1] });
+  const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+  function smooth(pts) {
+    const ps = pts.map(P); let d = `M${f1(ps[0].x)} ${f1(ps[0].y)}`;
+    for (let i = 0; i < ps.length - 1; i++) {
+      const p0 = ps[i - 1] || ps[i], p1 = ps[i], p2 = ps[i + 1], p3 = ps[i + 2] || p2;
+      d += ` C${f1(p1.x + (p2.x - p0.x) / 6)} ${f1(p1.y + (p2.y - p0.y) / 6)} ${f1(p2.x - (p3.x - p1.x) / 6)} ${f1(p2.y - (p3.y - p1.y) / 6)} ${f1(p2.x)} ${f1(p2.y)}`;
+    }
+    return d;
+  }
+  // Tower ticks across a straight lift line.
+  function ticks(a, b, step, half, stroke, width) {
+    const A = P(a), B = P(b), len = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, n = Math.round(len / step); let s = '';
+    for (let k = 1; k < n; k++) { const p = lerp(A, B, k / n); s += `<line x1="${f1(p.x - uy * half)}" y1="${f1(p.y + ux * half)}" x2="${f1(p.x + uy * half)}" y2="${f1(p.y - ux * half)}" stroke="${stroke}" stroke-width="${width}"/>`; }
+    return s;
+  }
+  // A simple lift profile: ground under a cable between two terminals, with towers.
+  const GROUND = [0, 0.05, 0.14, 0.2, 0.31, 0.36, 0.47, 0.55, 0.66, 0.72, 0.84, 0.92, 1].map((t, i) => [t, [0, 8, 14, 28, 36, 52, 58, 71, 80, 90, 96, 104, 110][i]]);
+  function profile(w, h, o) {
+    const X = (t) => 6 + t * (w - 12), Y = (e) => h - 8 - e / 112 * (h - 22);
+    const g = GROUND.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ');
+    const towers = [0.2, 0.4, 0.6, 0.8]; let s = '';
+    if (o.fill) s += `<path d="${g} L${f1(X(1))} ${h} L${f1(X(0))} ${h}z" fill="${o.fill}"/>`;
+    s += `<path d="${g}" fill="none" stroke="${o.ground}" stroke-width="${o.gw || 1.4}"/>`;
+    const top = (t) => { const i = GROUND.findIndex((p) => p[0] >= t); const [t0, e0] = GROUND[Math.max(0, i - 1)], [t1, e1] = GROUND[i]; const e = e0 + (e1 - e0) * ((t - t0) / ((t1 - t0) || 1)); return { gy: Y(e), ty: Y(e) - 10 }; };
+    const pts = [{ t: 0, ...top(0), ty: Y(0) - 6 }, ...towers.map((t) => ({ t, ...top(t) })), { t: 1, ...top(1), ty: Y(110) - 6 }];
+    for (const p of pts.slice(1, -1)) s += `<line x1="${f1(X(p.t))}" y1="${f1(p.gy)}" x2="${f1(X(p.t))}" y2="${f1(p.ty)}" stroke="${o.tower}" stroke-width="1.6"/>`;
+    s += `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${f1(X(p.t))} ${f1(p.ty)}`).join(' ')}" fill="none" stroke="${o.cable}" stroke-width="${o.cw || 1.8}" ${o.dash ? `stroke-dasharray="${o.dash}"` : ''} ${o.filter ? `filter="${o.filter}"` : ''}/>`;
+    if (o.labels) s += `<text x="${f1(X(0) + 4)}" y="${h - 1}" style="${o.labels}">3,100 m</text><text x="${f1(X(1) - 14)}" y="12" text-anchor="end" style="${o.labels}">3,506 m</text>`;
+    return s;
+  }
+
+  // ================= A · Ops console: symbology over the mountain =================
+  {
+    const mono = "font:700 11px 'B612 Mono',monospace";
+    let s = `<defs><filter id="aG" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter></defs>`;
+    const tag = (x, y, lines, edge) => { const w = Math.max(...lines.map((l) => l[0].length)) * 7 + 16, h = lines.length * 15 + 8; return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="rgba(5,9,7,0.78)" stroke="${edge}" stroke-width="1"/>` + lines.map(([t, c], i) => `<text x="${x + 8}" y="${y + 17 + i * 15}" style="${mono};fill:${c}">${t}</text>`).join(''); };
+    for (const r of RUNS) { const c = { blue: '#6fb7ff', black: '#f1f4f6' }[r.diff]; s += `<path d="${smooth(r.pts)}" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="4" stroke-linecap="round"/><path d="${smooth(r.pts)}" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" ${r.diff === 'black' ? 'stroke-dasharray="1 0"' : ''}/>`; }
+    for (const l of LIFTS) {
+      s += `<line x1="${l.a[0]}" y1="${l.a[1]}" x2="${l.b[0]}" y2="${l.b[1]}" stroke="rgba(0,0,0,0.5)" stroke-width="4"/><line x1="${l.a[0]}" y1="${l.a[1]}" x2="${l.b[0]}" y2="${l.b[1]}" stroke="#f1f4f6" stroke-width="1.6"/>` + ticks(l.a, l.b, 16, 3.5, '#f1f4f6', 1.3);
+      for (const p of [l.a, l.b]) s += `<rect x="${p[0] - 3.5}" y="${p[1] - 3.5}" width="7" height="7" fill="#f1f4f6" stroke="#000" stroke-width="1"/>`;
+    }
+    s += tag(LIFTS[0].b[0] - 104, LIFTS[0].b[1] - 30, [['L2 ASPEN', '#f1f4f6']], 'rgba(241,244,246,0.35)');
+    s += tag(LIFTS[1].b[0] - 116, LIFTS[1].b[1] + 6, [['L3 RIDGE SIX', '#f1f4f6']], 'rgba(241,244,246,0.35)');
+    // The plan is a route: magenta, dashed while pending, with diamond waypoints.
+    const route = (d) => `<path d="${d}" fill="none" stroke="#ff5ed3" stroke-width="6" opacity="0.35" filter="url(#aG)"/><path d="${d}" fill="none" stroke="#ff5ed3" stroke-width="2.2" stroke-dasharray="9 6"/>`;
+    s += route(`M${PLAN.a[0]} ${PLAN.a[1]}L${PLAN.b[0]} ${PLAN.b[1]}`) + route(smooth(COULOIR));
+    const wp = (p) => `<path d="M${p[0]} ${p[1] - 7}l7 7-7 7-7-7z" fill="#050907" stroke="#ff5ed3" stroke-width="2"/><circle cx="${p[0]}" cy="${p[1]}" r="1.6" fill="#ff5ed3"/>`;
+    s += wp(PLAN.a) + wp(PLAN.b);
+    const [bx, by] = PLAN.b;
+    s += `<path d="M${bx - 16} ${by - 10}v-6h6M${bx + 16} ${by - 10}v-6h-6M${bx - 16} ${by + 10}v6h6M${bx + 16} ${by + 10}v6h-6" fill="none" stroke="#5fd6ff" stroke-width="1.6"/>`;
+    s += `<line x1="${bx - 20}" y1="${by - 6}" x2="${bx - 60}" y2="${by - 46}" stroke="#ff5ed3" stroke-width="1"/>`;
+    s += tag(bx - 238, by - 104, [['L4 SUMMIT QUAD', '#f1f4f6'], ['739M  ▲406M  29°', '#58f09a'], ['RIDE 2:28   $4.12M', '#ff5ed3']], 'rgba(255,94,211,0.55)');
+    // Caution at Ridge Six's base: an amber ring and data tag.
+    const [qx, qy] = LIFTS[1].a;
+    s += `<circle cx="${qx}" cy="${qy}" r="22" fill="none" stroke="#ffb238" stroke-width="2" stroke-dasharray="5 4"/><circle cx="${qx}" cy="${qy}" r="30" fill="#ffb238" opacity="0.12"/>`;
+    s += `<line x1="${qx + 20}" y1="${qy - 10}" x2="${qx + 40}" y2="${qy - 26}" stroke="#ffb238" stroke-width="1"/>` + tag(qx + 40, qy - 44, [['▲ LINE 12MIN · 180', '#ffb238']], 'rgba(255,178,56,0.6)');
+    document.getElementById('worldA').innerHTML = s;
+    // The tape: a capacity scale with the selected value in cyan.
+    let t = `<line x1="0" y1="8" x2="256" y2="8" stroke="#2c5a40" stroke-width="1"/>`;
+    for (let i = 0; i <= 20; i++) { const x = 4 + i * 12.4; t += `<line x1="${f1(x)}" y1="${i % 5 ? 5 : 2}" x2="${f1(x)}" y2="8" stroke="#58f09a" stroke-width="1" opacity="${i % 5 ? 0.5 : 0.9}"/>`; }
+    t += `<text x="4" y="19" style="font:9px 'B612 Mono';fill:#5d6e64">1200</text><text x="252" y="19" text-anchor="end" style="font:9px 'B612 Mono';fill:#5d6e64">3600</text><path d="M128 9l-5 8h10z" fill="#5fd6ff"/>`;
+    document.getElementById('tapeA').innerHTML = t;
+    document.getElementById('profA').innerHTML = profile(256, 70, { ground: '#58f09a', tower: '#f1f4f6', cable: '#ff5ed3', dash: '6 3', fill: 'rgba(88,240,154,0.07)' });
+    const deck = [['t-lift', 'LIFTS', 1], ['t-run', 'RUNS'], ['t-snow', 'SNOW'], ['t-groom', 'GROOM'], ['t-lodge', 'LODGES'], ['t-road', 'ROADS'], ['t-terrain', 'TERRAIN'], ['t-remove', 'REMOVE'], ['t-views', 'VIEWS']];
+    document.getElementById('deckA').innerHTML = deck.map(([ic, lb, on], i) => `<div class="pb${on ? ' on' : ''}" style="left:${368 + i * 61}px"><svg viewBox="0 0 24 24"><use href="#${ic}"/></svg><small>${lb}</small></div>`).join('');
+  }
+
+  // ================= B · Swiss signage =================
+  {
+    const plate = (x, y, text, tab, sub) => { const w = text.length * 7.6 + (tab ? 34 : 18); return `<g><rect x="${x}" y="${y}" width="${w}" height="24" fill="#fff"/>${tab ? `<rect x="${x}" y="${y}" width="24" height="24" fill="${tab.bg}"/>${tab.shape}` : ''}<text x="${x + (tab ? 31 : 9)}" y="${y + 16.5}" style="font:700 13px Archivo,sans-serif;fill:#111">${text}</text></g>`; };
+    const sq = (x, y, c) => `<rect x="${x + 7}" y="${y + 7}" width="10" height="10" fill="${c}"/>`;
+    const di = (x, y, c, n) => n === 2 ? `<path d="M${x + 7} ${y + 6}l4 6-4 6-4-6zM${x + 16} ${y + 6}l4 6-4 6-4-6z" fill="${c}"/>` : `<path d="M${x + 12} ${y + 5}l6 7-6 7-6-7z" fill="${c}"/>`;
+    let s = '';
+    for (const r of RUNS) { const c = r.diff === 'blue' ? '#1c5aa6' : '#111'; s += `<path d="${smooth(r.pts)}" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="${smooth(r.pts)}" fill="none" stroke="${c}" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>`; }
+    for (const l of LIFTS) {
+      s += `<line x1="${l.a[0]}" y1="${l.a[1]}" x2="${l.b[0]}" y2="${l.b[1]}" stroke="#fff" stroke-width="6"/><line x1="${l.a[0]}" y1="${l.a[1]}" x2="${l.b[0]}" y2="${l.b[1]}" stroke="#111" stroke-width="2.4"/>` + ticks(l.a, l.b, 18, 4, '#111', 2);
+      for (const p of [l.a, l.b]) s += `<rect x="${p[0] - 5}" y="${p[1] - 5}" width="10" height="10" fill="#111" stroke="#fff" stroke-width="2"/>`;
+    }
+    s += `<path d="M${PLAN.a[0]} ${PLAN.a[1]}L${PLAN.b[0]} ${PLAN.b[1]}" stroke="#fff" stroke-width="7"/><path d="M${PLAN.a[0]} ${PLAN.a[1]}L${PLAN.b[0]} ${PLAN.b[1]}" stroke="#e2231a" stroke-width="3.4" stroke-dasharray="10 6"/>`;
+    s += `<path d="${smooth(COULOIR)}" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/><path d="${smooth(COULOIR)}" fill="none" stroke="#e2231a" stroke-width="3.4" stroke-dasharray="10 6" stroke-linecap="round"/>`;
+    for (const p of [PLAN.a, PLAN.b]) s += `<rect x="${p[0] - 6}" y="${p[1] - 6}" width="12" height="12" fill="#e2231a" stroke="#fff" stroke-width="2"/>`;
+    // Plates: lift numbers, run names with their difficulty.
+    const num = (x, y, n, bg) => `<rect x="${x}" y="${y}" width="24" height="24" fill="${bg || '#111'}"/><text x="${x + 12}" y="${y + 17}" text-anchor="middle" style="font:800 14px Archivo,sans-serif;fill:#fff">${n}</text>`;
+    s += num(LIFTS[0].b[0] - 34, LIFTS[0].b[1] - 30, 2) + num(LIFTS[1].b[0] - 36, LIFTS[1].b[1] - 8, 3);
+    s += plate(560, 470, 'Bighorn', { bg: '#1c5aa6', shape: sq(560, 470, '#fff') }) + plate(698, 494, 'Cornice', { bg: '#111', shape: di(698, 494, '#fff') });
+    s += plate(840, 424, 'Headwall', { bg: '#111', shape: di(840, 424, '#fff') }) + plate(916, 470, 'Timberline', { bg: '#1c5aa6', shape: sq(916, 470, '#fff') });
+    s += plate(1004, 312, 'Couloir', { bg: '#e2231a', shape: di(1004, 312, '#fff', 2) });
+    // The readout: a white plate under a red bar.
+    const [bx, by] = PLAN.b, rx = bx - 250, ry = by - 112;
+    s += `<g><rect x="${rx}" y="${ry}" width="226" height="84" fill="#fff"/><rect x="${rx}" y="${ry}" width="226" height="5" fill="#e2231a"/>
+      <text x="${rx + 12}" y="${ry + 28}" style="font:800 17px Archivo,sans-serif;fill:#111">4 Summit Quad</text><text x="${rx + 214}" y="${ry + 28}" text-anchor="end" style="font:800 17px Archivo,sans-serif;fill:#e2231a">$4.12M</text>
+      <line x1="${rx + 12}" y1="${ry + 38}" x2="${rx + 214}" y2="${ry + 38}" stroke="#111" stroke-width="1.5"/>
+      <text x="${rx + 12}" y="${ry + 58}" style="font:700 14px Archivo,sans-serif;fill:#111">739 m<tspan style="font-weight:500;fill:#6b6b6b"> long</tspan>   406 m<tspan style="font-weight:500;fill:#6b6b6b"> up</tspan>   29°</text>
+      <text x="${rx + 12}" y="${ry + 75}" style="font:500 12.5px Archivo,sans-serif;fill:#6b6b6b">Ride 2:28 · drag the red square to adjust</text></g>
+      <line x1="${rx + 226}" y1="${ry + 60}" x2="${bx - 8}" y2="${by - 4}" stroke="#111" stroke-width="1.5"/>`;
+    // Warning: a yellow square sign at Ridge Six's base.
+    const [qx, qy] = LIFTS[1].a;
+    s += `<g><rect x="${qx + 14}" y="${qy - 46}" width="30" height="30" fill="#ffcc00" stroke="#111" stroke-width="2"/><path d="M${qx + 29} ${qy - 40}l9 17h-18z" fill="#111"/><rect x="${qx + 44}" y="${qy - 46}" width="92" height="30" fill="#fff" stroke="#111" stroke-width="2"/><text x="${qx + 52}" y="${qy - 26}" style="font:800 14px Archivo,sans-serif;fill:#111">12 min</text><line x1="${qx + 14}" y1="${qy - 16}" x2="${qx + 4}" y2="${qy - 5}" stroke="#111" stroke-width="2"/></g>`;
+    document.getElementById('worldB').innerHTML = s;
+    document.getElementById('profB').innerHTML = profile(304, 52, { ground: '#111', gw: 1.8, tower: '#111', cable: '#e2231a', dash: '7 4', cw: 2.2, fill: 'rgba(0,0,0,0.06)', labels: "font:600 11px Archivo,sans-serif;fill:#6b6b6b" });
+    const tiles = [['p-lift', 1], ['p-ski'], ['p-snow'], ['p-groom'], ['p-lodge'], ['p-road'], ['p-terrain'], ['p-remove'], ['p-views']];
+    document.getElementById('tilesB').innerHTML = tiles.map(([ic, on], i) => `${i === 8 ? '<span style="width:10px"></span>' : ''}<span class="tile${on ? ' on' : ''}"><svg viewBox="0 0 24 24"><use href="#${ic}"/></svg></span>`).join('');
+    // The station clock: bars for hours, a red second hand with its disc.
+    let c = `<circle cx="50" cy="50" r="48" fill="#fff"/>`;
+    for (let i = 0; i < 60; i++) { const a = i * 6 * Math.PI / 180, big = i % 5 === 0, r1 = big ? 33 : 40, r2 = 45; c += `<line x1="${f1(50 + r1 * Math.sin(a))}" y1="${f1(50 - r1 * Math.cos(a))}" x2="${f1(50 + r2 * Math.sin(a))}" y2="${f1(50 - r2 * Math.cos(a))}" stroke="#111" stroke-width="${big ? 5.5 : 1.8}"/>`; }
+    c += `<rect x="46.5" y="22" width="7" height="36" fill="#111" transform="rotate(315 50 50)"/><rect x="47.5" y="8" width="5" height="50" fill="#111" transform="rotate(180 50 50)"/>`;
+    c += `<g transform="rotate(72 50 50)"><rect x="49" y="20" width="2" height="44" fill="#e2231a"/><circle cx="50" cy="20" r="7" fill="#e2231a"/></g>`;
+    document.getElementById('clockB').innerHTML = c;
+  }
+
+  // ================= C · Trail-map print =================
+  {
+    let s = `<defs><filter id="cPen" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="1" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/></filter>
+      <filter id="cInk" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="1" seed="9" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="0.9"/></filter></defs>`;
+    for (const [i, r] of RUNS.entries()) {
+      const c = r.diff === 'blue' ? '#336fae' : '#1d2a44', d = smooth(r.pts);
+      s += `<path d="${d}" fill="none" stroke="#fbf6ea" stroke-width="6.5" stroke-linecap="round" opacity="0.9"/><path d="${d}" fill="none" stroke="${c}" stroke-width="3" stroke-linecap="round" filter="url(#cInk)"/>`;
+      const rev = r.pts[0][0] > r.pts[r.pts.length - 1][0], path = rev ? [...r.pts].reverse() : r.pts;
+      s += `<path id="cRun${i}" d="${smooth(path)}" fill="none"/><text dy="-7" style="font:italic 600 13px Fraunces,serif;fill:#1d2a44;paint-order:stroke;stroke:#fbf6ea;stroke-width:3.5px"><textPath href="#cRun${i}" startOffset="50%" text-anchor="middle">${r.name}</textPath></text>`;
+    }
+    for (const l of LIFTS) {
+      s += `<line x1="${l.a[0]}" y1="${l.a[1]}" x2="${l.b[0]}" y2="${l.b[1]}" stroke="#fbf6ea" stroke-width="5.5" opacity="0.85"/><line x1="${l.a[0]}" y1="${l.a[1]}" x2="${l.b[0]}" y2="${l.b[1]}" stroke="#1d2a44" stroke-width="2" filter="url(#cInk)"/>` + ticks(l.a, l.b, 14, 4, '#1d2a44', 1.6);
+      for (const p of [l.a, l.b]) s += `<circle cx="${p[0]}" cy="${p[1]}" r="4.5" fill="#1d2a44" stroke="#fbf6ea" stroke-width="1.5"/>`;
+    }
+    const lbl = (x, y, t) => `<text x="${x}" y="${y}" style="font:italic 700 14px Fraunces,serif;fill:#1d2a44;paint-order:stroke;stroke:#fbf6ea;stroke-width:4px">${t}</text>`;
+    s += lbl(LIFTS[0].b[0] - 104, LIFTS[0].b[1] - 8, 'Aspen Quad') + lbl(LIFTS[1].b[0] - 94, LIFTS[1].b[1] + 22, 'Ridge Six');
+    // Plans in red pencil, marked with survey crosses.
+    const pencil = (d) => `<path d="${d}" fill="none" stroke="#c23b27" stroke-width="2.4" stroke-dasharray="11 5" stroke-linecap="round" filter="url(#cPen)"/>`;
+    s += pencil(`M${PLAN.a[0]} ${PLAN.a[1]}L${PLAN.b[0]} ${PLAN.b[1]}`) + pencil(smooth(COULOIR));
+    for (const p of [PLAN.a, PLAN.b]) s += `<path d="M${p[0] - 6} ${p[1] - 6}l12 12M${p[0] + 6} ${p[1] - 6}l-12 12" stroke="#c23b27" stroke-width="2.6" stroke-linecap="round" filter="url(#cPen)"/>`;
+    s += `<text x="${PLAN.a[0] + 26}" y="${PLAN.a[1] - 36}" transform="rotate(-62 ${PLAN.a[0] + 26} ${PLAN.a[1] - 36})" style="font:italic 600 13px Fraunces,serif;fill:#c23b27;paint-order:stroke;stroke:#fbf6ea;stroke-width:3px">739 m</text>`;
+    s += `<text x="1004" y="286" style="font:italic 600 13px Fraunces,serif;fill:#c23b27;paint-order:stroke;stroke:#fbf6ea;stroke-width:3px">Couloir ◆◆</text>`;
+    // The readout: a paper tag on a string from the top stake.
+    const [bx, by] = PLAN.b, rx = bx - 252, ry = by - 118;
+    s += `<path d="M${bx - 4} ${by - 6} C ${bx - 30} ${by - 30}, ${rx + 230} ${ry + 60}, ${rx + 214} ${ry + 44}" fill="none" stroke="#8a6d45" stroke-width="1.3"/>`;
+    s += `<g transform="rotate(-2 ${rx + 110} ${ry + 45})"><path d="M${rx} ${ry}h206l18 18v54l-18 18H${rx}z" fill="#f7f0e1" stroke="rgba(60,40,10,0.35)"/><circle cx="${rx + 212}" cy="${ry + 45}" r="4" fill="none" stroke="#8a6d45" stroke-width="1.5"/>
+      <text x="${rx + 14}" y="${ry + 28}" style="font:700 18px Fraunces,serif;fill:#1d2a44">Summit Quad</text>
+      <text x="${rx + 14}" y="${ry + 50}" style="font:italic 400 14px Fraunces,serif;fill:#5b6680">739 m long, 406 m up, 29°</text>
+      <text x="${rx + 14}" y="${ry + 73}" style="font:600 14px 'IBM Plex Sans Condensed',sans-serif;fill:#c23b27">$4.12M · a 2:28 ride</text></g>`;
+    // The problem, circled in red pencil on the mountain.
+    const [qx, qy] = LIFTS[1].a;
+    s += `<path d="M${qx - 30} ${qy + 4} C ${qx - 32} ${qy - 22}, ${qx + 26} ${qy - 30}, ${qx + 32} ${qy - 4} S ${qx + 6} ${qy + 30}, ${qx - 24} ${qy + 16} ${qx - 26} ${qy - 8} ${qx - 10} ${qy - 20}" fill="none" stroke="#c23b27" stroke-width="2.4" stroke-linecap="round" filter="url(#cPen)"/>`;
+    s += `<text x="${qx + 38}" y="${qy - 16}" style="font:italic 700 15px Fraunces,serif;fill:#c23b27;paint-order:stroke;stroke:#fbf6ea;stroke-width:3.5px">12 min wait!</text><text x="${qx + 38}" y="${qy}" style="font:italic 400 13px Fraunces,serif;fill:#c23b27;paint-order:stroke;stroke:#fbf6ea;stroke-width:3px">180 in line</text>`;
+    document.getElementById('worldC').innerHTML = s;
+    document.getElementById('profC').innerHTML = `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#1d2a44" stroke-width="1" opacity=".45"/></pattern></defs>` + profile(290, 70, { ground: '#1d2a44', gw: 1.6, tower: '#1d2a44', cable: '#c23b27', dash: '8 4', cw: 2, fill: 'url(#hatch)', filter: 'url(#cPen)', labels: "font:italic 400 12px Fraunces,serif;fill:#5b6680" });
+    const badges = [['t-lift', 'Lifts', 1], ['t-run', 'Runs'], ['t-snow', 'Snow'], ['t-groom', 'Groom'], ['t-lodge', 'Lodges'], ['t-road', 'Roads'], ['t-terrain', 'Terrain'], ['t-remove', 'Remove'], ['t-views', 'Views']];
+    document.getElementById('badgesC').innerHTML = badges.map(([ic, lb, on]) => `<span class="badge${on ? ' on' : ''}" title="${lb}"><svg viewBox="0 0 24 24"><use href="#${ic}"/></svg></span>`).join('');
+  }
+
+  // ================= D · Trailhead: signpost title, simulator HUD =================
+  {
+    // Trail-rating plates, as on real ski-area signs.
+    const rating = (kind, size = 30) => {
+      const sym = kind === 'green' ? '<circle cx="16" cy="16" r="10.5" fill="#1f8a4c"/>'
+        : kind === 'blue' ? '<rect x="6.5" y="6.5" width="19" height="19" fill="#22558f"/>'
+        : kind === 'double' ? '<path d="M9.5 6.5l6.5 9.5-6.5 9.5L3 16zM22.5 6.5L29 16l-6.5 9.5L16 16z" fill="#1f1c19"/>'
+        : '<path d="M16 3.5L28.5 16 16 28.5 3.5 16z" fill="#1f1c19"/>';
+      return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" style="flex:none" aria-hidden="true"><rect width="32" height="32" rx="2" fill="#fbf8f2"/>${sym}</svg>`;
+    };
+    document.querySelectorAll('[data-rating]').forEach((el) => { el.outerHTML = rating(el.dataset.rating); });
+    const white = '#fbf8f2', ink = '#1f1c19', flag = '#ff6a1f', amber = '#f0b43c', graphite = 'rgba(27,24,21,.92)';
+    const runColour = { green: '#1f8a4c', blue: '#2f6bb0', black: '#1f1c19' };
+    const mono = "font:600 10.5px 'Overpass Mono',monospace";
+    // A small data tag: graphite, hairline, a rating symbol or lift plate, then text.
+    const tag = (x, y, lead, text, w) => `<g><rect x="${x}" y="${y}" width="${w}" height="18" rx="2" fill="${graphite}" stroke="#4a443e" stroke-width="1"/>${lead}<text x="${x + 21}" y="${y + 12.8}" style="font:700 10.5px Overpass,sans-serif;letter-spacing:.06em;fill:#efe9df">${text}</text></g>`;
+    const sym = (x, y, kind) => kind === 'blue' ? `<rect x="${x + 5}" y="${y + 5}" width="8" height="8" fill="#4d8ad6"/>`
+      : kind === 'double' ? `<path d="M${x + 6.5} ${y + 4}l3.5 5-3.5 5-3.5-5zM${x + 12.5} ${y + 4}l3.5 5-3.5 5-3.5-5z" fill="#efe9df"/>`
+      : `<path d="M${x + 9} ${y + 3.5}l5.5 5.5-5.5 5.5-5.5-5.5z" fill="#efe9df"/>`;
+    let s = '';
+    for (const r of RUNS) s += `<path d="${smooth(r.pts)}" fill="none" stroke="${white}" stroke-width="4.4" stroke-linecap="round" opacity=".75"/><path d="${smooth(r.pts)}" fill="none" stroke="${runColour[r.diff]}" stroke-width="2.2" stroke-linecap="round"/>`;
+    for (const l of LIFTS) {
+      s += `<line x1="${l.a[0]}" y1="${l.a[1]}" x2="${l.b[0]}" y2="${l.b[1]}" stroke="${white}" stroke-width="3.8" opacity=".8"/><line x1="${l.a[0]}" y1="${l.a[1]}" x2="${l.b[0]}" y2="${l.b[1]}" stroke="${ink}" stroke-width="1.5"/>` + ticks(l.a, l.b, 16, 3.5, ink, 1.3);
+      for (const p of [l.a, l.b]) s += `<rect x="${p[0] - 3.5}" y="${p[1] - 3.5}" width="7" height="7" fill="${ink}" stroke="${white}" stroke-width="1.3"/>`;
+    }
+    // Lift tags carry the number plate; run tags carry the rating symbol.
+    const plate = (x, y, n, c = ink, bg = white) => `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="${bg}"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px Overpass,sans-serif;fill:${c}">${n}</text>`;
+    const liftTag = (l, dx, dy, text) => { const x = l.a[0] + dx, y = l.a[1] + dy; return tag(x, y, plate(x, y, l.n), text, text.length * 7.4 + 28); };
+    s += liftTag(LIFTS[0], -112, -12, 'ASPEN QUAD') + liftTag(LIFTS[1], 14, -6, 'RIDGE SIX');
+    const runTag = (x, y, kind, name) => tag(x, y, sym(x, y, kind), name, name.length * 7.4 + 28);
+    s += runTag(536, 478, 'blue', 'BIGHORN') + runTag(694, 494, 'black', 'CORNICE') + runTag(752, 430, 'black', 'HEADWALL') + runTag(926, 470, 'blue', 'TIMBERLINE');
+    // Plans are surveyor's orange: a dashed centreline, stakes at the towers, and a dimension line.
+    const A = P(PLAN.a), B = P(PLAN.b), len = Math.hypot(B.x - A.x, B.y - A.y), ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, nx = uy, ny = -ux;
+    s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${white}" stroke-width="4" opacity=".7"/><line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4"/>`;
+    for (let k = 1; k <= 6; k++) { const p = lerp(A, B, k / 7); s += `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="2.6" fill="${white}" stroke="${flag}" stroke-width="1.4"/>`; }
+    for (const p of [A, B]) s += `<rect x="${f1(p.x - 4)}" y="${f1(p.y - 4)}" width="8" height="8" fill="none" stroke="${flag}" stroke-width="1.8"/>`;
+    const off = 30, a2 = { x: A.x + nx * off, y: A.y + ny * off }, b2 = { x: B.x + nx * off, y: B.y + ny * off };
+    s += `<g stroke="${white}" stroke-width="1" opacity=".95"><line x1="${f1(A.x + nx * 6)}" y1="${f1(A.y + ny * 6)}" x2="${f1(a2.x + nx * 4)}" y2="${f1(a2.y + ny * 4)}"/><line x1="${f1(B.x + nx * 6)}" y1="${f1(B.y + ny * 6)}" x2="${f1(b2.x + nx * 4)}" y2="${f1(b2.y + ny * 4)}"/><line x1="${f1(a2.x)}" y1="${f1(a2.y)}" x2="${f1(b2.x)}" y2="${f1(b2.y)}"/></g>`;
+    for (const p of [a2, b2]) s += `<line x1="${f1(p.x - ux * 4 - nx * 4)}" y1="${f1(p.y - uy * 4 - ny * 4)}" x2="${f1(p.x + ux * 4 + nx * 4)}" y2="${f1(p.y + uy * 4 + ny * 4)}" stroke="${white}" stroke-width="1.4"/>`;
+    const m = lerp(a2, b2, 0.5), ang = Math.atan2(uy, ux) * 180 / Math.PI;
+    s += `<g transform="translate(${f1(m.x + nx * 11)} ${f1(m.y + ny * 11)}) rotate(${f1(ang)})"><rect x="-56" y="-9" width="112" height="17" rx="2" fill="${graphite}"/><text x="0" y="3.6" text-anchor="middle" style="${mono};fill:#efe9df">739 m · +406 · 29°</text></g>`;
+    s += `<path d="${smooth(COULOIR)}" fill="none" stroke="${white}" stroke-width="4" stroke-linecap="round" opacity=".7"/><path d="${smooth(COULOIR)}" fill="none" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4" stroke-linecap="round"/>`;
+    { const x = 1004, y = 318, name = 'COULOIR'; s += `<g><rect x="${x}" y="${y}" width="${name.length * 7.4 + 28}" height="18" rx="2" fill="${graphite}" stroke="${flag}" stroke-width="1" stroke-dasharray="3 2"/>${sym(x, y, 'double')}<text x="${x + 25}" y="${y + 12.8}" style="font:700 10.5px Overpass,sans-serif;letter-spacing:.06em;fill:#efe9df">${name}</text></g>`; }
+    { const x = 676, y = 252; s += tag(x, y, `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="none" stroke="${flag}" stroke-width="1.4"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px Overpass,sans-serif;fill:${flag}">4</text>`, 'SUMMIT QUAD · PLAN', 158); }
+    // Ridge Six is queuing: its tag grows an amber readout.
+    { const l = LIFTS[1], x = l.a[0] + 14, y = l.a[1] - 6, w0 = 'RIDGE SIX'.length * 7.4 + 28;
+      s += `<g><rect x="${x + w0 - 2}" y="${y}" width="98" height="18" rx="2" fill="${graphite}" stroke="#4a443e"/><rect x="${x + w0 - 2}" y="${y}" width="3" height="18" fill="${amber}"/><text x="${x + w0 + 7}" y="${y + 12.8}" style="${mono};fill:${amber}">Q 12:04 · 180</text></g>`; }
+    document.getElementById('worldD').innerHTML = s;
+
+    // Profile: a gridded elevation section with the planned cable and tower clearances.
+    const pw = 318, ph = 72;
+    let pg = `<rect x="6" y="4" width="${pw - 12}" height="${ph - 12}" fill="rgba(255,255,255,.02)" stroke="#36312c"/>`;
+    for (let i = 1; i < 4; i++) pg += `<line x1="6" y1="${f1(4 + i * (ph - 12) / 4)}" x2="${pw - 6}" y2="${f1(4 + i * (ph - 12) / 4)}" stroke="#36312c"/>`;
+    for (let i = 1; i < 7; i++) pg += `<line x1="${f1(6 + i * (pw - 12) / 7)}" y1="4" x2="${f1(6 + i * (pw - 12) / 7)}" y2="${ph - 8}" stroke="#2e2a26"/>`;
+    pg += profile(pw, ph, { ground: '#cfc7bb', gw: 1.4, tower: '#cfc7bb', cable: flag, dash: '6 3', cw: 1.8, fill: 'rgba(207,199,187,.10)' });
+    document.getElementById('profD').innerHTML = pg;
+
+    // Demand on Ridge Six through the day, against its capacity; the plan's relief outlined.
+    const dem = [900, 1900, 2850, 2700, 2300, 1500, 2100, 2500, 1600, 700], cap = 3000, dw = 318, dh = 46, bw = (dw - 24) / dem.length;
+    let dg = '';
+    dem.forEach((v, i) => { const x = 12 + i * bw, h = v / 3400 * (dh - 10), h2 = v * 0.62 / 3400 * (dh - 10);
+      dg += `<rect x="${f1(x + 2)}" y="${f1(dh - 4 - h)}" width="${f1(bw - 4)}" height="${f1(h)}" fill="${v > 2400 ? amber : '#6f675e'}" opacity="${v > 2400 ? 0.9 : 0.8}"/><rect x="${f1(x + 2.5)}" y="${f1(dh - 4 - h2)}" width="${f1(bw - 5)}" height="${f1(h2)}" fill="none" stroke="${flag}" stroke-width="1"/>`; });
+    const cy = dh - 4 - 2400 / 3400 * (dh - 10);
+    dg += `<line x1="12" y1="${f1(cy)}" x2="${dw - 12}" y2="${f1(cy)}" stroke="#efe9df" stroke-width="1" stroke-dasharray="3 2"/><text x="14" y="${f1(cy - 3)}" style="font:500 9px 'Overpass Mono',monospace;fill:#cfc7bb">comfort 2,400</text><line x1="12" y1="${dh - 4}" x2="${dw - 12}" y2="${dh - 4}" stroke="#4a443e"/>`;
+    document.getElementById('demandD').innerHTML = dg;
+
+    // Dock: the build tools with hotkeys.
+    const dock = [['t-lift', 1], ['t-run'], ['t-snow'], ['t-groom'], ['t-lodge'], ['t-road'], ['t-terrain'], ['t-remove'], ['t-views']];
+    document.getElementById('dockD').innerHTML = dock.map(([ic, on], i) => `${i === 7 ? '<b style="width:1px;margin:4px 3px;background:#3b3632"></b>' : ''}<span class="${on ? 'on' : ''}"><svg viewBox="0 0 24 24"><use href="#${ic}"/></svg><i>${i + 1}</i></span>`).join('');
+    document.getElementById('speedD').innerHTML = ['II', '1×', '2×', '4×'].map((g, i) => `<span class="${i === 1 ? 'on' : ''}">${g}</span>`).join('');
+    // Lift status strip: one number plate per lift, with a state rule under it.
+    const lifts = [[1, '#5fb36a'], [2, '#5fb36a'], [3, amber], [4, flag, 1]];
+    document.getElementById('liftsD').innerHTML += lifts.map(([n, c, plan]) => `<span style="display:inline-grid;place-items:center;width:18px;height:18px;border-radius:2px;font:900 10.5px Overpass;${plan ? `color:${flag};box-shadow:inset 0 0 0 1.4px ${flag}` : `background:${white};color:${ink}`};border-bottom:2px solid ${c};box-sizing:border-box">${n}</span>`).join('');
+    const spark = (id, vals, c) => { const w = 64, h = 20, mx = Math.max(...vals), mn = Math.min(...vals); const pts = vals.map((v, i) => `${f1(i / (vals.length - 1) * (w - 2) + 1)},${f1(h - 2 - (v - mn) / ((mx - mn) || 1) * (h - 4))}`).join(' ');
+      document.getElementById(id).innerHTML = `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.3"/><circle cx="${pts.split(' ').pop().split(',')[0]}" cy="${pts.split(' ').pop().split(',')[1]}" r="2" fill="${c}"/>`; };
+    spark('sparkG', [0, 80, 260, 520, 790, 980, 1120, 1190, 1240], '#cfc7bb');
+    spark('sparkC', [0, 4, 9, 15, 21, 26, 31, 35, 38.2], '#8fcf8a');
+  }
+})();
+</script>

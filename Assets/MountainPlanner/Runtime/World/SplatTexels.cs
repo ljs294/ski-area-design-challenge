@@ -39,11 +39,18 @@ namespace MountainPlanner.World
                 int src = j * n * bands, dst = (n - 1 - j) * n * 4;
                 for (int i = 0; i < n; i++, src += bands, dst += 4)
                 {
-                    int s = snow ? cover[src + GroundCover.Layers] * (255 - shade[j * n + i]) / 255 : 0;
-                    int keep = 255 - s;
-                    // Scale the ground weights by what the snow leaves; rounding leftovers go to the largest.
-                    int f = cover[src] * keep / 255, g = cover[src + 1] * keep / 255, r = cover[src + 2] * keep / 255;
-                    int d = cover[src + 3] * keep / 255, w = cover[src + 4] * keep / 255;
+                    // Snow lies on the land; water keeps its weight under snow, so the terrain shader knows
+                    // where the frozen lakes are and draws snow on ice there (MountainTerrain.shader).
+                    int w = cover[src + 4], land = 255 - w;
+                    int s = snow ? cover[src + GroundCover.Layers] * (255 - shade[j * n + i]) / 255 * land / 255 : 0;
+                    int keep = land - s;
+                    // Scale the land weights by what the snow leaves; rounding leftovers go to the largest.
+                    int f = 0, g = 0, r = 0, d = 0;
+                    if (land > 0)
+                    {
+                        f = cover[src] * keep / land; g = cover[src + 1] * keep / land;
+                        r = cover[src + 2] * keep / land; d = cover[src + 3] * keep / land;
+                    }
                     int rest = 255 - s - f - g - r - d - w;
                     if (rest > 0)
                     {

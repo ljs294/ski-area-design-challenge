@@ -176,6 +176,7 @@ namespace MountainPlanner.World
             block.SetTexture("_Control0", textures.Length > 0 ? textures[0] : Texture2D.redTexture);
             block.SetTexture("_Control1", textures.Length > 1 ? textures[1] : Texture2D.blackTexture);
             block.SetFloat("_ControlRes", data.alphamapResolution);
+            block.SetFloat("_TileSize", data.size.x);   // metres per splat uv: the shader finds lake shores by distance
             terrain.SetSplatMaterialPropertyBlock(block);
         }
 

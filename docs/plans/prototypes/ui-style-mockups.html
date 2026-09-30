@@ -1,0 +1,812 @@
+<title>Resort HUD Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Overpass:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: two stacked 1280x720 game frames scaled to the page width, the same resort at the same moment;
+   a few lines on each style above its frame. The frames keep their own looks; the page follows the viewer's theme.
+   #cs, #sb and #sb-light show one frame alone at 1280x720 (review renders). */
+:root {
+  --bg: #eef1ee; --fg: #1b252c; --muted: #56656f; --line: #d3dbde; --card: #ffffff; --accent: #155ab6;
+  --font: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0e151a; --fg: #e6edf1; --muted: #a8b7c0; --line: #2c3a43; --card: #16212a; --accent: #80bef2; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0e151a; --fg: #e6edf1; --muted: #a8b7c0; --line: #2c3a43; --card: #16212a; --accent: #80bef2; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); padding-inline: 16px; padding-block: 20px 36px; margin: 0; }
+.wrap { max-width: 1320px; margin: 0 auto; display: grid; gap: 32px; }
+header { display: grid; gap: 6px; }
+header h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; max-width: 80ch; }
+section { display: grid; gap: 12px; }
+.sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+section h2 { margin: 0; font-size: 18px; font-weight: 600; text-wrap: balance; }
+.traits { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 88ch; }
+.traits b { color: var(--fg); font-weight: 600; }
+.switch { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.switch button { font: inherit; font-size: 13px; padding: 4px 12px; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
+.switch button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.frame { position: relative; width: 100%; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #0b0f14; }
+.stage { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.stage canvas, .stage svg.world { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; }
+.pagenote { margin: 0; color: var(--muted); font-size: 13px; }
+body.solo { padding: 0; background: #0b0f14; }
+body.solo .wrap { max-width: none; gap: 0; }
+body.solo header, body.solo .sec-head, body.solo .traits, body.solo .pagenote, body.solo section:not(.solo-on) { display: none; }
+body.solo .frame { width: 1280px; border: 0; border-radius: 0; }
+
+/* ================= Cities: Skylines II-leaning ================= */
+.cs { font-family: 'Overpass', 'Segoe UI', sans-serif; color: #f2f5f8; font-size: 13px;
+  --t: #f2f5f8; --m: rgba(240, 244, 248, 0.8); --dim: rgba(240, 244, 248, 0.55); --edge: rgba(255, 255, 255, 0.14);
+  --blue: #6cc0ff; --flat: #7cc6f7; --good: #6bdc84; --warn: #ffb23e; --bad: #ff6a5f;
+  --band: rgba(104, 112, 122, 0.44); --band-d: rgba(20, 24, 30, 0.62); --cap: rgba(12, 15, 20, 0.7); }
+.cs .glass { position: absolute; border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 45%), rgba(34, 40, 48, 0.6);
+  backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--edge); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 8px rgba(0, 0, 0, 0.12); }
+.cs .ol { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cs .hdr { position: relative; display: flex; align-items: center; justify-content: center; height: 38px; border-bottom: 1px solid var(--edge); }
+.cs .hdr .hi { position: absolute; left: 12px; width: 18px; height: 18px; color: var(--blue); }
+.cs .hdr .ttl { color: var(--blue); font-weight: 600; font-size: 15px; letter-spacing: 0.1em; text-transform: uppercase; }
+.cs .hdr .x { position: absolute; right: 10px; width: 18px; height: 18px; stroke: #fff; stroke-width: 2.4; fill: none; stroke-linecap: round; }
+.cs .x { width: 18px; height: 18px; stroke: #fff; stroke-width: 2.4; fill: none; stroke-linecap: round; }
+.cs .rows { padding: 8px 14px 6px; }
+.cs .r { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 2.5px 0; color: var(--m); }
+.cs .r b { color: var(--t); font-weight: 600; }
+.cs .r.lead { color: var(--t); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.cs .sec { margin: 4px 14px 6px; padding-top: 8px; border-top: 1px solid var(--edge); font-weight: 700; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+.cs .inset { margin: 0 14px 12px; padding: 8px 10px; background: rgba(255, 255, 255, 0.08); border-radius: 4px; }
+.cs .dot { display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: currentColor; margin: 0 6px; vertical-align: middle; position: relative; top: -1px; }
+.cs .chk { width: 15px; height: 15px; border: 1.6px solid #e8eef4; border-radius: 3px; display: inline-grid; place-items: center; }
+.cs .chk::after { content: ''; width: 7px; height: 4px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) translate(1px, -1px); }
+.cs .ibtn { position: absolute; width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: var(--flat); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+.cs .rb { position: absolute; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 50%), rgba(34, 40, 48, 0.6);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--edge); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 8px rgba(0, 0, 0, 0.15); }
+.cs .rb svg { width: 20px; height: 20px; }
+.cs .grid { padding: 3px 6px; }
+.cs .grow { display: flex; gap: 2px; padding: 3px 0; }
+.cs .grow + .grow { border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.cs .grid span { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; }
+.cs .grid span.on { background: rgba(108, 192, 255, 0.3); box-shadow: inset 0 0 0 1.5px rgba(108, 192, 255, 0.85); }
+.cs .grid svg { width: 23px; height: 23px; }
+.cs .stat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 4px 14px 8px; }
+.cs .stat div { background: rgba(0, 0, 0, 0.2); border-radius: 4px; padding: 7px 8px; display: grid; gap: 1px; align-content: start; }
+.cs .stat b { font-size: 18px; font-weight: 800; }
+.cs .stat span { font-size: 9.5px; color: var(--m); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.cs .meter { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); overflow: hidden; margin-top: 4px; }
+.cs .meter i { display: block; height: 100%; border-radius: 3px; }
+.cs .acts { display: flex; gap: 10px; justify-content: center; padding: 10px 14px 12px; border-top: 1px solid var(--edge); margin-top: 6px; }
+.cs .acts span { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.1); border: 1px solid var(--edge); }
+.cs .acts span svg { width: 20px; height: 20px; stroke: #e6eef6; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* the build window: docked on the toolbar, one surface for assets, tool options and blueprints */
+.cs .asset { border-radius: 8px 8px 0 0; border-bottom: 0; }
+.cs .ahd { display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 8px; border-bottom: 1px solid var(--edge); }
+.cs .stab { width: 34px; height: 30px; border-radius: 4px; display: grid; place-items: center; }
+.cs .stab svg { width: 24px; height: 24px; }
+.cs .stab.on { background: rgba(108, 192, 255, 0.24); box-shadow: inset 0 -2px 0 var(--blue); }
+.cs .tsep { width: 1px; height: 22px; background: var(--edge); margin: 0 6px; }
+.cs .tog { display: flex; align-items: center; gap: 2px; margin-right: 8px; }
+.cs .tog small { color: var(--m); font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; margin-right: 4px; }
+.cs .tog i { width: 26px; height: 24px; border-radius: 4px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.09); font-style: normal; color: var(--m); font-weight: 800; font-size: 10.5px; }
+.cs .tog i.on { background: rgba(108, 192, 255, 0.22); box-shadow: inset 0 0 0 1px rgba(108, 192, 255, 0.7); color: #bfe4ff; }
+.cs .tog svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.cs .cards { display: flex; gap: 8px; padding: 10px 10px 0; }
+.cs .card { flex: 1 1 0; height: 70px; border-radius: 4px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.07); position: relative; }
+.cs .card.on { background: rgba(108, 192, 255, 0.2); border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue), 0 0 14px rgba(108, 192, 255, 0.3); }
+.cs .card svg { width: 64px; height: 48px; margin-top: -10px; }
+.cs .card small { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; color: var(--m); font-size: 11px; }
+.cs .card.on small { color: #fff; font-weight: 600; }
+.cs .caption { display: flex; align-items: baseline; padding: 7px 12px; font-size: 12.5px; color: var(--m); }
+.cs .caption b { color: var(--t); font-weight: 700; margin-right: 8px; }
+.cs .caption .price { margin-left: auto; color: var(--good); font-weight: 700; }
+.cs .bpbar { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px; border-top: 1px solid var(--edge); background: rgba(0, 0, 0, 0.16); }
+.cs .bpc { height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 11px 0 6px; border-radius: 16px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.12); font-size: 12.5px; white-space: nowrap; }
+.cs .bpc.on { background: rgba(108, 192, 255, 0.18); border-color: rgba(108, 192, 255, 0.7); }
+.cs .bpc b { font-weight: 700; }
+.cs .bpc .bul { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 10.5px; font-weight: 800; }
+.cs .abtn { height: 36px; padding: 0 14px; border-radius: 4px; display: flex; align-items: center; font-weight: 700; font-size: 13px; white-space: nowrap; }
+.cs .abtn.ghost { background: rgba(255, 255, 255, 0.09); border: 1px solid var(--edge); }
+.cs .abtn.go { background: var(--flat); color: #0b2238; font-weight: 800; }
+.cs .abtn.two { height: 36px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; line-height: 1.05; }
+.cs .abtn.two small { font-size: 10.5px; font-weight: 700; opacity: 0.72; }
+.cs .bx { width: 13px; height: 13px; margin-left: 1px; fill: none; stroke: var(--m); stroke-width: 2.6; stroke-linecap: round; }
+/* toolbar */
+.cs .band { position: absolute; left: 0; right: 0; display: flex; align-items: center; backdrop-filter: blur(20px) saturate(1.2); -webkit-backdrop-filter: blur(20px) saturate(1.2); }
+.cs .band.top { bottom: 36px; height: 58px; padding: 0 12px; gap: 10px; border-top: 1px solid rgba(255, 255, 255, 0.24);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 60%), var(--band); }
+.cs .band.bot { bottom: 0; height: 36px; background: var(--band-d); padding: 0 8px; gap: 6px; }
+.cs .cap { height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--cap); border-radius: 8px; white-space: nowrap; font-size: 13.5px; }
+.cs .cap.pill { height: 38px; border-radius: 19px; padding: 0 16px 0 8px; }
+.cs .cats { position: absolute; left: 50%; top: 5px; transform: translateX(-50%); display: flex; gap: 4px; }
+.cs .cat { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 8px; position: relative; }
+.cs .cat svg { width: 34px; height: 34px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3)); }
+.cs .cat.sm { width: 44px; height: 44px; }
+.cs .cat.sm svg { width: 30px; height: 30px; }
+.cs .cat.on { background: rgba(255, 255, 255, 0.24); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.32); }
+.cs .cat.on::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -3px; height: 3px; border-radius: 2px; background: var(--blue); }
+.cs .vsep { width: 1px; height: 32px; background: rgba(255, 255, 255, 0.22); }
+.cs .name { position: absolute; left: 50%; transform: translateX(-50%); min-width: 220px; justify-content: center; font-weight: 600; font-size: 14px; }
+.cs .faces { display: flex; gap: 5px; }
+.cs .faces svg { width: 18px; height: 18px; }
+
+/* ================= Subway Builder-leaning ================= */
+.sb { font-family: 'Inter', 'Segoe UI', sans-serif; font-size: 13px;
+  --g: rgba(38, 40, 46, 0.6); --g2: rgba(255, 255, 255, 0.07); --g3: rgba(255, 255, 255, 0.12); --e: rgba(255, 255, 255, 0.1);
+  --hl: rgba(255, 255, 255, 0.07); --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --t: #f2f3f5; --m: #a3aab4; --sel: #f7f7f8; --self: #111214; --selsh: none;
+  --a: #3b82f6; --good: #4ade80; --warn: #f59e0b; --warnFill: #f59e0b; --bad: #f87171; --bpc: #facc15; --bpInk: #1a1400; --ridge: #22d3ee; --ridgeInk: #0b2a31;
+  --mono: 'JetBrains Mono', ui-monospace, monospace; color: var(--t); }
+.sb.light { --g: rgba(255, 255, 255, 0.6); --g2: rgba(15, 20, 25, 0.05); --g3: rgba(15, 20, 25, 0.09); --e: rgba(15, 20, 25, 0.1);
+  --hl: rgba(255, 255, 255, 0.95); --shadow: 0 6px 20px rgba(16, 24, 40, 0.12);
+  --t: #111418; --m: #5c6570; --sel: #ffffff; --self: #111418; --selsh: 0 1px 2px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --a: #2563eb; --good: #15803d; --warn: #b45309; --warnFill: #d97706; --bad: #dc2626; --bpc: #ca8a04; --bpInk: #ffffff; --ridge: #0891b2; --ridgeInk: #ffffff; }
+.sb .gl { position: absolute; background: var(--g); backdrop-filter: blur(24px) saturate(1.8); -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid var(--e); border-radius: 8px; box-shadow: inset 0 1px 0 var(--hl), var(--shadow); }
+.sb .srow .gl { position: relative; }
+.sb .ico { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.sb .hd { position: relative; display: flex; align-items: center; justify-content: center; height: 42px; font-weight: 600; font-size: 14.5px; }
+.sb .hd .l { position: absolute; left: 12px; color: var(--m); display: grid; }
+.sb .hd .rx { position: absolute; right: 12px; display: grid; }
+.sb .bd { padding: 0 12px 12px; display: grid; gap: 9px; }
+.sb .tabs, .sb .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sb .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.sb .btn { height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 7px; background: var(--g2); border: 1px solid var(--e); font-weight: 500; font-size: 12.5px; white-space: nowrap; }
+.sb .btn.on { background: var(--sel); color: var(--self); border-color: transparent; box-shadow: var(--selsh); }
+/* light theme: segmented controls sit in a shared track so the white selection reads */
+.sb.light .seg { background: rgba(15, 20, 25, 0.07); padding: 3px; gap: 3px; border-radius: 8px; }
+.sb.light .seg .btn { height: 29px; background: transparent; border-color: transparent; }
+.sb.light .seg .btn.on { background: #ffffff; box-shadow: 0 1px 3px rgba(16, 24, 40, 0.18), 0 0 0 1px rgba(16, 24, 40, 0.08); font-weight: 600; }
+.sb .h3 { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 16px; margin-top: 6px; letter-spacing: -0.005em; }
+.sb .h3.sm { font-size: 14px; margin-top: 4px; }
+.sb .step { display: grid; grid-template-columns: 32px 1fr 32px; gap: 6px; }
+.sb .step .btn { padding: 0; }
+.sb .step .f { height: 32px; border-radius: 6px; background: var(--g2); border: 1px solid var(--e); display: flex; align-items: center; justify-content: center; position: relative; font-family: var(--mono); font-weight: 600; }
+.sb .step .f small { position: absolute; right: 10px; color: var(--m); font-family: 'Inter', sans-serif; font-weight: 500; }
+.sb .spec { display: flex; justify-content: space-between; align-items: center; color: var(--m); font-size: 12px; margin-top: -3px; }
+.sb .rule { height: 1px; background: var(--e); margin: 2px 0; }
+.sb .item .rm { width: 14px; height: 14px; color: var(--m); margin-left: -2px; }
+.sb .item { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 6px; background: var(--g2); border: 1px solid var(--e); }
+.sb .item.on { box-shadow: inset 3px 0 0 var(--bpc); background: var(--g3); }
+.sb .item small { display: block; color: var(--m); font-size: 11.5px; margin-top: 1px; font-family: var(--mono); letter-spacing: -0.02em; }
+.sb .item .v { font-family: var(--mono); font-weight: 600; font-size: 12.5px; }
+.sb .brow { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.sb .wide { height: 34px; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0 14px; background: var(--g2); border: 1px solid var(--e); font-weight: 500; }
+.sb .wide.go { background: var(--a); color: #fff; border-color: transparent; font-weight: 600; box-shadow: 0 4px 14px color-mix(in srgb, var(--a) 40%, transparent); }
+.sb .bullet { width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700; flex: none; }
+.sb .dd { width: 18px; height: 18px; color: var(--dd); fill: currentColor; flex: none; }
+.sb .tile { position: absolute; width: 40px; height: 40px; display: grid; place-items: center; }
+.sb .tile .ico { width: 19px; height: 19px; }
+.sb .kv { display: grid; gap: 4px; }
+.sb .kv .row { display: flex; align-items: center; gap: 8px; }
+.sb .kv .row b { margin-left: auto; font-family: var(--mono); font-weight: 600; font-size: 12.5px; }
+.sb .bar { height: 4px; border-radius: 2px; background: var(--g3); overflow: hidden; margin-bottom: 4px; }
+.sb .bar i { display: block; height: 100%; border-radius: 2px; }
+.sb .hist { display: flex; align-items: flex-end; gap: 3px; height: 58px; }
+.sb .hist i { flex: 1; border-radius: 2px 2px 0 0; display: block; }
+.sb .axis { position: relative; height: 14px; color: var(--m); font-size: 11px; margin-top: 4px; }
+.sb .axis span { position: absolute; top: 0; transform: translateX(-50%); }
+.sb .acts { display: grid; grid-template-columns: 1fr 1fr 32px; gap: 6px; margin-top: 2px; }
+.sb .round { position: absolute; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+.sb .round .ico { width: 20px; height: 20px; }
+.sb .round.on { background: var(--a); border-color: transparent; color: #fff; box-shadow: 0 6px 18px rgba(59, 130, 246, 0.45); }
+.sb .srow { position: absolute; left: 12px; bottom: 8px; display: flex; gap: 16px; }
+.sb .grp { display: flex; gap: 6px; }
+.sb .capsule { height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 12px; }
+.sb .mono { font-family: var(--mono); font-weight: 600; }
+.sb .ctl { position: absolute; width: 34px; height: 34px; display: grid; place-items: center; font-weight: 600; font-size: 12px; }
+.sb .lg { display: flex; align-items: center; gap: 5px; color: var(--m); font-size: 12px; }
+.sb .lg i { display: block; border-radius: 50%; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- one gradient per hue: the CS2-style icon family is lit from above, with a darker outline in the same hue -->
+    <!-- lit from the top left: a glossy highlight, the hue, then its shade -->
+    <linearGradient id="kB" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#c9e6ff"/><stop offset=".38" stop-color="#76bfff"/><stop offset="1" stop-color="#2b7cdf"/></linearGradient>
+    <linearGradient id="kY" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#fff3c4"/><stop offset=".38" stop-color="#ffdd70"/><stop offset="1" stop-color="#f2a914"/></linearGradient>
+    <linearGradient id="kR" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#ffcbc3"/><stop offset=".38" stop-color="#ff8676"/><stop offset="1" stop-color="#d93b30"/></linearGradient>
+    <linearGradient id="kG" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#d2f7cf"/><stop offset=".38" stop-color="#8ee68c"/><stop offset="1" stop-color="#33a148"/></linearGradient>
+    <linearGradient id="kO" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#ffdcb5"/><stop offset=".38" stop-color="#ffb468"/><stop offset="1" stop-color="#ea7215"/></linearGradient>
+    <linearGradient id="kW" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#efc9a2"/><stop offset=".38" stop-color="#dc9f62"/><stop offset="1" stop-color="#9c5c29"/></linearGradient>
+    <linearGradient id="kD" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#8d98a5"/><stop offset=".38" stop-color="#5a6572"/><stop offset="1" stop-color="#2a323b"/></linearGradient>
+    <linearGradient id="kS" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".38" stop-color="#ffffff"/><stop offset="1" stop-color="#d3dde8"/></linearGradient>
+    <linearGradient id="kC" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#ecf8ff"/><stop offset=".38" stop-color="#c8ebff"/><stop offset="1" stop-color="#78c2f5"/></linearGradient>
+    <linearGradient id="kP" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#e8dcff"/><stop offset=".38" stop-color="#cbb1ff"/><stop offset="1" stop-color="#8657d6"/></linearGradient>
+    <linearGradient id="kT" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#fdf6e1"/><stop offset=".38" stop-color="#f7e8bd"/><stop offset="1" stop-color="#d6ba74"/></linearGradient>
+    <linearGradient id="kM" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#eef2f6"/><stop offset=".38" stop-color="#c3cdd8"/><stop offset="1" stop-color="#7f8c99"/></linearGradient>
+  </defs>
+  <!-- full-colour icons (Cities: Skylines II style) -->
+  <symbol id="c-lift" viewBox="0 0 32 32"><path d="M2 7.5L30 12.5" stroke="#2a323b" stroke-width="2.6" stroke-linecap="round"/><path d="M16 10.3V14.5" stroke="#2a323b" stroke-width="2.5"/><rect x="9" y="14" width="14" height="6.5" rx="2" fill="url(#kB)" stroke="#1b5cad"/><rect x="7.5" y="19.5" width="17" height="5" rx="2" fill="url(#kY)" stroke="#a87200"/><path d="M10.5 24.5v3M21.5 24.5v3M9.5 28.2h13" stroke="#2a323b" stroke-width="2.5" stroke-linecap="round"/></symbol>
+  <symbol id="c-gondola" viewBox="0 0 32 32"><path d="M2 6.5L30 11.5" stroke="#2a323b" stroke-width="2.6" stroke-linecap="round"/><path d="M16 9.3V13" stroke="#2a323b" stroke-width="2.5"/><rect x="8" y="12.5" width="16" height="16.5" rx="4" fill="url(#kR)" stroke="#9a281f"/><rect x="10.5" y="15.5" width="11" height="6" rx="1.5" fill="url(#kC)" stroke="#3b86c0" stroke-width=".8"/></symbol>
+  <symbol id="c-surface" viewBox="0 0 32 32"><path d="M2 6.5L30 11.5" stroke="#2a323b" stroke-width="2.6" stroke-linecap="round"/><path d="M16 11V23.5" stroke="#2a323b" stroke-width="2.6"/><circle cx="16" cy="11.3" r="2.8" fill="url(#kM)" stroke="#4c5763"/><rect x="7.5" y="22.5" width="17" height="5" rx="2.5" fill="url(#kY)" stroke="#a87200"/></symbol>
+  <symbol id="c-trail" viewBox="0 0 32 32"><path d="M1.5 28.5L13.5 5l17 23.5z" fill="url(#kS)" stroke="#8a98a7" stroke-linejoin="round"/><path d="M13.5 5l17 23.5h-9z" fill="#bcd0e6"/><path d="M13.5 8.5c-4 5 5.5 8-1 13s-1 5.5 3 7" fill="none" stroke="#e5453a" stroke-width="2.6" stroke-linecap="round"/><path d="M3.5 28.5l2.6-6.5 2.6 6.5zM24 28.5l2.6-6.5 2.6 6.5z" fill="url(#kG)" stroke="#21752f" stroke-width=".8" stroke-linejoin="round"/></symbol>
+  <symbol id="c-snow" viewBox="0 0 32 32"><path d="M9 29.5l4.5-9M18 29.5l-4.5-9" stroke="#2a323b" stroke-width="2.6" stroke-linecap="round"/><g transform="rotate(-25 14 16)"><rect x="5.5" y="12.5" width="16" height="8" rx="4" fill="url(#kM)" stroke="#4c5763"/><rect x="20" y="13.5" width="5" height="6" rx="1.5" fill="url(#kD)" stroke="#151a20"/></g><circle cx="25" cy="6.5" r="2.4" fill="url(#kC)" stroke="#3b86c0" stroke-width=".8"/><circle cx="29" cy="10.5" r="1.9" fill="url(#kC)" stroke="#3b86c0" stroke-width=".8"/><circle cx="28.8" cy="3.4" r="1.5" fill="#fff" stroke="#3b86c0" stroke-width=".8"/></symbol>
+  <symbol id="c-groom" viewBox="0 0 32 32"><rect x="3.5" y="21" width="21" height="7.5" rx="3.75" fill="url(#kD)" stroke="#151a20"/><circle cx="8" cy="24.75" r="1.7" fill="#9aa6b2"/><circle cx="14" cy="24.75" r="1.7" fill="#9aa6b2"/><circle cx="20" cy="24.75" r="1.7" fill="#9aa6b2"/><path d="M5 21v-6.5L8.5 10h8l4 5h4V21z" fill="url(#kO)" stroke="#a44f0b" stroke-linejoin="round"/><path d="M9.5 11.5h6.2l3 3.8H9.5z" fill="url(#kC)" stroke="#3b86c0" stroke-width=".8"/><path d="M25 15h4.5v13H25z" fill="url(#kS)" stroke="#8a98a7"/></symbol>
+  <symbol id="c-lodge" viewBox="0 0 32 32"><rect x="7" y="15" width="18" height="13.5" fill="url(#kW)" stroke="#653712"/><path d="M3 16.5L16 4.5l13 12z" fill="url(#kR)" stroke="#9a281f" stroke-linejoin="round"/><path d="M8.5 12.5L16 5.8l7.5 6.7-2.2.3L16 8.2l-5.3 4.6z" fill="#fff"/><rect x="9.5" y="18" width="5.5" height="4.5" rx=".6" fill="url(#kY)" stroke="#a87200" stroke-width=".8"/><rect x="18" y="20" width="4.8" height="8.5" fill="#6a3a17"/></symbol>
+  <symbol id="c-road" viewBox="0 0 32 32"><path d="M6 30L12.5 3h7L26 30z" fill="url(#kD)" stroke="#151a20" stroke-linejoin="round"/><path d="M16 6v4M16 13.5v4.5M16 21.5v5.5" stroke="#ffd23f" stroke-width="2.2"/><rect x="21.5" y="2.5" width="9" height="9" rx="2.2" fill="url(#kB)" stroke="#1b5cad"/><path d="M24.8 9.5V4.8h1.9a1.5 1.5 0 0 1 0 3h-1.9" stroke="#fff" stroke-width="1.5" fill="none"/></symbol>
+  <symbol id="c-terrain" viewBox="0 0 32 32"><path d="M2 23c5-8 10-10 15-6.5s9 1 13-6.5V29H2z" fill="url(#kG)" stroke="#21752f" stroke-linejoin="round"/><path d="M2 26.5c5-5 10-6 15-3.5s9-1 13-6V29H2z" fill="url(#kW)"/><path d="M22 3l-5.5 11.5" stroke="#653712" stroke-width="2.6" stroke-linecap="round"/><path d="M13.2 13.2l5.2 2.4-2.2 6-5.2-2.4z" fill="url(#kM)" stroke="#4c5763" stroke-linejoin="round"/></symbol>
+  <symbol id="c-bulldoze" viewBox="0 0 32 32"><rect x="8" y="22" width="20" height="6.5" rx="3.25" fill="url(#kD)" stroke="#151a20"/><rect x="10" y="14" width="14" height="8.5" rx="1.5" fill="url(#kY)" stroke="#a87200"/><rect x="12" y="8.5" width="9" height="6.5" rx="1.2" fill="url(#kY)" stroke="#a87200"/><rect x="13.5" y="10" width="6" height="3.5" rx=".6" fill="url(#kC)"/><path d="M2.5 15.5H7V28H2.5z" fill="url(#kM)" stroke="#4c5763"/><path d="M7 20h3" stroke="#2a323b" stroke-width="2.5"/></symbol>
+  <symbol id="c-money" viewBox="0 0 32 32"><rect x="2.5" y="8" width="23" height="14.5" rx="2" fill="url(#kG)" stroke="#21752f"/><rect x="5" y="10.5" width="18" height="9.5" rx="1" fill="none" stroke="#c4f3d1" stroke-width="1"/><circle cx="14" cy="15.25" r="3.4" fill="#d3f7de"/><circle cx="24.5" cy="22.5" r="5.8" fill="url(#kY)" stroke="#a87200"/><path d="M24.5 19.6v5.8" stroke="#a87200" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="c-map" viewBox="0 0 32 32"><path d="M3 8l8-3 10 3 8-3v19l-8 3-10-3-8 3z" fill="url(#kT)" stroke="#9c844a" stroke-linejoin="round"/><path d="M11 5v19M21 8v19" stroke="#9c844a" stroke-width="1"/><path d="M6 20c4-6 8 2 12-4s6-2 8-6" stroke="#2b7cdf" stroke-width="2.4" fill="none" stroke-linecap="round"/><circle cx="23.5" cy="11.5" r="2.6" fill="url(#kR)" stroke="#9a281f" stroke-width=".8"/></symbol>
+  <symbol id="c-stats" viewBox="0 0 32 32"><rect x="4.5" y="16" width="6" height="11.5" rx="1" fill="url(#kO)" stroke="#a44f0b"/><rect x="13" y="9" width="6" height="18.5" rx="1" fill="url(#kG)" stroke="#21752f"/><rect x="21.5" y="4.5" width="6" height="23" rx="1" fill="url(#kB)" stroke="#1b5cad"/><path d="M2.5 28.8h27" stroke="#f2f5f8" stroke-width="2.5" stroke-linecap="round"/></symbol>
+  <symbol id="c-camera" viewBox="0 0 32 32"><rect x="3.5" y="10" width="25" height="16" rx="3.5" fill="url(#kD)" stroke="#151a20"/><rect x="10" y="6.5" width="8.5" height="4.5" rx="1.2" fill="url(#kD)" stroke="#151a20"/><circle cx="16" cy="18" r="5.6" fill="url(#kM)" stroke="#151a20"/><circle cx="16" cy="18" r="3.4" fill="url(#kB)"/><circle cx="24.5" cy="13.5" r="1.3" fill="#ffd23f"/></symbol>
+  <symbol id="c-trophy" viewBox="0 0 32 32"><path d="M10 5h12v6.5a6 6 0 0 1-12 0z" fill="url(#kY)" stroke="#a87200"/><path d="M10 7.5H6.5a4 4 0 0 0 4.5 5.5M22 7.5h3.5a4 4 0 0 1-4.5 5.5" stroke="#f2a914" stroke-width="2.5" fill="none"/><rect x="14" y="17" width="4" height="5.5" fill="#d48f0c"/><rect x="9.5" y="22.5" width="13" height="4.5" rx="1" fill="url(#kY)" stroke="#a87200"/></symbol>
+  <symbol id="c-level" viewBox="0 0 32 32"><path d="M16 8.5l12.5 6.2L16 21 3.5 14.7z" fill="url(#kG)" stroke="#21752f" stroke-linejoin="round"/><path d="M3.5 14.7v4.3L16 25.3V21z" fill="#2f9443" stroke="#21752f" stroke-linejoin="round"/><path d="M28.5 14.7v4.3L16 25.3V21z" fill="#24773a" stroke="#21752f" stroke-linejoin="round"/></symbol>
+  <symbol id="g-skier" viewBox="0 0 32 32"><circle cx="19.5" cy="6.5" r="3.2" fill="url(#kR)" stroke="#9a281f"/><path d="M9.5 13l7.5 1.7 3.2 6.3-4.2 4.2" stroke="#d93b30" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 25.5l23 4" stroke="#f2a914" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="g-clock" viewBox="0 0 32 32"><rect x="13.5" y="2.5" width="5" height="3.2" rx="1" fill="url(#kO)" stroke="#a44f0b" stroke-width=".8"/><circle cx="16" cy="17" r="11.5" fill="url(#kO)" stroke="#a44f0b"/><circle cx="16" cy="17" r="8.2" fill="url(#kS)"/><path d="M16 11.5V17l3.8 2.4" stroke="#2a323b" stroke-width="2.4" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="g-snow" viewBox="0 0 32 32"><path d="M16 3.5v25M5.2 9.75l21.6 12.5M5.2 22.25l21.6-12.5" stroke="#3b86c0" stroke-width="4.4" stroke-linecap="round"/><path d="M16 3.5v25M5.2 9.75l21.6 12.5M5.2 22.25l21.6-12.5" stroke="#c8ebff" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="16" r="3.2" fill="#fff" stroke="#3b86c0"/></symbol>
+  <symbol id="g-wind" viewBox="0 0 32 32"><path d="M5 4v25" stroke="#2a323b" stroke-width="2.6" stroke-linecap="round"/><path d="M6 6.5l20 3v7l-20 3z" fill="url(#kS)" stroke="#8a98a7" stroke-linejoin="round"/><path d="M6 6.5l6.7 1v10.9l-6.7 1zM19.3 8.5l6.7 1v7l-6.7 1z" fill="url(#kR)"/></symbol>
+  <symbol id="g-sun" viewBox="0 0 32 32"><path d="M16 3v4M16 25v4M3 16h4M25 16h4M6.8 6.8l2.8 2.8M22.4 22.4l2.8 2.8M6.8 25.2l2.8-2.8M22.4 9.6l2.8-2.8" stroke="#f2a914" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="16" r="6.5" fill="url(#kY)" stroke="#a87200"/></symbol>
+  <symbol id="g-aval" viewBox="0 0 32 32"><path d="M16 3.5l13.5 24H2.5z" fill="url(#kO)" stroke="#a44f0b" stroke-linejoin="round"/><path d="M16 11.5v7.5M16 23v.3" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/></symbol>
+  <symbol id="g-pine" viewBox="0 0 32 32"><path d="M22 9l5.5 8h-2.8l4 6H15.3l4-6h-2.8z" fill="#2c9a45" stroke="#21752f" stroke-linejoin="round"/><rect x="21" y="23" width="2.2" height="4.5" fill="url(#kW)"/><path d="M12 4l7 10h-3.5l5 7.5H3.5l5-7.5H5z" fill="url(#kG)" stroke="#21752f" stroke-linejoin="round"/><rect x="10.8" y="21.5" width="2.6" height="5.5" fill="url(#kW)"/></symbol>
+  <symbol id="g-mount" viewBox="0 0 32 32"><path d="M2 27.5l10-17.5 6 9 4-5.5 8 14z" fill="url(#kP)" stroke="#5a31a3" stroke-linejoin="round"/><path d="M12 10l3.3 5.2-2.3-1.2-2.5 2z" fill="#fff"/><path d="M5.5 27.5a7 7 0 0 1 2.6-5.4" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="g-coin" viewBox="0 0 32 32"><circle cx="16" cy="16" r="11.5" fill="url(#kY)" stroke="#a87200"/><circle cx="16" cy="16" r="8.3" fill="none" stroke="#ffe9a3" stroke-width="1"/><path d="M18.6 12.2c-.6-1-1.6-1.5-2.7-1.5-1.6 0-2.8.8-2.8 2.1s1.1 1.8 2.8 2.2 2.8.9 2.8 2.2-1.2 2.2-2.8 2.2c-1.1 0-2.2-.6-2.8-1.6M16 8.8v14.4" stroke="#8a5a00" stroke-width="1.9" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="g-smile" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="url(#kY)" stroke="#a87200"/><circle cx="12" cy="13.5" r="1.8" fill="#3a2a00"/><circle cx="20" cy="13.5" r="1.8" fill="#3a2a00"/><path d="M10.5 18.5a6 6 0 0 0 11 0" stroke="#3a2a00" stroke-width="2.2" fill="none" stroke-linecap="round"/></symbol>
+  <!-- flat light-blue icons for the round edge buttons -->
+  <symbol id="c-guest" viewBox="0 0 32 32"><circle cx="16" cy="11" r="5" fill="#8fd0ff"/><path d="M6 27c1-6 5-9 10-9s9 3 10 9z" fill="#8fd0ff"/></symbol>
+  <symbol id="c-chirp" viewBox="0 0 32 32"><path d="M5 7h22v14H13l-6 5v-5H5z" fill="#8fd0ff"/><circle cx="11" cy="14" r="1.6" fill="#1b2a3a"/><circle cx="16" cy="14" r="1.6" fill="#1b2a3a"/><circle cx="21" cy="14" r="1.6" fill="#1b2a3a"/></symbol>
+  <symbol id="c-note" viewBox="0 0 32 32"><rect x="7" y="5" width="18" height="22" rx="2" fill="#8fd0ff"/><path d="M11 11h10M11 15h10M11 19h6" stroke="#1b2a3a" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <!-- small in-world icons -->
+  <symbol id="i-len" viewBox="0 0 16 16"><path d="M2 8h12M5 5L2 8l3 3M11 5l3 3-3 3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-rise" viewBox="0 0 16 16"><path d="M8 14V2.5M4 6.5l4-4 4 4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-slope" viewBox="0 0 16 16"><path d="M1.5 13.5h13V3.5z" stroke-linejoin="round"/><path d="M9.8 13.5a4.2 4.2 0 0 0-.8-2.6"/></symbol>
+  <symbol id="i-cost" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.3"/><path d="M10 6.1c-.4-.7-1.1-1-1.9-1-1.1 0-1.9.6-1.9 1.5s.8 1.2 1.9 1.5 1.9.6 1.9 1.5-.8 1.5-1.9 1.5c-.8 0-1.6-.4-2-1.1M8 3.9v8.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-flake" viewBox="0 0 16 16"><path d="M8 1.5v13M2.4 4.75l11.2 6.5M2.4 11.25l11.2-6.5" stroke-linecap="round"/></symbol>
+  <!-- outline icons (both frames) -->
+  <symbol id="o-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="o-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17v.5"/></symbol>
+  <symbol id="o-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+  <symbol id="o-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" fill="currentColor"/></symbol>
+  <symbol id="o-tri" viewBox="0 0 24 24"><path d="M7 5l11 7-11 7z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="o-straight" viewBox="0 0 24 24"><path d="M4 20L20 4"/><circle cx="4" cy="20" r="1.6"/><circle cx="20" cy="4" r="1.6"/></symbol>
+  <symbol id="o-bend" viewBox="0 0 24 24"><path d="M4 20l7-9 9-7"/><circle cx="11" cy="11" r="1.6"/></symbol>
+  <symbol id="o-tower" viewBox="0 0 24 24"><path d="M12 3v18M8 21h8M7 6h10"/></symbol>
+  <symbol id="o-magnet" viewBox="0 0 24 24"><path d="M6 4v8a6 6 0 0 0 12 0V4"/><path d="M6 8h4M14 8h4"/></symbol>
+  <symbol id="o-upgrade" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="o-move" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></symbol>
+  <symbol id="o-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.5 7a8 8 0 1 0 11 0"/></symbol>
+  <symbol id="o-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="o-wrench" viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 0-5 5L4 17l3 3 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-2.5-.5-.5-2.5z"/></symbol>
+  <symbol id="o-chart" viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/></symbol>
+  <symbol id="o-map" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></symbol>
+  <symbol id="o-layers" viewBox="0 0 24 24"><path d="M12 3.5l9 5-9 5-9-5z"/><path d="M3 13.5l9 5 9-5"/></symbol>
+  <symbol id="o-sound" viewBox="0 0 24 24"><path d="M4 10h4l5-4v12l-5-4H4z"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+  <symbol id="o-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></symbol>
+  <symbol id="o-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="o-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/></symbol>
+  <symbol id="o-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="o-hammer" viewBox="0 0 24 24"><path d="M14 4l6 6-3 3-6-6z"/><path d="M11.5 9.5L4 17l3 3 7.5-7.5"/></symbol>
+  <symbol id="o-dollar" viewBox="0 0 24 24"><path d="M16 7.5c-.8-1.5-2.3-2.3-4-2.3-2.3 0-4 1.2-4 3.1s1.6 2.6 4 3.2 4 1.4 4 3.3-1.7 3.2-4 3.2c-1.7 0-3.3-.8-4.1-2.4M12 3v18"/></symbol>
+  <symbol id="o-lift" viewBox="0 0 24 24"><path d="M3 5l18 5"/><path d="M12 7.5v4"/><path d="M8 11.5h8v3a3 3 0 0 1-3 3h-2a3 3 0 0 1-3-3z"/></symbol>
+  <symbol id="o-run" viewBox="0 0 24 24"><path d="M6 3c5 3 7 5 3 8s-2 6 9 10"/></symbol>
+  <symbol id="o-junction" viewBox="0 0 24 24"><path d="M5 4c3 5 3 11 0 16M19 4c-3 5-9 7-14 8"/></symbol>
+  <symbol id="o-tbar" viewBox="0 0 24 24"><path d="M3 5l18 5M12 7.5V17M8 17h8"/></symbol>
+  <symbol id="o-chair4" viewBox="0 0 24 24"><path d="M3 5l18 5M12 7.5v4M6 11.5h12v3a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3z"/></symbol>
+  <symbol id="o-gondola" viewBox="0 0 24 24"><path d="M3 5l18 5M12 7.5V10"/><rect x="7" y="10" width="10" height="10" rx="2.5"/><path d="M9 13h6"/></symbol>
+  <symbol id="o-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5"/><path d="M16 5.5a3 3 0 0 1 0 5.5M18 14.5c1.8.7 3 2.5 3.3 5.5"/></symbol>
+  <symbol id="o-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="o-gauge" viewBox="0 0 24 24"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/></symbol>
+  <symbol id="o-snow" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/></symbol>
+  <symbol id="o-cash" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></symbol>
+  <symbol id="o-skier" viewBox="0 0 24 24"><circle cx="14" cy="4.5" r="1.5"/><path d="M7 9l5 1 2 4-3 3"/><path d="M4 18l16 3"/></symbol>
+  <symbol id="o-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+  <symbol id="o-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></symbol>
+  <symbol id="o-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.1"/><circle cx="4.5" cy="12" r="1.1"/><circle cx="4.5" cy="18" r="1.1"/></symbol>
+  <symbol id="o-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="o-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="o-dd" viewBox="0 0 24 24"><path d="M6.5 5.5l4.5 6.5-4.5 6.5L2 12zM17.5 5.5l4.5 6.5-4.5 6.5L13 12z" stroke="none"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header>
+    <h1>Resort HUD Directions</h1>
+    <p>One resort, one moment, two styles. It's midwinter at a made-up mountain; three lifts and five runs are open, and you're planning a lift to the summit with a new run off its top. Each frame shows the same things: the build tool with its blueprints, one selected lift, a data view and the status bar. These are still mockups, not playable; the blend you chose, a centred bar whose tools open floating windows, is in the <a href="https://claude.ai/artifact/Pztfucqq7zG2VAiGfCGgrG" style="color:var(--accent)">build-flow prototype</a>.</p>
+  </header>
+
+  <section id="secA" aria-labelledby="cs-h">
+    <div class="sec-head"><h2 id="cs-h">Leaning on Cities: Skylines II</h2></div>
+    <ul class="traits">
+      <li><b>Frosted glass throughout:</b> a light glass toolbar of illustrated full-colour icons, a dark status band of rounded capsules, and panels that let the mountain show through.</li>
+      <li><b>Info views</b> from the pale-blue button: an icon grid and a panel with a centred blue title, figures, a chart and a map legend, while the mountain pales so busy runs stand out.</li>
+      <li><b>One build window docked on the toolbar:</b> lift cards, the tool's options, and the blueprints with their total and Build.</li>
+      <li><b>Placing in the world:</b> a glowing ghost lift with handles and ghost towers, and one readout of length, rise, angle and cost beside the pointer.</li>
+    </ul>
+    <div class="frame" id="frameA"><div class="stage cs" id="stageA">
+      <canvas id="canvasA" width="1280" height="720" aria-hidden="true"></canvas>
+      <svg class="world" id="worldA" viewBox="0 0 1280 720" role="img" aria-label="Mountain in the skier traffic view with a chairlift being placed"></svg>
+
+      <div class="ibtn" style="left:12px;top:12px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></div>
+      <div class="glass grid" style="left:12px;top:56px" id="csGrid" aria-hidden="true"></div>
+
+      <div class="glass" style="left:166px;top:12px;width:276px">
+        <div class="hdr"><svg class="hi ol" viewBox="0 0 24 24"><use href="#o-skier"/></svg><span class="ttl">Skier traffic</span><svg class="x" viewBox="0 0 24 24"><use href="#o-close"/></svg></div>
+        <div class="rows">
+          <div class="r lead"><span>Skiers on the mountain</span><span>1,240</span></div>
+          <div class="r"><span>Busiest run</span><b>Bighorn<span class="dot"></span>410 / h</b></div>
+        </div>
+        <div class="sec">Where skiers are</div>
+        <div style="display:flex;align-items:center;gap:14px;padding:0 14px 4px">
+          <svg width="76" height="76" viewBox="0 0 42 42" aria-hidden="true" id="csDonut"></svg>
+          <div style="display:grid;gap:2px;flex:1" id="csDonutKey"></div>
+        </div>
+        <div class="inset" style="margin-top:6px">
+          <div class="r" style="padding:0 0 6px"><span style="color:var(--t)">Skiers per hour</span><span style="display:flex;gap:7px;align-items:center;color:var(--t)">Run colour <i class="chk"></i></span></div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--m)"><span>Quiet</span><div style="flex:1;height:7px;border-radius:4px;background:linear-gradient(90deg,#ffd640,#ff9626,#f0483a)"></div><span>Busy</span></div>
+        </div>
+      </div>
+
+      <div class="rb" style="right:56px;top:12px"><svg viewBox="0 0 24 24" fill="none" stroke="#8fd0ff" stroke-width="2" stroke-linecap="round"><use href="#o-help"/></svg></div>
+      <div class="rb" style="right:12px;top:12px"><svg viewBox="0 0 24 24" fill="none" stroke="#8fd0ff" stroke-width="2" stroke-linecap="round"><use href="#o-gear"/></svg></div>
+      <div class="rb" style="right:12px;top:128px"><svg viewBox="0 0 32 32"><use href="#c-chirp"/></svg></div>
+      <div class="rb" style="right:12px;top:170px"><svg viewBox="0 0 32 32"><use href="#c-guest"/></svg></div>
+      <div class="rb" style="right:12px;top:212px"><svg viewBox="0 0 32 32"><use href="#c-note"/></svg></div>
+
+      <div class="glass" style="right:58px;top:60px;width:296px">
+        <div class="hdr"><svg class="hi ol" viewBox="0 0 24 24"><use href="#o-lift"/></svg><span class="ttl">Ridge Six</span><svg class="x" viewBox="0 0 24 24"><use href="#o-close"/></svg></div>
+        <div style="padding:9px 14px 3px;color:var(--m)">Detachable six-seat chairlift<span class="dot"></span>Open</div>
+        <div class="stat"><div><b>6,420</b><span>Riders today</span></div><div><b style="color:var(--warn)">12 min</b><span>Wait</span></div><div><b>3,000</b><span>Per hour</span></div></div>
+        <div class="rows" style="padding-top:0">
+          <div class="r"><span>Load</span><b>86 %</b></div><div class="meter"><i style="width:86%;background:#ffc14d"></i></div>
+        </div>
+        <div class="acts">
+          <span title="Close the lift"><svg viewBox="0 0 24 24"><use href="#o-power"/></svg></span>
+          <span title="Upgrade"><svg viewBox="0 0 24 24"><use href="#o-upgrade"/></svg></span>
+          <span title="Move"><svg viewBox="0 0 24 24"><use href="#o-move"/></svg></span>
+          <span title="Bulldoze" style="background:rgba(255,106,95,0.2);border-color:rgba(255,106,95,0.45)"><svg viewBox="0 0 24 24" style="stroke:#ff9d96"><use href="#o-trash"/></svg></span>
+        </div>
+      </div>
+
+      <div class="glass asset" style="left:360px;bottom:94px;width:560px">
+        <div class="ahd">
+          <span class="stab on"><svg viewBox="0 0 32 32"><use href="#c-lift"/></svg></span>
+          <span class="stab"><svg viewBox="0 0 32 32"><use href="#c-gondola"/></svg></span>
+          <span class="stab"><svg viewBox="0 0 32 32"><use href="#c-surface"/></svg></span>
+          <span class="tsep"></span>
+          <div class="tog"><small>Mode</small><i class="on"><svg viewBox="0 0 24 24"><use href="#o-straight"/></svg></i><i><svg viewBox="0 0 24 24"><use href="#o-bend"/></svg></i></div>
+          <div class="tog"><small>Towers</small><i class="on" style="width:40px">AUTO</i><i><svg viewBox="0 0 24 24"><use href="#o-tower"/></svg></i></div>
+          <div class="tog"><small>Snap</small><i class="on"><svg viewBox="0 0 24 24"><use href="#o-magnet"/></svg></i><i class="on"><svg viewBox="0 0 24 24"><use href="#o-lift"/></svg></i><i><svg viewBox="0 0 24 24"><use href="#o-run"/></svg></i></div>
+          <span style="margin-left:auto;display:grid;place-items:center;width:24px"><svg class="x" viewBox="0 0 24 24"><use href="#o-close"/></svg></span>
+        </div>
+        <div class="cards" id="csCards"></div>
+        <div class="caption"><b>Detachable quad</b><span>2,400 / h<span class="dot"></span>5.0 m/s</span><span class="price">$1.20M + $3,900 / m</span></div>
+        <div class="bpbar">
+          <span class="bpc on"><svg width="20" height="20" viewBox="0 0 32 32"><use href="#c-lift"/></svg>Summit Quad<b>$4.12M</b><svg class="bx" viewBox="0 0 24 24"><use href="#o-close"/></svg></span>
+          <span class="bpc"><svg width="16" height="16" viewBox="0 0 24 24" style="fill:#e6edf3"><use href="#o-dd"/></svg>Couloir<b>$0.58M</b><svg class="bx" viewBox="0 0 24 24"><use href="#o-close"/></svg></span>
+          <span style="flex:1"></span>
+          <span class="abtn ghost">Clear</span>
+          <span class="abtn go two"><b>Build<span class="dot"></span>$4.70M</b><small>leaves $0.54M</small></span>
+        </div>
+      </div>
+
+      <div class="band top">
+        <div style="position:relative;width:42px;height:42px;display:grid;place-items:center"><svg width="38" height="38"><use href="#c-level"/></svg><span style="position:absolute;top:-2px;right:-7px;background:#4cc24c;color:#08240b;font-weight:800;font-size:11px;padding:1px 6px;border-radius:9px;border:1.5px solid #c8f5c8">7</span></div>
+        <div class="cap pill"><svg width="24" height="24"><use href="#c-trophy"/></svg><span style="color:#ffd35c;font-weight:800;letter-spacing:0.08em;font-size:13px">REGIONAL RESORT</span></div>
+        <div class="cap pill" style="gap:8px"><svg width="24" height="24"><use href="#c-lodge"/></svg>
+          <div style="display:grid;gap:2px;width:92px"><i style="display:block;height:4px;border-radius:2px;width:88%;background:#62d17b"></i><i style="display:block;height:4px;border-radius:2px;width:72%;background:#4dabf7"></i><i style="display:block;height:4px;border-radius:2px;width:54%;background:#ffd43b"></i><i style="display:block;height:4px;border-radius:2px;width:66%;background:#b197fc"></i></div></div>
+        <div class="cats" id="csCats"></div>
+        <div style="flex:1"></div>
+        <div class="cat sm"><svg viewBox="0 0 32 32"><use href="#c-money"/></svg></div>
+        <div class="cat sm"><svg viewBox="0 0 32 32"><use href="#c-map"/></svg></div>
+        <div class="cat sm"><svg viewBox="0 0 32 32"><use href="#c-stats"/></svg></div>
+        <div class="vsep"></div>
+        <div class="cat sm"><svg viewBox="0 0 32 32"><use href="#c-camera"/></svg></div>
+      </div>
+      <div class="band bot">
+        <div class="cap" style="padding:0 10px"><svg width="14" height="14" style="color:var(--blue)"><use href="#o-play"/></svg></div>
+        <div class="cap"><b style="color:var(--blue);font-weight:700">10:30</b><span>Jan 15, 2027</span></div>
+        <div class="cap" style="padding:0 10px;gap:0;color:var(--blue)"><svg width="14" height="14"><use href="#o-tri"/></svg><svg width="14" height="14" style="margin-left:-5px"><use href="#o-tri"/></svg><svg width="14" height="14" style="margin-left:-5px;opacity:.35"><use href="#o-tri"/></svg></div>
+        <div class="cap"><svg width="18" height="18"><use href="#g-snow"/></svg><b>−8 °C</b><span style="color:var(--m)">12 cm new</span></div>
+        <div class="cap" style="min-width:92px;justify-content:center">Winter</div>
+        <div class="cap name">Jackson Peaks Resort</div>
+        <div style="flex:1"></div>
+        <div class="cap"><svg width="18" height="18" viewBox="0 0 32 32"><use href="#c-guest"/></svg><b>1,240</b><span style="color:var(--good);font-size:11px">▲</span></div>
+        <div class="cap"><svg width="20" height="20" viewBox="0 0 32 32"><use href="#c-money"/></svg><b>$5,238,120</b><span style="color:var(--good);font-size:11px">▲</span></div>
+        <div class="cap faces" id="csFaces" aria-label="Guest happiness: good"></div>
+      </div>
+    </div></div>
+  </section>
+
+  <section id="secB" aria-labelledby="sb-h">
+    <div class="sec-head">
+      <h2 id="sb-h">Leaning on Subway Builder</h2>
+      <div class="switch" role="group" aria-label="Frame theme"><button id="sbDark" aria-pressed="true">Dark</button><button id="sbLight" aria-pressed="false">Light</button></div>
+    </div>
+    <ul class="traits">
+      <li><b>Frosted glass panels</b> that blur the map beneath, with centred titles, large pill tabs and a solid white pill for the current choice.</li>
+      <li><b>Round glass tool buttons</b> bottom-left and a status bar of glass capsules, with figures in a monospaced face.</li>
+      <li><b>One Construction window:</b> icon buttons, a stepper, the blueprint list and a blue Build button; blueprints glow yellow on the map with a live readout.</li>
+      <li><b>A schematic map</b> where lifts read like transit lines, lift lines show as bubbles, and a legend capsule names the view that's on.</li>
+    </ul>
+    <div class="frame" id="frameB"><div class="stage sb" id="stageB">
+      <canvas id="canvasB" width="1280" height="720" aria-hidden="true"></canvas>
+      <svg class="world" id="worldB" viewBox="0 0 1280 720" role="img" aria-label="Schematic mountain map with lift-line bubbles and blueprints"></svg>
+
+      <div class="gl" style="left:12px;top:12px;width:288px">
+        <div class="hd">Construction<span class="rx"><svg class="ico"><use href="#o-close"/></svg></span></div>
+        <div class="bd">
+          <div class="tabs seg"><div class="btn on"><svg class="ico"><use href="#o-hammer"/></svg>Edit</div><div class="btn"><svg class="ico"><use href="#o-dollar"/></svg>Cost</div></div>
+          <div class="h3">Construction type</div>
+          <div class="grid2 seg"><div class="btn on"><svg class="ico"><use href="#o-lift"/></svg>Build lifts</div><div class="btn"><svg class="ico"><use href="#o-run"/></svg>Build runs</div><div class="btn"><svg class="ico"><use href="#o-trash"/></svg>Delete</div><div class="btn"><svg class="ico"><use href="#o-junction"/></svg>Add junction</div></div>
+          <div class="h3">Lift type</div>
+          <div class="grid3 seg"><div class="btn on"><svg class="ico"><use href="#o-chair4"/></svg>Chair</div><div class="btn"><svg class="ico"><use href="#o-gondola"/></svg>Gondola</div><div class="btn"><svg class="ico"><use href="#o-tbar"/></svg>Surface</div></div>
+          <div class="h3">Capacity</div>
+          <div class="step"><div class="btn"><svg class="ico"><use href="#o-minus"/></svg></div><div class="f">2,400<small>/ h</small></div><div class="btn"><svg class="ico"><use href="#o-plus"/></svg></div></div>
+          <div class="spec"><span>Detachable quad · 5.0 m/s</span><span style="display:flex;align-items:center;gap:5px">1x cost <svg class="ico" style="width:13px;height:13px"><use href="#o-info"/></svg></span></div>
+          <div class="rule"></div>
+          <div class="item on"><span class="bullet" style="background:var(--bpc);color:var(--bpInk)">S</span><span>Summit Quad<small>739 m ↑406 m 29°</small></span><span class="v">$4.12M</span><svg class="ico rm"><use href="#o-close"/></svg></div>
+          <div class="item"><svg class="dd" viewBox="0 0 24 24"><use href="#o-dd"/></svg><span>Couloir<small>770 m 36° max</small></span><span class="v">$0.58M</span><svg class="ico rm"><use href="#o-close"/></svg></div>
+          <div class="brow"><div class="wide go">Build blueprints · $4.70M</div><div class="wide">Clear</div></div>
+          <div class="spec"><span>Balance after building</span><span class="mono" style="color:var(--t)">$538,120</span></div>
+        </div>
+      </div>
+
+      <div class="gl" style="right:196px;top:12px;height:40px;display:flex;align-items:center;gap:7px;padding:0 12px;color:var(--warn);font-weight:600"><svg class="ico"><use href="#o-warn"/></svg>Warnings · 1</div>
+      <div class="gl tile" style="right:150px;top:12px"><svg class="ico"><use href="#o-map"/></svg></div>
+      <div class="gl tile" style="right:104px;top:12px"><svg class="ico"><use href="#o-sound"/></svg></div>
+      <div class="gl tile" style="right:58px;top:12px"><svg class="ico"><use href="#o-moon"/></svg></div>
+      <div class="gl tile" style="right:12px;top:12px"><svg class="ico"><use href="#o-menu"/></svg></div>
+
+      <div class="gl" style="right:12px;top:60px;width:272px">
+        <div class="hd"><span class="l"><svg class="ico"><use href="#o-back"/></svg></span>Lift details<span class="rx"><svg class="ico"><use href="#o-close"/></svg></span></div>
+        <div class="bd">
+          <div style="display:flex;align-items:center;gap:8px"><span class="bullet" style="background:var(--ridge);color:var(--ridgeInk)">R</span><b style="font-size:15px;font-weight:600">Ridge Six</b><span style="margin-left:auto;color:var(--m);font-size:12px">Detachable six</span></div>
+          <div class="kv">
+            <div class="row"><svg class="ico" style="color:var(--m)"><use href="#o-users"/></svg>Riders today<b>6,420</b></div><div class="bar"><i style="width:72%;background:var(--a)"></i></div>
+            <div class="row"><svg class="ico" style="color:var(--m)"><use href="#o-clock"/></svg>Average wait<svg class="ico" style="color:var(--warn);width:15px;height:15px"><use href="#o-warn"/></svg><b style="color:var(--bad)">12 min</b></div><div class="bar"><i style="width:80%;background:var(--bad)"></i></div>
+            <div class="row"><svg class="ico" style="color:var(--m)"><use href="#o-gauge"/></svg>Load<b>86%</b></div><div class="bar"><i style="width:86%;background:var(--warnFill)"></i></div>
+          </div>
+          <div class="h3 sm"><svg class="ico" style="color:var(--m)"><use href="#o-chart"/></svg>Riders by hour</div>
+          <div><div class="hist" id="sbHist"></div><div class="axis"><span style="left:6.25%">9am</span><span style="left:43.75%">12pm</span><span style="left:93.75%">4pm</span></div></div>
+          <div class="acts"><div class="btn"><svg class="ico"><use href="#o-upgrade"/></svg>Upgrade</div><div class="btn"><svg class="ico"><use href="#o-power"/></svg>Close lift</div><div class="btn" style="padding:0;color:var(--bad);border-color:color-mix(in srgb, var(--bad) 45%, transparent)"><svg class="ico"><use href="#o-trash"/></svg></div></div>
+        </div>
+      </div>
+
+      <div class="gl ctl" style="right:12px;bottom:170px"><svg class="ico"><use href="#o-compass"/></svg></div>
+      <div class="gl ctl" style="right:12px;bottom:130px">3D</div>
+      <div class="gl ctl" style="right:12px;bottom:90px"><svg class="ico"><use href="#o-plus"/></svg></div>
+      <div class="gl ctl" style="right:12px;bottom:50px"><svg class="ico"><use href="#o-minus"/></svg></div>
+
+      <div class="gl round on" style="left:12px;bottom:50px" title="Construction"><svg class="ico"><use href="#o-wrench"/></svg></div>
+      <div class="gl round" style="left:64px;bottom:50px" title="Lifts and runs"><svg class="ico"><use href="#o-list"/></svg></div>
+      <div class="gl round" style="left:116px;bottom:50px" title="Stats"><svg class="ico"><use href="#o-chart"/></svg></div>
+      <div class="gl round" style="left:168px;bottom:50px" title="Guests"><svg class="ico"><use href="#o-users"/></svg></div>
+
+      <div class="srow">
+        <div class="grp">
+          <div class="gl capsule"><svg class="ico" style="width:14px;height:14px"><use href="#o-play"/></svg><span style="width:1px;height:16px;background:var(--e)"></span><span style="font-weight:600">Jan 15</span><span class="mono">10:30:12</span><svg class="ico" style="width:15px;height:15px;color:#7cc7ff"><use href="#o-snow"/></svg></div>
+          <div class="gl capsule" style="gap:2px"><svg class="ico" style="width:14px;height:14px"><use href="#o-tri"/></svg><svg class="ico" style="width:14px;height:14px"><use href="#o-tri"/></svg><svg class="ico" style="width:14px;height:14px;opacity:.35"><use href="#o-tri"/></svg></div>
+        </div>
+        <div class="gl capsule"><svg class="ico" style="color:var(--good)"><use href="#o-cash"/></svg><span class="mono">$5,238,120</span><span class="mono" style="color:var(--good)">+$38.2K</span></div>
+        <div class="grp">
+          <div class="gl capsule"><svg class="ico"><use href="#o-skier"/></svg><span class="mono">1,240</span></div>
+          <div class="gl capsule"><svg class="ico"><use href="#o-lift"/></svg><span class="mono">3</span></div>
+        </div>
+      </div>
+      <div class="gl capsule" style="right:12px;bottom:8px" id="sbLegend"></div>
+    </div></div>
+  </section>
+  <p class="pagenote">Everything here is a still mockup; numbers are made up, names are invented, and no game's art or logos are used.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const W = 1280, H = 720, CELL = 4, GW = W / CELL, GH = H / CELL, GX = GW + 1, GY = GH + 1, MPP = 4;
+
+  const solo = location.hash.replace('#', '');
+  if (solo === 'cs' || solo === 'sb' || solo === 'sb-light') {
+    document.body.classList.add('solo');
+    document.getElementById(solo === 'cs' ? 'secA' : 'secB').classList.add('solo-on');
+  }
+  for (const [frame, stage] of [['frameA', 'stageA'], ['frameB', 'stageB']]) {
+    const f = document.getElementById(frame), s = document.getElementById(stage);
+    const fit = () => { const k = f.clientWidth / W; s.style.transform = `scale(${k})`; f.style.height = `${H * k}px`; };
+    new ResizeObserver(fit).observe(f); fit();
+  }
+
+  // ---------- terrain (the same generated mountain as the build-flow prototype) ----------
+  function hash(i, j) { let h = Math.imul(i, 374761393) + Math.imul(j, 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+  function vnoise(x, y) {
+    const i = Math.floor(x), j = Math.floor(y), fx = x - i, fy = y - j, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    const a = hash(i, j), b = hash(i + 1, j), c = hash(i, j + 1), d = hash(i + 1, j + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x, y) { let s = 0, a = 0.5, f = 1; for (let k = 0; k < 4; k++) { s += a * vnoise(x * f, y * f); a *= 0.5; f *= 2; } return s; }
+  const PEAKS = [[1120, 0, 1000, 600], [740, 170, 260, 300], [1210, 380, 200, 240], [1000, 95, 320, 75], [870, 70, 200, 65]];
+  function heightAt(x, y) {
+    let h = 1950;
+    for (const [px, py, a, s] of PEAKS) { const dx = x - px, dy = y - py; h += a * Math.exp(-(dx * dx + dy * dy) / (2 * s * s)); }
+    h += 40 * (fbm(x / 420, y / 420) - 0.5) + 4 * (fbm(x / 90 + 7, y / 90 + 3) - 0.5);
+    return h + x * 0.02 - y * 0.06;
+  }
+  function view(zoom, cx, cy) {
+    return { zoom, toS: (p) => ({ x: (p[0] - cx) * zoom + W / 2, y: (p[1] - cy) * zoom + H / 2 }), toW: (x, y) => [(x - W / 2) / zoom + cx, (y - H / 2) / zoom + cy] };
+  }
+  function terrain(v) {
+    const HG = new Float32Array(GX * GY), SH = new Float32Array(GX * GY), FO = new Uint8Array(GX * GY), FW = new Float32Array(GX * GY), SL = new Float32Array(GX * GY);
+    const ss = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+    for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++) { const w = v.toW(i * CELL, j * CELL); HG[j * GX + i] = heightAt(w[0], w[1]); }
+    const run = 2 * CELL / v.zoom * MPP;
+    for (let j = 0; j < GY; j++) for (let i = 0; i < GX; i++) {
+      const k = j * GX + i, h = HG[k];
+      const dzdx = (HG[j * GX + Math.min(GX - 1, i + 1)] - HG[j * GX + Math.max(0, i - 1)]) / run;
+      const dzdy = (HG[Math.min(GY - 1, j + 1) * GX + i] - HG[Math.max(0, j - 1) * GX + i]) / run;
+      SL[k] = Math.atan(Math.hypot(dzdx, dzdy)) * 180 / Math.PI;
+      const n = [-dzdx, -dzdy, 1], nl = Math.hypot(...n);
+      SH[k] = Math.max(0, (n[0] * -0.55 + n[1] * -0.55 + n[2] * 0.63) / nl);
+      const w = v.toW(i * CELL, j * CELL);
+      // A continuous forest weight, so forest edges stay smooth when the grid is scaled up.
+      FW[k] = ss(0.455, 0.485, fbm(w[0] / 150 + 11, w[1] / 150 + 5)) * (1 - ss(2600, 2640, h)) * (1 - ss(32, 36, SL[k]));
+      FO[k] = FW[k] > 0.5 ? 1 : 0;
+    }
+    return { HG, SH, FO, FW };
+  }
+  const rgb = (hex) => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const SEG = { 1: [3, 2], 2: [2, 1], 3: [3, 1], 4: [0, 1], 5: [3, 0, 2, 1], 6: [0, 2], 7: [3, 0], 8: [3, 0], 9: [0, 2], 10: [0, 1, 3, 2], 11: [0, 1], 12: [3, 1], 13: [2, 1], 14: [3, 2] };
+  // Marching squares: adds the isoline of field F at level lev to the current path.
+  function iso(ctx, F, lev) {
+    for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+      const a = F[j * GX + i], b = F[j * GX + i + 1], c = F[(j + 1) * GX + i + 1], d = F[(j + 1) * GX + i];
+      const seg = SEG[(a > lev ? 8 : 0) | (b > lev ? 4 : 0) | (c > lev ? 2 : 0) | (d > lev ? 1 : 0)]; if (!seg) continue;
+      const pt = (e) => e === 0 ? [i + (lev - a) / (b - a), j] : e === 1 ? [i + 1, j + (lev - b) / (c - b)] : e === 2 ? [i + (lev - d) / (c - d), j + 1] : [i, j + (lev - a) / (d - a)];
+      for (let s = 0; s < seg.length; s += 2) { const p = pt(seg[s]), q = pt(seg[s + 1]); ctx.moveTo(p[0] * CELL, p[1] * CELL); ctx.lineTo(q[0] * CELL, q[1] * CELL); }
+    }
+  }
+  function paint(canvas, t, pal) {
+    const ctx = canvas.getContext('2d'), off = document.createElement('canvas'); off.width = GX; off.height = GY;
+    const oc = off.getContext('2d'), img = oc.createImageData(GX, GY);
+    for (let k = 0; k < GX * GY; k++) {
+      let c = mix(rgb(pal.shadow), rgb(pal.base), Math.pow(t.SH[k], pal.shadePow));
+      if (t.FW[k] > 0) c = mix(c, rgb(pal.forest), pal.forestMix * t.FW[k]);
+      img.data[k * 4] = c[0]; img.data[k * 4 + 1] = c[1]; img.data[k * 4 + 2] = c[2]; img.data[k * 4 + 3] = 255;
+    }
+    oc.putImageData(img, 0, 0); ctx.imageSmoothingEnabled = true; ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(off, 0, 0, GX, GY, 0, 0, GX * CELL, GY * CELL);
+    if (pal.trees) {
+      for (let y = 3; y < H; y += 5) for (let x = 3; x < W; x += 5) {
+        const jx = x + (hash(x, y) - 0.5) * 4, jy = y + (hash(y, x) - 0.5) * 4, gi = Math.round(jx / CELL), gj = Math.round(jy / CELL);
+        if (gi >= 0 && gj >= 0 && gi < GX && gj < GY && t.FO[gj * GX + gi] && hash(x * 3, y * 7) > 0.22) {
+          ctx.fillStyle = pal.treeShadow; ctx.beginPath(); ctx.arc(jx + 1.2, jy + 1.2, 1.9, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = pal.trees; ctx.beginPath(); ctx.arc(jx, jy, 1.7, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+    let lo = Infinity, hi = -Infinity; for (const h of t.HG) { lo = Math.min(lo, h); hi = Math.max(hi, h); }
+    for (let lev = Math.ceil(lo / 50) * 50; lev <= hi; lev += 50) {
+      const index = lev % 250 === 0; ctx.strokeStyle = index ? pal.contourIndex : pal.contour; ctx.lineWidth = index ? 1.1 : 0.6;
+      ctx.beginPath(); iso(ctx, t.HG, lev); ctx.stroke();
+    }
+    if (pal.forestEdge) { ctx.strokeStyle = pal.forestEdge; ctx.lineWidth = 1; ctx.beginPath(); iso(ctx, t.FW, 0.5); ctx.stroke(); }
+    if (pal.vignette) { const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.75); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, pal.vignette); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  }
+
+  // ---------- the resort (same in both frames) ----------
+  const LIFTS = [
+    { key: 'M', name: 'Meadow Carpet', a: [110, 640], b: [285, 592], color: '#a78bfa', colorLight: '#7c3aed', wait: 3 },
+    { key: 'A', name: 'Aspen Quad', a: [300, 610], b: [585, 318], color: '#ec4899', colorLight: '#db2777', wait: 7 },
+    { key: 'R', name: 'Ridge Six', a: [470, 655], b: [860, 250], color: '#22d3ee', colorLight: '#0891b2', ink: '#0b2a31', wait: 12 },
+  ];
+  const PLAN = { key: 'S', name: 'Summit Quad', a: [885, 262], b: [990, 110] };
+  const RUNS = [
+    { name: 'Moose Meadow', diff: 'green', pts: [[290, 600], [220, 560], [150, 580], [105, 640]], traffic: 180 },
+    { name: 'Bighorn', diff: 'blue', pts: [[590, 330], [520, 380], [470, 450], [400, 510], [330, 600]], traffic: 410 },
+    { name: 'Cornice', diff: 'black', pts: [[600, 320], [640, 420], [560, 520], [420, 600], [320, 630]], traffic: 190 },
+    { name: 'Timberline', diff: 'blue', pts: [[850, 262], [760, 230], [660, 230], [600, 290], [560, 380], [520, 480], [480, 580], [470, 645]], traffic: 360 },
+    { name: 'Headwall', diff: 'black', pts: [[870, 255], [840, 360], [760, 470], [640, 560], [500, 650]], traffic: 240 },
+  ];
+  const PLAN_RUN = { name: 'Couloir', diff: 'double', pts: [[995, 110], [1040, 170], [1030, 240], [960, 290]] };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const f1 = (n) => n.toFixed(1);
+  // Catmull-Rom through screen points, as cubic Bezier segments.
+  function smooth(ps) {
+    let d = `M${f1(ps[0].x)} ${f1(ps[0].y)}`;
+    for (let i = 0; i < ps.length - 1; i++) {
+      const p0 = ps[i - 1] || ps[i], p1 = ps[i], p2 = ps[i + 1], p3 = ps[i + 2] || p2;
+      d += ` C${f1(p1.x + (p2.x - p0.x) / 6)} ${f1(p1.y + (p2.y - p0.y) / 6)} ${f1(p2.x - (p3.x - p1.x) / 6)} ${f1(p2.y - (p3.y - p1.y) / 6)} ${f1(p2.x)} ${f1(p2.y)}`;
+    }
+    return d;
+  }
+  const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+
+  // ================= frame A =================
+  const vA = view(0.67, 677, 580), SA = (p) => vA.toS(p);
+  paint(document.getElementById('canvasA'), terrain(vA), { base: '#f4f2ec', shadow: '#b8bbb9', shadePow: 0.85, forest: '#9ba192', forestMix: 0.55, trees: '#7c8376', treeShadow: 'rgba(60,64,58,0.25)',
+    contour: 'rgba(70,72,68,0.08)', contourIndex: 'rgba(70,72,68,0.16)', vignette: 'rgba(40,44,50,0.26)' });
+  {
+    const ramp = [[255, 214, 64], [255, 150, 38], [240, 72, 58]];
+    const heat = (t) => { const x = Math.min(1, t) * 2, i = Math.min(1, Math.floor(x)), c = mix(ramp[i], ramp[i + 1], x - i); return `rgb(${c.map(Math.round).join(',')})`; };
+    const out = [`<defs>
+      <filter id="aSh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.35"/></filter>
+      <filter id="aLbl" x="-15%" y="-60%" width="130%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="1.3" flood-color="#ffffff" flood-opacity="1"/></filter>
+      <filter id="aBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3"/></filter>
+    </defs>`];
+    const cap = 'stroke-linecap="round" stroke-linejoin="round"';
+    for (const r of RUNS) out.push(`<path d="${smooth(r.pts.map(SA))}" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="8.5" ${cap}/>`);
+    for (const r of RUNS) out.push(`<path d="${smooth(r.pts.map(SA))}" fill="none" stroke="${heat(r.traffic / 410)}" stroke-width="5" ${cap}/>`);
+    // The planned run: a pale-blue ghost band with a dashed white core.
+    const dRun = smooth(PLAN_RUN.pts.map(SA));
+    out.push(`<path d="${dRun}" fill="none" stroke="rgba(108,192,255,0.5)" stroke-width="10" ${cap}/>`, `<path d="${dRun}" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-dasharray="6 5" ${cap}/>`);
+    // Built lifts: cable, towers and stations; the selected lift gets the blue selection underlay.
+    for (const l of LIFTS) {
+      const a = SA(l.a), b = SA(l.b), sel = l.key === 'R';
+      if (sel) out.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="rgba(108,192,255,0.45)" stroke-width="14" stroke-linecap="round" filter="url(#aBlur)"/>`);
+      out.push(`<line x1="${a.x}" y1="${a.y + 3}" x2="${b.x}" y2="${b.y + 3}" stroke="rgba(0,0,0,0.16)" stroke-width="3"/>`);
+      out.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#2f3740" stroke-width="2"/>`);
+      const n = Math.max(2, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / 40));
+      for (let k = 1; k < n; k++) { const p = lerp(a, b, k / n); out.push(`<rect x="${p.x - 2.5}" y="${p.y - 2.5}" width="5" height="5" rx="1" fill="#2f3740" filter="url(#aSh)"/>`); }
+      for (const p of [a, b]) out.push(`<g filter="url(#aSh)"><rect x="${p.x - 9}" y="${p.y - 7}" width="18" height="13" rx="2" fill="#e4e8ec" ${sel ? 'stroke="#6cc0ff" stroke-width="2"' : ''}/><path d="M${p.x - 11} ${p.y - 6}l11-6 11 6z" fill="#56616d"/></g>`);
+    }
+    // The lift being placed: a pale-blue band with a dashed white core (dashed means planned), ghost towers and handles.
+    const a = SA(PLAN.a), b = SA(PLAN.b);
+    out.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="rgba(108,192,255,0.6)" stroke-width="10" stroke-linecap="round"/>`);
+    out.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 5"/>`);
+    for (const t of [1 / 3, 2 / 3]) { const p = lerp(a, b, t); out.push(`<rect x="${p.x - 3.5}" y="${p.y - 3.5}" width="7" height="7" rx="1.5" fill="rgba(255,255,255,0.55)" stroke="#ffffff" stroke-width="1.2"/>`); }
+    out.push(`<circle cx="${a.x}" cy="${a.y}" r="6.5" fill="#ffffff" stroke="#4ca6ff" stroke-width="3" filter="url(#aSh)"/>`);
+    out.push(`<circle cx="${b.x}" cy="${b.y}" r="13" fill="rgba(108,192,255,0.3)"/><circle cx="${b.x}" cy="${b.y}" r="7.5" fill="#ffffff" stroke="#4ca6ff" stroke-width="3" filter="url(#aSh)"/>`);
+    // One readout beside the pointer: length, rise, angle and cost.
+    const rx = 616, ry = 12, rw = 210, ic = (id, x, y) => `<use href="#${id}" x="${x}" y="${y}" width="14" height="14" fill="none" stroke="#8fd0ff" stroke-width="1.9"/>`;
+    const num = 'font:700 12.5px Overpass,sans-serif;fill:#ffffff';
+    out.push(`<g filter="url(#aSh)"><rect x="${rx}" y="${ry}" width="${rw}" height="56" rx="8" fill="rgba(16,20,26,0.86)" stroke="rgba(255,255,255,0.14)"/>
+      <use href="#c-lift" x="${rx + 9}" y="${ry + 6}" width="21" height="21"/>
+      <text x="${rx + 34}" y="${ry + 22}" style="font:700 13px Overpass,sans-serif;fill:#ffffff">Summit Quad</text>
+      <text x="${rx + rw - 12}" y="${ry + 22}" text-anchor="end" style="font:800 13.5px Overpass,sans-serif;fill:#7ee29a">$4.12M</text>
+      ${ic('i-len', rx + 11, ry + 34)}<text x="${rx + 29}" y="${ry + 46}" style="${num}">739 m</text>
+      ${ic('i-rise', rx + 80, ry + 34)}<text x="${rx + 97}" y="${ry + 46}" style="${num}">406 m</text>
+      ${ic('i-slope', rx + 150, ry + 34)}<text x="${rx + 168}" y="${ry + 46}" style="${num}">29°</text></g>`);
+    // Notification markers over trouble spots.
+    const marker = (p, bg, inner) => `<g filter="url(#aSh)"><path d="M${p.x} ${p.y - 7} l-5 -9 h10 z" fill="#ffffff"/><circle cx="${p.x}" cy="${p.y - 31}" r="14" fill="#ffffff"/><circle cx="${p.x}" cy="${p.y - 31}" r="11.5" fill="${bg}"/>${inner(p.x, p.y - 31)}</g>`;
+    out.push(marker(SA(LIFTS[2].a), '#ff9f1a', (x, y) => `<text x="${x}" y="${y + 5}" text-anchor="middle" style="font:800 15px Overpass,sans-serif;fill:#ffffff">!</text>`));
+    out.push(marker(SA([560, 520]), '#3aa0f5', (x, y) => `<use href="#i-flake" x="${x - 7}" y="${y - 7}" width="14" height="14" fill="none" stroke="#ffffff" stroke-width="2"/>`));
+    // Labels last, dark with a soft white glow so they read on the paled terrain.
+    const lbl = (x, y, text, anchor = 'start') => `<text x="${x}" y="${y}" text-anchor="${anchor}" filter="url(#aLbl)" style="font:700 11.5px Overpass,sans-serif;fill:#1f2933;letter-spacing:.02em">${esc(text)}</text>`;
+    out.push(lbl(246, 383, 'Moose Meadow', 'end'), lbl(466, 319, 'Bighorn'), lbl(604, 258, 'Cornice', 'end'), lbl(662, 115, 'Timberline', 'middle'), lbl(706, 291, 'Headwall'));
+    out.push(`<use href="#o-dd" x="824" y="176" width="12" height="12" fill="#1f2933" filter="url(#aLbl)"/>`, lbl(840, 186, 'Couloir'));
+    document.getElementById('worldA').innerHTML = out.join('');
+
+    const cats = ['c-lift', 'c-trail', 'c-snow', 'c-groom', 'c-lodge', 'c-road', 'c-terrain', 'c-bulldoze'];
+    document.getElementById('csCats').innerHTML = cats.map((ic, i) => `<div class="cat${i === 0 ? ' on' : ''}"><svg viewBox="0 0 32 32"><use href="#${ic}"/></svg></div>`).join('');
+    const gridIcons = ['g-skier', 'g-clock', 'g-snow', 'g-wind', 'g-sun', 'g-aval', 'g-pine', 'g-mount', 'c-groom', 'c-lift', 'c-trail', 'c-lodge', 'c-road', 'g-coin', 'g-smile', 'c-map'];
+    const cells = gridIcons.map((ic, i) => `<span${i === 0 ? ' class="on"' : ''}><svg viewBox="0 0 32 32"><use href="#${ic}"/></svg></span>`);
+    document.getElementById('csGrid').innerHTML = [0, 4, 8, 12].map((i) => `<div class="grow">${cells.slice(i, i + 4).join('')}</div>`).join('');
+    const shares = [['On runs', 58, '#6cc0ff'], ['In lift lines', 21, '#ffb23e'], ['Riding lifts', 15, '#b197fc'], ['In lodges', 6, '#e6edf3']];
+    let acc = 0; const circ = 2 * Math.PI * 15;
+    document.getElementById('csDonut').innerHTML = shares.map(([, v, c]) => { const s = `<circle cx="21" cy="21" r="15" fill="none" stroke="${c}" stroke-width="7" stroke-dasharray="${(v / 100 * circ - 0.7).toFixed(2)} ${circ.toFixed(2)}" stroke-dashoffset="${(-acc / 100 * circ).toFixed(2)}" transform="rotate(-90 21 21)"/>`; acc += v; return s; }).join('');
+    document.getElementById('csDonutKey').innerHTML = shares.map(([n, v, c]) => `<div class="r" style="padding:0;font-size:12.5px"><span style="display:flex;gap:7px;align-items:center;color:var(--t)"><i style="width:10px;height:10px;border-radius:2px;background:${c};display:block"></i>${n}</span><b>${v} %</b></div>`).join('');
+    // Asset cards: three-quarter chairs with hanger, back and restraint (gondolas have their own tab).
+    const chair = (n, bubble) => {
+      const w = Math.min(46, n * 6 + 8), x0 = 33 - w / 2;
+      let s = `<path d="M2 7l60 6" stroke="#2a323b" stroke-width="2.2" stroke-linecap="round"/><rect x="29.5" y="7" width="7" height="4.2" rx="1.5" fill="url(#kD)"/>`;
+      s += `<path d="M33 11v7.5M${x0 + 3} 18.5H${x0 + w - 1}" stroke="#2a323b" stroke-width="2.2" stroke-linecap="round"/>`;
+      if (bubble) s += `<path d="M${x0 - 2} 29c0-11 5-14.5 ${w / 2 + 2}-14.5s${w / 2 + 2} 3.5 ${w / 2 + 2} 14.5" fill="rgba(191,230,255,0.28)" stroke="#9fd6fb" stroke-width="1.3"/>`;
+      s += `<path d="M${x0 + 3} 19.5h${w - 4}l-2 8.5h${-(w - 4)}z" fill="url(#kB)" stroke="#1b5cad" stroke-linejoin="round"/>`;
+      for (let i = 1; i < n; i++) { const x = x0 + 3 + i * (w - 4) / n; s += `<path d="M${f1(x)} 20.5l-1.8 6.8" stroke="#1b5cad" stroke-width=".9" opacity=".75"/>`; }
+      s += `<path d="M${x0 + 1} 28h${w - 4}l-3.5 5.5h${-(w - 4)}z" fill="url(#kY)" stroke="#a87200" stroke-linejoin="round"/>`;
+      s += `<path d="M${x0 - 3.5} 25.5V39H${x0 + w - 9}V34" stroke="#2a323b" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+      return `<svg viewBox="0 0 64 48" aria-hidden="true">${s}</svg>`;
+    };
+    const cards = [['Double', chair(2)], ['Triple', chair(3)], ['Quad', chair(4)], ['Det. quad', chair(4, true), true], ['Six', chair(6, true)], ['Eight', chair(8, true)]];
+    document.getElementById('csCards').innerHTML = cards.map(([n, art, on]) => `<div class="card${on ? ' on' : ''}">${art}<small>${n}</small></div>`).join('');
+    // Happiness faces: dim until the current mood, which is green.
+    const face = (mood, on) => {
+      const mouth = ['M11 21.5a6 6 0 0 1 10 0', 'M11 21a8 6 0 0 1 10-.5', 'M11 20.5h10', 'M11 19.5a8 6 0 0 0 10 .5', 'M10.5 18.5a6 6 0 0 0 11 0'][mood];
+      return `<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="${on ? '#56d06f' : 'rgba(255,255,255,0.16)'}"/><circle cx="12" cy="13" r="1.8" fill="${on ? '#0d3316' : 'rgba(10,14,20,0.55)'}"/><circle cx="20" cy="13" r="1.8" fill="${on ? '#0d3316' : 'rgba(10,14,20,0.55)'}"/><path d="${mouth}" stroke="${on ? '#0d3316' : 'rgba(10,14,20,0.55)'}" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>`;
+    };
+    document.getElementById('csFaces').innerHTML = [0, 1, 2, 3, 4].map((m) => face(m, m === 3)).join('');
+  }
+
+  // ================= frame B =================
+  const vB = view(0.64, 584, 428), SB = (p) => vB.toS(p);
+  const tB = terrain(vB);
+  const PAL = {
+    dark: { base: '#262a30', shadow: '#14171b', shadePow: 1.3, forest: '#173c34', forestMix: 0.75, forestEdge: 'rgba(110,231,183,0.10)', trees: null, contour: 'rgba(210,225,240,0.06)', contourIndex: 'rgba(210,225,240,0.12)',
+      halo: '#15181c', ink: '#f2f3f5', station: '#0f1114', label: 'rgba(15,17,20,0.85)', vignette: 'rgba(0,0,0,0.3)',
+      bp: '#facc15', bpCase: null, chip: 'rgba(17,18,20,0.88)', chipInk: '#ffffff', chipEdge: 'rgba(250,204,21,0.55)', card: 'rgba(22,23,26,0.88)', cardEdge: 'rgba(255,255,255,0.1)', cardMuted: '#a3aab4', ring: '#0f1114' },
+    light: { base: '#e9ecef', shadow: '#cdd2d7', shadePow: 1.1, forest: '#c6e3d4', forestMix: 0.85, trees: null, contour: 'rgba(60,75,90,0.1)', contourIndex: 'rgba(60,75,90,0.18)',
+      halo: '#ffffff', ink: '#111418', station: '#ffffff', label: 'rgba(255,255,255,0.92)', vignette: null,
+      bp: '#ca8a04', bpCase: '#ffffff', chip: '#ffffff', chipInk: '#111418', chipEdge: '#ca8a04', card: 'rgba(255,255,255,0.94)', cardEdge: 'rgba(15,20,25,0.12)', cardMuted: '#5c6570', ring: '#ffffff' },
+  };
+  // Double black is black with two diamonds, as on trail signs; that keeps pink free for lift colours.
+  const DIFF = { dark: { green: '#4ade80', blue: '#60a5fa', black: '#e5e7eb', double: '#e5e7eb' }, light: { green: '#15803d', blue: '#2563eb', black: '#111418', double: '#111418' } };
+  // Wait colours stay clear of the blueprint yellow.
+  const WAIT = [[5, '#34d399'], [10, '#fb923c'], [Infinity, '#ef4444']];
+  const waitCol = (w) => WAIT.find(([lim]) => w < lim)[1];
+  const radius = (w) => 12 + w * 1.6;
+  const RUN_LABEL = { 'Moose Meadow': [365, 436, 'start'], 'Bighorn': [512, 417, 'end'], 'Cornice': [674, 306, 'start'], 'Timberline': [720, 224, 'middle'], 'Headwall': [764, 392, 'start'] };
+  function drawB(mode) {
+    const pal = PAL[mode], dc = DIFF[mode], cap = 'stroke-linecap="round" stroke-linejoin="round"';
+    paint(document.getElementById('canvasB'), tB, pal);
+    const out = [`<defs><filter id="bSh" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000" flood-opacity="${mode === 'dark' ? 0.4 : 0.18}"/></filter>
+      <filter id="bGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter></defs>`];
+    const lab = (x, y, inner, anchor = 'start', extra = '') => `<text x="${x}" y="${y}" text-anchor="${anchor}" ${extra} style="font:600 11.5px Inter,sans-serif;fill:${pal.ink};paint-order:stroke;stroke:${pal.label};stroke-width:3.5px">${inner}</text>`;
+    const dd = (x, y, col) => `<use href="#o-dd" x="${x}" y="${y}" width="13" height="13" fill="${col}"/>`;
+    // Runs recede while the lift-wait view is on.
+    const runs = ['<g opacity="0.75">'];
+    for (const r of RUNS) {
+      const d = smooth(r.pts.map(SB));
+      runs.push(`<path d="${d}" fill="none" stroke="${pal.halo}" stroke-width="6" ${cap} opacity="0.8"/>`, `<path d="${d}" fill="none" stroke="${dc[r.diff]}" stroke-width="2.6" ${cap}/>`);
+    }
+    runs.push('</g>'); out.push(runs.join(''));
+    // Blueprints: dashed yellow over a soft glow (a white casing in the light theme).
+    const bps = [smooth(PLAN_RUN.pts.map(SB)), `M${SB(PLAN.a).x} ${SB(PLAN.a).y} L${SB(PLAN.b).x} ${SB(PLAN.b).y}`];
+    for (const d of bps) {
+      if (pal.bpCase) out.push(`<path d="${d}" fill="none" stroke="${pal.bpCase}" stroke-width="7" ${cap}/>`);
+      else out.push(`<path d="${d}" fill="none" stroke="${pal.bp}" stroke-width="9" ${cap} opacity="0.3" filter="url(#bGlow)"/>`);
+      out.push(`<path d="${d}" fill="none" stroke="${pal.bp}" stroke-width="4.5" stroke-dasharray="9 5" ${cap}/>`);
+    }
+    // Lifts as transit lines; the selected one carries a halo and larger stations.
+    const col = (l) => (mode === 'light' && l.colorLight) || l.color;
+    for (const l of LIFTS) {
+      const a = SB(l.a), b = SB(l.b), sel = l.key === 'R';
+      if (sel) out.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${mode === 'dark' ? '#ffffff' : col(l)}" stroke-width="16" stroke-linecap="round" opacity="0.2"/>`);
+      out.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${pal.halo}" stroke-width="10" stroke-linecap="round" opacity="0.9"/>`);
+      out.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${col(l)}" stroke-width="6" stroke-linecap="round"/>`);
+      const n = Math.max(3, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / 34));
+      for (let k = 1; k < n; k += 2) { const p = lerp(a, b, k / n); out.push(`<circle cx="${p.x}" cy="${p.y}" r="1.6" fill="#ffffff" opacity="0.9"/>`); }
+      for (const p of [a, b]) out.push(`<circle cx="${p.x}" cy="${p.y}" r="${sel ? 8 : 6}" fill="${pal.station}" stroke="${pal.ink}" stroke-width="2.4"/>`);
+    }
+    // Line bullets at the terminals.
+    const bullet = (p, l) => `<g filter="url(#bSh)"><circle cx="${p.x}" cy="${p.y}" r="9" fill="${col(l)}" stroke="${pal.ring}" stroke-width="1.5"/><text x="${p.x}" y="${p.y + 3.7}" text-anchor="middle" style="font:700 10px Inter,sans-serif;fill:${mode === 'light' && l.colorLight ? '#ffffff' : l.ink || '#ffffff'}">${l.key}</text></g>`;
+    const [lm, la, lr] = LIFTS;
+    out.push(bullet({ x: SB(lm.a).x - 16, y: SB(lm.a).y - 10 }, lm), bullet({ x: SB(la.b).x - 16, y: SB(la.b).y - 12 }, la), bullet({ x: SB(lr.b).x - 16, y: SB(lr.b).y - 14 }, lr));
+    // The selected lift is named along its line.
+    {
+      const a = SB(lr.a), b = SB(lr.b), m = lerp(a, b, 0.5), len = Math.hypot(b.x - a.x, b.y - a.y), ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+      const x = m.x - uy * 19, y = m.y + ux * 19, ang = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+      out.push(`<text x="${f1(x)}" y="${f1(y)}" text-anchor="middle" transform="rotate(${f1(ang)} ${f1(x)} ${f1(y)})" style="font:700 12px Inter,sans-serif;fill:${pal.ink};paint-order:stroke;stroke:${pal.label};stroke-width:3.5px">Ridge Six</text>`);
+    }
+    // The blueprint being placed: handles, and one readout card beside the top handle.
+    const pa = SB(PLAN.a), pb = SB(PLAN.b);
+    out.push(`<circle cx="${pa.x}" cy="${pa.y}" r="6.5" fill="${pal.station}" stroke="${pal.bp}" stroke-width="2.6"/>`);
+    out.push(`<circle cx="${pb.x}" cy="${pb.y}" r="12" fill="${pal.bp}" opacity="0.22"/><circle cx="${pb.x}" cy="${pb.y}" r="7" fill="#ffffff" stroke="${pal.bp}" stroke-width="3" filter="url(#bSh)"/>`);
+    {
+      const x = pb.x - 14 - 184, y = pb.y - 52;
+      out.push(`<g filter="url(#bSh)"><rect x="${x}" y="${y}" width="184" height="52" rx="8" fill="${pal.card}" stroke="${pal.cardEdge}"/>
+        <circle cx="${x + 19}" cy="${y + 17}" r="8.5" fill="${pal.bp}"/><text x="${x + 19}" y="${y + 20.6}" text-anchor="middle" style="font:700 10px Inter,sans-serif;fill:${mode === 'dark' ? '#1a1400' : '#ffffff'}">S</text>
+        <text x="${x + 34}" y="${y + 21.5}" style="font:600 12.5px Inter,sans-serif;fill:${pal.ink}">Summit Quad</text>
+        <text x="${x + 172}" y="${y + 21.5}" text-anchor="end" style="font:600 12.5px 'JetBrains Mono',monospace;fill:${pal.bp}">$4.12M</text>
+        <text x="${x + 12}" y="${y + 40.5}" style="font:500 11.5px 'JetBrains Mono',monospace;fill:${pal.cardMuted}">739 m  ↑406 m  29°</text></g>`);
+    }
+    // The planned run's cost chip.
+    {
+      const p = { x: SB(PLAN_RUN.pts[3]).x + 28, y: SB(PLAN_RUN.pts[3]).y + 25 }, w = 132;
+      out.push(`<g filter="url(#bSh)"><rect x="${p.x - w / 2}" y="${p.y - 12}" width="${w}" height="24" rx="6" fill="${pal.chip}" stroke="${pal.chipEdge}"/>${dd(p.x - w / 2 + 8, p.y - 6.5, dc.double)}
+        <text x="${p.x - w / 2 + 26}" y="${p.y + 4.3}" style="font:600 11.5px Inter,sans-serif;fill:${pal.chipInk}">Couloir</text><text x="${p.x + w / 2 - 9}" y="${p.y + 4.3}" text-anchor="end" style="font:600 11.5px 'JetBrains Mono',monospace;fill:${pal.bp}">$0.58M</text></g>`);
+    }
+    // Lift-line bubbles below each base station; the long one carries the warning badge.
+    for (const l of LIFTS) {
+      const a = SB(l.a), r = radius(l.wait), cx = a.x + 6, cy = a.y + r + 8;
+      out.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${waitCol(l.wait)}" fill-opacity="0.9" stroke="${pal.ring}" stroke-width="1.5"/>`);
+      out.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" style="font:700 ${l.wait > 9 ? 11.5 : 10.5}px Inter,sans-serif;fill:#111">${l.wait} min</text>`);
+      if (l.wait >= 10) out.push(`<g filter="url(#bSh)"><circle cx="${cx + r * 0.72}" cy="${cy - r * 0.72}" r="8.5" fill="#f59e0b" stroke="${pal.ring}" stroke-width="1.5"/><text x="${cx + r * 0.72}" y="${cy - r * 0.72 + 4}" text-anchor="middle" style="font:800 11px Inter,sans-serif;fill:#111">!</text></g>`);
+    }
+    // Run labels last.
+    const labels = ['<g opacity="0.85">'];
+    for (const r of RUNS) {
+      const [x, y, anchor] = RUN_LABEL[r.name], glyph = r.diff === 'green' ? '●' : r.diff === 'blue' ? '■' : '◆';
+      labels.push(lab(x, y, `<tspan style="fill:${dc[r.diff]}">${glyph}</tspan> ${esc(r.name)}`, anchor));
+    }
+    labels.push('</g>'); out.push(labels.join(''));
+    document.getElementById('worldB').innerHTML = out.join('');
+    document.getElementById('stageB').style.setProperty('--dd', dc.double);
+  }
+  document.getElementById('sbHist').innerHTML = [180, 620, 940, 1010, 760, 880, 820, 540].map((v, i) => `<i style="height:${Math.round(v / 1010 * 100)}%;background:${i === 3 ? 'var(--a)' : 'color-mix(in srgb, var(--a) 65%, transparent)'}"></i>`).join('');
+  document.getElementById('sbLegend').innerHTML = `<svg class="ico"><use href="#o-layers"/></svg><span style="font-weight:600">Lift wait</span>` +
+    [3, 7, 12].map((w, i) => { const d = [9, 12, 15][i]; return `<span class="lg"><i style="width:${d}px;height:${d}px;background:${waitCol(w)}"></i>${w}${i === 2 ? ' min' : ''}</span>`; }).join('');
+  const setB = (mode) => {
+    document.getElementById('stageB').classList.toggle('light', mode === 'light');
+    document.getElementById('sbLight').setAttribute('aria-pressed', String(mode === 'light'));
+    document.getElementById('sbDark').setAttribute('aria-pressed', String(mode === 'dark'));
+    drawB(mode);
+  };
+  document.getElementById('sbLight').addEventListener('click', () => setB('light'));
+  document.getElementById('sbDark').addEventListener('click', () => setB('dark'));
+  setB(solo === 'sb-light' ? 'light' : 'dark');
+})();
+</script>
