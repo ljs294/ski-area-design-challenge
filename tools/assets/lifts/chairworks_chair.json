@@ -612,5 +612,13 @@
     "dia": 22.0
    }
   }
+ },
+ "catalog": {
+  "maker": "Chairworks",
+  "name": "Chairworks quad chair",
+  "parts": {
+   "chairworks_chair_detach": "Quad chair, detachable grip",
+   "chairworks_chair_fixed": "Quad chair, fixed grip"
+  }
  }
 }

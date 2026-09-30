@@ -193,3 +193,16 @@ Details in [snow-guns-sle.md](snow-guns-sle.md). The guns follow the owner's own
 | LP17 | **A snow gun's origin is at grade:** on the stick gun's base mast (a 4 in post standing 1.08 m above grade and 0.45 m below it, the lance pinned 1.15 m up) or under the ground gun's tripod pivot. +Z is the way it fires |
 | LP18 | **Aim is per instance:** each gun has one hinged moving part (the lance, or the ground gun's gun), tilted about X on its pivot; turning the whole gun about +Y is the placement's yaw. The stick gun's stay rides with the lance, so its tilt stays within a few degrees |
 | LP19 | **Snow gun budgets, enforced at build time:** LOD0 ≤600, LOD1 ≤160, LOD2 ≤40, LOD3 ≤12 triangles, switching at 12, 40, 150 and 600 m (doubled by the PC lodBias). Shadows from LOD0-1. Built for hundreds on a mountain |
+
+## Monta FG4 and Chairworks chairs: decided 2026-09-29
+
+**Context:** a second terminal pair and a second chair, each from the owner's own reference model (measured
+locally, never named), and one fixed grip for every fixed-grip chair. The owner approved every model from review
+photos (LP10). Details: [lift-monta-fg4.md](lift-monta-fg4.md) and [chairs-chairworks.md](chairs-chairworks.md).
+
+| # | Decision |
+|---|---|
+| LP20 | **Monta FG4 is a bottom-drive lift.** The drive terminal loads: twin tubular booms, a ribbed rounded hood with a window band over the bullwheel, inclined legs on two piers. The return is the top station: an exposed bullwheel on an inclined leg and a column. A Monta terminal's origin is on its bullwheel's axle at grade, +Z toward the line; the line gauge is 4,895 mm. Both terminals are lowered to the Sessellift chair's rope height (3,039 mm) by cutting their diagonal members at the same angles, so the lift carries that chair unchanged. The return's footings reach 2.5 m below grade (LP7) |
+| LP21 | **The Chairworks quad chair is one body with two grips** (variants): the detachable grip built part by part, or the fixed grip (LP22). The body: the hanger's dogleg into a clamp on the top bar; two inboard side frames of bent tube (300 mm knees, 120 mm corners); a looped seat frame; a bench and a low backrest. Tube sizes match the Sessellift chair's: hanger Ø80, frame Ø60, seat rails Ø52 |
+| LP22 | **One fixed grip for every fixed-grip chair** (`fixed_grip.json`): a cast arm and housing that the hanger flows out of through a socket, dark blades over the top half of the rope, then the collar, spring, nut and bolt. The Sessellift chair carries it too |
+| LP23 | **No safety bar on the Chairworks chair for now** (the owner). On this chair a bar that closes over riders cannot be raised compactly in front of the hanger: the rope is under 1 m above the top bar and tower sheaves reach about 430 mm below the rope, so every raised pose in front sticks out forward. To revisit: modelled down in front, up with the footrest forward on new brackets, or behind the seat, tucked in |
