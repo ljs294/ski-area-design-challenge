@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3df3b9c00a1a4294d964cf0d1f258f5f, type: 3}
+  m_Name: LiftModels
+  m_EditorClassIdentifier: MountainPlanner.World::MountainPlanner.World.Lifts.LiftModelSet
+  Maker: Sessellift
+  ModelName: Sessellift FGQ-4
+  Prefabs:
+  - {fileID: 5726520534508747332, guid: 2d02e76427d0e824fb3d6f8d1f99e6b8, type: 3}
+  - {fileID: 7764443532982652326, guid: a705230e917bedc4386c7292580fcde4, type: 3}
+  - {fileID: 6384327036846435855, guid: da99ace059ffda040b8275758260b610, type: 3}
+  - {fileID: 433816599563863603, guid: 3270c85729fa4064bbdd5e6126e5b3e4, type: 3}
+  - {fileID: 3592810506143413289, guid: fa6273f5e9fb1fc489a4ffc81541513f, type: 3}
+  - {fileID: 7345469265980864607, guid: 6e61293ef8dcef845b2f0b413da5c3d0, type: 3}
+  - {fileID: 5989605238963773831, guid: c1961df78d35bca43b3f4db8c5162052, type: 3}
+  - {fileID: 4748605767844521374, guid: 4e1cc42976ab2a64691a6e6831a57f46, type: 3}
+  - {fileID: 4204716855344082179, guid: df6d4f59d45cf654aa206af55d8f6fce, type: 3}
+  - {fileID: 6254240584586866829, guid: 45dfa1382416b4b4284b074719b7c2e3, type: 3}
+  - {fileID: 7530631527686049584, guid: 85f248e8559158c409494124971343ca, type: 3}
+  - {fileID: 7584056576386890739, guid: 368f48574f92faa4cb66afa6089876e0, type: 3}
+  - {fileID: 5335847444597849693, guid: 27280cb7ef73e084cabd1acc31e8bc06, type: 3}
+  - {fileID: 4123962431438064058, guid: 99ccc0d1586dba44abdca95f28559f6d, type: 3}

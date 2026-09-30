@@ -153,3 +153,43 @@ Details in [phase1-trees-first-look.md](phase1-trees-first-look.md).
 | P6 | Task 04 ships in two PRs: **04a** terrain (heights, fallback and blend, package format, resume, quality score, CLI, progress) and **04b** the other layers (canopy, land cover, species) |
 | P7 | **Canopy covers the 1 m core only.** Its files have no overviews, so the 11 km ring would add 500–700 MB per map. The ring's forest comes from WorldCover (10 m) and BIGMAP species (30 m); it's scenery |
 | F1 | **Flora quality score** beside the terrain score: coverage 35%, canopy/WorldCover agreement 25%, species fidelity 25%, recency 15%, with a one-liner; measured from the package's own layers (0.3 §4.2) |
+
+## Lift asset pilot: decided 2026-09-28
+
+Details in [lift-pilot-sessellift-fgq4.md](lift-pilot-sessellift-fgq4.md). The pilot comes ahead of Phase 3 (lifts) to test whether Claude can author game-ready 3D assets.
+
+| ID | Decision |
+|---|---|
+| LP1 | **Pilot scope:** one fixed-grip quad chairlift from a fictional maker: a drive terminal, a return terminal and one quad chair. Modelled: machinery, mast and column, hood, sheave trains, catwalks and railings, ladders, lifting frame, tension carriage, and the pedestal and footing below grade. Left out: conveyor and vault, huts, gates, fences, ramps, the bullwheel chair-guide ring and the load and unload interfaces |
+| LP2 | **Budgets, enforced at build time** (`tools/assets/lifts/budgets.json`): terminal LOD0 ≤24,000, LOD1 ≤10,000, LOD2 ≤2,500, LOD3 ≤500 triangles; chair ≤800, 250 and 60. They replace the roadmap's terminal ≤8k (§12). Assets export as FBX (T3) |
+| LP3 | **Maker code names:** Sessellift (German), Monta (French) and Chairworks (American); defunct classic makers get fictional homage names later. Real makers, resorts, drawings and other sources are never named in the repo, commits or PRs; the models are our own designs |
+| LP4 | **Moving parts sit on their real axles:** the bullwheel and every sheave are separate child meshes with their pivot on the axle, static for now |
+| LP5 | **Livery on the drive hood only.** The player picks the hood colour at runtime; everything else keeps the maker's colours |
+| LP6 | **Snow through `_SnowLoad`** on up-facing surfaces, like the trees |
+| LP7 | Terminal pedestals and footings extend **2.5 m below grade**, so terminals meet sloping ground |
+| LP8 | **Hood windows are tinted glass** with a dark interior lining and a cheap machinery silhouette behind them; end windows match the side glass in tint and band |
+| LP9 | **Entry sheave trains come from photos** where the terminal drawings leave them out: 4-sheave trains on both terminals, support at the drive and hold-down at the return |
+| LP10 | **The owner approves every model change** from review photos before it's imported into Unity |
+
+## Line towers: decided 2026-09-28
+
+Details in [lift-towers-sessellift-fgq4.md](lift-towers-sessellift-fgq4.md). The sheave assemblies follow the owner's own reference model of a quad chairlift; the model stays local and is never named.
+
+| ID | Decision |
+|---|---|
+| LP11 | **Line towers are a modular kit:** a base (footing 2.5 m below grade, pier, base plate), 1 m mast sections with the ladder, and a head. The game stacks sections to any height in 1 m steps. The head is the drive terminal's entry head (shared code, `liftkit/heads.py`) on a mast cap, unchanged, with its platform kept inside the ropes |
+| LP12 | **Head types and sheave counts:** general support towers carry 4 or 6 sheaves per rope on a nearly flat arc; breakover towers 8 on the reference arc; hold-down towers 8 (the breakover assembly flipped); combination towers 4 hold-down sheaves directly over 4 support sheaves on triangular plates. The assemblies (rockers, train yokes, equaliser) follow the owner's reference model |
+| LP13 | **Every sheave assembly hangs from below the crossarm end** on two lug plates, its pin 320 mm under the crossarm. The return terminal's integrated tower is a hold-down tower with the same connection (8 sheaves per rope), and replaces LP9's 4-sheave hold-down trains there. Its row is levelled at the first sheave, so the rope runs level through the loading area and the line leaves the station climbing at 16° (a 13 m arc, the tightest whose tilted equaliser clears the crossbeam) |
+| LP14 | **Towers are galvanised throughout; in every sheave row only the first and last sheave are red** (lightning grounding) and the rest galvanised, on the terminals' trains too. Tower number plates are black |
+| LP15 | **Tower budgets, enforced at build time:** head LOD0 ≤16,000, LOD1 ≤5,000, LOD2 ≤1,000, LOD3 ≤200 triangles, switching at 15, 45, 150 and 800 m (doubled by the PC lodBias); mast section ≤150 and base ≤400 at LOD0. Sheaves spin only at LOD0; from LOD1 a head is one mesh |
+
+## SLE snow guns: decided 2026-09-29
+
+Details in [snow-guns-sle.md](snow-guns-sle.md). The guns follow the owner's own reference model of a stick gun for their dimensions and the owner's photos of real units for the heads and the tripod; the model stays local and is never named.
+
+| ID | Decision |
+|---|---|
+| LP16 | **SLE is the code name of our snowmaking maker** (LP3 applies: no real maker is named). Two guns: a stick gun on a lance of 10, 20 or 30 ft of pipe (one build, three variants) and a ground gun on an aluminium tripod. Both carry the same head: the fan block with its 100 × 100 mm, 12-nozzle face, a 2 in barrel 305 mm long and a 74 mm nucleator cap; on the stick gun it sits on a Y block at the lance's end |
+| LP17 | **A snow gun's origin is at grade:** on the stick gun's base mast (a 4 in post standing 1.08 m above grade and 0.45 m below it, the lance pinned 1.15 m up) or under the ground gun's tripod pivot. +Z is the way it fires |
+| LP18 | **Aim is per instance:** each gun has one hinged moving part (the lance, or the ground gun's gun), tilted about X on its pivot; turning the whole gun about +Y is the placement's yaw. The stick gun's stay rides with the lance, so its tilt stays within a few degrees |
+| LP19 | **Snow gun budgets, enforced at build time:** LOD0 ≤600, LOD1 ≤160, LOD2 ≤40, LOD3 ≤12 triangles, switching at 12, 40, 150 and 600 m (doubled by the PC lodBias). Shadows from LOD0-1. Built for hundreds on a mountain |
