@@ -41,7 +41,9 @@ namespace MountainPlanner.Tests
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(101)], Is.EqualTo("lodgepole_pine"), "whitebark pine looks like a pine");
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(96)], Is.EqualTo("engelmann_spruce"), "blue spruce looks like a spruce");
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(749)], Is.EqualTo("quaking_aspen"), "cottonwood looks like an aspen");
-            Assert.That(TreeLibrary.ModelledSpecies.Count, Is.EqualTo(SpeciesMap.Models.Length));
+            // Every model but a growth form (krummholz) stands for at least one real species.
+            var modelled = SpeciesMap.ModelledCodes.Select(c => SpeciesMap.Models[SpeciesMap.ModelFor(c)]).ToHashSet();
+            Assert.That(SpeciesMap.Models.Where(m => m != "krummholz"), Is.SubsetOf(modelled));
         }
 
         [Test]

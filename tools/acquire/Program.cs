@@ -16,6 +16,10 @@ using MountainPlanner.Persistence;
 //   acquire validate --package <folder>           check a package's files
 //   acquire cover-map --package <folder> --out <file.ppm> [--core] [--snow]
 //                                                 draw the prepared ground cover (whole ring at 4 m, or the core tiles at 1 m)
+//   acquire species-survey --areas <ski_areas.geojson> --out <survey.jsonl> [--km 5] [--limit N]
+//                                                 BIGMAP species at every US ski area (task 09 priority report)
+//   acquire species-report --survey <survey.jsonl> [--out <report.md>] [--top 30]
+//                                                 ranks species without a model by the flora points they'd add
 // Interrupt a download at any time (Ctrl+C) and run it again: it resumes from the cache.
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 string command = args.Length > 0 && !args[0].StartsWith("--") ? args[0] : "download";
@@ -78,6 +82,16 @@ switch (command)
         Console.WriteLine($"Wrote {w}×{h} cover map to {opts["out"]}");
         return 0;
     }
+
+    case "species-survey":
+    {
+        using var stop = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Cancel(); };
+        return await SpeciesSurvey.RunAsync(opts, opts.GetValueOrDefault("cache", Path.Combine(dataRoot, "download-cache")), stop.Token);
+    }
+
+    case "species-report":
+        return SpeciesSurvey.Report(opts);
 
     case "prepare":
     {

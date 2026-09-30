@@ -198,7 +198,7 @@ namespace MountainPlanner.Acquisition
                                   GridSpec speciesGrid, CoverAssembler.SpeciesResult species)
         {
             var (agreement, speciesCoverage) = CoverAssembler.MeasureFlora(site.CoreGrid, canopy, coverGrid, cover, speciesGrid, species.Ids);
-            double modelled = species.Species.Where(s => TreeLibrary.ModelledSpecies.Contains(s.Spcd)).Sum(s => s.ShareOfBiomass)
+            double modelled = species.Species.Where(s => SpeciesMap.IsModelled(s.Spcd)).Sum(s => s.ShareOfBiomass)
                               / Math.Max(1e-9, species.Species.Sum(s => s.ShareOfBiomass));
             var inputs = new FloraInputs(1 - canopyMissing / (double)canopy.Length, speciesCoverage, agreement,
                                          species.Species.Count > 0 ? modelled : 0, FloraDataYear, DateTime.UtcNow.Year);

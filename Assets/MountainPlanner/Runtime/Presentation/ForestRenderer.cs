@@ -43,6 +43,17 @@ namespace MountainPlanner.Presentation
         readonly int _treeCount, _countSlots;
         public int TreeCount => _treeCount;
         public int DrawCount => _draws.Count;
+        /// <summary>GPU memory of the forest's own buffers (trees, visible lists, counters, draw arguments).</summary>
+        public long GpuBytes
+        {
+            get
+            {
+                long total = 0;
+                foreach (var b in new[] { _trees, _nativeHeights, _prototypeStart, _visible, _counts, _args, _drawCounter })
+                    if (b != null) total += (long)b.count * b.stride;
+                return total;
+            }
+        }
         /// <summary>-1: LOD by screen size. 0–3: draw every visible tree at that LOD (lineups and reviews).</summary>
         public int ForcedLod = -1;
         readonly double[] _slotTriangles;
@@ -98,12 +109,14 @@ namespace MountainPlanner.Presentation
             _visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.Max(1, trees.Length * Lods), sizeof(uint));
             _counts = new GraphicsBuffer(GraphicsBuffer.Target.Structured, _countSlots, sizeof(uint));
 
-            // One indirect draw per prototype, LOD and visible submesh.
+            // One indirect draw per prototype, LOD and visible submesh, for the prototypes this forest has: a
+            // site uses a few of the library's species, and every draw costs CPU in each pass even when empty.
             var args = new List<GraphicsBuffer.IndirectDrawIndexedArgs>();
             var counters = new List<uint>();
             var bounds = new Bounds(Vector3.zero, new Vector3(40000, 20000, 40000));
             for (int p = 0; p < prototypes; p++)
             {
+                if (perPrototype[p] == 0) continue;
                 var group = set.Prefabs[p].GetComponent<LODGroup>();
                 var lods = group.GetLODs();
                 for (int l = 0; l < Lods && l < lods.Length; l++)
