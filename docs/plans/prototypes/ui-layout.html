@@ -117,6 +117,20 @@ body.solo .frame { border-radius: 0; }
 .hud .tool.on, .hud .tool.on:hover { --knock: #efe9df; background: #efe9df; color: #1b1815; }
 .hud .tool svg.g { width: 26px; height: 26px; }
 
+/* the analysis panel: tabs like the tray's, two-column figures, and tables */
+.hud .ana .tabs span { font-size: 13px; padding: 5px 8px 4px; }
+.hud .cols { display: grid; grid-template-columns: 1fr 1fr; }
+.hud .cols .kv + .kv { border-left: 1px solid var(--hair); }
+.hud .tbl { padding: 0 0 4px; }
+.hud .tbl .r { display: grid; align-items: center; gap: 8px; padding: 5px 12px; border-top: 1px solid #36312c; font: 600 12.5px 'Overpass'; }
+.hud .tbl .r.th { border-top: 0; color: var(--soft); font: 700 11.5px 'Overpass'; padding: 8px 12px 4px; }
+.hud .tbl .n { text-align: right; font: 500 12.5px 'Overpass Mono', monospace; }
+.hud .tbl .r.th .n { font: 700 11.5px 'Overpass'; }
+.hud .kv dd .word { font: 700 12.5px 'Overpass'; display: inline-flex; gap: 6px; align-items: center; }
+.hud .tbl .nm { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud .tbl .foot { padding: 7px 12px 4px; font: 500 12px 'Overpass'; color: var(--soft); border-top: 1px solid #36312c; }
+.hud .lamp { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--lamp); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.4); }
+
 /* floating panels */
 .hud .pn { position: absolute; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 6; }
 .hud .pn .hd { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--hair); font: 800 14px 'Overpass'; cursor: grab; }
@@ -196,7 +210,6 @@ body.solo .frame { border-radius: 0; }
   <symbol id="s-plus" viewBox="0 0 24 24"><rect x="10.9" y="4.8" width="2.4" height="14.4" rx="1.2"/><rect x="4.8" y="10.8" width="14.4" height="2.4" rx="1.2"/></symbol>
   <symbol id="s-minus" viewBox="0 0 24 24"><rect x="4.8" y="10.8" width="14.4" height="2.4" rx="1.2"/></symbol>
   <symbol id="s-flake" viewBox="0 0 24 24"><g><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="rotate(60 12 12)"><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="rotate(120 12 12)"><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g></symbol>
-  <symbol id="s-drop" viewBox="0 0 24 24"><path d="M12 2.6c-4 5-6.3 8.7-6.3 11.8a6.3 6.3 0 0 0 12.6 0c0-3.1-2.3-6.8-6.3-11.8z"/></symbol>
   <symbol id="s-trail" viewBox="0 0 24 24"><path d="M1.4 20.8L9.3 6.2l3.7 5.6 3-4.2 6.6 13.2z"/><path d="M9.5 9.6c2.3 2.2-2.4 3.7 0 6.2 1.6 1.7 3.8 2 3.3 5.2" fill="none" stroke-width="1.8" stroke-linecap="round" style="stroke:var(--knock)"/></symbol>
   <!-- tool badges, in the lower right of a family glyph -->
   <symbol id="b-new" viewBox="0 0 24 24"><circle cx="18.2" cy="18.2" r="5.9" style="fill:var(--knock)"/><circle cx="18.2" cy="18.2" r="4.6"/><rect x="17.55" y="15.4" width="1.3" height="5.6" style="fill:var(--knock)"/><rect x="15.4" y="17.55" width="5.6" height="1.3" style="fill:var(--knock)"/></symbol>
@@ -212,7 +225,7 @@ body.solo .frame { border-radius: 0; }
   <ul class="try">
     <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
-    <li><b>Also live:</b> the dock button at the right end of the bar (docked or floating), play/pause and four speeds, save (white when there are changes), Analysis, the sketch pencil, map layers, the menu, zoom and the compass. The bar shows the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, Space pause, 1–4 speed, the tool letters, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Also live:</b> the dock button at the right end of the bar (docked or floating), play/pause and four speeds, save (white when there are changes), Analysis with six tabs, Units (metric or imperial) in the menu, the sketch pencil, map layers, zoom and the compass. The bar shows the weather with the next 24 hours' snowfall, the resort's status and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
     <div class="map" id="map"><img src="assets/game-bluebird.jpg" alt="The mountain on a bluebird day"><svg id="world" viewBox="0 0 1280 720"></svg></div>
@@ -238,6 +251,22 @@ body.solo .frame { border-radius: 0; }
   const tg = (id, badge) => `<svg class="g" viewBox="0 0 24 24"><use href="#${id}"/>${badge ? `<use href="#b-${badge}"/>` : ''}</svg>`;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
+  // ---------- units: metric or imperial, from the menu ----------
+  const IMP = () => S.units === 'imperial';
+  const sign = (n) => (n < 0 ? '−' : '');
+  const lenV = (m) => Math.round(IMP() ? m * 3.28084 : m).toLocaleString('en-US');
+  const lenU = () => (IMP() ? 'ft' : 'm');
+  const lenTxt = (m) => `${lenV(m)} ${lenU()}`;
+  const distTxt = (m) => (IMP() ? `${(m / 1609.34).toFixed(1)} mi` : `${(m / 1000).toFixed(1)} km`);
+  const tempTxt = (c) => { const v = IMP() ? Math.round(c * 9 / 5 + 32) : c; return `${sign(v)}${Math.abs(v)}°${IMP() ? 'F' : 'C'}`; };
+  const snowAmt = (cm) => { const v = IMP() ? cm / 2.54 : cm; return `${v < 9.95 ? (Math.round(v * 10) / 10).toString() : Math.round(v)} ${IMP() ? 'in' : 'cm'}`; };
+  const speedTxt = (ms) => (IMP() ? `<b>${Math.round(ms * 196.85)}</b> ft/min` : `<b>${ms.toFixed(1)}</b> m/s`);
+  const volTxt = (m3) => (IMP() ? `${Math.round(m3 * 1.30795).toLocaleString('en-US')} yd³` : `${Math.round(m3).toLocaleString('en-US')} m³`);
+  const waterTxt = (m3) => (IMP() ? `${(m3 * 264.172 / 1e6).toFixed(1)}M gal` : `${Math.round(m3).toLocaleString('en-US')} m³`);
+  const perLen = (perM) => (IMP() ? '$' + Math.round(perM / 3.28084).toLocaleString('en-US') + ' a foot' : '$' + perM.toLocaleString('en-US') + ' a metre');
+  const perLenShort = (perM) => '$' + (IMP() ? Math.round(perM / 3.28084) : perM).toLocaleString('en-US');
+  const windTxt = (dir, kmh) => `${dir} ${IMP() ? `${Math.round(kmh * 0.621)} mph` : `${kmh} km/h`}`;
+
   // ---------- placeholder terrain: the skyline from the capture's sky key, and heights placed by eye ----------
   const SKYLINE = [406,399,393,386,379,373,365,359,353,346,339,333,327,320,313,307,301,295,295,294,293,293,292,291,291,290,289,289,288,288,287,286,285,285,284,283,283,283,281,281,279,279,278,277,277,276,275,275,274,274,273,272,271,271,270,269,269,267,267,266,265,265,264,263,263,262,261,261,260,259,259,258,257,256,255,254,254,252,250,249,249,247,245,244,240,239,234,232,230,226,224,219,217,214,210,206,203,202,201,203,203,201,201,199,200,200,199,195,193,193,193,193,196,193,193,190,188,191,192,193,195,195,204,217,218,217,220,223,226,228,230,231,233,235,237,240,243,245,249,252,255,258,261,265,267,271,276,280,283,293,295,291,293,307,299,301,301,306,307,313];
   const skylineAt = (x) => { const i = Math.max(0, Math.min(SKYLINE.length - 1.001, x / 8)), i0 = Math.floor(i); return SKYLINE[i0] + (SKYLINE[i0 + 1] - SKYLINE[i0]) * (i - i0); };
@@ -261,7 +290,10 @@ body.solo .frame { border-radius: 0; }
   const DIFFS = { green: 'Green', blue: 'Blue', black: 'Black', double: 'Double' };
   const S = {
     day: 148, t: 5 * 3600 + 27 * 60 + 47, paused: false, speed: 2, docked: true,
-    cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true,
+    cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true, units: 'metric', atab: 'overview',
+    // today's money in parts (they sum to today): overnight running costs and construction already under way
+    incomeToday: 0, opsToday: 0.09e6, buildToday: 5.68e6, base: 142,
+    history: [0.41, 0.38, -1.92, 0.45, 0.52, 0.47, 0.12, 0.55, 0.58, -0.84, 0.49, 0.53, 0.61],
     zoom: 1, layers: { lifts: true, trails: true, snow: true, infra: true, labels: true },
     toolbox: false, tab: 'lifts', tool: null, analysis: false, drop: null, sketch: false, modal: null,
     lifts: [
@@ -284,15 +316,24 @@ body.solo .frame { border-radius: 0; }
 
   // ---------- weather and the sun (placeholders: snow overnight, a bluebird day) ----------
   const SUNRISE = 7.75, SUNSET = 16.9;
-  function weather(t) {
+  // Placeholder storms: centimetres for the night that starts on day d, falling from 22:30 to 03:30.
+  const STORMS = [2, 6, 0, 12, 4, 0, 8];
+  const stormCm = (d) => STORMS[((d % 7) + 7) % 7];
+  const snowRate = (day, h) => (h >= 22.5 ? stormCm(day) / 5 : h < 3.5 ? stormCm(day - 1) / 5 : 0);   // cm an hour
+  function snowBetween(day, t, from, to) {   // cm falling between t+from and t+to seconds
+    let cm = 0;
+    for (let k = from; k < to; k += 900) { const tt = t + k + 450, d = day + Math.floor(tt / 86400), h = (((tt % 86400) + 86400) % 86400) / 3600; cm += snowRate(d, h) * 0.25; }
+    return cm;
+  }
+  function weather(t, day = S.day) {
     const h = t / 3600, temp = Math.round(-9.5 + 5.5 * Math.cos(2 * Math.PI * (h - 14.5) / 24));
-    const night = h < SUNRISE || h >= SUNSET;
-    let kind = night ? 'moon' : 'sun', desc = 'Clear', wind = 'W 8 km/h', pop = 5, rate = '';
-    if (h < 3.5) { kind = 'snow'; desc = 'Light snow'; wind = 'W 18 km/h'; pop = 100; rate = '0.8 cm an hour'; }
-    else if (h < 5) { kind = 'cloud'; desc = 'Clearing'; wind = 'W 14 km/h'; pop = 30; }
-    else if (h >= 14 && h < 16.5) { kind = 'few'; desc = 'Fair-weather cumulus'; wind = 'SW 12 km/h'; pop = 10; }
-    else if (h >= 22.5) { kind = 'cloud'; desc = 'Clouding over'; wind = 'W 15 km/h'; pop = 60; }
-    return { kind, desc, temp, wind, pop, rate, snow: temp <= 1 };
+    const night = h < SUNRISE || h >= SUNSET, rate = snowRate(day, h);
+    let kind = night ? 'moon' : 'sun', desc = 'Clear', dir = 'W', kmh = 8;
+    if (rate > 0) { kind = 'snow'; desc = rate >= 2 ? 'Heavy snow' : 'Light snow'; kmh = 18; }
+    else if (h < 5 && stormCm(day - 1) > 0) { kind = 'cloud'; desc = 'Clearing'; kmh = 14; }
+    else if (h >= 21.5 && stormCm(day) > 0) { kind = 'cloud'; desc = 'Clouding over'; kmh = 15; }
+    else if (h >= 14 && h < 16.5) { kind = 'few'; desc = 'Fair-weather cumulus'; dir = 'SW'; kmh = 12; }
+    return { kind, desc, temp, dir, kmh, rate, fc: snowBetween(day, t, 0, 86400), fell: snowBetween(day, t, -86400, 0) };
   }
   function wxIcon(kind) {
     const cloud = (dx, dy, s, style) => `<g transform="translate(${dx} ${dy}) scale(${s})" ${style}><circle cx="8.4" cy="13.4" r="4.2"/><circle cx="13.4" cy="10.4" r="5.2"/><circle cx="18" cy="13.9" r="3.6"/><rect x="4.2" y="13.4" width="17.4" height="4.4" rx="2.2"/></g>`;
@@ -306,10 +347,9 @@ body.solo .frame { border-radius: 0; }
     }[kind];
     return `<svg class="g" viewBox="0 0 24 24">${body}</svg>`;
   }
-  const deg = (t) => `${t < 0 ? '−' : ''}${Math.abs(t)}°C`;
-  // The weather line: symbol, temperature, then the chance of snow (or rain, above freezing).
-  const wxLine = (w) => `${wxIcon(w.kind)}<span>${deg(w.temp)}</span><span class="pp">${g(w.snow ? 's-flake' : 's-drop')}${w.pop}%</span>`;
-  const wxTitle = (w) => `${w.desc}, ${deg(w.temp)}, wind ${w.wind}. ${w.pop}% chance of ${w.snow ? 'snow' : 'rain'}${w.rate ? `, ${w.rate}` : ''}.`;
+  // The weather line: symbol, temperature, then the snowfall forecast for the next 24 hours.
+  const wxLine = (w) => `${wxIcon(w.kind)}<span>${tempTxt(w.temp)}</span><span class="pp">${g('s-flake')}${snowAmt(w.fc)}</span>`;
+  const wxTitle = (w) => `${w.desc}, ${tempTxt(w.temp)}, wind ${windTxt(w.dir, w.kmh)}. Snow forecast: ${snowAmt(w.fc)} in the next 24 hours${w.rate ? `; falling now at ${snowAmt(w.rate)} an hour` : ''}.`;
   // The resort's status, like a lift board: open, last chair, or closed, with the hours under it.
   const LIFTS_OPEN = 8.5, LAST_CHAIR = 16.25, LIFTS_CLOSE = 16.5;
   function resortStatus(t) {
@@ -468,7 +508,7 @@ body.solo .frame { border-radius: 0; }
     const d = S.draft;
     if (d && d.kind === 'lift') {
       const pts = d.pts.slice(); if (pts.length === 1 && mouse) pts.push(mouse);
-      if (pts.length === 2) { const st = liftStats(pts[0], pts[1], d.model); s += drawLift({ n: d.n, name: d.name, a: pts[0], b: pts[1], built: false }, { noTag: d.pts.length < 2 }) + dimension(pts[0], pts[1], `${Math.round(st.len)} m · ${st.rise >= 0 ? '+' : '−'}${Math.abs(Math.round(st.rise))} · ${Math.round(st.deg)}°`); }
+      if (pts.length === 2) { const st = liftStats(pts[0], pts[1], d.model); s += drawLift({ n: d.n, name: d.name, a: pts[0], b: pts[1], built: false }, { noTag: d.pts.length < 2 }) + dimension(pts[0], pts[1], `${lenTxt(st.len)} · ${st.rise >= 0 ? '+' : '−'}${lenV(Math.abs(st.rise))} · ${Math.round(st.deg)}°`); }
       else if (pts.length === 1) s += `<rect x="${f1(pts[0][0] - 4)}" y="${f1(pts[0][1] - 4)}" width="8" height="8" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>`;
     }
     if (d && (d.kind === 'trail' || d.kind === 'line')) {
@@ -476,7 +516,7 @@ body.solo .frame { border-radius: 0; }
       if (d.kind === 'trail') s += drawTrail({ name: d.name, diff: d.diff, pts, built: false }, { noTag: !d.done });
       else s += drawThing({ kind: d.tool, pts, built: false });
       for (const p of d.pts) s += `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="${white}" stroke="${flag}" stroke-width="1.4"/>`;
-      if (pts.length > 1) { const L = pathStats(pts).len, e = pts[pts.length - 1], txt = `${metres(L)} m`; s += `<g><rect x="${e[0] + 10}" y="${e[1] - 22}" width="${txt.length * 6.6 + 14}" height="17" rx="2" fill="${graphite}"/><text x="${e[0] + 17}" y="${e[1] - 10}" style="font:600 10.5px 'Overpass Mono',monospace;fill:#efe9df">${txt}</text></g>`; }
+      if (pts.length > 1) { const L = pathStats(pts).len, e = pts[pts.length - 1], txt = lenTxt(L); s += `<g><rect x="${e[0] + 10}" y="${e[1] - 22}" width="${txt.length * 6.6 + 14}" height="17" rx="2" fill="${graphite}"/><text x="${e[0] + 17}" y="${e[1] - 10}" style="font:600 10.5px 'Overpass Mono',monospace;fill:#efe9df">${txt}</text></g>`; }
     }
     if (d && d.kind === 'points') { for (const p of d.pts) s += drawThing({ kind: d.tool, pts: [p], built: false }); if (mouse) s += drawThing({ kind: d.tool, pts: [mouse], built: false }).replace('<g', '<g opacity=".5"'); }
     for (const k of S.sketches) if (k.length > 1) s += `<path d="M${k.map((p) => `${f1(p[0])} ${f1(p[1])}`).join('L')}" fill="none" stroke="#1f5fa8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`;
@@ -515,21 +555,21 @@ body.solo .frame { border-radius: 0; }
         <div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === d.model ? 'on' : ''}" data-act="model" data-v="${m}">${m}</span>`).join('')}</div>
       </div>
       <dl class="kv">
-        ${kv('Slope length', st ? `<b>${metres(st.len)}</b> m` : dash)}
-        ${kv('Vertical rise', st ? `<b>${st.rise >= 0 ? '' : '−'}${metres(Math.abs(st.rise))}</b> m · ${st.deg.toFixed(1)}°` : dash)}
-        ${kv('Line speed', `<b>${MODELS[d.model].speed.toFixed(1)}</b> m/s${st ? ` · ride ${fmtTime(st.ride)}` : ''}`)}
+        ${kv('Slope length', st ? `<b>${lenV(st.len)}</b> ${lenU()}` : dash)}
+        ${kv('Vertical rise', st ? `<b>${st.rise >= 0 ? '' : '−'}${lenV(Math.abs(st.rise))}</b> ${lenU()} · ${st.deg.toFixed(1)}°` : dash)}
+        ${kv('Line speed', `${speedTxt(MODELS[d.model].speed)}${st ? ` · ride ${fmtTime(st.ride)}` : ''}`)}
         ${kv('Capacity', `<b>${MODELS[d.model].cap.toLocaleString('en-US')}</b> an hour`)}
       </dl>
       <div class="rule"></div>
-      <div class="sub"><span>Profile</span><span>${st ? `${metres(st.ea)} → ${metres(st.eb)} m · ${st.towers} towers` : ''}</span></div>
+      <div class="sub"><span>Profile</span><span>${st ? `${lenV(st.ea)} → ${lenV(st.eb)} ${lenU()} · ${st.towers} towers` : ''}</span></div>
       ${liftProfile(d.pts[0], d.pts[1], st)}
       <div class="rule"></div>
       <div class="sub"><span>Cost estimate</span><span>±12 %</span></div>
       <dl class="kv" style="padding-top:5px">
         ${kv('Terminals (2)', money(MODELS[d.model].term))}
-        ${kv(`Line${st ? ` · ${metres(st.len)} m × $${MODELS[d.model].perM.toLocaleString('en-US')}` : ''}`, st ? money(st.cost.line) : dash)}
+        ${kv(`Line${st ? ` · ${lenTxt(st.len)} × ${perLenShort(MODELS[d.model].perM)}` : ''}`, st ? money(st.cost.line) : dash)}
         ${kv(`Towers${st ? ` (${st.towers})` : ''}`, st ? money(st.cost.towers) : dash)}
-        ${kv(`Grading${st ? ` · ${st.grading.toLocaleString('en-US')} m³` : ''}`, st ? money(st.cost.grading) : dash)}
+        ${kv(`Grading${st ? ` · ${volTxt(st.grading)}` : ''}`, st ? money(st.cost.grading) : dash)}
         <dt style="color:#efe9df">Total</dt><dd><b>${st ? money(st.cost.total) : dash}</b></dd>
       </dl>
       <div class="hint">${hint}</div>
@@ -542,8 +582,8 @@ body.solo .frame { border-radius: 0; }
     return panelShell(`${g('s-trail')}New trail <span class="nm">${esc(d.name)}</span>`, `
       <div style="padding:10px 12px 4px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === d.diff ? 'on' : ''}" data-act="diff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div>
       <dl class="kv">
-        <dt>Length</dt><dd><b>${metres(st.len)}</b> m</dd>
-        <dt>Vertical drop</dt><dd><b>${metres(st.drop)}</b> m</dd>
+        <dt>Length</dt><dd><b>${lenV(st.len)}</b> ${lenU()}</dd>
+        <dt>Vertical drop</dt><dd><b>${lenV(st.drop)}</b> ${lenU()}</dd>
         <dt>Average pitch</dt><dd><b>${st.avg.toFixed(0)}</b>°</dd>
         <dt>Steepest pitch</dt><dd><b>${st.steep.toFixed(0)}</b>°</dd>
       </dl>
@@ -564,7 +604,7 @@ body.solo .frame { border-radius: 0; }
     const hint = line ? (!d.pts.length ? 'Click where it <b>starts</b>.' : !d.done ? 'Keep clicking along the route. <b>Double-click</b> or <b>Enter</b> to finish.' : 'Finished. Build it or save it as a plan.')
       : `Click the mountain to place a ${t.unit}. Place as many as you like, then build them together.`;
     return panelShell(`${toolGlyph(t)}${t.name}`, `
-      <dl class="kv">${line ? `<dt>Length</dt><dd><b>${metres(len)}</b> m</dd><dt>Rate</dt><dd>$${t.perM.toLocaleString('en-US')} a metre</dd>` : `<dt>Placed</dt><dd><b>${count}</b></dd><dt>Each</dt><dd>${money(t.each)}</dd>`}
+      <dl class="kv">${line ? `<dt>Length</dt><dd><b>${lenV(len)}</b> ${lenU()}</dd><dt>Rate</dt><dd>${perLen(t.perM)}</dd>` : `<dt>Placed</dt><dd><b>${count}</b></dd><dt>Each</dt><dd>${money(t.each)}</dd>`}
         <dt style="color:#efe9df">Total</dt><dd><b>${money(total)}</b></dd></dl>
       <div class="hint">${hint}</div>
       <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Build</span><span class="mono">${ready ? short(total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`, 300);
@@ -576,32 +616,97 @@ body.solo .frame { border-radius: 0; }
     if (t.target === 'lift') {
       const st = liftStats(obj.a, obj.b, obj.model);
       const top = `<div class="hint" style="padding-bottom:0;display:flex;gap:8px;align-items:center"><span class="plate${obj.built ? ' built' : ''}">${obj.n}</span><b style="font-size:14px">${esc(obj.name)}</b><span style="color:#a39b90">${obj.built ? 'operating' : 'planned'}</span></div>`;
-      const facts = `<dl class="kv"><dt>Slope length</dt><dd><b>${metres(st.len)}</b> m</dd><dt>Capacity</dt><dd><b>${st.cap.toLocaleString('en-US')}</b> an hour</dd><dt>Ride</dt><dd>${fmtTime(st.ride)}</dd></dl>`;
+      const facts = `<dl class="kv"><dt>Slope length</dt><dd><b>${lenV(st.len)}</b> ${lenU()}</dd><dt>Capacity</dt><dd><b>${st.cap.toLocaleString('en-US')}</b> an hour</dd><dt>Ride</dt><dd>${fmtTime(st.ride)}</dd></dl>`;
       if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px 0"><div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === obj.model ? 'on' : ''}" data-act="setmodel" data-v="${m}">${m}</span>`).join('')}</div></div>` + facts + `<div class="hint">Changing the model re-prices the line.${obj.built ? ' Upgrading a running lift costs the difference.' : ''}</div>`, 300);
       const refund = obj.built ? st.cost.total * 0.15 : 0;
       return panelShell(head, top + facts + `<div class="hint">${obj.built ? `Removing it salvages about <b>${money(refund)}</b>.` : 'It\'s only a plan, so removing it is free.'}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>Remove ${esc(obj.name)}</span><span class="mono">${obj.built ? short(refund) : ''}</span></div></div>`, 300);
     }
     const st = pathStats(obj.pts);
-    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:#a39b90">· ${metres(st.len)} m · ${metres(st.drop)} m drop</span></div>`;
+    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:#a39b90">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} drop</span></div>`;
     if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === obj.diff ? 'on' : ''}" data-act="setdiff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div><div class="hint" style="padding-top:0">The rating changes the signs and who skis it.</div>`, 300);
     return panelShell(head, top + `<div class="hint">It will grow back in over a few seasons.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>Remove ${esc(obj.name)}</span><span class="mono"></span></div></div>`, 300);
   }
+  const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['snow', 'Snowmaking'], ['amenities', 'Amenities'], ['finances', 'Finances']];
+  const isOpen = () => { const h = S.t / 3600; return h >= LIFTS_OPEN && h < LIFTS_CLOSE; };
+  const waitFor = (l) => { if (!S.skiers || !l.built) return 0; const st = liftStats(l.a, l.b, l.model); return Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); };
+  const lampHtml = (c) => `<i class="lamp" style="--lamp:${c}"></i>`;
+  const kvs = (rows) => `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
   function analysisPanel(bottom) {
-    const hrs = []; for (let h = 8; h <= 16; h++) hrs.push(h);
-    const curve = (h) => Math.max(0, Math.sin(Math.PI * (h - 8) / 8.5)) * 3200 * (0.85 + 0.15 * Math.sin(S.day + h));
-    const now = S.t / 3600, w = 318, hgt = 70, bw = (w - 24) / hrs.length;
-    let bars = '';
-    hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 2)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 4)}" height="${f1(bh)}" rx="1" fill="${past ? '#cfc7bb' : '#4a443e'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:#8f877c">${h}</text>`; });
-    const rows = S.lifts.filter((l) => l.built).map((l) => { const st = liftStats(l.a, l.b, l.model); const wait = Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); return [l, wait]; });
-    return `<div class="pn" style="left:10px;bottom:${bottom}px;width:344px;z-index:4"><div class="hd">${g('s-analysis')}Analysis<span class="x" data-act="analysis">✕</span></div>
-      <div class="sub"><span>Skiers by hour, day ${S.day}</span><span>now ${S.skiers.toLocaleString('en-US')}</span></div>
-      <svg width="${w}" height="${hgt + 4}" style="display:block;margin:6px 13px 0">${bars}</svg>
-      <div class="rule" style="margin-top:6px"></div>
-      <div class="sub"><span>Lift waits</span><span>minutes</span></div>
-      <dl class="kv">${rows.map(([l, wt]) => `<dt style="display:flex;gap:6px;align-items:center;color:#efe9df"><span class="plate built" style="font-size:10px">${l.n}</span>${esc(l.name)}</dt><dd style="color:${wt > 8 ? '#f0b43c' : '#efe9df'}">${S.skiers ? wt.toFixed(1) : 'closed'}</dd>`).join('')}</dl>
-      <div class="rule"></div>
-      <dl class="kv"><dt>Today</dt><dd style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)}</dd><dt>Lift tickets</dt><dd>$189</dd></dl></div>`;
+    return `<div class="pn ana" style="left:10px;bottom:${bottom}px;width:468px;z-index:4"><div class="hd">${g('s-analysis')}Analysis<span class="x" data-act="analysis">✕</span></div>
+      <div class="tabs">${ATABS.map(([k, v]) => `<span class="${S.atab === k ? 'on' : ''}" data-act="atab" data-v="${k}">${v}</span>`).join('')}</div><div class="tabrule"></div>
+      <div id="anabody">${analysisBody()}</div></div>`;
   }
+  function analysisBody() {
+    const wx = weather(S.t), open = isOpen(), built = S.lifts.filter((l) => l.built), waits = built.map(waitFor);
+    const avgWait = waits.length && S.skiers ? waits.reduce((a, b) => a + b, 0) / waits.length : 0;
+    if (S.atab === 'overview') {
+      const hrs = []; for (let h = 8; h <= 16; h++) hrs.push(h);
+      const curve = (h) => Math.max(0, Math.sin(Math.PI * (h - 8) / 8.5)) * 3200 * (0.85 + 0.15 * Math.sin(S.day + h));
+      const now = S.t / 3600, w = 444, hgt = 64, bw = (w - 24) / hrs.length;
+      let bars = '';
+      hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 3)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 6)}" height="${f1(bh)}" rx="1" fill="${past ? '#cfc7bb' : '#4a443e'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:#8f877c">${h}</text>`; });
+      const sat = Math.round(Math.max(55, Math.min(95, 90 - avgWait * 1.6)));
+      return `<div class="sub"><span>Skiers by hour, day ${S.day}</span><span>now ${S.skiers.toLocaleString('en-US')}</span></div>
+        <svg width="${w}" height="${hgt + 4}" style="display:block;margin:6px 12px 0">${bars}</svg>
+        <div class="rule" style="margin-top:6px"></div>
+        <div class="cols">${kvs([['Lifts running', `<b>${open ? S.liftsTotal : 0}</b> of ${S.liftsTotal}`], ['Trails open', `<b>${open ? S.trails.filter((t) => t.built).length : 0}</b> of ${S.trails.filter((t) => t.built).length}`], ['Average wait', open ? `<b>${avgWait.toFixed(1)}</b> min` : 'closed'], ['Guest rating', `<b>${sat}</b>%`]])}
+        ${kvs([['Snow base', `<b>${snowAmt(S.base)}</b>`], ['New snow, 24 h', `<b>${snowAmt(wx.fell)}</b>`], ['Forecast, 24 h', `<b>${snowAmt(wx.fc)}</b>`], ['Today', `<span style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)}</span>`]])}</div>`;
+    }
+    if (S.atab === 'lifts') {
+      const cols = 'grid-template-columns:1.7fr 0.9fr 0.9fr 0.7fr 0.8fr';
+      const rows = S.lifts.map((l) => { const st = liftStats(l.a, l.b, l.model), wt = waitFor(l), state = !l.built ? ['Planned', '#ff6a1f'] : open ? ['Open', '#5fbf6a'] : ['Closed', '#d4513f'];
+        return `<div class="r" style="${cols}"><span class="nm"><span class="plate${l.built ? ' built' : ''}" style="font-size:10px">${l.n}</span>${esc(l.name)}</span><span>${l.model}</span><span class="n">${st.cap.toLocaleString('en-US')}</span><span class="n" style="color:${wt > 8 ? '#f0b43c' : ''}">${l.built && open ? wt.toFixed(1) : '—'}</span><span class="nm" style="justify-content:flex-end">${lampHtml(state[1])}${state[0]}</span></div>`; }).join('');
+      const others = S.liftsTotal - built.length;
+      return `<div class="tbl"><div class="r th" style="${cols}"><span>Lift</span><span>Model</span><span class="n">An hour</span><span class="n">Wait</span><span style="text-align:right">Status</span></div>${rows}
+        <div class="foot">${others} more lifts run elsewhere on the mountain: ${(others * 2100).toLocaleString('en-US')} riders an hour between them.</div></div>`;
+    }
+    if (S.atab === 'trails') {
+      const cols = 'grid-template-columns:1.6fr 0.8fr 0.8fr 0.9fr 0.8fr';
+      const rows = S.trails.map((t, i) => { const st = pathStats(t.pts), state = !t.built ? ['Planned', '#ff6a1f'] : open ? ['Open', '#5fbf6a'] : ['Closed', '#d4513f'];
+        const groom = !t.built ? '—' : t.diff === 'black' || t.diff === 'double' ? (i % 2 ? 'Moguls' : 'Ungroomed') : 'Groomed';
+        return `<div class="r" style="${cols}"><span class="nm">${RATING[t.diff]}${esc(t.name)}</span><span class="n">${lenTxt(st.len)}</span><span class="n">${lenTxt(st.drop)}</span><span>${groom}</span><span class="nm" style="justify-content:flex-end">${lampHtml(state[1])}${state[0]}</span></div>`; }).join('');
+      return `<div class="tbl"><div class="r th" style="${cols}"><span>Trail</span><span class="n">Length</span><span class="n">Drop</span><span>Surface</span><span style="text-align:right">Status</span></div>${rows}</div>`;
+    }
+    if (S.atab === 'snow') {
+      const h = S.t / 3600, cond = wx.temp <= -6 ? ['Excellent', '#5fbf6a'] : wx.temp <= -2 ? ['Marginal', '#f0b43c'] : ['Too warm', '#d4513f'];
+      const guns = 124 + S.things.filter((t) => t.kind === 'gun' && t.built).length;
+      const night = h >= 19 || h < 7, running = night && wx.temp <= -2 ? Math.round(guns * 0.6) : 0;
+      const hoursRun = Math.min(h, 7) + Math.max(0, h - 19);
+      const lines = 18400 + S.things.filter((t) => t.kind === 'pipe' && t.built).reduce((a, t) => a + pathStats(t.pts).len, 0);
+      const pumps = 3 + S.things.filter((t) => t.kind === 'pump' && t.built).length;
+      return `<div class="cols">${kvs([['Conditions', `<span class="word">${lampHtml(cond[1])}${cond[0]}</span>`], ['Air', tempTxt(wx.temp)], ['Guns', `<b>${guns}</b>`], ['Running now', `<b>${running}</b>`]])}
+        ${kvs([['Water lines', distTxt(lines)], ['Pump houses', `<b>${pumps}</b>`], ['Water used today', waterTxt(guns * 0.6 * 0.45 * 60 * hoursRun)], ['Snow base', snowAmt(S.base)]])}</div>
+        <div class="hint" style="border-top:1px solid var(--hair)">Guns run overnight, 7 PM to 7 AM, whenever the air is below ${tempTxt(-2)}. Natural snow tonight: ${snowAmt(stormCm(S.day))}.</div>`;
+    }
+    if (S.atab === 'amenities') {
+      const lodges = 3 + S.things.filter((t) => t.kind === 'lodge' && t.built).length, seats = 1450 + (lodges - 3) * 300;
+      const lots = 4 + S.things.filter((t) => t.kind === 'parking' && t.built).length, spaces = 2600 + (lots - 4) * 400;
+      const inLodges = Math.round(S.skiers * 0.18), cars = Math.round(S.skiers * 0.42);
+      const pct = (a, b) => `<b>${Math.min(100, Math.round(a / b * 100))}</b>%`;
+      return `<div class="cols">${kvs([['Lodges', `<b>${lodges}</b>`], ['Seats', seats.toLocaleString('en-US')], ['In use now', pct(inLodges, seats)], ['Food and drink', short(S.incomeToday * 0.17).replace('+', '')]])}
+        ${kvs([['Parking lots', `<b>${lots}</b>`], ['Spaces', spaces.toLocaleString('en-US')], ['Full', pct(cars, spaces)], ['Shuttle wait', S.skiers ? `<b>${Math.max(2, Math.round(cars / spaces * 14))}</b> min` : '—']])}</div>
+        <div class="hint" style="border-top:1px solid var(--hair)">Lodges, parking and roads you build in the toolbox's Infrastructure tab add to these.</div>`;
+    }
+    // finances
+    const inc = S.incomeToday, ops = S.opsToday, bld = S.buildToday;
+    const incRows = [['Lift tickets', 0.58], ['Food and drink', 0.17], ['Lessons', 0.11], ['Rentals', 0.09], ['Parking', 0.05]].map(([k, f]) => [k, short(inc * f).replace('+', '')]);
+    const costRows = [['Wages', 0.46], ['Power', 0.18], ['Grooming', 0.14], ['Snowmaking', 0.22]].map(([k, f]) => [k, short(ops * f).replace('+', '')]);
+    // Scaled to an ordinary day; days with big construction bills run off the scale and get a break mark.
+    const days = S.history.concat(S.today / 1e6), w = 444, hgt = 70, bw = (w - 24) / days.length, zero = hgt / 2;
+    const mx = Math.max(0.6, 1.3 * Math.max(0.4, ...days.map(Math.abs).filter((a) => a < 1.5)));
+    let bars = `<line x1="12" y1="${zero}" x2="${w - 12}" y2="${zero}" stroke="#4a443e"/>`;
+    days.forEach((v, i) => {
+      const over = Math.abs(v) > mx, bh = Math.min(Math.abs(v), mx) / mx * (zero - 3), x = 12 + i * bw + 3, last = i === days.length - 1;
+      bars += `<rect x="${f1(x)}" y="${f1(v >= 0 ? zero - bh : zero)}" width="${f1(bw - 6)}" height="${f1(Math.max(1, bh))}" rx="1" fill="${v >= 0 ? '#8fcf8a' : '#ff7a66'}" opacity="${last ? 1 : 0.7}"/>`;
+      if (over) { const yb = v >= 0 ? zero - bh + 7 : zero + bh - 11; bars += `<path d="M${f1(x - 1)} ${f1(yb + 3)}l${f1(bw - 4)} -3M${f1(x - 1)} ${f1(yb + 7)}l${f1(bw - 4)} -3" stroke="#1c1916" stroke-width="1.8"/>`; }
+    });
+    return `<div class="cols">${kvs([['<b style="color:#efe9df">Income today</b>', `<b>${short(inc).replace('+', '')}</b>`], ...incRows])}
+      ${kvs([['<b style="color:#efe9df">Costs today</b>', `<b>${short(ops + bld).replace('+', '')}</b>`], ...costRows, ['Construction', short(bld).replace('+', '')]])}</div>
+      <div class="rule"></div>
+      <div class="sub"><span>Net, last 14 days</span><span>today <span style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)}</span></span></div>
+      <svg width="${w}" height="${hgt}" style="display:block;margin:4px 12px 8px">${bars}</svg>`;
+  }
+
 
   // ---------- the chrome ----------
   const BAR_H = 52;
@@ -619,7 +724,7 @@ body.solo .frame { border-radius: 0; }
     let h = '';
     if (S.drop === 'layers') h += `<div class="drop">${[['lifts', 'Lifts'], ['trails', 'Trails'], ['snow', 'Snowmaking'], ['infra', 'Infrastructure'], ['labels', 'Labels']].map(([k, v]) => `<div class="row" data-act="layer" data-v="${k}"><span class="chk${S.layers[k] ? ' on' : ''}"></span>${v}</div>`).join('')}</div>`;
     if (S.drop === 'menu') h += `<div class="drop">${[['resume', 'Resume', 'Esc'], ['savegame', 'Save game', 'Ctrl S']].map(([a, v, k]) => `<div class="row" data-act="${a}">${v}<span class="r">${k}</span></div>`).join('')}
-      <div class="sepl"></div><div class="row" data-act="dock">Status bar<span class="r val">${S.docked ? 'Docked' : 'Floating'}</span></div><div class="row" data-act="help">Controls</div><div class="row" data-act="settings">Settings</div>
+      <div class="sepl"></div><div class="row" data-act="dock">Status bar<span class="r val">${S.docked ? 'Docked' : 'Floating'}</span></div><div class="row" data-act="units">Units<span class="r val">${IMP() ? 'Imperial' : 'Metric'}</span></div><div class="row" data-act="help">Controls</div><div class="row" data-act="settings">Settings</div>
       <div class="sepl"></div><div class="row" data-act="title">Exit to title</div></div>`;
     h += `<div class="tr"><span class="sq${S.sketch ? ' on' : ''}" data-act="sketch" title="Sketch">${g('s-pencil')}</span><span class="sq${S.drop === 'layers' ? ' on' : ''}" data-act="drop" data-v="layers" title="Map layers">${g('s-map')}</span><span class="sq${S.drop === 'menu' ? ' on' : ''}" data-act="drop" data-v="menu" title="Menu">${g('s-menu')}</span></div>`;
     h += `<div class="br"><span class="sq" data-act="north" title="North up, reset the view">${g('s-compass')}</span><span class="sq" data-act="3d" title="3D view">3D</span><div class="pair"><span class="sq" data-act="zoom" data-v="1" title="Zoom in">${g('s-plus')}</span><span class="sq" data-act="zoom" data-v="-1" title="Zoom out">${g('s-minus')}</span></div></div>`;
@@ -663,6 +768,8 @@ body.solo .frame { border-radius: 0; }
   }
 
   // ---------- actions ----------
+  // Construction spending: out of the bank, into today's construction line.
+  function spend(cost) { S.cash -= cost; S.buildToday += cost; S.today -= cost; }
   function commit(asPlan) {
     const d = S.draft, t = toolById(S.tool);
     let cost = 0, label = '';
@@ -684,7 +791,7 @@ body.solo .frame { border-radius: 0; }
     }
     S.saveDue = true;
     if (asPlan) log(`<span><b>${esc(label)}</b> saved as a plan <span class="mono" style="color:#a39b90">${short(cost).replace('+', '')}</span></span>`, '#ff6a1f');
-    else { S.cash -= cost; S.today -= cost; log(`<span><b>${esc(label)}</b>: ground broken <span class="mono" style="color:#ff7a66">${short(-cost)}</span></span>`, '#1a6b3c'); }
+    else { spend(cost); log(`<span><b>${esc(label)}</b>: ground broken <span class="mono" style="color:#ff7a66">${short(-cost)}</span></span>`, '#1a6b3c'); }
     const again = t.id; S.tool = null; chooseTool(again);
   }
   function act(a, v, e) {
@@ -698,24 +805,26 @@ body.solo .frame { border-radius: 0; }
       case 'diff': S.draft.diff = v; break;
       case 'build': commit(false); return;
       case 'plan': commit(true); return;
-      case 'setmodel': { const l = S.lifts.find((x) => x.id === S.sel); if (l && l.model !== v) { const before = liftStats(l.a, l.b, l.model).cost.total; l.model = v; const diff = liftStats(l.a, l.b, v).cost.total - before; if (l.built && diff > 0) { S.cash -= diff; S.today -= diff; } S.saveDue = true; log(`<span><b>${esc(l.name)}</b> is now a ${v}${l.built && diff > 0 ? ` <span class="mono" style="color:#ff7a66">${short(-diff)}</span>` : ''}</span>`); } break; }
+      case 'setmodel': { const l = S.lifts.find((x) => x.id === S.sel); if (l && l.model !== v) { const before = liftStats(l.a, l.b, l.model).cost.total; l.model = v; const diff = liftStats(l.a, l.b, v).cost.total - before; if (l.built && diff > 0) spend(diff); S.saveDue = true; log(`<span><b>${esc(l.name)}</b> is now a ${v}${l.built && diff > 0 ? ` <span class="mono" style="color:#ff7a66">${short(-diff)}</span>` : ''}</span>`); } break; }
       case 'setdiff': { const t = S.trails.find((x) => x.id === S.sel); if (t) { t.diff = v; S.saveDue = true; log(`<span><b>${esc(t.name)}</b> re-rated ${DIFFS[v].toLowerCase()}</span>`); } break; }
       case 'remove': {
         const t = toolById(S.tool), list = t.target === 'lift' ? S.lifts : S.trails, i = list.findIndex((x) => x.id === S.sel);
-        if (i >= 0) { const o = list[i]; list.splice(i, 1); if (t.target === 'lift' && o.built) { S.liftsTotal--; const r = liftStats(o.a, o.b, o.model).cost.total * 0.15; S.cash += r; S.today += r; } S.saveDue = true; log(`<span><b>${esc(o.name)}</b> removed</span>`, '#8e2b1f'); }
+        if (i >= 0) { const o = list[i]; list.splice(i, 1); if (t.target === 'lift' && o.built) { S.liftsTotal--; spend(-liftStats(o.a, o.b, o.model).cost.total * 0.15); } S.saveDue = true; log(`<span><b>${esc(o.name)}</b> removed</span>`, '#8e2b1f'); }
         S.sel = null; break;
       }
       case 'pause': S.paused = !S.paused; break;
       case 'speed': S.speed = +v; S.paused = false; break;
       case 'savegame': S.saveDue = false; S.drop = null; render(); log(`<span>Saved <span class="mono" style="color:#a39b90">Jackson Peaks · day ${S.day}</span></span>`, '#8fcf8a'); return;
+      case 'units': S.units = IMP() ? 'metric' : 'imperial'; log(`<span>Units: ${IMP() ? 'imperial (ft, °F, in)' : 'metric (m, °C, cm)'}</span>`); break;
+      case 'atab': S.atab = v; break;
       case 'dock': S.docked = !S.docked; log(`<span>Status bar ${S.docked ? 'docked in the corner' : 'floating'}</span>`); break;
       case 'sketch': S.sketch = !S.sketch; S.drop = null; if (S.sketch) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'clearsketch': S.sketches = []; break;
       case 'drop': S.drop = S.drop === v ? null : v; break;
       case 'layer': S.layers[v] = !S.layers[v]; break;
       case 'resume': S.drop = null; break;
-      case 'settings': S.drop = null; S.modal = { title: 'Settings', body: 'Settings aren\'t part of this mockup. The real menu would hold graphics quality, lighting, units, autosave and controls.' }; break;
-      case 'help': S.drop = null; S.modal = { title: 'Controls', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>Space</b> pause · <b>1–4</b> speed<br>Tool letters as shown in the tray · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Zoom with the buttons at the bottom right; the compass resets the view.' }; break;
+      case 'settings': S.drop = null; S.modal = { title: 'Settings', body: 'Settings aren\'t part of this mockup beyond Units and Status bar in this menu. The real menu would hold graphics quality, lighting, autosave and controls.' }; break;
+      case 'help': S.drop = null; S.modal = { title: 'Controls', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>U</b> units · <b>Space</b> pause · <b>1–4</b> speed<br>Tool letters as shown in the tray · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Zoom with the buttons at the bottom right; the compass resets the view.' }; break;
       case 'title': S.drop = null; S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
       case 'modal': case 'modalbg': if (a === 'modalbg' && e && e.target.closest('.pn')) return; S.modal = null; break;
       case 'zoom': S.zoom = Math.min(1.8, Math.max(1, S.zoom + (+v) * 0.2)); break;
@@ -734,7 +843,7 @@ body.solo .frame { border-radius: 0; }
   const onUi = (e) => e.target.closest('#ui .pn, #ui .bar, #ui .box, #ui .tr, #ui .br, #ui .drop, #ui .strip, #ui .modal');
   function showElev() {
     const el = document.getElementById('elev'); if (!el) return;
-    const on = mouse && onTerrain(mouse); el.textContent = on ? `${metres(elevAt(mouse))} m` : '– – – m'; el.style.color = on ? '' : '#6f675e';
+    const on = mouse && onTerrain(mouse); el.textContent = on ? lenTxt(elevAt(mouse)) : `– – – ${lenU()}`; el.style.color = on ? '' : '#6f675e';
   }
   function segDist(p, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1; let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2; t = Math.max(0, Math.min(1, t)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
   function pickAt(p, target) {
@@ -804,6 +913,7 @@ body.solo .frame { border-radius: 0; }
     if (['1', '2', '3', '4'].includes(k)) { act('speed', k); return; }
     if (k === 't') { act('toolbox'); return; }
     if (k === 'a') { act('analysis'); return; }
+    if (k === 'u') { act('units'); return; }
     if (S.toolbox) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t) chooseTool(t.id); }
   });
 
@@ -815,12 +925,13 @@ body.solo .frame { border-radius: 0; }
     if (!S.paused) {
       const gs = dt * RATE[S.speed];
       S.t += gs;
-      if (S.t >= 86400) { S.t -= 86400; S.day++; S.today = 0; log(`<span>Day ${S.day} begins</span>`); }
+      if (S.t >= 86400) { S.t -= 86400; S.history = S.history.concat(S.today / 1e6).slice(-13); S.day++; S.today = S.incomeToday = S.opsToday = S.buildToday = 0; log(`<span>Day ${S.day} begins</span>`); }
       const hr = S.t / 3600;
       const open = hr >= LIFTS_OPEN && hr < LIFTS_CLOSE, target = open ? Math.round(3300 * Math.sin(Math.PI * (hr - 8.5) / 8) * (1 + 0.1 * Math.sin(hr * 3.1)) * (S.liftsTotal / 48)) : Math.round(Math.max(0, S.skiers * 0.92));
       S.skiers = Math.max(0, Math.round(S.skiers + (target - S.skiers) * Math.min(1, gs / 1800)));
       const income = (S.skiers * 189 / (8 * 3600)) * gs * 0.35, ops = (2.1e6 / 86400) * gs * 0.02;
-      S.cash += income - ops; S.today += income - ops;
+      S.cash += income - ops; S.today += income - ops; S.incomeToday += income; S.opsToday += ops;
+      S.base += snowRate(S.day, hr) * gs / 3600 - 0.6 * gs / 86400;   // new snow builds the base; it settles slowly
     }
     acc += dt;
     if (acc > 0.2) { acc = 0; updateBar(); }
@@ -839,6 +950,7 @@ body.solo .frame { border-radius: 0; }
     const dl = document.getElementById('delta'); if (dl) { dl.textContent = `${short(S.today)} today`; dl.style.color = S.today < 0 ? '#ff7a66' : '#8fcf8a'; }
     set('lifts', String(S.liftsTotal));
     set('skiers', S.skiers.toLocaleString('en-US'));
+    if (S.analysis) set('anabody', analysisBody());
   }
   // For screenshots only: #demo=tray,lift,trail,float,menu,layers,analysis,edit opens that state on load.
   const demo = (location.hash.match(/demo=([a-z,]+)/) || [])[1];
@@ -853,7 +965,9 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('infra')) { S.toolbox = true; S.tab = 'infra'; }
     if (d.includes('menu')) S.drop = 'menu';
     if (d.includes('layers')) S.drop = 'layers';
-    if (d.includes('analysis')) { S.analysis = true; S.t = 12.5 * 3600; }
+    if (d.includes('analysis')) { S.analysis = true; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }
+    for (const [k] of ATABS) if (d.includes('a' + k)) { S.analysis = true; S.atab = k; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }
+    if (d.includes('imperial')) S.units = 'imperial';
     if (d.includes('lastchair')) S.t = 16.3 * 3600;
     if (d.includes('snowing')) S.t = 2 * 3600;
     mouse = [930, 260];
