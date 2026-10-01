@@ -270,6 +270,11 @@ def branch_cluster(style, colours, seed, n=512, sheen=None):
 # ---------------------------------------------------------------------------------------------
 # Leaves and twigs (deciduous)
 
+def _ellipse(th, aspect):
+    """An ellipse's radius at angle th from its long axis (1 along it, aspect across it)."""
+    return 1.0 / np.sqrt(np.cos(th) ** 2 + (np.sin(th) / aspect) ** 2)
+
+
 def _leaf_shape(kind):
     if kind == "maple":
         return lambda th: (0.42 + 0.58 * np.abs(np.cos(2.5 * th)) ** 0.7) * (0.75 + 0.25 * np.cos(th)) * (1 + 0.05 * np.sin(22 * th))
@@ -280,13 +285,14 @@ def _leaf_shape(kind):
     if kind == "aspen":
         return lambda th: 0.8 + 0.2 * np.cos(th) + 0.04 * np.sin(24 * th)
     if kind == "oak":
-        # Northern red oak: an elongated blade with pointed lobes and rounded sinuses about halfway to the
-        # midrib (|cos 4 theta| is 1 on a lobe, 0 in a sinus), narrowing to a wedge at the stalk.
-        return lambda th: ((0.5 + 0.5 * np.cos(th) ** 2) ** 0.9 * (0.48 + 0.52 * np.abs(np.cos(4 * th)) ** 1.5)
-                           * np.where(np.abs(th) > 2.5, 0.65, 1.0))
+        # Northern red oak: an elongated blade (an ellipse, under half as wide as long) with pointed lobes along
+        # each side and rounded sinuses a third of the way to the midrib (|cos 5 theta| is 1 on a lobe, 0 in a
+        # sinus), narrowing to a wedge at the stalk.
+        return lambda th: (_ellipse(th, 0.45) * (0.64 + 0.36 * np.abs(np.cos(5 * th)) ** 1.2)
+                           * np.where(np.abs(th) > 2.6, 0.6, 1.0))
     if kind == "cherry":
-        # Black cherry: narrow, lance-shaped, finely toothed, with a drawn-out tip.
-        return lambda th: ((0.3 + 0.7 * np.cos(th) ** 2) ** 1.3 * (1 + 0.18 * np.clip(np.cos(th), 0, 1) ** 8)
+        # Black cherry: narrow and lance-shaped (a third as wide as long), finely toothed, with a drawn-out tip.
+        return lambda th: (_ellipse(th, 0.32) * (1 + 0.22 * np.clip(np.cos(th), 0, 1) ** 6)
                            * (1 + 0.035 * np.sin(44 * th)))
     raise ValueError(kind)
 
@@ -598,17 +604,17 @@ def bark(style, base, seed, n=512):
     elif style == "oak":
         # Long, nearly straight ridges with flat, smooth, paler tops (the "ski tracks"), steep walls and
         # shallow dark furrows; a few long breaks split the ridges into very long plates.
-        tri = _bands(_ridge_field(n, 14, 2.0, rng, cx=3))
-        width = 0.22 + 0.14 * _fbm(n, 5, 2, rng, 3)
-        ridge = np.clip((tri - width) / 0.2, 0, 1)
+        tri = _bands(_ridge_field(n, 13, 3.0, rng, cx=5))
+        width = 0.15 + 0.3 * _fbm(n, 6, 3, rng, 3)          # ridges vary in width along and between them
+        ridge = np.clip((tri - width) / 0.22, 0, 1)
         ridge = ridge * ridge * (3 - 2 * ridge)
-        cross = _bands(_fbm(n, 2, 4, rng, 3) * 1.6)
-        breaks = np.clip(1 - cross / 0.1, 0, 1) * np.clip((_noise(n, 9, 5, rng) - 0.6) * 5, 0, 1)
-        ridge = ridge * (1 - 0.8 * breaks)
+        cross = _bands(_fbm(n, 3, 9, rng, 4) * 2.0)
+        breaks = np.clip(1 - cross / 0.18, 0, 1) * np.clip((_noise(n, 16, 10, rng) - 0.5) * 5, 0, 1)
+        ridge = ridge * (1 - 0.85 * breaks)
         h = ridge * (0.88 + 0.12 * _fbm(n, 28, 6, rng, 3)) + 0.04 * grain
         h = _blur(h, 1)
-        furrow = c * np.array([0.5, 0.46, 0.44], np.float32)
-        wall = c * np.array([0.76, 0.73, 0.7], np.float32)
+        furrow = c * np.array([0.6, 0.54, 0.5], np.float32)
+        wall = c * np.array([0.8, 0.75, 0.7], np.float32)
         top = np.clip(c * np.array([1.06, 1.06, 1.05], np.float32), 0, 1)
         rgb = _lerp3(_lerp3(furrow, wall, np.clip(h / 0.4, 0, 1)), top, np.clip((h - 0.55) / 0.3, 0, 1))
         # Green algae and lichen in the furrows' lee.
