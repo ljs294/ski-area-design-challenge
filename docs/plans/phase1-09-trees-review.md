@@ -20,7 +20,7 @@ Approve the four models as they are, or tell me what to change. After your appro
 3. Commit on `feature/p1-09-trees`.
 4. Hand the branch to the task 09 thread.
 
-The import adds about 30 MB to Git LFS: 7 MB of FBX, 4 MB of textures and about 17 MB of impostor atlases. That leaves the total near 215 MB of the free 1 GB.
+The import adds about 30 MB to Git LFS: 7 MB of FBX, 4 MB of textures and about 17 MB of impostor atlases. That leaves the total near 215 MB of GitHub's free 10 GiB of LFS storage.
 
 ## Each new tree beside the tree it replaces
 
