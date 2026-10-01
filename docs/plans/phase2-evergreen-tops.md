@@ -1,6 +1,6 @@
 # The evergreens' spiky tops: audit and plan
 
-**Audience:** the project owner. **Status:** 🟨 plan for your approval. A working prototype is in Blender; nothing has changed in the game. **Date:** 2026-10-01. **Part of:** task 09 phase 2; the wider audit of all the trees follows in its own page.
+**Audience:** the project owner. **Status:** 🟨 plan for your approval, revised to your choice: a normal pointed top that narrows gradually, for every tree that had the fin, and no curved or rounded tops. A working prototype is in Blender; nothing has changed in the game. **Date:** 2026-10-01. **Part of:** task 09 phase 2; the wider audit of all the trees follows in its own page.
 
 You asked: *"Why are the tops of the evergreens so straight up and spiky?"* and *"Audit all evergreens for this behavior please and make a plan to correct."*
 
@@ -39,11 +39,11 @@ Measured on the built models (all three variants), with the real tree's top from
 
 ## The plan
 
-**1. Two new tops in the tree script,** chosen per species in `species.json` (`"top"`):
-- **Spire** (subalpine fir, Engelmann spruce, Douglas-fir, Pacific silver fir): the top whorls sweep up and their shoots shorten toward the tip. The last stretch becomes a short leader needled all round, like a bottlebrush: six small sprays spiralling up the trunk at 50-80°, so they hold snow and taper to a point, ending in a small bud. No upright cards.
-- **Rounded** (lodgepole pine, noble fir, eastern white pine): no leader. The top whorls sweep up 35-45°, and a ring of upturned sprays rounds off the top.
-- **Mountain hemlock** (optional): western hemlock's curved leader instead of the straight nodding hook.
-- **Unchanged:** western hemlock, krummholz and every broadleaf.
+**1. One new top in the tree script: pointed, narrowing gradually** (your choice, 2026-10-01: *"a normal pointed top that doesn't instantly become pointed"*). It's switched on per species in `species.json` (`"top"`) for all seven trees with the fin: subalpine fir, Engelmann spruce, Douglas-fir, lodgepole pine, Pacific silver fir, noble fir and eastern white pine.
+- **The crown keeps narrowing to the tip.** In the top 15% of the crown, branches may be very short and their shoots are no longer than they are. The far LODs' branch clusters narrow the same way.
+- **The last stretch is a short leader needled all round**, like a bottlebrush: six small sprays spiralling up the trunk at 45-75°, each ending on a cone that closes at the tip, then a small bud. The sprays hold snow. No upright cards.
+- **No curved or rounded tops.** Mountain hemlock keeps its own nodding top, and western hemlock keeps the drooping top you approved in task 09.
+- **Unchanged:** both hemlocks, krummholz and every broadleaf.
 
 **2. Already prototyped and measured** (Blender, the audit tool's game shading):
 
@@ -51,17 +51,16 @@ Measured on the built models (all three variants), with the real tree's top from
 
 | Measure | Before | After (prototype) |
 |---|---|---|
-| Fin above the crown, LOD0 | 1.0-2.0 m on seven trees | **none** on the rounded tops; a narrow needled bud **0.3-0.56 m** on the spires |
-| Snow on the top 1.5 m | 0.00-0.34 | **0.34-0.52** |
-| Crown colour, winter snow, LOD1 and LOD2 coverage | | all within ±0.02 of before |
-| LOD0 triangles | | +4 to +14 per tree; every tree within budget |
-| Every other tree | | bit-identical (203 of 203 hashes) with the new tops switched off |
-
-One thing still to tune: on the far LOD the spires' tip stands 0.6-1.3 m above their cluster cards. It's narrow, but I'd shorten it to match the near LODs.
+| Fin above the crown, LOD0 | 1.0-2.0 m on seven trees | **0.2-0.4 m**: the narrow needled bud at the tip |
+| How gradually the crown narrows: its width at 90 / 95 / 98% of the height, against its width at 85% (a straight cone: 0.67 / 0.33 / 0.13) | 0.77-1.0 / 0.15-0.74 / 0.11-0.22: full width, then the fin | **0.71-0.88 / 0.32-0.62 / 0.14-0.24** for the firs, spruce, Douglas-fir and noble fir; lodgepole and white pine a little fuller |
+| Snow on the top 1.5 m | 0.00-0.34 | **0.29-0.40** |
+| Crown colour, winter snow, LOD1 and LOD2 coverage | | within 0.7 L\* and ±0.04 of before |
+| LOD0 triangles | | about +10 per tree; every tree within budget |
+| Every other tree | | bit-identical (203 of 203 hashes) with the new top switched off |
 
 **3. Your photo review** of the corrected evergreens before anything goes into Unity, as usual: the tops above, silhouettes and the conifer lineup.
 
-**4. One import for everything.** Re-import the six changed conifers (plus mountain hemlock if you want it) with the three New England models, so Git LFS grows once. From the current files: subalpine fir 8.2 MB, Engelmann spruce 9.7, Douglas-fir 8.8, lodgepole pine 6.5, Pacific silver fir 8.9 and noble fir 7.9, so **50 MB** (59 MB with mountain hemlock). With the new models that's about 75-85 MB, against roughly 250 MB used of the free 1 GB. `TreeImport -treeModels` keeps every other tree's files byte for byte.
+**4. One import for everything.** Re-import the six changed conifers with the three New England models, so Git LFS grows once. From the current files: subalpine fir 8.2 MB, Engelmann spruce 9.7, Douglas-fir 8.8, lodgepole pine 6.5, Pacific silver fir 8.9 and noble fir 7.9, so **50 MB**. With the new models that's about 75 MB. GitHub's free allowance is 10 GiB of LFS storage, and this repository uses about 0.25 GiB. `TreeImport -treeModels` keeps every other tree's files byte for byte.
 
 **5. Check it in the game:** the lineup and Sugarloaf's in-forest view, before and after, and the benchmark. Expect no change in cost: about 10 triangles more per tree.
 
@@ -74,5 +73,4 @@ One thing still to tune: on the far LOD the spires' tip stands 0.6-1.3 m above t
 
 ## Decisions for you
 
-1. **Approve the plan:** spire tops for subalpine fir, Engelmann spruce, Douglas-fir and Pacific silver fir; rounded tops for lodgepole pine, noble fir and eastern white pine.
-2. **Mountain hemlock:** give it western hemlock's curved leader (+8.7 MB), or leave its nodding hook as it is?
+1. **Approve the pointed tops** for the seven trees above, for your photo review (the conifer lineup and silhouettes) and then the import?

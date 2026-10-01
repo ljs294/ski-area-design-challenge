@@ -86,7 +86,7 @@ If the first guess holds, that's **four or five new models instead of nine**: oa
 
 **Cost:**
 - **Time:** about a day per new model plus your reviews; the sorting itself is a day.
-- **Git LFS:** about 7 MB per new model, so 30–40 MB. That's about 250 MB of the free 1 GB after task 09.
+- **Git LFS:** about 7 MB per new model, so 30–40 MB. GitHub's free allowance is 10 GiB of LFS storage and 10 GiB of downloads a month; the repository uses about 0.25 GiB.
 - **Performance:** a site draws only the species it has (task 09), so these cost nothing at Jackson Hole or Crystal Mountain. Shared models even reduce Sugarloaf's draws.
 
 ## Step 1 result: the sorting

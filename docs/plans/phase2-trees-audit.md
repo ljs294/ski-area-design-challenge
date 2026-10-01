@@ -125,16 +125,16 @@ GPU p95 in ms, with **Sugarloaf drawn entirely as that model** (the real mix: 17
 
    | Batch | Git LFS |
    |---|---|
-   | Tops (six or seven conifers) | 50-59 MB |
+   | Tops (six conifers) | 50 MB |
    | Broadleaves (six) | 32 MB |
    | The three New England models | about 25 MB |
-   | **Total** | **about 110-120 MB** |
+   | **Total** | **about 105-110 MB** |
 
-   That's roughly 360-370 MB of the free 1 GB. Every untouched model keeps its files byte for byte.
+   Storage would go from about 0.25 GiB to about 0.36 GiB of GitHub's free 10 GiB. Every untouched model keeps its files byte for byte.
 5. **Later options:** bent near sprays (M4), impostor quads trimmed to the crown (M2, renderer), and a wind-swept old white pine.
 
 ## Decisions for you
 
 1. Approve the hardwood-crown fix (2), with beech made cheaper, for a Blender prototype and photo review?
-2. Combine everything you approve into one import (4)?
+2. Combine everything you approve into one import (4), about 105-110 MB?
 3. **The plantation look** (forest placement): ask the forest thread for more height spread or some clumping in dense conifer stands, or leave it as it is?

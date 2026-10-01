@@ -243,6 +243,9 @@ def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, swa
         tan = branch_tangent(0.5)
         lo, hi, extra = sp.get("clusterSpan", (1.1, 3.2, 0.9))
         span = min(hi, max(lo, 0.55 * length + extra)) * (0.8 if reach < 1.0 else 1.0)
+        if "top" in sp:
+            # Near the top only: short top branches get narrow clusters, so the top stays pointed.
+            span *= lerp(1.0, min(1.0, max(0.3, length / 1.5)), smoothstep(0.8, 0.97, h))
         # LOD2 has one card per branch: alternate a strong roll so the crown isn't edge-on from the side.
         roll = rng.uniform(-0.25, 0.25) + (0.0 if lod["cluster"] >= 2 else (0.6 if parity else -0.6))
         ends = [(sway(base.z), 0.0, phase, 0.4), (sway(pts[-1].z), 1.0 * flex, phase, 1.0)]
@@ -287,7 +290,8 @@ def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, swa
         ln = spray_len * 1.5 * size * (1 - 0.3 * t) * rng.uniform(0.85, 1.15)
         wd = spray_w * 1.6 * size * (1 - 0.25 * t)
         if "top" in sp:
-            short = lerp(1.0, 0.5, smoothstep(0.8, 1.0, h))   # shoots shorten toward the top, so it tapers to a point
+            # Near the top only, shoots are no longer than their branch, so the crown closes smoothly to the tip.
+            short = lerp(1.0, min(1.0, max(0.12, length / (spray_len * 1.5))), smoothstep(0.8, 0.97, h))
             ln, wd = ln * short, wd * short
         roll = rng.uniform(-0.6, 0.6)
         wn = [(sway(p.z), t * flex, phase, 0.5), (sway(p.z), min(1.0, t + 0.2) * flex, phase, 1.0)]
@@ -300,6 +304,11 @@ def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, swa
             b.card(p, dirn, horizontal_side(dirn, roll + rng.choice((-1, 1)) * 1.1), ln * 0.75, wd * 0.8, wn, FOLIAGE, snow_scale=0.2)
     tip = pts[-1]
     tan = branch_tangent(0.97)
+    if "top" in sp:
+        short = lerp(1.0, min(1.0, max(0.12, length / (spray_len * 1.5))), smoothstep(0.8, 0.97, h))
+        b.card(tip - tan * spray_len * 0.3 * short, tan, horizontal_side(tan, 0.0), spray_len * size * short, spray_w * size * short,
+               [(sway(tip.z), 0.9 * flex, phase, 0.8), (sway(tip.z), 1.0 * flex, phase, 1.0)], FOLIAGE)
+        return
     b.card(tip - tan * spray_len * 0.3, tan, horizontal_side(tan, 0.0), spray_len * size, spray_w * size,
            [(sway(tip.z), 0.9 * flex, phase, 0.8), (sway(tip.z), 1.0 * flex, phase, 1.0)], FOLIAGE)
 
@@ -372,43 +381,45 @@ def build_conifer(sp, rng, lod, height):
             if rng.random() < sp.get("skip", 0.08):   # a missing limb (white pine: often, so the crown is open)
                 continue
             az = k * GOLDEN + j * 2 * math.pi / count + rng.uniform(-0.25, 0.25) + (0.0 if reach == 1.0 else math.pi / count)
-            length = max(0.35, crown_radius(z) * rng.uniform(*sp.get("limbJitter", (0.85, 1.1))) * reach)
+            length = max(0.35 if top_style is None else lerp(0.35, 0.08, smoothstep(0.85, 1.0, h)), crown_radius(z) * rng.uniform(*sp.get("limbJitter", (0.85, 1.1))) * reach)
             elev = math.radians(lerp(sp["branchElevation"][1], sp["branchElevation"][0], h))
             if top_style is not None:
-                elev += math.radians(sp.get("topUpsweep", 30.0)) * smoothstep(0.75, 1.0, h)   # the top whorls turn up
+                elev += math.radians(sp.get("topUpsweep", 20.0)) * smoothstep(0.75, 1.0, h)   # the top whorls turn up
             conifer_branch(b, sp, rng, lod, trunk_point(z / height), Vector((math.cos(az), math.sin(az), 0)), length, elev, h, reach,
                            (k + j) % 2, sway, trunk_r)
         k += 1
 
     if top_style is not None:
-        # The top (task 09 phase 2 audit): the original leader, upright cards, read as dark, snowless fins standing
-        # up to 2 m above the crown. Here the whorls carry on to just below the tip and sweep up (topUpsweep), and:
-        #   spire  a short leader shoot needled all round: small sprays spiralling up the last stretch of trunk,
-        #          angled up so they hold snow and shrinking to the tip, then a small bud (firs, spruces, Douglas-fir)
-        #   round  no leader: the top whorls and a ring of upturned sprays round off the top (pines, old noble fir)
+        # The top (task 09 phase 2 audit). The original leader, upright cards, read as dark, snowless fins standing up
+        # to 2 m above the crown. The owner asked for "a normal pointed top that doesn't instantly become pointed": the
+        # crown closes gradually to the tip. So top branches may be short and their shoots no longer than they are
+        # (conifer_branch), and the last stretch of trunk carries a short leader needled all round: small sprays
+        # spiralling up it, angled up so they hold snow, each ending on a cone that closes at the tip, then a small bud.
         spray_len, spray_w = sp["spray"]
         last = max([z for z, _, _ in tiers if z < top_z] or [crown_base])
         z0 = min(last + 0.05, height - 0.4)
-        n = sp.get("topSprays", 6 if top_style == "spire" else 5)
+        n = sp.get("topSprays", 6)
         n = n if lod["cards"] >= 1.0 else (max(3, (n + 1) // 2) if lod["cards"] else 2)
-        lo_rise, hi_rise = (50.0, 80.0) if top_style == "spire" else (22.0, 50.0)
         grow = 1.0 if lod["cards"] >= 1.0 else 1.4   # LOD1-2 draw branch-cluster textures: larger cards
+        cone = 1.4 * crown_radius(z0) + 0.1           # the foliage's radius where the leader starts; 0 at the tip
+        span = max(0.1, height - z0)
         for i in range(n):
             t = (i + 0.5) / n
-            z = lerp(z0, height - (0.35 if top_style == "spire" else 0.1), t)
+            z = lerp(z0, height - 0.3, t)
             p = trunk_point(z / height)
             az = (k + i) * GOLDEN
-            rise = math.radians(lerp(lo_rise, hi_rise, t))
+            rise = math.radians(lerp(45.0, 75.0, t))
             d = (Vector((math.cos(az), math.sin(az), 0)) * math.cos(rise) + UP * math.sin(rise)).normalized()
-            size = (lerp(0.6, 0.25, t) if top_style == "spire" else lerp(1.0, 0.7, t)) * grow
-            b.card(p, d, horizontal_side(d, 0.0), spray_len * 1.1 * size, spray_w * 1.2 * size,
+            # The spray's tip lies on the cone: ln cos(rise) = cone (1 - (z - z0 + ln sin(rise)) / span).
+            ln = cone * (1 - (z - z0) / span) / (math.cos(rise) + math.sin(rise) * cone / span)
+            ln = max(0.15, min(spray_len * 1.1, ln)) * grow
+            b.card(p, d, horizontal_side(d, 0.0), ln, ln * spray_w / spray_len,
                    [(sway(p.z), 0.2, phase_trunk, 0.6), (sway(p.z), 0.6, phase_trunk, 1.0)], FOLIAGE, snow_scale=0.5)
-        if top_style == "spire":
-            tip = trunk_point((height - 0.45) / height)
-            up = (trunk_point(1.0) - tip).normalized()
-            for i in range(2 if lod["cards"] >= 1.0 else 1):
-                b.card(tip, up, horizontal_side(up, i * math.pi / 2), 0.45, spray_w * 0.35,
-                       [(sway(tip.z), 0.3, phase_trunk, 0.6), (1.0, 0.4, phase_trunk, 1.0)], FOLIAGE, snow_scale=0.3)
+        tip = trunk_point((height - 0.45) / height)
+        up = (trunk_point(1.0) - tip).normalized()
+        for i in range(2 if lod["cards"] >= 1.0 else 1):
+            b.card(tip, up, horizontal_side(up, i * math.pi / 2), 0.45, spray_w * 0.35,
+                   [(sway(tip.z), 0.3, phase_trunk, 0.6), (1.0, 0.4, phase_trunk, 1.0)], FOLIAGE, snow_scale=0.3)
         return b
 
     # Leader: upright sprays to the tip so the top is never bare.
