@@ -1,6 +1,6 @@
 # Task 09 phase 2: New England tree species
 
-**Audience:** the project owner. **Status:** decided 2026-09-30 (below); runs in its own thread after task 09. **Date:** 2026-09-30. **Builds on:** the [species-model priority report](phase1-species-priority.md) (task 09) and its survey of every US ski area.
+**Audience:** the project owner. **Status:** decided 2026-09-30 (below); step 1, the sorting, decided 2026-09-30 (NE5); step 2, the models, in progress. **Date:** 2026-09-30. **Builds on:** the [species-model priority report](phase1-species-priority.md) (task 09) and its survey of every US ski area.
 
 ## Decided (owner, 2026-09-30)
 
@@ -10,6 +10,7 @@
 | NE2 | **The test mountain is Sugarloaf, Maine** (5 km): spruce-fir and fir krummholz on top, northern hardwoods below, and S1M lidar |
 | NE3 | **A new model only where it looks different.** A species that looks largely like one we already have shares that model instead of getting its own. Diversity alone isn't a reason for a model |
 | NE4 | It runs in its own thread, as tree work does (higher reasoning), after task 09 |
+| NE5 | **The sorting (step 1):** six species share a model: balsam fir and northern white-cedar → subalpine fir, red spruce → Engelmann spruce, eastern hemlock → western hemlock, white ash → sugar maple, and sweet birch → the new black cherry. Three get their own: **eastern white pine, northern red oak and black cherry** ([below](#step-1-result-the-sorting)) |
 
 ## Where New England stands
 
@@ -88,6 +89,42 @@ If the first guess holds, that's **four or five new models instead of nine**: oa
 - **Git LFS:** about 7 MB per new model, so 30–40 MB. That's about 250 MB of the free 1 GB after task 09.
 - **Performance:** a site draws only the species it has (task 09), so these cost nothing at Jackson Hole or Crystal Mountain. Shared models even reduce Sugarloaf's draws.
 
+## Step 1 result: the sorting
+
+Each species was rendered (Cycles, winter) beside the model it would share. Next to that is a **sketch** of the real tree: the nearest model re-tuned in memory to the field-guide traits (crown width and height, branching, bark colour, needle tint), still with our existing textures. Groves are seen from about 200 m, the game's usual range; lineups are close up, with a 1.8 m skier. If the sketch and the shared model look alike at game range, the species shares.
+
+The sketches can only re-tune what the builder already does. They can't show new structure: oak's crooked heavy limbs, white pine's wind-swept plumes, or cedar's scale fans. Where that structure is the point, the call is a judgement, as noted.
+
+| Species | Decision (NE5) | What the renders showed |
+|---|---|---|
+| Balsam fir | **shares subalpine fir** | The same narrow spire at range; balsam is a little broader and less blue. ![balsam fir](images/phase2-ne-balsam_fir-far.jpg) |
+| Red spruce | **shares Engelmann spruce** | The same dense cone; red spruce's yellower green could be a per-species tint later. ![red spruce](images/phase2-ne-red_spruce-far.jpg) |
+| Eastern hemlock | **shares western hemlock** | The same nodding leader and drooping sprays; eastern is broader and fuller to the ground. ![eastern hemlock](images/phase2-ne-eastern_hemlock-far.jpg) |
+| Northern white-cedar | **shares subalpine fir** | Its narrow, dense cone with no drooping top reads as subalpine fir, not western hemlock. ![white-cedar](images/phase2-ne-white_cedar-far.jpg) |
+| White ash | **shares sugar maple** (first guess: own model) | Both branch in opposite pairs, with grey ridged bark and an oval crown; in winter they're almost indistinguishable. Aspen, today's look-alike, is wrong: white bark, narrow crown. ![white ash](images/phase2-ne-white_ash-far.jpg) |
+| Sweet birch | **shares black cherry** (first guess: yellow birch) | In a bare winter forest, bark colour is what reads. Yellow birch's gold is wrong for sweet birch's near-black bark, which matches cherry's. ![sweet birch and black cherry](images/phase2-ne-dark_birch_cherry-far.jpg) |
+| Black cherry | **own model** | Dark, flaky bark, a long clear trunk and an irregular crown; it also stands in for sweet birch |
+| Eastern white pine | **own model** | Nothing we have is close: tall, with few, long, horizontal limbs in tiers, and soft blue-green tufts. Lodgepole pine is narrow and short-limbed. ![white pine](images/phase2-ne-white_pine-near.jpg) |
+| Northern red oak | **own model** (a judgement call) | A parameter sketch looks close to sugar maple in winter, but it can't show the heavy, crooked limbs, the broad crown, or the brown leaves young oaks keep. Red oak is the largest missing species in the US, and one oak model can later stand in for white, black, bur and chestnut oak (about 1.5 more flora points per area). ![red oak](images/phase2-ne-red_oak-far.jpg) |
+
+Close-ups: `images/phase2-ne-<species>-near.jpg`.
+
+**Winter traits** (summarised from public field guides; photos of each at Go Botany, `gobotany.nativeplanttrust.org/species/<genus>/<species>/`):
+
+| Species | Mature height | Winter silhouette | Branching | Bark | Colour in winter |
+|---|---|---|---|---|---|
+| Balsam fir | 12–20 m | Narrow, regular spire; krummholz on summits | Whorled, near-horizontal | Smooth grey with resin blisters | Dark green |
+| Red spruce | 18–25 m | Narrow, dense cone | Whorled; tips droop then turn up | Thin reddish-brown flakes | Yellowish green |
+| Eastern hemlock | 18–30 m | Broad cone, drooping leader; old trees irregular | Long, horizontal, feathery flat sprays | Cinnamon to grey-brown, deeply furrowed | Dark green |
+| Northern white-cedar | 10–15 m | Narrow, dense cone with a rounded top; often leaning | Short, flat scale-leaf fans | Grey-brown fibrous strips | Yellow-green, bronzing |
+| White ash | 20–25 m | Clear trunk, open rounded crown | Opposite; few, stout twigs | Grey, a net of diamond ridges | Bare |
+| Sweet birch | 15–20 m | Rounded to irregular | Alternate, fine twigs | Near-black, smooth with lenticels; dark plates when old | Bare, dark |
+| Black cherry | 18–25 m | Long clear trunk, narrow irregular crown | Few ascending limbs | Dark, small upturned plates | Bare, dark |
+| Eastern white pine | 25–35 m | Young a regular cone; old irregular, flat-topped, wind-swept | Few long horizontal limbs in tiers | Dark grey, deeply furrowed | Soft blue-green tufts (needles in fives) |
+| Northern red oak | 20–30 m | Rounded crown; broad when open-grown | Few heavy, crooked limbs | Dark grey with long flat-topped ridges | Bare; young trees keep brown leaves |
+
+So phase 2 builds **three models instead of four or five**, about 25 MB of Git LFS, and every one of the nine species counts as drawn as itself (F1).
+
 ## Also worth doing for New England
 
 1. **Better look-alikes now, for free:**
@@ -103,5 +140,4 @@ If the first guess holds, that's **four or five new models instead of nine**: oa
 
 ## Still open (in phase 2)
 
-- **The sorting (step 1):** which species share a model. Decided from the side-by-side renders.
-- **The look-alike switches** for species still without their own model once phase 2 is done. The first guesses are oaks → American beech, and ash, cherry and basswood → yellow birch. Decided with the renders too.
+- **Look-alikes for species outside the nine**, such as basswood, other oaks and other ashes: they could follow the new models by genus, agreed with the task 09 forest thread, which owns the look-alike ranges (oaks → northern red oak, ashes → sugar maple, cherries → black cherry).
