@@ -73,7 +73,7 @@ namespace MountainPlanner.Persistence
     public static class TerrainCache
     {
         /// <summary>Bump when the tile format or sampling changes: existing caches are then rebuilt.</summary>
-        public const int Version = 7;
+        public const int Version = 8;
 
         /// <summary>
         /// Splat texels per tile edge: 1 m in core tiles, 4 m in the ring (Unity needs powers of two).

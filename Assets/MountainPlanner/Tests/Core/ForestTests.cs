@@ -41,6 +41,11 @@ namespace MountainPlanner.Tests
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(101)], Is.EqualTo("lodgepole_pine"), "whitebark pine looks like a pine");
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(96)], Is.EqualTo("engelmann_spruce"), "blue spruce looks like a spruce");
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(749)], Is.EqualTo("quaking_aspen"), "cottonwood looks like an aspen");
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(17)], Is.EqualTo("pacific_silver_fir"), "grand fir looks like silver fir");
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(21)], Is.EqualTo("noble_fir"), "Shasta red fir looks like noble fir");
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(242)], Is.EqualTo("western_hemlock"), "western redcedar looks like western hemlock");
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(261)], Is.EqualTo("western_hemlock"), "eastern hemlock looks like western hemlock");
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(12)], Is.EqualTo("subalpine_fir"), "balsam fir looks like subalpine fir");
             // Every model but a growth form (krummholz) stands for at least one real species.
             var modelled = SpeciesMap.ModelledCodes.Select(c => SpeciesMap.Models[SpeciesMap.ModelFor(c)]).ToHashSet();
             Assert.That(SpeciesMap.Models.Where(m => m != "krummholz"), Is.SubsetOf(modelled));
@@ -159,9 +164,9 @@ namespace MountainPlanner.Tests
         /// </summary>
         static readonly Dictionary<string, string> GoldenTrees = new Dictionary<string, string>
         {
-            ["t4_3"] = "b4dfdb05b471d547c290b2ee587cb1b55033fd7c3648941d44cde7fddedb8786",
-            ["t4_4"] = "097ae9f6f8534600d58bebc76560c363d165881e1b55991faebf03af824c6280",
-            ["t0_0"] = "04a36f954865d7c4123d3b8389b0967845bea56459a6ba19c6eaa366136ea7ac",
+            ["t4_3"] = "2fdd017661a5a8e9a4ca72e34fff31a529c759df86ffcda80e74b8ec590f8f25",
+            ["t4_4"] = "ad6e093375d554e7740e6ab2f8a0d3bf432b6641ce6ab6bdeecbc7e66c6b0b5d",
+            ["t0_0"] = "c91758af65bf3fb03276dd849da9f51301283f1c63d8cff2d565c77df3162792",
         };
         const int GoldenTreeCount = 256797;
 
