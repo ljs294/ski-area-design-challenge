@@ -329,7 +329,9 @@ def twig_card(seed, n=512, bark="#6B5B4E", dense=False):
                 grow(x1, y1, a + side * rng.uniform(0.2, 0.55), length * rng.uniform(0.62, 0.8), max(1.0, width * 0.72), depth - 1)
 
     if dense:
-        for k in range(7):
+        # Three twig systems, about half the twig cover of the seven first built: a full haze hid the evergreens
+        # and, from above, the snow (owner's pick after seeing Sugarloaf in the game).
+        for k in range(3):
             grow(0.0, 0.5 + rng.uniform(-0.12, 0.12), rng.uniform(-0.55, 0.55), rng.uniform(0.22, 0.32), 4.5, 8)
         return img
     for k in range(4):
