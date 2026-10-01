@@ -40,10 +40,28 @@ body.solo .frame { border-radius: 0; }
 .stage.pick { cursor: pointer; }
 .stage.sketching { cursor: crosshair; }
 
-/* ---------- the HUD: warm graphite, Overpass + Overpass Mono, solid sign-style symbols ---------- */
-.hud { font-family: 'DotFix', 'Overpass', 'Segoe UI', sans-serif; color: #efe9df; font-size: 13px; font-variant-numeric: tabular-nums;
-  --panel: rgba(28, 25, 22, 0.96); --knock: #1c1916; --hair: #3b3632; --hair2: #4a443e; --div: #3d3833; --soft: #a39b90; --dim: #8f877c;
-  --white: #fbf8f2; --ink: #1f1c19; --flag: #ff6a1f; --amber: #f0b43c; --green: #8fcf8a; --red: #ff7a66; }
+/* ---------- the HUD: Overpass + Overpass Mono, solid sign-style symbols; dark (warm graphite) or light (sign white) ---------- */
+.hud { font-family: 'DotFix', 'DotFix', 'Overpass', 'Segoe UI', sans-serif; color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums;
+  --panel: rgba(28, 25, 22, 0.96); --knock: #1c1916; --hair: #3b3632; --hair2: #4a443e; --div: #3d3833; --row: #36312c;
+  --text: #efe9df; --strong: #fff; --head: #e6dfd4; --muted: #cfc7bb; --soft: #a39b90; --dim: #8f877c; --ph: #6f675e; --faint: #5d5750;
+  --hover: #34302b; --chip: #3b3631; --tile: #2d2926; --tile-hover: #3a3531; --tile-text: #e2dace; --tab: #9a9186; --tabrule: #5b544d;
+  --on-bg: #efe9df; --on-fg: #1b1815; --field: #12100e; --spd-off: #5a534c; --icon: #cfc7bb;
+  --pos: #8fcf8a; --neg: #ff7a66; --warn: #f0b43c; --flag: #ff6a1f; --plate-bg: #fbf8f2; --plate-fg: #1f1c19;
+  --wx-text: #d8d0c4; --pp: #b9c8e2; --wx-moon: #d9def0; --wx-cloud: #d8d0c4; --wx-cloud2: #e6dfd4; --wx-snow: #fff;
+  --chart-a: #cfc7bb; --chart-b: #4a443e; --chart-label: #8f877c; --chart-fill: rgba(207, 199, 187, 0.10); --chart-bg: rgba(255, 255, 255, 0.02);
+  --go: #1a6b3c; --go-hover: #1f7d47; --danger: #8e2b1f; --danger-hover: #a3342a; --dis-bg: #2e2a26; --dis-fg: #6f675e; --ghost-hover: #8f877c;
+  --shadow: rgba(10, 20, 35, 0.35); --shadow-sm: rgba(10, 20, 35, 0.28); --scrim: rgba(10, 16, 26, 0.45); --lamp-ring: rgba(0, 0, 0, 0.4); --bar-shadow: none; }
+/* Light: sign white and near-black, the trail signs' own colours. Clean white rather than cream, so it doesn't read as a sepia wash. */
+.hud.light {
+  --panel: rgba(250, 248, 244, 0.97); --knock: #faf8f4; --hair: #ddd7cd; --hair2: #cbc4b9; --div: #e2dcd2; --row: #ebe6de;
+  --text: #1f1c19; --strong: #0f0d0b; --head: #2b2724; --muted: #4a443e; --soft: #6b645b; --dim: #8a8278; --ph: #b0a89d; --faint: #b8b0a5;
+  --hover: #ede8e0; --chip: #e7e1d7; --tile: #f0ebe3; --tile-hover: #e5dfd5; --tile-text: #2b2724; --tab: #8a8278; --tabrule: #d6cfc4;
+  --on-bg: #1f1c19; --on-fg: #faf8f4; --field: #ffffff; --spd-off: #c8c0b5; --icon: #4a443e;
+  --pos: #2a7a3a; --neg: #c23b27; --warn: #a5650c; --flag: #e35b14; --plate-bg: #1f1c19; --plate-fg: #fbf8f2;
+  --wx-text: #4a443e; --pp: #3d6aa8; --wx-moon: #6a77a0; --wx-cloud: #9a9186; --wx-cloud2: #b5ada2; --wx-snow: #4f7fbf;
+  --chart-a: #6b645b; --chart-b: #ddd6cb; --chart-label: #8a8278; --chart-fill: rgba(107, 100, 91, 0.10); --chart-bg: rgba(0, 0, 0, 0.015);
+  --go: #1a6b3c; --go-hover: #1f7d47; --danger: #b23a2b; --danger-hover: #c4452f; --dis-bg: #ebe6de; --dis-fg: #a39b90; --ghost-hover: #8a8278;
+  --shadow: rgba(30, 40, 55, 0.22); --shadow-sm: rgba(30, 40, 55, 0.16); --scrim: rgba(20, 30, 45, 0.30); --lamp-ring: rgba(0, 0, 0, 0.18); --bar-shadow: 0 -6px 18px rgba(20, 30, 45, 0.12); }
 .hud .abs { position: absolute; }
 .hud .mono { font-family: 'Overpass Mono', ui-monospace, monospace; }
 .hud svg.g { display: block; width: 20px; height: 20px; fill: currentColor; flex: none; }
@@ -52,30 +70,30 @@ body.solo .frame { border-radius: 0; }
 /* status bar: the full width of the bottom, flush to the edge (docked) or inset (floating); the resort and time
    on the left, the numbers on the right */
 .hud .bar { position: absolute; height: 52px; display: flex; align-items: stretch; background: var(--panel); z-index: 5; }
-.hud .bar.docked { left: 0; right: 0; bottom: 0; border-top: 1px solid var(--hair); }
-.hud .bar.floating { left: 10px; right: 10px; bottom: 10px; border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 8px 22px rgba(10, 20, 35, 0.35); }
+.hud .bar.docked { left: 0; right: 0; bottom: 0; border-top: 1px solid var(--hair); box-shadow: var(--bar-shadow); }
+.hud .bar.floating { left: 10px; right: 10px; bottom: 10px; border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 8px 22px var(--shadow); }
 .hud .bar .grow { flex: 1; }
 .hud .bar .cell { position: relative; display: flex; align-items: center; gap: 8px; padding: 0 10px; white-space: nowrap; }
 .hud .bar .cell.sep::before { content: ''; position: absolute; left: 0; top: 13px; bottom: 13px; width: 1px; background: var(--div); }
-.hud .tbtn { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 10px; border-radius: 5px; font: 700 13.5px 'DotFix', 'Overpass'; color: #efe9df; }
-.hud .tbtn:hover { background: #34302b; }
-.hud .tbtn.on, .hud .tbtn.on:hover { background: #efe9df; color: #1b1815; }
+.hud .tbtn { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 10px; border-radius: 5px; font: 700 13.5px 'DotFix', 'Overpass'; color: var(--text); }
+.hud .tbtn:hover { background: var(--hover); }
+.hud .tbtn.on, .hud .tbtn.on:hover { background: var(--on-bg); color: var(--on-fg); }
 .hud .tbtn svg.g { width: 18px; height: 18px; }
-.hud .ib { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 5px; color: #efe9df; }
-.hud .ib:hover { background: #34302b; }
+.hud .ib { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 5px; color: var(--text); }
+.hud .ib:hover { background: var(--hover); }
 .hud .ib svg.g { width: 20px; height: 20px; }
 .hud .v { font: 600 14px 'Overpass Mono', monospace; }
 .hud .day { font: 800 14px 'DotFix', 'Overpass'; }
 .hud .ampm { font-size: 10.5px; margin-left: 3px; color: var(--soft); }
 /* the day, then the time with the weather centred in small text under it (as today's earnings sit under the balance) */
 .hud .when { display: grid; justify-items: center; gap: 2px; line-height: 1.1; }
-.hud .wxline { display: flex; align-items: center; gap: 5px; font: 600 11.5px 'Overpass Mono', monospace; color: #d8d0c4; }
+.hud .wxline { display: flex; align-items: center; gap: 5px; font: 600 11.5px 'Overpass Mono', monospace; color: var(--wx-text); }
 .hud .wxline svg.g { width: 15px; height: 15px; }
-.hud .wxline .pp { display: flex; align-items: center; gap: 3px; margin-left: 5px; color: #b9c8e2; }
+.hud .wxline .pp { display: flex; align-items: center; gap: 3px; margin-left: 5px; color: var(--pp); }
 .hud .wxline .pp svg.g { width: 12px; height: 12px; }
 /* the resort's name, with the lifts' status as a small symbol in front of it; click to rename */
 .hud .resort { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 9px 0 7px; border-radius: 5px; font: 800 14.5px 'DotFix', 'Overpass'; white-space: nowrap; }
-.hud .resort:hover { background: #34302b; }
+.hud .resort:hover { background: var(--hover); }
 .hud .resort #rname { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
 .hud svg.st { display: block; width: 16px; height: 16px; flex: none; }
 .hud .kv svg.st { width: 14px; height: 14px; }
@@ -84,44 +102,44 @@ body.solo .frame { border-radius: 0; }
 .hud .drop .mhead { display: grid; gap: 2px; padding: 5px 12px 8px; }
 .hud .drop .mhead b { font: 800 14px 'DotFix', 'Overpass'; }
 .hud .drop .mhead span { font: 500 12px 'DotFix', 'Overpass'; color: var(--soft); }
-.hud .field { width: 100%; height: 38px; padding: 0 11px; background: #12100e; border: 1px solid var(--hair2); border-radius: 4px; color: #fff; font: 800 15px 'DotFix', 'Overpass'; outline: none; user-select: text; -webkit-user-select: text; }
-.hud .field:focus { border-color: #cfc7bb; }
+.hud .field { width: 100%; height: 38px; padding: 0 11px; background: var(--field); border: 1px solid var(--hair2); border-radius: 4px; color: var(--strong); font: 800 15px 'DotFix', 'Overpass'; outline: none; user-select: text; -webkit-user-select: text; }
+.hud .field:focus { border-color: var(--muted); }
 /* a figure with a small label under it */
 .hud .fig { display: grid; justify-items: end; gap: 2px; line-height: 1.1; }
 .hud .fig .lab { font: 700 10.5px 'DotFix', 'Overpass'; color: var(--soft); }
 .hud .spd { display: flex; gap: 0; }
-.hud .spd span { width: 17px; height: 26px; display: grid; place-items: center; color: #5a534c; border-radius: 3px; }
-.hud .spd span:hover { background: #34302b; }
-.hud .spd span.on { color: #efe9df; }
-.hud .paused .spd span.on { color: #8f877c; }
+.hud .spd span { width: 17px; height: 26px; display: grid; place-items: center; color: var(--spd-off); border-radius: 3px; }
+.hud .spd span:hover { background: var(--hover); }
+.hud .spd span.on { color: var(--text); }
+.hud .paused .spd span.on { color: var(--dim); }
 .hud .spd svg { width: 11px; height: 13px; fill: currentColor; }
 .hud .money { display: grid; justify-items: end; line-height: 1.12; }
 .hud .money .bal { font: 700 15px 'Overpass Mono', monospace; }
 .hud .money .delta { font: 600 11.5px 'Overpass Mono', monospace; }
 .hud .count { font: 700 15px 'Overpass Mono', monospace; }
-.hud .save { color: #5d5750; }
-.hud .save.due { color: #fff; }
+.hud .save { color: var(--faint); }
+.hud .save.due { color: var(--strong); }
 .hud .elev { min-width: 64px; text-align: right; }
 
 /* top right: sketch, map layers and the menu */
 .hud .tr { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 5; }
-.hud .sq { width: 40px; height: 40px; display: grid; place-items: center; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; color: #e6dfd4; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.28); font: 800 13px 'DotFix', 'Overpass'; }
-.hud .sq:hover { background: #34302b; color: #fff; }
-.hud .sq.on, .hud .sq.on:hover { background: #efe9df; color: #1b1815; --knock: #efe9df; }
+.hud .sq { width: 40px; height: 40px; display: grid; place-items: center; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; color: var(--head); box-shadow: 0 6px 16px var(--shadow-sm); font: 800 13px 'DotFix', 'Overpass'; }
+.hud .sq:hover { background: var(--hover); color: var(--strong); }
+.hud .sq.on, .hud .sq.on:hover { background: var(--on-bg); color: var(--on-fg); --knock: var(--on-bg); }
 
 /* the toolbox tray */
-.hud .box { position: absolute; left: 10px; width: 420px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 4; }
+.hud .box { position: absolute; left: 10px; width: 420px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px var(--shadow); z-index: 4; }
 .hud .tabs { display: flex; gap: 2px; padding: 8px 8px 7px; }
-.hud .tabs span { padding: 5px 10px 4px; border-radius: 4px; font: 700 14.5px 'DotFix', 'Overpass'; color: #9a9186; }
-.hud .tabs span:hover { color: #efe9df; }
-.hud .tabs span.on { background: #3b3631; color: #fff; }
-.hud .tabrule { height: 1px; background: #5b544d; margin: 0 8px; }
-.hud .toollabel { padding: 9px 12px 7px; font: 700 12.5px 'DotFix', 'Overpass'; color: #fff; display: flex; gap: 8px; }
+.hud .tabs span { padding: 5px 10px 4px; border-radius: 4px; font: 700 14.5px 'DotFix', 'Overpass'; color: var(--tab); }
+.hud .tabs span:hover { color: var(--text); }
+.hud .tabs span.on { background: var(--chip); color: var(--strong); }
+.hud .tabrule { height: 1px; background: var(--tabrule); margin: 0 8px; }
+.hud .toollabel { padding: 9px 12px 7px; font: 700 12.5px 'DotFix', 'Overpass'; color: var(--strong); display: flex; gap: 8px; }
 .hud .toollabel .mono { color: var(--soft); font-weight: 500; }
 .hud .tools { display: flex; gap: 6px; padding: 0 10px 10px; }
-.hud .tool { --knock: #2d2926; width: 64px; height: 60px; display: grid; justify-items: center; align-content: center; gap: 5px; background: #2d2926; border-radius: 5px; font: 700 10.5px 'DotFix', 'Overpass'; color: #e2dace; }
-.hud .tool:hover { --knock: #3a3531; background: #3a3531; color: #fff; }
-.hud .tool.on, .hud .tool.on:hover { --knock: #efe9df; background: #efe9df; color: #1b1815; }
+.hud .tool { --knock: var(--tile); width: 64px; height: 60px; display: grid; justify-items: center; align-content: center; gap: 5px; background: var(--tile); border-radius: 5px; font: 700 10.5px 'DotFix', 'Overpass'; color: var(--tile-text); }
+.hud .tool:hover { --knock: var(--tile-hover); background: var(--tile-hover); color: var(--strong); }
+.hud .tool.on, .hud .tool.on:hover { --knock: var(--on-bg); background: var(--on-bg); color: var(--on-fg); }
 .hud .tool svg.g { width: 26px; height: 26px; }
 
 /* the analysis panel: tabs like the tray's, two-column figures, and tables */
@@ -129,64 +147,64 @@ body.solo .frame { border-radius: 0; }
 .hud .cols { display: grid; grid-template-columns: 1fr 1fr; }
 .hud .cols .kv + .kv { border-left: 1px solid var(--hair); }
 .hud .tbl { padding: 0 0 4px; }
-.hud .tbl .r { display: grid; align-items: center; gap: 8px; padding: 5px 12px; border-top: 1px solid #36312c; font: 600 12.5px 'DotFix', 'Overpass'; }
+.hud .tbl .r { display: grid; align-items: center; gap: 8px; padding: 5px 12px; border-top: 1px solid var(--row); font: 600 12.5px 'DotFix', 'Overpass'; }
 .hud .tbl .r.th { border-top: 0; color: var(--soft); font: 700 11.5px 'DotFix', 'Overpass'; padding: 8px 12px 4px; }
 .hud .tbl .n { text-align: right; font: 500 12.5px 'Overpass Mono', monospace; }
 .hud .tbl .r.th .n { font: 700 11.5px 'DotFix', 'Overpass'; }
 .hud .kv dd .word { font: 700 12.5px 'DotFix', 'Overpass'; display: inline-flex; gap: 6px; align-items: center; }
 .hud .tbl .nm { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hud .tbl .foot { padding: 7px 12px 4px; font: 500 12px 'DotFix', 'Overpass'; color: var(--soft); border-top: 1px solid #36312c; }
-.hud .lamp { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--lamp); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.4); }
+.hud .tbl .foot { padding: 7px 12px 4px; font: 500 12px 'DotFix', 'Overpass'; color: var(--soft); border-top: 1px solid var(--row); }
+.hud .lamp { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--lamp); box-shadow: 0 0 0 1.5px var(--lamp-ring); }
 
 /* floating panels */
-.hud .pn { position: absolute; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 6; }
+.hud .pn { position: absolute; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px var(--shadow); z-index: 6; }
 .hud .pn .hd { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--hair); font: 800 14px 'DotFix', 'Overpass'; cursor: grab; }
 .hud .pn .hd .nm { color: var(--soft); font-weight: 600; }
 .hud .pn .hd .x { margin-left: auto; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 4px; color: var(--soft); }
-.hud .pn .hd .x:hover { background: #34302b; color: #fff; }
+.hud .pn .hd .x:hover { background: var(--hover); color: var(--strong); }
 .hud .pn .hd svg.g { width: 18px; height: 18px; }
 .hud .plate { display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 3px; border-radius: 3px; font: 900 11.5px 'DotFix', 'Overpass'; color: var(--flag); box-shadow: inset 0 0 0 1.5px var(--flag); }
-.hud .plate.built { color: var(--ink); background: var(--white); box-shadow: none; }
+.hud .plate.built { color: var(--plate-fg); background: var(--plate-bg); box-shadow: none; }
 .hud .seg { display: flex; border: 1px solid var(--hair2); border-radius: 4px; overflow: hidden; }
 .hud .seg span { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 0 4px; font: 700 11.5px 'DotFix', 'Overpass'; color: var(--soft); border-left: 1px solid var(--hair2); }
-.hud .seg span:hover { color: #fff; }
+.hud .seg span:hover { color: var(--strong); }
 .hud .seg span:first-child { border-left: 0; }
-.hud .seg span.on { background: #efe9df; color: #1b1815; }
-.hud .seg span.off { color: #5d5750; cursor: default; }
+.hud .seg span.on { background: var(--on-bg); color: var(--on-fg); }
+.hud .seg span.off { color: var(--faint); cursor: default; }
 .hud .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 7px 12px; margin: 0; }
 .hud .kv dt { color: var(--soft); font: 600 12.5px 'DotFix', 'Overpass'; align-self: center; white-space: nowrap; }
 .hud .kv dd { margin: 0; text-align: right; font: 500 12.5px 'Overpass Mono', monospace; }
-.hud .kv dd b { font-weight: 700; color: #fff; }
-.hud .sub { padding: 8px 12px 0; font: 700 12.5px 'DotFix', 'Overpass'; color: #e6dfd4; display: flex; justify-content: space-between; }
+.hud .kv dd b { font-weight: 700; color: var(--strong); }
+.hud .sub { padding: 8px 12px 0; font: 700 12.5px 'DotFix', 'Overpass'; color: var(--head); display: flex; justify-content: space-between; }
 .hud .sub span + span { color: var(--soft); font-weight: 600; }
 .hud .rule { height: 1px; background: var(--hair); }
-.hud .hint { padding: 7px 12px; font: 500 12.5px 'DotFix', 'Overpass'; color: #cfc7bb; line-height: 1.4; }
-.hud .hint b { color: #fff; }
+.hud .hint { padding: 7px 12px; font: 500 12.5px 'DotFix', 'Overpass'; color: var(--muted); line-height: 1.4; }
+.hud .hint b { color: var(--strong); }
 .hud .acts { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 4px 12px 12px; }
-.hud .go { white-space: nowrap; display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 12px; background: #1a6b3c; color: #fff; border-radius: 4px; font: 800 13px 'DotFix', 'Overpass'; }
-.hud .go:hover { background: #1f7d47; }
-.hud .go.danger { background: #8e2b1f; }
-.hud .go.danger:hover { background: #a3342a; }
-.hud .go.dis { background: #2e2a26; color: #6f675e; cursor: default; }
-.hud .ghost { display: grid; place-items: center; height: 36px; padding: 0 12px; border: 1px solid var(--hair2); border-radius: 4px; font: 700 12.5px 'DotFix', 'Overpass'; color: #cfc7bb; white-space: nowrap; }
-.hud .ghost:hover { border-color: #8f877c; color: #fff; }
-.hud .ghost.dis { color: #5d5750; cursor: default; }
-.hud .drop { position: absolute; right: 10px; top: 56px; width: 236px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); padding: 6px 0; z-index: 7; }
+.hud .go { white-space: nowrap; display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 12px; background: var(--go); color: #fff; border-radius: 4px; font: 800 13px 'DotFix', 'Overpass'; }
+.hud .go:hover { background: var(--go-hover); }
+.hud .go.danger { background: var(--danger); }
+.hud .go.danger:hover { background: var(--danger-hover); }
+.hud .go.dis { background: var(--dis-bg); color: var(--dis-fg); cursor: default; }
+.hud .ghost { display: grid; place-items: center; height: 36px; padding: 0 12px; border: 1px solid var(--hair2); border-radius: 4px; font: 700 12.5px 'DotFix', 'Overpass'; color: var(--muted); white-space: nowrap; }
+.hud .ghost:hover { border-color: var(--ghost-hover); color: var(--strong); }
+.hud .ghost.dis { color: var(--faint); cursor: default; }
+.hud .drop { position: absolute; right: 10px; top: 56px; width: 236px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px var(--shadow); padding: 6px 0; z-index: 7; }
 .hud .drop .row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font: 600 13px 'DotFix', 'Overpass'; }
-.hud .drop .row:hover { background: #34302b; }
+.hud .drop .row:hover { background: var(--hover); }
 .hud .drop .row .r { margin-left: auto; color: var(--dim); font: 500 11.5px 'Overpass Mono'; }
-.hud .drop .row .r.val { color: #efe9df; font: 700 12px 'DotFix', 'Overpass'; }
+.hud .drop .row .r.val { color: var(--text); font: 700 12px 'DotFix', 'Overpass'; }
 .hud .drop .sepl { height: 1px; background: var(--hair); margin: 5px 0; }
-.hud .chk { width: 15px; height: 15px; border: 1.5px solid #8f877c; border-radius: 3px; display: grid; place-items: center; }
-.hud .chk.on { background: #efe9df; border-color: #efe9df; }
-.hud .chk.on::after { content: ''; width: 7px; height: 4px; border-left: 2px solid #1b1815; border-bottom: 2px solid #1b1815; transform: rotate(-45deg) translate(1px, -1px); }
+.hud .chk { width: 15px; height: 15px; border: 1.5px solid var(--dim); border-radius: 3px; display: grid; place-items: center; }
+.hud .chk.on { background: var(--on-bg); border-color: var(--on-bg); }
+.hud .chk.on::after { content: ''; width: 7px; height: 4px; border-left: 2px solid var(--on-fg); border-bottom: 2px solid var(--on-fg); transform: rotate(-45deg) translate(1px, -1px); }
 .hud .log { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; z-index: 8; pointer-events: none; }
-.hud .log div { display: grid; grid-template-columns: 3px auto; gap: 10px; align-items: center; padding: 8px 12px 8px 0; background: var(--panel); border: 1px solid var(--hair); border-radius: 4px; font: 600 13px 'DotFix', 'Overpass'; white-space: nowrap; overflow: hidden; animation: logIn 0.2s ease; }
+.hud .log div { display: grid; grid-template-columns: 3px auto; gap: 10px; align-items: center; padding: 8px 12px 8px 0; background: var(--panel); border: 1px solid var(--hair); border-radius: 4px; box-shadow: 0 6px 16px var(--shadow-sm); font: 600 13px 'DotFix', 'Overpass'; white-space: nowrap; overflow: hidden; animation: logIn 0.2s ease; }
 .hud .log div i { align-self: stretch; }
 @keyframes logIn { from { opacity: 0; transform: translateY(-6px); } }
-.hud .strip { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 12px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; font: 600 13px 'DotFix', 'Overpass'; z-index: 6; }
+.hud .strip { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 12px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 6px 16px var(--shadow-sm); font: 600 13px 'DotFix', 'Overpass'; z-index: 6; }
 .hud .strip .ghost { height: 28px; }
-.hud .modal { position: absolute; inset: 0; background: rgba(10, 16, 26, 0.45); display: grid; place-items: center; z-index: 9; }
+.hud .modal { position: absolute; inset: 0; background: var(--scrim); display: grid; place-items: center; z-index: 9; }
 .hud .modal .pn { position: relative; width: 320px; }
 </style>
 
@@ -207,6 +225,8 @@ body.solo .frame { border-radius: 0; }
   <symbol id="s-lodge" viewBox="0 0 24 24"><path d="M1.8 20.2L12 3l10.2 17.2h-3.4L12 8.8 5.2 20.2z"/><path d="M7.4 20.2L12 12.4l4.6 7.8z"/><rect x="10.7" y="16.3" width="2.6" height="3.9" style="fill:var(--knock)"/><rect x="15.6" y="4.4" width="2.5" height="5.8" rx=".5"/><rect x="1.4" y="19.9" width="21.2" height="1.8" rx=".9"/></symbol>
   <symbol id="s-road" viewBox="0 0 24 24"><path d="M8.8 3h6.4l6.3 18H2.5z"/><rect x="11.35" y="5" width="1.3" height="2.8" style="fill:var(--knock)"/><rect x="11.2" y="10" width="1.6" height="3.4" style="fill:var(--knock)"/><rect x="11" y="15.6" width="2" height="4" style="fill:var(--knock)"/></symbol>
   <symbol id="s-parking" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3.2"/><path d="M9.6 17.6V6.8h3.3a3.4 3.4 0 0 1 0 6.8H9.6" fill="none" stroke-width="2.5" stroke-linejoin="round" style="stroke:var(--knock)"/></symbol>
+  <symbol id="s-moon" viewBox="0 0 24 24"><path d="M10.6 3.2A9 9 0 1 0 20.8 13.4A7.3 7.3 0 0 1 10.6 3.2Z"/></symbol>
+  <symbol id="s-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.6"/><g><rect x="11" y="1.4" width="2" height="3.8" rx="1"/><rect x="11" y="1.4" width="2" height="3.8" rx="1" transform="rotate(45 12 12)"/><rect x="11" y="1.4" width="2" height="3.8" rx="1" transform="rotate(90 12 12)"/><rect x="11" y="1.4" width="2" height="3.8" rx="1" transform="rotate(135 12 12)"/><rect x="11" y="1.4" width="2" height="3.8" rx="1" transform="rotate(180 12 12)"/><rect x="11" y="1.4" width="2" height="3.8" rx="1" transform="rotate(225 12 12)"/><rect x="11" y="1.4" width="2" height="3.8" rx="1" transform="rotate(270 12 12)"/><rect x="11" y="1.4" width="2" height="3.8" rx="1" transform="rotate(315 12 12)"/></g></symbol>
   <symbol id="s-save" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.2 3h11.4L21 7.4v11.4a2.2 2.2 0 0 1-2.2 2.2H5.2A2.2 2.2 0 0 1 3 18.8V5.2A2.2 2.2 0 0 1 5.2 3zM7.6 3v4.4a1 1 0 0 0 1 1h5.8a1 1 0 0 0 1-1V3zM7.8 12.4a1 1 0 0 0-1 1v5.2h10.4v-5.2a1 1 0 0 0-1-1z"/><rect x="11.9" y="3.9" width="1.8" height="3" rx=".4"/></symbol>
   <symbol id="s-dock" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M3.9 15.2h16.2v2.6a1.3 1.3 0 0 1-1.3 1.3H5.2a1.3 1.3 0 0 1-1.3-1.3z"/></symbol>
   <symbol id="s-float" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="5.9" y="13.2" width="12.2" height="3.4" rx="1"/></symbol>
@@ -229,7 +249,7 @@ body.solo .frame { border-radius: 0; }
   <ul class="try">
     <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
-    <li><b>Also live:</b> the dock button at the right end of the bar (flush to the bottom edge, or floating), play/pause and four speeds, save (white when there are changes), Analysis with six tabs, Units (metric or imperial) in the menu, the sketch pencil and map layers. Scroll to zoom. The bar shows the resort's name with its lift status as a symbol (click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Also live:</b> the dock button at the right end of the bar (flush to the bottom edge, or floating), play/pause and four speeds, save (white when there are changes), Analysis with six tabs, the sun/moon button for light or dark mode (also Theme in the menu), Units (metric or imperial) in the menu, the sketch pencil and map layers. Scroll to zoom. The bar shows the resort's name with its lift status as a symbol (click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
     <div class="map" id="map"><img src="assets/game-bluebird.jpg" alt="The mountain on a bluebird day"><svg id="world" viewBox="0 0 1280 720"></svg></div>
@@ -294,7 +314,7 @@ body.solo .frame { border-radius: 0; }
   const DIFFS = { green: 'Green', blue: 'Blue', black: 'Black', double: 'Double' };
   const S = {
     day: 148, t: 5 * 3600 + 27 * 60 + 47, paused: false, speed: 2, docked: true,
-    name: 'Jackson Peaks', cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true, units: 'metric', atab: 'overview',
+    name: 'Jackson Peaks', theme: 'dark', cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true, units: 'metric', atab: 'overview',
     // today's money in parts (they sum to today): overnight running costs and construction already under way
     incomeToday: 0, opsToday: 0.09e6, buildToday: 5.68e6, base: 142,
     history: [0.41, 0.38, -1.92, 0.45, 0.52, 0.47, 0.12, 0.55, 0.58, -0.84, 0.49, 0.53, 0.61],
@@ -344,10 +364,10 @@ body.solo .frame { border-radius: 0; }
     const sun = (cx, cy, r, ray) => { let s = `<circle cx="${cx}" cy="${cy}" r="${r}"/>`; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, x = cx + Math.cos(a) * ray, y = cy + Math.sin(a) * ray; s += `<rect x="${f1(x - 1)}" y="${f1(y - 1.6)}" width="2" height="3.2" rx="1" transform="rotate(${k * 45 + 90} ${f1(x)} ${f1(y)})"/>`; } return s; };
     const body = {
       sun: `<g fill="#f0b43c">${sun(12, 12, 4.6, 8.6)}</g>`,
-      moon: `<path fill="#d9def0" d="M11.19 4.54A7.5 7.5 0 1 0 19.25 13.94A6.2 6.2 0 0 1 11.19 4.54Z"/><circle cx="19.2" cy="5.2" r="1" fill="#d9def0"/>`,
-      cloud: `<g fill="#d8d0c4">${cloud(0, 0, 1, '')}</g>`,
-      few: `<g fill="#f0b43c">${sun(8.6, 8.4, 3.3, 6.4)}</g><g fill="#e6dfd4" stroke="var(--knock)" stroke-width="1.6" paint-order="stroke">${cloud(3.2, 4.2, 0.8, '')}</g>`,
-      snow: `<g fill="#d8d0c4">${cloud(0, -3.2, 1, '')}</g><g fill="#fff"><circle cx="8" cy="19.4" r="1.3"/><circle cx="12.2" cy="21.2" r="1.3"/><circle cx="16.4" cy="19.4" r="1.3"/></g>`,
+      moon: `<path style="fill:var(--wx-moon)" d="M11.19 4.54A7.5 7.5 0 1 0 19.25 13.94A6.2 6.2 0 0 1 11.19 4.54Z"/><circle cx="19.2" cy="5.2" r="1" style="fill:var(--wx-moon)"/>`,
+      cloud: `<g style="fill:var(--wx-cloud)">${cloud(0, 0, 1, '')}</g>`,
+      few: `<g fill="#f0b43c">${sun(8.6, 8.4, 3.3, 6.4)}</g><g style="fill:var(--wx-cloud2);stroke:var(--knock)" stroke-width="1.6" paint-order="stroke">${cloud(3.2, 4.2, 0.8, '')}</g>`,
+      snow: `<g style="fill:var(--wx-cloud)">${cloud(0, -3.2, 1, '')}</g><g style="fill:var(--wx-snow)"><circle cx="8" cy="19.4" r="1.3"/><circle cx="12.2" cy="21.2" r="1.3"/><circle cx="16.4" cy="19.4" r="1.3"/></g>`,
     }[kind];
     return `<svg class="g" viewBox="0 0 24 24">${body}</svg>`;
   }
@@ -539,16 +559,16 @@ body.solo .frame { border-radius: 0; }
   // The lift's profile: the ground along the line (from the placeholder heights), towers, and the planned cable.
   function liftProfile(a, b, st) {
     const w = 344, h = 46, n = 28, X = (t) => 12 + t * (w - 24);
-    if (!st) return `<svg width="${w}" height="${h}" style="display:block"><rect x="12" y="4" width="${w - 24}" height="${h - 12}" fill="rgba(255,255,255,.02)" stroke="#36312c"/></svg>`;
+    if (!st) return `<svg width="${w}" height="${h}" style="display:block"><rect x="12" y="4" width="${w - 24}" height="${h - 12}" style="fill:var(--chart-bg);stroke:var(--row)"/></svg>`;
     const ground = []; for (let i = 0; i <= n; i++) { const t = i / n; ground.push([t, elevAt([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])]); }
     const lo = Math.min(...ground.map((p) => p[1])) - 10, hi = Math.max(...ground.map((p) => p[1])) + 30, Y = (e) => h - 8 - (e - lo) / (hi - lo) * (h - 16);
     const gAt = (t) => { const i = Math.min(n - 1, Math.floor(t * n)), f = t * n - i; return ground[i][1] + (ground[i + 1][1] - ground[i][1]) * f; };
-    let s = `<rect x="12" y="4" width="${w - 24}" height="${h - 12}" fill="rgba(255,255,255,.02)" stroke="#36312c"/>`;
+    let s = `<rect x="12" y="4" width="${w - 24}" height="${h - 12}" style="fill:var(--chart-bg);stroke:var(--row)"/>`;
     const gp = ground.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ');
-    s += `<path d="${gp} L${f1(X(1))} ${h - 8} L${f1(X(0))} ${h - 8}z" fill="rgba(207,199,187,.10)"/><path d="${gp}" fill="none" stroke="#cfc7bb" stroke-width="1.4"/>`;
+    s += `<path d="${gp} L${f1(X(1))} ${h - 8} L${f1(X(0))} ${h - 8}z" style="fill:var(--chart-fill)"/><path d="${gp}" fill="none" stroke-width="1.4" style="stroke:var(--chart-a)"/>`;
     const c0 = gAt(0) + 10, c1 = gAt(1) + 10, cable = (t) => c0 + (c1 - c0) * t;
     const pts = [[0, c0]];
-    for (let k = 1; k <= st.towers; k++) { const t = k / (st.towers + 1), top = Math.max(cable(t), gAt(t) + 8); pts.push([t, top]); s += `<line x1="${f1(X(t))}" y1="${f1(Y(gAt(t)))}" x2="${f1(X(t))}" y2="${f1(Y(top))}" stroke="#cfc7bb" stroke-width="1.6"/>`; }
+    for (let k = 1; k <= st.towers; k++) { const t = k / (st.towers + 1), top = Math.max(cable(t), gAt(t) + 8); pts.push([t, top]); s += `<line x1="${f1(X(t))}" y1="${f1(Y(gAt(t)))}" x2="${f1(X(t))}" y2="${f1(Y(top))}" stroke-width="1.6" style="stroke:var(--chart-a)"/>`; }
     pts.push([1, c1]);
     s += `<path d="${pts.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ')}" fill="none" stroke="${flag}" stroke-width="1.8" stroke-dasharray="6 3"/>`;
     return `<svg width="${w}" height="${h}" style="display:block">${s}</svg>`;
@@ -556,7 +576,7 @@ body.solo .frame { border-radius: 0; }
   function panelShell(head, body, width = 344) {
     return `<div class="pn" id="pn" style="left:${S.panelPos.x}px;top:${S.panelPos.y}px;width:${width}px"><div class="hd" data-drag="1">${head}<span class="x" data-act="close" title="Close (Esc)">✕</span></div>${body}</div>`;
   }
-  const dash = '<span style="color:#6f675e">—</span>';
+  const dash = '<span style="color:var(--ph)">—</span>';
   function liftPanel() {
     const d = S.draft, ready = d.pts.length === 2, st = ready ? liftStats(d.pts[0], d.pts[1], d.model) : null;
     const hint = d.pts.length === 0 ? 'Click the <b>base station</b> on the mountain.' : d.pts.length === 1 ? 'Now click the <b>top station</b>.' : 'Choose a model, then break ground. <b>Esc</b> redraws.';
@@ -582,7 +602,7 @@ body.solo .frame { border-radius: 0; }
         ${kv(`Line${st ? ` · ${lenTxt(st.len)} × ${perLenShort(MODELS[d.model].perM)}` : ''}`, st ? money(st.cost.line) : dash)}
         ${kv(`Towers${st ? ` (${st.towers})` : ''}`, st ? money(st.cost.towers) : dash)}
         ${kv(`Grading${st ? ` · ${volTxt(st.grading)}` : ''}`, st ? money(st.cost.grading) : dash)}
-        <dt style="color:#efe9df">Total</dt><dd><b>${st ? money(st.cost.total) : dash}</b></dd>
+        <dt style="color:var(--text)">Total</dt><dd><b>${st ? money(st.cost.total) : dash}</b></dd>
       </dl>
       <div class="hint">${hint}</div>
       <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Break ground</span><span class="mono">${st ? short(st.cost.total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`);
@@ -604,7 +624,7 @@ body.solo .frame { border-radius: 0; }
       <dl class="kv" style="padding-top:5px">
         <dt>Tree clearing</dt><dd>${money(st.clearing)}</dd>
         <dt>Grading</dt><dd>${money(st.grading)}</dd>
-        <dt style="color:#efe9df">Total</dt><dd><b>${money(st.total)}</b></dd>
+        <dt style="color:var(--text)">Total</dt><dd><b>${money(st.total)}</b></dd>
       </dl>
       <div class="hint">${hint}</div>
       <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Cut trail</span><span class="mono">${ready ? short(st.total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`);
@@ -617,7 +637,7 @@ body.solo .frame { border-radius: 0; }
       : `Click the mountain to place a ${t.unit}. Place as many as you like, then build them together.`;
     return panelShell(`${toolGlyph(t)}${t.name}`, `
       <dl class="kv">${line ? `<dt>Length</dt><dd><b>${lenV(len)}</b> ${lenU()}</dd><dt>Rate</dt><dd>${perLen(t.perM)}</dd>` : `<dt>Placed</dt><dd><b>${count}</b></dd><dt>Each</dt><dd>${money(t.each)}</dd>`}
-        <dt style="color:#efe9df">Total</dt><dd><b>${money(total)}</b></dd></dl>
+        <dt style="color:var(--text)">Total</dt><dd><b>${money(total)}</b></dd></dl>
       <div class="hint">${hint}</div>
       <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Build</span><span class="mono">${ready ? short(total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`, 300);
   }
@@ -627,14 +647,14 @@ body.solo .frame { border-radius: 0; }
     if (!obj) return panelShell(head, `<div class="hint">Click a ${t.target} on the mountain.</div>`, 300);
     if (t.target === 'lift') {
       const st = liftStats(obj.a, obj.b, obj.model);
-      const top = `<div class="hint" style="padding-bottom:0;display:flex;gap:8px;align-items:center"><span class="plate${obj.built ? ' built' : ''}">${obj.n}</span><b style="font-size:14px">${esc(obj.name)}</b><span style="color:#a39b90">${obj.built ? 'operating' : 'planned'}</span></div>`;
+      const top = `<div class="hint" style="padding-bottom:0;display:flex;gap:8px;align-items:center"><span class="plate${obj.built ? ' built' : ''}">${obj.n}</span><b style="font-size:14px">${esc(obj.name)}</b><span style="color:var(--soft)">${obj.built ? 'operating' : 'planned'}</span></div>`;
       const facts = `<dl class="kv"><dt>Slope length</dt><dd><b>${lenV(st.len)}</b> ${lenU()}</dd><dt>Capacity</dt><dd><b>${st.cap.toLocaleString('en-US')}</b> an hour</dd><dt>Ride</dt><dd>${fmtTime(st.ride)}</dd></dl>`;
       if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px 0"><div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === obj.model ? 'on' : ''}" data-act="setmodel" data-v="${m}">${m}</span>`).join('')}</div></div>` + facts + `<div class="hint">Changing the model re-prices the line.${obj.built ? ' Upgrading a running lift costs the difference.' : ''}</div>`, 300);
       const refund = obj.built ? st.cost.total * 0.15 : 0;
       return panelShell(head, top + facts + `<div class="hint">${obj.built ? `Removing it salvages about <b>${money(refund)}</b>.` : 'It\'s only a plan, so removing it is free.'}</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>Remove ${esc(obj.name)}</span><span class="mono">${obj.built ? short(refund) : ''}</span></div></div>`, 300);
     }
     const st = pathStats(obj.pts);
-    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:#a39b90">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} drop</span></div>`;
+    const top = `<div class="hint" style="padding-bottom:0"><b style="font-size:14px">${esc(obj.name)}</b> <span style="color:var(--soft)">· ${lenTxt(st.len)} · ${lenTxt(st.drop)} drop</span></div>`;
     if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === obj.diff ? 'on' : ''}" data-act="setdiff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div><div class="hint" style="padding-top:0">The rating changes the signs and who skis it.</div>`, 300);
     return panelShell(head, top + `<div class="hint">It will grow back in over a few seasons.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>Remove ${esc(obj.name)}</span><span class="mono"></span></div></div>`, 300);
   }
@@ -656,7 +676,7 @@ body.solo .frame { border-radius: 0; }
       const curve = (h) => Math.max(0, Math.sin(Math.PI * (h - 8) / 8.5)) * 3200 * (0.85 + 0.15 * Math.sin(S.day + h));
       const now = S.t / 3600, w = 444, hgt = 64, bw = (w - 24) / hrs.length;
       let bars = '';
-      hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 3)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 6)}" height="${f1(bh)}" rx="1" fill="${past ? '#cfc7bb' : '#4a443e'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:#8f877c">${h}</text>`; });
+      hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 3)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 6)}" height="${f1(bh)}" rx="1" style="fill:${past ? 'var(--chart-a)' : 'var(--chart-b)'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${h}</text>`; });
       const sat = Math.round(Math.max(55, Math.min(95, 90 - avgWait * 1.6)));
       const rs = resortStatus(S.t);
       return `<div class="statusline">${statusSym(rs)}<b>${rs.text}</b><span>Lifts run 8:30 AM to 4:30 PM</span></div><div class="rule"></div>
@@ -664,12 +684,12 @@ body.solo .frame { border-radius: 0; }
         <svg width="${w}" height="${hgt + 4}" style="display:block;margin:6px 12px 0">${bars}</svg>
         <div class="rule" style="margin-top:6px"></div>
         <div class="cols">${kvs([['Lifts running', `<b>${open ? S.liftsTotal : 0}</b> of ${S.liftsTotal}`], ['Trails open', `<b>${open ? S.trails.filter((t) => t.built).length : 0}</b> of ${S.trails.filter((t) => t.built).length}`], ['Average wait', open ? `<b>${avgWait.toFixed(1)}</b> min` : 'closed'], ['Guest rating', `<b>${sat}</b>%`]])}
-        ${kvs([['Snow base', `<b>${snowAmt(S.base)}</b>`], ['New snow, 24 h', `<b>${snowAmt(wx.fell)}</b>`], ['Forecast, 24 h', `<b>${snowAmt(wx.fc)}</b>`], ['Today', `<span style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)}</span>`]])}</div>`;
+        ${kvs([['Snow base', `<b>${snowAmt(S.base)}</b>`], ['New snow, 24 h', `<b>${snowAmt(wx.fell)}</b>`], ['Forecast, 24 h', `<b>${snowAmt(wx.fc)}</b>`], ['Today', `<span style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)}</span>`]])}</div>`;
     }
     if (S.atab === 'lifts') {
       const cols = 'grid-template-columns:1.7fr 0.9fr 0.9fr 0.7fr 0.8fr';
       const rows = S.lifts.map((l) => { const st = liftStats(l.a, l.b, l.model), wt = waitFor(l), state = !l.built ? ['Planned', '#ff6a1f'] : open ? ['Open', '#5fbf6a'] : ['Closed', '#d4513f'];
-        return `<div class="r" style="${cols}"><span class="nm"><span class="plate${l.built ? ' built' : ''}" style="font-size:10px">${l.n}</span>${esc(l.name)}</span><span>${l.model}</span><span class="n">${st.cap.toLocaleString('en-US')}</span><span class="n" style="color:${wt > 8 ? '#f0b43c' : ''}">${l.built && open ? wt.toFixed(1) : '—'}</span><span class="nm" style="justify-content:flex-end">${lampHtml(state[1])}${state[0]}</span></div>`; }).join('');
+        return `<div class="r" style="${cols}"><span class="nm"><span class="plate${l.built ? ' built' : ''}" style="font-size:10px">${l.n}</span>${esc(l.name)}</span><span>${l.model}</span><span class="n">${st.cap.toLocaleString('en-US')}</span><span class="n" style="color:${wt > 8 ? 'var(--warn)' : ''}">${l.built && open ? wt.toFixed(1) : '—'}</span><span class="nm" style="justify-content:flex-end">${lampHtml(state[1])}${state[0]}</span></div>`; }).join('');
       const others = S.liftsTotal - built.length;
       return `<div class="tbl"><div class="r th" style="${cols}"><span>Lift</span><span>Model</span><span class="n">An hour</span><span class="n">Wait</span><span style="text-align:right">Status</span></div>${rows}
         <div class="foot">${others} more lifts run elsewhere on the mountain: ${(others * 2100).toLocaleString('en-US')} riders an hour between them.</div></div>`;
@@ -708,16 +728,16 @@ body.solo .frame { border-radius: 0; }
     // Scaled to an ordinary day; days with big construction bills run off the scale and get a break mark.
     const days = S.history.concat(S.today / 1e6), w = 444, hgt = 70, bw = (w - 24) / days.length, zero = hgt / 2;
     const mx = Math.max(0.6, 1.3 * Math.max(0.4, ...days.map(Math.abs).filter((a) => a < 1.5)));
-    let bars = `<line x1="12" y1="${zero}" x2="${w - 12}" y2="${zero}" stroke="#4a443e"/>`;
+    let bars = `<line x1="12" y1="${zero}" x2="${w - 12}" y2="${zero}" style="stroke:var(--chart-b)"/>`;
     days.forEach((v, i) => {
       const over = Math.abs(v) > mx, bh = Math.min(Math.abs(v), mx) / mx * (zero - 3), x = 12 + i * bw + 3, last = i === days.length - 1;
-      bars += `<rect x="${f1(x)}" y="${f1(v >= 0 ? zero - bh : zero)}" width="${f1(bw - 6)}" height="${f1(Math.max(1, bh))}" rx="1" fill="${v >= 0 ? '#8fcf8a' : '#ff7a66'}" opacity="${last ? 1 : 0.7}"/>`;
-      if (over) { const yb = v >= 0 ? zero - bh + 7 : zero + bh - 11; bars += `<path d="M${f1(x - 1)} ${f1(yb + 3)}l${f1(bw - 4)} -3M${f1(x - 1)} ${f1(yb + 7)}l${f1(bw - 4)} -3" stroke="#1c1916" stroke-width="1.8"/>`; }
+      bars += `<rect x="${f1(x)}" y="${f1(v >= 0 ? zero - bh : zero)}" width="${f1(bw - 6)}" height="${f1(Math.max(1, bh))}" rx="1" style="fill:${v >= 0 ? 'var(--pos)' : 'var(--neg)'}" opacity="${last ? 1 : 0.7}"/>`;
+      if (over) { const yb = v >= 0 ? zero - bh + 7 : zero + bh - 11; bars += `<path d="M${f1(x - 1)} ${f1(yb + 3)}l${f1(bw - 4)} -3M${f1(x - 1)} ${f1(yb + 7)}l${f1(bw - 4)} -3" stroke-width="1.8" style="stroke:var(--knock)"/>`; }
     });
-    return `<div class="cols">${kvs([['<b style="color:#efe9df">Income today</b>', `<b>${short(inc).replace('+', '')}</b>`], ...incRows])}
-      ${kvs([['<b style="color:#efe9df">Costs today</b>', `<b>${short(ops + bld).replace('+', '')}</b>`], ...costRows, ['Construction', short(bld).replace('+', '')]])}</div>
+    return `<div class="cols">${kvs([['<b style="color:var(--text)">Income today</b>', `<b>${short(inc).replace('+', '')}</b>`], ...incRows])}
+      ${kvs([['<b style="color:var(--text)">Costs today</b>', `<b>${short(ops + bld).replace('+', '')}</b>`], ...costRows, ['Construction', short(bld).replace('+', '')]])}</div>
       <div class="rule"></div>
-      <div class="sub"><span>Net, last 14 days</span><span>today <span style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)}</span></span></div>
+      <div class="sub"><span>Net, last 14 days</span><span>today <span style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)}</span></span></div>
       <svg width="${w}" height="${hgt}" style="display:block;margin:4px 12px 8px">${bars}</svg>`;
   }
 
@@ -732,13 +752,14 @@ body.solo .frame { border-radius: 0; }
     stage.classList.toggle('aim', !!S.draft && !S.sketch);
     stage.classList.toggle('pick', !!(S.tool && toolById(S.tool).kind === 'pick'));
     stage.classList.toggle('sketching', S.sketch);
+    stage.classList.toggle('light', S.theme === 'light');
     mapEl.style.transform = `scale(${S.zoom})`;
     const trayBottom = (S.docked ? 0 : 10) + BAR_H + 10;
     const wx = weather(S.t);
     let h = '';
     if (S.drop === 'layers') h += `<div class="drop">${[['lifts', 'Lifts'], ['trails', 'Trails'], ['snow', 'Snowmaking'], ['infra', 'Infrastructure'], ['labels', 'Labels']].map(([k, v]) => `<div class="row" data-act="layer" data-v="${k}"><span class="chk${S.layers[k] ? ' on' : ''}"></span>${v}</div>`).join('')}</div>`;
     if (S.drop === 'menu') h += `<div class="drop"><div class="mhead"><b>${esc(S.name)}</b><span>${SITE}</span></div><div class="sepl"></div>${[['resume', 'Resume', 'Esc'], ['savegame', 'Save game', 'Ctrl S'], ['rename', 'Rename resort', '']].map(([a, v, k]) => `<div class="row" data-act="${a}">${v}<span class="r">${k}</span></div>`).join('')}
-      <div class="sepl"></div><div class="row" data-act="dock">Status bar<span class="r val">${S.docked ? 'Docked' : 'Floating'}</span></div><div class="row" data-act="units">Units<span class="r val">${IMP() ? 'Imperial' : 'Metric'}</span></div><div class="row" data-act="help">Controls</div><div class="row" data-act="settings">Settings</div>
+      <div class="sepl"></div><div class="row" data-act="dock">Status bar<span class="r val">${S.docked ? 'Docked' : 'Floating'}</span></div><div class="row" data-act="units">Units<span class="r val">${IMP() ? 'Imperial' : 'Metric'}</span></div><div class="row" data-act="theme">Theme<span class="r val">${S.theme === 'light' ? 'Light' : 'Dark'}</span></div><div class="row" data-act="help">Controls</div><div class="row" data-act="settings">Settings</div>
       <div class="sepl"></div><div class="row" data-act="title">Exit to title</div></div>`;
     h += `<div class="tr"><span class="sq${S.sketch ? ' on' : ''}" data-act="sketch" title="Sketch">${g('s-pencil')}</span><span class="sq${S.drop === 'layers' ? ' on' : ''}" data-act="drop" data-v="layers" title="Map layers">${g('s-map')}</span><span class="sq${S.drop === 'menu' ? ' on' : ''}" data-act="drop" data-v="menu" title="Menu">${g('s-menu')}</span></div>`;
     if (S.sketch) h += `<div class="strip">${g('s-pencil')}<span>Sketching: drag on the mountain to draw</span><span class="ghost" data-act="clearsketch">Clear</span><span class="ghost" data-act="sketch">Done</span></div>`;
@@ -758,11 +779,11 @@ body.solo .frame { border-radius: 0; }
       <div class="cell sep" style="gap:12px"><span class="day" id="day">Day ${S.day}</span><span class="when"><span class="v" id="clock">${clockText()}</span><span class="wxline" id="wxcell" title="${wxTitle(wx)}">${wxLine(wx)}</span></span></div>
       <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
       <div class="grow"></div>
-      <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:#8fcf8a">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${money(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)} today</span></span></div>
-      <div class="cell sep" title="Lifts operating"><span style="color:#cfc7bb">${g('s-lift')}</span><span class="count" id="lifts">${S.liftsTotal}</span></div>
-      <div class="cell" style="padding-left:4px" title="Skiers on the mountain"><span style="color:#cfc7bb">${g('s-skier')}</span><span class="count" id="skiers">${S.skiers.toLocaleString('en-US')}</span></div>
+      <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:var(--pos)">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${money(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)} today</span></span></div>
+      <div class="cell sep" title="Lifts operating"><span style="color:var(--icon)">${g('s-lift')}</span><span class="count" id="lifts">${S.liftsTotal}</span></div>
+      <div class="cell" style="padding-left:4px" title="Skiers on the mountain"><span style="color:var(--icon)">${g('s-skier')}</span><span class="count" id="skiers">${S.skiers.toLocaleString('en-US')}</span></div>
       <div class="cell sep" title="Elevation under the pointer"><span class="fig"><span class="v elev" id="elev"></span><span class="lab">Elev.</span></span></div>
-      <div class="cell sep" style="padding:0 6px;gap:2px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span><span class="ib" data-act="dock" title="${S.docked ? 'Docked to the bottom edge: click to float' : 'Floating: click to dock to the bottom edge'}">${g(S.docked ? 's-dock' : 's-float')}</span></div>
+      <div class="cell sep" style="padding:0 6px;gap:2px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span><span class="ib" data-act="dock" title="${S.docked ? 'Docked to the bottom edge: click to float' : 'Floating: click to dock to the bottom edge'}">${g(S.docked ? 's-dock' : 's-float')}</span><span class="ib" data-act="theme" title="${S.theme === 'light' ? 'Light mode: click for dark' : 'Dark mode: click for light'}">${g(S.theme === 'light' ? 's-sun' : 's-moon')}</span></div>
     </div>`;
     h += `<div class="log" id="log">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
     if (S.modal && S.modal.input) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">Rename resort<span class="x" data-act="modal">✕</span></div>
@@ -810,8 +831,8 @@ body.solo .frame { border-radius: 0; }
       cost = d.pts.length * t.each; label = d.pts.length > 1 ? `${d.pts.length} × ${t.name.toLowerCase()}` : t.name;
     }
     S.saveDue = true;
-    if (asPlan) log(`<span><b>${esc(label)}</b> saved as a plan <span class="mono" style="color:#a39b90">${short(cost).replace('+', '')}</span></span>`, '#ff6a1f');
-    else { spend(cost); log(`<span><b>${esc(label)}</b>: ground broken <span class="mono" style="color:#ff7a66">${short(-cost)}</span></span>`, '#1a6b3c'); }
+    if (asPlan) log(`<span><b>${esc(label)}</b> saved as a plan <span class="mono" style="color:var(--soft)">${short(cost).replace('+', '')}</span></span>`, '#ff6a1f');
+    else { spend(cost); log(`<span><b>${esc(label)}</b>: ground broken <span class="mono" style="color:var(--neg)">${short(-cost)}</span></span>`, '#1a6b3c'); }
     const again = t.id; S.tool = null; chooseTool(again);
   }
   function act(a, v, e) {
@@ -825,7 +846,7 @@ body.solo .frame { border-radius: 0; }
       case 'diff': S.draft.diff = v; break;
       case 'build': commit(false); return;
       case 'plan': commit(true); return;
-      case 'setmodel': { const l = S.lifts.find((x) => x.id === S.sel); if (l && l.model !== v) { const before = liftStats(l.a, l.b, l.model).cost.total; l.model = v; const diff = liftStats(l.a, l.b, v).cost.total - before; if (l.built && diff > 0) spend(diff); S.saveDue = true; log(`<span><b>${esc(l.name)}</b> is now a ${v}${l.built && diff > 0 ? ` <span class="mono" style="color:#ff7a66">${short(-diff)}</span>` : ''}</span>`); } break; }
+      case 'setmodel': { const l = S.lifts.find((x) => x.id === S.sel); if (l && l.model !== v) { const before = liftStats(l.a, l.b, l.model).cost.total; l.model = v; const diff = liftStats(l.a, l.b, v).cost.total - before; if (l.built && diff > 0) spend(diff); S.saveDue = true; log(`<span><b>${esc(l.name)}</b> is now a ${v}${l.built && diff > 0 ? ` <span class="mono" style="color:var(--neg)">${short(-diff)}</span>` : ''}</span>`); } break; }
       case 'setdiff': { const t = S.trails.find((x) => x.id === S.sel); if (t) { t.diff = v; S.saveDue = true; log(`<span><b>${esc(t.name)}</b> re-rated ${DIFFS[v].toLowerCase()}</span>`); } break; }
       case 'remove': {
         const t = toolById(S.tool), list = t.target === 'lift' ? S.lifts : S.trails, i = list.findIndex((x) => x.id === S.sel);
@@ -834,7 +855,7 @@ body.solo .frame { border-radius: 0; }
       }
       case 'pause': S.paused = !S.paused; break;
       case 'speed': S.speed = +v; S.paused = false; break;
-      case 'savegame': S.saveDue = false; S.drop = null; render(); log(`<span>Saved <span class="mono" style="color:#a39b90">${esc(S.name)} · day ${S.day}</span></span>`, '#8fcf8a'); return;
+      case 'savegame': S.saveDue = false; S.drop = null; render(); log(`<span>Saved <span class="mono" style="color:var(--soft)">${esc(S.name)} · day ${S.day}</span></span>`, '#8fcf8a'); return;
       case 'rename': S.drop = null; S.modal = { input: true }; break;
       case 'renameok': {
         const f = document.getElementById('nameinput'), v = f ? f.value.trim().replace(/\s+/g, ' ').slice(0, 28) : '';
@@ -842,6 +863,7 @@ body.solo .frame { border-radius: 0; }
         if (v && v !== S.name) { S.name = v; S.saveDue = true; render(); log(`<span>Renamed to <b>${esc(v)}</b></span>`); return; }
         break;
       }
+      case 'theme': S.theme = S.theme === 'light' ? 'dark' : 'light'; break;
       case 'units': S.units = IMP() ? 'metric' : 'imperial'; log(`<span>Units: ${IMP() ? 'imperial (ft, °F, in)' : 'metric (m, °C, cm)'}</span>`); break;
       case 'atab': S.atab = v; break;
       case 'dock': S.docked = !S.docked; log(`<span>Status bar ${S.docked ? 'docked to the bottom edge' : 'floating'}</span>`); break;
@@ -851,7 +873,7 @@ body.solo .frame { border-radius: 0; }
       case 'layer': S.layers[v] = !S.layers[v]; break;
       case 'resume': S.drop = null; break;
       case 'settings': S.drop = null; S.modal = { title: 'Settings', body: 'Settings aren\'t part of this mockup beyond Units and Status bar in this menu. The real menu would hold graphics quality, lighting, autosave and controls.' }; break;
-      case 'help': S.drop = null; S.modal = { title: 'Controls', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>U</b> units · <b>Space</b> pause · <b>1–4</b> speed<br>Tool letters as shown in the tray · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Scroll or <b>+ −</b> to zoom · <b>Home</b> resets the view.<br>Click the resort\'s name in the bar to rename it.' }; break;
+      case 'help': S.drop = null; S.modal = { title: 'Controls', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>U</b> units · <b>Space</b> pause · <b>1–4</b> speed<br>Tool letters as shown in the tray · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Scroll or <b>+ −</b> to zoom · <b>Home</b> resets the view.<br>The sun/moon at the right end of the bar switches light and dark mode.<br>Click the resort\'s name in the bar to rename it.' }; break;
       case 'title': S.drop = null; S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
       case 'modal': case 'modalbg': if (a === 'modalbg' && e && e.target.closest('.pn')) return; S.modal = null; break;
       case 'zoom': S.zoom = Math.min(1.8, Math.max(1, S.zoom + (+v) * 0.2)); break;
@@ -869,7 +891,7 @@ body.solo .frame { border-radius: 0; }
   const onUi = (e) => e.target.closest('#ui .pn, #ui .bar, #ui .box, #ui .tr, #ui .drop, #ui .strip, #ui .modal');
   function showElev() {
     const el = document.getElementById('elev'); if (!el) return;
-    const on = mouse && onTerrain(mouse); el.textContent = on ? lenTxt(elevAt(mouse)) : `– – – ${lenU()}`; el.style.color = on ? '' : '#6f675e';
+    const on = mouse && onTerrain(mouse); el.textContent = on ? lenTxt(elevAt(mouse)) : `– – – ${lenU()}`; el.style.color = on ? '' : 'var(--ph)';
   }
   function segDist(p, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1; let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2; t = Math.max(0, Math.min(1, t)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
   function pickAt(p, target) {
@@ -903,7 +925,7 @@ body.solo .frame { border-radius: 0; }
   stage.addEventListener('mouseover', (e) => {
     const lab = document.getElementById('toollabel'); if (!lab) return;
     const t = e.target.closest('.tool');
-    if (t) lab.innerHTML = `${t.dataset.name}<span class="mono">${t.dataset.key}</span><span style="color:#a39b90;font-weight:500">${t.dataset.hint}</span>`;
+    if (t) lab.innerHTML = `${t.dataset.name}<span class="mono">${t.dataset.key}</span><span style="color:var(--soft);font-weight:500">${t.dataset.hint}</span>`;
     else { const cur = S.tool && toolById(S.tool); lab.innerHTML = cur && TOOLS[S.tab].includes(cur) ? `${cur.name}<span class="mono">${cur.key}</span>` : 'Select tool'; }
   });
   stage.addEventListener('click', (e) => {
@@ -985,7 +1007,7 @@ body.solo .frame { border-radius: 0; }
     const rs = resortStatus(S.t); set('rsym', statusSym(rs));
     const rc = document.getElementById('resort'); if (rc && rc.title !== resortTitle(rs)) rc.title = resortTitle(rs);
     set('cash', money(S.cash));
-    const dl = document.getElementById('delta'); if (dl) { dl.textContent = `${short(S.today)} today`; dl.style.color = S.today < 0 ? '#ff7a66' : '#8fcf8a'; }
+    const dl = document.getElementById('delta'); if (dl) { dl.textContent = `${short(S.today)} today`; dl.style.color = S.today < 0 ? 'var(--neg)' : 'var(--pos)'; }
     set('lifts', String(S.liftsTotal));
     set('skiers', S.skiers.toLocaleString('en-US'));
     if (S.analysis) set('anabody', analysisBody());
@@ -1007,6 +1029,7 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('analysis')) { S.analysis = true; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }
     for (const [k] of ATABS) if (d.includes('a' + k)) { S.analysis = true; S.atab = k; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }
     if (d.includes('imperial')) S.units = 'imperial';
+    if (d.includes('light')) S.theme = 'light';
     if (d.includes('lastchair')) S.t = 16.3 * 3600;
     if (d.includes('snowing')) S.t = 2 * 3600;
     mouse = [930, 260];
