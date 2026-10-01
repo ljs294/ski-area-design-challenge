@@ -1,6 +1,6 @@
 # The evergreens' spiky tops: audit and plan
 
-**Audience:** the project owner. **Status:** 🟨 plan for your approval, revised to your choice: a normal pointed top that narrows gradually, for every tree that had the fin, and no curved or rounded tops. A working prototype is in Blender; nothing has changed in the game. **Date:** 2026-10-01. **Part of:** task 09 phase 2; the wider audit of all the trees follows in its own page.
+**Audience:** the project owner. **Status:** approved 2026-10-01 (NE6): a normal pointed top that narrows gradually, for every tree that had the fin, and no curved or rounded tops. It goes into the game with phase 2's single import (NE7). **Date:** 2026-10-01. **Part of:** task 09 phase 2; the wider audit of all the trees follows in its own page.
 
 You asked: *"Why are the tops of the evergreens so straight up and spiky?"* and *"Audit all evergreens for this behavior please and make a plan to correct."*
 
@@ -48,6 +48,12 @@ Measured on the built models (all three variants), with the real tree's top from
 **2. Already prototyped and measured** (Blender, the audit tool's game shading):
 
 ![Before and after: the top 30% of each evergreen, in the game's shading, in winter](images/phase2-tops-before-after.jpg)
+
+The whole trees, before and after: the same trees (same seed, height and branches), only the top differs.
+
+![Subalpine fir, Engelmann spruce, Pacific silver fir and Douglas-fir: before, then after](images/phase2-tops-full-firs.jpg)
+
+![Lodgepole pine, noble fir and eastern white pine: before, then after](images/phase2-tops-full-pines.jpg)
 
 | Measure | Before | After (prototype) |
 |---|---|---|

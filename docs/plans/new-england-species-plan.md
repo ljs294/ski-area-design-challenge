@@ -11,6 +11,9 @@
 | NE3 | **A new model only where it looks different.** A species that looks largely like one we already have shares that model instead of getting its own. Diversity alone isn't a reason for a model |
 | NE4 | It runs in its own thread, as tree work does (higher reasoning), after task 09 |
 | NE5 | **The sorting (step 1):** six species share a model: balsam fir and northern white-cedar → subalpine fir, red spruce → Engelmann spruce, eastern hemlock → western hemlock, white ash → sugar maple, and sweet birch → the new black cherry. Three get their own: **eastern white pine, northern red oak and black cherry** ([below](#step-1-result-the-sorting)) |
+| NE6 | **Evergreen tops** (2026-10-01): every conifer that ended in an upright, snowless "fin" gets a normal pointed top that narrows gradually ([plan](phase2-evergreen-tops.md)). No curved or rounded tops; both hemlocks keep theirs |
+| NE7 | **One Git LFS import** for everything approved in phase 2: the New England models and the corrected existing trees |
+| NE8 | **The plantation look** in dense conifer stands: change it for realism, with more height spread and natural clumping (the owner left the call to my recommendation, 2026-10-01). It belongs to forest placement, so it goes through the Master Planner |
 
 ## Where New England stands
 
