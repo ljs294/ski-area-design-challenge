@@ -40,7 +40,8 @@ namespace MountainPlanner.Tests
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(101)], Is.EqualTo("lodgepole_pine"), "whitebark pine looks like a pine");
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(96)], Is.EqualTo("engelmann_spruce"), "blue spruce looks like a spruce");
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(749)], Is.EqualTo("quaking_aspen"), "cottonwood looks like an aspen");
-            Assert.That(TreeLibrary.ModelledSpecies.Count, Is.EqualTo(SpeciesMap.Models.Length));
+            // Krummholz is a growth form, not a species: the one model without an FIA code.
+            Assert.That(TreeLibrary.ModelledSpecies.Count, Is.EqualTo(SpeciesMap.Models.Length - 1));
         }
 
         [Test]

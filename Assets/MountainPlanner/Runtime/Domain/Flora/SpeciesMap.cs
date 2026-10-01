@@ -15,6 +15,7 @@ namespace MountainPlanner.Domain.Flora
         {
             "subalpine_fir", "engelmann_spruce", "douglas_fir", "lodgepole_pine", "mountain_hemlock",
             "quaking_aspen", "paper_birch", "yellow_birch", "sugar_maple", "red_maple", "american_beech",
+            "pacific_silver_fir", "western_hemlock", "noble_fir", "krummholz",
         };
 
         public const int VariantsPerModel = 3;
@@ -25,6 +26,7 @@ namespace MountainPlanner.Domain.Flora
             [19] = "subalpine_fir", [93] = "engelmann_spruce", [202] = "douglas_fir", [108] = "lodgepole_pine",
             [264] = "mountain_hemlock", [746] = "quaking_aspen", [375] = "paper_birch", [371] = "yellow_birch",
             [318] = "sugar_maple", [316] = "red_maple", [531] = "american_beech",
+            [11] = "pacific_silver_fir", [263] = "western_hemlock", [22] = "noble_fir",
         };
 
         public static IReadOnlyCollection<int> ModelledCodes => Exact.Keys;

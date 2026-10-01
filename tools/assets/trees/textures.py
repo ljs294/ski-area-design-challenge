@@ -1,10 +1,11 @@
 """Procedural tree textures (numpy only; runs inside Blender or plain Python).
 
 Every texture is generated from a seed, so the library stays repeatable and free (TR2):
-  foliage cards  needle sprays (fir, spruce, hemlock, douglas, pine), leaf clusters (maple, birch,
-                 beech, aspen) in summer and autumn colours, bare twig silhouettes for winter
-  bark           ridged, furrowed, scaly, smooth, birch, aspen and yellow-birch styles (tileable), each
-                 with a height field for its normal map
+  foliage cards  needle sprays (fir, spruce, hemlock, douglas, pine, silverfir, lacy, noble), leaf
+                 clusters (maple, birch, beech, aspen) in summer and autumn colours, bare twig silhouettes
+                 for winter
+  bark           ridged, furrowed, plated, scaly, smooth, birch, aspen and yellow-birch styles (tileable),
+                 each with a height field for its normal map
 
 Cards are laid out with the branch running along +u (u = 0 at the branch, u = 1 at the tip) and
 the spray spreading across v, so a card placed along a branch reads correctly.
@@ -89,10 +90,19 @@ FROND_STYLES = {
     "douglas": dict(twig_angle=0.78, twigs=9, needle=0.055, needle_angle=0.95, step=0.0055, width=0.36, brush=False, tuft=False, curl=0.15),
     "spruce":  dict(twig_angle=0.85, twigs=10, needle=0.05, needle_angle=0.85, step=0.0042, width=0.34, brush=True, tuft=False, curl=0.05),
     "pine":    dict(twig_angle=0.55, twigs=7, needle=0.17, needle_angle=0.35, step=0.012, width=0.30, brush=False, tuft=True, curl=0.0),
+    # Task 09 (Crystal Mountain). Optional keys: comb (a needle every other station combed forward over the
+    # twig, as on the top of a Pacific silver fir spray), body (the foliage body's opacity and width; 0 draws
+    # none, so the spray is see-through and lacy: a faint body would be clipped at the game's 0.4 alpha
+    # cutoff anyway), subtwigs (twiglets per side twig: a finely divided, fern-like
+    # western hemlock spray), hook (needles curve toward the tip over this fraction of their length: noble
+    # fir's upturned "hockey-stick" needles, which crowd the top of the twig when seen from above).
+    "silverfir": dict(twig_angle=0.92, twigs=11, needle=0.048, needle_angle=1.0, step=0.0046, width=0.34, brush=False, tuft=False, curl=0.3, comb=0.35),
+    "lacy":      dict(twig_angle=1.0, twigs=12, needle=0.03, needle_angle=1.35, step=0.0046, width=0.32, brush=False, tuft=False, curl=0.15, body=0.0, subtwigs=3),
+    "noble":     dict(twig_angle=0.65, twigs=12, needle=0.036, needle_angle=0.9, step=0.0036, width=0.3, brush=True, tuft=False, curl=0.1, hook=0.4),
 }
 
 
-def _body(img, p0, ang, length, half_width, rgb, rng, serration):
+def _body(img, p0, ang, length, half_width, rgb, rng, serration, opacity=0.96):
     """The frond's foliage body: a soft lanceolate shape along ang from p0 (pixels), serrated edge."""
     h, w = img.shape[:2]
     d = np.array([math.cos(ang), math.sin(ang)], np.float32)
@@ -118,12 +128,14 @@ def _body(img, p0, ang, length, half_width, rgb, rng, serration):
     # A touch darker along the twig (needles overlap there), lighter toward the edge.
     shade = 0.85 + 0.15 * np.clip(lat / np.maximum(edge, 1e-3), 0, 1)
     region = img[ya:yb, xa:xb]
-    _over(region, rgb, cov * 0.96)
+    _over(region, rgb, cov * opacity)
     region[..., :3] *= np.where(cov[..., None] > 0, shade[..., None], 1.0)
 
 
-def frond(img, p0, ang, length, style, colours, rng, twig_rgb, scale=1.0):
-    """One conifer frond from p0 (pixels) along ang (radians), length in pixels."""
+def frond(img, p0, ang, length, style, colours, rng, twig_rgb, scale=1.0, sheen=None):
+    """One conifer frond from p0 (pixels) along ang (radians), length in pixels. sheen (colours): some of the
+    side needles, more toward the edge of the spray, take these paler colours, as a Pacific silver fir's
+    spreading needles show their silvery undersides at the spray's edges."""
     s = FROND_STYLES[style]
     greens = [hex_rgb(c) for c in colours]
     base = np.clip(min(greens, key=lambda c: c.sum()) * 0.82, 0, 1)
@@ -132,8 +144,20 @@ def frond(img, p0, ang, length, style, colours, rng, twig_rgb, scale=1.0):
     p0 = np.asarray(p0, np.float64)
     d = np.array([math.cos(ang), math.sin(ang)])
 
-    def needle(pt, na, nl, width):
-        col = np.clip(greens[rng.integers(len(greens))] * rng.uniform(0.82, 1.2), 0, 1)
+    silver = [hex_rgb(c) for c in sheen] if sheen else None
+
+    def needle(pt, na, nl, width, toward=None, palette=None):
+        source = palette or greens
+        col = np.clip(source[rng.integers(len(source))] * rng.uniform(0.82, 1.2), 0, 1)
+        if toward is not None and s.get("hook"):
+            # An upturned needle: straight, then curving toward the twig's tip.
+            k = 1 - s["hook"]
+            mid = (pt[0] + math.cos(na) * nl * k, pt[1] + math.sin(na) * nl * k)
+            nb = na + math.atan2(math.sin(toward - na), math.cos(toward - na)) * 0.6
+            end = (mid[0] + math.cos(nb) * nl * (1 - k), mid[1] + math.sin(nb) * nl * (1 - k))
+            stroke(img, (pt[0], pt[1]), mid, width, width * 0.8, col)
+            stroke(img, mid, end, width * 0.8, 1.0, col)
+            return
         stroke(img, (pt[0], pt[1]), (pt[0] + math.cos(na) * nl, pt[1] + math.sin(na) * nl), width, 1.0, col)
 
     if s["tuft"]:
@@ -151,7 +175,11 @@ def frond(img, p0, ang, length, style, colours, rng, twig_rgb, scale=1.0):
                 needle(tip, a + rng.normal(0, 0.6), n_needle * rng.uniform(0.6, 1.15), 2.0 * scale)
         return
 
-    _body(img, p0, ang, length, half, base, rng, 9 + s["twigs"])
+    body = s.get("body", 1.0)
+    if body == 1.0:
+        _body(img, p0, ang, length, half, base, rng, 9 + s["twigs"])
+    elif body > 0:
+        _body(img, p0, ang, length, half * (0.55 + 0.45 * body), base, rng, 9 + s["twigs"], opacity=0.96 * body)
     stroke(img, tuple(p0), tuple(p0 + d * length), 2.8 * scale + 0.6, 1.0, twig_rgb)
     spacing = s["step"] * length / 0.9
     # Side twigs, alternating, shorter toward the tip, each carrying needles on both sides.
@@ -173,7 +201,24 @@ def frond(img, p0, ang, length, style, colours, rng, twig_rgb, scale=1.0):
             for j, sd in enumerate(sides):
                 na = a + sd * (s["needle_angle"] + rng.normal(0, 0.14)) + (j // 2) * sd * 0.55
                 nl = n_needle * taper * rng.uniform(0.75, 1.15) * (0.7 if j >= 2 else 1.0)
-                needle(pt, na, nl, 2.4 * scale if style != "hemlock" else 1.9 * scale)
+                palette = silver if silver and rng.random() < 0.03 + 0.17 * u else None
+                needle(pt, na, nl, 2.4 * scale if style not in ("hemlock", "lacy") else 1.9 * scale, toward=a, palette=palette)
+            if s.get("comb") and k % 2 == 0:
+                # Needles on the top of the twig, combed forward so they hide it.
+                needle(pt, a + rng.normal(0, 0.25), n_needle * s["comb"] * 2 * taper * rng.uniform(0.8, 1.1), 2.2 * scale)
+        for m in range(s.get("subtwigs", 0)):
+            # Twiglets off the side twig, each with its own short needles: a lacy, fern-like spray.
+            u = (m + 0.6 + rng.random() * 0.3) / (s["subtwigs"] + 0.8)
+            sub = start + dir2 * ln * u
+            sa = a + side * rng.uniform(0.6, 0.9)
+            sl = ln * (1 - u) * rng.uniform(0.45, 0.6)
+            sdir = np.array([math.cos(sa), math.sin(sa)])
+            stroke(img, tuple(sub), tuple(sub + sdir * sl), 1.1 * scale + 0.3, 0.7, twig_rgb)
+            count = max(2, int(sl / spacing))
+            for q in range(count):
+                pt = sub + sdir * sl * (q + rng.random() * 0.5) / count
+                for sd in (-1, 1):
+                    needle(pt, sa + sd * (s["needle_angle"] + rng.normal(0, 0.14)), n_needle * 0.8 * rng.uniform(0.75, 1.1), 1.7 * scale)
     # Needles on the main axis too.
     count = max(1, int(length / spacing * 0.6))
     for k in range(count):
@@ -183,15 +228,16 @@ def frond(img, p0, ang, length, style, colours, rng, twig_rgb, scale=1.0):
             needle(pt, ang + sd * (s["needle_angle"] * 0.8 + rng.normal(0, 0.12)), n_needle * (1 - 0.4 * u) * rng.uniform(0.7, 1.0), 2.2 * scale)
 
 
-def needle_spray(style, colours, seed, n=512):
-    """A spray card: one frond along u (u = 0 at the branch, u = 1 at the tip), filling the card across v."""
+def needle_spray(style, colours, seed, n=512, sheen=None):
+    """A spray card: one frond along u (u = 0 at the branch, u = 1 at the tip), filling the card across v.
+    The whole card is one frond: the game's snow pattern (SnowPattern) expects the branch line at v = 0.5."""
     rng = np.random.default_rng(seed)
     img = canvas(n)
-    frond(img, (0.02 * n, 0.5 * n), rng.uniform(-0.04, 0.04), 0.95 * n, style, colours, rng, hex_rgb("#4A3A2C"))
+    frond(img, (0.02 * n, 0.5 * n), rng.uniform(-0.04, 0.04), 0.95 * n, style, colours, rng, hex_rgb("#4A3A2C"), sheen=sheen)
     return img
 
 
-def branch_cluster(style, colours, seed, n=512):
+def branch_cluster(style, colours, seed, n=512, sheen=None):
     """A whole branch on one card (mid-distance LODs): fronds either side of a branch along u, shorter
     toward the tip, plus a tip frond, so one card carries a branch's worth of foliage."""
     rng = np.random.default_rng(seed + 7)
@@ -203,8 +249,8 @@ def branch_cluster(style, colours, seed, n=512):
         t = 0.06 + 0.8 * (i + rng.random() * 0.3) / count
         for side in (-1, 1):
             ln = (0.5 - 0.3 * t) * n * rng.uniform(0.85, 1.05)
-            frond(img, (t * n, axis_y), side * rng.uniform(0.55, 0.8), ln, style, colours, rng, twig, scale=0.8)
-    frond(img, (0.55 * n, axis_y), rng.uniform(-0.05, 0.05), 0.43 * n, style, colours, rng, twig, scale=0.8)
+            frond(img, (t * n, axis_y), side * rng.uniform(0.55, 0.8), ln, style, colours, rng, twig, scale=0.8, sheen=sheen)
+    frond(img, (0.55 * n, axis_y), rng.uniform(-0.05, 0.05), 0.43 * n, style, colours, rng, twig, scale=0.8, sheen=sheen)
     stroke(img, (0.0, axis_y), (0.97 * n, axis_y), 5.0, 1.6, twig)
     return img
 
@@ -370,9 +416,12 @@ def bark(style, base, seed, n=512):
     map (bark_normal), so the sun rakes across ridges at runtime. Styles (tree realism review; the first
     version was blurred colour noise that read as flat painted pipes):
       douglas      thick rounded ridges that split and rejoin, deep cinnamon furrows (Douglas-fir)
-      furrowed     narrower flat-topped ridges broken into long plates (mountain hemlock, sugar maple)
+      furrowed     narrower flat-topped ridges broken into long plates (mountain hemlock, western hemlock,
+                   sugar maple)
+      plated       grey plates over reddish-brown furrows: a fir's smooth grey bark turning plated with
+                   age (noble fir)
       scaly        small thin overlapping scales, lower edges proud (Engelmann spruce, lodgepole pine)
-      fir          smooth grey with resin blisters and lichen (subalpine fir)
+      fir          smooth grey with resin blisters and lichen (subalpine fir, Pacific silver fir, krummholz)
       beech        smooth grey with faint mottling and lichen (beech, red maple)
       birch        chalk white, dark lenticels, peeling strips, black scars (paper birch)
       aspen        cream-green, dark diamond branch scars (quaking aspen)
@@ -384,7 +433,29 @@ def bark(style, base, seed, n=512):
     grain = _noise(n, 128, 16, rng)   # fine vertical fibres
     lichen_rgb = np.array([0.66, 0.69, 0.62], np.float32)
 
-    if style in ("douglas", "furrowed"):
+    if style == "plated":
+        # Shallow furrows cut the grey bark into short, flat plates, showing the reddish-brown inner bark.
+        # Grey on top, so the trunk still reads as a fir's.
+        tri = _bands(_ridge_field(n, 11, 2.6, rng, cx=4))
+        ridge = np.clip((tri - 0.2 - 0.2 * _fbm(n, 6, 3, rng, 3)) / 0.25, 0, 1)
+        ridge = ridge * ridge * (3 - 2 * ridge)
+        cross = _bands(_fbm(n, 3, 9, rng, 4) * 2.4)
+        breaks = np.clip(1 - cross / 0.22, 0, 1) ** 1.2 * np.clip((_noise(n, 20, 14, rng) - 0.4) * 5, 0, 1)
+        ridge = ridge * (1 - 0.85 * breaks)
+        h = ridge * (0.8 + 0.2 * _fbm(n, 20, 10, rng, 3)) + 0.04 * grain
+        h = _blur(h, 1)
+        furrow = c * np.array([0.88, 0.62, 0.5], np.float32)
+        wall = c * np.array([0.95, 0.8, 0.7], np.float32)
+        rgb = _lerp3(_lerp3(furrow, wall, np.clip(h / 0.45, 0, 1)), c, np.clip((h - 0.45) / 0.35, 0, 1))
+        # Plates weather unevenly: some greyer, some warmer.
+        tone = _fbm(n, 8, 12, rng, 3)
+        warm = np.clip((tone - 0.55) * 3, 0, 1) * np.clip(h * 2 - 0.6, 0, 1) * 0.6
+        rgb = _lerp3(rgb, np.clip(c * np.array([1.05, 0.92, 0.84], np.float32), 0, 1), warm)
+        lichen = np.clip((_fbm(n, 5, 6, rng, 4) - 0.62) * 5, 0, 1) * np.clip((h - 0.6) * 3, 0, 1)
+        rgb = _lerp3(rgb, lichen_rgb * (0.85 + 0.15 * detail[..., None]), lichen * 0.35)
+        rgb *= (0.9 + 0.2 * detail)[..., None]
+        strength = 9.0
+    elif style in ("douglas", "furrowed"):
         thick = style == "douglas"
         tri = _bands(_ridge_field(n, 12 if thick else 18, 3.2 if thick else 3.6, rng, cx=5))
         # Ridges vary in width along their length and from one to the next.

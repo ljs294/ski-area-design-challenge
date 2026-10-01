@@ -509,6 +509,247 @@
         "#B8935A",
         "#D2B489"
       ]
+    },
+    {
+      "id": "pacific_silver_fir",
+      "name": "Pacific silver fir",
+      "bigmapSpcd": 11,
+      "form": "conifer",
+      "where": "Crystal 30%",
+      "height": [
+        26.0,
+        34.0
+      ],
+      "crownBase": 0.1,
+      "crownRadius": 0.14,
+      "crownExponent": 1.0,
+      "whorlSpacing": 0.68,
+      "branchesPerWhorl": [
+        5,
+        6
+      ],
+      "branchElevation": [
+        8.0,
+        -10.0
+      ],
+      "droop": 0.15,
+      "needles": "silverfir",
+      "spray": [
+        0.85,
+        0.5
+      ],
+      "spraysPerMetre": 3.2,
+      "sprayDensity": 1.05,
+      "trunkRadius": 0.014,
+      "nod": 0.0,
+      "bark": [
+        "fir",
+        "#A3A19B"
+      ],
+      "foliage": [
+        "#1B372B",
+        "#223F32",
+        "#2A4839"
+      ],
+      "sheen": [
+        "#56736C",
+        "#66827B",
+        "#78948D"
+      ]
+    },
+    {
+      "id": "western_hemlock",
+      "name": "Western hemlock",
+      "bigmapSpcd": 263,
+      "form": "conifer",
+      "where": "Crystal 11%",
+      "height": [
+        28.0,
+        36.0
+      ],
+      "crownBase": 0.32,
+      "crownRadius": 0.15,
+      "crownExponent": 0.9,
+      "whorlSpacing": 0.75,
+      "branchesPerWhorl": [
+        4,
+        5
+      ],
+      "branchElevation": [
+        0.0,
+        -24.0
+      ],
+      "droop": 0.55,
+      "needles": "lacy",
+      "spray": [
+        0.75,
+        0.46
+      ],
+      "spraysPerMetre": 2.8,
+      "trunkRadius": 0.015,
+      "nod": 85.0,
+      "nodShape": [
+        0.87,
+        0.13,
+        0.075
+      ],
+      "leaderCurve": true,
+      "bark": [
+        "furrowed",
+        "#5E4336"
+      ],
+      "foliage": [
+        "#2D4829",
+        "#375431",
+        "#42613A"
+      ],
+      "sprayDensity": 1.6
+    },
+    {
+      "id": "noble_fir",
+      "name": "Noble fir",
+      "bigmapSpcd": 22,
+      "form": "conifer",
+      "where": "Crystal 6%",
+      "height": [
+        32.0,
+        40.0
+      ],
+      "crownBase": 0.42,
+      "crownRadius": 0.1,
+      "crownExponent": 0.85,
+      "roundTop": 0.3,
+      "whorlSpacing": 0.85,
+      "branchesPerWhorl": [
+        4,
+        6
+      ],
+      "branchElevation": [
+        8.0,
+        0.0
+      ],
+      "droop": 0.04,
+      "needles": "noble",
+      "spray": [
+        0.72,
+        0.48
+      ],
+      "spraysPerMetre": 3.8,
+      "sprayLift": 0.22,
+      "trunkRadius": 0.013,
+      "nod": 0.0,
+      "bark": [
+        "plated",
+        "#6E6863"
+      ],
+      "foliage": [
+        "#35514D",
+        "#415E5A",
+        "#4D6B66"
+      ],
+      "sprayDensity": 1.5,
+      "clusterSpan": [
+        0.7,
+        1.7,
+        0.3
+      ]
+    },
+    {
+      "id": "krummholz",
+      "name": "Krummholz",
+      "form": "krummholz",
+      "where": "Just below the treeline at Jackson Hole and Crystal; a wind-shaped growth form, not a species",
+      "height": [
+        0.75,
+        3.3
+      ],
+      "forms": [
+        {
+          "shape": "mat",
+          "height": [
+            0.75,
+            1.0
+          ],
+          "reach": [
+            2.3,
+            0.85,
+            0.25
+          ],
+          "stem": [
+            0.05,
+            0.7,
+            30.0
+          ],
+          "sway": 0.25
+        },
+        {
+          "shape": "flag",
+          "height": [
+            2.8,
+            3.3
+          ],
+          "reach": [
+            1.5,
+            0.95,
+            0.45
+          ],
+          "skirt": 0.75,
+          "flag": 1.5,
+          "stem": [
+            0.075,
+            1.0,
+            5.0
+          ],
+          "sway": 0.6
+        },
+        {
+          "shape": "cushion",
+          "height": [
+            1.3,
+            1.7
+          ],
+          "reach": [
+            1.7,
+            1.3,
+            0.9
+          ],
+          "stem": [
+            0.06,
+            0.8,
+            8.0
+          ],
+          "sway": 0.35
+        }
+      ],
+      "whorlSpacing": 0.11,
+      "branchesPerWhorl": [
+        7,
+        9
+      ],
+      "droop": 0.18,
+      "needles": "fir",
+      "spray": [
+        0.42,
+        0.26
+      ],
+      "spraysPerMetre": 4.5,
+      "sprayDensity": 1.3,
+      "crossed": true,
+      "clusterSpan": [
+        0.45,
+        1.3,
+        0.25
+      ],
+      "flare": 0.3,
+      "bark": [
+        "fir",
+        "#76716A"
+      ],
+      "foliage": [
+        "#1C3328",
+        "#233D30",
+        "#2C4839"
+      ]
     }
   ]
 }

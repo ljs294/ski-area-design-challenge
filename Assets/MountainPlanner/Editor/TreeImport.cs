@@ -30,6 +30,10 @@ namespace MountainPlanner.Editor
     ///
     /// Winter (iteration 1): deciduous leaves use an invisible material, so aspens and birches are bare
     /// twigs; beech keeps its dry leaves.
+    ///
+    /// <c>-treeModels id,id</c> on the command line imports only those models. Every other model keeps its
+    /// committed FBX, textures, materials, impostors, prototype-set entries and fidelity lines byte for byte,
+    /// so adding a species doesn't re-bake (and re-commit to Git LFS) the whole library.
     /// </summary>
     public static class TreeImport
     {
@@ -47,16 +51,37 @@ namespace MountainPlanner.Editor
         static readonly float[] Transitions = { 0.30f, 0.12f, 0.05f, 0.004f };
 
         [MenuItem("Mountain Planner/Import Trees")]
-        public static void Import()
+        public static void Import() => Import(ModelsFromCommandLine());
+
+        /// <summary>The models named by <c>-treeModels id,id</c>, or null (all of them).</summary>
+        static HashSet<string> ModelsFromCommandLine()
         {
+            var args = System.Environment.GetCommandLineArgs();
+            int i = System.Array.IndexOf(args, "-treeModels");
+            return i >= 0 && i + 1 < args.Length ? new HashSet<string>(args[i + 1].Split(',')) : null;
+        }
+
+        /// <summary>The model a library file belongs to (its file name starts with the model id), or null.</summary>
+        static string ModelOf(string path)
+        {
+            string name = Path.GetFileName(path);
+            return SpeciesMap.Models.Where(m => name.StartsWith(m + "_")).OrderByDescending(m => m.Length).FirstOrDefault();
+        }
+
+        /// <summary>Imports the given models (null: every model); see the class summary.</summary>
+        public static void Import(HashSet<string> only)
+        {
+            if (only != null && only.Any(m => SpeciesMap.IndexOf(m) < 0)) throw new System.ArgumentException($"Unknown tree model in -treeModels: {string.Join(",", only)}");
+            bool Selected(string model) => only == null || (model != null && only.Contains(model));
             if (!Directory.Exists(Source)) throw new DirectoryNotFoundException($"{Source} is missing: run tools/assets/trees/build-trees.bat first.");
             foreach (string sub in new[] { "Models", "Textures", "Materials", "Impostors", "Prefabs" }) Directory.CreateDirectory(Path.Combine(Root, sub));
             AssetDatabase.DeleteAsset(Root + "/Cards");   // the crossed-card far LOD, replaced by impostors
-            foreach (string f in Directory.GetFiles(Source, "*.fbx")) File.Copy(f, Path.Combine(Root, "Models", Path.GetFileName(f)), true);
-            foreach (string f in Directory.GetFiles(Path.Combine(Source, "textures"), "*.png")) File.Copy(f, Path.Combine(Root, "Textures", Path.GetFileName(f)), true);
+            foreach (string f in Directory.GetFiles(Source, "*.fbx").Where(f => Selected(ModelOf(f)))) File.Copy(f, Path.Combine(Root, "Models", Path.GetFileName(f)), true);
+            foreach (string f in Directory.GetFiles(Path.Combine(Source, "textures"), "*.png").Where(f => Selected(ModelOf(f))))
+                File.Copy(f, Path.Combine(Root, "Textures", Path.GetFileName(f)), true);
             AssetDatabase.Refresh();
 
-            foreach (string path in Directory.GetFiles(Path.Combine(Root, "Textures"), "*.png").Select(p => p.Replace('\\', '/')))
+            foreach (string path in Directory.GetFiles(Path.Combine(Root, "Textures"), "*.png").Where(p => Selected(ModelOf(p))).Select(p => p.Replace('\\', '/')))
             {
                 var ti = (TextureImporter)AssetImporter.GetAtPath(path);
                 bool normal = path.EndsWith("_normal.png");   // bark normal maps
@@ -71,17 +96,45 @@ namespace MountainPlanner.Editor
             }
 
             var quad = ImpostorQuad();
-            var prefabs = new List<GameObject>();
+            var prototypes = new List<string>();   // prototype names, in order (model_vN)
             var heights = new List<float>();
             var brightness = new List<float>();
             var snow = new List<float>();
             var report = new StringBuilder("{\n  \"note\": \"Crown coverage and lit brightness of each LOD relative to LOD0 (1.0 = identical), from 0, 22 and 53 degrees above the horizon.\",\n  \"trees\": {\n");
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            // Models left out keep what the last import committed. Read after the new scene, which unloads assets
+            // nothing in it uses (the set loaded before it came back destroyed); the numbers are copied, and the
+            // kept prefabs load by path.
+            var kept = AssetDatabase.LoadAssetAtPath<TreePrototypeSet>(SetPath);
+            int keptCount = kept != null && kept.NativeHeights != null ? kept.NativeHeights.Length : 0;
+            var keptHeights = keptCount > 0 ? kept.NativeHeights.ToArray() : new float[0];
+            var keptBrightness = Enumerable.Range(0, keptCount * 4).Select(i => kept.Brightness(i / 4, i % 4)).ToArray();
+            var keptSnow = Enumerable.Range(0, keptCount * 4).Select(i => kept.Snow(i / 4, i % 4)).ToArray();
+            var keptFidelity = KeptFidelity();
             using (var baker = new ImpostorBaker(AssetDatabase.LoadAssetAtPath<Shader>(BakeShaderPath)))
             {
                 bool first = true;
                 foreach (string model in SpeciesMap.Models)
                 {
+                    if (!Selected(model))
+                    {
+                        for (int v = 0; v < SpeciesMap.VariantsPerModel; v++)
+                        {
+                            int p = SpeciesMap.IndexOf(model) * SpeciesMap.VariantsPerModel + v;
+                            string name = $"{model}_v{v}";
+                            var keptPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{Root}/Prefabs/{name}.prefab");
+                            if (keptPrefab == null || p >= keptCount || !keptFidelity.ContainsKey(name))
+                                throw new InvalidDataException($"{name} has no committed import to keep (prefab {(keptPrefab != null ? "found" : "missing")}, " +
+                                                               $"{keptCount} prototypes in the set, fidelity line {(keptFidelity.ContainsKey(name) ? "found" : "missing")}): add it to -treeModels.");
+                            prototypes.Add(name);
+                            heights.Add(keptHeights[p]);
+                            brightness.AddRange(keptBrightness.Skip(p * 4).Take(4));
+                            snow.AddRange(keptSnow.Skip(p * 4).Take(4));
+                            report.Append(first ? "" : ",\n").Append("    \"").Append(name).Append("\": ").Append(keptFidelity[name]);
+                            first = false;
+                        }
+                        continue;
+                    }
                     var materials = SpeciesMaterials(model);
                     for (int v = 0; v < SpeciesMap.VariantsPerModel; v++)
                     {
@@ -94,7 +147,8 @@ namespace MountainPlanner.Editor
                         importer.addCollider = false;
                         importer.SaveAndReimport();   // TreeModelPostprocessor shades the crown
                         var (prefab, height, fidelity, lodBrightness, lodSnow) = BuildPrefab(model, v, fbx, baker, quad);
-                        prefabs.Add(prefab);
+                        if (model == "krummholz") CheckDownwind(prefab);
+                        prototypes.Add(prefab.name);
                         heights.Add(height);
                         brightness.AddRange(lodBrightness);
                         snow.AddRange(lodSnow);
@@ -112,14 +166,58 @@ namespace MountainPlanner.Editor
                 set = ScriptableObject.CreateInstance<TreePrototypeSet>();
                 AssetDatabase.CreateAsset(set, SetPath);
             }
-            set.Prefabs = prefabs.ToArray();
+            // Every prototype by its saved path: references held across the bakes' imports can come back unloaded.
+            set.Prefabs = prototypes.Select(n => AssetDatabase.LoadAssetAtPath<GameObject>($"{Root}/Prefabs/{n}.prefab")).ToArray();
+            if (set.Prefabs.Any(f => f == null)) throw new InvalidDataException("A tree prefab is missing after the import.");
             set.NativeHeights = heights.ToArray();
             set.LodBrightness = brightness.ToArray();
             set.LodSnow = snow.ToArray();
             EditorUtility.SetDirty(set);
             AssetDatabase.SaveAssets();
             AssetDatabase.ImportAsset(Root + "/fidelity.json");
-            Debug.Log($"[TreeImport] {prefabs.Count} tree prefabs from {SpeciesMap.Models.Length} species → {SetPath}; LOD fidelity in {Root}/fidelity.json");
+            Debug.Log($"[TreeImport] {prototypes.Count} tree prefabs from {SpeciesMap.Models.Length} models ({(only == null ? "all imported" : "imported: " + string.Join(", ", only))}) → {SetPath}; LOD fidelity in {Root}/fidelity.json");
+        }
+
+        /// <summary>Each variant's line in the committed fidelity report, verbatim, by name ("model_vN").</summary>
+        static Dictionary<string, string> KeptFidelity()
+        {
+            var lines = new Dictionary<string, string>();
+            string path = Root + "/fidelity.json";
+            if (!File.Exists(path)) return lines;
+            foreach (string line in File.ReadAllLines(path))
+            {
+                string t = line.Trim();
+                int q = t.IndexOf("\": {", System.StringComparison.Ordinal);
+                if (!t.StartsWith("\"") || q < 0) continue;
+                string name = t.Substring(1, q - 1);
+                if (name != "trees") lines[name] = t.Substring(q + 3).TrimEnd(',');
+            }
+            return lines;
+        }
+
+        /// <summary>
+        /// Krummholz reaches downwind, and the placement code turns a prefab's +Z to face downwind, so its LOD0
+        /// foliage must lie toward +Z (built toward Blender -Y: tools/assets/trees/README.md). Fails the import
+        /// otherwise, so a mirrored or turned export can't reach the game.
+        /// </summary>
+        static void CheckDownwind(GameObject prefab)
+        {
+            var lod0 = prefab.GetComponentsInChildren<MeshFilter>().First(f => f.name.EndsWith("_LOD0"));
+            var mesh = lod0.sharedMesh;
+            var toPrefab = prefab.transform.worldToLocalMatrix * lod0.transform.localToWorldMatrix;
+            var v = mesh.vertices;
+            var sum = Vector3.zero;
+            int n = 0;
+            for (int s = 1; s < mesh.subMeshCount; s++)
+                foreach (int i in mesh.GetIndices(s))
+                {
+                    sum += toPrefab.MultiplyPoint3x4(v[i]);
+                    n++;
+                }
+            var centroid = n > 0 ? sum / n : Vector3.zero;
+            Debug.Log($"[TreeImport] {prefab.name}: LOD0 foliage centroid {centroid.ToString("F2")} (+Z is downwind)");
+            if (centroid.z <= 0.05f || Mathf.Abs(centroid.x) > centroid.z)
+                throw new InvalidDataException($"{prefab.name}'s foliage doesn't reach toward +Z (centroid {centroid}): check the FBX export axes.");
         }
 
         static Dictionary<string, Material> SpeciesMaterials(string model)

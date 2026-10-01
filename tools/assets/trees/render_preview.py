@@ -110,23 +110,24 @@ def slab(x0, x1, y0, y1, depth=1.6, top=SNOW):
     bpy.context.scene.collection.objects.link(o)
 
 
-def label(text, x, y, z, size=1.1, colour="#F4F7FA"):
+def label(text, x, y, z, size=1.1, colour="#F4F7FA", flat=False, rot=0.0):
+    """A caption: upright facing -Y, or lying flat (read from above) and turned by rot."""
     cu = bpy.data.curves.new("Label", "FONT")
     cu.body = text
     cu.size = size
     cu.align_x = "CENTER"
     o = bpy.data.objects.new("Label", cu)
     o.location = (x, y, z)
-    o.rotation_euler = (math.radians(90), 0, 0)
+    o.rotation_euler = (0, 0, rot) if flat else (math.radians(90), 0, rot)
     o.data.materials.append(flat_material("Ink_" + colour, srgb(colour), emission=True))
     bpy.context.scene.collection.objects.link(o)
 
 
-def skier(x, y):
+def skier(x, y, z=0.0):
     """A 1.8 m figure for scale."""
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.22, depth=1.5, location=(x, y, 0.75))
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.22, depth=1.5, location=(x, y, z + 0.75))
     bpy.context.object.data.materials.append(flat_material("Jacket", srgb("#C0392B")))
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.15, location=(x, y, 1.65))
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.15, location=(x, y, z + 1.65))
     bpy.context.object.data.materials.append(flat_material("Skin", srgb("#E0B89A")))
 
 
@@ -233,26 +234,28 @@ def radius_of(obj):
 
 
 def row(entries, gap=1.5, label_size=1.1, label_y=-9.02):
-    """Places (object, caption) pairs in a row; returns the row's width."""
+    """Places (object, caption) or (object, caption, scale) entries in a row; returns the row's width."""
     x = 0.0
-    for obj, caption in entries:
-        r = max(radius_of(obj) * 0.8 + 0.5, 3.5)
+    for entry in entries:
+        obj, caption = entry[:2]
+        scale = entry[2] if len(entry) > 2 else 1.0
+        r = max(radius_of(obj) * scale * 0.8 + 0.5, 3.5)
         x += r
-        place(obj, (x, 0, 0), rot=0.5)
+        place(obj, (x, 0, 0), rot=0.5, scale=scale)
         if caption:
             label(caption, x, label_y, -1.25, size=label_size)
         x += r + gap
     return x - gap
 
 
-def lineup_shot(entries, path, season, species, seasons, originals, top=SNOW, extra=None, label_size=1.1):
+def lineup_shot(entries, path, season, species, seasons, originals, top=SNOW, extra=None, label_size=1.1, depth=1.6):
     set_season(species, seasons, season)
     width = row(entries, label_size=label_size)
     if season == "winter":
         skier(width + 2.5, -3)
-    slab(-3, width + 5, -9, 9, top=top)
+    slab(-3, width + 5, -9, 9, top=top, depth=depth)
     sun()
-    tallest = max(o.dimensions.z for o, _ in entries) + 3
+    tallest = max(e[0].dimensions.z * (e[2] if len(e) > 2 else 1.0) for e in entries) + 3
     scale = width + 10
     ratio = (tallest + 5) / scale
     res_x = 3000 if ratio <= 0.6 else int(1800 / ratio)
@@ -264,7 +267,7 @@ def lineup_shot(entries, path, season, species, seasons, originals, top=SNOW, ex
     clear_scene(originals)
 
 
-def grove_shot(mix, path, species, seasons, originals, built, season="winter", seed=7):
+def grove_shot(mix, path, species, seasons, originals, built, season="winter", seed=7, camera=((0, 0, 5), 95, 30, -25)):
     set_season(species, seasons, season)
     rng = random.Random(seed)
     spots = []
@@ -285,7 +288,7 @@ def grove_shot(mix, path, species, seasons, originals, built, season="winter", s
     slab(-32, 32, -32, 32, depth=4, top=SNOW if season == "winter" else srgb("#6B5A45"))
     sun(elevation=28, azimuth=-50)
     setup_render(2400, 1350, samples=96)
-    persp_camera((0, 0, 5), 95, 30, -25)
+    persp_camera(*camera)
     render(path)
     clear_scene(originals)
 
@@ -367,3 +370,230 @@ def render_all(species, built, seasons, out_dir, shots=None):
         entries += [(o, f"LOD{li} · {v0['triangles'][li]:,} tris") for li, o in enumerate(v0["objects"])]
     if entries and want("lods"):
         lineup_shot(entries, os.path.join(out_dir, "trees-lods.png"), "winter", species, seasons, originals, label_size=0.9)
+
+    render_task09(species, built, seasons, out_dir, want, originals)
+
+
+# ---------------------------------------------------------------------------------------------
+# Task 09 review (Crystal Mountain's species and krummholz). Each shot renders when its species are built.
+#   trees-compare-<id>.png   a new tree's three variants beside the look-alike it replaces, scaled to the
+#                            same height as the game would scale it; no snow, to judge colour
+#   trees-new.png            the new conifers, three variants each, snow-loaded, with the skier
+#   trees-grove-crystal*.png Crystal Mountain's mix by biomass, winter and snow-free
+#   trees-closeup-new.png    the new conifers' lower crowns and trunks from eye level
+#   trees-sprays-<id>.png    under a lower branch, looking up and out (the sprays and their undersides)
+#   trees-lods-new.png       LOD0 / LOD1 / LOD2 with triangle counts
+#   trees-krummholz-*.png    the three forms from the side (downwind to the right) and from above in the
+#                            prefab's own frame, and a treeline scene in winter and without snow
+#   trees-textures-new.png   spray, cluster, bark and bark normal textures of each new model
+
+LOOKALIKE = {"pacific_silver_fir": "subalpine_fir", "noble_fir": "subalpine_fir", "western_hemlock": "mountain_hemlock"}
+CRYSTAL = (("pacific_silver_fir", 30), ("mountain_hemlock", 19), ("douglas_fir", 12), ("western_hemlock", 11),
+           ("subalpine_fir", 7), ("noble_fir", 6), ("engelmann_spruce", 3))
+GROUND = srgb("#6B6455")
+
+
+def top_of(obj):
+    return max(v.co.z for v in obj.data.vertices)
+
+
+def arrow(start, direction, length, text, flat=False, size=0.9, colour="#E8702A"):
+    """A wind arrow from start along a horizontal direction, lying on the snow (flat) or standing upright
+    facing the camera, with a caption."""
+    d = Vector(direction).normalized()
+    side = Vector((-d.y, d.x, 0)) if flat else Vector((0, 0, 1))
+    w, head = 0.18 * size, 0.6 * size
+    s0 = Vector(start)
+    tip = s0 + d * length
+    neck = tip - d * head
+    verts = [s0 - side * w, neck - side * w, neck - side * w * 3, tip, neck + side * w * 3, neck + side * w, s0 + side * w]
+    mesh = bpy.data.meshes.new("Arrow")
+    mesh.from_pydata([tuple(v) for v in verts], [], [(0, 1, 5, 6), (2, 3, 4)])
+    mesh.materials.append(flat_material("Arrow_" + colour, srgb(colour), emission=True))
+    o = bpy.data.objects.new("Arrow", mesh)
+    bpy.context.scene.collection.objects.link(o)
+    if text:
+        mid = s0 + d * length * 0.5
+        if flat:
+            label(text, mid.x, mid.y - size * 1.4, mid.z + 0.02, size=size * 0.9, colour=colour, flat=True)
+        else:
+            label(text, mid.x, mid.y, mid.z + size * 0.6, size=size, colour=colour)
+
+
+def slope(x0, x1, y0, y1, grade, top=SNOW):
+    """A snow slope rising toward +Y at grade (rise per metre), with a strata front."""
+    mesh = bpy.data.meshes.new("Slope")
+    z0, z1 = y0 * grade, y1 * grade
+    v = [(x0, y0, z0), (x1, y0, z0), (x1, y1, z1), (x0, y1, z1), (x0, y0, z0 - 3), (x1, y0, z0 - 3), (x1, y1, z0 - 3), (x0, y1, z0 - 3)]
+    mesh.from_pydata(v, [], [(0, 1, 2, 3), (4, 5, 1, 0), (5, 6, 2, 1), (6, 7, 3, 2), (7, 4, 0, 3), (7, 6, 5, 4)])
+    mesh.materials.append(flat_material("Top_%s" % str(top[:3]), top))
+    mesh.materials.append(flat_material("Strata", srgb("#6E6A66")))
+    mesh.polygons.foreach_set("material_index", [0, 1, 1, 1, 1, 1])
+    o = bpy.data.objects.new("Slope", mesh)
+    bpy.context.scene.collection.objects.link(o)
+
+
+def texture_sheet(ids, path, size=256):
+    """A contact sheet of each model's textures (rows: models; columns: spray, cluster, bark, bark normal)
+    over a mid grey, so the alpha cut-outs show."""
+    import numpy as np
+    cols = ("spray", "cluster", "bark", "bark_normal")
+    pad = 12
+    sheet = np.full((len(ids) * (size + pad) + pad, len(cols) * (size + pad) + pad, 4), 0.42, np.float32)
+    sheet[..., 3] = 1
+    for r, sid in enumerate(ids):
+        for c, kind in enumerate(cols):
+            img = bpy.data.images.get(f"{sid}_{kind}")
+            if img is None:
+                continue
+            n = img.size[0]
+            px = np.array(img.pixels[:], np.float32).reshape(n, n, 4)[::-1]   # row 0 = top
+            step = max(1, n // size)
+            px = px[::step, ::step][:size, :size]
+            y, x = pad + r * (size + pad), pad + c * (size + pad)
+            region = sheet[y:y + px.shape[0], x:x + px.shape[1]]
+            a = px[..., 3:4]
+            region[..., :3] = px[..., :3] * a + region[..., :3] * (1 - a)
+    out = bpy.data.images.new("Sheet", sheet.shape[1], sheet.shape[0], alpha=True)
+    out.pixels.foreach_set(np.flipud(sheet).ravel())
+    out.filepath_raw = path
+    out.file_format = "PNG"
+    out.save()
+    print("rendered", path, flush=True)
+
+
+def render_task09(species, built, seasons, out_dir, want, originals):
+    by_id = {sp["id"]: sp for sp in species}
+    new = [sid for sid in ("pacific_silver_fir", "western_hemlock", "noble_fir") if sid in built]
+
+    def lod0(sid, v=0):
+        return built[sid][v]["objects"][0]
+
+    if want("compare"):
+        for sid in new:
+            look = LOOKALIKE[sid]
+            if look not in built:
+                continue
+            target = top_of(lod0(sid))
+            k = target / top_of(lod0(look))
+            entries = [(lod0(look), f"today: {by_id[look]['name'].lower()}", k)]
+            entries += [(lod0(sid, v), by_id[sid]["name"] if v == 1 else "") for v in range(3)]
+            lineup_shot(entries, os.path.join(out_dir, f"trees-compare-{sid}.png"), "summer", species, seasons, originals,
+                        top=GROUND, label_size=1.3)
+
+    if new and want("new"):
+        entries = [(lod0(sid, v), by_id[sid]["name"] if v == 1 else "") for sid in new for v in range(3)]
+        lineup_shot(entries, os.path.join(out_dir, "trees-new.png"), "winter", species, seasons, originals, label_size=1.3)
+
+    mix = [(sid, w) for sid, w in CRYSTAL if sid in built]
+    if len(mix) == len(CRYSTAL) and want("crystal"):
+        cam = ((0, 0, 8), 125, 27, -25)
+        grove_shot(mix, os.path.join(out_dir, "trees-grove-crystal.png"), species, seasons, originals, built, camera=cam)
+        grove_shot(mix, os.path.join(out_dir, "trees-grove-crystal-snowfree.png"), species, seasons, originals, built,
+                   season="summer", camera=cam)
+
+    if new and want("closeup"):
+        set_season(species, seasons, "winter")
+        for i, sid in enumerate(new):
+            place(lod0(sid), (i * 9.0 - 9.0, 0, 0), rot=0.4 + i)
+        skier(4.5, -4)
+        slab(-18, 18, -14, 14, top=SNOW)
+        sun(elevation=25, azimuth=-60)
+        setup_render(2400, 1350, samples=96)
+        persp_camera((0, 0, 5.5), 26, 8, -15, lens=35)
+        render(os.path.join(out_dir, "trees-closeup-new.png"))
+        clear_scene(originals)
+
+        # The lower crown from below, lit low from behind the camera: the undersides of the sprays.
+        set_season(species, seasons, "summer")
+        sun(elevation=8, azimuth=0, strength=4.0)
+        setup_render(1200, 1200, samples=64)
+        for i, sid in enumerate(new):
+            tree = place(lod0(sid), (0, 0, 0), rot=0.3)
+            base = built[sid][0]["height"] * by_id[sid]["crownBase"]
+            persp_camera((0, 0, base + 4.0), 8.0, -18, 0, lens=28)
+            render(os.path.join(out_dir, f"trees-sprays-{sid}.png"))
+            bpy.data.objects.remove(tree)
+        clear_scene(originals)
+
+    if new and want("lods"):
+        entries = []
+        for sid in new + (["krummholz"] if "krummholz" in built else []):
+            v = 1 if sid == "krummholz" else 0
+            m = built[sid][v]
+            entries += [(o, f"LOD{li} · {m['triangles'][li]:,}", 4.0 if sid == "krummholz" else 1.0) for li, o in enumerate(m["objects"])]
+        lineup_shot(entries, os.path.join(out_dir, "trees-lods-new.png"), "winter", species, seasons, originals, label_size=1.1,
+                    depth=4.5)   # the krummholz, shown 4x, is buried 4 m
+
+    if "krummholz" in built and want("krummholz"):
+        forms = built["krummholz"]
+        # From the side: downwind (Blender -Y, Unity +Z) turned to point right (+X).
+        set_season(species, seasons, "winter")
+        x = 0.0
+        for m in forms:
+            place(m["objects"][0], (x, 0, 0), rot=math.pi / 2)
+            label(f"{m['shape']} · {m['top']:.1f} m", x + 1.0, -4, -0.6, size=0.45)
+            x += 7.0
+        skier(x - 2.5, -1.5)
+        arrow((-2.0, -3.0, 3.6), (1, 0, 0), 4.0, "wind (downwind)", size=0.45)
+        slab(-4, x, -5, 5, depth=1.0)
+        sun(elevation=30, azimuth=-35)
+        setup_render(2600, 900, samples=96)
+        ortho_camera(x / 2 - 2.5, 1.6, x + 4, tilt=4)
+        render(os.path.join(out_dir, "trees-krummholz-side.png"))
+        clear_scene(originals)
+
+        # From above, in the prefab's own frame (no rotation): the foliage reaches toward Blender -Y.
+        x = 0.0
+        for m in forms:
+            place(m["objects"][0], (x, 0, 0))
+            label(m["shape"], x, 2.2, 0.05, size=0.5, flat=True)
+            x += 5.5
+        arrow((x - 1.5, 1.5, 0.05), (0, -1, 0), 3.5, "", flat=True, size=0.5)
+        label("downwind: Blender -Y = prefab +Z", x / 2 - 1.5, -4.3, 0.05, size=0.45, flat=True, colour="#E8702A")
+        slab(-4, x + 0.5, -5, 3.2, depth=1.0)
+        sun(elevation=45, azimuth=-35)
+        setup_render(2400, 1000, samples=64)
+        cam = bpy.data.cameras.new("Cam")
+        cam.type = "ORTHO"
+        cam.ortho_scale = x + 5
+        o = bpy.data.objects.new("Cam", cam)
+        o.location = (x / 2 - 1.5, -0.9, 50)
+        bpy.context.scene.collection.objects.link(o)
+        bpy.context.scene.camera = o
+        render(os.path.join(out_dir, "trees-krummholz-top.png"))
+        clear_scene(originals)
+
+        # A treeline: stunted firs and spruces below, krummholz above, all flagged the same way.
+        grade = math.tan(math.radians(18))
+        for season, name in (("winter", "trees-krummholz-treeline.png"), ("summer", "trees-krummholz-treeline-snowfree.png")):
+            set_season(species, seasons, season)
+            rng = random.Random(11)
+            spots = []
+            while len(spots) < 70:
+                p = Vector((rng.uniform(-24, 24), rng.uniform(-18, 26), 0))
+                if all((p - q).length > 2.6 for q in spots):
+                    spots.append(p)
+            for p in spots:
+                p.z = p.y * grade
+                band = (p.y + 18) / 44 + rng.uniform(-0.12, 0.12)   # 0 at the bottom, 1 at the top
+                if band < 0.35:
+                    sid = rng.choice([s for s in ("subalpine_fir", "engelmann_spruce") if s in built] or ["krummholz"])
+                    m = rng.choice(built[sid])
+                    k = (0.45 + 0.5 * (0.35 - band)) if sid != "krummholz" else 1.0
+                    place(m["objects"][0], p, rot=rng.uniform(0, 6.28), scale=k)
+                else:
+                    # Flag trees lower, cushions between, mats highest.
+                    v = 1 if band < 0.55 else (2 if band < 0.75 else 0)
+                    place(forms[v]["objects"][0], p, rot=math.pi / 2 + rng.uniform(-0.15, 0.15), scale=rng.uniform(0.85, 1.15))
+            arrow((-14, 6, 6 * grade + 0.1), (1, 0, 0), 7.0, "wind", flat=True, size=1.2)
+            skier(2, -12, -12 * grade)
+            slope(-30, 30, -22, 30, grade, top=SNOW if season == "winter" else srgb("#6F6A52"))
+            sun(elevation=28, azimuth=-50)
+            setup_render(2400, 1350, samples=96)
+            persp_camera((0, 2, 3), 62, 24, -18, lens=40)
+            render(os.path.join(out_dir, name))
+            clear_scene(originals)
+
+    if new and want("textures"):
+        texture_sheet(new + (["krummholz"] if "krummholz" in built else []), os.path.join(out_dir, "trees-textures-new.png"))
