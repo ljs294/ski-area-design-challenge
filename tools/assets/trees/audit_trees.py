@@ -41,7 +41,7 @@ REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 NEW = ("pacific_silver_fir", "western_hemlock", "noble_fir", "krummholz")
 CUTOFF = 0.4                                   # TreeImport.FoliageCutoff
 FOV, LOD_BIAS = 60.0, 2.0                      # MountainViewer.unity camera; QualitySettings (desktop)
-TRANSITIONS = (0.25, 0.10, 0.05, 0.003)        # ForestRenderer.Transitions
+TRANSITIONS = (0.35, 0.14, 0.05, 0.003)        # ForestRenderer.Transitions (LOD sooner: owner option A, d3142d6)
 SCREEN_SCALE = LOD_BIAS / (2 * math.tan(math.radians(FOV / 2)))
 # TreeImport's fidelity views (HemiOctDecode of frames (7,7), (6,6), (5,5)): Unity (x, y) toward the viewer.
 VIEWS = {"0": (1.0, 0.0), "22": (5.0, 2.0), "53": (3.0, 4.0)}

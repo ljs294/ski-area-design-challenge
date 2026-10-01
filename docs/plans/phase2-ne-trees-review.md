@@ -113,14 +113,15 @@ I ran [`audit_trees.py`](../../tools/assets/trees/audit_trees.py) (the [task 09 
    - **Now:** L\* 50.0, beside lodgepole pine's 52.1.
 2. **White pine thickened at its LOD1 switch:** LOD1 covered up to 1.33× LOD0's crown. Narrower, flatter cluster cards bring it to 1.02-1.15, like Douglas-fir's 1.11-1.14.
 
-| Model | Winter L\* (game shading) | LOD1 / LOD0 coverage | LOD2 / LOD0 | LOD0 until |
+| Model | Winter L\* (game shading) | LOD1 / LOD0 coverage | LOD2 / LOD0 | LOD0 until (at the model's own height) |
 |---|---|---|---|---|
-| Eastern white pine | 50.0 | 1.02-1.15 | 0.80-0.93 | 172-207 m |
+| Eastern white pine | 50.0 | 1.02-1.15 | 0.80-0.93 | 123-148 m |
 | *Lodgepole pine, Douglas-fir* | *52.1, 58.8* | *0.84-0.88, 1.11-1.14* | *0.61-0.98* | |
-| Northern red oak | 48.5 | 0.67-0.75 | 0.59-0.73 | 178-183 m |
-| Black cherry | 33.1 | 0.75-0.81 | 0.59-0.71 | 144-164 m |
+| Northern red oak | 48.5 | 0.67-0.75 | 0.59-0.73 | 127-131 m |
+| Black cherry | 33.1 | 0.75-0.81 | 0.59-0.71 | 103-117 m |
 | *Sugar maple, red maple, beech* | *39.0, 41.1, 50.6* | *0.71-0.82* | *0.40-0.82* | |
 
+- **LOD0 distances** use the game's LOD transitions since task 09's "LOD sooner" change (d3142d6: LOD0 to LOD1 at 0.35 of the screen).
 - **Geometry:** no NaNs, degenerate faces or foliage below the ground. Every model stays inside the game's culling sphere (83-90% of its radius).
 - **Wind data and UVs:** in range, like the existing trees.
 - **Black cherry is the darkest tree in the library.** That's deliberate: the real tree's bark is near-black, and sweet birch, which it also draws, is darker still. I lightened it once (from L\* 31.5).

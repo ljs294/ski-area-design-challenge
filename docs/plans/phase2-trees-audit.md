@@ -9,17 +9,19 @@ You asked to *"audit the design of all trees for realism, performance, and again
 - **Realism: two problems run through the whole library, and both show in the game.**
   - **Evergreens end in a dark, flat fin** (7 of 10). Planned separately: [the tops plan](phase2-evergreen-tops.md).
   - **Winter hardwoods are skeletons.** A bare broadleaf crown shows its main limbs and almost none of the fine twigs that make a real winter hardwood stand read as a soft grey-brown haze. From 300 m the hardwoods nearly vanish. This matters most in New England, where hardwoods are half the forest.
-- **Performance: measured in the game for the first time per model.**
-  - **The five heaviest models** (Douglas-fir, beech, western hemlock, Engelmann spruce, Pacific silver fir) would each take Sugarloaf's in-forest view to **28-30 ms** if a whole forest were made of them. The budget is 20 ms. The lightest models take it to 13-18 ms.
-  - **What drives the cost:** triangles plus overdraw (a fit across the 14 models: R² 0.84-0.96).
+- **Performance: measured in the game for the first time per model, and fine at every real site.**
+  - **Since task 09's LOD change, every 5 km site fits the 20 ms budget.** Sugarloaf, the densest, is at 18.4 ms frame p95 (forest thread).
+  - **Beech is the most expensive model:** a whole forest of it would take Sugarloaf's in-forest view to **23.6 ms** (GPU p95). The four heaviest conifers come to 19.9-20.4 ms; everything else 9.5-17.8 ms.
+  - **What drives the cost:** triangles plus overdraw (a fit across the 14 models: R² 0.82-0.95).
   - **Draw calls** aren't a problem.
-- **The three new models sit inside the existing ranges** on every measure. Predicted in-forest cost: white pine about 18 ms, red oak about 25, black cherry about 15. They share the library's two problems: the white pine has the fin, and the oak and cherry are winter skeletons. The fixes should cover them too.
+- **The three new models sit inside the existing ranges** on every measure. Predicted in-forest cost: white pine about 12 ms, red oak about 18, black cherry about 11. They share the library's two problems: the white pine has the fin, and the oak and cherry are winter skeletons. The fixes should cover them too.
 
 ## How it was measured
 
-- **In the game.** A temporary build drew every one of Sugarloaf's 2.95 million trees as one model at a time: the same positions, heights and LOD choices, and krummholz left alone. It ran the benchmark's five views (RTX 3060 Ti, 1080p) once per model, 14 runs plus the real mix. The game's lineup photographed every model at every LOD. The hook was never committed.
+- **In the game.** A temporary build drew every one of Sugarloaf's 2.95 million trees as one model at a time: the same positions, heights and LOD choices, and krummholz left alone. It ran the benchmark's five views (RTX 3060 Ti, 1080p, GPU p95) once per model, 14 runs plus the real mix. The game's lineup photographed every model at every LOD. The hook was never committed.
+- **On today's code,** with task 09's "LOD sooner" change (d3142d6). A first run without it measured 28-30 ms for the five heaviest models; the LOD change halved the number of LOD0 trees in view.
 - **In Blender:** the [audit tool](../../tools/assets/trees/audit_trees.py), whose game-shading numbers match Unity's within ±0.03, across all 18 models.
-- **The three new models** can't go into the game before you approve them, so their GPU cost is **predicted** from the fit. Its worst miss on the 14 measured models is 4.5 ms in-forest; elsewhere it's about 1 ms.
+- **The three new models** can't go into the game before you approve them, so their GPU cost is **predicted** from the fit. Its worst miss on the 14 measured models is 2.6 ms in-forest and 0.8-1.4 ms in the other views.
 
 ## Findings
 
@@ -52,11 +54,12 @@ You asked to *"audit the design of all trees for realism, performance, and again
 
 ### Medium
 
-**M1. The heaviest models cost 28-30 ms in a full in-forest view.**
-- **Where the triangles go:** about 1,000 LOD0 trees, 0.4% of the 279,000 in view, carry 48-62% of the view's tree triangles.
-- **The heaviest:** Douglas-fir (8,968-9,254 LOD0 triangles), Engelmann spruce (7,342-9,890), Pacific silver fir (7,244-9,816), western hemlock (6,864-8,946) and beech (7,911-9,509; it also has the most card area per height²).
-- **Where it bites:** Sugarloaf's real mix is 23.4 ms. Engelmann spruce draws 17% of Sugarloaf's trees, for red spruce and the other spruces.
-- **The model-side lever:** fewer, larger sprays at the same crown coverage, as the task 09 audit did for silver fir. Cutting LOD0 triangles about 30% on those models should save about 2.5 ms in-forest for a forest made of one of them, but only about 0.5 ms at Sugarloaf, where they are a smaller share. The forest thread owns the renderer-side fixes (LOD distances, culling); I'd agree this with them.
+**M1. Beech is the most expensive model, and the new red oak has its broad shape.**
+- **Measured:** a whole forest of beech would take Sugarloaf's in-forest view to 23.6 ms. It has the most card area per height² in the library (3.14, against 0.4-2.2), along with 7,911-9,509 LOD0 triangles and kept leaves.
+- **Why it matters:** New England hillsides can be largely beech and oak; red oak is 22% of the forest at Gunstock and King Pine. Red oak is predicted at about 18 ms, cheaper than beech.
+- **The fix belongs with H2:** while adding twigs, make beech cheaper (fewer, larger kept-leaf and twig cards) and keep red oak at or below the maples.
+- **The heavy conifers** (Douglas-fir, Engelmann spruce, Pacific silver fir, western hemlock) come to 19.9-20.4 ms for a whole forest: at the budget, but no real site is all one of them (Crystal is 13.4 ms). Nothing needed now. If a denser site appears, fewer, larger sprays would cut their LOD0 triangles, as the task 09 audit did for silver fir.
+- **Where the triangles go:** about 500 LOD0 trees, 0.2% of the 279,000 in view, carry 32-46% of the view's tree triangles; about 10,200 LOD2 trees carry another 25-41%.
 
 **M2. Wide broadleaves cost the most in the overview, where the trees are all impostors.**
 - **Why:** an impostor's quad is as wide as the crown.
@@ -73,39 +76,39 @@ You asked to *"audit the design of all trees for realism, performance, and again
 - **Triangle budgets:** every model passes.
 - **Draw calls:** 282-495 for a one-model forest and 932-1,111 for Sugarloaf's mix, with the GPU the limit.
 - **Variety:** three variants per model, plus per-tree rotation, scale and tint, is enough at game distances.
-- **Outside the models, for the forest thread:** Sugarloaf's in-forest view shows evenly spaced, similar-height conifers, which reads a little like a plantation. I'll pass it on.
+- **Outside the models: the plantation look.** Sugarloaf's in-forest view shows evenly spaced, similar-height conifers, which reads a little like a plantation. Each tree is 65-100% of its cell's dominant height, and the spacing is even by design. More height spread or some clumping in dense conifer stands would be a look change in placement: your call, and the forest thread's work if you want it.
 
 ## Every model
 
-GPU p95 in ms, with **Sugarloaf drawn entirely as that model** (the real mix: 23.4 in-forest, 16.4 forest, 14.7 ringforest, 7.6 overview). "~" = predicted. Card area per height² is the overdraw measure; crown coverage is from the side.
+GPU p95 in ms, with **Sugarloaf drawn entirely as that model** (the real mix: 17.3 in-forest, 11.1 forest, 11.1 ringforest, 7.6 overview). "~" = predicted. Card area per height² is the overdraw measure; crown coverage is from the side.
 
 | Model | LOD0 triangles | Card area / height² | Crown coverage | Winter L\* | LOD1 / LOD0 | In-forest | Forest | Ringforest | Overview | Issues |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Subalpine fir | 4,398-5,550 | 1.68 | 0.29 | 61.8 | 0.92 | 20.4 | 15.0 | 13.5 | 6.7 | fin |
-| Engelmann spruce | 7,342-9,890 | 1.73 | 0.35 | 56.9 | 0.89 | 28.6 | 19.1 | 16.5 | 6.5 | fin; heavy |
-| Douglas-fir | 8,968-9,254 | 2.14 | 0.25 | 58.8 | 1.12 | 30.1 | 17.7 | 15.9 | 7.0 | fin; heaviest |
-| Lodgepole pine | 2,448-2,832 | 1.24 | 0.19 | 52.1 | 0.86 | 12.8 | 8.3 | 8.7 | 6.4 | fin |
-| Mountain hemlock | 4,836-5,644 | 1.98 | 0.31 | 61.7 | 0.96 | 22.0 | 15.5 | 13.7 | 6.9 | nodding hook |
-| Quaking aspen | 4,810-6,358 | 0.41 | 0.06 | 55.6 | 0.95 | 16.8 | 12.5 | 11.8 | 7.0 | skeleton |
-| Paper birch | 4,923-7,527 | 0.69 | 0.07 | 60.3 | 0.85 | 20.6 | 14.4 | 13.7 | 7.7 | skeleton |
-| Yellow birch | 4,683-6,515 | 0.88 | 0.06 | 51.8 | 0.74 | 18.1 | 12.2 | 12.4 | 8.6 | skeleton |
-| Sugar maple | 6,725-7,320 | 0.97 | 0.08 | 39.0 | 0.73 | 22.5 | 14.5 | 14.1 | 8.7 | skeleton; bare spikes |
-| Red maple | 6,123-7,547 | 1.16 | 0.08 | 41.1 | 0.77 | 23.8 | 15.6 | 14.7 | 8.5 | skeleton; bare spikes |
-| American beech | 7,911-9,509 | 3.14 | 0.09 | 50.6 | 0.73 | 29.2 | 17.7 | 17.1 | 11.1 | skeleton; heavy; wide |
-| Pacific silver fir | 7,244-9,816 | 2.06 | 0.28 | 60.7 | 0.99 | 28.4 | 16.9 | 15.3 | 6.7 | fin; heavy |
-| Western hemlock | 6,864-8,946 | 1.75 | 0.26 | 57.1 | 0.95 | 28.7 | 14.4 | 13.6 | 6.8 | heavy |
-| Noble fir | 5,542-9,706 | 1.18 | 0.19 | 53.7 | 0.97 | 23.5 | 10.4 | 10.9 | 6.3 | fin |
+| Subalpine fir | 4,398-5,550 | 1.68 | 0.29 | 61.8 | 0.92 | 15.6 | 10.6 | 10.6 | 6.6 | fin |
+| Engelmann spruce | 7,342-9,890 | 1.73 | 0.35 | 56.9 | 0.89 | 20.4 | 12.5 | 12.0 | 6.5 | fin; heavy |
+| Douglas-fir | 8,968-9,254 | 2.14 | 0.25 | 58.8 | 1.12 | 20.3 | 11.7 | 11.5 | 6.9 | fin; heavy |
+| Lodgepole pine | 2,448-2,832 | 1.24 | 0.19 | 52.1 | 0.86 | 9.5 | 5.9 | 7.0 | 6.4 | fin |
+| Mountain hemlock | 4,836-5,644 | 1.98 | 0.31 | 61.7 | 0.96 | 16.4 | 10.9 | 10.7 | 6.9 | nodding hook |
+| Quaking aspen | 4,810-6,358 | 0.41 | 0.06 | 55.6 | 0.95 | 12.6 | 7.8 | 8.8 | 6.9 | skeleton |
+| Paper birch | 4,923-7,527 | 0.69 | 0.07 | 60.3 | 0.85 | 16.0 | 9.8 | 10.7 | 7.7 | skeleton |
+| Yellow birch | 4,683-6,515 | 0.88 | 0.06 | 51.8 | 0.74 | 14.2 | 9.0 | 10.6 | 8.6 | skeleton |
+| Sugar maple | 6,725-7,320 | 0.97 | 0.08 | 39.0 | 0.73 | 16.9 | 9.8 | 11.1 | 8.7 | skeleton; bare spikes |
+| Red maple | 6,123-7,547 | 1.16 | 0.08 | 41.1 | 0.77 | 17.8 | 10.2 | 11.2 | 8.5 | skeleton; bare spikes |
+| American beech | 7,911-9,509 | 3.14 | 0.09 | 50.6 | 0.73 | 23.6 | 12.9 | 14.0 | 11.1 | skeleton; heaviest; wide |
+| Pacific silver fir | 7,244-9,816 | 2.06 | 0.28 | 60.7 | 0.99 | 19.9 | 11.3 | 11.1 | 6.7 | fin; heavy |
+| Western hemlock | 6,864-8,946 | 1.75 | 0.26 | 57.1 | 0.95 | 19.9 | 9.8 | 10.1 | 6.8 | heavy |
+| Noble fir | 5,542-9,706 | 1.18 | 0.19 | 53.7 | 0.97 | 16.4 | 7.3 | 8.2 | 6.3 | fin |
 | Krummholz | 1,668-2,788 | – | 0.29 | 61.7 | 0.90 | – | – | – | – | |
-| **Eastern white pine** (new) | 3,110-5,764 | 2.16 | 0.12 | 50.0 | 1.08 | ~18 | ~9 | ~10 | ~7 | fin |
-| **Northern red oak** (new) | 6,229-8,710 | 1.30 | 0.07 | 48.5 | 0.71 | ~25 | ~15 | ~14 | ~11 | skeleton; bare spikes; wide |
-| **Black cherry** (new) | 3,382-4,054 | 0.53 | 0.05 | 33.1 | 0.78 | ~15 | ~10 | ~10 | ~9 | skeleton; bare spikes |
+| **Eastern white pine** (new) | 3,110-5,764 | 2.16 | 0.12 | 50.0 | 1.08 | ~12 | ~7 | ~8 | ~7 | fin |
+| **Northern red oak** (new) | 6,229-8,710 | 1.30 | 0.07 | 48.5 | 0.71 | ~18 | ~10 | ~11 | ~11 | skeleton; bare spikes; wide |
+| **Black cherry** (new) | 3,382-4,054 | 0.53 | 0.05 | 33.1 | 0.78 | ~11 | ~7 | ~8 | ~9 | skeleton; bare spikes |
 
-**What the fit says** (in-forest): GPU ms ≈ 3.8 + 1.04 × the view's tree triangles (millions) + 2.3 × overdraw. A million triangles in that view costs about 1 ms. The forest and ringforest views fit closely (R² 0.96 and 0.94).
+**What the fit says** (in-forest): GPU ms ≈ 3.0 + 1.08 × the view's tree triangles (millions) + 2.65 × overdraw (R² 0.88). A million triangles in that view costs about 1 ms. The forest view fits most closely (R² 0.95); ringforest 0.82.
 
 ## The new models against the game's
 
 - **Look:** each new model's colour, snow and LOD coverage falls inside the range of the trees already in the game. White pine's winter L\* is 50.0 (lodgepole 52.1); oak's is 48.5 (beech 50.6); cherry's is 33.1, darker than the maples (39-41) as the real tree is.
-- **Cost:** white pine and black cherry are among the cheapest models. Red oak sits with the maples: cheaper than beech in-forest, as costly as beech in the overview.
+- **Cost:** white pine and black cherry are among the cheapest models, with lodgepole pine and aspen. Red oak sits with the maples: cheaper than beech in-forest, as costly as beech in the overview.
 - **Shared problems:** H1 (the white pine's fin) and H2 and M3 (oak's and cherry's winter skeletons and bare spikes). Fixing them in the script fixes the new and the old trees together.
 
 ## Plan (for your approval)
@@ -116,8 +119,8 @@ GPU p95 in ms, with **Sugarloaf drawn entirely as that model** (the real mix: 23
    - a "twig haze" card on LOD1-2 so mid-distance crowns and impostors keep the mass;
    - leaders that end inside the twig crown.
 
-   **Measured before you see it:** crown coverage from the side, a 300 m stand in the game's shading, and the cost predicted from the fit. Hardwoods are among the cheaper models today, so there's room. My target is at most +2 ms for an all-hardwood in-forest view. Blender prototype first, then your photo review, as always.
-3. **Heavy models (M1):** with the forest thread, try fewer, larger sprays on Engelmann spruce first: of the heavy models, it has the biggest share at Sugarloaf (17%). Keep the change only if the look holds and the game measures the saving.
+   **Measured before you see it:** crown coverage from the side, a 300 m stand in the game's shading, and the cost predicted from the fit. Most hardwoods are among the cheaper models today, so there's room. The targets: at most +2 ms for an all-hardwood in-forest view, and beech (M1) cheaper than today. Blender prototype first, then your photo review, as always.
+3. **Heavy conifers (M1):** nothing now; every site fits since task 09's LOD change.
 4. **One import for everything approved:**
 
    | Batch | Git LFS |
@@ -132,6 +135,6 @@ GPU p95 in ms, with **Sugarloaf drawn entirely as that model** (the real mix: 23
 
 ## Decisions for you
 
-1. Approve the hardwood-crown fix (2) for a Blender prototype and photo review?
-2. Try the heavy-model change (3) with the forest thread, or leave performance to the renderer work?
-3. Combine everything you approve into one import (4)?
+1. Approve the hardwood-crown fix (2), with beech made cheaper, for a Blender prototype and photo review?
+2. Combine everything you approve into one import (4)?
+3. **The plantation look** (forest placement): ask the forest thread for more height spread or some clumping in dense conifer stands, or leave it as it is?
