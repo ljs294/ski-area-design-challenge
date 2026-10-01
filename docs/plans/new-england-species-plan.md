@@ -1,6 +1,15 @@
-# New England tree species: plan
+# Task 09 phase 2: New England tree species
 
-**Audience:** the project owner. **Status:** 🟦 draft for your review. **Date:** 2026-09-30. **Builds on:** the [species-model priority report](phase1-species-priority.md) (task 09) and its survey of every US ski area. Phase 1 covers Jackson Hole and Crystal Mountain (D3); this plans the Northeast for whenever you'd like it, Phase 2 at the earliest unless you say otherwise.
+**Audience:** the project owner. **Status:** decided 2026-09-30 (below); runs in its own thread after task 09. **Date:** 2026-09-30. **Builds on:** the [species-model priority report](phase1-species-priority.md) (task 09) and its survey of every US ski area.
+
+## Decided (owner, 2026-09-30)
+
+| ID | Decision |
+|---|---|
+| NE1 | **All nine missing species are in scope**: the three waves below are one task, **task 09 phase 2** |
+| NE2 | **The test mountain is Sugarloaf, Maine** (5 km): spruce-fir and fir krummholz on top, northern hardwoods below, and S1M lidar |
+| NE3 | **A new model only where it looks different.** A species that looks largely like one we already have shares that model instead of getting its own. Diversity alone isn't a reason for a model |
+| NE4 | It runs in its own thread, as tree work does (higher reasoning), after task 09 |
 
 ## Where New England stands
 
@@ -23,36 +32,61 @@ The survey found **93 New England ski areas** with forest: Vermont 29, New Hamps
 
 Elevation sorts these neatly. Oak, white pine and hemlock grow low and to the south. The northern hardwoods we already have fill the middle slopes. Red spruce and balsam fir cap the big mountains, down to fir krummholz at Sugarloaf's, Saddleback's and Wildcat's summits.
 
-## The plan: three waves of three species
+## The plan: look first, then model
 
-| Wave | Species | Average NE ski area | Big NE resorts | All US ski areas |
+**Step 1: decide which species need a model of their own (NE3).** Render each candidate's nearest existing model beside a description of the real tree in winter, the season the game shows (field-guide traits: silhouette, branching, bark, needle or bare-twig colour). Then sort each species into one of two groups:
+- **Shares a model:** it looks largely alike at game distances. The species map then counts it as drawn as itself, so F1 credits it.
+- **Needs its own model:** it doesn't.
+
+You approve the sorting from the side-by-side renders. A first guess:
+
+| Species | Nearest model we have | First guess | Why |
+|---|---|---|---|
+| Balsam fir | subalpine fir | **share** | Both are narrow, dark firs with flat sprays and smooth, blistered grey bark; balsam is a little broader |
+| Red spruce | Engelmann spruce | **share**, maybe with its own palette | The same dense spruce cone; red spruce is shorter and yellower green |
+| Eastern hemlock | western hemlock (task 09) | **share** | The same drooping leader and feathery sprays; eastern is smaller and broader |
+| Sweet birch | yellow birch | **probably share** | The same birch form; its bark is darker |
+| Black cherry | none close | own model, or share with yellow birch | Dark, flaky bark; an irregular crown. Close up it's distinctive, at a distance less so |
+| White ash | none close | **own model** | Stout opposite twigs and a sparse, coarse winter crown; diamond-ridged bark |
+| Northern red oak | none close | **own model** | A broad, rounded crown on heavy limbs, ridged bark; young trees keep dry leaves |
+| Eastern white pine | none close | **own model** | New England's signature tree: tiered horizontal limbs and soft, long needles in tufts |
+| Northern white-cedar | none close | **own model**, or share with western hemlock | Flat scale-leaf fans, narrow cone; small share (0.7%), so a share may do |
+
+If the first guess holds, that's **four or five new models instead of nine**: oak, white pine, ash, white-cedar, and maybe black cherry.
+
+**Step 2: build the models that are needed** with the free Blender pipeline:
+- 3 variants each, within budget;
+- your photo review before any import;
+- only the new models imported, so existing tree files stay byte-identical.
+
+**Step 3: switch them on.**
+- In the species map, give each species its own model or its approved shared one.
+- Re-run the survey report (`demo.bat` 28, from the cache).
+- Download Sugarloaf and fly it.
+
+**What all nine species bring** (if each were drawn as itself; the sorting decides how many models it takes):
+
+| | Species | Average NE area | Big NE resorts | All US |
 |---|---|---|---|---|
-| Today | (after task 09) | 49% | 66% | 47% |
-| **1: the big mountains** | red spruce, balsam fir, eastern hemlock | 65% | **88%** | 52% |
-| **2: the lower hills** | northern red oak, eastern white pine, white ash | **87%** | 95% | **63%** |
-| **3: the rest** | sweet birch, black cherry, northern white-cedar | 91% | 97% | 67% |
+| Today (after task 09) | | 49% | 66% | 47% |
+| Spruce-fir and hemlock | red spruce, balsam fir, eastern hemlock | 65% | 88% | 52% |
+| Lower hills | northern red oak, eastern white pine, white ash | 87% | 95% | 63% |
+| The rest | sweet birch, black cherry, northern white-cedar | **91%** | **97%** | **67%** |
 
-*Species fidelity: the share of forest biomass drawn as its real species. Each 10% of fidelity is 2.5 flora points (F1).*
+*Species fidelity: the share of forest biomass drawn as its real species (or an approved shared model, NE3). Each 10% is 2.5 flora points (F1). Sugarloaf goes from 56% to about 96%.*
 
-- **Recommended order:** wave 1 first. It completes the destination mountains: Wildcat goes from 53% to 95%, Sugarloaf 56% to 92%, Cannon 58% to 89%. Those are the mountains players will download first. Starting with oak and pine instead helps the average ski area sooner (49% to 75%), but the big resorts barely move (66% to 74%). After wave 2 both orders end in the same place.
-- **What each species needs from the Blender pipeline:** a parameter block and a palette. A new needle or leaf style is listed where one is needed.
-  - **Red spruce:** derived from Engelmann spruce: shorter (20 m), a narrower cone, yellower green needles, scaly red-brown bark.
-  - **Balsam fir:** derived from subalpine fir: a dense, dark spire with flat sprays, smooth grey bark with resin blisters. The existing krummholz model is fir-based already, so New England's summits get their krummholz for free.
-  - **Eastern hemlock:** derived from western hemlock: smaller (20–25 m), a broader, irregular crown, the drooping leader, very fine flat sprays.
-  - **Northern red oak:** a new oak leaf style (lobed, bristle-tipped; summer and red-brown autumn), a broad rounded crown on a few heavy limbs, and ridged bark with flat-topped stripes. Young oaks hold dry leaves through winter like beech, through the existing "kept leaves" season flag.
-  - **Eastern white pine:** a new soft long-needle tuft style (needles in fives). The form is the hard part and the most recognisable tree in New England: tiered horizontal branches, an irregular crown when old, often swept to one side by the wind.
-  - **White ash:** a new compound-leaf style, opposite branching with stout twigs (it reads differently from maple bare in winter), and diamond-patterned bark.
-  - **Wave 3:** sweet birch (dark, cherry-like bark), black cherry (dark, flaky "burnt chip" bark), and northern white-cedar (a new flat scale-fan foliage style, a narrow conical crown).
-- **How each wave runs**, as the task 09 trees did:
-  1. A higher-reasoning tree thread builds the three species.
-  2. You approve them from Cycles photos.
-  3. Only the new models are imported.
-  4. The species map switches them on.
-  5. The survey and report re-run. That's `demo.bat` 28; it reads from the cache, so it takes about a minute.
-- **Cost:**
-  - **Time:** about a day per species plus your review, so a week per wave.
-  - **Git LFS:** about 7 MB per species, 63 MB for all nine. That's about 280 MB of the free 1 GB after task 09.
-  - **Performance:** a site draws only the species it has (task 09), so New England models cost nothing at Jackson Hole or Crystal Mountain.
+**What each new model needs from the Blender pipeline** (if it's needed):
+- **Northern red oak:** a new oak leaf style (lobed, bristle-tipped; summer and red-brown autumn), a broad, rounded crown on a few heavy limbs, and ridged bark with flat-topped stripes. Young oaks hold dry leaves through winter like beech, through the existing "kept leaves" season flag.
+- **Eastern white pine:** a new soft, long-needle tuft style (needles in fives). The form is the hard part: tiered horizontal branches, an irregular crown when old, often swept to one side by the wind.
+- **White ash:** a new compound-leaf style, opposite branching with stout twigs, and diamond-patterned bark.
+- **Black cherry:** dark, flaky bark and an irregular, open crown.
+- **Northern white-cedar:** a new flat scale-fan foliage style and a narrow conical crown.
+- **Shared species:** they need no build. If you'd like a shared species tinted differently, that's a later option: per-species colour in the shader, not a new model.
+
+**Cost:**
+- **Time:** about a day per new model plus your reviews; the sorting itself is a day.
+- **Git LFS:** about 7 MB per new model, so 30–40 MB. That's about 250 MB of the free 1 GB after task 09.
+- **Performance:** a site draws only the species it has (task 09), so these cost nothing at Jackson Hole or Crystal Mountain. Shared models even reduce Sugarloaf's draws.
 
 ## Also worth doing for New England
 
@@ -63,13 +97,11 @@ Elevation sorts these neatly. Oak, white pine and hemlock grow low and to the so
    - ash, cherry and basswood → yellow birch rather than aspen.
 
    I'll make the hemlock and fir switches in task 09. The broadleaf ones are a quick follow-up if you like them.
-2. **A New England test mountain:** a 5 km download of **Wildcat** (spruce-fir on top, hardwoods below, next to Jackson, NH) or **Black Mountain, NH** (hardwoods and hemlock). It would be the region's demo, like Crystal Mountain is for the Cascades. Wildcat is the stronger test of wave 1.
+2. **The test mountain is Sugarloaf (NE2):** a 5 km download (Sugarloaf, Maine; about 45.04° N, 70.31° W), the region's demo as Crystal Mountain is the Cascades'. Benchmark it like the other two: frame p95, VRAM and draw calls.
 3. **Calibrate the forest for the region:** tree density and height still use Jackson Hole's factors (D4). New England's closed hardwood canopy differs. A lidar truth set from New Hampshire's public 3DEP point clouds, made the way Jackson Hole's was, would fit the Northeast's own factors. That's the "per-region calibration" still on the list.
 4. **Seasons:** New England is the place players will want autumn colour. All the hardwoods already carry summer and autumn leaves; the season inputs in the tree shader are a separate task (TR4, T9). Oak, ash and cherry would ship with their autumn textures.
 
-## Decisions for you
+## Still open (in phase 2)
 
-1. **Order:** wave 1 first, the big mountains (recommended), or the lower hills first?
-2. **When:** right after task 09, or in Phase 2?
-3. **Test mountain:** Wildcat (recommended), Black Mountain, or another?
-4. **Look-alikes:** switch the broadleaf look-alikes now (oaks → beech; ash, cherry and basswood → yellow birch)? Recommended: yes.
+- **The sorting (step 1):** which species share a model. Decided from the side-by-side renders.
+- **The look-alike switches** for species still without their own model once phase 2 is done. The first guesses are oaks → American beech, and ash, cherry and basswood → yellow birch. Decided with the renders too.
