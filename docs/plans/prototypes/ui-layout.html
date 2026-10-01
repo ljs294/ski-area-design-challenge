@@ -6,6 +6,8 @@
 /* The owner's layout sketch (Ski-Area-Design-Challenge UI.pdf) as an interactive mockup in the Trailhead look, over a
    capture of our Unity mountain. Everything happens in one 1280x720 stage scaled to the page; #solo shows it alone.
    Sizes follow the sketch, which is drawn at screen pixels: a bar docked in the corner, 40 px map controls 10 px in. */
+/* Overpass draws its middle dot off-centre; this face sends only U+00B7 to a system font, so "a · b" reads evenly. */
+@font-face { font-family: 'DotFix'; src: local('Segoe UI'), local('SegoeUI'), local('Helvetica Neue'), local('Arial'); unicode-range: U+00B7; }
 :root {
   --bg: #efefec; --fg: #1a1c1f; --muted: #5d6268; --line: #d6d6d0;
   --font: 'Archivo', 'Segoe UI', system-ui, sans-serif;
@@ -39,7 +41,7 @@ body.solo .frame { border-radius: 0; }
 .stage.sketching { cursor: crosshair; }
 
 /* ---------- the HUD: warm graphite, Overpass + Overpass Mono, solid sign-style symbols ---------- */
-.hud { font-family: 'Overpass', 'Segoe UI', sans-serif; color: #efe9df; font-size: 13px; font-variant-numeric: tabular-nums;
+.hud { font-family: 'DotFix', 'Overpass', 'Segoe UI', sans-serif; color: #efe9df; font-size: 13px; font-variant-numeric: tabular-nums;
   --panel: rgba(28, 25, 22, 0.96); --knock: #1c1916; --hair: #3b3632; --hair2: #4a443e; --div: #3d3833; --soft: #a39b90; --dim: #8f877c;
   --white: #fbf8f2; --ink: #1f1c19; --flag: #ff6a1f; --amber: #f0b43c; --green: #8fcf8a; --red: #ff7a66; }
 .hud .abs { position: absolute; }
@@ -51,9 +53,9 @@ body.solo .frame { border-radius: 0; }
 .hud .bar { position: absolute; height: 52px; display: flex; align-items: stretch; background: var(--panel); z-index: 5; }
 .hud .bar.docked { left: 0; bottom: 0; border-top: 1px solid var(--hair); border-right: 1px solid var(--hair); border-radius: 0 8px 0 0; }
 .hud .bar.floating { left: 10px; bottom: 10px; border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 8px 22px rgba(10, 20, 35, 0.35); }
-.hud .bar .cell { position: relative; display: flex; align-items: center; gap: 8px; padding: 0 12px; white-space: nowrap; }
+.hud .bar .cell { position: relative; display: flex; align-items: center; gap: 8px; padding: 0 10px; white-space: nowrap; }
 .hud .bar .cell.sep::before { content: ''; position: absolute; left: 0; top: 13px; bottom: 13px; width: 1px; background: var(--div); }
-.hud .tbtn { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 10px; border-radius: 5px; font: 700 13.5px 'Overpass'; color: #efe9df; }
+.hud .tbtn { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 10px; border-radius: 5px; font: 700 13.5px 'DotFix', 'Overpass'; color: #efe9df; }
 .hud .tbtn:hover { background: #34302b; }
 .hud .tbtn.on, .hud .tbtn.on:hover { background: #efe9df; color: #1b1815; }
 .hud .tbtn svg.g { width: 18px; height: 18px; }
@@ -61,7 +63,7 @@ body.solo .frame { border-radius: 0; }
 .hud .ib:hover { background: #34302b; }
 .hud .ib svg.g { width: 20px; height: 20px; }
 .hud .v { font: 600 14px 'Overpass Mono', monospace; }
-.hud .day { font: 800 14px 'Overpass'; }
+.hud .day { font: 800 14px 'DotFix', 'Overpass'; }
 .hud .ampm { font-size: 10.5px; margin-left: 3px; color: var(--soft); }
 /* the day, then the time with the weather centred in small text under it (as today's earnings sit under the balance) */
 .hud .when { display: grid; justify-items: center; gap: 2px; line-height: 1.1; }
@@ -69,14 +71,22 @@ body.solo .frame { border-radius: 0; }
 .hud .wxline svg.g { width: 15px; height: 15px; }
 .hud .wxline .pp { display: flex; align-items: center; gap: 3px; margin-left: 5px; color: #b9c8e2; }
 .hud .wxline .pp svg.g { width: 12px; height: 12px; }
-/* resort status, like a lift board: a lamp and a word, with the hours under it */
-.hud .status { display: grid; justify-items: center; gap: 3px; line-height: 1.1; }
-.hud .status .st { display: flex; align-items: center; gap: 6px; font: 800 13.5px 'Overpass'; }
-.hud .status .lamp { width: 9px; height: 9px; border-radius: 50%; background: var(--lamp); box-shadow: inset 0 -1.5px 0 rgba(0, 0, 0, 0.28), 0 0 0 1.5px rgba(0, 0, 0, 0.4); }
-.hud .status .hrs { font: 600 11px 'Overpass Mono', monospace; color: var(--soft); }
+/* the resort's name, with the lifts' status as a small symbol in front of it; click to rename */
+.hud .resort { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 9px 0 7px; border-radius: 5px; font: 800 14.5px 'DotFix', 'Overpass'; white-space: nowrap; }
+.hud .resort:hover { background: #34302b; }
+.hud .resort #rname { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.hud svg.st { display: block; width: 16px; height: 16px; flex: none; }
+.hud .kv svg.st { width: 14px; height: 14px; }
+.hud .statusline { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font: 700 13px 'DotFix', 'Overpass'; }
+.hud .statusline span { margin-left: auto; color: var(--soft); font-weight: 600; font-size: 12px; }
+.hud .drop .mhead { display: grid; gap: 2px; padding: 5px 12px 8px; }
+.hud .drop .mhead b { font: 800 14px 'DotFix', 'Overpass'; }
+.hud .drop .mhead span { font: 500 12px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .field { width: 100%; height: 38px; padding: 0 11px; background: #12100e; border: 1px solid var(--hair2); border-radius: 4px; color: #fff; font: 800 15px 'DotFix', 'Overpass'; outline: none; user-select: text; -webkit-user-select: text; }
+.hud .field:focus { border-color: #cfc7bb; }
 /* a figure with a small label under it */
 .hud .fig { display: grid; justify-items: end; gap: 2px; line-height: 1.1; }
-.hud .fig .lab { font: 700 10.5px 'Overpass'; color: var(--soft); }
+.hud .fig .lab { font: 700 10.5px 'DotFix', 'Overpass'; color: var(--soft); }
 .hud .spd { display: flex; gap: 0; }
 .hud .spd span { width: 17px; height: 26px; display: grid; place-items: center; color: #5a534c; border-radius: 3px; }
 .hud .spd span:hover { background: #34302b; }
@@ -93,8 +103,8 @@ body.solo .frame { border-radius: 0; }
 
 /* map controls: top right and bottom right */
 .hud .tr { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 5; }
-.hud .br { position: absolute; right: 10px; bottom: 10px; display: grid; gap: 6px; z-index: 5; }
-.hud .sq { width: 40px; height: 40px; display: grid; place-items: center; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; color: #e6dfd4; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.28); font: 800 13px 'Overpass'; }
+.hud .br { position: absolute; right: 10px; bottom: 10px; display: grid; gap: 6px; z-index: 5; transition: bottom 0.15s ease; }
+.hud .sq { width: 40px; height: 40px; display: grid; place-items: center; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; color: #e6dfd4; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.28); font: 800 13px 'DotFix', 'Overpass'; }
 .hud .sq:hover { background: #34302b; color: #fff; }
 .hud .sq.on, .hud .sq.on:hover { background: #efe9df; color: #1b1815; --knock: #efe9df; }
 .hud .pair { display: grid; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.28); overflow: hidden; }
@@ -105,14 +115,14 @@ body.solo .frame { border-radius: 0; }
 /* the toolbox tray */
 .hud .box { position: absolute; left: 10px; width: 420px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 4; }
 .hud .tabs { display: flex; gap: 2px; padding: 8px 8px 7px; }
-.hud .tabs span { padding: 5px 10px 4px; border-radius: 4px; font: 700 14.5px 'Overpass'; color: #9a9186; }
+.hud .tabs span { padding: 5px 10px 4px; border-radius: 4px; font: 700 14.5px 'DotFix', 'Overpass'; color: #9a9186; }
 .hud .tabs span:hover { color: #efe9df; }
 .hud .tabs span.on { background: #3b3631; color: #fff; }
 .hud .tabrule { height: 1px; background: #5b544d; margin: 0 8px; }
-.hud .toollabel { padding: 9px 12px 7px; font: 700 12.5px 'Overpass'; color: #fff; display: flex; gap: 8px; }
+.hud .toollabel { padding: 9px 12px 7px; font: 700 12.5px 'DotFix', 'Overpass'; color: #fff; display: flex; gap: 8px; }
 .hud .toollabel .mono { color: var(--soft); font-weight: 500; }
 .hud .tools { display: flex; gap: 6px; padding: 0 10px 10px; }
-.hud .tool { --knock: #2d2926; width: 64px; height: 60px; display: grid; justify-items: center; align-content: center; gap: 5px; background: #2d2926; border-radius: 5px; font: 700 10.5px 'Overpass'; color: #e2dace; }
+.hud .tool { --knock: #2d2926; width: 64px; height: 60px; display: grid; justify-items: center; align-content: center; gap: 5px; background: #2d2926; border-radius: 5px; font: 700 10.5px 'DotFix', 'Overpass'; color: #e2dace; }
 .hud .tool:hover { --knock: #3a3531; background: #3a3531; color: #fff; }
 .hud .tool.on, .hud .tool.on:hover { --knock: #efe9df; background: #efe9df; color: #1b1815; }
 .hud .tool svg.g { width: 26px; height: 26px; }
@@ -122,62 +132,62 @@ body.solo .frame { border-radius: 0; }
 .hud .cols { display: grid; grid-template-columns: 1fr 1fr; }
 .hud .cols .kv + .kv { border-left: 1px solid var(--hair); }
 .hud .tbl { padding: 0 0 4px; }
-.hud .tbl .r { display: grid; align-items: center; gap: 8px; padding: 5px 12px; border-top: 1px solid #36312c; font: 600 12.5px 'Overpass'; }
-.hud .tbl .r.th { border-top: 0; color: var(--soft); font: 700 11.5px 'Overpass'; padding: 8px 12px 4px; }
+.hud .tbl .r { display: grid; align-items: center; gap: 8px; padding: 5px 12px; border-top: 1px solid #36312c; font: 600 12.5px 'DotFix', 'Overpass'; }
+.hud .tbl .r.th { border-top: 0; color: var(--soft); font: 700 11.5px 'DotFix', 'Overpass'; padding: 8px 12px 4px; }
 .hud .tbl .n { text-align: right; font: 500 12.5px 'Overpass Mono', monospace; }
-.hud .tbl .r.th .n { font: 700 11.5px 'Overpass'; }
-.hud .kv dd .word { font: 700 12.5px 'Overpass'; display: inline-flex; gap: 6px; align-items: center; }
+.hud .tbl .r.th .n { font: 700 11.5px 'DotFix', 'Overpass'; }
+.hud .kv dd .word { font: 700 12.5px 'DotFix', 'Overpass'; display: inline-flex; gap: 6px; align-items: center; }
 .hud .tbl .nm { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hud .tbl .foot { padding: 7px 12px 4px; font: 500 12px 'Overpass'; color: var(--soft); border-top: 1px solid #36312c; }
+.hud .tbl .foot { padding: 7px 12px 4px; font: 500 12px 'DotFix', 'Overpass'; color: var(--soft); border-top: 1px solid #36312c; }
 .hud .lamp { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--lamp); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.4); }
 
 /* floating panels */
 .hud .pn { position: absolute; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 6; }
-.hud .pn .hd { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--hair); font: 800 14px 'Overpass'; cursor: grab; }
+.hud .pn .hd { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--hair); font: 800 14px 'DotFix', 'Overpass'; cursor: grab; }
 .hud .pn .hd .nm { color: var(--soft); font-weight: 600; }
 .hud .pn .hd .x { margin-left: auto; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 4px; color: var(--soft); }
 .hud .pn .hd .x:hover { background: #34302b; color: #fff; }
 .hud .pn .hd svg.g { width: 18px; height: 18px; }
-.hud .plate { display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 3px; border-radius: 3px; font: 900 11.5px 'Overpass'; color: var(--flag); box-shadow: inset 0 0 0 1.5px var(--flag); }
+.hud .plate { display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 3px; border-radius: 3px; font: 900 11.5px 'DotFix', 'Overpass'; color: var(--flag); box-shadow: inset 0 0 0 1.5px var(--flag); }
 .hud .plate.built { color: var(--ink); background: var(--white); box-shadow: none; }
 .hud .seg { display: flex; border: 1px solid var(--hair2); border-radius: 4px; overflow: hidden; }
-.hud .seg span { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 0 4px; font: 700 11.5px 'Overpass'; color: var(--soft); border-left: 1px solid var(--hair2); }
+.hud .seg span { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 0 4px; font: 700 11.5px 'DotFix', 'Overpass'; color: var(--soft); border-left: 1px solid var(--hair2); }
 .hud .seg span:hover { color: #fff; }
 .hud .seg span:first-child { border-left: 0; }
 .hud .seg span.on { background: #efe9df; color: #1b1815; }
 .hud .seg span.off { color: #5d5750; cursor: default; }
 .hud .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 7px 12px; margin: 0; }
-.hud .kv dt { color: var(--soft); font: 600 12.5px 'Overpass'; align-self: center; }
+.hud .kv dt { color: var(--soft); font: 600 12.5px 'DotFix', 'Overpass'; align-self: center; white-space: nowrap; }
 .hud .kv dd { margin: 0; text-align: right; font: 500 12.5px 'Overpass Mono', monospace; }
 .hud .kv dd b { font-weight: 700; color: #fff; }
-.hud .sub { padding: 8px 12px 0; font: 700 12.5px 'Overpass'; color: #e6dfd4; display: flex; justify-content: space-between; }
+.hud .sub { padding: 8px 12px 0; font: 700 12.5px 'DotFix', 'Overpass'; color: #e6dfd4; display: flex; justify-content: space-between; }
 .hud .sub span + span { color: var(--soft); font-weight: 600; }
 .hud .rule { height: 1px; background: var(--hair); }
-.hud .hint { padding: 7px 12px; font: 500 12.5px 'Overpass'; color: #cfc7bb; line-height: 1.4; }
+.hud .hint { padding: 7px 12px; font: 500 12.5px 'DotFix', 'Overpass'; color: #cfc7bb; line-height: 1.4; }
 .hud .hint b { color: #fff; }
 .hud .acts { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 4px 12px 12px; }
-.hud .go { white-space: nowrap; display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 12px; background: #1a6b3c; color: #fff; border-radius: 4px; font: 800 13px 'Overpass'; }
+.hud .go { white-space: nowrap; display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 12px; background: #1a6b3c; color: #fff; border-radius: 4px; font: 800 13px 'DotFix', 'Overpass'; }
 .hud .go:hover { background: #1f7d47; }
 .hud .go.danger { background: #8e2b1f; }
 .hud .go.danger:hover { background: #a3342a; }
 .hud .go.dis { background: #2e2a26; color: #6f675e; cursor: default; }
-.hud .ghost { display: grid; place-items: center; height: 36px; padding: 0 12px; border: 1px solid var(--hair2); border-radius: 4px; font: 700 12.5px 'Overpass'; color: #cfc7bb; white-space: nowrap; }
+.hud .ghost { display: grid; place-items: center; height: 36px; padding: 0 12px; border: 1px solid var(--hair2); border-radius: 4px; font: 700 12.5px 'DotFix', 'Overpass'; color: #cfc7bb; white-space: nowrap; }
 .hud .ghost:hover { border-color: #8f877c; color: #fff; }
 .hud .ghost.dis { color: #5d5750; cursor: default; }
 .hud .drop { position: absolute; right: 10px; top: 56px; width: 236px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); padding: 6px 0; z-index: 7; }
-.hud .drop .row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font: 600 13px 'Overpass'; }
+.hud .drop .row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font: 600 13px 'DotFix', 'Overpass'; }
 .hud .drop .row:hover { background: #34302b; }
 .hud .drop .row .r { margin-left: auto; color: var(--dim); font: 500 11.5px 'Overpass Mono'; }
-.hud .drop .row .r.val { color: #efe9df; font: 700 12px 'Overpass'; }
+.hud .drop .row .r.val { color: #efe9df; font: 700 12px 'DotFix', 'Overpass'; }
 .hud .drop .sepl { height: 1px; background: var(--hair); margin: 5px 0; }
 .hud .chk { width: 15px; height: 15px; border: 1.5px solid #8f877c; border-radius: 3px; display: grid; place-items: center; }
 .hud .chk.on { background: #efe9df; border-color: #efe9df; }
 .hud .chk.on::after { content: ''; width: 7px; height: 4px; border-left: 2px solid #1b1815; border-bottom: 2px solid #1b1815; transform: rotate(-45deg) translate(1px, -1px); }
 .hud .log { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: grid; gap: 6px; justify-items: center; z-index: 8; pointer-events: none; }
-.hud .log div { display: grid; grid-template-columns: 3px auto; gap: 10px; align-items: center; padding: 8px 12px 8px 0; background: var(--panel); border: 1px solid var(--hair); border-radius: 4px; font: 600 13px 'Overpass'; white-space: nowrap; overflow: hidden; animation: logIn 0.2s ease; }
+.hud .log div { display: grid; grid-template-columns: 3px auto; gap: 10px; align-items: center; padding: 8px 12px 8px 0; background: var(--panel); border: 1px solid var(--hair); border-radius: 4px; font: 600 13px 'DotFix', 'Overpass'; white-space: nowrap; overflow: hidden; animation: logIn 0.2s ease; }
 .hud .log div i { align-self: stretch; }
 @keyframes logIn { from { opacity: 0; transform: translateY(-6px); } }
-.hud .strip { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 12px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; font: 600 13px 'Overpass'; z-index: 6; }
+.hud .strip { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 12px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; font: 600 13px 'DotFix', 'Overpass'; z-index: 6; }
 .hud .strip .ghost { height: 28px; }
 .hud .modal { position: absolute; inset: 0; background: rgba(10, 16, 26, 0.45); display: grid; place-items: center; z-index: 9; }
 .hud .modal .pn { position: relative; width: 320px; }
@@ -225,7 +235,7 @@ body.solo .frame { border-radius: 0; }
   <ul class="try">
     <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
-    <li><b>Also live:</b> the dock button at the right end of the bar (docked or floating), play/pause and four speeds, save (white when there are changes), Analysis with six tabs, Units (metric or imperial) in the menu, the sketch pencil, map layers, zoom and the compass. The bar shows the weather with the next 24 hours' snowfall, the resort's status and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, the tool letters, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Also live:</b> the dock button at the right end of the bar (docked or floating), play/pause and four speeds, save (white when there are changes), Analysis with six tabs, Units (metric or imperial) in the menu, the sketch pencil, map layers, zoom and the compass. The bar shows the resort's name with its lift status as a symbol (click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
     <div class="map" id="map"><img src="assets/game-bluebird.jpg" alt="The mountain on a bluebird day"><svg id="world" viewBox="0 0 1280 720"></svg></div>
@@ -290,7 +300,7 @@ body.solo .frame { border-radius: 0; }
   const DIFFS = { green: 'Green', blue: 'Blue', black: 'Black', double: 'Double' };
   const S = {
     day: 148, t: 5 * 3600 + 27 * 60 + 47, paused: false, speed: 2, docked: true,
-    cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true, units: 'metric', atab: 'overview',
+    name: 'Jackson Peaks', cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true, units: 'metric', atab: 'overview',
     // today's money in parts (they sum to today): overnight running costs and construction already under way
     incomeToday: 0, opsToday: 0.09e6, buildToday: 5.68e6, base: 142,
     history: [0.41, 0.38, -1.92, 0.45, 0.52, 0.47, 0.12, 0.55, 0.58, -0.84, 0.49, 0.53, 0.61],
@@ -350,15 +360,23 @@ body.solo .frame { border-radius: 0; }
   // The weather line: symbol, temperature, then the snowfall forecast for the next 24 hours.
   const wxLine = (w) => `${wxIcon(w.kind)}<span>${tempTxt(w.temp)}</span><span class="pp">${g('s-flake')}${snowAmt(w.fc)}</span>`;
   const wxTitle = (w) => `${w.desc}, ${tempTxt(w.temp)}, wind ${windTxt(w.dir, w.kmh)}. Snow forecast: ${snowAmt(w.fc)} in the next 24 hours${w.rate ? `; falling now at ${snowAmt(w.rate)} an hour` : ''}.`;
-  // The resort's status, like a lift board: open, last chair, or closed, with the hours under it.
+  // The resort's lift status: open, last chair, or closed. In the bar it's a symbol in front of the resort's name.
+  const SITE = 'Jackson Hole, Wyoming';
   const LIFTS_OPEN = 8.5, LAST_CHAIR = 16.25, LIFTS_CLOSE = 16.5;
   function resortStatus(t) {
     const h = t / 3600;
-    if (h >= LIFTS_OPEN && h < LAST_CHAIR) return { label: 'Open', lamp: '#5fbf6a', sub: 'until 4:30 PM' };
-    if (h >= LAST_CHAIR && h < LIFTS_CLOSE) return { label: 'Last chair', lamp: '#f0b43c', sub: 'closes 4:30 PM' };
-    return { label: 'Closed', lamp: '#d4513f', sub: 'opens 8:30 AM' };
+    if (h >= LIFTS_OPEN && h < LAST_CHAIR) return { key: 'open', label: 'Open', lamp: '#3aa45a', text: 'Open until 4:30 PM' };
+    if (h >= LAST_CHAIR && h < LIFTS_CLOSE) return { key: 'last', label: 'Last chair', lamp: '#f0b43c', text: 'Last chair, closes 4:30 PM' };
+    return { key: 'closed', label: 'Closed', lamp: '#d4513f', text: 'Closed, opens 8:30 AM' };
   }
-  const statusHtml = (st) => `<span class="st"><i class="lamp" style="--lamp:${st.lamp}"></i>${st.label}</span><span class="hrs">${st.sub}</span>`;
+  // A green check (open), an amber clock (last chair) or a red bar (closed), like a lift-status board.
+  function statusSym(st) {
+    const inner = st.key === 'open' ? '<path d="M7.3 12.5l3.1 3.1 6.3-6.6" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+      : st.key === 'last' ? '<path d="M12 7.2V12l3.3 2.1" fill="none" stroke="#2a1d08" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>'
+      : '<rect x="6.7" y="10.75" width="10.6" height="2.5" rx="1.25" fill="#fff"/>';
+    return `<svg class="st" viewBox="0 0 24 24" role="img" aria-label="${st.label}"><circle cx="12" cy="12" r="10.6" fill="${st.lamp}"/>${inner}</svg>`;
+  }
+  const resortTitle = (st) => `${S.name}: ${st.text}. Lifts run 8:30 AM to 4:30 PM. ${SITE}. Click to rename.`;
 
 
 
@@ -439,11 +457,11 @@ body.solo .frame { border-radius: 0; }
     }
     return d;
   }
-  const tagBox = (x, y, lead, text, stroke = '#4a443e', dash = '') => { const w = text.length * 7.4 + 28; return `<g><rect x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="18" rx="2" fill="${graphite}" stroke="${stroke}" ${dash ? `stroke-dasharray="${dash}"` : ''}/>${lead}<text x="${f1(x + 21)}" y="${f1(y + 12.8)}" style="font:700 10.5px Overpass,sans-serif;letter-spacing:.06em;fill:#efe9df">${esc(text.toUpperCase())}</text></g>`; };
+  const tagBox = (x, y, lead, text, stroke = '#4a443e', dash = '') => { const w = text.length * 7.4 + 28; return `<g><rect x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="18" rx="2" fill="${graphite}" stroke="${stroke}" ${dash ? `stroke-dasharray="${dash}"` : ''}/>${lead}<text x="${f1(x + 21)}" y="${f1(y + 12.8)}" style="font:700 10.5px DotFix,Overpass,sans-serif;letter-spacing:.06em;fill:#efe9df">${esc(text.toUpperCase())}</text></g>`; };
   const diffSym = (x, y, kind) => kind === 'green' ? `<circle cx="${x + 9}" cy="${y + 9}" r="4.5" fill="#3fae6a"/>` : kind === 'blue' ? `<rect x="${x + 5}" y="${y + 5}" width="8" height="8" fill="#4d8ad6"/>`
     : kind === 'double' ? `<path d="M${x + 6.5} ${y + 4}l3.5 5-3.5 5-3.5-5zM${x + 12.5} ${y + 4}l3.5 5-3.5 5-3.5-5z" fill="#efe9df"/>` : `<path d="M${x + 9} ${y + 3.5}l5.5 5.5-5.5 5.5-5.5-5.5z" fill="#efe9df"/>`;
-  const liftPlate = (x, y, n, planned) => planned ? `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="none" stroke="${flag}" stroke-width="1.4"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px Overpass,sans-serif;fill:${flag}">${n}</text>`
-    : `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="${white}"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px Overpass,sans-serif;fill:${ink}">${n}</text>`;
+  const liftPlate = (x, y, n, planned) => planned ? `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="none" stroke="${flag}" stroke-width="1.4"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px DotFix,Overpass,sans-serif;fill:${flag}">${n}</text>`
+    : `<rect x="${x + 3}" y="${y + 3}" width="12" height="12" rx="1.5" fill="${white}"/><text x="${x + 9}" y="${y + 12.6}" text-anchor="middle" style="font:900 9.5px DotFix,Overpass,sans-serif;fill:${ink}">${n}</text>`;
   function drawLift(l, o = {}) {
     const A = P(l.a), B = P(l.b), len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, planned = !l.built;
     let s = '';
@@ -632,7 +650,7 @@ body.solo .frame { border-radius: 0; }
   const lampHtml = (c) => `<i class="lamp" style="--lamp:${c}"></i>`;
   const kvs = (rows) => `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
   function analysisPanel(bottom) {
-    return `<div class="pn ana" style="left:10px;bottom:${bottom}px;width:468px;z-index:4"><div class="hd">${g('s-analysis')}Analysis<span class="x" data-act="analysis">✕</span></div>
+    return `<div class="pn ana" style="left:10px;bottom:${bottom}px;width:468px;z-index:4"><div class="hd">${g('s-analysis')}Analysis <span class="nm">${esc(S.name)}</span><span class="x" data-act="analysis">✕</span></div>
       <div class="tabs">${ATABS.map(([k, v]) => `<span class="${S.atab === k ? 'on' : ''}" data-act="atab" data-v="${k}">${v}</span>`).join('')}</div><div class="tabrule"></div>
       <div id="anabody">${analysisBody()}</div></div>`;
   }
@@ -646,7 +664,9 @@ body.solo .frame { border-radius: 0; }
       let bars = '';
       hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 3)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 6)}" height="${f1(bh)}" rx="1" fill="${past ? '#cfc7bb' : '#4a443e'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:#8f877c">${h}</text>`; });
       const sat = Math.round(Math.max(55, Math.min(95, 90 - avgWait * 1.6)));
-      return `<div class="sub"><span>Skiers by hour, day ${S.day}</span><span>now ${S.skiers.toLocaleString('en-US')}</span></div>
+      const rs = resortStatus(S.t);
+      return `<div class="statusline">${statusSym(rs)}<b>${rs.text}</b><span>Lifts run 8:30 AM to 4:30 PM</span></div><div class="rule"></div>
+        <div class="sub"><span>Skiers by hour, day ${S.day}</span><span>now ${S.skiers.toLocaleString('en-US')}</span></div>
         <svg width="${w}" height="${hgt + 4}" style="display:block;margin:6px 12px 0">${bars}</svg>
         <div class="rule" style="margin-top:6px"></div>
         <div class="cols">${kvs([['Lifts running', `<b>${open ? S.liftsTotal : 0}</b> of ${S.liftsTotal}`], ['Trails open', `<b>${open ? S.trails.filter((t) => t.built).length : 0}</b> of ${S.trails.filter((t) => t.built).length}`], ['Average wait', open ? `<b>${avgWait.toFixed(1)}</b> min` : 'closed'], ['Guest rating', `<b>${sat}</b>%`]])}
@@ -723,7 +743,7 @@ body.solo .frame { border-radius: 0; }
     const wx = weather(S.t);
     let h = '';
     if (S.drop === 'layers') h += `<div class="drop">${[['lifts', 'Lifts'], ['trails', 'Trails'], ['snow', 'Snowmaking'], ['infra', 'Infrastructure'], ['labels', 'Labels']].map(([k, v]) => `<div class="row" data-act="layer" data-v="${k}"><span class="chk${S.layers[k] ? ' on' : ''}"></span>${v}</div>`).join('')}</div>`;
-    if (S.drop === 'menu') h += `<div class="drop">${[['resume', 'Resume', 'Esc'], ['savegame', 'Save game', 'Ctrl S']].map(([a, v, k]) => `<div class="row" data-act="${a}">${v}<span class="r">${k}</span></div>`).join('')}
+    if (S.drop === 'menu') h += `<div class="drop"><div class="mhead"><b>${esc(S.name)}</b><span>${SITE}</span></div><div class="sepl"></div>${[['resume', 'Resume', 'Esc'], ['savegame', 'Save game', 'Ctrl S'], ['rename', 'Rename resort', '']].map(([a, v, k]) => `<div class="row" data-act="${a}">${v}<span class="r">${k}</span></div>`).join('')}
       <div class="sepl"></div><div class="row" data-act="dock">Status bar<span class="r val">${S.docked ? 'Docked' : 'Floating'}</span></div><div class="row" data-act="units">Units<span class="r val">${IMP() ? 'Imperial' : 'Metric'}</span></div><div class="row" data-act="help">Controls</div><div class="row" data-act="settings">Settings</div>
       <div class="sepl"></div><div class="row" data-act="title">Exit to title</div></div>`;
     h += `<div class="tr"><span class="sq${S.sketch ? ' on' : ''}" data-act="sketch" title="Sketch">${g('s-pencil')}</span><span class="sq${S.drop === 'layers' ? ' on' : ''}" data-act="drop" data-v="layers" title="Map layers">${g('s-map')}</span><span class="sq${S.drop === 'menu' ? ' on' : ''}" data-act="drop" data-v="menu" title="Menu">${g('s-menu')}</span></div>`;
@@ -740,9 +760,9 @@ body.solo .frame { border-radius: 0; }
     const spd = [1, 2, 3, 4].map((n) => `<span class="${S.speed >= n ? 'on' : ''}" data-act="speed" data-v="${n}" title="Speed ${n}"><svg viewBox="0 0 11 13"><use href="#s-speed"/></svg></span>`).join('');
     h += `<div class="bar ${S.docked ? 'docked' : 'floating'}${S.paused ? ' paused' : ''}">
       <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (A)">${g('s-analysis')}Analysis</span></div>
+      <div class="cell sep" style="padding:0 5px"><span class="resort" id="resort" data-act="rename" title="${esc(resortTitle(resortStatus(S.t)))}"><span id="rsym">${statusSym(resortStatus(S.t))}</span><span id="rname">${esc(S.name)}</span></span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib" data-act="pause" id="playbtn" title="${S.paused ? 'Play' : 'Pause'} (Space)">${g(S.paused ? 's-play' : 's-pause')}</span></div>
       <div class="cell sep" style="gap:12px"><span class="day" id="day">Day ${S.day}</span><span class="when"><span class="v" id="clock">${clockText()}</span><span class="wxline" id="wxcell" title="${wxTitle(wx)}">${wxLine(wx)}</span></span></div>
-      <div class="cell sep"><span class="status" id="status" title="Lifts run 8:30 AM to 4:30 PM">${statusHtml(resortStatus(S.t))}</span></div>
       <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
       <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:#8fcf8a">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${money(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)} today</span></span></div>
       <div class="cell sep" title="Lifts operating"><span style="color:#cfc7bb">${g('s-lift')}</span><span class="count" id="lifts">${S.liftsTotal}</span></div>
@@ -751,10 +771,24 @@ body.solo .frame { border-radius: 0; }
       <div class="cell sep" style="padding:0 6px;gap:2px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span><span class="ib" data-act="dock" title="${S.docked ? 'Docked in the corner: click to float' : 'Floating: click to dock in the corner'}">${g(S.docked ? 's-dock' : 's-float')}</span></div>
     </div>`;
     h += `<div class="log" id="log">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
-    if (S.modal) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${S.modal.title}<span class="x" data-act="modal">✕</span></div><div class="hint" style="padding:12px">${S.modal.body}</div><div class="acts" style="grid-template-columns:1fr"><div class="ghost" data-act="modal">OK</div></div></div></div>`;
+    if (S.modal && S.modal.input) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">Rename resort<span class="x" data-act="modal">✕</span></div>
+      <div style="padding:12px 12px 2px"><input id="nameinput" class="field" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(S.name)}"></div>
+      <div class="hint">Shown in the status bar, the menu, Analysis and your saves.</div>
+      <div class="acts"><div class="go" data-act="renameok"><span>Rename</span><span class="mono">Enter</span></div><div class="ghost" data-act="modal">Cancel</div></div></div></div>`;
+    else if (S.modal) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${S.modal.title}<span class="x" data-act="modal">✕</span></div><div class="hint" style="padding:12px">${S.modal.body}</div><div class="acts" style="grid-template-columns:1fr"><div class="ghost" data-act="modal">OK</div></div></div></div>`;
     ui.innerHTML = h;
     drawWorld();
     showElev();
+    fitCorners();
+    const field = document.getElementById('nameinput'); if (field) { field.focus(); field.select(); }
+  }
+
+  function fitCorners() {
+    const bar = ui.querySelector('.bar'), br = ui.querySelector('.br');
+    if (!bar || !br) return;
+    const clash = bar.offsetLeft + bar.offsetWidth > W - 10 - br.offsetWidth - 10;
+    const want = clash ? `${(S.docked ? 0 : 10) + BAR_H + 10}px` : '10px';
+    if (br.style.bottom !== want) br.style.bottom = want;
   }
 
   // ---------- the operations log (top centre) ----------
@@ -814,7 +848,14 @@ body.solo .frame { border-radius: 0; }
       }
       case 'pause': S.paused = !S.paused; break;
       case 'speed': S.speed = +v; S.paused = false; break;
-      case 'savegame': S.saveDue = false; S.drop = null; render(); log(`<span>Saved <span class="mono" style="color:#a39b90">Jackson Peaks · day ${S.day}</span></span>`, '#8fcf8a'); return;
+      case 'savegame': S.saveDue = false; S.drop = null; render(); log(`<span>Saved <span class="mono" style="color:#a39b90">${esc(S.name)} · day ${S.day}</span></span>`, '#8fcf8a'); return;
+      case 'rename': S.drop = null; S.modal = { input: true }; break;
+      case 'renameok': {
+        const f = document.getElementById('nameinput'), v = f ? f.value.trim().replace(/\s+/g, ' ').slice(0, 28) : '';
+        S.modal = null;
+        if (v && v !== S.name) { S.name = v; S.saveDue = true; render(); log(`<span>Renamed to <b>${esc(v)}</b></span>`); return; }
+        break;
+      }
       case 'units': S.units = IMP() ? 'metric' : 'imperial'; log(`<span>Units: ${IMP() ? 'imperial (ft, °F, in)' : 'metric (m, °C, cm)'}</span>`); break;
       case 'atab': S.atab = v; break;
       case 'dock': S.docked = !S.docked; log(`<span>Status bar ${S.docked ? 'docked in the corner' : 'floating'}</span>`); break;
@@ -824,7 +865,7 @@ body.solo .frame { border-radius: 0; }
       case 'layer': S.layers[v] = !S.layers[v]; break;
       case 'resume': S.drop = null; break;
       case 'settings': S.drop = null; S.modal = { title: 'Settings', body: 'Settings aren\'t part of this mockup beyond Units and Status bar in this menu. The real menu would hold graphics quality, lighting, autosave and controls.' }; break;
-      case 'help': S.drop = null; S.modal = { title: 'Controls', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>U</b> units · <b>Space</b> pause · <b>1–4</b> speed<br>Tool letters as shown in the tray · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Zoom with the buttons at the bottom right; the compass resets the view.' }; break;
+      case 'help': S.drop = null; S.modal = { title: 'Controls', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>U</b> units · <b>Space</b> pause · <b>1–4</b> speed<br>Tool letters as shown in the tray · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Zoom with the buttons at the bottom right; the compass resets the view.<br>Click the resort\'s name in the bar to rename it.' }; break;
       case 'title': S.drop = null; S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
       case 'modal': case 'modalbg': if (a === 'modalbg' && e && e.target.closest('.pn')) return; S.modal = null; break;
       case 'zoom': S.zoom = Math.min(1.8, Math.max(1, S.zoom + (+v) * 0.2)); break;
@@ -843,7 +884,7 @@ body.solo .frame { border-radius: 0; }
   const onUi = (e) => e.target.closest('#ui .pn, #ui .bar, #ui .box, #ui .tr, #ui .br, #ui .drop, #ui .strip, #ui .modal');
   function showElev() {
     const el = document.getElementById('elev'); if (!el) return;
-    const on = mouse && onTerrain(mouse); el.textContent = on ? lenTxt(elevAt(mouse)) : `– – – ${lenU()}`; el.style.color = on ? '' : '#6f675e';
+    const on = mouse && onTerrain(mouse); el.textContent = on ? lenTxt(elevAt(mouse)) : `– – – ${lenU()}`; el.style.color = on ? '' : '#6f675e'; fitCorners();
   }
   function segDist(p, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1; let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2; t = Math.max(0, Math.min(1, t)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
   function pickAt(p, target) {
@@ -895,6 +936,12 @@ body.solo .frame { border-radius: 0; }
 
   // ---------- keys ----------
   window.addEventListener('keydown', (e) => {
+    // Typing a name: only Enter and Esc mean anything.
+    if (e.target && e.target.id === 'nameinput') {
+      if (e.key === 'Enter') { e.preventDefault(); act('renameok'); }
+      else if (e.key === 'Escape') { S.modal = null; render(); }
+      return;
+    }
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); act('savegame'); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -945,11 +992,13 @@ body.solo .frame { border-radius: 0; }
     const wx = weather(S.t);
     set('wxcell', wxLine(wx));
     const cell = document.getElementById('wxcell'); if (cell && cell.title !== wxTitle(wx)) cell.title = wxTitle(wx);
-    set('status', statusHtml(resortStatus(S.t)));
+    const rs = resortStatus(S.t); set('rsym', statusSym(rs));
+    const rc = document.getElementById('resort'); if (rc && rc.title !== resortTitle(rs)) rc.title = resortTitle(rs);
     set('cash', money(S.cash));
     const dl = document.getElementById('delta'); if (dl) { dl.textContent = `${short(S.today)} today`; dl.style.color = S.today < 0 ? '#ff7a66' : '#8fcf8a'; }
     set('lifts', String(S.liftsTotal));
     set('skiers', S.skiers.toLocaleString('en-US'));
+    fitCorners();
     if (S.analysis) set('anabody', analysisBody());
   }
   // For screenshots only: #demo=tray,lift,trail,float,menu,layers,analysis,edit opens that state on load.
@@ -964,6 +1013,7 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('snow')) { S.toolbox = true; S.tab = 'snow'; }
     if (d.includes('infra')) { S.toolbox = true; S.tab = 'infra'; }
     if (d.includes('menu')) S.drop = 'menu';
+    if (d.includes('rename')) S.modal = { input: true };
     if (d.includes('layers')) S.drop = 'layers';
     if (d.includes('analysis')) { S.analysis = true; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }
     for (const [k] of ATABS) if (d.includes('a' + k)) { S.analysis = true; S.atab = k; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }
