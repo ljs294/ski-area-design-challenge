@@ -1,6 +1,6 @@
 # Task 09 phase 2: New England tree species
 
-**Audience:** the project owner. **Status:** decided 2026-09-30 (below); step 1, the sorting, decided 2026-09-30 (NE5); step 2, the models, in progress. **Date:** 2026-09-30. **Builds on:** the [species-model priority report](phase1-species-priority.md) (task 09) and its survey of every US ski area.
+**Audience:** the project owner. **Status:** decided 2026-09-30 (below); step 1, the sorting, decided 2026-09-30 (NE5); steps 2 and 3, the models and the switch-on, done 2026-10-01 ([result](#result-the-switch-on-2026-10-01)), and Sugarloaf checked in the game. **Date:** 2026-09-30. **Builds on:** the [species-model priority report](phase1-species-priority.md) (task 09) and its survey of every US ski area.
 
 ## Decided (owner, 2026-09-30)
 
@@ -14,6 +14,45 @@
 | NE6 | **Evergreen tops** (2026-10-01): every conifer that ended in an upright, snowless "fin" gets a normal pointed top that narrows gradually ([plan](phase2-evergreen-tops.md)). No curved or rounded tops; both hemlocks keep theirs |
 | NE7 | **One Git LFS import** for everything approved in phase 2: the New England models and the corrected existing trees |
 | NE8 | **The plantation look** in dense conifer stands: change it for realism, with more height spread and natural clumping (the owner left the call to my recommendation, 2026-10-01). It belongs to forest placement, so it goes through the Master Planner |
+| NE9 | **Winter crowns at half density** (2026-10-01, after seeing Sugarloaf in the game): the full twig haze hid the evergreens and, from above, the snow. Half the twigs let both show through, and the crowns stay crowns, not bare sticks ([comparison](phase2-final-review.md#4-after-the-import-half-density-crowns-ne9)) |
+
+## Result: the switch-on (2026-10-01)
+
+Three new models (eastern white pine, northern red oak, black cherry) and the six shared species are switched on in the species map, and the trees approved in phase 2 went into Unity in one import (NE7): the 3 new models plus 12 existing ones rebuilt for the pointed tops (NE6) and the winter crowns, **92 MB** of Git LFS. Mountain hemlock, western hemlock and krummholz kept their files byte for byte. The terrain cache is now v9, so downloaded sites regrow their forests with the new species.
+
+**Species fidelity, measured** (the survey re-run from its cache with the new species map; the share of forest biomass drawn as its real species or an approved shared model):
+
+| | Average NE area | 22 biggest NE resorts | All US |
+|---|---|---|---|
+| Before phase 2 | 49% | 66% | 47% |
+| After phase 2 | **91%** | **97%** | **67%** |
+
+That's about +10 flora points (F1) at the average New England ski area and +5 across the US. By resort: Sugarloaf 56% → 96%, Sunday River 64% → 96%, Wildcat 53% → 97%, Loon 67% → 97%, Stowe 70% → 97%, Jay Peak 74% → 97%, Killington 75% → 97%. The lower, southern hills gain most but stay lowest, because of the oaks and pines still drawn as look-alikes: Gunstock 30% → 87%, King Pine 33% → 92%. The new US-wide ranking is in the [species-model priority report](phase1-species-priority.md#the-ranking-after-phase-2).
+
+**Sugarloaf in the game** (NE2; the game's own benchmark views, before on the current main build, after on this one, with the half-density crowns of NE9):
+
+![Sugarloaf from afar: the same mix of dark spruce-fir and hardwood slopes; after, the hardwoods carry a thin grey crown](images/phase2-sugarloaf-overview.jpg)
+
+![The forest from 250 m](images/phase2-sugarloaf-forest.jpg)
+
+![Inside the forest: the evergreens' upright fins are gone, and the bare white sticks now have thin winter crowns](images/phase2-sugarloaf-inforest.jpg)
+
+Reference PC (RTX 3060 Ti), 1080p, shadows 150 m, breeze. Frame p95 in ms, the median of 8 runs before and 5 after (runs vary by about ±0.3 ms):
+
+| View | Before (main) | Phase 2 |
+|---|---|---|
+| overview | 8.7 | 9.0 |
+| forest from 250 m | 11.5 | 11.4 |
+| inside the forest | 17.8 | 18.0 |
+| ring forest | 12.0 | 11.9 |
+| summit | 5.2 | 5.3 |
+| **worst view** | **17.8** | **18.0** |
+| trees | 2,953,354 | 2,953,354 |
+| forest draws a pass | 240 | 312 |
+| draw calls a frame (Unity) | 920-1,110 | 1,160-1,350 |
+| dedicated VRAM | 1.07 GB | 1.10-1.16 GB |
+
+Within the budgets (p95 ≤20 ms, VRAM ≤7 GB). The in-forest view, Sugarloaf's worst, went from 17.8 to 18.0 ms (the prediction was +0.5 ms); the other views moved by 0.3 ms or less, within the runs' spread. The three new models add 72 forest draws a pass (240 → 312). With the full twig crowns first imported, the numbers were the same within 0.3 ms.
 
 ## Where New England stands
 
@@ -89,8 +128,8 @@ If the first guess holds, that's **four or five new models instead of nine**: oa
 
 **Cost:**
 - **Time:** about a day per new model plus your reviews; the sorting itself is a day.
-- **Git LFS:** about 7 MB per new model, so 30–40 MB. GitHub's free allowance is 10 GiB of LFS storage and 10 GiB of downloads a month; the repository uses about 0.25 GiB.
-- **Performance:** a site draws only the species it has (task 09), so these cost nothing at Jackson Hole or Crystal Mountain. Shared models even reduce Sugarloaf's draws.
+- **Git LFS:** about 7 MB per new model, so 30–40 MB. GitHub's free allowance is 10 GiB of LFS storage and 10 GiB of downloads a month; the repository uses about 0.25 GiB. Actual: the one import (NE7), with the 12 rebuilt trees, added 92 MB.
+- **Performance:** a site draws only the species it has (task 09), so these cost nothing at Jackson Hole or Crystal Mountain. Measured at Sugarloaf: its worst view 17.8 → 18.0 ms ([above](#result-the-switch-on-2026-10-01)).
 
 ## Step 1 result: the sorting
 
