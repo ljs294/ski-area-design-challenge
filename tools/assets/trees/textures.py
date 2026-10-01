@@ -297,21 +297,39 @@ def _leaf_shape(kind):
     raise ValueError(kind)
 
 
-def twig_card(seed, n=512, bark="#6B5B4E"):
-    """A bare winter twig silhouette: fine forking twigs spreading toward u = 1."""
+def twig_card(seed, n=512, bark="#6B5B4E", dense=False):
+    """A bare winter twig silhouette: fine forking twigs spreading toward u = 1. dense (task 09 phase 2 audit:
+    winter hardwood crowns read as bare skeletons): more, finer twigs that fork deeper and end in a fringe of
+    twiglets, so a winter crown reads as the fine-twig haze of a real leafless hardwood."""
     rng = np.random.default_rng(seed)
     img = canvas(n)
     col = hex_rgb(bark)
+    if dense:
+        # Muted halfway toward a cool grey-brown: thousands of fine twigs read as a soft grey haze, not the twig's
+        # full colour (at 30%, a stand read as late-autumn red-brown).
+        col = col * 0.5 + hex_rgb("#6C6865") * 0.5
+    branch, stop = (0.95, 0.022) if dense else (0.92, 0.03)
 
     def grow(x, y, a, length, width, depth):
         x1, y1 = x + math.cos(a) * length, y + math.sin(a) * length
         stroke(img, (x * n, y * n), (x1 * n, y1 * n), width, width * 0.7, np.clip(col * rng.uniform(0.85, 1.1), 0, 1))
-        if depth == 0 or length < 0.03:
+        if depth == 0 or length < stop:
+            if dense:
+                # A fringe of short twiglets at each tip: the fine haze at the edge of a winter crown.
+                for _ in range(2):
+                    b = a + rng.uniform(-0.9, 0.9)
+                    tl = length * rng.uniform(0.5, 0.9)
+                    stroke(img, (x1 * n, y1 * n), ((x1 + math.cos(b) * tl) * n, (y1 + math.sin(b) * tl) * n), 1.0, 0.8,
+                           np.clip(col * rng.uniform(0.95, 1.2), 0, 1))
             return
         for side in (-1, 1):
-            if rng.random() < 0.92:
+            if rng.random() < branch:
                 grow(x1, y1, a + side * rng.uniform(0.2, 0.55), length * rng.uniform(0.62, 0.8), max(1.0, width * 0.72), depth - 1)
 
+    if dense:
+        for k in range(7):
+            grow(0.0, 0.5 + rng.uniform(-0.12, 0.12), rng.uniform(-0.55, 0.55), rng.uniform(0.22, 0.32), 4.5, 8)
+        return img
     for k in range(4):
         grow(0.0, 0.5 + rng.uniform(-0.05, 0.05), rng.uniform(-0.5, 0.5), rng.uniform(0.2, 0.3), 4.0, 7)
     return img

@@ -617,6 +617,16 @@ def build_deciduous(sp, rng, lod, height):
         i = min(int(f), len(pts) - 2)
         return pts[i].lerp(pts[i + 1], f - i), (pts[i + 1] - pts[i]).normalized()
 
+    winter_crown = sp.get("winterCrown", False)
+
+    def crown_twigs(pts, phase, count, t0=0.5):
+        """winterCrown: twig cards at the end of a leader, so it ends in twigs, not a bare spike."""
+        for i in range(count):
+            p, tan = along(pts, lerp(t0, 1.0, (i + 0.5) / count))
+            size = 0.8 * lod["card"]
+            b.card(p - tan * size * 0.3, tan, horizontal_side(tan, 0.6 + 1.2 * i), 1.4 * size, 1.2 * size,
+                   [(sway(p.z), 0.6, phase, 0.6), (sway(p.z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.35)
+
     def dress(pts, phase):
         """Twig cards (winter) and leaf cards (summer and autumn) along a small branch."""
         branch_len = sum((pts[i + 1] - pts[i]).length for i in range(len(pts) - 1))
@@ -632,9 +642,12 @@ def build_deciduous(sp, rng, lod, height):
             dirn = (tan * math.cos(a) + lat * math.sin(a) + UP * rng.uniform(-0.1, 0.4)).normalized()
             size = lod["card"] * rng.uniform(0.9, 1.25) * (0.55 + 0.45 * scale)
             if i % 2 == 0:
-                b.card(p, dirn, horizontal_side(dirn, rng.uniform(-0.8, 0.8)), 1.5 * size, 1.2 * size,
+                tw = 1.3 if winter_crown else 1.0   # winterCrown: larger twig cards carry the denser twig texture
+                b.card(p, dirn, horizontal_side(dirn, rng.uniform(-0.8, 0.8)), 1.5 * size * tw, 1.2 * size * tw,
                        [(sway(p.z), 0.7, phase, 0.6), (sway(p.z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.35)
-            leaves = 2 if lod["cards"] >= 1.0 else 1   # LOD1: one larger leaf card per twig
+            # LOD1, and every LOD with winterCrown: one larger leaf card per twig (the same summer cover for fewer
+            # cards; leaf cards are still drawn in winter, only hidden).
+            leaves = 2 if lod["cards"] >= 1.0 and not winter_crown else 1
             for _ in range(leaves):
                 ld = (dirn + Vector((rng.uniform(-0.6, 0.6), rng.uniform(-0.6, 0.6), rng.uniform(-0.2, 0.3)))).normalized()
                 kept = "marcescent" in sp and p.z < crown_base + 0.45 * (height - crown_base) and rng.random() < sp.get("keptShare", 0.7)
@@ -681,10 +694,14 @@ def build_deciduous(sp, rng, lod, height):
                 a = li * 2 * math.pi / sp["leaders"] + rng.uniform(-0.4, 0.4)
                 d = (UP + Vector((math.cos(a), math.sin(a), 0)) * rng.uniform(0.35, 0.6)).normalized()
             ln = s_height * (1 - split) * rng.uniform(0.9, 1.05) + (0 if sp["leaders"] == 1 else s_height * 0.05)
+            if winter_crown:
+                ln *= 0.85   # the leaders end inside the twig crown
             pts = curve(trunk[-1], d, ln, 0.6, 5)
             r0 = tr * 0.5 * (0.8 if sp["leaders"] > 1 else 1)
             b.tube(pts, [r0 * (1 - i / 5) + (0.01 if i < 5 else 0) for i in range(6)], max(3, lod["sides"] - 2),
                    [(sway(p.z), 0.3 * i / 5, ph, 0.0) for i, p in enumerate(pts)])
+            if winter_crown:
+                crown_twigs(pts, ph, 2 if lod["cards"] >= 1.0 else (1 if lod["cards"] else 0), t0=0.7)
             leaders.append(pts)
 
         # Primaries: the lower half from the trunk above the crown base, the rest from the leaders.
@@ -919,7 +936,7 @@ def species_materials(sp, out_dir):
     }
     if "marcescent" in sp:
         seasons["kept"] = image(f"{sp['id']}_leaves_kept", textures.leaf_card(sp["leaf"], sp["marcescent"], seed + 1, TEX, sp["twig"]), out_dir)
-    twigs = image(f"{sp['id']}_twigs", textures.twig_card(seed, TEX, sp["twig"]), out_dir)
+    twigs = image(f"{sp['id']}_twigs", textures.twig_card(seed, TEX, sp["twig"], dense=sp.get("winterCrown", False)), out_dir)
     mats = [bark,
             material(f"{sp['id']}_Leaves", seasons["summer"], 0.0, cutout=True, leaf=True, img2=seasons["autumn"]),
             material(f"{sp['id']}_Twigs", twigs, 0.5, cutout=True),
