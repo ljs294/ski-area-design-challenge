@@ -72,6 +72,9 @@ echo     26 Forest benchmark on Crystal Mountain: its own views, GPU times, draw
 echo     27 Forest report for every mountain you have: trees, species, treeline (a few seconds each)
 echo     28 Species survey: tree species at every US ski area, then the model priority report (about 3 hours; resumes)
 echo.
+echo   Game UI design (mockups, not the game yet)
+echo     29 Open the HUD layout mockup in your browser: status bar, Toolbox, Analysis, menu and Settings
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -114,6 +117,10 @@ if /i "%CHOICE%"=="25" goto playcrystal
 if /i "%CHOICE%"=="26" goto benchcrystal
 if /i "%CHOICE%"=="27" goto forestinfo
 if /i "%CHOICE%"=="28" goto survey
+if /i "%CHOICE%"=="29" (
+  start "" "%~dp0docs\plans\prototypes\ui-layout.html"
+  goto menu
+)
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
