@@ -721,7 +721,8 @@ def sheet_game(species, built, out, tmp):
 def sheet_snow(species, built, out, tmp):
     """The game's snow pattern up close: the middle of each crown from 35 degrees, a few metres away."""
     by = {sp["id"]: sp for sp in species}
-    picks = [sid for sid in ("subalpine_fir", "pacific_silver_fir", "noble_fir", "western_hemlock", "mountain_hemlock") if sid in built]
+    picks = [sid for sid in ("subalpine_fir", "pacific_silver_fir", "noble_fir", "western_hemlock", "mountain_hemlock",
+                             "lodgepole_pine", "eastern_white_pine") if sid in built]
     tiles = []
     for sid in picks:
         o = built[sid][0][0]

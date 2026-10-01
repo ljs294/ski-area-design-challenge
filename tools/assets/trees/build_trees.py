@@ -248,7 +248,9 @@ def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, swa
         ends = [(sway(base.z), 0.0, phase, 0.4), (sway(pts[-1].z), 1.0 * flex, phase, 1.0)]
         b.card(base, tan, horizontal_side(tan, roll), length * 1.08, span, ends, FOLIAGE, snow_scale=0.4)
         if lod["cluster"] >= 2 and reach == 1.0:
-            b.card(base + tan * length * 0.08, tan, horizontal_side(tan, roll + rng.choice((-1, 1)) * 1.15), length * 0.95, span * 0.8,
+            # clusterRoll: the second card's roll (white pine: flatter, as its horizontal plumes are thin from the side).
+            b.card(base + tan * length * 0.08, tan, horizontal_side(tan, roll + rng.choice((-1, 1)) * sp.get("clusterRoll", 1.15)), length * 0.95,
+                   span * 0.8,
                    ends, FOLIAGE, snow_scale=0.25)
         return
     if lod["branchSides"] and reach == 1.0:
@@ -269,7 +271,7 @@ def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, swa
     # Sprays along the branch, alternating sides, plus one at the tip.
     n_sprays = max(2, int(length * sp["spraysPerMetre"] * sp.get("sprayDensity", 1.2) * lod["cards"]))
     size = lod["card"]
-    start = 0.55 if sp.get("tufts") else 0.12
+    start = sp.get("tuftStart", 0.55) if sp.get("tufts") else 0.12   # pines: foliage toward the branch end
     for i in range(n_sprays):
         t = lerp(start, 0.95, (i + rng.random() * 0.5) / n_sprays)
         p = branch_point(t)
@@ -288,7 +290,8 @@ def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, swa
         wn = [(sway(p.z), t * flex, phase, 0.5), (sway(p.z), min(1.0, t + 0.2) * flex, phase, 1.0)]
         b.card(p, dirn, horizontal_side(dirn, roll), ln, wd, wn, FOLIAGE, snow_scale=0.38)
         if sp.get("crossed") or sp.get("tufts"):
-            b.card(p, dirn, horizontal_side(dirn, roll + 1.4), ln * 0.9, wd * 0.9, wn, FOLIAGE, snow_scale=0.25)
+            # crossRoll: how far the crossed card is rolled (white pine: less, so its plumes hold snow from above).
+            b.card(p, dirn, horizontal_side(dirn, roll + sp.get("crossRoll", 1.4)), ln * 0.9, wd * 0.9, wn, FOLIAGE, snow_scale=0.25)
         elif lod["cards"] >= 1.0 and i % 2 == 0:
             # A tilted second spray every other station gives flat sprays volume from the side.
             b.card(p, dirn, horizontal_side(dirn, roll + rng.choice((-1, 1)) * 1.1), ln * 0.75, wd * 0.8, wn, FOLIAGE, snow_scale=0.2)
@@ -338,7 +341,11 @@ def build_conifer(sp, rng, lod, height):
 
     def crown_radius(z):
         h = (z - crown_base) / (height - crown_base)
-        return r_max * max(0.0, 1 - h) ** exponent * (0.6 + 0.4 * smoothstep(0.0, 0.08, h))
+        r = r_max * max(0.0, 1 - h) ** exponent * (0.6 + 0.4 * smoothstep(0.0, 0.08, h))
+        if "lowerTaper" in sp:
+            # The lower crown pulls in (eastern white pine: shaded-out lower limbs), so it's widest higher up.
+            r *= 1 - sp["lowerTaper"] * (1 - smoothstep(0.0, 0.45, h))
+        return r
 
     spacing = sp["whorlSpacing"] * lod["spacing"]
     z, k = crown_base, 0
@@ -357,10 +364,10 @@ def build_conifer(sp, rng, lod, height):
             continue
         h = (z - crown_base) / (height - crown_base)
         for j in range(count):
-            if rng.random() < 0.08:
+            if rng.random() < sp.get("skip", 0.08):   # a missing limb (white pine: often, so the crown is open)
                 continue
             az = k * GOLDEN + j * 2 * math.pi / count + rng.uniform(-0.25, 0.25) + (0.0 if reach == 1.0 else math.pi / count)
-            length = max(0.35, crown_radius(z) * rng.uniform(0.85, 1.1) * reach)
+            length = max(0.35, crown_radius(z) * rng.uniform(*sp.get("limbJitter", (0.85, 1.1))) * reach)
             elev = math.radians(lerp(sp["branchElevation"][1], sp["branchElevation"][0], h))
             conifer_branch(b, sp, rng, lod, trunk_point(z / height), Vector((math.cos(az), math.sin(az), 0)), length, elev, h, reach,
                            (k + j) % 2, sway, trunk_r)
@@ -544,14 +551,17 @@ def build_deciduous(sp, rng, lod, height):
         d = math.hypot(tip.x, tip.y)
         return max(0.35, allowed / d) if d > allowed and d > 1e-3 else 1.0
 
-    def curve(start, direction, length, upward, segs):
+    def curve(start, direction, length, upward, segs, crook=0.12):
+        """A bending branch; crook is how far each segment turns at random (oak's limbs zigzag)."""
         pts = [start]
         d = direction.normalized()
         step = length / segs
         for _ in range(segs):
-            d = (d + UP * upward * 0.35 + Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-0.5, 0.5))) * 0.12).normalized()
+            d = (d + UP * upward * 0.35 + Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-0.5, 0.5))) * crook).normalized()
             pts.append(pts[-1] + d * step)
         return pts
+
+    crook = sp.get("crook", 0.12)
 
     def along(pts, t):
         f = t * (len(pts) - 1)
@@ -578,7 +588,7 @@ def build_deciduous(sp, rng, lod, height):
             leaves = 2 if lod["cards"] >= 1.0 else 1   # LOD1: one larger leaf card per twig
             for _ in range(leaves):
                 ld = (dirn + Vector((rng.uniform(-0.6, 0.6), rng.uniform(-0.6, 0.6), rng.uniform(-0.2, 0.3)))).normalized()
-                kept = "marcescent" in sp and p.z < crown_base + 0.45 * (height - crown_base) and rng.random() < 0.7
+                kept = "marcescent" in sp and p.z < crown_base + 0.45 * (height - crown_base) and rng.random() < sp.get("keptShare", 0.7)
                 rel = min(1.0, max(0.0, (p.z - crown_base) / (height - crown_base)))
                 b.card(p, ld, horizontal_side(ld, rng.uniform(-0.6, 0.6)), 1.1 * size * (2 / leaves) ** 0.5, 1.0 * size * (2 / leaves) ** 0.5,
                        [(sway(p.z), 0.8, phase, 1.0), (sway(p.z), 1.0, phase, 1.0)],
@@ -648,13 +658,15 @@ def build_deciduous(sp, rng, lod, height):
             rel = (start.z - crown_base) / max(1.0, height - crown_base)
             length = height * sp["primaryLength"] * rng.uniform(0.8, 1.2) * (1.1 - 0.55 * rel)
             segs = lod["segments"] + 1
-            pts = curve(start, d, length, sp["upward"], segs)
+            pts = curve(start, d, length, sp["upward"], segs, crook)
             k_fit = fit(pts[-1])
             if k_fit < 1:
                 length *= k_fit
-                pts = curve(start, d, length, sp["upward"], segs)
+                pts = curve(start, d, length, sp["upward"], segs, crook)
             phase = rng.random()
             r0 = max(0.02, pr * 0.55 * (1 - 0.5 * rel))
+            if "limbs" in sp:
+                r0 *= sp["limbs"]   # heavier limbs (oak)
             b.tube(pts, [r0 * (1 - 0.8 * s / segs) for s in range(segs + 1)], max(3, lod["branchSides"]),
                    [(sway(p.z), s / segs, phase, 0.0) for s, p in enumerate(pts)])
 
@@ -665,7 +677,9 @@ def build_deciduous(sp, rng, lod, height):
                 for roll in (0.3, 1.6):
                     b.card(mid, tan, horizontal_side(tan, roll), length * 0.95, length * 0.85,
                            [(sway(mid.z), 0.6, phase, 0.8), (sway(pts[-1].z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.3)
-                kept = "marcescent" in sp and mid.z < crown_base + 0.45 * (height - crown_base)
+                # Kept leaves on LOD2 follow keptShare without drawing from rng (that would change the tree).
+                kept = ("marcescent" in sp and mid.z < crown_base + 0.45 * (height - crown_base)
+                        and (i * 0.6180339887) % 1.0 < sp.get("keptShare", 1.0))
                 b.card(mid, tan, horizontal_side(tan, 1.2), length * 0.8, length * 0.7,
                        [(sway(mid.z), 0.6, phase, 1.0), (sway(pts[-1].z), 1.0, phase, 1.0)], KEPT if kept else FOLIAGE,
                        flag=0.5 if kept else 1.0, snow_scale=0.0, season=(rng.random(), 0.5))
@@ -677,7 +691,7 @@ def build_deciduous(sp, rng, lod, height):
                 lat = tan.cross(UP)
                 lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
                 d2 = (tan * math.cos(a2) + lat * math.sin(a2) + UP * sp["upward"] * 0.5).normalized()
-                p2 = curve(s0, d2, length * rng.uniform(0.3, 0.45) * (1 - 0.4 * tj), sp["upward"], 3)
+                p2 = curve(s0, d2, length * rng.uniform(0.3, 0.45) * (1 - 0.4 * tj), sp["upward"], 3, crook)
                 if lod["branchSides"]:
                     b.tube(p2, [r0 * 0.4, r0 * 0.25, r0 * 0.12, 0.0], 3,
                            [(sway(p.z), tj + (1 - tj) * s / 3, phase, 0.2) for s, p in enumerate(p2)])

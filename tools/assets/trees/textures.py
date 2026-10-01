@@ -1,11 +1,11 @@
 """Procedural tree textures (numpy only; runs inside Blender or plain Python).
 
 Every texture is generated from a seed, so the library stays repeatable and free (TR2):
-  foliage cards  needle sprays (fir, spruce, hemlock, douglas, pine, silverfir, lacy, noble), leaf
-                 clusters (maple, birch, beech, aspen) in summer and autumn colours, bare twig silhouettes
-                 for winter
-  bark           ridged, furrowed, plated, scaly, smooth, birch, aspen and yellow-birch styles (tileable),
-                 each with a height field for its normal map
+  foliage cards  needle sprays (fir, spruce, hemlock, douglas, pine, silverfir, lacy, noble, whitepine),
+                 leaf clusters (maple, birch, beech, aspen, oak, cherry) in summer and autumn colours, bare
+                 twig silhouettes for winter
+  bark           ridged, furrowed, plated, scaly, smooth, birch, aspen, yellow-birch, oak and cherry styles
+                 (tileable), each with a height field for its normal map
 
 Cards are laid out with the branch running along +u (u = 0 at the branch, u = 1 at the tip) and
 the spray spreading across v, so a card placed along a branch reads correctly.
@@ -99,6 +99,12 @@ FROND_STYLES = {
     "silverfir": dict(twig_angle=0.92, twigs=11, needle=0.048, needle_angle=1.0, step=0.0046, width=0.34, brush=False, tuft=False, curl=0.3, comb=0.35),
     "lacy":      dict(twig_angle=1.0, twigs=12, needle=0.03, needle_angle=1.35, step=0.0046, width=0.32, brush=False, tuft=False, curl=0.15, body=0.0, subtwigs=3),
     "noble":     dict(twig_angle=0.65, twigs=12, needle=0.036, needle_angle=0.9, step=0.0036, width=0.3, brush=True, tuft=False, curl=0.1, hook=0.4),
+    # Task 09 phase 2 (New England). Tuft keys: tuft_needles (needles per tuft), needle_width (pixels at
+    # scale 1) and spread (how far the needles fan out, radians): eastern white pine's long, soft, slender
+    # needles in fives make dense, fine brushes that fan forward along the twig. tuft_body: the foliage
+    # body's start, length and width (of the frond).
+    "whitepine": dict(twig_angle=0.5, twigs=10, needle=0.24, needle_angle=0.3, step=0.012, width=0.30, brush=False, tuft=True, curl=0.0,
+                      tuft_needles=64, needle_width=1.8, spread=0.42, tuft_body=(0.1, 0.86, 0.7)),
 }
 
 
@@ -162,7 +168,10 @@ def frond(img, p0, ang, length, style, colours, rng, twig_rgb, scale=1.0, sheen=
 
     if s["tuft"]:
         # Pine: long needles in bundles toward the ends of the twigs, over a small soft body.
-        _body(img, p0 + d * length * 0.4, ang, length * 0.58, half * 0.62, base, rng, 7)
+        # tuft_body: where the foliage body starts and how long and wide it is. White pine starts it near the
+        # branch, where the game's snow pattern (SnowPattern) is heaviest, so its plumes hold snow.
+        start, along, wide = s.get("tuft_body", (0.4, 0.58, 0.62))
+        _body(img, p0 + d * length * start, ang, length * along, half * wide, base, rng, 7)
         stroke(img, tuple(p0), tuple(p0 + d * length), 3.0 * scale + 0.8, 1.2, twig_rgb)
         for i in range(s["twigs"] * 2):
             t = 0.35 + 0.6 * (i + rng.random() * 0.5) / (s["twigs"] * 2)
@@ -171,8 +180,11 @@ def frond(img, p0, ang, length, style, colours, rng, twig_rgb, scale=1.0, sheen=
             start = p0 + d * length * t
             tip = start + np.array([math.cos(a), math.sin(a)]) * half * 0.8
             stroke(img, tuple(start), tuple(tip), 2.2 * scale, 1.0, twig_rgb)
-            for _ in range(34):
-                needle(tip, a + rng.normal(0, 0.6), n_needle * rng.uniform(0.6, 1.15), 2.0 * scale)
+            for _ in range(s.get("tuft_needles", 34)):
+                # White pine's sheen: some needles show their whitish stomatal lines.
+                palette = silver if silver and rng.random() < 0.22 else None
+                needle(tip, a + rng.normal(0, s.get("spread", 0.6)), n_needle * rng.uniform(0.6, 1.15), s.get("needle_width", 2.0) * scale,
+                       palette=palette)
         return
 
     body = s.get("body", 1.0)
@@ -267,6 +279,15 @@ def _leaf_shape(kind):
         return lambda th: (0.5 + 0.5 * np.cos(th) ** 2) ** 0.8 * (1 + 0.04 * np.sin(18 * th))
     if kind == "aspen":
         return lambda th: 0.8 + 0.2 * np.cos(th) + 0.04 * np.sin(24 * th)
+    if kind == "oak":
+        # Northern red oak: an elongated blade with pointed lobes and rounded sinuses about halfway to the
+        # midrib (|cos 4 theta| is 1 on a lobe, 0 in a sinus), narrowing to a wedge at the stalk.
+        return lambda th: ((0.5 + 0.5 * np.cos(th) ** 2) ** 0.9 * (0.48 + 0.52 * np.abs(np.cos(4 * th)) ** 1.5)
+                           * np.where(np.abs(th) > 2.5, 0.65, 1.0))
+    if kind == "cherry":
+        # Black cherry: narrow, lance-shaped, finely toothed, with a drawn-out tip.
+        return lambda th: ((0.3 + 0.7 * np.cos(th) ** 2) ** 1.3 * (1 + 0.18 * np.clip(np.cos(th), 0, 1) ** 8)
+                           * (1 + 0.035 * np.sin(44 * th)))
     raise ValueError(kind)
 
 
@@ -296,7 +317,7 @@ def leaf_card(kind, colours, seed, n=512, bark="#6B5B4E", count=16):
     img = canvas(n)
     stroke(img, (0, n * 0.5), (n * 0.9, n * 0.5), 5, 2, hex_rgb(bark))
     shape = _leaf_shape(kind)
-    size = {"maple": 0.13, "birch": 0.09, "beech": 0.09, "aspen": 0.085}[kind] * n
+    size = {"maple": 0.13, "birch": 0.09, "beech": 0.09, "aspen": 0.085, "oak": 0.135, "cherry": 0.095}[kind] * n
     for i in range(count):
         t = 0.1 + 0.62 * (i + rng.random() * 0.5) / count
         side = -1 if i % 2 else 1
@@ -426,6 +447,10 @@ def bark(style, base, seed, n=512):
       birch        chalk white, dark lenticels, peeling strips, black scars (paper birch)
       aspen        cream-green, dark diamond branch scars (quaking aspen)
       yellowbirch  bronze with thin horizontal curls (yellow birch)
+      oak          long, flat-topped, smooth-topped ridges ("ski tracks") over shallow dark furrows
+                   (northern red oak)
+      cherry       small, dark, thick plates curling up at their edges, reddish inner bark between them
+                   (black cherry)
     """
     rng = np.random.default_rng(seed)
     c = hex_rgb(base)
@@ -570,6 +595,43 @@ def bark(style, base, seed, n=512):
         rgb = rgb * (1 - 0.2 * keep)[..., None] + np.clip(c * 1.2, 0, 1) * (0.3 * lift)[..., None]
         h = _blur(h, 1)
         strength = 6.0
+    elif style == "oak":
+        # Long, nearly straight ridges with flat, smooth, paler tops (the "ski tracks"), steep walls and
+        # shallow dark furrows; a few long breaks split the ridges into very long plates.
+        tri = _bands(_ridge_field(n, 14, 2.0, rng, cx=3))
+        width = 0.22 + 0.14 * _fbm(n, 5, 2, rng, 3)
+        ridge = np.clip((tri - width) / 0.2, 0, 1)
+        ridge = ridge * ridge * (3 - 2 * ridge)
+        cross = _bands(_fbm(n, 2, 4, rng, 3) * 1.6)
+        breaks = np.clip(1 - cross / 0.1, 0, 1) * np.clip((_noise(n, 9, 5, rng) - 0.6) * 5, 0, 1)
+        ridge = ridge * (1 - 0.8 * breaks)
+        h = ridge * (0.88 + 0.12 * _fbm(n, 28, 6, rng, 3)) + 0.04 * grain
+        h = _blur(h, 1)
+        furrow = c * np.array([0.5, 0.46, 0.44], np.float32)
+        wall = c * np.array([0.76, 0.73, 0.7], np.float32)
+        top = np.clip(c * np.array([1.06, 1.06, 1.05], np.float32), 0, 1)
+        rgb = _lerp3(_lerp3(furrow, wall, np.clip(h / 0.4, 0, 1)), top, np.clip((h - 0.55) / 0.3, 0, 1))
+        # Green algae and lichen in the furrows' lee.
+        algae = np.clip((_fbm(n, 4, 6, rng, 4) - 0.55) * 4, 0, 1) * np.clip(1 - h * 2, 0, 1)
+        rgb = _lerp3(rgb, np.array([0.36, 0.42, 0.3], np.float32), algae * 0.35)
+        rgb *= (0.92 + 0.16 * detail)[..., None]
+        strength = 9.0
+    elif style == "cherry":
+        # Small, dark, thick plates whose side edges curl outward ("burnt cornflakes"), catching the light,
+        # with the reddish-brown inner bark showing in the gaps between them.
+        cols, rows = 18, 26
+        f1, f2, ids, ox, _ = _cells(n, cols, rows, rng, 0.9, warp=4.0)
+        per = np.random.default_rng(seed + 3).random(cols * rows).astype(np.float32)[ids]
+        edge = np.clip((f2 - f1) / 3.0, 0, 1)
+        curl = np.clip(np.abs(ox) / (0.5 * n / cols), 0, 1) ** 2
+        h = edge ** 0.6 * (0.45 + 0.4 * curl + 0.15 * per) + 0.05 * detail
+        h = _blur(h, 1)
+        gap = 1 - np.clip(edge * 4, 0, 1)
+        inner = np.clip(c * np.array([1.9, 1.25, 1.0], np.float32), 0, 1)
+        rgb = c * (0.85 + 0.3 * per)[..., None] * (0.8 + 0.35 * curl)[..., None]
+        rgb = _lerp3(rgb, inner, gap * 0.75)
+        rgb *= (0.92 + 0.16 * detail)[..., None]
+        strength = 11.0
     else:
         raise ValueError(style)
 
