@@ -24,6 +24,8 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
   live in `Tests/Core`, which Unity and `tools/domain-tests` (.NET, CI) both compile: no Unity APIs there.
 - `Simulation` is only a clock placeholder (`IGameClock`, `ManualViewClock`) in iteration 1.
 - Architecture tests in `Tests/EditMode` enforce the order and allow-lists.
+- Forest placement (`Domain/Cover/PoissonForest`) runs as plain C# and Burst-compiled (`World/BurstForestPlanter`):
+  keep it unsafe-pointer, integer-only code with no managed objects, so both give identical bytes.
 
 ## Determinism rules
 - `Domain` and `Simulation`: keyed hash randomness only; no `System.Random`, `Guid.NewGuid`,

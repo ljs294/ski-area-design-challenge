@@ -183,6 +183,15 @@ Details in [lift-towers-sessellift-fgq4.md](lift-towers-sessellift-fgq4.md). The
 | LP14 | **Towers are galvanised throughout; in every sheave row only the first and last sheave are red** (lightning grounding) and the rest galvanised, on the terminals' trains too. Tower number plates are black |
 | LP15 | **Tower budgets, enforced at build time:** head LOD0 ≤16,000, LOD1 ≤5,000, LOD2 ≤1,000, LOD3 ≤200 triangles, switching at 15, 45, 150 and 800 m (doubled by the PC lodBias); mast section ≤150 and base ≤400 at LOD0. Sheaves spin only at LOD0; from LOD1 a head is one mesh |
 
+## Task 09, forest at scale: decided 2026-09-30
+
+| ID | Decision |
+|---|---|
+| F2 | Placement is Poisson-disc per 64 m tile, grown with Burst in the game and as plain C# in the downloader and CI (identical bytes); the forest's golden hashes are new, and caches rebuild once |
+| F3 | Krummholz: each site's treeline from its own canopy map; trees turn into krummholz in the 150 m below it, all of them in the top 50 m; mats only on gentler slopes |
+| F4 | Trees switch LOD sooner (screen heights 0.35 / 0.14 / 0.05, was 0.25 / 0.10 / 0.05), so dense forests such as Sugarloaf's fit the frame budget (option A). A live "Auto" tree-detail setting belongs with the graphics settings menu later |
+| F5 | The species priority survey counts every operating downhill ski area in the lower 48 once (OpenSkiMap); New England's species are task 09 phase 2 (NE1-NE4 in [new-england-species-plan.md](new-england-species-plan.md)) |
+
 ## SLE snow guns: decided 2026-09-29
 
 Details in [snow-guns-sle.md](snow-guns-sle.md). The guns follow the owner's own reference model of a stick gun for their dimensions and the owner's photos of real units for the heads and the tripod; the model stays local and is never named.

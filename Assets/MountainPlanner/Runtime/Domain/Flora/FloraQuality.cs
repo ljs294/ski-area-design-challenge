@@ -79,10 +79,4 @@ namespace MountainPlanner.Domain.Flora
                    $"sources agree on {pct(f.Agreement)} of forest";
         }
     }
-
-    /// <summary>Species with a real model in the tree library, by FIA species code (from <see cref="SpeciesMap"/>).</summary>
-    public static class TreeLibrary
-    {
-        public static readonly IReadOnlyCollection<int> ModelledSpecies = new HashSet<int>(SpeciesMap.ModelledCodes);
-    }
 }

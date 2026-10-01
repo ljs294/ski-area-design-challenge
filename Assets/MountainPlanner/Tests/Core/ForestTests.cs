@@ -12,8 +12,9 @@ using NUnit.Framework;
 namespace MountainPlanner.Tests
 {
     /// <summary>
-    /// Forest placement (0.3 §4.5): trees stand only on canopy, species follow BIGMAP, the same package
-    /// always grows the same forest, and the species map matches the tree library.
+    /// Forest placement (0.3 §4.5): trees stand only on canopy, keep their spacing across cells and tiles,
+    /// species follow BIGMAP, the same package always grows the same forest, and the species map matches
+    /// the tree library.
     /// </summary>
     public sealed class ForestTests
     {
@@ -40,7 +41,14 @@ namespace MountainPlanner.Tests
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(101)], Is.EqualTo("lodgepole_pine"), "whitebark pine looks like a pine");
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(96)], Is.EqualTo("engelmann_spruce"), "blue spruce looks like a spruce");
             Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(749)], Is.EqualTo("quaking_aspen"), "cottonwood looks like an aspen");
-            Assert.That(TreeLibrary.ModelledSpecies.Count, Is.EqualTo(SpeciesMap.Models.Length));
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(17)], Is.EqualTo("pacific_silver_fir"), "grand fir looks like silver fir");
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(21)], Is.EqualTo("noble_fir"), "Shasta red fir looks like noble fir");
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(242)], Is.EqualTo("western_hemlock"), "western redcedar looks like western hemlock");
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(261)], Is.EqualTo("western_hemlock"), "eastern hemlock looks like western hemlock");
+            Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(12)], Is.EqualTo("subalpine_fir"), "balsam fir looks like subalpine fir");
+            // Every model but a growth form (krummholz) stands for at least one real species.
+            var modelled = SpeciesMap.ModelledCodes.Select(c => SpeciesMap.Models[SpeciesMap.ModelFor(c)]).ToHashSet();
+            Assert.That(SpeciesMap.Models.Where(m => m != "krummholz"), Is.SubsetOf(modelled));
         }
 
         [Test]
@@ -53,6 +61,41 @@ namespace MountainPlanner.Tests
             Assert.That(ForestPlacement.TreesPerCell(1, 3, cal), Is.LessThanOrEqualTo(ForestPlacement.MaxTreesPerCell));
             Assert.That(ForestPlacement.RingDensity(0), Is.EqualTo(1));
             Assert.That(ForestPlacement.RingDensity(5000), Is.EqualTo(ForestPlacement.RingMinDensity).Within(1e-9));
+        }
+
+        /// <summary>A cone 4 km across rising from 2,000 to 3,600 m, forested below <paramref name="forestTop"/>.</summary>
+        static (float[] Elevation, bool[] Forest) Cone(double forestTop, int n = 400)
+        {
+            var elevation = new float[n * n];
+            var forest = new bool[n * n];
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    double r = Math.Sqrt((x - n / 2.0) * (x - n / 2.0) + (y - n / 2.0) * (y - n / 2.0)) * 10;
+                    double e = 3600 - 1600 * Math.Min(1, r / 2000);
+                    elevation[y * n + x] = (float)e;
+                    forest[y * n + x] = e < forestTop;
+                }
+            return (elevation, forest);
+        }
+
+        [Test]
+        public void KrummholzGrowsJustBelowTheTreeline()
+        {
+            var (elevation, forest) = Cone(3000);
+            byte[] chance = Treeline.Krummholz(elevation, forest, 400, 400, 10, out double line);
+            TestContext.Progress.WriteLine($"Treeline {line:F0} m");
+            Assert.That(line, Is.InRange(2960, 3000), "the forest's upper edge");
+            for (int i = 0; i < elevation.Length; i++)
+            {
+                if (!forest[i]) Assert.That(chance[i], Is.EqualTo(0), "only trees turn into krummholz");
+                else if (elevation[i] < 3000 - Treeline.BandMetres - 50) Assert.That(chance[i], Is.EqualTo(0), "none far below the treeline");
+                else if (elevation[i] > 3000 - 45) Assert.That(chance[i], Is.EqualTo(255), "all of them in the top 50 m");
+            }
+            // A mountain forested to its summit has no treeline, so no krummholz.
+            var (e2, f2) = Cone(9999);
+            Assert.That(Treeline.Krummholz(e2, f2, 400, 400, 10, out double none).All(c => c == 0), Is.True);
+            Assert.That(double.IsNaN(none), Is.True);
         }
 
         [Test]
@@ -76,14 +119,11 @@ namespace MountainPlanner.Tests
         [Test]
         public void JacksonHoleCliffShellsAreSeamlessAndDeterministic()
         {
-            string dir = TestData.Folder("jackson-hole-2km");
-            foreach (string f in Directory.GetFiles(dir, "*.grid")) TestData.Bytes(dir, Path.GetFileName(f));
-            var manifest = ResortPackage.ReadManifest(dir);
+            var (manifest, dir) = JacksonHole2Km();
             float[] core = ResortPackage.ReadLayer(dir, manifest, "heights-core", out var coreHeader);
             float[] ring = ResortPackage.ReadLayer(dir, manifest, "heights-ring", out var ringHeader);
             var heights = new TerrainCache.HeightField(core, coreHeader, ring, ringHeader);
-            var site = SiteSquare.Create(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY), manifest.Site.SizeMetres / 1000.0);
-            var tiles = TileGrid.For(site);
+            var tiles = Grid(manifest);
             var field = new CliffField(manifest, heights);
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var meshes = tiles.All().ToDictionary(k => (k.Column, k.Row), k => field.BuildTile(tiles.Bounds(k)));
@@ -118,26 +158,45 @@ namespace MountainPlanner.Tests
             Assert.That(again.ToBytes(), Is.EqualTo(first.ToBytes()), "the same package builds the same cliffs");
         }
 
-        [Test]
-        public void JacksonHoleTreesStandOnCanopyAndFollowBigmap()
+        /// <summary>
+        /// Tree hashes of three terrain tiles (a core tile at the summit, a core edge tile and a ring tile) and
+        /// the site's tree count: they change only with an approved behaviour change (AGENTS.md determinism rules).
+        /// </summary>
+        static readonly Dictionary<string, string> GoldenTrees = new Dictionary<string, string>
+        {
+            ["t4_3"] = "2fdd017661a5a8e9a4ca72e34fff31a529c759df86ffcda80e74b8ec590f8f25",
+            ["t4_4"] = "ad6e093375d554e7740e6ab2f8a0d3bf432b6641ce6ab6bdeecbc7e66c6b0b5d",
+            ["t0_0"] = "c91758af65bf3fb03276dd849da9f51301283f1c63d8cff2d565c77df3162792",
+        };
+        const int GoldenTreeCount = 256797;
+
+        static (PackageManifest Manifest, string Dir) JacksonHole2Km()
         {
             string dir = TestData.Folder("jackson-hole-2km");
             foreach (string f in Directory.GetFiles(dir, "*.grid")) TestData.Bytes(dir, Path.GetFileName(f));
-            var manifest = ResortPackage.ReadManifest(dir);
+            return (ResortPackage.ReadManifest(dir), dir);
+        }
+
+        static TileGrid Grid(PackageManifest manifest) =>
+            TileGrid.For(SiteSquare.Create(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY), manifest.Site.SizeMetres / 1000.0));
+
+        [Test]
+        public void JacksonHoleTreesStandOnCanopyAndFollowBigmap()
+        {
+            var (manifest, dir) = JacksonHole2Km();
             var forest = new ForestField(manifest, dir);
-            var site = SiteSquare.Create(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY), manifest.Site.SizeMetres / 1000.0);
-            var tiles = TileGrid.For(site);
+            var tiles = Grid(manifest);
             byte[] canopy = ResortPackage.ReadByteLayer(dir, manifest, "canopy-core", out var ch);
 
-            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var built = forest.BuildAll(tiles);
+            TestContext.Progress.WriteLine($"Prepared cells in {forest.PrepareSeconds:F2} s, grew trees in {forest.PlantSeconds:F2} s (plain C#)");
             long coreTrees = 0, ringTrees = 0, offCanopy = 0;
             var byModel = new double[SpeciesMap.Models.Length];
-            string firstHash = null;
-            foreach (var key in tiles.All())
+            var keys = tiles.All().ToList();
+            for (int n = 0; n < keys.Count; n++)
             {
-                var b = tiles.Bounds(key);
-                var trees = forest.BuildTile(b);
-                foreach (var t in trees)
+                var b = tiles.Bounds(keys[n]);
+                foreach (var t in built[n])
                 {
                     Assert.That(t.X, Is.InRange(0, 1024).And.LessThan(1024));
                     Assert.That(t.Z, Is.InRange(0, 1024).And.LessThan(1024));
@@ -153,20 +212,116 @@ namespace MountainPlanner.Tests
                     }
                     else ringTrees++;
                 }
-                if (firstHash == null && trees.Count > 0) firstHash = GridFile.HashValues(ForestField.Encode(trees, 1024));
             }
-            TestContext.Progress.WriteLine($"Placed {coreTrees:N0} core and {ringTrees:N0} ring trees in {watch.Elapsed.TotalSeconds:F1} s (ring share {forest.RingTreeShare:F2}); " +
-                                           string.Join(", ", byModel.Select((n, k) => (n, k)).Where(p => p.n > 0).OrderByDescending(p => p.n)
-                                               .Select(p => $"{SpeciesMap.Models[p.k]} {p.n / coreTrees:P0}")));
+            TestContext.Progress.WriteLine($"Placed {coreTrees:N0} core and {ringTrees:N0} ring trees (ring share {forest.RingTreeShare:F2}); " +
+                                           string.Join(", ", byModel.Select((v, k) => (v, k)).Where(p => p.v > 0).OrderByDescending(p => p.v)
+                                               .Select(p => $"{SpeciesMap.Models[p.k]} {p.v / coreTrees:P0}")));
             Assert.That(offCanopy, Is.EqualTo(0), "no core tree stands where the canopy map is open (ski runs stay open)");
             double perHectareOfForest = coreTrees / (4.0 * 100 * 0.42);   // 2 km core, about 42% forest (D4 rule)
             Assert.That(perHectareOfForest, Is.InRange(150, 1500), "a plausible subalpine stand density");
             // BIGMAP's top Jackson Hole species all appear.
             foreach (string model in new[] { "douglas_fir", "engelmann_spruce", "subalpine_fir", "lodgepole_pine" })
                 Assert.That(byModel[SpeciesMap.IndexOf(model)], Is.GreaterThan(0), model);
+        }
 
-            var again = new ForestField(manifest, dir).BuildTile(tiles.Bounds(tiles.All().First(k => forest.BuildTile(tiles.Bounds(k)).Count > 0)));
-            Assert.That(GridFile.HashValues(ForestField.Encode(again, 1024)), Is.EqualTo(firstHash), "the same package grows the same forest");
+        [Test]
+        public void KrummholzStaysNearItsOwnSizeAndPointsDownwind()
+        {
+            var (manifest, dir) = JacksonHole2Km();
+            var plan = new ForestField(manifest, dir).Prepare(Grid(manifest));
+            // A stand-in model the site doesn't otherwise grow, and every core cell fully in the band.
+            plan.KrummholzModel = SpeciesMap.IndexOf("american_beech");
+            for (int i = 0; i < plan.Cells.Length; i++)
+                if (plan.Cells[i].Kind == ForestCell.Core)
+                {
+                    plan.Cells[i].Krummholz = 255;
+                    plan.Cells[i].Steep = (byte)((i / plan.CellsX) % 2);   // every other row of cells too steep for mats
+                }
+            new ManagedForestPlanter().Plant(plan);
+            int[] codes = Treeline.HeightCodes();
+            var perVariant = new int[3];
+            for (int t = 0; t < plan.TileCountTotal; t++)
+                for (int k = 0; k < plan.TileCount[t]; k++)
+                {
+                    var p = plan.Points[plan.TileOffset[t] + k];
+                    if (p.Prototype / plan.Variants != plan.KrummholzModel) continue;
+                    int v = p.Prototype % plan.Variants;
+                    perVariant[v]++;
+                    int cell = (p.Y - plan.CellOriginY) / PoissonForest.CellFixed * plan.CellsX + (p.X - plan.CellOriginX) / PoissonForest.CellFixed;
+                    if (plan.Cells[cell].Steep != 0) Assert.That(v, Is.Not.EqualTo(Treeline.Mat), "no mats on steep ground");
+                    Assert.That(p.HeightCode, Is.InRange(codes[2 * v], codes[2 * v + 1]), "within 15% of the variant's own height");
+                    Assert.That(p.Rotation, Is.InRange(Treeline.DownwindRotation - 16, Treeline.DownwindRotation + 15), "flag downwind");
+                    Assert.That(p.Width32, Is.EqualTo(32));
+                }
+            TestContext.Progress.WriteLine($"Krummholz: {perVariant[Treeline.Mat]:N0} mats, {perVariant[Treeline.Cushion]:N0} cushions, {perVariant[Treeline.FlagTree]:N0} flag trees");
+            Assert.That(perVariant[Treeline.Mat], Is.GreaterThan(perVariant[Treeline.FlagTree]), "the most exposed ground grows mostly mats");
+            Assert.That(perVariant.Min(), Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void TreesKeepTheirSpacingAcrossCellsAndTiles()
+        {
+            var (manifest, dir) = JacksonHole2Km();
+            var plan = new ForestField(manifest, dir).Prepare(Grid(manifest));
+            new ManagedForestPlanter().Plant(plan);
+
+            // Every tree against every other within reach, binned on a 4 m grid (integer maths, like the sampler).
+            var points = new List<ForestPoint>();
+            for (int t = 0; t < plan.TileCountTotal; t++)
+                for (int k = 0; k < plan.TileCount[t]; k++) points.Add(plan.Points[plan.TileOffset[t] + k]);
+            const int bin = 4 * PoissonForest.Fixed;
+            var bins = new Dictionary<(int, int), List<int>>();
+            for (int i = 0; i < points.Count; i++)
+            {
+                var key = (points[i].X / bin, points[i].Y / bin);
+                if (!bins.TryGetValue(key, out var list)) bins[key] = list = new List<int>();
+                list.Add(i);
+            }
+            int reach = (plan.MaxSpacing256 + bin - 1) / bin;
+            long neighbours = 0, acrossTiles = 0, tooClose = 0;
+            for (int i = 0; i < points.Count; i++)
+            {
+                var p = points[i];
+                for (int by = p.Y / bin - reach; by <= p.Y / bin + reach; by++)
+                    for (int bx = p.X / bin - reach; bx <= p.X / bin + reach; bx++)
+                    {
+                        if (!bins.TryGetValue((bx, by), out var list)) continue;
+                        foreach (int j in list)
+                        {
+                            if (j <= i) continue;
+                            var q = points[j];
+                            long dx = p.X - q.X, dy = p.Y - q.Y, d = (p.Spacing256 + q.Spacing256) >> 1, d2 = dx * dx + dy * dy;
+                            if (d2 < d * d) tooClose++;
+                            if (d2 >= 4 * d * d) continue;   // near neighbours: within twice their spacing
+                            neighbours++;
+                            if (p.X / PoissonForest.TileFixed != q.X / PoissonForest.TileFixed || p.Y / PoissonForest.TileFixed != q.Y / PoissonForest.TileFixed)
+                                acrossTiles++;
+                        }
+                    }
+            }
+            TestContext.Progress.WriteLine($"{points.Count:N0} trees; {neighbours:N0} near neighbours, {acrossTiles:N0} of them across a 64 m tile edge");
+            Assert.That(acrossTiles, Is.GreaterThan(1000), "trees stand near each other across tile edges (no empty seams)");
+            Assert.That(tooClose, Is.EqualTo(0), "no two trees closer than their spacing, even across cells and tiles");
+        }
+
+        [Test]
+        public void JacksonHoleForestIsDeterministicAndMatchesItsGoldenHashes()
+        {
+            var (manifest, dir) = JacksonHole2Km();
+            var tiles = Grid(manifest);
+            var keys = tiles.All().ToList();
+            var first = new ForestField(manifest, dir).BuildAll(tiles);
+            var second = new ForestField(manifest, dir).BuildAll(tiles);
+            string Hash(List<PlacedTree> trees) => GridFile.HashValues(ForestField.Encode(trees, TileGrid.TileMetres));
+            for (int n = 0; n < keys.Count; n++)
+                Assert.That(Hash(second[n]), Is.EqualTo(Hash(first[n])), $"{keys[n]} identical across runs");
+
+            int total = first.Sum(t => t.Count);
+            string Golden(string key) => Hash(first[keys.FindIndex(k => k.ToString() == key)]);
+            foreach (var kv in GoldenTrees) TestContext.Progress.WriteLine($"[\"{kv.Key}\"] = \"{Golden(kv.Key)}\",");
+            TestContext.Progress.WriteLine($"GoldenTreeCount = {total};");
+            foreach (var kv in GoldenTrees) Assert.That(Golden(kv.Key), Is.EqualTo(kv.Value), kv.Key + " golden hash");
+            Assert.That(total, Is.EqualTo(GoldenTreeCount), "golden tree count");
         }
     }
 }

@@ -73,7 +73,7 @@ namespace MountainPlanner.Persistence
     public static class TerrainCache
     {
         /// <summary>Bump when the tile format or sampling changes: existing caches are then rebuilt.</summary>
-        public const int Version = 6;
+        public const int Version = 8;
 
         /// <summary>
         /// Splat texels per tile edge: 1 m in core tiles, 4 m in the ring (Unity needs powers of two).
@@ -149,8 +149,12 @@ namespace MountainPlanner.Persistence
             return values;
         }
 
-        /// <summary>Builds (or rebuilds) the cache for a package. Old cache versions are removed.</summary>
-        public static CacheManifest Build(string packageFolder, PackageManifest package, IProgress<CacheProgress> progress, CancellationToken ct = default)
+        /// <summary>
+        /// Builds (or rebuilds) the cache for a package. Old cache versions are removed. The forest grows with
+        /// <paramref name="forestPlanter"/> (the game passes its Burst planter), else as plain C#; both give the same bytes.
+        /// </summary>
+        public static CacheManifest Build(string packageFolder, PackageManifest package, IProgress<CacheProgress> progress, CancellationToken ct = default,
+                                          IForestPlanter forestPlanter = null)
         {
             float[] core = ResortPackage.ReadLayer(packageFolder, package, "heights-core", out var coreHeader);
             float[] ring = ResortPackage.ReadLayer(packageFolder, package, "heights-ring", out var ringHeader);
@@ -158,7 +162,7 @@ namespace MountainPlanner.Persistence
             var ringLayer = package.Layers.First(l => l.Id == "heights-ring");
             var heights = new HeightField(core, coreHeader, ring, ringHeader);
             var cover = new CoverField(package, packageFolder, heights);
-            var forest = new ForestField(package, packageFolder);
+            var forest = new ForestField(package, packageFolder, heights);
             var cliffField = new CliffField(package, heights);
 
             var site = SiteSquare.Create(new AlbersPoint(package.Site.CentreX, package.Site.CentreY), package.Site.SizeMetres / 1000.0);
@@ -177,6 +181,8 @@ namespace MountainPlanner.Persistence
                 CacheVersion = Version, PackageId = package.PackageId, HeightMin = min, HeightRange = range, TileMetres = TileGrid.TileMetres,
             };
             var keys = tiles.All().ToList();
+            var forestTiles = forest.BuildAll(tiles, forestPlanter);
+            ct.ThrowIfCancellationRequested();
             var built = new CacheTile[keys.Count];
             int done = 0;
             // Tiles are independent, so they build in parallel; each file's content doesn't depend on order.
@@ -202,7 +208,7 @@ namespace MountainPlanner.Persistence
                 using (var fs = File.Create(Path.Combine(folder, coverFile)))
                     GridFile.Write(fs, new GridHeader(GridValueType.UInt8, coverRes * CoverBands, coverRes, b.West, b.North, (b.East - b.West) / (coverRes - 1)), texels);
 
-                byte[] trees = ForestField.Encode(forest.BuildTile(b), TileGrid.TileMetres);
+                byte[] trees = ForestField.Encode(forestTiles[n], TileGrid.TileMetres);
                 string treesFile = $"t{key.Column}_{key.Row}.trees";
                 File.WriteAllBytes(Path.Combine(folder, treesFile), trees);
                 var cliff = cliffField.BuildTile(b);
