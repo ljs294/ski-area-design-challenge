@@ -110,6 +110,12 @@ namespace MountainPlanner.App
                 if (wind >= 0 && wind + 1 < args.Length && Enum.TryParse(args[wind + 1], true, out ForestWind.Level level))
                     StartCoroutine(WhenForestReady(() => Forest.Wind.Set(level)));
                 if (Array.IndexOf(args, "-covermap") >= 0) ToggleOverlay();
+                int lt = Array.IndexOf(args, "-lodtransitions");   // review runs: LOD0→1, 1→2, 2→impostor, impostor→culled screen heights
+                if (lt >= 0 && lt + 1 < args.Length)
+                {
+                    var t = args[lt + 1].Split(',').Select(v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                    StartCoroutine(WhenForestReady(() => Forest.LodTransitions = new Vector4(t[0], t[1], t[2], t[3])));
+                }
                 if (Array.IndexOf(args, "-baretrees") >= 0) StartCoroutine(WhenForestReady(ToggleTreeSnow));
                 else if (Array.IndexOf(args, "-nosnow") >= 0) await ResortOpener.SetSnowAsync(_resort, false, destroyCancellationToken);
                 int view = Array.IndexOf(args, "-view");
@@ -153,6 +159,13 @@ namespace MountainPlanner.App
             int i = Array.IndexOf(args, "-package");
             if (i >= 0 && i + 1 < args.Length && Directory.Exists(args[i + 1])) return args[i + 1];
             var entries = ResortLibrary.Scan(DataRoot);
+            int site = Array.IndexOf(args, "-site");   // -site "Crystal Mountain": the largest, newest download with that name
+            if (site >= 0 && site + 1 < args.Length)
+            {
+                var named = entries.Where(e => string.Equals(e.Name, args[site + 1], StringComparison.OrdinalIgnoreCase))
+                                   .OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
+                if (named != null) return named.Folder;
+            }
             var demo = entries.Where(e => e.Name == "Jackson Hole").OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
             return (demo ?? entries.FirstOrDefault())?.Folder;
         }

@@ -15,6 +15,7 @@ namespace MountainPlanner.Domain.Flora
         {
             "subalpine_fir", "engelmann_spruce", "douglas_fir", "lodgepole_pine", "mountain_hemlock",
             "quaking_aspen", "paper_birch", "yellow_birch", "sugar_maple", "red_maple", "american_beech",
+            "pacific_silver_fir", "western_hemlock", "noble_fir", "krummholz",
         };
 
         public const int VariantsPerModel = 3;
@@ -25,6 +26,7 @@ namespace MountainPlanner.Domain.Flora
             [19] = "subalpine_fir", [93] = "engelmann_spruce", [202] = "douglas_fir", [108] = "lodgepole_pine",
             [264] = "mountain_hemlock", [746] = "quaking_aspen", [375] = "paper_birch", [371] = "yellow_birch",
             [318] = "sugar_maple", [316] = "red_maple", [531] = "american_beech",
+            [11] = "pacific_silver_fir", [263] = "western_hemlock", [22] = "noble_fir",
         };
 
         public static IReadOnlyCollection<int> ModelledCodes => Exact.Keys;
@@ -43,14 +45,19 @@ namespace MountainPlanner.Domain.Flora
         /// <summary>FIA code ranges by genus (FIA species list), to the closest silhouette we have.</summary>
         public static string LookAlike(int spcd)
         {
-            if (spcd >= 10 && spcd <= 29) return "subalpine_fir";       // true firs (Abies)
-            if (spcd >= 40 && spcd <= 69) return "subalpine_fir";       // cedars, junipers: narrow dark conifers
+            if (spcd == 17) return "pacific_silver_fir";                // grand fir: a lowland fir with flat sprays
+            if (spcd == 15 || spcd == 20 || spcd == 21) return "noble_fir";   // white, California red and Shasta red fir: blue-green, stiff
+            if (spcd >= 10 && spcd <= 29) return "subalpine_fir";       // other true firs (Abies)
+            if (spcd >= 41 && spcd <= 43) return "western_hemlock";     // Port-Orford, Alaska yellow and Atlantic white cedar: drooping, feathery
+            if (spcd == 81) return "western_hemlock";                   // incense-cedar
+            if (spcd >= 40 && spcd <= 69) return "subalpine_fir";       // junipers: narrow dark conifers
             if (spcd >= 70 && spcd <= 73) return "subalpine_fir";       // larches (bare in winter, later)
             if (spcd >= 90 && spcd <= 99) return "engelmann_spruce";    // spruces (Picea)
             if (spcd >= 100 && spcd <= 143) return "lodgepole_pine";    // pines (Pinus)
             if (spcd >= 200 && spcd <= 202) return "douglas_fir";       // Douglas-firs
             if (spcd >= 211 && spcd <= 212) return "douglas_fir";       // redwood, giant sequoia
-            if (spcd >= 240 && spcd <= 299) return "mountain_hemlock";  // thujas, hemlocks and other conifers
+            if (spcd >= 240 && spcd <= 263) return "western_hemlock";   // thujas (redcedars, white-cedar) and the lowland hemlocks
+            if (spcd >= 264 && spcd <= 299) return "mountain_hemlock";  // mountain hemlock and other conifers
             if (spcd < 300) return "douglas_fir";                       // any other conifer
             if (spcd >= 310 && spcd <= 323) return "sugar_maple";       // maples (Acer)
             if (spcd >= 370 && spcd <= 379) return "paper_birch";       // birches (Betula)

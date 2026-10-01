@@ -85,7 +85,7 @@ namespace MountainPlanner.App
             {
                 var tileProgress = new Progress<CacheProgress>(p =>
                     progress?.Report(new OpenProgress($"Preparing terrain: tile {p.Tile} of {p.Tiles}", 0.5f * p.Tile / p.Tiles)));
-                await Task.Run(() => TerrainCache.Build(packageFolder, manifest, tileProgress, ct), ct);
+                await Task.Run(() => TerrainCache.Build(packageFolder, manifest, tileProgress, ct, new BurstForestPlanter()), ct);   // the forest grows with Burst
             }
             var cache = await Task.Run(() => TerrainCache.ReadManifest(packageFolder), ct);
             var frame = new LocalFrame(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY));

@@ -2,6 +2,7 @@
   <!-- Builds the same sources as Assets/MountainPlanner/Runtime/Persistence/MountainPlanner.Persistence.asmdef. -->
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>MountainPlanner.Persistence</AssemblyName>
   </PropertyGroup>
   <ItemGroup>

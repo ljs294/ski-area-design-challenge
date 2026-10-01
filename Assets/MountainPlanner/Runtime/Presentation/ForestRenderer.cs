@@ -20,11 +20,14 @@ namespace MountainPlanner.Presentation
         public const int Lods = 4;
         /// <summary>
         /// Screen-height fractions where LOD0→1, 1→2, 2→impostor and impostor→culled. For a 20 m tree at the
-        /// PC preset's LOD bias of 2: LOD0 to about 140 m, LOD1 to 350 m, LOD2 to 700 m, the impostor beyond.
+        /// PC preset's LOD bias of 2: LOD0 to about 100 m, LOD1 to 250 m, LOD2 to 700 m, the impostor beyond.
         /// The LODs keep LOD0's crown, brightness and snow (TreeImport's fidelity check), so the full model no
-        /// longer has to stay on far into the distance.
+        /// longer has to stay on far into the distance. Task 09 (owner, option A) moved LOD0→1 from 0.25 and
+        /// 1→2 from 0.10: Sugarloaf's dense forest was over budget (p95 24.6 → 18.5 ms) and every site got faster.
         /// </summary>
-        public static readonly Vector4 Transitions = new Vector4(0.25f, 0.10f, 0.05f, 0.003f);
+        public static readonly Vector4 Transitions = new Vector4(0.35f, 0.14f, 0.05f, 0.003f);
+        /// <summary>This forest's transitions (<see cref="Transitions"/> unless a review run overrides them: -lodtransitions).</summary>
+        public Vector4 LodTransitions = Transitions;
 
         /// <summary>
         /// Distance fade, continuous so nothing pops at a LOD switch (TreeCommon.hlsl): between x and y metres,
@@ -35,7 +38,7 @@ namespace MountainPlanner.Presentation
 
         readonly ComputeShader _cull;
         readonly int _clear, _cullKernel, _writeArgs;
-        readonly GraphicsBuffer _trees, _nativeHeights, _prototypeStart, _visible, _counts, _args, _drawCounter;
+        readonly GraphicsBuffer _trees, _nativeHeights, _reach, _prototypeStart, _visible, _counts, _args, _drawCounter;
         readonly List<Draw> _draws = new List<Draw>();
         readonly Vector4[] _planes = new Vector4[6];
         readonly Plane[] _planeScratch = new Plane[6];
@@ -43,6 +46,17 @@ namespace MountainPlanner.Presentation
         readonly int _treeCount, _countSlots;
         public int TreeCount => _treeCount;
         public int DrawCount => _draws.Count;
+        /// <summary>GPU memory of the forest's own buffers (trees, visible lists, counters, draw arguments).</summary>
+        public long GpuBytes
+        {
+            get
+            {
+                long total = 0;
+                foreach (var b in new[] { _trees, _nativeHeights, _reach, _prototypeStart, _visible, _counts, _args, _drawCounter })
+                    if (b != null) total += (long)b.count * b.stride;
+                return total;
+            }
+        }
         /// <summary>-1: LOD by screen size. 0–3: draw every visible tree at that LOD (lineups and reviews).</summary>
         public int ForcedLod = -1;
         readonly double[] _slotTriangles;
@@ -93,17 +107,31 @@ namespace MountainPlanner.Presentation
             if (trees.Length > 0) _trees.SetData(trees);
             _nativeHeights = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(float));
             _nativeHeights.SetData(set.NativeHeights);
+            // How far each prototype reaches sideways from its trunk (LOD0 bounds), so wide, low models (krummholz
+            // mats) are culled and switch LOD by their real size, not just their height.
+            var reach = new float[prototypes];
+            for (int p = 0; p < prototypes; p++)
+            {
+                var lods = set.Prefabs[p].GetComponent<LODGroup>().GetLODs();
+                var b = lods[0].renderers[0].GetComponent<MeshFilter>().sharedMesh.bounds;
+                reach[p] = Mathf.Max(new Vector2(b.min.x, b.min.z).magnitude, new Vector2(b.max.x, b.max.z).magnitude,
+                                     new Vector2(b.min.x, b.max.z).magnitude, new Vector2(b.max.x, b.min.z).magnitude);
+            }
+            _reach = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(float));
+            _reach.SetData(reach);
             _prototypeStart = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(uint));
             _prototypeStart.SetData(start);
             _visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.Max(1, trees.Length * Lods), sizeof(uint));
             _counts = new GraphicsBuffer(GraphicsBuffer.Target.Structured, _countSlots, sizeof(uint));
 
-            // One indirect draw per prototype, LOD and visible submesh.
+            // One indirect draw per prototype, LOD and visible submesh, for the prototypes this forest has: a
+            // site uses a few of the library's species, and every draw costs CPU in each pass even when empty.
             var args = new List<GraphicsBuffer.IndirectDrawIndexedArgs>();
             var counters = new List<uint>();
             var bounds = new Bounds(Vector3.zero, new Vector3(40000, 20000, 40000));
             for (int p = 0; p < prototypes; p++)
             {
+                if (perPrototype[p] == 0) continue;
                 var group = set.Prefabs[p].GetComponent<LODGroup>();
                 var lods = group.GetLODs();
                 for (int l = 0; l < Lods && l < lods.Length; l++)
@@ -178,6 +206,7 @@ namespace MountainPlanner.Presentation
             _cull.SetBuffer(_clear, "_Counts", _counts);
             _cull.SetBuffer(_cullKernel, "_Trees", _trees);
             _cull.SetBuffer(_cullKernel, "_NativeHeights", _nativeHeights);
+            _cull.SetBuffer(_cullKernel, "_Reach", _reach);
             _cull.SetBuffer(_cullKernel, "_PrototypeStart", _prototypeStart);
             _cull.SetBuffer(_cullKernel, "_Visible", _visible);
             _cull.SetBuffer(_cullKernel, "_Counts", _counts);
@@ -211,7 +240,7 @@ namespace MountainPlanner.Presentation
             _cull.SetVector("_CameraPosition", camera.transform.position);
             // Same measure as Unity's LODGroup: screen height fraction times the quality LOD bias.
             _cull.SetFloat("_ScreenScale", QualitySettings.lodBias / (2f * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad)));
-            _cull.SetVector("_Transitions", Transitions);
+            _cull.SetVector("_Transitions", LodTransitions);
             _cull.SetInt("_ForcedLod", ForcedLod);
             _cull.Dispatch(_clear, (_countSlots + 63) / 64, 1, 1);
             _cull.Dispatch(_cullKernel, (_treeCount + 63) / 64, 1, 1);
@@ -243,7 +272,7 @@ namespace MountainPlanner.Presentation
 
         public void Dispose()
         {
-            foreach (var b in new[] { _trees, _nativeHeights, _prototypeStart, _visible, _counts, _args, _drawCounter }) b?.Dispose();
+            foreach (var b in new[] { _trees, _nativeHeights, _reach, _prototypeStart, _visible, _counts, _args, _drawCounter }) b?.Dispose();
             foreach (var m in _materials) UnityEngine.Object.Destroy(m);
             _materials.Clear();
             _windMaterials.Clear();

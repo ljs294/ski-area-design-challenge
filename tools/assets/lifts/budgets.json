@@ -11,8 +11,9 @@
     "crossFade": true
   },
   "chair": {
+    "_about": "Up close raised from 800 to 1,600 (the owner, 2026-09-29) so the grips can be modelled: only chairs within the first switch distance use it; the far levels, which most chairs on a line use, are unchanged.",
     "lods": [
-      {"lod": 0, "maxTris": 800, "untilM": 10},
+      {"lod": 0, "maxTris": 1600, "untilM": 10},
       {"lod": 1, "maxTris": 250, "untilM": 35},
       {"lod": 2, "maxTris": 60, "untilM": 300}
     ],

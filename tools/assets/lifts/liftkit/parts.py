@@ -1,5 +1,7 @@
 """Lift parts built from primitives, in the lift frame. Detail follows an LOD level (0 = nearest)."""
+import json
 import math
+import os
 
 from mathutils import Vector
 
@@ -181,17 +183,19 @@ def arc_axles(a, count, radius, level="apex"):
     return [(radius * math.sin(x - mid), radius * (1 - math.cos(x - mid))) for x in angs]
 
 
-def hold_rope(a, count, radius, u_first, rope_w, steps=16):
-    """The rope under a hold-down row levelled at its first sheave (arc_axles level "first"): (u, w) points along
-    the rope's circle from the first sheave's contact, where the rope is level at rope_w, to the last sheave's,
-    where it leaves climbing; and the exit angle above level (radians). u_first is the first axle's u."""
+def hold_rope(a, count, radius, u_first, rope_w, steps=16, mode="hold"):
+    """The rope along a row levelled at its first sheave (arc_axles level "first"): (u, w) points along the rope's
+    circle from the first sheave's contact, where the rope is level at rope_w, to the last sheave's; and the angle
+    it leaves at (radians). Under a hold-down row the rope leaves climbing; over a support row it leaves
+    descending (mode "support"). u_first is the first axle's u."""
     rho = a["ropeR"] + a["sheave"]["dia"] / 2          # axle to the rope's centreline
     p, g, t = a["pitch"], a["rockerGap"], a["trainGap"]
     chords = {2: [p], 4: [p, g, p], 6: [p, g, p, t, p], 8: [p, g, p, t, p, g, p]}[count]
     theta = sum(2 * math.asin(ch / (2 * radius)) for ch in chords)
     rr = radius + rho                                  # the rope's circle, about the axle circle's centre
-    cu, cw = u_first, rope_w + rr
-    return [(cu + rr * math.sin(theta * k / steps), cw - rr * math.cos(theta * k / steps)) for k in range(steps + 1)], theta
+    sg = 1.0 if mode == "hold" else -1.0               # the centre is above a hold-down row, below a support row
+    return [(u_first + rr * math.sin(theta * k / steps), rope_w + sg * rr * (1 - math.cos(theta * k / steps)))
+            for k in range(steps + 1)], theta
 
 
 def _row(mb, asset, name, u0, v_rope, rope_w, a, count, mode, radius, lod, st, first, parts_lod, outer_yoke, level="apex"):
@@ -512,3 +516,180 @@ def deck(mb, lo, hi, lod, style, grating=True):
             else:
                 x0 = lo.x if s == 0 else hi.x - 0.05
                 prims.box(mb, (x0, lo.y, lo.z - depth), (x0 + 0.05, hi.y, lo.z), style)
+
+
+# -- the Sessellift chair's safety bar, shared -----------------------------------------------------------------
+_SL_CHAIR = None
+
+
+def sessellift_chair_spec():
+    """The Sessellift chair's section of sessellift_fgq4.json: other chairs share its safety bar."""
+    global _SL_CHAIR
+    if _SL_CHAIR is None:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sessellift_fgq4.json")
+        with open(path, encoding="utf-8") as f:
+            _SL_CHAIR = json.load(f)["chair"]
+    return _SL_CHAIR
+
+
+def restraint_sleeves(mb, sl, r, place, style):
+    """The safety bar's pivot sleeves along the top bar. place(u, halfWidth, w, side) maps the Sessellift chair's
+    millimetres (halfWidth out from its middle, side -1 or 1) into the chair's frame."""
+    for s in (-1, 1):
+        prims.cylinder(mb, place(sl["u"], sl["from"], sl["w"], s), place(sl["u"], sl["to"], sl["w"], s), r, 5, style, caps=(False, False))
+
+
+def restraint_bar(mb, bar, radii, place, near, sides, style, handle_style):
+    """The Sessellift chair's safety bar, raised behind the seat: arms from the pivot sleeves (up close), the rail,
+    the legs with their footrest stubs, and up close the rod and the handles. place as for restraint_sleeves; radii:
+    the bar, rod and handle tubes (m)."""
+    rail = bar["rail"]
+    for s in ((-1, 1) if near else ()):
+        prims.tube_path(mb, [place(u, bar["armHalfWidth"], w, s) for u, w in bar["arm"]], radii["bar"], sides, style)
+    leg = bar["leg"]
+    c = rail["corner"]
+    right = [leg[i] for i in (4, 3, 2, 1, 0)] if near else [leg[4], leg[3], leg[0]]
+    path = [place(u, hw, w, 1) for u, hw, w in right]
+    path += [place(rail["u"], rail["halfWidth"] + c * 0.5, rail["w"] - c * 0.5, 1), place(rail["u"], rail["halfWidth"], rail["w"], 1),
+             place(rail["u"], rail["halfWidth"], rail["w"], -1), place(rail["u"], rail["halfWidth"] + c * 0.5, rail["w"] - c * 0.5, -1)]
+    path += [place(u, hw, w, -1) for u, hw, w in reversed(right)]
+    prims.tube_path(mb, path, radii["bar"], sides, style)
+    if near:
+        rod = bar["rod"]
+        prims.cylinder(mb, place(rod["u"], -rod["halfWidth"], rod["w"], 1), place(rod["u"], rod["halfWidth"], rod["w"], 1), radii["rod"], 3,
+                       style, caps=(False, False))
+        hd = bar["handle"]
+        for s in (-1, 1):
+            prims.cylinder(mb, place(hd["from"][0], hd["halfWidth"], hd["from"][1], s), place(hd["to"][0], hd["halfWidth"], hd["to"][1], s),
+                           radii["handle"], 4, handle_style, caps=(False, False))
+
+
+# -- chair grips -----------------------------------------------------------------------------------
+_FIXED_GRIP = None
+
+
+def fixed_grip_spec():
+    """The fixed grip's dimensions (fixed_grip.json), one design for every fixed-grip chair."""
+    global _FIXED_GRIP
+    if _FIXED_GRIP is None:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixed_grip.json")
+        with open(path, encoding="utf-8") as f:
+            _FIXED_GRIP = json.load(f)
+    return _FIXED_GRIP
+
+
+def hanger_from_socket(path, g=None):
+    """A hanger's path (mm, (v, w) points in the u = 0 plane) from where it leaves the fixed grip's socket: cut at
+    socket.w below the rope, so the tube starts on the socket's last ring."""
+    g = g or fixed_grip_spec()
+    cut = g["socket"]["w"]
+    for i in range(len(path) - 1):
+        (v0, w0), (v1, w1) = path[i], path[i + 1]
+        if w0 > cut >= w1:
+            f = (cut - w0) / (w1 - w0)
+            return [[v0 + (v1 - v0) * f, cut]] + [list(q) for q in path[i + 1:]]
+    raise ValueError("the hanger never drops below the fixed grip's socket")
+
+
+def hanger_joint(rings, pts, r, style):
+    """What fixed_grip's socket needs to join a hanger built by prims.tube_path(mb, pts, r, ...): its first ring
+    (returned as rings), that ring's frame, and the tube's radius and style."""
+    ring, y, z = rings[0]
+    p0, p1 = vec(pts[0]), vec(pts[1])
+    return {"ring": list(ring), "y": y, "z": z, "centre": p0, "t": (p1 - p0).normalized(), "r": r, "style": style}
+
+
+def _socket(mb, g, hanger, steps=3):
+    """The cast housing flowing down into the hanger: a funnel from an ellipse inside the housing, at the stack's
+    axis, to the hanger tube's own first ring (its vertices, so the shading runs on without a seam). Its axis leaves
+    the tube straight up the tube and curves to the ellipse's middle; the flare grows from nothing at the tube."""
+    k = 0.001
+    top_s = g["socket"]["top"]
+    cv = (top_s["v"][0] + top_s["v"][1]) / 2 * k
+    ru, rv = top_s["u"] * k, (top_s["v"][1] - top_s["v"][0]) / 2 * k
+    top_c = Vector((0.0, cv, g["axisW"] * k))
+    c0, t, y, z, r = hanger["centre"], hanger["t"], hanger["y"], hanger["z"], hanger["r"]
+    n = len(hanger["ring"])
+    handle = c0 - t * ((top_c - c0).length * 0.5)
+    dirs = [y * math.cos(2 * math.pi * i / n) + z * math.sin(2 * math.pi * i / n) for i in range(n)]
+    top = []
+    for d in dirs:   # onto the ellipse in the direction the tube's vertex faces
+        h = Vector((d.x, d.y, 0.0))
+        h = h.normalized() if h.length > 1e-6 else Vector((0.0, 1.0, 0.0))
+        top.append(Vector((h.x * ru, h.y * rv, 0.0)))
+    st = hanger["style"].but(smooth=True)
+    prev = hanger["ring"]
+    for j in range(1, steps + 1):
+        f = j / steps
+        axis = c0 * (1 - f) ** 2 + handle * (2 * (1 - f) * f) + top_c * (f * f)
+        e = f * f
+        cur = mb.verts_lift([tuple(axis + d * (r * (1 - e)) + top[i] * e) for i, d in enumerate(dirs)])
+        for i in range(n):
+            i1 = (i + 1) % n
+            mb.face([prev[i], prev[i1], cur[i1], cur[i]], st, tuple(dirs[i] + dirs[i1]))
+        prev = cur
+
+
+def fixed_grip(mb, lod, style, dark=None, metal=None, g=None, hanger=None):
+    """The fixed grip on the rope at the chair frame's origin (fixed_grip.json, mm), after photographs of the grip
+    in service: a chamfered jaw block on the rope with black jaw blades over the top half of the rope both ways (just
+    wider than it, their tops flaring up toward the block); out across the rope one cast arm turned round the stack's
+    axis, swelling from the jaw into the housing the hanger leaves from; then a dark collar ring, the spring housing,
+    the nut and the bolt's dark end. Up close the hanger flows out of the housing's underside through a socket joined
+    to the hanger's own tube (hanger: from hanger_joint; the chair builds the hanger first, from hanger_from_socket).
+    LOD1: the jaws as one block, the stack as one bar. style: the castings (the hanger's silver); dark: the jaw
+    blades, the collar and the bolt's end; metal: the nut."""
+    g = g or fixed_grip_spec()
+    dark = dark or style
+    metal = metal or style
+    k = 0.001
+    b, t = g["body"], g["tails"]
+    aw = g["axisW"] * k
+    hs, co, sp, nt, bt = (g[n] for n in ("housing", "collar", "spring", "nut", "bolt"))
+
+    def along(v0, v1, r, n, st, caps=(True, True), r1=None):
+        prims.cylinder(mb, (0.0, v0 * k, aw), (0.0, v1 * k, aw), r * k, n, st, caps=caps, r1=None if r1 is None else r1 * k)
+
+    def hexagon(v0, v1, af, st, caps):   # a corner up, as the drawings show the nut: its height across the corners
+        prims.cylinder(mb, (0.0, v0 * k, aw), (0.0, v1 * k, aw), af / 2 / math.cos(math.pi / 6) * k, 6, st, caps=caps,
+                       phase=math.pi / 6, smooth=False)
+
+    if lod >= 1:
+        rt = t["root"]
+        prims.box(mb, (-t["to"] * 0.6 * k, -rt["v"] * k, rt["w"][0] * k), (t["to"] * 0.6 * k, rt["v"] * k, rt["w"][1] * k), dark)
+        along(0.0, bt["v"][1], sp["dia"][1] / 2, 4, style, caps=(False, True))
+        return
+    # the jaw block on the rope: its long edges chamfered
+    (v0, v1), (w0, w1), c = b["v"], b["w"], b["chamfer"]
+    sec = [(v0, w0 + c), (v0 + c, w0), (v1 - c, w0), (v1, w0 + c), (v1, w1 - c), (v1 - c, w1), (v0 + c, w1), (v0, w1 - c)]
+    prims.prism(mb, [(v * k, w * k) for v, w in sec], Vector((b["u"][0] * k, 0.0, 0.0)), V, W, U, (b["u"][1] - b["u"][0]) * k, style)
+    # the black jaw blades over the top half of the rope: an arch from the rope's sides at its centreline up over the
+    # top, from the block's ends to their tips, their tops flaring up toward the block
+    steps = t["arc"]
+
+    def section(u, sq):
+        (lo, hi), half = sq["w"], sq["v"]
+        return [(u * k, half * math.cos(a) * k, (lo + (hi - lo) * math.sin(a)) * k)
+                for a in (math.pi * i / steps for i in range(steps + 1))]
+    blade = dark.but(smooth=True)
+    for sgn, u0 in ((-1, b["u"][0]), (1, b["u"][1])):
+        ri = mb.verts_lift(section(u0, t["root"]))
+        ti = mb.verts_lift(section(sgn * t["to"], t["tip"]))
+        for i in range(steps):   # the arch
+            a = math.pi * (i + 0.5) / steps
+            mb.face([ri[i], ri[i + 1], ti[i + 1], ti[i]], blade, (0.0, math.cos(a), math.sin(a)))
+        mb.face([ri[steps], ri[0], ti[0], ti[steps]], dark, (0.0, 0.0, -1.0))   # its flat underside, on the rope
+        mb.face(mb.verts_lift(section(sgn * t["to"], t["tip"])), dark, (sgn, 0.0, 0.0))
+    # the cast arm and housing, turned round the stack's axis from the jaw block out to the collar, and the socket
+    # from its underside into the hanger
+    prims.lathe(mb, (0.0, 0.0, aw), V, [(r * k, v * k) for r, v in hs["profile"]], hs["sides"], style, closed=False,
+                phase=math.pi / hs["sides"])
+    if hanger is not None:
+        _socket(mb, g, hanger)
+    # the dark collar ring, the spring housing, the nut and the bolt's dark end
+    along(co["v"][0], co["v"][1], co["dia"] / 2, 8, dark, caps=(False, False))
+    s0, s1 = sp["v"]
+    along(s0, s0 + sp["shoulder"], sp["dia"][0] / 2, 10, style, caps=(True, False), r1=sp["dia"][1] / 2)
+    along(s0 + sp["shoulder"], s1, sp["dia"][1] / 2, 10, style, caps=(False, False))
+    hexagon(nt["v"][0], nt["v"][1], nt["af"], metal, (True, True))
+    along(bt["v"][0], bt["v"][1], bt["dia"] / 2, 8, dark, caps=(False, True))

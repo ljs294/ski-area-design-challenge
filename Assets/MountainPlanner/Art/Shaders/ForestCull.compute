@@ -18,6 +18,7 @@ struct Tree
 
 StructuredBuffer<Tree> _Trees;
 StructuredBuffer<float> _NativeHeights;     // per prototype
+StructuredBuffer<float> _Reach;             // per prototype: how far it reaches sideways from its trunk at scale 1 (LOD0 bounds)
 StructuredBuffer<uint> _PrototypeStart;     // first slot of each prototype in a LOD band
 RWStructuredBuffer<uint> _Visible;          // LOD band l, prototype p: [l * _TreeCount + _PrototypeStart[p] + k]
 RWStructuredBuffer<uint> _Counts;           // [p * 4 + l]
@@ -45,13 +46,17 @@ void Cull(uint3 id : SV_DispatchThreadID)
     if (id.x >= _TreeCount) return;
     Tree t = _Trees[id.x];
     float height = _NativeHeights[t.prototype] * t.heightScale;
+    float reach = _Reach[t.prototype] * t.widthScale;
     float3 centre = t.position + float3(0, height * 0.5, 0);
-    float radius = height * 0.6;
+    // A sphere that holds the whole model, even a low krummholz mat trailing metres downwind.
+    float radius = max(height * 0.6, sqrt(reach * reach + height * height * 0.25));
+    // Its size on screen: its height, or its reach where that's larger (a mat seen from afar).
+    float size = max(height, reach);
     [unroll] for (int i = 0; i < 6; i++)
         if (dot(_Planes[i].xyz, centre) + _Planes[i].w < -radius) return;
 
     float distance = max(length(centre - _CameraPosition), 0.01);
-    float screen = height * _ScreenScale / distance;
+    float screen = size * _ScreenScale / distance;
     uint lod = screen > _Transitions.x ? 0 : screen > _Transitions.y ? 1 : screen > _Transitions.z ? 2 : screen > _Transitions.w ? 3 : 4;
     if (_ForcedLod >= 0) lod = (uint)_ForcedLod;
     if (lod == 4) return;

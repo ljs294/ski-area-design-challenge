@@ -4,11 +4,12 @@
     "references": [
         "MountainPlanner.Domain",
         "MountainPlanner.Simulation",
-        "MountainPlanner.Persistence"
+        "MountainPlanner.Persistence",
+        "Unity.Burst"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
-    "allowUnsafeCode": false,
+    "allowUnsafeCode": true,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,

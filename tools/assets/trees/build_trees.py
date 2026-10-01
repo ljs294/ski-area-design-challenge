@@ -6,6 +6,8 @@ For every species in species.json it makes 3 variants x 3 LODs, deterministicall
 and variant), and exports one FBX per variant with objects <id>_v<N>_LOD0..2 (Unity groups them into an
 LODGroup) plus the generated textures. Trees are a branching skeleton with textured bark, dressed with
 alpha-textured cards: needle sprays (conifers), leaf clusters and bare-twig silhouettes (deciduous).
+Krummholz is a growth form, not a species: its three variants are a mat, a flag tree and a cushion, and
+they reach downwind toward Blender -Y, which is the prefab's local +Z in Unity (see build_krummholz).
 With --render it also writes review images.
 
 Mesh data the tree shader reads (see README.md):
@@ -141,7 +143,8 @@ class MeshBuilder:
                 self.face(idx, uvs, BARK, smoothstep(0.2, 0.8, self.normal_z(idx)) * snow_scale)
 
     def card(self, base, direction, side, length, width, winds, mat, flag=0.0, snow_scale=1.0, season=(0.0, 0.0)):
-        """An alpha-textured card: u runs from base along direction, v across side (centred)."""
+        """An alpha-textured card: u runs from base along direction, v across side (centred). Cards always show
+        the whole texture: the game's snow pattern (SnowPattern) expects the branch line at v = 0.5."""
         d, s = direction.normalized(), side.normalized()
         if d.cross(s).z < 0:  # keep the textured face up so snow lands on it
             s = -s
@@ -209,6 +212,92 @@ def horizontal_side(direction, roll):
 # ---------------------------------------------------------------------------------------------
 # Conifers: whorled branches dressed with needle-spray cards.
 
+def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, sway, trunk_r, floor=None, flex=1.0):
+    """One conifer branch from base along the horizontal direction d, rising at elev (radians) and drooping
+    by the species' droop: a bark tube dressed with needle sprays (LOD0), or one or two branch-cluster cards
+    (LOD1-2). h is the height in the crown (0-1); reach is 1 for a whorl branch and less for an internodal
+    one; parity alternates LOD2's cluster roll; floor keeps the branch above that height (krummholz); flex
+    scales the branch-flex wind weight (G), since the shader bobs branch tips by a fixed distance."""
+    phase = rng.random()
+    segs = lod["segments"]
+    pts = [base + d * length * (s / segs) + Vector((0, 0, math.tan(elev) * length * s / segs - sp["droop"] * length * (s / segs) ** 2))
+           for s in range(segs + 1)]
+    if floor is not None:
+        for p in pts:
+            p.z = max(p.z, floor)
+    spray_len, spray_w = sp["spray"]
+
+    def branch_point(t, pts=pts, segs=segs):
+        f = t * segs
+        i = min(int(f), segs - 1)
+        return pts[i].lerp(pts[i + 1], f - i)
+
+    def branch_tangent(t):
+        return (branch_point(min(1, t + 0.02)) - branch_point(max(0, t - 0.02))).normalized()
+
+    winds = [(sway(p.z), s / segs * flex, phase, 0.0) for s, p in enumerate(pts)]
+    if lod.get("cluster"):
+        # Mid-distance LODs: the branch as one or two branch-cluster cards (no branch tube: the
+        # cluster hides it). A flat card along the branch, and on LOD1 a second one rolled up or
+        # down so the crown stays full from the side.
+        tan = branch_tangent(0.5)
+        lo, hi, extra = sp.get("clusterSpan", (1.1, 3.2, 0.9))
+        span = min(hi, max(lo, 0.55 * length + extra)) * (0.8 if reach < 1.0 else 1.0)
+        # LOD2 has one card per branch: alternate a strong roll so the crown isn't edge-on from the side.
+        roll = rng.uniform(-0.25, 0.25) + (0.0 if lod["cluster"] >= 2 else (0.6 if parity else -0.6))
+        ends = [(sway(base.z), 0.0, phase, 0.4), (sway(pts[-1].z), 1.0 * flex, phase, 1.0)]
+        b.card(base, tan, horizontal_side(tan, roll), length * 1.08, span, ends, FOLIAGE, snow_scale=0.4)
+        if lod["cluster"] >= 2 and reach == 1.0:
+            b.card(base + tan * length * 0.08, tan, horizontal_side(tan, roll + rng.choice((-1, 1)) * 1.15), length * 0.95, span * 0.8,
+                   ends, FOLIAGE, snow_scale=0.25)
+        return
+    if lod["branchSides"] and reach == 1.0:
+        # Conifer branches are mostly hidden by their sprays: a 3-sided tube through every
+        # other point is enough (internodal branches get none).
+        r0 = max(0.015, trunk_r * 0.22 * (1 - h * 0.6))
+        keep = list(range(0, segs + 1, 2)) if segs > 2 else list(range(segs + 1))
+        b.tube([pts[i] for i in keep], [r0 * (1 - i / segs * 0.85) for i in keep], 3, [winds[i] for i in keep], snow_scale=0.4)
+
+    if lod["cards"] == 0:
+        # LOD2: two broad crossed spray cards per branch keep the silhouette.
+        tan = branch_tangent(0.5)
+        for roll in (0.0, 0.9):
+            b.card(base, tan, horizontal_side(tan, roll), length * 1.05, length * 0.75,
+                   [(sway(base.z), 0.0, phase, 0.4), (sway(pts[-1].z), 1.0, phase, 1.0)], FOLIAGE)
+        return
+
+    # Sprays along the branch, alternating sides, plus one at the tip.
+    n_sprays = max(2, int(length * sp["spraysPerMetre"] * sp.get("sprayDensity", 1.2) * lod["cards"]))
+    size = lod["card"]
+    start = 0.55 if sp.get("tufts") else 0.12
+    for i in range(n_sprays):
+        t = lerp(start, 0.95, (i + rng.random() * 0.5) / n_sprays)
+        p = branch_point(t)
+        tan = branch_tangent(t)
+        side = 1 if i % 2 else -1
+        lat = tan.cross(UP)
+        lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
+        a = math.radians(rng.uniform(25, 55)) * side
+        dirn = (tan * math.cos(a) + lat * math.sin(a)).normalized()
+        dirn.z -= sp["droop"] * 0.3
+        if "sprayLift" in sp:
+            dirn.z += sp["sprayLift"]   # upturned sprays (noble fir: stiff, level branches, tips turned up)
+        ln = spray_len * 1.5 * size * (1 - 0.3 * t) * rng.uniform(0.85, 1.15)
+        wd = spray_w * 1.6 * size * (1 - 0.25 * t)
+        roll = rng.uniform(-0.6, 0.6)
+        wn = [(sway(p.z), t * flex, phase, 0.5), (sway(p.z), min(1.0, t + 0.2) * flex, phase, 1.0)]
+        b.card(p, dirn, horizontal_side(dirn, roll), ln, wd, wn, FOLIAGE, snow_scale=0.38)
+        if sp.get("crossed") or sp.get("tufts"):
+            b.card(p, dirn, horizontal_side(dirn, roll + 1.4), ln * 0.9, wd * 0.9, wn, FOLIAGE, snow_scale=0.25)
+        elif lod["cards"] >= 1.0 and i % 2 == 0:
+            # A tilted second spray every other station gives flat sprays volume from the side.
+            b.card(p, dirn, horizontal_side(dirn, roll + rng.choice((-1, 1)) * 1.1), ln * 0.75, wd * 0.8, wn, FOLIAGE, snow_scale=0.2)
+    tip = pts[-1]
+    tan = branch_tangent(0.97)
+    b.card(tip - tan * spray_len * 0.3, tan, horizontal_side(tan, 0.0), spray_len * size, spray_w * size,
+           [(sway(tip.z), 0.9 * flex, phase, 0.8), (sway(tip.z), 1.0 * flex, phase, 1.0)], FOLIAGE)
+
+
 def build_conifer(sp, rng, lod, height):
     b = MeshBuilder()
     trunk_r = sp["trunkRadius"] * height
@@ -216,14 +305,17 @@ def build_conifer(sp, rng, lod, height):
     nod = math.radians(sp["nod"] * rng.uniform(0.7, 1.1))
     nod_dir = rng.uniform(0, 2 * math.pi)
     lean = Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), 0)) * 0.01
+    # The nodding leader bends over the top nod_span of the trunk, nod_reach x height sideways at most
+    # (hemlocks; western hemlock's leader droops further and over a longer stretch).
+    nod_from, nod_span, nod_reach = sp.get("nodShape", (0.92, 0.08, 0.05))
 
     def trunk_point(h):
         p = Vector((0, 0, h * height)) + lean * h * height
-        if nod > 0 and h > 0.92:
-            s = (h - 0.92) / 0.08
+        if nod > 0 and h > nod_from:
+            s = (h - nod_from) / nod_span
             bend = nod * s * s
-            p += Vector((math.cos(nod_dir), math.sin(nod_dir), 0)) * math.sin(bend) * 0.05 * height * s
-            p.z -= (1 - math.cos(bend)) * 0.05 * height * s
+            p += Vector((math.cos(nod_dir), math.sin(nod_dir), 0)) * math.sin(bend) * nod_reach * height * s
+            p.z -= (1 - math.cos(bend)) * nod_reach * height * s
         return p
 
     def sway(z):
@@ -238,12 +330,16 @@ def build_conifer(sp, rng, lod, height):
 
     crown_base = sp["crownBase"] * height
     r_max = sp["crownRadius"] * height * rng.uniform(0.9, 1.1)
+    exponent, age = sp["crownExponent"], 0.0
+    if "roundTop" in sp:
+        # Old trees round off at the top (noble fir): the taller the variant, the more domed its crown.
+        age = smoothstep(0.3, 1.0, (height - sp["height"][0]) / (sp["height"][1] - sp["height"][0]))
+        exponent = lerp(exponent, sp["roundTop"], age)
 
     def crown_radius(z):
         h = (z - crown_base) / (height - crown_base)
-        return r_max * max(0.0, 1 - h) ** sp["crownExponent"] * (0.6 + 0.4 * smoothstep(0.0, 0.08, h))
+        return r_max * max(0.0, 1 - h) ** exponent * (0.6 + 0.4 * smoothstep(0.0, 0.08, h))
 
-    spray_len, spray_w = sp["spray"]
     spacing = sp["whorlSpacing"] * lod["spacing"]
     z, k = crown_base, 0
     lo, hi = sp["branchesPerWhorl"]
@@ -266,88 +362,152 @@ def build_conifer(sp, rng, lod, height):
             az = k * GOLDEN + j * 2 * math.pi / count + rng.uniform(-0.25, 0.25) + (0.0 if reach == 1.0 else math.pi / count)
             length = max(0.35, crown_radius(z) * rng.uniform(0.85, 1.1) * reach)
             elev = math.radians(lerp(sp["branchElevation"][1], sp["branchElevation"][0], h))
-            base = trunk_point(z / height)
-            d = Vector((math.cos(az), math.sin(az), 0))
-            phase = rng.random()
-            segs = lod["segments"]
-            pts = [base + d * length * (s / segs) + Vector((0, 0, math.tan(elev) * length * s / segs - sp["droop"] * length * (s / segs) ** 2))
-                   for s in range(segs + 1)]
-
-            def branch_point(t, pts=pts, segs=segs):
-                f = t * segs
-                i = min(int(f), segs - 1)
-                return pts[i].lerp(pts[i + 1], f - i)
-
-            def branch_tangent(t):
-                return (branch_point(min(1, t + 0.02)) - branch_point(max(0, t - 0.02))).normalized()
-
-            winds = [(sway(p.z), s / segs, phase, 0.0) for s, p in enumerate(pts)]
-            if lod.get("cluster"):
-                # Mid-distance LODs: the branch as one or two branch-cluster cards (no branch tube: the
-                # cluster hides it). A flat card along the branch, and on LOD1 a second one rolled up or
-                # down so the crown stays full from the side.
-                tan = branch_tangent(0.5)
-                span = min(3.2, max(1.1, 0.55 * length + 0.9)) * (0.8 if reach < 1.0 else 1.0)
-                # LOD2 has one card per branch: alternate a strong roll so the crown isn't edge-on from the side.
-                roll = rng.uniform(-0.25, 0.25) + (0.0 if lod["cluster"] >= 2 else (0.6 if (k + j) % 2 else -0.6))
-                ends = [(sway(base.z), 0.0, phase, 0.4), (sway(pts[-1].z), 1.0, phase, 1.0)]
-                b.card(base, tan, horizontal_side(tan, roll), length * 1.08, span, ends, FOLIAGE, snow_scale=0.4)
-                if lod["cluster"] >= 2 and reach == 1.0:
-                    b.card(base + tan * length * 0.08, tan, horizontal_side(tan, roll + rng.choice((-1, 1)) * 1.15), length * 0.95, span * 0.8,
-                           ends, FOLIAGE, snow_scale=0.25)
-                continue
-            if lod["branchSides"] and reach == 1.0:
-                # Conifer branches are mostly hidden by their sprays: a 3-sided tube through every
-                # other point is enough (internodal branches get none).
-                r0 = max(0.015, trunk_r * 0.22 * (1 - h * 0.6))
-                keep = list(range(0, segs + 1, 2)) if segs > 2 else list(range(segs + 1))
-                b.tube([pts[i] for i in keep], [r0 * (1 - i / segs * 0.85) for i in keep], 3, [winds[i] for i in keep], snow_scale=0.4)
-
-            if lod["cards"] == 0:
-                # LOD2: two broad crossed spray cards per branch keep the silhouette.
-                tan = branch_tangent(0.5)
-                for roll in (0.0, 0.9):
-                    b.card(base, tan, horizontal_side(tan, roll), length * 1.05, length * 0.75,
-                           [(sway(base.z), 0.0, phase, 0.4), (sway(pts[-1].z), 1.0, phase, 1.0)], FOLIAGE)
-                continue
-
-            # Sprays along the branch, alternating sides, plus one at the tip.
-            n_sprays = max(2, int(length * sp["spraysPerMetre"] * sp.get("sprayDensity", 1.2) * lod["cards"]))
-            size = lod["card"]
-            start = 0.55 if sp.get("tufts") else 0.12
-            for i in range(n_sprays):
-                t = lerp(start, 0.95, (i + rng.random() * 0.5) / n_sprays)
-                p = branch_point(t)
-                tan = branch_tangent(t)
-                side = 1 if i % 2 else -1
-                lat = tan.cross(UP)
-                lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
-                a = math.radians(rng.uniform(25, 55)) * side
-                dirn = (tan * math.cos(a) + lat * math.sin(a)).normalized()
-                dirn.z -= sp["droop"] * 0.3
-                ln = spray_len * 1.5 * size * (1 - 0.3 * t) * rng.uniform(0.85, 1.15)
-                wd = spray_w * 1.6 * size * (1 - 0.25 * t)
-                roll = rng.uniform(-0.6, 0.6)
-                wn = [(sway(p.z), t, phase, 0.5), (sway(p.z), min(1.0, t + 0.2), phase, 1.0)]
-                b.card(p, dirn, horizontal_side(dirn, roll), ln, wd, wn, FOLIAGE, snow_scale=0.38)
-                if sp.get("crossed") or sp.get("tufts"):
-                    b.card(p, dirn, horizontal_side(dirn, roll + 1.4), ln * 0.9, wd * 0.9, wn, FOLIAGE, snow_scale=0.25)
-                elif lod["cards"] >= 1.0 and i % 2 == 0:
-                    # A tilted second spray every other station gives flat sprays volume from the side.
-                    b.card(p, dirn, horizontal_side(dirn, roll + rng.choice((-1, 1)) * 1.1), ln * 0.75, wd * 0.8, wn, FOLIAGE, snow_scale=0.2)
-            tip = pts[-1]
-            tan = branch_tangent(0.97)
-            b.card(tip - tan * spray_len * 0.3, tan, horizontal_side(tan, 0.0), spray_len * size, spray_w * size,
-                   [(sway(tip.z), 0.9, phase, 0.8), (sway(tip.z), 1.0, phase, 1.0)], FOLIAGE)
+            conifer_branch(b, sp, rng, lod, trunk_point(z / height), Vector((math.cos(az), math.sin(az), 0)), length, elev, h, reach,
+                           (k + j) % 2, sway, trunk_r)
         k += 1
 
     # Leader: upright sprays to the tip so the top is never bare.
+    spray_w = sp["spray"][1]
+    if sp.get("leaderCurve"):
+        # A drooping leader (western hemlock): crossed sprays follow the bent trunk in short steps.
+        h0 = (top_z - 0.3) / height
+        steps = 4
+        for s in range(steps):
+            p0, p1 = trunk_point(lerp(h0, 1.0, s / steps)), trunk_point(lerp(h0, 1.0, (s + 1) / steps))
+            seg = p1 - p0
+            for i in range(3 if lod["cards"] else 2):
+                b.card(p0, seg, horizontal_side(seg, i * math.pi / 3), seg.length + 0.25, spray_w * (0.9 - 0.25 * s / steps),
+                       [(sway(p0.z), 0.3 * s / steps, phase_trunk, 0.6), (1.0, 0.3 * (s + 1) / steps, phase_trunk, 1.0)], FOLIAGE,
+                       snow_scale=0.6)
+        return b
     base = trunk_point((top_z - 0.3) / height)
     up = (trunk_point(1.0) - base).normalized()
+    leader = 0.4 if "roundTop" not in sp else 0.4 * (1 - age)   # an old, round-topped crown has no spire
     for i in range(3 if lod["cards"] else 2):
         a = i * 2 * math.pi / 3
-        b.card(base, up, Vector((math.cos(a), math.sin(a), 0)), (trunk_point(1.0) - base).length + 0.4, spray_w * 0.9,
+        b.card(base, up, Vector((math.cos(a), math.sin(a), 0)), (trunk_point(1.0) - base).length + leader, spray_w * 0.9,
                [(sway(base.z), 0.0, phase_trunk, 0.6), (1.0, 0.3, phase_trunk, 1.0)], FOLIAGE, snow_scale=0.6)
+    return b
+
+
+# ---------------------------------------------------------------------------------------------
+# Krummholz: stunted, wind-shaped conifers just below the treeline.
+
+# Downwind, and across the wind, in Blender. The FBX export (axis_forward -Z, axis_up Y,
+# bake_space_transform) and Unity's import turn Blender (x, y, z) into Unity (-x, z, -y), the mapping
+# the lift pipeline measured (tools/assets/lifts/liftkit/frame.py). So Blender -Y is the prefab's local
+# +Z, which the placement code turns to face downwind (ENE, away from the game's WSW wind).
+DOWNWIND = Vector((0.0, -1.0, 0.0))
+ACROSS = Vector((1.0, 0.0, 0.0))
+
+
+def build_krummholz(sp, rng, lod, height, form):
+    """Krummholz in one of three shapes (form["shape"]), each reaching downwind (DOWNWIND):
+      mat      a low, dense teardrop on the ground: a flat top at the snow surface that slopes down to a
+               long downwind tail, and a short, steep upwind face with dead stubs
+      flag     a stem with branches only on its downwind side, a bare, wind-blasted stretch just above the
+               snow, a dense skirt at its foot and a dead spike at the top
+      cushion  a rounded dome, a little longer downwind than upwind
+    form["reach"] is the branch length at the foot of the foliage (downwind, across the wind, upwind),
+    form["stem"] the stem's (radius, length as a share of the height, lean downwind in degrees) and
+    form["sway"] scales the trunk-sway and branch-flex wind weights (R and G): krummholz is stiff, a mat most of
+    all, and the shader moves branch tips by a fixed distance (12 cm at G = 1), a sixth of a mat's height."""
+    b = MeshBuilder()
+    shape = form["shape"]
+    stem_r, stem_share, stem_lean = form["stem"]
+    lean = math.tan(math.radians(stem_lean))
+    rd, rs, ru = form["reach"]
+    phase_stem = rng.random()
+    flex = form["sway"]
+
+    def sway(z):
+        return min(1.0, max(0.0, z / height)) ** 2 * form["sway"]
+
+    def toward(phi):
+        """The horizontal direction phi radians round from downwind."""
+        return (DOWNWIND * math.cos(phi) + ACROSS * math.sin(phi)).normalized()
+
+    def stem_point(z):
+        return Vector((0.0, 0.0, z)) + DOWNWIND * lean * max(0.0, z)
+
+    stem_top = height * stem_share
+    # Only the flare rings that fit in the lower half of a short stem.
+    flare = [f for f in lod["flare"] if f * max(0.4, 3.0 * stem_r) < 0.5 * stem_top]
+    zs, amounts, (lobes, lobe_phase) = trunk_rings(sp, dict(lod, flare=flare), stem_top, stem_r, [stem_top * i / 6 for i in range(1, 7)],
+                                                  f"{sp['id']}:{height:.4f}")
+    spts = [stem_point(z) for z in zs]
+    b.tube(spts, [stem_r * max(0.0, 1 - max(z, 0.0) / stem_top) ** 0.8 + (0.006 if z < stem_top - 1e-6 else 0) for z in zs],
+           max(5, lod["sides"] - 4), [(sway(p.z), 0.0, phase_stem, 0.0) for p in spts], snow_scale=0.3, flare=(amounts, lobes, lobe_phase))
+
+    def reach(t, phi):
+        """Branch length at height t (0-1) in the skirt, phi radians round from downwind."""
+        if shape == "cushion":
+            fd = fs = fu = max(0.0, 1 - t ** 2.2) ** 0.5
+        else:
+            # A flat top at the snow surface, sloping down to the downwind tail; a steep upwind face.
+            fd, fs, fu = 1 - 0.6 * t * t, 1 - 0.5 * t * t, 1 - 0.4 * t
+        side = rs * fs
+        c = math.cos(phi)
+        return side + (rd * fd - side) * max(0.0, c) ** 1.5 + (ru * fu - side) * max(0.0, -c) ** 1.5
+
+    def dead_stub(z, phi, length):
+        """A bare, wind-killed stub on the upwind side (LOD0 and LOD1)."""
+        if not lod["branchSides"]:
+            return
+        base = stem_point(z)
+        d = (toward(phi) + UP * 0.25).normalized()
+        pts = [base, base + d * length * 0.5 + UP * 0.03, base + d * length]
+        b.tube(pts, [0.018, 0.011, 0.0], 3, [(sway(p.z), s / 2 * flex, phase_stem, 0.0) for s, p in enumerate(pts)], snow_scale=0.4)
+
+    # The skirt: tiers of branches all round the stem, long downwind and short upwind. It is the whole
+    # mat or cushion; on a flag tree it is the dense foot that the snowpack shelters.
+    skirt = height * 0.88 if shape != "flag" else form["skirt"]
+    spacing = sp["whorlSpacing"] * lod["spacing"]
+    lo, hi = sp["branchesPerWhorl"]
+    z, k = 0.06, 0
+    while z < skirt:
+        t = z / skirt
+        count = rng.randint(lo, hi)
+        for j in range(count):
+            u = (j + rng.random() * 0.6) / count
+            phi = (k * GOLDEN + u * 2 * math.pi) % (2 * math.pi) - math.pi
+            phi -= 0.3 * math.sin(phi)   # crowd the branches downwind, where they are longest
+            if rng.random() < 0.08:
+                continue
+            length = max(0.25, reach(t, phi) * rng.uniform(0.85, 1.1))
+            if abs(phi) > 2.4 and rng.random() < 0.45:
+                dead_stub(z, phi, min(length, 0.4))
+                continue
+            if shape == "cushion":
+                elev = math.radians(lerp(-6.0, 24.0, t * t))
+            else:
+                elev = math.radians(lerp(2.0, 8.0, t))
+            conifer_branch(b, sp, rng, lod, stem_point(z), toward(phi), length, elev, t, 1.0, (k + j) % 2, sway, stem_r, floor=0.04,
+                           flex=flex)
+        z += spacing * rng.uniform(0.85, 1.15)
+        k += 1
+
+    if shape == "flag":
+        # Above a bare, wind-blasted stretch just over the snow, branches grow only on the downwind side.
+        z = skirt + 0.35
+        flag_top = height - 0.3
+        while z < flag_top:
+            t = (z - skirt) / (flag_top - skirt)
+            count = 2 if rng.random() < 0.6 or not lod["cards"] else 3
+            for j in range(count):
+                phi = max(-1.2, min(1.2, rng.gauss(0.0, 0.45)))
+                length = form["flag"] * (0.55 + 0.45 * math.sin(math.pi * min(1.0, t * 1.1 + 0.1))) * (1 - 0.35 * t) * rng.uniform(0.8, 1.15)
+                elev = math.radians(rng.uniform(-8.0, 6.0))
+                conifer_branch(b, sp, rng, lod, stem_point(z), toward(phi), length, elev, 0.5 + 0.5 * t, 1.0, (k + j) % 2, sway, stem_r,
+                               flex=flex)
+            if rng.random() < 0.55:
+                dead_stub(z + 0.05, math.pi + rng.uniform(-0.6, 0.6), rng.uniform(0.15, 0.4))
+            z += spacing * 2.0 * rng.uniform(0.85, 1.15)
+            k += 1
+        # A small tuft just under the dead spike at the top, also downwind.
+        for phi in (-0.3, 0.35):
+            conifer_branch(b, sp, rng, lod, stem_point(flag_top), toward(phi), 0.5, math.radians(10.0), 1.0, 1.0, k % 2, sway, stem_r,
+                           flex=flex)
     return b
 
 
@@ -583,10 +743,36 @@ def material(name, img, snow_load=1.0, cutout=False, leaf=False, img2=None, norm
     data = node("ShaderNodeUVMap", uv_map="Data")
     sep = node("ShaderNodeSeparateXYZ")
     link(data.outputs["UV"], sep.inputs[0])
-    front = math_node("SUBTRACT", 1.0, node("ShaderNodeNewGeometry").outputs["Backfacing"])
     load = node("ShaderNodeValue", name="SnowLoad")
     load.outputs[0].default_value = snow_load
-    snow = math_node("MULTIPLY", math_node("MULTIPLY", sep.outputs["X"], load.outputs[0]), front, clamp=True)
+    # The game's snow (TreeInstanced.shader): capacity x load x saturate(up x 1.6 + 0.1), where up is the
+    # viewed side's facing (Cycles turns the normal toward the viewer, so back faces get none), and on
+    # cutout cards SnowPattern: snow along the branch line (v = 0.5), wider toward the branch, in clumps,
+    # with the fringes left green. The first previews snowed whole cards, which hid snow bugs.
+    shading_normal = node("ShaderNodeSeparateXYZ")
+    link(node("ShaderNodeNewGeometry").outputs["Normal"], shading_normal.inputs[0])
+    facing = math_node("ADD", math_node("MULTIPLY", shading_normal.outputs["Z"], 1.6), 0.1, clamp=True)
+    snow = math_node("MULTIPLY", math_node("MULTIPLY", sep.outputs["X"], load.outputs[0]), facing)
+    if cutout:
+        uv = node("ShaderNodeSeparateXYZ")
+        link(node("ShaderNodeUVMap", uv_map="UVMap").outputs["UV"], uv.inputs[0])
+        seed = node("ShaderNodeSeparateXYZ")
+        link(node("ShaderNodeUVMap", uv_map="Season").outputs["UV"], seed.inputs[0])
+        core = math_node("SUBTRACT", 1.0, math_node("MULTIPLY", math_node("ABSOLUTE", math_node("SUBTRACT", uv.outputs["Y"], 0.5)), 3.0))
+        along = math_node("SUBTRACT", 1.1, math_node("MULTIPLY", uv.outputs["X"], 0.55))
+        at = node("ShaderNodeCombineXYZ")
+        link(math_node("ADD", math_node("MULTIPLY", uv.outputs["X"], 9.0), math_node("MULTIPLY", seed.outputs["X"], 41.0)), at.inputs[0])
+        link(math_node("ADD", math_node("MULTIPLY", uv.outputs["Y"], 7.0), math_node("MULTIPLY", seed.outputs["X"], 41.0)), at.inputs[1])
+        clumps = node("ShaderNodeTexNoise", noise_dimensions="2D")
+        clumps.inputs["Scale"].default_value = 1.0
+        clumps.inputs["Detail"].default_value = 0.0
+        link(at.outputs["Vector"], clumps.inputs["Vector"])
+        pattern = node("ShaderNodeMapRange", interpolation_type="SMOOTHSTEP")
+        pattern.inputs["From Min"].default_value, pattern.inputs["From Max"].default_value = 0.3, 0.5
+        link(math_node("ADD", math_node("MULTIPLY", core, along), math_node("MULTIPLY", math_node("SUBTRACT", clumps.outputs["Fac"], 0.5), 0.45)),
+             pattern.inputs["Value"])
+        snow = math_node("MULTIPLY", snow, pattern.outputs["Result"])
+    snow = math_node("MINIMUM", snow, 1.0)
     mix = node("ShaderNodeMix", data_type="RGBA")
     mix.inputs["B"].default_value = (0.90, 0.93, 0.95, 1)
     link(tex.outputs["Color"], mix.inputs["A"])
@@ -657,9 +843,10 @@ def species_materials(sp, out_dir):
     albedo, height, strength = textures.bark(style, colour, seed, TEX)
     bark = material(f"{sp['id']}_Bark", image(f"{sp['id']}_bark", albedo, out_dir), 0.6,
                     normal=image(f"{sp['id']}_bark_normal", textures.bark_normal(height, strength), out_dir, data=True))
-    if sp["form"] == "conifer":
-        spray = image(f"{sp['id']}_spray", textures.needle_spray(sp["needles"], sp["foliage"], seed, TEX), out_dir)
-        cluster = image(f"{sp['id']}_cluster", textures.branch_cluster(sp["needles"], sp["foliage"], seed, TEX), out_dir)
+    if sp["form"] != "deciduous":   # conifers and krummholz
+        sheen = sp.get("sheen")
+        spray = image(f"{sp['id']}_spray", textures.needle_spray(sp["needles"], sp["foliage"], seed, TEX, sheen), out_dir)
+        cluster = image(f"{sp['id']}_cluster", textures.branch_cluster(sp["needles"], sp["foliage"], seed, TEX, sheen), out_dir)
         near = [bark, material(f"{sp['id']}_Foliage", spray, 1.0, cutout=True, leaf=True)]
         far = [bark, material(f"{sp['id']}_Cluster", cluster, 1.0, cutout=True, leaf=True)]
         return near, far, {}
@@ -691,8 +878,14 @@ def build_species(sp, out_dir):
     made = []
     for v in range(3):
         seed = zlib.crc32(f"{sp['id']}:{v}".encode())
-        height = lerp(sp["height"][0], sp["height"][1], random.Random(seed).random())
-        builder = build_conifer if sp["form"] == "conifer" else build_deciduous
+        form = sp["forms"][v] if "forms" in sp else None   # krummholz: one shape per variant
+        lo, hi = form["height"] if form else sp["height"]
+        height = lerp(lo, hi, random.Random(seed).random())
+        if form:
+            def builder(s, r, lod, h, form=form):
+                return build_krummholz(s, r, lod, h, form)
+        else:
+            builder = build_conifer if sp["form"] == "conifer" else build_deciduous
         lods = [builder(sp, random.Random(seed), lod, height).to_object(f"{sp['id']}_v{v}_LOD{li}", near if li == 0 else far)
                 for li, lod in enumerate(LODS)]
         bpy.ops.object.select_all(action="DESELECT")
@@ -702,7 +895,12 @@ def build_species(sp, out_dir):
                                  apply_unit_scale=True, axis_forward="-Z", axis_up="Y", mesh_smooth_type="FACE",
                                  colors_type="LINEAR", use_triangles=True, bake_space_transform=True, path_mode="RELATIVE")
         made.append({"variant": v, "height": round(height, 2), "objects": lods, "triangles": [tri_count(o) for o in lods],
-                     "cardAreaM2": [card_area(o) for o in lods]})
+                     "cardAreaM2": [card_area(o) for o in lods],
+                     # The prefab's native height in Unity: LOD0's highest point (a drooping leader or a
+                     # krummholz's sprays can end below or above the nominal height).
+                     "top": round(max(vt.co.z for vt in lods[0].data.vertices), 2)})
+        if form:
+            made[-1]["shape"] = form["shape"]
     return made, seasons
 
 

@@ -7,15 +7,20 @@ a kit of line towers.
 Its review, decisions and retrospective are in
 [lift-pilot-sessellift-fgq4.md](../../../docs/plans/lift-pilot-sessellift-fgq4.md). The same pipeline builds
 the **SLE snow guns** ([snow-guns-sle.md](../../../docs/plans/snow-guns-sle.md)): a stick gun on a 10, 20 or 30 ft
-lance and a ground gun on a tripod.
+lance and a ground gun on a tripod; the **Monta FG4** terminals ([lift-monta-fg4.md](../../../docs/plans/lift-monta-fg4.md)),
+which carry the Sessellift chair; and the **Chairworks quad chair** with either grip
+([chairs-chairworks.md](../../../docs/plans/chairs-chairworks.md)).
 
 | File | Purpose |
 |---|---|
 | `sessellift_fgq4.json` | Our dimensions in millimetres: `common` (rope elevation, line gauge, rope, sheaves, bullwheel), then one section per asset |
 | `sle_guns.json` | The snow guns' dimensions (`stickGun`, `groundGun`, `tripod`) and their `catalog` names; an asset module names its spec with `SPEC` |
+| `monta_fg4.json` | The Monta terminals' dimensions (`common`, `drive`, `return`) and their `catalog` |
+| `chairworks_chair.json` | The Chairworks chair's dimensions (the body, both grips) and its `catalog` |
+| `fixed_grip.json` | The fixed grip every fixed-grip chair carries (LP22) |
 | `budgets.json` | Triangle budgets per LOD and LOD switch distances. The build and the Unity tests both read it |
 | `build_lifts.py` | Builds every asset and LOD, bakes AO, exports one FBX per asset plus the textures, and checks budgets, pivots and sockets |
-| `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair`, `tower` (the line tower kit, see below), `sle_stick_gun` (three lance lengths from one module) and `sle_ground_gun` |
+| `assets/*.py` | One module per asset: `drive_terminal`, `return_terminal`, `chair`, `tower` (the line tower kit, see below), `sle_stick_gun` (three lance lengths from one module), `sle_ground_gun`, `monta_drive`, `monta_return` and `chairworks_chair` (two grips from one module) |
 | `liftkit/` | The shared kit: `frame` (lift frame to Blender), `prims` (boxes, beams, cylinders, prisms, lathes), `parts` (sheaves, sheave trains, line assemblies, railings, ladders), `heads` (the entry head shared by the drive terminal and the towers), `mesh` (MeshBuilder, per-face data, flush-face separation), `palette`, `textures` (detail atlas), `ao`, `materials`, `export` |
 | `render_review.py` | Review renders: orthographic views with dimensions (`gate1`), LOD lineup (`lods`), shader data (`data`), Cycles photos on snow (`photos`, `terminal_photos`, `tower_photos`; the snow guns' photos, line-up and both heads at one scale come with `photos`), the tower kit in clay (`towers`) |
 | `build-lifts.bat` | Double-click: builds everything and opens the photos |
@@ -113,6 +118,35 @@ spin only at LOD0 on towers; from LOD1 a head is one mesh.
 - **Lance lengths:** one module builds all three (`MODULES` maps each id to the module and its variant); the head
   rides on the pipe's end, and the channel stops 5 ft short of it.
 
+## Monta FG4 (LP20)
+
+| Asset | Origin | What it is |
+|---|---|---|
+| `monta_fg4_drive` | grade, on the bullwheel's axle | the bottom (loading) station: twin tubular booms, a ribbed rounded hood with a window band over the bullwheel, inclined legs on two piers, the Sessellift sheave trains; the rope leaves climbing over a hold-down row |
+| `monta_fg4_return` | grade, on the bullwheel's axle | the top station: an exposed bullwheel on an H-section column and a diagonal strut, with a cross arm and deflection sheaves |
+
+- **Gauge and rope:** the line gauge is 4,895 mm. Both terminals are lowered to the Sessellift chair's rope height
+  (3,039 mm, `common.ropeElevation`), so the lift carries that chair unchanged.
+- **Sockets:** as the Sessellift terminals (`line`, `rope_*_bw`, `rope_*_out`, the drive's `rope_*_hold`,
+  `foundation_base`), but the drive has `chair_load` and the return `chair_unload`: the drive is at the bottom.
+- **Spec:** `monta_fg4.json` is generated locally from the reference; its `_adjust` notes list every deliberate
+  change (the lowering, the rope line, the return's footings carried down to 2.5 m below grade).
+
+## Chairworks quad chair and the fixed grip (LP21-LP23)
+
+| Asset | Origin | What it is |
+|---|---|---|
+| `chairworks_chair_detach` | the grip, on the rope | the body with the detachable grip, part by part: the jaw block, the carriage (arched top plate, webs, axle bar) and running wheels, two coil springs, the lever, the arm and the roller; the hanger narrows into the arm through a reducer |
+| `chairworks_chair_fixed` | the grip, on the rope | the same body with the fixed grip (LP22); no safety bar for now (LP23) |
+
+- **The body:** the hanger's dogleg into a clamp on the top bar; two inboard side frames of bent tube (300 mm
+  knees, 120 mm corners, `prims.fillet`); a looped seat frame; a bench tilted up to the front and a low backrest.
+  Tubes as the Sessellift chair's: hanger Ø80, frame Ø60, seat rails Ø52.
+- **The fixed grip** (`fixed_grip.json`, `parts.fixed_grip`): one design for every fixed-grip chair, the
+  Sessellift chair included. The hanger flows out of the grip's cast housing through a socket that shares the
+  tube's first ring (`tube_path` returns its rings), so a chair builds its hanger before its grip.
+- **Sockets:** `grip` (the origin) and `seat_1..4`.
+
 ## Budgets (enforced)
 
 The build exits non-zero if an LOD is over budget, if totals don't decrease, if a moving part is off its
@@ -123,8 +157,12 @@ axle, or if a rope socket is off the rope.
 | Terminal budget | 24,000 | 10,000 | 2,500 | 500 |
 | Drive terminal | 13,914 | 6,794 | 1,788 | 254 |
 | Return terminal | 19,864 | 7,028 | 1,836 | 316 |
-| Chair budget | 800 | 250 | 60 | - |
-| Quad chair | 768 | 236 | 60 | - |
+| Monta drive terminal | 19,730 | 9,514 | 2,074 | 418 |
+| Monta return terminal | 3,640 | 1,824 | 948 | 364 |
+| Chair budget | 1,600 | 250 | 60 | - |
+| Sessellift quad chair | 984 | 246 | 60 | - |
+| Chairworks chair, detachable grip | 1,596 | 248 | 56 | - |
+| Chairworks chair, fixed grip | 752 | 186 | 56 | - |
 | Tower head budget | 16,000 | 5,000 | 1,000 | 200 |
 | Head `s4` | 7,512 | 2,384 | 484 | 96 |
 | Head `s6` | 10,720 | 3,248 | 620 | 96 |

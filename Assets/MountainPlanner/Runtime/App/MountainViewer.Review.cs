@@ -8,6 +8,7 @@ using System.Text;
 using MountainPlanner.Domain.Flora;
 using MountainPlanner.Presentation;
 using MountainPlanner.World;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -49,6 +50,41 @@ namespace MountainPlanner.App
             new BenchView("ringforest", 2560, 0, 900, 90, 12),
         };
 
+        /// <summary>
+        /// Views for a site other than Jackson Hole, chosen from its own forest: the overview, the core tile with
+        /// the most trees from 250 m and from inside, the core's highest point, and the ring tile with the most
+        /// trees from 900 m.
+        /// </summary>
+        BenchView[] SiteViews()
+        {
+            if (_resort.Manifest.Site.Name == "Jackson Hole") return BenchViews;
+            var cache = _resort.Cache;
+            Vector2 Centre(MountainPlanner.Persistence.CacheTile t)
+            {
+                var (x, z) = _resort.Frame.ToLocal(new MountainPlanner.Domain.Geo.AlbersPoint(t.West + cache.TileMetres / 2, t.North - cache.TileMetres / 2));
+                return new Vector2((float)x, (float)z);
+            }
+            var core = Centre(cache.Tiles.Where(t => t.Core).OrderByDescending(t => t.TreeCount).First());
+            var ring = Centre(cache.Tiles.Where(t => !t.Core).OrderByDescending(t => t.TreeCount).First());
+            float half = _resort.Manifest.Site.SizeMetres / 2f;
+            Vector2 summit = Vector2.zero;
+            float top = float.MinValue;
+            for (float x = -half; x <= half; x += 50)
+                for (float z = -half; z <= half; z += 50)
+                {
+                    float h = _resort.Surface.HeightAt(x, z);
+                    if (h > top) { top = h; summit = new Vector2(x, z); }
+                }
+            return new[]
+            {
+                new BenchView("overview", float.NaN, 0, 0, 200, 24),
+                new BenchView("forest", core.x, core.y, 250, 200, 30),
+                new BenchView("inforest", core.x, core.y, 70, 200, 6),
+                new BenchView("summit", summit.x, summit.y, 1200, 200, 20),
+                new BenchView("ringforest", ring.x, ring.y, 900, 90, 12),
+            };
+        }
+
         static float ShadowDistance => GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp ? urp.shadowDistance : QualitySettings.shadowDistance;
 
         bool StartReviewTools()
@@ -84,22 +120,34 @@ namespace MountainPlanner.App
             var json = new StringBuilder();
             json.Append("{\n  \"screen\": [").Append(Screen.width).Append(", ").Append(Screen.height).Append("],\n  \"shadowDistance\": ")
                 .Append(ShadowDistance.ToString("F0", CultureInfo.InvariantCulture)).Append(",\n  \"trees\": ").Append(Forest.TreeCount)
-                .Append(",\n  \"wind\": \"").Append(Forest.Wind.Target.ToString().ToLowerInvariant())
+                .Append(",\n  \"forestDraws\": ").Append(Forest.DrawCount)
+                .Append(",\n  \"forestGpuMB\": ").Append((Forest.GpuBytes / 1e6).ToString("F1", CultureInfo.InvariantCulture))
+                .Append(",\n  \"site\": \"").Append(_resort.Manifest.Site.Name)
+                .Append("\",\n  \"wind\": \"").Append(Forest.Wind.Target.ToString().ToLowerInvariant())
                 .Append("\",\n  \"views\": [\n");
+            // Unity's own counters: draw calls, batches and set-pass calls per frame, and memory.
+            using var drawCalls = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Draw Calls Count");
+            using var batches = ProfilerRecorder.StartNew(ProfilerCategory.Render, "Batches Count");
+            using var setPass = ProfilerRecorder.StartNew(ProfilerCategory.Render, "SetPass Calls Count");
+            using var gfxMemory = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "Gfx Used Memory");
+            using var totalMemory = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "Total Used Memory");
+            var views = SiteViews();
             var timings = new FrameTiming[1];
-            for (int vi = 0; vi < BenchViews.Length; vi++)
+            for (int vi = 0; vi < views.Length; vi++)
             {
-                var v = BenchViews[vi];
+                var v = views[vi];
                 PlaceBenchCamera(v);
                 for (int f = 0; f < 90; f++) yield return null;   // settle
                 var frame = new List<double>();
                 var gpu = new List<double>();
+                var draws = new List<double>();
                 for (int f = 0; f < 300; f++)
                 {
                     yield return null;
                     frame.Add(Time.unscaledDeltaTime * 1000.0);
                     FrameTimingManager.CaptureFrameTimings();
                     if (FrameTimingManager.GetLatestTimings(1, timings) > 0 && timings[0].gpuFrameTime > 0) gpu.Add(timings[0].gpuFrameTime);
+                    if (drawCalls.Valid && drawCalls.LastValue > 0) draws.Add(drawCalls.LastValue);
                 }
                 int[] lods = null;
                 double triangles = 0;
@@ -111,8 +159,16 @@ namespace MountainPlanner.App
                 yield return null;
                 json.Append("    {\"view\": \"").Append(v.Name).Append("\", \"frameMs\": ").Append(Stats(frame)).Append(", \"gpuMs\": ").Append(Stats(gpu))
                     .Append(", \"visibleTreesPerLod\": [").Append(string.Join(", ", lods)).Append("], \"treeTriangles\": ")
-                    .Append(triangles.ToString("F0", CultureInfo.InvariantCulture)).Append("}").Append(vi + 1 < BenchViews.Length ? ",\n" : "\n");
-                Debug.Log($"[Benchmark] {v.Name}: frame {Stats(frame)} gpu {Stats(gpu)} lods [{string.Join(", ", lods)}] tris {triangles / 1e6:F1} M");
+                    .Append(triangles.ToString("F0", CultureInfo.InvariantCulture))
+                    .Append(", \"drawCalls\": ").Append(draws.Count > 0 ? draws.Average().ToString("F0", CultureInfo.InvariantCulture) : "null")
+                    .Append(", \"batches\": ").Append(Counter(batches, 1))
+                    .Append(", \"setPassCalls\": ").Append(Counter(setPass, 1))
+                    .Append(", \"gfxMemoryMB\": ").Append(Counter(gfxMemory, 1e6))
+                    .Append(", \"totalMemoryMB\": ").Append(Counter(totalMemory, 1e6))
+                    .Append("}").Append(vi + 1 < views.Length ? ",\n" : "\n");
+                Debug.Log($"[Benchmark] {v.Name}: frame {Stats(frame)} gpu {Stats(gpu)} lods [{string.Join(", ", lods)}] tris {triangles / 1e6:F1} M, " +
+                          $"draw calls {(draws.Count > 0 ? draws.Average() : 0):F0}, batches {Counter(batches, 1)}, set-pass {Counter(setPass, 1)}, " +
+                          $"gfx memory {Counter(gfxMemory, 1e6)} MB, total memory {Counter(totalMemory, 1e6)} MB");
             }
             json.Append("  ]\n}\n");
             File.WriteAllText(outPath, json.ToString());
@@ -140,6 +196,10 @@ namespace MountainPlanner.App
             Debug.Log($"[MountainViewer] Clip saved to {prefix}_000..071.png");
             Application.Quit();
         }
+
+        /// <summary>A counter's last value in the given unit, or null where the player doesn't record it.</summary>
+        static string Counter(ProfilerRecorder r, double unit) =>
+            r.Valid && r.LastValue > 0 ? (r.LastValue / unit).ToString("F0", CultureInfo.InvariantCulture) : "null";
 
         static string Stats(List<double> ms)
         {
