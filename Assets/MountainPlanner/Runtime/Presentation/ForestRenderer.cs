@@ -20,11 +20,14 @@ namespace MountainPlanner.Presentation
         public const int Lods = 4;
         /// <summary>
         /// Screen-height fractions where LOD0→1, 1→2, 2→impostor and impostor→culled. For a 20 m tree at the
-        /// PC preset's LOD bias of 2: LOD0 to about 140 m, LOD1 to 350 m, LOD2 to 700 m, the impostor beyond.
+        /// PC preset's LOD bias of 2: LOD0 to about 100 m, LOD1 to 250 m, LOD2 to 700 m, the impostor beyond.
         /// The LODs keep LOD0's crown, brightness and snow (TreeImport's fidelity check), so the full model no
-        /// longer has to stay on far into the distance.
+        /// longer has to stay on far into the distance. Task 09 (owner, option A) moved LOD0→1 from 0.25 and
+        /// 1→2 from 0.10: Sugarloaf's dense forest was over budget (p95 24.6 → 18.5 ms) and every site got faster.
         /// </summary>
-        public static readonly Vector4 Transitions = new Vector4(0.25f, 0.10f, 0.05f, 0.003f);
+        public static readonly Vector4 Transitions = new Vector4(0.35f, 0.14f, 0.05f, 0.003f);
+        /// <summary>This forest's transitions (<see cref="Transitions"/> unless a review run overrides them: -lodtransitions).</summary>
+        public Vector4 LodTransitions = Transitions;
 
         /// <summary>
         /// Distance fade, continuous so nothing pops at a LOD switch (TreeCommon.hlsl): between x and y metres,
@@ -237,7 +240,7 @@ namespace MountainPlanner.Presentation
             _cull.SetVector("_CameraPosition", camera.transform.position);
             // Same measure as Unity's LODGroup: screen height fraction times the quality LOD bias.
             _cull.SetFloat("_ScreenScale", QualitySettings.lodBias / (2f * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad)));
-            _cull.SetVector("_Transitions", Transitions);
+            _cull.SetVector("_Transitions", LodTransitions);
             _cull.SetInt("_ForcedLod", ForcedLod);
             _cull.Dispatch(_clear, (_countSlots + 63) / 64, 1, 1);
             _cull.Dispatch(_cullKernel, (_treeCount + 63) / 64, 1, 1);
