@@ -305,9 +305,11 @@ def twig_card(seed, n=512, bark="#6B5B4E", dense=False):
     img = canvas(n)
     col = hex_rgb(bark)
     if dense:
-        # Muted halfway toward a cool grey-brown: thousands of fine twigs read as a soft grey haze, not the twig's
-        # full colour (at 30%, a stand read as late-autumn red-brown).
-        col = col * 0.5 + hex_rgb("#6C6865") * 0.5
+        # Plain grey, like weathered dead wood (owner: "greyer or more neutral to look like dead trees"). It keeps
+        # the brightness of a three-quarter mix toward a mid grey, so a species' lighter or darker twigs stay that
+        # way, but no hue: every partial mix (30%, 50%, 75%) still read red-brown across a stand.
+        mixed = col * 0.25 + hex_rgb("#6F6C6A") * 0.75
+        col = np.full(3, float(mixed @ np.array([0.2126, 0.7152, 0.0722], np.float32)), np.float32)
     branch, stop = (0.95, 0.022) if dense else (0.92, 0.03)
 
     def grow(x, y, a, length, width, depth):

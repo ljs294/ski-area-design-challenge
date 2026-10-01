@@ -35,7 +35,7 @@ The same trees before and after; only the top differs.
 ## 2. Winter hardwood crowns
 
 **What changed** (all broadleaves, opt-in per species in `species.json` as `winterCrown`):
-- **A denser twig texture:** more and finer forking twigs, each tip ending in a fringe of twiglets. The colour is muted halfway toward a cool grey-brown, so a crown reads as a soft winter haze. Red maple keeps a hint of red.
+- **A denser twig texture:** more and finer forking twigs, each tip ending in a fringe of twiglets. The twigs are plain grey, like weathered dead wood (your call: "greyer or more neutral"), so a crown reads as a grey winter haze. Partial mixes toward grey still read red-brown across a stand, so no hue is left. Each species keeps its own lighter or darker shade, and its own bark. Beech and red oak keep their dry tan leaves, as the real trees do through winter.
 - **Larger twig cards** carry it. The leaders end inside the crown, with a small tuft of twigs at their tips instead of a bare spike (audit M3).
 - **One larger summer-leaf card per twig instead of two:** the same summer cover with fewer cards. Leaf cards are still drawn in winter, only hidden, so this pays for the twigs.
 - **Beech is lighter:** fewer limbs and side branches, and half its lower leaves kept through winter instead of 70% (audit M1).
@@ -46,7 +46,7 @@ The same trees before and after; only the top differs.
 
 **A New England stand in the game's shading** (Sugarloaf's lower and middle slopes; today's library on the left, phase 2 on the right; each tree at the LOD the game picks):
 
-![The same stand from 100 m: today's bare white sticks, then a grey-brown winter haze](images/phase2-final-stand-100m.jpg)
+![The same stand from 100 m: today's bare white sticks, then a grey winter haze](images/phase2-final-stand-100m.jpg)
 
 ![The same stand from 300 m](images/phase2-final-stand-300m.jpg)
 
