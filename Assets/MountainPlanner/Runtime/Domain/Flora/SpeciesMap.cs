@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace MountainPlanner.Domain.Flora
 {
     /// <summary>
     /// The species map (0.3 §4.5, TR3): which tree model stands in for each FIA species code. Species
-    /// with their own model map to it; the rest fall back to the nearest look-alike by genus, then by
-    /// form (conifer or broadleaf). Model order matches tools/assets/trees/species.json (a test checks).
+    /// with their own model map to it; species that look largely like a model share it (NE3); the rest
+    /// fall back to the nearest look-alike by genus, then by form (conifer or broadleaf). Model order
+    /// matches tools/assets/trees/species.json (a test checks).
     /// </summary>
     public static class SpeciesMap
     {
@@ -16,6 +18,7 @@ namespace MountainPlanner.Domain.Flora
             "subalpine_fir", "engelmann_spruce", "douglas_fir", "lodgepole_pine", "mountain_hemlock",
             "quaking_aspen", "paper_birch", "yellow_birch", "sugar_maple", "red_maple", "american_beech",
             "pacific_silver_fir", "western_hemlock", "noble_fir", "krummholz",
+            "eastern_white_pine", "northern_red_oak", "black_cherry",
         };
 
         public const int VariantsPerModel = 3;
@@ -27,9 +30,28 @@ namespace MountainPlanner.Domain.Flora
             [264] = "mountain_hemlock", [746] = "quaking_aspen", [375] = "paper_birch", [371] = "yellow_birch",
             [318] = "sugar_maple", [316] = "red_maple", [531] = "american_beech",
             [11] = "pacific_silver_fir", [263] = "western_hemlock", [22] = "noble_fir",
+            [129] = "eastern_white_pine", [833] = "northern_red_oak", [762] = "black_cherry",
         };
 
-        public static IReadOnlyCollection<int> ModelledCodes => Exact.Keys;
+        /// <summary>
+        /// FIA species codes that share another species' model because they look largely alike (NE3; the
+        /// sorting, NE5, in docs/plans/new-england-species-plan.md). They count as drawn as themselves for
+        /// species fidelity (F1). A look-alike (<see cref="LookAlike"/>) does not.
+        /// </summary>
+        static readonly Dictionary<int, string> Shared = new Dictionary<int, string>
+        {
+            [12] = "subalpine_fir",       // balsam fir: the same narrow spire, a little broader
+            [241] = "subalpine_fir",      // northern white-cedar: a narrow, dense cone
+            [97] = "engelmann_spruce",    // red spruce: the same dense cone, yellower
+            [261] = "western_hemlock",    // eastern hemlock: the same nodding leader and drooping sprays
+            [541] = "sugar_maple",        // white ash: opposite branching, grey ridged bark, an oval crown
+            [372] = "black_cherry",       // sweet birch: dark, near-black bark like a cherry's
+        };
+
+        static readonly int[] Modelled = Exact.Keys.Concat(Shared.Keys).OrderBy(c => c).ToArray();
+
+        /// <summary>FIA species codes drawn as themselves: their own model or an approved shared one.</summary>
+        public static IReadOnlyCollection<int> ModelledCodes => Modelled;
 
         public static int IndexOf(string model) => Array.IndexOf(Models, model);
 
@@ -37,10 +59,12 @@ namespace MountainPlanner.Domain.Flora
         public static int ModelFor(int spcd)
         {
             if (Exact.TryGetValue(spcd, out string exact)) return IndexOf(exact);
+            if (Shared.TryGetValue(spcd, out string shared)) return IndexOf(shared);
             return IndexOf(LookAlike(spcd));
         }
 
-        public static bool IsModelled(int spcd) => Exact.ContainsKey(spcd);
+        /// <summary>Whether a species is drawn as itself (F1): its own model or an approved shared one.</summary>
+        public static bool IsModelled(int spcd) => Exact.ContainsKey(spcd) || Shared.ContainsKey(spcd);
 
         /// <summary>FIA code ranges by genus (FIA species list), to the closest silhouette we have.</summary>
         public static string LookAlike(int spcd)

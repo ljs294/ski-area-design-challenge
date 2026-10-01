@@ -52,6 +52,28 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void NewEnglandSpeciesAreDrawnAsThemselves()
+        {
+            // Task 09 phase 2 (NE5): three new models, and six species that share a model because they look
+            // largely alike. Both count as drawn as themselves for species fidelity (F1); a look-alike doesn't.
+            var expected = new Dictionary<int, string>
+            {
+                [129] = "eastern_white_pine", [833] = "northern_red_oak", [762] = "black_cherry",
+                [12] = "subalpine_fir", [241] = "subalpine_fir", [97] = "engelmann_spruce",
+                [261] = "western_hemlock", [541] = "sugar_maple", [372] = "black_cherry",
+            };
+            foreach (var kv in expected)
+            {
+                Assert.That(SpeciesMap.Models[SpeciesMap.ModelFor(kv.Key)], Is.EqualTo(kv.Value), $"FIA {kv.Key}");
+                Assert.That(SpeciesMap.IsModelled(kv.Key), Is.True, $"FIA {kv.Key} counts as modelled");
+                Assert.That(SpeciesMap.ModelledCodes, Does.Contain(kv.Key));
+            }
+            Assert.That(SpeciesMap.IsModelled(802), Is.False, "white oak is only a look-alike");
+            Assert.That(SpeciesMap.IsModelled(543), Is.False, "black ash is only a look-alike");
+            Assert.That(SpeciesMap.ModelledCodes, Is.Unique);
+        }
+
+        [Test]
         public void DensityFollowsCoverAndCrownSize()
         {
             var cal = ForestCalibration.Default;
