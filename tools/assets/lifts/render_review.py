@@ -27,11 +27,22 @@ ORTHO = {
     "drive": [("side", "-u", "+w"), ("end", "+v", "+w"), ("plan", "-u", "+v")],
     "return": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "chair": [("front", "-v", "+w"), ("side", "+u", "+w")],
+    "chairworks_chair_detach": [("front", "-v", "+w"), ("side", "+u", "+w")],
+    "chairworks_chair_fixed": [("front", "-v", "+w"), ("side", "+u", "+w")],
     "sle_stick_gun_10": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "sle_stick_gun_20": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "sle_stick_gun_30": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
     "sle_ground_gun": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
+    "monta_drive": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
+    "monta_return": [("side", "+u", "+w"), ("end", "+v", "+w"), ("plan", "+u", "-v")],
 }
+TERMINALS = ("drive", "return", "monta_drive", "monta_return")
+CHAIRS = ("chair", "chairworks_chair_detach", "chairworks_chair_fixed")
+
+
+def chair_rope(built):
+    """A chair's rope height above the snow (m)."""
+    return built["assets"][0].dims.get("ropeW", 3039) / 1000
 AXES = {"u": Vector((1, 0, 0)), "v": Vector((0, 1, 0)), "w": Vector((0, 0, 1))}
 
 
@@ -276,20 +287,20 @@ def clay_views(key, built, spec, out_dir, chairs):
     objs = lod_objects(built, 0)
     extras = []
     c = spec.get("common", {})   # a snow gun's spec has no lift of its own
-    rope = c.get("ropeElevation", 0) / 1000
+    rope = built["assets"][0].dims.get("rope", c.get("ropeElevation", 0)) / 1000
     hg = c.get("lineGauge", 0) / 2000
-    if key in ("drive", "return") and chairs:
+    if key in TERMINALS and chairs:
         u_bw = built["assets"][0].pivots["bullwheel"]["pos"][0]
         # chairs: travel +u on the right rope, -u on the left rope, and one at the far end of the wheel
         pos = [((u_bw + 3.0, hg, rope), 0.0), ((u_bw + 3.0, -hg, rope), math.pi), ((u_bw - hg, 0.0, rope), math.pi / 2)]
         # chair frame: +u travel, +v outboard. In Blender, lift +u = -y; yaw rotates about z.
         extras = hang_chairs(chairs, [(p, _yaw_for(p, u_bw)) for p, _ in pos])
-        extras.append(figure((1.5 if key == "drive" else 2.5, 3.2 if key == "drive" else -2.6, 0.0)))
-    elif key == "chair":
-        extras.append(figure((0.0, 1.6, -3.04)))
+        extras.append(figure((1.5 if key.endswith("drive") else 2.5, 3.2 if key.endswith("drive") else -2.6, 0.0)))
+    elif key in CHAIRS:   # the snow under the chair: its rope's height below the grip
+        extras.append(figure((0.0, 1.6, -chair_rope(built))))
     elif key.startswith("sle_stick"):   # beside the post, clear of the lance's lean (the ground gun's close views
         extras.append(figure((-1.0, -1.2, 0.0)))   # leave it out: it would stand in front of the camera)
-    g = ground(60, 0.0 if key != "chair" else -3.04)
+    g = ground(60, 0.0 if key not in CHAIRS else -chair_rope(built))
     extras.append(g)
     show_only(objs + extras)
     use_palette_uv(objs + extras)
@@ -544,14 +555,19 @@ def _pick(cam, spec):
         print(f"PICK {xy}: {obj.name if hit else None} face {idx} at lift {frame.lift(tuple(loc)) if hit else None} n {tuple(round(c, 2) for c in nrm) if hit else None}", flush=True)
 
 
-def chair_photos(built, spec, out_dir, mats):
-    """Cycles "photos" of the chair: hung on a rope stub over snow at the load level, sky and sun light, from the
+def chair_photos(built, spec, out_dir, mats, key="chair"):
+    """Cycles "photos" of a chair: hung on a rope stub over snow at the load level, sky and sun light, from the
     front, sides and back, close-ups of the grip and seat, a line of chairs at the stress-layout spacing, and
     one after snowfall."""
     sc, sun = _photo_scene()
-    load = spec["common"]["ropeElevation"] / 1000   # grip on the rope, seat over the 0.00 load level
+    a0 = built["assets"][0]
+    if "common" in spec:   # grip on the rope, seat over the 0.00 load level
+        load = spec["common"]["ropeElevation"] / 1000
+    else:                  # a chair without a lift of its own yet: its seat 0.47 m over the snow
+        load = -a0.dims["seatW"] / 1000 + 0.47
+    rope_d = spec.get("common", {}).get("ropeDiameter", 42)
     objs = lod_objects(built, 0)
-    bpy.ops.mesh.primitive_cylinder_add(radius=spec["common"]["ropeDiameter"] / 2000, depth=200, vertices=12,
+    bpy.ops.mesh.primitive_cylinder_add(radius=rope_d / 2000, depth=200, vertices=12,
                                         location=frame.b((40.0, 0.0, 0.0)), rotation=(math.pi / 2, 0, 0))
     rope = bpy.context.active_object
     rope.name = "PhotoRope"
@@ -560,7 +576,7 @@ def chair_photos(built, spec, out_dir, mats):
     fig = _photo_figure((0.4, 1.7, -load))
     show_only(objs + extras)
     restore_uv(objs)
-    shoot = _shooter("chair", out_dir)
+    shoot = _shooter(key, out_dir)
     whole = (0.0, 0.0, -1.35)
     shoot("front_left", whole, 32, 8, 8.0)
     shoot("front_right", whole, -35, 12, 8.0)
@@ -570,6 +586,9 @@ def chair_photos(built, spec, out_dir, mats):
     shoot("high", whole, 40, 42, 8.5)
     shoot("rider_view", (0.05, -0.03, -2.35), 12, 18, 3.4, lens=35)
     shoot("grip_hanger", (0.0, 0.05, -0.55), 55, 10, 2.4)
+    shoot("grip", (0.0, 0.12, 0.0), 40, 16, 1.25, lens=45)
+    shoot("grip_back", (0.0, 0.12, 0.0), 215, 12, 1.25, lens=45)
+    shoot("grip_under", (0.0, 0.18, -0.08), 70, -16, 1.6, lens=45)   # from below and outboard, as riders see it
     shoot("seat_and_bar", (-0.05, -0.03, -2.25), 150, 28, 3.0)
     show_only(objs + extras + [fig])
     shoot("scale", (0.0, 0.8, -1.5), 20, 6, 9.5, lens=40)
@@ -693,6 +712,12 @@ def _rope_out_path(spec, a0, rope_w, far):
     (the return), round its arc and then climbing at the exit angle; otherwise level."""
     if "rope_right_hold" not in a0.sockets:
         return [(far, rope_w)]
+    if "entryTrains" not in spec.get("return", {}):   # a terminal without the Sessellift's return arc (Monta): level
+        u_hold = a0.sockets["rope_right_hold"][0]      # to the first sheave, straight to where the rope leaves the
+        u_out, w_out = a0.sockets["rope_right_out"][0], a0.sockets["rope_right_out"][2]   # last one, then on up
+        theta = math.radians(a0.dims.get("ropeExitDeg", 0.0))
+        s = (far - u_out) / math.cos(theta)
+        return [(u_hold, rope_w), (u_out, w_out), (u_out + s * math.cos(theta), w_out + s * math.sin(theta))]
     from liftkit import parts as lk_parts
     et = spec["return"]["entryTrains"]
     asm = lk_parts.line_spec(spec)
@@ -721,9 +746,10 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
     close-up looks at the hold-down row from the side."""
     sc, sun = _photo_scene()
     c = spec["common"]
-    rope_w, hg = c["ropeElevation"] / 1000, c["lineGauge"] / 2000
     objs = lod_objects(built, 0)
     a0 = built["assets"][0]
+    rope_w = (a0.dims["rope"] if "rope" in a0.dims else c["ropeElevation"]) / 1000   # a terminal's own rope
+    hg = c["lineGauge"] / 2000
     u_bw = a0.pivots["bullwheel"]["pos"][0]
     u_out = a0.sockets["rope_right_out"][0]
     climbing = "rope_right_hold" in a0.sockets
@@ -751,7 +777,7 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
         pos += [(u, hg, _w_on(path, u, rope_w)) for u in (u_bw + 3.0 + 13.8 * k for k in range(4))]
         pos += [(u, -hg, _w_on(path, u, rope_w)) for u in (u_bw + 9.9 + 13.8 * k for k in range(4))]
         hung = hang_chairs(chairs, [(p, _yaw_for(p, u_bw)) for p in pos])
-    fig = _photo_figure((1.2, hg + 1.4, 0.0) if key == "return" else (1.5, -(hg + 1.4), 0.0))
+    fig = _photo_figure((1.2, hg + 1.4, 0.0) if key.endswith("return") else (1.5, -(hg + 1.4), 0.0))
     show_only(objs + extras + hung + [fig])
     restore_uv(objs)
     lo, hi = bounds_lift(objs)
@@ -776,9 +802,12 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
     shoot("high", tuple(centre), 60, 45, radius * 2.4, lens=40)
     if climbing:   # the hold-down row from outboard of the right rope, and the line leaving up the hill
         u_hold = a0.sockets["rope_right_hold"][0]
-        shoot("holddown", ((u_hold + u_out) / 2, hg, rope_w + 0.3), 90, -2, 6.5, lens=40)
+        if key.startswith("monta_"):   # the Monta's booms run outboard of the trains: look out at them from between the ropes
+            shoot("holddown", ((u_hold + u_out) / 2, hg, rope_w + 0.3), -90, 4, 3.5, lens=30)
+        else:
+            shoot("holddown", ((u_hold + u_out) / 2, hg, rope_w + 0.3), 90, -2, 6.5, lens=40)
         shoot("leaving", (u_out + 10.0, 0.0, _w_on(path, u_out + 10.0, rope_w) - 1.0), 200, 6, 32.0, lens=40)
-    if key == "drive":   # under the hood: from low, looking up at the wheel
+    if key.endswith("drive"):   # under the hood: from low, looking up at the wheel
         shoot("bullwheel", (u_bw, 0.0, rope_w), 150, -7, 9.5, lens=35)
     else:
         shoot("bullwheel", (u_bw, 0.0, rope_w), 30, 35, 8.5, lens=35)
@@ -786,7 +815,7 @@ def terminal_photos(key, built, spec, out_dir, mats, chairs):
     materials.set_snow(mats, 1.0)
     shoot("snowfall", tuple(centre), 35, 12, radius * 2.3, lens=40)
     materials.set_snow(mats, 0.0)
-    if key == "drive":
+    if key.endswith("drive"):
         for name, rgb in (("blue", (0.08, 0.25, 0.62)), ("green", (0.08, 0.40, 0.18)), ("yellow", (0.85, 0.62, 0.08))):
             materials.set_livery(mats, rgb)
             shoot(f"livery_{name}", tuple(centre), 35, 12, radius * 2.3, lens=40)
@@ -1083,7 +1112,7 @@ def render_all(built, spec, out_dir, shots, mats):
                 # model pose, and the chair has its own views
                 ortho_views(key, built[key], out_dir)
         for key in built:
-            if key in ("drive", "return", "chair") or key.startswith("sle_"):
+            if key in TERMINALS + CHAIRS or key.startswith("sle_"):
                 clay_views(key, built[key], built[key].get("spec", spec), out_dir, chairs)
             if key.startswith("sle_"):
                 sle_views(key, built[key], out_dir)
@@ -1099,12 +1128,12 @@ def render_all(built, spec, out_dir, shots, mats):
     materials.use_palette(mats, packed)
     if "photos" in shots or "terminal_photos" in shots:
         for key in built:
-            if key == "chair" and "photos" in shots:
-                chair_photos(built[key], spec, out_dir, mats)
+            if key in CHAIRS and "photos" in shots:
+                chair_photos(built[key], built[key].get("spec", spec), out_dir, mats, key)
             elif key.startswith("sle_") and "photos" in shots:
                 gun_photos(key, built[key], out_dir, mats)
-            elif key in ("drive", "return"):
-                terminal_photos(key, built[key], spec, out_dir, mats, chairs)
+            elif key in TERMINALS:
+                terminal_photos(key, built[key], built[key].get("spec", spec), out_dir, mats, chairs)
     if "photos" in shots and all(k in built for k, _ in SLE_LINEUP):
         sle_lineup(built, out_dir, mats)
         sle_heads(built, out_dir, mats)

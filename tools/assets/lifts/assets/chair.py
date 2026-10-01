@@ -16,7 +16,7 @@ import math
 
 from mathutils import Vector
 
-from liftkit import prims
+from liftkit import parts, prims
 from liftkit.export import Asset
 from liftkit.mesh import MeshBuilder, Style
 
@@ -44,7 +44,6 @@ def build(spec, lod, stage):
     top = ch["topBar"]
     frame = ch["sideFrame"]
     bench = ch["bench"]
-    g = ch["grip"]
 
     if lod == 2:   # distant stand-in: hanger, top bar, side frames and bench as boxes
         prims.box(mb, (-0.04, -0.04, m(top["w"])), (0.04, 0.3, 0.0), steel)
@@ -59,17 +58,17 @@ def build(spec, lod, stage):
     near = lod == 0
     n_hanger, n_frame, n_thin = (6, 5, 4) if near else (4, 4, 3)
 
-    # grip on the rope and its outboard spring cap
-    prims.box(mb, (-m(g["u"]) / 2, m(g["vFrom"]), m(g["wFrom"])), (m(g["u"]) / 2, m(g["vTo"]), m(g["wTo"])), grip_st)
+    # hanger: the question mark from the grip into the clamp; up close it starts where the grip's socket ends
     if near:
-        cap = g["cap"]
-        prims.cylinder(mb, (0, m(cap["vFrom"]), 0), (0, m(cap["vTo"]), 0), m(cap["dia"]) / 2, 6, grip_st)
-
-    # hanger: the question mark from the grip into the clamp
-    hanger = [Vector((0.0, m(v), m(w))) for v, w in ch["hanger"]]
-    if not near:
+        hanger = [Vector((0.0, m(v), m(w))) for v, w in parts.hanger_from_socket(ch["hanger"])]
+    else:
+        hanger = [Vector((0.0, m(v), m(w))) for v, w in ch["hanger"]]
         hanger = [hanger[i] for i in (0, 3, 6, 9, 12)]
-    prims.tube_path(mb, hanger, tube["hanger"], n_hanger, steel, caps=False)
+    rings = prims.tube_path(mb, hanger, tube["hanger"], n_hanger, steel, caps=False)
+
+    # the grip on the rope (fixed_grip.json, every fixed-grip chair's), flowing down into the hanger up close
+    joint = parts.hanger_joint(rings, hanger, tube["hanger"], steel) if near else None
+    parts.fixed_grip(mb, lod, steel, dark=Style("trim_dark"), metal=Style("machined"), hanger=joint)
     cl = ch["clamp"]
     prims.box(mb, (-m(cl["u"]) / 2, ax - m(cl["halfWidth"]), m(cl["wTo"])), (m(cl["u"]) / 2, ax + m(cl["halfWidth"]), m(cl["wFrom"])), grip_st)
 
@@ -82,9 +81,7 @@ def build(spec, lod, stage):
         poly += [(m(hw), m(w)) for hw, w in reversed(lower) if hw > 0]
         poly += [(-m(hw), m(w)) for hw, w in lower if hw > 0]
         prims.plate(mb, poly, (-m(web["thick"]) / 2, ax, 0), Vector((0, 1, 0)), Vector((0, 0, 1)), Vector((1, 0, 0)), m(web["thick"]), steel)
-        sl = ch["sleeves"]
-        for s in (-1, 1):
-            prims.cylinder(mb, sym(sl["u"], sl["from"], sl["w"], s), sym(sl["u"], sl["to"], sl["w"], s), tube["sleeve"], 5, steel, caps=(False, False))
+        parts.restraint_sleeves(mb, ch["sleeves"], tube["sleeve"], sym, steel)
 
     # side frames: 60 mm loop down behind and under the seat, then the 52 mm edge rail around the front and back
     main = frame if near else [frame[i] for i in (0, 3, 4, 5, 7, 9, 10)]
@@ -118,25 +115,7 @@ def build(spec, lod, stage):
                    skip=("-1", "+1"))
 
     # safety bar, raised behind the seat: arms from the front sleeves, rail, legs, footrest stubs, rod, handles
-    bar = ch["bar"]
-    rail = bar["rail"]
-    for s in ((-1, 1) if near else ()):
-        prims.tube_path(mb, [sym(u, bar["armHalfWidth"], w, s) for u, w in bar["arm"]], tube["bar"], n_thin, steel)
-    leg = bar["leg"]
-    c = rail["corner"]
-    right = [leg[i] for i in (4, 3, 2, 1, 0)] if near else [leg[4], leg[3], leg[0]]
-    path = [sym(u, hw, w, 1) for u, hw, w in right]
-    path += [sym(rail["u"], rail["halfWidth"] + c * 0.5, rail["w"] - c * 0.5, 1), sym(rail["u"], rail["halfWidth"], rail["w"], 1),
-             sym(rail["u"], rail["halfWidth"], rail["w"], -1), sym(rail["u"], rail["halfWidth"] + c * 0.5, rail["w"] - c * 0.5, -1)]
-    path += [sym(u, hw, w, -1) for u, hw, w in reversed(right)]
-    prims.tube_path(mb, path, tube["bar"], n_thin, steel)
-    if near:
-        rod = bar["rod"]
-        prims.cylinder(mb, sym(rod["u"], -rod["halfWidth"], rod["w"]), sym(rod["u"], rod["halfWidth"], rod["w"]), tube["rod"], 3, steel, caps=(False, False))
-        hd = bar["handle"]
-        for s in (-1, 1):
-            prims.cylinder(mb, sym(hd["from"][0], hd["halfWidth"], hd["from"][1], s), sym(hd["to"][0], hd["halfWidth"], hd["to"][1], s),
-                           tube["handle"], 4, grip_st, caps=(False, False))
+    parts.restraint_bar(mb, ch["bar"], tube, sym, near, n_thin, steel, grip_st)
     return finish(a, mb, ch)
 
 

@@ -12,15 +12,15 @@ namespace MountainPlanner.Tests
 {
     // Guards the imported lift assets (decisions LP1-LP8, tools/assets/lifts/README.md): triangle budgets
     // per LOD from budgets.json, shadows only on the near LODs, moving parts centred on their axles, sockets
-    // on the rope, the mesh channels the lift shader reads, the lift frame's handedness, snow guns standing at
-    // grade on a hinge, and our naming.
+    // on the rope (each terminal against its own maker's spec), the mesh channels the lift shader reads, the lift
+    // frame's handedness, snow guns standing at grade on a hinge, and our naming.
     public sealed class LiftAssetTests
     {
         const string SetPath = "Assets/MountainPlanner/Art/Lifts/LiftModels.asset";
         const string ArtRoot = "Assets/MountainPlanner/Art/Lifts";
         const float Mm = 0.001f;
         /// <summary>Our makers' code names, as asset id prefixes (decision LP3).</summary>
-        static readonly string[] Makers = { "sessellift_fgq4_", "sle_" };
+        static readonly string[] Makers = { "sessellift_fgq4_", "sle_", "monta_fg4_", "chairworks_chair_" };
 
         [Serializable] sealed class LodBudget { public int lod; public int maxTris; public float untilM; }
         [Serializable] sealed class KindBudget { public LodBudget[] lods; public int shadowLods; public bool crossFade; }
@@ -31,7 +31,9 @@ namespace MountainPlanner.Tests
         static string RepoPath(string relative) => Path.Combine(Path.GetDirectoryName(Application.dataPath), relative);
 
         static Budgets LoadBudgets() => JsonUtility.FromJson<Budgets>(File.ReadAllText(RepoPath("tools/assets/lifts/budgets.json")));
-        static Spec LoadSpec() => JsonUtility.FromJson<Spec>(File.ReadAllText(RepoPath("tools/assets/lifts/sessellift_fgq4.json")));
+        /// <summary>The spec an asset was built from: its maker's (the Sessellift's unless another maker's prefix).</summary>
+        static Spec LoadSpec(string assetId) => JsonUtility.FromJson<Spec>(File.ReadAllText(RepoPath(
+            assetId.StartsWith("monta_fg4_", StringComparison.Ordinal) ? "tools/assets/lifts/monta_fg4.json" : "tools/assets/lifts/sessellift_fgq4.json")));
 
         static KindBudget BudgetFor(Budgets b, string kind) => kind switch
         {
@@ -144,7 +146,7 @@ namespace MountainPlanner.Tests
             if (rig.Kind == "chair") Assert.Ignore("Chairs hang from the rope; no rope sockets.");
             if (rig.Kind == "tower_mast" || rig.Kind == "tower_base") Assert.Ignore("Mast sections and bases carry no rope.");
             if (rig.Kind == "snowgun") Assert.Ignore("Snow guns carry no rope.");
-            var common = LoadSpec().common;
+            var common = LoadSpec(prefab.name).common;
             if (rig.Kind == "tower_head")
             {
                 // a tower head carries both ropes at the line gauge, level with each other, at the height its type
@@ -241,13 +243,14 @@ namespace MountainPlanner.Tests
         [TestCaseSource(nameof(Cases))]
         public void TerminalsFaceTheLine(GameObject prefab)
         {
-            // Lift frame: +Z toward the other terminal, +X right looking along +Z, +Y up. The bullwheel sits behind
-            // the pier (-Z), the rope leaves toward the line (+Z), and the foundation reaches below the 0.00 level.
+            // Lift frame: +Z toward the other terminal, +X right looking along +Z, +Y up. The bullwheel sits on or
+            // behind the origin (-Z: the Sessellift's origin is its pier, the Monta's the wheel's axle), the rope
+            // leaves toward the line (+Z), and the foundation reaches below the 0.00 level.
             var rig = prefab.GetComponent<LiftRig>();
             if (rig.Kind != "terminal") Assert.Ignore("Terminals only.");
             var bullwheel = rig.Pivot("bullwheel");
             Assert.That(bullwheel, Is.Not.Null);
-            Assert.That(bullwheel.localPosition.z, Is.LessThan(-1f), "the bullwheel must be behind the pier (-Z)");
+            Assert.That(bullwheel.localPosition.z, Is.LessThanOrEqualTo(Mm), "the bullwheel must be on or behind the origin (-Z)");
             Assert.That(Mathf.Abs(bullwheel.localPosition.x), Is.LessThan(Mm), "the bullwheel is on the line centre");
             foreach (string side in new[] { "left", "right" })
             {

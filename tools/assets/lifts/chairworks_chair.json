@@ -1,0 +1,624 @@
+{
+ "_about": "Chairworks quad chair (our fictional American maker): a recreation built by our scripts from the owner's reference model's dimensions (measured locally; the model is never named). Millimetres. Chair frame: origin on the rope's axis at the grip's middle, u the direction of travel, v outboard (away from the bullwheel), w up. One chair body, two grips: the detachable grip after the reference, and the fixed grip every fixed-grip chair carries (fixed_grip.json).",
+ "_adjust": [
+  "mirrored from the reference, whose grip sits on the chair's left: ours rides outboard on the right, as our lifts carry loaded chairs up the right rope",
+  "the detachable grip is built part by part at about 1,100 triangles (the reference's grip is 47,000): coil springs as helices, wheels with hubs, the lever and its disc, the carriage's webs with their holes; the reference's rope stub through the grip is left out (the lift's rope runs there)",
+  "with the fixed grip the hanger starts in the grip's socket and runs straight down the dogleg: the level run out of the detachable grip's arm is left out",
+  "tube sizes match the Sessellift chair's (the owner): hanger 80, frame 60, the seat's rails 52; the reference uses 2 in tube throughout. The clamp on the top bar grows to take the thicker hanger",
+  "the frame is bent tube (the owner): the knees behind the backrest on a 300 mm radius (the owner's pick after seeing 250, 500 and 375), the top bar's corners on 120 mm. The reference's point just below each corner lies on the line to the knee (within 1 mm) and is left out, so the corner can bend",
+  "no safety bar for now (the owner): raised in front of the hanger, a bar that closes over riders sticks out forward on this chair (the rope is under 1 m above the top bar); the choices are kept in the review notes",
+  "the detachable grip's arm meets the thicker hanger through a cast reducer"
+ ],
+ "tube": {
+  "hanger": 80.0,
+  "frame": 60.0,
+  "seat": 52.0
+ },
+ "axisV": 233.1,
+ "hanger": {
+  "_note": "(v, w) in the plane u = 0: out of the grip level, down the 15.7 degree dogleg, and back in level through the clamp on the top bar",
+  "path": [
+   [
+    193.0,
+    -55.3
+   ],
+   [
+    250.0,
+    -55.3
+   ],
+   [
+    272.0,
+    -70.0
+   ],
+   [
+    279.6,
+    -91.5
+   ],
+   [
+    492.8,
+    -851.5
+   ],
+   [
+    495.0,
+    -885.0
+   ],
+   [
+    470.0,
+    -905.0
+   ],
+   [
+    437.0,
+    -911.1
+   ],
+   [
+    103.0,
+    -911.1
+   ]
+  ],
+  "fixedTop": [
+   259.5,
+   -20.0
+  ],
+  "fixedFrom": 4
+ },
+ "clamp": {
+  "lo": [
+   -48.0,
+   103.3,
+   -1012.0
+  ],
+  "hi": [
+   48.0,
+   362.9,
+   -862.0
+  ]
+ },
+ "topBar": {
+  "u": -2.1,
+  "w": -968.5
+ },
+ "sideFrames": {
+  "_note": "at v, each from the top bar's corner down and back to a knee, then down and forward to the lower rear rail: (u, w) from the top",
+  "v": [
+   -220.8,
+   687.0
+  ],
+  "path": [
+   [
+    -2.1,
+    -968.5
+   ],
+   [
+    -317.9,
+    -1436.5
+   ],
+   [
+    -179.7,
+    -2310.5
+   ]
+  ],
+  "kneeRadius": 300.0,
+  "cornerRadius": 120.0
+ },
+ "rearRails": {
+  "_note": "along v between the end loops",
+  "v": [
+   -681.3,
+   1147.5
+  ],
+  "upper": [
+   -206.2,
+   -2160.9
+  ],
+  "lower": [
+   -179.7,
+   -2310.5
+  ]
+ },
+ "endLoops": {
+  "_note": "at v, (u, w): the upper rail forward from the upper rear rail, a tight bend at the front, the lower rail back to the lower rear rail",
+  "v": [
+   -681.3,
+   1147.5
+  ],
+  "path": [
+   [
+    -206.2,
+    -2160.9
+   ],
+   [
+    217.0,
+    -2140.8
+   ],
+   [
+    250.7,
+    -2154.0
+   ],
+   [
+    264.7,
+    -2187.6
+   ],
+   [
+    250.7,
+    -2221.0
+   ],
+   [
+    217.0,
+    -2234.5
+   ],
+   [
+    -179.7,
+    -2310.5
+   ]
+  ]
+ },
+ "bench": {
+  "_note": "a plate: its top surface from the back edge to the front, tilted up to the front",
+  "back": [
+   -173.7,
+   -2308.5
+  ],
+  "front": [
+   222.3,
+   -2239.5
+  ],
+  "thick": 25.0,
+  "v": [
+   -675.0,
+   1141.0
+  ]
+ },
+ "backrest": {
+  "_note": "a low plate behind the bench, leaning back",
+  "bottom": [
+   -143.2,
+   -2300.5
+  ],
+  "top": [
+   -196.2,
+   -2000.5
+  ],
+  "thick": 25.0,
+  "v": [
+   -681.0,
+   1148.0
+  ]
+ },
+ "seats": 4,
+ "gripDetach": {
+  "_note": "the reference's detachable grip, part by part (measured with detach_survey.py): the jaw block beside the rope; the carriage (an arched top plate over two side webs with a window for the lever and two lightening holes each, and an axle bar) with its two running wheels; two coil springs on guide rods between seat discs, leaning outboard, tied by rods across their seats; the lever (two lugs, a cross block, a bent rod out to its disc); the dogleg arm to the hanger, and the roller arm and roller",
+  "jaw": {
+   "_note": "(v, w) outline across u",
+   "u": [
+    -27.0,
+    27.0
+   ],
+   "outline": [
+    [
+     14.0,
+     15.0
+    ],
+    [
+     14.0,
+     -18.0
+    ],
+    [
+     26.0,
+     -18.0
+    ],
+    [
+     40.0,
+     -6.0
+    ],
+    [
+     53.0,
+     -11.0
+    ],
+    [
+     91.0,
+     -11.0
+    ],
+    [
+     91.0,
+     2.0
+    ],
+    [
+     53.0,
+     2.0
+    ],
+    [
+     15.0,
+     18.0
+    ]
+   ]
+  },
+  "topPlate": {
+   "_note": "the arched plate over the carriage: its top edge (u, w), thick below it, across v",
+   "v": [
+    52.0,
+    104.0
+   ],
+   "thick": 3.0,
+   "top": [
+    [
+     -277.0,
+     85.0
+    ],
+    [
+     -210.0,
+     92.0
+    ],
+    [
+     -126.0,
+     97.0
+    ],
+    [
+     -76.0,
+     99.0
+    ],
+    [
+     76.0,
+     99.0
+    ],
+    [
+     126.0,
+     97.0
+    ],
+    [
+     210.0,
+     92.0
+    ],
+    [
+     277.0,
+     85.0
+    ]
+   ]
+  },
+  "webs": {
+   "_note": "the carriage's two side plates, (u, w) outline: a window in the middle for the lever",
+   "v": [
+    [
+     64.0,
+     66.0
+    ],
+    [
+     89.0,
+     91.0
+    ]
+   ],
+   "outline": [
+    [
+     -189.0,
+     -4.0
+    ],
+    [
+     189.0,
+     -4.0
+    ],
+    [
+     252.0,
+     72.0
+    ],
+    [
+     252.0,
+     84.0
+    ],
+    [
+     168.0,
+     92.0
+    ],
+    [
+     76.0,
+     96.0
+    ],
+    [
+     99.0,
+     65.0
+    ],
+    [
+     102.0,
+     46.0
+    ],
+    [
+     99.0,
+     27.0
+    ],
+    [
+     90.0,
+     9.0
+    ],
+    [
+     -90.0,
+     9.0
+    ],
+    [
+     -99.0,
+     27.0
+    ],
+    [
+     -102.0,
+     46.0
+    ],
+    [
+     -99.0,
+     65.0
+    ],
+    [
+     -76.0,
+     96.0
+    ],
+    [
+     -168.0,
+     92.0
+    ],
+    [
+     -252.0,
+     84.0
+    ],
+    [
+     -252.0,
+     72.0
+    ]
+   ],
+   "holes": {
+    "u": [
+     -152.5,
+     152.5
+    ],
+    "w": 44.0,
+    "dia": 51.0
+   }
+  },
+  "axleBar": {
+   "lo": [
+    -152.0,
+    63.0,
+    -16.0
+   ],
+   "hi": [
+    152.0,
+    91.0,
+    -4.0
+   ]
+  },
+  "wheels": {
+   "u": [
+    -152.4,
+    152.4
+   ],
+   "w": -7.6,
+   "tyre": {
+    "v": [
+     44.0,
+     63.0
+    ],
+    "dia": 107.0
+   },
+   "hub": {
+    "v": [
+     39.0,
+     44.0
+    ],
+    "dia": 52.0
+   }
+  },
+  "springs": {
+   "_note": "coils on the axis through centre (v, w), leaning outboard; s along the axis",
+   "u": [
+    -73.0,
+    73.0
+   ],
+   "centre": [
+    198.0,
+    33.0
+   ],
+   "axis": [
+    0.256,
+    0.966
+   ],
+   "turns": 6,
+   "pitch": 26.7,
+   "coilDia": 49.0,
+   "wire": 13.0,
+   "seats": {
+    "s": [
+     -90.0,
+     88.0
+    ],
+    "dia": 73.0,
+    "thick": 13.5
+   },
+   "rod": {
+    "s": [
+     -100.0,
+     96.0
+    ],
+    "dia": 16.0
+   }
+  },
+  "springBars": {
+   "_note": "rods across the spring seats, at (v, w)",
+   "u": [
+    -100.0,
+    100.0
+   ],
+   "top": {
+    "at": [
+     224.0,
+     126.0
+    ],
+    "dia": 13.0
+   },
+   "bottom": {
+    "at": [
+     173.0,
+     -68.0
+    ],
+    "dia": 10.0
+   }
+  },
+  "lever": {
+   "_note": "two lugs from the jaw (v, w outline, across u), a cross block, a bent rod out to the disc",
+   "lugs": {
+    "u": [
+     [
+      27.0,
+      75.0
+     ],
+     [
+      -75.0,
+      -27.0
+     ]
+    ],
+    "outline": [
+     [
+      15.0,
+      -1.0
+     ],
+     [
+      48.0,
+      -1.0
+     ],
+     [
+      59.0,
+      37.0
+     ],
+     [
+      93.0,
+      37.0
+     ],
+     [
+      93.0,
+      56.0
+     ],
+     [
+      44.0,
+      56.0
+     ],
+     [
+      33.0,
+      18.0
+     ],
+     [
+      15.0,
+      18.0
+     ]
+    ]
+   },
+   "block": {
+    "lo": [
+     -38.0,
+     80.0,
+     37.0
+    ],
+    "hi": [
+     38.0,
+     127.0,
+     56.0
+    ]
+   },
+   "rod": {
+    "path": [
+     [
+      120.0,
+      45.0
+     ],
+     [
+      188.0,
+      130.0
+     ],
+     [
+      292.0,
+      130.0
+     ]
+    ],
+    "dia": 19.0
+   },
+   "disc": {
+    "v": [
+     288.0,
+     301.0
+    ],
+    "w": 130.0,
+    "dia": 82.0
+   }
+  },
+  "arm": {
+   "_note": "the dogleg plate from the jaw out to the hanger's socket: (v, w), 51 thick in u",
+   "outline": [
+    [
+     78.0,
+     -29.0
+    ],
+    [
+     78.0,
+     20.0
+    ],
+    [
+     127.0,
+     20.0
+    ],
+    [
+     178.0,
+     -29.0
+    ],
+    [
+     193.0,
+     -29.0
+    ],
+    [
+     193.0,
+     -80.0
+    ],
+    [
+     157.0,
+     -80.0
+    ],
+    [
+     106.0,
+     -29.0
+    ]
+   ],
+   "u": [
+    -25.4,
+    25.4
+   ]
+  },
+  "rollerArm": {
+   "_note": "a rod from the dogleg out to the guide roller",
+   "from": [
+    193.0,
+    -55.3
+   ],
+   "to": [
+    372.0,
+    -55.3
+   ],
+   "dia": 24.0
+  },
+  "roller": {
+   "u": 0.0,
+   "w": -55.3,
+   "v": [
+    371.0,
+    385.0
+   ],
+   "dia": 54.0,
+   "hub": {
+    "v": [
+     385.0,
+     388.0
+    ],
+    "dia": 22.0
+   }
+  }
+ },
+ "catalog": {
+  "maker": "Chairworks",
+  "name": "Chairworks quad chair",
+  "parts": {
+   "chairworks_chair_detach": "Quad chair, detachable grip",
+   "chairworks_chair_fixed": "Quad chair, fixed grip"
+  }
+ }
+}

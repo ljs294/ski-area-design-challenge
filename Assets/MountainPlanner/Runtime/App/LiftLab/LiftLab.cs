@@ -21,9 +21,11 @@ namespace MountainPlanner.App
     ///   6 towers (every tower head type on a full tower)
     ///   7 snow guns (the SLE ground gun and the 10, 20 and 30 ft stick guns side by side)
     ///   8 gun field (500 snow guns along 20 trails, each turned and aimed its own way)
+    ///   9 Monta FG4 (its drive as the bottom station, the rope climbing out with Sessellift chairs; the return beside)
+    ///   0 chairs (the Sessellift chair and the Chairworks chair with either grip, side by side on the rope)
     ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · T turntable · G ground on/off
     ///   B benchmark · P screenshot · H help · Esc quit (camera: DebugFlyCamera's keys)
-    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield, -lod n, -snow 0..1,
+    /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs, -lod n, -snow 0..1,
     /// -view yaw,pitch,distance, -screenshot file.png (captures once settled, then quits), -benchmark file.json (runs,
     /// writes, quits).
     /// </summary>
@@ -48,7 +50,10 @@ namespace MountainPlanner.App
             new Color(0.72f, 0.12f, 0.09f), new Color(0.10f, 0.26f, 0.62f), new Color(0.11f, 0.42f, 0.22f), new Color(0.93f, 0.70f, 0.10f),
             new Color(0.12f, 0.12f, 0.13f), new Color(0.90f, 0.90f, 0.88f), new Color(0.90f, 0.42f, 0.08f), new Color(0.05f, 0.47f, 0.50f),
         };
-        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield" };
+        static readonly string[] ModeNames = { "drive", "return", "chair", "lineup", "stress", "empty", "towers", "guns", "gunfield", "monta", "chairs" };
+        /// <summary>The chairs mode's chairs, left to right across the view, and where each hangs along +X (m).</summary>
+        static readonly (string id, float x)[] Chairs =
+            { ("sessellift_fgq4_chair", -3.4f), ("chairworks_chair_fixed", 0f), ("chairworks_chair_detach", 3.4f) };
         /// <summary>The snow guns in the line-up's order, and where each stands along +Z (m).</summary>
         static readonly (string id, float z)[] SnowGuns =
             { ("sle_ground_gun", -2.6f), ("sle_stick_gun_10", 0f), ("sle_stick_gun_20", 2.6f), ("sle_stick_gun_30", 6.2f) };
@@ -61,7 +66,7 @@ namespace MountainPlanner.App
         const float TowerRope = 9.5f;                // rope height of the towers in the towers mode
         const float LineShown = 100f;                // how far up the line the return mode draws the rope
 
-        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField }
+        enum Mode { Drive, Return, Chair, Lineup, Stress, Empty, Towers, Guns, GunField, Monta, Chairs }
 
         readonly List<GameObject> _spawned = new List<GameObject>();
         readonly Dictionary<GameObject, int[]> _lodTriangles = new Dictionary<GameObject, int[]>();
@@ -247,6 +252,30 @@ namespace MountainPlanner.App
                     break;
                 case Mode.GunField:
                     BuildGunField();
+                    break;
+                case Mode.Monta:
+                {
+                    // bottom drive: the drive loads (chair_load) and its rope climbs out up the line with the
+                    // Sessellift chairs it carries; the return, the top station, stands beside it for comparison
+                    var drive = Asset("monta_fg4_drive");
+                    var top = Asset("monta_fg4_return");
+                    if (top != null) Spawn(top, new Vector3(-14f, 0, 0), Quaternion.identity, livery);
+                    if (drive == null) break;
+                    _focus = Spawn(drive, Vector3.zero, Quaternion.identity, livery);
+                    AddReturnLine(_focus, livery);
+                    FrameOn(_focus, 40f, 160f, 18f);   // from up the line: both stations, the chairs coming down
+                    break;
+                }
+                case Mode.Chairs:
+                    foreach (var (id, x) in Chairs)
+                    {
+                        var prefab = Asset(id);
+                        if (prefab == null) continue;
+                        var chair = Spawn(prefab, new Vector3(x, rope, 0), Quaternion.identity, livery);
+                        AddRope(new Vector3(x, rope, -4f), new Vector3(x, rope, 4f), null, livery, true);
+                        if (id == "chairworks_chair_fixed") _focus = chair;
+                    }
+                    if (_focus != null) FrameOn(_focus, 9f, 205f, 12f);
                     break;
             }
             _materials.SetSnowLoad(_snow);
@@ -477,6 +506,8 @@ namespace MountainPlanner.App
                 if (keys.digit6Key.wasPressedThisFrame) Show(Mode.Towers);
                 if (keys.digit7Key.wasPressedThisFrame) Show(Mode.Guns);
                 if (keys.digit8Key.wasPressedThisFrame) Show(Mode.GunField);
+                if (keys.digit9Key.wasPressedThisFrame) Show(Mode.Monta);
+                if (keys.digit0Key.wasPressedThisFrame) Show(Mode.Chairs);
                 if (keys.tabKey.wasPressedThisFrame) Show(_mode < Mode.Chair ? _mode + 1 : Mode.Drive);
                 if (keys.lKey.wasPressedThisFrame) CycleLod();
                 if (keys.nKey.wasPressedThisFrame) { _snow = _snow > 0.75f ? 0f : _snow + 0.5f; _materials.SetSnowLoad(_snow); }
@@ -549,7 +580,7 @@ namespace MountainPlanner.App
             }
             _text.Append("Snow ").Append((_snow * 100).ToString("F0")).Append("% · livery ").Append(_livery % Liveries.Length + 1).Append('/').Append(Liveries.Length);
             if (Help)
-                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · Tab next · L LOD · N snow · C colour · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
+                _text.Append("\n1 drive · 2 return · 3 chair · 4 line-up · 5 stress · 6 towers · 7 snow guns · 8 gun field · 9 Monta · 0 chairs · Tab next · L LOD · N snow · C colour · T turntable · G ground · B benchmark · P screenshot · H help · Esc quit")
                      .Append("\nWASD move · Q/E rotate · R/F tilt · wheel zoom · middle-drag rotate · right-drag move · Shift faster");
             return _text.ToString();
         }
