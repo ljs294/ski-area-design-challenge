@@ -110,6 +110,12 @@ namespace MountainPlanner.App
                 if (wind >= 0 && wind + 1 < args.Length && Enum.TryParse(args[wind + 1], true, out ForestWind.Level level))
                     StartCoroutine(WhenForestReady(() => Forest.Wind.Set(level)));
                 if (Array.IndexOf(args, "-covermap") >= 0) ToggleOverlay();
+                int lt = Array.IndexOf(args, "-lodtransitions");   // review runs: LOD0→1, 1→2, 2→impostor, impostor→culled screen heights
+                if (lt >= 0 && lt + 1 < args.Length)
+                {
+                    var t = args[lt + 1].Split(',').Select(v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                    StartCoroutine(WhenForestReady(() => Forest.LodTransitions = new Vector4(t[0], t[1], t[2], t[3])));
+                }
                 if (Array.IndexOf(args, "-baretrees") >= 0) StartCoroutine(WhenForestReady(ToggleTreeSnow));
                 else if (Array.IndexOf(args, "-nosnow") >= 0) await ResortOpener.SetSnowAsync(_resort, false, destroyCancellationToken);
                 int view = Array.IndexOf(args, "-view");
