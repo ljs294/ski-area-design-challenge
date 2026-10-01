@@ -373,9 +373,17 @@ namespace MountainPlanner.Persistence
                 }
             });
             byte[] chance = Treeline.Krummholz(elevation, forest, cols, rows, m, out TreelineMetres);
+            double steep = Math.Tan(Treeline.MatMaxSlopeDegrees * Math.PI / 180) * 2 * m;   // rise across two cells
             for (int y = 0; y < rows; y++)
                 for (int x = 0; x < cols; x++)
-                    cells[(j0 + y) * plan.CellsX + i0 + x].Krummholz = chance[y * cols + x];
+                {
+                    ref var cell = ref cells[(j0 + y) * plan.CellsX + i0 + x];
+                    cell.Krummholz = chance[y * cols + x];
+                    if (cell.Krummholz == 0) continue;
+                    float E(int dx, int dy) => elevation[Math.Max(0, Math.Min(rows - 1, y + dy)) * cols + Math.Max(0, Math.Min(cols - 1, x + dx))];
+                    double gx = E(1, 0) - E(-1, 0), gy = E(0, 1) - E(0, -1);
+                    cell.Steep = (byte)(gx * gx + gy * gy > steep * steep ? 1 : 0);
+                }
         }
 
         /// <summary>One 10 m cell's forest (the rules of <see cref="ForestPlacement"/>), or an empty cell.</summary>

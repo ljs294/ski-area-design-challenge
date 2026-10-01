@@ -35,7 +35,7 @@ namespace MountainPlanner.Presentation
 
         readonly ComputeShader _cull;
         readonly int _clear, _cullKernel, _writeArgs;
-        readonly GraphicsBuffer _trees, _nativeHeights, _prototypeStart, _visible, _counts, _args, _drawCounter;
+        readonly GraphicsBuffer _trees, _nativeHeights, _reach, _prototypeStart, _visible, _counts, _args, _drawCounter;
         readonly List<Draw> _draws = new List<Draw>();
         readonly Vector4[] _planes = new Vector4[6];
         readonly Plane[] _planeScratch = new Plane[6];
@@ -49,7 +49,7 @@ namespace MountainPlanner.Presentation
             get
             {
                 long total = 0;
-                foreach (var b in new[] { _trees, _nativeHeights, _prototypeStart, _visible, _counts, _args, _drawCounter })
+                foreach (var b in new[] { _trees, _nativeHeights, _reach, _prototypeStart, _visible, _counts, _args, _drawCounter })
                     if (b != null) total += (long)b.count * b.stride;
                 return total;
             }
@@ -104,6 +104,18 @@ namespace MountainPlanner.Presentation
             if (trees.Length > 0) _trees.SetData(trees);
             _nativeHeights = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(float));
             _nativeHeights.SetData(set.NativeHeights);
+            // How far each prototype reaches sideways from its trunk (LOD0 bounds), so wide, low models (krummholz
+            // mats) are culled and switch LOD by their real size, not just their height.
+            var reach = new float[prototypes];
+            for (int p = 0; p < prototypes; p++)
+            {
+                var lods = set.Prefabs[p].GetComponent<LODGroup>().GetLODs();
+                var b = lods[0].renderers[0].GetComponent<MeshFilter>().sharedMesh.bounds;
+                reach[p] = Mathf.Max(new Vector2(b.min.x, b.min.z).magnitude, new Vector2(b.max.x, b.max.z).magnitude,
+                                     new Vector2(b.min.x, b.max.z).magnitude, new Vector2(b.max.x, b.min.z).magnitude);
+            }
+            _reach = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(float));
+            _reach.SetData(reach);
             _prototypeStart = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(uint));
             _prototypeStart.SetData(start);
             _visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.Max(1, trees.Length * Lods), sizeof(uint));
@@ -191,6 +203,7 @@ namespace MountainPlanner.Presentation
             _cull.SetBuffer(_clear, "_Counts", _counts);
             _cull.SetBuffer(_cullKernel, "_Trees", _trees);
             _cull.SetBuffer(_cullKernel, "_NativeHeights", _nativeHeights);
+            _cull.SetBuffer(_cullKernel, "_Reach", _reach);
             _cull.SetBuffer(_cullKernel, "_PrototypeStart", _prototypeStart);
             _cull.SetBuffer(_cullKernel, "_Visible", _visible);
             _cull.SetBuffer(_cullKernel, "_Counts", _counts);
@@ -256,7 +269,7 @@ namespace MountainPlanner.Presentation
 
         public void Dispose()
         {
-            foreach (var b in new[] { _trees, _nativeHeights, _prototypeStart, _visible, _counts, _args, _drawCounter }) b?.Dispose();
+            foreach (var b in new[] { _trees, _nativeHeights, _reach, _prototypeStart, _visible, _counts, _args, _drawCounter }) b?.Dispose();
             foreach (var m in _materials) UnityEngine.Object.Destroy(m);
             _materials.Clear();
             _windMaterials.Clear();

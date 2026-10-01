@@ -17,6 +17,8 @@ namespace MountainPlanner.Domain.Cover
         public byte Width32;
         /// <summary>Chance (0–255) that a tree here grows as krummholz (just below the treeline).</summary>
         public byte Krummholz;
+        /// <summary>1 where the ground is too steep for a krummholz mat (<see cref="Treeline.MatMaxSlopeDegrees"/>).</summary>
+        public byte Steep;
     }
 
     /// <summary>One placed tree in the forest frame: 1/256 m east and north of the frame's south-west corner.</summary>
@@ -204,6 +206,7 @@ namespace MountainPlanner.Domain.Cover
                 int r = (int)((b >> 24) & 0xFF);
                 variant = cell.Krummholz == 255 ? (r < 115 ? Treeline.Mat : r < 205 ? Treeline.Cushion : Treeline.FlagTree)
                                                  : (r < 128 ? Treeline.FlagTree : r < 205 ? Treeline.Cushion : Treeline.Mat);
+                if (variant == Treeline.Mat && cell.Steep != 0) variant = Treeline.Cushion;   // a flat mat would float or bury itself on a slope
                 int lo = f.KrummholzHeights[2 * variant], hi = f.KrummholzHeights[2 * variant + 1];
                 model = f.KrummholzModel;
                 height = lo + (int)((((b >> 8) & 0xFF) * (ulong)(hi - lo + 1)) >> 8);

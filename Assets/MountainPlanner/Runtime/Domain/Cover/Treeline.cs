@@ -31,6 +31,12 @@ namespace MountainPlanner.Domain.Cover
         /// </summary>
         public static readonly double[] NativeHeights = { 0.80, 3.22, 1.52 };
         public const double SizeJitter = 0.15;
+        /// <summary>
+        /// Mats lie flat on the ground, so they grow only on gentler slopes: on a 25° slope a 3 m mat floats 1.5 m
+        /// off the ground at its downhill tail, or buries most of its foliage uphill (tree-build audit). Steeper
+        /// ground grows cushions instead.
+        /// </summary>
+        public const double MatMaxSlopeDegrees = 13;
 
         /// <summary>Per variant, the lowest and highest height in 0.25 m steps within <see cref="SizeJitter"/> of its native height.</summary>
         public static int[] HeightCodes()

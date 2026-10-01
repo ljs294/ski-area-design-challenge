@@ -227,7 +227,11 @@ namespace MountainPlanner.Tests
             // A stand-in model the site doesn't otherwise grow, and every core cell fully in the band.
             plan.KrummholzModel = SpeciesMap.IndexOf("american_beech");
             for (int i = 0; i < plan.Cells.Length; i++)
-                if (plan.Cells[i].Kind == ForestCell.Core) plan.Cells[i].Krummholz = 255;
+                if (plan.Cells[i].Kind == ForestCell.Core)
+                {
+                    plan.Cells[i].Krummholz = 255;
+                    plan.Cells[i].Steep = (byte)((i / plan.CellsX) % 2);   // every other row of cells too steep for mats
+                }
             new ManagedForestPlanter().Plant(plan);
             int[] codes = Treeline.HeightCodes();
             var perVariant = new int[3];
@@ -238,6 +242,8 @@ namespace MountainPlanner.Tests
                     if (p.Prototype / plan.Variants != plan.KrummholzModel) continue;
                     int v = p.Prototype % plan.Variants;
                     perVariant[v]++;
+                    int cell = (p.Y - plan.CellOriginY) / PoissonForest.CellFixed * plan.CellsX + (p.X - plan.CellOriginX) / PoissonForest.CellFixed;
+                    if (plan.Cells[cell].Steep != 0) Assert.That(v, Is.Not.EqualTo(Treeline.Mat), "no mats on steep ground");
                     Assert.That(p.HeightCode, Is.InRange(codes[2 * v], codes[2 * v + 1]), "within 15% of the variant's own height");
                     Assert.That(p.Rotation, Is.InRange(Treeline.DownwindRotation - 16, Treeline.DownwindRotation + 15), "flag downwind");
                     Assert.That(p.Width32, Is.EqualTo(32));
