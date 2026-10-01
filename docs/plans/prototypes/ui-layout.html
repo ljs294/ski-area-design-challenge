@@ -49,10 +49,12 @@ body.solo .frame { border-radius: 0; }
 .hud svg.g { display: block; width: 20px; height: 20px; fill: currentColor; flex: none; }
 .hud [data-act] { cursor: pointer; }
 
-/* status bar: docked into the corner (the sketch) or floating */
+/* status bar: the full width of the bottom, flush to the edge (docked) or inset (floating); the resort and time
+   on the left, the numbers on the right */
 .hud .bar { position: absolute; height: 52px; display: flex; align-items: stretch; background: var(--panel); z-index: 5; }
-.hud .bar.docked { left: 0; bottom: 0; border-top: 1px solid var(--hair); border-right: 1px solid var(--hair); border-radius: 0 8px 0 0; }
-.hud .bar.floating { left: 10px; bottom: 10px; border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 8px 22px rgba(10, 20, 35, 0.35); }
+.hud .bar.docked { left: 0; right: 0; bottom: 0; border-top: 1px solid var(--hair); }
+.hud .bar.floating { left: 10px; right: 10px; bottom: 10px; border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 8px 22px rgba(10, 20, 35, 0.35); }
+.hud .bar .grow { flex: 1; }
 .hud .bar .cell { position: relative; display: flex; align-items: center; gap: 8px; padding: 0 10px; white-space: nowrap; }
 .hud .bar .cell.sep::before { content: ''; position: absolute; left: 0; top: 13px; bottom: 13px; width: 1px; background: var(--div); }
 .hud .tbtn { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 10px; border-radius: 5px; font: 700 13.5px 'DotFix', 'Overpass'; color: #efe9df; }
@@ -101,16 +103,11 @@ body.solo .frame { border-radius: 0; }
 .hud .save.due { color: #fff; }
 .hud .elev { min-width: 64px; text-align: right; }
 
-/* map controls: top right and bottom right */
+/* top right: sketch, map layers and the menu */
 .hud .tr { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 5; }
-.hud .br { position: absolute; right: 10px; bottom: 10px; display: grid; gap: 6px; z-index: 5; transition: bottom 0.15s ease; }
 .hud .sq { width: 40px; height: 40px; display: grid; place-items: center; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; color: #e6dfd4; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.28); font: 800 13px 'DotFix', 'Overpass'; }
 .hud .sq:hover { background: #34302b; color: #fff; }
 .hud .sq.on, .hud .sq.on:hover { background: #efe9df; color: #1b1815; --knock: #efe9df; }
-.hud .pair { display: grid; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 6px 16px rgba(10, 20, 35, 0.28); overflow: hidden; }
-.hud .pair .sq { border: 0; border-radius: 0; box-shadow: none; background: transparent; width: 38px; height: 39px; }
-.hud .pair .sq + .sq { border-top: 1px solid var(--div); }
-.hud .pair .sq:hover { background: #34302b; }
 
 /* the toolbox tray */
 .hud .box { position: absolute; left: 10px; width: 420px; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px rgba(10, 20, 35, 0.35); z-index: 4; }
@@ -211,14 +208,11 @@ body.solo .frame { border-radius: 0; }
   <symbol id="s-road" viewBox="0 0 24 24"><path d="M8.8 3h6.4l6.3 18H2.5z"/><rect x="11.35" y="5" width="1.3" height="2.8" style="fill:var(--knock)"/><rect x="11.2" y="10" width="1.6" height="3.4" style="fill:var(--knock)"/><rect x="11" y="15.6" width="2" height="4" style="fill:var(--knock)"/></symbol>
   <symbol id="s-parking" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3.2"/><path d="M9.6 17.6V6.8h3.3a3.4 3.4 0 0 1 0 6.8H9.6" fill="none" stroke-width="2.5" stroke-linejoin="round" style="stroke:var(--knock)"/></symbol>
   <symbol id="s-save" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M5.2 3h11.4L21 7.4v11.4a2.2 2.2 0 0 1-2.2 2.2H5.2A2.2 2.2 0 0 1 3 18.8V5.2A2.2 2.2 0 0 1 5.2 3zM7.6 3v4.4a1 1 0 0 0 1 1h5.8a1 1 0 0 0 1-1V3zM7.8 12.4a1 1 0 0 0-1 1v5.2h10.4v-5.2a1 1 0 0 0-1-1z"/><rect x="11.9" y="3.9" width="1.8" height="3" rx=".4"/></symbol>
-  <symbol id="s-dock" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M3.9 14.8h9.4a1 1 0 0 1 1 1v3.3H5.4a1.5 1.5 0 0 1-1.5-1.5z"/></symbol>
-  <symbol id="s-float" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="6.2" y="12.4" width="9" height="3.8" rx="1"/></symbol>
+  <symbol id="s-dock" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M3.9 15.2h16.2v2.6a1.3 1.3 0 0 1-1.3 1.3H5.2a1.3 1.3 0 0 1-1.3-1.3z"/></symbol>
+  <symbol id="s-float" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.9"/><rect x="5.9" y="13.2" width="12.2" height="3.4" rx="1"/></symbol>
   <symbol id="s-pencil" viewBox="0 0 24 24"><g transform="rotate(45 12 12)"><rect x="9.6" y="1.4" width="4.8" height="3.4" rx="1.2"/><rect x="9.6" y="5.8" width="4.8" height="11"/><path d="M9.6 17.8h4.8L12 22.6z"/></g></symbol>
   <symbol id="s-map" viewBox="0 0 24 24"><path d="M2.6 6.6l5.3-2v14.9l-5.3 2zM9.2 4.6l5.6 2v14.9l-5.6-2zM16.1 6.6l5.3-2v14.9l-5.3 2z"/></symbol>
   <symbol id="s-menu" viewBox="0 0 24 24"><rect x="3.6" y="5.2" width="16.8" height="2.7" rx="1.35"/><rect x="3.6" y="10.65" width="16.8" height="2.7" rx="1.35"/><rect x="3.6" y="16.1" width="16.8" height="2.7" rx="1.35"/></symbol>
-  <symbol id="s-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.7" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 5.4l2.7 6.6H9.3z"/><path d="M9.3 12h5.4L12 18.6z" opacity=".38"/></symbol>
-  <symbol id="s-plus" viewBox="0 0 24 24"><rect x="10.9" y="4.8" width="2.4" height="14.4" rx="1.2"/><rect x="4.8" y="10.8" width="14.4" height="2.4" rx="1.2"/></symbol>
-  <symbol id="s-minus" viewBox="0 0 24 24"><rect x="4.8" y="10.8" width="14.4" height="2.4" rx="1.2"/></symbol>
   <symbol id="s-flake" viewBox="0 0 24 24"><g><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="rotate(60 12 12)"><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="rotate(120 12 12)"><rect x="11" y="2" width="2" height="20" rx="1"/><path d="M9.2 3.6L12 6.4l2.8-2.8M9.2 20.4L12 17.6l2.8 2.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g></symbol>
   <symbol id="s-trail" viewBox="0 0 24 24"><path d="M1.4 20.8L9.3 6.2l3.7 5.6 3-4.2 6.6 13.2z"/><path d="M9.5 9.6c2.3 2.2-2.4 3.7 0 6.2 1.6 1.7 3.8 2 3.3 5.2" fill="none" stroke-width="1.8" stroke-linecap="round" style="stroke:var(--knock)"/></symbol>
   <!-- tool badges, in the lower right of a family glyph -->
@@ -230,12 +224,12 @@ body.solo .frame { border-radius: 0; }
 <div class="wrap">
   <div class="top">
     <h1>Your layout, playable</h1>
-    <p>The layout from your sketch as a clickable mockup, in the Trailhead look over our Unity mountain. The status bar docks into the corner as you drew it, or floats; the clock and weather run, the tools draw on the mountain, and building costs money. Nothing is saved when you reload.</p>
+    <p>The layout from your sketch as a clickable mockup, in the Trailhead look over our Unity mountain. The status bar runs the full width of the bottom, docked to the edge or floating; the clock and weather run, the tools draw on the mountain, and building costs money. Nothing is saved when you reload.</p>
   </div>
   <ul class="try">
     <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
-    <li><b>Also live:</b> the dock button at the right end of the bar (docked or floating), play/pause and four speeds, save (white when there are changes), Analysis with six tabs, Units (metric or imperial) in the menu, the sketch pencil, map layers, zoom and the compass. The bar shows the resort's name with its lift status as a symbol (click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, the tool letters, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Also live:</b> the dock button at the right end of the bar (flush to the bottom edge, or floating), play/pause and four speeds, save (white when there are changes), Analysis with six tabs, Units (metric or imperial) in the menu, the sketch pencil and map layers. Scroll to zoom. The bar shows the resort's name with its lift status as a symbol (click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
     <div class="map" id="map"><img src="assets/game-bluebird.jpg" alt="The mountain on a bluebird day"><svg id="world" viewBox="0 0 1280 720"></svg></div>
@@ -747,7 +741,6 @@ body.solo .frame { border-radius: 0; }
       <div class="sepl"></div><div class="row" data-act="dock">Status bar<span class="r val">${S.docked ? 'Docked' : 'Floating'}</span></div><div class="row" data-act="units">Units<span class="r val">${IMP() ? 'Imperial' : 'Metric'}</span></div><div class="row" data-act="help">Controls</div><div class="row" data-act="settings">Settings</div>
       <div class="sepl"></div><div class="row" data-act="title">Exit to title</div></div>`;
     h += `<div class="tr"><span class="sq${S.sketch ? ' on' : ''}" data-act="sketch" title="Sketch">${g('s-pencil')}</span><span class="sq${S.drop === 'layers' ? ' on' : ''}" data-act="drop" data-v="layers" title="Map layers">${g('s-map')}</span><span class="sq${S.drop === 'menu' ? ' on' : ''}" data-act="drop" data-v="menu" title="Menu">${g('s-menu')}</span></div>`;
-    h += `<div class="br"><span class="sq" data-act="north" title="North up, reset the view">${g('s-compass')}</span><span class="sq" data-act="3d" title="3D view">3D</span><div class="pair"><span class="sq" data-act="zoom" data-v="1" title="Zoom in">${g('s-plus')}</span><span class="sq" data-act="zoom" data-v="-1" title="Zoom out">${g('s-minus')}</span></div></div>`;
     if (S.sketch) h += `<div class="strip">${g('s-pencil')}<span>Sketching: drag on the mountain to draw</span><span class="ghost" data-act="clearsketch">Clear</span><span class="ghost" data-act="sketch">Done</span></div>`;
     if (S.analysis) h += analysisPanel(trayBottom);
     if (S.toolbox && !S.analysis) {
@@ -764,11 +757,12 @@ body.solo .frame { border-radius: 0; }
       <div class="cell sep" style="padding:0 6px"><span class="ib" data-act="pause" id="playbtn" title="${S.paused ? 'Play' : 'Pause'} (Space)">${g(S.paused ? 's-play' : 's-pause')}</span></div>
       <div class="cell sep" style="gap:12px"><span class="day" id="day">Day ${S.day}</span><span class="when"><span class="v" id="clock">${clockText()}</span><span class="wxline" id="wxcell" title="${wxTitle(wx)}">${wxLine(wx)}</span></span></div>
       <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
+      <div class="grow"></div>
       <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:#8fcf8a">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${money(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? '#ff7a66' : '#8fcf8a'}">${short(S.today)} today</span></span></div>
       <div class="cell sep" title="Lifts operating"><span style="color:#cfc7bb">${g('s-lift')}</span><span class="count" id="lifts">${S.liftsTotal}</span></div>
       <div class="cell" style="padding-left:4px" title="Skiers on the mountain"><span style="color:#cfc7bb">${g('s-skier')}</span><span class="count" id="skiers">${S.skiers.toLocaleString('en-US')}</span></div>
       <div class="cell sep" title="Elevation under the pointer"><span class="fig"><span class="v elev" id="elev"></span><span class="lab">Elev.</span></span></div>
-      <div class="cell sep" style="padding:0 6px;gap:2px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span><span class="ib" data-act="dock" title="${S.docked ? 'Docked in the corner: click to float' : 'Floating: click to dock in the corner'}">${g(S.docked ? 's-dock' : 's-float')}</span></div>
+      <div class="cell sep" style="padding:0 6px;gap:2px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span><span class="ib" data-act="dock" title="${S.docked ? 'Docked to the bottom edge: click to float' : 'Floating: click to dock to the bottom edge'}">${g(S.docked ? 's-dock' : 's-float')}</span></div>
     </div>`;
     h += `<div class="log" id="log">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
     if (S.modal && S.modal.input) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">Rename resort<span class="x" data-act="modal">✕</span></div>
@@ -779,17 +773,9 @@ body.solo .frame { border-radius: 0; }
     ui.innerHTML = h;
     drawWorld();
     showElev();
-    fitCorners();
     const field = document.getElementById('nameinput'); if (field) { field.focus(); field.select(); }
   }
 
-  function fitCorners() {
-    const bar = ui.querySelector('.bar'), br = ui.querySelector('.br');
-    if (!bar || !br) return;
-    const clash = bar.offsetLeft + bar.offsetWidth > W - 10 - br.offsetWidth - 10;
-    const want = clash ? `${(S.docked ? 0 : 10) + BAR_H + 10}px` : '10px';
-    if (br.style.bottom !== want) br.style.bottom = want;
-  }
 
   // ---------- the operations log (top centre) ----------
   const logs = [];
@@ -858,19 +844,18 @@ body.solo .frame { border-radius: 0; }
       }
       case 'units': S.units = IMP() ? 'metric' : 'imperial'; log(`<span>Units: ${IMP() ? 'imperial (ft, °F, in)' : 'metric (m, °C, cm)'}</span>`); break;
       case 'atab': S.atab = v; break;
-      case 'dock': S.docked = !S.docked; log(`<span>Status bar ${S.docked ? 'docked in the corner' : 'floating'}</span>`); break;
+      case 'dock': S.docked = !S.docked; log(`<span>Status bar ${S.docked ? 'docked to the bottom edge' : 'floating'}</span>`); break;
       case 'sketch': S.sketch = !S.sketch; S.drop = null; if (S.sketch) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'clearsketch': S.sketches = []; break;
       case 'drop': S.drop = S.drop === v ? null : v; break;
       case 'layer': S.layers[v] = !S.layers[v]; break;
       case 'resume': S.drop = null; break;
       case 'settings': S.drop = null; S.modal = { title: 'Settings', body: 'Settings aren\'t part of this mockup beyond Units and Status bar in this menu. The real menu would hold graphics quality, lighting, autosave and controls.' }; break;
-      case 'help': S.drop = null; S.modal = { title: 'Controls', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>U</b> units · <b>Space</b> pause · <b>1–4</b> speed<br>Tool letters as shown in the tray · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Zoom with the buttons at the bottom right; the compass resets the view.<br>Click the resort\'s name in the bar to rename it.' }; break;
+      case 'help': S.drop = null; S.modal = { title: 'Controls', body: '<b>T</b> toolbox · <b>A</b> analysis · <b>U</b> units · <b>Space</b> pause · <b>1–4</b> speed<br>Tool letters as shown in the tray · <b>Enter</b> finish a line · <b>Esc</b> back out · <b>Ctrl S</b> save<br>Scroll or <b>+ −</b> to zoom · <b>Home</b> resets the view.<br>Click the resort\'s name in the bar to rename it.' }; break;
       case 'title': S.drop = null; S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
       case 'modal': case 'modalbg': if (a === 'modalbg' && e && e.target.closest('.pn')) return; S.modal = null; break;
       case 'zoom': S.zoom = Math.min(1.8, Math.max(1, S.zoom + (+v) * 0.2)); break;
-      case 'north': S.zoom = 1; render(); log('<span>View reset: north up</span>'); return;
-      case '3d': log('<span>The top-down 2D view isn\'t in this mockup</span>'); return;
+      case 'resetview': if (S.zoom === 1) return; S.zoom = 1; render(); log('<span>View reset</span>'); return;
       default: return;
     }
     render();
@@ -881,10 +866,10 @@ body.solo .frame { border-radius: 0; }
     const r = stage.getBoundingClientRect(), sx = (e.clientX - r.left) / K, sy = (e.clientY - r.top) / K;
     return [640 + (sx - 640) / S.zoom, 400 + (sy - 400) / S.zoom];
   };
-  const onUi = (e) => e.target.closest('#ui .pn, #ui .bar, #ui .box, #ui .tr, #ui .br, #ui .drop, #ui .strip, #ui .modal');
+  const onUi = (e) => e.target.closest('#ui .pn, #ui .bar, #ui .box, #ui .tr, #ui .drop, #ui .strip, #ui .modal');
   function showElev() {
     const el = document.getElementById('elev'); if (!el) return;
-    const on = mouse && onTerrain(mouse); el.textContent = on ? lenTxt(elevAt(mouse)) : `– – – ${lenU()}`; el.style.color = on ? '' : '#6f675e'; fitCorners();
+    const on = mouse && onTerrain(mouse); el.textContent = on ? lenTxt(elevAt(mouse)) : `– – – ${lenU()}`; el.style.color = on ? '' : '#6f675e';
   }
   function segDist(p, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1; let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2; t = Math.max(0, Math.min(1, t)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
   function pickAt(p, target) {
@@ -894,6 +879,8 @@ body.solo .frame { border-radius: 0; }
     return best;
   }
   let drag = null, sketching = null, lastClick = 0;
+  // The wheel zooms the map (panels scroll instead, in the real game).
+  stage.addEventListener('wheel', (e) => { if (onUi(e) || S.modal) return; e.preventDefault(); act('zoom', e.deltaY < 0 ? 1 : -1); }, { passive: false });
   stage.addEventListener('pointerdown', (e) => {
     const hd = e.target.closest('[data-drag]');
     if (hd && !e.target.closest('[data-act]')) { const pn = document.getElementById('pn'); drag = { dx: e.clientX / K - pn.offsetLeft, dy: e.clientY / K - pn.offsetTop }; e.preventDefault(); return; }
@@ -961,6 +948,9 @@ body.solo .frame { border-radius: 0; }
     if (k === 't') { act('toolbox'); return; }
     if (k === 'a') { act('analysis'); return; }
     if (k === 'u') { act('units'); return; }
+    if (k === '=' || k === '+') { act('zoom', 1); return; }
+    if (k === '-') { act('zoom', -1); return; }
+    if (k === 'home') { act('resetview'); return; }
     if (S.toolbox) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t) chooseTool(t.id); }
   });
 
@@ -998,7 +988,6 @@ body.solo .frame { border-radius: 0; }
     const dl = document.getElementById('delta'); if (dl) { dl.textContent = `${short(S.today)} today`; dl.style.color = S.today < 0 ? '#ff7a66' : '#8fcf8a'; }
     set('lifts', String(S.liftsTotal));
     set('skiers', S.skiers.toLocaleString('en-US'));
-    fitCorners();
     if (S.analysis) set('anabody', analysisBody());
   }
   // For screenshots only: #demo=tray,lift,trail,float,menu,layers,analysis,edit opens that state on load.
