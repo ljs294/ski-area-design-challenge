@@ -27,9 +27,9 @@ namespace MountainPlanner.Domain.Cover
         public const int Mat = 0, FlagTree = 1, Cushion = 2;
         /// <summary>
         /// Each variant's height at scale 1 (metres; checked against the imported models in EditMode). Krummholz
-        /// stays within 15% of it: scaling a 0.8 m mat to 3.5 m would stretch it 13 m downwind.
+        /// stays within 15% of it: scaling a 0.87 m mat to 3.5 m would stretch it 10 m downwind.
         /// </summary>
-        public static readonly double[] NativeHeights = { 0.80, 3.22, 1.52 };
+        public static readonly double[] NativeHeights = { 0.87, 3.22, 1.52 };
         public const double SizeJitter = 0.15;
         /// <summary>
         /// Mats lie flat on the ground, so they grow only on gentler slopes: on a 25° slope a 3 m mat floats 1.5 m
