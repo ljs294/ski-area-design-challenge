@@ -29,7 +29,12 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font); paddin
 .pagenote { margin: 0; color: var(--muted); font-size: 14px; }
 body.solo { padding: 0; }
 body.solo .wrap { max-width: none; gap: 0; }
-body.solo .top, body.solo .try, body.solo .pagenote { display: none; }
+body.solo .top, body.solo .try, body.solo .variants, body.solo .pagenote { display: none; }
+.variants { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 15px; }
+.variants b { color: var(--fg); margin-right: 4px; }
+.variants button { font: 600 14px var(--font); color: var(--fg); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.variants button:hover { border-color: var(--muted); }
+.variants button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 body.solo .frame { border-radius: 0; }
 
 /* ---------- the map ---------- */
@@ -91,14 +96,19 @@ body.solo .frame { border-radius: 0; }
 .hud .wxline svg.g { width: 15px; height: 15px; }
 .hud .wxline .pp { display: flex; align-items: center; gap: 3px; margin-left: 5px; color: var(--pp); }
 .hud .wxline .pp svg.g { width: 12px; height: 12px; }
-/* the resort's name, with the lifts' status as a small symbol in front of it; click to rename */
-.hud .resort { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 9px 0 7px; border-radius: 5px; font: 800 14.5px 'DotFix', 'Overpass'; white-space: nowrap; }
+/* the resort's name, with whether the lifts are running: a line under the name, a day track, or a word after it.
+   Closed is calm (it's every night); only Open and Last chair carry colour. Click the name to rename. */
+.hud .resort { display: flex; align-items: baseline; gap: 7px; padding: 6px 9px; border-radius: 5px; font: 800 14.5px 'DotFix', 'Overpass'; white-space: nowrap; }
 .hud .resort:hover { background: var(--hover); }
-.hud .resort #rname { max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
-.hud svg.st { display: block; width: 16px; height: 16px; flex: none; }
-.hud .kv svg.st { width: 14px; height: 14px; }
+.hud .resort #rname { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.hud .resort.st-sub, .hud .resort.st-track { flex-direction: column; align-items: flex-start; gap: 3px; line-height: 1.1; }
+.hud .resort .rstat { color: var(--soft); font: 500 11.5px 'DotFix', 'Overpass'; }
+.hud .resort .rstat b { font-weight: 700; }
+.hud .resort.st-word .rstat { font: 600 12.5px 'DotFix', 'Overpass'; }
+.hud .resort.st-track .rstat svg { display: block; }
 .hud .statusline { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font: 700 13px 'DotFix', 'Overpass'; }
-.hud .statusline span { margin-left: auto; color: var(--soft); font-weight: 600; font-size: 12px; }
+.hud .statusline .t { color: var(--muted); font-weight: 600; }
+.hud .statusline .r { margin-left: auto; color: var(--soft); font-weight: 600; font-size: 12px; }
 .hud .drop .mhead { display: grid; gap: 2px; padding: 5px 12px 8px; }
 .hud .drop .mhead b { font: 800 14px 'DotFix', 'Overpass'; }
 .hud .drop .mhead span { font: 500 12px 'DotFix', 'Overpass'; color: var(--soft); }
@@ -249,8 +259,9 @@ body.solo .frame { border-radius: 0; }
   <ul class="try">
     <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
-    <li><b>Also live:</b> the dock button at the right end of the bar (flush to the bottom edge, or floating), play/pause and four speeds, save (white when there are changes), Analysis with six tabs, the sun/moon button for light or dark mode (also Theme in the menu), Units (metric or imperial) in the menu, the sketch pencil and map layers. Scroll to zoom. The bar shows the resort's name with its lift status as a symbol (click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Also live:</b> the dock button at the right end of the bar (flush to the bottom edge, or floating), play/pause and four speeds, save (white when there are changes), Analysis with six tabs, the sun/moon button for light or dark mode (also Theme in the menu), Units (metric or imperial) in the menu, the sketch pencil and map layers. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
+  <div class="variants" id="variants"><b>Open or closed, try:</b><button data-style="sub" class="on">A line under the name</button><button data-style="track">An hours track</button><button data-style="word">A word after the name</button></div>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
     <div class="map" id="map"><img src="assets/game-bluebird.jpg" alt="The mountain on a bluebird day"><svg id="world" viewBox="0 0 1280 720"></svg></div>
     <div id="ui"></div>
@@ -314,7 +325,7 @@ body.solo .frame { border-radius: 0; }
   const DIFFS = { green: 'Green', blue: 'Blue', black: 'Black', double: 'Double' };
   const S = {
     day: 148, t: 5 * 3600 + 27 * 60 + 47, paused: false, speed: 2, docked: true,
-    name: 'Jackson Peaks', theme: 'dark', cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true, units: 'metric', atab: 'overview',
+    name: 'Jackson Peaks', theme: 'dark', statusStyle: 'sub', cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true, units: 'metric', atab: 'overview',
     // today's money in parts (they sum to today): overnight running costs and construction already under way
     incomeToday: 0, opsToday: 0.09e6, buildToday: 5.68e6, base: 142,
     history: [0.41, 0.38, -1.92, 0.45, 0.52, 0.47, 0.12, 0.55, 0.58, -0.84, 0.49, 0.53, 0.61],
@@ -383,12 +394,20 @@ body.solo .frame { border-radius: 0; }
     if (h >= LAST_CHAIR && h < LIFTS_CLOSE) return { key: 'last', label: 'Last chair', lamp: '#f0b43c', text: 'Last chair, closes 4:30 PM' };
     return { key: 'closed', label: 'Closed', lamp: '#d4513f', text: 'Closed, opens 8:30 AM' };
   }
-  // A green check (open), an amber clock (last chair) or a red bar (closed), like a lift-status board.
-  function statusSym(st) {
-    const inner = st.key === 'open' ? '<path d="M7.3 12.5l3.1 3.1 6.3-6.6" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
-      : st.key === 'last' ? '<path d="M12 7.2V12l3.3 2.1" fill="none" stroke="#2a1d08" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>'
-      : '<rect x="6.7" y="10.75" width="10.6" height="2.5" rx="1.25" fill="#fff"/>';
-    return `<svg class="st" viewBox="0 0 24 24" role="img" aria-label="${st.label}"><circle cx="12" cy="12" r="10.6" fill="${st.lamp}"/>${inner}</svg>`;
+  // The status word: green when open, amber at last chair, and calm (no colour) when closed.
+  const statusWord = (st) => `<b style="color:${st.key === 'open' ? 'var(--pos)' : st.key === 'last' ? 'var(--warn)' : 'var(--text)'}">${st.label}</b>`;
+  const statusRest = (st) => (st.key === 'closed' ? 'opens 8:30 AM' : st.key === 'last' ? 'closes 4:30 PM' : 'until 4:30 PM');
+  // The lifts' day on a track: the running hours as a band, and a tick for now (midnight to midnight).
+  function statusTrack(st, t) {
+    const w = 104, X = (h) => h / 24 * w, now = Math.min(w - 2, Math.max(0, X(t / 3600) - 1));
+    const band = st.key === 'open' ? 'var(--pos)' : st.key === 'last' ? 'var(--warn)' : 'var(--dim)';
+    return `<svg width="${w}" height="9" viewBox="0 0 ${w} 9" aria-label="${st.text}"><rect x="0" y="3" width="${w}" height="3" rx="1.5" style="fill:var(--hair2)"/><rect x="${f1(X(LIFTS_OPEN))}" y="3" width="${f1(X(LIFTS_CLOSE) - X(LIFTS_OPEN))}" height="3" rx="1.5" style="fill:${band}"/><rect x="${f1(now)}" y="0" width="2" height="9" rx="1" style="fill:var(--text)"/></svg>`;
+  }
+  // How the bar shows it, chosen with the buttons above the frame: a line under the name, the track, or a word after it.
+  function statusHtml(st) {
+    if (S.statusStyle === 'track') return statusTrack(st, S.t);
+    if (S.statusStyle === 'word') return statusWord(st);
+    return `${statusWord(st)} ${statusRest(st)}`;
   }
   const resortTitle = (st) => `${S.name}: ${st.text}. Lifts run 8:30 AM to 4:30 PM. ${SITE}. Click to rename.`;
 
@@ -679,7 +698,7 @@ body.solo .frame { border-radius: 0; }
       hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 3)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 6)}" height="${f1(bh)}" rx="1" style="fill:${past ? 'var(--chart-a)' : 'var(--chart-b)'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${h}</text>`; });
       const sat = Math.round(Math.max(55, Math.min(95, 90 - avgWait * 1.6)));
       const rs = resortStatus(S.t);
-      return `<div class="statusline">${statusSym(rs)}<b>${rs.text}</b><span>Lifts run 8:30 AM to 4:30 PM</span></div><div class="rule"></div>
+      return `<div class="statusline">${statusWord(rs)}<span class="t">${statusRest(rs)}</span><span class="r">Lifts run 8:30 AM to 4:30 PM</span></div><div class="rule"></div>
         <div class="sub"><span>Skiers by hour, day ${S.day}</span><span>now ${S.skiers.toLocaleString('en-US')}</span></div>
         <svg width="${w}" height="${hgt + 4}" style="display:block;margin:6px 12px 0">${bars}</svg>
         <div class="rule" style="margin-top:6px"></div>
@@ -774,7 +793,7 @@ body.solo .frame { border-radius: 0; }
     const spd = [1, 2, 3, 4].map((n) => `<span class="${S.speed >= n ? 'on' : ''}" data-act="speed" data-v="${n}" title="Speed ${n}"><svg viewBox="0 0 11 13"><use href="#s-speed"/></svg></span>`).join('');
     h += `<div class="bar ${S.docked ? 'docked' : 'floating'}${S.paused ? ' paused' : ''}">
       <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (A)">${g('s-analysis')}Analysis</span></div>
-      <div class="cell sep" style="padding:0 5px"><span class="resort" id="resort" data-act="rename" title="${esc(resortTitle(resortStatus(S.t)))}"><span id="rsym">${statusSym(resortStatus(S.t))}</span><span id="rname">${esc(S.name)}</span></span></div>
+      <div class="cell sep" style="padding:0 5px"><span class="resort st-${S.statusStyle}" id="resort" data-act="rename" title="${esc(resortTitle(resortStatus(S.t)))}"><span id="rname">${esc(S.name)}</span><span class="rstat" id="rstat">${statusHtml(resortStatus(S.t))}</span></span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib" data-act="pause" id="playbtn" title="${S.paused ? 'Play' : 'Pause'} (Space)">${g(S.paused ? 's-play' : 's-pause')}</span></div>
       <div class="cell sep" style="gap:12px"><span class="day" id="day">Day ${S.day}</span><span class="when"><span class="v" id="clock">${clockText()}</span><span class="wxline" id="wxcell" title="${wxTitle(wx)}">${wxLine(wx)}</span></span></div>
       <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
@@ -1004,7 +1023,7 @@ body.solo .frame { border-radius: 0; }
     const wx = weather(S.t);
     set('wxcell', wxLine(wx));
     const cell = document.getElementById('wxcell'); if (cell && cell.title !== wxTitle(wx)) cell.title = wxTitle(wx);
-    const rs = resortStatus(S.t); set('rsym', statusSym(rs));
+    const rs = resortStatus(S.t); set('rstat', statusHtml(rs));
     const rc = document.getElementById('resort'); if (rc && rc.title !== resortTitle(rs)) rc.title = resortTitle(rs);
     set('cash', money(S.cash));
     const dl = document.getElementById('delta'); if (dl) { dl.textContent = `${short(S.today)} today`; dl.style.color = S.today < 0 ? 'var(--neg)' : 'var(--pos)'; }
@@ -1012,6 +1031,9 @@ body.solo .frame { border-radius: 0; }
     set('skiers', S.skiers.toLocaleString('en-US'));
     if (S.analysis) set('anabody', analysisBody());
   }
+  const variants = document.getElementById('variants');
+  const syncVariants = () => variants.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.style === S.statusStyle));
+  variants.addEventListener('click', (e) => { const b = e.target.closest('button[data-style]'); if (!b) return; S.statusStyle = b.dataset.style; syncVariants(); render(); });
   // For screenshots only: #demo=tray,lift,trail,float,menu,layers,analysis,edit opens that state on load.
   const demo = (location.hash.match(/demo=([a-z,]+)/) || [])[1];
   if (demo) {
@@ -1030,7 +1052,11 @@ body.solo .frame { border-radius: 0; }
     for (const [k] of ATABS) if (d.includes('a' + k)) { S.analysis = true; S.atab = k; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }
     if (d.includes('imperial')) S.units = 'imperial';
     if (d.includes('light')) S.theme = 'light';
+    if (d.includes('strack')) S.statusStyle = 'track';
+    if (d.includes('sword')) S.statusStyle = 'word';
+    syncVariants();
     if (d.includes('lastchair')) S.t = 16.3 * 3600;
+    if (d.includes('noon')) S.t = 12.5 * 3600;
     if (d.includes('snowing')) S.t = 2 * 3600;
     mouse = [930, 260];
   }
