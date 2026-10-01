@@ -172,11 +172,28 @@ static void ForestInfo(string folder)
     for (int t = 0; t < plan.TileCountTotal; t++)
         for (int k = 0; k < plan.TileCount[t]; k++) byModel[plan.Points[plan.TileOffset[t] + k].Prototype / plan.Variants]++;
     long krummholzCells = plan.Cells.LongCount(c => c.Krummholz > 0), fullCells = plan.Cells.LongCount(c => c.Krummholz == 255);
+    // Where the krummholz is: the 250 m square with the most fully krummholz cells, from the site centre (east, north), for -view.
+    var best = (Count: 0, X: 0.0, Z: 0.0);
+    var squares = new Dictionary<(int, int), int>();
+    for (int j = 0; j < plan.CellsY; j++)
+        for (int i = 0; i < plan.CellsX; i++)
+            if (plan.Cells[j * plan.CellsX + i].Krummholz == 255)
+            {
+                var key = (i / 25, j / 25);
+                squares[key] = squares.TryGetValue(key, out int n) ? n + 1 : 1;
+                if (squares[key] > best.Count)
+                {
+                    double x = tiles.West + plan.CellOriginX / 256.0 + (key.Item1 * 25 + 12.5) * 10 - manifest.Site.CentreX;
+                    double z = tiles.North - tiles.Rows * TileGrid.TileMetres + plan.CellOriginY / 256.0 + (key.Item2 * 25 + 12.5) * 10 - manifest.Site.CentreY;
+                    best = (squares[key], x, z);
+                }
+            }
     Console.WriteLine($"{manifest.Site.Name}: {trees:N0} trees in {plan.TileCountTotal:N0} tiles of 64 m (ring share {field.RingTreeShare:F2})");
     Console.WriteLine("  " + string.Join(", ", byModel.Select((n, m) => (n, m)).Where(p => p.n > 0).OrderByDescending(p => p.n)
         .Select(p => $"{MountainPlanner.Domain.Flora.SpeciesMap.Models[p.m]} {100.0 * p.n / trees:F0}%")));
     Console.WriteLine($"  treeline {(double.IsNaN(field.TreelineMetres) ? "none" : field.TreelineMetres.ToString("F0") + " m")}; " +
-                      $"{krummholzCells:N0} forest cells in the krummholz band ({fullCells:N0} fully krummholz)");
+                      $"{krummholzCells:N0} forest cells in the krummholz band ({fullCells:N0} fully krummholz)" +
+                      (best.Count > 0 ? $"; most of it around {best.X:F0} m east, {best.Z:F0} m north of the centre" : ""));
 }
 
 static string Slug(string name)
