@@ -2,6 +2,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements">
     <Style src="Hud.uss" />
     <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
+        <ui:VisualElement name="contour-labels" class="contour-labels" picking-mode="Ignore" />
         <ui:VisualElement name="top-bar" class="panel top-bar">
             <ui:Label name="site-name" class="site-name" text="Mountain" />
             <ui:Label name="quality" class="badge" text="97 · Excellent" />
@@ -19,6 +20,7 @@
                 <ui:Label class="panel-title" text="Menu" />
                 <ui:Button name="menu-resume" class="menu-item" text="Resume" />
                 <ui:Button name="menu-theme" class="menu-item" text="Dark theme" />
+                <ui:Button name="menu-units" class="menu-item" text="Units: imperial" tooltip="Switch between feet and metres (U)" />
                 <ui:Button name="menu-settings" class="menu-item" text="Settings (coming)" />
                 <ui:Button name="menu-quit" class="menu-item menu-item--danger" text="Quit to desktop" />
             </ui:VisualElement>
@@ -78,7 +80,10 @@
                     <ui:VisualElement name="scale-bar" class="scale-bar" picking-mode="Ignore" />
                     <ui:Label name="scale-label" class="readout" text="500 m" picking-mode="Ignore" />
                 </ui:VisualElement>
-                <ui:Label name="elevation" class="readout readout--strong" text="Elev –" picking-mode="Ignore" />
+                <ui:VisualElement class="readout-stack" picking-mode="Ignore">
+                    <ui:Label name="elevation" class="readout readout--strong" text="Elev –" picking-mode="Ignore" />
+                    <ui:Label name="info-readout" class="readout readout-info hidden" picking-mode="Ignore" />
+                </ui:VisualElement>
                 <ui:VisualElement class="spacer" picking-mode="Ignore" />
                 <ui:Label name="attribution" class="attribution" text="Map data © OpenStreetMap contributors · F1 keys" picking-mode="Ignore" />
             </ui:VisualElement>

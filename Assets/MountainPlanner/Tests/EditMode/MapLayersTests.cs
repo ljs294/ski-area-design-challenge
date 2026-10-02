@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using MountainPlanner.Domain.Measure;
 using MountainPlanner.Presentation;
 using NUnit.Framework;
 using UnityEngine;
@@ -191,9 +192,31 @@ namespace MountainPlanner.Tests
             Same(ShaderColours(hlsl, "SlopeGreenColour"), new[] { InfoLegend.SlopeGreen }, "green");
             Same(ShaderColours(hlsl, "SlopeBlueColour"), new[] { InfoLegend.SlopeBlue }, "blue");
             Same(ShaderColours(hlsl, "SlopeBlackColour"), new[] { InfoLegend.SlopeBlack }, "black");
-            StringAssert.Contains("SlopeBlue = 14, SlopeBlack = 22, SlopeDouble = 30", hlsl, "the slope breaks");
-            Assert.That(InfoLegend.SlopeBreaksDegrees, Is.EqualTo(new[] { 14f, 22f, 30f }));
-            StringAssert.Contains("SnowDepthStops[6] = { 0, 0.15, 0.5, 1.0, 2.0, 3.0 }", hlsl, "the snow-depth stops");
+            StringAssert.Contains("SlopeBlue = 25, SlopeBlack = 40, SlopeDouble = 60;   // percent", hlsl, "the slope breaks, as grades");
+            Assert.That(InfoLegend.SlopeBreaksPercent, Is.EqualTo(new[] { (float)SlopeBands.BluePercent, (float)SlopeBands.BlackPercent, (float)SlopeBands.DoubleBlackPercent }));
+            StringAssert.Contains("ExposureFlatPercent = " + SlopeBands.FlatPercent + ";", hlsl, "flat ground");
+        }
+
+        [Test]
+        public void TheShaderFollowsThePlayersUnits()
+        {
+            var before = DisplayUnits.Current;
+            try
+            {
+                var layers = Bound(out _, out _);
+                DisplayUnits.Set(UnitSystem.Imperial, remember: false);
+                layers.Apply();
+                Assert.That(Shader.GetGlobalFloat("_MP_ContourInterval"), Is.EqualTo(12.192f).Within(1e-4), "contours every 40 ft");
+                DisplayUnits.Set(UnitSystem.Metric, remember: false);
+                layers.Apply();
+                Assert.That(Shader.GetGlobalFloat("_MP_ContourInterval"), Is.EqualTo(10f), "contours every 10 m");
+                Assert.That(InfoLegend.SnowDepth(UnitSystem.Imperial).Select(e => e.Figure), Is.EqualTo(new[] { "0 in", "6 in", "1 ft 6 in", "3 ft", "6 ft", "10 ft +" }));
+                Assert.That(InfoLegend.SnowDepth(UnitSystem.Metric).Select(e => e.Figure), Is.EqualTo(new[] { "0 cm", "15 cm", "50 cm", "1 m", "2 m", "3 m +" }));
+            }
+            finally
+            {
+                DisplayUnits.Set(before, remember: false);
+            }
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Domain.Measure;
 using MountainPlanner.Domain.Snow;
 using MountainPlanner.Persistence;
 using MountainPlanner.Presentation;
@@ -63,6 +64,8 @@ namespace MountainPlanner.App
         public double CoverSeconds;
         /// <summary>When the natural snowpack (task 12b) was in the snow-depth field, seconds after opening began.</summary>
         public double SnowpackSeconds;
+        /// <summary>Contour labels (task 12b.2), by <see cref="UnitSystem"/>: every 200 ft, or every 50 m. Empty until the snowpack pass ends.</summary>
+        public ContourLabel[][] ContourLabels = { Array.Empty<ContourLabel>(), Array.Empty<ContourLabel>() };
         public long TreesPlanted;
         public long CliffTriangles;
         public Material CliffMaterial;
@@ -186,7 +189,7 @@ namespace MountainPlanner.App
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
         static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, List<Task<CliffShells.Prepared>> cliffTasks,
                                           List<Task<ForestInstance[]>> forests, ForestAssets forest,
-                                          Stopwatch clock, CancellationToken ct, Task<float[]> snowpack)
+                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels)> snowpack)
         {
             for (int n = 0; n < order.Count; n++)
             {
@@ -203,9 +206,10 @@ namespace MountainPlanner.App
             UnityEngine.Debug.Log($"[ResortOpener] ground cover painted at {resort.CoverSeconds:F2} s");
 
             // The snowpack replaces the opening 12 in; SurfaceStates.Sync uploads it once.
-            var depths = await snowpack;
+            var (depths, labels) = await snowpack;
             if (resort.Root == null) return;
             resort.States.Snow.CopyFrom(depths);
+            resort.ContourLabels = labels;
             resort.SnowpackSeconds = clock.Elapsed.TotalSeconds;
             UnityEngine.Debug.Log($"[ResortOpener] snowpack in the snow-depth field at {resort.SnowpackSeconds:F2} s");
 
@@ -246,9 +250,10 @@ namespace MountainPlanner.App
         /// <summary>
         /// The natural snowpack over the snow-depth field's cells (8 m over the ring): each cell's elevation and canopy
         /// share (the forest-floor weight of the bare ground cover) from the tile under its centre, then
-        /// <see cref="Snowpack.Compute"/>. Cells no tile covers have no data and get the valley depth.
+        /// <see cref="Snowpack.Compute"/>. Cells no tile covers have no data and get the valley depth. The same
+        /// elevations place the contour labels for both unit systems (task 12b.2).
         /// </summary>
-        static float[] BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
+        static (float[] Depths, ContourLabel[][] Labels) BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
                                      Rect ring, int width, int depth, double convergence)
         {
             const float cell = SurfaceStates.CellMetres;
@@ -289,7 +294,11 @@ namespace MountainPlanner.App
                 if (d < SurfaceStates.FullCoverMetres) thin++;
             }
             UnityEngine.Debug.Log($"[ResortOpener] snowpack: mean {sum / result.Length:F2} m, deepest {max:F2} m, {100.0 * thin / result.Length:F1}% thinner than {SurfaceStates.FullCoverMetres * 100:F0} cm");
-            return result;
+            var labels = new ContourLabel[2][];
+            foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
+                labels[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);
+            UnityEngine.Debug.Log($"[ResortOpener] contour labels: {labels[0].Length:N0} (200 ft), {labels[1].Length:N0} (50 m)");
+            return (result, labels);
         }
 
         static double Distance(CacheTile t, CacheManifest cache, LocalFrame frame)

@@ -1,3 +1,4 @@
+using MountainPlanner.Domain.Measure;
 using Unity.Profiling;
 using UnityEngine;
 
@@ -141,6 +142,7 @@ namespace MountainPlanner.Presentation
                 _ground?.SetOverlay(Info == InfoView.CoverMap);
                 Shader.SetGlobalFloat(InfoViewId, Info == InfoView.CoverMap ? 0 : (float)Info);
                 Shader.SetGlobalFloat(ContoursId, ContoursOn ? 1 : 0);
+                ApplyUnits(DisplayUnits.Current);
                 if (_edge != null) _edge.SetFloat(SnowOnId, snow);
                 if (_cliff != null) _cliff.SetFloat(SnowLoadId, snow);
                 if (_forest != null)
@@ -153,6 +155,19 @@ namespace MountainPlanner.Presentation
             }
         }
 
+        /// <summary>The contour interval and the snow-depth colour stops follow the player's units (task 12b.2).</summary>
+        static void ApplyUnits(UnitSystem units)
+        {
+            Shader.SetGlobalFloat(ContourIntervalId, (float)UnitFormat.ContourIntervalMetres(units));
+            double[] stops = units == UnitSystem.Imperial ? ImperialStops : MetricStops;
+            for (int k = 0; k < Stops.Length; k++) Stops[k] = (float)stops[k];
+            Shader.SetGlobalFloatArray(SnowDepthStopsId, Stops);
+        }
+
+        static readonly double[] ImperialStops = UnitFormat.SnowDepthStops(UnitSystem.Imperial), MetricStops = UnitFormat.SnowDepthStops(UnitSystem.Metric);
+        static readonly float[] Stops = new float[6];
+        static readonly int ContourIntervalId = Shader.PropertyToID("_MP_ContourInterval");
+        static readonly int SnowDepthStopsId = Shader.PropertyToID("_MP_SnowDepthStops");
         static readonly int SnowOnId = Shader.PropertyToID("_SnowOn");
         static readonly int SnowLoadId = Shader.PropertyToID("_SnowLoad");
         /// <summary>InfoLayers.hlsl: 0 none, 2 slope angle, 3 exposure, 4 snow depth (the cover map has its own switch).</summary>

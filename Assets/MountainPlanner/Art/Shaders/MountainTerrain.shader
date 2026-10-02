@@ -301,8 +301,8 @@ Shader "MountainPlanner/Terrain"
                     else
                     {
                         float2 rise = HeightGradient(i.uv);
-                        float slopeDegrees = degrees(atan(length(rise)));
-                        info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopeDegrees, i.positionCS.xy) : ExposureColour(-rise, slopeDegrees);
+                        float slopePercent = length(rise) * 100;
+                        info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopePercent, i.positionCS.xy) : ExposureColour(-rise, slopePercent);
                     }
                     Light sunI = GetMainLight();
                     float3 shaded = ApplyContours(ShadeInfo(info, n, sunI.direction), i.positionWS.y);
