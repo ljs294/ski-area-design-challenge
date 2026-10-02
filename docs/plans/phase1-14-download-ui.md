@@ -159,7 +159,7 @@ Before merging:
 - `dotnet test tools/domain-tests/Tests` passes;
 - `node tools/repo-checks/check.mjs` passes;
 - EditMode and PlayMode tests pass;
-- demo.bat gets entry 33, *The game from the title screen: download, quality card, library (scratch library)*.
+- demo.bat gets entries 34–36: play from the title, the same with the network off, and emptying the scratch library (all on a scratch library).
 
 ## 8. Questions for the owner
 

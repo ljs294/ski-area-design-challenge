@@ -19,6 +19,14 @@ namespace MountainPlanner.Domain.Cover
         public byte Krummholz;
         /// <summary>1 where the ground is too steep for a krummholz mat (<see cref="Treeline.MatMaxSlopeDegrees"/>).</summary>
         public byte Steep;
+        /// <summary>The conifers' share of the cell's species (0–255, BIGMAP weights).</summary>
+        public byte Conifer;
+        /// <summary>The shade-tolerant conifers' share (firs, spruces, hemlocks, cedars; 0–255): they grow multi-storied stands.</summary>
+        public byte Tolerant;
+        /// <summary>The canopy map's tree share of the cell (0–255; core cells only).</summary>
+        public byte Canopy;
+        /// <summary>How fully the cell grows as a dense, shade-tolerant conifer stand (0–255): clumped, with an understory (NE8).</summary>
+        public byte Stand;
     }
 
     /// <summary>One placed tree in the forest frame: 1/256 m east and north of the frame's south-west corner.</summary>
@@ -71,6 +79,15 @@ namespace MountainPlanner.Domain.Cover
         /// <summary>Per krummholz variant: its lowest and highest height (0.25 m steps), near its own size (<see cref="Treeline.HeightCodes"/>).</summary>
         public int* KrummholzHeights;
 
+        /// <summary>
+        /// Dense conifer stands (NE8): tree height as a share of the dominant (1/256) at <see cref="PoissonForest.StandQuantiles"/>
+        /// + 1 evenly spaced quantiles, shortest first (<see cref="ForestPlacement.StandHeightTable"/>).
+        /// </summary>
+        public int* StandHeights;
+        /// <summary>The clump field (NE8): clump centres one per lattice square (1/256 m), their reach (1/256 m), and the
+        /// chance (0–256) a dart far from every clump is still kept.</summary>
+        public int ClumpLattice, ClumpRadius, ClumpFloor;
+
         /// <summary>Per tile: where its trees start in <see cref="Points"/> (one extra entry: the end), and how many it has.</summary>
         public int* TileOffset;
         public int* TileCount;
@@ -107,6 +124,10 @@ namespace MountainPlanner.Domain.Cover
         public const int CellFixed = ForestPlacement.CellMetres * Fixed;
         /// <summary>Darts thrown per tree a cell should hold, plus a few.</summary>
         public const int DartsPerTree = 8, ExtraDarts = 2;
+        /// <summary>Extra darts per tree in a full dense conifer stand, where the clump field turns many away.</summary>
+        public const int StandDartsPerTree = 16;
+        /// <summary>Intervals of the stand height table (<see cref="ForestInputs.StandHeights"/>).</summary>
+        public const int StandQuantiles = 16;
 
         /// <summary>The pass (0–3) a tile grows in.</summary>
         public static int Phase(int tileX, int tileY) => (tileX & 1) | ((tileY & 1) << 1);
@@ -168,19 +189,24 @@ namespace MountainPlanner.Domain.Cover
                     if (quota == 0) continue;
                     int cellIndex = j * f.CellsX + i;
                     var cell = f.Cells[cellIndex];
-                    int spacing = cell.Spacing256;
-                    if (spacing > maxSpacing) maxSpacing = spacing;
-                    int accepted = 0;
-                    for (int k = 0; k < quota * DartsPerTree + ExtraDarts && accepted < quota && placed < capacity && local < s.LocalCapacity; k++)
+                    if (cell.Spacing256 > maxSpacing) maxSpacing = cell.Spacing256;
+                    int accepted = 0, darts = quota * DartsPerTree + ExtraDarts + ((quota * StandDartsPerTree * cell.Stand) >> 8);
+                    for (int k = 0; k < darts && accepted < quota && placed < capacity && local < s.LocalCapacity; k++)
                     {
                         ulong h = Hash(tileSeed, cellIndex, k, 0x0D47);
                         int px = rx0 + (int)(((h & 0xFFFFFFFFUL) * (ulong)rw) >> 32);
                         int py = ry0 + (int)(((h >> 32) * (ulong)rh) >> 32);
                         if (cell.Kind == ForestCell.Core && !IsCanopyTree(ref f, px, py)) continue;   // ski runs and glades stay open
-                        int lx = px - ox, ly = py - oy;
-                        if (Crowded(ref s, bins, lx, ly, spacing, maxSpacing)) continue;
-
+                        if (cell.Stand != 0)
+                        {
+                            // Dense conifer stands grow in clumps with small gaps between (NE8): darts away from a clump are thinned.
+                            int keep = 256 - (((256 - ClumpKeep(ref f, px, py)) * cell.Stand) >> 8);
+                            if ((int)(Hash(tileSeed, cellIndex, k, 0xC1F7) & 0xFF) >= keep) continue;
+                        }
                         var tree = Grow(ref f, cell, px, py, Hash(tileSeed, cellIndex, k, 0x6A0E), Hash(tileSeed, cellIndex, k, 0x5E1F));
+                        int lx = px - ox, ly = py - oy;
+                        if (Crowded(ref s, bins, lx, ly, tree.Spacing256, maxSpacing)) continue;
+
                         f.Points[slot + placed] = tree;
                         placed++;
                         accepted++;
@@ -196,7 +222,25 @@ namespace MountainPlanner.Domain.Cover
         {
             int variant = (int)((a >> 40) % (ulong)f.Variants);
             int model = PickModel(ref f, px, py, (int)(a & 0xFFFF));
-            int height = cell.HeightCode * (166 + ((89 * (int)((a >> 16) & 0xFF)) >> 8)) >> 8;   // 65–100% of the dominant height
+            int u = (int)((a >> 16) & 0xFF);
+            int share = 166 + ((89 * u) >> 8);   // 65–100% of the dominant height
+            if (cell.Stand != 0)
+            {
+                // A dense conifer stand (NE8): most trees near the canopy over an understory of intermediate and
+                // suppressed trees, from the lidar-calibrated stand table, blended in by how fully the cell is a stand.
+                int q = u * StandQuantiles, i = q >> 8, frac = q & 0xFF;
+                int stand = f.StandHeights[i] + (((f.StandHeights[i + 1] - f.StandHeights[i]) * frac) >> 8);
+                share += ((stand - share) * cell.Stand) >> 8;
+            }
+            int height = cell.HeightCode * share >> 8;
+            int shortest = cell.HeightCode * 166 >> 8;
+            if (height < shortest && height < ForestRule.TreeCode) height = shortest < ForestRule.TreeCode ? shortest : ForestRule.TreeCode;   // an understory tree is still a tree (3 m)
+            int spacing = cell.Spacing256;
+            if (cell.Stand != 0)
+            {
+                // A smaller tree has a smaller crown, so it may stand closer: the spacing floor follows each tree's own crown.
+                spacing = (int)((long)spacing * CrownRadius256(height) / CrownRadius256(cell.HeightCode));
+            }
             int width = cell.Width32 * (218 + ((77 * (int)((a >> 24) & 0xFF)) >> 8)) >> 8;       // 85–115%
             int rotation = (int)((a >> 32) & 0xFF);
             if (f.KrummholzModel >= 0 && (int)(b & 0xFF) < cell.Krummholz)
@@ -212,15 +256,48 @@ namespace MountainPlanner.Domain.Cover
                 height = lo + (int)((((b >> 8) & 0xFF) * (ulong)(hi - lo + 1)) >> 8);
                 rotation = (f.DownwindRotation + (int)((b >> 16) & 0x1F) - 16) & 0xFF;
                 width = 32;
+                spacing = cell.Spacing256;
             }
             return new ForestPoint
             {
-                X = px, Y = py, Spacing256 = cell.Spacing256,
+                X = px, Y = py, Spacing256 = (ushort)spacing,
                 HeightCode = (byte)(height < 1 ? 1 : height > 255 ? 255 : height),
                 Prototype = (byte)(model * f.Variants + variant),
                 Rotation = (byte)rotation,
                 Width32 = (byte)(width < 1 ? 1 : width > 255 ? 255 : width),
             };
+        }
+
+        /// <summary><see cref="ForestPlacement.CrownRadius"/> in 1/256 m for a height in 0.25 m steps: 0.1 h + 0.6 m, 1.2–4.5 m.</summary>
+        public static int CrownRadius256(int heightCode)
+        {
+            int r = (heightCode * 32 + 768) / 5;
+            return r < 307 ? 307 : r > 1152 ? 1152 : r;
+        }
+
+        /// <summary>
+        /// The clump field (NE8) at a frame position: the chance (0–256) that a dart there is kept. One clump centre per
+        /// lattice square, hashed from the site seed alone, so the field runs on across cells and tiles without seams.
+        /// Near a centre every dart is kept, far from all of them only <see cref="ForestInputs.ClumpFloor"/>.
+        /// </summary>
+        public static int ClumpKeep(ref ForestInputs f, int px, int py)
+        {
+            if (f.ClumpLattice <= 0 || f.ClumpRadius <= 0) return 256;
+            int gx = FloorDiv(px, f.ClumpLattice), gy = FloorDiv(py, f.ClumpLattice), best = 0;
+            long r2 = (long)f.ClumpRadius * f.ClumpRadius;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    ulong h = Hash(f.Seed, gx + dx, gy + dy, 0xC1A3);
+                    long cx = (long)(gx + dx) * f.ClumpLattice + (long)(((h & 0xFFFFFFFFUL) * (ulong)f.ClumpLattice) >> 32);
+                    long cy = (long)(gy + dy) * f.ClumpLattice + (long)(((h >> 32) * (ulong)f.ClumpLattice) >> 32);
+                    long ex = px - cx, ey = py - cy, d2 = ex * ex + ey * ey;
+                    if (d2 >= r2) continue;
+                    int t = 256 - (int)(d2 * 256 / r2);   // 256 at the centre, 0 at the reach
+                    int k = (t * t) >> 8;
+                    if (k > best) best = k;
+                }
+            return f.ClumpFloor + (((256 - f.ClumpFloor) * best) >> 8);
         }
 
         /// <summary>A model drawn from the 30 m cell's BIGMAP weights, else from the site's mix.</summary>

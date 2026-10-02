@@ -186,11 +186,11 @@ namespace MountainPlanner.Tests
         /// </summary>
         static readonly Dictionary<string, string> GoldenTrees = new Dictionary<string, string>
         {
-            ["t4_3"] = "2fdd017661a5a8e9a4ca72e34fff31a529c759df86ffcda80e74b8ec590f8f25",
-            ["t4_4"] = "ad6e093375d554e7740e6ab2f8a0d3bf432b6641ce6ab6bdeecbc7e66c6b0b5d",
+            ["t4_3"] = "1cfc5d5fddc5cfb51c8b12e8a47946a8509c772705fd5b842f96ecc1c1939baf",
+            ["t4_4"] = "801218d50cad6141bbf8e160ef4e71294f0a7117d64b35166c0dec548ea4dfb8",
             ["t0_0"] = "c91758af65bf3fb03276dd849da9f51301283f1c63d8cff2d565c77df3162792",
         };
-        const int GoldenTreeCount = 256797;
+        const int GoldenTreeCount = 256917;
 
         static (PackageManifest Manifest, string Dir) JacksonHole2Km()
         {
@@ -281,16 +281,141 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void TreesKeepTheirSpacingAcrossCellsAndTiles()
+        public void StandHeightsFollowTheirFormula()
         {
-            var (manifest, dir) = JacksonHole2Km();
-            var plan = new ForestField(manifest, dir).Prepare(Grid(manifest));
-            new ManagedForestPlanter().Plant(plan);
+            int[] table = ForestPlacement.StandHeightTable();
+            Assert.That(table.Length, Is.EqualTo(PoissonForest.StandQuantiles + 1));
+            for (int i = 0; i < table.Length; i++)
+            {
+                double u = (double)i / PoissonForest.StandQuantiles;
+                double share = 1 - (1 - ForestPlacement.StandShortest) * Math.Pow(1 - u, ForestPlacement.StandSkew);
+                Assert.That(table[i], Is.EqualTo(256 * share).Within(0.5), $"quantile {i}");
+                if (i > 0) Assert.That(table[i], Is.GreaterThanOrEqualTo(table[i - 1]), "shortest first");
+            }
+            Assert.That(table[table.Length - 1], Is.EqualTo(256), "the tallest reach the dominant height");
+        }
 
-            // Every tree against every other within reach, binned on a 4 m grid (integer maths, like the sampler).
+        [Test]
+        public void ShadeTolerantConifersAreTheFirsSprucesHemlocksAndCedars()
+        {
+            foreach (int spcd in new[] { 12, 19, 94, 95, 97, 241, 261, 264 })
+                Assert.That(ForestField.IsTolerantConifer(spcd), Is.True, $"FIA {spcd}");
+            foreach (int spcd in new[] { 108, 122, 129, 202, 73, 316, 375, 746 })
+                Assert.That(ForestField.IsTolerantConifer(spcd), Is.False, $"FIA {spcd}");
+            Assert.That(ForestPlacement.StandWeight(1, 1), Is.EqualTo(1));
+            Assert.That(ForestPlacement.StandWeight(0.1, 1), Is.EqualTo(0), "pine and Douglas-fir stands stay even");
+            Assert.That(ForestPlacement.StandWeight(1, 0.2), Is.EqualTo(0), "open stands stay as they were");
+        }
+
+        [Test]
+        public void TheClumpFieldIsSeamlessAndKeepsItsRange()
+        {
+            var f = new ForestInputs
+            {
+                Seed = 0x5EEDUL, ClumpLattice = ForestPlacement.ClumpLattice256, ClumpRadius = ForestPlacement.ClumpRadius256,
+                ClumpFloor = ForestPlacement.ClumpFloor,
+            };
+            int full = 0, floor = 0, n = 0;
+            long sum = 0;
+            for (int y = 0; y < 200 * PoissonForest.Fixed; y += 97)
+                for (int x = 0; x < 200 * PoissonForest.Fixed; x += 389)
+                {
+                    int keep = PoissonForest.ClumpKeep(ref f, x, y);
+                    Assert.That(keep, Is.InRange(ForestPlacement.ClumpFloor, 256));
+                    if (keep >= 240) full++;
+                    if (keep == ForestPlacement.ClumpFloor) floor++;
+                    sum += keep;
+                    n++;
+                }
+            TestContext.Progress.WriteLine($"Clump field: {100.0 * full / n:F0}% near a clump centre, {100.0 * floor / n:F0}% in the gaps, mean keep {sum / (double)n / 256:P0}");
+            Assert.That(full, Is.GreaterThan(0), "clumps");
+            Assert.That(floor, Is.GreaterThan(n / 20), "gaps between them");
+            // A function of frame position alone: the same on both sides of a tile or cell edge, so no seams.
+            for (int d = -3; d <= 3; d++)
+            {
+                int x = 5 * PoissonForest.TileFixed + d, y = 3 * PoissonForest.TileFixed + 7 * d;
+                Assert.That(Math.Abs(PoissonForest.ClumpKeep(ref f, x, y) - PoissonForest.ClumpKeep(ref f, x + 1, y + 1)), Is.LessThanOrEqualTo(2));
+            }
+        }
+
+        /// <summary>Every tree of a grown plan.</summary>
+        static List<ForestPoint> Trees(ForestPlan plan)
+        {
             var points = new List<ForestPoint>();
             for (int t = 0; t < plan.TileCountTotal; t++)
                 for (int k = 0; k < plan.TileCount[t]; k++) points.Add(plan.Points[plan.TileOffset[t] + k]);
+            return points;
+        }
+
+        /// <summary>Jackson Hole's plan with every forest core cell a full dense conifer stand, or none.</summary>
+        static ForestPlan JacksonHolePlan(byte stand)
+        {
+            var (manifest, dir) = JacksonHole2Km();
+            var plan = new ForestField(manifest, dir).Prepare(Grid(manifest));
+            for (int i = 0; i < plan.Cells.Length; i++)
+            {
+                if (plan.Cells[i].Kind == ForestCell.Core) plan.Cells[i].Stand = stand;
+                plan.Cells[i].Krummholz = 0;
+            }
+            new ManagedForestPlanter().Plant(plan);
+            return plan;
+        }
+
+        [Test]
+        public void DenseConiferStandsGrowAnUnderstoryInClumpsWithTheSameTrees()
+        {
+            ForestPlan even = JacksonHolePlan(0), stand = JacksonHolePlan(255);
+            (double Cv, double Under, double Clumping, long Trees) Measure(ForestPlan plan)
+            {
+                var trees = Trees(plan);
+                double sum = 0, sum2 = 0;
+                long under = 0, core = 0;
+                var quadrats = new Dictionary<(int, int), int>();
+                foreach (var p in trees)
+                {
+                    int cell = (p.Y - plan.CellOriginY) / PoissonForest.CellFixed * plan.CellsX + (p.X - plan.CellOriginX) / PoissonForest.CellFixed;
+                    if (plan.Cells[cell].Kind != ForestCell.Core) continue;   // the ring never grows stands
+                    core++;
+                    double share = p.HeightCode / (double)plan.Cells[cell].HeightCode;
+                    sum += share;
+                    sum2 += share * share;
+                    if (share < 0.6) under++;
+                    var q = (p.X / (5 * PoissonForest.Fixed), p.Y / (5 * PoissonForest.Fixed));
+                    quadrats[q] = quadrats.TryGetValue(q, out int c) ? c + 1 : 1;
+                }
+                double mean = sum / core, cv = Math.Sqrt(sum2 / core - mean * mean) / mean;
+                double qm = quadrats.Values.Average(), qv = quadrats.Values.Average(v => (v - qm) * (v - qm));
+                return (cv, under / (double)core, qv / qm, core);
+            }
+            var a = Measure(even);
+            var b = Measure(stand);
+            TestContext.Progress.WriteLine($"Even: {a.Trees:N0} core trees, height CV {a.Cv:F3}, {a.Under:P1} under 60%, quadrat variance/mean {a.Clumping:F2}");
+            TestContext.Progress.WriteLine($"Stand: {b.Trees:N0} core trees, height CV {b.Cv:F3}, {b.Under:P1} under 60%, quadrat variance/mean {b.Clumping:F2}");
+            Assert.That(a.Under, Is.EqualTo(0), "even stands keep 65–100% of the dominant height");
+            Assert.That(b.Under, Is.GreaterThan(0.1), "a visible understory of suppressed trees");
+            Assert.That(b.Cv, Is.GreaterThan(a.Cv * 1.5), "a wider height spread");
+            Assert.That(b.Clumping, Is.GreaterThan(a.Clumping), "clumps and gaps");
+            // The density calibration holds: the cells' quotas are unchanged. Smaller understory crowns only let crowded
+            // cells come closer to their quota (the even forest falls a few percent short where crowns jam).
+            Assert.That(b.Trees, Is.InRange(a.Trees, a.Trees * 1.05), "no fewer trees, and none beyond the quotas' slack");
+            Assert.That(Trees(stand).Count, Is.LessThanOrEqualTo(stand.Points.Length), "never more than the cells' quotas");
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TreesKeepTheirSpacingAcrossCellsAndTiles(bool denseConiferStands)
+        {
+            ForestPlan plan;
+            if (denseConiferStands) plan = JacksonHolePlan(255);
+            else
+            {
+                var (manifest, dir) = JacksonHole2Km();
+                plan = new ForestField(manifest, dir).Prepare(Grid(manifest));
+                new ManagedForestPlanter().Plant(plan);
+            }
+
+            // Every tree against every other within reach, binned on a 4 m grid (integer maths, like the sampler).
+            var points = Trees(plan);
             const int bin = 4 * PoissonForest.Fixed;
             var bins = new Dictionary<(int, int), List<int>>();
             for (int i = 0; i < points.Count; i++)

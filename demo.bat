@@ -81,11 +81,14 @@ echo.
 echo   Game UI design (mockups, not the game yet)
 echo     32 Open the HUD layout mockup in your browser: status bar, Toolbox, Analysis, menu and Settings
 echo.
+echo   Forest structure (NE8)
+echo     33 Stand in a Sugarloaf spruce-fir stand: understory and clumps (needs 29)
+echo.
 echo   Phase 1, task 14: title, download, quality card and library (a scratch library, not yours)
-echo     33 Play from the title: New Resort, download with progress, quality card, My Resorts, open
-echo     34 The same scratch library with the network off: My Resorts, then open a mountain
-echo     35 Empty the scratch library
-echo        Tip: in 33, close the game mid-download, start 33 again, then My Resorts - Resume.
+echo     34 Play from the title: New Resort, download with progress, quality card, My Resorts, open
+echo     35 The same scratch library with the network off: My Resorts, then open a mountain
+echo     36 Empty the scratch library
+echo        Tip: in 34, close the game mid-download, start 34 again, then My Resorts - Resume.
 echo.
 echo     Q  Quit
 echo.
@@ -132,13 +135,14 @@ if /i "%CHOICE%"=="28" goto survey
 if /i "%CHOICE%"=="29" call :acquire "Sugarloaf" 45.047 -70.316 5 & goto done
 if /i "%CHOICE%"=="30" goto playsugarloaf
 if /i "%CHOICE%"=="31" goto benchsugarloaf
+if /i "%CHOICE%"=="33" goto standsugarloaf
 if /i "%CHOICE%"=="32" (
   start "" "%~dp0docs\plans\prototypes\ui-layout.html"
   goto menu
 )
-if /i "%CHOICE%"=="33" goto flow
-if /i "%CHOICE%"=="34" goto flowoffline
-if /i "%CHOICE%"=="35" goto flowclean
+if /i "%CHOICE%"=="34" goto flow
+if /i "%CHOICE%"=="35" goto flowoffline
+if /i "%CHOICE%"=="36" goto flowclean
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -245,6 +249,13 @@ echo Running the forest benchmark on Crystal Mountain (the game flies 5 views, t
 findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\crystal.log"
 start "" "%~dp0test-results\benchmark"
 goto done
+
+:standsugarloaf
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game in a dense spruce-fir stand on Sugarloaf (download it first with 29): mixed heights, small trees under big ones, clumps and gaps. The keys are the same as in 17.
+start "" "%GAME%" -site "Sugarloaf" -view 1500,-1550,250,200,25
+goto menu
 
 :playsugarloaf
 if not exist "%GAME%" call :buildplayer
