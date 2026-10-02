@@ -378,14 +378,20 @@ namespace MountainPlanner.App
             Camera.Frame(landmark.Centre, 600f);
         }
 
-        /// <summary>Home: the whole resort from the south-southwest, as it opens.</summary>
+        /// <summary>
+        /// Home: the whole resort as it opens, seen from the south-southeast looking north-northwest, so the
+        /// winter sun (in the south) falls across the slopes and shows their relief (owner, 2026-10-01).
+        /// </summary>
         void HomeView()
         {
             if (Camera == null || _resort == null) return;
             float centre = _resort.Surface.HeightAt(0, 0);
             Camera.Frame(new Vector3(0, float.IsNaN(centre) ? 2500 : centre, 0), _resort.Manifest.Site.SizeMetres * 1.1f);
-            Camera.SetAngles(200f, 24f);
+            Camera.SetAngles(HomeYaw, 24f);
         }
+
+        /// <summary>The Home view's heading (degrees clockwise from grid north): looking north-northwest.</summary>
+        public const float HomeYaw = 330f;
 
         /// <summary>Photo mode's capture: a PNG of the scene alone (the hint hides for that frame), then a toast.</summary>
         System.Collections.IEnumerator CapturePhoto()
