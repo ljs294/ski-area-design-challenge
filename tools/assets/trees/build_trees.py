@@ -243,12 +243,17 @@ def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, swa
         tan = branch_tangent(0.5)
         lo, hi, extra = sp.get("clusterSpan", (1.1, 3.2, 0.9))
         span = min(hi, max(lo, 0.55 * length + extra)) * (0.8 if reach < 1.0 else 1.0)
+        if "top" in sp:
+            # Near the top only: short top branches get narrow clusters, so the top stays pointed.
+            span *= lerp(1.0, min(1.0, max(0.3, length / 1.5)), smoothstep(0.8, 0.97, h))
         # LOD2 has one card per branch: alternate a strong roll so the crown isn't edge-on from the side.
         roll = rng.uniform(-0.25, 0.25) + (0.0 if lod["cluster"] >= 2 else (0.6 if parity else -0.6))
         ends = [(sway(base.z), 0.0, phase, 0.4), (sway(pts[-1].z), 1.0 * flex, phase, 1.0)]
         b.card(base, tan, horizontal_side(tan, roll), length * 1.08, span, ends, FOLIAGE, snow_scale=0.4)
         if lod["cluster"] >= 2 and reach == 1.0:
-            b.card(base + tan * length * 0.08, tan, horizontal_side(tan, roll + rng.choice((-1, 1)) * 1.15), length * 0.95, span * 0.8,
+            # clusterRoll: the second card's roll (white pine: flatter, as its horizontal plumes are thin from the side).
+            b.card(base + tan * length * 0.08, tan, horizontal_side(tan, roll + rng.choice((-1, 1)) * sp.get("clusterRoll", 1.15)), length * 0.95,
+                   span * 0.8,
                    ends, FOLIAGE, snow_scale=0.25)
         return
     if lod["branchSides"] and reach == 1.0:
@@ -269,7 +274,7 @@ def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, swa
     # Sprays along the branch, alternating sides, plus one at the tip.
     n_sprays = max(2, int(length * sp["spraysPerMetre"] * sp.get("sprayDensity", 1.2) * lod["cards"]))
     size = lod["card"]
-    start = 0.55 if sp.get("tufts") else 0.12
+    start = sp.get("tuftStart", 0.55) if sp.get("tufts") else 0.12   # pines: foliage toward the branch end
     for i in range(n_sprays):
         t = lerp(start, 0.95, (i + rng.random() * 0.5) / n_sprays)
         p = branch_point(t)
@@ -284,16 +289,26 @@ def conifer_branch(b, sp, rng, lod, base, d, length, elev, h, reach, parity, swa
             dirn.z += sp["sprayLift"]   # upturned sprays (noble fir: stiff, level branches, tips turned up)
         ln = spray_len * 1.5 * size * (1 - 0.3 * t) * rng.uniform(0.85, 1.15)
         wd = spray_w * 1.6 * size * (1 - 0.25 * t)
+        if "top" in sp:
+            # Near the top only, shoots are no longer than their branch, so the crown closes smoothly to the tip.
+            short = lerp(1.0, min(1.0, max(0.12, length / (spray_len * 1.5))), smoothstep(0.8, 0.97, h))
+            ln, wd = ln * short, wd * short
         roll = rng.uniform(-0.6, 0.6)
         wn = [(sway(p.z), t * flex, phase, 0.5), (sway(p.z), min(1.0, t + 0.2) * flex, phase, 1.0)]
         b.card(p, dirn, horizontal_side(dirn, roll), ln, wd, wn, FOLIAGE, snow_scale=0.38)
         if sp.get("crossed") or sp.get("tufts"):
-            b.card(p, dirn, horizontal_side(dirn, roll + 1.4), ln * 0.9, wd * 0.9, wn, FOLIAGE, snow_scale=0.25)
+            # crossRoll: how far the crossed card is rolled (white pine: less, so its plumes hold snow from above).
+            b.card(p, dirn, horizontal_side(dirn, roll + sp.get("crossRoll", 1.4)), ln * 0.9, wd * 0.9, wn, FOLIAGE, snow_scale=0.25)
         elif lod["cards"] >= 1.0 and i % 2 == 0:
             # A tilted second spray every other station gives flat sprays volume from the side.
             b.card(p, dirn, horizontal_side(dirn, roll + rng.choice((-1, 1)) * 1.1), ln * 0.75, wd * 0.8, wn, FOLIAGE, snow_scale=0.2)
     tip = pts[-1]
     tan = branch_tangent(0.97)
+    if "top" in sp:
+        short = lerp(1.0, min(1.0, max(0.12, length / (spray_len * 1.5))), smoothstep(0.8, 0.97, h))
+        b.card(tip - tan * spray_len * 0.3 * short, tan, horizontal_side(tan, 0.0), spray_len * size * short, spray_w * size * short,
+               [(sway(tip.z), 0.9 * flex, phase, 0.8), (sway(tip.z), 1.0 * flex, phase, 1.0)], FOLIAGE)
+        return
     b.card(tip - tan * spray_len * 0.3, tan, horizontal_side(tan, 0.0), spray_len * size, spray_w * size,
            [(sway(tip.z), 0.9 * flex, phase, 0.8), (sway(tip.z), 1.0 * flex, phase, 1.0)], FOLIAGE)
 
@@ -338,12 +353,18 @@ def build_conifer(sp, rng, lod, height):
 
     def crown_radius(z):
         h = (z - crown_base) / (height - crown_base)
-        return r_max * max(0.0, 1 - h) ** exponent * (0.6 + 0.4 * smoothstep(0.0, 0.08, h))
+        r = r_max * max(0.0, 1 - h) ** exponent * (0.6 + 0.4 * smoothstep(0.0, 0.08, h))
+        if "lowerTaper" in sp:
+            # The lower crown pulls in (eastern white pine: shaded-out lower limbs), so it's widest higher up.
+            r *= 1 - sp["lowerTaper"] * (1 - smoothstep(0.0, 0.45, h))
+        return r
 
     spacing = sp["whorlSpacing"] * lod["spacing"]
     z, k = crown_base, 0
     lo, hi = sp["branchesPerWhorl"]
-    top_z = height - max(0.8, 0.05 * height)
+    # top: how the tree ends (see "The top" below). Without it, the original leader of upright cards.
+    top_style = sp.get("top")
+    top_z = height - sp.get("topGap", max(0.8, 0.05 * height))
     # Main whorls, plus shorter internodal branches halfway between them (real firs and spruces
     # carry both), so the crown has no see-through gaps between tiers.
     tiers = []
@@ -357,14 +378,49 @@ def build_conifer(sp, rng, lod, height):
             continue
         h = (z - crown_base) / (height - crown_base)
         for j in range(count):
-            if rng.random() < 0.08:
+            if rng.random() < sp.get("skip", 0.08):   # a missing limb (white pine: often, so the crown is open)
                 continue
             az = k * GOLDEN + j * 2 * math.pi / count + rng.uniform(-0.25, 0.25) + (0.0 if reach == 1.0 else math.pi / count)
-            length = max(0.35, crown_radius(z) * rng.uniform(0.85, 1.1) * reach)
+            length = max(0.35 if top_style is None else lerp(0.35, 0.08, smoothstep(0.85, 1.0, h)), crown_radius(z) * rng.uniform(*sp.get("limbJitter", (0.85, 1.1))) * reach)
             elev = math.radians(lerp(sp["branchElevation"][1], sp["branchElevation"][0], h))
+            if top_style is not None:
+                elev += math.radians(sp.get("topUpsweep", 20.0)) * smoothstep(0.75, 1.0, h)   # the top whorls turn up
             conifer_branch(b, sp, rng, lod, trunk_point(z / height), Vector((math.cos(az), math.sin(az), 0)), length, elev, h, reach,
                            (k + j) % 2, sway, trunk_r)
         k += 1
+
+    if top_style is not None:
+        # The top (task 09 phase 2 audit). The original leader, upright cards, read as dark, snowless fins standing up
+        # to 2 m above the crown. The owner asked for "a normal pointed top that doesn't instantly become pointed": the
+        # crown closes gradually to the tip. So top branches may be short and their shoots no longer than they are
+        # (conifer_branch), and the last stretch of trunk carries a short leader needled all round: small sprays
+        # spiralling up it, angled up so they hold snow, each ending on a cone that closes at the tip, then a small bud.
+        spray_len, spray_w = sp["spray"]
+        last = max([z for z, _, _ in tiers if z < top_z] or [crown_base])
+        z0 = min(last + 0.05, height - 0.4)
+        n = sp.get("topSprays", 6)
+        n = n if lod["cards"] >= 1.0 else (max(3, (n + 1) // 2) if lod["cards"] else 2)
+        grow = 1.0 if lod["cards"] >= 1.0 else 1.4   # LOD1-2 draw branch-cluster textures: larger cards
+        cone = 1.4 * crown_radius(z0) + 0.1           # the foliage's radius where the leader starts; 0 at the tip
+        span = max(0.1, height - z0)
+        for i in range(n):
+            t = (i + 0.5) / n
+            z = lerp(z0, height - 0.3, t)
+            p = trunk_point(z / height)
+            az = (k + i) * GOLDEN
+            rise = math.radians(lerp(45.0, 75.0, t))
+            d = (Vector((math.cos(az), math.sin(az), 0)) * math.cos(rise) + UP * math.sin(rise)).normalized()
+            # The spray's tip lies on the cone: ln cos(rise) = cone (1 - (z - z0 + ln sin(rise)) / span).
+            ln = cone * (1 - (z - z0) / span) / (math.cos(rise) + math.sin(rise) * cone / span)
+            ln = max(0.15, min(spray_len * 1.1, ln)) * grow
+            b.card(p, d, horizontal_side(d, 0.0), ln, ln * spray_w / spray_len,
+                   [(sway(p.z), 0.2, phase_trunk, 0.6), (sway(p.z), 0.6, phase_trunk, 1.0)], FOLIAGE, snow_scale=0.5)
+        tip = trunk_point((height - 0.45) / height)
+        up = (trunk_point(1.0) - tip).normalized()
+        for i in range(2 if lod["cards"] >= 1.0 else 1):
+            b.card(tip, up, horizontal_side(up, i * math.pi / 2), 0.45, spray_w * 0.35,
+                   [(sway(tip.z), 0.3, phase_trunk, 0.6), (1.0, 0.4, phase_trunk, 1.0)], FOLIAGE, snow_scale=0.3)
+        return b
 
     # Leader: upright sprays to the tip so the top is never bare.
     spray_w = sp["spray"][1]
@@ -544,19 +600,32 @@ def build_deciduous(sp, rng, lod, height):
         d = math.hypot(tip.x, tip.y)
         return max(0.35, allowed / d) if d > allowed and d > 1e-3 else 1.0
 
-    def curve(start, direction, length, upward, segs):
+    def curve(start, direction, length, upward, segs, crook=0.12):
+        """A bending branch; crook is how far each segment turns at random (oak's limbs zigzag)."""
         pts = [start]
         d = direction.normalized()
         step = length / segs
         for _ in range(segs):
-            d = (d + UP * upward * 0.35 + Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-0.5, 0.5))) * 0.12).normalized()
+            d = (d + UP * upward * 0.35 + Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-0.5, 0.5))) * crook).normalized()
             pts.append(pts[-1] + d * step)
         return pts
+
+    crook = sp.get("crook", 0.12)
 
     def along(pts, t):
         f = t * (len(pts) - 1)
         i = min(int(f), len(pts) - 2)
         return pts[i].lerp(pts[i + 1], f - i), (pts[i + 1] - pts[i]).normalized()
+
+    winter_crown = sp.get("winterCrown", False)
+
+    def crown_twigs(pts, phase, count, t0=0.5):
+        """winterCrown: twig cards at the end of a leader, so it ends in twigs, not a bare spike."""
+        for i in range(count):
+            p, tan = along(pts, lerp(t0, 1.0, (i + 0.5) / count))
+            size = 0.8 * lod["card"]
+            b.card(p - tan * size * 0.3, tan, horizontal_side(tan, 0.6 + 1.2 * i), 1.4 * size, 1.2 * size,
+                   [(sway(p.z), 0.6, phase, 0.6), (sway(p.z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.35)
 
     def dress(pts, phase):
         """Twig cards (winter) and leaf cards (summer and autumn) along a small branch."""
@@ -573,12 +642,15 @@ def build_deciduous(sp, rng, lod, height):
             dirn = (tan * math.cos(a) + lat * math.sin(a) + UP * rng.uniform(-0.1, 0.4)).normalized()
             size = lod["card"] * rng.uniform(0.9, 1.25) * (0.55 + 0.45 * scale)
             if i % 2 == 0:
-                b.card(p, dirn, horizontal_side(dirn, rng.uniform(-0.8, 0.8)), 1.5 * size, 1.2 * size,
+                tw = 1.3 if winter_crown else 1.0   # winterCrown: larger twig cards carry the denser twig texture
+                b.card(p, dirn, horizontal_side(dirn, rng.uniform(-0.8, 0.8)), 1.5 * size * tw, 1.2 * size * tw,
                        [(sway(p.z), 0.7, phase, 0.6), (sway(p.z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.35)
-            leaves = 2 if lod["cards"] >= 1.0 else 1   # LOD1: one larger leaf card per twig
+            # LOD1, and every LOD with winterCrown: one larger leaf card per twig (the same summer cover for fewer
+            # cards; leaf cards are still drawn in winter, only hidden).
+            leaves = 2 if lod["cards"] >= 1.0 and not winter_crown else 1
             for _ in range(leaves):
                 ld = (dirn + Vector((rng.uniform(-0.6, 0.6), rng.uniform(-0.6, 0.6), rng.uniform(-0.2, 0.3)))).normalized()
-                kept = "marcescent" in sp and p.z < crown_base + 0.45 * (height - crown_base) and rng.random() < 0.7
+                kept = "marcescent" in sp and p.z < crown_base + 0.45 * (height - crown_base) and rng.random() < sp.get("keptShare", 0.7)
                 rel = min(1.0, max(0.0, (p.z - crown_base) / (height - crown_base)))
                 b.card(p, ld, horizontal_side(ld, rng.uniform(-0.6, 0.6)), 1.1 * size * (2 / leaves) ** 0.5, 1.0 * size * (2 / leaves) ** 0.5,
                        [(sway(p.z), 0.8, phase, 1.0), (sway(p.z), 1.0, phase, 1.0)],
@@ -622,10 +694,14 @@ def build_deciduous(sp, rng, lod, height):
                 a = li * 2 * math.pi / sp["leaders"] + rng.uniform(-0.4, 0.4)
                 d = (UP + Vector((math.cos(a), math.sin(a), 0)) * rng.uniform(0.35, 0.6)).normalized()
             ln = s_height * (1 - split) * rng.uniform(0.9, 1.05) + (0 if sp["leaders"] == 1 else s_height * 0.05)
+            if winter_crown:
+                ln *= 0.85   # the leaders end inside the twig crown
             pts = curve(trunk[-1], d, ln, 0.6, 5)
             r0 = tr * 0.5 * (0.8 if sp["leaders"] > 1 else 1)
             b.tube(pts, [r0 * (1 - i / 5) + (0.01 if i < 5 else 0) for i in range(6)], max(3, lod["sides"] - 2),
                    [(sway(p.z), 0.3 * i / 5, ph, 0.0) for i, p in enumerate(pts)])
+            if winter_crown:
+                crown_twigs(pts, ph, 2 if lod["cards"] >= 1.0 else (1 if lod["cards"] else 0), t0=0.7)
             leaders.append(pts)
 
         # Primaries: the lower half from the trunk above the crown base, the rest from the leaders.
@@ -648,13 +724,15 @@ def build_deciduous(sp, rng, lod, height):
             rel = (start.z - crown_base) / max(1.0, height - crown_base)
             length = height * sp["primaryLength"] * rng.uniform(0.8, 1.2) * (1.1 - 0.55 * rel)
             segs = lod["segments"] + 1
-            pts = curve(start, d, length, sp["upward"], segs)
+            pts = curve(start, d, length, sp["upward"], segs, crook)
             k_fit = fit(pts[-1])
             if k_fit < 1:
                 length *= k_fit
-                pts = curve(start, d, length, sp["upward"], segs)
+                pts = curve(start, d, length, sp["upward"], segs, crook)
             phase = rng.random()
             r0 = max(0.02, pr * 0.55 * (1 - 0.5 * rel))
+            if "limbs" in sp:
+                r0 *= sp["limbs"]   # heavier limbs (oak)
             b.tube(pts, [r0 * (1 - 0.8 * s / segs) for s in range(segs + 1)], max(3, lod["branchSides"]),
                    [(sway(p.z), s / segs, phase, 0.0) for s, p in enumerate(pts)])
 
@@ -665,7 +743,9 @@ def build_deciduous(sp, rng, lod, height):
                 for roll in (0.3, 1.6):
                     b.card(mid, tan, horizontal_side(tan, roll), length * 0.95, length * 0.85,
                            [(sway(mid.z), 0.6, phase, 0.8), (sway(pts[-1].z), 1.0, phase, 1.0)], TWIGS, snow_scale=0.3)
-                kept = "marcescent" in sp and mid.z < crown_base + 0.45 * (height - crown_base)
+                # Kept leaves on LOD2 follow keptShare without drawing from rng (that would change the tree).
+                kept = ("marcescent" in sp and mid.z < crown_base + 0.45 * (height - crown_base)
+                        and (i * 0.6180339887) % 1.0 < sp.get("keptShare", 1.0))
                 b.card(mid, tan, horizontal_side(tan, 1.2), length * 0.8, length * 0.7,
                        [(sway(mid.z), 0.6, phase, 1.0), (sway(pts[-1].z), 1.0, phase, 1.0)], KEPT if kept else FOLIAGE,
                        flag=0.5 if kept else 1.0, snow_scale=0.0, season=(rng.random(), 0.5))
@@ -677,7 +757,7 @@ def build_deciduous(sp, rng, lod, height):
                 lat = tan.cross(UP)
                 lat = lat.normalized() if lat.length > 1e-6 else Vector((1, 0, 0))
                 d2 = (tan * math.cos(a2) + lat * math.sin(a2) + UP * sp["upward"] * 0.5).normalized()
-                p2 = curve(s0, d2, length * rng.uniform(0.3, 0.45) * (1 - 0.4 * tj), sp["upward"], 3)
+                p2 = curve(s0, d2, length * rng.uniform(0.3, 0.45) * (1 - 0.4 * tj), sp["upward"], 3, crook)
                 if lod["branchSides"]:
                     b.tube(p2, [r0 * 0.4, r0 * 0.25, r0 * 0.12, 0.0], 3,
                            [(sway(p.z), tj + (1 - tj) * s / 3, phase, 0.2) for s, p in enumerate(p2)])
@@ -856,7 +936,7 @@ def species_materials(sp, out_dir):
     }
     if "marcescent" in sp:
         seasons["kept"] = image(f"{sp['id']}_leaves_kept", textures.leaf_card(sp["leaf"], sp["marcescent"], seed + 1, TEX, sp["twig"]), out_dir)
-    twigs = image(f"{sp['id']}_twigs", textures.twig_card(seed, TEX, sp["twig"]), out_dir)
+    twigs = image(f"{sp['id']}_twigs", textures.twig_card(seed, TEX, sp["twig"], dense=sp.get("winterCrown", False)), out_dir)
     mats = [bark,
             material(f"{sp['id']}_Leaves", seasons["summer"], 0.0, cutout=True, leaf=True, img2=seasons["autumn"]),
             material(f"{sp['id']}_Twigs", twigs, 0.5, cutout=True),

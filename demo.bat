@@ -72,6 +72,11 @@ echo     26 Forest benchmark on Crystal Mountain: its own views, GPU times, draw
 echo     27 Forest report for every mountain you have: trees, species, treeline (a few seconds each)
 echo     28 Species survey: tree species at every US ski area, then the model priority report (about 3 hours; resumes)
 echo.
+echo   Phase 1, task 09 phase 2: New England tree species
+echo     29 Sugarloaf, Maine, 5 km: download it into your library (spruce-fir, krummholz, northern hardwoods; about 3 minutes)
+echo     30 Fly over Sugarloaf in the game (needs 29)
+echo     31 Forest benchmark on Sugarloaf: its own views, GPU times, draw calls (about 2 minutes; needs 29)
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -114,6 +119,9 @@ if /i "%CHOICE%"=="25" goto playcrystal
 if /i "%CHOICE%"=="26" goto benchcrystal
 if /i "%CHOICE%"=="27" goto forestinfo
 if /i "%CHOICE%"=="28" goto survey
+if /i "%CHOICE%"=="29" call :acquire "Sugarloaf" 45.047 -70.316 5 & goto done
+if /i "%CHOICE%"=="30" goto playsugarloaf
+if /i "%CHOICE%"=="31" goto benchsugarloaf
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -188,6 +196,23 @@ if not exist "%~dp0test-results\benchmark" mkdir "%~dp0test-results\benchmark"
 echo Running the forest benchmark on Crystal Mountain (the game flies 5 views, then closes by itself)...
 "%GAME%" -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -site "Crystal Mountain" -benchmark "%~dp0test-results\benchmark\crystal.json" -logFile "%~dp0test-results\benchmark\crystal.log" <nul
 findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\crystal.log"
+start "" "%~dp0test-results\benchmark"
+goto done
+
+:playsugarloaf
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game on Sugarloaf (download it first with 29). The keys are the same as in 17.
+start "" "%GAME%" -site "Sugarloaf"
+goto menu
+
+:benchsugarloaf
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\benchmark" mkdir "%~dp0test-results\benchmark"
+echo Running the forest benchmark on Sugarloaf (the game flies its views, then closes by itself)...
+"%GAME%" -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -site "Sugarloaf" -benchmark "%~dp0test-results\benchmark\sugarloaf.json" -logFile "%~dp0test-results\benchmark\sugarloaf.log" <nul
+findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\sugarloaf.log"
 start "" "%~dp0test-results\benchmark"
 goto done
 

@@ -16,7 +16,7 @@ DIR/audit.json (and the printed summary) holds, per model:
             lodBias 2)
   slope     how far krummholz foliage floats above or sinks into a slope (the game sets a tree's foot on the
             terrain and doesn't tilt it)
-Sheets (DIR/sheets, --sheets to pick): silhouettes, game, snow, krummholz, slope, lodpop, stands, textures. --measure 0 skips the measurements (sheets only).
+Sheets (DIR/sheets, --sheets to pick): silhouettes, game, snow, tops, krummholz, slope, lodpop, stands, textures. --measure 0 skips the measurements (sheets only).
 
 "Game shading" here is an emulation, not Unity: TreeShading's crown normals and occlusion, TreeLight's wrapped
 sun and sky, and SnowPattern's snow on sprays, baked per vertex and drawn unlit. It has no shadows, haze or
@@ -41,7 +41,7 @@ REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 NEW = ("pacific_silver_fir", "western_hemlock", "noble_fir", "krummholz")
 CUTOFF = 0.4                                   # TreeImport.FoliageCutoff
 FOV, LOD_BIAS = 60.0, 2.0                      # MountainViewer.unity camera; QualitySettings (desktop)
-TRANSITIONS = (0.25, 0.10, 0.05, 0.003)        # ForestRenderer.Transitions
+TRANSITIONS = (0.35, 0.14, 0.05, 0.003)        # ForestRenderer.Transitions (LOD sooner: owner option A, d3142d6)
 SCREEN_SCALE = LOD_BIAS / (2 * math.tan(math.radians(FOV / 2)))
 # TreeImport's fidelity views (HemiOctDecode of frames (7,7), (6,6), (5,5)): Unity (x, y) toward the viewer.
 VIEWS = {"0": (1.0, 0.0), "22": (5.0, 2.0), "53": (3.0, 4.0)}
@@ -721,7 +721,8 @@ def sheet_game(species, built, out, tmp):
 def sheet_snow(species, built, out, tmp):
     """The game's snow pattern up close: the middle of each crown from 35 degrees, a few metres away."""
     by = {sp["id"]: sp for sp in species}
-    picks = [sid for sid in ("subalpine_fir", "pacific_silver_fir", "noble_fir", "western_hemlock", "mountain_hemlock") if sid in built]
+    picks = [sid for sid in ("subalpine_fir", "pacific_silver_fir", "noble_fir", "western_hemlock", "mountain_hemlock",
+                             "lodgepole_pine", "eastern_white_pine") if sid in built]
     tiles = []
     for sid in picks:
         o = built[sid][0][0]
@@ -736,6 +737,30 @@ def sheet_snow(species, built, out, tmp):
         tiles.append(render_array(os.path.join(tmp, f"snow_{sid}.png"))[..., :3])
         clear(keep_list())
     save(np.concatenate(tiles, 1), os.path.join(out, "audit-snow.png"))
+    return picks
+
+
+def sheet_tops(species, built, out, tmp):
+    """The top 30% of each conifer in the game's shading, in winter, from 20 degrees up: the leader and the top
+    whorls, where a tree meets the sky (task 09 phase 2: the leader 'fins')."""
+    by = {sp["id"]: sp for sp in species}
+    picks = [sp["id"] for sp in species if sp["form"] == "conifer" and sp["id"] in built]
+    tiles = []
+    for sid in picks:
+        o = built[sid][0][0]
+        bake_lit(o, crown(o, by[sid]), by[sid])
+        instance(o, by[sid], mode="game", snow=True)
+        top = max(v.co.z for v in o.data.vertices)
+        span = 0.3 * top
+        centre = Vector((0, 0, top - span / 2))
+        measure_setup(600, 700, 32)
+        bpy.context.scene.render.film_transparent = False
+        bpy.context.scene.world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.35, 0.38, 0.42, 1)
+        e = math.radians(20)
+        look_camera(centre + Vector((-math.cos(e), 0, math.sin(e))) * (top + 20), centre, ortho_scale=span * 1.15)
+        tiles.append(render_array(os.path.join(tmp, f"tops_{sid}.png"))[..., :3])
+        clear(keep_list())
+    save(np.concatenate(tiles, 1), os.path.join(out, "audit-tops.png"))
     return picks
 
 
@@ -900,6 +925,8 @@ def main():
         sheet_game(species, built, sheets_dir, tmp)
     if want("snow"):
         sheet_snow(species, built, sheets_dir, tmp)
+    if want("tops"):
+        sheet_tops(species, built, sheets_dir, tmp)
     if want("krummholz"):
         sheet_krummholz(species, built, sheets_dir, tmp)
     if want("slope"):
