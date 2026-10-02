@@ -34,6 +34,8 @@ namespace MountainPlanner.Persistence
         public int[] SiteCumulative = Array.Empty<int>();
         public int Models, Variants, KrummholzModel = -1, DownwindRotation;
         public int[] KrummholzHeights = Treeline.HeightCodes();
+        public int[] StandHeights = ForestPlacement.StandHeightTable();
+        public int ClumpLattice = ForestPlacement.ClumpLattice256, ClumpRadius = ForestPlacement.ClumpRadius256, ClumpFloor = ForestPlacement.ClumpFloor;
         public int[] TileOffset = Array.Empty<int>();
         public int[] TileCount = Array.Empty<int>();
         public ForestPoint[] Points = Array.Empty<ForestPoint>();
@@ -70,6 +72,7 @@ namespace MountainPlanner.Persistence
                     ModelOfIndex = (int*)Pin(p.ModelOfIndex), SiteCumulative = (int*)Pin(p.SiteCumulative),
                     Models = p.Models, Variants = p.Variants, KrummholzModel = p.KrummholzModel, DownwindRotation = p.DownwindRotation,
                     KrummholzHeights = (int*)Pin(p.KrummholzHeights),
+                    StandHeights = (int*)Pin(p.StandHeights), ClumpLattice = p.ClumpLattice, ClumpRadius = p.ClumpRadius, ClumpFloor = p.ClumpFloor,
                     TileOffset = (int*)Pin(p.TileOffset), TileCount = (int*)Pin(p.TileCount), Points = (ForestPoint*)Pin(p.Points),
                 };
             }
@@ -182,6 +185,9 @@ namespace MountainPlanner.Persistence
         readonly GridHeader _speciesHeader;
         readonly int[] _modelOfIndex;          // species table index (1-based) → model
         readonly double[] _siteShares;         // model → share of the site's biomass
+        readonly bool[] _coniferIndex;         // species table index (1-based) → a conifer (FIA codes below 300)
+        readonly bool[] _tolerantIndex;        // species table index (1-based) → a shade-tolerant conifer
+        readonly double _siteConifer, _siteTolerant;   // their shares of the site's biomass
         readonly AlbersBox _core;
         /// <summary>Tree share given to a ring WorldCover forest cell, measured in the core (see constructor).</summary>
         public readonly double RingTreeShare;
@@ -211,14 +217,24 @@ namespace MountainPlanner.Persistence
                 _speciesWeights = ResortPackage.ReadByteLayer(folder, package, "species-weights", out _);
             }
             _modelOfIndex = new int[256];
+            _coniferIndex = new bool[256];
+            _tolerantIndex = new bool[256];
             _siteShares = new double[SpeciesMap.Models.Length];
+            double conifer = 0, tolerant = 0, all = 0;
             foreach (var s in package.Species)
             {
                 if (s.Index <= 0 || s.Index > 255) continue;
                 int model = SpeciesMap.ModelFor(s.Spcd);
                 _modelOfIndex[s.Index] = model;
                 _siteShares[model] += s.ShareOfBiomass;
+                _coniferIndex[s.Index] = IsConifer(s.Spcd);
+                _tolerantIndex[s.Index] = IsTolerantConifer(s.Spcd);
+                all += s.ShareOfBiomass;
+                if (IsConifer(s.Spcd)) conifer += s.ShareOfBiomass;
+                if (IsTolerantConifer(s.Spcd)) tolerant += s.ShareOfBiomass;
             }
+            _siteConifer = all > 0 ? conifer / all : 1;
+            _siteTolerant = all > 0 ? tolerant / all : 0;
             if (_siteShares.Sum() <= 0) _siteShares[SpeciesMap.IndexOf("douglas_fir")] = 1;
             RingTreeShare = MeasureRingShare();
         }
@@ -392,7 +408,7 @@ namespace MountainPlanner.Persistence
             const int m = ForestPlacement.CellMetres;
             double x0 = cx * m, y0 = cy * m;
             bool core = _canopy != null && Inside(_canopyHeader, x0 + m / 2.0, y0 + m / 2.0);
-            double dominant, expected, width = 1;
+            double dominant, expected, width = 1, canopyShare = 0;
             byte kind;
             if (core)
             {
@@ -405,6 +421,7 @@ namespace MountainPlanner.Persistence
                         if (v > tallest) tallest = v;
                     }
                 if (trees10 == 0) return default;
+                canopyShare = trees10 / 100.0;
                 dominant = Clamp(_calibration.DominantHeight((byte)tallest), ForestPlacement.MinHeight, ForestPlacement.MaxHeight);
                 expected = ForestPlacement.TreesPerCell(trees10 / 100.0, dominant, _calibration);
                 kind = ForestCell.Core;
@@ -419,8 +436,13 @@ namespace MountainPlanner.Persistence
                 kind = ForestCell.Ring;
             }
             double spacing = 0.9 * ForestPlacement.CrownRadius(dominant) * width;
+            SharesAt(x0 + m / 2.0, y0 + m / 2.0, out double conifer, out double tolerant);
             return new ForestCell
             {
+                Conifer = (byte)Math.Round(conifer * 255),
+                Tolerant = (byte)Math.Round(tolerant * 255),
+                Canopy = (byte)Math.Round(canopyShare * 255),
+                Stand = (byte)Math.Round(ForestPlacement.StandWeight(tolerant, canopyShare) * 255),
                 Kind = kind,
                 Expected256 = (ushort)Math.Min(65535, Math.Round(expected * PoissonForest.Fixed)),
                 Spacing256 = (ushort)Math.Min(65535, Math.Round(spacing * PoissonForest.Fixed)),
@@ -474,6 +496,41 @@ namespace MountainPlanner.Persistence
                 result[n] = list;
             });
             return result;
+        }
+
+        /// <summary>FIA species codes below 300 are the softwoods (conifers).</summary>
+        public static bool IsConifer(int spcd) => spcd > 0 && spcd < 300;
+
+        /// <summary>
+        /// The shade-tolerant conifers by FIA genus: firs (Abies, 10–29), spruces (Picea, 90–99), cedars (Thuja,
+        /// 240–241) and hemlocks (Tsuga, 260–269). Pines, larches and Douglas-fir need open sky to grow up.
+        /// </summary>
+        public static bool IsTolerantConifer(int spcd) =>
+            (spcd >= 10 && spcd <= 29) || (spcd >= 90 && spcd <= 99) || spcd == 240 || spcd == 241 || (spcd >= 260 && spcd <= 269);
+
+        /// <summary>The conifers' and the shade-tolerant conifers' shares (0–1) of BIGMAP's weights at a point, else of the site's biomass.</summary>
+        public void SharesAt(double x, double y, out double conifer, out double tolerant)
+        {
+            conifer = _siteConifer;
+            tolerant = _siteTolerant;
+            if (_speciesIds == null || _speciesWeights == null) return;
+            var h = _speciesHeader;
+            int columns = h.Width / 4;
+            int c = (int)Math.Floor((x - h.West) / h.CellSize), r = (int)Math.Floor((h.North - y) / h.CellSize);
+            if (c < 0 || r < 0 || c >= columns || r >= h.Height) return;
+            long o = ((long)r * columns + c) * 4;
+            int total = 0, con = 0, tol = 0;
+            for (int k = 0; k < 4; k++)
+            {
+                int id = _speciesIds[o + k];
+                if (id == 0) continue;
+                total += _speciesWeights[o + k];
+                if (_coniferIndex[id]) con += _speciesWeights[o + k];
+                if (_tolerantIndex[id]) tol += _speciesWeights[o + k];
+            }
+            if (total == 0) return;
+            conifer = (double)con / total;
+            tolerant = (double)tol / total;
         }
 
         int CanopyAt(double x, double y)
