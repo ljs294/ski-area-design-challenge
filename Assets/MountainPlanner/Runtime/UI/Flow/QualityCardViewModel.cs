@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using MountainPlanner.Domain.Terrain;
 using MountainPlanner.Persistence;
 
@@ -47,8 +48,11 @@ namespace MountainPlanner.UI.Flow
             return new QualityLine
             {
                 Label = label, Score = score, Band = band, Word = QualityBands.Word(band),
-                Caveat = QualityBands.Caveat(band), Detail = detail ?? "",
+                Caveat = QualityBands.Caveat(band), Detail = WithoutScore(detail ?? ""),
             };
         }
+
+        /// <summary>The manifest's one-liner repeats the score ("Terrain quality 30/100: 100% 3DEP 10 m"); the card already shows it.</summary>
+        public static string WithoutScore(string oneLiner) => Regex.Replace(oneLiner, @"^\s*\w+ quality \d+\s*/\s*100\s*:\s*", "");
     }
 }

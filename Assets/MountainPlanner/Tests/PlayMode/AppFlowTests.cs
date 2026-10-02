@@ -72,6 +72,8 @@ namespace MountainPlanner.Tests
         public IEnumerator TheLibraryOpensAMountainWithTheNetworkOff()
         {
             Http.NetworkDisabled = true;
+            // In an interactive editor run the flow has already booted on the real library; start over on the scratch one.
+            if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
             var flow = AppFlow.Create(_root, new NoDownloads());
             Assert.That(MountainViewer.TitleMode, Is.True);
             Assert.That(MountainViewer.RequestedPackage, Is.EqualTo(_package), "the title shows this library's demo mountain");

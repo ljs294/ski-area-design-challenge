@@ -23,7 +23,7 @@ namespace MountainPlanner.App.Flow
     /// batch mode without -title. -data &lt;folder&gt; points the whole flow at another library (demos, tests);
     /// -offline turns the network off for the whole session.
     /// </summary>
-    public sealed class AppFlow : MonoBehaviour, IFlowHost
+    public sealed partial class AppFlow : MonoBehaviour, IFlowHost
     {
         public const string ResourceFolder = "MountainPlannerFlow/";
 
@@ -44,7 +44,8 @@ namespace MountainPlanner.App.Flow
         FlowScreen _afterTitle = FlowScreen.Title;
         LibrarySort _sort = LibrarySort.LastOpened;
         LibraryViewModel _library;
-        int _framesSinceLoad;
+        /// <summary>Frames since a viewer scene loaded; RequestedPackage is cleared at 3, once the viewer has read it.</summary>
+        int _framesSinceLoad = 3;
         string _viewerScene;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
@@ -160,7 +161,8 @@ namespace MountainPlanner.App.Flow
         void Start()
         {
             // The first scene may already be up (tests create the flow after loading it).
-            if (_viewer == null) OnSceneLoaded(SceneManager.GetActiveScene(), LoadSceneMode.Single);
+            if (_viewer == null && FindAnyObjectByType<MountainViewer>() != null) OnSceneLoaded(SceneManager.GetActiveScene(), LoadSceneMode.Single);
+            StartCaptureIfAsked();
         }
 
         void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -168,10 +170,8 @@ namespace MountainPlanner.App.Flow
             _viewer = FindAnyObjectByType<MountainViewer>();
             if (_viewer == null)
             {
-                // Another scene (the Lift Lab, say): the flow isn't for it.
-                MountainViewer.TitleMode = false;
-                MountainViewer.RequestedPackage = null;
-                Destroy(gameObject);
+                // Another scene (the Lift Lab, a test's own scene): the flow stays out of the way until a viewer scene loads.
+                Screens.ShowScreen(null);
                 return;
             }
             _viewerScene = scene.path;

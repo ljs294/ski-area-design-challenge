@@ -54,7 +54,7 @@ namespace MountainPlanner.UI.Flow
         public string TimeLeft { get; private set; } = "";
         public string Detail { get; private set; } = "";
         public string Transfer { get; private set; } = "";
-        /// <summary>The minimised status pill: "Crystal Mountain 41%".</summary>
+        /// <summary>The minimised status pill: "Downloading Crystal Mountain · 41%".</summary>
         public string Pill { get; private set; } = "";
         public string Error { get; private set; } = "";
 
@@ -73,7 +73,7 @@ namespace MountainPlanner.UI.Flow
             Detail = "Starting";
             Transfer = "";
             Title = $"Downloading {name} · {Km(sizeKm)}";
-            Pill = $"{name} 0%";
+            Pill = $"Downloading {name} · 0%";
         }
 
         public void Apply(DownloadStatus s)
@@ -96,7 +96,7 @@ namespace MountainPlanner.UI.Flow
             TimeLeft = s.Finished ? "" : Remaining(s.SecondsRemaining);
             Detail = s.Detail;
             Transfer = Megabytes(s.Bytes) + (s.BytesPerSecond > 0 && !s.Finished ? " · " + Megabytes((long)s.BytesPerSecond) + "/s" : "");
-            Pill = $"{Name} {Percent}";
+            Pill = $"Downloading {Name} · {Percent}";
             if (s.Finished) Phase = DownloadPhase.Finished;   // a late snapshot after a pause or failure keeps that phase
             if (s.Stages.Count == 0 && s.StageCount > 0 && !s.Finished)
                 Title = $"Downloading {Name} · stage {Math.Max(1, s.StageIndex)} of {s.StageCount}";

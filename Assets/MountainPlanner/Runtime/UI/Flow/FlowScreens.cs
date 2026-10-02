@@ -50,6 +50,7 @@ namespace MountainPlanner.UI.Flow
             if (Document == null) Document = GetComponent<UIDocument>();
             if (Document == null || Document.rootVisualElement == null) return;
             _root = Document.rootVisualElement;
+            _root.pickingMode = PickingMode.Ignore;   // only the visible screens take clicks; the game gets the rest
             _title = _root.Q("title");
             _library = _root.Q("library");
             _picker = _root.Q("picker");
@@ -232,8 +233,10 @@ namespace MountainPlanner.UI.Flow
             _selected = index;
             if (_selected >= 0 && _selected < _rowElements.Count)
             {
-                _rowElements[_selected].AddToClassList("lib-row--selected");
-                _rows.ScrollTo(_rowElements[_selected]);
+                var row = _rowElements[_selected];
+                row.AddToClassList("lib-row--selected");
+                // A freshly built row has no layout yet; scroll once it has one.
+                _rows.schedule.Execute(() => { if (row.panel != null) _rows.ScrollTo(row); });
             }
         }
 
@@ -288,7 +291,7 @@ namespace MountainPlanner.UI.Flow
             SetText(_dlLeft, vm.TimeLeft);
             SetText(_dlDetail, vm.Detail);
             SetText(_dlTransfer, vm.Transfer);
-            SetText(_pill, "⬇ " + vm.Pill);
+            SetText(_pill, vm.Pill);
             _barFill.style.width = Length.Percent(vm.Fraction * 100f);
             bool failed = vm.Phase == DownloadPhase.Failed;
             Show(_dlFailed, failed);

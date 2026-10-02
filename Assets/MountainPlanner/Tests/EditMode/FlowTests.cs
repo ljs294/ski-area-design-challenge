@@ -36,7 +36,7 @@ namespace MountainPlanner.Tests
             Assert.That(vm.TimeLeft, Is.EqualTo("about 1 min 20 s left"));
             Assert.That(vm.Detail, Is.EqualTo("Forest: downloading tile 3 of 6 · 35%"));
             Assert.That(vm.Transfer, Is.EqualTo("182.4 MB · 6.1 MB/s"));
-            Assert.That(vm.Pill, Is.EqualTo("Crystal Mountain 41%"));
+            Assert.That(vm.Pill, Is.EqualTo("Downloading Crystal Mountain · 41%"));
             Assert.That(vm.Title, Is.EqualTo("Downloading Crystal Mountain · 2.0 km"));
         }
 
@@ -125,6 +125,7 @@ namespace MountainPlanner.Tests
             Assert.That(vm.Lines[0].Caveat, Is.EqualTo("Parts of this area use coarser data."), "a fallback area says so");
             Assert.That(vm.Lines[0].Detail, Does.Contain("3DEP 10 m"));
             Assert.That(vm.Lines[1].Word, Is.EqualTo("Good"));
+            Assert.That(QualityCardViewModel.WithoutScore("Terrain quality 30/100: 100% 3DEP 10 m"), Is.EqualTo("100% 3DEP 10 m"), "the score isn't said twice");
             Assert.That(vm.Lines[1].Caveat, Is.Empty);
         }
 

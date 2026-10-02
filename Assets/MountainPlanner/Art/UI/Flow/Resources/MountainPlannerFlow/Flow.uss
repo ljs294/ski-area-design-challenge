@@ -3,7 +3,7 @@
    Overpass / Overpass Mono arrive with task 13's font commit; until then the default font stands in. */
 
 .flow {
-    --panel: rgba(28, 25, 22, 0.96);
+    --panel: rgb(28, 25, 22);   /* solid: translucent panels read as glass in linear colour */
     --knock: #1c1916;
     --hair: #3b3632;
     --row: #36312c;
@@ -22,7 +22,7 @@
     --go-hover: #1f7d47;
     --danger: #8e2b1f;
     --danger-hover: #a3342a;
-    --scrim: rgba(10, 16, 26, 0.45);
+    --scrim: rgba(12, 10, 8, 0.62);
     --sign-green: #1a6b3c;
     --sign-blue: #22558f;
     --sign-black: #1f1c19;
@@ -45,11 +45,7 @@
 
 /* ---------- S1 title: the signpost ---------- */
 .title { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
-.title-scrim {
-    position: absolute; left: 0; top: 0; bottom: 0; width: 46%;
-    background-image: none;
-    background-color: rgba(20, 16, 12, 0.38);
-}
+.title-scrim { display: none; }   /* a hard-edged scrim showed a seam; the solid signs read on their own */
 .signpost {
     position: absolute; left: 96px; top: 150px; width: 340px;
     padding-bottom: 40px;
@@ -91,12 +87,14 @@
 .sym--square { width: 16px; height: 16px; }
 .sym--diamond { width: 14px; height: 14px; rotate: 45deg; margin: 2px; }
 
+/* Quit is a small white plate on the post, like the brand board's plates. */
 .title-quit {
-    align-self: flex-start; margin-left: 22px;
-    background-color: rgba(0, 0, 0, 0); border-width: 0;
-    color: var(--head); font-size: 15px; -unity-font-style: bold;
+    align-self: flex-start; margin: 4px 0 0 22px; padding: 5px 14px;
+    background-color: #fbf8f2; color: #1f1c19;
+    border-width: 2px; border-color: #1f1c19; border-radius: 2px;
+    font-size: 14px; -unity-font-style: bold;
 }
-.title-quit:hover { color: var(--strong); }
+.title-quit:hover { background-color: #ffffff; }
 
 /* ---------- Panels ---------- */
 .panel {
@@ -144,7 +142,7 @@
     background-color: var(--scrim);
     padding: 64px 96px;
 }
-.library-panel { flex-grow: 1; }
+.library-panel { flex-grow: 0; flex-shrink: 1; max-height: 100%; }
 .library-sort { flex-direction: row; align-items: center; padding: 8px 16px; border-bottom-width: 1px; border-bottom-color: var(--hair); }
 .library-sort .muted { margin-right: 8px; }
 .seg {
@@ -152,7 +150,7 @@
     background-color: rgba(0, 0, 0, 0); color: var(--muted); font-size: 13px;
 }
 .seg--on { background-color: var(--chip); color: var(--strong); border-color: var(--soft); }
-.library-rows { flex-grow: 1; }
+.library-rows { flex-grow: 0; flex-shrink: 1; min-height: 48px; }
 .library-empty { padding: 32px 16px; color: var(--muted); font-size: 15px; }
 
 .lib-row {
@@ -165,7 +163,7 @@
 .lib-name { width: 220px; font-size: 15px; -unity-font-style: bold; color: var(--strong); }
 .lib-cell { width: 150px; color: var(--muted); font-size: 13px; }
 .lib-cell--narrow { width: 80px; }
-.lib-score { width: 130px; font-size: 13px; }
+.lib-score { width: 180px; font-size: 13px; }
 .lib-score--excellent, .lib-score--good { color: var(--pos); }
 .lib-score--fair { color: var(--warn); }
 .lib-score--limited { color: var(--neg); }
