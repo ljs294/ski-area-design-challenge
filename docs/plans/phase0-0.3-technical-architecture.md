@@ -244,6 +244,12 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
   - Each lake and stream is a water body with a **surface state**: open water, ice, or snow-covered ice, plus ice and snow thickness.
   - Iteration 1 sets every water body to snow-covered ice; the renderer draws whatever the state says.
   - A future weather engine will freeze and thaw each lake by changing that state. The lake itself and the rendering do not change.
+- *As built (task 10):*
+  - `SnowDepthField` (Domain) holds metres per 8 m cell over the ring, filled with 12 in (0.3048 m). Writers change rectangles.
+  - `SurfaceStates` (Presentation) copies the dirty rows into an RFloat texture. `MountainTerrain.shader` scales the snow layer by depth ÷ 0.15 m, so 12 in renders exactly as before.
+  - Snow on and off still swaps the splat maps, and the field follows them (full before snow returns, zero after it leaves). Thinner snow from a future model will need both splats.
+  - `WaterBodies` (Domain) holds a `WaterSurface` (open water, ice, or snow-covered ice, plus thicknesses) per body, with a version number. Iteration 1 has one body, `AllWater`, because telling lakes apart needs a body-ID map, which comes with the weather engine (owner, 2026-10-01).
+  - The shader draws that state: snow on ice, bare ice, or open water (dark, glassy, a faint ripple, and the horizon reflected at grazing angles). The developer panel and `-lake snow|ice|open` switch it.
 
 ### 4.7 Lighting and camera (T9)
 
@@ -251,7 +257,21 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - **Shadows:** cascaded. Tree shadows only in the near cascade, with a baked canopy-shadow term for distance. *As built:* four cascades to 150 m (the tree realism review measured 50-200 m: 150 m costs at most +0.3 ms and makes stands shade themselves and the snow); trees cast from LOD0-1, and crown occlusion stands in beyond.
 - **Lighting presets (style tile, 0.5 §4):** dawn, noon (the default), golden hour and night, each a sun or moon (a mid-January Jackson Hole position until the solar algorithm lands), a gradient sky (`Sky.shader`: zenith to horizon, a glow toward a low sun, the disc, stars at night, and a soft backdrop below the horizon for the diorama), trilight sky light that every shader takes its shadowed side from, and colour grading in a global volume (white balance, split toning, contrast, saturation, neutral tonemapping; URP bakes these into its LUT, so there are no LUT files to author). Bloom only at golden hour. `SceneLighting` blends presets over 1.5 s; **L** cycles them and `-light` picks one, `-nopost` turns grading off. **Distance haze** (`Haze.hlsl`, in all five surface shaders so nothing hazes differently from its neighbour): none within 3 km, easing in to 35% by 18 km, toward the preset's horizon colour; **M** toggles it, `-nohaze` for captures. *Measured:* the presets and grading cost at most 0.1 ms GPU. The camera asks for no depth or opaque texture: nothing samples them, and with post-processing and MSAA on, the project template's defaults drew the whole scene a second time (2.2x the GPU time).
 - **View time:** a time-of-day and date scrubber. It drives the sun only; snow stays flat in iteration 1. This is the clock placeholder (§10).
-- **Camera:** orbit / RTS-style with terrain collision, bounded to the ring, plus free-fly. Default keys follow the archive (W/A/S/D, Q/E, R/F, N); 0.4 finalises them.
+- **Camera:** orbit / RTS-style with terrain collision, bounded to the ring, plus free-fly. Home opens on the whole resort from the south-southeast (heading 330°), so the winter sun falls across the slopes. Default keys follow the archive (W/A/S/D, Q/E, R/F, N); 0.4 finalises them.
+- *As built (task 11):*
+  - **The sun from the clock.** `SceneLighting` owns a `ManualViewClock` (default 15 January, local standard time, one hour per 15° of longitude). It computes the NOAA sun for the site (`SolarDay`, `SolarPosition`) and turns it onto the resort grid by the manifest's grid convergence.
+  - **Presets are times.** Dawn is sunrise + 20 minutes, noon is solar noon, golden hour is sunset − 45 minutes, and night is 22:00. Choosing one runs the clock there over 1.5 s.
+  - **The look follows the sun's elevation.** It is the preset colours blended: night at −8° or below, dawn at 3° in the morning or golden hour at 6° in the evening, and noon from 22°.
+  - **The moon (A4) is artistic.** It stands 45° up, opposite the sun, at full strength every night. The sun fades out between 2° and −1°, the moon fades in between −3° and −8°, and the light switches at −2°, where both are dark.
+  - **Distant terrain shadows.** `FarTerrainShadow` copies every tile's heightmap into one 8 m height map over the ring, once, on the GPU. `FarShadow.compute` marches each texel toward the light (about 150 samples, growing 6% a step) whenever the light turns by more than 0.05°.
+  - Terrain, cliffs and trees use `MainLightWithFarShadow` (FarShadow.hlsl). It fades the map in from 60% of the shadow distance to the shadow distance, so the cascades keep the detail up close. `-nofarshadows` and the developer panel turn it off.
+  - **`ViewCamera`** replaces the debug camera: orbit and free-fly (C). Bounds:
+    - the orbit point stays inside the ring;
+    - the orbit eye may go up to 2 km past the edge to see the diorama walls;
+    - free-fly stays over the ring;
+    - the near plane stays 0.5 m above the snow and closes in near the ground;
+    - the closest orbit distance is 2 m.
+  - Keys: [controls-key-map.md](controls-key-map.md). `-time HH:MM` and `-day N` set the clock for captures.
 
 ### 4.8 Map layers (T17)
 

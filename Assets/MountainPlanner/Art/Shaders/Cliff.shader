@@ -40,6 +40,7 @@ Shader "MountainPlanner/Cliff"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Haze.hlsl"
+            #include "FarShadow.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; float3 normalWS : TEXCOORD1; float weight : TEXCOORD2; };
@@ -82,7 +83,7 @@ Shader "MountainPlanner/Cliff"
                 float3 albedo = lerp(rock.rgb, snowAlbedo.rgb, snow);
                 float3 normal = normalize(lerp(rn, n, snow * 0.7));
 
-                Light sun = GetMainLight(TransformWorldToShadowCoord(p));
+                Light sun = MainLightWithFarShadow(p);
                 float3 view = normalize(GetWorldSpaceViewDir(p));
                 float ndl = saturate(dot(normal, sun.direction));
                 float smooth = lerp(0.18, 0.35, snow);
