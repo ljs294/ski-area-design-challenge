@@ -71,9 +71,16 @@ namespace MountainPlanner.Domain.Measure
             return imperial;
         }
 
-        /// <summary>A site's size, e.g. "3.1 mi" or "5 km".</summary>
-        public static string SiteSize(double metres, UnitSystem units) => units == UnitSystem.Imperial
-            ? (metres / MetresPerFoot / FeetPerMile).ToString("0.#", Invariant) + " mi"
-            : (metres / 1000).ToString("0.#", Invariant) + " km";
+        /// <summary>
+        /// A site's size, e.g. "3.1 mi" or "5 km", to at most <paramref name="decimals"/> places (the site picker's
+        /// 0.1 km slider asks for 2, so neighbouring steps read differently in miles: "1.37 mi", "1.43 mi").
+        /// </summary>
+        public static string SiteSize(double metres, UnitSystem units, int decimals = 1)
+        {
+            string format = decimals <= 0 ? "0" : "0." + new string('#', decimals);
+            return units == UnitSystem.Imperial
+                ? (metres / MetresPerFoot / FeetPerMile).ToString(format, Invariant) + " mi"
+                : (metres / 1000).ToString(format, Invariant) + " km";
+        }
     }
 }

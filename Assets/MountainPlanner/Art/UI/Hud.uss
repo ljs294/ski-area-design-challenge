@@ -247,7 +247,7 @@
 }
 /* The elevation under the pointer, and under it what the info layer that's on reads there (task 12b.2). */
 .readout-stack { flex-direction: column; align-items: flex-start; }
-.readout-stack > .readout + .readout { margin-top: 4px; }
+.readout-info { margin-top: 4px; }
 
 /* Contour elevation labels (task 12b.2): placed and turned by ContourLabelOverlay, behind the panels. */
 .contour-labels {

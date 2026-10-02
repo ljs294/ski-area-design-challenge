@@ -75,6 +75,8 @@ namespace MountainPlanner.App
         /// <summary>Contour elevation labels (task 12b.2), and the label set they show (it changes with the units).</summary>
         MountainPlanner.UI.ContourLabelOverlay _contourLabels;
         ContourLabel[] _contourLabelSet;
+        /// <summary>-pointer x,y (fractions of the screen): a fixed pointer for captures of the readouts.</summary>
+        Vector2? _pointer;
         System.Collections.Generic.List<Landmarks.Placed> _landmarks = new System.Collections.Generic.List<Landmarks.Placed>();
 
         /// <summary>
@@ -178,6 +180,12 @@ namespace MountainPlanner.App
                 int info = Array.IndexOf(args, "-info");
                 if (info >= 0 && info + 1 < args.Length) _layers.Set(args[info + 1], true);
                 if (Array.IndexOf(args, "-contours") >= 0) _layers.Set(MapLayers.Contours, true);
+                int pointer = Array.IndexOf(args, "-pointer");
+                if (pointer >= 0 && pointer + 1 < args.Length)
+                {
+                    var f = args[pointer + 1].Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                    _pointer = new Vector2(f[0], f[1]);
+                }
                 int units = Array.IndexOf(args, "-units");   // -units metric|imperial: captures, without changing the saved choice
                 if (units >= 0 && units + 1 < args.Length) DisplayUnits.Set(args[units + 1] == "metric" ? UnitSystem.Metric : UnitSystem.Imperial, remember: false);
                 int lt = Array.IndexOf(args, "-lodtransitions");   // review runs: LOD0→1, 1→2, 2→impostor, impostor→culled screen heights
@@ -227,6 +235,7 @@ namespace MountainPlanner.App
 
         System.Collections.IEnumerator CaptureAndQuit(string path)
         {
+            while (!_resort.CoverReady.IsCompleted) yield return null;   // the cover, snowpack, contour labels and forest are in
             for (int i = 0; i < 90; i++) yield return null; // let LOD and shadows settle
             var cam = Camera != null ? Camera.transform.position : Vector3.zero;
             Debug.Log($"[MountainViewer] camera {cam}, ground below {_resort.Surface.HeightAt(cam.x, cam.z):F0} m, target {(Camera != null ? Camera.Target : Vector3.zero)}, " +
@@ -410,9 +419,9 @@ namespace MountainPlanner.App
             var mouse = Mouse.current;
             float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
             string info = _layers.InfoLayerId;
-            if (mouse != null)
+            if (mouse != null || _pointer.HasValue)
             {
-                var ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+                var ray = cam.ScreenPointToRay(_pointer.HasValue ? new Vector2(_pointer.Value.x * Screen.width, _pointer.Value.y * Screen.height) : mouse.position.ReadValue());
                 float hit = Camera.GroundAlong(ray, 30000);
                 if (!float.IsNaN(hit))
                 {

@@ -57,6 +57,10 @@ namespace MountainPlanner.Tests
             Assert.That(UnitFormat.ScaleLengths(M).Select(l => l.Label), Does.Contain("500 m").And.Contain("2 km"));
             Assert.That(UnitFormat.SiteSize(5000, Ft), Is.EqualTo("3.1 mi"));
             Assert.That(UnitFormat.SiteSize(5000, M), Is.EqualTo("5 km"));
+            // The site picker's 0.1 km steps stay distinct in miles at two places.
+            Assert.That(UnitFormat.SiteSize(2200, Ft), Is.EqualTo(UnitFormat.SiteSize(2300, Ft)), "one place: the same");
+            Assert.That(UnitFormat.SiteSize(2200, Ft, 2), Is.EqualTo("1.37 mi"));
+            Assert.That(UnitFormat.SiteSize(2300, Ft, 2), Is.EqualTo("1.43 mi"));
         }
 
         [Test]

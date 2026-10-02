@@ -89,6 +89,7 @@ namespace MountainPlanner.UI
                 var local = _layer.WorldToLocal(RuntimePanelUtils.ScreenToPanel(_layer.panel, new Vector2(at.x, Screen.height - at.y)));
                 label.style.translate = new Translate(local.x - LabelWidth / 2, local.y - LabelHeight / 2);
                 label.style.rotate = new Rotate(-degrees);
+                if (!ReferenceEquals(label.text, l.Text)) label.text = l.Text;   // made when placed: no allocation here
                 if (label.style.display != DisplayStyle.Flex) label.style.display = DisplayStyle.Flex;
             }
         }
