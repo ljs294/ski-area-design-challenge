@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Domain.Snow;
 using MountainPlanner.Persistence;
 using MountainPlanner.Presentation;
 using MountainPlanner.World;
@@ -52,6 +53,12 @@ namespace MountainPlanner.App
         public GroundLayers Ground;
         public string PackageFolder;
         public bool SnowOn = true;
+        /// <summary>The ring (local x/z): where the downloaded data ends and the diorama walls stand.</summary>
+        public Rect Ring;
+        /// <summary>The top of the diorama's plinth (local y): the lowest the camera may go off the terrain.</summary>
+        public float PlinthTop;
+        /// <summary>Task 10's seams: the snow-depth field and the water's surface state, and their upload to the GPU.</summary>
+        public SurfaceStates States;
         /// <summary>Completes when every tile's ground cover is painted (it streams in after the terrain is playable).</summary>
         public Task CoverReady = Task.CompletedTask;
         public double CoverSeconds;
@@ -156,6 +163,7 @@ namespace MountainPlanner.App
             {
                 Manifest = manifest, Cache = cache, Root = root, Tiles = tiles, Surface = surface, Frame = frame, Seconds = clock.Elapsed.TotalSeconds,
                 Ground = ground, PackageFolder = packageFolder,
+                Ring = ringRect, PlinthTop = (float)cache.HeightMin - DioramaBase.BaseDepth, States = new SurfaceStates(ringRect),
             };
             if (forest?.Edge != null)
             {
@@ -229,6 +237,7 @@ namespace MountainPlanner.App
         {
             await resort.CoverReady;
             resort.SnowOn = snow;
+            resort.States?.Snow.Fill(snow ? SnowDepthField.IterationOneMetres : 0);   // the seam a snow model will write
             if (resort.CliffMaterial != null) resort.CliffMaterial.SetFloat("_SnowLoad", snow ? 1 : 0);
             // Lakes keep their water weight either way; the shader draws snow on ice or bare ice.
             if (resort.Ground?.Material != null) resort.Ground.Material.SetFloat("_SnowOn", snow ? 1 : 0);

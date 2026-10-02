@@ -124,7 +124,7 @@ namespace MountainPlanner.Editor
             light.intensity = 1.3f;
             light.color = new Color(1f, 0.96f, 0.9f);
             light.shadows = LightShadows.Soft;
-            // Direction, colour and strength come from the lighting preset (SceneLighting; task 11 computes the real sun).
+            // Direction from the clock (the NOAA sun, or the moon at night); colour and strength from the lighting look (SceneLighting).
             var lighting = GetOrAdd<SceneLighting>(sun);
             lighting.Sun = light;
 
@@ -140,7 +140,8 @@ namespace MountainPlanner.Editor
             // post-processing and MSAA on, making them drew the whole scene a second time: 2x the GPU time.
             camData.requiresDepthOption = UnityEngine.Rendering.Universal.CameraOverrideOption.Off;
             camData.requiresColorOption = UnityEngine.Rendering.Universal.CameraOverrideOption.Off;
-            var fly = GetOrAdd<DebugFlyCamera>(camGo);
+            var fly = GetOrAdd<ViewCamera>(camGo);
+            fly.MinDistance = 2f;   // close-ups (the style tile flagged 20 m as too far); the near plane closes in near the ground
 
             var viewerGo = Find("Mountain Viewer");
             var viewer = GetOrAdd<MountainViewer>(viewerGo);
@@ -162,6 +163,7 @@ namespace MountainPlanner.Editor
             viewer.Trees = AssetDatabase.LoadAssetAtPath<MountainPlanner.World.TreePrototypeSet>(TreeImport.SetPath);
             viewer.CliffMaterial = CliffMaterial();
             viewer.EdgeMaterial = EdgeMaterial();
+            viewer.FarShadowCompute = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/FarShadow.compute");
             viewer.ForestCull = AssetDatabase.LoadAssetAtPath<ComputeShader>("Assets/MountainPlanner/Art/Shaders/ForestCull.compute");
             viewer.TreeShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/MountainPlanner/Art/Shaders/TreeInstanced.shader");
             viewer.TreeImpostorShader = AssetDatabase.LoadAssetAtPath<Shader>(TreeImport.ImpostorShaderPath);

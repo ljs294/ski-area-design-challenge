@@ -36,6 +36,23 @@ Shader "MountainPlanner/Terrain"
         float _Tile[6];              // metres per texture repeat, per layer
         float _Smooth[6];
         float4 _OverlayColor[6];
+        // Task 10 seams (0.3 §4.6), set by SurfaceStates. The snow-depth map (metres) over the ring: snow covers
+        // fully from _SnowDepthParams.x metres deep; .w = 0 (not set yet) is full cover. Iteration 1 is 12 in
+        // everywhere, so the picture is the same as before the map existed.
+        TEXTURE2D(_SnowDepthMap); SAMPLER(sampler_SnowDepthMap);
+        float4 _SnowDepthRect;       // west, south, 1 / width, 1 / depth (world metres)
+        float4 _SnowDepthParams;     // x: depth for full cover (m), w: on (0/1)
+        // The water's surface state (WaterBodies): x = state + 1 (1 open water, 2 ice, 3 snow-covered ice;
+        // 0 not set yet, drawn as snow-covered ice), y ice and z snow thickness (m).
+        float4 _LakeState;
+
+        float SnowCover(float3 positionWS)
+        {
+            UNITY_BRANCH
+            if (_SnowDepthParams.w < 0.5) return 1;
+            float2 uv = (positionWS.xz - _SnowDepthRect.xy) * _SnowDepthRect.zw;
+            return saturate(SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, uv, 0).r / _SnowDepthParams.x);
+        }
 
         // The terrain stops at the edge of the downloaded data; the diorama walls take over below it.
         void ClipToRing(float3 positionWS)
@@ -58,6 +75,7 @@ Shader "MountainPlanner/Terrain"
             #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Haze.hlsl"
+            #include "FarShadow.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings
@@ -175,7 +193,8 @@ Shader "MountainPlanner/Terrain"
                 float3 clear = max(float3(0.11, 0.18, 0.19) * (0.8 + 0.4 * ValueNoise(p.xz / 25)) + grain * 0.1, 0.02);
                 const float3 rimIce = float3(0.52, 0.69, 0.79);                  // #BFD9E6, the art direction's ice rim
 
-                if (_SnowOn > 0.5)
+                float state = _LakeState.x > 0.5 ? _LakeState.x - 1 : 2;   // WaterSurfaceState; unset reads as snow-covered ice
+                if (state > 1.5 && _SnowOn > 0.5)
                 {
                     // (Wind-scoured patches of bare ice were tried and read as grey smudges, so the snow is unbroken.)
                     float rim = (1 - smoothstep(0, 0.35, inside)) * lake;       // about a metre of bare ice at the waterline
@@ -188,6 +207,19 @@ Shader "MountainPlanner/Terrain"
                     albedo = float4(colour, 0.12 + 0.18 * (1 - bare));
                     normal = normalize(lerp(n, snowN, 0.35 * (1 - bare)));      // packed flat: less relief than land snow
                     smooth = lerp(0.5, 0.8, bare);
+                }
+                else if (state < 0.5)
+                {
+                    // Open water (a thaw, for the future weather engine): darker than clear ice, glassy, with a
+                    // faint ripple, and the sky's horizon reflected at grazing angles. No ice rim or cracks.
+                    float3 v = normalize(_WorldSpaceCameraPos - p);
+                    float ripple = ValueNoise(p.xz / 3) - 0.5;
+                    float3 rippled = normalize(n + float3(ripple, 0, ValueNoise(p.xz / 3 + 11) - 0.5) * 0.06);
+                    float fresnel = 0.02 + 0.98 * pow(1 - saturate(dot(rippled, v)), 5);
+                    float3 deep = float3(0.035, 0.07, 0.075) * (0.85 + 0.3 * ValueNoise(p.xz / 40));
+                    albedo = float4(lerp(deep, _HazeColor * 0.8, fresnel * lake + fresnel * 0.4 * (1 - lake)), 0);
+                    normal = rippled;
+                    smooth = 0.95;
                 }
                 else
                 {
@@ -209,7 +241,7 @@ Shader "MountainPlanner/Terrain"
                 float2 cuv = (i.uv * (res - 1) + 0.5) / res;
                 float4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
                 float4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
-                float weights[6] = { c0.r, c0.g, c0.b, c0.a, c1.r, c1.g };
+                float weights[6] = { c0.r * SnowCover(i.positionWS), c0.g, c0.b, c0.a, c1.r, c1.g };
 
                 if (_Overlay > 0.5)
                 {
@@ -256,7 +288,7 @@ Shader "MountainPlanner/Terrain"
                 normal = normalize(normal);
                 smooth /= total;
 
-                Light sun = GetMainLight(TransformWorldToShadowCoord(i.positionWS));
+                Light sun = MainLightWithFarShadow(i.positionWS);
                 float3 view = normalize(GetWorldSpaceViewDir(i.positionWS));
                 float ndl = saturate(dot(normal, sun.direction));
                 float3 h = normalize(sun.direction + view);

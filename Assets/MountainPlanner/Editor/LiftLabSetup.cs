@@ -59,7 +59,7 @@ namespace MountainPlanner.Editor
             cam.nearClipPlane = 0.1f;
             cam.farClipPlane = 8000f;
             cam.clearFlags = CameraClearFlags.Skybox;
-            var fly = camGo.AddComponent<DebugFlyCamera>();
+            var fly = camGo.AddComponent<ViewCamera>();
             fly.MinDistance = 1.5f;
             fly.Distance = 30f;
 
