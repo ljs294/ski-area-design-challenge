@@ -183,7 +183,7 @@ That is a big part of the plantation look, and it is a density and height calibr
 
 Before is main at `ad7a388` and after is this branch. Both players built their own caches: v9 and v10. The benchmark's tree counts match `forest-dump`.
 
-**Sugarloaf, inside a full spruce–fir stand** (demo 32):
+**Sugarloaf, inside a full spruce–fir stand** (demo 33):
 - Before, similar spruces stand evenly apart.
 - After, groups stand around openings, and small trees grow under and between the tall ones.
 
