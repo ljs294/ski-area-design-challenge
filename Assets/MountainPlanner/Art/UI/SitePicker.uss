@@ -1,0 +1,300 @@
+/* S3 Site picker, Trailhead look (game-ui-direction.md UI-6): a solid warm-graphite instrument panel with
+   hairline rules, words in Overpass and figures in Overpass Mono, surveyor's orange for the planned square,
+   the "go" green for Download. Tokens are the accepted mockup's dark set (prototypes/ui-layout.html);
+   the UI thread may move them into the shared themes later. */
+
+.picker {
+    --panel: rgb(28, 25, 22);
+    --hair: #3b3632;
+    --hair2: #4a443e;
+    --div: #3d3833;
+    --text: #efe9df;
+    --strong: #ffffff;
+    --head: #e6dfd4;
+    --muted: #cfc7bb;
+    --soft: #a39b90;
+    --dim: #8f877c;
+    --hover: #34302b;
+    --on-bg: #efe9df;
+    --on-fg: #1b1815;
+    --field: #12100e;
+    --flag: #ff6a1f;
+    --warn: #f0b43c;
+    --go: #1a6b3c;
+    --go-hover: #1f7d47;
+    --dis-bg: #2e2a26;
+    --dis-fg: #6f675e;
+    --scrim: rgba(10, 16, 26, 0.55);
+
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--scrim);
+    color: var(--text);
+    font-size: 14px;
+}
+
+.grow { flex-grow: 1; }
+.hidden { display: none; }
+
+.picker-window {
+    width: 1040px;
+    max-width: 96%;
+    max-height: 96%;
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--hair);
+    border-radius: 6px;
+    padding: 0 0 4px 0;
+}
+
+/* Head: the window's name on a rule, close on the right. */
+.picker-head {
+    flex-direction: row;
+    align-items: center;
+    height: 48px;
+    padding: 0 8px 0 16px;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--hair);
+}
+.picker-title {
+    font-size: 17px;
+    -unity-font-style: bold;
+    color: var(--strong);
+}
+.picker-close {
+    height: 34px;
+    padding: 0 10px;
+    margin: 0;
+    border-width: 0;
+    border-radius: 5px;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--soft);
+    font-size: 13px;
+    -unity-font-style: bold;
+}
+.picker-close:hover { background-color: var(--hover); color: var(--strong); }
+
+/* Rows: a key on the left, at one width, so fields line up like an instrument panel. */
+.picker-row {
+    flex-direction: row;
+    align-items: center;
+    min-height: 46px;
+    padding: 0 16px;
+    border-top-width: 1px;
+    border-top-color: var(--div);
+}
+.picker-search { border-top-width: 0; padding-top: 6px; padding-bottom: 6px; }
+.picker-key {
+    width: 64px;
+    color: var(--muted);
+    -unity-font-style: bold;
+    font-size: 13.5px;
+}
+.picker-hint {
+    margin-left: 10px;
+    color: var(--dim);
+    font-size: 12.5px;
+}
+.picker-end {
+    color: var(--soft);
+    font-size: 12.5px;
+    margin: 0 8px;
+}
+.picker-figure {
+    width: 72px;
+    -unity-text-align: middle-right;
+    color: var(--strong);
+    font-size: 15px;
+    -unity-font-style: bold;
+}
+
+/* Fields: dark wells with a hairline, bold type (as in the mockup's rename field). */
+.picker-field { margin: 0; }
+.picker-field > .unity-base-text-field__input,
+.picker-field > .unity-text-field__input {
+    height: 36px;
+    padding: 0 10px;
+    background-color: var(--field);
+    border-width: 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    color: var(--strong);
+    font-size: 15px;
+    -unity-font-style: bold;
+}
+.picker-field:focus > .unity-base-text-field__input,
+.picker-field:focus > .unity-text-field__input { border-color: var(--muted); }
+
+/* Search results: a short list under the search row; one click flies there. */
+.picker-results {
+    margin: 0 16px 8px 80px;
+    border-width: 1px;
+    border-color: var(--hair);
+    border-radius: 4px;
+    background-color: var(--field);
+}
+.picker-results__message {
+    padding: 8px 10px;
+    color: var(--soft);
+    font-size: 13px;
+}
+.result {
+    flex-direction: column;
+    align-items: flex-start;
+    margin: 0;
+    padding: 6px 10px;
+    border-width: 0;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--div);
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+.result:hover, .result:focus { background-color: var(--hover); }
+.result__name { color: var(--strong); -unity-font-style: bold; font-size: 14px; }
+.result__where { color: var(--soft); font-size: 12px; }
+
+/* The map: edge to edge between hairlines, with its controls on small solid plates. */
+.map-frame {
+    height: 540px;
+    border-top-width: 1px;
+    border-top-color: var(--hair);
+    background-color: #d9d4c8;
+}
+.map-host { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.tile-map { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.tile-map:focus { border-width: 2px; border-color: var(--flag); }
+.tile-map__size {
+    translate: -50% -130%;
+    padding: 1px 7px;
+    background-color: var(--flag);
+    color: #1b1815;
+    border-radius: 3px;
+    font-size: 13px;
+    -unity-font-style: bold;
+}
+
+.map-bar {
+    position: absolute;
+    left: 10px; right: 10px;
+    flex-direction: row;
+    align-items: flex-end;
+}
+.map-bar--top { top: 10px; align-items: flex-start; }
+.map-bar--bottom { bottom: 10px; }
+
+.segmented, .zoom, .legend {
+    flex-direction: row;
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--hair);
+    border-radius: 6px;
+    padding: 3px;
+}
+.zoom { flex-direction: column; }
+.segment, .zoom-button, .legend-toggle {
+    margin: 0;
+    height: 30px;
+    padding: 0 11px;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--text);
+    font-size: 13px;
+    -unity-font-style: bold;
+}
+.zoom-button { width: 32px; padding: 0; font-size: 18px; }
+.segment:hover, .zoom-button:hover, .legend-toggle:hover { background-color: var(--hover); }
+.segment--on, .segment--on:hover, .legend-toggle--on, .legend-toggle--on:hover {
+    background-color: var(--on-bg);
+    color: var(--on-fg);
+}
+
+.legend { align-items: center; }
+.legend-items { flex-direction: row; align-items: center; padding: 0 6px 0 8px; }
+.swatch {
+    width: 12px; height: 12px;
+    margin: 0 5px 0 8px;
+    border-radius: 2px;
+}
+.swatch--s1m { background-color: #1f8a5b; }
+.swatch--lidar { background-color: #6fc27a; }
+.swatch--three { background-color: #e8b13a; }
+.swatch--ten { border-width: 1px; border-color: var(--soft); }
+.legend-label { color: var(--muted); font-size: 12.5px; }
+.legend--off .legend-items { display: none; }
+
+.attribution {
+    padding: 2px 6px;
+    background-color: rgba(28, 25, 22, 0.82);
+    border-radius: 3px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.map-hint {
+    position: absolute;
+    left: 0; right: 0; top: 52px;
+    -unity-text-align: upper-center;
+    color: #1b1815;
+    font-size: 14px;
+    -unity-font-style: bold;
+    text-shadow: 0 0 3px rgba(255, 255, 255, 0.9);
+}
+
+/* Offline: the map area turns into a plain panel with Retry (0.4 §3). */
+.offline {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--panel);
+    padding: 0 25%;
+}
+.offline-title { font-size: 20px; -unity-font-style: bold; color: var(--strong); margin-bottom: 8px; }
+.offline-text { color: var(--muted); white-space: normal; -unity-text-align: upper-center; margin-bottom: 16px; }
+
+/* Slider: a hairline track, a solid sign-white thumb. */
+.picker-slider { margin: 0; }
+.picker-slider .unity-base-slider__tracker {
+    height: 4px;
+    margin-top: -2px;
+    border-width: 0;
+    border-radius: 2px;
+    background-color: var(--hair2);
+}
+.picker-slider .unity-base-slider__dragger {
+    width: 14px; height: 22px;
+    margin-top: -11px;
+    border-width: 0;
+    border-radius: 3px;
+    background-color: var(--on-bg);
+}
+.picker-slider:focus .unity-base-slider__dragger { background-color: var(--flag); }
+
+.picker-foot { min-height: 58px; }
+.picker-estimate {
+    color: var(--head);
+    font-size: 13.5px;
+    white-space: normal;
+    padding-right: 12px;
+}
+.picker-estimate--rough { color: var(--warn); }
+
+.button {
+    height: 38px;
+    margin: 0 0 0 8px;
+    padding: 0 18px;
+    border-width: 1px;
+    border-color: var(--hair2);
+    border-radius: 5px;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--text);
+    font-size: 14px;
+    -unity-font-style: bold;
+}
+.button:hover { background-color: var(--hover); }
+.button--primary { background-color: var(--go); border-color: var(--go); color: var(--strong); }
+.button--primary:hover { background-color: var(--go-hover); }
+.button:disabled { background-color: var(--dis-bg); border-color: var(--dis-bg); color: var(--dis-fg); }

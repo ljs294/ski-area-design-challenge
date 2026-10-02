@@ -13,6 +13,8 @@ set "OUT=%SPIKE%\results\local"
 set "PACKAGES=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts"
 set "GAME=%~dp0Builds\Windows\SkiAreaDesignChallenge.exe"
 set "LIFTLAB=%~dp0Builds\LiftLab\LiftLab.exe"
+set "PICKER=%~dp0Builds\PickerLab\PickerLab.exe"
+set "PICKED=%LOCALAPPDATA%\SkiAreaDesignChallenge\picked-site.args"
 set "UNITY=C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe"
 
 where dotnet >nul 2>nul
@@ -80,6 +82,11 @@ echo.
 echo   Game UI design (mockups, not the game yet)
 echo     32 Open the HUD layout mockup in your browser: status bar, Toolbox, Analysis, menu and Settings
 echo.
+echo   Phase 1, task 13: site picker
+echo     33 Pick a site on the map, then download it into your library (builds the Picker Lab the first time)
+echo     34 The picker with no network: the offline panel
+echo     35 Rebuild the Picker Lab (after pulling new code; close the Unity editor first)
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -129,6 +136,9 @@ if /i "%CHOICE%"=="32" (
   start "" "%~dp0docs\plans\prototypes\ui-layout.html"
   goto menu
 )
+if /i "%CHOICE%"=="33" goto picker
+if /i "%CHOICE%"=="34" goto pickeroffline
+if /i "%CHOICE%"=="35" goto rebuildpicker
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -291,6 +301,40 @@ if not exist "%LIFTLAB%" goto done
 echo Starting the Lift Lab. 1-8 drive/return/chair/line-up/stress/towers/snow guns/gun field, Tab next, L LOD, N snow, C colour, T turntable, B benchmark, H help, Esc quit.
 start "" "%LIFTLAB%"
 goto menu
+
+:picker
+if not exist "%PICKER%" call :projectfree && call :buildpicker
+if not exist "%PICKER%" goto done
+if exist "%PICKED%" del "%PICKED%"
+echo Opening the site picker: search (Enter), click the map to place the square, set the size and name, then Download.
+start "" /wait "%PICKER%" -screen-fullscreen 0 -screen-width 1600 -screen-height 900
+if not exist "%PICKED%" (echo   No site chosen. & goto done)
+set /p ARGS=<"%PICKED%"
+echo.
+echo Downloading the chosen site into your library: %ARGS%
+echo.
+chcp 65001 >nul
+rem No "<nul" here, so Ctrl+C reaches the tool and it stops cleanly (then resumes next time).
+dotnet run --project "%~dp0tools\acquire" -- %ARGS%
+goto done
+
+:pickeroffline
+if not exist "%PICKER%" call :projectfree && call :buildpicker
+if not exist "%PICKER%" goto done
+echo Opening the site picker with the network switched off; close it with Esc.
+start "" /wait "%PICKER%" -offline -screen-fullscreen 0 -screen-width 1600 -screen-height 900
+goto menu
+
+:rebuildpicker
+call :projectfree && call :buildpicker
+goto done
+
+:buildpicker
+if not exist "%~dp0test-results" mkdir "%~dp0test-results"
+echo Building the Picker Lab (about a minute)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.PickerLabSetup.BuildPlayer -quit -logFile "%~dp0test-results\picker-build.log" <nul
+if errorlevel 1 (echo   The build failed - see test-results\picker-build.log) else (echo   Built %PICKER%)
+exit /b 0
 
 :buildliftlab
 if not exist "%~dp0test-results" mkdir "%~dp0test-results"

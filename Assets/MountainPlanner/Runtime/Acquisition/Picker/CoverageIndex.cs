@@ -112,6 +112,13 @@ namespace MountainPlanner.Acquisition.Picker
             return Math.Min(1, covered / (box.Width * box.Height));
         }
 
+        /// <summary>One layer's footprints over a Web Mercator box as a transparent PNG (see <see cref="ExportUrl"/>), or null.</summary>
+        public async Task<byte[]?> ImageAsync(int layer, double west, double south, double east, double north, int width, int height, CancellationToken ct)
+        {
+            byte[] png = await _send(ExportUrl(layer, west, south, east, north, width, height), ct).ConfigureAwait(false);
+            return png.Length == 0 ? null : png;
+        }
+
         /// <summary>
         /// A transparent PNG of one index layer's footprints over a Web Mercator box: filled where that
         /// DEM exists. The picker recolours it into the overlay and samples it for the estimate.
