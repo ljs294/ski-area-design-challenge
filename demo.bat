@@ -77,6 +77,9 @@ echo     29 Sugarloaf, Maine, 5 km: download it into your library (spruce-fir, k
 echo     30 Fly over Sugarloaf in the game (needs 29)
 echo     31 Forest benchmark on Sugarloaf: its own views, GPU times, draw calls (about 2 minutes; needs 29)
 echo.
+echo   Forest structure (NE8)
+echo     32 Stand in a Sugarloaf spruce-fir stand: understory and clumps (needs 29)
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -122,6 +125,7 @@ if /i "%CHOICE%"=="28" goto survey
 if /i "%CHOICE%"=="29" call :acquire "Sugarloaf" 45.047 -70.316 5 & goto done
 if /i "%CHOICE%"=="30" goto playsugarloaf
 if /i "%CHOICE%"=="31" goto benchsugarloaf
+if /i "%CHOICE%"=="32" goto standsugarloaf
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -198,6 +202,13 @@ echo Running the forest benchmark on Crystal Mountain (the game flies 5 views, t
 findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\crystal.log"
 start "" "%~dp0test-results\benchmark"
 goto done
+
+:standsugarloaf
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game in a dense spruce-fir stand on Sugarloaf (download it first with 29): mixed heights, small trees under big ones, clumps and gaps. The keys are the same as in 17.
+start "" "%GAME%" -site "Sugarloaf" -view 1500,-1550,250,200,25
+goto menu
 
 :playsugarloaf
 if not exist "%GAME%" call :buildplayer

@@ -178,3 +178,54 @@ That is a big part of the plantation look, and it is a density and height calibr
   - the tree count went from 256,797 to 256,917.
 - **Ground cover hashes:** unchanged.
 - **Terrain cache:** v9 → v10, so downloaded sites regrow their forests.
+
+## 7. In the game
+
+Before is main at `ad7a388` and after is this branch. Both players built their own caches: v9 and v10. The benchmark's tree counts match `forest-dump`.
+
+**Sugarloaf, inside a full spruce–fir stand** (demo 32):
+- Before, similar spruces stand evenly apart.
+- After, groups stand around openings, and small trees grow under and between the tall ones.
+
+![Sugarloaf spruce-fir stand, before and after](images/ne8-sugarloaf-stand.jpg)
+
+**Sugarloaf, the benchmark's in-forest view** (mixed spruce–fir and birch, a partial stand): more openings and more varied heights.
+
+![Sugarloaf in-forest view, before and after](images/ne8-sugarloaf-inforest.jpg)
+
+**Jackson Hole, a dense subalpine fir and spruce stand from above:** subtler, as its lidar says it should be, with a few more small openings and short trees. The benchmark's own in-forest view at Jackson Hole is pixel-identical before and after, because its cells aren't shade-tolerant stands.
+
+![Jackson Hole stand, before and after](images/ne8-jackson-stand.jpg)
+
+## 8. Performance
+
+Reference PC (RTX 3060 Ti), 1080p, shadows 150 m, breeze; the median of 3 runs per build, interleaved. Tree counts were measured from the cache's own count.
+
+| View | Frame p95 before | Frame p95 after | GPU p50 before | GPU p50 after |
+|---|---|---|---|---|
+| Sugarloaf overview | 10.5 | 9.8 | 8.2 | 7.9 |
+| Sugarloaf forest (250 m) | 12.7 | 11.7 | 11.7 | **10.6** |
+| Sugarloaf in-forest | 19.0 | 17.1 | 18.2 | **16.5** |
+| Sugarloaf summit | 6.9 | 6.8 | 5.0 | 5.0 |
+| Sugarloaf ring forest | 13.6 | 13.7 | 11.9 | 11.5 |
+| Jackson Hole overview | 6.2 | 5.9 | 3.9 | 3.9 |
+| Jackson Hole Corbet's | 6.5 | 6.1 | 3.1 | 3.1 |
+| Jackson Hole valley | 5.3 | 5.4 | 3.9 | 3.9 |
+| Jackson Hole slope | 6.3 | 5.8 | 4.2 | 4.0 |
+| Jackson Hole forest | 6.9 | 7.0 | 5.8 | 5.8 |
+| Jackson Hole in-forest | 10.1 | 7.5 | 6.1 | 6.1 |
+| Jackson Hole cliffs | 5.3 | 5.4 | 2.5 | 2.5 |
+| Jackson Hole ring forest | 11.4 | 9.0 | 7.9 | 7.9 |
+
+**Frame time** is neutral, as expected with the same trees. It is within run-to-run noise, or lower.
+
+**GPU time** drops in Sugarloaf's forest views (−1.1 and −1.7 ms), because the understory trees are smaller and cover fewer pixels. The worst view, Sugarloaf in-forest, is inside the 20 ms budget.
+
+**Tree counts:**
+
+| Site | Before | After |
+|---|---|---|
+| Sugarloaf | 2,953,354 | 2,955,335 |
+| Jackson Hole | 811,704 | 812,671 |
+
+**Cache build:** placement takes about 0.1 s longer per site with plain C#. Nothing changes on the per-frame path.
