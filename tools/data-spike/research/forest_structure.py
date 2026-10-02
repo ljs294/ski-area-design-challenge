@@ -100,7 +100,7 @@ def cmd_chm(a):
 def load_forest(folder):
     info = json.load(open(os.path.join(folder, "forest.json"), encoding="utf-8"))
     trees = np.fromfile(os.path.join(folder, "trees.f32"), np.float32).reshape(-1, 6)
-    cells = np.fromfile(os.path.join(folder, "cells.u8"), np.uint8).reshape(info["cellsY"], info["cellsX"], 5)
+    cells = np.fromfile(os.path.join(folder, "cells.u8"), np.uint8).reshape(info["cellsY"], info["cellsX"], 6)
     return info, trees, cells
 
 

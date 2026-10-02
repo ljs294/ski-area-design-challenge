@@ -94,7 +94,7 @@ switch (command)
     }
 
     case "forest-dump":
-        ForestDump(opts["package"], opts["out"]);
+        ForestDump(opts["package"], opts["out"], opts);
         return 0;
 
     case "species-survey":
@@ -203,8 +203,8 @@ static void ForestInfo(string folder)
 }
 
 // trees.f32: per tree x, y (Albers metres from the site centre), height (m), crown width scale, model, variant.
-// cells.u8: per 10 m cell (rows from the south) kind, conifer, canopy, stand, height code. forest.json describes both.
-static void ForestDump(string folder, string outDir)
+// cells.u8: per 10 m cell (rows from the south) kind, conifer, canopy, stand, height code, shade-tolerant conifer. forest.json describes both.
+static void ForestDump(string folder, string outDir, Dictionary<string, string> opts)
 {
     var manifest = ResortPackage.ReadManifest(folder);
     float[] core = ResortPackage.ReadLayer(folder, manifest, "heights-core", out var coreHeader);
@@ -214,6 +214,29 @@ static void ForestDump(string folder, string outDir)
     var clock = System.Diagnostics.Stopwatch.StartNew();
     var plan = field.Prepare(tiles);
     double prepare = clock.Elapsed.TotalSeconds;
+    // Calibration overrides (forest-structure report): the stand table, the clump field and the stand weight ramps.
+    double D(string key, double fallback) => opts.TryGetValue(key, out string? v) ? double.Parse(v, CultureInfo.InvariantCulture) : fallback;
+    if (opts.ContainsKey("shortest") || opts.ContainsKey("skew"))
+    {
+        double shortest = D("shortest", MountainPlanner.Domain.Cover.ForestPlacement.StandShortest), skew = D("skew", MountainPlanner.Domain.Cover.ForestPlacement.StandSkew);
+        plan.StandHeights = Enumerable.Range(0, plan.StandHeights.Length)
+            .Select(i => (int)Math.Round(256 * (1 - (1 - shortest) * Math.Pow(1 - (double)i / (plan.StandHeights.Length - 1), skew)))).ToArray();
+    }
+    plan.ClumpLattice = (int)Math.Round(D("lattice", plan.ClumpLattice / 256.0) * 256);
+    plan.ClumpRadius = (int)Math.Round(D("radius", plan.ClumpRadius / 256.0) * 256);
+    plan.ClumpFloor = (int)D("floor", plan.ClumpFloor);
+    if (opts.ContainsKey("ramps"))
+    {
+        var r = opts["ramps"].Split(',').Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();   // tolerant conifer from,to, canopy from,to
+        for (int i = 0; i < plan.Cells.Length; i++)
+        {
+            ref var c = ref plan.Cells[i];
+            if (c.Kind != MountainPlanner.Domain.Cover.ForestCell.Core) continue;
+            double w = MountainPlanner.Domain.Cover.GroundCover.SmoothStep(r[0], r[1], c.Tolerant / 255.0) * MountainPlanner.Domain.Cover.GroundCover.SmoothStep(r[2], r[3], c.Canopy / 255.0);
+            c.Stand = (byte)Math.Round(w * 255);
+        }
+    }
+    if (opts.ContainsKey("nostand")) for (int i = 0; i < plan.Cells.Length; i++) plan.Cells[i].Stand = 0;
     clock.Restart();
     new ManagedForestPlanter().Plant(plan);
     double plant = clock.Elapsed.TotalSeconds;
@@ -232,11 +255,11 @@ static void ForestDump(string folder, string outDir)
                 w.Write((float)(p.Prototype / plan.Variants));
                 w.Write((float)(p.Prototype % plan.Variants));
             }
-    var cells = new byte[plan.Cells.Length * 5];
+    var cells = new byte[plan.Cells.Length * 6];
     for (int i = 0; i < plan.Cells.Length; i++)
     {
         var c = plan.Cells[i];
-        cells[i * 5] = c.Kind; cells[i * 5 + 1] = c.Conifer; cells[i * 5 + 2] = c.Canopy; cells[i * 5 + 3] = c.Stand; cells[i * 5 + 4] = c.HeightCode;
+        cells[i * 6] = c.Kind; cells[i * 6 + 1] = c.Conifer; cells[i * 6 + 2] = c.Canopy; cells[i * 6 + 3] = c.Stand; cells[i * 6 + 4] = c.HeightCode; cells[i * 6 + 5] = c.Tolerant;
     }
     File.WriteAllBytes(Path.Combine(outDir, "cells.u8"), cells);
     string models = string.Join(", ", MountainPlanner.Domain.Flora.SpeciesMap.Models.Select(m => $"\"{m}\""));
