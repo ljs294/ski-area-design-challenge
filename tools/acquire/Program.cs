@@ -203,7 +203,7 @@ static void ForestInfo(string folder)
 }
 
 // trees.f32: per tree x, y (Albers metres from the site centre), height (m), crown width scale, model, variant.
-// cells.u8: per 10 m cell (rows from the south) kind, conifer, canopy, stand, height code, shade-tolerant conifer. forest.json describes both.
+// cells.u8: per 10 m cell (rows from the south) kind, conifer, canopy, stand, height code, shade-tolerant conifer. forest.json describes them.
 static void ForestDump(string folder, string outDir, Dictionary<string, string> opts)
 {
     var manifest = ResortPackage.ReadManifest(folder);
@@ -262,11 +262,19 @@ static void ForestDump(string folder, string outDir, Dictionary<string, string> 
         cells[i * 6] = c.Kind; cells[i * 6 + 1] = c.Conifer; cells[i * 6 + 2] = c.Canopy; cells[i * 6 + 3] = c.Stand; cells[i * 6 + 4] = c.HeightCode; cells[i * 6 + 5] = c.Tolerant;
     }
     File.WriteAllBytes(Path.Combine(outDir, "cells.u8"), cells);
+    // canopy.u8: the package's 1 m canopy map (0.25 m steps, rows from the north) for the calibration study.
+    string canopyInfo = "";
+    if (manifest.Layers.Any(l => l.Id == "canopy-core"))
+    {
+        byte[] canopy = ResortPackage.ReadByteLayer(folder, manifest, "canopy-core", out var ch);
+        File.WriteAllBytes(Path.Combine(outDir, "canopy.u8"), canopy);
+        canopyInfo = $"\"canopyWest\": {ch.West}, \"canopyNorth\": {ch.North}, \"canopyWidth\": {ch.Width}, \"canopyHeight\": {ch.Height}, \"canopyCell\": {ch.CellSize}, ";
+    }
     string models = string.Join(", ", MountainPlanner.Domain.Flora.SpeciesMap.Models.Select(m => $"\"{m}\""));
     File.WriteAllText(Path.Combine(outDir, "forest.json"),
         $"{{\"name\": \"{manifest.Site.Name}\", \"centreX\": {manifest.Site.CentreX}, \"centreY\": {manifest.Site.CentreY}, \"trees\": {trees}, \"quota\": {quota}, " +
         $"\"cellsX\": {plan.CellsX}, \"cellsY\": {plan.CellsY}, \"cellWest\": {ox + plan.CellOriginX / 256.0}, \"cellSouth\": {oy + plan.CellOriginY / 256.0}, " +
-        $"\"prepareSeconds\": {prepare:F2}, \"plantSeconds\": {plant:F2}, \"models\": [{models}]}}");
+        canopyInfo + $"\"prepareSeconds\": {prepare:F2}, \"plantSeconds\": {plant:F2}, \"models\": [{models}]}}");
     Console.WriteLine($"{manifest.Site.Name}: {trees:N0} of {quota:N0} quota trees, prepare {prepare:F1} s, plant {plant:F1} s → {outDir}");
 }
 
