@@ -227,8 +227,7 @@ body.solo .frame { border-radius: 0; }
 .hud .rad.on { border-color: var(--on-bg); }
 .hud .rad.on::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--on-bg); }
 .hud .legend { background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px var(--shadow); padding: 0 0 9px; }
-.hud .legend .lh { display: flex; align-items: baseline; justify-content: space-between; padding: 9px 12px 6px; font: 800 13.5px 'DotFix', 'Overpass'; }
-.hud .legend .lh span { font: 500 11px 'Overpass Mono', monospace; color: var(--dim); }
+.hud .legend .lh { padding: 9px 12px 6px; font: 800 13.5px 'DotFix', 'Overpass'; }
 .hud .legend .lr { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 8px; padding: 3px 12px; font: 600 12.5px 'DotFix', 'Overpass'; }
 .hud .legend .lr .n { font: 500 12px 'Overpass Mono', monospace; color: var(--muted); text-align: right; }
 .hud .legend .sw { width: 22px; height: 12px; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
@@ -855,21 +854,21 @@ body.solo .frame { border-radius: 0; }
   // The legend card for the info layer that's on (and the contour interval when contours are on).
   function legendCard() {
     if (!S.info && !S.contours) return '';
-    const I = IMP(), head = (t, k) => `<div class="lh">${t}<span>Shift ${k}</span></div>`;
+    const I = IMP(), head = (t) => `<div class="lh">${t}</div>`;   // keys show only in the open layers panel
     const row = (bg, word, fig) => `<div class="lr"><span class="sw" style="background:${bg}"></span><span>${word}</span><span class="n">${fig}</span></div>`;
     let b = '';
-    if (S.info === 'slope') b = head('Slope angle', '7') + SLOPE_BANDS.map(([, c, w, f]) => row(c === 'hatch' ? HATCH : c, w, f)).join('') + '<div class="ln">Grade: rise over run (100% is 45°).</div>';
+    if (S.info === 'slope') b = head('Slope angle') + SLOPE_BANDS.map(([, c, w, f]) => row(c === 'hatch' ? HATCH : c, w, f)).join('') + '<div class="ln">Grade: rise over run (100% is 45°).</div>';
     if (S.info === 'aspect') {
       const cell = (k) => { const a = ASPECTS.find((x) => x[0] === k), bg = a ? a[1] : FLAT, l = rgb(bg), dark = 0.3 * l[0] + 0.59 * l[1] + 0.11 * l[2] > 150; return `<div style="background:${bg};color:${dark ? '#1b1815' : '#fff'}">${a ? k : 'Flat'}<span>${a ? ASPECTS.indexOf(a) * 45 + '°' : '&lt;10%'}</span></div>`; };
-      b = head('Slope exposure', '8') + `<div class="compass">${['NW', 'N', 'NE', 'W', '', 'E', 'SW', 'S', 'SE'].map(cell).join('')}</div><div class="ln">The way each slope faces, from true north; flatter than 10% is grey.</div>`;
+      b = head('Slope exposure') + `<div class="compass">${['NW', 'N', 'NE', 'W', '', 'E', 'SW', 'S', 'SE'].map(cell).join('')}</div><div class="ln">The way each slope faces, from true north; flatter than 10% is grey.</div>`;
     }
     if (S.info === 'depth') {
       const figs = I ? ['0 in', '6 in', '1 ft 6 in', '3 ft', '6 ft', '10 ft+'] : ['0', '15 cm', '50 cm', '1 m', '2 m', '3 m+'], words = ['Bare', 'Thin', '', '', '', 'Deep'];
-      b = head('Snow depth', '9') + DEPTH_STOPS.map(([, c], i) => row(c, words[i], figs[i])).join('') + '<div class="ln">The natural snowpack: deeper up high, thinner on sunny faces, steep rock and under trees.</div>';
+      b = head('Snow depth') + DEPTH_STOPS.map(([, c], i) => row(c, words[i], figs[i])).join('') + '<div class="ln">The natural snowpack: deeper up high, thinner on sunny faces, steep rock and under trees.</div>';
     }
     if (S.contours) {
       const cl = `<div class="cl"><svg width="22" height="12" viewBox="0 0 22 12"><path d="M0 3.5c6-2 12 2 22 0" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M0 9c7-2 13 1.5 22-.5" fill="none" stroke="currentColor" stroke-width=".7" opacity=".7"/></svg><span>Contours every ${I ? '40 ft' : '10 m'},<br>labelled every ${I ? '200 ft' : '50 m'}</span></div>`;
-      b += b ? `<div class="lrule"></div>${cl}` : head('Contours', '6') + cl.replace('class="cl"', 'class="cl" style="padding-top:0"');
+      b += b ? `<div class="lrule"></div>${cl}` : head('Contours') + cl.replace('class="cl"', 'class="cl" style="padding-top:0"');
     }
     return `<div class="legend">${b}</div>`;
   }
