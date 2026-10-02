@@ -128,6 +128,12 @@ body.solo .frame { border-radius: 0; }
 .hud .money .bal { font: 700 15px 'Overpass Mono', monospace; }
 .hud .money .delta { font: 600 11.5px 'Overpass Mono', monospace; }
 .hud .count { font: 700 15px 'Overpass Mono', monospace; }
+/* the bar's counts open their Analysis tab */
+.hud .stat { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 9px; border-radius: 5px; }
+.hud .stat .si { color: var(--icon); }
+.hud .stat:hover { background: var(--hover); }
+.hud .stat.on, .hud .stat.on:hover { background: var(--on-bg); color: var(--on-fg); --knock: var(--on-bg); }
+.hud .stat.on .si { color: var(--on-fg); }
 .hud .save { color: var(--faint); }
 .hud .save.due { color: var(--strong); }
 .hud .elev { min-width: 64px; text-align: right; }
@@ -227,7 +233,9 @@ body.solo .frame { border-radius: 0; }
 .hud .rad.on { border-color: var(--on-bg); }
 .hud .rad.on::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--on-bg); }
 .hud .legend { background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px var(--shadow); padding: 0 0 9px; }
-.hud .legend .lh { padding: 9px 12px 6px; font: 800 13.5px 'DotFix', 'Overpass'; }
+.hud .legend .lh { display: flex; align-items: center; justify-content: space-between; padding: 5px 6px 2px 12px; font: 800 13.5px 'DotFix', 'Overpass'; }
+.hud .legend .lh .x { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 4px; color: var(--soft); font: 600 12px 'Overpass'; }
+.hud .legend .lh .x:hover { background: var(--hover); color: var(--strong); }
 .hud .legend .lr { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 8px; padding: 3px 12px; font: 600 12.5px 'DotFix', 'Overpass'; }
 .hud .legend .lr .n { font: 500 12px 'Overpass Mono', monospace; color: var(--muted); text-align: right; }
 .hud .legend .sw { width: 22px; height: 12px; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25); }
@@ -334,8 +342,8 @@ body.solo .frame { border-radius: 0; }
     <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
-    <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets a legend card, and the bar reads it under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
-    <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with six tabs and the sketch pencil. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. Figures are imperial until you press U; steepness is always a grade in percent. <b>Keys:</b> T toolbox, Tab analysis, U units, Shift+1 snow, Shift+3 trees, Shift+6 contours, Shift+7–9 info layers, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
+    <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with seven tabs and the sketch pencil. The bar's open lifts, open trails and guests open their Analysis tab. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. Figures are imperial until you press U; steepness is always a grade in percent. <b>Keys:</b> T toolbox, Tab analysis, U units, Shift+1 snow, Shift+3 trees, Shift+6 contours, Shift+7–9 info layers, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="variants" id="variants"><b>Open or closed, try:</b><button data-style="sub" class="on">A line under the name</button><button data-style="track">An hours track</button><button data-style="word">A word after the name</button></div>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
@@ -423,12 +431,12 @@ body.solo .frame { border-radius: 0; }
   const DIFFS = { green: 'Green', blue: 'Blue', black: 'Black', double: 'Double' };
   const S = {
     day: 148, t: 5 * 3600 + 27 * 60 + 47, paused: false, speed: 2, docked: true,
-    name: 'Jackson Peaks', theme: 'dark', statusStyle: 'sub', stab: 'interface', removeArmed: null, autoPaused: false, buildPauseDone: false, cash: 961967638, today: -5.77e6, liftsTotal: 48, skiers: 2387, saveDue: true, units: 'imperial', atab: 'overview',
+    name: 'Jackson Peaks', theme: 'dark', statusStyle: 'sub', stab: 'interface', removeArmed: null, autoPaused: false, buildPauseDone: false, cash: 961967638, today: -5.77e6, liftsTotal: 48, trailsTotal: 116, skiers: 2387, peakToday: 2387, saveDue: true, units: 'imperial', atab: 'overview',
     // today's money in parts (they sum to today): overnight running costs and construction already under way
     incomeToday: 0, opsToday: 0.09e6, buildToday: 5.68e6, base: 142,
     history: [0.41, 0.38, -1.92, 0.45, 0.52, 0.47, 0.12, 0.55, 0.58, -0.84, 0.49, 0.53, 0.61],
     zoom: 1, layers: { snow: true, trees: true, lifts: true, trails: true, making: true, infra: true, labels: true },
-    info: null, contours: false,   // the info layer that's on (slope, aspect, depth), and contours over it
+    info: null, contours: false, legendClosed: false,   // the info layer that's on (slope, aspect, depth), and contours over it
     toolbox: false, tab: 'lifts', tool: null, analysis: false, drop: null, sketch: false, modal: null,
     lifts: [
       { id: 'l2', n: 2, name: 'Aspen Quad', a: [548, 616], b: [652, 402], model: 'Fixed 4', built: true },
@@ -853,8 +861,10 @@ body.solo .frame { border-radius: 0; }
   }
   // The legend card for the info layer that's on (and the contour interval when contours are on).
   function legendCard() {
-    if (!S.info && !S.contours) return '';
-    const I = IMP(), head = (t) => `<div class="lh">${t}</div>`;   // keys show only in the open layers panel
+    if ((!S.info && !S.contours) || S.legendClosed) return '';
+    // One card for the info layer and contours together; the X closes it until another layer is picked.
+    // Keys show only in the open layers panel.
+    const I = IMP(), head = (t) => `<div class="lh">${t}<span class="x" data-act="legendx" title="Close the legend">✕</span></div>`;
     const row = (bg, word, fig) => `<div class="lr"><span class="sw" style="background:${bg}"></span><span>${word}</span><span class="n">${fig}</span></div>`;
     let b = '';
     if (S.info === 'slope') b = head('Slope angle') + SLOPE_BANDS.map(([, c, w, f]) => row(c === 'hatch' ? HATCH : c, w, f)).join('') + '<div class="ln">Grade: rise over run (100% is 45°).</div>';
@@ -976,13 +986,16 @@ body.solo .frame { border-radius: 0; }
     if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === obj.diff ? 'on' : ''}" data-act="setdiff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div><div class="hint" style="padding-top:0">The rating changes the signs and who skis it.</div>`, 300);
     return panelShell(head, top + `<div class="hint">It will grow back in over a few seasons.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${S.removeArmed === obj.id ? 'Click again to confirm' : `Remove ${esc(obj.name)}`}</span><span class="mono"></span></div></div>`, 300);
   }
-  const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['snow', 'Snowmaking'], ['amenities', 'Amenities'], ['finances', 'Finances']];
+  const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['guests', 'Guests'], ['snow', 'Snowmaking'], ['amenities', 'Amenities'], ['finances', 'Finances']];
   const isOpen = () => { const h = S.t / 3600; return h >= LIFTS_OPEN && h < LIFTS_CLOSE; };
   const waitFor = (l) => { if (!S.skiers || !l.built) return 0; const st = liftStats(l.a, l.b, l.model); return Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); };
   const lampHtml = (c) => `<i class="lamp" style="--lamp:${c}"></i>`;
   const kvs = (rows) => `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+  const AW = 504;   // the analysis panel's width; its charts span it less the margins
+  // What the bar counts: lifts and trails open now, and the guests on the mountain.
+  const openLifts = () => (isOpen() ? S.liftsTotal : 0), openTrails = () => (isOpen() ? S.trailsTotal : 0);
   function analysisPanel(bottom) {
-    return `<div class="pn ana" style="left:10px;bottom:${bottom}px;width:468px;z-index:4"><div class="hd">${g('s-analysis')}Analysis <span class="nm">${esc(S.name)}</span><span class="x" data-act="analysis">✕</span></div>
+    return `<div class="pn ana" style="left:10px;bottom:${bottom}px;width:${AW}px;z-index:4"><div class="hd">${g('s-analysis')}Analysis <span class="nm">${esc(S.name)}</span><span class="x" data-act="analysis">✕</span></div>
       <div class="tabs">${ATABS.map(([k, v]) => `<span class="${S.atab === k ? 'on' : ''}" data-act="atab" data-v="${k}">${v}</span>`).join('')}</div><div class="tabrule"></div>
       <div id="anabody">${analysisBody()}</div></div>`;
   }
@@ -992,7 +1005,7 @@ body.solo .frame { border-radius: 0; }
     if (S.atab === 'overview') {
       const hrs = []; for (let h = 8; h <= 16; h++) hrs.push(h);
       const curve = (h) => Math.max(0, Math.sin(Math.PI * (h - 8) / 8.5)) * 3200 * (0.85 + 0.15 * Math.sin(S.day + h));
-      const now = S.t / 3600, w = 444, hgt = 64, bw = (w - 24) / hrs.length;
+      const now = S.t / 3600, w = AW - 24, hgt = 64, bw = (w - 24) / hrs.length;
       let bars = '';
       hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 3)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 6)}" height="${f1(bh)}" rx="1" style="fill:${past ? 'var(--chart-a)' : 'var(--chart-b)'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${h}</text>`; });
       const sat = Math.round(Math.max(55, Math.min(95, 90 - avgWait * 1.6)));
@@ -1001,7 +1014,7 @@ body.solo .frame { border-radius: 0; }
         <div class="sub"><span>Skiers by hour, day ${S.day}</span><span>now ${S.skiers.toLocaleString('en-US')}</span></div>
         <svg width="${w}" height="${hgt + 4}" style="display:block;margin:6px 12px 0">${bars}</svg>
         <div class="rule" style="margin-top:6px"></div>
-        <div class="cols">${kvs([['Lifts running', `<b>${open ? S.liftsTotal : 0}</b> of ${S.liftsTotal}`], ['Trails open', `<b>${open ? S.trails.filter((t) => t.built).length : 0}</b> of ${S.trails.filter((t) => t.built).length}`], ['Average wait', open ? `<b>${avgWait.toFixed(1)}</b> min` : 'closed'], ['Guest rating', `<b>${sat}</b>%`]])}
+        <div class="cols">${kvs([['Lifts running', `<b>${open ? S.liftsTotal : 0}</b> of ${S.liftsTotal}`], ['Trails open', `<b>${openTrails()}</b> of ${S.trails.length ? S.trailsTotal : 0}`], ['Average wait', open ? `<b>${avgWait.toFixed(1)}</b> min` : 'closed'], ['Guest rating', `<b>${sat}</b>%`]])}
         ${kvs([['Snow base', `<b>${snowAmt(S.base)}</b>`], ['New snow, 24 h', `<b>${snowAmt(wx.fell)}</b>`], ['Forecast, 24 h', `<b>${snowAmt(wx.fc)}</b>`], ['Today', `<span style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)}</span>`]])}</div>`;
     }
     if (S.atab === 'lifts') {
@@ -1017,7 +1030,23 @@ body.solo .frame { border-radius: 0; }
       const rows = S.trails.map((t, i) => { const st = pathStats(t.pts), state = !t.built ? ['Planned', '#ff6a1f'] : open ? ['Open', '#5fbf6a'] : ['Closed', '#d4513f'];
         const groom = !t.built ? '—' : t.diff === 'black' || t.diff === 'double' ? (i % 2 ? 'Moguls' : 'Ungroomed') : 'Groomed';
         return `<div class="r" style="${cols}"><span class="nm">${RATING[t.diff]}${esc(t.name)}</span><span class="n">${lenTxt(st.len)}</span><span class="n">${lenTxt(st.drop)}</span><span>${groom}</span><span class="nm" style="justify-content:flex-end">${lampHtml(state[1])}${state[0]}</span></div>`; }).join('');
-      return `<div class="tbl"><div class="r th" style="${cols}"><span>Trail</span><span class="n">Length</span><span class="n">Drop</span><span>Surface</span><span style="text-align:right">Status</span></div>${rows}</div>`;
+      const others = S.trailsTotal - S.trails.filter((t) => t.built).length;
+      return `<div class="tbl"><div class="r th" style="${cols}"><span>Trail</span><span class="n">Length</span><span class="n">Drop</span><span>Surface</span><span style="text-align:right">Status</span></div>${rows}
+        <div class="foot">${others} more trails elsewhere on the mountain.</div></div>`;
+    }
+    if (S.atab === 'guests') {
+      // Placeholders: who's here by ability (the trail-rating signs), where they are, and how they rate the day.
+      const sat = Math.round(Math.max(55, Math.min(95, 90 - avgWait * 1.6))), n = S.skiers;
+      const ABIL = [['green', 'Beginner', 0.18, 6], ['blue', 'Intermediate', 0.42, 0], ['black', 'Advanced', 0.28, -3], ['double', 'Expert', 0.12, -9]];
+      const cols = 'grid-template-columns:1.6fr 1fr 0.7fr 0.8fr';
+      const rows = ABIL.map(([k, name, f, d]) => `<div class="r" style="${cols}"><span class="nm">${RATING[k]}${name}</span><span class="n">${Math.round(n * f).toLocaleString('en-US')}</span><span class="n">${Math.round(f * 100)}%</span><span class="n">${n ? `${Math.max(40, Math.min(99, sat + d))}%` : '—'}</span></div>`).join('');
+      const where = [['On lifts', 0.24], ['In lift lines', Math.min(0.3, avgWait / 40)], ['On trails', 0], ['In lodges', 0.18]];
+      where[2][1] = 1 - where[0][1] - where[1][1] - where[3][1];
+      return `<div class="cols">${kvs([['On the mountain', `<b>${n.toLocaleString('en-US')}</b>`], ['Peak today', `<b>${S.peakToday.toLocaleString('en-US')}</b>`], ['Visits today', `<b>${Math.round(S.peakToday * 1.4).toLocaleString('en-US')}</b>`], ['Season to date', `<b>${(S.day * 2810).toLocaleString('en-US')}</b>`]])}
+        ${kvs(where.map(([k, f]) => [k, n ? `<b>${Math.round(n * f).toLocaleString('en-US')}</b>` : '—']))}</div>
+        <div class="rule"></div>
+        <div class="tbl"><div class="r th" style="${cols}"><span>Ability</span><span class="n">Here now</span><span class="n">Share</span><span class="n">Rating</span></div>${rows}
+        <div class="foot">Guests pick trails by their ability, the snow and the crowds. Overall rating <b style="color:var(--text)">${sat}%</b>.</div></div>`;
     }
     if (S.atab === 'snow') {
       const h = S.t / 3600, cond = wx.temp <= -6 ? ['Excellent', '#5fbf6a'] : wx.temp <= -2 ? ['Marginal', '#f0b43c'] : ['Too warm', '#d4513f'];
@@ -1044,7 +1073,7 @@ body.solo .frame { border-radius: 0; }
     const incRows = [['Lift tickets', 0.58], ['Food and drink', 0.17], ['Lessons', 0.11], ['Rentals', 0.09], ['Parking', 0.05]].map(([k, f]) => [k, short(inc * f).replace('+', '')]);
     const costRows = [['Wages', 0.46], ['Power', 0.18], ['Grooming', 0.14], ['Snowmaking', 0.22]].map(([k, f]) => [k, short(ops * f).replace('+', '')]);
     // Scaled to an ordinary day; days with big construction bills run off the scale and get a break mark.
-    const days = S.history.concat(S.today / 1e6), w = 444, hgt = 70, bw = (w - 24) / days.length, zero = hgt / 2;
+    const days = S.history.concat(S.today / 1e6), w = AW - 24, hgt = 70, bw = (w - 24) / days.length, zero = hgt / 2;
     const mx = Math.max(0.6, 1.3 * Math.max(0.4, ...days.map(Math.abs).filter((a) => a < 1.5)));
     let bars = `<line x1="12" y1="${zero}" x2="${w - 12}" y2="${zero}" style="stroke:var(--chart-b)"/>`;
     days.forEach((v, i) => {
@@ -1119,8 +1148,7 @@ body.solo .frame { border-radius: 0; }
       <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
       <div class="grow"></div>
       <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:var(--pos)">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${cashTxt(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)} today</span></span></div>
-      <div class="cell sep" title="Lifts operating"><span style="color:var(--icon)">${g('s-lift')}</span><span class="count" id="lifts">${S.liftsTotal}</span></div>
-      <div class="cell" style="padding-left:4px" title="Skiers on the mountain"><span style="color:var(--icon)">${g('s-skier')}</span><span class="count" id="skiers">${S.skiers.toLocaleString('en-US')}</span></div>
+      <div class="cell sep" style="padding:0 4px;gap:0">${[['lifts', 's-lift', 'Lifts open', String(openLifts())], ['trails', 's-trail', 'Trails open', String(openTrails())], ['guests', 's-skier', 'Guests on the mountain', S.skiers.toLocaleString('en-US')]].map(([k, gl, t, v]) => `<span class="stat${S.analysis && S.atab === k ? ' on' : ''}" data-act="aopen" data-v="${k}" title="${t}: Analysis › ${k[0].toUpperCase() + k.slice(1)}"><span class="si">${g(gl)}</span><span class="count" id="n-${k}">${v}</span></span>`).join('')}</div>
       <div class="cell sep" title="Elevation under the pointer${S.info ? `, and the ${INFO[S.info][0].toLowerCase()} there` : ''}"><span class="fig wide" id="elevfig"></span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span></div>
     </div>`;
@@ -1190,6 +1218,7 @@ body.solo .frame { border-radius: 0; }
       const st = pathStats(d.pts);
       S.trails.push({ id: 't' + (uid++), name: d.name, diff: d.diff, pts: d.pts, built: !asPlan });
       cost = st.total; label = d.name; trailSeq++;
+      if (!asPlan) S.trailsTotal++;
     } else if (d.kind === 'line') {
       S.things.push({ id: 'x' + (uid++), kind: d.tool, pts: d.pts, built: !asPlan });
       cost = pathStats(d.pts).len * t.perM; label = t.name;
@@ -1219,7 +1248,7 @@ body.solo .frame { border-radius: 0; }
         if (S.set.confirmRemove === 'on' && S.removeArmed !== S.sel) { S.removeArmed = S.sel; break; }
         S.removeArmed = null;
         const t = toolById(S.tool), list = t.target === 'lift' ? S.lifts : S.trails, i = list.findIndex((x) => x.id === S.sel);
-        if (i >= 0) { const o = list[i]; list.splice(i, 1); if (t.target === 'lift' && o.built) { S.liftsTotal--; spend(-liftStats(o.a, o.b, o.model).cost.total * 0.15); } S.saveDue = true; log(`<span><b>${esc(o.name)}</b> removed</span>`, '#8e2b1f'); }
+        if (i >= 0) { const o = list[i]; list.splice(i, 1); if (t.target === 'trail' && o.built) S.trailsTotal--; if (t.target === 'lift' && o.built) { S.liftsTotal--; spend(-liftStats(o.a, o.b, o.model).cost.total * 0.15); } S.saveDue = true; log(`<span><b>${esc(o.name)}</b> removed</span>`, '#8e2b1f'); }
         S.sel = null; break;
       }
       case 'pause': S.paused = !S.paused; S.autoPaused = false; break;
@@ -1240,12 +1269,14 @@ body.solo .frame { border-radius: 0; }
       case 'sdone': S.modal = null; break;
       case 'controls': S.drop = null; S.stab = 'controls'; S.modal = { settings: true }; break;
       case 'atab': S.atab = v; break;
+      case 'aopen': if (S.analysis && S.atab === v) S.analysis = false; else { S.analysis = true; S.atab = v; S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
       case 'sketch': S.sketch = !S.sketch; S.drop = null; if (S.sketch) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'clearsketch': S.sketches = []; break;
       case 'drop': S.drop = S.drop === v ? null : v; break;
       case 'layer': S.layers[v] = !S.layers[v]; if (v === 'snow' || v === 'trees') { render(); log(`<span>${v === 'snow' ? 'Snow' : 'Trees'} ${S.layers[v] ? 'on' : 'off'} <span style="color:var(--soft)">· the capture can't change; the game ${v === 'snow' ? 'shows the bare ground' : 'hides the forest'}</span></span>`, '#6f675e', true); return; } break;
-      case 'info': S.info = S.info === v ? null : v; break;
-      case 'contours': S.contours = !S.contours; break;
+      case 'info': S.info = S.info === v ? null : v; if (S.info) S.legendClosed = false; break;
+      case 'contours': S.contours = !S.contours; if (S.contours) S.legendClosed = false; break;
+      case 'legendx': S.legendClosed = true; break;
       case 'resume': S.drop = null; break;
       case 'settings': S.drop = null; S.modal = { settings: true }; break;
       case 'title': S.drop = null; S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
@@ -1376,10 +1407,11 @@ body.solo .frame { border-radius: 0; }
     if (!S.paused) {
       const gs = dt * RATE[S.speed];
       S.t += gs;
-      if (S.t >= 86400) { S.t -= 86400; S.history = S.history.concat(S.today / 1e6).slice(-13); S.day++; S.today = S.incomeToday = S.opsToday = S.buildToday = 0; log(`<span>Day ${S.day} begins</span>`, '#6f675e', true); }
+      if (S.t >= 86400) { S.t -= 86400; S.history = S.history.concat(S.today / 1e6).slice(-13); S.day++; S.today = S.incomeToday = S.opsToday = S.buildToday = 0; S.peakToday = S.skiers; log(`<span>Day ${S.day} begins</span>`, '#6f675e', true); }
       const hr = S.t / 3600;
       const open = hr >= LIFTS_OPEN && hr < LIFTS_CLOSE, target = open ? Math.round(3300 * Math.sin(Math.PI * (hr - 8.5) / 8) * (1 + 0.1 * Math.sin(hr * 3.1)) * (S.liftsTotal / 48)) : Math.round(Math.max(0, S.skiers * 0.92));
       S.skiers = Math.max(0, Math.round(S.skiers + (target - S.skiers) * Math.min(1, gs / 1800)));
+      S.peakToday = Math.max(S.peakToday, S.skiers);
       const income = (S.skiers * 189 / (8 * 3600)) * gs * 0.35, ops = (2.1e6 / 86400) * gs * 0.02;
       S.cash += income - ops; S.today += income - ops; S.incomeToday += income; S.opsToday += ops;
       S.base += snowRate(S.day, hr) * gs / 3600 - 0.6 * gs / 86400;   // new snow builds the base; it settles slowly
@@ -1407,8 +1439,9 @@ body.solo .frame { border-radius: 0; }
     const rc = document.getElementById('resort'); if (tips && rc && rc.title !== resortTitle(rs)) rc.title = resortTitle(rs);
     set('cash', cashTxt(S.cash));
     const dl = document.getElementById('delta'); if (dl) { dl.textContent = `${short(S.today)} today`; dl.style.color = S.today < 0 ? 'var(--neg)' : 'var(--pos)'; }
-    set('lifts', String(S.liftsTotal));
-    set('skiers', S.skiers.toLocaleString('en-US'));
+    set('n-lifts', String(openLifts()));
+    set('n-trails', String(openTrails()));
+    set('n-guests', S.skiers.toLocaleString('en-US'));
     if (S.analysis) set('anabody', analysisBody());
   }
   const variants = document.getElementById('variants');
