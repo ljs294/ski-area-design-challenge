@@ -229,3 +229,53 @@ Reference PC (RTX 3060 Ti), 1080p, shadows 150 m, breeze; the median of 3 runs p
 | Jackson Hole | 811,704 | 812,671 |
 
 **Cache build:** placement takes about 0.1 s longer per site with plain C#. Nothing changes on the per-frame path.
+
+## 9. Regional calibration (the owner's follow-up)
+
+§5 showed that the Jackson Hole factors (D4) draw New England far too tall. The owner asked whether each mountain could measure its own factors when it's downloaded. A study answered that, and the owner then chose regional defaults instead: no lidar at download time, no new data source and no new file reader.
+
+**The study** (`tools/data-spike/research/forest_calibration.py`).
+- **Method:** for each site, the D4 factors were measured from 20 uniformly placed 200 m patches of USGS 3DEP lidar, twice with independent patches:
+  - **density:** lidar tree cover ÷ the canopy map's, over every 10 m cell;
+  - **dominant height:** the median, over forest cells, of the lidar's tallest tree ÷ the map's.
+- **Validation:** on the Jackson Hole test package the patches reproduce the whole core's lidar truth. The core gives ×1.47 and ×2.05; the two patch sets give ×1.46/1.43 and ×2.07/2.03.
+
+| Site | Density (D4 ×1.5) | Dominant height (D4 ×2.2) |
+|---|---|---|
+| Jackson Hole (5 km) | 1.37 / 1.38 | 1.78 / 1.89 |
+| Alta | 1.45 / 1.54 | 1.69 / 1.64 |
+| Big Sky | 1.26 / 1.28 | 2.04 / 2.06 |
+| Palisades Tahoe | 1.29 / 1.21 | 2.03 / 2.07 |
+| Loon | 1.05 / 1.01 | 1.51 / 1.55 |
+| Stowe | 1.00 / 0.98 | 1.22 / 1.26 |
+| Killington | 0.97 / 1.00 | 1.13 / 1.10 |
+| Sunday River | 0.82 / 0.79 | 1.27 / 1.26 |
+| Sugarloaf | 0.84 / 0.87 | 1.14 / 1.14 |
+
+**Why not per mountain.** It worked, but at a cost:
+- **Coverage:** lidar covers 434 of 478 US ski areas. 422 of them are on the AWS bucket, and 12, mostly in Maine, only on Microsoft's mirror.
+- **Size:** a reliable sample is 30–80 MB per mountain.
+- **Work:** it needs a LAZ reader of our own.
+
+The regional split captures most of the difference: the West sits near D4, and New England is far from it.
+
+**The rule** (`ForestCalibration.ForSite`):
+
+| Region | Density | Dominant height | Source |
+|---|---|---|---|
+| West of the 100th meridian | ×1.5 | ×2.2 | D4, unchanged |
+| East of it | ×0.93 | ×1.26 | The mean of the five New England sites |
+
+- **Where it applies:** every package picks its factors from the longitude it already stores, so mountains already downloaded change too, with no download.
+- **The ring forest:** its typical height scales with the region, so the ring meets the core without a step.
+- **Unmeasured areas:** the Midwest and the Mid-Atlantic weren't measured; they take the East's factors as the nearer match.
+
+**The effect:** eastern forests grow from the same canopy map as shorter, more numerous trees.
+
+| Site | Trees before | Trees after |
+|---|---|---|
+| Sugarloaf | 2.96 M | 3.97 M (+34%) |
+| Stowe | 2.88 M | 3.91 M (+36%) |
+| Killington | 2.65 M | 3.59 M (+36%) |
+
+Sugarloaf's dense spruce–fir goes from a dominant height of about 22 m to about 13 m, close to its lidar's 12 m. Jackson Hole's forest is byte-identical.
