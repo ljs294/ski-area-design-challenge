@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using MountainPlanner.Domain.Measure;
 using MountainPlanner.Domain.Water;
 using MountainPlanner.Persistence;
 using MountainPlanner.Presentation;
@@ -71,6 +72,9 @@ namespace MountainPlanner.App
         FarTerrainShadow _farShadows;
         /// <summary>Map layers (snow, trees) and info layers (slope, exposure, snow depth, contours): keys, the HUD's rows and the F1 panel.</summary>
         readonly MapLayers _layers = new MapLayers();
+        /// <summary>Contour elevation labels (task 12b.2), and the label set they show (it changes with the units).</summary>
+        MountainPlanner.UI.ContourLabelOverlay _contourLabels;
+        ContourLabel[] _contourLabelSet;
         System.Collections.Generic.List<Landmarks.Placed> _landmarks = new System.Collections.Generic.List<Landmarks.Placed>();
 
         /// <summary>
@@ -174,6 +178,8 @@ namespace MountainPlanner.App
                 int info = Array.IndexOf(args, "-info");
                 if (info >= 0 && info + 1 < args.Length) _layers.Set(args[info + 1], true);
                 if (Array.IndexOf(args, "-contours") >= 0) _layers.Set(MapLayers.Contours, true);
+                int units = Array.IndexOf(args, "-units");   // -units metric|imperial: captures, without changing the saved choice
+                if (units >= 0 && units + 1 < args.Length) DisplayUnits.Set(args[units + 1] == "metric" ? UnitSystem.Metric : UnitSystem.Imperial, remember: false);
                 int lt = Array.IndexOf(args, "-lodtransitions");   // review runs: LOD0→1, 1→2, 2→impostor, impostor→culled screen heights
                 if (lt >= 0 && lt + 1 < args.Length)
                 {
@@ -293,6 +299,7 @@ namespace MountainPlanner.App
             if (plain && letters && keys.pKey.wasPressedThisFrame) _photo = !_photo;
             if (_photo && (keys.f12Key.wasPressedThisFrame || keys.spaceKey.wasPressedThisFrame) && !_capturing) StartCoroutine(CapturePhoto());
             if (plain && letters && keys.cKey.wasPressedThisFrame && Camera != null) Camera.ToggleMode();
+            if (plain && letters && keys.uKey.wasPressedThisFrame) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
             if (keys.homeKey.wasPressedThisFrame) HomeView();
             if (shift)
             {
@@ -327,7 +334,55 @@ namespace MountainPlanner.App
             Hud.PresetChosen += i => Lighting?.Set(i);
             Hud.NorthUpChosen += () => Camera?.SetAngles(0, Camera.Pitch);
             Hud.QuitChosen += Application.Quit;
+            Hud.UnitsChosen += DisplayUnits.Toggle;
             ViewCamera.PointerBlocked = Hud.IsPointerOverPanel;
+            _contourLabels = new MountainPlanner.UI.ContourLabelOverlay(Hud.ContourLabelLayer);
+            DisplayUnits.Changed += OnUnitsChanged;
+        }
+
+        /// <summary>New units: the contour interval and snow-depth stops in the shader, and the labels' numbers.</summary>
+        void OnUnitsChanged()
+        {
+            _layers.Apply();
+            _contourLabelSet = null;   // UpdateContourLabels picks the set for the new units
+        }
+
+        void OnDestroy() => DisplayUnits.Changed -= OnUnitsChanged;
+
+        /// <summary>Moves the contour labels with the camera, after it has moved this frame.</summary>
+        void LateUpdate()
+        {
+            if (_contourLabels == null || _resort == null) return;
+            var set = _resort.ContourLabels[(int)DisplayUnits.Current];
+            if (!ReferenceEquals(set, _contourLabelSet))
+            {
+                _contourLabelSet = set;
+                _contourLabels.SetLabels(set, DisplayUnits.Current);
+            }
+            var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
+            _contourLabels.Update(cam, _resort.Surface, _layers.ContoursOn && _hudShown);
+        }
+
+        /// <summary>The slope (a grade in percent) and the way it faces (degrees from true north) at a point, over 4 m as the shader measures.</summary>
+        (float Percent, float Bearing) SlopeAt(float x, float z)
+        {
+            var s = _resort.Surface;
+            float east = (s.HeightAt(x + 2, z) - s.HeightAt(x - 2, z)) / 4, north = (s.HeightAt(x, z + 2) - s.HeightAt(x, z - 2)) / 4;
+            float bearing = Mathf.Atan2(-east, -north) * Mathf.Rad2Deg - (float)_resort.Manifest.Crs.GridConvergenceDegrees;
+            return ((float)SlopeBands.PercentFromRise(Mathf.Sqrt(east * east + north * north)), bearing);
+        }
+
+        /// <summary>The snow-depth field at a point, between its 8 m cells.</summary>
+        float SnowDepthAt(float x, float z)
+        {
+            var field = _resort.States?.Snow;
+            if (field == null) return float.NaN;
+            float u = Mathf.Clamp((x - _resort.Ring.xMin) / field.CellMetres - 0.5f, 0, field.Width - 1);
+            float v = Mathf.Clamp((z - _resort.Ring.yMin) / field.CellMetres - 0.5f, 0, field.Height - 1);
+            int i = Mathf.Min((int)u, field.Width - 2 < 0 ? 0 : field.Width - 2), j = Mathf.Min((int)v, field.Height - 2 < 0 ? 0 : field.Height - 2);
+            int i1 = Mathf.Min(i + 1, field.Width - 1), j1 = Mathf.Min(j + 1, field.Height - 1);
+            float fu = u - i, fv = v - j;
+            return Mathf.Lerp(Mathf.Lerp(field[i, j], field[i1, j], fu), Mathf.Lerp(field[i, j1], field[i1, j1], fu), fv);
         }
 
         /// <summary>Shows or hides the HUD and refreshes it ten times a second (0.4 §8: bounded, no per-frame allocation).</summary>
@@ -353,7 +408,8 @@ namespace MountainPlanner.App
             float distance = Vector3.Distance(cam.transform.position, Camera.Target);
             float metresPerPixel = 2 * distance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height);
             var mouse = Mouse.current;
-            float elevation = float.NaN;
+            float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
+            string info = _layers.InfoLayerId;
             if (mouse != null)
             {
                 var ray = cam.ScreenPointToRay(mouse.position.ReadValue());
@@ -362,9 +418,13 @@ namespace MountainPlanner.App
                 {
                     var g = ray.GetPoint(hit);
                     elevation = _resort.Surface.HeightAt(g.x, g.z);
+                    // What the info layer that's on reads under the pointer (task 12b.2).
+                    if (!float.IsNaN(elevation) && (info == MapLayers.SlopeAngle || info == MapLayers.Exposure)) (slope, bearing) = SlopeAt(g.x, g.z);
+                    else if (!float.IsNaN(elevation) && info == MapLayers.SnowDepth) snow = SnowDepthAt(g.x, g.z);
                 }
             }
             Hud.SetReadouts(cam.transform.eulerAngles.y, metresPerPixel, elevation);
+            Hud.SetInfoReadout(info, slope, bearing, snow);
         }
 
         ForestRenderer Forest => _resort?.Root != null ? _resort.Root.GetComponent<ForestView>()?.Renderer : null;
@@ -452,7 +512,7 @@ namespace MountainPlanner.App
             }
             string text = _resort == null
                 ? $"{_status}\n[{new string('#', (int)(_fraction * 30)).PadRight(30, '.')}] {_fraction * 100:F0}%"
-                : $"{_resort.Manifest.Site.Name} · {_resort.Manifest.Site.SizeMetres / 1000.0:0.#} km · {_status} · {_fps:F0} fps\n" +
+                : $"{_resort.Manifest.Site.Name} · {UnitFormat.SiteSize(_resort.Manifest.Site.SizeMetres, DisplayUnits.Current)} · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
             if (_resort != null && !_help && Hud != null)
             {
@@ -463,7 +523,7 @@ namespace MountainPlanner.App
             {
                 text += "\nWASD or arrows pan · Q/E rotate · R/F tilt · Wheel, +/− or PgUp/PgDn zoom · Middle-drag rotate · Right-drag pan · Shift faster · " +
                         "Home reset view · C free-fly (W/S fly, Q/E turn, R/F pitch, PgUp/PgDn rise and sink, right-drag look) · " +
-                        "Map layers: Shift+1 snow, Shift+3 trees · Info layers: Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth, Shift+0 snow conditions (later) · H hide UI · P photo mode · F1 this panel · Esc menu · map data © OpenStreetMap contributors";
+                        "Map layers: Shift+1 snow, Shift+3 trees · Info layers: Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth, Shift+0 snow conditions (later) · U feet or metres · H hide UI · P photo mode · F1 this panel · Esc menu · map data © OpenStreetMap contributors";
                 float height = style.CalcHeight(new GUIContent(text), 820);
                 GUI.Box(new Rect(20, 20, 820, height), text, style);
                 DrawDeveloperPanel(new Rect(20, 28 + height, 820, 0));

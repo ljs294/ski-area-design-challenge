@@ -36,7 +36,7 @@ namespace MountainPlanner.Domain.Cover
         /// off the ground at its downhill tail, or buries most of its foliage uphill (tree-build audit). Steeper
         /// ground grows cushions instead.
         /// </summary>
-        public const double MatMaxSlopeDegrees = 13;
+        public const double MatMaxSlopeDegrees = 13;   // a 23% grade
 
         /// <summary>Per variant, the lowest and highest height in 0.25 m steps within <see cref="SizeJitter"/> of its native height.</summary>
         public static int[] HeightCodes()

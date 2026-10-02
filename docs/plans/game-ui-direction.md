@@ -132,9 +132,11 @@ The seasons give the loop its beat, as in the archived game: **summer is for pla
 
 **Map layers and info layers (owner, 2026-10-02; built in task 12b).** The Layers panel has two groups:
 - **Map layers** show or hide physical things on the map: Snow and Trees now; lifts and the rest join as they're built. Any combination.
-- **Info layers** only display information. **Slope angle** (trail-difficulty bands: under 14°, 14–22°, 22–30°, and over 30° hatched as double black), **Slope exposure** (eight compass points from true north, cool to the north and warm to the south), **Snow depth** (from the natural snowpack until the snow simulation) and **Snow conditions** (reserved for the snow simulation) take turns, one at a time. **Contours** (every 10 m, heavier every 50 m) combine with any of them.
+- **Info layers** only display information. **Slope angle** (trail-difficulty bands as grades: under 25% green, 25–40% blue, 40–60% black, and over 60% hatched as double black), **Slope exposure** (eight compass points from true north, cool to the north and warm to the south), **Snow depth** (from the natural snowpack until the snow simulation) and **Snow conditions** (reserved for the snow simulation) take turns, one at a time. **Contours** (every 40 ft with their elevation every 200 ft, or 10 m and 50 m) combine with any of them.
 
-The info layer that's on shows a legend card under the panel with its swatches, words and figures. Keys are Shift+1 and Shift+3 for the map layers and Shift+6–0 for the info layers ([controls-key-map.md](controls-key-map.md)). The info views grid above becomes this group as more views arrive.
+**Units and steepness (owner, 2026-10-02; task 12b.2).** Every figure is imperial by default (ft, mi, in) and switches to metric together with U or the menu; the choice is remembered. Steepness is always a grade in percent (rise over run; 100% is 45°), in both systems, and trail bands use the same percentages. Under the elevation readout, the info layer that's on reads what's under the pointer: *Slope 47% · Most difficult*, *Faces SE · 135°* or *Snow 2 ft 4 in*.
+
+The info layer that's on shows a legend card under the panel with its swatches, words and figures, in the player's units. Keys are Shift+1 and Shift+3 for the map layers and Shift+6–0 for the info layers ([controls-key-map.md](controls-key-map.md)). The info views grid above becomes this group as more views arrive.
 
 **4.6 Warnings.** The chip counts them (a long line at Lift 2, Run 7 has no lift access). Each has *Show me*, which flies the camera there and opens the window.
 

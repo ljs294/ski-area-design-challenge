@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountainPlanner.Domain.Measure;
 using MountainPlanner.Presentation;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -23,6 +24,11 @@ namespace MountainPlanner.UI
         public event Action<int> PresetChosen;
         public event Action NorthUpChosen;
         public event Action QuitChosen;
+        /// <summary>The menu's units switch (U does the same): the app flips <see cref="DisplayUnits"/>.</summary>
+        public event Action UnitsChosen;
+
+        /// <summary>Where the contour labels go (behind the panels); <see cref="ContourLabelOverlay"/> fills it.</summary>
+        public VisualElement ContourLabelLayer => _root.Q("contour-labels");
 
         public bool DarkThemeOn { get; private set; }
         public bool MenuOpen => _menu != null && !_menu.ClassListContains("hidden");
@@ -37,7 +43,11 @@ namespace MountainPlanner.UI
         readonly Button[] _presets = new Button[4];
         float _heading;
         int _shownScale = -1, _shownElevation = int.MinValue, _shownPreset = -1;
-        static readonly int[] NiceLengths = { 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000 };
+        long _shownInfo = long.MinValue;
+        Label _infoReadout;
+        Button _unitsButton;
+        UnitSystem _shownUnits = (UnitSystem)(-1);
+        (double Metres, string Label)[] _scaleLengths;
         const float ScaleMaxWidth = 120;   // panel units
 
         void OnEnable()
@@ -67,6 +77,9 @@ namespace MountainPlanner.UI
             _root.Q<Button>("menu-quit").clicked += () => QuitChosen?.Invoke();
             _root.Q<Button>("menu-settings").SetEnabled(false);
             _themeButton.clicked += () => SetTheme(!DarkThemeOn);
+            _unitsButton = _root.Q<Button>("menu-units");
+            _unitsButton.clicked += () => UnitsChosen?.Invoke();
+            _infoReadout = _root.Q<Label>("info-readout");
             _root.Q<Button>("layers-header").clicked += () =>
             {
                 bool show = _layersBody.style.display == DisplayStyle.None;
@@ -132,9 +145,11 @@ namespace MountainPlanner.UI
         /// </summary>
         public void SetLegend(string infoId, bool contours)
         {
+            CheckUnits();
             if (infoId == _shownLegend && contours == _shownContours) return;
             _shownLegend = infoId;
             _shownContours = contours;
+            var units = DisplayUnits.Current;
             _legendBody.Clear();
             string note = null;
             switch (infoId)
@@ -151,14 +166,14 @@ namespace MountainPlanner.UI
                     break;
                 case MapLayers.SnowDepth:
                     _legendTitle.text = InfoLegend.SnowDepthTitle;
-                    foreach (var e in InfoLegend.SnowDepth) _legendBody.Add(LegendRow(e));
+                    foreach (var e in InfoLegend.SnowDepth(units)) _legendBody.Add(LegendRow(e));
                     note = InfoLegend.SnowDepthNote;
                     break;
                 default:
                     _legendTitle.text = "Contours";
                     break;
             }
-            if (contours) note = note == null ? InfoLegend.ContoursNote : note + " " + InfoLegend.ContoursNote;
+            if (contours) note = note == null ? InfoLegend.ContoursNote(units) : note + " " + InfoLegend.ContoursNote(units);
             _legendNote.text = note ?? "";
             _legendNote.style.display = note == null ? DisplayStyle.None : DisplayStyle.Flex;
             _legend.EnableInClassList("hidden", infoId == null && !contours);
@@ -235,8 +250,59 @@ namespace MountainPlanner.UI
         }
 
         /// <summary>Compass heading (degrees clockwise from north), metres per screen pixel, elevation (NaN: off the terrain).</summary>
+        /// <summary>When the units change, every figure redraws: the menu item, the scale bar, the readouts and the legend.</summary>
+        void CheckUnits()
+        {
+            var units = DisplayUnits.Current;
+            if (units == _shownUnits) return;
+            _shownUnits = units;
+            _scaleLengths = UnitFormat.ScaleLengths(units);
+            _unitsButton.text = units == UnitSystem.Imperial ? "Units: imperial" : "Units: metric";
+            _shownScale = -1;
+            _shownElevation = int.MinValue;
+            _shownInfo = long.MinValue;
+            _shownLegend = "\0";   // forces the legend to rebuild
+        }
+
+        /// <summary>
+        /// What the info layer that's on reads under the pointer, below the elevation (task 12b.2): the slope as a grade
+        /// and its trail band, the way it faces, or the snow depth. Null (or a NaN) hides the line. The text is rebuilt
+        /// only when the shown figure changes.
+        /// </summary>
+        public void SetInfoReadout(string infoId, float slopePercent, float bearingDegrees, float snowMetres)
+        {
+            CheckUnits();
+            var units = _shownUnits;
+            long key;
+            switch (infoId)
+            {
+                case MapLayers.SlopeAngle when !float.IsNaN(slopePercent): key = 1L << 40 | (uint)Mathf.RoundToInt(slopePercent); break;
+                case MapLayers.Exposure when !float.IsNaN(slopePercent):
+                    key = slopePercent < SlopeBands.FlatPercent ? 2L << 40 : 3L << 40 | (uint)Mathf.RoundToInt(Mathf.Repeat(bearingDegrees, 360)) % 360; break;
+                case MapLayers.SnowDepth when !float.IsNaN(snowMetres): key = 4L << 40 | (uint)UnitFormat.SnowDepthKey(snowMetres, units); break;
+                default: key = 0; break;
+            }
+            if (key == _shownInfo) return;
+            _shownInfo = key;
+            _infoReadout.EnableInClassList("hidden", key == 0);
+            switch (key >> 40)
+            {
+                case 1:
+                    int percent = (int)(key & 0xFFFFFFFF);
+                    _infoReadout.text = $"Slope {percent}% · {SlopeBands.Names[(int)SlopeBands.Of(percent)]}";
+                    break;
+                case 2: _infoReadout.text = "Flat"; break;
+                case 3:
+                    int bearing = (int)(key & 0xFFFFFFFF);
+                    _infoReadout.text = $"Faces {SlopeBands.CompassPoint(bearing)} · {bearing}°";
+                    break;
+                case 4: _infoReadout.text = "Snow " + UnitFormat.SnowDepth(snowMetres, units); break;
+            }
+        }
+
         public void SetReadouts(float heading, float metresPerPixel, float elevation)
         {
+            CheckUnits();
             if (Mathf.Abs(Mathf.DeltaAngle(heading, _heading)) > 0.5f)
             {
                 _heading = heading;
@@ -245,20 +311,19 @@ namespace MountainPlanner.UI
             // Panel units per screen pixel: the panel scales with the screen height.
             float panelPerPixel = _root.resolvedStyle.width > 0 ? _root.resolvedStyle.width / Screen.width : 1;
             float metresPerUnit = metresPerPixel / Mathf.Max(panelPerPixel, 1e-4f);
-            int length = NiceLengths[0];
-            foreach (int l in NiceLengths) if (l / metresPerUnit <= ScaleMaxWidth) length = l;
-            float width = length / metresPerUnit;
-            _scaleBar.style.width = width;
+            int length = 0;
+            for (int k = 0; k < _scaleLengths.Length; k++) if (_scaleLengths[k].Metres / metresPerUnit <= ScaleMaxWidth) length = k;
+            _scaleBar.style.width = (float)(_scaleLengths[length].Metres / metresPerUnit);
             if (length != _shownScale)
             {
                 _shownScale = length;
-                _scaleLabel.text = length >= 1000 ? $"{length / 1000} km" : $"{length} m";
+                _scaleLabel.text = _scaleLengths[length].Label;
             }
-            int shown = float.IsNaN(elevation) ? int.MinValue : Mathf.RoundToInt(elevation);
+            int shown = float.IsNaN(elevation) ? int.MinValue : UnitFormat.ElevationKey(elevation, _shownUnits);
             if (shown != _shownElevation)
             {
                 _shownElevation = shown;
-                _elevation.text = shown == int.MinValue ? "Elev –" : $"Elev {shown:N0} m";
+                _elevation.text = shown == int.MinValue ? "Elev –" : "Elev " + UnitFormat.Elevation(elevation, _shownUnits);
             }
         }
 

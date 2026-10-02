@@ -1,4 +1,5 @@
 using System;
+using MountainPlanner.Domain.Measure;
 
 namespace MountainPlanner.Domain.Snow
 {
@@ -13,12 +14,14 @@ namespace MountainPlanner.Domain.Snow
     /// - Base: <see cref="ValleyMetres"/> on the site's low ground (its 5th elevation percentile) rising to
     ///   <see cref="SummitMetres"/> on its high ground (95th): more snow falls and less melts higher up.
     /// - Sun: south faces lose up to <see cref="SunLoss"/> of it, most on low ground; north faces keep
-    ///   <see cref="ShadeGain"/> more. Directions are true north (the grid convergence is taken out).
+    ///   <see cref="ShadeGain"/> more, both growing from <see cref="FacingStartPercent"/> to
+    ///   <see cref="FacingFullPercent"/>. Directions are true north (the grid convergence is taken out).
     /// - Wind: ridges standing above their surroundings (about 56 m across) are scoured, hollows loaded, by up to
     ///   <see cref="WindShare"/>.
     /// - Canopy: dense forest holds back up to <see cref="CanopyLoss"/> in its branches.
-    /// - Shedding: snow sluffs off slopes from <see cref="ShedStartDegrees"/> and is gone by
-    ///   <see cref="ShedFullDegrees"/> (cliffs show rock, as A2 already draws).
+    /// - Shedding: snow sluffs off slopes from <see cref="ShedStartPercent"/> and is gone by
+    ///   <see cref="ShedFullPercent"/> (cliffs show rock, as A2 already draws).
+    /// Slopes are grades in percent, as everywhere the player reads them (<see cref="SlopeBands"/>).
     /// </summary>
     public static class Snowpack
     {
@@ -28,7 +31,8 @@ namespace MountainPlanner.Domain.Snow
         public const double WindShare = 0.3;
         public const int WindRadiusCells = 3;
         public const double CanopyLoss = 0.3;
-        public const double ShedStartDegrees = 40, ShedFullDegrees = 60;
+        public const double FacingStartPercent = SlopeBands.FlatPercent, FacingFullPercent = 60;   // about 6° to 31°
+        public const double ShedStartPercent = 85, ShedFullPercent = 175;                           // about 40° to 60°
 
         /// <summary>
         /// Fills <paramref name="depth"/> (metres) from a grid of elevations (metres; NaN where there's no data) and
@@ -67,11 +71,11 @@ namespace MountainPlanner.Domain.Snow
                     // Slope and aspect from central differences (one-sided at the edges and beside missing data).
                     double east = Gradient(elevation, width, height, x, y, 1, 0) / cellMetres;
                     double north = Gradient(elevation, width, height, x, y, 0, 1) / cellMetres;
-                    double slope = Math.Atan(Math.Sqrt(east * east + north * north)) * 180 / Math.PI;
+                    double slope = SlopeBands.PercentFromRise(Math.Sqrt(east * east + north * north));
                     // The way the slope faces: downhill, as a compass bearing from grid north, then from true north.
                     double bearing = Math.Atan2(-east, -north) - gamma;
                     double southness = -Math.Cos(bearing);   // 1 facing south, −1 facing north
-                    double facing = SmoothStep(5, 30, slope);   // flat ground faces nowhere
+                    double facing = SmoothStep(FacingStartPercent, FacingFullPercent, slope);   // flat ground faces nowhere
                     double sun = 1 - SunLoss * Math.Max(0, southness) * facing * (1 - 0.5 * t)
                                    + ShadeGain * Math.Max(0, -southness) * facing;
 
@@ -80,7 +84,7 @@ namespace MountainPlanner.Domain.Snow
                     double wind = 1 - WindShare * SmoothStep(1, 6, rise) + WindShare * SmoothStep(1, 6, -rise);
 
                     double trees = 1 - CanopyLoss * Clamp01(canopy[k]);
-                    double shed = 1 - SmoothStep(ShedStartDegrees, ShedFullDegrees, slope);
+                    double shed = 1 - SmoothStep(ShedStartPercent, ShedFullPercent, slope);
 
                     depth[k] = (float)Math.Max(0, baseDepth * sun * wind * trees * shed);
                 }
