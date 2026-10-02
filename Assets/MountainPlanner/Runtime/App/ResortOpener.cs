@@ -111,6 +111,7 @@ namespace MountainPlanner.App
             {
                 material = new Material(material) { name = material.name + " (" + manifest.Site.Name + ")" };
                 ground.Configure(material, ringRect);
+                ground.SetElevationRange((float)cache.HeightMin, (float)(cache.HeightMin + cache.HeightRange));
             }
             // Tiles start with just the snow layer (all a fresh tile shows); the ground layers join when its
             // cover is painted. Six layers per tile up front added about half a second to opening.

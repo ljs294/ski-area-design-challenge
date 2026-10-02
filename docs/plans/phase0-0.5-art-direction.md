@@ -32,6 +32,15 @@
 | Developed | Neutral grey-brown, a paved/built texture |
 | Water | Dark blue-green; frozen in iteration 1 (below) |
 
+**Bare ground, task 12c (owner, 2026-10-02):** "really stunning" is the bar. The ground layers are CC0 photo textures from Poly Haven, graded toward this palette (`tools/assets/ground`). Grass is a **summer olive green**; the Seasons task tints it through `GroundLayers.SetGrassTint` (autumn gold, winter straw). Within a layer the look varies:
+- valley grass gives way to sparser alpine meadow with rock patches higher up;
+- bare dirt shows on steep grass;
+- rock is granite on steep faces and scree where it lies back;
+- developed land is asphalt;
+- brightness drifts over a few hundred metres, and a second, larger copy of each texture hides its repeat.
+
+Only deciduous trees get seasonal versions; conifers stay as they are.
+
 - **Frozen lakes (T8):** flat, snow-covered ice. The surface is slightly smoother and brighter than land snow, with a faint blue-grey rim of exposed ice and pressure cracks at the shoreline. Streams read as shallow snow-filled channels following OpenStreetMap lines.
 - **The ring edge** (the outer limit of the downloaded surround): see A1 in §9. **Recommendation:** a **diorama base**. The terrain is cut cleanly at the ring edge, with side walls showing stylized rock strata down to a thin plinth. This is the "section-cut diorama" idea the owner wanted for the old game, which Unity makes easy.
 
