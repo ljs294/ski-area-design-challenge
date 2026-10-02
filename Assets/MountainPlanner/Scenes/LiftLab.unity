@@ -245,7 +245,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ffb6951a7e00410994f33cb0d3808ea7, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: MountainPlanner.Presentation::MountainPlanner.Presentation.DebugFlyCamera
+  m_EditorClassIdentifier: MountainPlanner.Presentation::MountainPlanner.Presentation.ViewCamera
   Target: {x: 0, y: 0, z: 0}
   Distance: 30
   Yaw: 200

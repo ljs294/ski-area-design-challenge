@@ -235,6 +235,8 @@ Built as UI Toolkit custom controls and shared USS:
 | Toggle layers | 1 Snow · 2 Ground cover · 3 Forest · 4 Cover map · 5 Imagery |
 | Menu | Esc |
 
+**Superseded where they differ** by [controls-key-map.md](controls-key-map.md) (owner, 2026-10-01): layers are Shift+1–5, free-fly rises and sinks with Page Up / Page Down, Home resets the view, north-up is the compass.
+
 **Note:** the archive used R/F for tilt, so **free-fly toggle is C, not F**. Escape is never rebindable. The archive's 1/2 dashboard keys become layer toggles; iteration 1 has no dashboards.
 
 ## 7. Style guide

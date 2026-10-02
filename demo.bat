@@ -185,7 +185,7 @@ exit /b 0
 :play
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
-echo Starting the game. WASD move, Q/E rotate, R/F tilt, wheel zoom, N snow on/off, T tree snow, B wind (calm, breeze, strong), L light (dawn, noon, golden hour, night), M haze, V cover map, C Corbet's Couloir, H hide the UI, F1 every key, Esc menu (Quit is there).
+echo Starting the game. WASD or arrows pan, Q/E rotate, R/F tilt, wheel or +/- zoom, Home resets the view, C free-fly (PgUp/PgDn rise and sink), Shift+1 snow, Shift+3 forest, Shift+4 cover map, H hide the UI, P photo mode (F12 saves a picture), F1 every key plus the developer panel (wind, tree snow, light and time of day, haze, lakes, distant shadows, Corbet's), Esc menu (Quit is there).
 start "" "%GAME%"
 goto menu
 
