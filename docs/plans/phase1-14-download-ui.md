@@ -126,9 +126,9 @@ The picker raises `SiteChosen(PickedSite)` and `Cancelled`. App converts it to a
 
 ## 6. Code layout (all new files)
 
-- **UI** (view models engine-free; views on UI Toolkit):
+- **UI** (view models are plain C# in the UI assembly; views on UI Toolkit):
   - `UI/Flow/`: `TitleScreen`, `LibraryScreen`, `DownloadCard`, `QualityCard`;
-  - view models: `DownloadViewModel`, `LibraryViewModel`, `QualityCardViewModel` (plain C#, tested in Core);
+  - view models: `DownloadViewModel`, `LibraryViewModel`, `QualityCardViewModel` (plain C#, tested in EditMode, since UI is an engine assembly and may not reference Acquisition; App copies progress into the UI's own `DownloadStatus`);
   - `Art/UI/Flow/*.uxml` and `*.uss`, using the existing theme tokens.
 - **App:**
   - `AppFlow`, the screen state machine;
@@ -144,10 +144,10 @@ The view models update only on a progress snapshot (4 Hz). The detail line is a 
 
 | Test | Kind | Proves |
 |---|---|---|
-| `DownloadViewModel`: stage list from `Stages`; ticks follow `StageIndex`; an unknown stage name appears; the fallback with no `Stages` | Core (dotnet + Unity) | Data-driven stages |
+| `DownloadViewModel`: stage list from `Stages`; ticks follow `StageIndex`; an unknown stage name appears; the fallback with no `Stages` | EditMode | Data-driven stages |
 | `ProgressTracker` snapshot carries `Stages` in declared order | Core | The additive change |
-| `QualityCardViewModel`: band edges 49/50/74/75/89/90; number and word together; a fallback manifest shows the one-liner | Core | S5 |
-| `LibraryViewModel`: sort orders; paused downloads listed; delete reports the bytes freed | Core | S2 |
+| Band edges 49/50/74/75/89/90 (Domain `QualityBands`, Core); `QualityCardViewModel`: number and word together, a fallback manifest shows its caveat and one-liner (EditMode) | Core, EditMode | S5 |
+| `LibraryViewModel`: sort orders; paused downloads listed first | EditMode | S2 |
 | `PendingDownload` round trip; a leftover record shows as resumable | Core | Resume across a quit |
 | `PickedSite` → `SiteRequest` round trip gives the same square | Core (once task 13's commit lands) | The hand-off |
 | `AppFlow` state machine: every transition in §2 and Esc backs out one step, with fake services | EditMode | Flow |
@@ -165,3 +165,20 @@ Before merging:
 
 1. **Names.** The task brief says New Resort and My Resorts; 0.4 says New Mountain and My Mountains. I'll use **New Resort** and **My Resorts** (the newer brief) unless you say otherwise.
 2. **S2 as rows, not cards with thumbnails.** Thumbnails need a capture per mountain, which I'd add later.
+
+## 9. Status (2026-10-02)
+
+- **Built:**
+  - S1, S2, S4 (with the pill) and S5;
+  - the App flow, with the stand-in picker;
+  - `-data`, `-offline` and `-flowcapture`.
+- **Tests:**
+  - Core 208 passed;
+  - EditMode 395 passed, 0 failed;
+  - PlayMode passed, including `AppFlowTests`, which opens a mountain from the library with the network off.
+- **End to end in the player** (scratch library, `-flowcapture`): title → My Resorts → New Resort → a real Crystal Mountain 2 km download (100% 3DEP 10 m fallback) → quality card (Terrain 30 Limited, Flora 87 Good) → opened.
+- **Left for later:**
+  - wire task 13's `SitePicker` in place of the stand-in once its branch lands;
+  - fonts from task 13;
+  - an *Exit to title* entry in the in-game menu (the HUD is task 12's);
+  - keeping clicks on the download card from reaching the camera in the game (`ViewCamera.PointerBlocked` is set by the viewer).
