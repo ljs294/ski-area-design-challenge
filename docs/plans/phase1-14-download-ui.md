@@ -136,7 +136,7 @@ The picker raises `SiteChosen(PickedSite)` and `Cancelled`. App converts it to a
   - `PendingDownloads`, the resume record.
 - **Persistence:** `PendingDownload`, the JSON record format (engine-free).
 - **Scene:** an `AppFlow` object and UIDocument in `MountainViewer.unity`, so the title sits over the live mountain. The scene's other objects aren't touched.
-- **Fonts:** Overpass and Overpass Mono (SIL OFL, free). I'll ask the coordinator whether the UI or HUD thread already adds them. If not, I add them once through Git LFS, about 0.5 MB.
+- **Fonts:** Overpass and Overpass Mono (SIL OFL) come from task 13's font commit under `Art/UI/Fonts/`; this task adds no font files.
 
 The view models update only on a progress snapshot (4 Hz). The detail line is a single text set, with no rebuild per tick.
 
@@ -165,4 +165,3 @@ Before merging:
 
 1. **Names.** The task brief says New Resort and My Resorts; 0.4 says New Mountain and My Mountains. I'll use **New Resort** and **My Resorts** (the newer brief) unless you say otherwise.
 2. **S2 as rows, not cards with thumbnails.** Thumbnails need a capture per mountain, which I'd add later.
-3. **Fonts.** Overpass will be checked into LFS if no other thread has added it.
