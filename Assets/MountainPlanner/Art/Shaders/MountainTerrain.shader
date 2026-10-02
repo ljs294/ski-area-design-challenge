@@ -328,6 +328,22 @@ Shader "MountainPlanner/Terrain"
                 return float2(east - west, north - south) * _HeightmapParams.y / max(4 * _HeightmapParams.z, 1e-3);
             }
 
+            // Fine creases (beauty pass, item 2): how far the ground sits below its neighbours 3 samples away (3 m in
+            // the core), so gullies, ditches and the feet of banks hold a little shade the 8 m sky map can't see.
+            half Crease(float2 uv)
+            {
+                float res = max(_HeightmapParams.x, 2);
+                float2 huv = (uv * (res - 1) + 0.5) / res;
+                float t = 3 / res;
+                float c = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv, 0).r;
+                float around = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(t, 0), 0).r
+                             + SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(t, 0), 0).r
+                             + SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t), 0).r
+                             + SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t), 0).r;
+                float below = (around * 0.25 - c) * _HeightmapParams.y;   // metres below the neighbours' mean
+                return 1 - 0.45 * saturate(below / 1.5);
+            }
+
             half4 Frag(Varyings i) : SV_Target
             {
                 ClipToRing(i.positionWS);
@@ -423,7 +439,11 @@ Shader "MountainPlanner/Terrain"
                 float ndl = saturate(dot(normal, sun.direction));
                 float3 h = normalize(sun.direction + view);
                 float spec = pow(saturate(dot(normal, h)), exp2(10 * smooth + 1)) * smooth * 0.5;
-                float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation + SampleSH(normal))
+                // Ambient occlusion (beauty pass, item 2): the sky light dims in valleys (8 m sky map) and creases
+                // (1 m heightmap); creases also take a little off the sun.
+                half crease = Crease(i.uv);
+                half skyLight = TerrainSkyVisibility(i.positionWS) * crease;
+                float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation * lerp(1, crease, 0.5) + SampleSH(normal) * skyLight)
                            + sun.color * spec * sun.shadowAttenuation;
                 lit = ApplyContours(lit, i.positionWS.y);
                 lit = MixFog(lit, i.fog);

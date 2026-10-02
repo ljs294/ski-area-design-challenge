@@ -152,6 +152,7 @@ namespace MountainPlanner.App
                     {
                         _farShadows = new FarTerrainShadow(FarShadowCompute, _resort.Tiles.Values, _resort.Ring);
                         if (Array.IndexOf(args, "-nofarshadows") >= 0) _farShadows.SetEnabled(false);   // cost measurements
+                        if (Array.IndexOf(args, "-noao") >= 0) _farShadows.SetSkyOcclusion(false);       // comparisons (beauty pass, item 2)
                         Lighting.FarShadows = _farShadows;
                     }
                 }
