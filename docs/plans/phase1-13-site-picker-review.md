@@ -2,7 +2,7 @@
 
 **Audience:** the project owner. **Date:** 2026-10-02. **Branch:** `feature/p1-13-site-picker`. **Spec:** [0.7 row 13](phase0-0.7-phase1-plan.md), [0.4 S3](phase0-0.4-ui-ux.md), [0.3 §6.1](phase0-0.3-technical-architecture.md#61-site-picker-t19).
 
-The picker runs on its own in the Picker Lab (demo.bat 34). Choosing Download hands the site to the existing downloader. Task 14 will put it in the game's flow (title → picker → download → card).
+The picker runs on its own in the Picker Lab (demo.bat 35). Choosing Download hands the site to the existing downloader. Task 14 will put it in the game's flow (title → picker → download → card).
 
 ## What it looks like
 
@@ -41,8 +41,8 @@ The picker runs on its own in the Picker Lab (demo.bat 34). Choosing Download ha
 
 ## Try it
 
-1. `demo.bat`, choose **34** (builds the Picker Lab the first time, about a minute; close the Unity editor first).
+1. `demo.bat`, choose **35** (builds the Picker Lab the first time, about a minute; close the Unity editor first).
 2. Type `Jackson Hole` and press Enter. Pick the result, or click the map to move the square.
 3. Drag the size slider, edit the name, and watch the estimate line update.
 4. Press **Download**. The window closes and the downloader fetches the site into your library (choose **16** to list it).
-5. Choose **35** to see the offline panel.
+5. Choose **36** to see the offline panel.

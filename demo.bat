@@ -87,9 +87,9 @@ echo     33 Stand in a Sugarloaf spruce-fir stand: understory and clumps (needs 
 echo     34 Add roads to mountains downloaded before roads (one-time map refresh; needs the internet)
 echo.
 echo   Phase 1, task 13: site picker
-echo     34 Pick a site on the map, then download it into your library (builds the Picker Lab the first time)
-echo     35 The picker with no network: the offline panel
-echo     36 Rebuild the Picker Lab (after pulling new code; close the Unity editor first)
+echo     35 Pick a site on the map, then download it into your library (builds the Picker Lab the first time)
+echo     36 The picker with no network: the offline panel
+echo     37 Rebuild the Picker Lab (after pulling new code; close the Unity editor first)
 echo.
 echo     Q  Quit
 echo.
@@ -142,9 +142,9 @@ if /i "%CHOICE%"=="32" (
   start "" "%~dp0docs\plans\prototypes\ui-layout.html"
   goto menu
 )
-if /i "%CHOICE%"=="34" goto picker
-if /i "%CHOICE%"=="35" goto pickeroffline
-if /i "%CHOICE%"=="36" goto rebuildpicker
+if /i "%CHOICE%"=="35" goto picker
+if /i "%CHOICE%"=="36" goto pickeroffline
+if /i "%CHOICE%"=="37" goto rebuildpicker
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
