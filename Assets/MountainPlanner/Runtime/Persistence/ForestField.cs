@@ -182,6 +182,8 @@ namespace MountainPlanner.Persistence
         readonly GridHeader _speciesHeader;
         readonly int[] _modelOfIndex;          // species table index (1-based) → model
         readonly double[] _siteShares;         // model → share of the site's biomass
+        readonly bool[] _coniferIndex;         // species table index (1-based) → a conifer (FIA codes below 300)
+        readonly double _siteConifer;          // the conifers' share of the site's biomass
         readonly AlbersBox _core;
         /// <summary>Tree share given to a ring WorldCover forest cell, measured in the core (see constructor).</summary>
         public readonly double RingTreeShare;
@@ -211,14 +213,20 @@ namespace MountainPlanner.Persistence
                 _speciesWeights = ResortPackage.ReadByteLayer(folder, package, "species-weights", out _);
             }
             _modelOfIndex = new int[256];
+            _coniferIndex = new bool[256];
             _siteShares = new double[SpeciesMap.Models.Length];
+            double conifer = 0, all = 0;
             foreach (var s in package.Species)
             {
                 if (s.Index <= 0 || s.Index > 255) continue;
                 int model = SpeciesMap.ModelFor(s.Spcd);
                 _modelOfIndex[s.Index] = model;
                 _siteShares[model] += s.ShareOfBiomass;
+                _coniferIndex[s.Index] = IsConifer(s.Spcd);
+                all += s.ShareOfBiomass;
+                if (IsConifer(s.Spcd)) conifer += s.ShareOfBiomass;
             }
+            _siteConifer = all > 0 ? conifer / all : 1;
             if (_siteShares.Sum() <= 0) _siteShares[SpeciesMap.IndexOf("douglas_fir")] = 1;
             RingTreeShare = MeasureRingShare();
         }
@@ -392,7 +400,7 @@ namespace MountainPlanner.Persistence
             const int m = ForestPlacement.CellMetres;
             double x0 = cx * m, y0 = cy * m;
             bool core = _canopy != null && Inside(_canopyHeader, x0 + m / 2.0, y0 + m / 2.0);
-            double dominant, expected, width = 1;
+            double dominant, expected, width = 1, canopyShare = 0;
             byte kind;
             if (core)
             {
@@ -405,6 +413,7 @@ namespace MountainPlanner.Persistence
                         if (v > tallest) tallest = v;
                     }
                 if (trees10 == 0) return default;
+                canopyShare = trees10 / 100.0;
                 dominant = Clamp(_calibration.DominantHeight((byte)tallest), ForestPlacement.MinHeight, ForestPlacement.MaxHeight);
                 expected = ForestPlacement.TreesPerCell(trees10 / 100.0, dominant, _calibration);
                 kind = ForestCell.Core;
@@ -419,8 +428,12 @@ namespace MountainPlanner.Persistence
                 kind = ForestCell.Ring;
             }
             double spacing = 0.9 * ForestPlacement.CrownRadius(dominant) * width;
+            double conifer = ConiferShareAt(x0 + m / 2.0, y0 + m / 2.0);
             return new ForestCell
             {
+                Conifer = (byte)Math.Round(conifer * 255),
+                Canopy = (byte)Math.Round(canopyShare * 255),
+                Stand = (byte)Math.Round(ForestPlacement.StandWeight(conifer, canopyShare) * 255),
                 Kind = kind,
                 Expected256 = (ushort)Math.Min(65535, Math.Round(expected * PoissonForest.Fixed)),
                 Spacing256 = (ushort)Math.Min(65535, Math.Round(spacing * PoissonForest.Fixed)),
@@ -474,6 +487,28 @@ namespace MountainPlanner.Persistence
                 result[n] = list;
             });
             return result;
+        }
+
+        /// <summary>FIA species codes below 300 are the softwoods (conifers).</summary>
+        public static bool IsConifer(int spcd) => spcd > 0 && spcd < 300;
+
+        /// <summary>The conifers' share (0–1) of BIGMAP's species weights at a point, else of the site's biomass.</summary>
+        public double ConiferShareAt(double x, double y)
+        {
+            if (_speciesIds == null || _speciesWeights == null) return _siteConifer;
+            var h = _speciesHeader;
+            int columns = h.Width / 4;
+            int c = (int)Math.Floor((x - h.West) / h.CellSize), r = (int)Math.Floor((h.North - y) / h.CellSize);
+            if (c < 0 || r < 0 || c >= columns || r >= h.Height) return _siteConifer;
+            long o = ((long)r * columns + c) * 4;
+            int total = 0, conifer = 0;
+            for (int k = 0; k < 4; k++)
+            {
+                if (_speciesIds[o + k] == 0) continue;
+                total += _speciesWeights[o + k];
+                if (_coniferIndex[_speciesIds[o + k]]) conifer += _speciesWeights[o + k];
+            }
+            return total > 0 ? (double)conifer / total : _siteConifer;
         }
 
         int CanopyAt(double x, double y)

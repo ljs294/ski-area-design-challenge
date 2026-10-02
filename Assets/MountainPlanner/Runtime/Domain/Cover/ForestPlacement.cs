@@ -53,6 +53,13 @@ namespace MountainPlanner.Domain.Cover
             return 1 + (RingMinDensity - 1) * t;
         }
 
+        /// <summary>Conifer share and canopy share over which a cell turns into a dense conifer stand (NE8).</summary>
+        public const double StandConiferFrom = 0.5, StandConiferTo = 0.8, StandCanopyFrom = 0.4, StandCanopyTo = 0.7;
+
+        /// <summary>How fully (0–1) a cell grows as a dense conifer stand: mostly conifers under a closed canopy.</summary>
+        public static double StandWeight(double coniferShare, double canopyShare) =>
+            GroundCover.SmoothStep(StandConiferFrom, StandConiferTo, coniferShare) * GroundCover.SmoothStep(StandCanopyFrom, StandCanopyTo, canopyShare);
+
         /// <summary>A uniform 0–1 value for (seed, cell, index, salt).</summary>
         public static double Hash01(ulong seed, long cx, long cy, int k, int salt)
         {

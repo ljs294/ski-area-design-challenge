@@ -19,6 +19,12 @@ namespace MountainPlanner.Domain.Cover
         public byte Krummholz;
         /// <summary>1 where the ground is too steep for a krummholz mat (<see cref="Treeline.MatMaxSlopeDegrees"/>).</summary>
         public byte Steep;
+        /// <summary>The conifers' share of the cell's species (0–255, BIGMAP weights).</summary>
+        public byte Conifer;
+        /// <summary>The canopy map's tree share of the cell (0–255; core cells only).</summary>
+        public byte Canopy;
+        /// <summary>How fully the cell grows as a dense conifer stand (0–255): clumped, with an understory (NE8).</summary>
+        public byte Stand;
     }
 
     /// <summary>One placed tree in the forest frame: 1/256 m east and north of the frame's south-west corner.</summary>
