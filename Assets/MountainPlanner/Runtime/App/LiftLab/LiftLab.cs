@@ -24,7 +24,7 @@ namespace MountainPlanner.App
     ///   9 Monta FG4 (its drive as the bottom station, the rope climbing out with Sessellift chairs; the return beside)
     ///   0 chairs (the Sessellift chair and the Chairworks chair with either grip, side by side on the rope)
     ///   Tab next asset · L LOD auto/0/1/2/3 · N snow · C livery colour · T turntable · G ground on/off
-    ///   B benchmark · P screenshot · H help · Esc quit (camera: DebugFlyCamera's keys)
+    ///   B benchmark · P screenshot · H help · Esc quit (camera: ViewCamera's keys)
     /// Unattended: -mode drive|return|chair|lineup|stress|empty|towers|guns|gunfield|monta|chairs, -lod n, -snow 0..1,
     /// -view yaw,pitch,distance, -screenshot file.png (captures once settled, then quits), -benchmark file.json (runs,
     /// writes, quits).
@@ -38,7 +38,7 @@ namespace MountainPlanner.App
         public Material Chair;
         public Material RopeMaterial;
         public Material GroundMaterial;
-        public DebugFlyCamera Camera;
+        public ViewCamera Camera;
         public LiftLabOverlay Overlay;
 
         public const float TerminalSpacing = 175f;   // along the line, stress layout

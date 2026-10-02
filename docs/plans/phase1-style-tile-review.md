@@ -7,11 +7,11 @@
 ## Try it
 
 1. `demo.bat` → **18** (rebuild the game; close the Unity editor first), then **17** to fly.
-2. **B** cycles the wind: calm, breeze (the default), strong. Zoom in to a forest to see trunks sway, branches bob and needles flutter.
-3. Fly south of Teton Village to the ponds. **N** switches the snow off: the lakes turn to dark ice.
-4. Zoom out, or fly past the edge of the map: the diorama base.
-5. **L** cycles the light: dawn, noon (the default), golden hour, night. **M** toggles the haze.
-6. The HUD: click the layer rows, the compass (north up), the preset buttons. **Esc** opens the menu (theme switch, Quit), **H** hides all UI, **F1** shows every key.
+2. **F1** opens the developer panel; its **Wind** button cycles calm, breeze (the default), strong. Zoom in to a forest to see trunks sway, branches bob and needles flutter.
+3. Fly south of Teton Village to the ponds. **Shift+1** (or the panel's **Ground** button) switches the snow off: the lakes turn to dark ice.
+4. Zoom out toward the edge of the map: the diorama base (the camera may swing up to 2 km past the edge).
+5. The panel's light buttons pick dawn, noon (the default), golden hour or night, and **Haze** toggles the haze.
+6. The HUD: click the layer rows, the compass (north up), the preset buttons. **Esc** opens the menu (theme switch, Quit), **H** hides all UI, **F1** shows every key. The full key map is [controls-key-map.md](controls-key-map.md) (task 11 moved the review switches off the keyboard).
 7. `demo.bat` → **21** runs the benchmark (needs the 5 km Jackson Hole download, 12).
 
 ## Wind in the trees

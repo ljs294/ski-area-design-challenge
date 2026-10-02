@@ -1,0 +1,69 @@
+// Distant terrain shadows (task 11, owner 2026-10-01): beyond the 150 m shadow cascades ridges still shade
+// the valleys. Gather copies every terrain tile's heightmap into one coarse height map over the ring, once
+// per opened mountain; Shadow marches each texel toward the light and stores how lit it is, only when the
+// light moves. FarShadow.hlsl samples the result in every surface shader.
+#pragma kernel Gather
+#pragma kernel Shadow
+
+// Gather: one terrain tile into the height map.
+Texture2D<float> _TileHeights;
+SamplerState sampler_linear_clamp;
+float4 _TileRect;        // tile west, south, 1 / width, 1 / depth (world metres)
+float4 _TileParams;      // height scale, height offset, heightmap resolution, unused
+float4 _MapRect;         // map west, south, metres per texel, unused
+float4 _RingRect;        // ring xmin, zmin, xmax, zmax: no terrain outside it
+uint4 _Range;            // texel range this tile covers: x0, y0, x1, y1 (exclusive)
+RWTexture2D<float> _Heights;
+
+[numthreads(8, 8, 1)]
+void Gather(uint3 id : SV_DispatchThreadID)
+{
+    uint2 t = _Range.xy + id.xy;
+    if (t.x >= _Range.z || t.y >= _Range.w) return;
+    float2 p = _MapRect.xy + (t + 0.5) * _MapRect.z;
+    if (p.x < _RingRect.x || p.x > _RingRect.z || p.y < _RingRect.y || p.y > _RingRect.w)
+    {
+        _Heights[t] = -10000;
+        return;
+    }
+    float2 uv = saturate((p - _TileRect.xy) * _TileRect.zw);
+    float res = _TileParams.z;
+    float2 texel = (uv * (res - 1) + 0.5) / res;   // heightmap samples sit on the tile's vertices
+    _Heights[t] = _TileHeights.SampleLevel(sampler_linear_clamp, texel, 0) * _TileParams.x + _TileParams.y;
+}
+
+// Shadow: the highest horizon toward the light, against the light's elevation.
+Texture2D<float> _HeightsIn;
+RWTexture2D<unorm float> _Lit;
+float4 _Light;           // toward the light: x, z (horizontal unit vector), tan(elevation), unused
+float4 _ShadowParams;    // texels in the map (width, height), softness (tan units), bias (metres)
+
+[numthreads(8, 8, 1)]
+void Shadow(uint3 id : SV_DispatchThreadID)
+{
+    uint2 size = (uint2)_ShadowParams.xy;
+    if (id.x >= size.x || id.y >= size.y) return;
+    float h0 = _HeightsIn[id.xy];
+    if (h0 < -9000 || _Light.z <= 0)
+    {
+        _Lit[id.xy] = _Light.z > 0 ? 1 : 0;
+        return;
+    }
+    float2 dir = _Light.xy;
+    float2 start = id.xy + 0.5;
+    float2 inv = 1.0 / size;
+    float horizon = -1e6;
+    // Steps grow by 6% from one texel, out to the far side of the map (about 150 samples across 11 km).
+    float t = 1;
+    float limit = length((float2)size);
+    [loop] for (int i = 0; i < 200 && t < limit; i++)
+    {
+        float2 q = start + dir * t;
+        if (any(q < 0) || any(q > (float2)size)) break;
+        float h = _HeightsIn.SampleLevel(sampler_linear_clamp, q * inv, 0);
+        horizon = max(horizon, (h - h0 - _ShadowParams.w) / (t * _MapRect.z));
+        t = max(t + 1, t * 1.06);
+    }
+    // Lit when the light stands above the horizon, with a soft edge (the sun's disc and the map's coarseness).
+    _Lit[id.xy] = smoothstep(-_ShadowParams.z, _ShadowParams.z, _Light.z - horizon);
+}

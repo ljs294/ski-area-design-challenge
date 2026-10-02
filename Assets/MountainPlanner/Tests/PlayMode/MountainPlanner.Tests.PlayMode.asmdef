@@ -11,7 +11,8 @@
         "MountainPlanner.World",
         "MountainPlanner.Presentation",
         "MountainPlanner.UI",
-        "MountainPlanner.App"
+        "MountainPlanner.App",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

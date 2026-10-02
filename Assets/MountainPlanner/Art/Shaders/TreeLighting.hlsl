@@ -1,11 +1,12 @@
 // Tree lighting, shared by TreeInstanced.shader and TreeImpostor.shader. Include after URP Lighting.hlsl.
 #ifndef MOUNTAIN_TREE_LIGHTING
 #define MOUNTAIN_TREE_LIGHTING
+#include "FarShadow.hlsl"
 // Foliage: wrapped diffuse (needles pass light, so crowns never go black), ambient from the sky, both
 // darkened by the crown's own occlusion, plus a glow when the sun is behind the tree.
 half3 TreeLight(half3 albedo, float3 n, half ao, float3 positionWS, half translucency)
 {
-    Light sun = GetMainLight(TransformWorldToShadowCoord(positionWS));
+    Light sun = MainLightWithFarShadow(positionWS);
     float3 v = normalize(_WorldSpaceCameraPos - positionWS);
     half ndl = dot(n, sun.direction);
     half wrap = saturate((ndl + 0.3) / 1.3);
