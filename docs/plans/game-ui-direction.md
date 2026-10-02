@@ -24,6 +24,7 @@ Details that come with it:
 - **Units** switch every figure together (m or ft, °C or °F, cm or in, m/s or ft/min, m³ or yd³); the clock is 12- or 24-hour.
 - **Plans are surveyor's orange:** dashed lines with a dimension label on the mountain, and outlined orange lift plates. Built things are solid.
 - **The palette** for both themes is the set of CSS variables at the top of the mockup's HUD styles.
+- **Keys:** the full map, including Tab for Analysis, Shift+1–5 for layers and letters going to the tools while the Toolbox tray is open, is in [controls-key-map.md](controls-key-map.md). The HUD drives the camera through `ViewCamera.LettersToTools` and toggles layers through `ToggleLayer`.
 - **Overpass draws its middle dot (·) off-centre.** The mockup sends that one character to a system font; the game needs the same fallback.
 
 ## 1. Decisions (owner, 2026-09-29)
