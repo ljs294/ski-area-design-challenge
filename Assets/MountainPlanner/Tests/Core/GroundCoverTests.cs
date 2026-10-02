@@ -139,12 +139,15 @@ namespace MountainPlanner.Tests
     /// </summary>
     public sealed class GroundCoverGoldenTests
     {
-        /// <summary>Cover hashes of three tiles: a core tile at the summit, a core edge tile and a ring tile.</summary>
+        /// <summary>
+        /// Cover hashes of three tiles: a core tile at the summit, a core edge tile and a ring tile. Re-pinned for task 12d
+        /// (owner approved, 2026-10-02): eight bands with paved and unpaved roads from the package's roads.
+        /// </summary>
         static readonly Dictionary<string, string> Golden = new Dictionary<string, string>
         {
-            ["t4_3.cover"] = "78191d3666ad1a6aa013c7602beadffd2d9499a31623edeeee1e5ebf05187777",
-            ["t4_4.cover"] = "c62485dc93f1c9b09181f0cd62cf424f5c6c16d6a94f13d114212d1dfc97f7cd",
-            ["t0_0.cover"] = "56a86219ba3a0d59dbd14f693cf551e3abe2c2540cff609eaee45d67276df214",
+            ["t4_3.cover"] = "f0726fa3063d0ab8a4d151cc27837091f2ab70723e45d1c42659cefe398fa26d",
+            ["t4_4.cover"] = "239f375d7e5f4cddbd46b1523d09d8fa683502b92e7c12249bad1f5ced498154",
+            ["t0_0.cover"] = "db1b47aadf908feed4adc8b6aa7c6b5c2f5f457b72166143d63595eeaf00528e",
         };
 
         static string BuildCopy(string dir, out CacheManifest cache)
@@ -182,10 +185,12 @@ namespace MountainPlanner.Tests
                     for (int o = 0; o < cover.Length; o += TerrainCache.CoverBands, texels++)
                         for (int k = 0; k < TerrainCache.CoverBands; k++) totals[k] += cover[o + k] / 255.0;
                 }
-                string[] names = { "forest floor", "grass", "rock", "developed", "water", "snow" };
-                TestContext.Progress.WriteLine(string.Join(", ", names.Select((n, k) => $"{n} {totals[k] / texels:P1}")));
+                string[] names = { "forest floor", "grass", "rock", "developed", "water", "paved road", "unpaved road", "snow" };
+                TestContext.Progress.WriteLine(string.Join(", ", names.Select((n, k) => $"{n} {totals[k] / texels:P2}")));
                 Assert.That(totals[0] / texels, Is.InRange(0.25, 0.6), "forest floor near the canopy's forest share");
-                Assert.That(totals[5] / texels, Is.GreaterThan(0.9), "mostly snow-covered");
+                Assert.That(totals[GroundCover.Layers] / texels, Is.GreaterThan(0.9), "mostly snow-covered");
+                Assert.That(totals[(int)GroundLayer.PavedRoad] / texels, Is.GreaterThan(0.001), "the package's paved roads are drawn (task 12d)");
+                Assert.That(totals[(int)GroundLayer.UnpavedRoad] / texels, Is.GreaterThan(0.0001), "and its tracks");
             }
             finally
             {

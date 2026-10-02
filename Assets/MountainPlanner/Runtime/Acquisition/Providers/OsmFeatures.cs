@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Acquisition.IO;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Domain.Roads;
 using Newtonsoft.Json.Linq;
 
 namespace MountainPlanner.Acquisition.Providers
@@ -32,7 +33,8 @@ namespace MountainPlanner.Acquisition.Providers
     /// <summary>
     /// Water and developed land from OpenStreetMap (0.3 §4.4), via the Overpass API: lakes, rivers and
     /// streams; buildings, roads, parking and built-up land use. One query per site; the response is
-    /// cached on disk, so a resumed or repeated download gives the same package.
+    /// cached on disk, so a resumed or repeated download gives the same package. The same response also gives the
+    /// roads themselves, paved and unpaved, as centre lines (<see cref="ParseRoads"/>, task 12d).
     /// Data © OpenStreetMap contributors, ODbL.
     /// </summary>
     public sealed class OsmFeatures
@@ -44,7 +46,10 @@ namespace MountainPlanner.Acquisition.Providers
             "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
         };
 
-        /// <summary>Road widths in metres by highway class; unlisted classes (paths, tracks) are skipped.</summary>
+        /// <summary>
+        /// Road widths in metres by highway class for the developed raster; unlisted classes (paths, tracks) are skipped
+        /// there. The road layer (task 12d) uses <see cref="RoadRules"/>, which adds tracks.
+        /// </summary>
         public static readonly IReadOnlyDictionary<string, double> RoadWidths = new Dictionary<string, double>
         {
             ["motorway"] = 20, ["trunk"] = 14, ["primary"] = 11, ["secondary"] = 9, ["tertiary"] = 7.5,
@@ -76,7 +81,7 @@ namespace MountainPlanner.Acquisition.Providers
                    $"way[waterway~\"^(riverbank|dock)$\"]{b};" +
                    $"way[landuse~\"^(reservoir|basin)$\"]{b};relation[landuse~\"^(reservoir|basin)$\"]{b};" +
                    $"way[waterway~\"^(river|stream|canal)$\"]{b};" +
-                   $"way[highway~\"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service)(_link)?$\"]{b};" +
+                   $"way[highway~\"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|track)(_link)?$\"]{b};" +
                    $"way[building]{b};relation[building]{b};" +
                    $"way[landuse~\"^(commercial|industrial|retail|garages|railway)$\"]{b};" +
                    $"relation[landuse~\"^(commercial|industrial|retail|garages|railway)$\"]{b};" +
@@ -110,6 +115,33 @@ namespace MountainPlanner.Acquisition.Providers
                 }
                 throw new InvalidOperationException("OpenStreetMap (Overpass) is unavailable.", last);
             }, _meter).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// The roads in an Overpass response (task 12d): every highway way <see cref="RoadRules.IsRoad"/> keeps, above
+        /// ground, with its surface, width (OSM `width` when sensible) and name. Tunnels and road areas are left out.
+        /// </summary>
+        public static List<Road> ParseRoads(byte[] response)
+        {
+            var roads = new List<Road>();
+            var root = JObject.Parse(Encoding.UTF8.GetString(response));
+            foreach (var e in (JArray?)root["elements"] ?? new JArray())
+            {
+                if ((string?)e["type"] != "way" || !(e["tags"] is JObject tags)) continue;
+                string Tag(string key) => (string?)tags[key] ?? "";
+                string highway = Tag("highway");
+                if (!RoadRules.IsRoad(highway) || Tag("area") == "yes") continue;
+                if (Tag("tunnel") is string tunnel && tunnel != "" && tunnel != "no") continue;
+                if (Tag("location") == "underground") continue;
+                var points = Points(e["geometry"] as JArray);
+                if (points.Count < 2) continue;
+                roads.Add(new Road
+                {
+                    Class = highway, Surface = RoadRules.SurfaceOf(highway, Tag("surface")),
+                    WidthMetres = ParseWidth(Tag("width"), RoadRules.Widths[highway]), Name = Tag("name"), Points = points,
+                });
+            }
+            return roads;
         }
 
         /// <summary>Turns an Overpass JSON response into water and developed shapes.</summary>

@@ -10,6 +10,10 @@ namespace MountainPlanner.Domain.Cover
         Rock = 2,
         Developed = 3,
         Water = 4,
+        /// <summary>Asphalt and concrete roads (task 12d), from the package's roads.</summary>
+        PavedRoad = 5,
+        /// <summary>Gravel and dirt roads and tracks (task 12d).</summary>
+        UnpavedRoad = 6,
     }
 
     /// <summary>
@@ -26,6 +30,8 @@ namespace MountainPlanner.Domain.Cover
         public double WcTrees, WcGrass, WcRock, WcDeveloped, WcWater;
         /// <summary>OpenStreetMap coverage from anti-aliased 1–2 m rasters.</summary>
         public double OsmWater, OsmDeveloped;
+        /// <summary>Road coverage (task 12d), anti-aliased from the package's road centre lines; 0 without roads.</summary>
+        public double RoadPaved, RoadUnpaved;
         /// <summary>Terrain slope in degrees, from the lidar.</summary>
         public double SlopeDegrees;
         /// <summary>Keyed noise in −1…1 at this point, for irregular edges.</summary>
@@ -43,7 +49,7 @@ namespace MountainPlanner.Domain.Cover
     /// </summary>
     public static class GroundCover
     {
-        public const int Layers = 5;
+        public const int Layers = 7;
         /// <summary>Slopes (degrees) where the ground turns to rock (under the snow): grades of 78% to 119%.</summary>
         public const double RockSlopeStart = 38, RockSlopeFull = 50;
         /// <summary>Slopes (degrees) where snow can't hold and bare rock shows (A2): grades of 128% to 173%.</summary>
@@ -66,13 +72,16 @@ namespace MountainPlanner.Domain.Cover
         }
 
         /// <summary>
-        /// Weights for the five ground layers (summing to 1) and the snow cover (0–1) at one point.
+        /// Weights for the seven ground layers (summing to 1) and the snow cover (0–1) at one point. Roads (task 12d)
+        /// come out of the developed land that already held the paved ones; without roads every weight is as before.
         /// </summary>
         public static void Classify(in CoverSample s, Span<double> weights, out double snow)
         {
             double water = Math.Max(s.OsmWater, Sharpen(s.WcWater));
-            double developed = Math.Max(s.OsmDeveloped, Sharpen(s.WcDeveloped)) * (1 - water);
-            double land = Math.Max(0, 1 - water - developed);
+            double paved = Math.Min(Math.Max(0, s.RoadPaved), 1 - water);
+            double unpaved = Math.Min(Math.Max(0, s.RoadUnpaved), Math.Max(0, 1 - water - paved));
+            double developed = Math.Max(0, Math.Max(s.OsmDeveloped, Sharpen(s.WcDeveloped)) * (1 - water) - paved - unpaved);
+            double land = Math.Max(0, 1 - water - developed - paved - unpaved);
 
             double slope = s.SlopeDegrees + s.Noise * SlopeJitter;
             double steep = SmoothStep(RockSlopeStart, RockSlopeFull, slope);
@@ -93,6 +102,8 @@ namespace MountainPlanner.Domain.Cover
             weights[(int)GroundLayer.Rock] = rock * land;
             weights[(int)GroundLayer.Developed] = developed;
             weights[(int)GroundLayer.Water] = water;
+            weights[(int)GroundLayer.PavedRoad] = paved;
+            weights[(int)GroundLayer.UnpavedRoad] = unpaved;
             snow = 1 - bare * (1 - water);
         }
 

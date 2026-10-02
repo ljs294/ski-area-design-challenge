@@ -1,6 +1,6 @@
 {
   "FormatVersion": 1,
-  "PackageId": "abcf9fd712a9b1fb",
+  "PackageId": "5792676e513f5302",
   "Site": {
     "Name": "Jackson Hole",
     "Latitude": 43.593002,
@@ -77,6 +77,21 @@
       "Sha256": "e11277d4d113290b38ec00f411598c306398f9f0aa5c0b1c9a9840c1d4f38211",
       "Min": 1899.8375244140625,
       "Max": 3278.68212890625
+    },
+    {
+      "Id": "roads",
+      "File": "roads.json",
+      "Type": "roads",
+      "Width": 1013,
+      "Height": 0,
+      "West": 0.0,
+      "North": 0.0,
+      "CellSize": 0.0,
+      "Bands": 1,
+      "Units": "OpenStreetMap roads: centre lines (EPSG:6350 m), class, surface, width (m), name",
+      "Sha256": "cd13e8435047548650e0f93576133cd1a7d0a215ae8861c9a749ce6eb1c9be16",
+      "Min": 0.0,
+      "Max": 0.0
     },
     {
       "Id": "species-ids",
@@ -301,7 +316,8 @@
     "Elevation: U.S. Geological Survey, 3D Elevation Program (public domain).",
     "Canopy height: © Meta and World Resources Institute, High Resolution Canopy Height Maps (CC BY 4.0).",
     "Land cover: © ESA WorldCover project 2021, contains modified Copernicus Sentinel data (2021) processed by the ESA WorldCover consortium (CC BY 4.0).",
-    "Tree species: USDA Forest Service, Forest Inventory and Analysis, BIGMAP 2018 (public domain)."
+    "Tree species: USDA Forest Service, Forest Inventory and Analysis, BIGMAP 2018 (public domain).",
+    "Water and roads: © OpenStreetMap contributors (ODbL)."
   ],
   "CreatedUtc": "2026-09-27T18:55:45Z",
   "Tool": "MountainPlanner.Acquisition 0.1"
