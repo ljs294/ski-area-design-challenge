@@ -180,12 +180,17 @@ namespace MountainPlanner.World
             terrain.SetSplatMaterialPropertyBlock(block);
         }
 
+        /// <summary>One sample per splat upload; the map-layer test (task 12) proves a layer switch makes none.</summary>
+        public const string ApplySplatMarkerName = "MountainPlanner.Terrain.ApplySplat";
+        static readonly Unity.Profiling.ProfilerMarker ApplySplatMarker = new Unity.Profiling.ProfilerMarker(ApplySplatMarkerName);
+
         /// <summary>
         /// Uploads composed splat texels into the tile's alphamaps on the GPU (no float[,,] detour:
         /// 1024² × 6 layers as floats would be 25 MB per tile). Main thread only.
         /// </summary>
         public static void ApplySplat(TerrainData data, SplatTexels splat)
         {
+            using var marker = ApplySplatMarker.Auto();
             int n = splat.Resolution;
             if (data.alphamapResolution != n) data.alphamapResolution = n;
             // Unity's supported fast path (the one its paint tools use): stage the bytes in a texture, blit

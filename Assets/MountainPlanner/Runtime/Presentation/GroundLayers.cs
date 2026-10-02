@@ -9,8 +9,9 @@ namespace MountainPlanner.Presentation
     /// before its ground cover streams in (task 07). The textures are
     /// procedural placeholders in the art-direction palette until the style tile (task 08) paints them.
     ///
-    /// The cover overlay (task 07) swaps every layer to a flat class colour; because the layers are
-    /// shared by all tiles, switching is instant.
+    /// The cover overlay (task 07) and the snow (map layers, task 12) are switches on the resort's terrain
+    /// material: the splat holds the snow and the ground under it, and the shader composes them, so a switch
+    /// shows in the frame it's made with nothing re-uploaded.
     /// </summary>
     public sealed class GroundLayers
     {
@@ -43,6 +44,7 @@ namespace MountainPlanner.Presentation
         readonly Texture2D[] _textures = new Texture2D[Count];
         readonly Texture2D[] _flat = new Texture2D[Count];
         public bool OverlayOn { get; private set; }
+        public bool SnowOn { get; private set; } = true;
 
         public GroundLayers()
         {
@@ -85,21 +87,39 @@ namespace MountainPlanner.Presentation
             material.SetFloatArray("_Smooth", smooth);
             material.SetVectorArray("_OverlayColor", overlay);
             material.SetVector("_RingBounds", new Vector4(ring.xMin, ring.yMin, ring.xMax, ring.yMax));
-            material.SetFloat("_Overlay", OverlayOn ? 1 : 0);
+            material.SetFloat(OverlayId, OverlayOn ? 1 : 0);
+            material.SetFloat(SnowOnId, SnowOn ? 1 : 0);
         }
 
         /// <summary>The terrain layer slot of cover layer k (0-4 ground in GroundLayer order, 5 = snow).</summary>
         public static int Slot(int k) => k == Snow ? 0 : k + 1;
 
+        static readonly int OverlayId = Shader.PropertyToID("_Overlay");
+        static readonly int SnowOnId = Shader.PropertyToID("_SnowOn");
+
+        /// <summary>The cover-map overlay: flat class colours, with the snow left out whatever the Snow layer says.</summary>
         public void SetOverlay(bool on)
         {
+            if (on == OverlayOn) return;
             OverlayOn = on;
-            if (Material != null) Material.SetFloat("_Overlay", on ? 1 : 0);
+            if (Material != null)
+            {
+                Material.SetFloat(OverlayId, on ? 1 : 0);
+                return;
+            }
+            // Without the mountain shader (tests, fallback) Unity's terrain shader draws the layers' own textures.
             for (int k = 0; k < Count; k++)
             {
                 Layers[Slot(k)].diffuseTexture = on ? _flat[k] : _textures[k];
                 Layers[Slot(k)].smoothness = on ? 0 : Smoothness[k];
             }
+        }
+
+        /// <summary>The snow on the ground (lakes: snow on ice, or bare ice); the ground cover under it shows when it's off.</summary>
+        public void SetSnow(bool on)
+        {
+            SnowOn = on;
+            if (Material != null) Material.SetFloat(SnowOnId, on ? 1 : 0);
         }
 
         /// <summary>URP terrain reads a layer texture's alpha as smoothness, so alpha carries the layer's smoothness.</summary>
