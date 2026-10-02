@@ -41,8 +41,8 @@ Material:
     - _SnowScale: 1
     - _Translucency: 0.6
     m_Colors:
-    - _ImpCenter: {r: -1.3281915, g: 12.114774, b: 1.237674, a: 0}
-    - _ImpSize: {r: 9.833918, g: 26.30762, b: 0, a: 0}
+    - _ImpCenter: {r: -1.6072431, g: 12.039871, b: 1.0016122, a: 0}
+    - _ImpSize: {r: 10.094806, g: 26.157814, b: 0, a: 0}
     - _SnowColor: {r: 0.93, g: 0.95, b: 0.97999996, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

@@ -372,6 +372,7 @@ def render_all(species, built, seasons, out_dir, shots=None):
         lineup_shot(entries, os.path.join(out_dir, "trees-lods.png"), "winter", species, seasons, originals, label_size=0.9)
 
     render_task09(species, built, seasons, out_dir, want, originals)
+    render_phase2(species, built, seasons, out_dir, want, originals)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -433,11 +434,10 @@ def slope(x0, x1, y0, y1, grade, top=SNOW):
     bpy.context.scene.collection.objects.link(o)
 
 
-def texture_sheet(ids, path, size=256):
-    """A contact sheet of each model's textures (rows: models; columns: spray, cluster, bark, bark normal)
-    over a mid grey, so the alpha cut-outs show."""
+def texture_sheet(ids, path, size=256, cols=("spray", "cluster", "bark", "bark_normal")):
+    """A contact sheet of each model's textures (rows: models; columns: spray, cluster, bark, bark normal by
+    default) over a mid grey, so the alpha cut-outs show. A model without a column's texture leaves it grey."""
     import numpy as np
-    cols = ("spray", "cluster", "bark", "bark_normal")
     pad = 12
     sheet = np.full((len(ids) * (size + pad) + pad, len(cols) * (size + pad) + pad, 4), 0.42, np.float32)
     sheet[..., 3] = 1
@@ -597,3 +597,81 @@ def render_task09(species, built, seasons, out_dir, want, originals):
 
     if new and want("textures"):
         texture_sheet(new + (["krummholz"] if "krummholz" in built else []), os.path.join(out_dir, "trees-textures-new.png"))
+
+
+# Task 09 phase 2: the New England models (docs/plans/new-england-species-plan.md, NE5).
+PHASE2 = ("eastern_white_pine", "northern_red_oak", "black_cherry")
+TODAY = {"eastern_white_pine": "lodgepole_pine", "northern_red_oak": "sugar_maple", "black_cherry": "quaking_aspen"}
+# A lower-slope New England stand (southern NH: Gunstock, King Pine), with the shared models standing in for
+# eastern hemlock (western hemlock) and white ash (sugar maple), by share of biomass.
+NEW_ENGLAND = (("northern_red_oak", 20), ("eastern_white_pine", 15), ("red_maple", 15), ("western_hemlock", 10),
+               ("sugar_maple", 10), ("yellow_birch", 8), ("american_beech", 7), ("black_cherry", 6), ("paper_birch", 4))
+
+
+def render_phase2(species, built, seasons, out_dir, want, originals):
+    by_id = {sp["id"]: sp for sp in species}
+    new = [sid for sid in PHASE2 if sid in built]
+    if not new:
+        return
+
+    def lod0(sid, v=0):
+        return built[sid][v]["objects"][0]
+
+    if want("ne-compare"):
+        # Today's stand-in, scaled to the new tree's height as the game scales it, then the three variants.
+        for sid in new:
+            look = TODAY[sid]
+            if look not in built:
+                continue
+            k = top_of(lod0(sid)) / top_of(lod0(look))
+            entries = [(lod0(look), f"today: {by_id[look]['name'].lower()}", k)]
+            entries += [(lod0(sid, v), by_id[sid]["name"] if v == 1 else "") for v in range(3)]
+            lineup_shot(entries, os.path.join(out_dir, f"trees-ne-compare-{sid}.png"), "winter", species, seasons, originals,
+                        label_size=1.3)
+
+    if want("ne-new"):
+        entries = [(lod0(sid, v), by_id[sid]["name"] if v == 1 else "") for sid in new for v in range(3)]
+        lineup_shot(entries, os.path.join(out_dir, "trees-ne-new.png"), "winter", species, seasons, originals, label_size=1.3)
+
+    broad = [sid for sid in new if by_id[sid]["form"] == "deciduous"]
+    if broad and want("ne-seasons"):
+        grounds = {"summer": srgb("#5E6B3A"), "autumn": srgb("#6B5A45")}
+        for season, top in grounds.items():
+            entries = [(lod0(sid, v), f"{by_id[sid]['name']}, {season}" if v == 1 else "") for sid in broad for v in range(3)]
+            lineup_shot(entries, os.path.join(out_dir, f"trees-ne-{season}.png"), season, species, seasons, originals,
+                        top=top, label_size=1.1)
+
+    if want("ne-closeup"):
+        # Each new tree's trunk and lower crown at eye level, a few metres away: bark and foliage.
+        for sid in new:
+            set_season(species, seasons, "winter")
+            place(lod0(sid), (0, 0, 0), rot=0.6)
+            skier(2.2, -2.5)
+            slab(-12, 12, -10, 10, top=SNOW)
+            sun(elevation=22, azimuth=-55)
+            setup_render(1600, 1200, samples=96)
+            persp_camera((0, 0, 5.0), 14.0, 8, -20, lens=35)
+            render(os.path.join(out_dir, f"trees-ne-closeup-{sid}.png"))
+            clear_scene(originals)
+
+    mix = [(sid, w) for sid, w in NEW_ENGLAND if sid in built]
+    if len(mix) == len(NEW_ENGLAND) and want("ne-grove"):
+        cam = ((0, 0, 8), 125, 27, -25)
+        grove_shot(mix, os.path.join(out_dir, "trees-grove-ne-lower.png"), species, seasons, originals, built, camera=cam)
+        grove_shot(mix, os.path.join(out_dir, "trees-grove-ne-lower-autumn.png"), species, seasons, originals, built,
+                   season="autumn", camera=cam)
+
+    if want("ne-lods"):
+        entries = []
+        for sid in new:
+            m = built[sid][0]
+            entries += [(o, f"LOD{li} · {m['triangles'][li]:,}") for li, o in enumerate(m["objects"])]
+        lineup_shot(entries, os.path.join(out_dir, "trees-ne-lods.png"), "winter", species, seasons, originals, label_size=1.1)
+
+    if want("ne-textures"):
+        conifers = [sid for sid in new if by_id[sid]["form"] == "conifer"]
+        if conifers:
+            texture_sheet(conifers, os.path.join(out_dir, "trees-ne-textures-conifers.png"))
+        if broad:
+            texture_sheet(broad, os.path.join(out_dir, "trees-ne-textures-broadleaves.png"),
+                          cols=("leaves_summer", "leaves_autumn", "leaves_kept", "twigs", "bark", "bark_normal"))

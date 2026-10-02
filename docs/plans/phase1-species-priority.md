@@ -17,6 +17,7 @@
 
 - Across the 477 forested ski areas, **45.5%** of forest biomass is drawn as its real species with the 11 species we had before this task.
 - This task adds Pacific silver fir, western hemlock and noble fir: **46.9%** on average. That's +0.4 flora points across the US, but **+5.5 points across the 30 ski areas in Washington and Oregon**, and about +11 at Crystal Mountain (flora 75 to about 87).
+- **Task 09 phase 2** ([New England](new-england-species-plan.md#result-the-switch-on-2026-10-01), 2026-10-01) adds eastern white pine, northern red oak and black cherry, plus six species that share a model because they look alike (balsam fir, northern white-cedar, red spruce, eastern hemlock, white ash, sweet birch): **66.6%** on average, about +5 flora points across the US, and **91%** at the average New England ski area (from 49%).
 - The library was chosen for Jackson Hole and Crystal Mountain (D3) and for Jackson, NH. It fits the Rockies and the Cascades. It doesn't fit the Northeast, Upper Midwest and Mid-Atlantic, where most US ski areas are and where oaks, pines and northern hardwoods dominate.
 
 ## The ranking, after this task
@@ -47,6 +48,23 @@ The species not modelled once this task is done, by the flora points a model wou
 | 20 | Red pine (125) | lodgepole pine | 0.21 | 35 | Mt. McSauba (MI) 18%; Nordic Mountain (WI) 18%; Otsego Club (MI) 12% |
 
 **By genus**, all species of each group together (points per area; one model could stand in for a whole group, though F1 only counts the exact species): oaks 3.7, pines 2.4, true firs 1.5, ashes 0.8, hemlocks 0.7, spruces 0.4, hickories 0.4, poplars 0.4, birches 0.3, maples 0.2.
+
+## The ranking, after phase 2
+
+The same report re-run on 2026-10-01 with phase 2's species map (`acquire species-report`, from the survey's cache). The New England species are gone from the top; what's left is led by the West's pines and firs and the other oaks.
+
+| Rank | Species (FIA code) | Drawn today as | Flora points per area | Areas where it's ≥3% of biomass | Biggest shares |
+|---|---|---|---|---|---|
+| 1 | Ponderosa pine (122) | lodgepole pine | 0.70 | 78 | Ski Mystic Deer Mountain (SD) 87%; Terry Peak Ski Area (SD) 85%; Cottonwood Butte Ski Hill (ID) 52% |
+| 2 | White fir (15) | noble fir | 0.55 | 71 | Cedar Pass (CA) 35%; Coppervale (CA) 33%; Granlibakken Ski Resort (CA) 33% |
+| 3 | White oak (802) | sugar maple | 0.54 | 128 | Hidden Valley (MO) 27%; Heiliger Huegel Ski Club (WI) 15%; Wilmot Mountain (WI) 14% |
+| 4 | Black oak (837) | sugar maple | 0.35 | 77 | Pine Knob Ski & Snowboard Resort (MI) 14%; Mt. Holly Ski & Snowboard Resort (MI) 13%; Mt Brighton (MI) 13% |
+| 5 | Chestnut oak (832) | sugar maple | 0.32 | 55 | Massanutten Resort (VA) 29%; Wintergreen Ski Resort (VA) 27%; Bryce Resort (VA) 24% |
+| 6 | Bur oak (823) | sugar maple | 0.31 | 51 | Frost Fire Park (ND) 36%; Bottineau Winter Park (ND) 34%; Detroit Mountain (MN) 31% |
+| 7 | Grand fir (17) | Pacific silver fir | 0.29 | 34 | Bluewood (WA) 51%; Bald Mountain Ski Area (ID) 51%; Dixie Summit (OR) 29% |
+| 8 | California red fir (20) | noble fir | 0.28 | 25 | China Peak Mountain Resort (CA) 34%; Kirkwood Mountain Resort (CA) 32%; Palisades Tahoe Olympic Valley (CA) 29% |
+| 9 | Jeffrey pine (116) | lodgepole pine | 0.25 | 31 | Snow Summit (CA) 23%; Mount Waterman (CA) 23%; Bear Mountain (CA) 23% |
+| 10 | Yellow-poplar (621) | quaking aspen | 0.24 | 47 | Big Snow American Dream (NJ) 16%; Wintergreen Ski Resort (VA) 16%; Spring Mountain Ski Area (PA) 15% |
 
 ## Recommendation
 
