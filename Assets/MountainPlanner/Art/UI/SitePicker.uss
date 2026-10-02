@@ -129,7 +129,10 @@
 
 /* Search results: a short list under the search row; one click flies there. */
 .picker-results {
-    margin: 0 16px 8px 80px;
+    position: absolute;
+    top: 92px; left: 80px; right: 16px;
+    max-height: 320px;
+    overflow: hidden;
     border-width: 1px;
     border-color: var(--hair);
     border-radius: 4px;

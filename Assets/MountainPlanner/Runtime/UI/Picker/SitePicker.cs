@@ -45,6 +45,7 @@ namespace MountainPlanner.UI.Picker
             if (Document == null) Document = GetComponent<UIDocument>();
             _root = Document.rootVisualElement.Q("picker");
             _results = _root.Q("results");
+            _results.BringToFront();   // floats over the map instead of pushing the window taller
             _searchMessage = _root.Q<Label>("search-message");
             _offline = _root.Q("offline");
             _legend = _root.Q("legend");

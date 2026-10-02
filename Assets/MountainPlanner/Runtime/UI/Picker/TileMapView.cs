@@ -303,8 +303,9 @@ namespace MountainPlanner.UI.Picker
                         image.image = _textures.TryGetValue(key, out var tex) ? tex : null;
                         _tileLayer.Add(image);
                         _shown[key] = image;
-                        if (image.image == null) Load(_zoom, wx, ty, key);
                     }
+                    // Also retries tiles that were wanted before the services arrived or while offline.
+                    if (image.image == null) Load(_zoom, wx, ty, key);
                     image.style.left = (float)(tx * SlippyMap.TileSize - left);
                     image.style.top = (float)(ty * SlippyMap.TileSize - top);
                 }

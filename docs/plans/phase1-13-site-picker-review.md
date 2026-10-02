@@ -8,9 +8,10 @@ The picker runs on its own in the Picker Lab (demo.bat 35). Choosing Download ha
 
 | | |
 |---|---|
-| ![Search for Crystal Mountain](images/p1-13/search-crystal.jpg) | **Search, then Enter.** One result, so the map flies there, centres the square on it and suggests its name. The estimate line reads underneath. |
+| ![Search for Crystal Mountain](images/p1-13/search-crystal.jpg) | **Search, then Enter.** One result, so the map flies there, centres the square on it and suggests its name. The square is tilted: it is exact in the package's Albers grid, which turns about 15° from true north here. The estimate line reads underneath. |
 | ![Jackson Hole on imagery](images/p1-13/jackson-imagery.jpg) | **Imagery, with the data overlay.** Dark blue squares are published S1M tiles (10 km, 1 m); mid blue is other 1 m lidar; light blue is about 3 m; unshaded is about 10 m. The thin outer line is the 3 km surroundings that download too. |
-| ![Crystal Mountain overview](images/p1-13/crystal-overview.jpg) | **Zoomed out.** The square is tilted: it is exact in the package's Albers grid, which turns about 15° from true north at Crystal (about 9° at Jackson Hole). What you see is what downloads. |
+| ![Opening the picker](images/p1-13/open.jpg) | **Opening.** The contiguous US on USGS topo with the data overlay; sizes read in miles (the game's units setting). |
+| ![Search results](images/p1-13/search-results.jpg) | **Several results** float over the map; one click flies there and places the square. |
 | ![Offline](images/p1-13/offline.jpg) | **No network.** The map becomes this panel, search and Download switch off, and Retry tries again. |
 
 ## Acceptance
