@@ -71,6 +71,25 @@ namespace MountainPlanner.App
         FarTerrainShadow _farShadows;
         System.Collections.Generic.List<Landmarks.Placed> _landmarks = new System.Collections.Generic.List<Landmarks.Placed>();
 
+        /// <summary>
+        /// App scene flow (task 14): the package folder to open next. AppFlow sets it, then reloads this scene;
+        /// it wins over -package, -site and the demo mountain.
+        /// </summary>
+        public static string RequestedPackage;
+
+        /// <summary>
+        /// App scene flow (task 14): the demo mountain behind the title screen. While true the HUD, the overlay and
+        /// the viewer's keys are off and the camera ignores input (AppFlow drives the orbit); <see cref="EnterGame"/> ends it.
+        /// </summary>
+        public static bool TitleMode;
+
+        /// <summary>Leaves the title screen: the keys, camera input and HUD come back as after a normal open.</summary>
+        public void EnterGame()
+        {
+            TitleMode = false;
+            if (Camera != null) Camera.InputEnabled = true;
+        }
+
         public static string DataRoot =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkiAreaDesignChallenge");
 
@@ -207,6 +226,7 @@ namespace MountainPlanner.App
 
         static string PickPackage()
         {
+            if (!string.IsNullOrEmpty(RequestedPackage) && Directory.Exists(RequestedPackage)) return RequestedPackage;
             string[] args = Environment.GetCommandLineArgs();
             int i = Array.IndexOf(args, "-package");
             if (i >= 0 && i + 1 < args.Length && Directory.Exists(args[i + 1])) return args[i + 1];
@@ -225,7 +245,11 @@ namespace MountainPlanner.App
         void Update()
         {
             _fps = Mathf.Lerp(_fps, 1f / Mathf.Max(1e-4f, Time.unscaledDeltaTime), 0.05f);
-            HandleKeys(Keyboard.current);
+            if (TitleMode)
+            {
+                if (Camera != null) Camera.InputEnabled = false;
+            }
+            else HandleKeys(Keyboard.current);
             _resort?.States?.Sync();
             UpdateHud();
 
@@ -305,7 +329,7 @@ namespace MountainPlanner.App
         void UpdateHud()
         {
             if (Hud == null) return;
-            bool show = _resort != null && _hud && _ui && !_photo;
+            bool show = _resort != null && _hud && _ui && !_photo && !TitleMode;
             if (show != _hudShown) Hud.SetVisible(_hudShown = show);
             if (!show || Time.unscaledTime < _nextReadout || Camera == null) return;
             _nextReadout = Time.unscaledTime + 0.1f;
@@ -416,7 +440,7 @@ namespace MountainPlanner.App
 
         void OnGUI()
         {
-            if (!_hud || _capturing) return;
+            if (!_hud || _capturing || TitleMode) return;
             var style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 15, wordWrap = true };
             style.normal.textColor = Color.white;
             GUI.backgroundColor = new Color(0f, 0f, 0f, 2f); // the default box is too pale to read over snow
