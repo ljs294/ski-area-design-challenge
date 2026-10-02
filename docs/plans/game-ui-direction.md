@@ -178,6 +178,26 @@ The style-tile HUD mock ([S6](phase0-0.4-ui-ux.md)) moves into this frame when t
 - there are no camera buttons (the wheel and + − zoom), and the elevation readout sits in the status bar;
 - the Toolbox appears in Phase 3; until then its button stays hidden.
 
+### 7.1 Built in the S6 mock, to carry into the Trailhead HUD (tasks 12–12b.2)
+
+The behaviour below runs in the game today inside the placeholder S6 HUD (`Hud.uxml`, `Hud.uss`, `MountainHud.cs`). The Trailhead HUD rebuilds the visuals and keeps the behaviour, wired to the same code. The mockup is updated to match in its own thread.
+
+| Element | Behaviour | Data and wording live in |
+|---|---|---|
+| Layers panel: **Map layers** | Snow (Shift+1) and Trees (Shift+3), square checkboxes, any combination. Snow off removes snow from the ground, ledges, diorama walls and trees; lakes show bare ice | `MapLayers` (`MapIds`, `Set`, `IsOn`) |
+| Layers panel: **Info layers** | Slope angle (Shift+7), Slope exposure (Shift+8) and Snow depth (Shift+9) take turns: round radio boxes, and choosing one turns off the other. Snow conditions (Shift+0) is greyed out, and its key shows the toast "Snow conditions come with the snow simulation". Contours (Shift+6) is a square checkbox that combines with any of them | `MapLayers` (`InfoIds`, `IsExclusive`, `IsSwitchable`) |
+| Rows and keys share one path | A click raises `LayerChanged(id, on)`. The app toggles through `ToggleLayer`, the same call the keys use, and the HUD only mirrors state at 10 Hz | `MountainViewer.ToggleLayer`, `MountainHud.SetLayer` |
+| **Legend card** | Shown under the panel while an info layer or Contours is on. Swatch, word and figure columns, then a note. Rebuilt only when the layer or the units change | `InfoLegend` (colours tested equal to `InfoLayers.hlsl`), `MountainHud.SetLegend` |
+| Slope angle legend | Easiest under 25% (green), More difficult 25–40% (blue), Most difficult 40–60% (charcoal), Experts only over 60% (charcoal with white hatching). Note: "Grade: rise over run (100% is 45°)." | `InfoLegend.SlopeAngle`, `SlopeBands` |
+| Exposure legend | A 3×3 compass of swatches (NW N NE / W flat E / SW S SE), labels in dark or white by contrast. Note: from true north; flatter than 10% is grey | `InfoLegend.ExposureColours`, `ExposureNote` |
+| Snow depth legend | Bare, Thin and Deep words at 0, 6 in, 1 ft 6 in, 3 ft, 6 ft and 10 ft + (0, 15, 50 cm, 1, 2, 3 m +). Note about the natural snowpack | `InfoLegend.SnowDepth(units)`, `UnitFormat.SnowDepthStops` |
+| Contours note | "Contours every 40 ft, labelled every 200 ft." (10 m / 50 m) | `InfoLegend.ContoursNote(units)` |
+| **Cursor readout** | A second line under "Elev …", only while slope, exposure or snow depth is on: "Slope 47% · Most difficult", "Faces SE · 135°" (or "Flat"), "Snow 2 ft 4 in". The text is rebuilt only when the rounded value changes | `MountainHud.SetInfoReadout`, `MountainViewer.SlopeAt` / `SnowDepthAt` |
+| **Contour labels** | Elevation numbers ("8200") on the 200 ft (50 m) lines, rotated along the line and kept upright. At most 40, at least 96 px apart, hidden behind ridges, and only the 1,000 ft lines where lines pack tight. Dark text with a light halo, 12 px bold, behind the panels | `ContourLabels` (placement), `UI/ContourLabelOverlay`, `.contour-label` in `Hud.uss` |
+| **Units** | Imperial by default. U and the menu's "Units: imperial / metric" switch every figure together: elevation, scale bar (ft and mi, or m and km), legend, readout, contours and labels. Remembered between sessions | `DisplayUnits` (`Current`, `Toggle`, `Changed`), `UnitFormat` |
+| Elevation and scale bar | "Elev 8,640 ft". The scale bar steps 20 ft … 2,000 ft, ½ mi … 5 mi (5 m … 10 km) | `UnitFormat.Elevation`, `ScaleLengths` |
+| Developer view | The cover map is an F1 switch, not a player layer (it takes the info layers' slot) | `MapLayers.CoverMap` |
+
 ## 8. Scope
 
 This doc covers the interface only. Game mechanics (construction time, milestones, pricing, sound) belong to the Phase 3 and Phase 4 plans; the UI leaves room for them without deciding them.
