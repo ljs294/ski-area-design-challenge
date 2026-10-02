@@ -23,28 +23,50 @@
                 <ui:Button name="menu-quit" class="menu-item menu-item--danger" text="Quit to desktop" />
             </ui:VisualElement>
             <ui:VisualElement class="spacer" picking-mode="Ignore" />
-            <ui:VisualElement name="layers" class="panel layers">
-                <ui:Button name="layers-header" class="panel-header">
-                    <ui:Label class="panel-title" text="Layers" picking-mode="Ignore" />
-                    <ui:Label name="layers-caret" class="caret" text="–" picking-mode="Ignore" />
-                </ui:Button>
-                <ui:VisualElement name="layers-body">
-                    <ui:Button name="layer-snow" class="layer" tooltip="N">
-                        <ui:Label class="layer-label" text="Snow" picking-mode="Ignore" />
-                        <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+            <ui:VisualElement name="right-column" class="right-column" picking-mode="Ignore">
+                <ui:VisualElement name="layers" class="panel layers">
+                    <ui:Button name="layers-header" class="panel-header">
+                        <ui:Label class="panel-title" text="Layers" picking-mode="Ignore" />
+                        <ui:Label name="layers-caret" class="caret" text="–" picking-mode="Ignore" />
                     </ui:Button>
-                    <ui:Button name="layer-ground" class="layer" tooltip="Comes with map layers (task 12)">
-                        <ui:Label class="layer-label" text="Ground" picking-mode="Ignore" />
-                        <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                    </ui:Button>
-                    <ui:Button name="layer-forest" class="layer" tooltip="Show or hide the trees">
-                        <ui:Label class="layer-label" text="Forest" picking-mode="Ignore" />
-                        <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                    </ui:Button>
-                    <ui:Button name="layer-cover" class="layer" tooltip="V">
-                        <ui:Label class="layer-label" text="Cover map" picking-mode="Ignore" />
-                        <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                    </ui:Button>
+                    <ui:VisualElement name="layers-body">
+                        <ui:Label class="layer-section" text="Map layers" picking-mode="Ignore" />
+                        <ui:Button name="layer-snow" class="layer" tooltip="Snow on the ground, ledges and trees (Shift+1)">
+                            <ui:Label class="layer-label" text="Snow" picking-mode="Ignore" />
+                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                        </ui:Button>
+                        <ui:Button name="layer-trees" class="layer" tooltip="Show or hide the trees (Shift+3)">
+                            <ui:Label class="layer-label" text="Trees" picking-mode="Ignore" />
+                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                        </ui:Button>
+                        <ui:VisualElement class="layer-rule" picking-mode="Ignore" />
+                        <ui:Label class="layer-section" text="Info layers" picking-mode="Ignore" />
+                        <ui:Button name="layer-slope" class="layer layer--choice" tooltip="Steepness by trail difficulty (Shift+7)">
+                            <ui:Label class="layer-label" text="Slope angle" picking-mode="Ignore" />
+                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                        </ui:Button>
+                        <ui:Button name="layer-exposure" class="layer layer--choice" tooltip="The way each slope faces (Shift+8)">
+                            <ui:Label class="layer-label" text="Slope exposure" picking-mode="Ignore" />
+                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                        </ui:Button>
+                        <ui:Button name="layer-depth" class="layer layer--choice" tooltip="How deep the snow lies (Shift+9)">
+                            <ui:Label class="layer-label" text="Snow depth" picking-mode="Ignore" />
+                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                        </ui:Button>
+                        <ui:Button name="layer-conditions" class="layer layer--choice" tooltip="Comes with the snow simulation (Shift+0)">
+                            <ui:Label class="layer-label" text="Snow conditions" picking-mode="Ignore" />
+                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                        </ui:Button>
+                        <ui:Button name="layer-contours" class="layer" tooltip="Elevation lines every 10 m, heavier every 50 m (Shift+6)">
+                            <ui:Label class="layer-label" text="Contours" picking-mode="Ignore" />
+                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                        </ui:Button>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement name="legend" class="panel legend hidden" picking-mode="Ignore">
+                    <ui:Label name="legend-title" class="panel-title" text="Legend" picking-mode="Ignore" />
+                    <ui:VisualElement name="legend-body" picking-mode="Ignore" />
+                    <ui:Label name="legend-note" class="legend-note" picking-mode="Ignore" />
                 </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>

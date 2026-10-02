@@ -8,6 +8,11 @@ namespace MountainPlanner.World
     /// on worker threads from the cached cover texels (task 07).
     /// Channel order follows the terrain layers: texture 0 = snow, forest floor, grass, rock;
     /// texture 1 = developed, water. Snow is layer 0 so an unpainted tile already reads as snow.
+    ///
+    /// The snow and the ground under it are both kept (map layers, task 12): channel 0 is the snow's weight,
+    /// and the ground and water channels are the bare ground cover, summing to 255 on their own. The terrain
+    /// shader lays the snow over the land share (MountainTerrain.shader), or leaves it off with the Snow layer
+    /// off, so switching the snow needs no new splat.
     /// </summary>
     public sealed class SplatTexels
     {
@@ -24,14 +29,14 @@ namespace MountainPlanner.World
 
         /// <summary>
         /// Composes cover texels (north row first, six bytes each) into splat textures (south row first,
-        /// as Unity's alphamaps are). With snow on, snow lies over the ground by its cover; with it off,
-        /// the ground layers show alone (the "under the snow" view, T17).
+        /// as Unity's alphamaps are): the snow's weight in channel 0 (snow lies on the land by its cover, thinned
+        /// under forest stands), and the ground cover unscaled in the other five (the "under the snow" view, T17).
         /// </summary>
-        public static SplatTexels Compose(byte[] cover, int resolution, bool snow)
+        public static SplatTexels Compose(byte[] cover, int resolution)
         {
             const int bands = TerrainCache.CoverBands;
             int n = resolution;
-            var shade = StandShade(cover, n, snow);
+            var shade = StandShade(cover, n);
             var t0 = new byte[n * n * 4];
             var t1 = new byte[n * n * 4];
             for (int j = 0; j < n; j++)
@@ -42,20 +47,13 @@ namespace MountainPlanner.World
                     // Snow lies on the land; water keeps its weight under snow, so the terrain shader knows
                     // where the frozen lakes are and draws snow on ice there (MountainTerrain.shader).
                     int w = cover[src + 4], land = 255 - w;
-                    int s = snow ? cover[src + GroundCover.Layers] * (255 - shade[j * n + i]) / 255 * land / 255 : 0;
-                    int keep = land - s;
-                    // Scale the land weights by what the snow leaves; rounding leftovers go to the largest.
-                    int f = 0, g = 0, r = 0, d = 0;
-                    if (land > 0)
-                    {
-                        f = cover[src] * keep / land; g = cover[src + 1] * keep / land;
-                        r = cover[src + 2] * keep / land; d = cover[src + 3] * keep / land;
-                    }
-                    int rest = 255 - s - f - g - r - d - w;
+                    int s = cover[src + GroundCover.Layers] * (255 - shade[j * n + i]) / 255 * land / 255;
+                    int f = cover[src], g = cover[src + 1], r = cover[src + 2], d = cover[src + 3];
+                    // Rounding leftovers go to the largest ground layer.
+                    int rest = 255 - f - g - r - d - w;
                     if (rest > 0)
                     {
-                        if (s >= 128) s += rest;
-                        else if (g >= f && g >= r && g >= d && g >= w) g += rest;
+                        if (g >= f && g >= r && g >= d && g >= w) g += rest;
                         else if (f >= r && f >= d && f >= w) f += rest;
                         else if (r >= d && r >= w) r += rest;
                         else if (d >= w) d += rest;
@@ -76,10 +74,9 @@ namespace MountainPlanner.World
         /// Shade per texel (0–<see cref="ForestShade"/>): the forest-floor weight averaged over
         /// <see cref="ShadeRadiusMetres"/> (separable box), eased so only real stands get it.
         /// </summary>
-        static byte[] StandShade(byte[] cover, int n, bool snow)
+        static byte[] StandShade(byte[] cover, int n)
         {
             var shade = new byte[n * n];
-            if (!snow) return shade;
             const int bands = TerrainCache.CoverBands;
             float texel = 1024f / (n - 1);
             int r = System.Math.Max(1, (int)System.Math.Round(ShadeRadiusMetres / texel));
@@ -114,7 +111,7 @@ namespace MountainPlanner.World
             return shade;
         }
 
-        public static SplatTexels Load(string packageFolder, CacheTile tile, bool snow) =>
-            Compose(TerrainCache.ReadCover(packageFolder, tile), tile.CoverResolution, snow);
+        public static SplatTexels Load(string packageFolder, CacheTile tile) =>
+            Compose(TerrainCache.ReadCover(packageFolder, tile), tile.CoverResolution);
     }
 }

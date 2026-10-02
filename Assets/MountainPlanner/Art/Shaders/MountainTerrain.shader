@@ -2,7 +2,9 @@
 // from two splat maps (snow, forest floor, grass, rock / developed, ice), height-based blending so
 // transitions look like snow drifting over rock rather than a cross-fade, triplanar rock so cliffs never
 // stretch, frozen-lake shading, the cover-map overlay, and a clean cut at the edge of the downloaded
-// data (the diorama edge, A1).
+// data (the diorama edge, A1). The splat holds the snow and the bare ground cover under it (SplatTexels);
+// the snow is laid over the land here, so the Snow and Cover map layers (task 12) switch with a float. The info
+// layers and contours (task 12b, InfoLayers.hlsl) take their slope from the tile's own heightmap on the GPU.
 Shader "MountainPlanner/Terrain"
 {
     Properties
@@ -11,7 +13,7 @@ Shader "MountainPlanner/Terrain"
         _Normals ("Normals (array)", 2DArray) = "" {}
         _Overlay ("Cover-map overlay", Float) = 0
         _HeightBlend ("Height-blend sharpness", Range(0.01, 1)) = 0.2
-        _SnowOn ("Snow on the ground (lakes: snow on ice, or bare ice)", Float) = 1
+        _SnowOn ("Snow layer: snow on the ground (lakes: snow on ice, or bare ice)", Float) = 1
     }
     SubShader
     {
@@ -32,6 +34,8 @@ Shader "MountainPlanner/Terrain"
         CBUFFER_END
         float _ControlRes;           // per tile (property block): splat texels per edge
         float _TileSize;             // per tile: metres per splat uv
+        TEXTURE2D(_Heightmap); SAMPLER(sampler_mp_linear_clamp);   // per tile: Unity's heightmap on the GPU (task 12b: slope and exposure at 1 m)
+        float4 _HeightmapParams;     // per tile: x texels per edge, y metres per unit sample, z metres between samples
         float4 _RingBounds;          // xmin, zmin, xmax, zmax in world space: the data's edge
         float _Tile[6];              // metres per texture repeat, per layer
         float _Smooth[6];
@@ -45,6 +49,14 @@ Shader "MountainPlanner/Terrain"
         // The water's surface state (WaterBodies): x = state + 1 (1 open water, 2 ice, 3 snow-covered ice;
         // 0 not set yet, drawn as snow-covered ice), y ice and z snow thickness (m).
         float4 _LakeState;
+
+        // Snow depth in metres at a point (12 in until the field is set).
+        float SnowDepthMetres(float3 positionWS)
+        {
+            if (_SnowDepthParams.w < 0.5) return 0.3048;
+            float2 uv = (positionWS.xz - _SnowDepthRect.xy) * _SnowDepthRect.zw;
+            return SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, uv, 0).r;
+        }
 
         float SnowCover(float3 positionWS)
         {
@@ -76,6 +88,7 @@ Shader "MountainPlanner/Terrain"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Haze.hlsl"
             #include "FarShadow.hlsl"
+            #include "InfoLayers.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings
@@ -231,6 +244,21 @@ Shader "MountainPlanner/Terrain"
                 }
             }
 
+            // The ground's rise per metre east (x) and north (y), from the tile's heightmap by central differences two
+            // samples either side (4 m across in the core, 8 m in the ring): the slope a skier feels, without the
+            // 1 m lidar's ruts and ditches, the same at any distance whatever the mesh's LOD.
+            float2 HeightGradient(float2 uv)
+            {
+                float res = max(_HeightmapParams.x, 2);
+                float2 huv = (uv * (res - 1) + 0.5) / res;
+                float t = 2 / res;
+                float east = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(t, 0), 0).r;
+                float west = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(t, 0), 0).r;
+                float north = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t), 0).r;
+                float south = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t), 0).r;
+                return float2(east - west, north - south) * _HeightmapParams.y / max(4 * _HeightmapParams.z, 1e-3);
+            }
+
             half4 Frag(Varyings i) : SV_Target
             {
                 ClipToRing(i.positionWS);
@@ -241,9 +269,19 @@ Shader "MountainPlanner/Terrain"
                 float2 cuv = (i.uv * (res - 1) + 0.5) / res;
                 float4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
                 float4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
-                // Thin snow lets the composed ground show; where nothing is composed under the snow it stays.
-                float under = 1 - c0.r;
-                float weights[6] = { c0.r * lerp(1, SnowCover(i.positionWS), saturate(under * 50)), c0.g, c0.b, c0.a, c1.r, c1.g };
+                // c0.r is the snow's weight; the other five channels are the bare ground cover (summing to 1), or 0
+                // on a tile whose cover isn't painted yet, which stays all snow. The snow lies over the land share,
+                // and the land layers keep what it leaves (as SplatTexels composed it before task 12). Thin snow
+                // (the depth map) lets the ground show through.
+                float composed = c0.g + c0.b + c0.a + c1.r + c1.g;
+                float painted = saturate(composed * 50);
+                float land = 1 - c1.g;
+                float snowWeight = c0.r * lerp(1, SnowCover(i.positionWS), painted);
+                // The cover-map overlay leaves the snow out whatever the Snow layer says.
+                float snowOn = lerp(1, _SnowOn > 0.5 && _Overlay < 0.5 ? 1 : 0, painted);
+                snowWeight *= snowOn;
+                float keep = land > 0.004 ? saturate(1 - snowWeight / land) : 0;
+                float weights[6] = { snowWeight, c0.g * keep, c0.b * keep, c0.a * keep, c1.r * keep, c1.g };
 
                 if (_Overlay > 0.5)
                 {
@@ -251,7 +289,24 @@ Shader "MountainPlanner/Terrain"
                     [unroll] for (int k = 0; k < 6; k++) flat += weights[k] * _OverlayColor[k].rgb;
                     Light sun0 = GetMainLight();
                     float lambert = saturate(dot(n, sun0.direction)) * 0.6 + 0.5;
-                    return half4(flat * lambert, 1);
+                    return half4(ApplyContours(flat * lambert, i.positionWS.y), 1);
+                }
+
+                // Info layers (task 12b): slope angle, exposure or snow depth over the ground, lit so the relief reads.
+                UNITY_BRANCH
+                if (_MP_InfoView > 0.5)
+                {
+                    float3 info;
+                    if (_MP_InfoView > 3.5) info = SnowDepthColour(SnowDepthMetres(i.positionWS));
+                    else
+                    {
+                        float2 rise = HeightGradient(i.uv);
+                        float slopeDegrees = degrees(atan(length(rise)));
+                        info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopeDegrees, i.positionCS.xy) : ExposureColour(-rise, slopeDegrees);
+                    }
+                    Light sunI = GetMainLight();
+                    float3 shaded = ApplyContours(ShadeInfo(info, n, sunI.direction), i.positionWS.y);
+                    return half4(ApplyHaze(MixFog(shaded, i.fog), i.positionWS), 1);
                 }
 
                 // Height-based blend: a layer wins where its own relief rises above the others.
@@ -297,6 +352,7 @@ Shader "MountainPlanner/Terrain"
                 float spec = pow(saturate(dot(normal, h)), exp2(10 * smooth + 1)) * smooth * 0.5;
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation + SampleSH(normal))
                            + sun.color * spec * sun.shadowAttenuation;
+                lit = ApplyContours(lit, i.positionWS.y);
                 lit = MixFog(lit, i.fog);
                 return half4(ApplyHaze(lit, i.positionWS), 1);
             }

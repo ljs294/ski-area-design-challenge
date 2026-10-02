@@ -52,7 +52,6 @@ namespace MountainPlanner.App
         public LocalFrame Frame;
         public GroundLayers Ground;
         public string PackageFolder;
-        public bool SnowOn = true;
         /// <summary>The ring (local x/z): where the downloaded data ends and the diorama walls stand.</summary>
         public Rect Ring;
         /// <summary>The top of the diorama's plinth (local y): the lowest the camera may go off the terrain.</summary>
@@ -62,10 +61,12 @@ namespace MountainPlanner.App
         /// <summary>Completes when every tile's ground cover is painted (it streams in after the terrain is playable).</summary>
         public Task CoverReady = Task.CompletedTask;
         public double CoverSeconds;
+        /// <summary>When the natural snowpack (task 12b) was in the snow-depth field, seconds after opening began.</summary>
+        public double SnowpackSeconds;
         public long TreesPlanted;
         public long CliffTriangles;
         public Material CliffMaterial;
-        /// <summary>The diorama walls (their snow cap follows the snow).</summary>
+        /// <summary>The diorama walls (their snow cap follows the Snow layer).</summary>
         public Material EdgeMaterial;
         public double ForestSeconds;
         public double Seconds;
@@ -118,7 +119,7 @@ namespace MountainPlanner.App
             var order = cache.Tiles.OrderBy(t => Distance(t, cache, frame)).ToList();
             var decoded = order.Select(t => Task.Run(() => TerrainTiles.LoadHeights(packageFolder, t), ct)).ToList();
             // Cover decodes alongside; it's painted after the terrain is up (snow is layer 0, so tiles already read as snow).
-            var covers = order.Select(t => Task.Run(() => SplatTexels.Load(packageFolder, t, snow: true), ct)).ToList();
+            var covers = order.Select(t => Task.Run(() => SplatTexels.Load(packageFolder, t), ct)).ToList();
             List<Task<ForestInstance[]>> forests = null;
             if (forest != null && forest.IsComplete)
             {
@@ -172,14 +173,20 @@ namespace MountainPlanner.App
                                                                  Mathf.Clamp(z, ringRect.yMin + 0.05f, ringRect.yMax - 0.05f));
                 resort.EdgeMaterial = DioramaBase.Create(root.transform, ringRect, Edge, (float)cache.HeightMin - DioramaBase.BaseDepth, forest.Edge).Walls;
             }
-            resort.CoverReady = PaintCoverAsync(resort, order, covers, cliffTasks, forests, forest, clock, ct);
+            // The natural snowpack (task 12b) from the heights and cover already decoded, on a worker thread.
+            var states = resort.States;
+            double convergence = manifest.Crs.GridConvergenceDegrees;
+            var snowpack = Task.Run(async () => BuildSnowpack(order, await Task.WhenAll(decoded).ConfigureAwait(false),
+                                                                await Task.WhenAll(covers).ConfigureAwait(false), cache, frame, ringRect,
+                                                                states.Snow.Width, states.Snow.Height, convergence), ct);
+            resort.CoverReady = PaintCoverAsync(resort, order, covers, cliffTasks, forests, forest, clock, ct, snowpack);
             return resort;
         }
 
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
         static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, List<Task<CliffShells.Prepared>> cliffTasks,
                                           List<Task<ForestInstance[]>> forests, ForestAssets forest,
-                                          Stopwatch clock, CancellationToken ct)
+                                          Stopwatch clock, CancellationToken ct, Task<float[]> snowpack)
         {
             for (int n = 0; n < order.Count; n++)
             {
@@ -194,6 +201,13 @@ namespace MountainPlanner.App
             }
             resort.CoverSeconds = clock.Elapsed.TotalSeconds;
             UnityEngine.Debug.Log($"[ResortOpener] ground cover painted at {resort.CoverSeconds:F2} s");
+
+            // The snowpack replaces the opening 12 in; SurfaceStates.Sync uploads it once.
+            var depths = await snowpack;
+            if (resort.Root == null) return;
+            resort.States.Snow.CopyFrom(depths);
+            resort.SnowpackSeconds = clock.Elapsed.TotalSeconds;
+            UnityEngine.Debug.Log($"[ResortOpener] snowpack in the snow-depth field at {resort.SnowpackSeconds:F2} s");
 
             // Cliff shells: the rock volume the heightmap can't hold.
             if (cliffTasks != null)
@@ -230,33 +244,52 @@ namespace MountainPlanner.App
         }
 
         /// <summary>
-        /// Shows or hides the snow (the "under the snow" view, T17): recomposes every tile's splat from the
-        /// cache on worker threads, then uploads a few tiles per frame.
+        /// The natural snowpack over the snow-depth field's cells (8 m over the ring): each cell's elevation and canopy
+        /// share (the forest-floor weight of the bare ground cover) from the tile under its centre, then
+        /// <see cref="Snowpack.Compute"/>. Cells no tile covers have no data and get the valley depth.
         /// </summary>
-        public static async Task SetSnowAsync(OpenedResort resort, bool snow, CancellationToken ct = default)
+        static float[] BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
+                                     Rect ring, int width, int depth, double convergence)
         {
-            await resort.CoverReady;
-            resort.SnowOn = snow;
-            // The snow-depth seam (task 10) follows the splats: on before they gain snow, off once they've lost it,
-            // so no tile ever has its snow taken away with nothing composed underneath.
-            if (snow) resort.States?.Snow.Fill(SnowDepthField.IterationOneMetres);
-            if (resort.CliffMaterial != null) resort.CliffMaterial.SetFloat("_SnowLoad", snow ? 1 : 0);
-            // Lakes keep their water weight either way; the shader draws snow on ice or bare ice.
-            if (resort.Ground?.Material != null) resort.Ground.Material.SetFloat("_SnowOn", snow ? 1 : 0);
-            if (resort.EdgeMaterial != null) resort.EdgeMaterial.SetFloat("_SnowOn", snow ? 1 : 0);
-            var jobs = resort.Cache.Tiles.Select(t => (Tile: t, Splat: Task.Run(() => SplatTexels.Load(resort.PackageFolder, t, snow), ct))).ToList();
-            int n = 0;
-            foreach (var (tile, splat) in jobs)
+            const float cell = SurfaceStates.CellMetres;
+            var elevation = new float[width * depth];
+            var canopy = new float[width * depth];
+            for (int k = 0; k < elevation.Length; k++) elevation[k] = float.NaN;
+            float tileMetres = (float)cache.TileMetres;
+            for (int n = 0; n < order.Count; n++)
             {
-                var texels = await splat;
-                if (resort.Tiles.TryGetValue((tile.Column, tile.Row), out var terrain))
-                {
-                    TerrainTiles.ApplySplat(terrain.terrainData, texels);
-                    TerrainTiles.BindSplat(terrain);
-                }
-                if (++n % 8 == 0) await Task.Yield();
+                var tile = order[n];
+                var (ox, oz) = frame.ToLocal(new AlbersPoint(tile.West, tile.North - cache.TileMetres));
+                float[,] h = heights[n];
+                int res = h.GetLength(0);
+                var cover = covers[n];
+                int i0 = Mathf.Max(0, Mathf.CeilToInt(((float)ox - ring.xMin) / cell - 0.5f)), i1 = Mathf.Min(width, Mathf.CeilToInt(((float)ox + tileMetres - ring.xMin) / cell - 0.5f));
+                int j0 = Mathf.Max(0, Mathf.CeilToInt(((float)oz - ring.yMin) / cell - 0.5f)), j1 = Mathf.Min(depth, Mathf.CeilToInt(((float)oz + tileMetres - ring.yMin) / cell - 0.5f));
+                for (int j = j0; j < j1; j++)
+                    for (int i = i0; i < i1; i++)
+                    {
+                        // Fractions across the tile: east, and north (Unity's rows and the splat's run south to north).
+                        float u = (ring.xMin + (i + 0.5f) * cell - (float)ox) / tileMetres, v = (ring.yMin + (j + 0.5f) * cell - (float)oz) / tileMetres;
+                        int col = Mathf.Clamp(Mathf.RoundToInt(u * (res - 1)), 0, res - 1), row = Mathf.Clamp(Mathf.RoundToInt(v * (res - 1)), 0, res - 1);
+                        elevation[j * width + i] = (float)(cache.HeightMin + h[row, col] * cache.HeightRange);
+                        int c = cover.Resolution;
+                        int ci = Mathf.Clamp(Mathf.RoundToInt(u * (c - 1)), 0, c - 1), cj = Mathf.Clamp(Mathf.RoundToInt(v * (c - 1)), 0, c - 1);
+                        canopy[j * width + i] = cover.Textures[0][(cj * c + ci) * 4 + 1] / 255f;
+                    }
             }
-            if (!snow) resort.States?.Snow.Fill(0);
+            var result = new float[width * depth];
+            Snowpack.Compute(width, depth, cell, elevation, canopy, convergence, result);
+            // A one-line summary for the log: the range, the mean and the share too thin to cover the ground.
+            double sum = 0, max = 0;
+            int thin = 0;
+            foreach (float d in result)
+            {
+                sum += d;
+                if (d > max) max = d;
+                if (d < SurfaceStates.FullCoverMetres) thin++;
+            }
+            UnityEngine.Debug.Log($"[ResortOpener] snowpack: mean {sum / result.Length:F2} m, deepest {max:F2} m, {100.0 * thin / result.Length:F1}% thinner than {SurfaceStates.FullCoverMetres * 100:F0} cm");
+            return result;
         }
 
         static double Distance(CacheTile t, CacheManifest cache, LocalFrame frame)

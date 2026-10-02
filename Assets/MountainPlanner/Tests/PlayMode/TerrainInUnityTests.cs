@@ -125,7 +125,7 @@ namespace MountainPlanner.Tests
                     data.SyncTexture(TerrainData.AlphamapTextureName);
                     int n = tile.CoverResolution;
                     float[,,] maps = data.GetAlphamaps(0, 0, n, n);
-                    var expected = SplatTexels.Load(_package, tile, snow: true);
+                    var expected = SplatTexels.Load(_package, tile);
                     double worstSplat = 0;
                     for (int y = 0; y < n; y += 29)
                         for (int x = 0; x < n; x += 31)

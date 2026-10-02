@@ -35,13 +35,18 @@
 |---|---|---|
 | H | Hide all UI | Task 11 |
 | P | Photo mode: the HUD hides; F12 or Space saves a PNG to `Pictures\Ski Area Design Challenge`; Esc or P exits | Task 11 (the photo bar's other controls come with the UI) |
-| Shift+1 | Snow layer | Task 11 binds; task 12 builds the layers |
-| Shift+2 | Ground cover layer (reserved) | Task 12 |
-| Shift+3 | Forest layer | Task 11 binds |
-| Shift+4 | Cover map | Task 11 binds |
-| Shift+5 | Imagery (reserved) | Task 12 |
+| Shift+1 | **Map layer:** Snow | Task 12 |
+| Shift+3 | **Map layer:** Trees | Task 12 |
+| Shift+2, 4, 5 | Free, for map layers still to come (lifts and the rest as they're built) | — |
+| Shift+6 | **Info layer:** Contours (combine with any info layer) | Task 12b |
+| Shift+7 | **Info layer:** Slope angle | Task 12b |
+| Shift+8 | **Info layer:** Slope exposure | Task 12b |
+| Shift+9 | **Info layer:** Snow depth | Task 12b |
+| Shift+0 | **Info layer:** Snow conditions (reserved for the snow simulation) | Task 12b |
 | F1 | Developer panel: every key, plus snow, tree snow, wind, light preset, time and date, haze, lake state, distant shadows, camera mode and saved views (Home, Corbet's) | Task 11 |
 | Esc | Back out one step; the menu | HUD |
+
+**Map layers and info layers (owner, 2026-10-02).** Map layers show or hide physical things on the map (snow and trees now; lifts and the rest later), in any combination. Info layers only display information. Slope angle, Slope exposure, Snow depth and Snow conditions take turns: switching one on switches off the one that was on, and pressing its key again switches it off. Contours combine with any of them. The HUD's Layers panel has the same two groups, and the info layer that's on shows its legend card. Ground cover and Imagery are no longer layers, and the cover map is a developer view in the F1 panel.
 
 ## HUD (accepted layout; built by the UI thread)
 
@@ -67,7 +72,9 @@ These moved into the F1 panel, and each keeps a command-line flag:
 | B: wind | F1 panel | `-wind calm\|breeze\|strong` |
 | L: light preset | F1 panel (sets the clock to the preset's time) | `-light dawn\|noon\|golden\|night`, `-time HH:MM`, `-day N` |
 | M: haze | F1 panel | `-nohaze` |
-| V: cover map | F1 panel, Shift+4 | `-covermap` |
+| V: cover map | F1 panel (a developer view since task 12b) | `-covermap` |
 | C: fly to Corbet's | F1 panel saved view (C is free-fly now) | `-landmark` |
 | (new) lake state | F1 panel | `-lake snow\|ice\|open` |
 | (new) distant shadows | F1 panel | `-nofarshadows` |
+
+Layer flags for captures: `-nosnow`, `-noforest`, `-info slope|exposure|depth` and `-contours`.
