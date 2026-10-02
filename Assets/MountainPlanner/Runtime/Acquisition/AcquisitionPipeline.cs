@@ -214,6 +214,7 @@ namespace MountainPlanner.Acquisition
         {
             public byte[]? Core, Ring;
             public int Shapes;
+            public List<MountainPlanner.Domain.Roads.Road>? Roads;
             public string? Failure;
         }
 
@@ -241,7 +242,7 @@ namespace MountainPlanner.Acquisition
             rasterized = 1;
             tracker.BeginStep($"drawing {shapes.Count:N0} map features, surroundings at 2 m", 3, 3, () => 0.5);
             var (rw, rd) = OsmFeatures.Rasterize(shapes, site.RingGrid);
-            return new OsmResult { Core = OsmFeatures.Interleave(cw, cd), Ring = OsmFeatures.Interleave(rw, rd), Shapes = shapes.Count };
+            return new OsmResult { Core = OsmFeatures.Interleave(cw, cd), Ring = OsmFeatures.Interleave(rw, rd), Shapes = shapes.Count, Roads = OsmFeatures.ParseRoads(response) };
         }
 
         static void AddOsm(PackageManifest manifest, string folder, SiteSquare site, OsmResult osm)
@@ -265,6 +266,7 @@ namespace MountainPlanner.Acquisition
                 Layer = OsmCoreLayer + ", " + OsmRingLayer, Provider = "OpenStreetMap contributors", Product = "Water, roads, buildings and built-up land use via the Overpass API",
                 Items = new List<string> { $"{osm.Shapes} features" },
             });
+            if (osm.Roads != null) RoadsFile.Add(folder, manifest, osm.Roads);   // the roads themselves (task 12d)
             manifest.Attribution.Add("Water and roads: © OpenStreetMap contributors (ODbL).");
         }
 

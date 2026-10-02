@@ -7,52 +7,93 @@ using UnityEngine;
 namespace MountainPlanner.Editor
 {
     /// <summary>
-    /// Generates the terrain's ground textures (0.5 §2, style tile): tileable procedural albedo with a
-    /// height map in alpha, plus matching normal maps, for the six layers in terrain-slot order (snow,
-    /// forest floor, grass, rock, developed, ice). Saved as two Texture2DArray assets the terrain shader
-    /// samples. Deterministic (keyed hash noise), so regenerating gives identical textures.
+    /// Generates the terrain's ground textures (0.5 §2; style tile; task 12c) as two compressed Texture2DArray
+    /// assets the terrain shader samples: colour with a height map in alpha, and normals. Ten layers:
+    /// - 0 snow and 5 ice stay procedural (keyed hash noise);
+    /// - 1 forest floor, 2 valley grass, 3 rock, 4 developed, 6 alpine meadow, 7 scree, 8 bare dirt and 9 meadow from a
+    ///   distance are CC0 photo textures (Poly Haven), graded toward the palette by tools/assets/ground/prepare.py.
+    /// Run tools/assets/ground/fetch.mjs and prepare.py first. The same sources give the same textures.
     /// </summary>
     public static class GroundTextures
     {
-        public const int Size = 512;
+        public const int Size = 1024;
         public const string AlbedoPath = "Assets/MountainPlanner/Art/Terrain/GroundAlbedo.asset";
         public const string NormalPath = "Assets/MountainPlanner/Art/Terrain/GroundNormals.asset";
         public const string PreviewPath = "Assets/MountainPlanner/Art/Terrain/GroundPreview.png";
-        public static readonly string[] Names = { "Snow", "Forest floor", "Grass", "Rock", "Developed", "Ice" };
-        /// <summary>Normal-map strength per layer.</summary>
+        public const string PreparedFolder = "tools/assets/ground/cache/prepared";
+        public static readonly string[] Names = { "Snow", "Forest floor", "Grass", "Rock", "Developed", "Ice", "Meadow", "Scree", "Dirt", "Meadow far" };
+        /// <summary>The prepared photo texture for each layer (null: procedural).</summary>
+        static readonly string[] Photo = { null, "forest_floor", "grass", "rock", "developed", null, "meadow", "scree", "dirt", "meadow_far" };
+        /// <summary>Normal-map strength per procedural layer.</summary>
         static readonly float[] Bump = { 0.7f, 3f, 2.5f, 5f, 2f, 1.5f };
 
         [MenuItem("Mountain Planner/Generate Ground Textures")]
         public static void Generate()
         {
             Directory.CreateDirectory(Path.GetDirectoryName(AlbedoPath));
-            var albedo = new Texture2DArray(Size, Size, Names.Length, TextureFormat.RGBA32, true, false) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 8, name = "GroundAlbedo" };
-            var normals = new Texture2DArray(Size, Size, Names.Length, TextureFormat.RGBA32, true, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 8, name = "GroundNormals" };
-            var preview = new Texture2D(Size * Names.Length / 2, Size, TextureFormat.RGBA32, false);
+            var albedo = new Texture2DArray(Size, Size, Names.Length, TextureFormat.BC7, true, false) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 8, name = "GroundAlbedo" };
+            var normals = new Texture2DArray(Size, Size, Names.Length, TextureFormat.BC7, true, true) { wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 8, name = "GroundNormals" };
+            const int thumb = 256;
+            var preview = new Texture2D(thumb * Names.Length, thumb, TextureFormat.RGBA32, false);
             for (int layer = 0; layer < Names.Length; layer++)
             {
-                var colour = new Color32[Size * Size];
-                var height = new float[Size * Size];
-                for (int y = 0; y < Size; y++)
-                    for (int x = 0; x < Size; x++)
-                    {
-                        var (c, h) = Sample(layer, x, y);
-                        height[y * Size + x] = h;
-                        colour[y * Size + x] = new Color(c.r, c.g, c.b, h);
-                    }
-                albedo.SetPixels32(colour, layer, 0);
-                normals.SetPixels32(NormalsFrom(height, Bump[layer]), layer, 0);
-                for (int y = 0; y < Size; y += 2)
-                    for (int x = 0; x < Size; x += 2)
-                        preview.SetPixel(layer * Size / 2 + x / 2, y / 2 + Size / 4, colour[y * Size + x]);
+                Color32[] colour, normal;
+                if (Photo[layer] != null) (colour, normal) = LoadPhoto(Photo[layer]);
+                else
+                {
+                    colour = new Color32[Size * Size];
+                    var height = new float[Size * Size];
+                    for (int y = 0; y < Size; y++)
+                        for (int x = 0; x < Size; x++)
+                        {
+                            var (c, h) = Sample(layer, x, y);
+                            height[y * Size + x] = h;
+                            colour[y * Size + x] = new Color(c.r, c.g, c.b, h);
+                        }
+                    normal = NormalsFrom(height, Bump[layer]);
+                }
+                CopyCompressed(colour, false, albedo, layer);
+                CopyCompressed(normal, true, normals, layer);
+                for (int y = 0; y < thumb; y++)
+                    for (int x = 0; x < thumb; x++)
+                        preview.SetPixel(layer * thumb + x, y, colour[(y * Size / thumb) * Size + x * Size / thumb]);
             }
-            albedo.Apply(true, false);
-            normals.Apply(true, false);
+            albedo.Apply(false, false);
+            normals.Apply(false, false);
             Save(albedo, AlbedoPath);
             Save(normals, NormalPath);
             File.WriteAllBytes(PreviewPath, preview.EncodeToPNG());
             AssetDatabase.ImportAsset(PreviewPath);
-            Debug.Log($"[GroundTextures] {Names.Length} layers at {Size}² → {AlbedoPath}, {NormalPath}");
+            Debug.Log($"[GroundTextures] {Names.Length} layers at {Size}² (BC7) → {AlbedoPath}, {NormalPath}");
+        }
+
+        /// <summary>A prepared photo layer: colour + height (alpha) and normal PNGs at <see cref="Size"/>².</summary>
+        static (Color32[] Colour, Color32[] Normal) LoadPhoto(string slot)
+        {
+            Color32[] Read(string file, bool linear)
+            {
+                string path = Path.Combine(PreparedFolder, file);
+                if (!File.Exists(path))
+                    throw new FileNotFoundException($"{path} is missing: run node tools/assets/ground/fetch.mjs, then python tools/assets/ground/prepare.py");
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false, linear);
+                tex.LoadImage(File.ReadAllBytes(path));
+                if (tex.width != Size || tex.height != Size) throw new InvalidDataException($"{path} is {tex.width}×{tex.height}, not {Size}²");
+                var pixels = tex.GetPixels32();
+                UnityEngine.Object.DestroyImmediate(tex);
+                return pixels;
+            }
+            return (Read(slot + "_albedo.png", false), Read(slot + "_normal.png", true));
+        }
+
+        /// <summary>One layer's full mip chain, compressed to BC7, into an array.</summary>
+        static void CopyCompressed(Color32[] pixels, bool linear, Texture2DArray array, int layer)
+        {
+            var tex = new Texture2D(Size, Size, TextureFormat.RGBA32, true, linear);
+            tex.SetPixels32(pixels);
+            tex.Apply(true, false);
+            EditorUtility.CompressTexture(tex, TextureFormat.BC7, TextureCompressionQuality.Normal);
+            for (int mip = 0; mip < tex.mipmapCount; mip++) array.SetPixelData(tex.GetPixelData<byte>(mip), mip, layer);
+            UnityEngine.Object.DestroyImmediate(tex);
         }
 
         static void Save(UnityEngine.Object asset, string path)

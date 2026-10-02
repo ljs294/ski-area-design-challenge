@@ -34,6 +34,12 @@ namespace MountainPlanner.Persistence
                     problems.Add($"{layer.File} is missing.");
                     continue;
                 }
+                if (layer.Type == RoadsFile.LayerType)
+                {
+                    try { RoadsFile.Read(folder, m); }
+                    catch (Exception e) when (e is InvalidDataException || e is JsonException || e is IOException) { problems.Add($"{layer.File} is damaged: {e.Message}"); }
+                    continue;
+                }
                 try
                 {
                     using (var fs = File.OpenRead(path))
