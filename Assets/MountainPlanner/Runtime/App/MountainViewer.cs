@@ -160,7 +160,7 @@ namespace MountainPlanner.App
                 StartCoroutine(WhenForestReady(() => _layers.BindForest(_resort.Root.GetComponent<ForestView>())));
                 WireHud();
                 if (Array.IndexOf(args, "-landmark") >= 0) FlyToLandmark();
-                // Unattended checks: -nosnow, -covermap, -view x,z,distance,yaw,pitch (metres from the centre, degrees),
+                // Unattended checks: -nosnow, -noforest, -covermap, -view x,z,distance,yaw,pitch (metres from the centre, degrees),
                 // -wind calm|breeze|strong, -lake open|ice|snow, and -screenshot <file.png>, which captures the view once
                 // it has settled, then quits.
                 int wind = Array.IndexOf(args, "-wind");
@@ -178,6 +178,7 @@ namespace MountainPlanner.App
                 }
                 if (Array.IndexOf(args, "-baretrees") >= 0) _layers.SetTreeSnow(false);
                 if (Array.IndexOf(args, "-nosnow") >= 0) _layers.Set(MapLayers.Snow, false);
+                if (Array.IndexOf(args, "-noforest") >= 0) _layers.Set(MapLayers.Forest, false);
                 int view = Array.IndexOf(args, "-view");
                 if (view >= 0 && view + 1 < args.Length && Camera != null)
                 {
