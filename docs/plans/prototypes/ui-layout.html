@@ -238,7 +238,7 @@ body.solo .frame { border-radius: 0; }
 .hud .compass { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin: 2px 12px 0; }
 .hud .compass div { display: grid; justify-items: center; gap: 1px; padding: 5px 0 4px; border-radius: 2px; font: 800 12px 'DotFix', 'Overpass'; line-height: 1.05; }
 .hud .compass div span { font: 500 10.5px 'Overpass Mono', monospace; opacity: 0.85; }
-/* the elevation cell: with an info layer on, "Elev." moves beside the figure and the readout sits under it */
+/* the elevation cell: a fixed width with "Elev." beside the figure, so an info layer's readout appears under it without moving the bar */
 .hud .fig .elevrow { display: flex; align-items: baseline; gap: 5px; }
 .hud .fig .ro { display: flex; align-items: center; gap: 5px; font: 600 11.5px 'DotFix', 'Overpass'; color: var(--muted); }
 .hud .fig .ro b { font: 600 11.5px 'Overpass Mono', monospace; color: var(--text); }
@@ -1121,7 +1121,7 @@ body.solo .frame { border-radius: 0; }
       <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:var(--pos)">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${cashTxt(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)} today</span></span></div>
       <div class="cell sep" title="Lifts operating"><span style="color:var(--icon)">${g('s-lift')}</span><span class="count" id="lifts">${S.liftsTotal}</span></div>
       <div class="cell" style="padding-left:4px" title="Skiers on the mountain"><span style="color:var(--icon)">${g('s-skier')}</span><span class="count" id="skiers">${S.skiers.toLocaleString('en-US')}</span></div>
-      <div class="cell sep" title="Elevation under the pointer${S.info ? `, and the ${INFO[S.info][0].toLowerCase()} there` : ''}"><span class="fig${S.info ? ' wide' : ''}" id="elevfig"></span></div>
+      <div class="cell sep" title="Elevation under the pointer${S.info ? `, and the ${INFO[S.info][0].toLowerCase()} there` : ''}"><span class="fig wide" id="elevfig"></span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span></div>
     </div>`;
     h += `<div class="log" id="log">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
@@ -1266,8 +1266,8 @@ body.solo .frame { border-radius: 0; }
   function showElev() {
     const el = document.getElementById('elevfig'); if (!el) return;
     const on = mouse && onTerrain(mouse), v = `<span class="v elev" style="color:${on ? '' : 'var(--ph)'}">${on ? lenTxt(elevAt(mouse)) : `– – – ${lenU()}`}</span>`;
-    // With an info layer on, "Elev." moves beside the figure and the layer's reading goes under it.
-    el.innerHTML = S.info ? `<span class="elevrow"><span class="lab">Elev.</span>${v}</span><span class="ro">${readout(mouse)}</span>` : `${v}<span class="lab">Elev.</span>`;
+    // One layout either way, so nothing in the bar moves: "Elev." beside the figure, and the info layer's reading under it.
+    el.innerHTML = `<span class="elevrow"><span class="lab">Elev.</span>${v}</span>${S.info ? `<span class="ro">${readout(mouse)}</span>` : ''}`;
   }
   function segDist(p, a, b) { const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1; let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2; t = Math.max(0, Math.min(1, t)); return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
   function pickAt(p, target) {
