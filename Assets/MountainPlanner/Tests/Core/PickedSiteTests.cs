@@ -21,6 +21,8 @@ namespace MountainPlanner.Tests
             var again = SiteSquare.Create(site.Centre, site.SizeKm);
             Assert.That(again.Core, Is.EqualTo(site.Square.Core), "what the picker shows is what downloads");
             Assert.That(again.Centre, Is.EqualTo(site.Square.Centre));
+            Assert.That(site.SizeKm, Is.EqualTo(site.Square.SizeKm));
+            Assert.That(site.Centre, Is.EqualTo(Albers6350.Inverse(site.Square.Centre)), "the snapped centre, not the raw click");
         }
 
         [TestCase("")]
