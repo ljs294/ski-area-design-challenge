@@ -65,7 +65,7 @@ namespace MountainPlanner.App.Picker
             if (Arg("-screenshot") is string shot)
             {
                 // Long enough for tiles, the coverage overlay, the name lookup and the estimate to arrive.
-                yield return new WaitForSecondsRealtime(9f);
+                yield return new WaitForSecondsRealtime(15f);
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(shot)));
                 ScreenCapture.CaptureScreenshot(Path.GetFullPath(shot));
                 yield return null;

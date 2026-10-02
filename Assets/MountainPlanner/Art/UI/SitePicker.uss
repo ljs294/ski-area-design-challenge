@@ -218,9 +218,9 @@
     margin: 0 5px 0 8px;
     border-radius: 2px;
 }
-.swatch--s1m { background-color: #1f8a5b; }
-.swatch--lidar { background-color: #6fc27a; }
-.swatch--three { background-color: #e8b13a; }
+.swatch--s1m { background-color: #1d4f91; }
+.swatch--lidar { background-color: #3f86d0; }
+.swatch--three { background-color: #9fc4ee; }
 .swatch--ten { border-width: 1px; border-color: var(--soft); }
 .legend-label { color: var(--muted); font-size: 12.5px; }
 .legend--off .legend-items { display: none; }

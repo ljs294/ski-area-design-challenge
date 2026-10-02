@@ -25,12 +25,14 @@ namespace MountainPlanner.UI.Picker
         const int S1mMinZoom = 8;
 
         // Data-quality colours (the legend in SitePicker.uss uses the same values).
-        public static readonly Color S1mColour = new Color32(0x1f, 0x8a, 0x5b, 255);
-        public static readonly Color OneMetreColour = new Color32(0x6f, 0xc2, 0x7a, 255);
-        public static readonly Color ThreeMetreColour = new Color32(0xe8, 0xb1, 0x3a, 255);
+        // One blue ramp, darker for finer data: it reads on topo greens and tans and on imagery, and stays
+        // clear of the plan's surveyor's orange. About 10 m (everywhere else) is left unshaded.
+        public static readonly Color S1mColour = new Color32(0x1d, 0x4f, 0x91, 255);
+        public static readonly Color OneMetreColour = new Color32(0x3f, 0x86, 0xd0, 255);
+        public static readonly Color ThreeMetreColour = new Color32(0x9f, 0xc4, 0xee, 255);
         static readonly Color PlanOrange = new Color32(0xff, 0x6a, 0x1f, 255);
         static readonly Color PlanHalo = new Color(0.07f, 0.06f, 0.05f, 0.55f);
-        const float OverlayOpacity = 0.42f;
+        const float OverlayOpacity = 0.24f;
 
         public ISitePickerServices Services;
 
@@ -42,7 +44,7 @@ namespace MountainPlanner.UI.Picker
         public event Action<bool> OfflineChanged;
 
         readonly VisualElement _tileLayer, _vector;
-        readonly Image _oneMetre, _threeMetre;
+        readonly Image _coverageImage;
         readonly Label _sizeLabel;
         readonly Dictionary<string, Image> _shown = new Dictionary<string, Image>();
         readonly Stack<Image> _pool = new Stack<Image>();
@@ -71,14 +73,10 @@ namespace MountainPlanner.UI.Picker
             style.overflow = Overflow.Hidden;
 
             _tileLayer = Layer("tile-map__tiles");
-            _threeMetre = new Image { scaleMode = ScaleMode.StretchToFill, pickingMode = PickingMode.Ignore, tintColor = ThreeMetreColour };
-            _oneMetre = new Image { scaleMode = ScaleMode.StretchToFill, pickingMode = PickingMode.Ignore, tintColor = OneMetreColour };
-            foreach (var image in new[] { _threeMetre, _oneMetre })
-            {
-                image.style.position = Position.Absolute;
-                image.style.opacity = OverlayOpacity;
-                Add(image);
-            }
+            _coverageImage = new Image { scaleMode = ScaleMode.StretchToFill, pickingMode = PickingMode.Ignore };
+            _coverageImage.style.position = Position.Absolute;
+            _coverageImage.style.opacity = OverlayOpacity;
+            Add(_coverageImage);
             _vector = Layer("tile-map__vector");
             _vector.generateVisualContent += DrawVector;
             _sizeLabel = new Label { pickingMode = PickingMode.Ignore };
@@ -132,7 +130,7 @@ namespace MountainPlanner.UI.Picker
             set
             {
                 _showCoverage = value;
-                _oneMetre.visible = _threeMetre.visible = value;
+                _coverageImage.visible = value;
                 if (value) Settle(); else _vector.MarkDirtyRepaint();
             }
         }
@@ -178,6 +176,11 @@ namespace MountainPlanner.UI.Picker
         {
             _pending.Clear();
             SetOffline(false);
+            // Ask for the centre tile straight away, laid out or not, so a missing network shows at once.
+            int n = 1 << _zoom;
+            int tx = (((int)Math.Floor(_cx / SlippyMap.TileSize)) % n + n) % n;
+            int ty = Mathf.Clamp((int)Math.Floor(_cy / SlippyMap.TileSize), 0, n - 1);
+            Load(_zoom, tx, ty, Key(_zoom, tx, ty));
             Relayout();
             Settle();
         }
@@ -355,10 +358,10 @@ namespace MountainPlanner.UI.Picker
             finally { _pending.Remove(key); }
         }
 
-        static Texture2D Decode(byte[] bytes)
+        static Texture2D Decode(byte[] bytes, bool keepReadable = false)
         {
             var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            tex.LoadImage(bytes, true);
+            tex.LoadImage(bytes, !keepReadable);
             return tex;
         }
 
@@ -413,8 +416,7 @@ namespace MountainPlanner.UI.Picker
                 var oneBytes = await one;
                 var threeBytes = await three;
                 if (generation != _generation || panel == null) return;
-                SetMask(_oneMetre, oneBytes);
-                SetMask(_threeMetre, threeBytes);
+                Compose(oneBytes, threeBytes);
                 _coverageBox = box;
                 PlaceCoverage();
 
@@ -432,19 +434,30 @@ namespace MountainPlanner.UI.Picker
             catch (Exception ex) { Debug.LogWarning($"[Picker] Coverage: {ex.Message}"); }
         }
 
-        /// <summary>Turns a coverage PNG into a white mask the image tints: opaque where the DEM exists.</summary>
-        static void SetMask(Image image, byte[] png)
+        /// <summary>
+        /// Paints the two footprint PNGs into one overlay: 1 m where a 1 m DEM exists, else about 3 m where
+        /// a 1/9 arc-second DEM does, else clear. One image, so the two never mix into a third colour.
+        /// </summary>
+        void Compose(byte[] onePng, byte[] threePng)
         {
-            if (image.image is Texture2D old) UnityEngine.Object.Destroy(old);
-            image.image = null;
-            if (png == null) return;
-            var tex = Decode(png);
-            var pixels = tex.GetPixels32();
+            if (_coverageImage.image is Texture2D old) UnityEngine.Object.Destroy(old);
+            _coverageImage.image = null;
+            var one = onePng != null ? Decode(onePng, keepReadable: true) : null;
+            var three = threePng != null ? Decode(threePng, keepReadable: true) : null;
+            var basis = one ?? three;
+            if (basis == null) return;
+            var a = one?.GetPixels32();
+            var b = three != null && three.width == basis.width && three.height == basis.height ? three.GetPixels32() : null;
+            var pixels = new Color32[basis.width * basis.height];
+            Color32 oneColour = OneMetreColour, threeColour = ThreeMetreColour, clear = new Color32(0, 0, 0, 0);
             for (int i = 0; i < pixels.Length; i++)
-                pixels[i] = pixels[i].a > 8 ? new Color32(255, 255, 255, 255) : new Color32(0, 0, 0, 0);
+                pixels[i] = a != null && a[i].a > 8 ? oneColour : b != null && b[i].a > 8 ? threeColour : clear;
+            if (one != null) UnityEngine.Object.Destroy(one);
+            if (three != null) UnityEngine.Object.Destroy(three);
+            var tex = new Texture2D(basis.width, basis.height, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
             tex.SetPixels32(pixels);
             tex.Apply(false, true);
-            image.image = tex;
+            _coverageImage.image = tex;
         }
 
         void PlaceCoverage()
@@ -455,13 +468,10 @@ namespace MountainPlanner.UI.Picker
             float right = (float)((_coverageBox.E / WebMercator.HalfWorld + 1) / 2 * size - (_cx - layout.width / 2));
             float top = (float)((1 - _coverageBox.N / WebMercator.HalfWorld) / 2 * size - (_cy - layout.height / 2));
             float bottom = (float)((1 - _coverageBox.S / WebMercator.HalfWorld) / 2 * size - (_cy - layout.height / 2));
-            foreach (var image in new[] { _oneMetre, _threeMetre })
-            {
-                image.style.left = left;
-                image.style.top = top;
-                image.style.width = right - left;
-                image.style.height = bottom - top;
-            }
+            _coverageImage.style.left = left;
+            _coverageImage.style.top = top;
+            _coverageImage.style.width = right - left;
+            _coverageImage.style.height = bottom - top;
         }
 
         /// <summary>The Albers box around the view (its corners and edge midpoints projected).</summary>
@@ -495,9 +505,14 @@ namespace MountainPlanner.UI.Picker
             var p = mgc.painter2D;
             if (_showCoverage)
             {
+                // S1M tiles: a deeper fill with their 10 km edges drawn, so the published grid shows.
                 var fill = S1mColour;
-                fill.a = OverlayOpacity + 0.08f;
+                fill.a = 0.36f;
+                var edge = S1mColour;
+                edge.a = 0.8f;
                 p.fillColor = fill;
+                p.strokeColor = edge;
+                p.lineWidth = 1f;
                 foreach (var tile in _s1mTiles)
                 {
                     var c = SlippyMap.Corners(tile);
@@ -506,6 +521,7 @@ namespace MountainPlanner.UI.Picker
                     for (int i = 1; i < 4; i++) p.LineTo(ToLocal(c[i]));
                     p.ClosePath();
                     p.Fill();
+                    p.Stroke();
                 }
             }
             if (!_square.HasValue) return;
@@ -578,8 +594,7 @@ namespace MountainPlanner.UI.Picker
             foreach (var tex in _textures.Values) UnityEngine.Object.Destroy(tex);
             _textures.Clear();
             _textureOrder.Clear();
-            foreach (var image in new[] { _oneMetre, _threeMetre })
-                if (image.image is Texture2D t) { UnityEngine.Object.Destroy(t); image.image = null; }
+            if (_coverageImage.image is Texture2D t) { UnityEngine.Object.Destroy(t); _coverageImage.image = null; }
         }
     }
 }
