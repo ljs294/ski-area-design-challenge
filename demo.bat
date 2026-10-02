@@ -231,7 +231,7 @@ goto done
 
 :seedscratch
 rem The title needs a mountain behind it: seed the scratch library with the committed 2 km test terrain once.
-if exist "%SCRATCH%\Resorts\jackson-hole-2km-test\manifest.json" exit /b 0
+if exist "%SCRATCH%\Resorts\jackson-hole-2km-testoads.json" exit /b 0
 robocopy "%~dp0TestData\jackson-hole-2km" "%SCRATCH%\Resorts\jackson-hole-2km-test" /e /njh /njs /nfl /ndl >nul
 exit /b 0
 
