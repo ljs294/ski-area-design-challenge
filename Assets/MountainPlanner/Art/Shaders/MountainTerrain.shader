@@ -37,15 +37,15 @@ Shader "MountainPlanner/Terrain"
         TEXTURE2D(_Heightmap); SAMPLER(sampler_mp_linear_clamp);   // per tile: Unity's heightmap on the GPU (task 12b: slope and exposure at 1 m)
         float4 _HeightmapParams;     // per tile: x texels per edge, y metres per unit sample, z metres between samples
         float4 _RingBounds;          // xmin, zmin, xmax, zmax in world space: the data's edge
-        float _Tile[6];              // metres per texture repeat, per layer
-        float _Smooth[6];
+        float _Tile[8];              // metres per texture repeat, per terrain slot (task 12d: eight, with roads)
+        float _Smooth[8];
         // The bare ground's variation within a layer (task 12c). The texture arrays hold four more looks after the
         // six splat layers (GroundTextures): alpine meadow, scree, bare dirt and meadow seen from a distance.
         float4 _AlpineBand;          // x, y: elevations (m) where valley grass gives way to alpine meadow; unset: none
         float4 _GrassTint;           // the season's colour on grass and meadow (rgb multiplier; unset reads as none), for the seasons task
         static const int MeadowLayer = 6, ScreeLayer = 7, DirtLayer = 8, MeadowFarLayer = 9;
         static const float MeadowTile = 4, ScreeTile = 6, DirtTile = 3, MeadowFarTile = 90;   // metres per repeat
-        float4 _OverlayColor[6];
+        float4 _OverlayColor[8];
         // Task 10 seams (0.3 §4.6), set by SurfaceStates. The snow-depth map (metres) over the ring: snow covers
         // fully from _SnowDepthParams.x metres deep; .w = 0 (not set yet) is full cover. Iteration 1 is 12 in
         // everywhere, so the picture is the same as before the map existed.
@@ -361,7 +361,7 @@ Shader "MountainPlanner/Terrain"
                 // on a tile whose cover isn't painted yet, which stays all snow. The snow lies over the land share,
                 // and the land layers keep what it leaves (as SplatTexels composed it before task 12). Thin snow
                 // (the depth map) lets the ground show through.
-                float composed = c0.g + c0.b + c0.a + c1.r + c1.g;
+                float composed = c0.g + c0.b + c0.a + c1.r + c1.g + c1.b + c1.a;
                 float painted = saturate(composed * 50);
                 float land = 1 - c1.g;
                 float snowWeight = c0.r * lerp(1, SnowCover(i.positionWS), painted);
@@ -369,12 +369,12 @@ Shader "MountainPlanner/Terrain"
                 float snowOn = lerp(1, _SnowOn > 0.5 && _Overlay < 0.5 ? 1 : 0, painted);
                 snowWeight *= snowOn;
                 float keep = land > 0.004 ? saturate(1 - snowWeight / land) : 0;
-                float weights[6] = { snowWeight, c0.g * keep, c0.b * keep, c0.a * keep, c1.r * keep, c1.g };
+                float weights[8] = { snowWeight, c0.g * keep, c0.b * keep, c0.a * keep, c1.r * keep, c1.g, c1.b * keep, c1.a * keep };
 
                 if (_Overlay > 0.5)
                 {
                     float3 flat = 0;
-                    [unroll] for (int k = 0; k < 6; k++) flat += weights[k] * _OverlayColor[k].rgb;
+                    [unroll] for (int k = 0; k < 8; k++) flat += weights[k] * _OverlayColor[k].rgb;
                     Light sun0 = GetMainLight();
                     float lambert = saturate(dot(n, sun0.direction)) * 0.6 + 0.5;
                     return half4(ApplyContours(flat * lambert, i.positionWS.y), 1);
@@ -398,11 +398,11 @@ Shader "MountainPlanner/Terrain"
                 }
 
                 // Height-based blend: a layer wins where its own relief rises above the others.
-                float4 albedos[6];
-                float3 normals[6];
-                float smooths[6];
+                float4 albedos[8];
+                float3 normals[8];
+                float smooths[8];
                 float best = -10;
-                float heights[6];
+                float heights[8];
                 // Forest-floor edges (beauty pass, item 3): the canopy cut each stand's floor out as a hard dark disc. Noise
                 // at two scales breaks the outline, and what the floor gives up at its edge goes to the grass.
                 float ragged = ValueNoise(i.positionWS.xz / 6) * 0.6 + ValueNoise(i.positionWS.xz / 1.7) * 0.4;
@@ -411,7 +411,7 @@ Shader "MountainPlanner/Terrain"
                 weights[1] = floorWeight;
                 float footprint = length(fwidth(i.positionWS));   // metres per pixel, for the lake's cracks
                 float groundPercent = length(n.xz) / max(n.y, 1e-3) * 100;   // the mesh's slope as a grade, for the ground's variation
-                [unroll] for (int k = 0; k < 6; k++)
+                [unroll] for (int k = 0; k < 8; k++)
                 {
                     albedos[k] = 0;
                     normals[k] = n;
@@ -429,6 +429,22 @@ Shader "MountainPlanner/Terrain"
                             albedos[k].rgb *= Macro(i.positionWS) * float3(1.2, 1.28, 1.12);
                         }
                         else if (k == 4) { SampleTop(k, i.positionWS, n, albedos[k], normals[k]); albedos[k].rgb *= Macro(i.positionWS); }
+                        else if (k == 6)
+                        {
+                            // Paved road (task 12d): the asphalt, finer and a little darker than parking and built land.
+                            SampleDetail(4, _Tile[6], i.positionWS, n, albedos[k], normals[k]);
+                            albedos[k].rgb *= 0.82;
+                        }
+                        else if (k == 7)
+                        {
+                            // Unpaved road and track (task 12d): gravel, scree stones worked into packed dirt.
+                            float4 stones;
+                            float3 stonesN;
+                            SampleDetail(DirtLayer, _Tile[7], i.positionWS, n, albedos[k], normals[k]);
+                            SampleDetail(ScreeLayer, _Tile[7] * 1.5, i.positionWS, n, stones, stonesN);
+                            albedos[k] = lerp(albedos[k], stones, 0.5);
+                            albedos[k].rgb *= Macro(i.positionWS) * float3(1.08, 1.04, 0.98);
+                        }
                         else SampleTop(k, i.positionWS, n, albedos[k], normals[k]);
                         heights[k] = weights[k] + albedos[k].a * 0.6;
                         best = max(best, heights[k]);
@@ -436,7 +452,7 @@ Shader "MountainPlanner/Terrain"
                 }
                 float3 albedo = 0, normal = 0;
                 float total = 0, smooth = 0;
-                [unroll] for (int m = 0; m < 6; m++)
+                [unroll] for (int m = 0; m < 8; m++)
                 {
                     float w = max(heights[m] - best + _HeightBlend, 0);
                     albedo += albedos[m].rgb * w;

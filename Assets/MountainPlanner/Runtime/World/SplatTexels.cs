@@ -7,7 +7,8 @@ namespace MountainPlanner.World
     /// One tile's splat maps as raw RGBA32 bytes, ready for <see cref="TerrainTiles.ApplySplat"/>. Built
     /// on worker threads from the cached cover texels (task 07).
     /// Channel order follows the terrain layers: texture 0 = snow, forest floor, grass, rock;
-    /// texture 1 = developed, water. Snow is layer 0 so an unpainted tile already reads as snow.
+    /// texture 1 = developed, water, paved road, unpaved road (task 12d). Snow is layer 0 so an unpainted tile
+    /// already reads as snow.
     ///
     /// The snow and the ground under it are both kept (map layers, task 12): channel 0 is the snow's weight,
     /// and the ground and water channels are the bare ground cover, summing to 255 on their own. The terrain
@@ -28,9 +29,9 @@ namespace MountainPlanner.World
         public byte[][] Textures;
 
         /// <summary>
-        /// Composes cover texels (north row first, six bytes each) into splat textures (south row first,
+        /// Composes cover texels (north row first, eight bytes each) into splat textures (south row first,
         /// as Unity's alphamaps are): the snow's weight in channel 0 (snow lies on the land by its cover, thinned
-        /// under forest stands), and the ground cover unscaled in the other five (the "under the snow" view, T17).
+        /// under forest stands), and the ground cover unscaled in the other seven (the "under the snow" view, T17).
         /// </summary>
         public static SplatTexels Compose(byte[] cover, int resolution)
         {
@@ -49,8 +50,9 @@ namespace MountainPlanner.World
                     int w = cover[src + 4], land = 255 - w;
                     int s = cover[src + GroundCover.Layers] * (255 - shade[j * n + i]) / 255 * land / 255;
                     int f = cover[src], g = cover[src + 1], r = cover[src + 2], d = cover[src + 3];
+                    int paved = cover[src + 5], unpaved = cover[src + 6];
                     // Rounding leftovers go to the largest ground layer.
-                    int rest = 255 - f - g - r - d - w;
+                    int rest = 255 - f - g - r - d - w - paved - unpaved;
                     if (rest > 0)
                     {
                         if (g >= f && g >= r && g >= d && g >= w) g += rest;
@@ -65,6 +67,8 @@ namespace MountainPlanner.World
                     t0[dst + 3] = (byte)r;
                     t1[dst] = (byte)d;
                     t1[dst + 1] = (byte)w;
+                    t1[dst + 2] = (byte)paved;
+                    t1[dst + 3] = (byte)unpaved;
                 }
             }
             return new SplatTexels { Resolution = n, Textures = new[] { t0, t1 } };

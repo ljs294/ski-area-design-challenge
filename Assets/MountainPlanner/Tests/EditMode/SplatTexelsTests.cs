@@ -20,7 +20,7 @@ namespace MountainPlanner.Tests
                 {
                     var t = texels[i];
                     int o = (j * texels.Length + i) * Bands;
-                    cover[o] = t.F; cover[o + 1] = t.G; cover[o + 2] = t.R; cover[o + 3] = t.D; cover[o + 4] = t.W; cover[o + 5] = t.Snow;
+                    cover[o] = t.F; cover[o + 1] = t.G; cover[o + 2] = t.R; cover[o + 3] = t.D; cover[o + 4] = t.W; cover[o + MountainPlanner.Domain.Cover.GroundCover.Layers] = t.Snow;
                 }
             return cover;
         }
@@ -29,7 +29,7 @@ namespace MountainPlanner.Tests
         {
             byte[] t0 = splat.Textures[0], t1 = splat.Textures[1];
             int o = i * 4;
-            return (t0[o], t0[o + 2], t1[o + 1], t0[o + 1] + t0[o + 2] + t0[o + 3] + t1[o] + t1[o + 1]);
+            return (t0[o], t0[o + 2], t1[o + 1], t0[o + 1] + t0[o + 2] + t0[o + 3] + t1[o] + t1[o + 1] + t1[o + 2] + t1[o + 3]);
         }
 
         [Test]
@@ -77,6 +77,18 @@ namespace MountainPlanner.Tests
             Assert.That(t0[2] * keep, Is.EqualTo(100).Within(1), "grass");
             Assert.That(t0[3] * keep, Is.EqualTo(27).Within(1), "rock");
             Assert.That(((int)t0[2], (int)t0[3]), Is.EqualTo((200, 55)), "with the Snow layer off the ground shows as it is");
+        }
+
+        [Test]
+        public void RoadsFillTheSecondTexturesSpareChannels()
+        {
+            // Task 12d: cover band 5 paved road and 6 unpaved road become texture 1's blue and alpha.
+            var cover = new byte[Bands];
+            cover[1] = 100; cover[5] = 120; cover[6] = 35; cover[MountainPlanner.Domain.Cover.GroundCover.Layers] = 255;
+            var splat = SplatTexels.Compose(cover, 1);
+            Assert.That(splat.Textures[1][2], Is.EqualTo(120), "paved road");
+            Assert.That(splat.Textures[1][3], Is.EqualTo(35), "unpaved road");
+            Assert.That(splat.Textures[0][2] + splat.Textures[1][2] + splat.Textures[1][3], Is.EqualTo(255), "the bare ground still sums to 255");
         }
     }
 }
