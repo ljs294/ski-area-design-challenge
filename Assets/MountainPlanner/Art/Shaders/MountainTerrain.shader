@@ -210,6 +210,9 @@ Shader "MountainPlanner/Terrain"
                     normal = normalize(lerp(normal, dirtN, bare));
                 }
                 albedo.rgb *= Macro(p) * (any(_GrassTint.rgb) ? _GrassTint.rgb : 1);
+                // Depth up close (beauty pass, item 3): hollows between the blades darker, the relief a little stronger.
+                albedo.rgb *= lerp(0.78, 1.12, albedo.a);
+                normal = normalize(n + (normal - n) * 1.6);
             }
 
             // Rock (task 12c): granite faces on steep ground (triplanar), scree and talus where it lies back.
@@ -400,6 +403,12 @@ Shader "MountainPlanner/Terrain"
                 float smooths[6];
                 float best = -10;
                 float heights[6];
+                // Forest-floor edges (beauty pass, item 3): the canopy cut each stand's floor out as a hard dark disc. Noise
+                // at two scales breaks the outline, and what the floor gives up at its edge goes to the grass.
+                float ragged = ValueNoise(i.positionWS.xz / 6) * 0.6 + ValueNoise(i.positionWS.xz / 1.7) * 0.4;
+                float floorWeight = weights[1] * smoothstep(0.15, 0.75, weights[1] + (ragged - 0.5) * 0.7);
+                weights[2] += weights[1] - floorWeight;
+                weights[1] = floorWeight;
                 float footprint = length(fwidth(i.positionWS));   // metres per pixel, for the lake's cracks
                 float groundPercent = length(n.xz) / max(n.y, 1e-3) * 100;   // the mesh's slope as a grade, for the ground's variation
                 [unroll] for (int k = 0; k < 6; k++)
@@ -413,7 +422,12 @@ Shader "MountainPlanner/Terrain"
                         if (k == 3) SampleRock(i.positionWS, n, groundPercent, albedos[k], normals[k]);
                         else if (k == 5) SampleLake(i.positionWS, n, cuv, res, weights[k], footprint, albedos[k], normals[k], smooths[k]);
                         else if (k == 2) SampleGrass(i.positionWS, n, groundPercent, albedos[k], normals[k]);
-                        else if (k == 1) { SampleDetail(1, _Tile[1], i.positionWS, n, albedos[k], normals[k]); albedos[k].rgb *= Macro(i.positionWS); }
+                        else if (k == 1)
+                        {
+                            // Forest floor a touch lighter and mossier, so stands don't sit in black pools.
+                            SampleDetail(1, _Tile[1], i.positionWS, n, albedos[k], normals[k]);
+                            albedos[k].rgb *= Macro(i.positionWS) * float3(1.2, 1.28, 1.12);
+                        }
                         else if (k == 4) { SampleTop(k, i.positionWS, n, albedos[k], normals[k]); albedos[k].rgb *= Macro(i.positionWS); }
                         else SampleTop(k, i.positionWS, n, albedos[k], normals[k]);
                         heights[k] = weights[k] + albedos[k].a * 0.6;
