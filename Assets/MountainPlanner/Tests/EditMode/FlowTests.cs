@@ -16,11 +16,17 @@ namespace MountainPlanner.Tests
     /// <summary>Task 14: the download card's view model, built only from what the pipeline reports.</summary>
     public sealed class DownloadViewModelTests
     {
+        bool _wasImperial;
+
         [SetUp]
-        public void Metric() => FlowUnits.Imperial = false;
+        public void Metric()
+        {
+            _wasImperial = FlowUnits.Imperial;
+            FlowUnits.Set(false, remember: false);   // never touches the player's saved choice
+        }
 
         [TearDown]
-        public void Default() => FlowUnits.Imperial = true;
+        public void Restore() => FlowUnits.Set(_wasImperial, remember: false);
 
         static DownloadStatus At(string[] stages, int index, double overall = 0.2) => new DownloadStatus
         {
@@ -43,7 +49,7 @@ namespace MountainPlanner.Tests
             Assert.That(vm.Detail, Is.EqualTo("Forest: downloading tile 3 of 6 · 35%"));
             Assert.That(vm.Transfer, Is.EqualTo("182.4 MB · 6.1 MB/s"));
             Assert.That(vm.Pill, Is.EqualTo("Downloading Crystal Mountain · 41%"));
-            Assert.That(vm.Title, Is.EqualTo("Downloading Crystal Mountain · 2.0 km"));
+            Assert.That(vm.Title, Is.EqualTo("Downloading Crystal Mountain · 2 km"));
         }
 
         [Test]
@@ -112,11 +118,17 @@ namespace MountainPlanner.Tests
 
     public sealed class QualityAndLibraryViewModelTests
     {
+        bool _wasImperial;
+
         [SetUp]
-        public void Metric() => FlowUnits.Imperial = false;
+        public void Metric()
+        {
+            _wasImperial = FlowUnits.Imperial;
+            FlowUnits.Set(false, remember: false);   // never touches the player's saved choice
+        }
 
         [TearDown]
-        public void Default() => FlowUnits.Imperial = true;
+        public void Restore() => FlowUnits.Set(_wasImperial, remember: false);
 
         [Test]
         public void SizesFollowTheUnitsSetting()
@@ -126,11 +138,11 @@ namespace MountainPlanner.Tests
             FlowUnits.Changed += Count;
             try
             {
-                FlowUnits.Set(true);
-                Assert.That(FlowUnits.SiteSize(2), Is.EqualTo("1.24 mi"), "imperial is the default (owner)");
-                Assert.That(QualityCardViewModel.From(Manifest(90, 90), true).Place, Does.EndWith("1.24 mi"));
-                FlowUnits.Set(false);
-                Assert.That(FlowUnits.SiteSize(2), Is.EqualTo("2.0 km"));
+                FlowUnits.Set(true, remember: false);
+                Assert.That(FlowUnits.SiteSize(2), Is.EqualTo("1.2 mi"), "the game's shared format (UnitFormat.SiteSize)");
+                Assert.That(QualityCardViewModel.From(Manifest(90, 90), true).Place, Does.EndWith("1.2 mi"));
+                FlowUnits.Set(false, remember: false);
+                Assert.That(FlowUnits.SiteSize(2), Is.EqualTo("2 km"));
                 Assert.That(changed, Is.EqualTo(2));
             }
             finally { FlowUnits.Changed -= Count; }
@@ -148,7 +160,7 @@ namespace MountainPlanner.Tests
         {
             var vm = QualityCardViewModel.From(Manifest(71, 80), justDownloaded: true);
             Assert.That(vm.Title, Is.EqualTo("Crystal Mountain is ready"));
-            Assert.That(vm.Place, Is.EqualTo("46.935 N 121.474 W · 2.0 km"));
+            Assert.That(vm.Place, Is.EqualTo("46.935 N 121.474 W · 2 km"));
             Assert.That(vm.Lines, Has.Count.EqualTo(2));
             Assert.That(vm.Lines[0].Label, Is.EqualTo("Terrain"));
             Assert.That(vm.Lines[0].Word, Is.EqualTo("Fair"));

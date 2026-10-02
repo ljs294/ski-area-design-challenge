@@ -106,7 +106,8 @@
     padding-left: 8px;
 }
 .menu-item--danger { color: var(--danger); }
-.layers { width: 180px; }
+.right-column { flex-direction: column; width: 210px; }
+.layers { width: 210px; }
 .panel-header {
     flex-direction: row;
     justify-content: space-between;
@@ -143,6 +144,63 @@
 }
 .layer--on .layer-box { background-color: var(--accent); border-color: var(--accent); }
 .layer:disabled .layer-box { opacity: 0.45; }
+/* Map layers and info layers (task 12b): a caption over each group and a hairline between them. Info layers that
+   take turns have round boxes; Contours, which combine with any, keep the square one. */
+.layer-section {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin: 6px 4px 2px 4px;
+    padding: 0;
+}
+.layer-rule {
+    height: 1px;
+    min-height: 1px;
+    background-color: var(--border);
+    margin: 6px 4px 0 4px;
+}
+.layer--choice .layer-box { border-radius: 8px; }
+
+/* The legend card for the info layer that's on: swatches, words and figures. */
+.legend { margin-top: 8px; padding: 8px 10px; }
+.legend-row {
+    flex-direction: row;
+    align-items: center;
+    height: 22px;
+}
+.legend-swatch {
+    width: 20px;
+    height: 12px;
+    min-width: 20px;
+    flex-shrink: 0;
+    border-radius: 2px;
+    border-width: 1px;
+    border-color: var(--border);
+    margin-right: 8px;
+}
+.legend-label { color: var(--text); flex-grow: 1; margin: 0; padding: 0; }
+.legend-figure { color: var(--text-muted); -unity-text-align: middle-right; margin: 0; padding: 0; }
+.legend-compass {
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 150px;
+    margin: 2px 0;
+}
+.legend-cell {
+    width: 50px;
+    height: 26px;
+    justify-content: center;
+    align-items: center;
+    border-width: 1px;
+    border-color: var(--hud-surface);
+}
+.legend-cell-label { -unity-font-style: bold; font-size: 12px; margin: 0; padding: 0; }
+.legend-note {
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: normal;
+    margin: 6px 0 0 0;
+    padding: 0;
+}
 
 /* Bottom: readouts, then the time bar. */
 .bottom { flex-direction: column; }
@@ -182,10 +240,34 @@
     -unity-text-align: middle-left;
 }
 .readout--strong { -unity-font-style: bold; }
-.readouts > .readout {
+.readouts > .readout, .readout-stack > .readout {
     padding: 4px 8px;
     border-radius: 4px;
     background-color: var(--hud-surface);
+}
+/* The elevation under the pointer, and under it what the info layer that's on reads there (task 12b.2). */
+.readout-stack { flex-direction: column; align-items: flex-start; }
+.readout-info { margin-top: 4px; }
+
+/* Contour elevation labels (task 12b.2): placed and turned by ContourLabelOverlay, behind the panels. */
+.contour-labels {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+}
+.contour-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 64px;
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    font-size: 12px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    color: rgb(46, 36, 24);
+    -unity-text-outline-width: 1px;
+    -unity-text-outline-color: rgba(255, 255, 255, 0.85);
 }
 .attribution {
     font-size: 12px;

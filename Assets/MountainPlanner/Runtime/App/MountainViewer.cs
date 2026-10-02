@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using MountainPlanner.Domain.Measure;
 using MountainPlanner.Domain.Water;
 using MountainPlanner.Persistence;
 using MountainPlanner.Presentation;
@@ -21,7 +22,7 @@ namespace MountainPlanner.App
     /// %LOCALAPPDATA%\SkiAreaDesignChallenge, where tools/acquire (demo.bat 11–14) puts downloads.
     ///
     /// Keys (docs/plans/controls-key-map.md): the camera's own (<see cref="ViewCamera"/>), C free-fly, Home
-    /// resets the view, H hides the UI, P photo mode, Shift+1–5 map layers, F1 the developer panel, Esc the
+    /// resets the view, H hides the UI, P photo mode, Shift+1 and Shift+3 map layers, Shift+6–0 info layers, F1 the developer panel, Esc the
     /// menu. The review switches (snow, wind, light, haze, saved views) live in the F1 panel, not on keys.
     /// </summary>
     public sealed partial class MountainViewer : MonoBehaviour
@@ -69,6 +70,13 @@ namespace MountainPlanner.App
         string _clockText = "12:00";
         int _clockMinute = -1;
         FarTerrainShadow _farShadows;
+        /// <summary>Map layers (snow, trees) and info layers (slope, exposure, snow depth, contours): keys, the HUD's rows and the F1 panel.</summary>
+        readonly MapLayers _layers = new MapLayers();
+        /// <summary>Contour elevation labels (task 12b.2), and the label set they show (it changes with the units).</summary>
+        MountainPlanner.UI.ContourLabelOverlay _contourLabels;
+        ContourLabel[] _contourLabelSet;
+        /// <summary>-pointer x,y (fractions of the screen): a fixed pointer for captures of the readouts.</summary>
+        Vector2? _pointer;
         System.Collections.Generic.List<Landmarks.Placed> _landmarks = new System.Collections.Generic.List<Landmarks.Placed>();
 
         /// <summary>
@@ -127,8 +135,8 @@ namespace MountainPlanner.App
             try
             {
                 var progress = new Progress<OpenProgress>(p => { _status = p.Detail; _fraction = p.Fraction; });
-                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial,
-                    new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader, ImpostorShader = TreeImpostorShader, Cliff = CliffMaterial != null ? new Material(CliffMaterial) : null, Edge = EdgeMaterial });
+                var assets = new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader, ImpostorShader = TreeImpostorShader, Cliff = CliffMaterial != null ? new Material(CliffMaterial) : null, Edge = EdgeMaterial };
+                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial, assets);
                 _status = $"Opened in {_resort.Seconds:F1} s";
                 Debug.Log($"[MountainViewer] {_resort.Manifest.Site.Name}: {_resort.Tiles.Count} tiles opened in {_resort.Seconds:F2} s");
                 string[] args = Environment.GetCommandLineArgs();
@@ -154,9 +162,12 @@ namespace MountainPlanner.App
                     HomeView();
                 }
                 _landmarks = Landmarks.Place(_resort.Root.transform, _resort.Frame, _resort.Surface, HighlightMaterial);
+                _layers.Bind(_resort.Ground, _resort.EdgeMaterial, assets.Cliff, (float)_resort.Manifest.Crs.GridConvergenceDegrees);
+                StartCoroutine(WhenForestReady(() => _layers.BindForest(_resort.Root.GetComponent<ForestView>())));
                 WireHud();
                 if (Array.IndexOf(args, "-landmark") >= 0) FlyToLandmark();
-                // Unattended checks: -nosnow, -covermap, -view x,z,distance,yaw,pitch (metres from the centre, degrees),
+                // Unattended checks: -nosnow, -noforest, -covermap, -info slope|exposure|depth, -contours,
+                // -view x,z,distance,yaw,pitch (metres from the centre, degrees),
                 // -wind calm|breeze|strong, -lake open|ice|snow, and -screenshot <file.png>, which captures the view once
                 // it has settled, then quits.
                 int wind = Array.IndexOf(args, "-wind");
@@ -165,15 +176,27 @@ namespace MountainPlanner.App
                 int lake = Array.IndexOf(args, "-lake");
                 if (lake >= 0 && lake + 1 < args.Length) SetLakes(args[lake + 1] == "open" ? WaterSurfaceState.OpenWater
                                                                  : args[lake + 1] == "ice" ? WaterSurfaceState.Ice : WaterSurfaceState.SnowCoveredIce);
-                if (Array.IndexOf(args, "-covermap") >= 0) ToggleOverlay();
+                if (Array.IndexOf(args, "-covermap") >= 0) _layers.Set(MapLayers.CoverMap, true);
+                int info = Array.IndexOf(args, "-info");
+                if (info >= 0 && info + 1 < args.Length) _layers.Set(args[info + 1], true);
+                if (Array.IndexOf(args, "-contours") >= 0) _layers.Set(MapLayers.Contours, true);
+                int pointer = Array.IndexOf(args, "-pointer");
+                if (pointer >= 0 && pointer + 1 < args.Length)
+                {
+                    var f = args[pointer + 1].Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                    _pointer = new Vector2(f[0], f[1]);
+                }
+                int units = Array.IndexOf(args, "-units");   // -units metric|imperial: captures, without changing the saved choice
+                if (units >= 0 && units + 1 < args.Length) DisplayUnits.Set(args[units + 1] == "metric" ? UnitSystem.Metric : UnitSystem.Imperial, remember: false);
                 int lt = Array.IndexOf(args, "-lodtransitions");   // review runs: LOD0→1, 1→2, 2→impostor, impostor→culled screen heights
                 if (lt >= 0 && lt + 1 < args.Length)
                 {
                     var t = args[lt + 1].Split(',').Select(v => float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
                     StartCoroutine(WhenForestReady(() => Forest.LodTransitions = new Vector4(t[0], t[1], t[2], t[3])));
                 }
-                if (Array.IndexOf(args, "-baretrees") >= 0) StartCoroutine(WhenForestReady(ToggleTreeSnow));
-                else if (Array.IndexOf(args, "-nosnow") >= 0) await ResortOpener.SetSnowAsync(_resort, false, destroyCancellationToken);
+                if (Array.IndexOf(args, "-baretrees") >= 0) _layers.SetTreeSnow(false);
+                if (Array.IndexOf(args, "-nosnow") >= 0) _layers.Set(MapLayers.Snow, false);
+                if (Array.IndexOf(args, "-noforest") >= 0) _layers.Set(MapLayers.Trees, false);
                 int view = Array.IndexOf(args, "-view");
                 if (view >= 0 && view + 1 < args.Length && Camera != null)
                 {
@@ -212,6 +235,7 @@ namespace MountainPlanner.App
 
         System.Collections.IEnumerator CaptureAndQuit(string path)
         {
+            while (!_resort.CoverReady.IsCompleted) yield return null;   // the cover, snowpack, contour labels and forest are in
             for (int i = 0; i < 90; i++) yield return null; // let LOD and shadows settle
             var cam = Camera != null ? Camera.transform.position : Vector3.zero;
             Debug.Log($"[MountainViewer] camera {cam}, ground below {_resort.Surface.HeightAt(cam.x, cam.z):F0} m, target {(Camera != null ? Camera.Target : Vector3.zero)}, " +
@@ -284,45 +308,90 @@ namespace MountainPlanner.App
             if (plain && letters && keys.pKey.wasPressedThisFrame) _photo = !_photo;
             if (_photo && (keys.f12Key.wasPressedThisFrame || keys.spaceKey.wasPressedThisFrame) && !_capturing) StartCoroutine(CapturePhoto());
             if (plain && letters && keys.cKey.wasPressedThisFrame && Camera != null) Camera.ToggleMode();
+            if (plain && letters && keys.uKey.wasPressedThisFrame) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
             if (keys.homeKey.wasPressedThisFrame) HomeView();
             if (shift)
             {
-                if (keys.digit1Key.wasPressedThisFrame) ToggleLayer("snow");
-                if (keys.digit2Key.wasPressedThisFrame) ToggleLayer("ground");    // reserved: task 12
-                if (keys.digit3Key.wasPressedThisFrame) ToggleLayer("forest");
-                if (keys.digit4Key.wasPressedThisFrame) ToggleLayer("cover");
-                if (keys.digit5Key.wasPressedThisFrame) ToggleLayer("imagery");   // reserved: task 12
+                // Map layers (Shift+2, 4 and 5 are free for lifts and the rest as they're built).
+                if (keys.digit1Key.wasPressedThisFrame) ToggleLayer(MapLayers.Snow);
+                if (keys.digit3Key.wasPressedThisFrame) ToggleLayer(MapLayers.Trees);
+                // Info layers: Contours with anything; the other four take turns.
+                if (keys.digit6Key.wasPressedThisFrame) ToggleLayer(MapLayers.Contours);
+                if (keys.digit7Key.wasPressedThisFrame) ToggleLayer(MapLayers.SlopeAngle);
+                if (keys.digit8Key.wasPressedThisFrame) ToggleLayer(MapLayers.Exposure);
+                if (keys.digit9Key.wasPressedThisFrame) ToggleLayer(MapLayers.SnowDepth);
+                if (keys.digit0Key.wasPressedThisFrame) ToggleLayer(MapLayers.SnowConditions);   // reserved
             }
         }
 
-        /// <summary>Shift+1–5 and the HUD's layer rows: Snow, Ground cover, Forest, Cover map, Imagery (the last two of five wait for task 12).</summary>
+        /// <summary>
+        /// The keys, the HUD's layer rows and the F1 panel all switch layers here (<see cref="MapLayers"/>): the change
+        /// shows in this frame. Snow conditions waits for the snow simulation.
+        /// </summary>
         void ToggleLayer(string layer)
         {
             if (_resort == null) return;
-            var view = _resort.Root.GetComponent<ForestView>();
-            switch (layer)
-            {
-                case "snow": _ = ResortOpener.SetSnowAsync(_resort, !_resort.SnowOn, destroyCancellationToken); break;
-                case "cover": ToggleOverlay(); break;
-                case "forest": if (view != null) view.enabled = !view.enabled; break;
-                default: Toast($"The {layer} layer comes with task 12"); break;
-            }
+            if (_layers.Toggle(layer)) return;
+            if (layer == MapLayers.SnowConditions) Toast("Snow conditions come with the snow simulation");
         }
 
         void WireHud()
         {
             if (Hud == null) return;
             Hud.SetSite(_resort.Manifest.Site.Name, _resort.Manifest.Quality.Score);
-            Hud.LayerChanged += (layer, on) =>
-            {
-                if (layer == "snow" && on != _resort.SnowOn) _ = ResortOpener.SetSnowAsync(_resort, on, destroyCancellationToken);
-                else if (layer == "cover" && on != _resort.Ground.OverlayOn) ToggleOverlay();
-                else if (layer == "forest") { var view = _resort.Root.GetComponent<ForestView>(); if (view != null) view.enabled = on; }
-            };
+            Hud.LayerChanged += (layer, on) => { if (on != _layers.IsOn(layer)) ToggleLayer(layer); };
             Hud.PresetChosen += i => Lighting?.Set(i);
             Hud.NorthUpChosen += () => Camera?.SetAngles(0, Camera.Pitch);
             Hud.QuitChosen += Application.Quit;
+            Hud.UnitsChosen += DisplayUnits.Toggle;
             ViewCamera.PointerBlocked = Hud.IsPointerOverPanel;
+            _contourLabels = new MountainPlanner.UI.ContourLabelOverlay(Hud.ContourLabelLayer);
+            DisplayUnits.Changed += OnUnitsChanged;
+        }
+
+        /// <summary>New units: the contour interval and snow-depth stops in the shader, and the labels' numbers.</summary>
+        void OnUnitsChanged()
+        {
+            _layers.Apply();
+            _contourLabelSet = null;   // UpdateContourLabels picks the set for the new units
+        }
+
+        void OnDestroy() => DisplayUnits.Changed -= OnUnitsChanged;
+
+        /// <summary>Moves the contour labels with the camera, after it has moved this frame.</summary>
+        void LateUpdate()
+        {
+            if (_contourLabels == null || _resort == null) return;
+            var set = _resort.ContourLabels[(int)DisplayUnits.Current];
+            if (!ReferenceEquals(set, _contourLabelSet))
+            {
+                _contourLabelSet = set;
+                _contourLabels.SetLabels(set, DisplayUnits.Current);
+            }
+            var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
+            _contourLabels.Update(cam, _resort.Surface, _layers.ContoursOn && _hudShown);
+        }
+
+        /// <summary>The slope (a grade in percent) and the way it faces (degrees from true north) at a point, over 4 m as the shader measures.</summary>
+        (float Percent, float Bearing) SlopeAt(float x, float z)
+        {
+            var s = _resort.Surface;
+            float east = (s.HeightAt(x + 2, z) - s.HeightAt(x - 2, z)) / 4, north = (s.HeightAt(x, z + 2) - s.HeightAt(x, z - 2)) / 4;
+            float bearing = Mathf.Atan2(-east, -north) * Mathf.Rad2Deg - (float)_resort.Manifest.Crs.GridConvergenceDegrees;
+            return ((float)SlopeBands.PercentFromRise(Mathf.Sqrt(east * east + north * north)), bearing);
+        }
+
+        /// <summary>The snow-depth field at a point, between its 8 m cells.</summary>
+        float SnowDepthAt(float x, float z)
+        {
+            var field = _resort.States?.Snow;
+            if (field == null) return float.NaN;
+            float u = Mathf.Clamp((x - _resort.Ring.xMin) / field.CellMetres - 0.5f, 0, field.Width - 1);
+            float v = Mathf.Clamp((z - _resort.Ring.yMin) / field.CellMetres - 0.5f, 0, field.Height - 1);
+            int i = Mathf.Min((int)u, field.Width - 2 < 0 ? 0 : field.Width - 2), j = Mathf.Min((int)v, field.Height - 2 < 0 ? 0 : field.Height - 2);
+            int i1 = Mathf.Min(i + 1, field.Width - 1), j1 = Mathf.Min(j + 1, field.Height - 1);
+            float fu = u - i, fv = v - j;
+            return Mathf.Lerp(Mathf.Lerp(field[i, j], field[i1, j], fu), Mathf.Lerp(field[i, j1], field[i1, j1], fu), fv);
         }
 
         /// <summary>Shows or hides the HUD and refreshes it ten times a second (0.4 §8: bounded, no per-frame allocation).</summary>
@@ -333,10 +402,9 @@ namespace MountainPlanner.App
             if (show != _hudShown) Hud.SetVisible(_hudShown = show);
             if (!show || Time.unscaledTime < _nextReadout || Camera == null) return;
             _nextReadout = Time.unscaledTime + 0.1f;
-            var view = _resort.Root.GetComponent<ForestView>();
-            Hud.SetLayer("snow", _resort.SnowOn);
-            Hud.SetLayer("cover", _resort.Ground.OverlayOn);
-            Hud.SetLayer("forest", view == null || view.enabled);
+            foreach (string id in MapLayers.MapIds) Hud.SetLayer(id, _layers.IsOn(id));
+            foreach (string id in MapLayers.InfoIds) Hud.SetLayer(id, _layers.IsOn(id));
+            Hud.SetLegend(_layers.InfoLayerId, _layers.ContoursOn);
             int preset = Lighting != null ? Lighting.Current : LightingPreset.Noon;
             int second = Lighting != null ? Lighting.Clock.Now.SecondOfDay : 12 * 3600;
             if (second / 60 != _clockMinute)   // the clock's text changes once a minute, not on every refresh
@@ -349,36 +417,26 @@ namespace MountainPlanner.App
             float distance = Vector3.Distance(cam.transform.position, Camera.Target);
             float metresPerPixel = 2 * distance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height);
             var mouse = Mouse.current;
-            float elevation = float.NaN;
-            if (mouse != null)
+            float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
+            string info = _layers.InfoLayerId;
+            if (mouse != null || _pointer.HasValue)
             {
-                var ray = cam.ScreenPointToRay(mouse.position.ReadValue());
+                var ray = cam.ScreenPointToRay(_pointer.HasValue ? new Vector2(_pointer.Value.x * Screen.width, _pointer.Value.y * Screen.height) : mouse.position.ReadValue());
                 float hit = Camera.GroundAlong(ray, 30000);
                 if (!float.IsNaN(hit))
                 {
                     var g = ray.GetPoint(hit);
                     elevation = _resort.Surface.HeightAt(g.x, g.z);
+                    // What the info layer that's on reads under the pointer (task 12b.2).
+                    if (!float.IsNaN(elevation) && (info == MapLayers.SlopeAngle || info == MapLayers.Exposure)) (slope, bearing) = SlopeAt(g.x, g.z);
+                    else if (!float.IsNaN(elevation) && info == MapLayers.SnowDepth) snow = SnowDepthAt(g.x, g.z);
                 }
             }
             Hud.SetReadouts(cam.transform.eulerAngles.y, metresPerPixel, elevation);
-        }
-
-        /// <summary>The cover-map overlay (task 07): flat class colours with the snow off, to check the cover.</summary>
-        async void ToggleOverlay()
-        {
-            bool on = !_resort.Ground.OverlayOn;
-            _resort.Ground.SetOverlay(on);
-            if (on == _resort.SnowOn) await ResortOpener.SetSnowAsync(_resort, !on, destroyCancellationToken);
+            Hud.SetInfoReadout(info, slope, bearing, snow);
         }
 
         ForestRenderer Forest => _resort?.Root != null ? _resort.Root.GetComponent<ForestView>()?.Renderer : null;
-
-        /// <summary>Fresh snow on the trees, or bare evergreens (the ground keeps its snow).</summary>
-        void ToggleTreeSnow()
-        {
-            var forest = Forest;
-            if (forest != null) forest.SetSnowLoad(forest.SnowLoad > 0.5f ? 0 : 1);
-        }
 
         /// <summary>Every lake's surface state, through the task 10 API (iteration 1: one shared state).</summary>
         void SetLakes(WaterSurfaceState state)
@@ -463,7 +521,7 @@ namespace MountainPlanner.App
             }
             string text = _resort == null
                 ? $"{_status}\n[{new string('#', (int)(_fraction * 30)).PadRight(30, '.')}] {_fraction * 100:F0}%"
-                : $"{_resort.Manifest.Site.Name} · {_resort.Manifest.Site.SizeMetres / 1000.0:0.#} km · {_status} · {_fps:F0} fps\n" +
+                : $"{_resort.Manifest.Site.Name} · {UnitFormat.SiteSize(_resort.Manifest.Site.SizeMetres, DisplayUnits.Current)} · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
             if (_resort != null && !_help && Hud != null)
             {
@@ -474,7 +532,7 @@ namespace MountainPlanner.App
             {
                 text += "\nWASD or arrows pan · Q/E rotate · R/F tilt · Wheel, +/− or PgUp/PgDn zoom · Middle-drag rotate · Right-drag pan · Shift faster · " +
                         "Home reset view · C free-fly (W/S fly, Q/E turn, R/F pitch, PgUp/PgDn rise and sink, right-drag look) · " +
-                        "Shift+1–5 layers (snow, ground, forest, cover map, imagery) · H hide UI · P photo mode · F1 this panel · Esc menu · map data © OpenStreetMap contributors";
+                        "Map layers: Shift+1 snow, Shift+3 trees · Info layers: Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth, Shift+0 snow conditions (later) · U feet or metres · H hide UI · P photo mode · F1 this panel · Esc menu · map data © OpenStreetMap contributors";
                 float height = style.CalcHeight(new GUIContent(text), 820);
                 GUI.Box(new Rect(20, 20, 820, height), text, style);
                 DrawDeveloperPanel(new Rect(20, 28 + height, 820, 0));
@@ -501,11 +559,11 @@ namespace MountainPlanner.App
             void Caption(string text) => GUI.Label(new Rect(box.x + 10, y, label, row), text, caption);
 
             Caption("Snow");
-            if (Button(0, $"Ground: {(_resort.SnowOn ? "on" : "off")}")) ToggleLayer("snow");
+            if (Button(0, $"Layer: {(_layers.SnowOn ? "on" : "off")}")) ToggleLayer(MapLayers.Snow);
             var forest = Forest;
-            if (Button(1, $"Trees: {(forest == null || forest.SnowLoad > 0.5f ? "on" : "off")}")) ToggleTreeSnow();
+            if (Button(1, $"Trees: {(_layers.TreeSnowOn ? "on" : "off")}")) _layers.SetTreeSnow(!_layers.TreeSnowOn);
             if (Button(2, $"Wind: {(forest == null ? "breeze" : forest.Wind.Target.ToString().ToLowerInvariant())}")) forest?.Wind.Cycle();
-            if (Button(3, $"Cover map: {(_resort.Ground.OverlayOn ? "on" : "off")}")) ToggleOverlay();
+            if (Button(3, $"Cover map: {(_layers.CoverMapOn ? "on" : "off")}")) ToggleLayer(MapLayers.CoverMap);
             y += row;
 
             if (Lighting != null)

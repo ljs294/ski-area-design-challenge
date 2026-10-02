@@ -44,9 +44,9 @@ namespace MountainPlanner.Domain.Cover
     public static class GroundCover
     {
         public const int Layers = 5;
-        /// <summary>Slopes where the ground turns to rock (under the snow).</summary>
+        /// <summary>Slopes (degrees) where the ground turns to rock (under the snow): grades of 78% to 119%.</summary>
         public const double RockSlopeStart = 38, RockSlopeFull = 50;
-        /// <summary>Slopes where snow can't hold and bare rock shows (A2).</summary>
+        /// <summary>Slopes (degrees) where snow can't hold and bare rock shows (A2): grades of 128% to 173%.</summary>
         public const double BareStart = 52, BareFull = 60;
         /// <summary>How far noise shifts the slope thresholds, in degrees.</summary>
         public const double SlopeJitter = 3;

@@ -1,33 +1,29 @@
 using System;
-using System.Globalization;
+using MountainPlanner.Domain.Measure;
+using MountainPlanner.Presentation;
 
 namespace MountainPlanner.UI.Flow
 {
     /// <summary>
-    /// Every length the task 14 screens show goes through here, so the display-units setting (imperial by
-    /// default, U or the menu switches it; task 12's shared setting) changes them all at once. Disk sizes stay
-    /// in bytes and coordinates in degrees.
+    /// The task 14 screens' view of the game's one display-units setting (<see cref="DisplayUnits"/>, task 12b.2:
+    /// imperial by default, U or the menu switches it, remembered between sessions) and its formats
+    /// (<see cref="UnitFormat"/>). Disk sizes stay in bytes and coordinates in degrees.
     /// </summary>
     public static class FlowUnits
     {
-        const double MetresPerMile = 1609.344;
+        public static bool Imperial => DisplayUnits.Imperial;
 
-        /// <summary>Imperial (miles) or metric (km). The owner's default is imperial.</summary>
-        public static bool Imperial = true;
-
-        /// <summary>Raised when <see cref="Imperial"/> changes through <see cref="Set"/>, so open screens redraw.</summary>
-        public static event Action Changed;
-
-        public static void Set(bool imperial)
+        /// <summary>Raised when the game's units change, so open screens redraw.</summary>
+        public static event Action Changed
         {
-            if (Imperial == imperial) return;
-            Imperial = imperial;
-            Changed?.Invoke();
+            add => DisplayUnits.Changed += value;
+            remove => DisplayUnits.Changed -= value;
         }
 
-        /// <summary>A site's size: "2.0 km" or "1.24 mi" (the size steps are 0.1 km, so miles keep two decimals).</summary>
-        public static string SiteSize(double km) => Imperial
-            ? (km * 1000 / MetresPerMile).ToString("0.00", CultureInfo.InvariantCulture) + " mi"
-            : km.ToString("0.0", CultureInfo.InvariantCulture) + " km";
+        /// <summary>Switches the whole game; <paramref name="remember"/> false for tests, so the player's choice is untouched.</summary>
+        public static void Set(bool imperial, bool remember = true) => DisplayUnits.Set(imperial ? UnitSystem.Imperial : UnitSystem.Metric, remember);
+
+        /// <summary>A site's size, in the game's format: "3.1 mi" or "5 km".</summary>
+        public static string SiteSize(double km) => UnitFormat.SiteSize(km * 1000, DisplayUnits.Current);
     }
 }
