@@ -39,6 +39,12 @@ Shader "MountainPlanner/Terrain"
         float4 _RingBounds;          // xmin, zmin, xmax, zmax in world space: the data's edge
         float _Tile[6];              // metres per texture repeat, per layer
         float _Smooth[6];
+        // The bare ground's variation within a layer (task 12c). The texture arrays hold four more looks after the
+        // six splat layers (GroundTextures): alpine meadow, scree, bare dirt and meadow seen from a distance.
+        float4 _AlpineBand;          // x, y: elevations (m) where valley grass gives way to alpine meadow; unset: none
+        float4 _GrassTint;           // the season's colour on grass and meadow (rgb multiplier; unset reads as none), for the seasons task
+        static const int MeadowLayer = 6, ScreeLayer = 7, DirtLayer = 8, MeadowFarLayer = 9;
+        static const float MeadowTile = 4, ScreeTile = 6, DirtTile = 3, MeadowFarTile = 90;   // metres per repeat
         float4 _OverlayColor[6];
         // Task 10 seams (0.3 §4.6), set by SurfaceStates. The snow-depth map (metres) over the ring: snow covers
         // fully from _SnowDepthParams.x metres deep; .w = 0 (not set yet) is full cover. Iteration 1 is 12 in
@@ -157,6 +163,69 @@ Shader "MountainPlanner/Terrain"
                 float2 f = frac(p);
                 f = f * f * (3 - 2 * f);
                 return lerp(lerp(Hash12(i), Hash12(i + int2(1, 0)), f.x), lerp(Hash12(i + int2(0, 1)), Hash12(i + int2(1, 1)), f.x), f.y);
+            }
+
+            // A photo layer at two scales (task 12c): its own repeat, and a copy 5.7 times larger and turned 40°, so
+            // the repeat never shows from afar. Height and normal come from the near scale.
+            void SampleDetail(int layer, float tile, float3 p, float3 n, out float4 albedo, out float3 normal)
+            {
+                float2 uv = p.xz / tile;
+                float4 near = SAMPLE_TEXTURE2D_ARRAY(_Albedo, sampler_Albedo, uv, layer);
+                float2 turned = float2(uv.x * 0.766 - uv.y * 0.643, uv.x * 0.643 + uv.y * 0.766) / 5.7 + 0.37;
+                float3 far = SAMPLE_TEXTURE2D_ARRAY(_Albedo, sampler_Albedo, turned, layer).rgb;
+                albedo = float4(lerp(near.rgb, far, 0.4), near.a);
+                float3 t = SAMPLE_TEXTURE2D_ARRAY(_Normals, sampler_Albedo, uv, layer).xyz * 2 - 1;
+                normal = normalize(float3(n.x + t.x, n.y, n.z + t.y));
+            }
+
+            // Brightness drifting over a few hundred metres, so a slope of one cover type isn't one flat tone.
+            float Macro(float3 p)
+            {
+                return 0.86 + 0.18 * ValueNoise(p.xz / 230) + 0.08 * ValueNoise(p.xz / 61 + 17);
+            }
+
+            // Grass (task 12c): winter-dormant valley grass giving way to sparser alpine meadow up high (its far
+            // texture shows rock patches across 90 m), and bare dirt breaking through on steep grass.
+            void SampleGrass(float3 p, float3 n, float slopePercent, out float4 albedo, out float3 normal)
+            {
+                SampleDetail(2, _Tile[2], p, n, albedo, normal);
+                float alpine = _AlpineBand.y > _AlpineBand.x
+                    ? smoothstep(_AlpineBand.x, _AlpineBand.y, p.y + (ValueNoise(p.xz / 150) - 0.5) * 80) : 0;
+                [branch] if (alpine > 0.01)
+                {
+                    float4 meadow;
+                    float3 meadowN;
+                    SampleDetail(MeadowLayer, MeadowTile, p, n, meadow, meadowN);
+                    meadow.rgb = lerp(meadow.rgb, SAMPLE_TEXTURE2D_ARRAY(_Albedo, sampler_Albedo, p.xz / MeadowFarTile, MeadowFarLayer).rgb, 0.5);
+                    albedo = lerp(albedo, meadow, alpine);
+                    normal = normalize(lerp(normal, meadowN, alpine));
+                }
+                float bare = smoothstep(60, 95, slopePercent) * smoothstep(0.5, 0.75, ValueNoise(p.xz / 14)) * 0.75;
+                [branch] if (bare > 0.01)
+                {
+                    float4 dirt;
+                    float3 dirtN;
+                    SampleDetail(DirtLayer, DirtTile, p, n, dirt, dirtN);
+                    albedo = lerp(albedo, dirt, bare);
+                    normal = normalize(lerp(normal, dirtN, bare));
+                }
+                albedo.rgb *= Macro(p) * (any(_GrassTint.rgb) ? _GrassTint.rgb : 1);
+            }
+
+            // Rock (task 12c): granite faces on steep ground (triplanar), scree and talus where it lies back.
+            void SampleRock(float3 p, float3 n, float slopePercent, out float4 albedo, out float3 normal)
+            {
+                SampleTriplanar(3, p, n, albedo, normal);
+                float gentle = 1 - smoothstep(70, 110, slopePercent);
+                [branch] if (gentle > 0.01)
+                {
+                    float4 scree;
+                    float3 screeN;
+                    SampleDetail(ScreeLayer, ScreeTile, p, n, scree, screeN);
+                    albedo = lerp(albedo, scree, gentle);
+                    normal = normalize(lerp(normal, screeN, gentle));
+                }
+                albedo.rgb *= Macro(p);
             }
 
             // The water weight at a world offset (metres) from this pixel's splat uv.
@@ -316,6 +385,7 @@ Shader "MountainPlanner/Terrain"
                 float best = -10;
                 float heights[6];
                 float footprint = length(fwidth(i.positionWS));   // metres per pixel, for the lake's cracks
+                float groundPercent = length(n.xz) / max(n.y, 1e-3) * 100;   // the mesh's slope as a grade, for the ground's variation
                 [unroll] for (int k = 0; k < 6; k++)
                 {
                     albedos[k] = 0;
@@ -324,8 +394,11 @@ Shader "MountainPlanner/Terrain"
                     heights[k] = -10;
                     [branch] if (weights[k] > 0.004)
                     {
-                        if (k == 3) SampleTriplanar(k, i.positionWS, n, albedos[k], normals[k]);
+                        if (k == 3) SampleRock(i.positionWS, n, groundPercent, albedos[k], normals[k]);
                         else if (k == 5) SampleLake(i.positionWS, n, cuv, res, weights[k], footprint, albedos[k], normals[k], smooths[k]);
+                        else if (k == 2) SampleGrass(i.positionWS, n, groundPercent, albedos[k], normals[k]);
+                        else if (k == 1) { SampleDetail(1, _Tile[1], i.positionWS, n, albedos[k], normals[k]); albedos[k].rgb *= Macro(i.positionWS); }
+                        else if (k == 4) { SampleTop(k, i.positionWS, n, albedos[k], normals[k]); albedos[k].rgb *= Macro(i.positionWS); }
                         else SampleTop(k, i.positionWS, n, albedos[k], normals[k]);
                         heights[k] = weights[k] + albedos[k].a * 0.6;
                         best = max(best, heights[k]);

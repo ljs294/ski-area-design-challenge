@@ -59,8 +59,11 @@ namespace MountainPlanner.Presentation
             }
         }
 
-        /// <summary>Metres per texture repeat and smoothness per terrain slot (snow, forest floor, grass, rock, developed, ice).</summary>
-        static readonly float[] SlotTile = { 12, 6, 8, 14, 6, 20 };
+        /// <summary>
+        /// Metres per texture repeat and smoothness per terrain slot (snow, forest floor, grass, rock, developed, ice). The
+        /// photo layers (task 12c) repeat at about twice their real size; developed is an aerial texture of 30 m.
+        /// </summary>
+        static readonly float[] SlotTile = { 12, 3, 4, 6, 30, 20 };
         static readonly float[] SlotSmooth = { 0.35f, 0.05f, 0.08f, 0.2f, 0.15f, 0.6f };
 
         /// <summary>The terrain material this resort draws with (the mountain terrain shader), if any.</summary>
@@ -93,6 +96,28 @@ namespace MountainPlanner.Presentation
 
         /// <summary>The terrain layer slot of cover layer k (0-4 ground in GroundLayer order, 5 = snow).</summary>
         public static int Slot(int k) => k == Snow ? 0 : k + 1;
+
+        /// <summary>
+        /// Where valley grass gives way to alpine meadow (task 12c): from 45% to 70% of the way up the site's elevation
+        /// range, a stand-in until the forest's treeline is shared with the renderer.
+        /// </summary>
+        public void SetElevationRange(float lowest, float highest)
+        {
+            if (Material == null) return;
+            float span = highest - lowest;
+            Material.SetVector(AlpineBandId, new Vector4(lowest + 0.45f * span, lowest + 0.7f * span, 0, 0));
+        }
+
+        static readonly int AlpineBandId = Shader.PropertyToID("_AlpineBand");
+
+        /// <summary>
+        /// The season's colour on grass and meadow (task 12c's hook for the seasons task): an rgb multiplier on the
+        /// summer-olive grass, white for none (e.g. gold in autumn, straw in winter). A shader global, so one call
+        /// covers every resort; instant, no texture change.
+        /// </summary>
+        public static void SetGrassTint(Color tint) => Shader.SetGlobalVector(GrassTintId, new Vector4(tint.r, tint.g, tint.b, 1));
+
+        static readonly int GrassTintId = Shader.PropertyToID("_GrassTint");
 
         static readonly int OverlayId = Shader.PropertyToID("_Overlay");
         static readonly int SnowOnId = Shader.PropertyToID("_SnowOn");

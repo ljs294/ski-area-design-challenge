@@ -1,0 +1,15 @@
+{
+  "note": "Ground textures for the bare-ground look (task 12c). All CC0 from Poly Haven (https://polyhaven.com/license). fetch.mjs downloads the 2k maps into cache/ (git-ignored); Mountain Planner > Generate Ground Textures builds the arrays from them.",
+  "resolution": "2k",
+  "assets": [
+    { "id": "withered_grass",    "role": "Valley grass, winter-dormant",              "tileMetres": 2.0 },
+    { "id": "sparse_grass",      "role": "Alpine meadow",                            "tileMetres": 2.0 },
+    { "id": "forest_leaves_04",  "role": "Pine forest floor",                        "tileMetres": 1.5 },
+    { "id": "rock_face_03",      "role": "Steep rock, close",                        "tileMetres": 2.7 },
+    { "id": "rocky_terrain_02",  "role": "Rock and scree from a distance",           "tileMetres": 90 },
+    { "id": "dry_ground_rocks",  "role": "Scree and talus, close",                   "tileMetres": 4.0 },
+    { "id": "brown_mud_dry",     "role": "Bare dirt on steep grass",                 "tileMetres": 1.3 },
+    { "id": "aerial_asphalt_01", "role": "Developed, from a distance",               "tileMetres": 30 },
+    { "id": "gravel_road",       "role": "Developed and tracks, close",              "tileMetres": 2.0 }
+  ]
+}
