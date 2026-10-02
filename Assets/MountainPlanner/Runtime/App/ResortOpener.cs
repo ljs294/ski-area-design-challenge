@@ -237,7 +237,9 @@ namespace MountainPlanner.App
         {
             await resort.CoverReady;
             resort.SnowOn = snow;
-            resort.States?.Snow.Fill(snow ? SnowDepthField.IterationOneMetres : 0);   // the seam a snow model will write
+            // The snow-depth seam (task 10) follows the splats: on before they gain snow, off once they've lost it,
+            // so no tile ever has its snow taken away with nothing composed underneath.
+            if (snow) resort.States?.Snow.Fill(SnowDepthField.IterationOneMetres);
             if (resort.CliffMaterial != null) resort.CliffMaterial.SetFloat("_SnowLoad", snow ? 1 : 0);
             // Lakes keep their water weight either way; the shader draws snow on ice or bare ice.
             if (resort.Ground?.Material != null) resort.Ground.Material.SetFloat("_SnowOn", snow ? 1 : 0);
@@ -254,6 +256,7 @@ namespace MountainPlanner.App
                 }
                 if (++n % 8 == 0) await Task.Yield();
             }
+            if (!snow) resort.States?.Snow.Fill(0);
         }
 
         static double Distance(CacheTile t, CacheManifest cache, LocalFrame frame)

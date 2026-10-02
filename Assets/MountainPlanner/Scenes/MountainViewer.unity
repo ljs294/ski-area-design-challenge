@@ -264,6 +264,7 @@ MonoBehaviour:
   TerrainMaterial: {fileID: 2100000, guid: 7c108c9abb6bed448b026bc7fe126a85, type: 2}
   Camera: {fileID: 1783688403}
   Lighting: {fileID: 191903798}
+  FarShadowCompute: {fileID: 7200000, guid: 178f9de422325c546b62bda7ec104124, type: 3}
   Hud: {fileID: 664559336}
   HighlightMaterial: {fileID: 2100000, guid: aaddfdc2f814e314e85e47d238967f3b, type: 2}
   Trees: {fileID: 11400000, guid: b8dd485d786cab44e86a916a54ae9f7f, type: 2}
@@ -389,17 +390,29 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ffb6951a7e00410994f33cb0d3808ea7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: MountainPlanner.Presentation::MountainPlanner.Presentation.ViewCamera
+  Ring:
+    serializedVersion: 2
+    x: 0
+    y: 0
+    width: 0
+    height: 0
+  HasRing: 0
+  PlinthTop: -Infinity
+  SnowDepth: 0.3048
+  Clearance: 0.5
+  OutsideRing: 2000
   Target: {x: 0, y: 0, z: 0}
   Distance: 3500
   Yaw: 200
   Pitch: 24
-  MinClearance: 3
   ZoomStep: 0.25
-  MinDistance: 20
+  MinDistance: 2
   MaxDistance: 20000
   RotateSpeed: 90
   TiltSpeed: 45
   Smoothing: 12
+  LettersToTools: 0
+  InputEnabled: 1
 --- !u!20 &1783688404
 Camera:
   m_ObjectHideFlags: 0

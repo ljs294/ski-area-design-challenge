@@ -241,7 +241,9 @@ Shader "MountainPlanner/Terrain"
                 float2 cuv = (i.uv * (res - 1) + 0.5) / res;
                 float4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
                 float4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
-                float weights[6] = { c0.r * SnowCover(i.positionWS), c0.g, c0.b, c0.a, c1.r, c1.g };
+                // Thin snow lets the composed ground show; where nothing is composed under the snow it stays.
+                float under = 1 - c0.r;
+                float weights[6] = { c0.r * lerp(1, SnowCover(i.positionWS), saturate(under * 50)), c0.g, c0.b, c0.a, c1.r, c1.g };
 
                 if (_Overlay > 0.5)
                 {
