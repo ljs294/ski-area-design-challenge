@@ -58,6 +58,10 @@ namespace MountainPlanner.Presentation
         int _noonYear, _noonDay;
         double _noonLat = double.NaN, _noonLon, _noonSecond;
         Volume _volume;
+        Tonemapping _tone;
+        Vignette _vignette;
+        /// <summary>The grade over the presets (beauty pass, item 1; <see cref="LookStyle"/>).</summary>
+        public LookStyle Style { get; private set; } = LookStyle.All[LookStyle.Default];
         ColorAdjustments _adjust;
         WhiteBalance _white;
         SplitToning _split;
@@ -73,8 +77,11 @@ namespace MountainPlanner.Presentation
         {
             var profile = ScriptableObject.CreateInstance<VolumeProfile>();
             profile.name = "Lighting preset";
-            var tone = profile.Add<Tonemapping>(true);
-            tone.mode.Override(TonemappingMode.Neutral);
+            _tone = profile.Add<Tonemapping>(true);
+            _tone.mode.Override(TonemappingMode.Neutral);
+            _vignette = profile.Add<Vignette>(true);
+            _vignette.intensity.Override(0);
+            _vignette.smoothness.Override(0.45f);
             _adjust = profile.Add<ColorAdjustments>(true);
             _white = profile.Add<WhiteBalance>(true);
             _split = profile.Add<SplitToning>(true);
@@ -109,6 +116,14 @@ namespace MountainPlanner.Presentation
         }
 
         /// <summary>M: the distance haze on or off (0.5 §4 asks for a toggle).</summary>
+        /// <summary>Picks the grade over the presets (`-look name`; beauty pass, item 1).</summary>
+        public void SetStyle(int index)
+        {
+            if (index < 0 || index >= LookStyle.All.Length) return;
+            Style = LookStyle.All[index];
+            _dirty = true;
+        }
+
         public void SetHaze(bool on)
         {
             HazeOn = on;
@@ -189,6 +204,15 @@ namespace MountainPlanner.Presentation
             CurrentLight = light;
             var p = LightingPreset.Look((float)light.SunElevation, now.SecondOfDay < SolarNoon(day), out int nearest);
             Current = nearest;
+            var s = Style;
+            p.SunIntensity *= s.SunScale;
+            p.Zenith = Color.Lerp(p.Zenith, p.Zenith * new Color(0.62f, 0.72f, 0.92f), s.DeeperSky);
+            p.AmbientSky *= s.AmbientScale;
+            p.AmbientEquator *= s.AmbientScale;
+            p.AmbientGround *= s.AmbientScale;
+            p.Exposure += s.ExposureAdd;
+            p.Contrast += s.ContrastAdd;
+            p.Saturation += s.SaturationAdd;
             var toLight = _toLight = new Vector3((float)light.X, (float)light.Y, (float)light.Z);
             if (Sun != null)
             {
@@ -220,7 +244,9 @@ namespace MountainPlanner.Presentation
             _white.tint.Override(p.Tint);
             // Split toning: mid-grey is no change, so the preset's tints are applied part of the way from grey.
             var grey = new Color(0.5f, 0.5f, 0.5f);
-            _split.shadows.Override(Color.Lerp(grey, p.SplitShadows, SplitStrength));
+            _split.shadows.Override(Color.Lerp(grey, p.SplitShadows, SplitStrength + s.CoolShadows));
+            _tone.mode.Override(s.Tonemapper);
+            _vignette.intensity.Override(s.Vignette);
             _split.highlights.Override(Color.Lerp(grey, p.SplitHighlights, SplitStrength));
             _bloom.intensity.Override(p.Bloom);
         }

@@ -24,6 +24,21 @@ half FarShadow(float3 positionWS)
     return lerp(1, lit, fade * _FarShadowParams.z);
 }
 
+// Sky visibility (beauty pass, item 2): FarShadow.compute's SkyView map, 1 under open sky and less in valleys,
+// gullies and at the feet of slopes. Surfaces multiply their sky light (ambient) by it. _TerrainSkyParams.x is
+// the strength, .w on (0/1); the map shares the far-shadow map's grid.
+TEXTURE2D(_TerrainSkyMap);
+float4 _TerrainSkyParams;
+
+half TerrainSkyVisibility(float3 positionWS)
+{
+    UNITY_BRANCH
+    if (_TerrainSkyParams.w < 0.5) return 1;
+    float2 uv = (positionWS.xz - _FarShadowRect.xy) * _FarShadowRect.zw;
+    half sky = SAMPLE_TEXTURE2D_LOD(_TerrainSkyMap, sampler_FarShadowMap, uv, 0).r;
+    return lerp(1, sky, _TerrainSkyParams.x);
+}
+
 Light MainLightWithFarShadow(float3 positionWS)
 {
     Light sun = GetMainLight(TransformWorldToShadowCoord(positionWS));

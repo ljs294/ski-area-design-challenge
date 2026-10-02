@@ -116,7 +116,7 @@ Shader "MountainPlanner/Cliff"
                 float smooth = lerp(0.18, 0.35, snow);
                 float3 h = normalize(sun.direction + view);
                 float spec = pow(saturate(dot(normal, h)), exp2(10 * smooth + 1)) * smooth * 0.5;
-                float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation + SampleSH(normal)) + sun.color * spec * sun.shadowAttenuation;
+                float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation + SampleSH(normal) * TerrainSkyVisibility(p)) + sun.color * spec * sun.shadowAttenuation;
                 return half4(ApplyHaze(ApplyContours(lit, p.y), p), 1);
             }
             ENDHLSL

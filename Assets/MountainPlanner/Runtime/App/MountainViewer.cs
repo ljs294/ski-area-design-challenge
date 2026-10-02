@@ -119,6 +119,8 @@ namespace MountainPlanner.App
             int light = Array.IndexOf(startArgs, "-light");
             if (Lighting != null && light >= 0 && light + 1 < startArgs.Length) Lighting.Set(LightingPreset.IndexOf(startArgs[light + 1]), instant: true);
             if (Lighting != null && Array.IndexOf(startArgs, "-nohaze") >= 0) Lighting.SetHaze(false);
+            int look = Array.IndexOf(startArgs, "-look");   // -look current|bluebird|soft|postcard: the grade (beauty pass)
+            if (Lighting != null && look >= 0 && look + 1 < startArgs.Length) Lighting.SetStyle(LookStyle.IndexOf(startArgs[look + 1]));
             if (Lighting != null) ApplyTimeArguments(startArgs);
             // -nopost: no grading or tonemapping, to measure what post-processing costs.
             if (Array.IndexOf(startArgs, "-nopost") >= 0 && Camera != null)
@@ -150,6 +152,7 @@ namespace MountainPlanner.App
                     {
                         _farShadows = new FarTerrainShadow(FarShadowCompute, _resort.Tiles.Values, _resort.Ring);
                         if (Array.IndexOf(args, "-nofarshadows") >= 0) _farShadows.SetEnabled(false);   // cost measurements
+                        if (Array.IndexOf(args, "-noao") >= 0) _farShadows.SetSkyOcclusion(false);       // comparisons (beauty pass, item 2)
                         Lighting.FarShadows = _farShadows;
                     }
                 }

@@ -32,11 +32,17 @@ namespace MountainPlanner.Presentation
                             LitId = Shader.PropertyToID("_Lit"), LightId = Shader.PropertyToID("_Light"),
                             ShadowParamsId = Shader.PropertyToID("_ShadowParams"),
                             MapId = Shader.PropertyToID("_FarShadowMap"), RectId = Shader.PropertyToID("_FarShadowRect"),
-                            ParamsId = Shader.PropertyToID("_FarShadowParams");
+                            ParamsId = Shader.PropertyToID("_FarShadowParams"),
+                            SkyId = Shader.PropertyToID("_Sky"), SkyMapId = Shader.PropertyToID("_TerrainSkyMap"),
+                            SkyParamsId = Shader.PropertyToID("_TerrainSkyParams");
+
+        /// <summary>How strongly sky visibility dims the sky light (beauty pass, item 2).</summary>
+        public const float SkyStrength = 1f;
 
         readonly ComputeShader _compute;
         readonly int _gather, _shadow;
-        readonly RenderTexture _heights, _lit;
+        readonly RenderTexture _heights, _lit, _sky;
+        public bool SkyOcclusion { get; private set; } = true;
         readonly Vector4 _mapRect;
         readonly int _width, _depth;
         Vector3 _built = Vector3.zero;
@@ -80,6 +86,17 @@ namespace MountainPlanner.Presentation
 
             compute.SetTexture(_shadow, HeightsInId, _heights);
             compute.SetTexture(_shadow, LitId, _lit);
+
+            // Sky visibility, once: valleys and the feet of slopes see less sky (beauty pass, item 2).
+            _sky = Create(RenderTextureFormat.R16, "Terrain sky visibility");
+            int skyView = compute.FindKernel("SkyView");
+            compute.SetTexture(skyView, HeightsInId, _heights);
+            compute.SetTexture(skyView, SkyId, _sky);
+            compute.SetVector(MapRectId, _mapRect);
+            compute.SetVector(ShadowParamsId, new Vector4(_width, _depth, Softness, Bias));
+            compute.Dispatch(skyView, (_width + 7) / 8, (_depth + 7) / 8, 1);
+            Shader.SetGlobalTexture(SkyMapId, _sky);
+            SetSkyOcclusion(true);
             Shader.SetGlobalTexture(MapId, _lit);
             Shader.SetGlobalVector(RectId, new Vector4(ring.xMin, ring.yMin, 1 / (_width * MetresPerTexel), 1 / (_depth * MetresPerTexel)));
             SetEnabled(true);
@@ -93,6 +110,13 @@ namespace MountainPlanner.Presentation
             };
             rt.Create();
             return rt;
+        }
+
+        /// <summary>Sky occlusion on or off (-noao for comparisons).</summary>
+        public void SetSkyOcclusion(bool on)
+        {
+            SkyOcclusion = on;
+            Shader.SetGlobalVector(SkyParamsId, new Vector4(SkyStrength, 0, 0, on && _sky != null ? 1 : 0));
         }
 
         /// <summary>Distant terrain shadows on or off (the developer panel; -nofarshadows for cost measurements).</summary>
@@ -129,6 +153,8 @@ namespace MountainPlanner.Presentation
         public void Dispose()
         {
             Shader.SetGlobalVector(ParamsId, Vector4.zero);
+            Shader.SetGlobalVector(SkyParamsId, Vector4.zero);
+            if (_sky != null) _sky.Release();
             if (_heights != null) _heights.Release();
             if (_lit != null) _lit.Release();
         }
