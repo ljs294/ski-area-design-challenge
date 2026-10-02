@@ -21,7 +21,7 @@ namespace MountainPlanner.App
     /// %LOCALAPPDATA%\SkiAreaDesignChallenge, where tools/acquire (demo.bat 11–14) puts downloads.
     ///
     /// Keys (docs/plans/controls-key-map.md): the camera's own (<see cref="ViewCamera"/>), C free-fly, Home
-    /// resets the view, H hides the UI, P photo mode, Shift+1–5 map layers, F1 the developer panel, Esc the
+    /// resets the view, H hides the UI, P photo mode, Shift+1 and Shift+3 map layers, Shift+6–0 info layers, F1 the developer panel, Esc the
     /// menu. The review switches (snow, wind, light, haze, saved views) live in the F1 panel, not on keys.
     /// </summary>
     public sealed partial class MountainViewer : MonoBehaviour
@@ -69,7 +69,7 @@ namespace MountainPlanner.App
         string _clockText = "12:00";
         int _clockMinute = -1;
         FarTerrainShadow _farShadows;
-        /// <summary>Snow, Ground cover, Forest, Cover map and Imagery (task 12): Shift+1–5, the HUD's rows and the F1 panel.</summary>
+        /// <summary>Map layers (snow, trees) and info layers (slope, exposure, snow depth, contours): keys, the HUD's rows and the F1 panel.</summary>
         readonly MapLayers _layers = new MapLayers();
         System.Collections.Generic.List<Landmarks.Placed> _landmarks = new System.Collections.Generic.List<Landmarks.Placed>();
 
@@ -156,11 +156,12 @@ namespace MountainPlanner.App
                     HomeView();
                 }
                 _landmarks = Landmarks.Place(_resort.Root.transform, _resort.Frame, _resort.Surface, HighlightMaterial);
-                _layers.Bind(_resort.Ground, _resort.EdgeMaterial, assets.Cliff);
+                _layers.Bind(_resort.Ground, _resort.EdgeMaterial, assets.Cliff, (float)_resort.Manifest.Crs.GridConvergenceDegrees);
                 StartCoroutine(WhenForestReady(() => _layers.BindForest(_resort.Root.GetComponent<ForestView>())));
                 WireHud();
                 if (Array.IndexOf(args, "-landmark") >= 0) FlyToLandmark();
-                // Unattended checks: -nosnow, -noforest, -covermap, -view x,z,distance,yaw,pitch (metres from the centre, degrees),
+                // Unattended checks: -nosnow, -noforest, -covermap, -info slope|exposure|depth, -contours,
+                // -view x,z,distance,yaw,pitch (metres from the centre, degrees),
                 // -wind calm|breeze|strong, -lake open|ice|snow, and -screenshot <file.png>, which captures the view once
                 // it has settled, then quits.
                 int wind = Array.IndexOf(args, "-wind");
@@ -169,7 +170,10 @@ namespace MountainPlanner.App
                 int lake = Array.IndexOf(args, "-lake");
                 if (lake >= 0 && lake + 1 < args.Length) SetLakes(args[lake + 1] == "open" ? WaterSurfaceState.OpenWater
                                                                  : args[lake + 1] == "ice" ? WaterSurfaceState.Ice : WaterSurfaceState.SnowCoveredIce);
-                if (Array.IndexOf(args, "-covermap") >= 0) _layers.Set(MapLayers.Cover, true);
+                if (Array.IndexOf(args, "-covermap") >= 0) _layers.Set(MapLayers.CoverMap, true);
+                int info = Array.IndexOf(args, "-info");
+                if (info >= 0 && info + 1 < args.Length) _layers.Set(args[info + 1], true);
+                if (Array.IndexOf(args, "-contours") >= 0) _layers.Set(MapLayers.Contours, true);
                 int lt = Array.IndexOf(args, "-lodtransitions");   // review runs: LOD0→1, 1→2, 2→impostor, impostor→culled screen heights
                 if (lt >= 0 && lt + 1 < args.Length)
                 {
@@ -178,7 +182,7 @@ namespace MountainPlanner.App
                 }
                 if (Array.IndexOf(args, "-baretrees") >= 0) _layers.SetTreeSnow(false);
                 if (Array.IndexOf(args, "-nosnow") >= 0) _layers.Set(MapLayers.Snow, false);
-                if (Array.IndexOf(args, "-noforest") >= 0) _layers.Set(MapLayers.Forest, false);
+                if (Array.IndexOf(args, "-noforest") >= 0) _layers.Set(MapLayers.Trees, false);
                 int view = Array.IndexOf(args, "-view");
                 if (view >= 0 && view + 1 < args.Length && Camera != null)
                 {
@@ -292,23 +296,27 @@ namespace MountainPlanner.App
             if (keys.homeKey.wasPressedThisFrame) HomeView();
             if (shift)
             {
+                // Map layers (Shift+2, 4 and 5 are free for lifts and the rest as they're built).
                 if (keys.digit1Key.wasPressedThisFrame) ToggleLayer(MapLayers.Snow);
-                if (keys.digit2Key.wasPressedThisFrame) ToggleLayer(MapLayers.Ground);    // always on in this version
-                if (keys.digit3Key.wasPressedThisFrame) ToggleLayer(MapLayers.Forest);
-                if (keys.digit4Key.wasPressedThisFrame) ToggleLayer(MapLayers.Cover);
-                if (keys.digit5Key.wasPressedThisFrame) ToggleLayer(MapLayers.Imagery);   // reserved
+                if (keys.digit3Key.wasPressedThisFrame) ToggleLayer(MapLayers.Trees);
+                // Info layers: Contours with anything; the other four take turns.
+                if (keys.digit6Key.wasPressedThisFrame) ToggleLayer(MapLayers.Contours);
+                if (keys.digit7Key.wasPressedThisFrame) ToggleLayer(MapLayers.SlopeAngle);
+                if (keys.digit8Key.wasPressedThisFrame) ToggleLayer(MapLayers.Exposure);
+                if (keys.digit9Key.wasPressedThisFrame) ToggleLayer(MapLayers.SnowDepth);
+                if (keys.digit0Key.wasPressedThisFrame) ToggleLayer(MapLayers.SnowConditions);   // reserved
             }
         }
 
         /// <summary>
-        /// Shift+1–5, the HUD's layer rows and the F1 panel all switch layers here (<see cref="MapLayers"/>): the
-        /// change shows in this frame. Ground cover is always on in this version, and Imagery is reserved.
+        /// The keys, the HUD's layer rows and the F1 panel all switch layers here (<see cref="MapLayers"/>): the change
+        /// shows in this frame. Snow conditions waits for the snow simulation.
         /// </summary>
         void ToggleLayer(string layer)
         {
             if (_resort == null) return;
             if (_layers.Toggle(layer)) return;
-            Toast(layer == MapLayers.Ground ? "Ground cover is always on in this version" : "Imagery comes in a later version");
+            if (layer == MapLayers.SnowConditions) Toast("Snow conditions come with the snow simulation");
         }
 
         void WireHud()
@@ -330,9 +338,9 @@ namespace MountainPlanner.App
             if (show != _hudShown) Hud.SetVisible(_hudShown = show);
             if (!show || Time.unscaledTime < _nextReadout || Camera == null) return;
             _nextReadout = Time.unscaledTime + 0.1f;
-            Hud.SetLayer(MapLayers.Snow, _layers.SnowOn);
-            Hud.SetLayer(MapLayers.Forest, _layers.ForestOn);
-            Hud.SetLayer(MapLayers.Cover, _layers.CoverMapOn);
+            foreach (string id in MapLayers.MapIds) Hud.SetLayer(id, _layers.IsOn(id));
+            foreach (string id in MapLayers.InfoIds) Hud.SetLayer(id, _layers.IsOn(id));
+            Hud.SetLegend(_layers.InfoLayerId, _layers.ContoursOn);
             int preset = Lighting != null ? Lighting.Current : LightingPreset.Noon;
             int second = Lighting != null ? Lighting.Clock.Now.SecondOfDay : 12 * 3600;
             if (second / 60 != _clockMinute)   // the clock's text changes once a minute, not on every refresh
@@ -455,7 +463,7 @@ namespace MountainPlanner.App
             {
                 text += "\nWASD or arrows pan · Q/E rotate · R/F tilt · Wheel, +/− or PgUp/PgDn zoom · Middle-drag rotate · Right-drag pan · Shift faster · " +
                         "Home reset view · C free-fly (W/S fly, Q/E turn, R/F pitch, PgUp/PgDn rise and sink, right-drag look) · " +
-                        "Shift+1 snow · Shift+2 ground cover (always on) · Shift+3 forest · Shift+4 cover map · Shift+5 imagery (later) · H hide UI · P photo mode · F1 this panel · Esc menu · map data © OpenStreetMap contributors";
+                        "Map layers: Shift+1 snow, Shift+3 trees · Info layers: Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth, Shift+0 snow conditions (later) · H hide UI · P photo mode · F1 this panel · Esc menu · map data © OpenStreetMap contributors";
                 float height = style.CalcHeight(new GUIContent(text), 820);
                 GUI.Box(new Rect(20, 20, 820, height), text, style);
                 DrawDeveloperPanel(new Rect(20, 28 + height, 820, 0));
@@ -486,7 +494,7 @@ namespace MountainPlanner.App
             var forest = Forest;
             if (Button(1, $"Trees: {(_layers.TreeSnowOn ? "on" : "off")}")) _layers.SetTreeSnow(!_layers.TreeSnowOn);
             if (Button(2, $"Wind: {(forest == null ? "breeze" : forest.Wind.Target.ToString().ToLowerInvariant())}")) forest?.Wind.Cycle();
-            if (Button(3, $"Cover map: {(_layers.CoverMapOn ? "on" : "off")}")) ToggleLayer(MapLayers.Cover);
+            if (Button(3, $"Cover map: {(_layers.CoverMapOn ? "on" : "off")}")) ToggleLayer(MapLayers.CoverMap);
             y += row;
 
             if (Lighting != null)

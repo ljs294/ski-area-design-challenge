@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using MountainPlanner.App;
 using MountainPlanner.Presentation;
@@ -14,8 +15,8 @@ using Object = UnityEngine.Object;
 namespace MountainPlanner.Tests
 {
     /// <summary>
-    /// Task 12 acceptance (docs/plans/phase0-0.7-phase1-plan.md §3, row 12): a layer switch takes effect within
-    /// one frame, with no rebuild. On the committed Jackson Hole test terrain, each switch made in a frame shows
+    /// Task 12 and 12b acceptance (docs/plans/phase0-0.7-phase1-plan.md §3, row 12): a layer switch, map layer or
+    /// info layer, takes effect within one frame, with no rebuild. On the committed Jackson Hole test terrain, each switch made in a frame shows
     /// in that frame's picture, the frame holds exactly one <see cref="MapLayers.ApplyMarkerName"/> sample, and
     /// no splat is uploaded (<see cref="TerrainTiles.ApplySplatMarkerName"/> stays at zero).
     /// </summary>
@@ -62,6 +63,46 @@ namespace MountainPlanner.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheShaderReadsTheHeightmapAtTrueHeights()
+        {
+            // The slope and exposure layers read Unity's GPU heightmap with TerrainTiles.HeightmapParams: a sample
+            // times params.y must be the height Unity reports, or every slope comes out scaled.
+            var open = ResortOpener.OpenAsync(_package, null, TerrainDetail.High, null);
+            yield return AwaitTask(open);
+            var resort = open.Result;
+            yield return AwaitTask(resort.CoverReady);
+            try
+            {
+                Assert.That(resort.SnowpackSeconds, Is.GreaterThan(0), "the natural snowpack filled the snow-depth field");
+                foreach (var terrain in resort.Tiles.Values.Take(3))
+                {
+                    var data = terrain.terrainData;
+                    int res = data.heightmapResolution;
+                    var p = TerrainTiles.HeightmapParams(data);
+                    var rt = RenderTexture.GetTemporary(res, res, 0, RenderTextureFormat.RFloat, RenderTextureReadWrite.Linear);
+                    Graphics.Blit(data.heightmapTexture, rt);
+                    var previous = RenderTexture.active;
+                    RenderTexture.active = rt;
+                    var read = new Texture2D(res, res, TextureFormat.RFloat, false, true);
+                    read.ReadPixels(new Rect(0, 0, res, res), 0, 0, false);
+                    RenderTexture.active = previous;
+                    RenderTexture.ReleaseTemporary(rt);
+                    double worst = 0;
+                    for (int y = 0; y < res; y += 97)
+                        for (int x = 0; x < res; x += 89)
+                            worst = Math.Max(worst, Math.Abs(read.GetPixel(x, y).r * p.y - data.GetHeight(x, y)));
+                    Object.Destroy(read);
+                    Assert.That(worst, Is.LessThan(0.02), $"{terrain.name}: GPU heightmap × {p.y:F2} against GetHeight");
+                    Assert.That(p.z, Is.EqualTo(data.size.x / (res - 1)).Within(1e-4), "metres between samples");
+                }
+            }
+            finally
+            {
+                Object.Destroy(resort.Root);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator EachLayerShowsInTheFrameItIsSwitchedWithNoSplatUpload()
         {
 #if UNITY_EDITOR
@@ -100,7 +141,7 @@ namespace MountainPlanner.Tests
                 var view = resort.Root.GetComponent<ForestView>();
                 Assert.That(view, Is.Not.Null, "the forest is attached to the resort");
                 var layers = new MapLayers();
-                layers.Bind(resort.Ground, resort.EdgeMaterial, forest.Cliff);
+                layers.Bind(resort.Ground, resort.EdgeMaterial, forest.Cliff, (float)resort.Manifest.Crs.GridConvergenceDegrees);
                 layers.BindForest(view);
                 for (int i = 0; i < 30; i++) yield return null;   // LOD, culling and shadows settle
 
@@ -127,12 +168,18 @@ namespace MountainPlanner.Tests
                 yield return Switch(MapLayers.Snow, false, "snow off");
                 Assert.That(resort.Ground.Material.GetFloat("_SnowOn"), Is.EqualTo(0));
                 yield return Switch(MapLayers.Snow, true, "snow on");
-                yield return Switch(MapLayers.Forest, false, "forest off");
+                yield return Switch(MapLayers.Trees, false, "trees off");
                 Assert.That(view.enabled, Is.False);
-                yield return Switch(MapLayers.Forest, true, "forest on");
-                yield return Switch(MapLayers.Cover, true, "cover map on");
-                yield return Switch(MapLayers.Cover, false, "cover map off");
-                Assert.That(layers.SnowOn && layers.ForestOn && !layers.CoverMapOn, "back where it started");
+                yield return Switch(MapLayers.Trees, true, "trees on");
+                yield return Switch(MapLayers.Contours, true, "contours on");
+                yield return Switch(MapLayers.SlopeAngle, true, "slope angle on");
+                yield return Switch(MapLayers.Exposure, true, "exposure instead");
+                yield return Switch(MapLayers.SnowDepth, true, "snow depth instead");
+                yield return Switch(MapLayers.SnowDepth, false, "snow depth off");
+                yield return Switch(MapLayers.Contours, false, "contours off");
+                yield return Switch(MapLayers.CoverMap, true, "cover map on (F1)");
+                yield return Switch(MapLayers.CoverMap, false, "cover map off");
+                Assert.That(layers.SnowOn && layers.TreesOn && !layers.ContoursOn && layers.Info == MapLayers.InfoView.None, "back where it started");
             }
             finally
             {

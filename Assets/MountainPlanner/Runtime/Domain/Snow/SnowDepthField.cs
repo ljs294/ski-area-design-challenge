@@ -3,8 +3,8 @@ using System;
 namespace MountainPlanner.Domain.Snow
 {
     /// <summary>
-    /// Snow depth over the whole map, in metres (0.3 §4.6, T8): the seam a future snow model writes. Iteration 1
-    /// fills it with a flat 12 in everywhere. Writers change a rectangle and the renderer uploads only what
+    /// Snow depth over the whole map, in metres (0.3 §4.6, T8): the seam a snow model writes. It starts at a flat
+    /// 12 in; <see cref="Snowpack"/> (task 12b) fills it when a mountain opens, until the snow simulation arrives. Writers change a rectangle and the renderer uploads only what
     /// changed (<see cref="TakeDirty"/>). Cells run west to east, then south to north.
     /// </summary>
     public sealed class SnowDepthField
@@ -38,6 +38,16 @@ namespace MountainPlanner.Domain.Snow
 
         /// <summary>Sets every cell.</summary>
         public void Fill(float depthMetres) => SetRect(0, 0, Width, Height, depthMetres);
+
+        /// <summary>Sets every cell from <paramref name="depthMetres"/> (one per cell, in <see cref="Cells"/> order), as a snow model does.</summary>
+        public void CopyFrom(float[] depthMetres)
+        {
+            if (depthMetres == null || depthMetres.Length != _depth.Length) throw new ArgumentException("One depth per cell.", nameof(depthMetres));
+            foreach (float d in depthMetres)
+                if (!(d >= 0) || float.IsInfinity(d)) throw new ArgumentOutOfRangeException(nameof(depthMetres), "Depth must be finite and not negative.");
+            Array.Copy(depthMetres, _depth, _depth.Length);
+            _dirtyX0 = 0; _dirtyY0 = 0; _dirtyX1 = Width; _dirtyY1 = Height;
+        }
 
         /// <summary>Sets a rectangle of cells (clipped to the field) and marks it changed.</summary>
         public void SetRect(int x, int y, int width, int height, float depthMetres)
