@@ -72,7 +72,7 @@ namespace MountainPlanner.UI.Flow
             TimeLeft = "";
             Detail = "Starting";
             Transfer = "";
-            Title = $"Downloading {name} · {Km(sizeKm)}";
+            Title = $"Downloading {name} · {FlowUnits.SiteSize(sizeKm)}";
             Pill = $"Downloading {name} · 0%";
         }
 
@@ -148,8 +148,6 @@ namespace MountainPlanner.UI.Flow
             if (s.Stages.Count > 0) return s.StageIndex - 1;
             return _names.IndexOf(s.Stage);
         }
-
-        static string Km(double km) => km.ToString("0.0", CultureInfo.InvariantCulture) + " km";
 
         public static string Megabytes(long bytes) => (bytes / 1e6).ToString("0.0", CultureInfo.InvariantCulture) + " MB";
 

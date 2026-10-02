@@ -16,6 +16,12 @@ namespace MountainPlanner.Tests
     /// <summary>Task 14: the download card's view model, built only from what the pipeline reports.</summary>
     public sealed class DownloadViewModelTests
     {
+        [SetUp]
+        public void Metric() => FlowUnits.Imperial = false;
+
+        [TearDown]
+        public void Default() => FlowUnits.Imperial = true;
+
         static DownloadStatus At(string[] stages, int index, double overall = 0.2) => new DownloadStatus
         {
             Name = "Crystal Mountain", SizeKm = 2, Stages = stages, StageIndex = index, StageCount = stages.Length,
@@ -106,6 +112,30 @@ namespace MountainPlanner.Tests
 
     public sealed class QualityAndLibraryViewModelTests
     {
+        [SetUp]
+        public void Metric() => FlowUnits.Imperial = false;
+
+        [TearDown]
+        public void Default() => FlowUnits.Imperial = true;
+
+        [Test]
+        public void SizesFollowTheUnitsSetting()
+        {
+            int changed = 0;
+            void Count() => changed++;
+            FlowUnits.Changed += Count;
+            try
+            {
+                FlowUnits.Set(true);
+                Assert.That(FlowUnits.SiteSize(2), Is.EqualTo("1.24 mi"), "imperial is the default (owner)");
+                Assert.That(QualityCardViewModel.From(Manifest(90, 90), true).Place, Does.EndWith("1.24 mi"));
+                FlowUnits.Set(false);
+                Assert.That(FlowUnits.SiteSize(2), Is.EqualTo("2.0 km"));
+                Assert.That(changed, Is.EqualTo(2));
+            }
+            finally { FlowUnits.Changed -= Count; }
+        }
+
         static PackageManifest Manifest(int terrain, int flora) => new PackageManifest
         {
             Site = new SiteInfo { Name = "Crystal Mountain", Latitude = 46.935, Longitude = -121.474, SizeMetres = 2000 },

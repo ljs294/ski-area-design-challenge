@@ -149,12 +149,20 @@ namespace MountainPlanner.App.Flow
                 if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
             };
             Downloads.Failed += message => Controller.RestoreDownload();
+            FlowUnits.Changed += OnUnitsChanged;
+        }
+
+        /// <summary>Imperial or metric changed: redraw the open screen's lengths.</summary>
+        void OnUnitsChanged()
+        {
+            if (Controller.Screen == FlowScreen.Library || Controller.Screen == FlowScreen.Quality) ShowScreen(Controller.Screen);
         }
 
         void OnDisable() => SceneManager.sceneLoaded -= OnSceneLoaded;
 
         void OnDestroy()
         {
+            FlowUnits.Changed -= OnUnitsChanged;
             if (Instance == this) Instance = null;
         }
 

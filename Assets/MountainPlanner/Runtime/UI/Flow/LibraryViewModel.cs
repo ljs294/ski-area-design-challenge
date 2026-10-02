@@ -45,7 +45,7 @@ namespace MountainPlanner.UI.Flow
             foreach (var p in pending)
                 vm.Rows.Add(new LibraryRow
                 {
-                    Pending = p, Name = p.Name, Place = Place(p.Latitude, p.Longitude), Size = Km(p.SizeKm),
+                    Pending = p, Name = p.Name, Place = Place(p.Latitude, p.Longitude), Size = FlowUnits.SiteSize(p.SizeKm),
                     PausedText = $"Paused at {(int)Math.Floor(Math.Max(0, Math.Min(1, p.LastOverall)) * 100)}%" + (p.LastStage.Length > 0 ? " · " + p.LastStage : ""),
                 });
             IEnumerable<LibraryEntry> ordered;
@@ -68,7 +68,7 @@ namespace MountainPlanner.UI.Flow
             foreach (var e in ordered)
                 vm.Rows.Add(new LibraryRow
                 {
-                    Entry = e, Name = e.Name, Place = Place(e.Latitude, e.Longitude), Size = Km(e.SizeKm),
+                    Entry = e, Name = e.Name, Place = Place(e.Latitude, e.Longitude), Size = FlowUnits.SiteSize(e.SizeKm),
                     TerrainScore = e.TerrainScore, FloraScore = e.FloraScore,
                     TerrainText = Score(e.TerrainScore), FloraText = Score(e.FloraScore),
                     Disk = Disk(e.BytesOnDisk), Opened = When(Opened(e), nowUtc),
@@ -83,8 +83,6 @@ namespace MountainPlanner.UI.Flow
 
         public static string Place(double lat, double lon) =>
             string.Format(CultureInfo.InvariantCulture, "{0:0.000} {1} {2:0.000} {3}", Math.Abs(lat), lat >= 0 ? "N" : "S", Math.Abs(lon), lon >= 0 ? "E" : "W");
-
-        public static string Km(double km) => km.ToString("0.0", CultureInfo.InvariantCulture) + " km";
 
         public static string Disk(long bytes) =>
             bytes >= 1e9 ? (bytes / 1e9).ToString("0.0", CultureInfo.InvariantCulture) + " GB" : (bytes / 1e6).ToString("0", CultureInfo.InvariantCulture) + " MB";

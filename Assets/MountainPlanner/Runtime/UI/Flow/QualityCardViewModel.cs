@@ -31,7 +31,7 @@ namespace MountainPlanner.UI.Flow
             var vm = new QualityCardViewModel
             {
                 Title = justDownloaded ? $"{m.Site.Name} is ready" : m.Site.Name,
-                Place = LibraryViewModel.Place(m.Site.Latitude, m.Site.Longitude) + " · " + LibraryViewModel.Km(m.Site.SizeMetres / 1000.0),
+                Place = LibraryViewModel.Place(m.Site.Latitude, m.Site.Longitude) + " · " + FlowUnits.SiteSize(m.Site.SizeMetres / 1000.0),
             };
             vm.Lines.Add(Line("Terrain", m.Quality.Score, m.Quality.OneLiner));
             if (m.Flora != null && (m.Flora.Score > 0 || m.Flora.OneLiner.Length > 0))
