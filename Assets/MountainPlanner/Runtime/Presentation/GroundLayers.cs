@@ -18,7 +18,7 @@ namespace MountainPlanner.Presentation
         public const int Count = GroundCover.Layers + 1;
         public const int Snow = GroundCover.Layers;
 
-        /// <summary>Base colours (0.5 §2 and §5): forest floor, grass, rock, developed, water, snow.</summary>
+        /// <summary>Base colours (0.5 §2 and §5): forest floor, grass, rock, developed, water, paved and unpaved road, snow.</summary>
         static readonly Color[] Base =
         {
             new Color(0.23f, 0.18f, 0.12f),   // forest floor: dark umber needles and soil
@@ -26,6 +26,8 @@ namespace MountainPlanner.Presentation
             new Color(0.47f, 0.49f, 0.52f),   // rock / alpine: cool grey granite
             new Color(0.45f, 0.42f, 0.38f),   // developed: neutral grey-brown
             new Color(0.62f, 0.72f, 0.76f),   // water: frozen, blue-grey ice (iteration 1)
+            new Color(0.27f, 0.27f, 0.28f),   // paved road: asphalt (task 12d)
+            new Color(0.52f, 0.45f, 0.36f),   // unpaved road: gravel and dirt (task 12d)
             new Color(0.957f, 0.969f, 0.980f),// snow lit, #F4F7FA
         };
 
@@ -33,12 +35,14 @@ namespace MountainPlanner.Presentation
         public static readonly Color[] Overlay =
         {
             new Color32(40, 74, 52, 255), new Color32(178, 170, 98, 255), new Color32(132, 134, 140, 255),
-            new Color32(196, 88, 64, 255), new Color32(48, 110, 196, 255), new Color32(245, 248, 252, 255),
+            new Color32(196, 88, 64, 255), new Color32(48, 110, 196, 255),
+            new Color32(40, 40, 44, 255), new Color32(214, 160, 70, 255),   // paved road near black, unpaved road ochre
+            new Color32(245, 248, 252, 255),
         };
 
-        static readonly float[] TileSizes = { 4, 5, 8, 4, 10, 6 };
-        static readonly float[] Smoothness = { 0.05f, 0.08f, 0.2f, 0.15f, 0.5f, 0.35f };
-        static readonly string[] Names = { "Forest floor", "Grass", "Rock", "Developed", "Water", "Snow" };
+        static readonly float[] TileSizes = { 4, 5, 8, 4, 10, 8, 6, 6 };
+        static readonly float[] Smoothness = { 0.05f, 0.08f, 0.2f, 0.15f, 0.5f, 0.25f, 0.06f, 0.35f };
+        static readonly string[] Names = { "Forest floor", "Grass", "Rock", "Developed", "Water", "Paved road", "Unpaved road", "Snow" };
 
         public readonly TerrainLayer[] Layers = new TerrainLayer[Count];
         readonly Texture2D[] _textures = new Texture2D[Count];
@@ -62,9 +66,10 @@ namespace MountainPlanner.Presentation
         /// <summary>
         /// Metres per texture repeat and smoothness per terrain slot (snow, forest floor, grass, rock, developed, ice). The
         /// photo layers (task 12c) repeat at about twice their real size; developed is an aerial texture of 30 m.
+        /// Roads (task 12d) follow: paved (the asphalt, finer), unpaved (gravel and dirt).
         /// </summary>
-        static readonly float[] SlotTile = { 12, 3, 4, 6, 30, 20 };
-        static readonly float[] SlotSmooth = { 0.35f, 0.05f, 0.08f, 0.2f, 0.15f, 0.6f };
+        static readonly float[] SlotTile = { 12, 3, 4, 6, 30, 20, 12, 4 };
+        static readonly float[] SlotSmooth = { 0.35f, 0.05f, 0.08f, 0.2f, 0.15f, 0.6f, 0.25f, 0.06f };
 
         /// <summary>The terrain material this resort draws with (the mountain terrain shader), if any.</summary>
         public Material Material { get; private set; }

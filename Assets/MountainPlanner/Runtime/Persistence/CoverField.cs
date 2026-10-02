@@ -1,8 +1,10 @@
 #nullable enable
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using MountainPlanner.Domain.Cover;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Domain.Roads;
 
 namespace MountainPlanner.Persistence
 {
@@ -30,6 +32,7 @@ namespace MountainPlanner.Persistence
         readonly GridHeader _osmCoreHeader, _osmRingHeader;
         readonly TerrainCache.HeightField _heights;
         readonly ulong _seed;
+        readonly List<(Road Road, AlbersBox Box)> _roads = new List<(Road, AlbersBox)>();
 
         public CoverField(PackageManifest package, string folder, TerrainCache.HeightField heights)
         {
@@ -43,6 +46,31 @@ namespace MountainPlanner.Persistence
             }
             if (package.Layers.Any(l => l.Id == "osm-core")) _osmCore = ResortPackage.ReadByteLayer(folder, package, "osm-core", out _osmCoreHeader);
             if (package.Layers.Any(l => l.Id == "osm-ring")) _osmRing = ResortPackage.ReadByteLayer(folder, package, "osm-ring", out _osmRingHeader);
+            foreach (var road in RoadsFile.Read(folder, package))
+            {
+                double pad = road.WidthMetres;
+                double w = road.Points.Min(p => p.X) - pad, e = road.Points.Max(p => p.X) + pad;
+                double s = road.Points.Min(p => p.Y) - pad, n = road.Points.Max(p => p.Y) + pad;
+                _roads.Add((road, new AlbersBox(w, s, e, n)));
+            }
+        }
+
+        /// <summary>
+        /// Road coverage over a tile's texels (task 12d): paved and unpaved, anti-aliased, on a grid whose cell centres
+        /// are the texels (row 0 north). Null when no road touches the tile.
+        /// </summary>
+        (byte[] Paved, byte[] Unpaved)? RoadCoverage(AlbersBox bounds, int resolution, double step)
+        {
+            var grid = new GridSpec(bounds.West - step / 2, bounds.North + step / 2, step, resolution, resolution);
+            byte[]? paved = null, unpaved = null;
+            foreach (var (road, box) in _roads)
+            {
+                if (box.East < bounds.West - step || box.West > bounds.East + step || box.North < bounds.South - step || box.South > bounds.North + step) continue;
+                var target = road.Surface == RoadSurface.Paved ? (paved ??= new byte[grid.CellCount]) : (unpaved ??= new byte[grid.CellCount]);
+                VectorRaster.StrokeLine(target, grid, road.Points, road.WidthMetres);
+            }
+            if (paved == null && unpaved == null) return null;
+            return (paved ?? new byte[grid.CellCount], unpaved ?? new byte[grid.CellCount]);
         }
 
         public bool HasOsm => _osmCore != null;
@@ -178,8 +206,8 @@ namespace MountainPlanner.Persistence
 
         /// <summary>
         /// A tile's cover texels: <paramref name="resolution"/>² texels spanning the tile edge to edge
-        /// (texel i at West + i·size/(resolution−1), as Unity samples splat maps), six bytes each: the
-        /// five ground-layer weights (summing to 255) then snow cover.
+        /// (texel i at West + i·size/(resolution−1), as Unity samples splat maps), eight bytes each: the
+        /// seven ground-layer weights (summing to 255) then snow cover.
         /// </summary>
         public byte[] BuildTile(AlbersBox bounds, int resolution)
         {
@@ -188,6 +216,7 @@ namespace MountainPlanner.Persistence
             double slopeStep = Math.Max(1, step);
             Span<double> weights = stackalloc double[GroundCover.Layers];
             Span<byte> quantized = stackalloc byte[GroundCover.Layers];
+            var roads = RoadCoverage(bounds, resolution, step);
             for (int j = 0; j < resolution; j++)
             {
                 double y = bounds.North - j * step;
@@ -195,6 +224,11 @@ namespace MountainPlanner.Persistence
                 {
                     double x = bounds.West + i * step;
                     var sample = Sample(x, y, slopeStep);
+                    if (roads.HasValue)
+                    {
+                        sample.RoadPaved = roads.Value.Paved[j * resolution + i] / 255.0;
+                        sample.RoadUnpaved = roads.Value.Unpaved[j * resolution + i] / 255.0;
+                    }
                     GroundCover.Classify(sample, weights, out double snow);
                     GroundCover.Quantize(weights, quantized);
                     int o = (j * resolution + i) * TerrainCache.CoverBands;

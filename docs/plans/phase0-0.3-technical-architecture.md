@@ -134,6 +134,11 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - **Sampling:** heights are one continuous function of position (bilinear between cell centres; the 1 m core eased into the 2 m ring over 16 m at the core's edge), and every tile samples it at its vertices. Neighbouring tiles therefore share identical edges, and where a 1 m tile meets a 2 m tile, its in-between edge samples are the midpoints of the 2 m edge (no T-junction cracks at full detail).
 - **Ring tiles at their own 513² (style tile; task 06 had upsampled them to 1,025²):** the cache already makes every 2 m edge vertex identical on both sides of a 1 m / 2 m boundary (`MatchRingEdges`), and screenshots of the seams at several distances show no cracks. Loading the ring natively halved the open time (Jackson Hole 5 km: 9.3 s → 4.9 s in the game, 9.9 s → 5.4 s in the editor). The PlayMode test checks every shared edge vertex.
 - Also cached per tile (task 07, cache version 2): the ground cover as `.cover` texels, 1,024² in core tiles (1 m) and 256² in the ring (4 m). Each texel holds the five ground-layer weights (summing to 255) plus a snow cover, laid out like Unity's splat maps (texel *i* at West + *i*·size/(*n*−1)), so neighbouring tiles share identical edge texels.
+- **Roads (task 12d, cache version 11; owner 2026-10-02: roads only, paved and unpaved, for road rendering later):**
+  - The package keeps every OpenStreetMap road centre line in `roads.json` (manifest layer `roads`, hashed): its class (motorway … service, track), surface (paved or unpaved, from `surface`, else tracks unpaved), width and name.
+  - The cache rasterises the roads per tile into two more cover bands, **paved road** and **unpaved road**, so cover texels hold eight bytes. Paved roads come out of the developed land that already covered them. The water and developed rasters, and the forest, are unchanged.
+  - The terrain draws paved roads in asphalt and unpaved roads in gravel worked into dirt.
+  - Packages made before 12d have no roads layer and open as before. `acquire refresh-osm` (demo.bat 34) adds it.
 - **Size:** a 5 km site in an 11 km square makes 121 tiles: 25 core and 96 ring.
 
 **④ Load.**

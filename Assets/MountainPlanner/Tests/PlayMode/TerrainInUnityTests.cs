@@ -120,7 +120,7 @@ namespace MountainPlanner.Tests
                 foreach (var tile in resort.Cache.Tiles.Where(t => t.Core).Take(2).Concat(resort.Cache.Tiles.Where(t => !t.Core).Take(1)))
                 {
                     var data = resort.Tiles[(tile.Column, tile.Row)].terrainData;
-                    Assert.That(data.alphamapLayers, Is.EqualTo(6));
+                    Assert.That(data.alphamapLayers, Is.EqualTo(8), "six layers plus paved and unpaved roads (task 12d)");
                     Assert.That(data.alphamapResolution, Is.EqualTo(tile.CoverResolution));
                     data.SyncTexture(TerrainData.AlphamapTextureName);
                     int n = tile.CoverResolution;
@@ -129,7 +129,7 @@ namespace MountainPlanner.Tests
                     double worstSplat = 0;
                     for (int y = 0; y < n; y += 29)
                         for (int x = 0; x < n; x += 31)
-                            for (int k = 0; k < 6; k++)
+                            for (int k = 0; k < 8; k++)
                             {
                                 byte e = expected.Textures[k / 4][(y * n + x) * 4 + k % 4];
                                 worstSplat = Math.Max(worstSplat, Math.Abs(maps[y, x, k] - e / 255.0));

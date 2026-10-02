@@ -82,6 +82,7 @@ echo     32 Open the HUD layout mockup in your browser: status bar, Toolbox, Ana
 echo.
 echo   Forest structure (NE8)
 echo     33 Stand in a Sugarloaf spruce-fir stand: understory and clumps (needs 29)
+echo     34 Add roads to mountains downloaded before roads (one-time map refresh; needs the internet)
 echo.
 echo     Q  Quit
 echo.
@@ -129,6 +130,7 @@ if /i "%CHOICE%"=="29" call :acquire "Sugarloaf" 45.047 -70.316 5 & goto done
 if /i "%CHOICE%"=="30" goto playsugarloaf
 if /i "%CHOICE%"=="31" goto benchsugarloaf
 if /i "%CHOICE%"=="33" goto standsugarloaf
+if /i "%CHOICE%"=="34" goto refreshroads
 if /i "%CHOICE%"=="32" (
   start "" "%~dp0docs\plans\prototypes\ui-layout.html"
   goto menu
@@ -223,6 +225,11 @@ if not exist "%GAME%" goto done
 echo Starting the game on Sugarloaf (download it first with 29). The keys are the same as in 17.
 start "" "%GAME%" -site "Sugarloaf"
 goto menu
+
+:refreshroads
+echo Adding roads (paved and unpaved, from OpenStreetMap) to every downloaded mountain that has none yet, then preparing each again...
+dotnet run --project "%~dp0toolscquire" -- refresh-osm <nul
+goto done
 
 :benchsugarloaf
 if not exist "%GAME%" call :buildplayer
