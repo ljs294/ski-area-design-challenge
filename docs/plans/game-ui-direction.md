@@ -130,6 +130,12 @@ The seasons give the loop its beat, as in the archived game: **summer is for pla
 
 **4.5 Read the mountain.** The info views button opens a grid: Slope angle, Snow depth, Grooming, Lift lines, Skier traffic, Sun and shade, Wind, Tree cover. The world dims slightly so the data stands out, and the legend card explains it.
 
+**Map layers and info layers (owner, 2026-10-02; built in task 12b).** The Layers panel has two groups:
+- **Map layers** show or hide physical things on the map: Snow and Trees now; lifts and the rest join as they're built. Any combination.
+- **Info layers** only display information. **Slope angle** (trail-difficulty bands: under 14°, 14–22°, 22–30°, and over 30° hatched as double black), **Slope exposure** (eight compass points from true north, cool to the north and warm to the south), **Snow depth** (from the natural snowpack until the snow simulation) and **Snow conditions** (reserved for the snow simulation) take turns, one at a time. **Contours** (every 10 m, heavier every 50 m) combine with any of them.
+
+The info layer that's on shows a legend card under the panel with its swatches, words and figures. Keys are Shift+1 and Shift+3 for the map layers and Shift+6–0 for the info layers ([controls-key-map.md](controls-key-map.md)). The info views grid above becomes this group as more views arrive.
+
 **4.6 Warnings.** The chip counts them (a long line at Lift 2, Run 7 has no lift access). Each has *Show me*, which flies the camera there and opens the window.
 
 ## 5. Look and weight
@@ -166,7 +172,7 @@ The seasons give the loop its beat, as in the archived game: **summer is for pla
 
 The style-tile HUD mock ([S6](phase0-0.4-ui-ux.md)) moves into this frame when tasks 11 and 12 finish it:
 - the time bar becomes the status strip (date, time, the lighting presets until the scrubbers arrive);
-- the Layers panel becomes the info views button with legends (Snow, Ground cover, Forest, Cover map);
+- the Layers panel holds the map layers and info layers with a legend card (task 12b; see 4.5);
 - there are no camera buttons (the wheel and + − zoom), and the elevation readout sits in the status bar;
 - the Toolbox appears in Phase 3; until then its button stays hidden.
 

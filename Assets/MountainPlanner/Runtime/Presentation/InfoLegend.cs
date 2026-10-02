@@ -31,10 +31,10 @@ namespace MountainPlanner.Presentation
 
         public static readonly Entry[] SlopeAngle =
         {
-            new Entry(SlopeGreen, "Easiest", "under 14° · 25%"),
+            new Entry(SlopeGreen, "Easiest", "under 14°"),
             new Entry(SlopeBlue, "More difficult", "14–22°"),
             new Entry(SlopeBlack, "Most difficult", "22–30°"),
-            new Entry(SlopeBlack, "Experts only", "over 30° · 58%", hatched: true),
+            new Entry(SlopeBlack, "Experts only", "over 30°", hatched: true),
         };
 
         /// <summary>Exposure: N, NE, E, SE, S, SW, W, NW from true north, then flat ground (under 5°).</summary>
@@ -66,6 +66,7 @@ namespace MountainPlanner.Presentation
         };
 
         public const string SlopeTitle = "Slope angle", ExposureTitle = "Slope exposure", SnowDepthTitle = "Snow depth";
+        public const string SlopeNote = "As a grade: 14° is 25%, 22° is 40%, 30° is 58%.";
         public const string ExposureNote = "The way each slope faces, from true north. Flatter than 5° is grey.";
         public const string SnowDepthNote = "Natural snowpack: deeper up high, thinner on sunny south faces, wind-scoured ridges and under trees.";
         public const string ContoursNote = "Contours every 10 m, heavier every 50 m.";

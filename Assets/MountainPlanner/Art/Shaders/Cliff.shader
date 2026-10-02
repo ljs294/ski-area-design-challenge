@@ -81,7 +81,7 @@ Shader "MountainPlanner/Cliff"
                     else
                     {
                         float slopeDegrees = degrees(acos(saturate(n.y)));
-                        info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopeDegrees, p) : ExposureColour(n.xz, slopeDegrees);
+                        info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopeDegrees, i.positionCS.xy) : ExposureColour(n.xz, slopeDegrees);
                     }
                     Light sunI = GetMainLight();
                     return half4(ApplyHaze(ApplyContours(ShadeInfo(info, n, sunI.direction), p.y), p), 1);

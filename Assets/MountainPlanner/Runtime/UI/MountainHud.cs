@@ -142,6 +142,7 @@ namespace MountainPlanner.UI
                 case MapLayers.SlopeAngle:
                     _legendTitle.text = InfoLegend.SlopeTitle;
                     foreach (var e in InfoLegend.SlopeAngle) _legendBody.Add(LegendRow(e));
+                    note = InfoLegend.SlopeNote;
                     break;
                 case MapLayers.Exposure:
                     _legendTitle.text = InfoLegend.ExposureTitle;

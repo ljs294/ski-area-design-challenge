@@ -244,18 +244,19 @@ Shader "MountainPlanner/Terrain"
                 }
             }
 
-            // The ground's rise per metre east (x) and north (y), from the tile's heightmap by central differences
-            // between its 1 m (core) or 2 m (ring) samples: exact at any distance, whatever the mesh's LOD.
+            // The ground's rise per metre east (x) and north (y), from the tile's heightmap by central differences two
+            // samples either side (4 m across in the core, 8 m in the ring): the slope a skier feels, without the
+            // 1 m lidar's ruts and ditches, the same at any distance whatever the mesh's LOD.
             float2 HeightGradient(float2 uv)
             {
                 float res = max(_HeightmapParams.x, 2);
                 float2 huv = (uv * (res - 1) + 0.5) / res;
-                float t = 1 / res;
+                float t = 2 / res;
                 float east = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(t, 0), 0).r;
                 float west = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(t, 0), 0).r;
                 float north = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv + float2(0, t), 0).r;
                 float south = SAMPLE_TEXTURE2D_LOD(_Heightmap, sampler_mp_linear_clamp, huv - float2(0, t), 0).r;
-                return float2(east - west, north - south) * _HeightmapParams.y / max(2 * _HeightmapParams.z, 1e-3);
+                return float2(east - west, north - south) * _HeightmapParams.y / max(4 * _HeightmapParams.z, 1e-3);
             }
 
             half4 Frag(Varyings i) : SV_Target
@@ -301,7 +302,7 @@ Shader "MountainPlanner/Terrain"
                     {
                         float2 rise = HeightGradient(i.uv);
                         float slopeDegrees = degrees(atan(length(rise)));
-                        info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopeDegrees, i.positionWS) : ExposureColour(-rise, slopeDegrees);
+                        info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopeDegrees, i.positionCS.xy) : ExposureColour(-rise, slopeDegrees);
                     }
                     Light sunI = GetMainLight();
                     float3 shaded = ApplyContours(ShadeInfo(info, n, sunI.direction), i.positionWS.y);

@@ -48,16 +48,16 @@ static const float3 SnowDepthColours[6] =
 // sit closer than a few pixels, so zooming out leaves only the heavier ones.
 static const float3 ContourColour = float3(0.22, 0.17, 0.12);
 
-float3 SlopeAngleColour(float degrees, float3 positionWS)
+// pixel: the fragment's screen position (SV_POSITION.xy). The double-black hatching is drawn on the screen, 7 px
+// apart, so it reads at every distance (hatching fixed to the ground faded out a kilometre away).
+float3 SlopeAngleColour(float degrees, float2 pixel)
 {
     float3 colour = degrees < SlopeBlue ? SlopeGreenColour : degrees < SlopeBlack ? SlopeBlueColour : SlopeBlackColour;
     if (degrees >= SlopeDouble)
     {
-        // White diagonal hatching 6 m apart, faded where it would alias.
-        float d = (positionWS.x + positionWS.z) / 6;
-        float w = max(fwidth(d), 1e-4);
-        float stripe = saturate(0.5 - (abs(frac(d) - 0.5) - 0.18) / w);
-        colour = lerp(colour, float3(0.92, 0.92, 0.92), stripe * 0.75 * saturate(1.5 - w * 6));
+        float d = (pixel.x + pixel.y) / 7;
+        float stripe = saturate(1.5 - abs(frac(d) - 0.5) * 7);   // about 2 px wide
+        colour = lerp(colour, float3(0.92, 0.92, 0.92), stripe * 0.7);
     }
     return colour;
 }

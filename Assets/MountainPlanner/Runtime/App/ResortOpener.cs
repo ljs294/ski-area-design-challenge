@@ -279,6 +279,16 @@ namespace MountainPlanner.App
             }
             var result = new float[width * depth];
             Snowpack.Compute(width, depth, cell, elevation, canopy, convergence, result);
+            // A one-line summary for the log: the range, the mean and the share too thin to cover the ground.
+            double sum = 0, max = 0;
+            int thin = 0;
+            foreach (float d in result)
+            {
+                sum += d;
+                if (d > max) max = d;
+                if (d < SurfaceStates.FullCoverMetres) thin++;
+            }
+            UnityEngine.Debug.Log($"[ResortOpener] snowpack: mean {sum / result.Length:F2} m, deepest {max:F2} m, {100.0 * thin / result.Length:F1}% thinner than {SurfaceStates.FullCoverMetres * 100:F0} cm");
             return result;
         }
 
