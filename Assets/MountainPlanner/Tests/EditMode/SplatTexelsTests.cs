@@ -4,8 +4,9 @@ using NUnit.Framework;
 
 namespace MountainPlanner.Tests
 {
-    // Splat composition (task 07, frozen lakes in the style tile): snow lies on the land, and water keeps
-    // its weight under snow so the terrain shader can draw frozen lakes.
+    // Splat composition (task 07, frozen lakes in the style tile; map layers, task 12): channel 0 holds the snow's
+    // weight on the land, the other five the bare ground cover, so the terrain shader can show or hide the snow
+    // without a new splat. Water keeps its weight under snow so the shader can draw frozen lakes.
     public sealed class SplatTexelsTests
     {
         const int Bands = TerrainCache.CoverBands;
@@ -24,18 +25,18 @@ namespace MountainPlanner.Tests
             return cover;
         }
 
-        static (int Snow, int Grass, int Water, int Sum) Texel(SplatTexels splat, int i)
+        static (int Snow, int Grass, int Water, int Ground) Texel(SplatTexels splat, int i)
         {
             byte[] t0 = splat.Textures[0], t1 = splat.Textures[1];
             int o = i * 4;
-            return (t0[o], t0[o + 2], t1[o + 1], t0[o] + t0[o + 1] + t0[o + 2] + t0[o + 3] + t1[o] + t1[o + 1]);
+            return (t0[o], t0[o + 2], t1[o + 1], t0[o + 1] + t0[o + 2] + t0[o + 3] + t1[o] + t1[o + 1]);
         }
 
         [Test]
-        public void WaterKeepsItsWeightUnderSnow()
+        public void SnowLiesOnTheLandAndWaterKeepsItsWeight()
         {
             var cover = Row((0, 0, 0, 0, 255, 255), (0, 255, 0, 0, 0, 255), (0, 127, 0, 0, 128, 255));
-            var splat = SplatTexels.Compose(cover, 3, snow: true);
+            var splat = SplatTexels.Compose(cover, 3);
 
             var lake = Texel(splat, 0);
             Assert.That(lake.Water, Is.EqualTo(255), "a lake stays water; the shader draws snow on the ice");
@@ -48,18 +49,34 @@ namespace MountainPlanner.Tests
             var shore = Texel(splat, 2);
             Assert.That(shore.Water, Is.EqualTo(128));
             Assert.That(shore.Snow, Is.EqualTo(127), "snow covers the land share of a shore texel");
-            foreach (var t in new[] { lake, meadow, shore }) Assert.That(t.Sum, Is.EqualTo(255));
         }
 
         [Test]
-        public void WithoutSnowTheGroundShowsAlone()
+        public void TheGroundUnderTheSnowIsKeptWhole()
         {
             var cover = Row((0, 0, 0, 0, 255, 255), (0, 255, 0, 0, 0, 255), (0, 127, 0, 0, 128, 255));
-            var splat = SplatTexels.Compose(cover, 3, snow: false);
+            var splat = SplatTexels.Compose(cover, 3);
             Assert.That(Texel(splat, 0).Water, Is.EqualTo(255));
-            Assert.That(Texel(splat, 1).Grass, Is.EqualTo(255));
+            Assert.That(Texel(splat, 1).Grass, Is.EqualTo(255), "the meadow under full snow is still a meadow");
             var shore = Texel(splat, 2);
-            Assert.That((shore.Grass, shore.Water, shore.Snow), Is.EqualTo((127, 128, 0)));
+            Assert.That((shore.Grass, shore.Water), Is.EqualTo((127, 128)));
+            for (int i = 0; i < 3; i++) Assert.That(Texel(splat, i).Ground, Is.EqualTo(255), "the bare ground cover sums to 255 on its own");
+        }
+
+        [Test]
+        public void TheShaderBlendMatchesTheOldCpuComposition()
+        {
+            // Half-snowed land: 200 grass and 55 rock under a 128 snow cover. Before task 12 SplatTexels scaled the
+            // land layers by (land - snow) / land on the CPU: snow 128, grass 100 (99 plus the rounding leftover),
+            // rock 27. The shader now does the same scaling (MountainTerrain.shader), within a step of rounding.
+            var cover = Row((0, 200, 55, 0, 0, 128), (0, 200, 55, 0, 0, 128), (0, 200, 55, 0, 0, 128));
+            var splat = SplatTexels.Compose(cover, 3);
+            byte[] t0 = splat.Textures[0], t1 = splat.Textures[1];
+            float snow = t0[0] / 255f, land = 1 - t1[1] / 255f, keep = 1 - snow / land;
+            Assert.That(t0[0], Is.EqualTo(128));
+            Assert.That(t0[2] * keep, Is.EqualTo(100).Within(1), "grass");
+            Assert.That(t0[3] * keep, Is.EqualTo(27).Within(1), "rock");
+            Assert.That(((int)t0[2], (int)t0[3]), Is.EqualTo((200, 55)), "with the Snow layer off the ground shows as it is");
         }
     }
 }

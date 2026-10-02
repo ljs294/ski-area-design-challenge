@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Domain.Geo;
-using MountainPlanner.Domain.Snow;
 using MountainPlanner.Persistence;
 using MountainPlanner.Presentation;
 using MountainPlanner.World;
@@ -52,7 +51,6 @@ namespace MountainPlanner.App
         public LocalFrame Frame;
         public GroundLayers Ground;
         public string PackageFolder;
-        public bool SnowOn = true;
         /// <summary>The ring (local x/z): where the downloaded data ends and the diorama walls stand.</summary>
         public Rect Ring;
         /// <summary>The top of the diorama's plinth (local y): the lowest the camera may go off the terrain.</summary>
@@ -65,7 +63,7 @@ namespace MountainPlanner.App
         public long TreesPlanted;
         public long CliffTriangles;
         public Material CliffMaterial;
-        /// <summary>The diorama walls (their snow cap follows the snow).</summary>
+        /// <summary>The diorama walls (their snow cap follows the Snow layer).</summary>
         public Material EdgeMaterial;
         public double ForestSeconds;
         public double Seconds;
@@ -118,7 +116,7 @@ namespace MountainPlanner.App
             var order = cache.Tiles.OrderBy(t => Distance(t, cache, frame)).ToList();
             var decoded = order.Select(t => Task.Run(() => TerrainTiles.LoadHeights(packageFolder, t), ct)).ToList();
             // Cover decodes alongside; it's painted after the terrain is up (snow is layer 0, so tiles already read as snow).
-            var covers = order.Select(t => Task.Run(() => SplatTexels.Load(packageFolder, t, snow: true), ct)).ToList();
+            var covers = order.Select(t => Task.Run(() => SplatTexels.Load(packageFolder, t), ct)).ToList();
             List<Task<ForestInstance[]>> forests = null;
             if (forest != null && forest.IsComplete)
             {
@@ -227,36 +225,6 @@ namespace MountainPlanner.App
             resort.TreesPlanted = instances.Length;
             resort.ForestSeconds = clock.Elapsed.TotalSeconds;
             UnityEngine.Debug.Log($"[ResortOpener] {instances.Length:N0} trees planted at {resort.ForestSeconds:F2} s ({renderer.DrawCount} indirect draws)");
-        }
-
-        /// <summary>
-        /// Shows or hides the snow (the "under the snow" view, T17): recomposes every tile's splat from the
-        /// cache on worker threads, then uploads a few tiles per frame.
-        /// </summary>
-        public static async Task SetSnowAsync(OpenedResort resort, bool snow, CancellationToken ct = default)
-        {
-            await resort.CoverReady;
-            resort.SnowOn = snow;
-            // The snow-depth seam (task 10) follows the splats: on before they gain snow, off once they've lost it,
-            // so no tile ever has its snow taken away with nothing composed underneath.
-            if (snow) resort.States?.Snow.Fill(SnowDepthField.IterationOneMetres);
-            if (resort.CliffMaterial != null) resort.CliffMaterial.SetFloat("_SnowLoad", snow ? 1 : 0);
-            // Lakes keep their water weight either way; the shader draws snow on ice or bare ice.
-            if (resort.Ground?.Material != null) resort.Ground.Material.SetFloat("_SnowOn", snow ? 1 : 0);
-            if (resort.EdgeMaterial != null) resort.EdgeMaterial.SetFloat("_SnowOn", snow ? 1 : 0);
-            var jobs = resort.Cache.Tiles.Select(t => (Tile: t, Splat: Task.Run(() => SplatTexels.Load(resort.PackageFolder, t, snow), ct))).ToList();
-            int n = 0;
-            foreach (var (tile, splat) in jobs)
-            {
-                var texels = await splat;
-                if (resort.Tiles.TryGetValue((tile.Column, tile.Row), out var terrain))
-                {
-                    TerrainTiles.ApplySplat(terrain.terrainData, texels);
-                    TerrainTiles.BindSplat(terrain);
-                }
-                if (++n % 8 == 0) await Task.Yield();
-            }
-            if (!snow) resort.States?.Snow.Fill(0);
         }
 
         static double Distance(CacheTile t, CacheManifest cache, LocalFrame frame)

@@ -29,20 +29,24 @@
                     <ui:Label name="layers-caret" class="caret" text="–" picking-mode="Ignore" />
                 </ui:Button>
                 <ui:VisualElement name="layers-body">
-                    <ui:Button name="layer-snow" class="layer" tooltip="N">
+                    <ui:Button name="layer-snow" class="layer" tooltip="Snow on the ground and trees (Shift+1)">
                         <ui:Label class="layer-label" text="Snow" picking-mode="Ignore" />
                         <ui:VisualElement class="layer-box" picking-mode="Ignore" />
                     </ui:Button>
-                    <ui:Button name="layer-ground" class="layer" tooltip="Comes with map layers (task 12)">
+                    <ui:Button name="layer-ground" class="layer" tooltip="Ground cover is always on in this version (Shift+2)">
                         <ui:Label class="layer-label" text="Ground" picking-mode="Ignore" />
                         <ui:VisualElement class="layer-box" picking-mode="Ignore" />
                     </ui:Button>
-                    <ui:Button name="layer-forest" class="layer" tooltip="Show or hide the trees">
+                    <ui:Button name="layer-forest" class="layer" tooltip="Show or hide the trees (Shift+3)">
                         <ui:Label class="layer-label" text="Forest" picking-mode="Ignore" />
                         <ui:VisualElement class="layer-box" picking-mode="Ignore" />
                     </ui:Button>
-                    <ui:Button name="layer-cover" class="layer" tooltip="V">
+                    <ui:Button name="layer-cover" class="layer" tooltip="Flat colours by ground cover (Shift+4)">
                         <ui:Label class="layer-label" text="Cover map" picking-mode="Ignore" />
+                        <ui:VisualElement class="layer-box" picking-mode="Ignore" />
+                    </ui:Button>
+                    <ui:Button name="layer-imagery" class="layer" tooltip="Aerial imagery comes in a later version (Shift+5)">
+                        <ui:Label class="layer-label" text="Imagery" picking-mode="Ignore" />
                         <ui:VisualElement class="layer-box" picking-mode="Ignore" />
                     </ui:Button>
                 </ui:VisualElement>

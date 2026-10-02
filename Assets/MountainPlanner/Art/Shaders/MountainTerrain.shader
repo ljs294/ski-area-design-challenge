@@ -2,7 +2,8 @@
 // from two splat maps (snow, forest floor, grass, rock / developed, ice), height-based blending so
 // transitions look like snow drifting over rock rather than a cross-fade, triplanar rock so cliffs never
 // stretch, frozen-lake shading, the cover-map overlay, and a clean cut at the edge of the downloaded
-// data (the diorama edge, A1).
+// data (the diorama edge, A1). The splat holds the snow and the bare ground cover under it (SplatTexels);
+// the snow is laid over the land here, so the Snow and Cover map layers (task 12) switch with a float.
 Shader "MountainPlanner/Terrain"
 {
     Properties
@@ -11,7 +12,7 @@ Shader "MountainPlanner/Terrain"
         _Normals ("Normals (array)", 2DArray) = "" {}
         _Overlay ("Cover-map overlay", Float) = 0
         _HeightBlend ("Height-blend sharpness", Range(0.01, 1)) = 0.2
-        _SnowOn ("Snow on the ground (lakes: snow on ice, or bare ice)", Float) = 1
+        _SnowOn ("Snow layer: snow on the ground (lakes: snow on ice, or bare ice)", Float) = 1
     }
     SubShader
     {
@@ -241,9 +242,19 @@ Shader "MountainPlanner/Terrain"
                 float2 cuv = (i.uv * (res - 1) + 0.5) / res;
                 float4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
                 float4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
-                // Thin snow lets the composed ground show; where nothing is composed under the snow it stays.
-                float under = 1 - c0.r;
-                float weights[6] = { c0.r * lerp(1, SnowCover(i.positionWS), saturate(under * 50)), c0.g, c0.b, c0.a, c1.r, c1.g };
+                // c0.r is the snow's weight; the other five channels are the bare ground cover (summing to 1), or 0
+                // on a tile whose cover isn't painted yet, which stays all snow. The snow lies over the land share,
+                // and the land layers keep what it leaves (as SplatTexels composed it before task 12). Thin snow
+                // (the depth map) lets the ground show through.
+                float composed = c0.g + c0.b + c0.a + c1.r + c1.g;
+                float painted = saturate(composed * 50);
+                float land = 1 - c1.g;
+                float snowWeight = c0.r * lerp(1, SnowCover(i.positionWS), painted);
+                // The cover-map overlay leaves the snow out whatever the Snow layer says.
+                float snowOn = lerp(1, _SnowOn > 0.5 && _Overlay < 0.5 ? 1 : 0, painted);
+                snowWeight *= snowOn;
+                float keep = land > 0.004 ? saturate(1 - snowWeight / land) : 0;
+                float weights[6] = { snowWeight, c0.g * keep, c0.b * keep, c0.a * keep, c1.r * keep, c1.g };
 
                 if (_Overlay > 0.5)
                 {

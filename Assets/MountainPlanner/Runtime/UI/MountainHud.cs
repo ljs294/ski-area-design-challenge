@@ -15,7 +15,7 @@ namespace MountainPlanner.UI
         public UIDocument Document;
         public ThemeStyleSheet LightTheme, DarkTheme;
 
-        /// <summary>A layer row was switched: "snow", "forest" or "cover".</summary>
+        /// <summary>A layer row was clicked: "snow", "ground", "forest" or "cover", and the state asked for (Imagery is reserved).</summary>
         public event Action<string, bool> LayerChanged;
         public event Action<int> PresetChosen;
         public event Action NorthUpChosen;
@@ -28,7 +28,7 @@ namespace MountainPlanner.UI
         Label _name, _quality, _scaleLabel, _elevation, _time, _caret;
         Button _themeButton;
         readonly Button[] _presets = new Button[4];
-        Button _snow, _ground, _forest, _cover;
+        Button _snow, _ground, _forest, _cover, _imagery;
         float _heading;
         int _shownScale = -1, _shownElevation = int.MinValue, _shownPreset = -1;
         static readonly int[] NiceLengths = { 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000 };
@@ -55,6 +55,7 @@ namespace MountainPlanner.UI
             _ground = _root.Q<Button>("layer-ground");
             _forest = _root.Q<Button>("layer-forest");
             _cover = _root.Q<Button>("layer-cover");
+            _imagery = _root.Q<Button>("layer-imagery");
 
             _root.Q<Button>("menu-button").clicked += ToggleMenu;
             _root.Q<Button>("menu-resume").clicked += ToggleMenu;
@@ -70,8 +71,12 @@ namespace MountainPlanner.UI
             _snow.clicked += () => LayerChanged?.Invoke("snow", !IsOn(_snow));
             _forest.clicked += () => LayerChanged?.Invoke("forest", !IsOn(_forest));
             _cover.clicked += () => LayerChanged?.Invoke("cover", !IsOn(_cover));
+            // Ground cover is always on in this version (task 12): the row shows on, and a click asks anyway so
+            // the app can say why it stays on. Imagery is reserved, so its row is greyed out.
             _ground.EnableInClassList("layer--on", true);
-            _ground.SetEnabled(false);   // map layers, task 12
+            _ground.clicked += () => LayerChanged?.Invoke("ground", false);
+            _imagery.EnableInClassList("layer--on", false);
+            _imagery.SetEnabled(false);
             for (int i = 0; i < _presets.Length; i++)
             {
                 int index = i;
