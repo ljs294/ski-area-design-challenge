@@ -15,7 +15,7 @@ namespace MountainPlanner.UI
         public UIDocument Document;
         public ThemeStyleSheet LightTheme, DarkTheme;
 
-        /// <summary>A layer row was switched: "snow", "forest" or "cover" (Ground cover is always on; Imagery is reserved).</summary>
+        /// <summary>A layer row was clicked: "snow", "ground", "forest" or "cover", and the state asked for (Imagery is reserved).</summary>
         public event Action<string, bool> LayerChanged;
         public event Action<int> PresetChosen;
         public event Action NorthUpChosen;
@@ -71,10 +71,12 @@ namespace MountainPlanner.UI
             _snow.clicked += () => LayerChanged?.Invoke("snow", !IsOn(_snow));
             _forest.clicked += () => LayerChanged?.Invoke("forest", !IsOn(_forest));
             _cover.clicked += () => LayerChanged?.Invoke("cover", !IsOn(_cover));
+            // Ground cover is always on in this version (task 12): the row shows on, and a click asks anyway so
+            // the app can say why it stays on. Imagery is reserved, so its row is greyed out.
             _ground.EnableInClassList("layer--on", true);
-            _ground.SetEnabled(false);     // always on in this version (task 12)
+            _ground.clicked += () => LayerChanged?.Invoke("ground", false);
             _imagery.EnableInClassList("layer--on", false);
-            _imagery.SetEnabled(false);    // reserved
+            _imagery.SetEnabled(false);
             for (int i = 0; i < _presets.Length; i++)
             {
                 int index = i;
