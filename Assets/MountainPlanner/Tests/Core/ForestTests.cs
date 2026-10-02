@@ -85,6 +85,25 @@ namespace MountainPlanner.Tests
             Assert.That(ForestPlacement.RingDensity(5000), Is.EqualTo(ForestPlacement.RingMinDensity).Within(1e-9));
         }
 
+        [Test]
+        public void EachRegionHasItsOwnCalibration()
+        {
+            // Jackson Hole, Alta and Crystal Mountain are in the West; Sugarloaf, Stowe and a Michigan hill in the East.
+            foreach (double lon in new[] { -110.848, -111.638, -121.49 })
+                Assert.That(ForestCalibration.ForSite(lon).DominantHeightFactor, Is.EqualTo(ForestCalibration.Default.DominantHeightFactor), $"{lon}");
+            foreach (double lon in new[] { -70.316, -72.78, -85.0 })
+                Assert.That(ForestCalibration.ForSite(lon).DominantHeightFactor, Is.EqualTo(ForestCalibration.East.DominantHeightFactor), $"{lon}");
+            // In the East the canopy map is nearly right: shorter trees than the West's factors would make, and
+            // with smaller crowns and less extra cover, a similar number per cell.
+            var east = ForestCalibration.East;
+            Assert.That(east.DominantHeight(40), Is.EqualTo(12.6).Within(0.01), "a 10 m mapped tallest tree is about 12.6 m");
+            Assert.That(ForestCalibration.West.DominantHeight(40), Is.EqualTo(22).Within(0.01));
+            double eastTrees = ForestPlacement.TreesPerCell(0.8, east.DominantHeight(40), east);
+            double westTrees = ForestPlacement.TreesPerCell(0.8, ForestCalibration.West.DominantHeight(40), ForestCalibration.West);
+            TestContext.Progress.WriteLine($"A 10 m cell, 80% canopy, 10 m mapped: East {eastTrees:F1} trees of {east.DominantHeight(40):F1} m, West {westTrees:F1} of 22 m");
+            Assert.That(eastTrees, Is.GreaterThan(westTrees), "smaller crowns pack closer");
+        }
+
         /// <summary>A cone 4 km across rising from 2,000 to 3,600 m, forested below <paramref name="forestTop"/>.</summary>
         static (float[] Elevation, bool[] Forest) Cone(double forestTop, int n = 400)
         {

@@ -192,7 +192,7 @@ namespace MountainPlanner.Persistence
         /// <summary>Tree share given to a ring WorldCover forest cell, measured in the core (see constructor).</summary>
         public readonly double RingTreeShare;
         readonly ulong _seed;
-        readonly ForestCalibration _calibration = ForestCalibration.Default;
+        readonly ForestCalibration _calibration;
 
         readonly TerrainCache.HeightField? _heights;
 
@@ -206,6 +206,7 @@ namespace MountainPlanner.Persistence
         {
             _package = package;
             _heights = heights;
+            _calibration = ForestCalibration.ForSite(package.Site.Longitude);
             _seed = CoverNoise.SeedFor(package.Site.CentreX, package.Site.CentreY) ^ 0x7EE5UL;
             var site = SiteSquare.Create(new AlbersPoint(package.Site.CentreX, package.Site.CentreY), package.Site.SizeMetres / 1000.0);
             _core = site.Core;
@@ -429,7 +430,9 @@ namespace MountainPlanner.Persistence
             else
             {
                 if (_cover == null || CoverAt(x0 + m / 2.0, y0 + m / 2.0) != 10) return default;
-                dominant = ForestPlacement.RingDominantHeight * (0.85 + 0.3 * ForestPlacement.Hash01(_seed, cx, cy, 0, 7));
+                // The ring's typical height follows the region's calibration, so it meets the core without a step.
+                double regional = ForestPlacement.RingDominantHeight * _calibration.DominantHeightFactor / ForestCalibration.West.DominantHeightFactor;
+                dominant = regional * (0.85 + 0.3 * ForestPlacement.Hash01(_seed, cx, cy, 0, 7));
                 double density = ForestPlacement.RingDensity(OutsideCore(x0 + m / 2.0, y0 + m / 2.0));
                 expected = ForestPlacement.TreesPerCell(RingTreeShare, dominant, _calibration) * density;
                 width = Math.Min(3, 1 / Math.Sqrt(density));   // fewer, wider crowns in the distance

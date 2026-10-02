@@ -115,7 +115,8 @@ namespace MountainPlanner.Domain.Cover
 
     /// <summary>
     /// Calibration of the canopy map against lidar (D4). The factors multiply the map's tree density
-    /// and height. One region for now (Jackson Hole); more truth sites refine and regionalize them.
+    /// and height. Two regions, picked by the site's longitude (<see cref="ForSite"/>): the West, measured at
+    /// Jackson Hole, and the East, measured at five New England ski areas (forest-structure report §9).
     /// </summary>
     public readonly struct ForestCalibration
     {
@@ -143,6 +144,22 @@ namespace MountainPlanner.Domain.Cover
         /// tallest tree per 10 m forest cell 9.0 m against 20.0 m (×2.2).
         /// </summary>
         public static readonly ForestCalibration Default = new ForestCalibration("Jackson Hole (WY) lidar, 2020", 1.5, 1.6, 2.2);
+
+        /// <summary>The West: Jackson Hole's factors (<see cref="Default"/>).</summary>
+        public static readonly ForestCalibration West = Default;
+
+        /// <summary>
+        /// The East: the mean of five New England ski areas against 3DEP lidar (Stowe, Loon, Killington, Sunday
+        /// River, Sugarloaf; 20 patches of 200 m each). There the canopy map reads tree cover about right (×0.93)
+        /// and heights only a little low (×1.26). The per-metre factor wasn't measured; it scales with the dominant one.
+        /// </summary>
+        public static readonly ForestCalibration East = new ForestCalibration("New England ski areas (3DEP lidar, 2013–2023)", 0.93, 1.6 * 1.26 / 2.2, 1.26);
+
+        /// <summary>The 100th meridian, the usual line between the arid West and the humid East.</summary>
+        public const double EastOfLongitude = -100;
+
+        /// <summary>The regional calibration for a site: East of the 100th meridian uses the East's factors.</summary>
+        public static ForestCalibration ForSite(double longitude) => longitude > EastOfLongitude ? East : West;
 
         /// <summary>A calibrated height in metres for one 1 m canopy cell.</summary>
         public double TreeHeight(byte canopy) => canopy * ForestRule.CanopyStep * HeightFactor;
