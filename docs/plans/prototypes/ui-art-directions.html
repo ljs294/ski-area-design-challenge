@@ -151,18 +151,18 @@ body.solo .frame { width: 1280px; border-radius: 0; }
 .dD .mono { font-family: 'Overpass Mono', ui-monospace, monospace; }
 /* title: the signpost */
 .dD .sign { position: relative; color: var(--white); background: var(--face, var(--black)); border: 1px solid var(--white); outline: 3px solid var(--face, var(--black)); border-radius: 2px;
-  box-shadow: 4px 6px 8px rgba(40, 20, 5, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+  box-shadow: 4px 6px 8px rgba(12, 28, 50, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.18); }
 .dD .bolts::before, .dD .bolts::after { content: ''; position: absolute; left: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--bolt); box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.55); }
 .dD .bolts::before { top: 9px; }
 .dD .bolts::after { bottom: 9px; }
-.dD .plate { position: absolute; background: var(--white); color: var(--black); border: 2px solid var(--black); border-radius: 2px; box-shadow: 4px 6px 8px rgba(40, 20, 5, 0.3); }
+.dD .plate { position: absolute; background: var(--white); color: var(--black); border: 2px solid var(--black); border-radius: 2px; box-shadow: 4px 6px 8px rgba(12, 28, 50, 0.28); }
 .dD .post { position: absolute; width: 24px; border: 1px solid #3b2616;
-  background: repeating-linear-gradient(91deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 9px), linear-gradient(90deg, #5a3a22, #93643e 25%, #7e5434 75%, #4d321f); box-shadow: 5px 4px 6px rgba(40, 20, 5, 0.3); }
+  background: repeating-linear-gradient(91deg, rgba(255, 255, 255, 0.05) 0 2px, transparent 2px 9px), linear-gradient(90deg, #5a3a22, #93643e 25%, #7e5434 75%, #4d321f); box-shadow: 5px 4px 6px rgba(12, 28, 50, 0.28); }
 .dD .menu-sign { display: flex; align-items: center; gap: 14px; min-height: 77px; padding: 17px 20px 17px 30px; font: 800 25px 'Overpass', sans-serif; line-height: 1.1; }
 .dD .menu-sign small { display: block; margin-top: 5px; font: 500 14px 'Overpass', sans-serif; }
 .dD .menu-sign > span { flex: 1; }
 .dD .arrow { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-.dD .smallplate { background: var(--white); color: var(--black); border: 2px solid var(--black); border-radius: 2px; padding: 8px 16px; font-weight: 700; box-shadow: 3px 4px 6px rgba(40, 20, 5, 0.28); }
+.dD .smallplate { background: var(--white); color: var(--black); border: 2px solid var(--black); border-radius: 2px; padding: 8px 16px; font-weight: 700; box-shadow: 3px 4px 6px rgba(12, 28, 50, 0.26); }
 .dD .lbl { font: 800 11px 'Overpass', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: #6f675e; }
 /* in game: warm graphite instrument panels */
 .dD .pn { position: absolute; background: rgba(27, 24, 21, 0.94); color: #efe9df; border: 1px solid #3b3632; border-radius: 3px; box-shadow: 0 10px 26px rgba(20, 10, 0, 0.35); }
@@ -399,14 +399,13 @@ body.solo .frame { width: 1280px; border-radius: 0; }
   <section id="secD">
     <h2>D · Trailhead <small>the MapLibre edition's title, carried into the game</small></h2>
     <ul class="traits">
-      <li><b>The title screen keeps your signpost:</b> the nameplate, and Continue, New Resort and My Resorts as trail-rated signs on cedar posts, standing on our Unity mountain at golden hour.</li>
+      <li><b>The title screen keeps your signpost:</b> the nameplate, and Continue, New Resort and My Resorts as trail-rated signs on cedar posts, standing on our Unity mountain on a bluebird day.</li>
       <li><b>In the game, it becomes an instrument:</b> warm graphite panels with hairline rules, Overpass for labels and Overpass Mono for figures. Every number has its units, and costs are broken down line by line.</li>
       <li><b>Signage survives as accents:</b> lift-number plates, trail-rating symbols and surveyor's orange for anything planned. The map carries thin, precise overlays with dimensions, not signs.</li>
     </ul>
     <div class="frame" id="frameD1"><div class="stage dD" id="stageD1">
-      <img class="bg" src="assets/game-golden.jpg" alt="">
-      <div class="abs" style="inset:0;background:linear-gradient(180deg, rgba(52,40,58,.55), rgba(96,58,40,.18) 26%, transparent 42%)"></div>
-      <div class="abs" style="inset:0;background:radial-gradient(ellipse at 14% 70%, rgba(40,22,10,.38), transparent 50%),linear-gradient(0deg, rgba(40,24,12,.34), transparent 32%)"></div>
+      <img class="bg" src="assets/title-bluebird.jpg" alt="">
+      <div class="abs" style="inset:0;background:radial-gradient(ellipse at 16% 78%, rgba(14,30,52,.22), transparent 48%),linear-gradient(0deg, rgba(14,30,52,.26), transparent 26%)"></div>
       <i class="post" style="left:102px;top:276px;bottom:-2px"></i>
       <i class="post" style="left:332px;top:276px;bottom:-2px"></i>
       <div class="abs" style="left:64px;top:262px;width:330px">
@@ -423,11 +422,10 @@ body.solo .frame { width: 1280px; border-radius: 0; }
         <span style="font:800 17px 'Overpass'">−8°  ·  12 cm new  ·  Wind W 15</span>
       </div>
       <div class="abs" style="right:36px;bottom:30px;display:flex;gap:8px"><span class="smallplate">Settings</span><span class="smallplate">Credits</span><span class="smallplate">Quit</span></div>
-      <div class="abs" style="left:430px;bottom:30px;font:600 12px 'Overpass';letter-spacing:.14em;color:#fbf8f2;text-shadow:0 1px 3px rgba(40,20,5,.6)">VERSION 0.1 · JACKSON HOLE, WYOMING</div>
+      <div class="abs" style="left:430px;bottom:30px;font:600 12px 'Overpass';letter-spacing:.14em;color:#fbf8f2;text-shadow:0 1px 3px rgba(10,24,44,.7)">VERSION 0.1 · JACKSON HOLE, WYOMING</div>
     </div></div>
     <div class="frame" id="frameD2" style="margin-top:14px"><div class="stage dD" id="stageD2">
-      <img class="bg" src="assets/game-golden.jpg" alt="">
-      <div class="abs" style="inset:0;background:linear-gradient(180deg, rgba(52,40,58,.55), rgba(96,58,40,.18) 26%, transparent 42%)"></div>
+      <img class="bg" src="assets/game-bluebird.jpg" alt="">
       <svg class="world" id="worldD" viewBox="0 0 1280 720" aria-label="The mountain with lifts and runs drawn as thin survey lines, and a planned lift dimensioned in orange"></svg>
 
       <div class="pn" style="left:14px;top:14px;width:318px">
@@ -484,7 +482,7 @@ body.solo .frame { width: 1280px; border-radius: 0; }
       </div>
     </div></div>
   </section>
-  <p class="pagenote">Style frames only: the mountain is a capture of our Unity build (Jackson Hole; noon for A–C, golden hour for D); the lifts, runs, names and numbers are invented, and no other game's art or logos are used.</p>
+  <p class="pagenote">Style frames only: the mountain is a capture of our Unity build (Jackson Hole; noon for A–C; for D a bluebird sky and cumulus are composited behind the terrain, not yet rendered by the game); the lifts, runs, names and numbers are invented, and no other game's art or logos are used.</p>
 </div>
 
 <script>

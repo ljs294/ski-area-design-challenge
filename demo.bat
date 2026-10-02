@@ -77,6 +77,9 @@ echo     29 Sugarloaf, Maine, 5 km: download it into your library (spruce-fir, k
 echo     30 Fly over Sugarloaf in the game (needs 29)
 echo     31 Forest benchmark on Sugarloaf: its own views, GPU times, draw calls (about 2 minutes; needs 29)
 echo.
+echo   Game UI design (mockups, not the game yet)
+echo     32 Open the HUD layout mockup in your browser: status bar, Toolbox, Analysis, menu and Settings
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -122,6 +125,10 @@ if /i "%CHOICE%"=="28" goto survey
 if /i "%CHOICE%"=="29" call :acquire "Sugarloaf" 45.047 -70.316 5 & goto done
 if /i "%CHOICE%"=="30" goto playsugarloaf
 if /i "%CHOICE%"=="31" goto benchsugarloaf
+if /i "%CHOICE%"=="32" (
+  start "" "%~dp0docs\plans\prototypes\ui-layout.html"
+  goto menu
+)
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"

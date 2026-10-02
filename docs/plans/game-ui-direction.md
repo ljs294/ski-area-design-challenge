@@ -1,8 +1,30 @@
 # Game UI direction
 
-**Audience:** the project owner and coding agents. **Status:** draft for your review. **Date:** 2026-09-29. **Applies to:** the whole game: iteration 1's mountain HUD now ([0.4 S6](phase0-0.4-ui-ux.md)), the drawing tools in Phase 3 and the simulation in Phase 4 ([0.6](phase0-0.6-milestones.md)). **Inputs:** your answers of 2026-09-29, the archived game's layout ([0.1 §2](phase0-0.1-reference-inventory.md#2-player-journey-and-screens)), and a study of Cities: Skylines II and Subway Builder (sources at the end).
+**Audience:** the project owner and coding agents. **Status:** the layout in [Accepted for now](#accepted-for-now-owner-2026-10-01) is accepted (owner, 2026-10-01); the rest is the 2026-09-29 draft, kept where it still applies. **Date:** 2026-10-01. **Applies to:** the whole game: iteration 1's mountain HUD now ([0.4 S6](phase0-0.4-ui-ux.md)), the drawing tools in Phase 3 and the simulation in Phase 4 ([0.6](phase0-0.6-milestones.md)). **Inputs:** your answers of 2026-09-29, the archived game's layout ([0.1 §2](phase0-0.1-reference-inventory.md#2-player-journey-and-screens)), and a study of Cities: Skylines II and Subway Builder (sources at the end).
 
-**In one line:** a mountain you want to look at, with light frosted-glass panels over it; tools in a colourful bar at the bottom centre; each tool opening one floating window with its options; and Subway Builder's rhythm of **plan blueprints, build, operate, then learn from what the guests do**.
+**In one line:** a mountain you want to look at, with solid instrument panels in warm graphite or sign white; a full-width status bar at the bottom; a Toolbox whose tools each open one floating build panel; and Subway Builder's rhythm of **plan, build, operate, then learn from what the guests do**.
+
+## Accepted for now (owner, 2026-10-01)
+
+The owner's layout sketch (`Ski-Area-Design-Challenge UI.pdf`), built out over several rounds into a playable mockup, is the HUD to build from: [`prototypes/ui-layout.html`](prototypes/ui-layout.html), also published as a private page. Where the rest of this doc differs, this section wins.
+
+| # | Decision |
+|---|---|
+| UI-6 | **Look: Trailhead.** Solid instrument panels with hairline rules: warm graphite in dark mode, sign white in light mode (not cream). Overpass for words and Overpass Mono for figures; one set of solid, sign-style symbols. No frosted glass |
+| UI-7 | **Status bar** across the full width of the bottom, 52 px, docked flush to the edge by default or floating (a setting). Left: Toolbox, Analysis, the resort's name with its lift status, pause, the day, the time with the weather under it, speed. Right: the bank balance with today's change under it, lifts, skiers, the elevation under the pointer, save |
+| UI-8 | **Toolbox** replaces the centred build bar: a tray above the status bar with tabs (Lifts, Trails, Snowmaking, Infrastructure) and symbol tiles. Each tool opens one floating build panel with live numbers, a cost breakdown, and Break ground or Save plan |
+| UI-9 | **Analysis** opens one panel with tabs: Overview, Lifts, Trails, Snowmaking, Amenities, Finances |
+| UI-10 | **Top right:** sketch, map layers and the menu. There are no camera buttons: the wheel and + − zoom, and Home resets the view |
+| UI-11 | **Menu:** quick switches for theme (dark, light, or auto by the sun), status bar and units, then a Settings window: interface, units and time, gameplay, graphics, audio and controls |
+
+Details that come with it:
+- **Lift status** is a small line under the resort's name: *Closed* (no colour) opens 8:30 AM, *Open* (green) until 4:30 PM, *Last chair* (amber). Closed is calm because it's every night. The mockup keeps two alternatives (an hours track, a word after the name) for comparison.
+- **Weather line:** the weather symbol, the temperature, and the snow forecast for the next 24 hours.
+- **Save** turns white when there's something to save, and does nothing else (no dot).
+- **Units** switch every figure together (m or ft, °C or °F, cm or in, m/s or ft/min, m³ or yd³); the clock is 12- or 24-hour.
+- **Plans are surveyor's orange:** dashed lines with a dimension label on the mountain, and outlined orange lift plates. Built things are solid.
+- **The palette** for both themes is the set of CSS variables at the top of the mockup's HUD styles.
+- **Overpass draws its middle dot (·) off-centre.** The mockup sends that one character to a system font; the game needs the same fallback.
 
 ## 1. Decisions (owner, 2026-09-29)
 
@@ -13,6 +35,8 @@
 | UI-3 | **Game flow** follows Subway Builder: blueprints first, then build and pay, then operate, then analyse and improve (§3) |
 | UI-4 | **Windows float**, as in the archived game and Subway Builder: draggable, keyboard-movable, pinnable |
 | UI-5 | **Not too heavy, and really nice to look at:** the weight rules in §5 keep it light |
+
+UI-1 and UI-2 are superseded by UI-6 and UI-8 (2026-10-01); UI-3 to UI-5 still apply.
 
 **This is a new game, not a port.** The archived MapLibre edition is a starting reference (its layout was itself modelled on Subway Builder), never a constraint: where Cities: Skylines II or Subway Builder does something better, we follow them. Two side-by-side mockups, one leaning on each game, are in [`prototypes/ui-style-mockups.html`](prototypes/ui-style-mockups.html).
 
@@ -26,6 +50,8 @@ Three art directions drawn from the resort's own world are in [`prototypes/ui-ar
 They sit over a capture of our Unity mountain, with the status bar back at the bottom.
 
 ## 2. The screen
+
+This first sketch is superseded by the accepted layout. Its info views, warnings and detail windows haven't been redesigned yet, so they still stand.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -107,25 +133,25 @@ The seasons give the loop its beat, as in the archived game: **summer is for pla
 
 ## 5. Look and weight
 
-- **Panels:** frosted glass. Translucent surfaces (about 60% opacity) over a blurred copy of the world, so the mountain shows through. Each has a 1 px light edge with a highlight along the top, 8 px corners on windows and 6 px inside them, and soft shadows at most. Light and dark themes come from the 0.4 tokens.
-- **Icons:** colour only in the build bar (one hue per category). Everything else is monochrome outline at 1.5 px.
-- **Type:** Inter, 13 px in windows and 14 px elsewhere, with tabular numbers.
+- **Panels:** solid (95–97% opaque) with hairline borders, 6 px corners and soft shadows at most, in dark (warm graphite) and light (sign white) themes. Frosted glass, the earlier plan, is dropped.
+- **Symbols:** one solid, sign-style set on a 24 px grid, drawn in the text colour. Tool variants share a family symbol with a badge: + for new, a pencil for edit, × for remove.
+- **Type:** Overpass for words and Overpass Mono for figures, 12.5–15 px, with tabular numbers.
 - **Weight rules**, so it stays light:
   1. One tool window at a time; choosing another tool replaces it.
   2. At most three detail windows; the oldest unpinned one closes first.
   3. Key numbers first; charts and technical depth behind a tab.
-  4. Nothing on screen all the time beyond the status strip, build bar, top-right cluster and camera controls.
+  4. Nothing on screen all the time beyond the status bar and the top-right buttons.
   5. Data on the mountain before data in windows.
   6. Panels move in 120–200 ms with no bounce; only the money change animates.
 - **Colour meanings:**
   - difficulty: green, blue and black; double black is black with two diamonds, as on trail signs;
   - money: green and red;
   - warnings: amber;
-  - blueprints: yellow, used for nothing else;
+  - plans: surveyor's orange, used for nothing else;
   - lift-line waits: green, orange and red.
 
-  Lift colours stay clear of all of these. Category colours stay in the build bar.
-- **States in the world:** solid means built, dashed means planned, and a soft glow means selected. The blueprint being dragged shows its handles and one readout card beside the pointer.
+  Lift colours stay clear of all of these.
+- **States in the world:** solid means built, dashed orange means planned, and a yellow glow means selected. The blueprint being dragged shows its handles and one readout card beside the pointer.
 - **Buttons:** one filled button per window, the commit (Build). Toggles and tabs show selection with a tint or a white segment, never with the commit's fill. Each blueprint has its own remove (×).
 
 ## 6. What makes it fun
@@ -140,8 +166,8 @@ The seasons give the loop its beat, as in the archived game: **summer is for pla
 The style-tile HUD mock ([S6](phase0-0.4-ui-ux.md)) moves into this frame when tasks 11 and 12 finish it:
 - the time bar becomes the status strip (date, time, the lighting presets until the scrubbers arrive);
 - the Layers panel becomes the info views button with legends (Snow, Ground cover, Forest, Cover map);
-- the compass and zoom move bottom-right; the scale bar and elevation readout sit beside them;
-- the build bar appears in Phase 3; until then the bottom centre stays clear.
+- there are no camera buttons (the wheel and + − zoom), and the elevation readout sits in the status bar;
+- the Toolbox appears in Phase 3; until then its button stays hidden.
 
 ## 8. Scope
 
@@ -149,22 +175,26 @@ This doc covers the interface only. Game mechanics (construction time, milestone
 
 ## 9. Building it in Unity
 
-- **UI Toolkit for all screen UI** (roadmap §11; the style-tile HUD already uses it): layout in UXML, style in USS with the 0.4 tokens in `Theme-Light.tss` / `Theme-Dark.tss`, behaviour in small C# components in the UI assembly. For comparison, Cities: Skylines II draws its UI with HTML/CSS through Coherent Gameface (a commercial middleware the roadmap considered), and Subway Builder is a web app; UI Toolkit gives us the same CSS-like authoring natively and for free.
+- **UI Toolkit for all screen UI** (roadmap §11; the style-tile HUD already uses it): layout in UXML, style in USS with the accepted palette (the mockup's CSS variables) in `Theme-Light.tss` / `Theme-Dark.tss`, behaviour in small C# components in the UI assembly. For comparison, Cities: Skylines II draws its UI with HTML/CSS through Coherent Gameface (a commercial middleware the roadmap considered), and Subway Builder is a web app; UI Toolkit gives us the same CSS-like authoring natively and for free.
 - **The prototype is the design reference.** USS is a subset of CSS built on flexbox, with no CSS grid, so the prototype's layouts carry over once its few grid blocks become flex rows.
 - **Snapshots out, commands in** (AGENTS.md): the simulation publishes snapshots; view models (plain C# with `[CreateProperty]`, change tracking through `INotifyBindablePropertyChanged` or `IDataSourceViewHashProvider`) refresh from them at most ten times a second; views bind to them with runtime data binding. Views raise intents such as *build blueprints*, which the app turns into commands; the UI never changes game state directly.
 - **Our own control library** (`[UxmlElement]` custom controls): `GameWindow` (drag, keyboard move, pin, clamp, the one-tool rule), build bar and tool buttons, asset cards, tabs, status strip, info-view menu and legend, toasts, warnings, the drawing readout. Key controls don't lean on the default theme's visuals (the style tile's checkbox collapsed to nothing).
 - **Labels in the world** (lift names, the drawing readout, lift-line bubbles): screen-space elements moved each frame with the `DynamicTransform` usage hint, or world-space panels (available since Unity 6.2) where a sign should sit in 3D.
 - **Performance** (Unity's UI Toolkit guide): hide with `display: none` rather than zero opacity; animate transforms, not layout; virtualized ListViews for long lists; sprite and dynamic atlases to keep batches together; `[GeneratePropertyBag]` and `[CreateProperty]` so bindings don't use reflection; profile with the UI Toolkit Debugger, Profiler and Frame Debugger. Budget: the whole HUD within 0.3 ms GPU with no per-frame allocations (the mock measures 0.02-0.2 ms).
-- **Frosted glass:**
-  - Unity 6.6 adds a `backdrop-filter` USS property that blurs whatever is behind an element (URP only).
-  - The project is pinned to 6.3 LTS, which lacks it, so the same look needs our own pass. URP blurs a downsampled copy of the frame once per frame, and the panels draw it behind themselves with a UI Shader Graph material.
-  - A spike proves that path and measures its cost before the build bar lands. Upgrading instead is your call.
-- **Icons:** SVGs imported as vector images; one hue per build category.
+- **No frosted glass**, so no blur pass is needed. If glass ever returns: Unity 6.6 adds a `backdrop-filter` USS property; on the pinned 6.3 LTS it needs our own URP blur pass and a UI Shader Graph material.
+- **Symbols:** SVGs imported as vector images and tinted by the theme.
+- **Fonts:** Overpass and Overpass Mono (SIL Open Font License) as font assets, with a fallback face for the middle dot (U+00B7).
 - **Tests:** view models in EditMode; PlayMode tests open panels and send events; review screenshots through the player flags (`-theme`, `-light`, `-nohud`, `-withhud`).
 
 ## 10. Next
 
-The clickable prototype of the build flow (4.1-4.4, with info views, the status strip, a winter and warnings): [`prototypes/game-ui-prototype.html`](prototypes/game-ui-prototype.html), also published as a private page. Its numbers are placeholders. After your review, this doc becomes the brief for the Phase 3 UI plan.
+The accepted mockup, [`prototypes/ui-layout.html`](prototypes/ui-layout.html), is the reference for building the HUD in UI Toolkit, and this doc is the brief for the Phase 3 UI plan. Its numbers, weather and elevation are placeholders.
+
+Still open:
+- whether the game renders the mockup's bluebird sky (cumulus in `Sky.shader`, a deeper noon preset), or the sky stays mockup-only;
+- the info views, warnings and detail windows, which keep the earlier draft until they're redesigned.
+
+The earlier build-flow prototype, [`prototypes/game-ui-prototype.html`](prototypes/game-ui-prototype.html), stays for reference.
 
 ## Sources
 
