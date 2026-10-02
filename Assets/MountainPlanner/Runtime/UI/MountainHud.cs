@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using MountainPlanner.Presentation;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -6,7 +8,8 @@ namespace MountainPlanner.UI
 {
     /// <summary>
     /// The S6 mountain-view HUD (0.4 §4), style-tile mock: a top bar with the name and quality badge, the
-    /// layers panel, a compass, scale bar and elevation readout, and the time bar with the lighting presets.
+    /// layers panel (map layers and info layers, with the info layer's legend card), a compass, scale bar and
+    /// elevation readout, and the time bar with the lighting presets.
     /// It only shows state and raises events; the app wires them. Readouts change text only when their
     /// rounded value changes, so steady frames allocate nothing (0.4 §8).
     /// </summary>
@@ -15,7 +18,7 @@ namespace MountainPlanner.UI
         public UIDocument Document;
         public ThemeStyleSheet LightTheme, DarkTheme;
 
-        /// <summary>A layer row was clicked: "snow", "ground", "forest" or "cover", and the state asked for (Imagery is reserved).</summary>
+        /// <summary>A layer row was clicked (a <see cref="MapLayers"/> id) and the state asked for. Snow conditions is reserved.</summary>
         public event Action<string, bool> LayerChanged;
         public event Action<int> PresetChosen;
         public event Action NorthUpChosen;
@@ -24,11 +27,14 @@ namespace MountainPlanner.UI
         public bool DarkThemeOn { get; private set; }
         public bool MenuOpen => _menu != null && !_menu.ClassListContains("hidden");
 
-        VisualElement _root, _menu, _layersBody, _compass, _scaleBar, _thumb, _sun;
+        VisualElement _root, _menu, _layersBody, _compass, _scaleBar, _thumb, _sun, _legend, _legendBody;
+        Label _legendTitle, _legendNote;
+        readonly Dictionary<string, Button> _layerRows = new Dictionary<string, Button>();
+        string _shownLegend;
+        bool _shownContours;
         Label _name, _quality, _scaleLabel, _elevation, _time, _caret;
         Button _themeButton;
         readonly Button[] _presets = new Button[4];
-        Button _snow, _ground, _forest, _cover, _imagery;
         float _heading;
         int _shownScale = -1, _shownElevation = int.MinValue, _shownPreset = -1;
         static readonly int[] NiceLengths = { 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000 };
@@ -51,11 +57,10 @@ namespace MountainPlanner.UI
             _thumb = _root.Q("thumb");
             _sun = _root.Q("sun-icon");
             _themeButton = _root.Q<Button>("menu-theme");
-            _snow = _root.Q<Button>("layer-snow");
-            _ground = _root.Q<Button>("layer-ground");
-            _forest = _root.Q<Button>("layer-forest");
-            _cover = _root.Q<Button>("layer-cover");
-            _imagery = _root.Q<Button>("layer-imagery");
+            _legend = _root.Q("legend");
+            _legendBody = _root.Q("legend-body");
+            _legendTitle = _root.Q<Label>("legend-title");
+            _legendNote = _root.Q<Label>("legend-note");
 
             _root.Q<Button>("menu-button").clicked += ToggleMenu;
             _root.Q<Button>("menu-resume").clicked += ToggleMenu;
@@ -68,15 +73,16 @@ namespace MountainPlanner.UI
                 _layersBody.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
                 _caret.text = show ? "–" : "+";
             };
-            _snow.clicked += () => LayerChanged?.Invoke("snow", !IsOn(_snow));
-            _forest.clicked += () => LayerChanged?.Invoke("forest", !IsOn(_forest));
-            _cover.clicked += () => LayerChanged?.Invoke("cover", !IsOn(_cover));
-            // Ground cover is always on in this version (task 12): the row shows on, and a click asks anyway so
-            // the app can say why it stays on. Imagery is reserved, so its row is greyed out.
-            _ground.EnableInClassList("layer--on", true);
-            _ground.clicked += () => LayerChanged?.Invoke("ground", false);
-            _imagery.EnableInClassList("layer--on", false);
-            _imagery.SetEnabled(false);
+            // One row per layer, named layer-<id> (MapLayers ids). Snow conditions waits for the snow simulation.
+            foreach (var ids in new[] { MapLayers.MapIds, MapLayers.InfoIds })
+                foreach (string id in ids)
+                {
+                    var row = _root.Q<Button>("layer-" + id);
+                    if (row == null) continue;
+                    _layerRows[id] = row;
+                    row.clicked += () => LayerChanged?.Invoke(id, !IsOn(row));
+                    row.SetEnabled(MapLayers.IsSwitchable(id));
+                }
             for (int i = 0; i < _presets.Length; i++)
             {
                 int index = i;
@@ -117,8 +123,103 @@ namespace MountainPlanner.UI
         /// <summary>Shows a layer's state (the app owns it; a click asks for the change through <see cref="LayerChanged"/>).</summary>
         public void SetLayer(string id, bool on)
         {
-            var row = id == "snow" ? _snow : id == "forest" ? _forest : id == "cover" ? _cover : null;
-            row?.EnableInClassList("layer--on", on);
+            if (_layerRows.TryGetValue(id, out var row)) row.EnableInClassList("layer--on", on);
+        }
+
+        /// <summary>
+        /// The legend card for the info layer that's on (a <see cref="MapLayers"/> id, or null for none), with a line
+        /// about the contours when they're on. Rebuilt only when either changes.
+        /// </summary>
+        public void SetLegend(string infoId, bool contours)
+        {
+            if (infoId == _shownLegend && contours == _shownContours) return;
+            _shownLegend = infoId;
+            _shownContours = contours;
+            _legendBody.Clear();
+            string note = null;
+            switch (infoId)
+            {
+                case MapLayers.SlopeAngle:
+                    _legendTitle.text = InfoLegend.SlopeTitle;
+                    foreach (var e in InfoLegend.SlopeAngle) _legendBody.Add(LegendRow(e));
+                    break;
+                case MapLayers.Exposure:
+                    _legendTitle.text = InfoLegend.ExposureTitle;
+                    _legendBody.Add(ExposureCompass());
+                    note = InfoLegend.ExposureNote;
+                    break;
+                case MapLayers.SnowDepth:
+                    _legendTitle.text = InfoLegend.SnowDepthTitle;
+                    foreach (var e in InfoLegend.SnowDepth) _legendBody.Add(LegendRow(e));
+                    note = InfoLegend.SnowDepthNote;
+                    break;
+                default:
+                    _legendTitle.text = "Contours";
+                    break;
+            }
+            if (contours) note = note == null ? InfoLegend.ContoursNote : note + " " + InfoLegend.ContoursNote;
+            _legendNote.text = note ?? "";
+            _legendNote.style.display = note == null ? DisplayStyle.None : DisplayStyle.Flex;
+            _legend.EnableInClassList("hidden", infoId == null && !contours);
+        }
+
+        static VisualElement LegendRow(in InfoLegend.Entry e)
+        {
+            var row = new VisualElement { pickingMode = PickingMode.Ignore };
+            row.AddToClassList("legend-row");
+            row.Add(Swatch(e.Colour, e.Hatched));
+            var label = new Label(e.Label) { pickingMode = PickingMode.Ignore };
+            label.AddToClassList("legend-label");
+            row.Add(label);
+            var figure = new Label(e.Figure) { pickingMode = PickingMode.Ignore };
+            figure.AddToClassList("legend-figure");
+            row.Add(figure);
+            return row;
+        }
+
+        static VisualElement Swatch(Color colour, bool hatched)
+        {
+            var swatch = new VisualElement { pickingMode = PickingMode.Ignore };
+            swatch.AddToClassList("legend-swatch");
+            swatch.style.backgroundColor = colour;
+            if (hatched)
+                swatch.generateVisualContent += ctx =>
+                {
+                    var r = ctx.visualElement.contentRect;
+                    var p = ctx.painter2D;
+                    p.strokeColor = new Color(0.92f, 0.92f, 0.92f);
+                    p.lineWidth = 2;
+                    for (float x = -r.height; x < r.width; x += 6)
+                    {
+                        p.BeginPath();
+                        p.MoveTo(new Vector2(x, r.height));
+                        p.LineTo(new Vector2(x + r.height, 0));
+                        p.Stroke();
+                    }
+                };
+            return swatch;
+        }
+
+        /// <summary>The exposure colours laid out as a compass: NW N NE / W flat E / SW S SE.</summary>
+        static VisualElement ExposureCompass()
+        {
+            var grid = new VisualElement { pickingMode = PickingMode.Ignore };
+            grid.AddToClassList("legend-compass");
+            int[] order = { 7, 0, 1, 6, -1, 2, 5, 4, 3 };
+            foreach (int k in order)
+            {
+                var colour = k < 0 ? InfoLegend.ExposureFlat : InfoLegend.ExposureColours[k];
+                var cell = new VisualElement { pickingMode = PickingMode.Ignore };
+                cell.AddToClassList("legend-cell");
+                cell.style.backgroundColor = colour;
+                var label = new Label(k < 0 ? "flat" : InfoLegend.ExposurePoints[k]) { pickingMode = PickingMode.Ignore };
+                label.AddToClassList("legend-cell-label");
+                float luminance = 0.2126f * colour.r + 0.7152f * colour.g + 0.0722f * colour.b;
+                label.style.color = luminance > 0.5f ? new Color(0.1f, 0.1f, 0.1f) : Color.white;
+                cell.Add(label);
+                grid.Add(cell);
+            }
+            return grid;
         }
 
         /// <summary>The time bar: which preset is on, its clock time and where that falls in the day.</summary>

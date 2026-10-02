@@ -167,6 +167,17 @@ namespace MountainPlanner.World
         /// Hands the tile's splat maps to the mountain terrain shader, which reads both (six layers) in one
         /// pass. Call after the tile's splat maps are (re)created. Main thread only.
         /// </summary>
+        /// <summary>
+        /// How the terrain shader reads a tile's GPU heightmap: x texels per edge, y metres per unit of a sample (Unity
+        /// stores heights 0–1 as 0–32,766 of a 16-bit texel, so a full sample is just over twice the tile's height
+        /// range), z metres between samples.
+        /// </summary>
+        public static Vector4 HeightmapParams(TerrainData data)
+        {
+            int res = data.heightmapResolution;
+            return new Vector4(res, data.size.y * 65535f / TerrainCache.MaxValue, data.size.x / (res - 1), 0);
+        }
+
         public static void BindSplat(Terrain terrain)
         {
             if (!UsesMountainShader(terrain.materialTemplate)) return;
@@ -177,6 +188,9 @@ namespace MountainPlanner.World
             block.SetTexture("_Control1", textures.Length > 1 ? textures[1] : Texture2D.blackTexture);
             block.SetFloat("_ControlRes", data.alphamapResolution);
             block.SetFloat("_TileSize", data.size.x);   // metres per splat uv: the shader finds lake shores by distance
+            // The heightmap Unity already holds on the GPU, for the slope and exposure info layers (task 12b).
+            block.SetTexture("_Heightmap", data.heightmapTexture);
+            block.SetVector("_HeightmapParams", HeightmapParams(data));
             terrain.SetSplatMaterialPropertyBlock(block);
         }
 

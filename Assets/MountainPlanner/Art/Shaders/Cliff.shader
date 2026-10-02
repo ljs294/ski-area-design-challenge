@@ -1,6 +1,7 @@
 // Cliff shells (style tile): the volume a heightmap can't hold, drawn with the terrain's own rock and snow
 // textures so shell and terrain read as one surface. Triplanar granite (no UVs, no stretching), faint
-// colour banding along the strata, and snow that settles on ledge tops and other up-facing rock.
+// colour banding along the strata, and snow that settles on ledge tops and other up-facing rock. The info layers
+// and contours (task 12b) paint the shells as they paint the terrain around them (InfoLayers.hlsl).
 Shader "MountainPlanner/Cliff"
 {
     Properties
@@ -26,6 +27,10 @@ Shader "MountainPlanner/Cliff"
         CBUFFER_END
         static const int RockLayer = 3;
         static const int SnowLayer = 0;
+        // Task 10's snow-depth map (SurfaceStates), for the Snow depth info layer.
+        TEXTURE2D(_SnowDepthMap); SAMPLER(sampler_SnowDepthMap);
+        float4 _SnowDepthRect;
+        float4 _SnowDepthParams;
         ENDHLSL
 
         Pass
@@ -41,6 +46,7 @@ Shader "MountainPlanner/Cliff"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Haze.hlsl"
             #include "FarShadow.hlsl"
+            #include "InfoLayers.hlsl"
 
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
             struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; float3 normalWS : TEXCOORD1; float weight : TEXCOORD2; };
@@ -59,6 +65,27 @@ Shader "MountainPlanner/Cliff"
             {
                 float3 n = normalize(i.normalWS);
                 float3 p = i.positionWS;
+
+                // Info layers (task 12b): the shell's own facing gives its slope and exposure.
+                UNITY_BRANCH
+                if (_MP_InfoView > 0.5)
+                {
+                    float3 info;
+                    if (_MP_InfoView > 3.5)
+                    {
+                        float depth = 0.3048;
+                        if (_SnowDepthParams.w > 0.5)
+                            depth = SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, (p.xz - _SnowDepthRect.xy) * _SnowDepthRect.zw, 0).r;
+                        info = SnowDepthColour(depth);
+                    }
+                    else
+                    {
+                        float slopeDegrees = degrees(acos(saturate(n.y)));
+                        info = _MP_InfoView < 2.5 ? SlopeAngleColour(slopeDegrees, p) : ExposureColour(n.xz, slopeDegrees);
+                    }
+                    Light sunI = GetMainLight();
+                    return half4(ApplyHaze(ApplyContours(ShadeInfo(info, n, sunI.direction), p.y), p), 1);
+                }
                 float3 w = pow(abs(n), 4);
                 w /= w.x + w.y + w.z;
                 float s = 1 / _RockTile;
@@ -90,7 +117,7 @@ Shader "MountainPlanner/Cliff"
                 float3 h = normalize(sun.direction + view);
                 float spec = pow(saturate(dot(normal, h)), exp2(10 * smooth + 1)) * smooth * 0.5;
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation + SampleSH(normal)) + sun.color * spec * sun.shadowAttenuation;
-                return half4(ApplyHaze(lit, p), 1);
+                return half4(ApplyHaze(ApplyContours(lit, p.y), p), 1);
             }
             ENDHLSL
         }
