@@ -1,0 +1,388 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using MountainPlanner.Domain.Terrain;
+using MountainPlanner.Persistence;
+using UnityEngine;
+using UnityEngine.UIElements;
+
+namespace MountainPlanner.UI.Flow
+{
+    /// <summary>
+    /// Task 14's screens on one UI Toolkit document (Flow.uxml): S1 title, S2 My Resorts, the stand-in
+    /// picker, the S4 download card and pill, the S5 quality card and a confirm dialog. Like the HUD, it only
+    /// shows state and raises events; AppFlow decides what happens. The download card updates text in
+    /// place each snapshot and rebuilds its stage rows only when the stage list changes.
+    /// </summary>
+    public sealed class FlowScreens : MonoBehaviour
+    {
+        public UIDocument Document;
+
+        public event Action ContinueChosen, NewResortChosen, LibraryChosen, QuitChosen;
+        public event Action LibraryClosed, DataFolderChosen;
+        public event Action<LibraryRow> OpenChosen, ResumeChosen, DiscardChosen, DeleteConfirmed;
+        public event Action<LibrarySort> SortChosen;
+        /// <summary>The stand-in picker: name, latitude, longitude, size in km.</summary>
+        public event Action<string, double, double, double> PickerSubmitted;
+        public event Action PickerCancelled;
+        public event Action MinimiseChosen, RestoreChosen, RetryChosen, CloseChosen;
+        /// <summary>Cancel confirmed: true keeps the partial download for resuming.</summary>
+        public event Action<bool> CancelConfirmed;
+        public event Action QualityOpenChosen, QualityLibraryChosen;
+
+        VisualElement _root, _title, _library, _picker, _download, _quality, _confirm, _stages, _barFill, _qcLines;
+        VisualElement _dlActions, _dlConfirm, _dlFailed;
+        ScrollView _rows;
+        Label _continueLabel, _continueSub, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _pickerError, _toast;
+        Button _continue, _pill, _sortOpened, _sortName, _sortQuality;
+        readonly List<VisualElement> _rowElements = new List<VisualElement>();
+        readonly List<LibraryRow> _rowData = new List<LibraryRow>();
+        Action _confirmAction;
+        int _stagesVersion = -1, _statesVersion = -1, _selected = -1;
+        float _toastUntil;
+
+        public bool ConfirmOpen => _confirm != null && !_confirm.ClassListContains("hidden");
+        public bool LibraryVisible => _library != null && !_library.ClassListContains("hidden");
+        public LibraryRow SelectedRow => _selected >= 0 && _selected < _rowData.Count ? _rowData[_selected] : null;
+
+        void OnEnable()
+        {
+            if (Document == null) Document = GetComponent<UIDocument>();
+            if (Document == null || Document.rootVisualElement == null) return;
+            _root = Document.rootVisualElement;
+            _title = _root.Q("title");
+            _library = _root.Q("library");
+            _picker = _root.Q("picker");
+            _download = _root.Q("download");
+            _quality = _root.Q("quality");
+            _confirm = _root.Q("confirm");
+            _stages = _root.Q("dl-stages");
+            _barFill = _root.Q("dl-bar-fill");
+            _qcLines = _root.Q("qc-lines");
+            _dlActions = _root.Q("dl-actions");
+            _dlConfirm = _root.Q("dl-confirm");
+            _dlFailed = _root.Q("dl-failed");
+            _rows = _root.Q<ScrollView>("library-rows");
+            _continue = _root.Q<Button>("title-continue");
+            _continueLabel = _root.Q<Label>("title-continue-label");
+            _continueSub = _root.Q<Label>("title-continue-sub");
+            _summary = _root.Q<Label>("library-summary");
+            _empty = _root.Q<Label>("library-empty");
+            _dlTitle = _root.Q<Label>("dl-title");
+            _dlPercent = _root.Q<Label>("dl-percent");
+            _dlLeft = _root.Q<Label>("dl-left");
+            _dlDetail = _root.Q<Label>("dl-detail");
+            _dlTransfer = _root.Q<Label>("dl-transfer");
+            _qcTitle = _root.Q<Label>("qc-title");
+            _qcPlace = _root.Q<Label>("qc-place");
+            _confirmText = _root.Q<Label>("confirm-text");
+            _pickerError = _root.Q<Label>("picker-error");
+            _toast = _root.Q<Label>("toast");
+            _pill = _root.Q<Button>("dl-pill");
+            _sortOpened = _root.Q<Button>("sort-opened");
+            _sortName = _root.Q<Button>("sort-name");
+            _sortQuality = _root.Q<Button>("sort-quality");
+
+            _continue.clicked += () => ContinueChosen?.Invoke();
+            _root.Q<Button>("title-new").clicked += () => NewResortChosen?.Invoke();
+            _root.Q<Button>("title-library").clicked += () => LibraryChosen?.Invoke();
+            _root.Q<Button>("title-quit").clicked += () => QuitChosen?.Invoke();
+            _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();
+            _root.Q<Button>("library-close").clicked += () => LibraryClosed?.Invoke();
+            _root.Q<Button>("library-folder").clicked += () => DataFolderChosen?.Invoke();
+            _sortOpened.clicked += () => SortChosen?.Invoke(LibrarySort.LastOpened);
+            _sortName.clicked += () => SortChosen?.Invoke(LibrarySort.Name);
+            _sortQuality.clicked += () => SortChosen?.Invoke(LibrarySort.Quality);
+            _root.Q<Button>("picker-close").clicked += () => PickerCancelled?.Invoke();
+            _root.Q<Button>("picker-cancel").clicked += () => PickerCancelled?.Invoke();
+            _root.Q<Button>("picker-download").clicked += SubmitPicker;
+            _root.Q<Button>("dl-minimise").clicked += () => MinimiseChosen?.Invoke();
+            _root.Q<Button>("dl-cancel").clicked += () => ShowCancelConfirm(true);
+            _root.Q<Button>("dl-back").clicked += () => ShowCancelConfirm(false);
+            _root.Q<Button>("dl-keep").clicked += () => { ShowCancelConfirm(false); CancelConfirmed?.Invoke(true); };
+            _root.Q<Button>("dl-discard").clicked += () => { ShowCancelConfirm(false); CancelConfirmed?.Invoke(false); };
+            _root.Q<Button>("dl-retry").clicked += () => RetryChosen?.Invoke();
+            _root.Q<Button>("dl-close").clicked += () => CloseChosen?.Invoke();
+            _pill.clicked += () => RestoreChosen?.Invoke();
+            _root.Q<Button>("qc-open").clicked += () => QualityOpenChosen?.Invoke();
+            _root.Q<Button>("qc-library").clicked += () => QualityLibraryChosen?.Invoke();
+            _root.Q<Button>("confirm-cancel").clicked += CloseConfirm;
+            _root.Q<Button>("confirm-ok").clicked += () =>
+            {
+                var action = _confirmAction;
+                CloseConfirm();
+                action?.Invoke();
+            };
+        }
+
+        void Update()
+        {
+            if (_toast != null && _toastUntil > 0 && Time.unscaledTime > _toastUntil)
+            {
+                _toastUntil = 0;
+                Show(_toast, false);
+            }
+        }
+
+        // ---------- screens ----------
+
+        /// <summary>Which full screen shows: "title", "library", "picker", "quality", or null for none (the game).</summary>
+        public void ShowScreen(string name)
+        {
+            Show(_title, name == "title");
+            Show(_library, name == "library");
+            Show(_picker, name == "picker");
+            Show(_quality, name == "quality");
+            if (name == "title") _continue.Focus();
+            if (name == "picker") _root.Q<TextField>("picker-name").Focus();
+            if (name == "quality") _root.Q<Button>("qc-open").Focus();
+        }
+
+        /// <summary>The Continue sign: hidden when there's nothing to continue.</summary>
+        public void SetContinue(string label, string sub)
+        {
+            Show(_continue, !string.IsNullOrEmpty(label));
+            _continueLabel.text = label ?? "";
+            _continueSub.text = sub ?? "";
+            Show(_continueSub, !string.IsNullOrEmpty(sub));
+        }
+
+        public void SetPickerError(string message) => _pickerError.text = message ?? "";
+
+        public void Toast(string message, float seconds = 3)
+        {
+            _toast.text = message;
+            Show(_toast, true);
+            _toastUntil = Time.unscaledTime + seconds;
+        }
+
+        // ---------- S2 ----------
+
+        public void RenderLibrary(LibraryViewModel vm)
+        {
+            _summary.text = vm.Summary;
+            Mark(_sortOpened, vm.Sort == LibrarySort.LastOpened);
+            Mark(_sortName, vm.Sort == LibrarySort.Name);
+            Mark(_sortQuality, vm.Sort == LibrarySort.Quality);
+            _rows.Clear();
+            _rowElements.Clear();
+            _rowData.Clear();
+            foreach (var row in vm.Rows)
+            {
+                var r = row;
+                var el = new VisualElement();
+                el.AddToClassList("lib-row");
+                el.Add(Text(r.Name, "lib-name"));
+                el.Add(Text(r.Place, "lib-cell", "mono"));
+                el.Add(Text(r.Size, "lib-cell", "lib-cell--narrow", "mono"));
+                if (r.IsPaused)
+                {
+                    el.Add(Text(r.PausedText, "lib-paused"));
+                    var actions = new VisualElement();
+                    actions.AddToClassList("lib-actions");
+                    actions.Add(Btn("Resume", "btn--go", () => ResumeChosen?.Invoke(r)));
+                    actions.Add(Btn("Discard", "btn--ghost", () => Confirm($"Discard the paused download of {r.Name}? Its partial files are deleted.", "Discard", () => DiscardChosen?.Invoke(r))));
+                    el.Add(actions);
+                }
+                else
+                {
+                    el.Add(Score("Terrain", r.TerrainScore));
+                    el.Add(Score("Flora", r.FloraScore));
+                    el.Add(Text(r.Disk, "lib-cell", "lib-cell--narrow", "mono"));
+                    el.Add(Text(r.Opened, "lib-cell"));
+                    var spacer = new VisualElement();
+                    spacer.AddToClassList("spacer");
+                    el.Add(spacer);
+                    var actions = new VisualElement();
+                    actions.AddToClassList("lib-actions");
+                    actions.Add(Btn("Open", "btn--go", () => OpenChosen?.Invoke(r)));
+                    actions.Add(Btn("Delete", "btn--ghost", () => ConfirmDelete(r)));
+                    el.Add(actions);
+                    el.RegisterCallback<ClickEvent>(e =>
+                    {
+                        Select(_rowData.IndexOf(r));
+                        if (e.clickCount == 2) OpenChosen?.Invoke(r);
+                    });
+                }
+                _rows.Add(el);
+                _rowElements.Add(el);
+                _rowData.Add(r);
+            }
+            Show(_empty, vm.IsEmpty);
+            Select(_rowData.FindIndex(x => !x.IsPaused));
+        }
+
+        /// <summary>Moves the library selection (arrow keys).</summary>
+        public void MoveSelection(int delta)
+        {
+            if (_rowData.Count == 0) return;
+            Select(Mathf.Clamp((_selected < 0 ? 0 : _selected) + delta, 0, _rowData.Count - 1));
+        }
+
+        public void ConfirmDelete(LibraryRow r)
+        {
+            if (r?.Entry == null) return;
+            Confirm($"Delete {r.Name}? This frees {LibraryViewModel.Disk(r.Entry.BytesOnDisk)}. You can download it again later.", "Delete",
+                    () => DeleteConfirmed?.Invoke(r));
+        }
+
+        void Select(int index)
+        {
+            if (_selected >= 0 && _selected < _rowElements.Count) _rowElements[_selected].RemoveFromClassList("lib-row--selected");
+            _selected = index;
+            if (_selected >= 0 && _selected < _rowElements.Count)
+            {
+                _rowElements[_selected].AddToClassList("lib-row--selected");
+                _rows.ScrollTo(_rowElements[_selected]);
+            }
+        }
+
+        static VisualElement Score(string label, int score)
+        {
+            var band = QualityBands.Of(score);
+            var l = Text($"{label} {score.ToString(CultureInfo.InvariantCulture)} · {QualityBands.Word(band)}", "lib-score", "mono");
+            l.AddToClassList("lib-score--" + QualityBands.Word(band).ToLowerInvariant());
+            return l;
+        }
+
+        // ---------- S4 ----------
+
+        public void ShowDownloadCard(bool open, bool active, bool inGame)
+        {
+            Show(_download, open && active);
+            Show(_pill, !open && active);
+            _pill.EnableInClassList("pill--game", inGame);
+            if (!open) ShowCancelConfirm(false);
+        }
+
+        public void RenderDownload(DownloadViewModel vm)
+        {
+            if (vm.StagesVersion != _stagesVersion)
+            {
+                _stagesVersion = vm.StagesVersion;
+                _statesVersion = -1;
+                _stages.Clear();
+                foreach (string name in vm.StageNames)
+                {
+                    var row = new VisualElement();
+                    row.AddToClassList("dl-stage");
+                    row.Add(Text("", "dl-tick"));
+                    row.Add(Text(name, "dl-stage-name"));
+                    _stages.Add(row);
+                }
+            }
+            if (vm.StatesVersion != _statesVersion)
+            {
+                _statesVersion = vm.StatesVersion;
+                for (int i = 0; i < _stages.childCount && i < vm.StageStates.Count; i++)
+                {
+                    var row = _stages[i];
+                    var state = vm.StageStates[i];
+                    row.EnableInClassList("dl-stage--done", state == StageState.Done);
+                    row.EnableInClassList("dl-stage--current", state == StageState.Current);
+                    ((Label)row[0]).text = state == StageState.Done ? "✓" : state == StageState.Current ? "▸" : "";
+                }
+            }
+            SetText(_dlTitle, vm.Title);
+            SetText(_dlPercent, vm.Percent);
+            SetText(_dlLeft, vm.TimeLeft);
+            SetText(_dlDetail, vm.Detail);
+            SetText(_dlTransfer, vm.Transfer);
+            SetText(_pill, "⬇ " + vm.Pill);
+            _barFill.style.width = Length.Percent(vm.Fraction * 100f);
+            bool failed = vm.Phase == DownloadPhase.Failed;
+            Show(_dlFailed, failed);
+            if (failed)
+            {
+                Show(_dlActions, false);
+                Show(_dlConfirm, false);
+            }
+            else if (_dlConfirm.ClassListContains("hidden")) Show(_dlActions, true);
+        }
+
+        void ShowCancelConfirm(bool show)
+        {
+            if (_dlConfirm == null) return;
+            Show(_dlConfirm, show);
+            Show(_dlActions, !show);
+        }
+
+        // ---------- S5 ----------
+
+        public void RenderQuality(QualityCardViewModel vm)
+        {
+            _qcTitle.text = vm.Title;
+            _qcPlace.text = vm.Place;
+            _qcLines.Clear();
+            foreach (var line in vm.Lines)
+            {
+                var block = new VisualElement();
+                block.AddToClassList("qc-line");
+                var head = new VisualElement();
+                head.AddToClassList("qc-head");
+                head.Add(Text(line.Label, "qc-label"));
+                head.Add(Text($"{line.Score} / 100", "qc-score", "mono"));
+                head.Add(Text(line.Word, "qc-word", "qc-word--" + line.Word.ToLowerInvariant()));
+                block.Add(head);
+                if (line.Caveat.Length > 0) block.Add(Text(line.Caveat, "qc-caveat"));
+                if (line.Detail.Length > 0) block.Add(Text(line.Detail, "qc-detail"));
+                _qcLines.Add(block);
+            }
+        }
+
+        // ---------- S11 ----------
+
+        public void Confirm(string text, string ok, Action action)
+        {
+            _confirmText.text = text;
+            _root.Q<Button>("confirm-ok").text = ok;
+            _confirmAction = action;
+            Show(_confirm, true);
+            _root.Q<Button>("confirm-cancel").Focus();
+        }
+
+        public void CloseConfirm()
+        {
+            _confirmAction = null;
+            Show(_confirm, false);
+        }
+
+        // ---------- helpers ----------
+
+        void SubmitPicker()
+        {
+            string name = _root.Q<TextField>("picker-name").value?.Trim() ?? "";
+            bool ok = double.TryParse(_root.Q<TextField>("picker-lat").value, NumberStyles.Float, CultureInfo.InvariantCulture, out double lat)
+                    & double.TryParse(_root.Q<TextField>("picker-lon").value, NumberStyles.Float, CultureInfo.InvariantCulture, out double lon)
+                    & double.TryParse(_root.Q<TextField>("picker-km").value, NumberStyles.Float, CultureInfo.InvariantCulture, out double km);
+            if (name.Length == 0) { SetPickerError("Give the mountain a name."); return; }
+            if (!ok) { SetPickerError("Latitude, longitude and size must be numbers, such as 46.935, -121.474 and 2."); return; }
+            SetPickerError("");
+            PickerSubmitted?.Invoke(name, lat, lon, km);
+        }
+
+        static void Show(VisualElement e, bool show) => e?.EnableInClassList("hidden", !show);
+
+        static void Mark(VisualElement e, bool on) => e?.EnableInClassList("seg--on", on);
+
+        static void SetText(TextElement e, string text)
+        {
+            if (e != null && e.text != text) e.text = text;
+        }
+
+        static Label Text(string text, params string[] classes)
+        {
+            var l = new Label(text);
+            foreach (string c in classes) l.AddToClassList(c);
+            return l;
+        }
+
+        static Button Btn(string text, string kind, Action click)
+        {
+            var b = new Button(click) { text = text };
+            b.AddToClassList("btn");
+            b.AddToClassList(kind);
+            return b;
+        }
+    }
+}

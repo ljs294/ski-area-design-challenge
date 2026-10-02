@@ -13,6 +13,7 @@ set "OUT=%SPIKE%\results\local"
 set "PACKAGES=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts"
 set "GAME=%~dp0Builds\Windows\SkiAreaDesignChallenge.exe"
 set "LIFTLAB=%~dp0Builds\LiftLab\LiftLab.exe"
+set "SCRATCH=%LOCALAPPDATA%\SkiAreaDesignChallenge-scratch"
 set "UNITY=C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe"
 
 where dotnet >nul 2>nul
@@ -80,6 +81,12 @@ echo.
 echo   Game UI design (mockups, not the game yet)
 echo     32 Open the HUD layout mockup in your browser: status bar, Toolbox, Analysis, menu and Settings
 echo.
+echo   Phase 1, task 14: title, download, quality card and library (a scratch library, not yours)
+echo     33 Play from the title: New Resort, download with progress, quality card, My Resorts, open
+echo     34 The same scratch library with the network off: My Resorts, then open a mountain
+echo     35 Empty the scratch library
+echo        Tip: in 33, close the game mid-download, start 33 again, then My Resorts - Resume.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -129,6 +136,9 @@ if /i "%CHOICE%"=="32" (
   start "" "%~dp0docs\plans\prototypes\ui-layout.html"
   goto menu
 )
+if /i "%CHOICE%"=="33" goto flow
+if /i "%CHOICE%"=="34" goto flowoffline
+if /i "%CHOICE%"=="35" goto flowclean
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -185,9 +195,39 @@ exit /b 0
 :play
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
-echo Starting the game. WASD or arrows pan, Q/E rotate, R/F tilt, wheel or +/- zoom, Home resets the view, C free-fly (PgUp/PgDn rise and sink), Shift+1 snow, Shift+3 forest, Shift+4 cover map, H hide the UI, P photo mode (F12 saves a picture), F1 every key plus the developer panel (wind, tree snow, light and time of day, haze, lakes, distant shadows, Corbet's), Esc menu (Quit is there).
+echo Starting the game on the title screen ^(your own library^). In a mountain: WASD or arrows pan, Q/E rotate, R/F tilt, wheel or +/- zoom, Home resets the view, C free-fly (PgUp/PgDn rise and sink), Shift+1 snow, Shift+3 forest, Shift+4 cover map, H hide the UI, P photo mode (F12 saves a picture), F1 every key plus the developer panel (wind, tree snow, light and time of day, haze, lakes, distant shadows, Corbet's), Esc menu (Quit is there).
 start "" "%GAME%"
 goto menu
+
+:flow
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+call :seedscratch
+echo Starting the game on the title screen with the scratch library %SCRATCH%.
+echo   New Resort opens a stand-in picker (task 13 brings the real map). Its default, Crystal Mountain 2 km at 46.93, -121.49,
+echo   uses 3DEP fallback terrain, which the quality card reports. Minimise (Esc or -) keeps it going as a pill.
+echo   My Resorts: Enter opens, Delete removes, arrows move. Esc backs out one step.
+start "" "%GAME%" -data "%SCRATCH%"
+goto menu
+
+:flowoffline
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+call :seedscratch
+echo Starting the game with the network off ^(-offline^): My Resorts, then open any mountain. A new download stops with a network error.
+start "" "%GAME%" -data "%SCRATCH%" -offline
+goto menu
+
+:flowclean
+if exist "%SCRATCH%" rmdir /s /q "%SCRATCH%"
+echo Emptied %SCRATCH%.
+goto done
+
+:seedscratch
+rem The title needs a mountain behind it: seed the scratch library with the committed 2 km test terrain once.
+if exist "%SCRATCH%\Resorts\jackson-hole-2km-test\manifest.json" exit /b 0
+robocopy "%~dp0TestData\jackson-hole-2km" "%SCRATCH%\Resorts\jackson-hole-2km-test" /e /njh /njs /nfl /ndl >nul
+exit /b 0
 
 :playcrystal
 if not exist "%GAME%" call :buildplayer
