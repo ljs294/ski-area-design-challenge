@@ -6,7 +6,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Acquisition;
+using MountainPlanner.Acquisition.IO;
+using MountainPlanner.Acquisition.Providers;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Domain.Roads;
 using MountainPlanner.Persistence;
 
 // The downloader and library tool (Phase 1 tasks 04 and 05; 0.3 §5–6).
@@ -17,6 +20,9 @@ using MountainPlanner.Persistence;
 //   acquire cover-map --package <folder> --out <file.ppm> [--core] [--snow]
 //                                                 draw the prepared ground cover (whole ring at 4 m, or the core tiles at 1 m)
 //   acquire forest-info [--package <folder>]      grow a package's forest (or every downloaded one's) and report trees, species, treeline
+//   acquire refresh-osm [--package <folder>] [--cache <folder>] [--no-prepare]
+//                                                 adds the roads (task 12d) to a package made before them (or to every such
+//                                                 mountain in the library), then re-prepares it
 //   acquire forest-dump --package <folder> --out <dir>
 //                                                 grow a package's forest and write its trees and 10 m cells (forest-structure report, NE8)
 //   acquire species-survey --areas <ski_areas.geojson> --out <survey.jsonl> [--km 5] [--limit N]
@@ -48,6 +54,36 @@ switch (command)
         return problems.Count == 0 ? 0 : 1;
     }
 
+    case "refresh-osm":
+    {
+        // Packages made before task 12d have no roads: fetch the site's OpenStreetMap features (the same Overpass query
+        // a download makes now) and add the roads layer. The package id changes, so its terrain cache is prepared again.
+        // --package <folder> for one; otherwise every mountain in the library that has no roads yet.
+        var folders = opts.TryGetValue("package", out string? one) ? new List<string> { one }
+            : ResortLibrary.Scan(dataRoot).Select(e => e.Folder).Where(f => !RoadsFile.Has(ResortPackage.ReadManifest(f))).ToList();
+        if (folders.Count == 0) Console.WriteLine("Every mountain already has its roads.");
+        string cache = opts.GetValueOrDefault("cache", Path.Combine(dataRoot, "download-cache"));
+        foreach (string folder in folders)
+        {
+            var manifest = ResortPackage.ReadManifest(folder);
+            var site = SiteSquare.Create(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY), manifest.Site.SizeMetres / 1000.0);
+            var response = await new OsmFeatures(new DiskCache(cache), new TransferMeter()).DownloadAsync(site.Ring, CancellationToken.None);
+            var roads = OsmFeatures.ParseRoads(response);
+            RoadsFile.Add(folder, manifest, roads);
+            if (!manifest.Attribution.Any(a => a.Contains("OpenStreetMap"))) manifest.Attribution.Add("Water and roads: © OpenStreetMap contributors (ODbL).");
+            ResortPackage.WriteManifest(folder, manifest);
+            Console.WriteLine($"{manifest.Site.Name}: {roads.Count:N0} roads ({roads.Count(r => r.Surface == RoadSurface.Paved):N0} paved, " +
+                              $"{roads.Count(r => r.Surface == RoadSurface.Unpaved):N0} unpaved)");
+            if (!args.Contains("--no-prepare"))   // --no-prepare: test packages, which keep no cache
+            {
+                Console.WriteLine("  preparing its terrain...");
+                TerrainCache.Build(folder, manifest, null, CancellationToken.None);
+            }
+        }
+        Console.WriteLine("Done.");
+        return 0;
+    }
+
     case "cover-map":
     {
         string folder = opts["package"];
@@ -58,8 +94,8 @@ switch (command)
         int minC = tiles.Min(t => t.Column), minR = tiles.Min(t => t.Row);
         int w = (tiles.Max(t => t.Column) - minC + 1) * texel, h = (tiles.Max(t => t.Row) - minR + 1) * texel;
         var rgb = new byte[w * h * 3];
-        // Forest floor, grass, rock, developed, water (flat class colours, like the in-game overlay).
-        var colours = new (double R, double G, double B)[] { (40, 74, 52), (178, 170, 98), (132, 134, 140), (196, 88, 64), (48, 110, 196) };
+        // Forest floor, grass, rock, developed, water, paved road, unpaved road (flat class colours, like the in-game overlay).
+        var colours = new (double R, double G, double B)[] { (40, 74, 52), (178, 170, 98), (132, 134, 140), (196, 88, 64), (48, 110, 196), (40, 40, 44), (214, 160, 70) };
         foreach (var t in tiles)
         {
             byte[] cover = TerrainCache.ReadCover(folder, t);
@@ -70,8 +106,8 @@ switch (command)
                     int i = Math.Min(n - 1, x * (n - 1) / texel), j = Math.Min(n - 1, y * (n - 1) / texel);
                     int o = (j * n + i) * bands;
                     double r = 0, g = 0, b = 0;
-                    for (int k = 0; k < 5; k++) { double v = cover[o + k] / 255.0; r += colours[k].R * v; g += colours[k].G * v; b += colours[k].B * v; }
-                    if (snow) { double s2 = cover[o + 5] / 255.0 * 0.85; r += (245 - r) * s2; g += (248 - g) * s2; b += (252 - b) * s2; }
+                    for (int k = 0; k < colours.Length; k++) { double v = cover[o + k] / 255.0; r += colours[k].R * v; g += colours[k].G * v; b += colours[k].B * v; }
+                    if (snow) { double s2 = cover[o + MountainPlanner.Domain.Cover.GroundCover.Layers] / 255.0 * 0.85; r += (245 - r) * s2; g += (248 - g) * s2; b += (252 - b) * s2; }
                     int px = ((t.Row - minR) * texel + y) * w + (t.Column - minC) * texel + x;
                     rgb[px * 3] = (byte)r; rgb[px * 3 + 1] = (byte)g; rgb[px * 3 + 2] = (byte)b;
                 }

@@ -73,14 +73,14 @@ namespace MountainPlanner.Persistence
     public static class TerrainCache
     {
         /// <summary>Bump when the tile format or sampling changes: existing caches are then rebuilt.</summary>
-        public const int Version = 10;
+        public const int Version = 11;   // 11: roads (task 12d), eight cover bands
 
         /// <summary>
         /// Splat texels per tile edge: 1 m in core tiles, 4 m in the ring (Unity needs powers of two).
         /// </summary>
         public const int CoreCoverResolution = 1024, RingCoverResolution = 256;
         /// <summary>Bytes per cover texel: five ground-layer weights (sum 255), then snow cover.</summary>
-        public const int CoverBands = 6;
+        public const int CoverBands = 8;
 
         /// <summary>
         /// Unity terrain heightmaps hold 0–32,766 (15 effective bits; normalised 1.0 = 32,766), so the
