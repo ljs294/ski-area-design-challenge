@@ -85,10 +85,10 @@ echo   Forest structure (NE8)
 echo     33 Stand in a Sugarloaf spruce-fir stand: understory and clumps (needs 29)
 echo.
 echo   Phase 1, task 14: title, download, quality card and library (a scratch library, not yours)
-echo     34 Play from the title: New Resort, download with progress, quality card, My Resorts, open
-echo     35 The same scratch library with the network off: My Resorts, then open a mountain
-echo     36 Empty the scratch library
-echo        Tip: in 34, close the game mid-download, start 34 again, then My Resorts - Resume.
+echo     37 Play from the title: New Resort, download with progress, quality card, My Resorts, open
+echo     38 The same scratch library with the network off: My Resorts, then open a mountain
+echo     39 Empty the scratch library
+echo        Tip: in 37, close the game mid-download, start 37 again, then My Resorts - Resume.
 echo.
 echo     Q  Quit
 echo.
@@ -140,9 +140,9 @@ if /i "%CHOICE%"=="32" (
   start "" "%~dp0docs\plans\prototypes\ui-layout.html"
   goto menu
 )
-if /i "%CHOICE%"=="34" goto flow
-if /i "%CHOICE%"=="35" goto flowoffline
-if /i "%CHOICE%"=="36" goto flowclean
+if /i "%CHOICE%"=="37" goto flow
+if /i "%CHOICE%"=="38" goto flowoffline
+if /i "%CHOICE%"=="39" goto flowclean
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
