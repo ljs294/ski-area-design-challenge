@@ -1,5 +1,7 @@
 using System;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Domain.Measure;
+using MountainPlanner.Presentation;
 using MountainPlanner.UI.Picker;
 using NUnit.Framework;
 
@@ -26,23 +28,26 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
-        public void SizesReadInMilesByDefaultAndKilometresWhenSwitched()
+        public void SizesReadInTheGamesUnitsWithEachStepDistinct()
         {
-            Assert.That(PickerUnits.Imperial, Is.True, "imperial by default (owner, 2026-10-02)");
+            var before = DisplayUnits.Current;
             try
             {
+                DisplayUnits.Set(UnitSystem.Imperial, remember: false);
                 var m = new SitePickerModel();
                 Assert.That(m.SizeLabel, Is.EqualTo("2.49 mi"));
                 Assert.That(PickerUnits.SizeEnd(2), Is.EqualTo("1.24 mi"));
+                m.SetSize(2.2);
+                Assert.That(m.SizeLabel, Is.EqualTo("1.37 mi"));
                 m.StepSize(1);
-                Assert.That(m.SizeLabel, Is.EqualTo("2.55 mi"), "each 0.1 km step reads differently");
-                PickerUnits.Imperial = false;
-                Assert.That(m.SizeLabel, Is.EqualTo("4.1 km"));
+                Assert.That(m.SizeLabel, Is.EqualTo("1.43 mi"), "each 0.1 km step reads differently");
+                DisplayUnits.Set(UnitSystem.Metric, remember: false);
+                Assert.That(m.SizeLabel, Is.EqualTo("2.3 km"));
                 Assert.That(PickerUnits.SizeEnd(5), Is.EqualTo("5 km"));
                 m.PlaceAt(JacksonHole);
-                Assert.That(m.Square.Value.SizeMetres, Is.EqualTo(4100), "the square stays metric");
+                Assert.That(m.Square.Value.SizeMetres, Is.EqualTo(2300), "the square stays metric");
             }
-            finally { PickerUnits.Imperial = true; }
+            finally { DisplayUnits.Set(before, remember: false); }
         }
 
         [Test]
