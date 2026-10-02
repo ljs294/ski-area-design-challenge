@@ -54,7 +54,7 @@
 |---|---|
 | T | Toolbox |
 | **Tab** | Analysis (moved from A, which pans; owner, 2026-10-01) |
-| U | Units |
+| U | Units: feet or metres, every figure together (imperial by default; also in the menu; remembered). Built in task 12b.2 |
 | Space | Pause (in photo mode Space captures instead) |
 | 1–4 | Game speed |
 | Ctrl+S | Save |
@@ -77,4 +77,4 @@ These moved into the F1 panel, and each keeps a command-line flag:
 | (new) lake state | F1 panel | `-lake snow\|ice\|open` |
 | (new) distant shadows | F1 panel | `-nofarshadows` |
 
-Layer flags for captures: `-nosnow`, `-noforest`, `-info slope|exposure|depth` and `-contours`.
+Layer flags for captures: `-nosnow`, `-noforest`, `-info slope|exposure|depth`, `-contours` and `-units metric|imperial` (for that run only).

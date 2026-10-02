@@ -199,7 +199,7 @@ exit /b 0
 :play
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
-echo Starting the game. WASD or arrows pan, Q/E rotate, R/F tilt, wheel or +/- zoom, Home resets the view, C free-fly (PgUp/PgDn rise and sink), map layers Shift+1 snow and Shift+3 trees, info layers Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth (Shift+0 snow conditions comes later), H hide the UI, P photo mode (F12 saves a picture), F1 every key plus the developer panel (wind, tree snow, cover map, light and time of day, haze, lakes, distant shadows, Corbet's), Esc menu (Quit is there).
+echo Starting the game. WASD or arrows pan, Q/E rotate, R/F tilt, wheel or +/- zoom, Home resets the view, C free-fly (PgUp/PgDn rise and sink), map layers Shift+1 snow and Shift+3 trees, info layers Shift+6 contours, Shift+7 slope angle, Shift+8 slope exposure, Shift+9 snow depth (Shift+0 snow conditions comes later), U feet or metres, H hide the UI, P photo mode (F12 saves a picture), F1 every key plus the developer panel (wind, tree snow, cover map, light and time of day, haze, lakes, distant shadows, Corbet's), Esc menu (Quit is there).
 start "" "%GAME%"
 goto menu
 

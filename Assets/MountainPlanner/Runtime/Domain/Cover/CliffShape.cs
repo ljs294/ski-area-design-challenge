@@ -16,7 +16,7 @@ namespace MountainPlanner.Domain.Cover
     /// </summary>
     public static class CliffShape
     {
-        /// <summary>Slopes where the shell starts and reaches full strength.</summary>
+        /// <summary>Slopes (degrees) where the shell starts and reaches full strength: grades of 90% and 148%.</summary>
         public const double SlopeStart = 42, SlopeFull = 56;
         public const double ButtressMetres = 4.5, LedgeMetres = 1.8, JointMetres = 1.6, RoughMetres = 0.45;
         public const double BedMetres = 5.5;
