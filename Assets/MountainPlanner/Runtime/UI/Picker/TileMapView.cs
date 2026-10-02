@@ -141,7 +141,7 @@ namespace MountainPlanner.UI.Picker
             set
             {
                 _square = value;
-                _sizeLabel.text = value.HasValue ? value.Value.SizeKm.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " km" : "";
+                _sizeLabel.text = value.HasValue ? PickerUnits.Size(value.Value.SizeKm) : "";
                 PositionSizeLabel();
                 _vector.MarkDirtyRepaint();
             }

@@ -32,7 +32,7 @@ namespace MountainPlanner.UI.Picker
         /// <summary>Download is possible once the square is placed and named (0.4 S3).</summary>
         public bool CanDownload => Square.HasValue && Name.Trim().Length > 0 && !Offline;
 
-        public string SizeLabel => SizeKm.ToString("0.0", CultureInfo.InvariantCulture) + " km";
+        public string SizeLabel => PickerUnits.Size(SizeKm);
 
         /// <summary>Sets the size, snapped to 0.1 km and clamped to 2–5 km; the square keeps its centre.</summary>
         public void SetSize(double km)

@@ -33,7 +33,7 @@ namespace MountainPlanner.UI.Picker
 
         VisualElement _root, _results, _offline, _legend, _mapHint;
         TextField _search, _name;
-        Label _searchMessage, _sizeValue, _nameHint, _estimate, _attribution;
+        Label _searchMessage, _sizeValue, _sizeMin, _sizeMax, _nameHint, _estimate, _attribution;
         Slider _size;
         Button _download, _topo, _imagery, _coverage;
         CancellationTokenSource _searchCts, _placeCts;
@@ -52,6 +52,8 @@ namespace MountainPlanner.UI.Picker
             _search = _root.Q<TextField>("search");
             _name = _root.Q<TextField>("name");
             _sizeValue = _root.Q<Label>("size-value");
+            _sizeMin = _root.Q<Label>("size-min");
+            _sizeMax = _root.Q<Label>("size-max");
             _nameHint = _root.Q<Label>("name-hint");
             _estimate = _root.Q<Label>("estimate");
             _attribution = _root.Q<Label>("attribution");
@@ -88,12 +90,14 @@ namespace MountainPlanner.UI.Picker
             _estimateLater = _root.schedule.Execute(RefreshEstimate);
             _estimateLater.Pause();
             Model.Changed += Render;
+            PickerUnits.Changed += Render;
             Render();
         }
 
         void OnDisable()
         {
             Model.Changed -= Render;
+            PickerUnits.Changed -= Render;
             _searchCts?.Cancel();
             _placeCts?.Cancel();
         }
@@ -314,6 +318,8 @@ namespace MountainPlanner.UI.Picker
             try
             {
                 Map.Square = Model.Square;
+                _sizeMin.text = PickerUnits.SizeEnd(SiteSquare.MinSizeKm);
+                _sizeMax.text = PickerUnits.SizeEnd(SiteSquare.MaxSizeKm);
                 _mapHint.visible = !Model.Square.HasValue;
                 _sizeValue.text = Model.SizeLabel;
                 if (Math.Abs(_size.value - Model.SizeKm) > 1e-4) _size.SetValueWithoutNotify((float)Model.SizeKm);

@@ -55,9 +55,9 @@
 
             <ui:VisualElement class="picker-row">
                 <ui:Label class="picker-key" text="Size" />
-                <ui:Label class="picker-end" text="2 km" />
+                <ui:Label name="size-min" class="picker-end" text="2 km" />
                 <ui:Slider name="size" class="picker-slider grow" low-value="2" high-value="5" value="4" />
-                <ui:Label class="picker-end" text="5 km" />
+                <ui:Label name="size-max" class="picker-end" text="5 km" />
                 <ui:Label name="size-value" class="picker-figure" text="4.0 km" />
             </ui:VisualElement>
             <ui:VisualElement class="picker-row">

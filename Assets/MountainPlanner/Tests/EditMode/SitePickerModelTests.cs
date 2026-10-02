@@ -23,7 +23,26 @@ namespace MountainPlanner.Tests
             Assert.That(m.SizeKm, Is.EqualTo(2.0));
             m.StepSize(-1);
             Assert.That(m.SizeKm, Is.EqualTo(2.0), "clamped at 2 km");
-            Assert.That(m.SizeLabel, Is.EqualTo("2.0 km"));
+        }
+
+        [Test]
+        public void SizesReadInMilesByDefaultAndKilometresWhenSwitched()
+        {
+            Assert.That(PickerUnits.Imperial, Is.True, "imperial by default (owner, 2026-10-02)");
+            try
+            {
+                var m = new SitePickerModel();
+                Assert.That(m.SizeLabel, Is.EqualTo("2.49 mi"));
+                Assert.That(PickerUnits.SizeEnd(2), Is.EqualTo("1.24 mi"));
+                m.StepSize(1);
+                Assert.That(m.SizeLabel, Is.EqualTo("2.55 mi"), "each 0.1 km step reads differently");
+                PickerUnits.Imperial = false;
+                Assert.That(m.SizeLabel, Is.EqualTo("4.1 km"));
+                Assert.That(PickerUnits.SizeEnd(5), Is.EqualTo("5 km"));
+                m.PlaceAt(JacksonHole);
+                Assert.That(m.Square.Value.SizeMetres, Is.EqualTo(4100), "the square stays metric");
+            }
+            finally { PickerUnits.Imperial = true; }
         }
 
         [Test]
