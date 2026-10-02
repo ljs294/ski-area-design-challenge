@@ -17,6 +17,8 @@ using MountainPlanner.Persistence;
 //   acquire cover-map --package <folder> --out <file.ppm> [--core] [--snow]
 //                                                 draw the prepared ground cover (whole ring at 4 m, or the core tiles at 1 m)
 //   acquire forest-info [--package <folder>]      grow a package's forest (or every downloaded one's) and report trees, species, treeline
+//   acquire forest-dump --package <folder> --out <dir>
+//                                                 grow a package's forest and write its trees and 10 m cells (forest-structure report, NE8)
 //   acquire species-survey --areas <ski_areas.geojson> --out <survey.jsonl> [--km 5] [--limit N]
 //                                                 BIGMAP species at every US ski area (task 09 priority report)
 //   acquire species-report --survey <survey.jsonl> [--out <report.md>] [--top 30]
@@ -90,6 +92,10 @@ switch (command)
         foreach (string folder in folders) ForestInfo(folder);
         return 0;
     }
+
+    case "forest-dump":
+        ForestDump(opts["package"], opts["out"], opts);
+        return 0;
 
     case "species-survey":
     {
@@ -194,6 +200,82 @@ static void ForestInfo(string folder)
     Console.WriteLine($"  treeline {(double.IsNaN(field.TreelineMetres) ? "none" : field.TreelineMetres.ToString("F0") + " m")}; " +
                       $"{krummholzCells:N0} forest cells in the krummholz band ({fullCells:N0} fully krummholz)" +
                       (best.Count > 0 ? $"; most of it around {best.X:F0} m east, {best.Z:F0} m north of the centre" : ""));
+}
+
+// trees.f32: per tree x, y (Albers metres from the site centre), height (m), crown width scale, model, variant.
+// cells.u8: per 10 m cell (rows from the south) kind, conifer, canopy, stand, height code, shade-tolerant conifer. forest.json describes them.
+static void ForestDump(string folder, string outDir, Dictionary<string, string> opts)
+{
+    var manifest = ResortPackage.ReadManifest(folder);
+    float[] core = ResortPackage.ReadLayer(folder, manifest, "heights-core", out var coreHeader);
+    float[] ring = ResortPackage.ReadLayer(folder, manifest, "heights-ring", out var ringHeader);
+    var field = new ForestField(manifest, folder, new TerrainCache.HeightField(core, coreHeader, ring, ringHeader));
+    var tiles = TileGrid.For(SiteSquare.Create(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY), manifest.Site.SizeMetres / 1000.0));
+    var clock = System.Diagnostics.Stopwatch.StartNew();
+    var plan = field.Prepare(tiles);
+    double prepare = clock.Elapsed.TotalSeconds;
+    // Calibration overrides (forest-structure report): the stand table, the clump field and the stand weight ramps.
+    double D(string key, double fallback) => opts.TryGetValue(key, out string? v) ? double.Parse(v, CultureInfo.InvariantCulture) : fallback;
+    if (opts.ContainsKey("shortest") || opts.ContainsKey("skew"))
+    {
+        double shortest = D("shortest", MountainPlanner.Domain.Cover.ForestPlacement.StandShortest), skew = D("skew", MountainPlanner.Domain.Cover.ForestPlacement.StandSkew);
+        plan.StandHeights = Enumerable.Range(0, plan.StandHeights.Length)
+            .Select(i => (int)Math.Round(256 * (1 - (1 - shortest) * Math.Pow(1 - (double)i / (plan.StandHeights.Length - 1), skew)))).ToArray();
+    }
+    plan.ClumpLattice = (int)Math.Round(D("lattice", plan.ClumpLattice / 256.0) * 256);
+    plan.ClumpRadius = (int)Math.Round(D("radius", plan.ClumpRadius / 256.0) * 256);
+    plan.ClumpFloor = (int)D("floor", plan.ClumpFloor);
+    if (opts.ContainsKey("ramps"))
+    {
+        var r = opts["ramps"].Split(',').Select(v => double.Parse(v, CultureInfo.InvariantCulture)).ToArray();   // tolerant conifer from,to, canopy from,to
+        for (int i = 0; i < plan.Cells.Length; i++)
+        {
+            ref var c = ref plan.Cells[i];
+            if (c.Kind != MountainPlanner.Domain.Cover.ForestCell.Core) continue;
+            double w = MountainPlanner.Domain.Cover.GroundCover.SmoothStep(r[0], r[1], c.Tolerant / 255.0) * MountainPlanner.Domain.Cover.GroundCover.SmoothStep(r[2], r[3], c.Canopy / 255.0);
+            c.Stand = (byte)Math.Round(w * 255);
+        }
+    }
+    if (opts.ContainsKey("nostand")) for (int i = 0; i < plan.Cells.Length; i++) plan.Cells[i].Stand = 0;
+    clock.Restart();
+    new ManagedForestPlanter().Plant(plan);
+    double plant = clock.Elapsed.TotalSeconds;
+    double ox = tiles.West, oy = tiles.North - tiles.Rows * TileGrid.TileMetres;
+    Directory.CreateDirectory(outDir);
+    long trees = plan.TileCount.Sum(c => (long)c), quota = plan.Points.LongLength;
+    using (var w = new BinaryWriter(File.Create(Path.Combine(outDir, "trees.f32"))))
+        for (int t = 0; t < plan.TileCountTotal; t++)
+            for (int k = 0; k < plan.TileCount[t]; k++)
+            {
+                var p = plan.Points[plan.TileOffset[t] + k];
+                w.Write((float)(ox + p.X / 256.0 - manifest.Site.CentreX));
+                w.Write((float)(oy + p.Y / 256.0 - manifest.Site.CentreY));
+                w.Write((float)(p.HeightCode * ForestField.HeightStep));
+                w.Write((float)(p.Width32 * ForestField.WidthStep));
+                w.Write((float)(p.Prototype / plan.Variants));
+                w.Write((float)(p.Prototype % plan.Variants));
+            }
+    var cells = new byte[plan.Cells.Length * 6];
+    for (int i = 0; i < plan.Cells.Length; i++)
+    {
+        var c = plan.Cells[i];
+        cells[i * 6] = c.Kind; cells[i * 6 + 1] = c.Conifer; cells[i * 6 + 2] = c.Canopy; cells[i * 6 + 3] = c.Stand; cells[i * 6 + 4] = c.HeightCode; cells[i * 6 + 5] = c.Tolerant;
+    }
+    File.WriteAllBytes(Path.Combine(outDir, "cells.u8"), cells);
+    // canopy.u8: the package's 1 m canopy map (0.25 m steps, rows from the north) for the calibration study.
+    string canopyInfo = "";
+    if (manifest.Layers.Any(l => l.Id == "canopy-core"))
+    {
+        byte[] canopy = ResortPackage.ReadByteLayer(folder, manifest, "canopy-core", out var ch);
+        File.WriteAllBytes(Path.Combine(outDir, "canopy.u8"), canopy);
+        canopyInfo = $"\"canopyWest\": {ch.West}, \"canopyNorth\": {ch.North}, \"canopyWidth\": {ch.Width}, \"canopyHeight\": {ch.Height}, \"canopyCell\": {ch.CellSize}, ";
+    }
+    string models = string.Join(", ", MountainPlanner.Domain.Flora.SpeciesMap.Models.Select(m => $"\"{m}\""));
+    File.WriteAllText(Path.Combine(outDir, "forest.json"),
+        $"{{\"name\": \"{manifest.Site.Name}\", \"centreX\": {manifest.Site.CentreX}, \"centreY\": {manifest.Site.CentreY}, \"trees\": {trees}, \"quota\": {quota}, " +
+        $"\"cellsX\": {plan.CellsX}, \"cellsY\": {plan.CellsY}, \"cellWest\": {ox + plan.CellOriginX / 256.0}, \"cellSouth\": {oy + plan.CellOriginY / 256.0}, " +
+        canopyInfo + $"\"prepareSeconds\": {prepare:F2}, \"plantSeconds\": {plant:F2}, \"models\": [{models}]}}");
+    Console.WriteLine($"{manifest.Site.Name}: {trees:N0} of {quota:N0} quota trees, prepare {prepare:F1} s, plant {plant:F1} s → {outDir}");
 }
 
 static string Slug(string name)

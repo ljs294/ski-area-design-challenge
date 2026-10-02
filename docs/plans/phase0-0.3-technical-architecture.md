@@ -406,7 +406,7 @@ It runs off the main thread with progress, cancellation, retries, polite rate li
 - **Clients** (`Acquisition/Picker`, engine-free): `NominatimClient` behind a `RateGate` (one request a second for searches and name lookups together, with an injected clock; a name lookup overtaken by a newer placement is dropped before it is sent), `MapTileSource` (USGS `USGSTopo` and `USGSImageryOnly` tiles, memory only, 4 at a time), `CoverageIndex` (S1M tiles from the bucket's 100 km folder listings, cached for a day; 1 m and 1/9 arc-second footprints from the 3DEP Elevation Index map service, layers 1 and 2) and `SiteEstimator`.
 - **Estimate line:** the expected terrain score from the coverage shares and T18's weights; size and time fitted to the measured downloads (core 5.25 MB/km², ring 1 MB/km², ×2.1 where fallback fills, 25 s plus 5.8 MB/s). Shown as "about"; "at least" when coverage could not be checked.
 - **Screen** (`UI/Picker`): `TileMapView` (a custom UI Toolkit control), `SitePicker` and its view model, behind `ISitePickerServices`, because UI may not reference Acquisition; the app passes `App/Picker/SitePickerServices`. The name suggestion is the search result's name, or after a click one reverse lookup: a named natural or recreation feature, else the nearest settlement, else the county.
-- **Picker Lab** (demo.bat 33–35): the picker alone; Download hands the site to the acquire CLI.
+- **Picker Lab** (demo.bat 34–36): the picker alone; Download hands the site to the acquire CLI.
 
 ## 7. Determinism (T12)
 

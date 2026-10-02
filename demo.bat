@@ -82,10 +82,13 @@ echo.
 echo   Game UI design (mockups, not the game yet)
 echo     32 Open the HUD layout mockup in your browser: status bar, Toolbox, Analysis, menu and Settings
 echo.
+echo   Forest structure (NE8)
+echo     33 Stand in a Sugarloaf spruce-fir stand: understory and clumps (needs 29)
+echo.
 echo   Phase 1, task 13: site picker
-echo     33 Pick a site on the map, then download it into your library (builds the Picker Lab the first time)
-echo     34 The picker with no network: the offline panel
-echo     35 Rebuild the Picker Lab (after pulling new code; close the Unity editor first)
+echo     34 Pick a site on the map, then download it into your library (builds the Picker Lab the first time)
+echo     35 The picker with no network: the offline panel
+echo     36 Rebuild the Picker Lab (after pulling new code; close the Unity editor first)
 echo.
 echo     Q  Quit
 echo.
@@ -132,13 +135,14 @@ if /i "%CHOICE%"=="28" goto survey
 if /i "%CHOICE%"=="29" call :acquire "Sugarloaf" 45.047 -70.316 5 & goto done
 if /i "%CHOICE%"=="30" goto playsugarloaf
 if /i "%CHOICE%"=="31" goto benchsugarloaf
+if /i "%CHOICE%"=="33" goto standsugarloaf
 if /i "%CHOICE%"=="32" (
   start "" "%~dp0docs\plans\prototypes\ui-layout.html"
   goto menu
 )
-if /i "%CHOICE%"=="33" goto picker
-if /i "%CHOICE%"=="34" goto pickeroffline
-if /i "%CHOICE%"=="35" goto rebuildpicker
+if /i "%CHOICE%"=="34" goto picker
+if /i "%CHOICE%"=="35" goto pickeroffline
+if /i "%CHOICE%"=="36" goto rebuildpicker
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -215,6 +219,13 @@ echo Running the forest benchmark on Crystal Mountain (the game flies 5 views, t
 findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\crystal.log"
 start "" "%~dp0test-results\benchmark"
 goto done
+
+:standsugarloaf
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo Starting the game in a dense spruce-fir stand on Sugarloaf (download it first with 29): mixed heights, small trees under big ones, clumps and gaps. The keys are the same as in 17.
+start "" "%GAME%" -site "Sugarloaf" -view 1500,-1550,250,200,25
+goto menu
 
 :playsugarloaf
 if not exist "%GAME%" call :buildplayer
