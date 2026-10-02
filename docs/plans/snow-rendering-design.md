@@ -1,8 +1,8 @@
 # Snow rendering: depth, piles, grooming and conditions
 
-**Audience:** the project owner and coding agents. **Status:** design for review. The direction was endorsed by the owner on 2026-10-02 ("noted, this is how I want it to behave"); nothing here is built yet beyond what §1 lists. **Date:** 2026-10-02. **Applies to:** snowmaking and grooming (Phase 3) and the snow simulation (Phase 4, [0.6](phase0-0.6-milestones.md)). It builds on task 10's seams ([0.3 §4.6](phase0-0.3-technical-architecture.md)) and task 12b's snowpack.
+**Audience:** the project owner and coding agents. **Status:** direction endorsed by the owner, 2026-10-02, with the decisions in §8. Nothing here is built yet beyond what §1 lists. **Date:** 2026-10-02. **Applies to:** snowmaking and grooming (Phase 3) and the snow simulation (Phase 4, [0.6](phase0-0.6-milestones.md)). It builds on task 10's seams ([0.3 §4.6](phase0-0.3-technical-architecture.md)) and task 12b's snowpack.
 
-**In one line:** snow becomes a real layer of the world. Its depth lifts the surface you see and stand on, snow guns pile whales that groomers push out into runs, and a surface-state map says what the snow is like, which both its look and the Snow conditions info layer read.
+**In one line:** snow becomes a real layer of the world. Its depth lifts the surface you see and stand on, and snow guns pile whales that groomers push out into runs. **The snow conditions map** (the data behind the Snow conditions info layer, reserved since task 12b) says what kind of snow is where. It drives the snow's look, gives every trail a conditions rating, and guests use that rating to choose where to ski (owner, 2026-10-02).
 
 ## 1. Where we are
 
@@ -22,32 +22,35 @@ The lidar was flown without snow, so a 2 m mid-winter snowpack, a 6 m whale and 
 1. **Snow has thickness.** What you see, what the camera and skiers stand on, and where lift towers meet the ground all include the snow.
 2. **Snowmaking shows.** Guns build whales (long mounds 2–8 m high) over nights, visible on the mountain and in the Snow depth layer.
 3. **Grooming shows.** Groomers push whales across the run and leave corduroy; skier traffic wears it into chop and, on steep pitches, moguls.
-4. **Conditions are visible.** Powder, packed, groomed, ice, crud and spring snow each look different, and the Snow conditions info layer maps them.
+4. **Conditions are one map with three readers.** It says what kind of snow is where: powder, packed, groomed, ice, crud, spring or wind-board.
+   - The **Snow conditions info layer** shows it to the player.
+   - The **snow's look** reads it.
+   - **Trail conditions ratings** summarise it per trail, and guests choose by those ratings (§5.1).
 5. **Cheap and incremental.** Only changed areas re-upload (dirty rectangles), and nothing allocates per frame (AGENTS.md).
 6. **Deterministic.** The simulation owns the fields: snapshots out, commands in. The same inputs give the same snow.
 
-## 3. Data: two depth fields and a surface state
+## 3. Data: two depth fields and the snow conditions map
 
-| Field | Cells | Covers | Written by | Why |
+| Field | Cells | Covers | Written by | What it's for |
 |---|---|---|---|---|
 | **Natural depth** (exists) | 8 m | The whole ring | Snowpack v0 now; weather (Phase 4) later | Big-scale snowpack: elevation, aspect, wind, canopy |
-| **Managed depth** (new) | 1 m, in 64 m sparse tiles | Only where snow is made, groomed or skied (runs and their edges) | Snowmaking, grooming, skier wear | Whales and run edges need metre detail; 1 m over a 10 km ring would be 100 M cells, but runs are a few percent of that |
-| **Surface state** (new) | 1 m, with the same tiles as managed depth, plus 8 m for the rest | Same | Grooming, traffic, weather, sun | What the top layer is like: type, age, compaction, grooming direction |
+| **Managed depth** (new) | 1 m, in 64 m sparse tiles | Only where snow is made, groomed or skied (runs and their edges) | Snowmaking, grooming, skier wear | **Snow shape only:** whales, berms and run edges need metre detail. 1 m over a 10 km ring would be 100 M cells, but runs are a few percent of that |
+| **Snow conditions map** (the reserved info layer, new) | 8 m, the same grid as natural depth | The whole ring | Weather, sun, grooming, skier traffic | **What kind of snow is where:** the one map behind the Snow conditions info layer, the snow's look and trail ratings |
 
 **Total depth = natural + managed.** Managed depth can be negative where a groomer pulls snow away; it never takes the total below zero.
 
-The surface state is packed per cell, about 4 bytes:
+**Snow conditions map, per 8 m cell (about 4 bytes, a `SnowConditionsField` beside `SnowDepthField` in Domain):**
 - type: powder, packed, groomed, ice, crud, spring or wind-board;
-- age (hours since it was groomed or since new snow);
-- moguls (0–1);
-- groom direction (an angle, for the corduroy).
+- quality: 0–1, how good it skis, falling with age, traffic, ice and thaw;
+- moguls: 0–1;
+- age: hours since new snow or grooming.
 
-It's the data the **Snow conditions** info layer reserves.
+There is no separate 1 m conditions layer (owner, 2026-10-02). Finer surface detail such as corduroy lines and mogul bumps is procedural in the shader, driven by the 8 m conditions and by each trail's groom direction (a trail attribute, not a field).
 
-**Sparse tiles:**
+**Sparse tiles (managed depth only):**
 - A tile exists only once something writes to it. A drawn run allocates tiles along its corridor.
-- Memory: a 64 m tile at 1 m is 4,096 cells. Depth (2 bytes) plus state (4 bytes) is about 24 KB per tile. A big resort's runs, say 60 km at 60 m wide, come to about 1,000 tiles, or 24 MB.
-- On the GPU, the tiles live in a **tile atlas** (an RG16/RGBA8 texture array) with a page table. Changed tiles re-upload by dirty rectangle.
+- Memory: a 64 m tile at 1 m is 4,096 cells × 2 bytes, 8 KB. A big resort's runs, say 60 km at 60 m wide, come to about 1,000 tiles, or 8 MB.
+- On the GPU, the tiles live in a **tile atlas** (an R16 texture array) with a page table. Changed tiles re-upload by dirty rectangle. The conditions map uploads like the depth field, as one 8 m texture with dirty rows.
 
 ## 4. Rendering
 
@@ -61,21 +64,21 @@ The terrain's vertex shader lifts each vertex by the total depth there: natural 
 
 ### 4.2 The look of the surface
 
-- The **snow layer** in the terrain shader picks its albedo, normal and roughness from the surface state:
-  - groomed: corduroy ridges about 0.3 m apart along the groom direction, fading with age and traffic;
+- The **snow layer** in the terrain shader picks its albedo, normal and roughness from the snow conditions map:
+  - groomed: corduroy ridges about 0.3 m apart along the trail's groom direction, fading with age and traffic;
   - powder: soft and bright with sparkle;
   - packed and crud: rougher, with tracks;
   - ice: smoother, greyer and specular;
   - spring: wetter and darker, with sun cups;
   - wind-board: flat with sastrugi ridges.
-- **Moguls:** a procedural bump field (moguls about 3–5 m apart, offset by the fall line) adds both normal and a little displacement, scaled by the mogul value.
+- **Moguls:** a procedural bump field (moguls about 3–5 m apart, offset by the fall line) adds both normal and a little displacement, scaled by the conditions map's mogul value.
 - **Whales:** displacement alone shows them. A lighter tone in fresh machine snow fades as it ages.
 - **Run edges:** where managed depth meets natural depth, a soft berm forms by itself from the 1 m field.
 
 ### 4.3 Info layers
 
 - **Snow depth** (exists) reads total depth: natural and managed together.
-- **Snow conditions** (reserved) colours each surface type, with a legend (powder, packed, groomed, ice, crud, spring, wind-board) and the cursor readout: *Groomed 3 h ago · Packed*.
+- **Snow conditions** (reserved since 12b) shows the snow conditions map. Each type has a colour, its quality appears as brightness, and there's a legend (powder, packed, groomed, ice, crud, spring, wind-board). The cursor readout reads *Groomed 3 h ago · Good* or *Powder · Excellent*.
 
 ## 5. Simulation (Phase 3–4, for scale)
 
@@ -85,6 +88,26 @@ The terrain's vertex shader lifts each vertex by the total depth there: natural 
 - **Weather:** snowfall adds to natural depth and marks new powder; sun and warmth turn snow to spring or ice; wind scours ridges and loads lee slopes, as the snowpack v0 does but over time.
 - Everything runs in Simulation with keyed randomness and a stable order. The renderer only copies dirty tiles.
 
+### 5.1 Trail conditions ratings and guest choice
+
+Each trail gets a **conditions rating** summarised from the snow conditions map along its footprint:
+- the share of each snow type;
+- mean quality;
+- ice;
+- moguls;
+- coverage, from depth.
+
+Guests weigh that rating against the trail's **steepness** (its band in %, [SlopeBands](../../Assets/MountainPlanner/Runtime/Domain/Measure/SlopeBands.cs)) and **width**, by their **ability**. The archived game's condition-aware route scoring is the reference ([0.1](phase0-0.1-reference-inventory.md)).
+
+| Guest | Prefers | Avoids |
+|---|---|---|
+| Beginner | Wide, gentle, freshly groomed, good quality | Ice, moguls, anything steep |
+| Intermediate | **A wide groomer with nice snow** | Steep chutes, deep powder, heavy moguls, ice |
+| Advanced | Groomed or packed blues and blacks, some moguls | Ice, crud late in the day |
+| Expert | **A steep chute with powder**, moguls, ungroomed terrain | Flat, crowded groomers |
+
+The rating shows in the trail's window, and "Run 7 is icy" can come up as a warning. The Snow conditions info layer lets the player see why guests choose as they do.
+
 ## 6. Performance budgets
 
 | Item | Budget |
@@ -92,7 +115,7 @@ The terrain's vertex shader lifts each vertex by the total depth there: natural 
 | Vertex displacement | Two texture reads per vertex (natural, managed via the page table). Under 0.1 ms at 1080p |
 | Surface look | Only on snow pixels. Corduroy and moguls are procedural, so no new textures beyond a small atlas (about 16 MB) |
 | Uploads | Dirty tiles only. A gun or groomer touches a few tiles per simulated hour; budget 0.2 ms a frame |
-| Memory | About 24 MB of CPU state for a big resort's runs, plus the GPU atlas |
+| Memory | About 8 MB of managed depth for a big resort's runs, plus the GPU atlas; the 8 m conditions map is about 8 MB over a 12 km ring |
 
 ## 7. Phasing
 
@@ -101,14 +124,16 @@ The terrain's vertex shader lifts each vertex by the total depth there: natural 
 | S1 | Displacement from natural depth; `HeightAt` includes snow; `GroundAt` for footings | Early Phase 3 (needs nothing else) |
 | S2 | Managed depth (sparse 1 m tiles, atlas and page table) with a debug brush to paint whales | With the snowmaking tools |
 | S3 | Snowmaking deposits whales | Snowmaking (Phase 3) |
-| S4 | Surface state; groomed corduroy; the Snow conditions info layer goes live | Grooming (Phase 3) |
+| S4 | The snow conditions map; groomed corduroy; the Snow conditions info layer goes live; trail conditions ratings | Grooming (Phase 3) |
+| S4b | Guests choose trails by rating, steepness, width and ability (§5.1) | Guest simulation |
 | S5 | Traffic wear, moguls and ice; weather over time | Simulation (Phase 4) |
 
-## 8. Questions for the owner
+## 8. Decisions (owner, 2026-10-02)
 
-1. **How tall should whales get?** Real ones are commonly 3–6 m, and up to 10 m at big resorts. I'd suggest **up to 8 m**.
-2. **Should grooming be animated** (you watch the groomer push a whale), or happen between turns at night? I'd suggest **at night**, with a morning reveal.
-3. **Should moguls form by themselves on ungroomed steep runs?** I'd suggest **yes**, as a visible result of your grooming plan.
+1. **Whales grow up to 8 m.**
+2. **Grooming will eventually be animated** (you watch the groomer push a whale); that's future game scope. Until then it happens overnight.
+3. **Moguls form by themselves** on ungroomed steep runs.
+4. **One snow conditions map** (the reserved info layer) says what kind of snow is where, at 8 m. There's no separate 1 m conditions layer. It drives the look, trail conditions ratings and guests' choices (§5.1).
 
 ## Appendix: 12d handoff scope, ground types from OpenStreetMap
 
