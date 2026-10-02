@@ -298,7 +298,7 @@ body.solo .frame { border-radius: 0; }
     <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
-    <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with six tabs, the sketch pencil and map layers. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. <b>Keys:</b> T toolbox, A analysis, U units, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with six tabs, the sketch pencil and map layers. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. <b>Keys:</b> T toolbox, Tab analysis, U units, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="variants" id="variants"><b>Open or closed, try:</b><button data-style="sub" class="on">A line under the name</button><button data-style="track">An hours track</button><button data-style="word">A word after the name</button></div>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
@@ -429,7 +429,7 @@ body.solo .frame { border-radius: 0; }
     { id: 'controls', title: 'Controls', rows: [
       { k: 'invertZoom', label: 'Invert scroll zoom', desc: 'Scroll down to zoom in.', seg: ONOFF },
       { k: 'zoomSpeed', label: 'Zoom speed', seg: [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']] },
-    ], keys: [['Toolbox', ['T']], ['Analysis', ['A']], ['Pause', ['Space']], ['Speed', ['1–4']], ['Zoom', ['+', '−']], ['Reset view', ['Home']], ['Units', ['U']], ['Save', ['Ctrl', 'S']], ['Finish a line', ['Enter']], ['Back out', ['Esc']]] },
+    ], keys: [['Toolbox', ['T']], ['Analysis', ['Tab']], ['Pause', ['Space']], ['Speed', ['1–4']], ['Zoom', ['+', '−']], ['Reset view', ['Home']], ['Units', ['U']], ['Save', ['Ctrl', 'S']], ['Map layers', ['Shift', '1–5']], ['Hide the UI', ['H']], ['Finish a line', ['Enter']], ['Back out', ['Esc']]] },
   ];
   const settingRow = (k) => SETTINGS.flatMap((pg) => pg.rows).find((row) => row.k === k);
   const getSetting = (row) => (row.get ? row.get() : S.set[row.k]);
@@ -907,7 +907,7 @@ body.solo .frame { border-radius: 0; }
     if (S.tool) { const t = toolById(S.tool); h += t.kind === 'lift' ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
     const spd = [1, 2, 3, 4].map((n) => `<span class="${S.speed >= n ? 'on' : ''}" data-act="speed" data-v="${n}" title="Speed ${n}"><svg viewBox="0 0 11 13"><use href="#s-speed"/></svg></span>`).join('');
     h += `<div class="bar ${S.docked ? 'docked' : 'floating'}${S.paused ? ' paused' : ''}">
-      <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (A)">${g('s-analysis')}Analysis</span></div>
+      <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (Tab)">${g('s-analysis')}Analysis</span></div>
       <div class="cell sep" style="padding:0 5px"><span class="resort st-${S.statusStyle}" id="resort" data-act="rename" title="${esc(resortTitle(resortStatus(S.t)))}"><span id="rname">${esc(S.name)}</span><span class="rstat" id="rstat">${statusHtml(resortStatus(S.t))}</span></span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib" data-act="pause" id="playbtn" title="${S.paused ? 'Play' : 'Pause'} (Space)">${g(S.paused ? 's-play' : 's-pause')}</span></div>
       <div class="cell sep" style="gap:12px"><span class="day" id="day">Day ${S.day}</span><span class="when"><span class="v" id="clock">${clockText()}</span><span class="wxline" id="wxcell" title="${wxTitle(wx)}">${wxLine(wx)}</span></span></div>
@@ -1141,7 +1141,8 @@ body.solo .frame { border-radius: 0; }
     if (k === ' ') { e.preventDefault(); act('pause'); return; }
     if (['1', '2', '3', '4'].includes(k)) { act('speed', k); return; }
     if (k === 't') { act('toolbox'); return; }
-    if (k === 'a') { act('analysis'); return; }
+    if (k === 'tab') { e.preventDefault(); act('analysis'); return; }
+    if (k === 'h' && !S.toolbox) { ui.style.visibility = ui.style.visibility === 'hidden' ? '' : 'hidden'; return; }   // H hides the UI (tray-scoped letters win while the tray is open)
     if (k === 'u') { act('units'); return; }
     if (k === '=' || k === '+') { act('zoom', 1); return; }
     if (k === '-') { act('zoom', -1); return; }
