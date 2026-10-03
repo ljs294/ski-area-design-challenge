@@ -8,7 +8,7 @@ The picker runs on its own in the Picker Lab (demo.bat 35). Choosing Download ha
 
 | | |
 |---|---|
-| ![Search for Crystal Mountain](images/p1-13/search-crystal.jpg) | **Search, then Enter.** One result, so the map flies there, centres the square on it and suggests its name. The plan is drawn as the mockup draws plans: orange dashes and a dimension line with its figure on a graphite label. The square is tilted: it is exact in the package's Albers grid, which turns about 15° from true north here. Under the name: the terrain quality as a number and a word, the sources and the download, then the amber warning the spec asks for when a site is not all 1 m. Download carries its size. |
+| ![Search for Crystal Mountain](images/p1-13/search-crystal.jpg) | **Search, then Enter.** One result, so the map flies there, centres the square on it and suggests its name. The plan is drawn as the mockup draws plans: orange dashes and a dimension line with its figure on a graphite label. The square is tilted: it is exact in the package's Albers grid, which turns about 15° from true north here. Under the name: the terrain quality as a number and a word, the sources (in feet, with the game's units) and the download, then the amber warning the spec asks for when a site is not all 1 m. Download carries its size. Words are Overpass, figures Overpass Mono. |
 | ![Jackson Hole on imagery](images/p1-13/jackson-imagery.jpg) | **Imagery, with the data overlay.** Dark blue squares are published S1M tiles (10 km, 1 m); mid blue is other 1 m lidar; light blue is about 3 m; unshaded is about 10 m. The fine dashes are the 3 km surroundings that download too. |
 | ![Opening the picker](images/p1-13/open.jpg) | **Opening.** The contiguous US on USGS topo; a strip says how to place the square; sizes read in the game's units (miles by default). |
 | ![Search results](images/p1-13/search-results.jpg) | **Several results** float over the map. Down moves into them from the search field; Enter or a click flies there and places the square. |
@@ -22,8 +22,8 @@ The picker runs on its own in the Picker Lab (demo.bat 35). Choosing Download ha
 | Square corners exact in EPSG:6350 | `PickerSquareTests`: exactly the centre ± half the size, and a drawn corner reads back within 1 mm |
 | Rate limit | `NominatimTests.RequestsAreAtLeastOneSecondApart`: five calls fired at once go out ≥ 1 s apart, on a fake clock; a name lookup overtaken by a newer click is never sent |
 | Offline panel without a network | PlayMode `WithoutANetworkTheOfflinePanelShows`, then Retry brings the map back |
-| Engine-free tests | 243 / 243 |
-| Unity EditMode, PlayMode | 444 passed, 0 failed (37 already-ignored tests skipped); 15 / 15 |
+| Engine-free tests | 251 / 251 |
+| Unity EditMode, PlayMode | 451 passed, 0 failed (37 already-ignored tests skipped); 15 / 15 |
 | Repository checks | Pass |
 
 ## Behaviour
@@ -32,7 +32,8 @@ The picker runs on its own in the Picker Lab (demo.bat 35). Choosing Download ha
 - **The map:** click to centre the square, drag to pan, and the wheel, + / − or Page Up / Page Down to zoom (no camera buttons, UI-10). With the map focused: Enter places the square at the centre, the arrows nudge it 100 m (Shift: 1 km) or pan before there is one, and Home goes back to the square.
 - **Size:** the slider steps 0.1 km (Shift+arrows: 1 km); it reads in miles or kilometres with the game's units (U), while the square stays exact in metres.
 - **Name:** a chosen search result's name, or after a click one reverse lookup (a named natural or recreation feature, else the nearest village or town, else the county). A name you type is never replaced; clear the field to get suggestions again. Nudging the square or reconnecting keeps the name (the movies caught a reconnect turning "Crystal Mountain" into "Pierce County"). Until there is a name, a note says Download needs one.
-- **Estimate:** terrain quality (number and word, on the HUD badge's bands), the sources, and the download size and time, fitted to our three measured downloads (within 20%). A site that is not all 1 m gets an amber warning in words; so does an estimate whose coverage couldn't be checked.
+- **Estimate:** terrain quality (number and word, on the HUD badge's bands), the sources, and the download size and time. It is found the way the downloader will score the site: S1M where published tiles cover the 1 km sectors, and elsewhere the 3DEP service's own choice at each sector's centre, in one request. Crystal Mountain 5 km comes out at 48, its measured score. Size and time are fitted to our three measured downloads (within 20%). A site that is not all 1 m gets an amber warning in words; so does an estimate that couldn't be checked.
+- **Units:** sizes, the slider and the data resolutions all follow the game's units: 1 m reads 3 ft, about 3 m about 10 ft, about 10 m about 33 ft.
 - **The window** is modal: focus stays inside it, Esc backs out one step (the results, then the picker), and focus goes back where it was when it closes. It fades in over 150 ms.
 
 ## UI rules check (2026-10-02)
@@ -54,17 +55,20 @@ The picker was checked against the accepted direction (UI-6 to UI-11, §5 Look a
 | Panels near-solid (§5) | The 96% panel let about 13% of the map through: Unity blends UI in linear space | Solid panels |
 | Units switch every figure (UI-11) | Done earlier through `DisplayUnits` | Unchanged |
 
+Since then (owner, 2026-10-03):
+- **Fonts:** Overpass for words and Overpass Mono for figures, with real Regular and Bold faces, baked into static font assets (their own commit, for the HUD and task 14 to share). The middle dot (·) is left out of them, so it comes from the panel's default font, as in the mockup.
+- **Units:** the data resolutions follow the units too (3 ft, ~10 ft, ~33 ft in imperial).
+- **Kept as they are:** the overlay's blue ramp, and no imagery checkbox until imagery downloads exist.
+
 Still open:
-- **Fonts:** Overpass and Overpass Mono, with the fallback face for the middle dot (·), wait for your OK to download them. Figures already carry the `mono` class.
-- **Light theme text looks thin:** dark text on light panels renders lighter than the dark theme's bold. That's Unity's linear-space text blending, so it affects the HUD's light theme too; it belongs to the shared text settings (UI thread).
-- **Your call:** the data resolutions read in metres ("1 m", "~3 m") even in imperial, as product names; and the overlay's blue ramp shares a hue with "more difficult" trails, though the picker shows no trails.
+- **Light theme text reads lighter** than the dark theme's: dark text on light panels in Unity's linear-space text blending. The real bold face helps; the rest belongs to the shared text settings (UI thread).
 
-## Known limits (your call)
+## Known limits
 
-1. **The score estimate is optimistic where 3DEP has both 1/9 and 1/3 arc-second data.** At Crystal Mountain the index footprints say about 90% is ~3 m, so it estimates 63. The real download got 24% 3 m and 60% 10 m, and scored 48. The size and time are right. Options: keep it as "about", weight the ~3 m share down, or sample the 3DEP service's own source raster (one more request per placement). I recommend the last option as a small follow-up.
-2. **Names in remote places fall back to the county** (for example "Pierce County"). Searching by name avoids this.
-3. **The satellite imagery checkbox (G7) is left out** until imagery downloads exist; the hand-off already carries the flag.
-4. **Tiles that are still loading show blank**, not a blurred parent tile.
+1. **Names in remote places fall back to the county** (for example "Pierce County"). Searching by name avoids this.
+2. **The satellite imagery checkbox (G7) is left out** until imagery downloads exist (owner, 2026-10-03); the hand-off already carries the flag.
+3. **Tiles that are still loading show blank**, not a blurred parent tile. A tile that fails to load tries again after 2 s.
+4. **The overlay's 1 m and ~3 m footprints come from the 3DEP index map**, which can promise more than the elevation service delivers (Crystal Mountain's footprints look ~3 m where the service has ~10 m). The estimate asks the service itself, so the figures under the map are the ones to trust.
 
 ## Movies
 

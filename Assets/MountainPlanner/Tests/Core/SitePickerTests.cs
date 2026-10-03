@@ -241,6 +241,97 @@ namespace MountainPlanner.Tests
             Assert.That(SiteEstimator.Line(e), Is.EqualTo("Terrain about 48 · 16% S1M 1 m · 24% 3 m · 60% 10 m · about 490 MB · about 2 min"));
         }
 
+        /// <summary>A getSamples reply: per point, one sample per source raster (value, name, pixel size).</summary>
+        static string Samples(params (int Id, string Value, string Name, double LowPS)[] samples) =>
+            "{\"samples\":[" + string.Join(",", samples.Select(s =>
+                $"{{\"locationId\":{s.Id},\"value\":\"{s.Value}\",\"resolution\":{s.LowPS.ToString(System.Globalization.CultureInfo.InvariantCulture)}," +
+                $"\"attributes\":{{\"Name\":\"{s.Name}\",\"LowPS\":{s.LowPS.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}}}")) + "]}";
+
+        [Test]
+        public void The3depServicesChoiceIsTheFinestSourceWithData()
+        {
+            string json = Samples(
+                (0, "1200.5", "WA_1_3_arc_second", 10), (0, "NoData", "WA_Lidar_2019", 1),     // lidar has a hole here
+                (1, "1300.0", "Ov_overview", 1), (1, "1300.2", "WA_1_9_arc_second", 3.4),      // overviews don't count
+                (3, "1400.0", "WA_EasternCascades_2019_B19", 1), (3, "1400.1", "WA_1_3_arc_second", 10));
+            Assert.That(CoverageIndex.ParseFinestSources(json, 4), Is.EqualTo(new[]
+            {
+                TerrainSource.TenMetre, TerrainSource.ThreeMetre, TerrainSource.TenMetre /* no data: 1/3 arc-second everywhere */, TerrainSource.Lidar1m,
+            }));
+            Assert.Throws<System.IO.IOException>(() => CoverageIndex.ParseFinestSources("{\"error\":{\"code\":500,\"message\":\"busy\"}}", 1));
+        }
+
+        [Test]
+        public void TheSamplesAreOneMultipointRequestOnTheAlbersGrid()
+        {
+            string url = CoverageIndex.SamplesUrl(new[] { new AlbersPoint(-1928410, 2917856), new AlbersPoint(-1927410, 2917856) });
+            Assert.That(url, Does.StartWith("https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/getSamples?"));
+            Assert.That(url, Does.Contain("geometryType=esriGeometryMultipoint").And.Contain("returnFirstValueOnly=false").And.Contain("outFields=Name,LowPS"));
+            Assert.That(System.Uri.UnescapeDataString(url), Does.Contain("[[-1928410,2917856],[-1927410,2917856]]").And.Contain("\"wkid\":6350"));
+        }
+
+        [TestCase(2.0, 4, 1000)]
+        [TestCase(4.3, 25, 300)]
+        [TestCase(5.0, 25, 1000)]
+        public void TheCoreIsCutIntoTheDownloadersSectors(double km, int count, double lastWidth)
+        {
+            var site = SiteSquare.Create(new GeoPoint(46.93, -121.49), km);
+            var sectors = SiteEstimator.CoreSectors(site);
+            Assert.That(sectors.Count, Is.EqualTo(count));
+            Assert.That(sectors[0].West, Is.EqualTo(site.Core.West));
+            Assert.That(sectors[0].North, Is.EqualTo(site.Core.North), "from the north-west corner, as HeightAssembler cuts them");
+            Assert.That(sectors.Last().Width, Is.EqualTo(lastWidth).Within(1e-6));
+            Assert.That(sectors.Sum(s => s.Width * s.Height), Is.EqualTo(site.Core.Width * site.Core.Height).Within(1e-3));
+        }
+
+        [Test]
+        public async Task CrystalMountainsEstimateMatchesItsRealDownload()
+        {
+            // The 3DEP service's own choice at Crystal Mountain's 25 sector centres, as recorded on 2026-10-03
+            // (4 at 1 m, 6 at about 3 m, 15 at about 10 m); the real 5 km download scored 48 (README).
+            var site = SiteSquare.Create(new GeoPoint(46.93, -121.49), 5);
+            var classes = new[] { 1.0, 1, 1, 1, 3.4, 3.4, 3.4, 3.4, 3.4, 3.4 }.Concat(Enumerable.Repeat(10.0, 15)).ToArray();
+            int requests = 0;
+            var index = new CoverageIndex((url, ct) =>
+            {
+                requests++;
+                string body = url.Contains("getSamples")
+                    ? Samples(classes.Select((ps, i) => (i, "1500.0", ps < 2 ? "WA_EasternCascades_2019_B19" : ps < 5 ? "WA_1_9_arc_second" : "WA_1_3_arc_second", ps)).ToArray())
+                    : "<ListBucketResult></ListBucketResult>";   // no published S1M tiles here
+                return Task.FromResult(Encoding.UTF8.GetBytes(body));
+            });
+            var e = await SiteEstimator.EstimateAsync(site, index, CancellationToken.None);
+            Assert.That(e.TerrainScore, Is.EqualTo(48), "the measured score, where the footprint index said 63");
+            Assert.That(e.Share(TerrainSource.Lidar1m), Is.EqualTo(0.16).Within(1e-9));
+            Assert.That(e.Share(TerrainSource.ThreeMetre), Is.EqualTo(0.24).Within(1e-9));
+            Assert.That(e.Share(TerrainSource.TenMetre), Is.EqualTo(0.60).Within(1e-9));
+            Assert.That(e.IsRough, Is.False);
+            Assert.That(requests, Is.LessThanOrEqualTo(5), "the folder listings and one getSamples request");
+        }
+
+        [Test]
+        public async Task S1mTilesCountBeforeThe3depChoice()
+        {
+            // A 2 km site whose west half lies in a published S1M tile: those cells are S1M whatever 3DEP says.
+            var tile = new AlbersBox(-1200000, 2390000, -1190000, 2400000);
+            var site = SiteSquare.Create(new AlbersPoint(tile.West, 2395000), 2.0);
+            var index = new CoverageIndex((url, ct) => Task.FromResult(Encoding.UTF8.GetBytes(url.Contains("getSamples")
+                ? Samples((0, "1", "x_1_3", 10), (1, "1", "x_1_3", 10), (2, "1", "x_1_3", 10), (3, "1", "x_1_3", 10))
+                : Listing)));
+            var e = await SiteEstimator.EstimateAsync(site, index, CancellationToken.None);
+            Assert.That(e.Share(TerrainSource.S1m), Is.EqualTo(0.5).Within(1e-9));
+            Assert.That(e.Share(TerrainSource.TenMetre), Is.EqualTo(0.5).Within(1e-9));
+        }
+
+        [Test]
+        public async Task AnUnreachableServiceGivesARoughEstimate()
+        {
+            var index = new CoverageIndex((url, ct) => throw new System.IO.IOException("offline"));
+            var e = await SiteEstimator.EstimateAsync(SiteSquare.Create(new GeoPoint(43.593, -110.848), 3), index, CancellationToken.None);
+            Assert.That(e.IsRough, Is.True);
+            Assert.That(e.TerrainScore, Is.EqualTo(30), "assumes the coarsest terrain until it can check");
+        }
+
         [Test]
         public void TileUrlsFollowTheUsgsScheme()
         {

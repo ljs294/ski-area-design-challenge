@@ -33,12 +33,12 @@ namespace MountainPlanner.UI.Picker
         public bool DarkTheme { get; private set; } = true;
 
         const long EstimateDelayMs = 350;
-        const int EstimateSamples = 64;
         const string SearchProblem = "Search isn't answering right now. Try again in a moment, or find the place on the map.";
 
         VisualElement _root, _window, _results, _offline, _legend, _mapHint, _figs, _sliderFill;
         TextField _search, _name;
         Label _searchMessage, _sizeValue, _sizeMin, _sizeMax, _nameHint, _empty, _score, _word, _mix, _downloadText, _warning, _note, _downloadSize, _attribution;
+        Label _legendS1m, _legendLidar, _legendThree, _legendTen;
         Slider _size;
         Button _download, _topo, _imagery, _coverage;
         Focusable _focusBefore;
@@ -72,6 +72,10 @@ namespace MountainPlanner.UI.Picker
             _note = _root.Q<Label>("note");
             _downloadSize = _root.Q<Label>("download-size");
             _attribution = _root.Q<Label>("attribution");
+            _legendS1m = _root.Q<Label>("legend-s1m");
+            _legendLidar = _root.Q<Label>("legend-lidar");
+            _legendThree = _root.Q<Label>("legend-three");
+            _legendTen = _root.Q<Label>("legend-ten");
             _size = _root.Q<Slider>("size");
             _download = _root.Q<Button>("download");
             _topo = _root.Q<Button>("base-topo");
@@ -269,66 +273,24 @@ namespace MountainPlanner.UI.Picker
             catch (Exception ex) { if (!(ex is IOException)) Debug.LogWarning($"[Picker] Name: {ex.Message}"); }   // no suggestion; the player names it
         }
 
+        /// <summary>The estimate, the way the downloader will score the site (one request; rough if it fails).</summary>
         async void RefreshEstimate()
         {
             _estimateLater.Pause();
             if (!Model.Square.HasValue || Services == null) return;
             var square = Model.Square.Value;
             var ct = _placeCts?.Token ?? CancellationToken.None;
-            double s1m = 0, ringS1m = 0, one = 0, three = 0;
-            bool known = false;
-            try
-            {
-                s1m = Share(square.Core, await Services.S1mTilesAsync(square.Core, ct));
-                ringS1m = Share(square.Ring, await Services.S1mTilesAsync(square.Ring, ct));
-                one = await CoverageShare(CoverageLayer.OneMetre, square.Core, ct);
-                three = await CoverageShare(CoverageLayer.ThreeMetre, square.Core, ct);
-                known = true;
-            }
+            SiteEstimate estimate;
+            try { estimate = await Services.EstimateAsync(square, ct); }
             catch (OperationCanceledException) { return; }
-            catch (Exception ex) { if (!(ex is IOException)) Debug.LogWarning($"[Picker] Estimate: {ex.Message}"); }   // a rough estimate says so
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[Picker] Estimate: {ex.Message}");
+                return;
+            }
             if (ct.IsCancellationRequested || !Model.Square.HasValue || !Model.Square.Value.Core.Equals(square.Core)) return;
             _checking = false;
-            var estimate = Services.Estimate(square, s1m, Math.Max(one, s1m), Math.Max(three, one), ringS1m, known);
-            Model.SetEstimate(estimate, Services.EstimateLine(estimate));
-        }
-
-        /// <summary>The share of a box (0–1) inside the given tiles.</summary>
-        public static double Share(AlbersBox box, IReadOnlyList<AlbersBox> tiles)
-        {
-            double covered = 0;
-            foreach (var t in tiles)
-            {
-                double w = Math.Min(box.East, t.East) - Math.Max(box.West, t.West);
-                double h = Math.Min(box.North, t.North) - Math.Max(box.South, t.South);
-                if (w > 0 && h > 0) covered += w * h;
-            }
-            return Math.Min(1, covered / (box.Width * box.Height));
-        }
-
-        /// <summary>The share of the core inside one DEM layer's footprints, sampled from a small coverage image.</summary>
-        async Task<double> CoverageShare(CoverageLayer layer, AlbersBox core, CancellationToken ct)
-        {
-            var corners = SlippyMap.Corners(core);
-            double west = double.MaxValue, east = double.MinValue, south = double.MaxValue, north = double.MinValue;
-            foreach (var c in corners)
-            {
-                var (x, y) = WebMercator.Forward(c);
-                west = Math.Min(west, x); east = Math.Max(east, x);
-                south = Math.Min(south, y); north = Math.Max(north, y);
-            }
-            byte[] png = await Services.CoverageImageAsync(layer, west, south, east, north, EstimateSamples, EstimateSamples, ct);
-            if (png == null) return 0;
-            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            try
-            {
-                if (!tex.LoadImage(png)) return 0;
-                var pixels = tex.GetPixels32();
-                int filled = 0;
-                foreach (var p in pixels) if (p.a > 8) filled++;
-                return pixels.Length == 0 ? 0 : filled / (double)pixels.Length;
-            }
-            finally { Destroy(tex); }
+            Model.SetEstimate(estimate);
         }
 
         // ---- keys and buttons ----
@@ -402,6 +364,10 @@ namespace MountainPlanner.UI.Picker
             try
             {
                 Map.Square = Model.Square;
+                _legendS1m.text = PickerText.SourceLabel(Domain.Terrain.TerrainSource.S1m);
+                _legendLidar.text = PickerText.SourceLabel(Domain.Terrain.TerrainSource.Lidar1m);
+                _legendThree.text = PickerText.SourceLabel(Domain.Terrain.TerrainSource.ThreeMetre);
+                _legendTen.text = PickerText.SourceLabel(Domain.Terrain.TerrainSource.TenMetre);
                 _sizeMin.text = PickerUnits.SizeEnd(SiteSquare.MinSizeKm);
                 _sizeMax.text = PickerUnits.SizeEnd(SiteSquare.MaxSizeKm);
                 _mapHint.parent.EnableInClassList("hidden", Model.Square.HasValue);
@@ -438,7 +404,6 @@ namespace MountainPlanner.UI.Picker
                 _downloadSize.text = PickerText.Megabytes(est.Bytes);
                 _score.parent.parent.EnableInClassList("fig--rough", est.IsRough);
                 warning = PickerText.Warning(est);
-                _figs.tooltip = Model.EstimateLine;
             }
             else if (placed)
             {

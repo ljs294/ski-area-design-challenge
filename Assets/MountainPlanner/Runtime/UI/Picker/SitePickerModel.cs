@@ -23,7 +23,6 @@ namespace MountainPlanner.UI.Picker
         /// <summary>True while the name is the picker's suggestion, which a newer suggestion may replace.</summary>
         public bool NameIsSuggestion { get; private set; } = true;
         public SiteEstimate? Estimate { get; private set; }
-        public string EstimateLine { get; private set; } = "";
         public bool Offline { get; private set; }
         public bool Searching { get; private set; }
         public string SearchMessage { get; private set; } = "";
@@ -42,7 +41,6 @@ namespace MountainPlanner.UI.Picker
             SizeKm = snapped;
             if (Square.HasValue) Square = SiteSquare.Create(Square.Value.Centre, SizeKm);
             Estimate = null;
-            EstimateLine = "";
             Notify();
         }
 
@@ -54,7 +52,6 @@ namespace MountainPlanner.UI.Picker
         {
             Square = SiteSquare.Create(centre, SizeKm);
             Estimate = null;
-            EstimateLine = "";
             Notify();
         }
 
@@ -83,10 +80,9 @@ namespace MountainPlanner.UI.Picker
             Notify();
         }
 
-        public void SetEstimate(SiteEstimate estimate, string line)
+        public void SetEstimate(SiteEstimate estimate)
         {
             Estimate = estimate;
-            EstimateLine = line ?? "";
             Notify();
         }
 

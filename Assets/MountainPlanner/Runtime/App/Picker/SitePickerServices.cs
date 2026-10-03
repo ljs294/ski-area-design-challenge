@@ -53,9 +53,6 @@ namespace MountainPlanner.App.Picker
             _coverage.ImageAsync(layer == CoverageLayer.OneMetre ? CoverageIndex.OneMetreLayer : CoverageIndex.ThreeMetreLayer,
                 west, south, east, north, width, height, ct);
 
-        public SiteEstimate Estimate(SiteSquare site, double s1m, double oneMetre, double threeMetre, double ringS1m, bool known) =>
-            SiteEstimator.Estimate(site, new CoverageShares { S1m = s1m, OneMetre = oneMetre, ThreeMetre = threeMetre, RingS1m = ringS1m, Known = known });
-
-        public string EstimateLine(SiteEstimate estimate) => SiteEstimator.Line(estimate);
+        public Task<SiteEstimate> EstimateAsync(SiteSquare site, CancellationToken ct) => SiteEstimator.EstimateAsync(site, _coverage, ct);
     }
 }

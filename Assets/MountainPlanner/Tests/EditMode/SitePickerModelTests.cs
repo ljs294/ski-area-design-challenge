@@ -112,10 +112,9 @@ namespace MountainPlanner.Tests
         {
             var m = new SitePickerModel();
             m.PlaceAt(JacksonHole);
-            m.SetEstimate(new SiteEstimate(100, new double[] { 1, 0, 0, 0 }, 1, 1, false), "Terrain about 100");
+            m.SetEstimate(new SiteEstimate(100, new double[] { 1, 0, 0, 0 }, 1, 1, false));
             m.Nudge(100, 0);
             Assert.That(m.Estimate.HasValue, Is.False);
-            Assert.That(m.EstimateLine, Is.Empty);
         }
 
         [Test]
@@ -124,12 +123,5 @@ namespace MountainPlanner.Tests
             Assert.Throws<InvalidOperationException>(() => new SitePickerModel().Choose());
         }
 
-        [Test]
-        public void ShareOfABoxInsideTiles()
-        {
-            var box = new AlbersBox(0, 0, 1000, 1000);
-            Assert.That(SitePicker.Share(box, new[] { new AlbersBox(-500, -500, 500, 2000) }), Is.EqualTo(0.5));
-            Assert.That(SitePicker.Share(box, Array.Empty<AlbersBox>()), Is.EqualTo(0));
-        }
     }
 }

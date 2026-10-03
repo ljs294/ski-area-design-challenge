@@ -153,9 +153,8 @@ namespace MountainPlanner.Tests
             public Task<byte[]> TileAsync(bool imagery, int zoom, int x, int y, CancellationToken ct) => Task.FromResult<byte[]>(null);
             public Task<IReadOnlyList<AlbersBox>> S1mTilesAsync(AlbersBox box, CancellationToken ct) => Task.FromResult<IReadOnlyList<AlbersBox>>(new AlbersBox[0]);
             public Task<byte[]> CoverageImageAsync(CoverageLayer layer, double west, double south, double east, double north, int width, int height, CancellationToken ct) => Task.FromResult<byte[]>(null);
-            public SiteEstimate Estimate(SiteSquare site, double s1m, double oneMetre, double threeMetre, double ringS1m, bool known) =>
-                new SiteEstimate(30, new double[] { 0, 0, 0, 1 }, 1, 1, !known);
-            public string EstimateLine(SiteEstimate estimate) => "Terrain about 30";
+            public Task<SiteEstimate> EstimateAsync(SiteSquare site, CancellationToken ct) =>
+                Task.FromResult(new SiteEstimate(30, new double[] { 0, 0, 0, 1 }, 1, 1, false));
         }
     }
 }

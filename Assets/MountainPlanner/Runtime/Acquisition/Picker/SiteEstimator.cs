@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using MountainPlanner.Domain.Geo;
 using MountainPlanner.Domain.Terrain;
 
@@ -35,6 +38,90 @@ namespace MountainPlanner.Acquisition.Picker
         public const double FallbackFactor = 2.1;
         public const double FixedSeconds = 25;
         public const double MegabytesPerSecond = 5.8;
+
+        /// <summary>
+        /// The estimate for a site, the way the downloader will score it (HeightAssembler): the core in 1 km
+        /// sectors (1,000 × 1,000 cells from the north-west corner, the last ones narrower); S1M wherever a
+        /// published tile covers a sector; the rest from the 3DEP service's own choice at each sector's
+        /// centre. Two lookups at most (the S1M listing is cached for a day) and one getSamples request.
+        /// If either fails, the estimate is rough and says so.
+        /// </summary>
+        public static async Task<SiteEstimate> EstimateAsync(SiteSquare site, CoverageIndex index, CancellationToken ct)
+        {
+            var sectors = CoreSectors(site);
+            IReadOnlyList<AlbersBox> tiles = Array.Empty<AlbersBox>();
+            TerrainSource[] sources = null;
+            bool known = true;
+            try
+            {
+                tiles = await index.S1mTilesAsync(site.Ring, ct).ConfigureAwait(false);
+                var centres = new List<AlbersPoint>();
+                foreach (var s in sectors) centres.Add(s.Centre);
+                sources = await index.FallbackSourcesAsync(centres, ct).ConfigureAwait(false);
+            }
+            catch (IOException) { known = false; }
+            catch (Newtonsoft.Json.JsonException) { known = false; }
+            return Estimate(site, Shares(site, sectors, tiles, sources, known));
+        }
+
+        /// <summary>The core's 1 km sectors, as the downloader cuts them.</summary>
+        public static List<AlbersBox> CoreSectors(SiteSquare site)
+        {
+            var grid = site.CoreGrid;
+            const int cells = HeightAssembler.SectorCells;
+            var sectors = new List<AlbersBox>();
+            for (int r0 = 0; r0 < grid.Rows; r0 += cells)
+                for (int c0 = 0; c0 < grid.Columns; c0 += cells)
+                {
+                    int w = Math.Min(cells, grid.Columns - c0), h = Math.Min(cells, grid.Rows - r0);
+                    sectors.Add(new AlbersBox(grid.West + c0 * grid.CellSize, grid.North - (r0 + h) * grid.CellSize,
+                                              grid.West + (c0 + w) * grid.CellSize, grid.North - r0 * grid.CellSize));
+                }
+            return sectors;
+        }
+
+        /// <summary>
+        /// The shares over the core: each sector's S1M part from the tiles, its remainder from the source at
+        /// its centre (about 10 m when unknown), weighted by area. The ring's S1M share sizes the download.
+        /// </summary>
+        public static CoverageShares Shares(SiteSquare site, IReadOnlyList<AlbersBox> sectors, IReadOnlyList<AlbersBox> s1mTiles,
+                                            IReadOnlyList<TerrainSource> sources, bool known)
+        {
+            double total = 0, s1m = 0, lidar = 0, three = 0;
+            for (int i = 0; i < sectors.Count; i++)
+            {
+                var sector = sectors[i];
+                double area = sector.Width * sector.Height;
+                double fromS1m = Overlap(sector, s1mTiles);
+                double rest = area - fromS1m;
+                total += area;
+                s1m += fromS1m;
+                var source = sources != null && i < sources.Count ? sources[i] : TerrainSource.TenMetre;
+                if (source == TerrainSource.S1m || source == TerrainSource.Lidar1m) lidar += rest;
+                else if (source == TerrainSource.ThreeMetre) three += rest;
+            }
+            var ring = site.Ring;
+            return new CoverageShares
+            {
+                S1m = s1m / total,
+                OneMetre = (s1m + lidar) / total,
+                ThreeMetre = (s1m + lidar + three) / total,
+                RingS1m = Overlap(ring, s1mTiles) / (ring.Width * ring.Height),
+                Known = known,
+            };
+        }
+
+        static double Overlap(AlbersBox box, IReadOnlyList<AlbersBox> tiles)
+        {
+            double covered = 0;
+            foreach (var t in tiles)
+            {
+                double w = Math.Min(box.East, t.East) - Math.Max(box.West, t.West);
+                double h = Math.Min(box.North, t.North) - Math.Max(box.South, t.South);
+                if (w > 0 && h > 0) covered += w * h;
+            }
+            return Math.Min(covered, box.Width * box.Height);
+        }
 
         public static SiteEstimate Estimate(SiteSquare site, CoverageShares coverage)
         {

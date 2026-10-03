@@ -67,13 +67,17 @@ namespace MountainPlanner.Tests
         public void ASiteThatIsNotAll1mIsWarnedInWords()
         {
             var all1m = new SiteEstimate(100, new double[] { 0.9, 0.1, 0, 0 }, 85_000_000, 40, false);
-            Assert.That(PickerText.Warning(all1m), Is.Null);
+            Assert.That(PickerText.Warning(all1m, imperial: false), Is.Null);
             var crystal = new SiteEstimate(63, new double[] { 0, 0.09, 0.90, 0.01 }, 390_000_000, 92, false);
-            Assert.That(PickerText.Warning(crystal), Is.EqualTo("Not all 1 m: 91% of this site is ~3 m or ~10 m terrain, which shows less detail."));
-            Assert.That(PickerText.Sources(crystal), Is.EqualTo("9% 1 m lidar · 90% ~3 m · 1% ~10 m"));
+            Assert.That(PickerText.Warning(crystal, imperial: false), Is.EqualTo("Not all 1 m: 91% of this site is ~3 m or ~10 m terrain, which shows less detail."));
+            Assert.That(PickerText.Sources(crystal, imperial: false), Is.EqualTo("9% 1 m lidar · 90% ~3 m · 1% ~10 m"));
+            // Resolutions follow the units like every other figure (owner, 2026-10-03).
+            Assert.That(PickerText.Warning(crystal, imperial: true), Is.EqualTo("Not all 3 ft: 91% of this site is ~10 ft or ~33 ft terrain, which shows less detail."));
+            Assert.That(PickerText.Sources(crystal, imperial: true), Is.EqualTo("9% 3 ft lidar · 90% ~10 ft · 1% ~33 ft"));
+            Assert.That(PickerText.SourceLabel(MountainPlanner.Domain.Terrain.TerrainSource.S1m, imperial: true), Is.EqualTo("3 ft S1M"));
             Assert.That(PickerText.Download(crystal), Is.EqualTo("about 390 MB, 2 min"));
             var rough = new SiteEstimate(30, new double[] { 0, 0, 0, 1 }, 200_000_000, 60, true);
-            Assert.That(PickerText.Warning(rough), Does.StartWith("The terrain data here couldn't be checked"));
+            Assert.That(PickerText.Warning(rough, imperial: false), Does.StartWith("The terrain data here couldn't be checked"));
         }
 
         [TestCase(84_000_000, "85 MB")]

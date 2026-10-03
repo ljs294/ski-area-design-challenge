@@ -136,7 +136,9 @@ namespace MountainPlanner.Acquisition.Picker
                     return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
                 }
             }
+            catch (Exception ex) when (ct.IsCancellationRequested && !(ex is OperationCanceledException)) { throw new OperationCanceledException("Cancelled.", ex, ct); }
             catch (HttpRequestException ex) { throw new IOException("Search is unavailable.", ex); }
+            catch (System.Net.WebException ex) { throw new IOException("Search is unavailable.", ex); }
         }
     }
 }

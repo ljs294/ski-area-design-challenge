@@ -100,7 +100,10 @@ namespace MountainPlanner.Acquisition.Picker
                     return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
                 }
             }
+            // Mono's HttpClient can report a cancellation as a failed request: keep "cancelled" and "offline" apart.
+            catch (Exception ex) when (ct.IsCancellationRequested && !(ex is OperationCanceledException)) { throw new OperationCanceledException("Cancelled.", ex, ct); }
             catch (HttpRequestException ex) { throw new IOException("The map is unavailable.", ex); }
+            catch (WebException ex) { throw new IOException("The map is unavailable.", ex); }
         }
     }
 }

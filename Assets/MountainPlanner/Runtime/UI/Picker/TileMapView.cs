@@ -58,7 +58,8 @@ namespace MountainPlanner.UI.Picker
         readonly LinkedList<string> _textureOrder = new LinkedList<string>();
         readonly HashSet<string> _pending = new HashSet<string>();
         readonly IVisualElementScheduledItem _settle;
-        CancellationTokenSource _viewCts = new CancellationTokenSource();
+        CancellationTokenSource _viewCts = new CancellationTokenSource();    // the overlay's requests: replaced when the view settles
+        CancellationTokenSource _tilesCts = new CancellationTokenSource();   // tile loads: only when the map goes away
 
         double _cx, _cy;     // view centre in world pixels at _zoom
         int _zoom = 5;
@@ -380,7 +381,7 @@ namespace MountainPlanner.UI.Picker
             bool imagery = _imagery;
             try
             {
-                byte[] bytes = await Services.TileAsync(imagery, z, x, y, _viewCts.Token);
+                byte[] bytes = await Services.TileAsync(imagery, z, x, y, _tilesCts.Token);
                 SetOffline(false);
                 if (bytes == null || panel == null) return;
                 var tex = Decode(bytes);
@@ -389,7 +390,12 @@ namespace MountainPlanner.UI.Picker
             }
             catch (OperationCanceledException) { }
             catch (IOException) { SetOffline(true); }
-            catch (Exception ex) { Debug.LogWarning($"[Picker] Tile {key}: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                // A slow or failed answer that isn't "offline": try the tiles still missing again shortly.
+                Debug.LogWarning($"[Picker] Tile {key}: {ex.Message}");
+                schedule.Execute(Relayout).StartingIn(2000);
+            }
             finally { _pending.Remove(key); }
         }
 
@@ -644,6 +650,8 @@ namespace MountainPlanner.UI.Picker
         {
             _viewCts.Cancel();
             _viewCts = new CancellationTokenSource();
+            _tilesCts.Cancel();
+            _tilesCts = new CancellationTokenSource();
             _pending.Clear();
             foreach (var image in _shown.Values) Recycle(image);
             _shown.Clear();

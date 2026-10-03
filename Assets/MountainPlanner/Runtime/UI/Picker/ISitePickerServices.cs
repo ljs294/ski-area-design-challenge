@@ -42,10 +42,11 @@ namespace MountainPlanner.UI.Picker
         /// <summary>A transparent PNG, filled where a DEM exists, over a Web Mercator box (metres).</summary>
         Task<byte[]> CoverageImageAsync(CoverageLayer layer, double west, double south, double east, double north, int width, int height, CancellationToken ct);
 
-        /// <summary>The estimate for a site from its coverage shares (0–1); <paramref name="known"/> false when they couldn't be checked.</summary>
-        SiteEstimate Estimate(SiteSquare site, double s1m, double oneMetre, double threeMetre, double ringS1m, bool known);
-
-        /// <summary>The estimate line, for example "Terrain about 97 · 96% S1M 1 m · about 250 MB · about 1 min".</summary>
-        string EstimateLine(SiteEstimate estimate);
+        /// <summary>
+        /// The estimate for a site, found the way the downloader will score it (one request to the 3DEP
+        /// service, plus the cached S1M listing). Never throws for a network problem: it returns a rough
+        /// estimate that says so (<see cref="SiteEstimate.IsRough"/>).
+        /// </summary>
+        Task<SiteEstimate> EstimateAsync(SiteSquare site, CancellationToken ct);
     }
 }

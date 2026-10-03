@@ -10,14 +10,18 @@ using System.Threading.Tasks;
 using MountainPlanner.Acquisition.IO;
 using MountainPlanner.Acquisition.Providers;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Domain.Terrain;
+using Newtonsoft.Json.Linq;
 
 namespace MountainPlanner.Acquisition.Picker
 {
     /// <summary>
     /// What terrain data exists where, for the picker's data-quality overlay and estimate (0.3 §4.2,
     /// §6): published S1M tiles from the USGS bucket's folder listings (one request per 100 km folder,
-    /// only for folders the map shows), and the USGS 3DEP Elevation Index map service for where 1 m and
-    /// 1/9 arc-second (about 3 m) DEMs exist. Everywhere else 3DEP has 1/3 arc-second (about 10 m).
+    /// only for folders the map shows); for the overlay, the USGS 3DEP Elevation Index map service's
+    /// 1 m and 1/9 arc-second (about 3 m) footprints; and for the estimate, the 3DEP elevation service's
+    /// own choice at points (<see cref="FallbackSourcesAsync"/>), the same question the downloader asks
+    /// to score what it fills, so the estimate and the real score agree.
     /// </summary>
     public sealed class CoverageIndex
     {
@@ -117,6 +121,52 @@ namespace MountainPlanner.Acquisition.Picker
         {
             byte[] png = await _send(ExportUrl(layer, west, south, east, north, width, height), ct).ConfigureAwait(false);
             return png.Length == 0 ? null : png;
+        }
+
+        /// <summary>
+        /// The finest 3DEP source with data at each point, as the downloader classifies the sectors it fills
+        /// (Dep3Service.IdentifySourceAsync): one getSamples request for all the points. A point with no data
+        /// counts as about 10 m (3DEP's 1/3 arc-second covers the contiguous US).
+        /// </summary>
+        public async Task<TerrainSource[]> FallbackSourcesAsync(IReadOnlyList<AlbersPoint> points, CancellationToken ct)
+        {
+            if (points.Count == 0) return Array.Empty<TerrainSource>();
+            byte[] json = await _send(SamplesUrl(points), ct).ConfigureAwait(false);
+            return ParseFinestSources(Encoding.UTF8.GetString(json), points.Count);
+        }
+
+        public static string SamplesUrl(IReadOnlyList<AlbersPoint> points)
+        {
+            var sb = new StringBuilder("{\"points\":[");
+            for (int i = 0; i < points.Count; i++)
+                sb.Append(i == 0 ? "" : ",").Append(string.Format(CultureInfo.InvariantCulture, "[{0:R},{1:R}]", points[i].X, points[i].Y));
+            sb.Append("],\"spatialReference\":{\"wkid\":6350}}");
+            return Dep3Service.Service + "/getSamples?geometry=" + Uri.EscapeDataString(sb.ToString()) +
+                   "&geometryType=esriGeometryMultipoint&returnFirstValueOnly=false&outFields=Name,LowPS&f=json";
+        }
+
+        /// <summary>Per point (by locationId): the finest source with data, skipping overviews and metadata layers.</summary>
+        public static TerrainSource[] ParseFinestSources(string json, int count)
+        {
+            var root = JObject.Parse(json);
+            if (root["error"] != null) throw new System.IO.IOException("3DEP getSamples: " + root["error"]?["message"]);
+            var finest = new double[count];
+            for (int i = 0; i < count; i++) finest[i] = double.MaxValue;
+            foreach (var sample in root["samples"] as JArray ?? new JArray())
+            {
+                int id = (int?)sample["locationId"] ?? -1;
+                if (id < 0 || id >= count) continue;
+                string value = (string?)sample["value"] ?? "NoData";
+                var a = sample["attributes"];
+                string name = (string?)a?["Name"] ?? "";
+                if (value == "NoData" || name.StartsWith("Ov_", StringComparison.Ordinal) || name.StartsWith("metadata", StringComparison.Ordinal)) continue;
+                double size = (double?)a?["LowPS"] ?? (double?)sample["resolution"] ?? double.MaxValue;
+                if (size < finest[id]) finest[id] = size;
+            }
+            var sources = new TerrainSource[count];
+            for (int i = 0; i < count; i++)
+                sources[i] = finest[i] == double.MaxValue ? TerrainSource.TenMetre : TerrainQuality.FromCellSize(finest[i]);
+            return sources;
         }
 
         /// <summary>

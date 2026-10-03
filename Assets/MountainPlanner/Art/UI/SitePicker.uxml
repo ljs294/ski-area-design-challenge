@@ -16,7 +16,7 @@
             <ui:VisualElement class="picker-row picker-search">
                 <ui:Label class="picker-key" text="Search" />
                 <ui:TextField name="search" class="picker-field grow" />
-                <ui:Label class="kbd" text="Enter" />
+                <ui:Label class="kbd mono" text="Enter" />
                 <ui:Label class="picker-hint" text="to search" />
             </ui:VisualElement>
 
@@ -35,10 +35,10 @@
                     <ui:VisualElement name="legend" class="legend">
                         <ui:Button name="coverage-toggle" class="legend-toggle legend-toggle--on" text="Terrain data" tooltip="Show or hide where each kind of terrain data exists" />
                         <ui:VisualElement name="legend-items" class="legend-items" picking-mode="Ignore">
-                            <ui:VisualElement class="swatch swatch--s1m" /><ui:Label class="legend-label" text="1 m S1M" />
-                            <ui:VisualElement class="swatch swatch--lidar" /><ui:Label class="legend-label" text="1 m lidar" />
-                            <ui:VisualElement class="swatch swatch--three" /><ui:Label class="legend-label" text="~3 m" />
-                            <ui:VisualElement class="swatch swatch--ten" /><ui:Label class="legend-label" text="~10 m" />
+                            <ui:VisualElement class="swatch swatch--s1m" /><ui:Label name="legend-s1m" class="legend-label" text="1 m S1M" />
+                            <ui:VisualElement class="swatch swatch--lidar" /><ui:Label name="legend-lidar" class="legend-label" text="1 m lidar" />
+                            <ui:VisualElement class="swatch swatch--three" /><ui:Label name="legend-three" class="legend-label" text="~3 m" />
+                            <ui:VisualElement class="swatch swatch--ten" /><ui:Label name="legend-ten" class="legend-label" text="~10 m" />
                         </ui:VisualElement>
                     </ui:VisualElement>
                     <ui:VisualElement class="grow" picking-mode="Ignore" />
@@ -53,9 +53,9 @@
 
             <ui:VisualElement class="picker-row">
                 <ui:Label class="picker-key" text="Size" />
-                <ui:Label name="size-min" class="picker-end" text="2 km" />
+                <ui:Label name="size-min" class="picker-end mono" text="2 km" />
                 <ui:Slider name="size" class="picker-slider grow" low-value="2" high-value="5" value="4" />
-                <ui:Label name="size-max" class="picker-end" text="5 km" />
+                <ui:Label name="size-max" class="picker-end mono" text="5 km" />
                 <ui:Label name="size-value" class="picker-figure mono" text="4.0 km" />
             </ui:VisualElement>
             <ui:VisualElement class="picker-row">

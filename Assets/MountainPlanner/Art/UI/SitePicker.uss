@@ -42,6 +42,7 @@
     background-color: var(--scrim);
     color: var(--text);
     font-size: 13px;
+    -unity-font-definition: url("Fonts/Overpass-SDF.asset");
     transition-property: opacity;
     transition-duration: 0.15s;
     transition-timing-function: ease-out;
@@ -76,7 +77,9 @@
 
 .grow { flex-grow: 1; }
 .hidden { display: none; }
-/* Figures carry the class "mono": Overpass Mono (tabular numbers) once the fonts land. */
+/* Words in Overpass (above), figures in Overpass Mono, whose fixed widths keep columns of numbers still.
+   Both bake out the middle dot (·), which comes from the panel's default font: Overpass draws it off-centre. */
+.mono { -unity-font-definition: url("Fonts/OverpassMono-SDF.asset"); }
 
 .picker-window {
     width: 1040px;
