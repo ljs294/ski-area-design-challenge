@@ -406,6 +406,13 @@ It runs off the main thread with progress, cancellation, retries, polite rate li
 - **Search:** Nominatim, run only when the player presses Enter (no autocomplete), at most 1 request per second, with attribution shown. The name suggestion uses one reverse lookup when the square is placed.
 - **Layout, wording and states:** designed and wireframed in 0.4 (UI/UX).
 
+**Built (task 13):**
+- **Square:** `SiteSquare` (task 03) is the authority; `SlippyMap` (Domain) only projects it, walking each straight Albers edge so the drawn outline is the downloaded square. The hand-off to the download flow is `PickedSite` (Domain): name, exact square, its snapped centre in latitude and longitude, and the estimate.
+- **Clients** (`Acquisition/Picker`, engine-free): `NominatimClient` behind a `RateGate` (one request a second for searches and name lookups together, with an injected clock; a name lookup overtaken by a newer placement is dropped before it is sent), `MapTileSource` (USGS `USGSTopo` and `USGSImageryOnly` tiles, memory only, 4 at a time), `CoverageIndex` (S1M tiles from the bucket's 100 km folder listings, cached for a day; 1 m and 1/9 arc-second footprints from the 3DEP Elevation Index map service, layers 1 and 2) and `SiteEstimator`.
+- **Estimate:** found the way the downloader scores a site. The core is cut into the downloader's 1 km sectors; S1M covers what published tiles cover, and the rest takes the 3DEP elevation service's own choice at each sector's centre (the finest source with data, as `Dep3Service.IdentifySourceAsync` classifies filled sectors), all in one `getSamples` request. T18's weights give the score: Crystal Mountain 5 km comes out at 48, its measured score, where the footprint index had said 63. Size and time are fitted to the measured downloads (core 5.25 MB/km², ring 1 MB/km², ×2.1 where fallback fills, 25 s plus 5.8 MB/s). If a lookup fails, the estimate assumes about 10 m and says so in amber.
+- **Screen** (`UI/Picker`): `TileMapView` (a custom UI Toolkit control), `SitePicker` and its view model, behind `ISitePickerServices`, because UI may not reference Acquisition; the app passes `App/Picker/SitePickerServices`. The name suggestion is the search result's name, or after a click one reverse lookup: a named natural or recreation feature, else the nearest settlement, else the county.
+- **Picker Lab** (demo.bat 35–37): the picker alone; Download hands the site to the acquire CLI.
+
 ## 7. Determinism (T12)
 
 Every open of a resort must produce the same terrain tiles, splat and forest, which is what makes caching and future golden tests safe.

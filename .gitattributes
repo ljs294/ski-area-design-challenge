@@ -29,6 +29,8 @@ TestData/**/*.bin filter=lfs diff=lfs merge=lfs -text
 TestData/**/*.grid filter=lfs diff=lfs merge=lfs -text
 # Generated texture arrays (Mountain Planner > Generate Ground Textures): large, binary in effect.
 Assets/MountainPlanner/Art/Terrain/Ground*.asset filter=lfs diff=lfs merge=lfs -text
+# UI font assets (Mountain Planner > Build UI Font Assets): baked SDF atlases, binary in effect.
+Assets/MountainPlanner/Art/UI/Fonts/*.asset filter=lfs diff=lfs merge=lfs -text
 
 # Road layers (task 12d) are verified by their SHA-256: never convert their line endings.
 roads.json -text
