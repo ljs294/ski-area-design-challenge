@@ -1,0 +1,104 @@
+<!-- S3 Site picker (0.4 §4, T19): search, the mini-map with the data-quality overlay and the exact square,
+     size, name and estimate. Built from the accepted HUD mockup's parts (prototypes/ui-layout.html): the
+     modal window's head, fields, the segmented switch, the slider, legend swatches, figures with a label,
+     one filled commit button with its figure, ghost buttons and key caps. SitePicker binds it; the map
+     itself (TileMapView) is added into map-host. -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <Style src="SitePicker.uss" />
+    <ui:VisualElement name="picker" class="picker">
+        <ui:VisualElement name="window" class="picker-window">
+            <ui:VisualElement class="picker-head">
+                <ui:Label class="picker-title" text="New Mountain" />
+                <ui:VisualElement class="grow" picking-mode="Ignore" />
+                <ui:Button name="close" class="picker-close" text="✕" tooltip="Close without downloading (Esc)" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="picker-row picker-search">
+                <ui:Label class="picker-key" text="Search" />
+                <ui:TextField name="search" class="picker-field grow" />
+                <ui:Label class="kbd mono" text="Enter" />
+                <ui:Label class="picker-hint" text="to search" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="map-frame" class="map-frame">
+                <ui:VisualElement name="map-host" class="map-host" />
+                <ui:VisualElement class="map-strip" picking-mode="Ignore">
+                    <ui:Label name="map-hint" class="strip" text="Click the map, or press Enter, to place your square" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:VisualElement class="map-bar map-bar--top" picking-mode="Ignore">
+                    <ui:VisualElement class="seg">
+                        <ui:Button name="base-topo" class="seg__item seg__item--first seg__item--on" text="Topo" />
+                        <ui:Button name="base-imagery" class="seg__item" text="Imagery" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement class="map-bar map-bar--bottom" picking-mode="Ignore">
+                    <ui:VisualElement name="legend" class="legend">
+                        <ui:Button name="coverage-toggle" class="legend-toggle legend-toggle--on" text="Terrain data" tooltip="Show or hide where each kind of terrain data exists" />
+                        <ui:VisualElement name="legend-items" class="legend-items" picking-mode="Ignore">
+                            <ui:VisualElement class="swatch swatch--s1m" /><ui:Label name="legend-s1m" class="legend-label" text="1 m S1M" />
+                            <ui:VisualElement class="swatch swatch--lidar" /><ui:Label name="legend-lidar" class="legend-label" text="1 m lidar" />
+                            <ui:VisualElement class="swatch swatch--three" /><ui:Label name="legend-three" class="legend-label" text="~3 m" />
+                            <ui:VisualElement class="swatch swatch--ten" /><ui:Label name="legend-ten" class="legend-label" text="~10 m" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:VisualElement class="grow" picking-mode="Ignore" />
+                    <ui:Label name="attribution" class="attribution" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:VisualElement name="offline" class="offline hidden">
+                    <ui:Label class="offline-title" text="No connection" />
+                    <ui:Label class="offline-text" text="Choosing a new site needs the internet, for the map and the search. Your downloaded mountains still open offline." />
+                    <ui:Button name="retry" class="ghost" text="Retry" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <ui:VisualElement class="picker-row">
+                <ui:Label class="picker-key" text="Size" />
+                <ui:Label name="size-min" class="picker-end mono" text="2 km" />
+                <ui:Slider name="size" class="picker-slider grow" low-value="2" high-value="5" value="4" />
+                <ui:Label name="size-max" class="picker-end mono" text="5 km" />
+                <ui:Label name="size-value" class="picker-figure mono" text="4.0 km" />
+            </ui:VisualElement>
+            <ui:VisualElement class="picker-row">
+                <ui:Label class="picker-key" text="Name" />
+                <ui:TextField name="name" class="picker-field grow" max-length="60" />
+                <ui:Label name="name-hint" class="picker-hint picker-hint--fixed" text="suggested" />
+            </ui:VisualElement>
+
+            <ui:VisualElement name="estimate" class="picker-row estimate">
+                <ui:Label name="estimate-empty" class="estimate__empty" text="Place the square to see the expected terrain quality and download size." />
+                <ui:VisualElement name="estimate-figs" class="estimate__figs hidden">
+                    <ui:VisualElement class="fig">
+                        <ui:Label class="fig__lab" text="Terrain quality" />
+                        <ui:VisualElement class="fig__row">
+                            <ui:Label name="est-score" class="fig__val mono" />
+                            <ui:Label name="est-word" class="fig__word" />
+                        </ui:VisualElement>
+                    </ui:VisualElement>
+                    <ui:VisualElement class="fig fig--sep grow">
+                        <ui:Label class="fig__lab" text="Sources" />
+                        <ui:Label name="est-mix" class="fig__text" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="fig fig--sep">
+                        <ui:Label class="fig__lab" text="Download" />
+                        <ui:Label name="est-size" class="fig__text" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:Label name="est-warning" class="estimate__warning" />
+
+            <ui:VisualElement class="picker-row picker-foot">
+                <ui:Label name="note" class="picker-note grow" />
+                <ui:Button name="cancel" class="ghost" text="Cancel" />
+                <ui:Button name="download" class="go">
+                    <ui:Label class="go__label" text="Download" picking-mode="Ignore" />
+                    <ui:Label name="download-size" class="go__fig mono" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+
+            <!-- Last, so the results float over the map (absolute, drawn after it) instead of pushing the window taller. -->
+            <ui:VisualElement name="results" class="picker-results hidden">
+                <ui:Label name="search-message" class="picker-results__message" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
