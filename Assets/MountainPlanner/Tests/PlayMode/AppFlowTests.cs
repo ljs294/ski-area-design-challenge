@@ -56,6 +56,23 @@ namespace MountainPlanner.Tests
             if (_root != null && Directory.Exists(_root)) Directory.Delete(_root, true);
         }
 
+        /// <summary>
+        /// Leaves no viewer scene behind: its sun, sky and lighting would change what later PlayMode tests render
+        /// (the map-layer test's brightness checks failed after this one until it cleaned up).
+        /// </summary>
+        [UnityTearDown]
+        public IEnumerator UnloadTheViewer()
+        {
+            if (AppFlow.Instance != null) Object.Destroy(AppFlow.Instance.gameObject);
+            MountainViewer.TitleMode = false;
+            MountainViewer.RequestedPackage = null;
+            var viewer = SceneManager.GetSceneByPath(ViewerScene);
+            if (!viewer.IsValid() || !viewer.isLoaded) yield break;
+            SceneManager.SetActiveScene(SceneManager.CreateScene("AppFlowTests empty"));
+            yield return SceneManager.UnloadSceneAsync(viewer);
+            yield return Resources.UnloadUnusedAssets();
+        }
+
         static IEnumerator WaitForMountain(float seconds)
         {
             float until = Time.realtimeSinceStartup + seconds;

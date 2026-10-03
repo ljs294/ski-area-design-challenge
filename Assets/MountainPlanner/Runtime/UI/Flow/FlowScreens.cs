@@ -243,7 +243,7 @@ namespace MountainPlanner.UI.Flow
         static VisualElement Score(string label, int score)
         {
             var band = QualityBands.Of(score);
-            var l = Text($"{label} {score.ToString(CultureInfo.InvariantCulture)} · {QualityBands.Word(band)}", "lib-score", "mono");
+            var l = Text($"{label} {score.ToString(CultureInfo.InvariantCulture)} · {QualityBands.Word(band)}", "lib-score");
             l.AddToClassList("lib-score--" + QualityBands.Word(band).ToLowerInvariant());
             return l;
         }

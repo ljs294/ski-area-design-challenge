@@ -45,7 +45,7 @@
             <ui:VisualElement class="panel library-panel">
                 <ui:VisualElement class="panel-head">
                     <ui:Label text="My Resorts" class="panel-title" />
-                    <ui:Label name="library-summary" text="" class="panel-meta mono" />
+                    <ui:Label name="library-summary" text="" class="panel-meta" />
                     <ui:VisualElement class="spacer" />
                     <ui:Button name="library-new" text="New Resort" class="btn btn--go" />
                     <ui:Button name="library-close" text="✕" class="btn btn--icon" tooltip="Back (Esc)" />
@@ -103,7 +103,7 @@
                 <ui:Label name="dl-percent" text="0%" class="mono strong" />
                 <ui:Label name="dl-left" text="" class="mono muted" />
             </ui:VisualElement>
-            <ui:Label name="dl-detail" text="" class="dl-detail mono" />
+            <ui:Label name="dl-detail" text="" class="dl-detail" />
             <ui:Label name="dl-transfer" text="" class="mono muted" />
             <ui:VisualElement name="dl-actions" class="panel-foot">
                 <ui:VisualElement class="spacer" />

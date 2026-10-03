@@ -1,6 +1,6 @@
 /* Task 14 screens in the Trailhead direction (game-ui-direction.md UI-6): solid warm-graphite panels with
    hairline rules; trail-rated signs on cedar posts for the title. Tokens from prototypes/ui-layout.html (dark).
-   Overpass / Overpass Mono arrive with task 13's font commit; until then the default font stands in. */
+   Overpass for words, Overpass Mono for figures (task 13's fonts; the middle dot falls back to the default font). */
 
 .flow {
     --panel: rgb(28, 25, 22);   /* solid: translucent panels read as glass in linear colour */
@@ -34,13 +34,14 @@
     left: 0; top: 0; right: 0; bottom: 0;
     color: var(--text);
     font-size: 14px;
+    -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/Overpass-SDF.asset");
 }
 
 .hidden { display: none; }
 .spacer { flex-grow: 1; }
 .muted { color: var(--soft); }
 .strong { color: var(--strong); -unity-font-style: bold; }
-.mono { /* Overpass Mono once it lands: -unity-font-definition */ }
+.mono { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); }
 .error { color: var(--neg); }
 
 /* ---------- S1 title: the signpost ---------- */
