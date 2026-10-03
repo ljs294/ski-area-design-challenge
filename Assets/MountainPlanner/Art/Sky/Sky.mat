@@ -25,12 +25,12 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _DiscCos: 0.99992
+    - _DiscCos: 0.9999254
     - _Stars: 0
     m_Colors:
-    - _Below: {r: 0.76, g: 0.82, b: 0.86, a: 1}
-    - _Horizon: {r: 0.86, g: 0.92, b: 0.96999997, a: 1}
-    - _SunColor: {r: 1, g: 0.96999997, b: 0.92, a: 1}
-    - _Zenith: {r: 0.36999997, g: 0.61, b: 0.8399999, a: 1}
+    - _Below: {r: 0.7176471, g: 0.7764706, b: 0.827451, a: 1}
+    - _Horizon: {r: 0.8627451, g: 0.92156863, b: 0.96862745, a: 1}
+    - _SunColor: {r: 1, g: 0.9647059, b: 0.91764706, a: 1}
+    - _Zenith: {r: 0.26520002, g: 0.5058275, b: 0.80809414, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

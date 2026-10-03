@@ -1,0 +1,235 @@
+/* Task 14 screens in the Trailhead direction (game-ui-direction.md UI-6): solid warm-graphite panels with
+   hairline rules; trail-rated signs on cedar posts for the title. Tokens from prototypes/ui-layout.html (dark).
+   Overpass for words, Overpass Mono for figures (task 13's fonts; the middle dot falls back to the default font). */
+
+.flow {
+    --panel: rgb(28, 25, 22);   /* solid: translucent panels read as glass in linear colour */
+    --knock: #1c1916;
+    --hair: #3b3632;
+    --row: #36312c;
+    --text: #efe9df;
+    --strong: #ffffff;
+    --head: #e6dfd4;
+    --muted: #cfc7bb;
+    --soft: #a39b90;
+    --dim: #8f877c;
+    --hover: #34302b;
+    --chip: #3b3631;
+    --pos: #8fcf8a;
+    --neg: #ff7a66;
+    --warn: #f0b43c;
+    --go: #1a6b3c;
+    --go-hover: #1f7d47;
+    --danger: #8e2b1f;
+    --danger-hover: #a3342a;
+    --scrim: rgba(12, 10, 8, 0.62);
+    --sign-green: #1a6b3c;
+    --sign-blue: #22558f;
+    --sign-black: #1f1c19;
+    --sign-face-text: #fbf8f2;
+    --cedar: #93643e;
+    --cedar-dark: #5a3a22;
+
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    color: var(--text);
+    font-size: 14px;
+    -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/Overpass-SDF.asset");
+}
+
+.hidden { display: none; }
+.spacer { flex-grow: 1; }
+.muted { color: var(--soft); }
+.strong { color: var(--strong); -unity-font-style: bold; }
+.mono { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); }
+.error { color: var(--neg); }
+
+/* ---------- S1 title: the signpost, at the left and centred vertically ---------- */
+.title { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.signpost {
+    position: absolute; left: 96px; top: 50%; width: 340px;
+    translate: 0 -50%;
+}
+/* Posts run from behind the name plate down past the bottom of the screen. */
+.post {
+    position: absolute; top: 18px; bottom: -2000px; width: 18px;
+    background-color: var(--cedar);
+    border-left-width: 4px; border-right-width: 4px;
+    border-left-color: var(--cedar-dark); border-right-color: #7e5434;
+}
+.post--left { left: 44px; }
+.post--right { left: 270px; }
+
+.sign {
+    flex-direction: row; align-items: center;
+    margin: 0 0 18px 0; padding: 12px 16px 12px 22px;
+    min-height: 58px;
+    border-width: 1px; border-color: var(--sign-face-text); border-radius: 2px;
+    color: var(--sign-face-text);
+    font-size: 19px; -unity-font-style: bold;
+    -unity-text-align: middle-left;
+    transition-property: translate; transition-duration: 0.12s;
+}
+.sign:hover { translate: 4px 0; }
+.sign:focus { border-width: 2px; }
+.sign--green { background-color: var(--sign-green); }
+.sign--blue { background-color: var(--sign-blue); }
+.sign--black { background-color: var(--sign-black); }
+#title-manage { margin-bottom: 0; }
+/* The name plate: plain sign white with dark letters, like the brand board plates. */
+.sign--plate { background-color: #fbf8f2; border-width: 2px; border-color: #1f1c19; }
+.sign--name { margin-bottom: 26px; min-height: 0; padding: 12px 14px; justify-content: center; }
+.sign-name-text { font-size: 16px; letter-spacing: 1px; -unity-font-style: bold; color: #1f1c19; -unity-text-align: middle-center; }
+.sign-words { flex-grow: 1; margin-left: 14px; }
+.sign-text { font-size: 19px; -unity-font-style: bold; color: var(--sign-face-text); padding: 0; margin: 0; }
+.sign-sub { font-size: 12px; -unity-font-style: normal; color: var(--sign-face-text); opacity: 0.85; padding: 0; margin: 2px 0 0 0; }
+.sign-arrow { font-size: 24px; color: var(--sign-face-text); -unity-font-style: bold; }
+
+/* Trail-rating symbols: white on the sign face; double black is two diamonds. */
+.sym { width: 18px; height: 18px; background-color: var(--sign-face-text); flex-shrink: 0; }
+.sym--circle { border-radius: 9px; }
+.sym--square { width: 16px; height: 16px; }
+.sym--diamond { width: 14px; height: 14px; rotate: 45deg; margin: 2px; }
+.sym-pair { flex-direction: row; }
+.sym-pair .sym--diamond { margin: 2px 4px 2px 2px; }
+
+/* Credits, Settings, Quit: small white plates in the bottom-right corner. */
+.title-corner { position: absolute; right: 24px; bottom: 24px; flex-direction: row; }
+.plate {
+    margin: 0 0 0 10px; padding: 6px 16px;
+    background-color: #fbf8f2; color: #1f1c19;
+    border-width: 2px; border-color: #1f1c19; border-radius: 2px;
+    font-size: 14px; -unity-font-style: bold;
+}
+.plate:hover { background-color: #ffffff; }
+
+/* ---------- Panels ---------- */
+.panel {
+    background-color: var(--panel);
+    border-width: 1px; border-color: var(--hair); border-radius: 6px;
+}
+.panel-head {
+    flex-direction: row; align-items: center;
+    min-height: 44px; padding: 0 8px 0 16px;
+    border-bottom-width: 1px; border-bottom-color: var(--hair);
+}
+.panel-title { font-size: 15px; -unity-font-style: bold; color: var(--head); }
+.panel-meta { margin-left: 12px; color: var(--soft); font-size: 13px; }
+.panel-body { padding: 12px 16px; }
+.panel-foot {
+    flex-direction: row; align-items: center;
+    padding: 10px 12px 10px 16px;
+    border-top-width: 1px; border-top-color: var(--hair);
+}
+
+.btn {
+    margin: 0 0 0 8px; padding: 6px 14px; min-height: 32px;
+    border-width: 1px; border-color: var(--hair); border-radius: 3px;
+    background-color: var(--chip); color: var(--text);
+    font-size: 14px; -unity-font-style: bold;
+}
+.btn:hover { background-color: var(--hover); }
+.btn--go { background-color: var(--go); border-color: var(--go); color: var(--strong); }
+.btn--go:hover { background-color: var(--go-hover); }
+.btn--danger { background-color: var(--danger); border-color: var(--danger); color: var(--strong); }
+.btn--danger:hover { background-color: var(--danger-hover); }
+.btn--ghost { background-color: rgba(0, 0, 0, 0); }
+.btn--icon { width: 32px; padding: 0; background-color: rgba(0, 0, 0, 0); border-width: 0; font-size: 16px; }
+.btn:disabled { opacity: 0.45; }
+
+.modal {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    background-color: var(--scrim);
+    align-items: center; justify-content: center;
+}
+
+/* ---------- S2 My Resorts ---------- */
+.library {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    background-color: var(--scrim);
+    padding: 64px 96px;
+}
+.library-panel { flex-grow: 0; flex-shrink: 1; max-height: 100%; }
+.library-sort { flex-direction: row; align-items: center; padding: 8px 16px; border-bottom-width: 1px; border-bottom-color: var(--hair); }
+.library-sort .muted { margin-right: 8px; }
+.seg {
+    margin: 0 4px 0 0; padding: 4px 10px; border-width: 1px; border-color: var(--hair); border-radius: 3px;
+    background-color: rgba(0, 0, 0, 0); color: var(--muted); font-size: 13px;
+}
+.seg--on { background-color: var(--chip); color: var(--strong); border-color: var(--soft); }
+.library-rows { flex-grow: 0; flex-shrink: 1; min-height: 48px; }
+.library-empty { padding: 32px 16px; color: var(--muted); font-size: 15px; }
+
+.lib-row {
+    flex-direction: row; align-items: center;
+    min-height: 48px; padding: 0 16px;
+    border-bottom-width: 1px; border-bottom-color: var(--row);
+}
+.lib-row:hover { background-color: var(--hover); }
+.lib-row--selected { background-color: var(--chip); }
+.lib-name { width: 220px; font-size: 15px; -unity-font-style: bold; color: var(--strong); }
+.lib-cell { width: 150px; color: var(--muted); font-size: 13px; }
+.lib-cell--narrow { width: 80px; }
+.lib-score { width: 180px; font-size: 13px; }
+.lib-score--excellent, .lib-score--good { color: var(--pos); }
+.lib-score--fair { color: var(--warn); }
+.lib-score--limited { color: var(--neg); }
+.lib-paused { flex-grow: 1; color: var(--warn); font-size: 13px; }
+.lib-actions { flex-direction: row; }
+
+/* ---------- S4 download card and pill ---------- */
+.download {
+    position: absolute; left: 24px; bottom: 76px; width: 470px;
+}
+.dl-stages { padding: 10px 16px 4px 16px; }
+.dl-stage { flex-direction: row; align-items: center; min-height: 22px; }
+.dl-tick { width: 20px; color: var(--soft); -unity-font-style: bold; }
+.dl-stage-name { color: var(--dim); font-size: 13px; }
+.dl-stage--done .dl-tick { color: var(--pos); }
+.dl-stage--done .dl-stage-name { color: var(--muted); }
+.dl-stage--current .dl-tick { color: var(--strong); }
+.dl-stage--current .dl-stage-name { color: var(--strong); -unity-font-style: bold; }
+.dl-bar { height: 8px; margin: 10px 16px 6px 16px; background-color: var(--knock); border-width: 1px; border-color: var(--hair); border-radius: 2px; }
+.dl-bar-fill { height: 100%; width: 0; background-color: var(--go-hover); }
+.dl-row { flex-direction: row; justify-content: space-between; padding: 0 16px; }
+.dl-detail { padding: 6px 16px 2px 16px; color: var(--text); font-size: 13px; white-space: normal; }
+.download > .mono.muted { padding: 0 16px 8px 16px; font-size: 12px; }
+
+.pill {
+    position: absolute; left: 24px; bottom: 24px;   /* bottom left: the title keeps bottom right for its plates */
+    padding: 8px 14px; border-width: 1px; border-color: var(--hair); border-radius: 3px;
+    background-color: var(--panel); color: var(--text); font-size: 14px; -unity-font-style: bold;
+}
+.pill:hover { background-color: var(--hover); }
+.pill--game { bottom: auto; top: 16px; right: auto; left: 50%; translate: -50% 0; }
+
+/* ---------- S5 quality card ---------- */
+.quality-panel { width: 520px; }
+.qc-line { padding: 10px 0; border-bottom-width: 1px; border-bottom-color: var(--row); }
+.qc-head { flex-direction: row; align-items: center; }
+.qc-label { width: 90px; font-size: 15px; -unity-font-style: bold; color: var(--head); }
+.qc-score { width: 100px; font-size: 18px; -unity-font-style: bold; color: var(--strong); }
+.qc-word { font-size: 15px; -unity-font-style: bold; }
+.qc-word--excellent, .qc-word--good { color: var(--pos); }
+.qc-word--fair { color: var(--warn); }
+.qc-word--limited { color: var(--neg); }
+.qc-caveat { color: var(--warn); font-size: 13px; margin-top: 4px; white-space: normal; }
+.qc-detail { color: var(--muted); font-size: 13px; margin-top: 4px; white-space: normal; }
+
+/* ---------- S8 settings and S9 credits ---------- */
+.settings-panel { width: 480px; }
+.settings-row { flex-direction: row; align-items: center; }
+.settings-label { width: 80px; color: var(--head); -unity-font-style: bold; }
+.settings-note { margin-top: 12px; white-space: normal; font-size: 13px; }
+.credits-panel { width: 620px; max-height: 80%; }
+.credits-body { flex-shrink: 1; }
+.credits-head { color: var(--head); -unity-font-style: bold; margin: 10px 0 4px 0; }
+.credits-line { color: var(--muted); font-size: 13px; white-space: normal; margin-bottom: 4px; }
+
+/* ---------- S11 confirm and toast ---------- */
+.confirm-panel { width: 420px; }
+.confirm-text { white-space: normal; font-size: 15px; color: var(--text); }
+.toast {
+    position: absolute; left: 50%; bottom: 120px; translate: -50% 0;
+    padding: 8px 14px; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 3px;
+}

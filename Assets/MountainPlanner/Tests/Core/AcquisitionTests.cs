@@ -329,6 +329,20 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void EverySnapshotListsTheDeclaredStagesInOrder()
+        {
+            var tracker = new ProgressTracker(null, new TransferMeter());
+            tracker.DefineStage("Terrain", 1);
+            tracker.DefineStage("Forest", 1);
+            tracker.DefineStage("Building", 1);
+            Assert.That(tracker.Snapshot().Stages, Is.EqualTo(new[] { "Terrain", "Forest", "Building" }), "before any stage begins");
+            tracker.BeginStage("Forest");
+            Assert.That(tracker.Snapshot().Stages, Is.EqualTo(new[] { "Terrain", "Forest", "Building" }));
+            tracker.Finish();
+            Assert.That(tracker.Snapshot(finished: true).Stages.Count, Is.EqualTo(3));
+        }
+
+        [Test]
         public void OverallProgressFollowsStageWeights()
         {
             var tracker = new ProgressTracker(null, new TransferMeter());

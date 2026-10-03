@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Acquisition.IO;
@@ -19,6 +20,8 @@ namespace MountainPlanner.Acquisition
         public int StageIndex { get; set; }
         public int StageCount { get; set; }
         public string Stage { get; set; } = "";
+        /// <summary>Every stage the job declared, in order, so a screen can list them all from the first snapshot.</summary>
+        public IReadOnlyList<string> Stages { get; set; } = Array.Empty<string>();
         public int Step { get; set; }
         public int StepCount { get; set; }
         /// <summary>The current step's own progress, 0–1.</summary>
@@ -169,6 +172,7 @@ namespace MountainPlanner.Acquisition
                 return new AcquisitionProgress
                 {
                     StageIndex = Math.Min(_stage + 1, _stages.Count), StageCount = _stages.Count, Stage = stage,
+                    Stages = _stages.Select(s => s.Name).ToArray(),
                     Step = _step, StepCount = _stepCount, StepFraction = stepFraction, Overall = overall,
                     Bytes = bytes, DownloadedBytes = _meter.DownloadedBytes, BytesPerSecond = rate,
                     SecondsRemaining = remaining, Detail = detail, Finished = finished,

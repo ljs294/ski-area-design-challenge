@@ -1,0 +1,177 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+    <!-- Task 14: S1 title, S2 My Resorts, S4 download card and pill, S5 quality card, and dialogs (0.4 §4).
+         FlowScreens (UI) finds elements by name; AppFlow (App) decides which screen shows. -->
+    <ui:Style src="Flow.uss" />
+    <ui:VisualElement name="flow" class="flow" picking-mode="Ignore">
+
+        <!-- S1 Title: trail signs on cedar posts at the left, centred vertically over the live demo mountain; Credits, Settings and Quit in the corner. -->
+        <ui:VisualElement name="title" class="title hidden" picking-mode="Ignore">
+            <ui:VisualElement class="signpost">
+                <ui:VisualElement class="post post--left" picking-mode="Ignore" />
+                <ui:VisualElement class="post post--right" picking-mode="Ignore" />
+                <ui:VisualElement class="sign sign--plate sign--name" picking-mode="Ignore">
+                    <ui:Label text="SKI AREA DESIGN CHALLENGE" class="sign-name-text" />
+                </ui:VisualElement>
+                <ui:Button name="title-continue" class="sign sign--green">
+                    <ui:VisualElement class="sym sym--circle" picking-mode="Ignore" />
+                    <ui:VisualElement class="sign-words" picking-mode="Ignore">
+                        <ui:Label name="title-continue-label" text="Continue" class="sign-text" />
+                        <ui:Label name="title-continue-sub" text="" class="sign-sub" />
+                    </ui:VisualElement>
+                    <ui:Label text="›" class="sign-arrow" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="title-new" class="sign sign--blue">
+                    <ui:VisualElement class="sym sym--square" picking-mode="Ignore" />
+                    <ui:VisualElement class="sign-words" picking-mode="Ignore">
+                        <ui:Label text="New Area" class="sign-text" />
+                    </ui:VisualElement>
+                    <ui:Label text="›" class="sign-arrow" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="title-load" class="sign sign--black">
+                    <ui:VisualElement class="sym sym--diamond" picking-mode="Ignore" />
+                    <ui:VisualElement class="sign-words" picking-mode="Ignore">
+                        <ui:Label text="Load Area" class="sign-text" />
+                    </ui:VisualElement>
+                    <ui:Label text="›" class="sign-arrow" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="title-manage" class="sign sign--black">
+                    <ui:VisualElement class="sym-pair" picking-mode="Ignore">
+                        <ui:VisualElement class="sym sym--diamond" />
+                        <ui:VisualElement class="sym sym--diamond" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="sign-words" picking-mode="Ignore">
+                        <ui:Label text="Manage Areas" class="sign-text" />
+                    </ui:VisualElement>
+                    <ui:Label text="›" class="sign-arrow" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="title-corner">
+                <ui:Button name="title-credits" text="Credits" class="plate" />
+                <ui:Button name="title-settings" text="Settings" class="plate" />
+                <ui:Button name="title-quit" text="Quit" class="plate" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- S2 My Resorts. -->
+        <ui:VisualElement name="library" class="library hidden">
+            <ui:VisualElement class="panel library-panel">
+                <ui:VisualElement class="panel-head">
+                    <ui:Label name="library-title" text="Load Area" class="panel-title" />
+                    <ui:Label name="library-summary" text="" class="panel-meta" />
+                    <ui:VisualElement class="spacer" />
+                    <ui:Button name="library-new" text="New Area" class="btn btn--go" />
+                    <ui:Button name="library-close" text="✕" class="btn btn--icon" tooltip="Back (Esc)" />
+                </ui:VisualElement>
+                <ui:VisualElement class="library-sort">
+                    <ui:Label text="Sort" class="muted" />
+                    <ui:Button name="sort-opened" text="Last opened" class="seg" />
+                    <ui:Button name="sort-name" text="Name" class="seg" />
+                    <ui:Button name="sort-quality" text="Quality" class="seg" />
+                </ui:VisualElement>
+                <ui:ScrollView name="library-rows" class="library-rows" />
+                <ui:Label name="library-empty" text="No areas yet. Choose New Area to download one." class="library-empty hidden" />
+                <ui:VisualElement class="panel-foot">
+                    <ui:Label name="library-keys" text="" class="muted" />
+                    <ui:VisualElement class="spacer" />
+                    <ui:Button name="library-folder" text="Open data folder" class="btn btn--ghost" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- S4 download card, docked bottom left. -->
+        <ui:VisualElement name="download" class="panel download hidden">
+            <ui:VisualElement class="panel-head">
+                <ui:Label name="dl-title" text="" class="panel-title" />
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-minimise" text="–" class="btn btn--icon" tooltip="Minimise (Esc)" />
+            </ui:VisualElement>
+            <ui:VisualElement name="dl-stages" class="dl-stages" />
+            <ui:VisualElement class="dl-bar"><ui:VisualElement name="dl-bar-fill" class="dl-bar-fill" /></ui:VisualElement>
+            <ui:VisualElement class="dl-row">
+                <ui:Label name="dl-percent" text="0%" class="mono strong" />
+                <ui:Label name="dl-left" text="" class="mono muted" />
+            </ui:VisualElement>
+            <ui:Label name="dl-detail" text="" class="dl-detail" />
+            <ui:Label name="dl-transfer" text="" class="mono muted" />
+            <ui:VisualElement name="dl-actions" class="panel-foot">
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-cancel" text="Cancel" class="btn btn--ghost" />
+            </ui:VisualElement>
+            <ui:VisualElement name="dl-confirm" class="panel-foot hidden">
+                <ui:Label text="Stop the download?" class="strong" />
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-keep" text="Keep for resuming" class="btn btn--go" />
+                <ui:Button name="dl-discard" text="Discard" class="btn btn--danger" />
+                <ui:Button name="dl-back" text="Back" class="btn btn--ghost" />
+            </ui:VisualElement>
+            <ui:VisualElement name="dl-failed" class="panel-foot hidden">
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-retry" text="Retry" class="btn btn--go" />
+                <ui:Button name="dl-close" text="Close" class="btn btn--ghost" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:Button name="dl-pill" text="" class="pill hidden" tooltip="Show the download" />
+
+        <!-- S5 quality card. -->
+        <ui:VisualElement name="quality" class="modal hidden">
+            <ui:VisualElement class="panel quality-panel">
+                <ui:VisualElement class="panel-head">
+                    <ui:Label name="qc-title" text="" class="panel-title" />
+                </ui:VisualElement>
+                <ui:VisualElement class="panel-body">
+                    <ui:Label name="qc-place" text="" class="mono muted" />
+                    <ui:VisualElement name="qc-lines" />
+                </ui:VisualElement>
+                <ui:VisualElement class="panel-foot">
+                    <ui:Button name="qc-open" text="Open area" class="btn btn--go" />
+                    <ui:Button name="qc-library" text="Load Area" class="btn btn--ghost" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- S8 Settings (iteration 1: units only) and S9 Credits. -->
+        <ui:VisualElement name="settings" class="modal hidden">
+            <ui:VisualElement class="panel settings-panel">
+                <ui:VisualElement class="panel-head">
+                    <ui:Label text="Settings" class="panel-title" />
+                    <ui:VisualElement class="spacer" />
+                    <ui:Button name="settings-close" text="✕" class="btn btn--icon" tooltip="Close (Esc)" />
+                </ui:VisualElement>
+                <ui:VisualElement class="panel-body">
+                    <ui:VisualElement class="settings-row">
+                        <ui:Label text="Units" class="settings-label" />
+                        <ui:Button name="units-imperial" text="Feet and miles" class="seg" />
+                        <ui:Button name="units-metric" text="Metres and km" class="seg" />
+                    </ui:VisualElement>
+                    <ui:Label text="U switches units in the game too. Graphics, audio and controls come with the full Settings window." class="muted settings-note" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="credits" class="modal hidden">
+            <ui:VisualElement class="panel credits-panel">
+                <ui:VisualElement class="panel-head">
+                    <ui:Label text="Credits" class="panel-title" />
+                    <ui:VisualElement class="spacer" />
+                    <ui:Button name="credits-close" text="✕" class="btn btn--icon" tooltip="Close (Esc)" />
+                </ui:VisualElement>
+                <ui:ScrollView name="credits-body" class="panel-body credits-body" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- S11 confirm dialog. -->
+        <ui:VisualElement name="confirm" class="modal hidden">
+            <ui:VisualElement class="panel confirm-panel">
+                <ui:VisualElement class="panel-body">
+                    <ui:Label name="confirm-text" text="" class="confirm-text" />
+                </ui:VisualElement>
+                <ui:VisualElement class="panel-foot">
+                    <ui:VisualElement class="spacer" />
+                    <ui:Button name="confirm-cancel" text="Cancel" class="btn btn--ghost" />
+                    <ui:Button name="confirm-ok" text="Delete" class="btn btn--danger" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:Label name="toast" text="" class="toast hidden" />
+    </ui:VisualElement>
+</ui:UXML>
