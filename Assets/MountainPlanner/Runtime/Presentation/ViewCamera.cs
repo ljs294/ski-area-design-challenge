@@ -48,8 +48,16 @@ namespace MountainPlanner.Presentation
         public float TiltSpeed = 45f;    // degrees per second, R / F
         public float Smoothing = 12f;    // higher is snappier
 
-        /// <summary>Set by the app: true while the pointer is over a UI panel, so the wheel scrolls the panel, not the camera.</summary>
+        /// <summary>
+        /// Set by the viewer: true while the pointer is over a HUD panel. Over it, the wheel scrolls the panel, not
+        /// the camera, and a drag that starts there doesn't move the camera (one that starts on the map keeps going).
+        /// </summary>
         public static System.Func<Vector2, bool> PointerBlocked;
+        /// <summary>
+        /// The same test for the app flow's screens (download card and pill, quality card, dialogs, the site picker),
+        /// which live across scene reloads, so the flow sets it once and the viewer's <see cref="PointerBlocked"/> stays its own.
+        /// </summary>
+        public static System.Func<Vector2, bool> OverlayBlocked;
         /// <summary>
         /// Set by the HUD while the Toolbox tray is open: letter keys belong to the tools then, and the camera
         /// moves with the arrows, Page Up / Page Down, + / − and the mouse only.
@@ -57,6 +65,9 @@ namespace MountainPlanner.Presentation
         public bool LettersToTools;
         /// <summary>False ignores the keyboard and mouse entirely (benchmarks, scripted reviews).</summary>
         public bool InputEnabled = true;
+
+        /// <summary>The right or middle drag in progress started over a panel, so it belongs to the UI until both are up.</summary>
+        bool _dragOnPanel;
 
         public Mode Current { get; private set; } = Mode.Orbit;
         /// <summary>The camera's near plane, as last set (it closes in near the ground).</summary>
@@ -154,12 +165,18 @@ namespace MountainPlanner.Presentation
             if (mouse != null)
             {
                 Vector2 delta = mouse.delta.ReadValue();
-                if (mouse.middleButton.isPressed || (fly && mouse.rightButton.isPressed))
+                Vector2 pointer = mouse.position.ReadValue();
+                bool middle = mouse.middleButton.isPressed, rightDown = mouse.rightButton.isPressed;
+                if (!middle && !rightDown) _dragOnPanel = false;
+                else if (mouse.middleButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame)
+                    _dragOnPanel |= IsPointerBlocked(pointer);
+                if (_dragOnPanel) delta = Vector2.zero;   // the drag belongs to the panel it started on
+                if (middle || (fly && rightDown))
                 {
                     _yawGoal += delta.x * 0.25f;
                     _pitchGoal -= delta.y * 0.25f;   // drag up: orbit lowers the view, free-fly looks up
                 }
-                else if (mouse.rightButton.isPressed)
+                else if (rightDown)
                 {
                     // Drag the ground: the terrain follows the pointer.
                     float scale = Distance * 0.0012f;
@@ -168,7 +185,7 @@ namespace MountainPlanner.Presentation
 
                 // Windows reports 120 per wheel notch; some devices report 1.
                 float scroll = mouse.scroll.ReadValue().y;
-                if (Mathf.Abs(scroll) > 0.01f && !(PointerBlocked?.Invoke(mouse.position.ReadValue()) ?? false))
+                if (Mathf.Abs(scroll) > 0.01f && !IsPointerBlocked(pointer))
                 {
                     float notches = Mathf.Abs(scroll) >= 20f ? scroll / 120f : scroll;
                     if (fly) _eye += forward * notches * speed * 0.15f * boost;
@@ -203,6 +220,10 @@ namespace MountainPlanner.Presentation
             if (letters && keys.rKey.isPressed) _pitchGoal += TiltSpeed * boost * dt * (fly ? -1f : 1f);   // R tilts the view up
             if (letters && keys.fKey.isPressed) _pitchGoal -= TiltSpeed * boost * dt * (fly ? -1f : 1f);
         }
+
+        /// <summary>True when the pointer (screen pixels) is over the HUD or any of the flow's panels.</summary>
+        public static bool IsPointerBlocked(Vector2 screen) =>
+            (PointerBlocked?.Invoke(screen) ?? false) || (OverlayBlocked?.Invoke(screen) ?? false);
 
         void UpdateOrbit(float dt)
         {

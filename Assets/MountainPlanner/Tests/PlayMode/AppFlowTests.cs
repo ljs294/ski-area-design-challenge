@@ -12,6 +12,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 
 namespace MountainPlanner.Tests
@@ -113,6 +114,55 @@ namespace MountainPlanner.Tests
             Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Game));
             Assert.That(RecentResorts.Load(_root).Opened.ContainsKey(row.Entry.PackageId), Is.True, "Continue will reopen it");
             for (int i = 0; i < 5; i++) yield return null;   // a few frames in the game without errors
+        }
+
+        /// <summary>The screen point (pixels, origin bottom-left) at the centre of a flow element.</summary>
+        static Vector2 ScreenCentre(VisualElement e)
+        {
+            var tree = e.panel.visualTree.worldBound;
+            var c = e.worldBound.center;
+            return new Vector2(c.x * Screen.width / tree.width, Screen.height - c.y * Screen.height / tree.height);
+        }
+
+        /// <summary>
+        /// Polish: in the game, the camera ignores the pointer over the flow's download card (and only there),
+        /// and the HUD menu's Exit to title goes back to the signpost over the demo mountain.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator TheCameraIgnoresTheDownloadCardAndExitGoesToTheTitle()
+        {
+            Http.NetworkDisabled = true;
+            if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
+            var flow = AppFlow.Create(_root, new NoDownloads());
+            yield return SceneManager.LoadSceneAsync(ViewerScene);
+            yield return WaitForMountain(120);
+            flow.Controller.Open(_package);
+            yield return null;
+            yield return WaitForMountain(120);
+            Assert.That(flow.Controller.InGame, Is.True);
+
+            var viewer = Object.FindAnyObjectByType<MountainViewer>();
+            var exit = viewer.Hud.Document.rootVisualElement.Q("menu-exit");
+            Assert.That(exit.ClassListContains("hidden"), Is.False, "the in-game menu offers Exit to title");
+
+            flow.Screens.ShowDownloadCard(open: true, active: true, inGame: true);   // as a running download shows it
+            for (int i = 0; i < 3; i++) yield return null;                         // let the panel lay out
+            var card = flow.Screens.Document.rootVisualElement.Q("download");
+            Assert.That(card.worldBound.width, Is.GreaterThan(0), "the card is laid out");
+            Vector2 onCard = ScreenCentre(card);
+            Assert.That(Presentation.ViewCamera.IsPointerBlocked(onCard), Is.True, "over the download card the camera leaves the pointer alone");
+            Assert.That(Presentation.ViewCamera.IsPointerBlocked(new Vector2(Screen.width * 0.6f, Screen.height * 0.5f)), Is.False,
+                "over the open map the camera still takes the pointer");
+            flow.Screens.ShowDownloadCard(open: false, active: false, inGame: true);
+            yield return null;
+            Assert.That(Presentation.ViewCamera.IsPointerBlocked(onCard), Is.False, "a closed card no longer blocks");
+
+            flow.Controller.ExitToTitle();   // what the menu's Exit to title does
+            yield return null;
+            yield return WaitForMountain(120);
+            Assert.That(MountainViewer.TitleMode, Is.True);
+            Assert.That(flow.Controller.InGame, Is.False);
+            Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Title));
         }
     }
 }
