@@ -1,14 +1,15 @@
 using System;
 using System.Collections;
 using System.IO;
+using MountainPlanner.Domain.Geo;
 using UnityEngine;
 
 namespace MountainPlanner.App.Flow
 {
     /// <summary>
     /// -flowcapture &lt;folder&gt;: walks the whole flow unattended and saves a picture of each screen, for review
-    /// without a person at the keyboard: title, My Resorts, the stand-in picker, the download card, the pill,
-    /// the quality card after a real download (the stand-in picker's default site), then the opened mountain.
+    /// without a person at the keyboard: title, My Resorts, the site picker, the download card, the pill, the
+    /// quality card after a real download (Crystal Mountain 2 km, 3DEP fallback terrain), then the opened mountain.
     /// Use it with -data on a scratch library.
     /// </summary>
     public sealed partial class AppFlow
@@ -31,11 +32,14 @@ namespace MountainPlanner.App.Flow
             yield return Wait(0.5f);
             yield return Shot(folder, "s2-library");
 
+            var crystal = new GeoPoint(46.93, -121.49);
             Controller.NewResort();
             yield return Wait(0.5f);
-            yield return Shot(folder, "s3-picker-standin");
+            Picker?.PlaceAt(crystal);
+            yield return Wait(6);   // map tiles, coverage and the estimate come in
+            yield return Shot(folder, "s3-picker");
 
-            OnPickerSubmitted("Crystal Mountain", 46.93, -121.49, 2);
+            OnSiteChosen(PickedSite.Create("Crystal Mountain", Albers6350.Forward(crystal), 2, false, default));
             yield return Wait(6);
             yield return Shot(folder, "s4-download");
             Controller.MinimiseDownload();

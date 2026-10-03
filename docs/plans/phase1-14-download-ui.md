@@ -170,7 +170,7 @@ Before merging:
 
 - **Built:**
   - S1, S2, S4 (with the pill) and S5;
-  - the App flow, with the stand-in picker;
+  - the App flow, with task 13's site picker (S3) for New Resort;
   - `-data`, `-offline` and `-flowcapture`.
 - **Tests:**
   - Core 208 passed;
@@ -178,7 +178,5 @@ Before merging:
   - PlayMode passed, including `AppFlowTests`, which opens a mountain from the library with the network off.
 - **End to end in the player** (scratch library, `-flowcapture`): title → My Resorts → New Resort → a real Crystal Mountain 2 km download (100% 3DEP 10 m fallback) → quality card (Terrain 30 Limited, Flora 87 Good) → opened.
 - **Left for later:**
-  - wire task 13's `SitePicker` in place of the stand-in once its branch lands;
-  - fonts from task 13;
   - an *Exit to title* entry in the in-game menu (the HUD is task 12's);
   - keeping clicks on the download card from reaching the camera in the game (`ViewCamera.PointerBlocked` is set by the viewer).

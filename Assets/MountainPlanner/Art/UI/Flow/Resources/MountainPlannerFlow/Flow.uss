@@ -171,10 +171,6 @@
 .lib-paused { flex-grow: 1; color: var(--warn); font-size: 13px; }
 .lib-actions { flex-direction: row; }
 
-/* ---------- Stand-in picker ---------- */
-.picker-panel { width: 460px; }
-.picker-panel TextField { margin: 0 0 8px 0; }
-
 /* ---------- S4 download card and pill ---------- */
 .download {
     position: absolute; left: 24px; bottom: 76px; width: 470px;

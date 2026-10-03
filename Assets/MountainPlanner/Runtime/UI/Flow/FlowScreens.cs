@@ -9,8 +9,8 @@ using UnityEngine.UIElements;
 namespace MountainPlanner.UI.Flow
 {
     /// <summary>
-    /// Task 14's screens on one UI Toolkit document (Flow.uxml): S1 title, S2 My Resorts, the stand-in
-    /// picker, the S4 download card and pill, the S5 quality card and a confirm dialog. Like the HUD, it only
+    /// Task 14's screens on one UI Toolkit document (Flow.uxml): S1 title, S2 My Resorts, the S4
+    /// download card and pill, the S5 quality card and a confirm dialog. Like the HUD, it only
     /// shows state and raises events; AppFlow decides what happens. The download card updates text in
     /// place each snapshot and rebuilds its stage rows only when the stage list changes.
     /// </summary>
@@ -22,18 +22,15 @@ namespace MountainPlanner.UI.Flow
         public event Action LibraryClosed, DataFolderChosen;
         public event Action<LibraryRow> OpenChosen, ResumeChosen, DiscardChosen, DeleteConfirmed;
         public event Action<LibrarySort> SortChosen;
-        /// <summary>The stand-in picker: name, latitude, longitude, size in km.</summary>
-        public event Action<string, double, double, double> PickerSubmitted;
-        public event Action PickerCancelled;
         public event Action MinimiseChosen, RestoreChosen, RetryChosen, CloseChosen;
         /// <summary>Cancel confirmed: true keeps the partial download for resuming.</summary>
         public event Action<bool> CancelConfirmed;
         public event Action QualityOpenChosen, QualityLibraryChosen;
 
-        VisualElement _root, _title, _library, _picker, _download, _quality, _confirm, _stages, _barFill, _qcLines;
+        VisualElement _root, _title, _library, _download, _quality, _confirm, _stages, _barFill, _qcLines;
         VisualElement _dlActions, _dlConfirm, _dlFailed;
         ScrollView _rows;
-        Label _continueLabel, _continueSub, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _pickerError, _toast;
+        Label _continueLabel, _continueSub, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast;
         Button _continue, _pill, _sortOpened, _sortName, _sortQuality;
         readonly List<VisualElement> _rowElements = new List<VisualElement>();
         readonly List<LibraryRow> _rowData = new List<LibraryRow>();
@@ -53,7 +50,6 @@ namespace MountainPlanner.UI.Flow
             _root.pickingMode = PickingMode.Ignore;   // only the visible screens take clicks; the game gets the rest
             _title = _root.Q("title");
             _library = _root.Q("library");
-            _picker = _root.Q("picker");
             _download = _root.Q("download");
             _quality = _root.Q("quality");
             _confirm = _root.Q("confirm");
@@ -77,7 +73,6 @@ namespace MountainPlanner.UI.Flow
             _qcTitle = _root.Q<Label>("qc-title");
             _qcPlace = _root.Q<Label>("qc-place");
             _confirmText = _root.Q<Label>("confirm-text");
-            _pickerError = _root.Q<Label>("picker-error");
             _toast = _root.Q<Label>("toast");
             _pill = _root.Q<Button>("dl-pill");
             _sortOpened = _root.Q<Button>("sort-opened");
@@ -94,9 +89,6 @@ namespace MountainPlanner.UI.Flow
             _sortOpened.clicked += () => SortChosen?.Invoke(LibrarySort.LastOpened);
             _sortName.clicked += () => SortChosen?.Invoke(LibrarySort.Name);
             _sortQuality.clicked += () => SortChosen?.Invoke(LibrarySort.Quality);
-            _root.Q<Button>("picker-close").clicked += () => PickerCancelled?.Invoke();
-            _root.Q<Button>("picker-cancel").clicked += () => PickerCancelled?.Invoke();
-            _root.Q<Button>("picker-download").clicked += SubmitPicker;
             _root.Q<Button>("dl-minimise").clicked += () => MinimiseChosen?.Invoke();
             _root.Q<Button>("dl-cancel").clicked += () => ShowCancelConfirm(true);
             _root.Q<Button>("dl-back").clicked += () => ShowCancelConfirm(false);
@@ -127,15 +119,13 @@ namespace MountainPlanner.UI.Flow
 
         // ---------- screens ----------
 
-        /// <summary>Which full screen shows: "title", "library", "picker", "quality", or null for none (the game).</summary>
+        /// <summary>Which full screen shows: "title", "library", "quality", or null for none (the game, or the site picker).</summary>
         public void ShowScreen(string name)
         {
             Show(_title, name == "title");
             Show(_library, name == "library");
-            Show(_picker, name == "picker");
             Show(_quality, name == "quality");
             if (name == "title") _continue.Focus();
-            if (name == "picker") _root.Q<TextField>("picker-name").Focus();
             if (name == "quality") _root.Q<Button>("qc-open").Focus();
         }
 
@@ -147,8 +137,6 @@ namespace MountainPlanner.UI.Flow
             _continueSub.text = sub ?? "";
             Show(_continueSub, !string.IsNullOrEmpty(sub));
         }
-
-        public void SetPickerError(string message) => _pickerError.text = message ?? "";
 
         public void Toast(string message, float seconds = 3)
         {
@@ -351,18 +339,6 @@ namespace MountainPlanner.UI.Flow
         }
 
         // ---------- helpers ----------
-
-        void SubmitPicker()
-        {
-            string name = _root.Q<TextField>("picker-name").value?.Trim() ?? "";
-            bool ok = double.TryParse(_root.Q<TextField>("picker-lat").value, NumberStyles.Float, CultureInfo.InvariantCulture, out double lat)
-                    & double.TryParse(_root.Q<TextField>("picker-lon").value, NumberStyles.Float, CultureInfo.InvariantCulture, out double lon)
-                    & double.TryParse(_root.Q<TextField>("picker-km").value, NumberStyles.Float, CultureInfo.InvariantCulture, out double km);
-            if (name.Length == 0) { SetPickerError("Give the mountain a name."); return; }
-            if (!ok) { SetPickerError("Latitude, longitude and size must be numbers, such as 46.935, -121.474 and 2."); return; }
-            SetPickerError("");
-            PickerSubmitted?.Invoke(name, lat, lon, km);
-        }
 
         static void Show(VisualElement e, bool show) => e?.EnableInClassList("hidden", !show);
 

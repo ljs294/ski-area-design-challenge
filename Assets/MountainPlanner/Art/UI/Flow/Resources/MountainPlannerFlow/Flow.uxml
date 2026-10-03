@@ -66,30 +66,6 @@
             </ui:VisualElement>
         </ui:VisualElement>
 
-        <!-- Stand-in picker until task 13's SitePicker lands: a name, a centre and a size. -->
-        <ui:VisualElement name="picker" class="modal hidden">
-            <ui:VisualElement class="panel picker-panel">
-                <ui:VisualElement class="panel-head">
-                    <ui:Label text="New Resort" class="panel-title" />
-                    <ui:VisualElement class="spacer" />
-                    <ui:Button name="picker-close" text="✕" class="btn btn--icon" tooltip="Cancel (Esc)" />
-                </ui:VisualElement>
-                <ui:VisualElement class="panel-body">
-                    <ui:TextField name="picker-name" label="Name" value="Crystal Mountain" />
-                    <ui:TextField name="picker-lat" label="Latitude" value="46.93" />
-                    <ui:TextField name="picker-lon" label="Longitude" value="-121.49" />
-                    <ui:TextField name="picker-km" label="Size, km (2–5)" value="2" />
-                    <ui:Label name="picker-error" text="" class="error" />
-                    <ui:Label text="A stand-in for the site picker (task 13)." class="muted" />
-                </ui:VisualElement>
-                <ui:VisualElement class="panel-foot">
-                    <ui:VisualElement class="spacer" />
-                    <ui:Button name="picker-cancel" text="Cancel" class="btn btn--ghost" />
-                    <ui:Button name="picker-download" text="Download" class="btn btn--go" />
-                </ui:VisualElement>
-            </ui:VisualElement>
-        </ui:VisualElement>
-
         <!-- S4 download card, docked bottom left. -->
         <ui:VisualElement name="download" class="panel download hidden">
             <ui:VisualElement class="panel-head">

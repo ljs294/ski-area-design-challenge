@@ -1,9 +1,11 @@
 using System;
 using System.IO;
 using System.Linq;
+using MountainPlanner.App.Picker;
 using MountainPlanner.Domain.Geo;
 using MountainPlanner.Persistence;
 using MountainPlanner.UI.Flow;
+using MountainPlanner.UI.Picker;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -39,6 +41,8 @@ namespace MountainPlanner.App.Flow
         public FlowController Controller { get; private set; }
         public DownloadService Downloads { get; private set; }
         public FlowScreens Screens { get; private set; }
+        /// <summary>Task 13's site picker (S3), on its own document above the flow screens.</summary>
+        public SitePicker Picker { get; private set; }
 
         MountainViewer _viewer;
         FlowScreen _afterTitle = FlowScreen.Title;
@@ -77,11 +81,34 @@ namespace MountainPlanner.App.Flow
             flow.Screens = screens;
             flow.Downloads = new DownloadService(dataRoot, downloader, () => DownloadService.UtcStamp(DateTime.UtcNow));
             flow.Controller = new FlowController(flow);
+            flow.Picker = CreatePicker(go.transform);
             Instance = flow;
             MountainViewer.TitleMode = true;
             MountainViewer.RequestedPackage = flow.TitleBackground();
             go.SetActive(true);
             return flow;
+        }
+
+        static SitePicker CreatePicker(Transform parent)
+        {
+            var assets = Resources.Load<FlowAssets>(ResourceFolder + "FlowAssets");
+            if (assets == null || assets.PickerTree == null || assets.PickerPanel == null)
+            {
+                Debug.LogError("[AppFlow] The site picker's assets are missing (Resources/MountainPlannerFlow/FlowAssets)");
+                return null;
+            }
+            var go = new GameObject("Site picker");
+            go.SetActive(false);
+            go.transform.SetParent(parent, false);
+            var document = go.AddComponent<UIDocument>();
+            document.panelSettings = assets.PickerPanel;
+            document.visualTreeAsset = assets.PickerTree;
+            document.sortingOrder = 20;
+            var picker = go.AddComponent<SitePicker>();
+            picker.Document = document;
+            go.SetActive(true);
+            picker.Hide();
+            return picker;
         }
 
         public static string DataRootFrom(string[] args)
@@ -124,8 +151,11 @@ namespace MountainPlanner.App.Flow
                 Screens.Toast($"Deleted {r.Name}. {LibraryViewModel.Disk(freed)} freed.");
                 RefreshLibrary();
             };
-            Screens.PickerSubmitted += OnPickerSubmitted;
-            Screens.PickerCancelled += Controller.PickerCancelled;
+            if (Picker != null)
+            {
+                Picker.SiteChosen += OnSiteChosen;
+                Picker.Cancelled += Controller.PickerCancelled;   // the picker handles its own Esc
+            }
             Screens.MinimiseChosen += Controller.MinimiseDownload;
             Screens.RestoreChosen += Controller.RestoreDownload;
             Screens.CancelConfirmed += keep => Downloads.Cancel(keep);
@@ -206,7 +236,7 @@ namespace MountainPlanner.App.Flow
         void HandleKeys(Keyboard keys)
         {
             if (keys == null) return;
-            if (keys.escapeKey.wasPressedThisFrame)
+            if (keys.escapeKey.wasPressedThisFrame && Controller.Screen != FlowScreen.Picker)
             {
                 if (Screens.ConfirmOpen) Screens.CloseConfirm();
                 else Controller.Escape();
@@ -225,6 +255,7 @@ namespace MountainPlanner.App.Flow
 
         public void ShowScreen(FlowScreen screen)
         {
+            if (screen != FlowScreen.Picker && Picker != null && Picker.IsOpen) Picker.Hide();
             switch (screen)
             {
                 case FlowScreen.Title:
@@ -240,8 +271,10 @@ namespace MountainPlanner.App.Flow
                     Screens.ShowScreen("library");
                     break;
                 case FlowScreen.Picker:
-                    Screens.SetPickerError("");
-                    Screens.ShowScreen("picker");
+                    Screens.ShowScreen(null);   // the picker opens over the live mountain
+                    if (Picker == null) { Screens.Toast("The site picker isn't available in this build."); Controller.PickerCancelled(); break; }
+                    Picker.Services ??= new SitePickerServices(Path.Combine(PipelineDownloader.CacheFolder(DataRoot), "picker"));
+                    Picker.Show();
                     break;
                 case FlowScreen.Quality:
                     try
@@ -301,19 +334,7 @@ namespace MountainPlanner.App.Flow
             else SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
 
-        void OnPickerSubmitted(string name, double lat, double lon, double km)
-        {
-            PickedSite site;
-            try { site = PickedSite.Create(name, Albers6350.Forward(new GeoPoint(lat, lon)), km, false, default); }
-            catch (ArgumentException e)
-            {
-                Screens.SetPickerError(e is ArgumentOutOfRangeException ? "Sites are 2–5 km, in 0.1 km steps." : e.Message);
-                return;
-            }
-            OnSiteChosen(site);
-        }
-
-        /// <summary>The picker's hand-off (task 13's SitePicker raises the same PickedSite).</summary>
+        /// <summary>The picker's hand-off (task 13's SitePicker.SiteChosen).</summary>
         public void OnSiteChosen(PickedSite site)
         {
             // The pipeline rebuilds the square from the centre; it must be the exact square the player saw.

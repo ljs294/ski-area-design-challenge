@@ -203,6 +203,21 @@ namespace MountainPlanner.Tests
         }
     }
 
+    /// <summary>Task 14: the flow's run-time assets load from Resources, so a build keeps them.</summary>
+    public sealed class FlowAssetTests
+    {
+        [Test]
+        public void TheFlowAndThePickerAssetsLoad()
+        {
+            Assert.That(UnityEngine.Resources.Load<UnityEngine.UIElements.VisualTreeAsset>(AppFlow.ResourceFolder + "Flow"), Is.Not.Null);
+            Assert.That(UnityEngine.Resources.Load<UnityEngine.UIElements.PanelSettings>(AppFlow.ResourceFolder + "FlowPanel"), Is.Not.Null);
+            var assets = UnityEngine.Resources.Load<FlowAssets>(AppFlow.ResourceFolder + "FlowAssets");
+            Assert.That(assets, Is.Not.Null);
+            Assert.That(assets.PickerTree, Is.Not.Null, "task 13's SitePicker.uxml");
+            Assert.That(assets.PickerPanel, Is.Not.Null, "task 13's PickerPanel");
+        }
+    }
+
     /// <summary>Task 14: every transition of the screen flow (0.4 §3), with no Unity in the loop.</summary>
     public sealed class FlowControllerTests
     {

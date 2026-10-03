@@ -220,8 +220,8 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 call :seedscratch
 echo Starting the game on the title screen with the scratch library %SCRATCH%.
-echo   New Resort opens a stand-in picker (task 13 brings the real map). Its default, Crystal Mountain 2 km at 46.93, -121.49,
-echo   uses 3DEP fallback terrain, which the quality card reports. Minimise (Esc or -) keeps it going as a pill.
+echo   New Resort opens the site picker. Crystal Mountain (search it; 2 km) uses 3DEP fallback terrain, which the
+echo   quality card reports. Minimise (Esc or -) keeps the download going as a pill.
 echo   My Resorts: Enter opens, Delete removes, arrows move. Esc backs out one step.
 start "" "%GAME%" -data "%SCRATCH%"
 goto menu
