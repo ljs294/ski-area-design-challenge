@@ -50,9 +50,9 @@
     position: absolute; left: 96px; top: 50%; width: 340px;
     translate: 0 -50%;
 }
-/* Posts run from behind the name plate to a short way below the last sign. */
+/* Posts run from behind the name plate down past the bottom of the screen. */
 .post {
-    position: absolute; top: 18px; bottom: -56px; width: 18px;
+    position: absolute; top: 18px; bottom: -2000px; width: 18px;
     background-color: var(--cedar);
     border-left-width: 4px; border-right-width: 4px;
     border-left-color: var(--cedar-dark); border-right-color: #7e5434;

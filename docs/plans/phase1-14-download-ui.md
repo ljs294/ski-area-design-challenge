@@ -184,7 +184,7 @@ Before merging:
 ## 10. Owner changes (2026-10-03)
 
 - **Title signs:** Continue (green), New Area (blue), Load Area (black) and Manage Areas (double black). They replace New Resort and My Resorts.
-- **Signpost:** at the left, centred vertically, with short posts. The top plate is plain sign white with dark letters and no symbol.
+- **Signpost:** at the left, centred vertically, with its posts running off the bottom of the screen. The top plate is plain sign white with dark letters and no symbol.
 - **Corner plates:** Credits, Settings and Quit sit as small white plates in the bottom-right corner, where the owner's sketch put them. The download pill moved to the bottom left.
 - **Load Area and Manage Areas** are one list in two modes:
   - Load Area opens an area (Enter or double-click);
