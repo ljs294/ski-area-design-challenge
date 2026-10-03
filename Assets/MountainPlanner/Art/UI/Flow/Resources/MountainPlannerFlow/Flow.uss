@@ -44,11 +44,11 @@
 .mono { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); }
 .error { color: var(--neg); }
 
-/* ---------- S1 title: the signpost, centred ---------- */
+/* ---------- S1 title: the signpost, at the left and centred vertically ---------- */
 .title { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
 .signpost {
-    position: absolute; left: 50%; top: 50%; width: 340px;
-    translate: -50% -50%;
+    position: absolute; left: 96px; top: 50%; width: 340px;
+    translate: 0 -50%;
 }
 /* Posts run from behind the name plate to a short way below the last sign. */
 .post {

@@ -4,7 +4,7 @@
     <ui:Style src="Flow.uss" />
     <ui:VisualElement name="flow" class="flow" picking-mode="Ignore">
 
-        <!-- S1 Title: trail signs on cedar posts, centred over the live demo mountain; Credits, Settings and Quit in the corner. -->
+        <!-- S1 Title: trail signs on cedar posts at the left, centred vertically over the live demo mountain; Credits, Settings and Quit in the corner. -->
         <ui:VisualElement name="title" class="title hidden" picking-mode="Ignore">
             <ui:VisualElement class="signpost">
                 <ui:VisualElement class="post post--left" picking-mode="Ignore" />
