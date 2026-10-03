@@ -8,7 +8,7 @@ namespace MountainPlanner.App.Flow
 {
     /// <summary>
     /// -flowcapture &lt;folder&gt;: walks the whole flow unattended and saves a picture of each screen, for review
-    /// without a person at the keyboard: title, My Resorts, the site picker, the download card, the pill, the
+    /// without a person at the keyboard: title, Load Area, Manage Areas, Credits, the site picker, the download card, the pill, the
     /// quality card after a real download (Crystal Mountain 2 km, 3DEP fallback terrain), then the opened mountain.
     /// Use it with -data on a scratch library.
     /// </summary>
@@ -28,9 +28,20 @@ namespace MountainPlanner.App.Flow
             yield return Wait(4);   // ground cover and trees paint in
             yield return Shot(folder, "s1-title");
 
+            _mode = UI.Flow.LibraryMode.Load;
             Controller.MyResorts();
             yield return Wait(0.5f);
-            yield return Shot(folder, "s2-library");
+            yield return Shot(folder, "s2-load-area");
+            Controller.Escape();
+            _mode = UI.Flow.LibraryMode.Manage;
+            Controller.MyResorts();
+            yield return Wait(0.5f);
+            yield return Shot(folder, "s2-manage-areas");
+            Controller.Escape();
+            Screens.ShowCredits(Credits());
+            yield return Wait(0.5f);
+            yield return Shot(folder, "s9-credits");
+            Screens.CloseOverlay();
 
             var crystal = new GeoPoint(46.93, -121.49);
             Controller.NewResort();

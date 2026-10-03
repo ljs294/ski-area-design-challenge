@@ -44,15 +44,15 @@
 .mono { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); }
 .error { color: var(--neg); }
 
-/* ---------- S1 title: the signpost ---------- */
+/* ---------- S1 title: the signpost, centred ---------- */
 .title { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
-.title-scrim { display: none; }   /* a hard-edged scrim showed a seam; the solid signs read on their own */
 .signpost {
-    position: absolute; left: 96px; top: 150px; width: 340px;
-    padding-bottom: 40px;
+    position: absolute; left: 50%; top: 50%; width: 340px;
+    translate: -50% -50%;
 }
+/* Posts run from behind the name plate to a short way below the last sign. */
 .post {
-    position: absolute; top: 18px; bottom: -2000px; width: 18px;
+    position: absolute; top: 18px; bottom: -56px; width: 18px;
     background-color: var(--cedar);
     border-left-width: 4px; border-right-width: 4px;
     border-left-color: var(--cedar-dark); border-right-color: #7e5434;
@@ -75,27 +75,33 @@
 .sign--green { background-color: var(--sign-green); }
 .sign--blue { background-color: var(--sign-blue); }
 .sign--black { background-color: var(--sign-black); }
-.sign--name { margin-bottom: 30px; min-height: 0; padding: 10px 14px; }
-.sign-name-text { font-size: 15px; letter-spacing: 1px; -unity-font-style: bold; color: var(--sign-face-text); margin-left: 10px; }
+#title-manage { margin-bottom: 0; }
+/* The name plate: plain sign white with dark letters, like the brand board plates. */
+.sign--plate { background-color: #fbf8f2; border-width: 2px; border-color: #1f1c19; }
+.sign--name { margin-bottom: 26px; min-height: 0; padding: 12px 14px; justify-content: center; }
+.sign-name-text { font-size: 16px; letter-spacing: 1px; -unity-font-style: bold; color: #1f1c19; -unity-text-align: middle-center; }
 .sign-words { flex-grow: 1; margin-left: 14px; }
 .sign-text { font-size: 19px; -unity-font-style: bold; color: var(--sign-face-text); padding: 0; margin: 0; }
 .sign-sub { font-size: 12px; -unity-font-style: normal; color: var(--sign-face-text); opacity: 0.85; padding: 0; margin: 2px 0 0 0; }
 .sign-arrow { font-size: 24px; color: var(--sign-face-text); -unity-font-style: bold; }
 
-/* Trail-rating symbols: white on the sign face. */
+/* Trail-rating symbols: white on the sign face; double black is two diamonds. */
 .sym { width: 18px; height: 18px; background-color: var(--sign-face-text); flex-shrink: 0; }
 .sym--circle { border-radius: 9px; }
 .sym--square { width: 16px; height: 16px; }
 .sym--diamond { width: 14px; height: 14px; rotate: 45deg; margin: 2px; }
+.sym-pair { flex-direction: row; }
+.sym-pair .sym--diamond { margin: 2px 4px 2px 2px; }
 
-/* Quit is a small white plate on the post, like the brand board's plates. */
-.title-quit {
-    align-self: flex-start; margin: 4px 0 0 22px; padding: 5px 14px;
+/* Credits, Settings, Quit: small white plates in the bottom-right corner. */
+.title-corner { position: absolute; right: 24px; bottom: 24px; flex-direction: row; }
+.plate {
+    margin: 0 0 0 10px; padding: 6px 16px;
     background-color: #fbf8f2; color: #1f1c19;
     border-width: 2px; border-color: #1f1c19; border-radius: 2px;
     font-size: 14px; -unity-font-style: bold;
 }
-.title-quit:hover { background-color: #ffffff; }
+.plate:hover { background-color: #ffffff; }
 
 /* ---------- Panels ---------- */
 .panel {
@@ -190,7 +196,7 @@
 .download > .mono.muted { padding: 0 16px 8px 16px; font-size: 12px; }
 
 .pill {
-    position: absolute; right: 24px; bottom: 24px;
+    position: absolute; left: 24px; bottom: 24px;   /* bottom left: the title keeps bottom right for its plates */
     padding: 8px 14px; border-width: 1px; border-color: var(--hair); border-radius: 3px;
     background-color: var(--panel); color: var(--text); font-size: 14px; -unity-font-style: bold;
 }
@@ -209,6 +215,16 @@
 .qc-word--limited { color: var(--neg); }
 .qc-caveat { color: var(--warn); font-size: 13px; margin-top: 4px; white-space: normal; }
 .qc-detail { color: var(--muted); font-size: 13px; margin-top: 4px; white-space: normal; }
+
+/* ---------- S8 settings and S9 credits ---------- */
+.settings-panel { width: 480px; }
+.settings-row { flex-direction: row; align-items: center; }
+.settings-label { width: 80px; color: var(--head); -unity-font-style: bold; }
+.settings-note { margin-top: 12px; white-space: normal; font-size: 13px; }
+.credits-panel { width: 620px; max-height: 80%; }
+.credits-body { flex-shrink: 1; }
+.credits-head { color: var(--head); -unity-font-style: bold; margin: 10px 0 4px 0; }
+.credits-line { color: var(--muted); font-size: 13px; white-space: normal; margin-bottom: 4px; }
 
 /* ---------- S11 confirm and toast ---------- */
 .confirm-panel { width: 420px; }

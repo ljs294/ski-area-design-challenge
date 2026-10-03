@@ -180,3 +180,13 @@ Before merging:
 - **Left for later:**
   - an *Exit to title* entry in the in-game menu (the HUD is task 12's);
   - keeping clicks on the download card from reaching the camera in the game (`ViewCamera.PointerBlocked` is set by the viewer).
+
+## 10. Owner changes (2026-10-03)
+
+- **Title signs:** Continue (green), New Area (blue), Load Area (black) and Manage Areas (double black). They replace New Resort and My Resorts.
+- **Signpost:** centred on the screen, with short posts. The top plate is plain sign white with dark letters and no symbol.
+- **Corner plates:** Credits, Settings and Quit sit as small white plates in the bottom-right corner, where the owner's sketch put them. The download pill moved to the bottom left.
+- **Load Area and Manage Areas** are one list in two modes:
+  - Load Area opens an area (Enter or double-click);
+  - Manage Areas deletes areas, and resumes or discards paused downloads.
+- **Settings (S8):** units only for now, using the shared display-units setting. **Credits (S9):** the attribution from every downloaded area's package, which works offline, then the fonts.

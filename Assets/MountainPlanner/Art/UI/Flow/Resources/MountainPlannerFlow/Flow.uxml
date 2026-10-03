@@ -4,14 +4,12 @@
     <ui:Style src="Flow.uss" />
     <ui:VisualElement name="flow" class="flow" picking-mode="Ignore">
 
-        <!-- S1 Title: trail signs on cedar posts over the live demo mountain. -->
-        <ui:VisualElement name="title" class="title hidden">
-            <ui:VisualElement class="title-scrim" picking-mode="Ignore" />
+        <!-- S1 Title: trail signs on cedar posts, centred over the live demo mountain; Credits, Settings and Quit in the corner. -->
+        <ui:VisualElement name="title" class="title hidden" picking-mode="Ignore">
             <ui:VisualElement class="signpost">
                 <ui:VisualElement class="post post--left" picking-mode="Ignore" />
                 <ui:VisualElement class="post post--right" picking-mode="Ignore" />
-                <ui:VisualElement class="sign sign--black sign--name" picking-mode="Ignore">
-                    <ui:VisualElement class="sym sym--diamond" />
+                <ui:VisualElement class="sign sign--plate sign--name" picking-mode="Ignore">
                     <ui:Label text="SKI AREA DESIGN CHALLENGE" class="sign-name-text" />
                 </ui:VisualElement>
                 <ui:Button name="title-continue" class="sign sign--green">
@@ -25,18 +23,32 @@
                 <ui:Button name="title-new" class="sign sign--blue">
                     <ui:VisualElement class="sym sym--square" picking-mode="Ignore" />
                     <ui:VisualElement class="sign-words" picking-mode="Ignore">
-                        <ui:Label text="New Resort" class="sign-text" />
+                        <ui:Label text="New Area" class="sign-text" />
                     </ui:VisualElement>
                     <ui:Label text="›" class="sign-arrow" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="title-library" class="sign sign--black">
+                <ui:Button name="title-load" class="sign sign--black">
                     <ui:VisualElement class="sym sym--diamond" picking-mode="Ignore" />
                     <ui:VisualElement class="sign-words" picking-mode="Ignore">
-                        <ui:Label text="My Resorts" class="sign-text" />
+                        <ui:Label text="Load Area" class="sign-text" />
                     </ui:VisualElement>
                     <ui:Label text="›" class="sign-arrow" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="title-quit" text="Quit" class="title-quit" />
+                <ui:Button name="title-manage" class="sign sign--black">
+                    <ui:VisualElement class="sym-pair" picking-mode="Ignore">
+                        <ui:VisualElement class="sym sym--diamond" />
+                        <ui:VisualElement class="sym sym--diamond" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="sign-words" picking-mode="Ignore">
+                        <ui:Label text="Manage Areas" class="sign-text" />
+                    </ui:VisualElement>
+                    <ui:Label text="›" class="sign-arrow" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="title-corner">
+                <ui:Button name="title-credits" text="Credits" class="plate" />
+                <ui:Button name="title-settings" text="Settings" class="plate" />
+                <ui:Button name="title-quit" text="Quit" class="plate" />
             </ui:VisualElement>
         </ui:VisualElement>
 
@@ -44,10 +56,10 @@
         <ui:VisualElement name="library" class="library hidden">
             <ui:VisualElement class="panel library-panel">
                 <ui:VisualElement class="panel-head">
-                    <ui:Label text="My Resorts" class="panel-title" />
+                    <ui:Label name="library-title" text="Load Area" class="panel-title" />
                     <ui:Label name="library-summary" text="" class="panel-meta" />
                     <ui:VisualElement class="spacer" />
-                    <ui:Button name="library-new" text="New Resort" class="btn btn--go" />
+                    <ui:Button name="library-new" text="New Area" class="btn btn--go" />
                     <ui:Button name="library-close" text="✕" class="btn btn--icon" tooltip="Back (Esc)" />
                 </ui:VisualElement>
                 <ui:VisualElement class="library-sort">
@@ -57,9 +69,9 @@
                     <ui:Button name="sort-quality" text="Quality" class="seg" />
                 </ui:VisualElement>
                 <ui:ScrollView name="library-rows" class="library-rows" />
-                <ui:Label name="library-empty" text="No mountains yet. Choose New Resort to download one." class="library-empty hidden" />
+                <ui:Label name="library-empty" text="No areas yet. Choose New Area to download one." class="library-empty hidden" />
                 <ui:VisualElement class="panel-foot">
-                    <ui:Label text="Enter opens · Delete removes · Esc goes back" class="muted" />
+                    <ui:Label name="library-keys" text="" class="muted" />
                     <ui:VisualElement class="spacer" />
                     <ui:Button name="library-folder" text="Open data folder" class="btn btn--ghost" />
                 </ui:VisualElement>
@@ -111,9 +123,38 @@
                     <ui:VisualElement name="qc-lines" />
                 </ui:VisualElement>
                 <ui:VisualElement class="panel-foot">
-                    <ui:Button name="qc-open" text="Open mountain" class="btn btn--go" />
-                    <ui:Button name="qc-library" text="Back to library" class="btn btn--ghost" />
+                    <ui:Button name="qc-open" text="Open area" class="btn btn--go" />
+                    <ui:Button name="qc-library" text="Load Area" class="btn btn--ghost" />
                 </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- S8 Settings (iteration 1: units only) and S9 Credits. -->
+        <ui:VisualElement name="settings" class="modal hidden">
+            <ui:VisualElement class="panel settings-panel">
+                <ui:VisualElement class="panel-head">
+                    <ui:Label text="Settings" class="panel-title" />
+                    <ui:VisualElement class="spacer" />
+                    <ui:Button name="settings-close" text="✕" class="btn btn--icon" tooltip="Close (Esc)" />
+                </ui:VisualElement>
+                <ui:VisualElement class="panel-body">
+                    <ui:VisualElement class="settings-row">
+                        <ui:Label text="Units" class="settings-label" />
+                        <ui:Button name="units-imperial" text="Feet and miles" class="seg" />
+                        <ui:Button name="units-metric" text="Metres and km" class="seg" />
+                    </ui:VisualElement>
+                    <ui:Label text="U switches units in the game too. Graphics, audio and controls come with the full Settings window." class="muted settings-note" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="credits" class="modal hidden">
+            <ui:VisualElement class="panel credits-panel">
+                <ui:VisualElement class="panel-head">
+                    <ui:Label text="Credits" class="panel-title" />
+                    <ui:VisualElement class="spacer" />
+                    <ui:Button name="credits-close" text="✕" class="btn btn--icon" tooltip="Close (Esc)" />
+                </ui:VisualElement>
+                <ui:ScrollView name="credits-body" class="panel-body credits-body" />
             </ui:VisualElement>
         </ui:VisualElement>
 

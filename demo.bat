@@ -93,10 +93,10 @@ echo     36 The picker with no network: the offline panel
 echo     37 Rebuild the Picker Lab (after pulling new code; close the Unity editor first)
 echo.
 echo   Phase 1, task 14: title, download, quality card and library (a scratch library, not yours)
-echo     38 Play from the title: New Resort, download with progress, quality card, My Resorts, open
-echo     39 The same scratch library with the network off: My Resorts, then open a mountain
+echo     38 Play from the title: New Area, download with progress, quality card, Load Area, Manage Areas
+echo     39 The same scratch library with the network off: Load Area, then open an area
 echo     40 Empty the scratch library
-echo        Tip: in 38, close the game mid-download, start 38 again, then My Resorts - Resume.
+echo        Tip: in 38, close the game mid-download, start 38 again, then Manage Areas - Resume.
 echo.
 echo     Q  Quit
 echo.
@@ -220,9 +220,9 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 call :seedscratch
 echo Starting the game on the title screen with the scratch library %SCRATCH%.
-echo   New Resort opens the site picker. Crystal Mountain (search it; 2 km) uses 3DEP fallback terrain, which the
+echo   New Area opens the site picker. Crystal Mountain (search it; 2 km) uses 3DEP fallback terrain, which the
 echo   quality card reports. Minimise (Esc or -) keeps the download going as a pill.
-echo   My Resorts: Enter opens, Delete removes, arrows move. Esc backs out one step.
+echo   Load Area: Enter opens. Manage Areas: Delete removes, Resume continues a paused download. Esc backs out one step.
 start "" "%GAME%" -data "%SCRATCH%"
 goto menu
 
@@ -230,7 +230,7 @@ goto menu
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 call :seedscratch
-echo Starting the game with the network off ^(-offline^): My Resorts, then open any mountain. A new download stops with a network error.
+echo Starting the game with the network off ^(-offline^): Load Area, then open any area. A new download stops with a network error.
 start "" "%GAME%" -data "%SCRATCH%" -offline
 goto menu
 

@@ -194,7 +194,7 @@ namespace MountainPlanner.Tests
             Assert.That(vm.Rows[2].Opened, Is.EqualTo("Sep 30"));
             Assert.That(vm.Rows[3].Opened, Is.EqualTo("not opened yet"));
             Assert.That(vm.Rows[1].TerrainText, Is.EqualTo("97 Excellent"));
-            Assert.That(vm.Summary, Is.EqualTo("3 mountains · 1.4 GB on disk · 1 paused"));
+            Assert.That(vm.Summary, Is.EqualTo("3 areas · 1.4 GB on disk · 1 paused"));
 
             Assert.That(LibraryViewModel.Build(entries, pending, recent, LibrarySort.Name, now).Rows.ConvertAll(r => r.Name),
                         Is.EqualTo(new[] { "Stowe", "Crystal Mountain", "Jackson Hole", "Sugarloaf" }));

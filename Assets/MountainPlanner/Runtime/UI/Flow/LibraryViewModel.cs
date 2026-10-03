@@ -27,7 +27,7 @@ namespace MountainPlanner.UI.Flow
     }
 
     /// <summary>
-    /// S2 My Resorts (0.4 S2) as rows: paused downloads first, then the mountains in the chosen order. Built
+    /// S2 Load Area and Manage Areas (0.4 S2) as rows: paused downloads first, then the mountains in the chosen order. Built
     /// from the library scan, the pending-download records and the recently-opened file; nothing here
     /// touches the network.
     /// </summary>
@@ -74,7 +74,7 @@ namespace MountainPlanner.UI.Flow
                     Disk = Disk(e.BytesOnDisk), Opened = When(Opened(e), nowUtc),
                 });
             long total = entries.Sum(e => e.BytesOnDisk);
-            vm.Summary = $"{entries.Count} {(entries.Count == 1 ? "mountain" : "mountains")} · {Disk(total)} on disk"
+            vm.Summary = $"{entries.Count} {(entries.Count == 1 ? "area" : "areas")} · {Disk(total)} on disk"
                          + (pending.Count > 0 ? $" · {pending.Count} paused" : "");
             return vm;
         }

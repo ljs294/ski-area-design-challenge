@@ -18,7 +18,7 @@ namespace MountainPlanner.Tests
 {
     /// <summary>
     /// Task 14 acceptance, the offline half: with the network disabled, the game starts on the title over the
-    /// library's mountain, then My Resorts → Open puts that mountain on screen in the game. Uses a scratch
+    /// library's mountain, then Load Area → Open puts that mountain on screen in the game. Uses a scratch
     /// library seeded with the committed Jackson Hole test terrain, never the shared one.
     /// </summary>
     public sealed class AppFlowTests

@@ -14,8 +14,8 @@ using UnityEngine.UIElements;
 namespace MountainPlanner.App.Flow
 {
     /// <summary>
-    /// The game's screen flow (task 14; 0.4 §3): title → New Resort → download → quality card → the mountain,
-    /// and title → My Resorts → open. It lives for the whole session (downloads keep running across scene
+    /// The game's screen flow (task 14; 0.4 §3): title → New Area → download → quality card → the mountain,
+    /// and title → Load Area → open. It lives for the whole session (downloads keep running across scene
     /// reloads) and drives the Mountain Viewer scene through its hooks: <see cref="MountainViewer.TitleMode"/>
     /// shows the demo mountain behind the signpost, and <see cref="MountainViewer.RequestedPackage"/> plus a
     /// scene reload opens a chosen mountain from disk, with no network.
@@ -47,6 +47,7 @@ namespace MountainPlanner.App.Flow
         MountainViewer _viewer;
         FlowScreen _afterTitle = FlowScreen.Title;
         LibrarySort _sort = LibrarySort.LastOpened;
+        LibraryMode _mode = LibraryMode.Load;
         LibraryViewModel _library;
         /// <summary>Frames since a viewer scene loaded; RequestedPackage is cleared at 3, once the viewer has read it.</summary>
         int _framesSinceLoad = 3;
@@ -81,7 +82,7 @@ namespace MountainPlanner.App.Flow
             flow.Screens = screens;
             flow.Downloads = new DownloadService(dataRoot, downloader, () => DownloadService.UtcStamp(DateTime.UtcNow));
             flow.Controller = new FlowController(flow);
-            flow.Picker = CreatePicker(go.transform);
+            flow.Picker = CreatePicker();
             Instance = flow;
             MountainViewer.TitleMode = true;
             MountainViewer.RequestedPackage = flow.TitleBackground();
@@ -89,7 +90,8 @@ namespace MountainPlanner.App.Flow
             return flow;
         }
 
-        static SitePicker CreatePicker(Transform parent)
+        /// <summary>Its own root object, active from the start: a child of the inactive flow object would never wake up.</summary>
+        static SitePicker CreatePicker()
         {
             var assets = Resources.Load<FlowAssets>(ResourceFolder + "FlowAssets");
             if (assets == null || assets.PickerTree == null || assets.PickerPanel == null)
@@ -99,7 +101,7 @@ namespace MountainPlanner.App.Flow
             }
             var go = new GameObject("Site picker");
             go.SetActive(false);
-            go.transform.SetParent(parent, false);
+            DontDestroyOnLoad(go);
             var document = go.AddComponent<UIDocument>();
             document.panelSettings = assets.PickerPanel;
             document.visualTreeAsset = assets.PickerTree;
@@ -124,7 +126,9 @@ namespace MountainPlanner.App.Flow
         {
             Screens.ContinueChosen += () => Controller.Continue(ContinueTarget()?.Folder);
             Screens.NewResortChosen += Controller.NewResort;
-            Screens.LibraryChosen += Controller.MyResorts;
+            Screens.LoadChosen += () => { _mode = LibraryMode.Load; Controller.MyResorts(); };
+            Screens.ManageChosen += () => { _mode = LibraryMode.Manage; Controller.MyResorts(); };
+            Screens.CreditsChosen += () => Screens.ShowCredits(Credits());
             Screens.QuitChosen += Controller.Quit;
             Screens.LibraryClosed += () => Controller.Escape();
             Screens.DataFolderChosen += () =>
@@ -175,7 +179,7 @@ namespace MountainPlanner.App.Flow
             Downloads.Stopped += kept =>
             {
                 Controller.DownloadStopped();
-                Screens.Toast(kept ? "Download paused. Resume it from My Resorts." : "Download discarded.");
+                Screens.Toast(kept ? "Download paused. Resume it from Manage Areas." : "Download discarded.");
                 if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
             };
             Downloads.Failed += message => Controller.RestoreDownload();
@@ -193,6 +197,7 @@ namespace MountainPlanner.App.Flow
         void OnDestroy()
         {
             FlowUnits.Changed -= OnUnitsChanged;
+            if (Picker != null) Destroy(Picker.gameObject);
             if (Instance == this) Instance = null;
         }
 
@@ -239,16 +244,18 @@ namespace MountainPlanner.App.Flow
             if (keys.escapeKey.wasPressedThisFrame && Controller.Screen != FlowScreen.Picker)
             {
                 if (Screens.ConfirmOpen) Screens.CloseConfirm();
+                else if (Screens.OverlayOpen) Screens.CloseOverlay();
                 else Controller.Escape();
                 return;
             }
-            if (Controller.Screen != FlowScreen.Library || Screens.ConfirmOpen) return;
+            if (Controller.Screen != FlowScreen.Library || Screens.ConfirmOpen || Screens.OverlayOpen) return;
             if (keys.downArrowKey.wasPressedThisFrame) Screens.MoveSelection(1);
             if (keys.upArrowKey.wasPressedThisFrame) Screens.MoveSelection(-1);
             var row = Screens.SelectedRow;
             if (row?.Entry == null) return;
-            if (keys.enterKey.wasPressedThisFrame || keys.numpadEnterKey.wasPressedThisFrame) Controller.Open(row.Entry.Folder);
-            if (keys.deleteKey.wasPressedThisFrame) Screens.ConfirmDelete(row);
+            bool manage = Screens.Mode == LibraryMode.Manage;
+            if (!manage && (keys.enterKey.wasPressedThisFrame || keys.numpadEnterKey.wasPressedThisFrame)) Controller.Open(row.Entry.Folder);
+            if (manage && keys.deleteKey.wasPressedThisFrame) Screens.ConfirmDelete(row);
         }
 
         // ---------- IFlowHost ----------
@@ -285,7 +292,7 @@ namespace MountainPlanner.App.Flow
                     catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException)
                     {
                         Debug.LogWarning($"[AppFlow] The finished package can't be read: {e.Message}");
-                        Screens.Toast("The download finished but its package can't be read; try opening it from My Resorts.");
+                        Screens.Toast("The download finished but its package can't be read; try opening it from Load Area.");
                         Screens.ShowScreen(MountainViewer.TitleMode ? "title" : null);
                     }
                     break;
@@ -360,7 +367,25 @@ namespace MountainPlanner.App.Flow
             var running = Downloads.Running ? Downloads.Current?.Id : null;
             var pending = PendingDownloads.List(DataRoot).Where(p => p.Id != running).ToList();
             _library = LibraryViewModel.Build(ResortLibrary.Scan(DataRoot), pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow);
-            Screens.RenderLibrary(_library);
+            Screens.RenderLibrary(_library, _mode);
+        }
+
+        /// <summary>
+        /// The credits (S9): the data every downloaded area credits, read from the packages so it works offline
+        /// (0.3 §5), then the fonts.
+        /// </summary>
+        System.Collections.Generic.IEnumerable<(string, System.Collections.Generic.IEnumerable<string>)> Credits()
+        {
+            var data = new System.Collections.Generic.SortedSet<string>(StringComparer.Ordinal);
+            foreach (var e in ResortLibrary.Scan(DataRoot))
+            {
+                try { foreach (string line in ResortPackage.ReadManifest(e.Folder).Attribution) data.Add(line); }
+                catch (Exception ex) { Debug.LogWarning($"[AppFlow] Credits: {e.Name}: {ex.Message}"); }
+            }
+            yield return ("Ski Area Design Challenge", new[] { "A ski resort designer on real mountains." });
+            yield return ("Map and terrain data", data.Count > 0 ? (System.Collections.Generic.IEnumerable<string>)data
+                                                                 : new[] { "Download an area to see the data it uses." });
+            yield return ("Type", new[] { "Overpass and Overpass Mono, SIL Open Font License 1.1." });
         }
 
         /// <summary>The mountain Continue opens: the last opened, else the demo, else the first in the library.</summary>

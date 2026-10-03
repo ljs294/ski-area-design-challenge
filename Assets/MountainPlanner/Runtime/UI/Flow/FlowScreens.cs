@@ -8,9 +8,13 @@ using UnityEngine.UIElements;
 
 namespace MountainPlanner.UI.Flow
 {
+    /// <summary>The library screen's two modes (the title's Load Area and Manage Areas signs).</summary>
+    public enum LibraryMode { Load, Manage }
+
     /// <summary>
-    /// Task 14's screens on one UI Toolkit document (Flow.uxml): S1 title, S2 My Resorts, the S4
-    /// download card and pill, the S5 quality card and a confirm dialog. Like the HUD, it only
+    /// Task 14's screens on one UI Toolkit document (Flow.uxml): S1 title, S2 Load Area and Manage
+    /// Areas, the S4 download card and pill, the S5 quality card, S8 Settings (units), S9 Credits and a
+    /// confirm dialog. Like the HUD, it only
     /// shows state and raises events; AppFlow decides what happens. The download card updates text in
     /// place each snapshot and rebuilds its stage rows only when the stage list changes.
     /// </summary>
@@ -18,7 +22,7 @@ namespace MountainPlanner.UI.Flow
     {
         public UIDocument Document;
 
-        public event Action ContinueChosen, NewResortChosen, LibraryChosen, QuitChosen;
+        public event Action ContinueChosen, NewResortChosen, LoadChosen, ManageChosen, CreditsChosen, QuitChosen;
         public event Action LibraryClosed, DataFolderChosen;
         public event Action<LibraryRow> OpenChosen, ResumeChosen, DiscardChosen, DeleteConfirmed;
         public event Action<LibrarySort> SortChosen;
@@ -27,11 +31,12 @@ namespace MountainPlanner.UI.Flow
         public event Action<bool> CancelConfirmed;
         public event Action QualityOpenChosen, QualityLibraryChosen;
 
-        VisualElement _root, _title, _library, _download, _quality, _confirm, _stages, _barFill, _qcLines;
+        VisualElement _root, _title, _library, _download, _quality, _confirm, _settings, _credits, _stages, _barFill, _qcLines;
         VisualElement _dlActions, _dlConfirm, _dlFailed;
         ScrollView _rows;
-        Label _continueLabel, _continueSub, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast;
-        Button _continue, _pill, _sortOpened, _sortName, _sortQuality;
+        Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast;
+        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric;
+        ScrollView _creditsBody;
         readonly List<VisualElement> _rowElements = new List<VisualElement>();
         readonly List<LibraryRow> _rowData = new List<LibraryRow>();
         Action _confirmAction;
@@ -39,6 +44,9 @@ namespace MountainPlanner.UI.Flow
         float _toastUntil;
 
         public bool ConfirmOpen => _confirm != null && !_confirm.ClassListContains("hidden");
+        /// <summary>Settings or Credits is open over the title (Esc closes it first).</summary>
+        public bool OverlayOpen => IsShown(_settings) || IsShown(_credits);
+        public LibraryMode Mode { get; private set; } = LibraryMode.Load;
         public bool LibraryVisible => _library != null && !_library.ClassListContains("hidden");
         public LibraryRow SelectedRow => _selected >= 0 && _selected < _rowData.Count ? _rowData[_selected] : null;
 
@@ -53,6 +61,13 @@ namespace MountainPlanner.UI.Flow
             _download = _root.Q("download");
             _quality = _root.Q("quality");
             _confirm = _root.Q("confirm");
+            _settings = _root.Q("settings");
+            _credits = _root.Q("credits");
+            _creditsBody = _root.Q<ScrollView>("credits-body");
+            _imperial = _root.Q<Button>("units-imperial");
+            _metric = _root.Q<Button>("units-metric");
+            _libraryTitle = _root.Q<Label>("library-title");
+            _libraryKeys = _root.Q<Label>("library-keys");
             _stages = _root.Q("dl-stages");
             _barFill = _root.Q("dl-bar-fill");
             _qcLines = _root.Q("qc-lines");
@@ -81,8 +96,15 @@ namespace MountainPlanner.UI.Flow
 
             _continue.clicked += () => ContinueChosen?.Invoke();
             _root.Q<Button>("title-new").clicked += () => NewResortChosen?.Invoke();
-            _root.Q<Button>("title-library").clicked += () => LibraryChosen?.Invoke();
+            _root.Q<Button>("title-load").clicked += () => LoadChosen?.Invoke();
+            _root.Q<Button>("title-manage").clicked += () => ManageChosen?.Invoke();
+            _root.Q<Button>("title-credits").clicked += () => CreditsChosen?.Invoke();
+            _root.Q<Button>("title-settings").clicked += ShowSettings;
             _root.Q<Button>("title-quit").clicked += () => QuitChosen?.Invoke();
+            _root.Q<Button>("settings-close").clicked += CloseOverlay;
+            _root.Q<Button>("credits-close").clicked += CloseOverlay;
+            _imperial.clicked += () => { FlowUnits.Set(true); MarkUnits(); };
+            _metric.clicked += () => { FlowUnits.Set(false); MarkUnits(); };
             _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();
             _root.Q<Button>("library-close").clicked += () => LibraryClosed?.Invoke();
             _root.Q<Button>("library-folder").clicked += () => DataFolderChosen?.Invoke();
@@ -147,8 +169,16 @@ namespace MountainPlanner.UI.Flow
 
         // ---------- S2 ----------
 
-        public void RenderLibrary(LibraryViewModel vm)
+        /// <summary>
+        /// S2 in one of its two modes: Load Area lists the downloaded areas to open; Manage Areas lists them to
+        /// delete, with paused downloads to resume or discard.
+        /// </summary>
+        public void RenderLibrary(LibraryViewModel vm, LibraryMode mode)
         {
+            Mode = mode;
+            bool manage = mode == LibraryMode.Manage;
+            _libraryTitle.text = manage ? "Manage Areas" : "Load Area";
+            _libraryKeys.text = manage ? "Delete removes · Esc goes back" : "Enter opens · Esc goes back";
             _summary.text = vm.Summary;
             Mark(_sortOpened, vm.Sort == LibrarySort.LastOpened);
             Mark(_sortName, vm.Sort == LibrarySort.Name);
@@ -158,6 +188,7 @@ namespace MountainPlanner.UI.Flow
             _rowData.Clear();
             foreach (var row in vm.Rows)
             {
+                if (row.IsPaused && !manage) continue;   // paused downloads are managed, not loaded
                 var r = row;
                 var el = new VisualElement();
                 el.AddToClassList("lib-row");
@@ -184,20 +215,20 @@ namespace MountainPlanner.UI.Flow
                     el.Add(spacer);
                     var actions = new VisualElement();
                     actions.AddToClassList("lib-actions");
-                    actions.Add(Btn("Open", "btn--go", () => OpenChosen?.Invoke(r)));
-                    actions.Add(Btn("Delete", "btn--ghost", () => ConfirmDelete(r)));
+                    if (manage) actions.Add(Btn("Delete", "btn--ghost", () => ConfirmDelete(r)));
+                    else actions.Add(Btn("Open", "btn--go", () => OpenChosen?.Invoke(r)));
                     el.Add(actions);
                     el.RegisterCallback<ClickEvent>(e =>
                     {
                         Select(_rowData.IndexOf(r));
-                        if (e.clickCount == 2) OpenChosen?.Invoke(r);
+                        if (e.clickCount == 2 && !manage) OpenChosen?.Invoke(r);
                     });
                 }
                 _rows.Add(el);
                 _rowElements.Add(el);
                 _rowData.Add(r);
             }
-            Show(_empty, vm.IsEmpty);
+            Show(_empty, _rowData.Count == 0);
             Select(_rowData.FindIndex(x => !x.IsPaused));
         }
 
@@ -320,6 +351,43 @@ namespace MountainPlanner.UI.Flow
                 _qcLines.Add(block);
             }
         }
+
+        // ---------- S8 and S9 ----------
+
+        void ShowSettings()
+        {
+            MarkUnits();
+            Show(_settings, true);
+            (FlowUnits.Imperial ? _imperial : _metric).Focus();
+        }
+
+        void MarkUnits()
+        {
+            Mark(_imperial, FlowUnits.Imperial);
+            Mark(_metric, !FlowUnits.Imperial);
+        }
+
+        /// <summary>Credits: sections of (heading, lines), e.g. the data each downloaded area credits, and the fonts.</summary>
+        public void ShowCredits(IEnumerable<(string Heading, IEnumerable<string> Lines)> sections)
+        {
+            _creditsBody.Clear();
+            foreach (var (heading, lines) in sections)
+            {
+                _creditsBody.Add(Text(heading, "credits-head"));
+                foreach (string line in lines) _creditsBody.Add(Text(line, "credits-line"));
+            }
+            Show(_credits, true);
+            _root.Q<Button>("credits-close").Focus();
+        }
+
+        public void CloseOverlay()
+        {
+            Show(_settings, false);
+            Show(_credits, false);
+            if (IsShown(_title)) _continue.Focus();
+        }
+
+        static bool IsShown(VisualElement e) => e != null && !e.ClassListContains("hidden");
 
         // ---------- S11 ----------
 
