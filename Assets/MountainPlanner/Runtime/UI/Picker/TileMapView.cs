@@ -214,6 +214,9 @@ namespace MountainPlanner.UI.Picker
             return new Vector2((float)(x - _cx + layout.width / 2), (float)(y - _cy + layout.height / 2));
         }
 
+        /// <summary>The latitude and longitude under a point in the map's own coordinates.</summary>
+        public GeoPoint GeoAt(Vector2 local) => FromLocal(local);
+
         GeoPoint FromLocal(Vector2 local) =>
             SlippyMap.FromPixels(_cx + local.x - layout.width / 2, _cy + local.y - layout.height / 2, _zoom);
 

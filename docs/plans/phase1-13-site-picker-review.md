@@ -23,7 +23,7 @@ The picker runs on its own in the Picker Lab (demo.bat 35). Choosing Download ha
 | Rate limit | `NominatimTests.RequestsAreAtLeastOneSecondApart`: five calls fired at once go out ≥ 1 s apart, on a fake clock; a name lookup overtaken by a newer click is never sent |
 | Offline panel without a network | PlayMode `WithoutANetworkTheOfflinePanelShows`, then Retry brings the map back |
 | Engine-free tests | 243 / 243 |
-| Unity EditMode, PlayMode | 444 passed, 0 failed (37 already-ignored tests skipped); 14 / 14 |
+| Unity EditMode, PlayMode | 444 passed, 0 failed (37 already-ignored tests skipped); 15 / 15 |
 | Repository checks | Pass |
 
 ## Behaviour
@@ -31,7 +31,7 @@ The picker runs on its own in the Picker Lab (demo.bat 35). Choosing Download ha
 - **Search** runs only on Enter (no search-as-you-type), US places only, at most one request a second shared with the name lookups, with the game's User-Agent and the attribution on the map. If search fails, it says so under the field; only the map decides the picker is offline.
 - **The map:** click to centre the square, drag to pan, and the wheel, + / − or Page Up / Page Down to zoom (no camera buttons, UI-10). With the map focused: Enter places the square at the centre, the arrows nudge it 100 m (Shift: 1 km) or pan before there is one, and Home goes back to the square.
 - **Size:** the slider steps 0.1 km (Shift+arrows: 1 km); it reads in miles or kilometres with the game's units (U), while the square stays exact in metres.
-- **Name:** a chosen search result's name, or after a click one reverse lookup (a named natural or recreation feature, else the nearest village or town, else the county). A name you type is never replaced; clear the field to get suggestions again. Until there is a name, a note says Download needs one.
+- **Name:** a chosen search result's name, or after a click one reverse lookup (a named natural or recreation feature, else the nearest village or town, else the county). A name you type is never replaced; clear the field to get suggestions again. Nudging the square or reconnecting keeps the name (the movies caught a reconnect turning "Crystal Mountain" into "Pierce County"). Until there is a name, a note says Download needs one.
 - **Estimate:** terrain quality (number and word, on the HUD badge's bands), the sources, and the download size and time, fitted to our three measured downloads (within 20%). A site that is not all 1 m gets an amber warning in words; so does an estimate whose coverage couldn't be checked.
 - **The window** is modal: focus stays inside it, Esc backs out one step (the results, then the picker), and focus goes back where it was when it closes. It fades in over 150 ms.
 
@@ -65,6 +65,17 @@ Still open:
 2. **Names in remote places fall back to the county** (for example "Pierce County"). Searching by name avoids this.
 3. **The satellite imagery checkbox (G7) is left out** until imagery downloads exist; the hand-off already carries the flag.
 4. **Tiles that are still loading show blank**, not a blurred parent tile.
+
+## Movies
+
+Four scripted review movies drive the real picker (typed text, real key events, a drawn pointer, captions and the keys on screen): search and the keyboard, placing and sizing, themes and units, and offline and errors. They aren't committed (Git LFS budget); to make them again, close the Unity editor, then:
+
+```
+Builds\PickerLab\PickerLab.exe -screen-fullscreen 0 -screen-width 1600 -screen-height 900 -tour search -record test-results\picker-movies-search
+Unity.exe -batchmode -projectPath . -executeMethod MountainPlanner.Editor.PickerLabSetup.EncodeMovies -movies test-results\picker-movies -quit
+```
+
+The tours are `search`, `place`, `themes` and `offline`; the encoder uses Unity's own H.264 encoder, so nothing else needs installing.
 
 ## Try it
 

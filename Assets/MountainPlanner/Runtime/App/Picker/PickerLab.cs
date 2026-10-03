@@ -22,7 +22,8 @@ namespace MountainPlanner.App.Picker
     /// existing downloader.
     /// Unattended: -offline (no network: shows the offline panel), -search "text" (as if typed and Enter
     /// pressed), -place lat,lon, -size km, -zoom n, -imagery, -theme light|dark, -units metric|imperial (that
-    /// run only), -screenshot file.png (after the map settles, then quits).
+    /// run only), -screenshot file.png (after the map settles, then quits), -tour search|place|themes|offline
+    /// with -record folder (a scripted review movie's frames; PickerLabSetup.EncodeMovies makes the MP4).
     /// </summary>
     public sealed class PickerLab : MonoBehaviour
     {
@@ -67,6 +68,20 @@ namespace MountainPlanner.App.Picker
             {
                 Picker.Document.rootVisualElement.Q<TextField>("search").value = search;
                 Picker.RunSearch();
+            }
+
+            if (Arg("-tour") is string tour)
+            {
+                FrameRecorder recorder = null;
+                if (Arg("-record") is string folder)
+                {
+                    recorder = gameObject.AddComponent<FrameRecorder>();
+                    recorder.Folder = Path.GetFullPath(folder);
+                }
+                yield return StartCoroutine(new PickerTour(Picker, recorder).Run(tour));
+                yield return null;
+                Quit(null);
+                yield break;
             }
 
             if (Arg("-screenshot") is string shot)

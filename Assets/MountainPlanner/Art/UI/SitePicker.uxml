@@ -84,7 +84,7 @@
                     </ui:VisualElement>
                 </ui:VisualElement>
             </ui:VisualElement>
-            <ui:Label name="est-warning" class="estimate__warning hidden" />
+            <ui:Label name="est-warning" class="estimate__warning" />
 
             <ui:VisualElement class="picker-row picker-foot">
                 <ui:Label name="note" class="picker-note grow" />

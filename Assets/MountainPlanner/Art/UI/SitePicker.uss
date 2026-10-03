@@ -412,6 +412,7 @@
 .fig--rough .fig__val, .fig--rough .fig__word { color: var(--warn); }
 /* Warnings are amber and in words (game-ui-direction §5). */
 .estimate__warning {
+    min-height: 18px;
     padding: 0 12px 10px 72px;
     color: var(--warn);
     font-size: 12.5px;

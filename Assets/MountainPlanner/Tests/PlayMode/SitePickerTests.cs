@@ -98,6 +98,22 @@ namespace MountainPlanner.Tests
         }
 
         [UnityTest]
+        public IEnumerator ANudgeKeepsTheSuggestedName()
+        {
+            var services = new Online();
+            var picker = Open(services);
+            yield return null;
+            picker.PlaceAt(new GeoPoint(43.593, -110.848));
+            for (int i = 0; i < 30 && picker.Model.Name.Length == 0; i++) yield return null;
+            Assert.That(picker.Model.Name, Is.EqualTo("Teton Village"));
+            picker.Map.Focus();
+            using (var e = KeyDownEvent.GetPooled('\0', KeyCode.RightArrow, EventModifiers.None)) { e.target = picker.Map; picker.Map.SendEvent(e); }
+            for (int i = 0; i < 10; i++) yield return null;
+            Assert.That(picker.Model.Name, Is.EqualTo("Teton Village"), "a 100 m nudge doesn't rename the site");
+            Assert.That(services.NameLookups, Is.EqualTo(1), "and asks Nominatim nothing");
+        }
+
+        [UnityTest]
         public IEnumerator AClickPlacesTheExactSquareAndNamesIt()
         {
             var services = new Online();
@@ -132,7 +148,8 @@ namespace MountainPlanner.Tests
                 if (SearchFails) throw new IOException("Search is unavailable.");
                 return Task.FromResult<IReadOnlyList<PlaceResult>>(new PlaceResult[0]);
             }
-            public Task<string> SuggestNameAsync(GeoPoint centre, CancellationToken ct) => Task.FromResult("Teton Village");
+            public int NameLookups;
+            public Task<string> SuggestNameAsync(GeoPoint centre, CancellationToken ct) => Task.FromResult(NameLookups++ == 0 ? "Teton Village" : "Teton County");
             public Task<byte[]> TileAsync(bool imagery, int zoom, int x, int y, CancellationToken ct) => Task.FromResult<byte[]>(null);
             public Task<IReadOnlyList<AlbersBox>> S1mTilesAsync(AlbersBox box, CancellationToken ct) => Task.FromResult<IReadOnlyList<AlbersBox>>(new AlbersBox[0]);
             public Task<byte[]> CoverageImageAsync(CoverageLayer layer, double west, double south, double east, double north, int width, int height, CancellationToken ct) => Task.FromResult<byte[]>(null);

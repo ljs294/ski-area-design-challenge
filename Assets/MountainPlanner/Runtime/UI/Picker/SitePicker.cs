@@ -81,7 +81,8 @@ namespace MountainPlanner.UI.Picker
             Map = new TileMapView { Services = Services };
             _root.Q("map-host").Add(Map);
             Map.Clicked += PlaceAt;
-            Map.NudgeRequested += (east, north) => { Model.Nudge(east, north); RequestDetails(suggestName: true); };
+            // A nudge doesn't change the place: keep the name (a search result's is better than a reverse lookup's).
+            Map.NudgeRequested += (east, north) => { Model.Nudge(east, north); RequestDetails(suggestName: NameMissing); };
             Map.OfflineChanged += Model.SetOffline;
 
             _search.RegisterCallback<KeyDownEvent>(OnSearchKey, TrickleDown.TrickleDown);
@@ -374,8 +375,11 @@ namespace MountainPlanner.UI.Picker
         {
             Model.SetOffline(false);
             Map.Retry();
-            if (Model.Square.HasValue) RequestDetails(suggestName: Model.NameIsSuggestion);
+            if (Model.Square.HasValue) RequestDetails(suggestName: NameMissing);
         }
+
+        /// <summary>No name yet: only then do a nudge or a reconnect ask for one.</summary>
+        bool NameMissing => Model.Name.Trim().Length == 0;
 
         void Cancel()
         {
@@ -446,8 +450,9 @@ namespace MountainPlanner.UI.Picker
                 _score.parent.parent.EnableInClassList("fig--rough", false);
             }
             else _downloadSize.text = "";
+            // The line keeps its space when empty, so the centred window doesn't jump when a warning appears.
             _warning.text = warning ?? "";
-            _warning.EnableInClassList("hidden", warning == null);
+            _warning.visible = warning != null;
 
             // What Download is waiting for, in words; nothing once it's ready.
             _note.text = !placed ? "" : Model.Name.Trim().Length == 0 ? "Name your mountain to download it." : "";
