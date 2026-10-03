@@ -114,6 +114,15 @@ namespace MountainPlanner.App.Flow
             _host.OpenMountain(packageFolder);
         }
 
+        /// <summary>
+        /// The in-game menu's Exit to title. Iteration 1 has nothing to save (the area is read-only and a
+        /// running download carries on across the reload), so it goes straight back with no confirmation.
+        /// </summary>
+        public void ExitToTitle()
+        {
+            if (InGame) _host.ReturnToTitle(FlowScreen.Title);
+        }
+
         public void Quit() => _host.Quit();
 
         /// <summary>
