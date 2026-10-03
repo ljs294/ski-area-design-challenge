@@ -71,6 +71,33 @@ namespace MountainPlanner.Tests
         }
 
         [UnityTest]
+        public IEnumerator ASearchHiccupSaysSoWithoutTakingTheMapOffline()
+        {
+            var services = new Online { SearchFails = true };
+            var picker = Open(services);
+            yield return null;
+            picker.Document.rootVisualElement.Q<TextField>("search").value = "Jackson Hole";
+            picker.RunSearch();
+            for (int i = 0; i < 30 && picker.Model.SearchMessage.Length == 0; i++) yield return null;
+            Assert.That(picker.Model.Offline, Is.False, "only the map decides the picker is offline");
+            Assert.That(OfflinePanelShown(picker), Is.False);
+            Assert.That(picker.Model.SearchMessage, Does.StartWith("Search isn't answering"));
+        }
+
+        [UnityTest]
+        public IEnumerator EnterOnTheMapPlacesTheSquareAtItsCentre()
+        {
+            var picker = Open(new Online());
+            yield return null;
+            picker.Map.SetCentre(new GeoPoint(43.593, -110.848), 12);
+            picker.Map.Focus();
+            using (var e = KeyDownEvent.GetPooled('\0', KeyCode.Return, EventModifiers.None)) { e.target = picker.Map; picker.Map.SendEvent(e); }
+            yield return null;
+            Assert.That(picker.Model.Square.HasValue, Is.True, "the keyboard can place the square too");
+            Assert.That(picker.Model.Square.Value.Centre.DistanceTo(Albers6350.Forward(picker.Map.Centre)), Is.LessThan(2));
+        }
+
+        [UnityTest]
         public IEnumerator AClickPlacesTheExactSquareAndNamesIt()
         {
             var services = new Online();
@@ -97,8 +124,14 @@ namespace MountainPlanner.Tests
         sealed class Online : ISitePickerServices
         {
             public int Searches;
+            public bool SearchFails;
             public string Attribution => "test";
-            public Task<IReadOnlyList<PlaceResult>> SearchAsync(string query, CancellationToken ct) { Searches++; return Task.FromResult<IReadOnlyList<PlaceResult>>(new PlaceResult[0]); }
+            public Task<IReadOnlyList<PlaceResult>> SearchAsync(string query, CancellationToken ct)
+            {
+                Searches++;
+                if (SearchFails) throw new IOException("Search is unavailable.");
+                return Task.FromResult<IReadOnlyList<PlaceResult>>(new PlaceResult[0]);
+            }
             public Task<string> SuggestNameAsync(GeoPoint centre, CancellationToken ct) => Task.FromResult("Teton Village");
             public Task<byte[]> TileAsync(bool imagery, int zoom, int x, int y, CancellationToken ct) => Task.FromResult<byte[]>(null);
             public Task<IReadOnlyList<AlbersBox>> S1mTilesAsync(AlbersBox box, CancellationToken ct) => Task.FromResult<IReadOnlyList<AlbersBox>>(new AlbersBox[0]);

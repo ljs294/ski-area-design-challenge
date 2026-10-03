@@ -12,8 +12,11 @@ namespace MountainPlanner.UI.Picker
     /// The picker's mini-map (0.3 §6.1, 0.4 §5 "Map view"): a small slippy map built in UI Toolkit, not a
     /// map SDK. USGS basemap tiles (topo or imagery), the data-quality overlay (S1M tiles, 1 m and about
     /// 3 m DEM footprints), and the site square drawn from its exact EPSG:6350 edges with its 3 km ring.
-    /// Drag pans, the wheel and + / − zoom, a click (without dragging) reports a point, and the arrow keys
-    /// ask to nudge the square while the map has focus.
+    /// Drag pans; the wheel, + / − and Page Up / Page Down zoom; Home goes back to the square (or the
+    /// whole country); a click without dragging, or Enter, places the square; the arrow keys nudge it
+    /// (Shift: 1 km), or pan the map before there is one. There are no camera buttons (UI-10).
+    /// The plan is drawn as the accepted mockup draws plans: surveyor's orange dashes (7 on, 4 off) and a
+    /// dimension line with its figure on a graphite label.
     /// </summary>
     public sealed class TileMapView : VisualElement
     {
@@ -31,7 +34,10 @@ namespace MountainPlanner.UI.Picker
         public static readonly Color OneMetreColour = new Color32(0x3f, 0x86, 0xd0, 255);
         public static readonly Color ThreeMetreColour = new Color32(0x9f, 0xc4, 0xee, 255);
         static readonly Color PlanOrange = new Color32(0xff, 0x6a, 0x1f, 255);
-        static readonly Color PlanHalo = new Color(0.07f, 0.06f, 0.05f, 0.55f);
+        // The dimension line: warm white over imagery, graphite over the light topo map.
+        static readonly Color DimensionOnImagery = new Color32(0xef, 0xe9, 0xdf, 230);
+        static readonly Color DimensionOnTopo = new Color32(0x1c, 0x19, 0x16, 210);
+        const float DimensionOffset = 18;   // px outside the square's top edge
         const float OverlayOpacity = 0.24f;
 
         public ISitePickerServices Services;
@@ -45,7 +51,7 @@ namespace MountainPlanner.UI.Picker
 
         readonly VisualElement _tileLayer, _vector;
         readonly Image _coverageImage;
-        readonly Label _sizeLabel;
+        readonly Label _dimension;
         readonly Dictionary<string, Image> _shown = new Dictionary<string, Image>();
         readonly Stack<Image> _pool = new Stack<Image>();
         readonly Dictionary<string, Texture2D> _textures = new Dictionary<string, Texture2D>();
@@ -58,7 +64,8 @@ namespace MountainPlanner.UI.Picker
         int _zoom = 5;
         bool _imagery, _showCoverage = true, _offline;
         SiteSquare? _square;
-        IReadOnlyList<AlbersBox> _s1mTiles = Array.Empty<AlbersBox>();
+        GeoPoint[] _coreOutline, _ringOutline;          // cached when the square changes
+        readonly List<GeoPoint[]> _s1mCorners = new List<GeoPoint[]>();   // cached when the tiles arrive
         (double W, double S, double E, double N) _coverageBox;   // Web Mercator metres the coverage images span
         int _generation;
 
@@ -79,10 +86,11 @@ namespace MountainPlanner.UI.Picker
             Add(_coverageImage);
             _vector = Layer("tile-map__vector");
             _vector.generateVisualContent += DrawVector;
-            _sizeLabel = new Label { pickingMode = PickingMode.Ignore };
-            _sizeLabel.AddToClassList("tile-map__size");
-            _sizeLabel.style.position = Position.Absolute;
-            Add(_sizeLabel);
+            _dimension = new Label { pickingMode = PickingMode.Ignore };
+            _dimension.AddToClassList("tile-map__dim");
+            _dimension.AddToClassList("mono");
+            _dimension.style.position = Position.Absolute;
+            Add(_dimension);
 
             RegisterCallback<GeometryChangedEvent>(_ => Relayout());
             RegisterCallback<PointerDownEvent>(OnPointerDown);
@@ -120,7 +128,7 @@ namespace MountainPlanner.UI.Picker
                 _imagery = value;
                 foreach (var image in _shown.Values) Recycle(image);
                 _shown.Clear();
-                Relayout();
+                Relayout();   // also repaints the dimension line in the basemap's colour
             }
         }
 
@@ -141,8 +149,10 @@ namespace MountainPlanner.UI.Picker
             set
             {
                 _square = value;
-                _sizeLabel.text = value.HasValue ? PickerUnits.Size(value.Value.SizeKm) : "";
-                PositionSizeLabel();
+                _coreOutline = value.HasValue ? SlippyMap.Outline(value.Value.Core, 8) : null;
+                _ringOutline = value.HasValue ? SlippyMap.Outline(value.Value.Ring, 4) : null;
+                RefreshDimensionText();
+                PositionDimension();
                 _vector.MarkDirtyRepaint();
             }
         }
@@ -170,6 +180,17 @@ namespace MountainPlanner.UI.Picker
         }
 
         public void ZoomBy(int steps) => ZoomAround(steps, new Vector2(layout.width / 2, layout.height / 2));
+
+        /// <summary>The dimension figure in the game's units (call when the units change).</summary>
+        public void RefreshDimensionText() =>
+            _dimension.text = _square.HasValue ? PickerUnits.Size(_square.Value.SizeKm) : "";
+
+        /// <summary>Home: back to the square at a close zoom, or to the whole country before there is one.</summary>
+        public void ResetView()
+        {
+            if (_square.HasValue) SetCentre(Albers6350.Inverse(_square.Value.Centre), 12);
+            else SetCentre(new GeoPoint(40.5, -105.5), 5);
+        }
 
         /// <summary>Forgets the offline state and loads again (the offline panel's Retry).</summary>
         public void Retry()
@@ -244,17 +265,27 @@ namespace MountainPlanner.UI.Picker
         void OnKeyDown(KeyDownEvent evt)
         {
             double step = evt.shiftKey ? 1000 : 100;
+            float pan = evt.shiftKey ? 256 : 64;
             switch (evt.keyCode)
             {
-                case KeyCode.LeftArrow: NudgeRequested?.Invoke(-step, 0); break;
-                case KeyCode.RightArrow: NudgeRequested?.Invoke(step, 0); break;
-                case KeyCode.UpArrow: NudgeRequested?.Invoke(0, step); break;
-                case KeyCode.DownArrow: NudgeRequested?.Invoke(0, -step); break;
-                case KeyCode.Equals: case KeyCode.Plus: case KeyCode.KeypadPlus: ZoomBy(1); break;
-                case KeyCode.Minus: case KeyCode.KeypadMinus: ZoomBy(-1); break;
+                case KeyCode.LeftArrow: Arrow(-step, 0, new Vector2(-pan, 0)); break;
+                case KeyCode.RightArrow: Arrow(step, 0, new Vector2(pan, 0)); break;
+                case KeyCode.UpArrow: Arrow(0, step, new Vector2(0, -pan)); break;
+                case KeyCode.DownArrow: Arrow(0, -step, new Vector2(0, pan)); break;
+                case KeyCode.Equals: case KeyCode.Plus: case KeyCode.KeypadPlus: case KeyCode.PageUp: ZoomBy(1); break;
+                case KeyCode.Minus: case KeyCode.KeypadMinus: case KeyCode.PageDown: ZoomBy(-1); break;
+                case KeyCode.Home: ResetView(); break;
+                case KeyCode.Return: case KeyCode.KeypadEnter: case KeyCode.Space: Clicked?.Invoke(Centre); break;
                 default: return;
             }
             evt.StopPropagation();
+        }
+
+        /// <summary>Arrows nudge the square once there is one; before that they pan the map.</summary>
+        void Arrow(double east, double north, Vector2 panPixels)
+        {
+            if (_square.HasValue) NudgeRequested?.Invoke(east, north);
+            else PanBy(panPixels);
         }
 
         void PanBy(Vector2 delta)
@@ -317,7 +348,7 @@ namespace MountainPlanner.UI.Picker
                 _shown.Remove(key);
             }
             PlaceCoverage();
-            PositionSizeLabel();
+            PositionDimension();
             _vector.MarkDirtyRepaint();
         }
 
@@ -421,12 +452,13 @@ namespace MountainPlanner.UI.Picker
                 _coverageBox = box;
                 PlaceCoverage();
 
-                _s1mTiles = Array.Empty<AlbersBox>();
+                _s1mCorners.Clear();
                 if (_zoom >= S1mMinZoom)
                 {
                     var albers = AlbersBounds(w, h);
-                    _s1mTiles = await Services.S1mTilesAsync(albers, ct);
+                    var tiles = await Services.S1mTilesAsync(albers, ct);
                     if (generation != _generation || panel == null) return;
+                    foreach (var tile in tiles) _s1mCorners.Add(SlippyMap.Corners(tile));
                 }
                 _vector.MarkDirtyRepaint();
             }
@@ -489,14 +521,35 @@ namespace MountainPlanner.UI.Picker
             return new AlbersBox(west, south, east, north);
         }
 
-        void PositionSizeLabel()
+        /// <summary>
+        /// The dimension line runs parallel to the square's top edge, <see cref="DimensionOffset"/> outside it
+        /// (as the mockup dimensions a plan), so it never hides the ground inside the square.
+        /// </summary>
+        bool DimensionLine(out Vector2 a, out Vector2 b, out Vector2 normal)
         {
-            if (!_square.HasValue || float.IsNaN(layout.width)) { _sizeLabel.visible = false; return; }
-            var core = _square.Value.Core;
-            var top = ToLocal(Albers6350.Inverse(new AlbersPoint((core.West + core.East) / 2, core.North)));
-            _sizeLabel.visible = true;
-            _sizeLabel.style.left = top.x;
-            _sizeLabel.style.top = top.y;
+            a = b = normal = default;
+            if (_coreOutline == null || float.IsNaN(layout.width)) return false;
+            a = ToLocal(_coreOutline[0]);              // north-west corner
+            b = ToLocal(_coreOutline[8]);              // north-east corner (8 points per edge)
+            var along = b - a;
+            if (along.sqrMagnitude < 1) return false;
+            var centre = ToLocal(Albers6350.Inverse(_square.Value.Centre));
+            normal = new Vector2(along.y, -along.x).normalized;
+            if (Vector2.Dot(normal, (a + b) / 2 - centre) < 0) normal = -normal;   // point away from the square
+            return true;
+        }
+
+        void PositionDimension()
+        {
+            if (!DimensionLine(out var a, out var b, out var n) || (b - a).magnitude < 60) { _dimension.visible = false; return; }
+            var mid = (a + b) / 2 + n * DimensionOffset;
+            float angle = Mathf.Atan2(b.y - a.y, b.x - a.x) * Mathf.Rad2Deg;
+            if (angle > 90) angle -= 180;
+            if (angle < -90) angle += 180;
+            _dimension.visible = true;
+            _dimension.style.left = mid.x;
+            _dimension.style.top = mid.y;
+            _dimension.style.rotate = new Rotate(new Angle(angle, AngleUnit.Degree));
         }
 
         // ---- vector drawing ----
@@ -514,9 +567,8 @@ namespace MountainPlanner.UI.Picker
                 p.fillColor = fill;
                 p.strokeColor = edge;
                 p.lineWidth = 1f;
-                foreach (var tile in _s1mTiles)
+                foreach (var c in _s1mCorners)
                 {
-                    var c = SlippyMap.Corners(tile);
                     p.BeginPath();
                     p.MoveTo(ToLocal(c[0]));
                     for (int i = 1; i < 4; i++) p.LineTo(ToLocal(c[i]));
@@ -525,48 +577,47 @@ namespace MountainPlanner.UI.Picker
                     p.Stroke();
                 }
             }
-            if (!_square.HasValue) return;
-            var square = _square.Value;
+            if (_coreOutline == null) return;
 
-            // The 3 km ring: a thin solid line, the extent of the surroundings that download too.
-            Polyline(p, SlippyMap.Outline(square.Ring, 4), new Color(PlanOrange.r, PlanOrange.g, PlanOrange.b, 0.55f), 1.2f, false);
-
-            // The core: surveyor's-orange dashes over a dark halo, so it reads on snow, forest and topo.
-            var outline = SlippyMap.Outline(square.Core, 8);
+            // The plan, in the mockup's grammar: everything planned is dashed surveyor's orange (solid would
+            // mean built). The 3 km ring that downloads with the site is a finer, fainter dash.
+            Polyline(p, _ringOutline, new Color(PlanOrange.r, PlanOrange.g, PlanOrange.b, 0.6f), 1.2f, 4, 4);
             var fillCore = PlanOrange;
-            fillCore.a = 0.10f;
+            fillCore.a = 0.08f;
             p.fillColor = fillCore;
             p.BeginPath();
-            p.MoveTo(ToLocal(outline[0]));
-            for (int i = 1; i < outline.Length; i++) p.LineTo(ToLocal(outline[i]));
+            p.MoveTo(ToLocal(_coreOutline[0]));
+            for (int i = 1; i < _coreOutline.Length; i++) p.LineTo(ToLocal(_coreOutline[i]));
             p.ClosePath();
             p.Fill();
-            Polyline(p, outline, PlanHalo, 4.5f, false);
-            Polyline(p, outline, PlanOrange, 2.2f, true);
+            Polyline(p, _coreOutline, PlanOrange, 2f, 7, 4);
+
+            // The dimension line: extension lines from the top corners, and the line between them.
+            if (DimensionLine(out var a, out var b, out var n) && (b - a).magnitude >= 60)
+            {
+                p.strokeColor = _imagery ? DimensionOnImagery : DimensionOnTopo;
+                p.lineWidth = 1f;
+                p.lineCap = LineCap.Butt;
+                p.BeginPath();
+                p.MoveTo(a + n * 5); p.LineTo(a + n * (DimensionOffset + 4));
+                p.MoveTo(b + n * 5); p.LineTo(b + n * (DimensionOffset + 4));
+                p.MoveTo(a + n * DimensionOffset); p.LineTo(b + n * DimensionOffset);
+                p.Stroke();
+            }
         }
 
-        void Polyline(Painter2D p, GeoPoint[] points, Color colour, float width, bool dashed)
+        /// <summary>A closed line through the points, dashed <paramref name="on"/> px on and <paramref name="off"/> px off.</summary>
+        void Polyline(Painter2D p, GeoPoint[] points, Color colour, float width, float on, float off)
         {
             p.strokeColor = colour;
             p.lineWidth = width;
             p.lineJoin = LineJoin.Miter;
             p.lineCap = LineCap.Butt;
-            var local = new Vector2[points.Length + 1];
-            for (int i = 0; i < points.Length; i++) local[i] = ToLocal(points[i]);
-            local[points.Length] = local[0];
-            if (!dashed)
-            {
-                p.BeginPath();
-                p.MoveTo(local[0]);
-                for (int i = 1; i < local.Length; i++) p.LineTo(local[i]);
-                p.Stroke();
-                return;
-            }
-            const float on = 9, off = 6;
             float phase = 0;   // distance into the current on+off cycle
-            for (int i = 1; i < local.Length; i++)
+            Vector2 first = ToLocal(points[0]), a = first;
+            for (int i = 1; i <= points.Length; i++)
             {
-                Vector2 a = local[i - 1], b = local[i];
+                Vector2 b = i < points.Length ? ToLocal(points[i]) : first;
                 float length = (b - a).magnitude, at = 0;
                 while (at < length)
                 {
@@ -582,6 +633,7 @@ namespace MountainPlanner.UI.Picker
                     at += run;
                     phase = (phase + run) % (on + off);
                 }
+                a = b;
             }
         }
 

@@ -6,6 +6,8 @@ using System.Linq;
 using System.Text;
 using MountainPlanner.Acquisition.IO;
 using MountainPlanner.Domain.Geo;
+using MountainPlanner.Domain.Measure;
+using MountainPlanner.Presentation;
 using MountainPlanner.UI.Picker;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -19,7 +21,8 @@ namespace MountainPlanner.App.Picker
     /// %LOCALAPPDATA%\SkiAreaDesignChallenge\picked-site.args) and quits; demo.bat hands them to the
     /// existing downloader.
     /// Unattended: -offline (no network: shows the offline panel), -search "text" (as if typed and Enter
-    /// pressed), -place lat,lon, -size km, -zoom n, -imagery, -screenshot file.png (after the map settles, then quits).
+    /// pressed), -place lat,lon, -size km, -zoom n, -imagery, -theme light|dark, -units metric|imperial (that
+    /// run only), -screenshot file.png (after the map settles, then quits).
     /// </summary>
     public sealed class PickerLab : MonoBehaviour
     {
@@ -40,6 +43,10 @@ namespace MountainPlanner.App.Picker
             _out = Arg("-out") ?? Path.Combine(data, "picked-site.args");
             if (args.Contains("-offline")) Http.NetworkDisabled = true;
 
+            if (Arg("-units") is string units)   // captures, without changing the saved choice
+                DisplayUnits.Set(units == "metric" ? UnitSystem.Metric : UnitSystem.Imperial, remember: false);
+            if (Arg("-theme") is string theme) Picker.SetTheme(theme != "light");
+
             Picker.Services = new SitePickerServices(Path.Combine(data, "download-cache", "picker"));
             Picker.SiteChosen += OnChosen;
             Picker.Cancelled += () => Quit(null);
@@ -47,7 +54,7 @@ namespace MountainPlanner.App.Picker
             yield return null;
 
             if (Arg("-size") is string size) Picker.Model.SetSize(double.Parse(size, CultureInfo.InvariantCulture));
-            if (args.Contains("-imagery")) Picker.Map.Imagery = true;
+            if (args.Contains("-imagery")) Picker.SetImagery(true);
             if (Arg("-place") is string place)
             {
                 var parts = place.Split(',');

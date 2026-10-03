@@ -114,6 +114,15 @@ namespace MountainPlanner.UI.Picker
             Notify();
         }
 
+        /// <summary>The search couldn't run: say so in words, under the field (the map may still work).</summary>
+        public void ShowSearchProblem(string message)
+        {
+            Searching = false;
+            Results = Array.Empty<PlaceResult>();
+            SearchMessage = message ?? "";
+            Notify();
+        }
+
         public void ClearResults()
         {
             if (Results.Count == 0 && SearchMessage.Length == 0) return;
