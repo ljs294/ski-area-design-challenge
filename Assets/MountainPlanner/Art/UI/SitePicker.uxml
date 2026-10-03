@@ -8,7 +8,7 @@
     <ui:VisualElement name="picker" class="picker">
         <ui:VisualElement name="window" class="picker-window">
             <ui:VisualElement class="picker-head">
-                <ui:Label class="picker-title" text="New Mountain" />
+                <ui:Label class="picker-title" text="New Area" />
                 <ui:VisualElement class="grow" picking-mode="Ignore" />
                 <ui:Button name="close" class="picker-close" text="✕" tooltip="Close without downloading (Esc)" />
             </ui:VisualElement>
@@ -46,7 +46,7 @@
                 </ui:VisualElement>
                 <ui:VisualElement name="offline" class="offline hidden">
                     <ui:Label class="offline-title" text="No connection" />
-                    <ui:Label class="offline-text" text="Choosing a new site needs the internet, for the map and the search. Your downloaded mountains still open offline." />
+                    <ui:Label class="offline-text" text="Choosing a new site needs the internet, for the map and the search. Your downloaded areas still open offline." />
                     <ui:Button name="retry" class="ghost" text="Retry" />
                 </ui:VisualElement>
             </ui:VisualElement>

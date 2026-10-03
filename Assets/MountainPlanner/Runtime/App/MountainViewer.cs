@@ -131,7 +131,7 @@ namespace MountainPlanner.App
             string folder = PickPackage();
             if (folder == null)
             {
-                _error = "No mountains downloaded yet.\nRun demo.bat and choose 12 (Jackson Hole, 5 km), then start the viewer again.";
+                _error = "No areas downloaded yet.\nRun demo.bat and choose 12 (Jackson Hole, 5 km), then start the viewer again.";
                 return;
             }
             try
@@ -217,7 +217,7 @@ namespace MountainPlanner.App
             catch (OperationCanceledException) { }
             catch (Exception e)
             {
-                _error = "Couldn't open the mountain: " + e.Message;
+                _error = "Couldn't open the area: " + e.Message;
                 Debug.LogException(e);
             }
         }
