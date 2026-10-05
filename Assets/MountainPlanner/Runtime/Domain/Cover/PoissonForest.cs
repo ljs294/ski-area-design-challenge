@@ -23,7 +23,7 @@ namespace MountainPlanner.Domain.Cover
         public byte Conifer;
         /// <summary>The shade-tolerant conifers' share (firs, spruces, hemlocks, cedars; 0–255): they grow multi-storied stands.</summary>
         public byte Tolerant;
-        /// <summary>The canopy map's tree share of the cell (0–255; core cells only).</summary>
+        /// <summary>The cell's tree share (0–255): the canopy map's in the core, the stand field's in the ring.</summary>
         public byte Canopy;
         /// <summary>How fully the cell grows as a dense, shade-tolerant conifer stand (0–255): clumped, with an understory (NE8).</summary>
         public byte Stand;
