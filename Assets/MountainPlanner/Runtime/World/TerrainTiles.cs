@@ -62,11 +62,14 @@ namespace MountainPlanner.World
         public const int Resolution = 1025;
 
         /// <summary>
-        /// GPU-instanced terrain drawing. Off: instanced tiles created at runtime render flat-lit and untextured
-        /// in the URP player (per-pixel normals and the material keyword didn't help; task 06). Non-instanced
-        /// runs at 500+ fps for 121 tiles on the reference PC; task 15 revisits instancing with profiling.
+        /// GPU-instanced terrain drawing, on by default (task 15, owner 2026-10-05). Each tile's patches draw as
+        /// instances of one grid whose heights the terrain shader reads from the heightmap (MountainTerrain.shader,
+        /// TerrainInstancing). It renders the same as non-instanced terrain and, over the benchmark path at High, cuts
+        /// draw calls by 43% and frame p95 by 0.4 ms. In task 06 instanced tiles drew flat and untextured: the shader
+        /// had no instanced path, and builds stripped its instancing variants (the material now enables instancing).
+        /// -noinstancing turns it off for comparisons.
         /// </summary>
-        public static bool DrawInstanced;
+        public static bool DrawInstanced = true;
 
         /// <summary>Seconds spent in each step of <see cref="Create"/> since start-up (open-time profiling).</summary>
         public static double ProfileSetup, ProfileSetHeights, ProfileSync;

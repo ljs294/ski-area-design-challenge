@@ -215,3 +215,16 @@ photos (LP10). Details: [lift-monta-fg4.md](lift-monta-fg4.md) and [chairs-chair
 | LP21 | **The Chairworks quad chair is one body with two grips** (variants): the detachable grip built part by part, or the fixed grip (LP22). The body: the hanger's dogleg into a clamp on the top bar; two inboard side frames of bent tube (300 mm knees, 120 mm corners); a looped seat frame; a bench and a low backrest. Tube sizes match the Sessellift chair's: hanger Ø80, frame Ø60, seat rails Ø52 |
 | LP22 | **One fixed grip for every fixed-grip chair** (`fixed_grip.json`): a cast arm and housing that the hanger flows out of through a socket, dark blades over the top half of the rope, then the collar, spring, nut and bolt. The Sessellift chair carries it too |
 | LP23 | **No safety bar on the Chairworks chair for now** (the owner). On this chair a bar that closes over riders cannot be raised compactly in front of the hanger: the rope is under 1 m above the top bar and tower sheaves reach about 430 mm below the rope, so every raised pose in front sticks out forward. To revisit: modelled down in front, up with the footrest forward on new brackets, or behind the seat, tucked in |
+
+## Task 15, benchmark and budgets: decided 2026-10-05
+
+**Context:** the benchmark the 0.3 §8 budgets are checked with (T13), and the quality presets it measures. Details and
+numbers: [phase1-benchmark-report.md](phase1-benchmark-report.md).
+
+| # | Decision |
+|---|---|
+| B1 | **Four quality presets, one Unity quality level and URP asset each** (`Assets/Settings/Quality_*_RPAsset.asset`), chosen by `-quality` (High by default). The owner approved them from side-by-side captures. Low: render scale 0.8, no MSAA, 60 m single-cascade 1024 shadows without soft shadows, tree LOD bias 1, Low terrain detail, no terrain sky occlusion or distant shadows. Medium: 2× MSAA, 100 m two-cascade 2048 shadows with low soft shadows, LOD bias 1.5, Medium terrain. High (today's look): 4× MSAA, 150 m four-cascade 2048 shadows with high soft shadows, LOD bias 2, High terrain. Ultra: as High with 250 m, 4096 shadows, LOD bias 3 and Ultra terrain. Unity's Mobile and PC levels are gone |
+| B2 | **The benchmark is a fixed camera path**, not fixed views: the eight views as legs, each a 3 s flight and a 6 s turning hold, so the camera always moves. One lap warms up (and takes each leg's screenshot), two are measured. Results are JSON with the commit SHA (stamped at build time), checked against the preset's budget |
+| B3 | **Budgets checked per preset at 1080p on the reference PC:** High p95 ≤20 ms, p99 ≤33.3 ms, under 1% of frames over 50 ms, graphics memory ≤7 GB. Medium (the RTX 2060 stand-in, exit criterion 5) p95 ≤18 ms, graphics memory ≤6 GB. Low a smoke run at 30 FPS. Ultra measured, not checked |
+| B4 | **"0 bytes of garbage per frame in steady state"** means under a byte per frame on average, no garbage collection and no recurring allocation (at most one frame in 10,000 allocating, such as a text's first draw). The release game checks it by heap growth and collections; the Development game reads Unity's per-frame counter and graphics memory, which release games don't record |
+| B5 | **Instanced terrain is on by default** (the owner): it renders the same, and at High cuts draw calls by 43% and frame p95 by 0.4 ms. `-noinstancing` turns it off |

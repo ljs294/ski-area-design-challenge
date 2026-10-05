@@ -12,6 +12,9 @@ set "SPIKE=%~dp0tools\data-spike"
 set "OUT=%SPIKE%\results\local"
 set "PACKAGES=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts"
 set "GAME=%~dp0Builds\Windows\SkiAreaDesignChallenge.exe"
+set "GAMEDEV=%~dp0Builds\WindowsDev\SkiAreaDesignChallenge.exe"
+set "BENCH=%~dp0test-results\benchmark"
+set "SCREEN=-screen-width 1920 -screen-height 1080 -screen-fullscreen 0"
 set "LIFTLAB=%~dp0Builds\LiftLab\LiftLab.exe"
 set "PICKER=%~dp0Builds\PickerLab\PickerLab.exe"
 set "PICKED=%LOCALAPPDATA%\SkiAreaDesignChallenge\picked-site.args"
@@ -62,7 +65,7 @@ echo     19 Rebuild the trees from tools\assets\trees and import them (Blender 5
 echo.
 echo   Phase 1, tree realism review
 echo     20 Tree lineup: every species at every LOD, trunks, and a stand from 300 m to 3 km (screenshots, about 15 seconds)
-echo     21 Forest benchmark: 8 fixed views of Jackson Hole, GPU times and screenshots (about 2 minutes; needs 12)
+echo     21 Benchmark at High: the fixed camera path over Jackson Hole, frame and GPU times per leg, screenshots (about 4 minutes; needs 12)
 echo.
 echo   Lift assets: Sessellift FGQ-4 chairlift and SLE snow guns
 echo     22 Rebuild the lifts, chairs and snow guns in Blender, import them into Unity and build the Lift Lab (about 4 minutes)
@@ -71,14 +74,14 @@ echo.
 echo   Phase 1, task 09: forest at scale
 echo     24 Crystal Mountain, 5 km: download it into your library (Cascades species; about 3 minutes)
 echo     25 Fly over Crystal Mountain in the game (needs 24)
-echo     26 Forest benchmark on Crystal Mountain: its own views, GPU times, draw calls (about 2 minutes; needs 24)
+echo     26 Benchmark on Crystal Mountain: a path through its own views, GPU times, draw calls (about 3 minutes; needs 24)
 echo     27 Forest report for every mountain you have: trees, species, treeline (a few seconds each)
 echo     28 Species survey: tree species at every US ski area, then the model priority report (about 3 hours; resumes)
 echo.
 echo   Phase 1, task 09 phase 2: New England tree species
 echo     29 Sugarloaf, Maine, 5 km: download it into your library (spruce-fir, krummholz, northern hardwoods; about 3 minutes)
 echo     30 Fly over Sugarloaf in the game (needs 29)
-echo     31 Forest benchmark on Sugarloaf: its own views, GPU times, draw calls (about 2 minutes; needs 29)
+echo     31 Benchmark on Sugarloaf: a path through its own views, GPU times, draw calls (about 3 minutes; needs 29)
 echo.
 echo   Game UI design (mockups, not the game yet)
 echo     32 Open the HUD layout mockup in your browser: status bar, Toolbox, Analysis, menu and Settings
@@ -97,6 +100,11 @@ echo     38 Play from the title: New Area, download with progress, quality card,
 echo     39 The same scratch library with the network off: Load Area, then open an area
 echo     40 Empty the scratch library
 echo        Tip: in 38, close the game mid-download, start 38 again, then Manage Areas - Resume.
+echo.
+echo   Phase 1, task 15: benchmark and budgets (needs 12; close the Unity editor first)
+echo     41 Full benchmark: High and Medium against their budgets, garbage and memory, compared with the baseline (about 25 minutes)
+echo     42 Benchmark one quality preset: Low, Medium, High or Ultra (about 4 minutes)
+echo     43 Rebuild the Development game (exact garbage and memory counters for 41)
 echo.
 echo     Q  Quit
 echo.
@@ -155,6 +163,9 @@ if /i "%CHOICE%"=="37" goto rebuildpicker
 if /i "%CHOICE%"=="38" goto flow
 if /i "%CHOICE%"=="39" goto flowoffline
 if /i "%CHOICE%"=="40" goto flowclean
+if /i "%CHOICE%"=="41" goto benchfull
+if /i "%CHOICE%"=="42" goto benchpreset
+if /i "%CHOICE%"=="43" call :builddev & goto done
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -332,11 +343,51 @@ goto done
 :benchmark
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
-if not exist "%~dp0test-results\benchmark" mkdir "%~dp0test-results\benchmark"
-echo Running the forest benchmark (the game flies 8 views, then closes by itself)...
-"%GAME%" -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -benchmark "%~dp0test-results\benchmark\bench.json" -logFile "%~dp0test-results\benchmark\bench.log" <nul
-findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\bench.log"
-start "" "%~dp0test-results\benchmark"
+if not exist "%BENCH%" mkdir "%BENCH%"
+echo Running the benchmark at High (the game flies the path once to warm up, twice to measure, then closes by itself)...
+"%GAME%" %SCREEN% -quality high -benchmark "%BENCH%\bench.json" -logFile "%BENCH%\bench.log" <nul
+findstr /l /c:"[Benchmark]" "%BENCH%\bench.log"
+start "" "%BENCH%"
+goto done
+
+rem Task 15: the frame times of record come from the release game; the Development game adds exact garbage per
+rem frame and graphics memory (counters a release game doesn't record). Each run is compared with the stored baseline.
+:benchfull
+if exist "%~dp0..\.gpu-lock" (
+  echo Another session is using the GPU ^(%~dp0..\.gpu-lock^). Try again when it has finished.
+  goto done
+)
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%GAMEDEV%" call :builddev
+if not exist "%GAMEDEV%" goto done
+if not exist "%BENCH%" mkdir "%BENCH%"
+for %%Q in (high medium) do (
+  echo Benchmark at %%Q, the release game ^(about 5 minutes^)...
+  "%GAME%" %SCREEN% -quality %%Q -benchmark "%BENCH%\%%Q.json" -logFile "%BENCH%\%%Q.log" <nul
+  echo Benchmark at %%Q, the Development game: garbage and memory ^(about 3 minutes^)...
+  "%GAMEDEV%" %SCREEN% -quality %%Q -laps 1 -benchmark "%BENCH%\%%Q-dev.json" -logFile "%BENCH%\%%Q-dev.log" <nul
+)
+echo Benchmark at high with the HUD on, the Development game ^(about 3 minutes^)...
+"%GAMEDEV%" %SCREEN% -quality high -laps 1 -withhud -benchmark "%BENCH%\high-dev-hud.json" -logFile "%BENCH%\high-dev-hud.log" <nul
+echo.
+for %%R in (high high-dev high-dev-hud medium medium-dev) do findstr /l /c:" at 1920x1080" "%BENCH%\%%R.log"
+echo.
+node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-high.json" "%BENCH%\high.json"
+node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-medium.json" "%BENCH%\medium.json"
+start "" "%BENCH%"
+goto done
+
+:benchpreset
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%BENCH%" mkdir "%BENCH%"
+set "QUALITY=high"
+set /p "QUALITY=Quality preset (low, medium, high or ultra; Enter for high): "
+echo Benchmark at %QUALITY% (about 4 minutes)...
+"%GAME%" %SCREEN% -quality %QUALITY% -benchmark "%BENCH%\%QUALITY%.json" -logFile "%BENCH%\%QUALITY%.log" <nul
+findstr /l /c:"[Benchmark]" "%BENCH%\%QUALITY%.log"
+start "" "%BENCH%"
 goto done
 
 :lifts
@@ -413,6 +464,22 @@ exit /b 0
 :buildgame
 call :buildplayer
 goto done
+
+:builddev
+if not exist "%UNITY%" (
+  echo Unity 6000.3.25f1 was not found at "%UNITY%".
+  exit /b 1
+)
+tasklist /fi "imagename eq Unity.exe" | find /i "Unity.exe" >nul
+if not errorlevel 1 (
+  echo The Unity editor is open. Close it first, then try again.
+  exit /b 1
+)
+if not exist "%~dp0test-results" mkdir "%~dp0test-results"
+echo Building the Development game (about 2 minutes)...
+"%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.ViewerSetup.BuildWindowsDev -logFile "%~dp0test-results\build-dev.log" <nul
+if errorlevel 1 (echo   The build failed - see test-results\build-dev.log) else (echo   Built %GAMEDEV%)
+exit /b 0
 
 :buildplayer
 if not exist "%UNITY%" (

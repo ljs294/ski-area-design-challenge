@@ -31,9 +31,13 @@ namespace MountainPlanner.Tests
             _go = new GameObject("Picker under test");
             _go.SetActive(false);
             var document = _go.AddComponent<UIDocument>();
+#if UNITY_EDITOR
             document.panelSettings = UnityEditor.AssetDatabase.LoadAssetAtPath<PanelSettings>("Assets/MountainPlanner/Art/UI/PickerPanel.asset")
                 ?? ScriptableObject.CreateInstance<PanelSettings>();
             document.visualTreeAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<VisualTreeAsset>("Assets/MountainPlanner/Art/UI/SitePicker.uxml");
+#else
+            Assert.Ignore("The picker tests load their UI from the editor's AssetDatabase.");   // player test runs (task 15)
+#endif
             var picker = _go.AddComponent<SitePicker>();
             picker.Document = document;
             _go.SetActive(true);

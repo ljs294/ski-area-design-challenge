@@ -20,7 +20,7 @@ namespace MountainPlanner.Presentation
         public const int Lods = 4;
         /// <summary>
         /// Screen-height fractions where LOD0→1, 1→2, 2→impostor and impostor→culled. For a 20 m tree at the
-        /// PC preset's LOD bias of 2: LOD0 to about 100 m, LOD1 to 250 m, LOD2 to 700 m, the impostor beyond.
+        /// High preset's LOD bias of 2 (<see cref="QualityPresets"/>; Medium 1.5, Low 1, Ultra 3): LOD0 to about 100 m, LOD1 to 250 m, LOD2 to 700 m, the impostor beyond.
         /// The LODs keep LOD0's crown, brightness and snow (TreeImport's fidelity check), so the full model no
         /// longer has to stay on far into the distance. Task 09 (owner, option A) moved LOD0→1 from 0.25 and
         /// 1→2 from 0.10: Sugarloaf's dense forest was over budget (p95 24.6 → 18.5 ms) and every site got faster.

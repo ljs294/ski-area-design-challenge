@@ -27,6 +27,7 @@ namespace MountainPlanner.App
     /// </summary>
     public sealed partial class MountainViewer : MonoBehaviour
     {
+        /// <summary>Terrain detail; set from the quality preset (<see cref="QualityPresets"/>) when the scene starts.</summary>
         public TerrainDetail Detail = TerrainDetail.High;
         /// <summary>The mountain terrain material (MountainTerrain.shader), referenced from the scene so builds keep it.</summary>
         public Material TerrainMaterial;
@@ -70,6 +71,10 @@ namespace MountainPlanner.App
         string _clockText = "12:00";
         int _clockMinute = -1;
         FarTerrainShadow _farShadows;
+        /// <summary>The IMGUI overlay, enabled only while it has something to draw (<see cref="NeedsOverlay"/>).</summary>
+        ViewerOverlay _overlay;
+        /// <summary>Landmark names in the HUD's UI Toolkit panel (no IMGUI, so nothing allocates per frame).</summary>
+        MountainPlanner.UI.LandmarkLabelOverlay _landmarkLabels;
         /// <summary>Map layers (snow, trees) and info layers (slope, exposure, snow depth, contours): keys, the HUD's rows and the F1 panel.</summary>
         readonly MapLayers _layers = new MapLayers();
         /// <summary>Contour elevation labels (task 12b.2), and the label set they show (it changes with the units).</summary>
@@ -107,8 +112,14 @@ namespace MountainPlanner.App
 
         async void Start()
         {
+            _overlay = gameObject.AddComponent<ViewerOverlay>();
+            _overlay.Viewer = this;
             Application.targetFrameRate = -1;
             string[] startArgs = Environment.GetCommandLineArgs();
+            // The quality preset (task 15): -quality low|medium|high|ultra, High by default. It must come before
+            // -shadows (which edits the active URP asset) and before the mountain opens (terrain detail).
+            QualityPresets.Apply(QualityPresets.FromArgs(startArgs, QualityPresets.Current));
+            Detail = QualityPresets.Terrain(QualityPresets.Current);
             if (Array.IndexOf(startArgs, "-nohud") >= 0) _ui = false;   // clean captures: as if H was pressed
             if (Hud != null)
             {
@@ -126,8 +137,8 @@ namespace MountainPlanner.App
             if (Array.IndexOf(startArgs, "-nopost") >= 0 && Camera != null)
                 UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(Camera.GetComponent<UnityEngine.Camera>()).renderPostProcessing = false;
             if (StartReviewTools()) return;   // -lineup: a tree lineup instead of a mountain
-            // Task 15 investigates instanced terrain; -instancing turns it on for that work.
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-instancing") >= 0) TerrainTiles.DrawInstanced = true;
+            // Instanced terrain is the default (task 15); -noinstancing draws it the old way, for comparisons.
+            TerrainTiles.DrawInstanced = Array.IndexOf(startArgs, "-noinstancing") < 0;
             string folder = PickPackage();
             if (folder == null)
             {
@@ -151,8 +162,9 @@ namespace MountainPlanner.App
                     if (FarShadowCompute != null && SystemInfo.supportsComputeShaders)
                     {
                         _farShadows = new FarTerrainShadow(FarShadowCompute, _resort.Tiles.Values, _resort.Ring);
-                        if (Array.IndexOf(args, "-nofarshadows") >= 0) _farShadows.SetEnabled(false);   // cost measurements
-                        if (Array.IndexOf(args, "-noao") >= 0) _farShadows.SetSkyOcclusion(false);       // comparisons (beauty pass, item 2)
+                        bool shading = QualityPresets.TerrainShading(QualityPresets.Current);   // off on Low
+                        if (!shading || Array.IndexOf(args, "-nofarshadows") >= 0) _farShadows.SetEnabled(false);   // cost measurements
+                        if (!shading || Array.IndexOf(args, "-noao") >= 0) _farShadows.SetSkyOcclusion(false);       // comparisons (beauty pass, item 2)
                         Lighting.FarShadows = _farShadows;
                     }
                 }
@@ -209,6 +221,8 @@ namespace MountainPlanner.App
                 }
                 int bench = Array.IndexOf(args, "-benchmark");
                 if (bench >= 0 && bench + 1 < args.Length) StartCoroutine(RunBenchmark(args[bench + 1]));
+                int benchViews = Array.IndexOf(args, "-benchmark-views");
+                if (benchViews >= 0 && benchViews + 1 < args.Length) StartCoroutine(RunViewBenchmark(args[benchViews + 1]));
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
                 int clip = Array.IndexOf(args, "-clip");
@@ -279,6 +293,8 @@ namespace MountainPlanner.App
             else HandleKeys(Keyboard.current);
             _resort?.States?.Sync();
             UpdateHud();
+            bool overlay = NeedsOverlay();
+            if (_overlay != null && _overlay.enabled != overlay) _overlay.enabled = overlay;
 
             // Keep lines a few pixels wide at any distance.
             if (Camera != null)
@@ -342,6 +358,7 @@ namespace MountainPlanner.App
         {
             if (Hud == null) return;
             Hud.SetSite(_resort.Manifest.Site.Name, _resort.Manifest.Quality.Score);
+            Hud.PrepareElevations(_resort.Cache.HeightMin - 100, _resort.Cache.HeightMin + _resort.Cache.HeightRange + 100);
             Hud.LayerChanged += (layer, on) => { if (on != _layers.IsOn(layer)) ToggleLayer(layer); };
             Hud.PresetChosen += i => Lighting?.Set(i);
             Hud.NorthUpChosen += () => Camera?.SetAngles(0, Camera.Pitch);
@@ -349,6 +366,10 @@ namespace MountainPlanner.App
             Hud.UnitsChosen += DisplayUnits.Toggle;
             ViewCamera.PointerBlocked = Hud.IsPointerOverPanel;
             _contourLabels = new MountainPlanner.UI.ContourLabelOverlay(Hud.ContourLabelLayer);
+            _landmarkLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
+            var named = new System.Collections.Generic.List<(string, Vector3)>(_landmarks.Count);
+            foreach (var landmark in _landmarks) named.Add((landmark.Name, landmark.LabelAt));
+            _landmarkLabels.SetLandmarks(named);
             DisplayUnits.Changed += OnUnitsChanged;
         }
 
@@ -365,6 +386,7 @@ namespace MountainPlanner.App
         void LateUpdate()
         {
             if (_contourLabels == null || _resort == null) return;
+            _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _hudShown && !_photo);
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
             if (!ReferenceEquals(set, _contourLabelSet))
             {
@@ -499,7 +521,20 @@ namespace MountainPlanner.App
             _toastUntil = Time.unscaledTime + 2.5f;
         }
 
-        void OnGUI()
+        /// <summary>
+        /// Whether the IMGUI overlay has anything to draw: loading, an error, a toast, photo mode, the F1 panel, or
+        /// landmark names when there's no HUD to carry them. Otherwise it's off, so steady play allocates nothing.
+        /// </summary>
+        bool NeedsOverlay()
+        {
+            if (!_hud || _capturing || TitleMode) return false;
+            if (_error != null || _resort == null || _photo || _help) return true;
+            if (_toast != null && Time.unscaledTime < _toastUntil) return true;
+            return Hud == null;
+        }
+
+        /// <summary>The IMGUI overlay's drawing (<see cref="ViewerOverlay"/> calls it from OnGUI).</summary>
+        internal void DrawOverlay()
         {
             if (!_hud || _capturing || TitleMode) return;
             var style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 15, wordWrap = true };
@@ -526,11 +561,7 @@ namespace MountainPlanner.App
                 ? $"{_status}\n[{new string('#', (int)(_fraction * 30)).PadRight(30, '.')}] {_fraction * 100:F0}%"
                 : $"{_resort.Manifest.Site.Name} · {UnitFormat.SiteSize(_resort.Manifest.Site.SizeMetres, DisplayUnits.Current)} · {_status} · {_fps:F0} fps\n" +
                   $"{_resort.Manifest.Quality.OneLiner}\n{_resort.Manifest.Flora.OneLiner}";
-            if (_resort != null && !_help && Hud != null)
-            {
-                DrawLandmarkLabels();   // the HUD carries the rest; F1 shows the developer panel
-                return;
-            }
+            if (_resort != null && !_help && Hud != null) return;   // the HUD carries the rest, landmark names included; F1 shows the developer panel
             if (_resort != null && _help)
             {
                 text += "\nWASD or arrows pan · Q/E rotate · R/F tilt · Wheel, +/− or PgUp/PgDn zoom · Middle-drag rotate · Right-drag pan · Shift faster · " +
@@ -542,7 +573,7 @@ namespace MountainPlanner.App
             }
             else GUI.Box(new Rect(20, 20, 820, style.CalcHeight(new GUIContent(text), 820)), text, style);   // sized to the wrapped text
             GUI.backgroundColor = Color.white;
-            DrawLandmarkLabels();
+            if (Hud == null) DrawLandmarkLabels();   // with a HUD they are in its UI Toolkit panel
         }
 
         /// <summary>

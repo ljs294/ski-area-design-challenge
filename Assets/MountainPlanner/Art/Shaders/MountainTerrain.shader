@@ -31,7 +31,42 @@ Shader "MountainPlanner/Terrain"
             float _Overlay;
             float _HeightBlend;
             float _SnowOn;
+            #ifdef UNITY_INSTANCING_ENABLED
+            float4 _TerrainHeightmapRecipSize;   // set by Unity for instanced terrain: 1/width, 1/height, 1/(width-1), 1/(height-1)
+            float4 _TerrainHeightmapScale;       // the heightmap's scale, y over the 16-bit range
+            #endif
         CBUFFER_END
+        // GPU-instanced terrain (task 15; TerrainTiles.DrawInstanced): Unity draws a tile's patches as instances of one
+        // flat grid, and the vertex stage reads each vertex's height and normal from the terrain's own textures, as
+        // URP's TerrainLit does (TerrainInstancing). Without this path instanced tiles drew flat and untextured (task 06).
+        #ifdef UNITY_INSTANCING_ENABLED
+        TEXTURE2D(_TerrainHeightmapTexture);
+        #endif
+        UNITY_INSTANCING_BUFFER_START(Terrain)
+            UNITY_DEFINE_INSTANCED_PROP(float4, _TerrainPatchInstanceData)   // x, y: the patch's base; z: its sample spacing
+        UNITY_INSTANCING_BUFFER_END(Terrain)
+
+        void TerrainInstancing(inout float4 positionOS, inout float3 normalOS, inout float2 uv)
+        {
+        #ifdef UNITY_INSTANCING_ENABLED
+            float4 patch = UNITY_ACCESS_INSTANCED_PROP(Terrain, _TerrainPatchInstanceData);
+            float2 sampleCoords = (positionOS.xy + patch.xy) * patch.z;
+            float height = UnpackHeightmap(_TerrainHeightmapTexture.Load(int3(sampleCoords, 0)));
+            positionOS.xz = sampleCoords * _TerrainHeightmapScale.xz;
+            positionOS.y = height * _TerrainHeightmapScale.y;
+            // The normal from the heights around the sample (central differences), so lighting doesn't depend on the
+            // normal map Unity may or may not have built for the tile.
+            int2 c = int2(sampleCoords);
+            int2 last = int2(round(1 / _TerrainHeightmapRecipSize.zw));
+            float hl = UnpackHeightmap(_TerrainHeightmapTexture.Load(int3(max(c.x - 1, 0), c.y, 0)));
+            float hr = UnpackHeightmap(_TerrainHeightmapTexture.Load(int3(min(c.x + 1, last.x), c.y, 0)));
+            float hd = UnpackHeightmap(_TerrainHeightmapTexture.Load(int3(c.x, max(c.y - 1, 0), 0)));
+            float hu = UnpackHeightmap(_TerrainHeightmapTexture.Load(int3(c.x, min(c.y + 1, last.y), 0)));
+            normalOS = normalize(float3((hl - hr) * _TerrainHeightmapScale.y / (2 * _TerrainHeightmapScale.x), 1,
+                                        (hd - hu) * _TerrainHeightmapScale.y / (2 * _TerrainHeightmapScale.z)));
+            uv = sampleCoords * _TerrainHeightmapRecipSize.zw;
+        #endif
+        }
         float _ControlRes;           // per tile (property block): splat texels per edge
         float _TileSize;             // per tile: metres per splat uv
         TEXTURE2D(_Heightmap); SAMPLER(sampler_mp_linear_clamp);   // per tile: Unity's heightmap on the GPU (task 12b: slope and exposure at 1 m)
@@ -91,12 +126,14 @@ Shader "MountainPlanner/Terrain"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fog
+            #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Haze.hlsl"
             #include "FarShadow.hlsl"
             #include "InfoLayers.hlsl"
 
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; };
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
@@ -109,6 +146,8 @@ Shader "MountainPlanner/Terrain"
             Varyings Vert(Attributes v)
             {
                 Varyings o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                TerrainInstancing(v.positionOS, v.normalOS, v.uv);
                 o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = TransformObjectToWorldNormal(v.normalOS);
@@ -493,15 +532,20 @@ Shader "MountainPlanner/Terrain"
             #pragma fragment Frag
             #pragma target 4.5
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
             float3 _LightDirection;
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; };
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; };
 
             Varyings Vert(Attributes v)
             {
                 Varyings o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                float2 uv = 0;
+                TerrainInstancing(v.positionOS, v.normalOS, uv);
                 o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
                 float3 n = TransformObjectToWorldNormal(v.normalOS);
                 float4 cs = TransformWorldToHClip(ApplyShadowBias(o.positionWS, n, _LightDirection));
@@ -532,12 +576,18 @@ Shader "MountainPlanner/Terrain"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma target 4.5
-            struct Attributes { float4 positionOS : POSITION; };
+            #pragma multi_compile_instancing
+            #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
+            struct Attributes { float4 positionOS : POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; };
 
             Varyings Vert(Attributes v)
             {
                 Varyings o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                float3 n = 0;
+                float2 uv = 0;
+                TerrainInstancing(v.positionOS, n, uv);
                 o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 return o;

@@ -36,6 +36,9 @@ namespace MountainPlanner.Editor
             }
             material.SetTexture("_Albedo", AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.AlbedoPath));
             material.SetTexture("_Normals", AssetDatabase.LoadAssetAtPath<Texture2DArray>(GroundTextures.NormalPath));
+            // Keeps the shader's instancing variants in builds (Graphics settings strip unused ones), so
+            // TerrainTiles.DrawInstanced can draw instanced terrain (task 15).
+            material.enableInstancing = true;
             EditorUtility.SetDirty(material);
             return material;
         }
@@ -198,8 +201,21 @@ namespace MountainPlanner.Editor
             return existing != null ? existing : go.AddComponent<T>();   // not ??: Unity's missing components are "fake null"
         }
 
+        /// <summary>Where the Development player goes (task 15): exact garbage per frame and graphics memory for -benchmark.</summary>
+        public const string DevPlayerPath = "Builds/WindowsDev/SkiAreaDesignChallenge.exe";
+
         [MenuItem("Mountain Planner/Build Windows Player")]
-        public static void BuildWindows()
+        public static void BuildWindows() => Build(PlayerPath, BuildOptions.None);
+
+        /// <summary>
+        /// A Development player beside the release one: the profiler counters a release player doesn't record
+        /// ("GC Allocated In Frame", "Gfx Used Memory") work here, so the benchmark's garbage and memory checks are exact.
+        /// Frame times of record still come from the release player.
+        /// </summary>
+        [MenuItem("Mountain Planner/Build Windows Development Player")]
+        public static void BuildWindowsDev() => Build(DevPlayerPath, BuildOptions.Development);
+
+        static void Build(string path, BuildOptions options)
         {
             CreateViewerScene();
             PlayerSettings.companyName = "Ski Area Design Challenge";
@@ -208,15 +224,54 @@ namespace MountainPlanner.Editor
             // Keep running when the window loses focus: loading a mountain shouldn't stall on alt-tab, and
             // unattended captures and benchmarks froze whenever another window took focus.
             PlayerSettings.runInBackground = true;
+            WriteBuildInfo();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },
-                locationPathName = PlayerPath,
+                locationPathName = path,
                 target = BuildTarget.StandaloneWindows64,
-                options = BuildOptions.None,
+                options = options,
             });
-            Debug.Log($"[ViewerSetup] Build {report.summary.result}: {report.summary.totalSize / 1e6:F0} MB in {report.summary.totalTime.TotalSeconds:F0} s → {PlayerPath}");
+            Debug.Log($"[ViewerSetup] Build {report.summary.result}: {report.summary.totalSize / 1e6:F0} MB in {report.summary.totalTime.TotalSeconds:F0} s → {path}");
             if (Application.isBatchMode) EditorApplication.Exit(report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+        }
+
+        /// <summary>Where the build stamp goes: a git-ignored Resources folder, so builds never dirty the working tree.</summary>
+        const string BuildInfoPath = "Assets/MountainPlanner/Generated/Resources/" + MountainPlanner.App.BuildInfo.ResourceName + ".json";
+
+        /// <summary>
+        /// The commit this player is built from (git SHA, uncommitted changes, build time), so benchmark results
+        /// record what they measured (0.3 §8). Without git it records "unknown".
+        /// </summary>
+        static void WriteBuildInfo()
+        {
+            string Git(string arguments)
+            {
+                try
+                {
+                    using var git = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("git", arguments)
+                    {
+                        RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true,
+                    });
+                    string output = git.StandardOutput.ReadToEnd();
+                    git.WaitForExit();
+                    return git.ExitCode == 0 ? output.Trim() : null;
+                }
+                catch (System.Exception) { return null; }
+            }
+            string commit = Git("rev-parse HEAD");
+            // Uncommitted changes outside the generated stamp itself.
+            string status = Git("status --porcelain --untracked-files=no");
+            var info = new MountainPlanner.App.BuildInfo
+            {
+                commit = string.IsNullOrEmpty(commit) ? "unknown" : commit,
+                dirty = !string.IsNullOrEmpty(status),
+                builtUtc = System.DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
+            };
+            Directory.CreateDirectory(Path.GetDirectoryName(BuildInfoPath));
+            File.WriteAllText(BuildInfoPath, JsonUtility.ToJson(info, true));
+            AssetDatabase.ImportAsset(BuildInfoPath);
+            Debug.Log($"[ViewerSetup] Build info: {info.commit}{(info.dirty ? " (uncommitted changes)" : "")}");
         }
     }
 }

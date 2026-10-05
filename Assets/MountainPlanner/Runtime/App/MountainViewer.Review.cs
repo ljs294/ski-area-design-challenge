@@ -17,8 +17,10 @@ namespace MountainPlanner.App
 {
     /// <summary>
     /// Review tools for the forest (tree realism review): repeatable evidence rather than impressions.
-    ///   -benchmark &lt;out.json&gt;  flies fixed views over the opened mountain, recording frame and GPU times,
-    ///                            visible trees per LOD and a screenshot of each view, then quits.
+    ///   -benchmark &lt;out.json&gt;  flies the fixed camera path over the opened mountain (task 15), recording frame and
+    ///                            GPU times, garbage and memory per leg and in total, checks them against the
+    ///                            quality preset's budget (-quality), saves a screenshot of each leg, then quits.
+    ///   -benchmark-views &lt;out.json&gt;  the earlier benchmark: 300 frames at each fixed view, with visible trees per LOD.
     ///   -lineup &lt;out prefix&gt;    no mountain: every species in a row on flat snow, captured at each forced LOD
     ///                            from the side, from above and against the sun, close-ups, trunks from a few
     ///                            metres, and a mixed stand seen from near to far at natural LOD. Then quits.
@@ -111,7 +113,196 @@ namespace MountainPlanner.App
             Camera.SetAngles(v.Yaw, v.Pitch);
         }
 
+        /// <summary>The benchmark path's legs: the fixed views, in order, as poses (targets on the ground, metres from the site centre).</summary>
+        BenchmarkPath.Leg[] BenchLegs()
+        {
+            var views = SiteViews();
+            var legs = new BenchmarkPath.Leg[views.Length];
+            for (int i = 0; i < views.Length; i++)
+            {
+                var v = views[i];
+                Vector3 target;
+                float distance = v.Distance;
+                if (float.IsNaN(v.X) && v.Z == 0)
+                {
+                    target = new Vector3(0, _resort.Surface.HeightAt(0, 0), 0);
+                    distance = _resort.Manifest.Site.SizeMetres * 1.1f;
+                }
+                else if (float.IsNaN(v.X)) target = _landmarks.Count > 0 ? _landmarks[0].Centre : Vector3.zero;
+                else target = new Vector3(v.X, _resort.Surface.HeightAt(v.X, v.Z), v.Z);
+                legs[i] = new BenchmarkPath.Leg(v.Name, target, distance, v.Yaw, v.Pitch);
+            }
+            return legs;
+        }
+
+        /// <summary>The mountain, its forest and its cover are in: the benchmark (and its PlayMode test) can start.</summary>
+        internal bool BenchmarkReady => _resort != null && Forest != null && _resort.CoverReady.IsCompleted;
+
+        /// <summary>The fixed camera path for the open mountain (the PlayMode performance test flies it too).</summary>
+        internal BenchmarkPath CreateBenchmarkPath() => new BenchmarkPath(BenchLegs());
+
+        internal int PlaceOnPath(BenchmarkPath path, float seconds)
+        {
+            int leg = path.Evaluate(seconds, out var pose);
+            if (Camera != null)
+            {
+                Camera.Frame(pose.Target, pose.Distance);
+                Camera.SetAngles(pose.Yaw, pose.Pitch);
+            }
+            return leg;
+        }
+
+        /// <summary>
+        /// -benchmark &lt;out.json&gt; (task 15; 0.3 §8): flies the fixed camera path (<see cref="BenchmarkPath"/>) once to
+        /// warm up, taking a screenshot of each leg, then -laps times (2 by default) recording every frame, per leg and
+        /// in total, without allocating. Writes a <see cref="BenchmarkReport"/> checked against the preset's
+        /// <see cref="PerformanceBudget"/>, then quits. -withhud measures with the HUD on.
+        /// </summary>
         IEnumerator RunBenchmark(string outPath)
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            _hud = Array.IndexOf(args, "-withhud") >= 0;
+            int laps = 2;
+            int lapsArg = Array.IndexOf(args, "-laps");
+            if (lapsArg >= 0 && lapsArg + 1 < args.Length && int.TryParse(args[lapsArg + 1], out int l)) laps = Mathf.Max(1, l);
+            while (Forest == null) yield return null;
+            while (!_resort.CoverReady.IsCompleted) yield return null;
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = -1;
+            if (Camera != null) Camera.InputEnabled = false;
+            var path = new BenchmarkPath(BenchLegs());
+            string prefix = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".", Path.GetFileNameWithoutExtension(outPath));
+
+            // Warm-up lap: shaders, LODs, shadows and streaming settle; each leg's screenshot is taken here, not while measuring.
+            int shot = -1;
+            float start = Time.unscaledTime;
+            for (float t = 0; t < path.LapSeconds; t = Time.unscaledTime - start)
+            {
+                int leg = PlaceOnPath(path, t);
+                if (leg != shot && BenchmarkPath.NearHoldEnd(t))
+                {
+                    shot = leg;
+                    ScreenCapture.CaptureScreenshot($"{prefix}_{path.LegName(leg)}.png");
+                }
+                yield return null;
+            }
+
+            // Measured laps: nothing below allocates per frame (FrameStats records into preallocated buffers).
+            var total = new FrameStats(1 << 20);
+            var legs = new FrameStats[path.LegCount];
+            for (int i = 0; i < legs.Length; i++) legs[i] = new FrameStats(1 << 17);
+            // One second at the path's start before measuring: the last warm-up screenshot finishes saving here, not in a measured frame.
+            for (start = Time.unscaledTime; Time.unscaledTime - start < 1f;)
+            {
+                PlaceOnPath(path, 0);
+                yield return null;
+            }
+            total.Reset();   // marks the managed heap for the garbage check
+            foreach (var s in legs) s.Reset();
+            start = Time.unscaledTime;
+            float duration = laps * path.LapSeconds;
+            for (float t = 0; t < duration; t = Time.unscaledTime - start)
+            {
+                int leg = PlaceOnPath(path, t);
+                yield return null;
+                float gpu = FrameStats.SampleGpuMs();
+                float dt = Time.unscaledDeltaTime;
+                total.Record(dt, gpu);
+                legs[leg].Record(dt, gpu);
+            }
+            total.Stop();
+
+            var report = BuildReport(path, laps, total, legs);
+            total.Dispose();
+            foreach (var s in legs) s.Dispose();
+            File.WriteAllText(outPath, JsonUtility.ToJson(report, true));
+            foreach (var leg in report.legs)
+                Debug.Log(string.Format(CultureInfo.InvariantCulture, "[Benchmark] {0}: frame p95 {1:F2} ms, GPU p95 {2:F2} ms, garbage {3} B, draw calls {4}",
+                                        leg.name, leg.stats.p95Ms, leg.stats.gpuP95Ms, leg.stats.gcBytesTotal, leg.stats.drawCalls));
+            Debug.Log("[Benchmark] " + report.result.summary);
+            Debug.Log($"[Benchmark] written to {outPath}");
+            Application.Quit();
+        }
+
+        BenchmarkReport BuildReport(BenchmarkPath path, int laps, FrameStats total, FrameStats[] legs)
+        {
+            var urp = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
+            var build = BuildInfo.Current;
+            var preset = QualityPresets.Current;
+            var budget = PerformanceBudget.For(preset);
+            var t = total.Summarise();
+            var report = new BenchmarkReport
+            {
+                commit = build.commit,
+                commitDirty = build.dirty,
+                builtUtc = build.builtUtc,
+                measuredUtc = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                gpu = SystemInfo.graphicsDeviceName,
+                gpuMemoryMB = SystemInfo.graphicsMemorySize,
+                cpu = SystemInfo.processorType,
+                systemMemoryMB = SystemInfo.systemMemorySize,
+                unity = Application.unityVersion,
+                development = Debug.isDebugBuild,
+                quality = preset.ToString(),
+                width = Screen.width,
+                height = Screen.height,
+                renderScale = urp != null ? urp.renderScale : 1f,
+                msaa = urp != null ? urp.msaaSampleCount : QualitySettings.antiAliasing,
+                shadowDistance = ShadowDistance,
+                lodBias = QualitySettings.lodBias,
+                terrainDetail = Detail.ToString(),
+                instancedTerrain = TerrainTiles.DrawInstanced,
+                terrainShading = _farShadows != null && _farShadows.Enabled,
+                hud = _hud,
+                site = _resort.Manifest.Site.Name,
+                siteSizeKm = (float)(_resort.Manifest.Site.SizeMetres / 1000.0),
+                trees = Forest.TreeCount,
+                laps = laps,
+                lapSeconds = path.LapSeconds,
+                total = t,
+                legs = new BenchmarkReport.Leg[legs.Length],
+                budget = new BenchmarkReport.Budget
+                {
+                    isChecked = budget.Checked, p95Ms = budget.P95Ms, p99Ms = budget.P99Ms,
+                    percentOver50Ms = budget.PercentOver50Ms, gfxMemoryMB = budget.GfxMemoryMB, gcBytes = 0,
+                },
+            };
+            for (int i = 0; i < legs.Length; i++) report.legs[i] = new BenchmarkReport.Leg { name = path.LegName(i), stats = legs[i].Summarise() };
+
+            var r = new BenchmarkReport.Result
+            {
+                frameTime = t.p95Ms <= budget.P95Ms && t.p99Ms <= budget.P99Ms && t.percentOver50Ms <= budget.PercentOver50Ms,
+                // Garbage: the per-frame counter where the player records it (Development builds), else the heap check.
+                garbageMeasured = t.gcBytesTotal >= 0 || t.heapGrowthBytes >= 0,
+                memoryMeasured = t.gfxMemoryMBMax >= 0,
+            };
+            // "0 bytes per frame in steady state" (0.3 §8): under a byte per frame on average, no collection, and no
+            // recurring allocation (at most one frame in 10,000 allocates: a one-off such as a new text's first draw).
+            r.garbage = t.gcBytesTotal >= 0
+                ? t.gcBytesTotal < t.frames && t.gcFramesWithAllocations * 10000L <= Math.Max(10000, t.frames)
+                : t.heapGrowthBytes < t.frames && t.gcCollections == 0;
+            r.memory = r.memoryMeasured && t.gfxMemoryMBMax <= budget.GfxMemoryMB;
+            // Release players don't record graphics memory; the Development run checks it (demo.bat runs both).
+            r.all = budget.Checked && r.frameTime && r.garbage && (r.memory || !r.memoryMeasured);
+            r.summary = string.Format(CultureInfo.InvariantCulture,
+                "{0} at {1}x{2}{3}: frame p95 {4:F2} ms (≤{5}), p99 {6:F2} ms (≤{7}), over 50 ms {8:F2}% (≤{9}), GPU p95 {10:F2} ms, " +
+                "garbage {11} ({12}), graphics memory {13} → {14}",
+                preset, Screen.width, Screen.height, _hud ? " with the HUD" : "",
+                t.p95Ms, Limit(budget.Checked, budget.P95Ms), t.p99Ms, Limit(budget.Checked, budget.P99Ms),
+                t.percentOver50Ms, Limit(budget.Checked, budget.PercentOver50Ms), t.gpuP95Ms,
+                t.gcBytesTotal >= 0 ? $"{t.gcBytesTotal} B in {t.gcFramesWithAllocations} of {t.frames} frames"
+                    : t.heapGrowthBytes >= 0 ? $"heap +{t.heapGrowthBytes} B, {t.gcCollections} collections over {t.frames} frames" : "not measured",
+                r.garbageMeasured ? (r.garbage ? "pass" : "FAIL") : "-",
+                r.memoryMeasured ? $"{t.gfxMemoryMBMax:F0} MB (≤{budget.GfxMemoryMB:F0})" : "not measured",
+                !budget.Checked ? "not checked" : r.all ? "PASS" : "FAIL");
+            report.result = r;
+            return report;
+        }
+
+        static string Limit(bool isChecked, float value) => isChecked ? value.ToString("0.#", CultureInfo.InvariantCulture) : "–";
+
+        /// <summary>-benchmark-views &lt;out.json&gt;: the earlier benchmark, 300 frames at each of the fixed views (kept for comparisons with older reports).</summary>
+        IEnumerator RunViewBenchmark(string outPath)
         {
             _hud = Array.IndexOf(Environment.GetCommandLineArgs(), "-withhud") >= 0;   // -withhud: measure with the HUD on
             while (Forest == null) yield return null;
