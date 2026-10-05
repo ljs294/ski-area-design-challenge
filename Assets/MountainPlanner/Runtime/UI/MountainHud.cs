@@ -24,6 +24,8 @@ namespace MountainPlanner.UI
         public event Action<int> PresetChosen;
         public event Action NorthUpChosen;
         public event Action QuitChosen;
+        /// <summary>The menu's Exit to title; the item shows only when the app flow is running (<see cref="ShowExitToTitle"/>).</summary>
+        public event Action ExitChosen;
         /// <summary>The menu's units switch (U does the same): the app flips <see cref="DisplayUnits"/>.</summary>
         public event Action UnitsChosen;
 
@@ -75,6 +77,7 @@ namespace MountainPlanner.UI
             _root.Q<Button>("menu-button").clicked += ToggleMenu;
             _root.Q<Button>("menu-resume").clicked += ToggleMenu;
             _root.Q<Button>("menu-quit").clicked += () => QuitChosen?.Invoke();
+            _root.Q<Button>("menu-exit").clicked += () => ExitChosen?.Invoke();
             _root.Q<Button>("menu-settings").SetEnabled(false);
             _themeButton.clicked += () => SetTheme(!DarkThemeOn);
             _unitsButton = _root.Q<Button>("menu-units");
@@ -109,6 +112,9 @@ namespace MountainPlanner.UI
         }
 
         public void SetVisible(bool visible) => _root.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+
+        /// <summary>Shows the menu's Exit to title (off when the viewer runs without the title flow, as captures do).</summary>
+        public void ShowExitToTitle(bool show) => _root.Q("menu-exit").EnableInClassList("hidden", !show);
 
         public void ToggleMenu() => _menu.EnableInClassList("hidden", MenuOpen);
 
@@ -328,13 +334,7 @@ namespace MountainPlanner.UI
         }
 
         /// <summary>True when the pointer (screen pixels, origin bottom-left) is over a HUD panel, so the camera leaves the wheel alone.</summary>
-        public bool IsPointerOverPanel(Vector2 screen)
-        {
-            if (_root?.panel == null || _root.style.display == DisplayStyle.None) return false;
-            var p = RuntimePanelUtils.ScreenToPanel(_root.panel, new Vector2(screen.x, Screen.height - screen.y));
-            var picked = _root.panel.Pick(p);
-            return picked != null && picked != _root;
-        }
+        public bool IsPointerOverPanel(Vector2 screen) => PanelPointer.IsOver(_root, screen);
 
         Color Themed(string light, string dark) => ColorUtility.TryParseHtmlString(DarkThemeOn ? dark : light, out var c) ? c : Color.magenta;
 

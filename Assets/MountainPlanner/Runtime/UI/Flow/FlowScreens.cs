@@ -47,6 +47,8 @@ namespace MountainPlanner.UI.Flow
         /// <summary>Settings or Credits is open over the title (Esc closes it first).</summary>
         public bool OverlayOpen => IsShown(_settings) || IsShown(_credits);
         public LibraryMode Mode { get; private set; } = LibraryMode.Load;
+        /// <summary>True when the pointer (screen pixels, origin bottom-left) is over a shown screen, card, pill or dialog.</summary>
+        public bool IsPointerOverPanel(Vector2 screen) => PanelPointer.IsOver(_root, screen);
         public bool LibraryVisible => _library != null && !_library.ClassListContains("hidden");
         public LibraryRow SelectedRow => _selected >= 0 && _selected < _rowData.Count ? _rowData[_selected] : null;
 

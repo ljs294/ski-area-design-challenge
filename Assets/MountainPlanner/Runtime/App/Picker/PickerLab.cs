@@ -99,7 +99,7 @@ namespace MountainPlanner.App.Picker
         void OnChosen(PickedSite site)
         {
             string name = new string(site.Name.Where(c => c >= ' ' && "\"&|<>^%!".IndexOf(c) < 0).ToArray()).Trim();
-            if (name.Length == 0) name = "New Mountain";
+            if (name.Length == 0) name = "New Area";
             string line = string.Format(CultureInfo.InvariantCulture, "--name \"{0}\" --lat {1:R} --lon {2:R} --km {3:0.0}",
                 name, site.Centre.Latitude, site.Centre.Longitude, site.SizeKm);
             Quit(line);

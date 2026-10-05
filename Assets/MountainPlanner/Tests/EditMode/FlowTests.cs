@@ -272,6 +272,17 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void ExitToTitleOnlyLeavesAMountain()
+        {
+            var (flow, host) = Title();
+            flow.ExitToTitle();
+            Assert.That(host.Log, Has.None.StartsWith("title"), "on the title there is nothing to exit");
+            flow.SceneReady(inGame: true);
+            flow.ExitToTitle();
+            Assert.That(host.Log[host.Log.Count - 1], Is.EqualTo("title then Title"));
+        }
+
+        [Test]
         public void EscapeBacksOutOneStep()
         {
             var (flow, host) = Title();

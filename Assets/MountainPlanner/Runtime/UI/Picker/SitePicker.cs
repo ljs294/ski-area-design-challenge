@@ -30,6 +30,8 @@ namespace MountainPlanner.UI.Picker
         public SitePickerModel Model { get; } = new SitePickerModel();
         public TileMapView Map { get; private set; }
         public bool IsOpen => _root != null && _root.style.display != DisplayStyle.None;
+        /// <summary>True when the picker is open and the pointer (screen pixels, origin bottom-left) is over it.</summary>
+        public bool IsPointerOver(Vector2 screen) => IsOpen && PanelPointer.IsOver(Document.rootVisualElement, screen);
         public bool DarkTheme { get; private set; } = true;
 
         const long EstimateDelayMs = 350;
@@ -91,7 +93,7 @@ namespace MountainPlanner.UI.Picker
 
             _search.RegisterCallback<KeyDownEvent>(OnSearchKey, TrickleDown.TrickleDown);
             _name.RegisterValueChangedCallback(e => { if (!_rendering) Model.TypeName(e.newValue); });
-            _name.textEdition.placeholder = "Name your mountain";
+            _name.textEdition.placeholder = "Name your area";
             _size.lowValue = (float)SiteSquare.MinSizeKm;
             _size.highValue = (float)SiteSquare.MaxSizeKm;
             _size.RegisterValueChangedCallback(e => { if (!_rendering) { Model.SetSize(e.newValue); RequestDetails(suggestName: false); } });
@@ -420,7 +422,7 @@ namespace MountainPlanner.UI.Picker
             _warning.visible = warning != null;
 
             // What Download is waiting for, in words; nothing once it's ready.
-            _note.text = !placed ? "" : Model.Name.Trim().Length == 0 ? "Name your mountain to download it." : "";
+            _note.text = !placed ? "" : Model.Name.Trim().Length == 0 ? "Name your area to download it." : "";
         }
 
         IReadOnlyList<PlaceResult> _shownResults;

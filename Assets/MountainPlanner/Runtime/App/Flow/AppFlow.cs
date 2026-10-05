@@ -4,6 +4,7 @@ using System.Linq;
 using MountainPlanner.App.Picker;
 using MountainPlanner.Domain.Geo;
 using MountainPlanner.Persistence;
+using MountainPlanner.Presentation;
 using MountainPlanner.UI.Flow;
 using MountainPlanner.UI.Picker;
 using UnityEngine;
@@ -84,6 +85,8 @@ namespace MountainPlanner.App.Flow
             flow.Controller = new FlowController(flow);
             flow.Picker = CreatePicker();
             Instance = flow;
+            // The camera ignores the pointer over the flow's panels (download card and pill, quality card, dialogs) and the picker.
+            ViewCamera.OverlayBlocked = flow.PointerOverFlow;
             MountainViewer.TitleMode = true;
             MountainViewer.RequestedPackage = flow.TitleBackground();
             go.SetActive(true);
@@ -198,7 +201,11 @@ namespace MountainPlanner.App.Flow
         {
             FlowUnits.Changed -= OnUnitsChanged;
             if (Picker != null) Destroy(Picker.gameObject);
-            if (Instance == this) Instance = null;
+            if (Instance == this)
+            {
+                Instance = null;
+                ViewCamera.OverlayBlocked = null;
+            }
         }
 
         void Start()
@@ -219,6 +226,11 @@ namespace MountainPlanner.App.Flow
             }
             _viewerScene = scene.path;
             _framesSinceLoad = 0;
+            if (_viewer.Hud != null)
+            {
+                _viewer.Hud.ShowExitToTitle(true);
+                _viewer.Hud.ExitChosen += Controller.ExitToTitle;
+            }
             var then = _afterTitle;
             _afterTitle = FlowScreen.Title;
             Controller.SceneReady(!MountainViewer.TitleMode, then);
@@ -237,6 +249,10 @@ namespace MountainPlanner.App.Flow
             var cam = _viewer != null ? _viewer.Camera : null;
             if (MountainViewer.TitleMode && cam != null && cam.Surface != null) cam.SetAngles(cam.Yaw + 2.5f * Time.unscaledDeltaTime, cam.Pitch);
         }
+
+        /// <summary>True when the pointer (screen pixels, origin bottom-left) is over a flow panel or the open picker.</summary>
+        public bool PointerOverFlow(Vector2 screen) =>
+            Screens.IsPointerOverPanel(screen) || (Picker != null && Picker.IsPointerOver(screen));
 
         void HandleKeys(Keyboard keys)
         {

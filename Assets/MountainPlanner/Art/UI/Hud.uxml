@@ -4,7 +4,7 @@
     <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
         <ui:VisualElement name="contour-labels" class="contour-labels" picking-mode="Ignore" />
         <ui:VisualElement name="top-bar" class="panel top-bar">
-            <ui:Label name="site-name" class="site-name" text="Mountain" />
+            <ui:Label name="site-name" class="site-name" text="Area" />
             <ui:Label name="quality" class="badge" text="97 · Excellent" />
             <ui:VisualElement class="spacer" picking-mode="Ignore" />
             <ui:Label name="camera-chip" class="chip" text="Orbit camera" tooltip="Free-fly comes with the camera task (11)" />
@@ -22,6 +22,7 @@
                 <ui:Button name="menu-theme" class="menu-item" text="Dark theme" />
                 <ui:Button name="menu-units" class="menu-item" text="Units: imperial" tooltip="Switch between feet and metres (U)" />
                 <ui:Button name="menu-settings" class="menu-item" text="Settings (coming)" />
+                <ui:Button name="menu-exit" class="menu-item hidden" text="Exit to title" />
                 <ui:Button name="menu-quit" class="menu-item menu-item--danger" text="Quit to desktop" />
             </ui:VisualElement>
             <ui:VisualElement class="spacer" picking-mode="Ignore" />
