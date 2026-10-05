@@ -301,6 +301,36 @@ namespace MountainPlanner.App
 
         static string Limit(bool isChecked, float value) => isChecked ? value.ToString("0.#", CultureInfo.InvariantCulture) : "–";
 
+        /// <summary>
+        /// -pathmovie &lt;folder&gt;: one lap of the benchmark path at a fixed 15 frames a second (game time steps exactly
+        /// 1/15 s), each frame saved as &lt;folder&gt;/path/f_&lt;ms&gt;.jpg for the owner's review movie
+        /// (Editor/PickerLabSetup.EncodeMovies turns the folder into path.mp4). Then quits. Not a measurement.
+        /// </summary>
+        IEnumerator RecordPathMovie(string folder)
+        {
+            _hud = Array.IndexOf(Environment.GetCommandLineArgs(), "-withhud") >= 0;
+            while (Forest == null) yield return null;
+            while (!_resort.CoverReady.IsCompleted) yield return null;
+            if (Camera != null) Camera.InputEnabled = false;
+            var path = new BenchmarkPath(BenchLegs());
+            string frames = Path.Combine(folder, "path");
+            Directory.CreateDirectory(frames);
+            for (int i = 0; i < 90; i++) { PlaceOnPath(path, 0); yield return null; }   // LODs and shadows settle
+            const int fps = 15;
+            int count = Mathf.CeilToInt(path.LapSeconds * fps);
+            for (int k = 0; k < count; k++)
+            {
+                PlaceOnPath(path, k / (float)fps);
+                yield return new WaitForEndOfFrame();
+                var shot = ScreenCapture.CaptureScreenshotAsTexture();
+                File.WriteAllBytes(Path.Combine(frames, $"f_{k * 1000 / fps:D6}.jpg"), shot.EncodeToJPG(85));
+                Destroy(shot);
+                yield return null;
+            }
+            Debug.Log($"[MountainViewer] {count} path frames saved to {frames}");
+            Application.Quit();
+        }
+
         /// <summary>-benchmark-views &lt;out.json&gt;: the earlier benchmark, 300 frames at each of the fixed views (kept for comparisons with older reports).</summary>
         IEnumerator RunViewBenchmark(string outPath)
         {

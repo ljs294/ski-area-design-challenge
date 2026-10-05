@@ -223,6 +223,8 @@ namespace MountainPlanner.App
                 if (bench >= 0 && bench + 1 < args.Length) StartCoroutine(RunBenchmark(args[bench + 1]));
                 int benchViews = Array.IndexOf(args, "-benchmark-views");
                 if (benchViews >= 0 && benchViews + 1 < args.Length) StartCoroutine(RunViewBenchmark(args[benchViews + 1]));
+                int movie = Array.IndexOf(args, "-pathmovie");
+                if (movie >= 0 && movie + 1 < args.Length) StartCoroutine(RecordPathMovie(args[movie + 1]));
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
                 int clip = Array.IndexOf(args, "-clip");
