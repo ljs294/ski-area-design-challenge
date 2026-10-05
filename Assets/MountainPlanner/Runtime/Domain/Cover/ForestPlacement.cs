@@ -32,8 +32,23 @@ namespace MountainPlanner.Domain.Cover
         public const double WorldCoverTreeShare = 0.5;
         /// <summary>Ring density falls to this share of the core's over this distance beyond the core.</summary>
         public const double RingMinDensity = 0.1, RingFadeMetres = 2000;
-        /// <summary>A typical dominant height where only WorldCover is known.</summary>
+        /// <summary>
+        /// A typical dominant height where only WorldCover is known, used when the core can't measure one (no canopy
+        /// map). Otherwise the ring takes the core's own mean dominant height, so trees don't shrink at its edge.
+        /// </summary>
         public const double RingDominantHeight = 18;
+
+        /// <summary>
+        /// Ring stands: the canopy map breaks the core's forest into closed stands and open glades, which WorldCover's
+        /// forest cells can't show, so a ring cell's tree share follows a noise field of this wavelength (metres):
+        /// none below <see cref="RingGladeBelow"/>, full stands above <see cref="RingStandAbove"/>, the same mean.
+        /// </summary>
+        public const double RingStandWavelength = 90, RingGladeBelow = -0.2, RingStandAbove = 0.35;
+        /// <summary>Over this distance beyond the core (metres), the core's edge canopy fades into the ring's stand field.</summary>
+        public const double RingBlendMetres = 80;
+
+        /// <summary>A ring cell's stand weight (0–1) from the noise value (−1–1) at its centre.</summary>
+        public static double RingStand(double noise) => GroundCover.SmoothStep(RingGladeBelow, RingStandAbove, noise);
 
         /// <summary>Crown radius for a tree of this height (metres): narrow subalpine crowns.</summary>
         public static double CrownRadius(double height) => Math.Max(1.2, Math.Min(4.5, 0.1 * height + 0.6));

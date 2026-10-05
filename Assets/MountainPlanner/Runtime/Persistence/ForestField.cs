@@ -191,6 +191,10 @@ namespace MountainPlanner.Persistence
         readonly AlbersBox _core;
         /// <summary>Tree share given to a ring WorldCover forest cell, measured in the core (see constructor).</summary>
         public readonly double RingTreeShare;
+        /// <summary>Dominant height given to ring forest (metres): the core's mean, measured like <see cref="RingTreeShare"/>.</summary>
+        public readonly double RingHeight;
+        /// <summary>The ring stand weight's mean over a large sample, so stands and glades keep the ring's calibrated density.</summary>
+        readonly double _ringStandMean;
         readonly ulong _seed;
         readonly ForestCalibration _calibration = ForestCalibration.Default;
 
@@ -237,6 +241,8 @@ namespace MountainPlanner.Persistence
             _siteTolerant = all > 0 ? tolerant / all : 0;
             if (_siteShares.Sum() <= 0) _siteShares[SpeciesMap.IndexOf("douglas_fir")] = 1;
             RingTreeShare = MeasureRingShare();
+            RingHeight = MeasureRingHeight();
+            _ringStandMean = MeasureRingStandMean();
         }
 
         /// <summary>
@@ -266,6 +272,46 @@ namespace MountainPlanner.Persistence
             if (forestCells == 0) return ForestPlacement.WorldCoverTreeShare;
             return Clamp(shares / forestCells, 0.05, 0.8);
         }
+
+        /// <summary>
+        /// The core's mean dominant height over its 10 m cells with trees, so ring trees stand as tall as the forest
+        /// they continue (a fixed 18 m left a step and a line of lower LODs at the core's edge).
+        /// </summary>
+        double MeasureRingHeight()
+        {
+            if (_canopy == null) return ForestPlacement.RingDominantHeight;
+            var h = _canopyHeader;
+            const int m = ForestPlacement.CellMetres;
+            double sum = 0;
+            long cells = 0;
+            for (int br = 0; br + m <= h.Height; br += m)
+                for (int bc = 0; bc + m <= h.Width; bc += m)
+                {
+                    int tallest = 0;
+                    for (int j = 0; j < m; j++)
+                    {
+                        long row = (long)(br + j) * h.Width + bc;
+                        for (int i = 0; i < m; i++) if (_canopy[row + i] > tallest) tallest = _canopy[row + i];
+                    }
+                    if (tallest < ForestRule.TreeCode) continue;
+                    sum += Clamp(_calibration.DominantHeight((byte)tallest), ForestPlacement.MinHeight, ForestPlacement.MaxHeight);
+                    cells++;
+                }
+            return cells == 0 ? ForestPlacement.RingDominantHeight : sum / cells;
+        }
+
+        /// <summary>The mean of <see cref="ForestPlacement.RingStand"/> over a 4 km square of the noise field, 10 m apart.</summary>
+        double MeasureRingStandMean()
+        {
+            const int n = 400, m = ForestPlacement.CellMetres;
+            double sum = 0;
+            for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
+                    sum += ForestPlacement.RingStand(CoverNoise.At(_seed ^ RingStandSalt, i * m, j * m, ForestPlacement.RingStandWavelength));
+            return Math.Max(0.05, sum / (n * n));
+        }
+
+        const ulong RingStandSalt = 0x57A2DUL;
 
         /// <summary>
         /// Prepares the plan for the whole tile grid: the forest frame starts at the grid's south-west corner
@@ -429,9 +475,24 @@ namespace MountainPlanner.Persistence
             else
             {
                 if (_cover == null || CoverAt(x0 + m / 2.0, y0 + m / 2.0) != 10) return default;
-                dominant = ForestPlacement.RingDominantHeight * (0.85 + 0.3 * ForestPlacement.Hash01(_seed, cx, cy, 0, 7));
-                double density = ForestPlacement.RingDensity(OutsideCore(x0 + m / 2.0, y0 + m / 2.0));
-                expected = ForestPlacement.TreesPerCell(RingTreeShare, dominant, _calibration) * density;
+                double cxm = x0 + m / 2.0, cym = y0 + m / 2.0, outside = OutsideCore(cxm, cym);
+                double density = ForestPlacement.RingDensity(outside);
+                // Stands and glades, as the core's canopy grows (the field's mean is 1, so the calibrated density holds).
+                double stand = ForestPlacement.RingStand(CoverNoise.At(_seed ^ RingStandSalt, cxm, cym, ForestPlacement.RingStandWavelength)) / _ringStandMean;
+                double height = RingHeight;
+                if (_canopy != null && outside < ForestPlacement.RingBlendMetres)
+                {
+                    // Near the core the core's own edge carries on (its stands, glades and heights), fading into the field, so
+                    // nothing starts or stops along the edge's straight line.
+                    double t = GroundCover.SmoothStep(0, ForestPlacement.RingBlendMetres, outside);
+                    EdgeCell(cxm, cym, out double edgeShare, out double edgeHeight);
+                    stand = edgeShare / RingTreeShare + (stand - edgeShare / RingTreeShare) * t;
+                    if (edgeHeight > 0) height = edgeHeight + (RingHeight - edgeHeight) * t;
+                }
+                if (stand <= 0.02) return default;
+                dominant = Clamp(height * (0.85 + 0.3 * ForestPlacement.Hash01(_seed, cx, cy, 0, 7)), ForestPlacement.MinHeight, ForestPlacement.MaxHeight);
+                canopyShare = Math.Min(1, RingTreeShare * stand);
+                expected = ForestPlacement.TreesPerCell(canopyShare, dominant, _calibration) * density;
                 width = Math.Min(3, 1 / Math.Sqrt(density));   // fewer, wider crowns in the distance
                 kind = ForestCell.Ring;
             }
@@ -531,6 +592,28 @@ namespace MountainPlanner.Persistence
             if (total == 0) return;
             conifer = (double)con / total;
             tolerant = (double)tol / total;
+        }
+
+        /// <summary>
+        /// The canopy map's 10 m cell at the core's edge nearest a point outside it: its tree share (0–1) and calibrated
+        /// dominant height (0 when it has no trees).
+        /// </summary>
+        void EdgeCell(double x, double y, out double share, out double dominant)
+        {
+            var h = _canopyHeader;
+            const int m = ForestPlacement.CellMetres;
+            double west = h.West, east = h.West + h.Width * h.CellSize - m, north = h.North, south = h.North - h.Height * h.CellSize + m;
+            double ex = Math.Floor((Clamp(x, west, east) - west) / m) * m + west, ey = north - Math.Floor((north - Clamp(y, south, north)) / m) * m;
+            int trees = 0, tallest = 0;
+            for (int j = 0; j < m; j++)
+                for (int i = 0; i < m; i++)
+                {
+                    int v = CanopyAt(ex + i + 0.5, ey - j - 0.5);
+                    if (v >= ForestRule.TreeCode) trees++;
+                    if (v > tallest) tallest = v;
+                }
+            share = trees / 100.0;
+            dominant = trees == 0 ? 0 : Clamp(_calibration.DominantHeight((byte)tallest), ForestPlacement.MinHeight, ForestPlacement.MaxHeight);
         }
 
         int CanopyAt(double x, double y)

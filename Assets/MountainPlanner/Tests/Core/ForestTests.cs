@@ -186,11 +186,11 @@ namespace MountainPlanner.Tests
         /// </summary>
         static readonly Dictionary<string, string> GoldenTrees = new Dictionary<string, string>
         {
-            ["t4_3"] = "1cfc5d5fddc5cfb51c8b12e8a47946a8509c772705fd5b842f96ecc1c1939baf",
-            ["t4_4"] = "801218d50cad6141bbf8e160ef4e71294f0a7117d64b35166c0dec548ea4dfb8",
-            ["t0_0"] = "c91758af65bf3fb03276dd849da9f51301283f1c63d8cff2d565c77df3162792",
+            ["t4_3"] = "e5037b18efdc790dedd987ff7ecc5b12ff1a479391a4181e622f1aafdd8a7f7b",
+            ["t4_4"] = "17e7c892a83a6199b0192dd636eeb4103c1073ef335114238db4807f68b0ea80",
+            ["t0_0"] = "1596d39616262363aa08959648fbeee8e6b134f6f4fdf571997ca037472fa71a",
         };
-        const int GoldenTreeCount = 256917;
+        const int GoldenTreeCount = 195568;   // owner-approved 2026-10-05: ring forest at the core's height, in stands (cache v12)
 
         static (PackageManifest Manifest, string Dir) JacksonHole2Km()
         {
