@@ -116,6 +116,10 @@ echo   Phase 2, task 01: UI foundation (needs a downloaded area; close the Unity
 echo     47 Capture every screen at 1920x1080, 2560x1080, 3440x1440 and 5120x1440, dark and light, 50-150%% (about 15 minutes)
 echo        Then try it by hand: Settings - Theme (Dark, Light, Auto) and Interface scale; Tab, the arrows, Enter and Esc on every screen.
 echo.
+echo   Phase 2, task 02: the HUD (needs a downloaded area; close the Unity editor first)
+echo     48 The HUD next to the mockup: every HUD state captured and measured against ui-layout.html (about 10 minutes)
+echo        Then play it: Space and 1-4 run the sun, T Toolbox, Tab Analysis, the top-right buttons; Esc steps back.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -180,6 +184,7 @@ if /i "%CHOICE%"=="44" goto formats
 if /i "%CHOICE%"=="45" goto formatsnewer
 if /i "%CHOICE%"=="46" goto formattests
 if /i "%CHOICE%"=="47" goto uicapture
+if /i "%CHOICE%"=="48" goto hudparity
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -448,6 +453,22 @@ echo Capturing every screen (about 15 minutes; the window shows the title while 
 "%GAME%" -uicapture "%UICAP%" -logFile "%~dp0test-results\ui-captures.log" <nul
 type "%UICAP%\report.txt"
 start "" "%UICAP%"
+goto done
+
+:hudparity
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "UICAP=%~dp0test-results\hud-captures"
+if exist "%UICAP%" rmdir /s /q "%UICAP%"
+set "HUDSTATES=s6-hud,s6-float,s6-menu,s6-layers,s6-slope,s6-exposure,s6-depth,s6-contours,s6-slope-contours,s6-tray-lifts,s6-tray-trails,s6-tray-snow,s6-tray-infra,s6-analysis,s6-analysis-lifts,s6-analysis-weather,s6-analysis-finances,s6-rstats"
+echo Capturing the HUD's states at 1920x1080, 2560x1440 and 3440x1440 (the window shows the title while it works)...
+"%GAME%" -uicapture "%UICAP%" -uionly %HUDSTATES% -uisizes 1920x1080,2560x1440,3440x1440 -hudopacity 100 -logFile "%~dp0test-results\hud-captures.log" <nul
+type "%UICAP%\report.txt"
+echo Measuring the game against the mockup in headless Edge...
+chcp 65001 >nul
+node "%~dp0tools\ui-parity\parity.mjs" --unity "%UICAP%" --out "%~dp0test-results\ui-parity"
+chcp %OLDCP% >nul
+start "" "%~dp0test-results\ui-parity\sheets"
 goto done
 
 :lifts

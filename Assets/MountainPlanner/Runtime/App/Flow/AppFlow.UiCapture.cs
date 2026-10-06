@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using MountainPlanner.Presentation;
 using MountainPlanner.UI;
 using MountainPlanner.UI.Flow;
 using UnityEngine;
@@ -29,6 +30,7 @@ namespace MountainPlanner.App.Flow
 
         string[] _uiOnly;
         Vector2Int[] _uiSizes = DefaultSizes;
+        int _uiBase = 100;
         readonly StringBuilder _uiReport = new StringBuilder();
         int _uiShots, _uiProblems;
 
@@ -41,6 +43,8 @@ namespace MountainPlanner.App.Flow
             int sizes = Array.IndexOf(args, "-uisizes");
             if (sizes >= 0 && sizes + 1 < args.Length)
                 _uiSizes = args[sizes + 1].Split(',').Select(s => s.Split('x')).Select(p => new Vector2Int(int.Parse(p[0]), int.Parse(p[1]))).ToArray();
+            int scale = Array.IndexOf(args, "-uibase");   // -uibase 85: the main pictures at that UI scale instead of 100%
+            if (scale >= 0 && scale + 1 < args.Length && int.TryParse(args[scale + 1], out int percent)) _uiBase = percent;
             StartCoroutine(UiCapture(Path.GetFullPath(args[i + 1]), Array.IndexOf(args, "-uicompare") >= 0));
         }
 
@@ -137,14 +141,30 @@ namespace MountainPlanner.App.Flow
                 Controller.PickerCancelled();
             }
 
-            if ((Wanted("s6-hud") || Wanted("s7-menu") || Wanted("s8-settings-game")) && demo != null)
+            if ((HudStates.Any(h => Wanted("s6-" + h.Name)) || Wanted("s7-menu") || Wanted("s8-settings-game")) && demo != null)
             {
                 Controller.Open(demo);
                 yield return Wait(1);
                 yield return WaitForMountain(600);
                 yield return Wait(4);
                 var hud = _viewer != null ? _viewer.Hud : null;
-                if (Wanted("s6-hud")) yield return EachLook(folder, "s6-hud");
+                var units = MountainPlanner.Presentation.DisplayUnits.Current;
+                MountainPlanner.Presentation.DisplayUnits.Set(MountainPlanner.Domain.Measure.UnitSystem.Imperial, remember: false);   // as the mockup
+                // The HUD's states (task P2-02), each as the mockup's #demo=p2,<flags> shows it (tools/ui-parity/states.mjs),
+                // with the pointer on the mountain, as the mockup's is (on the face with an info layer on).
+                if (hud != null)
+                    foreach (var state in HudStates)
+                    {
+                        if (!Wanted("s6-" + state.Name)) continue;
+                        _viewer.SetPointerForCapture(state.Info ? new Vector2(742 / 1280f, 1 - 440 / 720f) : new Vector2(640 / 1280f, 1 - 500 / 720f));
+                        state.Set(hud, _viewer, true);
+                        yield return Wait(0.5f);
+                        yield return EachLook(folder, "s6-" + state.Name);
+                        state.Set(hud, _viewer, false);
+                        yield return Wait(0.3f);
+                    }
+                _viewer?.SetPointerForCapture(null);
+                MountainPlanner.Presentation.DisplayUnits.Set(units, remember: false);
                 if (hud != null && Wanted("s7-menu"))
                 {
                     hud.ToggleMenu();
@@ -169,13 +189,44 @@ namespace MountainPlanner.App.Flow
             Quit();
         }
 
+        /// <summary>
+        /// The HUD states the capture walks (task P2-02): the names of tools/ui-parity/states.mjs, each set up as the mockup's
+        /// flags set it (on: true) and put back (on: false). Info marks the states whose pointer reads an info layer.
+        /// </summary>
+        static readonly (string Name, bool Info, Action<MountainHud, MountainViewer, bool> Set)[] HudStates =
+        {
+            ("hud", false, (h, v, on) => { }),
+            ("float", false, (h, v, on) => MountainPlanner.UI.Hud.HudPreferences.SetDocked(!on, remember: false)),
+            ("menu", false, (h, v, on) => { if (h.MenuOpen != on) h.ToggleMenu(); }),
+            ("layers", false, (h, v, on) => { if (h.LayersOpen != on) h.ToggleLayers(); }),
+            ("slope", true, (h, v, on) => v.SetLayerForCapture(MapLayers.SlopeAngle, on)),
+            ("exposure", true, (h, v, on) => v.SetLayerForCapture(MapLayers.Exposure, on)),
+            ("depth", true, (h, v, on) => v.SetLayerForCapture(MapLayers.SnowDepth, on)),
+            ("contours", false, (h, v, on) => v.SetLayerForCapture(MapLayers.Contours, on)),
+            ("slope-contours", true, (h, v, on) =>
+            {
+                v.SetLayerForCapture(MapLayers.SlopeAngle, on);
+                v.SetLayerForCapture(MapLayers.Contours, on);
+                if (h.LayersOpen != on) h.ToggleLayers();
+            }),
+            ("tray-lifts", false, (h, v, on) => { h.SetToolboxTab("lifts"); h.SetToolbox(on); }),
+            ("tray-trails", false, (h, v, on) => { h.SetToolboxTab(on ? "trails" : "lifts"); h.SetToolbox(on); }),
+            ("tray-snow", false, (h, v, on) => { h.SetToolboxTab(on ? "snow" : "lifts"); h.SetToolbox(on); }),
+            ("tray-infra", false, (h, v, on) => { h.SetToolboxTab(on ? "infra" : "lifts"); h.SetToolbox(on); }),
+            ("analysis", false, (h, v, on) => { h.SetAnalysisTab("overview"); h.SetAnalysis(on); }),
+            ("analysis-lifts", false, (h, v, on) => { h.SetAnalysisTab(on ? "lifts" : "overview"); h.SetAnalysis(on); }),
+            ("analysis-weather", false, (h, v, on) => { h.SetAnalysisTab(on ? "weather" : "overview"); h.SetAnalysis(on); }),
+            ("analysis-finances", false, (h, v, on) => { h.SetAnalysisTab(on ? "finances" : "overview"); h.SetAnalysis(on); }),
+            ("rstats", false, (h, v, on) => h.SetStats(on)),
+        };
+
         /// <summary>One screen in both themes at every size (100%), then at 50% and 150% at 1920×1080.</summary>
         IEnumerator EachLook(string folder, string screen)
         {
             foreach (var theme in new[] { UiThemeChoice.Dark, UiThemeChoice.Light })
             {
                 UiPreferences.SetChoice(theme, remember: false);
-                UiPreferences.SetScale(100, remember: false);
+                UiPreferences.SetScale(_uiBase, remember: false);
                 string t = theme.ToString().ToLowerInvariant();
                 foreach (var size in _uiSizes) yield return OffscreenShot(folder, $"{screen}_{t}_{size.x}x{size.y}", size.x, size.y);
                 foreach (int scale in new[] { 50, 150 })
@@ -207,6 +258,7 @@ namespace MountainPlanner.App.Flow
             var pixels = Read(scene, w, h);
             foreach (var layer in layers) Over(Read(layer, w, h), pixels);
             CheckLayout(name);
+            if (name.EndsWith("_1920x1080", StringComparison.Ordinal)) WriteLayout(folder, name);
 
             if (cam != null) cam.targetTexture = null;
             foreach (var p in panels)
@@ -292,6 +344,7 @@ namespace MountainPlanner.App.Flow
                     bool hasText = text != null && !string.IsNullOrEmpty(text.text);
                     if (!control && !hasText) return;
                     if (InsideScroll(e)) return;   // scrolled content may sit outside its viewport
+                    if (InsideContourLabels(e)) return;   // labels on the map run off its edges, as the map does
                     if (b.xMin < screen.xMin - 1 || b.yMin < screen.yMin - 1 || b.xMax > screen.xMax + 1 || b.yMax > screen.yMax + 1)
                         Problem(shot, $"{Describe(e)} is off the screen ({b.xMin:F0},{b.yMin:F0} to {b.xMax:F0},{b.yMax:F0} on {screen.width:F0}×{screen.height:F0})");
                     if (hasText && text.resolvedStyle.whiteSpace != WhiteSpace.Normal)
@@ -325,6 +378,63 @@ namespace MountainPlanner.App.Flow
                     }
                 });
             }
+        }
+
+        /// <summary>
+        /// The named parts on screen in this shot, for the HUD parity check against the mockup (tools/ui-parity,
+        /// task P2-02): each shown element with a name, its box on the 1280×720 stage, its colours (0-255, as styled),
+        /// type size and text. The mockup's data-ui names are the game's element names.
+        /// </summary>
+        void WriteLayout(string folder, string shot)
+        {
+            var sb = new StringBuilder("{\"shot\":\"").Append(shot).Append("\",\"parts\":{");
+            var seen = new HashSet<string>();
+            var hud = _viewer != null && _viewer.Hud != null ? _viewer.Hud.Document : null;
+            var documents = FindObjectsByType<UIDocument>(FindObjectsSortMode.None).OrderBy(d => d == hud ? 0 : 1);
+            foreach (var document in documents)
+            {
+                var root = document.rootVisualElement;
+                if (root == null || root.panel == null || !document.isActiveAndEnabled) continue;
+                var screen = root.panel.visualTree.worldBound;
+                float k = screen.height > 0 ? 720f / screen.height : 1;
+                root.Query<VisualElement>().ForEach(e =>
+                {
+                    if (string.IsNullOrEmpty(e.name) || !UiFocus.IsShown(e) || e.resolvedStyle.opacity <= 0.01f) return;
+                    var b = e.worldBound;
+                    if (b.width < 0.5f || b.height < 0.5f || float.IsNaN(b.x) || !seen.Add(e.name)) return;
+                    var s = e.resolvedStyle;
+                    var bg = s.backgroundColor;
+                    // A see-through HUD panel draws its colour on a plate (MountainHud.Glass.cs): report that colour.
+                    if (e.ClassListContains("glassy") && e.childCount > 0 && e[0].ClassListContains("hud-plate"))
+                    {
+                        bg = e[0].resolvedStyle.backgroundColor;
+                        bg.a *= e[0].resolvedStyle.opacity;
+                    }
+                    if (seen.Count > 1) sb.Append(',');
+                    sb.Append('"').Append(e.name).Append("\":{");
+                    sb.AppendFormat(CultureInfo.InvariantCulture, "\"x\":{0:F2},\"y\":{1:F2},\"w\":{2:F2},\"h\":{3:F2}",
+                        (b.x - screen.x) * k, (b.y - screen.y) * k, b.width * k, b.height * k);
+                    sb.Append(",\"bg\":").Append(Rgba(bg)).Append(",\"color\":").Append(Rgba(s.color));
+                    sb.Append(",\"border\":").Append(s.borderTopWidth > 0 ? Rgba(s.borderTopColor) : "null");
+                    sb.AppendFormat(CultureInfo.InvariantCulture, ",\"fontSize\":{0:F1}", s.fontSize);
+                    if (e is TextElement t && t.childCount == 0) sb.Append(",\"text\":\"").Append(Escape(t.text)).Append('"');
+                    sb.Append('}');
+                });
+            }
+            sb.Append("}}");
+            File.WriteAllText(Path.Combine(folder, shot + ".layout.json"), sb.ToString());
+        }
+
+        static string Rgba(Color c) => string.Format(CultureInfo.InvariantCulture, "[{0},{1},{2},{3}]",
+            Mathf.RoundToInt(c.r * 255), Mathf.RoundToInt(c.g * 255), Mathf.RoundToInt(c.b * 255), Mathf.RoundToInt(c.a * 255));
+
+        static string Escape(string text) => (text ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"").Replace('\n', ' ').Trim();
+
+        static bool InsideContourLabels(VisualElement e)
+        {
+            for (var x = e.hierarchy.parent; x != null; x = x.hierarchy.parent)
+                if (x.name == "contour-labels") return true;
+            return false;
         }
 
         static bool InsideScroll(VisualElement e)
