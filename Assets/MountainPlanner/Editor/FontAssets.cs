@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -37,10 +38,95 @@ namespace MountainPlanner.Editor
             // -unity-font-style: bold picks the real bold face (weight 700) instead of a synthetic one.
             regular.fontWeightTable[7].regularTypeface = bold;
             mono.fontWeightTable[7].regularTypeface = monoBold;
-            foreach (var asset in new[] { regular, bold, mono, monoBold }) EditorUtility.SetDirty(asset);
+            foreach (var asset in new[] { regular, bold, mono, monoBold })
+            {
+                Kern(asset);
+                EditorUtility.SetDirty(asset);
+            }
             AssetDatabase.SaveAssets();
             Debug.Log("[FontAssets] Built Overpass and Overpass Mono, Regular and Bold.");
             if (Application.isBatchMode) EditorApplication.Exit(0);
+        }
+
+        /// <summary>
+        /// Adds the fonts' kerning to the assets already built, without rebaking them (task P2-02: words ran 2–5% wider
+        /// than the mockup's, which the browser kerns).
+        ///   Unity -batchmode -executeMethod MountainPlanner.Editor.FontAssets.AddKerning -quit
+        /// </summary>
+        [MenuItem("Mountain Planner/Add Kerning to UI Font Assets")]
+        public static void AddKerning()
+        {
+            foreach (string name in new[] { "Overpass-SDF", "Overpass-Bold-SDF", "OverpassMono-SDF", "OverpassMono-Bold-SDF" })
+            {
+                var asset = AssetDatabase.LoadAssetAtPath<FontAsset>(Folder + name + ".asset");
+                if (asset == null) { Debug.LogError($"[FontAssets] {name} is missing."); continue; }
+                Kern(asset);
+                EditorUtility.SetDirty(asset);
+            }
+            AssetDatabase.SaveAssets();
+            if (Application.isBatchMode) EditorApplication.Exit(0);
+        }
+
+        /// <summary>
+        /// Fills a static asset's pair adjustments (kerning) from its font's GPOS table, or its old kern table, for the
+        /// glyphs it holds. A static asset never imports them itself, and TextCore reads them only from this table.
+        /// The font engine's readers are internal in Unity 6.3, so they're reached by name.
+        /// </summary>
+        static void Kern(FontAsset asset)
+        {
+            const BindingFlags Static = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+            // A static asset keeps no link to its font: its name says which TTF it came from.
+            string ttf = asset.name.Replace("-SDF", "") + (asset.name.Contains("Bold") ? "" : "-Regular") + ".ttf";
+            string file = System.IO.Path.GetFullPath(Folder + ttf);
+            var handleType = typeof(FontEngine).Assembly.GetType("UnityEngine.TextCore.LowLevel.FontFaceHandle");
+            var load = typeof(FontEngine).GetMethod("LoadFontFace", Static, null, new[] { typeof(string), typeof(float), typeof(int), handleType.MakeByRefType() }, null);
+            var read = typeof(FontEngine).GetMethod("GetPairAdjustmentRecords", Static, null, new[] { handleType, typeof(uint[]) }, null);
+            var readKern = typeof(FontEngine).GetMethod("GetGlyphPairAdjustmentTable", Static, null, new[] { handleType, typeof(uint[]) }, null);
+            var unload = typeof(FontEngine).GetMethod("UnloadFontFace", Static, null, new[] { handleType }, null);
+            var table = typeof(FontAsset).GetProperty("fontFeatureTable", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)?.GetValue(asset) as FontFeatureTable;
+            var list = typeof(FontFeatureTable).GetField("m_GlyphPairAdjustmentRecords", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(table) as List<GlyphPairAdjustmentRecord>;
+            if (load == null || read == null || unload == null || list == null)
+            {
+                Debug.LogError("[FontAssets] Unity's font engine changed shape (6.3 API expected); kerning not added.");
+                return;
+            }
+            var args = new object[] { file, asset.faceInfo.pointSize, 0, null };
+            if (!System.IO.File.Exists(file) || (FontEngineError)load.Invoke(null, args) != FontEngineError.Success)
+            {
+                Debug.LogError($"[FontAssets] {asset.name}: can't load {ttf} for kerning.");
+                return;
+            }
+            object face = args[3];
+            uint[] glyphs = asset.glyphTable.Select(g => g.index).ToArray();
+            var records = read.Invoke(null, new[] { face, glyphs }) as GlyphPairAdjustmentRecord[];
+            if ((records == null || records.Length == 0) && readKern != null) records = readKern.Invoke(null, new[] { face, glyphs }) as GlyphPairAdjustmentRecord[];
+            unload.Invoke(null, new[] { face });
+            // Keep the pairs between this asset's glyphs that move something, once each.
+            // Font units to the asset's points (FaceInfo keeps units-per-em but doesn't show it in 6.3).
+            float scale = asset.faceInfo.pointSize / (float)new SerializedObject(asset).FindProperty("m_FaceInfo.m_UnitsPerEM").intValue;
+            var held = new HashSet<uint>(glyphs);
+            var seen = new HashSet<(uint, uint)>();
+            var kept = (records ?? new GlyphPairAdjustmentRecord[0])
+                .Where(r => held.Contains(r.firstAdjustmentRecord.glyphIndex) && held.Contains(r.secondAdjustmentRecord.glyphIndex))
+                .Where(r => r.firstAdjustmentRecord.glyphValueRecord.xAdvance != 0 || r.firstAdjustmentRecord.glyphValueRecord.xPlacement != 0
+                            || r.secondAdjustmentRecord.glyphValueRecord.xPlacement != 0)
+                .Where(r => seen.Add((r.firstAdjustmentRecord.glyphIndex, r.secondAdjustmentRecord.glyphIndex)))
+                .Select(r => Scaled(r, scale)).ToList();
+            list.Clear();
+            list.AddRange(kept);
+            table.SortGlyphPairAdjustmentRecords();
+            Debug.Log($"[FontAssets] {asset.name}: {kept.Count} kerning pairs among {glyphs.Length} glyphs.");
+        }
+
+        /// <summary>The font engine reads GPOS values in font units; the asset lays text out in its own point size.</summary>
+        static GlyphPairAdjustmentRecord Scaled(GlyphPairAdjustmentRecord r, float scale)
+        {
+            GlyphAdjustmentRecord One(GlyphAdjustmentRecord a)
+            {
+                var v = a.glyphValueRecord;
+                return new GlyphAdjustmentRecord(a.glyphIndex, new GlyphValueRecord(v.xPlacement * scale, v.yPlacement * scale, v.xAdvance * scale, v.yAdvance * scale));
+            }
+            return new GlyphPairAdjustmentRecord(One(r.firstAdjustmentRecord), One(r.secondAdjustmentRecord));
         }
 
         /// <summary>

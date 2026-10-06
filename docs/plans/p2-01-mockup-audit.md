@@ -28,6 +28,8 @@ to be followed closely (2026-10-06).
 
 ## 2. The HUD: for task 02
 
+**Status (task P2-02, 2026-10-06):** items 1–9 are built to the mockup's `#demo=p2` and checked with `tools/ui-parity` and an adversarial review ([hud-mockup-parity.md](hud-mockup-parity.md)). The time bar, compass and scale bar are gone (owner); the clock runs the sun. Item 10 (the rest of Settings) is task 05's.
+
 Unity's HUD is still the Phase 1 style-tile layout. Task 02 builds the mockup's HUD on the foundation above
 (`mp-*` components, theme tokens, `UiFocus`, `UiPreferences`). Everything below is in the mockup and not yet in
 Unity:
