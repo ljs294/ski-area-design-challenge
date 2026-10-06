@@ -357,7 +357,7 @@ frozen format ships with a migration and a fixture test.
    Mountain Planner (format *N*; this version reads up to *M*). Update the game to open it."
    (`FormatTooNewException`, an `IOException`).
    - A newer package shows as a greyed library row (decision V2).
-   - A newer library layout lists nothing, and the title says why.
+   - A newer library layout lists nothing and accepts no writes. The title and Load Area say why.
    - A newer recent list, view state or paused download reads as empty or defaults.
 3. **Nothing is written over a newer file.** `RecentResorts.Touch`, `ViewState.Save` and `PendingDownloads.Save`
    return false and leave it as it is.

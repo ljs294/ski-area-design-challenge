@@ -176,7 +176,10 @@
 .lib-score--limited { color: var(--neg); }
 .lib-paused { flex-grow: 1; color: var(--warn); font-size: 13px; }
 .lib-actions { flex-direction: row; }
-.lib-row--newer .lib-name { color: var(--muted); }
+/* An area from a newer game (task 08): greyed, with only its message at full strength. */
+.lib-row--newer .lib-name { color: var(--muted); -unity-font-style: normal; opacity: 0.6; }
+.lib-row--newer .lib-cell { opacity: 0.6; }
+.lib-row--newer .btn:disabled { opacity: 0.25; }
 
 /* ---------- S4 download card and pill ---------- */
 .download {

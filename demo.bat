@@ -109,7 +109,7 @@ echo     43 Rebuild the Development game (exact garbage and memory counters for 
 echo.
 echo   Phase 2, task 08: formats frozen (a scratch library, not yours)
 echo     44 Phase 1 files open as before, beside an area from a newer game: greyed in Load Area, deletable in Manage Areas
-echo     45 A library folder from a newer game: the title says why, and Load Area lists nothing
+echo     45 A library folder from a newer game: Load Area lists nothing and says why
 echo     46 Format tests: the Phase 1 fixtures, newer files refused, migrations (a few seconds)
 echo.
 echo     Q  Quit
@@ -277,7 +277,7 @@ if not exist "%GAME%" goto done
 call :seedformats
 copy /y "%~dp0TestData\formats\demo\library.json" "%FORMATS%\library.json" >nul
 echo Starting the game with the same scratch library, marked as laid out by a newer game ^(library.json version 99^).
-echo   The title shows "This library was saved by a newer version...", and Load Area lists nothing. 44 puts it back.
+echo   The title briefly shows "This library was saved by a newer version...". Load Area lists nothing and says the same. 44 puts it back.
 start "" "%GAME%" -data "%FORMATS%"
 goto menu
 

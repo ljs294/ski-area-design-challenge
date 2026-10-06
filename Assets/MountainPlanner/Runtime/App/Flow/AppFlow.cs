@@ -391,7 +391,9 @@ namespace MountainPlanner.App.Flow
             var pending = PendingDownloads.List(DataRoot).Where(p => p.Id != running).ToList();
             var newer = new System.Collections.Generic.List<LibraryEntry>();
             var entries = ResortLibrary.Scan(DataRoot, newer);
-            _library = LibraryViewModel.Build(entries, pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, newer);
+            string refusal = LibraryIndex.Refusal(DataRoot);
+            _library = refusal != null ? LibraryViewModel.Refused(refusal, _sort)
+                                       : LibraryViewModel.Build(entries, pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, newer);
             Screens.RenderLibrary(_library, _mode);
         }
 

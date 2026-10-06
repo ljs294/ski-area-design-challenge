@@ -66,6 +66,7 @@ namespace MountainPlanner.Persistence
         public static bool Save(string dataRoot, PendingDownload d)
         {
             if (string.IsNullOrEmpty(d.Id)) throw new ArgumentException("The download needs an id.", nameof(d));
+            if (LibraryIndex.Refusal(dataRoot) != null) return false;
             string folder = FolderOf(dataRoot, d);
             Directory.CreateDirectory(folder);
             string path = Path.Combine(folder, RecordFile);
@@ -82,7 +83,7 @@ namespace MountainPlanner.Persistence
         {
             var list = new List<PendingDownload>();
             string root = Folder(dataRoot);
-            if (!Directory.Exists(root)) return list;
+            if (!Directory.Exists(root) || LibraryIndex.Refusal(dataRoot) != null) return list;
             foreach (string folder in Directory.GetDirectories(root))
             {
                 string path = Path.Combine(folder, RecordFile);
@@ -155,7 +156,7 @@ namespace MountainPlanner.Persistence
         public static bool Touch(string dataRoot, string packageId, string utc)
         {
             var r = Load(dataRoot);
-            if (r.Refusal.Length > 0) return false;
+            if (r.Refusal.Length > 0 || LibraryIndex.Refusal(dataRoot) != null) return false;
             r.Opened[packageId] = utc;
             Directory.CreateDirectory(dataRoot);
             AtomicFile.WriteJson(Path.Combine(dataRoot, FileName), r);

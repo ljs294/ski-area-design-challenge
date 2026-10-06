@@ -42,6 +42,13 @@ namespace MountainPlanner.UI.Flow
         public string Summary { get; private set; } = "";
         public LibrarySort Sort { get; private set; }
         public bool IsEmpty => Rows.Count == 0;
+        /// <summary>What an empty list says: no areas yet, or why a newer game's library can't be listed.</summary>
+        public string EmptyText { get; private set; } = NoAreas;
+        public const string NoAreas = "No areas yet. Choose New Area to download one.";
+
+        /// <summary>A data folder laid out by a newer version of the game (task 08): no rows, just the reason.</summary>
+        public static LibraryViewModel Refused(string refusal, LibrarySort sort) =>
+            new LibraryViewModel { Sort = sort, EmptyText = refusal, Summary = "Needs a newer version of Mountain Planner" };
 
         public static LibraryViewModel Build(IReadOnlyList<LibraryEntry> entries, IReadOnlyList<PendingDownload> pending,
                                              RecentResorts recent, LibrarySort sort, DateTime nowUtc,

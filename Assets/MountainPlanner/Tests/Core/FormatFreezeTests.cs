@@ -203,6 +203,11 @@ namespace MountainPlanner.Tests.Core
             var newer = new List<LibraryEntry>();
             Assert.That(ResortLibrary.Scan(_root, newer), Is.Empty, "a layout this game doesn't know isn't guessed at");
             Assert.That(newer, Is.Empty);
+            Assert.That(PendingDownloads.List(_root), Is.Empty);
+            var before = Snapshot();
+            Assert.That(RecentResorts.Touch(_root, JacksonHole, "2026-10-06T10:00:00Z"), Is.False);
+            Assert.That(PendingDownloads.Save(_root, new PendingDownload { Id = "stowe-1", Name = "Stowe" }), Is.False);
+            Assert.That(Snapshot(), Is.EqualTo(before), "nothing written into a newer game's library");
 
             string built = Path.Combine(_root, "incoming");
             Directory.CreateDirectory(built);

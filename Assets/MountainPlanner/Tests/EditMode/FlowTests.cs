@@ -218,6 +218,11 @@ namespace MountainPlanner.Tests
             Assert.That(row.Entry, Is.SameAs(newer[0]), "Delete removes its folder");
             Assert.That(row.NewerText, Is.EqualTo("Made by a newer version of Mountain Planner. Update the game to open it."));
             Assert.That(vm.Summary, Is.EqualTo("1 area · 1.0 GB on disk · 1 needs a newer version"));
+            Assert.That(vm.EmptyText, Is.EqualTo(LibraryViewModel.NoAreas));
+
+            var refused = LibraryViewModel.Refused("This library was saved by a newer version of Mountain Planner.", LibrarySort.Name);
+            Assert.That(refused.IsEmpty, Is.True);
+            Assert.That(refused.EmptyText, Does.StartWith("This library was saved by a newer version"), "says why, not \"no areas yet\"");
         }
     }
 

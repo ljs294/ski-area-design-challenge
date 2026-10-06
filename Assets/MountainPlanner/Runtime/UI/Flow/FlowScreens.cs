@@ -248,6 +248,7 @@ namespace MountainPlanner.UI.Flow
                 _rowElements.Add(el);
                 _rowData.Add(r);
             }
+            _empty.text = vm.EmptyText;
             Show(_empty, _rowData.Count == 0);
             int first = _rowData.FindIndex(x => x.CanOpen);
             Select(first >= 0 ? first : _rowData.FindIndex(x => !x.IsPaused));
