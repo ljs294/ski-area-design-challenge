@@ -35,10 +35,17 @@ there first, get the owner's OK, then port to Unity and check the port with the 
 
 Accepted with the plan (owner, 2026-10-06), or not measurable:
 - **Quit to desktop** stays in the menu (the mockup's `p2` shows it too).
-- **No place line yet:** the mockup's menu and stats show "Jackson Hole, Wyoming" under the name; packages don't store a
-  place name, so the game shows the name alone.
+- **Place line:** the mockup's menu and stats show "Jackson Hole, Wyoming" under the name; packages don't store a place
+  name, so the game shows where it is as coordinates ("43.59° N, 110.85° W").
+- **The menu holds the keyboard** (task P2-01): Esc opens it with Resume focused, and the game keys wait until it closes.
+  In the mockup the menu is a plain dropdown and the keys still work.
+- **Line height 1.4** (legend notes, the stats footer): Unity has no line-height setting, so wrapped notes run a little
+  tighter.
+- **Contour labels** are the game's own (task 12b.2), not the mockup's stand-ins.
 - **Shadows:** UI Toolkit on Unity 6.3 has no box shadows; the mockup's soft panel shadows are left out.
 - **Live words:** the resort's name, the clock, the day and date, the elevation and the readout are compared by box and
   colour, not text (`NO_TEXT` in states.mjs). The mockup's calendar puts 15 January in 2027 (a Friday); the game's
   view year is 2026 (a Thursday).
+- **Kerning:** the game's Overpass font assets carry no kerning pairs, so its words run 2–5% wider than the browser's
+  and a row of words (the tabs, the bar) drifts right by a few pixels. A fix belongs to the shared font assets.
 - **Type:** Overpass ships here in two weights, so the mockup's 500/600 draw regular and 700/800 bold.

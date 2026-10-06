@@ -322,7 +322,11 @@ namespace MountainPlanner.App
         {
             if (_clock == null || Lighting == null || TitleMode) return;
             _clock.Adopt(Lighting.Clock.Now);
+            int day = _clock.Now.DayOfYear;
             _clock.Advance(Mathf.Min(0.25f, Time.unscaledDeltaTime));
+            // A new day while the clock runs gets a routine note, as in the mockup (a few words once a game day).
+            if (_clock.Now.DayOfYear != day && Hud != null && _hudShown)
+                Hud.Toast(MountainPlanner.UI.Hud.HudText.Day(MountainPlanner.UI.Hud.HudText.SeasonDay(_clock.Now.Year, _clock.Now.DayOfYear)) + " begins");
             if (!_clock.SunBehind) return;
             Lighting.SetTime(_clock.Now);
             _clock.Pushed();

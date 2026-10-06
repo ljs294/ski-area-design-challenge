@@ -1303,7 +1303,7 @@ body.solo .frame { border-radius: 0; }
     // The game's own layer ids name the rows (mockup 'making', 'infra', 'aspect' are its snowmaking, infrastructure, exposure).
     const LAY_UI = { making: 'snowmaking', infra: 'infrastructure' }, INFO_UI = { aspect: 'exposure' };
     const lay = (k, label, key) => P2 && P2_DIS_LAYERS.includes(k)
-      ? `<div class="row lay dis plain" data-ui="layer-${LAY_UI[k] || k}" title="Comes with the building tools in Phase 3"><span class="chk"></span>${label}</div>`
+      ? `<div class="row lay dis plain" data-ui="layer-${LAY_UI[k] || k}" title="Comes with the building tools in Phase 3"><i class="chk"></i>${label}</div>`
       : `<div class="row lay" data-act="layer" data-v="${k}" data-ui="layer-${LAY_UI[k] || k}"><span class="chk${S.layers[k] ? ' on' : ''}"></span>${label}${key ? `<span class="r">Shift ${key}</span>` : ''}</div>`;
     const inf = (k) => `<div class="row lay" data-act="info" data-v="${k}" data-ui="layer-${INFO_UI[k] || k}"><span class="rad${S.info === k ? ' on' : ''}"></span>${INFO[k][0]}<span class="r">Shift ${INFO[k][1]}</span></div>`;
     let rc = '';

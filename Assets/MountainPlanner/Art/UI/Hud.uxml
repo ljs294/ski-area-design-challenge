@@ -31,7 +31,7 @@
                 <ui:Label class="mp-title" text="Analysis" picking-mode="Ignore" />
                 <ui:Label name="analysis-name" class="mp-sub" picking-mode="Ignore" />
                 <ui:VisualElement class="mp-spacer" picking-mode="Ignore" />
-                <ui:Button name="analysis-x" class="mp-x" text="✕" tooltip="Close (Tab)" />
+                <ui:Button name="analysis-x" class="mp-x" text="✕" />
             </ui:VisualElement>
             <ui:VisualElement name="analysis-tabs" class="tabs tabs--small">
                 <ui:Button name="analysis-tab-overview" class="tab tab--on" text="Overview" />
@@ -92,10 +92,10 @@
             <ui:VisualElement class="cell cell--speed">
                 <ui:VisualElement class="sep" picking-mode="Ignore" />
                 <ui:VisualElement name="bar-speed" class="spd">
-                    <ui:Button name="bar-speed-1" class="spd__b spd__b--on" tooltip="Speed 1 (1)"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
-                    <ui:Button name="bar-speed-2" class="spd__b" tooltip="Speed 2 (2)"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
-                    <ui:Button name="bar-speed-3" class="spd__b" tooltip="Speed 3 (3)"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
-                    <ui:Button name="bar-speed-4" class="spd__b" tooltip="Speed 4 (4)"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-1" class="spd__b spd__b--on" tooltip="Speed 1"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-2" class="spd__b" tooltip="Speed 2"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-3" class="spd__b" tooltip="Speed 3"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-4" class="spd__b" tooltip="Speed 4"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
                 </ui:VisualElement>
             </ui:VisualElement>
             <ui:VisualElement class="grow" picking-mode="Ignore" />
@@ -151,19 +151,19 @@
         <ui:VisualElement name="tr" class="tr" picking-mode="Ignore">
             <ui:Button name="tr-sketch" class="sq" tooltip="Sketching comes in Phase 3"><hud:HudIcon icon="s-pencil" class="sq__icon" picking-mode="Ignore" /></ui:Button>
             <ui:Button name="tr-layers" class="sq sq--gap" tooltip="Map layers"><hud:HudIcon icon="s-map" class="sq__icon" picking-mode="Ignore" /></ui:Button>
-            <ui:Button name="tr-menu" class="sq sq--gap" tooltip="Menu (Esc)"><hud:HudIcon icon="s-menu" class="sq__icon" picking-mode="Ignore" /></ui:Button>
+            <ui:Button name="tr-menu" class="sq sq--gap" tooltip="Menu"><hud:HudIcon icon="s-menu" class="sq__icon" picking-mode="Ignore" /></ui:Button>
         </ui:VisualElement>
 
         <!-- The map layers dropdown, with the legend card under it -->
         <ui:VisualElement name="rcol" class="rcol" picking-mode="Ignore">
             <ui:VisualElement name="layers" class="drop hidden">
                 <ui:Label class="ghead" text="Map layers" picking-mode="Ignore" />
-                <ui:Button name="layer-snow" class="row lay" tooltip="Snow on the ground, ledges and trees">
+                <ui:Button name="layer-snow" class="row lay">
                     <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Snow" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 1" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="layer-trees" class="row lay" tooltip="Show or hide the trees">
+                <ui:Button name="layer-trees" class="row lay">
                     <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Trees" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 3" picking-mode="Ignore" />
@@ -184,23 +184,23 @@
                     <ui:VisualElement class="chk" picking-mode="Ignore" />
                     <ui:Label class="row__label" text="Infrastructure" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="layer-labels" class="row lay" tooltip="The names of the peaks">
+                <ui:Button name="layer-labels" class="row lay">
                     <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Labels" picking-mode="Ignore" />
                 </ui:Button>
                 <ui:VisualElement class="sepl" picking-mode="Ignore" />
                 <ui:Label class="ghead" text="Info layers" picking-mode="Ignore" />
-                <ui:Button name="layer-slope" class="row lay" tooltip="Steepness by trail difficulty">
+                <ui:Button name="layer-slope" class="row lay">
                     <ui:VisualElement class="rad" picking-mode="Ignore"><ui:VisualElement class="rad__dot" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Slope angle" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 7" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="layer-exposure" class="row lay" tooltip="The way each slope faces">
+                <ui:Button name="layer-exposure" class="row lay">
                     <ui:VisualElement class="rad" picking-mode="Ignore"><ui:VisualElement class="rad__dot" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Slope exposure" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 8" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="layer-depth" class="row lay" tooltip="How deep the snow lies">
+                <ui:Button name="layer-depth" class="row lay">
                     <ui:VisualElement class="rad" picking-mode="Ignore"><ui:VisualElement class="rad__dot" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Snow depth" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 9" picking-mode="Ignore" />
@@ -213,7 +213,7 @@
                     </ui:VisualElement>
                     <ui:Label class="row__key mono" text="Shift 0" picking-mode="Ignore" />
                 </ui:Button>
-                <ui:Button name="layer-contours" class="row lay" tooltip="Elevation lines">
+                <ui:Button name="layer-contours" class="row lay">
                     <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
                     <ui:Label class="row__label" text="Contours" picking-mode="Ignore" />
                     <ui:Label class="row__key mono" text="Shift 6" picking-mode="Ignore" />

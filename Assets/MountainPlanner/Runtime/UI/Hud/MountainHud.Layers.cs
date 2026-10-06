@@ -93,9 +93,8 @@ namespace MountainPlanner.UI
             var rcol = _root.Q("rcol");
             bool below = _drop == Drop.Layers && !_legend.ClassListContains("hidden");
             if (!below) { rcol.RemoveFromClassList("rcol--side"); return; }
-            if (rcol.ClassListContains("rcol--side")) return;
-            float stacked = _layers.layout.height + 6 + _legend.layout.height;
-            if (rcol.layout.y + stacked > _bar.layout.y - 6) rcol.AddToClassList("rcol--side");
+            float stacked = _layers.layout.height + 6 + _legend.layout.height;   // the same either way
+            rcol.EnableInClassList("rcol--side", rcol.layout.y + stacked > _bar.layout.y - 6);
         }
 
         void BuildLegend(string infoId, bool contours, UnitSystem units)
@@ -180,11 +179,14 @@ namespace MountainPlanner.UI
             var p = ctx.painter2D;
             p.strokeColor = Color.white;
             p.lineWidth = 1.4f;
-            for (float x = -r.height; x < r.width + r.height; x += 3.6f)
+            for (float x = -r.height; x < r.width; x += 3.6f)
             {
+                // each stripe from (x, 0) to (x + h, h), cut to the swatch
+                float x0 = Mathf.Max(x, 0), x1 = Mathf.Min(x + r.height, r.width);
+                if (x1 <= x0) continue;
                 p.BeginPath();
-                p.MoveTo(new Vector2(x, 0));
-                p.LineTo(new Vector2(x + r.height, r.height));
+                p.MoveTo(new Vector2(x0, x0 - x));
+                p.LineTo(new Vector2(x1, x1 - x));
                 p.Stroke();
             }
         }

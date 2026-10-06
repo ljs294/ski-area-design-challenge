@@ -80,7 +80,7 @@ namespace MountainPlanner.UI
         Button _trSketch, _trLayers, _trMenu, _settingsRow, _controlsRow;
         Drop _drop;
         string _siteName = "", _place = "";
-        bool _settingsAvailable, _retintSoon;
+        bool _settingsAvailable;
 
         void OnEnable()
         {
@@ -100,6 +100,8 @@ namespace MountainPlanner.UI
             WireBar();
             WireLayers();
             WirePanels();
+            _menu.RegisterCallback<GeometryChangedEvent>(_ => FitDrop(_menu));
+            _layers.RegisterCallback<GeometryChangedEvent>(_ => FitDrop(_root.Q("rcol")));
 
             UiPreferences.Changed += OnPreferencesChanged;
             HudPreferences.Changed += OnDockChanged;
@@ -145,6 +147,7 @@ namespace MountainPlanner.UI
             var placeLabel = _root.Q<Label>("menu-place");
             placeLabel.text = _place;
             placeLabel.EnableInClassList("hidden", _place.Length == 0);
+            _root.Q("bar-resort").tooltip = _place.Length > 0 ? $"{_siteName}. {_place}. Click for the resort's stats." : $"{_siteName}. Click for the resort's stats.";
             SetStatsSite(score);
             _root.Q<Label>("analysis-name").text = _siteName;
         }
@@ -227,6 +230,18 @@ namespace MountainPlanner.UI
             return false;
         }
 
+        /// <summary>A dropdown too tall for the room between the buttons and the bar moves up beside the buttons.</summary>
+        void FitDrop(VisualElement drop)
+        {
+            if (_bar == null) return;
+            var content = drop == _menu ? _menu : _layers;
+            if (content.ClassListContains("hidden")) { drop.RemoveFromClassList("drop--up"); return; }
+            bool up = drop.ClassListContains("drop--up");
+            float height = content.layout.height, room = _bar.layout.y - 6 - 56;
+            if (!up && height > room) drop.AddToClassList("drop--up");
+            else if (up && height <= room) drop.RemoveFromClassList("drop--up");
+        }
+
         /// <summary>A click on the mountain (not on the HUD) closes the dropdowns, as in the mockup.</summary>
         public void ClickedMap() => SetDrop(Drop.None);
 
@@ -242,6 +257,7 @@ namespace MountainPlanner.UI
             On("menu-theme-dark", choice == UiThemeChoice.Dark);
             On("menu-theme-light", choice == UiThemeChoice.Light);
             On("menu-theme-auto", choice == UiThemeChoice.Auto);
+            if (_statsOpen) SetScrim();
             RetintSoon();
         }
 
@@ -275,11 +291,19 @@ namespace MountainPlanner.UI
             if (focused != null && _root.Contains(focused)) ((Focusable)focused).Blur();
         }
 
+        int _retintFrames;
+
+        /// <summary>
+        /// Icons check their colours on each of the next few frames: a theme or state change restyles the panel over a
+        /// frame or two, and an icon left with the old tint would flash the wrong colour.
+        /// </summary>
         void RetintSoon()
         {
-            if (_retintSoon || _root == null) return;
-            _retintSoon = true;
-            _root.schedule.Execute(() => { _retintSoon = false; HudIcon.RetintAll(); });
+            if (_root == null) return;
+            bool running = _retintFrames > 0;
+            _retintFrames = 4;
+            if (running) return;
+            _root.schedule.Execute(() => { HudIcon.RetintAll(); _retintFrames--; }).Every(16).Until(() => _retintFrames <= 0);
         }
 
         /// <summary>True when the pointer (screen pixels, origin bottom-left) is over a HUD panel, so the camera leaves the wheel alone.</summary>

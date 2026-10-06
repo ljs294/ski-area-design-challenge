@@ -134,7 +134,7 @@ namespace MountainPlanner.UI
             foreach (var tool in Tools)
             {
                 if (tool.Tab != tab) continue;
-                var tile = new Button { name = "tool-" + tool.Id, tooltip = $"{tool.Name} ({tool.Key}): comes in Phase 3" };
+                var tile = new Button { name = "tool-" + tool.Id };   // the tool label says what it is (the mockup's hover)
                 tile.AddToClassList("tool");
                 tile.AddToClassList("tool--dis");
                 tile.focusable = false;
@@ -225,11 +225,18 @@ namespace MountainPlanner.UI
             _modal.EnableInClassList("hidden", !open);
             if (open)
             {
+                SetScrim();
                 FillStats();
                 UiFocus.OpenModal(_rstats, _root.Q<Button>("rstats-x"));
             }
             else UiFocus.CloseModal(_rstats);
         }
+
+        /// <summary>
+        /// UI Toolkit blends in linear light, where the mockup's --scrim (0.45 dark, 0.30 light over sRGB) reads much
+        /// paler; these alphas give the mockup's dimming over the map.
+        /// </summary>
+        void SetScrim() => _modal.style.backgroundColor = (Color)(UiPreferences.Dark ? new Color32(10, 16, 26, 174) : new Color32(20, 30, 45, 125));
 
         void FillStats()
         {
@@ -332,7 +339,7 @@ namespace MountainPlanner.UI
         {
             var label = Text(text, cls);
             label.style.position = Position.Absolute;
-            label.style.top = 10 + baseline - 10;   // the gauge's top padding, and the text's baseline about 10 px down
+            label.style.top = 10 + baseline - (right ? 10 : 13);   // the gauge's top padding; a label's baseline sits about 10 px down, the plate's 13
             if (right) label.style.right = 10;
             _gauge.Add(label);
             return label;
@@ -394,10 +401,6 @@ namespace MountainPlanner.UI
             p.BeginPath(); p.MoveTo(P(89, GaugeTop + 9)); p.LineTo(P(92, GaugeTop + 3)); p.LineTo(P(95, GaugeTop + 9)); p.Stroke();
             p.BeginPath(); p.MoveTo(P(89, GaugeBottom - 9)); p.LineTo(P(92, GaugeBottom - 3)); p.LineTo(P(95, GaugeBottom - 9)); p.Stroke();
             float my = (GaugeTop + GaugeBottom) / 2;
-            p.fillColor = ink.Plate;
-            p.BeginPath();
-            p.MoveTo(P(64, my - 9)); p.LineTo(P(120, my - 9)); p.LineTo(P(120, my + 9)); p.LineTo(P(64, my - 9 + 18)); p.ClosePath();
-            p.Fill();
         }
 
         /// <summary>The theme's chart colours, read from small unseen swatches the stylesheet colours (.gauge__ink--*).</summary>

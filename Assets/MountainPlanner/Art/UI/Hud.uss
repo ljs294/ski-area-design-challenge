@@ -47,6 +47,7 @@
 .hud .clock__hm, .hud .clock__s { height: 15.5px; }
 .hud .wxline { height: 12.7px; }
 .hud .mp-x { font-size: 14px; }
+.hud .mp-sub { margin-left: 8px; }
 
 /* ---------- status bar (.bar): full width at the bottom, docked flush or floating inset ---------- */
 .hud .bar {
@@ -186,6 +187,8 @@
 .hud .rcol--side > .legend--below { margin-top: 0; margin-right: 6px; }
 .hud .drop { padding: 6px 0; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 6px; }
 .hud .menu { position: absolute; right: 10px; top: 56px; width: 300px; }
+/* a large UI scale on a short screen: a dropdown too tall for the room under the buttons moves up beside them */
+.hud .drop--up { top: 10px; right: 142px; }
 .hud .ghead { padding: 5px 12px 3px 12px; font-size: 12px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .sepl { height: 1px; margin: 5px 0; background-color: var(--hair); }
 .hud .row { flex-direction: row; align-items: center; padding: 8px 12px; }
@@ -195,7 +198,7 @@
 .hud .lay { padding: 4px 12px; }
 .hud .lay .row__key { font-size: 11px; }
 .hud .row--dis:hover { background-color: rgba(0, 0, 0, 0); }
-.hud .row--dis .row__label, .hud .row--dis .row__key { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .row--dis .row__label { color: var(--faint); -unity-text-outline-color: var(--faint); }
 .hud .row--two { align-items: flex-start; }
 .hud .row__stack { flex-grow: 1; }
 .hud .row__small { margin-top: 2px; font-size: 11.5px; white-space: normal; color: var(--faint); -unity-text-outline-color: var(--faint); }
@@ -258,7 +261,7 @@
 .hud .lr__n { margin-left: 8px; font-size: 12px; -unity-text-align: middle-right; color: var(--muted); -unity-text-outline-color: var(--muted); }
 .hud .ln { padding: 6px 12px 0 12px; font-size: 11.5px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .compass { flex-direction: row; flex-wrap: wrap; margin: 2px 12px 0 12px; }
-.hud .compass__cell { width: 80px; align-items: center; padding: 5px 0 4px 0; margin-bottom: 2px; border-radius: 2px; }
+.hud .compass__cell { width: 79px; align-items: center; padding: 5px 0 4px 0; margin-bottom: 2px; border-radius: 2px; }
 .hud .compass__cell--mid { margin-left: 2px; margin-right: 2px; }
 .hud .compass__dir { font-size: 12px; -unity-font-style: bold; }
 .hud .compass__deg { margin-top: 1px; font-size: 10.5px; opacity: 0.85; }
@@ -336,6 +339,8 @@
     -unity-font-style: bold;
     color: var(--on-fg);
     -unity-text-outline-color: var(--on-fg);
+    background-color: var(--on-bg);
+    border-radius: 2px;
 }
 /* the gauge's line colours, read by MountainHud.GaugeColours from these unseen swatches */
 .hud .gauge__ink { position: absolute; width: 0; height: 0; }
@@ -354,6 +359,7 @@
 .hud .kv__b { font-size: 12.5px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
 .hud .kv__u { font-size: 12.5px; color: var(--text); -unity-text-outline-color: var(--text); }
 .hud .kv__u--gap { margin-left: 7.5px; }
+.hud .kv__u.nodata { color: var(--faint); -unity-text-outline-color: var(--faint); }
 .hud .rule { height: 1px; background-color: var(--hair); }
 .hud .rstats__foot { padding: 8px 12px 10px 12px; border-top-width: 1px; border-color: var(--hair); font-size: 12px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }
 
