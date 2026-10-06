@@ -331,7 +331,7 @@ body.solo .frame { border-radius: 0; }
 <!-- Symbols: one solid set on a 24 px grid, drawn like trail and road signs: filled shapes, knock-outs in the
      panel colour (--knock), no hairline strokes. Tools share a family glyph plus a badge: + new, pencil edit, x remove. -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="s-hammer" viewBox="0 0 24 24"><path d="M12.1 1.7l10.2 10.2-4 4L8.1 5.7l3.8-.2z" stroke="currentColor" stroke-width=".9" stroke-linejoin="round"/><path d="M13.2 10.8L4.7 19.3" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="s-hammer" viewBox="0 0 24 24"><g transform="rotate(45 12 12)"><rect x="10.6" y="7.2" width="2.8" height="15.6" rx="1.4"/><path d="M5.2 2.2h10.2v5.6H5.2z"/><path d="M15 1.6h2.6a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1H15z"/><path d="M5.4 2.2C2.8 2.2 1.1 3.8.5 7.4 1.9 6.3 3.5 5.7 5.4 5.6z"/></g></symbol>
   <symbol id="s-analysis" viewBox="0 0 24 24"><rect x="2.6" y="2.8" width="2.2" height="18.4" rx="1.1"/><rect x="7" y="4.6" width="10.5" height="3.4" rx="1.2"/><rect x="7" y="10.3" width="14.4" height="3.4" rx="1.2"/><rect x="7" y="16" width="7.2" height="3.4" rx="1.2"/></symbol>
   <symbol id="s-play" viewBox="0 0 24 24"><path d="M8.2 4.6a1.2 1.2 0 0 0-1.8 1v12.8a1.2 1.2 0 0 0 1.8 1l10.4-6.4a1.2 1.2 0 0 0 0-2z"/></symbol>
   <symbol id="s-pause" viewBox="0 0 24 24"><rect x="6.2" y="4.8" width="4" height="14.4" rx="1.2"/><rect x="13.8" y="4.8" width="4" height="14.4" rx="1.2"/></symbol>
@@ -535,6 +535,7 @@ body.solo .frame { border-radius: 0; }
   }
   function restoreDefaults() { S.set = { ...DEFAULTS }; S.theme = 'dark'; S.docked = true; S.units = 'imperial'; S.layers.labels = true; }
   // Times of day as the Clock setting wants them: 8:30 AM or 08:30.
+  const hourLbl = (h) => { const hh = Math.floor(h) % 24; return S.set.clock === '24' ? String(hh).padStart(2, '0') : `${((hh + 11) % 12) + 1} ${hh < 12 ? 'AM' : 'PM'}`; };
   const hhmm = (h) => { const hh = Math.floor(h), mm = Math.round((h - hh) * 60), p2 = (n) => String(n).padStart(2, '0'); return S.set.clock === '24' ? `${p2(hh)}:${p2(mm)}` : `${((hh + 11) % 12) + 1}:${p2(mm)} ${hh < 12 ? 'AM' : 'PM'}`; };
   const compactMoney = (v) => (v < 0 ? '−' : '') + '$' + (Math.abs(v) >= 1e9 ? (Math.abs(v) / 1e9).toFixed(2) + 'B' : (Math.abs(v) / 1e6).toFixed(2) + 'M');
   const cashTxt = (v) => (S.set.money === 'compact' ? compactMoney(v) : money(v));
@@ -1087,7 +1088,7 @@ body.solo .frame { border-radius: 0; }
       hrs.forEach((h, i) => {
         const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now, x = 12 + i * bw, key = `ov:${i}`;
         bars += hoverCol(key, x, bw, hgt + 4, `<rect class="cbar" x="${f1(x + 3)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 6)}" height="${f1(bh)}" rx="1" style="fill:${past ? 'var(--chart-a)' : 'var(--chart-b)'}"/>`);
-        bars += `<text x="${f1(x + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label);pointer-events:none">${h}</text>`;
+        bars += `<text x="${f1(x + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label);pointer-events:none">${hourLbl(h)}</text>`;
         if (chartHover === key) tip = hoverTip(x, bw, w, hgt - 10 - bh, `${hhmm(h)} · ${Math.round(v).toLocaleString('en-US')} skiers${past ? '' : ' expected'}`);
       });
       bars += tip;
@@ -1152,7 +1153,20 @@ body.solo .frame { border-radius: 0; }
       ch += `<path d="${hrs.map((x, k) => `${k ? 'L' : 'M'}${f1(X(x.i))} ${f1(TY(x.temp))}`).join('')}" fill="none" stroke-width="1.6" style="stroke:var(--chart-a)"/>`;
       const hi = hrs.reduce((a, b) => (b.temp > a.temp ? b : a)), lo = hrs.reduce((a, b) => (b.temp < a.temp ? b : a));
       for (const x of [hi, lo]) ch += `<circle cx="${f1(X(x.i))}" cy="${f1(TY(x.temp))}" r="2.4" style="fill:var(--chart-a)"/><text x="${f1(X(x.i))}" y="${f1(TY(x.temp) - 6)}" text-anchor="middle" style="font:600 10px 'Overpass Mono';fill:var(--muted)">${tempTxt(Math.round(x.temp))}</text>`;
-      for (const x of hrs) if (x.i % 3 === 0 && x.i < 24) ch += `<text x="${f1(X(x.i))}" y="${hgt - 2}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${x.i ? String(Math.floor(x.hd)) : 'now'}</text>`;
+      for (const x of hrs) if (x.i % 3 === 0 && x.i < 24) ch += `<text x="${f1(X(x.i))}" y="${hgt - 2}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label);pointer-events:none">${x.i ? hourLbl(x.hd) : 'now'}</text>`;
+      // Hover an hour: a guide, a dot on the temperature line, and the hour's air and snowfall.
+      const cw = (w - 24) / 24;
+      let wtip = '';
+      for (const x of hrs) {
+        const key = `wx:${x.i}`;
+        ch += hoverCol(key, X(x.i) - cw / 2, cw, base, '');
+        if (chartHover === key) {
+          const ty = TY(x.temp);
+          ch += `<line x1="${f1(X(x.i))}" y1="${top - 4}" x2="${f1(X(x.i))}" y2="${base}" stroke-dasharray="2 2" style="stroke:var(--soft);pointer-events:none"/><circle cx="${f1(X(x.i))}" cy="${f1(ty)}" r="3" style="fill:var(--strong);pointer-events:none"/>`;
+          wtip = hoverTip(X(x.i) - cw / 2, cw, w, Math.min(ty, base - 30), `${x.i ? hhmm(x.hd) : 'Now'} · ${tempTxt(Math.round(x.temp))} · ${x.rate ? `snow ${snowAmt(x.rate)}/h` : 'no snow'}`);
+        }
+      }
+      ch += wtip;
       const sunTxt = `${hhmm(SUNRISE)} – ${hhmm(SUNSET)}`;
       const days = []; for (let k = 0; k < 5; k++) { const d = S.day + k, hiT = Math.round(airAt(d, 14.5)), loT = Math.round(airAt(d + 1, 2.5)), cm = stormCm(d); days.push(`<div class="r" style="grid-template-columns:1.1fr 1.6fr 0.9fr 0.9fr"><span>${k ? dateTxt(d) : 'Today'}</span><span class="nm">${wxIcon(dayKind(d)).replace('class="g"', 'class="g" style="width:16px;height:16px"')}${dayWord(d)}</span><span class="n">${tempTxt(hiT)} / ${tempTxt(loT)}</span><span class="n" style="color:${cm ? 'var(--pp)' : ''}">${cm ? snowAmt(cm) : '—'}</span></div>`); }
       return `<div class="statusline">${wxIcon(wx.kind)}${wx.desc}<span class="t">${tempTxt(wx.temp)}</span><span class="r">Wind ${windTxt(wx.dir, wx.kmh)}</span></div><div class="rule"></div>
@@ -1613,7 +1627,7 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('wxcal')) S.wxView = 'calendar';
     if (d.includes('finmonth')) S.finScale = 'month';
     if (d.includes('finseason')) S.finScale = 'season';
-    const hv = d.find((x) => /^hov\d+$/.test(x)); if (hv) chartHover = (S.atab === 'finances' ? `fin:${S.finScale}:` : 'ov:') + hv.slice(3);
+    const hv = d.find((x) => /^hov\d+$/.test(x)); if (hv) chartHover = (S.atab === 'finances' ? `fin:${S.finScale}:` : S.atab === 'weather' ? 'wx:' : 'ov:') + hv.slice(3);
     if (d.includes('compact')) S.set.money = 'compact';
     if (d.includes('scale90')) S.set.hudScale = 90;
     if (d.includes('scale110')) S.set.hudScale = 110;
