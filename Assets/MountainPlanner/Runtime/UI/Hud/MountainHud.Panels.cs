@@ -140,6 +140,7 @@ namespace MountainPlanner.UI
                 tile.focusable = false;
                 tile.clickable = null;
                 var glyph = new HudIcon(tool.Glyph, tool.Badge);
+                glyph.name = "tool-" + tool.Id + "-glyph";
                 glyph.AddToClassList("tool__glyph");
                 tile.Add(glyph);
                 var label = new Label(tool.Label) { pickingMode = PickingMode.Ignore };

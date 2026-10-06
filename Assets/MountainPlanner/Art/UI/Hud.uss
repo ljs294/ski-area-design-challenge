@@ -29,6 +29,24 @@
 /* the shared switch's chosen option (Base.uss), kept above the HUD's own button rules */
 .hud .mp-seg__opt--on, .hud .mp-seg__opt--on:hover { background-color: var(--on-bg); color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
 .hud .nodata { color: var(--faint); -unity-text-outline-color: var(--faint); }
+/* Line boxes: the browser sets Overpass's normal line at 1.23 of the size, Unity's text at about 1.33, so one-line
+   labels take the mockup's height (size × 1.23, or × 1.1 where the mockup says line-height 1.1) and lists keep its rhythm. */
+.hud .row__label, .hud .qrow__label, .hud .tabs--small .tab { height: 16px; -unity-text-align: middle-left; }
+.hud .row__key { height: 16px; -unity-text-align: middle-right; }
+.hud .ghead { height: 23px; -unity-text-align: middle-left; }
+.hud .lr__word, .hud .lr__n, .hud .kv__dt, .hud .kv__b, .hud .kv__u { height: 15px; -unity-text-align: middle-left; }
+.hud .kv__dd .kv__b, .hud .kv__dd .kv__u { -unity-text-align: middle-right; }
+.hud .legend__title { height: 17px; -unity-text-align: middle-left; }
+.hud .toollabel__name, .hud .toollabel__key, .hud .toollabel__hint { height: 15px; -unity-text-align: middle-left; }
+.hud .mhead__name { height: 17px; }
+.hud .mhead__place { height: 15px; }
+.hud .resort__name { height: 16px; -unity-text-align: middle-left; }
+.hud .resort__status { height: 13px; }
+.hud .day { height: 15.5px; -unity-text-align: middle-center; }
+.hud .date { height: 12.7px; -unity-text-align: middle-center; }
+.hud .clock__hm, .hud .clock__s { height: 15.5px; }
+.hud .wxline { height: 12.7px; }
+.hud .mp-x { font-size: 14px; }
 
 /* ---------- status bar (.bar): full width at the bottom, docked flush or floating inset ---------- */
 .hud .bar {
@@ -115,7 +133,7 @@
 .hud .stat:hover { background-color: var(--hover); }
 .hud .stat--on, .hud .stat--on:hover { background-color: var(--chip); }
 .hud .stat--dis:hover { background-color: rgba(0, 0, 0, 0); }
-.hud .when.stat { flex-direction: column; padding: 0 5px; }
+.hud .when.stat { flex-direction: column; height: 40px; padding: 0 5px; }
 .hud .cash__icon { width: 22px; height: 22px; margin-right: 6px; color: var(--pos); -unity-text-outline-color: var(--pos); }
 .hud .stat--dis .cash__icon { color: var(--faint); -unity-text-outline-color: var(--faint); }
 .hud .money { align-items: flex-end; }
@@ -161,7 +179,11 @@
 .hud .sq--dis .sq__icon, .hud .sq--dis:hover .sq__icon { color: var(--faint); -unity-text-outline-color: var(--faint); }
 
 /* ---------- dropdowns (.drop): the layers and the menu ---------- */
-.hud .rcol { position: absolute; right: 10px; top: 56px; width: 268px; }
+.hud .rcol { position: absolute; right: 10px; top: 56px; align-items: flex-end; }
+.hud .rcol > .drop, .hud .rcol > .legend { width: 268px; }
+/* when the legend doesn't fit under the dropdown (a large UI scale on a short screen), it sits beside it */
+.hud .rcol--side { flex-direction: row-reverse; align-items: flex-start; }
+.hud .rcol--side > .legend--below { margin-top: 0; margin-right: 6px; }
 .hud .drop { padding: 6px 0; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 6px; }
 .hud .menu { position: absolute; right: 10px; top: 56px; width: 300px; }
 .hud .ghead { padding: 5px 12px 3px 12px; font-size: 12px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
@@ -176,7 +198,7 @@
 .hud .row--dis .row__label, .hud .row--dis .row__key { color: var(--faint); -unity-text-outline-color: var(--faint); }
 .hud .row--two { align-items: flex-start; }
 .hud .row__stack { flex-grow: 1; }
-.hud .row__small { margin-top: 2px; font-size: 11.5px; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .row__small { margin-top: 2px; font-size: 11.5px; white-space: normal; color: var(--faint); -unity-text-outline-color: var(--faint); }
 /* checkbox (.chk) and radio (.rad) */
 .hud .chk, .hud .rad {
     width: 15px;
@@ -211,9 +233,9 @@
 .hud .mhead { padding: 5px 12px 8px 12px; }
 .hud .mhead__name { font-size: 14px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
 .hud .mhead__place { margin-top: 2px; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); }
-.hud .qrow { flex-direction: row; justify-content: space-between; align-items: center; padding: 5px 12px; }
+.hud .qrow { flex-direction: row; justify-content: space-between; align-items: center; height: 33px; padding: 0 12px; }
 .hud .qrow__label { font-size: 13px; color: var(--text); -unity-text-outline-color: var(--text); }
-.hud .qrow .mp-seg__opt { padding: 4px 9px 3px 9px; }
+.hud .qrow .mp-seg__opt { height: 21px; padding: 4px 9px 3px 9px; }
 
 /* ---------- the legend card (.legend) ---------- */
 .hud .legend { padding-bottom: 9px; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 6px; }
@@ -258,13 +280,13 @@
     border-radius: 6px;
 }
 .hud .tabs { flex-direction: row; padding: 8px 8px 7px 8px; }
-.hud .tab { margin-right: 2px; padding: 5px 10px 4px 10px; border-radius: 4px; font-size: 14.5px; -unity-font-style: bold; color: var(--tab); -unity-text-outline-color: var(--tab); }
+.hud .tab { height: 26.8px; margin-right: 2px; padding: 5px 10px 4px 10px; border-radius: 4px; font-size: 14.5px; -unity-font-style: bold; color: var(--tab); -unity-text-outline-color: var(--tab); }
 .hud .tab:hover { color: var(--text); -unity-text-outline-color: var(--text); }
 .hud .tab--on, .hud .tab--on:hover { background-color: var(--chip); color: var(--strong); -unity-text-outline-color: var(--strong); }
 .hud .tab--dis, .hud .tab--dis:hover { color: var(--faint); -unity-text-outline-color: var(--faint); }
-.hud .tabs--small .tab { padding: 5px 8px 4px 8px; font-size: 13px; }
+.hud .tabs--small .tab { height: 25px; padding: 5px 8px 4px 8px; font-size: 13px; }
 .hud .tabrule { height: 1px; margin: 0 8px; background-color: var(--tabrule); }
-.hud .toollabel { flex-direction: row; padding: 9px 12px 7px 12px; }
+.hud .toollabel { flex-direction: row; padding: 9px 12px 7px 12px; color: var(--strong); -unity-text-outline-color: var(--strong); }
 .hud .toollabel__name { font-size: 12.5px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
 .hud .toollabel__key { margin-left: 8px; font-size: 12.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .toollabel__hint { margin-left: 8px; font-size: 12.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
@@ -302,7 +324,7 @@
 .hud .rstats__x { margin-left: 4px; }
 .hud .ghost--dis, .hud .ghost--dis:hover { border-color: var(--hair2); color: var(--faint); -unity-text-outline-color: var(--faint); }
 .hud .rstats__body { flex-direction: row; }
-.hud .gauge { width: 150px; height: 254px; flex-shrink: 0; padding: 10px 0 8px 0; border-right-width: 1px; border-color: var(--hair); color: var(--chart-a); -unity-text-outline-color: var(--chart-a); }
+.hud .gauge { width: 150px; min-height: 254px; flex-shrink: 0; padding: 10px 0 8px 0; border-right-width: 1px; border-color: var(--hair); color: var(--chart-a); -unity-text-outline-color: var(--chart-a); }
 .hud .figs { flex-grow: 1; }
 .hud .gauge__lab { font-size: 10.5px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); }
 .hud .gauge__plate {

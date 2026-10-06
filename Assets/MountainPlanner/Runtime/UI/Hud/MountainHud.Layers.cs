@@ -27,6 +27,7 @@ namespace MountainPlanner.UI
             _legend = _root.Q("legend");
             _legendBody = _root.Q("legend-body");
             _legendTitle = _root.Q<Label>("legend-title");
+            _legend.RegisterCallback<GeometryChangedEvent>(_ => FitLegend());
             _root.Q<Button>("legend-x").clicked += () =>
             {
                 _legendClosed = true;
@@ -83,6 +84,18 @@ namespace MountainPlanner.UI
             bool show = (_legendInfo != null || _legendContours) && !_legendClosed && _drop != Drop.Menu;
             _legend.EnableInClassList("hidden", !show);
             _legend.EnableInClassList("legend--below", _drop == Drop.Layers);
+            if (_drop != Drop.Layers) _root.Q("rcol").RemoveFromClassList("rcol--side");
+        }
+
+        /// <summary>Under the dropdown when it fits above the bar; beside it when it doesn't.</summary>
+        void FitLegend()
+        {
+            var rcol = _root.Q("rcol");
+            bool below = _drop == Drop.Layers && !_legend.ClassListContains("hidden");
+            if (!below) { rcol.RemoveFromClassList("rcol--side"); return; }
+            if (rcol.ClassListContains("rcol--side")) return;
+            float stacked = _layers.layout.height + 6 + _legend.layout.height;
+            if (rcol.layout.y + stacked > _bar.layout.y - 6) rcol.AddToClassList("rcol--side");
         }
 
         void BuildLegend(string infoId, bool contours, UnitSystem units)

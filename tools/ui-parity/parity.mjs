@@ -109,9 +109,9 @@ const MEASURE = `(async () => {
   return parts;
 })()`;
 
-async function renderMockup(b, state, theme, index) {
+async function renderMockup(b, state, theme, index, name) {
   const flags = ['p2', ...(state.mockup ? state.mockup.split(',') : []), ...(theme === 'light' ? ['light'] : [])].join(',');
-  const url = `${pathToFileURL(mockup).href}?n=${index}#solo&demo=${flags}`;
+  const url = `${pathToFileURL(mockup).href}?n=${index}#solo&demo=${flags}${name ? `&name=${encodeURIComponent(name)}` : ''}`;
   await b.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1.5, mobile: false });
   let parts = null;
   for (let attempt = 1; !parts; attempt++) {
@@ -120,6 +120,7 @@ async function renderMockup(b, state, theme, index) {
       await b.send('Page.navigate', { url });
       await within(loaded, 15000, `loading ${state.name}`);
       parts = await within(evaluate(b, MEASURE), 15000, `measuring ${state.name}`);
+      if (!Object.keys(parts).length) throw new Error(`the mockup drew no named parts for ${state.name} (a script error?)`);
     } catch (e) {
       if (attempt >= 3) throw e;
       console.log(`retrying ${state.name} ${theme}: ${e.message}`);
@@ -203,7 +204,14 @@ async function main() {
   try {
     let n = 0;
     const mockups = [];
-    for (const state of states) for (const theme of THEMES) mockups.push({ state, theme, ...(await renderMockup(b, state, theme, n++)) });
+    // The game's resort name, so both bars lay out the same words.
+    let name = arg('--name', null);
+    for (const state of states) {
+      if (name) break;
+      const f = path.join(unityDir, `s6-${state.name}_dark_1920x1080.layout.json`);
+      if (existsSync(f)) name = JSON.parse(readFileSync(f, 'utf8')).parts['bar-resort-name']?.text ?? null;
+    }
+    for (const state of states) for (const theme of THEMES) mockups.push({ state, theme, ...(await renderMockup(b, state, theme, n++, name)) });
     const allNames = new Set(mockups.flatMap((x) => Object.keys(x.parts)));
     writeFileSync(path.join(outDir, 'mockup', 'parts.json'), JSON.stringify(Object.fromEntries(mockups.map((x) => [`${x.state.name}_${x.theme}`, x.parts])), null, 1));
     for (const { state, theme, parts, png } of mockups) {

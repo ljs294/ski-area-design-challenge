@@ -148,12 +148,12 @@ namespace MountainPlanner.App.Flow
                 var units = MountainPlanner.Presentation.DisplayUnits.Current;
                 MountainPlanner.Presentation.DisplayUnits.Set(MountainPlanner.Domain.Measure.UnitSystem.Imperial, remember: false);   // as the mockup
                 // The HUD's states (task P2-02), each as the mockup's #demo=p2,<flags> shows it (tools/ui-parity/states.mjs),
-                // with the pointer where the mockup's is: on the face with an info layer on, high on the mountain without.
+                // with the pointer on the mountain, as the mockup's is (on the face with an info layer on).
                 if (hud != null)
                     foreach (var state in HudStates)
                     {
                         if (!Wanted("s6-" + state.Name)) continue;
-                        _viewer.SetPointerForCapture(state.Info ? new Vector2(742 / 1280f, 1 - 440 / 720f) : new Vector2(930 / 1280f, 1 - 260 / 720f));
+                        _viewer.SetPointerForCapture(state.Info ? new Vector2(742 / 1280f, 1 - 440 / 720f) : new Vector2(640 / 1280f, 1 - 500 / 720f));
                         state.Set(hud, _viewer, true);
                         yield return Wait(0.5f);
                         yield return EachLook(folder, "s6-" + state.Name);

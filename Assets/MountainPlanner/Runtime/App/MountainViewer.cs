@@ -405,11 +405,15 @@ namespace MountainPlanner.App
         /// <summary>The bar's clock (tests).</summary>
         internal ViewClockRunner Clock => _clock;
 
+        static string Coordinates(double lat, double lon) =>
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.00}° {1}, {2:0.00}° {3}", Math.Abs(lat), lat >= 0 ? "N" : "S", Math.Abs(lon), lon >= 0 ? "E" : "W");
+
         void WireHud()
         {
             if (Hud == null) return;
             var site = _resort.Manifest.Site;
-            Hud.SetSite(site.Name, _resort.Manifest.Quality.Score);
+            // Packages keep no place name yet, so the line under the name (the mockup's "Jackson Hole, Wyoming") says where it is.
+            Hud.SetSite(site.Name, Coordinates(site.Latitude, site.Longitude), _resort.Manifest.Quality.Score);
             Hud.PrepareElevations(_resort.Cache.HeightMin - 100, _resort.Cache.HeightMin + _resort.Cache.HeightRange + 100);
             Hud.SetTerrain(_resort.Cache.HeightMin + _resort.Cache.HeightRange, _resort.Cache.HeightMin, (double)site.SizeMetres * site.SizeMetres);
             Hud.LayerChanged += (layer, on) => { if (on != _layers.IsOn(layer)) ToggleLayer(layer); };

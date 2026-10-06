@@ -346,7 +346,7 @@ body.solo .frame { border-radius: 0; }
 .hud .tabs span.dis, .hud .tabs span.dis:hover { color: var(--faint); cursor: default; }
 .hud .ghost.dis:hover { border-color: var(--hair2); }
 .hud .drop .row.dis.plain { align-items: center; }
-.hud .drop .row.dis.plain .chk { margin-top: 0; }
+.hud .drop .row.dis.plain > .chk { margin-top: 0; flex: none; }
 .hud .empty { padding: 14px 12px 16px; font: 500 12.5px 'DotFix', 'Overpass'; color: var(--muted); line-height: 1.4; }
 .hud .credit { position: absolute; right: 10px; font: 500 10.5px 'DotFix', 'Overpass'; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65); z-index: 3; pointer-events: none; }
 .hud .kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; margin-left: 4px; border: 1px solid var(--hair2); border-bottom-width: 2px; border-radius: 4px; background: var(--tile); font: 600 11.5px 'Overpass Mono', monospace; color: var(--text); }
@@ -1724,6 +1724,9 @@ body.solo .frame { border-radius: 0; }
   // For screenshots only: #demo=tray,lift,trail,float,menu,layers,analysis,edit opens that state on load
   // (and slope, aspect, depth, contours, metric). p2 shows the game as built in Phase 2, with any of the others.
   const demo = (location.hash.match(/demo=([a-z0-9,]+)/) || [])[1];
+  // name=…: the resort's name, so the parity check (tools/ui-parity) lays the bar out with the game's.
+  const nameArg = (location.hash.match(/name=([^&]+)/) || [])[1];
+  if (nameArg) S.name = decodeURIComponent(nameArg).slice(0, 28);
   if (demo) {
     const d = demo.split(',');
     // p2: the game as it is in Phase 2 (task P2-02): 15 January at 10:30, paused, nothing built and nothing to save.

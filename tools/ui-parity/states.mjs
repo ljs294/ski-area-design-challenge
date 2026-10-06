@@ -25,7 +25,7 @@ export const STATES = [
 // their box, colours and type are compared, not their text.
 export const NO_TEXT = new Set([
   'bar-resort-name', 'bar-day', 'bar-date', 'bar-clock', 'bar-elev-value', 'bar-readout', 'menu-head', 'rstats-head',
-  'analysis-head', 'legend-head',
+  'analysis-head', 'legend-head', 'rstats-foot',
 ]);
 
 export const TOLERANCE = { px: 2, colour: 6, fontSize: 0.5 };
