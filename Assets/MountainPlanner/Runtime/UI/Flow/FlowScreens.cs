@@ -281,7 +281,9 @@ namespace MountainPlanner.UI.Flow
                 var r = row;
                 var el = new VisualElement();
                 el.AddToClassList("lib-row");
-                el.Add(Text(r.Name, "lib-name"));
+                var name = Text(r.Name, "lib-name");
+                name.tooltip = r.Name;   // a long one ends in an ellipsis
+                el.Add(name);
                 el.Add(Text(r.Place, "lib-cell", "mono"));
                 el.Add(Text(r.Size, "lib-cell", "lib-cell--narrow", "mono"));
                 if (r.IsPaused)
@@ -318,7 +320,7 @@ namespace MountainPlanner.UI.Flow
                     el.Add(Score("Terrain", r.TerrainScore));
                     el.Add(Score("Flora", r.FloraScore));
                     el.Add(DiskCell(r));
-                    el.Add(Text(r.Opened, "lib-cell"));
+                    el.Add(Text(r.Opened, "lib-cell", "lib-cell--when"));
                     var spacer = new VisualElement();
                     spacer.AddToClassList("spacer");
                     el.Add(spacer);

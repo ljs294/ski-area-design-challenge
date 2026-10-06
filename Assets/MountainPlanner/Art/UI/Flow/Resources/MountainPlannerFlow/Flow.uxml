@@ -76,7 +76,7 @@
                         <ui:Button name="sort-quality" text="Quality" class="mp-seg__opt" />
                     </ui:VisualElement>
                 </ui:VisualElement>
-                <ui:ScrollView name="library-rows" class="library-rows" />
+                <ui:ScrollView name="library-rows" class="library-rows" mode="Vertical" />
                 <ui:Label name="library-empty" text="No areas yet. Choose New Area to download one." class="library-empty hidden" />
                 <ui:VisualElement class="panel-foot">
                     <ui:Label name="library-keys" text="" class="muted" />

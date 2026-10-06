@@ -118,21 +118,24 @@
 .library-empty { white-space: normal; padding: 32px 16px; color: var(--muted); -unity-text-outline-color: var(--muted); font-size: 15px; }
 
 .lib-row {
-    flex-direction: row; align-items: center;
-    min-height: 48px; padding: 0 16px;
+    flex-direction: row; align-items: center; flex-wrap: wrap;   /* at large UI scales the cells and buttons wrap, never scroll sideways */
+    min-height: 48px; padding: 4px 16px;
     border-bottom-width: 1px; border-bottom-color: var(--row);
 }
 .lib-row:hover { background-color: var(--hover); }
 .lib-row--selected { background-color: var(--chip); }
-.lib-name { width: 220px; font-size: 15px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.lib-name { width: 220px; overflow: hidden; text-overflow: ellipsis; font-size: 15px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
 .lib-cell { width: 150px; color: var(--muted); -unity-text-outline-color: var(--muted); font-size: 13px; }
 .lib-cell--narrow { width: 80px; }
-.lib-score { width: 180px; font-size: 13px; }
+.lib-score { width: 150px; font-size: 13px; }
 .lib-score--excellent, .lib-score--good { color: var(--pos); -unity-text-outline-color: var(--pos); }
 .lib-score--fair { color: var(--warn); -unity-text-outline-color: var(--warn); }
 .lib-score--limited { color: var(--neg); -unity-text-outline-color: var(--neg); }
 .lib-paused { flex-grow: 1; color: var(--warn); -unity-text-outline-color: var(--warn); font-size: 13px; }
-.lib-actions { flex-direction: row; }
+.lib-actions { flex-direction: row; flex-shrink: 0; margin-left: auto; padding: 2px 0; }
+/* Manage Areas' rows carry Rename and Delete (task P2-04): a narrower last-opened column keeps them on one line at
+   100%; a long name ends in an ellipsis (its tooltip has it all). */
+.lib-cell--when { width: 110px; }
 /* An area from a newer game (task 08): greyed, with only its message at full strength. */
 .lib-row--newer .lib-name { color: var(--muted); -unity-text-outline-color: var(--muted); -unity-font-style: normal; opacity: 0.6; }
 .lib-row--newer .lib-cell { opacity: 0.6; }
