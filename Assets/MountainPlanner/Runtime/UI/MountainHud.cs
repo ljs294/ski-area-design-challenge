@@ -100,6 +100,7 @@ namespace MountainPlanner.UI
             WireBar();
             WireLayers();
             WirePanels();
+            WireGlass();
             _menu.RegisterCallback<GeometryChangedEvent>(_ => FitDrop(_menu));
             _layers.RegisterCallback<GeometryChangedEvent>(_ => FitDrop(_root.Q("rcol")));
 
@@ -130,6 +131,7 @@ namespace MountainPlanner.UI
         {
             UiPreferences.Changed -= OnPreferencesChanged;
             HudPreferences.Changed -= OnDockChanged;
+            HudPreferences.Changed -= ApplyOpacity;
             DisplayUnits.Changed -= OnUnitsChanged;
         }
 

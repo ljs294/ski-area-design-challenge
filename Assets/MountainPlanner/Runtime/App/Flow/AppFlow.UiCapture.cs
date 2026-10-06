@@ -30,6 +30,7 @@ namespace MountainPlanner.App.Flow
 
         string[] _uiOnly;
         Vector2Int[] _uiSizes = DefaultSizes;
+        int _uiBase = 100;
         readonly StringBuilder _uiReport = new StringBuilder();
         int _uiShots, _uiProblems;
 
@@ -42,6 +43,8 @@ namespace MountainPlanner.App.Flow
             int sizes = Array.IndexOf(args, "-uisizes");
             if (sizes >= 0 && sizes + 1 < args.Length)
                 _uiSizes = args[sizes + 1].Split(',').Select(s => s.Split('x')).Select(p => new Vector2Int(int.Parse(p[0]), int.Parse(p[1]))).ToArray();
+            int scale = Array.IndexOf(args, "-uibase");   // -uibase 85: the main pictures at that UI scale instead of 100%
+            if (scale >= 0 && scale + 1 < args.Length && int.TryParse(args[scale + 1], out int percent)) _uiBase = percent;
             StartCoroutine(UiCapture(Path.GetFullPath(args[i + 1]), Array.IndexOf(args, "-uicompare") >= 0));
         }
 
@@ -223,7 +226,7 @@ namespace MountainPlanner.App.Flow
             foreach (var theme in new[] { UiThemeChoice.Dark, UiThemeChoice.Light })
             {
                 UiPreferences.SetChoice(theme, remember: false);
-                UiPreferences.SetScale(100, remember: false);
+                UiPreferences.SetScale(_uiBase, remember: false);
                 string t = theme.ToString().ToLowerInvariant();
                 foreach (var size in _uiSizes) yield return OffscreenShot(folder, $"{screen}_{t}_{size.x}x{size.y}", size.x, size.y);
                 foreach (int scale in new[] { 50, 150 })

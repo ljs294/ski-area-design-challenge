@@ -68,6 +68,7 @@
 .hud .bar--compact .tbtn { padding: 0 9px; }
 .hud .bar--compact .resort__name { max-width: 100px; }
 .hud .bar--compact .fig { min-width: 0; }
+.hud .bar--compact #bar-readout-tail { display: none; }
 /* .cell, with .sep::before as a child: a 1 px rule on its left, 13 px short of the top and bottom */
 .hud .cell { flex-direction: row; align-items: center; flex-shrink: 0; padding: 0 10px; }
 .hud .sep { position: absolute; left: 0; top: 13px; bottom: 13px; width: 1px; background-color: var(--div); }
@@ -403,6 +404,13 @@
     color: var(--text);
     -unity-text-outline-color: var(--text);
 }
+
+/* ---------- see-through panels (MountainHud.Glass.cs): the panel colour on a plate behind the contents ---------- */
+.hud .glassy, .hud .glassy:hover, .hud .glassy.sq--on, .hud .glassy.sq--on:hover, .hud .glassy.sq--dis:hover { background-color: rgba(0, 0, 0, 0); }
+.hud .hud-plate { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: var(--panel); }
+.hud .sq:hover > .hud-plate { background-color: var(--hover); }
+.hud .sq--on > .hud-plate, .hud .sq--on:hover > .hud-plate { background-color: var(--on-bg); }
+.hud .sq--dis:hover > .hud-plate { background-color: var(--panel); }
 
 /* ---------- a floating window (.pn), dragged by its head (HudWindow) ---------- */
 .hud .pn { position: absolute; }

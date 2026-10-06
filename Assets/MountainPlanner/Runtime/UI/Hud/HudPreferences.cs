@@ -24,6 +24,37 @@ namespace MountainPlanner.UI.Hud
             }
         }
 
+        const string OpacityKey = "hud.opacity";
+        static int? _opacity;
+
+        /// <summary>
+        /// How solid the panels are, 50–100% (owner's experiment, 2026-10-06): their colour plates draw at this opacity.
+        /// -hudopacity N sets it without remembering (captures).
+        /// </summary>
+        public static int PanelOpacity
+        {
+            get
+            {
+                if (_opacity == null)
+                {
+                    var args = Environment.GetCommandLineArgs();
+                    int i = Array.IndexOf(args, "-hudopacity");
+                    _opacity = i >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], out int flag) ? flag : PlayerPrefs.GetInt(OpacityKey, 100);
+                    _opacity = Mathf.Clamp(_opacity.Value, 50, 100);
+                }
+                return _opacity.Value;
+            }
+        }
+
+        public static void SetPanelOpacity(int percent, bool remember = true)
+        {
+            percent = Mathf.Clamp(percent, 50, 100);
+            if (remember) PlayerPrefs.SetInt(OpacityKey, percent);
+            if (percent == PanelOpacity) return;
+            _opacity = percent;
+            Changed?.Invoke();
+        }
+
         public static void SetDocked(bool docked, bool remember = true)
         {
             if (remember) PlayerPrefs.SetInt(DockedKey, docked ? 1 : 0);

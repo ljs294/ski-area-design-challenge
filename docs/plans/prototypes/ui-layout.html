@@ -502,7 +502,8 @@ body.solo .frame { border-radius: 0; }
   let uid = 10, liftSeq = 0, trailSeq = 0;
 
   // ---------- settings: the menu's quick switches and the Settings window ----------
-  const DEFAULTS = { hudScale: 100, tooltips: 'on', notify: 'all', clock: '12', money: 'full', autosave: 10, pauseOnBuild: 'off', confirmRemove: 'on',
+  const DEFAULTS = { hudScale: 85,   // the owner's default size (2026-10-06); the game's scale goes 50–150% in 5% steps
+    tooltips: 'on', notify: 'all', clock: '12', money: 'full', autosave: 10, pauseOnBuild: 'off', confirmRemove: 'on',
     quality: 'High', renderScale: 100, trees: 'normal', shadows: 'high', snowfx: 'on', fps: '60', display: 'Fullscreen',
     master: 80, music: 60, effects: 75, ambience: 70, muteBg: 'on', invertZoom: 'off', zoomSpeed: 'normal' };
   S.set = { ...DEFAULTS };
@@ -511,7 +512,7 @@ body.solo .frame { border-radius: 0; }
     { id: 'interface', title: 'Interface', rows: [
       { k: 'theme', label: 'Theme', desc: 'Auto follows the sun: light by day, dark at night.', seg: [['dark', 'Dark'], ['light', 'Light'], ['auto', 'Auto']], get: () => S.theme, put: (v) => { S.theme = v; } },
       { k: 'dock', label: 'Status bar', desc: 'Docked to the bottom edge, or floating above it.', seg: [['docked', 'Docked'], ['floating', 'Floating']], get: () => (S.docked ? 'docked' : 'floating'), put: (v) => { S.docked = v === 'docked'; } },
-      { k: 'hudScale', label: 'Interface scale', desc: 'The size of the bar, panels and text.', step: [80, 90, 100, 110], fmt: (v) => `${v}%` },
+      { k: 'hudScale', label: 'Interface scale', desc: 'The size of the bar, panels and text.', step: [80, 85, 90, 95, 100, 105, 110], fmt: (v) => `${v}%` },
       { k: 'labels', label: 'Map labels', desc: 'Lift and trail names on the mountain.', seg: ONOFF, get: () => (S.layers.labels ? 'on' : 'off'), put: (v) => { S.layers.labels = v === 'on'; } },
       { k: 'tooltips', label: 'Tooltips', desc: 'Details when you hover over the bar and tools.', seg: ONOFF },
       { k: 'notify', label: 'Notifications', desc: 'Messages at the top of the screen. Important leaves out routine ones.', seg: [['all', 'All'], ['important', 'Important'], ['off', 'Off']] },
@@ -1759,6 +1760,7 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('compact')) S.set.money = 'compact';
     if (d.includes('scale90')) S.set.hudScale = 90;
     if (d.includes('scale110')) S.set.hudScale = 110;
+    if (d.includes('scale100')) S.set.hudScale = 100;   // the mockup's own size (parity checks measure at it)
     if (d.includes('strack')) S.statusStyle = 'track';
     if (d.includes('sword')) S.statusStyle = 'word';
     syncVariants();

@@ -110,7 +110,7 @@ const MEASURE = `(async () => {
 })()`;
 
 async function renderMockup(b, state, theme, index, name) {
-  const flags = ['p2', ...(state.mockup ? state.mockup.split(',') : []), ...(theme === 'light' ? ['light'] : [])].join(',');
+  const flags = ['p2', 'scale100', ...(state.mockup ? state.mockup.split(',') : []), ...(theme === 'light' ? ['light'] : [])].join(',');
   const url = `${pathToFileURL(mockup).href}?n=${index}#solo&demo=${flags}${name ? `&name=${encodeURIComponent(name)}` : ''}`;
   await b.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1.5, mobile: false });
   let parts = null;

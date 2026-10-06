@@ -114,6 +114,14 @@ namespace MountainPlanner.UI.Hud
         {
             for (var x = hierarchy.parent; x != null; x = x.hierarchy.parent)
             {
+                // A see-through panel draws its colour on a plate (MountainHud.Glass.cs): the knock-out matches it.
+                if (x.ClassListContains("glassy") && x.childCount > 0 && x[0].ClassListContains("hud-plate"))
+                {
+                    var plate = x[0].resolvedStyle;
+                    var p = plate.backgroundColor;
+                    p.a *= plate.opacity;
+                    return p;
+                }
                 var c = x.resolvedStyle.backgroundColor;
                 if (c.a > 0.5f) return c;
             }
