@@ -77,6 +77,7 @@ namespace MountainPlanner.UI.Picker
         public TileMapView()
         {
             AddToClassList("tile-map");
+            AddToClassList(UiFocus.OwnArrowsClass);   // the arrows nudge the square; Tab leaves the map
             focusable = true;
             style.overflow = Overflow.Hidden;
 

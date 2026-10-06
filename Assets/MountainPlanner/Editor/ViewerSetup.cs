@@ -86,9 +86,9 @@ namespace MountainPlanner.Editor
                 panel = ScriptableObject.CreateInstance<UnityEngine.UIElements.PanelSettings>();
                 AssetDatabase.CreateAsset(panel, path);
             }
-            panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Theme-Light.tss");
+            panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Resources/MountainPlannerUI/Theme-Dark.tss");   // UiPanels swaps in the player's theme at run time
             panel.scaleMode = UnityEngine.UIElements.PanelScaleMode.ScaleWithScreenSize;
-            panel.referenceResolution = new Vector2Int(1920, 1080);
+            panel.referenceResolution = MountainPlanner.UI.UiPanels.Reference(100);   // the accepted mockup's 1280×720 design base (task P2-01)
             panel.screenMatchMode = UnityEngine.UIElements.PanelScreenMatchMode.MatchWidthOrHeight;
             panel.match = 1;   // by height
             EditorUtility.SetDirty(panel);
@@ -158,8 +158,6 @@ namespace MountainPlanner.Editor
             document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.VisualTreeAsset>(UiFolder + "Hud.uxml");
             var hud = GetOrAdd<MountainPlanner.UI.MountainHud>(hudGo);
             hud.Document = document;
-            hud.LightTheme = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Theme-Light.tss");
-            hud.DarkTheme = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Theme-Dark.tss");
             viewer.Hud = hud;
             viewer.TerrainMaterial = TerrainMaterial();
             viewer.HighlightMaterial = HighlightMaterial();
@@ -224,6 +222,12 @@ namespace MountainPlanner.Editor
             // Keep running when the window loses focus: loading a mountain shouldn't stall on alt-tab, and
             // unattended captures and benchmarks froze whenever another window took focus.
             PlayerSettings.runInBackground = true;
+            // Borderless full screen at the display's own resolution by default (21:9 and 32:9 included, E6); a
+            // window can be resized and maximised; Alt+Enter switches between the two (task P2-01).
+            PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
+            PlayerSettings.defaultIsNativeResolution = true;
+            PlayerSettings.resizableWindow = true;
+            PlayerSettings.allowFullscreenSwitch = true;
             WriteBuildInfo();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {

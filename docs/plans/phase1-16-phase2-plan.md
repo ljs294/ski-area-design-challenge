@@ -45,8 +45,11 @@ tester would notice, the minimum spec checked on real hardware, and a build that
 - Tasks 01 and 08 come first, and can run together.
 - Tasks 02–07 can run in parallel once 01 lands. Tasks 04 and 06 also need 08.
 - Task 09 runs at any time, alongside the others.
-- **Task 01 and part of 02 are already underway in the UI thread** (the owner, 2026-10-05). That thread owns them, and
-  writes them up against this table.
+- Task 01 runs in its own thread (`feature/p2-01-ui-foundation`), not the UI mockup thread, which keeps
+  `docs/plans/prototypes/`. Task 02 starts when 01 lands. Task 01's audit against the accepted mockup lists what
+  task 02 has to build: [p2-01-mockup-audit.md](p2-01-mockup-audit.md). Owner rulings during task 01
+  (2026-10-06): 100% UI scale is the mockup's size (its 1280×720 stage), the theme has Auto (by the sun), and the
+  mockup is followed closely.
 
 ## 3. Tasks
 

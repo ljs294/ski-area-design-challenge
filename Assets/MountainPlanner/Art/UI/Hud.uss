@@ -1,5 +1,7 @@
-/* S6 Mountain view HUD (0.4 §4 and §7): tokens come from Theme-Light.tss / Theme-Dark.tss. Radii 4 / 6 / 12,
-   base text 14 px, panels 85% opaque, 120-200 ms ease-out on panels. */
+/* S6 Mountain view HUD (0.4 §4), the style-tile layout until task P2-02 rebuilds it in the Trailhead
+   direction. Colours are the shared theme tokens (Resources/MountainPlannerUI/Theme-*.tss), panels solid
+   (task P2-01). Radii 4 / 6 / 12, base text 14 px, 120-200 ms ease-out on panels. Keyboard focus shows as the
+   shared focus ring (UiFocus), not per control. */
 
 .hud {
     position: absolute;
@@ -7,11 +9,12 @@
     padding: 12px;
     font-size: 14px;
     color: var(--text);
+    -unity-text-outline-color: var(--text);
 }
 
 .panel {
-    background-color: var(--hud-surface);
-    border-color: var(--border);
+    background-color: var(--panel);
+    border-color: var(--hair);
     border-width: 1px;
     border-radius: 6px;
     padding: 6px 10px;
@@ -34,20 +37,22 @@
 .badge {
     border-radius: 12px;
     padding: 2px 10px;
-    color: var(--accent-contrast);
-    background-color: var(--accent);
+    color: var(--on-fg);
+    -unity-text-outline-color: var(--on-fg);
+    background-color: var(--on-bg);
     -unity-font-style: bold;
 }
-.badge--excellent { background-color: var(--success); }
-.badge--good { background-color: var(--accent); }
-.badge--fair { background-color: var(--fair); }
-.badge--limited { background-color: var(--danger); }
+.badge--excellent { background-color: var(--pos); }
+.badge--good { background-color: var(--pos); }
+.badge--fair { background-color: var(--warn); }
+.badge--limited { background-color: var(--neg); }
 .chip {
     border-radius: 12px;
     border-width: 1px;
-    border-color: var(--border-strong);
+    border-color: var(--dim);
     padding: 2px 10px;
-    color: var(--text-muted);
+    color: var(--soft);
+    -unity-text-outline-color: var(--soft);
     margin-right: 8px;
 }
 
@@ -56,13 +61,13 @@
     border-width: 0;
     border-radius: 4px;
     color: var(--text);
+    -unity-text-outline-color: var(--text);
     margin: 0;
     transition-property: background-color;
     transition-duration: 0.12s;
     transition-timing-function: ease-out;
 }
-.icon-button:hover, .text-button:hover, .preset:hover, .menu-item:hover, .panel-header:hover { background-color: var(--panel-hover); }
-.icon-button:focus, .text-button:focus, .preset:focus, .menu-item:focus { border-width: 2px; border-color: var(--focus-ring); }
+.icon-button:hover, .text-button:hover, .preset:hover, .menu-item:hover, .panel-header:hover { background-color: var(--hover); }
 .icon-button {
     width: 32px;
     height: 32px;
@@ -93,6 +98,7 @@
 .panel-title {
     -unity-font-style: bold;
     color: var(--text);
+    -unity-text-outline-color: var(--text);
     margin: 2px 0 4px 0;
 }
 .menu {
@@ -105,7 +111,7 @@
     height: 32px;
     padding-left: 8px;
 }
-.menu-item--danger { color: var(--danger); }
+.menu-item--danger { color: var(--neg); -unity-text-outline-color: var(--neg); }
 .right-column { flex-direction: column; width: 210px; }
 .layers { width: 210px; }
 .panel-header {
@@ -115,7 +121,7 @@
     padding: 0 2px;
     height: 28px;
 }
-.caret { color: var(--text-muted); }
+.caret { color: var(--soft); -unity-text-outline-color: var(--soft); }
 /* Layer rows: a button per layer with our own checkbox in the design tokens (a filled accent box when on). */
 .layer {
     flex-direction: row;
@@ -128,10 +134,9 @@
     border-width: 0;
     border-radius: 4px;
 }
-.layer:hover { background-color: var(--panel-hover); }
-.layer:focus { border-width: 2px; border-color: var(--focus-ring); }
-.layer-label { color: var(--text); margin: 0; padding: 0; }
-.layer:disabled .layer-label { color: var(--text-muted); }
+.layer:hover { background-color: var(--hover); }
+.layer-label { color: var(--text); -unity-text-outline-color: var(--text); margin: 0; padding: 0; }
+.layer:disabled .layer-label { color: var(--soft); -unity-text-outline-color: var(--soft); }
 .layer-box {
     width: 16px;
     height: 16px;
@@ -139,15 +144,16 @@
     flex-shrink: 0;
     border-width: 1.5px;
     border-radius: 4px;
-    border-color: var(--border-strong);
-    background-color: var(--surface);
+    border-color: var(--dim);
+    background-color: var(--field);
 }
-.layer--on .layer-box { background-color: var(--accent); border-color: var(--accent); }
+.layer--on .layer-box { background-color: var(--on-bg); border-color: var(--on-bg); }
 .layer:disabled .layer-box { opacity: 0.45; }
 /* Map layers and info layers (task 12b): a caption over each group and a hairline between them. Info layers that
    take turns have round boxes; Contours, which combine with any, keep the square one. */
 .layer-section {
-    color: var(--text-muted);
+    color: var(--soft);
+    -unity-text-outline-color: var(--soft);
     font-size: 12px;
     margin: 6px 4px 2px 4px;
     padding: 0;
@@ -155,7 +161,7 @@
 .layer-rule {
     height: 1px;
     min-height: 1px;
-    background-color: var(--border);
+    background-color: var(--hair);
     margin: 6px 4px 0 4px;
 }
 .layer--choice .layer-box { border-radius: 8px; }
@@ -174,11 +180,11 @@
     flex-shrink: 0;
     border-radius: 2px;
     border-width: 1px;
-    border-color: var(--border);
+    border-color: var(--hair);
     margin-right: 8px;
 }
-.legend-label { color: var(--text); flex-grow: 1; margin: 0; padding: 0; }
-.legend-figure { color: var(--text-muted); -unity-text-align: middle-right; margin: 0; padding: 0; }
+.legend-label { color: var(--text); -unity-text-outline-color: var(--text); flex-grow: 1; margin: 0; padding: 0; }
+.legend-figure { color: var(--soft); -unity-text-outline-color: var(--soft); -unity-text-align: middle-right; margin: 0; padding: 0; }
 .legend-compass {
     flex-direction: row;
     flex-wrap: wrap;
@@ -191,11 +197,12 @@
     justify-content: center;
     align-items: center;
     border-width: 1px;
-    border-color: var(--hud-surface);
+    border-color: var(--panel);
 }
 .legend-cell-label { -unity-font-style: bold; font-size: 12px; margin: 0; padding: 0; }
 .legend-note {
-    color: var(--text-muted);
+    color: var(--soft);
+    -unity-text-outline-color: var(--soft);
     font-size: 12px;
     white-space: normal;
     margin: 6px 0 0 0;
@@ -213,9 +220,9 @@
     width: 44px;
     height: 44px;
     border-radius: 22px;
-    background-color: var(--hud-surface);
+    background-color: var(--panel);
     border-width: 1px;
-    border-color: var(--border);
+    border-color: var(--hair);
     margin-right: 14px;
 }
 .scale {
@@ -223,7 +230,7 @@
     align-items: center;
     padding: 4px 8px;
     border-radius: 4px;
-    background-color: var(--hud-surface);
+    background-color: var(--panel);
     margin-right: 14px;
 }
 .scale-bar {
@@ -237,13 +244,14 @@
 }
 .readout {
     color: var(--text);
+    -unity-text-outline-color: var(--text);
     -unity-text-align: middle-left;
 }
 .readout--strong { -unity-font-style: bold; }
 .readouts > .readout, .readout-stack > .readout {
     padding: 4px 8px;
     border-radius: 4px;
-    background-color: var(--hud-surface);
+    background-color: var(--panel);
 }
 /* The elevation under the pointer, and under it what the info layer that's on reads there (task 12b.2). */
 .readout-stack { flex-direction: column; align-items: flex-start; }
@@ -266,6 +274,7 @@
     -unity-font-style: bold;
     -unity-text-align: lower-center;
     color: rgb(255, 255, 255);
+    -unity-text-outline-color: rgb(255, 255, 255);
     text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
 }
 .contour-label {
@@ -285,10 +294,11 @@
 }
 .attribution {
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--soft);
+    -unity-text-outline-color: var(--soft);
     padding: 2px 8px;
     border-radius: 4px;
-    background-color: var(--hud-surface);
+    background-color: var(--panel);
 }
 .time-bar {
     flex-direction: row;
@@ -306,31 +316,32 @@
 .track-fill {
     height: 4px;
     border-radius: 2px;
-    background-color: var(--border-strong);
+    background-color: var(--dim);
 }
 .thumb {
     position: absolute;
     width: 16px;
     height: 16px;
     border-radius: 8px;
-    background-color: var(--accent);
+    background-color: var(--on-bg);
     border-width: 2px;
-    border-color: var(--surface);
+    border-color: var(--field);
     translate: -8px 0;
 }
 .date { margin-right: 14px; }
 .presets {
     flex-direction: row;
     border-width: 1px;
-    border-color: var(--border);
+    border-color: var(--hair);
     border-radius: 6px;
     padding: 2px;
     margin-right: 10px;
 }
 .preset { height: 30px; padding: 0 10px; }
 .preset--on {
-    background-color: var(--accent);
-    color: var(--accent-contrast);
+    background-color: var(--on-bg);
+    color: var(--on-fg);
+    -unity-text-outline-color: var(--on-fg);
 }
-.preset--on:hover { background-color: var(--accent); }
-.text-button { height: 30px; padding: 0 10px; color: var(--accent); }
+.preset--on:hover { background-color: var(--on-bg); }
+.text-button { height: 30px; padding: 0 10px; color: var(--muted); -unity-text-outline-color: var(--muted); }

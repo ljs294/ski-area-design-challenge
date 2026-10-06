@@ -121,12 +121,8 @@ namespace MountainPlanner.App
             QualityPresets.Apply(QualityPresets.FromArgs(startArgs, QualityPresets.Current));
             Detail = QualityPresets.Terrain(QualityPresets.Current);
             if (Array.IndexOf(startArgs, "-nohud") >= 0) _ui = false;   // clean captures: as if H was pressed
-            if (Hud != null)
-            {
-                Hud.SetVisible(_hudShown = false);   // shown once a mountain is open
-                int theme = Array.IndexOf(startArgs, "-theme");
-                if (theme >= 0 && theme + 1 < startArgs.Length) Hud.SetTheme(startArgs[theme + 1] == "dark");
-            }
+            // -theme dark|light and -uiscale 50..150 are read by UiPreferences, for every screen.
+            if (Hud != null) Hud.SetVisible(_hudShown = false);   // shown once a mountain is open
             int light = Array.IndexOf(startArgs, "-light");
             if (Lighting != null && light >= 0 && light + 1 < startArgs.Length) Lighting.Set(LightingPreset.IndexOf(startArgs[light + 1]), instant: true);
             if (Lighting != null && Array.IndexOf(startArgs, "-nohaze") >= 0) Lighting.SetHaze(false);
@@ -294,6 +290,8 @@ namespace MountainPlanner.App
             }
             else HandleKeys(Keyboard.current);
             _resort?.States?.Sync();
+            // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.
+            if (Lighting != null) MountainPlanner.UI.UiPreferences.SetDaylight(Lighting.CurrentLight.SunElevation > 0);
             UpdateHud();
             bool overlay = NeedsOverlay();
             if (_overlay != null && _overlay.enabled != overlay) _overlay.enabled = overlay;
@@ -317,14 +315,17 @@ namespace MountainPlanner.App
             if (keys == null) return;
             bool letters = Camera == null || !Camera.LettersToTools;
             bool shift = keys.shiftKey.isPressed, plain = !shift && !keys.ctrlKey.isPressed && !keys.altKey.isPressed;
-            if (keys.escapeKey.wasPressedThisFrame)
+            bool flowKeys = (FlowHasKeyboard?.Invoke() ?? false) || FlowTookEscapeFrame == Time.frameCount;
+            if (keys.escapeKey.wasPressedThisFrame && !flowKeys)
             {
                 if (_photo) _photo = false;   // Esc backs out one step
+                else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }   // a HUD control lets go of the keyboard first
                 else if (Hud != null && _resort != null) Hud.ToggleMenu();   // Quit is in the menu (0.4 S7)
                 else Application.Quit();
             }
             if (keys.f1Key.wasPressedThisFrame) _help = !_help;
             if (_resort == null) return;
+            if (UiHasKeyboard()) return;   // the menu, a dialog or a focused HUD control has the keys (task P2-01)
             if (plain && keys.hKey.wasPressedThisFrame) _ui = !_ui;
             if (plain && letters && keys.pKey.wasPressedThisFrame) _photo = !_photo;
             if (_photo && (keys.f12Key.wasPressedThisFrame || keys.spaceKey.wasPressedThisFrame) && !_capturing) StartCoroutine(CapturePhoto());
@@ -367,6 +368,7 @@ namespace MountainPlanner.App
             Hud.QuitChosen += Application.Quit;
             Hud.UnitsChosen += DisplayUnits.Toggle;
             ViewCamera.PointerBlocked = Hud.IsPointerOverPanel;
+            ViewCamera.KeysBlocked = UiHasKeyboard;
             _contourLabels = new MountainPlanner.UI.ContourLabelOverlay(Hud.ContourLabelLayer);
             _landmarkLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
             var named = new System.Collections.Generic.List<(string, Vector3)>(_landmarks.Count);
@@ -382,7 +384,21 @@ namespace MountainPlanner.App
             _contourLabelSet = null;   // UpdateContourLabels picks the set for the new units
         }
 
-        void OnDestroy() => DisplayUnits.Changed -= OnUnitsChanged;
+        void OnDestroy()
+        {
+            DisplayUnits.Changed -= OnUnitsChanged;
+            if (ViewCamera.KeysBlocked == (Func<bool>)UiHasKeyboard) ViewCamera.KeysBlocked = null;
+        }
+
+        /// <summary>
+        /// Set by the app flow while one of its windows has the keyboard (Settings, Credits, a dialog, the picker) or
+        /// it took this frame's Esc: the viewer's keys and Esc wait (task P2-01).
+        /// </summary>
+        public static Func<bool> FlowHasKeyboard;
+        /// <summary>The frame in which the app flow used Esc (closing a dialog, minimising the download card).</summary>
+        public static int FlowTookEscapeFrame = -1;
+
+        bool UiHasKeyboard() => (Hud != null && Hud.HasKeyboard) || (FlowHasKeyboard?.Invoke() ?? false);
 
         /// <summary>Moves the contour labels with the camera, after it has moved this frame.</summary>
         void LateUpdate()

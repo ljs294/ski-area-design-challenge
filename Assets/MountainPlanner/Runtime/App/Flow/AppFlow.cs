@@ -73,7 +73,7 @@ namespace MountainPlanner.App.Flow
             go.SetActive(false);
             DontDestroyOnLoad(go);
             var document = go.AddComponent<UIDocument>();
-            document.panelSettings = Resources.Load<PanelSettings>(ResourceFolder + "FlowPanel");
+            document.panelSettings = UI.UiPanels.Runtime(Resources.Load<PanelSettings>(ResourceFolder + "FlowPanel"));
             document.visualTreeAsset = Resources.Load<VisualTreeAsset>(ResourceFolder + "Flow");
             document.sortingOrder = 10;
             var screens = go.AddComponent<FlowScreens>();
@@ -87,6 +87,7 @@ namespace MountainPlanner.App.Flow
             Instance = flow;
             // The camera ignores the pointer over the flow's panels (download card and pill, quality card, dialogs) and the picker.
             ViewCamera.OverlayBlocked = flow.PointerOverFlow;
+            MountainViewer.FlowHasKeyboard = flow.FlowHasKeyboard;
             MountainViewer.TitleMode = true;
             MountainViewer.RequestedPackage = flow.TitleBackground();
             go.SetActive(true);
@@ -106,7 +107,7 @@ namespace MountainPlanner.App.Flow
             go.SetActive(false);
             DontDestroyOnLoad(go);
             var document = go.AddComponent<UIDocument>();
-            document.panelSettings = assets.PickerPanel;
+            document.panelSettings = UI.UiPanels.Runtime(assets.PickerPanel);
             document.visualTreeAsset = assets.PickerTree;
             document.sortingOrder = 20;
             var picker = go.AddComponent<SitePicker>();
@@ -205,6 +206,7 @@ namespace MountainPlanner.App.Flow
             {
                 Instance = null;
                 ViewCamera.OverlayBlocked = null;
+                MountainViewer.FlowHasKeyboard = null;
             }
         }
 
@@ -230,6 +232,9 @@ namespace MountainPlanner.App.Flow
             {
                 _viewer.Hud.ShowExitToTitle(true);
                 _viewer.Hud.ExitChosen += Controller.ExitToTitle;
+                _viewer.Hud.ShowSettings(true);   // the menu's Settings opens the flow's window: units, theme, UI scale
+                var hud = _viewer.Hud;
+                hud.SettingsChosen += () => Screens.ShowSettings(hud.SiteName);   // the head names the resort, as in the mockup
             }
             var then = _afterTitle;
             _afterTitle = FlowScreen.Title;
@@ -254,25 +259,27 @@ namespace MountainPlanner.App.Flow
         public bool PointerOverFlow(Vector2 screen) =>
             Screens.IsPointerOverPanel(screen) || (Picker != null && Picker.IsPointerOver(screen));
 
+        /// <summary>
+        /// Esc backs out one step: a dialog, then Settings or Credits, then the screen (the picker handles its own).
+        /// Everything else on the flow's screens is UI Toolkit focus: the arrows, Tab, Enter, and Delete on a
+        /// Manage Areas row (FlowScreens, UiFocus; task P2-01).
+        /// </summary>
         void HandleKeys(Keyboard keys)
         {
             if (keys == null) return;
             if (keys.escapeKey.wasPressedThisFrame && Controller.Screen != FlowScreen.Picker)
             {
+                bool used = true;
                 if (Screens.ConfirmOpen) Screens.CloseConfirm();
                 else if (Screens.OverlayOpen) Screens.CloseOverlay();
-                else Controller.Escape();
-                return;
+                else used = Controller.Escape();
+                if (used) MountainViewer.FlowTookEscapeFrame = Time.frameCount;   // the in-game menu doesn't open as well
             }
-            if (Controller.Screen != FlowScreen.Library || Screens.ConfirmOpen || Screens.OverlayOpen) return;
-            if (keys.downArrowKey.wasPressedThisFrame) Screens.MoveSelection(1);
-            if (keys.upArrowKey.wasPressedThisFrame) Screens.MoveSelection(-1);
-            var row = Screens.SelectedRow;
-            if (row?.Entry == null) return;
-            bool manage = Screens.Mode == LibraryMode.Manage;
-            if (!manage && row.CanOpen && (keys.enterKey.wasPressedThisFrame || keys.numpadEnterKey.wasPressedThisFrame)) Controller.Open(row.Entry.Folder);
-            if (manage && keys.deleteKey.wasPressedThisFrame) Screens.ConfirmDelete(row);
         }
+
+        /// <summary>True while one of the flow's windows has the keyboard, so the viewer leaves the keys alone.</summary>
+        bool FlowHasKeyboard() =>
+            Screens.ConfirmOpen || Screens.OverlayOpen || (Picker != null && Picker.IsOpen) || Controller.Screen == FlowScreen.Library || Controller.Screen == FlowScreen.Quality;
 
         // ---------- IFlowHost ----------
 

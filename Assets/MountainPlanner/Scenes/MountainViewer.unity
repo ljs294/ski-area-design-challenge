@@ -319,8 +319,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: MountainPlanner.UI::MountainPlanner.UI.MountainHud
   Document: {fileID: 664559337}
-  LightTheme: {fileID: -4733365628477956816, guid: 3318915e5a1a80c4a8e846a1c735bddb, type: 3}
-  DarkTheme: {fileID: -4733365628477956816, guid: a8b32120f09a56848ac9f148e5f111dc, type: 3}
 --- !u!114 &664559337
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -1,0 +1,375 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using MountainPlanner.UI;
+using MountainPlanner.UI.Flow;
+using UnityEngine;
+using UnityEngine.UIElements;
+
+namespace MountainPlanner.App.Flow
+{
+    /// <summary>
+    /// -uicapture &lt;folder&gt; (task P2-01): every UI Toolkit screen at 1920×1080, 2560×1080, 3440×1440 and 5120×1440,
+    /// in both themes at 100%, and at 50% and 150% at 1920×1080. Each picture is drawn off screen at its full size
+    /// (the scene and each panel into their own render textures, composited in linear light as the GPU blends
+    /// them), so a 32:9 picture comes out of any monitor. Alongside the pictures, report.txt lists every visible
+    /// text or control that falls off its screen or is cut short, and every full-screen column or modal that isn't
+    /// centred: an empty report is the "nothing clipped, stretched or off-centre" check.
+    /// Options: -uionly name,name (a subset of the screens), -uisizes 1920x1080,... and -uicompare (also
+    /// captures the real window once and reports how far the off-screen composite differs from it).
+    /// It needs a library with a mountain in it (the title's demo); it downloads nothing.
+    /// </summary>
+    public sealed partial class AppFlow
+    {
+        static readonly Vector2Int[] DefaultSizes = { new(1920, 1080), new(2560, 1080), new(3440, 1440), new(5120, 1440) };
+
+        string[] _uiOnly;
+        Vector2Int[] _uiSizes = DefaultSizes;
+        readonly StringBuilder _uiReport = new StringBuilder();
+        int _uiShots, _uiProblems;
+
+        void StartUiCaptureIfAsked(string[] args)
+        {
+            int i = Array.IndexOf(args, "-uicapture");
+            if (i < 0 || i + 1 >= args.Length) return;
+            int only = Array.IndexOf(args, "-uionly");
+            if (only >= 0 && only + 1 < args.Length) _uiOnly = args[only + 1].Split(',');
+            int sizes = Array.IndexOf(args, "-uisizes");
+            if (sizes >= 0 && sizes + 1 < args.Length)
+                _uiSizes = args[sizes + 1].Split(',').Select(s => s.Split('x')).Select(p => new Vector2Int(int.Parse(p[0]), int.Parse(p[1]))).ToArray();
+            StartCoroutine(UiCapture(Path.GetFullPath(args[i + 1]), Array.IndexOf(args, "-uicompare") >= 0));
+        }
+
+        bool Wanted(string screen) => _uiOnly == null || Array.IndexOf(_uiOnly, screen) >= 0;
+
+        IEnumerator UiCapture(string folder, bool compare)
+        {
+            Directory.CreateDirectory(folder);
+            var choice = UiPreferences.Choice;
+            int scale = UiPreferences.ScalePercent;
+            string demo = TitleBackground();
+            yield return WaitForMountain(300);
+            yield return Wait(4);   // ground cover and trees paint in
+
+            if (compare) yield return CompareWithWindow(folder);
+
+            if (Wanted("s1-title")) yield return EachLook(folder, "s1-title");
+
+            if (Wanted("s2-load-area") || Wanted("s2-manage-areas") || Wanted("s11-confirm"))
+            {
+                _mode = LibraryMode.Load;
+                Controller.MyResorts();
+                yield return Wait(0.5f);
+                if (Wanted("s2-load-area")) yield return EachLook(folder, "s2-load-area");
+                Controller.Escape();
+                _mode = LibraryMode.Manage;
+                Controller.MyResorts();
+                yield return Wait(0.5f);
+                if (Wanted("s2-manage-areas")) yield return EachLook(folder, "s2-manage-areas");
+                var row = Screens.SelectedRow;
+                if (Wanted("s11-confirm") && row?.Entry != null)
+                {
+                    Screens.ConfirmDelete(row);   // only asks; the capture never confirms
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s11-confirm");
+                    Screens.CloseConfirm();
+                }
+                Controller.Escape();
+            }
+
+            if (Wanted("s8-settings"))
+            {
+                Screens.ShowSettings();
+                yield return Wait(0.3f);
+                yield return EachLook(folder, "s8-settings");
+                Screens.CloseOverlay();
+            }
+            if (Wanted("s9-credits"))
+            {
+                Screens.ShowCredits(Credits());
+                yield return Wait(0.3f);
+                yield return EachLook(folder, "s9-credits");
+                Screens.CloseOverlay();
+            }
+
+            if (Wanted("s4-download") || Wanted("s4-pill"))
+            {
+                // A made-up download, drawn by the real card: nothing is fetched.
+                var stages = new[] { "Terrain", "Terrain surroundings", "Imagery", "Ground cover", "Roads", "Building" };
+                var vm = new DownloadViewModel();
+                vm.Start("Crystal Mountain", 2);
+                vm.Apply(new DownloadStatus
+                {
+                    Name = "Crystal Mountain", SizeKm = 2, Stages = stages, StageIndex = 3, StageCount = stages.Length, Stage = stages[2],
+                    Overall = 0.41, Bytes = 182_400_000, BytesPerSecond = 6_100_000, SecondsRemaining = 80,
+                    Detail = "Imagery: downloading tile 3 of 6 · 35%",
+                });
+                Screens.RenderDownload(vm);
+                Screens.ShowDownloadCard(true, true, false);
+                yield return Wait(0.3f);
+                if (Wanted("s4-download")) yield return EachLook(folder, "s4-download");
+                Screens.ShowDownloadCard(false, true, false);
+                yield return Wait(0.3f);
+                if (Wanted("s4-pill")) yield return EachLook(folder, "s4-pill");
+                Screens.ShowDownloadCard(false, false, false);
+            }
+
+            if (Wanted("s5-quality") && demo != null)
+            {
+                Controller.DownloadFinished(demo);   // the card as it shows after a download, for the demo package
+                yield return Wait(0.5f);
+                yield return EachLook(folder, "s5-quality");
+                Controller.QualityBackToLibrary();
+                Controller.Escape();
+            }
+
+            if (Wanted("s3-picker") && Picker != null)
+            {
+                Controller.NewResort();
+                yield return Wait(0.5f);
+                Picker.PlaceAt(new MountainPlanner.Domain.Geo.GeoPoint(43.59, -110.83));
+                yield return Wait(6);   // map tiles, coverage and the estimate (offline, the map says so)
+                yield return EachLook(folder, "s3-picker");
+                Controller.PickerCancelled();
+            }
+
+            if ((Wanted("s6-hud") || Wanted("s7-menu") || Wanted("s8-settings-game")) && demo != null)
+            {
+                Controller.Open(demo);
+                yield return Wait(1);
+                yield return WaitForMountain(600);
+                yield return Wait(4);
+                var hud = _viewer != null ? _viewer.Hud : null;
+                if (Wanted("s6-hud")) yield return EachLook(folder, "s6-hud");
+                if (hud != null && Wanted("s7-menu"))
+                {
+                    hud.ToggleMenu();
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s7-menu");
+                    hud.ToggleMenu();
+                }
+                if (Wanted("s8-settings-game"))
+                {
+                    Screens.ShowSettings();
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s8-settings-game");
+                    Screens.CloseOverlay();
+                }
+            }
+
+            UiPreferences.SetChoice(choice, remember: false);
+            UiPreferences.SetScale(scale, remember: false);
+            _uiReport.Insert(0, $"UI capture: {_uiShots} pictures, {_uiProblems} layout problems.\n");
+            File.WriteAllText(Path.Combine(folder, "report.txt"), _uiReport.ToString());
+            Debug.Log($"[AppFlow] UI capture finished: {_uiShots} pictures, {_uiProblems} layout problems, {folder}");
+            Quit();
+        }
+
+        /// <summary>One screen in both themes at every size (100%), then at 50% and 150% at 1920×1080.</summary>
+        IEnumerator EachLook(string folder, string screen)
+        {
+            foreach (var theme in new[] { UiThemeChoice.Dark, UiThemeChoice.Light })
+            {
+                UiPreferences.SetChoice(theme, remember: false);
+                UiPreferences.SetScale(100, remember: false);
+                string t = theme.ToString().ToLowerInvariant();
+                foreach (var size in _uiSizes) yield return OffscreenShot(folder, $"{screen}_{t}_{size.x}x{size.y}", size.x, size.y);
+                foreach (int scale in new[] { 50, 150 })
+                {
+                    UiPreferences.SetScale(scale, remember: false);
+                    yield return OffscreenShot(folder, $"{screen}_{t}_1920x1080_{scale}", 1920, 1080);
+                }
+                UiPreferences.SetScale(100, remember: false);
+            }
+        }
+
+        /// <summary>The scene and every panel drawn at w×h off screen, composited, saved, and checked for layout problems.</summary>
+        IEnumerator OffscreenShot(string folder, string name, int w, int h, Action<Color32[]> sink = null)
+        {
+            var cam = UnityEngine.Camera.main;
+            var panels = UiPanels.All.Where(p => p != null).OrderBy(p => p.sortingOrder).ToList();
+            var scene = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            var layers = panels.Select(_ => new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB)).ToList();
+            if (cam != null) cam.targetTexture = scene;
+            for (int i = 0; i < panels.Count; i++)
+            {
+                panels[i].targetTexture = layers[i];
+                panels[i].clearColor = true;
+                panels[i].colorClearValue = Color.clear;
+            }
+            for (int f = 0; f < 4; f++) yield return null;   // layout at the new size (the 16:9 columns refit on the next frame)
+            yield return new WaitForEndOfFrame();
+
+            var pixels = Read(scene, w, h);
+            foreach (var layer in layers) Over(Read(layer, w, h), pixels);
+            CheckLayout(name);
+
+            if (cam != null) cam.targetTexture = null;
+            foreach (var p in panels)
+            {
+                p.targetTexture = null;
+                p.clearColor = false;
+            }
+            scene.Release();
+            foreach (var layer in layers) layer.Release();
+
+            if (sink != null) sink(pixels);
+            else
+            {
+                var tex = new Texture2D(w, h, TextureFormat.RGBA32, false, false);
+                tex.SetPixels32(pixels);
+                File.WriteAllBytes(Path.Combine(folder, name + ".png"), tex.EncodeToPNG());
+                Destroy(tex);
+                _uiShots++;
+            }
+            yield return null;
+        }
+
+        static Color32[] Read(RenderTexture rt, int w, int h)
+        {
+            var was = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false, false);
+            tex.ReadPixels(new Rect(0, 0, w, h), 0, 0, false);
+            tex.Apply(false);
+            RenderTexture.active = was;
+            var pixels = tex.GetPixels32();
+            Destroy(tex);
+            return pixels;
+        }
+
+        static float[] _toLinear;
+        static byte[] _toSrgb;
+
+        /// <summary>
+        /// A panel layer over the picture so far, in linear light as the GPU blends: the layer holds premultiplied
+        /// colour (UI Toolkit drew it over a cleared, transparent target), stored sRGB-encoded.
+        /// </summary>
+        static void Over(Color32[] layer, Color32[] under)
+        {
+            if (_toLinear == null)
+            {
+                _toLinear = new float[256];
+                for (int i = 0; i < 256; i++) _toLinear[i] = Mathf.GammaToLinearSpace(i / 255f);
+                _toSrgb = new byte[4096];
+                for (int i = 0; i < 4096; i++) _toSrgb[i] = (byte)Mathf.RoundToInt(Mathf.LinearToGammaSpace(i / 4095f) * 255);
+            }
+            for (int i = 0; i < under.Length; i++)
+            {
+                var top = layer[i];
+                if (top.a == 0) continue;
+                var bottom = under[i];
+                float keep = 1 - top.a / 255f;
+                under[i] = new Color32(Mix(top.r, bottom.r, keep), Mix(top.g, bottom.g, keep), Mix(top.b, bottom.b, keep), 255);
+            }
+        }
+
+        static byte Mix(byte top, byte bottom, float keep) =>
+            _toSrgb[Mathf.Clamp(Mathf.RoundToInt((_toLinear[top] + _toLinear[bottom] * keep) * 4095), 0, 4095)];
+
+        /// <summary>
+        /// Every visible text and control inside its screen and not cut short; every 16:9 column at the centre and
+        /// 16:9 wide; every modal's panel centred in its column.
+        /// </summary>
+        void CheckLayout(string shot)
+        {
+            foreach (var document in FindObjectsByType<UIDocument>(FindObjectsSortMode.None))
+            {
+                var root = document.rootVisualElement;
+                if (root == null || root.panel == null || !document.isActiveAndEnabled) continue;
+                var screen = root.worldBound;
+                root.Query<VisualElement>().ForEach(e =>
+                {
+                    if (e == root || !UiFocus.IsShown(e) || e.resolvedStyle.opacity <= 0.01f) return;
+                    var b = e.worldBound;
+                    if (b.width < 1 || b.height < 1 || float.IsNaN(b.x)) return;
+                    bool control = e.focusable && e.pickingMode == PickingMode.Position && e.canGrabFocus;
+                    var text = e as TextElement;
+                    bool hasText = text != null && !string.IsNullOrEmpty(text.text);
+                    if (!control && !hasText) return;
+                    if (InsideScroll(e)) return;   // scrolled content may sit outside its viewport
+                    if (b.xMin < screen.xMin - 1 || b.yMin < screen.yMin - 1 || b.xMax > screen.xMax + 1 || b.yMax > screen.yMax + 1)
+                        Problem(shot, $"{Describe(e)} is off the screen ({b.xMin:F0},{b.yMin:F0} to {b.xMax:F0},{b.yMax:F0} on {screen.width:F0}×{screen.height:F0})");
+                    if (hasText && text.resolvedStyle.whiteSpace != WhiteSpace.Normal)
+                    {
+                        var need = text.MeasureTextSize(text.text, 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined);
+                        if (need.x > text.contentRect.width + 1.5f)
+                            Problem(shot, $"{Describe(e)} is cut short: \"{text.text}\" needs {need.x:F0} of {text.contentRect.width:F0}");
+                    }
+                });
+                root.Query<ScrollView>().ForEach(scroll =>
+                {
+                    if (!UiFocus.IsShown(scroll) || scroll.contentContainer.childCount == 0) return;
+                    float over = scroll.contentContainer.layout.width - scroll.contentViewport.layout.width;
+                    if (over > 1) Problem(shot, $"{Describe(scroll)} scrolls sideways: its content is {over:F0} wider than it");
+                });
+                root.Query<StageColumn>().ForEach(column =>
+                {
+                    if (!UiFocus.IsShown(column)) return;
+                    var parent = column.hierarchy.parent.worldBound;
+                    var b = column.worldBound;
+                    float want = StageColumn.WidthFor(parent.width, parent.height);
+                    if (Mathf.Abs(b.width - want) > 1 || Mathf.Abs(b.center.x - parent.center.x) > 1)
+                        Problem(shot, $"{Describe(column)} is {b.width:F0} wide at {b.center.x:F0}, not {want:F0} at {parent.center.x:F0}");
+                    if (!column.hierarchy.parent.ClassListContains("modal")) return;
+                    foreach (var child in column.Children())
+                    {
+                        if (!UiFocus.IsShown(child)) continue;
+                        var c = child.worldBound;
+                        if (Mathf.Abs(c.center.x - b.center.x) > 2 || Mathf.Abs(c.center.y - b.center.y) > 2)
+                            Problem(shot, $"{Describe(child)} isn't centred in its column ({c.center.x:F0},{c.center.y:F0} vs {b.center.x:F0},{b.center.y:F0})");
+                    }
+                });
+            }
+        }
+
+        static bool InsideScroll(VisualElement e)
+        {
+            for (var x = e.hierarchy.parent; x != null; x = x.hierarchy.parent)
+                if (x is ScrollView) return true;
+            return false;
+        }
+
+        static string Describe(VisualElement e)
+        {
+            string id = !string.IsNullOrEmpty(e.name) ? "#" + e.name : e.GetClasses().FirstOrDefault() is string c ? "." + c : e.GetType().Name;
+            var parent = e.hierarchy.parent;
+            while (parent != null && string.IsNullOrEmpty(parent.name)) parent = parent.hierarchy.parent;
+            return parent != null ? $"{id} (in #{parent.name})" : id;
+        }
+
+        void Problem(string shot, string what)
+        {
+            _uiProblems++;
+            _uiReport.Append(shot).Append(": ").AppendLine(what);
+        }
+
+        /// <summary>The window as the player sees it against the off-screen composite at the window's size.</summary>
+        IEnumerator CompareWithWindow(string folder)
+        {
+            int w = Screen.width, h = Screen.height;
+            yield return new WaitForEndOfFrame();
+            var real = ScreenCapture.CaptureScreenshotAsTexture();
+            var window = real.GetPixels32();
+            File.WriteAllBytes(Path.Combine(folder, "compare_window.png"), real.EncodeToPNG());
+            Destroy(real);
+            Color32[] composite = null;
+            yield return OffscreenShot(folder, "compare", w, h, p => composite = p);
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false, false);
+            tex.SetPixels32(composite);
+            File.WriteAllBytes(Path.Combine(folder, "compare_offscreen.png"), tex.EncodeToPNG());
+            Destroy(tex);
+            double sum = 0;
+            int n = Math.Min(window.Length, composite.Length);
+            for (int i = 0; i < n; i++)
+                sum += Math.Abs(window[i].r - composite[i].r) + Math.Abs(window[i].g - composite[i].g) + Math.Abs(window[i].b - composite[i].b);
+            string line = string.Format(CultureInfo.InvariantCulture, "Off-screen composite vs the window at {0}×{1}: mean difference {2:F2} of 255 per channel (the title orbits, so the mountain moves a little)", w, h, sum / (3.0 * n));
+            _uiReport.AppendLine(line);
+            Debug.Log("[AppFlow] " + line);
+        }
+    }
+}

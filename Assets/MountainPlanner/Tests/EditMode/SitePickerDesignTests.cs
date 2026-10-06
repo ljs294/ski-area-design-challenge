@@ -1,6 +1,5 @@
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using MountainPlanner.Domain.Geo;
 using MountainPlanner.UI.Picker;
 using NUnit.Framework;
@@ -31,25 +30,6 @@ namespace MountainPlanner.Tests
             Assert.That(buttons.Count(b => b.ClassListContains("go")), Is.EqualTo(1), "one commit (Download) per window");
             Assert.That(tree.Q<Button>("retry").ClassListContains("ghost"), Is.True, "Retry is a ghost, not a second commit");
             Assert.That(buttons.Any(b => b.name.StartsWith("zoom")), Is.False, "UI-10: the wheel and + − zoom, no camera buttons");
-        }
-
-        [Test]
-        public void BothThemesDefineEveryTokenThePickerUses()
-        {
-            string uss = File.ReadAllText(Uss);
-            var used = Regex.Matches(uss, @"var\((--[a-z0-9-]+)\)").Cast<Match>().Select(m => m.Groups[1].Value).Distinct().ToList();
-            string Block(string selector)
-            {
-                int i = uss.IndexOf(selector + " {", System.StringComparison.Ordinal);
-                Assert.That(i, Is.GreaterThanOrEqualTo(0), selector);
-                return uss.Substring(i, uss.IndexOf('}', i) - i);
-            }
-            string dark = Block(".picker"), light = Block(".picker--light");
-            foreach (string token in used)
-            {
-                Assert.That(dark, Does.Contain(token + ":"), $"dark theme defines {token}");
-                if (token != "--go" && token != "--go-hover") Assert.That(light, Does.Contain(token + ":"), $"light theme defines {token}");
-            }
         }
 
         [TestCase(100, "Excellent")]

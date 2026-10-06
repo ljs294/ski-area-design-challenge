@@ -1,0 +1,71 @@
+@import url("unity-theme://default");
+@import url("Base.uss");
+
+/* Light theme: sign white and near-black (game-ui-direction.md UI-6), not cream. The accepted mockup's
+   .hud.light variables, as solid colours (see Theme-Dark.tss). */
+:root {
+    --panel: rgb(250, 248, 244);
+    --knock: #faf8f4;
+    --hair: #ddd7cd;
+    --hair2: #cbc4b9;
+    --div: #e2dcd2;
+    --row: #ebe6de;
+    --text: #1f1c19;
+    --strong: #0f0d0b;
+    --head: #2b2724;
+    --muted: #4a443e;
+    --soft: #6b645b;
+    --dim: #8a8278;
+    --ph: #b0a89d;
+    --faint: #b8b0a5;
+    --hover: #ede8e0;
+    --chip: #e7e1d7;
+    --tile: #f0ebe3;
+    --tile-hover: #e5dfd5;
+    --on-bg: #1f1c19;
+    --on-fg: #faf8f4;
+    --field: #ffffff;
+    --icon: #4a443e;
+    --pos: #2a7a3a;
+    --neg: #c23b27;
+    --warn: #a5650c;
+    --plate-bg: #1f1c19;
+    --plate-fg: #fbf8f2;
+    --go: #1a6b3c;
+    --go-hover: #1f7d47;
+    --danger: #b23a2b;
+    --danger-hover: #c4452f;
+    --dis-bg: #ebe6de;
+    --dis-fg: #a39b90;
+    --ghost-hover: #8a8278;
+    --scrim: rgba(20, 30, 45, 0.30);
+    --scrim-strong: rgba(20, 30, 45, 0.42);
+    /* The rest of the mockup's tokens, for the HUD (task P2-02): tabs, speed, weather, charts, shadows, the plan colour. */
+    --tile-text: #2b2724;
+    --tab: #8a8278;
+    --tabrule: #d6cfc4;
+    --spd-off: #c8c0b5;
+    --flag: #e35b14;
+    --wx-text: #4a443e;
+    --pp: #3d6aa8;
+    --wx-moon: #6a77a0;
+    --wx-cloud: #9a9186;
+    --wx-cloud2: #b5ada2;
+    --wx-snow: #4f7fbf;
+    --chart-a: #6b645b;
+    --chart-b: #ddd6cb;
+    --chart-label: #8a8278;
+    --chart-fill: rgba(107, 100, 91, 0.10);
+    --chart-bg: rgba(0, 0, 0, 0.015);
+    --shadow: rgba(30, 40, 55, 0.22);
+    --shadow-sm: rgba(30, 40, 55, 0.16);
+    --lamp-ring: rgba(0, 0, 0, 0.18);
+    /* Dark text on a light panel reads thinner than light on dark: Unity blends text edges in linear light, which
+       pales a dark glyph's edge and fattens a light one. A 0.3 px outline in each text's own colour (every colour
+       rule sets -unity-text-outline-color too; Base.uss) brings it to the dark theme's weight, judged side by side
+       at 1080p (task P2-01). Gamma blending (PanelSettings.forceGammaRendering) washed every colour out. */
+    -unity-text-outline-width: 0.3px;
+    --focus: #1f1c19;
+    --unity-cursor-color: #0f0d0b;
+    --unity-selection-color: rgba(74, 68, 62, 0.25);
+}
