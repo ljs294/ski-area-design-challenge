@@ -59,22 +59,45 @@ namespace MountainPlanner.Persistence
         }
     }
 
+    /// <summary>What one area's folder holds on disk (task P2-04), by what it's for.</summary>
+    public struct DiskUse
+    {
+        /// <summary>The downloaded package: manifest, layers and view state.</summary>
+        public long Package;
+        /// <summary>The terrain cache this game uses (rebuilt from the package when it's missing).</summary>
+        public long Cache;
+        /// <summary>Caches of older game versions, and anything an interrupted delete left: what Free space removes.</summary>
+        public long OlderCaches;
+        /// <summary>Caches of newer game versions, kept for them.</summary>
+        public long NewerCaches;
+
+        public long Total => Package + Cache + OlderCaches + NewerCaches;
+    }
+
     /// <summary>One downloaded mountain, as the library screen (S2) lists it.</summary>
     public sealed class LibraryEntry
     {
         public string PackageId { get; set; } = "";
+        /// <summary>The name shown: the player's own (view.json, task P2-04), else the one it was downloaded with.</summary>
         public string Name { get; set; } = "";
+        /// <summary>The name it was downloaded with (the manifest's Site.Name); the demo and -site look areas up by it.</summary>
+        public string OriginalName { get; set; } = "";
         public string Folder { get; set; } = "";
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public double SizeKm { get; set; }
         public int TerrainScore { get; set; }
         public int FloraScore { get; set; }
+        /// <summary>Everything in the area's folder; 0 until <see cref="ResortLibrary.Measure"/> has run (<see cref="Measured"/>).</summary>
         public long BytesOnDisk { get; set; }
+        public DiskUse Disk { get; set; }
+        public bool Measured { get; set; }
         public string CreatedUtc { get; set; } = "";
         public bool CacheReady { get; set; }
         /// <summary>Why it can't be opened (a package from a newer version of the game), or empty when it can.</summary>
         public string Refusal { get; set; } = "";
+        /// <summary>Why it can't be renamed (its view.json is from a newer version of the game), or empty when it can.</summary>
+        public string RenameRefusal { get; set; } = "";
     }
 
     /// <summary>
@@ -125,19 +148,25 @@ namespace MountainPlanner.Persistence
     {
         public static string ResortsFolder(string dataRoot) => Path.Combine(dataRoot, "Resorts");
 
+        /// <summary>The longest name an area can have: the site picker's limit.</summary>
+        public const int MaxNameLength = 60;
+
         /// <summary>
         /// The mountains this game can open. Packages from a newer version of the game go to <paramref name="newer"/>
-        /// (name, folder and size only, with the reason), so the library can show them without misreading them. A
-        /// data folder whose layout is newer (<see cref="LibraryIndex.Refusal"/>) lists nothing.
+        /// (name and folder only, with the reason), so the library can show them without misreading them. A data
+        /// folder whose layout is newer (<see cref="LibraryIndex.Refusal"/>) lists nothing.
+        ///
+        /// It reads only the small files. Sizes need every file in every folder, so they come from <see cref="Measure"/>,
+        /// which the game runs off the main thread (task P2-04); <paramref name="measure"/> runs it here.
         /// </summary>
-        public static List<LibraryEntry> Scan(string dataRoot, List<LibraryEntry> newer = null)
+        public static List<LibraryEntry> Scan(string dataRoot, List<LibraryEntry> newer = null, bool measure = false)
         {
             var entries = new List<LibraryEntry>();
             string resorts = ResortsFolder(dataRoot);
             if (!Directory.Exists(resorts) || LibraryIndex.Refusal(dataRoot) != null) return entries;
             foreach (string folder in Directory.GetDirectories(resorts))
             {
-                if (!File.Exists(Path.Combine(folder, ResortPackage.ManifestFile))) continue;
+                if (SafeFolder.IsTrash(folder) || !File.Exists(Path.Combine(folder, ResortPackage.ManifestFile))) continue;
                 PackageManifest m;
                 try { m = ResortPackage.ReadManifest(folder); }
                 catch (FormatTooNewException e)
@@ -145,21 +174,112 @@ namespace MountainPlanner.Persistence
                     newer?.Add(new LibraryEntry
                     {
                         PackageId = Path.GetFileName(folder), Name = NameHint(folder), Folder = folder, Refusal = e.Message,
-                        BytesOnDisk = Directory.GetFiles(folder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length),
+                        RenameRefusal = e.Message,
                     });
                     continue;
                 }
                 catch (Exception e) when (e is IOException || e is InvalidDataException || e is JsonException) { continue; }
+                var view = ViewState.Load(folder);
                 entries.Add(new LibraryEntry
                 {
-                    PackageId = m.PackageId, Name = m.Site.Name, Folder = folder, Latitude = m.Site.Latitude, Longitude = m.Site.Longitude,
+                    PackageId = m.PackageId, Name = view.Name.Length > 0 ? view.Name : m.Site.Name, OriginalName = m.Site.Name,
+                    Folder = folder, Latitude = m.Site.Latitude, Longitude = m.Site.Longitude,
                     SizeKm = m.Site.SizeMetres / 1000.0, TerrainScore = m.Quality.Score, FloraScore = m.Flora.Score,
-                    BytesOnDisk = Directory.GetFiles(folder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length),
-                    CreatedUtc = m.CreatedUtc, CacheReady = TerrainCache.IsCurrent(folder, m),
+                    CreatedUtc = m.CreatedUtc, CacheReady = TerrainCache.IsCurrent(folder, m), RenameRefusal = view.Refusal,
                 });
             }
             newer?.Sort((a, b) => string.CompareOrdinal(a.Folder, b.Folder));
+            if (measure)
+            {
+                Measure(entries);
+                if (newer != null) Measure(newer);
+            }
             return entries.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.PackageId, StringComparer.Ordinal).ToList();
+        }
+
+        /// <summary>Fills in each entry's disk use (<see cref="MeasureFolder"/>). Reads every file's size: keep it off the main thread.</summary>
+        public static void Measure(IEnumerable<LibraryEntry> entries)
+        {
+            foreach (var e in entries) SetDisk(e, MeasureFolder(e.Folder));
+        }
+
+        public static void SetDisk(LibraryEntry entry, DiskUse use)
+        {
+            entry.Disk = use;
+            entry.BytesOnDisk = use.Total;
+            entry.Measured = true;
+        }
+
+        /// <summary>What an area's folder holds, split into the package and its caches by version.</summary>
+        public static DiskUse MeasureFolder(string folder, int cacheVersion = TerrainCache.Version)
+        {
+            var use = new DiskUse();
+            if (!Directory.Exists(folder)) return use;
+            foreach (string file in Directory.GetFiles(folder))
+            {
+                try { use.Package += new FileInfo(file).Length; }
+                catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { }
+            }
+            foreach (string sub in Directory.GetDirectories(folder))
+            {
+                long bytes = SafeFolder.Bytes(sub);
+                if (SafeFolder.IsTrash(sub)) use.OlderCaches += bytes;   // an interrupted delete: Free space sweeps it
+                else if (!TerrainCache.TryParseFolder(Path.GetFileName(sub), out int v)) use.Package += bytes;
+                else if (v == cacheVersion) use.Cache += bytes;
+                else if (v < cacheVersion) use.OlderCaches += bytes;
+                else use.NewerCaches += bytes;
+            }
+            return use;
+        }
+
+        /// <summary>
+        /// A name as the library keeps it: control characters and runs of spaces become one space, the ends are
+        /// trimmed, and it's cut to <see cref="MaxNameLength"/>. Empty means there's no usable name.
+        /// </summary>
+        public static string NormalizeName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "";
+            var sb = new StringBuilder(name.Length);
+            bool space = false;
+            foreach (char c in name)
+            {
+                if (char.IsWhiteSpace(c) || char.IsControl(c)) { space = sb.Length > 0; continue; }
+                if (space) sb.Append(' ');
+                space = false;
+                sb.Append(c);
+            }
+            int length = Math.Min(sb.Length, MaxNameLength);
+            if (length > 0 && length < sb.Length && char.IsHighSurrogate(sb[length - 1])) length--;   // never half a character
+            return sb.ToString(0, length).TrimEnd();
+        }
+
+        /// <summary>
+        /// Renames an area (task P2-04). The name goes into its view.json; the package stays as downloaded, so its id,
+        /// folder and manifest never change. Its original name clears the player's own. False, with nothing written,
+        /// when the name is empty, or the area or its view.json is from a newer version of the game (see
+        /// <see cref="LibraryEntry.RenameRefusal"/>).
+        /// </summary>
+        public static bool Rename(LibraryEntry entry, string name)
+        {
+            string clean = NormalizeName(name);
+            if (clean.Length == 0 || entry.Refusal.Length > 0) return false;
+            var view = ViewState.Load(entry.Folder);
+            if (view.Refusal.Length > 0)
+            {
+                entry.RenameRefusal = view.Refusal;
+                return false;
+            }
+            view.Name = clean == entry.OriginalName ? "" : clean;
+            if (!ViewState.Save(entry.Folder, view)) return false;
+            entry.Name = clean;
+            return true;
+        }
+
+        /// <summary>The name to show for an open package: the player's own (view.json), else the manifest's.</summary>
+        public static string DisplayName(string packageFolder, PackageManifest manifest)
+        {
+            string own = ViewState.Load(packageFolder).Name;
+            return own.Length > 0 ? own : manifest.Site.Name;
         }
 
         /// <summary>
@@ -199,23 +319,58 @@ namespace MountainPlanner.Persistence
             return target;
         }
 
-        /// <summary>Deletes a mountain (the UI confirms first and names the space freed, 0.4).</summary>
-        public static long Remove(LibraryEntry entry)
+        /// <summary>
+        /// Deletes a mountain (the UI confirms first and names the space freed, 0.4). False, with nothing deleted, while
+        /// any game has one of its caches open (<see cref="TerrainCache.Hold"/>) or a file in it; <paramref name="freed"/>
+        /// is then 0.
+        /// </summary>
+        public static bool TryRemove(LibraryEntry entry, out long freed)
         {
-            long bytes = entry.BytesOnDisk;
-            if (Directory.Exists(entry.Folder)) Directory.Delete(entry.Folder, true);
-            return bytes;
+            freed = 0;
+            if (!Directory.Exists(entry.Folder)) return true;
+            foreach (int v in TerrainCache.Versions(entry.Folder))
+                if (TerrainCache.InUse(TerrainCache.FolderFor(entry.Folder, v))) return false;
+            long bytes = MeasureFolder(entry.Folder).Total;
+            if (!SafeFolder.TryDelete(entry.Folder)) return false;
+            freed = bytes;
+            return true;
         }
+
+        /// <summary>
+        /// Free space (task P2-04): removes, from every area, the terrain caches of older game versions that no game
+        /// has open, and anything an interrupted delete left behind. Packages and the caches this game (or a newer one)
+        /// uses stay, so nothing has to be downloaded or rebuilt. Returns the bytes freed.
+        /// </summary>
+        public static long FreeSpace(string dataRoot)
+        {
+            string resorts = ResortsFolder(dataRoot);
+            if (!Directory.Exists(resorts) || LibraryIndex.Refusal(dataRoot) != null) return 0;
+            long freed = SafeFolder.SweepTrash(resorts);
+            foreach (string folder in Directory.GetDirectories(resorts))
+                if (!SafeFolder.IsTrash(folder) && File.Exists(Path.Combine(folder, ResortPackage.ManifestFile)))
+                    freed += TerrainCache.FreeOlderVersions(folder);
+            return freed;
+        }
+
+        /// <summary>What <see cref="FreeSpace"/> would free, from measured entries (caches still open are counted too).</summary>
+        public static long Freeable(IEnumerable<LibraryEntry> entries) => entries.Where(e => e.Measured).Sum(e => e.Disk.OlderCaches);
     }
 
-    /// <summary>A mountain's view state (0.3 §3): camera, bookmarks, view time and layers. Small, versioned JSON.</summary>
+    /// <summary>
+    /// A mountain's view state (0.3 §3): the player's name for it, camera, bookmarks, view time and layers. Small,
+    /// versioned JSON. v2 (task P2-04) added <see cref="Name"/>; a v1 file has none, so the area keeps its manifest name.
+    /// </summary>
     public sealed class ViewState
     {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
         public const string FileName = "view.json";
-        public static readonly VersionedJson Migrations = new VersionedJson("view state", nameof(Version), CurrentVersion);
+        public static readonly VersionedJson Migrations = new VersionedJson("view state", nameof(Version), CurrentVersion,
+            v1 => { if (v1["Name"] == null) v1["Name"] = ""; });   // v1 → v2: no name of its own yet
 
         public int Version { get; set; } = CurrentVersion;
+
+        /// <summary>The player's name for the area (Rename in Manage Areas), or empty for the name it was downloaded with.</summary>
+        public string Name { get; set; } = "";
 
         /// <summary>Set when the file on disk is from a newer version of the game: these are defaults, and Save leaves that file alone.</summary>
         [JsonIgnore] public string Refusal { get; private set; } = "";

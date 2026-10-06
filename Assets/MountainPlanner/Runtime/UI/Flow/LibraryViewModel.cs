@@ -20,7 +20,10 @@ namespace MountainPlanner.UI.Flow
         public string Size = "";
         public int TerrainScore, FloraScore;
         public string TerrainText = "", FloraText = "";
+        /// <summary>The area's disk use ("612 MB"), or "…" while it's being measured.</summary>
         public string Disk = "";
+        /// <summary>What the disk use is made of, for the tooltip: package, cache, other versions' caches.</summary>
+        public string DiskDetail = "";
         public string Opened = "";
         /// <summary>The paused row's progress line: "Paused at 38% · Forest".</summary>
         public string PausedText = "";
@@ -28,6 +31,8 @@ namespace MountainPlanner.UI.Flow
         public string NewerText = "";
         public bool IsNewer => NewerText.Length > 0;
         public bool CanOpen => Entry != null && !IsNewer;
+        /// <summary>Rename (Manage Areas, F2): any area this game can read whose view.json isn't from a newer game.</summary>
+        public bool CanRename => CanOpen && Entry.RenameRefusal.Length == 0;
     }
 
     /// <summary>
@@ -40,6 +45,12 @@ namespace MountainPlanner.UI.Flow
     {
         public readonly List<LibraryRow> Rows = new List<LibraryRow>();
         public string Summary { get; private set; } = "";
+        /// <summary>What Free space would remove (other versions' old caches); 0 hides the button.</summary>
+        public long FreeableBytes { get; private set; }
+        /// <summary>The Free space button: "Free 412 MB", or empty when there's nothing to free.</summary>
+        public string FreeText => FreeableBytes > 0 ? "Free " + Disk(FreeableBytes) : "";
+        /// <summary>False while any row's size is still being measured (they show "…").</summary>
+        public bool Measured { get; private set; } = true;
         public LibrarySort Sort { get; private set; }
         public bool IsEmpty => Rows.Count == 0;
         /// <summary>What an empty list says: no areas yet, or why a newer game's library can't be listed.</summary>
@@ -85,18 +96,34 @@ namespace MountainPlanner.UI.Flow
                     Entry = e, Name = e.Name, Place = Place(e.Latitude, e.Longitude), Size = FlowUnits.SiteSize(e.SizeKm),
                     TerrainScore = e.TerrainScore, FloraScore = e.FloraScore,
                     TerrainText = Score(e.TerrainScore), FloraText = Score(e.FloraScore),
-                    Disk = Disk(e.BytesOnDisk), Opened = When(Opened(e), nowUtc),
+                    Disk = DiskOf(e), DiskDetail = Detail(e), Opened = When(Opened(e), nowUtc),
                 });
             foreach (var e in newer.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Folder, StringComparer.Ordinal))
-                vm.Rows.Add(new LibraryRow { Entry = e, Name = e.Name, Disk = Disk(e.BytesOnDisk), NewerText = NewerVersion });
+                vm.Rows.Add(new LibraryRow { Entry = e, Name = e.Name, Disk = DiskOf(e), DiskDetail = Detail(e), NewerText = NewerVersion });
+            vm.Measured = entries.All(e => e.Measured) && newer.All(e => e.Measured);
+            vm.FreeableBytes = ResortLibrary.Freeable(entries.Concat(newer));
             long total = entries.Sum(e => e.BytesOnDisk) + newer.Sum(e => e.BytesOnDisk);
-            vm.Summary = $"{entries.Count} {(entries.Count == 1 ? "area" : "areas")} · {Disk(total)} on disk"
+            vm.Summary = $"{entries.Count} {(entries.Count == 1 ? "area" : "areas")} · {(vm.Measured ? Disk(total) + " on disk" : "measuring disk use…")}"
                          + (pending.Count > 0 ? $" · {pending.Count} paused" : "")
                          + (newer.Count > 0 ? $" · {newer.Count} {(newer.Count == 1 ? "needs" : "need")} a newer version" : "");
             return vm;
         }
 
         public const string NewerVersion = "Made by a newer version of Mountain Planner. Update the game to open it.";
+        public const string Measuring = "…";
+
+        static string DiskOf(LibraryEntry e) => e.Measured ? Disk(e.BytesOnDisk) : Measuring;
+
+        /// <summary>"Area 410 MB · terrain cache 200 MB · old caches 2 MB": the parts that are there.</summary>
+        public static string Detail(LibraryEntry e)
+        {
+            if (!e.Measured) return "Measuring…";
+            var d = e.Disk;
+            string text = $"Area {Disk(d.Package)} · terrain cache {Disk(d.Cache)}";
+            if (d.OlderCaches > 0) text += $" · old caches {Disk(d.OlderCaches)} (Free space removes them)";
+            if (d.NewerCaches > 0) text += $" · newer versions' caches {Disk(d.NewerCaches)}";
+            return text;
+        }
 
         public static string Score(int score) => $"{score} {QualityBands.Word(QualityBands.Of(score))}";
 

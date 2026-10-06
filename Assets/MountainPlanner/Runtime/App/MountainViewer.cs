@@ -273,11 +273,11 @@ namespace MountainPlanner.App
             int site = Array.IndexOf(args, "-site");   // -site "Crystal Mountain": the largest, newest download with that name
             if (site >= 0 && site + 1 < args.Length)
             {
-                var named = entries.Where(e => string.Equals(e.Name, args[site + 1], StringComparison.OrdinalIgnoreCase))
+                var named = entries.Where(e => string.Equals(e.Name, args[site + 1], StringComparison.OrdinalIgnoreCase) || string.Equals(e.OriginalName, args[site + 1], StringComparison.OrdinalIgnoreCase))
                                    .OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
                 if (named != null) return named.Folder;
             }
-            var demo = entries.Where(e => e.Name == "Jackson Hole").OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
+            var demo = entries.Where(e => e.OriginalName == "Jackson Hole").OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
             return (demo ?? entries.FirstOrDefault())?.Folder;
         }
 
@@ -360,7 +360,7 @@ namespace MountainPlanner.App
         void WireHud()
         {
             if (Hud == null) return;
-            Hud.SetSite(_resort.Manifest.Site.Name, _resort.Manifest.Quality.Score);
+            Hud.SetSite(ResortLibrary.DisplayName(_resort.PackageFolder, _resort.Manifest), _resort.Manifest.Quality.Score);
             Hud.PrepareElevations(_resort.Cache.HeightMin - 100, _resort.Cache.HeightMin + _resort.Cache.HeightRange + 100);
             Hud.LayerChanged += (layer, on) => { if (on != _layers.IsOn(layer)) ToggleLayer(layer); };
             Hud.PresetChosen += i => Lighting?.Set(i);
