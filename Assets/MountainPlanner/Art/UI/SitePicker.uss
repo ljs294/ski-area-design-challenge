@@ -3,38 +3,13 @@
    follow the accepted mockup (prototypes/ui-layout.html): its modal window head, field, segmented switch,
    slider, legend swatch, figure, key cap, ghost button and the one filled commit button ("go").
    Surveyor's orange is for the planned square only (it is drawn by TileMapView), never for focus or state.
-   Focus shows as a light hairline ring, like the mockup's focused field. The UI thread may move the tokens
-   into the shared themes later.
-   Panels are solid here: the mockup's 96% panel is near-solid in a browser, but Unity blends UI in linear
-   space, where 96% over the bright map lets about 13% of it show through. */
+   Focus shows as a light hairline ring, like the mockup's focused field, plus the shared keyboard focus ring.
+   The colours are the shared theme tokens (Resources/MountainPlannerUI/Theme-*.tss, task P2-01), and so are
+   the fonts (Base.uss: Overpass for words, .mono for figures). Panels are solid: the mockup's 96% panel is
+   near-solid in a browser, but Unity blends UI in linear space, where 96% over the bright map lets about 13%
+   of it show through. */
 
 .picker {
-    --panel: rgb(28, 25, 22);
-    --hair: #3b3632;
-    --hair2: #4a443e;
-    --div: #3d3833;
-    --row: #36312c;
-    --text: #efe9df;
-    --strong: #ffffff;
-    --head: #e6dfd4;
-    --muted: #cfc7bb;
-    --soft: #a39b90;
-    --dim: #8f877c;
-    --faint: #5d5750;
-    --hover: #34302b;
-    --chip: #3b3631;
-    --tile: #2d2926;
-    --on-bg: #efe9df;
-    --on-fg: #1b1815;
-    --field: #12100e;
-    --warn: #f0b43c;
-    --go: #1a6b3c;
-    --go-hover: #1f7d47;
-    --dis-bg: #2e2a26;
-    --dis-fg: #6f675e;
-    --ghost-hover: #8f877c;
-    --scrim: rgba(10, 16, 26, 0.45);
-
     position: absolute;
     left: 0; top: 0; right: 0; bottom: 0;
     align-items: center;
@@ -42,45 +17,15 @@
     background-color: var(--scrim);
     color: var(--text);
     font-size: 13px;
-    -unity-font-definition: url("Fonts/Overpass-SDF.asset");
     transition-property: opacity;
     transition-duration: 0.15s;
     transition-timing-function: ease-out;
 }
 
-/* Light: sign white and near-black (the mockup's light set), not cream. */
-.picker--light {
-    --panel: rgb(250, 248, 244);
-    --hair: #ddd7cd;
-    --hair2: #cbc4b9;
-    --div: #e2dcd2;
-    --row: #ebe6de;
-    --text: #1f1c19;
-    --strong: #0f0d0b;
-    --head: #2b2724;
-    --muted: #4a443e;
-    --soft: #6b645b;
-    --dim: #8a8278;
-    --faint: #b8b0a5;
-    --hover: #ede8e0;
-    --chip: #e7e1d7;
-    --tile: #f0ebe3;
-    --on-bg: #1f1c19;
-    --on-fg: #faf8f4;
-    --field: #ffffff;
-    --warn: #a5650c;
-    --dis-bg: #ebe6de;
-    --dis-fg: #a39b90;
-    --ghost-hover: #8a8278;
-    --scrim: rgba(20, 30, 45, 0.30);
-}
-
 .grow { flex-grow: 1; }
 .hidden { display: none; }
-/* Words in Overpass (above), figures in Overpass Mono, whose fixed widths keep columns of numbers still.
-   Both bake out the middle dot (·), which comes from the panel's default font: Overpass draws it off-centre. */
-.mono { -unity-font-definition: url("Fonts/OverpassMono-SDF.asset"); }
 
+/* The window keeps its rows and gives up map height when the screen is short (150% UI scale at 1080p). */
 .picker-window {
     width: 1040px;
     max-width: 96%;
@@ -90,6 +35,7 @@
     border-color: var(--hair);
     border-radius: 6px;
 }
+.picker-window > * { flex-shrink: 0; }
 
 /* The mockup's panel head: 38 px, the title in heavy type, a square ✕ on the right. */
 .picker-head {
@@ -184,13 +130,6 @@
     color: var(--strong);
     font-size: 15px;
     -unity-font-style: bold;
-    --unity-cursor-color: #ffffff;
-    --unity-selection-color: rgba(207, 199, 187, 0.35);
-}
-.picker--light .picker-field > .unity-base-text-field__input,
-.picker--light .picker-field > .unity-text-field__input {
-    --unity-cursor-color: #0f0d0b;
-    --unity-selection-color: rgba(74, 68, 62, 0.25);
 }
 .picker-field:focus > .unity-base-text-field__input,
 .picker-field:focus > .unity-text-field__input { border-color: var(--muted); }
@@ -230,8 +169,10 @@
 .result__where { color: var(--soft); font-size: 12px; margin-top: 1px; }
 
 /* The map: edge to edge between hairlines, its few controls on small solid plates. */
-.map-frame {
+.picker-window > .map-frame {
     height: 540px;
+    min-height: 160px;
+    flex-shrink: 1;
     border-top-width: 1px;
     border-top-color: var(--hair);
     background-color: #d9d4c8;

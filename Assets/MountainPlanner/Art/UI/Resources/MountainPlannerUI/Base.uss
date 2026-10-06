@@ -1,0 +1,30 @@
+/* Shared text and focus settings for every screen (task P2-01), imported by both themes.
+   Words in Overpass, figures in Overpass Mono (.mono): Mono's fixed widths keep columns of numbers still.
+   Both font assets leave out the middle dot (·), which Overpass draws off-centre: it falls back to the
+   panel's default font. */
+:root {
+    -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/Overpass-SDF.asset");
+    color: var(--text);
+}
+
+.mono { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); }
+
+/* The keyboard focus ring (UiPanels adds one per document): a 2 px frame laid over whatever has keyboard
+   focus, 2 px outside it. It shows only after a navigation key, never after a click. */
+.ui-focus-ring {
+    position: absolute;
+    left: 0;
+    top: 0;
+    border-width: 2px;
+    border-color: var(--focus);
+    border-radius: 5px;
+    display: none;
+}
+.ui-keys > .ui-focus-ring--on { display: flex; }
+
+/* A screen's 16:9 column (StageColumn): full-screen panels and modals stay inside it on 21:9 and 32:9. */
+.ui-stage {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+}

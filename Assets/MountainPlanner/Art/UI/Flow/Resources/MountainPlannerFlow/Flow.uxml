@@ -1,11 +1,14 @@
-<ui:UXML xmlns:ui="UnityEngine.UIElements">
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:mp="MountainPlanner.UI">
     <!-- Task 14: S1 title, S2 My Resorts, S4 download card and pill, S5 quality card, and dialogs (0.4 §4).
-         FlowScreens (UI) finds elements by name; AppFlow (App) decides which screen shows. -->
+         FlowScreens (UI) finds elements by name; AppFlow (App) decides which screen shows.
+         Task P2-01: full-screen screens and modals sit in a centred 16:9 column (mp:StageColumn), so they keep
+         their shape on 21:9 and 32:9; the download card, pill and toast stay on the screen's edges. -->
     <ui:Style src="Flow.uss" />
     <ui:VisualElement name="flow" class="flow" picking-mode="Ignore">
 
         <!-- S1 Title: trail signs on cedar posts at the left, centred vertically over the live demo mountain; Credits, Settings and Quit in the corner. -->
         <ui:VisualElement name="title" class="title hidden" picking-mode="Ignore">
+            <mp:StageColumn name="title-stage">
             <ui:VisualElement class="signpost">
                 <ui:VisualElement class="post post--left" picking-mode="Ignore" />
                 <ui:VisualElement class="post post--right" picking-mode="Ignore" />
@@ -50,10 +53,12 @@
                 <ui:Button name="title-settings" text="Settings" class="plate" />
                 <ui:Button name="title-quit" text="Quit" class="plate" />
             </ui:VisualElement>
+            </mp:StageColumn>
         </ui:VisualElement>
 
         <!-- S2 My Resorts. -->
         <ui:VisualElement name="library" class="library hidden">
+            <mp:StageColumn>
             <ui:VisualElement class="panel library-panel">
                 <ui:VisualElement class="panel-head">
                     <ui:Label name="library-title" text="Load Area" class="panel-title" />
@@ -76,6 +81,7 @@
                     <ui:Button name="library-folder" text="Open data folder" class="btn btn--ghost" />
                 </ui:VisualElement>
             </ui:VisualElement>
+            </mp:StageColumn>
         </ui:VisualElement>
 
         <!-- S4 download card, docked bottom left. -->
@@ -114,62 +120,81 @@
 
         <!-- S5 quality card. -->
         <ui:VisualElement name="quality" class="modal hidden">
-            <ui:VisualElement class="panel quality-panel">
-                <ui:VisualElement class="panel-head">
-                    <ui:Label name="qc-title" text="" class="panel-title" />
+            <mp:StageColumn>
+                <ui:VisualElement class="panel quality-panel">
+                    <ui:VisualElement class="panel-head">
+                        <ui:Label name="qc-title" text="" class="panel-title" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="panel-body">
+                        <ui:Label name="qc-place" text="" class="mono muted" />
+                        <ui:VisualElement name="qc-lines" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="panel-foot">
+                        <ui:Button name="qc-open" text="Open area" class="btn btn--go" />
+                        <ui:Button name="qc-library" text="Load Area" class="btn btn--ghost" />
+                    </ui:VisualElement>
                 </ui:VisualElement>
-                <ui:VisualElement class="panel-body">
-                    <ui:Label name="qc-place" text="" class="mono muted" />
-                    <ui:VisualElement name="qc-lines" />
-                </ui:VisualElement>
-                <ui:VisualElement class="panel-foot">
-                    <ui:Button name="qc-open" text="Open area" class="btn btn--go" />
-                    <ui:Button name="qc-library" text="Load Area" class="btn btn--ghost" />
-                </ui:VisualElement>
-            </ui:VisualElement>
+            </mp:StageColumn>
         </ui:VisualElement>
 
         <!-- S8 Settings (iteration 1: units only) and S9 Credits. -->
         <ui:VisualElement name="settings" class="modal hidden">
-            <ui:VisualElement class="panel settings-panel">
-                <ui:VisualElement class="panel-head">
-                    <ui:Label text="Settings" class="panel-title" />
-                    <ui:VisualElement class="spacer" />
-                    <ui:Button name="settings-close" text="✕" class="btn btn--icon" tooltip="Close (Esc)" />
-                </ui:VisualElement>
-                <ui:VisualElement class="panel-body">
-                    <ui:VisualElement class="settings-row">
-                        <ui:Label text="Units" class="settings-label" />
-                        <ui:Button name="units-imperial" text="Feet and miles" class="seg" />
-                        <ui:Button name="units-metric" text="Metres and km" class="seg" />
+            <mp:StageColumn>
+                <ui:VisualElement class="panel settings-panel">
+                    <ui:VisualElement class="panel-head">
+                        <ui:Label text="Settings" class="panel-title" />
+                        <ui:VisualElement class="spacer" />
+                        <ui:Button name="settings-close" text="✕" class="btn btn--icon" tooltip="Close (Esc)" />
                     </ui:VisualElement>
-                    <ui:Label text="U switches units in the game too. Graphics, audio and controls come with the full Settings window." class="muted settings-note" />
+                    <ui:VisualElement class="panel-body">
+                        <ui:VisualElement class="settings-row">
+                            <ui:Label text="Units" class="settings-label" />
+                            <ui:Button name="units-imperial" text="Feet and miles" class="seg" />
+                            <ui:Button name="units-metric" text="Metres and km" class="seg" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="settings-row">
+                            <ui:Label text="Theme" class="settings-label" />
+                            <ui:Button name="theme-dark" text="Dark" class="seg" />
+                            <ui:Button name="theme-light" text="Light" class="seg" />
+                        </ui:VisualElement>
+                        <ui:VisualElement class="settings-row">
+                            <ui:Label text="UI scale" class="settings-label" />
+                            <ui:Button name="scale-down" text="−" class="seg seg--step" tooltip="Smaller (5% steps, down to 50%)" />
+                            <ui:Label name="scale-value" text="100%" class="mono settings-value" />
+                            <ui:Button name="scale-up" text="+" class="seg seg--step" tooltip="Larger (5% steps, up to 150%)" />
+                        </ui:VisualElement>
+                        <ui:Label text="U switches units in the game too. Graphics, audio and controls come with the full Settings window." class="muted settings-note" />
+                    </ui:VisualElement>
                 </ui:VisualElement>
-            </ui:VisualElement>
+            </mp:StageColumn>
         </ui:VisualElement>
         <ui:VisualElement name="credits" class="modal hidden">
-            <ui:VisualElement class="panel credits-panel">
-                <ui:VisualElement class="panel-head">
-                    <ui:Label text="Credits" class="panel-title" />
-                    <ui:VisualElement class="spacer" />
-                    <ui:Button name="credits-close" text="✕" class="btn btn--icon" tooltip="Close (Esc)" />
+            <mp:StageColumn>
+                <ui:VisualElement class="panel credits-panel">
+                    <ui:VisualElement class="panel-head">
+                        <ui:Label text="Credits" class="panel-title" />
+                        <ui:VisualElement class="spacer" />
+                        <ui:Button name="credits-close" text="✕" class="btn btn--icon" tooltip="Close (Esc)" />
+                    </ui:VisualElement>
+                    <ui:ScrollView name="credits-body" class="panel-body credits-body" />
                 </ui:VisualElement>
-                <ui:ScrollView name="credits-body" class="panel-body credits-body" />
-            </ui:VisualElement>
+            </mp:StageColumn>
         </ui:VisualElement>
 
         <!-- S11 confirm dialog. -->
         <ui:VisualElement name="confirm" class="modal hidden">
-            <ui:VisualElement class="panel confirm-panel">
-                <ui:VisualElement class="panel-body">
-                    <ui:Label name="confirm-text" text="" class="confirm-text" />
+            <mp:StageColumn>
+                <ui:VisualElement class="panel confirm-panel">
+                    <ui:VisualElement class="panel-body">
+                        <ui:Label name="confirm-text" text="" class="confirm-text" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="panel-foot">
+                        <ui:VisualElement class="spacer" />
+                        <ui:Button name="confirm-cancel" text="Cancel" class="btn btn--ghost" />
+                        <ui:Button name="confirm-ok" text="Delete" class="btn btn--danger" />
+                    </ui:VisualElement>
                 </ui:VisualElement>
-                <ui:VisualElement class="panel-foot">
-                    <ui:VisualElement class="spacer" />
-                    <ui:Button name="confirm-cancel" text="Cancel" class="btn btn--ghost" />
-                    <ui:Button name="confirm-ok" text="Delete" class="btn btn--danger" />
-                </ui:VisualElement>
-            </ui:VisualElement>
+            </mp:StageColumn>
         </ui:VisualElement>
 
         <ui:Label name="toast" text="" class="toast hidden" />

@@ -1,28 +1,11 @@
-/* Task 14 screens in the Trailhead direction (game-ui-direction.md UI-6): solid warm-graphite panels with
-   hairline rules; trail-rated signs on cedar posts for the title. Tokens from prototypes/ui-layout.html (dark).
-   Overpass for words, Overpass Mono for figures (task 13's fonts; the middle dot falls back to the default font). */
+/* Task 14 screens in the Trailhead direction (game-ui-direction.md UI-6): solid panels with hairline rules;
+   trail-rated signs on cedar posts for the title. The colours are the shared theme tokens (dark or light,
+   Resources/MountainPlannerUI/Theme-*.tss) and so are the fonts (Base.uss); only the signs keep their own
+   colours, which don't change with the theme (task P2-01).
+   Ultrawide: the title, the library and the modals sit in a centred 16:9 column (StageColumn); the download
+   card, its pill and toasts stay on the screen's edges. */
 
 .flow {
-    --panel: rgb(28, 25, 22);   /* solid: translucent panels read as glass in linear colour */
-    --knock: #1c1916;
-    --hair: #3b3632;
-    --row: #36312c;
-    --text: #efe9df;
-    --strong: #ffffff;
-    --head: #e6dfd4;
-    --muted: #cfc7bb;
-    --soft: #a39b90;
-    --dim: #8f877c;
-    --hover: #34302b;
-    --chip: #3b3631;
-    --pos: #8fcf8a;
-    --neg: #ff7a66;
-    --warn: #f0b43c;
-    --go: #1a6b3c;
-    --go-hover: #1f7d47;
-    --danger: #8e2b1f;
-    --danger-hover: #a3342a;
-    --scrim: rgba(12, 10, 8, 0.62);
     --sign-green: #1a6b3c;
     --sign-blue: #22558f;
     --sign-black: #1f1c19;
@@ -34,18 +17,17 @@
     left: 0; top: 0; right: 0; bottom: 0;
     color: var(--text);
     font-size: 14px;
-    -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/Overpass-SDF.asset");
 }
 
 .hidden { display: none; }
 .spacer { flex-grow: 1; }
 .muted { color: var(--soft); }
 .strong { color: var(--strong); -unity-font-style: bold; }
-.mono { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); }
 .error { color: var(--neg); }
 
 /* ---------- S1 title: the signpost, at the left and centred vertically ---------- */
 .title { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.title > .ui-stage { overflow: hidden; }
 .signpost {
     position: absolute; left: 96px; top: 50%; width: 340px;
     translate: 0 -50%;
@@ -70,8 +52,7 @@
     -unity-text-align: middle-left;
     transition-property: translate; transition-duration: 0.12s;
 }
-.sign:hover { translate: 4px 0; }
-.sign:focus { border-width: 2px; }
+.sign:hover, .sign:focus { translate: 4px 0; }
 .sign--green { background-color: var(--sign-green); }
 .sign--blue { background-color: var(--sign-blue); }
 .sign--black { background-color: var(--sign-black); }
@@ -129,9 +110,9 @@
     font-size: 14px; -unity-font-style: bold;
 }
 .btn:hover { background-color: var(--hover); }
-.btn--go { background-color: var(--go); border-color: var(--go); color: var(--strong); }
+.btn--go { background-color: var(--go); border-color: var(--go); color: #ffffff; }
 .btn--go:hover { background-color: var(--go-hover); }
-.btn--danger { background-color: var(--danger); border-color: var(--danger); color: var(--strong); }
+.btn--danger { background-color: var(--danger); border-color: var(--danger); color: #ffffff; }
 .btn--danger:hover { background-color: var(--danger-hover); }
 .btn--ghost { background-color: rgba(0, 0, 0, 0); }
 .btn--icon { width: 32px; padding: 0; background-color: rgba(0, 0, 0, 0); border-width: 0; font-size: 16px; }
@@ -139,16 +120,16 @@
 
 .modal {
     position: absolute; left: 0; top: 0; right: 0; bottom: 0;
-    background-color: var(--scrim);
-    align-items: center; justify-content: center;
+    background-color: var(--scrim-strong);
 }
+.modal > .ui-stage { align-items: center; justify-content: center; }
 
 /* ---------- S2 My Resorts ---------- */
 .library {
     position: absolute; left: 0; top: 0; right: 0; bottom: 0;
-    background-color: var(--scrim);
-    padding: 64px 96px;
+    background-color: var(--scrim-strong);
 }
+.library > .ui-stage { padding: 64px 96px; }
 .library-panel { flex-grow: 0; flex-shrink: 1; max-height: 100%; }
 .library-sort { flex-direction: row; align-items: center; padding: 8px 16px; border-bottom-width: 1px; border-bottom-color: var(--hair); }
 .library-sort .muted { margin-right: 8px; }
@@ -218,7 +199,9 @@
 
 /* ---------- S8 settings and S9 credits ---------- */
 .settings-panel { width: 480px; }
-.settings-row { flex-direction: row; align-items: center; }
+.settings-row { flex-direction: row; align-items: center; margin-bottom: 8px; }
+.seg--step { width: 32px; padding: 4px 0; -unity-text-align: middle-center; font-size: 15px; }
+.settings-value { width: 56px; -unity-text-align: middle-center; color: var(--strong); margin-right: 4px; }
 .settings-label { width: 80px; color: var(--head); -unity-font-style: bold; }
 .settings-note { margin-top: 12px; white-space: normal; font-size: 13px; }
 .credits-panel { width: 620px; max-height: 80%; }

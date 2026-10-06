@@ -1,0 +1,46 @@
+@import url("unity-theme://default");
+@import url("Base.uss");
+
+/* Light theme: sign white and near-black (game-ui-direction.md UI-6), not cream. The accepted mockup's
+   .hud.light variables, as solid colours (see Theme-Dark.tss). */
+:root {
+    --panel: rgb(250, 248, 244);
+    --knock: #faf8f4;
+    --hair: #ddd7cd;
+    --hair2: #cbc4b9;
+    --div: #e2dcd2;
+    --row: #ebe6de;
+    --text: #1f1c19;
+    --strong: #0f0d0b;
+    --head: #2b2724;
+    --muted: #4a443e;
+    --soft: #6b645b;
+    --dim: #8a8278;
+    --ph: #b0a89d;
+    --faint: #b8b0a5;
+    --hover: #ede8e0;
+    --chip: #e7e1d7;
+    --tile: #f0ebe3;
+    --tile-hover: #e5dfd5;
+    --on-bg: #1f1c19;
+    --on-fg: #faf8f4;
+    --field: #ffffff;
+    --icon: #4a443e;
+    --pos: #2a7a3a;
+    --neg: #c23b27;
+    --warn: #a5650c;
+    --plate-bg: #1f1c19;
+    --plate-fg: #fbf8f2;
+    --go: #1a6b3c;
+    --go-hover: #1f7d47;
+    --danger: #b23a2b;
+    --danger-hover: #c4452f;
+    --dis-bg: #ebe6de;
+    --dis-fg: #a39b90;
+    --ghost-hover: #8a8278;
+    --scrim: rgba(20, 30, 45, 0.30);
+    --scrim-strong: rgba(20, 30, 45, 0.42);
+    --focus: #1f1c19;
+    --unity-cursor-color: #0f0d0b;
+    --unity-selection-color: rgba(74, 68, 62, 0.25);
+}

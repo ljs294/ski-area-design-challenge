@@ -1,0 +1,49 @@
+@import url("unity-theme://default");
+@import url("Base.uss");
+
+/* Dark theme: warm graphite (game-ui-direction.md UI-6). The tokens are the accepted mockup's
+   (prototypes/ui-layout.html, the .hud variables), ported as solid colours: Unity blends UI in linear space,
+   where the mockup's 96% panel lets about 13% of a bright map through. Every screen reads these; no
+   stylesheet defines its own palette (task P2-01). */
+:root {
+    --panel: rgb(28, 25, 22);
+    --knock: #1c1916;
+    --hair: #3b3632;
+    --hair2: #4a443e;
+    --div: #3d3833;
+    --row: #36312c;
+    --text: #efe9df;
+    --strong: #ffffff;
+    --head: #e6dfd4;
+    --muted: #cfc7bb;
+    --soft: #a39b90;
+    --dim: #8f877c;
+    --ph: #6f675e;
+    --faint: #5d5750;
+    --hover: #34302b;
+    --chip: #3b3631;
+    --tile: #2d2926;
+    --tile-hover: #3a3531;
+    --on-bg: #efe9df;
+    --on-fg: #1b1815;
+    --field: #12100e;
+    --icon: #cfc7bb;
+    --pos: #8fcf8a;
+    --neg: #ff7a66;
+    --warn: #f0b43c;
+    --plate-bg: #fbf8f2;
+    --plate-fg: #1f1c19;
+    --go: #1a6b3c;
+    --go-hover: #1f7d47;
+    --danger: #8e2b1f;
+    --danger-hover: #a3342a;
+    --dis-bg: #2e2a26;
+    --dis-fg: #6f675e;
+    --ghost-hover: #8f877c;
+    --scrim: rgba(10, 16, 26, 0.45);
+    --scrim-strong: rgba(12, 10, 8, 0.62);
+    /* The keyboard focus ring: shown only after a key is used (Base.uss). */
+    --focus: #f4efe7;
+    --unity-cursor-color: #ffffff;
+    --unity-selection-color: rgba(207, 199, 187, 0.35);
+}
