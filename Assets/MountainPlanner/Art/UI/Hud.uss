@@ -9,6 +9,7 @@
     padding: 12px;
     font-size: 14px;
     color: var(--text);
+    -unity-text-outline-color: var(--text);
 }
 
 .panel {
@@ -37,6 +38,7 @@
     border-radius: 12px;
     padding: 2px 10px;
     color: var(--on-fg);
+    -unity-text-outline-color: var(--on-fg);
     background-color: var(--on-bg);
     -unity-font-style: bold;
 }
@@ -50,6 +52,7 @@
     border-color: var(--dim);
     padding: 2px 10px;
     color: var(--soft);
+    -unity-text-outline-color: var(--soft);
     margin-right: 8px;
 }
 
@@ -58,6 +61,7 @@
     border-width: 0;
     border-radius: 4px;
     color: var(--text);
+    -unity-text-outline-color: var(--text);
     margin: 0;
     transition-property: background-color;
     transition-duration: 0.12s;
@@ -94,6 +98,7 @@
 .panel-title {
     -unity-font-style: bold;
     color: var(--text);
+    -unity-text-outline-color: var(--text);
     margin: 2px 0 4px 0;
 }
 .menu {
@@ -106,7 +111,7 @@
     height: 32px;
     padding-left: 8px;
 }
-.menu-item--danger { color: var(--neg); }
+.menu-item--danger { color: var(--neg); -unity-text-outline-color: var(--neg); }
 .right-column { flex-direction: column; width: 210px; }
 .layers { width: 210px; }
 .panel-header {
@@ -116,7 +121,7 @@
     padding: 0 2px;
     height: 28px;
 }
-.caret { color: var(--soft); }
+.caret { color: var(--soft); -unity-text-outline-color: var(--soft); }
 /* Layer rows: a button per layer with our own checkbox in the design tokens (a filled accent box when on). */
 .layer {
     flex-direction: row;
@@ -130,8 +135,8 @@
     border-radius: 4px;
 }
 .layer:hover { background-color: var(--hover); }
-.layer-label { color: var(--text); margin: 0; padding: 0; }
-.layer:disabled .layer-label { color: var(--soft); }
+.layer-label { color: var(--text); -unity-text-outline-color: var(--text); margin: 0; padding: 0; }
+.layer:disabled .layer-label { color: var(--soft); -unity-text-outline-color: var(--soft); }
 .layer-box {
     width: 16px;
     height: 16px;
@@ -148,6 +153,7 @@
    take turns have round boxes; Contours, which combine with any, keep the square one. */
 .layer-section {
     color: var(--soft);
+    -unity-text-outline-color: var(--soft);
     font-size: 12px;
     margin: 6px 4px 2px 4px;
     padding: 0;
@@ -177,8 +183,8 @@
     border-color: var(--hair);
     margin-right: 8px;
 }
-.legend-label { color: var(--text); flex-grow: 1; margin: 0; padding: 0; }
-.legend-figure { color: var(--soft); -unity-text-align: middle-right; margin: 0; padding: 0; }
+.legend-label { color: var(--text); -unity-text-outline-color: var(--text); flex-grow: 1; margin: 0; padding: 0; }
+.legend-figure { color: var(--soft); -unity-text-outline-color: var(--soft); -unity-text-align: middle-right; margin: 0; padding: 0; }
 .legend-compass {
     flex-direction: row;
     flex-wrap: wrap;
@@ -196,6 +202,7 @@
 .legend-cell-label { -unity-font-style: bold; font-size: 12px; margin: 0; padding: 0; }
 .legend-note {
     color: var(--soft);
+    -unity-text-outline-color: var(--soft);
     font-size: 12px;
     white-space: normal;
     margin: 6px 0 0 0;
@@ -237,6 +244,7 @@
 }
 .readout {
     color: var(--text);
+    -unity-text-outline-color: var(--text);
     -unity-text-align: middle-left;
 }
 .readout--strong { -unity-font-style: bold; }
@@ -266,6 +274,7 @@
     -unity-font-style: bold;
     -unity-text-align: lower-center;
     color: rgb(255, 255, 255);
+    -unity-text-outline-color: rgb(255, 255, 255);
     text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
 }
 .contour-label {
@@ -286,6 +295,7 @@
 .attribution {
     font-size: 12px;
     color: var(--soft);
+    -unity-text-outline-color: var(--soft);
     padding: 2px 8px;
     border-radius: 4px;
     background-color: var(--panel);
@@ -331,6 +341,7 @@
 .preset--on {
     background-color: var(--on-bg);
     color: var(--on-fg);
+    -unity-text-outline-color: var(--on-fg);
 }
 .preset--on:hover { background-color: var(--on-bg); }
-.text-button { height: 30px; padding: 0 10px; color: var(--muted); }
+.text-button { height: 30px; padding: 0 10px; color: var(--muted); -unity-text-outline-color: var(--muted); }

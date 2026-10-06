@@ -88,7 +88,7 @@ namespace MountainPlanner.Editor
             }
             panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Resources/MountainPlannerUI/Theme-Dark.tss");   // UiPanels swaps in the player's theme at run time
             panel.scaleMode = UnityEngine.UIElements.PanelScaleMode.ScaleWithScreenSize;
-            panel.referenceResolution = new Vector2Int(1920, 1080);
+            panel.referenceResolution = MountainPlanner.UI.UiPanels.Reference(100);   // the accepted mockup's 1280×720 design base (task P2-01)
             panel.screenMatchMode = UnityEngine.UIElements.PanelScreenMatchMode.MatchWidthOrHeight;
             panel.match = 1;   // by height
             EditorUtility.SetDirty(panel);

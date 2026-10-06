@@ -5,6 +5,9 @@
 :root {
     -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/Overpass-SDF.asset");
     color: var(--text);
+    /* Every rule that sets a text colour sets the outline to the same colour: the light theme's 0.3 px outline
+       (Theme-Light.tss) thickens text without changing its colour; the dark theme has none. UiThemeTests checks it. */
+    -unity-text-outline-color: var(--text);
 }
 
 .mono { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); }
@@ -28,3 +31,176 @@
     top: 0;
     bottom: 0;
 }
+
+/* ---------- The accepted mockup's components (prototypes/ui-layout.html), for every screen ----------
+   Pixel values are the mockup's own: panels lay out on its 1280×720 stage (UiPanels), so they carry over 1:1.
+   Overpass has two weights here, so the mockup's 700 and 800 are both bold. Prefixed mp- so they never collide
+   with a screen's own classes. */
+
+/* a floating window: solid panel, hairline, 6 px corners (.pn) */
+.mp-win {
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--hair);
+    border-radius: 6px;
+}
+/* its head: 38 px, the title heavy, a subtitle after it, a square ✕ on the right after a .mp-spacer (.pn .hd) */
+.mp-head {
+    flex-direction: row;
+    align-items: center;
+    height: 38px;
+    flex-shrink: 0;
+    padding: 0 8px 0 12px;
+    border-bottom-width: 1px;
+    border-bottom-color: var(--hair);
+}
+.mp-spacer { flex-grow: 1; }
+.mp-title { font-size: 14px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); margin: 0; padding: 0; }
+.mp-sub { font-size: 14px; color: var(--soft); -unity-text-outline-color: var(--soft); margin: 0 0 0 8px; padding: 0; }
+.mp-x {
+    margin: 0;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--soft);
+    -unity-text-outline-color: var(--soft);
+    font-size: 15px;
+    -unity-text-align: middle-center;
+}
+.mp-x:hover { background-color: var(--hover); color: var(--strong); -unity-text-outline-color: var(--strong); }
+/* its foot: hairline above, actions at both ends (.set .foot) */
+.mp-foot {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 10px 12px;
+    border-top-width: 1px;
+    border-top-color: var(--hair);
+}
+
+/* the one filled commit button, green (.go), and the outlined ghost (.ghost) */
+.mp-go {
+    height: 36px;
+    margin: 0;
+    padding: 0 12px;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: var(--go);
+    color: #ffffff;
+    -unity-text-outline-color: #ffffff;
+    font-size: 13px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+.mp-go:hover { background-color: var(--go-hover); }
+.mp-go--danger { background-color: var(--danger); }
+.mp-go--danger:hover { background-color: var(--danger-hover); }
+.mp-go:disabled { background-color: var(--dis-bg); color: var(--dis-fg); -unity-text-outline-color: var(--dis-fg); opacity: 1; }
+.mp-ghost {
+    height: 36px;
+    margin: 0;
+    padding: 0 12px;
+    border-width: 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--muted);
+    -unity-text-outline-color: var(--muted);
+    font-size: 12.5px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+.mp-ghost:hover { border-color: var(--ghost-hover); color: var(--strong); -unity-text-outline-color: var(--strong); }
+.mp-ghost:disabled { color: var(--faint); -unity-text-outline-color: var(--faint); opacity: 1; }
+
+/* a segmented switch: one hairline box, options split by hairlines, the chosen one filled (.seg) */
+.mp-seg {
+    flex-direction: row;
+    border-width: 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.mp-seg__opt {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin: 0;
+    padding: 5px 9px 4px 9px;
+    border-width: 0 0 0 1px;
+    border-color: var(--hair2);
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--soft);
+    -unity-text-outline-color: var(--soft);
+    font-size: 11.5px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+.mp-seg__opt--first { border-left-width: 0; }   /* USS has no :first-child */
+.mp-seg__opt:hover { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.mp-seg__opt--on, .mp-seg__opt--on:hover { background-color: var(--on-bg); color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
+.mp-seg--mini > .mp-seg__opt { flex-grow: 0; flex-basis: auto; }
+
+/* a stepper for settings with several levels: ‹ value › (.step) */
+.mp-step {
+    flex-direction: row;
+    align-items: center;
+    height: 30px;
+    border-width: 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.mp-step__b {
+    width: 32px;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--soft);
+    -unity-text-outline-color: var(--soft);
+    font-size: 16px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+.mp-step__b:hover { background-color: var(--hover); color: var(--strong); -unity-text-outline-color: var(--strong); }
+.mp-step__b:disabled, .mp-step__b:disabled:hover { background-color: rgba(0, 0, 0, 0); color: var(--faint); -unity-text-outline-color: var(--faint); opacity: 1; }
+.mp-step__v { flex-grow: 1; margin: 0; padding: 0; -unity-text-align: middle-center; font-size: 12.5px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+
+/* a settings row: the label in bold with a line of description under it, the control on the right (.set .srow) */
+.mp-srow {
+    flex-direction: row;
+    align-items: center;
+    padding: 9px 0;
+    border-top-width: 1px;
+    border-top-color: var(--row);
+}
+.mp-srow__text { flex-grow: 1; flex-shrink: 1; margin-right: 18px; }
+.mp-srow__label { font-size: 13px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); margin: 0; padding: 0; }
+.mp-srow__desc { margin: 2px 0 0 0; padding: 0; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: normal; }
+.mp-srow > .mp-seg, .mp-srow > .mp-step { width: 236px; flex-shrink: 0; }
+
+/* a page's categories down the left (.set .nav) */
+.mp-nav { width: 176px; flex-shrink: 0; padding: 10px 8px; border-right-width: 1px; border-right-color: var(--hair); }
+.mp-nav__item {
+    margin: 0 0 2px 0;
+    padding: 8px 10px 7px 10px;
+    border-width: 0;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--tab);
+    -unity-text-outline-color: var(--tab);
+    font-size: 13.5px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+}
+.mp-nav__item:hover { color: var(--text); -unity-text-outline-color: var(--text); }
+.mp-nav__item--on, .mp-nav__item--on:hover { background-color: var(--chip); color: var(--strong); -unity-text-outline-color: var(--strong); }
+.mp-page-title { font-size: 15px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); margin: 0; padding: 10px 0 8px 0; }
+.mp-note { margin: 10px 0 0 0; padding: 0; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: normal; }

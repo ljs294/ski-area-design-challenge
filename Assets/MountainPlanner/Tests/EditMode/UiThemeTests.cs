@@ -76,6 +76,26 @@ namespace MountainPlanner.Tests
             }
         }
 
+        [Test]
+        public void EveryTextColourSetsTheOutlineToMatch()
+        {
+            // The light theme thickens text with a 0.3 px outline (linear blending thins dark-on-light text); the
+            // outline must be the text's own colour or it would tint it.
+            Assert.That(Regex.IsMatch(File.ReadAllText(ThemeFolder + "Theme-Light.tss"), @"-unity-text-outline-width:\s*0\.3px"), "the light theme's text weight");
+            Assert.That(File.ReadAllText(ThemeFolder + "Theme-Dark.tss"), Does.Not.Contain("-unity-text-outline-width"));
+            foreach (string sheet in Sheets)
+                foreach (Match rule in Regex.Matches(File.ReadAllText(sheet), @"([^{}]*)\{([^{}]*)\}"))
+                {
+                    string body = rule.Groups[2].Value;
+                    var colour = Regex.Match(body, @"(?:^|[\s;{])color:\s*([^;}]+?)\s*;");
+                    if (!colour.Success) continue;
+                    var outline = Regex.Match(body, @"-unity-text-outline-color:\s*([^;}]+?)\s*;");
+                    Assert.That(outline.Success, $"{sheet}: {rule.Groups[1].Value.Trim()} sets color without -unity-text-outline-color");
+                    if (!body.Contains("-unity-text-outline-width"))   // map labels draw their own halo
+                        Assert.That(outline.Groups[1].Value, Is.EqualTo(colour.Groups[1].Value), $"{sheet}: {rule.Groups[1].Value.Trim()}");
+                }
+        }
+
         [TestCase("Dark", ".hud")]
         [TestCase("Light", ".hud.light")]
         public void TheThemesAreTheAcceptedMockups(string theme, string selector)
@@ -112,9 +132,9 @@ namespace MountainPlanner.Tests
             Assert.That(UiPreferences.SnapScale(asked), Is.EqualTo(snapped));
         }
 
-        [TestCase(50, 3840, 2160)]
-        [TestCase(100, 1920, 1080)]
-        [TestCase(150, 1280, 720)]
+        [TestCase(50, 2560, 1440)]
+        [TestCase(100, 1280, 720)]   // the accepted mockup's stage: its pixel sizes are ours
+        [TestCase(150, 853, 480)]
         public void TheScaleShrinksOrGrowsTheReferenceScreen(int percent, int width, int height)
         {
             Assert.That(UiPanels.Reference(percent), Is.EqualTo(new Vector2Int(width, height)));

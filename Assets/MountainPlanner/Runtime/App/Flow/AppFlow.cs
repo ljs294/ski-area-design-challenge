@@ -233,7 +233,8 @@ namespace MountainPlanner.App.Flow
                 _viewer.Hud.ShowExitToTitle(true);
                 _viewer.Hud.ExitChosen += Controller.ExitToTitle;
                 _viewer.Hud.ShowSettings(true);   // the menu's Settings opens the flow's window: units, theme, UI scale
-                _viewer.Hud.SettingsChosen += Screens.ShowSettings;
+                var hud = _viewer.Hud;
+                hud.SettingsChosen += () => Screens.ShowSettings(hud.SiteName);   // the head names the resort, as in the mockup
             }
             var then = _afterTitle;
             _afterTitle = FlowScreen.Title;

@@ -19,6 +19,7 @@ namespace MountainPlanner.App.Flow
             string[] args = Environment.GetCommandLineArgs();
             int i = Array.IndexOf(args, "-flowcapture");
             if (i >= 0 && i + 1 < args.Length) StartCoroutine(Capture(Path.GetFullPath(args[i + 1])));
+            StartUiCaptureIfAsked(args);
         }
 
         IEnumerator Capture(string folder)

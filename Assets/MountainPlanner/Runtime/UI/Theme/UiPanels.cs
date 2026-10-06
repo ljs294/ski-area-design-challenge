@@ -9,13 +9,15 @@ namespace MountainPlanner.UI
     /// Theme-Dark.tss or Theme-Light.tss with Base.uss) and the UI scale, applied to a runtime copy of each
     /// document's panel settings so the assets in the project never change; plus the keyboard focus ring and
     /// arrow-key navigation (<see cref="UiFocus"/>).
-    /// The panels scale with the screen height from a 1080p reference, so a 21:9 or 32:9 screen gets more
-    /// width, never smaller type. The UI scale shrinks or grows that reference.
+    /// The panels scale with the screen height from the accepted mockup's 1280×720 design stage
+    /// (prototypes/ui-layout.html), so its pixel sizes carry over as they are and 100% looks like the mockup on any
+    /// screen (owner, 2026-10-06); a 21:9 or 32:9 screen gets more width, never smaller type. The UI scale shrinks
+    /// or grows that reference.
     /// </summary>
     public static class UiPanels
     {
         public const string ResourceFolder = "MountainPlannerUI/";
-        public const int ReferenceWidth = 1920, ReferenceHeight = 1080;
+        public const int ReferenceWidth = 1280, ReferenceHeight = 720;
 
         static ThemeStyleSheet _dark, _light;
         /// <summary>Each panel-settings asset's runtime copy (several documents on one asset share one copy, as they shared the asset).</summary>
@@ -65,7 +67,7 @@ namespace MountainPlanner.UI
             return theme == UiTheme.Light ? _light : _dark;
         }
 
-        /// <summary>The reference resolution for a UI scale: 150% lays the UI out on a 720-unit-high screen, 50% on 2160.</summary>
+        /// <summary>The reference resolution for a UI scale: 100% is the mockup's 1280×720, 50% lays the UI out on 1440 units, 150% on 480.</summary>
         public static Vector2Int Reference(int scalePercent) =>
             new Vector2Int(Mathf.RoundToInt(ReferenceWidth * 100f / scalePercent), Mathf.RoundToInt(ReferenceHeight * 100f / scalePercent));
 

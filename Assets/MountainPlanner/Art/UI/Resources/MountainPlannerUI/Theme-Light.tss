@@ -60,6 +60,11 @@
     --shadow: rgba(30, 40, 55, 0.22);
     --shadow-sm: rgba(30, 40, 55, 0.16);
     --lamp-ring: rgba(0, 0, 0, 0.18);
+    /* Dark text on a light panel reads thinner than light on dark: Unity blends text edges in linear light, which
+       pales a dark glyph's edge and fattens a light one. A 0.3 px outline in each text's own colour (every colour
+       rule sets -unity-text-outline-color too; Base.uss) brings it to the dark theme's weight, judged side by side
+       at 1080p (task P2-01). Gamma blending (PanelSettings.forceGammaRendering) washed every colour out. */
+    -unity-text-outline-width: 0.3px;
     --focus: #1f1c19;
     --unity-cursor-color: #0f0d0b;
     --unity-selection-color: rgba(74, 68, 62, 0.25);

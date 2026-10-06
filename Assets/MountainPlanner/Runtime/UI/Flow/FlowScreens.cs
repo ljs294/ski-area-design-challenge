@@ -35,7 +35,9 @@ namespace MountainPlanner.UI.Flow
         VisualElement _dlActions, _dlConfirm, _dlFailed;
         ScrollView _rows;
         Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast, _scaleValue;
-        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric, _themeDark, _themeLight, _themeAuto, _scaleDown, _scaleUp;
+        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric, _themeDark, _themeLight, _themeAuto, _scaleDown, _scaleUp, _tabInterface, _tabUnits;
+        VisualElement _pageInterface, _pageUnits;
+        Label _settingsResort;
         ScrollView _creditsBody;
         readonly List<VisualElement> _rowElements = new List<VisualElement>();
         readonly List<LibraryRow> _rowData = new List<LibraryRow>();
@@ -120,6 +122,22 @@ namespace MountainPlanner.UI.Flow
             _scaleDown.clicked += () => UiPreferences.StepScale(-1);
             _scaleUp.clicked += () => UiPreferences.StepScale(1);
             UiPreferences.Changed += MarkInterface;
+            // The mockup's Settings window: categories down the left, Restore defaults and Done at the foot.
+            _tabInterface = _root.Q<Button>("settings-tab-interface");
+            _tabUnits = _root.Q<Button>("settings-tab-units");
+            _pageInterface = _root.Q("settings-interface");
+            _pageUnits = _root.Q("settings-units");
+            _settingsResort = _root.Q<Label>("settings-resort");
+            _tabInterface.clicked += () => SettingsPage(interfacePage: true);
+            _tabUnits.clicked += () => SettingsPage(interfacePage: false);
+            _root.Q<Button>("settings-done").clicked += CloseOverlay;
+            _root.Q<Button>("settings-defaults").clicked += () =>
+            {
+                UiPreferences.SetChoice(UiThemeChoice.Dark);
+                UiPreferences.SetScale(100);
+                FlowUnits.Set(true);
+                MarkUnits();
+            };
             _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();
             _root.Q<Button>("library-close").clicked += () => LibraryClosed?.Invoke();
             _root.Q<Button>("library-folder").clicked += () => DataFolderChosen?.Invoke();
@@ -391,12 +409,25 @@ namespace MountainPlanner.UI.Flow
 
         // ---------- S8 and S9 ----------
 
-        public void ShowSettings()
+        public void ShowSettings() => ShowSettings(null);
+
+        /// <summary>Opens Settings on its first page; in the game the head names the resort, as the mockup's does.</summary>
+        public void ShowSettings(string resort)
         {
             MarkUnits();
             MarkInterface();
+            SetText(_settingsResort, resort ?? "");
+            SettingsPage(interfacePage: true);
             Show(_settings, true);
-            UiFocus.OpenModal(_settings, FlowUnits.Imperial ? _imperial : _metric);
+            UiFocus.OpenModal(_settings, _tabInterface);
+        }
+
+        void SettingsPage(bool interfacePage)
+        {
+            Show(_pageInterface, interfacePage);
+            Show(_pageUnits, !interfacePage);
+            _tabInterface.EnableInClassList("mp-nav__item--on", interfacePage);
+            _tabUnits.EnableInClassList("mp-nav__item--on", !interfacePage);
         }
 
         void MarkUnits()
@@ -462,7 +493,8 @@ namespace MountainPlanner.UI.Flow
 
         static void Show(VisualElement e, bool show) => e?.EnableInClassList("hidden", !show);
 
-        static void Mark(VisualElement e, bool on) => e?.EnableInClassList("seg--on", on);
+        /// <summary>The chosen option of a segmented switch (the mockup's filled segment).</summary>
+        static void Mark(VisualElement e, bool on) => e?.EnableInClassList("mp-seg__opt--on", on);
 
         static void SetText(TextElement e, string text)
         {
@@ -479,8 +511,7 @@ namespace MountainPlanner.UI.Flow
         static Button Btn(string text, string kind, Action click)
         {
             var b = new Button(click) { text = text };
-            b.AddToClassList("btn");
-            b.AddToClassList(kind);
+            b.AddToClassList(kind == "btn--go" ? "mp-go" : "mp-ghost");   // the mockup's filled and outlined buttons
             return b;
         }
     }

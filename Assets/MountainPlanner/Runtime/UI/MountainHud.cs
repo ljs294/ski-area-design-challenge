@@ -34,6 +34,8 @@ namespace MountainPlanner.UI
         public VisualElement ContourLabelLayer => _root.Q("contour-labels");
 
         public bool DarkThemeOn => UiPreferences.Dark;
+        /// <summary>The open area's name, as the HUD shows it.</summary>
+        public string SiteName => _name?.text;
         public bool MenuOpen => _menu != null && !_menu.ClassListContains("hidden");
 
         /// <summary>
@@ -317,7 +319,7 @@ namespace MountainPlanner.UI
                 var label = new Label(k < 0 ? "flat" : InfoLegend.ExposurePoints[k]) { pickingMode = PickingMode.Ignore };
                 label.AddToClassList("legend-cell-label");
                 float luminance = 0.2126f * colour.r + 0.7152f * colour.g + 0.0722f * colour.b;
-                label.style.color = luminance > 0.5f ? new Color(0.1f, 0.1f, 0.1f) : Color.white;
+                label.style.color = label.style.unityTextOutlineColor = luminance > 0.5f ? new Color(0.1f, 0.1f, 0.1f) : Color.white;   // the light theme's text outline in the same colour
                 cell.Add(label);
                 grid.Add(cell);
             }
