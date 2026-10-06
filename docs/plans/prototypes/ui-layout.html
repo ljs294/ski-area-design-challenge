@@ -91,6 +91,25 @@ body.solo .frame { border-radius: 0; }
 .hud .v { font: 600 14px 'Overpass Mono', monospace; }
 .hud .day { font: 800 14px 'DotFix', 'Overpass'; }
 /* the game day, with the calendar date under it (as the weather sits under the clock) */
+/* the weather tab's outlook or calendar switch, and the month calendar */
+.hud .wxsw { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 4px; }
+.hud .mnav { display: flex; align-items: center; gap: 4px; font: 700 13px 'DotFix', 'Overpass'; }
+.hud .mnav b { min-width: 74px; text-align: center; }
+.hud .mnav .sb { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 4px; color: var(--soft); font: 700 15px 'Overpass'; }
+.hud .mnav .sb:hover { background: var(--hover); color: var(--strong); }
+.hud .mnav .sb.dis, .hud .mnav .sb.dis:hover { color: var(--faint); background: transparent; cursor: default; }
+.hud .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; padding: 2px 12px 12px; }
+.hud .cal .wd { padding: 2px 0 1px; text-align: center; font: 700 11px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .cal .c { height: 33px; display: grid; grid-template-rows: auto 1fr; padding: 3px 5px 2px; border-radius: 3px; background: var(--tile); }
+.hud .cal .c .top { display: flex; justify-content: space-between; align-items: center; }
+.hud .cal .c .num { font: 700 11.5px 'Overpass Mono', monospace; color: var(--text); }
+.hud .cal .c .sn { align-self: end; font: 600 10.5px 'Overpass Mono', monospace; color: var(--pp); }
+.hud .cal .c .hi { align-self: end; font: 500 10.5px 'Overpass Mono', monospace; color: var(--soft); }
+.hud .cal .c.past { background: transparent; box-shadow: inset 0 0 0 1px var(--row); }
+.hud .cal .c.past .num { color: var(--soft); }
+.hud .cal .c.today { box-shadow: inset 0 0 0 1.5px var(--text); }
+.hud .cal .c.later { background: transparent; }
+.hud .cal .c.later .num { color: var(--faint); }
 .hud .dayc { display: grid; justify-items: center; gap: 2px; line-height: 1.1; }
 .hud .dayc .date { font: 600 11.5px 'DotFix', 'Overpass'; color: var(--wx-text); white-space: nowrap; }
 .hud .ampm { font-size: 10.5px; margin-left: 3px; color: var(--soft); }
@@ -440,7 +459,7 @@ body.solo .frame { border-radius: 0; }
     incomeToday: 0, opsToday: 0.09e6, buildToday: 5.68e6, base: 142,
     history: [0.41, 0.38, -1.92, 0.45, 0.52, 0.47, 0.12, 0.55, 0.58, -0.84, 0.49, 0.53, 0.61],
     zoom: 1, layers: { snow: true, trees: true, lifts: true, trails: true, making: true, infra: true, labels: true },
-    info: null, contours: false, legendClosed: false,   // the info layer that's on (slope, aspect, depth), and contours over it
+    info: null, contours: false, legendClosed: false, wxView: 'outlook', wxMonth: 0,   // the info layer that's on (slope, aspect, depth), and contours over it
     toolbox: false, tab: 'lifts', tool: null, analysis: false, drop: null, sketch: false, modal: null,
     lifts: [
       { id: 'l2', n: 2, name: 'Aspen Quad', a: [548, 616], b: [652, 402], model: 'Fixed 4', built: true },
@@ -526,10 +545,12 @@ body.solo .frame { border-radius: 0; }
   const SUNRISE = 7.75, SUNSET = 16.9;
   // The calendar: day 1 is Tuesday 1 September, so the season's days fall on real dates (no year shown).
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayKind = (d) => (stormCm(d) ? 'snow' : ((d % 3) + 3) % 3 === 1 ? 'few' : 'sun');
+  const dayWord = (d) => { const cm = stormCm(d); return cm ? (cm >= 8 ? 'Snow tonight' : 'Flurries tonight') : dayKind(d) === 'few' ? 'Fair' : 'Clear'; };
   const dateTxt = (day) => { const d = new Date(Date.UTC(2026, 8, day)); return `${WD[d.getUTCDay()]}, ${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
-  // Placeholder storms: centimetres for the night that starts on day d, falling from 22:30 to 03:30.
-  const STORMS = [2, 6, 0, 12, 4, 0, 8];
-  const stormCm = (d) => STORMS[((d % 7) + 7) % 7];
+  // Placeholder storms: centimetres for the night that starts on day d, falling from 22:30 to 03:30. Hashed by
+  // day, so weeks don't repeat: about half the nights dry, some flurries, now and then a storm.
+  const stormCm = (d) => { const r = hash2(d, 7717); return r < 0.5 ? 0 : r < 0.75 ? 1 + Math.floor(hash2(d, 31) * 4) : r < 0.93 ? 5 + Math.floor(hash2(d, 37) * 8) : 15 + Math.floor(hash2(d, 41) * 16); };
   const snowRate = (day, h) => (h >= 22.5 ? stormCm(day) / 5 : h < 3.5 ? stormCm(day - 1) / 5 : 0);   // cm an hour
   function snowBetween(day, t, from, to) {   // cm falling between t+from and t+to seconds
     let cm = 0;
@@ -1008,6 +1029,33 @@ body.solo .frame { border-radius: 0; }
       <div class="tabs">${ATABS.map(([k, v]) => `<span class="${S.atab === k ? 'on' : ''}" data-act="atab" data-v="${k}">${v}</span>`).join('')}</div><div class="tabrule"></div>
       <div id="anabody">${analysisBody()}</div></div>`;
   }
+  // The weather calendar: a month of days. Past days show the snow that fell, the next five the forecast,
+  // later ones only their date. Day 1 (1 September) is the first month you can page back to.
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  function calMonth() {
+    const now = new Date(Date.UTC(2026, 8, S.day)), first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + S.wxMonth, 1));
+    const y = first.getUTCFullYear(), m = first.getUTCMonth();
+    return { y, m, n: new Date(Date.UTC(y, m + 1, 0)).getUTCDate(), lead: first.getUTCDay(), dayOf: (date) => Math.round((Date.UTC(y, m, date) - Date.UTC(2026, 8, 1)) / 86400000) + 1 };
+  }
+  function wxMonthNav() {
+    const c = calMonth(), back = c.dayOf(1) > 1, fwd = S.wxMonth < 6;
+    return `<div class="mnav"><span class="sb${back ? '' : ' dis'}" data-act="${back ? 'wxmonth' : ''}" data-v="-1">‹</span><b>${MONTHS[c.m]}</b><span class="sb${fwd ? '' : ' dis'}" data-act="${fwd ? 'wxmonth' : ''}" data-v="1">›</span></div>`;
+  }
+  function wxCalendar() {
+    const c = calMonth(), ic = (k) => wxIcon(k).replace('class="g"', 'class="g" style="width:14px;height:14px"');
+    let h = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((w) => `<span class="wd">${w}</span>`).join('');
+    for (let i = 0; i < c.lead; i++) h += '<span></span>';
+    for (let date = 1; date <= c.n; date++) {
+      const d = c.dayOf(date), cm = stormCm(d);
+      if (d < 1) { h += `<span class="c later"><span class="top"><span class="num">${date}</span></span></span>`; continue; }
+      const past = d < S.day, today = d === S.day, fc = d >= S.day && d <= S.day + 4;
+      const title = `${dateTxt(d)}: ${past ? (cm ? `${snowAmt(cm)} fell that night` : 'no new snow') : fc ? `${dayWord(d)}, high ${tempTxt(Math.round(airAt(d, 14.5)))}${cm ? `, ${snowAmt(cm)} of snow` : ''}` : 'beyond the forecast'}`;
+      const body = past ? (cm ? `<span class="sn">${snowAmt(cm)}</span>` : '')
+        : fc ? (cm ? `<span class="sn">${snowAmt(cm)}</span>` : `<span class="hi">${tempTxt(Math.round(airAt(d, 14.5)))}</span>`) : '';
+      h += `<span class="c${past ? ' past' : ''}${today ? ' today' : ''}${!past && !fc ? ' later' : ''}" title="${title}"><span class="top"><span class="num">${date}</span>${past || fc ? ic(dayKind(d)) : ''}</span>${body}</span>`;
+    }
+    return `<div class="cal" title="Past days show the snow that fell; the next five days are the forecast.">${h}</div>`;
+  }
   function analysisBody() {
     const wx = weather(S.t), open = isOpen(), built = S.lifts.filter((l) => l.built), waits = built.map(waitFor);
     const avgWait = waits.length && S.skiers ? waits.reduce((a, b) => a + b, 0) / waits.length : 0;
@@ -1080,7 +1128,7 @@ body.solo .frame { border-radius: 0; }
       for (const x of [hi, lo]) ch += `<circle cx="${f1(X(x.i))}" cy="${f1(TY(x.temp))}" r="2.4" style="fill:var(--chart-a)"/><text x="${f1(X(x.i))}" y="${f1(TY(x.temp) - 6)}" text-anchor="middle" style="font:600 10px 'Overpass Mono';fill:var(--muted)">${tempTxt(Math.round(x.temp))}</text>`;
       for (const x of hrs) if (x.i % 3 === 0 && x.i < 24) ch += `<text x="${f1(X(x.i))}" y="${hgt - 2}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${x.i ? String(Math.floor(x.hd)) : 'now'}</text>`;
       const sunTxt = `${hhmm(SUNRISE)} – ${hhmm(SUNSET)}`;
-      const days = []; for (let k = 0; k < 5; k++) { const d = S.day + k, hiT = Math.round(airAt(d, 14.5)), loT = Math.round(airAt(d + 1, 2.5)), cm = stormCm(d); days.push(`<div class="r" style="grid-template-columns:1.1fr 1.6fr 0.9fr 0.9fr"><span>${k ? dateTxt(d) : 'Today'}</span><span class="nm">${wxIcon(cm ? 'snow' : k % 3 === 1 ? 'few' : 'sun').replace('class="g"', 'class="g" style="width:16px;height:16px"')}${cm ? (cm >= 8 ? 'Snow tonight' : 'Flurries tonight') : k % 3 === 1 ? 'Fair' : 'Clear'}</span><span class="n">${tempTxt(hiT)} / ${tempTxt(loT)}</span><span class="n" style="color:${cm ? 'var(--pp)' : ''}">${cm ? snowAmt(cm) : '—'}</span></div>`); }
+      const days = []; for (let k = 0; k < 5; k++) { const d = S.day + k, hiT = Math.round(airAt(d, 14.5)), loT = Math.round(airAt(d + 1, 2.5)), cm = stormCm(d); days.push(`<div class="r" style="grid-template-columns:1.1fr 1.6fr 0.9fr 0.9fr"><span>${k ? dateTxt(d) : 'Today'}</span><span class="nm">${wxIcon(dayKind(d)).replace('class="g"', 'class="g" style="width:16px;height:16px"')}${dayWord(d)}</span><span class="n">${tempTxt(hiT)} / ${tempTxt(loT)}</span><span class="n" style="color:${cm ? 'var(--pp)' : ''}">${cm ? snowAmt(cm) : '—'}</span></div>`); }
       return `<div class="statusline">${wxIcon(wx.kind)}${wx.desc}<span class="t">${tempTxt(wx.temp)}</span><span class="r">Wind ${windTxt(wx.dir, wx.kmh)}</span></div><div class="rule"></div>
         <div class="sub"><span>Next 24 hours</span><span>air temperature over snowfall</span></div>
         <svg width="${w}" height="${hgt}" style="display:block;margin:4px 12px 0">${ch}</svg>
@@ -1088,7 +1136,8 @@ body.solo .frame { border-radius: 0; }
         <div class="cols">${kvs([['Snowing now', wx.rate ? `<b>${snowAmt(wx.rate)}</b> an hour` : 'No'], ['Next 24 hours', `<b>${snowAmt(wx.fc)}</b>`], ['Last 24 hours', `<b>${snowAmt(wx.fell)}</b>`]])}
         ${kvs([['Snow base', `<b>${snowAmt(S.base)}</b>`], ['Daylight', sunTxt], ['Snowmaking', wx.temp <= -2 ? 'cold enough' : 'too warm']])}</div>
         <div class="rule"></div>
-        <div class="tbl"><div class="r th" style="grid-template-columns:1.1fr 1.6fr 0.9fr 0.9fr"><span>Outlook</span><span></span><span class="n">High / low</span><span class="n">New snow</span></div>${days.join('')}</div>`;
+        <div class="wxsw">${qseg('wxview', S.wxView, [['outlook', 'Outlook'], ['calendar', 'Calendar']])}${S.wxView === 'calendar' ? wxMonthNav() : ''}</div>
+        ${S.wxView === 'calendar' ? wxCalendar() : `<div class="tbl"><div class="r th" style="grid-template-columns:1.1fr 1.6fr 0.9fr 0.9fr"><span>Next five days</span><span></span><span class="n">High / low</span><span class="n">New snow</span></div>${days.join('')}</div>`}`;
     }
     if (S.atab === 'amenities') {
       const lodges = 3 + S.things.filter((t) => t.kind === 'lodge' && t.built).length, seats = 1450 + (lodges - 3) * 300;
@@ -1300,6 +1349,8 @@ body.solo .frame { border-radius: 0; }
       case 'sdone': S.modal = null; break;
       case 'controls': S.drop = null; S.stab = 'controls'; S.modal = { settings: true }; break;
       case 'atab': S.atab = v; break;
+      case 'wxview': S.wxView = v; S.wxMonth = 0; break;
+      case 'wxmonth': S.wxMonth += +v; break;
       case 'aopen': if (S.analysis && S.atab === v) S.analysis = false; else { S.analysis = true; S.atab = v; S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
       case 'sketch': S.sketch = !S.sketch; S.drop = null; if (S.sketch) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'clearsketch': S.sketches = []; break;
@@ -1503,6 +1554,7 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('auto')) S.theme = 'auto';
     for (const x of SETTINGS) if (d.includes('set' + x.id)) { S.modal = { settings: true }; S.stab = x.id; }
     if (d.includes('h24')) S.set.clock = '24';
+    if (d.includes('wxcal')) S.wxView = 'calendar';
     if (d.includes('compact')) S.set.money = 'compact';
     if (d.includes('scale90')) S.set.hudScale = 90;
     if (d.includes('scale110')) S.set.hudScale = 110;
