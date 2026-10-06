@@ -222,6 +222,12 @@ namespace MountainPlanner.Editor
             // Keep running when the window loses focus: loading a mountain shouldn't stall on alt-tab, and
             // unattended captures and benchmarks froze whenever another window took focus.
             PlayerSettings.runInBackground = true;
+            // Borderless full screen at the display's own resolution by default (21:9 and 32:9 included, E6); a
+            // window can be resized and maximised; Alt+Enter switches between the two (task P2-01).
+            PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
+            PlayerSettings.defaultIsNativeResolution = true;
+            PlayerSettings.resizableWindow = true;
+            PlayerSettings.allowFullscreenSwitch = true;
             WriteBuildInfo();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {

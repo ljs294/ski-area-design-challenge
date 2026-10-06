@@ -445,7 +445,7 @@ if not exist "%GAME%" goto done
 set "UICAP=%~dp0test-results\ui-captures"
 if exist "%UICAP%" rmdir /s /q "%UICAP%"
 echo Capturing every screen (about 15 minutes; the window shows the title while it works)...
-"%GAME%" -screen-fullscreen 0 -screen-width 1920 -screen-height 1080 -uicapture "%UICAP%" -logFile "%~dp0test-results\ui-captures.log" <nul
+"%GAME%" -uicapture "%UICAP%" -logFile "%~dp0test-results\ui-captures.log" <nul
 type "%UICAP%\report.txt"
 start "" "%UICAP%"
 goto done
