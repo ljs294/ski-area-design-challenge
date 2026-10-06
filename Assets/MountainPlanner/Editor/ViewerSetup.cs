@@ -86,7 +86,7 @@ namespace MountainPlanner.Editor
                 panel = ScriptableObject.CreateInstance<UnityEngine.UIElements.PanelSettings>();
                 AssetDatabase.CreateAsset(panel, path);
             }
-            panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Theme-Light.tss");
+            panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Resources/MountainPlannerUI/Theme-Dark.tss");   // UiPanels swaps in the player's theme at run time
             panel.scaleMode = UnityEngine.UIElements.PanelScaleMode.ScaleWithScreenSize;
             panel.referenceResolution = new Vector2Int(1920, 1080);
             panel.screenMatchMode = UnityEngine.UIElements.PanelScreenMatchMode.MatchWidthOrHeight;
@@ -158,8 +158,6 @@ namespace MountainPlanner.Editor
             document.visualTreeAsset = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.VisualTreeAsset>(UiFolder + "Hud.uxml");
             var hud = GetOrAdd<MountainPlanner.UI.MountainHud>(hudGo);
             hud.Document = document;
-            hud.LightTheme = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Theme-Light.tss");
-            hud.DarkTheme = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>(UiFolder + "Theme-Dark.tss");
             viewer.Hud = hud;
             viewer.TerrainMaterial = TerrainMaterial();
             viewer.HighlightMaterial = HighlightMaterial();

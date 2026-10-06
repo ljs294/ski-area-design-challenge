@@ -17,7 +17,6 @@ namespace MountainPlanner.UI
     public sealed class MountainHud : MonoBehaviour
     {
         public UIDocument Document;
-        public ThemeStyleSheet LightTheme, DarkTheme;
 
         /// <summary>A layer row was clicked (a <see cref="MapLayers"/> id) and the state asked for. Snow conditions is reserved.</summary>
         public event Action<string, bool> LayerChanged;
@@ -28,12 +27,36 @@ namespace MountainPlanner.UI
         public event Action ExitChosen;
         /// <summary>The menu's units switch (U does the same): the app flips <see cref="DisplayUnits"/>.</summary>
         public event Action UnitsChosen;
+        /// <summary>The menu's Settings; the item is enabled only when the app flow offers its Settings window (<see cref="ShowSettings"/>).</summary>
+        public event Action SettingsChosen;
 
         /// <summary>Where the contour labels go (behind the panels); <see cref="ContourLabelOverlay"/> fills it.</summary>
         public VisualElement ContourLabelLayer => _root.Q("contour-labels");
 
-        public bool DarkThemeOn { get; private set; }
+        public bool DarkThemeOn => UiPreferences.Dark;
         public bool MenuOpen => _menu != null && !_menu.ClassListContains("hidden");
+
+        /// <summary>
+        /// True while the HUD has the keyboard: the menu is open, or a control was reached with Tab or the arrows.
+        /// The camera then leaves the keys alone (a click never takes them: the HUD lets go of focus after one).
+        /// </summary>
+        public bool HasKeyboard
+        {
+            get
+            {
+                if (MenuOpen) return true;
+                var focused = _root?.panel?.focusController?.focusedElement as VisualElement;
+                return focused != null && _root.Contains(focused) && UiFocus.KeyboardActive(_root) && UiFocus.IsShown(focused);
+            }
+        }
+
+        /// <summary>Esc's first step when a HUD control has the keyboard: let go of it, so the camera keys work again.</summary>
+        public bool ReleaseKeyboard()
+        {
+            if (MenuOpen || !HasKeyboard) return false;
+            ((Focusable)_root.panel.focusController.focusedElement).Blur();
+            return true;
+        }
 
         VisualElement _root, _menu, _layersBody, _compass, _scaleBar, _thumb, _sun, _legend, _legendBody;
         Label _legendTitle, _legendNote;
@@ -64,6 +87,7 @@ namespace MountainPlanner.UI
         void OnEnable()
         {
             if (Document == null) Document = GetComponent<UIDocument>();
+            UiPanels.Adopt(Document);   // the shared theme, UI scale, focus ring and arrow keys (task P2-01)
             _root = Document.rootVisualElement;
             _name = _root.Q<Label>("site-name");
             _quality = _root.Q<Label>("quality");
@@ -87,8 +111,17 @@ namespace MountainPlanner.UI
             _root.Q<Button>("menu-resume").clicked += ToggleMenu;
             _root.Q<Button>("menu-quit").clicked += () => QuitChosen?.Invoke();
             _root.Q<Button>("menu-exit").clicked += () => ExitChosen?.Invoke();
-            _root.Q<Button>("menu-settings").SetEnabled(false);
-            _themeButton.clicked += () => SetTheme(!DarkThemeOn);
+            _root.Q<Button>("menu-settings").clicked += () =>
+            {
+                CloseMenu();
+                SettingsChosen?.Invoke();
+            };
+            ShowSettings(false);
+            _themeButton.clicked += UiPreferences.ToggleTheme;
+            UiPreferences.Changed += OnPreferencesChanged;
+            OnPreferencesChanged();
+            // A click leaves no focus behind, so the camera keys keep working after one; Tab and the arrows still reach every control.
+            _root.RegisterCallback<PointerUpEvent>(_ => _root.schedule.Execute(LetGoAfterClick), TrickleDown.TrickleDown);
             _unitsButton = _root.Q<Button>("menu-units");
             _unitsButton.clicked += () => UnitsChosen?.Invoke();
             _infoReadout = _root.Q<Label>("info-readout");
@@ -125,16 +158,52 @@ namespace MountainPlanner.UI
         /// <summary>Shows the menu's Exit to title (off when the viewer runs without the title flow, as captures do).</summary>
         public void ShowExitToTitle(bool show) => _root.Q("menu-exit").EnableInClassList("hidden", !show);
 
-        public void ToggleMenu() => _menu.EnableInClassList("hidden", MenuOpen);
+        void OnDisable() => UiPreferences.Changed -= OnPreferencesChanged;
 
-        public void SetTheme(bool dark)
+        /// <summary>Enables the menu's Settings item (the app flow's Settings window, when the flow runs).</summary>
+        public void ShowSettings(bool available)
         {
-            DarkThemeOn = dark;
-            var theme = dark ? DarkTheme : LightTheme;
-            if (theme != null) Document.panelSettings.themeStyleSheet = theme;
-            _themeButton.text = dark ? "Light theme" : "Dark theme";
+            var item = _root.Q<Button>("menu-settings");
+            item.SetEnabled(available);
+            item.text = available ? "Settings" : "Settings (coming)";
+        }
+
+        /// <summary>
+        /// The in-game menu (0.4 S7) is a modal: when it opens, focus goes to Resume and stays in the menu; when it
+        /// closes, focus goes back where it was (task P2-01).
+        /// </summary>
+        public void ToggleMenu()
+        {
+            if (MenuOpen) CloseMenu();
+            else
+            {
+                _menu.RemoveFromClassList("hidden");
+                UiFocus.OpenModal(_menu, _root.Q<Button>("menu-resume"));
+            }
+        }
+
+        void CloseMenu()
+        {
+            if (!MenuOpen) return;
+            _menu.AddToClassList("hidden");
+            UiFocus.CloseModal(_menu);
+        }
+
+        /// <summary>The theme for the whole game (every screen follows <see cref="UiPreferences"/>).</summary>
+        public void SetTheme(bool dark) => UiPreferences.SetTheme(dark ? UiTheme.Dark : UiTheme.Light);
+
+        void OnPreferencesChanged()
+        {
+            _themeButton.text = UiPreferences.Dark ? "Light theme" : "Dark theme";
             _compass.MarkDirtyRepaint();
             _sun.MarkDirtyRepaint();
+        }
+
+        void LetGoAfterClick()
+        {
+            if (MenuOpen || UiFocus.KeyboardActive(_root)) return;
+            var focused = _root.panel?.focusController?.focusedElement as VisualElement;
+            if (focused != null && _root.Contains(focused)) ((Focusable)focused).Blur();
         }
 
         public void SetSite(string name, int score)
@@ -387,9 +456,9 @@ namespace MountainPlanner.UI
             var up = new Vector2(Mathf.Sin(a), -Mathf.Cos(a));
             var side = new Vector2(-up.y, up.x) * radius * 0.32f;
             var p = ctx.painter2D;
-            p.fillColor = Themed("#b33338", "#ff9a9f");   // north half in the danger red, as on a real compass
+            p.fillColor = Themed("#c23b27", "#ff7a66");   // north half in the theme's red (--neg), as on a real compass
             p.BeginPath(); p.MoveTo(c + up * radius); p.LineTo(c + side); p.LineTo(c - side); p.ClosePath(); p.Fill();
-            p.fillColor = Themed("#7c8e98", "#78929f");
+            p.fillColor = Themed("#8a8278", "#8f877c");   // --dim
             p.BeginPath(); p.MoveTo(c - up * radius); p.LineTo(c + side); p.LineTo(c - side); p.ClosePath(); p.Fill();
         }
 
@@ -399,7 +468,7 @@ namespace MountainPlanner.UI
             var c = r.center;
             var p = ctx.painter2D;
             bool night = _shownPreset == 3;
-            var colour = night ? Themed("#526570", "#b0c1ca") : Themed("#b7791f", "#f0c36d");
+            var colour = night ? Themed("#6b645b", "#a39b90") : Themed("#a5650c", "#f0b43c");   // --soft, --warn
             p.fillColor = colour;
             p.BeginPath(); p.Arc(c, r.width * 0.22f, 0, 360); p.Fill();
             if (night) return;

@@ -34,8 +34,8 @@ namespace MountainPlanner.UI.Flow
         VisualElement _root, _title, _library, _download, _quality, _confirm, _settings, _credits, _stages, _barFill, _qcLines;
         VisualElement _dlActions, _dlConfirm, _dlFailed;
         ScrollView _rows;
-        Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast;
-        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric;
+        Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast, _scaleValue;
+        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric, _themeDark, _themeLight, _scaleDown, _scaleUp;
         ScrollView _creditsBody;
         readonly List<VisualElement> _rowElements = new List<VisualElement>();
         readonly List<LibraryRow> _rowData = new List<LibraryRow>();
@@ -56,6 +56,7 @@ namespace MountainPlanner.UI.Flow
         {
             if (Document == null) Document = GetComponent<UIDocument>();
             if (Document == null || Document.rootVisualElement == null) return;
+            UiPanels.Adopt(Document);   // the shared theme, UI scale, focus ring and arrow keys (task P2-01)
             _root = Document.rootVisualElement;
             _root.pickingMode = PickingMode.Ignore;   // only the visible screens take clicks; the game gets the rest
             _title = _root.Q("title");
@@ -107,6 +108,16 @@ namespace MountainPlanner.UI.Flow
             _root.Q<Button>("credits-close").clicked += CloseOverlay;
             _imperial.clicked += () => { FlowUnits.Set(true); MarkUnits(); };
             _metric.clicked += () => { FlowUnits.Set(false); MarkUnits(); };
+            _themeDark = _root.Q<Button>("theme-dark");
+            _themeLight = _root.Q<Button>("theme-light");
+            _scaleDown = _root.Q<Button>("scale-down");
+            _scaleUp = _root.Q<Button>("scale-up");
+            _scaleValue = _root.Q<Label>("scale-value");
+            _themeDark.clicked += () => UiPreferences.SetTheme(UiTheme.Dark);
+            _themeLight.clicked += () => UiPreferences.SetTheme(UiTheme.Light);
+            _scaleDown.clicked += () => UiPreferences.StepScale(-1);
+            _scaleUp.clicked += () => UiPreferences.StepScale(1);
+            UiPreferences.Changed += MarkInterface;
             _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();
             _root.Q<Button>("library-close").clicked += () => LibraryClosed?.Invoke();
             _root.Q<Button>("library-folder").clicked += () => DataFolderChosen?.Invoke();
@@ -132,6 +143,8 @@ namespace MountainPlanner.UI.Flow
             };
         }
 
+        void OnDisable() => UiPreferences.Changed -= MarkInterface;
+
         void Update()
         {
             if (_toast != null && _toastUntil > 0 && Time.unscaledTime > _toastUntil)
@@ -146,11 +159,15 @@ namespace MountainPlanner.UI.Flow
         /// <summary>Which full screen shows: "title", "library", "quality", or null for none (the game, or the site picker).</summary>
         public void ShowScreen(string name)
         {
+            bool qualityWas = IsShown(_quality);
             Show(_title, name == "title");
             Show(_library, name == "library");
             Show(_quality, name == "quality");
-            if (name == "title") _continue.Focus();
-            if (name == "quality") _root.Q<Button>("qc-open").Focus();
+            // Each screen opens with its first control focused, so the keyboard works at once (task P2-01).
+            if (name == "title") UiFocus.FocusSoon(_title);
+            if (name == "library") FocusSelectedRow();
+            if (name == "quality") UiFocus.OpenModal(_quality, _root.Q<Button>("qc-open"));
+            else if (qualityWas) UiFocus.CloseModal(_quality);
         }
 
         /// <summary>The Continue sign: hidden when there's nothing to continue.</summary>
@@ -225,7 +242,13 @@ namespace MountainPlanner.UI.Flow
                         Select(_rowData.IndexOf(r));
                         if (e.clickCount == 2 && !manage) OpenChosen?.Invoke(r);
                     });
+                    // The row itself takes keyboard focus (task P2-01): the arrows move between rows, Enter opens
+                    // (Load Area), Delete removes (Manage Areas); Right reaches the row's own button.
+                    el.focusable = true;
+                    el.RegisterCallback<NavigationSubmitEvent>(e => { if (e.target == el && !manage) OpenChosen?.Invoke(r); });
+                    el.RegisterCallback<KeyDownEvent>(e => { if (e.target == el && manage && e.keyCode == KeyCode.Delete) ConfirmDelete(r); });
                 }
+                el.RegisterCallback<FocusInEvent>(_ => Select(_rowData.IndexOf(r)));
                 _rows.Add(el);
                 _rowElements.Add(el);
                 _rowData.Add(r);
@@ -234,11 +257,21 @@ namespace MountainPlanner.UI.Flow
             Select(_rowData.FindIndex(x => !x.IsPaused));
         }
 
-        /// <summary>Moves the library selection (arrow keys).</summary>
+        /// <summary>Moves the library selection, and keyboard focus with it.</summary>
         public void MoveSelection(int delta)
         {
             if (_rowData.Count == 0) return;
             Select(Mathf.Clamp((_selected < 0 ? 0 : _selected) + delta, 0, _rowData.Count - 1));
+            FocusSelectedRow();
+        }
+
+        /// <summary>Keyboard focus on the selected row (or New Area when the library is empty), once it's shown.</summary>
+        void FocusSelectedRow()
+        {
+            Focusable target = _selected >= 0 && _selected < _rowElements.Count && _rowElements[_selected].focusable
+                ? _rowElements[_selected]
+                : _root.Q<Button>("library-new");
+            UiFocus.FocusSoon(_library, target);
         }
 
         public void ConfirmDelete(LibraryRow r)
@@ -356,17 +389,29 @@ namespace MountainPlanner.UI.Flow
 
         // ---------- S8 and S9 ----------
 
-        void ShowSettings()
+        public void ShowSettings()
         {
             MarkUnits();
+            MarkInterface();
             Show(_settings, true);
-            (FlowUnits.Imperial ? _imperial : _metric).Focus();
+            UiFocus.OpenModal(_settings, FlowUnits.Imperial ? _imperial : _metric);
         }
 
         void MarkUnits()
         {
             Mark(_imperial, FlowUnits.Imperial);
             Mark(_metric, !FlowUnits.Imperial);
+        }
+
+        /// <summary>The Interface rows (task P2-01): the theme that's on and the UI scale, 50–150%.</summary>
+        void MarkInterface()
+        {
+            if (_scaleValue == null) return;
+            Mark(_themeDark, UiPreferences.Dark);
+            Mark(_themeLight, !UiPreferences.Dark);
+            _scaleValue.text = UiPreferences.ScalePercent + "%";
+            _scaleDown.SetEnabled(UiPreferences.ScalePercent > UiPreferences.MinScalePercent);
+            _scaleUp.SetEnabled(UiPreferences.ScalePercent < UiPreferences.MaxScalePercent);
         }
 
         /// <summary>Credits: sections of (heading, lines), e.g. the data each downloaded area credits, and the fonts.</summary>
@@ -379,14 +424,15 @@ namespace MountainPlanner.UI.Flow
                 foreach (string line in lines) _creditsBody.Add(Text(line, "credits-line"));
             }
             Show(_credits, true);
-            _root.Q<Button>("credits-close").Focus();
+            UiFocus.OpenModal(_credits, _root.Q<Button>("credits-close"));
         }
 
         public void CloseOverlay()
         {
             Show(_settings, false);
             Show(_credits, false);
-            if (IsShown(_title)) _continue.Focus();
+            UiFocus.CloseModal(_settings);
+            UiFocus.CloseModal(_credits);
         }
 
         static bool IsShown(VisualElement e) => e != null && !e.ClassListContains("hidden");
@@ -399,13 +445,14 @@ namespace MountainPlanner.UI.Flow
             _root.Q<Button>("confirm-ok").text = ok;
             _confirmAction = action;
             Show(_confirm, true);
-            _root.Q<Button>("confirm-cancel").Focus();
+            UiFocus.OpenModal(_confirm, _root.Q<Button>("confirm-cancel"));   // the safe choice first
         }
 
         public void CloseConfirm()
         {
             _confirmAction = null;
             Show(_confirm, false);
+            UiFocus.CloseModal(_confirm);
         }
 
         // ---------- helpers ----------

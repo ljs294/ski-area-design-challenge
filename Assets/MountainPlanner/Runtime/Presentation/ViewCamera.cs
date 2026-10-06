@@ -59,6 +59,12 @@ namespace MountainPlanner.Presentation
         /// </summary>
         public static System.Func<Vector2, bool> OverlayBlocked;
         /// <summary>
+        /// Set by the viewer: true while the UI has the keyboard (the in-game menu or a dialog is open, or a HUD
+        /// control was reached with Tab or the arrows), so the arrows and letters move focus there, not the camera.
+        /// The mouse keeps working (task P2-01).
+        /// </summary>
+        public static System.Func<bool> KeysBlocked;
+        /// <summary>
         /// Set by the HUD while the Toolbox tray is open: letter keys belong to the tools then, and the camera
         /// moves with the arrows, Page Up / Page Down, + / − and the mouse only.
         /// </summary>
@@ -193,7 +199,7 @@ namespace MountainPlanner.Presentation
                 }
             }
 
-            if (keys == null) return;
+            if (keys == null || (KeysBlocked?.Invoke() ?? false)) return;
             var move = Vector3.zero;
             if ((letters && keys.wKey.isPressed) || keys.upArrowKey.isPressed) move += forward;
             if ((letters && keys.sKey.isPressed) || keys.downArrowKey.isPressed) move -= forward;

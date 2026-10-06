@@ -34,7 +34,7 @@ namespace MountainPlanner.Editor
                 panel = ScriptableObject.CreateInstance<PanelSettings>();
                 AssetDatabase.CreateAsset(panel, path);
             }
-            panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(UiFolder + "Theme-Dark.tss");
+            panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>(UiFolder + "Resources/MountainPlannerUI/Theme-Dark.tss");   // UiPanels swaps in the player's theme at run time
             panel.scaleMode = PanelScaleMode.ScaleWithScreenSize;
             panel.referenceResolution = new Vector2Int(1920, 1080);
             panel.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;

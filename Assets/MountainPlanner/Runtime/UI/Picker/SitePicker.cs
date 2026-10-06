@@ -32,7 +32,7 @@ namespace MountainPlanner.UI.Picker
         public bool IsOpen => _root != null && _root.style.display != DisplayStyle.None;
         /// <summary>True when the picker is open and the pointer (screen pixels, origin bottom-left) is over it.</summary>
         public bool IsPointerOver(Vector2 screen) => IsOpen && PanelPointer.IsOver(Document.rootVisualElement, screen);
-        public bool DarkTheme { get; private set; } = true;
+        public bool DarkTheme => UiPreferences.Dark;
 
         const long EstimateDelayMs = 350;
         const string SearchProblem = "Search isn't answering right now. Try again in a moment, or find the place on the map.";
@@ -51,6 +51,7 @@ namespace MountainPlanner.UI.Picker
         void OnEnable()
         {
             if (Document == null) Document = GetComponent<UIDocument>();
+            UiPanels.Adopt(Document);   // the shared theme, UI scale, focus ring and arrow keys (task P2-01)
             _root = Document.rootVisualElement.Q("picker");
             _window = _root.Q("window");
             _results = _root.Q("results");
@@ -91,6 +92,11 @@ namespace MountainPlanner.UI.Picker
             Map.NudgeRequested += (east, north) => { Model.Nudge(east, north); RequestDetails(suggestName: NameMissing); };
             Map.OfflineChanged += Model.SetOffline;
 
+            // The search field, its results and the size slider use the arrows themselves (Down into the results,
+            // Up and Down through them, a size step); everywhere else they move focus (UiFocus).
+            _search.AddToClassList(UiFocus.OwnArrowsClass);
+            _results.AddToClassList(UiFocus.OwnArrowsClass);
+            _root.Q("size").AddToClassList(UiFocus.OwnArrowsClass);
             _search.RegisterCallback<KeyDownEvent>(OnSearchKey, TrickleDown.TrickleDown);
             _name.RegisterValueChangedCallback(e => { if (!_rendering) Model.TypeName(e.newValue); });
             _name.textEdition.placeholder = "Name your area";
@@ -149,12 +155,11 @@ namespace MountainPlanner.UI.Picker
             _focusBefore = null;
         }
 
-        /// <summary>Dark (warm graphite) or light (sign white), as the game's theme is set.</summary>
-        public void SetTheme(bool dark)
-        {
-            DarkTheme = dark;
-            _root.EnableInClassList("picker--light", !dark);
-        }
+        /// <summary>
+        /// Dark (warm graphite) or light (sign white): the game's one theme (<see cref="UiPreferences"/>), which every
+        /// screen follows. Not remembered: the Picker Lab and its tours switch it for a run.
+        /// </summary>
+        public void SetTheme(bool dark) => UiPreferences.SetTheme(dark ? UiTheme.Dark : UiTheme.Light, remember: false);
 
         void OnFocusOut(FocusOutEvent evt)
         {
