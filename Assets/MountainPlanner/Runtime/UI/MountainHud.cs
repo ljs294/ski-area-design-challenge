@@ -158,6 +158,8 @@ namespace MountainPlanner.UI
         /// <summary>Shows the menu's Exit to title (off when the viewer runs without the title flow, as captures do).</summary>
         public void ShowExitToTitle(bool show) => _root.Q("menu-exit").EnableInClassList("hidden", !show);
 
+        static readonly string[] ThemeNames = { "Dark", "Light", "Auto" };
+
         void OnDisable() => UiPreferences.Changed -= OnPreferencesChanged;
 
         /// <summary>Enables the menu's Settings item (the app flow's Settings window, when the flow runs).</summary>
@@ -194,7 +196,7 @@ namespace MountainPlanner.UI
 
         void OnPreferencesChanged()
         {
-            _themeButton.text = UiPreferences.Dark ? "Light theme" : "Dark theme";
+            _themeButton.text = "Theme: " + ThemeNames[(int)UiPreferences.Choice];   // the click goes on to the next: Dark, Light, Auto
             _compass.MarkDirtyRepaint();
             _sun.MarkDirtyRepaint();
         }

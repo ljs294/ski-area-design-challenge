@@ -156,6 +156,7 @@
                             <ui:Label text="Theme" class="settings-label" />
                             <ui:Button name="theme-dark" text="Dark" class="seg" />
                             <ui:Button name="theme-light" text="Light" class="seg" />
+                            <ui:Button name="theme-auto" text="Auto" class="seg" tooltip="Follows the sun: light by day, dark at night" />
                         </ui:VisualElement>
                         <ui:VisualElement class="settings-row">
                             <ui:Label text="UI scale" class="settings-label" />

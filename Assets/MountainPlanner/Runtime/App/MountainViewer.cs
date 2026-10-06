@@ -290,6 +290,8 @@ namespace MountainPlanner.App
             }
             else HandleKeys(Keyboard.current);
             _resort?.States?.Sync();
+            // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.
+            if (Lighting != null) MountainPlanner.UI.UiPreferences.SetDaylight(Lighting.CurrentLight.SunElevation > 0);
             UpdateHud();
             bool overlay = NeedsOverlay();
             if (_overlay != null && _overlay.enabled != overlay) _overlay.enabled = overlay;

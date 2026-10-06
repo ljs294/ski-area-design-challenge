@@ -40,6 +40,26 @@
     --ghost-hover: #8a8278;
     --scrim: rgba(20, 30, 45, 0.30);
     --scrim-strong: rgba(20, 30, 45, 0.42);
+    /* The rest of the mockup's tokens, for the HUD (task P2-02): tabs, speed, weather, charts, shadows, the plan colour. */
+    --tile-text: #2b2724;
+    --tab: #8a8278;
+    --tabrule: #d6cfc4;
+    --spd-off: #c8c0b5;
+    --flag: #e35b14;
+    --wx-text: #4a443e;
+    --pp: #3d6aa8;
+    --wx-moon: #6a77a0;
+    --wx-cloud: #9a9186;
+    --wx-cloud2: #b5ada2;
+    --wx-snow: #4f7fbf;
+    --chart-a: #6b645b;
+    --chart-b: #ddd6cb;
+    --chart-label: #8a8278;
+    --chart-fill: rgba(107, 100, 91, 0.10);
+    --chart-bg: rgba(0, 0, 0, 0.015);
+    --shadow: rgba(30, 40, 55, 0.22);
+    --shadow-sm: rgba(30, 40, 55, 0.16);
+    --lamp-ring: rgba(0, 0, 0, 0.18);
     --focus: #1f1c19;
     --unity-cursor-color: #0f0d0b;
     --unity-selection-color: rgba(74, 68, 62, 0.25);

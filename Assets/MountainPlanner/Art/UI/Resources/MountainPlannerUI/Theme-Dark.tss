@@ -42,6 +42,26 @@
     --ghost-hover: #8f877c;
     --scrim: rgba(10, 16, 26, 0.45);
     --scrim-strong: rgba(12, 10, 8, 0.62);
+    /* The rest of the mockup's tokens, for the HUD (task P2-02): tabs, speed, weather, charts, shadows, the plan colour. */
+    --tile-text: #e2dace;
+    --tab: #9a9186;
+    --tabrule: #5b544d;
+    --spd-off: #5a534c;
+    --flag: #ff6a1f;
+    --wx-text: #d8d0c4;
+    --pp: #b9c8e2;
+    --wx-moon: #d9def0;
+    --wx-cloud: #d8d0c4;
+    --wx-cloud2: #e6dfd4;
+    --wx-snow: #fff;
+    --chart-a: #cfc7bb;
+    --chart-b: #4a443e;
+    --chart-label: #8f877c;
+    --chart-fill: rgba(207, 199, 187, 0.10);
+    --chart-bg: rgba(255, 255, 255, 0.02);
+    --shadow: rgba(10, 20, 35, 0.35);
+    --shadow-sm: rgba(10, 20, 35, 0.28);
+    --lamp-ring: rgba(0, 0, 0, 0.4);
     /* The keyboard focus ring: shown only after a key is used (Base.uss). */
     --focus: #f4efe7;
     --unity-cursor-color: #ffffff;

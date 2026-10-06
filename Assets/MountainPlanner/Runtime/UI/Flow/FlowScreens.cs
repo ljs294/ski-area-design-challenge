@@ -35,7 +35,7 @@ namespace MountainPlanner.UI.Flow
         VisualElement _dlActions, _dlConfirm, _dlFailed;
         ScrollView _rows;
         Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast, _scaleValue;
-        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric, _themeDark, _themeLight, _scaleDown, _scaleUp;
+        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric, _themeDark, _themeLight, _themeAuto, _scaleDown, _scaleUp;
         ScrollView _creditsBody;
         readonly List<VisualElement> _rowElements = new List<VisualElement>();
         readonly List<LibraryRow> _rowData = new List<LibraryRow>();
@@ -110,11 +110,13 @@ namespace MountainPlanner.UI.Flow
             _metric.clicked += () => { FlowUnits.Set(false); MarkUnits(); };
             _themeDark = _root.Q<Button>("theme-dark");
             _themeLight = _root.Q<Button>("theme-light");
+            _themeAuto = _root.Q<Button>("theme-auto");
             _scaleDown = _root.Q<Button>("scale-down");
             _scaleUp = _root.Q<Button>("scale-up");
             _scaleValue = _root.Q<Label>("scale-value");
             _themeDark.clicked += () => UiPreferences.SetTheme(UiTheme.Dark);
             _themeLight.clicked += () => UiPreferences.SetTheme(UiTheme.Light);
+            _themeAuto.clicked += () => UiPreferences.SetChoice(UiThemeChoice.Auto);
             _scaleDown.clicked += () => UiPreferences.StepScale(-1);
             _scaleUp.clicked += () => UiPreferences.StepScale(1);
             UiPreferences.Changed += MarkInterface;
@@ -407,8 +409,9 @@ namespace MountainPlanner.UI.Flow
         void MarkInterface()
         {
             if (_scaleValue == null) return;
-            Mark(_themeDark, UiPreferences.Dark);
-            Mark(_themeLight, !UiPreferences.Dark);
+            Mark(_themeDark, UiPreferences.Choice == UiThemeChoice.Dark);
+            Mark(_themeLight, UiPreferences.Choice == UiThemeChoice.Light);
+            Mark(_themeAuto, UiPreferences.Choice == UiThemeChoice.Auto);
             _scaleValue.text = UiPreferences.ScalePercent + "%";
             _scaleDown.SetEnabled(UiPreferences.ScalePercent > UiPreferences.MinScalePercent);
             _scaleUp.SetEnabled(UiPreferences.ScalePercent < UiPreferences.MaxScalePercent);
