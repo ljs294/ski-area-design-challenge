@@ -53,6 +53,8 @@ namespace MountainPlanner.App
         public LocalFrame Frame;
         public GroundLayers Ground;
         public string PackageFolder;
+        /// <summary>Holds the cache open while the area is on screen (task P2-04): no game deletes it meanwhile. Dispose when closing.</summary>
+        public IDisposable CacheLease;
         /// <summary>The ring (local x/z): where the downloaded data ends and the diorama walls stand.</summary>
         public Rect Ring;
         /// <summary>The core (local x/z): the site square inside the ring.</summary>
@@ -92,6 +94,19 @@ namespace MountainPlanner.App
         {
             var clock = Stopwatch.StartNew();
             progress?.Report(new OpenProgress("Opening: reading the package", 0));
+            // Held from the start, so no game (another branch's included) deletes this cache while it opens or shows.
+            var lease = await Task.Run(() => TerrainCache.Hold(packageFolder), ct);
+            try { return await OpenHeldAsync(packageFolder, parent, detail, progress, ct, material, forest, clock, lease); }
+            catch
+            {
+                lease.Dispose();
+                throw;
+            }
+        }
+
+        static async Task<OpenedResort> OpenHeldAsync(string packageFolder, Transform parent, TerrainDetail detail, IProgress<OpenProgress> progress,
+                                                      CancellationToken ct, Material material, ForestAssets forest, Stopwatch clock, IDisposable lease)
+        {
             var manifest = await Task.Run(() => ResortPackage.ReadManifest(packageFolder), ct);
 
             if (!TerrainCache.IsCurrent(packageFolder, manifest))
@@ -172,7 +187,7 @@ namespace MountainPlanner.App
             var resort = new OpenedResort
             {
                 Manifest = manifest, Cache = cache, Root = root, Tiles = tiles, Surface = surface, Frame = frame, Seconds = clock.Elapsed.TotalSeconds,
-                Ground = ground, PackageFolder = packageFolder,
+                Ground = ground, PackageFolder = packageFolder, CacheLease = lease,
                 Ring = ringRect, Core = coreRect, PlinthTop = (float)cache.HeightMin - DioramaBase.BaseDepth, States = new SurfaceStates(ringRect),
             };
             if (forest?.Edge != null)

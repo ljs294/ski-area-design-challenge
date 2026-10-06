@@ -330,6 +330,7 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
 **Offline:** the package holds everything the game needs to open a resort, including attribution text for the credits screen. Opening a resort makes **no network calls**.
 
 **Library:** downloaded resorts with name, location, size on disk and a thumbnail. Deletion needs confirmation.
+- **Rename** (task P2-04) writes the player's name into the area's `view.json` (v2 `Name`); the package and its id never change, and an empty name means the downloaded one.
 - The listing is a scan of `<data>/Resorts/*/manifest.json`, so it can never disagree with the disk.
 - `<data>/library.json` holds only the **layout version** of the data folder (decision V1). A folder without one is v1.
 - `<data>/recent.json` records when each package was last opened, for Continue and the library's sort.
@@ -347,7 +348,7 @@ frozen format ships with a migration and a fixture test.
 | Package manifest | `<package>/manifest.json` | `FormatVersion` | 1 | `TestData/formats/v1-library/Resorts/*/manifest.json` |
 | Library layout | `<data>/library.json` | `Version` | 1 | `TestData/formats/v1-library` (Phase 1 wrote no marker) |
 | Recently opened list | `<data>/recent.json` | `Version` | 1 | `…/v1-library/recent.json` |
-| View state | `<package>/view.json` | `Version` | 1 | `…/v1-library/Resorts/5792676e513f5302/view.json` |
+| View state | `<package>/view.json` | `Version` | 2 | v1: `…/v1-library/Resorts/5792676e513f5302/view.json`; v2 (adds `Name`, task P2-04): `TestData/formats/v2-view/view.json` |
 | Paused download | `<data>/Downloads/<id>/download.json` | `Version` | 1 | `…/v1-library/Downloads/*/download.json` |
 
 **The rules:**
@@ -378,7 +379,10 @@ frozen format ships with a migration and a fixture test.
    runs again.
 8. **Not frozen:**
    - **The terrain cache** (`cache-v<N>/`, `cache.json`) is regenerable. Its version still bumps freely, and a
-     mismatch rebuilds it.
+     mismatch rebuilds it. Games on different cache versions share a library (task P2-04): a build keeps its own
+     version, every newer one and the newest older one, and deletes the rest. An open cache holds `in-use.lock`
+     (`TerrainCache.Hold`), and nothing deletes a held cache. Manage Areas' *Free space* removes the older versions
+     that aren't held.
    - **Settings** (Unity's PlayerPrefs, such as display units) are per machine, and fall back to defaults. Task 05
      versions its settings file under these rules if it adds one.
    - Package layers (grids, `roads.json`) are verified by hash in the manifest, and change only with a manifest

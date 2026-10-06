@@ -275,11 +275,11 @@ namespace MountainPlanner.App
             int site = Array.IndexOf(args, "-site");   // -site "Crystal Mountain": the largest, newest download with that name
             if (site >= 0 && site + 1 < args.Length)
             {
-                var named = entries.Where(e => string.Equals(e.Name, args[site + 1], StringComparison.OrdinalIgnoreCase))
+                var named = entries.Where(e => string.Equals(e.Name, args[site + 1], StringComparison.OrdinalIgnoreCase) || string.Equals(e.OriginalName, args[site + 1], StringComparison.OrdinalIgnoreCase))
                                    .OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
                 if (named != null) return named.Folder;
             }
-            var demo = entries.Where(e => e.Name == "Jackson Hole").OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
+            var demo = entries.Where(e => e.OriginalName == "Jackson Hole").OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
             return (demo ?? entries.FirstOrDefault())?.Folder;
         }
 
@@ -417,7 +417,8 @@ namespace MountainPlanner.App
             if (Hud == null) return;
             var site = _resort.Manifest.Site;
             // Packages keep no place name yet, so the line under the name (the mockup's "Jackson Hole, Wyoming") says where it is.
-            Hud.SetSite(site.Name, Coordinates(site.Latitude, site.Longitude), _resort.Manifest.Quality.Score);
+            // The name is the player's own when they renamed the area (task P2-04).
+            Hud.SetSite(ResortLibrary.DisplayName(_resort.PackageFolder, _resort.Manifest), Coordinates(site.Latitude, site.Longitude), _resort.Manifest.Quality.Score);
             Hud.PrepareElevations(_resort.Cache.HeightMin - 100, _resort.Cache.HeightMin + _resort.Cache.HeightRange + 100);
             Hud.SetTerrain(_resort.Cache.HeightMin + _resort.Cache.HeightRange, _resort.Cache.HeightMin, (double)site.SizeMetres * site.SizeMetres);
             Hud.LayerChanged += (layer, on) => { if (on != _layers.IsOn(layer)) ToggleLayer(layer); };
@@ -449,8 +450,33 @@ namespace MountainPlanner.App
             _contourLabelSet = null;   // UpdateContourLabels picks the set for the new units
         }
 
+        /// <summary>The package on screen, or null while none is open.</summary>
+        public string OpenPackage => _resort?.PackageFolder;
+
+        /// <summary>
+        /// Lets go of the open cache (task P2-04), so Manage Areas can delete the mountain behind the title. False while
+        /// it's still opening: its cover and trees are being read from that cache.
+        /// </summary>
+        public bool ReleaseCache()
+        {
+            if (_resort == null) return true;
+            if (!_resort.CoverReady.IsCompleted) return false;
+            _resort.CacheLease?.Dispose();
+            _resort.CacheLease = null;
+            return true;
+        }
+
+        /// <summary>Holds the open cache again after <see cref="ReleaseCache"/>, when the delete it allowed didn't happen.</summary>
+        public void HoldCache()
+        {
+            if (_resort == null || _resort.CacheLease != null) return;
+            try { _resort.CacheLease = TerrainCache.Hold(_resort.PackageFolder); }
+            catch (IOException e) { Debug.LogWarning($"[MountainViewer] Couldn't hold the cache again: {e.Message}"); }
+        }
+
         void OnDestroy()
         {
+            _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
             if (ViewCamera.KeysBlocked == (Func<bool>)UiHasKeyboard) ViewCamera.KeysBlocked = null;
         }

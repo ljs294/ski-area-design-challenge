@@ -187,7 +187,7 @@ namespace MountainPlanner.Tests
         [UnityTest]
         public IEnumerator TheDemoMountainOpensWithinTenSeconds()
         {
-            var demo = ResortLibrary.Scan(MountainViewer.DataRoot).Where(e => e.Name == "Jackson Hole")
+            var demo = ResortLibrary.Scan(MountainViewer.DataRoot).Where(e => e.OriginalName == "Jackson Hole")
                 .OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
             if (demo == null || demo.SizeKm < 5) Assert.Ignore("Download the 5 km Jackson Hole demo first (demo.bat option 12).");
             if (!demo.CacheReady) Assert.Ignore("The demo's terrain isn't prepared yet; the 10 s budget is for a prepared mountain (0.3 §8).");
