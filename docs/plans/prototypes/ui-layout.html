@@ -110,6 +110,7 @@ body.solo .frame { border-radius: 0; }
 .hud .cal .c.today { box-shadow: inset 0 0 0 1.5px var(--text); }
 .hud .cal .c.later { background: transparent; }
 .hud .cal .c.later .num { color: var(--faint); }
+.hud svg .cbar.hot { opacity: 1; filter: brightness(1.2); }
 .hud .dayc { display: grid; justify-items: center; gap: 2px; line-height: 1.1; }
 .hud .dayc .date { font: 600 11.5px 'DotFix', 'Overpass'; color: var(--wx-text); white-space: nowrap; }
 .hud .ampm { font-size: 10.5px; margin-left: 3px; color: var(--soft); }
@@ -457,7 +458,7 @@ body.solo .frame { border-radius: 0; }
     name: 'Jackson Peaks', theme: 'dark', statusStyle: 'sub', stab: 'interface', removeArmed: null, autoPaused: false, buildPauseDone: false, cash: 961967638, today: -5.77e6, liftsTotal: 48, trailsTotal: 116, skiers: 2387, peakToday: 2387, saveDue: true, units: 'imperial', atab: 'overview',
     // today's money in parts (they sum to today): overnight running costs and construction already under way
     incomeToday: 0, opsToday: 0.09e6, buildToday: 5.68e6, base: 142,
-    history: [0.41, 0.38, -1.92, 0.45, 0.52, 0.47, 0.12, 0.55, 0.58, -0.84, 0.49, 0.53, 0.61],
+    dayNet: {}, finScale: 'week',   // each finished day's net ($M) as played; the net chart's time scale
     zoom: 1, layers: { snow: true, trees: true, lifts: true, trails: true, making: true, infra: true, labels: true },
     info: null, contours: false, legendClosed: false, wxView: 'outlook', wxMonth: 0,   // the info layer that's on (slope, aspect, depth), and contours over it
     toolbox: false, tab: 'lifts', tool: null, analysis: false, drop: null, sketch: false, modal: null,
@@ -547,6 +548,16 @@ body.solo .frame { border-radius: 0; }
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const dayKind = (d) => (stormCm(d) ? 'snow' : ((d % 3) + 3) % 3 === 1 ? 'few' : 'sun');
   const dayWord = (d) => { const cm = stormCm(d); return cm ? (cm >= 8 ? 'Snow tonight' : 'Flurries tonight') : dayKind(d) === 'few' ? 'Fair' : 'Clear'; };
+  // Placeholder history, a day's net in $M: before opening day (20 November) only upkeep and the odd construction
+  // bill; in season, weekends earn most and a powder night lifts the next day.
+  const OPENING_DAY = 81;
+  function netPlaceholder(d) {
+    const build = hash2(d, 501) < 0.05 ? -(1.2 + hash2(d, 503) * 1.4) : 0;
+    if (d < OPENING_DAY) return -(0.06 + hash2(d, 507) * 0.05) + build;
+    const dow = new Date(Date.UTC(2026, 8, d)).getUTCDay(), weekend = dow === 0 || dow === 6;
+    return (weekend ? 0.85 : 0.42) * (0.8 + 0.4 * hash2(d, 509)) * (stormCm(d - 1) >= 8 ? 1.3 : 1) - 0.12 + build;
+  }
+  const netDay = (d) => (d === S.day ? S.today / 1e6 : d in S.dayNet ? S.dayNet[d] : netPlaceholder(d));
   const dateTxt = (day) => { const d = new Date(Date.UTC(2026, 8, day)); return `${WD[d.getUTCDay()]}, ${MON[d.getUTCMonth()]} ${d.getUTCDate()}`; };
   // Placeholder storms: centimetres for the night that starts on day d, falling from 22:30 to 03:30. Hashed by
   // day, so weeks don't repeat: about half the nights dry, some flurries, now and then a storm.
@@ -1020,6 +1031,14 @@ body.solo .frame { border-radius: 0; }
   const isOpen = () => { const h = S.t / 3600; return h >= LIFTS_OPEN && h < LIFTS_CLOSE; };
   const waitFor = (l) => { if (!S.skiers || !l.built) return 0; const st = liftStats(l.a, l.b, l.model); return Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); };
   const lampHtml = (c) => `<i class="lamp" style="--lamp:${c}"></i>`;
+  let chartHover = null;   // the chart column under the pointer, as 'chart:index'
+  // A column: an invisible hit area the chart's height, then its bar (brighter while hovered).
+  const hoverCol = (key, x, colW, chartH, bar) => `<g class="hb" data-hov="${key}"><rect x="${f1(x)}" y="0" width="${f1(colW)}" height="${chartH}" fill="transparent"/>${chartHover === key ? bar.replace('class="cbar"', 'class="cbar hot"') : bar}</g>`;
+  // The readout plate for the hovered column: above its bar, kept inside the chart.
+  function hoverTip(x, colW, chartW, tipY, tip) {
+    const tw = tip.length * 5.9 + 12, tx = Math.max(0, Math.min(chartW - tw, x + colW / 2 - tw / 2)), ty = Math.max(0, tipY - 20);
+    return `<g style="pointer-events:none"><rect x="${f1(tx)}" y="${f1(ty)}" width="${f1(tw)}" height="16" rx="2" style="fill:var(--on-bg)"/><text x="${f1(tx + tw / 2)}" y="${f1(ty + 11.5)}" text-anchor="middle" style="font:600 10px 'Overpass Mono';fill:var(--on-fg)">${tip}</text></g>`;
+  }
   const kvs = (rows) => `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
   const AW = 568;   // the analysis panel's width; its charts span it less the margins
   // What the bar counts: lifts and trails open now, and the guests on the mountain.
@@ -1064,7 +1083,14 @@ body.solo .frame { border-radius: 0; }
       const curve = (h) => Math.max(0, Math.sin(Math.PI * (h - 8) / 8.5)) * 3200 * (0.85 + 0.15 * Math.sin(S.day + h));
       const now = S.t / 3600, w = AW - 24, hgt = 64, bw = (w - 24) / hrs.length;
       let bars = '';
-      hrs.forEach((h, i) => { const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now; bars += `<rect x="${f1(12 + i * bw + 3)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 6)}" height="${f1(bh)}" rx="1" style="fill:${past ? 'var(--chart-a)' : 'var(--chart-b)'}"/><text x="${f1(12 + i * bw + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${h}</text>`; });
+      let tip = '';
+      hrs.forEach((h, i) => {
+        const v = curve(h), bh = v / 3400 * (hgt - 16), past = h <= now, x = 12 + i * bw, key = `ov:${i}`;
+        bars += hoverCol(key, x, bw, hgt + 4, `<rect class="cbar" x="${f1(x + 3)}" y="${f1(hgt - 10 - bh)}" width="${f1(bw - 6)}" height="${f1(bh)}" rx="1" style="fill:${past ? 'var(--chart-a)' : 'var(--chart-b)'}"/>`);
+        bars += `<text x="${f1(x + bw / 2)}" y="${hgt}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label);pointer-events:none">${h}</text>`;
+        if (chartHover === key) tip = hoverTip(x, bw, w, hgt - 10 - bh, `${hhmm(h)} · ${Math.round(v).toLocaleString('en-US')} skiers${past ? '' : ' expected'}`);
+      });
+      bars += tip;
       const sat = Math.round(Math.max(55, Math.min(95, 90 - avgWait * 1.6)));
       const rs = resortStatus(S.t);
       return `<div class="statusline">${statusWord(rs)}<span class="t">${statusRest(rs)}</span><span class="r">${liftHours()}</span></div><div class="rule"></div>
@@ -1152,19 +1178,45 @@ body.solo .frame { border-radius: 0; }
     const inc = S.incomeToday, ops = S.opsToday, bld = S.buildToday;
     const incRows = [['Lift tickets', 0.58], ['Food and drink', 0.17], ['Lessons', 0.11], ['Rentals', 0.09], ['Parking', 0.05]].map(([k, f]) => [k, short(inc * f).replace('+', '')]);
     const costRows = [['Wages', 0.46], ['Power', 0.18], ['Grooming', 0.14], ['Snowmaking', 0.22]].map(([k, f]) => [k, short(ops * f).replace('+', '')]);
-    // Scaled to an ordinary day; days with big construction bills run off the scale and get a break mark.
-    const days = S.history.concat(S.today / 1e6), w = AW - 24, hgt = 70, bw = (w - 24) / days.length, zero = hgt / 2;
-    const mx = Math.max(0.6, 1.3 * Math.max(0.4, ...days.map(Math.abs).filter((a) => a < 1.5)));
+    // The net chart at three time scales: a bar a day for a week or a month, or a bar a week for the season.
+    const series = [];
+    if (S.finScale === 'season') {
+      for (let d0 = 1; d0 <= S.day; d0 += 7) {
+        let v = 0; for (let d = d0; d < Math.min(d0 + 7, S.day + 1); d++) v += netDay(d);
+        const dt = new Date(Date.UTC(2026, 8, d0)), firstWeek = dt.getUTCDate() <= 7;
+        series.push({ v, label: firstWeek ? MON[dt.getUTCMonth()] : '', tip: `Week of ${dateTxt(d0)}` });
+      }
+    } else {
+      const n = S.finScale === 'month' ? 30 : 7;
+      for (let k = n - 1; k >= 0; k--) {
+        const d = S.day - k; if (d < 1) continue;
+        const dt = new Date(Date.UTC(2026, 8, d));
+        series.push({ v: netDay(d), label: n === 7 ? WD[dt.getUTCDay()] : k % 7 === 0 && k ? `${MON[dt.getUTCMonth()]} ${dt.getUTCDate()}` : '', tip: k ? dateTxt(d) : 'Today' });
+      }
+    }
+    // Scaled to the ordinary bars; big construction bills run off the scale and get a break mark.
+    const mags = series.map((x) => Math.abs(x.v)).sort((a, b) => a - b), typical = mags[Math.floor(mags.length * 0.8)] || 0.5;
+    const w = AW - 24, hgt = 92, zero = (hgt - 14) / 2, bw = (w - 24) / series.length, mx = Math.max(0.3, typical * 1.25), gap = bw > 14 ? 3 : 1.5;
     let bars = `<line x1="12" y1="${zero}" x2="${w - 12}" y2="${zero}" style="stroke:var(--chart-b)"/>`;
-    days.forEach((v, i) => {
-      const over = Math.abs(v) > mx, bh = Math.min(Math.abs(v), mx) / mx * (zero - 3), x = 12 + i * bw + 3, last = i === days.length - 1;
-      bars += `<rect x="${f1(x)}" y="${f1(v >= 0 ? zero - bh : zero)}" width="${f1(bw - 6)}" height="${f1(Math.max(1, bh))}" rx="1" style="fill:${v >= 0 ? 'var(--pos)' : 'var(--neg)'}" opacity="${last ? 1 : 0.7}"/>`;
-      if (over) { const yb = v >= 0 ? zero - bh + 7 : zero + bh - 11; bars += `<path d="M${f1(x - 1)} ${f1(yb + 3)}l${f1(bw - 4)} -3M${f1(x - 1)} ${f1(yb + 7)}l${f1(bw - 4)} -3" stroke-width="1.8" style="stroke:var(--knock)"/>`; }
+    let plate = '';
+    series.forEach(({ v, label, tip }, i) => {
+      const over = Math.abs(v) > mx, bh = Math.min(Math.abs(v), mx) / mx * (zero - 3), x = 12 + i * bw + gap, last = i === series.length - 1;
+      const key = `fin:${S.finScale}:${i}`;
+      bars += hoverCol(key, 12 + i * bw, bw, hgt - 12, `<rect class="cbar" x="${f1(x)}" y="${f1(v >= 0 ? zero - bh : zero)}" width="${f1(bw - 2 * gap)}" height="${f1(Math.max(1, bh))}" rx="1" style="fill:${v >= 0 ? 'var(--pos)' : 'var(--neg)'}" opacity="${last ? 1 : 0.7}"/>`);
+      if (chartHover === key) plate = hoverTip(12 + i * bw, bw, w, v >= 0 ? zero - bh : zero, `${tip} · ${short(v * 1e6)}`);
+      if (over) { const yb = v >= 0 ? zero - bh + 7 : zero + bh - 11; bars += `<path d="M${f1(x - 1)} ${f1(yb + 3)}l${f1(bw - 2 * gap + 2)} -3M${f1(x - 1)} ${f1(yb + 7)}l${f1(bw - 2 * gap + 2)} -3" stroke-width="1.8" style="stroke:var(--knock)"/>`; }
+      if (label) bars += `<text x="${f1(x + (bw - 2 * gap) / 2)}" y="${hgt - 1}" text-anchor="${S.finScale === 'week' ? 'middle' : 'start'}" style="font:500 9px 'Overpass Mono';fill:var(--chart-label);pointer-events:none">${label}</text>`;
     });
-    return `<div class="cols">${kvs([['<b style="color:var(--text)">Income today</b>', `<b>${short(inc).replace('+', '')}</b>`], ...incRows])}
-      ${kvs([['<b style="color:var(--text)">Costs today</b>', `<b>${short(ops + bld).replace('+', '')}</b>`], ...costRows, ['Construction', short(bld).replace('+', '')]])}</div>
+    bars += plate;
+    const total = series.reduce((a, x) => a + x.v, 0) * 1e6, tone = (v) => `color:${v < 0 ? 'var(--neg)' : 'var(--pos)'}`;
+    const span = { week: 'last 7 days', month: 'last 30 days', season: 'this season, by week' }[S.finScale];
+    // Income reads green and costs red, whatever the theme.
+    const inV = (v) => `<span style="color:var(--pos)">${v}</span>`, outV = (v) => `<span style="color:var(--neg)">${v}</span>`;
+    return `<div class="cols">${kvs([['<b style="color:var(--text)">Income today</b>', inV(`<b>${short(inc).replace('+', '')}</b>`)], ...incRows.map(([k, v]) => [k, inV(v)])])}
+      ${kvs([['<b style="color:var(--text)">Costs today</b>', outV(`<b>${short(ops + bld).replace('+', '')}</b>`)], ...costRows.map(([k, v]) => [k, outV(v)]), ['Construction', outV(short(bld).replace('+', ''))]])}</div>
       <div class="rule"></div>
-      <div class="sub"><span>Net, last 14 days</span><span>today <span style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)}</span></span></div>
+      <div class="wxsw"><span class="sub" style="padding:0">Net, ${span}</span>${qseg('finscale', S.finScale, [['week', 'Week'], ['month', 'Month'], ['season', 'Season']])}</div>
+      <div class="sub" style="padding-top:0"><span></span><span>total <span style="${tone(total)}">${short(total)}</span> · today <span style="${tone(S.today)}">${short(S.today)}</span></span></div>
       <svg width="${w}" height="${hgt}" style="display:block;margin:4px 12px 8px">${bars}</svg>`;
   }
 
@@ -1351,6 +1403,7 @@ body.solo .frame { border-radius: 0; }
       case 'atab': S.atab = v; break;
       case 'wxview': S.wxView = v; S.wxMonth = 0; break;
       case 'wxmonth': S.wxMonth += +v; break;
+      case 'finscale': S.finScale = v; break;
       case 'aopen': if (S.analysis && S.atab === v) S.analysis = false; else { S.analysis = true; S.atab = v; S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
       case 'sketch': S.sketch = !S.sketch; S.drop = null; if (S.sketch) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'clearsketch': S.sketches = []; break;
@@ -1416,6 +1469,9 @@ body.solo .frame { border-radius: 0; }
     rg.style.setProperty('--p', `${(rg.value - rg.min) / (rg.max - rg.min) * 100}%`);
     rg.parentElement.querySelector('.rv').textContent = `${rg.value}${settingRow(rg.dataset.k).unit}`;
   });
+  const hoverChart = (key) => { if (key === chartHover) return; chartHover = key; const el = document.getElementById('anabody'); if (el) el.innerHTML = analysisBody(); };
+  stage.addEventListener('mouseover', (e) => { const hb = e.target.closest('.hb'); hoverChart(hb ? hb.dataset.hov : null); });
+  stage.addEventListener('mouseleave', () => hoverChart(null));
   // The tray's label names the tool under the pointer.
   stage.addEventListener('mouseover', (e) => {
     const lab = document.getElementById('toollabel'); if (!lab) return;
@@ -1489,7 +1545,7 @@ body.solo .frame { border-radius: 0; }
     if (!S.paused) {
       const gs = dt * RATE[S.speed];
       S.t += gs;
-      if (S.t >= 86400) { S.t -= 86400; S.history = S.history.concat(S.today / 1e6).slice(-13); S.day++; S.today = S.incomeToday = S.opsToday = S.buildToday = 0; S.peakToday = S.skiers; log(`<span>Day ${S.day} begins</span>`, '#6f675e', true); }
+      if (S.t >= 86400) { S.t -= 86400; S.dayNet[S.day] = S.today / 1e6; S.day++; S.today = S.incomeToday = S.opsToday = S.buildToday = 0; S.peakToday = S.skiers; log(`<span>Day ${S.day} begins</span>`, '#6f675e', true); }
       const hr = S.t / 3600;
       const open = hr >= LIFTS_OPEN && hr < LIFTS_CLOSE, target = open ? Math.round(3300 * Math.sin(Math.PI * (hr - 8.5) / 8) * (1 + 0.1 * Math.sin(hr * 3.1)) * (S.liftsTotal / 48)) : Math.round(Math.max(0, S.skiers * 0.92));
       S.skiers = Math.max(0, Math.round(S.skiers + (target - S.skiers) * Math.min(1, gs / 1800)));
@@ -1555,6 +1611,9 @@ body.solo .frame { border-radius: 0; }
     for (const x of SETTINGS) if (d.includes('set' + x.id)) { S.modal = { settings: true }; S.stab = x.id; }
     if (d.includes('h24')) S.set.clock = '24';
     if (d.includes('wxcal')) S.wxView = 'calendar';
+    if (d.includes('finmonth')) S.finScale = 'month';
+    if (d.includes('finseason')) S.finScale = 'season';
+    const hv = d.find((x) => /^hov\d+$/.test(x)); if (hv) chartHover = (S.atab === 'finances' ? `fin:${S.finScale}:` : 'ov:') + hv.slice(3);
     if (d.includes('compact')) S.set.money = 'compact';
     if (d.includes('scale90')) S.set.hudScale = 90;
     if (d.includes('scale110')) S.set.hudScale = 110;
