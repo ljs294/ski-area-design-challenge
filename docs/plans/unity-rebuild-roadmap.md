@@ -4,6 +4,8 @@
 
 > **Scope update (2026-09-25).** The rebuild proceeds in iterations. Iteration 1 is **just the mountain**: a real-world picker, USGS S1M 1 m lidar, and game-made lighting, camera, ground cover, forest and snow, offline after download. Drawing tools and simulation follow. Phases are now defined in [0.6 Milestone plan](phase0-0.6-milestones.md), and all Phase 0 decisions are in the [decision record](phase0-decisions.md); both take precedence over older text below.
 
+> **Status (2026-10-05).** Phase 1, the mountain vertical slice, is complete (milestone `unity-m1`; [exit review](phase1-16-exit-review.md)). Phase 2 follows its [detailed plan](phase1-16-phase2-plan.md).
+
 ## 1. Decision and ground rules
 
 **Engine: Unity 6.3 LTS.** Universal Render Pipeline, Burst and Jobs, Entities Graphics where it pays, Splines, Shader Graph, VFX Graph, and UI Toolkit. Windows desktop first.
@@ -283,7 +285,7 @@ Candidate improvements to evaluate:
 | 0.6 | Milestone plan, Phases 1–4 | Scope, exit criteria, dependencies, risks |
 | 0.7 | Detailed Phase 1 plan | Task breakdown, order, acceptance tests |
 
-**Estimates:** superseded by [0.6](phase0-0.6-milestones.md) (2026-09-25): Phase 1 mountain vertical slice (12–14 weeks), Phase 2 iteration 1 complete (2–3 months), Phase 3 drawing (3–5 months), Phase 4 simulation foundations (4–6 months). The original table is kept below for the record.
+**Estimates:** superseded by [0.6](phase0-0.6-milestones.md) (2026-09-25): Phase 1 mountain vertical slice (12–14 weeks; actual 11 days, 2026-09-25 to 10-05), Phase 2 iteration 1 complete (2–3 months), Phase 3 drawing (3–5 months), Phase 4 simulation foundations (4–6 months). The original table is kept below for the record.
 
 **Original estimates** (rough, solo + AI, from scratch; uncertain):
 
