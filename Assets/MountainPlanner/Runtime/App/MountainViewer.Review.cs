@@ -491,6 +491,22 @@ namespace MountainPlanner.App
                 yield return null;
             }
 
+            // From straight overhead (task P2-09): the mixed stand at a forced LOD2 and as impostors, so the far
+            // impostor can be held against the mesh it replaces; -lineupset top takes only these.
+            var top = new Vector3(0, 8, 900);
+            foreach (float distance in new[] { 200f, 600f })
+                foreach (int lod in new[] { 0, 2, 3 })
+                    yield return Shot($"top{distance:0}_lod{lod}", top, distance, 200, 89, lod);
+            yield return Shot("top600_auto", top, 600, 200, 89, -1);
+            yield return Shot("top1500_auto", top, 1500, 200, 89, -1);
+            int set = Array.IndexOf(Environment.GetCommandLineArgs(), "-lineupset");
+            if (set >= 0 && set + 1 < Environment.GetCommandLineArgs().Length && Environment.GetCommandLineArgs()[set + 1] == "top")
+            {
+                Debug.Log($"[Lineup] captured to {prefix}_top*.png");
+                Application.Quit();
+                yield break;
+            }
+
             var row = new Vector3(0, 12, 0);
             for (int lod = 0; lod < 4; lod++)
             {
