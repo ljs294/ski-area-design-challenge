@@ -40,7 +40,7 @@ string dataRoot = opts.GetValueOrDefault("library",
 switch (command)
 {
     case "library":
-        var entries = ResortLibrary.Scan(dataRoot);
+        var entries = ResortLibrary.Scan(dataRoot, measure: true);
         Console.WriteLine($"{entries.Count} mountain(s) in {ResortLibrary.ResortsFolder(dataRoot)}");
         foreach (var e in entries)
             Console.WriteLine($"  {e.Name,-24} {e.SizeKm:0.#} km  terrain {e.TerrainScore,3}/100  flora {e.FloraScore,3}/100  {e.BytesOnDisk / 1e6,7:F1} MB  " +
