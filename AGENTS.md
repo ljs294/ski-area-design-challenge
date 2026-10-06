@@ -38,6 +38,9 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
 - The same resort opens to the same tiles, splat and forest; golden hashes stay identical unless a
   behaviour change is approved.
 - Future simulation: snapshots out, commands in; presentation and UI never mutate its state directly.
+- Saved formats are frozen (task 08, 0.3 §5): manifest, `library.json`, `recent.json`, `view.json` and
+  `download.json` are read through `Persistence/VersionedJson`. A change bumps the version, adds a migration step and
+  a `TestData/formats/v<N>` fixture, and the v1 fixtures stay unedited. The terrain cache isn't frozen.
 
 ## Performance rules
 - Per-frame paths allocate nothing per agent (NativeArrays, Burst jobs, pooled buffers).
