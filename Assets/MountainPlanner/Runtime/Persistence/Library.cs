@@ -73,6 +73,48 @@ namespace MountainPlanner.Persistence
         public long BytesOnDisk { get; set; }
         public string CreatedUtc { get; set; } = "";
         public bool CacheReady { get; set; }
+        /// <summary>Why it can't be opened (a package from a newer version of the game), or empty when it can.</summary>
+        public string Refusal { get; set; } = "";
+    }
+
+    /// <summary>
+    /// &lt;data&gt;/library.json (task 08): the version of the data folder's layout (Resorts/, Downloads/, recent.json).
+    /// It holds only the version; the listing is always a scan of the packages themselves. A data folder without one is
+    /// v1, as Phase 1 left it. A layout change bumps the version, moves the folders in a migration, then rewrites this
+    /// file, so an older game sees the newer number and leaves the library alone.
+    /// </summary>
+    public sealed class LibraryIndex
+    {
+        public const int CurrentVersion = 1;
+        public const string FileName = "library.json";
+        public static readonly VersionedJson Migrations = new VersionedJson("library", nameof(Version), CurrentVersion);
+
+        public int Version { get; set; } = CurrentVersion;
+
+        /// <summary>The layout version of a data folder: 1 when it has no library.json, or an unreadable one.</summary>
+        public static int VersionOf(string dataRoot)
+        {
+            string path = Path.Combine(dataRoot, FileName);
+            if (!File.Exists(path)) return VersionedJson.FirstVersion;
+            try { return Migrations.VersionOf(VersionedJson.Parse(File.ReadAllText(path))); }
+            catch (Exception e) when (e is IOException || e is InvalidDataException || e is JsonException || e is UnauthorizedAccessException) { return VersionedJson.FirstVersion; }
+        }
+
+        /// <summary>Why this game can't use the data folder (a newer game's layout), or null when it can.</summary>
+        public static string Refusal(string dataRoot)
+        {
+            int v = VersionOf(dataRoot);
+            return v > CurrentVersion ? new FormatTooNewException(Migrations.Format, v, CurrentVersion).Message : null;
+        }
+
+        /// <summary>Writes library.json when the folder has none (the first package added); never over a newer one.</summary>
+        public static void Ensure(string dataRoot)
+        {
+            string path = Path.Combine(dataRoot, FileName);
+            if (File.Exists(path)) return;
+            Directory.CreateDirectory(dataRoot);
+            AtomicFile.WriteJson(path, new LibraryIndex());
+        }
     }
 
     /// <summary>
@@ -83,16 +125,30 @@ namespace MountainPlanner.Persistence
     {
         public static string ResortsFolder(string dataRoot) => Path.Combine(dataRoot, "Resorts");
 
-        public static List<LibraryEntry> Scan(string dataRoot)
+        /// <summary>
+        /// The mountains this game can open. Packages from a newer version of the game go to <paramref name="newer"/>
+        /// (name, folder and size only, with the reason), so the library can show them without misreading them. A
+        /// data folder whose layout is newer (<see cref="LibraryIndex.Refusal"/>) lists nothing.
+        /// </summary>
+        public static List<LibraryEntry> Scan(string dataRoot, List<LibraryEntry> newer = null)
         {
             var entries = new List<LibraryEntry>();
             string resorts = ResortsFolder(dataRoot);
-            if (!Directory.Exists(resorts)) return entries;
+            if (!Directory.Exists(resorts) || LibraryIndex.Refusal(dataRoot) != null) return entries;
             foreach (string folder in Directory.GetDirectories(resorts))
             {
                 if (!File.Exists(Path.Combine(folder, ResortPackage.ManifestFile))) continue;
                 PackageManifest m;
                 try { m = ResortPackage.ReadManifest(folder); }
+                catch (FormatTooNewException e)
+                {
+                    newer?.Add(new LibraryEntry
+                    {
+                        PackageId = Path.GetFileName(folder), Name = NameHint(folder), Folder = folder, Refusal = e.Message,
+                        BytesOnDisk = Directory.GetFiles(folder, "*", SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length),
+                    });
+                    continue;
+                }
                 catch (Exception e) when (e is IOException || e is InvalidDataException || e is JsonException) { continue; }
                 entries.Add(new LibraryEntry
                 {
@@ -102,7 +158,23 @@ namespace MountainPlanner.Persistence
                     CreatedUtc = m.CreatedUtc, CacheReady = TerrainCache.IsCurrent(folder, m),
                 });
             }
+            newer?.Sort((a, b) => string.CompareOrdinal(a.Folder, b.Folder));
             return entries.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.PackageId, StringComparer.Ordinal).ToList();
+        }
+
+        /// <summary>
+        /// A newer package's name, for its library row only: the Site.Name string if the manifest still has one where
+        /// v1 kept it, else the folder name. Nothing else is read from a format this game doesn't know.
+        /// </summary>
+        static string NameHint(string folder)
+        {
+            try
+            {
+                var name = VersionedJson.Parse(File.ReadAllText(Path.Combine(folder, ResortPackage.ManifestFile)))["Site"]?["Name"];
+                if (name != null && name.Type == Newtonsoft.Json.Linq.JTokenType.String && ((string)name).Length > 0) return (string)name;
+            }
+            catch (Exception e) when (e is IOException || e is InvalidDataException || e is JsonException || e is InvalidCastException || e is InvalidOperationException) { }
+            return Path.GetFileName(folder);
         }
 
         /// <summary>
@@ -111,9 +183,12 @@ namespace MountainPlanner.Persistence
         /// </summary>
         public static string Add(string dataRoot, string builtFolder)
         {
+            int layout = LibraryIndex.VersionOf(dataRoot);
+            if (layout > LibraryIndex.CurrentVersion) throw new FormatTooNewException(LibraryIndex.Migrations.Format, layout, LibraryIndex.CurrentVersion);
             var m = ResortPackage.ReadManifest(builtFolder);
             string target = Path.Combine(ResortsFolder(dataRoot), m.PackageId);
             Directory.CreateDirectory(ResortsFolder(dataRoot));
+            LibraryIndex.Ensure(dataRoot);
             if (Directory.Exists(target))
             {
                 if (!string.Equals(Path.GetFullPath(builtFolder).TrimEnd('\\', '/'), Path.GetFullPath(target).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
@@ -138,8 +213,12 @@ namespace MountainPlanner.Persistence
     {
         public const int CurrentVersion = 1;
         public const string FileName = "view.json";
+        public static readonly VersionedJson Migrations = new VersionedJson("view state", nameof(Version), CurrentVersion);
 
         public int Version { get; set; } = CurrentVersion;
+
+        /// <summary>Set when the file on disk is from a newer version of the game: these are defaults, and Save leaves that file alone.</summary>
+        [JsonIgnore] public string Refusal { get; private set; } = "";
         public CameraView Camera { get; set; } = new CameraView();
         public List<Bookmark> Bookmarks { get; set; } = new List<Bookmark>();
         /// <summary>View time (the clock placeholder's ViewTime), local to the resort.</summary>
@@ -169,25 +248,26 @@ namespace MountainPlanner.Persistence
 
         static readonly JsonSerializerSettings Json = new JsonSerializerSettings { Formatting = Formatting.Indented };
 
-        public static void Save(string packageFolder, ViewState state)
+        /// <summary>Writes view.json; false (and nothing written) when the file there is from a newer version of the game.</summary>
+        public static bool Save(string packageFolder, ViewState state)
         {
-            string path = Path.Combine(packageFolder, FileName), temp = path + ".tmp";
-            File.WriteAllText(temp, JsonConvert.SerializeObject(state, Json) + "\n", new UTF8Encoding(false));
-            if (File.Exists(path)) File.Delete(path);
-            File.Move(temp, path);
+            string path = Path.Combine(packageFolder, FileName);
+            if (Migrations.IsNewer(path)) return false;
+            AtomicFile.WriteJson(path, state, Json);
+            return true;
         }
 
-        /// <summary>The saved view, or defaults when there's none or it can't be read (never an error).</summary>
+        /// <summary>
+        /// The saved view, migrated to the current version, or defaults when there's none or it can't be read (never an
+        /// error). A newer version's file gives defaults with <see cref="Refusal"/> set.
+        /// </summary>
         public static ViewState Load(string packageFolder)
         {
             string path = Path.Combine(packageFolder, FileName);
             if (!File.Exists(path)) return new ViewState();
-            try
-            {
-                var s = JsonConvert.DeserializeObject<ViewState>(File.ReadAllText(path));
-                return s == null || s.Version > CurrentVersion ? new ViewState() : s;
-            }
-            catch (JsonException) { return new ViewState(); }
+            try { return Migrations.Read<ViewState>(File.ReadAllText(path), Json); }
+            catch (FormatTooNewException e) { return new ViewState { Refusal = e.Message }; }
+            catch (Exception e) when (e is IOException || e is InvalidDataException || e is JsonException || e is UnauthorizedAccessException) { return new ViewState(); }
         }
     }
 }

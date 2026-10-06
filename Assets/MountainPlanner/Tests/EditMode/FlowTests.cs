@@ -201,6 +201,29 @@ namespace MountainPlanner.Tests
             Assert.That(LibraryViewModel.Build(entries, pending, recent, LibrarySort.Quality, now).Rows.ConvertAll(r => r.Name),
                         Is.EqualTo(new[] { "Stowe", "Sugarloaf", "Jackson Hole", "Crystal Mountain" }));
         }
+
+        [Test]
+        public void AreasFromANewerGameAreListedLastAndCantBeOpened()
+        {
+            var entries = new List<LibraryEntry> { new LibraryEntry { PackageId = "c", Name = "Jackson Hole", TerrainScore = 97, BytesOnDisk = 600_000_000 } };
+            var newer = new List<LibraryEntry> { new LibraryEntry { PackageId = "f", Name = "Big Sky", Folder = "f", BytesOnDisk = 400_000_000, Refusal = "a newer format" } };
+            var now = new DateTime(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
+
+            var vm = LibraryViewModel.Build(entries, new List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, now, newer);
+            Assert.That(vm.Rows.ConvertAll(r => r.Name), Is.EqualTo(new[] { "Jackson Hole", "Big Sky" }), "after the areas this game can open");
+            Assert.That(vm.Rows[0].CanOpen, Is.True);
+            var row = vm.Rows[1];
+            Assert.That(row.IsNewer, Is.True);
+            Assert.That(row.CanOpen, Is.False);
+            Assert.That(row.Entry, Is.SameAs(newer[0]), "Delete removes its folder");
+            Assert.That(row.NewerText, Is.EqualTo("Made by a newer version of Mountain Planner. Update the game to open it."));
+            Assert.That(vm.Summary, Is.EqualTo("1 area · 1.0 GB on disk · 1 needs a newer version"));
+            Assert.That(vm.EmptyText, Is.EqualTo(LibraryViewModel.NoAreas));
+
+            var refused = LibraryViewModel.Refused("This library was saved by a newer version of Mountain Planner.", LibrarySort.Name);
+            Assert.That(refused.IsEmpty, Is.True);
+            Assert.That(refused.EmptyText, Does.StartWith("This library was saved by a newer version"), "says why, not \"no areas yet\"");
+        }
     }
 
     /// <summary>Task 14: the flow's run-time assets load from Resources, so a build keeps them.</summary>
