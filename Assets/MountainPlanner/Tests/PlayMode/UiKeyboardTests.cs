@@ -214,8 +214,8 @@ namespace MountainPlanner.Tests
             // Analysis; Esc closes what's open before it opens the menu.
             yield return Press(Key.T);
             Assert.That(viewer.Hud.ToolboxOpen, Is.True, "T opens the Toolbox");
-            yield return Frames(10);   // the HUD's 10 Hz refresh hands the letters over
-            Assert.That(viewer.Camera.LettersToTools, Is.True, "letters go to the tools while the tray is open");
+            yield return Frames(10);
+            Assert.That(viewer.Camera.LettersToTools, Is.False, "the tools are placeholders until Phase 3: WASD still pans");
             AssertShownOnScreen(hud, "toolbox");
             yield return Press(Key.Tab);
             Assert.That(viewer.Hud.AnalysisOpen && !viewer.Hud.ToolboxOpen, Is.True, "Tab opens Analysis in the Toolbox's place");
@@ -284,6 +284,49 @@ namespace MountainPlanner.Tests
             // an info layer (each figure's text is made the first time it shows, so a second pass over the same
             // figures must allocate nothing).
             if (scale == 100) HudRefreshAllocatesNothing(viewer.Hud);
+        }
+
+        /// <summary>WASD and the arrows pan the map in the game, and keep panning: the HUD doesn't take them (owner's report, 2026-10-06).</summary>
+        [UnityTest]
+        public IEnumerator WasdPansTheMap()
+        {
+            Http.NetworkDisabled = true;
+            UiPreferences.SetChoice(UiThemeChoice.Dark, remember: false);
+            UiPreferences.SetScale(100, remember: false);
+            if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
+            var flow = AppFlow.Create(_root, new NoDownloads());
+            yield return SceneManager.LoadSceneAsync(ViewerScene);
+            yield return WaitForMountain(120);
+            yield return Frames(3);
+            var ui = flow.Screens.Document.rootVisualElement;
+            yield return TabTo(ui, "title-continue");
+            yield return Submit(ui);
+            yield return WaitForMountain(120, inGame: true);
+            yield return Frames(10);
+            var viewer = Object.FindAnyObjectByType<MountainViewer>();
+            var hud = viewer.Hud.Document.rootVisualElement;
+            // The player's UI hears WASD and the arrows as navigation too: with nothing focused it must not pick a HUD
+            // control (that took the keys from the camera), even after Tab put the UI in keyboard mode.
+            yield return Press(Key.Tab);
+            yield return Press(Key.Tab);
+            foreach (var d in new[] { NavigationMoveEvent.Direction.Down, NavigationMoveEvent.Direction.Right, NavigationMoveEvent.Direction.Next })
+            {
+                yield return Move(hud, d);
+                Assert.That(Focused(hud) is VisualElement f && hud.Contains(f), Is.False, $"navigation {d} picked {Name(Focused(hud))}");
+            }
+            // With the Toolbox open (its tools are placeholders until Phase 3) the letters still pan.
+            viewer.Hud.SetToolbox(true);
+            yield return Frames(10);
+            foreach (var key in new[] { Key.W, Key.A, Key.S, Key.D, Key.UpArrow, Key.W })
+            {
+                var before = viewer.Camera.Target;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(key));
+                for (float until = Time.realtimeSinceStartup + 0.4f; Time.realtimeSinceStartup < until;) yield return null;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(3);
+                Assert.That(viewer.Hud.HasKeyboard, Is.False, $"{key} didn't hand the keyboard to the HUD");
+                Assert.That(Vector3.Distance(viewer.Camera.Target, before), Is.GreaterThan(1f), $"{key} pans the map");
+            }
         }
 
         static void HudRefreshAllocatesNothing(MountainHud hud)

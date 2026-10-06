@@ -110,21 +110,16 @@ namespace MountainPlanner.UI
             OnPreferencesChanged();
             OnDockChanged();
             OnUnitsChanged();
-            // A click leaves no focus behind, so the camera keys keep working after one; the arrows still reach every control.
+            // A click leaves no focus behind, so the camera keys keep working after one (in the menu and the stats window the
+            // keyboard stays with the window).
             _root.RegisterCallback<PointerUpEvent>(_ => _root.schedule.Execute(LetGoAfterClick), TrickleDown.TrickleDown);
             // Icons follow hover and state: one pass after the pointer moves between parts (HudIcon.RetintAll).
             _root.RegisterCallback<PointerOverEvent>(_ => RetintSoon(), TrickleDown.TrickleDown);
             _root.RegisterCallback<PointerOutEvent>(_ => RetintSoon(), TrickleDown.TrickleDown);
             // and four times a second whatever else restyled them (a theme or state change): a check, no allocation.
             _root.schedule.Execute(HudIcon.RetintAll).Every(250);
-            // Tab is Analysis (the key map), not the next control, unless a window is open: there it moves through it.
-            _root.RegisterCallback<NavigationMoveEvent>(e =>
-            {
-                if (ModalOpen) return;
-                if (e.direction != NavigationMoveEvent.Direction.Next && e.direction != NavigationMoveEvent.Direction.Previous) return;
-                e.StopPropagation();
-                _root.focusController?.IgnoreEvent(e);
-            }, TrickleDown.TrickleDown);
+            // The keys that move between controls belong to the map unless a window is open (NavigateOnlyInWindows).
+            _root.schedule.Execute(() => _root.panel?.visualTree.RegisterCallback<NavigationMoveEvent>(NavigateOnlyInWindows, TrickleDown.TrickleDown));
         }
 
         void OnDisable()
@@ -286,9 +281,25 @@ namespace MountainPlanner.UI
 
         void On(string name, bool on) => _root.Q(name).EnableInClassList("mp-seg__opt--on", on);
 
+        /// <summary>
+        /// WASD, the arrows and Tab reach the HUD as navigation. In the game they're the map's (pan) and Analysis' (Tab,
+        /// the key map), so they move between controls only inside the menu or the stats window, or once a control has
+        /// been reached by keyboard there; with nothing focused they never pick a control (owner's report, 2026-10-06:
+        /// WASD stopped panning). Registered on the HUD panel's own root, so it runs before UiFocus's arrow handling.
+        /// </summary>
+        void NavigateOnlyInWindows(NavigationMoveEvent e)
+        {
+            if (ModalOpen) return;
+            bool tab = e.direction == NavigationMoveEvent.Direction.Next || e.direction == NavigationMoveEvent.Direction.Previous;
+            var focused = _root.panel?.focusController?.focusedElement as VisualElement;
+            if (!tab && focused != null && _root.Contains(focused) && UiFocus.KeyboardActive(_root)) return;
+            e.StopPropagation();
+            _root.focusController?.IgnoreEvent(e);
+        }
+
         void LetGoAfterClick()
         {
-            if (ModalOpen || UiFocus.KeyboardActive(_root)) return;
+            if (ModalOpen) return;
             var focused = _root.panel?.focusController?.focusedElement as VisualElement;
             if (focused != null && _root.Contains(focused)) ((Focusable)focused).Blur();
         }

@@ -514,7 +514,9 @@ namespace MountainPlanner.App
             foreach (string id in MapLayers.InfoIds) Hud.SetLayer(id, _layers.IsOn(id));
             Hud.SetLegend(_layers.InfoLayerId, _layers.ContoursOn);
             if (_clock != null) Hud.SetClock(_clock.Now, _clock.Speed, _clock.Paused);
-            Camera.LettersToTools = Hud.ToolboxOpen;   // while the tray is open, letters are its tools (the key map)
+            // While the tray is open its tools take their letters (the key map), from Phase 3 when the tools work; until
+            // then the letters, WASD among them, stay with the camera.
+            Camera.LettersToTools = false;
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             var mouse = Mouse.current;
             float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
