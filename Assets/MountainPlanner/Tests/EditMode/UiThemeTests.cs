@@ -151,6 +151,16 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void DisplayModesAreTheMockupsStepper()
+        {
+            Assert.That(UiDisplay.Names, Is.EqualTo(new[] { "Windowed", "Borderless", "Fullscreen" }));
+            Assert.That(UiDisplay.IndexOf(FullScreenMode.FullScreenWindow), Is.EqualTo(1), "borderless is the default");
+            Assert.That(UiDisplay.IndexOf(FullScreenMode.ExclusiveFullScreen), Is.EqualTo(2));
+            Assert.That(UiDisplay.IndexOf(FullScreenMode.MaximizedWindow), Is.EqualTo(0));
+            Assert.That(UiDisplay.WindowSize(2560, 1080), Is.EqualTo(new Vector2Int(1920, 810)), "a window at three quarters of the display");
+        }
+
+        [Test]
         public void AutoFollowsTheSun()
         {
             Assert.That(UiPreferences.ThemeFor(UiThemeChoice.Auto, daylight: true), Is.EqualTo(UiTheme.Light));

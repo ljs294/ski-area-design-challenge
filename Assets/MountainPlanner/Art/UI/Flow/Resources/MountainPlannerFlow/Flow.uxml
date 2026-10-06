@@ -154,6 +154,7 @@
                         <ui:VisualElement class="mp-nav">
                             <ui:Button name="settings-tab-interface" text="Interface" class="mp-nav__item" />
                             <ui:Button name="settings-tab-units" text="Units and time" class="mp-nav__item" />
+                            <ui:Button name="settings-tab-graphics" text="Graphics" class="mp-nav__item" />
                         </ui:VisualElement>
                         <ui:ScrollView class="settings-page">
                             <ui:VisualElement name="settings-interface">
@@ -194,6 +195,20 @@
                                     </ui:VisualElement>
                                 </ui:VisualElement>
                                 <ui:Label text="U switches units in the game too." class="mp-note" />
+                            </ui:VisualElement>
+                            <ui:VisualElement name="settings-graphics" class="hidden">
+                                <ui:Label text="Graphics" class="mp-page-title" />
+                                <ui:VisualElement class="mp-srow">
+                                    <ui:VisualElement class="mp-srow__text">
+                                        <ui:Label text="Display mode" class="mp-srow__label" />
+                                        <ui:Label text="A window, or the whole screen without a border or with the screen to itself. Alt+Enter switches too." class="mp-srow__desc" />
+                                    </ui:VisualElement>
+                                    <ui:VisualElement class="mp-step">
+                                        <ui:Button name="display-prev" text="‹" class="mp-step__b" />
+                                        <ui:Label name="display-value" text="Borderless" class="mp-step__v" />
+                                        <ui:Button name="display-next" text="›" class="mp-step__b" />
+                                    </ui:VisualElement>
+                                </ui:VisualElement>
                             </ui:VisualElement>
                         </ui:ScrollView>
                     </ui:VisualElement>
