@@ -86,7 +86,19 @@ namespace MountainPlanner.UI
         public static void FocusSoon(VisualElement scope, Focusable first = null)
         {
             if (scope == null) return;
-            scope.schedule.Execute(() => (first ?? FirstIn(scope))?.Focus());
+            // Tries each frame until a control takes focus (at most about half a second): a screen shown this
+            // frame has no resolved style yet, and on the first frames after a scene loads the panel may not either.
+            bool done = false;
+            int tries = 0;
+            scope.schedule.Execute(() =>
+            {
+                var target = first ?? FirstIn(scope);
+                if (target is VisualElement e && e.panel != null && IsShown(e) && e.canGrabFocus)
+                {
+                    target.Focus();
+                    done = e.panel.focusController?.focusedElement == target;
+                }
+            }).Every(16).Until(() => done || ++tries > 30);
         }
 
         /// <summary>Closes a modal opened with <see cref="OpenModal"/> and restores the focus it took.</summary>

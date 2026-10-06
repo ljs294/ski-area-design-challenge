@@ -102,6 +102,8 @@
     background-color: var(--scrim-strong);
 }
 .modal > .ui-stage { align-items: center; justify-content: center; }
+/* A modal never leaves the screen: at 150% on a 4:3 screen the column is 640 units wide. */
+.modal > .ui-stage > .mp-win { max-width: 96%; max-height: 96%; flex-shrink: 1; }
 
 /* ---------- S2 My Resorts ---------- */
 .library {

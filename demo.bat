@@ -106,6 +106,10 @@ echo     41 Full benchmark: High and Medium against their budgets, garbage and m
 echo     42 Benchmark one quality preset: Low, Medium, High or Ultra (about 4 minutes)
 echo     43 Rebuild the Development game (exact garbage and memory counters for 41)
 echo.
+echo   Phase 2, task 01: UI foundation (needs a downloaded area; close the Unity editor first)
+echo     47 Capture every screen at 1920x1080, 2560x1080, 3440x1440 and 5120x1440, dark and light, 50-150%% (about 15 minutes)
+echo        Then try it by hand: Settings - Theme (Dark, Light, Auto) and Interface scale; Tab, the arrows, Enter and Esc on every screen.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -166,6 +170,7 @@ if /i "%CHOICE%"=="40" goto flowclean
 if /i "%CHOICE%"=="41" goto benchfull
 if /i "%CHOICE%"=="42" goto benchpreset
 if /i "%CHOICE%"=="43" call :builddev & goto done
+if /i "%CHOICE%"=="47" goto uicapture
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -388,6 +393,17 @@ echo Benchmark at %QUALITY% (about 4 minutes)...
 "%GAME%" %SCREEN% -quality %QUALITY% -benchmark "%BENCH%\%QUALITY%.json" -logFile "%BENCH%\%QUALITY%.log" <nul
 findstr /l /c:"[Benchmark]" "%BENCH%\%QUALITY%.log"
 start "" "%BENCH%"
+goto done
+
+:uicapture
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "UICAP=%~dp0test-results\ui-captures"
+if exist "%UICAP%" rmdir /s /q "%UICAP%"
+echo Capturing every screen (about 15 minutes; the window shows the title while it works)...
+"%GAME%" -screen-fullscreen 0 -screen-width 1920 -screen-height 1080 -uicapture "%UICAP%" -logFile "%~dp0test-results\ui-captures.log" <nul
+type "%UICAP%\report.txt"
+start "" "%UICAP%"
 goto done
 
 :lifts
