@@ -129,15 +129,16 @@ body.solo .frame { border-radius: 0; }
 .hud .money .delta { font: 600 11.5px 'Overpass Mono', monospace; }
 .hud .count { font: 700 15px 'Overpass Mono', monospace; }
 /* the bar's counts open their Analysis tab */
-.hud .stat { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 9px; border-radius: 5px; }
+.hud .stat { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 6px; border-radius: 5px; }
 .hud .stat .si { color: var(--icon); }
 .hud .stat:hover { background: var(--hover); }
-.hud .stat.on, .hud .stat.on:hover { background: var(--on-bg); color: var(--on-fg); --knock: var(--on-bg); }
-.hud .stat.on .si { color: var(--on-fg); }
+.hud .stat.on, .hud .stat.on:hover { background: var(--chip); --knock: var(--chip); }
+.hud .stat.on .si { color: var(--strong); }
+.hud .when.stat { display: grid; gap: 2px; height: 40px; align-content: center; }
 .hud .save { color: var(--faint); }
 .hud .save.due { color: var(--strong); }
 .hud .elev { min-width: 64px; text-align: right; }
-.hud .fig.wide { min-width: 176px; }
+.hud .fig.wide { min-width: 164px; }
 
 /* top right: sketch, map layers and the menu */
 .hud .tr { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 5; }
@@ -343,7 +344,7 @@ body.solo .frame { border-radius: 0; }
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
-    <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with seven tabs and the sketch pencil. The bar's open lifts, open trails and guests open their Analysis tab. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. Figures are imperial until you press U; steepness is always a grade in percent. <b>Keys:</b> T toolbox, Tab analysis, U units, Shift+1 snow, Shift+3 trees, Shift+6 contours, Shift+7–9 info layers, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with eight tabs and the sketch pencil. The bar's clock and weather, money, open lifts, open trails and guests open their Analysis tab. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. Figures are imperial until you press U; steepness is always a grade in percent. <b>Keys:</b> T toolbox, Tab analysis, U units, Shift+1 snow, Shift+3 trees, Shift+6 contours, Shift+7–9 info layers, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="variants" id="variants"><b>Open or closed, try:</b><button data-style="sub" class="on">A line under the name</button><button data-style="track">An hours track</button><button data-style="word">A word after the name</button></div>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
@@ -529,8 +530,10 @@ body.solo .frame { border-radius: 0; }
     for (let k = from; k < to; k += 900) { const tt = t + k + 450, d = day + Math.floor(tt / 86400), h = (((tt % 86400) + 86400) % 86400) / 3600; cm += snowRate(d, h) * 0.25; }
     return cm;
   }
+  const DAY_TEMP = [0, -2, 1, -4, -1, 2, -3];   // placeholder: each day a few degrees warmer or colder
+  const airAt = (day, h) => -9.5 + DAY_TEMP[((day % 7) + 7) % 7] + 5.5 * Math.cos(2 * Math.PI * (h - 14.5) / 24);
   function weather(t, day = S.day) {
-    const h = t / 3600, temp = Math.round(-9.5 + 5.5 * Math.cos(2 * Math.PI * (h - 14.5) / 24));
+    const h = t / 3600, temp = Math.round(airAt(day, h));
     const night = h < SUNRISE || h >= SUNSET, rate = snowRate(day, h);
     let kind = night ? 'moon' : 'sun', desc = 'Clear', dir = 'W', kmh = 8;
     if (rate > 0) { kind = 'snow'; desc = rate >= 2 ? 'Heavy snow' : 'Light snow'; kmh = 18; }
@@ -986,12 +989,12 @@ body.solo .frame { border-radius: 0; }
     if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px"><div class="seg">${Object.entries(DIFFS).map(([k, v]) => `<span class="${k === obj.diff ? 'on' : ''}" data-act="setdiff" data-v="${k}">${RATING[k]}${v}</span>`).join('')}</div></div><div class="hint" style="padding-top:0">The rating changes the signs and who skis it.</div>`, 300);
     return panelShell(head, top + `<div class="hint">It will grow back in over a few seasons.</div><div class="acts" style="grid-template-columns:1fr"><div class="go danger" data-act="remove"><span>${S.removeArmed === obj.id ? 'Click again to confirm' : `Remove ${esc(obj.name)}`}</span><span class="mono"></span></div></div>`, 300);
   }
-  const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['guests', 'Guests'], ['snow', 'Snowmaking'], ['amenities', 'Amenities'], ['finances', 'Finances']];
+  const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['guests', 'Guests'], ['snow', 'Snowmaking'], ['weather', 'Weather'], ['amenities', 'Amenities'], ['finances', 'Finances']];
   const isOpen = () => { const h = S.t / 3600; return h >= LIFTS_OPEN && h < LIFTS_CLOSE; };
   const waitFor = (l) => { if (!S.skiers || !l.built) return 0; const st = liftStats(l.a, l.b, l.model); return Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); };
   const lampHtml = (c) => `<i class="lamp" style="--lamp:${c}"></i>`;
   const kvs = (rows) => `<dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
-  const AW = 504;   // the analysis panel's width; its charts span it less the margins
+  const AW = 568;   // the analysis panel's width; its charts span it less the margins
   // What the bar counts: lifts and trails open now, and the guests on the mountain.
   const openLifts = () => (isOpen() ? S.liftsTotal : 0), openTrails = () => (isOpen() ? S.trailsTotal : 0);
   function analysisPanel(bottom) {
@@ -1058,6 +1061,28 @@ body.solo .frame { border-radius: 0; }
       return `<div class="cols">${kvs([['Conditions', `<span class="word">${lampHtml(cond[1])}${cond[0]}</span>`], ['Air', tempTxt(wx.temp)], ['Guns', `<b>${guns}</b>`], ['Running now', `<b>${running}</b>`]])}
         ${kvs([['Water lines', distTxt(lines)], ['Pump houses', `<b>${pumps}</b>`], ['Water used today', waterTxt(guns * 0.6 * 0.45 * 60 * hoursRun)], ['Snow base', snowAmt(S.base)]])}</div>
         <div class="hint" style="border-top:1px solid var(--hair)">Guns run overnight, ${hhmm(19)} to ${hhmm(7)}, whenever the air is below ${tempTxt(-2)}. Natural snow tonight: ${snowAmt(stormCm(S.day))}.</div>`;
+    }
+    if (S.atab === 'weather') {
+      // Now, the next 24 hours as a chart (air temperature over snowfall), then the week ahead.
+      const h0 = S.t / 3600, w = AW - 24, hgt = 92, top = 14, base = hgt - 16, X = (i) => 12 + i / 24 * (w - 24);
+      const hrs = []; for (let i = 0; i <= 24; i++) { const hh = h0 + i, d = S.day + Math.floor(hh / 24), hd = hh % 24; hrs.push({ i, hd, temp: airAt(d, hd), rate: snowRate(d, hd) }); }
+      const tl = Math.min(...hrs.map((x) => x.temp)) - 1, th = Math.max(...hrs.map((x) => x.temp)) + 1, TY = (v) => top + (th - v) / (th - tl) * (base - top - 18);
+      let ch = `<line x1="12" y1="${base}" x2="${w - 12}" y2="${base}" style="stroke:var(--chart-b)"/>`;
+      for (const x of hrs) if (x.i < 24 && x.rate > 0) { const bh = Math.min(1, x.rate / 3) * 26; ch += `<rect x="${f1(X(x.i) + 1)}" y="${f1(base - bh)}" width="${f1((w - 24) / 24 - 2)}" height="${f1(bh)}" rx="1" style="fill:var(--pp)" opacity=".85"/>`; }
+      ch += `<path d="${hrs.map((x, k) => `${k ? 'L' : 'M'}${f1(X(x.i))} ${f1(TY(x.temp))}`).join('')}" fill="none" stroke-width="1.6" style="stroke:var(--chart-a)"/>`;
+      const hi = hrs.reduce((a, b) => (b.temp > a.temp ? b : a)), lo = hrs.reduce((a, b) => (b.temp < a.temp ? b : a));
+      for (const x of [hi, lo]) ch += `<circle cx="${f1(X(x.i))}" cy="${f1(TY(x.temp))}" r="2.4" style="fill:var(--chart-a)"/><text x="${f1(X(x.i))}" y="${f1(TY(x.temp) - 6)}" text-anchor="middle" style="font:600 10px 'Overpass Mono';fill:var(--muted)">${tempTxt(Math.round(x.temp))}</text>`;
+      for (const x of hrs) if (x.i % 3 === 0 && x.i < 24) ch += `<text x="${f1(X(x.i))}" y="${hgt - 2}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${x.i ? String(Math.floor(x.hd)) : 'now'}</text>`;
+      const sunTxt = `${hhmm(SUNRISE)} – ${hhmm(SUNSET)}`;
+      const days = []; for (let k = 0; k < 5; k++) { const d = S.day + k, hiT = Math.round(airAt(d, 14.5)), loT = Math.round(airAt(d + 1, 2.5)), cm = stormCm(d); days.push(`<div class="r" style="grid-template-columns:1.1fr 1.6fr 0.9fr 0.9fr"><span>${k ? `Day ${d}` : 'Today'}</span><span class="nm">${wxIcon(cm ? 'snow' : k % 3 === 1 ? 'few' : 'sun').replace('class="g"', 'class="g" style="width:16px;height:16px"')}${cm ? (cm >= 8 ? 'Snow tonight' : 'Flurries tonight') : k % 3 === 1 ? 'Fair' : 'Clear'}</span><span class="n">${tempTxt(hiT)} / ${tempTxt(loT)}</span><span class="n" style="color:${cm ? 'var(--pp)' : ''}">${cm ? snowAmt(cm) : '—'}</span></div>`); }
+      return `<div class="statusline">${wxIcon(wx.kind)}${wx.desc}<span class="t">${tempTxt(wx.temp)}</span><span class="r">Wind ${windTxt(wx.dir, wx.kmh)}</span></div><div class="rule"></div>
+        <div class="sub"><span>Next 24 hours</span><span>air temperature over snowfall</span></div>
+        <svg width="${w}" height="${hgt}" style="display:block;margin:4px 12px 0">${ch}</svg>
+        <div class="rule" style="margin-top:6px"></div>
+        <div class="cols">${kvs([['Snowing now', wx.rate ? `<b>${snowAmt(wx.rate)}</b> an hour` : 'No'], ['Next 24 hours', `<b>${snowAmt(wx.fc)}</b>`], ['Last 24 hours', `<b>${snowAmt(wx.fell)}</b>`]])}
+        ${kvs([['Snow base', `<b>${snowAmt(S.base)}</b>`], ['Daylight', sunTxt], ['Snowmaking', wx.temp <= -2 ? 'cold enough' : 'too warm']])}</div>
+        <div class="rule"></div>
+        <div class="tbl"><div class="r th" style="grid-template-columns:1.1fr 1.6fr 0.9fr 0.9fr"><span>Outlook</span><span></span><span class="n">High / low</span><span class="n">New snow</span></div>${days.join('')}</div>`;
     }
     if (S.atab === 'amenities') {
       const lodges = 3 + S.things.filter((t) => t.kind === 'lodge' && t.built).length, seats = 1450 + (lodges - 3) * 300;
@@ -1144,10 +1169,10 @@ body.solo .frame { border-radius: 0; }
       <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (Tab)">${g('s-analysis')}Analysis</span></div>
       <div class="cell sep" style="padding:0 5px"><span class="resort st-${S.statusStyle}" id="resort" data-act="rename" title="${esc(resortTitle(resortStatus(S.t)))}"><span id="rname">${esc(S.name)}</span><span class="rstat" id="rstat">${statusHtml(resortStatus(S.t))}</span></span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib" data-act="pause" id="playbtn" title="${S.paused ? 'Play' : 'Pause'} (Space)">${g(S.paused ? 's-play' : 's-pause')}</span></div>
-      <div class="cell sep" style="gap:12px"><span class="day" id="day">Day ${S.day}</span><span class="when"><span class="v" id="clock">${clockText()}</span><span class="wxline" id="wxcell" title="${wxTitle(wx)}">${wxLine(wx)}</span></span></div>
+      <div class="cell sep" style="gap:12px"><span class="day" id="day">Day ${S.day}</span><span class="when stat${S.analysis && S.atab === 'weather' ? ' on' : ''}" data-act="aopen" data-v="weather" title="Analysis › Weather"><span class="v" id="clock">${clockText()}</span><span class="wxline" id="wxcell" title="${wxTitle(wx)}">${wxLine(wx)}</span></span></div>
       <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
       <div class="grow"></div>
-      <div class="cell sep" title="Bank balance, and today's earnings"><span style="color:var(--pos)">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${cashTxt(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)} today</span></span></div>
+      <div class="cell sep" style="padding:0 4px"><span class="stat${S.analysis && S.atab === 'finances' ? ' on' : ''}" data-act="aopen" data-v="finances" title="Bank balance, and today's earnings: Analysis › Finances"><span style="color:var(--pos)">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash">${cashTxt(S.cash)}</span><span class="delta" id="delta" style="color:${S.today < 0 ? 'var(--neg)' : 'var(--pos)'}">${short(S.today)} today</span></span></span></div>
       <div class="cell sep" style="padding:0 4px;gap:0">${[['lifts', 's-lift', 'Lifts open', String(openLifts())], ['trails', 's-trail', 'Trails open', String(openTrails())], ['guests', 's-skier', 'Guests on the mountain', S.skiers.toLocaleString('en-US')]].map(([k, gl, t, v]) => `<span class="stat${S.analysis && S.atab === k ? ' on' : ''}" data-act="aopen" data-v="${k}" title="${t}: Analysis › ${k[0].toUpperCase() + k.slice(1)}"><span class="si">${g(gl)}</span><span class="count" id="n-${k}">${v}</span></span>`).join('')}</div>
       <div class="cell sep" title="Elevation under the pointer${S.info ? `, and the ${INFO[S.info][0].toLowerCase()} there` : ''}"><span class="fig wide" id="elevfig"></span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span></div>
