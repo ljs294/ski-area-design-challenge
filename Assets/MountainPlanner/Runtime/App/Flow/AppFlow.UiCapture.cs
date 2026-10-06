@@ -403,11 +403,18 @@ namespace MountainPlanner.App.Flow
                     var b = e.worldBound;
                     if (b.width < 0.5f || b.height < 0.5f || float.IsNaN(b.x) || !seen.Add(e.name)) return;
                     var s = e.resolvedStyle;
+                    var bg = s.backgroundColor;
+                    // A see-through HUD panel draws its colour on a plate (MountainHud.Glass.cs): report that colour.
+                    if (e.ClassListContains("glassy") && e.childCount > 0 && e[0].ClassListContains("hud-plate"))
+                    {
+                        bg = e[0].resolvedStyle.backgroundColor;
+                        bg.a *= e[0].resolvedStyle.opacity;
+                    }
                     if (seen.Count > 1) sb.Append(',');
                     sb.Append('"').Append(e.name).Append("\":{");
                     sb.AppendFormat(CultureInfo.InvariantCulture, "\"x\":{0:F2},\"y\":{1:F2},\"w\":{2:F2},\"h\":{3:F2}",
                         (b.x - screen.x) * k, (b.y - screen.y) * k, b.width * k, b.height * k);
-                    sb.Append(",\"bg\":").Append(Rgba(s.backgroundColor)).Append(",\"color\":").Append(Rgba(s.color));
+                    sb.Append(",\"bg\":").Append(Rgba(bg)).Append(",\"color\":").Append(Rgba(s.color));
                     sb.Append(",\"border\":").Append(s.borderTopWidth > 0 ? Rgba(s.borderTopColor) : "null");
                     sb.AppendFormat(CultureInfo.InvariantCulture, ",\"fontSize\":{0:F1}", s.fontSize);
                     if (e is TextElement t && t.childCount == 0) sb.Append(",\"text\":\"").Append(Escape(t.text)).Append('"');

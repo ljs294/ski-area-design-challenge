@@ -73,7 +73,7 @@ namespace MountainPlanner.UI
         {
             float sum = 0;
             foreach (var cell in _bar.Children())
-                if (!cell.ClassListContains("grow")) sum += cell.layout.width;
+                if (!cell.ClassListContains("grow") && !cell.ClassListContains("hud-plate")) sum += cell.layout.width;   // the see-through plate spans the bar
             float room = _bar.contentRect.width;
             if (float.IsNaN(sum) || room <= 0) return;
             if (!_compact)

@@ -407,6 +407,7 @@
 
 /* ---------- see-through panels (MountainHud.Glass.cs): the panel colour on a plate behind the contents ---------- */
 .hud .glassy, .hud .glassy:hover, .hud .glassy.sq--on, .hud .glassy.sq--on:hover, .hud .glassy.sq--dis:hover { background-color: rgba(0, 0, 0, 0); }
+.hud.hud--glass .sep { background-color: var(--hair2); }
 .hud .hud-plate { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: var(--panel); }
 .hud .sq:hover > .hud-plate { background-color: var(--hover); }
 .hud .sq--on > .hud-plate, .hud .sq--on:hover > .hud-plate { background-color: var(--on-bg); }

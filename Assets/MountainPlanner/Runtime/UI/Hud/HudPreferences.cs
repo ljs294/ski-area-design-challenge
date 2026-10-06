@@ -28,9 +28,12 @@ namespace MountainPlanner.UI.Hud
         static int? _opacity;
 
         /// <summary>
-        /// How solid the panels are, 50–100% (owner's experiment, 2026-10-06): their colour plates draw at this opacity.
+        /// How solid the panels are, 50–100%, 95% unless chosen (owner, 2026-10-06): their colour plates draw at this opacity.
         /// -hudopacity N sets it without remembering (captures).
         /// </summary>
+        /// <summary>The owner's pick (2026-10-06): the mountain just shows through.</summary>
+        public const int DefaultPanelOpacity = 95;
+
         public static int PanelOpacity
         {
             get
@@ -39,7 +42,7 @@ namespace MountainPlanner.UI.Hud
                 {
                     var args = Environment.GetCommandLineArgs();
                     int i = Array.IndexOf(args, "-hudopacity");
-                    _opacity = i >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], out int flag) ? flag : PlayerPrefs.GetInt(OpacityKey, 100);
+                    _opacity = i >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], out int flag) ? flag : PlayerPrefs.GetInt(OpacityKey, DefaultPanelOpacity);
                     _opacity = Mathf.Clamp(_opacity.Value, 50, 100);
                 }
                 return _opacity.Value;

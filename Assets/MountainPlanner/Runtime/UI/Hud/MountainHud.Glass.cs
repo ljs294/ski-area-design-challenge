@@ -48,6 +48,8 @@ namespace MountainPlanner.UI
         {
             float opacity = HudPreferences.PanelOpacity / 100f;
             foreach (var plate in _plates) plate.style.opacity = opacity;
+            // See-through, a panel reads lighter over snow than its solid colour: the bar's rules take the stronger hairline.
+            _root.Q("hud").EnableInClassList("hud--glass", opacity < 0.999f);
         }
     }
 }
