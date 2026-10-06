@@ -17,6 +17,7 @@ namespace MountainPlanner.Persistence
     public sealed class PendingDownload
     {
         public const int CurrentVersion = 1;
+        public static readonly VersionedJson Migrations = new VersionedJson("paused download", nameof(Version), CurrentVersion);
 
         public int Version { get; set; } = CurrentVersion;
         public string Id { get; set; } = "";
@@ -61,18 +62,22 @@ namespace MountainPlanner.Persistence
             return s + "-" + Fnv(where).ToString("x8", CultureInfo.InvariantCulture);
         }
 
-        public static void Save(string dataRoot, PendingDownload d)
+        /// <summary>Writes the record; false (and nothing written) when a newer version of the game left a record there.</summary>
+        public static bool Save(string dataRoot, PendingDownload d)
         {
             if (string.IsNullOrEmpty(d.Id)) throw new ArgumentException("The download needs an id.", nameof(d));
             string folder = FolderOf(dataRoot, d);
             Directory.CreateDirectory(folder);
-            string path = Path.Combine(folder, RecordFile), temp = path + ".tmp";
-            File.WriteAllText(temp, JsonConvert.SerializeObject(d, Formatting.Indented) + "\n", new UTF8Encoding(false));
-            if (File.Exists(path)) File.Delete(path);
-            File.Move(temp, path);
+            string path = Path.Combine(folder, RecordFile);
+            if (PendingDownload.Migrations.IsNewer(path)) return false;
+            AtomicFile.WriteJson(path, d);
+            return true;
         }
 
-        /// <summary>Every readable record, oldest first; unreadable or newer-version records are skipped, never an error.</summary>
+        /// <summary>
+        /// Every readable record, migrated, oldest first; unreadable or newer-version records are skipped, never an error
+        /// (a newer game's paused download stays on disk for that game to resume).
+        /// </summary>
         public static List<PendingDownload> List(string dataRoot)
         {
             var list = new List<PendingDownload>();
@@ -84,10 +89,10 @@ namespace MountainPlanner.Persistence
                 if (!File.Exists(path)) continue;
                 try
                 {
-                    var d = JsonConvert.DeserializeObject<PendingDownload>(File.ReadAllText(path));
-                    if (d != null && d.Version <= PendingDownload.CurrentVersion && d.Id == Path.GetFileName(folder)) list.Add(d);
+                    var d = PendingDownload.Migrations.Read<PendingDownload>(File.ReadAllText(path));
+                    if (d.Id == Path.GetFileName(folder)) list.Add(d);
                 }
-                catch (Exception e) when (e is IOException || e is JsonException || e is UnauthorizedAccessException) { }
+                catch (Exception e) when (e is IOException || e is InvalidDataException || e is JsonException || e is UnauthorizedAccessException) { }
             }
             return list.OrderBy(d => d.StartedUtc, StringComparer.Ordinal).ThenBy(d => d.Id, StringComparer.Ordinal).ToList();
         }
@@ -112,8 +117,12 @@ namespace MountainPlanner.Persistence
     {
         public const int CurrentVersion = 1;
         public const string FileName = "recent.json";
+        public static readonly VersionedJson Migrations = new VersionedJson("recently opened list", nameof(Version), CurrentVersion);
 
         public int Version { get; set; } = CurrentVersion;
+
+        /// <summary>Set when recent.json is from a newer version of the game: this list is empty, and Touch leaves that file alone.</summary>
+        [JsonIgnore] public string Refusal { get; private set; } = "";
         /// <summary>Package id → when it was last opened, ISO 8601 UTC.</summary>
         public Dictionary<string, string> Opened { get; set; } = new Dictionary<string, string>();
 
@@ -132,22 +141,25 @@ namespace MountainPlanner.Persistence
             if (!File.Exists(path)) return new RecentResorts();
             try
             {
-                var r = JsonConvert.DeserializeObject<RecentResorts>(File.ReadAllText(path));
-                return r == null || r.Version > CurrentVersion || r.Opened == null ? new RecentResorts() : r;
+                var r = Migrations.Read<RecentResorts>(File.ReadAllText(path));
+                return r.Opened == null ? new RecentResorts() : r;
             }
-            catch (Exception e) when (e is IOException || e is JsonException || e is UnauthorizedAccessException) { return new RecentResorts(); }
+            catch (FormatTooNewException e) { return new RecentResorts { Refusal = e.Message }; }
+            catch (Exception e) when (e is IOException || e is InvalidDataException || e is JsonException || e is UnauthorizedAccessException) { return new RecentResorts(); }
         }
 
-        /// <summary>Records an open; <paramref name="utc"/> comes from the caller, so this stays free of the clock.</summary>
-        public static void Touch(string dataRoot, string packageId, string utc)
+        /// <summary>
+        /// Records an open; <paramref name="utc"/> comes from the caller, so this stays free of the clock. False (and
+        /// nothing written) when recent.json is from a newer version of the game.
+        /// </summary>
+        public static bool Touch(string dataRoot, string packageId, string utc)
         {
             var r = Load(dataRoot);
+            if (r.Refusal.Length > 0) return false;
             r.Opened[packageId] = utc;
             Directory.CreateDirectory(dataRoot);
-            string path = Path.Combine(dataRoot, FileName), temp = path + ".tmp";
-            File.WriteAllText(temp, JsonConvert.SerializeObject(r, Formatting.Indented) + "\n", new UTF8Encoding(false));
-            if (File.Exists(path)) File.Delete(path);
-            File.Move(temp, path);
+            AtomicFile.WriteJson(Path.Combine(dataRoot, FileName), r);
+            return true;
         }
     }
 }

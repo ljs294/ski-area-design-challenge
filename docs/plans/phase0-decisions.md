@@ -242,3 +242,12 @@ numbers: [phase1-benchmark-report.md](phase1-benchmark-report.md).
 | E4 | **Estimates:** task-weeks per task, plus a calendar forecast at Phase 1's ratio padded for hardware, testers and reviews |
 | E5 | **Milestone:** the merge commit of the exit PR is tagged `unity-m1`, and `archive/unity` is fast-forwarded to it |
 | E6 | **Ultrawide support in Phase 2** (the owner's monitor): 21:9 and 32:9 layouts, HUD, resolution and vertical-FOV-preserving camera, and a 3440×1440 benchmark; 1080p stays the budget of record |
+
+## Phase 2 task 08, formats frozen: decided 2026-10-06
+
+**Context:** T11, the format freeze. Rules: [0.3 §5](phase0-0.3-technical-architecture.md#5-package-cache-and-library-t5-t11).
+
+| # | Decision |
+|---|---|
+| V1 | **The library index is a version marker only:** `<data>/library.json` holds the layout version of the data folder, and the listing stays a scan of the packages, so it can never disagree with the disk. A folder without one is layout v1 (Phase 1). It is written when the first package is added |
+| V2 | **An area made by a newer version of the game shows as a greyed row** in the library: its name and size, "Made by a newer version of Mountain Planner. Update the game to open it.", Open disabled and Delete allowed |

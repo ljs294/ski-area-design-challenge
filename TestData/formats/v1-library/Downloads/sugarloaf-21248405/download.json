@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Id": "sugarloaf-21248405",
+  "Name": "Sugarloaf",
+  "Latitude": 45.0314,
+  "Longitude": -70.3131,
+  "SizeKm": 3.0,
+  "StartedUtc": "2026-10-03T21:04:11Z",
+  "LastOverall": 0.384,
+  "LastStage": "Forest"
+}

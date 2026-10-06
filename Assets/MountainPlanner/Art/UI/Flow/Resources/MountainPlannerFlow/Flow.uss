@@ -176,6 +176,7 @@
 .lib-score--limited { color: var(--neg); }
 .lib-paused { flex-grow: 1; color: var(--warn); font-size: 13px; }
 .lib-actions { flex-direction: row; }
+.lib-row--newer .lib-name { color: var(--muted); }
 
 /* ---------- S4 download card and pill ---------- */
 .download {

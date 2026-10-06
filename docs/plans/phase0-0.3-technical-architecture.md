@@ -330,12 +330,59 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
 **Offline:** the package holds everything the game needs to open a resort, including attribution text for the credits screen. Opening a resort makes **no network calls**.
 
 **Library:** downloaded resorts with name, location, size on disk and a thumbnail. Deletion needs confirmation.
+- The listing is a scan of `<data>/Resorts/*/manifest.json`, so it can never disagree with the disk.
+- `<data>/library.json` holds only the **layout version** of the data folder (decision V1). A folder without one is v1.
+- `<data>/recent.json` records when each package was last opened, for Continue and the library's sort.
+- `<data>/Downloads/<id>/download.json` records a paused download (task 14).
 
-**View state:** a small versioned JSON per resort.
+**View state:** a small versioned JSON per resort (`view.json` in the package folder).
 
 **Serialization:** Newtonsoft.Json (MIT, via `com.unity.nuget.newtonsoft-json`); hand-written binary readers and writers for grids.
 
-**Versioning:** integer versions everywhere. Formats may change freely until the first build shared with other players; after that, fixture-tested migrations.
+**Versioning: the formats are frozen (task 08, T11).** Integer versions everywhere. From task 08 on, every change to a
+frozen format ships with a migration and a fixture test.
+
+| Format | File | Version field | Version | Fixture |
+|---|---|---|---|---|
+| Package manifest | `<package>/manifest.json` | `FormatVersion` | 1 | `TestData/formats/v1-library/Resorts/*/manifest.json` |
+| Library layout | `<data>/library.json` | `Version` | 1 | `TestData/formats/v1-library` (Phase 1 wrote no marker) |
+| Recently opened list | `<data>/recent.json` | `Version` | 1 | `…/v1-library/recent.json` |
+| View state | `<package>/view.json` | `Version` | 1 | `…/v1-library/Resorts/5792676e513f5302/view.json` |
+| Paused download | `<data>/Downloads/<id>/download.json` | `Version` | 1 | `…/v1-library/Downloads/*/download.json` |
+
+**The rules:**
+1. **Every file is read through its format's `VersionedJson`** (`Persistence/VersionedJson.cs`). The version comes from
+   the file itself, before anything is deserialised. **A missing version is v1, never "current".**
+2. **A newer version is refused, never misread.** The message is "This *format* was saved by a newer version of
+   Mountain Planner (format *N*; this version reads up to *M*). Update the game to open it."
+   (`FormatTooNewException`, an `IOException`).
+   - A newer package shows as a greyed library row (decision V2).
+   - A newer library layout lists nothing, and the title says why.
+   - A newer recent list, view state or paused download reads as empty or defaults.
+3. **Nothing is written over a newer file.** `RecentResorts.Touch`, `ViewState.Save` and `PendingDownloads.Save`
+   return false and leave it as it is.
+4. **Older versions migrate as they're read,** one step at a time (v1→v2→…), on the raw JSON. Old shapes never have
+   to deserialise into new classes.
+   - The file is rewritten in the new version only when the game next saves it.
+   - Package manifests are immutable, so they're upgraded in memory only, on every read.
+5. **Package ids don't move.** `ResortPackage.ComputeId` hashes the frozen id scheme (`IdScheme = 1`), not the
+   manifest's format, so a migrated package keeps its folder, its recent entry and its id check.
+6. **A format change, in one PR:**
+   - bump the format's current version;
+   - add the step to its `VersionedJson`;
+   - add a `TestData/formats/v<N>-…` fixture;
+   - test that every older fixture still migrates to the same values (`FormatFreezeTests`). The v1 fixtures are never
+     edited.
+7. **A library layout change** (moving folders) runs its migration on the data folder first, and only then rewrites
+   `library.json` with the new version. A crash part-way through then leaves the old number, and the migration
+   runs again.
+8. **Not frozen:**
+   - **The terrain cache** (`cache-v<N>/`, `cache.json`) is regenerable. Its version still bumps freely, and a
+     mismatch rebuilds it.
+   - **Settings** (Unity's PlayerPrefs, such as display units) are per machine, and fall back to defaults. Task 05
+     versions its settings file under these rules if it adds one.
+   - Package layers (grids, `roads.json`) are verified by hash in the manifest, and change only with a manifest
+     format.
 
 ## 6. Acquisition and provider terms (T10)
 
