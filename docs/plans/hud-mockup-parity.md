@@ -46,6 +46,8 @@ Accepted with the plan (owner, 2026-10-06), or not measurable:
 - **Live words:** the resort's name, the clock, the day and date, the elevation and the readout are compared by box and
   colour, not text (`NO_TEXT` in states.mjs). The mockup's calendar puts 15 January in 2027 (a Friday); the game's
   view year is 2026 (a Thursday).
-- **Kerning:** the game's Overpass font assets carry no kerning pairs, so its words run 2–5% wider than the browser's
-  and a row of words (the tabs, the bar) drifts right by a few pixels. A fix belongs to the shared font assets.
+- **Figures:** Overpass Mono (no kerning) sets the clock about 4 px wider than the browser over eight characters, so
+  the cells after it sit a few pixels right. Words are kerned like the browser's (FontAssets.AddKerning, task P2-02).
+- **Opacity and scale:** the game's panels are 95% opaque and its interface 85% by default (owner, 2026-10-06); the
+  parity check measures at 100% and with solid panels (`-hudopacity 100`, the mockup's `scale100`).
 - **Type:** Overpass ships here in two weights, so the mockup's 500/600 draw regular and 700/800 bold.

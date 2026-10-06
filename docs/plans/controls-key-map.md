@@ -5,7 +5,7 @@
 ## Rules
 
 - **The HUD's gameplay keys win.** The camera works around them.
-- **Letters belong to the tools while the Toolbox tray is open.** The camera then moves with the arrows, Page Up / Page Down, + / − and the mouse. R, F, P and C wait until the tray closes. (`ViewCamera.LettersToTools` is the switch the HUD sets.)
+- **Letters belong to the tools while the Toolbox tray is open.** The camera then moves with the arrows, Page Up / Page Down, + / − and the mouse. R, F, P and C wait until the tray closes. (`ViewCamera.LettersToTools` is the switch the HUD sets. It turns on with the working tools in Phase 3; until then the tray's tiles are placeholders and the letters, WASD among them, stay with the camera.)
 - **The same key does the same thing in both camera modes.** Free-fly turns about the camera instead of the focus point.
 - **Review and debug switches have no keys.** They live in the F1 developer panel. Every command-line flag keeps working for captures.
 - **Escape is never rebindable.** It backs out one step: photo mode, then a panel, then the menu.
@@ -48,18 +48,18 @@
 
 **Map layers and info layers (owner, 2026-10-02).** Map layers show or hide physical things on the map (snow and trees now; lifts and the rest later), in any combination. Info layers only display information. Slope angle, Slope exposure, Snow depth and Snow conditions take turns: switching one on switches off the one that was on, and pressing its key again switches it off. Contours combine with any of them. The HUD's Layers panel has the same two groups, and the info layer that's on shows its legend card. Ground cover and Imagery are no longer layers, and the cover map is a developer view in the F1 panel.
 
-## HUD (accepted layout; built by the UI thread)
+## HUD (accepted layout; built in task P2-02)
 
 | Key | Action |
 |---|---|
-| T | Toolbox |
-| **Tab** | Analysis (moved from A, which pans; owner, 2026-10-01) |
+| T | Toolbox (built in P2-02) |
+| **Tab** | Analysis (moved from A, which pans; owner, 2026-10-01). Built in P2-02; inside the menu or a window Tab moves between its controls |
 | U | Units: feet or metres, every figure together (imperial by default; also in the menu; remembered). Built in task 12b.2 |
-| Space | Pause (in photo mode Space captures instead) |
-| 1–4 | Game speed |
-| Ctrl+S | Save |
-| Enter | Finish a line |
-| Inside the open Toolbox tray | Tool letters: N / E / X, G / W / P, L / R / K |
+| Space | Pause: the clock runs the sun (built in P2-02; in photo mode Space captures instead) |
+| 1–4 | Game speed: 1, 3, 10 or 30 game minutes a second; choosing one starts the clock (built in P2-02) |
+| Ctrl+S | Save (comes with the game save) |
+| Enter | Finish a line (comes with the drawing tools) |
+| Inside the open Toolbox tray | Tool letters: N / E / X, G / W / P, L / R / K (from Phase 3) |
 
 ## Removed from the keyboard
 
