@@ -145,7 +145,7 @@ namespace MountainPlanner.App.Flow
                 _sort = s;
                 RefreshLibrary();
             };
-            Screens.OpenChosen += r => Controller.Open(r.Entry?.Folder);
+            Screens.OpenChosen += r => { if (r.CanOpen) Controller.Open(r.Entry.Folder); };
             Screens.ResumeChosen += r => StartDownload(r.Pending);
             Screens.DiscardChosen += r =>
             {
@@ -295,6 +295,9 @@ namespace MountainPlanner.App.Flow
                     else if (opened) Screens.SetContinue("Continue", $"{target.Name} · last opened {LibraryViewModel.When(RecentResorts.Load(DataRoot).Opened[target.PackageId], DateTime.UtcNow)}");
                     else Screens.SetContinue(target.Name == "Jackson Hole" ? "Open the demo" : "Continue", target.Name);
                     Screens.ShowScreen("title");
+                    // A data folder from a newer game (task 08) lists nothing; say why rather than look empty.
+                    string refusal = LibraryIndex.Refusal(DataRoot);
+                    if (refusal != null) Screens.Toast(refusal);
                     break;
                 case FlowScreen.Library:
                     RefreshLibrary();
@@ -330,7 +333,11 @@ namespace MountainPlanner.App.Flow
         public void OpenMountain(string packageFolder)
         {
             // Keyed by package id, as the library is (the folder name needn't match it).
-            try { RecentResorts.Touch(DataRoot, ResortPackage.ReadManifest(packageFolder).PackageId, DownloadService.UtcStamp(DateTime.UtcNow)); }
+            try
+            {
+                if (!RecentResorts.Touch(DataRoot, ResortPackage.ReadManifest(packageFolder).PackageId, DownloadService.UtcStamp(DateTime.UtcNow)))
+                    Debug.LogWarning($"[AppFlow] recent.json left as it is: {RecentResorts.Load(DataRoot).Refusal}");
+            }
             catch (Exception e) { Debug.LogWarning($"[AppFlow] Couldn't record the open in recent.json: {e.Message}"); }
             Debug.Log($"[AppFlow] Opening {packageFolder}");
             MountainViewer.TitleMode = false;
@@ -389,7 +396,11 @@ namespace MountainPlanner.App.Flow
         {
             var running = Downloads.Running ? Downloads.Current?.Id : null;
             var pending = PendingDownloads.List(DataRoot).Where(p => p.Id != running).ToList();
-            _library = LibraryViewModel.Build(ResortLibrary.Scan(DataRoot), pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow);
+            var newer = new System.Collections.Generic.List<LibraryEntry>();
+            var entries = ResortLibrary.Scan(DataRoot, newer);
+            string refusal = LibraryIndex.Refusal(DataRoot);
+            _library = refusal != null ? LibraryViewModel.Refused(refusal, _sort)
+                                       : LibraryViewModel.Build(entries, pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, newer);
             Screens.RenderLibrary(_library, _mode);
         }
 

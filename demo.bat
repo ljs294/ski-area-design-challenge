@@ -19,6 +19,7 @@ set "LIFTLAB=%~dp0Builds\LiftLab\LiftLab.exe"
 set "PICKER=%~dp0Builds\PickerLab\PickerLab.exe"
 set "PICKED=%LOCALAPPDATA%\SkiAreaDesignChallenge\picked-site.args"
 set "SCRATCH=%LOCALAPPDATA%\SkiAreaDesignChallenge-scratch"
+set "FORMATS=%LOCALAPPDATA%\SkiAreaDesignChallenge-formats"
 set "UNITY=C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe"
 
 where dotnet >nul 2>nul
@@ -106,6 +107,11 @@ echo     41 Full benchmark: High and Medium against their budgets, garbage and m
 echo     42 Benchmark one quality preset: Low, Medium, High or Ultra (about 4 minutes)
 echo     43 Rebuild the Development game (exact garbage and memory counters for 41)
 echo.
+echo   Phase 2, task 08: formats frozen (a scratch library, not yours)
+echo     44 Phase 1 files open as before, beside an area from a newer game: greyed in Load Area, deletable in Manage Areas
+echo     45 A library folder from a newer game: Load Area lists nothing and says why
+echo     46 Format tests: the Phase 1 fixtures, newer files refused, migrations (a few seconds)
+echo.
 echo   Phase 2, task 01: UI foundation (needs a downloaded area; close the Unity editor first)
 echo     47 Capture every screen at 1920x1080, 2560x1080, 3440x1440 and 5120x1440, dark and light, 50-150%% (about 15 minutes)
 echo        Then try it by hand: Settings - Theme (Dark, Light, Auto) and Interface scale; Tab, the arrows, Enter and Esc on every screen.
@@ -170,6 +176,9 @@ if /i "%CHOICE%"=="40" goto flowclean
 if /i "%CHOICE%"=="41" goto benchfull
 if /i "%CHOICE%"=="42" goto benchpreset
 if /i "%CHOICE%"=="43" call :builddev & goto done
+if /i "%CHOICE%"=="44" goto formats
+if /i "%CHOICE%"=="45" goto formatsnewer
+if /i "%CHOICE%"=="46" goto formattests
 if /i "%CHOICE%"=="47" goto uicapture
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
@@ -254,6 +263,41 @@ goto menu
 if exist "%SCRATCH%" rmdir /s /q "%SCRATCH%"
 echo Emptied %SCRATCH%.
 goto done
+
+:formats
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+call :seedformats
+if exist "%FORMATS%\library.json" del /q "%FORMATS%\library.json"
+echo Starting the game with the scratch library %FORMATS%.
+echo   Continue reads a Phase 1 recent.json: Jackson Hole, last opened Oct 3. Open it: the Phase 1 package opens as before.
+echo   Load Area: Crystal Mountain is greyed, "Made by a newer version of Mountain Planner", and won't open.
+echo   Manage Areas: Delete removes it. Run 44 again to bring it back.
+start "" "%GAME%" -data "%FORMATS%"
+goto menu
+
+:formatsnewer
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+call :seedformats
+copy /y "%~dp0TestData\formats\demo\library.json" "%FORMATS%\library.json" >nul
+echo Starting the game with the same scratch library, marked as laid out by a newer game ^(library.json version 99^).
+echo   The title briefly shows "This library was saved by a newer version...". Load Area lists nothing and says the same. 44 puts it back.
+start "" "%GAME%" -data "%FORMATS%"
+goto menu
+
+:formattests
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~FormatFreezeTests|FullyQualifiedName~VersionedJsonTests" <nul
+goto done
+
+:seedformats
+rem The Phase 1 test terrain (opens as before), the Phase 1 recently opened list, and an area from a future format.
+if not exist "%FORMATS%\Resorts\jackson-hole-2km-test\roads.json" robocopy "%~dp0TestData\jackson-hole-2km" "%FORMATS%\Resorts\jackson-hole-2km-test" /e /njh /njs /nfl /ndl >nul
+if not exist "%FORMATS%\Resorts\newer-area" mkdir "%FORMATS%\Resorts\newer-area"
+copy /y "%~dp0TestData\formats\demo\newer-area\manifest.json" "%FORMATS%\Resorts\newer-area\manifest.json" >nul
+copy /y "%~dp0TestData\formats\v1-library\recent.json" "%FORMATS%\recent.json" >nul
+exit /b 0
 
 :seedscratch
 rem The title needs a mountain behind it: seed the scratch library with the committed 2 km test terrain once.

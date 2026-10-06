@@ -17,6 +17,12 @@ namespace MountainPlanner.Persistence
     {
         public const int CurrentFormat = 1;
 
+        /// <summary>
+        /// The frozen manifest format (task 08, 0.3 §5): a newer one is refused, an older one is migrated as it's read.
+        /// Each new format adds a step here, and a fixture under TestData/formats.
+        /// </summary>
+        public static readonly VersionedJson Migrations = new VersionedJson("area package", nameof(FormatVersion), CurrentFormat);
+
         public int FormatVersion { get; set; } = CurrentFormat;
 
         /// <summary>A content hash of the site and layer values; identical inputs give an identical id.</summary>
@@ -168,13 +174,20 @@ namespace MountainPlanner.Persistence
         }
 
         /// <summary>
-        /// The package id: SHA-256 over the format, the site definition and every layer's hash, in
+        /// Which recipe <see cref="ComputeId"/> follows. Phase 1 hashed the manifest format here, which was 1; it's
+        /// frozen at 1 so that migrating a manifest to a newer format never changes its id (the library and recent.json
+        /// key on it).
+        /// </summary>
+        public const int IdScheme = 1;
+
+        /// <summary>
+        /// The package id: SHA-256 over the id scheme, the site definition and every layer's hash, in
         /// layer-id order. Timestamps and tool versions are excluded, so re-runs give the same id.
         /// </summary>
         public static string ComputeId(PackageManifest m)
         {
             var sb = new StringBuilder();
-            sb.Append(m.FormatVersion).Append('|')
+            sb.Append(IdScheme).Append('|')
               .Append(m.Site.CentreX.ToString("R", CultureInfo.InvariantCulture)).Append('|')
               .Append(m.Site.CentreY.ToString("R", CultureInfo.InvariantCulture)).Append('|')
               .Append(m.Site.SizeMetres).Append('|').Append(m.Site.RingMetres);
@@ -198,14 +211,14 @@ namespace MountainPlanner.Persistence
             File.WriteAllText(Path.Combine(folder, ManifestFile), JsonConvert.SerializeObject(manifest, Json) + "\n", new UTF8Encoding(false));
         }
 
+        /// <summary>
+        /// Reads manifest.json, migrated to the current format in memory (the file is left as it is). Throws
+        /// <see cref="FormatTooNewException"/> for a package from a newer version of the game.
+        /// </summary>
         public static PackageManifest ReadManifest(string folder)
         {
             string path = Path.Combine(folder, ManifestFile);
-            var manifest = JsonConvert.DeserializeObject<PackageManifest>(File.ReadAllText(path), Json)
-                           ?? throw new InvalidDataException("Empty manifest.");
-            if (manifest.FormatVersion != PackageManifest.CurrentFormat)
-                throw new InvalidDataException($"Package format {manifest.FormatVersion} is not supported.");
-            return manifest;
+            return PackageManifest.Migrations.Read<PackageManifest>(File.ReadAllText(path), Json);
         }
 
         /// <summary>Reads a uint8 layer and verifies it against the manifest's hash.</summary>

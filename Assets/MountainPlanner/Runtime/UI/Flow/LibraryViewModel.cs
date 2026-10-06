@@ -24,10 +24,15 @@ namespace MountainPlanner.UI.Flow
         public string Opened = "";
         /// <summary>The paused row's progress line: "Paused at 38% · Forest".</summary>
         public string PausedText = "";
+        /// <summary>Set on an area made by a newer version of the game (task 08): it can be deleted, not opened.</summary>
+        public string NewerText = "";
+        public bool IsNewer => NewerText.Length > 0;
+        public bool CanOpen => Entry != null && !IsNewer;
     }
 
     /// <summary>
-    /// S2 Load Area and Manage Areas (0.4 S2) as rows: paused downloads first, then the mountains in the chosen order. Built
+    /// S2 Load Area and Manage Areas (0.4 S2) as rows: paused downloads first, then the mountains in the chosen order, then any
+    /// areas made by a newer version of the game (greyed: Delete works, Open doesn't). Built
     /// from the library scan, the pending-download records and the recently-opened file; nothing here
     /// touches the network.
     /// </summary>
@@ -37,10 +42,19 @@ namespace MountainPlanner.UI.Flow
         public string Summary { get; private set; } = "";
         public LibrarySort Sort { get; private set; }
         public bool IsEmpty => Rows.Count == 0;
+        /// <summary>What an empty list says: no areas yet, or why a newer game's library can't be listed.</summary>
+        public string EmptyText { get; private set; } = NoAreas;
+        public const string NoAreas = "No areas yet. Choose New Area to download one.";
+
+        /// <summary>A data folder laid out by a newer version of the game (task 08): no rows, just the reason.</summary>
+        public static LibraryViewModel Refused(string refusal, LibrarySort sort) =>
+            new LibraryViewModel { Sort = sort, EmptyText = refusal, Summary = "Needs a newer version of Mountain Planner" };
 
         public static LibraryViewModel Build(IReadOnlyList<LibraryEntry> entries, IReadOnlyList<PendingDownload> pending,
-                                             RecentResorts recent, LibrarySort sort, DateTime nowUtc)
+                                             RecentResorts recent, LibrarySort sort, DateTime nowUtc,
+                                             IReadOnlyList<LibraryEntry> newer = null)
         {
+            newer = newer ?? Array.Empty<LibraryEntry>();
             var vm = new LibraryViewModel { Sort = sort };
             foreach (var p in pending)
                 vm.Rows.Add(new LibraryRow
@@ -73,11 +87,16 @@ namespace MountainPlanner.UI.Flow
                     TerrainText = Score(e.TerrainScore), FloraText = Score(e.FloraScore),
                     Disk = Disk(e.BytesOnDisk), Opened = When(Opened(e), nowUtc),
                 });
-            long total = entries.Sum(e => e.BytesOnDisk);
+            foreach (var e in newer.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Folder, StringComparer.Ordinal))
+                vm.Rows.Add(new LibraryRow { Entry = e, Name = e.Name, Disk = Disk(e.BytesOnDisk), NewerText = NewerVersion });
+            long total = entries.Sum(e => e.BytesOnDisk) + newer.Sum(e => e.BytesOnDisk);
             vm.Summary = $"{entries.Count} {(entries.Count == 1 ? "area" : "areas")} · {Disk(total)} on disk"
-                         + (pending.Count > 0 ? $" · {pending.Count} paused" : "");
+                         + (pending.Count > 0 ? $" · {pending.Count} paused" : "")
+                         + (newer.Count > 0 ? $" · {newer.Count} {(newer.Count == 1 ? "needs" : "need")} a newer version" : "");
             return vm;
         }
+
+        public const string NewerVersion = "Made by a newer version of Mountain Planner. Update the game to open it.";
 
         public static string Score(int score) => $"{score} {QualityBands.Word(QualityBands.Of(score))}";
 

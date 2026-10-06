@@ -133,6 +133,10 @@
 .lib-score--limited { color: var(--neg); -unity-text-outline-color: var(--neg); }
 .lib-paused { flex-grow: 1; color: var(--warn); -unity-text-outline-color: var(--warn); font-size: 13px; }
 .lib-actions { flex-direction: row; }
+/* An area from a newer game (task 08): greyed, with only its message at full strength. */
+.lib-row--newer .lib-name { color: var(--muted); -unity-text-outline-color: var(--muted); -unity-font-style: normal; opacity: 0.6; }
+.lib-row--newer .lib-cell { opacity: 0.6; }
+.lib-row--newer .mp-go:disabled { opacity: 0.6; }   /* the mockup's disabled "go" (dis-bg, dis-fg), a little fainter */
 
 /* ---------- S4 download card and pill ---------- */
 .download {

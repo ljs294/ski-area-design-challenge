@@ -1,0 +1,375 @@
+{
+  "FormatVersion": 1,
+  "PackageId": "5689fc951ec180f0",
+  "Site": {
+    "Name": "Crystal Mountain",
+    "Latitude": 46.929995,
+    "Longitude": -121.489994,
+    "CentreX": -1926410.0,
+    "CentreY": 2919856.0,
+    "SizeMetres": 5000,
+    "RingMetres": 3000
+  },
+  "Crs": {
+    "Epsg": 6350,
+    "VerticalDatum": "NAVD88 (GEOID18), metres",
+    "ScaleParallel": 1.004382004,
+    "ScaleMeridian": 0.995637114,
+    "GridConvergenceDegrees": 15.367988
+  },
+  "Layers": [
+    {
+      "Id": "canopy-core",
+      "File": "canopy-core.grid",
+      "Type": "uint8",
+      "Width": 5000,
+      "Height": 5000,
+      "West": -1928910.0,
+      "North": 2922356.0,
+      "CellSize": 1.0,
+      "Bands": 1,
+      "Units": "canopy height in 0.25 m steps (0 = open, 255 = 63.75 m or more)",
+      "Sha256": "4a789b964159a195df6d0cb61fee21ba3eb201fecbbac31b95315572be8c9f6f",
+      "Min": 0.0,
+      "Max": 168.0
+    },
+    {
+      "Id": "cover",
+      "File": "cover.grid",
+      "Type": "uint8",
+      "Width": 1100,
+      "Height": 1100,
+      "West": -1931910.0,
+      "North": 2925356.0,
+      "CellSize": 10.0,
+      "Bands": 1,
+      "Units": "ESA WorldCover 2021 class (10 trees, 20 shrubs, 30 grass, 60 bare, 70 snow and ice, 80 water, 50 built-up)",
+      "Sha256": "0e67605f53305644140feffdbc6c9a359ef3fd846f6451d63c6974c3d89689a6",
+      "Min": 10.0,
+      "Max": 100.0
+    },
+    {
+      "Id": "heights-core",
+      "File": "heights-core.grid",
+      "Type": "float32",
+      "Width": 5000,
+      "Height": 5000,
+      "West": -1928910.0,
+      "North": 2922356.0,
+      "CellSize": 1.0,
+      "Bands": 1,
+      "Units": "",
+      "Sha256": "0e82276ba9bd318f76127d1f329a1998ac5561180af8d0b14ac8de522ef835d1",
+      "Min": 1023.6490478515625,
+      "Max": 2135.447509765625
+    },
+    {
+      "Id": "heights-ring",
+      "File": "heights-ring.grid",
+      "Type": "float32",
+      "Width": 5500,
+      "Height": 5500,
+      "West": -1931910.0,
+      "North": 2925356.0,
+      "CellSize": 2.0,
+      "Bands": 1,
+      "Units": "",
+      "Sha256": "8f295cfed054b3107b16d29ee1accadb5d0830fa49eb869f8ee90a9ee322c330",
+      "Min": 844.8313598632812,
+      "Max": 2135.3974609375
+    },
+    {
+      "Id": "osm-core",
+      "File": "osm-core.grid",
+      "Type": "uint8",
+      "Width": 5000,
+      "Height": 5000,
+      "West": -1928910.0,
+      "North": 2922356.0,
+      "CellSize": 1.0,
+      "Bands": 2,
+      "Units": "OpenStreetMap coverage 0-255, bands: water, developed",
+      "Sha256": "2b9e6f4ae7ffe2684ecaeb5b4e1736965af3db42d9b3650d62bc4ae15acb9d48",
+      "Min": 0.0,
+      "Max": 255.0
+    },
+    {
+      "Id": "osm-ring",
+      "File": "osm-ring.grid",
+      "Type": "uint8",
+      "Width": 5500,
+      "Height": 5500,
+      "West": -1931910.0,
+      "North": 2925356.0,
+      "CellSize": 2.0,
+      "Bands": 2,
+      "Units": "OpenStreetMap coverage 0-255, bands: water, developed",
+      "Sha256": "4c787fead81076c092d66483e1a8fa5c1cad416948f0636317814d27b2832d7b",
+      "Min": 0.0,
+      "Max": 255.0
+    },
+    {
+      "Id": "roads",
+      "File": "roads.json",
+      "Type": "roads",
+      "Width": 122,
+      "Height": 0,
+      "West": 0.0,
+      "North": 0.0,
+      "CellSize": 0.0,
+      "Bands": 1,
+      "Units": "OpenStreetMap roads: centre lines (EPSG:6350 m), class, surface, width (m), name",
+      "Sha256": "46b9aa3592898a35e81c7bd8e30f334afcbbb4cb3dff6a006d8c5d4b15468df8",
+      "Min": 0.0,
+      "Max": 0.0
+    },
+    {
+      "Id": "species-ids",
+      "File": "species-ids.grid",
+      "Type": "uint8",
+      "Width": 367,
+      "Height": 367,
+      "West": -1931910.0,
+      "North": 2925356.0,
+      "CellSize": 30.0,
+      "Bands": 4,
+      "Units": "top four species per cell, as 1-based indices into Species (0 = none)",
+      "Sha256": "f1847fc628e1f11ec087851e37280baf2319f8f4246be43bfef4af4074845178",
+      "Min": 0.0,
+      "Max": 24.0
+    },
+    {
+      "Id": "species-weights",
+      "File": "species-weights.grid",
+      "Type": "uint8",
+      "Width": 367,
+      "Height": 367,
+      "West": -1931910.0,
+      "North": 2925356.0,
+      "CellSize": 30.0,
+      "Bands": 4,
+      "Units": "each top species' share of those four (0–255)",
+      "Sha256": "1db8dca612a8b1cff70cee85c65f58d389c24bc011e5366c7c1d108387687d3b",
+      "Min": 0.0,
+      "Max": 255.0
+    }
+  ],
+  "Quality": {
+    "Score": 48,
+    "OneLiner": "Terrain quality 48/100: 60% 3DEP 10 m, 24% 3DEP 3 m, 16% 3DEP 1 m lidar",
+    "SourceShares": {
+      "3DEP 1 m lidar": 0.16,
+      "3DEP 3 m": 0.24,
+      "3DEP 10 m": 0.6
+    }
+  },
+  "Flora": {
+    "Score": 75,
+    "OneLiner": "Flora quality 75/100: canopy 1 m (2017–2020 imagery), species from BIGMAP 30 m, 42% of forest shown as its real species, sources agree on 86% of forest",
+    "Components": {
+      "coverage": 98.4,
+      "agreement": 85.9,
+      "speciesFidelity": 42.3,
+      "recency": 58.0
+    }
+  },
+  "Provenance": [
+    {
+      "Layer": "heights-core, heights-ring",
+      "Provider": "USGS 3DEP",
+      "Product": "3DEPElevation dynamic service, 61 sectors, 50 m blend",
+      "Items": [
+        "WA_EasternCascades_2019_B19",
+        "n47w122",
+        "ned19_n47x00_w121x75_wa_mounttrainier_2008"
+      ]
+    },
+    {
+      "Layer": "canopy-core",
+      "Provider": "Meta and World Resources Institute",
+      "Product": "High Resolution Canopy Height Maps (v1, 1 m, core only)",
+      "Items": [
+        "021230211"
+      ]
+    },
+    {
+      "Layer": "cover",
+      "Provider": "ESA",
+      "Product": "WorldCover 2021 v200 (10 m)",
+      "Items": [
+        "ESA_WorldCover_10m_2021_v200_N45W123_Map"
+      ]
+    },
+    {
+      "Layer": "species-ids, species-weights",
+      "Provider": "USDA Forest Service",
+      "Product": "FIA BIGMAP 2018 tree species aboveground biomass (30 m)",
+      "Items": [
+        "70 species layers cover the site; 24 present"
+      ]
+    },
+    {
+      "Layer": "osm-core, osm-ring",
+      "Provider": "OpenStreetMap contributors",
+      "Product": "Water, roads, buildings and built-up land use via the Overpass API",
+      "Items": [
+        "361 features"
+      ]
+    }
+  ],
+  "Species": [
+    {
+      "Index": 1,
+      "Spcd": 11,
+      "CommonName": "Pacific silver fir",
+      "ShareOfBiomass": 0.2626
+    },
+    {
+      "Index": 2,
+      "Spcd": 202,
+      "CommonName": "Douglas-fir",
+      "ShareOfBiomass": 0.2133
+    },
+    {
+      "Index": 3,
+      "Spcd": 263,
+      "CommonName": "western hemlock",
+      "ShareOfBiomass": 0.1592
+    },
+    {
+      "Index": 4,
+      "Spcd": 264,
+      "CommonName": "mountain hemlock",
+      "ShareOfBiomass": 0.1281
+    },
+    {
+      "Index": 5,
+      "Spcd": 22,
+      "CommonName": "noble fir",
+      "ShareOfBiomass": 0.0551
+    },
+    {
+      "Index": 6,
+      "Spcd": 19,
+      "CommonName": "subalpine fir",
+      "ShareOfBiomass": 0.0373
+    },
+    {
+      "Index": 7,
+      "Spcd": 93,
+      "CommonName": "Engelmann spruce",
+      "ShareOfBiomass": 0.0274
+    },
+    {
+      "Index": 8,
+      "Spcd": 17,
+      "CommonName": "grand fir",
+      "ShareOfBiomass": 0.0266
+    },
+    {
+      "Index": 9,
+      "Spcd": 108,
+      "CommonName": "lodgepole pine",
+      "ShareOfBiomass": 0.0168
+    },
+    {
+      "Index": 10,
+      "Spcd": 21,
+      "CommonName": "Shasta red fir",
+      "ShareOfBiomass": 0.0166
+    },
+    {
+      "Index": 11,
+      "Spcd": 242,
+      "CommonName": "western redcedar",
+      "ShareOfBiomass": 0.0155
+    },
+    {
+      "Index": 12,
+      "Spcd": 42,
+      "CommonName": "Alaska yellow-cedar",
+      "ShareOfBiomass": 0.0134
+    },
+    {
+      "Index": 13,
+      "Spcd": 73,
+      "CommonName": "western larch",
+      "ShareOfBiomass": 0.0079
+    },
+    {
+      "Index": 14,
+      "Spcd": 119,
+      "CommonName": "western white pine",
+      "ShareOfBiomass": 0.0057
+    },
+    {
+      "Index": 15,
+      "Spcd": 351,
+      "CommonName": "red alder",
+      "ShareOfBiomass": 0.0041
+    },
+    {
+      "Index": 16,
+      "Spcd": 122,
+      "CommonName": "ponderosa pine",
+      "ShareOfBiomass": 0.004
+    },
+    {
+      "Index": 17,
+      "Spcd": 15,
+      "CommonName": "white fir",
+      "ShareOfBiomass": 0.0022
+    },
+    {
+      "Index": 18,
+      "Spcd": 72,
+      "CommonName": "subalpine larch",
+      "ShareOfBiomass": 0.0017
+    },
+    {
+      "Index": 19,
+      "Spcd": 101,
+      "CommonName": "whitebark pine",
+      "ShareOfBiomass": 0.0007
+    },
+    {
+      "Index": 20,
+      "Spcd": 747,
+      "CommonName": "black cottonwood",
+      "ShareOfBiomass": 0.0007
+    },
+    {
+      "Index": 21,
+      "Spcd": 746,
+      "CommonName": "quaking aspen",
+      "ShareOfBiomass": 0.0002
+    },
+    {
+      "Index": 22,
+      "Spcd": 312,
+      "CommonName": "bigleaf maple",
+      "ShareOfBiomass": 0.0002
+    },
+    {
+      "Index": 23,
+      "Spcd": 231,
+      "CommonName": "Pacific yew",
+      "ShareOfBiomass": 0.0002
+    },
+    {
+      "Index": 24,
+      "Spcd": 81,
+      "CommonName": "incense-cedar",
+      "ShareOfBiomass": 0.0002
+    }
+  ],
+  "Attribution": [
+    "Elevation: U.S. Geological Survey, 3D Elevation Program (public domain).",
+    "Canopy height: © Meta and World Resources Institute, High Resolution Canopy Height Maps (CC BY 4.0).",
+    "Land cover: © ESA WorldCover project 2021, contains modified Copernicus Sentinel data (2021) processed by the ESA WorldCover consortium (CC BY 4.0).",
+    "Tree species: USDA Forest Service, Forest Inventory and Analysis, BIGMAP 2018 (public domain).",
+    "Water and roads: © OpenStreetMap contributors (ODbL)."
+  ],
+  "CreatedUtc": "2026-09-30T16:21:21Z",
+  "Tool": "MountainPlanner.Acquisition 0.1"
+}

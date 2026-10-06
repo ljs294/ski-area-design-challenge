@@ -243,6 +243,26 @@ namespace MountainPlanner.UI.Flow
                     actions.Add(Btn("Discard", "btn--ghost", () => Confirm($"Discard the paused download of {r.Name}? Its partial files are deleted.", "Discard", () => DiscardChosen?.Invoke(r))));
                     el.Add(actions);
                 }
+                else if (r.IsNewer)
+                {
+                    // A newer game's area (task 08): named and sized, never read further; Delete works, Open doesn't.
+                    el.AddToClassList("lib-row--newer");
+                    el.Add(Text(r.NewerText, "lib-paused"));
+                    el.Add(Text(r.Disk, "lib-cell", "lib-cell--narrow", "mono"));
+                    var actions = new VisualElement();
+                    actions.AddToClassList("lib-actions");
+                    if (manage) actions.Add(Btn("Delete", "btn--ghost", () => ConfirmDelete(r)));
+                    else
+                    {
+                        var open = Btn("Open", "btn--go", () => { });
+                        open.SetEnabled(false);
+                        actions.Add(open);
+                    }
+                    el.Add(actions);
+                    el.RegisterCallback<ClickEvent>(e => Select(_rowData.IndexOf(r)));
+                    el.focusable = true;   // reached by the arrows like any row; Delete removes it in Manage Areas (task P2-01)
+                    el.RegisterCallback<KeyDownEvent>(e => { if (e.target == el && manage && e.keyCode == KeyCode.Delete) ConfirmDelete(r); });
+                }
                 else
                 {
                     el.Add(Score("Terrain", r.TerrainScore));
@@ -273,8 +293,10 @@ namespace MountainPlanner.UI.Flow
                 _rowElements.Add(el);
                 _rowData.Add(r);
             }
+            _empty.text = vm.EmptyText;
             Show(_empty, _rowData.Count == 0);
-            Select(_rowData.FindIndex(x => !x.IsPaused));
+            int first = _rowData.FindIndex(x => x.CanOpen);
+            Select(first >= 0 ? first : _rowData.FindIndex(x => !x.IsPaused));
         }
 
         /// <summary>Moves the library selection, and keyboard focus with it.</summary>

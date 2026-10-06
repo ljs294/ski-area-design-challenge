@@ -1,0 +1,8 @@
+{
+  "FormatVersion": 99,
+  "PackageId": "newer-area-demo",
+  "Site": {
+    "Name": "Crystal Mountain"
+  },
+  "Note": "For demo.bat 44: an area saved by a future version of the game. This version must refuse it and show it greyed, never read it."
+}
