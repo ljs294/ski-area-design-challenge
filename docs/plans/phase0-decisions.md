@@ -228,3 +228,17 @@ numbers: [phase1-benchmark-report.md](phase1-benchmark-report.md).
 | B3 | **Budgets checked per preset at 1080p on the reference PC:** High p95 ≤20 ms, p99 ≤33.3 ms, under 1% of frames over 50 ms, graphics memory ≤7 GB. Medium (the RTX 2060 stand-in, exit criterion 5) p95 ≤18 ms, graphics memory ≤6 GB. Low a smoke run at 30 FPS. Ultra measured, not checked |
 | B4 | **"0 bytes of garbage per frame in steady state"** means under a byte per frame on average, no garbage collection and no recurring allocation (at most one frame in 10,000 allocating, such as a text's first draw). The release game checks it by heap growth and collections; the Development game reads Unity's per-frame counter and graphics memory, which release games don't record |
 | B5 | **Instanced terrain is on by default** (the owner): it renders the same, and at High cuts draw calls by 43% and frame p95 by 0.4 ms. `-noinstancing` turns it off |
+
+## Task 16, Phase 1 exit: decided 2026-10-05
+
+**Context:** the Phase 1 exit gate. Review: [phase1-16-exit-review.md](phase1-16-exit-review.md); the Phase 2 plan:
+[phase1-16-phase2-plan.md](phase1-16-phase2-plan.md).
+
+| # | Decision |
+|---|---|
+| E1 | **Data seams on real data move to Phase 2** (task 12): the fallback blend is tested on synthetic data only, and no downloaded area yet mixes S1M with the 3DEP fallback. Exit criterion 3 is accepted on that basis |
+| E2 | **Golden tests stay local-only.** CI fetches only the small LFS fixtures; a PR that changes cover or forest runs the full `dotnet test` with LFS checked out (no skips) and says so |
+| E3 | **Phase 2 scope:** 0.6 §3 plus the ship-quality backlog (the Trailhead HUD build, light-theme text and solid panels, cache housekeeping, Auto tree detail, far impostors, forest-floor discs). NAIP imagery last and cut first. Seasons, next species, regional calibration, back-face tint and broadleaf height spread are later |
+| E4 | **Estimates:** task-weeks per task, plus a calendar forecast at Phase 1's ratio padded for hardware, testers and reviews |
+| E5 | **Milestone:** the merge commit of the exit PR is tagged `unity-m1`, and `archive/unity` is fast-forwarded to it |
+| E6 | **Ultrawide support in Phase 2** (the owner's monitor): 21:9 and 32:9 layouts, HUD, resolution and vertical-FOV-preserving camera, and a 3440×1440 benchmark; 1080p stays the budget of record |

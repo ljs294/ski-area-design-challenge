@@ -1,6 +1,6 @@
 # Phase 0 · 0.7 Detailed Phase 1 plan: mountain vertical slice
 
-**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25 (decisions in §6). Phase 1 scope and exit criteria are in [0.6 §2](phase0-0.6-milestones.md#2-phase-1-mountain-vertical-slice); decisions are in the [decision record](phase0-decisions.md). **Phase 1 implementation starts when you approve this document.** Questions are in §6.
+**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25 (decisions in §6); **complete** 2026-10-05: tasks 01–15 merged (#24–#62), reviewed in [phase1-16-exit-review.md](phase1-16-exit-review.md). Phase 1 scope and exit criteria are in [0.6 §2](phase0-0.6-milestones.md#2-phase-1-mountain-vertical-slice); decisions are in the [decision record](phase0-decisions.md). **Phase 1 implementation starts when you approve this document.** Questions are in §6.
 
 ## 1. How Phase 1 runs
 
