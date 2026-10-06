@@ -17,8 +17,11 @@ namespace MountainPlanner.Domain.Measure
         static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
         /// <summary>Elevation to the nearest foot or metre, e.g. "8,640 ft" or "2,634 m".</summary>
-        public static string Elevation(double metres, UnitSystem units) =>
-            ElevationKey(metres, units).ToString("N0", Invariant) + (units == UnitSystem.Imperial ? " ft" : " m");
+        public static string Elevation(double metres, UnitSystem units) => ElevationFromKey(ElevationKey(metres, units), units);
+
+        /// <summary>The text for an <see cref="ElevationKey"/> ("8,640 ft"), so callers can make each string once and keep it.</summary>
+        public static string ElevationFromKey(int key, UnitSystem units) =>
+            key.ToString("N0", Invariant) + (units == UnitSystem.Imperial ? " ft" : " m");
 
         public static int ElevationKey(double metres, UnitSystem units) =>
             (int)Math.Round(units == UnitSystem.Imperial ? metres / MetresPerFoot : metres);

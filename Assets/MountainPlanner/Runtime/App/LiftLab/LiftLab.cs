@@ -494,7 +494,7 @@ namespace MountainPlanner.App
         {
             float dt = Time.unscaledDeltaTime;
             _recent[_recentCount++ % _recent.Length] = dt * 1000f;
-            if (_benchmarking) { _stats.Record(dt); return; }
+            if (_benchmarking) { _stats.Record(dt, FrameStats.SampleGpuMs()); return; }
             var keys = Keyboard.current;
             if (keys != null)
             {

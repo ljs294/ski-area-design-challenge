@@ -16,6 +16,10 @@ a nested `AGENTS.md` needs a same-directory `CLAUDE.md` with the same import.
 - Hands-on demos: double-click `demo.bat`; add an entry for anything a PR makes demoable.
 - Tests (editor closed): `<Unity.exe> -batchmode -projectPath . -runTests -testPlatform EditMode`
   (and `PlayMode`), results under `test-results/`.
+- Benchmark (task 15): `demo.bat` 41 runs the fixed camera path over the Jackson Hole demo at High and Medium
+  (`-quality`, `-benchmark <out.json>`) in the release game, plus the Development game for exact garbage and memory,
+  then `node tools/perf/compare.mjs docs/perf/<baseline>.json <run>.json` against the stored baselines. Rendering
+  PRs state before-and-after numbers (0.3 §8.1).
 
 ## Assemblies
 `Domain -> Simulation -> Persistence -> Acquisition -> World -> Presentation -> UI -> App`; references
@@ -67,5 +71,6 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
 | Test data | `TestData/` (Git LFS) | Jackson Hole 2 km package, S1M fixture |
 | Tree assets | `tools/assets/trees/` | Blender species pipeline, enforced budgets |
 | Lift assets | `tools/assets/lifts/` | Blender lift and snow gun pipeline, budgets, Lift Lab (demo 22/23) |
+| Benchmark | `Assets/MountainPlanner/Runtime/App/Benchmark/`, `tools/perf/`, `docs/perf/` | Fixed camera path, budgets, baselines |
 | Plans | `docs/plans/` | Roadmap and phase plans |
 | Archived reference | `docs/reference/maplibre-archive.md` | Links into the frozen MapLibre game |

@@ -254,6 +254,20 @@
     position: absolute;
     left: 0; top: 0; right: 0; bottom: 0;
 }
+.landmark-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 240px;
+    height: 26px;
+    margin: 0;
+    padding: 0;
+    font-size: 16px;
+    -unity-font-style: bold;
+    -unity-text-align: lower-center;
+    color: rgb(255, 255, 255);
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
 .contour-label {
     position: absolute;
     left: 0;

@@ -51,6 +51,15 @@ namespace MountainPlanner.UI
         UnitSystem _shownUnits = (UnitSystem)(-1);
         (double Metres, string Label)[] _scaleLengths;
         const float ScaleMaxWidth = 120;   // panel units
+        /// <summary>
+        /// "Elev 8,640 ft" for every elevation the mountain has, per unit system, made once when it opens
+        /// (<see cref="PrepareElevations"/>): the readout changes almost every refresh while the camera moves, and the
+        /// game allocates nothing per frame (0.3 §8; task 15).
+        /// </summary>
+        readonly string[][] _elevationText = new string[2][];
+        readonly int[] _elevationFirstKey = new int[2];
+        /// <summary>The info readout's lines, made the first time each figure shows and kept.</summary>
+        readonly Dictionary<long, string> _infoText = new Dictionary<long, string>();
 
         void OnEnable()
         {
@@ -291,19 +300,50 @@ namespace MountainPlanner.UI
             if (key == _shownInfo) return;
             _shownInfo = key;
             _infoReadout.EnableInClassList("hidden", key == 0);
-            switch (key >> 40)
+            if (key == 0) return;
+            long cacheKey = key | (long)units << 48;   // snow depth reads differently in feet and metres
+            if (!_infoText.TryGetValue(cacheKey, out string text))
             {
-                case 1:
-                    int percent = (int)(key & 0xFFFFFFFF);
-                    _infoReadout.text = $"Slope {percent}% · {SlopeBands.Names[(int)SlopeBands.Of(percent)]}";
-                    break;
-                case 2: _infoReadout.text = "Flat"; break;
-                case 3:
-                    int bearing = (int)(key & 0xFFFFFFFF);
-                    _infoReadout.text = $"Faces {SlopeBands.CompassPoint(bearing)} · {bearing}°";
-                    break;
-                case 4: _infoReadout.text = "Snow " + UnitFormat.SnowDepth(snowMetres, units); break;
+                switch (key >> 40)
+                {
+                    case 1:
+                        int percent = (int)(key & 0xFFFFFFFF);
+                        text = $"Slope {percent}% · {SlopeBands.Names[(int)SlopeBands.Of(percent)]}";
+                        break;
+                    case 2: text = "Flat"; break;
+                    case 3:
+                        int bearing = (int)(key & 0xFFFFFFFF);
+                        text = $"Faces {SlopeBands.CompassPoint(bearing)} · {bearing}°";
+                        break;
+                    default: text = "Snow " + UnitFormat.SnowDepth(snowMetres, units); break;
+                }
+                _infoText[cacheKey] = text;
             }
+            _infoReadout.text = text;
+        }
+
+        /// <summary>
+        /// Makes the elevation readout's text for every elevation between <paramref name="minMetres"/> and
+        /// <paramref name="maxMetres"/> (the mountain's range, with a margin), in both unit systems, so the readout never
+        /// allocates while the camera moves. Call when a mountain opens.
+        /// </summary>
+        public void PrepareElevations(double minMetres, double maxMetres)
+        {
+            foreach (UnitSystem units in new[] { UnitSystem.Metric, UnitSystem.Imperial })
+            {
+                int first = UnitFormat.ElevationKey(minMetres, units), last = UnitFormat.ElevationKey(maxMetres, units);
+                var text = new string[Mathf.Max(0, last - first + 1)];
+                for (int i = 0; i < text.Length; i++) text[i] = "Elev " + UnitFormat.ElevationFromKey(first + i, units);
+                _elevationText[(int)units] = text;
+                _elevationFirstKey[(int)units] = first;
+            }
+        }
+
+        string ElevationText(int key, UnitSystem units)
+        {
+            var text = _elevationText[(int)units];
+            int i = key - _elevationFirstKey[(int)units];
+            return text != null && i >= 0 && i < text.Length ? text[i] : "Elev " + UnitFormat.ElevationFromKey(key, units);
         }
 
         public void SetReadouts(float heading, float metresPerPixel, float elevation)
@@ -329,7 +369,7 @@ namespace MountainPlanner.UI
             if (shown != _shownElevation)
             {
                 _shownElevation = shown;
-                _elevation.text = shown == int.MinValue ? "Elev –" : "Elev " + UnitFormat.Elevation(elevation, _shownUnits);
+                _elevation.text = shown == int.MinValue ? "Elev –" : ElevationText(shown, _shownUnits);
             }
         }
 

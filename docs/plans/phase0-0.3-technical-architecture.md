@@ -146,7 +146,7 @@ Unity: one Terrain per tile (TerrainData + neighbours), terrain material, forest
 - Neighbours are linked so level of detail blends across tile edges.
 - Unity Terrain's built-in quadtree level of detail renders the whole area; each quality preset sets the pixel-error tolerance and basemap distance.
 - **No colliders yet:** cooking a physics heightfield per tile was most of the open time. The camera samples heights instead; drawing tools add colliders where they need them.
-- **Not instanced yet:** URP draw-instanced terrain rendered flat-lit and untextured when created from script (tried: order, the per-pixel-normal keyword, basemap distance, enabling late). Non-instanced terrain renders correctly at 300+ FPS at 1080p, so task 15 revisits instancing with the benchmark.
+- **Instanced (task 15):** each tile's patches draw as instances of one grid, and the terrain shader reads every vertex's height and normal from the heightmap (TerrainInstancing in MountainTerrain.shader, as URP's TerrainLit does). In task 06 instanced tiles drew flat and untextured because the custom shader had no instanced path and builds stripped its instancing variants (the material now enables instancing). It renders the same as non-instanced terrain and, over the benchmark path at High, cuts draw calls by 43% and frame p95 by 0.4 ms; on by default (B5), -noinstancing for comparisons.
 - **Measured:** Jackson Hole 5 km, 121 tiles, opens in 4.9 s on the reference PC (8.6–9.1 s in task 06, before the ring loaded natively). Of that, `SetHeights` is 2.6 s, tile setup 0.9 s and heightmap sync 0.7 s; the GPU heightmap copy was tried and was slower, because it reads the heights back to the CPU.
 - The terrain material, the forest (§4.5) and water surfaces are then built on top.
 - **Target:** ≤10 s from opening to a playable view (§8).
@@ -443,6 +443,8 @@ Every open of a resort must produce the same terrain tiles, splat and forest, wh
 | Disk per resort | ≤1 GB | 5 km site |
 
 Measured with Unity's Performance Testing package in a benchmark scene with a fixed camera path. Results are recorded as JSON with the commit SHA.
+
+**Measured (task 15, commit 19d5e37; [report](phase1-benchmark-report.md)):** on the fixed camera path over the Jackson Hole demo at 1080p on the reference PC, frame p95 is 7.8 ms at High and 4.7 ms at Medium, with no frame over 50 ms, 0 bytes of garbage per frame (HUD on and off) and 1.4 GB of graphics memory. The game's own `-benchmark` is the measurement of record (the Performance Testing package's test framework allocates per frame); baselines are in `docs/perf/`, compared by `tools/perf/compare.mjs`.
 
 ### 8.1 Performance audit: continuous, not a final check (owner request, 2026-09-27)
 

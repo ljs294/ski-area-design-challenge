@@ -12,7 +12,8 @@
         "MountainPlanner.Presentation",
         "MountainPlanner.UI",
         "MountainPlanner.App",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.PerformanceTesting"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

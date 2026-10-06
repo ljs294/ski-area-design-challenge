@@ -39,3 +39,7 @@ tools/assets/lifts/out/
 __pycache__/
 tools/acquire/out/
 Builds/
+
+# Build stamp written by ViewerSetup.BuildWindows (commit SHA for benchmark results)
+/Assets/MountainPlanner/Generated/
+/Assets/MountainPlanner/Generated.meta
