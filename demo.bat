@@ -14,7 +14,9 @@ set "PACKAGES=%LOCALAPPDATA%\SkiAreaDesignChallenge\Resorts"
 set "GAME=%~dp0Builds\Windows\SkiAreaDesignChallenge.exe"
 set "GAMEDEV=%~dp0Builds\WindowsDev\SkiAreaDesignChallenge.exe"
 set "BENCH=%~dp0test-results\benchmark"
-set "SCREEN=-screen-width 1920 -screen-height 1080 -screen-fullscreen 0"
+rem Benchmarks and captures run in a 1920x1080 window for that run only (-benchres); never pass -screen-*,
+rem which Unity saves as the player's window mode.
+set "SCREEN=-benchres 1920x1080"
 set "LIFTLAB=%~dp0Builds\LiftLab\LiftLab.exe"
 set "PICKER=%~dp0Builds\PickerLab\PickerLab.exe"
 set "PICKED=%LOCALAPPDATA%\SkiAreaDesignChallenge\picked-site.args"
@@ -116,6 +118,9 @@ echo   Phase 2, task 01: UI foundation (needs a downloaded area; close the Unity
 echo     47 Capture every screen at 1920x1080, 2560x1080, 3440x1440 and 5120x1440, dark and light, 50-150%% (about 15 minutes)
 echo        Then try it by hand: Settings - Theme (Dark, Light, Auto) and Interface scale; Tab, the arrows, Enter and Esc on every screen.
 echo.
+echo   Fix: the window mode
+echo     50 Reset the game's saved window mode to borderless full screen (once, if earlier benchmarks left it windowed)
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -180,6 +185,7 @@ if /i "%CHOICE%"=="44" goto formats
 if /i "%CHOICE%"=="45" goto formatsnewer
 if /i "%CHOICE%"=="46" goto formattests
 if /i "%CHOICE%"=="47" goto uicapture
+if /i "%CHOICE%"=="50" goto windowreset
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -317,7 +323,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%~dp0test-results\benchmark" mkdir "%~dp0test-results\benchmark"
 echo Running the forest benchmark on Crystal Mountain (the game flies 5 views, then closes by itself)...
-"%GAME%" -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -site "Crystal Mountain" -benchmark "%~dp0test-results\benchmark\crystal.json" -logFile "%~dp0test-results\benchmark\crystal.log" <nul
+"%GAME%" %SCREEN% -site "Crystal Mountain" -benchmark "%~dp0test-results\benchmark\crystal.json" -logFile "%~dp0test-results\benchmark\crystal.log" <nul
 findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\crystal.log"
 start "" "%~dp0test-results\benchmark"
 goto done
@@ -346,7 +352,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%~dp0test-results\benchmark" mkdir "%~dp0test-results\benchmark"
 echo Running the forest benchmark on Sugarloaf (the game flies its views, then closes by itself)...
-"%GAME%" -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -site "Sugarloaf" -benchmark "%~dp0test-results\benchmark\sugarloaf.json" -logFile "%~dp0test-results\benchmark\sugarloaf.log" <nul
+"%GAME%" %SCREEN% -site "Sugarloaf" -benchmark "%~dp0test-results\benchmark\sugarloaf.json" -logFile "%~dp0test-results\benchmark\sugarloaf.log" <nul
 findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\sugarloaf.log"
 start "" "%~dp0test-results\benchmark"
 goto done
@@ -385,7 +391,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%~dp0test-results\lineup" mkdir "%~dp0test-results\lineup"
 echo Capturing the tree lineup (the game window opens and closes by itself)...
-"%GAME%" -screen-width 1920 -screen-height 1080 -screen-fullscreen 0 -lineup "%~dp0test-results\lineup\lineup" -logFile "%~dp0test-results\lineup\lineup.log" <nul
+"%GAME%" %SCREEN% -lineup "%~dp0test-results\lineup\lineup" -logFile "%~dp0test-results\lineup\lineup.log" <nul
 start "" "%~dp0test-results\lineup"
 goto done
 
@@ -450,6 +456,17 @@ type "%UICAP%\report.txt"
 start "" "%UICAP%"
 goto done
 
+:windowreset
+rem Older benchmark entries passed -screen-*, which Unity saved as the player's window mode. Deleting the saved
+rem Screenmanager values (this product's key only) brings back the build's default: borderless full screen.
+set "PREFS=HKCU\Software\Ski Area Design Challenge\Ski Area Design Challenge"
+rem The game and both labs share this key, and each saves its window when it quits.
+for %%E in (SkiAreaDesignChallenge.exe PickerLab.exe LiftLab.exe) do (
+  tasklist /fi "imagename eq %%E" | find /i "%%E" >nul && (echo   Close %%E first: it saves its window mode when it quits. & goto done)
+)
+powershell -NoProfile -Command "$k='Registry::%PREFS%'; if (Test-Path $k) { $n=(Get-Item $k).Property | Where-Object { $_ -like 'Screenmanager *' }; $n | ForEach-Object { Remove-ItemProperty -Path $k -Name $_ }; Write-Host ('  Removed ' + @($n).Count + ' saved window values; the game opens borderless full screen next time.') } else { Write-Host '  Nothing saved yet; the game already opens borderless full screen.' }"
+goto done
+
 :lifts
 set "BLENDER=C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
 if not exist "%BLENDER%" (echo Blender 5.2 was not found at "%BLENDER%". & goto done)
@@ -476,7 +493,7 @@ if not exist "%PICKER%" call :projectfree && call :buildpicker
 if not exist "%PICKER%" goto done
 if exist "%PICKED%" del "%PICKED%"
 echo Opening the site picker: search (Enter), click the map to place the square, set the size and name, then Download.
-start "" /wait "%PICKER%" -screen-fullscreen 0 -screen-width 1600 -screen-height 900
+start "" /wait "%PICKER%"
 if not exist "%PICKED%" (echo   No site chosen. & goto done)
 set /p ARGS=<"%PICKED%"
 echo.
@@ -491,7 +508,7 @@ goto done
 if not exist "%PICKER%" call :projectfree && call :buildpicker
 if not exist "%PICKER%" goto done
 echo Opening the site picker with the network switched off; close it with Esc.
-start "" /wait "%PICKER%" -offline -screen-fullscreen 0 -screen-width 1600 -screen-height 900
+start "" /wait "%PICKER%" -offline
 goto menu
 
 :rebuildpicker
