@@ -89,6 +89,9 @@ namespace MountainPlanner.Tests
             InputSystem.settings.editorInputBehaviorInPlayMode = _routing;
             InputSystem.settings.backgroundBehavior = _background;
             if (AppFlow.Instance != null) Object.Destroy(AppFlow.Instance.gameObject);
+            // A rename that failed half way doesn't carry into the next scale's run (task P2-04).
+            string view = Path.Combine(_package, ViewState.FileName);
+            if (File.Exists(view)) File.Delete(view);
             MountainViewer.TitleMode = false;
             MountainViewer.RequestedPackage = null;
             var viewer = SceneManager.GetSceneByPath(ViewerScene);
@@ -450,6 +453,7 @@ namespace MountainPlanner.Tests
         {
             var prompt = ui.Q("prompt");
             var field = ui.Q<TextField>("prompt-field");
+            Assert.That(ResortLibrary.Scan(_root).Single().Name, Is.EqualTo("Jackson Hole"), "starts from the downloaded name");
             yield return Press(Key.F2);
             Assert.That(flow.Screens.PromptOpen, Is.True, "F2 opens Rename");
             Assert.That(field.Contains((VisualElement)Focused(ui)) || Focused(ui) == field, Is.True, $"the name field has focus (it's on {Name(Focused(ui))})");

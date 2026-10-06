@@ -256,6 +256,12 @@ namespace MountainPlanner.UI.Flow
         /// </summary>
         public void RenderLibrary(LibraryViewModel vm, LibraryMode mode)
         {
+            // A redraw of the list on screen (a rename, a delete, a sort) keeps the same row selected, and keeps the
+            // keyboard in the list; opening the screen, or the other mode, starts from the top as before.
+            bool redraw = LibraryVisible && mode == Mode;
+            var focused = _root.panel?.focusController?.focusedElement as VisualElement;
+            bool keepFocus = redraw && (focused == null || focused.panel == null || _rows.Contains(focused) || _prompt.Contains(focused) || _confirm.Contains(focused));
+            string keep = redraw ? Key(SelectedRow) : null;
             Mode = mode;
             bool manage = mode == LibraryMode.Manage;
             _libraryTitle.text = manage ? "Manage Areas" : "Load Area";
@@ -265,9 +271,6 @@ namespace MountainPlanner.UI.Flow
             Mark(_sortOpened, vm.Sort == LibrarySort.LastOpened);
             Mark(_sortName, vm.Sort == LibrarySort.Name);
             Mark(_sortQuality, vm.Sort == LibrarySort.Quality);
-            // The same row stays selected across a redraw (a rename, a sort, sizes arriving), and keeps the keyboard.
-            string keep = Key(SelectedRow);
-            bool hadFocus = _selected >= 0 && _selected < _rowElements.Count && _rowElements[_selected].focusController?.focusedElement == _rowElements[_selected];
             _rows.Clear();
             _rowElements.Clear();
             _rowData.Clear();
@@ -357,7 +360,7 @@ namespace MountainPlanner.UI.Flow
             int kept = keep == null ? -1 : _rowData.FindIndex(x => Key(x) == keep);
             int first = _rowData.FindIndex(x => x.CanOpen);
             Select(kept >= 0 ? kept : first >= 0 ? first : _rowData.FindIndex(x => !x.IsPaused));
-            if (hadFocus) FocusSelectedRow();   // also when that row was just deleted: the keyboard stays in the list
+            if (keepFocus) FocusSelectedRow();   // also when that row was just deleted or renamed: the keyboard stays in the list
         }
 
         /// <summary>A row's identity across redraws: its folder, or the paused download's id.</summary>
