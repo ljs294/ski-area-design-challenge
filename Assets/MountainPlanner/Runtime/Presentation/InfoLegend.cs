@@ -69,8 +69,8 @@ namespace MountainPlanner.Presentation
 
         public const string SlopeTitle = "Slope angle", ExposureTitle = "Slope exposure", SnowDepthTitle = "Snow depth";
         public const string SlopeNote = "Grade: rise over run (100% is 45°).";
-        public const string ExposureNote = "The way each slope faces, from true north. Flatter than 10% is grey.";
-        public const string SnowDepthNote = "Natural snowpack: deeper up high, thinner on sunny south faces, wind-scoured ridges and under trees.";
+        public const string ExposureNote = "The way each slope faces, from true north; flatter than 10% is grey.";
+        public const string SnowDepthNote = "The natural snowpack: deeper up high, thinner on sunny faces, steep rock and under trees.";
 
         public static string ContoursNote(UnitSystem units) => units == UnitSystem.Imperial
             ? "Contours every 40 ft, labelled every 200 ft."

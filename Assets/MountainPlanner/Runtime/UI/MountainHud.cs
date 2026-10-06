@@ -1,489 +1,288 @@
 using System;
-using System.Collections.Generic;
 using MountainPlanner.Domain.Measure;
 using MountainPlanner.Presentation;
+using MountainPlanner.UI.Hud;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace MountainPlanner.UI
 {
     /// <summary>
-    /// The S6 mountain-view HUD (0.4 §4), style-tile mock: a top bar with the name and quality badge, the
-    /// layers panel (map layers and info layers, with the info layer's legend card), a compass, scale bar and
-    /// elevation readout, and the time bar with the lighting presets.
-    /// It only shows state and raises events; the app wires them. Readouts change text only when their
-    /// rounded value changes, so steady frames allocate nothing (0.4 §8).
+    /// The S6 mountain-view HUD in the Trailhead direction (task P2-02): the accepted mockup,
+    /// docs/plans/prototypes/ui-layout.html, as built in Phase 2 (its #demo=p2). Its parts:
+    /// <list type="bullet">
+    /// <item>the status bar along the bottom, docked or floating (MountainHud.Bar.cs);</item>
+    /// <item>the top-right buttons, the menu with its quick switches, the map layers dropdown and the legend card
+    /// (this file and MountainHud.Layers.cs);</item>
+    /// <item>the Toolbox tray, Analysis, the resort's stats, notifications and tooltips (MountainHud.Panels.cs).</item>
+    /// </list>
+    /// It only shows state and raises events; the app wires them. The app refreshes it ten times a second, and each
+    /// part changes only when its shown value does, from text made once and kept: steady frames and refreshes
+    /// allocate nothing (0.3 §8).
     /// </summary>
-    public sealed class MountainHud : MonoBehaviour
+    public sealed partial class MountainHud : MonoBehaviour
     {
         public UIDocument Document;
 
         /// <summary>A layer row was clicked (a <see cref="MapLayers"/> id) and the state asked for. Snow conditions is reserved.</summary>
         public event Action<string, bool> LayerChanged;
-        public event Action<int> PresetChosen;
-        public event Action NorthUpChosen;
         public event Action QuitChosen;
         /// <summary>The menu's Exit to title; the item shows only when the app flow is running (<see cref="ShowExitToTitle"/>).</summary>
         public event Action ExitChosen;
-        /// <summary>The menu's units switch (U does the same): the app flips <see cref="DisplayUnits"/>.</summary>
+        /// <summary>The menu's units switch asked for the other units (U does the same): the app flips <see cref="DisplayUnits"/>.</summary>
         public event Action UnitsChosen;
-        /// <summary>The menu's Settings; the item is enabled only when the app flow offers its Settings window (<see cref="ShowSettings"/>).</summary>
+        /// <summary>The menu's Settings or Controls; enabled only when the app flow offers its Settings window (<see cref="ShowSettings"/>).</summary>
         public event Action SettingsChosen;
+        /// <summary>The bar's pause button (Space does the same).</summary>
+        public event Action PauseChosen;
+        /// <summary>A speed arrow, 1 to 4 (the number keys do the same).</summary>
+        public event Action<int> SpeedChosen;
 
         /// <summary>Where the contour labels go (behind the panels); <see cref="ContourLabelOverlay"/> fills it.</summary>
         public VisualElement ContourLabelLayer => _root.Q("contour-labels");
 
         public bool DarkThemeOn => UiPreferences.Dark;
         /// <summary>The open area's name, as the HUD shows it.</summary>
-        public string SiteName => _name?.text;
-        public bool MenuOpen => _menu != null && !_menu.ClassListContains("hidden");
+        public string SiteName => _siteName;
+        public bool MenuOpen => _drop == Drop.Menu;
+        public bool LayersOpen => _drop == Drop.Layers;
+        public bool ToolboxOpen => _toolboxOpen;
+        public bool AnalysisOpen => _analysisOpen;
+        public bool StatsOpen => _statsOpen;
+        /// <summary>The menu or the resort's stats: a window that keeps the keyboard until it closes.</summary>
+        public bool ModalOpen => MenuOpen || _statsOpen;
 
         /// <summary>
-        /// True while the HUD has the keyboard: the menu is open, or a control was reached with Tab or the arrows.
-        /// The camera then leaves the keys alone (a click never takes them: the HUD lets go of focus after one).
+        /// True while the HUD has the keyboard: the menu or the stats window is open, or a control was reached with the
+        /// arrows. The camera then leaves the keys alone (a click never takes them: the HUD lets go of focus after one).
         /// </summary>
         public bool HasKeyboard
         {
             get
             {
-                if (MenuOpen) return true;
+                if (ModalOpen) return true;
                 var focused = _root?.panel?.focusController?.focusedElement as VisualElement;
                 return focused != null && _root.Contains(focused) && UiFocus.KeyboardActive(_root) && UiFocus.IsShown(focused);
             }
         }
 
-        /// <summary>Esc's first step when a HUD control has the keyboard: let go of it, so the camera keys work again.</summary>
+        /// <summary>Esc's step when a HUD control has the keyboard: let go of it, so the camera keys work again.</summary>
         public bool ReleaseKeyboard()
         {
-            if (MenuOpen || !HasKeyboard) return false;
+            if (ModalOpen || !HasKeyboard) return false;
             ((Focusable)_root.panel.focusController.focusedElement).Blur();
             return true;
         }
 
-        VisualElement _root, _menu, _layersBody, _compass, _scaleBar, _thumb, _sun, _legend, _legendBody;
-        Label _legendTitle, _legendNote;
-        readonly Dictionary<string, Button> _layerRows = new Dictionary<string, Button>();
-        string _shownLegend;
-        bool _shownContours;
-        Label _name, _quality, _scaleLabel, _elevation, _time, _caret;
-        Button _themeButton;
-        readonly Button[] _presets = new Button[4];
-        float _heading;
-        int _shownScale = -1, _shownElevation = int.MinValue, _shownPreset = -1;
-        long _shownInfo = long.MinValue;
-        Label _infoReadout;
-        Button _unitsButton;
-        UnitSystem _shownUnits = (UnitSystem)(-1);
-        (double Metres, string Label)[] _scaleLengths;
-        const float ScaleMaxWidth = 120;   // panel units
-        /// <summary>
-        /// "Elev 8,640 ft" for every elevation the mountain has, per unit system, made once when it opens
-        /// (<see cref="PrepareElevations"/>): the readout changes almost every refresh while the camera moves, and the
-        /// game allocates nothing per frame (0.3 §8; task 15).
-        /// </summary>
-        readonly string[][] _elevationText = new string[2][];
-        readonly int[] _elevationFirstKey = new int[2];
-        /// <summary>The info readout's lines, made the first time each figure shows and kept.</summary>
-        readonly Dictionary<long, string> _infoText = new Dictionary<long, string>();
+        enum Drop { None, Menu, Layers }
+
+        VisualElement _root, _menu, _layers, _modal;
+        Button _trSketch, _trLayers, _trMenu, _settingsRow, _controlsRow;
+        Drop _drop;
+        string _siteName = "", _place = "";
+        bool _settingsAvailable, _retintSoon;
 
         void OnEnable()
         {
             if (Document == null) Document = GetComponent<UIDocument>();
             UiPanels.Adopt(Document);   // the shared theme, UI scale, focus ring and arrow keys (task P2-01)
             _root = Document.rootVisualElement;
-            _name = _root.Q<Label>("site-name");
-            _quality = _root.Q<Label>("quality");
             _menu = _root.Q("menu");
-            _layersBody = _root.Q("layers-body");
-            _caret = _root.Q<Label>("layers-caret");
-            _compass = _root.Q("compass");
-            _scaleBar = _root.Q("scale-bar");
-            _scaleLabel = _root.Q<Label>("scale-label");
-            _elevation = _root.Q<Label>("elevation");
-            _time = _root.Q<Label>("time");
-            _thumb = _root.Q("thumb");
-            _sun = _root.Q("sun-icon");
-            _themeButton = _root.Q<Button>("menu-theme");
-            _legend = _root.Q("legend");
-            _legendBody = _root.Q("legend-body");
-            _legendTitle = _root.Q<Label>("legend-title");
-            _legendNote = _root.Q<Label>("legend-note");
+            _layers = _root.Q("layers");
+            _modal = _root.Q("modal");
+            _trSketch = _root.Q<Button>("tr-sketch");
+            _trLayers = _root.Q<Button>("tr-layers");
+            _trMenu = _root.Q<Button>("tr-menu");
+            _trLayers.clicked += () => SetDrop(_drop == Drop.Layers ? Drop.None : Drop.Layers);
+            _trMenu.clicked += ToggleMenu;
 
-            _root.Q<Button>("menu-button").clicked += ToggleMenu;
-            _root.Q<Button>("menu-resume").clicked += ToggleMenu;
-            _root.Q<Button>("menu-quit").clicked += () => QuitChosen?.Invoke();
-            _root.Q<Button>("menu-exit").clicked += () => ExitChosen?.Invoke();
-            _root.Q<Button>("menu-settings").clicked += () =>
-            {
-                CloseMenu();
-                SettingsChosen?.Invoke();
-            };
-            ShowSettings(false);
-            _themeButton.clicked += UiPreferences.ToggleTheme;
+            WireMenu();
+            WireBar();
+            WireLayers();
+            WirePanels();
+
             UiPreferences.Changed += OnPreferencesChanged;
+            HudPreferences.Changed += OnDockChanged;
+            DisplayUnits.Changed += OnUnitsChanged;
             OnPreferencesChanged();
-            // A click leaves no focus behind, so the camera keys keep working after one; Tab and the arrows still reach every control.
+            OnDockChanged();
+            OnUnitsChanged();
+            // A click leaves no focus behind, so the camera keys keep working after one; the arrows still reach every control.
             _root.RegisterCallback<PointerUpEvent>(_ => _root.schedule.Execute(LetGoAfterClick), TrickleDown.TrickleDown);
-            _unitsButton = _root.Q<Button>("menu-units");
-            _unitsButton.clicked += () => UnitsChosen?.Invoke();
-            _infoReadout = _root.Q<Label>("info-readout");
-            _root.Q<Button>("layers-header").clicked += () =>
+            // Icons follow hover and state: one pass after the pointer moves between parts (HudIcon.RetintAll).
+            _root.RegisterCallback<PointerOverEvent>(_ => RetintSoon(), TrickleDown.TrickleDown);
+            _root.RegisterCallback<PointerOutEvent>(_ => RetintSoon(), TrickleDown.TrickleDown);
+            // and four times a second whatever else restyled them (a theme or state change): a check, no allocation.
+            _root.schedule.Execute(HudIcon.RetintAll).Every(250);
+            // Tab is Analysis (the key map), not the next control, unless a window is open: there it moves through it.
+            _root.RegisterCallback<NavigationMoveEvent>(e =>
             {
-                bool show = _layersBody.style.display == DisplayStyle.None;
-                _layersBody.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
-                _caret.text = show ? "–" : "+";
-            };
-            // One row per layer, named layer-<id> (MapLayers ids). Snow conditions waits for the snow simulation.
-            foreach (var ids in new[] { MapLayers.MapIds, MapLayers.InfoIds })
-                foreach (string id in ids)
-                {
-                    var row = _root.Q<Button>("layer-" + id);
-                    if (row == null) continue;
-                    _layerRows[id] = row;
-                    row.clicked += () => LayerChanged?.Invoke(id, !IsOn(row));
-                    row.SetEnabled(MapLayers.IsSwitchable(id));
-                }
-            for (int i = 0; i < _presets.Length; i++)
-            {
-                int index = i;
-                _presets[i] = _root.Q<Button>($"preset-{i}");
-                _presets[i].clicked += () => PresetChosen?.Invoke(index);
-            }
-            _root.Q<Button>("reset").clicked += () => PresetChosen?.Invoke(1);
-            _compass.RegisterCallback<ClickEvent>(_ => NorthUpChosen?.Invoke());
-            _compass.generateVisualContent += DrawCompass;
-            _sun.generateVisualContent += DrawSun;
+                if (ModalOpen) return;
+                if (e.direction != NavigationMoveEvent.Direction.Next && e.direction != NavigationMoveEvent.Direction.Previous) return;
+                e.StopPropagation();
+                _root.focusController?.IgnoreEvent(e);
+            }, TrickleDown.TrickleDown);
+        }
+
+        void OnDisable()
+        {
+            UiPreferences.Changed -= OnPreferencesChanged;
+            HudPreferences.Changed -= OnDockChanged;
+            DisplayUnits.Changed -= OnUnitsChanged;
         }
 
         public void SetVisible(bool visible) => _root.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
 
+        /// <summary>The area's name, where it is (shown under the name in the menu and the stats), and the data quality score.</summary>
+        public void SetSite(string name, int score) => SetSite(name, "", score);
+
+        public void SetSite(string name, string place, int score)
+        {
+            _siteName = name ?? "";
+            _place = place ?? "";
+            _root.Q<Label>("bar-resort-name").text = _siteName;
+            _root.Q<Label>("menu-name").text = _siteName;
+            var placeLabel = _root.Q<Label>("menu-place");
+            placeLabel.text = _place;
+            placeLabel.EnableInClassList("hidden", _place.Length == 0);
+            SetStatsSite(score);
+            _root.Q<Label>("analysis-name").text = _siteName;
+        }
+
+        // ---------- the menu (.drop.menu) ----------
+
+        void WireMenu()
+        {
+            _root.Q<Button>("menu-resume").clicked += ToggleMenu;
+            _root.Q<Button>("menu-quit").clicked += () => QuitChosen?.Invoke();
+            _root.Q<Button>("menu-exit").clicked += () => ExitChosen?.Invoke();
+            _settingsRow = _root.Q<Button>("menu-settings");
+            _controlsRow = _root.Q<Button>("menu-controls");
+            _settingsRow.clicked += OpenSettings;
+            _controlsRow.clicked += OpenSettings;
+            ShowSettings(false);
+            Segment("menu-theme-dark", () => UiPreferences.SetChoice(UiThemeChoice.Dark));
+            Segment("menu-theme-light", () => UiPreferences.SetChoice(UiThemeChoice.Light));
+            Segment("menu-theme-auto", () => UiPreferences.SetChoice(UiThemeChoice.Auto));
+            Segment("menu-dock-docked", () => HudPreferences.SetDocked(true));
+            Segment("menu-dock-floating", () => HudPreferences.SetDocked(false));
+            Segment("menu-units-metric", () => { if (DisplayUnits.Current != UnitSystem.Metric) UnitsChosen?.Invoke(); });
+            Segment("menu-units-imperial", () => { if (DisplayUnits.Current != UnitSystem.Imperial) UnitsChosen?.Invoke(); });
+        }
+
+        void Segment(string name, Action chosen) => _root.Q<Button>(name).clicked += chosen;
+
+        void OpenSettings()
+        {
+            SetDrop(Drop.None);
+            SettingsChosen?.Invoke();
+        }
+
         /// <summary>Shows the menu's Exit to title (off when the viewer runs without the title flow, as captures do).</summary>
         public void ShowExitToTitle(bool show) => _root.Q("menu-exit").EnableInClassList("hidden", !show);
 
-        static readonly string[] ThemeNames = { "Dark", "Light", "Auto" };
-
-        void OnDisable() => UiPreferences.Changed -= OnPreferencesChanged;
-
-        /// <summary>Enables the menu's Settings item (the app flow's Settings window, when the flow runs).</summary>
+        /// <summary>Enables the menu's Settings and Controls (the app flow's Settings window, when the flow runs).</summary>
         public void ShowSettings(bool available)
         {
-            var item = _root.Q<Button>("menu-settings");
-            item.SetEnabled(available);
-            item.text = available ? "Settings" : "Settings (coming)";
+            _settingsAvailable = available;
+            _settingsRow.SetEnabled(available);
+            _controlsRow.SetEnabled(available);
+            _settingsRow.EnableInClassList("row--dis", !available);
+            _controlsRow.EnableInClassList("row--dis", !available);
         }
 
         /// <summary>
         /// The in-game menu (0.4 S7) is a modal: when it opens, focus goes to Resume and stays in the menu; when it
         /// closes, focus goes back where it was (task P2-01).
         /// </summary>
-        public void ToggleMenu()
+        public void ToggleMenu() => SetDrop(_drop == Drop.Menu ? Drop.None : Drop.Menu);
+
+        /// <summary>Opens or toggles the map layers dropdown.</summary>
+        public void ToggleLayers() => SetDrop(_drop == Drop.Layers ? Drop.None : Drop.Layers);
+
+        void SetDrop(Drop drop)
         {
-            if (MenuOpen) CloseMenu();
-            else
-            {
-                _menu.RemoveFromClassList("hidden");
-                UiFocus.OpenModal(_menu, _root.Q<Button>("menu-resume"));
-            }
+            if (drop == _drop) return;
+            if (_drop == Drop.Menu) UiFocus.CloseModal(_menu);
+            _drop = drop;
+            _menu.EnableInClassList("hidden", drop != Drop.Menu);
+            _layers.EnableInClassList("hidden", drop != Drop.Layers);
+            _trMenu.EnableInClassList("sq--on", drop == Drop.Menu);
+            _trLayers.EnableInClassList("sq--on", drop == Drop.Layers);
+            if (drop == Drop.Menu) UiFocus.OpenModal(_menu, _root.Q<Button>("menu-resume"));
+            ShowLegend();
+            RetintSoon();
         }
 
-        void CloseMenu()
+        /// <summary>
+        /// Esc backs out one step, as the mockup does: the stats window, then a dropdown, then the Toolbox or Analysis.
+        /// False when there was nothing to close (the app then opens the menu).
+        /// </summary>
+        public bool BackOut()
         {
-            if (!MenuOpen) return;
-            _menu.AddToClassList("hidden");
-            UiFocus.CloseModal(_menu);
+            if (_statsOpen) { SetStats(false); return true; }
+            if (_drop != Drop.None) { SetDrop(Drop.None); return true; }
+            if (HudWindow.Current != null) { HudWindow.Current.Close(); return true; }
+            if (_toolboxOpen || _analysisOpen) { SetToolbox(false); SetAnalysis(false); return true; }
+            return false;
         }
+
+        /// <summary>A click on the mountain (not on the HUD) closes the dropdowns, as in the mockup.</summary>
+        public void ClickedMap() => SetDrop(Drop.None);
+
+        /// <summary>Opens a floating window (one at a time; Esc closes it). The tools of Phase 3 use it.</summary>
+        public void OpenWindow(HudWindow window) => HudWindow.Open(_root.Q("hud"), window);
 
         /// <summary>The theme for the whole game (every screen follows <see cref="UiPreferences"/>).</summary>
         public void SetTheme(bool dark) => UiPreferences.SetTheme(dark ? UiTheme.Dark : UiTheme.Light);
 
         void OnPreferencesChanged()
         {
-            _themeButton.text = "Theme: " + ThemeNames[(int)UiPreferences.Choice];   // the click goes on to the next: Dark, Light, Auto
-            _compass.MarkDirtyRepaint();
-            _sun.MarkDirtyRepaint();
+            var choice = UiPreferences.Choice;
+            On("menu-theme-dark", choice == UiThemeChoice.Dark);
+            On("menu-theme-light", choice == UiThemeChoice.Light);
+            On("menu-theme-auto", choice == UiThemeChoice.Auto);
+            RetintSoon();
         }
+
+        void OnDockChanged()
+        {
+            bool docked = HudPreferences.Docked;
+            On("menu-dock-docked", docked);
+            On("menu-dock-floating", !docked);
+            _bar.EnableInClassList("bar--docked", docked);
+            _bar.EnableInClassList("bar--floating", !docked);
+            _root.Q("credit").EnableInClassList("credit--float", !docked);
+            float above = (docked ? 0 : 10) + 52 + 10;   // the tray and Analysis sit 10 px above the bar (the mockup's trayBottom)
+            _root.Q("toolbox").style.bottom = above;
+            _root.Q("analysis").style.bottom = above;
+        }
+
+        void OnUnitsChanged()
+        {
+            bool imperial = DisplayUnits.Current == UnitSystem.Imperial;
+            On("menu-units-metric", !imperial);
+            On("menu-units-imperial", imperial);
+            CheckUnits();
+        }
+
+        void On(string name, bool on) => _root.Q(name).EnableInClassList("mp-seg__opt--on", on);
 
         void LetGoAfterClick()
         {
-            if (MenuOpen || UiFocus.KeyboardActive(_root)) return;
+            if (ModalOpen || UiFocus.KeyboardActive(_root)) return;
             var focused = _root.panel?.focusController?.focusedElement as VisualElement;
             if (focused != null && _root.Contains(focused)) ((Focusable)focused).Blur();
         }
 
-        public void SetSite(string name, int score)
+        void RetintSoon()
         {
-            _name.text = name;
-            string band = score >= 90 ? "excellent" : score >= 75 ? "good" : score >= 50 ? "fair" : "limited";
-            _quality.text = $"{score} · {char.ToUpperInvariant(band[0])}{band.Substring(1)}";
-            foreach (var b in new[] { "excellent", "good", "fair", "limited" }) _quality.EnableInClassList("badge--" + b, b == band);
-            _quality.tooltip = "Terrain quality (0.4 §5)";
-        }
-
-        static bool IsOn(VisualElement row) => row.ClassListContains("layer--on");
-
-        /// <summary>Shows a layer's state (the app owns it; a click asks for the change through <see cref="LayerChanged"/>).</summary>
-        public void SetLayer(string id, bool on)
-        {
-            if (_layerRows.TryGetValue(id, out var row)) row.EnableInClassList("layer--on", on);
-        }
-
-        /// <summary>
-        /// The legend card for the info layer that's on (a <see cref="MapLayers"/> id, or null for none), with a line
-        /// about the contours when they're on. Rebuilt only when either changes.
-        /// </summary>
-        public void SetLegend(string infoId, bool contours)
-        {
-            CheckUnits();
-            if (infoId == _shownLegend && contours == _shownContours) return;
-            _shownLegend = infoId;
-            _shownContours = contours;
-            var units = DisplayUnits.Current;
-            _legendBody.Clear();
-            string note = null;
-            switch (infoId)
-            {
-                case MapLayers.SlopeAngle:
-                    _legendTitle.text = InfoLegend.SlopeTitle;
-                    foreach (var e in InfoLegend.SlopeAngle) _legendBody.Add(LegendRow(e));
-                    note = InfoLegend.SlopeNote;
-                    break;
-                case MapLayers.Exposure:
-                    _legendTitle.text = InfoLegend.ExposureTitle;
-                    _legendBody.Add(ExposureCompass());
-                    note = InfoLegend.ExposureNote;
-                    break;
-                case MapLayers.SnowDepth:
-                    _legendTitle.text = InfoLegend.SnowDepthTitle;
-                    foreach (var e in InfoLegend.SnowDepth(units)) _legendBody.Add(LegendRow(e));
-                    note = InfoLegend.SnowDepthNote;
-                    break;
-                default:
-                    _legendTitle.text = "Contours";
-                    break;
-            }
-            if (contours) note = note == null ? InfoLegend.ContoursNote(units) : note + " " + InfoLegend.ContoursNote(units);
-            _legendNote.text = note ?? "";
-            _legendNote.style.display = note == null ? DisplayStyle.None : DisplayStyle.Flex;
-            _legend.EnableInClassList("hidden", infoId == null && !contours);
-        }
-
-        static VisualElement LegendRow(in InfoLegend.Entry e)
-        {
-            var row = new VisualElement { pickingMode = PickingMode.Ignore };
-            row.AddToClassList("legend-row");
-            row.Add(Swatch(e.Colour, e.Hatched));
-            var label = new Label(e.Label) { pickingMode = PickingMode.Ignore };
-            label.AddToClassList("legend-label");
-            row.Add(label);
-            var figure = new Label(e.Figure) { pickingMode = PickingMode.Ignore };
-            figure.AddToClassList("legend-figure");
-            row.Add(figure);
-            return row;
-        }
-
-        static VisualElement Swatch(Color colour, bool hatched)
-        {
-            var swatch = new VisualElement { pickingMode = PickingMode.Ignore };
-            swatch.AddToClassList("legend-swatch");
-            swatch.style.backgroundColor = colour;
-            if (hatched)
-                swatch.generateVisualContent += ctx =>
-                {
-                    var r = ctx.visualElement.contentRect;
-                    var p = ctx.painter2D;
-                    p.strokeColor = new Color(0.92f, 0.92f, 0.92f);
-                    p.lineWidth = 2;
-                    for (float x = -r.height; x < r.width; x += 6)
-                    {
-                        p.BeginPath();
-                        p.MoveTo(new Vector2(x, r.height));
-                        p.LineTo(new Vector2(x + r.height, 0));
-                        p.Stroke();
-                    }
-                };
-            return swatch;
-        }
-
-        /// <summary>The exposure colours laid out as a compass: NW N NE / W flat E / SW S SE.</summary>
-        static VisualElement ExposureCompass()
-        {
-            var grid = new VisualElement { pickingMode = PickingMode.Ignore };
-            grid.AddToClassList("legend-compass");
-            int[] order = { 7, 0, 1, 6, -1, 2, 5, 4, 3 };
-            foreach (int k in order)
-            {
-                var colour = k < 0 ? InfoLegend.ExposureFlat : InfoLegend.ExposureColours[k];
-                var cell = new VisualElement { pickingMode = PickingMode.Ignore };
-                cell.AddToClassList("legend-cell");
-                cell.style.backgroundColor = colour;
-                var label = new Label(k < 0 ? "flat" : InfoLegend.ExposurePoints[k]) { pickingMode = PickingMode.Ignore };
-                label.AddToClassList("legend-cell-label");
-                float luminance = 0.2126f * colour.r + 0.7152f * colour.g + 0.0722f * colour.b;
-                label.style.color = label.style.unityTextOutlineColor = luminance > 0.5f ? new Color(0.1f, 0.1f, 0.1f) : Color.white;   // the light theme's text outline in the same colour
-                cell.Add(label);
-                grid.Add(cell);
-            }
-            return grid;
-        }
-
-        /// <summary>The time bar: which preset is on, its clock time and where that falls in the day.</summary>
-        public void SetPreset(int index, string clock, float dayFraction)
-        {
-            if (index == _shownPreset) return;
-            _shownPreset = index;
-            for (int i = 0; i < _presets.Length; i++) _presets[i].EnableInClassList("preset--on", i == index);
-            _time.text = clock;
-            _thumb.style.left = Length.Percent(dayFraction * 100);
-            _sun.MarkDirtyRepaint();
-        }
-
-        /// <summary>Compass heading (degrees clockwise from north), metres per screen pixel, elevation (NaN: off the terrain).</summary>
-        /// <summary>When the units change, every figure redraws: the menu item, the scale bar, the readouts and the legend.</summary>
-        void CheckUnits()
-        {
-            var units = DisplayUnits.Current;
-            if (units == _shownUnits) return;
-            _shownUnits = units;
-            _scaleLengths = UnitFormat.ScaleLengths(units);
-            _unitsButton.text = units == UnitSystem.Imperial ? "Units: imperial" : "Units: metric";
-            _shownScale = -1;
-            _shownElevation = int.MinValue;
-            _shownInfo = long.MinValue;
-            _shownLegend = "\0";   // forces the legend to rebuild
-        }
-
-        /// <summary>
-        /// What the info layer that's on reads under the pointer, below the elevation (task 12b.2): the slope as a grade
-        /// and its trail band, the way it faces, or the snow depth. Null (or a NaN) hides the line. The text is rebuilt
-        /// only when the shown figure changes.
-        /// </summary>
-        public void SetInfoReadout(string infoId, float slopePercent, float bearingDegrees, float snowMetres)
-        {
-            CheckUnits();
-            var units = _shownUnits;
-            long key;
-            switch (infoId)
-            {
-                case MapLayers.SlopeAngle when !float.IsNaN(slopePercent): key = 1L << 40 | (uint)Mathf.RoundToInt(slopePercent); break;
-                case MapLayers.Exposure when !float.IsNaN(slopePercent):
-                    key = slopePercent < SlopeBands.FlatPercent ? 2L << 40 : 3L << 40 | (uint)Mathf.RoundToInt(Mathf.Repeat(bearingDegrees, 360)) % 360; break;
-                case MapLayers.SnowDepth when !float.IsNaN(snowMetres): key = 4L << 40 | (uint)UnitFormat.SnowDepthKey(snowMetres, units); break;
-                default: key = 0; break;
-            }
-            if (key == _shownInfo) return;
-            _shownInfo = key;
-            _infoReadout.EnableInClassList("hidden", key == 0);
-            if (key == 0) return;
-            long cacheKey = key | (long)units << 48;   // snow depth reads differently in feet and metres
-            if (!_infoText.TryGetValue(cacheKey, out string text))
-            {
-                switch (key >> 40)
-                {
-                    case 1:
-                        int percent = (int)(key & 0xFFFFFFFF);
-                        text = $"Slope {percent}% · {SlopeBands.Names[(int)SlopeBands.Of(percent)]}";
-                        break;
-                    case 2: text = "Flat"; break;
-                    case 3:
-                        int bearing = (int)(key & 0xFFFFFFFF);
-                        text = $"Faces {SlopeBands.CompassPoint(bearing)} · {bearing}°";
-                        break;
-                    default: text = "Snow " + UnitFormat.SnowDepth(snowMetres, units); break;
-                }
-                _infoText[cacheKey] = text;
-            }
-            _infoReadout.text = text;
-        }
-
-        /// <summary>
-        /// Makes the elevation readout's text for every elevation between <paramref name="minMetres"/> and
-        /// <paramref name="maxMetres"/> (the mountain's range, with a margin), in both unit systems, so the readout never
-        /// allocates while the camera moves. Call when a mountain opens.
-        /// </summary>
-        public void PrepareElevations(double minMetres, double maxMetres)
-        {
-            foreach (UnitSystem units in new[] { UnitSystem.Metric, UnitSystem.Imperial })
-            {
-                int first = UnitFormat.ElevationKey(minMetres, units), last = UnitFormat.ElevationKey(maxMetres, units);
-                var text = new string[Mathf.Max(0, last - first + 1)];
-                for (int i = 0; i < text.Length; i++) text[i] = "Elev " + UnitFormat.ElevationFromKey(first + i, units);
-                _elevationText[(int)units] = text;
-                _elevationFirstKey[(int)units] = first;
-            }
-        }
-
-        string ElevationText(int key, UnitSystem units)
-        {
-            var text = _elevationText[(int)units];
-            int i = key - _elevationFirstKey[(int)units];
-            return text != null && i >= 0 && i < text.Length ? text[i] : "Elev " + UnitFormat.ElevationFromKey(key, units);
-        }
-
-        public void SetReadouts(float heading, float metresPerPixel, float elevation)
-        {
-            CheckUnits();
-            if (Mathf.Abs(Mathf.DeltaAngle(heading, _heading)) > 0.5f)
-            {
-                _heading = heading;
-                _compass.MarkDirtyRepaint();
-            }
-            // Panel units per screen pixel: the panel scales with the screen height.
-            float panelPerPixel = _root.resolvedStyle.width > 0 ? _root.resolvedStyle.width / Screen.width : 1;
-            float metresPerUnit = metresPerPixel / Mathf.Max(panelPerPixel, 1e-4f);
-            int length = 0;
-            for (int k = 0; k < _scaleLengths.Length; k++) if (_scaleLengths[k].Metres / metresPerUnit <= ScaleMaxWidth) length = k;
-            _scaleBar.style.width = (float)(_scaleLengths[length].Metres / metresPerUnit);
-            if (length != _shownScale)
-            {
-                _shownScale = length;
-                _scaleLabel.text = _scaleLengths[length].Label;
-            }
-            int shown = float.IsNaN(elevation) ? int.MinValue : UnitFormat.ElevationKey(elevation, _shownUnits);
-            if (shown != _shownElevation)
-            {
-                _shownElevation = shown;
-                _elevation.text = shown == int.MinValue ? "Elev –" : ElevationText(shown, _shownUnits);
-            }
+            if (_retintSoon || _root == null) return;
+            _retintSoon = true;
+            _root.schedule.Execute(() => { _retintSoon = false; HudIcon.RetintAll(); });
         }
 
         /// <summary>True when the pointer (screen pixels, origin bottom-left) is over a HUD panel, so the camera leaves the wheel alone.</summary>
         public bool IsPointerOverPanel(Vector2 screen) => PanelPointer.IsOver(_root, screen);
-
-        Color Themed(string light, string dark) => ColorUtility.TryParseHtmlString(DarkThemeOn ? dark : light, out var c) ? c : Color.magenta;
-
-        void DrawCompass(MeshGenerationContext ctx)
-        {
-            var r = _compass.contentRect;
-            var c = r.center;
-            float radius = Mathf.Min(r.width, r.height) * 0.36f;
-            float a = -_heading * Mathf.Deg2Rad;   // north turns against the camera's heading
-            var up = new Vector2(Mathf.Sin(a), -Mathf.Cos(a));
-            var side = new Vector2(-up.y, up.x) * radius * 0.32f;
-            var p = ctx.painter2D;
-            p.fillColor = Themed("#c23b27", "#ff7a66");   // north half in the theme's red (--neg), as on a real compass
-            p.BeginPath(); p.MoveTo(c + up * radius); p.LineTo(c + side); p.LineTo(c - side); p.ClosePath(); p.Fill();
-            p.fillColor = Themed("#8a8278", "#8f877c");   // --dim
-            p.BeginPath(); p.MoveTo(c - up * radius); p.LineTo(c + side); p.LineTo(c - side); p.ClosePath(); p.Fill();
-        }
-
-        void DrawSun(MeshGenerationContext ctx)
-        {
-            var r = _sun.contentRect;
-            var c = r.center;
-            var p = ctx.painter2D;
-            bool night = _shownPreset == 3;
-            var colour = night ? Themed("#6b645b", "#a39b90") : Themed("#a5650c", "#f0b43c");   // --soft, --warn
-            p.fillColor = colour;
-            p.BeginPath(); p.Arc(c, r.width * 0.22f, 0, 360); p.Fill();
-            if (night) return;
-            p.strokeColor = colour;
-            p.lineWidth = 1.5f;
-            for (int i = 0; i < 8; i++)
-            {
-                float t = i * Mathf.PI / 4;
-                var d = new Vector2(Mathf.Cos(t), Mathf.Sin(t));
-                p.BeginPath(); p.MoveTo(c + d * r.width * 0.32f); p.LineTo(c + d * r.width * 0.46f); p.Stroke();
-            }
-        }
     }
 }
