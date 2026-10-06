@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using MountainPlanner.World;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace MountainPlanner.Presentation
@@ -119,6 +120,14 @@ namespace MountainPlanner.Presentation
             }
             _reach = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(float));
             _reach.SetData(reach);
+            // Crown radii for the crown map: the impostor's crown cylinder (TreeImport), where the model has one.
+            _crownRadius = new float[prototypes];
+            for (int p = 0; p < prototypes; p++)
+            {
+                var lods = set.Prefabs[p].GetComponent<LODGroup>().GetLODs();
+                var far = lods.Length > 3 && lods[3].renderers.Length > 0 ? lods[3].renderers[0].sharedMaterial : null;
+                _crownRadius[p] = CrownShare * (far != null && far.HasProperty("_ImpSize") ? far.GetVector("_ImpSize").x : reach[p] * 0.7f);
+            }
             _prototypeStart = new GraphicsBuffer(GraphicsBuffer.Target.Structured, prototypes, sizeof(uint));
             _prototypeStart.SetData(start);
             _visible = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.Max(1, trees.Length * Lods), sizeof(uint));
@@ -166,6 +175,7 @@ namespace MountainPlanner.Presentation
                                 material.SetTexture("_BumpMap", bump);
                                 material.SetFloat("_BumpScale", 1f);
                             }
+                            material.SetVector("_BackTint", BackTint(set.Prefabs[p].name));   // a vector: no colour-space conversion
                             if (l < WindLods) _windMaterials.Add(material);
                         }
                         material.SetFloat("_SnowLoad", snowLoad);
@@ -213,6 +223,76 @@ namespace MountainPlanner.Presentation
             _cull.SetBuffer(_writeArgs, "_Counts", _counts);
             _cull.SetBuffer(_writeArgs, "_Args", _args);
             _cull.SetBuffer(_writeArgs, "_DrawCounter", _drawCounter);
+        }
+
+        /// <summary>
+        /// The underside of a species' sprays (TreeInstanced.shader's _BackTint): rgb times the needles' brightness,
+        /// a how much. Pacific silver fir and noble fir are white-banded underneath (P2-09; the backlog's silvery undersides).
+        /// </summary>
+        public static Vector4 BackTint(string prefab) =>
+            BackTintOn && (prefab.StartsWith("pacific_silver_fir") || prefab.StartsWith("noble_fir")) ? new Vector4(2.3f, 2.6f, 2.75f, 0.7f) : new Vector4(1, 1, 1, 0);
+
+        /// <summary>Review runs only (-nobacktint): forests built while false draw every underside like its top.</summary>
+        public static bool BackTintOn = true;
+
+        /// <summary>Metres per crown-map texel over the core and over the ring (P2-09).</summary>
+        public const float CrownCoreMetres = 2f, CrownRingMetres = 6f;
+        /// <summary>The share of a crown's bounding cylinder that shades the ground below it (crowns are not solid discs).</summary>
+        public const float CrownShare = 0.65f;
+        public static readonly int CrownMapCoreId = Shader.PropertyToID("_CrownMapCore"), CrownMapRingId = Shader.PropertyToID("_CrownMapRing"),
+                                   CrownRectCoreId = Shader.PropertyToID("_CrownRectCore"), CrownRectRingId = Shader.PropertyToID("_CrownRectRing"),
+                                   CrownParamsId = Shader.PropertyToID("_CrownParams");
+        readonly float[] _crownRadius;
+        RenderTexture _crownCore, _crownRing;
+
+        /// <summary>
+        /// Draws the crown map (P2-09): the share of the ground under tree crowns, at <see cref="CrownCoreMetres"/>
+        /// over the core and <see cref="CrownRingMetres"/> over the ring, on the GPU, once. The terrain keeps its
+        /// dark forest floor only there (MountainTerrain.shader); the maps are shader globals until this forest goes.
+        /// </summary>
+        public void BuildCrownMap(Rect core, Rect ring)
+        {
+            if (_treeCount == 0) return;
+            using (var radius = new GraphicsBuffer(GraphicsBuffer.Target.Structured, _crownRadius.Length, sizeof(float)))
+            {
+                radius.SetData(_crownRadius);
+                _crownCore = DrawCrowns(core, CrownCoreMetres, radius, "Crown map (core)");
+                _crownRing = DrawCrowns(ring, CrownRingMetres, radius, "Crown map (ring)");
+            }
+            Shader.SetGlobalTexture(CrownMapCoreId, _crownCore);
+            Shader.SetGlobalTexture(CrownMapRingId, _crownRing);
+            Shader.SetGlobalVector(CrownRectCoreId, new Vector4(core.xMin, core.yMin, 1f / core.width, 1f / core.height));
+            Shader.SetGlobalVector(CrownRectRingId, new Vector4(ring.xMin, ring.yMin, 1f / ring.width, 1f / ring.height));
+            Shader.SetGlobalVector(CrownParamsId, new Vector4(0, 0, 0, 1));
+        }
+
+        RenderTexture DrawCrowns(Rect area, float metres, GraphicsBuffer radius, string name)
+        {
+            int w = Mathf.Max(1, Mathf.CeilToInt(area.width / metres)), h = Mathf.Max(1, Mathf.CeilToInt(area.height / metres));
+            var map = new RenderTexture(w, h, 0, GraphicsFormat.R8_UNorm)
+            {
+                name = name, enableRandomWrite = true, useMipMap = true, autoGenerateMips = false,
+                wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear,
+            };
+            map.Create();
+            int clear = _cull.FindKernel("CrownClear"), splat = _cull.FindKernel("CrownSplat"), resolve = _cull.FindKernel("CrownResolve");
+            using (var sum = new GraphicsBuffer(GraphicsBuffer.Target.Structured, w * h, sizeof(uint)))
+            {
+                _cull.SetVector("_CrownRect", new Vector4(area.xMin, area.yMin, metres, 0));
+                _cull.SetInts("_CrownSize", w, h);
+                _cull.SetInt("_TreeCount", _treeCount);
+                _cull.SetBuffer(clear, "_CrownSum", sum);
+                _cull.SetBuffer(splat, "_CrownSum", sum);
+                _cull.SetBuffer(splat, "_Trees", _trees);
+                _cull.SetBuffer(splat, "_CrownRadius", radius);
+                _cull.SetBuffer(resolve, "_CrownSum", sum);
+                _cull.SetTexture(resolve, "_CrownMap", map);
+                _cull.Dispatch(clear, (w * h + 63) / 64, 1, 1);
+                _cull.Dispatch(splat, (_treeCount + 63) / 64, 1, 1);
+                _cull.Dispatch(resolve, (w + 7) / 8, (h + 7) / 8, 1);
+            }
+            map.GenerateMips();
+            return map;
         }
 
         /// <summary>Culls and draws the forest for a camera. Call once per frame before rendering.</summary>
@@ -273,6 +353,15 @@ namespace MountainPlanner.Presentation
         public void Dispose()
         {
             foreach (var b in new[] { _trees, _nativeHeights, _reach, _prototypeStart, _visible, _counts, _args, _drawCounter }) b?.Dispose();
+            if (_crownCore != null)
+            {
+                Shader.SetGlobalVector(CrownParamsId, Vector4.zero);
+                _crownCore.Release();
+                _crownRing.Release();
+                UnityEngine.Object.Destroy(_crownCore);
+                UnityEngine.Object.Destroy(_crownRing);
+                _crownCore = _crownRing = null;
+            }
             foreach (var m in _materials) UnityEngine.Object.Destroy(m);
             _materials.Clear();
             _windMaterials.Clear();

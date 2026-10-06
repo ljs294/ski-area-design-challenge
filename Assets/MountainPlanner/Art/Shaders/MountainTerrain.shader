@@ -107,6 +107,23 @@ Shader "MountainPlanner/Terrain"
             return saturate(SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, uv, 0).r / _SnowDepthParams.x);
         }
 
+        // The crown map (P2-09, ForestRenderer.BuildCrownMap): the share of the ground under tree crowns, 2 m over the
+        // core and 6 m over the ring. -1 when there's no forest yet, which keeps the cover map's stand look.
+        TEXTURE2D(_CrownMapCore); SAMPLER(sampler_CrownMapCore);
+        TEXTURE2D(_CrownMapRing);
+        float4 _CrownRectCore;       // west, south, 1 / width, 1 / depth (world metres)
+        float4 _CrownRectRing;
+        float4 _CrownParams;         // w: on (0/1)
+
+        float CrownCover(float2 xz)
+        {
+            UNITY_BRANCH
+            if (_CrownParams.w < 0.5) return -1;
+            float2 core = (xz - _CrownRectCore.xy) * _CrownRectCore.zw;
+            if (all(core > 0.001) && all(core < 0.999)) return SAMPLE_TEXTURE2D(_CrownMapCore, sampler_CrownMapCore, core).r;
+            return SAMPLE_TEXTURE2D(_CrownMapRing, sampler_CrownMapCore, (xz - _CrownRectRing.xy) * _CrownRectRing.zw).r;
+        }
+
         // The terrain stops at the edge of the downloaded data; the diorama walls take over below it.
         void ClipToRing(float3 positionWS)
         {
@@ -404,6 +421,15 @@ Shader "MountainPlanner/Terrain"
                 float painted = saturate(composed * 50);
                 float land = 1 - c1.g;
                 float snowWeight = c0.r * lerp(1, SnowCover(i.positionWS), painted);
+                // Under the crowns only (P2-09): SplatTexels thinned the snow over a whole stand (ForestShade, 45% at
+                // full canopy); with the crown map the snow between trees comes back and the trees keep their wells.
+                float crown = CrownCover(i.positionWS.xz);
+                float underCrown = saturate(crown * 1.25);
+                if (crown >= 0 && painted > 0.5)
+                {
+                    float standShade = 0.451 * smoothstep(0.35, 0.8, c0.g);
+                    snowWeight = min(land, snowWeight / (1 - standShade)) * (1 - 0.451 * underCrown);
+                }
                 // The cover-map overlay leaves the snow out whatever the Snow layer says.
                 float snowOn = lerp(1, _SnowOn > 0.5 && _Overlay < 0.5 ? 1 : 0, painted);
                 snowWeight *= snowOn;
@@ -445,7 +471,11 @@ Shader "MountainPlanner/Terrain"
                 // Forest-floor edges (beauty pass, item 3): the canopy cut each stand's floor out as a hard dark disc. Noise
                 // at two scales breaks the outline, and what the floor gives up at its edge goes to the grass.
                 float ragged = ValueNoise(i.positionWS.xz / 6) * 0.6 + ValueNoise(i.positionWS.xz / 1.7) * 0.4;
-                float floorWeight = weights[1] * smoothstep(0.15, 0.75, weights[1] + (ragged - 0.5) * 0.7);
+                // With the crown map (P2-09) the dark floor lies only under the crowns, and between the trees the stand
+                // keeps grass, shaded and strewn with needles (needles: that grass's share of the stand).
+                float floorWeight = crown >= 0 ? weights[1] * saturate(underCrown + (ragged - 0.5) * 0.3)
+                                               : weights[1] * smoothstep(0.15, 0.75, weights[1] + (ragged - 0.5) * 0.7);
+                float needles = crown >= 0 ? (weights[1] - floorWeight) / max(weights[2] + weights[1] - floorWeight, 1e-3) : 0;
                 weights[2] += weights[1] - floorWeight;
                 weights[1] = floorWeight;
                 float footprint = length(fwidth(i.positionWS));   // metres per pixel, for the lake's cracks
@@ -460,12 +490,26 @@ Shader "MountainPlanner/Terrain"
                     {
                         if (k == 3) SampleRock(i.positionWS, n, groundPercent, albedos[k], normals[k]);
                         else if (k == 5) SampleLake(i.positionWS, n, cuv, res, weights[k], footprint, albedos[k], normals[k], smooths[k]);
-                        else if (k == 2) SampleGrass(i.positionWS, n, groundPercent, albedos[k], normals[k]);
+                        else if (k == 2)
+                        {
+                            SampleGrass(i.positionWS, n, groundPercent, albedos[k], normals[k]);
+                            albedos[k].rgb *= lerp(1, float3(0.8, 0.74, 0.62) * lerp(0.85, 1.05, ragged), needles);
+                        }
                         else if (k == 1)
                         {
                             // Forest floor a touch lighter and mossier, so stands don't sit in black pools.
                             SampleDetail(1, _Tile[1], i.positionWS, n, albedos[k], normals[k]);
                             albedos[k].rgb *= Macro(i.positionWS) * float3(1.2, 1.28, 1.12);
+                            UNITY_BRANCH
+                            if (crown >= 0)
+                            {
+                                // With the crown map (P2-09) the floor is the stand's own ground in shade: needles over
+                                // shaded grass, not a brown pad; the darkness under the crowns comes from the light below.
+                                float4 grass;
+                                float3 grassN;
+                                SampleGrass(i.positionWS, n, groundPercent, grass, grassN);
+                                albedos[k].rgb = lerp(grass.rgb * float3(0.86, 0.8, 0.68), albedos[k].rgb, 0.4);
+                            }
                         }
                         else if (k == 4) { SampleTop(k, i.positionWS, n, albedos[k], normals[k]); albedos[k].rgb *= Macro(i.positionWS); }
                         else if (k == 6)
@@ -512,6 +556,12 @@ Shader "MountainPlanner/Terrain"
                 // (1 m heightmap); creases also take a little off the sun.
                 half crease = Crease(i.uv);
                 half skyLight = TerrainSkyVisibility(i.positionWS) * crease;
+                // The crowns hide most of the sky from the ground below them (P2-09), and past the shadow cascades,
+                // where trees cast no shadows of their own, some of the sun too.
+                float under = saturate(crown);
+                skyLight *= 1 - 0.45 * under;
+                float farFade = saturate((distance(i.positionWS, _WorldSpaceCameraPos) - _FarShadowParams.x) / max(_FarShadowParams.y - _FarShadowParams.x, 1));
+                sun.shadowAttenuation *= 1 - 0.5 * under * farFade;
                 float3 lit = albedo * (sun.color * ndl * sun.shadowAttenuation * lerp(1, crease, 0.5) + SampleSH(normal) * skyLight)
                            + sun.color * spec * sun.shadowAttenuation;
                 lit = ApplyContours(lit, i.positionWS.y);

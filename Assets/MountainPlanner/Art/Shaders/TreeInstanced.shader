@@ -18,6 +18,7 @@ Shader "MountainPlanner/TreeInstanced"
         _Translucency ("Back-light glow", Range(0, 1)) = 0.6
         _Brightness ("LOD brightness correction", Float) = 1
         _SnowScale ("LOD snow correction", Float) = 1
+        _BackTint ("Underside tint (rgb on the needle brightness; a amount)", Color) = (1, 1, 1, 0)
         [Normal] _BumpMap ("Bark normal map", 2D) = "bump" {}
         _BumpScale ("Bark relief (0 = off)", Float) = 0
     }
@@ -39,6 +40,7 @@ Shader "MountainPlanner/TreeInstanced"
             float _Translucency;
             float _Brightness;
             float _SnowScale;
+            float4 _BackTint;
             float _BumpScale;
         CBUFFER_END
         TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
@@ -185,6 +187,9 @@ Shader "MountainPlanner/TreeInstanced"
                 float3 positionWS = i.positionRWS + _WorldSpaceCameraPos;
                 float up = front ? i.shade.z : -i.shade.z;
                 float snow = saturate(i.shade.x * saturate(up * 1.6 + 0.1) * (_Foliage > 0.5 ? SnowPattern(i.uv, i.seed) : 1));
+                // Undersides (P2-09): a card's back face is the bottom of its spray, which on silver and noble firs is
+                // white-banded; ForestRenderer sets the tint per species (none by default).
+                if (_Foliage > 0.5 && !front) albedo.rgb = lerp(albedo.rgb, dot(albedo.rgb, half3(0.3, 0.59, 0.11)) * _BackTint.rgb, _BackTint.a);
                 half3 colour = lerp(albedo.rgb * i.tint * _Brightness, _SnowColor.rgb, snow);
                 half ao = lerp(i.shade.y, 1, snow * 0.3);
                 half3 lit = TreeLight(colour, SnowNormal(n, snow), ao, positionWS, _Translucency * _Foliage * (1 - snow));
