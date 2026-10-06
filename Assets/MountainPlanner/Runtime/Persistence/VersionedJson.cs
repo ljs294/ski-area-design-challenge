@@ -80,12 +80,15 @@ namespace MountainPlanner.Persistence
             return (int)v;
         }
 
-        /// <summary>True when the file at <paramref name="path"/> is readable JSON from a newer version; such a file is never overwritten.</summary>
+        /// <summary>
+        /// True when the file at <paramref name="path"/> is readable JSON from a newer version; such a file is never
+        /// overwritten. An unreadable file, or one whose version is nonsense, isn't newer: saving replaces it.
+        /// </summary>
         public bool IsNewer(string path)
         {
             if (!File.Exists(path)) return false;
             try { return VersionOf(Parse(File.ReadAllText(path))) > Current; }
-            catch (Exception e) when (e is IOException || e is JsonException || e is UnauthorizedAccessException) { return false; }
+            catch (Exception e) when (e is IOException || e is InvalidDataException || e is JsonException || e is UnauthorizedAccessException) { return false; }
         }
 
         /// <summary>Brings <paramref name="o"/> up to <see cref="Current"/> in place; <paramref name="from"/> is the version it had.</summary>

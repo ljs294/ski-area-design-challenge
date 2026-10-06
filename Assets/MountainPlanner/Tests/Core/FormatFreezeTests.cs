@@ -299,6 +299,23 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
+        public void OnlyAReadableNewerFileIsProtectedFromSaves()
+        {
+            string path = Path.Combine(Path.GetTempPath(), "mp-isnewer-" + Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                Assert.That(Three.IsNewer(path), Is.False, "no file");
+                foreach (var (json, newer) in new[] { ("{ \"Version\": 4 }", true), ("{ \"Version\": 3 }", false), ("{ \"a\": 1 }", false),
+                                                      ("{ \"Version\": \"x\" }", false), ("{ \"Version\": 0 }", false), ("[1]", false), ("not json", false) })
+                {
+                    File.WriteAllText(path, json);
+                    Assert.That(Three.IsNewer(path), Is.EqualTo(newer), json);
+                }
+            }
+            finally { File.Delete(path); }
+        }
+
+        [Test]
         public void EachVersionAfterTheFirstNeedsExactlyOneStep()
         {
             Assert.Throws<ArgumentException>(() => new VersionedJson("x", "Version", 2));
