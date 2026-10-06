@@ -96,7 +96,8 @@ namespace MountainPlanner.Tests.Core
 
             var view = ViewState.Load(Package(JacksonHole));
             Assert.That(view.Refusal, Is.Empty);
-            Assert.That(view.Version, Is.EqualTo(1));
+            Assert.That(view.Version, Is.EqualTo(2), "migrated in memory to v2 (task P2-04)");
+            Assert.That(view.Name, Is.Empty, "a v1 view state has no name of its own: the area keeps the manifest's");
             Assert.That(view.Camera.TargetX, Is.EqualTo(120.5));
             Assert.That(view.Camera.TargetZ, Is.EqualTo(-340.25));
             Assert.That(view.Camera.Distance, Is.EqualTo(2800));
@@ -143,7 +144,7 @@ namespace MountainPlanner.Tests.Core
             Assert.That(e.Supported, Is.EqualTo(PackageManifest.CurrentFormat));
 
             var newer = new List<LibraryEntry>();
-            var entries = ResortLibrary.Scan(_root, newer);
+            var entries = ResortLibrary.Scan(_root, newer, measure: true);
             Assert.That(entries.Select(x => x.Name), Is.EqualTo(new[] { "Crystal Mountain" }), "it can't be opened");
             var row = newer.Single();
             Assert.That(row.Name, Is.EqualTo("Jackson Hole"), "named from where v1 kept the name");
@@ -233,13 +234,32 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
-        public void EveryFormatIsAtVersionOne()
+        public void AVersionTwoViewStateReadsItsNameAndAVersionOneMigratesToTheSameValues()
         {
-            // Phase 1's files are v1 of each format. Bumping one means a migration step and a v2 fixture (0.3 §5).
+            string v2 = Path.Combine(_root, "v2");
+            Directory.CreateDirectory(v2);
+            File.Copy(Path.Combine(TestData.Folder(Path.Combine("formats", "v2-view")), ViewState.FileName), Path.Combine(v2, ViewState.FileName));
+            var two = ViewState.Load(v2);
+            Assert.That(two.Refusal, Is.Empty);
+            Assert.That(two.Version, Is.EqualTo(2));
+            Assert.That(two.Name, Is.EqualTo("Teton Village"));
+
+            // The v1 fixture is the same view before the rename: every other value migrates unchanged.
+            var one = ViewState.Load(Package(JacksonHole));
+            Assert.That(one.Name, Is.Empty);
+            one.Name = two.Name;
+            Assert.That(JsonConvert.SerializeObject(one), Is.EqualTo(JsonConvert.SerializeObject(two)));
+        }
+
+        [Test]
+        public void EveryFormatIsAtItsFrozenVersion()
+        {
+            // Phase 1's files are v1 of each format. Bumping one means a migration step and a v<N> fixture (0.3 §5).
+            // The view state is v2 since task P2-04 (the player's name for the area).
             Assert.That(PackageManifest.Migrations.Current, Is.EqualTo(1));
             Assert.That(LibraryIndex.Migrations.Current, Is.EqualTo(1));
             Assert.That(RecentResorts.Migrations.Current, Is.EqualTo(1));
-            Assert.That(ViewState.Migrations.Current, Is.EqualTo(1));
+            Assert.That(ViewState.Migrations.Current, Is.EqualTo(2));
             Assert.That(PendingDownload.Migrations.Current, Is.EqualTo(1));
             Assert.That(ResortPackage.IdScheme, Is.EqualTo(1));
         }

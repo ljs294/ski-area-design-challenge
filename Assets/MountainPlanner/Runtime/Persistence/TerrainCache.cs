@@ -70,7 +70,7 @@ namespace MountainPlanner.Persistence
     /// 1 m tile's in-between edge samples are set to the midpoint of the 2 m tile's, so there are no
     /// cracks (T-junctions).
     /// </summary>
-    public static class TerrainCache
+    public static partial class TerrainCache
     {
         /// <summary>Bump when the tile format or sampling changes: existing caches are then rebuilt.</summary>
         public const int Version = 12;   // 12: ring forest at the core's height, in patches (polish); 11: roads (task 12d), eight cover bands
@@ -93,7 +93,7 @@ namespace MountainPlanner.Persistence
 
         static readonly JsonSerializerSettings Json = new JsonSerializerSettings { Formatting = Formatting.Indented };
 
-        public static string FolderFor(string packageFolder) => Path.Combine(packageFolder, "cache-v" + Version);
+        public static string FolderFor(string packageFolder) => FolderFor(packageFolder, Version);
 
         /// <summary>True when the cache exists, matches the package and has the current version.</summary>
         public static bool IsCurrent(string packageFolder, PackageManifest package)
@@ -150,11 +150,29 @@ namespace MountainPlanner.Persistence
         }
 
         /// <summary>
-        /// Builds (or rebuilds) the cache for a package. Old cache versions are removed. The forest grows with
+        /// Builds (or rebuilds) the cache for a package, holding it (<see cref="Hold"/>) while it writes. Afterwards
+        /// <see cref="Prune"/> tidies the other versions: newer ones and the newest older one stay, so games built from
+        /// branches on different cache versions don't rebuild each other's caches (task P2-04). The forest grows with
         /// <paramref name="forestPlanter"/> (the game passes its Burst planter), else as plain C#; both give the same bytes.
         /// </summary>
         public static CacheManifest Build(string packageFolder, PackageManifest package, IProgress<CacheProgress> progress, CancellationToken ct = default,
-                                          IForestPlanter forestPlanter = null)
+                                          IForestPlanter forestPlanter = null) =>
+            Build(packageFolder, package, progress, ct, forestPlanter, Version);
+
+        /// <summary>The build at any cache version: tests stand in for games on other versions with it.</summary>
+        internal static CacheManifest Build(string packageFolder, PackageManifest package, IProgress<CacheProgress> progress, CancellationToken ct,
+                                            IForestPlanter forestPlanter, int version)
+        {
+            using (Hold(packageFolder, version))
+            {
+                var built = BuildInto(packageFolder, package, progress, ct, forestPlanter, version);
+                Prune(packageFolder, version);
+                return built;
+            }
+        }
+
+        static CacheManifest BuildInto(string packageFolder, PackageManifest package, IProgress<CacheProgress> progress, CancellationToken ct,
+                                       IForestPlanter forestPlanter, int version)
         {
             float[] core = ResortPackage.ReadLayer(packageFolder, package, "heights-core", out var coreHeader);
             float[] ring = ResortPackage.ReadLayer(packageFolder, package, "heights-ring", out var ringHeader);
@@ -170,15 +188,12 @@ namespace MountainPlanner.Persistence
             double min = Math.Min(coreLayer.Min, ringLayer.Min), max = Math.Max(coreLayer.Max, ringLayer.Max);
             double range = Math.Max(1, max - min);
 
-            foreach (string old in Directory.GetDirectories(packageFolder, "cache-v*"))
-                if (!string.Equals(Path.GetFullPath(old).TrimEnd('\\', '/'), Path.GetFullPath(FolderFor(packageFolder)).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
-                    Directory.Delete(old, true);
-            string folder = FolderFor(packageFolder);
+            string folder = FolderFor(packageFolder, version);
             Directory.CreateDirectory(folder);
 
             var manifest = new CacheManifest
             {
-                CacheVersion = Version, PackageId = package.PackageId, HeightMin = min, HeightRange = range, TileMetres = TileGrid.TileMetres,
+                CacheVersion = version, PackageId = package.PackageId, HeightMin = min, HeightRange = range, TileMetres = TileGrid.TileMetres,
             };
             var keys = tiles.All().ToList();
             var forestTiles = forest.BuildAll(tiles, forestPlanter);

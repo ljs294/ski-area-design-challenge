@@ -63,16 +63,16 @@ namespace MountainPlanner.App.Flow
 
             if (Wanted("s1-title")) yield return EachLook(folder, "s1-title");
 
-            if (Wanted("s2-load-area") || Wanted("s2-manage-areas") || Wanted("s11-confirm"))
+            if (Wanted("s2-load-area") || Wanted("s2-manage-areas") || Wanted("s11-confirm") || Wanted("s2-rename") || Wanted("s2-free-space"))
             {
                 _mode = LibraryMode.Load;
                 Controller.MyResorts();
-                yield return Wait(0.5f);
+                yield return Wait(1.5f);   // the sizes are measured on a worker thread
                 if (Wanted("s2-load-area")) yield return EachLook(folder, "s2-load-area");
                 Controller.Escape();
                 _mode = LibraryMode.Manage;
                 Controller.MyResorts();
-                yield return Wait(0.5f);
+                yield return Wait(1.5f);
                 if (Wanted("s2-manage-areas")) yield return EachLook(folder, "s2-manage-areas");
                 var row = Screens.SelectedRow;
                 if (Wanted("s11-confirm") && row?.Entry != null)
@@ -80,6 +80,20 @@ namespace MountainPlanner.App.Flow
                     Screens.ConfirmDelete(row);   // only asks; the capture never confirms
                     yield return Wait(0.3f);
                     yield return EachLook(folder, "s11-confirm");
+                    Screens.CloseConfirm();
+                }
+                if (Wanted("s2-rename") && row != null && row.CanRename)
+                {
+                    Screens.OpenRename(row);   // task P2-04; closed without renaming
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s2-rename");
+                    Screens.ClosePrompt();
+                }
+                if (Wanted("s2-free-space") && _library != null && _library.FreeableBytes > 0)
+                {
+                    Screens.ConfirmFreeSpace();   // only asks
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s2-free-space");
                     Screens.CloseConfirm();
                 }
                 Controller.Escape();
