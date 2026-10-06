@@ -50,6 +50,14 @@ namespace MountainPlanner.App.Flow
         LibrarySort _sort = LibrarySort.LastOpened;
         LibraryMode _mode = LibraryMode.Load;
         LibraryViewModel _library;
+        /// <summary>The last scan's areas; the background measure fills in their sizes (task P2-04).</summary>
+        System.Collections.Generic.List<LibraryEntry> _entries = new System.Collections.Generic.List<LibraryEntry>(), _newer = new System.Collections.Generic.List<LibraryEntry>();
+        System.Collections.Generic.List<PendingDownload> _pending = new System.Collections.Generic.List<PendingDownload>();
+        /// <summary>Sizes measured so far, by folder: a redraw shows them at once while a fresh measure runs.</summary>
+        readonly System.Collections.Generic.Dictionary<string, DiskUse> _sizes = new System.Collections.Generic.Dictionary<string, DiskUse>(StringComparer.OrdinalIgnoreCase);
+        int _measureRun;
+        bool _freeing;
+        const string SortPref = "MountainPlanner.LibrarySort";
         /// <summary>Frames since a viewer scene loaded; RequestedPackage is cleared at 3, once the viewer has read it.</summary>
         int _framesSinceLoad = 3;
         string _viewerScene;
@@ -140,11 +148,23 @@ namespace MountainPlanner.App.Flow
                 Directory.CreateDirectory(DataRoot);
                 Application.OpenURL(new Uri(DataRoot).AbsoluteUri);
             };
+            // The sort is remembered (a setting, not a frozen format: task P2-04).
+            int savedSort = PlayerPrefs.GetInt(SortPref, (int)LibrarySort.LastOpened);
+            _sort = Enum.IsDefined(typeof(LibrarySort), savedSort) ? (LibrarySort)savedSort : LibrarySort.LastOpened;
             Screens.SortChosen += s =>
             {
                 _sort = s;
+                PlayerPrefs.SetInt(SortPref, (int)s);
+                PlayerPrefs.Save();
                 RefreshLibrary();
             };
+            Screens.RenameConfirmed += (r, name) =>
+            {
+                if (ResortLibrary.Rename(r.Entry, name)) Screens.Toast($"Renamed to {r.Entry.Name}.");
+                else Screens.Toast(r.Entry.RenameRefusal.Length > 0 ? r.Entry.RenameRefusal : "That name can't be used.", 5);
+                RefreshLibrary();
+            };
+            Screens.FreeSpaceConfirmed += FreeSpace;
             Screens.OpenChosen += r => { if (r.CanOpen) Controller.Open(r.Entry.Folder); };
             Screens.ResumeChosen += r => StartDownload(r.Pending);
             Screens.DiscardChosen += r =>
@@ -153,12 +173,7 @@ namespace MountainPlanner.App.Flow
                 PendingDownloads.Remove(DataRoot, r.Pending);
                 RefreshLibrary();
             };
-            Screens.DeleteConfirmed += r =>
-            {
-                long freed = ResortLibrary.Remove(r.Entry);
-                Screens.Toast($"Deleted {r.Name}. {LibraryViewModel.Disk(freed)} freed.");
-                RefreshLibrary();
-            };
+            Screens.DeleteConfirmed += Delete;
             if (Picker != null)
             {
                 Picker.SiteChosen += OnSiteChosen;
@@ -270,7 +285,8 @@ namespace MountainPlanner.App.Flow
             if (keys.escapeKey.wasPressedThisFrame && Controller.Screen != FlowScreen.Picker)
             {
                 bool used = true;
-                if (Screens.ConfirmOpen) Screens.CloseConfirm();
+                if (Screens.PromptOpen) Screens.ClosePrompt();
+                else if (Screens.ConfirmOpen) Screens.CloseConfirm();
                 else if (Screens.OverlayOpen) Screens.CloseOverlay();
                 else used = Controller.Escape();
                 if (used) MountainViewer.FlowTookEscapeFrame = Time.frameCount;   // the in-game menu doesn't open as well
@@ -279,7 +295,7 @@ namespace MountainPlanner.App.Flow
 
         /// <summary>True while one of the flow's windows has the keyboard, so the viewer leaves the keys alone.</summary>
         bool FlowHasKeyboard() =>
-            Screens.ConfirmOpen || Screens.OverlayOpen || (Picker != null && Picker.IsOpen) || Controller.Screen == FlowScreen.Library || Controller.Screen == FlowScreen.Quality;
+            Screens.ConfirmOpen || Screens.PromptOpen || Screens.OverlayOpen || (Picker != null && Picker.IsOpen) || Controller.Screen == FlowScreen.Library || Controller.Screen == FlowScreen.Quality;
 
         // ---------- IFlowHost ----------
 
@@ -392,17 +408,95 @@ namespace MountainPlanner.App.Flow
             if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
         }
 
+        /// <summary>
+        /// Rescans the library and redraws S2. Sizes already measured show at once; a fresh measure then runs on a
+        /// worker thread (it reads every file's size) and updates them in place (task P2-04).
+        /// </summary>
         void RefreshLibrary()
         {
             var running = Downloads.Running ? Downloads.Current?.Id : null;
-            var pending = PendingDownloads.List(DataRoot).Where(p => p.Id != running).ToList();
-            var newer = new System.Collections.Generic.List<LibraryEntry>();
-            var entries = ResortLibrary.Scan(DataRoot, newer);
-            string refusal = LibraryIndex.Refusal(DataRoot);
-            _library = refusal != null ? LibraryViewModel.Refused(refusal, _sort)
-                                       : LibraryViewModel.Build(entries, pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, newer);
-            Screens.RenderLibrary(_library, _mode);
+            _pending = PendingDownloads.List(DataRoot).Where(p => p.Id != running).ToList();
+            _newer = new System.Collections.Generic.List<LibraryEntry>();
+            _entries = ResortLibrary.Scan(DataRoot, _newer);
+            foreach (var e in _entries.Concat(_newer))
+                if (_sizes.TryGetValue(e.Folder, out var known)) ResortLibrary.SetDisk(e, known);
+            Screens.RenderLibrary(_library = BuildLibrary(), _mode);
+            MeasureLibrary();
         }
+
+        LibraryViewModel BuildLibrary()
+        {
+            string refusal = LibraryIndex.Refusal(DataRoot);
+            return refusal != null ? LibraryViewModel.Refused(refusal, _sort)
+                                   : LibraryViewModel.Build(_entries, _pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, _newer);
+        }
+
+        async void MeasureLibrary()
+        {
+            int run = ++_measureRun;
+            var folders = _entries.Concat(_newer).Select(e => e.Folder).ToList();
+            System.Collections.Generic.List<(string Folder, DiskUse Use)> measured;
+            try { measured = await System.Threading.Tasks.Task.Run(() => folders.Select(f => (f, ResortLibrary.MeasureFolder(f))).ToList()); }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                Debug.LogWarning($"[AppFlow] Measuring the library: {e.Message}");
+                return;
+            }
+            if (this == null || run != _measureRun) return;   // closed, or a newer scan is measuring
+            foreach (var (folder, use) in measured) _sizes[folder] = use;
+            foreach (var e in _entries.Concat(_newer))
+                if (_sizes.TryGetValue(e.Folder, out var use)) ResortLibrary.SetDisk(e, use);
+            if (Controller.Screen != FlowScreen.Library) return;
+            _library = BuildLibrary();
+            Screens.UpdateLibrarySizes(_library);
+        }
+
+        /// <summary>
+        /// Deletes an area (confirmed). The mountain behind the title holds its cache open, so deleting that one lets
+        /// it go first and then brings up another behind the menu.
+        /// </summary>
+        void Delete(LibraryRow r)
+        {
+            bool backdrop = _viewer != null && MountainViewer.TitleMode && SameFolder(_viewer.OpenPackage, r.Entry.Folder);
+            if (backdrop && !_viewer.ReleaseCache())
+            {
+                Screens.Toast($"{r.Name} is still opening behind the menu; try again in a moment.");
+                return;
+            }
+            if (!ResortLibrary.TryRemove(r.Entry, out long freed))
+            {
+                Screens.Toast($"{r.Name} is open in another window of the game. Close it there first.", 5);
+                RefreshLibrary();
+                return;
+            }
+            _sizes.Remove(r.Entry.Folder);
+            Screens.Toast($"Deleted {r.Name}. {LibraryViewModel.Disk(freed)} freed.");
+            if (backdrop) ReturnToTitle(FlowScreen.Library);   // a new mountain behind the menu, back in Manage Areas
+            else RefreshLibrary();
+        }
+
+        /// <summary>Free space (confirmed): older versions' caches go on a worker thread; the toast says what was freed.</summary>
+        async void FreeSpace()
+        {
+            if (_freeing) return;
+            _freeing = true;
+            long freed;
+            try { freed = await System.Threading.Tasks.Task.Run(() => ResortLibrary.FreeSpace(DataRoot)); }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                Debug.LogWarning($"[AppFlow] Free space: {e.Message}");
+                freed = -1;
+            }
+            finally { _freeing = false; }
+            if (this == null) return;
+            Screens.Toast(freed > 0 ? $"{LibraryViewModel.Disk(freed)} freed." : freed == 0 ? "Nothing to free: those caches are open in another window of the game." : "Some caches couldn't be removed.");
+            _sizes.Clear();
+            if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
+        }
+
+        static bool SameFolder(string a, string b) =>
+            !string.IsNullOrEmpty(a) && !string.IsNullOrEmpty(b) &&
+            string.Equals(Path.GetFullPath(a).TrimEnd('\\', '/'), Path.GetFullPath(b).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// The credits (S9): the data every downloaded area credits, read from the packages so it works offline

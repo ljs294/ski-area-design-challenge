@@ -176,9 +176,9 @@ namespace MountainPlanner.Tests
         {
             var entries = new List<LibraryEntry>
             {
-                new LibraryEntry { PackageId = "a", Name = "Sugarloaf", TerrainScore = 99, FloraScore = 70, BytesOnDisk = 600_000_000, CreatedUtc = "2026-09-01T00:00:00Z" },
-                new LibraryEntry { PackageId = "b", Name = "Crystal Mountain", TerrainScore = 71, FloraScore = 80, BytesOnDisk = 188_000_000, CreatedUtc = "2026-09-30T00:00:00Z" },
-                new LibraryEntry { PackageId = "c", Name = "Jackson Hole", TerrainScore = 97, FloraScore = 83, BytesOnDisk = 612_000_000, CreatedUtc = "2026-09-20T00:00:00Z" },
+                new LibraryEntry { PackageId = "a", Name = "Sugarloaf", TerrainScore = 99, FloraScore = 70, BytesOnDisk = 600_000_000, Measured = true, CreatedUtc = "2026-09-01T00:00:00Z" },
+                new LibraryEntry { PackageId = "b", Name = "Crystal Mountain", TerrainScore = 71, FloraScore = 80, BytesOnDisk = 188_000_000, Measured = true, CreatedUtc = "2026-09-30T00:00:00Z" },
+                new LibraryEntry { PackageId = "c", Name = "Jackson Hole", TerrainScore = 97, FloraScore = 83, BytesOnDisk = 612_000_000, Measured = true, CreatedUtc = "2026-09-20T00:00:00Z" },
             };
             var pending = new List<PendingDownload> { new PendingDownload { Id = "p", Name = "Stowe", SizeKm = 3, LastOverall = 0.384, LastStage = "Forest" } };
             var recent = new RecentResorts();
@@ -203,10 +203,33 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void SizesShowAsMeasuringUntilTheyArriveThenFreeSpaceOffersTheOldCaches()
+        {
+            var entry = new LibraryEntry { PackageId = "c", Name = "Jackson Hole", Folder = "jh", TerrainScore = 97 };
+            var now = new DateTime(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
+            var vm = LibraryViewModel.Build(new List<LibraryEntry> { entry }, new List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, now);
+            Assert.That(vm.Measured, Is.False);
+            Assert.That(vm.Rows[0].Disk, Is.EqualTo("…"), "never \"0 MB\" before it's measured");
+            Assert.That(vm.Summary, Is.EqualTo("1 area · measuring disk use…"));
+            Assert.That(vm.FreeText, Is.Empty);
+
+            ResortLibrary.SetDisk(entry, new DiskUse { Package = 200_000_000, Cache = 400_000_000, OlderCaches = 412_000_000 });
+            vm = LibraryViewModel.Build(new List<LibraryEntry> { entry }, new List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, now);
+            Assert.That(vm.Rows[0].Disk, Is.EqualTo("1.0 GB"));
+            Assert.That(vm.Rows[0].DiskDetail, Is.EqualTo("Area 200 MB · terrain cache 400 MB · old caches 412 MB (Free space removes them)"));
+            Assert.That(vm.Summary, Is.EqualTo("1 area · 1.0 GB on disk"));
+            Assert.That(vm.FreeableBytes, Is.EqualTo(412_000_000));
+            Assert.That(vm.FreeText, Is.EqualTo("Free 412 MB"));
+            Assert.That(vm.Rows[0].CanRename, Is.True);
+            entry.RenameRefusal = "newer";
+            Assert.That(vm.Rows[0].CanRename, Is.False, "a newer game's view state can't be renamed");
+        }
+
+        [Test]
         public void AreasFromANewerGameAreListedLastAndCantBeOpened()
         {
-            var entries = new List<LibraryEntry> { new LibraryEntry { PackageId = "c", Name = "Jackson Hole", TerrainScore = 97, BytesOnDisk = 600_000_000 } };
-            var newer = new List<LibraryEntry> { new LibraryEntry { PackageId = "f", Name = "Big Sky", Folder = "f", BytesOnDisk = 400_000_000, Refusal = "a newer format" } };
+            var entries = new List<LibraryEntry> { new LibraryEntry { PackageId = "c", Name = "Jackson Hole", TerrainScore = 97, BytesOnDisk = 600_000_000, Measured = true } };
+            var newer = new List<LibraryEntry> { new LibraryEntry { PackageId = "f", Name = "Big Sky", Folder = "f", BytesOnDisk = 400_000_000, Measured = true, Refusal = "a newer format" } };
             var now = new DateTime(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
 
             var vm = LibraryViewModel.Build(entries, new List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, now, newer);

@@ -450,8 +450,25 @@ namespace MountainPlanner.App
             _contourLabelSet = null;   // UpdateContourLabels picks the set for the new units
         }
 
+        /// <summary>The package on screen, or null while none is open.</summary>
+        public string OpenPackage => _resort?.PackageFolder;
+
+        /// <summary>
+        /// Lets go of the open cache (task P2-04), so Manage Areas can delete the mountain behind the title. False while
+        /// it's still opening: its cover and trees are being read from that cache.
+        /// </summary>
+        public bool ReleaseCache()
+        {
+            if (_resort == null) return true;
+            if (!_resort.CoverReady.IsCompleted) return false;
+            _resort.CacheLease?.Dispose();
+            _resort.CacheLease = null;
+            return true;
+        }
+
         void OnDestroy()
         {
+            _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
             if (ViewCamera.KeysBlocked == (Func<bool>)UiHasKeyboard) ViewCamera.KeysBlocked = null;
         }

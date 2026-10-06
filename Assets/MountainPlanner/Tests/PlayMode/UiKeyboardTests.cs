@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MountainPlanner.Acquisition.IO;
@@ -167,6 +168,7 @@ namespace MountainPlanner.Tests
             Assert.That(flow.Screens.ConfirmOpen, Is.False);
             Assert.That(Directory.Exists(_package), Is.True, "Cancel deleted nothing");
             AssertFocusClass(ui, "lib-row", "focus goes back to the row");
+            yield return LibraryActionsByKeyboard(flow, ui);
             yield return Press(Key.Escape);
             Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Title));
 
@@ -440,6 +442,75 @@ namespace MountainPlanner.Tests
             }
         }
 
+        /// <summary>
+        /// Task P2-04 in Manage Areas, by keyboard: F2 renames (Enter confirms, Esc cancels, the name survives a fresh
+        /// scan), the sort is remembered, and Free space removes an older version's cache after asking.
+        /// </summary>
+        IEnumerator LibraryActionsByKeyboard(AppFlow flow, VisualElement ui)
+        {
+            var prompt = ui.Q("prompt");
+            var field = ui.Q<TextField>("prompt-field");
+            yield return Press(Key.F2);
+            Assert.That(flow.Screens.PromptOpen, Is.True, "F2 opens Rename");
+            Assert.That(field.Contains((VisualElement)Focused(ui)) || Focused(ui) == field, Is.True, $"the name field has focus (it's on {Name(Focused(ui))})");
+            AssertOnScreen(ui);
+            Assert.That(field.value, Is.EqualTo("Jackson Hole"), "it starts from the current name");
+            AssertShownOnScreen(ui, "prompt-ok");
+            AssertShownOnScreen(ui, "prompt-cancel");
+            field.value = "Teton Village";   // as typed
+            yield return Press(Key.Enter);
+            Assert.That(flow.Screens.PromptOpen, Is.False, "Enter renames");
+            Assert.That(ResortLibrary.Scan(_root).Single().Name, Is.EqualTo("Teton Village"), "saved: a fresh scan (a restart) reads it");
+            Assert.That(((Label)ui.Q(className: "lib-name")).text, Is.EqualTo("Teton Village"), "the row shows the new name");
+            AssertFocusClass(ui, "lib-row", "focus goes back to the row");
+
+            yield return Press(Key.F2);
+            field.value = "Something else";
+            yield return Press(Key.Escape);
+            Assert.That(flow.Screens.PromptOpen, Is.False, "Esc cancels");
+            Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Library), "and only the dialog closes");
+            Assert.That(ResortLibrary.Scan(_root).Single().Name, Is.EqualTo("Teton Village"));
+            AssertFocusClass(ui, "lib-row");
+
+            yield return Press(Key.F2);
+            field.value = "Jackson Hole";   // back to the downloaded name, for the rest of the tour
+            yield return Press(Key.Enter);
+            Assert.That(ResortLibrary.Scan(_root).Single().Name, Is.EqualTo("Jackson Hole"));
+            Assert.That(prompt.ClassListContains("hidden"), Is.True);
+
+            // The sort is remembered across a restart (a setting).
+            int savedSort = PlayerPrefs.GetInt("MountainPlanner.LibrarySort", 0);
+            yield return TabTo(ui, "sort-name");
+            yield return Submit(ui);
+            Assert.That(PlayerPrefs.GetInt("MountainPlanner.LibrarySort", -1), Is.EqualTo((int)LibrarySort.Name));
+            PlayerPrefs.SetInt("MountainPlanner.LibrarySort", savedSort);
+
+            // Free space: an older version's cache is measured off the main thread, then offered.
+            string old = TerrainCache.FolderFor(_package, TerrainCache.Version - 1);
+            Directory.CreateDirectory(old);
+            File.WriteAllBytes(Path.Combine(old, "t0_0.h16"), new byte[3_000_000]);
+            yield return TabTo(ui, "sort-opened");
+            yield return Submit(ui);   // a redraw rescans and measures
+            var free = ui.Q<Button>("library-free");
+            float until = Time.realtimeSinceStartup + 10;
+            while (free.ClassListContains("hidden") && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(free.ClassListContains("hidden"), Is.False, "Free space shows once there's something to free");
+            Assert.That(free.text, Is.EqualTo("Free 3 MB"));
+            yield return TabTo(ui, "library-free");
+            yield return Submit(ui);
+            Assert.That(flow.Screens.ConfirmOpen, Is.True, "Free space asks first");
+            AssertFocus(ui, "confirm-cancel");
+            yield return Move(ui, NavigationMoveEvent.Direction.Right);
+            AssertFocus(ui, "confirm-ok");
+            yield return Submit(ui);
+            until = Time.realtimeSinceStartup + 10;
+            while (Directory.Exists(old) && Time.realtimeSinceStartup < until) yield return null;
+            Assert.That(Directory.Exists(old), Is.False, "the older cache is gone");
+            Assert.That(TerrainCache.IsCurrent(_package, ResortPackage.ReadManifest(_package)), Is.True, "the current one stays");
+            yield return Frames(3);
+            Assert.That(free.ClassListContains("hidden"), Is.True, "nothing left to free");
+        }
+
         // ---------- helpers ----------
 
         /// <summary>Waits for a mountain on screen: behind the title, or opened in the game.</summary>
@@ -500,11 +571,12 @@ namespace MountainPlanner.Tests
         {
             InputSystem.QueueStateEvent(_keyboard, new KeyboardState(key));
             yield return Frames(2);
-            // UI Toolkit hears Delete as a key event on whatever has focus.
-            if (key == UnityEngine.InputSystem.Key.Delete)
+            // UI Toolkit hears Delete, F2 and Enter as key events on whatever has focus.
+            KeyCode code = key == Key.Delete ? KeyCode.Delete : key == Key.F2 ? KeyCode.F2 : key == Key.Enter ? KeyCode.Return : KeyCode.None;
+            if (code != KeyCode.None)
                 foreach (var doc in Object.FindObjectsByType<UIDocument>(FindObjectsSortMode.None))
                     if (Focused(doc.rootVisualElement) is VisualElement f && doc.rootVisualElement.Contains(f))
-                        using (var e = KeyDownEvent.GetPooled('\0', KeyCode.Delete, EventModifiers.None)) { e.target = f; f.SendEvent(e); }
+                        using (var e = KeyDownEvent.GetPooled('\0', code, EventModifiers.None)) { e.target = f; f.SendEvent(e); }
             InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
             yield return Frames(3);
         }

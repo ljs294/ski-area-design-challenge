@@ -1,0 +1,32 @@
+{
+  "Version": 2,
+  "Name": "Teton Village",
+  "Camera": {
+    "TargetX": 120.5,
+    "TargetZ": -340.25,
+    "Distance": 2800.0,
+    "Yaw": 215.0,
+    "Pitch": 32.5
+  },
+  "Bookmarks": [
+    {
+      "Name": "Corbet's Couloir",
+      "Camera": {
+        "TargetX": -610.0,
+        "TargetZ": 455.0,
+        "Distance": 600.0,
+        "Yaw": 180.0,
+        "Pitch": 20.0
+      }
+    }
+  ],
+  "Year": 2026,
+  "DayOfYear": 32,
+  "SecondOfDay": 57600,
+  "Layers": {
+    "snow": true,
+    "groundCover": true,
+    "forest": false,
+    "coverMap": false
+  }
+}

@@ -25,13 +25,24 @@ namespace MountainPlanner.UI.Flow
         public event Action ContinueChosen, NewResortChosen, LoadChosen, ManageChosen, CreditsChosen, QuitChosen;
         public event Action LibraryClosed, DataFolderChosen;
         public event Action<LibraryRow> OpenChosen, ResumeChosen, DiscardChosen, DeleteConfirmed;
+        /// <summary>Rename confirmed in its dialog (Manage Areas, task P2-04): the row and the name as typed.</summary>
+        public event Action<LibraryRow, string> RenameConfirmed;
+        /// <summary>Free space confirmed (Manage Areas, task P2-04).</summary>
+        public event Action FreeSpaceConfirmed;
         public event Action<LibrarySort> SortChosen;
         public event Action MinimiseChosen, RestoreChosen, RetryChosen, CloseChosen;
         /// <summary>Cancel confirmed: true keeps the partial download for resuming.</summary>
         public event Action<bool> CancelConfirmed;
         public event Action QualityOpenChosen, QualityLibraryChosen;
 
-        VisualElement _root, _title, _library, _download, _quality, _confirm, _settings, _credits, _stages, _barFill, _qcLines;
+        VisualElement _root, _title, _library, _download, _quality, _confirm, _prompt, _settings, _credits, _stages, _barFill, _qcLines;
+        TextField _promptField;
+        Label _promptTitle, _promptHint;
+        Button _promptOk, _free;
+        Func<string, bool> _promptValid;
+        Action<string> _promptAction;
+        LibraryViewModel _libraryVm;
+        readonly List<Label> _rowDisks = new List<Label>();
         VisualElement _dlActions, _dlConfirm, _dlFailed;
         ScrollView _rows;
         Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast, _scaleValue;
@@ -49,6 +60,8 @@ namespace MountainPlanner.UI.Flow
         float _toastUntil;
 
         public bool ConfirmOpen => _confirm != null && !_confirm.ClassListContains("hidden");
+        /// <summary>The text dialog (Rename) is open: Enter confirms, Esc cancels.</summary>
+        public bool PromptOpen => _prompt != null && !_prompt.ClassListContains("hidden");
         /// <summary>Settings or Credits is open over the title (Esc closes it first).</summary>
         public bool OverlayOpen => IsShown(_settings) || IsShown(_credits);
         public LibraryMode Mode { get; private set; } = LibraryMode.Load;
@@ -69,6 +82,12 @@ namespace MountainPlanner.UI.Flow
             _download = _root.Q("download");
             _quality = _root.Q("quality");
             _confirm = _root.Q("confirm");
+            _prompt = _root.Q("prompt");
+            _promptField = _root.Q<TextField>("prompt-field");
+            _promptTitle = _root.Q<Label>("prompt-title");
+            _promptHint = _root.Q<Label>("prompt-hint");
+            _promptOk = _root.Q<Button>("prompt-ok");
+            _free = _root.Q<Button>("library-free");
             _settings = _root.Q("settings");
             _credits = _root.Q("credits");
             _creditsBody = _root.Q<ScrollView>("credits-body");
@@ -152,6 +171,7 @@ namespace MountainPlanner.UI.Flow
             _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();
             _root.Q<Button>("library-close").clicked += () => LibraryClosed?.Invoke();
             _root.Q<Button>("library-folder").clicked += () => DataFolderChosen?.Invoke();
+            _free.clicked += ConfirmFreeSpace;
             _sortOpened.clicked += () => SortChosen?.Invoke(LibrarySort.LastOpened);
             _sortName.clicked += () => SortChosen?.Invoke(LibrarySort.Name);
             _sortQuality.clicked += () => SortChosen?.Invoke(LibrarySort.Quality);
@@ -172,6 +192,17 @@ namespace MountainPlanner.UI.Flow
                 CloseConfirm();
                 action?.Invoke();
             };
+            _root.Q<Button>("prompt-cancel").clicked += ClosePrompt;
+            _root.Q<Button>("prompt-close").clicked += ClosePrompt;
+            _promptOk.clicked += SubmitPrompt;
+            _promptField.RegisterValueChangedCallback(_ => _promptOk.SetEnabled(_promptValid == null || _promptValid(_promptField.value)));
+            // Enter confirms from the field itself, as in the mockup; the field keeps the arrows for its caret.
+            _promptField.RegisterCallback<KeyDownEvent>(e =>
+            {
+                if (e.keyCode != KeyCode.Return && e.keyCode != KeyCode.KeypadEnter) return;
+                e.StopPropagation();
+                SubmitPrompt();
+            }, TrickleDown.TrickleDown);
         }
 
         void OnDisable() => UiPreferences.Changed -= MarkInterface;
@@ -228,14 +259,19 @@ namespace MountainPlanner.UI.Flow
             Mode = mode;
             bool manage = mode == LibraryMode.Manage;
             _libraryTitle.text = manage ? "Manage Areas" : "Load Area";
-            _libraryKeys.text = manage ? "Delete removes · Esc goes back" : "Enter opens · Esc goes back";
-            _summary.text = vm.Summary;
+            _libraryKeys.text = manage ? "F2 renames · Delete removes · Esc goes back" : "Enter opens · Esc goes back";
+            _libraryVm = vm;
+            ShowSizes(vm);
             Mark(_sortOpened, vm.Sort == LibrarySort.LastOpened);
             Mark(_sortName, vm.Sort == LibrarySort.Name);
             Mark(_sortQuality, vm.Sort == LibrarySort.Quality);
+            // The same row stays selected across a redraw (a rename, a sort, sizes arriving), and keeps the keyboard.
+            string keep = Key(SelectedRow);
+            bool hadFocus = _selected >= 0 && _selected < _rowElements.Count && _rowElements[_selected].focusController?.focusedElement == _rowElements[_selected];
             _rows.Clear();
             _rowElements.Clear();
             _rowData.Clear();
+            _rowDisks.Clear();
             foreach (var row in vm.Rows)
             {
                 if (row.IsPaused && !manage) continue;   // paused downloads are managed, not loaded
@@ -259,7 +295,7 @@ namespace MountainPlanner.UI.Flow
                     // A newer game's area (task 08): named and sized, never read further; Delete works, Open doesn't.
                     el.AddToClassList("lib-row--newer");
                     el.Add(Text(r.NewerText, "lib-paused"));
-                    el.Add(Text(r.Disk, "lib-cell", "lib-cell--narrow", "mono"));
+                    el.Add(DiskCell(r));
                     var actions = new VisualElement();
                     actions.AddToClassList("lib-actions");
                     if (manage) actions.Add(Btn("Delete", "btn--ghost", () => ConfirmDelete(r)));
@@ -278,14 +314,21 @@ namespace MountainPlanner.UI.Flow
                 {
                     el.Add(Score("Terrain", r.TerrainScore));
                     el.Add(Score("Flora", r.FloraScore));
-                    el.Add(Text(r.Disk, "lib-cell", "lib-cell--narrow", "mono"));
+                    el.Add(DiskCell(r));
                     el.Add(Text(r.Opened, "lib-cell"));
                     var spacer = new VisualElement();
                     spacer.AddToClassList("spacer");
                     el.Add(spacer);
                     var actions = new VisualElement();
                     actions.AddToClassList("lib-actions");
-                    if (manage) actions.Add(Btn("Delete", "btn--ghost", () => ConfirmDelete(r)));
+                    if (manage)
+                    {
+                        var rename = Btn("Rename", "btn--ghost", () => OpenRename(r));
+                        rename.SetEnabled(r.CanRename);
+                        if (!r.CanRename) rename.tooltip = r.Entry.RenameRefusal;
+                        actions.Add(rename);
+                        actions.Add(Btn("Delete", "btn--ghost", () => ConfirmDelete(r)));
+                    }
                     else actions.Add(Btn("Open", "btn--go", () => OpenChosen?.Invoke(r)));
                     el.Add(actions);
                     el.RegisterCallback<ClickEvent>(e =>
@@ -297,7 +340,12 @@ namespace MountainPlanner.UI.Flow
                     // (Load Area), Delete removes (Manage Areas); Right reaches the row's own button.
                     el.focusable = true;
                     el.RegisterCallback<NavigationSubmitEvent>(e => { if (e.target == el && !manage) OpenChosen?.Invoke(r); });
-                    el.RegisterCallback<KeyDownEvent>(e => { if (e.target == el && manage && e.keyCode == KeyCode.Delete) ConfirmDelete(r); });
+                    el.RegisterCallback<KeyDownEvent>(e =>
+                    {
+                        if (e.target != el || !manage) return;
+                        if (e.keyCode == KeyCode.Delete) ConfirmDelete(r);
+                        else if (e.keyCode == KeyCode.F2) OpenRename(r);
+                    });
                 }
                 el.RegisterCallback<FocusInEvent>(_ => Select(_rowData.IndexOf(r)));
                 _rows.Add(el);
@@ -306,8 +354,51 @@ namespace MountainPlanner.UI.Flow
             }
             _empty.text = vm.EmptyText;
             Show(_empty, _rowData.Count == 0);
+            int kept = keep == null ? -1 : _rowData.FindIndex(x => Key(x) == keep);
             int first = _rowData.FindIndex(x => x.CanOpen);
-            Select(first >= 0 ? first : _rowData.FindIndex(x => !x.IsPaused));
+            Select(kept >= 0 ? kept : first >= 0 ? first : _rowData.FindIndex(x => !x.IsPaused));
+            if (hadFocus && kept >= 0) FocusSelectedRow();
+        }
+
+        /// <summary>A row's identity across redraws: its folder, or the paused download's id.</summary>
+        static string Key(LibraryRow r) => r == null ? null : r.Pending != null ? "p:" + r.Pending.Id : "a:" + r.Entry?.Folder;
+
+        Label DiskCell(LibraryRow r)
+        {
+            var l = Text(r.Disk, "lib-cell", "lib-cell--narrow", "mono");
+            l.tooltip = r.DiskDetail;
+            _rowDisks.Add(l);
+            l.userData = r;
+            return l;
+        }
+
+        /// <summary>The summary and the Free space button (shown in Manage Areas when there's something to free).</summary>
+        void ShowSizes(LibraryViewModel vm)
+        {
+            _summary.text = vm.Summary;
+            _free.text = vm.FreeText;
+            Show(_free, Mode == LibraryMode.Manage && vm.FreeableBytes > 0);
+        }
+
+        /// <summary>
+        /// Disk use measured off the main thread arrived (task P2-04): the sizes change in place, so the list,
+        /// the selection and the keyboard focus stay as they are. <paramref name="vm"/> has the same rows.
+        /// </summary>
+        public void UpdateLibrarySizes(LibraryViewModel vm)
+        {
+            if (_libraryVm == null || vm.Rows.Count != _libraryVm.Rows.Count) { RenderLibrary(vm, Mode); return; }
+            _libraryVm = vm;
+            ShowSizes(vm);
+            foreach (var label in _rowDisks)
+            {
+                var old = (LibraryRow)label.userData;
+                var row = vm.Rows.Find(x => Key(x) == Key(old));
+                if (row == null) continue;
+                SetText(label, row.Disk);
+                label.tooltip = row.DiskDetail;
+                old.Disk = row.Disk;
+                old.DiskDetail = row.DiskDetail;
+            }
         }
 
         /// <summary>Moves the library selection, and keyboard focus with it.</summary>
@@ -330,8 +421,25 @@ namespace MountainPlanner.UI.Flow
         public void ConfirmDelete(LibraryRow r)
         {
             if (r?.Entry == null) return;
-            Confirm($"Delete {r.Name}? This frees {LibraryViewModel.Disk(r.Entry.BytesOnDisk)}. You can download it again later.", "Delete",
-                    () => DeleteConfirmed?.Invoke(r));
+            string frees = r.Entry.Measured ? $" This frees {LibraryViewModel.Disk(r.Entry.BytesOnDisk)}." : "";
+            Confirm($"Delete {r.Name}?{frees} You can download it again later.", "Delete", () => DeleteConfirmed?.Invoke(r));
+        }
+
+        /// <summary>Rename (Manage Areas, F2): the mockup's Rename dialog, with the current name selected.</summary>
+        public void OpenRename(LibraryRow r)
+        {
+            if (r == null || !r.CanRename) return;
+            Prompt("Rename area", r.Name, "Shown in the library, the title's Continue and the game's status bar. The download keeps its own name.",
+                   "Rename", ResortLibrary.MaxNameLength, text => ResortLibrary.NormalizeName(text).Length > 0, name => RenameConfirmed?.Invoke(r, name));
+        }
+
+        /// <summary>Free space: says what goes, and that the areas themselves stay.</summary>
+        public void ConfirmFreeSpace()
+        {
+            if (_libraryVm == null || _libraryVm.FreeableBytes <= 0) return;
+            Confirm($"Remove {LibraryViewModel.Disk(_libraryVm.FreeableBytes)} of terrain caches left by older versions of the game? " +
+                    "Your areas stay, and nothing has to be downloaded or rebuilt.",
+                    _libraryVm.FreeText, () => FreeSpaceConfirmed?.Invoke(), danger: false);
         }
 
         void Select(int index)
@@ -527,10 +635,13 @@ namespace MountainPlanner.UI.Flow
 
         // ---------- S11 ----------
 
-        public void Confirm(string text, string ok, Action action)
+        /// <summary>The confirm dialog; <paramref name="danger"/> paints its button red (deleting) rather than green.</summary>
+        public void Confirm(string text, string ok, Action action, bool danger = true)
         {
             _confirmText.text = text;
-            _root.Q<Button>("confirm-ok").text = ok;
+            var button = _root.Q<Button>("confirm-ok");
+            button.text = ok;
+            button.EnableInClassList("mp-go--danger", danger);
             _confirmAction = action;
             Show(_confirm, true);
             UiFocus.OpenModal(_confirm, _root.Q<Button>("confirm-cancel"));   // the safe choice first
@@ -541,6 +652,44 @@ namespace MountainPlanner.UI.Flow
             _confirmAction = null;
             Show(_confirm, false);
             UiFocus.CloseModal(_confirm);
+        }
+
+        /// <summary>
+        /// A one-line text dialog (the mockup's Rename): a title, the field with <paramref name="value"/> selected, a
+        /// hint, then the go button and Cancel. Enter confirms while <paramref name="valid"/> accepts the text; Esc and
+        /// Cancel close it. Reusable by any screen on this document (task 06's dialogs).
+        /// </summary>
+        public void Prompt(string title, string value, string hint, string ok, int maxLength, Func<string, bool> valid, Action<string> action)
+        {
+            _promptTitle.text = title;
+            _promptHint.text = hint ?? "";
+            Show(_promptHint, !string.IsNullOrEmpty(hint));
+            _promptOk.text = ok;
+            _promptValid = valid;
+            _promptAction = action;
+            _promptField.maxLength = maxLength;
+            _promptField.SetValueWithoutNotify(value ?? "");
+            _promptOk.SetEnabled(valid == null || valid(_promptField.value));
+            Show(_prompt, true);
+            UiFocus.OpenModal(_prompt, _promptField);
+            _promptField.schedule.Execute(() => _promptField.SelectAll()).ExecuteLater(50);   // after it takes focus
+        }
+
+        public void ClosePrompt()
+        {
+            _promptAction = null;
+            _promptValid = null;
+            Show(_prompt, false);
+            UiFocus.CloseModal(_prompt);
+        }
+
+        void SubmitPrompt()
+        {
+            string text = _promptField.value;
+            if (_promptValid != null && !_promptValid(text)) return;
+            var action = _promptAction;
+            ClosePrompt();
+            action?.Invoke(text);
         }
 
         // ---------- helpers ----------

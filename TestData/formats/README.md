@@ -14,6 +14,10 @@ Saved files from each frozen format version. The rules are in
   - `Resorts/5792676e513f5302/view.json`, a view state (v1).
   - `Downloads/sugarloaf-21248405/download.json`, a paused download (v1).
 
+- **`v2-view/view.json`** is a view state as task P2-04 saves it (v2): the Jackson Hole view above, renamed
+  "Teton Village" in Manage Areas. v2 added `Name`, the player's own name for the area; a v1 file migrates with an
+  empty one, so the area keeps the name it was downloaded with.
+
 **`demo/`** holds files from a future version (format 99), for `demo.bat` 44 and 45. Each has only what the refusal
 reads: a version number, and a name for the greyed library row.
 

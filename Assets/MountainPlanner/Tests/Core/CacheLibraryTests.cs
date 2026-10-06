@@ -236,7 +236,7 @@ namespace MountainPlanner.Tests
     {
         static string NewRoot() => Path.Combine(Path.GetTempPath(), "mp-library-test-" + Guid.NewGuid().ToString("N"));
 
-        static string BuildPackage(string parent, string name, float offset)
+        internal static string BuildPackage(string parent, string name, float offset)
         {
             string folder = Path.Combine(parent, "_incoming-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
@@ -267,14 +267,14 @@ namespace MountainPlanner.Tests
                 string again = ResortLibrary.Add(root, BuildPackage(incoming, "Jackson Hole", 0));
                 Assert.That(again, Is.EqualTo(a));
 
-                var list = ResortLibrary.Scan(root);
+                var list = ResortLibrary.Scan(root, measure: true);
                 Assert.That(list.Select(e => e.Name), Is.EqualTo(new[] { "Big Sky", "Jackson Hole" }));
                 Assert.That(list[1].TerrainScore, Is.EqualTo(100));
                 Assert.That(list[1].FloraScore, Is.EqualTo(83));
                 Assert.That(list[1].BytesOnDisk, Is.GreaterThan(0));
                 Assert.That(list[1].CacheReady, Is.False, "not prepared yet");
 
-                long freed = ResortLibrary.Remove(list[0]);
+                Assert.That(ResortLibrary.TryRemove(list[0], out long freed), Is.True);
                 Assert.That(freed, Is.GreaterThan(0));
                 Assert.That(ResortLibrary.Scan(root).Select(e => e.Name), Is.EqualTo(new[] { "Jackson Hole" }));
             }

@@ -190,6 +190,28 @@
 /* ---------- S11 confirm and toast ---------- */
 .confirm-panel { width: 420px; }
 .confirm-text { white-space: normal; font-size: 15px; color: var(--text); -unity-text-outline-color: var(--text); }
+/* The mockup's Rename dialog (task P2-04): head, field, hint, then a wide go button beside Cancel. */
+.prompt-panel { width: 320px; }
+.prompt-field { margin: 12px 12px 2px 12px; }
+.prompt-field > .unity-base-text-field__input,
+.prompt-field > .unity-text-field__input {
+    height: 38px;
+    padding: 0 11px;
+    background-color: var(--field);
+    border-width: 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    color: var(--strong);
+    -unity-text-outline-color: var(--strong);
+    font-size: 15px;
+    -unity-font-style: bold;
+}
+.prompt-field:focus > .unity-base-text-field__input,
+.prompt-field:focus > .unity-text-field__input { border-color: var(--muted); }
+.prompt-hint { padding: 7px 12px; margin: 0; font-size: 12.5px; white-space: normal; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.prompt-acts { flex-direction: row; padding: 4px 12px 12px 12px; }
+.prompt-acts > .prompt-go { flex-grow: 1; margin-right: 6px; }
+
 .toast {
     position: absolute; left: 50%; bottom: 120px; translate: -50% 0;
     padding: 8px 14px; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 3px;

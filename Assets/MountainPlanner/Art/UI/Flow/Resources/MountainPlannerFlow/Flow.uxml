@@ -64,6 +64,7 @@
                     <ui:Label name="library-title" text="Load Area" class="mp-title" />
                     <ui:Label name="library-summary" text="" class="mp-sub" />
                     <ui:VisualElement class="mp-spacer" />
+                    <ui:Button name="library-free" text="" class="mp-ghost hidden" tooltip="Remove terrain caches left by older versions of the game" />
                     <ui:Button name="library-new" text="New Area" class="mp-go" />
                     <ui:Button name="library-close" text="✕" class="mp-x" tooltip="Back (Esc)" />
                 </ui:VisualElement>
@@ -243,6 +244,25 @@
                         <ui:VisualElement class="spacer" />
                         <ui:Button name="confirm-cancel" text="Cancel" class="mp-ghost" />
                         <ui:Button name="confirm-ok" text="Delete" class="mp-go mp-go--danger" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </mp:StageColumn>
+        </ui:VisualElement>
+
+        <!-- A one-line text dialog (task P2-04): the mockup's Rename, reusable through FlowScreens.Prompt. -->
+        <ui:VisualElement name="prompt" class="modal hidden">
+            <mp:StageColumn>
+                <ui:VisualElement class="mp-win prompt-panel">
+                    <ui:VisualElement class="mp-head">
+                        <ui:Label name="prompt-title" text="Rename area" class="mp-title" />
+                        <ui:VisualElement class="mp-spacer" />
+                        <ui:Button name="prompt-close" text="✕" class="mp-x" tooltip="Cancel (Esc)" />
+                    </ui:VisualElement>
+                    <ui:TextField name="prompt-field" class="prompt-field" max-length="60" />
+                    <ui:Label name="prompt-hint" text="" class="prompt-hint" />
+                    <ui:VisualElement class="prompt-acts">
+                        <ui:Button name="prompt-ok" text="Rename" class="mp-go prompt-go" />
+                        <ui:Button name="prompt-cancel" text="Cancel" class="mp-ghost" />
                     </ui:VisualElement>
                 </ui:VisualElement>
             </mp:StageColumn>

@@ -20,6 +20,7 @@ set "PICKER=%~dp0Builds\PickerLab\PickerLab.exe"
 set "PICKED=%LOCALAPPDATA%\SkiAreaDesignChallenge\picked-site.args"
 set "SCRATCH=%LOCALAPPDATA%\SkiAreaDesignChallenge-scratch"
 set "FORMATS=%LOCALAPPDATA%\SkiAreaDesignChallenge-formats"
+set "LIBDEMO=%LOCALAPPDATA%\SkiAreaDesignChallenge-library"
 set "UNITY=C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe"
 
 where dotnet >nul 2>nul
@@ -120,6 +121,9 @@ echo   Phase 2, task 02: the HUD (needs a downloaded area; close the Unity edito
 echo     48 The HUD next to the mockup: every HUD state captured and measured against ui-layout.html (about 10 minutes)
 echo        Then play it: Space and 1-4 run the sun, T Toolbox, Tab Analysis, the top-right buttons; Esc steps back.
 echo.
+echo   Phase 2, task 04: library and cache housekeeping (a scratch library, not yours)
+echo     49 Manage Areas: Rename (F2), disk use per area and in total, sort, Free space for an older version's cache, Delete
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -185,6 +189,7 @@ if /i "%CHOICE%"=="45" goto formatsnewer
 if /i "%CHOICE%"=="46" goto formattests
 if /i "%CHOICE%"=="47" goto uicapture
 if /i "%CHOICE%"=="48" goto hudparity
+if /i "%CHOICE%"=="49" goto housekeeping
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -289,6 +294,21 @@ copy /y "%~dp0TestData\formats\demo\library.json" "%FORMATS%\library.json" >nul
 echo Starting the game with the same scratch library, marked as laid out by a newer game ^(library.json version 99^).
 echo   The title briefly shows "This library was saved by a newer version...". Load Area lists nothing and says the same. 44 puts it back.
 start "" "%GAME%" -data "%FORMATS%"
+goto menu
+
+:housekeeping
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+rem The 2 km test terrain, plus a 120 MB cache "left by an older version" (cache-v1) for Free space to find.
+if not exist "%LIBDEMO%\Resorts\jackson-hole-2km-test\roads.json" robocopy "%~dp0TestData\jackson-hole-2km" "%LIBDEMO%\Resorts\jackson-hole-2km-test" /e /njh /njs /nfl /ndl >nul
+if not exist "%LIBDEMO%\Resorts\jackson-hole-2km-test\cache-v1" mkdir "%LIBDEMO%\Resorts\jackson-hole-2km-test\cache-v1"
+if not exist "%LIBDEMO%\Resorts\jackson-hole-2km-test\cache-v1\t0_0.h16" fsutil file createnew "%LIBDEMO%\Resorts\jackson-hole-2km-test\cache-v1\t0_0.h16" 120000000 >nul
+echo Starting the game with the scratch library %LIBDEMO%.
+echo   Manage Areas: each row's disk use (hover it for the parts), the total at the top, and "Free 120 MB".
+echo   F2 or Rename: type a new name, Enter. Quit and start 49 again: the new name, and the sort you chose, are kept.
+echo   Free 120 MB: asks first, then removes the older cache; the area still opens at once.
+echo   Delete: asks, naming the space it frees. Run 49 again to bring the area back.
+start "" "%GAME%" -data "%LIBDEMO%"
 goto menu
 
 :formattests
