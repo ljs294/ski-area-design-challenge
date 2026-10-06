@@ -479,11 +479,19 @@ namespace MountainPlanner.Tests
             Assert.That(prompt.ClassListContains("hidden"), Is.True);
 
             // The sort is remembered across a restart (a setting).
+            bool hadSort = PlayerPrefs.HasKey("MountainPlanner.LibrarySort");
             int savedSort = PlayerPrefs.GetInt("MountainPlanner.LibrarySort", 0);
-            yield return TabTo(ui, "sort-name");
-            yield return Submit(ui);
-            Assert.That(PlayerPrefs.GetInt("MountainPlanner.LibrarySort", -1), Is.EqualTo((int)LibrarySort.Name));
-            PlayerPrefs.SetInt("MountainPlanner.LibrarySort", savedSort);
+            try
+            {
+                yield return TabTo(ui, "sort-name");
+                yield return Submit(ui);
+                Assert.That(PlayerPrefs.GetInt("MountainPlanner.LibrarySort", -1), Is.EqualTo((int)LibrarySort.Name));
+            }
+            finally
+            {
+                if (hadSort) PlayerPrefs.SetInt("MountainPlanner.LibrarySort", savedSort);
+                else PlayerPrefs.DeleteKey("MountainPlanner.LibrarySort");
+            }
 
             // Free space: an older version's cache is measured off the main thread, then offered.
             string old = TerrainCache.FolderFor(_package, TerrainCache.Version - 1);

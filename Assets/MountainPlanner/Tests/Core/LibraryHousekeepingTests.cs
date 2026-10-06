@@ -252,6 +252,58 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
+        public void HoldingADeletedAreaThrowsAndLeavesNoStub()
+        {
+            string jh = Package(JacksonHole);
+            Assert.That(ResortLibrary.TryRemove(Entry(JacksonHole), out _), Is.True);
+            Assert.Throws<DirectoryNotFoundException>(() => TerrainCache.Hold(jh), "another window deleted it");
+            Assert.That(Directory.Exists(jh), Is.False, "no empty Resorts/<id> folder that would swallow a fresh download");
+        }
+
+        [Test]
+        public void AFreshDownloadReplacesAStubFolderWithNoManifest()
+        {
+            string jh = Package(JacksonHole);
+            string built = Path.Combine(_root, "incoming");
+            Directory.CreateDirectory(built);
+            File.Copy(Path.Combine(jh, ResortPackage.ManifestFile), Path.Combine(built, ResortPackage.ManifestFile));
+            Directory.Delete(jh, true);
+            Directory.CreateDirectory(Path.Combine(jh, "cache-v" + TerrainCache.Version));   // a stub, as an older build could leave
+            string target = ResortLibrary.Add(_root, built);
+            Assert.That(target, Is.EqualTo(jh));
+            Assert.That(File.Exists(Path.Combine(jh, ResortPackage.ManifestFile)), Is.True, "the download landed");
+            Assert.That(ResortLibrary.Scan(_root).Any(e => e.PackageId == JacksonHole), Is.True);
+        }
+
+        [Test]
+        public void ADeleteCanLeaveTheSlowPartToAWorker()
+        {
+            string jh = Package(JacksonHole);
+            FakeCache(jh, TerrainCache.Version, 4000);
+            var entry = Entry(JacksonHole);
+            ResortLibrary.Measure(new[] { entry });
+            Assert.That(ResortLibrary.TryRemove(entry, out long freed, sweep: false), Is.True);
+            Assert.That(freed, Is.EqualTo(entry.BytesOnDisk));
+            Assert.That(Directory.Exists(jh), Is.False, "gone from the library at once");
+            Assert.That(ResortLibrary.Scan(_root).Select(e => e.Name), Is.EqualTo(new[] { "Crystal Mountain" }));
+            Assert.That(ResortLibrary.LeftoverBytes(_root), Is.EqualTo(freed), "its files wait in a .trash- folder");
+            Assert.That(ResortLibrary.SweepTrash(ResortLibrary.ResortsFolder(_root)), Is.EqualTo(freed));
+            Assert.That(ResortLibrary.LeftoverBytes(_root), Is.Zero);
+        }
+
+        [Test]
+        public void ARenameWhileTheViewStateIsLockedLosesNothing()
+        {
+            string viewPath = Path.Combine(Package(JacksonHole), ViewState.FileName);
+            string before = Hash(viewPath);
+            var entry = Entry(JacksonHole);
+            using (new FileStream(viewPath, FileMode.Open, FileAccess.Read, FileShare.None))   // another program has it
+                Assert.That(ResortLibrary.Rename(entry, "Teton Village"), Is.False);
+            Assert.That(entry.RenameRefusal, Does.Contain("can't be read just now"));
+            Assert.That(Hash(viewPath), Is.EqualTo(before), "camera, bookmarks and layers kept");
+        }
+
+        [Test]
         public void ManyGamesCanHoldOneCacheAtOnce()
         {
             string jh = Package(JacksonHole);
@@ -298,13 +350,22 @@ namespace MountainPlanner.Tests.Core
                 int mine = TerrainCache.Version, theirs = TerrainCache.Version + 1;
 
                 TerrainCache.Build(package, m, null, default, null, mine);
-                var ours = Directory.GetFiles(TerrainCache.FolderFor(package, mine)).ToDictionary(Path.GetFileName, File.ReadAllBytes);
+                string ourFolder = TerrainCache.FolderFor(package, mine);
+                var ours = Directory.GetFiles(ourFolder).ToDictionary(Path.GetFileName, f => (File.ReadAllBytes(f), File.GetLastWriteTimeUtc(f)));
                 TerrainCache.Build(package, m, null, default, null, theirs);   // the other branch's game opens the same area
                 Assert.That(TerrainCache.IsCurrent(package, m), Is.True, "our cache survived their build: no rebuild for us");
-                TerrainCache.Build(package, m, null, default, null, mine);     // and ours opening again leaves theirs
-                Assert.That(TerrainCache.Versions(package), Is.EqualTo(new[] { mine, theirs }));
                 foreach (var kv in ours)
-                    Assert.That(File.ReadAllBytes(Path.Combine(TerrainCache.FolderFor(package, mine), kv.Key)), Is.EqualTo(kv.Value), kv.Key);
+                {
+                    string path = Path.Combine(ourFolder, kv.Key);
+                    Assert.That(File.ReadAllBytes(path), Is.EqualTo(kv.Value.Item1), kv.Key + " untouched");
+                    Assert.That(File.GetLastWriteTimeUtc(path), Is.EqualTo(kv.Value.Item2), kv.Key + " not rewritten");
+                }
+                string theirFolder = TerrainCache.FolderFor(package, theirs);
+                var theirFiles = Directory.GetFiles(theirFolder).ToDictionary(Path.GetFileName, File.GetLastWriteTimeUtc);
+                TerrainCache.Build(package, m, null, default, null, mine);     // ours rebuilding (say, after a crash) leaves theirs
+                Assert.That(TerrainCache.Versions(package), Is.EqualTo(new[] { mine, theirs }));
+                foreach (var kv in theirFiles)
+                    Assert.That(File.GetLastWriteTimeUtc(Path.Combine(theirFolder, kv.Key)), Is.EqualTo(kv.Value), kv.Key + " of theirs untouched");
             }
             finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
         }

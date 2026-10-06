@@ -63,7 +63,7 @@ namespace MountainPlanner.UI.Flow
 
         public static LibraryViewModel Build(IReadOnlyList<LibraryEntry> entries, IReadOnlyList<PendingDownload> pending,
                                              RecentResorts recent, LibrarySort sort, DateTime nowUtc,
-                                             IReadOnlyList<LibraryEntry> newer = null)
+                                             IReadOnlyList<LibraryEntry> newer = null, long leftoverBytes = 0)
         {
             newer = newer ?? Array.Empty<LibraryEntry>();
             var vm = new LibraryViewModel { Sort = sort };
@@ -101,7 +101,7 @@ namespace MountainPlanner.UI.Flow
             foreach (var e in newer.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Folder, StringComparer.Ordinal))
                 vm.Rows.Add(new LibraryRow { Entry = e, Name = e.Name, Disk = DiskOf(e), DiskDetail = Detail(e), NewerText = NewerVersion });
             vm.Measured = entries.All(e => e.Measured) && newer.All(e => e.Measured);
-            vm.FreeableBytes = ResortLibrary.Freeable(entries.Concat(newer));
+            vm.FreeableBytes = ResortLibrary.Freeable(entries.Concat(newer)) + leftoverBytes;
             long total = entries.Sum(e => e.BytesOnDisk) + newer.Sum(e => e.BytesOnDisk);
             vm.Summary = $"{entries.Count} {(entries.Count == 1 ? "area" : "areas")} · {(vm.Measured ? Disk(total) + " on disk" : "measuring disk use…")}"
                          + (pending.Count > 0 ? $" · {pending.Count} paused" : "")

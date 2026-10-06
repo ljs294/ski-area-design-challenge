@@ -263,6 +263,15 @@ namespace MountainPlanner.Persistence
         {
             string clean = NormalizeName(name);
             if (clean.Length == 0 || entry.Refusal.Length > 0) return false;
+            // A view.json that can't be read just now (locked by another program) would load as defaults, and saving
+            // those would lose the camera, bookmarks and layers: refuse instead. A damaged one has nothing to lose.
+            string viewPath = Path.Combine(entry.Folder, ViewState.FileName);
+            try { if (File.Exists(viewPath)) File.ReadAllText(viewPath); }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                entry.RenameRefusal = "Its view settings can't be read just now: " + e.Message;
+                return false;
+            }
             var view = ViewState.Load(entry.Folder);
             if (view.Refusal.Length > 0)
             {
@@ -309,6 +318,9 @@ namespace MountainPlanner.Persistence
             string target = Path.Combine(ResortsFolder(dataRoot), m.PackageId);
             Directory.CreateDirectory(ResortsFolder(dataRoot));
             LibraryIndex.Ensure(dataRoot);
+            // A folder there without a manifest isn't the package (a stub left by an interrupted delete): replace it.
+            if (Directory.Exists(target) && !File.Exists(Path.Combine(target, ResortPackage.ManifestFile)) && SafeFolder.TryMoveToTrash(target, out string stub) && stub != null)
+                SafeFolder.SweepTrash(ResortsFolder(dataRoot));
             if (Directory.Exists(target))
             {
                 if (!string.Equals(Path.GetFullPath(builtFolder).TrimEnd('\\', '/'), Path.GetFullPath(target).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
@@ -324,16 +336,37 @@ namespace MountainPlanner.Persistence
         /// any game has one of its caches open (<see cref="TerrainCache.Hold"/>) or a file in it; <paramref name="freed"/>
         /// is then 0.
         /// </summary>
-        public static bool TryRemove(LibraryEntry entry, out long freed)
+        public static bool TryRemove(LibraryEntry entry, out long freed) => TryRemove(entry, out freed, sweep: true);
+
+        /// <summary>
+        /// The same, with the slow part optional: with <paramref name="sweep"/> false only the quick, all-or-nothing
+        /// rename happens here, and <see cref="SweepTrash"/> (on a worker thread) removes the files. The size freed is
+        /// the measured one when there is one (<see cref="LibraryEntry.Measured"/>).
+        /// </summary>
+        public static bool TryRemove(LibraryEntry entry, out long freed, bool sweep)
         {
             freed = 0;
             if (!Directory.Exists(entry.Folder)) return true;
             foreach (int v in TerrainCache.Versions(entry.Folder))
                 if (TerrainCache.InUse(TerrainCache.FolderFor(entry.Folder, v))) return false;
-            long bytes = MeasureFolder(entry.Folder).Total;
-            if (!SafeFolder.TryDelete(entry.Folder)) return false;
+            long bytes = entry.Measured ? entry.BytesOnDisk : MeasureFolder(entry.Folder).Total;
+            if (!SafeFolder.TryMoveToTrash(entry.Folder, out _)) return false;
+            if (sweep) SweepTrash(Path.GetDirectoryName(Path.GetFullPath(entry.Folder).TrimEnd('\\', '/')));
             freed = bytes;
             return true;
+        }
+
+        /// <summary>Removes what deletes left in a folder's ".trash-" folders (the library's Resorts, or a package); returns the bytes.</summary>
+        public static long SweepTrash(string folder) => SafeFolder.SweepTrash(folder);
+
+        /// <summary>The bytes in the library's own ".trash-" folders: deletes cut short, which Free space sweeps.</summary>
+        public static long LeftoverBytes(string dataRoot)
+        {
+            string resorts = ResortsFolder(dataRoot);
+            if (!Directory.Exists(resorts)) return 0;
+            long bytes = 0;
+            foreach (string folder in Directory.GetDirectories(resorts, SafeFolder.TrashPrefix + "*")) bytes += SafeFolder.Bytes(folder);
+            return bytes;
         }
 
         /// <summary>

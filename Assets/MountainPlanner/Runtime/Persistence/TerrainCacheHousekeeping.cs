@@ -46,7 +46,8 @@ namespace MountainPlanner.Persistence
         /// Marks a package's cache as open until the lease is disposed: the game holds it for as long as the area is
         /// on screen, and <see cref="Build"/> while it writes. Any number of games can hold the same cache. It's a
         /// file opened for reading that others may read but not delete, so it also protects the folder from another
-        /// game, and a crash lets go of it with the process.
+        /// game, and a crash lets go of it with the process. A package that isn't there (deleted from another
+        /// window) throws <see cref="DirectoryNotFoundException"/>: its folder is never recreated as an empty stub.
         /// </summary>
         public static IDisposable Hold(string packageFolder, int version = Version)
         {
@@ -54,14 +55,16 @@ namespace MountainPlanner.Persistence
             string path = Path.Combine(folder, LockFile);
             for (int attempt = 0; ; attempt++)
             {
+                if (!File.Exists(Path.Combine(packageFolder, ResortPackage.ManifestFile)))
+                    throw new DirectoryNotFoundException($"There's no area package at {packageFolder}.");
                 try
                 {
                     Directory.CreateDirectory(folder);
                     return new FileStream(path, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read);
                 }
-                // Another game is checking the lock this instant (InUse opens it alone for a moment), or is just
-                // removing the folder; try again briefly.
-                catch (Exception e) when ((e is IOException || e is UnauthorizedAccessException) && attempt < 20) { Thread.Sleep(5); }
+                // Another game is checking the lock this instant (InUse opens it alone for a moment, many times
+                // over during a Free space), or is just removing an old folder; try again for up to about 2 s.
+                catch (Exception e) when ((e is IOException || e is UnauthorizedAccessException) && !(e is DirectoryNotFoundException) && attempt < 400) { Thread.Sleep(5); }
             }
         }
 
@@ -132,15 +135,28 @@ namespace MountainPlanner.Persistence
         /// <summary>False, with the folder untouched, when something in it is open.</summary>
         public static bool TryDelete(string folder)
         {
+            if (!TryMoveToTrash(folder, out string trash)) return false;
+            if (trash != null) DeleteQuietly(trash);
+            return true;
+        }
+
+        /// <summary>
+        /// The quick, all-or-nothing half of a delete: the folder is renamed to a ".trash-" folder beside it, which no
+        /// listing reads (<paramref name="trash"/> is null when there was nothing to move). False, untouched, when
+        /// something in it is open. <see cref="SweepTrash"/> then removes the files, which can take a while.
+        /// </summary>
+        public static bool TryMoveToTrash(string folder, out string trash)
+        {
+            trash = null;
             if (!Directory.Exists(folder)) return true;
             string parent = Path.GetDirectoryName(Path.GetFullPath(folder).TrimEnd('\\', '/'));
             string name = Path.GetFileName(Path.GetFullPath(folder).TrimEnd('\\', '/'));
-            string trash = null;
-            for (int n = 0; trash == null || Directory.Exists(trash) || File.Exists(trash); n++)
-                trash = Path.Combine(parent, TrashPrefix + name + "-" + n.ToString(CultureInfo.InvariantCulture));
-            try { Directory.Move(folder, trash); }
+            string target = null;
+            for (int n = 0; target == null || Directory.Exists(target) || File.Exists(target); n++)
+                target = Path.Combine(parent, TrashPrefix + name + "-" + n.ToString(CultureInfo.InvariantCulture));
+            try { Directory.Move(folder, target); }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException) { return false; }
-            DeleteQuietly(trash);
+            trash = target;
             return true;
         }
 

@@ -466,6 +466,14 @@ namespace MountainPlanner.App
             return true;
         }
 
+        /// <summary>Holds the open cache again after <see cref="ReleaseCache"/>, when the delete it allowed didn't happen.</summary>
+        public void HoldCache()
+        {
+            if (_resort == null || _resort.CacheLease != null) return;
+            try { _resort.CacheLease = TerrainCache.Hold(_resort.PackageFolder); }
+            catch (IOException e) { Debug.LogWarning($"[MountainViewer] Couldn't hold the cache again: {e.Message}"); }
+        }
+
         void OnDestroy()
         {
             _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own

@@ -357,7 +357,7 @@ namespace MountainPlanner.UI.Flow
             int kept = keep == null ? -1 : _rowData.FindIndex(x => Key(x) == keep);
             int first = _rowData.FindIndex(x => x.CanOpen);
             Select(kept >= 0 ? kept : first >= 0 ? first : _rowData.FindIndex(x => !x.IsPaused));
-            if (hadFocus && kept >= 0) FocusSelectedRow();
+            if (hadFocus) FocusSelectedRow();   // also when that row was just deleted: the keyboard stays in the list
         }
 
         /// <summary>A row's identity across redraws: its folder, or the paused download's id.</summary>
