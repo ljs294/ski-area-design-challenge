@@ -1,17 +1,19 @@
 using System;
 using System.Collections;
 using System.Globalization;
+using System.Linq;
 using UnityEngine;
 
 namespace MountainPlanner.App
 {
     /// <summary>
     /// -benchres &lt;width&gt;x&lt;height&gt; (benchmarks and review captures): a fixed window for this run only, so results
-    /// compare with the baselines in docs/perf/. Unity saves the window it quits in as the player's window mode
+    /// compare with the baselines in docs/perf/. Unity saves every window change as the player's window mode
     /// (HKCU\Software\Ski Area Design Challenge, the Screenmanager values), which is why demo.bat no longer passes
     /// -screen-width/-screen-height/-screen-fullscreen: they became the owner's mode for every later run. This records
-    /// the window the player opened in (the saved mode, borderless full screen by default), switches to a window of
-    /// the asked-for size, and puts the recorded window back before any quit, so nothing about the run persists.
+    /// the window the player opened in (the saved mode, borderless full screen by default) and the saved window size,
+    /// switches to a window of the asked-for size, and puts both back before any quit, so nothing about the run
+    /// persists. A run killed before it quits leaves the window it was in: demo.bat 50 resets it.
     /// </summary>
     public sealed class BenchmarkResolution : MonoBehaviour
     {
@@ -20,8 +22,15 @@ namespace MountainPlanner.App
         /// <summary>How long a mode switch may take to show in <see cref="Screen"/> before going on regardless.</summary>
         const float SwitchSeconds = 3f;
 
+        /// <summary>
+        /// Unity's saved window size (PlayerPrefs, so the registry beside the mode). Any switch to a window writes it,
+        /// and switching back to full screen leaves it, so it is put back as it was too.
+        /// </summary>
+        static readonly string[] WindowKeys = { "Screenmanager Resolution Window Width", "Screenmanager Resolution Window Height" };
+
         FullScreenMode _mode;
         int _width, _height;
+        int?[] _windowSize;
         bool _restored, _restoring;
 
         /// <summary>The size after -benchres ("1920x1080"), or false if the argument is missing or malformed.</summary>
@@ -59,6 +68,7 @@ namespace MountainPlanner.App
             _mode = Screen.fullScreenMode;
             _width = Screen.width;
             _height = Screen.height;
+            _windowSize = WindowKeys.Select(k => PlayerPrefs.HasKey(k) ? PlayerPrefs.GetInt(k) : (int?)null).ToArray();
             Application.wantsToQuit += WantsToQuit;
             Debug.Log($"[BenchmarkResolution] {size.x}x{size.y} windowed for this run (the player opened {_mode} at {_width}x{_height}; restored before quitting).");
             StartCoroutine(Switch(size.x, size.y, FullScreenMode.Windowed));
@@ -81,6 +91,12 @@ namespace MountainPlanner.App
         IEnumerator RestoreAndQuit()
         {
             yield return Switch(_width, _height, _mode);
+            for (int i = 0; i < WindowKeys.Length; i++)
+            {
+                if (_windowSize[i] is int saved) PlayerPrefs.SetInt(WindowKeys[i], saved);
+                else PlayerPrefs.DeleteKey(WindowKeys[i]);
+            }
+            PlayerPrefs.Save();
             _restored = true;
             Debug.Log($"[BenchmarkResolution] restored {Screen.fullScreenMode} at {Screen.width}x{Screen.height}.");
             Application.Quit();
