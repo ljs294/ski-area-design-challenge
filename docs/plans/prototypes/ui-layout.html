@@ -111,6 +111,15 @@ body.solo .frame { border-radius: 0; }
 .hud .cal .c.later { background: transparent; }
 .hud .cal .c.later .num { color: var(--faint); }
 .hud svg .cbar.hot { opacity: 1; filter: brightness(1.2); }
+/* the resort stats window: an elevation gauge beside the figures */
+.hud .modal .pn.rstats { width: 560px; }
+.hud .rstats .hd .ghost { height: 26px; margin-left: auto; padding: 0 10px; }
+.hud .rstats .hd .ghost + .x { margin-left: 4px; }
+.hud .rstats .body { display: grid; grid-template-columns: 150px 1fr; }
+.hud .rstats .gauge { border-right: 1px solid var(--hair); padding: 10px 0 8px; }
+.hud .rstats .figs .sub:first-child { padding-top: 10px; }
+.hud .rstats .figs .kv { padding-top: 4px; padding-bottom: 6px; }
+.hud .rstats .foot { padding: 8px 12px 10px; border-top: 1px solid var(--hair); font: 500 12px 'DotFix', 'Overpass'; color: var(--soft); line-height: 1.4; }
 .hud .dayc { display: grid; justify-items: center; gap: 2px; line-height: 1.1; }
 .hud .dayc .date { font: 600 11.5px 'DotFix', 'Overpass'; color: var(--wx-text); white-space: nowrap; }
 .hud .ampm { font-size: 10.5px; margin-left: 3px; color: var(--soft); }
@@ -367,7 +376,7 @@ body.solo .frame { border-radius: 0; }
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
-    <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with eight tabs and the sketch pencil. The bar's clock and weather, money, open lifts, open trails and guests open their Analysis tab. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name to rename it), the weather with the next 24 hours' snowfall, and the elevation under the pointer. Figures are imperial until you press U; steepness is always a grade in percent. <b>Keys:</b> T toolbox, Tab analysis, U units, Shift+1 snow, Shift+3 trees, Shift+6 contours, Shift+7–9 info layers, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
+    <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with eight tabs and the sketch pencil. The bar's clock and weather, money, open lifts, open trails and guests open their Analysis tab. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name for the resort's stats), the weather with the next 24 hours' snowfall, and the elevation under the pointer. Figures are imperial until you press U; steepness is always a grade in percent. <b>Keys:</b> T toolbox, Tab analysis, U units, Shift+1 snow, Shift+3 trees, Shift+6 contours, Shift+7–9 info layers, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="variants" id="variants"><b>Open or closed, try:</b><button data-style="sub" class="on">A line under the name</button><button data-style="track">An hours track</button><button data-style="word">A word after the name</button></div>
   <div class="frame" id="frame"><div class="stage hud" id="stage">
@@ -621,7 +630,7 @@ body.solo .frame { border-radius: 0; }
     if (S.statusStyle === 'word') return statusWord(st);
     return `${statusWord(st)} ${statusRest(st)}`;
   }
-  const resortTitle = (st) => `${S.name}: ${st.text}. ${liftHours()}. ${SITE}. Click to rename.`;
+  const resortTitle = (st) => `${S.name}: ${st.text}. ${liftHours()}. ${SITE}. Click for the resort's stats.`;
 
 
 
@@ -1288,7 +1297,7 @@ body.solo .frame { border-radius: 0; }
     const spd = [1, 2, 3, 4].map((n) => `<span class="${S.speed >= n ? 'on' : ''}" data-act="speed" data-v="${n}" title="Speed ${n}"><svg viewBox="0 0 11 13"><use href="#s-speed"/></svg></span>`).join('');
     h += `<div class="bar ${S.docked ? 'docked' : 'floating'}${S.paused ? ' paused' : ''}">
       <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" title="Analysis (Tab)">${g('s-analysis')}Analysis</span></div>
-      <div class="cell sep" style="padding:0 5px"><span class="resort st-${S.statusStyle}" id="resort" data-act="rename" title="${esc(resortTitle(resortStatus(S.t)))}"><span id="rname">${esc(S.name)}</span><span class="rstat" id="rstat">${statusHtml(resortStatus(S.t))}</span></span></div>
+      <div class="cell sep" style="padding:0 5px"><span class="resort st-${S.statusStyle}" id="resort" data-act="stats" title="${esc(resortTitle(resortStatus(S.t)))}"><span id="rname">${esc(S.name)}</span><span class="rstat" id="rstat">${statusHtml(resortStatus(S.t))}</span></span></div>
       <div class="cell sep" style="padding:0 6px"><span class="ib" data-act="pause" id="playbtn" title="${S.paused ? 'Play' : 'Pause'} (Space)">${g(S.paused ? 's-play' : 's-pause')}</span></div>
       <div class="cell sep" style="gap:6px"><span class="dayc"><span class="day" id="day">Day ${S.day}</span><span class="date" id="date">${dateTxt(S.day)}</span></span><span class="when stat${S.analysis && S.atab === 'weather' ? ' on' : ''}" data-act="aopen" data-v="weather" title="Analysis › Weather"><span class="v" id="clock">${clockText()}</span><span class="wxline" id="wxcell" title="${wxTitle(wx)}">${wxLine(wx)}</span></span></div>
       <div class="cell sep" style="padding:0 8px"><div class="spd">${spd}</div></div>
@@ -1300,6 +1309,7 @@ body.solo .frame { border-radius: 0; }
     </div>`;
     h += `<div class="log" id="log">${logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join('')}</div>`;
     if (S.modal && S.modal.settings) h += settingsPanel();
+    else if (S.modal && S.modal.stats) h += statsPanel();
     else if (S.modal && S.modal.input) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">Rename resort<span class="x" data-act="modal">✕</span></div>
       <div style="padding:12px 12px 2px"><input id="nameinput" class="field" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(S.name)}"></div>
       <div class="hint">Shown in the status bar, the menu, Analysis and your saves.</div>
@@ -1327,11 +1337,53 @@ body.solo .frame { border-radius: 0; }
     const [lo, hi] = row.range, pc = (val - lo) / (hi - lo) * 100;
     return `<div class="rng-wrap"><input type="range" class="rng" min="${lo}" max="${hi}" step="5" value="${val}" data-k="${row.k}" style="--p:${pc}%" aria-label="${row.label}"><span class="rv">${val}${row.unit}</span></div>`;
   }
+  // ---------- the resort's stats (click its name in the bar) ----------
+  // The drawn lifts and trails are counted exactly; the rest of the mountain's 48 lifts and 116 trails are
+  // placeholders consistent with Analysis (2,100 riders an hour per other lift, 21 acres per other trail).
+  const REST = { summit: 3185, base: 1924, liftCap: 2100, trailAcres: 21, snowfallCm: 1166 };
+  function resortStats() {
+    const built = S.lifts.filter((l) => l.built), st = built.map((l) => liftStats(l.a, l.b, l.model));
+    const tops = st.map((x) => Math.max(x.ea, x.eb)), bottoms = st.map((x) => Math.min(x.ea, x.eb));
+    const summit = Math.max(REST.summit, ...tops), base = Math.min(REST.base, ...bottoms);
+    const uphill = st.reduce((a, x) => a + x.cap, 0) + Math.max(0, S.liftsTotal - built.length) * REST.liftCap;
+    const drawn = S.trails.filter((t) => t.built), widthM = { green: 45, blue: 40, black: 30, double: 22 };
+    const acres = drawn.reduce((a, t) => a + pathStats(t.pts).len * widthM[t.diff] / 4046.86, 0) + Math.max(0, S.trailsTotal - drawn.length) * REST.trailAcres;
+    const guns = 124 + S.things.filter((t) => t.kind === 'gun' && t.built).length, pumps = 3 + S.things.filter((t) => t.kind === 'pump' && t.built).length;
+    const gpm = pumps * 1500, seasonM3 = Math.max(0, S.day - 60) * guns * 0.6 * 0.45 * 60 * 9;   // nights since 30 October
+    return { summit, base, vertical: summit - base, lifts: S.liftsTotal, uphill, trails: S.trailsTotal, acres, guns, pumps, gpm, seasonM3 };
+  }
+  const areaTxt = (acres) => (IMP() ? `<b>${Math.round(acres).toLocaleString('en-US')}</b> acres` : `<b>${Math.round(acres * 0.404686).toLocaleString('en-US')}</b> ha`);
+  const flowTxt = (gpm) => (IMP() ? `<b>${gpm.toLocaleString('en-US')}</b> gpm` : `<b>${Math.round(gpm * 0.0630902).toLocaleString('en-US')}</b> L/s`);
+  // The gauge: the mountain's height from base to summit, as a ruled scale with the vertical drop dimensioned.
+  function elevGauge(r) {
+    const w = 150, h = 236, top = 22, bot = h - 26, lo = r.base, hi = r.summit, Y = (e) => bot - (e - lo) / (hi - lo) * (bot - top);
+    const step = IMP() ? 500 / 3.28084 : 200, first = Math.ceil(lo / step) * step;
+    const F = (t) => f1(Y(lo + (hi - lo) * t));   // a height part way up, for the silhouette's shoulders
+    let g = `<path d="M24 ${bot} C34 ${F(0.12)} 44 ${F(0.3)} 54 ${F(0.38)} S70 ${F(0.52)} 78 ${F(0.74)} L92 ${top} L104 ${F(0.82)} C112 ${F(0.66)} 118 ${F(0.6)} 126 ${F(0.42)} S138 ${F(0.08)} 144 ${bot} Z" style="fill:var(--chart-fill);stroke:var(--chart-a)" stroke-width="1.2"/>`;
+    for (let e = first; e <= hi; e += step) g += `<line x1="18" y1="${f1(Y(e))}" x2="${Math.round(e / step) % 2 ? 22 : 26}" y2="${f1(Y(e))}" style="stroke:var(--chart-label)"/>`;
+    g += `<line x1="18" y1="${top}" x2="18" y2="${bot}" style="stroke:var(--chart-label)"/>`;
+    for (const [e, lab] of [[hi, 'Summit'], [lo, 'Base']]) g += `<line x1="18" y1="${f1(Y(e))}" x2="${w - 10}" y2="${f1(Y(e))}" stroke-dasharray="3 2" style="stroke:var(--soft)"/><text x="${w - 10}" y="${f1(Y(e) + (e === hi ? -6 : 14))}" text-anchor="end" style="font:700 10.5px 'DotFix','Overpass';fill:var(--muted)">${lab} ${lenTxt(e)}</text>`;
+    g += `<line x1="92" y1="${top + 4}" x2="92" y2="${bot - 4}" style="stroke:var(--strong)" stroke-width="1.2"/><path d="M89 ${top + 9}l3-6 3 6M89 ${bot - 9}l3 6 3-6" fill="none" style="stroke:var(--strong)" stroke-width="1.2"/>`;
+    const my = (top + bot) / 2;
+    g += `<rect x="64" y="${my - 9}" width="56" height="18" rx="2" style="fill:var(--on-bg)"/><text x="92" y="${my + 4}" text-anchor="middle" style="font:700 10.5px 'Overpass Mono';fill:var(--on-fg)">${lenTxt(r.vertical)}</text>`;
+    return `<svg width="${w}" height="${h}" style="display:block">${g}</svg>`;
+  }
+  function statsPanel() {
+    const r = resortStats(), kv = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+    return `<div class="modal" data-act="modalbg"><div class="pn rstats"><div class="hd">${esc(S.name)} <span class="nm">${SITE}</span><span class="ghost" data-act="rename">Rename</span><span class="x" data-act="modal">✕</span></div>
+      <div class="body"><div class="gauge">${elevGauge(r)}</div><div class="figs">
+        <div class="sub"><span>Mountain</span></div><dl class="kv">${kv('Summit elevation', `<b>${lenV(r.summit)}</b> ${lenU()}`)}${kv('Base elevation', `<b>${lenV(r.base)}</b> ${lenU()}`)}${kv('Vertical drop', `<b>${lenV(r.vertical)}</b> ${lenU()}`)}</dl>
+        <div class="rule"></div><div class="sub"><span>Lifts</span></div><dl class="kv">${kv('Lifts', `<b>${r.lifts}</b>`)}${kv('Uphill capacity', `<b>${r.uphill.toLocaleString('en-US')}</b> skiers an hour`)}</dl>
+        <div class="rule"></div><div class="sub"><span>Trails</span></div><dl class="kv">${kv('Trails', `<b>${r.trails}</b>`)}${kv('Trail area', areaTxt(r.acres))}</dl>
+        <div class="rule"></div><div class="sub"><span>Snow</span></div><dl class="kv">${kv('Average annual snowfall', `<b>${IMP() ? snowAmt(REST.snowfallCm) : `${(REST.snowfallCm / 100).toFixed(1)} m`}</b>`)}${kv('Snowmaking capacity', `${flowTxt(r.gpm)} · ${r.guns} guns`)}${kv('Snowmaking water, this season', `<b>${waterTxt(r.seasonM3)}</b>`)}</dl>
+      </div></div>
+      <div class="foot">Summit is the top of the highest lift and base the bottom of the lowest; the figures change as you build.</div></div></div>`;
+  }
   function settingsPanel() {
     const pg = SETTINGS.find((x) => x.id === S.stab) || SETTINGS[0];
     const rows = pg.rows.map((row) => `<div class="srow"><div class="sl"><b>${row.label}</b>${row.desc ? `<span>${row.desc}</span>` : ''}</div>${settingControl(row)}</div>`).join('');
     const keys = pg.keys ? `<div class="ptitle" style="padding-top:16px">Keys</div><div class="keys">${pg.keys.map(([a, ks]) => `<div><span>${a}</span><span>${ks.map((k) => `<span class="kbd">${k}</span>`).join('')}</span></div>`).join('')}</div>
-      <div class="note">Each tool's letter is on its tile in the toolbox. Click the resort's name in the bar to rename it.</div>` : '';
+      <div class="note">Each tool's letter is on its tile in the toolbox. Rename the resort from the menu or its stats window (click its name in the bar).</div>` : '';
     return `<div class="modal" data-act="modalbg"><div class="pn set"><div class="hd">Settings <span class="nm">${esc(S.name)}</span><span class="x" data-act="sdone">✕</span></div>
       <div class="body"><div class="nav">${SETTINGS.map((x) => `<span class="${x.id === pg.id ? 'on' : ''}" data-act="stab" data-v="${x.id}">${x.title}</span>`).join('')}</div>
       <div class="page"><div class="ptitle">${pg.title}</div>${pg.note ? `<div class="pnote">${pg.note}</div>` : ''}${rows}${keys}</div></div>
@@ -1401,6 +1453,7 @@ body.solo .frame { border-radius: 0; }
       case 'speed': S.speed = +v; S.paused = false; S.autoPaused = false; break;
       case 'savegame': S.saveDue = false; lastSaved = performance.now(); S.drop = null; render(); log(`<span>Saved <span class="mono" style="color:var(--soft)">${esc(S.name)} · day ${S.day}</span></span>`, '#8fcf8a'); return;
       case 'rename': S.drop = null; S.modal = { input: true }; break;
+      case 'stats': S.drop = null; S.modal = S.modal && S.modal.stats ? null : { stats: true }; break;
       case 'renameok': {
         const f = document.getElementById('nameinput'), v = f ? f.value.trim().replace(/\s+/g, ' ').slice(0, 28) : '';
         S.modal = null;
@@ -1614,6 +1667,7 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('infra')) { S.toolbox = true; S.tab = 'infra'; }
     if (d.includes('menu')) S.drop = 'menu';
     if (d.includes('rename')) S.modal = { input: true };
+    if (d.includes('rstats')) S.modal = { stats: true };
     if (d.includes('layers')) S.drop = 'layers';
     if (d.includes('analysis')) { S.analysis = true; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }
     for (const [k] of ATABS) if (d.includes('a' + k)) { S.analysis = true; S.atab = k; S.t = 12.5 * 3600; S.incomeToday = 0.31e6; S.opsToday = 0.12e6; S.today = S.incomeToday - S.opsToday - S.buildToday; }
