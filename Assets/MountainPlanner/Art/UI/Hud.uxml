@@ -1,109 +1,295 @@
-<!-- S6 Mountain view HUD (0.4 §4), style-tile mock: top bar, layers panel, readouts and time bar. MountainHud binds it. -->
-<ui:UXML xmlns:ui="UnityEngine.UIElements">
+<!-- S6 Mountain view HUD in the Trailhead direction (task P2-02): the accepted mockup, docs/plans/prototypes/ui-layout.html,
+     as built in Phase 2 (its #demo=p2). Element names are the mockup's data-ui names, so tools/ui-parity can measure both.
+     MountainHud and the parts under UI/Hud bind it; the app wires their events. -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:hud="MountainPlanner.UI.Hud">
     <Style src="Hud.uss" />
     <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
         <ui:VisualElement name="contour-labels" class="contour-labels" picking-mode="Ignore" />
-        <ui:VisualElement name="top-bar" class="panel top-bar">
-            <ui:Label name="site-name" class="site-name" text="Area" />
-            <ui:Label name="quality" class="badge" text="97 · Excellent" />
-            <ui:VisualElement class="spacer" picking-mode="Ignore" />
-            <ui:Label name="camera-chip" class="chip" text="Orbit camera" tooltip="Free-fly comes with the camera task (11)" />
-            <ui:Button name="menu-button" class="icon-button" tooltip="Menu (Esc)">
-                <ui:VisualElement class="menu-bar" picking-mode="Ignore" />
-                <ui:VisualElement class="menu-bar" picking-mode="Ignore" />
-                <ui:VisualElement class="menu-bar" picking-mode="Ignore" />
-            </ui:Button>
+        <ui:Label name="credit" class="credit" text="Map data © OpenStreetMap contributors" picking-mode="Ignore" />
+
+        <!-- Toolbox tray (Phase 3 fills it): tabs, the tool label, and a tile per tool -->
+        <ui:VisualElement name="toolbox" class="box panel-shadowed hidden">
+            <ui:VisualElement class="tabs">
+                <ui:Button name="toolbox-tab-lifts" class="tab tab--on" text="Lifts" />
+                <ui:Button name="toolbox-tab-trails" class="tab" text="Trails" />
+                <ui:Button name="toolbox-tab-snow" class="tab" text="Snowmaking" />
+                <ui:Button name="toolbox-tab-infra" class="tab" text="Infrastructure" />
+            </ui:VisualElement>
+            <ui:VisualElement class="tabrule" picking-mode="Ignore" />
+            <ui:VisualElement name="toolbox-label" class="toollabel" picking-mode="Ignore">
+                <ui:Label name="toolbox-label-name" class="toollabel__name" text="Select tool" picking-mode="Ignore" />
+                <ui:Label name="toolbox-label-key" class="toollabel__key mono" picking-mode="Ignore" />
+                <ui:Label name="toolbox-label-hint" class="toollabel__hint" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement name="toolbox-tools" class="tools" />
         </ui:VisualElement>
 
-        <ui:VisualElement name="middle" class="middle" picking-mode="Ignore">
-            <ui:VisualElement name="menu" class="panel menu hidden">
-                <ui:Label class="panel-title" text="Menu" />
-                <ui:Button name="menu-resume" class="menu-item" text="Resume" />
-                <ui:Button name="menu-theme" class="menu-item" text="Dark theme" />
-                <ui:Button name="menu-units" class="menu-item" text="Units: imperial" tooltip="Switch between feet and metres (U)" />
-                <ui:Button name="menu-settings" class="menu-item" text="Settings (coming)" />
-                <ui:Button name="menu-exit" class="menu-item hidden" text="Exit to title" />
-                <ui:Button name="menu-quit" class="menu-item menu-item--danger" text="Quit to desktop" />
+        <!-- Analysis: tabs over each tab's figures (the simulation fills them; Phase 2 shows a line) -->
+        <ui:VisualElement name="analysis" class="mp-win ana hidden">
+            <ui:VisualElement name="analysis-head" class="mp-head">
+                <hud:HudIcon icon="s-analysis" class="hd-icon" picking-mode="Ignore" />
+                <ui:Label class="mp-title" text="Analysis" picking-mode="Ignore" />
+                <ui:Label name="analysis-name" class="mp-sub" picking-mode="Ignore" />
+                <ui:VisualElement class="mp-spacer" picking-mode="Ignore" />
+                <ui:Button name="analysis-x" class="mp-x" text="✕" />
             </ui:VisualElement>
-            <ui:VisualElement class="spacer" picking-mode="Ignore" />
-            <ui:VisualElement name="right-column" class="right-column" picking-mode="Ignore">
-                <ui:VisualElement name="layers" class="panel layers">
-                    <ui:Button name="layers-header" class="panel-header">
-                        <ui:Label class="panel-title" text="Layers" picking-mode="Ignore" />
-                        <ui:Label name="layers-caret" class="caret" text="–" picking-mode="Ignore" />
-                    </ui:Button>
-                    <ui:VisualElement name="layers-body">
-                        <ui:Label class="layer-section" text="Map layers" picking-mode="Ignore" />
-                        <ui:Button name="layer-snow" class="layer" tooltip="Snow on the ground, ledges and trees (Shift+1)">
-                            <ui:Label class="layer-label" text="Snow" picking-mode="Ignore" />
-                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                        </ui:Button>
-                        <ui:Button name="layer-trees" class="layer" tooltip="Show or hide the trees (Shift+3)">
-                            <ui:Label class="layer-label" text="Trees" picking-mode="Ignore" />
-                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                        </ui:Button>
-                        <ui:VisualElement class="layer-rule" picking-mode="Ignore" />
-                        <ui:Label class="layer-section" text="Info layers" picking-mode="Ignore" />
-                        <ui:Button name="layer-slope" class="layer layer--choice" tooltip="Steepness by trail difficulty (Shift+7)">
-                            <ui:Label class="layer-label" text="Slope angle" picking-mode="Ignore" />
-                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                        </ui:Button>
-                        <ui:Button name="layer-exposure" class="layer layer--choice" tooltip="The way each slope faces (Shift+8)">
-                            <ui:Label class="layer-label" text="Slope exposure" picking-mode="Ignore" />
-                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                        </ui:Button>
-                        <ui:Button name="layer-depth" class="layer layer--choice" tooltip="How deep the snow lies (Shift+9)">
-                            <ui:Label class="layer-label" text="Snow depth" picking-mode="Ignore" />
-                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                        </ui:Button>
-                        <ui:Button name="layer-conditions" class="layer layer--choice" tooltip="Comes with the snow simulation (Shift+0)">
-                            <ui:Label class="layer-label" text="Snow conditions" picking-mode="Ignore" />
-                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                        </ui:Button>
-                        <ui:Button name="layer-contours" class="layer" tooltip="Elevation lines every 10 m, heavier every 50 m (Shift+6)">
-                            <ui:Label class="layer-label" text="Contours" picking-mode="Ignore" />
-                            <ui:VisualElement class="layer-box" picking-mode="Ignore" />
-                        </ui:Button>
+            <ui:VisualElement name="analysis-tabs" class="tabs tabs--small">
+                <ui:Button name="analysis-tab-overview" class="tab tab--on" text="Overview" />
+                <ui:Button name="analysis-tab-lifts" class="tab" text="Lifts" />
+                <ui:Button name="analysis-tab-trails" class="tab" text="Trails" />
+                <ui:Button name="analysis-tab-guests" class="tab" text="Guests" />
+                <ui:Button name="analysis-tab-snow" class="tab" text="Snowmaking" />
+                <ui:Button name="analysis-tab-weather" class="tab" text="Weather" />
+                <ui:Button name="analysis-tab-amenities" class="tab" text="Amenities" />
+                <ui:Button name="analysis-tab-finances" class="tab" text="Finances" />
+            </ui:VisualElement>
+            <ui:VisualElement class="tabrule" picking-mode="Ignore" />
+            <ui:VisualElement name="analysis-body" picking-mode="Ignore">
+                <ui:Label name="analysis-empty" class="empty" picking-mode="Ignore" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- The status bar: the full width of the bottom, docked or floating -->
+        <ui:VisualElement name="bar" class="bar bar--docked">
+            <ui:VisualElement class="cell cell--tools">
+                <ui:Button name="bar-toolbox" class="tbtn" tooltip="Toolbox (T)">
+                    <hud:HudIcon icon="s-hammer" class="tbtn__icon" picking-mode="Ignore" />
+                    <ui:Label class="tbtn__text" text="Toolbox" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="bar-analysis" class="tbtn tbtn--second" tooltip="Analysis (Tab)">
+                    <hud:HudIcon icon="s-analysis" class="tbtn__icon" picking-mode="Ignore" />
+                    <ui:Label class="tbtn__text" text="Analysis" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="cell cell--resort">
+                <ui:VisualElement class="sep" picking-mode="Ignore" />
+                <ui:Button name="bar-resort" class="resort" tooltip="The resort's stats">
+                    <ui:Label name="bar-resort-name" class="resort__name" text="Resort" picking-mode="Ignore" />
+                    <ui:Label name="bar-resort-status" class="resort__status nodata" text="—" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="cell cell--pause">
+                <ui:VisualElement class="sep" picking-mode="Ignore" />
+                <ui:Button name="bar-pause" class="ib" tooltip="Play (Space)">
+                    <hud:HudIcon name="bar-pause-icon" icon="s-play" class="ib__icon" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="cell cell--when">
+                <ui:VisualElement class="sep" picking-mode="Ignore" />
+                <ui:VisualElement class="dayc" picking-mode="Ignore">
+                    <ui:Label name="bar-day" class="day" text="Day 1" picking-mode="Ignore" />
+                    <ui:Label name="bar-date" class="date" text="Tue, Sep 1" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:Button name="bar-when" class="stat when" tooltip="Analysis › Weather">
+                    <ui:VisualElement name="bar-clock" class="clock" picking-mode="Ignore">
+                        <ui:Label name="bar-clock-hm" class="clock__hm mono" text="10:30" picking-mode="Ignore" />
+                        <ui:Label name="bar-clock-s" class="clock__s mono" text=":00" picking-mode="Ignore" />
+                        <ui:Label name="bar-clock-ampm" class="clock__ampm" text="AM" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:Label name="bar-weather" class="wxline mono nodata" text="—" tooltip="Weather comes with the snow simulation" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="cell cell--speed">
+                <ui:VisualElement class="sep" picking-mode="Ignore" />
+                <ui:VisualElement name="bar-speed" class="spd">
+                    <ui:Button name="bar-speed-1" class="spd__b spd__b--on" tooltip="Speed 1"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-2" class="spd__b" tooltip="Speed 2"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-3" class="spd__b" tooltip="Speed 3"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                    <ui:Button name="bar-speed-4" class="spd__b" tooltip="Speed 4"><hud:HudIcon icon="s-speed" class="spd__icon" picking-mode="Ignore" /></ui:Button>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="grow" picking-mode="Ignore" />
+            <ui:VisualElement class="cell cell--money">
+                <ui:VisualElement class="sep" picking-mode="Ignore" />
+                <ui:Button name="bar-money" class="stat stat--dis" tooltip="Bank balance: comes with the simulation in Phase 4">
+                    <hud:HudIcon icon="s-cash" class="cash__icon" picking-mode="Ignore" />
+                    <ui:VisualElement class="money" picking-mode="Ignore">
+                        <ui:Label name="bar-cash" class="money__bal mono nodata" text="—" picking-mode="Ignore" />
+                        <ui:Label name="bar-delta" class="money__delta mono nodata" text="—" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="cell cell--counts">
+                <ui:VisualElement class="sep" picking-mode="Ignore" />
+                <ui:Button name="bar-lifts" class="stat stat--dis" tooltip="Lifts open: comes with the simulation in Phase 4">
+                    <hud:HudIcon icon="s-lift" class="si" picking-mode="Ignore" />
+                    <ui:Label class="count mono nodata" text="—" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="bar-trails" class="stat stat--dis" tooltip="Trails open: comes with the simulation in Phase 4">
+                    <hud:HudIcon icon="s-trail" class="si" picking-mode="Ignore" />
+                    <ui:Label class="count mono nodata" text="—" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="bar-guests" class="stat stat--dis" tooltip="Guests on the mountain: comes with the simulation in Phase 4">
+                    <hud:HudIcon icon="s-skier" class="si" picking-mode="Ignore" />
+                    <ui:Label class="count mono nodata" text="—" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="cell cell--elev" tooltip="Elevation under the pointer">
+                <ui:VisualElement class="sep" picking-mode="Ignore" />
+                <ui:VisualElement name="bar-elev" class="fig" picking-mode="Ignore">
+                    <ui:VisualElement class="elevrow" picking-mode="Ignore">
+                        <ui:Label class="fig__lab" text="Elev." picking-mode="Ignore" />
+                        <ui:Label name="bar-elev-value" class="elev mono elev--none" text="– – – ft" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="bar-readout" class="ro hidden" picking-mode="Ignore">
+                        <ui:VisualElement name="bar-readout-swatch" class="ro__sw" picking-mode="Ignore" />
+                        <ui:Label name="bar-readout-lead" class="ro__t" picking-mode="Ignore" />
+                        <ui:Label name="bar-readout-figure" class="ro__b mono" picking-mode="Ignore" />
+                        <ui:Label name="bar-readout-tail" class="ro__t" picking-mode="Ignore" />
                     </ui:VisualElement>
                 </ui:VisualElement>
-                <ui:VisualElement name="legend" class="panel legend hidden" picking-mode="Ignore">
-                    <ui:Label name="legend-title" class="panel-title" text="Legend" picking-mode="Ignore" />
-                    <ui:VisualElement name="legend-body" picking-mode="Ignore" />
-                    <ui:Label name="legend-note" class="legend-note" picking-mode="Ignore" />
-                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="cell cell--save">
+                <ui:VisualElement class="sep" picking-mode="Ignore" />
+                <ui:Button name="bar-save" class="ib save" tooltip="Saving comes with the game save">
+                    <hud:HudIcon icon="s-save" class="ib__icon" picking-mode="Ignore" />
+                </ui:Button>
             </ui:VisualElement>
         </ui:VisualElement>
 
-        <ui:VisualElement name="bottom" class="bottom" picking-mode="Ignore">
-            <ui:VisualElement class="readouts" picking-mode="Ignore">
-                <ui:VisualElement name="compass" class="compass" tooltip="North up" />
-                <ui:VisualElement class="scale" picking-mode="Ignore">
-                    <ui:VisualElement name="scale-bar" class="scale-bar" picking-mode="Ignore" />
-                    <ui:Label name="scale-label" class="readout" text="500 m" picking-mode="Ignore" />
-                </ui:VisualElement>
-                <ui:VisualElement class="readout-stack" picking-mode="Ignore">
-                    <ui:Label name="elevation" class="readout readout--strong" text="Elev –" picking-mode="Ignore" />
-                    <ui:Label name="info-readout" class="readout readout-info hidden" picking-mode="Ignore" />
-                </ui:VisualElement>
-                <ui:VisualElement class="spacer" picking-mode="Ignore" />
-                <ui:Label name="attribution" class="attribution" text="Map data © OpenStreetMap contributors · F1 keys" picking-mode="Ignore" />
+        <!-- Top right: sketch, map layers and the menu -->
+        <ui:VisualElement name="tr" class="tr" picking-mode="Ignore">
+            <ui:Button name="tr-sketch" class="sq" tooltip="Sketching comes in Phase 3"><hud:HudIcon icon="s-pencil" class="sq__icon" picking-mode="Ignore" /></ui:Button>
+            <ui:Button name="tr-layers" class="sq sq--gap" tooltip="Map layers"><hud:HudIcon icon="s-map" class="sq__icon" picking-mode="Ignore" /></ui:Button>
+            <ui:Button name="tr-menu" class="sq sq--gap" tooltip="Menu"><hud:HudIcon icon="s-menu" class="sq__icon" picking-mode="Ignore" /></ui:Button>
+        </ui:VisualElement>
+
+        <!-- The map layers dropdown, with the legend card under it -->
+        <ui:VisualElement name="rcol" class="rcol" picking-mode="Ignore">
+            <ui:VisualElement name="layers" class="drop hidden">
+                <ui:Label class="ghead" text="Map layers" picking-mode="Ignore" />
+                <ui:Button name="layer-snow" class="row lay">
+                    <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
+                    <ui:Label class="row__label" text="Snow" picking-mode="Ignore" />
+                    <ui:Label class="row__key mono" text="Shift 1" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-trees" class="row lay">
+                    <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
+                    <ui:Label class="row__label" text="Trees" picking-mode="Ignore" />
+                    <ui:Label class="row__key mono" text="Shift 3" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-lifts" class="row lay row--dis" tooltip="Comes with the building tools in Phase 3">
+                    <ui:VisualElement class="chk" picking-mode="Ignore" />
+                    <ui:Label class="row__label" text="Lifts" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-trails" class="row lay row--dis" tooltip="Comes with the building tools in Phase 3">
+                    <ui:VisualElement class="chk" picking-mode="Ignore" />
+                    <ui:Label class="row__label" text="Trails" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-snowmaking" class="row lay row--dis" tooltip="Comes with the building tools in Phase 3">
+                    <ui:VisualElement class="chk" picking-mode="Ignore" />
+                    <ui:Label class="row__label" text="Snowmaking" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-infrastructure" class="row lay row--dis" tooltip="Comes with the building tools in Phase 3">
+                    <ui:VisualElement class="chk" picking-mode="Ignore" />
+                    <ui:Label class="row__label" text="Infrastructure" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-labels" class="row lay">
+                    <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
+                    <ui:Label class="row__label" text="Labels" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:VisualElement class="sepl" picking-mode="Ignore" />
+                <ui:Label class="ghead" text="Info layers" picking-mode="Ignore" />
+                <ui:Button name="layer-slope" class="row lay">
+                    <ui:VisualElement class="rad" picking-mode="Ignore"><ui:VisualElement class="rad__dot" picking-mode="Ignore" /></ui:VisualElement>
+                    <ui:Label class="row__label" text="Slope angle" picking-mode="Ignore" />
+                    <ui:Label class="row__key mono" text="Shift 7" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-exposure" class="row lay">
+                    <ui:VisualElement class="rad" picking-mode="Ignore"><ui:VisualElement class="rad__dot" picking-mode="Ignore" /></ui:VisualElement>
+                    <ui:Label class="row__label" text="Slope exposure" picking-mode="Ignore" />
+                    <ui:Label class="row__key mono" text="Shift 8" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-depth" class="row lay">
+                    <ui:VisualElement class="rad" picking-mode="Ignore"><ui:VisualElement class="rad__dot" picking-mode="Ignore" /></ui:VisualElement>
+                    <ui:Label class="row__label" text="Snow depth" picking-mode="Ignore" />
+                    <ui:Label class="row__key mono" text="Shift 9" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-conditions" class="row lay row--dis row--two" tooltip="Comes with the snow simulation">
+                    <ui:VisualElement class="rad" picking-mode="Ignore" />
+                    <ui:VisualElement class="row__stack" picking-mode="Ignore">
+                        <ui:Label class="row__label" text="Snow conditions" picking-mode="Ignore" />
+                        <ui:Label class="row__small" text="Comes with the snow simulation" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:Label class="row__key mono" text="Shift 0" picking-mode="Ignore" />
+                </ui:Button>
+                <ui:Button name="layer-contours" class="row lay">
+                    <ui:VisualElement class="chk" picking-mode="Ignore"><ui:VisualElement class="chk__tick" picking-mode="Ignore" /></ui:VisualElement>
+                    <ui:Label class="row__label" text="Contours" picking-mode="Ignore" />
+                    <ui:Label class="row__key mono" text="Shift 6" picking-mode="Ignore" />
+                </ui:Button>
             </ui:VisualElement>
-            <ui:VisualElement name="time-bar" class="panel time-bar">
-                <ui:VisualElement name="sun-icon" class="sun-icon" picking-mode="Ignore" />
-                <ui:Label name="time" class="readout readout--strong time" text="12:20" />
-                <ui:VisualElement name="track" class="track">
-                    <ui:VisualElement name="track-fill" class="track-fill" picking-mode="Ignore" />
-                    <ui:VisualElement name="thumb" class="thumb" picking-mode="Ignore" />
+            <ui:VisualElement name="legend" class="legend hidden" picking-mode="Ignore">
+                <ui:VisualElement name="legend-head" class="legend__head" picking-mode="Ignore">
+                    <ui:Label name="legend-title" class="legend__title" picking-mode="Ignore" />
+                    <ui:Button name="legend-x" class="legend__x" text="✕" tooltip="Close the legend" />
                 </ui:VisualElement>
-                <ui:Label class="readout date" text="Jan 15" tooltip="The date scrubber comes with the camera and lighting task (11)" />
-                <ui:VisualElement name="presets" class="presets">
-                    <ui:Button name="preset-0" class="preset" text="Dawn" />
-                    <ui:Button name="preset-1" class="preset" text="Noon" />
-                    <ui:Button name="preset-2" class="preset" text="Golden hour" />
-                    <ui:Button name="preset-3" class="preset" text="Night" />
-                </ui:VisualElement>
-                <ui:Button name="reset" class="text-button" text="Reset" tooltip="Back to noon" />
+                <ui:VisualElement name="legend-body" picking-mode="Ignore" />
             </ui:VisualElement>
         </ui:VisualElement>
+
+        <!-- The menu: quick switches, then Settings -->
+        <ui:VisualElement name="menu" class="drop menu hidden">
+            <ui:VisualElement name="menu-head" class="mhead" picking-mode="Ignore">
+                <ui:Label name="menu-name" class="mhead__name" picking-mode="Ignore" />
+                <ui:Label name="menu-place" class="mhead__place" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement class="sepl" picking-mode="Ignore" />
+            <ui:Button name="menu-resume" class="row"><ui:Label class="row__label" text="Resume" picking-mode="Ignore" /><ui:Label class="row__key mono" text="Esc" picking-mode="Ignore" /></ui:Button>
+            <ui:Button name="menu-save" class="row row--dis" tooltip="Saving comes with the game save"><ui:Label class="row__label" text="Save game" picking-mode="Ignore" /><ui:Label class="row__key mono" text="Ctrl S" picking-mode="Ignore" /></ui:Button>
+            <ui:Button name="menu-rename" class="row row--dis" tooltip="Renaming comes with the library update"><ui:Label class="row__label" text="Rename resort" picking-mode="Ignore" /></ui:Button>
+            <ui:VisualElement class="sepl" picking-mode="Ignore" />
+            <ui:VisualElement name="menu-theme" class="qrow">
+                <ui:Label class="qrow__label" text="Theme" picking-mode="Ignore" />
+                <ui:VisualElement class="mp-seg mp-seg--mini">
+                    <ui:Button name="menu-theme-dark" class="mp-seg__opt mp-seg__opt--first" text="Dark" />
+                    <ui:Button name="menu-theme-light" class="mp-seg__opt" text="Light" />
+                    <ui:Button name="menu-theme-auto" class="mp-seg__opt" text="Auto" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="menu-dock" class="qrow">
+                <ui:Label class="qrow__label" text="Status bar" picking-mode="Ignore" />
+                <ui:VisualElement class="mp-seg mp-seg--mini">
+                    <ui:Button name="menu-dock-docked" class="mp-seg__opt mp-seg__opt--first" text="Docked" />
+                    <ui:Button name="menu-dock-floating" class="mp-seg__opt" text="Floating" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="menu-units" class="qrow">
+                <ui:Label class="qrow__label" text="Units" picking-mode="Ignore" />
+                <ui:VisualElement class="mp-seg mp-seg--mini">
+                    <ui:Button name="menu-units-metric" class="mp-seg__opt mp-seg__opt--first" text="Metric" />
+                    <ui:Button name="menu-units-imperial" class="mp-seg__opt" text="Imperial" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="sepl" picking-mode="Ignore" />
+            <ui:Button name="menu-settings" class="row"><ui:Label class="row__label" text="Settings" picking-mode="Ignore" /><ui:Label class="row__key" text="›" picking-mode="Ignore" /></ui:Button>
+            <ui:Button name="menu-controls" class="row"><ui:Label class="row__label" text="Controls" picking-mode="Ignore" /><ui:Label class="row__key" text="›" picking-mode="Ignore" /></ui:Button>
+            <ui:VisualElement class="sepl" picking-mode="Ignore" />
+            <ui:Button name="menu-exit" class="row"><ui:Label class="row__label" text="Exit to title" picking-mode="Ignore" /></ui:Button>
+            <ui:Button name="menu-quit" class="row"><ui:Label class="row__label" text="Quit to desktop" picking-mode="Ignore" /></ui:Button>
+        </ui:VisualElement>
+
+        <!-- Notifications: at most three, top centre, click-through -->
+        <ui:VisualElement name="toasts" class="log" picking-mode="Ignore" />
+
+        <!-- The resort's stats (click its name in the bar), over a scrim -->
+        <ui:VisualElement name="modal" class="modal hidden">
+            <ui:VisualElement name="rstats" class="mp-win rstats">
+                <ui:VisualElement name="rstats-head" class="mp-head">
+                    <ui:Label name="rstats-name" class="mp-title" picking-mode="Ignore" />
+                    <ui:Label name="rstats-place" class="mp-sub" picking-mode="Ignore" />
+                    <ui:VisualElement class="mp-spacer" picking-mode="Ignore" />
+                    <ui:Button name="rstats-rename" class="mp-ghost rstats__rename" text="Rename" tooltip="Renaming comes with the library update" />
+                    <ui:Button name="rstats-x" class="mp-x rstats__x" text="✕" tooltip="Close (Esc)" />
+                </ui:VisualElement>
+                <ui:VisualElement class="rstats__body" picking-mode="Ignore">
+                    <ui:VisualElement name="rstats-gauge" class="gauge" picking-mode="Ignore" />
+                    <ui:VisualElement name="rstats-figs" class="figs" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:Label name="rstats-foot" class="rstats__foot" picking-mode="Ignore" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <ui:Label name="tooltip" class="tip hidden" picking-mode="Ignore" />
     </ui:VisualElement>
 </ui:UXML>

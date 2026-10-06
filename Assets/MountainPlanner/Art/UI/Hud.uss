@@ -1,263 +1,424 @@
-/* S6 Mountain view HUD (0.4 §4), the style-tile layout until task P2-02 rebuilds it in the Trailhead
-   direction. Colours are the shared theme tokens (Resources/MountainPlannerUI/Theme-*.tss), panels solid
-   (task P2-01). Radii 4 / 6 / 12, base text 14 px, 120-200 ms ease-out on panels. Keyboard focus shows as the
-   shared focus ring (UiFocus), not per control. */
+/* S6 Mountain view HUD in the Trailhead direction (task P2-02): the accepted mockup, docs/plans/prototypes/ui-layout.html.
+   Pixel values are the mockup's own: the panel lays out on its 1280×720 stage (UiPanels, task P2-01), so they carry
+   over 1:1; the mockup's selector is named beside each block. Colours are the shared theme tokens; panels are solid.
+   Overpass has two weights here, so the mockup's 500/600 are regular and 700/800 bold. USS has no gap, so each
+   flex gap is a margin. Every rule that sets a colour sets the text outline to the same colour (UiThemeTests).
+   Icons (HudIcon) take their colour from `color`. Every selector starts with .hud, to outrank the default theme's
+   button states. */
 
 .hud {
     position: absolute;
     left: 0; top: 0; right: 0; bottom: 0;
-    padding: 12px;
-    font-size: 14px;
+    font-size: 13px;
     color: var(--text);
     -unity-text-outline-color: var(--text);
 }
+.hud .hidden { display: none; }
+.hud .mono { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); }
+.hud Label { margin: 0; padding: 0; }
+.hud .tbtn, .hud .resort, .hud .ib, .hud .stat, .hud .spd__b, .hud .sq, .hud .row, .hud .tab, .hud .tool, .hud .legend__x {
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+    -unity-text-align: middle-left;
+    white-space: nowrap;
+}
+.hud Button:disabled { opacity: 1; }
+/* the shared switch's chosen option (Base.uss), kept above the HUD's own button rules */
+.hud .mp-seg__opt--on, .hud .mp-seg__opt--on:hover { background-color: var(--on-bg); color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
+.hud .nodata { color: var(--faint); -unity-text-outline-color: var(--faint); }
+/* Line boxes: the browser sets Overpass's normal line at 1.23 of the size, Unity's text at about 1.33, so one-line
+   labels take the mockup's height (size × 1.23, or × 1.1 where the mockup says line-height 1.1) and lists keep its rhythm. */
+.hud .row__label, .hud .qrow__label, .hud .tabs--small .tab { height: 16px; -unity-text-align: middle-left; }
+.hud .row__key { height: 16px; -unity-text-align: middle-right; }
+.hud .ghead { height: 23px; -unity-text-align: middle-left; }
+.hud .lr__word, .hud .lr__n, .hud .kv__dt, .hud .kv__b, .hud .kv__u { height: 15px; -unity-text-align: middle-left; }
+.hud .kv__dd .kv__b, .hud .kv__dd .kv__u { -unity-text-align: middle-right; }
+.hud .legend__title { height: 17px; -unity-text-align: middle-left; }
+.hud .toollabel__name, .hud .toollabel__key, .hud .toollabel__hint { height: 15px; -unity-text-align: middle-left; }
+.hud .mhead__name { height: 17px; }
+.hud .mhead__place { height: 15px; }
+.hud .resort__name { height: 16px; -unity-text-align: middle-left; }
+.hud .resort__status { height: 13px; }
+.hud .day { height: 15.5px; -unity-text-align: middle-center; }
+.hud .date { height: 12.7px; -unity-text-align: middle-center; }
+.hud .clock__hm, .hud .clock__s { height: 15.5px; }
+.hud .wxline { height: 12.7px; }
+.hud .mp-x { font-size: 14px; }
+.hud .mp-sub { margin-left: 8px; }
 
-.panel {
+/* ---------- status bar (.bar): full width at the bottom, docked flush or floating inset ---------- */
+.hud .bar {
+    position: absolute;
+    height: 52px;
+    flex-direction: row;
+    align-items: stretch;
     background-color: var(--panel);
     border-color: var(--hair);
-    border-width: 1px;
-    border-radius: 6px;
-    padding: 6px 10px;
 }
+.hud .bar--docked { left: 0; right: 0; bottom: 0; border-top-width: 1px; }
+.hud .bar--floating { left: 10px; right: 10px; bottom: 10px; border-width: 1px; border-radius: 6px; }
+.hud .grow { flex-grow: 1; }
+/* compact (not in the mockup, whose scale stops at 110%): when the cells don't fit (150% at 16:9, a 4:3 screen),
+   Toolbox and Analysis keep their symbols and tooltips, and the name and the elevation give up their spare width */
+.hud .bar--compact .tbtn__text { display: none; }
+.hud .bar--compact .tbtn__icon { margin-right: 0; }
+.hud .bar--compact .tbtn { padding: 0 9px; }
+.hud .bar--compact .resort__name { max-width: 100px; }
+.hud .bar--compact .fig { min-width: 0; }
+.hud .bar--compact #bar-readout-tail { display: none; }
+/* .cell, with .sep::before as a child: a 1 px rule on its left, 13 px short of the top and bottom */
+.hud .cell { flex-direction: row; align-items: center; flex-shrink: 0; padding: 0 10px; }
+.hud .sep { position: absolute; left: 0; top: 13px; bottom: 13px; width: 1px; background-color: var(--div); }
+.hud .cell--tools { padding: 0 6px; }
+.hud .cell--resort { padding: 0 5px; }
+.hud .cell--pause, .hud .cell--save { padding: 0 6px; }
+.hud .cell--speed { padding: 0 8px; }
+.hud .cell--money, .hud .cell--counts { padding: 0 4px; }
 
-.spacer { flex-grow: 1; }
-.hidden { display: none; }
+/* Toolbox and Analysis (.tbtn) */
+.hud .tbtn { flex-direction: row; align-items: center; height: 36px; padding: 0 12px 0 10px; border-radius: 5px; }
+.hud .tbtn--second { margin-left: 2px; }
+.hud .tbtn:hover { background-color: var(--hover); }
+.hud .tbtn__icon { width: 18px; height: 18px; margin-right: 8px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tbtn__text { font-size: 13.5px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tbtn--on, .hud .tbtn--on:hover { background-color: var(--on-bg); }
+.hud .tbtn--on .tbtn__icon, .hud .tbtn--on .tbtn__text { color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
 
-/* Top bar: name, quality badge, camera chip, menu. */
-.top-bar {
-    flex-direction: row;
-    align-items: center;
-    height: 44px;
-}
-.site-name {
-    font-size: 18px;
+/* the resort's name with the lifts' status under it (.resort.st-sub) */
+.hud .resort { flex-direction: column; align-items: flex-start; padding: 6px 9px; border-radius: 5px; }
+.hud .resort:hover { background-color: var(--hover); }
+.hud .resort__name {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -unity-text-overflow-position: end;
+    font-size: 14.5px;
     -unity-font-style: bold;
-    margin-right: 10px;
+    color: var(--text);
+    -unity-text-outline-color: var(--text);
 }
-.badge {
-    border-radius: 12px;
-    padding: 2px 10px;
+.hud .resort__status { margin-top: 3px; font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .resort__status.nodata { color: var(--faint); -unity-text-outline-color: var(--faint); }
+
+/* pause and save (.ib) */
+.hud .ib { width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 5px; }
+.hud .ib:hover { background-color: var(--hover); }
+.hud .ib__icon { width: 20px; height: 20px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .save .ib__icon { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .save--due .ib__icon { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .save.stat--dis:hover, .hud .save:hover { background-color: rgba(0, 0, 0, 0); }
+
+/* the day and date (.dayc), then the clock with the weather under it (.when.stat) */
+.hud .dayc { align-items: center; }
+.hud .day { font-size: 14px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .date { margin-top: 2px; font-size: 11.5px; color: var(--wx-text); -unity-text-outline-color: var(--wx-text); }
+.hud .when { flex-direction: column; justify-content: center; align-items: center; height: 40px; margin-left: 6px; }
+.hud .clock { flex-direction: row; align-items: flex-end; }
+.hud .clock__hm, .hud .clock__s { font-size: 14px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .clock__ampm { margin-left: 3px; margin-bottom: 1px; font-size: 10.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .wxline { margin-top: 2px; font-size: 11.5px; color: var(--wx-text); -unity-text-outline-color: var(--wx-text); }
+.hud .wxline.nodata { color: var(--faint); -unity-text-outline-color: var(--faint); }
+
+/* the four speeds (.spd) */
+.hud .spd { flex-direction: row; }
+.hud .spd__b { width: 17px; height: 26px; align-items: center; justify-content: center; border-radius: 3px; }
+.hud .spd__b:hover { background-color: var(--hover); }
+.hud .spd__icon { width: 11px; height: 13px; color: var(--spd-off); -unity-text-outline-color: var(--spd-off); }
+.hud .spd__b--on .spd__icon { color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .bar--paused .spd__b--on .spd__icon { color: var(--dim); -unity-text-outline-color: var(--dim); }
+
+/* figures that open their Analysis tab (.stat), greyed until their phase */
+.hud .stat { flex-direction: row; align-items: center; height: 36px; padding: 0 5px; border-radius: 5px; }
+.hud .stat:hover { background-color: var(--hover); }
+.hud .stat--on, .hud .stat--on:hover { background-color: var(--chip); }
+.hud .stat--dis:hover { background-color: rgba(0, 0, 0, 0); }
+.hud .when.stat { flex-direction: column; height: 40px; padding: 0 5px; }
+.hud .cash__icon { width: 22px; height: 22px; margin-right: 6px; color: var(--pos); -unity-text-outline-color: var(--pos); }
+.hud .stat--dis .cash__icon { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .money { align-items: flex-end; }
+.hud .money__bal { font-size: 15px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .money__delta { font-size: 11.5px; color: var(--pos); -unity-text-outline-color: var(--pos); }
+.hud .money__bal.nodata, .hud .money__delta.nodata { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .si { width: 20px; height: 20px; margin-right: 6px; color: var(--icon); -unity-text-outline-color: var(--icon); }
+.hud .stat--on .si { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .stat--dis .si { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .count { font-size: 15px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .count.nodata { color: var(--faint); -unity-text-outline-color: var(--faint); }
+
+/* the elevation under the pointer, and under it the info layer's reading (.fig.wide): a fixed width, so the bar never moves */
+.hud .fig { align-items: flex-end; min-width: 156px; }
+.hud .elevrow { flex-direction: row; align-items: flex-end; }
+.hud .fig__lab { margin-right: 5px; margin-bottom: 1px; font-size: 10.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .elev { min-width: 64px; -unity-text-align: middle-right; font-size: 14px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .elev--none { color: var(--ph); -unity-text-outline-color: var(--ph); }
+.hud .ro { flex-direction: row; align-items: center; margin-top: 2px; }
+.hud .ro__sw { width: 9px; height: 9px; border-radius: 1.5px; border-width: 1px; border-color: rgba(0, 0, 0, 0.35); }
+.hud .ro__t { margin-left: 5px; font-size: 11.5px; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .ro__b { margin-left: 5px; font-size: 11.5px; color: var(--text); -unity-text-outline-color: var(--text); }
+
+/* ---------- top right: sketch, map layers, menu (.tr .sq) ---------- */
+.hud .tr { position: absolute; right: 10px; top: 10px; flex-direction: row; }
+.hud .sq {
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--hair);
+    border-radius: 6px;
+}
+.hud .sq--gap { margin-left: 6px; }
+.hud .sq__icon { width: 20px; height: 20px; color: var(--head); -unity-text-outline-color: var(--head); }
+.hud .sq:hover { background-color: var(--hover); }
+.hud .sq:hover .sq__icon { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .sq--on, .hud .sq--on:hover { background-color: var(--on-bg); }
+.hud .sq--on .sq__icon, .hud .sq--on:hover .sq__icon { color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
+.hud .sq--dis, .hud .sq--dis:hover { background-color: var(--panel); }
+.hud .sq--dis .sq__icon, .hud .sq--dis:hover .sq__icon { color: var(--faint); -unity-text-outline-color: var(--faint); }
+
+/* ---------- dropdowns (.drop): the layers and the menu ---------- */
+.hud .rcol { position: absolute; right: 10px; top: 56px; align-items: flex-end; }
+.hud .rcol > .drop, .hud .rcol > .legend { width: 268px; }
+/* when the legend doesn't fit under the dropdown (a large UI scale on a short screen), it sits beside it */
+.hud .rcol--side { flex-direction: row-reverse; align-items: flex-start; }
+.hud .rcol--side > .legend--below { margin-top: 0; margin-right: 6px; }
+.hud .drop { padding: 6px 0; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 6px; }
+.hud .menu { position: absolute; right: 10px; top: 56px; width: 300px; }
+/* a large UI scale on a short screen: a dropdown too tall for the room under the buttons moves up beside them */
+.hud .drop--up { top: 10px; right: 142px; }
+.hud .ghead { padding: 5px 12px 3px 12px; font-size: 12px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .sepl { height: 1px; margin: 5px 0; background-color: var(--hair); }
+.hud .row { flex-direction: row; align-items: center; padding: 8px 12px; }
+.hud .row:hover { background-color: var(--hover); }
+.hud .row__label { flex-grow: 1; font-size: 13px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .row__key { margin-left: 10px; font-size: 11.5px; color: var(--dim); -unity-text-outline-color: var(--dim); }
+.hud .lay { padding: 4px 12px; }
+.hud .lay .row__key { font-size: 11px; }
+.hud .row--dis:hover { background-color: rgba(0, 0, 0, 0); }
+.hud .row--dis .row__label { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .row--two { align-items: flex-start; }
+.hud .row__stack { flex-grow: 1; }
+.hud .row__small { margin-top: 2px; font-size: 11.5px; white-space: normal; color: var(--faint); -unity-text-outline-color: var(--faint); }
+/* checkbox (.chk) and radio (.rad) */
+.hud .chk, .hud .rad {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    margin-right: 10px;
+    align-items: center;
+    justify-content: center;
+    border-width: 1.5px;
+    border-color: var(--dim);
+}
+.hud .chk { border-radius: 3px; }
+.hud .rad { border-radius: 7.5px; }
+.hud .row--dis .chk, .hud .row--dis .rad { border-color: var(--faint); }
+.hud .row--two .rad { margin-top: 1px; }
+.hud .chk__tick {
+    width: 7px;
+    height: 4px;
+    border-left-width: 2px;
+    border-bottom-width: 2px;
+    border-color: var(--on-fg);
+    rotate: -45deg;
+    translate: 0.5px -1px;
+    display: none;
+}
+.hud .rad__dot { width: 7px; height: 7px; border-radius: 3.5px; background-color: var(--on-bg); display: none; }
+.hud .row--on .chk { background-color: var(--on-bg); border-color: var(--on-bg); }
+.hud .row--on .chk__tick { display: flex; }
+.hud .row--on .rad { border-color: var(--on-bg); }
+.hud .row--on .rad__dot { display: flex; }
+/* the menu's head and quick switches (.mhead, .qrow, .seg.mini) */
+.hud .mhead { padding: 5px 12px 8px 12px; }
+.hud .mhead__name { font-size: 14px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .mhead__place { margin-top: 2px; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .qrow { flex-direction: row; justify-content: space-between; align-items: center; height: 33px; padding: 0 12px; }
+.hud .qrow__label { font-size: 13px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .qrow .mp-seg__opt { height: 21px; padding: 4px 9px 3px 9px; }
+
+/* ---------- the legend card (.legend) ---------- */
+.hud .legend { padding-bottom: 9px; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 6px; }
+.hud .legend--below { margin-top: 6px; }
+.hud .legend__head { flex-direction: row; justify-content: space-between; align-items: center; padding: 5px 6px 2px 12px; }
+.hud .legend__title { font-size: 13.5px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .legend__x {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    -unity-text-align: middle-center;
+    font-size: 12px;
+    color: var(--soft);
+    -unity-text-outline-color: var(--soft);
+}
+.hud .legend__x:hover { background-color: var(--hover); color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .lr { flex-direction: row; align-items: center; padding: 3px 12px; }
+.hud .lr__sw { width: 22px; height: 12px; flex-shrink: 0; margin-right: 8px; border-radius: 2px; border-width: 1px; border-color: rgba(0, 0, 0, 0.25); }
+.hud .lr__word { flex-grow: 1; font-size: 12.5px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .lr__n { margin-left: 8px; font-size: 12px; -unity-text-align: middle-right; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .ln { padding: 6px 12px 0 12px; font-size: 11.5px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .compass { flex-direction: row; flex-wrap: wrap; margin: 2px 12px 0 12px; }
+.hud .compass__cell { width: 79px; align-items: center; padding: 5px 0 4px 0; margin-bottom: 2px; border-radius: 2px; }
+.hud .compass__cell--mid { margin-left: 2px; margin-right: 2px; }
+.hud .compass__dir { font-size: 12px; -unity-font-style: bold; }
+.hud .compass__deg { margin-top: 1px; font-size: 10.5px; opacity: 0.85; }
+.hud .lrule { height: 1px; margin-top: 7px; background-color: var(--hair); }
+.hud .cl { flex-direction: row; align-items: center; padding: 7px 12px 0 12px; }
+.hud .cl--alone { padding-top: 0; }
+.hud .cl__icon { width: 22px; height: 12px; flex-shrink: 0; margin-right: 8px; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .cl__text { font-size: 11.5px; white-space: normal; color: var(--muted); -unity-text-outline-color: var(--muted); }
+
+/* ---------- the Toolbox tray (.box) ---------- */
+.hud .box {
+    position: absolute;
+    left: 10px;
+    bottom: 62px;
+    width: 420px;
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--hair);
+    border-radius: 6px;
+}
+.hud .tabs { flex-direction: row; padding: 8px 8px 7px 8px; }
+.hud .tab { height: 26.8px; margin-right: 2px; padding: 5px 10px 4px 10px; border-radius: 4px; font-size: 14.5px; -unity-font-style: bold; color: var(--tab); -unity-text-outline-color: var(--tab); }
+.hud .tab:hover { color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tab--on, .hud .tab--on:hover { background-color: var(--chip); color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tab--dis, .hud .tab--dis:hover { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .tabs--small .tab { height: 25px; padding: 5px 8px 4px 8px; font-size: 13px; }
+.hud .tabrule { height: 1px; margin: 0 8px; background-color: var(--tabrule); }
+.hud .toollabel { flex-direction: row; padding: 9px 12px 7px 12px; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .toollabel__name { font-size: 12.5px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .toollabel__key { margin-left: 8px; font-size: 12.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .toollabel__hint { margin-left: 8px; font-size: 12.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tools { flex-direction: row; padding: 0 10px 10px 10px; }
+.hud .tool {
+    width: 64px;
+    height: 60px;
+    margin-right: 6px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    background-color: var(--tile);
+}
+.hud .tool:hover { background-color: var(--tile-hover); }
+.hud .tool__glyph { width: 26px; height: 26px; color: var(--tile-text); -unity-text-outline-color: var(--tile-text); }
+.hud .tool__label { margin-top: 5px; font-size: 10.5px; -unity-font-style: bold; color: var(--tile-text); -unity-text-outline-color: var(--tile-text); }
+.hud .tool--dis, .hud .tool--dis:hover { background-color: var(--tile); }
+.hud .tool--dis .tool__glyph, .hud .tool--dis .tool__label { color: var(--faint); -unity-text-outline-color: var(--faint); }
+
+/* ---------- Analysis (.pn.ana) ---------- */
+.hud .ana { position: absolute; left: 10px; bottom: 62px; width: 568px; }
+.hud .hd-icon { width: 18px; height: 18px; margin-right: 8px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .empty { padding: 14px 12px 16px 12px; font-size: 12.5px; white-space: normal; color: var(--muted); -unity-text-outline-color: var(--muted); }
+
+/* ---------- the resort's stats (.modal .pn.rstats) ---------- */
+.hud .modal {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--scrim);
+}
+.hud .rstats { width: 560px; }
+.hud .rstats__rename { height: 26px; padding: 0 10px; }
+.hud .rstats__x { margin-left: 4px; }
+.hud .ghost--dis, .hud .ghost--dis:hover { border-color: var(--hair2); color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .rstats__body { flex-direction: row; }
+.hud .gauge { width: 150px; min-height: 254px; flex-shrink: 0; padding: 10px 0 8px 0; border-right-width: 1px; border-color: var(--hair); color: var(--chart-a); -unity-text-outline-color: var(--chart-a); }
+.hud .figs { flex-grow: 1; }
+.hud .gauge__lab { font-size: 10.5px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .gauge__plate {
+    left: 64px;
+    width: 56px;
+    height: 18px;
+    -unity-text-align: middle-center;
+    font-size: 10.5px;
+    -unity-font-style: bold;
     color: var(--on-fg);
     -unity-text-outline-color: var(--on-fg);
     background-color: var(--on-bg);
-    -unity-font-style: bold;
-}
-.badge--excellent { background-color: var(--pos); }
-.badge--good { background-color: var(--pos); }
-.badge--fair { background-color: var(--warn); }
-.badge--limited { background-color: var(--neg); }
-.chip {
-    border-radius: 12px;
-    border-width: 1px;
-    border-color: var(--dim);
-    padding: 2px 10px;
-    color: var(--soft);
-    -unity-text-outline-color: var(--soft);
-    margin-right: 8px;
-}
-
-.icon-button, .text-button, .preset, .menu-item, .panel-header {
-    background-color: rgba(0, 0, 0, 0);
-    border-width: 0;
-    border-radius: 4px;
-    color: var(--text);
-    -unity-text-outline-color: var(--text);
-    margin: 0;
-    transition-property: background-color;
-    transition-duration: 0.12s;
-    transition-timing-function: ease-out;
-}
-.icon-button:hover, .text-button:hover, .preset:hover, .menu-item:hover, .panel-header:hover { background-color: var(--hover); }
-.icon-button {
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    flex-shrink: 0;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 0;
-}
-.menu-bar {
-    width: 16px;
-    height: 2px;
-    min-height: 2px;
-    flex-shrink: 0;
-    margin: 2px 0;
-    background-color: var(--text);
-    border-radius: 1px;
-}
-
-/* Middle: menu on the left, layers on the right. */
-.middle {
-    flex-grow: 1;
-    flex-direction: row;
-    align-items: flex-start;
-    margin-top: 10px;
-}
-.panel-title {
-    -unity-font-style: bold;
-    color: var(--text);
-    -unity-text-outline-color: var(--text);
-    margin: 2px 0 4px 0;
-}
-.menu {
-    width: 220px;
-    transition-property: opacity;
-    transition-duration: 0.16s;
-}
-.menu-item {
-    -unity-text-align: middle-left;
-    height: 32px;
-    padding-left: 8px;
-}
-.menu-item--danger { color: var(--neg); -unity-text-outline-color: var(--neg); }
-.right-column { flex-direction: column; width: 210px; }
-.layers { width: 210px; }
-.panel-header {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 2px;
-    height: 28px;
-}
-.caret { color: var(--soft); -unity-text-outline-color: var(--soft); }
-/* Layer rows: a button per layer with our own checkbox in the design tokens (a filled accent box when on). */
-.layer {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    height: 28px;
-    margin: 1px 0;
-    padding: 0 4px;
-    background-color: rgba(0, 0, 0, 0);
-    border-width: 0;
-    border-radius: 4px;
-}
-.layer:hover { background-color: var(--hover); }
-.layer-label { color: var(--text); -unity-text-outline-color: var(--text); margin: 0; padding: 0; }
-.layer:disabled .layer-label { color: var(--soft); -unity-text-outline-color: var(--soft); }
-.layer-box {
-    width: 16px;
-    height: 16px;
-    min-width: 16px;
-    flex-shrink: 0;
-    border-width: 1.5px;
-    border-radius: 4px;
-    border-color: var(--dim);
-    background-color: var(--field);
-}
-.layer--on .layer-box { background-color: var(--on-bg); border-color: var(--on-bg); }
-.layer:disabled .layer-box { opacity: 0.45; }
-/* Map layers and info layers (task 12b): a caption over each group and a hairline between them. Info layers that
-   take turns have round boxes; Contours, which combine with any, keep the square one. */
-.layer-section {
-    color: var(--soft);
-    -unity-text-outline-color: var(--soft);
-    font-size: 12px;
-    margin: 6px 4px 2px 4px;
-    padding: 0;
-}
-.layer-rule {
-    height: 1px;
-    min-height: 1px;
-    background-color: var(--hair);
-    margin: 6px 4px 0 4px;
-}
-.layer--choice .layer-box { border-radius: 8px; }
-
-/* The legend card for the info layer that's on: swatches, words and figures. */
-.legend { margin-top: 8px; padding: 8px 10px; }
-.legend-row {
-    flex-direction: row;
-    align-items: center;
-    height: 22px;
-}
-.legend-swatch {
-    width: 20px;
-    height: 12px;
-    min-width: 20px;
-    flex-shrink: 0;
     border-radius: 2px;
+}
+/* the gauge's line colours, read by MountainHud.GaugeColours from these unseen swatches */
+.hud .gauge__ink { position: absolute; width: 0; height: 0; }
+.hud .gauge__ink--fill { background-color: var(--chart-fill); }
+.hud .gauge__ink--line { background-color: var(--chart-a); }
+.hud .gauge__ink--label { background-color: var(--chart-label); }
+.hud .gauge__ink--soft { background-color: var(--soft); }
+.hud .gauge__ink--strong { background-color: var(--strong); }
+.hud .gauge__ink--plate { background-color: var(--on-bg); }
+.hud .sub { padding: 8px 12px 0 12px; font-size: 12.5px; -unity-font-style: bold; color: var(--head); -unity-text-outline-color: var(--head); }
+.hud .sub--first { padding-top: 10px; }
+.hud .kv { padding: 4px 12px 6px 12px; }
+.hud .kv__row { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+.hud .kv__dt { font-size: 12.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .kv__dd { flex-direction: row; align-items: flex-end; }
+.hud .kv__b { font-size: 12.5px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .kv__u { font-size: 12.5px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .kv__u--gap { margin-left: 7.5px; }
+.hud .kv__u.nodata { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .rule { height: 1px; background-color: var(--hair); }
+.hud .rstats__foot { padding: 8px 12px 10px 12px; border-top-width: 1px; border-color: var(--hair); font-size: 12px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }
+
+/* ---------- notifications (.log), the map credit and tooltips ---------- */
+.hud .log { position: absolute; left: 0; right: 0; top: 10px; align-items: center; }
+.hud .log__item {
+    flex-direction: row;
+    align-items: stretch;
+    margin-bottom: 6px;
+    padding: 8px 12px 8px 0;
+    background-color: var(--panel);
     border-width: 1px;
     border-color: var(--hair);
-    margin-right: 8px;
+    border-radius: 4px;
+    overflow: hidden;
 }
-.legend-label { color: var(--text); -unity-text-outline-color: var(--text); flex-grow: 1; margin: 0; padding: 0; }
-.legend-figure { color: var(--soft); -unity-text-outline-color: var(--soft); -unity-text-align: middle-right; margin: 0; padding: 0; }
-.legend-compass {
-    flex-direction: row;
-    flex-wrap: wrap;
-    width: 150px;
-    margin: 2px 0;
+.hud .log__stripe { width: 3px; margin-right: 10px; }
+.hud .log__text { font-size: 13px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .credit {
+    position: absolute;
+    right: 10px;
+    bottom: 56px;
+    font-size: 10.5px;
+    color: rgb(255, 255, 255);
+    -unity-text-outline-color: rgb(255, 255, 255);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
-.legend-cell {
-    width: 50px;
-    height: 26px;
-    justify-content: center;
-    align-items: center;
+.hud .credit--float { bottom: 66px; }
+.hud .tip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    max-width: 320px;
+    padding: 4px 8px;
+    background-color: var(--panel);
     border-width: 1px;
-    border-color: var(--panel);
-}
-.legend-cell-label { -unity-font-style: bold; font-size: 12px; margin: 0; padding: 0; }
-.legend-note {
-    color: var(--soft);
-    -unity-text-outline-color: var(--soft);
+    border-color: var(--hair2);
+    border-radius: 4px;
     font-size: 12px;
     white-space: normal;
-    margin: 6px 0 0 0;
-    padding: 0;
-}
-
-/* Bottom: readouts, then the time bar. */
-.bottom { flex-direction: column; }
-.readouts {
-    flex-direction: row;
-    align-items: center;
-    margin-bottom: 8px;
-}
-.compass {
-    width: 44px;
-    height: 44px;
-    border-radius: 22px;
-    background-color: var(--panel);
-    border-width: 1px;
-    border-color: var(--hair);
-    margin-right: 14px;
-}
-.scale {
-    flex-direction: row;
-    align-items: center;
-    padding: 4px 8px;
-    border-radius: 4px;
-    background-color: var(--panel);
-    margin-right: 14px;
-}
-.scale-bar {
-    height: 6px;
-    width: 100px;
-    border-left-width: 2px;
-    border-right-width: 2px;
-    border-bottom-width: 2px;
-    border-color: var(--text);
-    margin-right: 8px;
-}
-.readout {
     color: var(--text);
     -unity-text-outline-color: var(--text);
-    -unity-text-align: middle-left;
 }
-.readout--strong { -unity-font-style: bold; }
-.readouts > .readout, .readout-stack > .readout {
-    padding: 4px 8px;
-    border-radius: 4px;
-    background-color: var(--panel);
-}
-/* The elevation under the pointer, and under it what the info layer that's on reads there (task 12b.2). */
-.readout-stack { flex-direction: column; align-items: flex-start; }
-.readout-info { margin-top: 4px; }
 
-/* Contour elevation labels (task 12b.2): placed and turned by ContourLabelOverlay, behind the panels. */
+/* ---------- see-through panels (MountainHud.Glass.cs): the panel colour on a plate behind the contents ---------- */
+.hud .glassy, .hud .glassy:hover, .hud .glassy.sq--on, .hud .glassy.sq--on:hover, .hud .glassy.sq--dis:hover { background-color: rgba(0, 0, 0, 0); }
+.hud.hud--glass .sep { background-color: var(--hair2); }
+.hud .hud-plate { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: var(--panel); }
+.hud .sq:hover > .hud-plate { background-color: var(--hover); }
+.hud .sq--on > .hud-plate, .hud .sq--on:hover > .hud-plate { background-color: var(--on-bg); }
+.hud .sq--dis:hover > .hud-plate { background-color: var(--panel); }
+
+/* ---------- a floating window (.pn), dragged by its head (HudWindow) ---------- */
+.hud .pn { position: absolute; }
+.hud .pn .mp-head { cursor: move-arrow; }
+
+/* ---------- labels on the map, behind the panels ---------- */
+/* Contour elevation labels (task 12b.2): placed and turned by ContourLabelOverlay. */
 .contour-labels {
     position: absolute;
     left: 0; top: 0; right: 0; bottom: 0;
@@ -292,56 +453,3 @@
     -unity-text-outline-width: 1px;
     -unity-text-outline-color: rgba(255, 255, 255, 0.85);
 }
-.attribution {
-    font-size: 12px;
-    color: var(--soft);
-    -unity-text-outline-color: var(--soft);
-    padding: 2px 8px;
-    border-radius: 4px;
-    background-color: var(--panel);
-}
-.time-bar {
-    flex-direction: row;
-    align-items: center;
-    height: 48px;
-}
-.sun-icon { width: 22px; height: 22px; margin-right: 6px; }
-.time { width: 52px; }
-.track {
-    flex-grow: 1;
-    height: 20px;
-    margin: 0 14px;
-    justify-content: center;
-}
-.track-fill {
-    height: 4px;
-    border-radius: 2px;
-    background-color: var(--dim);
-}
-.thumb {
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
-    background-color: var(--on-bg);
-    border-width: 2px;
-    border-color: var(--field);
-    translate: -8px 0;
-}
-.date { margin-right: 14px; }
-.presets {
-    flex-direction: row;
-    border-width: 1px;
-    border-color: var(--hair);
-    border-radius: 6px;
-    padding: 2px;
-    margin-right: 10px;
-}
-.preset { height: 30px; padding: 0 10px; }
-.preset--on {
-    background-color: var(--on-bg);
-    color: var(--on-fg);
-    -unity-text-outline-color: var(--on-fg);
-}
-.preset--on:hover { background-color: var(--on-bg); }
-.text-button { height: 30px; padding: 0 10px; color: var(--muted); -unity-text-outline-color: var(--muted); }

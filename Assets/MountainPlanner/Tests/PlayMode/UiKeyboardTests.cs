@@ -209,6 +209,160 @@ namespace MountainPlanner.Tests
             Assert.That(viewer.Hud.MenuOpen, Is.True);
             yield return Press(Key.Escape);
             Assert.That(viewer.Hud.MenuOpen, Is.False, "Esc closes the menu");
+
+            // The HUD (task P2-02). T opens the Toolbox, and while it's open letters are its tools; Tab swaps it for
+            // Analysis; Esc closes what's open before it opens the menu.
+            yield return Press(Key.T);
+            Assert.That(viewer.Hud.ToolboxOpen, Is.True, "T opens the Toolbox");
+            yield return Frames(10);
+            Assert.That(viewer.Camera.LettersToTools, Is.False, "the tools are placeholders until Phase 3: WASD still pans");
+            AssertShownOnScreen(hud, "toolbox");
+            yield return Press(Key.Tab);
+            Assert.That(viewer.Hud.AnalysisOpen && !viewer.Hud.ToolboxOpen, Is.True, "Tab opens Analysis in the Toolbox's place");
+            AssertShownOnScreen(hud, "analysis");
+            yield return Press(Key.Escape);
+            Assert.That(viewer.Hud.AnalysisOpen || viewer.Hud.MenuOpen, Is.False, "Esc closes Analysis first");
+            yield return Frames(10);
+            Assert.That(viewer.Camera.LettersToTools, Is.False);
+
+            // The clock runs the sun: Space starts it, 3 picks the speed, Space stops it.
+            Assert.That(viewer.Clock.Paused, Is.True, "the view opens paused");
+            yield return Press(Key.Space);
+            Assert.That(viewer.Clock.Paused, Is.False, "Space starts the clock");
+            yield return Press(Key.Digit3);
+            Assert.That(viewer.Clock.Speed, Is.EqualTo(3));
+            var before = viewer.Clock.Now;
+            yield return Frames(20);
+            Assert.That(viewer.Clock.Now, Is.Not.EqualTo(before), "the clock runs");
+            yield return Press(Key.Space);
+            Assert.That(viewer.Clock.Paused, Is.True);
+
+            // The menu's quick switches by keyboard alone: Tab reaches them inside the menu, Enter switches.
+            bool docked = MountainPlanner.UI.Hud.HudPreferences.Docked;
+            yield return Press(Key.Escape);
+            Assert.That(viewer.Hud.MenuOpen, Is.True);
+            yield return TabTo(hud, "menu-theme-light");
+            yield return Submit(hud);
+            Assert.That(UiPreferences.Theme, Is.EqualTo(UiTheme.Light), "Enter on the menu's Light");
+            yield return TabTo(hud, docked ? "menu-dock-floating" : "menu-dock-docked");
+            yield return Submit(hud);
+            Assert.That(MountainPlanner.UI.Hud.HudPreferences.Docked, Is.EqualTo(!docked), "Enter on the menu's status bar switch");
+            AssertShownOnScreen(hud, "bar");
+            MountainPlanner.UI.Hud.HudPreferences.SetDocked(docked);   // as the player had it
+            UiPreferences.SetChoice(UiThemeChoice.Dark, remember: false);
+            yield return Press(Key.Escape);
+            Assert.That(viewer.Hud.MenuOpen, Is.False);
+
+            // The map layers dropdown: the top-right button opens it; the arrows reach its rows; Enter switches a layer.
+            viewer.Hud.ToggleLayers();
+            yield return Frames(3);
+            UiFocus.UseKeyboard(hud);
+            hud.Q<Button>("layer-snow").Focus();
+            yield return Frames(2);
+            yield return Move(hud, NavigationMoveEvent.Direction.Down);
+            AssertFocus(hud, "layer-trees", "Down walks the layers");
+            yield return Submit(hud);
+            yield return Frames(10);
+            Assert.That(hud.Q("layer-trees").ClassListContains("row--on"), Is.False, "Enter switched the trees off");
+            yield return Submit(hud);
+            yield return Frames(10);
+            Assert.That(hud.Q("layer-trees").ClassListContains("row--on"), Is.True);
+            yield return Press(Key.Escape);   // lets go of the keyboard
+            yield return Press(Key.Escape);   // closes the dropdown
+            Assert.That(viewer.Hud.LayersOpen, Is.False, "Esc closes the dropdown");
+
+            // The resort's stats: a window over a scrim with ✕ focused; focus stays inside; Esc closes it.
+            viewer.Hud.SetStats(true);
+            yield return Frames(3);
+            AssertFocus(hud, "rstats-x");
+            yield return Move(hud, NavigationMoveEvent.Direction.Next);
+            Assert.That(hud.Q("rstats").Contains((VisualElement)Focused(hud)), "focus stays in the stats window");
+            yield return Press(Key.Escape);
+            Assert.That(viewer.Hud.StatsOpen, Is.False, "Esc closes the stats");
+
+            // 0 B: the HUD's refresh allocates nothing with the clock running at full speed and the pointer moving over
+            // an info layer (each figure's text is made the first time it shows, so a second pass over the same
+            // figures must allocate nothing).
+            if (scale == 100) HudRefreshAllocatesNothing(viewer.Hud);
+        }
+
+        /// <summary>WASD and the arrows pan the map in the game, and keep panning: the HUD doesn't take them (owner's report, 2026-10-06).</summary>
+        [UnityTest]
+        public IEnumerator WasdPansTheMap()
+        {
+            Http.NetworkDisabled = true;
+            UiPreferences.SetChoice(UiThemeChoice.Dark, remember: false);
+            UiPreferences.SetScale(100, remember: false);
+            if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
+            var flow = AppFlow.Create(_root, new NoDownloads());
+            yield return SceneManager.LoadSceneAsync(ViewerScene);
+            yield return WaitForMountain(120);
+            yield return Frames(3);
+            var ui = flow.Screens.Document.rootVisualElement;
+            yield return TabTo(ui, "title-continue");
+            yield return Submit(ui);
+            yield return WaitForMountain(120, inGame: true);
+            yield return Frames(10);
+            var viewer = Object.FindAnyObjectByType<MountainViewer>();
+            var hud = viewer.Hud.Document.rootVisualElement;
+            // The player's UI hears WASD and the arrows as navigation too: with nothing focused it must not pick a HUD
+            // control (that took the keys from the camera), even after Tab put the UI in keyboard mode.
+            yield return Press(Key.Tab);
+            yield return Press(Key.Tab);
+            foreach (var d in new[] { NavigationMoveEvent.Direction.Down, NavigationMoveEvent.Direction.Right, NavigationMoveEvent.Direction.Next })
+            {
+                yield return Move(hud, d);
+                Assert.That(Focused(hud) is VisualElement f && hud.Contains(f), Is.False, $"navigation {d} picked {Name(Focused(hud))}");
+            }
+            // With the Toolbox open (its tools are placeholders until Phase 3) the letters still pan.
+            viewer.Hud.SetToolbox(true);
+            yield return Frames(10);
+            foreach (var key in new[] { Key.W, Key.A, Key.S, Key.D, Key.UpArrow, Key.W })
+            {
+                var before = viewer.Camera.Target;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(key));
+                for (float until = Time.realtimeSinceStartup + 0.4f; Time.realtimeSinceStartup < until;) yield return null;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(3);
+                Assert.That(viewer.Hud.HasKeyboard, Is.False, $"{key} didn't hand the keyboard to the HUD");
+                Assert.That(Vector3.Distance(viewer.Camera.Target, before), Is.GreaterThan(1f), $"{key} pans the map");
+            }
+        }
+
+        static void HudRefreshAllocatesNothing(MountainHud hud)
+        {
+            void Pass()
+            {
+                var t = new MountainPlanner.Simulation.ViewTime(2026, 15, 6 * 3600);
+                for (int i = 0; i < 600; i++)
+                {
+                    t = MountainPlanner.Simulation.ViewClockRunner.Add(t, 180);   // speed 4 at 10 Hz
+                    hud.SetClock(t, 4, false);
+                    hud.SetLayer(MountainPlanner.Presentation.MapLayers.SlopeAngle, true);
+                    hud.SetLegend(MountainPlanner.Presentation.MapLayers.SlopeAngle, true);
+                    hud.SetElevation(2000 + i * 3.7f);
+                    hud.SetInfoReadout(MountainPlanner.Presentation.MapLayers.SlopeAngle, i % 90, 0, float.NaN);
+                }
+                hud.SetInfoReadout(null, float.NaN, 0, float.NaN);
+            }
+            hud.PrepareElevations(1500, 4500);   // the readout's text for every elevation in the pass
+            Pass();
+            Pass();   // warm: the legend's two cards are built, every figure made
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            Pass();
+            long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.That(bytes, Is.EqualTo(0), "600 refreshes allocated nothing");
+        }
+
+        /// <summary>A HUD part is shown and wholly on the screen.</summary>
+        static void AssertShownOnScreen(VisualElement root, string name)
+        {
+            var e = root.Q(name);
+            Assert.That(e != null && UiFocus.IsShown(e), $"{name} is shown");
+            var b = e.worldBound;
+            var screen = root.panel.visualTree.worldBound;
+            Assert.That(b.xMin >= screen.xMin - 1 && b.yMin >= screen.yMin - 1 && b.xMax <= screen.xMax + 1 && b.yMax <= screen.yMax + 1,
+                $"{name} at {b} is on the {screen.width:F0}×{screen.height:F0} screen");
         }
 
         /// <summary>

@@ -36,7 +36,7 @@ namespace MountainPlanner.App
         public SceneLighting Lighting;
         /// <summary>Distant terrain shadows (FarShadow.compute), referenced from the scene so builds keep it.</summary>
         public ComputeShader FarShadowCompute;
-        /// <summary>The S6 HUD (UI Toolkit, style-tile mock).</summary>
+        /// <summary>The S6 HUD in the Trailhead direction (UI Toolkit, task P2-02).</summary>
         public MountainPlanner.UI.MountainHud Hud;
         /// <summary>Unlit colour for landmark lines, referenced from the scene so builds keep the shader.</summary>
         public Material HighlightMaterial;
@@ -68,8 +68,10 @@ namespace MountainPlanner.App
         float _toastUntil;
         bool _hudShown = true;
         float _nextReadout;
-        string _clockText = "12:00";
-        int _clockMinute = -1;
+        /// <summary>The bar's clock: pause and speeds 1–4 run the sun (task P2-02). Made when a mountain opens.</summary>
+        ViewClockRunner _clock;
+        /// <summary>The view opens paused at 10:30, unless -time or -light chose a time.</summary>
+        const int OpeningSecond = 10 * 3600 + 30 * 60;
         FarTerrainShadow _farShadows;
         /// <summary>The IMGUI overlay, enabled only while it has something to draw (<see cref="NeedsOverlay"/>).</summary>
         ViewerOverlay _overlay;
@@ -288,8 +290,15 @@ namespace MountainPlanner.App
             {
                 if (Camera != null) Camera.InputEnabled = false;
             }
-            else HandleKeys(Keyboard.current);
+            else
+            {
+                HandleKeys(Keyboard.current);
+                // A click on the mountain closes the HUD's dropdowns (the mockup).
+                var click = Mouse.current;
+                if (Hud != null && _resort != null && click != null && click.leftButton.wasPressedThisFrame && !Hud.IsPointerOverPanel(click.position.ReadValue())) Hud.ClickedMap();
+            }
             _resort?.States?.Sync();
+            RunClock();
             // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.
             if (Lighting != null) MountainPlanner.UI.UiPreferences.SetDaylight(Lighting.CurrentLight.SunElevation > 0);
             UpdateHud();
@@ -306,6 +315,24 @@ namespace MountainPlanner.App
         }
 
         /// <summary>
+        /// The bar's clock moves the sun (task P2-02): a time set elsewhere (the F1 slider, -time) is taken first, and the
+        /// sun catches up every 30 game seconds or when the clock stops (ViewClockRunner).
+        /// </summary>
+        void RunClock()
+        {
+            if (_clock == null || Lighting == null || TitleMode) return;
+            _clock.Adopt(Lighting.Clock.Now);
+            int day = _clock.Now.DayOfYear;
+            _clock.Advance(Mathf.Min(0.25f, Time.unscaledDeltaTime));
+            // A new day while the clock runs gets a routine note, as in the mockup (a few words once a game day).
+            if (_clock.Now.DayOfYear != day && Hud != null && _hudShown)
+                Hud.Toast(MountainPlanner.UI.Hud.HudText.Day(MountainPlanner.UI.Hud.HudText.SeasonDay(_clock.Now.Year, _clock.Now.DayOfYear)) + " begins");
+            if (!_clock.SunBehind) return;
+            Lighting.SetTime(_clock.Now);
+            _clock.Pushed();
+        }
+
+        /// <summary>
         /// The view keys (docs/plans/controls-key-map.md). The HUD owns T, Tab, U, Space, 1–4, Ctrl+S and Enter;
         /// while its Toolbox tray is open (<see cref="ViewCamera.LettersToTools"/>) letters are tool keys, so P
         /// and C wait until it closes.
@@ -318,19 +345,34 @@ namespace MountainPlanner.App
             bool flowKeys = (FlowHasKeyboard?.Invoke() ?? false) || FlowTookEscapeFrame == Time.frameCount;
             if (keys.escapeKey.wasPressedThisFrame && !flowKeys)
             {
-                if (_photo) _photo = false;   // Esc backs out one step
-                else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }   // a HUD control lets go of the keyboard first
-                else if (Hud != null && _resort != null) Hud.ToggleMenu();   // Quit is in the menu (0.4 S7)
+                // Esc backs out one step: photo mode, then the HUD's window, dropdown or panel, then a HUD control lets go
+                // of the keyboard; with nothing left to close it opens the menu (Quit is in it, 0.4 S7).
+                if (_photo) _photo = false;
+                else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
+                else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
+                else if (Hud != null && _resort != null && Hud.BackOut()) { }
+                else if (Hud != null && _resort != null) Hud.ToggleMenu();
                 else Application.Quit();
             }
             if (keys.f1Key.wasPressedThisFrame) _help = !_help;
             if (_resort == null) return;
+            // Tab is Analysis whenever no window has the keyboard (the HUD keeps Tab from moving between its controls).
+            if (Hud != null && keys.tabKey.wasPressedThisFrame && !Hud.ModalOpen && !flowKeys && !(FlowHasKeyboard?.Invoke() ?? false)) Hud.ToggleAnalysis();
             if (UiHasKeyboard()) return;   // the menu, a dialog or a focused HUD control has the keys (task P2-01)
-            if (plain && keys.hKey.wasPressedThisFrame) _ui = !_ui;
+            if (Hud != null && plain && keys.tKey.wasPressedThisFrame) Hud.ToggleToolbox();
+            if (_clock != null && plain && keys.spaceKey.wasPressedThisFrame && !_photo) _clock.TogglePause();
+            if (_clock != null && plain)
+            {
+                if (keys.digit1Key.wasPressedThisFrame) _clock.SetSpeed(1);
+                if (keys.digit2Key.wasPressedThisFrame) _clock.SetSpeed(2);
+                if (keys.digit3Key.wasPressedThisFrame) _clock.SetSpeed(3);
+                if (keys.digit4Key.wasPressedThisFrame) _clock.SetSpeed(4);
+            }
+            if (plain && letters && keys.hKey.wasPressedThisFrame) _ui = !_ui;   // while the tray is open, letters are tools
             if (plain && letters && keys.pKey.wasPressedThisFrame) _photo = !_photo;
             if (_photo && (keys.f12Key.wasPressedThisFrame || keys.spaceKey.wasPressedThisFrame) && !_capturing) StartCoroutine(CapturePhoto());
             if (plain && letters && keys.cKey.wasPressedThisFrame && Camera != null) Camera.ToggleMode();
-            if (plain && letters && keys.uKey.wasPressedThisFrame) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
+            if (plain && keys.uKey.wasPressedThisFrame) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
             if (keys.homeKey.wasPressedThisFrame) HomeView();
             if (shift)
             {
@@ -354,18 +396,41 @@ namespace MountainPlanner.App
         {
             if (_resort == null) return;
             if (_layers.Toggle(layer)) return;
-            if (layer == MapLayers.SnowConditions) Toast("Snow conditions come with the snow simulation");
+            if (layer != MapLayers.SnowConditions) return;
+            if (Hud != null && _hudShown) Hud.Toast("Snow conditions come with the snow simulation");
+            else Toast("Snow conditions come with the snow simulation");
         }
+
+        /// <summary>For UI captures (AppFlow.UiCapture): a layer on or off, and the pointer at a fraction of the screen (null: the mouse).</summary>
+        internal void SetLayerForCapture(string layer, bool on) { if (_resort != null && _layers.IsOn(layer) != on) ToggleLayer(layer); }
+
+        internal void SetPointerForCapture(Vector2? fraction) => _pointer = fraction;
+
+        /// <summary>The bar's clock (tests).</summary>
+        internal ViewClockRunner Clock => _clock;
+
+        static string Coordinates(double lat, double lon) =>
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.00}° {1}, {2:0.00}° {3}", Math.Abs(lat), lat >= 0 ? "N" : "S", Math.Abs(lon), lon >= 0 ? "E" : "W");
 
         void WireHud()
         {
             if (Hud == null) return;
-            Hud.SetSite(_resort.Manifest.Site.Name, _resort.Manifest.Quality.Score);
+            var site = _resort.Manifest.Site;
+            // Packages keep no place name yet, so the line under the name (the mockup's "Jackson Hole, Wyoming") says where it is.
+            Hud.SetSite(site.Name, Coordinates(site.Latitude, site.Longitude), _resort.Manifest.Quality.Score);
             Hud.PrepareElevations(_resort.Cache.HeightMin - 100, _resort.Cache.HeightMin + _resort.Cache.HeightRange + 100);
+            Hud.SetTerrain(_resort.Cache.HeightMin + _resort.Cache.HeightRange, _resort.Cache.HeightMin, (double)site.SizeMetres * site.SizeMetres);
             Hud.LayerChanged += (layer, on) => { if (on != _layers.IsOn(layer)) ToggleLayer(layer); };
-            Hud.PresetChosen += i => Lighting?.Set(i);
-            Hud.NorthUpChosen += () => Camera?.SetAngles(0, Camera.Pitch);
             Hud.QuitChosen += Application.Quit;
+            if (Lighting != null)
+            {
+                // The bar's clock (task P2-02): the view opens paused at 10:30 unless -time or -light chose a time.
+                var args = Environment.GetCommandLineArgs();
+                if (Array.IndexOf(args, "-time") < 0 && Array.IndexOf(args, "-light") < 0) Lighting.SetTime(Lighting.Clock.Now.WithSecondOfDay(OpeningSecond));
+                _clock = new ViewClockRunner(Lighting.Clock.Now);
+                Hud.PauseChosen += _clock.TogglePause;
+                Hud.SpeedChosen += _clock.SetSpeed;
+            }
             Hud.UnitsChosen += DisplayUnits.Toggle;
             ViewCamera.PointerBlocked = Hud.IsPointerOverPanel;
             ViewCamera.KeysBlocked = UiHasKeyboard;
@@ -404,7 +469,7 @@ namespace MountainPlanner.App
         void LateUpdate()
         {
             if (_contourLabels == null || _resort == null) return;
-            _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _hudShown && !_photo);
+            _landmarkLabels?.Update(Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null, _hudShown && !_photo && (Hud == null || Hud.LabelsOn));
             var set = _resort.ContourLabels[(int)DisplayUnits.Current];
             if (!ReferenceEquals(set, _contourLabelSet))
             {
@@ -448,23 +513,20 @@ namespace MountainPlanner.App
             foreach (string id in MapLayers.MapIds) Hud.SetLayer(id, _layers.IsOn(id));
             foreach (string id in MapLayers.InfoIds) Hud.SetLayer(id, _layers.IsOn(id));
             Hud.SetLegend(_layers.InfoLayerId, _layers.ContoursOn);
-            int preset = Lighting != null ? Lighting.Current : LightingPreset.Noon;
-            int second = Lighting != null ? Lighting.Clock.Now.SecondOfDay : 12 * 3600;
-            if (second / 60 != _clockMinute)   // the clock's text changes once a minute, not on every refresh
-            {
-                _clockMinute = second / 60;
-                _clockText = $"{second / 3600:D2}:{second / 60 % 60:D2}";
-            }
-            Hud.SetPreset(preset, _clockText, second / (float)ViewTime.SecondsPerDay);
+            if (_clock != null) Hud.SetClock(_clock.Now, _clock.Speed, _clock.Paused);
+            // While the tray is open its tools take their letters (the key map), from Phase 3 when the tools work; until
+            // then the letters, WASD among them, stay with the camera.
+            Camera.LettersToTools = false;
             var cam = Camera.GetComponent<UnityEngine.Camera>();
-            float distance = Vector3.Distance(cam.transform.position, Camera.Target);
-            float metresPerPixel = 2 * distance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height);
             var mouse = Mouse.current;
             float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
             string info = _layers.InfoLayerId;
-            if (mouse != null || _pointer.HasValue)
+            Vector2? pointer = _pointer.HasValue ? new Vector2(_pointer.Value.x * Screen.width, _pointer.Value.y * Screen.height)
+                : mouse != null ? mouse.position.ReadValue() : (Vector2?)null;
+            // Over the HUD the bar shows no elevation, as the mockup does ("– – –").
+            if (pointer.HasValue && (_pointer.HasValue || !Hud.IsPointerOverPanel(pointer.Value)))
             {
-                var ray = cam.ScreenPointToRay(_pointer.HasValue ? new Vector2(_pointer.Value.x * Screen.width, _pointer.Value.y * Screen.height) : mouse.position.ReadValue());
+                var ray = cam.ScreenPointToRay(pointer.Value);
                 float hit = Camera.GroundAlong(ray, 30000);
                 if (!float.IsNaN(hit))
                 {
@@ -475,7 +537,7 @@ namespace MountainPlanner.App
                     else if (!float.IsNaN(elevation) && info == MapLayers.SnowDepth) snow = SnowDepthAt(g.x, g.z);
                 }
             }
-            Hud.SetReadouts(cam.transform.eulerAngles.y, metresPerPixel, elevation);
+            Hud.SetElevation(elevation);
             Hud.SetInfoReadout(info, slope, bearing, snow);
         }
 

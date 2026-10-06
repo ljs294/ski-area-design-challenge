@@ -144,7 +144,7 @@ namespace MountainPlanner.UI.Flow
             _root.Q<Button>("settings-defaults").clicked += () =>
             {
                 UiPreferences.SetChoice(UiThemeChoice.Dark);
-                UiPreferences.SetScale(100);
+                UiPreferences.SetScale(UiPreferences.DefaultScalePercent);
                 FlowUnits.Set(true);
                 MarkUnits();
                 SetDisplay(1);   // borderless full screen

@@ -18,11 +18,13 @@ namespace MountainPlanner.UI
     public static class UiPreferences
     {
         public const int MinScalePercent = 50, MaxScalePercent = 150, ScaleStepPercent = 5;
+        /// <summary>The interface scale until the player picks one: 85% of the mockup's size (owner, 2026-10-06, task P2-02).</summary>
+        public const int DefaultScalePercent = 85;
         const string ThemeKey = "MountainPlanner.UiTheme", ScaleKey = "MountainPlanner.UiScale";
 
         static bool _loaded, _daylight = true;
         static UiThemeChoice _choice = UiThemeChoice.Dark;
-        static int _scale = 100;
+        static int _scale = DefaultScalePercent;
 
         /// <summary>Raised after the theme or the scale changes.</summary>
         public static event Action Changed;
@@ -68,7 +70,7 @@ namespace MountainPlanner.UI
         {
             _loaded = true;
             _choice = Parse(PlayerPrefs.GetInt(ThemeKey, (int)UiThemeChoice.Dark));
-            _scale = SnapScale(PlayerPrefs.GetInt(ScaleKey, 100));
+            _scale = SnapScale(PlayerPrefs.GetInt(ScaleKey, DefaultScalePercent));
             string[] args = Environment.GetCommandLineArgs();
             int i = Array.IndexOf(args, "-theme");
             if (i >= 0 && i + 1 < args.Length) _choice = args[i + 1] == "light" ? UiThemeChoice.Light : args[i + 1] == "auto" ? UiThemeChoice.Auto : UiThemeChoice.Dark;

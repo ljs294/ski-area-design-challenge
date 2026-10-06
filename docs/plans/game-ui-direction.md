@@ -180,6 +180,12 @@ The style-tile HUD mock ([S6](phase0-0.4-ui-ux.md)) moves into this frame when t
 
 ### 7.1 Built in the S6 mock, to carry into the Trailhead HUD (tasks 12–12b.2)
 
+**As built (task P2-02, 2026-10-06):** the Trailhead HUD replaces the S6 mock, following the accepted mockup's `#demo=p2` view and kept in step with it by [hud-mockup-parity.md](hud-mockup-parity.md). The behaviour below carries over. The legend's line under "Elev." and the readout keep their words. Owner rulings that day:
+- the clock runs the sun (Space, 1–4; the lighting presets and the compass and scale bar are gone);
+- the interface scale defaults to 85%;
+- panels are 95% opaque;
+- greyed placeholders stand in for the Toolbox and Analysis until Phases 3 and 4.
+
 The behaviour below runs in the game today inside the placeholder S6 HUD (`Hud.uxml`, `Hud.uss`, `MountainHud.cs`). The Trailhead HUD rebuilds the visuals and keeps the behaviour, wired to the same code. The mockup is updated to match in its own thread.
 
 | Element | Behaviour | Data and wording live in |
