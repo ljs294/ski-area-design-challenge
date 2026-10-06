@@ -115,7 +115,7 @@
 .library-sort { flex-direction: row; align-items: center; padding: 8px 16px; border-bottom-width: 1px; border-bottom-color: var(--hair); }
 .library-sort > .muted { margin-right: 8px; font-size: 12px; }
 .library-rows { flex-grow: 0; flex-shrink: 1; min-height: 48px; }
-.library-empty { padding: 32px 16px; color: var(--muted); -unity-text-outline-color: var(--muted); font-size: 15px; }
+.library-empty { white-space: normal; padding: 32px 16px; color: var(--muted); -unity-text-outline-color: var(--muted); font-size: 15px; }
 
 .lib-row {
     flex-direction: row; align-items: center;

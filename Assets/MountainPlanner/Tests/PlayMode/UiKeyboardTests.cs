@@ -211,6 +211,81 @@ namespace MountainPlanner.Tests
             Assert.That(viewer.Hud.MenuOpen, Is.False, "Esc closes the menu");
         }
 
+        /// <summary>
+        /// Task 08's library states by keyboard alone: an area from a newer game is reached by the arrows but never
+        /// opens (Enter does nothing), and Delete still asks to remove it; a library folder from a newer game lists
+        /// nothing, says why, and puts focus on New Area.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator NewerAreasWorkByKeyboardAlone([Values(50, 100, 150)] int scale)
+        {
+            string fixtures = Path.Combine(Path.GetDirectoryName(Application.dataPath), "TestData", "formats", "demo");
+            string newer = Path.Combine(ResortLibrary.ResortsFolder(_root), "newer-area");
+            string layout = Path.Combine(_root, LibraryIndex.FileName);
+            Directory.CreateDirectory(newer);
+            File.Copy(Path.Combine(fixtures, "newer-area", ResortPackage.ManifestFile), Path.Combine(newer, ResortPackage.ManifestFile), true);
+            try
+            {
+                Http.NetworkDisabled = true;
+                UiPreferences.SetChoice(UiThemeChoice.Dark, remember: false);
+                UiPreferences.SetScale(scale, remember: false);
+                if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
+                var flow = AppFlow.Create(_root, new NoDownloads());
+                yield return SceneManager.LoadSceneAsync(ViewerScene);
+                yield return WaitForMountain(120);
+                yield return Frames(3);
+                var ui = flow.Screens.Document.rootVisualElement;
+
+                // Load Area: the mountain that opens is selected first; Down reaches the greyed row; Enter leaves it shut.
+                yield return TabTo(ui, "title-load");
+                yield return Submit(ui);
+                AssertFocusClass(ui, "lib-row");
+                Assert.That(flow.Screens.SelectedRow.CanOpen, Is.True, "an area that opens is selected first");
+                yield return Move(ui, NavigationMoveEvent.Direction.Down);
+                AssertFocusClass(ui, "lib-row--newer", "Down reaches the newer game's area");
+                Assert.That(flow.Screens.SelectedRow.IsNewer, Is.True);
+                yield return Submit(ui);
+                yield return Press(Key.Enter);
+                Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Library), "Enter doesn't open a newer game's area");
+                Assert.That(flow.Controller.InGame, Is.False);
+                AssertFocusClass(ui, "lib-row--newer", "focus stays on it");
+                yield return Press(Key.Escape);
+                Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Title));
+
+                // Manage Areas: Delete on the greyed row asks; Cancel (focused first) keeps it.
+                yield return TabTo(ui, "title-manage");
+                yield return Submit(ui);
+                yield return Move(ui, NavigationMoveEvent.Direction.Down);
+                AssertFocusClass(ui, "lib-row--newer");
+                yield return Press(Key.Delete);
+                Assert.That(flow.Screens.ConfirmOpen, Is.True, "Delete asks first");
+                AssertFocus(ui, "confirm-cancel");
+                yield return Submit(ui);
+                Assert.That(flow.Screens.ConfirmOpen, Is.False);
+                Assert.That(Directory.Exists(newer), Is.True, "Cancel deleted nothing");
+                AssertFocusClass(ui, "lib-row--newer", "focus goes back to the row");
+                yield return Press(Key.Escape);
+                Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Title));
+
+                // A library folder from a newer game: Load Area lists nothing, says why, and focuses New Area.
+                File.WriteAllText(layout, File.ReadAllText(Path.Combine(fixtures, LibraryIndex.FileName)));
+                yield return TabTo(ui, "title-load");
+                yield return Submit(ui);
+                yield return Frames(3);
+                Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Library));
+                Assert.That(flow.Screens.SelectedRow, Is.Null, "nothing is listed");
+                Assert.That(ui.Q<Label>("library-empty")?.text ?? "", Does.Contain("newer version of Mountain Planner"), "it says why");
+                AssertFocus(ui, "library-new", "focus goes to New Area");
+                yield return Press(Key.Escape);
+                Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Title));
+            }
+            finally
+            {
+                if (File.Exists(layout)) File.Delete(layout);
+                if (Directory.Exists(newer)) Directory.Delete(newer, true);
+            }
+        }
+
         // ---------- helpers ----------
 
         /// <summary>Waits for a mountain on screen: behind the title, or opened in the game.</summary>
