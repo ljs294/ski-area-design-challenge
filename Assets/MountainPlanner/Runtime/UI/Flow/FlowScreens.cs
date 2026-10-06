@@ -35,8 +35,11 @@ namespace MountainPlanner.UI.Flow
         VisualElement _dlActions, _dlConfirm, _dlFailed;
         ScrollView _rows;
         Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast, _scaleValue;
-        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric, _themeDark, _themeLight, _themeAuto, _scaleDown, _scaleUp, _tabInterface, _tabUnits;
-        VisualElement _pageInterface, _pageUnits;
+        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric, _themeDark, _themeLight, _themeAuto, _scaleDown, _scaleUp, _tabInterface, _displayPrev, _displayNext;
+        Button[] _settingsTabs;
+        VisualElement[] _settingsPages;
+        Label _displayValue;
+        int _display = 1;
         Label _settingsResort;
         ScrollView _creditsBody;
         readonly List<VisualElement> _rowElements = new List<VisualElement>();
@@ -124,12 +127,19 @@ namespace MountainPlanner.UI.Flow
             UiPreferences.Changed += MarkInterface;
             // The mockup's Settings window: categories down the left, Restore defaults and Done at the foot.
             _tabInterface = _root.Q<Button>("settings-tab-interface");
-            _tabUnits = _root.Q<Button>("settings-tab-units");
-            _pageInterface = _root.Q("settings-interface");
-            _pageUnits = _root.Q("settings-units");
+            _settingsTabs = new[] { _tabInterface, _root.Q<Button>("settings-tab-units"), _root.Q<Button>("settings-tab-graphics") };
+            _settingsPages = new[] { _root.Q("settings-interface"), _root.Q("settings-units"), _root.Q("settings-graphics") };
             _settingsResort = _root.Q<Label>("settings-resort");
-            _tabInterface.clicked += () => SettingsPage(interfacePage: true);
-            _tabUnits.clicked += () => SettingsPage(interfacePage: false);
+            for (int i = 0; i < _settingsTabs.Length; i++)
+            {
+                int page = i;
+                _settingsTabs[i].clicked += () => SettingsPage(page);
+            }
+            _displayPrev = _root.Q<Button>("display-prev");
+            _displayNext = _root.Q<Button>("display-next");
+            _displayValue = _root.Q<Label>("display-value");
+            _displayPrev.clicked += () => SetDisplay(_display - 1);
+            _displayNext.clicked += () => SetDisplay(_display + 1);
             _root.Q<Button>("settings-done").clicked += CloseOverlay;
             _root.Q<Button>("settings-defaults").clicked += () =>
             {
@@ -137,6 +147,7 @@ namespace MountainPlanner.UI.Flow
                 UiPreferences.SetScale(100);
                 FlowUnits.Set(true);
                 MarkUnits();
+                SetDisplay(1);   // borderless full screen
             };
             _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();
             _root.Q<Button>("library-close").clicked += () => LibraryClosed?.Invoke();
@@ -439,17 +450,38 @@ namespace MountainPlanner.UI.Flow
             MarkUnits();
             MarkInterface();
             SetText(_settingsResort, resort ?? "");
-            SettingsPage(interfacePage: true);
+            _display = UiDisplay.Current;   // Alt+Enter may have changed it since
+            MarkDisplay();
+            SettingsPage(0);
             Show(_settings, true);
             UiFocus.OpenModal(_settings, _tabInterface);
         }
 
-        void SettingsPage(bool interfacePage)
+        /// <summary>Shows one category: 0 Interface, 1 Units and time, 2 Graphics.</summary>
+        void SettingsPage(int page)
         {
-            Show(_pageInterface, interfacePage);
-            Show(_pageUnits, !interfacePage);
-            _tabInterface.EnableInClassList("mp-nav__item--on", interfacePage);
-            _tabUnits.EnableInClassList("mp-nav__item--on", !interfacePage);
+            for (int i = 0; i < _settingsPages.Length; i++)
+            {
+                Show(_settingsPages[i], i == page);
+                _settingsTabs[i].EnableInClassList("mp-nav__item--on", i == page);
+            }
+        }
+
+        /// <summary>Graphics › Display mode: a window, borderless full screen or exclusive full screen (UiDisplay).</summary>
+        void SetDisplay(int index)
+        {
+            index = Mathf.Clamp(index, 0, UiDisplay.Modes.Length - 1);
+            if (index == _display) return;
+            _display = index;
+            UiDisplay.Set(index);
+            MarkDisplay();
+        }
+
+        void MarkDisplay()
+        {
+            SetText(_displayValue, UiDisplay.Names[_display]);
+            _displayPrev.SetEnabled(_display > 0);
+            _displayNext.SetEnabled(_display < UiDisplay.Modes.Length - 1);
         }
 
         void MarkUnits()

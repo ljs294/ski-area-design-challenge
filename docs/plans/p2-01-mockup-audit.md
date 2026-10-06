@@ -20,7 +20,8 @@ to be followed closely (2026-10-06).
 | Panels | Mockup's 96% translucency (shows ~13% of the map in Unity's linear blending) | Solid, as the mockup reads in a browser |
 | Light-theme text | Visibly thinner and paler than dark | A 0.3 px outline in each text's own colour (light theme only) matches the dark theme's weight. Gamma blending was tried and washed every colour out |
 | Components | Per-screen buttons, segments and heads | The mockup's window, 38 px head, square ✕, green "go", outlined "ghost", segmented switch, ‹ value › stepper, settings rows and category list, once, in `Base.uss` (`mp-*`) |
-| Settings | Small units-only dialog | The mockup's Settings window: categories on the left; Interface (Theme Dark/Light/Auto, Interface scale ‹ 100% ›), Units and time (Metric/Imperial); Restore defaults and Done; the resort's name in the head in game |
+| Settings | Small units-only dialog | The mockup's Settings window: categories on the left; Interface (Theme Dark/Light/Auto, Interface scale ‹ 100% ›), Units and time (Metric/Imperial), Graphics (Display mode ‹ Windowed / Borderless / Fullscreen ›, owner); Restore defaults and Done; the resort's name in the head in game |
+| Window | Saved as whatever the last run used; not resizable | Borderless full screen by default at the display's resolution; a resizable window; Alt+Enter or Settings › Graphics switches |
 | Theme | Dark or light, HUD only | Dark, Light or **Auto** (light from sunrise to sunset), for every screen, remembered |
 | Keyboard | Mouse first; a few screens focused a control | Every screen opens with a control focused; arrows move to the nearest control, Tab cycles, Enter presses, Esc backs out; modals keep focus and give it back; one focus ring, shown only after a key |
 | Ultrawide | Full-screen panels stretched to the screen | Title, library and modals sit in a centred 16:9 column; cards and the HUD stay on the screen's edges |
@@ -57,7 +58,7 @@ Unity:
    bar have no place in the mockup. The clock in the bar and the speed arrows replace the presets; the compass and
    scale bar go or move to the map layers.
 10. **The rest of Settings.** Status bar, map labels, tooltips, notifications, clock, bank balance format, Gameplay,
-    Graphics, Audio and Controls pages. Add each as its setting starts to work.
+    Audio and Controls pages, the rest of Graphics. Add each as its setting starts to work.
 
 ## 3. Screens outside the mockup
 
