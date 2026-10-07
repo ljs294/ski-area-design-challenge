@@ -20,6 +20,8 @@
    - then the comparison with the baselines.
 3. **42** benchmarks a single preset: Low, Medium, High or Ultra.
 4. **21** is the quick High run. The game also takes `-quality low|medium|high|ultra` on its own.
+5. Every benchmark entry passes `-benchres 1920x1080`: a 1920×1080 window for that run only, put back to your saved window
+   mode before the game quits. Never use `-screen-*` instead; Unity saves it as the game's window mode (**50** resets it).
 
 ## Quality presets (B1)
 

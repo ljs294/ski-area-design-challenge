@@ -75,7 +75,7 @@ Still open:
 Four scripted review movies drive the real picker (typed text, real key events, a drawn pointer, captions and the keys on screen): search and the keyboard, placing and sizing, themes and units, and offline and errors. They aren't committed (Git LFS budget); to make them again, close the Unity editor, then:
 
 ```
-Builds\PickerLab\PickerLab.exe -screen-fullscreen 0 -screen-width 1600 -screen-height 900 -tour search -record test-results\picker-movies\1-search
+Builds\PickerLab\PickerLab.exe -benchres 1600x900 -tour search -record test-results\picker-movies\1-search
 Unity.exe -batchmode -projectPath . -executeMethod MountainPlanner.Editor.PickerLabSetup.EncodeMovies -movies test-results\picker-movies -quit
 ```
 

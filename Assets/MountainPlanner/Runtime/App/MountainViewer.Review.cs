@@ -21,6 +21,8 @@ namespace MountainPlanner.App
     ///                            GPU times, garbage and memory per leg and in total, checks them against the
     ///                            quality preset's budget (-quality), saves a screenshot of each leg, then quits.
     ///   -benchmark-views &lt;out.json&gt;  the earlier benchmark: 300 frames at each fixed view, with visible trees per LOD.
+    ///   -benchres &lt;w&gt;x&lt;h&gt;   a fixed window for this run only, restored before quitting (<see cref="BenchmarkResolution"/>);
+    ///                            demo.bat passes 1920x1080 with every benchmark. Never -screen-*: Unity saves it.
     ///   -lineup &lt;out prefix&gt;    no mountain: every species in a row on flat snow, captured at each forced LOD
     ///                            from the side, from above and against the sun, close-ups, trunks from a few
     ///                            metres, and a mixed stand seen from near to far at natural LOD. Then quits.
