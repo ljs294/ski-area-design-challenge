@@ -87,10 +87,10 @@ RWTexture2D<float> _CrownMap;
 float4 _CrownRect;                          // west, south, metres per texel, unused
 uint2 _CrownSize;                           // texels
 
-[numthreads(64, 1, 1)]
+[numthreads(8, 8, 1)]
 void CrownClear(uint3 id : SV_DispatchThreadID)
 {
-    if (id.x < _CrownSize.x * _CrownSize.y) _CrownSum[id.x] = 0;
+    if (all(id.xy < _CrownSize)) _CrownSum[id.y * _CrownSize.x + id.x] = 0;
 }
 
 void AddCrown(int2 i, float v)

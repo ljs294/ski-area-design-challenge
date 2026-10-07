@@ -287,7 +287,7 @@ namespace MountainPlanner.Presentation
                 _cull.SetBuffer(splat, "_CrownRadius", radius);
                 _cull.SetBuffer(resolve, "_CrownSum", sum);
                 _cull.SetTexture(resolve, "_CrownMap", map);
-                _cull.Dispatch(clear, (w * h + 63) / 64, 1, 1);
+                _cull.Dispatch(clear, (w + 7) / 8, (h + 7) / 8, 1);
                 _cull.Dispatch(splat, (_treeCount + 63) / 64, 1, 1);
                 _cull.Dispatch(resolve, (w + 7) / 8, (h + 7) / 8, 1);
             }

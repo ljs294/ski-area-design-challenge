@@ -500,16 +500,7 @@ Shader "MountainPlanner/Terrain"
                             // Forest floor a touch lighter and mossier, so stands don't sit in black pools.
                             SampleDetail(1, _Tile[1], i.positionWS, n, albedos[k], normals[k]);
                             albedos[k].rgb *= Macro(i.positionWS) * float3(1.2, 1.28, 1.12);
-                            UNITY_BRANCH
-                            if (crown >= 0)
-                            {
-                                // With the crown map (P2-09) the floor is the stand's own ground in shade: needles over
-                                // shaded grass, not a brown pad; the darkness under the crowns comes from the light below.
-                                float4 grass;
-                                float3 grassN;
-                                SampleGrass(i.positionWS, n, groundPercent, grass, grassN);
-                                albedos[k].rgb = lerp(grass.rgb * float3(0.86, 0.8, 0.68), albedos[k].rgb, 0.4);
-                            }
+
                         }
                         else if (k == 4) { SampleTop(k, i.positionWS, n, albedos[k], normals[k]); albedos[k].rgb *= Macro(i.positionWS); }
                         else if (k == 6)
@@ -533,6 +524,10 @@ Shader "MountainPlanner/Terrain"
                         best = max(best, heights[k]);
                     }
                 }
+                // With the crown map (P2-09) the floor is the stand's own ground in shade: needles over the grass beside
+                // them (already sampled, needle-tinted), not a brown pad; the darkness under crowns comes from the light.
+                if (crown >= 0 && weights[1] > 0.004)
+                    albedos[1].rgb = lerp(weights[2] > 0.004 ? albedos[2].rgb : albedos[1].rgb * float3(0.75, 0.9, 0.7), albedos[1].rgb, 0.4);
                 float3 albedo = 0, normal = 0;
                 float total = 0, smooth = 0;
                 [unroll] for (int m = 0; m < 8; m++)

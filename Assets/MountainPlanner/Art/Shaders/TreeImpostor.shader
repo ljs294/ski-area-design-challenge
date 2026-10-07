@@ -148,8 +148,13 @@ Shader "MountainPlanner/TreeImpostor"
             float lod = clamp(level - _ImpSharpen, 0, 3);
             half3 colour = 0;
             half4 dat = 0;
-            half2 fl = 0;
             half coverage = 0;
+            // The flecks follow the frame with the most weight (one frame's cells; four would cost four times as much).
+            float2 topUV = uvA.xy, topCell = cellsA.xy;
+            float topW = weights.x;
+            if (weights.y > topW) { topW = weights.y; topUV = uvA.zw; topCell = cellsA.zw; }
+            if (weights.z > topW) { topW = weights.z; topUV = uvB.xy; topCell = cellsB.xy; }
+            if (weights.w > topW) { topUV = uvB.zw; topCell = cellsB.zw; }
             [unroll] for (int k = 0; k < 4; k++)
             {
                 float2 uv = uvs[k];
@@ -160,13 +165,12 @@ Shader "MountainPlanner/TreeImpostor"
                 half a = c.a * w4[k];
                 colour += c.rgb * a;
                 dat += d * a;
-                fl += Flecks(uv * _ImpFrameSize, cells[k], d.a, level) * a;
                 coverage += a;
             }
             half inv = 1 / max(coverage, 1e-4);
             albedo = half4(colour * inv, coverage);
             data = dat * inv;
-            flecks = fl * inv;
+            flecks = Flecks(saturate(topUV) * _ImpFrameSize, topCell, data.a, level);
         }
         ENDHLSL
 
