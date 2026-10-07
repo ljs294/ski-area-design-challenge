@@ -18,9 +18,10 @@ a nested `AGENTS.md` needs a same-directory `CLAUDE.md` with the same import.
 - Tests (editor closed): `<Unity.exe> -batchmode -projectPath . -runTests -testPlatform EditMode`
   (and `PlayMode`), results under `test-results/`.
 - Benchmark (task 15): `demo.bat` 41 runs the fixed camera path over the Jackson Hole demo at High and Medium
-  (`-quality`, `-benchmark <out.json>`) in the release game, plus the Development game for exact garbage and memory,
+  (`-quality`, `-benchmark <out.json>`, `-benchres 1920x1080`) in the release game, plus the Development game for exact garbage and memory,
   then `node tools/perf/compare.mjs docs/perf/<baseline>.json <run>.json` against the stored baselines. Rendering
-  PRs state before-and-after numbers (0.3 §8.1).
+  PRs state before-and-after numbers (0.3 §8.1). Never pass `-screen-*` to a player: Unity saves it as the
+  owner's window mode; `-benchres` sets a window for one run and restores the saved mode before quitting.
 
 ## Assemblies
 `Domain -> Simulation -> Persistence -> Acquisition -> World -> Presentation -> UI -> App`; references
