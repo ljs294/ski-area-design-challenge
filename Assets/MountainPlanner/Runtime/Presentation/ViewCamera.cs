@@ -13,6 +13,7 @@ namespace MountainPlanner.Presentation
     ///     R / F pitch, Page Up / Page Down rise and sink, wheel and + / − fly forward and back, right- or
     ///     middle-drag look.
     ///   Shift: faster.
+    /// Those are the default keys; the player can rebind them (<see cref="KeyBindings"/>, task P2-05).
     /// Bounds (owner, 2026-10-01): the focus point never leaves the ring, and free-fly stays over it; the orbit
     /// eye may swing out up to <see cref="OutsideRing"/> past the edge to see the diorama walls, never below
     /// the plinth top. Over the terrain the camera stays <see cref="Clearance"/> above the snow
@@ -71,6 +72,11 @@ namespace MountainPlanner.Presentation
         public bool LettersToTools;
         /// <summary>False ignores the keyboard and mouse entirely (benchmarks, scripted reviews).</summary>
         public bool InputEnabled = true;
+        /// <summary>
+        /// True: the camera's vertical field of view is the player's setting (<see cref="ViewFov"/>; the rule for
+        /// every game camera). False leaves it to a caller that sets its own (a future photo-mode lens).
+        /// </summary>
+        public bool FollowFovSetting = true;
 
         /// <summary>The right or middle drag in progress started over a panel, so it belongs to the UI until both are up.</summary>
         bool _dragOnPanel;
@@ -92,6 +98,28 @@ namespace MountainPlanner.Presentation
             _camera = GetComponent<Camera>();
             _farNear = _camera != null ? _camera.nearClipPlane : 1f;
         }
+
+        void OnEnable()
+        {
+            ViewFov.Changed += ApplyFov;
+            QualityPresets.Applied += ApplyAntialiasing;
+            ApplyFov();
+            ApplyAntialiasing();
+        }
+
+        void OnDisable()
+        {
+            ViewFov.Changed -= ApplyFov;
+            QualityPresets.Applied -= ApplyAntialiasing;
+        }
+
+        /// <summary>The setting's vertical angle; the horizontal one follows the screen (Hor+, E6).</summary>
+        void ApplyFov()
+        {
+            if (_camera != null && FollowFovSetting) _camera.fieldOfView = ViewFov.Vertical;
+        }
+
+        void ApplyAntialiasing() => QualityPresets.ApplyTo(_camera);
 
         /// <summary>Orbit around <paramref name="target"/> from <paramref name="distance"/> metres (switches to orbit).</summary>
         public void Frame(Vector3 target, float distance)
@@ -161,7 +189,8 @@ namespace MountainPlanner.Presentation
             var keys = Keyboard.current;
             bool fast = keys != null && keys.shiftKey.isPressed;
             float boost = fast ? 3f : 1f;
-            bool letters = !LettersToTools && keys != null && !keys.ctrlKey.isPressed && !keys.altKey.isPressed;
+            bool letters = !LettersToTools;
+            float zoomRate = CameraOptions.SpeedFactor;
             bool fly = Current == Mode.FreeFly;
             var yawOnly = Quaternion.Euler(0, _yawGoal, 0);
             var forward = fly ? Quaternion.Euler(_pitchGoal, _yawGoal, 0) * Vector3.forward : yawOnly * Vector3.forward;
@@ -190,41 +219,43 @@ namespace MountainPlanner.Presentation
                 }
 
                 // Windows reports 120 per wheel notch; some devices report 1.
-                float scroll = mouse.scroll.ReadValue().y;
+                float scroll = mouse.scroll.ReadValue().y * (CameraOptions.InvertZoom ? -1f : 1f);
                 if (Mathf.Abs(scroll) > 0.01f && !IsPointerBlocked(pointer))
                 {
                     float notches = Mathf.Abs(scroll) >= 20f ? scroll / 120f : scroll;
-                    if (fly) _eye += forward * notches * speed * 0.15f * boost;
-                    else _distanceGoal *= Mathf.Pow(1f - ZoomStep * (fast ? 2f : 1f), notches);
+                    if (fly) _eye += forward * notches * speed * 0.15f * boost * zoomRate;
+                    else _distanceGoal *= Mathf.Pow(1f - Mathf.Min(0.9f, ZoomStep * (fast ? 2f : 1f) * zoomRate), notches);
                 }
             }
 
             if (keys == null || (KeysBlocked?.Invoke() ?? false)) return;
             var move = Vector3.zero;
-            if ((letters && keys.wKey.isPressed) || keys.upArrowKey.isPressed) move += forward;
-            if ((letters && keys.sKey.isPressed) || keys.downArrowKey.isPressed) move -= forward;
-            if ((letters && keys.dKey.isPressed) || keys.rightArrowKey.isPressed) move += right;
-            if ((letters && keys.aKey.isPressed) || keys.leftArrowKey.isPressed) move -= right;
+            // The keys are the player's (KeyBindings, Settings › Controls); the defaults are the key map's.
+            if (KeyBindings.Held(keys, GameAction.MoveForward, letters)) move += forward;
+            if (KeyBindings.Held(keys, GameAction.MoveBack, letters)) move -= forward;
+            if (KeyBindings.Held(keys, GameAction.MoveRight, letters)) move += right;
+            if (KeyBindings.Held(keys, GameAction.MoveLeft, letters)) move -= right;
+            bool up = KeyBindings.Held(keys, GameAction.RiseOrZoomIn, letters), down = KeyBindings.Held(keys, GameAction.SinkOrZoomOut, letters);
+            bool zoomIn = KeyBindings.Held(keys, GameAction.ZoomIn, letters), zoomOut = KeyBindings.Held(keys, GameAction.ZoomOut, letters);
             if (fly)
             {
-                if (keys.pageUpKey.isPressed) move += Vector3.up;
-                if (keys.pageDownKey.isPressed) move -= Vector3.up;
-                if (keys.equalsKey.isPressed || keys.numpadPlusKey.isPressed) move += forward;
-                if (keys.minusKey.isPressed || keys.numpadMinusKey.isPressed) move -= forward;
+                if (up) move += Vector3.up;
+                if (down) move -= Vector3.up;
+                if (zoomIn) move += forward;
+                if (zoomOut) move -= forward;
                 _eye += move.normalized * speed * boost * dt;
             }
             else
             {
                 Target += move.normalized * speed * boost * dt;
-                bool zoomIn = keys.pageUpKey.isPressed || keys.equalsKey.isPressed || keys.numpadPlusKey.isPressed;
-                bool zoomOut = keys.pageDownKey.isPressed || keys.minusKey.isPressed || keys.numpadMinusKey.isPressed;
-                if (zoomIn) _distanceGoal *= Mathf.Pow(0.2f * (fast ? 0.3f : 1f), dt);
-                if (zoomOut) _distanceGoal /= Mathf.Pow(0.2f * (fast ? 0.3f : 1f), dt);
+                float rate = Mathf.Pow(0.2f * (fast ? 0.3f : 1f), dt * zoomRate);
+                if (zoomIn || up) _distanceGoal *= rate;
+                if (zoomOut || down) _distanceGoal /= rate;
             }
-            if (letters && keys.qKey.isPressed) _yawGoal += RotateSpeed * boost * dt;
-            if (letters && keys.eKey.isPressed) _yawGoal -= RotateSpeed * boost * dt;
-            if (letters && keys.rKey.isPressed) _pitchGoal += TiltSpeed * boost * dt * (fly ? -1f : 1f);   // R tilts the view up
-            if (letters && keys.fKey.isPressed) _pitchGoal -= TiltSpeed * boost * dt * (fly ? -1f : 1f);
+            if (KeyBindings.Held(keys, GameAction.RotateLeft, letters)) _yawGoal += RotateSpeed * boost * dt;
+            if (KeyBindings.Held(keys, GameAction.RotateRight, letters)) _yawGoal -= RotateSpeed * boost * dt;
+            if (KeyBindings.Held(keys, GameAction.TiltUp, letters)) _pitchGoal += TiltSpeed * boost * dt * (fly ? -1f : 1f);   // tilts the view up
+            if (KeyBindings.Held(keys, GameAction.TiltDown, letters)) _pitchGoal -= TiltSpeed * boost * dt * (fly ? -1f : 1f);
         }
 
         /// <summary>True when the pointer (screen pixels) is over the HUD or any of the flow's panels.</summary>

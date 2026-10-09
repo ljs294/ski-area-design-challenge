@@ -70,8 +70,8 @@ namespace MountainPlanner.App.Flow
         /// <summary>How often the paused-at line in the record is refreshed, in Pump calls' seconds.</summary>
         public const double RecordEverySeconds = 2;
 
-        readonly string _dataRoot;
-        readonly ISiteDownloader _downloader;
+        string _dataRoot;
+        ISiteDownloader _downloader;
         readonly Func<string> _utcNow;
         DownloadStatus _latest;
         readonly object _gate = new object();
@@ -96,6 +96,14 @@ namespace MountainPlanner.App.Flow
             _dataRoot = dataRoot;
             _downloader = downloader;
             _utcNow = utcNow;
+        }
+
+        /// <summary>Another library folder (Settings › Data; task P2-05). Only between downloads.</summary>
+        public void Retarget(string dataRoot, ISiteDownloader downloader)
+        {
+            if (Running) throw new InvalidOperationException("A download is running.");
+            _dataRoot = dataRoot;
+            _downloader = downloader;
         }
 
         /// <summary>A new download from the picker's choice, or the same request again when it was paused.</summary>

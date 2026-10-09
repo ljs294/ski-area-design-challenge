@@ -185,6 +185,56 @@
 .settings-body { flex-direction: row; flex-grow: 1; flex-shrink: 1; min-height: 0; }
 .settings-page { flex-grow: 1; padding: 4px 20px 14px 20px; }
 .settings-done { min-width: 120px; }
+/* Task P2-05: the rows the mockup's SETTINGS table draws, in USS. */
+.mp-pnote { margin: -4px 0 8px 0; padding: 0; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: normal; }
+.mp-srow > .mp-range, .mp-srow > .settings-action, .mp-srow > .settings-pair { width: 236px; flex-shrink: 0; }
+.settings-pair { flex-direction: row; }
+.settings-pair > .settings-action { flex-grow: 1; flex-basis: 0; margin: 0; }
+.settings-pair > .settings-pair__first { margin-right: 8px; }
+.settings-action { height: 30px; margin: 0; }
+.settings-path { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); font-size: 11.5px; }
+/* a slider: a thin track filled to the value, a square thumb, and the value (.rng-wrap) */
+.mp-range { flex-direction: row; align-items: center; }
+.mp-range__slider { flex-grow: 1; margin: 0 12px 0 0; padding: 0; }
+.mp-range__slider .unity-base-slider__drag-container { height: 20px; }
+.mp-range__slider .unity-base-slider__tracker { height: 4px; margin-top: -2px; border-width: 0; border-radius: 2px; background-color: var(--hair2); }
+.mp-range__slider .unity-base-slider__fill { height: 4px; margin-top: -2px; border-radius: 2px; background-color: var(--text); }
+.mp-range__slider .unity-base-slider__dragger { width: 12px; height: 18px; margin-top: -9px; margin-left: -6px; border-width: 1px; border-color: var(--hair2); border-radius: 3px; background-color: var(--on-bg); }
+.mp-range__slider .unity-base-slider__dragger-border { display: none; }
+.mp-range__v { width: 48px; margin: 0; padding: 0; -unity-text-align: middle-right; font-size: 12.5px; color: var(--text); -unity-text-outline-color: var(--text); }
+/* Display: keep the new settings, or they go back after 15 s */
+.settings-keep { flex-direction: row; align-items: center; margin: 0 0 10px 0; padding: 10px 12px; border-width: 1px; border-color: var(--warn); border-radius: 4px; background-color: var(--tile); }
+.settings-keep__text { flex-grow: 1; flex-shrink: 1; }
+.settings-keep__title { margin: 0; padding: 0; font-size: 13px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.settings-keep__count { margin: 2px 0 0 0; padding: 0; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.settings-keep > .mp-ghost { margin: 0 8px 0 12px; }
+.settings-keep__ok { min-width: 90px; }
+/* Controls: the keys, two per action, as key caps (.kbd) */
+.settings-keys-head { flex-direction: row; align-items: center; padding-top: 10px; }
+.settings-keys-head > .mp-ghost { height: 28px; margin: 0; }
+.settings-group { margin: 10px 0 2px 0; padding: 0; font-size: 12px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.settings-key { flex-direction: row; align-items: center; padding: 4px 0; border-top-width: 1px; border-top-color: var(--row); }
+.settings-key__label { flex-grow: 1; flex-shrink: 1; margin: 0; padding: 0; font-size: 12.5px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.settings-kbd {
+    width: 110px;
+    height: 24px;
+    margin: 0 0 0 8px;
+    padding: 0 6px;
+    border-width: 1px 1px 2px 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    background-color: var(--tile);
+    color: var(--text);
+    -unity-text-outline-color: var(--text);
+    -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset");
+    font-size: 11.5px;
+    -unity-text-align: middle-center;
+}
+.settings-kbd:hover { background-color: var(--tile-hover); color: var(--strong); -unity-text-outline-color: var(--strong); }
+.settings-kbd:disabled { opacity: 1; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.settings-kbd--empty { color: var(--faint); -unity-text-outline-color: var(--faint); }
+.settings-kbd--listening, .settings-kbd--listening:hover { background-color: var(--on-bg); border-color: var(--on-bg); color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
+.settings-kbd-gap { width: 118px; flex-shrink: 0; }
 .credits-panel { width: 620px; max-height: 80%; }
 .credits-body { flex-shrink: 1; }
 .credits-head { color: var(--head); -unity-text-outline-color: var(--head); -unity-font-style: bold; margin: 10px 0 4px 0; }
