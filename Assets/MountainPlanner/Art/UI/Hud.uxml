@@ -264,6 +264,8 @@
             <ui:VisualElement class="sepl" picking-mode="Ignore" />
             <ui:Button name="menu-settings" class="row"><ui:Label class="row__label" text="Settings" picking-mode="Ignore" /><ui:Label class="row__key" text="›" picking-mode="Ignore" /></ui:Button>
             <ui:Button name="menu-controls" class="row"><ui:Label class="row__label" text="Controls" picking-mode="Ignore" /><ui:Label class="row__key" text="›" picking-mode="Ignore" /></ui:Button>
+            <ui:Button name="menu-photo" class="row"><ui:Label class="row__label" text="Photo mode" picking-mode="Ignore" /><ui:Label name="menu-photo-key" class="row__key" text="P" picking-mode="Ignore" /></ui:Button>
+            <ui:Button name="menu-credits" class="row"><ui:Label class="row__label" text="Credits" picking-mode="Ignore" /><ui:Label class="row__key" text="›" picking-mode="Ignore" /></ui:Button>
             <ui:VisualElement class="sepl" picking-mode="Ignore" />
             <ui:Button name="menu-exit" class="row"><ui:Label class="row__label" text="Exit to title" picking-mode="Ignore" /></ui:Button>
             <ui:Button name="menu-quit" class="row"><ui:Label class="row__label" text="Quit to desktop" picking-mode="Ignore" /></ui:Button>

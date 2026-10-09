@@ -114,11 +114,14 @@ namespace MountainPlanner.App.Flow
                 Screens.CloseOverlay();
                 Screens.Settings.Remember = true;
             }
-            if (Wanted("s9-credits"))
+            if (Wanted("s9-credits") || Wanted("s9-credits-licences"))
             {
                 Screens.ShowCredits(Credits());
                 yield return Wait(0.3f);
-                yield return EachLook(folder, "s9-credits");
+                if (Wanted("s9-credits")) yield return EachLook(folder, "s9-credits");
+                Screens.ShowCreditsPage(true);   // task P2-07: the licence texts
+                yield return Wait(0.3f);
+                if (Wanted("s9-credits-licences")) yield return EachLook(folder, "s9-credits-licences");
                 Screens.CloseOverlay();
             }
 
@@ -163,7 +166,7 @@ namespace MountainPlanner.App.Flow
                 Controller.PickerCancelled();
             }
 
-            if ((HudStates.Any(h => Wanted("s6-" + h.Name)) || Wanted("s7-menu") || Wanted("s8-settings-game")) && demo != null)
+            if ((HudStates.Any(h => Wanted("s6-" + h.Name)) || PhotoStates.Any(p => Wanted("s10-" + p.Name)) || Wanted("s7-menu") || Wanted("s8-settings-game")) && demo != null)
             {
                 Controller.Open(demo);
                 yield return Wait(1);
@@ -201,6 +204,18 @@ namespace MountainPlanner.App.Flow
                     yield return EachLook(folder, "s8-settings-game");
                     Screens.CloseOverlay();
                 }
+                // S10 photo mode (task P2-07), as the mockup's #demo=p2,photo flags show it.
+                if (_viewer != null)
+                    foreach (var state in PhotoStates)
+                    {
+                        if (!Wanted("s10-" + state.Name)) continue;
+                        _viewer.SetPhoto(true);
+                        state.Set(_viewer);
+                        yield return Wait(1.5f);   // the focus eases onto the ground
+                        yield return EachLook(folder, "s10-" + state.Name);
+                        _viewer.SetPhoto(false);
+                        yield return Wait(0.3f);
+                    }
             }
 
             UiPreferences.SetChoice(choice, remember: false);
@@ -240,6 +255,16 @@ namespace MountainPlanner.App.Flow
             ("analysis-weather", false, (h, v, on) => { h.SetAnalysisTab(on ? "weather" : "overview"); h.SetAnalysis(on); }),
             ("analysis-finances", false, (h, v, on) => { h.SetAnalysisTab(on ? "finances" : "overview"); h.SetAnalysis(on); }),
             ("rstats", false, (h, v, on) => h.SetStats(on)),
+        };
+
+        /// <summary>Photo mode's states (task P2-07): the mockup's #demo=p2,photo flags.</summary>
+        static readonly (string Name, Action<MountainViewer> Set)[] PhotoStates =
+        {
+            ("photo", v => v.SetPhotoForCapture(PhotoFocusMode.Off, null, 0, 1)),
+            ("photo-natural", v => v.SetPhotoForCapture(PhotoFocusMode.Natural, null, 0, 1)),
+            ("photo-mini", v => v.SetPhotoForCapture(PhotoFocusMode.Miniature, null, 0, 1)),
+            ("photo-mini-golden", v => v.SetPhotoForCapture(PhotoFocusMode.Miniature, 16 * 3600 + 15 * 60, 0, 1)),
+            ("photo-postcard-2x", v => v.SetPhotoForCapture(PhotoFocusMode.Natural, null, 3, 2)),
         };
 
         /// <summary>One screen in both themes at every size (100%), then at 50% and 150% at 1920×1080.</summary>

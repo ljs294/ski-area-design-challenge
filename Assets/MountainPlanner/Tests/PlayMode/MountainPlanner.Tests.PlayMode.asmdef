@@ -13,7 +13,9 @@
         "MountainPlanner.UI",
         "MountainPlanner.App",
         "Unity.InputSystem",
-        "Unity.PerformanceTesting"
+        "Unity.PerformanceTesting",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

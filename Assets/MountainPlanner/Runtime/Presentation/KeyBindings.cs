@@ -13,6 +13,7 @@ namespace MountainPlanner.Presentation
         ZoomIn, ZoomOut, RiseOrZoomIn, SinkOrZoomOut, FreeFly, ResetView,
         Toolbox, Analysis, Pause, Speed1, Speed2, Speed3, Speed4, Units, HideUi, PhotoMode, PhotoCapture, DeveloperPanel,
         LayerSnow, LayerTrees, InfoContours, InfoSlope, InfoExposure, InfoDepth, InfoConditions,
+        PhotoHideBar, PhotoEarlier, PhotoLater, PhotoDayBack, PhotoDayOn,
     }
 
     [Flags]
@@ -111,6 +112,12 @@ namespace MountainPlanner.Presentation
             new Info("Layers", "Slope exposure", Context.Normal, new KeyChord(Key.Digit8, KeyMods.Shift)),
             new Info("Layers", "Snow depth", Context.Normal, new KeyChord(Key.Digit9, KeyMods.Shift)),
             new Info("Layers", "Snow conditions", Context.Normal, new KeyChord(Key.Digit0, KeyMods.Shift)),
+            // Photo mode's bar (task P2-07): H hides it, [ and ] move the sun a quarter hour, with Shift a day.
+            new Info("Photo mode", "Hide the photo bar", Context.Photo, new KeyChord(Key.H)),
+            new Info("Photo mode", "Earlier", Context.Photo, new KeyChord(Key.LeftBracket)),
+            new Info("Photo mode", "Later", Context.Photo, new KeyChord(Key.RightBracket)),
+            new Info("Photo mode", "A day back", Context.Photo, new KeyChord(Key.LeftBracket, KeyMods.Shift)),
+            new Info("Photo mode", "A day on", Context.Photo, new KeyChord(Key.RightBracket, KeyMods.Shift)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>

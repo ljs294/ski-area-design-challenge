@@ -61,9 +61,6 @@ namespace MountainPlanner.App
         bool _hud = true;
         /// <summary>H: hide all UI (0.4 S6).</summary>
         bool _ui = true;
-        /// <summary>P: photo mode (0.4 S10): the HUD hides and F12 saves a picture.</summary>
-        bool _photo;
-        bool _capturing;
         string _toast;
         float _toastUntil;
         bool _hudShown = true;
@@ -121,9 +118,17 @@ namespace MountainPlanner.App
         public static string DataRoot =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkiAreaDesignChallenge");
 
-        /// <summary>Where photo mode saves (0.4 S10).</summary>
-        public static string PhotoFolder =>
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Ski Area Design Challenge");
+        /// <summary>Where photo mode saves (0.4 S10): Pictures\Ski Area Design Challenge, or -photofolder's for test runs.</summary>
+        public static string PhotoFolder
+        {
+            get
+            {
+                string[] args = Environment.GetCommandLineArgs();
+                int i = Array.IndexOf(args, "-photofolder");
+                return i >= 0 && i + 1 < args.Length ? Path.GetFullPath(args[i + 1])
+                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Ski Area Design Challenge");
+            }
+        }
 
         async void Start()
         {
@@ -242,6 +247,7 @@ namespace MountainPlanner.App
                 if (movie >= 0 && movie + 1 < args.Length) StartCoroutine(RecordPathMovie(args[movie + 1]));
                 int shot = Array.IndexOf(args, "-screenshot");
                 if (shot >= 0 && shot + 1 < args.Length) StartCoroutine(CaptureAndQuit(args[shot + 1]));
+                StartCoroutine(RunPhotoArguments(args));   // -photo, -photoshot (MountainViewer.Photo.cs)
                 int clip = Array.IndexOf(args, "-clip");
                 if (clip >= 0 && clip + 1 < args.Length) StartCoroutine(CaptureClipAndQuit(args[clip + 1]));
             }
@@ -320,6 +326,7 @@ namespace MountainPlanner.App
             // The Auto theme follows this sun on every screen (task P2-01); nothing happens unless sunrise or sunset passed.
             if (Lighting != null) MountainPlanner.UI.UiPreferences.SetDaylight(Lighting.CurrentLight.SunElevation > 0);
             UpdateHud();
+            UpdatePhoto();
             bool overlay = NeedsOverlay();
             if (_overlay != null && _overlay.enabled != overlay) _overlay.enabled = overlay;
 
@@ -364,7 +371,7 @@ namespace MountainPlanner.App
             {
                 // Esc backs out one step: photo mode, then the HUD's window, dropdown or panel, then a HUD control lets go
                 // of the keyboard; with nothing left to close it opens the menu (Quit is in it, 0.4 S7).
-                if (_photo) _photo = false;
+                if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
                 else if (Hud != null && _resort != null && Hud.BackOut()) { }
@@ -373,14 +380,18 @@ namespace MountainPlanner.App
             }
             if (KeyBindings.Pressed(keys, GameAction.DeveloperPanel)) _help = !_help;
             if (_resort == null) return;
+            if (_photo)
+            {
+                if (!UiHasKeyboard()) HandlePhotoKeys(keys, letters);
+                return;
+            }
             // Analysis (Tab by default) whenever no window has the keyboard (the HUD keeps Tab from moving between its controls).
             if (Hud != null && KeyBindings.Pressed(keys, GameAction.Analysis, letters) && !Hud.ModalOpen && !flowKeys && !(FlowHasKeyboard?.Invoke() ?? false)) Hud.ToggleAnalysis();
             if (UiHasKeyboard()) return;   // the menu, a dialog or a focused HUD control has the keys (task P2-01)
             // The player's keys (Settings › Controls; the defaults are the key map's). While the tray is open,
             // letter keys are tools, except the Toolbox's own key, which closes it.
             if (Hud != null && KeyBindings.Pressed(keys, GameAction.Toolbox)) Hud.ToggleToolbox();
-            if (_photo && KeyBindings.Pressed(keys, GameAction.PhotoCapture, letters) && !_capturing) StartCoroutine(CapturePhoto());
-            else if (_clock != null && !_photo && KeyBindings.Pressed(keys, GameAction.Pause, letters)) _clock.TogglePause();
+            if (_clock != null && KeyBindings.Pressed(keys, GameAction.Pause, letters)) _clock.TogglePause();
             if (_clock != null)
             {
                 if (KeyBindings.Pressed(keys, GameAction.Speed1, letters)) _clock.SetSpeed(1);
@@ -389,7 +400,7 @@ namespace MountainPlanner.App
                 if (KeyBindings.Pressed(keys, GameAction.Speed4, letters)) _clock.SetSpeed(4);
             }
             if (KeyBindings.Pressed(keys, GameAction.HideUi, letters)) _ui = !_ui;
-            if (KeyBindings.Pressed(keys, GameAction.PhotoMode, letters)) _photo = !_photo;
+            if (KeyBindings.Pressed(keys, GameAction.PhotoMode, letters)) SetPhoto(true);
             if (KeyBindings.Pressed(keys, GameAction.FreeFly, letters) && Camera != null) Camera.ToggleMode();
             if (KeyBindings.Pressed(keys, GameAction.Units, letters)) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
             if (KeyBindings.Pressed(keys, GameAction.ResetView, letters)) HomeView();
@@ -451,7 +462,8 @@ namespace MountainPlanner.App
                 Hud.SpeedChosen += _clock.SetSpeed;
             }
             Hud.UnitsChosen += DisplayUnits.Toggle;
-            ViewCamera.PointerBlocked = Hud.IsPointerOverPanel;
+            WirePhoto();
+            ViewCamera.PointerBlocked = PointerOverUi;
             ViewCamera.KeysBlocked = UiHasKeyboard;
             _contourLabels = new MountainPlanner.UI.ContourLabelOverlay(Hud.ContourLabelLayer);
             _landmarkLabels = new MountainPlanner.UI.LandmarkLabelOverlay(Hud.ContourLabelLayer);
@@ -506,6 +518,7 @@ namespace MountainPlanner.App
         {
             _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
+            ReleasePhoto();
             if (ViewCamera.KeysBlocked == (Func<bool>)UiHasKeyboard) ViewCamera.KeysBlocked = null;
             ReleaseSettings();
         }
@@ -518,7 +531,10 @@ namespace MountainPlanner.App
         /// <summary>The frame in which the app flow used Esc (closing a dialog, minimising the download card).</summary>
         public static int FlowTookEscapeFrame = -1;
 
-        bool UiHasKeyboard() => (Hud != null && Hud.HasKeyboard) || (FlowHasKeyboard?.Invoke() ?? false);
+        bool UiHasKeyboard() => (Hud != null && Hud.HasKeyboard) || (_photoBar != null && _photoBar.HasKeyboard) || (FlowHasKeyboard?.Invoke() ?? false);
+
+        /// <summary>The pointer is over the HUD or the photo bar: the camera leaves clicks and drags there alone.</summary>
+        bool PointerOverUi(Vector2 screen) => (Hud != null && Hud.IsPointerOverPanel(screen)) || (_photoBar != null && _photoBar.IsPointerOver(screen));
 
         /// <summary>Moves the contour labels with the camera, after it has moved this frame.</summary>
         void LateUpdate()
@@ -638,21 +654,6 @@ namespace MountainPlanner.App
         /// <summary>The Home view's heading (degrees clockwise from grid north): looking north-northwest.</summary>
         public const float HomeYaw = 330f;
 
-        /// <summary>Photo mode's capture: a PNG of the scene alone (the hint hides for that frame), then a toast.</summary>
-        System.Collections.IEnumerator CapturePhoto()
-        {
-            _capturing = true;
-            yield return null;   // one frame without the photo-mode hint
-            Directory.CreateDirectory(PhotoFolder);
-            string name = $"{_resort.Manifest.Site.Name} {DateTime.Now:yyyy-MM-dd HH-mm-ss}.png";
-            string path = Path.Combine(PhotoFolder, string.Concat(name.Split(Path.GetInvalidFileNameChars())));
-            ScreenCapture.CaptureScreenshot(path);
-            yield return null;
-            _capturing = false;
-            Toast("Saved to Pictures\\Ski Area Design Challenge");
-            Debug.Log($"[MountainViewer] Photo saved to {path}");
-        }
-
         void Toast(string text)
         {
             _toast = text;
@@ -665,9 +666,9 @@ namespace MountainPlanner.App
         /// </summary>
         bool NeedsOverlay()
         {
-            if (!_hud || _capturing || TitleMode) return false;
+            if (!_hud || TitleMode) return false;
             if (_error == null && _resort == null && (CoverUp?.Invoke() ?? false)) return false;   // the flow's cover says it
-            if (_error != null || _resort == null || _photo || _help) return true;
+            if (_error != null || _resort == null || _help) return true;
             if (_toast != null && Time.unscaledTime < _toastUntil) return true;
             return Hud == null;
         }
@@ -675,7 +676,7 @@ namespace MountainPlanner.App
         /// <summary>The IMGUI overlay's drawing (<see cref="ViewerOverlay"/> calls it from OnGUI).</summary>
         internal void DrawOverlay()
         {
-            if (!_hud || _capturing || TitleMode) return;
+            if (!_hud || TitleMode) return;
             var style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 15, wordWrap = true };
             style.normal.textColor = Color.white;
             GUI.backgroundColor = new Color(0f, 0f, 0f, 2f); // the default box is too pale to read over snow
@@ -688,13 +689,6 @@ namespace MountainPlanner.App
             {
                 var toast = new GUIStyle(style) { alignment = TextAnchor.MiddleCenter };
                 GUI.Box(new Rect(Screen.width / 2 - 220, Screen.height - 90, 440, 34), _toast, toast);
-            }
-            if (_photo)
-            {
-                var bar = new GUIStyle(style) { alignment = TextAnchor.MiddleCenter, fontSize = 14 };
-                GUI.Box(new Rect(Screen.width / 2 - 260, 14, 520, 30), "Photo mode · F12 or Space: capture · Esc or P: exit", bar);
-                GUI.backgroundColor = Color.white;
-                return;
             }
             string text = _resort == null
                 ? $"{_status}\n[{new string('#', (int)(_fraction * 30)).PadRight(30, '.')}] {_fraction * 100:F0}%"

@@ -142,6 +142,10 @@ echo     53 Capture every Settings page at 1920x1080, 2560x1080 and 3440x1440, d
 echo        Then play it: Settings from the title or the in-game menu. Graphics changes show at once; Display asks to keep
 echo        a new mode or resolution; Controls - click a key, press the new one; Data - Offline mode, Free space.
 echo.
+echo   Phase 2, task 07: photo mode and credits (needs a downloaded area; close the Unity editor first)
+echo     55 Capture the photo bar (Off, Natural, Miniature, golden hour, Postcard 2x) and Credits in both themes, time five
+echo        2x saves for the hitch check, then play it: P opens photo mode; Space saves to Pictures; the menu has Credits.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -212,6 +216,7 @@ if /i "%CHOICE%"=="49" goto housekeeping
 if /i "%CHOICE%"=="50" goto windowreset
 if /i "%CHOICE%"=="51" goto forestlook
 if /i "%CHOICE%"=="52" goto firstrun
+if /i "%CHOICE%"=="55" goto photocredits
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -533,6 +538,24 @@ echo Capturing every Settings page (the window shows the title while it works)..
 "%GAME%" -uicapture "%UICAP%" -uionly s8-settings,s8-settings-units,s8-settings-graphics,s8-settings-display,s8-settings-controls,s8-settings-data,s8-settings-game -uisizes 1920x1080,2560x1080,3440x1440 -logFile "%~dp0test-results\settings-captures.log" <nul
 type "%UICAP%\report.txt"
 start "" "%UICAP%"
+goto done
+
+:photocredits
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "UICAP=%~dp0test-results\photo-captures"
+if exist "%UICAP%" rmdir /s /q "%UICAP%"
+echo Capturing photo mode and Credits at 1920x1080 and 2560x1080, dark and light, 85%% (the window shows the title while it works)...
+"%GAME%" -uicapture "%UICAP%" -uionly s9-credits,s9-credits-licences,s10-photo,s10-photo-natural,s10-photo-mini,s10-photo-mini-golden,s10-photo-postcard-2x -uisizes 1920x1080,2560x1080 -uibase 85 -logFile "%~dp0test-results\photo-captures.log" <nul
+type "%UICAP%\report.txt"
+echo Saving five 2x photos of Jackson Hole into test-results\photo-hitch to time the hitch...
+if exist "%~dp0test-results\photo-hitch" rmdir /s /q "%~dp0test-results\photo-hitch"
+"%GAME%" -site "Jackson Hole" -photo off -photoscale 2 -photoshot 5 -photofolder "%~dp0test-results\photo-hitch" -logFile "%~dp0test-results\photo-hitch.log" <nul
+findstr /c:"Photo run" /c:"Photo hitch" /c:"Photo saved" "%~dp0test-results\photo-hitch.log"
+start "" "%UICAP%"
+echo Starting the game: open an area, press P. Drag Time, step Date, try Focus and Size, Space saves; Esc puts it all back.
+echo   Menu ^> Credits lists every area's sources; Licence texts shows the OFL.
+start "" "%GAME%"
 goto done
 
 :hudparity

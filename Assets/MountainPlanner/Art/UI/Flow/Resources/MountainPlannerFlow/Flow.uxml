@@ -163,15 +163,23 @@
                 </ui:VisualElement>
             </mp:StageColumn>
         </ui:VisualElement>
+        <!-- S9 Credits (task P2-07; mockup #demo=credits): the game and the studio, each area's data sources with their
+             licence on the right, the picker's map and search, textures, software and type; Licence texts swaps the page. -->
         <ui:VisualElement name="credits" class="modal hidden">
             <mp:StageColumn>
-                <ui:VisualElement class="mp-win credits-panel">
+                <ui:VisualElement name="credits-panel" class="mp-win credits-panel">
                     <ui:VisualElement class="mp-head">
-                        <ui:Label text="Credits" class="mp-title" />
+                        <ui:Label name="credits-title" text="Credits" class="mp-title" />
+                        <ui:Label name="credits-subtitle" text="" class="mp-sub hidden" />
                         <ui:VisualElement class="spacer" />
-                        <ui:Button name="credits-close" text="✕" class="mp-x" tooltip="Close (Esc)" />
+                        <ui:Button name="credits-x" text="✕" class="mp-x" tooltip="Close (Esc)" />
                     </ui:VisualElement>
-                    <ui:ScrollView name="credits-body" class="panel-body credits-body" />
+                    <ui:ScrollView name="credits-body" class="credits-body" />
+                    <ui:VisualElement class="mp-foot credits-foot">
+                        <ui:Label name="credits-offline" text="" class="credits-note" />
+                        <ui:Button name="credits-licences" text="Licence texts" class="mp-ghost credits-licences" />
+                        <ui:Button name="credits-close" text="Close" class="mp-go credits-done" />
+                    </ui:VisualElement>
                 </ui:VisualElement>
             </mp:StageColumn>
         </ui:VisualElement>

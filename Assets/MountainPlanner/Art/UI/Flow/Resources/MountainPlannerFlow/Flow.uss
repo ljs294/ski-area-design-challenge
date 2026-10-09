@@ -248,10 +248,37 @@
 .settings-kbd--empty { color: var(--faint); -unity-text-outline-color: var(--faint); }
 .settings-kbd--listening, .settings-kbd--listening:hover { background-color: var(--on-bg); border-color: var(--on-bg); color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
 .settings-kbd-gap { width: 118px; flex-shrink: 0; }
-.credits-panel { width: 620px; max-height: 80%; }
-.credits-body { flex-shrink: 1; }
-.credits-head { color: var(--head); -unity-text-outline-color: var(--head); -unity-font-style: bold; margin: 10px 0 4px 0; }
-.credits-line { color: var(--muted); -unity-text-outline-color: var(--muted); font-size: 13px; white-space: normal; margin-bottom: 4px; }
+/* S9 credits (task P2-07; mockup .pn.cred): a window like Settings; sources in rows with the licence on the right */
+.credits-panel { width: 660px; height: 540px; max-height: 96%; }
+.credits-body { flex-grow: 1; flex-shrink: 1; min-height: 0; }
+.credits-body .unity-scroller--vertical { width: 8px; }
+.credits-body .unity-scroller--vertical .unity-scroller__low-button, .credits-body .unity-scroller--vertical .unity-scroller__high-button { display: none; }
+.credits-body .unity-scroller--vertical .unity-scroller__slider { margin: 0; padding: 0; }
+.credits-body .unity-scroller--vertical .unity-base-slider__drag-container { width: 8px; }
+.credits-body .unity-scroller--vertical .unity-base-slider__tracker { left: 0; width: 8px; border-width: 0; background-color: rgba(0, 0, 0, 0); }
+.credits-body .unity-scroller--vertical .unity-base-slider__dragger { left: 1px; width: 6px; border-width: 0; border-radius: 3px; background-color: var(--hair2); }
+.credits-body .unity-scroller--vertical .unity-base-slider__dragger-border { display: none; }
+.credits-hero { padding: 16px 16px 12px 16px; border-bottom-width: 1px; border-bottom-color: var(--hair); }
+.credits-game { font-size: 19px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); margin: 0; padding: 0; }
+.credits-by { flex-direction: row; flex-wrap: wrap; margin-top: 3px; }
+.credits-by-text { font-size: 13px; color: var(--muted); -unity-text-outline-color: var(--muted); margin: 0; padding: 0; }
+.credits-studio { font-size: 13px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); margin: 0 4px; padding: 0; }
+.credits-sub { flex-direction: row; justify-content: space-between; padding: 14px 16px 4px 16px; }
+.credits-sub-title { font-size: 12.5px; -unity-font-style: bold; color: var(--head); -unity-text-outline-color: var(--head); margin: 0; padding: 0; }
+.credits-sub-note { font-size: 12.5px; color: var(--soft); -unity-text-outline-color: var(--soft); margin: 0; padding: 0; }
+.credits-src { padding: 7px 16px; border-top-width: 1px; border-top-color: var(--row); }
+.credits-src--first { border-top-width: 0; }
+.credits-src-top { flex-direction: row; align-items: flex-start; }
+.credits-who { flex-grow: 1; flex-shrink: 1; font-size: 12.5px; color: var(--text); -unity-text-outline-color: var(--text); white-space: normal; margin: 0; padding: 0; }
+.credits-lic { flex-shrink: 0; margin: 0 0 0 16px; padding: 0; font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); -unity-text-align: upper-right; }
+.credits-detail { font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: normal; margin: 2px 0 0 0; padding: 0; }
+.credits-names { padding: 2px 16px 0 16px; font-size: 12.5px; color: var(--muted); -unity-text-outline-color: var(--muted); white-space: normal; margin: 0; }
+.credits-empty { padding: 4px 16px 0 16px; font-size: 12.5px; color: var(--muted); -unity-text-outline-color: var(--muted); white-space: normal; margin: 0; }
+.credits-ofl { padding: 12px 16px; font-size: 11.5px; color: var(--muted); -unity-text-outline-color: var(--muted); white-space: normal; margin: 0; }
+.credits-foot { justify-content: flex-start; }
+.credits-note { flex-grow: 1; flex-shrink: 1; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: normal; margin: 0 8px 0 0; padding: 0; }
+.credits-licences { margin-right: 8px; }
+.credits-done { min-width: 96px; }
 
 /* ---------- S11 confirm and toast ---------- */
 .confirm-panel { width: 420px; }
