@@ -102,7 +102,7 @@ namespace MountainPlanner.App.Flow
             {
                 _pickerVersion = key;
                 Picker.SetPill(shown ? view.Pill : null, view.Fraction, FlowScreens.PillState(view.Phase));
-                Picker.SetBusy(Downloads.Active ? $"{view.Name} is downloading. One download at a time: wait for it, or cancel it." : "");
+                Picker.SetBusy(Downloads.Active ? "One download at a time: wait for this one, or cancel it." : "");
             }
 
             if (_queuedDialog != null && !Screens.CoverUp && !Screens.ConfirmOpen && !Screens.PromptOpen)

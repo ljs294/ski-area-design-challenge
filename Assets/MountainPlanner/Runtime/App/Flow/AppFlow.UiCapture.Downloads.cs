@@ -97,7 +97,7 @@ namespace MountainPlanner.App.Flow
                 yield return Wait(0.5f);
                 Picker.PlaceAt(new MountainPlanner.Domain.Geo.GeoPoint(45.05, -70.31));
                 Picker.SetPill(vm.Pill, vm.Fraction, "");
-                Picker.SetBusy("Crystal Mountain is downloading. One download at a time: wait for it, or cancel it.");
+                Picker.SetBusy("One download at a time: wait for this one, or cancel it.");
                 yield return Wait(6);
                 yield return EachLook(folder, "s3-picker-busy");
                 Picker.SetPill(null, 0, "");

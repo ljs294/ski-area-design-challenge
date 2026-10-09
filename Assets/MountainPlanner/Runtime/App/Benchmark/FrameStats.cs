@@ -56,6 +56,7 @@ namespace MountainPlanner.App
         {
             _heapStart = GC.GetTotalMemory(false);
             _collectionsStart = GC.CollectionCount(0);
+            _mainStart = GC.GetAllocatedBytesForCurrentThread();
             _heapEnd = -1;
         }
 
@@ -64,7 +65,14 @@ namespace MountainPlanner.App
         {
             _heapEnd = GC.GetTotalMemory(false);
             _collectionsEnd = GC.CollectionCount(0);
+            _mainEnd = GC.GetAllocatedBytesForCurrentThread();
         }
+
+        /// <summary>
+        /// Bytes allocated by the main thread (the one calling Reset and Stop) over the measurement. With a background
+        /// download running (task P2-06), the heap check counts the download's worker threads too; this doesn't.
+        /// </summary>
+        long _mainStart, _mainEnd;
 
         public int Count => _count;
 
@@ -159,6 +167,7 @@ namespace MountainPlanner.App
                 gcEventBytes = Copy(_gcEventBytes, _gcEvents),
                 heapGrowthBytes = _heapEnd < 0 ? -1 : _heapEnd - _heapStart,
                 gcCollections = _heapEnd < 0 ? -1 : _collectionsEnd - _collectionsStart,
+                mainThreadBytes = _heapEnd < 0 ? -1 : _mainEnd - _mainStart,
             };
         }
 
@@ -211,6 +220,8 @@ namespace MountainPlanner.App
             public long[] gcEventBytes;
             public long heapGrowthBytes;
             public int gcCollections;
+            /// <summary>Bytes the main thread allocated between Reset and Stop (-1 without Stop): the garbage check while a download runs (task P2-06).</summary>
+            public long mainThreadBytes;
         }
     }
 }

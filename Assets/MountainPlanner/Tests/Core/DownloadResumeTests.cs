@@ -109,5 +109,28 @@ namespace MountainPlanner.Tests
             Assert.That(seen[0].Overall, Is.EqualTo(0.5).Within(1e-9));
             Assert.That(seen[1].Overall, Is.EqualTo(0.75).Within(1e-9));
         }
+
+        [Test]
+        public async Task ABackgroundDownloadsLimitStaysWithItsOwnWork()
+        {
+            Assert.That(WorkerLimits.MaxDegreeOfParallelism, Is.EqualTo(-1), "unlimited by default");
+            int seen = 0, running = 0, peak = 0;
+            await Task.Run(() =>
+            {
+                WorkerLimits.LimitThisFlow(2);
+                seen = WorkerLimits.MaxDegreeOfParallelism;
+                Parallel.For(0, 64, WorkerLimits.Options(), _ =>
+                {
+                    int now = Interlocked.Increment(ref running);
+                    int was;
+                    while (now > (was = Volatile.Read(ref peak)) && Interlocked.CompareExchange(ref peak, now, was) != was) { }
+                    Thread.Sleep(2);
+                    Interlocked.Decrement(ref running);
+                });
+            });
+            Assert.That(seen, Is.EqualTo(2));
+            Assert.That(peak, Is.LessThanOrEqualTo(2), "the loop kept to the limit");
+            Assert.That(WorkerLimits.MaxDegreeOfParallelism, Is.EqualTo(-1), "a foreground build elsewhere keeps every core");
+        }
     }
 }

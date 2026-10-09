@@ -201,7 +201,7 @@ namespace MountainPlanner.Persistence
             var built = new CacheTile[keys.Count];
             int done = 0;
             // Tiles are independent, so they build in parallel; each file's content doesn't depend on order.
-            System.Threading.Tasks.Parallel.For(0, keys.Count, new System.Threading.Tasks.ParallelOptions { CancellationToken = ct }, n =>
+            System.Threading.Tasks.Parallel.For(0, keys.Count, WorkerLimits.Options(ct), n =>
             {
                 var key = keys[n];
                 int res = tiles.Resolution(key);

@@ -647,6 +647,11 @@ namespace MountainPlanner.Tests
             service.Cancel(keep: false);
             PumpUntil(service, () => !service.Active);
             Assert.That(allocated, Is.EqualTo(0), "per frame, with no new snapshot");
+            // The counter works here (it isn't a constant 0 on this runtime).
+            long probeStart = GC.GetAllocatedBytesForCurrentThread();
+            var probe = new byte[4096];
+            Assert.That(GC.GetAllocatedBytesForCurrentThread() - probeStart, Is.GreaterThanOrEqualTo(4096), "the allocation counter counts");
+            GC.KeepAlive(probe);
         }
 
         [Test]

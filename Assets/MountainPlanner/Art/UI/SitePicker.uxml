@@ -46,7 +46,7 @@
                 </ui:VisualElement>
                 <ui:VisualElement name="offline" class="offline hidden">
                     <ui:Label class="offline-title" text="No connection" />
-                    <ui:Label class="offline-text" text="Choosing a new site needs the internet, for the map and the search. Your downloaded areas still open offline." />
+                    <ui:Label class="offline-text" text="Choosing a new area needs the internet, for the map and the search. Your downloaded areas still open offline." />
                     <ui:VisualElement class="offline-acts">
                         <ui:Button name="offline-load" class="ghost" text="Load Area" />
                         <ui:Button name="retry" class="ghost" text="Retry" />

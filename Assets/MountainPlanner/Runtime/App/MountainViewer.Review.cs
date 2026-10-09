@@ -281,7 +281,11 @@ namespace MountainPlanner.App
             };
             // "0 bytes per frame in steady state" (0.3 §8): under a byte per frame on average, no collection, and no
             // recurring allocation (at most one frame in 10,000 allocates: a one-off such as a new text's first draw).
-            r.garbage = t.gcBytesTotal >= 0
+            // With a background download running (-benchdownload, task P2-06; owner's choice 2026-10-09), its worker threads
+            // fill the shared heap, so only the main thread's own allocations are gated; the heap is still reported.
+            bool download = MountainPlanner.App.Flow.BenchDownload.Running;
+            r.garbage = download && t.mainThreadBytes >= 0 ? t.mainThreadBytes < t.frames
+                : t.gcBytesTotal >= 0
                 ? t.gcBytesTotal < t.frames && t.gcFramesWithAllocations * 10000L <= Math.Max(10000, t.frames)
                 : t.heapGrowthBytes < t.frames && t.gcCollections == 0;
             r.memory = r.memoryMeasured && t.gfxMemoryMBMax <= budget.GfxMemoryMB;
@@ -293,7 +297,9 @@ namespace MountainPlanner.App
                 preset, Screen.width, Screen.height, _hud ? " with the HUD" : "",
                 t.p95Ms, Limit(budget.Checked, budget.P95Ms), t.p99Ms, Limit(budget.Checked, budget.P99Ms),
                 t.percentOver50Ms, Limit(budget.Checked, budget.PercentOver50Ms), t.gpuP95Ms,
-                t.gcBytesTotal >= 0 ? $"{t.gcBytesTotal} B in {t.gcFramesWithAllocations} of {t.frames} frames"
+                download && t.mainThreadBytes >= 0
+                    ? $"main thread +{t.mainThreadBytes} B over {t.frames} frames (a download ran: heap +{t.heapGrowthBytes} B, {t.gcCollections} collections, not gated)"
+                : t.gcBytesTotal >= 0 ? $"{t.gcBytesTotal} B in {t.gcFramesWithAllocations} of {t.frames} frames"
                     : t.heapGrowthBytes >= 0 ? $"heap +{t.heapGrowthBytes} B, {t.gcCollections} collections over {t.frames} frames" : "not measured",
                 r.garbageMeasured ? (r.garbage ? "pass" : "FAIL") : "-",
                 r.memoryMeasured ? $"{t.gfxMemoryMBMax:F0} MB (≤{budget.GfxMemoryMB:F0})" : "not measured",

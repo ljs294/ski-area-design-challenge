@@ -162,7 +162,12 @@ namespace MountainPlanner.App.Flow
             var ct = _cts.Token;
             var progress = new Latest(this);
             string build = PendingDownloads.BuildFolder(_dataRoot, d);
-            _task = Task.Run(() => _downloader.DownloadAsync(d, build, progress, ct), ct);
+            _task = Task.Run(() =>
+            {
+                // Half the cores for the download's own parallel work (owner, 2026-10-09): the game keeps its frame rate.
+                WorkerLimits.LimitThisFlow(WorkerLimits.Background);
+                return _downloader.DownloadAsync(d, build, progress, ct);
+            }, ct);
         }
 
         /// <summary>While waiting: try again now (Try now, or offline mode was turned off).</summary>

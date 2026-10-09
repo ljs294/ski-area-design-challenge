@@ -385,11 +385,13 @@
 .picker-note { color: var(--soft); -unity-text-outline-color: var(--soft); font-size: 12.5px; white-space: normal; padding-right: 12px; }
 /* The S4 pill in the footer (task P2-06): the flow's pill, in the row instead of the screen's corner. */
 .pill {
-    flex-direction: column; align-items: stretch; margin: 0 12px 0 0; padding: 7px 12px 6px 12px;
+    flex-direction: column; align-items: stretch; margin: 0 12px 0 0; padding: 7px 12px 6px 12px; flex-shrink: 1; min-width: 0;
     border-width: 1px; border-color: var(--hair); border-radius: 3px; background-color: var(--panel);
 }
 .pill:hover { background-color: var(--hover); }
-.pill-text { padding: 0; margin: 0; color: var(--text); -unity-text-outline-color: var(--text); font-size: 13px; -unity-font-style: bold; }
+.pill-text { padding: 0; margin: 0; color: var(--text); -unity-text-outline-color: var(--text); font-size: 13px; -unity-font-style: bold;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; -unity-text-overflow-position: middle; }
+.picker-foot > .picker-note { flex-shrink: 1; min-width: 0; }
 .pill-bar { height: 2px; margin-top: 5px; background-color: var(--knock); }
 .pill-fill { height: 2px; width: 0; background-color: var(--go-hover); }
 .pill--waiting .pill-fill { background-color: var(--warn); }

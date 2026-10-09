@@ -21,6 +21,9 @@ namespace MountainPlanner.App.Flow
         const double SizeKm = 5;
         const string Marker = ".benchdownload";
 
+        /// <summary>A benchmark download is running this session: the benchmark gates the main thread's garbage only.</summary>
+        public static bool Running { get; private set; }
+
         DownloadService _service;
         string _root;
         int _runs;
@@ -58,6 +61,7 @@ namespace MountainPlanner.App.Flow
                 Directory.Delete(_root, true);
             }
             Directory.CreateDirectory(_root);
+            Running = true;
             File.WriteAllText(marker, "Scratch library for -benchdownload; emptied at every run.\n");
             _service = new DownloadService(_root, new PipelineDownloader(_root), () => DownloadService.UtcStamp(DateTime.UtcNow));
             _service.Finished += folder =>
