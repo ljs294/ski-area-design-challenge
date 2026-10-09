@@ -632,26 +632,42 @@ namespace MountainPlanner.Tests
             service.Cancel(keep: true);
         }
 
+        /// <summary>Reports once, then waits on a semaphore: its worker allocates nothing while the test measures.</summary>
+        sealed class Quiet : ISiteDownloader
+        {
+            public readonly SemaphoreSlim Gate = new SemaphoreSlim(0);
+            public readonly ManualResetEventSlim Reported = new ManualResetEventSlim();
+
+            public async Task<string> DownloadAsync(PendingDownload d, string build, IProgress<DownloadStatus> progress, CancellationToken ct)
+            {
+                progress.Report(new DownloadStatus { Name = d.Name, Stages = new[] { "Terrain", "Forest" }, StageIndex = 1, StageCount = 2, Stage = "Terrain", Overall = 0.2 });
+                Reported.Set();
+                await Gate.WaitAsync(ct);
+                throw new OperationCanceledException();
+            }
+        }
+
         [Test]
         public void PumpingWithoutNewsAllocatesNothing()
         {
-            var fake = new Fake();
-            var service = new DownloadService(_root, fake, () => "now");
+            // Unity's runtime has no per-thread allocation counter (GC.GetAllocatedBytesForCurrentThread is always 0
+            // there), so this measures the whole heap, with a worker that allocates nothing while it waits.
+            var quiet = new Quiet();
+            var service = new DownloadService(_root, quiet, () => "now");
             service.Start(Site());
-            Assert.That(fake.Reached.Wait(5000), Is.True);
-            PumpUntil(service, () => service.View.StageNames.Count == 3);
-            service.Pump(0.016);   // warm
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 300; i++) service.Pump(0.016 / 300);
-            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            service.Cancel(keep: false);
-            PumpUntil(service, () => !service.Active);
-            Assert.That(allocated, Is.EqualTo(0), "per frame, with no new snapshot");
-            // The counter works here (it isn't a constant 0 on this runtime).
-            long probeStart = GC.GetAllocatedBytesForCurrentThread();
-            var probe = new byte[4096];
-            Assert.That(GC.GetAllocatedBytesForCurrentThread() - probeStart, Is.GreaterThanOrEqualTo(4096), "the allocation counter counts");
+            Assert.That(quiet.Reported.Wait(5000), Is.True);
+            PumpUntil(service, () => service.View.StageNames.Count == 2);
+            for (int i = 0; i < 10; i++) service.Pump(0.001);   // warm
+            long before = GC.GetTotalMemory(false);
+            for (int i = 0; i < 300; i++) service.Pump(0.001);
+            long grew = GC.GetTotalMemory(false) - before;
+            var probe = new byte[64 * 1024];
+            long probed = GC.GetTotalMemory(false) - before;
             GC.KeepAlive(probe);
+            quiet.Gate.Release();
+            PumpUntil(service, () => !service.Active);
+            Assert.That(probed, Is.GreaterThanOrEqualTo(64 * 1024), "the measure sees an allocation");
+            Assert.That(grew, Is.LessThanOrEqualTo(0), "300 frames with no new snapshot allocate nothing");
         }
 
         [Test]

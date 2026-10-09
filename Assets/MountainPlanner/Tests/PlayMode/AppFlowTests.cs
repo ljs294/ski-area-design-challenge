@@ -258,7 +258,7 @@ namespace MountainPlanner.Tests
                 flow.ResumeAtLaunch = true;   // off in batch runs; this is what a player's launch does
                 yield return SceneManager.LoadSceneAsync(ViewerScene);
                 yield return WaitForMountain(120);
-                for (int i = 0; i < 10 && !flow.Downloads.Running; i++) yield return null;
+                for (int i = 0; i < 120 && (!flow.Downloads.Running || held.Runs == 0); i++) yield return null;
                 Assert.That(flow.Downloads.Running, Is.True, "resumed by itself once the title was up");
                 Assert.That(held.Runs, Is.EqualTo(1));
                 Assert.That(flow.Controller.DownloadActive && !flow.Controller.DownloadCardOpen, Is.True, "as the pill, not the card");

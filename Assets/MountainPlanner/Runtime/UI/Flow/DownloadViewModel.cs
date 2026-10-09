@@ -62,11 +62,11 @@ namespace MountainPlanner.UI.Flow
         public string Error { get; private set; } = "";
         /// <summary>The HUD bar's two lines (task P2-06, owner D3): what it's doing, then the area and share.</summary>
         public string BarLabel =>
-            Phase == DownloadPhase.Failed ? "Download stopped"
-            : Phase == DownloadPhase.Paused ? "Download paused"
-            : Phase == DownloadPhase.Waiting ? (Problem?.Kind == ProblemKind.OfflineMode ? "Paused · offline mode" : Problem?.Kind == ProblemKind.ServiceBusy ? "Waiting for the map service" : "Waiting for connection")
-            : "Downloading";
-        public string BarText => $"{Name} · {Percent}";
+            (Phase == DownloadPhase.Failed ? "Download stopped"
+             : Phase == DownloadPhase.Paused ? "Download paused"
+             : Phase == DownloadPhase.Waiting ? (Problem?.Kind == ProblemKind.OfflineMode ? "Paused · offline mode" : Problem?.Kind == ProblemKind.ServiceBusy ? "Waiting for the map service" : "Waiting for connection")
+             : "Downloading") + " · " + Percent;
+        public string BarText => Name;
         /// <summary>Why it stopped or waits, in the player's words (S11); null while it runs.</summary>
         public DownloadProblem Problem { get; private set; }
         /// <summary>Bumps on every change, so the screen redraws only then (at most 4 times a second while it runs).</summary>

@@ -242,9 +242,9 @@ namespace MountainPlanner.App.Flow
             ("analysis-finances", false, (h, v, on) => { h.SetAnalysisTab(on ? "finances" : "overview"); h.SetAnalysis(on); }),
             ("rstats", false, (h, v, on) => h.SetStats(on)),
             // Task P2-06: a background download in the bar, as the mockup's demo=dl, dlwait and dlfail.
-            ("dl", false, (h, v, on) => h.SetDownload(on ? "Downloading" : null, "Crystal Mountain · 41%", 0.41f, "")),
-            ("dlwait", false, (h, v, on) => h.SetDownload(on ? "Waiting for connection" : null, "Crystal Mountain · 41%", 0.41f, "pill--waiting")),
-            ("dlfail", false, (h, v, on) => h.SetDownload(on ? "Download stopped" : null, "Crystal Mountain · 41%", 0.41f, "pill--failed")),
+            ("dl", false, (h, v, on) => h.SetDownload(on ? "Downloading · 41%" : null, "Crystal Mountain", 0.41f, "")),
+            ("dlwait", false, (h, v, on) => h.SetDownload(on ? "Waiting for connection · 41%" : null, "Crystal Mountain", 0.41f, "pill--waiting")),
+            ("dlfail", false, (h, v, on) => h.SetDownload(on ? "Download stopped · 41%" : null, "Crystal Mountain", 0.41f, "pill--failed")),
         };
 
         /// <summary>One screen in both themes at every size (100%), then at 50% and 150% at 1920×1080.</summary>
