@@ -111,7 +111,7 @@ namespace MountainPlanner.Acquisition.Providers
                         if (json["elements"] is JArray && json["remark"] == null) return body;
                         last = new InvalidOperationException("Overpass: " + (string?)json["remark"]);
                     }
-                    catch (Exception ex) when (!(ex is OperationCanceledException) && !Http.NetworkDisabled) { last = ex; }
+                    catch (Exception ex) when (!(ex is OperationCanceledException) && !NetworkFailure.IsOfflineMode(ex)) { last = ex; }
                 }
                 throw new InvalidOperationException("OpenStreetMap (Overpass) is unavailable.", last);
             }, _meter).ConfigureAwait(false);

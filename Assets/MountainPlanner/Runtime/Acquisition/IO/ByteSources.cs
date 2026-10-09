@@ -55,7 +55,7 @@ namespace MountainPlanner.Acquisition.IO
         /// <summary>A request with up to four attempts and exponential backoff; non-success statuses retry too.</summary>
         public static async Task<byte[]> GetBytesAsync(Func<HttpRequestMessage> build, TransferMeter? meter, CancellationToken ct)
         {
-            if (NetworkDisabled) throw new InvalidOperationException("Network access is disabled.");
+            if (NetworkDisabled) throw new NetworkDisabledException();
             Exception? last = null;
             for (int attempt = 0; attempt < 4; attempt++)
             {
@@ -86,6 +86,48 @@ namespace MountainPlanner.Acquisition.IO
                 catch (TaskCanceledException ex) when (!ct.IsCancellationRequested) { last = ex; }
             }
             throw new IOException("The request failed after 4 attempts.", last);
+        }
+    }
+
+    /// <summary>A request made while <see cref="Http.NetworkDisabled"/> is on (offline mode, or -offline).</summary>
+    public sealed class NetworkDisabledException : InvalidOperationException
+    {
+        public NetworkDisabledException() : base("Network access is disabled.") { }
+    }
+
+    /// <summary>What kind of network failure an exception is (task P2-06): the download waits out a lost connection but stops on anything else.</summary>
+    public static class NetworkFailure
+    {
+        /// <summary>Offline mode refused the request somewhere in the chain.</summary>
+        public static bool IsOfflineMode(Exception? e)
+        {
+            for (; e != null; e = e.InnerException)
+                if (e is NetworkDisabledException) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// The server couldn't be reached at all, or the connection dropped or timed out: no DNS, no route, a reset
+        /// socket. A server that answered with an error status is not this.
+        /// </summary>
+        public static bool IsNoConnection(Exception? e)
+        {
+            for (; e != null; e = e.InnerException)
+            {
+                switch (e)
+                {
+                    case System.Net.Sockets.SocketException _: return true;
+                    case System.Net.WebException w:
+                        if (w.Status == System.Net.WebExceptionStatus.NameResolutionFailure || w.Status == System.Net.WebExceptionStatus.ConnectFailure
+                            || w.Status == System.Net.WebExceptionStatus.ConnectionClosed || w.Status == System.Net.WebExceptionStatus.ReceiveFailure
+                            || w.Status == System.Net.WebExceptionStatus.SendFailure || w.Status == System.Net.WebExceptionStatus.Timeout
+                            || w.Status == System.Net.WebExceptionStatus.KeepAliveFailure) return true;
+                        break;
+                    case TaskCanceledException _: return true;   // HttpClient's timeout; our own cancellation never reaches here as a failure
+                    case HttpRequestException h when h.InnerException is IOException: return true;
+                }
+            }
+            return false;
         }
     }
 

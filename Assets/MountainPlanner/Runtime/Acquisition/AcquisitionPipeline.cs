@@ -272,7 +272,9 @@ namespace MountainPlanner.Acquisition
             {
                 response = await osm.DownloadAsync(site.Ring, ct).ConfigureAwait(false);
             }
-            catch (InvalidOperationException ex) when (!ct.IsCancellationRequested)
+            // Overpass being down is a missing optional layer; the connection going (or offline mode) is not: the
+            // download waits for it rather than build a package without water and roads (task P2-06).
+            catch (InvalidOperationException ex) when (!ct.IsCancellationRequested && !NetworkFailure.IsOfflineMode(ex) && !NetworkFailure.IsNoConnection(ex))
             {
                 return new OsmResult { Failure = ex.Message };
             }
