@@ -45,7 +45,8 @@ Branch `feature/p2-06-downloads` from main 06e12b5. demo.bat 54. Status: 🟩 im
   | Offline mode | "Offline mode is on" | Turn off offline mode (button) |
   | Disk full | "Not enough disk space" | Needs about N MB more; Free space, or choose another library folder |
   | Access denied | "The library folder can't be written" | Open Settings › Data |
-  | Server error (5xx, bad data) | "The map service didn't answer properly" | Try again later; what was downloaded is kept |
+  | Service busy (429, 502, 503, 504) | "A map service is busy" | Waits and retries by itself every minute (added 2026-10-08, after USGS answered 502 mid-test) |
+  | Server error (other statuses, bad data) | "A map service didn't answer properly" | Try again later; what was downloaded is kept |
   | No data here | "There's no elevation data for this square" | Choose another site (no retry) |
   | Anything else | "The download stopped" | Try again; the log has the details (Open log folder) |
 

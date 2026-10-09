@@ -107,6 +107,21 @@ namespace MountainPlanner.Acquisition.IO
         }
 
         /// <summary>
+        /// The server answered "busy, try later": 429, 502, 503 or 504 (a gateway or the service behind it). USGS's
+        /// elevation service does this now and then; it passes.
+        /// </summary>
+        public static bool IsServiceBusy(Exception? e)
+        {
+            for (; e != null; e = e.InnerException)
+                if (e is HttpRequestException h)
+                    foreach (string code in BusyCodes)
+                        if (h.Message.IndexOf(code, StringComparison.Ordinal) >= 0) return true;
+            return false;
+        }
+
+        static readonly string[] BusyCodes = { "429", "502", "503", "504" };
+
+        /// <summary>
         /// The server couldn't be reached at all, or the connection dropped or timed out: no DNS, no route, a reset
         /// socket. A server that answered with an error status is not this.
         /// </summary>

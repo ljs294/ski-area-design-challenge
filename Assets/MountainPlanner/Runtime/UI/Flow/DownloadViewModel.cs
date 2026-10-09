@@ -64,7 +64,7 @@ namespace MountainPlanner.UI.Flow
         public string BarLabel =>
             Phase == DownloadPhase.Failed ? "Download stopped"
             : Phase == DownloadPhase.Paused ? "Download paused"
-            : Phase == DownloadPhase.Waiting ? (Problem?.Kind == ProblemKind.OfflineMode ? "Paused · offline mode" : "Waiting for connection")
+            : Phase == DownloadPhase.Waiting ? (Problem?.Kind == ProblemKind.OfflineMode ? "Paused · offline mode" : Problem?.Kind == ProblemKind.ServiceBusy ? "Waiting for the map service" : "Waiting for connection")
             : "Downloading";
         public string BarText => $"{Name} · {Percent}";
         /// <summary>Why it stopped or waits, in the player's words (S11); null while it runs.</summary>
@@ -174,13 +174,14 @@ namespace MountainPlanner.UI.Flow
             Phase = DownloadPhase.Waiting;
             Problem = problem;
             _waitSeconds = whole;
-            bool offline = problem.Kind == ProblemKind.OfflineMode;
+            bool offline = problem.Kind == ProblemKind.OfflineMode, busy = problem.Kind == ProblemKind.ServiceBusy;
+            string what = busy ? "A map service is busy" : "No connection";
             Detail = offline ? "Offline mode is on. The download continues when you turn it off."
-                   : whole > 0 ? $"No connection. Trying again in {whole} s."
-                   : "No connection. Trying again now.";
+                   : whole > 0 ? $"{what}. Trying again in {whole} s."
+                   : $"{what}. Trying again now.";
             TimeLeft = "";
             Transfer = "";
-            Pill = offline ? $"{Name} · paused · offline mode" : $"{Name} · waiting for connection";
+            Pill = offline ? $"{Name} · paused · offline mode" : busy ? $"{Name} · waiting for the map service" : $"{Name} · waiting for connection";
             Version++;
         }
 

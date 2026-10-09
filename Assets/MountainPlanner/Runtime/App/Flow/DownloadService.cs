@@ -76,6 +76,8 @@ namespace MountainPlanner.App.Flow
         public const double RecordEverySeconds = 2;
         /// <summary>How long it waits for the connection before trying again.</summary>
         public const double RetrySeconds = 15;
+        /// <summary>How long it gives a busy map service (502, 503...) before trying again.</summary>
+        public const double BusyRetrySeconds = 60;
 
         string _dataRoot;
         ISiteDownloader _downloader;
@@ -89,6 +91,7 @@ namespace MountainPlanner.App.Flow
         /// <summary>Seconds until the next try while waiting; below 0 = waiting for <see cref="TryNow"/> (offline mode).</summary>
         double _retryIn = -1;
         long _downloaded;
+        string _loggedStage = "";
 
         public readonly DownloadViewModel View = new DownloadViewModel();
         public PendingDownload Current { get; private set; }
@@ -153,6 +156,7 @@ namespace MountainPlanner.App.Flow
             _sinceRecord = 0;
             _retryIn = -1;
             _downloaded = 0;
+            _loggedStage = "";
             lock (_gate) _latest = null;
             _cts = new CancellationTokenSource();
             var ct = _cts.Token;
@@ -217,6 +221,11 @@ namespace MountainPlanner.App.Flow
             if (s != null)
             {
                 View.Apply(s);
+                if (s.Stage != _loggedStage && s.Stage.Length > 0 && Current != null)
+                {
+                    _loggedStage = s.Stage;   // one line per stage: demo.bat 54 and the benchmark read where it got to
+                    UnityEngine.Debug.Log($"[Downloads] {Current.Name}: {s.Stage} at {s.Overall:P0}, {s.Downloaded / 1e6:F1} MB over the network so far");
+                }
                 if (s.Downloaded > _downloaded)
                 {
                     _downloaded = s.Downloaded;
@@ -268,7 +277,7 @@ namespace MountainPlanner.App.Flow
                 {
                     UnityEngine.Debug.Log($"[Downloads] {d.Name}: waiting ({problem.Kind}): {error?.GetBaseException().Message}");
                     if (problem.Kind == ProblemKind.NoConnection) OfflineState.ReportConnection(false);
-                    _retryIn = problem.Kind == ProblemKind.NoConnection ? RetrySeconds : -1;
+                    _retryIn = problem.Kind == ProblemKind.NoConnection ? RetrySeconds : problem.Kind == ProblemKind.ServiceBusy ? BusyRetrySeconds : -1;
                     View.Waiting(problem, _retryIn);
                     WaitStarted?.Invoke(problem);
                 }
@@ -312,6 +321,7 @@ namespace MountainPlanner.App.Flow
             if (e == null) return ProblemKind.Unknown;
             if (NetworkFailure.IsOfflineMode(e)) return ProblemKind.OfflineMode;
             if (NetworkFailure.IsNoConnection(e)) return ProblemKind.NoConnection;
+            if (NetworkFailure.IsServiceBusy(e)) return ProblemKind.ServiceBusy;
             for (var x = e; x != null; x = x.InnerException)
             {
                 if (x is UnauthorizedAccessException) return ProblemKind.AccessDenied;

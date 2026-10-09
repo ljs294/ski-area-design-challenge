@@ -219,5 +219,71 @@ namespace MountainPlanner.Tests
             Assert.That(flow.Controller.InGame, Is.False);
             Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Title));
         }
+
+        /// <summary>Holds the download at its second stage until released (task P2-06).</summary>
+        sealed class HeldDownload : ISiteDownloader
+        {
+            public volatile bool Release;
+            public int Runs;
+
+            public async Task<string> DownloadAsync(PendingDownload d, string build, IProgress<DownloadStatus> progress, CancellationToken ct)
+            {
+                Interlocked.Increment(ref Runs);
+                var stages = new[] { "Terrain", "Forest", "Building" };
+                progress.Report(new DownloadStatus { Name = d.Name, Stages = stages, StageIndex = 1, StageCount = 3, Stage = "Terrain", Overall = 0.05 });
+                while (!Release) { ct.ThrowIfCancellationRequested(); await Task.Delay(10, ct); }
+                throw new OperationCanceledException();   // the test ends by cancelling; nothing reaches the library
+            }
+        }
+
+        /// <summary>
+        /// Task P2-06 acceptance, the in-game half: a download paused by a quit resumes by itself once the title is up,
+        /// as the pill (at the share it reached), keeps going while another area opens, and shows in that area's HUD bar.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator APausedDownloadResumesByItselfAndKeepsGoingInTheGame()
+        {
+            Http.NetworkDisabled = false;
+            var held = new HeldDownload();
+            var paused = new PendingDownload
+            {
+                Id = PendingDownloads.IdFor("Crystal Mountain", 46.935, -121.474, 2), Name = "Crystal Mountain", Latitude = 46.935, Longitude = -121.474,
+                SizeKm = 2, StartedUtc = "2026-10-08T10:00:00Z", LastOverall = 0.4, LastStage = "Forest",
+            };
+            Assert.That(PendingDownloads.Save(_root, paused), Is.True);
+            try
+            {
+                if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
+                var flow = AppFlow.Create(_root, held);
+                flow.ResumeAtLaunch = true;   // off in batch runs; this is what a player's launch does
+                yield return SceneManager.LoadSceneAsync(ViewerScene);
+                yield return WaitForMountain(120);
+                for (int i = 0; i < 10 && !flow.Downloads.Running; i++) yield return null;
+                Assert.That(flow.Downloads.Running, Is.True, "resumed by itself once the title was up");
+                Assert.That(held.Runs, Is.EqualTo(1));
+                Assert.That(flow.Controller.DownloadActive && !flow.Controller.DownloadCardOpen, Is.True, "as the pill, not the card");
+                Assert.That(flow.Screens.PillShown, Is.True);
+                Assert.That(flow.Downloads.View.Percent, Is.EqualTo("40%"), "at the share it had reached, not 0%");
+
+                flow.Controller.Open(_package);   // explore another area meanwhile
+                yield return null;
+                yield return WaitForMountain(120);
+                Assert.That(flow.Controller.InGame, Is.True);
+                Assert.That(flow.Downloads.Running, Is.True, "it keeps going across the scene load");
+                Assert.That(flow.Screens.PillShown, Is.False, "in the game the pill is the HUD bar's");
+                yield return null;
+                var hud = Object.FindAnyObjectByType<MountainViewer>().Hud;
+                var cell = hud.Document.rootVisualElement.Q("bar-download-cell");
+                Assert.That(cell, Is.Not.Null);
+                Assert.That(cell.ClassListContains("hidden"), Is.False, "the HUD bar shows the download");
+                StringAssert.Contains("Crystal Mountain", hud.Document.rootVisualElement.Q<Label>("bar-download-text").text);
+            }
+            finally
+            {
+                held.Release = true;
+                AppFlow.Instance?.Downloads.Cancel(keep: false);
+            }
+            for (int i = 0; i < 30 && AppFlow.Instance != null && AppFlow.Instance.Downloads.Active; i++) yield return null;
+        }
     }
 }

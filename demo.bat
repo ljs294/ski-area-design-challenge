@@ -142,6 +142,11 @@ echo     53 Capture every Settings page at 1920x1080, 2560x1080 and 3440x1440, d
 echo        Then play it: Settings from the title or the in-game menu. Graphics changes show at once; Display asks to keep
 echo        a new mode or resolution; Controls - click a key, press the new one; Data - Offline mode, Free space.
 echo.
+echo   Phase 2, task 06: background downloads, dialogs and offline (needs the network; close the Unity editor first)
+echo     54 Kill the game mid-download and start it again: the download resumes by itself from the stage it reached
+echo        Then play it with 38: start a download, Minimise, open an area - the pill is in the HUD bar; pull the
+echo        network cable - it waits and goes on by itself; Settings - Data - Offline mode on, then New Area.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -212,6 +217,7 @@ if /i "%CHOICE%"=="49" goto housekeeping
 if /i "%CHOICE%"=="50" goto windowreset
 if /i "%CHOICE%"=="51" goto forestlook
 if /i "%CHOICE%"=="52" goto firstrun
+if /i "%CHOICE%"=="54" goto killresume
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -287,7 +293,7 @@ goto menu
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 call :seedscratch
-echo Starting the game with the network off ^(-offline^): Load Area, then open any area. A new download stops with a network error.
+echo Starting the game with the network off ^(-offline^): Load Area, then open any area. New Area says why it can't go on.
 start "" "%GAME%" -data "%SCRATCH%" -offline
 goto menu
 
@@ -303,6 +309,13 @@ echo   "Open the demo" is focused: Enter opens it. Load Area lists it as Built i
 echo   Quit the game to see how long the title took to come in.
 start "" /wait "%GAME%" -data "%FIRSTRUN%" -offline
 findstr /c:"[AppFlow] The title's mountain is in" "%USERPROFILE%\AppData\LocalLow\Ski Area Design Challenge\Ski Area Design Challenge\Player.log"
+goto done
+
+:killresume
+rem Task P2-06: a scratch library of its own, emptied first; the second game stays open to watch the pill.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\demo\kill-resume.ps1" -Game "%GAME%" -Data "%LOCALAPPDATA%\SkiAreaDesignChallenge-killresume" -Seed "%~dp0TestData\jackson-hole-2km" -LogFolder "%~dp0test-results\p2-06"
 goto done
 
 :flowclean

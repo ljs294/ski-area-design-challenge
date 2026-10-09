@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using MountainPlanner.Acquisition.IO;
+using MountainPlanner.Domain.Geo;
 using MountainPlanner.Persistence;
 using MountainPlanner.UI.Flow;
 using UnityEngine;
@@ -24,6 +25,7 @@ namespace MountainPlanner.App.Flow
         public bool ResumeAtLaunch;
         /// <summary>A dialog waiting for the cover to lift (the flow's screens take no keys under it).</summary>
         Action _queuedDialog;
+        PendingDownload _downloadArg;
         int _hudVersion = -2, _pickerVersion = -2;
         UI.MountainHud _wiredHud;
 
@@ -31,6 +33,14 @@ namespace MountainPlanner.App.Flow
         {
             string[] args = Environment.GetCommandLineArgs();
             ResumeAtLaunch = !Application.isBatchMode && !NoAutoResume.Any(a => Array.IndexOf(args, a) >= 0);
+            // -download <name> <latitude> <longitude> <km>: starts that download once the title is up (demo.bat 54's kill test).
+            int i = Array.IndexOf(args, "-download");
+            if (i >= 0 && i + 4 < args.Length
+                && double.TryParse(args[i + 2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double lat)
+                && double.TryParse(args[i + 3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double lon)
+                && double.TryParse(args[i + 4], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double km))
+                _downloadArg = DownloadService.Request(PickedSite.Create(args[i + 1], Albers6350.Forward(new GeoPoint(lat, lon)), km, false, default),
+                                                       DownloadService.UtcStamp(DateTime.UtcNow));
 
             Screens.ResumeChosen += r => StartDownload(r.Pending);
             Screens.DiscardChosen += r =>
@@ -102,6 +112,14 @@ namespace MountainPlanner.App.Flow
                 show();
             }
             if (ResumeAtLaunch && _viewer != null && !Screens.CoverUp && MountainViewer.TitleMode) ResumeOldest();
+            if (_downloadArg != null && _viewer != null && !Screens.CoverUp)
+            {
+                var d = _downloadArg;
+                _downloadArg = null;
+                // The same request as a paused one resumes it (the id is the same): take the record's progress.
+                d = PendingDownloads.List(DataRoot).FirstOrDefault(p => p.Id == d.Id) ?? d;
+                if (!Downloads.Active) StartDownload(d);
+            }
         }
 
         /// <summary>Owner D1: the oldest paused download continues by itself, as the pill. Offline, it waits there.</summary>

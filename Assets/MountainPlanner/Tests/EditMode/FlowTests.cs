@@ -523,15 +523,15 @@ namespace MountainPlanner.Tests
         [Test]
         public void AFailureKeepsTheRecordForRetry()
         {
-            var fake = new Fake { Block = false, Throw = new IOException("The request failed after 4 attempts.", new System.Net.Http.HttpRequestException("Response status code does not indicate success: 503")) };
+            var fake = new Fake { Block = false, Throw = new IOException("The request failed after 4 attempts.", new System.Net.Http.HttpRequestException("Response status code does not indicate success: 404 (Not Found).")) };
             var service = new DownloadService(_root, fake, () => "now");
             DownloadProblem failed = null;
             service.Failed += m => failed = m;
             service.Start(Site());
             PumpUntil(service, () => failed != null);
             Assert.That(failed.Kind, Is.EqualTo(ProblemKind.ServerError));
-            Assert.That(service.View.Detail, Does.Not.Contain("503"), "S11: no raw message on screen");
-            Assert.That(service.View.Error, Does.Contain("503"), "the raw one is kept for the log");
+            Assert.That(service.View.Detail, Does.Not.Contain("404"), "S11: no raw message on screen");
+            Assert.That(service.View.Error, Does.Contain("404"), "the raw one is kept for the log");
             Assert.That(service.View.Phase, Is.EqualTo(DownloadPhase.Failed));
             Assert.That(service.Current, Is.Not.Null, "Retry restarts the same request");
             Assert.That(PendingDownloads.List(_root), Has.Count.EqualTo(1));
@@ -660,6 +660,9 @@ namespace MountainPlanner.Tests
             Assert.That(DownloadErrors.Classify(new UnauthorizedAccessException("denied")), Is.EqualTo(ProblemKind.AccessDenied));
             Assert.That(DownloadErrors.Classify(new InvalidDataException("Not a TIFF file")), Is.EqualTo(ProblemKind.ServerError));
             Assert.That(DownloadErrors.Classify(new NullReferenceException()), Is.EqualTo(ProblemKind.Unknown));
+            // What USGS's gateway said on 2026-10-08, mid-download: busy, not broken.
+            Assert.That(DownloadErrors.Classify(new IOException("The request failed after 4 attempts.", new System.Net.Http.HttpRequestException("502 (Bad Gateway)"))), Is.EqualTo(ProblemKind.ServiceBusy));
+            Assert.That(DownloadProblem.Of(ProblemKind.ServiceBusy).Waits, Is.True);
             foreach (ProblemKind k in Enum.GetValues(typeof(ProblemKind)))
             {
                 var p = DownloadProblem.Of(k, 240_000_000);
