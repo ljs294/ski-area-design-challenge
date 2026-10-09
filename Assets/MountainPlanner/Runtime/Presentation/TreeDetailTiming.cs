@@ -62,6 +62,13 @@ namespace MountainPlanner.Presentation
         public static TreeDetail DetailOf(float bias) =>
             bias >= 3f ? TreeDetail.Ultra : bias >= 2f ? TreeDetail.High : bias >= 1.5f ? TreeDetail.Medium : TreeDetail.Low;
 
+        /// <summary>
+        /// False while Windows reports a tiny desktop (640×480 while the owner's console session is disconnected and
+        /// they're remote): frames are capped and the screen isn't the player's, so a timing then would be wrong.
+        /// The timing waits for a real desktop instead.
+        /// </summary>
+        public static bool DisplayTrustworthy(int desktopWidth, int desktopHeight) => desktopWidth >= 1024 && desktopHeight >= 720;
+
         // ---------- the remembered result ----------
 
         const string StoreKey = "TreeDetailAuto";

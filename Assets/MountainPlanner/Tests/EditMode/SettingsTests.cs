@@ -367,6 +367,13 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void ADisconnectedDesktopIsNotTimed()
+        {
+            Assert.That(TreeDetailTiming.DisplayTrustworthy(640, 480), Is.False);
+            Assert.That(TreeDetailTiming.DisplayTrustworthy(2560, 1080), Is.True);
+        }
+
+        [Test]
         public void TheResultIsKeptPerCardAndScreenSize()
         {
             string here = TreeDetailTiming.Machine("RTX 4070", 2560, 1080);

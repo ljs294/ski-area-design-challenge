@@ -572,8 +572,12 @@ namespace MountainPlanner.Tests
             int level = QualitySettings.GetQualityLevel();
             try
             {
+                var nav = ui.Q("settings-nav");
                 foreach (string id in new[] { "interface", "units", "graphics", "display", "controls", "data" })
                 {
+                    // From a page's rows, Left goes back to the categories (the Controls page is long for Tab alone).
+                    for (int i = 0; i < 4 && !nav.Contains((VisualElement)Focused(ui)); i++) yield return Move(ui, NavigationMoveEvent.Direction.Left);
+                    Assert.That(nav.Contains((VisualElement)Focused(ui)), $"Left reaches the categories ({Name(Focused(ui))})");
                     yield return TabTo(ui, "settings-tab-" + id);
                     yield return Submit(ui);
                     Assert.That(UiFocus.IsShown(ui.Q("settings-" + id)), $"the {id} page shows");
@@ -586,6 +590,7 @@ namespace MountainPlanner.Tests
                 }
 
                 // Graphics: ‹ on the preset steps High to Medium, live.
+                for (int i = 0; i < 4 && !nav.Contains((VisualElement)Focused(ui)); i++) yield return Move(ui, NavigationMoveEvent.Direction.Left);
                 yield return TabTo(ui, "settings-tab-graphics");
                 yield return Submit(ui);
                 QualityPresets.Apply(GraphicsOptions.For(QualityPreset.High));
@@ -597,6 +602,7 @@ namespace MountainPlanner.Tests
                 Assert.That(ui.Q<Label>("quality-value").text, Is.EqualTo("Medium"));
 
                 // Controls: Enter on the Toolbox's key listens; B binds it; Esc while listening only cancels.
+                for (int i = 0; i < 4 && !nav.Contains((VisualElement)Focused(ui)); i++) yield return Move(ui, NavigationMoveEvent.Direction.Left);
                 yield return TabTo(ui, "settings-tab-controls");
                 yield return Submit(ui);
                 yield return TabTo(ui, "key-Toolbox-0");
@@ -623,6 +629,7 @@ namespace MountainPlanner.Tests
                 if (QualitySettings.GetQualityLevel() != level) QualitySettings.SetQualityLevel(level, true);
                 settings.Remember = true;
             }
+            for (int i = 0; i < 4 && !ui.Q("settings-nav").Contains((VisualElement)Focused(ui)); i++) yield return Move(ui, NavigationMoveEvent.Direction.Left);
             yield return TabTo(ui, "settings-tab-interface");
             yield return Submit(ui);
         }

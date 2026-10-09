@@ -70,6 +70,12 @@ namespace MountainPlanner.App
             if (!forced && (SettingsStore.CommandLineQuality(args) || Array.IndexOf(args, "-screenshot") >= 0 || Array.IndexOf(args, "-uicapture") >= 0
                             || Array.IndexOf(args, "-flowcapture") >= 0 || Array.IndexOf(args, "-clip") >= 0 || Array.IndexOf(args, "-pathmovie") >= 0)) return;
             if (!forced && TreeDetailTiming.Remembered(MachineId()) > 0) return;
+            var desktop = Screen.currentResolution;
+            if (!TreeDetailTiming.DisplayTrustworthy(desktop.width, desktop.height))
+            {
+                Debug.Log($"[MountainViewer] Auto tree detail waits: the desktop is {desktop.width}x{desktop.height} (a disconnected session?).");
+                return;   // the preset's bias until an open on a real desktop
+            }
             StartCoroutine(TimeTreeDetail());
         }
 
