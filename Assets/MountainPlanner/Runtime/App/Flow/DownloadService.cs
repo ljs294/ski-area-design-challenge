@@ -235,7 +235,8 @@ namespace MountainPlanner.App.Flow
             if (_task == null) return;
 
             _sinceRecord += deltaSeconds;
-            if (s != null && _sinceRecord >= RecordEverySeconds && Current != null)
+            // Every 2 s, and at once when a stage begins, so a kill just after it still resumes there.
+            if (s != null && Current != null && (_sinceRecord >= RecordEverySeconds || s.Stage != Current.LastStage && s.Overall >= Current.LastOverall))
             {
                 _sinceRecord = 0;
                 // A resumed download reading back what arrived keeps the furthest point reached, so a second kill loses nothing.
