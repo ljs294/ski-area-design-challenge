@@ -228,6 +228,8 @@ namespace MountainPlanner.Editor
             PlayerSettings.defaultIsNativeResolution = true;
             PlayerSettings.resizableWindow = true;
             PlayerSettings.allowFullscreenSwitch = true;
+            // No Unity splash: the title over the live demo is the first thing on screen, within 10 s of launch (task P2-03).
+            PlayerSettings.SplashScreen.show = false;
             WriteBuildInfo();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
@@ -237,7 +239,19 @@ namespace MountainPlanner.Editor
                 options = options,
             });
             Debug.Log($"[ViewerSetup] Build {report.summary.result}: {report.summary.totalSize / 1e6:F0} MB in {report.summary.totalTime.TotalSeconds:F0} s → {path}");
-            if (Application.isBatchMode) EditorApplication.Exit(report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 1);
+            bool ok = report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded;
+            // The Jackson Hole demo and its prebuilt cache go into the player's StreamingAssets (task P2-03); a damaged
+            // package or a cache of the wrong version fails the build.
+            if (ok)
+            {
+                try { DemoBundle.AddTo(path, System.Environment.GetCommandLineArgs(), MountainViewer.DataRoot); }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"[ViewerSetup] Bundling the demo failed: {e.Message}");
+                    ok = false;
+                }
+            }
+            if (Application.isBatchMode) EditorApplication.Exit(ok ? 0 : 1);
         }
 
         /// <summary>Where the build stamp goes: a git-ignored Resources folder, so builds never dirty the working tree.</summary>

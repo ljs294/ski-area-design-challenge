@@ -88,18 +88,22 @@ namespace MountainPlanner.App
     {
         public const int TilesPerFrame = 4;
 
+        /// <param name="readOnly">
+        /// A package built into the game (task P2-03): opened without writing a byte. It takes no cache lease (nothing
+        /// can delete it) and its cache must already be current, since it can't be built in place.
+        /// </param>
         public static async Task<OpenedResort> OpenAsync(string packageFolder, Transform parent, TerrainDetail detail,
                                                          IProgress<OpenProgress> progress, CancellationToken ct = default, Material material = null,
-                                                         ForestAssets forest = null)
+                                                         ForestAssets forest = null, bool readOnly = false)
         {
             var clock = Stopwatch.StartNew();
             progress?.Report(new OpenProgress("Opening: reading the package", 0));
             // Held from the start, so no game (another branch's included) deletes this cache while it opens or shows.
-            var lease = await Task.Run(() => TerrainCache.Hold(packageFolder), ct);
+            var lease = readOnly ? null : await Task.Run(() => TerrainCache.Hold(packageFolder), ct);
             try { return await OpenHeldAsync(packageFolder, parent, detail, progress, ct, material, forest, clock, lease); }
             catch
             {
-                lease.Dispose();
+                lease?.Dispose();
                 throw;
             }
         }
@@ -109,7 +113,9 @@ namespace MountainPlanner.App
         {
             var manifest = await Task.Run(() => ResortPackage.ReadManifest(packageFolder), ct);
 
-            if (!TerrainCache.IsCurrent(packageFolder, manifest))
+            bool current = await Task.Run(() => TerrainCache.IsCurrent(packageFolder, manifest), ct);
+            if (!current && lease == null) throw new System.IO.InvalidDataException(BundledAreas.StaleCache);
+            if (!current)
             {
                 var tileProgress = new Progress<CacheProgress>(p =>
                     progress?.Report(new OpenProgress($"Preparing terrain: tile {p.Tile} of {p.Tiles}", 0.5f * p.Tile / p.Tiles)));

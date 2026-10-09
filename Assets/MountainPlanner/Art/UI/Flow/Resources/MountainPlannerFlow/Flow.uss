@@ -140,6 +140,8 @@
 .lib-row--newer .lib-name { color: var(--muted); -unity-text-outline-color: var(--muted); -unity-font-style: normal; opacity: 0.6; }
 .lib-row--newer .lib-cell { opacity: 0.6; }
 .lib-row--newer .mp-go:disabled { opacity: 0.6; }   /* the mockup's disabled "go" (dis-bg, dis-fg), a little fainter */
+/* The demo built into the game (task P2-03): Manage Areas names why it has no Rename or Delete. */
+.lib-builtin { color: var(--muted); -unity-text-outline-color: var(--muted); font-size: 13px; padding: 6px 4px; -unity-text-align: middle-right; }
 
 /* ---------- S4 download card and pill ---------- */
 .download {
@@ -279,4 +281,28 @@
 .toast {
     position: absolute; left: 50%; bottom: 120px; translate: -50% 0;
     padding: 8px 14px; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 3px;
+}
+
+/* ---------- Task P2-03: the cover while a mountain opens ----------
+   Brand, not theme: the same warm near-black and sign white in Dark and Light. The name plate is the title's own;
+   a two-pixel rule fills as the mountain opens; the studio sits at the foot in plain Overpass. */
+.cover {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    background-color: #1f1c19;
+    align-items: center; justify-content: center;
+    opacity: 1; transition-property: opacity; transition-duration: 0.7s; transition-timing-function: ease-in-out;
+}
+.cover--fading { opacity: 0; }
+.cover-mark { width: 340px; align-items: stretch; }
+.cover-plate { margin-bottom: 22px; }
+.cover-rule { height: 2px; background-color: rgba(251, 248, 242, 0.16); }
+.cover-fill { height: 2px; width: 0; background-color: #fbf8f2; }
+.cover-text {
+    margin: 12px 0 0 0; padding: 0; font-size: 13px; -unity-text-align: middle-center;
+    color: rgba(251, 248, 242, 0.72); -unity-text-outline-color: rgba(251, 248, 242, 0.72);
+}
+.cover-studio {
+    position: absolute; bottom: 36px; left: 0; right: 0; padding: 0; margin: 0;
+    font-size: 15px; -unity-font-style: bold; -unity-text-align: middle-center;
+    color: rgba(251, 248, 242, 0.6); -unity-text-outline-color: rgba(251, 248, 242, 0.6);
 }
