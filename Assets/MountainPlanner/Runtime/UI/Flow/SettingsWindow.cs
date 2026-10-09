@@ -87,6 +87,10 @@ namespace MountainPlanner.UI.Flow
             _window.RegisterCallback<NavigationMoveEvent>(e => swallow(e), TrickleDown.TrickleDown);
             _window.RegisterCallback<NavigationSubmitEvent>(e => swallow(e), TrickleDown.TrickleDown);
             _window.RegisterCallback<NavigationCancelEvent>(e => swallow(e), TrickleDown.TrickleDown);
+            // Left from the first control in a row goes back to the page's category, and Right from a category goes into
+            // its page: the Controls page is too long to Tab back from. It runs before UiFocus's arrows (on the panel).
+            _window.RegisterCallback<AttachToPanelEvent>(e => e.destinationPanel.visualTree.RegisterCallback<NavigationMoveEvent>(BetweenNavAndPage, TrickleDown.TrickleDown));
+            if (_window.panel != null) _window.panel.visualTree.RegisterCallback<NavigationMoveEvent>(BetweenNavAndPage, TrickleDown.TrickleDown);
             // The pages are longer than the window: the keyboard's focus scrolls into view.
             _scroll.RegisterCallback<FocusInEvent>(e =>
             {
@@ -101,6 +105,7 @@ namespace MountainPlanner.UI.Flow
         public void Dispose()
         {
             StopListening();
+            _window.panel?.visualTree.UnregisterCallback<NavigationMoveEvent>(BetweenNavAndPage, TrickleDown.TrickleDown);
             UiPreferences.Changed -= RefreshIfOpen;
             FlowUnits.Changed -= RefreshIfOpen;
             KeyBindings.Changed -= RefreshIfOpen;
@@ -112,6 +117,34 @@ namespace MountainPlanner.UI.Flow
         }
 
         bool IsOpen => !_window.ClassListContains("hidden");
+
+        void BetweenNavAndPage(NavigationMoveEvent e)
+        {
+            if (!IsOpen || CapturingKeys || !(_window.focusController?.focusedElement is VisualElement focused) || !_window.Contains(focused)) return;
+            Focusable to = null;
+            if (e.direction == NavigationMoveEvent.Direction.Right && _nav.Contains(focused))
+                to = UiFocus.FirstIn(_pages[_page]);
+            else if (e.direction == NavigationMoveEvent.Direction.Left && !_nav.Contains(focused) && !(focused is BaseSlider<int>) && FirstInRow(focused))
+                to = _tabs[_page];
+            if (to == null) return;
+            e.StopImmediatePropagation();
+            _window.focusController.IgnoreEvent(e);
+            to.Focus();
+        }
+
+        /// <summary>No control before this one in its row (its parent's earlier children take no focus).</summary>
+        static bool FirstInRow(VisualElement e)
+        {
+            var parent = e.hierarchy.parent;
+            if (parent == null) return true;
+            for (int i = 0; i < parent.hierarchy.childCount; i++)
+            {
+                var sibling = parent.hierarchy[i];
+                if (sibling == e) return true;
+                if (sibling.focusable && sibling.canGrabFocus && sibling.enabledInHierarchy && sibling.tabIndex >= 0 && UiFocus.IsShown(sibling)) return false;
+            }
+            return true;
+        }
 
         /// <summary>The first page's tab, which takes focus when the window opens.</summary>
         public Button FirstTab => _tabs[0];

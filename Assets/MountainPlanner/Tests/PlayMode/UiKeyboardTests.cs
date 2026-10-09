@@ -575,8 +575,8 @@ namespace MountainPlanner.Tests
                 var nav = ui.Q("settings-nav");
                 foreach (string id in new[] { "interface", "units", "graphics", "display", "controls", "data" })
                 {
-                    // From a page's rows, Left goes back to the categories (the Controls page is long for Tab alone).
-                    for (int i = 0; i < 4 && !nav.Contains((VisualElement)Focused(ui)); i++) yield return Move(ui, NavigationMoveEvent.Direction.Left);
+                    // From the first control in a row, Left goes back to the categories (the Controls page is long for Tab alone).
+                    yield return BackToCategories(ui);
                     Assert.That(nav.Contains((VisualElement)Focused(ui)), $"Left reaches the categories ({Name(Focused(ui))})");
                     yield return TabTo(ui, "settings-tab-" + id);
                     yield return Submit(ui);
@@ -590,7 +590,7 @@ namespace MountainPlanner.Tests
                 }
 
                 // Graphics: ‹ on the preset steps High to Medium, live.
-                for (int i = 0; i < 4 && !nav.Contains((VisualElement)Focused(ui)); i++) yield return Move(ui, NavigationMoveEvent.Direction.Left);
+                yield return BackToCategories(ui);
                 yield return TabTo(ui, "settings-tab-graphics");
                 yield return Submit(ui);
                 QualityPresets.Apply(GraphicsOptions.For(QualityPreset.High));
@@ -601,25 +601,25 @@ namespace MountainPlanner.Tests
                 Assert.That(QualitySettings.names[QualitySettings.GetQualityLevel()], Is.EqualTo("Medium"), "Unity's quality level changed at once");
                 Assert.That(ui.Q<Label>("quality-value").text, Is.EqualTo("Medium"));
 
-                // Controls: Enter on the Toolbox's key listens; B binds it; Esc while listening only cancels.
-                for (int i = 0; i < 4 && !nav.Contains((VisualElement)Focused(ui)); i++) yield return Move(ui, NavigationMoveEvent.Direction.Left);
+                // Controls: Enter on Move forward's key listens; B binds it; Esc while listening only cancels.
+                yield return BackToCategories(ui);
                 yield return TabTo(ui, "settings-tab-controls");
                 yield return Submit(ui);
-                yield return TabTo(ui, "key-Toolbox-0");
+                yield return TabTo(ui, "key-MoveForward-0");
                 yield return Submit(ui);
                 Assert.That(KeyBindings.Listening, Is.True, "Enter on a key listens for the next one");
                 yield return Press(Key.B);
                 Assert.That(KeyBindings.Listening, Is.False);
-                Assert.That(KeyBindings.Caption(GameAction.Toolbox), Is.EqualTo("B"), "B is the Toolbox's key now");
-                Assert.That(ui.Q<Button>("key-Toolbox-0").text, Is.EqualTo("B"));
+                Assert.That(KeyBindings.Caption(GameAction.MoveForward, 0), Is.EqualTo("B"), "B moves forward now");
+                Assert.That(ui.Q<Button>("key-MoveForward-0").text, Is.EqualTo("B"));
                 yield return Frames(3);
-                yield return TabTo(ui, "key-Units-0");
+                yield return TabTo(ui, "key-MoveBack-0");
                 yield return Submit(ui);
                 Assert.That(KeyBindings.Listening, Is.True);
                 yield return Press(Key.Escape);
                 Assert.That(KeyBindings.Listening, Is.False, "Esc cancels listening");
                 Assert.That(flow.Screens.OverlayOpen, Is.True, "and leaves Settings open");
-                Assert.That(KeyBindings.Caption(GameAction.Units), Is.EqualTo("U"), "the key is unchanged");
+                Assert.That(KeyBindings.Caption(GameAction.MoveBack, 0), Is.EqualTo("S"), "the key is unchanged");
                 yield return Frames(3);
             }
             finally
@@ -629,9 +629,18 @@ namespace MountainPlanner.Tests
                 if (QualitySettings.GetQualityLevel() != level) QualitySettings.SetQualityLevel(level, true);
                 settings.Remember = true;
             }
-            for (int i = 0; i < 4 && !ui.Q("settings-nav").Contains((VisualElement)Focused(ui)); i++) yield return Move(ui, NavigationMoveEvent.Direction.Left);
-            yield return TabTo(ui, "settings-tab-interface");
+            yield return BackToCategories(ui);
+            for (int i = 0; i < 8 && Name(Focused(ui)) != "settings-tab-interface"; i++) yield return Move(ui, NavigationMoveEvent.Direction.Up);
+            AssertFocus(ui, "settings-tab-interface", "Up walks the categories");
             yield return Submit(ui);
+        }
+
+        /// <summary>Left from the first control in a row reaches the categories; a slider keeps Left, so Up off it first.</summary>
+        static IEnumerator BackToCategories(VisualElement ui)
+        {
+            var nav = ui.Q("settings-nav");
+            for (int i = 0; i < 6 && !nav.Contains((VisualElement)Focused(ui)); i++)
+                yield return Move(ui, Focused(ui) is BaseSlider<int> ? NavigationMoveEvent.Direction.Up : NavigationMoveEvent.Direction.Left);
         }
 
         static Focusable Focused(VisualElement root) => root.panel?.focusController?.focusedElement;
