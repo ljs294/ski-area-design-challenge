@@ -95,6 +95,7 @@ namespace MountainPlanner.App.Flow
             flow.Downloads = new DownloadService(dataRoot, downloader, () => DownloadService.UtcStamp(DateTime.UtcNow));
             flow.Controller = new FlowController(flow);
             flow.Picker = CreatePicker();
+            OfflineState.SetSetting(MountainPlanner.Acquisition.IO.Http.NetworkDisabled);   // task P2-06
             Instance = flow;
             // The camera ignores the pointer over the flow's panels (download card and pill, quality card, dialogs) and the picker.
             ViewCamera.OverlayBlocked = flow.PointerOverFlow;

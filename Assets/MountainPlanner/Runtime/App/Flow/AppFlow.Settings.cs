@@ -41,6 +41,7 @@ namespace MountainPlanner.App.Flow
         void ApplyOffline()
         {
             Http.NetworkDisabled = DataPreferences.OfflineNow || Array.IndexOf(Environment.GetCommandLineArgs(), "-offline") >= 0;
+            OfflineState.SetSetting(Http.NetworkDisabled);   // the picker, downloads and credits follow it (task P2-06)
             if (Picker != null && Picker.IsOpen) Screens.Toast(Http.NetworkDisabled ? "Offline: no map tiles or downloads" : "Back online");
         }
 
