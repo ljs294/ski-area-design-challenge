@@ -319,6 +319,9 @@ body.solo .frame { border-radius: 0; }
 .hud .set .note { margin-top: 10px; font: 500 12px 'DotFix', 'Overpass'; color: var(--soft); line-height: 1.4; }
 .hud .set .foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--hair); }
 .hud .set .foot .go { min-width: 120px; justify-content: center; }
+/* buttons in a settings row (Measure again, Open, Change…, Free space): ghost buttons filling the control's width */
+.hud .set .sbtns { display: flex; gap: 8px; min-width: 236px; }
+.hud .set .sbtns .ghost { flex: 1; height: 30px; }
 /* a stepper, for settings with several levels: ‹ value › */
 .hud .step { display: grid; grid-template-columns: 32px 1fr 32px; align-items: center; min-width: 236px; height: 30px; border: 1px solid var(--hair2); border-radius: 4px; overflow: hidden; }
 .hud .step .sb { height: 100%; display: grid; place-items: center; color: var(--soft); font: 700 16px 'Overpass'; }
@@ -504,7 +507,8 @@ body.solo .frame { border-radius: 0; }
   // ---------- settings: the menu's quick switches and the Settings window ----------
   const DEFAULTS = { hudScale: 85,   // the owner's default size (2026-10-06); the game's scale goes 50–150% in 5% steps
     tooltips: 'on', notify: 'all', clock: '12', money: 'full', autosave: 10, pauseOnBuild: 'off', confirmRemove: 'on',
-    quality: 'High', renderScale: 100, trees: 'normal', shadows: 'high', snowfx: 'on', fps: '60', display: 'Fullscreen',
+    quality: 'High', renderScale: 100, aa: 'MSAA 4×', shadows: 'High', shadowDist: 150, terrain: 'High', shading: 'on', trees: 'Auto', textures: 'full',
+    display: 'Borderless', resolution: '2560 × 1080 · 21:9', vsync: 'off', fps: 'Unlimited', fov: 60, offline: 'off',
     master: 80, music: 60, effects: 75, ambience: 70, muteBg: 'on', invertZoom: 'off', zoomSpeed: 'normal' };
   S.set = { ...DEFAULTS };
   const ONOFF = [['on', 'On'], ['off', 'Off']];
@@ -527,14 +531,25 @@ body.solo .frame { border-radius: 0; }
       { k: 'pauseOnBuild', label: 'Pause while building', desc: 'The clock stops when a build panel opens, and starts again when it closes.', seg: ONOFF },
       { k: 'confirmRemove', label: 'Confirm before removing', desc: 'Remove asks again before it takes anything out.', seg: ONOFF },
     ] },
-    { id: 'graphics', title: 'Graphics', note: 'The mockup only remembers these. In the game they set the renderer, and the mountain changes as you choose.', rows: [
-      { k: 'quality', label: 'Quality preset', step: ['Low', 'Medium', 'High', 'Ultra'] },
-      { k: 'renderScale', label: 'Render scale', range: [50, 100], unit: '%' },
-      { k: 'trees', label: 'Trees', seg: [['sparse', 'Sparse'], ['normal', 'Normal'], ['dense', 'Dense']] },
-      { k: 'shadows', label: 'Shadows', seg: [['off', 'Off'], ['low', 'Low'], ['high', 'High']] },
-      { k: 'snowfx', label: 'Falling snow', seg: ONOFF },
-      { k: 'fps', label: 'Frame rate limit', step: ['30', '60', '120', 'Unlimited'], fmt: (v) => (v === 'Unlimited' ? v : `${v} fps`) },
-      { k: 'display', label: 'Display mode', step: ['Windowed', 'Borderless', 'Fullscreen'] },
+    // Graphics, Display and Data as built in the game (task P2-05, decisions ST1-ST7); the mockup only remembers them.
+    { id: 'graphics', title: 'Graphics', note: 'Changes show at once, on the mountain behind this window. Choosing a preset sets every row; changing a row makes it Custom.', rows: [
+      { k: 'quality', label: 'Quality preset', desc: 'Low suits older graphics cards; High is the reference look.', step: ['Low', 'Medium', 'High', 'Ultra', 'Custom'] },
+      { k: 'renderScale', label: 'Render scale', desc: 'Below 100% draws fewer pixels and scales them up: faster, softer.', range: [50, 200], unit: '%' },
+      { k: 'aa', label: 'Anti-aliasing', desc: 'Smooths edges. MSAA is the sharpest; FXAA and SMAA cost less.', step: ['Off', 'FXAA', 'SMAA', 'MSAA 2×', 'MSAA 4×'] },
+      { k: 'shadows', label: 'Shadows', desc: "The sun's shadows near the camera: map size, cascades and soft edges.", step: ['Off', 'Low', 'Medium', 'High', 'Ultra'] },
+      { k: 'shadowDist', label: 'Shadow distance', desc: 'How far from the camera trees and terrain cast sharp shadows.', range: [50, 400], unit: ' m' },
+      { k: 'terrain', label: 'Terrain detail', desc: "How closely the ground's shape follows the lidar in the distance.", step: ['Low', 'Medium', 'High', 'Ultra'] },
+      { k: 'shading', label: 'Terrain shading', desc: "The mountain's own shade: sky occlusion in valleys and its distant shadows.", seg: ONOFF },
+      { k: 'trees', label: 'Tree detail', desc: 'How far trees keep their detailed models. Auto times this PC the first time an area opens.', step: ['Auto', 'Low', 'Medium', 'High', 'Ultra'] },
+      { k: 'treeTiming', label: 'Auto tree detail', desc: 'Chose High for this PC and screen size.', btn: ['Measure again'] },
+      { k: 'textures', label: 'Textures', desc: 'Half and Quarter save graphics memory on older cards.', seg: [['full', 'Full'], ['half', 'Half'], ['quarter', 'Quarter']] },
+    ] },
+    { id: 'display', title: 'Display', rows: [
+      { k: 'display', label: 'Display mode', desc: 'A window, or the whole screen without a border or with the screen to itself. Alt+Enter switches too.', step: ['Windowed', 'Borderless', 'Fullscreen'] },
+      { k: 'resolution', label: 'Resolution', desc: 'Wide screens (21:9 and 32:9) show more to the sides; the height of the view stays the same.', step: ['1920 × 1080 · 16:9', '2560 × 1080 · 21:9', '3440 × 1440 · 21:9', '5120 × 1440 · 32:9'] },
+      { k: 'vsync', label: 'V-Sync', desc: "Waits for the screen's refresh: no tearing, a little more latency.", seg: ONOFF },
+      { k: 'fps', label: 'Frame rate limit', desc: 'Saves power and heat when the game runs faster than you need.', step: ['30', '60', '120', '144', 'Unlimited'], fmt: (v) => (v === 'Unlimited' ? v : `${v} fps`) },
+      { k: 'fov', label: 'Field of view', desc: "The view's height. On this 21:9 screen that's 108° across.", range: [45, 75], unit: '°' },
     ] },
     { id: 'audio', title: 'Audio', note: 'The mockup has no sound; this shows how the page will look.', rows: [
       { k: 'master', label: 'Master volume', range: [0, 100], unit: '%' },
@@ -543,10 +558,15 @@ body.solo .frame { border-radius: 0; }
       { k: 'ambience', label: 'Ambience', desc: 'Wind, crowds and the mountain.', range: [0, 100], unit: '%' },
       { k: 'muteBg', label: 'Mute in the background', desc: "When the game isn't the active window.", seg: ONOFF },
     ] },
-    { id: 'controls', title: 'Controls', rows: [
+    { id: 'controls', title: 'Controls', note: 'In the game every key below can be changed: click it, then press the new one.', rows: [
       { k: 'invertZoom', label: 'Invert scroll zoom', desc: 'Scroll down to zoom in.', seg: ONOFF },
       { k: 'zoomSpeed', label: 'Zoom speed', seg: [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']] },
     ], keys: [['Toolbox', ['T']], ['Analysis', ['Tab']], ['Pause', ['Space']], ['Speed', ['1–4']], ['Zoom', ['+', '−']], ['Reset view', ['Home']], ['Units', ['U']], ['Save', ['Ctrl', 'S']], ['Snow, trees', ['Shift', '1 · 3']], ['Info layers', ['Shift', '6–0']], ['Hide the UI', ['H']], ['Finish a line', ['Enter']], ['Back out', ['Esc']]] },
+    { id: 'data', title: 'Data', rows: [
+      { k: 'library', label: 'Library folder', desc: 'C:\\Users\\you\\AppData\\Local\\SkiAreaDesignChallenge', btn: ['Open', 'Change…'] },
+      { k: 'disk', label: 'Disk use', desc: "3 areas: 1.2 GB, terrain caches 840 MB, older versions' caches 310 MB.", btn: ['Free 310 MB'] },
+      { k: 'offline', label: 'Offline mode', desc: 'No downloads, map tiles or place search; the areas you have open as usual.', seg: ONOFF },
+    ] },
   ];
   const settingRow = (k) => SETTINGS.flatMap((pg) => pg.rows).find((row) => row.k === k);
   const getSetting = (row) => (row.get ? row.get() : S.set[row.k]);
@@ -1385,6 +1405,7 @@ body.solo .frame { border-radius: 0; }
       const i = row.step.indexOf(val), fmt = row.fmt || ((x) => x), lo = i <= 0, hi = i >= row.step.length - 1;
       return `<div class="step"><span class="sb${lo ? ' dis' : ''}" data-act="${lo ? '' : 'sstep'}" data-k="${row.k}" data-v="-1">‹</span><b>${fmt(val)}</b><span class="sb${hi ? ' dis' : ''}" data-act="${hi ? '' : 'sstep'}" data-k="${row.k}" data-v="1">›</span></div>`;
     }
+    if (row.btn) return `<div class="sbtns">${row.btn.map((b) => `<span class="ghost">${esc(b)}</span>`).join('')}</div>`;
     const [lo, hi] = row.range, pc = (val - lo) / (hi - lo) * 100;
     return `<div class="rng-wrap"><input type="range" class="rng" min="${lo}" max="${hi}" step="5" value="${val}" data-k="${row.k}" style="--p:${pc}%" aria-label="${row.label}"><span class="rv">${val}${row.unit}</span></div>`;
   }

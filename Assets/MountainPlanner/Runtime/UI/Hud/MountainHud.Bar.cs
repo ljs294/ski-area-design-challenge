@@ -115,7 +115,7 @@ namespace MountainPlanner.UI
             for (int i = 0; i < _speeds.Length; i++) _speeds[i].EnableInClassList("spd__b--on", speed > i);
             _bar.EnableInClassList("bar--paused", paused);
             _pauseIcon.Icon = paused ? "s-play" : "s-pause";
-            _pause.tooltip = paused ? "Play (Space)" : "Pause (Space)";
+            _pause.tooltip = PauseTip(paused);
             RetintSoon();
         }
 

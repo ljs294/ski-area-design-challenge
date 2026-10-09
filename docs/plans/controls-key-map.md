@@ -4,6 +4,11 @@
 
 ## Rules
 
+- **These are the default keys.** Settings › Controls rebinds every one of them (task P2-05, owner 2026-10-08): two
+  keys per action, with Shift, Ctrl or Alt if wanted. A key another action had swaps places with it, so no two actions
+  that can be live at once share a key (Pause and photo mode's save share Space, because they never are). The HUD's
+  captions follow the player's keys. Esc, Enter and the modifier keys on their own can't be bound.
+
 - **The HUD's gameplay keys win.** The camera works around them.
 - **Letters belong to the tools while the Toolbox tray is open.** The camera then moves with the arrows, Page Up / Page Down, + / − and the mouse. R, F, P and C wait until the tray closes. (`ViewCamera.LettersToTools` is the switch the HUD sets. It turns on with the working tools in Phase 3; until then the tray's tiles are placeholders and the letters, WASD among them, stay with the camera.)
 - **The same key does the same thing in both camera modes.** Free-fly turns about the camera instead of the focus point.

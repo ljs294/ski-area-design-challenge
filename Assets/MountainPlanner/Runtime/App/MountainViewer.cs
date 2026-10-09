@@ -116,12 +116,12 @@ namespace MountainPlanner.App
         {
             _overlay = gameObject.AddComponent<ViewerOverlay>();
             _overlay.Viewer = this;
-            Application.targetFrameRate = -1;
             string[] startArgs = Environment.GetCommandLineArgs();
-            // The quality preset (task 15): -quality low|medium|high|ultra, High by default. It must come before
-            // -shadows (which edits the active URP asset) and before the mountain opens (terrain detail).
-            QualityPresets.Apply(QualityPresets.FromArgs(startArgs, QualityPresets.Current));
-            Detail = QualityPresets.Terrain(QualityPresets.Current);
+            // The graphics settings (task P2-05): the player's saved choices, or for this run only the preset that
+            // -quality low|medium|high|ultra names (task 15; benchmarks), uncapped with V-Sync off. They must come
+            // before -shadows (which edits the active URP asset) and before the mountain opens (terrain detail).
+            ApplyGraphicsSettings(startArgs);
+            Detail = QualityPresets.Options.Terrain;
             if (Array.IndexOf(startArgs, "-nohud") >= 0) _ui = false;   // clean captures: as if H was pressed
             // -theme dark|light and -uiscale 50..150 are read by UiPreferences, for every screen.
             if (Hud != null) Hud.SetVisible(_hudShown = false);   // shown once a mountain is open
@@ -160,9 +160,9 @@ namespace MountainPlanner.App
                     if (FarShadowCompute != null && SystemInfo.supportsComputeShaders)
                     {
                         _farShadows = new FarTerrainShadow(FarShadowCompute, _resort.Tiles.Values, _resort.Ring);
-                        bool shading = QualityPresets.TerrainShading(QualityPresets.Current);   // off on Low
-                        if (!shading || Array.IndexOf(args, "-nofarshadows") >= 0) _farShadows.SetEnabled(false);   // cost measurements
-                        if (!shading || Array.IndexOf(args, "-noao") >= 0) _farShadows.SetSkyOcclusion(false);       // comparisons (beauty pass, item 2)
+                        _noFarShadows = Array.IndexOf(args, "-nofarshadows") >= 0;   // cost measurements
+                        _noSkyOcclusion = Array.IndexOf(args, "-noao") >= 0;         // comparisons (beauty pass, item 2)
+                        ApplyTerrainShading();   // off on Low, or as Settings › Graphics says
                         Lighting.FarShadows = _farShadows;
                     }
                 }
@@ -174,6 +174,7 @@ namespace MountainPlanner.App
                     Camera.PlinthTop = _resort.PlinthTop;
                     HomeView();
                 }
+                StartTreeDetailTiming(args);   // Auto tree detail, the first time on this PC and screen (task P2-05)
                 _landmarks = Landmarks.Place(_resort.Root.transform, _resort.Frame, _resort.Surface, HighlightMaterial);
                 _layers.Bind(_resort.Ground, _resort.EdgeMaterial, assets.Cliff, (float)_resort.Manifest.Crs.GridConvergenceDegrees);
                 StartCoroutine(WhenForestReady(() => _layers.BindForest(_resort.Root.GetComponent<ForestView>())));
@@ -333,7 +334,7 @@ namespace MountainPlanner.App
         }
 
         /// <summary>
-        /// The view keys (docs/plans/controls-key-map.md). The HUD owns T, Tab, U, Space, 1–4, Ctrl+S and Enter;
+        /// The view keys (docs/plans/controls-key-map.md; rebindable, <see cref="KeyBindings"/>). The HUD owns T, Tab, U, Space, 1–4, Ctrl+S and Enter;
         /// while its Toolbox tray is open (<see cref="ViewCamera.LettersToTools"/>) letters are tool keys, so P
         /// and C wait until it closes.
         /// </summary>
@@ -341,7 +342,6 @@ namespace MountainPlanner.App
         {
             if (keys == null) return;
             bool letters = Camera == null || !Camera.LettersToTools;
-            bool shift = keys.shiftKey.isPressed, plain = !shift && !keys.ctrlKey.isPressed && !keys.altKey.isPressed;
             bool flowKeys = (FlowHasKeyboard?.Invoke() ?? false) || FlowTookEscapeFrame == Time.frameCount;
             if (keys.escapeKey.wasPressedThisFrame && !flowKeys)
             {
@@ -354,38 +354,37 @@ namespace MountainPlanner.App
                 else if (Hud != null && _resort != null) Hud.ToggleMenu();
                 else Application.Quit();
             }
-            if (keys.f1Key.wasPressedThisFrame) _help = !_help;
+            if (KeyBindings.Pressed(keys, GameAction.DeveloperPanel)) _help = !_help;
             if (_resort == null) return;
-            // Tab is Analysis whenever no window has the keyboard (the HUD keeps Tab from moving between its controls).
-            if (Hud != null && keys.tabKey.wasPressedThisFrame && !Hud.ModalOpen && !flowKeys && !(FlowHasKeyboard?.Invoke() ?? false)) Hud.ToggleAnalysis();
+            // Analysis (Tab by default) whenever no window has the keyboard (the HUD keeps Tab from moving between its controls).
+            if (Hud != null && KeyBindings.Pressed(keys, GameAction.Analysis, letters) && !Hud.ModalOpen && !flowKeys && !(FlowHasKeyboard?.Invoke() ?? false)) Hud.ToggleAnalysis();
             if (UiHasKeyboard()) return;   // the menu, a dialog or a focused HUD control has the keys (task P2-01)
-            if (Hud != null && plain && keys.tKey.wasPressedThisFrame) Hud.ToggleToolbox();
-            if (_clock != null && plain && keys.spaceKey.wasPressedThisFrame && !_photo) _clock.TogglePause();
-            if (_clock != null && plain)
+            // The player's keys (Settings › Controls; the defaults are the key map's). While the tray is open,
+            // letter keys are tools, except the Toolbox's own key, which closes it.
+            if (Hud != null && KeyBindings.Pressed(keys, GameAction.Toolbox)) Hud.ToggleToolbox();
+            if (_photo && KeyBindings.Pressed(keys, GameAction.PhotoCapture, letters) && !_capturing) StartCoroutine(CapturePhoto());
+            else if (_clock != null && !_photo && KeyBindings.Pressed(keys, GameAction.Pause, letters)) _clock.TogglePause();
+            if (_clock != null)
             {
-                if (keys.digit1Key.wasPressedThisFrame) _clock.SetSpeed(1);
-                if (keys.digit2Key.wasPressedThisFrame) _clock.SetSpeed(2);
-                if (keys.digit3Key.wasPressedThisFrame) _clock.SetSpeed(3);
-                if (keys.digit4Key.wasPressedThisFrame) _clock.SetSpeed(4);
+                if (KeyBindings.Pressed(keys, GameAction.Speed1, letters)) _clock.SetSpeed(1);
+                if (KeyBindings.Pressed(keys, GameAction.Speed2, letters)) _clock.SetSpeed(2);
+                if (KeyBindings.Pressed(keys, GameAction.Speed3, letters)) _clock.SetSpeed(3);
+                if (KeyBindings.Pressed(keys, GameAction.Speed4, letters)) _clock.SetSpeed(4);
             }
-            if (plain && letters && keys.hKey.wasPressedThisFrame) _ui = !_ui;   // while the tray is open, letters are tools
-            if (plain && letters && keys.pKey.wasPressedThisFrame) _photo = !_photo;
-            if (_photo && (keys.f12Key.wasPressedThisFrame || keys.spaceKey.wasPressedThisFrame) && !_capturing) StartCoroutine(CapturePhoto());
-            if (plain && letters && keys.cKey.wasPressedThisFrame && Camera != null) Camera.ToggleMode();
-            if (plain && keys.uKey.wasPressedThisFrame) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
-            if (keys.homeKey.wasPressedThisFrame) HomeView();
-            if (shift)
-            {
-                // Map layers (Shift+2, 4 and 5 are free for lifts and the rest as they're built).
-                if (keys.digit1Key.wasPressedThisFrame) ToggleLayer(MapLayers.Snow);
-                if (keys.digit3Key.wasPressedThisFrame) ToggleLayer(MapLayers.Trees);
-                // Info layers: Contours with anything; the other four take turns.
-                if (keys.digit6Key.wasPressedThisFrame) ToggleLayer(MapLayers.Contours);
-                if (keys.digit7Key.wasPressedThisFrame) ToggleLayer(MapLayers.SlopeAngle);
-                if (keys.digit8Key.wasPressedThisFrame) ToggleLayer(MapLayers.Exposure);
-                if (keys.digit9Key.wasPressedThisFrame) ToggleLayer(MapLayers.SnowDepth);
-                if (keys.digit0Key.wasPressedThisFrame) ToggleLayer(MapLayers.SnowConditions);   // reserved
-            }
+            if (KeyBindings.Pressed(keys, GameAction.HideUi, letters)) _ui = !_ui;
+            if (KeyBindings.Pressed(keys, GameAction.PhotoMode, letters)) _photo = !_photo;
+            if (KeyBindings.Pressed(keys, GameAction.FreeFly, letters) && Camera != null) Camera.ToggleMode();
+            if (KeyBindings.Pressed(keys, GameAction.Units, letters)) DisplayUnits.Toggle();   // feet or metres (task 12b.2)
+            if (KeyBindings.Pressed(keys, GameAction.ResetView, letters)) HomeView();
+            // Map layers (Shift+2, 4 and 5 are free for lifts and the rest as they're built).
+            if (KeyBindings.Pressed(keys, GameAction.LayerSnow, letters)) ToggleLayer(MapLayers.Snow);
+            if (KeyBindings.Pressed(keys, GameAction.LayerTrees, letters)) ToggleLayer(MapLayers.Trees);
+            // Info layers: Contours with anything; the other four take turns.
+            if (KeyBindings.Pressed(keys, GameAction.InfoContours, letters)) ToggleLayer(MapLayers.Contours);
+            if (KeyBindings.Pressed(keys, GameAction.InfoSlope, letters)) ToggleLayer(MapLayers.SlopeAngle);
+            if (KeyBindings.Pressed(keys, GameAction.InfoExposure, letters)) ToggleLayer(MapLayers.Exposure);
+            if (KeyBindings.Pressed(keys, GameAction.InfoDepth, letters)) ToggleLayer(MapLayers.SnowDepth);
+            if (KeyBindings.Pressed(keys, GameAction.InfoConditions, letters)) ToggleLayer(MapLayers.SnowConditions);   // reserved
         }
 
         /// <summary>
@@ -479,6 +478,7 @@ namespace MountainPlanner.App
             _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
             if (ViewCamera.KeysBlocked == (Func<bool>)UiHasKeyboard) ViewCamera.KeysBlocked = null;
+            ReleaseSettings();
         }
 
         /// <summary>

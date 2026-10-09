@@ -70,8 +70,9 @@ namespace MountainPlanner.App.Flow
             string[] args = Environment.GetCommandLineArgs();
             if (Application.isBatchMode && Array.IndexOf(args, "-title") < 0) return;
             if (SkipTitle.Any(a => Array.IndexOf(args, a) >= 0)) return;
-            // -offline: every network call fails, as with the cable out (the acceptance check for opening offline).
-            if (Array.IndexOf(args, "-offline") >= 0) MountainPlanner.Acquisition.IO.Http.NetworkDisabled = true;
+            // -offline: every network call fails, as with the cable out (the acceptance check for opening offline);
+            // Settings › Data › Offline mode does the same (task P2-05).
+            if (Array.IndexOf(args, "-offline") >= 0 || DataPreferences.Offline) MountainPlanner.Acquisition.IO.Http.NetworkDisabled = true;
             Create(DataRootFrom(args), new PipelineDownloader(DataRootFrom(args)));
         }
 
@@ -130,7 +131,9 @@ namespace MountainPlanner.App.Flow
         public static string DataRootFrom(string[] args)
         {
             int i = Array.IndexOf(args, "-data");
-            return i >= 0 && i + 1 < args.Length ? Path.GetFullPath(args[i + 1]) : MountainViewer.DataRoot;
+            if (i >= 0 && i + 1 < args.Length) return Path.GetFullPath(args[i + 1]);
+            string chosen = DataPreferences.LibraryFolder;   // Settings › Data › Library folder (task P2-05)
+            return chosen.Length > 0 ? chosen : MountainViewer.DataRoot;
         }
 
         void OnEnable() => SceneManager.sceneLoaded += OnSceneLoaded;
@@ -145,11 +148,8 @@ namespace MountainPlanner.App.Flow
             Screens.CreditsChosen += () => Screens.ShowCredits(Credits());
             Screens.QuitChosen += Controller.Quit;
             Screens.LibraryClosed += () => Controller.Escape();
-            Screens.DataFolderChosen += () =>
-            {
-                Directory.CreateDirectory(DataRoot);
-                Application.OpenURL(new Uri(DataRoot).AbsoluteUri);
-            };
+            Screens.DataFolderChosen += OpenDataFolder;
+            WireSettings();
             // The sort is remembered (a setting, not a frozen format: task P2-04).
             int savedSort = PlayerPrefs.GetInt(SortPref, (int)LibrarySort.LastOpened);
             _sort = Enum.IsDefined(typeof(LibrarySort), savedSort) ? (LibrarySort)savedSort : LibrarySort.LastOpened;
@@ -218,6 +218,7 @@ namespace MountainPlanner.App.Flow
         void OnDestroy()
         {
             FlowUnits.Changed -= OnUnitsChanged;
+            ReleaseSettings();
             if (Picker != null) Destroy(Picker.gameObject);
             if (Instance == this)
             {
@@ -252,6 +253,7 @@ namespace MountainPlanner.App.Flow
                 _viewer.Hud.ShowSettings(true);   // the menu's Settings opens the flow's window: units, theme, UI scale
                 var hud = _viewer.Hud;
                 hud.SettingsChosen += () => Screens.ShowSettings(hud.SiteName);   // the head names the resort, as in the mockup
+                hud.ControlsChosen += () => { Screens.ShowSettings(hud.SiteName); Screens.Settings.ShowPage(SettingsWindow.ControlsPage); };
             }
             var then = _afterTitle;
             _afterTitle = FlowScreen.Title;
@@ -284,7 +286,7 @@ namespace MountainPlanner.App.Flow
         void HandleKeys(Keyboard keys)
         {
             if (keys == null) return;
-            if (keys.escapeKey.wasPressedThisFrame && Controller.Screen != FlowScreen.Picker)
+            if (keys.escapeKey.wasPressedThisFrame && Controller.Screen != FlowScreen.Picker && !Screens.CapturingKeys)
             {
                 bool used = true;
                 if (Screens.PromptOpen) Screens.ClosePrompt();
@@ -507,6 +509,7 @@ namespace MountainPlanner.App.Flow
                           : "Some caches couldn't be removed.");
             _sizes.Clear();
             if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
+            if (Screens.OverlayOpen && Screens.Settings.Page == SettingsWindow.DataPage) ShowDataPage();   // Settings › Data (task P2-05)
         }
 
         static bool SameFolder(string a, string b) =>
