@@ -247,6 +247,7 @@ namespace MountainPlanner.UI.Flow
             CoverUp = true;
             _coverGoneAt = 0;
             _cover.RemoveFromClassList("cover--fading");
+            _cover.pickingMode = PickingMode.Position;   // nothing underneath takes a click
             Show(_cover, true);
             _coverText.text = text ?? "";
             _coverShown = -1;
@@ -269,6 +270,7 @@ namespace MountainPlanner.UI.Flow
             CoverUp = false;
             SetCoverProgress(1);
             _cover.AddToClassList("cover--fading");
+            _cover.pickingMode = PickingMode.Ignore;   // the mountain takes the pointer while the cover fades
             _coverGoneAt = Time.unscaledTime + CoverFadeSeconds;
             if (IsShown(_title)) UiFocus.FocusSoon(_title);
         }
