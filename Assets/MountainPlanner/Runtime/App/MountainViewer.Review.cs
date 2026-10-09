@@ -506,7 +506,7 @@ namespace MountainPlanner.App
             foreach (string species in new[] { "pacific_silver_fir", "noble_fir", "subalpine_fir" })
             {
                 int m = SpeciesMap.IndexOf(species);
-                if (m >= 0 && m < models) yield return Shot($"under_{species}", new Vector3((m - (models - 1) / 2f) * spacing, Trees.NativeHeights[m * 3] * 0.3f, 0), 9, 200, 2, 0);
+                if (m >= 0 && m < models) yield return Shot($"under_{species}", new Vector3((m - (models - 1) / 2f) * spacing, Trees.NativeHeights[m * 3] * 0.35f, 0), Trees.NativeHeights[m * 3] * 0.5f, 200, 2, 0);
             }
             // Beech and red oak keep brown leaves through the winter: LOD0 against LOD2 (the backlog's "strips").
             foreach (string species in new[] { "american_beech", "northern_red_oak" })
