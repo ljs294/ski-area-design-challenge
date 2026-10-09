@@ -129,6 +129,11 @@ echo.
 echo   Fix: the window mode
 echo     50 Reset the game's saved window mode to borderless full screen (once, if earlier benchmarks left it windowed)
 echo.
+echo   Phase 2, task 05: settings (needs a downloaded area; close the Unity editor first)
+echo     53 Capture every Settings page at 1920x1080, 2560x1080 and 3440x1440, dark and light, 50-150%% (about 5 minutes)
+echo        Then play it: Settings from the title or the in-game menu. Graphics changes show at once; Display asks to keep
+echo        a new mode or resolution; Controls - click a key, press the new one; Data - Offline mode, Free space.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -193,6 +198,7 @@ if /i "%CHOICE%"=="44" goto formats
 if /i "%CHOICE%"=="45" goto formatsnewer
 if /i "%CHOICE%"=="46" goto formattests
 if /i "%CHOICE%"=="47" goto uicapture
+if /i "%CHOICE%"=="53" goto settingscapture
 if /i "%CHOICE%"=="48" goto hudparity
 if /i "%CHOICE%"=="49" goto housekeeping
 if /i "%CHOICE%"=="50" goto windowreset
@@ -477,6 +483,17 @@ set "UICAP=%~dp0test-results\ui-captures"
 if exist "%UICAP%" rmdir /s /q "%UICAP%"
 echo Capturing every screen (about 15 minutes; the window shows the title while it works)...
 "%GAME%" -uicapture "%UICAP%" -logFile "%~dp0test-results\ui-captures.log" <nul
+type "%UICAP%\report.txt"
+start "" "%UICAP%"
+goto done
+
+:settingscapture
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "UICAP=%~dp0test-results\settings-captures"
+if exist "%UICAP%" rmdir /s /q "%UICAP%"
+echo Capturing every Settings page (the window shows the title while it works)...
+"%GAME%" -uicapture "%UICAP%" -uionly s8-settings,s8-settings-units,s8-settings-graphics,s8-settings-display,s8-settings-controls,s8-settings-data,s8-settings-game -uisizes 1920x1080,2560x1080,3440x1440 -logFile "%~dp0test-results\settings-captures.log" <nul
 type "%UICAP%\report.txt"
 start "" "%UICAP%"
 goto done

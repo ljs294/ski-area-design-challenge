@@ -76,7 +76,7 @@ namespace MountainPlanner.Presentation
         /// True: the camera's vertical field of view is the player's setting (<see cref="ViewFov"/>; the rule for
         /// every game camera). False leaves it to a caller that sets its own (a future photo-mode lens).
         /// </summary>
-        public bool FollowFovSetting = true;
+        [System.NonSerialized] public bool FollowFovSetting = true;
 
         /// <summary>The right or middle drag in progress started over a panel, so it belongs to the UI until both are up.</summary>
         bool _dragOnPanel;
