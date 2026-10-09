@@ -457,6 +457,58 @@ namespace MountainPlanner.Tests
         }
 
         /// <summary>
+        /// Task P2-03, first launch by keyboard: with no library the title opens with "Open the demo" focused; Manage
+        /// Areas lists the built-in demo, and Delete and F2 leave it alone; Enter on the sign opens it.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator FirstLaunchOpensTheBuiltInDemoByKeyboard()
+        {
+            string empty = Path.Combine(Path.GetTempPath(), "mp-first-" + Guid.NewGuid().ToString("N"));
+            var demo = new BundledDemoFixture();
+            try
+            {
+                BundledDemo.Override = demo.Root;
+                Http.NetworkDisabled = true;
+                UiPreferences.SetChoice(UiThemeChoice.Dark, remember: false);
+                UiPreferences.SetScale(100, remember: false);
+                if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
+                var flow = AppFlow.Create(empty, new NoDownloads());
+                yield return SceneManager.LoadSceneAsync(ViewerScene);
+                yield return WaitForMountain(120);
+                yield return Frames(3);
+                var ui = flow.Screens.Document.rootVisualElement;
+
+                AssertFocus(ui, "title-continue", "the first launch opens with the demo's sign focused");
+                Assert.That(ui.Q<Label>("title-continue-label").text, Is.EqualTo("Open the demo"));
+
+                yield return TabTo(ui, "title-manage");
+                yield return Submit(ui);
+                AssertFocusClass(ui, "lib-row");
+                Assert.That(flow.Screens.SelectedRow.IsBuiltIn, Is.True, "the built-in demo is listed");
+                Assert.That(ui.Q(className: "lib-builtin"), Is.Not.Null, "it says why there's no Rename or Delete");
+                yield return Press(Key.Delete);
+                Assert.That(flow.Screens.ConfirmOpen, Is.False, "Delete doesn't offer to delete the game's own demo");
+                yield return Press(Key.F2);
+                Assert.That(flow.Screens.PromptOpen, Is.False, "nor F2 to rename it");
+                yield return Press(Key.Escape);
+                Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Title));
+
+                yield return TabTo(ui, "title-continue");
+                yield return Submit(ui);
+                yield return Frames(2);
+                yield return WaitForMountain(120, inGame: true);
+                Assert.That(flow.Controller.InGame, Is.True, "Enter on Open the demo opens it");
+                Assert.That(Object.FindAnyObjectByType<MountainViewer>().OpenPackage, Is.EqualTo(demo.Package));
+            }
+            finally
+            {
+                BundledDemo.Override = null;
+                demo.Dispose();
+                if (Directory.Exists(empty)) Directory.Delete(empty, true);
+            }
+        }
+
+        /// <summary>
         /// Task P2-04 in Manage Areas, by keyboard: F2 renames (Enter confirms, Esc cancels, the name survives a fresh
         /// scan), the sort is remembered, and Free space removes an older version's cache after asking.
         /// </summary>
@@ -537,13 +589,15 @@ namespace MountainPlanner.Tests
         // ---------- helpers ----------
 
         /// <summary>Waits for a mountain on screen: behind the title, or opened in the game.</summary>
+        static bool CoverUp => AppFlow.Instance != null && AppFlow.Instance.Screens.CoverUp;
+
         static IEnumerator WaitForMountain(float seconds, bool inGame = false)
         {
             float until = Time.realtimeSinceStartup + seconds;
             while (Time.realtimeSinceStartup < until)
             {
                 var viewer = Object.FindAnyObjectByType<MountainViewer>();
-                if (viewer != null && viewer.Camera != null && viewer.Camera.Surface != null && MountainViewer.TitleMode != inGame) yield break;
+                if (viewer != null && viewer.Camera != null && viewer.Camera.Surface != null && MountainViewer.TitleMode != inGame && !CoverUp) yield break;   // and the flow's cover has lifted (task P2-03)
                 yield return null;
             }
             Assert.Fail("The mountain didn't open in time.");

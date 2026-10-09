@@ -127,6 +127,13 @@ namespace MountainPlanner.UI.Flow
             _sortOpened = _root.Q<Button>("sort-opened");
             _sortName = _root.Q<Button>("sort-name");
             _sortQuality = _root.Q<Button>("sort-quality");
+            _cover = _root.Q("cover");
+            _coverFill = _root.Q("cover-fill");
+            _coverText = _root.Q<Label>("cover-text");
+            // While the cover is up nothing underneath takes a key: Enter can't open an area that isn't in yet (task P2-03).
+            _root.RegisterCallback<KeyDownEvent>(e => { if (CoverUp) e.StopImmediatePropagation(); }, TrickleDown.TrickleDown);
+            _root.RegisterCallback<NavigationSubmitEvent>(e => { if (CoverUp) e.StopImmediatePropagation(); }, TrickleDown.TrickleDown);
+            _root.RegisterCallback<NavigationMoveEvent>(e => { if (CoverUp) e.StopImmediatePropagation(); }, TrickleDown.TrickleDown);
 
             _continue.clicked += () => ContinueChosen?.Invoke();
             _root.Q<Button>("title-new").clicked += () => NewResortChosen?.Invoke();
@@ -192,7 +199,61 @@ namespace MountainPlanner.UI.Flow
                 _toastUntil = 0;
                 Show(_toast, false);
             }
+            if (_coverGoneAt > 0 && Time.unscaledTime > _coverGoneAt)
+            {
+                _coverGoneAt = 0;
+                Show(_cover, false);   // faded out: out of the layout and the pointer's way
+            }
         }
+
+        // ---------- the cover (task P2-03) ----------
+
+        VisualElement _cover, _coverFill;
+        Label _coverText;
+        float _coverGoneAt, _coverShown = -1;
+
+        /// <summary>The cover is up: a mountain is opening under it, and the flow's screens take no keys.</summary>
+        public bool CoverUp { get; private set; }
+
+        /// <summary>
+        /// Alpine Labs' cover: the game's name plate on warm near-black, a thin progress rule and "Opening …", over the
+        /// whole screen while a mountain opens, so its tiles are never seen filling in (owner, task P2-03).
+        /// </summary>
+        public void ShowCover(string text)
+        {
+            if (_cover == null) return;
+            CoverUp = true;
+            _coverGoneAt = 0;
+            _cover.RemoveFromClassList("cover--fading");
+            _cover.pickingMode = PickingMode.Position;   // nothing underneath takes a click
+            Show(_cover, true);
+            _coverText.text = text ?? "";
+            _coverShown = -1;
+            SetCoverProgress(0);
+        }
+
+        /// <summary>The rule's fill, 0–1 (only restyled when it moves a visible step).</summary>
+        public void SetCoverProgress(float fraction)
+        {
+            float f = Mathf.Round(Mathf.Clamp01(fraction) * 200) / 200;
+            if (_coverFill == null || f == _coverShown) return;
+            _coverShown = f;
+            _coverFill.style.width = Length.Percent(f * 100);
+        }
+
+        /// <summary>Fades the cover out over the finished mountain; the title's first sign takes the keyboard.</summary>
+        public void HideCover()
+        {
+            if (!CoverUp) return;
+            CoverUp = false;
+            SetCoverProgress(1);
+            _cover.AddToClassList("cover--fading");
+            _cover.pickingMode = PickingMode.Ignore;   // the mountain takes the pointer while the cover fades
+            _coverGoneAt = Time.unscaledTime + CoverFadeSeconds;
+            if (IsShown(_title)) UiFocus.FocusSoon(_title);
+        }
+
+        public const float CoverFadeSeconds = 0.7f;
 
         // ---------- screens ----------
 
@@ -304,7 +365,14 @@ namespace MountainPlanner.UI.Flow
                     el.Add(spacer);
                     var actions = new VisualElement();
                     actions.AddToClassList("lib-actions");
-                    if (manage)
+                    if (manage && r.IsBuiltIn)
+                    {
+                        // The demo is part of the game (task P2-03): nothing to rename or delete.
+                        var note = Text("Built into the game", "lib-builtin");
+                        note.tooltip = BundledAreas.Refusal;
+                        actions.Add(note);
+                    }
+                    else if (manage)
                     {
                         var rename = Btn("Rename", "btn--ghost", () => OpenRename(r));
                         rename.SetEnabled(r.CanRename);
@@ -326,7 +394,7 @@ namespace MountainPlanner.UI.Flow
                     el.RegisterCallback<KeyDownEvent>(e =>
                     {
                         if (e.target != el || !manage) return;
-                        if (e.keyCode == KeyCode.Delete) ConfirmDelete(r);
+                        if (e.keyCode == KeyCode.Delete && r.CanDelete) ConfirmDelete(r);
                         else if (e.keyCode == KeyCode.F2) OpenRename(r);
                     });
                 }
@@ -403,7 +471,7 @@ namespace MountainPlanner.UI.Flow
 
         public void ConfirmDelete(LibraryRow r)
         {
-            if (r?.Entry == null) return;
+            if (r?.Entry == null || !r.CanDelete) return;
             string frees = r.Entry.Measured ? $" This frees {LibraryViewModel.Disk(r.Entry.BytesOnDisk)}." : "";
             Confirm($"Delete {r.Name}?{frees} You can download it again later.", "Delete", () => DeleteConfirmed?.Invoke(r));
         }

@@ -63,6 +63,13 @@ namespace MountainPlanner.App.Flow
         /// <summary>Frames since a viewer scene loaded; RequestedPackage is cleared at 3, once the viewer has read it.</summary>
         int _framesSinceLoad = 3;
         string _viewerScene;
+        /// <summary>The title's camera path over the mountain behind it, and how far along it is (task P2-03).</summary>
+        TitleDrift _drift;
+        float _driftSeconds;
+        /// <summary>Set by -titlemovie: the capture moves the drift's clock itself, a frame at a time.</summary>
+        bool _driftHeld;
+        /// <summary>Logged once: seconds from launch until the title's mountain is fully in (the ≤10 s acceptance check).</summary>
+        static bool _readyLogged;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Boot()
@@ -101,7 +108,9 @@ namespace MountainPlanner.App.Flow
             MountainViewer.FlowHasKeyboard = flow.FlowHasKeyboard;
             MountainViewer.TitleMode = true;
             MountainViewer.RequestedPackage = flow.TitleBackground();
+            MountainViewer.CoverUp = () => screens.CoverUp;
             go.SetActive(true);
+            flow.CoverFor(MountainViewer.RequestedPackage);   // from the very first frame: the mountain is only seen whole
             return flow;
         }
 
@@ -225,6 +234,7 @@ namespace MountainPlanner.App.Flow
                 Instance = null;
                 ViewCamera.OverlayBlocked = null;
                 MountainViewer.FlowHasKeyboard = null;
+                MountainViewer.CoverUp = null;
             }
         }
 
@@ -242,10 +252,13 @@ namespace MountainPlanner.App.Flow
             {
                 // Another scene (the Lift Lab, a test's own scene): the flow stays out of the way until a viewer scene loads.
                 Screens.ShowScreen(null);
+                Screens.HideCover();
                 return;
             }
             _viewerScene = scene.path;
             _framesSinceLoad = 0;
+            _drift = null;   // each title starts its drift from the first view
+            _driftSeconds = 0;
             if (_viewer.Hud != null)
             {
                 _viewer.Hud.ShowExitToTitle(true);
@@ -265,13 +278,84 @@ namespace MountainPlanner.App.Flow
             // The viewer reads RequestedPackage in its first Start; clear it after so a later reload doesn't reuse it.
             if (_framesSinceLoad < 3 && ++_framesSinceLoad == 3) MountainViewer.RequestedPackage = null;
 
+            UpdateCover();
             Downloads.Pump(Time.unscaledDeltaTime);
             if (Downloads.Running || Downloads.View.Phase == DownloadPhase.Failed) Screens.RenderDownload(Downloads.View);
             HandleKeys(Keyboard.current);
 
-            // The title's slow orbit over the demo mountain (the viewer's own camera input is off in title mode).
+            // The title's slow drift over the demo mountain (the viewer's own camera input is off in title mode).
             var cam = _viewer != null ? _viewer.Camera : null;
-            if (MountainViewer.TitleMode && cam != null && cam.Surface != null) cam.SetAngles(cam.Yaw + 2.5f * Time.unscaledDeltaTime, cam.Pitch);
+            if (MountainViewer.TitleMode && cam != null && cam.Surface != null)
+            {
+                _drift ??= DriftFor(cam);
+                _drift.Apply(cam, _driftSeconds);
+                if (!_driftHeld && _viewer.Ready) _driftSeconds += Time.unscaledDeltaTime;   // starts at the first view once all is in
+                if (!_readyLogged && _viewer.Ready)
+                {
+                    _readyLogged = true;
+                    Debug.Log($"[AppFlow] The title's mountain is in at {Time.realtimeSinceStartup:F1} s after launch ({(BundledDemo.Contains(_viewer.OpenPackage) ? "built-in demo" : "library")})");
+                }
+            }
+        }
+
+        /// <summary>Puts the cover up for the mountain about to open (task P2-03): "Opening Jackson Hole".</summary>
+        void CoverFor(string packageFolder)
+        {
+            string name = null;
+            try { if (!string.IsNullOrEmpty(packageFolder)) name = ResortLibrary.DisplayName(packageFolder, ResortPackage.ReadManifest(packageFolder)); }
+            catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException || e is ArgumentException) { }
+            Screens.ShowCover(name != null ? "Opening " + name : "Opening");
+            _coverSince = Time.realtimeSinceStartup;
+            _viewer = null;   // the scene going away is already whole; the cover waits for the next one
+        }
+
+        float _coverSince, _coverLifted = float.MaxValue;
+        /// <summary>The cover never outstays this, whatever happens underneath.</summary>
+        const float CoverLimitSeconds = 90;
+
+        /// <summary>
+        /// The cover's rule follows the terrain (85%), then the cover, snowpack and forest; it fades once the mountain is
+        /// whole, when opening failed (its message is then on screen), or when no viewer scene came up.
+        /// </summary>
+        void UpdateCover()
+        {
+            if (!Screens.CoverUp) return;
+            bool expired = Time.realtimeSinceStartup - _coverSince > CoverLimitSeconds;
+            if (_viewer == null)
+            {
+                if (expired) Screens.HideCover();   // a scene without a viewer drops it in OnSceneLoaded
+                return;
+            }
+            Screens.SetCoverProgress(0.85f * _viewer.OpenFraction + (_viewer.Ready ? 0.15f : 0));
+            // Nothing under the opaque cover needs drawing: the frame time goes to opening the mountain instead.
+            var sceneCamera = _viewer.Camera != null ? _viewer.Camera.GetComponent<UnityEngine.Camera>() : null;
+            bool lift = _viewer.Ready || _viewer.OpenError != null || expired;
+            if (sceneCamera != null) sceneCamera.enabled = lift;
+            if (lift)
+            {
+                Screens.HideCover();
+                _coverLifted = Time.realtimeSinceStartup;
+            }
+        }
+
+        /// <summary>The postcard path for the mountain on screen (read once, as the title's mountain comes in).</summary>
+        TitleDrift DriftFor(Presentation.ViewCamera cam)
+        {
+            double lat = 0, lon = 0;
+            float size = 5000;
+            try
+            {
+                var site = ResortPackage.ReadManifest(_viewer.OpenPackage).Site;
+                lat = site.Latitude;
+                lon = site.Longitude;
+                size = (float)site.SizeMetres;
+            }
+            catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException || e is ArgumentException)
+            {
+                Debug.LogWarning($"[AppFlow] The title's drift uses the plain sweep: {e.Message}");
+            }
+            var surface = cam.Surface;
+            return TitleDrift.For(lat, lon, size, MountainViewer.HomeYaw, surface.HeightAt);
         }
 
         /// <summary>True when the pointer (screen pixels, origin bottom-left) is over a flow panel or the open picker.</summary>
@@ -363,6 +447,7 @@ namespace MountainPlanner.App.Flow
             MountainViewer.TitleMode = false;
             MountainViewer.RequestedPackage = packageFolder;
             Reload();
+            CoverFor(packageFolder);
         }
 
         public void ReturnToTitle(FlowScreen then)
@@ -371,6 +456,7 @@ namespace MountainPlanner.App.Flow
             MountainViewer.TitleMode = true;
             MountainViewer.RequestedPackage = TitleBackground();
             Reload();
+            CoverFor(MountainViewer.RequestedPackage);
         }
 
         public void Quit()
@@ -421,7 +507,7 @@ namespace MountainPlanner.App.Flow
             var running = Downloads.Running ? Downloads.Current?.Id : null;
             _pending = PendingDownloads.List(DataRoot).Where(p => p.Id != running).ToList();
             _newer = new System.Collections.Generic.List<LibraryEntry>();
-            _entries = ResortLibrary.Scan(DataRoot, _newer);
+            _entries = ResortLibrary.ScanWithBundled(DataRoot, BundledDemo.Root, _newer);
             foreach (var e in _entries.Concat(_newer))
                 if (_sizes.TryGetValue(e.Folder, out var known)) ResortLibrary.SetDisk(e, known);
             Screens.RenderLibrary(_library = BuildLibrary(), _mode);
@@ -438,7 +524,7 @@ namespace MountainPlanner.App.Flow
         async void MeasureLibrary()
         {
             int run = ++_measureRun;
-            var folders = _entries.Concat(_newer).Select(e => e.Folder).ToList();
+            var folders = _entries.Concat(_newer).Where(e => !e.Bundled).Select(e => e.Folder).ToList();   // the built-in demo isn't the player's disk
             string root = DataRoot;
             System.Collections.Generic.List<(string Folder, DiskUse Use)> measured;
             long leftovers;
@@ -523,12 +609,12 @@ namespace MountainPlanner.App.Flow
         System.Collections.Generic.IEnumerable<(string, System.Collections.Generic.IEnumerable<string>)> Credits()
         {
             var data = new System.Collections.Generic.SortedSet<string>(StringComparer.Ordinal);
-            foreach (var e in ResortLibrary.Scan(DataRoot))
+            foreach (var e in Areas())
             {
                 try { foreach (string line in ResortPackage.ReadManifest(e.Folder).Attribution) data.Add(line); }
                 catch (Exception ex) { Debug.LogWarning($"[AppFlow] Credits: {e.Name}: {ex.Message}"); }
             }
-            yield return ("Ski Area Design Challenge", new[] { "A ski resort designer on real mountains." });
+            yield return ("Ski Area Design Challenge", new[] { "A ski resort designer on real mountains.", "Made by Alpine Labs." });
             yield return ("Map and terrain data", data.Count > 0 ? (System.Collections.Generic.IEnumerable<string>)data
                                                                  : new[] { "Download an area to see the data it uses." });
             yield return ("Type", new[] { "Overpass and Overpass Mono, SIL Open Font License 1.1." });
@@ -537,14 +623,24 @@ namespace MountainPlanner.App.Flow
         /// <summary>The mountain Continue opens: the last opened, else the demo, else the first in the library.</summary>
         LibraryEntry ContinueTarget()
         {
-            var entries = ResortLibrary.Scan(DataRoot);
+            var entries = Areas().Where(e => e.Refusal.Length == 0).ToList();
             if (entries.Count == 0) return null;
             string latest = RecentResorts.Load(DataRoot).Latest(entries.Select(e => e.PackageId));
             return entries.FirstOrDefault(e => e.PackageId == latest) ?? Demo(entries) ?? entries[0];
         }
 
-        /// <summary>Behind the title: the demo mountain from this library, else whatever the viewer picks itself.</summary>
-        string TitleBackground() => Demo(ResortLibrary.Scan(DataRoot))?.Folder ?? ResortLibrary.Scan(DataRoot).FirstOrDefault()?.Folder;
+        /// <summary>
+        /// Behind the title: the Jackson Hole demo (the library's copy, else the one built into the game: task P2-03),
+        /// else the first area in the library, else whatever the viewer picks itself.
+        /// </summary>
+        string TitleBackground()
+        {
+            var entries = Areas().Where(e => e.Refusal.Length == 0).ToList();
+            return (Demo(entries) ?? entries.FirstOrDefault(e => !e.Bundled) ?? entries.FirstOrDefault())?.Folder;
+        }
+
+        /// <summary>The library's areas plus the ones built into the game (a library copy of the same package wins).</summary>
+        System.Collections.Generic.List<LibraryEntry> Areas() => ResortLibrary.ScanWithBundled(DataRoot, BundledDemo.Root);
 
         static LibraryEntry Demo(System.Collections.Generic.List<LibraryEntry> entries) =>
             entries.Where(e => e.OriginalName == "Jackson Hole").OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();

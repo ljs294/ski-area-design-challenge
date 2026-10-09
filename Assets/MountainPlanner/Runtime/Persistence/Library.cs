@@ -98,6 +98,11 @@ namespace MountainPlanner.Persistence
         public string Refusal { get; set; } = "";
         /// <summary>Why it can't be renamed (its view.json is from a newer version of the game), or empty when it can.</summary>
         public string RenameRefusal { get; set; } = "";
+        /// <summary>
+        /// Built into the game (the demo, task P2-03; <see cref="BundledAreas"/>): read in place, never written, renamed,
+        /// deleted or freed. In memory only; nothing on disk records it.
+        /// </summary>
+        public bool Bundled { get; set; }
     }
 
     /// <summary>
@@ -164,6 +169,33 @@ namespace MountainPlanner.Persistence
             var entries = new List<LibraryEntry>();
             string resorts = ResortsFolder(dataRoot);
             if (!Directory.Exists(resorts) || LibraryIndex.Refusal(dataRoot) != null) return entries;
+            entries = ScanFolder(resorts, newer);
+            if (measure)
+            {
+                Measure(entries);
+                if (newer != null) Measure(newer);
+            }
+            return entries;
+        }
+
+        /// <summary>
+        /// The library plus the areas built into the game (<see cref="BundledAreas"/>, the demo: task P2-03). A bundled
+        /// area whose package is also in the library is listed once, as the library's copy, which can be renamed and
+        /// deleted. Sizes are as <see cref="Scan"/> leaves them; bundled ones are never measured.
+        /// </summary>
+        public static List<LibraryEntry> ScanWithBundled(string dataRoot, string bundledRoot, List<LibraryEntry> newer = null)
+        {
+            var entries = Scan(dataRoot, newer);
+            var have = new HashSet<string>(entries.Select(e => e.PackageId), StringComparer.Ordinal);
+            entries.AddRange(BundledAreas.Scan(bundledRoot).Where(e => have.Add(e.PackageId)));
+            return entries.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.PackageId, StringComparer.Ordinal).ToList();
+        }
+
+        /// <summary>Every package folder in <paramref name="resorts"/> this game can read, sorted by name; newer ones go to <paramref name="newer"/>.</summary>
+        internal static List<LibraryEntry> ScanFolder(string resorts, List<LibraryEntry> newer)
+        {
+            var entries = new List<LibraryEntry>();
+            if (!Directory.Exists(resorts)) return entries;
             foreach (string folder in Directory.GetDirectories(resorts))
             {
                 if (SafeFolder.IsTrash(folder) || !File.Exists(Path.Combine(folder, ResortPackage.ManifestFile))) continue;
@@ -189,11 +221,6 @@ namespace MountainPlanner.Persistence
                 });
             }
             newer?.Sort((a, b) => string.CompareOrdinal(a.Folder, b.Folder));
-            if (measure)
-            {
-                Measure(entries);
-                if (newer != null) Measure(newer);
-            }
             return entries.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.PackageId, StringComparer.Ordinal).ToList();
         }
 
@@ -262,6 +289,11 @@ namespace MountainPlanner.Persistence
         public static bool Rename(LibraryEntry entry, string name)
         {
             string clean = NormalizeName(name);
+            if (entry.Bundled)
+            {
+                entry.RenameRefusal = BundledAreas.Refusal;
+                return false;
+            }
             if (clean.Length == 0 || entry.Refusal.Length > 0) return false;
             // A view.json that can't be read just now (locked by another program) would load as defaults, and saving
             // those would lose the camera, bookmarks and layers: refuse instead. A damaged one has nothing to lose.
@@ -346,6 +378,7 @@ namespace MountainPlanner.Persistence
         public static bool TryRemove(LibraryEntry entry, out long freed, bool sweep)
         {
             freed = 0;
+            if (entry.Bundled) return false;   // part of the game's own files (task P2-03)
             if (!Directory.Exists(entry.Folder)) return true;
             foreach (int v in TerrainCache.Versions(entry.Folder))
                 if (TerrainCache.InUse(TerrainCache.FolderFor(entry.Folder, v))) return false;
@@ -386,7 +419,7 @@ namespace MountainPlanner.Persistence
         }
 
         /// <summary>What <see cref="FreeSpace"/> would free, from measured entries (caches still open are counted too).</summary>
-        public static long Freeable(IEnumerable<LibraryEntry> entries) => entries.Where(e => e.Measured).Sum(e => e.Disk.OlderCaches);
+        public static long Freeable(IEnumerable<LibraryEntry> entries) => entries.Where(e => e.Measured && !e.Bundled).Sum(e => e.Disk.OlderCaches);
     }
 
     /// <summary>
