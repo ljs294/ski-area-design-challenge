@@ -1,6 +1,7 @@
 using System;
 using MountainPlanner.UI.Flow;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace MountainPlanner.Tests
 {
@@ -125,6 +126,16 @@ namespace MountainPlanner.Tests
             p.Begin(LoadStage.Snowpack, 0, 6.3); p.End(LoadStage.Snowpack, 6.4);
             p.Begin(LoadStage.Cliffs, 2_025_688, 6.4); p.Advance(LoadStage.Cliffs, 1_500_000); p.End(LoadStage.Cliffs, 6.45);
             p.Begin(LoadStage.Forest, 622_823, 6.45); p.End(LoadStage.Forest, 6.5);
+        }
+
+        /// <summary>The loading screen's picture ships at full size: Unity's defaults would shrink it to 2048 and stretch it square.</summary>
+        [Test]
+        public void TheTitlePictureLoadsAtFullSize()
+        {
+            var still = Resources.Load<Texture2D>(FlowScreens.TitleStillResource);
+            Assert.That(still, Is.Not.Null, "capture it with -titlestill (demo.bat 57)");
+            Assert.That(still.width, Is.EqualTo(App.Flow.AppFlow.TitleStillWidth));
+            Assert.That(still.height, Is.EqualTo(App.Flow.AppFlow.TitleStillHeight));
         }
 
         [Test]
