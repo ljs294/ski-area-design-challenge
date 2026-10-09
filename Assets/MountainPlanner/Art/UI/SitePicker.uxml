@@ -47,7 +47,10 @@
                 <ui:VisualElement name="offline" class="offline hidden">
                     <ui:Label class="offline-title" text="No connection" />
                     <ui:Label class="offline-text" text="Choosing a new site needs the internet, for the map and the search. Your downloaded areas still open offline." />
-                    <ui:Button name="retry" class="ghost" text="Retry" />
+                    <ui:VisualElement class="offline-acts">
+                        <ui:Button name="offline-load" class="ghost" text="Load Area" />
+                        <ui:Button name="retry" class="ghost" text="Retry" />
+                    </ui:VisualElement>
                 </ui:VisualElement>
             </ui:VisualElement>
 
@@ -87,6 +90,11 @@
             <ui:Label name="est-warning" class="estimate__warning" />
 
             <ui:VisualElement class="picker-row picker-foot">
+                <!-- The S4 pill while a download runs (task P2-06): this window sits above the flow's own pill. -->
+                <ui:Button name="dl-pill" class="pill hidden" tooltip="Show the download">
+                    <ui:Label name="dl-pill-text" class="pill-text" />
+                    <ui:VisualElement class="pill-bar"><ui:VisualElement name="dl-pill-fill" class="pill-fill" /></ui:VisualElement>
+                </ui:Button>
                 <ui:Label name="note" class="picker-note grow" />
                 <ui:Button name="cancel" class="ghost" text="Cancel" />
                 <ui:Button name="download" class="go">
