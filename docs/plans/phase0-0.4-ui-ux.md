@@ -188,6 +188,14 @@ Resume, Settings, My Mountains, Main menu, Quit to desktop.
 
 **Data:** data folder (Change…), disk use per mountain, clear terrain caches (they rebuild).
 
+**As built (task P2-05; decisions ST1–ST7):** the accepted mockup's window with six pages built from one table in
+`SettingsWindow`: Interface (theme, scale), Units and time, Graphics (preset or Custom, render scale, anti-aliasing,
+shadows, shadow distance, terrain detail, terrain shading, tree detail with Auto and Measure again, textures), Display
+(window mode, resolution with 21:9 and 32:9, V-Sync, frame-rate limit, vertical field of view, and a 15-second "Keep
+these settings?" after a display change), Controls (invert scroll zoom, zoom speed, every key rebindable) and Data
+(library folder, disk use with Free space, offline mode). Everything applies at once; nothing needs a restart. Audio
+waits for sound, and Gameplay for the simulation. The in-game menu's Controls opens the Controls page.
+
 ### S9 Credits
 
 Team and software licences, plus **data attributions generated from the installed mountains' manifests** (USGS, Meta/WRI, ESA WorldCover, OpenStreetMap contributors, Nominatim).

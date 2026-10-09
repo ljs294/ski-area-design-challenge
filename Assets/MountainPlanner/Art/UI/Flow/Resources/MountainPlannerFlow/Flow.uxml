@@ -140,8 +140,8 @@
             </mp:StageColumn>
         </ui:VisualElement>
 
-        <!-- S8 Settings: the accepted mockup's window (prototypes/ui-layout.html), with the rows that work so far.
-             Categories down the left; each row a label, a line of description and its control. -->
+        <!-- S8 Settings: the accepted mockup's window (prototypes/ui-layout.html). Categories down the left; each row a
+             label, a line of description and its control. -->
         <ui:VisualElement name="settings" class="modal hidden">
             <mp:StageColumn>
                 <ui:VisualElement class="mp-win settings-win">
@@ -152,66 +152,9 @@
                         <ui:Button name="settings-close" text="✕" class="mp-x" tooltip="Close (Esc)" />
                     </ui:VisualElement>
                     <ui:VisualElement class="settings-body">
-                        <ui:VisualElement class="mp-nav">
-                            <ui:Button name="settings-tab-interface" text="Interface" class="mp-nav__item" />
-                            <ui:Button name="settings-tab-units" text="Units and time" class="mp-nav__item" />
-                            <ui:Button name="settings-tab-graphics" text="Graphics" class="mp-nav__item" />
-                        </ui:VisualElement>
-                        <ui:ScrollView class="settings-page">
-                            <ui:VisualElement name="settings-interface">
-                                <ui:Label text="Interface" class="mp-page-title" />
-                                <ui:VisualElement class="mp-srow">
-                                    <ui:VisualElement class="mp-srow__text">
-                                        <ui:Label text="Theme" class="mp-srow__label" />
-                                        <ui:Label text="Auto follows the sun: light by day, dark at night." class="mp-srow__desc" />
-                                    </ui:VisualElement>
-                                    <ui:VisualElement class="mp-seg">
-                                        <ui:Button name="theme-dark" text="Dark" class="mp-seg__opt mp-seg__opt--first" />
-                                        <ui:Button name="theme-light" text="Light" class="mp-seg__opt" />
-                                        <ui:Button name="theme-auto" text="Auto" class="mp-seg__opt" />
-                                    </ui:VisualElement>
-                                </ui:VisualElement>
-                                <ui:VisualElement class="mp-srow">
-                                    <ui:VisualElement class="mp-srow__text">
-                                        <ui:Label text="Interface scale" class="mp-srow__label" />
-                                        <ui:Label text="The size of the bar, panels and text." class="mp-srow__desc" />
-                                    </ui:VisualElement>
-                                    <ui:VisualElement class="mp-step">
-                                        <ui:Button name="scale-down" text="‹" class="mp-step__b" tooltip="Smaller (5% steps, down to 50%)" />
-                                        <ui:Label name="scale-value" text="100%" class="mp-step__v" />
-                                        <ui:Button name="scale-up" text="›" class="mp-step__b" tooltip="Larger (5% steps, up to 150%)" />
-                                    </ui:VisualElement>
-                                </ui:VisualElement>
-                            </ui:VisualElement>
-                            <ui:VisualElement name="settings-units" class="hidden">
-                                <ui:Label text="Units and time" class="mp-page-title" />
-                                <ui:VisualElement class="mp-srow">
-                                    <ui:VisualElement class="mp-srow__text">
-                                        <ui:Label text="Units" class="mp-srow__label" />
-                                        <ui:Label text="Lengths, heights, temperatures and snowfall. Steepness is always a grade in percent." class="mp-srow__desc" />
-                                    </ui:VisualElement>
-                                    <ui:VisualElement class="mp-seg">
-                                        <ui:Button name="units-metric" text="Metric" class="mp-seg__opt mp-seg__opt--first" />
-                                        <ui:Button name="units-imperial" text="Imperial" class="mp-seg__opt" />
-                                    </ui:VisualElement>
-                                </ui:VisualElement>
-                                <ui:Label text="U switches units in the game too." class="mp-note" />
-                            </ui:VisualElement>
-                            <ui:VisualElement name="settings-graphics" class="hidden">
-                                <ui:Label text="Graphics" class="mp-page-title" />
-                                <ui:VisualElement class="mp-srow">
-                                    <ui:VisualElement class="mp-srow__text">
-                                        <ui:Label text="Display mode" class="mp-srow__label" />
-                                        <ui:Label text="A window, or the whole screen without a border or with the screen to itself. Alt+Enter switches too." class="mp-srow__desc" />
-                                    </ui:VisualElement>
-                                    <ui:VisualElement class="mp-step">
-                                        <ui:Button name="display-prev" text="‹" class="mp-step__b" />
-                                        <ui:Label name="display-value" text="Borderless" class="mp-step__v" />
-                                        <ui:Button name="display-next" text="›" class="mp-step__b" />
-                                    </ui:VisualElement>
-                                </ui:VisualElement>
-                            </ui:VisualElement>
-                        </ui:ScrollView>
+                        <!-- The categories and their rows are built by SettingsWindow (task P2-05), as the mockup builds them from its SETTINGS table. -->
+                        <ui:VisualElement name="settings-nav" class="mp-nav" />
+                        <ui:ScrollView name="settings-page" class="settings-page" />
                     </ui:VisualElement>
                     <ui:VisualElement class="mp-foot">
                         <ui:Button name="settings-defaults" text="Restore defaults" class="mp-ghost" />

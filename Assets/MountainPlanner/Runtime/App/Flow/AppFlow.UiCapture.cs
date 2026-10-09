@@ -101,12 +101,18 @@ namespace MountainPlanner.App.Flow
                 Controller.Escape();
             }
 
-            if (Wanted("s8-settings"))
+            // S8: every page (task P2-05); the first keeps its old name. Nothing chosen here is remembered.
+            string[] pages = { "s8-settings", "s8-settings-units", "s8-settings-graphics", "s8-settings-display", "s8-settings-controls", "s8-settings-data" };
+            for (int page = 0; page < pages.Length; page++)
             {
+                if (!Wanted(pages[page])) continue;
+                Screens.Settings.Remember = false;
                 Screens.ShowSettings();
-                yield return Wait(0.3f);
-                yield return EachLook(folder, "s8-settings");
+                Screens.Settings.ShowPage(page);
+                yield return Wait(page == SettingsWindow.DataPage ? 1.5f : 0.3f);   // the Data page measures the library first
+                yield return EachLook(folder, pages[page]);
                 Screens.CloseOverlay();
+                Screens.Settings.Remember = true;
             }
             if (Wanted("s9-credits"))
             {

@@ -31,8 +31,10 @@ namespace MountainPlanner.UI
         public event Action ExitChosen;
         /// <summary>The menu's units switch asked for the other units (U does the same): the app flips <see cref="DisplayUnits"/>.</summary>
         public event Action UnitsChosen;
-        /// <summary>The menu's Settings or Controls; enabled only when the app flow offers its Settings window (<see cref="ShowSettings"/>).</summary>
+        /// <summary>The menu's Settings; enabled only when the app flow offers its Settings window (<see cref="ShowSettings"/>).</summary>
         public event Action SettingsChosen;
+        /// <summary>The menu's Controls: Settings on its Controls page (task P2-05).</summary>
+        public event Action ControlsChosen;
         /// <summary>The bar's pause button (Space does the same).</summary>
         public event Action PauseChosen;
         /// <summary>A speed arrow, 1 to 4 (the number keys do the same).</summary>
@@ -101,6 +103,7 @@ namespace MountainPlanner.UI
             WireLayers();
             WirePanels();
             WireGlass();
+            WireKeyCaptions();
             _menu.RegisterCallback<GeometryChangedEvent>(_ => FitDrop(_menu));
             _layers.RegisterCallback<GeometryChangedEvent>(_ => FitDrop(_root.Q("rcol")));
 
@@ -128,6 +131,7 @@ namespace MountainPlanner.UI
             HudPreferences.Changed -= OnDockChanged;
             HudPreferences.Changed -= ApplyOpacity;
             DisplayUnits.Changed -= OnUnitsChanged;
+            ReleaseKeyCaptions();
         }
 
         public void SetVisible(bool visible) => _root.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
@@ -159,7 +163,7 @@ namespace MountainPlanner.UI
             _settingsRow = _root.Q<Button>("menu-settings");
             _controlsRow = _root.Q<Button>("menu-controls");
             _settingsRow.clicked += OpenSettings;
-            _controlsRow.clicked += OpenSettings;
+            _controlsRow.clicked += () => { SetDrop(Drop.None); ControlsChosen?.Invoke(); };
             ShowSettings(false);
             Segment("menu-theme-dark", () => UiPreferences.SetChoice(UiThemeChoice.Dark));
             Segment("menu-theme-light", () => UiPreferences.SetChoice(UiThemeChoice.Light));

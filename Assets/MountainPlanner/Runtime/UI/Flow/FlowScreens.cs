@@ -13,7 +13,7 @@ namespace MountainPlanner.UI.Flow
 
     /// <summary>
     /// Task 14's screens on one UI Toolkit document (Flow.uxml): S1 title, S2 Load Area and Manage
-    /// Areas, the S4 download card and pill, the S5 quality card, S8 Settings (units), S9 Credits and a
+    /// Areas, the S4 download card and pill, the S5 quality card, S8 Settings (<see cref="SettingsWindow"/>), S9 Credits and a
     /// confirm dialog. Like the HUD, it only
     /// shows state and raises events; AppFlow decides what happens. The download card updates text in
     /// place each snapshot and rebuilds its stage rows only when the stage list changes.
@@ -34,6 +34,15 @@ namespace MountainPlanner.UI.Flow
         /// <summary>Cancel confirmed: true keeps the partial download for resuming.</summary>
         public event Action<bool> CancelConfirmed;
         public event Action QualityOpenChosen, QualityLibraryChosen;
+        /// <summary>The Settings window closed (Done, ✕ or Esc).</summary>
+        public event Action SettingsClosed;
+        /// <summary>
+        /// Settings › Data (task P2-05), forwarded here so the app flow can subscribe before the window is built: the
+        /// page opened (measure the disk), a new library folder was typed, Free space was confirmed. Open uses
+        /// <see cref="DataFolderChosen"/>.
+        /// </summary>
+        public event Action SettingsDataShown, SettingsFreeSpaceConfirmed;
+        public event Action<string> SettingsLibraryFolderChosen;
 
         VisualElement _root, _title, _library, _download, _quality, _confirm, _prompt, _settings, _credits, _stages, _barFill, _qcLines;
         TextField _promptField;
@@ -45,12 +54,8 @@ namespace MountainPlanner.UI.Flow
         readonly List<Label> _rowDisks = new List<Label>();
         VisualElement _dlActions, _dlConfirm, _dlFailed;
         ScrollView _rows;
-        Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast, _scaleValue;
-        Button _continue, _pill, _sortOpened, _sortName, _sortQuality, _imperial, _metric, _themeDark, _themeLight, _themeAuto, _scaleDown, _scaleUp, _tabInterface, _displayPrev, _displayNext;
-        Button[] _settingsTabs;
-        VisualElement[] _settingsPages;
-        Label _displayValue;
-        int _display = 1;
+        Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast;
+        Button _continue, _pill, _sortOpened, _sortName, _sortQuality;
         Label _settingsResort;
         ScrollView _creditsBody;
         readonly List<VisualElement> _rowElements = new List<VisualElement>();
@@ -65,6 +70,10 @@ namespace MountainPlanner.UI.Flow
         /// <summary>Settings or Credits is open over the title (Esc closes it first).</summary>
         public bool OverlayOpen => IsShown(_settings) || IsShown(_credits);
         public LibraryMode Mode { get; private set; } = LibraryMode.Load;
+        /// <summary>The S8 Settings window's pages and rows (task P2-05).</summary>
+        public SettingsWindow Settings { get; private set; }
+        /// <summary>Settings is listening for a key to bind: Esc cancels that, and doesn't close the window.</summary>
+        public bool CapturingKeys => Settings != null && Settings.CapturingKeys;
         /// <summary>True when the pointer (screen pixels, origin bottom-left) is over a shown screen, card, pill or dialog.</summary>
         public bool IsPointerOverPanel(Vector2 screen) => PanelPointer.IsOver(_root, screen);
         public bool LibraryVisible => _library != null && !_library.ClassListContains("hidden");
@@ -91,8 +100,6 @@ namespace MountainPlanner.UI.Flow
             _settings = _root.Q("settings");
             _credits = _root.Q("credits");
             _creditsBody = _root.Q<ScrollView>("credits-body");
-            _imperial = _root.Q<Button>("units-imperial");
-            _metric = _root.Q<Button>("units-metric");
             _libraryTitle = _root.Q<Label>("library-title");
             _libraryKeys = _root.Q<Label>("library-keys");
             _stages = _root.Q("dl-stages");
@@ -137,44 +144,15 @@ namespace MountainPlanner.UI.Flow
             _root.Q<Button>("title-quit").clicked += () => QuitChosen?.Invoke();
             _root.Q<Button>("settings-close").clicked += CloseOverlay;
             _root.Q<Button>("credits-close").clicked += CloseOverlay;
-            _imperial.clicked += () => { FlowUnits.Set(true); MarkUnits(); };
-            _metric.clicked += () => { FlowUnits.Set(false); MarkUnits(); };
-            _themeDark = _root.Q<Button>("theme-dark");
-            _themeLight = _root.Q<Button>("theme-light");
-            _themeAuto = _root.Q<Button>("theme-auto");
-            _scaleDown = _root.Q<Button>("scale-down");
-            _scaleUp = _root.Q<Button>("scale-up");
-            _scaleValue = _root.Q<Label>("scale-value");
-            _themeDark.clicked += () => UiPreferences.SetTheme(UiTheme.Dark);
-            _themeLight.clicked += () => UiPreferences.SetTheme(UiTheme.Light);
-            _themeAuto.clicked += () => UiPreferences.SetChoice(UiThemeChoice.Auto);
-            _scaleDown.clicked += () => UiPreferences.StepScale(-1);
-            _scaleUp.clicked += () => UiPreferences.StepScale(1);
-            UiPreferences.Changed += MarkInterface;
-            // The mockup's Settings window: categories down the left, Restore defaults and Done at the foot.
-            _tabInterface = _root.Q<Button>("settings-tab-interface");
-            _settingsTabs = new[] { _tabInterface, _root.Q<Button>("settings-tab-units"), _root.Q<Button>("settings-tab-graphics") };
-            _settingsPages = new[] { _root.Q("settings-interface"), _root.Q("settings-units"), _root.Q("settings-graphics") };
+            // The mockup's Settings window: categories down the left, Restore defaults and Done at the foot (task P2-05).
             _settingsResort = _root.Q<Label>("settings-resort");
-            for (int i = 0; i < _settingsTabs.Length; i++)
-            {
-                int page = i;
-                _settingsTabs[i].clicked += () => SettingsPage(page);
-            }
-            _displayPrev = _root.Q<Button>("display-prev");
-            _displayNext = _root.Q<Button>("display-next");
-            _displayValue = _root.Q<Label>("display-value");
-            _displayPrev.clicked += () => SetDisplay(_display - 1);
-            _displayNext.clicked += () => SetDisplay(_display + 1);
+            Settings = new SettingsWindow(_settings, this);
+            Settings.LibraryOpenChosen += () => DataFolderChosen?.Invoke();
+            Settings.LibraryFolderChosen += folder => SettingsLibraryFolderChosen?.Invoke(folder);
+            Settings.DataShown += () => SettingsDataShown?.Invoke();
+            Settings.FreeSpaceConfirmed += () => SettingsFreeSpaceConfirmed?.Invoke();
             _root.Q<Button>("settings-done").clicked += CloseOverlay;
-            _root.Q<Button>("settings-defaults").clicked += () =>
-            {
-                UiPreferences.SetChoice(UiThemeChoice.Dark);
-                UiPreferences.SetScale(UiPreferences.DefaultScalePercent);
-                FlowUnits.Set(true);
-                MarkUnits();
-                SetDisplay(1);   // borderless full screen
-            };
+            _root.Q<Button>("settings-defaults").clicked += () => Settings.RestoreDefaults();
             _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();
             _root.Q<Button>("library-close").clicked += () => LibraryClosed?.Invoke();
             _root.Q<Button>("library-folder").clicked += () => DataFolderChosen?.Invoke();
@@ -212,7 +190,7 @@ namespace MountainPlanner.UI.Flow
             }, TrickleDown.TrickleDown);
         }
 
-        void OnDisable() => UiPreferences.Changed -= MarkInterface;
+        void OnDisable() => Settings?.Dispose();
 
         void Update()
         {
@@ -628,59 +606,10 @@ namespace MountainPlanner.UI.Flow
         /// <summary>Opens Settings on its first page; in the game the head names the resort, as the mockup's does.</summary>
         public void ShowSettings(string resort)
         {
-            MarkUnits();
-            MarkInterface();
             SetText(_settingsResort, resort ?? "");
-            _display = UiDisplay.Current;   // Alt+Enter may have changed it since
-            MarkDisplay();
-            SettingsPage(0);
+            Settings.Opened();
             Show(_settings, true);
-            UiFocus.OpenModal(_settings, _tabInterface);
-        }
-
-        /// <summary>Shows one category: 0 Interface, 1 Units and time, 2 Graphics.</summary>
-        void SettingsPage(int page)
-        {
-            for (int i = 0; i < _settingsPages.Length; i++)
-            {
-                Show(_settingsPages[i], i == page);
-                _settingsTabs[i].EnableInClassList("mp-nav__item--on", i == page);
-            }
-        }
-
-        /// <summary>Graphics › Display mode: a window, borderless full screen or exclusive full screen (UiDisplay).</summary>
-        void SetDisplay(int index)
-        {
-            index = Mathf.Clamp(index, 0, UiDisplay.Modes.Length - 1);
-            if (index == _display) return;
-            _display = index;
-            UiDisplay.Set(index);
-            MarkDisplay();
-        }
-
-        void MarkDisplay()
-        {
-            SetText(_displayValue, UiDisplay.Names[_display]);
-            _displayPrev.SetEnabled(_display > 0);
-            _displayNext.SetEnabled(_display < UiDisplay.Modes.Length - 1);
-        }
-
-        void MarkUnits()
-        {
-            Mark(_imperial, FlowUnits.Imperial);
-            Mark(_metric, !FlowUnits.Imperial);
-        }
-
-        /// <summary>The Interface rows (task P2-01): the theme that's on and the UI scale, 50–150%.</summary>
-        void MarkInterface()
-        {
-            if (_scaleValue == null) return;
-            Mark(_themeDark, UiPreferences.Choice == UiThemeChoice.Dark);
-            Mark(_themeLight, UiPreferences.Choice == UiThemeChoice.Light);
-            Mark(_themeAuto, UiPreferences.Choice == UiThemeChoice.Auto);
-            _scaleValue.text = UiPreferences.ScalePercent + "%";
-            _scaleDown.SetEnabled(UiPreferences.ScalePercent > UiPreferences.MinScalePercent);
-            _scaleUp.SetEnabled(UiPreferences.ScalePercent < UiPreferences.MaxScalePercent);
+            UiFocus.OpenModal(_settings, Settings.FirstTab);
         }
 
         /// <summary>Credits: sections of (heading, lines), e.g. the data each downloaded area credits, and the fonts.</summary>
@@ -698,10 +627,13 @@ namespace MountainPlanner.UI.Flow
 
         public void CloseOverlay()
         {
+            bool settings = IsShown(_settings);
+            if (settings) Settings.Closed();
             Show(_settings, false);
             Show(_credits, false);
             UiFocus.CloseModal(_settings);
             UiFocus.CloseModal(_credits);
+            if (settings) SettingsClosed?.Invoke();
         }
 
         static bool IsShown(VisualElement e) => e != null && !e.ClassListContains("hidden");
@@ -767,7 +699,7 @@ namespace MountainPlanner.UI.Flow
 
         // ---------- helpers ----------
 
-        static void Show(VisualElement e, bool show) => e?.EnableInClassList("hidden", !show);
+        internal static void Show(VisualElement e, bool show) => e?.EnableInClassList("hidden", !show);
 
         /// <summary>The chosen option of a segmented switch (the mockup's filled segment).</summary>
         static void Mark(VisualElement e, bool on) => e?.EnableInClassList("mp-seg__opt--on", on);

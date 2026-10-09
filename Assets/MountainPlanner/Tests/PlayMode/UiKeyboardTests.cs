@@ -8,6 +8,7 @@ using MountainPlanner.Acquisition.IO;
 using MountainPlanner.App;
 using MountainPlanner.App.Flow;
 using MountainPlanner.Persistence;
+using MountainPlanner.Presentation;
 using MountainPlanner.UI;
 using MountainPlanner.UI.Flow;
 using NUnit.Framework;
@@ -149,6 +150,7 @@ namespace MountainPlanner.Tests
             AssertOnScreen(ui);
             UiPreferences.SetScale(scale, remember: false);
             UiPreferences.SetChoice(UiThemeChoice.Dark, remember: false);
+            yield return SettingsByKeyboard(flow, ui);
             yield return Press(Key.Escape);
             Assert.That(flow.Screens.OverlayOpen, Is.False, "Esc closes Settings");
             AssertFocus(ui, "title-settings", "focus goes back where it was");
@@ -208,6 +210,15 @@ namespace MountainPlanner.Tests
             Assert.That(viewer.Hud.MenuOpen, Is.False);
             Assert.That(flow.Screens.OverlayOpen, Is.True, "the menu's Settings opens the Settings window");
             AssertFocus(ui, "settings-tab-interface");
+            yield return Press(Key.Escape);
+            Assert.That(flow.Screens.OverlayOpen, Is.False);
+            yield return Press(Key.Escape);
+            Assert.That(viewer.Hud.MenuOpen, Is.True);
+            // The menu's Controls opens Settings on its Controls page (task P2-05).
+            yield return TabTo(hud, "menu-controls");
+            yield return Submit(hud);
+            Assert.That(flow.Screens.OverlayOpen, Is.True, "the menu's Controls opens the Settings window");
+            Assert.That(flow.Screens.Settings.Page, Is.EqualTo(SettingsWindow.ControlsPage), "on its Controls page");
             yield return Press(Key.Escape);
             Assert.That(flow.Screens.OverlayOpen, Is.False);
             yield return Press(Key.Escape);
@@ -600,6 +611,94 @@ namespace MountainPlanner.Tests
         {
             float until = Time.realtimeSinceStartup + 0.1f;
             for (int i = 0; i < n || Time.realtimeSinceStartup < until; i++) yield return null;
+        }
+
+        /// <summary>
+        /// Task P2-05: every Settings page opens from its tab by keyboard, Tab walks its rows with each focused
+        /// control on screen (the page scrolls to it), a preset changes Unity's quality level live, and a key is
+        /// rebound by pressing it (Esc cancels listening without closing the window). Nothing is remembered.
+        /// </summary>
+        IEnumerator SettingsByKeyboard(AppFlow flow, VisualElement ui)
+        {
+            var settings = flow.Screens.Settings;
+            settings.Remember = false;
+            var graphics = QualityPresets.Options;
+            int level = QualitySettings.GetQualityLevel();
+            try
+            {
+                var nav = ui.Q("settings-nav");
+                foreach (string id in new[] { "interface", "units", "graphics", "display", "controls", "data" })
+                {
+                    // From the first control in a row, Left goes back to the categories (the Controls page is long for Tab alone).
+                    yield return BackToCategories(ui);
+                    Assert.That(nav.Contains((VisualElement)Focused(ui)), $"Left reaches the categories ({Name(Focused(ui))})");
+                    yield return TabTo(ui, "settings-tab-" + id);
+                    yield return Submit(ui);
+                    Assert.That(UiFocus.IsShown(ui.Q("settings-" + id)), $"the {id} page shows");
+                    for (int i = 0; i < 24; i++)
+                    {
+                        yield return Move(ui, NavigationMoveEvent.Direction.Next);
+                        Assert.That(ui.Q("settings").Contains((VisualElement)Focused(ui)), $"Tab stays inside Settings ({Name(Focused(ui))})");
+                        AssertOnScreen(ui);
+                    }
+                }
+
+                // Data: the disk use is measured (off the main thread) and shown.
+                for (float until = Time.realtimeSinceStartup + 10; ui.Q<Label>("data-disk").text.StartsWith("Measuring") && Time.realtimeSinceStartup < until;) yield return null;
+                Assert.That(ui.Q<Label>("data-disk").text, Does.Contain("area"), "Data shows the library's disk use");
+
+                // Graphics: ‹ on the preset steps High to Medium, live.
+                yield return BackToCategories(ui);
+                yield return TabTo(ui, "settings-tab-graphics");
+                yield return Submit(ui);
+                QualityPresets.Apply(GraphicsOptions.For(QualityPreset.High));
+                settings.Refresh();
+                yield return TabTo(ui, "quality-prev");
+                yield return Submit(ui);
+                Assert.That(QualityPresets.Options.Preset, Is.EqualTo(QualityPreset.Medium));
+                Assert.That(QualitySettings.names[QualitySettings.GetQualityLevel()], Is.EqualTo("Medium"), "Unity's quality level changed at once");
+                Assert.That(ui.Q<Label>("quality-value").text, Is.EqualTo("Medium"));
+
+                // Controls: Enter on Move forward's key listens; B binds it; Esc while listening only cancels.
+                yield return BackToCategories(ui);
+                yield return TabTo(ui, "settings-tab-controls");
+                yield return Submit(ui);
+                yield return TabTo(ui, "key-MoveForward-0");
+                yield return Submit(ui);
+                Assert.That(KeyBindings.Listening, Is.True, "Enter on a key listens for the next one");
+                yield return Press(Key.B);
+                Assert.That(KeyBindings.Listening, Is.False);
+                Assert.That(KeyBindings.Caption(GameAction.MoveForward, 0), Is.EqualTo("B"), "B moves forward now");
+                Assert.That(ui.Q<Button>("key-MoveForward-0").text, Is.EqualTo("B"));
+                yield return Frames(3);
+                yield return TabTo(ui, "key-MoveBack-0");
+                yield return Submit(ui);
+                Assert.That(KeyBindings.Listening, Is.True);
+                yield return Press(Key.Escape);
+                Assert.That(KeyBindings.Listening, Is.False, "Esc cancels listening");
+                Assert.That(flow.Screens.OverlayOpen, Is.True, "and leaves Settings open");
+                Assert.That(KeyBindings.Caption(GameAction.MoveBack, 0), Is.EqualTo("S"), "the key is unchanged");
+                yield return Frames(3);
+            }
+            finally
+            {
+                KeyBindings.ResetAll(remember: false);
+                QualityPresets.Apply(graphics);
+                if (QualitySettings.GetQualityLevel() != level) QualitySettings.SetQualityLevel(level, true);
+                settings.Remember = true;
+            }
+            yield return BackToCategories(ui);
+            for (int i = 0; i < 8 && Name(Focused(ui)) != "settings-tab-interface"; i++) yield return Move(ui, NavigationMoveEvent.Direction.Up);
+            AssertFocus(ui, "settings-tab-interface", "Up walks the categories");
+            yield return Submit(ui);
+        }
+
+        /// <summary>Left from the first control in a row reaches the categories; a slider keeps Left, so Up off it first.</summary>
+        static IEnumerator BackToCategories(VisualElement ui)
+        {
+            var nav = ui.Q("settings-nav");
+            for (int i = 0; i < 6 && !nav.Contains((VisualElement)Focused(ui)); i++)
+                yield return Move(ui, Focused(ui) is BaseSlider<int> ? NavigationMoveEvent.Direction.Up : NavigationMoveEvent.Direction.Left);
         }
 
         static Focusable Focused(VisualElement root) => root.panel?.focusController?.focusedElement;

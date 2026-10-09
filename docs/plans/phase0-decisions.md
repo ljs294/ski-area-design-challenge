@@ -251,3 +251,17 @@ numbers: [phase1-benchmark-report.md](phase1-benchmark-report.md).
 |---|---|
 | V1 | **The library index is a version marker only:** `<data>/library.json` holds the layout version of the data folder, and the listing stays a scan of the packages, so it can never disagree with the disk. A folder without one is layout v1 (Phase 1). It is written when the first package is added |
 | V2 | **An area made by a newer version of the game shows as a greyed row** in the library: its name and size, "Made by a newer version of Mountain Planner. Update the game to open it.", Open disabled and Delete allowed |
+
+## Phase 2 task 05, settings: decided 2026-10-08
+
+**Context:** S8 Settings (0.4 S8), the graphics option list (U3), ultrawide (E6) and Auto tree detail (F4).
+
+| # | Decision |
+|---|---|
+| ST1 | **The graphics menu (U3):** quality preset (Low, Medium, High, Ultra, or Custom once any row changes), render scale 50–200%, anti-aliasing (Off, FXAA, SMAA, MSAA 2×/4×), shadows (Off to Ultra, the presets' shadow sets), shadow distance, terrain detail, terrain shading, tree detail (Auto or a fixed level) and textures. Forest density, forest draw distance, an Apply/Revert bar and a monitor choice are dropped: every row applies at once, and Restore defaults goes back |
+| ST2 | **Display:** window mode, resolution (21:9 and 32:9 where the screen has them; any shape that fits as a window), V-Sync, a frame-rate cap and a field-of-view slider. A display change asks "Keep these settings?" and goes back by itself after 15 s |
+| ST3 | **The FOV rule for every game camera:** the setting is the vertical angle (45–75°, default 60°); wider screens see more to the sides, never less above and below |
+| ST4 | **Controls:** invert scroll zoom, zoom speed, and every key in the key map rebindable (two keys per action; a taken key swaps; Esc, Enter and the modifiers alone can't be bound) |
+| ST5 | **Data:** the library folder (changed at the title, never during a download), disk use with Free space, and offline mode |
+| ST6 | **Auto tree detail** times the first open on each graphics card and screen size: Ultra's LOD bias first, stepping down, keeping the first whose p95 is within 12 ms (60% of the budget) |
+| ST7 | **Settings are not a frozen format:** they live in PlayerPrefs under `MountainPlanner.*`, beside the theme, scale and units. A -quality on the command line uses the preset alone for that run (benchmarks measure B1 exactly); -treedetail auto times Auto again |
