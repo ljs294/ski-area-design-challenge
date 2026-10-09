@@ -36,6 +36,13 @@ namespace MountainPlanner.UI.Flow
         public event Action QualityOpenChosen, QualityLibraryChosen;
         /// <summary>The Settings window closed (Done, ✕ or Esc).</summary>
         public event Action SettingsClosed;
+        /// <summary>
+        /// Settings › Data (task P2-05), forwarded here so the app flow can subscribe before the window is built: the
+        /// page opened (measure the disk), a new library folder was typed, Free space was confirmed. Open uses
+        /// <see cref="DataFolderChosen"/>.
+        /// </summary>
+        public event Action SettingsDataShown, SettingsFreeSpaceConfirmed;
+        public event Action<string> SettingsLibraryFolderChosen;
 
         VisualElement _root, _title, _library, _download, _quality, _confirm, _prompt, _settings, _credits, _stages, _barFill, _qcLines;
         TextField _promptField;
@@ -133,6 +140,10 @@ namespace MountainPlanner.UI.Flow
             // The mockup's Settings window: categories down the left, Restore defaults and Done at the foot (task P2-05).
             _settingsResort = _root.Q<Label>("settings-resort");
             Settings = new SettingsWindow(_settings, this);
+            Settings.LibraryOpenChosen += () => DataFolderChosen?.Invoke();
+            Settings.LibraryFolderChosen += folder => SettingsLibraryFolderChosen?.Invoke(folder);
+            Settings.DataShown += () => SettingsDataShown?.Invoke();
+            Settings.FreeSpaceConfirmed += () => SettingsFreeSpaceConfirmed?.Invoke();
             _root.Q<Button>("settings-done").clicked += CloseOverlay;
             _root.Q<Button>("settings-defaults").clicked += () => Settings.RestoreDefaults();
             _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();

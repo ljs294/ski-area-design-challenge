@@ -509,6 +509,7 @@ namespace MountainPlanner.App.Flow
                           : "Some caches couldn't be removed.");
             _sizes.Clear();
             if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
+            if (Screens.OverlayOpen && Screens.Settings.Page == SettingsWindow.DataPage) ShowDataPage();   // Settings › Data (task P2-05)
         }
 
         static bool SameFolder(string a, string b) =>

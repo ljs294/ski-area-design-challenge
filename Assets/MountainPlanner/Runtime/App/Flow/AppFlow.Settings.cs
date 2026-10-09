@@ -22,12 +22,10 @@ namespace MountainPlanner.App.Flow
 
         void WireSettings()
         {
-            var settings = Screens.Settings;
-            if (settings == null) return;
-            settings.LibraryOpenChosen += OpenDataFolder;
-            settings.LibraryFolderChosen += ChangeLibraryFolder;
-            settings.DataShown += ShowDataPage;
-            settings.FreeSpaceConfirmed += () => { FreeSpace(); ShowDataPage(); };
+            // Through FlowScreens' own events: the window itself is built when the screens wake, which may be after this.
+            Screens.SettingsLibraryFolderChosen += ChangeLibraryFolder;
+            Screens.SettingsDataShown += ShowDataPage;
+            Screens.SettingsFreeSpaceConfirmed += FreeSpace;   // which redraws the Data page when it's done
             DataPreferences.OfflineChanged += ApplyOffline;
             Screens.SettingsClosed += () =>
             {

@@ -202,6 +202,7 @@
 .settings-pair > .settings-action { flex-grow: 1; flex-basis: 0; margin: 0; }
 .settings-pair > .settings-pair__first { margin-right: 8px; }
 .settings-action { height: 30px; margin: 0; }
+.settings-action:disabled { background-color: rgba(0, 0, 0, 0); border-color: var(--hair); color: var(--faint); -unity-text-outline-color: var(--faint); opacity: 1; }
 .settings-path { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); font-size: 11.5px; }
 /* a slider: a thin track filled to the value, a square thumb, and the value (.rng-wrap) */
 .mp-range { flex-direction: row; align-items: center; }

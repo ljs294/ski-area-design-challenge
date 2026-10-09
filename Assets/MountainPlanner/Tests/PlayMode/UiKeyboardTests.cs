@@ -589,6 +589,10 @@ namespace MountainPlanner.Tests
                     }
                 }
 
+                // Data: the disk use is measured (off the main thread) and shown.
+                for (float until = Time.realtimeSinceStartup + 10; ui.Q<Label>("data-disk").text.StartsWith("Measuring") && Time.realtimeSinceStartup < until;) yield return null;
+                Assert.That(ui.Q<Label>("data-disk").text, Does.Contain("area"), "Data shows the library's disk use");
+
                 // Graphics: ‹ on the preset steps High to Medium, live.
                 yield return BackToCategories(ui);
                 yield return TabTo(ui, "settings-tab-graphics");

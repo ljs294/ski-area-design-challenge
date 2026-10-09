@@ -494,6 +494,7 @@ namespace MountainPlanner.UI.Flow
             });
             var disk = Row(page, "Disk use", "Measuring…", _freeSpace);
             _diskText = disk.Q<Label>(className: "mp-srow__desc");
+            _diskText.name = "data-disk";
             Row(page, "Offline mode", "No downloads, map tiles or place search; the areas you have open as usual.",
                 Seg("offline", new[] { "on", "off" }, new[] { "On", "Off" },
                     () => DataPreferences.OfflineNow ? 0 : 1, i => { DataPreferences.SetOffline(i == 0, Remember); Refresh(); }));
