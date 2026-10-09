@@ -72,3 +72,65 @@ void WriteArgs(uint3 id : SV_DispatchThreadID)
     if (id.x >= _DrawCount) return;
     _Args[id.x * 5 + 1] = _Counts[_DrawCounter[id.x]];
 }
+
+// The crown map (P2-09): how much of each ground texel lies under a tree's crown, 0-1, drawn once when a forest
+// opens. The terrain keeps its dark forest floor (and its thinner winter snow) only there, so stands no longer
+// sit in brown discs that follow the cover map instead of the trees (MountainTerrain.shader). Coverage adds up
+// in fixed point with integer atomics, so the map is the same whatever order the trees are drawn in.
+#pragma kernel CrownClear
+#pragma kernel CrownSplat
+#pragma kernel CrownResolve
+
+StructuredBuffer<float> _CrownRadius;       // per prototype: crown radius at scale 1 (m)
+RWStructuredBuffer<uint> _CrownSum;         // per texel: coverage × 256
+RWTexture2D<float> _CrownMap;
+float4 _CrownRect;                          // west, south, metres per texel, unused
+uint2 _CrownSize;                           // texels
+
+[numthreads(8, 8, 1)]
+void CrownClear(uint3 id : SV_DispatchThreadID)
+{
+    if (all(id.xy < _CrownSize)) _CrownSum[id.y * _CrownSize.x + id.x] = 0;
+}
+
+void AddCrown(int2 i, float v)
+{
+    if (v <= 0 || any(i < 0) || any(i >= (int2)_CrownSize)) return;
+    InterlockedAdd(_CrownSum[i.y * _CrownSize.x + i.x], (uint)(v * 256 + 0.5));
+}
+
+[numthreads(64, 1, 1)]
+void CrownSplat(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _TreeCount) return;
+    Tree t = _Trees[id.x];
+    float r = _CrownRadius[t.prototype] * t.widthScale / _CrownRect.z;        // texels
+    float2 p = (t.position.xz - _CrownRect.xy) / _CrownRect.z - 0.5;         // texel-centre coordinates
+    int2 i0 = (int2)floor(p);
+    if (r < 0.75)
+    {
+        // Smaller than a texel: its area, shared bilinearly, so a coarse map still sums to the canopy's share.
+        float area = 3.14159265 * r * r;
+        float2 f = p - i0;
+        AddCrown(i0, area * (1 - f.x) * (1 - f.y));
+        AddCrown(i0 + int2(1, 0), area * f.x * (1 - f.y));
+        AddCrown(i0 + int2(0, 1), area * (1 - f.x) * f.y);
+        AddCrown(i0 + int2(1, 1), area * f.x * f.y);
+        return;
+    }
+    // A disc with a one-texel soft edge.
+    int reach = (int)ceil(r + 0.5);
+    for (int y = -reach; y <= reach; y++)
+        for (int x = -reach; x <= reach; x++)
+        {
+            int2 i = i0 + int2(x, y);
+            AddCrown(i, saturate(r - length((float2)i - p) + 0.5));
+        }
+}
+
+[numthreads(8, 8, 1)]
+void CrownResolve(uint3 id : SV_DispatchThreadID)
+{
+    if (any(id.xy >= _CrownSize)) return;
+    _CrownMap[id.xy] = saturate(_CrownSum[id.y * _CrownSize.x + id.x] / 256.0);
+}
