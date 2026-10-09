@@ -184,6 +184,16 @@
 .settings-win { width: 780px; height: 500px; max-height: 96%; }
 .settings-body { flex-direction: row; flex-grow: 1; flex-shrink: 1; min-height: 0; }
 .settings-page { flex-grow: 1; padding: 4px 20px 14px 20px; }
+/* the page's scrollbar: a thin hairline thumb as a browser draws the mockup's, no arrow buttons (task P2-05) */
+.settings-page .unity-scroller--vertical { width: 8px; margin: 6px 0 6px 6px; border-width: 0; background-color: rgba(0, 0, 0, 0); }
+.settings-page .unity-scroller--vertical .unity-scroller__low-button,
+.settings-page .unity-scroller--vertical .unity-scroller__high-button { display: none; }
+.settings-page .unity-scroller--vertical .unity-scroller__slider { margin: 0; padding: 0; }
+.settings-page .unity-scroller--vertical .unity-base-slider__drag-container { width: 8px; }
+.settings-page .unity-scroller--vertical .unity-base-slider__tracker { left: 0; width: 8px; border-width: 0; background-color: rgba(0, 0, 0, 0); }
+.settings-page .unity-scroller--vertical .unity-base-slider__dragger { left: 1px; width: 6px; border-width: 0; border-radius: 3px; background-color: var(--hair2); }
+.settings-page .unity-scroller--vertical .unity-base-slider__dragger:hover { background-color: var(--faint); }
+.settings-page .unity-scroller--vertical .unity-base-slider__dragger-border { display: none; }
 .settings-done { min-width: 120px; }
 /* Task P2-05: the rows the mockup's SETTINGS table draws, in USS. */
 .mp-pnote { margin: -4px 0 8px 0; padding: 0; font-size: 12px; color: var(--soft); -unity-text-outline-color: var(--soft); white-space: normal; }
