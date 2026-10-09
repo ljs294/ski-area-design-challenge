@@ -127,6 +127,7 @@ namespace MountainPlanner.App
 
         async void Start()
         {
+            Loading = new MountainPlanner.UI.Flow.LoadProgress();   // the loading box's stages (task P2-03.1)
             _overlay = gameObject.AddComponent<ViewerOverlay>();
             _overlay.Viewer = this;
             string[] startArgs = Environment.GetCommandLineArgs();
@@ -162,7 +163,7 @@ namespace MountainPlanner.App
                 var progress = new Progress<OpenProgress>(p => { _status = p.Detail; _fraction = p.Fraction; });
                 var assets = new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader, ImpostorShader = TreeImpostorShader, Cliff = CliffMaterial != null ? new Material(CliffMaterial) : null, Edge = EdgeMaterial };
                 _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial, assets,
-                                                       readOnly: BundledDemo.Contains(folder));   // the built-in demo is never written (task P2-03)
+                                                       readOnly: BundledDemo.Contains(folder), load: Loading);   // the built-in demo is never written (task P2-03)
                 _status = $"Opened in {_resort.Seconds:F1} s";
                 Debug.Log($"[MountainViewer] {_resort.Manifest.Site.Name}: {_resort.Tiles.Count} tiles opened in {_resort.Seconds:F2} s");
                 string[] args = Environment.GetCommandLineArgs();
@@ -249,6 +250,7 @@ namespace MountainPlanner.App
             catch (Exception e)
             {
                 _error = "Couldn't open the area: " + e.Message;
+                Loading.Fail();
                 Debug.LogException(e);
             }
         }
@@ -475,6 +477,11 @@ namespace MountainPlanner.App
         public bool Ready => _resort != null && _resort.CoverReady.IsCompleted;
         /// <summary>How far opening the terrain has got, 0–1 (the app flow's cover shows it).</summary>
         public float OpenFraction => _resort != null ? 1 : _fraction;
+        /// <summary>
+        /// Opening this viewer's mountain, stage by stage (task P2-03.1): the loading box's bar and Details list. Null until
+        /// the viewer starts; one per viewer, so an opener still running for a scene that has gone writes only into its own.
+        /// </summary>
+        public MountainPlanner.UI.Flow.LoadProgress Loading { get; private set; }
         /// <summary>Why the mountain couldn't open (or there's none), else null.</summary>
         public string OpenError => _error;
 

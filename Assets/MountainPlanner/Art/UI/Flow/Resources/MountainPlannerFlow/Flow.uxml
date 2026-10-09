@@ -213,19 +213,76 @@
 
         <ui:Label name="toast" text="" class="toast hidden" />
 
-        <!-- Task P2-03: Alpine Labs' cover while a mountain opens (launch, Open, Exit to title); it fades out over the
+        <!-- Task P2-03.1: the loading screen over every load (launch, Open, Exit to title). The title's own picture fills the
+             screen, so the mountain is never seen filling in; one box at the HUD panels' opacity holds the game's logo,
+             "Opening ...", the bar, a Details list (click only, remembered) and the studio. The box and picture fade over the
              finished mountain. Above every flow screen, and it takes the pointer, so nothing underneath can be used. -->
         <ui:VisualElement name="cover" class="cover hidden">
-            <ui:VisualElement class="cover-mark" picking-mode="Ignore">
-                <ui:VisualElement class="sign sign--plate sign--name cover-plate" picking-mode="Ignore">
-                    <ui:Label text="SKI AREA DESIGN CHALLENGE" class="sign-name-text" picking-mode="Ignore" />
-                </ui:VisualElement>
-                <ui:VisualElement class="cover-rule" picking-mode="Ignore">
-                    <ui:VisualElement name="cover-fill" class="cover-fill" picking-mode="Ignore" />
+            <ui:VisualElement name="cover-still" class="cover-still" picking-mode="Ignore" />
+            <ui:VisualElement name="cover-box" class="cover-box">
+                <ui:VisualElement name="cover-plate" class="cover-plate" picking-mode="Ignore" />
+                <ui:VisualElement name="cover-game" class="cover-game" picking-mode="Ignore">
+                    <ui:VisualElement class="sign sign--plate sign--name cover-name" picking-mode="Ignore">
+                        <ui:Label text="SKI AREA DESIGN CHALLENGE" class="sign-name-text" picking-mode="Ignore" />
+                    </ui:VisualElement>
                 </ui:VisualElement>
                 <ui:Label name="cover-text" text="" class="cover-text" picking-mode="Ignore" />
+                <ui:VisualElement class="cover-bar" picking-mode="Ignore">
+                    <ui:VisualElement name="cover-fill" class="cover-fill" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:VisualElement class="cover-line" picking-mode="Ignore">
+                    <ui:Label name="cover-percent" text="0%" class="cover-percent mono" picking-mode="Ignore" />
+                    <ui:Label name="cover-elapsed" text="" class="cover-elapsed mono hidden" picking-mode="Ignore" />
+                    <ui:Button name="cover-details-toggle" text="Show details" class="cover-toggle" />
+                </ui:VisualElement>
+                <ui:VisualElement name="cover-details" class="cover-details hidden" picking-mode="Ignore">
+                    <ui:VisualElement name="ld-package" class="ld-row" picking-mode="Ignore">
+                        <ui:Label text="" class="ld-tick" picking-mode="Ignore" />
+                        <ui:Label text="Reading the area" class="ld-name" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-count mono" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-time mono" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="ld-preparing" class="ld-row" picking-mode="Ignore">
+                        <ui:Label text="" class="ld-tick" picking-mode="Ignore" />
+                        <ui:Label text="Preparing terrain (first open only)" class="ld-name" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-count mono" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-time mono" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="ld-terrain" class="ld-row" picking-mode="Ignore">
+                        <ui:Label text="" class="ld-tick" picking-mode="Ignore" />
+                        <ui:Label text="Terrain" class="ld-name" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-count mono" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-time mono" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="ld-groundcover" class="ld-row" picking-mode="Ignore">
+                        <ui:Label text="" class="ld-tick" picking-mode="Ignore" />
+                        <ui:Label text="Ground cover" class="ld-name" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-count mono" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-time mono" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="ld-snowpack" class="ld-row" picking-mode="Ignore">
+                        <ui:Label text="" class="ld-tick" picking-mode="Ignore" />
+                        <ui:Label text="Snowpack" class="ld-name" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-count mono" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-time mono" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="ld-cliffs" class="ld-row" picking-mode="Ignore">
+                        <ui:Label text="" class="ld-tick" picking-mode="Ignore" />
+                        <ui:Label text="Cliffs" class="ld-name" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-count mono" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-time mono" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="ld-forest" class="ld-row" picking-mode="Ignore">
+                        <ui:Label text="" class="ld-tick" picking-mode="Ignore" />
+                        <ui:Label text="Forest" class="ld-name" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-count mono" picking-mode="Ignore" />
+                        <ui:Label text="" class="ld-time mono" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+                <ui:VisualElement name="cover-studio" class="cover-studio" picking-mode="Ignore">
+                    <ui:Label text="Alpine Labs" class="cover-studio-name" picking-mode="Ignore" />
+                </ui:VisualElement>
             </ui:VisualElement>
-            <ui:Label text="Alpine Labs" class="cover-studio" picking-mode="Ignore" />
         </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

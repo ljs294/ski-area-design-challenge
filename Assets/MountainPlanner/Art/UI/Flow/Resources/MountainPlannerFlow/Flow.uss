@@ -283,9 +283,10 @@
     padding: 8px 14px; background-color: var(--panel); border-width: 1px; border-color: var(--hair); border-radius: 3px;
 }
 
-/* ---------- Task P2-03: the cover while a mountain opens ----------
-   Brand, not theme: the same warm near-black and sign white in Dark and Light. The name plate is the title's own;
-   a two-pixel rule fills as the mountain opens; the studio sits at the foot in plain Overpass. */
+/* ---------- Task P2-03.1: the loading screen ----------
+   The title's picture fills the screen (scale-and-crop, so 16:9 to 32:9 frame as the live title does at 60 degrees),
+   over warm near-black until it loads. One box at the HUD panels' opacity: its colour is a plate behind the contents
+   (FlowScreens.Cover sets the plate's opacity from HudPreferences), so words, the bar and hairlines stay solid. */
 .cover {
     position: absolute; left: 0; top: 0; right: 0; bottom: 0;
     background-color: #1f1c19;
@@ -293,16 +294,65 @@
     opacity: 1; transition-property: opacity; transition-duration: 0.7s; transition-timing-function: ease-in-out;
 }
 .cover--fading { opacity: 0; }
-.cover-mark { width: 340px; align-items: stretch; }
-.cover-plate { margin-bottom: 22px; }
-.cover-rule { height: 2px; background-color: rgba(251, 248, 242, 0.16); }
-.cover-fill { height: 2px; width: 0; background-color: #fbf8f2; }
-.cover-text {
-    margin: 12px 0 0 0; padding: 0; font-size: 13px; -unity-text-align: middle-center;
-    color: rgba(251, 248, 242, 0.72); -unity-text-outline-color: rgba(251, 248, 242, 0.72);
+.cover-still {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    -unity-background-scale-mode: scale-and-crop;
 }
-.cover-studio {
-    position: absolute; bottom: 36px; left: 0; right: 0; padding: 0; margin: 0;
-    font-size: 15px; -unity-font-style: bold; -unity-text-align: middle-center;
-    color: rgba(251, 248, 242, 0.6); -unity-text-outline-color: rgba(251, 248, 242, 0.6);
+.cover-box {
+    width: 360px; padding: 18px 20px 14px 20px;
+    border-width: 1px; border-color: var(--hair); border-radius: 6px;
+}
+.cover-plate {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    background-color: var(--panel); border-radius: 5px;
+}
+.cover-game { align-items: center; margin-bottom: 14px; }
+.cover-name { margin-bottom: 0; align-self: stretch; }
+.cover-text {
+    margin: 0 0 8px 0; padding: 0; font-size: 14px; -unity-font-style: bold; -unity-text-align: middle-center;
+    color: var(--strong); -unity-text-outline-color: var(--strong);
+}
+.cover-bar { height: 6px; background-color: var(--knock); border-width: 1px; border-color: var(--hair); border-radius: 2px; }
+.cover-fill { height: 100%; width: 0; background-color: var(--go-hover); }
+.cover-line { flex-direction: row; align-items: center; margin-top: 6px; min-height: 26px; }
+.cover-percent {
+    padding: 0; margin: 0; font-size: 12px;
+    color: var(--muted); -unity-text-outline-color: var(--muted);
+}
+.cover-elapsed {
+    padding: 0; margin: 0 0 0 8px; font-size: 12px;
+    color: var(--dim); -unity-text-outline-color: var(--dim);
+}
+.cover-toggle {
+    margin: 0 0 0 auto; padding: 3px 8px; font-size: 12px; background-color: rgba(0, 0, 0, 0); border-width: 0;
+    color: var(--muted); -unity-text-outline-color: var(--muted);
+}
+.cover-toggle:hover { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.cover-details { margin-top: 4px; padding-top: 6px; border-top-width: 1px; border-color: var(--hair); }
+.ld-row { flex-direction: row; align-items: center; min-height: 20px; }
+.ld-tick {
+    width: 18px; padding: 0; margin: 0; font-size: 12px; -unity-font-style: bold;
+    color: var(--soft); -unity-text-outline-color: var(--soft);
+}
+.ld-name {
+    flex-grow: 1; padding: 0; margin: 0; font-size: 12.5px;
+    color: var(--dim); -unity-text-outline-color: var(--dim);
+}
+.ld-count {
+    padding: 0; margin: 0 8px 0 0; font-size: 11.5px;
+    color: var(--dim); -unity-text-outline-color: var(--dim);
+}
+.ld-time {
+    width: 44px; padding: 0; margin: 0; font-size: 11.5px; -unity-text-align: middle-right;
+    color: var(--dim); -unity-text-outline-color: var(--dim);
+}
+.ld-row--done .ld-tick { color: var(--pos); -unity-text-outline-color: var(--pos); }
+.ld-row--done .ld-name { color: var(--muted); -unity-text-outline-color: var(--muted); }
+.ld-row--current .ld-tick { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.ld-row--current .ld-name { color: var(--strong); -unity-text-outline-color: var(--strong); -unity-font-style: bold; }
+.ld-row--current .ld-count { color: var(--text); -unity-text-outline-color: var(--text); }
+.cover-studio { align-items: center; margin-top: 14px; padding-top: 12px; border-top-width: 1px; border-color: var(--hair); }
+.cover-studio-name {
+    padding: 0; margin: 0; font-size: 18px; -unity-font-style: bold;
+    color: var(--strong); -unity-text-outline-color: var(--strong);
 }
