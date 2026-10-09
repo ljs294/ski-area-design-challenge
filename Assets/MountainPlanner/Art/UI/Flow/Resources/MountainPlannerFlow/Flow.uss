@@ -140,6 +140,8 @@
 .lib-row--newer .lib-name { color: var(--muted); -unity-text-outline-color: var(--muted); -unity-font-style: normal; opacity: 0.6; }
 .lib-row--newer .lib-cell { opacity: 0.6; }
 .lib-row--newer .mp-go:disabled { opacity: 0.6; }   /* the mockup's disabled "go" (dis-bg, dis-fg), a little fainter */
+/* The demo built into the game (task P2-03): Manage Areas names why it has no Rename or Delete. */
+.lib-builtin { color: var(--muted); -unity-text-outline-color: var(--muted); font-size: 13px; padding: 6px 4px; -unity-text-align: middle-right; }
 
 /* ---------- S4 download card and pill ---------- */
 .download {

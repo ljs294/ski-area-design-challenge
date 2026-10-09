@@ -326,7 +326,14 @@ namespace MountainPlanner.UI.Flow
                     el.Add(spacer);
                     var actions = new VisualElement();
                     actions.AddToClassList("lib-actions");
-                    if (manage)
+                    if (manage && r.IsBuiltIn)
+                    {
+                        // The demo is part of the game (task P2-03): nothing to rename or delete.
+                        var note = Text("Built into the game", "lib-builtin");
+                        note.tooltip = BundledAreas.Refusal;
+                        actions.Add(note);
+                    }
+                    else if (manage)
                     {
                         var rename = Btn("Rename", "btn--ghost", () => OpenRename(r));
                         rename.SetEnabled(r.CanRename);
@@ -348,7 +355,7 @@ namespace MountainPlanner.UI.Flow
                     el.RegisterCallback<KeyDownEvent>(e =>
                     {
                         if (e.target != el || !manage) return;
-                        if (e.keyCode == KeyCode.Delete) ConfirmDelete(r);
+                        if (e.keyCode == KeyCode.Delete && r.CanDelete) ConfirmDelete(r);
                         else if (e.keyCode == KeyCode.F2) OpenRename(r);
                     });
                 }
@@ -425,7 +432,7 @@ namespace MountainPlanner.UI.Flow
 
         public void ConfirmDelete(LibraryRow r)
         {
-            if (r?.Entry == null) return;
+            if (r?.Entry == null || !r.CanDelete) return;
             string frees = r.Entry.Measured ? $" This frees {LibraryViewModel.Disk(r.Entry.BytesOnDisk)}." : "";
             Confirm($"Delete {r.Name}?{frees} You can download it again later.", "Delete", () => DeleteConfirmed?.Invoke(r));
         }

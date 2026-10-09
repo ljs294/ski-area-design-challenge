@@ -247,6 +247,32 @@ namespace MountainPlanner.Tests
             Assert.That(refused.IsEmpty, Is.True);
             Assert.That(refused.EmptyText, Does.StartWith("This library was saved by a newer version"), "says why, not \"no areas yet\"");
         }
+
+        /// <summary>Task P2-03: the demo built into the game opens, but has no Rename or Delete and isn't the player's disk.</summary>
+        [Test]
+        public void TheBuiltInDemoOpensButIsntRenamedDeletedOrCounted()
+        {
+            var demo = new LibraryEntry { PackageId = "d", Name = "Jackson Hole", OriginalName = "Jackson Hole", Folder = "game/Demo/d", TerrainScore = 100, Bundled = true, RenameRefusal = BundledAreas.Refusal };
+            var own = new LibraryEntry { PackageId = "c", Name = "Crystal Mountain", Folder = "c", TerrainScore = 30 };
+            ResortLibrary.SetDisk(own, new DiskUse { Package = 100_000_000, Cache = 100_000_000, OlderCaches = 50_000_000 });
+            var now = new DateTime(2026, 10, 8, 12, 0, 0, DateTimeKind.Utc);
+
+            var vm = LibraryViewModel.Build(new List<LibraryEntry> { demo, own }, new List<PendingDownload>(), new RecentResorts(), LibrarySort.Name, now);
+            var row = vm.Rows.Find(r => r.Entry == demo);
+            Assert.That(row.IsBuiltIn, Is.True);
+            Assert.That(row.CanOpen, Is.True);
+            Assert.That(row.CanRename, Is.False);
+            Assert.That(row.CanDelete, Is.False);
+            Assert.That(row.Disk, Is.EqualTo(LibraryViewModel.BuiltIn));
+            Assert.That(row.DiskDetail, Is.EqualTo(LibraryViewModel.BuiltInDetail));
+            Assert.That(vm.Measured, Is.True, "the demo is never measured, so nothing waits on it");
+            Assert.That(vm.Summary, Is.EqualTo("2 areas · 250 MB on disk"), "only the library's own areas count towards the disk");
+            Assert.That(vm.FreeableBytes, Is.EqualTo(50_000_000));
+            Assert.That(vm.Rows.Find(r => r.Entry == own).CanDelete, Is.True);
+
+            demo.Refusal = BundledAreas.StaleCache;
+            Assert.That(row.CanOpen, Is.False, "a demo whose cache doesn't match this game can't be opened");
+        }
     }
 
     /// <summary>Task 14: the flow's run-time assets load from Resources, so a build keeps them.</summary>

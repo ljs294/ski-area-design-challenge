@@ -23,6 +23,7 @@ set "PICKED=%LOCALAPPDATA%\SkiAreaDesignChallenge\picked-site.args"
 set "SCRATCH=%LOCALAPPDATA%\SkiAreaDesignChallenge-scratch"
 set "FORMATS=%LOCALAPPDATA%\SkiAreaDesignChallenge-formats"
 set "LIBDEMO=%LOCALAPPDATA%\SkiAreaDesignChallenge-library"
+set "FIRSTRUN=%LOCALAPPDATA%\SkiAreaDesignChallenge-firstrun"
 set "UNITY=C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe"
 
 where dotnet >nul 2>nul
@@ -129,6 +130,9 @@ echo.
 echo   Fix: the window mode
 echo     50 Reset the game's saved window mode to borderless full screen (once, if earlier benchmarks left it windowed)
 echo.
+echo   Phase 2, task 03: the title over the built-in demo (needs 12 once, for the build; close the Unity editor first)
+echo     52 A fresh install, offline: no library, the title over Jackson Hole drifting in the afternoon sun, then Open the demo
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -196,6 +200,7 @@ if /i "%CHOICE%"=="47" goto uicapture
 if /i "%CHOICE%"=="48" goto hudparity
 if /i "%CHOICE%"=="49" goto housekeeping
 if /i "%CHOICE%"=="50" goto windowreset
+if /i "%CHOICE%"=="52" goto firstrun
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -274,6 +279,20 @@ call :seedscratch
 echo Starting the game with the network off ^(-offline^): Load Area, then open any area. A new download stops with a network error.
 start "" "%GAME%" -data "%SCRATCH%" -offline
 goto menu
+
+:firstrun
+rem A build without the bundled demo (older, or built before 12 was downloaded) is rebuilt first.
+if not exist "%~dp0Builds\Windows\SkiAreaDesignChallenge_Data\StreamingAssets\Demo" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0Builds\Windows\SkiAreaDesignChallenge_Data\StreamingAssets\Demo" (echo   This build has no demo: download 12 first, then run 52 again. & goto done)
+if exist "%FIRSTRUN%" rmdir /s /q "%FIRSTRUN%"
+echo Starting the game as a fresh install: an empty library %FIRSTRUN%, with the network off.
+echo   The title opens over Jackson Hole, built into the game, at 3:30 pm; the camera drifts through four views.
+echo   "Open the demo" is focused: Enter opens it. Load Area lists it as Built in; Manage Areas has no Rename or Delete for it.
+echo   Quit the game to see how long the title took to come in.
+start "" /wait "%GAME%" -data "%FIRSTRUN%" -offline
+findstr /c:"[AppFlow] The title's mountain is in" "%USERPROFILE%\AppData\LocalLow\Ski Area Design Challenge\Ski Area Design Challenge\Player.log"
+goto done
 
 :flowclean
 if exist "%SCRATCH%" rmdir /s /q "%SCRATCH%"
@@ -609,7 +628,7 @@ if not errorlevel 1 (
   echo The Unity editor is open. Close it first, then try again.
   exit /b 1
 )
-echo Building the game player (about 2 minutes)...
+echo Building the game player (about 2 minutes; it also bundles the Jackson Hole demo from 12)...
 "%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.ViewerSetup.BuildWindows -logFile "%~dp0test-results\build.log" <nul
 if errorlevel 1 (echo   The build failed - see test-results\build.log) else (echo   Built %GAME%)
 exit /b 0

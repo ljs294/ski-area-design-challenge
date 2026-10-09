@@ -147,7 +147,8 @@ namespace MountainPlanner.App
             {
                 var progress = new Progress<OpenProgress>(p => { _status = p.Detail; _fraction = p.Fraction; });
                 var assets = new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader, ImpostorShader = TreeImpostorShader, Cliff = CliffMaterial != null ? new Material(CliffMaterial) : null, Edge = EdgeMaterial };
-                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial, assets);
+                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial, assets,
+                                                       readOnly: BundledDemo.Contains(folder));   // the built-in demo is never written (task P2-03)
                 _status = $"Opened in {_resort.Seconds:F1} s";
                 Debug.Log($"[MountainViewer] {_resort.Manifest.Site.Name}: {_resort.Tiles.Count} tiles opened in {_resort.Seconds:F2} s");
                 string[] args = Environment.GetCommandLineArgs();
@@ -156,6 +157,8 @@ namespace MountainPlanner.App
                     // The real sun for this place (task 11); a chosen preset keeps its time of day here.
                     var site = _resort.Manifest.Site;
                     Lighting.SetSite(site.Latitude, site.Longitude, _resort.Manifest.Crs.GridConvergenceDegrees);
+                    // The title's low afternoon sun (owner, task P2-03); the clock stands still there. -time still wins.
+                    if (TitleMode) Lighting.SetTime(new ViewTime(Lighting.Clock.Now.Year, Lighting.Clock.Now.DayOfYear, TitleSecondOfDay));
                     ApplyTimeArguments(args);
                     if (FarShadowCompute != null && SystemInfo.supportsComputeShaders)
                     {
@@ -175,6 +178,7 @@ namespace MountainPlanner.App
                     HomeView();
                 }
                 _landmarks = Landmarks.Place(_resort.Root.transform, _resort.Frame, _resort.Surface, HighlightMaterial);
+                if (TitleMode) foreach (var landmark in _landmarks) landmark.Line.enabled = false;   // a clean postcard behind the title
                 _layers.Bind(_resort.Ground, _resort.EdgeMaterial, assets.Cliff, (float)_resort.Manifest.Crs.GridConvergenceDegrees);
                 StartCoroutine(WhenForestReady(() => _layers.BindForest(_resort.Root.GetComponent<ForestView>())));
                 WireHud();
@@ -280,7 +284,8 @@ namespace MountainPlanner.App
                 if (named != null) return named.Folder;
             }
             var demo = entries.Where(e => e.OriginalName == "Jackson Hole").OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
-            return (demo ?? entries.FirstOrDefault())?.Folder;
+            // An empty library still has the demo built into the game (task P2-03).
+            return (demo ?? entries.FirstOrDefault() ?? BundledAreas.Scan(BundledDemo.Root).FirstOrDefault(e => e.Refusal.Length == 0))?.Folder;
         }
 
         void Update()
@@ -453,6 +458,9 @@ namespace MountainPlanner.App
         /// <summary>The package on screen, or null while none is open.</summary>
         public string OpenPackage => _resort?.PackageFolder;
 
+        /// <summary>True once the open mountain is fully in: terrain, cover, snowpack and forest.</summary>
+        public bool Ready => _resort != null && _resort.CoverReady.IsCompleted;
+
         /// <summary>
         /// Lets go of the open cache (task P2-04), so Manage Areas can delete the mountain behind the title. False while
         /// it's still opening: its cover and trees are being read from that cache.
@@ -469,7 +477,7 @@ namespace MountainPlanner.App
         /// <summary>Holds the open cache again after <see cref="ReleaseCache"/>, when the delete it allowed didn't happen.</summary>
         public void HoldCache()
         {
-            if (_resort == null || _resort.CacheLease != null) return;
+            if (_resort == null || _resort.CacheLease != null || BundledDemo.Contains(_resort.PackageFolder)) return;   // the built-in demo takes no lease
             try { _resort.CacheLease = TerrainCache.Hold(_resort.PackageFolder); }
             catch (IOException e) { Debug.LogWarning($"[MountainViewer] Couldn't hold the cache again: {e.Message}"); }
         }
@@ -602,6 +610,9 @@ namespace MountainPlanner.App
             Camera.Frame(new Vector3(0, float.IsNaN(centre) ? 2500 : centre, 0), _resort.Manifest.Site.SizeMetres * 1.1f);
             Camera.SetAngles(HomeYaw, 24f);
         }
+
+        /// <summary>The title's time of day (owner, task P2-03): 15:30 local, a low warm sun with long shadows.</summary>
+        public const int TitleSecondOfDay = 15 * 3600 + 30 * 60;
 
         /// <summary>The Home view's heading (degrees clockwise from grid north): looking north-northwest.</summary>
         public const float HomeYaw = 330f;

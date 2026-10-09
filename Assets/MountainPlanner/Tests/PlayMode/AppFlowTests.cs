@@ -116,6 +116,56 @@ namespace MountainPlanner.Tests
             for (int i = 0; i < 5; i++) yield return null;   // a few frames in the game without errors
         }
 
+        /// <summary>
+        /// Task P2-03 acceptance: a fresh install (no library) with the network off opens the title over the demo built
+        /// into the game, in the low afternoon sun, drifting; "Open the demo" opens it; nothing is written into the game's
+        /// own folder (no cache lease, no view.json), and only the player's recent list records the open.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator AFreshInstallOpensTheBuiltInDemoOffline()
+        {
+            string empty = Path.Combine(Path.GetTempPath(), "mp-fresh-" + Guid.NewGuid().ToString("N"));   // not even created yet
+            var demo = new BundledDemoFixture();
+            try
+            {
+                string before = demo.Snapshot();
+                BundledDemo.Override = demo.Root;
+                Http.NetworkDisabled = true;
+                if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
+                var flow = AppFlow.Create(empty, new NoDownloads());
+                Assert.That(MountainViewer.RequestedPackage, Is.EqualTo(demo.Package), "the built-in demo is behind the title");
+                yield return SceneManager.LoadSceneAsync(ViewerScene);
+                yield return WaitForMountain(120);
+                for (int i = 0; i < 3; i++) yield return null;
+
+                var ui = flow.Screens.Document.rootVisualElement;
+                Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Title));
+                Assert.That(ui.Q<Label>("title-continue-label").text, Is.EqualTo("Open the demo"));
+                var viewer = Object.FindAnyObjectByType<MountainViewer>();
+                Assert.That(viewer.OpenPackage, Is.EqualTo(demo.Package));
+                Assert.That(viewer.Lighting.Clock.Now.SecondOfDay, Is.EqualTo(MountainViewer.TitleSecondOfDay), "the title's 15:30 sun");
+                var cam = viewer.Camera;
+                Vector3 from = cam.transform.position;
+                for (int i = 0; i < 30; i++) yield return null;
+                Assert.That(Vector3.Distance(cam.transform.position, from), Is.GreaterThan(0.01f), "the camera drifts");
+
+                flow.Controller.Continue(demo.Package);   // what "Open the demo" does
+                yield return null;
+                yield return WaitForMountain(120);
+                Assert.That(flow.Controller.InGame, Is.True);
+                Assert.That(Object.FindAnyObjectByType<MountainViewer>().OpenPackage, Is.EqualTo(demo.Package));
+                Assert.That(RecentResorts.Load(empty).Opened.ContainsKey(Path.GetFileName(demo.Package)), Is.True, "Continue will reopen it");
+                for (int i = 0; i < 5; i++) yield return null;
+                Assert.That(demo.Snapshot(), Is.EqualTo(before), "nothing was written into the game's own folder");
+            }
+            finally
+            {
+                BundledDemo.Override = null;   // the viewer scene goes in UnloadTheViewer
+                demo.Dispose();
+                if (Directory.Exists(empty)) Directory.Delete(empty, true);
+            }
+        }
+
         /// <summary>The screen point (pixels, origin bottom-left) at the centre of a flow element.</summary>
         static Vector2 ScreenCentre(VisualElement e)
         {

@@ -19,7 +19,52 @@ namespace MountainPlanner.App.Flow
             string[] args = Environment.GetCommandLineArgs();
             int i = Array.IndexOf(args, "-flowcapture");
             if (i >= 0 && i + 1 < args.Length) StartCoroutine(Capture(Path.GetFullPath(args[i + 1])));
+            int movie = Array.IndexOf(args, "-titlemovie"), shots = Array.IndexOf(args, "-titleshots");
+            if (movie >= 0 && movie + 1 < args.Length) StartCoroutine(TitleMovie(Path.GetFullPath(args[movie + 1]), stills: false));
+            else if (shots >= 0 && shots + 1 < args.Length) StartCoroutine(TitleMovie(Path.GetFullPath(args[shots + 1]), stills: true));
             StartUiCaptureIfAsked(args);
+        }
+
+        /// <summary>
+        /// The title's drift for review (task P2-03). -titlemovie &lt;folder&gt;: one whole loop at 15 fps as JPEG frames in
+        /// &lt;folder&gt;/title (PickerLabSetup.EncodeMovies turns them into an MP4), on the drift's own clock so no frame is
+        /// skipped. -titleshots &lt;folder&gt;: a still at each of the drift's views. Then it quits.
+        /// </summary>
+        IEnumerator TitleMovie(string folder, bool stills)
+        {
+            yield return WaitForMountain(300);
+            while (_viewer == null || !_viewer.Ready || _drift == null) yield return null;
+            _driftHeld = true;
+            _driftSeconds = 0;
+            for (int i = 0; i < 90; i++) yield return null;   // LODs and shadows settle
+            if (stills)
+            {
+                Directory.CreateDirectory(folder);
+                for (int v = 0; v < _drift.Shots; v++)
+                {
+                    _driftSeconds = v * TitleDrift.SecondsPerShot;
+                    for (int i = 0; i < 60; i++) yield return null;
+                    yield return Shot(folder, $"title-view{v + 1}");
+                }
+            }
+            else
+            {
+                string frames = Path.Combine(folder, "title");
+                Directory.CreateDirectory(frames);
+                const int fps = 15;
+                int count = Mathf.CeilToInt(_drift.LoopSeconds * fps);
+                for (int k = 0; k < count; k++)
+                {
+                    _driftSeconds = k / (float)fps;
+                    yield return null;   // Update puts the camera there
+                    yield return new WaitForEndOfFrame();
+                    var shot = ScreenCapture.CaptureScreenshotAsTexture();
+                    File.WriteAllBytes(Path.Combine(frames, $"f_{k * 1000 / fps:D6}.jpg"), shot.EncodeToJPG(85));
+                    Destroy(shot);
+                }
+                Debug.Log($"[AppFlow] {count} title frames saved to {frames}");
+            }
+            Quit();
         }
 
         IEnumerator Capture(string folder)

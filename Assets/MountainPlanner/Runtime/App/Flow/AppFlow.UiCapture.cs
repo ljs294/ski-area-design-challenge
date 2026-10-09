@@ -56,6 +56,8 @@ namespace MountainPlanner.App.Flow
             var choice = UiPreferences.Choice;
             int scale = UiPreferences.ScalePercent;
             string demo = TitleBackground();
+            _driftHeld = true;   // the title's drift holds at its first view, so every picture frames the same (task P2-03)
+            _driftSeconds = 0;
             yield return WaitForMountain(300);
             yield return Wait(4);   // ground cover and trees paint in
 
@@ -491,7 +493,7 @@ namespace MountainPlanner.App.Flow
             int n = Math.Min(window.Length, composite.Length);
             for (int i = 0; i < n; i++)
                 sum += Math.Abs(window[i].r - composite[i].r) + Math.Abs(window[i].g - composite[i].g) + Math.Abs(window[i].b - composite[i].b);
-            string line = string.Format(CultureInfo.InvariantCulture, "Off-screen composite vs the window at {0}×{1}: mean difference {2:F2} of 255 per channel (the title orbits, so the mountain moves a little)", w, h, sum / (3.0 * n));
+            string line = string.Format(CultureInfo.InvariantCulture, "Off-screen composite vs the window at {0}×{1}: mean difference {2:F2} of 255 per channel (the drift holds still while capturing, so this is the composite alone)", w, h, sum / (3.0 * n));
             _uiReport.AppendLine(line);
             Debug.Log("[AppFlow] " + line);
         }
