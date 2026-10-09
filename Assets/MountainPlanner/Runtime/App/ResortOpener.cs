@@ -57,6 +57,8 @@ namespace MountainPlanner.App
         public IDisposable CacheLease;
         /// <summary>The ring (local x/z): where the downloaded data ends and the diorama walls stand.</summary>
         public Rect Ring;
+        /// <summary>The core (local x/z): the site square inside the ring.</summary>
+        public Rect Core;
         /// <summary>The top of the diorama's plinth (local y): the lowest the camera may go off the terrain.</summary>
         public float PlinthTop;
         /// <summary>Task 10's seams: the snow-depth field and the water's surface state, and their upload to the GPU.</summary>
@@ -122,6 +124,9 @@ namespace MountainPlanner.App
             var ringBox = SiteSquare.Create(frame.Origin, manifest.Site.SizeMetres / 1000.0).Ring;
             var (rw, rs) = frame.ToLocal(new AlbersPoint(ringBox.West, ringBox.South));
             var ringRect = new Rect((float)rw, (float)rs, (float)ringBox.Width, (float)ringBox.Height);
+            var coreBox = SiteSquare.Create(frame.Origin, manifest.Site.SizeMetres / 1000.0).Core;
+            var (cw, cs) = frame.ToLocal(new AlbersPoint(coreBox.West, coreBox.South));
+            var coreRect = new Rect((float)cw, (float)cs, (float)coreBox.Width, (float)coreBox.Height);
             if (TerrainTiles.UsesMountainShader(material))
             {
                 material = new Material(material) { name = material.name + " (" + manifest.Site.Name + ")" };
@@ -183,7 +188,7 @@ namespace MountainPlanner.App
             {
                 Manifest = manifest, Cache = cache, Root = root, Tiles = tiles, Surface = surface, Frame = frame, Seconds = clock.Elapsed.TotalSeconds,
                 Ground = ground, PackageFolder = packageFolder, CacheLease = lease,
-                Ring = ringRect, PlinthTop = (float)cache.HeightMin - DioramaBase.BaseDepth, States = new SurfaceStates(ringRect),
+                Ring = ringRect, Core = coreRect, PlinthTop = (float)cache.HeightMin - DioramaBase.BaseDepth, States = new SurfaceStates(ringRect),
             };
             if (forest?.Edge != null)
             {
@@ -256,6 +261,7 @@ namespace MountainPlanner.App
             if (resort.Root == null) return;
             var instances = await Task.Run(() => all.SelectMany(a => a).ToArray(), ct);
             var renderer = new ForestRenderer(forest.Trees, instances, forest.Cull, forest.Shader, forest.ImpostorShader);
+            renderer.BuildCrownMap(resort.Core, resort.Ring);   // the forest floor under the crowns (P2-09)
             var view = resort.Root.AddComponent<ForestView>();
             view.Renderer = renderer;
             resort.TreesPlanted = instances.Length;

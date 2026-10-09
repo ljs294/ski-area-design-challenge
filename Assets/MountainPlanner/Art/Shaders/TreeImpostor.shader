@@ -21,6 +21,8 @@ Shader "MountainPlanner/TreeImpostor"
         _Translucency ("Back-light glow", Range(0, 1)) = 0.6
         _Brightness ("LOD brightness correction", Float) = 1
         _SnowScale ("LOD snow correction", Float) = 1
+        _ImpSharpen ("Mip levels sharper than the screen", Range(0, 2)) = 1
+        _ImpRelief ("Fleck relief (needle gaps)", Range(0, 1)) = 0.45
     }
     SubShader
     {
@@ -43,6 +45,8 @@ Shader "MountainPlanner/TreeImpostor"
             float _Translucency;
             float _Brightness;
             float _SnowScale;
+            float _ImpSharpen;
+            float _ImpRelief;
         CBUFFER_END
         TEXTURE2D(_ImpAlbedo); SAMPLER(sampler_ImpAlbedo);
         TEXTURE2D(_ImpData);
@@ -112,19 +116,45 @@ Shader "MountainPlanner/TreeImpostor"
             return o;
         }
 
+        // Snow and needles as flecks (P2-09): the atlas's mips average a crown's white snow clumps and dark needles
+        // into one even grey, so far trees read as grey round blobs from above. Each frame texel cell instead
+        // keeps all or none of its snow, so the mean stays and the contrast comes back; cells are anchored to the
+        // frame's image (no shimmer while orbiting) and stay about a screen pixel wide. y: a cell's relief, 0-1.
+        float2 Flecks(float2 texel, float2 cell, half snow, float level)
+        {
+            float l = max(level, 1), l0 = floor(l);
+            float2 m = 0;
+            [unroll] for (int k = 0; k < 2; k++)
+            {
+                float size = exp2(l0 + k);
+                float2 c = floor(texel / size) + cell * 97 + size * 17;
+                float h = Hash21(c), r = Hash21(c + 53.7);
+                m += (k == 0 ? 1 - (l - l0) : l - l0) * float2(saturate((snow - h) / 0.15 + 0.5), r);
+            }
+            return m;
+        }
+
         // Blends the four frames: colour weighted by coverage, so transparent texels never darken.
         void SampleImpostor(float4 uvA, float4 uvB, float4 cellsA, float4 cellsB, float4 weights,
-                            out half4 albedo, out half4 data)
+                            out half4 albedo, out half4 data, out half2 flecks)
         {
             float2 uvs[4] = { uvA.xy, uvA.zw, uvB.xy, uvB.zw };
             float2 cells[4] = { cellsA.xy, cellsA.zw, cellsB.xy, cellsB.zw };
             float w4[4] = { weights.x, weights.y, weights.z, weights.w };
-            // Mip level from the frame's own texel density, capped so neighbouring frames don't bleed in.
+            // Mip level from the frame's own texel density, a level sharper than the screen asks (alpha to
+            // coverage and the flecks keep it from sparkling), and capped so neighbouring frames don't bleed in.
             float2 dx = ddx(uvA.xy) * _ImpFrameSize, dy = ddy(uvA.xy) * _ImpFrameSize;
-            float lod = clamp(0.5 * log2(max(dot(dx, dx), dot(dy, dy))), 0, 3);
+            float level = 0.5 * log2(max(dot(dx, dx), dot(dy, dy)));
+            float lod = clamp(level - _ImpSharpen, 0, 3);
             half3 colour = 0;
             half4 dat = 0;
             half coverage = 0;
+            // The flecks follow the frame with the most weight (one frame's cells; four would cost four times as much).
+            float2 topUV = uvA.xy, topCell = cellsA.xy;
+            float topW = weights.x;
+            if (weights.y > topW) { topW = weights.y; topUV = uvA.zw; topCell = cellsA.zw; }
+            if (weights.z > topW) { topW = weights.z; topUV = uvB.xy; topCell = cellsB.xy; }
+            if (weights.w > topW) { topUV = uvB.zw; topCell = cellsB.zw; }
             [unroll] for (int k = 0; k < 4; k++)
             {
                 float2 uv = uvs[k];
@@ -140,6 +170,7 @@ Shader "MountainPlanner/TreeImpostor"
             half inv = 1 / max(coverage, 1e-4);
             albedo = half4(colour * inv, coverage);
             data = dat * inv;
+            flecks = Flecks(saturate(topUV) * _ImpFrameSize, topCell, data.a, level);
         }
         ENDHLSL
 
@@ -189,14 +220,18 @@ Shader "MountainPlanner/TreeImpostor"
             half4 Frag(Varyings i) : SV_Target
             {
                 half4 albedo, data;
-                SampleImpostor(i.uvA, i.uvB, i.cellsA, i.cellsB, i.weights, albedo, data);
+                half2 flecks;
+                SampleImpostor(i.uvA, i.uvB, i.cellsA, i.cellsB, i.weights, albedo, data, flecks);
                 half coverage = saturate((albedo.a - _Cutoff) / max(fwidth(albedo.a), 0.0001) + 0.5);
                 clip(coverage - 0.01);
                 float3 nLocal = OctDecode(data.rg);
                 float3 n = normalize(RotateY(nLocal / i.scale, i.rotationFade.xy));
-                float snow = saturate(data.a * _SnowLoad * _SnowScale * lerp(1, _TreeFade.z, i.rotationFade.z));
+                // The flecks hold the snow's share (white clumps on dark needles); load, LOD and distance scale it.
+                float snow = saturate(flecks.x * _SnowLoad * _SnowScale * lerp(1, _TreeFade.z, i.rotationFade.z));
                 half3 colour = lerp(albedo.rgb * i.tint * _Brightness, _SnowColor.rgb, snow);
-                half ao = lerp(data.b, 1, snow * 0.3);
+                // Needle cells sit at different depths in the crown: some catch light, some are gaps.
+                half ao = data.b * lerp(1 - _ImpRelief, 1, flecks.y);
+                ao = lerp(ao, 1, snow * 0.3);
                 half3 lit = TreeLight(colour, SnowNormal(n, snow), ao, i.positionWS, _Translucency * (1 - snow));
                 return half4(ApplyHaze(lit, i.positionWS), coverage);
             }
@@ -236,7 +271,8 @@ Shader "MountainPlanner/TreeImpostor"
             half4 Frag(Varyings i) : SV_Target
             {
                 half4 albedo, data;
-                SampleImpostor(i.uvA, i.uvB, i.cellsA, i.cellsB, i.weights, albedo, data);
+                half2 flecks;
+                SampleImpostor(i.uvA, i.uvB, i.cellsA, i.cellsB, i.weights, albedo, data, flecks);
                 clip(albedo.a - _Cutoff);
                 return 0;
             }
