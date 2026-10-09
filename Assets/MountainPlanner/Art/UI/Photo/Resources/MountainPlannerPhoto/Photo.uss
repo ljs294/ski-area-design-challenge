@@ -20,15 +20,16 @@
 .photo .pbar {
     position: absolute;
     left: 0; right: 0; bottom: 0;
-    height: 46px;
+    min-height: 46px;
     flex-direction: row;
+    flex-wrap: wrap;   /* at large UI scales on a narrow screen the controls take a second row */
     align-items: stretch;
     background-color: var(--panel);
     border-top-width: 1px;
     border-color: var(--hair);
 }
 /* .cell: a row of label, control and value, 7 px apart; .sep draws a 1 px rule on its left, 11 px short of top and bottom */
-.photo .pcell { flex-direction: row; align-items: center; flex-shrink: 0; padding: 0 9px; }
+.photo .pcell { flex-direction: row; align-items: center; flex-shrink: 0; height: 46px; padding: 0 9px; }
 .photo .pcell > .prange, .photo .pcell > .pv, .photo .pcell > .pstep, .photo .pcell > .pseg { margin-left: 7px; }
 .photo .psep { position: absolute; left: 0; top: 11px; bottom: 11px; width: 1px; background-color: var(--div); }
 .photo .pcell--lead { padding: 0 9px 0 10px; }

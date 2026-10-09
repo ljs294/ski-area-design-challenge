@@ -44,12 +44,13 @@ namespace MountainPlanner.Tests
         [Test]
         public void FocusPresetsBlurMoreForMiniatureAndNothingWhenOff()
         {
-            Assert.That(PhotoFocus.Preset(PhotoFocusMode.Off), Is.EqualTo(Vector2.zero));
+            Assert.That(PhotoFocus.Preset(PhotoFocusMode.Off), Is.EqualTo(Vector3.zero));
             var natural = PhotoFocus.Preset(PhotoFocusMode.Natural);
             var mini = PhotoFocus.Preset(PhotoFocusMode.Miniature);
-            Assert.That(mini.x, Is.GreaterThan(natural.x), "a narrower sharp band");
-            Assert.That(mini.y, Is.GreaterThan(natural.y), "a wider blur");
-            Assert.That(mini.y * 1080, Is.LessThan(16), "under 16 px at 1080p");
+            Assert.That(mini.x, Is.LessThan(natural.x), "a thinner sharp slice");
+            Assert.That(mini.y, Is.LessThan(natural.y), "a steeper rise to full blur");
+            Assert.That(mini.z, Is.GreaterThan(natural.z), "a wider blur");
+            Assert.That(mini.z * 1080, Is.LessThan(16), "under 16 px at 1080p");
             Assert.That(Resources.Load<Shader>(PhotoFocus.ShaderResource), Is.Not.Null, "the shader ships (Resources)");
         }
 

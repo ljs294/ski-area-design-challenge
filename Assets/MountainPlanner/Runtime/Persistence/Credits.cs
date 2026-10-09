@@ -152,13 +152,33 @@ namespace MountainPlanner.Persistence
             return false;
         }
 
-        /// <summary>Areas that share a name (two downloads of one mountain) are told apart by their size: "Jackson Hole · 2 km".</summary>
+        /// <summary>
+        /// Areas that share a name (two downloads of one mountain) are told apart by their size, "Jackson Hole · 2 km", and
+        /// by a number when that's shared too, "Jackson Hole · 5 km (2)". The same package listed twice stays one area.
+        /// </summary>
         static List<(string, PackageManifest)> UniqueNames(List<(string Name, PackageManifest Manifest)> areas)
         {
-            var counts = areas.GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
-            return areas.Select(a => counts[a.Name] > 1
-                ? (a.Name + " · " + (a.Manifest.Site.SizeMetres / 1000.0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " km", a.Manifest)
-                : (a.Name, a.Manifest)).ToList();
+            string Sized((string Name, PackageManifest Manifest) a) =>
+                a.Name + " · " + (a.Manifest.Site.SizeMetres / 1000.0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " km";
+            var distinct = areas.GroupBy(a => a.Manifest.PackageId.Length > 0 ? a.Manifest.PackageId : a.Name + "|" + a.GetHashCode(), StringComparer.Ordinal)
+                                .Select(g => g.First()).ToList();
+            var names = distinct.GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+            var labels = distinct.Select(a => names[a.Name] > 1 ? Sized(a) : a.Name).ToList();
+            var seen = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var totals = labels.GroupBy(l => l, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+            var result = new List<(string, PackageManifest)>();
+            for (int i = 0; i < distinct.Count; i++)
+            {
+                string label = labels[i];
+                if (totals[label] > 1)
+                {
+                    seen.TryGetValue(label, out int n);
+                    seen[label] = ++n;
+                    if (n > 1) label += $" ({n})";
+                }
+                result.Add((label, distinct[i].Manifest));
+            }
+            return result;
         }
 
         static void AddOnce(List<string> list, string value)

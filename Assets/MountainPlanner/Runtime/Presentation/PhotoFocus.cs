@@ -21,11 +21,16 @@ namespace MountainPlanner.Presentation
     /// </summary>
     public sealed class PhotoFocus : System.IDisposable
     {
-        /// <summary>How each preset blurs: strength per unit of (1 − focus/depth), and the largest radius as a fraction of the height.</summary>
-        public static Vector2 Preset(PhotoFocusMode mode) =>
-            mode == PhotoFocusMode.Natural ? new Vector2(0.9f, 0.005f)
-            : mode == PhotoFocusMode.Miniature ? new Vector2(3.0f, 0.012f)
-            : Vector2.zero;
+        /// <summary>
+        /// How each preset blurs, in |1 − focus/depth| (0 at the focus, 0.5 at twice its distance or two thirds of it, 1
+        /// far beyond): x the sharp band around the focus, y how far past it the blur takes to reach its largest, and z
+        /// the largest radius as a fraction of the picture height. Natural keeps a deep band and softens only far off;
+        /// Miniature keeps a thin slice (±8%) and is at full blur by half again the distance.
+        /// </summary>
+        public static Vector3 Preset(PhotoFocusMode mode) =>
+            mode == PhotoFocusMode.Natural ? new Vector3(0.15f, 1.2f, 0.005f)
+            : mode == PhotoFocusMode.Miniature ? new Vector3(0.08f, 0.3f, 0.012f)
+            : Vector3.zero;
 
         public const string ShaderResource = "MountainPlannerPhoto/PhotoFocus";
 
@@ -44,7 +49,7 @@ namespace MountainPlanner.Presentation
             if (shader == null || !shader.isSupported) { Debug.LogWarning("[PhotoFocus] The focus shader isn't available; depth of field is off."); return; }
             _material = CoreUtils.CreateEngineMaterial(shader);
             _pass = new FocusPass(_material) { renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing };
-            _pass.ConfigureInput(ScriptableRenderPassInput.Depth);
+
             RenderPipelineManager.beginCameraRendering += Enqueue;
         }
 
@@ -58,7 +63,8 @@ namespace MountainPlanner.Presentation
             var data = camera.GetUniversalAdditionalCameraData();
             if (data == null || !data.renderPostProcessing) return;
             var p = Preset(Mode);
-            _pass.Params = new Vector4(Mathf.Max(1f, FocusDistance), p.x, p.y, camera.pixelHeight / (float)Mathf.Max(1, camera.pixelWidth));
+            _pass.Params = new Vector4(Mathf.Max(1f, FocusDistance), p.x, p.z, camera.pixelHeight / (float)Mathf.Max(1, camera.pixelWidth));
+            _pass.Ramp = new Vector4(p.y, 0, 0, 0);
             data.scriptableRenderer.EnqueuePass(_pass);
         }
 
@@ -70,9 +76,12 @@ namespace MountainPlanner.Presentation
 
         sealed class FocusPass : ScriptableRenderPass
         {
-            static readonly int ParamsId = Shader.PropertyToID("_PhotoFocus"), BlurId = Shader.PropertyToID("_PhotoFocusBlur");
+            static readonly int ParamsId = Shader.PropertyToID("_PhotoFocus"), BlurId = Shader.PropertyToID("_PhotoFocusBlur"),
+                                DepthId = Shader.PropertyToID("_PhotoFocusDepth"), DepthMsId = Shader.PropertyToID("_PhotoFocusDepthMS"),
+                                DepthSizeId = Shader.PropertyToID("_PhotoFocusDepthSize"), RampId = Shader.PropertyToID("_PhotoFocusRamp");
+            const string MsaaKeyword = "_PHOTO_DEPTH_MSAA";
             readonly Material _material;
-            public Vector4 Params;
+            public Vector4 Params, Ramp;
 
             public FocusPass(Material material)
             {
@@ -82,16 +91,21 @@ namespace MountainPlanner.Presentation
 
             sealed class PassData
             {
-                public TextureHandle Source, Blur;
+                public TextureHandle Source, Blur, Depth;
                 public Material Material;
-                public Vector4 Params;
+                public Vector4 Params, Ramp, DepthSize;
                 public int Pass;
+                public bool Msaa;
             }
 
             public override void RecordRenderGraph(RenderGraph graph, ContextContainer frame)
             {
                 var resources = frame.Get<UniversalResourceData>();
-                if (resources.isActiveTargetBackBuffer || !resources.cameraDepthTexture.IsValid()) return;
+                var depth = resources.activeDepthTexture;
+                if (resources.isActiveTargetBackBuffer || !depth.IsValid()) return;
+                var depthDesc = graph.GetTextureDesc(depth);
+                bool msaa = depthDesc.msaaSamples != MSAASamples.None;
+                var depthSize = new Vector4(depthDesc.width, depthDesc.height, 0, 0);
                 var source = resources.activeColorTexture;
                 var desc = graph.GetTextureDesc(source);
                 desc.name = "_PhotoFocusHalf";
@@ -109,18 +123,18 @@ namespace MountainPlanner.Presentation
 
                 using (var builder = graph.AddRasterRenderPass<PassData>("Photo focus blur", out var data, profilingSampler))
                 {
-                    data.Source = source; data.Material = _material; data.Params = Params; data.Pass = 0;
+                    data.Source = source; data.Depth = depth; data.Msaa = msaa; data.DepthSize = depthSize; data.Material = _material; data.Params = Params; data.Ramp = Ramp; data.Pass = 0;
                     builder.UseTexture(source);
-                    builder.UseTexture(resources.cameraDepthTexture);
+                    builder.UseTexture(depth);
                     builder.SetRenderAttachment(half, 0);
                     builder.SetRenderFunc((PassData d, RasterGraphContext ctx) => Draw(d, ctx));
                 }
                 using (var builder = graph.AddRasterRenderPass<PassData>("Photo focus mix", out var data, profilingSampler))
                 {
-                    data.Source = source; data.Blur = half; data.Material = _material; data.Params = Params; data.Pass = 1;
+                    data.Source = source; data.Blur = half; data.Depth = depth; data.Msaa = msaa; data.DepthSize = depthSize; data.Material = _material; data.Params = Params; data.Ramp = Ramp; data.Pass = 1;
                     builder.UseTexture(source);
                     builder.UseTexture(half);
-                    builder.UseTexture(resources.cameraDepthTexture);
+                    builder.UseTexture(depth);
                     builder.SetRenderAttachment(output, 0);
                     builder.SetRenderFunc((PassData d, RasterGraphContext ctx) => Draw(d, ctx));
                 }
@@ -130,6 +144,10 @@ namespace MountainPlanner.Presentation
             static void Draw(PassData d, RasterGraphContext ctx)
             {
                 d.Material.SetVector(ParamsId, d.Params);
+                d.Material.SetVector(RampId, d.Ramp);
+                if (d.Msaa) { d.Material.EnableKeyword(MsaaKeyword); d.Material.SetTexture(DepthMsId, (RTHandle)d.Depth); }
+                else { d.Material.DisableKeyword(MsaaKeyword); d.Material.SetTexture(DepthId, (RTHandle)d.Depth); }
+                d.Material.SetVector(DepthSizeId, d.DepthSize);
                 if (d.Pass == 1) d.Material.SetTexture(BlurId, (RTHandle)d.Blur);
                 Blitter.BlitTexture(ctx.cmd, d.Source, new Vector4(1, 1, 0, 0), d.Material, d.Pass);
             }

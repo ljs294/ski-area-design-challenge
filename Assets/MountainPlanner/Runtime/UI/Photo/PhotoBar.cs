@@ -43,6 +43,7 @@ namespace MountainPlanner.UI.Photo
         public static PhotoBar Create(Transform parent, PanelSettings panel)
         {
             var go = new GameObject("Photo bar");
+            go.SetActive(false);   // set up before the document builds its tree
             go.transform.SetParent(parent, false);
             var document = go.AddComponent<UIDocument>();
             document.panelSettings = panel;
@@ -50,6 +51,7 @@ namespace MountainPlanner.UI.Photo
             document.visualTreeAsset = Resources.Load<VisualTreeAsset>(Resource);
             var bar = go.AddComponent<PhotoBar>();
             bar._document = document;
+            go.SetActive(true);
             return bar;
         }
 

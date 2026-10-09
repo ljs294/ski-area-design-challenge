@@ -131,18 +131,26 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
-        public void Two_areas_with_one_name_are_told_apart_by_size()
+        public void Areas_with_one_name_are_told_apart()
         {
-            Copy(JacksonHole, ResortLibrary.ResortsFolder(_data));
-            string other = Copy(JacksonHole, Path.Combine(_scratch, "tmp"));
-            var big = ResortPackage.ReadManifest(other);
-            var entries = new List<LibraryEntry>
+            var entries = new List<LibraryEntry>();
+            void Area(string name, string id, int size)
             {
-                new LibraryEntry { Name = "Jackson Hole", Folder = Path.Combine(ResortLibrary.ResortsFolder(_data), JacksonHole) },
-                new LibraryEntry { Name = "Jackson Hole", Folder = other },
-            };
+                var m = new PackageManifest { PackageId = id };
+                m.Site.SizeMetres = size;
+                m.Attribution.Add("Elevation: USGS (public domain).");
+                string folder = Path.Combine(_scratch, id);
+                Directory.CreateDirectory(folder);
+                File.WriteAllText(Path.Combine(folder, ResortPackage.ManifestFile), Newtonsoft.Json.JsonConvert.SerializeObject(m));
+                entries.Add(new LibraryEntry { Name = name, Folder = folder });
+            }
+            Area("Jackson Hole", "a", 2000);
+            Area("Jackson Hole", "b", 5000);
+            Area("Jackson Hole", "c", 5000);
+            Area("Jackson Hole", "c", 5000);   // the same package twice is one area
+            Area("Alta", "d", 2000);
             var credits = CreditsReader.Read(entries);
-            Assert.That(credits[0].Areas, Is.EqualTo(new[] { $"Jackson Hole · {big.Site.SizeMetres / 1000} km" }), "the same package twice is one area");
+            Assert.That(credits.Single().Areas, Is.EqualTo(new[] { "Jackson Hole · 2 km", "Jackson Hole · 5 km", "Jackson Hole · 5 km (2)", "Alta" }));
         }
 
         [Test]

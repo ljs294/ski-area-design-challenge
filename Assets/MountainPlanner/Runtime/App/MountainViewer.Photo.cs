@@ -285,21 +285,25 @@ namespace MountainPlanner.App
         /// </summary>
         internal float LastSaveCaptureFrameMs { get; private set; }
         internal float LastSaveLongestOtherFrameMs { get; private set; }
+        /// <summary>How many frames of the last save went over 16.7 ms (60 fps).</summary>
+        internal int LastSaveSlowFrames { get; private set; }
 
         System.Collections.IEnumerator AfterSave(Task<Vector2Int> saving, string path, int scale, float started)
         {
             float capture = 0, longest = 0;
-            int frames = 0;
+            int frames = 0, slow = 0, longestAt = -1;
             while (!saving.IsCompleted)
             {
                 yield return null;
                 float ms = Time.unscaledDeltaTime * 1000f;
                 if (frames == 0) capture = ms;
-                else longest = Mathf.Max(longest, ms);
+                else if (ms > longest) { longest = ms; longestAt = frames; }
+                if (ms > 16.7f) slow++;
                 frames++;
             }
             LastSaveCaptureFrameMs = capture;
             LastSaveLongestOtherFrameMs = longest;
+            LastSaveSlowFrames = slow;
             if (saving.IsFaulted)
             {
                 var e = saving.Exception?.GetBaseException();
@@ -308,7 +312,7 @@ namespace MountainPlanner.App
                 yield break;
             }
             var size = saving.Result;
-            Debug.Log($"[MountainViewer] Photo saved to {path}: {size.x}×{size.y} ({scale}×) in {(Time.realtimeSinceStartup - started) * 1000f:F0} ms over {frames} frames; the capture frame {capture:F1} ms, the longest after it {longest:F1} ms");
+            Debug.Log($"[MountainViewer] Photo saved to {path}: {size.x}×{size.y} ({scale}×) in {(Time.realtimeSinceStartup - started) * 1000f:F0} ms over {frames} frames; the capture frame {capture:F1} ms, the longest after it {longest:F1} ms (frame {longestAt}); {slow} over 16.7 ms");
             if (_photoBar != null) _photoBar.Toast($"Saved {Path.GetFileName(path)} · {size.x} × {size.y} · Pictures › Ski Area Design Challenge");
         }
 

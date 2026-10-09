@@ -15,21 +15,42 @@ Shader "Hidden/MountainPlanner/PhotoFocus"
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
 
-        // x: focus distance (metres), y: strength (blur per unit of 1 - focus/depth), z: largest blur radius as a
-        // fraction of the picture height, w: height / width (the disc stays round on wide screens).
+        // x: focus distance (metres), y: the sharp band (|1 - focus/depth| under it stays sharp), z: largest blur radius
+        // as a fraction of the picture height, w: height / width (the disc stays round on wide screens).
         float4 _PhotoFocus;
+        // x: how far past the band (in |1 - focus/depth|) the blur takes to reach its largest.
+        float4 _PhotoFocusRamp;
         TEXTURE2D_X(_PhotoFocusBlur);
+        // The camera's own depth buffer, bound by the pass itself: the game's terrain and forest aren't all in URP's
+        // depth copy by this point. Multisampled when MSAA is on (sample 0 is enough for a blur amount).
+        #if defined(_PHOTO_DEPTH_MSAA)
+            Texture2DMS<float, 1> _PhotoFocusDepthMS;   // the count only makes it reflect as multisampled; any MSAA depth binds
+        #else
+            TEXTURE2D_X_FLOAT(_PhotoFocusDepth);
+        #endif
+        float4 _PhotoFocusDepthSize;   // the depth buffer's width and height in pixels
+
+        float RawDepth(float2 uv)
+        {
+            int2 px = int2(clamp(uv, 0.0, 0.9999) * _PhotoFocusDepthSize.xy);
+            #if defined(_PHOTO_DEPTH_MSAA)
+                return _PhotoFocusDepthMS.Load(px, 0).r;
+            #else
+                return LOAD_TEXTURE2D_X(_PhotoFocusDepth, px).r;
+            #endif
+        }
 
         #define SAMPLES 48
         #define GOLDEN 2.39996323
 
-        // The signed blur at a point: negative in front of the focus, positive behind, -1..1.
+        // The signed blur at a point: negative in front of the focus, positive behind, -1..1. Sharp within the band
+        // around the focus, then rising to the largest over the ramp: a sharp slice of the mountain, not a sharp point.
         float CoC(float2 uv)
         {
-            float d = LinearEyeDepth(SampleSceneDepth(uv), _ZBufferParams);
-            return clamp(_PhotoFocus.y * (1.0 - _PhotoFocus.x / max(d, 0.01)), -1.0, 1.0);
+            float d = LinearEyeDepth(RawDepth(uv), _ZBufferParams);
+            float off = 1.0 - _PhotoFocus.x / max(d, 0.01);
+            return sign(off) * saturate((abs(off) - _PhotoFocus.y) / max(_PhotoFocusRamp.x, 1e-4));
         }
 
         // Pass 0: a disc gather at half resolution. A sample counts when its own blur reaches the centre; a sample
@@ -80,6 +101,8 @@ Shader "Hidden/MountainPlanner/PhotoFocus"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment FragBlur
+            #pragma multi_compile_local_fragment _ _PHOTO_DEPTH_MSAA
+            #pragma target 4.5
             ENDHLSL
         }
 
@@ -89,6 +112,8 @@ Shader "Hidden/MountainPlanner/PhotoFocus"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment FragMix
+            #pragma multi_compile_local_fragment _ _PHOTO_DEPTH_MSAA
+            #pragma target 4.5
             ENDHLSL
         }
     }
