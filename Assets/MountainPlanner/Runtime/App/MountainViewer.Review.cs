@@ -474,6 +474,7 @@ namespace MountainPlanner.App
                         Rotation = (h & 0xFFFF) / 65535f * 6.2831853f, HeightScale = scale, WidthScale = scale, Prototype = (uint)(model * 3 + variant),
                     });
                 }
+            ForestRenderer.BackTintOn = Array.IndexOf(Environment.GetCommandLineArgs(), "-nobacktint") < 0;
             var forest = new ForestRenderer(Trees, trees.ToArray(), ForestCull, TreeShader, TreeImpostorShader);
             forest.Wind.Set(ForestWind.Level.Calm);   // still trees, so every capture is repeatable
             var forestGo = new GameObject("Lineup forest");
@@ -492,6 +493,36 @@ namespace MountainPlanner.App
                 ScreenCapture.CaptureScreenshot($"{prefix}_{name}.png");
                 yield return null;
                 yield return null;
+            }
+
+            // From straight overhead (task P2-09): the mixed stand at a forced LOD2 and as impostors, so the far
+            // impostor can be held against the mesh it replaces; -lineupset top takes only these.
+            var top = new Vector3(0, 8, 900);
+            foreach (float distance in new[] { 200f, 600f })
+                foreach (int lod in new[] { 0, 2, 3 })
+                    yield return Shot($"top{distance:0}_lod{lod}", top, distance, 200, 89, lod);
+            yield return Shot("top600_auto", top, 600, 200, 89, -1);
+            yield return Shot("top1500_auto", top, 1500, 200, 89, -1);
+            // Silver and noble fir from under their lower branches (the underside tint).
+            foreach (string species in new[] { "pacific_silver_fir", "noble_fir", "subalpine_fir" })
+            {
+                int m = SpeciesMap.IndexOf(species);
+                if (m >= 0 && m < models) yield return Shot($"under_{species}", new Vector3((m - (models - 1) / 2f) * spacing, Trees.NativeHeights[m * 3] * 0.35f, 0), Trees.NativeHeights[m * 3] * 0.5f, 200, 2, 0);
+            }
+            // Beech and red oak keep brown leaves through the winter: LOD0 against LOD2 (the backlog's "strips").
+            foreach (string species in new[] { "american_beech", "northern_red_oak" })
+            {
+                int m = SpeciesMap.IndexOf(species);
+                if (m < 0 || m >= models) continue;
+                foreach (int lod in new[] { 0, 2 })
+                    yield return Shot($"leaves_{species}_lod{lod}", new Vector3((m - (models - 1) / 2f) * spacing, 9f, 0), 45, 180, 8, lod);
+            }
+            int set = Array.IndexOf(Environment.GetCommandLineArgs(), "-lineupset");
+            if (set >= 0 && set + 1 < Environment.GetCommandLineArgs().Length && Environment.GetCommandLineArgs()[set + 1] == "top")
+            {
+                Debug.Log($"[Lineup] captured to {prefix}_top*.png");
+                Application.Quit();
+                yield break;
             }
 
             var row = new Vector3(0, 12, 0);

@@ -129,6 +129,10 @@ echo.
 echo   Fix: the window mode
 echo     50 Reset the game's saved window mode to borderless full screen (once, if earlier benchmarks left it windowed)
 echo.
+echo   Phase 2, task 09: forest look (needs Jackson Hole 5 km, 12; close the Unity editor first)
+echo     51 Far trees from straight overhead (LOD0, LOD2, impostors), fir undersides and winter leaves captured, then the game
+echo        opens looking down on the forest: Shift+1 turns the snow off to see the forest floor, the wheel zooms out to the ring.
+echo.
 echo   Phase 2, task 05: settings (needs a downloaded area; close the Unity editor first)
 echo     53 Capture every Settings page at 1920x1080, 2560x1080 and 3440x1440, dark and light, 50-150%% (about 5 minutes)
 echo        Then play it: Settings from the title or the in-game menu. Graphics changes show at once; Display asks to keep
@@ -202,6 +206,7 @@ if /i "%CHOICE%"=="53" goto settingscapture
 if /i "%CHOICE%"=="48" goto hudparity
 if /i "%CHOICE%"=="49" goto housekeeping
 if /i "%CHOICE%"=="50" goto windowreset
+if /i "%CHOICE%"=="51" goto forestlook
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -416,6 +421,19 @@ echo Importing the trees into Unity (about 2 minutes)...
 "%UNITY%" -batchmode -projectPath "%~dp0." -executeMethod MountainPlanner.Editor.TreeImport.Import -quit -logFile "%~dp0test-results\trees.log" <nul
 if errorlevel 1 (echo   The import failed - see test-results\trees.log) else (echo   Trees imported. Choose 18 to rebuild the game.)
 goto done
+
+rem Task P2-09: the far impostors from overhead next to the meshes they replace, then the game over the forest. No -screen-*
+rem flags: the game keeps your window mode.
+:forestlook
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%~dp0test-results\forest-look" mkdir "%~dp0test-results\forest-look"
+echo Capturing the overhead lineup (the game window opens and closes by itself, about a minute)...
+"%GAME%" -quality high -lineup "%~dp0test-results\forest-look\l" -lineupset top -logFile "%~dp0test-results\forest-look\lineup.log" <nul
+start "" "%~dp0test-results\forest-look"
+echo Starting the game above the Jackson Hole forest. Shift+1: snow off and on; wheel: zoom; drag: orbit.
+start "" "%GAME%" -quality high -view 350,-150,600,200,80
+goto menu
 
 :lineup
 if not exist "%GAME%" call :buildplayer
