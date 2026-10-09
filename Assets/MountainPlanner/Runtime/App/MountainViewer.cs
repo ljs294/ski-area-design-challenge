@@ -157,8 +157,6 @@ namespace MountainPlanner.App
                     // The real sun for this place (task 11); a chosen preset keeps its time of day here.
                     var site = _resort.Manifest.Site;
                     Lighting.SetSite(site.Latitude, site.Longitude, _resort.Manifest.Crs.GridConvergenceDegrees);
-                    // The title's low afternoon sun (owner, task P2-03); the clock stands still there. -time still wins.
-                    if (TitleMode) Lighting.SetTime(new ViewTime(Lighting.Clock.Now.Year, Lighting.Clock.Now.DayOfYear, TitleSecondOfDay));
                     ApplyTimeArguments(args);
                     if (FarShadowCompute != null && SystemInfo.supportsComputeShaders)
                     {
@@ -430,9 +428,11 @@ namespace MountainPlanner.App
             Hud.QuitChosen += Application.Quit;
             if (Lighting != null)
             {
-                // The bar's clock (task P2-02): the view opens paused at 10:30 unless -time or -light chose a time.
+                // The bar's clock (task P2-02): the view opens paused at 10:30 unless -time or -light chose a time; the
+                // title stands still in a low afternoon sun at 15:30 (owner, task P2-03).
                 var args = Environment.GetCommandLineArgs();
-                if (Array.IndexOf(args, "-time") < 0 && Array.IndexOf(args, "-light") < 0) Lighting.SetTime(Lighting.Clock.Now.WithSecondOfDay(OpeningSecond));
+                if (Array.IndexOf(args, "-time") < 0 && Array.IndexOf(args, "-light") < 0)
+                    Lighting.SetTime(Lighting.Clock.Now.WithSecondOfDay(TitleMode ? TitleSecondOfDay : OpeningSecond));
                 _clock = new ViewClockRunner(Lighting.Clock.Now);
                 Hud.PauseChosen += _clock.TogglePause;
                 Hud.SpeedChosen += _clock.SetSpeed;
@@ -460,6 +460,13 @@ namespace MountainPlanner.App
 
         /// <summary>True once the open mountain is fully in: terrain, cover, snowpack and forest.</summary>
         public bool Ready => _resort != null && _resort.CoverReady.IsCompleted;
+        /// <summary>How far opening the terrain has got, 0–1 (the app flow's cover shows it).</summary>
+        public float OpenFraction => _resort != null ? 1 : _fraction;
+        /// <summary>Why the mountain couldn't open (or there's none), else null.</summary>
+        public string OpenError => _error;
+
+        /// <summary>Set by the app flow: its cover is up over the opening mountain, so the viewer's own progress text stays off (task P2-03).</summary>
+        public static Func<bool> CoverUp;
 
         /// <summary>
         /// Lets go of the open cache (task P2-04), so Manage Areas can delete the mountain behind the title. False while
@@ -645,6 +652,7 @@ namespace MountainPlanner.App
         bool NeedsOverlay()
         {
             if (!_hud || _capturing || TitleMode) return false;
+            if (_error == null && _resort == null && (CoverUp?.Invoke() ?? false)) return false;   // the flow's cover says it
             if (_error != null || _resort == null || _photo || _help) return true;
             if (_toast != null && Time.unscaledTime < _toastUntil) return true;
             return Hud == null;

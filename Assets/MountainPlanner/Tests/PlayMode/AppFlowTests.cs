@@ -74,13 +74,15 @@ namespace MountainPlanner.Tests
             yield return Resources.UnloadUnusedAssets();
         }
 
+        static bool CoverUp => AppFlow.Instance != null && AppFlow.Instance.Screens.CoverUp;
+
         static IEnumerator WaitForMountain(float seconds)
         {
             float until = Time.realtimeSinceStartup + seconds;
             while (Time.realtimeSinceStartup < until)
             {
                 var viewer = Object.FindAnyObjectByType<MountainViewer>();
-                if (viewer != null && viewer.Camera != null && viewer.Camera.Surface != null) yield break;
+                if (viewer != null && viewer.Camera != null && viewer.Camera.Surface != null && !CoverUp) yield break;   // and the flow's cover has lifted (task P2-03)
                 yield return null;
             }
             Assert.Fail("The mountain didn't open in time.");
@@ -134,11 +136,14 @@ namespace MountainPlanner.Tests
                 if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
                 var flow = AppFlow.Create(empty, new NoDownloads());
                 Assert.That(MountainViewer.RequestedPackage, Is.EqualTo(demo.Package), "the built-in demo is behind the title");
+                var ui = flow.Screens.Document.rootVisualElement;
+                Assert.That(flow.Screens.CoverUp, Is.True, "the cover is up from the first frame");
+                Assert.That(ui.Q<Label>("cover-text").text, Is.EqualTo("Opening Jackson Hole"));
                 yield return SceneManager.LoadSceneAsync(ViewerScene);
                 yield return WaitForMountain(120);
+                Assert.That(Object.FindAnyObjectByType<MountainViewer>().Ready, Is.True, "the cover lifts only once the mountain is whole");
                 for (int i = 0; i < 3; i++) yield return null;
 
-                var ui = flow.Screens.Document.rootVisualElement;
                 Assert.That(flow.Controller.Screen, Is.EqualTo(FlowScreen.Title));
                 Assert.That(ui.Q<Label>("title-continue-label").text, Is.EqualTo("Open the demo"));
                 var viewer = Object.FindAnyObjectByType<MountainViewer>();

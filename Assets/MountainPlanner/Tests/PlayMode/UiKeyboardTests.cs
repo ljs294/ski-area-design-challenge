@@ -578,13 +578,15 @@ namespace MountainPlanner.Tests
         // ---------- helpers ----------
 
         /// <summary>Waits for a mountain on screen: behind the title, or opened in the game.</summary>
+        static bool CoverUp => AppFlow.Instance != null && AppFlow.Instance.Screens.CoverUp;
+
         static IEnumerator WaitForMountain(float seconds, bool inGame = false)
         {
             float until = Time.realtimeSinceStartup + seconds;
             while (Time.realtimeSinceStartup < until)
             {
                 var viewer = Object.FindAnyObjectByType<MountainViewer>();
-                if (viewer != null && viewer.Camera != null && viewer.Camera.Surface != null && MountainViewer.TitleMode != inGame) yield break;
+                if (viewer != null && viewer.Camera != null && viewer.Camera.Surface != null && MountainViewer.TitleMode != inGame && !CoverUp) yield break;   // and the flow's cover has lifted (task P2-03)
                 yield return null;
             }
             Assert.Fail("The mountain didn't open in time.");

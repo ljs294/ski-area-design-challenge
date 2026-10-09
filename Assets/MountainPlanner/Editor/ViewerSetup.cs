@@ -228,6 +228,8 @@ namespace MountainPlanner.Editor
             PlayerSettings.defaultIsNativeResolution = true;
             PlayerSettings.resizableWindow = true;
             PlayerSettings.allowFullscreenSwitch = true;
+            // No Unity splash: the title over the live demo is the first thing on screen, within 10 s of launch (task P2-03).
+            PlayerSettings.SplashScreen.show = false;
             WriteBuildInfo();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
