@@ -273,14 +273,15 @@ namespace MountainPlanner.App
             for (int i = 0; i < legs.Length; i++) report.legs[i] = new BenchmarkReport.Leg { name = path.LegName(i), stats = legs[i].Summarise() };
 
             // With a background download running (-benchdownload, task P2-06; owner's choice 2026-10-09), its worker threads
-            // fill the shared heap, so the release player's heap check can't tell the game's garbage from the download's:
-            // only the Development player's per-frame counter (the main thread's) gates garbage then.
+            // fill the shared heap, and Unity counts every thread's allocations alike (the heap check, "GC Allocated In Frame",
+            // and the GC.Alloc marker even when asked for one thread). So garbage is reported but not gated then; the main
+            // thread's share is covered by DownloadServiceTests.PumpingWithoutNewsAllocatesNothing.
             bool download = MountainPlanner.App.Flow.BenchDownload.Running;
             var r = new BenchmarkReport.Result
             {
                 frameTime = t.p95Ms <= budget.P95Ms && t.p99Ms <= budget.P99Ms && t.percentOver50Ms <= budget.PercentOver50Ms,
                 // Garbage: the per-frame counter where the player records it (Development builds), else the heap check.
-                garbageMeasured = t.gcBytesTotal >= 0 || t.heapGrowthBytes >= 0 && !download,
+                garbageMeasured = !download && (t.gcBytesTotal >= 0 || t.heapGrowthBytes >= 0),
                 memoryMeasured = t.gfxMemoryMBMax >= 0,
             };
             // "0 bytes per frame in steady state" (0.3 §8): under a byte per frame on average, no collection, and no
@@ -297,7 +298,7 @@ namespace MountainPlanner.App
                 preset, Screen.width, Screen.height, _hud ? " with the HUD" : "",
                 t.p95Ms, Limit(budget.Checked, budget.P95Ms), t.p99Ms, Limit(budget.Checked, budget.P99Ms),
                 t.percentOver50Ms, Limit(budget.Checked, budget.PercentOver50Ms), t.gpuP95Ms,
-                t.gcBytesTotal >= 0 ? $"{t.gcBytesTotal} B in {t.gcFramesWithAllocations} of {t.frames} frames"
+                t.gcBytesTotal >= 0 ? $"{t.gcBytesTotal} B in {t.gcFramesWithAllocations} of {t.frames} frames" + (download ? ", a download ran: not gated" : "")
                     : t.heapGrowthBytes >= 0 ? $"heap +{t.heapGrowthBytes} B, {t.gcCollections} collections over {t.frames} frames" + (download ? ", a download ran: not gated" : "") : "not measured",
                 r.garbageMeasured ? (r.garbage ? "pass" : "FAIL") : "-",
                 r.memoryMeasured ? $"{t.gfxMemoryMBMax:F0} MB (≤{budget.GfxMemoryMB:F0})" : "not measured",
