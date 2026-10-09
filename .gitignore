@@ -43,3 +43,7 @@ Builds/
 # Build stamp written by ViewerSetup.BuildWindows (commit SHA for benchmark results)
 /Assets/MountainPlanner/Generated/
 /Assets/MountainPlanner/Generated.meta
+
+# The demo is bundled into players at build time (task P2-03) and never committed (LFS quota)
+/Assets/StreamingAssets/
+/Assets/StreamingAssets.meta

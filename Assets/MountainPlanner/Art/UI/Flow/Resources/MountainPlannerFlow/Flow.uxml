@@ -212,5 +212,20 @@
         </ui:VisualElement>
 
         <ui:Label name="toast" text="" class="toast hidden" />
+
+        <!-- Task P2-03: Alpine Labs' cover while a mountain opens (launch, Open, Exit to title); it fades out over the
+             finished mountain. Above every flow screen, and it takes the pointer, so nothing underneath can be used. -->
+        <ui:VisualElement name="cover" class="cover hidden">
+            <ui:VisualElement class="cover-mark" picking-mode="Ignore">
+                <ui:VisualElement class="sign sign--plate sign--name cover-plate" picking-mode="Ignore">
+                    <ui:Label text="SKI AREA DESIGN CHALLENGE" class="sign-name-text" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:VisualElement class="cover-rule" picking-mode="Ignore">
+                    <ui:VisualElement name="cover-fill" class="cover-fill" picking-mode="Ignore" />
+                </ui:VisualElement>
+                <ui:Label name="cover-text" text="" class="cover-text" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:Label text="Alpine Labs" class="cover-studio" picking-mode="Ignore" />
+        </ui:VisualElement>
     </ui:VisualElement>
 </ui:UXML>

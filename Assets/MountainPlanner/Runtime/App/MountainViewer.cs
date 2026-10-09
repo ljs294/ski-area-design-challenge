@@ -103,6 +103,19 @@ namespace MountainPlanner.App
         {
             TitleMode = false;
             if (Camera != null) Camera.InputEnabled = true;
+            PinTitleFov(false);
+        }
+
+        /// <summary>
+        /// The title always frames at the default 60° (owner, task P2-03), so it matches the loading picture whatever the
+        /// field-of-view setting says; in the game the camera follows the setting again (ViewFov, task P2-05).
+        /// </summary>
+        void PinTitleFov(bool title)
+        {
+            if (Camera == null) return;
+            Camera.FollowFovSetting = !title;
+            var lens = Camera.GetComponent<UnityEngine.Camera>();
+            if (lens != null) lens.fieldOfView = title ? ViewFov.Default : ViewFov.Vertical;
         }
 
         public static string DataRoot =>
@@ -122,6 +135,7 @@ namespace MountainPlanner.App
             // before -shadows (which edits the active URP asset) and before the mountain opens (terrain detail).
             ApplyGraphicsSettings(startArgs);
             Detail = QualityPresets.Options.Terrain;
+            PinTitleFov(TitleMode);
             if (Array.IndexOf(startArgs, "-nohud") >= 0) _ui = false;   // clean captures: as if H was pressed
             // -theme dark|light and -uiscale 50..150 are read by UiPreferences, for every screen.
             if (Hud != null) Hud.SetVisible(_hudShown = false);   // shown once a mountain is open
@@ -147,7 +161,8 @@ namespace MountainPlanner.App
             {
                 var progress = new Progress<OpenProgress>(p => { _status = p.Detail; _fraction = p.Fraction; });
                 var assets = new ForestAssets { Trees = Trees, Cull = ForestCull, Shader = TreeShader, ImpostorShader = TreeImpostorShader, Cliff = CliffMaterial != null ? new Material(CliffMaterial) : null, Edge = EdgeMaterial };
-                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial, assets);
+                _resort = await ResortOpener.OpenAsync(folder, null, Detail, progress, destroyCancellationToken, TerrainMaterial, assets,
+                                                       readOnly: BundledDemo.Contains(folder));   // the built-in demo is never written (task P2-03)
                 _status = $"Opened in {_resort.Seconds:F1} s";
                 Debug.Log($"[MountainViewer] {_resort.Manifest.Site.Name}: {_resort.Tiles.Count} tiles opened in {_resort.Seconds:F2} s");
                 string[] args = Environment.GetCommandLineArgs();
@@ -176,6 +191,7 @@ namespace MountainPlanner.App
                 }
                 StartTreeDetailTiming(args);   // Auto tree detail, the first time on this PC and screen (task P2-05)
                 _landmarks = Landmarks.Place(_resort.Root.transform, _resort.Frame, _resort.Surface, HighlightMaterial);
+                if (TitleMode) foreach (var landmark in _landmarks) landmark.Line.enabled = false;   // a clean postcard behind the title
                 _layers.Bind(_resort.Ground, _resort.EdgeMaterial, assets.Cliff, (float)_resort.Manifest.Crs.GridConvergenceDegrees);
                 StartCoroutine(WhenForestReady(() => _layers.BindForest(_resort.Root.GetComponent<ForestView>())));
                 WireHud();
@@ -281,7 +297,8 @@ namespace MountainPlanner.App
                 if (named != null) return named.Folder;
             }
             var demo = entries.Where(e => e.OriginalName == "Jackson Hole").OrderByDescending(e => e.SizeKm).ThenByDescending(e => e.CreatedUtc, StringComparer.Ordinal).FirstOrDefault();
-            return (demo ?? entries.FirstOrDefault())?.Folder;
+            // An empty library still has the demo built into the game (task P2-03).
+            return (demo ?? entries.FirstOrDefault() ?? BundledAreas.Scan(BundledDemo.Root).FirstOrDefault(e => e.Refusal.Length == 0))?.Folder;
         }
 
         void Update()
@@ -424,9 +441,11 @@ namespace MountainPlanner.App
             Hud.QuitChosen += Application.Quit;
             if (Lighting != null)
             {
-                // The bar's clock (task P2-02): the view opens paused at 10:30 unless -time or -light chose a time.
+                // The bar's clock (task P2-02): the view opens paused at 10:30 unless -time or -light chose a time; the
+                // title stands still in a low afternoon sun at 15:30 (owner, task P2-03).
                 var args = Environment.GetCommandLineArgs();
-                if (Array.IndexOf(args, "-time") < 0 && Array.IndexOf(args, "-light") < 0) Lighting.SetTime(Lighting.Clock.Now.WithSecondOfDay(OpeningSecond));
+                if (Array.IndexOf(args, "-time") < 0 && Array.IndexOf(args, "-light") < 0)
+                    Lighting.SetTime(Lighting.Clock.Now.WithSecondOfDay(TitleMode ? TitleSecondOfDay : OpeningSecond));
                 _clock = new ViewClockRunner(Lighting.Clock.Now);
                 Hud.PauseChosen += _clock.TogglePause;
                 Hud.SpeedChosen += _clock.SetSpeed;
@@ -452,6 +471,16 @@ namespace MountainPlanner.App
         /// <summary>The package on screen, or null while none is open.</summary>
         public string OpenPackage => _resort?.PackageFolder;
 
+        /// <summary>True once the open mountain is fully in: terrain, cover, snowpack and forest.</summary>
+        public bool Ready => _resort != null && _resort.CoverReady.IsCompleted;
+        /// <summary>How far opening the terrain has got, 0–1 (the app flow's cover shows it).</summary>
+        public float OpenFraction => _resort != null ? 1 : _fraction;
+        /// <summary>Why the mountain couldn't open (or there's none), else null.</summary>
+        public string OpenError => _error;
+
+        /// <summary>Set by the app flow: its cover is up over the opening mountain, so the viewer's own progress text stays off (task P2-03).</summary>
+        public static Func<bool> CoverUp;
+
         /// <summary>
         /// Lets go of the open cache (task P2-04), so Manage Areas can delete the mountain behind the title. False while
         /// it's still opening: its cover and trees are being read from that cache.
@@ -468,7 +497,7 @@ namespace MountainPlanner.App
         /// <summary>Holds the open cache again after <see cref="ReleaseCache"/>, when the delete it allowed didn't happen.</summary>
         public void HoldCache()
         {
-            if (_resort == null || _resort.CacheLease != null) return;
+            if (_resort == null || _resort.CacheLease != null || BundledDemo.Contains(_resort.PackageFolder)) return;   // the built-in demo takes no lease
             try { _resort.CacheLease = TerrainCache.Hold(_resort.PackageFolder); }
             catch (IOException e) { Debug.LogWarning($"[MountainViewer] Couldn't hold the cache again: {e.Message}"); }
         }
@@ -603,6 +632,9 @@ namespace MountainPlanner.App
             Camera.SetAngles(HomeYaw, 24f);
         }
 
+        /// <summary>The title's time of day (owner, task P2-03): 15:30 local, a low warm sun with long shadows.</summary>
+        public const int TitleSecondOfDay = 15 * 3600 + 30 * 60;
+
         /// <summary>The Home view's heading (degrees clockwise from grid north): looking north-northwest.</summary>
         public const float HomeYaw = 330f;
 
@@ -634,6 +666,7 @@ namespace MountainPlanner.App
         bool NeedsOverlay()
         {
             if (!_hud || _capturing || TitleMode) return false;
+            if (_error == null && _resort == null && (CoverUp?.Invoke() ?? false)) return false;   // the flow's cover says it
             if (_error != null || _resort == null || _photo || _help) return true;
             if (_toast != null && Time.unscaledTime < _toastUntil) return true;
             return Hud == null;

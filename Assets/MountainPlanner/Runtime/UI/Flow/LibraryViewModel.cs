@@ -30,9 +30,13 @@ namespace MountainPlanner.UI.Flow
         /// <summary>Set on an area made by a newer version of the game (task 08): it can be deleted, not opened.</summary>
         public string NewerText = "";
         public bool IsNewer => NewerText.Length > 0;
-        public bool CanOpen => Entry != null && !IsNewer;
+        public bool CanOpen => Entry != null && !IsNewer && Entry.Refusal.Length == 0;
         /// <summary>Rename (Manage Areas, F2): any area this game can read whose view.json isn't from a newer game.</summary>
         public bool CanRename => CanOpen && Entry.RenameRefusal.Length == 0;
+        /// <summary>Built into the game (the demo, task P2-03): it opens, but can't be renamed or deleted.</summary>
+        public bool IsBuiltIn => Entry != null && Entry.Bundled;
+        /// <summary>Delete (Manage Areas): any downloaded area, including a newer game's; never the built-in demo.</summary>
+        public bool CanDelete => Entry != null && !IsBuiltIn;
     }
 
     /// <summary>
@@ -100,9 +104,10 @@ namespace MountainPlanner.UI.Flow
                 });
             foreach (var e in newer.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Folder, StringComparer.Ordinal))
                 vm.Rows.Add(new LibraryRow { Entry = e, Name = e.Name, Disk = DiskOf(e), DiskDetail = Detail(e), NewerText = NewerVersion });
-            vm.Measured = entries.All(e => e.Measured) && newer.All(e => e.Measured);
+            // The built-in demo isn't on the player's disk: never measured, never in the total or Free space.
+            vm.Measured = entries.All(e => e.Measured || e.Bundled) && newer.All(e => e.Measured);
             vm.FreeableBytes = ResortLibrary.Freeable(entries.Concat(newer)) + leftoverBytes;
-            long total = entries.Sum(e => e.BytesOnDisk) + newer.Sum(e => e.BytesOnDisk);
+            long total = entries.Where(e => !e.Bundled).Sum(e => e.BytesOnDisk) + newer.Sum(e => e.BytesOnDisk);
             vm.Summary = $"{entries.Count} {(entries.Count == 1 ? "area" : "areas")} · {(vm.Measured ? Disk(total) + " on disk" : "measuring disk use…")}"
                          + (pending.Count > 0 ? $" · {pending.Count} paused" : "")
                          + (newer.Count > 0 ? $" · {newer.Count} {(newer.Count == 1 ? "needs" : "need")} a newer version" : "");
@@ -112,11 +117,15 @@ namespace MountainPlanner.UI.Flow
         public const string NewerVersion = "Made by a newer version of Mountain Planner. Update the game to open it.";
         public const string Measuring = "…";
 
-        static string DiskOf(LibraryEntry e) => e.Measured ? Disk(e.BytesOnDisk) : Measuring;
+        public const string BuiltIn = "Built in";
+        public const string BuiltInDetail = "Built into the game: it uses none of your library's disk space.";
+
+        static string DiskOf(LibraryEntry e) => e.Bundled ? BuiltIn : e.Measured ? Disk(e.BytesOnDisk) : Measuring;
 
         /// <summary>"Area 410 MB · terrain cache 200 MB · old caches 2 MB": the parts that are there.</summary>
         public static string Detail(LibraryEntry e)
         {
+            if (e.Bundled) return BuiltInDetail;
             if (!e.Measured) return "Measuring…";
             var d = e.Disk;
             string text = $"Area {Disk(d.Package)} · terrain cache {Disk(d.Cache)}";
