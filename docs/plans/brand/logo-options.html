@@ -1,0 +1,342 @@
+<title>Alpine Labs Logo Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@500;700;800;900&family=Overpass+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one long board, an option per section: lockups on sign white and graphite, a size ladder down to the 24 px
+   taskbar and 16 px title-bar icons (drawn into real pixels), the app icon on a dark taskbar, and the marks in place:
+   the loading box over the title picture and the title signpost. Dark-first, graphite like the game's panels. */
+:root {
+  --board: #16130f;
+  --hair: #3b3632;
+  --text: #efe9df;
+  --muted: #b9b0a3;
+  --dim: #8f877c;
+  --sign: #fbf8f2;
+  --ink: #1f1c19;
+  --green: #1a6b3c;
+  --blue: #22558f;
+  --graphite: #1b1815;
+  --taskbar: #202020;
+  --cedar: #93643e;
+  --font: 'Overpass', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'Overpass Mono', ui-monospace, 'Cascadia Mono', monospace;
+  color-scheme: dark;
+}
+body { background: var(--board); color: var(--text); font-family: var(--font); margin: 0; padding-inline: 16px; padding-block: 28px 56px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 56px; }
+header { display: grid; gap: 10px; max-width: 80ch; }
+header h1 { margin: 0; font-weight: 900; font-size: clamp(26px, 4vw, 38px); letter-spacing: -0.015em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
+.how { display: grid; gap: 8px; color: var(--muted); font-size: 14.5px; line-height: 1.5; border-left: 3px solid var(--hair); padding-left: 14px; }
+.how b { color: var(--text); font-weight: 700; }
+section.opt { display: grid; gap: 18px; padding-top: 28px; border-top: 1px solid var(--hair); }
+.opt-head { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; align-items: baseline; }
+.opt-head .letter { grid-row: span 4; font: 900 64px/0.9 var(--font); color: var(--dim); }
+.opt-head h2 { margin: 0; font-weight: 900; font-size: 28px; letter-spacing: -0.01em; }
+.opt-head h2 small { font-weight: 700; color: var(--dim); font-size: 15px; margin-left: 10px; }
+.opt-head p { margin: 0; color: var(--muted); font-size: 15.5px; line-height: 1.5; max-width: 82ch; }
+.opt-head .meta { color: var(--dim); font-size: 14px; }
+.opt-head .meta b { color: var(--muted); }
+.opt-head .status { font: 700 13px var(--mono); color: var(--text); }
+.row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); }
+.tile { border-radius: 6px; min-height: 150px; display: flex; align-items: center; justify-content: center; padding: 26px 22px; position: relative; overflow: hidden; }
+.tile.light { background: var(--sign); color: var(--ink); }
+.tile.dark { background: var(--graphite); color: var(--sign); border: 1px solid var(--hair); }
+.cap { position: absolute; left: 10px; top: 8px; font: 600 11px var(--mono); opacity: 0.6; }
+.lockup { display: block; max-width: 100%; height: auto; overflow: visible; }
+.ladder { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.lad { border-radius: 6px; padding: 30px 14px 14px; display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; position: relative; }
+.lad.light { background: var(--sign); color: var(--ink); }
+.lad.dark { background: var(--graphite); color: var(--sign); border: 1px solid var(--hair); }
+.lad figure { margin: 0; display: grid; gap: 6px; justify-items: center; }
+.lad figcaption { font: 500 10.5px var(--mono); opacity: 0.6; }
+canvas.px { image-rendering: pixelated; width: 80px; height: 80px; }
+.place { display: grid; gap: 12px; grid-template-columns: 1.6fr 1fr; }
+@media (max-width: 860px) { .place { grid-template-columns: 1fr; } }
+.screen { position: relative; aspect-ratio: 16 / 9; max-width: 100%; border-radius: 6px; overflow: hidden; background: #1f1c19 url("assets/title-16x9.jpg") center / cover no-repeat; container-type: inline-size; }
+.screen .cap, .mini .cap { color: #fff; opacity: 0.85; text-shadow: 0 1px 2px #000; z-index: 2; }
+/* The loading box as built (Flow.uss .cover-box): 360 wide on a 1280 stage = 28.1% of the screen, plate at 95%. */
+.box { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 28.1cqw; box-sizing: border-box; padding: 1.4cqw 1.56cqw 1.1cqw; border: 1px solid #3b3632; border-radius: 0.47cqw; background: rgba(28, 25, 22, 0.95); color: var(--text); display: grid; gap: 0.7cqw; }
+.box .glock, .box .slock { display: flex; justify-content: center; }
+.box .glock svg { width: 100%; height: auto; }
+.box .slock { padding-top: 0.9cqw; border-top: 1px solid #3b3632; }
+.box .slock svg { width: 62%; height: auto; }
+.box .op { text-align: center; font: 700 1.1cqw var(--font); color: #fff; }
+.box .bar { height: 0.47cqw; background: #1c1916; border: 1px solid #3b3632; border-radius: 2px; }
+.box .bar i { display: block; height: 100%; width: 64%; background: #1f7d47; }
+.box .line { display: flex; justify-content: space-between; font: 500 0.94cqw var(--mono); color: #cfc7bb; }
+.box .line span:last-child { font-family: var(--font); }
+.side { display: grid; gap: 12px; grid-template-rows: 1fr auto; }
+.mini { position: relative; aspect-ratio: 4 / 3.2; border-radius: 6px; overflow: hidden; background: #1f1c19 url("assets/title-16x9.jpg") 14% center / cover no-repeat; container-type: inline-size; }
+.signs { position: absolute; left: 12cqw; width: 56cqw; top: 15cqw; }
+.signs .postL, .signs .postR { position: absolute; top: 4cqw; height: 200cqw; width: 3.6cqw; background: var(--cedar); border-left: 0.8cqw solid #7e5434; border-right: 0.8cqw solid #5a3a22; }
+.signs .postL { left: 9cqw; } .signs .postR { right: 9cqw; }
+.plate { position: relative; background: var(--sign); border: 0.5cqw solid var(--ink); border-radius: 0.5cqw; padding: 2.6cqw 2.4cqw; display: flex; justify-content: center; }
+.plate svg { width: 100%; height: auto; }
+.sign1 { position: relative; margin-top: 3.4cqw; background: var(--green); color: #fff; border: 0.3cqw solid #fff; border-radius: 0.5cqw; padding: 2.4cqw 3cqw; font: 800 4cqw var(--font); display: flex; align-items: center; gap: 2.4cqw; }
+.sign1::before { content: ""; width: 3.6cqw; height: 3.6cqw; border-radius: 50%; background: #fff; }
+.taskbar { background: var(--taskbar); border-radius: 6px; padding: 30px 14px 12px; position: relative; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.taskbar .cap { color: #fff; }
+.taskbar figure { margin: 0; display: grid; gap: 6px; justify-items: center; }
+.taskbar figcaption { font: 500 10.5px var(--mono); color: #fff; opacity: 0.6; }
+.dropped { color: var(--dim); font-size: 14.5px; line-height: 1.55; border: 1px dashed var(--hair); border-radius: 6px; padding: 14px 16px; }
+.dropped b { color: var(--muted); }
+footer { color: var(--dim); font-size: 13.5px; line-height: 1.6; border-top: 1px solid var(--hair); padding-top: 18px; max-width: 90ch; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Logo options for Alpine Labs and Ski Area Design Challenge</h1>
+    <p>Each option is a matching pair: the studio's mark and the game's mark grown from the same idea. A is developed and is my recommendation; B and C are rough sketches of the two other ideas that survived, shown so you can say whether either is worth developing. Each is shown on sign white and graphite, from large down to the 24 px taskbar and 16 px title-bar sizes (drawn into real pixels, then enlarged), on a dark taskbar, and in place on the loading box and the title signpost.</p>
+    <div class="how">
+      <span><b>How these were made.</b> Three designers proposed 15 themes from different angles; a critic who drew none of them cut them to four. After each drawing, two reviewers who hadn't seen it judged the rendered board, one for what each mark literally reads as at every size, one for clichés and look-alikes, and the marks were redrawn. This is the third drawing. One idea was dropped (below).</span>
+      <span><b>Still drafts.</b> Wordmarks use Overpass as it comes; the chosen pair gets a final pass on spacing and outlined type before it goes into the game. Your eye decides: reviewers like these can catch misreadings, not judge taste.</span>
+    </div>
+  </header>
+  <div id="options" style="display:grid;gap:56px"></div>
+  <div class="dropped"><b>Dropped after review: Queue Line</b> (the lift-line rope maze). Both reviewers found the game mark reads as the numeral 2, so next to the title it says "Ski Area Design Challenge 2", a sequel; the studio mark read as an S or the hamburger menu. If you want a fourth option, I can develop another theme.</div>
+  <footer>
+    The name: "Alpine" is a crowded mark (Renault's Alpine cars, Alpine Electronics), and a camera-gear company has traded as Alpine Labs. Worth a trademark search before the name goes public. Survey orange stays out of every mark: the game keeps it for planned work.
+  </footer>
+</div>
+
+<script>
+// ---------- geometry helpers (24-unit grid, y down; 16-unit grid for the small icons) ----------
+const f = n => +n.toFixed(3);
+function smooth(pts) {   // Catmull-Rom through pts as cubic Béziers; the pen is already at pts[0]
+  let d = '';
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    d += ` C${f(p1[0] + (p2[0] - p0[0]) / 6)} ${f(p1[1] + (p2[1] - p0[1]) / 6)} ${f(p2[0] - (p3[0] - p1[0]) / 6)} ${f(p2[1] - (p3[1] - p1[1]) / 6)} ${f(p2[0])} ${f(p2[1])}`;
+  }
+  return d;
+}
+const circle = (cx, cy, r) => `M${f(cx - r)} ${f(cy)} a${r} ${r} 0 1 0 ${f(2 * r)} 0 a${r} ${r} 0 1 0 ${f(-2 * r)} 0 Z`;
+const ring = (cx, cy, ro, ri) => circle(cx, cy, ro) + ' ' + circle(cx, cy, ri);
+const rrect = (x0, y0, x1, y1, r) => `M${x0 + r} ${y0} H${x1 - r} A${r} ${r} 0 0 1 ${x1} ${y0 + r} V${y1 - r} A${r} ${r} 0 0 1 ${x1 - r} ${y1} H${x0 + r} A${r} ${r} 0 0 1 ${x0} ${y1 - r} V${y0 + r} A${r} ${r} 0 0 1 ${x0 + r} ${y0} Z`;
+const poly = pts => 'M' + pts.map(p => `${f(p[0])} ${f(p[1])}`).join(' L') + ' Z';
+const diamond = (cx, cy, h) => poly([[cx, cy - h], [cx + h, cy], [cx, cy + h], [cx - h, cy]]);
+function stadium(a, b, w) {   // a bar with round ends from point a to point b
+  const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), nx = -dy / l * w / 2, ny = dx / l * w / 2, r = w / 2;
+  return `M${f(a[0] + nx)} ${f(a[1] + ny)} L${f(b[0] + nx)} ${f(b[1] + ny)} A${r} ${r} 0 0 0 ${f(b[0] - nx)} ${f(b[1] - ny)} L${f(a[0] - nx)} ${f(a[1] - ny)} A${r} ${r} 0 0 0 ${f(a[0] + nx)} ${f(a[1] + ny)} Z`;
+}
+// A band of half-width h along a polyline, mitred at each bend, its ends cut flush at the first and last point's x.
+function band(P, h) {
+  const n = P.length, dirs = [], norms = [];
+  for (let i = 0; i < n - 1; i++) { const v = [P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]], l = Math.hypot(...v); dirs.push([v[0] / l, v[1] / l]); norms.push([-v[1] / l, v[0] / l]); }
+  const side = s => {
+    const pts = [];
+    const lineAt = (i, x) => { const p = [P[i][0] + norms[i][0] * s, P[i][1] + norms[i][1] * s], d = dirs[i]; return [x, p[1] + d[1] * (x - p[0]) / d[0]]; };
+    pts.push(lineAt(0, P[0][0]));
+    for (let i = 1; i < n - 1; i++) {
+      const p = [P[i - 1][0] + norms[i - 1][0] * s, P[i - 1][1] + norms[i - 1][1] * s], q = [P[i][0] + norms[i][0] * s, P[i][1] + norms[i][1] * s];
+      const d = dirs[i - 1], e = dirs[i], den = d[0] * e[1] - d[1] * e[0];
+      const t = ((q[0] - p[0]) * e[1] - (q[1] - p[1]) * e[0]) / den;
+      pts.push([p[0] + d[0] * t, p[1] + d[1] * t]);
+    }
+    pts.push(lineAt(n - 2, P[n - 1][0]));
+    return pts;
+  };
+  return poly([...side(-h), ...side(h).reverse()]);
+}
+
+// ---------- the options ----------
+// A mark is a list of shapes: a path string, or { d, rule }. Each option: studio, game (24 grid), studio16, game16 (16 grid).
+const TRAIL_CUT = {
+  // The lift line and the first trail both run in from the top edge (a station bar there read as a serif I, a Z or a pi).
+  studio: [
+    `M1 0 H17 L11.5 20 H5 V24 H1 A1 1 0 0 1 0 23 V1 A1 1 0 0 1 1 0 Z`,
+    `M20 0 H23 A1 1 0 0 1 24 1 V23 A1 1 0 0 1 23 24 H19 V20 H14.5 Z`],
+  game: [
+    `M1 0 H9` + smooth([[9, 0], [6, 6], [3.4, 13], [2.6, 24]]) + ` H1 A1 1 0 0 1 0 23 V1 A1 1 0 0 1 1 0 Z`,
+    `M12.5 0 H17 L11.5 19 H10 V24 H6.6` + smooth([[6.6, 24], [7.2, 13], [9.6, 6.5], [12.5, 0]]) + ' Z',
+    `M20 0 H23 A1 1 0 0 1 24 1 V23 A1 1 0 0 1 23 24 H18 V19 H14.5 Z`],
+  studio16: [{ d: `M0 0 H16 V16 H0 Z M11 0 H14 V3 H13 V6 H12 V9 H11 V11 H10 V13 H13 V16 H4 V13 H7 V11 H8 V9 H9 V6 H10 V3 H11 Z`, rule: 'evenodd' }],
+  game16: [{ d: `M0 0 H16 V16 H0 Z M12 0 H14 V3 H13 V6 H12 V9 H11 V11 H10 V13 H12 V16 H6 V13 H8 V11 H9 V9 H10 V6 H11 V3 H12 Z M5 0 H7 V4 H6 V9 H5 V16 H3 V9 H4 V4 H5 Z`, rule: 'evenodd' }],
+};
+
+const SHEAVE = (() => {
+  // Studio: a sheave train at one heavy weight: four solid wheels in rocker pairs, tilted to the rope's grade (15 degrees),
+  // the rope riding on them and dropping away past the downhill end. No hanger.
+  const d = [Math.cos(15 * Math.PI / 180), -Math.sin(15 * Math.PI / 180)], n = [d[1], -d[0]];   // n points up, off the wheels
+  const at = (c, k, m) => [c[0] + d[0] * k + n[0] * m, c[1] + d[1] * k + n[1] * m];
+  const mid = [12, 13.4], r = 2.0;
+  const C = [-8.1, -3.3, 3.3, 8.1].map(k => at(mid, k, Math.abs(k) > 5 ? -0.35 : 0));
+  const P = C.map(c => at(c, 0, r + 1.25));
+  const left = [0, P[0][1] + P[0][0] * Math.tan(30 * Math.PI / 180)], right = [24, P[3][1]];
+  const rope = band([left, ...P, right], 1.25);
+  const wheels = C.map(c => circle(c[0], c[1], r)).join(' ');
+  const rocker = (a, b) => stadium(at(a, 0, -(r + 0.55)), at(b, 0, -(r + 0.55)), 1.6);
+  const studio = [rope, wheels, rocker(C[0], C[1]), rocker(C[2], C[3])];
+  // Game: the tower on a graded bench, solid head wheels on a rocker, the rope breaking over them, a chair downhill.
+  const ground = `M0 24 V22 L3 20 H20 L23 17 L24 16.7 V24 Z`;
+  const mast = `M10.7 20 L11.3 9.4 H12.7 L13.3 20 Z`;
+  const head = circle(9.6, 9.2, 1.9) + ' ' + circle(14.4, 9.2, 1.9);
+  const rockerG = stadium([9.6, 10.9], [14.4, 10.9], 1.4);
+  const gRope = band([[0, 13.6], [9.6, 6.2], [14.4, 5.8], [24, 4.0]], 1.1);
+  const chair = poly([[3.45, 11.5], [4.55, 11.5], [4.55, 14.6], [3.95, 16.2], [7.4, 16.2], [7.9, 17.7], [6.9, 17.7], [6.6, 17.2], [2.8, 17.2], [2.8, 16.3], [3.45, 14.4]]);
+  const game = [ground, mast, head, rockerG, gRope, chair];
+  // 16 px, on whole pixels.
+  const studio16 = [band([[0, 8], [3, 6], [13, 6], [16, 8]], 1), `M0 8 H3 V11 H0 Z M4 8 H7 V11 H4 Z M9 8 H12 V11 H9 Z M13 8 H16 V11 H13 Z`, `M1 11 H6 V12 H1 Z M10 11 H15 V12 H10 Z`];
+  const game16 = [`M0 16 V14 H2 V13 H13 V12 H14 V11 H16 V16 Z`, `M7 13 V6 H9 V13 Z`, `M5 4 H7 V6 H5 Z M9 4 H11 V6 H9 Z`,
+    `M0 8 H2 V7 H4 V6 H6 V5 H8 V4 H11 V3 H16 V5 H11 V6 H8 V7 H6 V8 H4 V9 H2 V10 H0 Z`, `M2 10 H3 V12 H5 V13 H1 V11 H2 Z`];
+  return { studio, game, studio16, game16 };
+})();
+
+const TRAIL_SIGN = (() => {
+  // A real trail sign: a sign-white plank with a black border, pointing the way like a run-direction sign, its symbol in
+  // its true colour (the green circle for the studio, the double black diamond for the game), on two off-centre posts
+  // planted in the slope. Drawn on whole units, so the 24 px icon is the master itself.
+  const outer = poly([[1, 3], [19, 3], [23, 7], [19, 11], [1, 11]]);
+  const inner = poly([[2, 4], [18.586, 4], [21.586, 7], [18.586, 10], [2, 10]]);
+  const sign = [{ d: inner, role: 'face' }, { d: outer + ' ' + inner, rule: 'evenodd', role: 'border' }];
+  const legs = [`M5 11 H7 V22 H5 Z`, `M14 11 H16 V20 H14 Z`, `M0 24 V22 L24 18 V24 Z`];
+  const studio = [...sign, { d: circle(5.5, 7, 2.5), role: 'symbol' }, ...legs];
+  const game = [...sign, { d: diamond(5.5, 7, 2.5) + ' ' + diamond(11.5, 7, 2.5), role: 'symbol' }, ...legs];
+  const o16 = 'M1 1 H12 V2 H13 V3 H14 V4 H15 V5 H14 V6 H13 V7 H12 V8 H1 Z', i16 = 'M2 2 H11 V3 H12 V4 H13 V5 H12 V6 H11 V7 H2 Z';
+  const sign16 = [{ d: i16, role: 'face' }, { d: o16 + ' ' + i16, rule: 'evenodd', role: 'border' }];
+  const legs16 = [`M4 8 H6 V14 H4 Z`, `M10 8 H12 V13 H10 Z`, `M0 14 H8 V13 H16 V16 H0 Z`];
+  const studio16 = [...sign16, { d: 'M4 2 H6 V3 H7 V6 H6 V7 H4 V6 H3 V3 H4 Z', role: 'symbol' }, ...legs16];
+  const game16 = [...sign16, { d: 'M4 2 H5 V3 H6 V4 H7 V5 H6 V6 H5 V7 H4 V6 H3 V5 H2 V4 H3 V3 H4 Z M10 2 H11 V3 H12 V4 H13 V5 H12 V6 H11 V7 H10 V6 H9 V5 H8 V4 H9 V3 H10 Z', role: 'symbol' }, ...legs16];
+  return { studio, game, studio16, game16, hinted24: true };
+})();
+
+// Wordmarks: lines set on real baselines in the mark's own units (cap top and baseline), Overpass 800/900.
+const OPTIONS = [
+  { key: 'A', name: 'Trail Sign', status: 'Developed: the recommended direction',
+    from: 'the title signpost and the trail ratings',
+    pitch: 'A real trail sign, sign-white with a black border and pointing the way, on two posts planted in the slope, like the signs on the title screen. The studio\'s sign carries the green circle, where every skier starts; the game\'s carries the double black diamond, the challenge.',
+    changed: 'a plank pointing like a run-direction sign, posts off-centre and planted in the slope (the symmetric square sign read as a robot face); the symbol is drawn in its true colour on the white face (knocked out, the double black came out white on light backgrounds); hand-fitted 24 px and 16 px icons.',
+    marks: TRAIL_SIGN,
+    colours: { studio: { light: 'var(--ink)', dark: 'var(--sign)' }, game: { light: 'var(--ink)', dark: 'var(--sign)' } },
+    symbol: { studio: 'var(--green)', game: 'var(--ink)' },
+    app: { tile: null },
+    studioWord: [{ t: 'Alpine Labs', top: 3, base: 11, w: 800 }],
+    gameWord: [{ t: 'Ski Area', top: 3, base: 9.6, w: 900 }, { t: 'Design Challenge', top: 12.4, base: 19, w: 900 }] },
+  { key: 'B', name: 'Trail Cut', status: 'Rough sketch: shown so you can steer, not ready',
+    from: 'trail maps, from the air',
+    pitch: 'A block of forest with a lift line cut straight down it. The studio makes the first cut; the game adds the first trail beside it, so the pair is one mountain at two stages.',
+    changed: 'the cuts now run in from the top edge (a station bar there read as a serif I, a Z or the letter pi). Still open: a tile with cuts can look like a letter or an app icon, so it needs a blind "what is this?" test before it could be chosen.',
+    marks: TRAIL_CUT,
+    colours: { studio: { light: 'var(--green)', dark: 'var(--sign)' }, game: { light: 'var(--green)', dark: 'var(--sign)' } },
+    app: { tile: null, backing: 'var(--sign)' },
+    studioWord: [{ t: 'Alpine Labs', top: 7, base: 17, w: 800 }],
+    gameWord: [{ t: 'Ski Area', top: 3.5, base: 10, w: 900 }, { t: 'Design Challenge', top: 13.5, base: 20, w: 900 }] },
+  { key: 'C', name: 'Sheave Train', status: 'Rough sketch: shown so you can steer, not ready',
+    from: 'the game\'s own lift towers',
+    pitch: 'The studio is the row of wheels a chairlift\'s rope rides over at the top of each tower, as the game models them; the game is a whole tower on the slope with the rope bending over those wheels and a chair on the downhill side.',
+    changed: 'redrawn at one heavy weight, with solid wheels on rocker pairs, tilted to the rope\'s grade (earlier drawings read as a telephone, a face and a mushroom). Still open: the studio mark has not yet held up below 64 px.',
+    marks: SHEAVE,
+    colours: { studio: { light: 'var(--ink)', dark: 'var(--sign)' }, game: { light: 'var(--ink)', dark: 'var(--sign)' } },
+    app: { tile: null },
+    studioWord: [{ t: 'Alpine Labs', top: 7, base: 16, w: 800 }],
+    gameWord: [{ t: 'Ski Area', top: 6, base: 11.6, w: 900 }, { t: 'Design Challenge', top: 14.4, base: 20, w: 900 }] },
+];
+
+// ---------- rendering ----------
+const css = getComputedStyle(document.documentElement);
+const resolve = c => c && c.startsWith('var(') ? css.getPropertyValue(c.slice(4, -1)).trim() : c;
+// Shapes may carry a colour role: the sign's face is always sign white, its border always trail black, its symbol its own colour.
+let ROLE = { face: '#fbf8f2', border: '#1f1c19', symbol: null };
+function shapes(paths) {
+  return paths.map(p => {
+    if (typeof p === 'string') return `<path d="${p}"/>`;
+    const fill = p.role && ROLE[p.role] ? ` fill="${ROLE[p.role]}"` : '';
+    return `<path d="${p.d}"${p.rule ? ` fill-rule="${p.rule}"` : ''}${fill}/>`;
+  }).join('');
+}
+function withSymbol(opt, which, fn) {
+  const was = ROLE.symbol;
+  ROLE.symbol = opt.symbol ? resolve(opt.symbol[which]) : null;
+  try { return fn(); } finally { ROLE.symbol = was; }
+}
+function svgMark(paths, size, px, colour) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 ${size} ${size}" fill="${resolve(colour)}" aria-hidden="true">${shapes(paths)}</svg>`;
+}
+let CAPR = 0.7;   // Overpass cap height per em, measured once the font is in
+const measure = document.createElement('canvas').getContext('2d');
+function wordWidth(t, w, em) { measure.font = `${w} ${em}px Overpass`; return measure.measureText(t).width; }
+// A lockup as one SVG in mark units: the mark at 0..24, a gap of 6, then the lines on their own baselines.
+function lockup(opt, which, colour, opts = {}) {
+  const lines = which === 'studio' ? opt.studioWord : opt.gameWord, gap = 6;
+  let width = 0;
+  const texts = lines.map(l => {
+    const em = (l.base - l.top) / CAPR, w = wordWidth(l.t, l.w, em) * 0.985;
+    width = Math.max(width, w);
+    return `<text x="${24 + gap}" y="${l.base}" font-family="Overpass, sans-serif" font-weight="${l.w}" font-size="${f(em)}" letter-spacing="${f(-em * 0.012)}">${l.t}</text>`;
+  }).join('');
+  const W = 24 + gap + width + 0.5;
+  const px = opts.height || 64;
+  return withSymbol(opt, which, () => `<svg class="lockup" viewBox="0 0 ${f(W)} 24" width="${f(px * W / 24)}" height="${px}" fill="${resolve(colour)}" role="img" aria-label="${which === 'studio' ? 'Alpine Labs' : 'Ski Area Design Challenge'}">${shapes(opt.marks[which])}${texts}</svg>`);
+}
+const queue = [];
+function pixels(opt, which, size, colour, ground, tileColour, onTaskbar) {
+  // The 16-grid icon (or the 24-grid mark at 24 px) drawn into real pixels, shown enlarged.
+  const id = 'c' + Math.random().toString(36).slice(2);
+  queue.push({ id, opt, which, size, colour, ground, tileColour, onTaskbar });
+  return `<canvas class="px" id="${id}" width="${size}" height="${size}"></canvas>`;
+}
+function iconSvg(opt, which, size, colour, tileColour, onTaskbar) {
+  const paths = size === 16 ? opt.marks[which + '16'] : opt.marks[which];
+  const grid = size === 16 ? 16 : 24;
+  if (onTaskbar && opt.app && opt.app.backing) {   // a sign-white backing under the cuts, so they read on a dark taskbar
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${grid} ${grid}"><rect width="${grid}" height="${grid}" fill="${resolve(opt.app.backing)}"/><g fill="${resolve(colour)}">${withSymbol(opt, which, () => shapes(paths))}</g></svg>`;
+  }
+  if (!tileColour) return withSymbol(opt, which, () => svgMark(paths, grid, size, colour));
+  // The app icon: the mark on a solid tile, so it survives a dark taskbar.
+  const pad = grid * 0.14, s = (grid - 2 * pad) / grid;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${grid} ${grid}"><rect width="${grid}" height="${grid}" rx="${grid * 0.12}" fill="${resolve(tileColour)}"/><g transform="translate(${pad} ${pad}) scale(${s})" fill="${resolve(colour)}">${shapes(paths)}</g></svg>`;
+}
+function tiles(opt) {
+  const t = (which, theme) => `<div class="tile ${theme}"><span class="cap">${which === 'studio' ? 'Studio' : 'Game'} · ${theme === 'light' ? 'sign white' : 'graphite'}</span>${lockup(opt, which, opt.colours[which][theme], { height: which === 'studio' ? 60 : 72 })}</div>`;
+  return `<div class="row">${t('studio', 'light')}${t('studio', 'dark')}${t('game', 'light')}${t('game', 'dark')}</div>`;
+}
+function ladder(opt) {
+  const one = (which, theme) => {
+    const c = opt.colours[which][theme], g = theme === 'light' ? 'var(--sign)' : 'var(--graphite)';
+    return `<div class="lad ${theme}"><span class="cap">${which === 'studio' ? 'Studio' : 'Game'}</span>` +
+      [128, 64, 32].map(px => `<figure>${withSymbol(opt, which, () => svgMark(opt.marks[which], 24, px, c))}<figcaption>${px}</figcaption></figure>`).join('') +
+      `<figure>${pixels(opt, which, 24, c, g)}<figcaption>24, enlarged</figcaption></figure>` +
+      `<figure>${pixels(opt, which, 16, c, g)}<figcaption>16, enlarged</figcaption></figure></div>`;
+  };
+  return `<div class="ladder">${one('studio', 'light')}${one('game', 'light')}${one('studio', 'dark')}${one('game', 'dark')}</div>`;
+}
+function taskbar(opt) {
+  const tile = opt.app.tile, ink = tile ? opt.app.ink : (opt.app.backing ? opt.colours.game.light : opt.colours.game.dark);
+  return `<div class="taskbar"><span class="cap">The game's icon on a dark Windows taskbar (actual size, then enlarged)</span>
+    <figure>${iconSvg(opt, 'game', 24, ink, tile, true)}<figcaption>24</figcaption></figure>
+    <figure>${iconSvg(opt, 'game', 16, ink, tile, true)}<figcaption>16</figcaption></figure>
+    <figure>${pixels(opt, 'game', 24, ink, 'var(--taskbar)', tile, true)}<figcaption>24, enlarged</figcaption></figure>
+    <figure>${pixels(opt, 'game', 16, ink, 'var(--taskbar)', tile, true)}<figcaption>16, enlarged</figcaption></figure></div>`;
+}
+function place(opt) {
+  const box = `<div class="screen"><span class="cap">The loading box over the title picture (as built, 16:9)</span>
+    <div class="box">
+      <div class="glock">${lockup(opt, 'game', 'var(--sign)')}</div>
+      <div class="op">Opening Jackson Hole</div>
+      <div class="bar"><i></i></div>
+      <div class="line"><span>64%</span><span>Show details</span></div>
+      <div class="slock">${lockup(opt, 'studio', 'var(--sign)')}</div>
+    </div></div>`;
+  const mini = `<div class="mini"><span class="cap">On the title's name plate</span><div class="signs"><div class="postL"></div><div class="postR"></div>
+      <div class="plate">${lockup(opt, 'game', opt.colours.game.light)}</div><div class="sign1">Open the demo</div></div></div>`;
+  return `<div class="place">${box}<div class="side">${mini}${taskbar(opt)}</div></div>`;
+}
+function build() {
+  document.getElementById('options').innerHTML = OPTIONS.map(o => `<section class="opt" id="option-${o.key.toLowerCase()}">
+    <div class="opt-head"><span class="letter">${o.key}</span><h2>${o.name}<small>from ${o.from}</small></h2><p class="status">${o.status}</p><p>${o.pitch}</p>
+    <p class="meta"><b>Changed after review:</b> ${o.changed}</p></div>
+    ${tiles(o)}${ladder(o)}${place(o)}</section>`).join('');
+  for (const q of queue.splice(0)) {
+    const cv = document.getElementById(q.id), img = new Image();
+    img.onload = () => { const g = cv.getContext('2d'); g.fillStyle = resolve(q.ground); g.fillRect(0, 0, q.size, q.size); g.drawImage(img, 0, 0, q.size, q.size); };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconSvg(q.opt, q.which, q.size, q.colour, q.tileColour, q.onTaskbar));
+  }
+}
+document.fonts.load('900 40px Overpass').then(() => document.fonts.load('800 40px Overpass')).then(() => {
+  measure.font = '900 100px Overpass';
+  const m = measure.measureText('H');
+  if (m.actualBoundingBoxAscent > 0) CAPR = m.actualBoundingBoxAscent / 100;
+}).catch(() => {}).finally(build);
+</script>
