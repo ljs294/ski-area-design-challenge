@@ -136,6 +136,7 @@ namespace MountainPlanner.Tests
             Assert.That(still, Is.Not.Null, "capture it with -titlestill (demo.bat 57)");
             Assert.That(still.width, Is.EqualTo(App.Flow.AppFlow.TitleStillWidth));
             Assert.That(still.height, Is.EqualTo(App.Flow.AppFlow.TitleStillHeight));
+            Assert.That(still.format, Is.EqualTo(TextureFormat.BC7), "compressed (about 22 MB with mipmaps, not 88 MB raw)");
         }
 
         [Test]
