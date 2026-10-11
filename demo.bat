@@ -551,11 +551,11 @@ if not exist "%GAME%" goto done
 set "UICAP=%~dp0test-results\photo-captures"
 if exist "%UICAP%" rmdir /s /q "%UICAP%"
 echo Capturing photo mode and Credits at 1920x1080 and 2560x1080, dark and light, 85%% (the window shows the title while it works)...
-"%GAME%" -uicapture "%UICAP%" -uionly s9-credits,s9-credits-licences,s10-photo,s10-photo-natural,s10-photo-mini,s10-photo-mini-golden,s10-photo-postcard-2x -uisizes 1920x1080,2560x1080 -uibase 85 -logFile "%~dp0test-results\photo-captures.log" <nul
+%RENDER% "%GAME%" -uicapture "%UICAP%" -uionly s9-credits,s9-credits-licences,s10-photo,s10-photo-natural,s10-photo-mini,s10-photo-mini-golden,s10-photo-postcard-2x -uisizes 1920x1080,2560x1080 -uibase 85 -logFile "%~dp0test-results\photo-captures.log" <nul
 type "%UICAP%\report.txt"
 echo Saving five 2x photos of Jackson Hole into test-results\photo-hitch to time the hitch...
 if exist "%~dp0test-results\photo-hitch" rmdir /s /q "%~dp0test-results\photo-hitch"
-"%GAME%" -site "Jackson Hole" -photo off -photoscale 2 -photoshot 5 -photofolder "%~dp0test-results\photo-hitch" -logFile "%~dp0test-results\photo-hitch.log" <nul
+%MEASURE% "%GAME%" -site "Jackson Hole" -photo off -photoscale 2 -photoshot 5 -photofolder "%~dp0test-results\photo-hitch" -logFile "%~dp0test-results\photo-hitch.log" <nul
 findstr /c:"Photo run" /c:"Photo hitch" /c:"Photo saved" "%~dp0test-results\photo-hitch.log"
 start "" "%UICAP%"
 echo Starting the game: open an area, press P. Drag Time, step Date, try Focus and Size, Space saves; Esc puts it all back.
