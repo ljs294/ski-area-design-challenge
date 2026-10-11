@@ -12,10 +12,9 @@
             <ui:VisualElement class="signpost">
                 <ui:VisualElement class="post post--left" picking-mode="Ignore" />
                 <ui:VisualElement class="post post--right" picking-mode="Ignore" />
-                <!-- The name plate (task P2-03.1): the game's logo and name, the studio's name below (tools/brand/export.py). -->
+                <!-- The name plate (task P2-03.1): the game's logo and name (tools/brand/export.py). -->
                 <ui:VisualElement class="sign sign--plate sign--name" picking-mode="Ignore">
                     <ui:VisualElement name="title-logo" class="brand title-logo" picking-mode="Ignore" tooltip="Ski Area Design Challenge" />
-                    <ui:VisualElement name="title-studio" class="brand title-studio" picking-mode="Ignore" tooltip="Alpine Labs" />
                 </ui:VisualElement>
                 <ui:Button name="title-continue" class="sign sign--green">
                     <ui:VisualElement class="sym sym--circle" picking-mode="Ignore" />
@@ -54,6 +53,10 @@
                 <ui:Button name="title-credits" text="Credits" class="plate" />
                 <ui:Button name="title-settings" text="Settings" class="plate" />
                 <ui:Button name="title-quit" text="Quit" class="plate" />
+                <!-- Alpine Labs as one more plate in the corner (owner, 2026-10-11): it signs the game and does nothing. -->
+                <ui:VisualElement name="title-alpine-labs" class="plate plate--brand" tooltip="Alpine Labs">
+                    <ui:VisualElement class="brand plate-brand-logo" picking-mode="Ignore" />
+                </ui:VisualElement>
             </ui:VisualElement>
             </mp:StageColumn>
         </ui:VisualElement>

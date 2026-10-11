@@ -24,7 +24,7 @@ namespace MountainPlanner.Tests
         public void TheLockupsAndMarksAreThere()
         {
             var names = Svgs().Select(Path.GetFileNameWithoutExtension).ToArray();
-            Assert.That(names, Is.SupersetOf(new[] { "game-lockup", "game-mark", "studio-lockup", "studio-mark", "studio-name" }));
+            Assert.That(names, Is.SupersetOf(new[] { "game-lockup", "game-mark", "studio-lockup", "studio-mark" }));
         }
 
         /// <summary>One white fill and nothing else, so USS tints the whole shape (no strokes, opacity, gradients or text).</summary>

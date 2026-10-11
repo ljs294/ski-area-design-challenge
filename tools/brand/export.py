@@ -169,9 +169,9 @@ def main():
     l4, _, r4 = set_line(extra, 'Alpine Labs', 24 + GAP, 21.0, 9.4, 0.195)
     write('studio-lockup-small', [tp.to_path(plain), l4], (0, 2.5, r4 + 0.5, 24))
 
-    # The studio's name alone, its A a cap-height peak (the title name plate, under the game's lockup).
+    # The studio's name alone, its A a cap-height peak (a master; the game no longer shows it).
     l5, a5, r5 = set_line(extra, '{A}lpine Labs', 0.5, 10.0, 9.0, 0.195)
-    write('studio-name', [l5] + [tp.to_path(a) for a in a5], (0, 0.4, r5 + 0.5, 12.6), runtime=True)
+    write('studio-name', [l5] + [tp.to_path(a) for a in a5], (0, 0.4, r5 + 0.5, 12.6))
     print('wrote', MASTERS, 'and', RUNTIME)
 
 

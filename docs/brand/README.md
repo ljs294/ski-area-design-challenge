@@ -19,17 +19,17 @@ in `docs/plans/brand/`:
 | **Game mark, small cut** | The same, with every line 1.25. | 32 to 64 px. |
 | **Plain pair** | The two peaks with a 1.5 gap. | The studio's mark; the game's 16 and 24 px icons, where the lines would turn to grey scratches. |
 | **Game lockup** | The game mark, then "Ski Area" over "Design Challenge" in Overpass Black. The A of Area is a peak at the mark's angle, its point level with the back summit; the second line sits on the ground line. | The loading box, the title name plate, Credits. |
-| **Alpine Labs lockup** | The plain pair. Alpine's A is a third peak rising from behind them: it stands on their ground line with its summit level with the front one, and the front peak's flank stands in for its left leg. "lpine Labs" follows in Overpass ExtraBold on the ground line. | The loading box's studio line, Credits. |
+| **Alpine Labs lockup** | The plain pair. Alpine's A is a third peak rising from behind them: it stands on their ground line with its summit level with the front one, and the front peak's flank stands in for its left leg. "lpine Labs" follows in Overpass ExtraBold on the ground line. | The loading box's studio line; a plate of its own in the title's bottom-right corner, beside Credits, Settings and Quit. |
 | **Alpine Labs, small** | The plain pair with an ordinary A. | Below 32 px tall, where the tucked A merges into the peaks. |
-| **Studio name** | "Alpine Labs" alone, its A a cap-height peak. | Under the game's lockup on the title name plate. |
+| **Studio name** | "Alpine Labs" alone, its A a cap-height peak. | A master only: the game no longer shows it. |
 
 ## Files
 - **Masters:** `docs/brand/masters/*.svg`, in ink (#1f1c19). These are for print and the store, and for the app icon
   at the first release (task 10, with the company name).
 - **In the game:** `Assets/MountainPlanner/Art/UI/Brand/Resources/Brand/*.svg`, white single-fill layers.
   - They import as vector images that keep their viewBox (`Editor/HudIconImport.cs`).
-  - `Flow.uss` sizes each one to its viewBox and tints it: ink on the sign-white name plate, `var(--strong)` in the
-    loading box and Credits.
+  - `Flow.uss` sizes each one to its viewBox and tints it: ink on the sign-white plates (the name plate and Alpine
+    Labs' corner plate), `var(--strong)` in the loading box and Credits.
   - `Tests/EditMode/BrandTests.cs` checks all of this.
 - **Regenerate:** run `python tools/brand/export.py`. It needs fontTools and shapely.
   - The geometry is in `tools/brand/twinpeaks.py`.
