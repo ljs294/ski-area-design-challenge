@@ -102,6 +102,7 @@ namespace MountainPlanner.App.Flow
             flow.Downloads = new DownloadService(dataRoot, downloader, () => DownloadService.UtcStamp(DateTime.UtcNow));
             flow.Controller = new FlowController(flow);
             flow.Picker = CreatePicker();
+            OfflineState.SetSetting(MountainPlanner.Acquisition.IO.Http.NetworkDisabled);   // task P2-06
             Instance = flow;
             // The camera ignores the pointer over the flow's panels (download card and pill, quality card, dialogs) and the picker.
             ViewCamera.OverlayBlocked = flow.PointerOverFlow;
@@ -151,7 +152,7 @@ namespace MountainPlanner.App.Flow
         void Awake()
         {
             Screens.ContinueChosen += () => Controller.Continue(ContinueTarget()?.Folder);
-            Screens.NewResortChosen += Controller.NewResort;
+            Screens.NewResortChosen += NewArea;   // offline mode: the S11 dialog first (task P2-06)
             Screens.LoadChosen += () => { _mode = LibraryMode.Load; Controller.MyResorts(); };
             Screens.ManageChosen += () => { _mode = LibraryMode.Manage; Controller.MyResorts(); };
             Screens.CreditsChosen += () => Screens.ShowCredits(Credits());
@@ -177,42 +178,15 @@ namespace MountainPlanner.App.Flow
             };
             Screens.FreeSpaceConfirmed += FreeSpace;
             Screens.OpenChosen += r => { if (r.CanOpen) Controller.Open(r.Entry.Folder); };
-            Screens.ResumeChosen += r => StartDownload(r.Pending);
-            Screens.DiscardChosen += r =>
-            {
-                if (Downloads.Running && Downloads.Current?.Id == r.Pending.Id) { Screens.Toast("That download is running; cancel it first."); return; }
-                PendingDownloads.Remove(DataRoot, r.Pending);
-                RefreshLibrary();
-            };
             Screens.DeleteConfirmed += Delete;
             if (Picker != null)
             {
                 Picker.SiteChosen += OnSiteChosen;
                 Picker.Cancelled += Controller.PickerCancelled;   // the picker handles its own Esc
             }
-            Screens.MinimiseChosen += Controller.MinimiseDownload;
-            Screens.RestoreChosen += Controller.RestoreDownload;
-            Screens.CancelConfirmed += keep => Downloads.Cancel(keep);
-            Screens.RetryChosen += () =>
-            {
-                var d = Downloads.Current;
-                if (d != null && Downloads.Start(d)) Controller.DownloadStarted();
-            };
-            Screens.CloseChosen += () =>
-            {
-                Downloads.Dismiss();
-                Controller.DownloadStopped();
-            };
             Screens.QualityOpenChosen += Controller.QualityOpen;
             Screens.QualityLibraryChosen += Controller.QualityBackToLibrary;
-            Downloads.Finished += folder => Controller.DownloadFinished(folder);
-            Downloads.Stopped += kept =>
-            {
-                Controller.DownloadStopped();
-                Screens.Toast(kept ? "Download paused. Resume it from Manage Areas." : "Download discarded.");
-                if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
-            };
-            Downloads.Failed += message => Controller.RestoreDownload();
+            WireDownloads();   // the download card, pills, dialogs and offline states (AppFlow.Downloads.cs, task P2-06)
             FlowUnits.Changed += OnUnitsChanged;
         }
 
@@ -228,6 +202,7 @@ namespace MountainPlanner.App.Flow
         {
             FlowUnits.Changed -= OnUnitsChanged;
             ReleaseSettings();
+            ReleaseDownloads();
             if (Picker != null) Destroy(Picker.gameObject);
             if (Instance == this)
             {
@@ -268,6 +243,7 @@ namespace MountainPlanner.App.Flow
                 hud.SettingsChosen += () => Screens.ShowSettings(hud.SiteName);   // the head names the resort, as in the mockup
                 hud.ControlsChosen += () => { Screens.ShowSettings(hud.SiteName); Screens.Settings.ShowPage(SettingsWindow.ControlsPage); };
                 hud.CreditsChosen += () => Screens.ShowCredits(Credits());   // the menu's Credits (task P2-07)
+                MountainViewer.PhotoErrorShown = (title, text) => Screens.Alert(title, text, null, null);   // photo save errors (S11)
             }
             var then = _afterTitle;
             _afterTitle = FlowScreen.Title;
@@ -280,8 +256,7 @@ namespace MountainPlanner.App.Flow
             if (_framesSinceLoad < 3 && ++_framesSinceLoad == 3) MountainViewer.RequestedPackage = null;
 
             UpdateCover();
-            Downloads.Pump(Time.unscaledDeltaTime);
-            if (Downloads.Running || Downloads.View.Phase == DownloadPhase.Failed) Screens.RenderDownload(Downloads.View);
+            UpdateDownloads();
             HandleKeys(Keyboard.current);
 
             // The title's slow drift over the demo mountain (the viewer's own camera input is off in title mode).
@@ -433,7 +408,11 @@ namespace MountainPlanner.App.Flow
             }
         }
 
-        public void SetDownloadCardOpen(bool open) => Screens.ShowDownloadCard(open, Downloads.Running || Downloads.View.Phase == DownloadPhase.Failed && Downloads.Current != null, !MountainViewer.TitleMode);
+        public void SetDownloadCardOpen(bool open)
+        {
+            Screens.InvalidateDownload();
+            Screens.ShowDownloadCard(open, Downloads.Current != null, !MountainViewer.TitleMode);
+        }
 
         public void OpenMountain(string packageFolder)
         {
@@ -488,24 +467,13 @@ namespace MountainPlanner.App.Flow
             StartDownload(DownloadService.Request(site, DownloadService.UtcStamp(DateTime.UtcNow)));
         }
 
-        void StartDownload(PendingDownload d)
-        {
-            if (Downloads.Running)
-            {
-                Screens.Toast("One download at a time: wait for this one or cancel it.");
-                return;
-            }
-            if (Downloads.Start(d)) Controller.DownloadStarted();
-            if (Controller.Screen == FlowScreen.Library) RefreshLibrary();
-        }
-
         /// <summary>
         /// Rescans the library and redraws S2. Sizes already measured show at once; a fresh measure then runs on a
         /// worker thread (it reads every file's size) and updates them in place (task P2-04).
         /// </summary>
         void RefreshLibrary()
         {
-            var running = Downloads.Running ? Downloads.Current?.Id : null;
+            var running = Downloads.Active ? Downloads.Current?.Id : null;
             _pending = PendingDownloads.List(DataRoot).Where(p => p.Id != running).ToList();
             _newer = new System.Collections.Generic.List<LibraryEntry>();
             _entries = ResortLibrary.ScanWithBundled(DataRoot, BundledDemo.Root, _newer);

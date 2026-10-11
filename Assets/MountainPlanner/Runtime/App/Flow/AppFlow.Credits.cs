@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using MountainPlanner.Acquisition.IO;
 using MountainPlanner.Persistence;
 using MountainPlanner.UI.Flow;
 using UnityEngine;
@@ -20,10 +19,13 @@ namespace MountainPlanner.App.Flow
         /// <summary>Who made the ground textures (CC0, Poly Haven; tools/assets/ground/README.md).</summary>
         internal static readonly string[] TextureAuthors = { "Charlotte Baglioni", "Amal Kumar", "Rob Tuytel", "Dario Barresi", "Rico Cilliers" };
 
-        CreditsPage Credits() => BuildCredits(Areas(), Http.NetworkDisabled, Resources.Load<TextAsset>(LicencesResource)?.text ?? "");
+        CreditsPage Credits() => BuildCredits(Areas(), OfflineState.Describe(), Resources.Load<TextAsset>(LicencesResource)?.text ?? "");
 
-        /// <summary>The credits page for these areas (tests call it with a scratch library).</summary>
-        internal static CreditsPage BuildCredits(List<LibraryEntry> areas, bool offline, string licences)
+        /// <summary>
+        /// The credits page for these areas (tests call it with a scratch library). <paramref name="offline"/> is
+        /// <see cref="OfflineState.Describe"/>'s line, empty when online.
+        /// </summary>
+        internal static CreditsPage BuildCredits(List<LibraryEntry> areas, string offline, string licences)
         {
             var page = new CreditsPage { Licences = licences };
             var readable = areas.Where(e => e.Refusal.Length == 0 || e.Bundled).ToList();
@@ -58,7 +60,7 @@ namespace MountainPlanner.App.Flow
             software.Rows.Add(new CreditRow("", "Overpass and Overpass Mono, The Overpass Project Authors", "SIL OFL 1.1"));
             page.Sections.Add(software);
 
-            page.Foot = (offline ? "Offline: " : "") + "Everything here comes from the areas on this computer; nothing is fetched.";
+            page.Foot = string.IsNullOrEmpty(offline) ? "Everything here comes from the areas on this computer; nothing is fetched." : offline;
             return page;
         }
     }

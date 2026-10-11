@@ -167,7 +167,15 @@
     background-color: var(--panel); color: var(--text); -unity-text-outline-color: var(--text); font-size: 14px; -unity-font-style: bold;
 }
 .pill:hover { background-color: var(--hover); }
-.pill--game { bottom: auto; top: 16px; right: auto; left: 50%; translate: -50% 0; }
+/* Task P2-06: a hairline of progress under the line; its colour says the state (running, waiting, stopped). */
+.pill { flex-direction: column; align-items: stretch; padding-bottom: 6px; }
+.pill-text { padding: 0; margin: 0; color: var(--text); -unity-text-outline-color: var(--text); font-size: 14px; -unity-font-style: bold; }
+.pill-bar { height: 2px; margin-top: 5px; background-color: var(--knock); }
+.pill-fill { height: 2px; width: 0; background-color: var(--go-hover); }
+.pill--waiting .pill-fill { background-color: var(--warn); }
+.pill--paused .pill-fill { background-color: var(--soft); }
+.pill--failed .pill-fill { background-color: var(--neg); }
+.pill--failed .pill-text { color: var(--neg); -unity-text-outline-color: var(--neg); }
 
 /* ---------- S5 quality card ---------- */
 .quality-panel { width: 520px; }
@@ -283,6 +291,10 @@
 /* ---------- S11 confirm and toast ---------- */
 .confirm-panel { width: 420px; }
 .confirm-text { white-space: normal; font-size: 15px; color: var(--text); -unity-text-outline-color: var(--text); }
+/* Error and offline (task P2-06): what happened as the heading, then what to do. */
+.confirm-title { white-space: normal; font-size: 16px; -unity-font-style: bold; margin-bottom: 6px; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.confirm-panel--error .confirm-title { color: var(--neg); -unity-text-outline-color: var(--neg); }
+.confirm-panel--wide { width: 480px; }
 /* The mockup's Rename dialog (task P2-04): head, field, hint, then a wide go button beside Cancel. */
 .prompt-panel { width: 320px; }
 .prompt-field { margin: 12px 12px 2px 12px; }

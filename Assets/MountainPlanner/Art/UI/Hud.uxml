@@ -99,6 +99,15 @@
                 </ui:VisualElement>
             </ui:VisualElement>
             <ui:VisualElement class="grow" picking-mode="Ignore" />
+            <!-- Task P2-06: a background download (the mockup's demo=dl); hidden unless one runs, waits or stopped. -->
+            <ui:VisualElement name="bar-download-cell" class="cell cell--download hidden">
+                <ui:VisualElement class="sep" picking-mode="Ignore" />
+                <ui:Button name="bar-download" class="stat dl" tooltip="Show the download">
+                    <ui:Label name="bar-download-label" class="dl__lab" text="Downloading" picking-mode="Ignore" />
+                    <ui:Label name="bar-download-text" class="dl__v mono" text="" picking-mode="Ignore" />
+                    <ui:VisualElement class="dl__bar" picking-mode="Ignore"><ui:VisualElement name="bar-download-fill" class="dl__fill" picking-mode="Ignore" /></ui:VisualElement>
+                </ui:Button>
+            </ui:VisualElement>
             <ui:VisualElement class="cell cell--money">
                 <ui:VisualElement class="sep" picking-mode="Ignore" />
                 <ui:Button name="bar-money" class="stat stat--dis" tooltip="Bank balance: comes with the simulation in Phase 4">

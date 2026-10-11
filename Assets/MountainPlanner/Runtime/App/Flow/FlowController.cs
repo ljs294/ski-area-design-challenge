@@ -61,13 +61,16 @@ namespace MountainPlanner.App.Flow
 
         public void PickerCancelled() => Show(_pickerReturn);
 
-        /// <summary>The picker chose a site and its download has started.</summary>
-        public void DownloadStarted()
+        /// <summary>
+        /// The picker chose a site and its download has started (the card opens), or a paused one resumed by itself at
+        /// launch (task P2-06: <paramref name="openCard"/> false, so it comes back as the pill).
+        /// </summary>
+        public void DownloadStarted(bool openCard = true)
         {
             DownloadActive = true;
             FinishedPackage = null;
             if (Screen == FlowScreen.Picker) Show(_pickerReturn);
-            SetCard(true);
+            SetCard(openCard);
         }
 
         public void MinimiseDownload() => SetCard(false);

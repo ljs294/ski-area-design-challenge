@@ -41,6 +41,7 @@ namespace MountainPlanner.App.Flow
         void ApplyOffline()
         {
             Http.NetworkDisabled = DataPreferences.OfflineNow || Array.IndexOf(Environment.GetCommandLineArgs(), "-offline") >= 0;
+            OfflineState.SetSetting(Http.NetworkDisabled);   // the picker, downloads and credits follow it (task P2-06)
             if (Picker != null && Picker.IsOpen) Screens.Toast(Http.NetworkDisabled ? "Offline: no map tiles or downloads" : "Back online");
         }
 
@@ -53,7 +54,7 @@ namespace MountainPlanner.App.Flow
         /// <summary>Why the folder can't move now, or null when it can.</summary>
         string LibraryLocked() =>
             DataFromCommandLine ? "This run's library was chosen with -data."
-            : Downloads.Running ? "Wait for the download to finish, or cancel it."
+            : Downloads.Active ? "Wait for the download to finish, or cancel it."
             : !MountainViewer.TitleMode ? "Return to the title to move the library."
             : null;
 
@@ -96,9 +97,9 @@ namespace MountainPlanner.App.Flow
             finally { _measuringDisk = false; }
             if (this == null || root != DataRoot) return;
             string text = $"{count} {(count == 1 ? "area" : "areas")}: {LibraryViewModel.Disk(areas)}, terrain caches {LibraryViewModel.Disk(caches)}" +
-                          (older > 0 ? $", older versions' caches {LibraryViewModel.Disk(older)}" : "") +
-                          (downloads > 0 ? $". Download and map cache {LibraryViewModel.Disk(downloads)}." : ".");
+                          (older > 0 ? $", older versions' caches {LibraryViewModel.Disk(older)}" : "") + ".";
             Screens.Settings.ShowDisk(text, older);
+            Screens.Settings.ShowDownloadCache(downloads, CacheLocked() ?? "");   // its own row (task P2-06)
         }
 
         /// <summary>

@@ -124,6 +124,18 @@ namespace MountainPlanner.App
             }
         }
 
+        /// <summary>
+        /// Set by the app flow: shows a save error in its S11 dialog (FlowScreens.Alert, task P2-06). Without the flow (a
+        /// viewer run on its own) the photo bar's toast says it.
+        /// </summary>
+        public static Action<string, string> PhotoErrorShown;
+
+        void PhotoFailed(string what)
+        {
+            if (PhotoErrorShown != null) PhotoErrorShown("The photo wasn't saved", what);
+            else _photoBar?.Toast("The photo wasn't saved. " + what, error: true);
+        }
+
         /// <summary>For UI captures: the bar's Focus, time (null keeps it), grade (the bar's order) and Size.</summary>
         internal void SetPhotoForCapture(PhotoFocusMode focus, int? second, int grade, int scale)
         {
@@ -268,7 +280,7 @@ namespace MountainPlanner.App
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
-                _photoBar.Toast("Couldn't save: the Pictures folder can't be written.", error: true);
+                PhotoFailed("Pictures\Ski Area Design Challenge can't be written to. Check that the folder isn't read-only and the disk isn't full, then capture again.");
                 Debug.LogWarning($"[MountainViewer] Photo folder: {e.Message}");
                 return;
             }
@@ -308,7 +320,9 @@ namespace MountainPlanner.App
             {
                 var e = saving.Exception?.GetBaseException();
                 Debug.LogWarning($"[MountainViewer] Photo not saved: {e?.Message}");
-                if (_photoBar != null) _photoBar.Toast("Couldn't save the photo: " + (e is IOException ? "the disk refused it." : "the picture couldn't be read."), error: true);
+                PhotoFailed(e is IOException || e is UnauthorizedAccessException
+                    ? "The file couldn't be written to Pictures\Ski Area Design Challenge. Check that the disk isn't full, then capture again."
+                    : "The picture couldn't be read back from the graphics card. Capture again; at Screen size it needs less memory than 2×.");
                 yield break;
             }
             var size = saving.Result;

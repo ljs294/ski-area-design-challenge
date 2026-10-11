@@ -30,6 +30,8 @@ namespace MountainPlanner.UI.Flow
         public event Action DataShown;
         /// <summary>Data › Free space, confirmed.</summary>
         public event Action FreeSpaceConfirmed;
+        /// <summary>Clear the download cache, confirmed (task P2-06).</summary>
+        public event Action ClearCacheConfirmed;
 
         /// <summary>False for captures and tests: changes apply for this run only, and the player's settings stay as they were.</summary>
         public bool Remember = true;
@@ -58,9 +60,10 @@ namespace MountainPlanner.UI.Flow
         int _listenEndFrame = -10;
 
         // Data.
-        Label _libraryPath, _diskText;
-        Button _libraryChange, _freeSpace;
-        long _freeable;
+        Label _libraryPath, _diskText, _cacheText;
+        Button _libraryChange, _freeSpace, _clearCache;
+        long _freeable, _cacheBytes;
+        string _cacheBusy = "";
 
         public SettingsWindow(VisualElement settings, FlowScreens screens)
         {
@@ -495,6 +498,17 @@ namespace MountainPlanner.UI.Flow
             var disk = Row(page, "Disk use", "Measuring…", _freeSpace);
             _diskText = disk.Q<Label>(className: "mp-srow__desc");
             _diskText.name = "data-disk";
+            // Task P2-06 (owner D5): the download and map-tile cache, which only grows.
+            _clearCache = Ghost("data-clear-cache", "Clear", () =>
+            {
+                if (_cacheBytes <= 0 || _cacheBusy.Length > 0) return;
+                _screens.Confirm($"Remove {LibraryViewModel.Disk(_cacheBytes)} of downloaded map data? Your areas stay and open as usual. " +
+                                 "Map tiles download again when you pick a new area, and a paused download fetches its data again.",
+                                 "Clear " + LibraryViewModel.Disk(_cacheBytes), () => ClearCacheConfirmed?.Invoke(), danger: false);
+            });
+            var cache = Row(page, "Download cache", "Measuring…", _clearCache);
+            _cacheText = cache.Q<Label>(className: "mp-srow__desc");
+            _cacheText.name = "data-cache";
             Row(page, "Offline mode", "No downloads, map tiles or place search; the areas you have open as usual.",
                 Seg("offline", new[] { "on", "off" }, new[] { "On", "Off" },
                     () => DataPreferences.OfflineNow ? 0 : 1, i => { DataPreferences.SetOffline(i == 0, Remember); Refresh(); }));
@@ -502,6 +516,9 @@ namespace MountainPlanner.UI.Flow
             {
                 _freeSpace.SetEnabled(_freeable > 0);
                 _freeSpace.text = _freeable > 0 ? "Free " + LibraryViewModel.Disk(_freeable) : "Free space";
+                _clearCache.SetEnabled(_cacheBytes > 0 && _cacheBusy.Length == 0);
+                _clearCache.text = _cacheBytes > 0 ? "Clear " + LibraryViewModel.Disk(_cacheBytes) : "Clear";
+                _clearCache.tooltip = _cacheBusy;
             });
         }
 
@@ -526,6 +543,19 @@ namespace MountainPlanner.UI.Flow
         {
             _diskText.text = text;
             _freeable = freeable;
+            Refresh();
+        }
+
+        /// <summary>
+        /// The download cache (task P2-06): its size, and why it can't be cleared now (<paramref name="busy"/>, e.g. a
+        /// download is running), or "".
+        /// </summary>
+        public void ShowDownloadCache(long bytes, string busy)
+        {
+            _cacheBytes = bytes;
+            _cacheBusy = busy ?? "";
+            _cacheText.text = (bytes > 0 ? LibraryViewModel.Disk(bytes) : "Empty") + ": map tiles, place search and downloaded data, kept so the picker is quick and downloads resume." +
+                              (_cacheBusy.Length > 0 ? " " + _cacheBusy : "");
             Refresh();
         }
 

@@ -31,6 +31,8 @@ namespace MountainPlanner.UI.Flow
         public event Action FreeSpaceConfirmed;
         public event Action<LibrarySort> SortChosen;
         public event Action MinimiseChosen, RestoreChosen, RetryChosen, CloseChosen;
+        /// <summary>Try now, while the download waits for the connection (task P2-06).</summary>
+        public event Action TryNowChosen;
         /// <summary>Cancel confirmed: true keeps the partial download for resuming.</summary>
         public event Action<bool> CancelConfirmed;
         public event Action QualityOpenChosen, QualityLibraryChosen;
@@ -41,7 +43,7 @@ namespace MountainPlanner.UI.Flow
         /// page opened (measure the disk), a new library folder was typed, Free space was confirmed. Open uses
         /// <see cref="DataFolderChosen"/>.
         /// </summary>
-        public event Action SettingsDataShown, SettingsFreeSpaceConfirmed;
+        public event Action SettingsDataShown, SettingsFreeSpaceConfirmed, SettingsClearCacheConfirmed;
         public event Action<string> SettingsLibraryFolderChosen;
 
         VisualElement _root, _title, _library, _download, _quality, _confirm, _prompt, _settings, _credits, _stages, _barFill, _qcLines;
@@ -52,7 +54,13 @@ namespace MountainPlanner.UI.Flow
         Action<string> _promptAction;
         LibraryViewModel _libraryVm;
         readonly List<Label> _rowDisks = new List<Label>();
-        VisualElement _dlActions, _dlConfirm, _dlFailed;
+        VisualElement _dlActions, _dlConfirm, _dlFailed, _dlWaiting, _confirmPanel, _pillFill;
+        Label _confirmTitle, _pillText;
+        Button _confirmAlt, _confirmCancel, _confirmOk;
+        Action _altAction;
+        /// <summary>The view model's version last drawn: the card redraws only when it changes (task P2-06).</summary>
+        int _dlVersion = -1;
+        bool _pillWanted, _pillInGame;
         ScrollView _rows;
         Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast;
         Button _continue, _pill, _sortOpened, _sortName, _sortQuality;
@@ -107,6 +115,14 @@ namespace MountainPlanner.UI.Flow
             _dlActions = _root.Q("dl-actions");
             _dlConfirm = _root.Q("dl-confirm");
             _dlFailed = _root.Q("dl-failed");
+            _dlWaiting = _root.Q("dl-waiting");
+            _confirmPanel = _root.Q("confirm-panel");
+            _confirmTitle = _root.Q<Label>("confirm-title");
+            _confirmAlt = _root.Q<Button>("confirm-alt");
+            _confirmCancel = _root.Q<Button>("confirm-cancel");
+            _confirmOk = _root.Q<Button>("confirm-ok");
+            _pillText = _root.Q<Label>("dl-pill-text");
+            _pillFill = _root.Q("dl-pill-fill");
             _rows = _root.Q<ScrollView>("library-rows");
             _continue = _root.Q<Button>("title-continue");
             _continueLabel = _root.Q<Label>("title-continue-label");
@@ -149,6 +165,7 @@ namespace MountainPlanner.UI.Flow
             Settings.LibraryFolderChosen += folder => SettingsLibraryFolderChosen?.Invoke(folder);
             Settings.DataShown += () => SettingsDataShown?.Invoke();
             Settings.FreeSpaceConfirmed += () => SettingsFreeSpaceConfirmed?.Invoke();
+            Settings.ClearCacheConfirmed += () => SettingsClearCacheConfirmed?.Invoke();
             _root.Q<Button>("settings-done").clicked += CloseOverlay;
             _root.Q<Button>("settings-defaults").clicked += () => Settings.RestoreDefaults();
             _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();
@@ -165,13 +182,21 @@ namespace MountainPlanner.UI.Flow
             _root.Q<Button>("dl-discard").clicked += () => { ShowCancelConfirm(false); CancelConfirmed?.Invoke(false); };
             _root.Q<Button>("dl-retry").clicked += () => RetryChosen?.Invoke();
             _root.Q<Button>("dl-close").clicked += () => CloseChosen?.Invoke();
+            _root.Q<Button>("dl-trynow").clicked += () => TryNowChosen?.Invoke();
+            _root.Q<Button>("dl-wait-cancel").clicked += () => ShowCancelConfirm(true);
             _pill.clicked += () => RestoreChosen?.Invoke();
             _root.Q<Button>("qc-open").clicked += () => QualityOpenChosen?.Invoke();
             _root.Q<Button>("qc-library").clicked += () => QualityLibraryChosen?.Invoke();
-            _root.Q<Button>("confirm-cancel").clicked += CloseConfirm;
-            _root.Q<Button>("confirm-ok").clicked += () =>
+            _confirmCancel.clicked += CloseConfirm;
+            _confirmOk.clicked += () =>
             {
                 var action = _confirmAction;
+                CloseConfirm();
+                action?.Invoke();
+            };
+            _confirmAlt.clicked += () =>
+            {
+                var action = _altAction;
                 CloseConfirm();
                 action?.Invoke();
             };
@@ -514,16 +539,31 @@ namespace MountainPlanner.UI.Flow
 
         // ---------- S4 ----------
 
+        /// <summary>
+        /// The card when open; otherwise the pill while a download is active. In the game the pill is the HUD bar's
+        /// (task P2-06, owner D3), so this one stays hidden there.
+        /// </summary>
         public void ShowDownloadCard(bool open, bool active, bool inGame)
         {
             Show(_download, open && active);
-            Show(_pill, !open && active);
-            _pill.EnableInClassList("pill--game", inGame);
+            _pillWanted = !open && active;
+            _pillInGame = inGame;
+            Show(_pill, _pillWanted && !inGame);
             if (!open) ShowCancelConfirm(false);
         }
 
+        /// <summary>The pill is showing on the flow's screens (S1, S2, the picker).</summary>
+        public bool PillShown => IsShown(_pill);
+
+        /// <summary>The pill's class for a phase: its hairline's colour.</summary>
+        public static string PillState(DownloadPhase phase) =>
+            phase == DownloadPhase.Waiting ? "pill--waiting" : phase == DownloadPhase.Paused ? "pill--paused" : phase == DownloadPhase.Failed ? "pill--failed" : "";
+
+        /// <summary>Draws the card and pill; only when the view model has changed (at most 4 times a second while it runs).</summary>
         public void RenderDownload(DownloadViewModel vm)
         {
+            if (vm.Version == _dlVersion) return;
+            _dlVersion = vm.Version;
             if (vm.StagesVersion != _stagesVersion)
             {
                 _stagesVersion = vm.StagesVersion;
@@ -555,23 +595,29 @@ namespace MountainPlanner.UI.Flow
             SetText(_dlLeft, vm.TimeLeft);
             SetText(_dlDetail, vm.Detail);
             SetText(_dlTransfer, vm.Transfer);
-            SetText(_pill, vm.Pill);
+            SetText(_pillText, vm.Pill);
             _barFill.style.width = Length.Percent(vm.Fraction * 100f);
-            bool failed = vm.Phase == DownloadPhase.Failed;
+            _pillFill.style.width = Length.Percent(vm.Fraction * 100f);
+            foreach (string c in new[] { "pill--waiting", "pill--paused", "pill--failed" }) _pill.EnableInClassList(c, c == PillState(vm.Phase));
+            bool failed = vm.Phase == DownloadPhase.Failed, waiting = vm.Phase == DownloadPhase.Waiting;
+            bool confirming = !_dlConfirm.ClassListContains("hidden");
             Show(_dlFailed, failed);
-            if (failed)
-            {
-                Show(_dlActions, false);
-                Show(_dlConfirm, false);
-            }
-            else if (_dlConfirm.ClassListContains("hidden")) Show(_dlActions, true);
+            Show(_dlWaiting, waiting && !confirming);
+            if (failed) Show(_dlConfirm, false);
+            Show(_dlActions, !failed && !waiting && !confirming);
+            _download.EnableInClassList("download--waiting", waiting);
         }
+
+        /// <summary>Forces the next <see cref="RenderDownload"/> to draw (a new card, a theme change).</summary>
+        public void InvalidateDownload() => _dlVersion = -1;
 
         void ShowCancelConfirm(bool show)
         {
             if (_dlConfirm == null) return;
+            bool waiting = _download.ClassListContains("download--waiting");
             Show(_dlConfirm, show);
-            Show(_dlActions, !show);
+            Show(_dlActions, !show && !waiting);
+            Show(_dlWaiting, !show && waiting);
         }
 
         // ---------- S5 ----------
@@ -628,18 +674,46 @@ namespace MountainPlanner.UI.Flow
         /// <summary>The confirm dialog; <paramref name="danger"/> paints its button red (deleting) rather than green.</summary>
         public void Confirm(string text, string ok, Action action, bool danger = true)
         {
+            SetDialog("", text, ok, action, danger, "Cancel", null, null, error: false);
+            UiFocus.OpenModal(_confirm, _confirmCancel);   // the safe choice first
+        }
+
+        /// <summary>
+        /// An error or offline dialog (S11, task P2-06): what happened as the heading, what to do below, then up to
+        /// three buttons. <paramref name="ok"/> (green) is the way forward and has the focus; <paramref name="alt"/> sits
+        /// on the left (e.g. Settings › Data); <paramref name="close"/> just closes. Esc closes too.
+        /// </summary>
+        public void Alert(string title, string text, string ok, Action okAction, string close = "Close", string alt = null, Action altAction = null, bool error = true)
+        {
+            SetDialog(title, text, ok, okAction, false, close, alt, altAction, error);
+            UiFocus.OpenModal(_confirm, ok != null ? _confirmOk : _confirmCancel);
+        }
+
+        /// <summary>The open dialog's heading ("" for a plain confirm): the captures and tests read it.</summary>
+        public string DialogTitle => ConfirmOpen ? _confirmTitle.text : "";
+
+        void SetDialog(string title, string text, string ok, Action okAction, bool danger, string close, string alt, Action altAction, bool error)
+        {
+            _confirmTitle.text = title ?? "";
+            Show(_confirmTitle, !string.IsNullOrEmpty(title));
             _confirmText.text = text;
-            var button = _root.Q<Button>("confirm-ok");
-            button.text = ok;
-            button.EnableInClassList("mp-go--danger", danger);
-            _confirmAction = action;
+            _confirmOk.text = ok ?? "";
+            Show(_confirmOk, ok != null);
+            _confirmOk.EnableInClassList("mp-go--danger", danger);
+            _confirmCancel.text = close;
+            _confirmAlt.text = alt ?? "";
+            Show(_confirmAlt, alt != null);
+            _confirmPanel.EnableInClassList("confirm-panel--error", error && !string.IsNullOrEmpty(title));
+            _confirmPanel.EnableInClassList("confirm-panel--wide", !string.IsNullOrEmpty(title));
+            _confirmAction = okAction;
+            _altAction = altAction;
             Show(_confirm, true);
-            UiFocus.OpenModal(_confirm, _root.Q<Button>("confirm-cancel"));   // the safe choice first
         }
 
         public void CloseConfirm()
         {
             _confirmAction = null;
+            _altAction = null;
             Show(_confirm, false);
             UiFocus.CloseModal(_confirm);
         }

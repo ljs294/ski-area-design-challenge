@@ -113,13 +113,22 @@
                 <ui:Button name="dl-discard" text="Discard" class="mp-go mp-go--danger" />
                 <ui:Button name="dl-back" text="Back" class="mp-ghost" />
             </ui:VisualElement>
+            <ui:VisualElement name="dl-waiting" class="panel-foot hidden">
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-trynow" text="Try now" class="mp-go" />
+                <ui:Button name="dl-wait-cancel" text="Cancel" class="mp-ghost" />
+            </ui:VisualElement>
             <ui:VisualElement name="dl-failed" class="panel-foot hidden">
                 <ui:VisualElement class="spacer" />
                 <ui:Button name="dl-retry" text="Retry" class="mp-go" />
                 <ui:Button name="dl-close" text="Close" class="mp-ghost" />
             </ui:VisualElement>
         </ui:VisualElement>
-        <ui:Button name="dl-pill" text="" class="pill hidden" tooltip="Show the download" />
+        <!-- The S4 pill (task P2-06): one line and a hairline of progress; S1, S2 and the picker (the game's is in the HUD bar). -->
+        <ui:Button name="dl-pill" text="" class="pill hidden" tooltip="Show the download">
+            <ui:Label name="dl-pill-text" text="" class="pill-text" />
+            <ui:VisualElement class="pill-bar"><ui:VisualElement name="dl-pill-fill" class="pill-fill" /></ui:VisualElement>
+        </ui:Button>
 
         <!-- S5 quality card. -->
         <ui:VisualElement name="quality" class="modal hidden">
@@ -184,14 +193,16 @@
             </mp:StageColumn>
         </ui:VisualElement>
 
-        <!-- S11 confirm dialog. -->
+        <!-- S11 dialogs (task P2-06): confirm (no title), error and offline (a title, then what to do). -->
         <ui:VisualElement name="confirm" class="modal hidden">
             <mp:StageColumn>
-                <ui:VisualElement class="mp-win confirm-panel">
+                <ui:VisualElement name="confirm-panel" class="mp-win confirm-panel">
                     <ui:VisualElement class="panel-body">
+                        <ui:Label name="confirm-title" text="" class="confirm-title hidden" />
                         <ui:Label name="confirm-text" text="" class="confirm-text" />
                     </ui:VisualElement>
                     <ui:VisualElement class="panel-foot">
+                        <ui:Button name="confirm-alt" text="" class="mp-ghost hidden" />
                         <ui:VisualElement class="spacer" />
                         <ui:Button name="confirm-cancel" text="Cancel" class="mp-ghost" />
                         <ui:Button name="confirm-ok" text="Delete" class="mp-go mp-go--danger" />

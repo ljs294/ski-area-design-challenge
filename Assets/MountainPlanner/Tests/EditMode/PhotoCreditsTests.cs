@@ -80,7 +80,10 @@ namespace MountainPlanner.Tests
             string fixture = Path.GetFullPath("TestData/formats/v1-library");
             if (!Directory.Exists(fixture)) Assert.Ignore("TestData/formats isn't here.");
             var entries = ResortLibrary.Scan(fixture);
-            var page = AppFlow.BuildCredits(entries, offline: true, licences: "OFL");
+            MountainPlanner.UI.Flow.OfflineState.SetSetting(true);   // P2-06's offline line goes in the foot
+            string offline = MountainPlanner.UI.Flow.OfflineState.Describe();
+            MountainPlanner.UI.Flow.OfflineState.Reset();
+            var page = AppFlow.BuildCredits(entries, offline, licences: "OFL");
             Assert.That(page.Studio, Is.EqualTo("Alpine Labs"));
             var data = page.Sections.Single(s => s.Name == "credits-data");
             Assert.That(data.Note, Is.EqualTo("2 areas in the library"));
@@ -100,14 +103,14 @@ namespace MountainPlanner.Tests
             Assert.That(CoverageIndex.Attribution, Does.Contain("3DEP"));
             Assert.That(picker.Rows.Any(r => r.Who.Contains("3D Elevation Program")));
             Assert.That(page.Sections.Any(s => s.Names.Contains("Rob Tuytel")));
-            Assert.That(page.Foot, Does.StartWith("Offline: "));
-            Assert.That(AppFlow.BuildCredits(entries, offline: false, licences: "").Foot, Does.Not.Contain("Offline"));
+            Assert.That(page.Foot, Does.StartWith("Offline mode is on"));
+            Assert.That(AppFlow.BuildCredits(entries, offline: "", licences: "").Foot, Does.StartWith("Everything here comes from the areas"));
         }
 
         [Test]
         public void AnEmptyLibrarySaysHowToGetData()
         {
-            var page = AppFlow.BuildCredits(new System.Collections.Generic.List<LibraryEntry>(), false, "");
+            var page = AppFlow.BuildCredits(new System.Collections.Generic.List<LibraryEntry>(), "", "");
             var data = page.Sections.Single(s => s.Name == "credits-data");
             Assert.That(data.Rows, Is.Empty);
             Assert.That(data.Empty, Is.Not.Empty);
