@@ -12,6 +12,12 @@ namespace MountainPlanner.Tests
     {
         const string Mockup = "docs/plans/prototypes/ui-layout.html";
         const string Uxml = "Assets/MountainPlanner/Art/UI/Hud.uxml";
+        /// <summary>The mockup's photo bar (task P2-07) and the flow's windows it shows (Credits) live in their own documents.</summary>
+        static readonly string[] OtherUxml =
+        {
+            "Assets/MountainPlanner/Art/UI/Photo/Resources/MountainPlannerPhoto/Photo.uxml",
+            "Assets/MountainPlanner/Art/UI/Flow/Resources/MountainPlannerFlow/Flow.uxml",
+        };
 
         [TestCase(0, "12:00", "AM")]
         [TestCase(5 * 3600 + 27 * 60 + 47, "05:27", "AM")]
@@ -53,15 +59,15 @@ namespace MountainPlanner.Tests
         [Test]
         public void EveryMockupPartHasItsElement()
         {
-            string mockup = File.ReadAllText(Mockup), uxml = File.ReadAllText(Uxml);
+            string mockup = File.ReadAllText(Mockup), uxml = File.ReadAllText(Uxml) + string.Concat(OtherUxml.Select(File.ReadAllText));
             var named = new HashSet<string>(Regex.Matches(uxml, "name=\"([^\"]+)\"").Cast<Match>().Select(m => m.Groups[1].Value));
-            // Parts the HUD makes in code: the tool tiles, the legend's lines and the Analysis line.
-            var made = new[] { "tool-", "analysis-empty" };
+            // Parts made in code: the HUD's tool tiles, the legend's lines and the Analysis line; the credits' hero and sections.
+            var made = new[] { "tool-", "analysis-empty", "credits-hero", "credits-data", "credits-picker", "credits-art", "credits-software" };
             var missing = Regex.Matches(mockup, "data-ui=\"([a-z0-9-]+)(?:\\$\\{[^}]*\\})?([a-z0-9-]*)\"").Cast<Match>()
                 .Select(m => m.Groups[1].Value + m.Groups[2].Value)
                 .Where(n => !n.EndsWith("-") && !named.Contains(n) && !made.Any(n.StartsWith))
                 .Distinct().ToList();
-            Assert.That(missing, Is.Empty, "mockup parts with no element of that name in Hud.uxml");
+            Assert.That(missing, Is.Empty, "mockup parts with no element of that name in Hud.uxml, Photo.uxml or Flow.uxml");
         }
 
         [Test]

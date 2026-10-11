@@ -39,7 +39,7 @@
 | Key | Action | Owner |
 |---|---|---|
 | H | Hide all UI | Task 11 |
-| P | Photo mode: the HUD hides; F12 or Space saves a PNG to `Pictures\Ski Area Design Challenge`; Esc or P exits | Task 11 (the photo bar's other controls come with the UI) |
+| P | Photo mode: the photo bar replaces the HUD (see [Photo mode](#photo-mode)); Esc or P leaves and puts the view back | Task 11; the bar is P2-07 |
 | Shift+1 | **Map layer:** Snow | Task 12 |
 | Shift+3 | **Map layer:** Trees | Task 12 |
 | Shift+2, 4, 5 | Free, for map layers still to come (lifts and the rest as they're built) | — |
@@ -52,6 +52,20 @@
 | Esc | Back out one step; the menu | HUD |
 
 **Map layers and info layers (owner, 2026-10-02).** Map layers show or hide physical things on the map (snow and trees now; lifts and the rest later), in any combination. Info layers only display information. Slope angle, Slope exposure, Snow depth and Snow conditions take turns: switching one on switches off the one that was on, and pressing its key again switches it off. Contours combine with any of them. The HUD's Layers panel has the same two groups, and the info layer that's on shows its legend card. Ground cover and Imagery are no longer layers, and the cover map is a developer view in the F1 panel.
+
+## Photo mode
+
+Built in task P2-07 (0.4 S10; owner, 2026-10-08). These keys work only in photo mode, so they can share keys with the
+view's (H, Space). The camera keeps WASD, the arrows, Q/E, R/F, the zoom keys, C and Home. Every key is rebindable
+(Settings › Controls).
+
+| Key | Action |
+|---|---|
+| Space or F12 | Save a photo (PNG, at the screen's resolution or 2×) to `Pictures\Ski Area Design Challenge` |
+| H | Hide the photo bar; H again shows it |
+| [ and ] | Time: a quarter hour earlier or later (the sun) |
+| Shift+[ and Shift+] | Date: a day back or on (the sun's path through the year) |
+| P or Esc | Leave photo mode: the clock, time, grade, lens and info layers go back as they were |
 
 ## HUD (accepted layout; built in task P2-02)
 

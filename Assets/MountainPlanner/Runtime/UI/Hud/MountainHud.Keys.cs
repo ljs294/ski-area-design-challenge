@@ -13,7 +13,7 @@ namespace MountainPlanner.UI
         {
             ("layer-snow", GameAction.LayerSnow), ("layer-trees", GameAction.LayerTrees), ("layer-slope", GameAction.InfoSlope),
             ("layer-exposure", GameAction.InfoExposure), ("layer-depth", GameAction.InfoDepth), ("layer-conditions", GameAction.InfoConditions),
-            ("layer-contours", GameAction.InfoContours),
+            ("layer-contours", GameAction.InfoContours), ("menu-photo", GameAction.PhotoMode),
         };
 
         string _pauseKey = "Space";
