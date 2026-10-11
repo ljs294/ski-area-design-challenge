@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import process from 'node:process';
 
 export const EDGE = [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -41,7 +42,9 @@ export async function launch() {
   const close = async () => {
     try { ws.close(); } catch { /* closed */ }
     const exited = new Promise((r) => proc.once('exit', r));
-    proc.kill();
+    // Killing Edge's browser process leaves its renderer and utility children running on Windows: end the whole tree.
+    if (process.platform === 'win32') spawn('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+    else proc.kill();
     await Promise.race([exited, sleep(3000)]);
     for (let i = 0; i < 5; i++) {   // Edge's helpers let go of the profile a moment after it exits
       try { rmSync(profile, { recursive: true, force: true }); break; } catch { await sleep(500); }
