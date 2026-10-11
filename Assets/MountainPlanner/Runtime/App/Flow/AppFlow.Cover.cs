@@ -27,13 +27,22 @@ namespace MountainPlanner.App.Flow
         /// <summary>Keeps the loading screen up whatever the mountain does (captures and tests of the box itself).</summary>
         internal bool HoldCover { get; set; }
 
-        /// <summary>Puts the loading screen up for the mountain about to open: "Opening Jackson Hole".</summary>
-        void CoverFor(string packageFolder)
+        /// <summary>The box shows a set stage of an open, not the viewer's (the -uicapture picture of the loading screen).</summary>
+        bool _coverStaged;
+
+        /// <summary>The box's line for an area: "Opening Jackson Hole".</summary>
+        static string CoverText(string packageFolder)
         {
             string name = null;
             try { if (!string.IsNullOrEmpty(packageFolder)) name = ResortLibrary.DisplayName(packageFolder, ResortPackage.ReadManifest(packageFolder)); }
             catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException || e is ArgumentException) { }
-            Screens.ShowCover(name != null ? "Opening " + name : "Opening");
+            return name != null ? "Opening " + name : "Opening";
+        }
+
+        /// <summary>Puts the loading screen up for the mountain about to open: "Opening Jackson Hole".</summary>
+        void CoverFor(string packageFolder)
+        {
+            Screens.ShowCover(CoverText(packageFolder));
             _loading.Reset();
             Screens.RenderLoading(_loading);
             _coverSince = Time.realtimeSinceStartup;
@@ -48,7 +57,7 @@ namespace MountainPlanner.App.Flow
         /// </summary>
         void UpdateCover()
         {
-            if (!Screens.CoverUp) return;
+            if (!Screens.CoverUp || _coverStaged) return;
             bool expired = Time.realtimeSinceStartup - _coverSince > CoverLimitSeconds;
             if (_viewer == null)
             {

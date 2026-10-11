@@ -63,6 +63,23 @@ namespace MountainPlanner.App.Flow
 
             if (compare) yield return CompareWithWindow(folder);
 
+            if (Wanted("s0-cover"))   // the loading box over the title picture, part way into an open (task P2-03.1)
+            {
+                _coverStaged = true;
+                Screens.ShowCover(CoverText(demo));
+                var stage = new LoadProgress(0);
+                stage.Begin(LoadStage.Package, 0, 0); stage.End(LoadStage.Package, 0.2);
+                stage.Skip(LoadStage.Preparing);
+                stage.Begin(LoadStage.Terrain, 121, 0.2); stage.Advance(LoadStage.Terrain, 78);
+                _loading.Reset();
+                _loading.Refresh(stage, 3.4);
+                Screens.RenderLoading(_loading);
+                yield return Wait(FlowScreens.CoverFadeSeconds + 0.3f);   // the box fades back in from the first lift
+                yield return EachLook(folder, "s0-cover");
+                Screens.HideCover();
+                _coverStaged = false;
+                yield return Wait(FlowScreens.CoverFadeSeconds + 0.3f);
+            }
             if (Wanted("s1-title")) yield return EachLook(folder, "s1-title");
 
             if (Wanted("s2-load-area") || Wanted("s2-manage-areas") || Wanted("s11-confirm") || Wanted("s2-rename") || Wanted("s2-free-space"))

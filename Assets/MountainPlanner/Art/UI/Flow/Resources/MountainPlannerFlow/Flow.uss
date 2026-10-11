@@ -61,7 +61,7 @@
 #title-manage { margin-bottom: 0; }
 /* The name plate: plain sign white with dark letters, like the brand board plates. */
 .sign--plate { background-color: #fbf8f2; border-width: 2px; border-color: #1f1c19; }
-.sign--name { margin-bottom: 26px; min-height: 0; padding: 14px 14px 12px; justify-content: center; align-items: center; }
+.sign--name { flex-direction: column; margin-bottom: 26px; min-height: 0; padding: 14px 14px 12px; justify-content: center; align-items: center; }
 /* The brand (task P2-03.1): white single-fill vector lockups from tools/brand/export.py, sized to their viewBox and tinted
    here. The name plate carries the game's logo and name in ink, the studio's name below. */
 .brand { -unity-background-scale-mode: scale-to-fit; flex-shrink: 0; }
