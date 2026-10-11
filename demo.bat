@@ -317,10 +317,11 @@ findstr /c:"[AppFlow] The title's mountain is in" "%USERPROFILE%\AppData\LocalLo
 goto done
 
 :killresume
-rem Task P2-06: a scratch library of its own, emptied first; the second game stays open to watch the pill.
+rem Task P2-06: a scratch library of its own, emptied first; the second game stays open to watch the pill (the render
+rem slot ends with the script, once that game has started).
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\demo\kill-resume.ps1" -Game "%GAME%" -Data "%LOCALAPPDATA%\SkiAreaDesignChallenge-killresume" -Seed "%~dp0TestData\jackson-hole-2km" -LogFolder "%~dp0test-results\p2-06"
+%RENDER% powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\demo\kill-resume.ps1" -Game "%GAME%" -Data "%LOCALAPPDATA%\SkiAreaDesignChallenge-killresume" -Seed "%~dp0TestData\jackson-hole-2km" -LogFolder "%~dp0test-results\p2-06"
 goto done
 
 :flowclean
