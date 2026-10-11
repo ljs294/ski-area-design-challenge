@@ -18,7 +18,7 @@ namespace MountainPlanner.UI.Flow
     /// shows state and raises events; AppFlow decides what happens. The download card updates text in
     /// place each snapshot and rebuilds its stage rows only when the stage list changes.
     /// </summary>
-    public sealed class FlowScreens : MonoBehaviour
+    public sealed partial class FlowScreens : MonoBehaviour
     {
         public UIDocument Document;
 
@@ -65,7 +65,6 @@ namespace MountainPlanner.UI.Flow
         Label _continueLabel, _continueSub, _libraryTitle, _libraryKeys, _summary, _empty, _dlTitle, _dlPercent, _dlLeft, _dlDetail, _dlTransfer, _qcTitle, _qcPlace, _confirmText, _toast;
         Button _continue, _pill, _sortOpened, _sortName, _sortQuality;
         Label _settingsResort;
-        ScrollView _creditsBody;
         readonly List<VisualElement> _rowElements = new List<VisualElement>();
         readonly List<LibraryRow> _rowData = new List<LibraryRow>();
         Action _confirmAction;
@@ -107,7 +106,7 @@ namespace MountainPlanner.UI.Flow
             _free = _root.Q<Button>("library-free");
             _settings = _root.Q("settings");
             _credits = _root.Q("credits");
-            _creditsBody = _root.Q<ScrollView>("credits-body");
+            WireCredits();   // S9 (FlowScreens.Credits.cs, task P2-07)
             _libraryTitle = _root.Q<Label>("library-title");
             _libraryKeys = _root.Q<Label>("library-keys");
             _stages = _root.Q("dl-stages");
@@ -159,7 +158,6 @@ namespace MountainPlanner.UI.Flow
             _root.Q<Button>("title-settings").clicked += ShowSettings;
             _root.Q<Button>("title-quit").clicked += () => QuitChosen?.Invoke();
             _root.Q<Button>("settings-close").clicked += CloseOverlay;
-            _root.Q<Button>("credits-close").clicked += CloseOverlay;
             // The mockup's Settings window: categories down the left, Restore defaults and Done at the foot (task P2-05).
             _settingsResort = _root.Q<Label>("settings-resort");
             Settings = new SettingsWindow(_settings, this);
@@ -656,19 +654,6 @@ namespace MountainPlanner.UI.Flow
             Settings.Opened();
             Show(_settings, true);
             UiFocus.OpenModal(_settings, Settings.FirstTab);
-        }
-
-        /// <summary>Credits: sections of (heading, lines), e.g. the data each downloaded area credits, and the fonts.</summary>
-        public void ShowCredits(IEnumerable<(string Heading, IEnumerable<string> Lines)> sections)
-        {
-            _creditsBody.Clear();
-            foreach (var (heading, lines) in sections)
-            {
-                _creditsBody.Add(Text(heading, "credits-head"));
-                foreach (string line in lines) _creditsBody.Add(Text(line, "credits-line"));
-            }
-            Show(_credits, true);
-            UiFocus.OpenModal(_credits, _root.Q<Button>("credits-close"));
         }
 
         public void CloseOverlay()

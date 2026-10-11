@@ -35,6 +35,10 @@ namespace MountainPlanner.UI
         public event Action SettingsChosen;
         /// <summary>The menu's Controls: Settings on its Controls page (task P2-05).</summary>
         public event Action ControlsChosen;
+        /// <summary>The menu's Photo mode (P does the same; task P2-07).</summary>
+        public event Action PhotoChosen;
+        /// <summary>The menu's Credits: the flow's Credits window (task P2-07); enabled with <see cref="ShowSettings"/>.</summary>
+        public event Action CreditsChosen;
         /// <summary>The bar's pause button (Space does the same).</summary>
         public event Action PauseChosen;
         /// <summary>A speed arrow, 1 to 4 (the number keys do the same).</summary>
@@ -79,7 +83,7 @@ namespace MountainPlanner.UI
         enum Drop { None, Menu, Layers }
 
         VisualElement _root, _menu, _layers, _modal;
-        Button _trSketch, _trLayers, _trMenu, _settingsRow, _controlsRow;
+        Button _trSketch, _trLayers, _trMenu, _settingsRow, _controlsRow, _creditsRow;
         Drop _drop;
         string _siteName = "", _place = "";
         bool _settingsAvailable;
@@ -164,6 +168,9 @@ namespace MountainPlanner.UI
             _controlsRow = _root.Q<Button>("menu-controls");
             _settingsRow.clicked += OpenSettings;
             _controlsRow.clicked += () => { SetDrop(Drop.None); ControlsChosen?.Invoke(); };
+            _creditsRow = _root.Q<Button>("menu-credits");
+            _creditsRow.clicked += () => { SetDrop(Drop.None); CreditsChosen?.Invoke(); };
+            _root.Q<Button>("menu-photo").clicked += () => { SetDrop(Drop.None); PhotoChosen?.Invoke(); };
             ShowSettings(false);
             Segment("menu-theme-dark", () => UiPreferences.SetChoice(UiThemeChoice.Dark));
             Segment("menu-theme-light", () => UiPreferences.SetChoice(UiThemeChoice.Light));
@@ -191,6 +198,8 @@ namespace MountainPlanner.UI
             _settingsAvailable = available;
             _settingsRow.SetEnabled(available);
             _controlsRow.SetEnabled(available);
+            _creditsRow.SetEnabled(available);
+            _creditsRow.EnableInClassList("row--dis", !available);
             _settingsRow.EnableInClassList("row--dis", !available);
             _controlsRow.EnableInClassList("row--dis", !available);
         }

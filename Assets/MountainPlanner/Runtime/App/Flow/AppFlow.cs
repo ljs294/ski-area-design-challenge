@@ -242,6 +242,8 @@ namespace MountainPlanner.App.Flow
                 var hud = _viewer.Hud;
                 hud.SettingsChosen += () => Screens.ShowSettings(hud.SiteName);   // the head names the resort, as in the mockup
                 hud.ControlsChosen += () => { Screens.ShowSettings(hud.SiteName); Screens.Settings.ShowPage(SettingsWindow.ControlsPage); };
+                hud.CreditsChosen += () => Screens.ShowCredits(Credits());   // the menu's Credits (task P2-07)
+                MountainViewer.PhotoErrorShown = (title, text) => Screens.Alert(title, text, null, null);   // photo save errors (S11)
             }
             var then = _afterTitle;
             _afterTitle = FlowScreen.Title;
@@ -568,24 +570,6 @@ namespace MountainPlanner.App.Flow
         static bool SameFolder(string a, string b) =>
             !string.IsNullOrEmpty(a) && !string.IsNullOrEmpty(b) &&
             string.Equals(Path.GetFullPath(a).TrimEnd('\\', '/'), Path.GetFullPath(b).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
-
-        /// <summary>
-        /// The credits (S9): the data every downloaded area credits, read from the packages so it works offline
-        /// (0.3 §5), then the fonts.
-        /// </summary>
-        System.Collections.Generic.IEnumerable<(string, System.Collections.Generic.IEnumerable<string>)> Credits()
-        {
-            var data = new System.Collections.Generic.SortedSet<string>(StringComparer.Ordinal);
-            foreach (var e in Areas())
-            {
-                try { foreach (string line in ResortPackage.ReadManifest(e.Folder).Attribution) data.Add(line); }
-                catch (Exception ex) { Debug.LogWarning($"[AppFlow] Credits: {e.Name}: {ex.Message}"); }
-            }
-            yield return ("Ski Area Design Challenge", new[] { "A ski resort designer on real mountains.", "Made by Alpine Labs." });
-            yield return ("Map and terrain data", data.Count > 0 ? (System.Collections.Generic.IEnumerable<string>)data
-                                                                 : new[] { "Download an area to see the data it uses." });
-            yield return ("Type", new[] { "Overpass and Overpass Mono, SIL Open Font License 1.1." });
-        }
 
         /// <summary>The mountain Continue opens: the last opened, else the demo, else the first in the library.</summary>
         LibraryEntry ContinueTarget()

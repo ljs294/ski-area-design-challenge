@@ -1,0 +1,74 @@
+<!-- S10 Photo mode (task P2-07): the accepted mockup's photo bar (docs/plans/prototypes/ui-layout.html, #demo=p2,photo).
+     One thin bar docked to the bottom while the HUD is away: Time (the sun), Date, Lens, Focus, Grade and Size, then
+     Hide, Capture and Exit. Element names are the mockup's data-ui names. PhotoBar binds it; the viewer wires it. -->
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:hud="MountainPlanner.UI.Hud">
+    <Style src="Photo.uss" />
+    <ui:VisualElement name="photo" class="photo" picking-mode="Ignore">
+        <ui:VisualElement name="photo-bar" class="pbar">
+            <ui:VisualElement class="pcell pcell--lead" tooltip="Photo mode">
+                <hud:HudIcon icon="s-camera" class="pcell__icon" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement name="photo-time" class="pcell sep" tooltip="Time of day: moves the sun">
+                <ui:Label text="Time" class="pl" picking-mode="Ignore" />
+                <ui:Slider name="photo-time-slider" low-value="0" high-value="287" class="prange prange--time" />
+                <ui:Label name="photo-time-value" text="10:30 AM" class="pv pv--time mono" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement name="photo-date" class="pcell sep" tooltip="Date: the sun's path through the year">
+                <ui:Label text="Date" class="pl" picking-mode="Ignore" />
+                <ui:VisualElement class="mp-step pstep">
+                    <ui:Button name="photo-date-back" text="‹" class="mp-step__b pstep__b" />
+                    <ui:Label name="photo-date-value" text="Jan 15" class="mp-step__v pstep__v" picking-mode="Ignore" />
+                    <ui:Button name="photo-date-on" text="›" class="mp-step__b pstep__b" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="photo-lens" class="pcell sep" tooltip="Lens: vertical field of view">
+                <ui:Label text="Lens" class="pl" picking-mode="Ignore" />
+                <ui:Slider name="photo-lens-slider" low-value="20" high-value="90" class="prange prange--lens" />
+                <ui:Label name="photo-lens-value" text="60°" class="pv pv--lens mono" picking-mode="Ignore" />
+            </ui:VisualElement>
+            <ui:VisualElement name="photo-dof" class="pcell sep" tooltip="Depth of field: focus on the middle of the picture">
+                <ui:Label text="Focus" class="pl" picking-mode="Ignore" />
+                <ui:VisualElement class="mp-seg mp-seg--mini pseg">
+                    <ui:Button name="photo-dof-off" text="Off" class="mp-seg__opt mp-seg__opt--first" />
+                    <ui:Button name="photo-dof-natural" text="Natural" class="mp-seg__opt" tooltip="A long lens: the far slopes soften" />
+                    <ui:Button name="photo-dof-mini" text="Miniature" class="mp-seg__opt" tooltip="Tilt-shift: a sharp band, blur above and below" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="photo-grade" class="pcell sep" tooltip="Grade: the picture's look">
+                <ui:Label text="Grade" class="pl" picking-mode="Ignore" />
+                <ui:VisualElement class="mp-step pstep">
+                    <ui:Button name="photo-grade-back" text="‹" class="mp-step__b pstep__b" />
+                    <ui:Label name="photo-grade-value" text="Bluebird" class="mp-step__v pstep__v pstep__v--grade" picking-mode="Ignore" />
+                    <ui:Button name="photo-grade-on" text="›" class="mp-step__b pstep__b" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="photo-size" class="pcell sep">
+                <ui:Label text="Size" class="pl" picking-mode="Ignore" />
+                <ui:VisualElement class="mp-seg mp-seg--mini pseg">
+                    <ui:Button name="photo-size-1" text="Screen" class="mp-seg__opt mp-seg__opt--first" />
+                    <ui:Button name="photo-size-2" text="2×" class="mp-seg__opt" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="pgrow" picking-mode="Ignore" />
+            <ui:VisualElement class="pcell sep pcell--tight">
+                <ui:Button name="photo-hide" class="pib" tooltip="Hide the bar (H); H again shows it">
+                    <hud:HudIcon icon="s-hide" class="pib__icon" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="pcell pcell--capture">
+                <ui:Button name="photo-capture" class="mp-go pgo" tooltip="Save to Pictures\Ski Area Design Challenge">
+                    <ui:Label text="Capture" class="pgo__text" picking-mode="Ignore" />
+                    <ui:Label name="photo-capture-key" text="Space" class="pgo__key mono" picking-mode="Ignore" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement class="pcell sep pcell--tight">
+                <ui:Button name="photo-exit" text="✕" class="pib pib--x" tooltip="Leave photo mode (Esc)" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="photo-flash" class="pflash" picking-mode="Ignore" />
+        <ui:VisualElement name="photo-toast" class="ptoast hidden" picking-mode="Ignore">
+            <ui:VisualElement name="photo-toast-stripe" class="ptoast__stripe" picking-mode="Ignore" />
+            <ui:Label name="photo-toast-text" class="ptoast__text" picking-mode="Ignore" />
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

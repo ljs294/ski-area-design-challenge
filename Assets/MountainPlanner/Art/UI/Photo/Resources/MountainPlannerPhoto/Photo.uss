@@ -1,0 +1,104 @@
+/* S10 photo mode's bar (task P2-07): the accepted mockup's .bar.photo (docs/plans/prototypes/ui-layout.html), its pixel
+   values carried 1:1 (UiPanels lays out on the mockup's 1280x720 stage). Colours are the shared theme tokens; the bar
+   is solid, as the HUD's is. Every rule that sets a colour sets the text outline to the same colour (UiThemeTests).
+   USS has no gap, so each flex gap is a margin. Every selector starts with .photo, to outrank the default theme. */
+
+.photo {
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    font-size: 13px;
+    color: var(--text);
+    -unity-text-outline-color: var(--text);
+}
+.photo .hidden { display: none; }
+.photo .mono { -unity-font-definition: url("/Assets/MountainPlanner/Art/UI/Fonts/OverpassMono-SDF.asset"); }
+.photo Label { margin: 0; padding: 0; }
+.photo Button:disabled { opacity: 1; }
+.photo .mp-seg__opt--on, .photo .mp-seg__opt--on:hover { background-color: var(--on-bg); color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
+
+/* the bar: docked full width, 46 px, a hairline on top (.bar.docked.photo) */
+.photo .pbar {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    min-height: 46px;
+    flex-direction: row;
+    flex-wrap: wrap;   /* at large UI scales on a narrow screen the controls take a second row */
+    align-items: stretch;
+    background-color: var(--panel);
+    border-top-width: 1px;
+    border-color: var(--hair);
+}
+/* .cell: a row of label, control and value, 7 px apart; .sep draws a 1 px rule on its left, 11 px short of top and bottom */
+.photo .pcell { flex-direction: row; align-items: center; flex-shrink: 0; height: 46px; padding: 0 9px; }
+.photo .pcell > .prange, .photo .pcell > .pv, .photo .pcell > .pstep, .photo .pcell > .pseg { margin-left: 7px; }
+.photo .psep { position: absolute; left: 0; top: 11px; bottom: 11px; width: 1px; background-color: var(--div); }
+.photo .pcell--lead { padding: 0 9px 0 10px; }
+.photo .pcell--tight { padding: 0 4px; }
+.photo .pcell--capture { padding: 0 6px 0 2px; }
+.photo .pgrow { flex-grow: 1; flex-shrink: 1; }
+.photo .pcell__icon { width: 20px; height: 20px; color: var(--head); -unity-text-outline-color: var(--head); }
+
+/* a control's small label, and its value in mono */
+.photo .pl { font-size: 12px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.photo .pv { font-size: 12.5px; color: var(--text); -unity-text-outline-color: var(--text); white-space: nowrap; }
+.photo .pv--time { width: 66px; }
+.photo .pv--lens { width: 28px; -unity-text-align: middle-right; }
+
+/* a slider: a thin track filled to the value, a square thumb (.rng) */
+.photo .prange { margin: 0; padding: 0; flex-shrink: 0; }
+.photo .prange--time { width: 150px; }
+.photo .prange--lens { width: 80px; }
+.photo .prange .unity-base-slider__drag-container { height: 20px; }
+.photo .prange .unity-base-slider__tracker { height: 4px; margin-top: -2px; border-width: 0; border-radius: 2px; background-color: var(--hair2); }
+.photo .prange .unity-base-slider__fill { height: 4px; margin-top: -2px; border-radius: 2px; background-color: var(--text); }
+.photo .prange .unity-base-slider__dragger { width: 12px; height: 18px; margin-top: -9px; margin-left: -6px; border-width: 1px; border-color: var(--hair2); border-radius: 3px; background-color: var(--on-bg); }
+.photo .prange .unity-base-slider__dragger-border { display: none; }
+
+/* a stepper: ‹ value › at 28 px, the value sized by its words (.step) */
+.photo .pstep { height: 28px; }
+.photo .pstep__b { width: 24px; }
+.photo .pstep__v { flex-grow: 0; padding: 0 6px; white-space: nowrap; }
+.photo .pstep__v--grade { min-width: 74px; }
+
+/* a switch's options sized by their words (.seg span) */
+.photo .pseg > .mp-seg__opt { flex-grow: 0; flex-basis: auto; padding: 5px 9px 4px 9px; }
+
+/* the hide and exit buttons (.ib) */
+.photo .pib {
+    width: 34px; height: 34px;
+    margin: 0; padding: 0;
+    border-width: 0; border-radius: 5px;
+    background-color: rgba(0, 0, 0, 0);
+    align-items: center; justify-content: center;
+    color: var(--text); -unity-text-outline-color: var(--text);
+}
+.photo .pib:hover { background-color: var(--hover); }
+.photo .pib__icon { width: 20px; height: 20px; }
+.photo .pib--x { font-size: 14px; color: var(--soft); -unity-text-outline-color: var(--soft); -unity-text-align: middle-center; }
+.photo .pib--x:hover { color: var(--strong); -unity-text-outline-color: var(--strong); }
+
+/* Capture: the one filled button, its key after the word (.go) */
+.photo .pgo { height: 32px; flex-direction: row; align-items: center; padding: 0 12px; }
+.photo .pgo__text { font-size: 13px; -unity-font-style: bold; color: #ffffff; -unity-text-outline-color: #ffffff; }
+.photo .pgo__key { margin-left: 10px; font-size: 13px; color: rgba(255, 255, 255, 0.8); -unity-text-outline-color: rgba(255, 255, 255, 0.8); }
+
+/* the capture's flash: white over the picture for a moment, then gone */
+.photo .pflash { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: rgb(255, 255, 255); opacity: 0; transition-property: opacity; transition-duration: 0.35s; transition-timing-function: ease-out; }
+.photo .pflash--on { opacity: 0.55; transition-duration: 0s; }
+
+/* a toast at the top centre, as the HUD's notifications (.log div): a coloured stripe, then the line */
+.photo .ptoast {
+    position: absolute;
+    top: 10px;
+    align-self: center;
+    flex-direction: row;
+    align-items: stretch;
+    background-color: var(--panel);
+    border-width: 1px;
+    border-color: var(--hair);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.photo .ptoast__stripe { width: 3px; background-color: var(--pos); }
+.photo .ptoast--error .ptoast__stripe { background-color: var(--neg); }
+.photo .ptoast__text { padding: 8px 12px 8px 10px; font-size: 13px; color: var(--text); -unity-text-outline-color: var(--text); white-space: nowrap; }

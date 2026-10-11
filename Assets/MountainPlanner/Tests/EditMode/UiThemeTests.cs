@@ -18,6 +18,7 @@ namespace MountainPlanner.Tests
             "Assets/MountainPlanner/Art/UI/Hud.uss",
             "Assets/MountainPlanner/Art/UI/SitePicker.uss",
             "Assets/MountainPlanner/Art/UI/Flow/Resources/MountainPlannerFlow/Flow.uss",
+            "Assets/MountainPlanner/Art/UI/Photo/Resources/MountainPlannerPhoto/Photo.uss",
             ThemeFolder + "Base.uss",
         };
 
