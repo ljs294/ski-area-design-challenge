@@ -17,6 +17,11 @@ set "BENCH=%~dp0test-results\benchmark"
 rem Benchmarks and captures run in a 1920x1080 window for that run only (-benchres); never pass -screen-*,
 rem which Unity saves as the player's window mode.
 set "SCREEN=-benchres 1920x1080"
+rem Benchmarks take the GPU alone (measure lane); screenshot and UI captures share it (render lane, 2 at once).
+rem tools\gpu\gpu.ps1 waits for a free slot, so these never collide with a thread's run; Ctrl+C cancels the wait.
+set "GPURUN=powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\gpu\gpu.ps1" run -Name owner"
+set "MEASURE=%GPURUN% -Lane measure --"
+set "RENDER=%GPURUN% -Lane render --"
 set "LIFTLAB=%~dp0Builds\LiftLab\LiftLab.exe"
 set "PICKER=%~dp0Builds\PickerLab\PickerLab.exe"
 set "PICKED=%LOCALAPPDATA%\SkiAreaDesignChallenge\picked-site.args"
@@ -391,7 +396,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%~dp0test-results\benchmark" mkdir "%~dp0test-results\benchmark"
 echo Running the forest benchmark on Crystal Mountain (the game flies 5 views, then closes by itself)...
-"%GAME%" %SCREEN% -site "Crystal Mountain" -benchmark "%~dp0test-results\benchmark\crystal.json" -logFile "%~dp0test-results\benchmark\crystal.log" <nul
+%MEASURE% "%GAME%" %SCREEN% -site "Crystal Mountain" -benchmark "%~dp0test-results\benchmark\crystal.json" -logFile "%~dp0test-results\benchmark\crystal.log" <nul
 findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\crystal.log"
 start "" "%~dp0test-results\benchmark"
 goto done
@@ -420,7 +425,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%~dp0test-results\benchmark" mkdir "%~dp0test-results\benchmark"
 echo Running the forest benchmark on Sugarloaf (the game flies its views, then closes by itself)...
-"%GAME%" %SCREEN% -site "Sugarloaf" -benchmark "%~dp0test-results\benchmark\sugarloaf.json" -logFile "%~dp0test-results\benchmark\sugarloaf.log" <nul
+%MEASURE% "%GAME%" %SCREEN% -site "Sugarloaf" -benchmark "%~dp0test-results\benchmark\sugarloaf.json" -logFile "%~dp0test-results\benchmark\sugarloaf.log" <nul
 findstr /l /c:"[Benchmark]" "%~dp0test-results\benchmark\sugarloaf.log"
 start "" "%~dp0test-results\benchmark"
 goto done
@@ -461,7 +466,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%~dp0test-results\forest-look" mkdir "%~dp0test-results\forest-look"
 echo Capturing the overhead lineup (the game window opens and closes by itself, about a minute)...
-"%GAME%" -quality high -lineup "%~dp0test-results\forest-look\l" -lineupset top -logFile "%~dp0test-results\forest-look\lineup.log" <nul
+%RENDER% "%GAME%" -quality high -lineup "%~dp0test-results\forest-look\l" -lineupset top -logFile "%~dp0test-results\forest-look\lineup.log" <nul
 start "" "%~dp0test-results\forest-look"
 echo Starting the game above the Jackson Hole forest. Shift+1: snow off and on; wheel: zoom; drag: orbit.
 start "" "%GAME%" -quality high -view 350,-150,600,200,80
@@ -472,7 +477,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%~dp0test-results\lineup" mkdir "%~dp0test-results\lineup"
 echo Capturing the tree lineup (the game window opens and closes by itself)...
-"%GAME%" %SCREEN% -lineup "%~dp0test-results\lineup\lineup" -logFile "%~dp0test-results\lineup\lineup.log" <nul
+%RENDER% "%GAME%" %SCREEN% -lineup "%~dp0test-results\lineup\lineup" -logFile "%~dp0test-results\lineup\lineup.log" <nul
 start "" "%~dp0test-results\lineup"
 goto done
 
@@ -481,7 +486,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%BENCH%" mkdir "%BENCH%"
 echo Running the benchmark at High (the game flies the path once to warm up, twice to measure, then closes by itself)...
-"%GAME%" %SCREEN% -quality high -benchmark "%BENCH%\bench.json" -logFile "%BENCH%\bench.log" <nul
+%MEASURE% "%GAME%" %SCREEN% -quality high -benchmark "%BENCH%\bench.json" -logFile "%BENCH%\bench.log" <nul
 findstr /l /c:"[Benchmark]" "%BENCH%\bench.log"
 start "" "%BENCH%"
 goto done
@@ -500,12 +505,12 @@ if not exist "%GAMEDEV%" goto done
 if not exist "%BENCH%" mkdir "%BENCH%"
 for %%Q in (high medium) do (
   echo Benchmark at %%Q, the release game ^(about 5 minutes^)...
-  "%GAME%" %SCREEN% -quality %%Q -benchmark "%BENCH%\%%Q.json" -logFile "%BENCH%\%%Q.log" <nul
+  %MEASURE% "%GAME%" %SCREEN% -quality %%Q -benchmark "%BENCH%\%%Q.json" -logFile "%BENCH%\%%Q.log" <nul
   echo Benchmark at %%Q, the Development game: garbage and memory ^(about 3 minutes^)...
-  "%GAMEDEV%" %SCREEN% -quality %%Q -laps 1 -benchmark "%BENCH%\%%Q-dev.json" -logFile "%BENCH%\%%Q-dev.log" <nul
+  %MEASURE% "%GAMEDEV%" %SCREEN% -quality %%Q -laps 1 -benchmark "%BENCH%\%%Q-dev.json" -logFile "%BENCH%\%%Q-dev.log" <nul
 )
 echo Benchmark at high with the HUD on, the Development game ^(about 3 minutes^)...
-"%GAMEDEV%" %SCREEN% -quality high -laps 1 -withhud -benchmark "%BENCH%\high-dev-hud.json" -logFile "%BENCH%\high-dev-hud.log" <nul
+%MEASURE% "%GAMEDEV%" %SCREEN% -quality high -laps 1 -withhud -benchmark "%BENCH%\high-dev-hud.json" -logFile "%BENCH%\high-dev-hud.log" <nul
 echo.
 for %%R in (high high-dev high-dev-hud medium medium-dev) do findstr /l /c:" at 1920x1080" "%BENCH%\%%R.log"
 echo.
@@ -521,7 +526,7 @@ if not exist "%BENCH%" mkdir "%BENCH%"
 set "QUALITY=high"
 set /p "QUALITY=Quality preset (low, medium, high or ultra; Enter for high): "
 echo Benchmark at %QUALITY% (about 4 minutes)...
-"%GAME%" %SCREEN% -quality %QUALITY% -benchmark "%BENCH%\%QUALITY%.json" -logFile "%BENCH%\%QUALITY%.log" <nul
+%MEASURE% "%GAME%" %SCREEN% -quality %QUALITY% -benchmark "%BENCH%\%QUALITY%.json" -logFile "%BENCH%\%QUALITY%.log" <nul
 findstr /l /c:"[Benchmark]" "%BENCH%\%QUALITY%.log"
 start "" "%BENCH%"
 goto done
@@ -532,7 +537,7 @@ if not exist "%GAME%" goto done
 set "UICAP=%~dp0test-results\ui-captures"
 if exist "%UICAP%" rmdir /s /q "%UICAP%"
 echo Capturing every screen (about 15 minutes; the window shows the title while it works)...
-"%GAME%" -uicapture "%UICAP%" -logFile "%~dp0test-results\ui-captures.log" <nul
+%RENDER% "%GAME%" -uicapture "%UICAP%" -logFile "%~dp0test-results\ui-captures.log" <nul
 type "%UICAP%\report.txt"
 start "" "%UICAP%"
 goto done
@@ -543,7 +548,7 @@ if not exist "%GAME%" goto done
 set "UICAP=%~dp0test-results\settings-captures"
 if exist "%UICAP%" rmdir /s /q "%UICAP%"
 echo Capturing every Settings page (the window shows the title while it works)...
-"%GAME%" -uicapture "%UICAP%" -uionly s8-settings,s8-settings-units,s8-settings-graphics,s8-settings-display,s8-settings-controls,s8-settings-data,s8-settings-game -uisizes 1920x1080,2560x1080,3440x1440 -logFile "%~dp0test-results\settings-captures.log" <nul
+%RENDER% "%GAME%" -uicapture "%UICAP%" -uionly s8-settings,s8-settings-units,s8-settings-graphics,s8-settings-display,s8-settings-controls,s8-settings-data,s8-settings-game -uisizes 1920x1080,2560x1080,3440x1440 -logFile "%~dp0test-results\settings-captures.log" <nul
 type "%UICAP%\report.txt"
 start "" "%UICAP%"
 goto done
@@ -555,7 +560,7 @@ set "UICAP=%~dp0test-results\hud-captures"
 if exist "%UICAP%" rmdir /s /q "%UICAP%"
 set "HUDSTATES=s6-hud,s6-float,s6-menu,s6-layers,s6-slope,s6-exposure,s6-depth,s6-contours,s6-slope-contours,s6-tray-lifts,s6-tray-trails,s6-tray-snow,s6-tray-infra,s6-analysis,s6-analysis-lifts,s6-analysis-weather,s6-analysis-finances,s6-rstats"
 echo Capturing the HUD's states at 1920x1080, 2560x1440 and 3440x1440 (the window shows the title while it works)...
-"%GAME%" -uicapture "%UICAP%" -uionly %HUDSTATES% -uisizes 1920x1080,2560x1440,3440x1440 -hudopacity 100 -logFile "%~dp0test-results\hud-captures.log" <nul
+%RENDER% "%GAME%" -uicapture "%UICAP%" -uionly %HUDSTATES% -uisizes 1920x1080,2560x1440,3440x1440 -hudopacity 100 -logFile "%~dp0test-results\hud-captures.log" <nul
 type "%UICAP%\report.txt"
 echo Measuring the game against the mockup in headless Edge...
 chcp 65001 >nul
