@@ -114,7 +114,7 @@ namespace MountainPlanner.Persistence
             for (int phase = 0; phase < 4; phase++)
             {
                 int[] tiles = plan.PhaseTiles(phase);
-                Parallel.For(0, tiles.Length, () => new ScratchBuffer(bins * bins, ForestPlan.ScratchTrees), (n, _, scratch) =>
+                Parallel.For(0, tiles.Length, WorkerLimits.Options(), () => new ScratchBuffer(bins * bins, ForestPlan.ScratchTrees), (n, _, scratch) =>
                 {
                     var f = inputs;
                     var s = scratch.Value;
@@ -338,7 +338,7 @@ namespace MountainPlanner.Persistence
             plan.Cells = new ForestCell[plan.CellsX * plan.CellsY];
             var cells = plan.Cells;
             int cellsX = plan.CellsX;
-            Parallel.For(0, plan.CellsY, j =>
+            Parallel.For(0, plan.CellsY, WorkerLimits.Options(), j =>
             {
                 for (int i = 0; i < cellsX; i++) cells[j * cellsX + i] = PrepareCell(cellX0 + i, cellY0 + j);
             });
@@ -395,7 +395,7 @@ namespace MountainPlanner.Persistence
             {
                 using var pinned = new ForestPlan.Pinned(plan);
                 var inputs = pinned.Inputs;
-                Parallel.For(0, quotas.Length, t =>
+                Parallel.For(0, quotas.Length, WorkerLimits.Options(), t =>
                 {
                     var f = inputs;
                     quotas[t] = PoissonForest.TileQuota(ref f, t);
@@ -425,7 +425,7 @@ namespace MountainPlanner.Persistence
             var forest = new bool[cols * rows];
             var cells = plan.Cells;
             var heights = _heights;
-            Parallel.For(0, rows, y =>
+            Parallel.For(0, rows, WorkerLimits.Options(), y =>
             {
                 for (int x = 0; x < cols; x++)
                 {
@@ -533,7 +533,7 @@ namespace MountainPlanner.Persistence
             int per = (int)(TileGrid.TileMetres / PoissonForest.TileMetres);
             var keys = tiles.All().ToList();
             var result = new List<PlacedTree>[keys.Count];
-            Parallel.For(0, keys.Count, n =>
+            Parallel.For(0, keys.Count, WorkerLimits.Options(), n =>
             {
                 var key = keys[n];
                 int tx0 = key.Column * per, ty0 = (tiles.Rows - 1 - key.Row) * per;

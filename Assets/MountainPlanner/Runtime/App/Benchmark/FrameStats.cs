@@ -211,6 +211,7 @@ namespace MountainPlanner.App
             public long[] gcEventBytes;
             public long heapGrowthBytes;
             public int gcCollections;
+
         }
     }
 }
