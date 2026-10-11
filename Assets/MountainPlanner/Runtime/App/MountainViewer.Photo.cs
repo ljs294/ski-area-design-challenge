@@ -280,7 +280,7 @@ namespace MountainPlanner.App
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
-                PhotoFailed("Pictures\Ski Area Design Challenge can't be written to. Check that the folder isn't read-only and the disk isn't full, then capture again.");
+                PhotoFailed("Pictures\\Ski Area Design Challenge can't be written to. Check that the folder isn't read-only and the disk isn't full, then capture again.");
                 Debug.LogWarning($"[MountainViewer] Photo folder: {e.Message}");
                 return;
             }
@@ -321,7 +321,7 @@ namespace MountainPlanner.App
                 var e = saving.Exception?.GetBaseException();
                 Debug.LogWarning($"[MountainViewer] Photo not saved: {e?.Message}");
                 PhotoFailed(e is IOException || e is UnauthorizedAccessException
-                    ? "The file couldn't be written to Pictures\Ski Area Design Challenge. Check that the disk isn't full, then capture again."
+                    ? "The file couldn't be written to Pictures\\Ski Area Design Challenge. Check that the disk isn't full, then capture again."
                     : "The picture couldn't be read back from the graphics card. Capture again; at Screen size it needs less memory than 2×.");
                 yield break;
             }
