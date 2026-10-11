@@ -61,8 +61,12 @@
 #title-manage { margin-bottom: 0; }
 /* The name plate: plain sign white with dark letters, like the brand board plates. */
 .sign--plate { background-color: #fbf8f2; border-width: 2px; border-color: #1f1c19; }
-.sign--name { margin-bottom: 26px; min-height: 0; padding: 12px 14px; justify-content: center; }
-.sign-name-text { font-size: 16px; letter-spacing: 1px; -unity-font-style: bold; color: #1f1c19; -unity-text-outline-color: #1f1c19; -unity-text-align: middle-center; }
+.sign--name { margin-bottom: 26px; min-height: 0; padding: 14px 14px 12px; justify-content: center; align-items: center; }
+/* The brand (task P2-03.1): white single-fill vector lockups from tools/brand/export.py, sized to their viewBox and tinted
+   here. The name plate carries the game's logo and name in ink, the studio's name below. */
+.brand { -unity-background-scale-mode: scale-to-fit; flex-shrink: 0; }
+.title-logo { width: 300px; height: 60px; background-image: resource("Brand/game-lockup"); -unity-background-image-tint-color: #1f1c19; }
+.title-studio { width: 96px; height: 16.5px; margin-top: 10px; background-image: resource("Brand/studio-name"); -unity-background-image-tint-color: #1f1c19; }
 .sign-words { flex-grow: 1; margin-left: 14px; }
 .sign-text { font-size: 19px; -unity-font-style: bold; color: var(--sign-face-text); -unity-text-outline-color: var(--sign-face-text); padding: 0; margin: 0; }
 .sign-sub { font-size: 12px; -unity-font-style: normal; color: var(--sign-face-text); -unity-text-outline-color: var(--sign-face-text); opacity: 0.85; padding: 0; margin: 2px 0 0 0; }
@@ -267,7 +271,7 @@
 .credits-body .unity-scroller--vertical .unity-base-slider__dragger { left: 1px; width: 6px; border-width: 0; border-radius: 3px; background-color: var(--hair2); }
 .credits-body .unity-scroller--vertical .unity-base-slider__dragger-border { display: none; }
 .credits-hero { padding: 16px 16px 12px 16px; border-bottom-width: 1px; border-bottom-color: var(--hair); }
-.credits-game { font-size: 19px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); margin: 0; padding: 0; }
+.credits-logo { width: 230px; height: 46px; margin-bottom: 8px; background-image: resource("Brand/game-lockup"); -unity-background-image-tint-color: var(--strong); }
 .credits-by { flex-direction: row; flex-wrap: wrap; margin-top: 3px; }
 .credits-by-text { font-size: 13px; color: var(--muted); -unity-text-outline-color: var(--muted); margin: 0; padding: 0; }
 .credits-studio { font-size: 13px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); margin: 0 4px; padding: 0; }
@@ -346,7 +350,7 @@
     background-color: var(--panel); border-radius: 5px;
 }
 .cover-game { align-items: center; margin-bottom: 14px; }
-.cover-name { margin-bottom: 0; align-self: stretch; }
+.cover-logo { width: 280px; height: 56px; background-image: resource("Brand/game-lockup"); -unity-background-image-tint-color: var(--strong); }
 .cover-text {
     margin: 0 0 8px 0; padding: 0; font-size: 14px; -unity-font-style: bold; -unity-text-align: middle-center;
     color: var(--strong); -unity-text-outline-color: var(--strong);
@@ -391,7 +395,5 @@
 .ld-row--current .ld-name { color: var(--strong); -unity-text-outline-color: var(--strong); -unity-font-style: bold; }
 .ld-row--current .ld-count { color: var(--text); -unity-text-outline-color: var(--text); }
 .cover-studio { align-items: center; margin-top: 14px; padding-top: 12px; border-top-width: 1px; border-color: var(--hair); }
-.cover-studio-name {
-    padding: 0; margin: 0; font-size: 18px; -unity-font-style: bold;
-    color: var(--strong); -unity-text-outline-color: var(--strong);
-}
+/* Alpine Labs, emphasised: its lockup (the A a third peak rising behind the pair) at a size where the tucked A holds. */
+.cover-studio-logo { width: 158px; height: 36px; background-image: resource("Brand/studio-lockup"); -unity-background-image-tint-color: var(--strong); }

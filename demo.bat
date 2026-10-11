@@ -156,6 +156,11 @@ echo   Phase 2, task 07: photo mode and credits (needs a downloaded area; close 
 echo     55 Capture the photo bar (Off, Natural, Miniature, golden hour, Postcard 2x) and Credits in both themes, time five
 echo        2x saves for the hitch check, then play it: P opens photo mode; Space saves to Pictures; the menu has Credits.
 echo.
+echo   Phase 2, task 03.1: the loading screen and the brand (needs 12 once, for the build; close the Unity editor first)
+echo     56 A fresh install with loading details on: the Twin Peaks logos on the loading box, the stage list ticking off,
+echo        then the title's name plate (the game's logo, Alpine Labs below). Details stays on next launch until you hide it.
+echo     57 Re-capture the loading screen's picture of the title view (7680x2160) after the title's look changes
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -228,6 +233,8 @@ if /i "%CHOICE%"=="51" goto forestlook
 if /i "%CHOICE%"=="52" goto firstrun
 if /i "%CHOICE%"=="54" goto killresume
 if /i "%CHOICE%"=="55" goto photocredits
+if /i "%CHOICE%"=="56" goto loadingdetails
+if /i "%CHOICE%"=="57" goto titlestill
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -319,6 +326,27 @@ echo   "Open the demo" is focused: Enter opens it. Load Area lists it as Built i
 echo   Quit the game to see how long the title took to come in.
 start "" /wait "%GAME%" -data "%FIRSTRUN%" -offline
 findstr /c:"[AppFlow] The title's mountain is in" "%USERPROFILE%\AppData\LocalLow\Ski Area Design Challenge\Ski Area Design Challenge\Player.log"
+goto done
+
+:loadingdetails
+rem Task P2-03.1: the fresh install of 52 with the Details list shown (and remembered, so it stays on until hidden).
+if not exist "%~dp0Builds\Windows\SkiAreaDesignChallenge_Data\StreamingAssets\Demo" call :buildplayer
+if not exist "%GAME%" goto done
+if exist "%FIRSTRUN%" rmdir /s /q "%FIRSTRUN%"
+echo Starting the game as a fresh install, offline, with loading details on.
+echo   The loading box shows the game's logo, "Opening Jackson Hole", the bar, each stage as it finishes, and Alpine Labs.
+echo   On the title, the name plate carries the game's logo and name with the studio's name below.
+start "" "%GAME%" -data "%FIRSTRUN%" -offline -loadingdetails on
+goto menu
+
+:titlestill
+rem Task P2-03.1: the loading screen's background is a picture of the title view; any change to the title's look
+rem (lighting, snow, forest, the camera's first view) makes it stale. This writes a new one into the game's resources.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if exist "%FIRSTRUN%" rmdir /s /q "%FIRSTRUN%"
+%RENDER% "%GAME%" -data "%FIRSTRUN%" -offline -quality high -titlestill "%~dp0Assets\MountainPlanner\Art\UI\Flow\Resources\MountainPlannerFlow\TitleStill.jpg"
+echo   Wrote Assets\MountainPlanner\Art\UI\Flow\Resources\MountainPlannerFlow\TitleStill.jpg: rebuild (11) to see it, and commit it.
 goto done
 
 :killresume

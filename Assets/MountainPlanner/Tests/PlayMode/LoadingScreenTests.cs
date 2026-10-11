@@ -96,6 +96,13 @@ namespace MountainPlanner.Tests
             Assert.That(ui.Q<Label>("cover-text").text, Is.EqualTo("Opening Jackson Hole"));
 
             yield return SceneManager.LoadSceneAsync(ViewerScene);
+            // The box carries the brand: the game's lockup and Alpine Labs', as vector images with a real size.
+            foreach (var part in new[] { "cover-logo", "cover-studio-logo" })
+            {
+                var logo = ui.Q(part);
+                Assert.That(logo.resolvedStyle.backgroundImage.vectorImage, Is.Not.Null, part);
+                Assert.That(logo.resolvedStyle.width, Is.GreaterThan(100f), part);
+            }
             MountainViewer viewer = null;
             UnityEngine.Camera lens = null;
             int warm = 0;

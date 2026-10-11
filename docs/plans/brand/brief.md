@@ -1,5 +1,9 @@
 # Brand brief: Alpine Labs and Ski Area Design Challenge
 
+> **Set aside (2026-10-11).** This round's concepts were judged "so bland" beside the earlier designs, and the owner
+> chose Twin Peaks (docs/brand/README.md). Kept for its lessons: the bans, the narrow palette and the literal-read tests
+> pushed every designer towards safe abstraction.
+
 Task P2-03.1, 2026-10-10. The owner asked for "a completely new design concept for both Alpine Labs and Ski Area
 Design Challenge … distinct brands that are both simplistic but are amazing", chosen by adversarial review.
 Everything on the earlier board (`logo-options.html`: trail signs, peaks, twin peaks, peak-shaped letters) is

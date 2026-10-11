@@ -1,7 +1,7 @@
 # Brand tools
 
-Tools for designing and checking the Alpine Labs and Ski Area Design Challenge marks (task P2-03.1). The brief is
-`docs/plans/brand/brief.md`; the concept board is `docs/plans/brand/brand-concepts.html`.
+Tools for designing, checking and exporting the Alpine Labs and Ski Area Design Challenge marks (task P2-03.1). The
+chosen brand is Twin Peaks: see `docs/brand/README.md`.
 
 Everything here runs with Node 22 and Microsoft Edge, and needs no packages. The concept generators also need Python
 with shapely.
@@ -12,7 +12,8 @@ with shapely.
 | `render.mjs <page> <prefix>` | Renders a board to `<prefix>-full.jpg` plus one 1080-wide still per `<section>`, for review on a phone. |
 | `checks.mjs <svg...> [--brand studio\|game] [--icon]` | The brief's mechanical tests: T2 squint (IoU of a 4% blur ≥ 0.80, same parts and holes), T3 one colour (no strokes, opacity, gradients, masks or text), T4 small sizes (no ink or gap under 1 px at 32, or at an icon's own 16/24), and the colour rules (no red, orange or amber; game colours only; the studio accent at least 15 ΔE2000 from every Trailhead token). Writes `<name>.checks.json` and a `<name>-proof.jpg` strip. |
 | `skyline.py <package> <out.json>` | The demo mountain's skyline from the title camera views, read from the bundled package's height grids. |
-| `concepts/<id>/` | One folder per concept on the board: `concept.json` and a `make.py` that writes its SVGs. |
+| `twinpeaks.py` | The chosen brand's geometry (Twin Peaks): the marks, the trail and lift, the peak As. Needs shapely. |
+| `export.py` | Writes the masters (`docs/brand/masters/`, ink) and the game's white layers (`Art/UI/Brand/Resources/Brand/`), with the wordmarks outlined from `fonts/Overpass[wght].ttf` (OFL; `fonts/OFL.txt`). Needs fontTools and shapely. |
 
 Scratch output goes in `test-results/brand/`, which git ignores. Don't commit PNGs; they go to Git LFS.
 
