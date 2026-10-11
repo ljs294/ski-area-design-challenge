@@ -430,6 +430,9 @@ namespace MountainPlanner.Tests
             public int Runs;
             public bool Block = true;
             public string Fail;
+            /// <summary>Thrown once instead of finishing (task P2-06), then cleared.</summary>
+            public Exception Throw;
+            public double Overall = 0.4;
             public readonly ManualResetEventSlim Reached = new ManualResetEventSlim();
 
             public async Task<string> DownloadAsync(PendingDownload d, string build, IProgress<DownloadStatus> progress, CancellationToken ct)
@@ -437,10 +440,13 @@ namespace MountainPlanner.Tests
                 Interlocked.Increment(ref Runs);
                 var stages = new[] { "Terrain", "Forest", "Building" };
                 Directory.CreateDirectory(build);
-                progress.Report(new DownloadStatus { Name = d.Name, Stages = stages, StageIndex = 2, StageCount = 3, Stage = "Forest", Overall = 0.4 });
+                progress.Report(new DownloadStatus { Name = d.Name, Stages = stages, StageIndex = 2, StageCount = 3, Stage = "Forest", Overall = Overall });
                 Reached.Set();
                 while (Block) { ct.ThrowIfCancellationRequested(); await Task.Delay(5, ct); }
                 if (Fail != null) throw new IOException(Fail);
+                var once = Throw;
+                Throw = null;
+                if (once != null) throw once;
                 string target = Path.Combine(ResortLibrary.ResortsFolder(_rootOf(build)), "pkg-" + d.Id);
                 Directory.CreateDirectory(Path.GetDirectoryName(target));
                 Directory.Move(build, target);
@@ -517,16 +523,201 @@ namespace MountainPlanner.Tests
         [Test]
         public void AFailureKeepsTheRecordForRetry()
         {
-            var fake = new Fake { Block = false, Fail = "The server said 503" };
+            var fake = new Fake { Block = false, Throw = new IOException("The request failed after 4 attempts.", new System.Net.Http.HttpRequestException("Response status code does not indicate success: 404 (Not Found).")) };
             var service = new DownloadService(_root, fake, () => "now");
-            string failed = null;
+            DownloadProblem failed = null;
             service.Failed += m => failed = m;
             service.Start(Site());
             PumpUntil(service, () => failed != null);
-            Assert.That(failed, Is.EqualTo("The server said 503"));
+            Assert.That(failed.Kind, Is.EqualTo(ProblemKind.ServerError));
+            Assert.That(service.View.Detail, Does.Not.Contain("404"), "S11: no raw message on screen");
+            Assert.That(service.View.Error, Does.Contain("404"), "the raw one is kept for the log");
             Assert.That(service.View.Phase, Is.EqualTo(DownloadPhase.Failed));
             Assert.That(service.Current, Is.Not.Null, "Retry restarts the same request");
             Assert.That(PendingDownloads.List(_root), Has.Count.EqualTo(1));
+        }
+
+        // ---------- task P2-06 ----------
+
+        [Test]
+        public void ALostConnectionWaitsAndTriesAgainByItself()
+        {
+            var fake = new Fake { Block = false, Throw = new IOException("The request failed after 4 attempts.", new System.Net.Http.HttpRequestException("No such host", new System.Net.Sockets.SocketException(11001))) };
+            var service = new DownloadService(_root, fake, () => "now");
+            DownloadProblem waited = null, failed = null;
+            string finished = null;
+            service.WaitStarted += p => waited = p;
+            service.Failed += p => failed = p;
+            service.Finished += f => finished = f;
+            OfflineState.Reset();
+            try
+            {
+                service.Start(Site());
+                PumpUntil(service, () => waited != null);
+                Assert.That(waited.Kind, Is.EqualTo(ProblemKind.NoConnection));
+                Assert.That(failed, Is.Null, "a lost connection is not a failure");
+                Assert.That(service.Waiting && service.Active, Is.True);
+                Assert.That(service.View.Phase, Is.EqualTo(DownloadPhase.Waiting));
+                Assert.That(service.View.Pill, Does.Contain("waiting for connection"));
+                Assert.That(OfflineState.Mode, Is.EqualTo(OfflineMode.NoConnection));
+                Assert.That(service.Start(DownloadService.Request(
+                    PickedSite.Create("Sugarloaf", Albers6350.Forward(new GeoPoint(45.05, -70.31)), 2, false, default), "now")), Is.False, "the slot stays taken");
+
+                service.Pump(DownloadService.RetrySeconds - 1);
+                Assert.That(fake.Runs, Is.EqualTo(1), "not yet");
+                Assert.That(service.View.Detail, Does.Contain("1 s"));
+                service.Pump(1.5);   // the retry: this time it goes through
+                PumpUntil(service, () => finished != null);
+                Assert.That(fake.Runs, Is.EqualTo(2));
+                Assert.That(PendingDownloads.List(_root), Is.Empty);
+            }
+            finally { OfflineState.Reset(); }
+        }
+
+        [Test]
+        public void OfflineModeWaitsUntilItIsTurnedOff()
+        {
+            var fake = new Fake { Block = false, Throw = new MountainPlanner.Acquisition.IO.NetworkDisabledException() };
+            var service = new DownloadService(_root, fake, () => "now");
+            DownloadProblem waited = null;
+            string finished = null;
+            service.WaitStarted += p => waited = p;
+            service.Finished += f => finished = f;
+            service.Start(Site());
+            PumpUntil(service, () => waited != null);
+            Assert.That(waited.Kind, Is.EqualTo(ProblemKind.OfflineMode));
+            Assert.That(service.View.Pill, Does.Contain("offline mode"));
+            service.Pump(DownloadService.RetrySeconds * 4);
+            Assert.That(fake.Runs, Is.EqualTo(1), "no retries while offline mode is on");
+            service.TryNow();   // offline mode turned off
+            PumpUntil(service, () => finished != null);
+            Assert.That(fake.Runs, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void CancellingWhileWaitingKeepsOrDiscards()
+        {
+            var fake = new Fake { Block = false, Throw = new MountainPlanner.Acquisition.IO.NetworkDisabledException() };
+            var service = new DownloadService(_root, fake, () => "now");
+            bool? kept = null;
+            service.Stopped += k => kept = k;
+            service.Start(Site());
+            PumpUntil(service, () => service.Waiting);
+            service.Cancel(keep: true);
+            Assert.That(kept, Is.True);
+            Assert.That(service.Active, Is.False);
+            Assert.That(PendingDownloads.List(_root), Has.Count.EqualTo(1));
+        }
+
+        [Test]
+        public void AResumedDownloadShowsWhereItStoppedAndNeverGoesBack()
+        {
+            var fake = new Fake { Overall = 0.1 };
+            var service = new DownloadService(_root, fake, () => "now");
+            var d = Site();
+            d.LastOverall = 0.62;
+            d.LastStage = "Ground cover";
+            service.Start(d);
+            Assert.That(service.View.Percent, Is.EqualTo("62%"), "at once, before the pipeline reports");
+            Assert.That(service.View.Detail, Does.Contain("Resuming at Ground cover"));
+            Assert.That(fake.Reached.Wait(5000), Is.True);
+            PumpUntil(service, () => service.View.StageNames.Count == 3);
+            Assert.That(service.View.Fraction, Is.EqualTo(0.62f).Within(1e-6), "reading back what arrived (10%) doesn't pull the bar back");
+            Assert.That(service.View.Detail, Does.StartWith("Resuming"));
+
+            // The record keeps the furthest point reached, so a second kill loses nothing.
+            service.Pump(DownloadService.RecordEverySeconds);
+            fake.Block = false;
+            Assert.That(PendingDownloads.List(_root)[0].LastOverall, Is.EqualTo(0.62).Within(1e-9));
+            service.Cancel(keep: true);
+        }
+
+        /// <summary>Reports once, then waits on a semaphore: its worker allocates nothing while the test measures.</summary>
+        sealed class Quiet : ISiteDownloader
+        {
+            public readonly SemaphoreSlim Gate = new SemaphoreSlim(0);
+            public readonly ManualResetEventSlim Reported = new ManualResetEventSlim();
+
+            public async Task<string> DownloadAsync(PendingDownload d, string build, IProgress<DownloadStatus> progress, CancellationToken ct)
+            {
+                progress.Report(new DownloadStatus { Name = d.Name, Stages = new[] { "Terrain", "Forest" }, StageIndex = 1, StageCount = 2, Stage = "Terrain", Overall = 0.2 });
+                Reported.Set();
+                await Gate.WaitAsync(ct);
+                throw new OperationCanceledException();
+            }
+        }
+
+        [Test]
+        public void PumpingWithoutNewsAllocatesNothing()
+        {
+            // Unity's runtime has no per-thread allocation counter (GC.GetAllocatedBytesForCurrentThread is always 0
+            // there), so this measures the whole heap, with a worker that allocates nothing while it waits.
+            var quiet = new Quiet();
+            var service = new DownloadService(_root, quiet, () => "now");
+            service.Start(Site());
+            Assert.That(quiet.Reported.Wait(5000), Is.True);
+            PumpUntil(service, () => service.View.StageNames.Count == 2);
+            for (int i = 0; i < 10; i++) service.Pump(0.001);   // warm
+            long before = GC.GetTotalMemory(false);
+            for (int i = 0; i < 300; i++) service.Pump(0.001);
+            long grew = GC.GetTotalMemory(false) - before;
+            var probe = new byte[64 * 1024];
+            long probed = GC.GetTotalMemory(false) - before;
+            GC.KeepAlive(probe);
+            quiet.Gate.Release();
+            PumpUntil(service, () => !service.Active);
+            Assert.That(probed, Is.GreaterThanOrEqualTo(64 * 1024), "the measure sees an allocation");
+            Assert.That(grew, Is.LessThanOrEqualTo(0), "300 frames with no new snapshot allocate nothing");
+        }
+
+        [Test]
+        public void FailuresAreSortedIntoWhatThePlayerIsTold()
+        {
+            Assert.That(DownloadErrors.Classify(new MountainPlanner.Acquisition.IO.NetworkDisabledException()), Is.EqualTo(ProblemKind.OfflineMode));
+            Assert.That(DownloadErrors.Classify(new InvalidOperationException("OpenStreetMap (Overpass) is unavailable.",
+                new IOException("The request failed after 4 attempts.", new System.Net.Http.HttpRequestException("x", new IOException("reset"))))), Is.EqualTo(ProblemKind.NoConnection));
+            Assert.That(DownloadErrors.Classify(new IOException("timeout", new TaskCanceledException())), Is.EqualTo(ProblemKind.NoConnection));
+            Assert.That(DownloadErrors.Classify(new IOException("There is not enough space on the disk.", unchecked((int)0x80070070))), Is.EqualTo(ProblemKind.DiskFull));
+            Assert.That(DownloadErrors.Classify(new UnauthorizedAccessException("denied")), Is.EqualTo(ProblemKind.AccessDenied));
+            Assert.That(DownloadErrors.Classify(new InvalidDataException("Not a TIFF file")), Is.EqualTo(ProblemKind.ServerError));
+            Assert.That(DownloadErrors.Classify(new NullReferenceException()), Is.EqualTo(ProblemKind.Unknown));
+            // What USGS's gateway said on 2026-10-08, mid-download: busy, not broken.
+            Assert.That(DownloadErrors.Classify(new IOException("The request failed after 4 attempts.", new System.Net.Http.HttpRequestException("502 (Bad Gateway)"))), Is.EqualTo(ProblemKind.ServiceBusy));
+            Assert.That(DownloadProblem.Of(ProblemKind.ServiceBusy).Waits, Is.True);
+            foreach (ProblemKind k in Enum.GetValues(typeof(ProblemKind)))
+            {
+                var p = DownloadProblem.Of(k, 240_000_000);
+                Assert.That(p.Title, Is.Not.Empty);
+                Assert.That(p.Text, Does.Not.Contain("Exception"));
+            }
+        }
+
+        [Test]
+        public void TheOfflineStateTellsTheSettingFromTheCable()
+        {
+            OfflineState.Reset();
+            int changes = 0;
+            Action count = () => changes++;
+            OfflineState.Changed += count;
+            try
+            {
+                Assert.That(OfflineState.IsOffline, Is.False);
+                Assert.That(OfflineState.Describe(), Is.Empty);
+                OfflineState.ReportConnection(false);
+                Assert.That(OfflineState.Mode, Is.EqualTo(OfflineMode.NoConnection));
+                OfflineState.SetSetting(true);
+                Assert.That(OfflineState.Mode, Is.EqualTo(OfflineMode.Setting), "the setting wins");
+                OfflineState.ReportConnection(false);   // no change
+                OfflineState.SetSetting(false);
+                OfflineState.ReportConnection(true);
+                Assert.That(OfflineState.Mode, Is.EqualTo(OfflineMode.None));
+                Assert.That(changes, Is.EqualTo(4));
+            }
+            finally
+            {
+                OfflineState.Changed -= count;
+                OfflineState.Reset();
+            }
         }
     }
 }

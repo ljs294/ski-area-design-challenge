@@ -65,9 +65,9 @@ namespace MountainPlanner.UI.Flow
             ApplyDetails();
             ApplyCoverOpacity();
             // Nothing underneath takes a key while the box is up: Enter can't open an area that isn't in yet.
-            _root.RegisterCallback<KeyDownEvent>(e => { if (CoverUp) e.StopImmediatePropagation(); }, TrickleDown.TrickleDown);
-            _root.RegisterCallback<NavigationSubmitEvent>(e => { if (CoverUp) e.StopImmediatePropagation(); }, TrickleDown.TrickleDown);
-            _root.RegisterCallback<NavigationMoveEvent>(e => { if (CoverUp) e.StopImmediatePropagation(); }, TrickleDown.TrickleDown);
+            _root.RegisterCallback<KeyDownEvent>(e => { if (CoverUp && !DialogOverCover) e.StopImmediatePropagation(); }, TrickleDown.TrickleDown);
+            _root.RegisterCallback<NavigationSubmitEvent>(e => { if (CoverUp && !DialogOverCover) e.StopImmediatePropagation(); }, TrickleDown.TrickleDown);
+            _root.RegisterCallback<NavigationMoveEvent>(e => { if (CoverUp && !DialogOverCover) e.StopImmediatePropagation(); }, TrickleDown.TrickleDown);
         }
 
         void UnbindCover()

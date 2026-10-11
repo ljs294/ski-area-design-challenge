@@ -51,6 +51,9 @@ namespace MountainPlanner.Acquisition
         public const string StageBuild = "Building";
         public const string StagePrepare = "Preparing terrain";
 
+        /// <summary>The manifest's Tool. Change it whenever the package this pipeline writes changes, so a resumed download never reuses an older build.</summary>
+        public const string ToolName = "MountainPlanner.Acquisition 0.1";
+
         public const double CoverCellMetres = 10;
         public const double SpeciesCellMetres = 30;
 
@@ -67,6 +70,19 @@ namespace MountainPlanner.Acquisition
             var meter = new TransferMeter();
             using (var tracker = new ProgressTracker(progress, meter))
             {
+                // A download killed while preparing (or just after building) already has its package: only Preparing is left (task P2-06).
+                var built = FinishedBuild(request, packageFolder);
+                if (built != null)
+                {
+                    var grid = TileGrid.For(site);
+                    double prepare = grid.All().Sum(k => (double)grid.Resolution(k) * grid.Resolution(k)) * 0.4;
+                    foreach (string stage in AllStages) tracker.DefineStage(stage, stage == StagePrepare ? prepare : prepare * ResumedShare);
+                    tracker.BeginStage(StagePrepare);
+                    if (!TerrainCache.IsCurrent(packageFolder, built)) TerrainCache.Build(packageFolder, built, new TileProgress(tracker), ct);
+                    tracker.Finish();
+                    return built;
+                }
+
                 var s1m = new S1mTiles(_cache, meter);
                 var assembler = new HeightAssembler(s1m, new Dep3Service(_cache, meter), meter);
                 var covers = new CoverAssembler(new CanopyTiles(_cache, meter), new WorldCoverTiles(_cache, meter), new BigmapService(_cache, meter), meter);
@@ -76,7 +92,7 @@ namespace MountainPlanner.Acquisition
                     (int)Math.Ceiling(ringBox.Width / SpeciesCellMetres), (int)Math.Ceiling(ringBox.Height / SpeciesCellMetres));
 
                 // Plan first, so the overall bar and time remaining are honest from the start.
-                foreach (string stage in new[] { StageCore, StageRing, StageForest, StageCover, StageSpecies, StageOsm, StageBuild, StagePrepare }) tracker.DefineStage(stage, 1);
+                foreach (string stage in AllStages) tracker.DefineStage(stage, 1);
                 tracker.BeginStage(StageCore);
                 tracker.BeginStep("planning the download", 1, 1, () => 0.5);
                 var corePlan = await assembler.PlanAsync(site.CoreGrid, 0, ct).ConfigureAwait(false);
@@ -125,6 +141,30 @@ namespace MountainPlanner.Acquisition
             }
         }
 
+        /// <summary>Every stage, in order.</summary>
+        public static readonly string[] AllStages = { StageCore, StageRing, StageForest, StageCover, StageSpecies, StageOsm, StageBuild, StagePrepare };
+
+        /// <summary>When a resumed download skips straight to Preparing, each skipped stage weighs this much of Preparing (the bar starts near the end).</summary>
+        const double ResumedShare = 3.0 / 7;
+
+        /// <summary>
+        /// The package already built in <paramref name="packageFolder"/> for this same request, or null. The manifest is
+        /// written last, and its id hashes every layer, so a sound manifest from this pipeline for this name and square
+        /// means every stage up to Building finished; a half-written, damaged or older one is ignored and the download
+        /// runs as usual.
+        /// </summary>
+        public static PackageManifest? FinishedBuild(SiteRequest request, string packageFolder)
+        {
+            if (!File.Exists(Path.Combine(packageFolder, ResortPackage.ManifestFile))) return null;
+            PackageManifest m;
+            try { m = ResortPackage.ReadManifest(packageFolder); }
+            catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException || e is Newtonsoft.Json.JsonException) { return null; }
+            var site = SiteSquare.Create(request.Centre, request.SizeKm);
+            bool same = m.Tool == ToolName && m.Site.Name == request.Name && m.Site.SizeMetres == site.SizeMetres
+                        && Math.Abs(m.Site.CentreX - site.Centre.X) < 0.5 && Math.Abs(m.Site.CentreY - site.Centre.Y) < 0.5;
+            return same && PackageValidator.Validate(packageFolder).Count == 0 ? m : null;
+        }
+
         static PackageManifest Build(SiteRequest request, SiteSquare site, HeightPlan corePlan, HeightResult core,
                                      HeightPlan ringPlan, HeightResult ring, string folder, ProgressTracker tracker)
         {
@@ -144,7 +184,7 @@ namespace MountainPlanner.Acquisition
                     GridConvergenceDegrees = Math.Round(Albers6350.GridConvergence(geo.Longitude), 6),
                 },
                 CreatedUtc = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
-                Tool = "MountainPlanner.Acquisition 0.1",
+                Tool = ToolName,
             };
 
             tracker.BeginStep("compressing heights", 1, 2, () => 0.3);
@@ -232,7 +272,9 @@ namespace MountainPlanner.Acquisition
             {
                 response = await osm.DownloadAsync(site.Ring, ct).ConfigureAwait(false);
             }
-            catch (InvalidOperationException ex) when (!ct.IsCancellationRequested)
+            // Overpass being down is a missing optional layer; the connection going (or offline mode) is not: the
+            // download waits for it rather than build a package without water and roads (task P2-06).
+            catch (InvalidOperationException ex) when (!ct.IsCancellationRequested && !NetworkFailure.IsOfflineMode(ex) && !NetworkFailure.IsNoConnection(ex))
             {
                 return new OsmResult { Failure = ex.Message };
             }

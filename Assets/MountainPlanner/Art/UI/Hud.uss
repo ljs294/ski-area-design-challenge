@@ -136,6 +136,18 @@
 .hud .stat--on, .hud .stat--on:hover { background-color: var(--chip); }
 .hud .stat--dis:hover { background-color: rgba(0, 0, 0, 0); }
 .hud .when.stat { flex-direction: column; height: 40px; padding: 0 5px; }
+/* A background download (task P2-06; the mockup's .stat.dl): label, area and share, a hairline of progress */
+/* The bar's one part that gives way: on a narrow bar (150% at 1080p) the area's name is cut short; the share stays on the label. */
+.hud .cell--download { padding: 0 4px; flex-shrink: 1; min-width: 0; }
+.hud .stat.dl { flex-direction: column; align-items: flex-start; justify-content: center; height: 40px; padding: 0 8px 4px 8px; flex-shrink: 1; min-width: 0; max-width: 260px; }
+.hud .dl__lab { font-size: 10.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); margin: 0 0 2px 0; padding: 0; }
+.hud .dl__v { font-size: 13px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); margin: 0; padding: 0;
+    max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.hud .dl__bar { position: absolute; left: 8px; right: 8px; bottom: 4px; height: 2px; background-color: var(--knock); }
+.hud .dl__fill { height: 2px; width: 0; background-color: var(--go-hover); }
+.hud .dl--wait .dl__fill { background-color: var(--warn); }
+.hud .dl--fail .dl__fill { background-color: var(--neg); }
+.hud .dl--fail .dl__lab { color: var(--neg); -unity-text-outline-color: var(--neg); }
 .hud .cash__icon { width: 22px; height: 22px; margin-right: 6px; color: var(--pos); -unity-text-outline-color: var(--pos); }
 .hud .stat--dis .cash__icon { color: var(--faint); -unity-text-outline-color: var(--faint); }
 .hud .money { align-items: flex-end; }

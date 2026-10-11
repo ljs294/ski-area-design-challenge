@@ -171,6 +171,16 @@ body.solo .frame { border-radius: 0; }
 .hud .save.due { color: var(--strong); }
 .hud .elev { min-width: 64px; text-align: right; }
 .hud .fig.wide { min-width: 156px; }
+/* A background download (task P2-06): what it's doing over the area and share, a hairline of progress under them;
+   click to show the download card. Only there while a download is running, waiting or stopped. */
+.hud .stat.dl { position: relative; display: grid; gap: 2px; height: 40px; align-content: center; justify-items: start; padding: 0 8px 4px; min-width: 150px; }
+.hud .stat.dl .lab { font: 700 10.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .stat.dl .v { font: 700 13px 'Overpass Mono', monospace; color: var(--text); }
+.hud .stat.dl i { position: absolute; left: 8px; right: 8px; bottom: 4px; height: 2px; background: var(--knock); }
+.hud .stat.dl i b { display: block; height: 100%; background: var(--go-hover); }
+.hud .stat.dl.wait i b { background: var(--warn); }
+.hud .stat.dl.fail i b { background: var(--neg); }
+.hud .stat.dl.fail .lab { color: var(--neg); }
 
 /* top right: sketch, map layers and the menu */
 .hud .tr { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; z-index: 5; }
@@ -1372,6 +1382,7 @@ body.solo .frame { border-radius: 0; }
       <div class="cell sep" style="gap:6px"><span class="dayc"><span class="day" id="day" data-ui="bar-day">Day ${S.day}</span><span class="date" id="date" data-ui="bar-date">${dateTxt(S.day)}</span></span><span class="when stat${S.analysis && S.atab === 'weather' ? ' on' : ''}" data-act="aopen" data-v="weather" data-ui="bar-when" title="Analysis › Weather"><span class="v" id="clock" data-ui="bar-clock">${clockText()}</span><span class="wxline" id="wxcell" data-ui="bar-weather" title="${P2 ? 'Weather comes with the snow simulation' : wxTitle(wx)}">${P2 ? nd : wxLine(wx)}</span></span></div>
       <div class="cell sep" style="padding:0 8px"><div class="spd" data-ui="bar-speed">${spd}</div></div>
       <div class="grow"></div>
+      ${S.dl ? `<div class="cell sep" style="padding:0 4px"><span class="stat dl ${S.dl.state}" data-ui="bar-download" title="Show the download"><span class="lab" data-ui="bar-download-label">${S.dl.state === 'fail' ? 'Download stopped' : S.dl.state === 'wait' ? 'Waiting for connection' : 'Downloading'} · ${S.dl.pct}%</span><span class="v" data-ui="bar-download-text">${esc(S.dl.name)}</span><i><b style="width:${S.dl.pct}%"></b></i></span></div>` : ''}
       <div class="cell sep" style="padding:0 4px">${moneyCell}</div>
       <div class="cell sep" style="padding:0 4px;gap:0">${[['lifts', 's-lift', 'Lifts open', String(openLifts())], ['trails', 's-trail', 'Trails open', String(openTrails())], ['guests', 's-skier', 'Guests on the mountain', S.skiers.toLocaleString('en-US')]].map(count).join('')}</div>
       <div class="cell sep" title="Elevation under the pointer${S.info ? `, and the ${INFO[S.info][0].toLowerCase()} there` : ''}"><span class="fig wide" id="elevfig" data-ui="bar-elev"></span></div>
@@ -1743,7 +1754,7 @@ body.solo .frame { border-radius: 0; }
   const variants = document.getElementById('variants');
   const syncVariants = () => variants.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.style === S.statusStyle));
   variants.addEventListener('click', (e) => { const b = e.target.closest('button[data-style]'); if (!b) return; S.statusStyle = b.dataset.style; syncVariants(); render(); });
-  // For screenshots only: #demo=tray,lift,trail,float,menu,layers,analysis,edit opens that state on load
+  // For screenshots only: #demo=tray,lift,trail,float,menu,layers,analysis,edit,dl,dlwait,dlfail opens that state on load
   // (and slope, aspect, depth, contours, metric). p2 shows the game as built in Phase 2, with any of the others.
   const demo = (location.hash.match(/demo=([a-z0-9,]+)/) || [])[1];
   // name=…: the resort's name, so the parity check (tools/ui-parity) lays the bar out with the game's.
@@ -1754,6 +1765,10 @@ body.solo .frame { border-radius: 0; }
     // p2: the game as it is in Phase 2 (task P2-02): 15 January at 10:30, paused, nothing built and nothing to save.
     if (d.includes('p2')) { S.p2 = true; S.day = 137; S.t = 10.5 * 3600; S.paused = true; S.speed = 1; S.saveDue = false; S.lifts = []; S.trails = []; }
     if (d.includes('float')) S.docked = false;
+    // dl, dlwait, dlfail: a background download in the bar (task P2-06).
+    if (d.includes('dl')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'run' };
+    if (d.includes('dlwait')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'wait' };
+    if (d.includes('dlfail')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'fail' };
     if (d.includes('tray') || d.includes('lift') || d.includes('trail') || d.includes('edit')) S.toolbox = true;
     if (d.includes('lift')) { chooseTool('new-lift'); S.draft.pts = [[886, 316], [946, 203]]; }
     if (d.includes('trail')) { S.tab = 'trails'; chooseTool('new-trail'); S.draft.pts = [[962, 330], [1000, 410], [1012, 500], [990, 590]]; S.draft.done = true; S.draft.diff = 'black'; }

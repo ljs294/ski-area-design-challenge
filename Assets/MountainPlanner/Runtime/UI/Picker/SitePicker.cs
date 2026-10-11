@@ -91,6 +91,7 @@ namespace MountainPlanner.UI.Picker
             // A nudge doesn't change the place: keep the name (a search result's is better than a reverse lookup's).
             Map.NudgeRequested += (east, north) => { Model.Nudge(east, north); RequestDetails(suggestName: NameMissing); };
             Map.OfflineChanged += Model.SetOffline;
+            Map.OfflineChanged += offline => Flow.OfflineState.ReportConnection(!offline);   // task P2-06: the game's offline state
 
             // The search field, its results and the size slider use the arrows themselves (Down into the results,
             // Up and Down through them, a size step); everywhere else they move focus (UiFocus).
@@ -114,6 +115,11 @@ namespace MountainPlanner.UI.Picker
             _root.Q<Button>("close").clicked += Cancel;
             _root.Q<Button>("cancel").clicked += Cancel;
             _root.Q<Button>("retry").clicked += Retry;
+            _root.Q<Button>("offline-load").clicked += () => LoadAreaChosen?.Invoke();
+            _pill = _root.Q<Button>("dl-pill");
+            _pillText = _root.Q<Label>("dl-pill-text");
+            _pillFill = _root.Q("dl-pill-fill");
+            _pill.clicked += () => PillChosen?.Invoke();
             _topo.clicked += () => SetImagery(false);
             _imagery.clicked += () => SetImagery(true);
             _coverage.clicked += ToggleCoverage;
@@ -357,9 +363,44 @@ namespace MountainPlanner.UI.Picker
             Cancelled?.Invoke();
         }
 
+        // ---- the download that's running (task P2-06) ----
+
+        Button _pill;
+        Label _pillText;
+        VisualElement _pillFill;
+        string _busy = "";
+
+        /// <summary>Load Area from the offline panel.</summary>
+        public event Action LoadAreaChosen;
+        /// <summary>The footer's download pill was clicked: show the download card.</summary>
+        public event Action PillChosen;
+
+        /// <summary>
+        /// Another download has the one slot: Download is greyed and the note says why (<paramref name="reason"/>), or
+        /// "" when the slot is free.
+        /// </summary>
+        public void SetBusy(string reason)
+        {
+            reason ??= "";
+            if (reason == _busy) return;
+            _busy = reason;
+            if (_download != null) Render();
+        }
+
+        /// <summary>The footer's pill: the running download's line, progress and state class ("" = running), or hidden when <paramref name="text"/> is null.</summary>
+        public void SetPill(string text, float fraction, string stateClass)
+        {
+            if (_pill == null) return;
+            _pill.EnableInClassList("hidden", text == null);
+            if (text == null) return;
+            if (_pillText.text != text) _pillText.text = text;
+            _pillFill.style.width = Length.Percent(fraction * 100f);
+            foreach (string c in new[] { "pill--waiting", "pill--paused", "pill--failed" }) _pill.EnableInClassList(c, c == stateClass);
+        }
+
         void Download()
         {
-            if (!Model.CanDownload) return;
+            if (!Model.CanDownload || _busy.Length > 0) return;
             SiteChosen?.Invoke(Model.Choose());
         }
 
@@ -387,7 +428,7 @@ namespace MountainPlanner.UI.Picker
                 _nameHint.visible = Model.NameIsSuggestion && Model.Name.Length > 0;
                 _offline.EnableInClassList("hidden", !Model.Offline);
                 _search.SetEnabled(!Model.Offline);
-                _download.SetEnabled(Model.CanDownload);
+                _download.SetEnabled(Model.CanDownload && _busy.Length == 0);
                 RenderEstimate();
                 RenderResults();
             }
@@ -427,7 +468,7 @@ namespace MountainPlanner.UI.Picker
             _warning.visible = warning != null;
 
             // What Download is waiting for, in words; nothing once it's ready.
-            _note.text = !placed ? "" : Model.Name.Trim().Length == 0 ? "Name your area to download it." : "";
+            _note.text = _busy.Length > 0 ? _busy : !placed ? "" : Model.Name.Trim().Length == 0 ? "Name your area to download it." : "";
         }
 
         IReadOnlyList<PlaceResult> _shownResults;

@@ -84,9 +84,11 @@ namespace MountainPlanner.Acquisition
         {
             lock (_gate)
             {
-                if (_stage >= 0) _completedWeight += _stages[_stage].Weight;
                 _stage = _stages.FindIndex(s => s.Name == name);
                 if (_stage < 0) throw new InvalidOperationException($"Stage '{name}' was not defined.");
+                // Every stage before this one counts as done, so a resumed download can skip finished stages (task P2-06).
+                _completedWeight = 0;
+                for (int i = 0; i < _stage; i++) _completedWeight += _stages[i].Weight;
                 _step = 0;
                 _stepCount = 0;
                 _verb = "";

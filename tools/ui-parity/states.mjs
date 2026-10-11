@@ -19,6 +19,10 @@ export const STATES = [
   { name: 'analysis-weather', mockup: 'aweather' },
   { name: 'analysis-finances', mockup: 'afinances' },
   { name: 'rstats', mockup: 'rstats' },
+  // Task P2-06: a background download in the bar, running, waiting and stopped.
+  { name: 'dl', mockup: 'dl' },
+  { name: 'dlwait', mockup: 'dlwait' },
+  { name: 'dlfail', mockup: 'dlfail' },
 ];
 
 // Parts whose words are live in the game (the resort's name, the time, the elevation) or placeholders in the mockup:

@@ -87,136 +87,12 @@
             </mp:StageColumn>
         </ui:VisualElement>
 
-        <!-- S4 download card, docked bottom left. -->
-        <ui:VisualElement name="download" class="mp-win download hidden">
-            <ui:VisualElement class="mp-head">
-                <ui:Label name="dl-title" text="" class="mp-title" />
-                <ui:VisualElement class="spacer" />
-                <ui:Button name="dl-minimise" text="–" class="mp-x" tooltip="Minimise (Esc)" />
-            </ui:VisualElement>
-            <ui:VisualElement name="dl-stages" class="dl-stages" />
-            <ui:VisualElement class="dl-bar"><ui:VisualElement name="dl-bar-fill" class="dl-bar-fill" /></ui:VisualElement>
-            <ui:VisualElement class="dl-row">
-                <ui:Label name="dl-percent" text="0%" class="mono strong" />
-                <ui:Label name="dl-left" text="" class="mono muted" />
-            </ui:VisualElement>
-            <ui:Label name="dl-detail" text="" class="dl-detail" />
-            <ui:Label name="dl-transfer" text="" class="mono muted" />
-            <ui:VisualElement name="dl-actions" class="panel-foot">
-                <ui:VisualElement class="spacer" />
-                <ui:Button name="dl-cancel" text="Cancel" class="mp-ghost" />
-            </ui:VisualElement>
-            <ui:VisualElement name="dl-confirm" class="panel-foot hidden">
-                <ui:Label text="Stop the download?" class="strong" />
-                <ui:VisualElement class="spacer" />
-                <ui:Button name="dl-keep" text="Keep for resuming" class="mp-go" />
-                <ui:Button name="dl-discard" text="Discard" class="mp-go mp-go--danger" />
-                <ui:Button name="dl-back" text="Back" class="mp-ghost" />
-            </ui:VisualElement>
-            <ui:VisualElement name="dl-failed" class="panel-foot hidden">
-                <ui:VisualElement class="spacer" />
-                <ui:Button name="dl-retry" text="Retry" class="mp-go" />
-                <ui:Button name="dl-close" text="Close" class="mp-ghost" />
-            </ui:VisualElement>
-        </ui:VisualElement>
-        <ui:Button name="dl-pill" text="" class="pill hidden" tooltip="Show the download" />
-
-        <!-- S5 quality card. -->
-        <ui:VisualElement name="quality" class="modal hidden">
-            <mp:StageColumn>
-                <ui:VisualElement class="mp-win quality-panel">
-                    <ui:VisualElement class="mp-head">
-                        <ui:Label name="qc-title" text="" class="mp-title" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="panel-body">
-                        <ui:Label name="qc-place" text="" class="mono muted" />
-                        <ui:VisualElement name="qc-lines" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="panel-foot">
-                        <ui:Button name="qc-open" text="Open area" class="mp-go" />
-                        <ui:Button name="qc-library" text="Load Area" class="mp-ghost" />
-                    </ui:VisualElement>
-                </ui:VisualElement>
-            </mp:StageColumn>
-        </ui:VisualElement>
-
-        <!-- S8 Settings: the accepted mockup's window (prototypes/ui-layout.html). Categories down the left; each row a
-             label, a line of description and its control. -->
-        <ui:VisualElement name="settings" class="modal hidden">
-            <mp:StageColumn>
-                <ui:VisualElement class="mp-win settings-win">
-                    <ui:VisualElement class="mp-head">
-                        <ui:Label text="Settings" class="mp-title" />
-                        <ui:Label name="settings-resort" text="" class="mp-sub" />
-                        <ui:VisualElement class="mp-spacer" />
-                        <ui:Button name="settings-close" text="✕" class="mp-x" tooltip="Close (Esc)" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="settings-body">
-                        <!-- The categories and their rows are built by SettingsWindow (task P2-05), as the mockup builds them from its SETTINGS table. -->
-                        <ui:VisualElement name="settings-nav" class="mp-nav" />
-                        <ui:ScrollView name="settings-page" class="settings-page" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="mp-foot">
-                        <ui:Button name="settings-defaults" text="Restore defaults" class="mp-ghost" />
-                        <ui:Button name="settings-done" text="Done" class="mp-go settings-done" />
-                    </ui:VisualElement>
-                </ui:VisualElement>
-            </mp:StageColumn>
-        </ui:VisualElement>
-        <ui:VisualElement name="credits" class="modal hidden">
-            <mp:StageColumn>
-                <ui:VisualElement class="mp-win credits-panel">
-                    <ui:VisualElement class="mp-head">
-                        <ui:Label text="Credits" class="mp-title" />
-                        <ui:VisualElement class="spacer" />
-                        <ui:Button name="credits-close" text="✕" class="mp-x" tooltip="Close (Esc)" />
-                    </ui:VisualElement>
-                    <ui:ScrollView name="credits-body" class="panel-body credits-body" />
-                </ui:VisualElement>
-            </mp:StageColumn>
-        </ui:VisualElement>
-
-        <!-- S11 confirm dialog. -->
-        <ui:VisualElement name="confirm" class="modal hidden">
-            <mp:StageColumn>
-                <ui:VisualElement class="mp-win confirm-panel">
-                    <ui:VisualElement class="panel-body">
-                        <ui:Label name="confirm-text" text="" class="confirm-text" />
-                    </ui:VisualElement>
-                    <ui:VisualElement class="panel-foot">
-                        <ui:VisualElement class="spacer" />
-                        <ui:Button name="confirm-cancel" text="Cancel" class="mp-ghost" />
-                        <ui:Button name="confirm-ok" text="Delete" class="mp-go mp-go--danger" />
-                    </ui:VisualElement>
-                </ui:VisualElement>
-            </mp:StageColumn>
-        </ui:VisualElement>
-
-        <!-- A one-line text dialog (task P2-04): the mockup's Rename, reusable through FlowScreens.Prompt. -->
-        <ui:VisualElement name="prompt" class="modal hidden">
-            <mp:StageColumn>
-                <ui:VisualElement class="mp-win prompt-panel">
-                    <ui:VisualElement class="mp-head">
-                        <ui:Label name="prompt-title" text="Rename area" class="mp-title" />
-                        <ui:VisualElement class="mp-spacer" />
-                        <ui:Button name="prompt-close" text="✕" class="mp-x" tooltip="Cancel (Esc)" />
-                    </ui:VisualElement>
-                    <ui:TextField name="prompt-field" class="prompt-field" max-length="60" />
-                    <ui:Label name="prompt-hint" text="" class="prompt-hint" />
-                    <ui:VisualElement class="prompt-acts">
-                        <ui:Button name="prompt-ok" text="Rename" class="mp-go prompt-go" />
-                        <ui:Button name="prompt-cancel" text="Cancel" class="mp-ghost" />
-                    </ui:VisualElement>
-                </ui:VisualElement>
-            </mp:StageColumn>
-        </ui:VisualElement>
-
-        <ui:Label name="toast" text="" class="toast hidden" />
-
         <!-- Task P2-03.1: the loading screen over every load (launch, Open, Exit to title). The title's own picture fills the
              screen, so the mountain is never seen filling in; one box at the HUD panels' opacity holds the game's logo,
              "Opening ...", the bar, a Details list (click only, remembered) and the studio. The box and picture fade over the
-             finished mountain. Above every flow screen, and it takes the pointer, so nothing underneath can be used. -->
+             finished mountain. Above the title and library, and it takes the pointer, so nothing underneath can be used; the
+             download card and pill, the dialogs and the toast (task P2-06) come after it, so they stay usable while an area
+             opens. -->
         <ui:VisualElement name="cover" class="cover hidden">
             <ui:VisualElement name="cover-still" class="cover-still" picking-mode="Ignore" />
             <ui:VisualElement name="cover-box" class="cover-box">
@@ -284,5 +160,143 @@
                 </ui:VisualElement>
             </ui:VisualElement>
         </ui:VisualElement>
+
+        <!-- S4 download card, docked bottom left. -->
+        <ui:VisualElement name="download" class="mp-win download hidden">
+            <ui:VisualElement class="mp-head">
+                <ui:Label name="dl-title" text="" class="mp-title" />
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-minimise" text="–" class="mp-x" tooltip="Minimise (Esc)" />
+            </ui:VisualElement>
+            <ui:VisualElement name="dl-stages" class="dl-stages" />
+            <ui:VisualElement class="dl-bar"><ui:VisualElement name="dl-bar-fill" class="dl-bar-fill" /></ui:VisualElement>
+            <ui:VisualElement class="dl-row">
+                <ui:Label name="dl-percent" text="0%" class="mono strong" />
+                <ui:Label name="dl-left" text="" class="mono muted" />
+            </ui:VisualElement>
+            <ui:Label name="dl-detail" text="" class="dl-detail" />
+            <ui:Label name="dl-transfer" text="" class="mono muted" />
+            <ui:VisualElement name="dl-actions" class="panel-foot">
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-cancel" text="Cancel" class="mp-ghost" />
+            </ui:VisualElement>
+            <ui:VisualElement name="dl-confirm" class="panel-foot hidden">
+                <ui:Label text="Stop the download?" class="strong" />
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-keep" text="Keep for resuming" class="mp-go" />
+                <ui:Button name="dl-discard" text="Discard" class="mp-go mp-go--danger" />
+                <ui:Button name="dl-back" text="Back" class="mp-ghost" />
+            </ui:VisualElement>
+            <ui:VisualElement name="dl-waiting" class="panel-foot hidden">
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-trynow" text="Try now" class="mp-go" />
+                <ui:Button name="dl-wait-cancel" text="Cancel" class="mp-ghost" />
+            </ui:VisualElement>
+            <ui:VisualElement name="dl-failed" class="panel-foot hidden">
+                <ui:VisualElement class="spacer" />
+                <ui:Button name="dl-retry" text="Retry" class="mp-go" />
+                <ui:Button name="dl-close" text="Close" class="mp-ghost" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <!-- The S4 pill (task P2-06): one line and a hairline of progress; S1, S2 and the picker (the game's is in the HUD bar). -->
+        <ui:Button name="dl-pill" text="" class="pill hidden" tooltip="Show the download">
+            <ui:Label name="dl-pill-text" text="" class="pill-text" />
+            <ui:VisualElement class="pill-bar"><ui:VisualElement name="dl-pill-fill" class="pill-fill" /></ui:VisualElement>
+        </ui:Button>
+
+        <!-- S5 quality card. -->
+        <ui:VisualElement name="quality" class="modal hidden">
+            <mp:StageColumn>
+                <ui:VisualElement class="mp-win quality-panel">
+                    <ui:VisualElement class="mp-head">
+                        <ui:Label name="qc-title" text="" class="mp-title" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="panel-body">
+                        <ui:Label name="qc-place" text="" class="mono muted" />
+                        <ui:VisualElement name="qc-lines" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="panel-foot">
+                        <ui:Button name="qc-open" text="Open area" class="mp-go" />
+                        <ui:Button name="qc-library" text="Load Area" class="mp-ghost" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </mp:StageColumn>
+        </ui:VisualElement>
+
+        <!-- S8 Settings: the accepted mockup's window (prototypes/ui-layout.html). Categories down the left; each row a
+             label, a line of description and its control. -->
+        <ui:VisualElement name="settings" class="modal hidden">
+            <mp:StageColumn>
+                <ui:VisualElement class="mp-win settings-win">
+                    <ui:VisualElement class="mp-head">
+                        <ui:Label text="Settings" class="mp-title" />
+                        <ui:Label name="settings-resort" text="" class="mp-sub" />
+                        <ui:VisualElement class="mp-spacer" />
+                        <ui:Button name="settings-close" text="✕" class="mp-x" tooltip="Close (Esc)" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="settings-body">
+                        <!-- The categories and their rows are built by SettingsWindow (task P2-05), as the mockup builds them from its SETTINGS table. -->
+                        <ui:VisualElement name="settings-nav" class="mp-nav" />
+                        <ui:ScrollView name="settings-page" class="settings-page" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="mp-foot">
+                        <ui:Button name="settings-defaults" text="Restore defaults" class="mp-ghost" />
+                        <ui:Button name="settings-done" text="Done" class="mp-go settings-done" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </mp:StageColumn>
+        </ui:VisualElement>
+        <ui:VisualElement name="credits" class="modal hidden">
+            <mp:StageColumn>
+                <ui:VisualElement class="mp-win credits-panel">
+                    <ui:VisualElement class="mp-head">
+                        <ui:Label text="Credits" class="mp-title" />
+                        <ui:VisualElement class="spacer" />
+                        <ui:Button name="credits-close" text="✕" class="mp-x" tooltip="Close (Esc)" />
+                    </ui:VisualElement>
+                    <ui:ScrollView name="credits-body" class="panel-body credits-body" />
+                </ui:VisualElement>
+            </mp:StageColumn>
+        </ui:VisualElement>
+
+        <!-- S11 dialogs (task P2-06): confirm (no title), error and offline (a title, then what to do). -->
+        <ui:VisualElement name="confirm" class="modal hidden">
+            <mp:StageColumn>
+                <ui:VisualElement name="confirm-panel" class="mp-win confirm-panel">
+                    <ui:VisualElement class="panel-body">
+                        <ui:Label name="confirm-title" text="" class="confirm-title hidden" />
+                        <ui:Label name="confirm-text" text="" class="confirm-text" />
+                    </ui:VisualElement>
+                    <ui:VisualElement class="panel-foot">
+                        <ui:Button name="confirm-alt" text="" class="mp-ghost hidden" />
+                        <ui:VisualElement class="spacer" />
+                        <ui:Button name="confirm-cancel" text="Cancel" class="mp-ghost" />
+                        <ui:Button name="confirm-ok" text="Delete" class="mp-go mp-go--danger" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </mp:StageColumn>
+        </ui:VisualElement>
+
+        <!-- A one-line text dialog (task P2-04): the mockup's Rename, reusable through FlowScreens.Prompt. -->
+        <ui:VisualElement name="prompt" class="modal hidden">
+            <mp:StageColumn>
+                <ui:VisualElement class="mp-win prompt-panel">
+                    <ui:VisualElement class="mp-head">
+                        <ui:Label name="prompt-title" text="Rename area" class="mp-title" />
+                        <ui:VisualElement class="mp-spacer" />
+                        <ui:Button name="prompt-close" text="✕" class="mp-x" tooltip="Cancel (Esc)" />
+                    </ui:VisualElement>
+                    <ui:TextField name="prompt-field" class="prompt-field" max-length="60" />
+                    <ui:Label name="prompt-hint" text="" class="prompt-hint" />
+                    <ui:VisualElement class="prompt-acts">
+                        <ui:Button name="prompt-ok" text="Rename" class="mp-go prompt-go" />
+                        <ui:Button name="prompt-cancel" text="Cancel" class="mp-ghost" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </mp:StageColumn>
+        </ui:VisualElement>
+
+        <ui:Label name="toast" text="" class="toast hidden" />
+
     </ui:VisualElement>
 </ui:UXML>

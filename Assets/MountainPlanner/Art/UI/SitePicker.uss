@@ -324,6 +324,8 @@
 }
 .offline-title { font-size: 15px; -unity-font-style: bold; color: var(--strong); -unity-text-outline-color: var(--strong); margin-bottom: 8px; }
 .offline-text { color: var(--muted); -unity-text-outline-color: var(--muted); font-size: 13px; white-space: normal; -unity-text-align: upper-center; margin-bottom: 16px; }
+.offline-acts { flex-direction: row; }
+.offline-acts > Button { margin: 0 4px; }
 
 /* The mockup's slider: a thin track filled to the value, a small square thumb. */
 .picker-slider {
@@ -381,6 +383,21 @@
 
 .picker-foot { min-height: 58px; }
 .picker-note { color: var(--soft); -unity-text-outline-color: var(--soft); font-size: 12.5px; white-space: normal; padding-right: 12px; }
+/* The S4 pill in the footer (task P2-06): the flow's pill, in the row instead of the screen's corner. */
+.pill {
+    flex-direction: column; align-items: stretch; margin: 0 12px 0 0; padding: 7px 12px 6px 12px; flex-shrink: 1; min-width: 0;
+    border-width: 1px; border-color: var(--hair); border-radius: 3px; background-color: var(--panel);
+}
+.pill:hover { background-color: var(--hover); }
+.pill-text { padding: 0; margin: 0; color: var(--text); -unity-text-outline-color: var(--text); font-size: 13px; -unity-font-style: bold;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; -unity-text-overflow-position: middle; }
+.picker-foot > .picker-note { flex-shrink: 1; min-width: 0; }
+.pill-bar { height: 2px; margin-top: 5px; background-color: var(--knock); }
+.pill-fill { height: 2px; width: 0; background-color: var(--go-hover); }
+.pill--waiting .pill-fill { background-color: var(--warn); }
+.pill--paused .pill-fill { background-color: var(--soft); }
+.pill--failed .pill-fill { background-color: var(--neg); }
+.pill--failed .pill-text { color: var(--neg); -unity-text-outline-color: var(--neg); }
 
 /* Ghost buttons (Cancel, Retry): a hairline frame, no fill. */
 .ghost {

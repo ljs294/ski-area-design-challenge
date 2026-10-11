@@ -143,6 +143,7 @@ namespace MountainPlanner.App.Flow
                 if (Wanted("s4-pill")) yield return EachLook(folder, "s4-pill");
                 Screens.ShowDownloadCard(false, false, false);
             }
+            yield return CaptureDownloadStates(folder);   // task P2-06: S4's other states, S11's dialogs (AppFlow.UiCapture.Downloads.cs)
 
             if (Wanted("s5-quality") && demo != null)
             {
@@ -240,6 +241,10 @@ namespace MountainPlanner.App.Flow
             ("analysis-weather", false, (h, v, on) => { h.SetAnalysisTab(on ? "weather" : "overview"); h.SetAnalysis(on); }),
             ("analysis-finances", false, (h, v, on) => { h.SetAnalysisTab(on ? "finances" : "overview"); h.SetAnalysis(on); }),
             ("rstats", false, (h, v, on) => h.SetStats(on)),
+            // Task P2-06: a background download in the bar, as the mockup's demo=dl, dlwait and dlfail.
+            ("dl", false, (h, v, on) => h.SetDownload(on ? "Downloading · 41%" : null, "Crystal Mountain", 0.41f, "")),
+            ("dlwait", false, (h, v, on) => h.SetDownload(on ? "Waiting for connection · 41%" : null, "Crystal Mountain", 0.41f, "pill--waiting")),
+            ("dlfail", false, (h, v, on) => h.SetDownload(on ? "Download stopped · 41%" : null, "Crystal Mountain", 0.41f, "pill--failed")),
         };
 
         /// <summary>One screen in both themes at every size (100%), then at 50% and 150% at 1920×1080.</summary>
