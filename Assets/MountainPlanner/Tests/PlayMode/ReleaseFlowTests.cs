@@ -8,6 +8,7 @@ using MountainPlanner.App;
 using MountainPlanner.App.Diagnostics;
 using MountainPlanner.App.Flow;
 using MountainPlanner.Persistence;
+using MountainPlanner.UI.Flow;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -62,7 +63,7 @@ namespace MountainPlanner.Tests
             var version = ui.Q<Label>("title-version");
             Assert.That(version.text, Is.EqualTo(BuildInfo.Current.TitleVersion));
             Assert.That(version.parent.name, Is.EqualTo("title-stage"), "under the title, in its 16:9 column");
-            flow.Screens.ShowCredits(new UI.Flow.CreditsPage { Version = "Version 0.2.0" });
+            flow.Screens.ShowCredits(new CreditsPage { Version = "Version 0.2.0" });
             yield return null;
             Assert.That(ui.Q<Label>(className: "credits-version")?.text, Is.EqualTo("Version 0.2.0"));
             Assert.That(ui.Q<Button>("logs-open"), Is.Not.Null, "Settings › Data › Logs › Open");
