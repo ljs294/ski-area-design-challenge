@@ -24,7 +24,6 @@ namespace MountainPlanner.Tests
         {
             _folder = Path.Combine(Path.GetTempPath(), "mp-reporter-" + Guid.NewGuid().ToString("N"));
             ErrorReporter.Install(_folder);
-            LogAssert.ignoreFailingMessages = true;
         }
 
         [TearDown]
@@ -47,6 +46,7 @@ namespace MountainPlanner.Tests
         [Test]
         public void ExceptionsAndErrorsFromAnyThreadReachTheLog()
         {
+            LogAssert.ignoreFailingMessages = true;   // set in the test: the runner resets it after SetUp
             Debug.LogException(new InvalidOperationException("main-thread boom"));
             Task.Run(() => Debug.LogError("worker-thread error")).Wait();
             Debug.LogAssertion("an assert");
@@ -67,6 +67,7 @@ namespace MountainPlanner.Tests
         [Test]
         public void TheFirstErrorIsAnnouncedOnce()
         {
+            LogAssert.ignoreFailingMessages = true;
             var pump = ErrorReporter.CreatePump();
             int announced = 0;
             Action<string> heard = _ => announced++;
