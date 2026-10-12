@@ -65,6 +65,20 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void TheUsersFolderStaysOutOfTheLog()
+        {
+            LogAssert.ignoreFailingMessages = true;
+            string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            Debug.LogError($@"Could not find {profile}\Pictures\a.png or {profile.Replace('\\', '/')}/b.png");
+            string path = ErrorReporter.LogPath;
+            ErrorReporter.Uninstall();
+            string text = File.ReadAllText(path);
+            StringAssert.DoesNotContain(profile, text);
+            StringAssert.Contains(@"%USERPROFILE%\Pictures\a.png", text);
+            StringAssert.Contains("%USERPROFILE%/b.png", text);
+        }
+
+        [Test]
         public void TheFirstErrorIsAnnouncedOnce()
         {
             LogAssert.ignoreFailingMessages = true;

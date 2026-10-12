@@ -140,7 +140,7 @@ namespace MountainPlanner.App.Diagnostics
         {
             var log = _log;
             if (log == null) return;
-            if (log.Write(new ErrorEntry(kind, message, stack, DateTime.UtcNow, Clock.Elapsed.TotalSeconds))) _firstPending = true;
+            if (log.Write(new ErrorEntry(kind, Private(message), Private(stack), DateTime.UtcNow, Clock.Elapsed.TotalSeconds))) _firstPending = true;
         }
 
         void Update()
@@ -202,7 +202,7 @@ namespace MountainPlanner.App.Diagnostics
             var text = new StringBuilder(1024);
             void Line(string name, string value) => text.Append(name.PadRight(12)).Append(value).Append("\r\n");
             text.Append(Application.productName).Append(' ').Append(build.DisplayVersion).Append(" - error log\r\n");
-            text.Append("Send this file with your bug report. It holds no personal data beyond what's listed here.\r\n\r\n");
+            text.Append("Send this file with your bug report. It holds nothing about you beyond what's listed here; your user folder reads %USERPROFILE%.\r\n\r\n");
             Line("Version", $"{build.DisplayVersion} (commit {build.commit}{(build.dirty ? ", uncommitted changes" : "")}, built {build.builtUtc})");
             Line("Session", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss'Z'", CultureInfo.InvariantCulture));
             Line("Windows", SystemInfo.operatingSystem);
@@ -213,7 +213,20 @@ namespace MountainPlanner.App.Diagnostics
             Line("Command", Environment.CommandLine);
             Line("Player.log", Application.consoleLogPath);
             Line("Crashes", Path.Combine(Path.GetTempPath(), Application.companyName, Application.productName, "Crashes") + " (Unity's own, after a hard crash)");
-            return text.ToString();
+            return Private(text.ToString());
+        }
+
+        static readonly string Profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        /// <summary>
+        /// The tester's Windows user name stays out of the file they send: paths under their profile read %USERPROFILE%
+        /// (both slash styles; Unity reports some paths with forward slashes).
+        /// </summary>
+        public static string Private(string text)
+        {
+            if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(Profile)) return text;
+            return text.Replace(Profile, "%USERPROFILE%", StringComparison.OrdinalIgnoreCase)
+                       .Replace(Profile.Replace('\\', '/'), "%USERPROFILE%", StringComparison.OrdinalIgnoreCase);
         }
 
         static string DisplayLine()
