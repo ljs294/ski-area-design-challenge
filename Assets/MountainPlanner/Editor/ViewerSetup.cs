@@ -1,5 +1,6 @@
 using System.IO;
 using MountainPlanner.App;
+using MountainPlanner.Persistence;
 using MountainPlanner.Presentation;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -203,7 +204,7 @@ namespace MountainPlanner.Editor
         public const string DevPlayerPath = "Builds/WindowsDev/SkiAreaDesignChallenge.exe";
 
         [MenuItem("Mountain Planner/Build Windows Player")]
-        public static void BuildWindows() => Build(PlayerPath, BuildOptions.None);
+        public static void BuildWindows() => Build(PlayerPath, BuildOptions.None, release: false);
 
         /// <summary>
         /// A Development player beside the release one: the profiler counters a release player doesn't record
@@ -211,13 +212,35 @@ namespace MountainPlanner.Editor
         /// Frame times of record still come from the release player.
         /// </summary>
         [MenuItem("Mountain Planner/Build Windows Development Player")]
-        public static void BuildWindowsDev() => Build(DevPlayerPath, BuildOptions.Development);
+        public static void BuildWindowsDev() => Build(DevPlayerPath, BuildOptions.Development, release: false);
 
-        static void Build(string path, BuildOptions options)
+        /// <summary>Where the release command's player goes unless -out names a folder (task P2-10).</summary>
+        public const string ReleasePlayerFolder = "Builds/Release/Player";
+        public const string ExeName = "SkiAreaDesignChallenge.exe";
+
+        /// <summary>
+        /// The release build (task P2-10), run by tools/release/release.ps1: like <see cref="BuildWindows"/>, into
+        /// -out &lt;folder&gt; (default <see cref="ReleasePlayerFolder"/>), but without the demo it fails instead of warning.
+        /// It writes the version it stamped to version.txt beside the exe, for the release script to name the zip.
+        /// </summary>
+        public static void BuildRelease()
+        {
+            string[] args = System.Environment.GetCommandLineArgs();
+            int i = System.Array.IndexOf(args, "-out");
+            string folder = i >= 0 && i + 1 < args.Length ? args[i + 1] : ReleasePlayerFolder;
+            if (Directory.Exists(folder)) Directory.Delete(folder, true);   // nothing from an older build ships
+            Build(Path.Combine(folder, ExeName), BuildOptions.None, release: true);
+        }
+
+        /// <summary>The studio (owner, 2026-10-12): Unity keeps the player's prefs under it (App.Diagnostics.PrefsMigration).</summary>
+        public const string CompanyName = "Alpine Labs";
+        public const string ProductName = "Ski Area Design Challenge";
+
+        static void Build(string path, BuildOptions options, bool release)
         {
             CreateViewerScene();
-            PlayerSettings.companyName = "Ski Area Design Challenge";
-            PlayerSettings.productName = "Ski Area Design Challenge";
+            PlayerSettings.companyName = CompanyName;
+            PlayerSettings.productName = ProductName;
             PlayerSettings.enableFrameTimingStats = true;   // GPU frame times for -benchmark
             // Keep running when the window loses focus: loading a mountain shouldn't stall on alt-tab, and
             // unattended captures and benchmarks froze whenever another window took focus.
@@ -230,27 +253,41 @@ namespace MountainPlanner.Editor
             PlayerSettings.allowFullscreenSwitch = true;
             // No Unity splash: the title over the live demo is the first thing on screen, within 10 s of launch (task P2-03).
             PlayerSettings.SplashScreen.show = false;
-            WriteBuildInfo();
-            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            var info = WriteBuildInfo();
+            // The version from the release tag goes into the exe's properties and Application.version for this build
+            // only: the committed ProjectSettings keep their placeholder, so builds never dirty the working tree.
+            string savedVersion = PlayerSettings.bundleVersion;
+            PlayerSettings.bundleVersion = info.version;
+            UnityEditor.Build.Reporting.BuildReport report;
+            try
             {
-                scenes = new[] { ScenePath },
-                locationPathName = path,
-                target = BuildTarget.StandaloneWindows64,
-                options = options,
-            });
-            Debug.Log($"[ViewerSetup] Build {report.summary.result}: {report.summary.totalSize / 1e6:F0} MB in {report.summary.totalTime.TotalSeconds:F0} s → {path}");
+                report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = new[] { ScenePath },
+                    locationPathName = path,
+                    target = BuildTarget.StandaloneWindows64,
+                    options = options,
+                });
+            }
+            finally
+            {
+                PlayerSettings.bundleVersion = savedVersion;
+                AssetDatabase.SaveAssets();
+            }
+            Debug.Log($"[ViewerSetup] Build {report.summary.result}: {info.version} {report.summary.totalSize / 1e6:F0} MB in {report.summary.totalTime.TotalSeconds:F0} s → {path}");
             bool ok = report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded;
             // The Jackson Hole demo and its prebuilt cache go into the player's StreamingAssets (task P2-03); a damaged
-            // package or a cache of the wrong version fails the build.
+            // package or a cache of the wrong version fails the build, and so does a missing one for a release (P2-10).
             if (ok)
             {
-                try { DemoBundle.AddTo(path, System.Environment.GetCommandLineArgs(), MountainViewer.DataRoot); }
+                try { DemoBundle.AddTo(path, System.Environment.GetCommandLineArgs(), MountainViewer.DataRoot, required: release); }
                 catch (System.Exception e)
                 {
                     Debug.LogError($"[ViewerSetup] Bundling the demo failed: {e.Message}");
                     ok = false;
                 }
             }
+            if (ok) File.WriteAllText(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path)), "version.txt"), info.version);
             if (Application.isBatchMode) EditorApplication.Exit(ok ? 0 : 1);
         }
 
@@ -261,7 +298,7 @@ namespace MountainPlanner.Editor
         /// The commit this player is built from (git SHA, uncommitted changes, build time), so benchmark results
         /// record what they measured (0.3 §8). Without git it records "unknown".
         /// </summary>
-        static void WriteBuildInfo()
+        static MountainPlanner.App.BuildInfo WriteBuildInfo()
         {
             string Git(string arguments)
             {
@@ -280,16 +317,23 @@ namespace MountainPlanner.Editor
             string commit = Git("rev-parse HEAD");
             // Uncommitted changes outside the generated stamp itself.
             string status = Git("status --porcelain --untracked-files=no");
+            bool dirty = !string.IsNullOrEmpty(status);
+            // The version from the newest release tag (task P2-10): "0.2.0" on the tag, "0.2.0+dev.7.abc1234" after it.
+            string describe = Git($"describe --tags --long --abbrev=7 --match \"{ReleaseVersion.TagGlob}\"");
+            int.TryParse(Git("rev-list --count HEAD"), out int commits);
+            string version = ReleaseVersion.FromDescribe(describe, dirty, Git("rev-parse --short=7 HEAD") ?? "unknown", commits);
             var info = new MountainPlanner.App.BuildInfo
             {
                 commit = string.IsNullOrEmpty(commit) ? "unknown" : commit,
-                dirty = !string.IsNullOrEmpty(status),
+                dirty = dirty,
                 builtUtc = System.DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
+                version = version,
             };
             Directory.CreateDirectory(Path.GetDirectoryName(BuildInfoPath));
             File.WriteAllText(BuildInfoPath, JsonUtility.ToJson(info, true));
             AssetDatabase.ImportAsset(BuildInfoPath);
-            Debug.Log($"[ViewerSetup] Build info: {info.commit}{(info.dirty ? " (uncommitted changes)" : "")}");
+            Debug.Log($"[ViewerSetup] Build info: {info.version}, {info.commit}{(info.dirty ? " (uncommitted changes)" : "")}");
+            return info;
         }
     }
 }

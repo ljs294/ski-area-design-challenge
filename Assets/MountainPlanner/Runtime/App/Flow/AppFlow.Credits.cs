@@ -19,7 +19,12 @@ namespace MountainPlanner.App.Flow
         /// <summary>Who made the ground textures (CC0, Poly Haven; tools/assets/ground/README.md).</summary>
         internal static readonly string[] TextureAuthors = { "Charlotte Baglioni", "Amal Kumar", "Rob Tuytel", "Dario Barresi", "Rico Cilliers" };
 
-        CreditsPage Credits() => BuildCredits(Areas(), OfflineState.Describe(), Resources.Load<TextAsset>(LicencesResource)?.text ?? "");
+        CreditsPage Credits()
+        {
+            var page = BuildCredits(Areas(), OfflineState.Describe(), Resources.Load<TextAsset>(LicencesResource)?.text ?? "");
+            page.Version = string.IsNullOrEmpty(BuildInfo.Current.version) ? BuildInfo.Current.DisplayVersion : "Version " + BuildInfo.Current.version;   // task P2-10
+            return page;
+        }
 
         /// <summary>
         /// The credits page for these areas (tests call it with a scratch library). <paramref name="offline"/> is

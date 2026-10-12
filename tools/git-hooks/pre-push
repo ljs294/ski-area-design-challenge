@@ -1,0 +1,41 @@
+#!/bin/sh
+# Task P2-10: before a push, compile every Unity assembly when Unity C# changed. CI's dotnet build only compiles the
+# engine-free assemblies (Domain, Simulation, Persistence, Acquisition), so an error in App, UI, Presentation, World or
+# Editor would otherwise pass CI. Opt in once per clone:  git config core.hooksPath tools/git-hooks
+# It skips (with a warning) when the editor has the project open or the checkout has never been opened in Unity (the
+# first import takes far longer than a push should); a compile error or a lapsed Unity licence (exit 198) stops the push.
+
+zero=0000000000000000000000000000000000000000
+changed=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" = "$zero" ] && continue   # deleting a branch
+    if [ "$remote_sha" = "$zero" ]; then
+        base=$(git merge-base "$local_sha" origin/main 2>/dev/null) || base=""
+    else
+        base="$remote_sha"
+    fi
+    if [ -n "$base" ]; then
+        files=$(git diff --name-only "$base" "$local_sha" 2>/dev/null)
+    else
+        files=$(git show --name-only --pretty=format: "$local_sha")
+    fi
+    changed="$changed
+$files"
+done
+
+unity=$(printf '%s\n' "$changed" | grep -E '^Assets/.*\.(cs|asmdef|asmref)$' | grep -Ev '^Assets/MountainPlanner/(Runtime/(Domain|Simulation|Persistence|Acquisition)|Tests/Core)/')
+[ -z "$unity" ] && exit 0
+
+root=$(git rev-parse --show-toplevel)
+if [ ! -d "$root/Library" ]; then
+    echo "[pre-push] Unity C# changed, but this checkout has never been opened in Unity: run tools/release/compile-check.ps1 yourself."
+    exit 0
+fi
+echo "[pre-push] Unity C# changed: compiling every assembly before the push..."
+powershell -NoProfile -ExecutionPolicy Bypass -File "$root/tools/release/compile-check.ps1" -ProjectPath "$root"
+code=$?
+case $code in
+    0) exit 0 ;;
+    2) echo "[pre-push] Skipped: the project is open in the editor (check its console for errors)."; exit 0 ;;
+    *) echo "[pre-push] Push stopped (compile check exit $code)."; exit 1 ;;
+esac

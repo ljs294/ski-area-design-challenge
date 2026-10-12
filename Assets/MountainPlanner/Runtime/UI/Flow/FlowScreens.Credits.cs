@@ -64,6 +64,7 @@ namespace MountainPlanner.UI.Flow
                 by.Add(Text(page.Studio, "credits-studio"));
                 by.Add(Text("· " + page.Tagline, "credits-by-text"));
                 hero.Add(by);
+                if (page.Version.Length > 0) hero.Add(Text(page.Version, "credits-version"));   // task P2-10
                 _creditsBody.Add(hero);
                 foreach (var section in page.Sections) _creditsBody.Add(Section(section));
             }

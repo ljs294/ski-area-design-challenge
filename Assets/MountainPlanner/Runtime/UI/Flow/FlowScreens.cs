@@ -166,6 +166,7 @@ namespace MountainPlanner.UI.Flow
             Settings.DataShown += () => SettingsDataShown?.Invoke();
             Settings.FreeSpaceConfirmed += () => SettingsFreeSpaceConfirmed?.Invoke();
             Settings.ClearCacheConfirmed += () => SettingsClearCacheConfirmed?.Invoke();
+            WireDiagnostics();   // the version and the first error's notice (FlowScreens.Diagnostics.cs, task P2-10)
             _root.Q<Button>("settings-done").clicked += CloseOverlay;
             _root.Q<Button>("settings-defaults").clicked += () => Settings.RestoreDefaults();
             _root.Q<Button>("library-new").clicked += () => NewResortChosen?.Invoke();
@@ -217,6 +218,7 @@ namespace MountainPlanner.UI.Flow
 
         void Update()
         {
+            UpdateDiagnostics();
             if (_toast != null && _toastUntil > 0 && Time.unscaledTime > _toastUntil)
             {
                 _toastUntil = 0;

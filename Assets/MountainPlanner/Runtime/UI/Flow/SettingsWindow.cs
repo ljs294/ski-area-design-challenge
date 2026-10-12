@@ -32,6 +32,10 @@ namespace MountainPlanner.UI.Flow
         public event Action FreeSpaceConfirmed;
         /// <summary>Clear the download cache, confirmed (task P2-06).</summary>
         public event Action ClearCacheConfirmed;
+        /// <summary>Data › Logs › Open: the error logs' folder (task P2-10).</summary>
+        public event Action LogsOpenChosen;
+        /// <summary>Data › Logs › Copy report: the newest error log onto the clipboard (task P2-10).</summary>
+        public event Action ReportCopyChosen;
 
         /// <summary>False for captures and tests: changes apply for this run only, and the player's settings stay as they were.</summary>
         public bool Remember = true;
@@ -509,6 +513,15 @@ namespace MountainPlanner.UI.Flow
             var cache = Row(page, "Download cache", "Measuring…", _clearCache);
             _cacheText = cache.Q<Label>(className: "mp-srow__desc");
             _cacheText.name = "data-cache";
+            // Task P2-10: the error logs a tester sends with a bug report.
+            var logsOpen = Ghost("logs-open", "Open", () => LogsOpenChosen?.Invoke());
+            var logsCopy = Ghost("logs-copy", "Copy report", () => ReportCopyChosen?.Invoke());
+            var logs = new VisualElement();
+            logs.AddToClassList("settings-pair");
+            logsOpen.AddToClassList("settings-pair__first");
+            logs.Add(logsOpen);
+            logs.Add(logsCopy);
+            Row(page, "Logs", "Errors are saved here. Send the newest one with a bug report.", logs);
             Row(page, "Offline mode", "No downloads, map tiles or place search; the areas you have open as usual.",
                 Seg("offline", new[] { "on", "off" }, new[] { "On", "Off" },
                     () => DataPreferences.OfflineNow ? 0 : 1, i => { DataPreferences.SetOffline(i == 0, Remember); Refresh(); }));

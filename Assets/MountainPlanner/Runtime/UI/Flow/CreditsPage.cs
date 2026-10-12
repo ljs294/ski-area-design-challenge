@@ -34,6 +34,8 @@ namespace MountainPlanner.UI.Flow
         public string Game = "Ski Area Design Challenge";
         public string Studio = "Alpine Labs";
         public string Tagline = "a ski resort designer on real mountains";
+        /// <summary>The game's version under the studio line, "Version 0.2.0" (task P2-10); empty hides it.</summary>
+        public string Version = "";
         public readonly List<CreditsSection> Sections = new List<CreditsSection>();
         /// <summary>The licence texts page (the fonts' OFL, Json.NET's MIT notices).</summary>
         public string Licences = "";
