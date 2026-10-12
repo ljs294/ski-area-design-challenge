@@ -54,8 +54,11 @@ function Read-TestResult([string]$xml, [datetime]$started, [int]$code) {
     $run = $doc.'test-run'
     $total = [int]$run.total
     $failed = [int]$run.failed
-    $ok = ($failed -eq 0) -and ($total -gt 0) -and ($run.result -like 'Passed*')
-    return @{ Ok = $ok; Message = "$($total - $failed)/$total passed"; Total = $total; Failed = $failed }
+    $passed = [int]$run.passed
+    $skipped = [int]$run.skipped
+    # With ignored tests and no failures, Unity reports the whole run as "Skipped:Ignored": no failure and some passes is a pass.
+    $ok = ($failed -eq 0) -and ($passed -gt 0) -and ($run.result -notlike 'Failed*')
+    return @{ Ok = $ok; Message = "$passed passed, $failed failed, $skipped skipped of $total"; Total = $total; Failed = $failed }
 }
 
 # Files Git LFS left as pointer text (git lfs ls-files marks them '-').

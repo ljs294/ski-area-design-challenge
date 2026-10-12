@@ -41,6 +41,8 @@ try {
     Check ((Read-TestResult $xml $before 0).Ok) 'a fresh passing run passes'
     Check (-not (Read-TestResult $xml (Get-Date).AddMinutes(1) 0).Ok) 'a stale file never passes'
     Check ((Read-TestResult $xml $before 198).Message -match 'licence') 'exit 198 names the licence'
+    Set-Content $xml '<test-run result="Skipped:Ignored" total="12" passed="10" failed="0" skipped="2"></test-run>'
+    Check ((Read-TestResult $xml $before 0).Ok) 'ignored tests with no failures pass'
     Set-Content $xml '<test-run result="Failed(Child)" total="12" passed="11" failed="1"></test-run>'
     Check (-not (Read-TestResult $xml $before 2).Ok) 'a failure fails'
     Set-Content $xml '<test-run result="Passed" total="0" passed="0" failed="0"></test-run>'
