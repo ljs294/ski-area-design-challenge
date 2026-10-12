@@ -22,6 +22,8 @@ namespace MountainPlanner.App.Flow
             int movie = Array.IndexOf(args, "-titlemovie"), shots = Array.IndexOf(args, "-titleshots");
             if (movie >= 0 && movie + 1 < args.Length) StartCoroutine(TitleMovie(Path.GetFullPath(args[movie + 1]), stills: false));
             else if (shots >= 0 && shots + 1 < args.Length) StartCoroutine(TitleMovie(Path.GetFullPath(args[shots + 1]), stills: true));
+            int still = Array.IndexOf(args, "-titlestill");
+            if (still >= 0 && still + 1 < args.Length) StartCoroutine(TitleStill(Path.GetFullPath(args[still + 1])));
             StartUiCaptureIfAsked(args);
         }
 
@@ -82,6 +84,42 @@ namespace MountainPlanner.App.Flow
                 }
                 Debug.Log($"[AppFlow] title movie: cover {ms / 1000f:F1} s, then {count} drift frames, in {frames}");
             }
+            Quit();
+        }
+
+        /// <summary>The loading screen's picture: 32:9, so scaled to the screen's height and centre-cropped it frames as the live title does at 60° on 16:9 to 32:9 screens.</summary>
+        public const int TitleStillWidth = 7680, TitleStillHeight = 2160;
+
+        /// <summary>
+        /// -titlestill &lt;file.jpg&gt; (task P2-03.1): the loading screen's picture, Art/UI/Flow/Resources/MountainPlannerFlow/
+        /// TitleStill.jpg. The title's own view at its first drift view, the scene alone (no UI), rendered off screen at
+        /// <see cref="TitleStillWidth"/>×<see cref="TitleStillHeight"/>, JPEG quality 92. Then it quits. Re-capture it whenever
+        /// the title's look changes (demo.bat 57), or the hand-off from picture to live view jumps.
+        /// </summary>
+        IEnumerator TitleStill(string file)
+        {
+            while (_viewer == null || !_viewer.Ready || _drift == null) yield return null;
+            _driftHeld = true;
+            _driftSeconds = 0;
+            while (Screens.CoverUp) yield return null;   // the camera draws again once the loading screen lifts
+            for (int i = 0; i < 120; i++) yield return null;   // LODs and shadows settle
+            var cam = _viewer.Camera.GetComponent<UnityEngine.Camera>();
+            var rt = new RenderTexture(TitleStillWidth, TitleStillHeight, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            cam.targetTexture = rt;
+            for (int f = 0; f < 4; f++) yield return null;
+            yield return new WaitForEndOfFrame();
+            var was = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(TitleStillWidth, TitleStillHeight, TextureFormat.RGB24, false, false);
+            tex.ReadPixels(new Rect(0, 0, TitleStillWidth, TitleStillHeight), 0, 0, false);
+            tex.Apply(false);
+            RenderTexture.active = was;
+            cam.targetTexture = null;
+            rt.Release();
+            Directory.CreateDirectory(Path.GetDirectoryName(file));
+            File.WriteAllBytes(file, tex.EncodeToJPG(92));
+            Destroy(tex);
+            Debug.Log($"[AppFlow] Title still saved to {file} ({TitleStillWidth}×{TitleStillHeight})");
             Quit();
         }
 

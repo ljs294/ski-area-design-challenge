@@ -57,7 +57,10 @@ namespace MountainPlanner.UI.Flow
             {
                 var hero = new VisualElement { name = "credits-hero" };
                 hero.AddToClassList("credits-hero");
-                hero.Add(Text(page.Game, "credits-game"));
+                var logo = new VisualElement { name = "credits-logo", tooltip = page.Game, pickingMode = PickingMode.Ignore };
+                logo.AddToClassList("brand");   // the game's logo and name (task P2-03.1), tinted by the theme in Flow.uss
+                logo.AddToClassList("credits-logo");
+                hero.Add(logo);
                 var by = new VisualElement();
                 by.AddToClassList("credits-by");
                 by.Add(Text("Made by", "credits-by-text"));
