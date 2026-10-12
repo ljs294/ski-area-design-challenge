@@ -255,7 +255,7 @@ namespace MountainPlanner.Editor
             PlayerSettings.SplashScreen.show = false;
             AppIcon.Apply();   // Twin Peaks (task P2-10)
             var info = WriteBuildInfo();
-            // The version from the release tag goes into the exe's properties and Application.version for this build
+            // The version from the release tag goes into Application.version (the exe's file properties keep Unity's own) for this build
             // only: the committed ProjectSettings keep their placeholder, so builds never dirty the working tree.
             string savedVersion = PlayerSettings.bundleVersion;
             PlayerSettings.bundleVersion = info.version;

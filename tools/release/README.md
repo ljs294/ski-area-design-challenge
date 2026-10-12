@@ -55,7 +55,7 @@ warns.
   uncommitted changes. Before the first tag it reads `0.0.0+dev.N.sha`.
 - `v0.1`, from the MapLibre game, doesn't count.
 - **The version goes into:**
-  - `PlayerSettings.bundleVersion` (`Application.version`, and the exe's properties) for that build only. The committed
+  - `PlayerSettings.bundleVersion` (`Application.version`; the exe's file properties show Unity's own version) for that build only. The committed
     ProjectSettings keep `0.0.0`.
   - `Resources/BuildInfo.json`;
   - the title (bottom left) and Credits;

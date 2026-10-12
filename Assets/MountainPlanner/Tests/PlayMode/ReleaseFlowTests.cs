@@ -89,11 +89,9 @@ namespace MountainPlanner.Tests
 
             var ui = flow.Screens.Document.rootVisualElement;
             var close = ui.Q<Button>("error-notice-x");
-            using (var click = NavigationSubmitEvent.GetPooled())
-            {
-                click.target = close;
-                close.SendEvent(click);
-            }
+            Vector2 at = close.worldBound.center;   // a left click, as the pointer makes it (LoadingScreenTests.Click)
+            using (var down = PointerDownEvent.GetPooled(new Event { type = EventType.MouseDown, mousePosition = at, button = 0, clickCount = 1 })) close.SendEvent(down);
+            using (var up = PointerUpEvent.GetPooled(new Event { type = EventType.MouseUp, mousePosition = at, button = 0, clickCount = 1 })) close.SendEvent(up);
             yield return null;
             Assert.That(flow.Screens.ErrorNoticeShown, Is.False, "closed");
             Debug.LogError("a second error");
