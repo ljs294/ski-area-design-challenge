@@ -49,6 +49,8 @@
                     <ui:Label text="›" class="sign-arrow" picking-mode="Ignore" />
                 </ui:Button>
             </ui:VisualElement>
+            <!-- Task P2-10: the game's version, bottom left (owner, 2026-10-12); the same text heads the error log. -->
+            <ui:Label name="title-version" text="" class="title-version" picking-mode="Ignore" />
             <ui:VisualElement class="title-corner">
                 <ui:Button name="title-credits" text="Credits" class="plate" />
                 <ui:Button name="title-settings" text="Settings" class="plate" />
@@ -308,6 +310,14 @@
         </ui:VisualElement>
 
         <ui:Label name="toast" text="" class="toast hidden" />
+
+        <!-- Task P2-10: the session's first error (once per session, owner 2026-10-12): a log was saved; open its folder.
+             Brought to the front when shown, so it shows over the cover too. -->
+        <ui:VisualElement name="error-notice" class="error-notice hidden">
+            <ui:Label name="error-notice-text" text="Something went wrong. A log was saved for a bug report." class="error-notice-text" />
+            <ui:Button name="error-notice-open" text="Open folder" class="mp-ghost" />
+            <ui:Button name="error-notice-x" text="✕" class="mp-x" tooltip="Close" />
+        </ui:VisualElement>
 
     </ui:VisualElement>
 </ui:UXML>

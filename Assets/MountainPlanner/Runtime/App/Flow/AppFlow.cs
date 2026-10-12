@@ -187,6 +187,7 @@ namespace MountainPlanner.App.Flow
             Screens.QualityOpenChosen += Controller.QualityOpen;
             Screens.QualityLibraryChosen += Controller.QualityBackToLibrary;
             WireDownloads();   // the download card, pills, dialogs and offline states (AppFlow.Downloads.cs, task P2-06)
+            WireDiagnostics();   // the version and the first error's notice (AppFlow.Diagnostics.cs, task P2-10)
             FlowUnits.Changed += OnUnitsChanged;
         }
 
@@ -203,6 +204,7 @@ namespace MountainPlanner.App.Flow
             FlowUnits.Changed -= OnUnitsChanged;
             ReleaseSettings();
             ReleaseDownloads();
+            ReleaseDiagnostics();
             if (Picker != null) Destroy(Picker.gameObject);
             if (Instance == this)
             {
@@ -269,6 +271,7 @@ namespace MountainPlanner.App.Flow
                 if (!_readyLogged && _viewer.Ready)
                 {
                     _readyLogged = true;
+                    NoteTitleReady(Time.realtimeSinceStartup, BundledDemo.Contains(_viewer.OpenPackage));
                     Debug.Log($"[AppFlow] The title's mountain is in at {Time.realtimeSinceStartup:F1} s after launch ({(BundledDemo.Contains(_viewer.OpenPackage) ? "built-in demo" : "library")})");
                 }
             }

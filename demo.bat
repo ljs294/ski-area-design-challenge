@@ -30,6 +30,8 @@ set "FORMATS=%LOCALAPPDATA%\SkiAreaDesignChallenge-formats"
 set "LIBDEMO=%LOCALAPPDATA%\SkiAreaDesignChallenge-library"
 set "FIRSTRUN=%LOCALAPPDATA%\SkiAreaDesignChallenge-firstrun"
 set "UNITY=C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe"
+rem Task P2-10: the company is Alpine Labs; Unity keeps the player's prefs and Player.log under it.
+set "PLAYERLOG=%USERPROFILE%\AppData\LocalLow\Alpine Labs\Ski Area Design Challenge\Player.log"
 
 where dotnet >nul 2>nul
 if errorlevel 1 (
@@ -161,6 +163,10 @@ echo     56 A fresh install with loading details on: the Twin Peaks logos on the
 echo        then the title's name plate (the game's logo, Alpine Labs below). Details stays on next launch until you hide it.
 echo     57 Re-capture the loading screen's picture of the title view (7680x2160) after the title's look changes
 echo.
+echo   Phase 2, task 10: build and release (close the Unity editor first; needs the Jackson Hole 5 km from 12)
+echo     58 Build the release zip (checks, EditMode tests, build, smoke test, zip; about 15 minutes), then start the
+echo        unzipped game with a forced error: the version is bottom left, "A log was saved" opens the Logs folder.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -235,6 +241,7 @@ if /i "%CHOICE%"=="54" goto killresume
 if /i "%CHOICE%"=="55" goto photocredits
 if /i "%CHOICE%"=="56" goto loadingdetails
 if /i "%CHOICE%"=="57" goto titlestill
+if /i "%CHOICE%"=="58" goto release
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -325,7 +332,7 @@ echo   The title opens over Jackson Hole, built into the game, at 3:30 pm; the c
 echo   "Open the demo" is focused: Enter opens it. Load Area lists it as Built in; Manage Areas has no Rename or Delete for it.
 echo   Quit the game to see how long the title took to come in.
 start "" /wait "%GAME%" -data "%FIRSTRUN%" -offline
-findstr /c:"[AppFlow] The title's mountain is in" "%USERPROFILE%\AppData\LocalLow\Ski Area Design Challenge\Ski Area Design Challenge\Player.log"
+findstr /c:"[AppFlow] The title's mountain is in" "%PLAYERLOG%"
 goto done
 
 :loadingdetails
@@ -605,6 +612,25 @@ echo   Menu ^> Credits lists every area's sources; Licence texts shows the OFL.
 start "" "%GAME%"
 goto done
 
+:release
+rem Task P2-10: the one-command release (tools\release\release.ps1, also release.bat); a preview when HEAD isn't tagged vX.Y.Z.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\release\release.ps1" -AllowDirty <nul
+if errorlevel 1 goto done
+set "RELZIP="
+for %%Z in ("%~dp0Builds\Release\SkiAreaDesignChallenge-*-win64.zip") do set "RELZIP=%%~fZ"
+if not defined RELZIP goto done
+set "RELTRY=%~dp0test-results\release\unzipped"
+if exist "%RELTRY%" rmdir /s /q "%RELTRY%"
+mkdir "%RELTRY%"
+"%SystemRoot%\System32\tar.exe" -x -f "%RELZIP%" -C "%RELTRY%"
+for /d %%D in ("%RELTRY%\SkiAreaDesignChallenge-*") do set "RELGAME=%%~fD\SkiAreaDesignChallenge.exe"
+echo Starting the unzipped game with a forced error (-crashtest), as a tester would see it:
+echo   the title shows the version bottom left; once it's in, "Something went wrong. A log was saved" appears - Open folder
+echo   shows %LOCALAPPDATA%\SkiAreaDesignChallenge\Logs. Settings - Data - Logs has Open and Copy report; Credits shows the version.
+%RENDER% "%RELGAME%" -crashtest <nul
+start "" "%~dp0Builds\Release"
+goto done
+
 :hudparity
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
@@ -624,12 +650,12 @@ goto done
 :windowreset
 rem Older benchmark entries passed -screen-*, which Unity saved as the player's window mode. Deleting the saved
 rem Screenmanager values (this product's key only) brings back the build's default: borderless full screen.
-set "PREFS=HKCU\Software\Ski Area Design Challenge\Ski Area Design Challenge"
+rem Both keys: the old company's (builds before task P2-10) and Alpine Labs'.
 rem The game and both labs share this key, and each saves its window when it quits.
 for %%E in (SkiAreaDesignChallenge.exe PickerLab.exe LiftLab.exe) do (
   tasklist /fi "imagename eq %%E" | find /i "%%E" >nul && (echo   Close %%E first: it saves its window mode when it quits. & goto done)
 )
-powershell -NoProfile -Command "$k='Registry::%PREFS%'; if (Test-Path $k) { $n=(Get-Item $k).Property | Where-Object { $_ -like 'Screenmanager *' }; $n | ForEach-Object { Remove-ItemProperty -Path $k -Name $_ }; Write-Host ('  Removed ' + @($n).Count + ' saved window values; the game opens borderless full screen next time.') } else { Write-Host '  Nothing saved yet; the game already opens borderless full screen.' }"
+powershell -NoProfile -Command "$c=0; foreach ($co in 'Ski Area Design Challenge','Alpine Labs') { $k='Registry::HKCU\Software\'+$co+'\Ski Area Design Challenge'; if (Test-Path $k) { $n=(Get-Item $k).Property | Where-Object { $_ -like 'Screenmanager *' }; $n | ForEach-Object { Remove-ItemProperty -Path $k -Name $_ }; $c+=@($n).Count } }; Write-Host ('  Removed ' + $c + ' saved window values; the game opens borderless full screen next time.')"
 goto done
 
 :lifts

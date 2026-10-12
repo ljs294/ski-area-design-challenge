@@ -1,0 +1,18 @@
+Ski Area Design Challenge - notices
+
+Copyright Alpine Labs. All rights reserved.
+
+Data
+- Elevation and lidar: U.S. Geological Survey, 3D Elevation Program (public domain).
+- Base map: U.S. Geological Survey, The National Map (public domain).
+- Land cover: ESA WorldCover (CC BY 4.0) and USDA NAIP imagery (public domain), where an area uses them.
+- Roads and place search: (c) OpenStreetMap contributors (ODbL).
+- Each area's own sources are listed in the game, under Credits.
+
+Ground textures: Poly Haven (CC0).
+
+Made with Unity 6 and the Universal Render Pipeline.
+
+The licence texts for the fonts (SIL Open Font License 1.1) and Json.NET (MIT) follow.
+
+------------------------------------------------------------------------

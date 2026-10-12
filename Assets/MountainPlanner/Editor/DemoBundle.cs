@@ -112,9 +112,11 @@ namespace MountainPlanner.Editor
         /// The build step: bundles the demo into <paramref name="playerExe"/>. Without a source package it warns and
         /// builds without one (owner, task P2-03): the game then falls back to the library's Jackson Hole.
         /// </summary>
-        public static void AddTo(string playerExe, string[] args, string dataRoot)
+        public static void AddTo(string playerExe, string[] args, string dataRoot, bool required = false)
         {
             string source = FindSource(args, dataRoot, out string why);
+            // A release (task P2-10) without the demo would open testers on an empty title: it fails instead.
+            if (source == null && required) throw new BuildFailedException($"A release build needs the demo. {why}");
             if (source == null)
             {
                 Debug.LogWarning($"[DemoBundle] ********** NO DEMO IN THIS BUILD ********** {why} A fresh install will open on an empty title.");

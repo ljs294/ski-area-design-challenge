@@ -279,3 +279,18 @@ numbers: [phase1-benchmark-report.md](phase1-benchmark-report.md).
 | BR4 | **The loading screen** is the title's own picture with one box at the HUD panels' opacity: the game's lockup, "Opening …", the bar, a click-only Details list (remembered), and Alpine Labs emphasised. The title stays at 60° FOV so the picture matches; the download card, pill and dialogs draw above the box |
 | BR5 | **The company name and the app icon change at the first release (task 10).** The ink masters in docs/brand/masters are ready for it; the wordmarks are outlined from Overpass (OFL) by tools/brand/export.py |
 | BR6 | **On the title,** the name plate carries the game's logo and name; Alpine Labs is a plate of its own in the bottom-right corner (it does nothing), and the corner plates move like the trail signs when pointed at |
+
+## Phase 2 task 10, build and release: decided 2026-10-12
+
+**Context:** the one-command Windows release, the version, crash and error logs, and the zip that task 12's tester
+build uses. Tooling in `tools/release/README.md`.
+
+| # | Decision |
+|---|---|
+| RL1 | **The company is Alpine Labs.** Unity's companyName moves the player's prefs key and Player.log folder; on the first start under the new name every old value is copied once (App.Diagnostics.PrefsMigration, old key kept). The data root `%LOCALAPPDATA%\SkiAreaDesignChallenge` never moves |
+| RL2 | **Plain `v0.x.y` tags** (no -alpha suffix): a build of a tagged, clean commit is that version; anything else reads `0.2.0+dev.7.abc1234` (`.dirty` with uncommitted changes). The first release tag is `v0.2.0` |
+| RL3 | **The version** shows bottom left on the title and in Credits, heads Player.log and every error log, and names the zip |
+| RL4 | **Error logs** go to `%LOCALAPPDATA%\SkiAreaDesignChallenge\Logs\errors-<stamp>.log`, one per session with an error, the newest 10 kept, 5 MB each at most. The session's first error shows a notice once, with Open folder; Settings › Data › Logs opens the folder or copies the newest log |
+| RL5 | **A release build needs the demo:** without the Jackson Hole 5 km package (the library's newest, or -DemoPackage) it fails; dev builds still only warn (P2-03) |
+| RL6 | **A zip, no installer:** unzip and run, with README.txt and NOTICES.txt; not code-signed (Windows SmartScreen says "More info › Run anyway") |
+| RL7 | **The C# compile gap in CI** is closed locally, for free: the release command compiles everything, and an opt-in pre-push hook (`git config core.hooksPath tools/git-hooks`) runs `tools/release/compile-check.ps1` when Unity C# changed. No Unity on GitHub runners (it would need the owner's Unity credentials as secrets and LFS bandwidth per run) |

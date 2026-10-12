@@ -15,6 +15,9 @@ a nested `AGENTS.md` needs a same-directory `CLAUDE.md` with the same import.
   engine-free code).
 - Engine-free tests without Unity: `dotnet test tools/domain-tests/Tests`.
 - Hands-on demos: double-click `demo.bat`; add an entry for anything a PR makes demoable.
+- Release (task P2-10): `release.bat` (or `demo.bat` 58) checks, runs EditMode tests, builds with the demo, smoke-tests
+  the exe and zips it; a clean commit tagged `vX.Y.Z` builds release X.Y.Z. `tools/release/compile-check.ps1` compiles
+  every assembly (CI's dotnet build skips App, UI, Presentation, World); opt-in pre-push: `git config core.hooksPath tools/git-hooks`.
 - Tests (editor closed): `<Unity.exe> -batchmode -projectPath . -runTests -testPlatform EditMode`
   (and `PlayMode`), results under `test-results/`.
 - Benchmark (task 15): `demo.bat` 41 runs the fixed camera path over the Jackson Hole demo at High and Medium
@@ -82,6 +85,7 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
 | Tree assets | `tools/assets/trees/` | Blender species pipeline, enforced budgets |
 | Lift assets | `tools/assets/lifts/` | Blender lift and snow gun pipeline, budgets, Lift Lab (demo 22/23) |
 | GPU lanes | `tools/gpu/` | Shared GPU queue: measure and render lanes |
+| Release | `tools/release/`, `release.bat` | Version from tag, error logs, zip, compile check |
 | Benchmark | `Assets/MountainPlanner/Runtime/App/Benchmark/`, `tools/perf/`, `docs/perf/` | Fixed camera path, budgets, baselines |
 | Brand | `docs/brand/`, `tools/brand/`, `Art/UI/Brand/` | Twin Peaks marks, export, loading box and name plate |
 | Plans | `docs/plans/` | Roadmap and phase plans |

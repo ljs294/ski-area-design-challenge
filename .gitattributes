@@ -36,3 +36,5 @@ Assets/MountainPlanner/Art/UI/Fonts/*.asset filter=lfs diff=lfs merge=lfs -text
 
 # Road layers (task 12d) are verified by their SHA-256: never convert their line endings.
 roads.json -text
+# The pre-push hook (task P2-10) is a sh script: CRLF would break it.
+tools/git-hooks/* text eol=lf

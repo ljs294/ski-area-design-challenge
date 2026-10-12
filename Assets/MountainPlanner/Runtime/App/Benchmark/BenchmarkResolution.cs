@@ -9,7 +9,7 @@ namespace MountainPlanner.App
     /// <summary>
     /// -benchres &lt;width&gt;x&lt;height&gt; (benchmarks and review captures): a fixed window for this run only, so results
     /// compare with the baselines in docs/perf/. Unity saves every window change as the player's window mode
-    /// (HKCU\Software\Ski Area Design Challenge, the Screenmanager values), which is why demo.bat no longer passes
+    /// (HKCU\Software\Alpine Labs\Ski Area Design Challenge, the Screenmanager values), which is why demo.bat no longer passes
     /// -screen-width/-screen-height/-screen-fullscreen: they became the owner's mode for every later run. This records
     /// the window the player opened in (the saved mode, borderless full screen by default) and the saved window size,
     /// switches to a window of the asked-for size, and puts both back before any quit, so nothing about the run
