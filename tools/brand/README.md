@@ -14,6 +14,7 @@ with shapely.
 | `skyline.py <package> <out.json>` | The demo mountain's skyline from the title camera views, read from the bundled package's height grids. |
 | `twinpeaks.py` | The chosen brand's geometry (Twin Peaks): the marks, the trail and lift, the peak As. Needs shapely. |
 | `export.py` | Writes the masters (`docs/brand/masters/`, ink) and the game's white layers (`Art/UI/Brand/Resources/Brand/`), with the wordmarks outlined from `fonts/Overpass[wght].ttf` (OFL; `fonts/OFL.txt`). Needs fontTools and shapely. |
+| `icon.mjs` | The app icon (task P2-10): the ink game mark on a sign-white tile at 16–1024 px, each size with its cut (plain pair at 16 and 24, small cut to 64), into `Art/UI/Brand/Icon/icon-<size>.png` (Git LFS), plus a proof on dark and light taskbars in `test-results/brand/icon-proof.png`. The build sets them (`Editor/AppIcon.cs`). |
 
 Scratch output goes in `test-results/brand/`, which git ignores. Don't commit PNGs; they go to Git LFS.
 

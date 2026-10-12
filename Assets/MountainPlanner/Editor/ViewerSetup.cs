@@ -253,6 +253,7 @@ namespace MountainPlanner.Editor
             PlayerSettings.allowFullscreenSwitch = true;
             // No Unity splash: the title over the live demo is the first thing on screen, within 10 s of launch (task P2-03).
             PlayerSettings.SplashScreen.show = false;
+            AppIcon.Apply();   // Twin Peaks (task P2-10)
             var info = WriteBuildInfo();
             // The version from the release tag goes into the exe's properties and Application.version for this build
             // only: the committed ProjectSettings keep their placeholder, so builds never dirty the working tree.
