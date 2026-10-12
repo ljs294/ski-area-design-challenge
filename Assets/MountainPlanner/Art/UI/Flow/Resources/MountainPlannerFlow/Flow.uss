@@ -338,10 +338,11 @@
 }
 .error-notice-text { margin: 0 12px 0 0; padding: 0; font-size: 14px; color: var(--text); -unity-text-outline-color: var(--text); }
 .error-notice > .mp-ghost { height: 28px; margin-right: 4px; }
+/* A small plate in the corner plates' colours, lighter (1 px rule, no bold) since it does nothing: plain text vanished on snow. */
 .title-version {
-    position: absolute; left: 24px; bottom: 24px; margin: 0; padding: 0; font-size: 12px;
-    color: rgba(251, 248, 242, 0.85); -unity-text-outline-color: rgba(251, 248, 242, 0.85);
-    text-shadow: 0 1px 3px rgba(31, 28, 25, 0.8);
+    position: absolute; left: 24px; bottom: 24px; margin: 0; padding: 3px 8px; font-size: 12px;
+    background-color: #fbf8f2; color: #1f1c19; -unity-text-outline-color: #1f1c19;
+    border-width: 1px; border-color: #1f1c19; border-radius: 2px;
 }
 
 /* ---------- Task P2-03.1: the loading screen ----------
