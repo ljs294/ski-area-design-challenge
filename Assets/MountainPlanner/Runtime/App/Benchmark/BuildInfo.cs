@@ -36,6 +36,20 @@ namespace MountainPlanner.App
         /// <summary>The version as players see it: "v0.2.0", or "Development build" where none was stamped (the editor).</summary>
         public string DisplayVersion => string.IsNullOrEmpty(version) ? "Development build" : "v" + version;
 
+        /// <summary>
+        /// The title's short form, clear of the signpost's left post: "v0.2.0" for a release, "v0.2.0 preview" between
+        /// tags (the full version is in Credits and the logs).
+        /// </summary>
+        public string TitleVersion
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(version)) return DisplayVersion;
+                int plus = version.IndexOf('+');
+                return plus < 0 ? "v" + version : "v" + version.Substring(0, plus) + " preview";
+            }
+        }
+
         /// <summary>The first commit characters, for log lines.</summary>
         public string ShortCommit => commit != null && commit.Length > 7 ? commit.Substring(0, 7) : commit ?? "unknown";
     }

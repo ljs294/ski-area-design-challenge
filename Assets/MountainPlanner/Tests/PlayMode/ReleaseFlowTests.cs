@@ -60,7 +60,7 @@ namespace MountainPlanner.Tests
             yield return null;
             var ui = flow.Screens.Document.rootVisualElement;
             var version = ui.Q<Label>("title-version");
-            Assert.That(version.text, Is.EqualTo(BuildInfo.Current.DisplayVersion));
+            Assert.That(version.text, Is.EqualTo(BuildInfo.Current.TitleVersion));
             Assert.That(version.parent.name, Is.EqualTo("title-stage"), "under the title, in its 16:9 column");
             flow.Screens.ShowCredits(new UI.Flow.CreditsPage { Version = "Version 0.2.0" });
             yield return null;

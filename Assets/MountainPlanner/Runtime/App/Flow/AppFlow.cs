@@ -277,46 +277,6 @@ namespace MountainPlanner.App.Flow
             }
         }
 
-        /// <summary>Puts the cover up for the mountain about to open (task P2-03): "Opening Jackson Hole".</summary>
-        void CoverFor(string packageFolder)
-        {
-            string name = null;
-            try { if (!string.IsNullOrEmpty(packageFolder)) name = ResortLibrary.DisplayName(packageFolder, ResortPackage.ReadManifest(packageFolder)); }
-            catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException || e is ArgumentException) { }
-            Screens.ShowCover(name != null ? "Opening " + name : "Opening");
-            _coverSince = Time.realtimeSinceStartup;
-            _viewer = null;   // the scene going away is already whole; the cover waits for the next one
-        }
-
-        float _coverSince, _coverLifted = float.MaxValue;
-        /// <summary>The cover never outstays this, whatever happens underneath.</summary>
-        const float CoverLimitSeconds = 90;
-
-        /// <summary>
-        /// The cover's rule follows the terrain (85%), then the cover, snowpack and forest; it fades once the mountain is
-        /// whole, when opening failed (its message is then on screen), or when no viewer scene came up.
-        /// </summary>
-        void UpdateCover()
-        {
-            if (!Screens.CoverUp) return;
-            bool expired = Time.realtimeSinceStartup - _coverSince > CoverLimitSeconds;
-            if (_viewer == null)
-            {
-                if (expired) Screens.HideCover();   // a scene without a viewer drops it in OnSceneLoaded
-                return;
-            }
-            Screens.SetCoverProgress(0.85f * _viewer.OpenFraction + (_viewer.Ready ? 0.15f : 0));
-            // Nothing under the opaque cover needs drawing: the frame time goes to opening the mountain instead.
-            var sceneCamera = _viewer.Camera != null ? _viewer.Camera.GetComponent<UnityEngine.Camera>() : null;
-            bool lift = _viewer.Ready || _viewer.OpenError != null || expired;
-            if (sceneCamera != null) sceneCamera.enabled = lift;
-            if (lift)
-            {
-                Screens.HideCover();
-                _coverLifted = Time.realtimeSinceStartup;
-            }
-        }
-
         /// <summary>The postcard path for the mountain on screen (read once, as the title's mountain comes in).</summary>
         TitleDrift DriftFor(Presentation.ViewCamera cam)
         {
@@ -349,6 +309,15 @@ namespace MountainPlanner.App.Flow
         void HandleKeys(Keyboard keys)
         {
             if (keys == null) return;
+            if (Screens.CoverUp)   // under the loading screen Esc waits (task P2-03.1), except to close a dialog drawn over it
+            {
+                if (keys.escapeKey.wasPressedThisFrame && !Screens.CapturingKeys && (Screens.PromptOpen || Screens.ConfirmOpen))
+                {
+                    if (Screens.PromptOpen) Screens.ClosePrompt(); else Screens.CloseConfirm();
+                    MountainViewer.FlowTookEscapeFrame = Time.frameCount;
+                }
+                return;
+            }
             if (keys.escapeKey.wasPressedThisFrame && Controller.Screen != FlowScreen.Picker && !Screens.CapturingKeys)
             {
                 bool used = true;
@@ -360,9 +329,12 @@ namespace MountainPlanner.App.Flow
             }
         }
 
-        /// <summary>True while one of the flow's windows has the keyboard, so the viewer leaves the keys alone.</summary>
+        /// <summary>
+        /// True while one of the flow's windows has the keyboard, so the viewer leaves the keys alone. The loading screen
+        /// counts (task P2-03.1): under it no key moves the camera, and Esc can't quit the game while an area opens.
+        /// </summary>
         bool FlowHasKeyboard() =>
-            Screens.ConfirmOpen || Screens.PromptOpen || Screens.OverlayOpen || (Picker != null && Picker.IsOpen) || Controller.Screen == FlowScreen.Library || Controller.Screen == FlowScreen.Quality;
+            Screens.CoverUp || Screens.ConfirmOpen || Screens.PromptOpen || Screens.OverlayOpen || (Picker != null && Picker.IsOpen) || Controller.Screen == FlowScreen.Library || Controller.Screen == FlowScreen.Quality;
 
         // ---------- IFlowHost ----------
 

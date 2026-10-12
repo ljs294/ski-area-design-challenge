@@ -9,6 +9,7 @@ using MountainPlanner.Domain.Measure;
 using MountainPlanner.Domain.Snow;
 using MountainPlanner.Persistence;
 using MountainPlanner.Presentation;
+using MountainPlanner.UI.Flow;
 using MountainPlanner.World;
 using UnityEngine;
 
@@ -92,15 +93,17 @@ namespace MountainPlanner.App
         /// A package built into the game (task P2-03): opened without writing a byte. It takes no cache lease (nothing
         /// can delete it) and its cache must already be current, since it can't be built in place.
         /// </param>
+        /// <param name="load">The stage-by-stage record the loading box shows (task P2-03.1); written on the main thread.</param>
         public static async Task<OpenedResort> OpenAsync(string packageFolder, Transform parent, TerrainDetail detail,
                                                          IProgress<OpenProgress> progress, CancellationToken ct = default, Material material = null,
-                                                         ForestAssets forest = null, bool readOnly = false)
+                                                         ForestAssets forest = null, bool readOnly = false, LoadProgress load = null)
         {
             var clock = Stopwatch.StartNew();
             progress?.Report(new OpenProgress("Opening: reading the package", 0));
+            load?.Begin(LoadStage.Package);
             // Held from the start, so no game (another branch's included) deletes this cache while it opens or shows.
             var lease = readOnly ? null : await Task.Run(() => TerrainCache.Hold(packageFolder), ct);
-            try { return await OpenHeldAsync(packageFolder, parent, detail, progress, ct, material, forest, clock, lease); }
+            try { return await OpenHeldAsync(packageFolder, parent, detail, progress, ct, material, forest, clock, lease, load); }
             catch
             {
                 lease?.Dispose();
@@ -109,19 +112,28 @@ namespace MountainPlanner.App
         }
 
         static async Task<OpenedResort> OpenHeldAsync(string packageFolder, Transform parent, TerrainDetail detail, IProgress<OpenProgress> progress,
-                                                      CancellationToken ct, Material material, ForestAssets forest, Stopwatch clock, IDisposable lease)
+                                                      CancellationToken ct, Material material, ForestAssets forest, Stopwatch clock, IDisposable lease, LoadProgress load)
         {
             var manifest = await Task.Run(() => ResortPackage.ReadManifest(packageFolder), ct);
 
             bool current = await Task.Run(() => TerrainCache.IsCurrent(packageFolder, manifest), ct);
             if (!current && lease == null) throw new System.IO.InvalidDataException(BundledAreas.StaleCache);
-            if (!current)
+            load?.End(LoadStage.Package);
+            if (current) load?.Skip(LoadStage.Preparing);
+            else
             {
+                // The build reports from many threads; this Progress was made here, so its reports come back on the main thread.
+                load?.Begin(LoadStage.Preparing);
                 var tileProgress = new Progress<CacheProgress>(p =>
-                    progress?.Report(new OpenProgress($"Preparing terrain: tile {p.Tile} of {p.Tiles}", 0.5f * p.Tile / p.Tiles)));
+                {
+                    progress?.Report(new OpenProgress($"Preparing terrain: tile {p.Tile} of {p.Tiles}", 0.5f * p.Tile / p.Tiles));
+                    load?.Advance(LoadStage.Preparing, p.Tile, p.Tiles);
+                });
                 await Task.Run(() => TerrainCache.Build(packageFolder, manifest, tileProgress, ct, new BurstForestPlanter()), ct);   // the forest grows with Burst
+                load?.End(LoadStage.Preparing);
             }
             var cache = await Task.Run(() => TerrainCache.ReadManifest(packageFolder), ct);
+            load?.Begin(LoadStage.Terrain, cache.Tiles.Count);
             var frame = new LocalFrame(new AlbersPoint(manifest.Site.CentreX, manifest.Site.CentreY));
 
             var root = new GameObject($"Resort: {manifest.Site.Name}");
@@ -167,7 +179,7 @@ namespace MountainPlanner.App
             List<Task<CliffShells.Prepared>> cliffTasks = null;
             if (forest != null && forest.Cliff != null)
                 cliffTasks = order.Select(t => Task.Run(() => CliffShells.Prepare(TerrainCache.ReadCliffs(packageFolder, t)), ct)).ToList();
-            float start = progress == null ? 0 : 0.5f;
+            float start = current ? 0 : 0.5f;   // a first open spent the first half building the cache
             double waited = 0, created = 0;
             var part = Stopwatch.StartNew();
             for (int n = 0; n < order.Count; n++)
@@ -180,6 +192,7 @@ namespace MountainPlanner.App
                 tiles[(tile.Column, tile.Row)] = TerrainTiles.Create(root.transform, cache, tile, heights, frame, material, layers, detail, TerrainTiles.UnpaintedSplatResolution);
                 created += part.Elapsed.TotalSeconds;
                 progress?.Report(new OpenProgress($"Opening terrain: tile {n + 1} of {order.Count}", start + (1 - start) * (n + 1) / order.Count));
+                load?.Advance(LoadStage.Terrain, n + 1);
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
             }
             TerrainTiles.ConnectNeighbours(tiles);
@@ -203,21 +216,23 @@ namespace MountainPlanner.App
                                                                  Mathf.Clamp(z, ringRect.yMin + 0.05f, ringRect.yMax - 0.05f));
                 resort.EdgeMaterial = DioramaBase.Create(root.transform, ringRect, Edge, (float)cache.HeightMin - DioramaBase.BaseDepth, forest.Edge).Walls;
             }
+            load?.End(LoadStage.Terrain);
             // The natural snowpack (task 12b) from the heights and cover already decoded, on a worker thread.
             var states = resort.States;
             double convergence = manifest.Crs.GridConvergenceDegrees;
             var snowpack = Task.Run(async () => BuildSnowpack(order, await Task.WhenAll(decoded).ConfigureAwait(false),
                                                                 await Task.WhenAll(covers).ConfigureAwait(false), cache, frame, ringRect,
                                                                 states.Snow.Width, states.Snow.Height, convergence), ct);
-            resort.CoverReady = PaintCoverAsync(resort, order, covers, cliffTasks, forests, forest, clock, ct, snowpack);
+            resort.CoverReady = PaintCoverAsync(resort, order, covers, cliffTasks, forests, forest, clock, ct, snowpack, load);
             return resort;
         }
 
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
         static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, List<Task<CliffShells.Prepared>> cliffTasks,
                                           List<Task<ForestInstance[]>> forests, ForestAssets forest,
-                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels)> snowpack)
+                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels)> snowpack, LoadProgress load)
         {
+            load?.Begin(LoadStage.GroundCover, order.Count);
             for (int n = 0; n < order.Count; n++)
             {
                 var splat = await covers[n];
@@ -227,23 +242,29 @@ namespace MountainPlanner.App
                 terrain.terrainData.terrainLayers = resort.Ground.Layers;
                 TerrainTiles.ApplySplat(terrain.terrainData, splat);
                 TerrainTiles.BindSplat(terrain);
+                load?.Advance(LoadStage.GroundCover, n + 1);
                 if ((n + 1) % TilesPerFrame == 0) await Task.Yield();
             }
+            load?.End(LoadStage.GroundCover);
             resort.CoverSeconds = clock.Elapsed.TotalSeconds;
             UnityEngine.Debug.Log($"[ResortOpener] ground cover painted at {resort.CoverSeconds:F2} s");
 
             // The snowpack replaces the opening 12 in; SurfaceStates.Sync uploads it once.
+            load?.Begin(LoadStage.Snowpack);
             var (depths, labels) = await snowpack;
             if (resort.Root == null) return;
             resort.States.Snow.CopyFrom(depths);
             resort.ContourLabels = labels;
             resort.SnowpackSeconds = clock.Elapsed.TotalSeconds;
+            load?.End(LoadStage.Snowpack);
             UnityEngine.Debug.Log($"[ResortOpener] snowpack in the snow-depth field at {resort.SnowpackSeconds:F2} s");
 
             // Cliff shells: the rock volume the heightmap can't hold.
-            if (cliffTasks != null)
+            if (cliffTasks == null) load?.Skip(LoadStage.Cliffs);
+            else
             {
                 resort.CliffMaterial = forest.Cliff;
+                load?.Begin(LoadStage.Cliffs, order.Sum(t => (long)t.CliffTriangles));
                 long triangles = 0;
                 for (int n = 0; n < order.Count; n++)
                 {
@@ -254,15 +275,30 @@ namespace MountainPlanner.App
                     var (ox, oz) = resort.Frame.ToLocal(new AlbersPoint(tile.West, tile.North - resort.Cache.TileMetres));
                     CliffShells.Create(resort.Root.transform, $"Cliffs t{tile.Column}_{tile.Row}", new Vector3((float)ox, 0, (float)oz), shell, forest.Cliff);
                     triangles += shell.Indices.Length / 3;
+                    load?.Advance(LoadStage.Cliffs, triangles);
                     if (n % TilesPerFrame == 0) await Task.Yield();
                 }
                 resort.CliffTriangles = triangles;
+                load?.End(LoadStage.Cliffs);
                 UnityEngine.Debug.Log($"[ResortOpener] cliff shells ({triangles:N0} triangles) at {clock.Elapsed.TotalSeconds:F2} s");
             }
-            if (forests == null) return;
+            if (forests == null)
+            {
+                load?.Skip(LoadStage.Forest);
+                return;
+            }
 
-            // Then the forest: every tile's trees go into one GPU buffer (ForestRenderer).
-            var all = await Task.WhenAll(forests);
+            // Then the forest: every tile's trees go into one GPU buffer (ForestRenderer). The tiles are awaited one by one,
+            // nearest first, so the count of trees rises as they come in.
+            load?.Begin(LoadStage.Forest, order.Sum(t => (long)t.TreeCount));
+            var all = new ForestInstance[forests.Count][];
+            long trees = 0;
+            for (int n = 0; n < forests.Count; n++)
+            {
+                all[n] = await forests[n];
+                trees += all[n].Length;
+                load?.Advance(LoadStage.Forest, trees);
+            }
             ct.ThrowIfCancellationRequested();
             if (resort.Root == null) return;
             var instances = await Task.Run(() => all.SelectMany(a => a).ToArray(), ct);
@@ -272,6 +308,7 @@ namespace MountainPlanner.App
             view.Renderer = renderer;
             resort.TreesPlanted = instances.Length;
             resort.ForestSeconds = clock.Elapsed.TotalSeconds;
+            load?.End(LoadStage.Forest);
             UnityEngine.Debug.Log($"[ResortOpener] {instances.Length:N0} trees planted at {resort.ForestSeconds:F2} s ({renderer.DrawCount} indirect draws)");
         }
 

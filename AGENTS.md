@@ -87,5 +87,6 @@ only point left, per the allow-list in `docs/plans/phase0-0.3-technical-architec
 | GPU lanes | `tools/gpu/` | Shared GPU queue: measure and render lanes |
 | Release | `tools/release/`, `release.bat` | Version from tag, error logs, zip, compile check |
 | Benchmark | `Assets/MountainPlanner/Runtime/App/Benchmark/`, `tools/perf/`, `docs/perf/` | Fixed camera path, budgets, baselines |
+| Brand | `docs/brand/`, `tools/brand/`, `Art/UI/Brand/` | Twin Peaks marks, export, loading box and name plate |
 | Plans | `docs/plans/` | Roadmap and phase plans |
 | Archived reference | `docs/reference/maplibre-archive.md` | Links into the frozen MapLibre game |

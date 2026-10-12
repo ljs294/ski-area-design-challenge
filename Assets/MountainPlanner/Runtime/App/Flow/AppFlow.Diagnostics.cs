@@ -21,7 +21,7 @@ namespace MountainPlanner.App.Flow
 
         void WireDiagnostics()
         {
-            Screens.SetVersion(BuildInfo.Current.DisplayVersion);
+            Screens.SetVersion(BuildInfo.Current.TitleVersion);
             Screens.ErrorLogsOpenChosen += OpenErrorLogs;
             Screens.ErrorReportCopyChosen += CopyErrorReport;
             ErrorReporter.FirstError += OnFirstError;

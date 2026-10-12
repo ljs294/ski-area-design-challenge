@@ -266,6 +266,20 @@ numbers: [phase1-benchmark-report.md](phase1-benchmark-report.md).
 | ST6 | **Auto tree detail** times the first open on each graphics card and screen size: Ultra's LOD bias first, stepping down, keeping the first whose p95 is within 12 ms (60% of the budget) |
 | ST7 | **Settings are not a frozen format:** they live in PlayerPrefs under `MountainPlanner.*`, beside the theme, scale and units. A -quality on the command line uses the preset alone for that run (benchmarks measure B1 exactly); -treedetail auto times Auto again |
 
+## Phase 2 task 03.1, loading screen and brand: decided 2026-10-11
+
+**Context:** the loading screen over every load, and the studio's and the game's marks (owner decisions 2026-10-08 to
+2026-10-11; the marks are described in docs/brand/README.md).
+
+| # | Decision |
+|---|---|
+| BR1 | **The brand is Twin Peaks:** two crisp peaks in the demo mountain's real twin proportions, the lower in front, every outer flank 2:1. The game's mark adds a winding trail and a straight lift bar; the studio's is the plain pair. A fresh-concept round (docs/plans/brand/brief.md) was judged too bland and set aside |
+| BR2 | **The As are peaks:** in the game's name a cap-height peak at the mark's angle; in the Alpine Labs lockup a third peak rising from behind the pair, its summit level with the front one (below 32 px, the plain pair and an ordinary A) |
+| BR3 | **One colour:** ink on light, white on dark, tinted from USS; no orange (planned work) and no rating colours in the marks. Lines are 1.0 (the trail 1.08), 1.25 from 64 px down; the 16 and 24 px icons are the plain pair |
+| BR4 | **The loading screen** is the title's own picture with one box at the HUD panels' opacity: the game's lockup, "Opening …", the bar, a click-only Details list (remembered), and Alpine Labs emphasised. The title stays at 60° FOV so the picture matches; the download card, pill and dialogs draw above the box |
+| BR5 | **The company name and the app icon change at the first release (task 10).** The ink masters in docs/brand/masters are ready for it; the wordmarks are outlined from Overpass (OFL) by tools/brand/export.py |
+| BR6 | **On the title,** the name plate carries the game's logo and name; Alpine Labs is a plate of its own in the bottom-right corner (it does nothing), and the corner plates move like the trail signs when pointed at |
+
 ## Phase 2 task 10, build and release: decided 2026-10-12
 
 **Context:** the one-command Windows release, the version, crash and error logs, and the zip that task 12's tester

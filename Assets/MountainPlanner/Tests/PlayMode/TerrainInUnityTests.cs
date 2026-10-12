@@ -140,6 +140,7 @@ namespace MountainPlanner.Tests
             finally
             {
                 Http.NetworkDisabled = false;
+                resort.CacheLease?.Dispose();   // the opener's cache lease (task P2-04): held, the folder can't be deleted
                 Object.Destroy(resort.Root);
             }
         }
@@ -175,6 +176,7 @@ namespace MountainPlanner.Tests
             }
             finally
             {
+                resort.CacheLease?.Dispose();   // the opener's cache lease (task P2-04): held, the folder can't be deleted
                 Object.Destroy(resort.Root);
                 Object.Destroy(camera.gameObject);
             }
@@ -204,6 +206,7 @@ namespace MountainPlanner.Tests
             finally
             {
                 Http.NetworkDisabled = false;
+                open.Result.CacheLease?.Dispose();   // the opener's cache lease (task P2-04): held, the folder can't be deleted
                 Object.Destroy(open.Result.Root);
             }
         }
