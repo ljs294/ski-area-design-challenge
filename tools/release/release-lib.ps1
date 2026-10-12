@@ -60,12 +60,14 @@ function Read-TestResult([string]$xml, [datetime]$started, [int]$code) {
 
 # Files Git LFS left as pointer text (git lfs ls-files marks them '-').
 function Get-LfsPointers([string]$root) {
+    $ErrorActionPreference = 'Continue'   # PS 5.1 under Stop turns a native command's stderr into an error, 2>$null or not
     $lines = & git -C $root lfs ls-files 2>$null
     return @($lines | Where-Object { $_ -match '^[0-9a-f]+ - ' } | ForEach-Object { ($_ -split ' - ', 2)[1] })
 }
 
 # The release tag at HEAD (v0.2.0), or $null.
 function Get-ReleaseTag([string]$root) {
+    $ErrorActionPreference = 'Continue'   # "No names found" on stderr is the normal answer for an untagged commit
     $tag = & git -C $root describe --tags --exact-match --match $script:ReleaseTagGlob HEAD 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $tag) { return $null }
     return $tag.Trim()

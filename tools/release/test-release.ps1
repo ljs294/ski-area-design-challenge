@@ -28,6 +28,12 @@ try {
     Check (-not (Test-ReleaseVersion '0.2.0-alpha')) 'plain v0.x.y tags only'
     Check ((Get-ZipName '0.2.0') -eq 'SkiAreaDesignChallenge-0.2.0-win64.zip') 'zip name'
 
+    Write-Host 'Git helpers'
+    $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+    $threw = $false
+    try { $null = Get-ReleaseTag $repo; $null = Get-LfsPointers $repo } catch { $threw = $true }
+    Check (-not $threw) 'an untagged commit gives no tag, not an error'
+
     Write-Host 'Test results'
     $xml = Join-Path $scratch 'editmode.xml'
     Set-Content $xml '<test-run result="Passed" total="12" passed="12" failed="0"></test-run>'
