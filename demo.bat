@@ -167,6 +167,10 @@ echo   Phase 2, task 10: build and release (close the Unity editor first; needs 
 echo     58 Build the release zip (checks, EditMode tests, build, smoke test, zip; about 15 minutes), then start the
 echo        unzipped game with a forced error: the version is bottom left, "A log was saved" opens the Logs folder.
 echo.
+echo   Phase 2, task 12: tester build (the v0.2.0 zip from 58, or D:\skiAreaDesignChallenge\releases)
+echo     59 Tester kit: unzip the release and play it as a first-time player (an empty library, your settings kept),
+echo        with the tester sheet open; when the game closes, the Logs, Player.log and Pictures folders open to collect.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -242,6 +246,7 @@ if /i "%CHOICE%"=="55" goto photocredits
 if /i "%CHOICE%"=="56" goto loadingdetails
 if /i "%CHOICE%"=="57" goto titlestill
 if /i "%CHOICE%"=="58" goto release
+if /i "%CHOICE%"=="59" goto testerkit
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -629,6 +634,34 @@ echo   the title shows the version bottom left; once it's in, "Something went wr
 echo   shows %LOCALAPPDATA%\SkiAreaDesignChallenge\Logs. Settings - Data - Logs has Open and Copy report; Credits shows the version.
 %RENDER% "%RELGAME%" -crashtest <nul
 start "" "%~dp0Builds\Release"
+goto done
+
+:testerkit
+rem Task P2-12: the tester kit. Unzips the newest release zip into test-results\tester and starts it on an empty data
+rem folder (-data), so the library, recent list and download cache start empty like a fresh install. Settings and the
+rem error logs stay in their usual places. The tester sheet is docs\plans\p2-12-tester-sheet.md.
+set "TKZIP="
+for %%Z in ("%~dp0..\releases\SkiAreaDesignChallenge-*-win64.zip") do set "TKZIP=%%~fZ"
+for %%Z in ("%~dp0Builds\Release\SkiAreaDesignChallenge-*-win64.zip") do set "TKZIP=%%~fZ"
+if not defined TKZIP (
+  echo No release zip found in Builds\Release or ..\releases. Build one with 58 first.
+  goto done
+)
+set "TK=%~dp0test-results\tester"
+if exist "%TK%" rmdir /s /q "%TK%"
+mkdir "%TK%\game" "%TK%\data"
+echo Unzipping %TKZIP%...
+"%SystemRoot%\System32\tar.exe" -x -f "%TKZIP%" -C "%TK%\game"
+set "TKGAME="
+for /d %%D in ("%TK%\game\SkiAreaDesignChallenge-*") do set "TKGAME=%%~fD\SkiAreaDesignChallenge.exe"
+if not defined TKGAME goto done
+start "" "%~dp0docs\plans\p2-12-tester-sheet.md"
+echo Playing as a first-time player. Follow the tester sheet; close the game when you are done.
+"%TKGAME%" -data "%TK%\data" <nul
+if not exist "%LOCALAPPDATA%\SkiAreaDesignChallenge\Logs" mkdir "%LOCALAPPDATA%\SkiAreaDesignChallenge\Logs"
+start "" "%LOCALAPPDATA%\SkiAreaDesignChallenge\Logs"
+start "" "%USERPROFILE%\AppData\LocalLow\Alpine Labs\Ski Area Design Challenge"
+if exist "%USERPROFILE%\Pictures\Ski Area Design Challenge" start "" "%USERPROFILE%\Pictures\Ski Area Design Challenge"
 goto done
 
 :hudparity

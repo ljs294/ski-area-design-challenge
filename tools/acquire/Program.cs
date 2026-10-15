@@ -29,6 +29,8 @@ using MountainPlanner.Persistence;
 //                                                 BIGMAP species at every US ski area (task 09 priority report)
 //   acquire species-report --survey <survey.jsonl> [--out <report.md>] [--top 30]
 //                                                 ranks species without a model by the flora points they'd add
+//   acquire seam-profile --package <folder> --x <albers x> [--layer heights-core|heights-ring] [--every 100] [--out <csv>] [--compare-3dep <cache folder>]
+//                                                 measures a straight north-south S1M / 3DEP join in the heights (P2-12, E1)
 // Interrupt a download at any time (Ctrl+C) and run it again: it resumes from the cache.
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 string command = args.Length > 0 && !args[0].StartsWith("--") ? args[0] : "download";
@@ -46,6 +48,98 @@ switch (command)
             Console.WriteLine($"  {e.Name,-24} {e.SizeKm:0.#} km  terrain {e.TerrainScore,3}/100  flora {e.FloraScore,3}/100  {e.BytesOnDisk / 1e6,7:F1} MB  " +
                               $"{(e.CacheReady ? "ready" : "needs preparing")}  {e.PackageId}");
         return 0;
+
+    case "seam-profile":
+    {
+        // P2-12 (E1): how a straight north-south join between S1M and the 3DEP fallback looks in a package's heights.
+        // Per profile row, every --every metres along the join:
+        //   step   = the jump across the join beyond the local slope (a cliff shows here);
+        //   kink   = the same at the blend band's outer edge, 50 m into the S1M side;
+        //   rough  = the spread of the second difference over 30 m on each side (the datasets' texture).
+        // The same measures 500 m west of the join, all in S1M, give the noise floor ("control").
+        string folder = opts["package"];
+        string layer = opts.GetValueOrDefault("layer", "heights-core");
+        double joinX = double.Parse(opts["x"], CultureInfo.InvariantCulture);
+        double every = double.Parse(opts.GetValueOrDefault("every", "100"), CultureInfo.InvariantCulture);
+        float[] h;
+        GridHeader g;
+        using (var s = File.OpenRead(Path.Combine(folder, layer + ".grid"))) h = GridFile.ReadFloats(s, out g);
+        int Cells(double metres) => (int)Math.Round(metres / g.CellSize);
+        int join = (int)Math.Round((joinX - g.West) / g.CellSize);
+        if (join < Cells(600) || join > g.Width - Cells(40)) { Console.WriteLine($"The join (column {join}) isn't inside {layer}."); return 1; }
+        double H(int r, int c) => h[(long)r * g.Width + c];
+        double Step(int r, int c) => (H(r, c) - H(r, c - 1)) - 0.5 * ((H(r, c - 1) - H(r, c - 2)) + (H(r, c + 1) - H(r, c)));
+        double Rough(int r, int from, int to)
+        {
+            var d = new List<double>();
+            for (int c = from + 1; c < to - 1; c++) d.Add(H(r, c + 1) - 2 * H(r, c) + H(r, c - 1));
+            double mean = d.Average();
+            return Math.Sqrt(d.Sum(v => (v - mean) * (v - mean)) / d.Count);
+        }
+        var rows = new List<(double Y, double Step, double Kink, double RoughW, double RoughE, double CStep)>();
+        for (double y = every / 2; y < g.Height * g.CellSize; y += every)
+        {
+            int r = (int)(y / g.CellSize);
+            int control = join - Cells(500);
+            rows.Add((g.North - y, Step(r, join), Step(r, join - Cells(50)),
+                      Rough(r, join - Cells(90), join - Cells(60)), Rough(r, join + Cells(5), join + Cells(35)),
+                      Step(r, control)));
+        }
+        string Stats(IEnumerable<double> values)
+        {
+            var a = values.Select(Math.Abs).OrderBy(v => v).ToArray();
+            return $"median {a[a.Length / 2],6:F3}  p95 {a[(int)(a.Length * 0.95)],6:F3}  max {a[^1],6:F3}";
+        }
+        Console.WriteLine($"{layer}: {g.Width}x{g.Height} at {g.CellSize} m; join at x = {joinX} (column {join}); {rows.Count} profiles every {every} m");
+        Console.WriteLine($"  step at the join (m)        {Stats(rows.Select(p => p.Step))}");
+        Console.WriteLine($"  step, control 500 m west    {Stats(rows.Select(p => p.CStep))}");
+        Console.WriteLine($"  kink at the band edge (m)   {Stats(rows.Select(p => p.Kink))}");
+        Console.WriteLine($"  roughness S1M / fallback    {rows.Average(p => p.RoughW):F3} / {rows.Average(p => p.RoughE):F3} m (mean)");
+        if (opts.TryGetValue("compare-3dep", out string? dep3Cache))
+        {
+            // The direct measure of what the blend hides: the 3DEP service's own heights for strips beside the join,
+            // compared cell by cell with the package. West (95-55 m, pure S1M) gives the true dataset offset; east
+            // (10-50 m, the fallback itself) should read about zero.
+            var dep3 = new Dep3Service(new DiskCache(dep3Cache), new TransferMeter());
+            async Task<List<double>> Strip(double fromMetres, double toMetres)
+            {
+                var diffs = new List<double>();
+                int c0 = join + Cells(fromMetres), c1 = join + Cells(toMetres);
+                for (int r0 = 0; r0 < g.Height; r0 += 1000)
+                {
+                    int rows = Math.Min(1000, g.Height - r0);
+                    var box = new AlbersBox(g.West + c0 * g.CellSize, g.North - (r0 + rows) * g.CellSize,
+                                            g.West + c1 * g.CellSize, g.North - r0 * g.CellSize);
+                    float[] d = await dep3.ExportAsync(box, c1 - c0, rows, CancellationToken.None);
+                    for (int r = 0; r < rows; r++)
+                        for (int c = c0; c < c1; c++)
+                        {
+                            float v = d[r * (c1 - c0) + c - c0];
+                            if (!float.IsNaN(v) && v > -1000) diffs.Add(H(r0 + r, c) - v);
+                        }
+                }
+                return diffs;
+            }
+            string Signed(List<double> d)
+            {
+                var s = d.OrderBy(v => v).ToArray();
+                return $"mean {d.Average(),7:F3}  median {s[s.Length / 2],7:F3}  p5 {s[(int)(s.Length * 0.05)],7:F3}  p95 {s[(int)(s.Length * 0.95)],7:F3}  ({s.Length} cells)";
+            }
+            var mid = new AlbersPoint(g.West + (join - Cells(75)) * g.CellSize, g.North - g.Height * g.CellSize / 2);
+            var (source, size) = await dep3.IdentifySourceAsync(mid, CancellationToken.None);
+            Console.WriteLine($"  3DEP's own source west of the join: {source} ({size:0.##} m)");
+            Console.WriteLine($"  package - 3DEP, S1M side      {Signed(await Strip(-95, -55))}");
+            Console.WriteLine($"  package - 3DEP, fallback side {Signed(await Strip(10, 50))}");
+        }
+        if (opts.TryGetValue("out", out string? csv))
+        {
+            using var w = new StreamWriter(csv);
+            w.WriteLine("north,step,kink,rough_s1m,rough_fallback,control_step");
+            foreach (var p in rows)
+                w.WriteLine(string.Join(",", new[] { p.Y, p.Step, p.Kink, p.RoughW, p.RoughE, p.CStep }.Select(v => v.ToString("0.###", CultureInfo.InvariantCulture))));
+        }
+        return 0;
+    }
 
     case "validate":
     {
