@@ -6,11 +6,12 @@ A ski resort designer on real mountains, built from U.S. Geological Survey lidar
 
 RUNNING THE GAME
 
-1. Unzip this folder anywhere you like (not inside Program Files), for example your Desktop.
-2. Double-click SkiAreaDesignChallenge.exe.
+1. Before unzipping, right-click the zip file, choose Properties, tick "Unblock" at the bottom and click OK.
+   This test build isn't signed, and without this step Windows may refuse to start it.
+2. Unzip this folder anywhere you like (not inside Program Files), for example your Desktop.
+3. Double-click SkiAreaDesignChallenge.exe.
 
-Windows may say "Windows protected your PC", because this test build isn't signed. Click "More info", then
-"Run anyway".
+If Windows still says "Windows protected your PC", click "More info", then "Run anyway".
 
 The game opens on the title over Jackson Hole, which is built in and works offline. New Area downloads another
 mountain, which needs an internet connection; downloads go to %LOCALAPPDATA%\SkiAreaDesignChallenge.
