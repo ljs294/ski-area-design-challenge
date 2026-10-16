@@ -11,6 +11,7 @@ Build: **v0.2.0** (`SkiAreaDesignChallenge-0.2.0-win64.zip`, 357 MB, tag `v0.2.0
 | TB1 | No spare PC. The clean installs are the owner's 10-year-old laptop (NVIDIA Quadro) and the owner's brother's PC; the owner also plays on the main PC from an empty data folder (demo.bat 59) |
 | TB2 | The tester ships **v0.2.0 as is**: its README.txt already covers install, offline use and reporting. v0.2.1 only after a blocking fix |
 | TB3 | The E1 seam site is **Palisades Tahoe 5 km** |
+| TB5 | (2026-10-16) **The rest of the tester session is skipped:** no photo test and no brother's session. The owner ran the laptop test; task 14 records criterion 4's missing parts (no-help tester, photo) as an owner decision |
 | TB4 | Task 11 stays skipped: the laptop's frame rate is informative; failing to start or open the demo is blocking |
 
 ## Exit criteria
@@ -18,7 +19,7 @@ Build: **v0.2.0** (`SkiAreaDesignChallenge-0.2.0-win64.zip`, 357 MB, tag `v0.2.0
 | Criterion | Evidence | Result |
 | --- | --- | --- |
 | 3. A clean install opens the demo offline | Laptop and brother's PC: first launch with the network off reaches the title | **Met on the laptop** (2026-10-16): Jackson Hole opened offline "great" (owner) |
-| 4. The tester downloads, explores and photographs a mountain without help | Brother's session: a download, notes, a saved photo | _pending_ |
+| 4. The tester downloads, explores and photographs a mountain without help | Owner on the laptop | **Partly met:** download and exploring worked (owner, not a no-help tester); photo not tried. Rest skipped by the owner (TB5) |
 | E1. The seam capture shows no visible step, or a fix is planned | [p2-12-seam-check.md](p2-12-seam-check.md) | **Met:** no visible step; datasets agree to 6 mm (mean) |
 
 ## Machines
