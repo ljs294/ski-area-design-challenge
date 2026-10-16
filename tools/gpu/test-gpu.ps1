@@ -175,6 +175,39 @@ try {
     Check (@((Get-State).holders | Where-Object { $_.name -eq 'rel' }).Count -eq 0) 'the slot is gone'
     & taskkill.exe /T /F /PID $rel.Id 2>$null | Out-Null
 
+    Write-Host 'Ctrl+C stops the command and frees the slot'
+    # Its own (hidden) console, as a run in a terminal window has; a helper attaches to that console and sends the
+    # keyboard's Ctrl+C to everything on it (task P3-01; the hand check #76 left).
+    $a = Get-GpuArgs 'run' @('-Lane', 'measure', '-Name', 'ctrl-c', '--', 'ping.exe', '-n', '120', '127.0.0.1')
+    $cc = Start-Process -FilePath 'powershell' -ArgumentList $a -PassThru -WindowStyle Hidden
+    $script:Launched += $cc
+    [void](Wait-For { param($s) @($s.holders | Where-Object { $_.name -eq 'ctrl-c' -and $_.childPid }).Count -gt 0 } 'ctrl-c child started')
+    $ccChild = [int]@((Get-State).holders | Where-Object { $_.name -eq 'ctrl-c' })[0].childPid
+    $sender = Join-Path $Root 'send-ctrl-c.ps1'
+    Set-Content -Path $sender -Encoding UTF8 -Value @'
+Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices;
+public static class Console32 {
+  [DllImport("kernel32.dll")] public static extern bool FreeConsole();
+  [DllImport("kernel32.dll")] public static extern bool AttachConsole(uint pid);
+  [DllImport("kernel32.dll")] public static extern bool SetConsoleCtrlHandler(IntPtr h, bool add);
+  [DllImport("kernel32.dll")] public static extern bool GenerateConsoleCtrlEvent(uint ev, uint group);
+}
+"@
+[Console32]::FreeConsole() | Out-Null
+if (-not [Console32]::AttachConsole([uint32]$args[0])) { exit 3 }
+[Console32]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) | Out-Null   # the helper itself ignores it
+if (-not [Console32]::GenerateConsoleCtrlEvent(0, 0)) { exit 4 }
+Start-Sleep -Milliseconds 500
+exit 0
+'@
+    $send = Start-Process powershell -PassThru -Wait -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $sender, $cc.Id)
+    Check ($send.ExitCode -eq 0) "Ctrl+C sent to the run's console (helper exit $($send.ExitCode))"
+    $ccDone = $cc.WaitForExit(10000)
+    Check $ccDone 'the run ends on Ctrl+C'
+    Check (-not (Get-Process -Id $ccChild -ErrorAction SilentlyContinue)) 'its command stopped too'
+    Check (@((Get-State).holders | Where-Object { $_.name -eq 'ctrl-c' }).Count -eq 0) 'and its slot is free'
+
     Write-Host 'Timeout while waiting'
     $hold = Start-Run 'measure' 'hold' 6000
     [void](Wait-For { param($s) @($s.holders | Where-Object { $_.name -eq 'hold' }).Count -gt 0 } 'hold holds')

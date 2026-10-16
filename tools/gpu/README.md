@@ -74,6 +74,7 @@ that log their start and end times. They check:
 - a queued measure blocks later renders;
 - tickets are served in order;
 - killed holders are cleaned up;
+- Ctrl+C in the run's console stops the command and frees the slot (a helper sends the console a real Ctrl+C);
 - release, timeout and the old-lock compatibility work.
 
 They aren't part of `tools/repo-checks/check.mjs`, because CI runs that on Ubuntu without Windows PowerShell.
