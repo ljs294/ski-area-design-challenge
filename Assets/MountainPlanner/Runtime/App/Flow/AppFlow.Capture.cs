@@ -25,6 +25,7 @@ namespace MountainPlanner.App.Flow
             int still = Array.IndexOf(args, "-titlestill");
             if (still >= 0 && still + 1 < args.Length) StartCoroutine(TitleStill(Path.GetFullPath(args[still + 1])));
             StartUiCaptureIfAsked(args);
+            StartDisplayCheckIfAsked(args);
         }
 
         /// <summary>
