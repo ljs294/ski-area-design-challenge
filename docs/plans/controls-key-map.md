@@ -65,7 +65,8 @@ view's (H, Space). The camera keeps WASD, the arrows, Q/E, R/F, the zoom keys, C
 | H | Hide the photo bar; H again shows it |
 | [ and ] | Time: a quarter hour earlier or later (the sun) |
 | Shift+[ and Shift+] | Date: a day back or on (the sun's path through the year) |
-| P or Esc | Leave photo mode: the clock, time, grade, lens and info layers go back as they were |
+| Tab | Use the photo bar with the keys (task P3-01): Tab and Shift+Tab move between its controls, the arrows move a slider or between buttons, Enter or Space presses one; Esc gives the keys back to the camera |
+| P, or Esc while the camera has the keys | Leave photo mode: the clock, time, grade, lens and info layers go back as they were |
 
 ## HUD (accepted layout; built in task P2-02)
 

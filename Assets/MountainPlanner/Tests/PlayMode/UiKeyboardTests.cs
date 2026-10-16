@@ -345,6 +345,55 @@ namespace MountainPlanner.Tests
             }
         }
 
+        /// <summary>
+        /// P3-01 (the P2-07 carry-over): in photo mode the arrows move the camera, so Tab hands the photo bar the keys.
+        /// Then the arrows stay in the bar and leave the camera still, and Esc gives the keys back without leaving
+        /// photo mode; a second Esc leaves it.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator ThePhotoBarIsReachableByKeys()
+        {
+            Http.NetworkDisabled = true;
+            UiPreferences.SetChoice(UiThemeChoice.Dark, remember: false);
+            UiPreferences.SetScale(100, remember: false);
+            if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
+            var flow = AppFlow.Create(_root, new NoDownloads());
+            yield return SceneManager.LoadSceneAsync(ViewerScene);
+            yield return WaitForMountain(120);
+            yield return Frames(3);
+            var ui = flow.Screens.Document.rootVisualElement;
+            yield return TabTo(ui, "title-continue");
+            yield return Submit(ui);
+            yield return WaitForMountain(120, inGame: true);
+            yield return Frames(10);
+            var viewer = Object.FindAnyObjectByType<MountainViewer>();
+
+            yield return Press(Key.P);
+            Assert.That(viewer.PhotoOpen, Is.True, "P opens photo mode");
+            var bar = viewer.PhotoBarView;
+            Assert.That(bar.HasKeyboard, Is.False, "the camera has the keys when photo mode opens");
+            yield return Press(Key.Tab);
+            Assert.That(bar.HasKeyboard, Is.True, "Tab hands the photo bar the keys");
+            AssertFocus(bar.Root, "photo-time-slider", "the time slider first");
+            // Tab walks on through the bar's controls (UI Toolkit's own navigation).
+            yield return Move(bar.Root, NavigationMoveEvent.Direction.Next);
+            Assert.That(bar.HasKeyboard, Is.True);
+            Assert.That(Name(Focused(bar.Root)), Is.Not.EqualTo("photo-time-slider"), "Tab moves to the next control");
+
+            var before = viewer.Camera.Target;
+            InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.UpArrow));
+            for (float until = Time.realtimeSinceStartup + 0.4f; Time.realtimeSinceStartup < until;) yield return null;
+            InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+            yield return Frames(3);
+            Assert.That(Vector3.Distance(viewer.Camera.Target, before), Is.LessThan(0.01f), "the arrows stay in the bar");
+
+            yield return Press(Key.Escape);
+            Assert.That(bar.HasKeyboard, Is.False, "Esc gives the keys back");
+            Assert.That(viewer.PhotoOpen, Is.True, "and stays in photo mode");
+            yield return Press(Key.Escape);
+            Assert.That(viewer.PhotoOpen, Is.False, "a second Esc leaves photo mode");
+        }
+
         static void HudRefreshAllocatesNothing(MountainHud hud)
         {
             void Pass()

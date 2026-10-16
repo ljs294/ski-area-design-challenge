@@ -132,6 +132,32 @@ namespace MountainPlanner.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheTitleDriftDoesNotBobOverBumpyGround()
+        {
+            // P2-12 tester finding 5: the title's view bobbed as it turned. The orbit target rode every bump of the
+            // ground under it; the drift now keeps its own eased height. Over these hills (40 m bumps every ~300 m) the
+            // eye's height must change smoothly from frame to frame, and stay in bounds.
+            var view = MakeCamera();
+            var hills = new Hills();
+            var drift = App.Flow.TitleDrift.For(0, 0, 5000, 330, hills.HeightAt);
+            const float step = 1f / 30;
+            float worst = 0, before = float.NaN, last = float.NaN;
+            for (int k = 0; k < 30 * 40; k++)   // 40 s of drift, past the first view
+            {
+                drift.Apply(view, k * step);
+                yield return null;
+                AssertInBounds(view, $"drift {k * step:F1} s");
+                float y = view.transform.position.y;
+                if (!float.IsNaN(before)) worst = Mathf.Max(worst, Mathf.Abs(y - 2 * last + before));
+                before = last;
+                last = y;
+            }
+            Assert.That(view.TargetRidesGround, Is.False, "the drift keeps its own height");
+            // A steady path's height bends by centimetres a frame; riding the bumps bent it by metres.
+            Assert.That(worst, Is.LessThan(0.25f), "the eye's height has no bob");
+        }
+
+        [UnityTest]
         public IEnumerator FreeFlyStaysOverTheRingAndAboveTheSnow()
         {
             var view = MakeCamera();

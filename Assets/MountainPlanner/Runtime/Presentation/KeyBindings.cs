@@ -13,7 +13,7 @@ namespace MountainPlanner.Presentation
         ZoomIn, ZoomOut, RiseOrZoomIn, SinkOrZoomOut, FreeFly, ResetView,
         Toolbox, Analysis, Pause, Speed1, Speed2, Speed3, Speed4, Units, HideUi, PhotoMode, PhotoCapture, DeveloperPanel,
         LayerSnow, LayerTrees, InfoContours, InfoSlope, InfoExposure, InfoDepth, InfoConditions,
-        PhotoHideBar, PhotoEarlier, PhotoLater, PhotoDayBack, PhotoDayOn,
+        PhotoHideBar, PhotoEarlier, PhotoLater, PhotoDayBack, PhotoDayOn, PhotoBarKeys,
     }
 
     [Flags]
@@ -118,6 +118,8 @@ namespace MountainPlanner.Presentation
             new Info("Photo mode", "Later", Context.Photo, new KeyChord(Key.RightBracket)),
             new Info("Photo mode", "A day back", Context.Photo, new KeyChord(Key.LeftBracket, KeyMods.Shift)),
             new Info("Photo mode", "A day on", Context.Photo, new KeyChord(Key.RightBracket, KeyMods.Shift)),
+            // P3-01: the arrows move the camera, so Tab hands the bar the keyboard; Esc gives it back.
+            new Info("Photo mode", "Use the photo bar with the keys", Context.Photo, new KeyChord(Key.Tab)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>
