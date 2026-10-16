@@ -1,6 +1,6 @@
 # Phase 1 · 16 Detailed Phase 2 plan: iteration 1 complete
 
-**Audience:** the project owner and coding agents. **Status:** for your review (task 16 ⛳). This plan replaces the
+**Audience:** the project owner and coding agents. **Status:** approved 2026-10-06; **done** 2026-10-16 ([exit review](phase2-14-exit-review.md); tasks 11 and 13 skipped by the owner). This plan replaces the
 Phase 2 section of [0.6 §3](phase0-0.6-milestones.md#3-phase-2-iteration-1-complete): its scope and four exit criteria
 are unchanged, and the ship-quality backlog items are added (decision E3). The Phase 1 exit review is
 [phase1-16-exit-review.md](phase1-16-exit-review.md). **Phase 2 starts when you approve this document.**

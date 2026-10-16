@@ -294,3 +294,21 @@ build uses. Tooling in `tools/release/README.md`.
 | RL5 | **A release build needs the demo:** without the Jackson Hole 5 km package (the library's newest, or -DemoPackage) it fails; dev builds still only warn (P2-03) |
 | RL6 | **A zip, no installer:** unzip and run, with README.txt and NOTICES.txt; not code-signed (Windows SmartScreen says "More info › Run anyway") |
 | RL7 | **The C# compile gap in CI** is closed locally, for free: the release command compiles everything, and an opt-in pre-push hook (`git config core.hooksPath tools/git-hooks`) runs `tools/release/compile-check.ps1` when Unity C# changed. No Unity on GitHub runners (it would need the owner's Unity credentials as secrets and LFS bandwidth per run) |
+
+## Phase 2 task 14, Phase 2 exit: decided 2026-10-16
+
+**Context:** the Phase 2 exit gate. Review: [phase2-14-exit-review.md](phase2-14-exit-review.md); the Phase 3 plan:
+[phase2-14-phase3-plan.md](phase2-14-phase3-plan.md). The tester build's own decisions (TB1–TB5) are in
+[phase2-tester-findings.md](phase2-tester-findings.md).
+
+| # | Decision |
+|---|---|
+| E7 | **Exit 1 (keyboard only, 50–150% scale) is met** by the keyboard PlayMode tests at 50, 100 and 150%, plus the picker's and photo mode's keys. Photo mode's arrow keys move the camera rather than the bar's focus; Tab reaches the bar (Phase 3 task 01) |
+| E8 | **Exit 2 (real minimum-spec hardware) is waived for iteration 1:** the owner skipped task 11 (2026-10-12). Phase 1's stand-in stands (Medium p95 4.7 ms). An RTX 2060-class check is required before the first public release, not in Phase 3 |
+| E9 | **Exit 4 is accepted as partly met** (TB5: the owner downloaded and explored on the laptop; no photo test, no no-help tester). Phase 3's tester build runs the full no-help session, photo included |
+| E10 | **Perf baselines are re-pinned at the start of Phase 3** (task 01), at the benchmark's 10:30 time; perf PRs compare against them again |
+| E11 | **The exe stays unsigned** until a public release is planned; testers Unblock the zip. Code signing costs money and is decided then |
+| E12 | **The "Alpine Labs" trademark search** happens before the first public release, not in Phase 3 |
+| E13 | **Phase 3 scope:** 0.6 §4 plus the Phase 2 carry-over; fixed-grip chairlifts only (the Sessellift FGQ-4 and Monta FG4 assets). Detachables, ponds, dams, snowmaking, buildings, seasons and new species are later. Estimates as E4 |
+| E14 | **Milestone:** the merge commit of the exit PR is tagged `unity-m2`, and `archive/unity` is fast-forwarded to it |
+| E15 | **Every task starts with a planning phase** (owner, 2026-10-16): the thread posts a 🟦 plan (scope, owned files, approach, tests and demo, questions with recommendations) and waits for the owner's go before implementing; a scope change mid-task means re-planning the same way |
