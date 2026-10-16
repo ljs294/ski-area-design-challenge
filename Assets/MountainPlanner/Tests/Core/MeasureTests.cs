@@ -18,6 +18,14 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void NoElevationReadsInTheShownUnit()
+        {
+            // Tester finding 3 (P2-12): off the terrain the bar showed "– – – m" in Imperial and "– – – ft" in Metric.
+            Assert.That(UnitFormat.NoElevation(Ft), Does.EndWith(" ft"));
+            Assert.That(UnitFormat.NoElevation(M), Does.EndWith(" m"));
+        }
+
+        [Test]
         public void SnowDepthsReadInInchesAndFeetOrCentimetres()
         {
             Assert.That(UnitFormat.SnowDepth(0.2032, Ft), Is.EqualTo("8 in"));
