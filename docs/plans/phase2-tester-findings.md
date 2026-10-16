@@ -50,4 +50,12 @@ Severity: **B** = blocking (fixed in this task), **L** = later (Phase 3 backlog)
 | 6 | Owner / laptop | Watch the title and the mountain | Trees flicker | Steady trees | L | — | Not yet diagnosed: candidates are LOD or impostor switches, shadow cascade edges, or alpha-tested cards shimmering at distance. Seen on the laptop (Quadro), likely at a low preset; check whether it also happens on the main PC. Documented only |
 
 ## Backlog for Phase 3
-_(the L findings, grouped)_
+
+No finding blocked the test, so this task fixed nothing (owner: document only). For the Phase 3 plan (task 14):
+- **Install:** code-sign the exe so Windows stops blocking it (finding 2; costs money, owner decision).
+- **HUD and title polish:** the no-reading elevation unit (3, likely a one-line swap); a focus look for the title's
+  signs distinct from hover (4).
+- **Look on older hardware:** the title drift's bob (5) and tree flicker (6), both seen on the 2016 Quadro laptop.
+  Capture them there first, then check the main PC.
+- **Dev tools:** `acquire` should wait and retry on USGS 5xx like the game (1).
+- **Docs:** 0.3 §4.2 calls the fallback blend "slope-weighted"; the code is distance-weighted (seam check).
