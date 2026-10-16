@@ -311,3 +311,4 @@ build uses. Tooling in `tools/release/README.md`.
 | E12 | **The "Alpine Labs" trademark search** happens before the first public release, not in Phase 3 |
 | E13 | **Phase 3 scope:** 0.6 §4 plus the Phase 2 carry-over; fixed-grip chairlifts only (the Sessellift FGQ-4 and Monta FG4 assets). Detachables, ponds, dams, snowmaking, buildings, seasons and new species are later. Estimates as E4 |
 | E14 | **Milestone:** the merge commit of the exit PR is tagged `unity-m2`, and `archive/unity` is fast-forwarded to it |
+| E15 | **Every task starts with a planning phase** (owner, 2026-10-16): the thread posts a 🟦 plan (scope, owned files, approach, tests and demo, questions with recommendations) and waits for the owner's go before implementing; a scope change mid-task means re-planning the same way |

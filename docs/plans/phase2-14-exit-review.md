@@ -99,3 +99,4 @@ rule and look gates (E13).
 | E12 | **The "Alpine Labs" trademark search** (professional; may cost money) happens before the first public release, not in Phase 3 |
 | E13 | **Phase 3 scope** is 0.6 §4 (drawing on the mountain: design document, undo, saves, trails, lifts, paths, network) plus the Phase 2 carry-over polish. Only fixed-grip chairlifts (the existing Sessellift FGQ-4 and Monta FG4 assets); detachables, ponds, dams, snowmaking, buildings, seasons and new species are later. Estimates as E4 |
 | E14 | **Milestone:** the merge commit of this PR is tagged `unity-m2`, and `archive/unity` is fast-forwarded to it (fast-forward only, after checking it is an ancestor) |
+| E15 | **Every task starts with a planning phase** (your request at this gate): a 🟦 plan in the task's own session, and your go before any implementation. In the Phase 3 plan, §1 and §7 |

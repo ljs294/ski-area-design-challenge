@@ -22,6 +22,10 @@ mountain still opens and renders within budget.
   - EditMode and PlayMode in batchmode;
   - `tools/release/compile-check.ps1` (CI doesn't compile App, UI, Presentation or World);
   - and, for anything that renders, `demo.bat` 41 compared with the **re-pinned baselines** (E10).
+- **Every task starts with a planning phase (E15).** Before writing any code, docs or assets, the thread posts a
+  🟦 plan in its own session: scope, the files it owns, the approach, how it will be tested and demoed, and the
+  questions for you, each with a recommendation. **It waits for your go before implementing.** If the scope changes
+  mid-task, it stops and re-plans the same way. Updates are labelled 🟦 Planning, 🟩 Implementing, 🟨 Your review.
 - **Threads:** each task runs in its own session.
   - It messages the coordinator only at start and finish ([thread protocol]).
   - **The GPU goes through `tools/gpu/gpu.ps1`:** `measure` (alone) for benchmarks, timing and review movies; `render`
@@ -123,6 +127,7 @@ From [0.6 §4](phase0-0.6-milestones.md#4-phase-3-drawing-on-the-mountain-iterat
 ## 7. Definition of done (every task)
 
 As in the [Phase 2 plan §5](phase1-16-phase2-plan.md#5-definition-of-done-every-task), plus:
+- The task's 🟦 plan was approved by you before implementation began (E15), and the PR links to it.
 - Each rule implemented cites its 02 rule ID in a test.
 - Each command undoes exactly, and stale commands are rejected (test).
 - Each edit path is timed against the preview and commit budgets.
