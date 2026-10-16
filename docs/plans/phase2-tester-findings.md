@@ -32,7 +32,7 @@ Build: **v0.2.0** (`SkiAreaDesignChallenge-0.2.0-win64.zip`, 357 MB, tag `v0.2.0
 | First launch offline: title shown? | | Yes, Wi-Fi off; Jackson Hole opened | |
 | Seconds to title | | Not timed | |
 | Quality preset Auto chose | | | |
-| Download (area, km, minutes) | | | |
+| Download (area, km, minutes) | | Worked well (owner, 2026-10-16) | |
 | Photo saved? | | | |
 
 ## Findings
