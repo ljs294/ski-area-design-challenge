@@ -1,6 +1,6 @@
 # Phase 0 · 0.6 Milestone plan, Phases 1–4
 
-**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25 (decisions in §7). **Phase 1 complete** 2026-10-05 ([exit review](phase1-16-exit-review.md)); Phase 2's detailed plan is [phase1-16-phase2-plan.md](phase1-16-phase2-plan.md). Built on the approved [0.2](phase0-0.2-game-design.md), [0.3](phase0-0.3-technical-architecture.md), [0.4](phase0-0.4-ui-ux.md), [0.5](phase0-0.5-art-direction.md) and the [decision record](phase0-decisions.md). This replaces the phase table in [roadmap §13](unity-rebuild-roadmap.md#13-phases-and-planning-approach). Questions are in §7.
+**Audience:** the project owner and coding agents. **Status:** approved 2026-09-25 (decisions in §7). **Phase 1 complete** 2026-10-05 ([exit review](phase1-16-exit-review.md)); **Phase 2 complete** 2026-10-16 ([exit review](phase2-14-exit-review.md)); Phase 3's detailed plan is [phase2-14-phase3-plan.md](phase2-14-phase3-plan.md). Built on the approved [0.2](phase0-0.2-game-design.md), [0.3](phase0-0.3-technical-architecture.md), [0.4](phase0-0.4-ui-ux.md), [0.5](phase0-0.5-art-direction.md) and the [decision record](phase0-decisions.md). This replaces the phase table in [roadmap §13](unity-rebuild-roadmap.md#13-phases-and-planning-approach). Questions are in §7.
 
 ## 1. How the phases map to iterations
 
@@ -59,7 +59,7 @@
 
 ## 3. Phase 2: iteration 1 complete
 
-**Detailed plan:** [phase1-16-phase2-plan.md](phase1-16-phase2-plan.md), which adds the ship-quality backlog to the scope below (E3).
+**Detailed plan:** [phase1-16-phase2-plan.md](phase1-16-phase2-plan.md), which adds the ship-quality backlog to the scope below (E3). **Complete** 2026-10-16: criteria 1 and 3 met, 2 and 4 decided by the owner (E8, E9; [exit review](phase2-14-exit-review.md)).
 
 **Goal:** turn the slice into a finished, shareable "just the mountain" game.
 
@@ -99,6 +99,8 @@
   - connector paths and junctions
   - the network connectivity check
 - **Rules** from 0.1 §6 and §9 as the starting reference, re-specified in the Phase 3 detailed plan.
+
+**Detailed plan:** [phase2-14-phase3-plan.md](phase2-14-phase3-plan.md): fixed-grip chairlifts only, a design-rules gate and a style tile first, and a no-help tester session (E9, E13).
 
 **Exit criteria:**
 - A resort with trails and lifts can be drawn, graded, saved, reloaded and undone.

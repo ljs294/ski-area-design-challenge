@@ -75,7 +75,7 @@
   - **Inside a published S1M tile, USGS has already done the fallback.** Voids wider than 10 m are backfilled from 3DEP 1/9 arc-second (about 3 m) or 1/3 arc-second (about 10 m) with a 50 m slope-weighted blend; smaller voids are interpolated. What remains as no-data is only where USGS has nothing at all.
   - **Where no S1M tile exists yet, or no-data remains, the game fills from the USGS 3DEP dynamic elevation service** (`3DEPElevation/ImageServer`). It mosaics every published 3DEP elevation product: project-based 1 m lidar where S1M has not been produced yet, otherwise 1/9 or 1/3 arc-second. It returns up to 8,000 × 8,000 pixels at 1 m per request and can deliver directly in EPSG:6350.
   - **Chain, per 1 km tile:** S1M (1 m) → 3DEP 1 m project lidar → 1/9 arc-second → 1/3 arc-second. The last covers the whole contiguous US, so **every site gets complete terrain**.
-  - Where an S1M tile meets fallback data, the edge gets the same 50 m slope-weighted blend USGS uses, so there is no step.
+  - Where an S1M tile meets fallback data, the edge gets a 50 m distance-weighted blend (`HeightAssembler.Blend`: a smoothstep over the distance from the gap), so the heights are continuous and a difference between the datasets shows as a 50 m ramp, not a step. Checked on real data at Palisades Tahoe ([p2-12-seam-check.md](p2-12-seam-check.md)).
   - **The manifest records the source and effective resolution of every tile.** The picker shows a data-quality overlay (1 m S1M / 1 m lidar / 3 m / 10 m) and warns before downloading a site that is not all 1 m.
   - The Phase 1 spike verifies that the dynamic service picks the finest source at a location, and reads which source it used.
 
@@ -560,7 +560,7 @@ public sealed class ManualViewClock : IGameClock { /* set by the time-of-day/dat
 ## 12. Risks
 
 - **S1M coverage is incomplete.** Mitigated by the automatic fallback chain, the data-quality overlay in the picker and the post-download quality score.
-- **Seams between S1M and fallback data.** Mitigated by the 50 m slope-weighted blend; checked in the Phase 1 visual review.
+- **Seams between S1M and fallback data.** Mitigated by the 50 m distance-weighted blend; checked on real data in Phase 2 task 12 (no step).
 - **S1M layout or index changes** during production. Mitigated by one provider module and recorded-response tests.
 - **Canopy map age or local errors.** Mitigated by recording the date, the WorldCover sanity check, the NLCD fallback, and calibration against lidar truth sites (D4).
 - **1 m terrain cost on the minimum spec.** Mitigated by the 2–5 km limit, 2 m ring tiles, per-preset pixel error and Phase 1 measurement.

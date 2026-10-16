@@ -4,7 +4,7 @@
 
 > **Scope update (2026-09-25).** The rebuild proceeds in iterations. Iteration 1 is **just the mountain**: a real-world picker, USGS S1M 1 m lidar, and game-made lighting, camera, ground cover, forest and snow, offline after download. Drawing tools and simulation follow. Phases are now defined in [0.6 Milestone plan](phase0-0.6-milestones.md), and all Phase 0 decisions are in the [decision record](phase0-decisions.md); both take precedence over older text below.
 
-> **Status (2026-10-05).** Phase 1, the mountain vertical slice, is complete (milestone `unity-m1`; [exit review](phase1-16-exit-review.md)). Phase 2 follows its [detailed plan](phase1-16-phase2-plan.md).
+> **Status (2026-10-16).** Phase 1, the mountain vertical slice, is complete (milestone `unity-m1`; [exit review](phase1-16-exit-review.md)). Phase 2, iteration 1 complete, is done (milestone `unity-m2`; [exit review](phase2-14-exit-review.md)). Phase 3, drawing on the mountain, follows its [detailed plan](phase2-14-phase3-plan.md).
 
 ## 1. Decision and ground rules
 
@@ -324,9 +324,9 @@ Candidate improvements to evaluate:
 ```
 simulation ──●68750a0──●(docs + archive note)
                         │ fast-forward
-main ───────────────────●────────●(clean slate + Unity project, via PR)──●──…──●──…──►
-                        │        unity-m0 ▲                          unity-m1 ▲
-      maplibre-final ◄──┤   archive/unity ┴──── fast-forwarded at milestones ┴──►
+main ───────────────────●────────●(clean slate + Unity project, via PR)──●──…──●──────────●──…──►
+                        │        ▲ unity-m0                                    ▲ unity-m1 ▲ unity-m2
+      maplibre-final ◄──┤   archive/unity ┴── fast-forwarded at milestones ────┴──────────┴──►
       archive/maplibre ◄┘   (frozen)
 ```
 
