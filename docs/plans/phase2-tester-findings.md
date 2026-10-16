@@ -43,6 +43,8 @@ Severity: **B** = blocking (fixed in this task), **L** = later (Phase 3 backlog)
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | Claude / owner PC | Download Palisades Tahoe 5 km with `acquire` (E1) | USGS elevation service 502 three times; the CLI stops after 4 tries and must be re-run (it resumes from the cache) | Waits and retries like the game (P2-06) | L | p2-12-seam-check.md | Dev tool only; the game waits and retries. Backlog |
 | 2 | Owner / laptop | Run the unzipped exe | Windows blocked it as an unknown app with no Run anyway button; ticking **Unblock** in the zip's Properties before extracting fixed it | README.txt's "More info, Run anyway" works | L | — | Every tester will hit it. Now: README.txt (next release) and the tester sheet say to Unblock the zip first. Lasting fix: code-sign the exe (costs money; owner decision, Phase 3) |
+| 3 | Owner | Move the pointer off the ground (sky) in Imperial | The bar's elevation shows "– – – m" in Imperial and "– – – ft" in Metric | The no-reading text matches the unit setting | L | — | Likely cause: `MountainHud.Bar.cs` `_noElevation` is ordered { m, ft } but `UnitSystem` is Imperial = 0, Metric = 1. Documented only (owner: no changes in this task) |
+| 4 | Owner | Hover the title's signs | Continue doesn't move on hover; the other signs slide 4 px | Every sign responds to hover | L | — | Likely cause: Continue has keyboard focus when the title opens, and `.sign:focus` uses the same 4 px slide as `:hover`, so it already sits slid and hovering adds nothing. Needs a distinct focus look (design call). Documented only |
 
 ## Backlog for Phase 3
 _(the L findings, grouped)_
