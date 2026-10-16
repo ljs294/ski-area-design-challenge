@@ -6,6 +6,8 @@ during the session; being stuck is a useful result.
 
 ## Before you start
 - You need the file `SkiAreaDesignChallenge-0.2.0-win64.zip` (about 360 MB) and Windows 10 or 11.
+- **Before unzipping:** right-click the zip › Properties › tick **Unblock** › OK. The build isn't signed yet, and
+  without this Windows may refuse to start it.
 - Unzip it anywhere you like. `README.txt` inside the zip explains how to run it.
 - **Turn the internet off** (Wi-Fi off or cable out) for the first launch.
 - Keep a notepad or your phone handy for notes.
