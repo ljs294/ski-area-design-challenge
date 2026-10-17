@@ -359,3 +359,15 @@ the plan and all four recommendations.
 | DD2 | **Split** stores a cut line: each part keeps the original strokes, clipped to its side. **Join** removes the cut, so a split then a join restores the trail exactly (NW-10) |
 | DD3 | **Heads and tails are stored as points only;** what they attach to (a lift end or a trail within 30 ft) is derived each time the network is rebuilt (TR-05, SH-05) |
 | DD4 | **Format:** Domain owns the document's shape (version 1) and its canonical bytes, used for goldens and equality; task 04 picks the save file's encoding and freezes it |
+
+## Phase 3 task 05, terrain edit pipeline: decided 2026-10-16
+
+**Context:** height and clearing edits over the immutable package. Plan: [p3-05-plan.md](p3-05-plan.md). The owner
+approved the plan and all four recommendations.
+
+| # | Decision |
+|---|---|
+| TE1 | **Delta tiles:** 64 m tiles on the cache's grid (16 × 16 per 1,024 m cache tile), 64 × 64 points at 1 m; heights as whole-millimetre changes (0 = untouched) plus one clearing bit per 1 m cell (GR-09, CL-05) |
+| TE2 | **Undo:** each `DesignHistory` step holds its terrain edit set; undo and redo switch sets, and only the tiles that differ are rebuilt (CF-05, CL-07) |
+| TE3 | **Preview:** the yellow pending contours only (CF-08); the ground changes at Break ground |
+| TE4 | **Grading:** task 05 builds a straight test bench only, for timing and the demo; task 08 writes the GR engine to the same edit tiles |
