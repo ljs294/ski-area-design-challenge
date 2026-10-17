@@ -897,8 +897,8 @@ body.solo .frame { border-radius: 0; }
     // terminals as a trail map draws them: a dot at each end
     for (const p of [A, B]) s += planned ? `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.6" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.2" fill="${liftRed}" stroke="${white}" stroke-width="1.4"/>`;
     if (S.layers.labels && !o.noTag) {
-      const tx = ux > 0 ? A.x - (l.name.length * 7.4 + 28) - 8 : A.x + 10;
-      s += tagBox(tx, A.y - 9, liftPlate(tx, A.y - 9, l.n, planned), l.name, planned ? flag : '#4a443e', planned ? '3 2' : '');
+      const ltr = B.x >= A.x, P0 = ltr ? A : B, P1 = ltr ? B : A, pid = `ll-${l.id || 'draft'}`, col = planned ? flag : liftRed;
+      s += `<path id="${pid}" d="M${f1(P0.x)} ${f1(P0.y)}L${f1(P1.x)} ${f1(P1.y)}" fill="none" stroke="none"/><text dy="-9" style="font:800 10px DotFix,Overpass,sans-serif;letter-spacing:.07em;fill:${col};stroke:rgba(251,248,242,.92);stroke-width:3px;stroke-linejoin:round;paint-order:stroke"><textPath href="#${pid}" startOffset="${ltr ? 24 : 76}%" text-anchor="middle"><tspan style="font-weight:900">${l.n}</tspan>  ${esc(l.name.toUpperCase())}</textPath></text>`;
     }
     return s;
   }
