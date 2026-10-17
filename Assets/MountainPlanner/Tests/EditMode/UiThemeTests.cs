@@ -97,6 +97,23 @@ namespace MountainPlanner.Tests
                 }
         }
 
+        [Test]
+        public void TheTitleSignsSlideOnHoverOnly()
+        {
+            // Tester finding 4 (P2-12): Continue has focus when the title opens, so a slide on :focus left it already
+            // slid and hovering it did nothing. Focus shows the shared ring instead.
+            string flow = File.ReadAllText(Sheets.Single(s => s.EndsWith("Flow.uss")));
+            bool hover = false;
+            foreach (Match rule in Regex.Matches(flow, @"([^{}]*)\{([^{}]*)\}"))
+            {
+                string selector = Regex.Replace(rule.Groups[1].Value, @"/\*.*?\*/", "", RegexOptions.Singleline);
+                if (!rule.Groups[2].Value.Contains("translate:") || !selector.Contains(".sign:")) continue;
+                Assert.That(selector, Does.Not.Contain(":focus"), "a focused sign doesn't slide");
+                hover |= selector.Contains(".sign:hover");
+            }
+            Assert.That(hover, "a hovered sign slides");
+        }
+
         [TestCase("Dark", ".hud")]
         [TestCase("Light", ".hud.light")]
         public void TheThemesAreTheAcceptedMockups(string theme, string selector)

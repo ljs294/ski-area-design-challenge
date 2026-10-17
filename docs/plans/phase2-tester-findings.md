@@ -49,6 +49,22 @@ Severity: **B** = blocking (fixed in this task), **L** = later (Phase 3 backlog)
 | 5 | Owner / laptop | Watch the title over Jackson Hole | The view seems to bob up and down as it turns | A steady postcard drift | L | — | Not yet diagnosed. `TitleDrift.Evaluate` is a smooth Catmull-Rom path through four views (target height, distance and pitch all eased), so the bob is likely the orbit camera's ground clearance or bounds pushing the eye up over ridges, or the eased pitch and target height adding up. Needs a capture of the drift. Documented only |
 | 6 | Owner / laptop | Watch the title and the mountain | Trees flicker | Steady trees | L | — | Not yet diagnosed: candidates are LOD or impostor switches, shadow cascade edges, or alpha-tested cards shimmering at distance. Seen on the laptop (Quadro), likely at a low preset; check whether it also happens on the main PC. Documented only |
 
+## Phase 3 task 01 outcomes (2026-10-16)
+
+[Plan](p3-01-carry-over-plan.md); the owner approved each fix.
+- **1, `acquire` on USGS 5xx:** fixed. `NetworkFailure.RetryAsync` waits 60 s on a busy service and 15 s on a lost
+  connection, the game's own waits, until Ctrl+C (Core tests).
+- **3, the no-reading unit:** fixed. `UnitFormat.NoElevation` gives the unit that's shown (Core test).
+- **4, the signs' hover:** fixed. Hover slides a sign; keyboard focus shows the shared focus ring, only after a
+  navigation key (EditMode test).
+- **5, the title's bob:** fixed. The orbit target rode the ground under it every frame, overriding the drift's eased
+  height; the drift now keeps its own (`ViewCamera.TargetRidesGround`). Before and after at the same moment of the
+  drift, the old view sat up to 23 px higher or lower (PlayMode test over bumpy hills).
+- **6, the tree flicker:** partly fixed. With the camera still, nothing changes (0 pixels over 60 frames); while it
+  moves, far trees only 2–4 px across blink because their sharp edges catch different pixels. Tiny impostors now
+  soften (option A): one-frame pops in the title movie are 17% fewer at High. At Low (no MSAA, so no alpha to
+  coverage) there's no change. **Later:** a temporal anti-aliasing option, or a Low default with MSAA, for the laptop.
+
 ## Backlog for Phase 3
 
 No finding blocked the test, so this task fixed nothing (owner: document only). For the Phase 3 plan (task 14):

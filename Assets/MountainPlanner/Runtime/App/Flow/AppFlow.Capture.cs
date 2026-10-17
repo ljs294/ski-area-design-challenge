@@ -22,9 +22,12 @@ namespace MountainPlanner.App.Flow
             int movie = Array.IndexOf(args, "-titlemovie"), shots = Array.IndexOf(args, "-titleshots");
             if (movie >= 0 && movie + 1 < args.Length) StartCoroutine(TitleMovie(Path.GetFullPath(args[movie + 1]), stills: false));
             else if (shots >= 0 && shots + 1 < args.Length) StartCoroutine(TitleMovie(Path.GetFullPath(args[shots + 1]), stills: true));
+            int hold = Array.IndexOf(args, "-titlehold");
+            if (hold >= 0 && hold + 1 < args.Length) StartCoroutine(TitleHold(Path.GetFullPath(args[hold + 1])));
             int still = Array.IndexOf(args, "-titlestill");
             if (still >= 0 && still + 1 < args.Length) StartCoroutine(TitleStill(Path.GetFullPath(args[still + 1])));
             StartUiCaptureIfAsked(args);
+            StartDisplayCheckIfAsked(args);
         }
 
         /// <summary>
@@ -84,6 +87,30 @@ namespace MountainPlanner.App.Flow
                 }
                 Debug.Log($"[AppFlow] title movie: cover {ms / 1000f:F1} s, then {count} drift frames, in {frames}");
             }
+            Quit();
+        }
+
+        /// <summary>
+        /// -titlehold &lt;folder&gt; (task P3-01, the tree flicker of P2-12 finding 6): the title held still at its first
+        /// view, then 60 frames in a row as PNG (no JPEG noise), so anything that changes between frames with the camera
+        /// still (a LOD or impostor switch, a shadow, the wind) shows in a frame-to-frame difference. Then it quits.
+        /// </summary>
+        IEnumerator TitleHold(string folder)
+        {
+            Directory.CreateDirectory(folder);
+            while (_viewer == null || !_viewer.Ready || _drift == null || Screens.CoverUp) yield return null;
+            _driftHeld = true;
+            _driftSeconds = 0;
+            for (int i = 0; i < 180; i++) yield return null;   // LODs, shadows and ground cover settle
+            for (int k = 0; k < 60; k++)
+            {
+                yield return new WaitForEndOfFrame();
+                var shot = ScreenCapture.CaptureScreenshotAsTexture();
+                File.WriteAllBytes(Path.Combine(folder, $"hold_{k:D2}.png"), shot.EncodeToPNG());
+                Destroy(shot);
+                yield return null;
+            }
+            Debug.Log($"[AppFlow] title hold: 60 frames in {folder}");
             Quit();
         }
 

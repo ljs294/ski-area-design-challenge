@@ -121,6 +121,41 @@ namespace MountainPlanner.Acquisition.IO
 
         static readonly string[] BusyCodes = { "429", "502", "503", "504" };
 
+        /// <summary>How long to wait before trying again after a lost connection, and after a busy service (P2-06).</summary>
+        public const double NoConnectionWaitSeconds = 15, BusyWaitSeconds = 60;
+
+        /// <summary>
+        /// Seconds to wait before trying again after <paramref name="e"/>: a busy service or a lost connection passes,
+        /// so it's worth waiting; offline mode and every other failure aren't (−1).
+        /// </summary>
+        public static double RetryAfter(Exception? e) =>
+            IsOfflineMode(e) ? -1 : IsServiceBusy(e) ? BusyWaitSeconds : IsNoConnection(e) ? NoConnectionWaitSeconds : -1;
+
+        /// <summary>
+        /// Runs <paramref name="run"/> until it finishes, waiting out a busy service or a lost connection between tries
+        /// as the game's downloads do (task P3-01, for the acquire CLI): the resume cache keeps what arrived, so a try
+        /// picks up where the last stopped. Any other failure, and cancellation, end it. <paramref name="waiting"/> hears
+        /// each wait (the failure, the seconds, the try that failed, from 1).
+        /// </summary>
+        public static async Task<T> RetryAsync<T>(Func<CancellationToken, Task<T>> run, Action<Exception, double, int>? waiting,
+                                                  CancellationToken ct, Func<TimeSpan, CancellationToken, Task>? delay = null)
+        {
+            delay ??= Task.Delay;
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    return await run(ct).ConfigureAwait(false);
+                }
+                catch (Exception e) when (!ct.IsCancellationRequested && RetryAfter(e) > 0)
+                {
+                    double seconds = RetryAfter(e);
+                    waiting?.Invoke(e, seconds, attempt);
+                    await delay(TimeSpan.FromSeconds(seconds), ct).ConfigureAwait(false);
+                }
+            }
+        }
+
         /// <summary>
         /// The server couldn't be reached at all, or the connection dropped or timed out: no DNS, no route, a reset
         /// socket. A server that answered with an error status is not this.

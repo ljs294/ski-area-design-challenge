@@ -237,6 +237,27 @@ namespace MountainPlanner.UI.Photo
             }
         }
 
+        /// <summary>
+        /// Gives the bar the keyboard (P3-01; owner, 2026-10-16): the time slider takes focus and the focus ring shows, so
+        /// Tab and Shift+Tab walk the bar's controls, the arrows move a slider or between buttons, and Enter or Space
+        /// presses one. The camera leaves the keys alone until <see cref="ReleaseKeyboard"/> (Esc) or a click.
+        /// </summary>
+        public bool TakeKeyboard()
+        {
+            if (_root == null || _time == null || _root.resolvedStyle.display != DisplayStyle.Flex) return false;
+            UiFocus.UseKeyboard(_root);
+            _time.Focus();
+            return true;
+        }
+
+        /// <summary>Gives the keys back to the camera (Esc); false if the bar didn't have them.</summary>
+        public bool ReleaseKeyboard()
+        {
+            if (!HasKeyboard) return false;
+            ((Focusable)_root.panel.focusController.focusedElement).Blur();
+            return true;
+        }
+
         /// <summary>For tests and captures: the root of the bar's tree.</summary>
         public VisualElement Root => _root;
     }

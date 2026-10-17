@@ -30,7 +30,6 @@ namespace MountainPlanner.UI
         /// </summary>
         readonly string[][] _elevationText = new string[2][];
         readonly int[] _elevationFirstKey = new int[2];
-        readonly string[] _noElevation = { "– – – m", "– – – ft" };
         /// <summary>The info readout's figures ("47%", "SE · 135°", "2 ft 4 in"), made the first time each shows and kept.</summary>
         readonly System.Collections.Generic.Dictionary<long, string> _infoText = new System.Collections.Generic.Dictionary<long, string>();
 
@@ -163,7 +162,7 @@ namespace MountainPlanner.UI
             if (shown == _shownElevation) return;
             _shownElevation = shown;
             bool none = shown == int.MinValue;
-            _elevation.text = none ? _noElevation[(int)_shownUnits] : ElevationText(shown, _shownUnits);
+            _elevation.text = none ? UnitFormat.NoElevation(_shownUnits) : ElevationText(shown, _shownUnits);
             _elevation.EnableInClassList("elev--none", none);
         }
 

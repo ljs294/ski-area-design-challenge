@@ -75,9 +75,9 @@ namespace MountainPlanner.App.Flow
         /// <summary>How often the paused-at line in the record is refreshed, in Pump calls' seconds.</summary>
         public const double RecordEverySeconds = 2;
         /// <summary>How long it waits for the connection before trying again.</summary>
-        public const double RetrySeconds = 15;
+        public const double RetrySeconds = NetworkFailure.NoConnectionWaitSeconds;
         /// <summary>How long it gives a busy map service (502, 503...) before trying again.</summary>
-        public const double BusyRetrySeconds = 60;
+        public const double BusyRetrySeconds = NetworkFailure.BusyWaitSeconds;
 
         string _dataRoot;
         ISiteDownloader _downloader;
