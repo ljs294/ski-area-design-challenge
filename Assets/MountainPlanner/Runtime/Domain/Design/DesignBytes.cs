@@ -1,0 +1,251 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace MountainPlanner.Domain.Design
+{
+    /// <summary>
+    /// The document's canonical bytes (owner ruling P3-03 Q4): a little-endian binary form of shape version
+    /// <see cref="DesignDocument.ShapeVersion"/>, written in ID order. Equal documents give equal bytes, so goldens and
+    /// undo checks compare these (SH-04). It is not the save file: task 04 picks that encoding and freezes it.
+    /// </summary>
+    public static class DesignBytes
+    {
+        static readonly byte[] Magic = { (byte)'M', (byte)'P', (byte)'D', (byte)'S' };
+
+        public static byte[] Encode(DesignDocument doc)
+        {
+            var w = new Writer();
+            w.Bytes(Magic);
+            w.U16(DesignDocument.ShapeVersion);
+            w.U64(doc.Seed);
+            w.I64(doc.NextOrdinal);
+            w.I32(doc.Trails.Count);
+            foreach (var t in doc.Trails) WriteTrail(w, t);
+            w.I32(doc.Lifts.Count);
+            foreach (var l in doc.Lifts) WriteLift(w, l);
+            return w.ToArray();
+        }
+
+        /// <summary>One trail's bytes, for comparing trails (NW-10's split-then-join test).</summary>
+        public static byte[] Encode(Trail trail)
+        {
+            var w = new Writer();
+            WriteTrail(w, trail);
+            return w.ToArray();
+        }
+
+        /// <summary>Reads <see cref="Encode(DesignDocument)"/>'s bytes back; anything malformed throws <see cref="FormatException"/>.</summary>
+        public static DesignDocument Decode(byte[] bytes)
+        {
+            var r = new Reader(bytes);
+            for (int i = 0; i < Magic.Length; i++) if (r.U8() != Magic[i]) throw new FormatException("Not a design document.");
+            int version = r.U16();
+            if (version != DesignDocument.ShapeVersion) throw new FormatException($"Design shape {version} isn't readable here (this build reads {DesignDocument.ShapeVersion}).");
+            ulong seed = r.U64();
+            long next = r.I64();
+            var trails = new Trail[r.Count(1 << 20)];
+            for (int i = 0; i < trails.Length; i++) trails[i] = ReadTrail(r);
+            var lifts = new Lift[r.Count(1 << 20)];
+            for (int i = 0; i < lifts.Length; i++) lifts[i] = ReadLift(r);
+            if (!r.AtEnd) throw new FormatException("Trailing bytes after the design document.");
+            var doc = DesignDocument.From(seed, next, trails, lifts);
+            // Canonical means written in order: a reordered file is not this format.
+            if (!Same(Encode(doc), bytes)) throw new FormatException("The design document isn't in canonical order.");
+            return doc;
+        }
+
+        public static bool Same(byte[] a, byte[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        static void WriteTrail(Writer w, Trail t)
+        {
+            w.U64(t.Id.Value);
+            w.Str(t.Name);
+            w.U8((byte)t.Stage);
+            w.U8((byte)t.Settings.Grading);
+            w.U8((byte)t.Settings.Kind);
+            w.U8((byte)t.Settings.Clearing);
+            w.OptPoint(t.Head);
+            w.OptPoint(t.Tail);
+            w.I32(t.Parts.Count);
+            foreach (var part in t.Parts)
+            {
+                w.I32(part.Strokes.Count);
+                foreach (var s in part.Strokes)
+                {
+                    w.I32(s.WidthMm);
+                    w.U8(s.Erase ? (byte)1 : (byte)0);
+                    w.I32(s.Points.Count);
+                    foreach (var p in s.Points) w.Point(p);
+                }
+                w.I32(part.Cuts.Count);
+                foreach (var c in part.Cuts)
+                {
+                    w.Point(c.At);
+                    w.I32(c.DirX);
+                    w.I32(c.DirY);
+                    w.U8(c.KeepAhead ? (byte)1 : (byte)0);
+                }
+            }
+        }
+
+        static Trail ReadTrail(Reader r)
+        {
+            var id = new TrailId(r.U64());
+            string name = r.Str();
+            var stage = (WorkStage)r.U8();
+            var settings = new TrailSettings((TrailGrading)r.U8(), (TrailKind)r.U8(), (TrailClearing)r.U8());
+            PointMm? head = r.OptPoint();
+            PointMm? tail = r.OptPoint();
+            var parts = new FootprintPart[r.Count(DesignRules.MaxPartsPerTrail)];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                var strokes = new Stroke[r.Count(DesignRules.MaxStrokesPerPart)];
+                for (int k = 0; k < strokes.Length; k++)
+                {
+                    int width = r.I32();
+                    bool erase = r.Bool();
+                    var points = new PointMm[r.Count(DesignRules.MaxPointsPerStroke)];
+                    for (int p = 0; p < points.Length; p++) points[p] = r.Point();
+                    strokes[k] = new Stroke(width, erase, points);
+                }
+                var cuts = new Cut[r.Count(DesignRules.MaxCutsPerPart)];
+                for (int k = 0; k < cuts.Length; k++) cuts[k] = new Cut(r.Point(), r.I32(), r.I32(), r.Bool());
+                parts[i] = new FootprintPart(strokes, cuts);
+            }
+            return new Trail(id, name, stage, settings, parts, head, tail);
+        }
+
+        static void WriteLift(Writer w, Lift l)
+        {
+            w.U64(l.Id.Value);
+            w.Str(l.Name);
+            w.U8((byte)l.Stage);
+            w.Str(l.CatalogId);
+            w.Point(l.Bottom);
+            w.Point(l.Top);
+            w.U8((byte)l.TowerMode);
+            w.U8((byte)l.Stance);
+            w.I32(l.Towers.Count);
+            foreach (var t in l.Towers)
+            {
+                w.U64(t.Id.Value);
+                w.I32(t.AlongMm);
+                w.I32(t.HeightMm);
+            }
+        }
+
+        static Lift ReadLift(Reader r)
+        {
+            var id = new LiftId(r.U64());
+            string name = r.Str();
+            var stage = (WorkStage)r.U8();
+            string catalog = r.Str();
+            var bottom = r.Point();
+            var top = r.Point();
+            var mode = (TowerMode)r.U8();
+            var stance = (TowerStance)r.U8();
+            var towers = new Tower[r.Count(DesignRules.MaxTowersPerLift)];
+            for (int i = 0; i < towers.Length; i++) towers[i] = new Tower(new TowerId(r.U64()), r.I32(), r.I32());
+            return new Lift(id, name, stage, catalog, bottom, top, mode, stance, towers);
+        }
+
+        sealed class Writer
+        {
+            readonly MemoryStream _s = new MemoryStream();
+            public void Bytes(byte[] b) => _s.Write(b, 0, b.Length);
+            public void U8(byte v) => _s.WriteByte(v);
+            public void U16(int v) { U8((byte)v); U8((byte)(v >> 8)); }
+            public void I32(int v) { for (int i = 0; i < 4; i++) U8((byte)(v >> (8 * i))); }
+            public void U64(ulong v) { for (int i = 0; i < 8; i++) U8((byte)(v >> (8 * i))); }
+            public void I64(long v) => U64((ulong)v);
+            public void Point(PointMm p) { I32(p.X); I32(p.Y); }
+
+            public void OptPoint(PointMm? p)
+            {
+                U8(p.HasValue ? (byte)1 : (byte)0);
+                if (p.HasValue) Point(p.Value);
+            }
+
+            public void Str(string s)
+            {
+                var b = Encoding.UTF8.GetBytes(s ?? "");
+                I32(b.Length);
+                Bytes(b);
+            }
+
+            public byte[] ToArray() => _s.ToArray();
+        }
+
+        sealed class Reader
+        {
+            readonly byte[] _b;
+            int _i;
+            public Reader(byte[] b) { _b = b ?? throw new FormatException("No bytes."); }
+            public bool AtEnd => _i == _b.Length;
+
+            public byte U8()
+            {
+                if (_i >= _b.Length) throw new FormatException("The design document ends early.");
+                return _b[_i++];
+            }
+
+            public int U16() => U8() | (U8() << 8);
+
+            public int I32()
+            {
+                int v = 0;
+                for (int i = 0; i < 4; i++) v |= U8() << (8 * i);
+                return v;
+            }
+
+            public ulong U64()
+            {
+                ulong v = 0;
+                for (int i = 0; i < 8; i++) v |= (ulong)U8() << (8 * i);
+                return v;
+            }
+
+            public long I64() => (long)U64();
+            public PointMm Point() => new PointMm(I32(), I32());
+
+            public bool Bool()
+            {
+                byte v = U8();
+                if (v > 1) throw new FormatException("A flag isn't 0 or 1.");
+                return v == 1;
+            }
+
+            public PointMm? OptPoint() => Bool() ? Point() : (PointMm?)null;
+
+            public int Count(int max)
+            {
+                int n = I32();
+                if (n < 0 || n > max) throw new FormatException("A count is out of range.");
+                return n;
+            }
+
+            public string Str()
+            {
+                int n = Count(4096);
+                if (_i + n > _b.Length) throw new FormatException("The design document ends early.");
+                try
+                {
+                    var s = new UTF8Encoding(false, true).GetString(_b, _i, n);
+                    _i += n;
+                    return s;
+                }
+                catch (ArgumentException e)
+                {
+                    throw new FormatException("A name isn't valid UTF-8.", e);
+                }
+            }
+        }
+    }
+}

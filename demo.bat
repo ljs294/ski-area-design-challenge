@@ -176,6 +176,10 @@ echo     60 The display check (Windowed, Keep, a resolution left to go back afte
 echo        about a minute, the screen changes), then the game to try by hand: the title's signs, the elevation readout
 echo        off the terrain in both units (U), photo mode's Tab and Esc, the title drift and the far trees.
 echo.
+echo   Phase 3, task 03: the design document, commands and undo (no Unity needed)
+echo     61 Run the design document tests, then print a walkthrough: a lift and a trail, split, join, undo, redo,
+echo        a stale and a bad command rejected, the derived network and the document bytes.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -253,6 +257,7 @@ if /i "%CHOICE%"=="57" goto titlestill
 if /i "%CHOICE%"=="58" goto release
 if /i "%CHOICE%"=="59" goto testerkit
 if /i "%CHOICE%"=="60" goto carryover
+if /i "%CHOICE%"=="61" goto designdoc
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -416,6 +421,13 @@ echo   Free 120 MB: asks first, then removes the older cache; the area still ope
 echo   Delete: asks, naming the space it frees. Run 49 again to bring the area back.
 start "" "%GAME%" -data "%LIBDEMO%"
 goto menu
+
+:designdoc
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~MountainPlanner.Tests.Design&FullyQualifiedName!~DesignDemoTests" <nul
+if errorlevel 1 goto done
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "FullyQualifiedName~DesignDemoTests" --logger "console;verbosity=normal" <nul | findstr /v /c:"Test run for" /c:"A total" /c:"NUnit" /c:"Running selected"
+goto done
 
 :formattests
 chcp 65001 >nul
