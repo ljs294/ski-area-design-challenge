@@ -426,8 +426,9 @@
 .lib-row--save:hover { background-color: var(--hover); }
 .lib-row--save.lib-row--selected { background-color: var(--chip); }
 .lib-save-name { width: 260px; overflow: hidden; text-overflow: ellipsis; font-size: 14px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
-.lib-save-tag { width: 76px; margin-right: 10px; padding: 1px 6px; border-radius: 3px; background-color: var(--chip); font-size: 11px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); -unity-text-align: middle-center; }
+.lib-save-tag { width: 76px; margin-right: 10px; padding: 1px 6px; border-radius: 3px; background-color: var(--hair2); font-size: 11px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); -unity-text-align: middle-center; }
 .lib-save-tag-space { width: 76px; margin-right: 10px; }
 .lib-save-counts { width: 220px; }
+.lib-save-when { width: 130px; }
 .lib-row--newdesign .lib-save-name { color: var(--soft); -unity-text-outline-color: var(--soft); -unity-font-style: normal; }
 .lib-row--save.lib-row--newer .lib-save-name { color: var(--muted); -unity-text-outline-color: var(--muted); -unity-font-style: normal; opacity: 0.6; }

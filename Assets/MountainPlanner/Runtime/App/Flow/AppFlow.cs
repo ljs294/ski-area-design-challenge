@@ -352,6 +352,7 @@ namespace MountainPlanner.App.Flow
                     bool opened = target != null && RecentResorts.Load(DataRoot).Opened.ContainsKey(target.PackageId);
                     if (target == null) Screens.SetContinue(null, null);
                     else if (opened) Screens.SetContinue("Continue", ContinueLine(target) ?? $"{target.Name} · last opened {LibraryViewModel.When(RecentResorts.Load(DataRoot).Opened[target.PackageId], DateTime.UtcNow)}");
+                    else if (ContinueLine(target) is string saved) Screens.SetContinue("Continue", saved);   // never opened here, but saved (a copied library)
                     else Screens.SetContinue(target.OriginalName == "Jackson Hole" && target.Name == target.OriginalName ? "Open the demo" : "Continue", target.Name);
                     Screens.ShowScreen("title");
                     // A data folder from a newer game (task 08) lists nothing; say why rather than look empty.

@@ -739,6 +739,7 @@ namespace MountainPlanner.UI.Flow
             CameraOptions.SetInvertZoom(false, Remember);
             CameraOptions.SetSpeed(ZoomSpeed.Normal, Remember);
             KeyBindings.ResetAll(Remember);
+            GameplayPreferences.SetAutosave(GameplayPreferences.AutosaveDefault, Remember);   // task P3-04
             if (UiDisplay.Current != 1 || UiDisplay.Size != new Vector2Int(Screen.currentResolution.width, Screen.currentResolution.height))
                 ChangeDisplay(() => UiDisplay.Set(1));   // borderless full screen, asked to keep
             Refresh();

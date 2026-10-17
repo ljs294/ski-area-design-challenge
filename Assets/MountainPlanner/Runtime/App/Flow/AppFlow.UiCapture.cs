@@ -82,12 +82,17 @@ namespace MountainPlanner.App.Flow
             }
             if (Wanted("s1-title")) yield return EachLook(folder, "s1-title");
 
-            if (Wanted("s2-load-area") || Wanted("s2-manage-areas") || Wanted("s11-confirm") || Wanted("s2-rename") || Wanted("s2-free-space"))
+            if (Wanted("s2-load-area") || Wanted("s2-load-saves") || Wanted("s2-manage-areas") || Wanted("s11-confirm") || Wanted("s2-rename") || Wanted("s2-free-space"))
             {
                 _mode = LibraryMode.Load;
                 Controller.MyResorts();
                 yield return Wait(1.5f);   // the sizes are measured on a worker thread
                 if (Wanted("s2-load-area")) yield return EachLook(folder, "s2-load-area");
+                if (Wanted("s2-load-saves") && Screens.ShowSaves(Screens.SelectedRow))   // the first area's saves listed (task P3-04)
+                {
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s2-load-saves");
+                }
                 Controller.Escape();
                 _mode = LibraryMode.Manage;
                 Controller.MyResorts();

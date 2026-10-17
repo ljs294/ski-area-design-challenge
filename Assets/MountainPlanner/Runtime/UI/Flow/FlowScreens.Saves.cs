@@ -53,7 +53,7 @@ namespace MountainPlanner.UI.Flow
             {
                 el.AddToClassList("lib-row--newdesign");
                 el.Add(Text("", "lib-save-tag-space"));
-                el.Add(Text("", "lib-cell", "lib-cell--narrow"));
+                el.Add(Text("", "lib-cell", "lib-save-when"));
                 el.Add(Text("the area with nothing built", "lib-cell", "lib-save-counts", "mono"));
             }
             else if (s.Refusal.Length > 0)
@@ -61,13 +61,14 @@ namespace MountainPlanner.UI.Flow
                 el.AddToClassList("lib-row--newer");
                 el.tooltip = s.Refusal;
                 el.Add(Text("", "lib-save-tag-space"));
+                el.Add(Text("", "lib-cell", "lib-save-when"));
                 el.Add(Text("saved by a newer version", "lib-cell", "lib-save-counts"));
             }
             else
             {
                 if (s.Autosave) el.Add(Text("Autosave", "lib-save-tag"));
                 else el.Add(Text("", "lib-save-tag-space"));
-                el.Add(Text(LibraryViewModel.SavedWhen(s.SavedUtc, DateTime.UtcNow), "lib-cell", "lib-cell--narrow", "mono"));
+                el.Add(Text(LibraryViewModel.SavedWhen(s.SavedUtc, DateTime.UtcNow), "lib-cell", "lib-save-when", "mono"));
                 el.Add(Text(LibraryViewModel.Counts(s), "lib-cell", "lib-save-counts", "mono"));
                 if (s.FromBackup) el.tooltip = "save.json was damaged: this is its previous version.";
             }
@@ -125,6 +126,14 @@ namespace MountainPlanner.UI.Flow
                     return false;
             }
             e.StopPropagation();
+            return true;
+        }
+
+        /// <summary>Lists an area's saves (the captures, task P3-04); false when it has none.</summary>
+        public bool ShowSaves(LibraryRow area)
+        {
+            if (area?.Entry == null || area.Saves.Count == 0) return false;
+            ToggleSaves(area, true, step: true);
             return true;
         }
 
