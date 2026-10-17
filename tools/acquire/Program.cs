@@ -276,7 +276,16 @@ var display = new ProgressLine();
 var began = DateTime.UtcNow;
 try
 {
-    var manifest = await new AcquisitionPipeline(cacheFolder).RunAsync(request, outFolder, display, cts.Token);
+    // A busy USGS service (502...) or a dropped connection passes: wait and try again, as the game does (P3-01).
+    var manifest = await NetworkFailure.RetryAsync(
+        ct => new AcquisitionPipeline(cacheFolder).RunAsync(request, outFolder, display, ct),
+        (e, seconds, attempt) =>
+        {
+            display.Done();
+            string why = NetworkFailure.IsServiceBusy(e) ? "The map service is busy" : "The connection dropped";
+            Console.WriteLine($"{why} (try {attempt}: {e.Message}). Trying again in {seconds:F0} s; Ctrl+C stops (the next run resumes).");
+        },
+        cts.Token);
     display.Done();
     string final = toLibrary ? ResortLibrary.Add(dataRoot, outFolder) : outFolder;
     Console.WriteLine($"Package {manifest.PackageId} ready in {Path.GetFullPath(final)} after {(DateTime.UtcNow - began).TotalSeconds:F0} s");

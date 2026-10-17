@@ -26,6 +26,9 @@ namespace MountainPlanner.Domain.Measure
         public static int ElevationKey(double metres, UnitSystem units) =>
             (int)Math.Round(units == UnitSystem.Imperial ? metres / MetresPerFoot : metres);
 
+        /// <summary>No elevation to show (the pointer is off the terrain): "– – – ft" or "– – – m", in the shown units.</summary>
+        public static string NoElevation(UnitSystem units) => units == UnitSystem.Imperial ? "– – – ft" : "– – – m";
+
         /// <summary>Snow depth: "8 in", "2 ft 4 in", "3 ft"; or "71 cm", "1.4 m".</summary>
         public static string SnowDepth(double metres, UnitSystem units)
         {

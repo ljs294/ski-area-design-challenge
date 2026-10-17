@@ -54,7 +54,9 @@
     -unity-text-align: middle-left;
     transition-property: translate; transition-duration: 0.12s;
 }
-.sign:hover, .sign:focus { translate: 4px 0; }
+/* Hover slides the sign; keyboard focus shows the shared focus ring instead (Base.uss), so the sign that has focus
+   when the title opens (Continue) still answers the pointer (tester finding 4). */
+.sign:hover { translate: 4px 0; }
 .sign--green { background-color: var(--sign-green); }
 .sign--blue { background-color: var(--sign-blue); }
 .sign--black { background-color: var(--sign-black); }

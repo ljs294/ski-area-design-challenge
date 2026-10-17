@@ -33,6 +33,13 @@ namespace MountainPlanner.Presentation
         public float SnowDepth = 0.3048f;
         /// <summary>The least gap between the near plane and the snow, metres.</summary>
         public float Clearance = 0.5f;
+
+        /// <summary>
+        /// The orbit target's height follows the ground under it (the player's camera). The title's drift turns it off:
+        /// its path eases the target height itself, and riding every bump under the target bobbed the whole postcard
+        /// view (P2-12 tester finding 5). The eye still never goes below <see cref="Clearance"/>.
+        /// </summary>
+        public bool TargetRidesGround = true;
         /// <summary>How far beyond the ring's edge the orbit eye may go, metres.</summary>
         public float OutsideRing = 2000f;
 
@@ -276,7 +283,7 @@ namespace MountainPlanner.Presentation
                 Target.x = Mathf.Clamp(Target.x, Ring.xMin, Ring.xMax);
                 Target.z = Mathf.Clamp(Target.z, Ring.yMin, Ring.yMax);
             }
-            if (Surface != null)
+            if (Surface != null && TargetRidesGround)
             {
                 // The target rides on the ground, so moving across a ridge keeps the view level with it.
                 float targetGround = Surface.HeightAt(Target.x, Target.z);

@@ -373,7 +373,8 @@ namespace MountainPlanner.App
             {
                 // Esc backs out one step: photo mode, then the HUD's window, dropdown or panel, then a HUD control lets go
                 // of the keyboard; with nothing left to close it opens the menu (Quit is in it, 0.4 S7).
-                if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
+                if (_photo && _photoBar != null && _photoBar.ReleaseKeyboard()) { }   // the photo bar lets go of the keys first
+                else if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
                 else if (Hud != null && _resort != null && Hud.BackOut()) { }

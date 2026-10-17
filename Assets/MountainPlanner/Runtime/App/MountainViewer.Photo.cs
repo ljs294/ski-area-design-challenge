@@ -158,6 +158,12 @@ namespace MountainPlanner.App
             if (KeyBindings.Pressed(keys, GameAction.PhotoMode, letters)) { SetPhoto(false); return; }
             if (KeyBindings.Pressed(keys, GameAction.PhotoCapture, letters)) CapturePhoto();
             if (KeyBindings.Pressed(keys, GameAction.PhotoHideBar, letters)) HidePhotoBar(!_photoBarHidden);
+            if (KeyBindings.Pressed(keys, GameAction.PhotoBarKeys, letters) && _photoBar != null)
+            {
+                if (_photoBarHidden) HidePhotoBar(false);
+                _photoBar.TakeKeyboard();
+                return;   // the camera doesn't also take this frame's keys
+            }
             if (Lighting == null) return;
             int second = Lighting.Clock.Now.SecondOfDay;
             if (KeyBindings.Pressed(keys, GameAction.PhotoEarlier, letters)) SetPhotoTime(second - 15 * 60);

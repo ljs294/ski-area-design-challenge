@@ -142,6 +142,7 @@ namespace MountainPlanner.App.Flow
         public void Apply(Presentation.ViewCamera camera, float seconds)
         {
             var s = Evaluate(seconds);
+            camera.TargetRidesGround = false;   // the path's own eased height, not every bump under the target
             camera.Frame(new Vector3(s.X, s.Y, s.Z), s.Distance);
             camera.SetAngles(s.Yaw, s.Pitch);
         }
