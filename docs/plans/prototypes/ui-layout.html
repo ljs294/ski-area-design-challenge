@@ -1721,20 +1721,20 @@ body.solo .frame { border-radius: 0; }
     const sel = S.lib.sel, onSave = typeof sel[1] === 'number' && sel[1] >= 0;
     const hint = onSave ? '<b>Enter</b> opens · <b>F2</b> renames · <b>Delete</b> removes · <b>←</b> back to the area · <b>Esc</b> goes back'
       : '<b>Enter</b> opens the newest save · <b>→</b> shows the saves · <b>Esc</b> goes back';
-    let h = `<div class="lib" data-ui="lib"><div class="lh">Load Area <span class="nm">3 areas · 1.3 GB on disk</span><span class="go" data-act="lib" data-v="newarea">New Area</span><span class="x" data-act="lib" data-v="close" title="Close (Esc)">✕</span></div>
+    let h = `<div class="lib" data-ui="library"><div class="lh">Load Area <span class="nm">3 areas · 1.3 GB on disk</span><span class="go" data-act="lib" data-v="newarea">New Area</span><span class="x" data-act="lib" data-v="close" title="Close (Esc)">✕</span></div>
       <div class="sortr">Sort ${qseg('quick', 'opened', [['opened', 'Last opened'], ['name', 'Name'], ['quality', 'Quality']]).replace(/data-act="quick"/g, '')}</div>
       <div class="rows">${rows}</div>
-      <div class="lf" data-ui="lib-hint"><span>${hint}</span><span class="ghost">Open data folder</span></div></div>`;
+      <div class="lf" data-ui="library-keys"><span>${hint}</span><span class="ghost">Open data folder</span></div></div>`;
     const d = S.lib.dlg;
     if (d) {
       const a = LIB[d.i], s = a.saves[d.k];
-      if (d.kind === 'delete') h += `<div class="modal"><div class="pn svd" data-ui="lib-delete"><div class="hd">Delete save<span class="x" data-act="lib" data-v="dlgx">✕</span></div>
+      if (d.kind === 'delete') h += `<div class="modal"><div class="pn svd" data-ui="confirm"><div class="hd">Delete save<span class="x" data-act="lib" data-v="dlgx">✕</span></div>
         <div class="hint">Delete <b>${esc(s.name)}</b> from ${esc(a.name())}? The area and its other saves stay. This can't be undone.</div>
         <div class="acts"><div class="go danger" data-act="lib" data-v="delok"><span>Delete</span></div><div class="ghost" data-act="lib" data-v="dlgx">Cancel</div></div></div></div>`;
-      if (d.kind === 'rename') h += `<div class="modal"><div class="pn svd" data-ui="lib-rename"><div class="hd">Rename save<span class="x" data-act="lib" data-v="dlgx">✕</span></div>
+      if (d.kind === 'rename') h += `<div class="modal"><div class="pn svd" data-ui="prompt"><div class="hd">Rename save<span class="x" data-act="lib" data-v="dlgx">✕</span></div>
         <div class="hint">The save's name in Load Area and the title's Continue.</div><input id="libinput" class="field" maxlength="40" spellcheck="false" autocomplete="off" value="${esc(s.name)}">
         <div class="acts"><div class="go" data-act="lib" data-v="renok"><span>Rename</span></div><div class="ghost" data-act="lib" data-v="dlgx">Cancel</div></div></div></div>`;
-      if (d.kind === 'area') h += `<div class="modal"><div class="pn svd" data-ui="lib-delete-area"><div class="hd">Delete area<span class="x" data-act="lib" data-v="dlgx">✕</span></div>
+      if (d.kind === 'area') h += `<div class="modal"><div class="pn svd" data-ui="confirm"><div class="hd">Delete area<span class="x" data-act="lib" data-v="dlgx">✕</span></div>
         <div class="hint">Delete <b>${esc(a.name())}</b>? Its ${a.saves.length} saves go with it. Frees ${a.disk}. This can't be undone.</div>
         <div class="acts"><div class="go danger" data-act="lib" data-v="dlgx"><span>Delete</span></div><div class="ghost" data-act="lib" data-v="dlgx">Cancel</div></div></div></div>`;
     }
@@ -1805,11 +1805,11 @@ body.solo .frame { border-radius: 0; }
     else area.saves.unshift({ name: 'Autosave', auto: true, when: 'just now', trails: S.trails.length, lifts: S.lifts.length });
   }
   function saveDialog() {
-    if (S.modal.save === 'as') return `<div class="modal" data-act="modalbg"><div class="pn svd" data-ui="save-as"><div class="hd">Save<span class="x" data-act="modal">✕</span></div>
+    if (S.modal.save === 'as') return `<div class="modal" data-act="modalbg"><div class="pn svd" data-ui="prompt"><div class="hd">Save<span class="x" data-act="modal">✕</span></div>
       <div class="hint">Saved under <b>${esc(S.name)}</b> in Load Area. Ctrl+S saves to it from now on; autosave keeps its own slot.</div>
       <input id="saveinput" class="field" maxlength="40" spellcheck="false" autocomplete="off" value="${esc(S.name)}">
       <div class="acts"><div class="go" data-act="sv" data-v="ok"><span>Save</span><span class="mono">Enter</span></div><div class="ghost" data-act="modal">Cancel</div></div></div></div>`;
-    return `<div class="modal" data-act="modalbg"><div class="pn svd" data-ui="save-leave"><div class="hd">Save before leaving?<span class="x" data-act="modal">✕</span></div>
+    return `<div class="modal" data-act="modalbg"><div class="pn svd" data-ui="confirm"><div class="hd">Save before leaving?<span class="x" data-act="modal">✕</span></div>
       <div class="hint"><b>${esc(S.name)}</b> has changes that aren't saved.</div>
       <div class="acts three"><div class="go" data-act="sv" data-v="leavesave"><span>Save and leave</span><span class="mono">Enter</span></div><div class="ghost" data-act="sv" data-v="leave">Leave without saving</div><div class="ghost" data-act="modal">Keep playing</div></div></div></div>`;
   }
