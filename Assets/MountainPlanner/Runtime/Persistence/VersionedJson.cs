@@ -117,16 +117,18 @@ namespace MountainPlanner.Persistence
         public T Read<T>(string json, JsonSerializerSettings settings = null) where T : class => Read<T>(json, settings, out _);
     }
 
-    /// <summary>Small JSON records written whole: to a temporary file first, then moved over the old one.</summary>
+    /// <summary>
+    /// Small JSON records written whole: to a flushed temporary file first, then replaced over the old one in one step
+    /// (decision SV6), so a crash never leaves the format without its file.
+    /// </summary>
     static class AtomicFile
     {
         public static void WriteJson(string path, object value, JsonSerializerSettings settings = null)
         {
             string temp = path + ".tmp";
             string json = settings == null ? JsonConvert.SerializeObject(value, Formatting.Indented) : JsonConvert.SerializeObject(value, settings);
-            File.WriteAllText(temp, json + "\n", new System.Text.UTF8Encoding(false));
-            if (File.Exists(path)) File.Delete(path);
-            File.Move(temp, path);
+            Saves.SaveStore.WriteFlushed(temp, new System.Text.UTF8Encoding(false).GetBytes(json + "\n"));
+            Saves.SaveStore.Commit(temp, path, null);
         }
     }
 }

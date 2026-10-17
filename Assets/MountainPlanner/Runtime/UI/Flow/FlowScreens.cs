@@ -283,7 +283,7 @@ namespace MountainPlanner.UI.Flow
             Mode = mode;
             bool manage = mode == LibraryMode.Manage;
             _libraryTitle.text = manage ? "Manage Areas" : "Load Area";
-            _libraryKeys.text = manage ? "F2 renames · Delete removes · Esc goes back" : "Enter opens · Esc goes back";
+            _libraryKeys.text = manage ? "F2 renames · Delete removes · Esc goes back" : "Enter opens · → shows the saves · F2 renames a save · Delete removes it · Esc goes back";
             _libraryVm = vm;
             ShowSizes(vm);
             Mark(_sortOpened, vm.Sort == LibrarySort.LastOpened);
@@ -339,6 +339,7 @@ namespace MountainPlanner.UI.Flow
                     el.Add(Score("Flora", r.FloraScore));
                     el.Add(DiskCell(r));
                     el.Add(Text(r.Opened, "lib-cell", "lib-cell--when"));
+                    if (!manage) AddSaveCount(el, r);   // "3 saves" (task P3-04)
                     var spacer = new VisualElement();
                     spacer.AddToClassList("spacer");
                     el.Add(spacer);
@@ -372,7 +373,8 @@ namespace MountainPlanner.UI.Flow
                     el.RegisterCallback<NavigationSubmitEvent>(e => { if (e.target == el && !manage) OpenChosen?.Invoke(r); });
                     el.RegisterCallback<KeyDownEvent>(e =>
                     {
-                        if (e.target != el || !manage) return;
+                        if (e.target != el) return;
+                        if (!manage) { SaveKeys(e, r); return; }   // → and ← show and hide the area's saves (task P3-04)
                         if (e.keyCode == KeyCode.Delete && r.CanDelete) ConfirmDelete(r);
                         else if (e.keyCode == KeyCode.F2) OpenRename(r);
                     });
@@ -381,6 +383,7 @@ namespace MountainPlanner.UI.Flow
                 _rows.Add(el);
                 _rowElements.Add(el);
                 _rowData.Add(r);
+                if (!manage && !r.IsPaused && !r.IsNewer) AddSaveRows(r);   // its saves, when shown (FlowScreens.Saves.cs, task P3-04)
             }
             _empty.text = vm.EmptyText;
             Show(_empty, _rowData.Count == 0);
@@ -391,7 +394,8 @@ namespace MountainPlanner.UI.Flow
         }
 
         /// <summary>A row's identity across redraws: its folder, or the paused download's id.</summary>
-        static string Key(LibraryRow r) => r == null ? null : r.Pending != null ? "p:" + r.Pending.Id : "a:" + r.Entry?.Folder;
+        static string Key(LibraryRow r) => r == null ? null : r.Pending != null ? "p:" + r.Pending.Id
+            : r.Save != null ? "s:" + r.Save.Folder : r.IsNewDesign ? "n:" + r.Entry?.Folder : "a:" + r.Entry?.Folder;
 
         Label DiskCell(LibraryRow r)
         {
@@ -452,7 +456,7 @@ namespace MountainPlanner.UI.Flow
         {
             if (r?.Entry == null || !r.CanDelete) return;
             string frees = r.Entry.Measured ? $" This frees {LibraryViewModel.Disk(r.Entry.BytesOnDisk)}." : "";
-            Confirm($"Delete {r.Name}?{frees} You can download it again later.", "Delete", () => DeleteConfirmed?.Invoke(r));
+            Confirm($"Delete {r.Name}?{SavesGoing(r)}{frees} You can download it again later.", "Delete", () => DeleteConfirmed?.Invoke(r));
         }
 
         /// <summary>Rename (Manage Areas, F2): the mockup's Rename dialog, with the current name selected.</summary>

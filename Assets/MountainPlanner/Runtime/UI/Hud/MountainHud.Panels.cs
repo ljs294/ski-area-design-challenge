@@ -463,7 +463,8 @@ namespace MountainPlanner.UI
             item.BringToFront();
             item.RemoveFromClassList("hidden");
             item[0].style.backgroundColor = stripe ?? new Color32(0x6f, 0x67, 0x5e, 255);
-            ((Label)item[1]).text = text;
+            var label = item.Q<Label>(className: "log__text");   // by class, not item[1]: that cast failed in P3-04's PlayMode test
+            if (label != null) label.text = text;
             _toastUntil[Array.IndexOf(_toastItems, item)] = Time.unscaledTime + ToastSeconds;
         }
 
