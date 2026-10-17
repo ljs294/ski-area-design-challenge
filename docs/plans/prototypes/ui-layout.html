@@ -898,7 +898,7 @@ body.solo .frame { border-radius: 0; }
     for (const p of [A, B]) s += planned ? `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.6" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.2" fill="${liftRed}" stroke="${white}" stroke-width="1.4"/>`;
     if (S.layers.labels && !o.noTag) {
       const ltr = B.x >= A.x, P0 = ltr ? A : B, P1 = ltr ? B : A, pid = `ll-${l.id || 'draft'}`, col = planned ? flag : liftRed;
-      s += `<path id="${pid}" d="M${f1(P0.x)} ${f1(P0.y)}L${f1(P1.x)} ${f1(P1.y)}" fill="none" stroke="none"/><text dy="3.6" style="font:800 10px DotFix,Overpass,sans-serif;letter-spacing:.07em;fill:${col};stroke:rgba(251,248,242,.96);stroke-width:4.5px;stroke-linejoin:round;paint-order:stroke"><textPath href="#${pid}" startOffset="${ltr ? 24 : 76}%" text-anchor="middle"><tspan style="font-weight:900">${l.n}</tspan>  ${esc(l.name.toUpperCase())}</textPath></text>`;
+      s += `<path id="${pid}" d="M${f1(P0.x)} ${f1(P0.y)}L${f1(P1.x)} ${f1(P1.y)}" fill="none" stroke="none"/><text dy="3.6" style="font:800 10px DotFix,Overpass,sans-serif;letter-spacing:.07em;fill:${col};stroke:rgba(251,248,242,.96);stroke-width:4.5px;stroke-linejoin:round;paint-order:stroke"><textPath href="#${pid}" startOffset="50%" text-anchor="middle"><tspan style="font-weight:900">${l.n}</tspan>  ${esc(l.name.toUpperCase())}</textPath></text>`;
     }
     return s;
   }
