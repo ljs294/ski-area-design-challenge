@@ -920,9 +920,10 @@ body.solo .frame { border-radius: 0; }
     s += t.built ? `<path d="${d}" fill="none" stroke="${runColour[t.diff]}" stroke-width="2.2" stroke-linecap="round"/>`
       : `<path d="${d}" fill="none" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4" stroke-linecap="round"/>`;
     if (S.layers.labels && !o.noTag && t.pts.length > 1) {
-      const i = Math.floor((t.pts.length - 1) / 2), m = t.pts[i], n = t.pts[Math.min(t.pts.length - 1, i + 1)];
-      const x = (m[0] + n[0]) / 2 - 30, y = (m[1] + n[1]) / 2 - 9;
-      s += tagBox(x, y, diffSym(x, y, t.diff), t.name, t.built ? '#4a443e' : flag, t.built ? '' : '3 2');
+      // the rating symbol and the name set along the line's curve, read left to right, with a white halo
+      const ltr = t.pts[t.pts.length - 1][0] >= t.pts[0][0], lp = smooth(ltr ? t.pts : t.pts.slice().reverse()), pid = `tl-${t.id || 'draft'}`;
+      const sym = { green: ['●', '#2f9a58'], blue: ['■', '#3d7cc9'], black: ['◆', ink], double: ['◆◆', ink] }[t.diff];
+      s += `<path id="${pid}" d="${lp}" fill="none" stroke="none"/><text dy="-5" style="font:800 10px DotFix,Overpass,sans-serif;letter-spacing:.07em;fill:${t.built ? ink : flag};stroke:rgba(251,248,242,.92);stroke-width:3px;stroke-linejoin:round;paint-order:stroke"><textPath href="#${pid}" startOffset="50%" text-anchor="middle"><tspan style="fill:${sym[1]}">${sym[0]}</tspan> ${esc(t.name.toUpperCase())}</textPath></text>`;
     }
     return s;
   }
