@@ -41,8 +41,21 @@ namespace MountainPlanner.UI.Tools
             Core = core;
         }
 
-        /// <summary>The nearest snap target within 30 ft (TR-05), or the point itself.</summary>
-        public SnapHit Snap(PointMm at, SnapTargets targets, ulong skip = 0) => DesignSnap.Nearest(History.Document, at, targets, Lines, skip);
+        /// <summary>
+        /// How far snapping reaches now, in mm: 30 ft (TR-05), or 6 pixels on the screen when that's more, so ends still
+        /// snap zoomed far out (owner, P3-06 round 2). The host sets it each tick from the pointer's distance.
+        /// </summary>
+        public int SnapReachMm { get; internal set; } = DesignUnits.SnapMm;
+
+        /// <summary>Snapping's on-screen reach (owner, P3-06 round 2).</summary>
+        public const float SnapPixels = 6;
+
+        /// <summary>The nearest snap target within <see cref="SnapReachMm"/>, or the point itself.</summary>
+        public SnapHit Snap(PointMm at, SnapTargets targets, ulong skip = 0) => DesignSnap.Nearest(History.Document, at, targets, Lines, skip, SnapReachMm);
+
+        /// <summary>The snap reach for a pointer where one pixel covers <paramref name="metresPerPixel"/> of ground.</summary>
+        public static int ReachFor(float metresPerPixel) =>
+            Math.Max(DesignUnits.SnapMm, (int)Math.Min(int.MaxValue / 2, Math.Round(metresPerPixel * SnapPixels * 1000)));
 
         /// <summary>Ground height at a local x/z (NaN off the terrain).</summary>
         public float HeightAt(Vector2 xz) => Surface != null ? Surface.HeightAt(xz.x, xz.y) : float.NaN;

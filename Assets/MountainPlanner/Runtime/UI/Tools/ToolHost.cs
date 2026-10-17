@@ -140,6 +140,7 @@ namespace MountainPlanner.UI.Tools
                 _ctx.Window?.SetAsking(null);
             }
             _ctx.Pump();   // finished analyses hand over (CF-03)
+            _ctx.SnapReachMm = ToolContext.ReachFor(input.MetresPerPixel);
             if (Active == null) return;
             if (input.Pressed(ToolKeys.BreakGround)) { Confirm(WorkStage.Built); input.Keys &= ~ToolKeys.BreakGround; }
             Active.Tick(input);

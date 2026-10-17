@@ -430,6 +430,25 @@ namespace MountainPlanner.Tests
         }
 
         [Test]
+        public void TR05_ZoomedFarOutSnapsWithinSixPixels()
+        {
+            Assert.That(ToolContext.ReachFor(0), Is.EqualTo(DesignUnits.SnapMm), "30 ft up close");
+            Assert.That(ToolContext.ReachFor(1), Is.EqualTo(DesignUnits.SnapMm), "6 px of 1 m each is still under 30 ft");
+            Assert.That(ToolContext.ReachFor(4), Is.EqualTo(24000), "6 px of 4 m each: 24 m");
+            var r = _design.Submit(new AddLift(_design.Revision, "Chair 1", LiftCatalogIds.SesselliftFgq4,
+                DesignFrame.ToDesign(new Vector2(0, -600)), DesignFrame.ToDesign(new Vector2(0, 300)), TowerMode.Automatic, TowerStance.Plumb, null, WorkStage.Built));
+            Assert.That(r.Accepted, Is.True);
+            _host.Choose(NewTrailTool.ToolId);
+            var near = DesignFrame.ToDesign(new Vector2(0, 280));   // 20 m (66 ft) off the top
+            _host.Tick(default);
+            Assert.That(_host.Context.Snap(near, SnapTargets.All).Snapped, Is.False, "up close, 66 ft is too far");
+            _host.Tick(new ToolInput { MetresPerPixel = 4 });
+            var hit = _host.Context.Snap(near, SnapTargets.All);
+            Assert.That(hit.Kind, Is.EqualTo(SnapKind.LiftTop), "zoomed out, 6 px reach it");
+            Assert.That(DesignFrame.ToLocal(hit.At), Is.EqualTo(new Vector2(0, 300)), "and the end lands exactly on the top");
+        }
+
+        [Test]
         public void TR05_ATrailsHeadSnapsToALiftTop()
         {
             var r = _design.Submit(new AddLift(_design.Revision, "Chair 1", LiftCatalogIds.SesselliftFgq4,

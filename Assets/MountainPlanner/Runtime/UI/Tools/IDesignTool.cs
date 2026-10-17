@@ -34,6 +34,8 @@ namespace MountainPlanner.UI.Tools
         public PointMm Point;
         /// <summary>Inside the area's core box (SH-06): the only place a tool may put anything.</summary>
         public bool InCore;
+        /// <summary>How many metres of ground one screen pixel covers at the pointer (0: unknown); sets the snap reach.</summary>
+        public float MetresPerPixel;
         /// <summary>The pointer in screen pixels (origin bottom-left), and whether it's over a HUD panel.</summary>
         public Vector2 Screen;
         public bool OverPanel;

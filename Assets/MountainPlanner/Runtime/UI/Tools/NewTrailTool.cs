@@ -255,7 +255,7 @@ namespace MountainPlanner.UI.Tools
             var snap = _ctx.Snap(input.Point, SnapTargets.All);
             var at = DesignFrame.ToLocal(snap.At);
             bool onTrail = snap.Snapped || (_raster != null && _raster.Contains(input.Point));
-            if (snap.Snapped) preview.Ring(4, at, 9.144f, PreviewInk.Snap);
+            if (snap.Snapped) preview.Ring(4, at, _ctx.SnapReachMm / 1000f, PreviewInk.Snap);
             else preview.Hide(4);
             if (!input.Click) return;
             if (!onTrail)

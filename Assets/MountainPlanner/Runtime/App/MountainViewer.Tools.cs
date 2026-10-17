@@ -251,6 +251,8 @@ namespace MountainPlanner.App
                             input.Ground = new Vector3(g.x, y, g.z);
                             input.Point = DesignFrame.ToDesign(input.Ground);
                             input.InCore = _resort.Core.Contains(new Vector2(g.x, g.z));
+                            // One pixel's worth of ground at this distance: snapping reaches at least 6 of them.
+                            input.MetresPerPixel = hit * 2 * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) / Mathf.Max(1, cam.pixelHeight);
                         }
                     }
                 }

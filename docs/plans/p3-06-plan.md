@@ -261,3 +261,14 @@ captures in both themes.
   - There's a new `KeyBindings.Context.Tray`.
   - `KeyBindings.Claim` lets an armed tool's key shadow any other action on the same key.
 - **The profile strip.** `tool-strip` in Hud.uxml is the reserved slot for LF-10 and TF-04.
+
+## 10. Owner rulings, round 2 (2026-10-17)
+
+The lift-mockup thread handed over five questions; the owner said yes to all five recommendations.
+1. **Enter goes to Review** from the lift's Towers step. It's the same Next step key the trail uses (TF-09).
+2. **Moving a built lift's top terminal or changing its type** is task 09's, as additive commands with Edit lift.
+3. **Work in progress stays in the tool** until Break ground or Save plan: nothing half-drawn goes in the document or
+   the save.
+4. **Snapping reaches 30 ft or 6 px on screen, whichever is larger,** so it still works zoomed far out. The snapped end
+   lands exactly on its target, so NW-07's 30 ft attachment still holds.
+5. **The tower in hand's clearance test** (the mockup's 200 ft or half a span, RP-01) is task 09's, with the real rope.
