@@ -4,7 +4,7 @@
 **Status:** for your review (task 02 ⛳). It gates tasks 03–10: no grading, lift, path or network code until you
 approve it.
 **Date:** 2026-10-16.
-**Decisions:** DR1–DR20 in [phase0-decisions.md](phase0-decisions.md#phase-3-task-02-design-rules-decided-2026-10-16).
+**Decisions:** DR1–DR27 in [phase0-decisions.md](phase0-decisions.md#phase-3-task-02-design-rules-decided-2026-10-16).
 **Approved plan:** [p3-02-plan.md](p3-02-plan.md).
 
 **What this is:** the rules the drawing tools follow. They are re-specified from the archived game's
@@ -23,6 +23,7 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   | TD | Trail difficulty | 4.2 |
   | GR | Grading | 4.3 |
   | CL | Tree clearing | 4.4 |
+  | TF | Trail construction flow | 4.5 |
   | LF | Lift construction flow | 5.1 |
   | LC | Lift catalog | 5.2 |
   | RP | Rope | 5.3 |
@@ -114,20 +115,34 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 
 ### 4.1 Painting (TR)
 
-- **TR-01, brush:** **25–400 ft (7.6–122 m) wide, default 100 ft (30.5 m)**, adjusted in 5 ft (1.5 m) steps (the keys
-  are task 06's).
+- **TR-01, brush:** **25–400 ft (7.6–122 m) wide, default 100 ft (30.5 m)**, in 5 ft (1.5 m) steps. The width can
+  change between strokes, so one trail can be painted with several widths.
 - **TR-02, footprint:**
-  - The footprint is the union of the brush's discs along the stroke, rasterised on the 1 m grid.
-  - More strokes may add to it before confirming.
-  - A footprint must be one connected piece.
-- **TR-03, head and tail:**
-  - The player places the head (top) and the tail (bottom) inside the footprint; the head must be higher.
-  - The centreline is the shortest path inside the footprint from head to tail, kept at least half the minimum bench
-    (12.5 ft, 3.8 m) from the edge where the footprint allows, and smoothed.
+  - The footprint is the union of every stroke's discs, each stroke at its own width, rasterised on the 1 m grid.
+  - Shift-drag erases.
+  - **Islands are allowed:** unpainted holes inside the footprint, where the ground and trees stay as they are.
+  - The footprint must be one connected piece.
+- **TR-03, head, tail and centreline:**
+  - The player places the head (top) and the tail (bottom) in a separate stage, after painting (TF-03). The head must
+    be higher.
+  - **The centreline is automatic:** the path from head to tail inside the footprint that stays **as far from the
+    edges as it can**, going around islands. It maximises the distance to the nearest edge, then is smoothed.
   - Stations sit every **25 ft (7.62 m)** along it, at most 800 per trail (20,000 ft, 6.1 km).
 - **TR-04, length:** a trail is at least 100 ft (30 m) long along its centreline.
-- **TR-05, ends:** a head within 30 ft (9.1 m) of a lift's unload point, or a tail within 30 ft of a lift's load point,
-  snaps to it and connects (NW).
+- **TR-05, ends (NW-07):** a head or tail within 30 ft (9.1 m) of **any lift's top or bottom**, or of **any point on
+  another trail**, snaps there and joins it.
+- **TR-06, kinds and settings:** every trail carries three settings, so freer forms can come later without a format
+  change.
+
+  | Setting | Values | In Phase 3 |
+  |---|---|---|
+  | **Grading** | Graded, Natural | Both |
+  | **Kind** | Run, Glade, Zone (a freeride or backcountry area) | Run only |
+  | **Clearing** | Clear, Thin, None | Clear only |
+
+  - Glades and zones may have no single head and tail, and no grading. Their rules come with them.
+  - **A cat track isn't a kind.** It's a narrow graded run that a player builds to put an easy way down across steep
+    terrain (GR-11 prepares for it).
 
 ### 4.2 Difficulty (TD)
 
@@ -151,6 +166,14 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 - **TD-04, live:** the rating updates with every grading change and is shown in review and in the trail's inspector.
 - **TD-05, not difficulty:** snow conditions, grooming and width don't change the rating. They feed a separate
   conditions rating with the simulation, from the one snow conditions map (Phase 4).
+- **TD-06 v1, the estimate while painting:** before a head and tail exist, there's no centreline.
+  - The estimate reads every 1 m cell in the footprint, on natural ground: **(3 × the mean + the 90th percentile) /
+    4**.
+  - The 90th percentile stands in for the steepest stretch. A plain maximum would jump at a few steep edge cells, and
+    the mean alone would hide a short headwall.
+  - It's kept as a running slope histogram, updated after each stroke over the cells the stroke touched. A 1,000 ×
+    100 ft trail is about 9,300 cells, a fraction of a millisecond.
+  - TD-02 replaces it once the head and tail are set.
 
 ### 4.3 Grading (GR)
 
@@ -181,6 +204,12 @@ ruled differently. No archived code is copied; the rules are stated here as pros
 - **GR-09, storage:** a confirmed grade is stored as height deltas in sparse 64 m tiles over the immutable package
   (tasks 04 and 05). Undo restores byte-identical heights.
 - **GR-10, tolerance:** design heights are exact to within 1 mm (0.04 in) of GR-01 to GR-05.
+- **GR-11, the envelope (built to grow):**
+  - The grading engine takes a footprint, a centreline, a bench width and an **envelope**: where cut and fill may
+    reach.
+  - Phase 3 uses **envelope = footprint** (GR-06).
+  - A later cat track through steep terrain keeps a fixed bench and lets its 1:1 faces reach past the painted width,
+    up to a set limit (0.1's road exception). That adds an envelope value, not a new engine.
 
 ![A level bench with 1:1 cut and fill faces inside the footprint](images/p3-02/bench-section.svg)
 
@@ -193,11 +222,75 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   - The treeline reads natural, and nothing outside the footprint changes.
 - **CL-03, lifts:** a built lift clears a **55 ft (16.8 m)** corridor centred on its line, from terminal to terminal,
   with straight edges.
-- **CL-04, paths:** a built path clears its footprint, as CL-01 and CL-02.
+- **CL-04:** *retired.* Paths clear nothing (PA-05).
 - **CL-05, effects:** clearing writes the clearing mask that forest density reads (0.3 §4.5). The forest floor and snow
   follow it (task 05).
 - **CL-06, plans:** a saved plan (CF-06) clears nothing.
 - **CL-07, undo:** undo restores the trees exactly; the deterministic forest regrows from the mask.
+- **CL-08, islands:** trees inside a footprint's islands (TR-02) stay.
+
+### 4.5 Trail construction flow (TF)
+
+- **TF-01, the trail menu:** **Toolbox › Trail** opens it.
+  - **Steps:** 1 Paint, 2 Head and tail, 3 Review.
+  - **Options:**
+    - the brush width, with **[ / ]** or a slider;
+    - **Graded or Natural**;
+    - the name, with "Run 1, Run 2, …" suggested and editable.
+- **TF-02, painting (step 1):**
+  - The brush circle follows the pointer. **Left-drag paints and Shift-drag erases**; right-drag stays the camera
+    pan.
+  - **Ctrl+Z** undoes the last stroke.
+  - **After each stroke** (not while dragging), the area and the estimated rating (TD-06) update.
+  - A second, separate patch is red, and Next is blocked until it's joined or erased.
+- **TF-03, head and tail (step 2):**
+  - Click the head, then the tail; each snaps by TR-05.
+  - The centreline (TR-03) then appears as a dashed line, and the full analysis runs off the main thread:
+    - the yellow pending contours (CF-08);
+    - red stretches too steep to grade (GR-07);
+    - the final rating (TD-02);
+    - cut and fill;
+    - the profile.
+
+    Within CF-09's budget.
+- **TF-04, the trail profile:** while a trail is being built, a wide strip sits above the status bar, like the lift's
+  (LF-10).
+  - **Axes:** x is the distance along the centreline, y elevation, in ft.
+  - **Drawn:**
+    - natural ground, dashed;
+    - the graded surface, solid;
+    - each stretch coloured by its band;
+    - red ungraded stretches;
+    - the steepest 75 ft window marked.
+- **TF-05, review (step 3):**
+  - length, vertical, rating, mean and steepest grade;
+  - cut, fill and balance in yd³;
+  - the ungraded length;
+  - trees cleared;
+  - warnings.
+
+  Then Break ground, Save plan or Cancel (CF-06).
+- **TF-06, Natural trails:** no grading at all. Trees are cleared, and the rating reads natural ground.
+- **TF-07, editing:** select a built trail to:
+  - repaint it, add islands or move its head or tail;
+  - rename, split or join it (NW-10);
+  - or delete it.
+
+  Grading re-runs only on the stations that changed; delete restores ground and trees exactly.
+- **TF-08, the built trail's card:** simple: name, rating, length, vertical. The grading detail shows only while
+  editing.
+- **TF-09, keys:**
+  - **[ / ]** brush width;
+  - **Shift** erase;
+  - **Enter** next step;
+  - **Esc** back one step (CF-07);
+  - **Delete** the selected trail.
+
+  All rebindable.
+- **TF-10, overlaps:** where a new footprint overlaps another trail, the overlap keeps the earlier trail's grading.
+  The network gets a junction there (NW-07).
+- **TF-11, near lifts:** grading never changes the ground within 15 ft (4.6 m) of a tower base or terminal. A trail
+  that would push a built lift's chair clearance below 15 ft (TW-01) turns that stretch red and blocks Break ground.
 
 ## 5. Lifts
 
@@ -434,37 +527,65 @@ uses closed-form stand-ins, all in Domain and deterministic:
 
 ## 6. Paths and junctions (PA, JN)
 
-- **PA-01, what a path is:** a skiable connector, a cat track, **20 ft (6.1 m)** wide. It joins things that don't touch:
-  a lift's top to a trail's head, or one trail to another. It's drawn as a polyline by clicking points, and Enter or
-  a double-click ends it.
-- **PA-02, ends:** both ends must connect. Each snaps to a lift's load or unload point, a trail's footprint, or a
-  junction within **30 ft (9.1 m)**.
-- **PA-03, grading and clearing:** a path is graded by the GR rules inside its own footprint (minimum bench 20 ft, the
-  full width) and cleared by CL-04.
-- **PA-04, direction:** a path is skied from its higher end to its lower end. Its difficulty is rated by TD; a path
-  steeper than 25% gets a warning, since cat tracks are meant to be easy.
-- **JN-01, splitting:** confirming a path that ends on a trail splits that trail at a shared junction, all in one
-  command (0.1 §6.3).
-- **JN-02, trails meeting:** a trail whose head or tail lies within another trail's footprint joins it at a junction.
-- **JN-03, pruning:** deleting a trail or path removes only the junctions nothing else uses. Lift terminals always stay.
-- **JN-04, IDs:** junction IDs are keyed hashes of the joined entities' IDs (SH-04), so a reload rebuilds the same
-  junctions.
+Paths are automatic: you never draw one. They connect trails that come close without touching.
+
+- **PA-01 to PA-04:** *retired.* Drawn connector paths are replaced by PA-05 to PA-08.
+- **PA-05, automatic paths:**
+  - Where two trails' footprints come within **30 ft (9.1 m)** of each other without touching, the network adds a
+    **path** at their closest point, so skiers can cross from one to the other.
+  - A long stretch where they stay that close gets one path, at its closest point.
+  - A path changes no ground and clears no trees.
+- **PA-06, direction:** a path runs from its higher end to its lower end, both ways if the two ends are within 3 ft
+  (0.9 m) of each other in elevation.
+- **PA-07, not across:** a path never crosses a lake, a road or a lift terminal's footprint.
+- **PA-08, shown:** a short dashed link in the Network view and while building. It's not a map line of its own.
+- **JN-01 to JN-03:** *retired.* Junctions are derived from geometry (NW-07), so no command creates or prunes them.
+- **JN-04, IDs:** junction and path IDs are keyed hashes of what they join (SH-04), so a reload rebuilds the same
+  ones.
 
 ## 7. The network (NW)
 
-- **NW-01, derived:** the ski network is rebuilt from lifts, trails, paths and junctions on every load and edit, and
-  never stored. The same design gives the same graph bytes (golden).
+- **NW-01, derived:** the ski network is rebuilt from lifts and trails on every load and edit, and never stored. The
+  same design gives the same graph bytes (golden).
 - **NW-02, graph:**
-  - **Nodes:** lift load and unload points, trail heads and tails, and junctions.
-  - **Edges:** lifts go up; trails and paths go down.
+  - **Nodes:** lift tops and bottoms, trail heads and tails, junctions and path ends.
+  - **Edges:**
+    - lifts go up;
+    - trail segments (NW-08) go from head toward tail;
+    - paths follow PA-06.
   - Saved plans (CF-06) are left out.
 - **NW-03, lifts are the backbone:** there is no Guest Entrance in Phase 3. A built lift is **connected** when a
-  descent of trails and paths from its top reaches some lift's bottom, its own included.
-- **NW-04, flags:**
-  - Unconnected lifts are flagged in review, in the Analysis network view, and in the status bar's lift and trail
-    counts.
-  - A trail or path whose tail reaches no lift bottom and no other trail is a warning ("Leads nowhere").
+  descent from its top reaches some lift's bottom, its own included.
+- **NW-04, flags:** the NW-12 warnings show in review, in the Analysis network view and in the status bar's lift and
+  trail counts.
 - **NW-05, measuring:** topology uses metres in the local frame (SH-03); reported lengths are horizontal, in ft.
+- **NW-06, authored and derived:**
+  - **Authored** and saved: lifts; trails (footprint, settings, head, tail, name); and split and join markers.
+  - **Derived:** junctions, segments, paths and the graph.
+- **NW-07, natural junctions:** a junction appears wherever:
+  - a head or tail snaps to a lift's top or bottom, or to a point on another trail (TR-05);
+  - or two footprints overlap.
+
+  It sits on each trail's centreline, at the snap point or nearest the overlap's middle.
+- **NW-08, segments:**
+  - Each trail's centreline is cut at its junctions and path ends into **segments**, the network's edges.
+  - Each segment has its own rating (TD-02 on its stations), kept for guests later. The player sees one rating per
+    trail.
+- **NW-09, one trail, one line:** however many segments a trail has, the map draws it as **one line** with one name and
+  one symbol.
+- **NW-10, split and join:** two tools that change trail names and boundaries, never ground.
+  - **Split** a trail at a junction or a point on its centreline. The two parts become two trails ("Run 1" and "Run 1
+    lower", renamable), and the footprint is divided by the cross-section there.
+  - **Join** two trails where one's tail meets the other's head. They become one trail and keep the upper one's name.
+  - Each is one undoable command.
+- **NW-11, cat tracks:** a cat track is a narrow graded run (TR-06), not a separate network piece. It joins the network
+  like any trail.
+- **NW-12, warnings:**
+  - **"No way down":** a lift that isn't connected (NW-03).
+  - **"No lift serves this":** a trail that can't be reached from any lift's top.
+  - **"Leads nowhere":** a trail whose tail reaches no lift bottom, no other trail and no path.
+- **NW-13, seeing the network:** an **Analysis › Network** view lists each lift with its status. Selecting a lift
+  highlights every trail reachable from its top.
 
 ## 8. What the player already sees
 
@@ -494,19 +615,21 @@ The rules agree with what the shipped game shows:
 | C10 | The kit's flat support arcs (s4 turns 2.8° and s6 4.2° at full arc) are smaller than a loaded rope's 7–13° bends | Capacity from TW-05; task 09 rocks the trains to the real bend |
 | C11 | Terminals oriented bottom-first by elevation (0.1), or placed by the player | The player places the bottom first (LF-02) |
 | C12 | The tower kit is modelled plumb | Leaned towers (TW-14) need a tilted base plate on a level pier: a small change for the lift asset thread, after your model approval |
+| C13 | Connector paths and free-standing pins were drawn by the player (0.1 §6.3) | Paths are automatic between trails that come close (PA-05); junctions come from geometry (NW-07) |
+| C14 | A cat track as its own kind (round 8 draft) | A narrow graded run (TR-06, NW-11) |
 
 ## 10. Who implements what
 
 | Task | Rules |
 |---|---|
-| 03 Design document, commands, undo | SH-04, SH-05, CF-03 to CF-06, TW-15, JN-01, JN-04 |
+| 03 Design document, commands, undo | SH-04, SH-05, CF-03 to CF-06, TW-15, JN-04, NW-06, NW-10 |
 | 04 Save file | SH-05 (what's saved), GR-09, CF-06 (plans saved) |
 | 05 Terrain edits | SH-02, GR-09, GR-10, CL-05, CL-07, CF-09 |
 | 06 Toolbox and placement | SH-07, CF-01, CF-02, CF-06 to CF-08, LF-01, LF-09 |
 | 07 Style tile | the *(tuned at 07)* values, TW-14's cap |
-| 08 Trails | TR, TD, GR, CL-01, CL-02 |
+| 08 Trails | TR, TD, GR, TF, CL-01, CL-02, CL-08 |
 | 09 Lifts | LF, LC, RP, TW, CL-03 |
-| 10 Paths and the network | PA, JN, NW, CL-04 |
+| 10 Paths and the network | PA, JN, NW |
 
 ## 11. Later
 

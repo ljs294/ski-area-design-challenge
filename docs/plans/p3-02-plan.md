@@ -1,10 +1,183 @@
-# 🟦 P3-02 design rules: the plan (round 6)
+# P3-02 design rules: the plan (rounds 1–8)
 
-**Status:** approved by the owner on 2026-10-16 ("Yes to all. Lets proceed!"), with the lift mockup thread's rulings folded in (DR20). The rules are in [p3-02-design-rules.md](p3-02-design-rules.md). This task is docs only: no code,
+**Status:** approved by the owner on 2026-10-16: rounds 1–6 ("Yes to all. Lets proceed!"), then rounds 7 (trails) and 8 (network), with the lift mockup thread's rulings folded in (DR20). The rules are in [p3-02-design-rules.md](p3-02-design-rules.md). This task is docs only: no code,
 no GPU, no demo.bat entry. Branch `docs/p3-02-design-rules`, from origin/main 6e803d3.
 
 **Units:** every number is imperial first, with metric in brackets. The game stores metres and newtons; only what you
 read is imperial, as the shipped `UnitFormat` does. Slopes are percent grades; rope and tower angles are degrees.
+
+## 🟦 Round 7: trails (your answers folded in)
+
+You asked for a trail round, then a network round, before the PR. Rounds 1–6 settled the trail rules (TR, TD, GR, CL)
+but never how a trail is drawn. This round adds that as **TF** rules, now with your answers.
+
+### Trails as painted areas (built to grow)
+
+- **TF-01, a trail is a painted area:** a footprint mask on the 1 m grid, plus properties.
+  - **The footprint** may be painted with different brush widths, and **may have islands**: unpainted holes inside
+    it, where trees and ground stay as they are.
+  - It must still be one connected piece.
+- **TF-02, kinds (ready for later):** every painted area carries a **kind** and two settings.
+  - **Kind:** Phase 3 builds **Run** and **Cat track** (round 8). The format already allows **Glade**, **Freeride
+    area** and **Backcountry area**; these may have no single head and tail, and no grading.
+  - **Grading:** Graded or Natural.
+  - **Clearing:** Clear, Thin (glades) or None.
+
+  Later kinds add rules; they don't change the format (task 04's save keeps the kind and settings).
+- **TF-03, grading built to grow:**
+  - The grading engine takes a footprint, a centreline, a bench width and an **envelope**: where cut and fill may
+    reach.
+  - Phase 3 runs use **envelope = footprint** (GR-06).
+  - A later **cat track through steep terrain** keeps a fixed bench (for example 20 ft) and lets its 1:1 faces reach
+    out past the painted width, up to a set limit. That's the road exception from 0.1, so a cat track can be cut
+    across a slope a run could never bench.
+  - Nothing in Phase 3 uses the wider envelope; it's a parameter, not a new engine.
+
+### Trail construction flow
+
+1. **TF-04, the trail menu:** **Toolbox › Trail** opens it.
+   - **Steps:** **1 Paint, 2 Head and tail, 3 Review.**
+   - **Options:**
+     - brush width (25–400 ft, default 100 ft), set with **[ / ]** in 5 ft steps or a slider;
+     - **Graded or Natural**;
+     - the name, with "Run 1, Run 2, …" suggested and editable.
+2. **TF-05, painting (step 1):**
+   - The brush circle follows the pointer. **Left-drag paints; Shift-drag erases** (islands are erased holes).
+   - Change the width between strokes; **Ctrl+Z** undoes the last stroke.
+   - **After each stroke** (not during it), the footprint's area and an **estimated rating** update (TF-07).
+   - A second, separate patch shows red, and Next is blocked until it's joined or erased.
+3. **TF-06, head and tail (step 2):** a separate stage, after painting.
+   - Click the head (top), then the tail (bottom). Each snaps to a lift's unload or load point within 30 ft (TR-05).
+   - **The centreline is automatic** (TR-03): the path from head to tail that stays as **far from the footprint's
+     edges as it can**, going around islands.
+   - Then the full analysis runs:
+     - the yellow pending contours;
+     - red stretches too steep to grade;
+     - the final rating (TD-02);
+     - cut and fill;
+     - the trail profile.
+4. **TF-08, the trail profile:** a wide strip above the status bar, like the lift's.
+   - **Axes:** x is the distance along the centreline, y elevation, in ft.
+   - **Drawn:**
+     - natural ground, dashed;
+     - the graded surface, solid;
+     - each stretch coloured by its band;
+     - red ungraded stretches;
+     - the steepest 75 ft window marked.
+5. **TF-09, review (step 3):**
+   - length, vertical, rating, mean and steepest grade;
+   - cut, fill and balance in yd³;
+   - the ungraded length;
+   - trees cleared;
+   - warnings.
+
+   Then Break ground, Save plan or Cancel.
+6. **TF-10, Natural trails:** no grading; trees are cleared (Clear). Thin, for glades, comes later.
+7. **TF-11, editing:** select a built trail to repaint it, move its head or tail, rename, split, join (round 8) or
+   delete it. Grading re-runs only on changed stations; delete restores ground and trees exactly.
+8. **TF-12, the built trail's card:** simple: name, rating, length and vertical.
+9. **TF-13, keys:**
+   - **[ / ]** brush width;
+   - **Shift** erase;
+   - **Enter** next step;
+   - **Esc** back one step;
+   - **Delete** the selected trail.
+
+   All rebindable.
+
+### TF-07, estimating the rating while you paint
+
+Before the head and tail exist there's no centreline, so the estimate reads the painted area alone:
+- It takes the slope of every 1 m cell in the footprint, on **natural ground** (grading comes in step 2), the same
+  numbers the Slope layer shows.
+- **Estimate = (3 × the mean + the 90th percentile) / 4.** It's TD-02's formula, with the 90th percentile standing in
+  for "the steepest stretch". A percentile ignores a few steep cells at the edges, where a plain maximum would jump.
+- Why not the mean alone? It hides a short steep pitch: a long green run-out with a black headwall would average to
+  blue.
+- **Cost:** one pass over the cells the stroke touched, kept as a running slope histogram. A 1,000 × 100 ft trail is
+  about 9,300 cells, a fraction of a millisecond.
+- After step 2, the **final rating (TD-02)** replaces the estimate. It uses the graded surface along the centreline,
+  so the two can differ where grading tames a pitch.
+
+### Trails meeting other things
+
+- **TF-14, overlaps:**
+  - Where a new footprint overlaps another trail, the network gets a **natural junction** there (round 8).
+  - The overlap keeps the earlier trail's grading.
+- **TF-15, lifts:** grading never changes the ground within 15 ft (4.6 m) of a tower base or a terminal. A trail that
+  would push a built lift's clearance below 15 ft turns that stretch red and blocks Break ground.
+
+### Your answers
+
+1. Head and tail: you pick them in their own stage, after painting.
+2. The centreline: automatic only, as central as possible.
+3. Graded / Natural: yes.
+4. Overlaps: they make natural junctions, and a trail can span several network segments yet draw as one line. This
+   needs join and split tools (round 8).
+5. The 15 ft clear zone and lift re-check: yes.
+6. Shift-drag erases: yes.
+7. Default names: yes.
+8. The UI mockup thread gets the trail tool: yes, after this round.
+
+## 🟦 Round 8: the network (for your review)
+
+This ties lifts, trails and cat tracks into one ski network.
+
+- **NW-06, what's authored and what's derived:**
+  - **Authored** and saved: lifts, trails (footprint, kind, head, tail, name) and cat tracks.
+  - **Derived** on every load and edit: junctions, segments and the graph. The same design gives the same graph
+    (golden).
+- **NW-07, natural junctions:** a junction appears wherever:
+  - two footprints overlap;
+  - a head or tail snaps to a lift point;
+  - a cat track's end lies in a trail.
+
+  It sits on each trail's centreline, at the point nearest the overlap's middle. Its ID is a keyed hash of what it
+  joins (JN-04), so a reload gives the same junctions.
+- **NW-08, segments:**
+  - Each trail's centreline is cut at its junctions into **segments**, the network's edges, skied from head toward
+    tail.
+  - Each segment has its own rating (TD-02 on its stations), for guests later. The player sees one rating per trail.
+- **NW-09, one trail, one line:** however many segments a trail has, the map draws it as **one line** with one name and
+  one symbol.
+- **NW-10, split and join:** two tools that change names, never ground.
+  - **Split** a trail at a junction or a point on its centreline. The two parts become two trails ("Run 1" and "Run 1
+    lower", renamable), and the footprint is divided by the cross-section line there.
+  - **Join** two trails where one's tail meets the other's head. They become one trail and keep the upper one's name.
+  - Both are single undoable commands.
+- **NW-11, cat tracks** (replacing PA's separate "path"):
+  - A cat track is the trail kind **Cat track**: drawn as a line of clicks, painted at a fixed **20 ft (6.1 m)**
+    width, graded inside its footprint for now (TF-03 prepares the steep version).
+  - Its ends snap within 30 ft to lift points or trails.
+  - It counts as a way down.
+- **NW-12, the checks:**
+  - A lift is **connected** when a descent from its top reaches some lift's bottom (NW-03).
+  - Warnings:
+    - **"No way down"** for a lift that isn't connected;
+    - **"No lift serves this"** for a trail that can't be reached from any lift's top;
+    - **"Leads nowhere"** for a trail whose tail reaches no lift bottom and no other trail.
+- **NW-13, seeing the network:** an **Analysis › Network** view lists each lift with its status. Selecting a lift
+  highlights every trail reachable from its top. The status bar shows the lift and trail counts.
+
+### Questions (my recommendation)
+
+1. Are junctions always derived from geometry, never drawn by hand? → Yes.
+2. Should paths become the Cat track trail kind, drawn as a line at a fixed 20 ft? → Yes.
+3. Split and join as NW-10 describes, including the naming? → Yes.
+4. The three warnings in NW-12? → Yes.
+5. The Network view, with the reachable trails highlighted? → Yes.
+6. One rating per trail for the player, per-segment ratings kept for guests later? → Yes.
+
+### Your answers to round 8 (2026-10-16)
+
+- **Snapping (NW-07):** heads and tails snap to any lift's top or bottom, or to any point along another trail.
+- **Cat tracks (NW-11):** not a kind. A cat track is a narrow graded run, built for an easy way down on steep terrain.
+  Trails are delineated as Natural or Graded, and as Run, Glade or Zone (TR-06).
+- **Paths:** automatic where two trails come close enough to nearly overlap, so skiers can cross; you never draw one
+  (PA-05).
+- **Questions 1–6:** yes. Question 2 (cat tracks as a kind) is superseded by the cat track answer above.
+
+All folded into [p3-02-design-rules.md](p3-02-design-rules.md) (DR22–DR27).
 
 ## What changed
 

@@ -6,7 +6,7 @@ exit criteria are kept, the scope is narrowed to fixed-grip chairlifts (E13), an
 tester session are added (E9). The Phase 2 exit review is [phase2-14-exit-review.md](phase2-14-exit-review.md).
 **Phase 3 starts when you approve this document.**
 
-**Progress:** task 02's rules are in review: [p3-02-design-rules.md](p3-02-design-rules.md) (DR1–DR21).
+**Progress:** task 02's rules are in review: [p3-02-design-rules.md](p3-02-design-rules.md) (DR1–DR27).
 
 **Goal:** the player designs on the real terrain. Trails are painted, graded and cleared; fixed-grip chairlifts are
 placed with towers, rope and moving chairs; paths join them into a network. A design saves, reloads and undoes, and the

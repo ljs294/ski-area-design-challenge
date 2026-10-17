@@ -337,7 +337,13 @@ rulings: [p3-02-plan.md](p3-02-plan.md). Rule IDs in brackets.
 | DR15 | **Towers plumb by default,** optionally leaned square to the rope (TW-14) |
 | DR16 | **Readouts:** % of rating with lbf in the detail while building; a simple card once built (RP-06, TW-11, LF-11) |
 | DR17 | **The network:** no Guest Entrance; lifts are the backbone, and a lift is connected when a descent from its top reaches a lift's bottom (NW-03) |
-| DR18 | **Paths:** 20 ft cat-track connectors, snapping within 30 ft, graded and cleared like trails, splitting trails into junctions (PA, JN) |
+| DR18 | *Superseded by DR25:* paths as drawn 20 ft connectors |
 | DR19 | **Lift numbers** are checked against real fixed-grip quads and tuned at the style tile: a 1⅝ in rope rated 42,800 lbf (a factor of safety of 5), an 18,000 lbf counterweight per side, 350 lb chairs with 170 lb riders, so about 900 ft of rise at 2,400 pph (LC-02, LC-05) |
 | DR20 | **From the lift mockup review:** a red tower can't be placed; a placed one that turns red blocks Break ground; Delete removes the selected tower; Esc backs out one step; the commit words are Break ground and Save plan, with Cancel on the panel's ✕ (CF-06, CF-07, LF-04) |
 | DR21 | **Review format:** Markdown documents, no web page |
+| DR22 | **Trails are painted areas:** several brush widths, islands allowed, one connected piece; the head and tail are chosen in their own stage after painting; the centreline is automatic and as central as possible (TR-01 to TR-03, TF) |
+| DR23 | **Built to grow:** every trail carries Grading (Graded or Natural), Kind (Run, Glade, Zone) and Clearing (Clear, Thin, None); Phase 3 builds runs. A cat track is a narrow graded run, not a kind; the grading envelope (GR-11) prepares for cat tracks through steep terrain (TR-06, GR-11, NW-11) |
+| DR24 | **The rating estimate** updates only between strokes: (3 × mean + 90th percentile) / 4 of the footprint's natural slope; the final rating follows the head and tail (TD-06) |
+| DR25 | **Paths are automatic:** where two trails come within 30 ft without touching, the network adds a path so skiers can cross; it changes no ground (PA-05 to PA-08) |
+| DR26 | **Junctions come from geometry:** heads and tails snap to any lift's top or bottom or any point on another trail, and overlaps make junctions. A trail can span several network segments yet draws as one line; Split and Join tools rename and remap trails (NW-07 to NW-10) |
+| DR27 | **Network checks and view:** the warnings "No way down", "No lift serves this" and "Leads nowhere", and an Analysis › Network view that highlights what each lift reaches (NW-12, NW-13) |
