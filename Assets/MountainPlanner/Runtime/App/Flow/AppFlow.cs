@@ -239,13 +239,14 @@ namespace MountainPlanner.App.Flow
             if (_viewer.Hud != null)
             {
                 _viewer.Hud.ShowExitToTitle(true);
-                _viewer.Hud.ExitChosen += Controller.ExitToTitle;
+                _viewer.Hud.ExitChosen += () => AskBeforeLeaving(Controller.ExitToTitle);   // unsaved changes ask first (task P3-04)
                 _viewer.Hud.ShowSettings(true);   // the menu's Settings opens the flow's window: units, theme, UI scale
                 var hud = _viewer.Hud;
                 hud.SettingsChosen += () => Screens.ShowSettings(hud.SiteName);   // the head names the resort, as in the mockup
                 hud.ControlsChosen += () => { Screens.ShowSettings(hud.SiteName); Screens.Settings.ShowPage(SettingsWindow.ControlsPage); };
                 hud.CreditsChosen += () => Screens.ShowCredits(Credits());   // the menu's Credits (task P2-07)
                 MountainViewer.PhotoErrorShown = (title, text) => Screens.Alert(title, text, null, null);   // photo save errors (S11)
+                WireSaves(hud);   // Save, autosave (task P3-04)
             }
             var then = _afterTitle;
             _afterTitle = FlowScreen.Title;
@@ -260,6 +261,7 @@ namespace MountainPlanner.App.Flow
             UpdateCover();
             UpdateDownloads();
             HandleKeys(Keyboard.current);
+            UpdateSaves(Keyboard.current);
 
             // The title's slow drift over the demo mountain (the viewer's own camera input is off in title mode).
             var cam = _viewer != null ? _viewer.Camera : null;
@@ -391,6 +393,7 @@ namespace MountainPlanner.App.Flow
 
         public void OpenMountain(string packageFolder)
         {
+            if (!PrepareDesign(packageFolder)) return;   // the save to open (task P3-04): refused ones say why and open nothing
             // Keyed by package id, as the library is (the folder name needn't match it).
             try
             {
@@ -407,6 +410,7 @@ namespace MountainPlanner.App.Flow
 
         public void ReturnToTitle(FlowScreen then)
         {
+            CloseDesign();
             _afterTitle = then;
             MountainViewer.TitleMode = true;
             MountainViewer.RequestedPackage = TitleBackground();

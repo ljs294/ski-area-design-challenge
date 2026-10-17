@@ -119,7 +119,7 @@ namespace MountainPlanner.App.Flow
             }
 
             // S8: every page (task P2-05); the first keeps its old name. Nothing chosen here is remembered.
-            string[] pages = { "s8-settings", "s8-settings-units", "s8-settings-graphics", "s8-settings-display", "s8-settings-controls", "s8-settings-data" };
+            string[] pages = { "s8-settings", "s8-settings-units", "s8-settings-gameplay", "s8-settings-graphics", "s8-settings-display", "s8-settings-controls", "s8-settings-data" };
             for (int page = 0; page < pages.Length; page++)
             {
                 if (!Wanted(pages[page])) continue;

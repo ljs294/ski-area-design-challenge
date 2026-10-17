@@ -36,6 +36,9 @@ namespace MountainPlanner.Persistence.Saves
         /// <summary>Task 05's current clearing tiles; none until clearing exists.</summary>
         public Func<IReadOnlyList<SaveTile>> ClearingTiles { get; set; } = () => Array.Empty<SaveTile>();
 
+        /// <summary>Passed to each write's steps (a test or -crashsave stops a save part way).</summary>
+        public Action<SaveStep> Step { get; set; }
+
         DesignDocument _saved;
         bool _otherChanges;
 
@@ -129,7 +132,7 @@ namespace MountainPlanner.Persistence.Saves
                 Terrain = new List<SaveTile>(TerrainTiles?.Invoke() ?? Array.Empty<SaveTile>()),
                 Clearing = new List<SaveTile>(ClearingTiles?.Invoke() ?? Array.Empty<SaveTile>()),
             };
-            if (!SaveStore.Write(folder, save)) return false;
+            if (!SaveStore.Write(folder, save, Step)) return false;
             _saved = doc;
             _otherChanges = false;
             DirtyChanged?.Invoke();
