@@ -136,7 +136,7 @@ Shader "MountainPlanner/TreeImpostor"
 
         // Blends the four frames: colour weighted by coverage, so transparent texels never darken.
         void SampleImpostor(float4 uvA, float4 uvB, float4 cellsA, float4 cellsB, float4 weights,
-                            out half4 albedo, out half4 data, out half2 flecks)
+                            out half4 albedo, out half4 data, out half2 flecks, out float unfiltered)
         {
             float2 uvs[4] = { uvA.xy, uvA.zw, uvB.xy, uvB.zw };
             float2 cells[4] = { cellsA.xy, cellsA.zw, cellsB.xy, cellsB.zw };
@@ -145,7 +145,12 @@ Shader "MountainPlanner/TreeImpostor"
             // coverage and the flecks keep it from sparkling), and capped so neighbouring frames don't bleed in.
             float2 dx = ddx(uvA.xy) * _ImpFrameSize, dy = ddy(uvA.xy) * _ImpFrameSize;
             float level = 0.5 * log2(max(dot(dx, dx), dot(dy, dy)));
-            float lod = clamp(level - _ImpSharpen, 0, 3);
+            // Tiny trees (P3-01, the title's flicker): a tree a few pixels tall wants a mip past the last one (3),
+            // so its sharp crown edge lands on different pixels every frame and the tree blinks as the camera moves.
+            // The extra sharpness fades out from level 2 to 4, and Frag widens the edge by the mips that are missing
+            // (unfiltered), so tiny trees soften instead of sparkling. Trees above about 24 px tall are unchanged.
+            float lod = clamp(level - _ImpSharpen * saturate(2 - 0.5 * level), 0, 3);
+            unfiltered = max(0, level - 3);
             half3 colour = 0;
             half4 dat = 0;
             half coverage = 0;
@@ -221,8 +226,9 @@ Shader "MountainPlanner/TreeImpostor"
             {
                 half4 albedo, data;
                 half2 flecks;
-                SampleImpostor(i.uvA, i.uvB, i.cellsA, i.cellsB, i.weights, albedo, data, flecks);
-                half coverage = saturate((albedo.a - _Cutoff) / max(fwidth(albedo.a), 0.0001) + 0.5);
+                float unfiltered;
+                SampleImpostor(i.uvA, i.uvB, i.cellsA, i.cellsB, i.weights, albedo, data, flecks, unfiltered);
+                half coverage = saturate((albedo.a - _Cutoff) / (max(fwidth(albedo.a), 0.0001) * exp2(unfiltered)) + 0.5);
                 clip(coverage - 0.01);
                 float3 nLocal = OctDecode(data.rg);
                 float3 n = normalize(RotateY(nLocal / i.scale, i.rotationFade.xy));
@@ -272,7 +278,8 @@ Shader "MountainPlanner/TreeImpostor"
             {
                 half4 albedo, data;
                 half2 flecks;
-                SampleImpostor(i.uvA, i.uvB, i.cellsA, i.cellsB, i.weights, albedo, data, flecks);
+                float unfiltered;
+                SampleImpostor(i.uvA, i.uvB, i.cellsA, i.cellsB, i.weights, albedo, data, flecks, unfiltered);
                 clip(albedo.a - _Cutoff);
                 return 0;
             }
