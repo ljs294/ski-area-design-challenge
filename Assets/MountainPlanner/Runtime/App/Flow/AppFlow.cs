@@ -214,6 +214,7 @@ namespace MountainPlanner.App.Flow
                 ViewCamera.OverlayBlocked = null;
                 MountainViewer.FlowHasKeyboard = null;
                 MountainViewer.CoverUp = null;
+                CloseDesign();   // the open design belongs to this flow (task P3-04)
             }
         }
 
