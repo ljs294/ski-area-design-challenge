@@ -119,7 +119,9 @@ namespace MountainPlanner.UI
 
         public void SetToolbox(bool open)
         {
+            bool was = _toolboxOpen;
             _toolboxOpen = open;
+            if (was && !open) LeftToolbox();   // the armed tool closes with the tray (P3-06)
             if (open && _analysisOpen) SetAnalysis(false);
             _toolbox.EnableInClassList("hidden", !open);
             _barToolbox.EnableInClassList("tbtn--on", open);
@@ -128,6 +130,7 @@ namespace MountainPlanner.UI
 
         public void SetToolboxTab(string tab)
         {
+            if (tab != _toolboxTab) LeftToolbox();   // another tab drops the armed tool, as the mockup does (P3-06)
             _toolboxTab = tab;
             foreach (string t in ToolboxTabs) _root.Q("toolbox-tab-" + t).EnableInClassList("tab--on", t == tab);
             _tools.Clear();
@@ -147,11 +150,14 @@ namespace MountainPlanner.UI
                 label.AddToClassList("tool__label");
                 tile.Add(label);
                 var t = tool;
-                tile.RegisterCallback<PointerEnterEvent>(_ => ShowTool(t.Name, t.Key, "comes in Phase 3"));
-                tile.RegisterCallback<PointerLeaveEvent>(_ => ShowTool("Select tool", "", ""));
+                if (!MakeLive(tile, t.Id, t.Name))   // a working tool (P3-06, MountainHud.Tools.cs); the rest come later
+                {
+                    tile.RegisterCallback<PointerEnterEvent>(_ => ShowTool(t.Name, t.Key, "comes in Phase 3"));
+                    tile.RegisterCallback<PointerLeaveEvent>(_ => ShowActiveTool());
+                }
                 _tools.Add(tile);
             }
-            ShowTool("Select tool", "", "");
+            ShowActiveTool();
             RetintSoon();
         }
 
@@ -459,11 +465,20 @@ namespace MountainPlanner.UI
             VisualElement item = null;
             for (int i = 0; i < ToastCount && item == null; i++)
                 if (_toastItems[i].ClassListContains("hidden")) item = _toastItems[i];
-            if (item == null) item = _toasts[0];
+            // All three showing: the one that goes soonest makes room.
+            if (item == null)
+            {
+                item = _toastItems[0];
+                for (int i = 1; i < ToastCount; i++)
+                    if (_toastUntil[i] < _toastUntil[Array.IndexOf(_toastItems, item)]) item = _toastItems[i];
+            }
             item.BringToFront();
             item.RemoveFromClassList("hidden");
-            item[0].style.backgroundColor = stripe ?? new Color32(0x6f, 0x67, 0x5e, 255);
-            var label = item.Q<Label>(className: "log__text");   // by class, not item[1]: that cast failed in P3-04's PlayMode test
+            // By class: the see-through plate (MountainHud.Glass.cs) is each toast's first child, so item[0] and item[1]
+            // aren't the stripe and the text.
+            var stripePart = item.Q(className: "log__stripe");
+            if (stripePart != null) stripePart.style.backgroundColor = stripe ?? new Color32(0x6f, 0x67, 0x5e, 255);
+            var label = item.Q<Label>(className: "log__text");
             if (label != null) label.text = text;
             _toastUntil[Array.IndexOf(_toastItems, item)] = Time.unscaledTime + ToastSeconds;
         }

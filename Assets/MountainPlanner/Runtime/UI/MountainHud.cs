@@ -236,7 +236,7 @@ namespace MountainPlanner.UI
         {
             if (_statsOpen) { SetStats(false); return true; }
             if (_drop != Drop.None) { SetDrop(Drop.None); return true; }
-            if (HudWindow.Current != null) { HudWindow.Current.Close(); return true; }
+            if (HudWindow.Current != null) { HudWindow.Current.RequestClose(); return true; }
             if (_toolboxOpen || _analysisOpen) { SetToolbox(false); SetAnalysis(false); return true; }
             return false;
         }

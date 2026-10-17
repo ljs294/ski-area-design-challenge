@@ -49,7 +49,7 @@ namespace MountainPlanner.App
         IEnumerator StartEditsWhenReady(string[] args, int bench, int timing)
         {
             // The open area's design (its save's edits come with it), or a fresh one in a run without the game's flow.
-            var history = OpenDesign.Current?.History ?? new DesignHistory(DesignDocument.Empty(1));
+            var history = Design ?? new DesignHistory(DesignDocument.Empty(1));   // the tools' design (P3-06), so both edit one history
             var task = TerrainEditSession.StartAsync(_resort, history, destroyCancellationToken);
             while (!task.IsCompleted) yield return null;
             _editsStarting = false;
@@ -60,6 +60,7 @@ namespace MountainPlanner.App
             }
             if (task.IsCanceled) yield break;
             _edits = task.Result;
+            if (_preview != null) _preview.Cleared += _edits.ClearPreview;   // a tool's preview clearing takes the yellow contours with it (CF-08)
             Debug.Log("[TerrainEdits] ready" + (_editKeys ? ": F6 preview a bench at the pointer, F7 break ground, F8 cancel, Ctrl+Z / Ctrl+Y" : ""));
             if (bench >= 0 && bench + 1 < args.Length)
             {
@@ -97,8 +98,9 @@ namespace MountainPlanner.App
             }
             else if (keyboard.f7Key.wasPressedThisFrame) _edits.CommitBench();
             else if (keyboard.f8Key.wasPressedThisFrame) _edits.ClearPreview();
-            else if (ctrl && keyboard.zKey.wasPressedThisFrame) _edits.History.Undo();
-            else if (ctrl && keyboard.yKey.wasPressedThisFrame) _edits.History.Redo();
+            // Without the Toolbox (a run with no HUD), Ctrl+Z / Ctrl+Y here; with it, the Toolbox's undo already moves this history.
+            else if (_tools == null && ctrl && keyboard.zKey.wasPressedThisFrame) _edits.History.Undo();
+            else if (_tools == null && ctrl && keyboard.yKey.wasPressedThisFrame) _edits.History.Redo();
         }
 
         /// <summary>The ground height the HUD reads: the edited float32 heights in the core (SH-02), else the terrain's.</summary>
@@ -114,6 +116,7 @@ namespace MountainPlanner.App
 
         void ReleaseTerrainEdits()
         {
+            if (_preview != null && _edits != null) _preview.Cleared -= _edits.ClearPreview;
             _edits?.Dispose();
             _edits = null;
         }

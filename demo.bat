@@ -183,6 +183,9 @@ echo.
 echo   Phase 3, task 04: the save file (rebuilds the game if needed; a scratch library, the network off)
 echo     62 The save tests, then the game: F1 Add sample design, Ctrl+S names a save, Exit asks to save, Continue
 echo        reopens it, Load Area lists the saves; then a second run kills the game mid-save to show the last good save.
+echo   Phase 3, task 06: the Toolbox and placement (rebuilds the game, about 2 minutes; close the Unity editor first)
+echo     64 The game with the Toolbox's New lift and New trail: T, N on Lifts or Trails, click the mountain, the
+echo        tool window's steps and review, Break ground, Ctrl+Z / Ctrl+Y, and every key in Settings ^> Controls.
 echo.
 echo   Phase 3, task 05: terrain edits (rebuilds the game if needed; on the desktop, not over remote desktop)
 echo     63 The game with the test edit keys: point at a slope, F6 previews a 300 m (1,000 ft) bench down the fall line
@@ -271,6 +274,7 @@ if /i "%CHOICE%"=="61" goto designdoc
 if /i "%CHOICE%"=="62" goto savefile
 if /i "%CHOICE%"=="63" goto terrainedits
 if /i "%CHOICE%"=="63b" goto editbench
+if /i "%CHOICE%"=="64" goto toolbox
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -757,12 +761,32 @@ findstr /c:"[EditBenchmark]" "%EDITS%\high.log"
 if exist "%EDITS%\high-dev.log" findstr /c:"[EditBenchmark]" "%EDITS%\high-dev.log"
 goto done
 
+:toolbox
+rem Task P3-06: the Toolbox's tools in the real game. Always rebuilt, so the tools on this branch are the ones you try.
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo The Toolbox (T opens it; while it's open the letters are the tools', so the camera keeps the arrows, + and -,
+echo Home and the mouse):
+echo   New lift: Lifts tab, N. The bottom terminal follows the pointer, green where it can sit. Click it, then click
+echo     higher up the mountain (300 ft away at least). Towers: Automatic or By hand (By hand: Page Up / Page Down
+echo     change the tower in hand; the camera's zoom waits). Enter for the review, then Break ground (Ctrl+Enter) or
+echo     Save plan (orange on the map).
+echo   New trail: Trails tab, N. Drag to paint, Shift-drag erases, [ and ] for the brush, Ctrl+Z undoes a stroke; a
+echo     separate patch blocks Next. Enter, then click the head and the tail (near a lift's end they snap), Enter, Break ground.
+echo   Esc backs out one step; at the first step it asks before throwing work away. Another tool, T or Analysis cancels
+echo   the tool with a note. Tab gives the tool window the keyboard (arrows, Enter); Esc gives it back.
+echo   With no tool armed, Ctrl+Z / Ctrl+Y undo and redo. Settings ^> Controls has every key under Toolbox and Building.
+echo   Try it at 50%% and 150%% interface scale too (Settings ^> Interface).
+"%GAME%" <nul
+goto done
+
 :hudparity
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 set "UICAP=%~dp0test-results\hud-captures"
 if exist "%UICAP%" rmdir /s /q "%UICAP%"
-set "HUDSTATES=s6-hud,s6-float,s6-menu,s6-layers,s6-slope,s6-exposure,s6-depth,s6-contours,s6-slope-contours,s6-tray-lifts,s6-tray-trails,s6-tray-snow,s6-tray-infra,s6-analysis,s6-analysis-lifts,s6-analysis-weather,s6-analysis-finances,s6-rstats"
+set "HUDSTATES=s6-hud,s6-float,s6-menu,s6-layers,s6-slope,s6-exposure,s6-depth,s6-contours,s6-slope-contours,s6-tray-lifts,s6-tray-trails,s6-tray-snow,s6-tray-infra,s6-tool-lift,s6-tool-trail,s6-tool-lift-review,s6-tool-trail-review,s6-analysis,s6-analysis-lifts,s6-analysis-weather,s6-analysis-finances,s6-rstats"
 echo Capturing the HUD's states at 1920x1080, 2560x1440 and 3440x1440 (the window shows the title while it works)...
 %RENDER% "%GAME%" -uicapture "%UICAP%" -uionly %HUDSTATES% -uisizes 1920x1080,2560x1440,3440x1440 -hudopacity 100 -logFile "%~dp0test-results\hud-captures.log" <nul
 type "%UICAP%\report.txt"

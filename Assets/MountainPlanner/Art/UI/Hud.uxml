@@ -3,9 +3,13 @@
      MountainHud and the parts under UI/Hud bind it; the app wires their events. -->
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:hud="MountainPlanner.UI.Hud">
     <Style src="Hud.uss" />
+    <Style src="HudTools.uss" />
     <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
         <ui:VisualElement name="contour-labels" class="contour-labels" picking-mode="Ignore" />
         <ui:Label name="credit" class="credit" text="Map data © OpenStreetMap contributors" picking-mode="Ignore" />
+
+        <!-- The building tools' profile strip above the bar (LF-10, TF-04): tasks 08 and 09 draw into it (P3-06) -->
+        <ui:VisualElement name="tool-strip" class="tool-strip hidden" picking-mode="Ignore" />
 
         <!-- Toolbox tray (Phase 3 fills it): tabs, the tool label, and a tile per tool -->
         <ui:VisualElement name="toolbox" class="box panel-shadowed hidden">

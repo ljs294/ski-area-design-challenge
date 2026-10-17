@@ -273,6 +273,22 @@ namespace MountainPlanner.App.Flow
             ("tray-trails", false, (h, v, on) => { h.SetToolboxTab(on ? "trails" : "lifts"); h.SetToolbox(on); }),
             ("tray-snow", false, (h, v, on) => { h.SetToolboxTab(on ? "snow" : "lifts"); h.SetToolbox(on); }),
             ("tray-infra", false, (h, v, on) => { h.SetToolboxTab(on ? "infra" : "lifts"); h.SetToolbox(on); }),
+            // Task P3-06: a tool armed, its window at step 1 (the mockup's demo=liftorigin and trailpaint).
+            ("tool-lift", false, (h, v, on) => { if (!on) v.Tools?.Close(); h.SetToolboxTab("lifts"); h.SetToolbox(on); if (on) v.Tools?.Choose("new-lift"); }),
+            ("tool-trail", false, (h, v, on) => { if (!on) v.Tools?.Close(); h.SetToolboxTab(on ? "trails" : "lifts"); h.SetToolbox(on); if (on) v.Tools?.Choose("new-trail"); }),
+            // ...and at its review (the mockup's liftreview and trailreview), placed by the capture.
+            ("tool-lift-review", false, (h, v, on) =>
+            {
+                if (!on) v.Tools?.Close();   // no "discarded" note in the next shot
+                h.SetToolboxTab("lifts"); h.SetToolbox(on);
+                if (on && !v.LiftReviewForCapture()) Debug.LogWarning("[UiCapture] tool-lift-review: no spot where a lift could sit");
+            }),
+            ("tool-trail-review", false, (h, v, on) =>
+            {
+                if (!on) v.Tools?.Close();
+                h.SetToolboxTab(on ? "trails" : "lifts"); h.SetToolbox(on);
+                if (on && !v.TrailReviewForCapture()) Debug.LogWarning("[UiCapture] tool-trail-review: the trail didn't reach its review");
+            }),
             ("analysis", false, (h, v, on) => { h.SetAnalysisTab("overview"); h.SetAnalysis(on); }),
             ("analysis-lifts", false, (h, v, on) => { h.SetAnalysisTab(on ? "lifts" : "overview"); h.SetAnalysis(on); }),
             ("analysis-weather", false, (h, v, on) => { h.SetAnalysisTab(on ? "weather" : "overview"); h.SetAnalysis(on); }),

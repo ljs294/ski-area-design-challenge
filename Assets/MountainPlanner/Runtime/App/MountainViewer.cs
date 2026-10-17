@@ -101,6 +101,7 @@ namespace MountainPlanner.App
             TitleMode = false;
             if (Camera != null) Camera.InputEnabled = true;
             PinTitleFov(false);
+            StartTools();   // the title had none (P3-06)
         }
 
         /// <summary>
@@ -320,11 +321,15 @@ namespace MountainPlanner.App
             }
             else
             {
+                // While the Toolbox tray is open its tools take the letter keys (the key map; P3-06): the camera keeps the
+                // arrows, + and −, Home and the mouse.
+                if (Camera != null && Hud != null) Camera.LettersToTools = Hud.ToolboxOpen;
                 HandleKeys(Keyboard.current);
                 UpdateTerrainEdits(Keyboard.current);
                 // A click on the mountain closes the HUD's dropdowns (the mockup).
                 var click = Mouse.current;
                 if (Hud != null && _resort != null && click != null && click.leftButton.wasPressedThisFrame && !Hud.IsPointerOverPanel(click.position.ReadValue())) Hud.ClickedMap();
+                TickTools();   // the armed construction tool (MountainViewer.Tools.cs)
             }
             _resort?.States?.Sync();
             RunClock();
@@ -380,6 +385,7 @@ namespace MountainPlanner.App
                 else if (_photo) SetPhoto(false);   // photo mode (MountainViewer.Photo.cs) puts everything back
                 else if (Hud != null && _resort != null && Hud.ModalOpen) Hud.BackOut();
                 else if (Hud != null && _resort != null && Hud.ReleaseKeyboard()) { }
+                else if (_resort != null && EscapeTool()) { }   // the armed tool backs out a step (CF-07, P3-06)
                 else if (Hud != null && _resort != null && Hud.BackOut()) { }
                 else if (Hud != null && _resort != null) Hud.ToggleMenu();
                 else Application.Quit();
@@ -397,6 +403,7 @@ namespace MountainPlanner.App
             // The player's keys (Settings › Controls; the defaults are the key map's). While the tray is open,
             // letter keys are tools, except the Toolbox's own key, which closes it.
             if (Hud != null && KeyBindings.Pressed(keys, GameAction.Toolbox)) Hud.ToggleToolbox();
+            HandleToolKeys(keys);   // the tray's letters, the tool window's Tab, and undo (MountainViewer.Tools.cs)
             if (_clock != null && KeyBindings.Pressed(keys, GameAction.Pause, letters)) _clock.TogglePause();
             if (_clock != null)
             {
@@ -477,6 +484,7 @@ namespace MountainPlanner.App
             foreach (var landmark in _landmarks) named.Add((landmark.Name, landmark.LabelAt));
             _landmarkLabels.SetLandmarks(named);
             DisplayUnits.Changed += OnUnitsChanged;
+            StartTools();   // the Toolbox's tools (MountainViewer.Tools.cs)
         }
 
         /// <summary>New units: the contour interval and snow-depth stops in the shader, and the labels' numbers.</summary>
@@ -530,6 +538,7 @@ namespace MountainPlanner.App
             _resort?.CacheLease?.Dispose();   // the next scene's viewer holds its own
             DisplayUnits.Changed -= OnUnitsChanged;
             ReleasePhoto();
+            StopTools();
             ReleaseTerrainEdits();
             if (ViewCamera.KeysBlocked == (Func<bool>)UiHasKeyboard) ViewCamera.KeysBlocked = null;
             ReleaseSettings();
@@ -596,9 +605,6 @@ namespace MountainPlanner.App
             foreach (string id in MapLayers.InfoIds) Hud.SetLayer(id, _layers.IsOn(id));
             Hud.SetLegend(_layers.InfoLayerId, _layers.ContoursOn);
             if (_clock != null) Hud.SetClock(_clock.Now, _clock.Speed, _clock.Paused);
-            // While the tray is open its tools take their letters (the key map), from Phase 3 when the tools work; until
-            // then the letters, WASD among them, stay with the camera.
-            Camera.LettersToTools = false;
             var cam = Camera.GetComponent<UnityEngine.Camera>();
             var mouse = Mouse.current;
             float elevation = float.NaN, slope = float.NaN, bearing = 0, snow = float.NaN;
