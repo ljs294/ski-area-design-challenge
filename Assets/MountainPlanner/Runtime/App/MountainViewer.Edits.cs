@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using MountainPlanner.App.Edits;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Persistence.Saves;
 using MountainPlanner.Presentation;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -22,6 +23,8 @@ namespace MountainPlanner.App
     ///   captures; <c>-testbench-preview</c> stops at the preview.
     /// - <c>-editbench &lt;out.json&gt;</c>: the edit timing run (CF-09), then quits.
     /// The HUD's elevation and slope read the edited float32 heights once the session is up (SH-02).
+    /// The session drives the open design's history (task P3-04's <see cref="OpenDesign.Current"/>), so a save holds the
+    /// edits and a loaded save's edits are laid over the mountain; without the game's flow it keeps its own.
     /// </summary>
     public sealed partial class MountainViewer
     {
@@ -36,15 +39,18 @@ namespace MountainPlanner.App
             _editKeys = Array.IndexOf(args, "-testedit") >= 0;
             int bench = Array.IndexOf(args, "-testbench");
             int timing = Array.IndexOf(args, "-editbench");
-            if (!_editKeys && bench < 0 && timing < 0) return;
+            // A loaded save with terrain edits needs the session too, to lay them over the mountain.
+            bool saved = OpenDesign.Current != null && !OpenDesign.Current.History.Terrain.IsEmpty;
+            if (!_editKeys && bench < 0 && timing < 0 && !saved) return;
             _editsStarting = true;
             StartCoroutine(StartEditsWhenReady(args, bench, timing));
         }
 
         IEnumerator StartEditsWhenReady(string[] args, int bench, int timing)
         {
-            // A fresh design on this area; task 04's open design replaces it when saves load.
-            var task = TerrainEditSession.StartAsync(_resort, new DesignHistory(DesignDocument.Empty(1)), destroyCancellationToken);
+            // The open area's design (its save's edits come with it), or a fresh one in a run without the game's flow.
+            var history = OpenDesign.Current?.History ?? new DesignHistory(DesignDocument.Empty(1));
+            var task = TerrainEditSession.StartAsync(_resort, history, destroyCancellationToken);
             while (!task.IsCompleted) yield return null;
             _editsStarting = false;
             if (task.IsFaulted)

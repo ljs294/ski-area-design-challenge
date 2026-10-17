@@ -93,8 +93,38 @@ namespace MountainPlanner.Tests.Core
             var back = OpenDesign.Load(_root, d.SaveFolder, Area, Heights);
             Assert.That(back.LoadedEdits.DeltaMmAt(3 * 64 + 10, 4 * 64 + 20), Is.EqualTo(-1500));
             Assert.That(back.LoadedEdits.IsClearedAt(3 * 64 + 5, 4 * 64 + 5), Is.True);
-            back.SaveAs("Again", "2026-10-16T10:01:00Z", "0.3.0");   // task 05 hasn't hooked Edits: the loaded edits are kept
+            back.SaveAs("Again", "2026-10-16T10:01:00Z", "0.3.0");   // the loaded edits are the history's, so they're kept
             Assert.That(OpenDesign.Load(_root, back.SaveFolder, Area, Heights).LoadedEdits.Count, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void TE2_TheHistoryHoldsTheSavesEditsAndUndoMovesThemWithTheDocument()
+        {
+            var d = OpenDesign.New(_root, Area, Heights);
+            var edits = TerrainEdits.From(new[] { new TerrainEditTile.Builder(new EditTileKey(2, 2)).SetDeltaMm(1, 1, 700).Build() });
+            var add = new AddTrail(d.History.Revision, "Bench", TrailSettings.GradedRun,
+                                   new[] { new FootprintPart(new[] { new Stroke(DesignUnits.FeetToMm(100), false, new[] { new PointMm(0, 0), new PointMm(0, -300_000) }) }, Array.Empty<Cut>()) },
+                                   new PointMm(0, 0), new PointMm(0, -300_000), WorkStage.Built);
+            Assert.That(d.History.Submit(add, edits).Accepted, Is.True);
+            Assert.That(d.Dirty, Is.True);
+            d.SaveAs("Bench", "2026-10-17T10:00:00Z", "0.3.0");
+            Assert.That(d.Dirty, Is.False);
+
+            var back = OpenDesign.Load(_root, d.SaveFolder, Area, Heights);
+            Assert.That(back.History.Terrain.DeltaMmAt(2 * 64 + 1, 2 * 64 + 1), Is.EqualTo(700), "the save's edits start the history");
+            Assert.That(back.Dirty, Is.False, "a fresh load is clean");
+            Assert.That(back.History.CanUndo, Is.False, "the history starts at the save (DD1)");
+
+            // A terrain-only change (a load of other edits) counts as a change too.
+            back.History.Load(back.History.Document, TerrainEdits.Empty);
+            Assert.That(back.Dirty, Is.True);
+
+            // Undo takes the edits back with the trail, and the save then holds none.
+            d.History.Undo();
+            Assert.That(d.History.Terrain.IsEmpty, Is.True);
+            Assert.That(d.Dirty, Is.True);
+            d.Save("2026-10-17T10:01:00Z", "0.3.0");
+            Assert.That(OpenDesign.Load(_root, d.SaveFolder, Area, Heights).History.Terrain.IsEmpty, Is.True);
         }
 
         [Test]

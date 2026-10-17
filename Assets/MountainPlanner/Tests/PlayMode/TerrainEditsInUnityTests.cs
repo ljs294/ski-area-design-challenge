@@ -129,6 +129,20 @@ namespace MountainPlanner.Tests
                 session.History.Redo();
                 yield return AwaitTask(session.Applying);
                 Assert.That(Differ(edited, Heights(resort)), Is.Empty, "redo gives the same heights");
+
+                // A loaded save: a new session whose history starts from the saved edits lays them over the natural
+                // mountain, giving exactly the heights the commit gave (task P3-04's OpenDesign does this on open).
+                var saved = session.History.Terrain;
+                session.History.Undo();
+                yield return AwaitTask(session.Applying);
+                Assert.That(Differ(natural, Heights(resort)), Is.Empty);
+                session.Dispose();
+                var loaded = new DesignHistory(DesignDocument.Empty(5));
+                loaded.Load(loaded.Document, saved);
+                var again = TerrainEditSession.StartAsync(resort, loaded, default);
+                yield return AwaitTask(again);
+                session = again.Result;
+                Assert.That(Differ(edited, Heights(resort)), Is.Empty, "a save's edits open as they were committed");
             }
             finally
             {
