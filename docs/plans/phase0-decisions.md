@@ -312,3 +312,32 @@ build uses. Tooling in `tools/release/README.md`.
 | E13 | **Phase 3 scope:** 0.6 §4 plus the Phase 2 carry-over; fixed-grip chairlifts only (the Sessellift FGQ-4 and Monta FG4 assets). Detachables, ponds, dams, snowmaking, buildings, seasons and new species are later. Estimates as E4 |
 | E14 | **Milestone:** the merge commit of the exit PR is tagged `unity-m2`, and `archive/unity` is fast-forwarded to it |
 | E15 | **Every task starts with a planning phase** (owner, 2026-10-16): the thread posts a 🟦 plan (scope, owned files, approach, tests and demo, questions with recommendations) and waits for the owner's go before implementing; a scope change mid-task means re-planning the same way |
+
+## Phase 3 task 02, design rules: decided 2026-10-16
+
+**Context:** the Phase 3 design rules gate. Rules: [p3-02-design-rules.md](p3-02-design-rules.md); plan and rounds of
+rulings: [p3-02-plan.md](p3-02-plan.md). Rule IDs in brackets.
+
+| # | Decision |
+|---|---|
+| DR1 | **Trail difficulty in percent:** the slope layer's bands (green under 25%, blue 25–40%, black 40–60%, double black from 60%), rated by (3 × mean + max) / 4 of the graded surface's fall-line slope, not 0.1's degrees (TD-01 to TD-03) |
+| DR2 | **Imperial first** in every rule and readout, metric in brackets; the game stores metres (SH-01) |
+| DR3 | **Grading:** a level bench, 1:1 (45°) cut and fill faces, no widen-to-fit, never outside the painted footprint; too-steep stretches stay natural and are reported (GR) |
+| DR4 | **Brush** 25–400 ft (7.6–122 m), default 100 ft; minimum bench 25 ft (TR-01, GR-04) |
+| DR5 | **No grading cost in Phase 3;** cut, fill and balance are tracked in yd³ (GR-08) |
+| DR6 | **Rope speed 450 fpm, fixed;** a player setting comes later (LC-02) |
+| DR7 | **Chair spacing** is a lift property, fixed and not editable for now; capacity follows from it (LC-03) |
+| DR8 | **Lift flow:** the bottom terminal first (a ghost that anchors, then swings), the top terminal right after (fixing the line), then towers from the bottom up (LF-01 to LF-05) |
+| DR9 | **Towers Automatic or By hand**, a switch in the lift menu: Automatic the first time, then the last choice; automatic towers modest (30–40 ft); Fill the rest and Re-place towers (LF-01, TW-12) |
+| DR10 | **The rope:** catenary spans whose slope matches the tangent leaving each sheave; tension from the counterweight plus load × height; two load cases; the top tension within the rating (RP) |
+| DR11 | **Head types from the rope's load:** support or breakover, hold-down, or combination; several breakovers or hold-downs close together where one can't take the bend (TW-04 to TW-06) |
+| DR12 | **Clearance and heights:** chairs' bottom at least 15 ft above bare ground; towers 25–100 ft in 5 ft steps, moved with Page Up / Page Down (TW-01, TW-02, LF-09) |
+| DR13 | **Siting:** towers at least 50 ft apart, not in lakes or on roads; terminals level within 10 ft and at least 300 ft apart; everything inside the core box (TW-03, LF-08, SH-06) |
+| DR14 | **Placement aids:** a status bar for the tower in hand (with how far the next tower can go) and a lift profile strip above the status bar, with a True scale switch (TW-13, LF-10) |
+| DR15 | **Towers plumb by default,** optionally leaned square to the rope (TW-14) |
+| DR16 | **Readouts:** % of rating with lbf in the detail while building; a simple card once built (RP-06, TW-11, LF-11) |
+| DR17 | **The network:** no Guest Entrance; lifts are the backbone, and a lift is connected when a descent from its top reaches a lift's bottom (NW-03) |
+| DR18 | **Paths:** 20 ft cat-track connectors, snapping within 30 ft, graded and cleared like trails, splitting trails into junctions (PA, JN) |
+| DR19 | **Lift numbers** are checked against real fixed-grip quads and tuned at the style tile: a 1⅝ in rope rated 42,800 lbf (a factor of safety of 5), an 18,000 lbf counterweight per side, 350 lb chairs with 170 lb riders, so about 900 ft of rise at 2,400 pph (LC-02, LC-05) |
+| DR20 | **From the lift mockup review:** a red tower can't be placed; a placed one that turns red blocks Break ground; Delete removes the selected tower; Esc backs out one step; the commit words are Break ground and Save plan, with Cancel on the panel's ✕ (CF-06, CF-07, LF-04) |
+| DR21 | **Review format:** Markdown documents, no web page |
