@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -33,7 +34,7 @@ namespace MountainPlanner.UI.Hud
             var spacer = new VisualElement { pickingMode = PickingMode.Ignore };
             spacer.AddToClassList("mp-spacer");
             Head.Add(spacer);
-            var x = new Button(Close) { name = "window-x", text = "✕", tooltip = "Close (Esc)" };
+            var x = new Button(RequestClose) { name = "window-x", text = "✕", tooltip = "Close (Esc)" };
             x.AddToClassList("mp-x");
             Head.Add(x);
             Add(Head);
@@ -54,10 +55,28 @@ namespace MountainPlanner.UI.Hud
 
         public static HudWindow Current => _open;
 
+        /// <summary>
+        /// Asked before ✕ or Esc closes the window (P3-06): a tool with drawn work answers false the first time and asks
+        /// "Discard it?" (CF-06, CF-07). Null closes at once.
+        /// </summary>
+        public Func<bool> CloseRequested;
+
+        /// <summary>Raised once the window is gone, however it closed (another window opened, ✕, Esc).</summary>
+        public event Action Closed;
+
+        /// <summary>✕ and Esc: closes unless <see cref="CloseRequested"/> holds it open.</summary>
+        public void RequestClose()
+        {
+            if (CloseRequested != null && !CloseRequested()) return;
+            Close();
+        }
+
         public void Close()
         {
             if (_open == this) _open = null;
+            bool was = hierarchy.parent != null;
             RemoveFromHierarchy();
+            if (was) Closed?.Invoke();
         }
 
         /// <summary>Moves the window to a stage position, kept on the screen.</summary>

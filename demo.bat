@@ -180,6 +180,10 @@ echo   Phase 3, task 03: the design document, commands and undo (no Unity needed
 echo     61 Run the design document tests, then print a walkthrough: a lift and a trail, split, join, undo, redo,
 echo        a stale and a bad command rejected, the derived network and the document bytes.
 echo.
+echo   Phase 3, task 06: the Toolbox and placement (rebuilds the game, about 2 minutes; close the Unity editor first)
+echo     64 The game with the Toolbox's New lift and New trail: T, N on Lifts or Trails, click the mountain, the
+echo        tool window's steps and review, Break ground, Ctrl+Z / Ctrl+Y, and every key in Settings ^> Controls.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -258,6 +262,7 @@ if /i "%CHOICE%"=="58" goto release
 if /i "%CHOICE%"=="59" goto testerkit
 if /i "%CHOICE%"=="60" goto carryover
 if /i "%CHOICE%"=="61" goto designdoc
+if /i "%CHOICE%"=="64" goto toolbox
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -694,6 +699,26 @@ echo Now the game. Try: hover each of the title's signs (Tab or the arrows show 
 echo watch the title's drift (no bob) and the far trees (no blinking); in a mountain, point at the sky: "- - - ft",
 echo then U for "- - - m"; P for photo mode, Tab, then the arrows move in the bar while the camera stays; Esc gives
 echo the keys back, and Esc again leaves photo mode.
+"%GAME%" <nul
+goto done
+
+:toolbox
+rem Task P3-06: the Toolbox's tools in the real game. Always rebuilt, so the tools on this branch are the ones you try.
+call :buildplayer
+if not exist "%GAME%" goto done
+echo.
+echo The Toolbox (T opens it; while it's open the letters are the tools', so the camera keeps the arrows, + and -,
+echo Home and the mouse):
+echo   New lift: Lifts tab, N. The bottom terminal follows the pointer, green where it can sit. Click it, then click
+echo     higher up the mountain (300 ft away at least). Towers: Automatic or By hand (By hand: Page Up / Page Down
+echo     change the tower in hand; the camera's zoom waits). Enter for the review, then Break ground (Ctrl+Enter) or
+echo     Save plan (orange on the map).
+echo   New trail: Trails tab, N. Drag to paint, Shift-drag erases, [ and ] for the brush, Ctrl+Z undoes a stroke; a
+echo     separate patch blocks Next. Enter, then click the head and the tail (near a lift's end they snap), Enter, Break ground.
+echo   Esc backs out one step; at the first step it asks before throwing work away. Another tool, T or Analysis cancels
+echo   the tool with a note. Tab gives the tool window the keyboard (arrows, Enter); Esc gives it back.
+echo   With no tool armed, Ctrl+Z / Ctrl+Y undo and redo. Settings ^> Controls has every key under Toolbox and Building.
+echo   Try it at 50%% and 150%% interface scale too (Settings ^> Interface).
 "%GAME%" <nul
 goto done
 

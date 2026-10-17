@@ -119,7 +119,9 @@ namespace MountainPlanner.UI
 
         public void SetToolbox(bool open)
         {
+            bool was = _toolboxOpen;
             _toolboxOpen = open;
+            if (was && !open) LeftToolbox();   // the armed tool closes with the tray (P3-06)
             if (open && _analysisOpen) SetAnalysis(false);
             _toolbox.EnableInClassList("hidden", !open);
             _barToolbox.EnableInClassList("tbtn--on", open);
@@ -128,6 +130,7 @@ namespace MountainPlanner.UI
 
         public void SetToolboxTab(string tab)
         {
+            if (tab != _toolboxTab) LeftToolbox();   // another tab drops the armed tool, as the mockup does (P3-06)
             _toolboxTab = tab;
             foreach (string t in ToolboxTabs) _root.Q("toolbox-tab-" + t).EnableInClassList("tab--on", t == tab);
             _tools.Clear();
@@ -147,11 +150,14 @@ namespace MountainPlanner.UI
                 label.AddToClassList("tool__label");
                 tile.Add(label);
                 var t = tool;
-                tile.RegisterCallback<PointerEnterEvent>(_ => ShowTool(t.Name, t.Key, "comes in Phase 3"));
-                tile.RegisterCallback<PointerLeaveEvent>(_ => ShowTool("Select tool", "", ""));
+                if (!MakeLive(tile, t.Id, t.Name))   // a working tool (P3-06, MountainHud.Tools.cs); the rest come later
+                {
+                    tile.RegisterCallback<PointerEnterEvent>(_ => ShowTool(t.Name, t.Key, "comes in Phase 3"));
+                    tile.RegisterCallback<PointerLeaveEvent>(_ => ShowActiveTool());
+                }
                 _tools.Add(tile);
             }
-            ShowTool("Select tool", "", "");
+            ShowActiveTool();
             RetintSoon();
         }
 

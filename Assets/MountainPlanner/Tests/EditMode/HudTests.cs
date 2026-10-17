@@ -61,8 +61,9 @@ namespace MountainPlanner.Tests
         {
             string mockup = File.ReadAllText(Mockup), uxml = File.ReadAllText(Uxml) + string.Concat(OtherUxml.Select(File.ReadAllText));
             var named = new HashSet<string>(Regex.Matches(uxml, "name=\"([^\"]+)\"").Cast<Match>().Select(m => m.Groups[1].Value));
-            // Parts made in code: the HUD's tool tiles, the legend's lines and the Analysis line; the credits' hero and sections.
-            var made = new[] { "tool-", "analysis-empty", "credits-hero", "credits-data", "credits-picker", "credits-art", "credits-software" };
+            // Parts made in code: the HUD's tool tiles, the legend's lines and the Analysis line; the credits' hero and sections;
+            // the tool window and its review (P3-06, ToolWindow).
+            var made = new[] { "tool-", "toolwin", "review-", "analysis-empty", "credits-hero", "credits-data", "credits-picker", "credits-art", "credits-software" };
             var missing = Regex.Matches(mockup, "data-ui=\"([a-z0-9-]+)(?:\\$\\{[^}]*\\})?([a-z0-9-]*)\"").Cast<Match>()
                 .Select(m => m.Groups[1].Value + m.Groups[2].Value)
                 .Where(n => !n.EndsWith("-") && !named.Contains(n) && !made.Any(n.StartsWith))

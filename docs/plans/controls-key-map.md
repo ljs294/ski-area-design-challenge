@@ -7,10 +7,14 @@
 - **These are the default keys.** Settings › Controls rebinds every one of them (task P2-05, owner 2026-10-08): two
   keys per action, with Shift, Ctrl or Alt if wanted. A key another action had swaps places with it, so no two actions
   that can be live at once share a key (Pause and photo mode's save share Space, because they never are). The HUD's
-  captions follow the player's keys. Esc, Enter and the modifier keys on their own can't be bound.
+  captions follow the player's keys. Esc can't be bound; Enter only to a building key (P3-06); a modifier on its own only
+  to Erase, which is held like one.
 
 - **The HUD's gameplay keys win.** The camera works around them.
-- **Letters belong to the tools while the Toolbox tray is open.** The camera then moves with the arrows, Page Up / Page Down, + / − and the mouse. R, F, P and C wait until the tray closes. (`ViewCamera.LettersToTools` is the switch the HUD sets. It turns on with the working tools in Phase 3; until then the tray's tiles are placeholders and the letters, WASD among them, stay with the camera.)
+- **Letters belong to the tools while the Toolbox tray is open.** The camera then moves with the arrows, Page Up / Page Down, + / − and the mouse. R, F, P and C wait until the tray closes. (`ViewCamera.LettersToTools` follows the open tray since P3-06; owner ruling P3-06 Q3 kept this rule.)
+- **The armed tool's keys win** (P3-06, LF-09). While a tool uses a key, any other action on the same key waits:
+  Page Up / Page Down move a tower in hand instead of zooming, Ctrl+Z undoes a stroke instead of the last change, and
+  Tab hands the tool window the keyboard instead of opening Analysis.
 - **The same key does the same thing in both camera modes.** Free-fly turns about the camera instead of the focus point.
 - **Review and debug switches have no keys.** They live in the F1 developer panel. Every command-line flag keeps working for captures.
 - **Escape is never rebindable.** It backs out one step: photo mode, then a panel, then the menu.
@@ -78,8 +82,25 @@ view's (H, Space). The camera keeps WASD, the arrows, Q/E, R/F, the zoom keys, C
 | Space | Pause: the clock runs the sun (built in P2-02; in photo mode Space captures instead) |
 | 1–4 | Game speed: 1, 3, 10 or 30 game minutes a second; choosing one starts the clock (built in P2-02) |
 | Ctrl+S | Save (comes with the game save) |
-| Enter | Finish a line (comes with the drawing tools) |
-| Inside the open Toolbox tray | Tool letters: N / E / X, G / W / P, L / R / K (from Phase 3) |
+| Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Undo / redo a change to the design, when no tool is armed (P3-06) |
+| Inside the open Toolbox tray | Tool letters: N (New) / E (Edit) / X (Remove) on the Lifts and Trails tabs (P3-06); G / W / P and L / R / K come with their tools |
+
+## Building tools (task P3-06; rules TF-09, LF-09, CF-07)
+
+Live while a tool is armed, which happens only with the tray open. All rebindable (SH-07).
+
+| Key | Action |
+|---|---|
+| Enter (or Num Enter) | Next step |
+| Ctrl+Enter | Break ground, from the review |
+| [ / ] | Brush narrower / wider (5 ft; trails) |
+| Shift (held) | Erase while painting |
+| Ctrl+Z | Undo the last stroke, while painting |
+| Page Up / Page Down | The tower in hand or the selected tower up or down 5 ft |
+| Delete | Delete the selected tower or trail |
+| Tab | The tool window takes the keyboard: the arrows walk its controls, Enter or Space presses one; Esc gives the keys back |
+| Esc | Back one step; at the first step the tool closes, asking first if anything is drawn (fixed) |
+| Left-click / left-drag | Place, paint (the tool's own button; right-drag still pans, middle-drag still turns) |
 
 ## Removed from the keyboard
 
