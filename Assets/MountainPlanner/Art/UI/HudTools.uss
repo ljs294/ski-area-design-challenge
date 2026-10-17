@@ -104,6 +104,7 @@
 .hud .tw-acts { flex-direction: row; padding: 4px 12px 12px 12px; }
 .hud .tw-acts > .mp-go { flex-grow: 1; flex-direction: row; justify-content: space-between; align-items: center; margin-right: 6px; }
 .hud .tw-acts > .mp-ghost { flex-shrink: 0; }
+.hud .tw-acts > .mp-ghost:disabled, .hud .tw-btns > .mp-ghost:disabled { border-color: var(--hair2); }   /* the mockup's .ghost.dis */
 .hud .tw-go__label { margin: 0; padding: 0; font-size: 13px; -unity-font-style: bold; color: #ffffff; -unity-text-outline-color: #ffffff; }
 .hud .tw-go__kbd {
     height: 19px;
