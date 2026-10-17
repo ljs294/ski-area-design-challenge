@@ -900,8 +900,8 @@ body.solo .frame { border-radius: 0; }
     // terminals as a trail map draws them: a dot at each end
     for (const p of [A, B]) s += planned ? `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.6" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.2" fill="${liftRed}" stroke="${white}" stroke-width="1.4"/>`;
     if (S.layers.labels && !o.noTag) {
-      const tx = ux > 0 ? A.x - (l.name.length * 7.4 + 28) - 8 : A.x + 10;
-      s += tagBox(tx, A.y - 9, liftPlate(tx, A.y - 9, l.n, planned), l.name, planned ? flag : '#4a443e', planned ? '3 2' : '');
+      const ltr = B.x >= A.x, P0 = ltr ? A : B, P1 = ltr ? B : A, pid = `ll-${l.id || 'draft'}`, col = planned ? flag : liftRed;
+      s += `<path id="${pid}" d="M${f1(P0.x)} ${f1(P0.y)}L${f1(P1.x)} ${f1(P1.y)}" fill="none" stroke="none"/><text dy="3.6" style="font:800 10px DotFix,Overpass,sans-serif;letter-spacing:.07em;fill:${col};stroke:rgba(251,248,242,.96);stroke-width:4.5px;stroke-linejoin:round;paint-order:stroke"><textPath href="#${pid}" startOffset="${ltr ? 24 : 76}%" text-anchor="middle"><tspan style="font-weight:900">${l.n}</tspan>  ${esc(l.name.toUpperCase())}</textPath></text>`;
     }
     return s;
   }
@@ -923,9 +923,10 @@ body.solo .frame { border-radius: 0; }
     s += t.built ? `<path d="${d}" fill="none" stroke="${runColour[t.diff]}" stroke-width="2.2" stroke-linecap="round"/>`
       : `<path d="${d}" fill="none" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4" stroke-linecap="round"/>`;
     if (S.layers.labels && !o.noTag && t.pts.length > 1) {
-      const i = Math.floor((t.pts.length - 1) / 2), m = t.pts[i], n = t.pts[Math.min(t.pts.length - 1, i + 1)];
-      const x = (m[0] + n[0]) / 2 - 30, y = (m[1] + n[1]) / 2 - 9;
-      s += tagBox(x, y, diffSym(x, y, t.diff), t.name, t.built ? '#4a443e' : flag, t.built ? '' : '3 2');
+      // the rating symbol and the name set along the line's curve, read left to right, with a white halo
+      const ltr = t.pts[t.pts.length - 1][0] >= t.pts[0][0], lp = smooth(ltr ? t.pts : t.pts.slice().reverse()), pid = `tl-${t.id || 'draft'}`;
+      const sym = { green: ['●', '#2f9a58'], blue: ['■', '#3d7cc9'], black: ['◆', ink], double: ['◆◆', ink] }[t.diff];
+      s += `<path id="${pid}" d="${lp}" fill="none" stroke="none"/><text dy="3.6" style="font:800 10px DotFix,Overpass,sans-serif;letter-spacing:.07em;fill:${t.built ? ink : flag};stroke:rgba(251,248,242,.96);stroke-width:4.5px;stroke-linejoin:round;paint-order:stroke"><textPath href="#${pid}" startOffset="50%" text-anchor="middle"><tspan style="fill:${sym[1]}">${sym[0]}</tspan> ${esc(t.name.toUpperCase())}</textPath></text>`;
     }
     return s;
   }
