@@ -409,6 +409,38 @@ body.solo .frame { border-radius: 0; }
 .hud .cred .foot .go { min-width: 96px; justify-content: center; }
 .hud .cred .ofl { padding: 12px 16px; font: 500 11.5px 'Overpass Mono', monospace; color: var(--muted); white-space: pre-wrap; line-height: 1.45; }
 .hud .kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; margin-left: 4px; border: 1px solid var(--hair2); border-bottom-width: 2px; border-radius: 4px; background: var(--tile); font: 600 11.5px 'Overpass Mono', monospace; color: var(--text); }
+/* ---------- S2 Load Area with saves, and the save dialogs (task P3-04; this region is P3-04's) ---------- */
+.hud .lib { position: absolute; left: 28px; right: 28px; top: 18px; max-height: 660px; display: grid; grid-template-rows: auto auto 1fr auto; background: var(--panel); border: 1px solid var(--hair); border-radius: 6px; box-shadow: 0 10px 26px var(--shadow); z-index: 8; }
+.hud .lib .lh { display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 14px; border-bottom: 1px solid var(--hair); font: 800 13px 'DotFix', 'Overpass'; color: var(--head); }
+.hud .lib .lh .nm { font-weight: 500; color: var(--soft); }
+.hud .lib .lh .go { height: 26px; margin-left: auto; }
+.hud .lib .lh .x { padding: 0 6px; color: var(--soft); cursor: pointer; }
+.hud .lib .sortr { display: flex; align-items: center; gap: 10px; padding: 8px 14px; font: 500 11px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .lib .rows { overflow: auto; border-top: 1px solid var(--hair); }
+.hud .lib .ar, .hud .lib .sr { display: grid; align-items: center; gap: 10px; cursor: pointer; }
+.hud .lib .ar { grid-template-columns: 14px 150px 190px 150px 120px 64px 1fr auto auto; white-space: nowrap; padding: 0 12px 0 10px; height: 42px; border-bottom: 1px solid var(--hair); font: 500 12px 'DotFix', 'Overpass'; }
+.hud .lib .ar .an { font: 800 13px 'DotFix', 'Overpass'; color: var(--strong); }
+.hud .lib .ar .mono, .hud .lib .sr .mono { font: 500 11.5px 'Overpass Mono'; color: var(--muted); }
+.hud .lib .ar .ok { color: var(--pos); }
+.hud .lib .chev { color: var(--soft); font: 700 11px 'Overpass Mono'; text-align: center; }
+.hud .lib .count { color: var(--soft); font: 600 11.5px 'DotFix', 'Overpass'; white-space: nowrap; }
+.hud .lib .sr { grid-template-columns: 210px 70px 120px 1fr auto; padding: 0 12px 0 44px; height: 34px; border-bottom: 1px solid var(--div); background: rgba(0, 0, 0, 0.12); font: 500 12px 'DotFix', 'Overpass'; }
+.hud .lib .sr .sn { font: 700 12.5px 'DotFix', 'Overpass'; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hud .lib .sr .tag { justify-self: start; padding: 1px 6px; border-radius: 3px; background: var(--chip); color: var(--muted); font: 700 10.5px 'DotFix', 'Overpass'; }
+.hud .lib .sr.newd .sn { color: var(--soft); font-weight: 600; }
+.hud .lib .sr.newer { cursor: default; }
+.hud .lib .sr.newer .sn, .hud .lib .sr.newer .mono { color: var(--faint); }
+.hud .lib .ar.sel, .hud .lib .sr.sel { background: var(--row); box-shadow: inset 3px 0 0 var(--on-bg); }
+.hud .lib .ar .go, .hud .lib .sr .go, .hud .lib .sr .ghost { height: 26px; padding: 0 10px; }
+.hud .lib .ar:not(.sel) .go, .hud .lib .sr:not(.sel) .go { visibility: hidden; }
+.hud .lib .lf { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-top: 1px solid var(--hair); font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .lib .lf .ghost { height: 28px; margin-left: auto; }
+.hud .lib .lf b { color: var(--muted); font-weight: 700; }
+.hud .modal .pn.svd { width: 380px; }
+.hud .modal .pn.svd .hint { padding: 12px 12px 4px; }
+.hud .modal .pn.svd input { width: calc(100% - 24px); margin: 6px 12px 10px; }
+.hud .modal .pn.svd .acts { padding: 0 12px 12px; display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.hud .modal .pn.svd .acts.three { grid-template-columns: 1fr; }
 </style>
 
 <!-- Symbols: one solid set on a 24 px grid, drawn like trail and road signs: filled shapes, knock-outs in the
@@ -453,6 +485,7 @@ body.solo .frame { border-radius: 0; }
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
     <li><b>Photo mode</b> (P, or the menu): the HUD gives way to one thin bar. <b>Time</b> moves the sun ([ and ] a quarter hour; the clock stops while you frame), <b>Date</b> its path through the year (Shift [ and ]), <b>Lens</b> is the field of view, <b>Focus</b> is depth of field (Off, Natural or Miniature), <b>Grade</b> the look, and <b>Size</b> saves at the screen's resolution or twice it. Space or F12 captures, H hides the bar, Esc or P leaves and puts the clock, look and lens back. <b>Credits</b> (menu, or the title) list every area's data sources with the areas that use them.</li>
+    <li><b>Saves</b> (task P3-04): Ctrl+S or the bar's save symbol saves; the first save asks for a name. Autosave (Settings › Gameplay, every 10 minutes by default) keeps one Autosave slot per area. Exit to title with changes asks to save first. <a href="#demo=load" onclick="setTimeout(() => location.reload())">Load Area</a> lists each area's saves: → shows them, Enter opens, F2 renames, Delete removes; a save from a newer version is greyed.</li>
     <li><b>Also live:</b> play/pause and four speeds, save (white when there are changes), Analysis with eight tabs and the sketch pencil. The bar's clock and weather, money, open lifts, open trails and guests open their Analysis tab. Scroll to zoom. The bar shows the resort's name with whether the lifts are running (try the three styles above the frame; click the name for the resort's stats), the weather with the next 24 hours' snowfall, and the elevation under the pointer. Figures are imperial until you press U; steepness is always a grade in percent. <b>Keys:</b> T toolbox, Tab analysis, U units, Shift+1 snow, Shift+3 trees, Shift+6 contours, Shift+7–9 info layers, Space pause, 1–4 speed, + − zoom, Home reset view, the tool letters, Esc to back out, Ctrl+S to save.</li>
   </ul>
   <div class="variants" id="variants"><b>Open or closed, try:</b><button data-style="sub" class="on">A line under the name</button><button data-style="track">An hours track</button><button data-style="word">A word after the name</button></div>
@@ -1400,8 +1433,8 @@ body.solo .frame { border-radius: 0; }
       <div class="row lay" data-act="contours" data-ui="layer-contours"><span class="chk${S.contours ? ' on' : ''}"></span>Contours<span class="r">Shift 6</span></div></div>`;
     if (S.drop !== 'menu') rc += legendCard();   // the menu opens over the legend's place
     if (rc) h += `<div class="rcol">${rc}</div>`;
-    const mrow = (a, v, k, ui) => P2 && (a === 'savegame' || a === 'rename')
-      ? `<div class="row dis plain" data-ui="${ui}" title="${a === 'savegame' ? 'Saving comes with the game save' : 'Renaming comes with the library update'}">${v}<span class="r">${k}</span></div>`
+    const mrow = (a, v, k, ui) => P2 && a === 'rename'
+      ? `<div class="row dis plain" data-ui="${ui}" title="Renaming comes with the library update">${v}<span class="r">${k}</span></div>`
       : `<div class="row" data-act="${a}" data-ui="${ui}">${v}<span class="r">${k}</span></div>`;
     if (S.drop === 'menu') h += `<div class="drop menu" data-ui="menu"><div class="mhead" data-ui="menu-head"><b>${esc(S.name)}</b><span>${SITE}</span></div><div class="sepl"></div>${[['resume', 'Resume', 'Esc', 'menu-resume'], ['savegame', 'Save game', 'Ctrl S', 'menu-save'], ['rename', 'Rename resort', '', 'menu-rename']].map((r) => mrow(...r)).join('')}
       <div class="sepl"></div>
@@ -1429,8 +1462,7 @@ body.solo .frame { border-radius: 0; }
     const count = ([k, gl, t, v]) => P2
       ? `<span class="stat dis" data-ui="bar-${k}" title="${t}: comes with the simulation in Phase 4"><span class="si">${g(gl)}</span><span class="count" id="n-${k}">${nd}</span></span>`
       : `<span class="stat${S.analysis && S.atab === k ? ' on' : ''}" data-act="aopen" data-v="${k}" data-ui="bar-${k}" title="${t}: Analysis › ${k[0].toUpperCase() + k.slice(1)}"><span class="si">${g(gl)}</span><span class="count" id="n-${k}">${v}</span></span>`;
-    const save = P2 ? `<span class="ib save dis" data-ui="bar-save" title="Saving comes with the game save">${g('s-save')}</span>`
-      : `<span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" data-ui="bar-save" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span>`;
+    const save = `<span class="ib save${S.saveDue ? ' due' : ''}" data-act="savegame" data-ui="bar-save" title="${S.saveDue ? 'Unsaved changes: save (Ctrl+S)' : 'Everything is saved'}">${g('s-save')}</span>`;
     h += `<div class="bar ${S.docked ? 'docked' : 'floating'}${S.paused ? ' paused' : ''}" data-ui="bar">
       <div class="cell" style="padding:0 6px;gap:2px"><span class="tbtn${S.toolbox ? ' on' : ''}" data-act="toolbox" data-ui="bar-toolbox" title="Toolbox (T)">${g('s-hammer')}Toolbox</span><span class="tbtn${S.analysis ? ' on' : ''}" data-act="analysis" data-ui="bar-analysis" title="Analysis (Tab)">${g('s-analysis')}Analysis</span></div>
       <div class="cell sep" style="padding:0 5px"><span class="resort st-${S.statusStyle}" id="resort" data-act="stats" data-ui="bar-resort" title="${esc(resortTitle(resortStatus(S.t)))}"><span id="rname" data-ui="bar-resort-name">${esc(S.name)}</span><span class="rstat" id="rstat" data-ui="bar-resort-status">${P2 ? nd : statusHtml(resortStatus(S.t))}</span></span></div>
@@ -1449,11 +1481,13 @@ body.solo .frame { border-radius: 0; }
     if (S.modal && S.modal.settings) h += settingsPanel();
     else if (S.modal && S.modal.credits) h += creditsPanel();
     else if (S.modal && S.modal.stats) h += statsPanel();
+    else if (S.modal && S.modal.save) h += saveDialog();
     else if (S.modal && S.modal.input) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">Rename resort<span class="x" data-act="modal">✕</span></div>
       <div style="padding:12px 12px 2px"><input id="nameinput" class="field" maxlength="28" spellcheck="false" autocomplete="off" value="${esc(S.name)}"></div>
       <div class="hint">Shown in the status bar, the menu, Analysis and your saves.</div>
       <div class="acts"><div class="go" data-act="renameok"><span>Rename</span><span class="mono">Enter</span></div><div class="ghost" data-act="modal">Cancel</div></div></div></div>`;
     else if (S.modal) h += `<div class="modal" data-act="modalbg"><div class="pn"><div class="hd">${S.modal.title}<span class="x" data-act="modal">✕</span></div><div class="hint" style="padding:12px">${S.modal.body}</div><div class="acts" style="grid-template-columns:1fr"><div class="ghost" data-act="modal">OK</div></div></div></div>`;
+    if (S.lib) h = libScreen();   // S2 Load Area (task P3-04) stands in for the title's screens
     ui.innerHTML = h;
     if (S.set.tooltips === 'off') ui.querySelectorAll('[title]').forEach((n) => n.removeAttribute('title'));
     paintInfo();
@@ -1648,7 +1682,150 @@ body.solo .frame { border-radius: 0; }
       <div class="foot"><span class="note" data-ui="credits-offline">${S.set.offline === 'on' ? 'Offline: ' : ''}Everything here comes from the areas on this computer; nothing is fetched.</span>${S.modal.ofl ? '<div class="ghost" data-act="cofl">Back</div>' : '<div class="ghost" data-act="cofl" data-ui="credits-licences">Licence texts</div>'}<div class="go" data-act="modal" data-ui="credits-close"><span>Close</span></div></div></div></div>`;
   }
 
-  // ---------- the operations log (top centre) ----------
+  // ---------- S2 Load Area with saves, Save, Save as and Save before leaving (task P3-04; this region is P3-04's) ----------
+  // Saves live under their area, newest first: named saves plus one Autosave slot per area (SV1). Continue on the
+  // title opens the newest save of the area opened last. The bundled demo saves too (its saves sit in the data folder).
+  const LIB = [
+    { name: () => S.name, loc: '43.588 N 110.828 W', size: '3.1 mi', terrain: 'Terrain 100 · Excellent', flora: 'Flora 83 · Good', disk: '642 MB', opened: 'today',
+      saves: [{ name: 'Autosave', auto: true, when: '3 min ago', trails: 5, lifts: 2 }, { name: 'Jackson Peaks', when: '12 min ago', trails: 4, lifts: 2 }, { name: 'Bowl expansion idea', when: '2 days ago', trails: 9, lifts: 3 }] },
+    { name: () => 'Crystal Mountain', loc: '46.935 N 121.475 W', size: '3.1 mi', terrain: 'Terrain 97 · Excellent', flora: 'Flora 79 · Good', disk: '611 MB', opened: '3 days ago', saves: [] },
+    { name: () => 'Jackson Hole', loc: '43.593 N 110.848 W', size: '3.1 mi', terrain: 'Terrain 100 · Excellent', flora: 'Flora 83 · Good', disk: 'Built in', opened: 'last week',
+      saves: [{ name: 'Teton lift test', when: 'yesterday', trails: 1, lifts: 1 }, { name: 'Summit plan', newer: true, when: 'saved by a newer version', trails: 0, lifts: 0 }] },
+  ];
+  const NEWER = 'This save was saved by a newer version of Mountain Planner (format 2; this version reads up to 1). Update the game to open it.';
+  // The rows the arrows walk: each area, then (when shown) its saves and New design.
+  function libRows() {
+    const r = [];
+    LIB.forEach((a, i) => { r.push([i, -1]); if (S.lib.open.includes(i)) { a.saves.forEach((s, k) => r.push([i, k])); r.push([i, 'new']); } });
+    return r;
+  }
+  const libIs = (i, k) => S.lib.sel[0] === i && S.lib.sel[1] === k;
+  function libOpen(expand) { S.drop = null; S.modal = null; S.lib = { sel: [0, -1], open: expand ? [0] : [], dlg: null }; if (expand) S.lib.sel = [0, 1]; }
+  function libScreen() {
+    const rows = LIB.map((a, i) => {
+      const n = a.saves.length, shown = S.lib.open.includes(i);
+      let h = `<div class="ar${libIs(i, -1) ? ' sel' : ''}" data-act="lib" data-v="sel:${i}:-1" data-ui="lib-area-${i}">
+        <span class="chev">${n ? (shown ? '▾' : '▸') : ''}</span><span class="an">${esc(a.name())}</span><span class="mono">${a.loc} ${a.size}</span>
+        <span class="ok">${a.terrain}</span><span class="ok">${a.flora}</span><span class="mono">${a.disk}</span><span>opened ${a.opened}</span>
+        <span class="count" data-act="lib" data-v="fold:${i}" title="${n ? 'Show or hide the saves (→ ←)' : 'Nothing saved yet'}">${n ? `${n} save${n > 1 ? 's' : ''}` : 'No saves'}</span>
+        <span class="go" data-act="lib" data-v="open:${i}:-1" title="${n ? 'Opens the newest save' : 'Opens the area with nothing built'}">Open</span></div>`;
+      if (shown) {
+        h += a.saves.map((s, k) => s.newer
+          ? `<div class="sr newer${libIs(i, k) ? ' sel' : ''}" data-act="lib" data-v="sel:${i}:${k}" title="${NEWER}" data-ui="lib-save-${i}-${k}"><span class="sn">${esc(s.name)}</span><span></span><span class="mono">${s.when}</span><span></span><span class="ghost dis">Update to open</span></div>`
+          : `<div class="sr${libIs(i, k) ? ' sel' : ''}" data-act="lib" data-v="sel:${i}:${k}" data-ui="lib-save-${i}-${k}"><span class="sn">${esc(s.name)}</span>${s.auto ? '<span class="tag">Autosave</span>' : '<span></span>'}
+            <span class="mono">${s.when}</span><span class="mono">${s.trails} trail${s.trails === 1 ? '' : 's'} · ${s.lifts} lift${s.lifts === 1 ? '' : 's'}</span><span class="go" data-act="lib" data-v="open:${i}:${k}">Open</span></div>`).join('');
+        h += `<div class="sr newd${libIs(i, 'new') ? ' sel' : ''}" data-act="lib" data-v="sel:${i}:new" data-ui="lib-new-${i}"><span class="sn">New design</span><span></span><span></span><span class="mono" style="color:var(--soft)">the area with nothing built</span><span class="go" data-act="lib" data-v="open:${i}:new">Open</span></div>`;
+      }
+      return h;
+    }).join('');
+    const sel = S.lib.sel, onSave = typeof sel[1] === 'number' && sel[1] >= 0;
+    const hint = onSave ? '<b>Enter</b> opens · <b>F2</b> renames · <b>Delete</b> removes · <b>←</b> back to the area · <b>Esc</b> goes back'
+      : '<b>Enter</b> opens the newest save · <b>→</b> shows the saves · <b>Esc</b> goes back';
+    let h = `<div class="lib" data-ui="lib"><div class="lh">Load Area <span class="nm">3 areas · 1.3 GB on disk</span><span class="go" data-act="lib" data-v="newarea">New Area</span><span class="x" data-act="lib" data-v="close" title="Close (Esc)">✕</span></div>
+      <div class="sortr">Sort ${qseg('quick', 'opened', [['opened', 'Last opened'], ['name', 'Name'], ['quality', 'Quality']]).replace(/data-act="quick"/g, '')}</div>
+      <div class="rows">${rows}</div>
+      <div class="lf" data-ui="lib-hint"><span>${hint}</span><span class="ghost">Open data folder</span></div></div>`;
+    const d = S.lib.dlg;
+    if (d) {
+      const a = LIB[d.i], s = a.saves[d.k];
+      if (d.kind === 'delete') h += `<div class="modal"><div class="pn svd" data-ui="lib-delete"><div class="hd">Delete save<span class="x" data-act="lib" data-v="dlgx">✕</span></div>
+        <div class="hint">Delete <b>${esc(s.name)}</b> from ${esc(a.name())}? The area and its other saves stay. This can't be undone.</div>
+        <div class="acts"><div class="go danger" data-act="lib" data-v="delok"><span>Delete</span></div><div class="ghost" data-act="lib" data-v="dlgx">Cancel</div></div></div></div>`;
+      if (d.kind === 'rename') h += `<div class="modal"><div class="pn svd" data-ui="lib-rename"><div class="hd">Rename save<span class="x" data-act="lib" data-v="dlgx">✕</span></div>
+        <div class="hint">The save's name in Load Area and the title's Continue.</div><input id="libinput" class="field" maxlength="40" spellcheck="false" autocomplete="off" value="${esc(s.name)}">
+        <div class="acts"><div class="go" data-act="lib" data-v="renok"><span>Rename</span></div><div class="ghost" data-act="lib" data-v="dlgx">Cancel</div></div></div></div>`;
+      if (d.kind === 'area') h += `<div class="modal"><div class="pn svd" data-ui="lib-delete-area"><div class="hd">Delete area<span class="x" data-act="lib" data-v="dlgx">✕</span></div>
+        <div class="hint">Delete <b>${esc(a.name())}</b>? Its ${a.saves.length} saves go with it. Frees ${a.disk}. This can't be undone.</div>
+        <div class="acts"><div class="go danger" data-act="lib" data-v="dlgx"><span>Delete</span></div><div class="ghost" data-act="lib" data-v="dlgx">Cancel</div></div></div></div>`;
+    }
+    return h;
+  }
+  function libOpenSave(i, k) {
+    const a = LIB[i];
+    if (k === -1) k = a.saves.length ? 0 : 'new';
+    if (typeof k === 'number' && a.saves[k].newer) return;
+    S.lib = null;
+    S.saveName = k === 'new' || a.saves[k].auto ? null : a.saves[k].name;
+    S.saveDue = false;
+    render();
+    log(k === 'new' ? `<span>New design on <b>${esc(a.name())}</b></span>` : `<span>Opened <b>${esc(a.saves[k].name)}</b> <span class="mono" style="color:var(--soft)">${esc(a.name())} · saved ${a.saves[k].when}</span></span>`, '#8fcf8a');
+  }
+  function libAct(v) {
+    const [op, x, y] = String(v).split(':'), i = +x, k = y === 'new' ? 'new' : +y;
+    const d = S.lib.dlg;
+    switch (op) {
+      case 'close': S.lib = null; break;
+      case 'newarea': S.lib = null; S.modal = { title: 'New Area', body: 'Opens the site picker (S3); not part of this mockup.' }; break;
+      case 'sel': if (libIs(i, k) && k !== -1) return libOpenSave(i, k); S.lib.sel = [i, k]; break;
+      case 'fold': S.lib.open = S.lib.open.includes(i) ? S.lib.open.filter((n) => n !== i) : [...S.lib.open, i]; S.lib.sel = [i, -1]; break;
+      case 'open': return libOpenSave(i, k);
+      case 'dlgx': S.lib.dlg = null; break;
+      case 'delok': LIB[d.i].saves.splice(d.k, 1); S.lib.dlg = null; S.lib.sel = [d.i, LIB[d.i].saves.length ? Math.min(d.k, LIB[d.i].saves.length - 1) : 'new']; break;
+      case 'renok': {
+        const f = document.getElementById('libinput'), name = f ? f.value.trim().replace(/\s+/g, ' ').slice(0, 40) : '';
+        if (name) LIB[d.i].saves[d.k].name = name;
+        S.lib.dlg = null; break;
+      }
+    }
+    render();
+  }
+  function libKey(e) {
+    const k = e.key, d = S.lib.dlg;
+    if (d) { if (k === 'Escape') S.lib.dlg = null; else if (k === 'Enter') return libAct(d.kind === 'delete' ? 'delok' : 'dlgx'); else return; render(); return; }
+    const rows = libRows(), at = rows.findIndex(([i, s]) => libIs(i, s)), [i, s] = S.lib.sel, save = typeof s === 'number' && s >= 0 ? LIB[i].saves[s] : null;
+    if (k === 'ArrowDown' || k === 'ArrowUp') S.lib.sel = rows[Math.max(0, Math.min(rows.length - 1, at + (k === 'ArrowDown' ? 1 : -1)))];
+    else if (k === 'ArrowRight' && s === -1 && LIB[i].saves.length) { if (!S.lib.open.includes(i)) S.lib.open.push(i); S.lib.sel = [i, 0]; }
+    else if (k === 'ArrowLeft') { S.lib.sel = [i, -1]; S.lib.open = S.lib.open.filter((n) => n !== i); }
+    else if (k === 'Enter') return libOpenSave(i, s);
+    else if (k === 'F2' && save && !save.auto && !save.newer) S.lib.dlg = { kind: 'rename', i, k: s };
+    else if (k === 'Delete' && save && !save.newer) S.lib.dlg = { kind: 'delete', i, k: s };
+    else if (k === 'Escape') S.lib = null;
+    else return;
+    e.preventDefault();
+    render();
+  }
+  // Save (Ctrl+S, the bar's save symbol, the menu's Save game): the first save asks for a name, then saves go to it.
+  function saveGame() {
+    S.drop = null;
+    if (!S.saveName) { S.modal = { save: 'as' }; render(); return; }
+    writeSave(S.saveName);
+  }
+  function writeSave(name) {
+    const area = LIB[0], have = area.saves.find((s) => s.name === name && !s.auto);
+    if (have) { have.when = 'just now'; area.saves.splice(area.saves.indexOf(have), 1); area.saves.unshift(have); }
+    else area.saves.unshift({ name, when: 'just now', trails: S.trails.length, lifts: S.lifts.length });
+    S.saveName = name; S.saveDue = false; lastSaved = performance.now();
+    render();
+    log(`<span>Saved <b>${esc(name)}</b> <span class="mono" style="color:var(--soft)">${esc(S.name)}</span></span>`, '#8fcf8a');
+  }
+  // Autosave writes the area's one Autosave slot (SV1, SV2); a named save is never overwritten.
+  function autosaved() {
+    const area = LIB[0], slot = area.saves.find((s) => s.auto);
+    if (slot) { slot.when = 'just now'; area.saves.splice(area.saves.indexOf(slot), 1); area.saves.unshift(slot); }
+    else area.saves.unshift({ name: 'Autosave', auto: true, when: 'just now', trails: S.trails.length, lifts: S.lifts.length });
+  }
+  function saveDialog() {
+    if (S.modal.save === 'as') return `<div class="modal" data-act="modalbg"><div class="pn svd" data-ui="save-as"><div class="hd">Save<span class="x" data-act="modal">✕</span></div>
+      <div class="hint">Saved under <b>${esc(S.name)}</b> in Load Area. Ctrl+S saves to it from now on; autosave keeps its own slot.</div>
+      <input id="saveinput" class="field" maxlength="40" spellcheck="false" autocomplete="off" value="${esc(S.name)}">
+      <div class="acts"><div class="go" data-act="sv" data-v="ok"><span>Save</span><span class="mono">Enter</span></div><div class="ghost" data-act="modal">Cancel</div></div></div></div>`;
+    return `<div class="modal" data-act="modalbg"><div class="pn svd" data-ui="save-leave"><div class="hd">Save before leaving?<span class="x" data-act="modal">✕</span></div>
+      <div class="hint"><b>${esc(S.name)}</b> has changes that aren't saved.</div>
+      <div class="acts three"><div class="go" data-act="sv" data-v="leavesave"><span>Save and leave</span><span class="mono">Enter</span></div><div class="ghost" data-act="sv" data-v="leave">Leave without saving</div><div class="ghost" data-act="modal">Keep playing</div></div></div></div>`;
+  }
+  function saveAct(v) {
+    if (v === 'ok') {
+      const f = document.getElementById('saveinput'), name = f ? f.value.trim().replace(/\s+/g, ' ').slice(0, 40) : '';
+      if (!name) return;
+      S.modal = null; writeSave(name); return;
+    }
+    if (v === 'leavesave') { S.modal = null; if (S.saveName) writeSave(S.saveName); else { S.modal = { save: 'as' }; render(); return; } }
+    S.saveDue = false;
+    S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page. Its Continue opens the newest save of the area opened last; Load Area (<b>#demo=load</b>) lists every save.' };
+    render();
+  }
+
+// ---------- the operations log (top centre) ----------
   const logs = [];
   function renderLog() { const el = document.getElementById('log'); if (el) el.innerHTML = logs.map((l) => `<div><i style="background:${l.c}"></i>${l.text}</div>`).join(''); }
   function log(text, c = '#6f675e', routine = false) {
@@ -1709,7 +1886,9 @@ body.solo .frame { border-radius: 0; }
       }
       case 'pause': S.paused = !S.paused; S.autoPaused = false; break;
       case 'speed': S.speed = +v; S.paused = false; S.autoPaused = false; break;
-      case 'savegame': S.saveDue = false; lastSaved = performance.now(); S.drop = null; render(); log(`<span>Saved <span class="mono" style="color:var(--soft)">${esc(S.name)} · day ${S.day}</span></span>`, '#8fcf8a'); return;
+      case 'savegame': saveGame(); return;
+      case 'sv': saveAct(v); return;
+      case 'lib': libAct(v); return;
       case 'rename': S.drop = null; S.modal = { input: true }; break;
       case 'stats': S.drop = null; S.modal = S.modal && S.modal.stats ? null : { stats: true }; break;
       case 'renameok': {
@@ -1749,7 +1928,7 @@ body.solo .frame { border-radius: 0; }
       case 'cofl': S.modal = { credits: true, ofl: !S.modal.ofl }; break;
       case 'quit': S.drop = null; S.modal = { title: 'Quit to desktop', body: 'The game closes here; the mockup stays open.' }; break;
       case 'settings': S.drop = null; S.modal = { settings: true }; break;
-      case 'title': S.drop = null; S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
+      case 'title': S.drop = null; if (S.saveDue) { S.modal = { save: 'leave' }; break; } S.modal = { title: 'Exit to title', body: 'The title screen is frame D1 on the art-directions page; it isn\'t wired into this mockup.' }; break;
       case 'modal': case 'modalbg': if (a === 'modalbg' && e && e.target.closest('.pn')) return; S.modal = null; break;
       case 'zoom': S.zoom = Math.min(1.8, Math.max(1, S.zoom + (+v) * { slow: 0.1, normal: 0.2, fast: 0.3 }[S.set.zoomSpeed])); break;
       case 'resetview': if (S.zoom === 1) return; S.zoom = 1; render(); log('<span>View reset</span>', '#6f675e', true); return;
@@ -1840,11 +2019,15 @@ body.solo .frame { border-radius: 0; }
     // Typing a name: only Enter and Esc mean anything.
     if (e.target && e.target.tagName === 'INPUT') {
       if (e.target.id === 'nameinput' && e.key === 'Enter') { e.preventDefault(); act('renameok'); }
+      else if (e.target.id === 'saveinput' && e.key === 'Enter') { e.preventDefault(); saveAct('ok'); }
+      else if (e.target.id === 'libinput' && e.key === 'Enter') { e.preventDefault(); libAct('renok'); }
+      else if (e.target.id === 'libinput' && e.key === 'Escape') { S.lib.dlg = null; render(); }
       else if (e.key === 'Escape') { S.modal = null; render(); }
       return;
     }
     const k = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); if (!S.p2) act('savegame'); return; }
+    if (S.lib) { libKey(e); return; }   // S2 Load Area's own keys (task P3-04)
+    if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); if (!S.modal) act('savegame'); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (S.modal && k !== 'escape') return;   // a window is open: only Esc, which closes it
     if (S.photo) {   // photo mode's keys; everything else waits until you leave
@@ -1906,6 +2089,7 @@ body.solo .frame { border-radius: 0; }
     if (S.set.autosave && S.saveDue && now - lastSaved > S.set.autosave * 60000) {
       lastSaved = now; S.saveDue = false;
       const sv = ui.querySelector('.save'); if (sv) { sv.classList.remove('due'); if (S.set.tooltips === 'on') sv.title = 'Everything is saved'; }
+      autosaved();
       log('<span>Autosaved</span>', '#8fcf8a', true);
     }
     acc += dt;
@@ -1948,6 +2132,14 @@ body.solo .frame { border-radius: 0; }
     // p2: the game as it is in Phase 2 (task P2-02): 15 January at 10:30, paused, nothing built and nothing to save.
     if (d.includes('p2')) { S.p2 = true; S.day = 137; S.t = 10.5 * 3600; S.paused = true; S.speed = 1; S.saveDue = false; S.lifts = []; S.trails = []; }
     if (d.includes('float')) S.docked = false;
+    // load: S2 Load Area with the first area's saves shown (task P3-04); loaddel, loadrename and loadarea add its dialogs.
+    // saveas and leave: the first Save's name dialog and Save before leaving.
+    if (d.some((x) => x.startsWith('load'))) libOpen(true);
+    if (d.includes('loaddel')) S.lib.dlg = { kind: 'delete', i: 0, k: 2 };
+    if (d.includes('loadrename')) S.lib.dlg = { kind: 'rename', i: 0, k: 2 };
+    if (d.includes('loadarea')) S.lib.dlg = { kind: 'area', i: 0 };
+    if (d.includes('saveas')) { S.saveDue = true; S.modal = { save: 'as' }; }
+    if (d.includes('leave')) { S.saveDue = true; S.modal = { save: 'leave' }; }
     // dl, dlwait, dlfail: a background download in the bar (task P2-06).
     if (d.includes('dl')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'run' };
     if (d.includes('dlwait')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'wait' };
