@@ -373,3 +373,15 @@ recommendations.
 | SV4 | **The save freezes as v1 only after task 05's tile types are on main** |
 | SV5 | **The Load Area save list is mocked up first,** in its own section of ui-layout.html |
 | SV6 | **Frozen JSON files are written with `File.Replace`,** so a crash never leaves a format without its file |
+
+## Phase 3 task 05, terrain edit pipeline: decided 2026-10-16
+
+**Context:** height and clearing edits over the immutable package. Plan: [p3-05-plan.md](p3-05-plan.md). The owner
+approved the plan and all four recommendations.
+
+| # | Decision |
+|---|---|
+| TE1 | **Delta tiles:** 64 m tiles on the cache's grid (16 × 16 per 1,024 m cache tile), 64 × 64 points at 1 m; heights as whole-millimetre changes (0 = untouched) plus one clearing bit per 1 m cell (GR-09, CL-05) |
+| TE2 | **Undo:** each `DesignHistory` step holds its terrain edit set; undo and redo switch sets, and only the tiles that differ are rebuilt (CF-05, CL-07) |
+| TE3 | **Preview:** the yellow pending contours only (CF-08); the ground changes at Break ground |
+| TE4 | **Grading:** task 05 builds a straight test bench only, for timing and the demo; task 08 writes the GR engine to the same edit tiles |
