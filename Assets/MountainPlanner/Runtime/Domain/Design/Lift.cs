@@ -1,0 +1,109 @@
+using System;
+using System.Collections.Generic;
+
+namespace MountainPlanner.Domain.Design
+{
+    /// <summary>LF-01. Values are saved: never renumber.</summary>
+    public enum TowerMode : byte { Automatic = 1, ByHand = 2 }
+
+    /// <summary>TW-14: plumb by default, or leaned square to the rope.</summary>
+    public enum TowerStance : byte { Plumb = 1, Leaned = 2 }
+
+    /// <summary>
+    /// The catalog entries a lift can name (LC-01, E13: fixed-grip only in Phase 3). Code names only (A2). The entries'
+    /// numbers belong to task 09; the document stores just the ID.
+    /// </summary>
+    public static class LiftCatalogIds
+    {
+        public const string SesselliftFgq4 = "sessellift-fgq4";
+        public const string MontaFg4 = "monta-fg4";
+
+        public static bool Known(string id) => id == SesselliftFgq4 || id == MontaFg4;
+    }
+
+    /// <summary>
+    /// A tower as authored (TW-15): its position along the line from the bottom terminal's origin and its height, the
+    /// rope's height above the ground there (TW-02). Its head type, forces and rope geometry are derived (SH-05).
+    /// </summary>
+    public readonly struct Tower : IEquatable<Tower>
+    {
+        public readonly TowerId Id;
+        /// <summary>Horizontal distance along the line from the bottom terminal's origin, in mm.</summary>
+        public readonly int AlongMm;
+        /// <summary>25–100 ft in 5 ft steps (TW-02), in mm.</summary>
+        public readonly int HeightMm;
+
+        public Tower(TowerId id, int alongMm, int heightMm)
+        {
+            Id = id;
+            AlongMm = alongMm;
+            HeightMm = heightMm;
+        }
+
+        public bool Equals(Tower o) => Id == o.Id && AlongMm == o.AlongMm && HeightMm == o.HeightMm;
+        public override bool Equals(object obj) => obj is Tower o && Equals(o);
+        public override int GetHashCode() => Id.GetHashCode() ^ AlongMm ^ (HeightMm << 7);
+    }
+
+    /// <summary>A tower to place, before it has an ID.</summary>
+    public readonly struct TowerSpec
+    {
+        public readonly int AlongMm;
+        public readonly int HeightMm;
+        public TowerSpec(int alongMm, int heightMm) { AlongMm = alongMm; HeightMm = heightMm; }
+    }
+
+    /// <summary>
+    /// A fixed-grip chairlift (LF-07): one straight line, bottom terminal first, a catalog entry, the tower mode and
+    /// stance, and its towers in order along the line (TW-15). Ropes, chairs, heads and clearances are derived by task
+    /// 09. Immutable.
+    /// </summary>
+    public sealed class Lift
+    {
+        public LiftId Id { get; }
+        public string Name { get; }
+        public WorkStage Stage { get; }
+        public string CatalogId { get; }
+        /// <summary>The bottom terminal's origin, the centre of its bullwheel (LF-02).</summary>
+        public PointMm Bottom { get; }
+        /// <summary>The top terminal's origin (LF-03).</summary>
+        public PointMm Top { get; }
+        public TowerMode TowerMode { get; }
+        public TowerStance Stance { get; }
+        /// <summary>Sorted by <see cref="Tower.AlongMm"/>; no two share a position.</summary>
+        public IReadOnlyList<Tower> Towers => _towers;
+
+        readonly Tower[] _towers;
+
+        public Lift(LiftId id, string name, WorkStage stage, string catalogId, PointMm bottom, PointMm top, TowerMode towerMode, TowerStance stance, IReadOnlyList<Tower> towers)
+        {
+            Id = id;
+            Name = name;
+            Stage = stage;
+            CatalogId = catalogId;
+            Bottom = bottom;
+            Top = top;
+            TowerMode = towerMode;
+            Stance = stance;
+            _towers = new Tower[towers?.Count ?? 0];
+            for (int i = 0; i < _towers.Length; i++) _towers[i] = towers[i];
+            Array.Sort(_towers, (a, b) => a.AlongMm != b.AlongMm ? a.AlongMm.CompareTo(b.AlongMm) : a.Id.CompareTo(b.Id));
+        }
+
+        /// <summary>The horizontal length, bullwheel to bullwheel, squared (exact).</summary>
+        public long LengthSquaredMm => Bottom.DistanceSquared(Top);
+        public double LengthMetres => Math.Sqrt(LengthSquaredMm) / 1000.0;
+
+        public int IndexOfTower(TowerId id)
+        {
+            for (int i = 0; i < _towers.Length; i++) if (_towers[i].Id == id) return i;
+            return -1;
+        }
+
+        public Lift WithName(string name) => new Lift(Id, name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers);
+        public Lift WithStage(WorkStage stage) => new Lift(Id, Name, stage, CatalogId, Bottom, Top, TowerMode, Stance, _towers);
+        public Lift WithTowerMode(TowerMode mode) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, mode, Stance, _towers);
+        public Lift WithStance(TowerStance stance) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, stance, _towers);
+        public Lift WithTowers(IReadOnlyList<Tower> towers) => new Lift(Id, Name, Stage, CatalogId, Bottom, Top, TowerMode, Stance, towers);
+    }
+}

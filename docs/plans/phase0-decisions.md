@@ -347,3 +347,15 @@ rulings: [p3-02-plan.md](p3-02-plan.md). Rule IDs in brackets.
 | DR25 | **Paths are automatic:** where two trails come within 30 ft without touching, the network adds a path so skiers can cross; it changes no ground (PA-05 to PA-08) |
 | DR26 | **Junctions come from geometry:** heads and tails snap to any lift's top or bottom or any point on another trail, and overlaps make junctions. A trail can span several network segments yet draws as one line; Split and Join tools rename and remap trails (NW-07 to NW-10) |
 | DR27 | **Network checks and view:** the warnings "No way down", "No lift serves this" and "Leads nowhere", and an Analysis › Network view that highlights what each lift reaches (NW-12, NW-13) |
+
+## Phase 3 task 03, design document: decided 2026-10-16
+
+**Context:** the design document, commands and undo (T15). Plan: [p3-03-plan.md](p3-03-plan.md). The owner approved
+the plan and all four recommendations.
+
+| # | Decision |
+|---|---|
+| DD1 | **Undo:** 100 steps per session, cleared when a design is loaded; the undo history isn't saved |
+| DD2 | **Split** stores a cut line: each part keeps the original strokes, clipped to its side. **Join** removes the cut, so a split then a join restores the trail exactly (NW-10) |
+| DD3 | **Heads and tails are stored as points only;** what they attach to (a lift end or a trail within 30 ft) is derived each time the network is rebuilt (TR-05, SH-05) |
+| DD4 | **Format:** Domain owns the document's shape (version 1) and its canonical bytes, used for goldens and equality; task 04 picks the save file's encoding and freezes it |

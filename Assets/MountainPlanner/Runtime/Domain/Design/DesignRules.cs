@@ -1,0 +1,167 @@
+using System.Collections.Generic;
+
+namespace MountainPlanner.Domain.Design
+{
+    /// <summary>
+    /// The document's own invariants, shared by every command and by <see cref="DesignDocument.From"/>. Each returns
+    /// null when fine, or the reason in the player's words. Rules that need terrain or geometry (siting, clearance,
+    /// spacing, a connected footprint) are task 08's and 09's analyses, not document invariants.
+    /// </summary>
+    public static class DesignRules
+    {
+        public const int NameMaxLength = 64;
+        public const int MaxPointsPerStroke = 100_000;
+        public const int MaxStrokesPerPart = 10_000;
+        public const int MaxPartsPerTrail = 256;
+        public const int MaxCutsPerPart = 256;
+        public const int MaxTowersPerLift = 400;
+
+        public static string NameProblem(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "A name can't be empty.";
+            if (name.Length > NameMaxLength) return $"A name can be at most {NameMaxLength} characters.";
+            if (name.Trim() != name) return "A name can't start or end with a space.";
+            foreach (char c in name) if (char.IsControl(c)) return "A name can't hold control characters.";
+            return null;
+        }
+
+        /// <summary>TR-01: 25–400 ft in 5 ft steps.</summary>
+        public static string BrushWidthProblem(int widthMm)
+        {
+            if (widthMm < DesignUnits.BrushMinMm || widthMm > DesignUnits.BrushMaxMm || widthMm % DesignUnits.FiveFeetMm != 0)
+                return "A brush is 25–400 ft wide, in 5 ft steps.";
+            return null;
+        }
+
+        /// <summary>TW-02: 25–100 ft in 5 ft steps.</summary>
+        public static string TowerHeightProblem(int heightMm)
+        {
+            if (heightMm < DesignUnits.TowerMinMm || heightMm > DesignUnits.TowerMaxMm || heightMm % DesignUnits.FiveFeetMm != 0)
+                return "A tower is 25–100 ft tall, in 5 ft steps.";
+            return null;
+        }
+
+        public static string PartsProblem(IReadOnlyList<FootprintPart> parts)
+        {
+            if (parts == null || parts.Count == 0) return "A trail needs a painted footprint.";
+            if (parts.Count > MaxPartsPerTrail) return "A trail has too many parts.";
+            bool painted = false;
+            foreach (var part in parts)
+            {
+                if (part == null || part.Strokes.Count == 0) return "Each part of a footprint needs a stroke.";
+                if (part.Strokes.Count > MaxStrokesPerPart) return "A footprint has too many strokes.";
+                if (part.Cuts.Count > MaxCutsPerPart) return "A footprint has too many splits.";
+                if (part.Strokes[0].Erase) return "A footprint starts with paint, not an erase.";
+                foreach (var stroke in part.Strokes)
+                {
+                    if (stroke == null || stroke.Points.Count == 0) return "A stroke needs a point.";
+                    if (stroke.Points.Count > MaxPointsPerStroke) return "A stroke has too many points.";
+                    string w = BrushWidthProblem(stroke.WidthMm);
+                    if (w != null) return w;
+                    foreach (var p in stroke.Points) if (!p.InRange) return "A stroke is outside the area.";
+                    painted |= !stroke.Erase;
+                }
+                foreach (var cut in part.Cuts)
+                {
+                    string c = CutProblem(cut.At, cut.DirX, cut.DirY);
+                    if (c != null) return c;
+                }
+            }
+            return painted ? null : "A trail needs a painted footprint.";
+        }
+
+        public static string CutProblem(PointMm at, int dirX, int dirY)
+        {
+            if (!at.InRange) return "The split is outside the area.";
+            if (dirX == 0 && dirY == 0) return "A split needs a direction.";
+            if (System.Math.Abs((long)dirX) > DesignUnits.DirectionLimitMm || System.Math.Abs((long)dirY) > DesignUnits.DirectionLimitMm)
+                return "A split's direction is too long.";
+            return null;
+        }
+
+        /// <summary>TR-03: the head and tail are both set or both unset, and differ.</summary>
+        public static string EndsProblem(PointMm? head, PointMm? tail)
+        {
+            if (head.HasValue != tail.HasValue) return "A trail needs both a head and a tail, or neither.";
+            if (head.HasValue && (!head.Value.InRange || !tail.Value.InRange)) return "A trail's end is outside the area.";
+            if (head.HasValue && head.Value == tail.Value) return "The head and tail can't be the same point.";
+            return null;
+        }
+
+        public static string SettingsProblem(TrailSettings settings)
+        {
+            if (!settings.Defined) return "Unknown trail settings.";
+            if (!settings.AvailableNow) return "Glades, zones and thinning come later; Phase 3 builds cleared runs.";
+            return null;
+        }
+
+        public static string StageProblem(WorkStage stage) =>
+            stage == WorkStage.Plan || stage == WorkStage.Built ? null : "Unknown stage.";
+
+        public static string LiftLineProblem(string catalogId, PointMm bottom, PointMm top, TowerMode mode, TowerStance stance)
+        {
+            if (!LiftCatalogIds.Known(catalogId)) return "Unknown lift type.";
+            if (!bottom.InRange || !top.InRange) return "A terminal is outside the area.";
+            if (bottom == top) return "A lift needs two different terminals.";
+            if (mode != TowerMode.Automatic && mode != TowerMode.ByHand) return "Unknown tower mode.";
+            if (stance != TowerStance.Plumb && stance != TowerStance.Leaned) return "Unknown tower stance.";
+            return null;
+        }
+
+        /// <summary>A tower stands strictly between the terminals' origins (TW-15); TW-03's spacing is task 09's.</summary>
+        public static string TowerAlongProblem(long lineLengthSquaredMm, int alongMm)
+        {
+            if (alongMm <= 0 || (long)alongMm * alongMm >= lineLengthSquaredMm) return "A tower stands between the terminals.";
+            return null;
+        }
+
+        public static string TowersProblem(long lineLengthSquaredMm, IReadOnlyList<Tower> towers)
+        {
+            if (towers.Count > MaxTowersPerLift) return "A lift has too many towers.";
+            for (int i = 0; i < towers.Count; i++)
+            {
+                string p = TowerAlongProblem(lineLengthSquaredMm, towers[i].AlongMm) ?? TowerHeightProblem(towers[i].HeightMm);
+                if (p != null) return p;
+                if (towers[i].Id.IsNone) return "A tower needs an ID.";
+                if (i > 0 && towers[i].AlongMm == towers[i - 1].AlongMm) return "Two towers can't stand in the same place.";
+            }
+            return null;
+        }
+
+        internal static string TrailProblem(Trail t, bool settingsMustBeAvailable)
+        {
+            if (t.Id.IsNone) return "A trail needs an ID.";
+            return NameProblem(t.Name) ?? StageProblem(t.Stage) ?? PartsProblem(t.Parts) ?? EndsProblem(t.Head, t.Tail)
+                ?? (settingsMustBeAvailable ? SettingsProblem(t.Settings) : (t.Settings.Defined ? null : "Unknown trail settings."));
+        }
+
+        internal static string LiftProblem(Lift l)
+        {
+            if (l.Id.IsNone) return "A lift needs an ID.";
+            return NameProblem(l.Name) ?? StageProblem(l.Stage) ?? LiftLineProblem(l.CatalogId, l.Bottom, l.Top, l.TowerMode, l.Stance)
+                ?? TowersProblem(l.LengthSquaredMm, l.Towers);
+        }
+
+        /// <summary>A whole document, as read back: every entity valid, IDs unique across kinds.</summary>
+        internal static string DocumentProblem(DesignDocument doc)
+        {
+            if (doc.NextOrdinal < 1) return "The ID counter is invalid.";
+            var seen = new HashSet<ulong>();
+            for (int i = 0; i < doc.Trails.Count; i++)
+            {
+                // A saved file may hold settings a later phase allows; only commands gate availability.
+                string p = TrailProblem(doc.Trails[i], false);
+                if (p != null) return p;
+                if (!seen.Add(doc.Trails[i].Id.Value)) return "Two entities share an ID.";
+            }
+            for (int i = 0; i < doc.Lifts.Count; i++)
+            {
+                string p = LiftProblem(doc.Lifts[i]);
+                if (p != null) return p;
+                if (!seen.Add(doc.Lifts[i].Id.Value)) return "Two entities share an ID.";
+                foreach (var tower in doc.Lifts[i].Towers) if (!seen.Add(tower.Id.Value)) return "Two entities share an ID.";
+            }
+            return null;
+        }
+    }
+}
