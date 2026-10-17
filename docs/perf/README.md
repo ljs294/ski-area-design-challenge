@@ -26,6 +26,12 @@ node tools/perf/compare.mjs docs/perf/jackson-hole-5km-high.json <run.json>
 `demo.bat` 42 runs one preset. Run every benchmark through the GPU's measure lane (`tools/gpu/gpu.ps1 run -Lane
 measure`), on the desktop itself (remote desktop reports 640×480), with nothing else busy on the machine.
 
+**Low is CPU-bound and noisy.** Its frame time (about 2 ms of GPU work) moves with whatever else the CPU is doing:
+four runs on the same machine, two of main and two of P3-01's branch, gave p95 3.10, 3.91, 3.37 and 3.31 ms with GPU
+p95 2.05–2.13 ms throughout. The pinned 2.87 ms is from the fast end, so a Low failure in `compare.mjs` isn't a
+regression until an A/B on the same machine, run back to back, says so. High, Medium and Ultra are GPU-bound and
+steady (High p95 within 4% across runs).
+
 ## History
 
 - **2026-10-05, task 15** (commit 19d5e37): the first baselines, lit by the scene's default lighting preset (the clock didn't run yet).
