@@ -5,6 +5,7 @@ using MountainPlanner.Domain.Design;
 using MountainPlanner.Persistence;
 using MountainPlanner.Persistence.Saves;
 using MountainPlanner.Presentation;
+using MountainPlanner.UI.Flow;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -72,6 +73,30 @@ namespace MountainPlanner.App.Flow
                 Screens.Alert("This save can't be opened", e.Message, "New design", () => OpenSave(packageFolder, ""), "Close", error: true);
             }
             return false;
+        }
+
+        /// <summary>Load Area's save rows (FlowScreens.Saves.cs).</summary>
+        void WireSaveList()
+        {
+            Screens.SaveOpenChosen += (area, save) => { if (area?.Entry != null) OpenSave(area.Entry.Folder, save?.Folder ?? ""); };
+            Screens.SaveRenameConfirmed += (save, name) =>
+            {
+                if (!SaveStore.Rename(save.Folder, name)) Screens.Toast("That save can't be renamed: it's damaged, in use, or from a newer version.", 5);
+                RefreshLibrary();
+            };
+            Screens.SaveDeleteConfirmed += save =>
+            {
+                if (SaveStore.Delete(save.Folder)) Screens.Toast($"Deleted the save {save.Name}.");
+                else Screens.Toast($"{save.Name} is in use; close the game's other window and try again.", 5);
+                RefreshLibrary();
+            };
+        }
+
+        /// <summary>The title's Continue line when the area has a save: "Jackson Hole · Teton plan, saved 12 min ago".</summary>
+        string ContinueLine(LibraryEntry target)
+        {
+            var newest = SaveStore.Newest(DataRoot, target.PackageId);
+            return newest == null ? null : $"{target.Name} · {newest.Name}, saved {LibraryViewModel.SavedWhen(newest.SavedUtc, DateTime.UtcNow)}";
         }
 
         /// <summary>Back on the title: no design is open.</summary>

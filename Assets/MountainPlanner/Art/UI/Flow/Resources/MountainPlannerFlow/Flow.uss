@@ -418,3 +418,16 @@
 .cover-studio { align-items: center; margin-top: 14px; padding-top: 12px; border-top-width: 1px; border-color: var(--hair); }
 /* Alpine Labs, emphasised: its lockup (the A a third peak rising behind the pair) at a size where the tucked A holds. */
 .cover-studio-logo { width: 158px; height: 36px; background-image: resource("Brand/studio-lockup"); -unity-background-image-tint-color: var(--strong); }
+
+/* ---------- S2 Load Area: saves under their area (task P3-04; the mockup's #demo=load) ---------- */
+.lib-saves { width: 80px; font-size: 13px; color: var(--soft); -unity-text-outline-color: var(--soft); -unity-text-align: middle-right; margin-right: 8px; }
+.lib-saves:hover { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.lib-row--save { min-height: 38px; padding-left: 46px; background-color: rgba(0, 0, 0, 0.12); border-bottom-color: var(--div); }
+.lib-row--save:hover { background-color: var(--hover); }
+.lib-row--save.lib-row--selected { background-color: var(--chip); }
+.lib-save-name { width: 260px; overflow: hidden; text-overflow: ellipsis; font-size: 14px; -unity-font-style: bold; color: var(--text); -unity-text-outline-color: var(--text); }
+.lib-save-tag { width: 76px; margin-right: 10px; padding: 1px 6px; border-radius: 3px; background-color: var(--chip); font-size: 11px; -unity-font-style: bold; color: var(--muted); -unity-text-outline-color: var(--muted); -unity-text-align: middle-center; }
+.lib-save-tag-space { width: 76px; margin-right: 10px; }
+.lib-save-counts { width: 220px; }
+.lib-row--newdesign .lib-save-name { color: var(--soft); -unity-text-outline-color: var(--soft); -unity-font-style: normal; }
+.lib-row--save.lib-row--newer .lib-save-name { color: var(--muted); -unity-text-outline-color: var(--muted); -unity-font-style: normal; opacity: 0.6; }

@@ -4,6 +4,7 @@ using System.Linq;
 using MountainPlanner.App.Picker;
 using MountainPlanner.Domain.Geo;
 using MountainPlanner.Persistence;
+using MountainPlanner.Persistence.Saves;
 using MountainPlanner.Presentation;
 using MountainPlanner.UI.Flow;
 using MountainPlanner.UI.Picker;
@@ -179,6 +180,7 @@ namespace MountainPlanner.App.Flow
             Screens.FreeSpaceConfirmed += FreeSpace;
             Screens.OpenChosen += r => { if (r.CanOpen) Controller.Open(r.Entry.Folder); };
             Screens.DeleteConfirmed += Delete;
+            WireSaveList();   // Load Area's saves: open, rename, delete (AppFlow.Saves.cs, task P3-04)
             if (Picker != null)
             {
                 Picker.SiteChosen += OnSiteChosen;
@@ -349,7 +351,7 @@ namespace MountainPlanner.App.Flow
                     var target = ContinueTarget();
                     bool opened = target != null && RecentResorts.Load(DataRoot).Opened.ContainsKey(target.PackageId);
                     if (target == null) Screens.SetContinue(null, null);
-                    else if (opened) Screens.SetContinue("Continue", $"{target.Name} · last opened {LibraryViewModel.When(RecentResorts.Load(DataRoot).Opened[target.PackageId], DateTime.UtcNow)}");
+                    else if (opened) Screens.SetContinue("Continue", ContinueLine(target) ?? $"{target.Name} · last opened {LibraryViewModel.When(RecentResorts.Load(DataRoot).Opened[target.PackageId], DateTime.UtcNow)}");
                     else Screens.SetContinue(target.OriginalName == "Jackson Hole" && target.Name == target.OriginalName ? "Open the demo" : "Continue", target.Name);
                     Screens.ShowScreen("title");
                     // A data folder from a newer game (task 08) lists nothing; say why rather than look empty.
@@ -466,7 +468,8 @@ namespace MountainPlanner.App.Flow
         {
             string refusal = LibraryIndex.Refusal(DataRoot);
             return refusal != null ? LibraryViewModel.Refused(refusal, _sort)
-                                   : LibraryViewModel.Build(_entries, _pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, _newer, _leftovers);
+                                   : LibraryViewModel.Build(_entries, _pending, RecentResorts.Load(DataRoot), _sort, DateTime.UtcNow, _newer, _leftovers,
+                                                            e => SaveStore.List(DataRoot, e.PackageId));   // each area's saves (task P3-04)
         }
 
         async void MeasureLibrary()
@@ -517,6 +520,7 @@ namespace MountainPlanner.App.Flow
                 return;
             }
             _sizes.Remove(r.Entry.Folder);
+            if (!SaveStore.DeleteArea(DataRoot, r.Entry.PackageId)) Debug.LogWarning($"[Saves] {r.Name}'s saves are in use; they stay until the next delete");   // its saves go with it (task P3-04)
             string resorts = ResortLibrary.ResortsFolder(DataRoot);
             System.Threading.Tasks.Task.Run(() => ResortLibrary.SweepTrash(resorts));
             Screens.Toast($"Deleted {r.Name}. {LibraryViewModel.Disk(freed)} freed.");
