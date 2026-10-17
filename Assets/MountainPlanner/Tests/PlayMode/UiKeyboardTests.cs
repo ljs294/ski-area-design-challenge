@@ -30,7 +30,7 @@ namespace MountainPlanner.Tests
     /// Uses a scratch library seeded with the committed Jackson Hole test terrain and never touches the player's
     /// saved settings.
     /// </summary>
-    public sealed class UiKeyboardTests
+    public sealed partial class UiKeyboardTests
     {
         const string ViewerScene = "Assets/MountainPlanner/Scenes/MountainViewer.unity";
         string _root, _package;
@@ -231,7 +231,7 @@ namespace MountainPlanner.Tests
             yield return Press(Key.T);
             Assert.That(viewer.Hud.ToolboxOpen, Is.True, "T opens the Toolbox");
             yield return Frames(10);
-            Assert.That(viewer.Camera.LettersToTools, Is.False, "the tools are placeholders until Phase 3: WASD still pans");
+            Assert.That(viewer.Camera.LettersToTools, Is.True, "while the tray is open the letters are its tools' (P3-06)");
             AssertShownOnScreen(hud, "toolbox");
             yield return Press(Key.Tab);
             Assert.That(viewer.Hud.AnalysisOpen && !viewer.Hud.ToolboxOpen, Is.True, "Tab opens Analysis in the Toolbox's place");
@@ -330,10 +330,20 @@ namespace MountainPlanner.Tests
                 yield return Move(hud, d);
                 Assert.That(Focused(hud) is VisualElement f && hud.Contains(f), Is.False, $"navigation {d} picked {Name(Focused(hud))}");
             }
-            // With the Toolbox open (its tools are placeholders until Phase 3) the letters still pan.
+            // With the Toolbox open its tools take the letters (P3-06; the owner kept the key map's rule): the arrows
+            // still pan, WASD waits.
             viewer.Hud.SetToolbox(true);
             yield return Frames(10);
-            foreach (var key in new[] { Key.W, Key.A, Key.S, Key.D, Key.UpArrow, Key.W })
+            foreach (var key in new[] { Key.W, Key.D })
+            {
+                var still = viewer.Camera.Target;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(key));
+                for (float until = Time.realtimeSinceStartup + 0.4f; Time.realtimeSinceStartup < until;) yield return null;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(3);
+                Assert.That(Vector3.Distance(viewer.Camera.Target, still), Is.LessThan(0.5f), $"{key} waits while the tray is open");
+            }
+            foreach (var key in new[] { Key.UpArrow, Key.LeftArrow })
             {
                 var before = viewer.Camera.Target;
                 InputSystem.QueueStateEvent(_keyboard, new KeyboardState(key));

@@ -1,0 +1,125 @@
+/* The Toolbox's tools (task P3-06): live tray tiles and the tool window, ported from the mockup's lift and trail tools
+   (docs/plans/prototypes/ui-layout.html: .tool.on, .pn, .lrow, .lsteps, .kv, .hint, .lmsg, .lkeys, .kbd, .lbtns,
+   .acts, .go). Pixel values are the mockup's (the 1280×720 stage). Plates are solid (linear blending). Every colour
+   rule also sets the text outline colour (UiThemeTests). */
+
+/* ---------- tray tiles ---------- */
+.hud .tool--on, .hud .tool--on:hover { background-color: var(--on-bg); }
+.hud .tool--on .tool__glyph, .hud .tool--on .tool__label { color: var(--on-fg); -unity-text-outline-color: var(--on-fg); }
+
+/* ---------- the tool window (.pn) ---------- */
+.hud .tw { position: absolute; }
+.hud .tw__icon { width: 18px; height: 18px; margin-right: 8px; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tw__name { margin-left: 8px; font-size: 14px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw__ask { margin-left: 8px; font-size: 12.5px; -unity-font-style: bold; color: var(--neg); -unity-text-outline-color: var(--neg); }
+.hud .tw__opts { padding: 8px 0 4px 0; }
+.hud .tw > #window-body { flex-shrink: 1; min-height: 0; }
+.hud .tw__scroll { flex-shrink: 1; min-height: 0; }
+
+.hud .tw__rule { height: 1px; background-color: var(--hair); }
+
+/* an option row: the label in a 64 px column, the control after it (.lrow) */
+.hud .tw-row { flex-direction: row; align-items: center; padding: 3px 12px; }
+.hud .tw-row__label { width: 64px; margin: 0 8px 0 0; padding: 0; flex-shrink: 0; font-size: 12.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-row > .mp-seg { flex-grow: 1; }
+.hud .tw-row__value { width: 52px; margin: 0 0 0 8px; padding: 0; font-size: 12.5px; -unity-text-align: middle-right; color: var(--text); -unity-text-outline-color: var(--text); }
+.hud .tw-row > .tw-slider { flex-grow: 1; margin: 0; }
+/* the name field (the mockup's .field) */
+.hud .tw-field { flex-grow: 1; margin: 0; }
+.hud .tw-field > .unity-text-field__input {
+    height: 26px;
+    padding: 0 8px;
+    border-width: 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    background-color: var(--tile);
+    font-size: 12.5px;
+    color: var(--text);
+    -unity-text-outline-color: var(--text);
+}
+
+/* the brush slider (the mockup's .rng; the Settings window's mp-range look) */
+.hud .tw-slider .unity-base-slider__drag-container { height: 20px; }
+.hud .tw-slider .unity-base-slider__tracker { height: 4px; margin-top: -2px; border-width: 0; border-radius: 2px; background-color: var(--hair2); }
+.hud .tw-slider .unity-base-slider__fill { height: 4px; margin-top: -2px; border-radius: 2px; background-color: var(--text); }
+.hud .tw-slider .unity-base-slider__dragger { width: 12px; height: 18px; margin-top: -9px; margin-left: -6px; border-width: 1px; border-color: var(--hair2); border-radius: 3px; background-color: var(--on-bg); }
+.hud .tw-slider .unity-base-slider__dragger-border { display: none; }
+.hud .tw-note { margin: 0; padding: 6px 12px 2px 12px; font-size: 11.5px; white-space: normal; color: var(--soft); -unity-text-outline-color: var(--soft); }
+
+/* the numbered steps (.lsteps) */
+.hud .tw-steps { flex-direction: row; justify-content: space-between; padding: 6px 8px; }
+.hud .tw-step { flex-direction: row; align-items: center; padding: 5px 7px 4px 5px; border-radius: 4px; }
+.hud .tw-step__n {
+    width: 16px;
+    height: 16px;
+    margin: 0 5px 0 0;
+    padding: 0;
+    border-width: 1.3px;
+    border-radius: 8px;
+    border-color: var(--faint);
+    font-size: 9.5px;
+    -unity-text-align: middle-center;
+    color: var(--faint);
+    -unity-text-outline-color: var(--faint);
+}
+.hud .tw-step__label { margin: 0; padding: 0; font-size: 11.5px; -unity-font-style: bold; color: var(--faint); -unity-text-outline-color: var(--faint); }
+.hud .tw-step--done .tw-step__label { color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tw-step--done .tw-step__n { border-color: var(--pos); color: var(--pos); -unity-text-outline-color: var(--pos); }
+.hud .tw-step--now { background-color: var(--chip); }
+.hud .tw-step--now .tw-step__label { color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tw-step--now .tw-step__n { border-color: var(--strong); color: var(--strong); -unity-text-outline-color: var(--strong); }
+
+/* the step's text (.hint), its messages (.lmsg) and its keys (.lkeys) */
+.hud .tw-hint { margin: 0; padding: 7px 12px; font-size: 12.5px; white-space: normal; color: var(--muted); -unity-text-outline-color: var(--muted); }
+.hud .tw-msg { margin: 0; padding: 2px 12px; font-size: 12px; -unity-font-style: bold; white-space: normal; color: var(--neg); -unity-text-outline-color: var(--neg); }
+.hud .tw-msg--warn { color: var(--warn); -unity-text-outline-color: var(--warn); }
+.hud .tw-keys { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 3px 12px 7px 12px; }
+.hud .tw-keys__item { flex-direction: row; align-items: center; margin: 0 12px 4px 0; }
+.hud .tw-keys__text { margin: 0; padding: 0; font-size: 11.5px; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .kbd {
+    height: 19px;
+    min-width: 19px;
+    margin: 0 3px 0 0;
+    padding: 0 5px;
+    border-width: 1px 1px 2px 1px;
+    border-color: var(--hair2);
+    border-radius: 4px;
+    background-color: var(--tile);
+    font-size: 10.5px;
+    -unity-text-align: middle-center;
+    color: var(--text);
+    -unity-text-outline-color: var(--text);
+}
+
+/* the review's figures (.kv): a label on the left, the figure right-aligned, the reserved rows greyed */
+.hud .tw-kv { padding: 7px 12px; }
+.hud .tw-kv__row { flex-direction: row; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+.hud .tw-kv__k { margin: 0 10px 0 0; padding: 0; font-size: 12.5px; -unity-font-style: bold; color: var(--soft); -unity-text-outline-color: var(--soft); }
+.hud .tw-kv__v { margin: 0; padding: 0; font-size: 12.5px; -unity-text-align: middle-right; color: var(--strong); -unity-text-outline-color: var(--strong); }
+.hud .tw-kv__v--pending { color: var(--ph); -unity-text-outline-color: var(--ph); }
+
+/* the step buttons (.lbtns) and the commit buttons (.acts: Break ground fills, Save plan is a ghost) */
+.hud .tw-btns { flex-direction: row; padding: 2px 12px 6px 12px; }
+.hud .tw-btns > .mp-ghost { flex-grow: 1; height: 30px; flex-direction: row; justify-content: center; align-items: center; }
+.hud .tw-acts { flex-direction: row; padding: 4px 12px 12px 12px; }
+.hud .tw-acts > .mp-go { flex-grow: 1; flex-direction: row; justify-content: space-between; align-items: center; margin-right: 6px; }
+.hud .tw-acts > .mp-ghost { flex-shrink: 0; }
+.hud .tw-acts > .mp-ghost:disabled, .hud .tw-btns > .mp-ghost:disabled { border-color: var(--hair2); }   /* the mockup's .ghost.dis */
+.hud .tw-go__label { margin: 0; padding: 0; font-size: 13px; -unity-font-style: bold; color: #ffffff; -unity-text-outline-color: #ffffff; }
+.hud .tw-go__kbd {
+    height: 19px;
+    margin: 0;
+    padding: 0 5px;
+    border-width: 1px;
+    border-radius: 4px;
+    border-color: rgba(255, 255, 255, 0.35);
+    font-size: 10.5px;
+    -unity-text-align: middle-center;
+    color: #ffffff;
+    -unity-text-outline-color: #ffffff;
+}
+.hud .mp-go:disabled .tw-go__label, .hud .mp-go:disabled .tw-go__kbd { color: var(--dis-fg); -unity-text-outline-color: var(--dis-fg); border-color: var(--hair2); }
+.hud .tw-next__kbd { margin: 0 0 0 8px; }
+
+/* the profile strip's slot above the status bar (LF-10, TF-04): tasks 08 and 09 draw into it */
+.hud .tool-strip { position: absolute; left: 440px; right: 10px; bottom: 62px; height: 160px; }

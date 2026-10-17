@@ -15,6 +15,10 @@ namespace MountainPlanner.Presentation
         LayerSnow, LayerTrees, InfoContours, InfoSlope, InfoExposure, InfoDepth, InfoConditions,
         PhotoHideBar, PhotoEarlier, PhotoLater, PhotoDayBack, PhotoDayOn, PhotoBarKeys,
         Save,
+        // P3-06: the Toolbox. The tray's letters, then the keys a construction tool reads while it's armed.
+        ToolNew, ToolEdit, ToolRemove,
+        ToolNext, BreakGround, BrushNarrower, BrushWider, Erase, UndoStroke, TowerUp, TowerDown, DeleteSelected, ToolWindowKeys,
+        Undo, Redo,
     }
 
     [Flags]
@@ -62,18 +66,23 @@ namespace MountainPlanner.Presentation
     {
         public const int Slots = 2;
 
-        /// <summary>When an action works: in the normal view, in photo mode, or both.</summary>
+        /// <summary>
+        /// When an action works: in the normal view, in photo mode, or both; <see cref="Tray"/> while the Toolbox tray
+        /// is open (its letters, and the keys of the armed tool: a tool is only ever armed with the tray open).
+        /// </summary>
         [Flags]
-        public enum Context { Normal = 1, Photo = 2, Both = 3 }
+        public enum Context { Normal = 1, Photo = 2, Both = 3, Tray = 4 }
 
         public readonly struct Info
         {
             public readonly string Group, Label;
             public readonly Context When;
             public readonly KeyChord First, Second;
-            public Info(string group, string label, Context when, KeyChord first, KeyChord second = default)
+            /// <summary>Held like a modifier (Erase is Shift), so Shift, Ctrl or Alt alone may be its key.</summary>
+            public readonly bool Hold;
+            public Info(string group, string label, Context when, KeyChord first, KeyChord second = default, bool hold = false)
             {
-                Group = group; Label = label; When = when; First = first; Second = second;
+                Group = group; Label = label; When = when; First = first; Second = second; Hold = hold;
             }
         }
 
@@ -123,11 +132,41 @@ namespace MountainPlanner.Presentation
             new Info("Photo mode", "Use the photo bar with the keys", Context.Photo, new KeyChord(Key.Tab)),
             // P3-04: the design's save (the menu's Save game, the bar's save symbol).
             new Info("Game", "Save", Context.Normal, new KeyChord(Key.S, KeyMods.Ctrl)),
+            // P3-06: the tray's letters (the Lifts and Trails tabs), then the tools' own keys (TF-09, LF-09; SH-07).
+            new Info("Toolbox", "New", Context.Tray, new KeyChord(Key.N)),
+            new Info("Toolbox", "Edit", Context.Tray, new KeyChord(Key.E)),
+            new Info("Toolbox", "Remove", Context.Tray, new KeyChord(Key.X)),
+            new Info("Building", "Next step", Context.Tray, new KeyChord(Key.Enter), new KeyChord(Key.NumpadEnter)),
+            new Info("Building", "Break ground", Context.Tray, new KeyChord(Key.Enter, KeyMods.Ctrl), new KeyChord(Key.NumpadEnter, KeyMods.Ctrl)),
+            new Info("Building", "Brush narrower", Context.Tray, new KeyChord(Key.LeftBracket)),
+            new Info("Building", "Brush wider", Context.Tray, new KeyChord(Key.RightBracket)),
+            new Info("Building", "Erase while painting (hold)", Context.Tray, new KeyChord(Key.LeftShift), new KeyChord(Key.RightShift), hold: true),
+            new Info("Building", "Undo a stroke", Context.Tray, new KeyChord(Key.Z, KeyMods.Ctrl)),
+            new Info("Building", "Tower up 5 ft", Context.Tray, new KeyChord(Key.PageUp)),
+            new Info("Building", "Tower down 5 ft", Context.Tray, new KeyChord(Key.PageDown)),
+            new Info("Building", "Delete the selected", Context.Tray, new KeyChord(Key.Delete)),
+            // As the photo bar's Tab (P3-01): the tool window takes the keyboard; Esc gives it back.
+            new Info("Building", "Use the tool window with the keys", Context.Tray, new KeyChord(Key.Tab)),
+            new Info("Game", "Undo", Context.Normal, new KeyChord(Key.Z, KeyMods.Ctrl)),
+            new Info("Game", "Redo", Context.Normal, new KeyChord(Key.Y, KeyMods.Ctrl), new KeyChord(Key.Z, KeyMods.Ctrl | KeyMods.Shift)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>
         public static bool Reserved(Key key) =>
             key == Key.Escape || key == Key.Enter || key == Key.NumpadEnter || IsModifier(key);
+
+        /// <summary>
+        /// Whether this action may not take the key: Esc never; Enter only a tool's key (Enter is Next step, TF-09);
+        /// Shift, Ctrl or Alt alone only an action held like a modifier (Erase).
+        /// </summary>
+        public static bool Refuses(GameAction action, Key key)
+        {
+            if (key == Key.Escape || key == Key.ContextMenu) return true;
+            var info = Actions[(int)action];
+            if (key == Key.Enter || key == Key.NumpadEnter) return (info.When & Context.Tray) == 0;
+            if (IsModifier(key)) return !info.Hold;
+            return false;
+        }
 
         static bool IsModifier(Key key) =>
             key == Key.LeftShift || key == Key.RightShift || key == Key.LeftCtrl || key == Key.RightCtrl ||
@@ -149,6 +188,42 @@ namespace MountainPlanner.Presentation
 
         public static KeyChord Default(GameAction action, int slot) => slot == 0 ? Actions[(int)action].First : Actions[(int)action].Second;
 
+        // ---------- the armed tool's keys win (P3-06) ----------
+
+        // The tool keys the armed tool is using now. Any other action on the same key waits while the claim lasts:
+        // Page Up and Page Down move a tower in hand instead of zooming (LF-09), Ctrl+Z undoes a stroke instead of
+        // the last command, and a tool key someone bound to Space doesn't also pause.
+        static readonly bool[] Claimed = new bool[Actions.Length];
+        static int _claims;
+
+        /// <summary>Marks a tool key as in use (or not) by the armed tool. The tool host clears every claim on disarm.</summary>
+        public static void Claim(GameAction action, bool on)
+        {
+            if (Claimed[(int)action] == on) return;
+            Claimed[(int)action] = on;
+            _claims += on ? 1 : -1;
+        }
+
+        public static bool IsClaimed(GameAction action) => Claimed[(int)action];
+
+        public static void ClearClaims()
+        {
+            Array.Clear(Claimed, 0, Claimed.Length);
+            _claims = 0;
+        }
+
+        // Another action's key is shadowed while a claimed tool key uses the same key.
+        static bool Shadowed(int action, KeyChord chord)
+        {
+            if (_claims == 0 || Claimed[action]) return false;
+            for (int a = 0; a < Claimed.Length; a++)
+            {
+                if (!Claimed[a]) continue;
+                if (Bound[a * Slots].Key == chord.Key || Bound[a * Slots + 1].Key == chord.Key) return true;
+            }
+            return false;
+        }
+
         // ---------- reading the keyboard (per frame, no allocation) ----------
 
         static KeyMods ModsOf(Keyboard k) =>
@@ -166,7 +241,7 @@ namespace MountainPlanner.Presentation
             for (int s = 0; s < Slots; s++)
             {
                 var c = Bound[i + s];
-                if (c.IsNone || c.Mods != mods || (!letters && IsLetter(c.Key))) continue;
+                if (c.IsNone || c.Mods != mods || (!letters && IsLetter(c.Key)) || Shadowed((int)action, c)) continue;
                 if (keyboard[c.Key].wasPressedThisFrame) return true;
             }
             return false;
@@ -182,7 +257,7 @@ namespace MountainPlanner.Presentation
             for (int s = 0; s < Slots; s++)
             {
                 var c = Bound[i + s];
-                if (c.IsNone || (!letters && IsLetter(c.Key))) continue;
+                if (c.IsNone || (!letters && IsLetter(c.Key)) || Shadowed((int)action, c)) continue;
                 var need = c.Mods & ~KeyMods.Shift;
                 if ((mods & ~KeyMods.Shift) != need || ((c.Mods & KeyMods.Shift) != 0 && (mods & KeyMods.Shift) == 0)) continue;
                 if (keyboard[c.Key].isPressed) return true;
@@ -237,6 +312,15 @@ namespace MountainPlanner.Presentation
                 case Key.Backslash: return "\\";
                 case Key.LeftBracket: return "[";
                 case Key.RightBracket: return "]";
+                case Key.Enter: return "Enter";
+                case Key.NumpadEnter: return "Num Enter";
+                case Key.Delete: return "Delete";
+                case Key.LeftShift: return "Shift";
+                case Key.RightShift: return "Right Shift";
+                case Key.LeftCtrl: return "Ctrl";
+                case Key.RightCtrl: return "Right Ctrl";
+                case Key.LeftAlt: return "Alt";
+                case Key.RightAlt: return "Right Alt";
             }
             if (key >= Key.Digit1 && key <= Key.Digit0) return key == Key.Digit0 ? "0" : ((int)(key - Key.Digit1) + 1).ToString();
             if (key >= Key.Numpad0 && key <= Key.Numpad9) return "Num " + (int)(key - Key.Numpad0);
@@ -259,7 +343,7 @@ namespace MountainPlanner.Presentation
         public static GameAction? Bind(GameAction action, int slot, KeyChord chord, bool remember = true)
         {
             Load();
-            if (!chord.IsNone && Reserved(chord.Key)) return null;
+            if (!chord.IsNone && Refuses(action, chord.Key)) return null;
             int at = (int)action * Slots + slot;
             var old = Bound[at];
             if (old.Equals(chord)) return null;
@@ -323,7 +407,7 @@ namespace MountainPlanner.Presentation
         {
             StopListening();
             _listening = InputSystem.onAnyButtonPress
-                .Where(c => c is KeyControl k && !IsModifier(k.keyCode))
+                .Where(c => c is KeyControl k && (!IsModifier(k.keyCode) || Actions[(int)action].Hold))
                 .CallOnce(c =>
                 {
                     _listening = null;
@@ -337,8 +421,10 @@ namespace MountainPlanner.Presentation
                         done?.Invoke(Outcome.Cleared, null);
                         return;
                     }
-                    if (Reserved(key)) { done?.Invoke(Outcome.Reserved, null); return; }
-                    var swapped = Bind(action, slot, new KeyChord(key, keyboard != null ? ModsOf(keyboard) : KeyMods.None), remember);
+                    if (Refuses(action, key)) { done?.Invoke(Outcome.Reserved, null); return; }
+                    // A key held like a modifier (Erase) is bound alone, without itself as a modifier.
+                    var mods = IsModifier(key) || keyboard == null ? KeyMods.None : ModsOf(keyboard);
+                    var swapped = Bind(action, slot, new KeyChord(key, mods), remember);
                     done?.Invoke(swapped.HasValue ? Outcome.Swapped : Outcome.Bound, swapped);
                 });
         }
@@ -365,7 +451,7 @@ namespace MountainPlanner.Presentation
                 if (eq <= 0 || !Enum.TryParse(entry.Substring(0, eq), out GameAction action) || !Enum.IsDefined(typeof(GameAction), action)) continue;
                 string[] slots = entry.Substring(eq + 1).Split(',');
                 for (int s = 0; s < Slots && s < slots.Length; s++)
-                    if (KeyChord.TryParse(slots[s], out var chord) && (chord.IsNone || !Reserved(chord.Key))) Bound[(int)action * Slots + s] = chord;
+                    if (KeyChord.TryParse(slots[s], out var chord) && (chord.IsNone || !Refuses(action, chord.Key))) Bound[(int)action * Slots + s] = chord;
             }
         }
 

@@ -1,0 +1,284 @@
+using System.Collections;
+using MountainPlanner.App;
+using MountainPlanner.App.Flow;
+using MountainPlanner.Acquisition.IO;
+using MountainPlanner.Domain.Design;
+using MountainPlanner.Presentation;
+using MountainPlanner.Presentation.Design;
+using MountainPlanner.UI;
+using MountainPlanner.UI.Tools;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.SceneManagement;
+using UnityEngine.TestTools;
+using UnityEngine.UIElements;
+using Object = UnityEngine.Object;
+
+namespace MountainPlanner.Tests
+{
+    /// <summary>
+    /// Task P3-06 acceptance, in the real game on the committed Jackson Hole terrain at 50%, 100% and 150% interface
+    /// scale: New lift and New trail work by keyboard and mouse (the pointer places points; every step, option and
+    /// commit has a key), switching away cancels the armed tool cleanly (CF-01), and the camera's keys keep working
+    /// while a tool is armed.
+    /// </summary>
+    public sealed partial class UiKeyboardTests
+    {
+        Mouse _mouse;
+
+        [UnityTest]
+        public IEnumerator ToolboxToolsWorkByKeyboardAndMouse([Values(50, 100, 150)] int scale)
+        {
+            Http.NetworkDisabled = true;
+            UiPreferences.SetChoice(UiThemeChoice.Dark, remember: false);
+            UiPreferences.SetScale(scale, remember: false);
+            if (AppFlow.Instance != null) Object.DestroyImmediate(AppFlow.Instance.gameObject);
+            var flow = AppFlow.Create(_root, new NoDownloads());
+            yield return SceneManager.LoadSceneAsync(ViewerScene);
+            yield return WaitForMountain(120);
+            yield return Frames(3);
+            var ui = flow.Screens.Document.rootVisualElement;
+            yield return TabTo(ui, "title-continue");
+            yield return Submit(ui);
+            yield return WaitForMountain(120, inGame: true);
+            yield return Frames(10);
+            var viewer = Object.FindAnyObjectByType<MountainViewer>();
+            var hud = viewer.Hud.Document.rootVisualElement;
+            var cam = viewer.Camera.GetComponent<Camera>();
+            _mouse = InputSystem.AddDevice<Mouse>();
+            _mouse.MakeCurrent();
+            try
+            {
+                // Park the pointer on the HUD's bar so nothing is aimed until we mean it.
+                yield return Point(new Vector2(Screen.width * 0.5f, 4));
+
+                // T opens the tray; its letters are now the tools' (the key map). N arms New lift.
+                yield return Press(Key.T);
+                Assert.That(viewer.Hud.ToolboxOpen, Is.True);
+                Assert.That(viewer.Camera.LettersToTools, Is.True, "while the tray is open the letters are its tools'");
+                yield return Press(Key.N);
+                Assert.That(viewer.Tools.ActiveId, Is.EqualTo(NewLiftTool.ToolId), "N arms New lift on the Lifts tab");
+                yield return Frames(3);
+                AssertShownOnScreen(hud, "toolwin");
+                AssertShownOnScreen(hud, "toolbox");
+                Assert.That(hud.Q("tool-new-lift").ClassListContains("tool--on"), Is.True, "the armed tool's tile is lit");
+
+                // The camera keeps the arrows while a tool is armed.
+                var before = viewer.Camera.Target;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState(Key.UpArrow));
+                for (float until = Time.realtimeSinceStartup + 0.4f; Time.realtimeSinceStartup < until;) yield return null;
+                InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+                yield return Frames(3);
+                Assert.That(Vector3.Distance(viewer.Camera.Target, before), Is.GreaterThan(1f), "↑ pans with a tool armed");
+                Assert.That(viewer.Tools.Armed, Is.True);
+                yield return Frames(10);   // let the camera settle before aiming at the ground
+
+                // Tab gives the tool window the keyboard (the arrows walk it); Esc gives it back, the tool stays.
+                yield return Press(Key.Tab);
+                Assert.That(viewer.Hud.HasKeyboard, Is.True, "Tab hands the tool window the keys");
+                Assert.That(hud.Q("toolwin").Contains((VisualElement)Focused(hud)), Is.True, $"focus is in the window ({Name(Focused(hud))})");
+                Assert.That(viewer.Hud.AnalysisOpen, Is.False, "Tab didn't open Analysis while a tool is armed");
+                yield return Move(hud, NavigationMoveEvent.Direction.Right);
+                Assert.That(hud.Q("toolwin").Contains((VisualElement)Focused(hud)), Is.True, "the arrows stay in the window");
+                yield return Press(Key.Escape);
+                Assert.That(viewer.Hud.HasKeyboard, Is.False);
+                Assert.That(viewer.Tools.Armed, Is.True, "Esc gave the keys back without closing the tool");
+
+                // Two clicks on the mountain: the bottom terminal, then the top.
+                var ctx = viewer.Tools.Context;
+                bool found = FindLiftLine(viewer, cam, ctx, out var bottom, out var top);
+                if (!found)
+                {
+                    // A small screen at 150%: the window covers the left half, so drag it aside as a player would.
+                    var window = (UI.Hud.HudWindow)hud.Q("toolwin");
+                    window.MoveTo(new Vector2(hud.panel.visualTree.worldBound.width, 0));
+                    yield return Frames(3);
+                    found = FindLiftLine(viewer, cam, ctx, out bottom, out top);
+                }
+                Assert.That(found, Is.True, "a visible bottom and top that can sit");
+                yield return Click(ScreenOf(cam, bottom, ctx));
+                var lift = (NewLiftTool)viewer.Tools.Active;
+                Assert.That(lift.CurrentStep, Is.EqualTo(1), $"the bottom terminal anchored ({lift.Problem})");
+                var topScreen = ScreenOf(cam, top, ctx);
+                yield return Click(topScreen);
+                Assert.That(lift.CurrentStep, Is.EqualTo(2), $"the top terminal fixed the line ({lift.Problem}); " + Where(viewer, cam, topScreen, top, bottom));
+                yield return Press(Key.Enter);
+                Assert.That(lift.CurrentStep, Is.EqualTo(3), "Enter: the review");
+                Assert.That(hud.Q<Button>("review-go").enabledSelf, Is.True);
+                AssertShownOnScreen(hud, "review-go");
+                yield return Chord(Key.LeftCtrl, Key.Enter);
+                Assert.That(viewer.Design.Document.Lifts.Count, Is.EqualTo(1), "Ctrl+Enter broke ground");
+                Assert.That(lift.CurrentStep, Is.EqualTo(0), "ready for the next lift");
+
+                // Switching away mid-draw cancels at once and puts everything back (CF-01).
+                yield return Click(ScreenOf(cam, bottom, ctx));
+                Assert.That(lift.CurrentStep, Is.EqualTo(1));
+                int disarms = viewer.Tools.Disarms;
+                yield return SubmitOn(hud.Q<Button>("toolbox-tab-trails"));
+                Assert.That(viewer.Tools.Armed, Is.False, "another tab cancels the armed tool");
+                Assert.That(viewer.Tools.Disarms, Is.EqualTo(disarms + 1), "disarmed exactly once");
+                Assert.That(viewer.Preview.Visible, Is.EqualTo(0), "its preview is gone");
+                Assert.That(KeyBindings.IsClaimed(GameAction.ToolWindowKeys), Is.False, "Tab is Analysis' again");
+                Assert.That(hud.Q("toolwin"), Is.Null, "its window closed");
+
+                // New trail: paint from the lift's top to its bottom, then head and tail snap to them (TR-05).
+                yield return Press(Key.N);
+                Assert.That(viewer.Tools.ActiveId, Is.EqualTo(NewTrailTool.ToolId), "N arms New trail on the Trails tab");
+                var trail = (NewTrailTool)viewer.Tools.Active;
+                yield return Drag(cam, ctx, top, bottom);
+                Assert.That(trail.Strokes, Is.EqualTo(1), "one stroke painted");
+                for (int i = 0; i < 300 && (trail.Analysing || trail.Raster == null); i++) yield return null;
+                Assert.That(trail.Raster.Patches, Is.EqualTo(1));
+                yield return Press(Key.Enter);
+                Assert.That(trail.CurrentStep, Is.EqualTo(1), "Enter: head and tail");
+                yield return Click(ScreenOf(cam, top + new Vector2(2, -2), ctx));
+                yield return Click(ScreenOf(cam, bottom + new Vector2(-2, 2), ctx));
+                yield return Press(Key.Enter);
+                Assert.That(trail.CurrentStep, Is.EqualTo(2), "Enter: the review");
+                yield return Chord(Key.LeftCtrl, Key.Enter);
+                Assert.That(viewer.Design.Document.Trails.Count, Is.EqualTo(1), "Ctrl+Enter broke ground");
+                var run = viewer.Design.Document.Trails[0];
+                var chair = viewer.Design.Document.Lifts[0];
+                Assert.That(run.Head.Value, Is.EqualTo(chair.Top), "the head snapped to the lift's top");
+                Assert.That(run.Tail.Value, Is.EqualTo(chair.Bottom), "the tail snapped to its bottom");
+
+                // Esc closes the tool (nothing drawn), then the tray; the letters go back to the camera.
+                yield return Press(Key.Escape);
+                Assert.That(viewer.Tools.Armed, Is.False);
+                Assert.That(viewer.Hud.ToolboxOpen, Is.True, "the first Esc closed only the tool");
+                yield return Press(Key.Escape);
+                Assert.That(viewer.Hud.ToolboxOpen, Is.False);
+                yield return Frames(2);
+                Assert.That(viewer.Camera.LettersToTools, Is.False);
+
+                // Undo and redo the design with no tool armed.
+                yield return Chord(Key.LeftCtrl, Key.Z);
+                Assert.That(viewer.Design.Document.Trails.Count, Is.EqualTo(0), "Ctrl+Z took the trail back");
+                yield return Chord(Key.LeftCtrl, Key.Y);
+                Assert.That(viewer.Design.Document.Trails.Count, Is.EqualTo(1), "Ctrl+Y put it back");
+            }
+            finally
+            {
+                InputSystem.RemoveDevice(_mouse);
+                _mouse = null;
+            }
+        }
+
+        /// <summary>
+        /// A bottom and a top terminal the camera can see and that can sit (LF-08: inside the core, the ground within
+        /// 10 ft under each), 110–450 m apart with the top higher, neither under a HUD panel.
+        /// </summary>
+        static bool FindLiftLine(MountainViewer viewer, Camera cam, ToolContext ctx, out Vector2 bottom, out Vector2 top)
+        {
+            bottom = top = default;
+            var core = ctx.Core;
+            for (float x = core.xMin + 30; x < core.xMax - 30; x += 20)
+                for (float z = core.yMin + 30; z < core.yMax - 30; z += 20)
+                {
+                    var b = new Vector2(x, z);
+                    if (!Sits(viewer, cam, ctx, b)) continue;
+                    for (int dir = 0; dir < 32; dir++)
+                        for (float d = 110; d <= 450; d += 20)
+                        {
+                            var t = b + d * new Vector2(Mathf.Cos(dir * Mathf.PI / 16), Mathf.Sin(dir * Mathf.PI / 16));
+                            if (ctx.HeightAt(t) < ctx.HeightAt(b) + 10 || !Sits(viewer, cam, ctx, t)) continue;
+                            bottom = b;
+                            top = t;
+                            return true;
+                        }
+                }
+            return false;
+        }
+
+        static bool Sits(MountainViewer viewer, Camera cam, ToolContext ctx, Vector2 at)
+        {
+            // The whole terminal inside the core box, as the tool checks (SH-06), with a margin.
+            if (!ctx.InCore(at + new Vector2(12, 12)) || !ctx.InCore(at - new Vector2(12, 12))) return false;
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int i = 0; i <= 8; i++)
+            {
+                var p = i == 8 ? at : at + 8 * new Vector2(Mathf.Cos(i * Mathf.PI / 4), Mathf.Sin(i * Mathf.PI / 4));
+                float h = ctx.HeightAt(p);
+                if (float.IsNaN(h)) return false;
+                lo = Mathf.Min(lo, h);
+                hi = Mathf.Max(hi, h);
+            }
+            if (hi - lo > 2.5f) return false;   // a margin under LF-08's 10 ft
+            var s = ScreenOf(cam, at, ctx);
+            if (s.x < Screen.width * 0.03f || s.x > Screen.width * 0.97f || s.y < Screen.height * 0.15f || s.y > Screen.height * 0.95f) return false;
+            if (viewer.Hud.IsPointerOverPanel(s)) return false;
+            // Clear of the tool window, which grows as the steps go on (most of the screen's width at 150% on a small one).
+            var hud = viewer.Hud.Document.rootVisualElement;
+            var win = hud.Q("toolwin");
+            if (win != null)
+            {
+                float px = Screen.height / Mathf.Max(1f, hud.panel.visualTree.worldBound.height);
+                if (s.x > (win.worldBound.xMin - 30) * px && s.x < (win.worldBound.xMax + 30) * px) return false;
+            }
+            // Not hidden behind a ridge: the pointer's ray meets the ground at this point.
+            var ray = cam.ScreenPointToRay(s);
+            float hit = viewer.Camera.GroundAlong(ray, 30000);
+            if (float.IsNaN(hit)) return false;
+            var g = ray.GetPoint(hit);
+            return Vector2.Distance(new Vector2(g.x, g.z), at) < 3f;
+        }
+
+        /// <summary>Where a screen point meets the ground, for a failure's message.</summary>
+        static string Where(MountainViewer viewer, Camera cam, Vector2 screen, Vector2 meant, Vector2 bottom)
+        {
+            var ray = cam.ScreenPointToRay(screen);
+            float hit = viewer.Camera.GroundAlong(ray, 30000);
+            var g = float.IsNaN(hit) ? Vector3.zero : ray.GetPoint(hit);
+            return $"screen {Screen.width}x{Screen.height}, pointer {screen}, over a panel {viewer.Hud.IsPointerOverPanel(screen)}, " +
+                   $"hits {g.x:F0},{g.z:F0} meaning {meant.x:F0},{meant.y:F0} (bottom {bottom.x:F0},{bottom.y:F0}), camera {cam.transform.position}";
+        }
+
+        static Vector2 ScreenOf(Camera cam, Vector2 at, ToolContext ctx)
+        {
+            var p = cam.WorldToScreenPoint(new Vector3(at.x, ctx.HeightAt(at), at.y));
+            return new Vector2(p.x, p.y);
+        }
+
+        IEnumerator Point(Vector2 screen, bool left = false)
+        {
+            var state = new MouseState { position = screen };
+            if (left) state = state.WithButton(UnityEngine.InputSystem.LowLevel.MouseButton.Left, true);
+            InputSystem.QueueStateEvent(_mouse, state);
+            yield return Frames(2);
+        }
+
+        IEnumerator Click(Vector2 screen)
+        {
+            yield return Point(screen);
+            yield return Point(screen, true);
+            yield return Point(screen);
+        }
+
+        /// <summary>A left-drag over the ground from one local point to another, in short moves.</summary>
+        IEnumerator Drag(Camera cam, ToolContext ctx, Vector2 from, Vector2 to)
+        {
+            yield return Point(ScreenOf(cam, from, ctx));
+            for (int i = 0; i <= 40; i++) yield return Point(ScreenOf(cam, Vector2.Lerp(from, to, i / 40f), ctx), true);
+            yield return Point(ScreenOf(cam, to, ctx));
+        }
+
+        IEnumerator Chord(Key modifier, Key key)
+        {
+            InputSystem.QueueStateEvent(_keyboard, new KeyboardState(modifier));
+            yield return Frames(1);
+            InputSystem.QueueStateEvent(_keyboard, new KeyboardState(modifier, key));
+            yield return Frames(2);
+            InputSystem.QueueStateEvent(_keyboard, new KeyboardState());
+            yield return Frames(3);
+        }
+
+        /// <summary>Presses a HUD button as the keyboard's Enter does (the tray's tabs).</summary>
+        static IEnumerator SubmitOn(Button button)
+        {
+            using (var e = NavigationSubmitEvent.GetPooled()) { e.target = button; button.SendEvent(e); }
+            yield return Frames(3);
+        }
+    }
+}

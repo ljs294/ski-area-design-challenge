@@ -14,6 +14,11 @@ export const STATES = [
   { name: 'tray-trails', mockup: 'ttrails' },
   { name: 'tray-snow', mockup: 'snow' },
   { name: 'tray-infra', mockup: 'infra' },
+  // Task P3-06: a tool armed, its window at step 1.
+  { name: 'tool-lift', mockup: 'liftorigin' },
+  { name: 'tool-trail', mockup: 'trailpaint' },
+  { name: 'tool-lift-review', mockup: 'liftreview' },
+  { name: 'tool-trail-review', mockup: 'trailreview' },
   { name: 'analysis', mockup: 'aoverview' },
   { name: 'analysis-lifts', mockup: 'alifts' },
   { name: 'analysis-weather', mockup: 'aweather' },
