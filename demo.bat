@@ -171,6 +171,10 @@ echo   Phase 2, task 12: tester build (the v0.2.0 zip from 58, or D:\skiAreaDesi
 echo     59 Tester kit: unzip the release and play it as a first-time player (an empty library, your settings kept),
 echo        with the tester sheet open; when the game closes, the Logs, Player.log and Pictures folders open to collect.
 echo.
+echo   Phase 3, task 03: the design document, commands and undo (no Unity needed)
+echo     61 Run the design document tests, then print a walkthrough: a lift and a trail, split, join, undo, redo,
+echo        a stale and a bad command rejected, the derived network and the document bytes.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -247,6 +251,7 @@ if /i "%CHOICE%"=="56" goto loadingdetails
 if /i "%CHOICE%"=="57" goto titlestill
 if /i "%CHOICE%"=="58" goto release
 if /i "%CHOICE%"=="59" goto testerkit
+if /i "%CHOICE%"=="61" goto designdoc
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -411,6 +416,13 @@ echo   Delete: asks, naming the space it frees. Run 49 again to bring the area b
 start "" "%GAME%" -data "%LIBDEMO%"
 goto menu
 
+:designdoc
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~MountainPlanner.Tests.Design&FullyQualifiedName!~DesignDemoTests" <nul
+if errorlevel 1 goto done
+dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "FullyQualifiedName~DesignDemoTests" --logger "console;verbosity=normal" <nul | findstr /v /c:"Test run for" /c:"A total" /c:"NUnit" /c:"Running selected"
+goto done
+
 :formattests
 chcp 65001 >nul
 dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~FormatFreezeTests|FullyQualifiedName~VersionedJsonTests" <nul
@@ -540,10 +552,6 @@ goto done
 rem Task 15: the frame times of record come from the release game; the Development game adds exact garbage per
 rem frame and graphics memory (counters a release game doesn't record). Each run is compared with the stored baseline.
 :benchfull
-if exist "%~dp0..\.gpu-lock" (
-  echo Another session is using the GPU ^(%~dp0..\.gpu-lock^). Try again when it has finished.
-  goto done
-)
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%GAMEDEV%" call :builddev
@@ -562,6 +570,7 @@ for %%R in (high high-dev high-dev-hud medium medium-dev) do findstr /l /c:" at 
 echo.
 node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-high.json" "%BENCH%\high.json"
 node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-medium.json" "%BENCH%\medium.json"
+for %%R in (high-dev medium-dev high-dev-hud) do node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-%%R.json" "%BENCH%\%%R.json"
 start "" "%BENCH%"
 goto done
 
