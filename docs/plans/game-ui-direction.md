@@ -27,6 +27,20 @@ Details that come with it:
 - **Keys:** the full map, including Tab for Analysis, Shift+1–5 for layers and letters going to the tools while the Toolbox tray is open, is in [controls-key-map.md](controls-key-map.md). The HUD drives the camera through `ViewCamera.LettersToTools` and toggles layers through `ToggleLayer`.
 - **Overpass draws its middle dot (·) off-centre.** The mockup sends that one character to a system font; the game needs the same fallback.
 
+## Phase 3 construction tools (owner, 2026-10-16 and 17)
+
+Mocked in [`prototypes/ui-layout.html`](prototypes/ui-layout.html) on the rules in
+[p3-02-design-rules.md](p3-02-design-rules.md), whose IDs the mockup's tooltips cite. Task 06 owns the Toolbox panels from
+here; tasks 08 and 09 build the tools.
+
+| # | Decision |
+|---|---|
+| UI-12 | **Lift tool:** the whole bottom terminal follows the pointer (green where it can sit); click 1 anchors it, click 2 far away places the top terminal and fixes the line, drawn as a trail map draws a lift. Towers go in Automatic or By hand; by hand, the tower in hand slides along the line, green or red with one line why, Page Up / Page Down ±5 ft; Fill the rest, Re-place towers, review, then Break ground or Save plan (✕ cancels and asks again) |
+| UI-13 | **Lift readouts:** a wide profile strip above the status bar (not in the menu): the side view with a True scale switch, and a clearance track of the chairs' bottom against the 15 ft line; the band where the tower in hand fits; a per-tower load gauge; the tension bar; TW-13's status lines. Few colours on the strip: the panel's greys, red only where something fails |
+| UI-14 | **Trail tool:** paint the trail's area with a brush (muted wash, dashed edge and brush ring; Shift erases, Ctrl+Z undoes a stroke, islands allowed, a separate patch red), click the head and the tail, review, Break ground. The trail's own profile strip sits in the same place |
+| UI-15 | **Analysis › Lifts and Trails:** a Filter button puts a small dropdown on each column that sorts and ticks the values to show, as a spreadsheet does; hovering a row lights its lift or trail with a wider white casing (no new colour); a row or a click on the map opens the lift's or trail's card. "Drop" reads "Vertical" |
+| UI-16 | **On the map:** built lifts are red, as on trail maps; lift and trail names sit centred on their lines, the line breaking behind the lettering. Where two names would collide, the game moves one (the mockup doesn't) |
+
 ## 1. Decisions (owner, 2026-09-29)
 
 | # | Decision |
