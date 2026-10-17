@@ -474,9 +474,12 @@ namespace MountainPlanner.UI
             }
             item.BringToFront();
             item.RemoveFromClassList("hidden");
-            // By class: the see-through plate (MountainHud.Glass.cs) is each toast's first child.
-            item.Q(className: "log__stripe").style.backgroundColor = stripe ?? new Color32(0x6f, 0x67, 0x5e, 255);
-            item.Q<Label>(className: "log__text").text = text;
+            // By class: the see-through plate (MountainHud.Glass.cs) is each toast's first child, so item[0] and item[1]
+            // aren't the stripe and the text.
+            var stripePart = item.Q(className: "log__stripe");
+            if (stripePart != null) stripePart.style.backgroundColor = stripe ?? new Color32(0x6f, 0x67, 0x5e, 255);
+            var label = item.Q<Label>(className: "log__text");
+            if (label != null) label.text = text;
             _toastUntil[Array.IndexOf(_toastItems, item)] = Time.unscaledTime + ToastSeconds;
         }
 

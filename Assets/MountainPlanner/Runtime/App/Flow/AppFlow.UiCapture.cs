@@ -82,12 +82,17 @@ namespace MountainPlanner.App.Flow
             }
             if (Wanted("s1-title")) yield return EachLook(folder, "s1-title");
 
-            if (Wanted("s2-load-area") || Wanted("s2-manage-areas") || Wanted("s11-confirm") || Wanted("s2-rename") || Wanted("s2-free-space"))
+            if (Wanted("s2-load-area") || Wanted("s2-load-saves") || Wanted("s2-manage-areas") || Wanted("s11-confirm") || Wanted("s2-rename") || Wanted("s2-free-space"))
             {
                 _mode = LibraryMode.Load;
                 Controller.MyResorts();
                 yield return Wait(1.5f);   // the sizes are measured on a worker thread
                 if (Wanted("s2-load-area")) yield return EachLook(folder, "s2-load-area");
+                if (Wanted("s2-load-saves") && Screens.ShowSaves(Screens.SelectedRow))   // the first area's saves listed (task P3-04)
+                {
+                    yield return Wait(0.3f);
+                    yield return EachLook(folder, "s2-load-saves");
+                }
                 Controller.Escape();
                 _mode = LibraryMode.Manage;
                 Controller.MyResorts();
@@ -119,7 +124,7 @@ namespace MountainPlanner.App.Flow
             }
 
             // S8: every page (task P2-05); the first keeps its old name. Nothing chosen here is remembered.
-            string[] pages = { "s8-settings", "s8-settings-units", "s8-settings-graphics", "s8-settings-display", "s8-settings-controls", "s8-settings-data" };
+            string[] pages = { "s8-settings", "s8-settings-units", "s8-settings-gameplay", "s8-settings-graphics", "s8-settings-display", "s8-settings-controls", "s8-settings-data" };
             for (int page = 0; page < pages.Length; page++)
             {
                 if (!Wanted(pages[page])) continue;

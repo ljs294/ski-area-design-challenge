@@ -41,7 +41,7 @@ namespace MountainPlanner.App.Flow
             if (Screen.currentResolution.width < 1280) Note("WARNING: a small desktop (remote desktop?): sizes below may not mean much");
 
             Screens.ShowSettings();
-            Screens.Settings.ShowPage(3);   // Display
+            Screens.Settings.ShowPage(SettingsWindow.DisplayPage);
             yield return Wait(0.5f);
             var root = Screens.Document.rootVisualElement;
             var keepBar = root.Q("display-keep");

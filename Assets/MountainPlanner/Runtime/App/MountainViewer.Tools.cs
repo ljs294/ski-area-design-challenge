@@ -1,4 +1,5 @@
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Persistence.Saves;
 using MountainPlanner.Presentation;
 using MountainPlanner.Presentation.Design;
 using MountainPlanner.UI.Tools;
@@ -20,8 +21,11 @@ namespace MountainPlanner.App
         DesignOverlay _designOverlay;
         bool _pressOnMap;
 
-        /// <summary>The session's design (task 04 loads and saves it; until then each opening starts empty).</summary>
-        public DesignHistory Design => _design;
+        /// <summary>
+        /// The design the tools work on: the open save's (task P3-04, <see cref="OpenDesign.Current"/>), or, when the
+        /// game was started straight into an area without the app flow (-package, captures), a session-only one.
+        /// </summary>
+        public DesignHistory Design => OpenDesign.Current?.History ?? _design;
 
         /// <summary>The Toolbox's tool host (tests and captures).</summary>
         public ToolHost Tools => _tools;
@@ -29,26 +33,26 @@ namespace MountainPlanner.App
         /// <summary>The pending preview (tests).</summary>
         internal PendingPreview Preview => _preview;
 
-        /// <summary>
-        /// Task 04's hook: replaces the session's design (a loaded save). The armed tool closes and the overlay follows
-        /// the new history.
-        /// </summary>
-        public void SetDesign(DesignHistory design)
+        // The overlay draws whichever design is open; a save opened or closed under it swaps it (and closes the tool).
+        void FollowDesign()
         {
-            if (design == null || _resort == null || TitleMode) return;
+            var design = Design;
+            if (design == _drawn || _resort == null) return;
             _tools?.Close();
             _designOverlay?.Dispose();
-            _design = design;
-            _designOverlay = new DesignOverlay(_resort.Root.transform, _resort.Surface, HighlightMaterial, _design);
+            _drawn = design;
+            _designOverlay = new DesignOverlay(_resort.Root.transform, _resort.Surface, HighlightMaterial, design);
         }
+
+        DesignHistory _drawn;
 
         void StartTools()
         {
             if (Hud == null || _resort == null || TitleMode || _tools != null) return;
             _design = new DesignHistory(DesignDocument.Empty(DesignSeed(_resort.Manifest.PackageId)));
             _preview = new PendingPreview(_resort.Root.transform, "Tool preview", _resort.Surface, HighlightMaterial);
-            _designOverlay = new DesignOverlay(_resort.Root.transform, _resort.Surface, HighlightMaterial, _design);
-            _tools = new ToolHost(_ => new ToolContext(_design, _preview, _resort.Surface, _resort.Core), Hud.OpenWindow);
+            FollowDesign();
+            _tools = new ToolHost(_ => new ToolContext(Design, _preview, _resort.Surface, _resort.Core), Hud.OpenWindow);
             _tools.ActiveChanged += Hud.SetActiveTool;
             _tools.Notice += text => Hud.Toast(text);
             Hud.ToolChosen += id => _tools.Choose(id);
@@ -83,6 +87,7 @@ namespace MountainPlanner.App
             _tools = null;
             _preview = null;
             _designOverlay = null;
+            _drawn = null;
             KeyBindings.ClearClaims();
         }
 
@@ -113,13 +118,15 @@ namespace MountainPlanner.App
             // Undo and redo of committed work (P3-06 Q5); heights and trees follow once task 05 lands.
             if (KeyBindings.Pressed(keys, GameAction.Undo))
             {
-                string label = _design.UndoLabel;
-                Hud.Toast(_design.Undo() ? "Undid " + Lower(label) : "Nothing to undo");
+                var design = Design;
+                string label = design.UndoLabel;
+                Hud.Toast(design.Undo() ? "Undid " + Lower(label) : "Nothing to undo");
             }
             else if (KeyBindings.Pressed(keys, GameAction.Redo))
             {
-                string label = _design.RedoLabel;
-                Hud.Toast(_design.Redo() ? "Redid " + Lower(label) : "Nothing to redo");
+                var design = Design;
+                string label = design.RedoLabel;
+                Hud.Toast(design.Redo() ? "Redid " + Lower(label) : "Nothing to redo");
             }
         }
 
@@ -131,6 +138,7 @@ namespace MountainPlanner.App
         void TickTools()
         {
             if (_tools == null) return;
+            FollowDesign();
             var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
             // A tool lives in the open tray (P3-06 Q4: T or Esc closes it); photo mode and the title close it too.
             if (_tools.Armed && (_photo || TitleMode || Hud == null || !Hud.ToolboxOpen)) _tools.Close();

@@ -136,6 +136,7 @@ namespace MountainPlanner.UI
             HudPreferences.Changed -= ApplyOpacity;
             DisplayUnits.Changed -= OnUnitsChanged;
             ReleaseKeyCaptions();
+            ReleaseSave();
         }
 
         public void SetVisible(bool visible) => _root.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;

@@ -14,6 +14,7 @@ namespace MountainPlanner.Presentation
         Toolbox, Analysis, Pause, Speed1, Speed2, Speed3, Speed4, Units, HideUi, PhotoMode, PhotoCapture, DeveloperPanel,
         LayerSnow, LayerTrees, InfoContours, InfoSlope, InfoExposure, InfoDepth, InfoConditions,
         PhotoHideBar, PhotoEarlier, PhotoLater, PhotoDayBack, PhotoDayOn, PhotoBarKeys,
+        Save,
         // P3-06: the Toolbox. The tray's letters, then the keys a construction tool reads while it's armed.
         ToolNew, ToolEdit, ToolRemove,
         ToolNext, BreakGround, BrushNarrower, BrushWider, Erase, UndoStroke, TowerUp, TowerDown, DeleteSelected, ToolWindowKeys,
@@ -129,6 +130,8 @@ namespace MountainPlanner.Presentation
             new Info("Photo mode", "A day on", Context.Photo, new KeyChord(Key.RightBracket, KeyMods.Shift)),
             // P3-01: the arrows move the camera, so Tab hands the bar the keyboard; Esc gives it back.
             new Info("Photo mode", "Use the photo bar with the keys", Context.Photo, new KeyChord(Key.Tab)),
+            // P3-04: the design's save (the menu's Save game, the bar's save symbol).
+            new Info("Game", "Save", Context.Normal, new KeyChord(Key.S, KeyMods.Ctrl)),
             // P3-06: the tray's letters (the Lifts and Trails tabs), then the tools' own keys (TF-09, LF-09; SH-07).
             new Info("Toolbox", "New", Context.Tray, new KeyChord(Key.N)),
             new Info("Toolbox", "Edit", Context.Tray, new KeyChord(Key.E)),

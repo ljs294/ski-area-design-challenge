@@ -237,10 +237,9 @@ captures in both themes.
 - **Design coordinates.** A `PointMm` is the area's **local frame** (x east, z north, metres from `LocalFrame.Origin`)
   × 1,000. Absolute EPSG:6350 metres would overflow the document's ±1,000 km range. Convert with
   `Presentation.Design.DesignFrame`. The origin comes from the package (the site's centre), so a save needs nothing more.
-- **The session's design.**
-  - `MountainViewer.Design` is a `DesignHistory` that starts empty for each opening. Its seed is the FNV-1a hash of
-    the package id.
-  - **Task 04** loads a save with `MountainViewer.SetDesign(history)`.
+- **The design.** The tools submit to `MountainViewer.Design`, which is P3-04's `OpenDesign.Current.History` (the open
+  save). Only a game started straight into an area without the app flow (`-package`, captures) has a session-only
+  history instead. The placeholder overlay follows whichever is open.
 - **Adding a tool (tasks 08–10).**
   - Implement `UI.Tools.IDesignTool`, then add one `ToolCatalog` line. The tray tile, its letter and the hint follow
     from that.

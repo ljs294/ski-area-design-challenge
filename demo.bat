@@ -180,6 +180,9 @@ echo   Phase 3, task 03: the design document, commands and undo (no Unity needed
 echo     61 Run the design document tests, then print a walkthrough: a lift and a trail, split, join, undo, redo,
 echo        a stale and a bad command rejected, the derived network and the document bytes.
 echo.
+echo   Phase 3, task 04: the save file (rebuilds the game if needed; a scratch library, the network off)
+echo     62 The save tests, then the game: F1 Add sample design, Ctrl+S names a save, Exit asks to save, Continue
+echo        reopens it, Load Area lists the saves; then a second run kills the game mid-save to show the last good save.
 echo   Phase 3, task 06: the Toolbox and placement (rebuilds the game, about 2 minutes; close the Unity editor first)
 echo     64 The game with the Toolbox's New lift and New trail: T, N on Lifts or Trails, click the mountain, the
 echo        tool window's steps and review, Break ground, Ctrl+Z / Ctrl+Y, and every key in Settings ^> Controls.
@@ -262,6 +265,7 @@ if /i "%CHOICE%"=="58" goto release
 if /i "%CHOICE%"=="59" goto testerkit
 if /i "%CHOICE%"=="60" goto carryover
 if /i "%CHOICE%"=="61" goto designdoc
+if /i "%CHOICE%"=="62" goto savefile
 if /i "%CHOICE%"=="64" goto toolbox
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
@@ -432,6 +436,31 @@ chcp 65001 >nul
 dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~MountainPlanner.Tests.Design&FullyQualifiedName!~DesignDemoTests" <nul
 if errorlevel 1 goto done
 dotnet test "%~dp0tools\domain-tests\Tests" --no-build --filter "FullyQualifiedName~DesignDemoTests" --logger "console;verbosity=normal" <nul | findstr /v /c:"Test run for" /c:"A total" /c:"NUnit" /c:"Running selected"
+goto done
+
+:savefile
+rem Task P3-04: the engine-free save tests, then the game on its own scratch library (saves in SAVES\Saves).
+chcp 65001 >nul
+dotnet test "%~dp0tools\domain-tests\Tests" --filter "FullyQualifiedName~SaveFileTests|FullyQualifiedName~OpenDesignTests" <nul
+chcp %OLDCP% >nul
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "SAVES=%LOCALAPPDATA%\SkiAreaDesignChallenge-saves"
+if exist "%SAVES%" rmdir /s /q "%SAVES%"
+echo.
+echo First run: open the demo (Enter). F1 shows the developer panel: Add sample design adds a lift and a planned trail;
+echo the bar's save symbol turns white. Ctrl+S asks for a name; type one and press Enter ("Saved ..." at the top).
+echo Add another sample, then the menu's Exit to title: "Save before leaving?" - Save and leave. Continue now names the
+echo save; Enter reopens it with both lifts. Back on the title, Load Area: the area says "1 save"; the right arrow lists it
+echo with New design; F2 renames it, Delete asks before removing it. Settings ^> Gameplay has Autosave (every 10 min).
+echo Quit when done.
+start "" /wait "%GAME%" -data "%SAVES%" -offline
+echo.
+echo Second run, the crash: Continue, F1 Add sample design, then Ctrl+S. The game is killed part way into the save.
+start "" /wait "%GAME%" -data "%SAVES%" -offline -crashsave
+echo Third run: Continue opens the last good save (without the lift added before the crash), and Load Area still lists it.
+start "" /wait "%GAME%" -data "%SAVES%" -offline
+dir /b /s "%SAVES%\Saves"
 goto done
 
 :formattests

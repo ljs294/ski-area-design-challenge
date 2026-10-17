@@ -81,7 +81,7 @@ view's (H, Space). The camera keeps WASD, the arrows, Q/E, R/F, the zoom keys, C
 | U | Units: feet or metres, every figure together (imperial by default; also in the menu; remembered). Built in task 12b.2 |
 | Space | Pause: the clock runs the sun (built in P2-02; in photo mode Space captures instead) |
 | 1–4 | Game speed: 1, 3, 10 or 30 game minutes a second; choosing one starts the clock (built in P2-02) |
-| Ctrl+S | Save (comes with the game save) |
+| Ctrl+S | Save the design (task P3-04): the first save asks for a name, then saves to it; rebindable (`GameAction.Save`) |
 | Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) | Undo / redo a change to the design, when no tool is armed (P3-06) |
 | Inside the open Toolbox tray | Tool letters: N (New) / E (Edit) / X (Remove) on the Lifts and Trails tabs (P3-06); G / W / P and L / R / K come with their tools |
 
