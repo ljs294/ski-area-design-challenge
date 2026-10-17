@@ -429,6 +429,7 @@ body.solo .frame { border-radius: 0; }
 .hud .lgauge { padding: 4px 14px 0; }
 .hud .ldet { padding: 0 12px 4px; font: 500 11px 'Overpass Mono', monospace; color: var(--soft); line-height: 1.4; }
 .hud .lkeys { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 3px 12px 7px; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .go .kbd-go { margin-left: auto; border-color: rgba(255,255,255,.35); background: transparent; color: inherit; font-size: 10.5px; height: 19px; }
 .hud .lkeys .kbd { margin: 0 3px 0 0; height: 19px; min-width: 19px; padding: 0 5px; font-size: 10.5px; }
 .hud .lbtns { display: flex; gap: 6px; padding: 2px 12px 6px; }
 .hud .lbtns .ghost { flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; }
@@ -673,7 +674,7 @@ body.solo .frame { border-radius: 0; }
     { id: 'controls', title: 'Controls', note: 'In the game every key below can be changed: click it, then press the new one.', rows: [
       { k: 'invertZoom', label: 'Invert scroll zoom', desc: 'Scroll down to zoom in.', seg: ONOFF },
       { k: 'zoomSpeed', label: 'Zoom speed', seg: [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']] },
-    ], keys: [['Toolbox', ['T']], ['Analysis', ['Tab']], ['Pause', ['Space']], ['Speed', ['1–4']], ['Zoom', ['+', '−']], ['Reset view', ['Home']], ['Units', ['U']], ['Save', ['Ctrl', 'S']], ['Snow, trees', ['Shift', '1 · 3']], ['Info layers', ['Shift', '6–0']], ['Hide the UI', ['H']], ['Finish a line', ['Enter']], ['Tower height', ['Page Up', 'Page Down']], ['Remove a tower', ['Delete']], ['Brush width', ['[', ']']], ['Undo a stroke', ['Ctrl', 'Z']], ['Back out', ['Esc']]] },
+    ], keys: [['Toolbox', ['T']], ['Analysis', ['Tab']], ['Pause', ['Space']], ['Speed', ['1–4']], ['Zoom', ['+', '−']], ['Reset view', ['Home']], ['Units', ['U']], ['Save', ['Ctrl', 'S']], ['Snow, trees', ['Shift', '1 · 3']], ['Info layers', ['Shift', '6–0']], ['Hide the UI', ['H']], ['Finish a line', ['Enter']], ['Tower height', ['Page Up', 'Page Down']], ['Remove a tower', ['Delete']], ['Brush width', ['[', ']']], ['Undo a stroke', ['Ctrl', 'Z']], ['Break ground', ['Ctrl', 'Enter']], ['Undo', ['Ctrl', 'Z']], ['Redo', ['Ctrl', 'Y']], ['Back out', ['Esc']]] },
     { id: 'data', title: 'Data', rows: [
       { k: 'library', label: 'Library folder', desc: 'C:\\Users\\you\\AppData\\Local\\SkiAreaDesignChallenge', btn: ['Open', 'Change…'] },
       { k: 'disk', label: 'Disk use', desc: "3 areas: 1.2 GB, terrain caches 840 MB, older versions' caches 310 MB.", btn: ['Free 310 MB'] },
@@ -811,6 +812,8 @@ body.solo .frame { border-radius: 0; }
 
   function chooseTool(id) {
     if (S.tool === id) { closeTool(); return; }
+    // CF-01: another tool cancels the current one at once; say so, so work is never dropped silently (P3-06 Q8)
+    if (S.draft && (S.draft.kind === 'lift' ? S.draft.a : S.draft.kind === 'trail' ? S.draft.strokes.length : 0)) log(`<span>${toolById(S.tool).name} discarded</span>`, '#6f675e', true);
     S.tool = id; S.sel = null; S.removeArmed = null; S.sketch = false;
     const t = toolById(id);
     if (t.kind === 'lift') S.draft = newLiftDraft();
@@ -1569,7 +1572,7 @@ body.solo .frame { border-radius: 0; }
   }
   function liftCtx() {
     const d = S.draft, cur = LIFT_STEPS.findIndex(([k]) => k === d.step), ev = d.g ? liftEval(d) : null;
-    let h = `<div class="lsteps">${LIFT_STEPS.map(([k, v], i) => { const can = d.g && (k === 'towers' || k === 'review'); return `<span class="${i === cur ? 'now' : i < cur || (d.g && i < 2) ? 'done' : ''}"${can && i !== cur ? ` data-act="lstep" data-v="${k}"` : ''}><b>${i < cur || (d.g && i < 2 && i !== cur) ? '✓' : i + 1}</b>${v}</span>`; }).join('')}</div><div class="rule"></div>`;
+    let h = `<div class="lsteps" data-ui="toolwin-steps">${LIFT_STEPS.map(([k, v], i) => { const can = d.g && (k === 'towers' || k === 'review'); return `<span class="${i === cur ? 'now' : i < cur || (d.g && i < 2) ? 'done' : ''}"${can && i !== cur ? ` data-act="lstep" data-v="${k}"` : ''}><b>${i < cur || (d.g && i < 2 && i !== cur) ? '✓' : i + 1}</b>${v}</span>`; }).join('')}</div><div class="rule"></div>`;
     const hint = (t) => `<div class="hint">${t}</div>`;
     if (d.step === 'first') h += hint('The bottom terminal follows the pointer, green where it can sit. <b>Click</b> to anchor it: the dot is its bullwheel.');
     else if (d.step === 'other') h += hint(`<b>Click</b> far up the mountain to place the top terminal. That fixes the line and turns the bottom terminal to face it.${d.mode === 'auto' ? ' The towers go in as you aim.' : ' Then you place the towers, from the bottom up.'}`) + (d.aim && d.aim.msg ? `<div class="lmsg err">${esc(d.aim.msg)}</div>` : '');
@@ -1586,7 +1589,7 @@ body.solo .frame { border-radius: 0; }
       else h += `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(slope)}</b> slope · ${lenFt(d.len)} across`, 'LF-06')}${kv('Rise', `<b>${lenFt(rise)}</b> · ${Math.round(rise / d.len * 100)}%`)}${kv('Ride', `${fmtTime(slope / RULE.fpm * 60)} at ${speedTxt(RULE.fpm / 196.85)}`, 'LC-04: slope length over 450 ft/min')}${kv('Capacity', `<b>${liftCap(T).toLocaleString('en-US')}</b> an hour`, 'LC-03')}
         ${kv('Towers', ev.towers.length ? `<b>${ev.towers.length}</b> · ${Math.min(...hs) === Math.max(...hs) ? `all ${lenFt(hs[0])}` : `${lenFt(Math.min(...hs))}–${lenFt(Math.max(...hs))}`}` : dash, 'TW-02: 25–100 ft in 5 ft steps')}${ev.towers.length ? kv('Heads', Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(' · '), 'TW-04') : ''}
         ${kv('Lowest chairs', ev.lowest ? `<b style="color:${ev.lowest.min < RULE.clear ? 'var(--neg)' : ''}">${lenFt(Math.max(0, Math.floor(ev.lowest.min)))}</b> over the ground` : dash, 'TW-01: 15 ft at least, outside the load and unload zones')}
-        ${kv('Tension', `<b>${Math.round(ev.tension.lo / ev.tension.rated * 100)}–${Math.round(ev.tension.hi / ev.tension.rated * 100)}%</b> of the rating`, 'RP-06')}${kv('Cost estimate', `${money(liftCost(d, ev))}`)}</dl>`;
+        ${kv('Tension', `<b>${Math.round(ev.tension.lo / ev.tension.rated * 100)}–${Math.round(ev.tension.hi / ev.tension.rated * 100)}%</b> of the rating`, 'RP-06')}${netRow()}</dl>`;
       const msgs = ev.errors.map((e) => `<div class="lmsg err" title="${e.rule}">✕ ${esc(e.text)}</div>`).concat(ev.warnings.map((w) => `<div class="lmsg warn">! ${esc(w)}</div>`));
       if (d.autoMsg) msgs.unshift(`<div class="lmsg err" title="TW-12">✕ ${esc(d.autoMsg)}</div>`);
       if (msgs.length) h += `<div class="rule"></div><div style="padding:4px 0">${msgs.slice(0, card ? 1 : 3).join('')}${msgs.length > (card ? 1 : 3) ? `<div class="lmsg" style="color:var(--soft)">and ${msgs.length - (card ? 1 : 3)} more</div>` : ''}</div>`;
@@ -1595,8 +1598,8 @@ body.solo .frame { border-radius: 0; }
       h += `<div class="lbtns"><span class="ghost" data-act="lreplace" title="LF-06, TW-12: automatic placement on the whole line">${d.armReplace ? 'Click again: re-place your towers' : 'Re-place towers'}</span></div>`;
     }
     if (d.dropAsk) h = `<div class="lmsg warn" style="padding-top:8px">${d.dropAsk} tower${d.dropAsk > 1 ? 's' : ''} stand past the top terminal now.</div><div class="lbtns"><span class="ghost" data-act="ldrop">Drop ${d.dropAsk > 1 ? 'them' : 'it'}</span><span class="ghost" data-act="lkeep">Put the terminal back</span></div>` + h;
-    const ready = d.step === 'review' && ev && !ev.errors.length && !d.autoMsg && !d.dropAsk, cost = ev ? short(liftCost(d, ev)).replace('+', '') : '';
-    h += `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}" title="LF-06, CF: Confirm"><span>Break ground</span><span class="mono">${d.step === 'review' ? cost : ''}</span></div><div class="ghost${d.step === 'review' ? '' : ' dis'}" data-act="${d.step === 'review' ? 'plan' : ''}">Save plan</div></div>`;
+    const ready = d.step === 'review' && ev && !ev.errors.length && !d.autoMsg && !d.dropAsk;
+    h += reviewActs(ready, d.step === 'review', 'LF-06, CF-06');
     return h;
   }
   function liftPanel() {
@@ -1608,7 +1611,7 @@ body.solo .frame { border-radius: 0; }
         <div class="lrow"><span>Towers</span>${seg('lmode', d.mode, [['auto', d.armAuto ? 'Again: re-place' : 'Automatic'], ['hand', 'By hand']], 'LF-01, TW-12: automatic towers, or yours; it can change until you break ground')}</div>
         <div class="lrow"><span>Stand</span>${seg('lstand', d.stance, [['plumb', 'Plumb'], ['leaned', 'Leaned']], 'TW-14: plumb, or leaned square to the rope (15° at most)')}</div>
         <div class="lnote" title="LC-02, LC-03: capacity is shown, not chosen"><b>${liftCap(T).toLocaleString('en-US')}</b> an hour · ${speedTxt(RULE.fpm / 196.85)} · chairs ${lenFt(T.spacing)} apart</div>
-      </div><div class="rule"></div><div id="liftctx">${liftCtx()}</div>`, 344);
+      </div><div class="rule"></div><div id="liftctx">${liftCtx()}</div>`, 344, 'toolwin');
   }
   // Redraw only what the pointer changes: the mountain, the strip and the menu's lower part.
   function refreshLift() {
@@ -1933,7 +1936,7 @@ body.solo .frame { border-radius: 0; }
   const TRAIL_STEPS = [['paint', 'Paint'], ['ends', 'Head and tail'], ['review', 'Review']];
   function trailCtx() {
     const d = S.draft, cur = TRAIL_STEPS.findIndex(([k]) => k === d.step), seps = d.patches ? d.patches.length : 0;
-    let h = `<div class="lsteps tsteps">${TRAIL_STEPS.map(([k, v], i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}"${i < cur ? ` data-act="tstep" data-v="${k}"` : ''}><b>${i < cur ? '✓' : i + 1}</b>${v}</span>`).join('')}</div><div class="rule"></div>`;
+    let h = `<div class="lsteps tsteps" data-ui="toolwin-steps">${TRAIL_STEPS.map(([k, v], i) => `<span class="${i === cur ? 'now' : i < cur ? 'done' : ''}"${i < cur ? ` data-act="tstep" data-v="${k}"` : ''}><b>${i < cur ? '✓' : i + 1}</b>${v}</span>`).join('')}</div><div class="rule"></div>`;
     const kv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`, rate = (v) => { const b = bandOf(v); return `<span class="word">${RATING[b[1]]}${b[2]}</span> <span style="color:var(--soft)">${Math.round(v)}%</span>`; };
     if (d.step === 'paint') {
       h += d.est ? `<dl class="kv">${kv('Area', IMP() ? `<b>${d.est.acres.toFixed(1)}</b> acres` : `<b>${(d.est.acres * 0.404686).toFixed(1)}</b> ha`)}${kv('Estimated rating', rate(d.est.value), 'TD-06: on natural ground, from every cell: (3 × the mean + the 90th percentile) / 4')}</dl>`
@@ -1948,7 +1951,7 @@ body.solo .frame { border-radius: 0; }
       const r = d.res;
       h += `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(r.len)}</b>`, 'TR-03: along the centreline')}${kv('Vertical', `<b>${lenFt(r.drop)}</b>`)}${kv('Rating', rate(r.value), 'TD-02, TD-03')}${kv('Grade', `mean <b>${Math.round(r.mean)}%</b> · steepest <b>${Math.round(r.max)}%</b>`, 'TD-01, TD-02: the steepest 75 ft')}
         ${d.graded ? kv('Cut · fill', `${yd3(r.cut)} · ${yd3(r.fill)}`, 'GR-08') + kv('Balance', `${r.cut >= r.fill ? '' : '−'}${yd3(Math.abs(r.cut - r.fill))}`, 'GR-08: cut − fill') + kv('Too steep to grade', r.ungraded ? `<b style="color:var(--neg)">${lenFt(r.ungraded)}</b>` : 'none', 'GR-07') : kv('Grading', 'natural, none', 'TF-06')}
-        ${kv('Trees cleared', `about <b>${r.trees.toLocaleString('en-US')}</b>`, 'CL-01, CL-02')}${kv('Clearing estimate', money(trailCost(r)), 'GR-08: grading has no cost in Phase 3')}</dl>`;
+        ${kv('Trees cleared', `about <b>${r.trees.toLocaleString('en-US')}</b>`, 'CL-01, CL-02')}${netRow()}</dl>`;
       const warn = [];
       if (d.graded && r.ungraded) warn.push(`${lenFt(r.ungraded)} too steep to bench stays natural ground (GR-07)`);
       if (d.graded && Math.abs(r.cut - r.fill) > 0.3 * Math.max(r.cut, r.fill)) warn.push(`Cut and fill don't balance: ${yd3(Math.abs(r.cut - r.fill))} more ${r.cut > r.fill ? 'cut' : 'fill'}`);
@@ -1957,7 +1960,7 @@ body.solo .frame { border-radius: 0; }
     const can = d.step === 'paint' ? d.est && seps === 1 : d.step === 'ends' ? !!d.res : false;
     if (d.step !== 'review') h += `<div class="lbtns"><span class="ghost${can ? '' : ' dis'}" data-act="${can ? 'tnext' : ''}">Next<span class="kbd" style="margin-left:8px">Enter</span></span></div>`;
     const ready = d.step === 'review';
-    h += `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}" title="TF-05, CF-06"><span>Break ground</span><span class="mono">${ready ? short(trailCost(d.res)).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`;
+    h += reviewActs(ready, ready, 'TF-05, CF-06');
     return h;
   }
   function trailPanel() {
@@ -1968,7 +1971,7 @@ body.solo .frame { border-radius: 0; }
         <div class="lrow"><span>Brush</span><div class="rng-wrap" style="min-width:0" title="TR-01: 25–400 ft, in 5 ft steps; one trail can mix widths"><input type="range" class="rng" min="${TRULE.wMin}" max="${TRULE.wMax}" step="${TRULE.wStep}" value="${d.width}" data-trail="w" style="--p:${pct}%" aria-label="Brush width"><span class="rv" id="trailw" style="width:52px">${lenFt(d.width)}</span></div></div>
         <div class="lrow"><span>Grading</span><div class="seg" title="TR-06, TF-06: Graded benches the trail; Natural keeps the ground">${[['g', 'Graded'], ['n', 'Natural']].map(([v, l]) => `<span class="${(d.graded ? 'g' : 'n') === v ? 'on' : ''}" data-act="tgrade" data-v="${v}">${l}</span>`).join('')}</div></div>
         <div class="lnote" title="TR-06: Glades and Zones, and Thin or no clearing, come later">Run · trees cleared</div>
-      </div><div class="rule"></div><div id="trailctx">${trailCtx()}</div>`, 344);
+      </div><div class="rule"></div><div id="trailctx">${trailCtx()}</div>`, 344, 'toolwin');
   }
   function refreshTrail() {
     drawWorld();
@@ -2008,8 +2011,15 @@ body.solo .frame { border-radius: 0; }
   }
 
   // ---------- panels ----------
-  function panelShell(head, body, width = 344) {
-    return `<div class="pn" id="pn" style="left:${S.panelPos.x}px;top:${S.panelPos.y}px;width:${width}px"><div class="hd" data-drag="1">${head}<span class="x" data-act="close" title="Close (Esc)">✕</span></div>${body}</div>`;
+  // The tool window (P3-06): one window per construction tool; its last step is the review, so the window never jumps.
+  // There's no money on Break ground in Phase 3 (no economy yet, P3-02). The Network row is task 10's NW-12 warnings:
+  // until then the game shows a greyed dash there, as it does for any figure with no source yet.
+  const netRow = () => `<dt title="NW-12: No way down, No lift serves this, Leads nowhere (task 10)">Network</dt><dd data-ui="review-network">${dash}</dd>`;
+  function reviewActs(ready, plan, rules) {
+    return `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}" data-ui="review-go" title="${rules}"><span>Break ground</span><span class="kbd kbd-go">Ctrl Enter</span></div><div class="ghost${plan ? '' : ' dis'}" data-act="${plan ? 'plan' : ''}" data-ui="review-plan">Save plan</div></div>`;
+  }
+  function panelShell(head, body, width = 344, ui = 'panel') {
+    return `<div class="pn" id="pn" data-ui="${ui}" style="left:${S.panelPos.x}px;top:${S.panelPos.y}px;width:${width}px"><div class="hd" data-drag="1" data-ui="${ui}-head">${head}<span class="x" data-act="close" data-ui="${ui}-x" title="Close (Esc)">✕</span></div>${body}</div>`;
   }
   const dash = '<span style="color:var(--ph)">—</span>';
   const RATING = { green: '<svg width="11" height="11" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4.3" fill="#3fae6a"/></svg>', blue: '<svg width="11" height="11" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="#4d8ad6"/></svg>', black: '<svg width="11" height="11" viewBox="0 0 10 10"><path d="M5 .5L9.5 5 5 9.5.5 5z" fill="currentColor"/></svg>', double: '<svg width="16" height="11" viewBox="0 0 16 10"><path d="M4.5.5L8 5 4.5 9.5 1 5zM11.5.5L15 5l-3.5 4.5L8 5z" fill="currentColor"/></svg>' };
@@ -2833,6 +2843,8 @@ body.solo .frame { border-radius: 0; }
       return;
     }
     const k = e.key.toLowerCase();
+    // Ctrl+Enter: Break ground from the review step (P3-06), when the window's button is live
+    if ((e.ctrlKey || e.metaKey) && k === 'enter') { const go = document.querySelector('[data-ui="review-go"]:not(.dis)'); if (go) { e.preventDefault(); act('build'); } return; }
     if ((e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); if (!S.p2) act('savegame'); return; }
     if ((e.ctrlKey || e.metaKey) && k === 'z' && S.draft && S.draft.kind === 'trail' && S.draft.step === 'paint') { e.preventDefault(); undoStroke(S.draft); render(); return; }   // TF-02
     if (e.ctrlKey || e.metaKey || e.altKey) return;
