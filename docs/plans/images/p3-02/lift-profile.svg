@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 340" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <title>RP and TW: a lift profile with support, hold-down and breakover towers and the 15 ft chair clearance</title>
+  <rect width="760" height="340" fill="#ffffff"/>
+  <!-- ground: flat, a hollow, then a steep rise to a crest, then easy to the top -->
+  <path d="M40,290 L200,282 Q260,280 300,250 L420,150 Q470,118 520,112 L720,70" fill="none" stroke="#8a6d3b" stroke-width="2"/>
+  <!-- 15 ft clearance line (offset above ground) -->
+  <path d="M40,270 L200,262 Q260,260 300,230 L420,130 Q470,98 520,92 L720,50" fill="none" stroke="#999" stroke-dasharray="6 4"/>
+  <text x="560" y="96" fill="#777">15 ft over bare ground (TW-01)</text>
+  <!-- terminals -->
+  <rect x="34" y="262" width="22" height="28" fill="#444"/>
+  <text x="30" y="308" fill="#333">bottom terminal</text>
+  <rect x="706" y="44" width="22" height="26" fill="#444"/>
+  <text x="640" y="34" fill="#333">top terminal</text>
+  <!-- towers: x, ground y, head y -->
+  <g stroke="#1f4e79" stroke-width="4">
+    <line x1="150" y1="285" x2="150" y2="240"/>
+    <line x1="255" y1="278" x2="255" y2="232"/>
+    <line x1="300" y1="250" x2="300" y2="200"/>
+    <line x1="470" y1="120" x2="470" y2="78"/>
+    <line x1="520" y1="112" x2="520" y2="70"/>
+  </g>
+  <!-- rope (loaded side) through the heads -->
+  <path d="M56,262 Q100,250 150,240 Q205,240 255,232 L300,200 Q390,128 470,78 Q495,72 520,70 Q620,62 706,52" fill="none" stroke="#d9822b" stroke-width="2.5"/>
+  <text x="140" y="228" fill="#1f4e79">s4</text>
+  <text x="232" y="222" fill="#1f4e79">d8</text>
+  <text x="304" y="194" fill="#1f4e79">d8</text>
+  <text x="446" y="70" fill="#1f4e79">b8</text>
+  <text x="526" y="62" fill="#1f4e79">b8</text>
+  <text x="180" y="330" fill="#333">Before the steep rise the rope pulls up: two hold-downs share the bend (TW-06).</text>
+  <text x="380" y="168" fill="#333">On the crest it presses down: two breakovers.</text>
+  <text x="40" y="20" fill="#333">Rope: catenary spans, slopes matching each sheave's tangent (RP-02); tension T₀ + w·h (RP-03).</text>
+</svg>
