@@ -448,6 +448,23 @@ body.solo .frame { border-radius: 0; }
 .hud .lsteps.tsteps { grid-template-columns: repeat(3, auto); }
 .hud .field.tname { height: 28px; padding: 0 8px; font: 700 13px 'DotFix', 'Overpass'; }
 /* Analysis › Lifts and Trails: the filter bar, sortable headers and rows that light their lift or trail; the focus card */
+.hud .atools { display: flex; align-items: center; gap: 6px; padding: 8px 12px 2px; font: 600 12px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .atb { padding: 3px 9px 2px; border: 1px solid var(--hair2); border-radius: 4px; color: var(--muted); }
+.hud .atb:hover { color: var(--strong); border-color: var(--ghost-hover); }
+.hud .atb.on { background: var(--chip); color: var(--strong); }
+.hud .tbl .r.th .hc { position: relative; display: flex; align-items: center; gap: 3px; }
+.hud .tbl .r.th .hc.n { justify-content: flex-end; }
+.hud .tbl .r.th .dd { display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid var(--hair2); border-radius: 3px; font-size: 9px; color: var(--faint); cursor: pointer; }
+.hud .tbl .r.th .dd:hover { color: var(--strong); border-color: var(--ghost-hover); }
+.hud .tbl .r.th .dd.act { color: var(--strong); border-color: var(--muted); }
+.hud .amenu { position: absolute; top: calc(100% + 3px); left: 0; min-width: 190px; background: var(--panel); border: 1px solid var(--hair); border-radius: 5px; box-shadow: 0 10px 26px var(--shadow); padding: 4px 0; z-index: 9; text-align: left; }
+.hud .amenu.rt { left: auto; right: 0; }
+.hud .amenu .mi { display: flex; align-items: center; gap: 8px; padding: 5px 10px; font: 600 12px 'DotFix', 'Overpass'; color: var(--text); white-space: nowrap; }
+.hud .amenu .mi:hover { background: var(--hover); }
+.hud .amenu .mi.dis { color: var(--faint); }
+.hud .amenu .mi .r { margin-left: auto; font: 500 11px 'Overpass Mono', monospace; color: var(--soft); }
+.hud .amenu .sepl { height: 1px; background: var(--hair); margin: 4px 0; }
+.hud .amenu .chk { width: 13px; height: 13px; }
 .hud .afilt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 7px 12px 0; font: 700 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
 .hud .afilt > span { min-width: 52px; }
 .hud .afilt .seg.mini span { padding: 3px 8px 2px; font-size: 11px; gap: 0; }
@@ -846,6 +863,7 @@ body.solo .frame { border-radius: 0; }
   const metres = (e) => Math.round(e).toLocaleString('en-US');
 
   // ---------- drawing the world ----------
+  const liftRed = '#c8302a';   // built lifts are red on the map, as trail maps draw them (owner, 2026-10-16)
   const white = '#fbf8f2', ink = '#1f1c19', flag = '#ff6a1f', graphite = 'rgba(27,24,21,.92)', selC = '#ffd34d';
   const runColour = { green: '#1f8a4c', blue: '#2f6bb0', black: '#1f1c19', double: '#1f1c19' };
   const P = (p) => ({ x: p[0], y: p[1] });
@@ -867,17 +885,17 @@ body.solo .frame { border-radius: 0; }
   function drawLift(l, o = {}) {
     const A = P(l.a), B = P(l.b), len = Math.hypot(B.x - A.x, B.y - A.y) || 1, ux = (B.x - A.x) / len, uy = (B.y - A.y) / len, planned = !l.built;
     let s = '';
-    if (o.hi) s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${selC}" stroke-width="9" opacity=".55" stroke-linecap="round"/>`;
+    if (o.hi) s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${white}" stroke-width="7.5" opacity=".95" stroke-linecap="round"/>`;
     s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${white}" stroke-width="3.8" opacity=".8"/>`;
     if (planned) s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4"/>`;
     else {
-      s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${ink}" stroke-width="1.5"/>`;
+      s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${liftRed}" stroke-width="2"/>`;
       // towers where they were placed (Phase 3 lifts), or evenly spaced ticks for the placeholder lifts
       const ticks = l.towers ? l.towers.map(P) : []; if (!l.towers) { const n = Math.round(len / 16); for (let k = 1; k < n; k++) ticks.push(lerp(A, B, k / n)); }
-      for (const p of ticks) s += `<line x1="${f1(p.x - uy * 3.5)}" y1="${f1(p.y + ux * 3.5)}" x2="${f1(p.x + uy * 3.5)}" y2="${f1(p.y - ux * 3.5)}" stroke="${ink}" stroke-width="1.3"/>`;
+      for (const p of ticks) s += `<line x1="${f1(p.x - uy * 3.5)}" y1="${f1(p.y + ux * 3.5)}" x2="${f1(p.x + uy * 3.5)}" y2="${f1(p.y - ux * 3.5)}" stroke="${liftRed}" stroke-width="1.4"/>`;
     }
     // terminals as a trail map draws them: a dot at each end
-    for (const p of [A, B]) s += planned ? `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.6" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.2" fill="${ink}" stroke="${white}" stroke-width="1.4"/>`;
+    for (const p of [A, B]) s += planned ? `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.6" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.2" fill="${liftRed}" stroke="${white}" stroke-width="1.4"/>`;
     if (S.layers.labels && !o.noTag) {
       const tx = ux > 0 ? A.x - (l.name.length * 7.4 + 28) - 8 : A.x + 10;
       s += tagBox(tx, A.y - 9, liftPlate(tx, A.y - 9, l.n, planned), l.name, planned ? flag : '#4a443e', planned ? '3 2' : '');
@@ -897,7 +915,7 @@ body.solo .frame { border-radius: 0; }
   function drawTrail(t, o = {}) {
     const d = smooth(t.pts); if (!d) return '';
     let s = '';
-    if (o.hi) s += `<path d="${d}" fill="none" stroke="${selC}" stroke-width="10" opacity=".55" stroke-linecap="round"/>`;
+    if (o.hi) s += `<path d="${d}" fill="none" stroke="${white}" stroke-width="8" opacity=".95" stroke-linecap="round"/>`;
     s += `<path d="${d}" fill="none" stroke="${white}" stroke-width="4.4" stroke-linecap="round" opacity=".75"/>`;
     s += t.built ? `<path d="${d}" fill="none" stroke="${runColour[t.diff]}" stroke-width="2.2" stroke-linecap="round"/>`
       : `<path d="${d}" fill="none" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4" stroke-linecap="round"/>`;
@@ -2045,10 +2063,14 @@ body.solo .frame { border-radius: 0; }
   }
   // ---------- Analysis › Lifts and Trails: filters, sortable columns, and rows that light their lift or trail ----------
   // Hovering a row glows it on the mountain; clicking it (or the thing on the map) opens its focus card.
-  const LEN_BINS = [['any', 'Any', 0, Infinity], ['s', 'Under 2,000', 0, 2000], ['m', '2,000–5,000', 2000, 5000], ['l', 'Over 5,000', 5000, Infinity]];
-  const VERT_BINS = [['any', 'Any', 0, Infinity], ['s', 'Under 500', 0, 500], ['m', '500–1,500', 500, 1500], ['l', 'Over 1,500', 1500, Infinity]];
-  const binLabel = (b) => (b[0] === 'any' ? 'Any' : b[2] === 0 ? `Under ${lenFt(b[3])}` : b[3] === Infinity ? `Over ${lenFt(b[2])}` : `${lenFt(b[2]).replace(/ (ft|m)$/, '')}–${lenFt(b[3])}`);
-  S.af = { lifts: { status: 'all', len: 'any', vert: 'any', sort: null }, trails: { status: 'all', len: 'any', vert: 'any', rating: 'all', sort: null } };
+  const LEN_BINS = [['s', 'Under 2,000', 0, 2000], ['m', '2,000–5,000', 2000, 5000], ['l', 'Over 5,000', 5000, Infinity]];
+  const VERT_BINS = [['s', 'Under 500', 0, 500], ['m', '500–1,500', 500, 1500], ['l', 'Over 1,500', 1500, Infinity]];
+  const binLabel = (b) => (b[2] === 0 ? `Under ${lenFt(b[3])}` : b[3] === Infinity ? `Over ${lenFt(b[2])}` : `${lenFt(b[2]).replace(/ (ft|m)$/, '')}–${lenFt(b[3])}`);
+  const STATUS_OPTS = [['open', 'Open'], ['closed', 'Closed'], ['planned', 'Planned']];
+  // Filters as a spreadsheet does them: the Filter button puts a ▾ on each column; its menu sorts, and ticks the values
+  // to show. hide holds the values unticked.
+  S.af = { lifts: { on: false, hide: { status: [], len: [], vert: [] }, sort: null }, trails: { on: false, hide: { status: [], len: [], vert: [], rating: [] }, sort: null } };
+  S.afMenu = null;
   S.rowHover = null; S.focus = null;
   // One record per drawn lift or trail: what the rows, the filters and the focus card read.
   function liftRec(l, open) {
@@ -2062,27 +2084,33 @@ body.solo .frame { border-radius: 0; }
   const STATUS_LAMP = { open: ['Open', '#5fbf6a'], closed: ['Closed', '#d4513f'], planned: ['Planned', '#ff6a1f'] };
   function listTab(tab, open) {
     const f = S.af[tab], lifts = tab === 'lifts';
-    let recs = lifts ? S.lifts.map((l) => liftRec(l, open)) : S.trails.map((t, i) => trailRec(t, open, i));
-    const inBin = (bins, k, v) => { const b = bins.find((x) => x[0] === k); return v >= b[2] && v < b[3]; };
-    recs = recs.filter((r) => (f.status === 'all' || r.status === f.status) && inBin(LEN_BINS, f.len, r.len) && inBin(VERT_BINS, f.vert, r.vert) && (lifts || f.rating === 'all' || r.rating === f.rating));
+    const all = lifts ? S.lifts.map((l) => liftRec(l, open)) : S.trails.map((t, i) => trailRec(t, open, i));
+    const binOf = (bins, v) => bins.find((b) => v >= b[2] && v < b[3])[0];
+    const valOf = (r, k) => (k === 'len' ? binOf(LEN_BINS, r.len) : k === 'vert' ? binOf(VERT_BINS, r.vert) : r[k]);
+    const recs = all.filter((r) => Object.keys(f.hide).every((k) => !f.hide[k].includes(valOf(r, k))));
     if (f.sort) { const [k, dir] = f.sort.split('-'); recs.sort((a, b) => (dir === 'up' ? a[k] - b[k] : b[k] - a[k])); }
-    const segs = (act, cur, opts) => `<div class="seg mini">${opts.map(([v, l]) => `<span class="${cur === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</span>`).join('')}</div>`;
-    const bar = `<div class="afilt"><span>Status</span>${segs('afs', f.status, [['all', 'All'], ['open', 'Open'], ['closed', 'Closed'], ['planned', 'Planned']])}
-      ${lifts ? '' : `<span>Rating</span>${segs('afr', f.rating, [['all', 'All'], ...Object.keys(RATING).map((k) => [k, RATING[k]])])}`}</div>
-      <div class="afilt"><span>Length</span>${segs('afl', f.len, LEN_BINS.map((b) => [b[0], binLabel(b)]))}</div>
-      <div class="afilt"><span>Vertical</span>${segs('afv', f.vert, VERT_BINS.map((b) => [b[0], binLabel(b)]))}</div>`;
-    const sortHead = (k, label) => { const on = f.sort && f.sort.startsWith(k), arrow = on ? (f.sort.endsWith('up') ? ' ▴' : ' ▾') : ''; return `<span class="n srt${on ? ' on' : ''}" data-act="asort" data-v="${k}" title="Sort by ${label.toLowerCase()}">${label}${arrow}</span>`; };
-    const lamp = (s) => `<span class="nm" style="justify-content:flex-end">${lampHtml(STATUS_LAMP[s][1])}${STATUS_LAMP[s][0]}</span>`;
+    const active = Object.values(f.hide).reduce((a, x) => a + x.length, 0);
+    const OPTS = { status: STATUS_OPTS, len: LEN_BINS.map((b) => [b[0], binLabel(b)]), vert: VERT_BINS.map((b) => [b[0], binLabel(b)]), rating: Object.keys(DIFFS).map((k) => [k, `${RATING[k]}${DIFFS[k]}`]) };
+    const menu = (k, right) => `<div class="amenu${right ? ' rt' : ''}">${k === 'len' || k === 'vert' ? `<div class="mi" data-act="asortd" data-v="${k}-up">Sort smallest to largest</div><div class="mi" data-act="asortd" data-v="${k}-down">Sort largest to smallest</div><div class="sepl"></div>` : ''}
+      ${OPTS[k].map(([v, l]) => `<div class="mi" data-act="afchk" data-v="${k}:${v}"><span class="chk${f.hide[k].includes(v) ? '' : ' on'}"></span>${l}<span class="r">${all.filter((r) => valOf(r, k) === v).length}</span></div>`).join('')}
+      <div class="sepl"></div><div class="mi${f.hide[k].length ? '' : ' dis'}" data-act="${f.hide[k].length ? 'afclr' : ''}" data-v="${k}">Clear filter</div></div>`;
+    // a header cell: its label (with the sort arrow), and while filtering its ▾ and menu
+    const hc = (label, k, sortKey, right) => {
+      const sorted = f.sort && sortKey && f.sort.startsWith(sortKey), arrow = sorted ? (f.sort.endsWith('up') ? ' ↑' : ' ↓') : '';
+      return `<span class="hc${right ? ' n' : ''}">${label}${arrow}${f.on && k ? `<span class="dd${f.hide[k] && f.hide[k].length || sorted ? ' act' : ''}" data-act="amenu" data-v="${k}" title="Filter and sort">▾</span>` : ''}${S.afMenu === `${tab}:${k}` ? menu(k, right) : ''}</span>`;
+    };
+    const lamp = (st) => `<span class="nm" style="justify-content:flex-end">${lampHtml(STATUS_LAMP[st][1])}${STATUS_LAMP[st][0]}</span>`;
     const cols = lifts ? 'grid-template-columns:1.6fr 1.1fr 0.8fr 0.8fr 0.7fr 0.55fr 0.8fr' : 'grid-template-columns:1.6fr 0.85fr 0.85fr 0.95fr 0.8fr';
     const rowCls = (r) => `r arow${S.focus === r.id ? ' on' : ''}${S.rowHover === r.id ? ' hv' : ''}`;
     const rows = recs.map((r) => (lifts
       ? `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm"><span class="plate${r.o.built ? ' built' : ''}" style="font-size:10px">${r.o.n}</span>${esc(r.name)}</span><span class="nm">${esc(r.o.model)}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span class="n">${r.cap.toLocaleString('en-US')}</span><span class="n" style="color:${r.wait > 8 ? 'var(--warn)' : ''}">${r.wait !== null ? r.wait.toFixed(1) : '—'}</span>${lamp(r.status)}</div>`
       : `<div class="${rowCls(r)}" style="${cols}" data-row="${r.id}" data-act="afocus" data-v="${r.id}"><span class="nm">${RATING[r.rating]}${esc(r.name)}</span><span class="n">${lenFt(r.len)}</span><span class="n">${lenFt(r.vert)}</span><span>${r.surface}</span>${lamp(r.status)}</div>`)).join('');
-    const head = lifts ? `<div class="r th" style="${cols}"><span>Lift</span><span>Model</span>${sortHead('len', 'Length')}${sortHead('vert', 'Vertical')}<span class="n">An hour</span><span class="n">Wait</span><span style="text-align:right">Status</span></div>`
-      : `<div class="r th" style="${cols}"><span>Trail</span>${sortHead('len', 'Length')}${sortHead('vert', 'Vertical')}<span>Surface</span><span style="text-align:right">Status</span></div>`;
+    const head = lifts ? `<div class="r th" style="${cols}">${hc('Lift')}${hc('Model')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}<span class="n">An hour</span><span class="n">Wait</span>${hc('Status', 'status', null, true)}</div>`
+      : `<div class="r th" style="${cols}">${hc('Trail', 'rating')}${hc('Length', 'len', 'len', true)}${hc('Vertical', 'vert', 'vert', true)}<span>Surface</span>${hc('Status', 'status', null, true)}</div>`;
     const builtN = lifts ? S.lifts.filter((l) => l.built).length : S.trails.filter((t) => t.built).length, others = (lifts ? S.liftsTotal : S.trailsTotal) - builtN;
-    const foot = recs.length ? (lifts ? `${others} more lifts run elsewhere on the mountain: ${(others * 2100).toLocaleString('en-US')} riders an hour between them.` : `${others} more trails elsewhere on the mountain.`) : `No ${tab} match these filters.`;
-    return `${bar}<div class="tbl" style="margin-top:6px">${head}${rows}<div class="foot">${foot} Hover a row to find it on the mountain; click it for its card.</div></div>`;
+    const foot = recs.length ? (lifts ? `${others} more lifts run elsewhere on the mountain: ${(others * 2100).toLocaleString('en-US')} riders an hour between them.` : `${others} more trails elsewhere on the mountain.`) : `No ${tab} match the filters.`;
+    const tools = `<div class="atools"><span>${recs.length === all.length ? `${all.length} ${tab}` : `${recs.length} of ${all.length} ${tab}`} on the map</span><span style="margin-left:auto"></span>${active ? '<span class="atb" data-act="afclear">Clear filters</span>' : ''}<span class="atb${f.on ? ' on' : ''}" data-act="afon" title="Filter: a ▾ on each column sorts and filters it">Filter${active ? ` · ${active}` : ''}</span></div>`;
+    return `${tools}<div class="tbl">${head}${rows}<div class="foot">${foot} Hover a row to find it on the mountain; click it for its card.</div></div>`;
   }
   // The focus card (LF-11, TF-08's simple cards): the lift's or trail's key figures, with Edit and Remove.
   function focusCard() {
@@ -2645,17 +2673,19 @@ body.solo .frame { border-radius: 0; }
     const again = t.id; S.tool = null; chooseTool(again);
   }
   function act(a, v, e) {
+    if (a !== 'amenu' && a !== 'afchk' && a !== 'afclr') S.afMenu = null;
     switch (a) {
       case 'toolbox': S.toolbox = !S.toolbox; S.analysis = false; if (!S.toolbox) { S.tool = null; S.draft = null; S.sel = null; } break;
       case 'analysis': S.analysis = !S.analysis; if (S.analysis) { S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
       case 'tab': S.tab = v; S.tool = null; S.draft = null; S.sel = null; break;
       case 'tool': chooseTool(v); return;
       case 'tgrade': case 'tnext': case 'tstep': trailAct(a, v); return;
-      case 'afs': S.af[S.atab].status = v; break;
-      case 'afl': S.af[S.atab].len = v; break;
-      case 'afv': S.af[S.atab].vert = v; break;
-      case 'afr': S.af[S.atab].rating = v; break;
-      case 'asort': { const f = S.af[S.atab]; f.sort = f.sort === `${v}-down` ? `${v}-up` : f.sort === `${v}-up` ? null : `${v}-down`; break; }
+      case 'afon': S.af[S.atab].on = !S.af[S.atab].on; break;
+      case 'afclear': { const f = S.af[S.atab]; for (const k of Object.keys(f.hide)) f.hide[k] = []; break; }
+      case 'amenu': S.afMenu = S.afMenu === `${S.atab}:${v}` ? null : `${S.atab}:${v}`; break;
+      case 'afchk': { const [k, val] = v.split(':'), h = S.af[S.atab].hide[k], i = h.indexOf(val); if (i >= 0) h.splice(i, 1); else h.push(val); break; }
+      case 'afclr': S.af[S.atab].hide[v] = []; break;
+      case 'asortd': S.af[S.atab].sort = S.af[S.atab].sort === v ? null : v; break;
       case 'afocus': S.focus = S.focus === v ? null : v; S.drop = null; break;
       case 'fclose': S.focus = null; break;
       case 'fedit': case 'fremove': { const id = S.focus; S.analysis = false; S.toolbox = true; S.tab = v === 'lift' ? 'lifts' : 'trails'; chooseTool(`${a === 'fedit' ? 'edit' : 'remove'}-${v}`); S.sel = id; S.focus = null; break; }
@@ -2972,6 +3002,7 @@ body.solo .frame { border-radius: 0; }
     const hv = d.find((x) => /^hov\d+$/.test(x)); if (hv) chartHover = (S.atab === 'finances' ? `fin:${S.finScale}:` : S.atab === 'weather' ? 'wx:' : 'ov:') + hv.slice(3);
     for (const x of d) { const m = x.match(/^(row|focus)([lt]\d+)$/); if (m) { if (m[1] === 'row') S.rowHover = m[2]; else S.focus = m[2]; } }
     if (d.includes('sortlen')) { S.af.lifts.sort = 'len-down'; S.af.trails.sort = 'len-down'; }
+    if (d.includes('filtmenu')) { S.af[S.atab === 'trails' ? 'trails' : 'lifts'].on = true; S.afMenu = `${S.atab === 'trails' ? 'trails' : 'lifts'}:len`; }
     if (d.includes('compact')) S.set.money = 'compact';
     if (d.includes('scale90')) S.set.hudScale = 90;
     if (d.includes('scale110')) S.set.hudScale = 110;
