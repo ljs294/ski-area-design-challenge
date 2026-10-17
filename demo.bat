@@ -546,10 +546,6 @@ goto done
 rem Task 15: the frame times of record come from the release game; the Development game adds exact garbage per
 rem frame and graphics memory (counters a release game doesn't record). Each run is compared with the stored baseline.
 :benchfull
-if exist "%~dp0..\.gpu-lock" (
-  echo Another session is using the GPU ^(%~dp0..\.gpu-lock^). Try again when it has finished.
-  goto done
-)
 if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 if not exist "%GAMEDEV%" call :builddev
@@ -568,6 +564,7 @@ for %%R in (high high-dev high-dev-hud medium medium-dev) do findstr /l /c:" at 
 echo.
 node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-high.json" "%BENCH%\high.json"
 node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-medium.json" "%BENCH%\medium.json"
+for %%R in (high-dev medium-dev high-dev-hud) do node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-%%R.json" "%BENCH%\%%R.json"
 start "" "%BENCH%"
 goto done
 

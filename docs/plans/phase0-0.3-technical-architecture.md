@@ -495,7 +495,7 @@ Every open of a resort must produce the same terrain tiles, splat and forest, wh
 
 Measured with Unity's Performance Testing package in a benchmark scene with a fixed camera path. Results are recorded as JSON with the commit SHA.
 
-**Measured (task 15, commit 19d5e37; [report](phase1-benchmark-report.md)):** on the fixed camera path over the Jackson Hole demo at 1080p on the reference PC, frame p95 is 7.8 ms at High and 4.7 ms at Medium, with no frame over 50 ms, 0 bytes of garbage per frame (HUD on and off) and 1.4 GB of graphics memory. The game's own `-benchmark` is the measurement of record (the Performance Testing package's test framework allocates per frame); baselines are in `docs/perf/`, compared by `tools/perf/compare.mjs`.
+**Measured (task 15, commit 19d5e37; [report](phase1-benchmark-report.md)):** on the fixed camera path over the Jackson Hole demo at 1080p on the reference PC, frame p95 is 7.8 ms at High and 4.7 ms at Medium, with no frame over 50 ms, 0 bytes of garbage per frame (HUD on and off) and 1.4 GB of graphics memory. The game's own `-benchmark` is the measurement of record (the Performance Testing package's test framework allocates per frame); baselines are in `docs/perf/` ([README](../perf/README.md); re-pinned at the 10:30 benchmark in Phase 3 task 01), compared by `tools/perf/compare.mjs`.
 
 ### 8.1 Performance audit: continuous, not a final check (owner request, 2026-09-27)
 
