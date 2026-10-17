@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="Segoe UI, Arial, sans-serif" font-size="13">
+  <title>GR-01 to GR-06: a level bench with 1:1 cut and fill faces, inside the painted footprint</title>
+  <rect width="720" height="300" fill="#ffffff"/>
+  <!-- footprint limits -->
+  <line x1="110" y1="30" x2="110" y2="270" stroke="#7a7a7a" stroke-dasharray="5 4"/>
+  <line x1="610" y1="30" x2="610" y2="270" stroke="#7a7a7a" stroke-dasharray="5 4"/>
+  <text x="360" y="24" text-anchor="middle" fill="#333">painted footprint (grading never leaves it, GR-06)</text>
+  <!-- natural ground: a uniform sidehill falling to the right -->
+  <polyline points="40,80 680,240" fill="none" stroke="#8a6d3b" stroke-width="2" stroke-dasharray="7 4"/>
+  <text x="44" y="70" fill="#8a6d3b">natural ground</text>
+  <!-- centreline at x=360: ground y = 80 + (320/640)*160 = 160 -->
+  <line x1="360" y1="40" x2="360" y2="262" stroke="#555" stroke-dasharray="2 4"/>
+  <text x="366" y="256" fill="#555">centreline</text>
+  <!-- bench at y=160, level. Cut face on the uphill (left) side at 1:1 meets ground; ground slope 0.25.
+       Left bench edge b: face from (xL,160) up-left at 45 deg meets ground y=80+0.25(x-40).
+       Choose xL=250: face point (x,160-(250-x)); intersect: 160-250+x = 80+0.25x-10 -> 0.75x=160 -> x=213.3, y=123.3 -->
+  <polygon points="213.3,123.3 250,160 360,160 360,160 213.3,123.3" fill="#d9534f" fill-opacity="0.18"/>
+  <!-- fill on the downhill side: bench to xR=470, face down-right at 45 deg: (x,160+(x-470)); ground: 80+0.25(x-40)
+       160+x-470 = 70+0.25x -> 0.75x=380 -> x=506.7, y=196.7 -->
+  <polygon points="360,160 470,160 506.7,196.7 360,160" fill="#5cb85c" fill-opacity="0.22"/>
+  <polyline points="213.3,123.3 250,160 470,160 506.7,196.7" fill="none" stroke="#1f4e79" stroke-width="3"/>
+  <text x="300" y="152" fill="#1f4e79">level bench (GR-01)</text>
+  <text x="150" y="150" fill="#b52b27">cut 1:1</text>
+  <text x="500" y="182" fill="#2d7a2d">fill 1:1</text>
+  <text x="250" y="190" fill="#1f4e79">bench ≥ 25 ft (7.6 m), GR-04</text>
+  <text x="40" y="292" fill="#333">Heights at the centreline station set the bench (GR-01). Each face runs at 45° to natural ground (GR-02).</text>
+</svg>
