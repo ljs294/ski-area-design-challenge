@@ -409,6 +409,38 @@ body.solo .frame { border-radius: 0; }
 .hud .cred .foot .go { min-width: 96px; justify-content: center; }
 .hud .cred .ofl { padding: 12px 16px; font: 500 11.5px 'Overpass Mono', monospace; color: var(--muted); white-space: pre-wrap; line-height: 1.45; }
 .hud .kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; margin-left: 4px; border: 1px solid var(--hair2); border-bottom-width: 2px; border-radius: 4px; background: var(--tile); font: 600 11.5px 'Overpass Mono', monospace; color: var(--text); }
+/* the lift construction tool (Phase 3 mockup): the menu's rows, steps, tower card and load gauge; the profile strip */
+.hud .lrow { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; padding: 3px 12px; font: 600 12.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .step.lstep { min-width: 0; height: 28px; }
+.hud .lnote { padding: 6px 12px 2px; font: 500 11.5px 'Overpass Mono', monospace; color: var(--soft); }
+.hud .lnote b { color: var(--text); font-weight: 600; }
+.hud .lsteps { display: grid; grid-template-columns: repeat(4, auto); justify-content: space-between; gap: 2px; padding: 6px 8px; }
+.hud .lsteps span { display: flex; align-items: center; gap: 5px; padding: 5px 7px 4px 5px; border-radius: 4px; font: 700 11.5px 'DotFix', 'Overpass'; color: var(--faint); white-space: nowrap; }
+.hud .lsteps span b { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.3px currentColor; font: 700 9.5px 'Overpass Mono', monospace; flex: none; }
+.hud .lsteps span.done { color: var(--muted); }
+.hud .lsteps span.done b { color: var(--pos); box-shadow: inset 0 0 0 1.3px var(--pos); }
+.hud .lsteps span.now { background: var(--chip); color: var(--strong); }
+.hud .lsteps span[data-act]:hover { color: var(--strong); }
+.hud .sub.ltop { align-items: center; padding-top: 7px; }
+.hud .ltop .step { width: 116px; }
+.hud .lstat { padding: 4px 12px 2px; font: 700 12.5px 'DotFix', 'Overpass'; line-height: 1.35; }
+.hud .lstat.ok { color: var(--pos); }
+.hud .lstat.bad { color: var(--neg); }
+.hud .lgauge { padding: 4px 14px 0; }
+.hud .ldet { padding: 0 12px 4px; font: 500 11px 'Overpass Mono', monospace; color: var(--soft); line-height: 1.4; }
+.hud .lkeys { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 3px 12px 7px; font: 500 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .lkeys .kbd { margin: 0 3px 0 0; height: 19px; min-width: 19px; padding: 0 5px; font-size: 10.5px; }
+.hud .lbtns { display: flex; gap: 6px; padding: 2px 12px 6px; }
+.hud .lbtns .ghost { flex: 1; height: 30px; display: flex; align-items: center; justify-content: center; }
+.hud .lmsg { padding: 2px 12px; font: 600 12px 'DotFix', 'Overpass'; line-height: 1.35; }
+.hud .lmsg.err { color: var(--neg); }
+.hud .lmsg.warn { color: var(--warn); }
+.hud .lstrip { overflow: hidden; }
+.hud .lstrip .lsh { display: flex; align-items: center; gap: 12px; height: 30px; padding: 0 12px; border-bottom: 1px solid var(--hair); font: 800 13px 'DotFix', 'Overpass'; white-space: nowrap; }
+.hud .lstrip .lsh .mono { font: 500 11.5px 'Overpass Mono', monospace; color: var(--muted); }
+.hud .lstrip .lten { margin-left: auto; display: flex; align-items: center; gap: 8px; font: 700 11.5px 'DotFix', 'Overpass'; color: var(--soft); }
+.hud .lstrip .lten b { font: 700 11.5px 'Overpass Mono', monospace; }
+.hud .lstrip .lsempty { height: 0; }
 </style>
 
 <!-- Symbols: one solid set on a 24 px grid, drawn like trail and road signs: filled shapes, knock-outs in the
@@ -448,7 +480,7 @@ body.solo .frame { border-radius: 0; }
     <p>The layout from your sketch as a clickable mockup, in the Trailhead look over our Unity mountain. The status bar runs the full width of the bottom, docked to the edge or floating; the clock and weather run, the tools draw on the mountain, and building costs money. Nothing is saved when you reload.</p>
   </div>
   <ul class="try">
-    <li><b>Build a lift:</b> Toolbox → Lifts → New, click the base station, then the top station, choose a model, then Break ground. Save plan keeps it as an orange plan instead.</li>
+    <li><b>Build a lift</b> (Phase 3 tool): Toolbox → Lifts → New opens the lift menu: type, capacity, and towers <b>Automatic</b> or <b>By hand</b>. The whole terminal follows the pointer; click to anchor it, then click far away to place the other terminal, which fixes the line (drawn as a trail map draws a lift, a line with a dot at each end). Automatic puts the towers in as you aim. By hand, the tower in hand slides along the line, green where it fits and red with the reason; Page Up / Page Down change it ±5 ft, a click places it, a click on a tower selects it (drag to slide, Delete to remove), and Fill the rest finishes the line. The profile strip shows the side view, the chairs' height over the ground against 15 ft, the green band where the tower in hand fits, and the line's tension. Review, then Break ground (or Save plan). Every rule number is a P3-02 draft placeholder; hover a readout for its rule ID. States: <code>#solo&amp;demo=liftorigin</code>, <code>liftauto</code>, <code>lift</code>, <code>liftred</code>, <code>liftreview</code>, <code>liftsel</code>.</li>
     <li><b>Draw a trail:</b> Toolbox → Trails → New, click down the mountain, then double-click or press Enter to finish. Snowmaking and Infrastructure place guns, water lines, pump houses, lodges, roads and parking the same way.</li>
     <li><b>The menu</b> (top right) has quick switches for the theme (dark, light, or auto by the sun), the status bar (docked or floating) and units, and opens <b>Settings</b>: interface, units and time, gameplay, graphics, audio and controls. Interface scale, the clock, the balance format, autosave, pause while building, confirm before removing, tooltips, notifications and zoom all work; graphics and audio are stored only.</li>
     <li><b>Map layers</b> (top right) has two groups, as built in the game. <b>Map layers</b> show or hide things on the mountain, in any combination. <b>Info layers</b> take turns: Slope angle, Slope exposure and Snow depth (Snow conditions comes with the snow simulation), and Contours combine with any of them. The layer that's on gets one legend card (with contours added to it); its ✕ closes it until you pick another layer. The bar reads the layer under the pointer, below the elevation. The overlays here are stand-ins painted over the capture.</li>
@@ -460,7 +492,7 @@ body.solo .frame { border-radius: 0; }
     <div class="map" id="map"><img src="assets/game-bluebird.jpg" alt="The mountain on a bluebird day"><canvas id="info" width="1280" height="720" hidden></canvas><svg id="contours" viewBox="0 0 1280 720"></svg><svg id="world" viewBox="0 0 1280 720"></svg></div>
     <div id="ui"></div><div class="flash" id="flash"></div>
   </div></div>
-  <p class="pagenote">An interactive style mockup, not the game: the mountain is a capture of our Unity build with the sky composited behind it. The numbers, costs, weather, the elevation readout and the info layers are placeholders (the opening values in the bar come from your sketch).</p>
+  <p class="pagenote">An interactive style mockup, not the game: the mountain is a capture of our Unity build with the sky composited behind it. The numbers, costs, weather, the elevation readout and the info layers are placeholders (the opening values in the bar come from your sketch). The lift tool's rope, tower and tension numbers follow P3-02's draft rules (round 5) on the placeholder terrain; they're placeholders until that gate is approved.</p>
 </div>
 
 <!-- The capture at half size, for the info layers to read (a data URL, so a canvas may read it from a local file). -->
@@ -537,7 +569,9 @@ body.solo .frame { border-radius: 0; }
 
   // ---------- the world: a resort placed by eye on the capture (1280x720 space) ----------
   const MPX = 5.8;   // rough metres per pixel along the ground
-  const MODELS = { 'Fixed 4': { cap: 1800, speed: 2.3, term: 1.2e6, perM: 1500 }, 'Detach 4': { cap: 2400, speed: 5.0, term: 1.86e6, perM: 2150 }, 'Detach 6': { cap: 3000, speed: 5.0, term: 2.4e6, perM: 2600 } };
+  const MODELS = { 'Fixed 4': { cap: 1800, speed: 2.3, term: 1.2e6, perM: 1500 }, 'Detach 4': { cap: 2400, speed: 5.0, term: 1.86e6, perM: 2150 }, 'Detach 6': { cap: 3000, speed: 5.0, term: 2.4e6, perM: 2600 },
+    // the Phase 3 catalog's fixed-grip quads (their construction numbers live in LIFT_TYPES)
+    'Sessellift FGQ-4': { cap: 2400, speed: 2.29, term: 1.25e6, perM: 623 }, 'Monta FG4': { cap: 2400, speed: 2.29, term: 1.18e6, perM: 656 } };
   const DIFFS = { green: 'Green', blue: 'Blue', black: 'Black', double: 'Double' };
   const S = {
     day: 148, t: 5 * 3600 + 27 * 60 + 47, paused: false, speed: 2, docked: true,
@@ -620,7 +654,7 @@ body.solo .frame { border-radius: 0; }
     { id: 'controls', title: 'Controls', note: 'In the game every key below can be changed: click it, then press the new one.', rows: [
       { k: 'invertZoom', label: 'Invert scroll zoom', desc: 'Scroll down to zoom in.', seg: ONOFF },
       { k: 'zoomSpeed', label: 'Zoom speed', seg: [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']] },
-    ], keys: [['Toolbox', ['T']], ['Analysis', ['Tab']], ['Pause', ['Space']], ['Speed', ['1–4']], ['Zoom', ['+', '−']], ['Reset view', ['Home']], ['Units', ['U']], ['Save', ['Ctrl', 'S']], ['Snow, trees', ['Shift', '1 · 3']], ['Info layers', ['Shift', '6–0']], ['Hide the UI', ['H']], ['Finish a line', ['Enter']], ['Back out', ['Esc']]] },
+    ], keys: [['Toolbox', ['T']], ['Analysis', ['Tab']], ['Pause', ['Space']], ['Speed', ['1–4']], ['Zoom', ['+', '−']], ['Reset view', ['Home']], ['Units', ['U']], ['Save', ['Ctrl', 'S']], ['Snow, trees', ['Shift', '1 · 3']], ['Info layers', ['Shift', '6–0']], ['Hide the UI', ['H']], ['Finish a line', ['Enter']], ['Tower height', ['Page Up', 'Page Down']], ['Remove a tower', ['Delete']], ['Back out', ['Esc']]] },
     { id: 'data', title: 'Data', rows: [
       { k: 'library', label: 'Library folder', desc: 'C:\\Users\\you\\AppData\\Local\\SkiAreaDesignChallenge', btn: ['Open', 'Change…'] },
       { k: 'disk', label: 'Disk use', desc: "3 areas: 1.2 GB, terrain caches 840 MB, older versions' caches 310 MB.", btn: ['Free 310 MB'] },
@@ -733,7 +767,7 @@ body.solo .frame { border-radius: 0; }
   const TABS = [['lifts', 'Lifts'], ['trails', 'Trails'], ['snow', 'Snowmaking'], ['infra', 'Infrastructure']];
   const TOOLS = {
     lifts: [
-      { id: 'new-lift', label: 'New', name: 'New lift', hint: 'click the base, then the top station', key: 'N', glyph: 's-lift', badge: 'new', kind: 'lift' },
+      { id: 'new-lift', label: 'New', name: 'New lift', hint: 'anchor a terminal, then click the far end', key: 'N', glyph: 's-lift', badge: 'new', kind: 'lift' },
       { id: 'edit-lift', label: 'Edit', name: 'Edit lift', hint: 'change a lift\'s model', key: 'E', glyph: 's-lift', badge: 'edit', kind: 'pick', target: 'lift', mode: 'edit' },
       { id: 'remove-lift', label: 'Remove', name: 'Remove lift', hint: 'take a lift out and salvage it', key: 'X', glyph: 's-lift', badge: 'remove', kind: 'pick', target: 'lift', mode: 'remove' },
     ],
@@ -760,7 +794,7 @@ body.solo .frame { border-radius: 0; }
     if (S.tool === id) { closeTool(); return; }
     S.tool = id; S.sel = null; S.removeArmed = null; S.sketch = false;
     const t = toolById(id);
-    if (t.kind === 'lift') S.draft = { kind: 'lift', pts: [], model: 'Detach 4', name: LIFT_NAMES[liftSeq % LIFT_NAMES.length], n: nextLiftNumber() };
+    if (t.kind === 'lift') S.draft = newLiftDraft();
     else if (t.kind === 'trail') S.draft = { kind: 'trail', pts: [], diff: 'blue', done: false, name: TRAIL_NAMES[trailSeq % TRAIL_NAMES.length] };
     else if (t.kind === 'points' || t.kind === 'line') S.draft = { kind: t.kind, tool: t.id, pts: [], done: false };
     else S.draft = null;
@@ -770,13 +804,13 @@ body.solo .frame { border-radius: 0; }
 
   // ---------- numbers, from the placeholder heights ----------
   const flat = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]) * MPX;
-  function liftStats(a, b, model) {
+  function liftStats(a, b, model, capOver) {
     const m = MODELS[model], run = Math.max(1, flat(a, b)), ea = elevAt(a), eb = elevAt(b), rise = eb - ea;
     const len = Math.hypot(run, rise), grade = Math.abs(rise) / run * 100;   // steepness is a grade: rise over run
     const towers = Math.max(2, Math.ceil(len / 120)), grading = Math.round(len * 1.7);
     const cost = { term: m.term, line: len * m.perM, towers: towers * 83000, grading: grading * 140 };
     cost.total = cost.term + cost.line + cost.towers + cost.grading;
-    return { len, rise, grade, ea, eb, towers, grading, cost, ride: len / m.speed, cap: m.cap, speed: m.speed };
+    return { len, rise, grade, ea, eb, towers, grading, cost, ride: len / m.speed, cap: capOver || m.cap, speed: m.speed };
   }
   function pathStats(pts) {
     let len = 0, run = 0, steep = 0;
@@ -819,10 +853,12 @@ body.solo .frame { border-radius: 0; }
     if (planned) s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4"/>`;
     else {
       s += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="${ink}" stroke-width="1.5"/>`;
-      const n = Math.round(len / 16);
-      for (let k = 1; k < n; k++) { const p = lerp(A, B, k / n); s += `<line x1="${f1(p.x - uy * 3.5)}" y1="${f1(p.y + ux * 3.5)}" x2="${f1(p.x + uy * 3.5)}" y2="${f1(p.y - ux * 3.5)}" stroke="${ink}" stroke-width="1.3"/>`; }
+      // towers where they were placed (Phase 3 lifts), or evenly spaced ticks for the placeholder lifts
+      const ticks = l.towers ? l.towers.map(P) : []; if (!l.towers) { const n = Math.round(len / 16); for (let k = 1; k < n; k++) ticks.push(lerp(A, B, k / n)); }
+      for (const p of ticks) s += `<line x1="${f1(p.x - uy * 3.5)}" y1="${f1(p.y + ux * 3.5)}" x2="${f1(p.x + uy * 3.5)}" y2="${f1(p.y - ux * 3.5)}" stroke="${ink}" stroke-width="1.3"/>`;
     }
-    for (const p of [A, B]) s += planned ? `<rect x="${f1(p.x - 4)}" y="${f1(p.y - 4)}" width="8" height="8" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<rect x="${p.x - 3.5}" y="${p.y - 3.5}" width="7" height="7" fill="${ink}" stroke="${white}" stroke-width="1.3"/>`;
+    // terminals as a trail map draws them: a dot at each end
+    for (const p of [A, B]) s += planned ? `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.6" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>` : `<circle cx="${f1(p.x)}" cy="${f1(p.y)}" r="4.2" fill="${ink}" stroke="${white}" stroke-width="1.4"/>`;
     if (S.layers.labels && !o.noTag) {
       const tx = ux > 0 ? A.x - (l.name.length * 7.4 + 28) - 8 : A.x + 10;
       s += tagBox(tx, A.y - 9, liftPlate(tx, A.y - 9, l.n, planned), l.name, planned ? flag : '#4a443e', planned ? '3 2' : '');
@@ -873,11 +909,7 @@ body.solo .frame { border-radius: 0; }
     if (S.layers.trails) for (const tr of S.trails) s += drawTrail(tr, { hi: hiId === tr.id });
     if (S.layers.lifts) for (const l of S.lifts) s += drawLift(l, { hi: hiId === l.id });
     const d = S.draft;
-    if (d && d.kind === 'lift') {
-      const pts = d.pts.slice(); if (pts.length === 1 && mouse) pts.push(mouse);
-      if (pts.length === 2) { const st = liftStats(pts[0], pts[1], d.model); s += drawLift({ n: d.n, name: d.name, a: pts[0], b: pts[1], built: false }, { noTag: d.pts.length < 2 }) + dimension(pts[0], pts[1], `${lenTxt(st.len)} · ${st.rise >= 0 ? '+' : '−'}${lenV(Math.abs(st.rise))} · ${Math.round(st.grade)}%`); }
-      else if (pts.length === 1) s += `<rect x="${f1(pts[0][0] - 4)}" y="${f1(pts[0][1] - 4)}" width="8" height="8" fill="${graphite}" stroke="${flag}" stroke-width="1.8"/>`;
-    }
+    if (d && d.kind === 'lift') s += drawLiftDraft(d);
     if (d && (d.kind === 'trail' || d.kind === 'line')) {
       const pts = d.pts.slice(); if (!d.done && mouse && pts.length) pts.push(mouse);
       if (d.kind === 'trail') s += drawTrail({ name: d.name, diff: d.diff, pts, built: false }, { noTag: !d.done });
@@ -1029,58 +1061,546 @@ body.solo .frame { border-radius: 0; }
     return `<div class="legend" data-ui="legend">${b}</div>`;
   }
 
-  // ---------- panels ----------
-  // The lift's profile: the ground along the line (from the placeholder heights), towers, and the planned cable.
-  function liftProfile(a, b, st) {
-    const w = 344, h = 46, n = 28, X = (t) => 12 + t * (w - 24);
-    if (!st) return `<svg width="${w}" height="${h}" style="display:block"><rect x="12" y="4" width="${w - 24}" height="${h - 12}" style="fill:var(--chart-bg);stroke:var(--row)"/></svg>`;
-    const ground = []; for (let i = 0; i <= n; i++) { const t = i / n; ground.push([t, elevAt([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])]); }
-    const lo = Math.min(...ground.map((p) => p[1])) - 10, hi = Math.max(...ground.map((p) => p[1])) + 30, Y = (e) => h - 8 - (e - lo) / (hi - lo) * (h - 16);
-    const gAt = (t) => { const i = Math.min(n - 1, Math.floor(t * n)), f = t * n - i; return ground[i][1] + (ground[i + 1][1] - ground[i][1]) * f; };
-    let s = `<rect x="12" y="4" width="${w - 24}" height="${h - 12}" style="fill:var(--chart-bg);stroke:var(--row)"/>`;
-    const gp = ground.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ');
-    s += `<path d="${gp} L${f1(X(1))} ${h - 8} L${f1(X(0))} ${h - 8}z" style="fill:var(--chart-fill)"/><path d="${gp}" fill="none" stroke-width="1.4" style="stroke:var(--chart-a)"/>`;
-    const c0 = gAt(0) + 10, c1 = gAt(1) + 10, cable = (t) => c0 + (c1 - c0) * t;
-    const pts = [[0, c0]];
-    for (let k = 1; k <= st.towers; k++) { const t = k / (st.towers + 1), top = Math.max(cable(t), gAt(t) + 8); pts.push([t, top]); s += `<line x1="${f1(X(t))}" y1="${f1(Y(gAt(t)))}" x2="${f1(X(t))}" y2="${f1(Y(top))}" stroke-width="1.6" style="stroke:var(--chart-a)"/>`; }
-    pts.push([1, c1]);
-    s += `<path d="${pts.map(([t, e], i) => `${i ? 'L' : 'M'}${f1(X(t))} ${f1(Y(e))}`).join(' ')}" fill="none" stroke="${flag}" stroke-width="1.8" stroke-dasharray="6 3"/>`;
-    return `<svg width="${w}" height="${h}" style="display:block">${s}</svg>`;
+  // ---------- the lift construction tool: a stand-in for P3-02's rope and tower rules (round 5 draft) ----------
+  // Every number here is a P3-02 placeholder until that gate is approved; the readouts' tooltips cite its rule IDs.
+  // Positions along the lift are feet from the first terminal (A) along its ray; heights are feet.
+  const FT = 3.28084, FT_PX = MPX * FT;   // feet along the ground per screen pixel
+  const RULE = { clear: 15, drop: 8.4, termRope: 10, hMin: 25, hMax: 100, hStep: 5, gap: 50, sheaveMax: 1500, sheaveMin: 110, bendMax: 4.5, fpm: 450, grid: 5, exitDeg: 16, minLen: 300 };
+  // LC: both quads share the placeholders for now (P3-02 LC table); terminals, line and towers price the plan.
+  const LIFT_TYPES = {
+    'Sessellift FGQ-4': { rope: 5.2, rated: 60000, cw: 22000, chairE: 450, chairF: 1150, term: 1.25e6, perFt: 190, tower: 52000 },
+    'Monta FG4': { rope: 5.2, rated: 60000, cw: 22000, chairE: 450, chairF: 1150, term: 1.18e6, perFt: 200, tower: 49000 },
+  };
+  const CAPS = [2400, 2000, 1600, 1200];
+  const HEADS = { pend: ['Type pending', 'the next span needs towers', 8], s4: ['Support', '4 sheaves', 4], s6: ['Support', '6 sheaves', 6], b8: ['Breakover', '8 sheaves', 8], d8: ['Hold-down', '8 sheaves', 8], c8: ['Combination', '4 + 4 sheaves', 4] };
+  const chairGap = (cap) => RULE.fpm * 60 * 4 / cap;   // feet between chairs: 45 ft at 2,400 an hour
+  const loadPerFt = (T, cap, full) => T.rope + (full ? T.chairF : T.chairE) / chairGap(cap);   // P2: chairs as an even load
+  // P1: the ground under the line, sampled every 5 ft along the ray once the line is fixed.
+  function rayProfile(A, dir, ft) {
+    const n = Math.floor(ft / RULE.grid) + 2, g = new Float64Array(n);
+    for (let i = 0; i < n; i++) { const px = i * RULE.grid / FT_PX; g[i] = elevXY(A[0] + dir[0] * px, A[1] + dir[1] * px) * FT; }
+    return g;
   }
+  const groundAt = (g, s) => { const f = Math.max(0, Math.min(g.length - 1.001, s / RULE.grid)), i = Math.floor(f); return g[i] + (g[i + 1] - g[i]) * (f - i); };
+  const rayPt = (d, s) => [d.a[0] + d.dir[0] * s / FT_PX, d.a[1] + d.dir[1] * s / FT_PX];
+  // How far the ray runs over the mountain before it leaves the terrain or the frame (the core box, TW-03).
+  function rayReach(A, dir) {
+    let s = 0;
+    for (; s < 14000; s += 10) { const p = [A[0] + dir[0] * s / FT_PX, A[1] + dir[1] * s / FT_PX]; if (p[0] < 4 || p[0] > W - 4 || p[1] < 4 || p[1] > H - 4 || !onTerrain(p)) break; }
+    return Math.max(0, s - 10);
+  }
+  // RP-02 and RP-03: a span is a parabola on its chord (P4), its horizontal tension taken from the tension at mid-span,
+  // which is the counterweight's plus the load per foot times the height above the bottom terminal's rope.
+  function spanGeo(p, q, w, T, zb) {
+    const L = q.x - p.x, m = (q.z - p.z) / L, c = Math.sqrt(1 + m * m), Hh = (T.cw + w * ((p.z + q.z) / 2 - zb)) / c, k = w * c / (2 * Hh);
+    return { L, m, k, sIn: m - k * L, sOut: m + k * L };
+  }
+  const ropeAt = (p, q, geo, s) => p.z + geo.m * (s - p.x) - geo.k * (s - p.x) * (q.x - s);
+  // TW-01: the chairs' bottom (8.4 ft under the rope) clears the ground by 15 ft, checked every 5 ft. The load and
+  // unload zones are exempt: from a terminal to where the chairs first reach 15 ft.
+  function spanClear(p, q, geo, g) {
+    const n = Math.max(2, Math.ceil(geo.L / RULE.grid)), cs = new Float64Array(n + 1);
+    for (let i = 0; i <= n; i++) { const s = p.x + geo.L * i / n; cs[i] = ropeAt(p, q, geo, s) - RULE.drop - groundAt(g, s); }
+    let lo = 0, hi = n;
+    if (cs.some((c) => c >= RULE.clear)) { if (p.term) while (lo < n && cs[lo] < RULE.clear) lo++; if (q.term) while (hi > 0 && cs[hi] < RULE.clear) hi--; }
+    let min = Infinity, at = p.x, open = -1;
+    const dips = [];
+    for (let i = lo; i <= hi; i++) {
+      const s = p.x + geo.L * i / n;
+      if (cs[i] < min) { min = cs[i]; at = s; }
+      if (cs[i] < RULE.clear) { if (open < 0) open = s; } else if (open >= 0) { dips.push([open, s]); open = -1; }
+    }
+    if (open >= 0) dips.push([open, p.x + geo.L * hi / n]);
+    return { min, at, dips, zoneA: p.term ? p.x + geo.L * lo / n : null, zoneB: q.term ? p.x + geo.L * hi / n : null, cs };
+  }
+  // TW-04 and TW-05: the head follows what the rope does in both load cases. L is the load on the tower in each case
+  // (+ presses down, − pulls up, lbf), B the bend in degrees.
+  function headFor(L, B) {
+    const mn = Math.min(...L), mx = Math.max(...L), bend = Math.max(...B.map(Math.abs)), big = Math.max(...L.map(Math.abs));
+    const fits = (n) => big / n <= RULE.sheaveMax && bend / n <= RULE.bendMax;
+    if (mn >= RULE.sheaveMin * 4) {
+      for (const c of ['s4', 's6', 'b8']) { const n = HEADS[c][2]; if (mn / n >= RULE.sheaveMin && fits(n)) return { code: c, n, ok: true }; }
+      return { code: 'b8', n: 8, ok: false, rule: 'TW-05', why: big / 8 > RULE.sheaveMax ? `Presses ${forceTxt(big / 8)} on each sheave: ${forceTxt(RULE.sheaveMax)} at most` : `Bends the rope ${bend.toFixed(1)}°: ${RULE.bendMax * 8}° at most` };
+    }
+    if (mx <= -RULE.sheaveMin * 8) return fits(8) ? { code: 'd8', n: 8, ok: true } : { code: 'd8', n: 8, ok: false, rule: 'TW-06', why: 'Too sharp for one hold-down: add one before the rise' };
+    return fits(4) ? { code: 'c8', n: 4, ok: true } : { code: 'c8', n: 4, ok: false, rule: 'TW-06', why: 'Too sharp for a combination: add a tower beside it' };
+  }
+  // The whole line in both load cases (RP-04): spans, clearances, each tower's head, the tension range, and what fails.
+  function evalLift(d, towers = d.towers) {
+    const T = LIFT_TYPES[d.type], g = d.g;
+    const pts = [{ x: 0, z: groundAt(g, 0) + RULE.termRope, term: true }];
+    for (const t of towers.slice().sort((a, b) => a.x - b.x)) pts.push({ x: t.x, z: groundAt(g, t.x) + t.h, t });
+    pts.push({ x: d.len, z: groundAt(g, d.len) + RULE.termRope, term: true });
+    const zb = Math.min(pts[0].z, pts[pts.length - 1].z), zt = Math.max(pts[0].z, pts[pts.length - 1].z);
+    const ws = [loadPerFt(T, d.cap, false), loadPerFt(T, d.cap, true)];
+    const spans = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p = pts[i], q = pts[i + 1];
+      let geo = ws.map((w) => spanGeo(p, q, w, T, zb));
+      // A span sagging more than a tenth of its length (P4's range) is a gap still waiting for towers, not a rope:
+      // it's drawn as its chord and counts as "needs towers", never against the tower in hand.
+      const open = geo[1].k * geo[1].L / 4 > 0.1;
+      if (open) geo = geo.map((gg) => ({ ...gg, k: 0, sIn: gg.m, sOut: gg.m }));
+      const cl = geo.map((gg) => spanClear(p, q, gg, g));
+      const worst = cl[0].min <= cl[1].min ? cl[0] : cl[1];
+      // RP-01: the rope runs level in a terminal; its train turns it onto the first span, 16° at most.
+      let exit = 0;
+      if (p.term) exit = Math.max(...geo.map((gg) => Math.abs(Math.atan(gg.sIn)) * 180 / Math.PI));
+      if (q.term) exit = Math.max(exit, ...geo.map((gg) => Math.abs(Math.atan(gg.sOut)) * 180 / Math.PI));
+      spans.push(open ? { p, q, geo, cl, open, min: Infinity, at: p.x, dips: [], exit: 0 } : { p, q, geo, cl, min: worst.min, at: worst.at, dips: cl[0].dips.concat(cl[1].dips), exit: exit > RULE.exitDeg ? exit : 0 });
+    }
+    const tw = [];
+    for (let j = 1; j < pts.length - 1; j++) {
+      const L = [], B = [];
+      ws.forEach((w, c) => { const bend = Math.atan(spans[j - 1].geo[c].sOut) - Math.atan(spans[j].geo[c].sIn), Tj = T.cw + w * (pts[j].z - zb); L.push(2 * Tj * Math.sin(bend / 2)); B.push(bend * 180 / Math.PI); });
+      const pending = spans[j - 1].open || spans[j].open;
+      tw.push({ j, x: pts[j].x, h: pts[j].t.h, ref: pts[j].t, L, B, head: pending ? { code: 'pend', n: 8, ok: true, pending: true } : headFor(L, B) });
+    }
+    const bottomAtA = pts[0].z <= pts[pts.length - 1].z;
+    const no = (x) => 1 + tw.filter((o) => (bottomAtA ? o.x < x : o.x > x)).length;   // towers count up from the bottom terminal
+    tw.forEach((o) => { o.no = no(o.x); });
+    const tension = { lo: T.cw, hi: T.cw + ws[1] * (zt - zb), hiE: T.cw + ws[0] * (zt - zb), rated: T.rated };
+    const errors = [], warnings = [];
+    if (tension.hi > T.rated) errors.push({ rule: 'RP-05', text: `Too much rise for this lift: tension reaches ${Math.round(tension.hi / T.rated * 100)}% of its rating. Lower the capacity or shorten the line.` });
+    let lowest = null;
+    spans.forEach((sp, i) => {
+      const a = sp.p.term ? (bottomAtA === (i === 0) ? 'the bottom terminal' : 'the top terminal') : `tower ${tw[i - 1].no}`, b = sp.q.term ? (bottomAtA ? 'the top terminal' : 'the bottom terminal') : `tower ${tw[i].no}`;
+      sp.name = `${a} and ${b}`;
+      if (sp.open) errors.push({ rule: 'TW-07', text: `Needs towers between ${sp.name}: ${lenFt(sp.q.x - sp.p.x)} is too long a span` });
+      if (sp.dips.length) errors.push({ rule: 'TW-01', text: `Chairs pass ${lenFt(Math.max(0, Math.floor(sp.min)))} over the ground between ${sp.name}: ${lenFt(RULE.clear)} needed` });
+      if (sp.exit) errors.push({ rule: 'RP-01', text: `The rope meets ${sp.p.term ? a : b} at ${sp.exit.toFixed(0)}°: ${RULE.exitDeg}° at most. Put a tower nearer it.` });
+      if (sp.min < Infinity && (!lowest || sp.min < lowest.min)) lowest = { min: sp.min, at: sp.at, name: sp.name };
+    });
+    for (const o of tw) if (!o.head.ok) errors.push({ rule: o.head.rule, text: `Tower ${o.no}: ${o.head.why}` });
+    const xs = pts.map((p) => p.x);
+    for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] < RULE.gap) errors.push({ rule: 'TW-03', text: `Two supports ${lenFt(xs[i] - xs[i - 1])} apart: ${lenFt(RULE.gap)} needed` });
+    if (!errors.some((e) => e.rule === 'RP-05') && tension.hi > T.rated * 0.85) warnings.push(`Tension reaches ${Math.round(tension.hi / T.rated * 100)}% of the rating: little room to lengthen the line`);
+    for (const o of tw) if (o.h >= 80) warnings.push(`Tower ${o.no} is ${lenFt(o.h)} tall: tall towers catch the wind (comes in Phase 4)`);
+    return { pts, spans, towers: tw, tension, errors, warnings, lowest, bottomAtA, zb, zt, ws };
+  }
+  // The tower in hand (LF-04): can it stand here at this height? Spacing and siting (TW-03), its head and its
+  // neighbours' heads (TW-04 to TW-06), and the chairs near it (TW-01: within 200 ft, or half a span), and the rope's angle into a station (RP-01). A span still
+  // waiting for towers further along stays red on its own; it doesn't count against this tower.
+  function towerCheck(d, x, h, skip, base) {
+    const others = d.towers.filter((t) => t !== skip);
+    if (!onTerrain(rayPt(d, x))) return { ok: false, rule: 'TW-03', why: 'Off the mountain: towers stand inside the area' };
+    const near = Math.min(x, d.len - x, ...others.map((t) => Math.abs(t.x - x)));
+    if (near < RULE.gap) return { ok: false, rule: 'TW-03', why: `Only ${lenFt(near)} from the next support: ${lenFt(RULE.gap)} needed` };
+    const t = { x, h, probe: true }, ev = evalLift(d, others.concat([t])), k = ev.towers.findIndex((o) => o.ref === t), me = ev.towers[k];
+    for (const sp of [ev.spans[k], ev.spans[k + 1]]) {
+      const reach = Math.min(200, (sp.q.x - sp.p.x) / 2), lo = x - reach, hi = x + reach;
+      for (const [a, b] of sp.dips) if (b >= lo && a <= hi) { const c = Math.max(0, Math.floor(Math.min(...sp.cl.map((cl) => cl.min)))); return { ok: false, rule: 'TW-01', why: `Chairs pass ${lenFt(c)} over the ground: ${lenFt(RULE.clear)} needed`, me, ev }; }
+    }
+    for (const sp of [ev.spans[k], ev.spans[k + 1]]) if (sp.exit) return { ok: false, rule: 'RP-01', why: `The rope meets the station at ${sp.exit.toFixed(0)}°: ${RULE.exitDeg}° at most`, me, ev };
+    if (!me.head.ok) return { ok: false, rule: me.head.rule, why: me.head.why, me, ev };
+    const was = base || evalLift(d, others);
+    for (const o of [ev.towers[k - 1], ev.towers[k + 1]]) {
+      if (!o || o.head.ok) continue;
+      const before = was.towers.find((w) => w.ref === o.ref);
+      if (before && before.head.ok) return { ok: false, rule: o.head.rule, why: `Tower ${o.no} couldn't carry the rope: ${o.head.why.toLowerCase()}`, me, ev };
+    }
+    return { ok: true, me, ev };
+  }
+  // TW-09: where the tower in hand could stand at its height, checked every 5 ft; recomputed only when something changes.
+  function standBand(d, h, skip) {
+    const base = evalLift(d, d.towers.filter((t) => t !== skip)), out = [];
+    let open = null;
+    for (let x = RULE.gap; x <= d.len - RULE.gap; x += RULE.grid) {
+      const ok = towerCheck(d, x, h, skip, base).ok;
+      if (ok && open === null) open = x; else if (!ok && open !== null) { out.push([open, x - RULE.grid]); open = null; }
+    }
+    if (open !== null) out.push([open, d.len - RULE.gap]);
+    return out;
+  }
+  // TW-12 stand-in: walk from a support toward the far terminal, putting each tower as far on as it can go at a
+  // modest height (35 ft, then 40, 30, and taller only when nothing modest clears), on the 5 ft grid. Never leaves a
+  // red tower; says why when nothing fits.
+  const AUTO_H = [35, 40, 30, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 25];
+  function autoFill(d, fromX, kept) {
+    const placed = kept.slice(), T = LIFT_TYPES[d.type];
+    if (evalLift(d, placed).errors.some((e) => e.rule === 'RP-05')) return { towers: placed, ok: false, why: `Too much rise for a ${d.type} at ${d.cap.toLocaleString('en-US')} an hour. Lower the capacity or shorten the line.` };
+    // Only the span being tried and the bend behind it are solved for each candidate (P7), not the whole line.
+    const ws = [loadPerFt(T, d.cap, false), loadPerFt(T, d.cap, true)], ptAt = (x, h) => ({ x, z: groundAt(d.g, x) + h });
+    const A = { x: 0, z: groundAt(d.g, 0) + RULE.termRope, term: true }, B = { x: d.len, z: groundAt(d.g, d.len) + RULE.termRope, term: true }, zb = Math.min(A.z, B.z);
+    const span = (p, q) => {   // null when the chairs can't clear it (TW-01, RP-01), else its geometry in both cases
+      const geo = ws.map((w) => spanGeo(p, q, w, T, zb));
+      if (geo[1].k * geo[1].L / 4 > 0.1) return null;
+      for (const gg of geo) {
+        if (spanClear(p, q, gg, d.g).dips.length) return null;
+        if ((p.term && Math.abs(Math.atan(gg.sIn)) * 180 / Math.PI > RULE.exitDeg) || (q.term && Math.abs(Math.atan(gg.sOut)) * 180 / Math.PI > RULE.exitDeg)) return null;
+      }
+      return geo;
+    };
+    const headAt = (inGeo, p, outGeo) => { const L = [], Bd = []; ws.forEach((w, c) => { const bend = Math.atan(inGeo[c].sOut) - Math.atan(outGeo[c].sIn), Tj = T.cw + w * (p.z - zb); L.push(2 * Tj * Math.sin(bend / 2)); Bd.push(bend * 180 / Math.PI); }); return headFor(L, Bd); };
+    // the chain we extend: the point before the start (for the first bend) and the start itself
+    const sorted = placed.slice().sort((a, b) => a.x - b.x), before = sorted.filter((t) => t.x < fromX), start = sorted.find((t) => t.x === fromX);
+    const prevPt = before.length ? ptAt(before[before.length - 1].x, before[before.length - 1].h) : A;
+    const chain = [{ p: start ? ptAt(start.x, start.h) : A, inGeo: start ? span(prevPt, ptAt(start.x, start.h)) || ws.map((w) => spanGeo(prevPt, ptAt(start.x, start.h), w, T, zb)) : null, bound: Infinity }];
+    const t0 = performance.now();   // a line with no fit gives up quickly rather than stall the pointer
+    while (performance.now() - t0 < 60) {
+      const cur = chain[chain.length - 1], tail = span(cur.p, B);
+      if (tail && (!cur.inGeo || headAt(cur.inGeo, cur.p, tail).ok)) {
+        return { towers: placed.concat(chain.slice(1).map((c) => c.t)), ok: true };
+      }
+      let found = null;
+      for (const h of AUTO_H) {
+        for (let x = Math.min(d.len - RULE.gap, cur.p.x + 800, cur.bound); x >= cur.p.x + RULE.gap; x -= RULE.grid) {
+          const q = ptAt(x, h), geo = span(cur.p, q);
+          if (!geo || !onTerrain(rayPt(d, x)) || (cur.inGeo && !headAt(cur.inGeo, cur.p, geo).ok)) continue;
+          found = { p: q, inGeo: geo, bound: Infinity, t: { x, h, auto: true } };
+          break;
+        }
+        if (found) break;
+      }
+      if (found) { chain.push(found); continue; }
+      if (chain.length < 2) break;
+      const dead = chain.pop();   // nothing reaches on from here: try the tower before it a little nearer
+      chain[chain.length - 1].bound = dead.t.x - RULE.grid;
+    }
+    const far = chain[chain.length - 1].p.x;
+    return { towers: placed.concat(chain.slice(1).map((c) => c.t)), ok: false, why: `No layout fits past ${lenFt(far)}: towers up to ${lenFt(RULE.hMax)} can't keep the chairs ${lenFt(RULE.clear)} up and the heads within their limits there` };
+  }
+
+  // ---------- the lift construction tool: the draft, the menu, the profile strip and the drawing on the mountain ----------
+  // The flow (owner, 2026-10-16; P3-02 LF-01 to LF-06): the whole terminal follows the pointer, a click anchors it, a
+  // second click far away places the other terminal and fixes the line, then the towers go in automatically or by hand.
+  const lenFt = (ft) => (IMP() ? `${Math.round(ft).toLocaleString('en-US')} ft` : `${(ft / FT).toFixed(ft / FT < 20 ? 1 : 0)} m`);
+  const forceTxt = (lbf) => (IMP() ? `${Math.round(lbf).toLocaleString('en-US')} lbf` : `${(lbf * 0.00444822).toFixed(1)} kN`);
+  const snapFt = (s) => Math.round(s / RULE.grid) * RULE.grid;
+  const LIFT_STEPS = [['first', 'Terminal'], ['other', 'Other end'], ['towers', 'Towers'], ['review', 'Review']];
+  function newLiftDraft() {
+    return { kind: 'lift', step: 'first', mode: S.liftMode || 'auto', type: 'Sessellift FGQ-4', cap: 2400, a: null, dir: null, len: 0, reach: 0, g: null,
+      towers: [], inH: 35, sel: null, hand: null, aim: null, autoMsg: null, armAuto: false, armCancel: false,
+      name: LIFT_NAMES[liftSeq % LIFT_NAMES.length], n: nextLiftNumber() };
+  }
+  // The last evaluation and band, kept until the towers, the line, the type or the capacity change (TW-09: recomputed
+  // only when something changes).
+  let evMemo = { key: '', ev: null }, bandMemo = { key: '', band: [] };
+  const liftSig = (d) => `${d.type}|${d.cap}|${d.len}|${d.a}|${d.towers.map((t) => `${t.x}:${t.h}`).join(',')}`;
+  function liftEval(d) { const k = liftSig(d); if (evMemo.key !== k) evMemo = { key: k, ev: evalLift(d) }; return evMemo.ev; }
+  function liftBand(d, h, skip) { const k = `${liftSig(d)}|${h}|${skip ? skip.x : ''}`; if (bandMemo.key !== k) bandMemo = { key: k, band: standBand(d, h, skip) }; return bandMemo.band; }
+  const hasHandTowers = (d) => d.towers.some((t) => t.hand);
+  // Fix the line through the end the player clicked, and put the towers in if Automatic is on.
+  function fixLine(d, B) {
+    const dx = B[0] - d.a[0], dy = B[1] - d.a[1], px = Math.hypot(dx, dy);
+    d.dir = [dx / px, dy / px]; d.reach = snapFt(rayReach(d.a, d.dir)); d.len = Math.min(d.reach, snapFt(px * FT_PX));
+    d.g = rayProfile(d.a, d.dir, d.reach + 20); d.aim = null; d.towers = [];
+    if (d.mode === 'auto') { placeAuto(d); d.step = 'review'; } else d.step = 'towers';
+  }
+  function placeAuto(d, fromX = 0, kept = []) {
+    const r = autoFill(d, fromX, kept);
+    d.towers = r.towers; d.autoMsg = r.ok ? null : r.why; d.sel = null;
+    return r.ok;
+  }
+  // While aiming, the line from the anchored terminal to the pointer (with Automatic's towers), redone at most ten
+  // times a second (TW-12's preview rate).
+  let aimTimer = 0, aimLast = 0;
+  function aimAt(p, force) {
+    const d = S.draft, dx = p[0] - d.a[0], dy = p[1] - d.a[1], px = Math.hypot(dx, dy), len = snapFt(px * FT_PX);
+    if (len < RULE.minLen || !onTerrain(p)) { d.aim = { p, short: len < RULE.minLen, off: !onTerrain(p) }; return; }
+    const dir = [dx / px, dy / px], aim = { p, a: d.a, dir, len, g: rayProfile(d.a, dir, len + 20), type: d.type, cap: d.cap, towers: [] };
+    if (d.mode === 'auto') {
+      const now = performance.now();
+      if (force || now - aimLast > 100) { aimLast = now; const r = autoFill(aim, 0, []); aim.towers = r.towers; aim.msg = r.ok ? null : r.why; }
+      else { aim.towers = (d.aim && d.aim.towers || []).filter((t) => t.x < len - RULE.gap); aim.stale = true; clearTimeout(aimTimer); aimTimer = setTimeout(() => { if (S.draft === d && d.step === 'other' && mouse) { aimAt(mouse, true); refreshLift(); } }, 110); }
+    }
+    d.aim = aim;
+  }
+  // The pointer near the line: over a placed tower, or the tower in hand at the nearest 5 ft.
+  function handAt(d, p) {
+    if (!p || !d.g) return null;
+    const rx = p[0] - d.a[0], ry = p[1] - d.a[1], along = rx * d.dir[0] + ry * d.dir[1], perp = Math.abs(rx * d.dir[1] - ry * d.dir[0]);
+    if (perp > 24 / S.zoom || along < -6 || along * FT_PX > d.len + 60) return null;
+    const s = along * FT_PX, hit = d.towers.find((t) => Math.abs(t.x - s) / FT_PX < 6 / S.zoom);
+    if (hit) return { hover: hit };
+    if (d.sel) return { idle: true };
+    const x = Math.max(RULE.gap, Math.min(d.len - RULE.gap, snapFt(s)));
+    return { x, chk: towerCheck(d, x, d.inH, null, liftEval(d)) };
+  }
+  const liftCost = (d, ev) => { const T = LIFT_TYPES[d.type], slope = Math.hypot(d.len, ev.zt - ev.zb); return T.term + slope * T.perFt + d.towers.reduce((a, t) => a + T.tower + t.h * 650, 0); };
+  const headWord = (h) => `${HEADS[h.code][0]} · ${HEADS[h.code][1]}`;
+
+  // ----- on the mountain -----
+  // A terminal in plan, as a trail map draws a station: its house behind the bullwheel, pointing along the line.
+  function terminalGlyph(p, ang, col, op = 1) {
+    const c = Math.cos(ang), s = Math.sin(ang), T = (x, y) => `${f1(p[0] + x * c - y * s)} ${f1(p[1] + x * s + y * c)}`;
+    // the house behind the bullwheel, the loading ramp beside it, and the bullwheel with the two rope lines leaving it
+    return `<g opacity="${op}"><path d="M${T(-4, -9)}L${T(-34, -9)}L${T(-34, 9)}L${T(-4, 9)}Z" fill="${graphite}" stroke="${col}" stroke-width="1.6"/><path d="M${T(-30, -5)}L${T(-9, -5)}M${T(-30, 0)}L${T(-9, 0)}M${T(-30, 5)}L${T(-9, 5)}" stroke="${col}" stroke-width=".9" opacity=".6"/><path d="M${T(-2, -6.5)}L${T(16, -6.5)}M${T(-2, 6.5)}L${T(16, 6.5)}" stroke="${col}" stroke-width="1.6" stroke-dasharray="3 2"/><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="7.5" fill="${graphite}" stroke="${col}" stroke-width="2"/><circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="2" fill="${col}"/></g>`;
+  }
+  // A readout card beside the pointer: a bold first line, then plain lines.
+  function readoutCard(x, y, lines) {
+    const w = Math.max(...lines.map((l) => l[0].length)) * 6.1 + 18, h = lines.length * 15 + 8, cx = x + 16 + w > W - 6 ? x - 16 - w : x + 16;
+    return `<g style="pointer-events:none"><rect x="${f1(cx)}" y="${f1(y - 10)}" width="${f1(w)}" height="${h}" rx="2" fill="${graphite}"/>${lines.map(([t, col], i) => `<text x="${f1(cx + 9)}" y="${f1(y + 5 + i * 15)}" style="font:${i ? 500 : 700} 11px DotFix,Overpass,sans-serif;fill:${col || '#efe9df'}">${esc(t)}</text>`).join('')}</g>`;
+  }
+  const OKC = '#5fd06a', BADC = '#ff5a4a';
+  function towerTick(d, x, col, w = 2.6, len = 6) {
+    const p = rayPt(d, x), nx = -d.dir[1] * len, ny = d.dir[0] * len;
+    return `<line x1="${f1(p[0] - nx)}" y1="${f1(p[1] - ny)}" x2="${f1(p[0] + nx)}" y2="${f1(p[1] + ny)}" stroke="${graphite}" stroke-width="${w + 2.4}" stroke-linecap="round"/><line x1="${f1(p[0] - nx)}" y1="${f1(p[1] - ny)}" x2="${f1(p[0] + nx)}" y2="${f1(p[1] + ny)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`;
+  }
+  const segLine = (d, a, b, col, wd, extra = '') => { const p = rayPt(d, a), q = rayPt(d, b); return `<line x1="${f1(p[0])}" y1="${f1(p[1])}" x2="${f1(q[0])}" y2="${f1(q[1])}" stroke="${col}" stroke-width="${wd}" stroke-linecap="round" ${extra}/>`; };
+  function drawLiftDraft(d) {
+    let s = '';
+    if (d.step === 'first') {
+      if (mouse) { const ok = onTerrain(mouse), e = 6, up = Math.atan2(elevXY(mouse[0], mouse[1] + e) - elevXY(mouse[0], mouse[1] - e), elevXY(mouse[0] + e, mouse[1]) - elevXY(mouse[0] - e, mouse[1])); s += terminalGlyph(mouse, ok ? up : -Math.PI / 2, ok ? flag : BADC, 0.95); s += readoutCard(mouse[0], mouse[1] - 4, ok ? [['Click to anchor the terminal'], [`Elev. ${lenTxt(elevAt(mouse))}`, '#cfc7bb']] : [['Off the mountain', BADC]]); }
+      return s;
+    }
+    if (d.step === 'other') {
+      const m = d.aim && d.aim.p, ang = m ? Math.atan2(m[1] - d.a[1], m[0] - d.a[0]) : -Math.PI / 2;
+      if (m) {
+        const bad = d.aim.short || d.aim.off || d.aim.msg;
+        s += `<line x1="${d.a[0]}" y1="${d.a[1]}" x2="${f1(m[0])}" y2="${f1(m[1])}" stroke="${white}" stroke-width="3.6" opacity=".7"/><line x1="${d.a[0]}" y1="${d.a[1]}" x2="${f1(m[0])}" y2="${f1(m[1])}" stroke="${flag}" stroke-width="2" stroke-dasharray="7 4"/>`;
+        if (d.aim.towers) for (const t of d.aim.towers) s += towerTick(d.aim, t.x, d.aim.stale ? '#cfc7bb' : white, 2.2, 5);
+        if (d.aim.g) { const e0 = elevAt(d.a), e1 = elevAt(m), rise = (e1 - e0) * FT; s += dimension(d.a, m, `${lenFt(d.aim.len)} · ${rise >= 0 ? '+' : '−'}${lenFt(Math.abs(rise))} · ${Math.round(Math.abs(rise) / d.aim.len * 100)}%`); }
+        s += terminalGlyph(m, ang + Math.PI, bad ? BADC : flag, 0.92);
+        const lines = d.aim.short ? [['Too short', BADC], [`A lift is ${lenFt(RULE.minLen)} at least`, '#cfc7bb']] : d.aim.off ? [['Off the mountain', BADC]]
+          : [['Click to place the other terminal'], d.aim.msg ? [d.aim.msg, BADC] : d.mode === 'auto' ? [`${d.aim.towers.length} towers, placed automatically`, '#cfc7bb'] : ['Then place the towers by hand', '#cfc7bb']];
+        s += readoutCard(m[0], m[1] + 14, lines);
+      }
+      s += terminalGlyph(d.a, ang, flag);
+      return s;
+    }
+    // The line, as a trail map draws a lift: a line with a dot at each end; orange while it's a plan.
+    const ev = liftEval(d), A = d.a, B = rayPt(d, d.len), sel = d.sel, hp = d.hand;
+    const band = hp && hp.chk ? liftBand(d, d.inH, null) : sel ? liftBand(d, sel.h, sel) : [];
+    for (const [a, b] of band) s += segLine(d, a, Math.max(b, a + 2), OKC, 9, 'opacity=".55"');
+    s += `<line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${white}" stroke-width="4.6" opacity=".8"/><line x1="${A[0]}" y1="${A[1]}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${flag}" stroke-width="2.4"/>`;
+    for (const sp of ev.spans) {
+      if (sp.open) s += segLine(d, sp.p.x, sp.q.x, graphite, 3.4, 'stroke-dasharray="2 5" opacity=".9"');
+      for (const [a, b] of sp.dips) s += segLine(d, a, Math.max(b, a + 3), BADC, 3.4);
+    }
+    for (const o of ev.towers) {
+      if (o.ref === sel) s += towerTick(d, o.x, selC, 5, 9);
+      s += towerTick(d, o.x, o.head.ok ? white : BADC, 2.6, 6);
+    }
+    for (const p of [A, B]) s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="5.2" fill="${flag}" stroke="${white}" stroke-width="1.8"/>`;
+    if (ev.lowest && ev.lowest.min < 60) { const p = rayPt(d, ev.lowest.at), bad = ev.lowest.min < RULE.clear; s += `<g style="pointer-events:none"><path d="M${f1(p[0])} ${f1(p[1] + 3)}l-4 7h8z" fill="${bad ? BADC : white}" stroke="${graphite}" stroke-width="1"/></g>`; }
+    if (S.layers.labels) { const up = d.dir[0] > 0, tx = up ? A[0] - (d.name.length * 7.4 + 28) - 10 : A[0] + 12; s += tagBox(tx, A[1] - 9, liftPlate(tx, A[1] - 9, d.n, true), d.name, flag, '3 2'); }
+    if (hp && hp.hover) { const o = ev.towers.find((t) => t.ref === hp.hover), p = rayPt(d, o.x); s += towerTick(d, o.x, selC, 3.4, 8) + readoutCard(p[0], p[1] - 22, [[`Tower ${o.no} · ${lenFt(o.h)} · ${HEADS[o.head.code][0]}`], ['Click to select, drag to slide', '#cfc7bb']]); }
+    else if (hp && hp.chk && mouse) {
+      const p = rayPt(d, hp.x), ok = hp.chk.ok, no = hp.chk.me ? hp.chk.me.no : '';
+      s += `<circle cx="${f1(p[0])}" cy="${f1(p[1])}" r="9" fill="none" stroke="${ok ? OKC : BADC}" stroke-width="1.6"/>` + towerTick(d, hp.x, ok ? OKC : BADC, 3.6, 8);
+      s += readoutCard(p[0], p[1] - 30, [[`Tower ${no} · ${lenFt(d.inH)}${ok ? ` · ${HEADS[hp.chk.me.head.code][0]}` : ''}`], ok ? ['Click to place it', OKC] : [hp.chk.why, BADC], ['Page Up / Page Down: ±5 ft', '#a39b90']]);
+    }
+    return s;
+  }
+
+  // ----- the profile strip: the side view, and under it the chairs' height over the ground -----
+  function liftStripInner(d, w) {
+    const L = d.g ? d : d.aim && d.aim.g ? d.aim : null;
+    if (!L) return `<div class="lsh"><b>Profile</b><span class="mono">${d.step === 'first' ? 'Anchor a terminal, then aim at the other end' : 'Aim at the other end'}: the line shows here from the side.</span></div><div class="lsempty"></div>`;
+    const ev = L === d ? liftEval(d) : evalLift(L), T = LIFT_TYPES[d.type], sw = w - 2, padL = 58, padR = 14, X = (s) => padL + s / L.len * (sw - padL - padR);
+    // the side view: true elevations, so a 15 ft clearance is a pixel or two; the track under it reads the chairs
+    let zl = Infinity, zh = -Infinity;
+    const N = Math.min(400, Math.ceil(L.len / RULE.grid)), gs = [];
+    for (let i = 0; i <= N; i++) { const s = L.len * i / N, z = groundAt(L.g, s); gs.push([s, z]); zl = Math.min(zl, z); zh = Math.max(zh, z); }
+    for (const p of ev.pts) zh = Math.max(zh, p.z);
+    const top = 8, base = 72, Y = (z) => base - (z - zl) / Math.max(1, zh - zl) * (base - top);
+    let g = '';
+    const band = L === d ? (d.hand && d.hand.chk ? liftBand(d, d.inH, null) : d.sel ? liftBand(d, d.sel.h, d.sel) : []) : [];
+    for (const [a, b] of band) g += `<rect x="${f1(X(a))}" y="2" width="${f1(Math.max(2, X(b) - X(a)))}" height="118" style="fill:var(--text)" opacity=".07"/><rect x="${f1(X(a))}" y="2" width="${f1(Math.max(2, X(b) - X(a)))}" height="1.5" style="fill:var(--soft)"/>`;
+    const gp = gs.map(([s, z], i) => `${i ? 'L' : 'M'}${f1(X(s))} ${f1(Y(z))}`).join('');
+    g += `<path d="${gp}L${f1(X(L.len))} ${base}L${f1(X(0))} ${base}Z" style="fill:var(--chart-fill)"/><path d="${gp}" fill="none" stroke-width="1.3" style="stroke:var(--chart-a)"/>`;
+    ev.spans.forEach((sp) => {
+      const geo = sp.geo[1], n = 14; let pth = '';
+      for (let i = 0; i <= n; i++) { const s = sp.p.x + (sp.q.x - sp.p.x) * i / n; pth += `${i ? 'L' : 'M'}${f1(X(s))} ${f1(Y(ropeAt(sp.p, sp.q, geo, s)))}`; }
+      g += `<path d="${pth}" fill="none" stroke-width="1.6" ${sp.open ? 'stroke-dasharray="5 4" ' : ''}style="stroke:${sp.dips.length || sp.exit ? 'var(--neg)' : sp.open ? 'var(--soft)' : 'var(--strong)'}"/>`;
+      if (sp.open) g += `<text x="${f1(X((sp.p.x + sp.q.x) / 2))}" y="${f1((Y(sp.p.z) + Y(sp.q.z)) / 2 - 6)}" text-anchor="middle" style="font:700 10px 'DotFix','Overpass';fill:var(--soft)">needs towers</text>`;
+    });
+    for (const o of ev.towers) {
+      const x = X(o.x), yt = Y(groundAt(L.g, o.x) + o.h), yg = Y(groundAt(L.g, o.x)), col = o.head.ok ? 'var(--text)' : 'var(--neg)', c = o.head.code;
+      if (o.ref === d.sel) g += `<rect x="${f1(x - 7)}" y="2" width="14" height="118" style="fill:var(--chip)"/>`;
+      g += `<line x1="${f1(x)}" y1="${f1(yg)}" x2="${f1(x)}" y2="${f1(yt)}" stroke-width="1.6" style="stroke:${col}"/>`;
+      // the head: sheaves over the rope (support, breakover), under it (hold-down) or both (combination)
+      const dot = (dy) => `<circle cx="${f1(x - 2.2)}" cy="${f1(yt + dy)}" r="1.25" style="fill:${col}"/><circle cx="${f1(x + 2.2)}" cy="${f1(yt + dy)}" r="1.25" style="fill:${col}"/>`;
+      g += c === 'd8' ? dot(2.6) : c === 'c8' ? dot(-2.6) + dot(2.6) : dot(-2.6) + (c === 'b8' ? `<circle cx="${f1(x)}" cy="${f1(yt - 4.4)}" r="1.25" style="fill:${col}"/>` : '');
+      g += `<text x="${f1(x)}" y="${f1(Math.max(9, yt - 8))}" text-anchor="middle" style="font:600 9px 'Overpass Mono';fill:${o.head.ok ? 'var(--muted)' : 'var(--neg)'}">${IMP() ? o.h : (o.h / FT).toFixed(1)}</text>`;
+    }
+    for (const p of [ev.pts[0], ev.pts[ev.pts.length - 1]]) g += `<rect x="${f1(X(p.x) - 4)}" y="${f1(Y(p.z) - 3)}" width="8" height="6" rx="1" style="fill:var(--strong)"/>`;
+    if (L === d && d.hand && d.hand.chk) { const x = X(d.hand.x), ok = d.hand.chk.ok; g += `<line x1="${f1(x)}" y1="2" x2="${f1(x)}" y2="120" stroke-width="1.4" stroke-dasharray="3 2" style="stroke:${ok ? 'var(--soft)' : 'var(--neg)'}"/><line x1="${f1(x)}" y1="${f1(Y(groundAt(d.g, d.hand.x)))}" x2="${f1(x)}" y2="${f1(Y(groundAt(d.g, d.hand.x) + d.inH))}" stroke-width="2.6" style="stroke:${ok ? 'var(--strong)' : 'var(--neg)'}"/>`; }
+    // the clearance track (TW-01): the chairs' bottom over the ground, 0 to 60 ft, against the dashed 15 ft line
+    const t0 = 82, t1 = 118, CY = (c) => t1 - Math.max(0, Math.min(60, c)) / 60 * (t1 - t0);
+    g += `<line x1="${padL}" y1="${t1}" x2="${f1(sw - padR)}" y2="${t1}" style="stroke:var(--chart-b)"/><line x1="${padL}" y1="${f1(CY(RULE.clear))}" x2="${f1(sw - padR)}" y2="${f1(CY(RULE.clear))}" stroke-dasharray="4 3" style="stroke:var(--soft)"/>`;
+    let cp = '';
+    ev.spans.forEach((sp) => {
+      if (sp.open) { g += `<rect x="${f1(X(sp.p.x))}" y="${t0}" width="${f1(X(sp.q.x) - X(sp.p.x))}" height="${t1 - t0}" fill="url(#lgap)"/>`; return; }
+      const n = sp.cl[0].cs.length - 1; let first = true;
+      for (let k = 0; k <= n; k += 2) { const s = sp.p.x + (sp.q.x - sp.p.x) * k / n, c = Math.min(sp.cl[0].cs[k], sp.cl[1].cs[k]); cp += `${first ? 'M' : 'L'}${f1(X(s))} ${f1(CY(c))}`; first = false; }
+    });
+    for (const sp of ev.spans) for (const [a, b] of sp.dips) g += `<rect x="${f1(X(a))}" y="${f1(CY(RULE.clear))}" width="${f1(Math.max(2, X(b) - X(a)))}" height="${f1(t1 - CY(RULE.clear))}" style="fill:var(--neg)" opacity=".45"/>`;
+    const z0 = ev.spans[0].cl[1].zoneA, z1 = ev.spans[ev.spans.length - 1].cl[1].zoneB;
+    if (z0 !== null) g += `<rect x="${padL}" y="${t0}" width="${f1(Math.max(0, X(z0) - padL))}" height="${t1 - t0}" fill="url(#lzone)"/>`;
+    if (z1 !== null) g += `<rect x="${f1(X(z1))}" y="${t0}" width="${f1(Math.max(0, X(L.len) - X(z1)))}" height="${t1 - t0}" fill="url(#lzone)"/>`;
+    g += `<path d="${cp}" fill="none" stroke-width="1.4" style="stroke:var(--chart-a)"/>`;
+    if (ev.lowest) { const x = X(ev.lowest.at), y = CY(ev.lowest.min), bad = ev.lowest.min < RULE.clear; g += `<circle cx="${f1(x)}" cy="${f1(y)}" r="2.6" style="fill:${bad ? 'var(--neg)' : 'var(--strong)'}"/><text x="${f1(Math.min(x + 6, sw - 70))}" y="${f1(Math.max(t0 + 8, y - 4))}" style="font:600 9.5px 'Overpass Mono';fill:${bad ? 'var(--neg)' : 'var(--muted)'}">lowest ${lenFt(Math.max(0, Math.floor(ev.lowest.min)))}</text>`; }
+    // labels on the left, the distance axis along the bottom
+    g += `<text x="6" y="14" style="font:700 10px 'DotFix','Overpass';fill:var(--soft)">Side view</text><text x="6" y="${t0 + 8}" style="font:700 10px 'DotFix','Overpass';fill:var(--soft)">Chairs</text><text x="6" y="${t0 + 19}" style="font:500 9.5px 'DotFix','Overpass';fill:var(--soft)">over ground</text><text x="${padL - 4}" y="${f1(CY(RULE.clear) + 3)}" text-anchor="end" style="font:600 9px 'Overpass Mono';fill:var(--soft)">${lenFt(RULE.clear)}</text>`;
+    const stepAx = IMP() ? (L.len > 5000 ? 1000 : 500) : (L.len > 1600 * FT ? 300 * FT : 100 * FT);
+    for (let s = 0; s <= L.len + 1; s += stepAx) g += `<line x1="${f1(X(s))}" y1="${t1}" x2="${f1(X(s))}" y2="${t1 + 3}" style="stroke:var(--chart-label)"/><text x="${f1(X(s))}" y="${t1 + 12}" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">${s ? (IMP() ? s.toLocaleString('en-US') : Math.round(s / FT).toLocaleString('en-US')) : 0}</text>`;
+    const defs = `<defs><pattern id="lzone" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" style="fill:var(--chart-bg)"/><line x1="0" y1="0" x2="0" y2="5" stroke-width="1.6" style="stroke:var(--hair2)"/></pattern><pattern id="lgap" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke-width="1.4" style="stroke:var(--hair2)"/></pattern></defs>`;
+    // the header: the line's numbers, then the tension bar (RP-06) with lbf beside it
+    const t = ev.tension, lo = t.lo / t.rated, hi = t.hi / t.rated, BW = 128, BX = (f) => 1 + Math.min(1.12, f) / 1.12 * (BW - 2), over = hi > 1;
+    const bar = `<svg width="${BW}" height="12" style="display:block"><rect x="0.5" y="2.5" width="${BW - 1}" height="7" rx="1" style="fill:var(--chart-bg);stroke:var(--hair2)"/><rect x="${f1(BX(lo))}" y="3" width="${f1(BX(hi) - BX(lo))}" height="6" style="fill:${over ? 'var(--neg)' : 'var(--chart-a)'}"/><line x1="${f1(BX(1))}" y1="0" x2="${f1(BX(1))}" y2="12" stroke-width="1.6" style="stroke:var(--strong)"/></svg>`;
+    const rise = ev.zt - ev.zb;
+    return `<div class="lsh"><b>Profile</b><span class="mono">${lenFt(L.len)} · rise ${lenFt(rise)} · ${Math.round(rise / L.len * 100)}% · ${ev.towers.length} tower${ev.towers.length === 1 ? '' : 's'}</span>
+      <span class="lten" title="RP-03, RP-05, RP-06: line tension from the bottom to the top of the loaded side, against the type's rating (${forceTxt(t.rated)}). Placeholder numbers (P3-02).">Tension ${bar}<b style="color:${over ? 'var(--neg)' : 'var(--text)'}">${Math.round(lo * 100)}–${Math.round(hi * 100)}%</b><span class="mono">${forceTxt(t.lo)} – ${forceTxt(t.hi)}</span></span></div>
+      <svg width="${sw}" height="134" style="display:block" title="">${defs}${g}</svg>`;
+  }
+  function liftStrip(d, left, bottom) {
+    const w = Math.round(W / (S.set.hudScale / 100) - left - 10);
+    return `<div class="pn lstrip" id="liftstrip" style="left:${left}px;bottom:${bottom}px;width:${w}px;z-index:4" title="The side view (true elevations) and the chairs' height over the ground. The green band is where the tower in hand could stand at its height (TW-09); the dashed line is the chairs' 15 ft (TW-01); hatched ends are the load and unload zones. Placeholder numbers (P3-02).">${liftStripInner(d, w)}</div>`;
+  }
+
+  // ----- the lift menu (LF-01): type, capacity and towers, the steps, then what the step needs -----
+  function loadGauge(o) {
+    if (o.head.pending) return `<div class="ldet" style="padding-top:2px">The head is chosen once the span past it has its towers (TW-04).</div>`;
+    const w = 316, cx = w / 2, half = cx - 12, X = (f) => cx + Math.max(-1.1, Math.min(1.1, f)) * half, n = o.head.n, seat = RULE.sheaveMin / RULE.sheaveMax, c = o.head.code;
+    const per = o.L.map((v) => v / n / RULE.sheaveMax);
+    let g = `<rect x="${f1(X(-1))}" y="15" width="${f1(2 * half)}" height="9" style="fill:var(--chart-bg);stroke:var(--row)"/>`;
+    if (c !== 'd8') g += `<rect x="${f1(X(seat))}" y="15" width="${f1(X(1) - X(seat))}" height="9" style="fill:var(--chart-fill)"/>`;
+    if (c === 'd8' || c === 'c8') g += `<rect x="${f1(X(-1))}" y="15" width="${f1(X(-seat) - X(-1))}" height="9" style="fill:var(--chart-fill)"/>`;
+    g += `<rect x="${f1(X(-seat))}" y="15" width="${f1(X(seat) - X(-seat))}" height="9" style="fill:var(--hair2)" opacity=".7"/><line x1="${f1(cx)}" y1="12" x2="${f1(cx)}" y2="27" style="stroke:var(--soft)"/>`;
+    for (const f of [-1, 1]) g += `<line x1="${f1(X(f))}" y1="11" x2="${f1(X(f))}" y2="28" stroke-width="1.6" style="stroke:var(--strong)"/>`;
+    ['empty', 'full'].forEach((lab, i) => { const x = X(per[i]), bad = Math.abs(per[i]) > 1; g += `<rect x="${f1(x - 1.5)}" y="11" width="3" height="17" style="fill:${bad ? 'var(--neg)' : 'var(--strong)'}"/><text x="${f1(x)}" y="${i ? 37 : 8}" text-anchor="middle" style="font:700 9.5px 'DotFix','Overpass';fill:${bad ? 'var(--neg)' : 'var(--muted)'}">${lab}</text>`; });
+    g += `<text x="${f1(X(-1))}" y="49" style="font:600 10px 'DotFix','Overpass';fill:var(--soft)">◂ pulls up</text><text x="${f1(X(1))}" y="49" text-anchor="end" style="font:600 10px 'DotFix','Overpass';fill:var(--soft)">presses down ▸</text><text x="${f1(cx)}" y="49" text-anchor="middle" style="font:500 9px 'Overpass Mono';fill:var(--chart-label)">0 · ends ±${forceTxt(RULE.sheaveMax)}</text>`;
+    const word = (v) => (v >= 0 ? 'presses' : 'pulls'), pct = (v) => Math.round(Math.abs(v) / n / RULE.sheaveMax * 100);
+    return `<div class="lgauge" title="TW-04, TW-05, TW-11, RP-04: the load on each sheave in the two load cases (line empty, uphill side full), as % of ${forceTxt(RULE.sheaveMax)}. The shaded side is what this head carries; the grey middle is under ${forceTxt(RULE.sheaveMin)}, where the rope wouldn't stay seated. Placeholder numbers (P3-02).">
+      <svg width="${w}" height="53" style="display:block">${g}</svg></div>
+      <div class="ldet">Full: ${word(o.L[1])} ${forceTxt(Math.abs(o.L[1]) / n)} a sheave (${pct(o.L[1])}%) · empty: ${forceTxt(Math.abs(o.L[0]) / n)} (${pct(o.L[0])}%) · bend ${Math.abs(o.B[1]).toFixed(1)}°</div>`;
+  }
+  function towerCard(d, ev) {
+    const stepper = (h, lo, hi) => `<div class="step lstep"><span class="sb${lo ? ' dis' : ''}" data-act="${lo ? '' : 'lh'}" data-v="-5" title="Page Down">‹</span><b>${lenFt(h)}</b><span class="sb${hi ? ' dis' : ''}" data-act="${hi ? '' : 'lh'}" data-v="5" title="Page Up">›</span></div>`;
+    if (d.sel) {
+      const o = ev.towers.find((t) => t.ref === d.sel);
+      return `<div class="sub ltop"><span>Tower ${o.no}</span>${stepper(o.h, o.h <= RULE.hMin, o.h >= RULE.hMax)}</div>
+        <div class="lstat ${o.head.ok ? 'ok' : 'bad'}" title="TW-04: the head follows what the rope does; kit ${o.head.code}">${o.head.ok ? `✓ ${headWord(o.head)}` : `✕ ${esc(o.head.why)}`}</div>${loadGauge(o)}
+        <div class="lkeys"><span><span class="kbd">Page Up</span><span class="kbd">Page Down</span> height</span><span>drag to slide</span><span><span class="kbd">Delete</span> removes it</span></div>`;
+    }
+    const hp = d.hand, chk = hp && hp.chk;
+    const status = !chk ? `<div class="lstat" style="color:var(--soft)">Move the pointer onto the line.</div>`
+      : chk.ok ? `<div class="lstat ok" title="TW-04: kit ${chk.me.head.code}">✓ Fits here · ${headWord(chk.me.head)}</div>` : `<div class="lstat bad" title="${chk.rule}">✕ ${esc(chk.why)}</div>`;
+    return `<div class="sub ltop"><span>Tower in hand${chk && chk.me ? ` <span style="color:var(--soft);font-weight:600">(will be ${chk.me.no})</span>` : ''}</span>${stepper(d.inH, d.inH <= RULE.hMin, d.inH >= RULE.hMax)}</div>${status}
+      ${chk && chk.me ? loadGauge(chk.me) : ''}
+      <div class="lkeys"><span><span class="kbd">Page Up</span><span class="kbd">Page Down</span> ±${lenFt(RULE.hStep)}</span><span>click a tower to select it</span></div>`;
+  }
+  function liftCtx() {
+    const d = S.draft, cur = LIFT_STEPS.findIndex(([k]) => k === d.step), ev = d.g ? liftEval(d) : null;
+    let h = `<div class="lsteps">${LIFT_STEPS.map(([k, v], i) => { const can = d.g && (k === 'towers' || k === 'review'); return `<span class="${i === cur ? 'now' : i < cur || (d.g && i < 2) ? 'done' : ''}"${can && i !== cur ? ` data-act="lstep" data-v="${k}"` : ''}><b>${i < cur || (d.g && i < 2 && i !== cur) ? '✓' : i + 1}</b>${v}</span>`; }).join('')}</div><div class="rule"></div>`;
+    const hint = (t) => `<div class="hint">${t}</div>`;
+    if (d.step === 'first') h += hint('The whole terminal follows the pointer. <b>Click</b> to anchor it: the dot is its bullwheel.');
+    else if (d.step === 'other') h += hint(`<b>Click</b> far away to place the other terminal. That fixes the line and turns the first terminal to face it.${d.mode === 'auto' ? ' The towers go in as you aim.' : ' Then you place the towers.'} The lower end is the bottom station.`) + (d.aim && d.aim.msg ? `<div class="lmsg err">${esc(d.aim.msg)}</div>` : '');
+    else if (d.step === 'towers') {
+      h += towerCard(d, ev);
+      h += `<div class="lbtns"><span class="ghost" data-act="lfill" title="LF-05, TW-12: automatic towers from your last tower to the far terminal">Fill the rest</span><span class="ghost" data-act="lstep" data-v="review">Review<span class="kbd" style="margin-left:8px">Enter</span></span></div>`;
+      if (d.autoMsg) h += `<div class="lmsg err">${esc(d.autoMsg)}</div>`;
+    } else {
+      const T = LIFT_TYPES[d.type], slope = Math.hypot(d.len, ev.zt - ev.zb), rise = ev.zt - ev.zb, hs = ev.towers.map((o) => o.h);
+      const counts = {}; for (const o of ev.towers) { const k = HEADS[o.head.code][0].toLowerCase(); counts[k] = (counts[k] || 0) + 1; }
+      const kv = (k, v, t = '') => `<dt${t ? ` title="${t}"` : ''}>${k}</dt><dd>${v}</dd>`;
+      const card = d.sel || (d.hand && d.hand.chk);
+      if (card) h += `<div class="lnote" style="padding:7px 12px 6px">${lenFt(slope)} · rise ${lenFt(rise)} · ${ev.towers.length} towers · lowest chairs ${ev.lowest ? lenFt(Math.max(0, Math.floor(ev.lowest.min))) : '–'}</div>`;
+      else h += `<dl class="kv" style="padding-top:6px">${kv('Length', `<b>${lenFt(slope)}</b> · rise ${lenFt(rise)} · ${Math.round(rise / d.len * 100)}%`)}${kv('Ride', `${fmtTime(slope / RULE.fpm * 60)} at ${speedTxt(RULE.fpm / 196.85)}`, 'LF-07: 450 ft/min, fixed')}${kv('Capacity', `<b>${d.cap.toLocaleString('en-US')}</b> an hour`)}
+        ${kv('Towers', ev.towers.length ? `<b>${ev.towers.length}</b> · ${lenFt(Math.min(...hs))}–${lenFt(Math.max(...hs))}` : dash, 'TW-02: 25–100 ft in 5 ft steps')}${ev.towers.length ? kv('Heads', Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(' · '), 'TW-04') : ''}
+        ${kv('Lowest chairs', ev.lowest ? `<b style="color:${ev.lowest.min < RULE.clear ? 'var(--neg)' : ''}">${lenFt(Math.max(0, Math.floor(ev.lowest.min)))}</b> over the ground` : dash, 'TW-01: 15 ft at least, outside the load and unload zones')}
+        ${kv('Tension', `<b>${Math.round(ev.tension.lo / ev.tension.rated * 100)}–${Math.round(ev.tension.hi / ev.tension.rated * 100)}%</b> of the rating`, 'RP-06')}${kv('Cost estimate', `${money(liftCost(d, ev))}`)}</dl>`;
+      const msgs = ev.errors.map((e) => `<div class="lmsg err" title="${e.rule}">✕ ${esc(e.text)}</div>`).concat(ev.warnings.map((w) => `<div class="lmsg warn">! ${esc(w)}</div>`));
+      if (d.autoMsg) msgs.unshift(`<div class="lmsg err" title="TW-12">✕ ${esc(d.autoMsg)}</div>`);
+      if (msgs.length) h += `<div class="rule"></div><div style="padding:4px 0">${msgs.slice(0, card ? 1 : 3).join('')}${msgs.length > (card ? 1 : 3) ? `<div class="lmsg" style="color:var(--soft)">and ${msgs.length - (card ? 1 : 3)} more</div>` : ''}</div>`;
+      if (card) h += `<div class="rule"></div>${towerCard(d, ev)}`;
+      else h += `<div class="hint" style="padding-top:2px">Every tower stays editable: click one to select it, or click the line to add one.</div>`;
+      h += `<div class="lbtns"><span class="ghost" data-act="lreplace" title="LF-06, TW-12: automatic placement on the whole line">${d.armReplace ? 'Click again: re-place your towers' : 'Re-place towers'}</span></div>`;
+    }
+    const ready = d.step === 'review' && ev && !ev.errors.length && !d.autoMsg, cost = ev ? short(liftCost(d, ev)).replace('+', '') : '';
+    h += `<div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}" title="LF-06, CF: Confirm"><span>Break ground</span><span class="mono">${d.step === 'review' ? cost : ''}</span></div><div class="ghost${d.step === 'review' ? '' : ' dis'}" data-act="${d.step === 'review' ? 'plan' : ''}">Save plan</div></div>`;
+    return h;
+  }
+  function liftPanel() {
+    const d = S.draft, ci = CAPS.indexOf(d.cap);
+    const seg = (act, cur, opts, tip) => `<div class="seg"${tip ? ` title="${tip}"` : ''}>${opts.map(([v, l]) => `<span class="${cur === v ? 'on' : ''}" data-act="${act}" data-v="${v}">${l}</span>`).join('')}</div>`;
+    return panelShell(`<span class="plate">${d.n}</span>New lift <span class="nm">${esc(d.name)}</span>${d.armCancel ? '<span class="nm" style="margin-left:auto;color:var(--neg)">Discard it? ✕ again</span>' : ''}`, `
+      <div style="padding:8px 0 4px">
+        <div class="lrow"><span>Type</span>${seg('ltype', d.type, Object.keys(LIFT_TYPES).map((k) => [k, k]), 'LF-01, LC: both fixed-grip quads share placeholder properties for now')}</div>
+        <div class="lrow"><span>Capacity</span><div class="step lstep" title="LF-01: 2,400 down to 1,200 an hour; fewer chairs let the same type climb further (RP-05)"><span class="sb${ci >= CAPS.length - 1 ? ' dis' : ''}" data-act="${ci >= CAPS.length - 1 ? '' : 'lcap'}" data-v="1">‹</span><b>${d.cap.toLocaleString('en-US')} an hour</b><span class="sb${ci <= 0 ? ' dis' : ''}" data-act="${ci <= 0 ? '' : 'lcap'}" data-v="-1">›</span></div></div>
+        <div class="lrow"><span>Towers</span>${seg('lmode', d.mode, [['auto', d.armAuto ? 'Again: re-place' : 'Automatic'], ['hand', 'By hand']], 'LF-01, TW-12: automatic towers, or yours; it can change until you break ground')}</div>
+        <div class="lnote">${speedTxt(RULE.fpm / 196.85)} · chairs ${lenFt(chairGap(d.cap))} apart</div>
+      </div><div class="rule"></div><div id="liftctx">${liftCtx()}</div>`, 344);
+  }
+  // Redraw only what the pointer changes: the mountain, the strip and the menu's lower part.
+  function refreshLift() {
+    drawWorld();
+    const d = S.draft; if (!d || d.kind !== 'lift') return;
+    const st = document.getElementById('liftstrip'); if (st) st.innerHTML = liftStripInner(d, st.offsetWidth);
+    const cx = document.getElementById('liftctx'); if (cx) cx.innerHTML = liftCtx();
+    if (S.set.tooltips === 'off') ui.querySelectorAll('[title]').forEach((n) => n.removeAttribute('title'));
+  }
+  // The menu's buttons (and the keys that share them).
+  function liftAct(a, v) {
+    const d = S.draft;
+    if (a !== 'lmode') d.armAuto = false;
+    if (a !== 'lreplace') d.armReplace = false;
+    d.armCancel = false;
+    const autoAgain = () => { if (d.g && d.mode === 'auto' && !hasHandTowers(d)) { placeAuto(d); d.step = 'review'; } };
+    switch (a) {
+      case 'ltype': d.type = v; autoAgain(); break;
+      case 'lcap': d.cap = CAPS[Math.max(0, Math.min(CAPS.length - 1, CAPS.indexOf(d.cap) + (+v)))]; autoAgain(); break;
+      case 'lmode':
+        if (v === d.mode) break;
+        if (v === 'auto' && d.g && hasHandTowers(d) && !d.armAuto) { d.armAuto = true; break; }
+        d.mode = v; S.liftMode = v; d.armAuto = false;
+        if (v === 'auto' && d.g) { placeAuto(d); d.step = 'review'; }
+        break;
+      case 'lstep': if (d.g) d.step = v; d.sel = null; break;
+      case 'lfill': { const from = d.towers.length ? Math.max(...d.towers.map((t) => t.x)) : 0; if (placeAuto(d, from, d.towers)) d.step = 'review'; break; }
+      case 'lreplace': if (hasHandTowers(d) && !d.armReplace) { d.armReplace = true; break; } d.armReplace = false; placeAuto(d); break;
+      case 'lh': if (d.sel) { d.sel.h = Math.max(RULE.hMin, Math.min(RULE.hMax, d.sel.h + (+v))); d.sel.hand = true; } else d.inH = Math.max(RULE.hMin, Math.min(RULE.hMax, d.inH + (+v))); d.hand = handAt(d, mouse); break;
+      case 'ldel': if (d.sel) { d.towers = d.towers.filter((t) => t !== d.sel); d.sel = null; } break;
+      default: return;
+    }
+    render();
+  }
+  // Clicks on the mountain while the lift tool is out.
+  let liftDrag = null, liftDragged = false;
+  function liftClick(p) {
+    const d = S.draft;
+    d.armCancel = false;
+    if (d.step === 'first') { if (onTerrain(p)) { d.a = p; d.step = 'other'; aimAt(p, true); } else log('<span>Terminals stand on the mountain</span>', '#d4513f'); render(); return; }
+    if (d.step === 'other') {
+      aimAt(p, true);
+      if (d.aim.short) log(`<span>Too short: a lift is ${lenFt(RULE.minLen)} at least</span>`, '#d4513f');
+      else if (d.aim.off) log('<span>The other terminal stands on the mountain too</span>', '#d4513f');
+      else fixLine(d, p);
+      render(); return;
+    }
+    const hp = handAt(d, p);
+    if (hp && hp.hover) d.sel = hp.hover;
+    else if (d.sel) d.sel = null;
+    else if (hp && hp.chk) {
+      if (hp.chk.ok) { d.towers.push({ x: hp.x, h: d.inH, hand: true }); }
+      else log(`<span>${esc(hp.chk.why)}</span>`, '#d4513f');
+    }
+    d.hand = handAt(d, p);
+    render();
+  }
+  function liftKeys(e, k) {
+    const d = S.draft;
+    if ((k === 'pageup' || k === 'pagedown') && d.g) { e.preventDefault(); liftAct('lh', k === 'pageup' ? 5 : -5); return true; }
+    if ((k === 'delete' || k === 'backspace') && d.sel) { e.preventDefault(); liftAct('ldel'); return true; }
+    if (k === 'enter' && d.step === 'towers') { liftAct('lstep', 'review'); return true; }
+    if (k === 'escape') {   // back out one step; placed towers are never dropped
+      if (d.sel) d.sel = null;
+      else if (d.step === 'other') { d.a = null; d.aim = null; d.step = 'first'; }
+      else if (d.step === 'first') return false;
+      else if (d.step === 'review' && d.mode === 'hand') d.step = 'towers';
+      else return true;
+      render(); return true;
+    }
+    return false;
+  }
+
+  // ---------- panels ----------
   function panelShell(head, body, width = 344) {
     return `<div class="pn" id="pn" style="left:${S.panelPos.x}px;top:${S.panelPos.y}px;width:${width}px"><div class="hd" data-drag="1">${head}<span class="x" data-act="close" title="Close (Esc)">✕</span></div>${body}</div>`;
   }
   const dash = '<span style="color:var(--ph)">—</span>';
-  function liftPanel() {
-    const d = S.draft, ready = d.pts.length === 2, st = ready ? liftStats(d.pts[0], d.pts[1], d.model) : null;
-    const hint = d.pts.length === 0 ? 'Click the <b>base station</b> on the mountain.' : d.pts.length === 1 ? 'Now click the <b>top station</b>.' : 'Choose a model, then break ground. <b>Esc</b> redraws.';
-    const kv = (label, val) => `<dt>${label}</dt><dd>${val}</dd>`;
-    return panelShell(`<span class="plate">${d.n}</span>New lift <span class="nm">${esc(d.name)}</span>`, `
-      <div style="padding:9px 12px 2px;display:grid;gap:6px">
-        <div class="seg"><span class="on">Chair</span><span class="off" title="Not in the mockup">Gondola</span><span class="off">T-bar</span><span class="off">Carpet</span></div>
-        <div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === d.model ? 'on' : ''}" data-act="model" data-v="${m}">${m}</span>`).join('')}</div>
-      </div>
-      <dl class="kv">
-        ${kv('Slope length', st ? `<b>${lenV(st.len)}</b> ${lenU()}` : dash)}
-        ${kv('Vertical rise', st ? `<b>${st.rise >= 0 ? '' : '−'}${lenV(Math.abs(st.rise))}</b> ${lenU()} · ${Math.round(st.grade)}%` : dash)}
-        ${kv('Line speed', `${speedTxt(MODELS[d.model].speed)}${st ? ` · ride ${fmtTime(st.ride)}` : ''}`)}
-        ${kv('Capacity', `<b>${MODELS[d.model].cap.toLocaleString('en-US')}</b> an hour`)}
-      </dl>
-      <div class="rule"></div>
-      <div class="sub"><span>Profile</span><span>${st ? `${lenV(st.ea)} → ${lenV(st.eb)} ${lenU()} · ${st.towers} towers` : ''}</span></div>
-      ${liftProfile(d.pts[0], d.pts[1], st)}
-      <div class="rule"></div>
-      <div class="sub"><span>Cost estimate</span><span>±12 %</span></div>
-      <dl class="kv" style="padding-top:5px">
-        ${kv('Terminals (2)', money(MODELS[d.model].term))}
-        ${kv(`Line${st ? ` · ${lenTxt(st.len)} × ${perLenShort(MODELS[d.model].perM)}` : ''}`, st ? money(st.cost.line) : dash)}
-        ${kv(`Towers${st ? ` (${st.towers})` : ''}`, st ? money(st.cost.towers) : dash)}
-        ${kv(`Grading${st ? ` · ${volTxt(st.grading)}` : ''}`, st ? money(st.cost.grading) : dash)}
-        <dt style="color:var(--text)">Total</dt><dd><b>${st ? money(st.cost.total) : dash}</b></dd>
-      </dl>
-      <div class="hint">${hint}</div>
-      <div class="acts"><div class="go${ready ? '' : ' dis'}" data-act="${ready ? 'build' : ''}"><span>Break ground</span><span class="mono">${st ? short(st.cost.total).replace('+', '') : ''}</span></div><div class="ghost${ready ? '' : ' dis'}" data-act="${ready ? 'plan' : ''}">Save plan</div></div>`);
-  }
   const RATING = { green: '<svg width="11" height="11" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4.3" fill="#3fae6a"/></svg>', blue: '<svg width="11" height="11" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="#4d8ad6"/></svg>', black: '<svg width="11" height="11" viewBox="0 0 10 10"><path d="M5 .5L9.5 5 5 9.5.5 5z" fill="currentColor"/></svg>', double: '<svg width="16" height="11" viewBox="0 0 16 10"><path d="M4.5.5L8 5 4.5 9.5 1 5zM11.5.5L15 5l-3.5 4.5L8 5z" fill="currentColor"/></svg>' };
   function trailPanel() {
     const d = S.draft, st = pathStats(d.pts), ready = d.done && d.pts.length > 1;
@@ -1120,7 +1640,7 @@ body.solo .frame { border-radius: 0; }
     const head = `${toolGlyph(t)}${t.name}`;
     if (!obj) return panelShell(head, `<div class="hint">Click a ${t.target} on the mountain.</div>`, 300);
     if (t.target === 'lift') {
-      const st = liftStats(obj.a, obj.b, obj.model);
+      const st = liftStats(obj.a, obj.b, obj.model, obj.cap);
       const top = `<div class="hint" style="padding-bottom:0;display:flex;gap:8px;align-items:center"><span class="plate${obj.built ? ' built' : ''}">${obj.n}</span><b style="font-size:14px">${esc(obj.name)}</b><span style="color:var(--soft)">${obj.built ? 'operating' : 'planned'}</span></div>`;
       const facts = `<dl class="kv"><dt>Slope length</dt><dd><b>${lenV(st.len)}</b> ${lenU()}</dd><dt>Capacity</dt><dd><b>${st.cap.toLocaleString('en-US')}</b> an hour</dd><dt>Ride</dt><dd>${fmtTime(st.ride)}</dd></dl>`;
       if (t.mode === 'edit') return panelShell(head, top + `<div style="padding:10px 12px 0"><div class="seg">${Object.keys(MODELS).map((m) => `<span class="${m === obj.model ? 'on' : ''}" data-act="setmodel" data-v="${m}">${m}</span>`).join('')}</div></div>` + facts + `<div class="hint">Changing the model re-prices the line.${obj.built ? ' Upgrading a running lift costs the difference.' : ''}</div>`, 300);
@@ -1134,7 +1654,7 @@ body.solo .frame { border-radius: 0; }
   }
   const ATABS = [['overview', 'Overview'], ['lifts', 'Lifts'], ['trails', 'Trails'], ['guests', 'Guests'], ['snow', 'Snowmaking'], ['weather', 'Weather'], ['amenities', 'Amenities'], ['finances', 'Finances']];
   const isOpen = () => { const h = S.t / 3600; return h >= LIFTS_OPEN && h < LIFTS_CLOSE; };
-  const waitFor = (l) => { if (!S.skiers || !l.built) return 0; const st = liftStats(l.a, l.b, l.model); return Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); };
+  const waitFor = (l) => { if (!S.skiers || !l.built) return 0; const st = liftStats(l.a, l.b, l.model, l.cap); return Math.max(0.5, (S.skiers / S.liftsTotal) / (st.cap / 60) * (l.n === 3 ? 3.2 : 1)); };
   const lampHtml = (c) => `<i class="lamp" style="--lamp:${c}"></i>`;
   let chartHover = null;   // the chart column under the pointer, as 'chart:index'
   // A column: an invisible hit area the chart's height, then its bar (brighter while hovered).
@@ -1223,7 +1743,7 @@ body.solo .frame { border-radius: 0; }
     }
     if (S.atab === 'lifts') {
       const cols = 'grid-template-columns:1.7fr 0.9fr 0.9fr 0.7fr 0.8fr';
-      const rows = S.lifts.map((l) => { const st = liftStats(l.a, l.b, l.model), wt = waitFor(l), state = !l.built ? ['Planned', '#ff6a1f'] : open ? ['Open', '#5fbf6a'] : ['Closed', '#d4513f'];
+      const rows = S.lifts.map((l) => { const st = liftStats(l.a, l.b, l.model, l.cap), wt = waitFor(l), state = !l.built ? ['Planned', '#ff6a1f'] : open ? ['Open', '#5fbf6a'] : ['Closed', '#d4513f'];
         return `<div class="r" style="${cols}"><span class="nm"><span class="plate${l.built ? ' built' : ''}" style="font-size:10px">${l.n}</span>${esc(l.name)}</span><span>${l.model}</span><span class="n">${st.cap.toLocaleString('en-US')}</span><span class="n" style="color:${wt > 8 ? 'var(--warn)' : ''}">${l.built && open ? wt.toFixed(1) : '—'}</span><span class="nm" style="justify-content:flex-end">${lampHtml(state[1])}${state[0]}</span></div>`; }).join('');
       const others = S.liftsTotal - built.length;
       return `<div class="tbl"><div class="r th" style="${cols}"><span>Lift</span><span>Model</span><span class="n">An hour</span><span class="n">Wait</span><span style="text-align:right">Status</span></div>${rows}
@@ -1422,6 +1942,8 @@ body.solo .frame { border-radius: 0; }
         <div class="tools">${TOOLS[S.tab].map(tile).join('')}</div></div>`;
     }
     if (S.tool) { const t = toolById(S.tool); h += t.kind === 'lift' ? liftPanel() : t.kind === 'trail' ? trailPanel() : t.kind === 'pick' ? pickPanel() : placePanel(); }
+    // the lift tool's profile strip, beside the tray along the bottom
+    if (S.draft && S.draft.kind === 'lift') h += liftStrip(S.draft, 436, trayBottom);
     const spd = [1, 2, 3, 4].map((n) => `<span class="${S.speed >= n ? 'on' : ''}" data-act="speed" data-v="${n}" data-ui="bar-speed-${n}" title="Speed ${n}"><svg viewBox="0 0 11 13"><use href="#s-speed"/></svg></span>`).join('');
     const moneyCell = P2
       ? `<span class="stat dis" data-ui="bar-money" title="Bank balance: comes with the simulation in Phase 4"><span class="nodata">${g('s-cash', 'style="width:22px;height:22px"')}</span><span class="money"><span class="bal" id="cash" data-ui="bar-cash">${nd}</span><span class="delta" id="delta" data-ui="bar-delta">${nd}</span></span></span>`
@@ -1482,7 +2004,7 @@ body.solo .frame { border-radius: 0; }
   // placeholders consistent with Analysis (2,100 riders an hour per other lift, 21 acres per other trail).
   const REST = { summit: 3185, base: 1924, liftCap: 2100, trailAcres: 21, snowfallCm: 1166 };
   function resortStats() {
-    const built = S.lifts.filter((l) => l.built), st = built.map((l) => liftStats(l.a, l.b, l.model));
+    const built = S.lifts.filter((l) => l.built), st = built.map((l) => liftStats(l.a, l.b, l.model, l.cap));
     const tops = st.map((x) => Math.max(x.ea, x.eb)), bottoms = st.map((x) => Math.min(x.ea, x.eb));
     const summit = Math.max(REST.summit, ...tops), base = Math.min(REST.base, ...bottoms);
     const uphill = st.reduce((a, x) => a + x.cap, 0) + Math.max(0, S.liftsTotal - built.length) * REST.liftCap;
@@ -1666,9 +2188,9 @@ body.solo .frame { border-radius: 0; }
     const d = S.draft, t = toolById(S.tool);
     let cost = 0, label = '';
     if (d.kind === 'lift') {
-      const st = liftStats(d.pts[0], d.pts[1], d.model);
-      S.lifts.push({ id: 'l' + (uid++), n: d.n, name: d.name, a: d.pts[0], b: d.pts[1], model: d.model, built: !asPlan });
-      cost = st.cost.total; label = `${d.n} ${d.name}`; liftSeq++;
+      const ev = liftEval(d), B = rayPt(d, d.len);   // stored bottom first, with the towers where they stand
+      S.lifts.push({ id: 'l' + (uid++), n: d.n, name: d.name, a: ev.bottomAtA ? d.a : B, b: ev.bottomAtA ? B : d.a, model: d.type, cap: d.cap, towers: d.towers.map((t) => rayPt(d, t.x)), built: !asPlan });
+      cost = liftCost(d, ev); label = `${d.n} ${d.name}`; liftSeq++;
       if (!asPlan) S.liftsTotal++;
     } else if (d.kind === 'trail') {
       const st = pathStats(d.pts);
@@ -1693,7 +2215,8 @@ body.solo .frame { border-radius: 0; }
       case 'analysis': S.analysis = !S.analysis; if (S.analysis) { S.toolbox = false; S.tool = null; S.draft = null; S.sel = null; } break;
       case 'tab': S.tab = v; S.tool = null; S.draft = null; S.sel = null; break;
       case 'tool': chooseTool(v); return;
-      case 'close': closeTool(); return;
+      case 'close': if (S.draft && S.draft.kind === 'lift' && S.draft.a && S.set.confirmRemove === 'on' && !S.draft.armCancel) { S.draft.armCancel = true; break; } closeTool(); return;
+      case 'ltype': case 'lcap': case 'lmode': case 'lstep': case 'lfill': case 'lreplace': case 'lh': case 'ldel': liftAct(a, v); return;
       case 'model': S.draft.model = v; break;
       case 'diff': S.draft.diff = v; break;
       case 'build': commit(false); return;
@@ -1785,19 +2308,32 @@ body.solo .frame { border-radius: 0; }
     if (hd && !e.target.closest('[data-act]')) { const pn = document.getElementById('pn'); const U = K * S.set.hudScale / 100; drag = { dx: e.clientX / U - pn.offsetLeft, dy: e.clientY / U - pn.offsetTop }; e.preventDefault(); return; }
     if (onUi(e)) return;
     if (S.drop) { S.drop = null; render(); }
+    // the lift tool: press on a tower to select and slide it, or on the far terminal to slide that along the line
+    if (S.draft && S.draft.kind === 'lift' && S.draft.g) {
+      const d = S.draft, p = toMap(e), hp = handAt(d, p), B = rayPt(d, d.len);
+      if (hp && hp.hover) { liftDrag = { t: hp.hover }; d.sel = hp.hover; liftDragged = false; stage.setPointerCapture(e.pointerId); }
+      else if (Math.hypot(p[0] - B[0], p[1] - B[1]) < 9 / S.zoom) { liftDrag = { term: true }; liftDragged = false; stage.setPointerCapture(e.pointerId); }
+    }
     if (S.sketch) { sketching = [toMap(e)]; S.sketches.push(sketching); stage.setPointerCapture(e.pointerId); }
   });
   stage.addEventListener('pointermove', (e) => {
     if (drag) { const sc = S.set.hudScale / 100, U = K * sc; S.panelPos = { x: Math.max(0, Math.min(W / sc - 120, e.clientX / U - drag.dx)), y: Math.max(0, Math.min(H / sc - 60, e.clientY / U - drag.dy)) }; const pn = document.getElementById('pn'); pn.style.left = S.panelPos.x + 'px'; pn.style.top = S.panelPos.y + 'px'; return; }
     if (sketching) { sketching.push(toMap(e)); drawWorld(); return; }
-    if (onUi(e)) { if (mouse) { mouse = null; showElev(); if (S.draft) drawWorld(); } return; }
+    if (liftDrag) {
+      const d = S.draft, p = toMap(e), s = ((p[0] - d.a[0]) * d.dir[0] + (p[1] - d.a[1]) * d.dir[1]) * FT_PX;
+      if (liftDrag.t) { liftDrag.t.x = Math.max(RULE.gap, Math.min(d.len - RULE.gap, snapFt(s))); liftDrag.t.hand = true; }
+      else { const last = d.towers.length ? Math.max(...d.towers.map((t) => t.x)) : 0; d.len = Math.max(RULE.minLen, last + RULE.gap, Math.min(d.reach, snapFt(s))); }
+      liftDragged = true; mouse = p; showElev(); refreshLift(); return;
+    }
+    if (onUi(e)) { if (mouse) { mouse = null; showElev(); if (S.draft && S.draft.kind === 'lift') { S.draft.hand = null; refreshLift(); } else if (S.draft) drawWorld(); } return; }
     mouse = toMap(e); showElev();
+    if (S.draft && S.draft.kind === 'lift') { const d = S.draft; if (d.step === 'other' && d.a) aimAt(mouse); if (d.g) d.hand = handAt(d, mouse); refreshLift(); return; }
     const picking = S.tool && toolById(S.tool).kind === 'pick';
     if (picking) S.hover = pickAt(mouse, toolById(S.tool).target);
     if (S.draft || picking) drawWorld();
   });
-  stage.addEventListener('pointerleave', () => { mouse = null; showElev(); if (S.draft) drawWorld(); });
-  window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; });
+  stage.addEventListener('pointerleave', () => { if (liftDrag) return; mouse = null; showElev(); if (S.draft && S.draft.kind === 'lift') { S.draft.hand = null; refreshLift(); } else if (S.draft) drawWorld(); });
+  window.addEventListener('pointerup', () => { if (sketching) { sketching = null; S.saveDue = true; render(); } drag = null; if (liftDrag) { liftDrag = null; render(); } });
   stage.addEventListener('input', (e) => {
     const rg = e.target.closest('input.rng'); if (!rg) return;
     if (rg.dataset.ph) {   // the photo bar's Time and Lens: live, without re-rendering the bar under the pointer
@@ -1827,7 +2363,7 @@ body.solo .frame { border-radius: 0; }
     const p = toMap(e), now = performance.now(), dbl = now - lastClick < 320; lastClick = now;
     const d = S.draft;
     if (d) {
-      if (d.kind === 'lift') { if (d.pts.length < 2) d.pts.push(p); }
+      if (d.kind === 'lift') { if (liftDragged) { liftDragged = false; return; } liftClick(p); return; }
       else if (d.kind === 'trail' || d.kind === 'line') { if (d.done) return; if (dbl && d.pts.length > 1) d.done = true; else d.pts.push(p); }
       else d.pts.push(p);
       render(); return;
@@ -1855,10 +2391,11 @@ body.solo .frame { border-radius: 0; }
       return;
     }
     if (k === 'p') { enterPhoto(); return; }
+    if (S.draft && S.draft.kind === 'lift' && liftKeys(e, k)) return;
     if (k === 'escape') {
       if (S.modal) S.modal = null;
       else if (S.drop) S.drop = null;
-      else if (S.draft && S.draft.pts.length) { S.draft.pts = []; S.draft.done = false; }
+      else if (S.draft && S.draft.pts && S.draft.pts.length) { S.draft.pts = []; S.draft.done = false; }
       else if (S.sel) S.sel = null;
       else if (S.tool) { S.tool = null; S.draft = null; }
       else if (S.sketch) S.sketch = false;
@@ -1882,6 +2419,7 @@ body.solo .frame { border-radius: 0; }
     if (k === 'u') { act('units'); return; }
     if (k === '=' || k === '+') { act('zoom', 1); return; }
     if (k === '-') { act('zoom', -1); return; }
+    if (k === 'pageup' || k === 'pagedown') { e.preventDefault(); act('zoom', k === 'pageup' ? 1 : -1); return; }   // zoom, unless a tower is in hand
     if (k === 'home') { act('resetview'); return; }
     if (S.toolbox && !S.p2) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t) chooseTool(t.id); }
   });
@@ -1953,7 +2491,6 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('dlwait')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'wait' };
     if (d.includes('dlfail')) S.dl = { name: 'Crystal Mountain', pct: 41, state: 'fail' };
     if (d.includes('tray') || d.includes('lift') || d.includes('trail') || d.includes('edit')) S.toolbox = true;
-    if (d.includes('lift')) { chooseTool('new-lift'); S.draft.pts = [[886, 316], [946, 203]]; }
     if (d.includes('trail')) { S.tab = 'trails'; chooseTool('new-trail'); S.draft.pts = [[962, 330], [1000, 410], [1012, 500], [990, 590]]; S.draft.done = true; S.draft.diff = 'black'; }
     if (d.includes('edit')) { chooseTool('edit-lift'); S.sel = 'l3'; }
     if (d.includes('ttrails')) { S.toolbox = true; S.tab = 'trails'; }
@@ -1989,6 +2526,29 @@ body.solo .frame { border-radius: 0; }
     if (d.includes('noon')) S.t = 12.5 * 3600;
     if (d.includes('snowing')) S.t = 2 * 3600;
     mouse = S.info ? [742, 440] : [930, 260];
+    // The lift tool (Phase 3): liftorigin (the terminal under the pointer), liftauto (aiming, towers going in),
+    // lift and liftred (by hand: the tower in hand fits, or doesn't), liftreview (Automatic's layout), liftsel (a
+    // tower selected in review).
+    const LD = { a: [1020, 480], b: [1170, 293] }, lf = ['liftorigin', 'liftauto', 'liftred', 'liftreview', 'liftsel', 'lift'].find((x) => d.includes(x));
+    if (lf) {
+      S.toolbox = true; S.tab = 'lifts'; if (S.tool !== 'new-lift') chooseTool('new-lift');
+      const ld = S.draft;
+      if (lf === 'liftorigin') mouse = LD.a.slice();
+      else if (lf === 'liftauto') { ld.mode = 'auto'; ld.a = LD.a; ld.step = 'other'; mouse = [LD.a[0] + (LD.b[0] - LD.a[0]) * 0.94, LD.a[1] + (LD.b[1] - LD.a[1]) * 0.94]; aimAt(mouse, true); }
+      else {
+        ld.a = LD.a; ld.mode = 'auto'; fixLine(ld, LD.b);
+        const all = ld.towers.slice().sort((p, q) => p.x - q.x);
+        if (lf === 'lift' || lf === 'liftred') {
+          ld.mode = 'hand'; ld.step = 'towers'; ld.towers = all.slice(0, 6).map((t) => ({ x: t.x, h: t.h, hand: true }));
+          let x = all[6] ? all[6].x : ld.len / 2;
+          if (lf === 'liftred') { ld.inH = 25; const base = liftEval(ld); for (let y = all[5].x + 80; y < ld.len - 60; y += 5) { const c = towerCheck(ld, y, 25, null, base); if (!c.ok && c.rule === 'TW-01') { x = y; break; } } }
+          mouse = rayPt(ld, x); ld.hand = handAt(ld, mouse);
+        } else {
+          mouse = [1240, 140];
+          if (lf === 'liftsel') { const ev = liftEval(ld), o = ev.towers.find((t) => t.head.code === 'c8') || ev.towers[Math.floor(ev.towers.length / 2)]; ld.sel = o.ref; }
+        }
+      }
+    }
     // photo, with phnatural / phmini (Focus), phgolden (the hour), ph2x (Size), phpostcard (Grade), phhidden
     if (d.includes('photo')) {
       enterPhoto();
