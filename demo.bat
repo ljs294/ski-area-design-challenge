@@ -171,6 +171,11 @@ echo   Phase 2, task 12: tester build (the v0.2.0 zip from 58, or D:\skiAreaDesi
 echo     59 Tester kit: unzip the release and play it as a first-time player (an empty library, your settings kept),
 echo        with the tester sheet open; when the game closes, the Logs, Player.log and Pictures folders open to collect.
 echo.
+echo   Phase 3, task 01: carry-over polish (rebuilds the game if needed; on the desktop, not over remote desktop)
+echo     60 The display check (Windowed, Keep, a resolution left to go back after 15 s, Borderless, Go back, Fullscreen;
+echo        about a minute, the screen changes), then the game to try by hand: the title's signs, the elevation readout
+echo        off the terrain in both units (U), photo mode's Tab and Esc, the title drift and the far trees.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -247,6 +252,7 @@ if /i "%CHOICE%"=="56" goto loadingdetails
 if /i "%CHOICE%"=="57" goto titlestill
 if /i "%CHOICE%"=="58" goto release
 if /i "%CHOICE%"=="59" goto testerkit
+if /i "%CHOICE%"=="60" goto carryover
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -662,6 +668,24 @@ if not exist "%LOCALAPPDATA%\SkiAreaDesignChallenge\Logs" mkdir "%LOCALAPPDATA%\
 start "" "%LOCALAPPDATA%\SkiAreaDesignChallenge\Logs"
 start "" "%USERPROFILE%\AppData\LocalLow\Alpine Labs\Ski Area Design Challenge"
 if exist "%USERPROFILE%\Pictures\Ski Area Design Challenge" start "" "%USERPROFILE%\Pictures\Ski Area Design Challenge"
+goto done
+
+:carryover
+rem Task P3-01: -displaycheck works Settings > Display's own buttons in the real game and writes report.txt (PASS or
+rem FAIL per check), then puts the window back as it started. Then the game, for the hands-on checks.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "DCHECK=%~dp0test-results\display-check"
+if exist "%DCHECK%" rmdir /s /q "%DCHECK%"
+echo The display check: the window switches modes and sizes by itself for about a minute. Leave it alone...
+%RENDER% "%GAME%" -displaycheck "%DCHECK%" -logFile "%DCHECK%.log" <nul
+type "%DCHECK%\report.txt"
+echo.
+echo Now the game. Try: hover each of the title's signs (Tab or the arrows show the focus ring instead of a slide);
+echo watch the title's drift (no bob) and the far trees (no blinking); in a mountain, point at the sky: "- - - ft",
+echo then U for "- - - m"; P for photo mode, Tab, then the arrows move in the bar while the camera stays; Esc gives
+echo the keys back, and Esc again leaves photo mode.
+"%GAME%" <nul
 goto done
 
 :hudparity
