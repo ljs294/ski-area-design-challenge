@@ -193,6 +193,13 @@ echo        in yellow, F7 breaks ground (graded, trees cleared, snow fills in), 
 echo     63b The edit timing run: 50 benches at High (preview, commit, undo p95 against 100 / 250 ms), then the
 echo        Development game for idle garbage; prints both reports.
 echo.
+echo   Phase 3, task 07: the style tile, one trail and one lift (rebuilds the game if needed; on the desktop)
+echo     65 The game with the style tile: a graded, groomed trail and a Sessellift FGQ-4 on Jackson Hole, built by command;
+echo        Space runs the clock (the chairs move), Shift+1 snow off, R/F tilt, C free-fly.
+echo     65s The same in summer: the snow off, a mid-July sun, a mown bench and earth faces.
+echo     65c The style tile's captures: the benchmark and close views, summer and winter, day and night (render lane).
+echo     65b The benchmark with the style tile shown (High and Medium), compared with the baselines (measure lane).
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -275,6 +282,10 @@ if /i "%CHOICE%"=="62" goto savefile
 if /i "%CHOICE%"=="63" goto terrainedits
 if /i "%CHOICE%"=="63b" goto editbench
 if /i "%CHOICE%"=="64" goto toolbox
+if /i "%CHOICE%"=="65" goto styletile
+if /i "%CHOICE%"=="65s" goto styletilesummer
+if /i "%CHOICE%"=="65c" goto styletilecaptures
+if /i "%CHOICE%"=="65b" goto styletilebench
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -737,6 +748,40 @@ echo watch the title's drift (no bob) and the far trees (no blinking); in a moun
 echo then U for "- - - m"; P for photo mode, Tab, then the arrows move in the bar while the camera stays; Esc gives
 echo the keys back, and Esc again leaves photo mode.
 "%GAME%" <nul
+goto done
+
+:styletile
+rem Task P3-07: the style tile by command (-styletile): the trail graded and cleared, the lift with its towers, rope and chairs.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo Once the mountain is in, the trail and the lift are built (a few seconds). Space runs the clock and the chairs.
+"%GAME%" -notitle -styletile <nul
+goto done
+
+:styletilesummer
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+"%GAME%" -notitle -styletile -season summer <nul
+goto done
+
+:styletilecaptures
+rem Task P3-07: every view in four conditions, one player per picture (render lane), into test-results\style-tile.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\style-tile\captures.ps1" -Game "%GAME%" -Out "%~dp0test-results\style-tile" -Owner owner
+start "" "%~dp0test-results\style-tile"
+goto done
+
+:styletilebench
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+if not exist "%BENCH%" mkdir "%BENCH%"
+for %%Q in (high medium) do (
+  echo Benchmark at %%Q with the style tile ^(about 5 minutes^)...
+  %MEASURE% "%GAME%" %SCREEN% -quality %%Q -styletile -benchmark "%BENCH%\styletile-%%Q.json" -logFile "%BENCH%\styletile-%%Q.log" <nul
+  node "%~dp0tools\perf\compare.mjs" "%~dp0docs\perf\jackson-hole-5km-%%Q.json" "%BENCH%\styletile-%%Q.json"
+)
+start "" "%BENCH%"
 goto done
 
 :terrainedits

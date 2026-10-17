@@ -169,6 +169,7 @@ namespace MountainPlanner.App
             if (lapsArg >= 0 && lapsArg + 1 < args.Length && int.TryParse(args[lapsArg + 1], out int l)) laps = Mathf.Max(1, l);
             while (Forest == null) yield return null;
             while (!_resort.CoverReady.IsCompleted) yield return null;
+            while (WorkBusy) yield return null;   // -styletile: measured with the trail and lift in (task 07)
             while (TimingTreeDetail) yield return null;   // -treedetail auto: Auto picks the bias before the laps
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = -1;
@@ -345,6 +346,7 @@ namespace MountainPlanner.App
             _hud = Array.IndexOf(Environment.GetCommandLineArgs(), "-withhud") >= 0;   // -withhud: measure with the HUD on
             while (Forest == null) yield return null;
             while (!_resort.CoverReady.IsCompleted) yield return null;
+            while (WorkBusy) yield return null;
             string prefix = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(outPath)) ?? ".", Path.GetFileNameWithoutExtension(outPath));
             var json = new StringBuilder();
             json.Append("{\n  \"screen\": [").Append(Screen.width).Append(", ").Append(Screen.height).Append("],\n  \"shadowDistance\": ")

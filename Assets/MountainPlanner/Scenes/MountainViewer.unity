@@ -260,6 +260,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4cee6e8e24c34aeabedebb62228bdaea, type: 3}
   m_Name: 
   m_EditorClassIdentifier: MountainPlanner.App::MountainPlanner.App.MountainViewer
+  Lifts: {fileID: 11400000, guid: c25d4e59e2f71bb4a8fff3310202bfff, type: 2}
+  LiftStructureMaterial: {fileID: 2100000, guid: 69e846a2a29764c4d8eb3a6037092fda, type: 2}
+  LiftGlassMaterial: {fileID: 2100000, guid: e76214511235fcc4a86eb86a789af2e2, type: 2}
+  LiftChairMaterial: {fileID: 2100000, guid: 647087dd2f0bb084bb7eb1b0abeec574, type: 2}
+  CableShader: {fileID: 4800000, guid: 98f7900b90cea424db82e364c69f5932, type: 3}
   Detail: 2
   TerrainMaterial: {fileID: 2100000, guid: 7c108c9abb6bed448b026bc7fe126a85, type: 2}
   Camera: {fileID: 1783688403}

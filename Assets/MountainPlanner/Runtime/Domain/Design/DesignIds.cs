@@ -20,6 +20,8 @@ namespace MountainPlanner.Domain.Design
         public const ulong JunctionTag = 8;
         public const ulong PathTag = 9;
         public const ulong PathEndTag = 10;
+        /// <summary>CL-02's ragged edge: whether a cell in a trail's edge band is cleared (task 07).</summary>
+        public const ulong ClearingEdgeTag = 11;
 
         public static ulong Hash(ulong seed, ulong tag, ulong a) => Hash(seed, tag, a, 0);
 

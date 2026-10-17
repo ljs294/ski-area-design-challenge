@@ -6,7 +6,8 @@
     "parts": {"drive": "Drive terminal", "return": "Return terminal", "chair": "Quad chair",
       "s4": "Line tower head, support 4", "s6": "Line tower head, support 6", "b8": "Line tower head, breakover 8",
       "d8": "Line tower head, hold-down 8", "c8": "Line tower head, combination 4/4",
-      "mast": "Line tower mast section, 1 m", "base": "Line tower base"}
+      "mast": "Line tower mast section, 1 m", "base": "Line tower base",
+      "base_l025": "Line tower base, leaned 2.5 degrees", "base_l050": "Line tower base, leaned 5 degrees", "base_l075": "Line tower base, leaned 7.5 degrees", "base_l100": "Line tower base, leaned 10 degrees", "base_l125": "Line tower base, leaned 12.5 degrees", "base_l150": "Line tower base, leaned 15 degrees"}
   },
   "common": {
     "ropeElevation": 3039,

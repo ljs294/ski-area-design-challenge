@@ -386,3 +386,26 @@ approved the plan and all four recommendations.
 | TE3 | **Preview:** the yellow pending contours only (CF-08); the ground changes at Break ground |
 | TE4 | **Grading:** task 05 builds a straight test bench only, for timing and the demo; task 08 writes the GR engine to the same edit tiles |
 | TE5 | **Design points** (task 03's `PointMm`) are whole millimetres **from the site's centre** on the package grid's axes (the game's local frame), not absolute EPSG:6350: absolute millimetres overflow an `int` (Jackson Hole's northing is about 2,500 km). Decided 2026-10-17 at PR B's review |
+
+## Phase 3 task 07, style tile: decided 2026-10-17
+
+**Context:** one graded, cleared trail and one Sessellift FGQ-4 on Jackson Hole 5 km, built by command, to settle the
+look before tasks 08 and 09. Plan: [p3-07-plan.md](p3-07-plan.md). The owner answered the plan's twelve questions.
+
+| # | Decision |
+|---|---|
+| SK1 | **Grader:** task 07 writes the GR-01 to GR-05 grader along a centreline in Domain; task 08 extends it to painted footprints. Graded or Natural stays the player's choice per trail (TR-06) |
+| SK2 | **Rounded tie-ins** at the crest and toe of the 1:1 faces are allowed if the captures need them (a new rule, GR-12, inside the footprint) |
+| SK3 | **Graded and groomed look data:** a third splat map on edited tiles only, built at runtime (bench, cut, fill); no cache bump, no format change. **Corduroy is tighter than 1 ft**: about 1 in (25 mm) ridges up close, with groomer-pass seams about 15 ft apart at distance |
+| SK4 | **Summer:** `-season summer` turns snow off and sets a mid-July sun; the bench is mown grass, the faces raw earth |
+| SK5 | **Edges:** CL-02's 10 ft ragged band and CL-03's 55 ft straight lift corridor are built in 07 |
+| SK6 | **Rope:** drawn as a round cable along simple catenary spans (RP-03 tension); task 09 adds RP-02's tangent solve and the forces |
+| SK7 | **Leaned towers are needed** for hold-downs and breakovers: the style tile's lift stands Leaned (TW-14, the lift-level setting in save v1). The tilted base plate goes to a Blender model thread, with owner approval before import. A per-tower stance would be a save v2 change for task 09, through the coordinator |
+| SK8 | **LC-02 tuned:** rope to chair bottom 8.7 ft (2.66 m, measured on the model); Sessellift line gauge 13.5 ft (4.12 m); the cable drawn at 1⅝ in. The other LC-02 values and TW-14's 15° cap stand |
+| SK9 | **#87 stand-ins:** 07 measures and records the terminals' real footprints; the sag and "hold-downs ahead" thresholds stay with task 09's tool |
+| SK10 | **Site:** the thread picks it where the slope and forest benchmark views see it, and shows a marked overview first |
+| SK11 | **Built work** draws as models and terrain; `DesignOverlay` keeps drawing plans only |
+| SK12 | **Review:** a fly-by movie, screenshots, and the style tile live in the game (demo.bat 65) |
+| SK13 | **TW-14 v2, lean where needed** (owner, 2026-10-17): on a Leaned lift a tower leans where the rope crosses its head at more than 10°, or where its head is a breakover, hold-down or combination; the rest stay plumb (derived, no save change). Leans come in 2.5° steps up to 15°, one base model each, and **the foundation pier leans with the mast, exactly in line with it** |
+| SK14 | **Terminals** (owner, 2026-10-17): they need clear space round them for loading and unloading: CL-09, the model's footprint plus 20 ft all round and 50 ft more along the line in front *(tuned at 07)*, built in 07. **Terminal elevation adjustable like towers** and **ramps for top terminals** that blend into the terrain are wanted; the elevation is authored data, so it's a save v2 change for task 09 through the coordinator, and the ramps come with it (a graded pad from the same grader) |
+| SK15 | **TW-16, terminals are heads** (owner, 2026-10-17): the rope runs level through each terminal; the bottom terminal's hold-down row turns it up to leave at no more than 15.9°, with a breakover tower soon after; the top terminal's support row brings it level to the bullwheel from at most 18°, with at least one breakover before it. Station breakovers go in first, about 70 ft from each bullwheel *(tuned at 07)* |

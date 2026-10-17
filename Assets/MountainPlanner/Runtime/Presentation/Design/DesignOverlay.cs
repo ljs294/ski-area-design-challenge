@@ -13,6 +13,9 @@ namespace MountainPlanner.Presentation.Design
     {
         readonly PendingPreview _lines;
         readonly DesignHistory _history;
+
+        /// <summary>The history it draws.</summary>
+        public DesignHistory History => _history;
         readonly Vector2[] _pair = new Vector2[2];
         Vector2[] _left = new Vector2[64], _right = new Vector2[64];
 
@@ -32,11 +35,29 @@ namespace MountainPlanner.Presentation.Design
             set => _lines.Root.gameObject.SetActive(value);
         }
 
+        /// <summary>
+        /// Whether built work is drawn too. Once the mountain draws built trails and lifts as they are (task 07's built
+        /// view, decision SK11) the overlay keeps to plans.
+        /// </summary>
+        public bool ShowBuilt
+        {
+            get => _showBuilt;
+            set
+            {
+                if (_showBuilt == value) return;
+                _showBuilt = value;
+                Draw(_history.Document);
+            }
+        }
+
+        bool _showBuilt = true;
+
         void Draw(DesignDocument doc)
         {
             int slot = 0;
             foreach (var lift in doc.Lifts)
             {
+                if (!_showBuilt && lift.Stage == WorkStage.Built) continue;
                 var ink = lift.Stage == WorkStage.Plan ? PreviewInk.Plan : PreviewInk.Lift;
                 _pair[0] = DesignFrame.ToLocal(lift.Bottom);
                 _pair[1] = DesignFrame.ToLocal(lift.Top);
@@ -46,6 +67,7 @@ namespace MountainPlanner.Presentation.Design
             }
             foreach (var trail in doc.Trails)
             {
+                if (!_showBuilt && trail.Stage == WorkStage.Built) continue;
                 var ink = trail.Stage == WorkStage.Plan ? PreviewInk.Plan : PreviewInk.Paint;
                 foreach (var part in trail.Parts)
                     foreach (var stroke in part.Strokes)

@@ -875,7 +875,7 @@ def tower_views(built_all, spec, out_dir):
     sc.render.film_transparent = False
     sc.world = sc.world or bpy.data.worlds.new("World")
     base, mast = built_all["tower_base"], built_all["tower_mast"]
-    heads = [k for k in built_all if k.startswith("tower_") and k not in ("tower_base", "tower_mast")]
+    heads = [k for k in built_all if k.startswith("tower_") and k not in ("tower_base", "tower_mast") and not k.startswith("tower_base_")]
     foot = base["assets"][0].sockets["mast_foot"][2]
     n = int(os.environ.get("LIFT_TOWER_SECTIONS", "9"))
     cam = camera("TowerCam")
@@ -1014,7 +1014,7 @@ def tower_photos(built_all, spec, out_dir, mats, chairs):
     a close-up of the head and a view up from under the line."""
     sc, sun = _photo_scene()
     base, mast = built_all["tower_base"], built_all["tower_mast"]
-    heads = [k for k in built_all if k.startswith("tower_") and k not in ("tower_base", "tower_mast")]
+    heads = [k for k in built_all if k.startswith("tower_") and k not in ("tower_base", "tower_mast") and not k.startswith("tower_base_")]
     foot = base["assets"][0].sockets["mast_foot"][2]
     hg = spec["common"]["lineGauge"] / 2000
     snow = _snow_plane(0.0)
@@ -1062,6 +1062,58 @@ def tower_photos(built_all, spec, out_dir, mats, chairs):
         for o in hung + [r for r, _ in ropes] + stack:
             bpy.data.objects.remove(o)
         _move(b, (0.0, 0.0, -lift))
+    _photo_end(sc, [snow, fig])
+
+
+def lean_photos(built_all, spec, out_dir, mats):
+    """Cycles "photos" of TW-14's leaned towers (task P3-07): the plumb base and each leaned base side by side on a 35%
+    slope falling down the line (+u), each with mast sections stacked along its mast_foot axis, from the
+    side (the lean shows), close up on the bases, and from down the line."""
+    sc, sun = _photo_scene()
+    mast = built_all["tower_mast"]
+    bases = ["tower_base"] + sorted(k for k in built_all if k.startswith("tower_base_l"))
+    slope = math.atan(0.35)
+    u_b, v_b, w_b = Vector(frame.b((1, 0, 0))), Vector(frame.b((0, 1, 0))), Vector(frame.b((0, 0, 1)))
+    snow = _snow_plane(0.0)
+    bpy.context.view_layer.update()
+    # the slope: turn the snow about v so it falls toward +u
+    turn = Matrix.Rotation(slope, 4, v_b)
+    if (turn @ u_b).dot(w_b) > 0:
+        turn = Matrix.Rotation(-slope, 4, v_b)
+    snow.matrix_world = turn @ snow.matrix_world
+    fig = _photo_figure((1.4, -1.2, -0.49))
+    shown, made = [snow, fig, sun], []
+    n = 8
+    for i, k in enumerate(bases):
+        b = built_all[k]
+        v = (i - (len(bases) - 1) / 2) * 5.0
+        lean = math.radians(b["assets"][0].dims.get("leanDeg", 0.0))
+        _move(b, (0.0, v, 0.0))
+        foot = Vector(b["assets"][0].sockets["mast_foot"])
+        stack = _stack(mast, foot.z, n, at_lift=(foot.x, v, 0.0))
+        bpy.context.view_layer.update()
+        tilt = Matrix.Rotation(lean, 4, v_b)
+        if (tilt @ w_b).dot(u_b) < 0:
+            tilt = Matrix.Rotation(-lean, 4, v_b)
+        pivot = Vector(frame.b((foot.x, v, foot.z)))
+        about = Matrix.Translation(pivot) @ tilt @ Matrix.Translation(-pivot)
+        for o in stack:
+            o.matrix_world = about @ o.matrix_world
+        made += stack
+        shown += lod_objects(b, 0) + stack
+    show_only(shown)
+    restore_uv([o for o in shown if o.type == "MESH"])
+    bpy.context.view_layer.update()
+    shoot = _shooter("tower_lean", out_dir)
+    # The shooter's azimuth is in Blender's frame: across the line (the lean shows) is along v, down the line along u.
+    side = math.degrees(math.atan2(u_b.y, u_b.x))
+    down = math.degrees(math.atan2(-v_b.y, -v_b.x))
+    mid = tuple(frame.b((0.0, 0.0, 5.0)))
+    shoot("side", mid, side, 6, 30.0, lens=40)
+    shoot("bases", tuple(frame.b((0.0, 0.0, 0.6))), side - 20, 14, 8.0, lens=40)
+    shoot("downline", mid, down, 10, 26.0, lens=40)
+    for o in made:
+        bpy.data.objects.remove(o)
     _photo_end(sc, [snow, fig])
 
 
@@ -1137,6 +1189,8 @@ def render_all(built, spec, out_dir, shots, mats):
     if "photos" in shots and all(k in built for k, _ in SLE_LINEUP):
         sle_lineup(built, out_dir, mats)
         sle_heads(built, out_dir, mats)
+    if "lean_photos" in shots and "tower_base" in built and "tower_mast" in built:
+        lean_photos({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir, mats)
     if ("photos" in shots or "tower_photos" in shots) and "tower_base" in built and "tower_mast" in built:
         tower_photos({k: v for k, v in built.items() if k.startswith("tower_")}, spec, out_dir, mats, chairs)
     print(f"Review renders in {out_dir}", flush=True)

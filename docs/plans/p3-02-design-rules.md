@@ -222,6 +222,9 @@ ruled differently. No archived code is copied; the rules are stated here as pros
   - The treeline reads natural, and nothing outside the footprint changes.
 - **CL-03, lifts:** a built lift clears a **55 ft (16.8 m)** corridor centred on its line, from terminal to terminal,
   with straight edges.
+- **CL-09, round terminals** (owner, task 07, decision SK14): a built lift also clears round each terminal, for loading
+  and unloading: the terminal's footprint (from its model) plus **20 ft (6.1 m)** all round, and **50 ft (15.2 m)**
+  more along the line in front of it *(tuned at 07)*.
 - **CL-04:** *retired.* Paths clear nothing (PA-05).
 - **CL-05, effects:** clearing writes the clearing mask that forest density reads (0.3 §4.5). The forest floor and snow
   follow it (task 05).
@@ -496,14 +499,28 @@ name (decision A2, [generic names][lift-maker-code-names]); real makers are neve
   - **Next tower:** how far the next span can reach before the chairs drop below 15 ft, at this height and at 100 ft
     ("Next tower within 420 ft, or 610 ft with a 100 ft tower"). A warning appears when the rope will pull up within
     that reach ("Hold-downs ahead").
-- **TW-14, plumb or leaned:**
+- **TW-14 v2, plumb or leaned** (v2 by the owner at task 07, decision SK13):
   - Each lift has a setting, **Towers stand: Plumb** (the default) **or Leaned**.
-  - Leaned tilts each mast along the line, square to the rope there: it bisects the arriving and departing rope
-    angles, capped at **15°** *(tuned at 07)*; real towers lean up to about the slope angle, 10–15°. That's square to the rope rather than the ground, because the rope is smooth
-    where the ground under one tower may not be.
+  - **Leaned leans the towers that need it:** a tower leans where the rope crosses its head at more than **10°**, or
+    where its head is a breakover, hold-down or combination (the heaviest loads). The rest stay plumb. Which towers lean
+    is decided on the plumb rope; it's derived, never stored (SH-05).
+  - A leaning mast tilts along the line, square to the rope there: it bisects the arriving and departing rope angles,
+    capped at **15°**; real towers lean up to about the slope angle, 10–15°. That's square to the rope rather than the
+    ground, because the rope is smooth where the ground under one tower may not be.
+  - **Leans come in 2.5° steps**, one tower base model each (`tower_base_l025` to `l150`). The foundation pier leans
+    with the mast, exactly in line with it (owner, task 07).
   - The head then sits height × sin(lean) along the line from the base, and every rule uses the head's real position.
   - On a plumb tower on a steep line, part of the rope's load pushes the mast sideways. It's shown now, and Phase 4
     can price it.
+- **TW-16, terminals are heads** (owner, task 07, decision SK15):
+  - **At the bottom,** the rope runs level through the loading area. The return terminal's built-in hold-down row turns
+    it up, and it leaves at no more than that row allows: **15.9°** on the Sessellift's station arc. There is always
+    a **breakover tower soon after** it, which brings the rope to the line's angle.
+  - **At the top,** the rope comes in level to the bullwheel over the drive terminal's built-in support row, which can
+    take at most **18°** (4 sheaves × 4.5°, LC-02). There is always **at least one breakover before the top
+    terminal**, to bring the rope to the height and flatness the terminal needs.
+  - Placement (by hand or TW-12) puts the station breakovers in first, about **70 ft (21 m)** from each bullwheel
+    *(tuned at 07)*; a terminal whose rope angle is over its row's limit is red.
 - **TW-15, stored:**
   - A tower's position along the line, its height and its stance are authored and saved.
   - Its head type, forces and rope geometry are derived (SH-05).

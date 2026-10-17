@@ -107,6 +107,22 @@ Shader "MountainPlanner/Terrain"
             return saturate(SAMPLE_TEXTURE2D_LOD(_SnowDepthMap, sampler_SnowDepthMap, uv, 0).r / _SnowDepthParams.x);
         }
 
+        // Built trails (task 07, TrailSurfaceMap): a 1 m world map over the trails' bounds. r the footprint, g the height
+        // change (edited − natural, m), b the offset across the trail from its centreline (m), a the edited ground's
+        // slope across the trail (0 on the bench, 1 on a 1:1 face). _TrailParams.x = 0 when there are no built trails.
+        TEXTURE2D(_TrailMap); SAMPLER(sampler_TrailMap);
+        float4 _TrailRect;           // west, south, 1 / width, 1 / depth (world metres, texel corners)
+        float4 _TrailParams;
+
+        float4 TrailAt(float2 xz)
+        {
+            UNITY_BRANCH
+            if (_TrailParams.x < 0.5) return 0;
+            float2 uv = (xz - _TrailRect.xy) * _TrailRect.zw;
+            if (any(uv <= 0) || any(uv >= 1)) return 0;
+            return SAMPLE_TEXTURE2D_LOD(_TrailMap, sampler_TrailMap, uv, 0);
+        }
+
         // The crown map (P2-09, ForestRenderer.BuildCrownMap): the share of the ground under tree crowns, 2 m over the
         // core and 6 m over the ring. -1 when there's no forest yet, which keeps the cover map's stand look.
         TEXTURE2D(_CrownMapCore); SAMPLER(sampler_CrownMapCore);
@@ -413,6 +429,18 @@ Shader "MountainPlanner/Terrain"
                 float2 cuv = (i.uv * (res - 1) + 0.5) / res;
                 float4 c0 = SAMPLE_TEXTURE2D(_Control0, sampler_Control0, cuv);
                 float4 c1 = SAMPLE_TEXTURE2D(_Control1, sampler_Control0, cuv);
+                // A built trail (task 07): graded faces are fresh earth, not the rock the cover gives anything this steep;
+                // the bench and gentle faces are groomed in winter (full snow) and mown in summer.
+                float4 trail = TrailAt(i.positionWS.xz);
+                float onTrail = saturate(trail.r);
+                float earth = onTrail * smoothstep(0.08, 0.4, abs(trail.g));
+                float earthFace = earth * smoothstep(0.35, 0.7, trail.a);
+                float groomed = onTrail * (1 - smoothstep(0.55, 0.85, trail.a));
+                {
+                    float moved = c0.a * earth;
+                    c0.a -= moved;
+                    c0.b += moved;
+                }
                 // c0.r is the snow's weight; the other five channels are the bare ground cover (summing to 1), or 0
                 // on a tile whose cover isn't painted yet, which stays all snow. The snow lies over the land share,
                 // and the land layers keep what it leaves (as SplatTexels composed it before task 12). Thin snow
@@ -433,6 +461,7 @@ Shader "MountainPlanner/Terrain"
                 // The cover-map overlay leaves the snow out whatever the Snow layer says.
                 float snowOn = lerp(1, _SnowOn > 0.5 && _Overlay < 0.5 ? 1 : 0, painted);
                 snowWeight *= snowOn;
+                snowWeight = max(snowWeight, land * snowOn * groomed);
                 float keep = land > 0.004 ? saturate(1 - snowWeight / land) : 0;
                 float weights[8] = { snowWeight, c0.g * keep, c0.b * keep, c0.a * keep, c1.r * keep, c1.g, c1.b * keep, c1.a * keep };
 
@@ -522,6 +551,50 @@ Shader "MountainPlanner/Terrain"
                         else SampleTop(k, i.positionWS, n, albedos[k], normals[k]);
                         heights[k] = weights[k] + albedos[k].a * 0.6;
                         best = max(best, heights[k]);
+                    }
+                }
+                // Built trails (task 07). Groomed snow: the snow's own grain mostly smoothed away, then corduroy, ridges about
+                // 1 in (25 mm) apart running along the trail (lines of constant offset), faded before they alias, and the
+                // seams between groomer passes every 15 ft (4.57 m) with each pass a shade apart, which is what reads
+                // from a distance.
+                [branch] if (groomed > 0.01 && weights[0] > 0.004)
+                {
+                    float u = trail.b;
+                    float2 du = float2(TrailAt(i.positionWS.xz + float2(0.5, 0)).b - TrailAt(i.positionWS.xz - float2(0.5, 0)).b,
+                                       TrailAt(i.positionWS.xz + float2(0, 0.5)).b - TrailAt(i.positionWS.xz - float2(0, 0.5)).b);
+                    float3 acrossWS = normalize(float3(du.x, 0, du.y) + float3(1e-5, 0, 0));
+                    normals[0] = normalize(lerp(normals[0], n, 0.6 * groomed));
+                    float cycles = u / 0.025;
+                    float alias = fwidth(cycles);
+                    float cord = (1 - smoothstep(0.25, 0.6, alias)) * groomed;
+                    normals[0] = normalize(normals[0] + acrossWS * cos(cycles * 6.2831853) * 0.45 * cord);
+                    albedos[0].rgb *= 1 - 0.05 * cord * (0.5 + 0.5 * sin(cycles * 6.2831853));
+                    float lane = u / 4.572;
+                    float seamWidth = max(0.06, fwidth(u) * 0.75);
+                    float seam = 1 - smoothstep(0, seamWidth, abs(frac(lane + 0.5) - 0.5) * 4.572);
+                    float shade = Hash12(int2((int)floor(lane + 1000), 7)) - 0.5;
+                    albedos[0].rgb *= (1 + 0.035 * shade * groomed) * (1 - 0.1 * seam * groomed);
+                    albedos[0].rgb *= lerp(1, 1.03, groomed);
+                }
+                // Summer: the bench is seeded and mown, a fresher, more even green; the faces fresh earth, stonier in cut.
+                [branch] if (onTrail > 0.01 && weights[2] > 0.004)
+                {
+                    float3 mown = albedos[2].rgb * float3(1.02, 1.12, 0.92);
+                    float lum = dot(mown, float3(0.3, 0.59, 0.11));
+                    mown = lerp(mown, lum * float3(0.86, 1.08, 0.72) * 1.05, 0.35);
+                    albedos[2].rgb = lerp(albedos[2].rgb, mown, onTrail * (1 - earthFace));
+                    [branch] if (earthFace > 0.01)
+                    {
+                        float4 dirt, stones;
+                        float3 dirtN, stonesN;
+                        SampleDetail(DirtLayer, DirtTile, i.positionWS, n, dirt, dirtN);
+                        SampleDetail(ScreeLayer, ScreeTile, i.positionWS, n, stones, stonesN);
+                        float stony = trail.g < 0 ? 0.45 : 0.15;
+                        dirt = lerp(dirt, stones, stony);
+                        dirtN = normalize(lerp(dirtN, stonesN, stony));
+                        dirt.rgb *= Macro(i.positionWS);
+                        albedos[2] = lerp(albedos[2], dirt, earthFace);
+                        normals[2] = normalize(lerp(normals[2], dirtN, earthFace));
                     }
                 }
                 // With the crown map (P2-09) the floor is the stand's own ground in shade: needles over the grass beside
