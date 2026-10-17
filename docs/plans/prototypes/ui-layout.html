@@ -1380,7 +1380,7 @@ body.solo .frame { border-radius: 0; }
   }
   // A readout card beside the pointer: a bold first line, then plain lines.
   function readoutCard(x, y, lines) {
-    const w = Math.max(...lines.map((l) => l[0].length)) * 6.1 + 18, h = lines.length * 15 + 8, cx = x + 16 + w > W - 6 ? x - 16 - w : x + 16;
+    const w = Math.max(...lines.map((l) => l[0].length)) * 6.1 + 18, h = lines.length * 15 + 8, cx = 640 + (x + 16 + w - 640) * S.zoom > W - 6 ? x - 16 - w : x + 16;   // flip left at the frame's edge, zoomed or not
     return `<g style="pointer-events:none"><rect x="${f1(cx)}" y="${f1(y - 10)}" width="${f1(w)}" height="${h}" rx="2" fill="${graphite}"/>${lines.map(([t, col], i) => `<text x="${f1(cx + 9)}" y="${f1(y + 5 + i * 15)}" style="font:${i ? 500 : 700} 11px DotFix,Overpass,sans-serif;fill:${col || '#efe9df'}">${esc(t)}</text>`).join('')}</g>`;
   }
   const OKC = '#5fd06a', BADC = '#ff5a4a';
@@ -1713,7 +1713,7 @@ body.solo .frame { border-radius: 0; }
       const i = y * TW + x, v = erase ? 0 : 1;
       if (d.mask[i] !== v) { st.idx.push(i); st.was.push(d.mask[i]); d.mask[i] = v; }
     }
-    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'; ctx.fillStyle = 'rgba(255,106,31,0.5)';
+    ctx.globalCompositeOperation = erase ? 'destination-out' : 'source-over'; ctx.fillStyle = 'rgba(214,160,120,0.22)';
     ctx.beginPath(); ctx.arc(cx, cy, Math.max(0.6, r), 0, 2 * Math.PI); ctx.fill(); ctx.globalCompositeOperation = 'source-over';
   }
   function strokeTo(d, p) {
@@ -1762,8 +1762,12 @@ body.solo .frame { border-radius: 0; }
     const [x0, y0, x1, y1] = d.box, img = ctx.createImageData(x1 - x0 + 1, y1 - y0 + 1);
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const i = y * TW + x; if (!d.mask[i]) continue;
+      // a muted wash inside, and a dashed edge: surveyor's orange for the trail, red for a separate patch
       const o = ((y - y0) * (x1 - x0 + 1) + (x - x0)) * 4, red = d.comp[i] !== d.main;
-      img.data[o] = red ? 255 : 255; img.data[o + 1] = red ? 70 : 106; img.data[o + 2] = red ? 60 : 31; img.data[o + 3] = red ? 170 : 125;
+      const edge = !d.mask[i - 1] || !d.mask[i + 1] || !d.mask[i - TW] || !d.mask[i + TW], dash = (x + y) % 8 < 4;
+      if (edge && dash) { img.data[o] = 255; img.data[o + 1] = red ? 70 : 106; img.data[o + 2] = red ? 60 : 31; img.data[o + 3] = 235; }
+      else if (edge) { img.data[o] = 251; img.data[o + 1] = 248; img.data[o + 2] = 242; img.data[o + 3] = 150; }
+      else { img.data[o] = red ? 220 : 214; img.data[o + 1] = red ? 120 : 160; img.data[o + 2] = red ? 110 : 120; img.data[o + 3] = 56; }
     }
     ctx.putImageData(img, x0, y0);
   }
@@ -1879,7 +1883,7 @@ body.solo .frame { border-radius: 0; }
     for (const [e, lab] of [[d.head, 'Head'], [d.tail, 'Tail']]) if (e) s += `<g><circle cx="${f1(e.p[0])}" cy="${f1(e.p[1])}" r="${e.snap ? 6 : 4.5}" fill="${graphite}" stroke="${e.snap ? selC : flag}" stroke-width="1.8"/></g>` + readoutCard(e.p[0], e.p[1] - 6, [[e.snap ? `${lab} · joins ${e.snap}` : lab]]);
     if (mouse && d.step === 'paint') {
       const r = d.width / 2 / FT_PX, er = shiftDown;
-      s += `<circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(Math.max(1.5, r))}" fill="none" stroke="${graphite}" stroke-width="2.6" opacity=".7"/><circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(Math.max(1.5, r))}" fill="none" stroke="${er ? BADC : white}" stroke-width="1.3"/>`;
+      s += `<circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(Math.max(1.5, r))}" fill="none" stroke="${graphite}" stroke-width="2.6" opacity=".45" stroke-dasharray="3 2.5"/><circle cx="${f1(mouse[0])}" cy="${f1(mouse[1])}" r="${f1(Math.max(1.5, r))}" fill="none" stroke="${er ? BADC : white}" stroke-width="1.3" stroke-dasharray="3 2.5"/>`;
       s += readoutCard(mouse[0] + r, mouse[1] - 4, [[er ? `Erase · ${lenFt(d.width)}` : `Paint · ${lenFt(d.width)} wide`], ['[ ] width · Shift erases · Ctrl+Z undoes', '#a39b90']]);
     }
     if (mouse && d.step === 'ends' && !(d.head && d.tail)) {
