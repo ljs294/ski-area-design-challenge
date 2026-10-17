@@ -268,6 +268,9 @@ namespace MountainPlanner.App.Flow
             ("tray-trails", false, (h, v, on) => { h.SetToolboxTab(on ? "trails" : "lifts"); h.SetToolbox(on); }),
             ("tray-snow", false, (h, v, on) => { h.SetToolboxTab(on ? "snow" : "lifts"); h.SetToolbox(on); }),
             ("tray-infra", false, (h, v, on) => { h.SetToolboxTab(on ? "infra" : "lifts"); h.SetToolbox(on); }),
+            // Task P3-06: a tool armed, its window at step 1 (the mockup's demo=liftorigin and trailpaint).
+            ("tool-lift", false, (h, v, on) => { h.SetToolboxTab("lifts"); h.SetToolbox(on); if (on) v.Tools?.Choose("new-lift"); }),
+            ("tool-trail", false, (h, v, on) => { h.SetToolboxTab(on ? "trails" : "lifts"); h.SetToolbox(on); if (on) v.Tools?.Choose("new-trail"); }),
             ("analysis", false, (h, v, on) => { h.SetAnalysisTab("overview"); h.SetAnalysis(on); }),
             ("analysis-lifts", false, (h, v, on) => { h.SetAnalysisTab(on ? "lifts" : "overview"); h.SetAnalysis(on); }),
             ("analysis-weather", false, (h, v, on) => { h.SetAnalysisTab(on ? "weather" : "overview"); h.SetAnalysis(on); }),

@@ -465,11 +465,18 @@ namespace MountainPlanner.UI
             VisualElement item = null;
             for (int i = 0; i < ToastCount && item == null; i++)
                 if (_toastItems[i].ClassListContains("hidden")) item = _toastItems[i];
-            if (item == null) item = _toasts[0];
+            // All three showing: the one that goes soonest makes room.
+            if (item == null)
+            {
+                item = _toastItems[0];
+                for (int i = 1; i < ToastCount; i++)
+                    if (_toastUntil[i] < _toastUntil[Array.IndexOf(_toastItems, item)]) item = _toastItems[i];
+            }
             item.BringToFront();
             item.RemoveFromClassList("hidden");
-            item[0].style.backgroundColor = stripe ?? new Color32(0x6f, 0x67, 0x5e, 255);
-            ((Label)item[1]).text = text;
+            // By class: the see-through plate (MountainHud.Glass.cs) is each toast's first child.
+            item.Q(className: "log__stripe").style.backgroundColor = stripe ?? new Color32(0x6f, 0x67, 0x5e, 255);
+            item.Q<Label>(className: "log__text").text = text;
             _toastUntil[Array.IndexOf(_toastItems, item)] = Time.unscaledTime + ToastSeconds;
         }
 

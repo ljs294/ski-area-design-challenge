@@ -186,13 +186,13 @@ namespace MountainPlanner.UI.Tools
         string Siting(Vector2 at)
         {
             if (!_ctx.InCore(at + new Vector2(TerminalRadius, TerminalRadius)) || !_ctx.InCore(at - new Vector2(TerminalRadius, TerminalRadius)))
-                return "A terminal stands inside the area";
+                return "A terminal must stand inside the area";
             float lo = float.MaxValue, hi = float.MinValue;
             for (int i = 0; i <= 8; i++)
             {
                 var p = i == 8 ? at : at + TerminalRadius * new Vector2(Mathf.Cos(i * Mathf.PI / 4), Mathf.Sin(i * Mathf.PI / 4));
                 float h = _ctx.HeightAt(p);
-                if (float.IsNaN(h)) return "A terminal stands inside the area";
+                if (float.IsNaN(h)) return "A terminal must stand inside the area";
                 lo = Mathf.Min(lo, h);
                 hi = Mathf.Max(hi, h);
             }

@@ -231,3 +231,33 @@ captures in both themes.
 8. **Switching tools with work drawn.** CF-01 says the current tool cancels at once, and CF-07 asks only on Esc.
    **Recommend:** follow the rules, with no question, but show a one-line notice ("New trail discarded") so it's never
    silent.
+
+## 9. As built (notes for tasks 04, 05 and 08–10)
+
+- **Design coordinates.** A `PointMm` is the area's **local frame** (x east, z north, metres from `LocalFrame.Origin`)
+  × 1,000. Absolute EPSG:6350 metres would overflow the document's ±1,000 km range. Convert with
+  `Presentation.Design.DesignFrame`. The origin comes from the package (the site's centre), so a save needs nothing more.
+- **The session's design.**
+  - `MountainViewer.Design` is a `DesignHistory` that starts empty for each opening. Its seed is the FNV-1a hash of
+    the package id.
+  - **Task 04** loads a save with `MountainViewer.SetDesign(history)`.
+- **Adding a tool (tasks 08–10).**
+  - Implement `UI.Tools.IDesignTool`, then add one `ToolCatalog` line. The tray tile, its letter and the hint follow
+    from that.
+  - Draw through `ToolContext.Preview` (`IToolPreview`: numbered slots, no allocation).
+  - Run heavy work through `ToolContext.Analyse` (stamped; results come back on the host's tick).
+  - Fill the review with `ReviewModel`, including its reserved `terrain` and `network` slots.
+  - Claim keys with `ToolContext.Claim`.
+- **Snapping.**
+  - `Domain.Design.DesignSnap.Nearest` finds lift ends and trail ends within 30 ft (TR-05).
+  - **Task 08** plugs centreline snapping in through `ToolContext.Lines` (`ICentrelineSnap`).
+- **The placeholder drawing.**
+  - `Presentation.Design.DesignOverlay` draws committed lifts and trails as plain lines, with plans in orange.
+  - **Tasks 08 and 09** replace it with the real trails and lifts.
+  - `PendingPreview.Cleared` is the hook for the yellow pending contours (CF-08).
+- **Keys.**
+  - The new `GameAction`s are ToolNew, ToolEdit, ToolRemove, ToolNext, BreakGround, BrushNarrower, BrushWider, Erase,
+    UndoStroke, TowerUp, TowerDown, DeleteSelected, ToolWindowKeys, Undo and Redo.
+  - There's a new `KeyBindings.Context.Tray`.
+  - `KeyBindings.Claim` lets an armed tool's key shadow any other action on the same key.
+- **The profile strip.** `tool-strip` in Hud.uxml is the reserved slot for LF-10 and TF-04.

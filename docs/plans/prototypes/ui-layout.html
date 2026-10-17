@@ -2173,6 +2173,7 @@ body.solo .frame { border-radius: 0; }
     finances: 'Money comes with the simulation in Phase 4.',
   };
   const P2_DIS_TABS = ['guests'];
+  const P3_LIVE = ['new-lift', 'new-trail'];   // the tools the game has (P3-06); tasks 08-10 add theirs
   const P2_DIS_LAYERS = ['lifts', 'trails', 'making', 'infra'];
   // The weather calendar: a month of days. Past days show the snow that fell, the next five the forecast,
   // later ones only their date. Day 1 (1 September) is the first month you can page back to.
@@ -2406,7 +2407,8 @@ body.solo .frame { border-radius: 0; }
     if (S.analysis) h += analysisPanel(trayBottom);
     if (S.toolbox && !S.analysis) {
       const cur = S.tool ? toolById(S.tool) : null;
-      const tile = (t) => P2 ? `<span class="tool dis" data-ui="tool-${t.id}" data-name="${t.name}" data-key="${t.key}" data-hint="comes in Phase 3">${toolGlyph(t)}<span>${t.label}</span></span>`
+      // demo=p2 is the game as built: New lift and New trail are real since P3-06, the other tiles still come later.
+      const tile = (t) => P2 && !P3_LIVE.includes(t.id) ? `<span class="tool dis" data-ui="tool-${t.id}" data-name="${t.name}" data-key="${t.key}" data-hint="comes in Phase 3">${toolGlyph(t)}<span>${t.label}</span></span>`
         : `<span class="tool${S.tool === t.id ? ' on' : ''}" data-act="tool" data-v="${t.id}" data-ui="tool-${t.id}" data-name="${t.name}" data-key="${t.key}" data-hint="${esc(t.hint)}">${toolGlyph(t)}<span>${t.label}</span></span>`;
       h += `<div class="box" data-ui="toolbox" style="bottom:${trayBottom}px"><div class="tabs">${TABS.map(([k, v]) => `<span class="${S.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}" data-ui="toolbox-tab-${k}">${v}</span>`).join('')}</div><div class="tabrule"></div>
         <div class="toollabel" id="toollabel" data-ui="toolbox-label">${cur && TOOLS[S.tab].includes(cur) ? `${cur.name}<span class="mono">${cur.key}</span>` : 'Select tool'}</div>
@@ -2919,7 +2921,7 @@ body.solo .frame { border-radius: 0; }
     if (k === '-') { act('zoom', -1); return; }
     if (k === 'pageup' || k === 'pagedown') { e.preventDefault(); act('zoom', k === 'pageup' ? 1 : -1); return; }   // zoom, unless a tower is in hand
     if (k === 'home') { act('resetview'); return; }
-    if (S.toolbox && !S.p2) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t) chooseTool(t.id); }
+    if (S.toolbox) { const t = TOOLS[S.tab].find((x) => x.key.toLowerCase() === k); if (t && (!S.p2 || P3_LIVE.includes(t.id))) chooseTool(t.id); }
   });
 
   // ---------- the clock: game seconds per real second at each speed ----------
