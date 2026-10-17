@@ -45,7 +45,18 @@ namespace MountainPlanner.UI.Tools
             _ask.AddToClassList("hidden");
             Window.Head.Insert(Window.Head.IndexOf(_name) + 1, _ask);
 
-            var body = Window.Body;
+            // Everything but the commit buttons scrolls when the window is taller than the room above the bar (150% on a
+            // small screen); Break ground and Save plan stay pinned at the bottom.
+            _scroll = new ScrollView(ScrollViewMode.Vertical)
+            {
+                name = "toolwin-scroll",
+                horizontalScrollerVisibility = ScrollerVisibility.Hidden,
+                verticalScrollerVisibility = ScrollerVisibility.Hidden,   // the wheel scrolls it; focus scrolls to itself
+            };
+            _scroll.RegisterCallback<FocusInEvent>(e => { if (e.target is VisualElement f) _scroll.ScrollTo(f); });
+            _scroll.AddToClassList("tw__scroll");
+            Window.Body.Add(_scroll);
+            var body = _scroll.contentContainer;
             body.Add(_opts = Part("toolwin-opts", "tw__opts"));
             body.Add(Part(null, "tw__rule"));
             body.Add(_steps = Part("toolwin-steps", "tw-steps"));
@@ -69,7 +80,7 @@ namespace MountainPlanner.UI.Tools
             _next.Add(_nextKbd);
             _btns.Add(_next);
 
-            body.Add(_acts = Part("toolwin-acts", "tw-acts"));
+            Window.Body.Add(_acts = Part("toolwin-acts", "tw-acts"));
             _go = new Button(() => BreakGroundClicked?.Invoke()) { name = "review-go" };
             _go.AddToClassList("mp-go");
             var goLabel = new Label("Break ground") { pickingMode = PickingMode.Ignore };
@@ -86,9 +97,39 @@ namespace MountainPlanner.UI.Tools
             _kv.AddToClassList("hidden");
             _keys.AddToClassList("hidden");
 
+            Window.RegisterCallback<GeometryChangedEvent>(_ => Fit());
             KeyBindings.Changed += OnKeysChanged;
             Window.RegisterCallback<DetachFromPanelEvent>(_ => KeyBindings.Changed -= OnKeysChanged);
             Window.RegisterCallback<AttachToPanelEvent>(_ => { KeyBindings.Changed -= OnKeysChanged; KeyBindings.Changed += OnKeysChanged; });
+        }
+
+        readonly ScrollView _scroll;
+
+        /// <summary>
+        /// Keeps the window clear of the HUD: the first time it lays out, it moves beside the Toolbox tray if it would
+        /// cover it (and there's room); it never reaches into the status bar, scrolling its steps instead.
+        /// </summary>
+        void Fit()
+        {
+            var stage = Window.parent;
+            if (stage == null) return;
+            var tray = stage.Q("toolbox");
+            var bar = stage.Q("bar");
+            float barTop = bar != null ? bar.layout.yMin : stage.layout.height;
+            var w = Window.layout;
+            if (!Window.MovedByHand && w.height > 0)
+            {
+                bool trayShown = tray != null && tray.resolvedStyle.display == DisplayStyle.Flex;
+                bool overTray = trayShown && w.xMin < tray.layout.xMax && w.yMax > tray.layout.yMin - 10;
+                if (overTray && tray.layout.xMax + 10 + w.width + 10 <= stage.layout.width)
+                {
+                    Window.style.left = tray.layout.xMax + 10;
+                    // Below the top-right buttons (sketch, layers, menu: 46 px tall at 10 px) when it reaches under them.
+                    if (tray.layout.xMax + 10 + w.width > stage.layout.width - 170) Window.style.top = 66;
+                }
+            }
+            float room = Mathf.Max(120, barTop - 10 - w.yMin);
+            if (Math.Abs(Window.resolvedStyle.maxHeight.value - room) > 0.5f) Window.style.maxHeight = room;
         }
 
         static VisualElement Part(string name, string cls)

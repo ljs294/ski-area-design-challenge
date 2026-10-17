@@ -142,6 +142,90 @@ namespace MountainPlanner.App
             }
         }
 
+        // ---------- captures (AppFlow.UiCapture): a tool driven to a step without a mouse ----------
+
+        /// <summary>
+        /// For captures: the armed tool gets a click (or a drag point) at a fraction of the screen, as if the pointer were
+        /// there. True when the pointer met the ground.
+        /// </summary>
+        internal bool PointForCapture(Vector2 fraction, bool click, bool drag = false, bool release = false)
+        {
+            var cam = Camera != null ? Camera.GetComponent<UnityEngine.Camera>() : null;
+            if (_tools == null || !_tools.Armed || cam == null) return false;
+            var saved = _pointer;
+            _pointer = fraction;
+            var input = ReadToolInput(cam);
+            _pointer = saved;
+            input.Click = click;
+            input.Drag = drag;
+            input.Release = release;
+            input.Keys = ToolKeys.None;
+            _tools.Tick(input);
+            return input.HasGround;
+        }
+
+        /// <summary>For captures: tool keys for one tick; waits (blocking) for any running analysis first.</summary>
+        internal void KeysForCapture(ToolKeys keys)
+        {
+            if (_tools == null || !_tools.Armed) return;
+            for (int i = 0; i < 400 && _tools.Context.Running > 0; i++)
+            {
+                System.Threading.Thread.Sleep(5);
+                _tools.Tick(default);
+            }
+            _tools.Tick(new ToolInput { Keys = keys });
+        }
+
+        /// <summary>
+        /// For captures: New lift to its review. Tries pointer spots over the view until a bottom, then a top, can sit.
+        /// </summary>
+        internal bool LiftReviewForCapture()
+        {
+            if (_tools == null || !_tools.Choose(NewLiftTool.ToolId) || !(_tools.Active is NewLiftTool lift)) return false;
+            for (int step = 0; step < 2; step++)
+                for (float y = 0.62f; y >= 0.2f && lift.CurrentStep == step; y -= 0.02f)
+                    for (float x = step == 0 ? 0.62f : 0.5f; x <= 0.92f && lift.CurrentStep == step; x += 0.02f)
+                        PointForCapture(new Vector2(x, step == 0 ? y : 1.2f - y), click: true);
+            if (lift.CurrentStep != 2) return false;
+            KeysForCapture(ToolKeys.Next);
+            return lift.CurrentStep == 3;
+        }
+
+        /// <summary>For captures: New trail painted between two spots in the core, head and tail set, at its review.</summary>
+        internal bool TrailReviewForCapture()
+        {
+            if (_tools == null || !_tools.Choose(NewTrailTool.ToolId) || !(_tools.Active is NewTrailTool trail)) return false;
+            if (!CoreSpot(new Vector2(0.62f, 0.62f), out var from) || !CoreSpot(from + new Vector2(0.04f, -0.22f), out var to)) return false;
+            PointForCapture(from, click: true, drag: true);
+            for (int i = 1; i <= 30; i++) PointForCapture(Vector2.Lerp(from, to, i / 30f), click: false, drag: true);
+            PointForCapture(to, click: false, release: true);
+            KeysForCapture(ToolKeys.Next);
+            if (trail.CurrentStep != 1) return false;
+            PointForCapture(Vector2.Lerp(from, to, 0.03f), click: true);
+            PointForCapture(Vector2.Lerp(from, to, 0.97f), click: true);
+            KeysForCapture(ToolKeys.Next);
+            return trail.CurrentStep == 2;
+        }
+
+        // The first screen spot near a fraction (searching outward) whose ground lies in the core box.
+        bool CoreSpot(Vector2 near, out Vector2 fraction)
+        {
+            var cam = Camera.GetComponent<UnityEngine.Camera>();
+            for (int ring = 0; ring < 12; ring++)
+                for (int k = 0; k < Mathf.Max(1, ring * 8); k++)
+                {
+                    float a = k * Mathf.PI * 2 / Mathf.Max(1, ring * 8);
+                    fraction = near + ring * 0.025f * new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                    var saved = _pointer;
+                    _pointer = fraction;
+                    var input = ReadToolInput(cam);
+                    _pointer = saved;
+                    if (input.HasGround && _resort.Core.Contains(new Vector2(input.Ground.x - 40, input.Ground.z - 40)) && _resort.Core.Contains(new Vector2(input.Ground.x + 40, input.Ground.z + 40))) return true;
+                }
+            fraction = default;
+            return false;
+        }
+
         ToolInput ReadToolInput(UnityEngine.Camera cam)
         {
             var input = new ToolInput();

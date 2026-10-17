@@ -16,7 +16,9 @@ namespace MountainPlanner.Presentation.Design
         const float Lift = 1.5f;          // metres above the ground, so a line isn't swallowed by the terrain between samples
         const float Spacing = 6f;         // a draped line's sample spacing, metres
         const int MaxPoints = 1024;
-        const float PixelsWide = 2.5f, DotPixels = 5f;
+        const float PixelsWide = 2.5f, DotPixels = 10f;
+        /// <summary>The lines' shader (Resources): pulls each line toward the eye so far terrain doesn't swallow it.</summary>
+        public const string ShaderResource = "MountainPlannerDesign/DesignLine";
         const int RingPoints = 48, DotPoints = 12;
 
         static readonly Color[] Inks =
@@ -57,9 +59,11 @@ namespace MountainPlanner.Presentation.Design
             _root.SetParent(parent, false);
             _surface = surface;
             _materials = new Material[Inks.Length];
+            var shader = Resources.Load<Shader>(ShaderResource);
             for (int i = 0; i < Inks.Length; i++)
             {
-                var m = lineMaterial != null ? new Material(lineMaterial) : new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+                // The line shader when it's there; the viewer's unlit material otherwise (edit-mode tests).
+                var m = shader != null ? new Material(shader) : lineMaterial != null ? new Material(lineMaterial) : new Material(Shader.Find("Universal Render Pipeline/Unlit"));
                 m.name = name + " " + (PreviewInk)i;
                 m.SetColor("_BaseColor", Inks[i]);
                 _materials[i] = m;

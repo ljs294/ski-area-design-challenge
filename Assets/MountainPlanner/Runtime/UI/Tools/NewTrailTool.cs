@@ -112,7 +112,7 @@ namespace MountainPlanner.UI.Tools
                 case Step.Review:
                     w.SetHint(null);
                     w.SetMessage(null);
-                    w.SetKeys((GameAction.BreakGround, "break ground"));
+                    w.SetKeys();   // Break ground shows its own key
                     w.SetNext(false, false);
                     BuildReview();
                     w.ShowReview(_review);

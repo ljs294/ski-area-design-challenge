@@ -89,6 +89,9 @@ namespace MountainPlanner.UI.Hud
 
         public Vector2 Position => new Vector2(resolvedStyle.left, resolvedStyle.top);
 
+        /// <summary>The player dragged it: automatic placement leaves it where it was put (P3-06).</summary>
+        public bool MovedByHand { get; private set; }
+
         void OnDown(PointerDownEvent e)
         {
             if (e.button != 0 || e.target is Button) return;
@@ -101,6 +104,7 @@ namespace MountainPlanner.UI.Hud
         void OnMove(PointerMoveEvent e)
         {
             if (!_dragging || !Head.HasPointerCapture(e.pointerId)) return;
+            MovedByHand = true;
             MoveTo((Vector2)e.position - _grab);
         }
 

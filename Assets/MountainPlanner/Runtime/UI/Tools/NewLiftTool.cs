@@ -110,7 +110,7 @@ namespace MountainPlanner.UI.Tools
                     break;
                 case Step.Review:
                     w.SetHint(null);
-                    w.SetKeys((GameAction.BreakGround, "break ground"));
+                    w.SetKeys();   // Break ground shows its own key
                     w.SetNext(false, false);
                     BuildReview();
                     w.ShowReview(_review);

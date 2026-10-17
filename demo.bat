@@ -727,7 +727,7 @@ if not exist "%GAME%" call :buildplayer
 if not exist "%GAME%" goto done
 set "UICAP=%~dp0test-results\hud-captures"
 if exist "%UICAP%" rmdir /s /q "%UICAP%"
-set "HUDSTATES=s6-hud,s6-float,s6-menu,s6-layers,s6-slope,s6-exposure,s6-depth,s6-contours,s6-slope-contours,s6-tray-lifts,s6-tray-trails,s6-tray-snow,s6-tray-infra,s6-tool-lift,s6-tool-trail,s6-analysis,s6-analysis-lifts,s6-analysis-weather,s6-analysis-finances,s6-rstats"
+set "HUDSTATES=s6-hud,s6-float,s6-menu,s6-layers,s6-slope,s6-exposure,s6-depth,s6-contours,s6-slope-contours,s6-tray-lifts,s6-tray-trails,s6-tray-snow,s6-tray-infra,s6-tool-lift,s6-tool-trail,s6-tool-lift-review,s6-tool-trail-review,s6-analysis,s6-analysis-lifts,s6-analysis-weather,s6-analysis-finances,s6-rstats"
 echo Capturing the HUD's states at 1920x1080, 2560x1440 and 3440x1440 (the window shows the title while it works)...
 %RENDER% "%GAME%" -uicapture "%UICAP%" -uionly %HUDSTATES% -uisizes 1920x1080,2560x1440,3440x1440 -hudopacity 100 -logFile "%~dp0test-results\hud-captures.log" <nul
 type "%UICAP%\report.txt"

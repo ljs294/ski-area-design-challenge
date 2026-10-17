@@ -13,6 +13,9 @@
 .hud .tw__name { margin-left: 8px; font-size: 14px; color: var(--soft); -unity-text-outline-color: var(--soft); }
 .hud .tw__ask { margin-left: 8px; font-size: 12.5px; -unity-font-style: bold; color: var(--neg); -unity-text-outline-color: var(--neg); }
 .hud .tw__opts { padding: 8px 0 4px 0; }
+.hud .tw > #window-body { flex-shrink: 1; min-height: 0; }
+.hud .tw__scroll { flex-shrink: 1; min-height: 0; }
+
 .hud .tw__rule { height: 1px; background-color: var(--hair); }
 
 /* an option row: the label in a 64 px column, the control after it (.lrow) */
