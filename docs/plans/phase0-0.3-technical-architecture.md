@@ -335,6 +335,11 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
 - `<data>/library.json` holds only the **layout version** of the data folder (decision V1). A folder without one is v1.
 - `<data>/recent.json` records when each package was last opened, for Continue and the library's sort.
 - `<data>/Downloads/<id>/download.json` records a paused download (task 14).
+- `<data>/Saves/<packageId>/<saveId>/` holds a save (task P3-04): `save.json` (the design plus a list of 64 m terrain
+  edit tiles, TE1; design points are whole millimetres from the site's centre on the package grid's axes, TE5), `save.json.bak` (the previous good one) and `tiles/<sha256>.tile`. Saves sit outside the package,
+  so the read-only demo saves too and Rename never touches them. A save commits with one `File.Replace`, so a crash
+  leaves the old save or the new one. A new folder moves nothing, so the library layout stays v1. Deleting an area
+  deletes its saves.
 
 **View state:** a small versioned JSON per resort (`view.json` in the package folder).
 
@@ -350,6 +355,7 @@ frozen format ships with a migration and a fixture test.
 | Recently opened list | `<data>/recent.json` | `Version` | 1 | `…/v1-library/recent.json` |
 | View state | `<package>/view.json` | `Version` | 2 | v1: `…/v1-library/Resorts/5792676e513f5302/view.json`; v2 (adds `Name`, task P2-04): `TestData/formats/v2-view/view.json` |
 | Paused download | `<data>/Downloads/<id>/download.json` | `Version` | 1 | `…/v1-library/Downloads/*/download.json` |
+| Save (task P3-04) | `<data>/Saves/<packageId>/<saveId>/save.json` + `tiles/<sha256>.tile` | `Version` | 1 | `TestData/formats/v1-save` |
 
 **The rules:**
 1. **Every file is read through its format's `VersionedJson`** (`Persistence/VersionedJson.cs`). The version comes from

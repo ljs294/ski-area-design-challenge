@@ -14,6 +14,7 @@ namespace MountainPlanner.Presentation
         Toolbox, Analysis, Pause, Speed1, Speed2, Speed3, Speed4, Units, HideUi, PhotoMode, PhotoCapture, DeveloperPanel,
         LayerSnow, LayerTrees, InfoContours, InfoSlope, InfoExposure, InfoDepth, InfoConditions,
         PhotoHideBar, PhotoEarlier, PhotoLater, PhotoDayBack, PhotoDayOn, PhotoBarKeys,
+        Save,
     }
 
     [Flags]
@@ -120,6 +121,8 @@ namespace MountainPlanner.Presentation
             new Info("Photo mode", "A day on", Context.Photo, new KeyChord(Key.RightBracket, KeyMods.Shift)),
             // P3-01: the arrows move the camera, so Tab hands the bar the keyboard; Esc gives it back.
             new Info("Photo mode", "Use the photo bar with the keys", Context.Photo, new KeyChord(Key.Tab)),
+            // P3-04: the design's save (the menu's Save game, the bar's save symbol).
+            new Info("Game", "Save", Context.Normal, new KeyChord(Key.S, KeyMods.Ctrl)),
         };
 
         /// <summary>Keys no action may take: Esc backs out, Enter finishes a line, the modifiers on their own.</summary>
