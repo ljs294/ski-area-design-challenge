@@ -180,6 +180,12 @@ echo   Phase 3, task 03: the design document, commands and undo (no Unity needed
 echo     61 Run the design document tests, then print a walkthrough: a lift and a trail, split, join, undo, redo,
 echo        a stale and a bad command rejected, the derived network and the document bytes.
 echo.
+echo   Phase 3, task 05: terrain edits (rebuilds the game if needed; on the desktop, not over remote desktop)
+echo     63 The game with the test edit keys: point at a slope, F6 previews a 300 m (1,000 ft) bench down the fall line
+echo        in yellow, F7 breaks ground (graded, trees cleared, snow fills in), F8 cancels; Ctrl+Z / Ctrl+Y undo, redo.
+echo     63b The edit timing run: 50 benches at High (preview, commit, undo p95 against 100 / 250 ms), then the
+echo        Development game for idle garbage; prints both reports.
+echo.
 echo     Q  Quit
 echo.
 set "CHOICE="
@@ -258,6 +264,8 @@ if /i "%CHOICE%"=="58" goto release
 if /i "%CHOICE%"=="59" goto testerkit
 if /i "%CHOICE%"=="60" goto carryover
 if /i "%CHOICE%"=="61" goto designdoc
+if /i "%CHOICE%"=="63" goto terrainedits
+if /i "%CHOICE%"=="63b" goto editbench
 if /i "%CHOICE%"=="15" (
   if not exist "%PACKAGES%" mkdir "%PACKAGES%"
   start "" "%PACKAGES%"
@@ -695,6 +703,28 @@ echo watch the title's drift (no bob) and the far trees (no blinking); in a moun
 echo then U for "- - - m"; P for photo mode, Tab, then the arrows move in the bar while the camera stays; Esc gives
 echo the keys back, and Esc again leaves photo mode.
 "%GAME%" <nul
+goto done
+
+:terrainedits
+rem Task P3-05: the test edit by keys (-testedit). The HUD elevation reads the edited heights; Shift+6 shows contours.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+echo Once the mountain is in, point at a slope and press F6: the yellow lines are the bench's new contours.
+echo F7 builds it (the ground levels, its trees go and the snow fills in); Ctrl+Z puts everything back; Ctrl+Y again.
+"%GAME%" -testedit <nul
+goto done
+
+:editbench
+rem Task P3-05 (CF-09): -editbench grades the 300 m test bench at 10 spots, 5 rounds, timing preview, commit and undo,
+rem and checks undo leaves byte-identical heights; the Development game adds the idle-garbage check.
+if not exist "%GAME%" call :buildplayer
+if not exist "%GAME%" goto done
+set "EDITS=%~dp0test-results\edit-bench"
+if not exist "%EDITS%" mkdir "%EDITS%"
+%MEASURE% "%GAME%" %SCREEN% -quality high -editbench "%EDITS%\high.json" -logFile "%EDITS%\high.log" <nul
+if exist "%GAMEDEV%" %MEASURE% "%GAMEDEV%" %SCREEN% -quality high -editbench "%EDITS%\high-dev.json" -logFile "%EDITS%\high-dev.log" <nul
+findstr /c:"[EditBenchmark]" "%EDITS%\high.log"
+if exist "%EDITS%\high-dev.log" findstr /c:"[EditBenchmark]" "%EDITS%\high-dev.log"
 goto done
 
 :hudparity

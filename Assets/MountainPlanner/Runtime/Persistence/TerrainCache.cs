@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Geo;
 using Newtonsoft.Json;
 
@@ -278,7 +279,7 @@ namespace MountainPlanner.Persistence
         }
 
         /// <summary>The package's heights as one continuous function of position.</summary>
-        public sealed class HeightField
+        public sealed class HeightField : IHeightSource
         {
             readonly float[] _core, _ring;
             readonly GridHeader _c, _r;
@@ -291,29 +292,58 @@ namespace MountainPlanner.Persistence
                 _r = ringHeader;
             }
 
-            public double At(double x, double y)
-            {
-                double ringH = Bilinear(_ring, _r, x, y);
-                double cw = _c.West, cn = _c.North, ce = cw + _c.Width * _c.CellSize, cs = cn - _c.Height * _c.CellSize;
-                double inside = Math.Min(Math.Min(x - cw, ce - x), Math.Min(cn - y, y - cs));
-                if (inside <= 0) return ringH;
-                double t = Math.Min(1, inside / CoreBlendMetres);
-                t = t * t * (3 - 2 * t);
-                return ringH + (Bilinear(_core, _c, x, y) - ringH) * t;
-            }
+            public double At(double x, double y) => Blend(new ArrayGrid(_core, _c), new ArrayGrid(_ring, _r), x, y);
+        }
 
-            /// <summary>Bilinear between cell centres, clamped at the grid's edge.</summary>
-            static double Bilinear(float[] g, GridHeader h, double x, double y)
+        /// <summary>A grid the height function samples: its header and its value at a cell.</summary>
+        internal interface IFloatGrid
+        {
+            GridHeader Header { get; }
+            float Value(int column, int row);
+        }
+
+        internal readonly struct ArrayGrid : IFloatGrid
+        {
+            readonly float[] _values;
+            public GridHeader Header { get; }
+            public ArrayGrid(float[] values, GridHeader header)
             {
-                double fx = (x - h.West) / h.CellSize - 0.5, fy = (h.North - y) / h.CellSize - 0.5;
-                fx = Math.Max(0, Math.Min(h.Width - 1, fx));
-                fy = Math.Max(0, Math.Min(h.Height - 1, fy));
-                int x0 = Math.Min((int)fx, h.Width - 2), y0 = Math.Min((int)fy, h.Height - 2);
-                double tx = fx - x0, ty = fy - y0;
-                int i = y0 * h.Width + x0;
-                double top = g[i] + (g[i + 1] - g[i]) * tx, bottom = g[i + h.Width] + (g[i + h.Width + 1] - g[i + h.Width]) * tx;
-                return top + (bottom - top) * ty;
+                _values = values;
+                Header = header;
             }
+            public float Value(int column, int row) => _values[row * Header.Width + column];
+        }
+
+        /// <summary>
+        /// The one height function, shared by <see cref="HeightField"/> and <see cref="PackageHeights"/> so both give
+        /// identical doubles: the 1 m core eased into the 2 m ring over <see cref="CoreBlendMetres"/>, bilinear between
+        /// cell centres. Generic over struct grids, so the cache build's hot loop pays nothing for it.
+        /// </summary>
+        internal static double Blend<TCore, TRing>(TCore core, TRing ring, double x, double y)
+            where TCore : struct, IFloatGrid where TRing : struct, IFloatGrid
+        {
+            double ringH = Bilinear(ring, x, y);
+            var c = core.Header;
+            double cw = c.West, cn = c.North, ce = cw + c.Width * c.CellSize, cs = cn - c.Height * c.CellSize;
+            double inside = Math.Min(Math.Min(x - cw, ce - x), Math.Min(cn - y, y - cs));
+            if (inside <= 0) return ringH;
+            double t = Math.Min(1, inside / CoreBlendMetres);
+            t = t * t * (3 - 2 * t);
+            return ringH + (Bilinear(core, x, y) - ringH) * t;
+        }
+
+        /// <summary>Bilinear between cell centres, clamped at the grid's edge.</summary>
+        internal static double Bilinear<TGrid>(TGrid g, double x, double y) where TGrid : struct, IFloatGrid
+        {
+            var h = g.Header;
+            double fx = (x - h.West) / h.CellSize - 0.5, fy = (h.North - y) / h.CellSize - 0.5;
+            fx = Math.Max(0, Math.Min(h.Width - 1, fx));
+            fy = Math.Max(0, Math.Min(h.Height - 1, fy));
+            int x0 = Math.Min((int)fx, h.Width - 2), y0 = Math.Min((int)fy, h.Height - 2);
+            double tx = fx - x0, ty = fy - y0;
+            float a = g.Value(x0, y0), b = g.Value(x0 + 1, y0), c = g.Value(x0, y0 + 1), d = g.Value(x0 + 1, y0 + 1);
+            double top = a + (b - a) * tx, bottom = c + (d - c) * tx;
+            return top + (bottom - top) * ty;
         }
     }
 }

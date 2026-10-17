@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using MountainPlanner.Domain.Cover;
+using MountainPlanner.Domain.Edits;
 using MountainPlanner.Domain.Geo;
 using MountainPlanner.Domain.Roads;
 
@@ -30,11 +31,11 @@ namespace MountainPlanner.Persistence
         readonly GridHeader _coverHeader;
         readonly byte[]? _osmCore, _osmRing;
         readonly GridHeader _osmCoreHeader, _osmRingHeader;
-        readonly TerrainCache.HeightField _heights;
+        readonly IHeightSource _heights;
         readonly ulong _seed;
         readonly List<(Road Road, AlbersBox Box)> _roads = new List<(Road, AlbersBox)>();
 
-        public CoverField(PackageManifest package, string folder, TerrainCache.HeightField heights)
+        public CoverField(PackageManifest package, string folder, IHeightSource heights)
         {
             _heights = heights;
             _seed = CoverNoise.SeedFor(package.Site.CentreX, package.Site.CentreY);
@@ -76,10 +77,21 @@ namespace MountainPlanner.Persistence
         public bool HasOsm => _osmCore != null;
 
         /// <summary>Everything the cover rules need at (x, y).</summary>
-        public CoverSample Sample(double x, double y, double slopeStep)
+        public CoverSample Sample(double x, double y, double slopeStep) => Sample(x, y, slopeStep, _heights, false);
+
+        /// <summary>
+        /// The sample over other heights (the edited ones, SH-02), and with the trees cleared where
+        /// <paramref name="cleared"/> (CL-05): no canopy there, trusted fully, so no forest floor and full snow.
+        /// </summary>
+        CoverSample Sample(double x, double y, double slopeStep, IHeightSource heights, bool cleared)
         {
             var s = new CoverSample();
-            if (_treeShare != null)
+            if (cleared)
+            {
+                s.CanopyWeight = 1;
+                s.Canopy = 0;
+            }
+            else if (_treeShare != null)
             {
                 double inside = InsideDistance(_canopy, x, y);
                 if (inside > 0)
@@ -104,8 +116,8 @@ namespace MountainPlanner.Persistence
                 s.OsmDeveloped = Bilinear(osm, oh, 2, 1, x, y) / 255.0;
             }
 
-            double hx = _heights.At(x + slopeStep, y) - _heights.At(x - slopeStep, y);
-            double hy = _heights.At(x, y + slopeStep) - _heights.At(x, y - slopeStep);
+            double hx = heights.At(x + slopeStep, y) - heights.At(x - slopeStep, y);
+            double hy = heights.At(x, y + slopeStep) - heights.At(x, y - slopeStep);
             s.SlopeDegrees = Math.Atan(Math.Sqrt(hx * hx + hy * hy) / (2 * slopeStep)) * (180 / Math.PI);
             s.Noise = CoverNoise.At(_seed + 3, x, y, JitterWavelength);
             return s;
@@ -212,18 +224,34 @@ namespace MountainPlanner.Persistence
         public byte[] BuildTile(AlbersBox bounds, int resolution)
         {
             var result = new byte[resolution * resolution * TerrainCache.CoverBands];
+            BuildRegion(bounds, resolution, 0, 0, resolution, resolution, _heights, null, result);
+            return result;
+        }
+
+        /// <summary>
+        /// Texels [<paramref name="i0"/>, <paramref name="i1"/>) × [<paramref name="j0"/>, <paramref name="j1"/>) of a
+        /// tile's cover (as <see cref="BuildTile"/> lays them out; row 0 north), over the given heights and clearing
+        /// (task P3-05: the edited cover). Written row-major into <paramref name="into"/>, eight bytes per texel. With the
+        /// package's heights and no clearing, the texels equal <see cref="BuildTile"/>'s byte for byte.
+        /// </summary>
+        public void BuildRegion(AlbersBox bounds, int resolution, int i0, int j0, int i1, int j1, IHeightSource heights,
+                                Func<double, double, bool>? cleared, byte[] into)
+        {
+            int w = i1 - i0;
+            if (i0 < 0 || j0 < 0 || i1 > resolution || j1 > resolution || w <= 0 || j1 <= j0) throw new ArgumentOutOfRangeException(nameof(i0));
+            if (into.Length < w * (j1 - j0) * TerrainCache.CoverBands) throw new ArgumentException("Too small for the region.", nameof(into));
             double size = bounds.East - bounds.West, step = size / (resolution - 1);
             double slopeStep = Math.Max(1, step);
             Span<double> weights = stackalloc double[GroundCover.Layers];
             Span<byte> quantized = stackalloc byte[GroundCover.Layers];
             var roads = RoadCoverage(bounds, resolution, step);
-            for (int j = 0; j < resolution; j++)
+            for (int j = j0; j < j1; j++)
             {
                 double y = bounds.North - j * step;
-                for (int i = 0; i < resolution; i++)
+                for (int i = i0; i < i1; i++)
                 {
                     double x = bounds.West + i * step;
-                    var sample = Sample(x, y, slopeStep);
+                    var sample = Sample(x, y, slopeStep, heights, cleared != null && cleared(x, y));
                     if (roads.HasValue)
                     {
                         sample.RoadPaved = roads.Value.Paved[j * resolution + i] / 255.0;
@@ -231,12 +259,11 @@ namespace MountainPlanner.Persistence
                     }
                     GroundCover.Classify(sample, weights, out double snow);
                     GroundCover.Quantize(weights, quantized);
-                    int o = (j * resolution + i) * TerrainCache.CoverBands;
-                    for (int k = 0; k < GroundCover.Layers; k++) result[o + k] = quantized[k];
-                    result[o + GroundCover.Layers] = GroundCover.ToByte(snow);
+                    int o = ((j - j0) * w + (i - i0)) * TerrainCache.CoverBands;
+                    for (int k = 0; k < GroundCover.Layers; k++) into[o + k] = quantized[k];
+                    into[o + GroundCover.Layers] = GroundCover.ToByte(snow);
                 }
             }
-            return result;
         }
     }
 }

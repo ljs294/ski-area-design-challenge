@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using MountainPlanner.Domain.Edits;
 
 namespace MountainPlanner.Domain.Design
 {
@@ -8,7 +9,20 @@ namespace MountainPlanner.Domain.Design
     {
         public readonly long Revision;
         public readonly DesignDocument Document;
-        public DesignSnapshot(long revision, DesignDocument document) { Revision = revision; Document = document; }
+        /// <summary>The committed terrain edits that go with this design (task 05, TE2), never null.</summary>
+        public readonly TerrainEdits Terrain;
+        /// <summary>Counts up whenever <see cref="Terrain"/> changes; never reused (CF-03).</summary>
+        public readonly long TerrainRevision;
+
+        public DesignSnapshot(long revision, DesignDocument document) : this(revision, document, TerrainEdits.Empty, 0) { }
+
+        public DesignSnapshot(long revision, DesignDocument document, TerrainEdits terrain, long terrainRevision)
+        {
+            Revision = revision;
+            Document = document;
+            Terrain = terrain ?? TerrainEdits.Empty;
+            TerrainRevision = terrainRevision;
+        }
     }
 
     /// <summary>
@@ -17,6 +31,10 @@ namespace MountainPlanner.Domain.Design
     /// design. Every change, an undo or redo included, gets a new revision number that is never reused, so a result
     /// computed for an older revision can never pass as current (CF-03). Owner ruling P3-03 Q1: 100 steps, kept for
     /// the session only, cleared by <see cref="Load"/>. Not thread-safe: the main thread owns it.
+    ///
+    /// Each step also holds the terrain edits that went with its document (owner ruling P3-05 TE2), so undo and redo
+    /// restore heights and trees exactly by switching edit sets (CF-05, CL-07); the terrain pipeline rebuilds only the
+    /// tiles that differ (<see cref="TerrainEdits.Changed"/>).
     /// </summary>
     public sealed class DesignHistory
     {
@@ -27,7 +45,11 @@ namespace MountainPlanner.Domain.Design
 
         public long Revision { get; private set; }
         public DesignDocument Document { get; private set; }
-        public DesignSnapshot Current => new DesignSnapshot(Revision, Document);
+        /// <summary>The committed terrain edits (GR-09); empty for a new area.</summary>
+        public TerrainEdits Terrain { get; private set; } = TerrainEdits.Empty;
+        /// <summary>The terrain revision analyses are stamped with (CF-03): it moves on whenever <see cref="Terrain"/> changes.</summary>
+        public long TerrainRevision { get; private set; } = 1;
+        public DesignSnapshot Current => new DesignSnapshot(Revision, Document, Terrain, TerrainRevision);
 
         /// <summary>Raised after every change with the new snapshot.</summary>
         public event Action<DesignSnapshot> Changed;
@@ -51,7 +73,14 @@ namespace MountainPlanner.Domain.Design
         /// stale (CF-05), which also turns away a second confirmation in the same tick (CF-04): the first one moved
         /// the revision on. A rejected command changes nothing, not even the revision.
         /// </summary>
-        public CommandResult Submit(DesignCommand command)
+        public CommandResult Submit(DesignCommand command) => Submit(command, null);
+
+        /// <summary>
+        /// Runs a command that also changes the ground: <paramref name="terrain"/> is the complete edit set once it is
+        /// applied (Break ground's grading and clearing, a deletion's restore). Null keeps the current edits. Undo puts
+        /// back both the document and the edits.
+        /// </summary>
+        public CommandResult Submit(DesignCommand command, TerrainEdits terrain)
         {
             if (command == null) throw new ArgumentNullException(nameof(command));
             if (command.BaseRevision != Revision)
@@ -59,9 +88,9 @@ namespace MountainPlanner.Domain.Design
                     $"The design changed since this was made (revision {command.BaseRevision}, now {Revision}).");
             var result = command.Apply(Document);
             if (!result.Accepted) return result;
-            Push(_undo, new Step(Document, command.Label));
+            Push(_undo, new Step(Document, Terrain, command.Label));
             _redo.Clear();
-            Move(result.Document);
+            Move(result.Document, terrain ?? Terrain);
             return result;
         }
 
@@ -69,8 +98,8 @@ namespace MountainPlanner.Domain.Design
         {
             if (!CanUndo) return false;
             var step = Pop(_undo);
-            Push(_redo, new Step(Document, step.Label));
-            Move(step.Document);
+            Push(_redo, new Step(Document, Terrain, step.Label));
+            Move(step.Document, step.Terrain);
             return true;
         }
 
@@ -78,26 +107,34 @@ namespace MountainPlanner.Domain.Design
         {
             if (!CanRedo) return false;
             var step = Pop(_redo);
-            Push(_undo, new Step(Document, step.Label));
-            Move(step.Document);
+            Push(_undo, new Step(Document, Terrain, step.Label));
+            Move(step.Document, step.Terrain);
             return true;
         }
 
-        /// <summary>Replaces the design (a load or a new area) and clears undo and redo.</summary>
-        public void Load(DesignDocument document)
+        /// <summary>Replaces the design (a load or a new area), with its saved terrain edits, and clears undo and redo.</summary>
+        public void Load(DesignDocument document, TerrainEdits terrain = null)
         {
             _undo.Clear();
             _redo.Clear();
-            Move(document ?? throw new ArgumentNullException(nameof(document)));
+            Move(document ?? throw new ArgumentNullException(nameof(document)), terrain ?? TerrainEdits.Empty);
         }
 
         /// <summary>The stamp an analysis started now carries (CF-03).</summary>
         public AnalysisStamp Stamp(long terrainRevision, long inputSequence) => new AnalysisStamp(Revision, terrainRevision, inputSequence);
 
-        void Move(DesignDocument next)
+        /// <summary>The stamp an analysis started now carries, against the current terrain revision (CF-03).</summary>
+        public AnalysisStamp Stamp(long inputSequence) => new AnalysisStamp(Revision, TerrainRevision, inputSequence);
+
+        void Move(DesignDocument next, TerrainEdits terrain)
         {
             Document = next;
             Revision++;
+            if (!ReferenceEquals(terrain, Terrain))
+            {
+                Terrain = terrain;
+                TerrainRevision++;
+            }
             Changed?.Invoke(Current);
         }
 
@@ -117,8 +154,9 @@ namespace MountainPlanner.Domain.Design
         readonly struct Step
         {
             public readonly DesignDocument Document;
+            public readonly TerrainEdits Terrain;
             public readonly string Label;
-            public Step(DesignDocument document, string label) { Document = document; Label = label; }
+            public Step(DesignDocument document, TerrainEdits terrain, string label) { Document = document; Terrain = terrain; Label = label; }
         }
     }
 

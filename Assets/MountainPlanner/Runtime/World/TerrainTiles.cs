@@ -243,6 +243,49 @@ namespace MountainPlanner.World
 
 
         /// <summary>Adds physics to a tile when something needs raycasts against it (drawing tools, later).</summary>
+        /// <summary>
+        /// Puts edited heights into part of a tile (task P3-05): <paramref name="heights"/> is [z, x], south row first, its
+        /// south-west sample at heightmap (<paramref name="xBase"/>, <paramref name="yBase"/>). Then syncs, so the GPU
+        /// heightmap (instanced drawing, slope, contours) and the CPU heights (the camera) both follow.
+        /// </summary>
+        public static void SetHeightsRegion(TerrainData data, int xBase, int yBase, float[,] heights)
+        {
+            data.SetHeightsDelayLOD(xBase, yBase, heights);
+            data.SyncHeightmap();
+        }
+
+        /// <summary>
+        /// Paints part of a tile's splat (task P3-05): <paramref name="part"/> is <see cref="SplatTexels.ComposeWindow"/>'s
+        /// rectangle, its south-west texel at alphamap (<paramref name="x"/>, <paramref name="y"/>). The same GPU path as
+        /// <see cref="ApplySplat"/>, over the rectangle only.
+        /// </summary>
+        public static void ApplySplatRegion(TerrainData data, SplatTexels part, int x, int y)
+        {
+            using var marker = ApplySplatMarker.Auto();
+            int w = part.Width, h = part.Height;
+            var staging = new Texture2D(w, h, TextureFormat.RGBA32, false, true) { name = "SplatRegion", filterMode = FilterMode.Point };
+            var previous = RenderTexture.active;
+            var rt = RenderTexture.GetTemporary(w, h, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+            try
+            {
+                for (int t = 0; t < data.alphamapTextureCount && t < part.Textures.Length; t++)
+                {
+                    staging.SetPixelData(part.Textures[t], 0);
+                    staging.Apply(false);
+                    Graphics.Blit(staging, rt);
+                    RenderTexture.active = rt;
+                    data.CopyActiveRenderTextureToTexture(TerrainData.AlphamapTextureName, t, new RectInt(0, 0, w, h), new Vector2Int(x, y), true);
+                }
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                RenderTexture.ReleaseTemporary(rt);
+                UnityEngine.Object.Destroy(staging);
+            }
+            data.SetBaseMapDirty();
+        }
+
         public static TerrainCollider AddCollider(Terrain terrain)
         {
             var collider = terrain.GetComponent<TerrainCollider>() ?? terrain.gameObject.AddComponent<TerrainCollider>();

@@ -72,6 +72,13 @@ namespace MountainPlanner.App
         /// <summary>Contour labels (task 12b.2), by <see cref="UnitSystem"/>: every 200 ft, or every 50 m. Empty until the snowpack pass ends.</summary>
         public ContourLabel[][] ContourLabels = { Array.Empty<ContourLabel>(), Array.Empty<ContourLabel>() };
         public long TreesPlanted;
+        /// <summary>The forest's instances as uploaded (task P3-05: terrain edits update them by range), each tile's together.</summary>
+        public ForestInstance[] TreeInstances;
+        /// <summary>Each tile's first instance and count in <see cref="TreeInstances"/>.</summary>
+        public Dictionary<(int, int), (int Start, int Count)> TreeRanges;
+        public ForestRenderer Forest;
+        /// <summary>The snowpack's inputs (8 m cells over the ring), kept for terrain edits to rebuild the snow.</summary>
+        public float[] SnowElevation, SnowCanopy;
         public long CliffTriangles;
         public Material CliffMaterial;
         /// <summary>The diorama walls (their snow cap follows the Snow layer).</summary>
@@ -230,7 +237,7 @@ namespace MountainPlanner.App
         /// <summary>Paints each tile's ground cover, nearest first, a few tiles per frame.</summary>
         static async Task PaintCoverAsync(OpenedResort resort, List<CacheTile> order, List<Task<SplatTexels>> covers, List<Task<CliffShells.Prepared>> cliffTasks,
                                           List<Task<ForestInstance[]>> forests, ForestAssets forest,
-                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels)> snowpack, LoadProgress load)
+                                          Stopwatch clock, CancellationToken ct, Task<(float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy)> snowpack, LoadProgress load)
         {
             load?.Begin(LoadStage.GroundCover, order.Count);
             for (int n = 0; n < order.Count; n++)
@@ -251,10 +258,12 @@ namespace MountainPlanner.App
 
             // The snowpack replaces the opening 12 in; SurfaceStates.Sync uploads it once.
             load?.Begin(LoadStage.Snowpack);
-            var (depths, labels) = await snowpack;
+            var (depths, labels, snowElevation, snowCanopy) = await snowpack;
             if (resort.Root == null) return;
             resort.States.Snow.CopyFrom(depths);
             resort.ContourLabels = labels;
+            resort.SnowElevation = snowElevation;
+            resort.SnowCanopy = snowCanopy;
             resort.SnowpackSeconds = clock.Elapsed.TotalSeconds;
             load?.End(LoadStage.Snowpack);
             UnityEngine.Debug.Log($"[ResortOpener] snowpack in the snow-depth field at {resort.SnowpackSeconds:F2} s");
@@ -292,10 +301,12 @@ namespace MountainPlanner.App
             // nearest first, so the count of trees rises as they come in.
             load?.Begin(LoadStage.Forest, order.Sum(t => (long)t.TreeCount));
             var all = new ForestInstance[forests.Count][];
+            var ranges = new Dictionary<(int, int), (int Start, int Count)>();
             long trees = 0;
             for (int n = 0; n < forests.Count; n++)
             {
                 all[n] = await forests[n];
+                ranges[(order[n].Column, order[n].Row)] = ((int)trees, all[n].Length);
                 trees += all[n].Length;
                 load?.Advance(LoadStage.Forest, trees);
             }
@@ -307,6 +318,9 @@ namespace MountainPlanner.App
             var view = resort.Root.AddComponent<ForestView>();
             view.Renderer = renderer;
             resort.TreesPlanted = instances.Length;
+            resort.TreeInstances = instances;
+            resort.TreeRanges = ranges;
+            resort.Forest = renderer;
             resort.ForestSeconds = clock.Elapsed.TotalSeconds;
             load?.End(LoadStage.Forest);
             UnityEngine.Debug.Log($"[ResortOpener] {instances.Length:N0} trees planted at {resort.ForestSeconds:F2} s ({renderer.DrawCount} indirect draws)");
@@ -318,7 +332,7 @@ namespace MountainPlanner.App
         /// <see cref="Snowpack.Compute"/>. Cells no tile covers have no data and get the valley depth. The same
         /// elevations place the contour labels for both unit systems (task 12b.2).
         /// </summary>
-        static (float[] Depths, ContourLabel[][] Labels) BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
+        static (float[] Depths, ContourLabel[][] Labels, float[] Elevation, float[] Canopy) BuildSnowpack(List<CacheTile> order, float[][,] heights, SplatTexels[] covers, CacheManifest cache, LocalFrame frame,
                                      Rect ring, int width, int depth, double convergence)
         {
             const float cell = SurfaceStates.CellMetres;
@@ -363,7 +377,7 @@ namespace MountainPlanner.App
             foreach (var units in new[] { UnitSystem.Imperial, UnitSystem.Metric })
                 labels[(int)units] = ContourLabels.Place(width, depth, cell, ring.xMin, ring.yMin, elevation, units);
             UnityEngine.Debug.Log($"[ResortOpener] contour labels: {labels[0].Length:N0} (200 ft), {labels[1].Length:N0} (50 m)");
-            return (result, labels);
+            return (result, labels, elevation, canopy);
         }
 
         static double Distance(CacheTile t, CacheManifest cache, LocalFrame frame)

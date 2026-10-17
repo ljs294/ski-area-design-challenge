@@ -253,12 +253,13 @@ namespace MountainPlanner.Presentation
         public void BuildCrownMap(Rect core, Rect ring)
         {
             if (_treeCount == 0) return;
-            using (var radius = new GraphicsBuffer(GraphicsBuffer.Target.Structured, _crownRadius.Length, sizeof(float)))
-            {
-                radius.SetData(_crownRadius);
-                _crownCore = DrawCrowns(core, CrownCoreMetres, radius, "Crown map (core)");
-                _crownRing = DrawCrowns(ring, CrownRingMetres, radius, "Crown map (ring)");
-            }
+            _crownRadiusBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, _crownRadius.Length, sizeof(float));
+            _crownRadiusBuffer.SetData(_crownRadius);
+            _crownCoreRect = core;
+            _crownCore = CreateCrownMap(core, CrownCoreMetres, "Crown map (core)");
+            _crownRing = CreateCrownMap(ring, CrownRingMetres, "Crown map (ring)");
+            DrawCrowns(_crownCore, core, CrownCoreMetres);
+            DrawCrowns(_crownRing, ring, CrownRingMetres);
             Shader.SetGlobalTexture(CrownMapCoreId, _crownCore);
             Shader.SetGlobalTexture(CrownMapRingId, _crownRing);
             Shader.SetGlobalVector(CrownRectCoreId, new Vector4(core.xMin, core.yMin, 1f / core.width, 1f / core.height));
@@ -266,7 +267,30 @@ namespace MountainPlanner.Presentation
             Shader.SetGlobalVector(CrownParamsId, new Vector4(0, 0, 0, 1));
         }
 
-        RenderTexture DrawCrowns(Rect area, float metres, GraphicsBuffer radius, string name)
+        Rect _crownCoreRect;
+        GraphicsBuffer _crownRadiusBuffer, _crownSum;
+
+        /// <summary>
+        /// Puts new instances in place for trees [<paramref name="start"/>, start + <paramref name="count"/>) (task P3-05:
+        /// a terrain edit cleared trees or moved the ground under them). Allocates nothing.
+        /// </summary>
+        public void UpdateTrees(ForestInstance[] trees, int start, int count)
+        {
+            if (count <= 0) return;
+            _trees.SetData(trees, start, start, count);
+        }
+
+        /// <summary>
+        /// Redraws the core's crown map from the current trees, so the forest floor and the snow between trees follow a
+        /// clearing (CL-05). The ring holds no edits (SH-06). One clear, one splat over every tree and one resolve.
+        /// </summary>
+        public void RedrawCrownCore()
+        {
+            if (_crownCore == null) return;
+            DrawCrowns(_crownCore, _crownCoreRect, CrownCoreMetres);
+        }
+
+        RenderTexture CreateCrownMap(Rect area, float metres, string name)
         {
             int w = Mathf.Max(1, Mathf.CeilToInt(area.width / metres)), h = Mathf.Max(1, Mathf.CeilToInt(area.height / metres));
             var map = new RenderTexture(w, h, 0, GraphicsFormat.R8_UNorm)
@@ -275,27 +299,34 @@ namespace MountainPlanner.Presentation
                 wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Trilinear,
             };
             map.Create();
-            int clear = _cull.FindKernel("CrownClear"), splat = _cull.FindKernel("CrownSplat"), resolve = _cull.FindKernel("CrownResolve");
-            using (var sum = new GraphicsBuffer(GraphicsBuffer.Target.Structured, w * h, sizeof(uint)))
-            {
-                _cull.SetVector("_CrownRect", new Vector4(area.xMin, area.yMin, metres, 0));
-                _cull.SetInts("_CrownSize", w, h);
-                _cull.SetInt("_TreeCount", _treeCount);
-                _cull.SetBuffer(clear, "_CrownSum", sum);
-                _cull.SetBuffer(splat, "_CrownSum", sum);
-                _cull.SetBuffer(splat, "_Trees", _trees);
-                _cull.SetBuffer(splat, "_CrownRadius", radius);
-                _cull.SetBuffer(resolve, "_CrownSum", sum);
-                _cull.SetTexture(resolve, "_CrownMap", map);
-                _cull.Dispatch(clear, (w + 7) / 8, (h + 7) / 8, 1);
-                _cull.Dispatch(splat, (_treeCount + 63) / 64, 1, 1);
-                _cull.Dispatch(resolve, (w + 7) / 8, (h + 7) / 8, 1);
-            }
-            map.GenerateMips();
             return map;
         }
 
-        /// <summary>Culls and draws the forest for a camera. Call once per frame before rendering.</summary>
+        void DrawCrowns(RenderTexture map, Rect area, float metres)
+        {
+            int w = map.width, h = map.height;
+            int clear = _cull.FindKernel("CrownClear"), splat = _cull.FindKernel("CrownSplat"), resolve = _cull.FindKernel("CrownResolve");
+            // One sum buffer, sized for the larger map, kept for redraws.
+            if (_crownSum == null || _crownSum.count < w * h)
+            {
+                _crownSum?.Dispose();
+                _crownSum = new GraphicsBuffer(GraphicsBuffer.Target.Structured, w * h, sizeof(uint));
+            }
+            _cull.SetVector("_CrownRect", new Vector4(area.xMin, area.yMin, metres, 0));
+            _cull.SetInts("_CrownSize", w, h);
+            _cull.SetInt("_TreeCount", _treeCount);
+            _cull.SetBuffer(clear, "_CrownSum", _crownSum);
+            _cull.SetBuffer(splat, "_CrownSum", _crownSum);
+            _cull.SetBuffer(splat, "_Trees", _trees);
+            _cull.SetBuffer(splat, "_CrownRadius", _crownRadiusBuffer);
+            _cull.SetBuffer(resolve, "_CrownSum", _crownSum);
+            _cull.SetTexture(resolve, "_CrownMap", map);
+            _cull.Dispatch(clear, (w + 7) / 8, (h + 7) / 8, 1);
+            _cull.Dispatch(splat, (_treeCount + 63) / 64, 1, 1);
+            _cull.Dispatch(resolve, (w + 7) / 8, (h + 7) / 8, 1);
+            map.GenerateMips();
+        }
+
         public void Render(Camera camera)
         {
             if (_treeCount == 0 || camera == null) return;
@@ -352,7 +383,7 @@ namespace MountainPlanner.Presentation
 
         public void Dispose()
         {
-            foreach (var b in new[] { _trees, _nativeHeights, _reach, _prototypeStart, _visible, _counts, _args, _drawCounter }) b?.Dispose();
+            foreach (var b in new[] { _trees, _nativeHeights, _reach, _prototypeStart, _visible, _counts, _args, _drawCounter, _crownRadiusBuffer, _crownSum }) b?.Dispose();
             if (_crownCore != null)
             {
                 Shader.SetGlobalVector(CrownParamsId, Vector4.zero);
