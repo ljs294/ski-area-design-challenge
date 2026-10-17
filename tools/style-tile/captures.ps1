@@ -18,10 +18,11 @@ $views = [ordered]@{
   "overview"  = "NaN,0,0,200,24"
   "slope"     = "-300,700,1200,200,18"
   "forest"    = "350,-150,250,200,30"
-  "trailtop"  = "60,-330,180,95,22"
-  "trailedge" = "300,-330,70,40,14"
-  "liftline"  = "320,-260,260,190,16"
-  "terminal"  = "520,-330,60,240,12"
+  "trail"     = "250,-600,140,300,24"
+  "trailnear" = "200,-520,45,320,14"
+  "loading"   = "625,-821,45,312,10"
+  "liftline"  = "434,-649,90,222,14"
+  "top"       = "132,-378,60,42,20"
 }
 $conditions = [ordered]@{
   "winter_day"   = @()
@@ -36,7 +37,7 @@ foreach ($v in $views.Keys) {
     $name = "${v}_$c"
     $view = $views[$v]
     $viewArgs = @()
-    if ($view -notlike "NaN*") { $viewArgs = @("-view", $view) } else { $viewArgs = @("-view", "0,0,6000,200,24") }
+    if ($view -notlike "NaN*") { $viewArgs = @("-view", $view) } else { $viewArgs = @("-view", "0,0,5500,200,24") }
     $extra = $conditions[$c]
     powershell -NoProfile -ExecutionPolicy Bypass -File $gpu run -Lane render -Name $Owner -- $Game -benchres 1920x1080 -notitle -styletile @viewArgs @extra -nohud -screenshot (Join-Path $Out "$name.png") -logFile (Join-Path $Out "$name.log")
     "$name exit $LASTEXITCODE"

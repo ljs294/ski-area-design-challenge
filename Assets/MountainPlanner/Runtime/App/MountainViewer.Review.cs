@@ -116,6 +116,21 @@ namespace MountainPlanner.App
         }
 
         /// <summary>The benchmark path's legs: the fixed views, in order, as poses (targets on the ground, metres from the site centre).</summary>
+        /// <summary>The style tile's movie route (task 07): over the trail, along it, up the lift line, to the top terminal.</summary>
+        BenchmarkPath.Leg[] StyleTileLegs()
+        {
+            Vector3 At(float x, float z) => new Vector3(x, _resort.Surface.HeightAt(x, z), z);
+            return new[]
+            {
+                new BenchmarkPath.Leg("overview", At(400, -620), 900, 200, 32),
+                new BenchmarkPath.Leg("trail", At(250, -600), 140, 300, 24),
+                new BenchmarkPath.Leg("trailnear", At(200, -520), 45, 320, 14),
+                new BenchmarkPath.Leg("loading", At(625, -821), 45, 312, 10),
+                new BenchmarkPath.Leg("liftline", At(434, -649), 90, 222, 14),
+                new BenchmarkPath.Leg("top", At(132, -378), 60, 42, 20),
+            };
+        }
+
         BenchmarkPath.Leg[] BenchLegs()
         {
             var views = SiteViews();
@@ -320,8 +335,12 @@ namespace MountainPlanner.App
             _hud = Array.IndexOf(Environment.GetCommandLineArgs(), "-withhud") >= 0;
             while (Forest == null) yield return null;
             while (!_resort.CoverReady.IsCompleted) yield return null;
+            while (WorkBusy) yield return null;
             if (Camera != null) Camera.InputEnabled = false;
-            var path = new BenchmarkPath(BenchLegs());
+            // With -styletile the movie tours the style tile instead (task 07): the chairs run and the day turns to night.
+            bool styleTile = Array.IndexOf(Environment.GetCommandLineArgs(), "-styletile") >= 0;
+            var path = new BenchmarkPath(styleTile ? StyleTileLegs() : BenchLegs());
+            var start = Lighting != null ? Lighting.Clock.Now : default;
             string frames = Path.Combine(folder, "path");
             Directory.CreateDirectory(frames);
             for (int i = 0; i < 90; i++) { PlaceOnPath(path, 0); yield return null; }   // LODs and shadows settle
@@ -330,6 +349,12 @@ namespace MountainPlanner.App
             for (int k = 0; k < count; k++)
             {
                 PlaceOnPath(path, k / (float)fps);
+                if (styleTile)
+                {
+                    _chairSeconds = k / (double)fps;
+                    // From mid-afternoon to after dusk over the lap.
+                    if (Lighting != null) Lighting.SetTime(start.WithSecondOfDay(14 * 3600 + (int)(k / (float)count * 6 * 3600)));
+                }
                 yield return new WaitForEndOfFrame();
                 var shot = ScreenCapture.CaptureScreenshotAsTexture();
                 File.WriteAllBytes(Path.Combine(frames, $"f_{k * 1000 / fps:D6}.jpg"), shot.EncodeToJPG(85));

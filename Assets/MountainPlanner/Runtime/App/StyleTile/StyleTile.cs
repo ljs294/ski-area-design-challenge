@@ -22,10 +22,23 @@ namespace MountainPlanner.App
     public static class StyleTile
     {
         /// <summary>
-        /// The trail's centreline, head first: local x (east), z (north), metres. Empty: traced down the fall line from
-        /// <see cref="Head"/> (<see cref="TraceFallLine"/>) and logged, so the points can be frozen here.
+        /// The trail's centreline, head first: local x (east), z (north), metres. Traced once down the fall line from
+        /// <see cref="Head"/> (<see cref="TraceFallLine"/>, 2026-10-17) and frozen here; empty traces it again.
         /// </summary>
-        public static float[] Centreline = Array.Empty<float>();
+        public static float[] Centreline =
+        {
+            0.0f, -360.0f, 11.1f, -376.6f, 25.4f, -390.6f, 42.3f, -401.3f,
+            61.0f, -408.3f, 79.4f, -416.3f, 96.0f, -427.4f, 112.8f, -438.2f,
+            129.3f, -449.5f, 147.4f, -458.2f, 163.9f, -469.4f, 178.8f, -482.8f,
+            190.7f, -498.8f, 200.8f, -516.1f, 211.5f, -533.0f, 222.6f, -549.7f,
+            233.5f, -566.4f, 243.6f, -583.6f, 252.8f, -601.4f, 263.1f, -618.6f,
+            274.2f, -635.2f, 287.7f, -649.9f, 301.7f, -664.2f, 315.4f, -678.8f,
+            330.0f, -692.5f, 346.8f, -703.3f, 364.7f, -712.3f, 383.2f, -719.8f,
+            400.9f, -729.2f, 419.5f, -736.5f, 438.6f, -742.3f, 458.2f, -746.5f,
+            477.4f, -752.1f, 495.2f, -761.1f, 514.6f, -766.2f, 533.1f, -773.8f,
+            549.6f, -785.0f, 563.5f, -799.4f, 574.0f, -816.4f, 581.0f, -835.2f,
+            590.1f, -853.0f, 595.4f, -872.3f, 604.6f, -890.0f, 610.9f, -909.0f,
+        };
 
         /// <summary>Where the traced trail starts (local metres), and how long it runs.</summary>
         public static float[] Head = { 0f, -360f };
@@ -38,7 +51,7 @@ namespace MountainPlanner.App
         public const string LiftName = "Style Tile Quad";
 
         /// <summary>The lift's bottom and top bullwheels, local metres; empty: beside the trail, <see cref="LiftOffset"/> to its right looking up.</summary>
-        public static float[] LiftLine = Array.Empty<float>();
+        public static float[] LiftLine = { 661.0f, -853.2f, 131.9f, -377.7f };
         public const float LiftOffset = 75f;
 
         /// <summary>
@@ -48,8 +61,11 @@ namespace MountainPlanner.App
         /// </summary>
         public static double ExitS = 5.889, ExitRise = 3.543, TopBack = 3.1, TopRise = 3.039;
 
-        /// <summary>Towers as (feet along the line from the bottom bullwheel, feet of height).</summary>
-        public static (int AlongFeet, int HeightFeet)[] Towers = Array.Empty<(int, int)>();
+        /// <summary>
+        /// Towers as (feet along the line from the bottom bullwheel, feet of height): placed once by
+        /// <see cref="PlaceTowers"/> (TW-16's station breakovers first) and frozen here; empty places them again.
+        /// </summary>
+        public static (int AlongFeet, int HeightFeet)[] Towers = { (70, 25), (320, 55), (570, 40), (820, 40), (1070, 35), (1320, 40), (1570, 40), (1820, 35), (2070, 35), (2265, 50) };
 
         /// <summary>
         /// Builds the design into the session's history: the trail with its grading and clearing, then the lift with its
