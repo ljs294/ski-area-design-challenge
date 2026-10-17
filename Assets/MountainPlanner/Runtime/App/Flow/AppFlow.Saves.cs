@@ -205,17 +205,17 @@ namespace MountainPlanner.App.Flow
 
         // ---------- the developer panel's sample design (demo.bat 62: there are no drawing tools yet) ----------
 
-        /// <summary>Adds a lift and a trail near the area's centre by command, so there is something to save.</summary>
+        /// <summary>
+        /// Adds a lift and a trail near the area's centre by command, so there is something to save. Design points are
+        /// whole millimetres from the site's centre on the package grid's axes (TE5), never absolute EPSG:6350.
+        /// </summary>
         void AddSampleDesign()
         {
             var open = OpenDesign.Current;
-            if (open == null || _viewer == null || string.IsNullOrEmpty(_viewer.OpenPackage)) return;
-            SiteInfo site;
-            try { site = ResortPackage.ReadManifest(_viewer.OpenPackage).Site; }
-            catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException) { return; }
+            if (open == null) return;
             var h = open.History;
             int n = h.Document.Lifts.Count + 1;
-            double cx = site.CentreX + 120 * (n - 1), cy = site.CentreY;
+            double cx = 120 * (n - 1), cy = 0;
             var bottom = PointMm.FromMetres(cx - 150, cy - 400);
             var top = PointMm.FromMetres(cx + 150, cy + 400);
             var lift = h.Submit(new AddLift(h.Revision, $"Sample Chair {n}", LiftCatalogIds.SesselliftFgq4, bottom, top, TowerMode.Automatic, TowerStance.Plumb,

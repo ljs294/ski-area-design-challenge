@@ -38,7 +38,8 @@
 - `Version`, `Name`, `SavedUtc` (passed in, never read from the clock here), `GameVersion`, `Autosave`.
 - `PackageId` and `HeightsHash` (the package's height-file hash): a save never opens on other terrain.
 - `Design`: the document as plain JSON. The seed and IDs are 16-digit hex (64-bit values survive any JSON reader),
-  trails and lifts are in ID order, lengths are integer millimetres; the undo history isn't saved (DD1).
+  trails and lifts are in ID order, lengths are integer millimetres; the undo history isn't saved (DD1). Points are
+  whole millimetres from the site's centre on the package grid's axes (TE5), never absolute EPSG:6350.
 - `Edits`: the tile size (64 m), then each tile's column, row (task 05's `EditTileKey`) and SHA-256.
 - A tile file holds one `TerrainEditTile` (TE1), uncompressed, so Unity and .NET write identical bytes: a 16-byte
   header ("MPTL", layout 1, which parts, column, row), then 4,096 whole-mm height changes if it has heights, then 64

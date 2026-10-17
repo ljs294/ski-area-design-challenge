@@ -12,7 +12,8 @@ namespace MountainPlanner.Persistence.Saves
     /// <summary>
     /// save.json, version 1 (task P3-04; frozen, 0.3 §5). Written by hand in a fixed order, so the same save always gives
     /// the same bytes (SH-04): two-space indents, "\n" line ends, integers only, IDs and the seed as 16-digit hex,
-    /// points as [x, y] in millimetres, and every enum as a fixed word that never follows a C# rename.
+    /// points as [x, y] in whole millimetres from the site's centre on the package grid's axes (TE5; never absolute
+    /// EPSG:6350), and every enum as a fixed word that never follows a C# rename.
     /// <code>
     /// { "Version": 1, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
     ///   "Design": { "Shape": 1, "Seed", "NextOrdinal", "Trails": [...], "Lifts": [...] },
