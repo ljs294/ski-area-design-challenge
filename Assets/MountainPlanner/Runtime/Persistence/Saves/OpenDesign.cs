@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Edits;
 
 namespace MountainPlanner.Persistence.Saves
 {
@@ -9,8 +10,8 @@ namespace MountainPlanner.Persistence.Saves
     /// The design open in the game and where it saves (task P3-04): its <see cref="DesignHistory"/> (task 03; the tools
     /// submit commands to it), the save it came from, and whether anything changed since. Engine-free, so the save rules
     /// are tested in Tests/Core; the game passes in the time and its version. <see cref="Current"/> is the one open area's
-    /// design, for the tools, the HUD and the terrain pipeline (task 05 fills <see cref="TerrainTiles"/> and
-    /// <see cref="ClearingTiles"/>, and applies a loaded save's tiles).
+    /// design, for the tools, the HUD and the terrain pipeline (task 05 sets <see cref="Edits"/> and applies
+    /// <see cref="LoadedEdits"/>).
     /// </summary>
     public sealed class OpenDesign
     {
@@ -25,16 +26,16 @@ namespace MountainPlanner.Persistence.Saves
         /// <summary>The named save Ctrl+S writes to, or null until the first Save names one (SV1).</summary>
         public string SaveFolder { get; private set; }
         public string SaveName { get; private set; } = "";
-        /// <summary>The tiles a loaded save brought, for task 05 to lay over the package's heights and forest.</summary>
-        public IReadOnlyList<SaveTile> LoadedTerrain { get; private set; } = Array.Empty<SaveTile>();
-        public IReadOnlyList<SaveTile> LoadedClearing { get; private set; } = Array.Empty<SaveTile>();
+        /// <summary>The terrain edits a loaded save brought, for task 05 to lay over the package's heights and forest.</summary>
+        public TerrainEdits LoadedEdits { get; private set; } = TerrainEdits.Empty;
         /// <summary>Why the save had to come from its backup (shown once), or empty.</summary>
         public string Recovered { get; private set; } = "";
 
-        /// <summary>Task 05's current height delta tiles; none until terrain edits exist.</summary>
-        public Func<IReadOnlyList<SaveTile>> TerrainTiles { get; set; } = () => Array.Empty<SaveTile>();
-        /// <summary>Task 05's current clearing tiles; none until clearing exists.</summary>
-        public Func<IReadOnlyList<SaveTile>> ClearingTiles { get; set; } = () => Array.Empty<SaveTile>();
+        /// <summary>
+        /// Task 05's committed terrain edits (heights and clearing), read at each save; the loaded ones until task 05
+        /// sets it. Once DesignHistory steps hold their edits (TE2), this reads the current step's.
+        /// </summary>
+        public Func<TerrainEdits> Edits { get; set; }
 
         /// <summary>Passed to each write's steps (a test or -crashsave stops a save part way).</summary>
         public Action<SaveStep> Step { get; set; }
@@ -75,7 +76,7 @@ namespace MountainPlanner.Persistence.Saves
                 throw new InvalidDataException("This save was made on different terrain for this area, so its edits can't be laid over it.");
             var open = new OpenDesign(dataRoot, packageId, heightsSha256, save.Design)
             {
-                LoadedTerrain = save.Terrain, LoadedClearing = save.Clearing, Recovered = save.Recovered,
+                LoadedEdits = save.Edits, Recovered = save.Recovered,
             };
             if (!save.Autosave)   // opening the autosave slot leaves Ctrl+S to ask for a name (SV1)
             {
@@ -129,8 +130,7 @@ namespace MountainPlanner.Persistence.Saves
             {
                 Name = name, Autosave = autosave, SavedUtc = utc, GameVersion = gameVersion ?? "",
                 PackageId = PackageId, HeightsSha256 = HeightsSha256, Design = doc,
-                Terrain = new List<SaveTile>(TerrainTiles?.Invoke() ?? Array.Empty<SaveTile>()),
-                Clearing = new List<SaveTile>(ClearingTiles?.Invoke() ?? Array.Empty<SaveTile>()),
+                Edits = Edits?.Invoke() ?? LoadedEdits,
             };
             if (!SaveStore.Write(folder, save, Step)) return false;
             _saved = doc;

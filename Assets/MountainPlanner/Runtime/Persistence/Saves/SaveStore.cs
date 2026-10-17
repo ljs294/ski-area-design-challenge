@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using MountainPlanner.Domain.Edits;
 using Newtonsoft.Json;
 
 namespace MountainPlanner.Persistence.Saves
@@ -61,12 +62,11 @@ namespace MountainPlanner.Persistence.Saves
             string tiles = Path.Combine(folder, TilesFolder);
             Directory.CreateDirectory(tiles);
 
-            var terrain = PutTiles(tiles, SaveTileKind.Terrain, save.Terrain);
-            var clearing = PutTiles(tiles, SaveTileKind.Clearing, save.Clearing);
+            var edits = PutTiles(tiles, save.Edits ?? TerrainEdits.Empty);
             step?.Invoke(SaveStep.TilesWritten);
 
             string temp = path + ".tmp";
-            WriteFlushed(temp, Encoding.UTF8.GetBytes(SaveJson.Write(save, terrain, clearing)));
+            WriteFlushed(temp, Encoding.UTF8.GetBytes(SaveJson.Write(save, edits)));
             step?.Invoke(SaveStep.TempWritten);
 
             Commit(temp, path, Path.Combine(folder, SaveFile.BackupName));
@@ -77,14 +77,12 @@ namespace MountainPlanner.Persistence.Saves
             return true;
         }
 
-        static List<SaveJson.TileRef> PutTiles(string tiles, SaveTileKind kind, IEnumerable<SaveTile> list)
+        static List<SaveJson.TileRef> PutTiles(string tiles, TerrainEdits edits)
         {
             var refs = new List<SaveJson.TileRef>();
-            var seen = new HashSet<long>();
-            foreach (var t in (list ?? Enumerable.Empty<SaveTile>()).OrderBy(t => t.Y).ThenBy(t => t.X))
+            foreach (var t in edits.Tiles)   // in key order (row, then column), never empty, never twice (TerrainEdits)
             {
-                if (!seen.Add(((long)t.Y << 32) | (uint)t.X)) throw new ArgumentException($"Tile ({t.X}, {t.Y}) is in the save twice.");
-                byte[] bytes = SaveTileFile.Encode(kind, t);
+                byte[] bytes = SaveTileFile.Encode(t);
                 string hash = SaveTileFile.Hash(bytes);
                 string file = Path.Combine(tiles, hash + SaveTileFile.Extension);
                 if (!File.Exists(file))
@@ -93,7 +91,7 @@ namespace MountainPlanner.Persistence.Saves
                     WriteFlushed(temp, bytes);
                     File.Move(temp, file);
                 }
-                refs.Add(new SaveJson.TileRef(t.X, t.Y, hash));
+                refs.Add(new SaveJson.TileRef(t.Key.Column, t.Key.Row, hash));
             }
             return refs;
         }
@@ -141,8 +139,8 @@ namespace MountainPlanner.Persistence.Saves
             if (!File.Exists(path)) return Enumerable.Empty<string>();
             try
             {
-                SaveJson.Read(File.ReadAllText(path), out var terrain, out var clearing);
-                return terrain.Concat(clearing).Select(t => t.Sha256).ToList();
+                SaveJson.Read(File.ReadAllText(path), out var edits);
+                return edits.Select(t => t.Sha256).ToList();
             }
             catch (Exception e) when (e is IOException || e is InvalidDataException || e is UnauthorizedAccessException) { return Enumerable.Empty<string>(); }
         }
@@ -180,26 +178,25 @@ namespace MountainPlanner.Persistence.Saves
         static SaveFile ReadOne(string folder, string path)
         {
             if (!File.Exists(path)) throw new FileNotFoundException("save.json is missing.", path);
-            var save = SaveJson.Read(File.ReadAllText(path), out var terrain, out var clearing);
-            save.Terrain = ReadTiles(folder, SaveTileKind.Terrain, terrain);
-            save.Clearing = ReadTiles(folder, SaveTileKind.Clearing, clearing);
+            var save = SaveJson.Read(File.ReadAllText(path), out var edits);
+            save.Edits = ReadTiles(folder, edits);
             return save;
         }
 
-        static List<SaveTile> ReadTiles(string folder, SaveTileKind kind, List<SaveJson.TileRef> refs)
+        static TerrainEdits ReadTiles(string folder, List<SaveJson.TileRef> refs)
         {
-            var list = new List<SaveTile>(refs.Count);
+            var list = new List<TerrainEditTile>(refs.Count);
             foreach (var r in refs)
             {
                 string file = Path.Combine(folder, TilesFolder, r.Sha256 + SaveTileFile.Extension);
-                if (!File.Exists(file)) throw new InvalidDataException($"Tile ({r.X}, {r.Y}) is missing.");
+                if (!File.Exists(file)) throw new InvalidDataException($"Tile ({r.Column}, {r.Row}) is missing.");
                 byte[] bytes = File.ReadAllBytes(file);
-                if (SaveTileFile.Hash(bytes) != r.Sha256) throw new InvalidDataException($"Tile ({r.X}, {r.Y}) is damaged.");
-                var tile = SaveTileFile.Decode(bytes, kind);
-                if (tile.X != r.X || tile.Y != r.Y) throw new InvalidDataException($"Tile ({r.X}, {r.Y}) holds another place.");
+                if (SaveTileFile.Hash(bytes) != r.Sha256) throw new InvalidDataException($"Tile ({r.Column}, {r.Row}) is damaged.");
+                var tile = SaveTileFile.Decode(bytes);
+                if (tile.Key.Column != r.Column || tile.Key.Row != r.Row) throw new InvalidDataException($"Tile ({r.Column}, {r.Row}) holds another place.");
                 list.Add(tile);
             }
-            return list;
+            return TerrainEdits.From(list);
         }
 
         /// <summary>

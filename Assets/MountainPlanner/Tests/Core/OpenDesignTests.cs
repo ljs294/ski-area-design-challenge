@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Edits;
 using MountainPlanner.Persistence.Saves;
 using NUnit.Framework;
 using static MountainPlanner.Tests.DesignTestKit;
@@ -85,11 +86,15 @@ namespace MountainPlanner.Tests.Core
             var d = OpenDesign.New(_root, Area, Heights);
             d.MarkChanged();
             Assert.That(d.Dirty, Is.True);
-            d.TerrainTiles = () => new[] { new SaveTile(3, 4, new byte[] { 1, 2, 3 }) };
+            var edits = TerrainEdits.From(new[] { new TerrainEditTile.Builder(new EditTileKey(3, 4)).SetDeltaMm(10, 20, -1500).SetCleared(5, 5, true).Build() });
+            d.Edits = () => edits;
             d.SaveAs("Graded", "2026-10-16T10:00:00Z", "0.3.0");
             Assert.That(d.Dirty, Is.False);
             var back = OpenDesign.Load(_root, d.SaveFolder, Area, Heights);
-            Assert.That(back.LoadedTerrain.Single().Payload, Is.EqualTo(new byte[] { 1, 2, 3 }));
+            Assert.That(back.LoadedEdits.DeltaMmAt(3 * 64 + 10, 4 * 64 + 20), Is.EqualTo(-1500));
+            Assert.That(back.LoadedEdits.IsClearedAt(3 * 64 + 5, 4 * 64 + 5), Is.True);
+            back.SaveAs("Again", "2026-10-16T10:01:00Z", "0.3.0");   // task 05 hasn't hooked Edits: the loaded edits are kept
+            Assert.That(OpenDesign.Load(_root, back.SaveFolder, Area, Heights).LoadedEdits.Count, Is.EqualTo(1));
         }
 
         [Test]

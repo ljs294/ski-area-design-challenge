@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using MountainPlanner.Domain.Design;
+using MountainPlanner.Domain.Edits;
 using MountainPlanner.Persistence;
 using MountainPlanner.Persistence.Saves;
 using Newtonsoft.Json.Linq;
@@ -32,26 +33,20 @@ namespace MountainPlanner.Tests.Core
             if (Directory.Exists(_root)) Directory.Delete(_root, true);
         }
 
-        /// <summary>A stand-in height delta tile: 64 × 64 little-endian float32 metres (task 05 owns the real type).</summary>
-        static SaveTile HeightTile(int x, int y, float scale)
+        /// <summary>A graded tile (TE1): whole-mm height changes, a sloped cut and fill, with or without clearing.</summary>
+        static TerrainEditTile Tile(int column, int row, int scaleMm, bool heights = true, bool clearing = false)
         {
-            var b = new byte[64 * 64 * 4];
-            for (int i = 0; i < 64 * 64; i++)
-            {
-                float v = scale * ((i % 64) - (i / 64)) * 0.001f;
-                BitConverter.GetBytes(v).CopyTo(b, i * 4);
-                if (!BitConverter.IsLittleEndian) Array.Reverse(b, i * 4, 4);
-            }
-            return new SaveTile(x, y, b);
+            var b = new TerrainEditTile.Builder(new EditTileKey(column, row));
+            for (int j = 0; j < 64; j++)
+                for (int i = 0; i < 64; i++)
+                {
+                    if (heights) b.SetDeltaMm(i, j, scaleMm * (i - j));
+                    if (clearing && i < 20) b.SetCleared(i, j, true);
+                }
+            return b.Build();
         }
 
-        /// <summary>A stand-in clearing tile: 64 × 64 bytes, 255 where trees are cleared.</summary>
-        static SaveTile ClearingTile(int x, int y)
-        {
-            var b = new byte[64 * 64];
-            for (int i = 0; i < b.Length; i++) b[i] = (byte)((i % 64) < 20 ? 255 : 0);
-            return new SaveTile(x, y, b);
-        }
+        static TerrainEdits Edits(params TerrainEditTile[] tiles) => TerrainEdits.From(tiles);
 
         /// <summary>The save the v1 fixture holds: the P3-03 scripted design plus a plan (CF-06) and three tiles.</summary>
         static DesignDocument FixtureDesign()
@@ -66,8 +61,8 @@ namespace MountainPlanner.Tests.Core
             Name = "Teton plan", SavedUtc = FixtureUtc, GameVersion = "0.2.0", PackageId = JacksonHole,
             HeightsSha256 = "52e1cd2c5c4f1d0bd0f2de3ebd3b0b5b9bb2a2dbd5e8e5d7bd1b2f3a1c4d5e6f",
             Design = FixtureDesign(),
-            Terrain = new List<SaveTile> { HeightTile(12, 7, 1), HeightTile(11, 7, -2) },
-            Clearing = new List<SaveTile> { ClearingTile(12, 7) },
+            // A graded and cleared tile, a graded one, and a cleared-only one (a lift line), as task 05 makes them.
+            Edits = Edits(Tile(12, 7, 1, clearing: true), Tile(11, 7, -2), Tile(13, 8, 0, heights: false, clearing: true)),
         };
 
         static void AssertSame(SaveFile a, SaveFile b)
@@ -78,18 +73,15 @@ namespace MountainPlanner.Tests.Core
             Assert.That(b.SavedUtc, Is.EqualTo(a.SavedUtc));
             Assert.That(b.PackageId, Is.EqualTo(a.PackageId));
             Assert.That(b.HeightsSha256, Is.EqualTo(a.HeightsSha256));
-            void Tiles(List<SaveTile> x, List<SaveTile> y)
-            {
-                var sx = x.OrderBy(t => t.Y).ThenBy(t => t.X).ToList();
-                Assert.That(y.Count, Is.EqualTo(sx.Count));
-                for (int i = 0; i < sx.Count; i++)
-                {
-                    Assert.That((y[i].X, y[i].Y), Is.EqualTo((sx[i].X, sx[i].Y)));
-                    Assert.That(y[i].Payload, Is.EqualTo(sx[i].Payload), "identical heights, byte for byte (GR-09)");
-                }
-            }
-            Tiles(a.Terrain, b.Terrain);
-            Tiles(a.Clearing, b.Clearing);
+            Assert.That(TerrainEditBytes.Encode(b.Edits), Is.EqualTo(TerrainEditBytes.Encode(a.Edits)), "identical heights and clearing, byte for byte (GR-09)");
+            foreach (var t in a.Edits.Tiles)
+                for (int j = 0; j < 64; j += 7)
+                    for (int i = 0; i < 64; i += 5)
+                    {
+                        int column = t.Key.FirstColumn + i, row = t.Key.FirstRow + j;
+                        Assert.That(b.Edits.DeltaMmAt(column, row), Is.EqualTo(a.Edits.DeltaMmAt(column, row)));
+                        Assert.That(b.Edits.IsClearedAt(column, row), Is.EqualTo(a.Edits.IsClearedAt(column, row)));
+                    }
         }
 
         [Test]
@@ -112,7 +104,7 @@ namespace MountainPlanner.Tests.Core
             string folder = SaveStore.NewSaveFolder(_root, JacksonHole);
             SaveStore.Write(folder, FixtureSave());
             var o = JObject.Parse(File.ReadAllText(Path.Combine(folder, SaveFile.FileName)));
-            Assert.That(o.Properties().Select(p => p.Name), Is.EqualTo(new[] { "Version", "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256", "Design", "Terrain", "Clearing" }));
+            Assert.That(o.Properties().Select(p => p.Name), Is.EqualTo(new[] { "Version", "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256", "Design", "Edits" }));
             Assert.That(((JObject)o["Design"]).Properties().Select(p => p.Name), Is.EqualTo(new[] { "Shape", "Seed", "NextOrdinal", "Trails", "Lifts" }),
                 "no network, stats, ratings, rope or volumes (SH-05); no undo history (DD1)");
             Assert.That(((JObject)o["Design"]["Lifts"][0]).Properties().Select(p => p.Name),
@@ -165,7 +157,7 @@ namespace MountainPlanner.Tests.Core
             var next = FixtureSave();
             next.Name = "Half written";
             next.Design = DesignDocument.Empty(7);
-            next.Terrain = new List<SaveTile> { HeightTile(40, 40, 9) };
+            next.Edits = Edits(Tile(40, 40, 9));
             Assert.Throws<IOException>(() => SaveStore.Write(folder, next, s => { if (s == crashAt) throw new IOException("power cut"); }));
 
             var back = SaveStore.Read(folder);
@@ -198,7 +190,7 @@ namespace MountainPlanner.Tests.Core
             SaveStore.Write(folder, first);
             var second = FixtureSave();
             second.Name = "Second";
-            second.Terrain = new List<SaveTile> { HeightTile(1, 1, 5) };
+            second.Edits = Edits(Tile(1, 1, 5));
             SaveStore.Write(folder, second);
 
             File.WriteAllText(Path.Combine(folder, SaveFile.FileName), "{ \"Version\": 1, \"Name\": ");   // torn by a disk error
@@ -215,9 +207,9 @@ namespace MountainPlanner.Tests.Core
             var first = FixtureSave();
             SaveStore.Write(folder, first);
             var second = FixtureSave();
-            second.Terrain = new List<SaveTile> { HeightTile(3, 3, 4) };
+            second.Edits = Edits(Tile(3, 3, 4));
             SaveStore.Write(folder, second);
-            string only = Path.Combine(folder, SaveStore.TilesFolder, SaveTileFile.Hash(SaveTileFile.Encode(SaveTileKind.Terrain, second.Terrain[0])) + SaveTileFile.Extension);
+            string only = Path.Combine(folder, SaveStore.TilesFolder, SaveTileFile.Hash(SaveTileFile.Encode(second.Edits.Tiles[0])) + SaveTileFile.Extension);
             var bytes = File.ReadAllBytes(only);
             bytes[bytes.Length - 1] ^= 1;
             File.WriteAllBytes(only, bytes);
@@ -300,14 +292,26 @@ namespace MountainPlanner.Tests.Core
         }
 
         [Test]
-        public void TilesAreCheckedForKindAndPlace()
+        public void TileFilesRoundTripAndRefuseDamage()
         {
-            var bytes = SaveTileFile.Encode(SaveTileKind.Clearing, ClearingTile(2, 3));
-            Assert.Throws<InvalidDataException>(() => SaveTileFile.Decode(bytes, SaveTileKind.Terrain));
-            var t = SaveTileFile.Decode(bytes, SaveTileKind.Clearing);
-            Assert.That((t.X, t.Y), Is.EqualTo((2, 3)));
-            Assert.Throws<InvalidDataException>(() => SaveTileFile.Decode(bytes.Take(bytes.Length - 1).ToArray(), SaveTileKind.Clearing));
-            Assert.Throws<ArgumentException>(() => SaveStore.Write(Path.Combine(_root, "dup"), new SaveFile { Terrain = new List<SaveTile> { HeightTile(1, 1, 1), HeightTile(1, 1, 2) } }));
+            foreach (var tile in new[] { Tile(2, 3, 7), Tile(-1, 4, 3, clearing: true), Tile(5, -6, 0, heights: false, clearing: true) })
+            {
+                var bytes = SaveTileFile.Encode(tile);
+                var back = SaveTileFile.Decode(bytes);
+                Assert.That(back, Is.EqualTo(tile), $"{tile} reads back equal");
+                Assert.That(SaveTileFile.Encode(back), Is.EqualTo(bytes), "and writes the same bytes");
+                Assert.Throws<InvalidDataException>(() => SaveTileFile.Decode(bytes.Take(bytes.Length - 1).ToArray()), "a short tile");
+            }
+            Assert.That(SaveTileFile.Encode(Tile(0, 0, 1)).Length, Is.EqualTo(16 + 4096 * 4), "heights only: a header and 4,096 whole-mm changes");
+            Assert.That(SaveTileFile.Encode(Tile(0, 0, 0, heights: false, clearing: true)).Length, Is.EqualTo(16 + 64 * 8), "clearing only: 64 words");
+
+            var tooDeep = SaveTileFile.Encode(Tile(0, 0, 1));
+            BitConverter.GetBytes(TerrainEditTile.DeltaLimitMm + 1).CopyTo(tooDeep, 16);   // past the ±1 km limit (TE1)
+            Assert.Throws<InvalidDataException>(() => SaveTileFile.Decode(tooDeep));
+            var zeros = SaveTileFile.Encode(Tile(0, 0, 1));
+            for (int k = 16; k < zeros.Length; k++) zeros[k] = 0;   // a heights part of all zeros isn't canonical
+            Assert.Throws<InvalidDataException>(() => SaveTileFile.Decode(zeros));
+            Assert.Throws<ArgumentException>(() => SaveTileFile.Encode(TerrainEditTile.Empty(new EditTileKey(0, 0))));
         }
 
         [Test]

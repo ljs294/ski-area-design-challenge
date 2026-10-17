@@ -25,7 +25,7 @@
 <data>/Saves/<packageId>/<saveId>/
     save.json            the save: format "save", Version 1, read through VersionedJson
     save.json.bak        the previous good save.json (the fallback)
-    tiles/<sha256>.bin   one 64 m terrain or clearing tile, named by the hash of its bytes, never overwritten
+    tiles/<sha256>.tile  one 64 m terrain edit tile (heights and clearing), named by the hash of its bytes
 ```
 
 - Saves live outside the package, so the read-only demo (`LibraryEntry.Bundled`) saves the same way as a download,
@@ -37,10 +37,12 @@
 
 - `Version`, `Name`, `SavedUtc` (passed in, never read from the clock here), `GameVersion`, `Autosave`.
 - `PackageId` and `HeightsHash` (the package's height-file hash): a save never opens on other terrain.
-- `Design`: the document as plain JSON. Seed and NextOrdinal (as decimal strings, so 64-bit values survive any JSON
-  reader), trails and lifts in ID order, integer millimetres; the undo history isn't saved (DD1).
-- `Terrain` and `Clearing`: the tile size, then each tile's x, y and SHA-256. Tile bytes are task 05's types, written
-  uncompressed, so Unity and .NET write identical bytes.
+- `Design`: the document as plain JSON. The seed and IDs are 16-digit hex (64-bit values survive any JSON reader),
+  trails and lifts are in ID order, lengths are integer millimetres; the undo history isn't saved (DD1).
+- `Edits`: the tile size (64 m), then each tile's column, row (task 05's `EditTileKey`) and SHA-256.
+- A tile file holds one `TerrainEditTile` (TE1), uncompressed, so Unity and .NET write identical bytes: a 16-byte
+  header ("MPTL", layout 1, which parts, column, row), then 4,096 whole-mm height changes if it has heights, then 64
+  clearing words if it has clearing. Undo isn't saved, so TE2's per-step edit sets don't reach the file.
 - The same document, tiles and time always give the same bytes (a golden test).
 
 ## Atomic commit

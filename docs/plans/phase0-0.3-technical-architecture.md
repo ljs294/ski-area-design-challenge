@@ -336,7 +336,7 @@ The old game's analysis layers (hillshade, contours, slope bands, aspect; 0.1 §
 - `<data>/recent.json` records when each package was last opened, for Continue and the library's sort.
 - `<data>/Downloads/<id>/download.json` records a paused download (task 14).
 - `<data>/Saves/<packageId>/<saveId>/` holds a save (task P3-04): `save.json` (the design plus a list of 64 m terrain
-  and clearing tiles), `save.json.bak` (the previous good one) and `tiles/<sha256>.tile`. Saves sit outside the package,
+  edit tiles, TE1), `save.json.bak` (the previous good one) and `tiles/<sha256>.tile`. Saves sit outside the package,
   so the read-only demo saves too and Rename never touches them. A save commits with one `File.Replace`, so a crash
   leaves the old save or the new one. A new folder moves nothing, so the library layout stays v1. Deleting an area
   deletes its saves.

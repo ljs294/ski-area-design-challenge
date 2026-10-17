@@ -19,7 +19,8 @@ Saved files from each frozen format version. The rules are in
   empty one, so the area keeps the name it was downloaded with.
 
 - **`v1-save/Saves/5792676e513f5302/save-001/`** is a save (task P3-04, format "save" v1) of the Jackson Hole area:
-  `save.json` (the P3-03 scripted design plus a planned trail) and three tiles under `tiles/`, each named by its SHA-256.
+  `save.json` (the P3-03 scripted design plus a planned trail) and three terrain edit tiles under `tiles/` (graded and
+  cleared, graded only, cleared only), each named by its SHA-256.
   `SaveFileTests` checks that it reads unchanged and that today's writer reproduces it byte for byte. Git keeps these
   bytes exactly (`-text` in `.gitattributes`).
 

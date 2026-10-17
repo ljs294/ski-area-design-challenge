@@ -16,22 +16,22 @@ namespace MountainPlanner.Persistence.Saves
     /// <code>
     /// { "Version": 1, "Name", "Autosave", "SavedUtc", "GameVersion", "PackageId", "HeightsSha256",
     ///   "Design": { "Shape": 1, "Seed", "NextOrdinal", "Trails": [...], "Lifts": [...] },
-    ///   "Terrain": { "TileMetres": 64, "Tiles": [ { "X", "Y", "Sha256" } ] }, "Clearing": { ... } }
+    ///   "Edits": { "TileMetres": 64, "Tiles": [ { "Column", "Row", "Sha256" } ] } }
     /// </code>
     /// </summary>
     public static class SaveJson
     {
-        /// <summary>A tile's place and file, as save.json lists it.</summary>
+        /// <summary>A terrain edit tile's place (its <c>EditTileKey</c>) and file, as save.json lists it.</summary>
         public readonly struct TileRef
         {
-            public readonly int X, Y;
+            public readonly int Column, Row;
             public readonly string Sha256;
-            public TileRef(int x, int y, string sha256) { X = x; Y = y; Sha256 = sha256; }
+            public TileRef(int column, int row, string sha256) { Column = column; Row = row; Sha256 = sha256; }
         }
 
         // ---------- writing ----------
 
-        public static string Write(SaveFile save, IReadOnlyList<TileRef> terrain, IReadOnlyList<TileRef> clearing)
+        public static string Write(SaveFile save, IReadOnlyList<TileRef> edits)
         {
             var sw = new StringWriter(CultureInfo.InvariantCulture) { NewLine = "\n" };
             using (var w = new JsonTextWriter(sw) { Formatting = Formatting.Indented, Indentation = 2, IndentChar = ' ', Culture = CultureInfo.InvariantCulture })
@@ -45,8 +45,7 @@ namespace MountainPlanner.Persistence.Saves
                 w.WritePropertyName("PackageId"); w.WriteValue(save.PackageId ?? "");
                 w.WritePropertyName("HeightsSha256"); w.WriteValue(save.HeightsSha256 ?? "");
                 w.WritePropertyName("Design"); WriteDesign(w, save.Design);
-                w.WritePropertyName("Terrain"); WriteTiles(w, terrain);
-                w.WritePropertyName("Clearing"); WriteTiles(w, clearing);
+                w.WritePropertyName("Edits"); WriteTiles(w, edits);
                 w.WriteEndObject();
             }
             return sw.ToString() + "\n";
@@ -154,8 +153,8 @@ namespace MountainPlanner.Persistence.Saves
             foreach (var t in tiles)
             {
                 w.WriteStartObject();
-                w.WritePropertyName("X"); w.WriteValue(t.X);
-                w.WritePropertyName("Y"); w.WriteValue(t.Y);
+                w.WritePropertyName("Column"); w.WriteValue(t.Column);
+                w.WritePropertyName("Row"); w.WriteValue(t.Row);
                 w.WritePropertyName("Sha256"); w.WriteValue(t.Sha256);
                 w.WriteEndObject();
             }
@@ -180,7 +179,7 @@ namespace MountainPlanner.Persistence.Saves
         /// Reads save.json's text: the version first (newer → <see cref="FormatTooNewException"/>), then everything but the
         /// tile bytes. Anything malformed throws <see cref="InvalidDataException"/>; nothing half-reads.
         /// </summary>
-        public static SaveFile Read(string json, out List<TileRef> terrain, out List<TileRef> clearing)
+        public static SaveFile Read(string json, out List<TileRef> edits)
         {
             JObject o;
             try { o = SaveFile.Migrations.Upgrade(VersionedJson.Parse(json), out _); }
@@ -193,8 +192,7 @@ namespace MountainPlanner.Persistence.Saves
                     GameVersion = Str(o, "GameVersion"), PackageId = Str(o, "PackageId"), HeightsSha256 = Str(o, "HeightsSha256"),
                     Design = ReadDesign(Obj(o, "Design")),
                 };
-                terrain = ReadTiles(Obj(o, "Terrain"));
-                clearing = ReadTiles(Obj(o, "Clearing"));
+                edits = ReadTiles(Obj(o, "Edits"));
                 return save;
             }
             catch (Exception e) when (e is FormatException || e is ArgumentException || e is InvalidCastException || e is OverflowException || e is JsonException)
@@ -289,9 +287,9 @@ namespace MountainPlanner.Persistence.Saves
             foreach (var t in Arr(o, "Tiles"))
             {
                 var to = AsObj(t);
-                var r = new TileRef(Int(to, "X"), Int(to, "Y"), Str(to, "Sha256"));
+                var r = new TileRef(Int(to, "Column"), Int(to, "Row"), Str(to, "Sha256"));
                 if (!SaveTileFile.IsHash(r.Sha256)) throw new FormatException("a tile's hash isn't 64 hex digits");
-                if (!seen.Add(((long)r.Y << 32) | (uint)r.X)) throw new FormatException("a tile is listed twice");
+                if (!seen.Add(((long)r.Row << 32) | (uint)r.Column)) throw new FormatException("a tile is listed twice");
                 list.Add(r);
             }
             return list;

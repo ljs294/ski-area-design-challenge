@@ -153,28 +153,23 @@
       }
     ]
   },
-  "Terrain": {
+  "Edits": {
     "TileMetres": 64,
     "Tiles": [
       {
-        "X": 11,
-        "Y": 7,
-        "Sha256": "a03f9b4d0951295874553048a4f1fea7dab8fa25946bbfd0741376fa6016f56d"
+        "Column": 11,
+        "Row": 7,
+        "Sha256": "f57b8838b0dd46a729359d0908453f058e06e82b41faf92374cdea4b0fac8360"
       },
       {
-        "X": 12,
-        "Y": 7,
-        "Sha256": "f48733cf6ba64b3ce06a399c009ada21820c4acf0ff213fd3a1a5b9e65e7030c"
-      }
-    ]
-  },
-  "Clearing": {
-    "TileMetres": 64,
-    "Tiles": [
+        "Column": 12,
+        "Row": 7,
+        "Sha256": "2b1213351d5423509793a8ed11971feac886c0cc27420fea23b0bec09c9b5965"
+      },
       {
-        "X": 12,
-        "Y": 7,
-        "Sha256": "6d78178db8f7b6cdd63bc4e44ecf03ebc40b039b7343b072ab3b62eae572d573"
+        "Column": 13,
+        "Row": 8,
+        "Sha256": "50f7e549213e0af7ee7052803ce038276eeca345d2150f0f28f340bff967be1c"
       }
     ]
   }
