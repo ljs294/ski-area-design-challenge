@@ -398,6 +398,7 @@ MonoBehaviour:
   PlinthTop: -Infinity
   SnowDepth: 0.3048
   Clearance: 0.5
+  TargetRidesGround: 1
   OutsideRing: 2000
   Target: {x: 0, y: 0, z: 0}
   Distance: 3500
