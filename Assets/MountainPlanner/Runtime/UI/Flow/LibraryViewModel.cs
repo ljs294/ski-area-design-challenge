@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using MountainPlanner.Domain.Terrain;
 using MountainPlanner.Persistence;
+using MountainPlanner.Persistence.Saves;
 
 namespace MountainPlanner.UI.Flow
 {
@@ -30,7 +31,16 @@ namespace MountainPlanner.UI.Flow
         /// <summary>Set on an area made by a newer version of the game (task 08): it can be deleted, not opened.</summary>
         public string NewerText = "";
         public bool IsNewer => NewerText.Length > 0;
-        public bool CanOpen => Entry != null && !IsNewer && Entry.Refusal.Length == 0;
+        public bool CanOpen => Entry != null && !IsNewer && Entry.Refusal.Length == 0 && (Save == null || Save.Refusal.Length == 0);
+        /// <summary>The area's saves, newest first (task P3-04): Load Area lists them under it.</summary>
+        public List<SaveSummary> Saves = new List<SaveSummary>();
+        /// <summary>Set on a save's own row under its area (Load Area, task P3-04).</summary>
+        public SaveSummary Save;
+        /// <summary>Set on the New design row under an area: it opens with nothing built.</summary>
+        public bool IsNewDesign;
+        /// <summary>The area a save row or New design row belongs to.</summary>
+        public LibraryRow Area;
+        public bool IsSaveRow => Save != null || IsNewDesign;
         /// <summary>Rename (Manage Areas, F2): any area this game can read whose view.json isn't from a newer game.</summary>
         public bool CanRename => CanOpen && Entry.RenameRefusal.Length == 0;
         /// <summary>Built into the game (the demo, task P2-03): it opens, but can't be renamed or deleted.</summary>
@@ -67,7 +77,8 @@ namespace MountainPlanner.UI.Flow
 
         public static LibraryViewModel Build(IReadOnlyList<LibraryEntry> entries, IReadOnlyList<PendingDownload> pending,
                                              RecentResorts recent, LibrarySort sort, DateTime nowUtc,
-                                             IReadOnlyList<LibraryEntry> newer = null, long leftoverBytes = 0)
+                                             IReadOnlyList<LibraryEntry> newer = null, long leftoverBytes = 0,
+                                             Func<LibraryEntry, List<SaveSummary>> saves = null)
         {
             newer = newer ?? Array.Empty<LibraryEntry>();
             var vm = new LibraryViewModel { Sort = sort };
@@ -101,6 +112,7 @@ namespace MountainPlanner.UI.Flow
                     TerrainScore = e.TerrainScore, FloraScore = e.FloraScore,
                     TerrainText = Score(e.TerrainScore), FloraText = Score(e.FloraScore),
                     Disk = DiskOf(e), DiskDetail = Detail(e), Opened = When(Opened(e), nowUtc),
+                    Saves = saves?.Invoke(e) ?? new List<SaveSummary>(),
                 });
             foreach (var e in newer.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Folder, StringComparer.Ordinal))
                 vm.Rows.Add(new LibraryRow { Entry = e, Name = e.Name, Disk = DiskOf(e), DiskDetail = Detail(e), NewerText = NewerVersion });
@@ -113,6 +125,25 @@ namespace MountainPlanner.UI.Flow
                          + (newer.Count > 0 ? $" · {newer.Count} {(newer.Count == 1 ? "needs" : "need")} a newer version" : "");
             return vm;
         }
+
+        /// <summary>"3 saves", "1 save" or "No saves" (Load Area's count beside each area).</summary>
+        public static string SaveCount(int n) => n == 0 ? "No saves" : n == 1 ? "1 save" : $"{n} saves";
+
+        /// <summary>"12 min ago", "3 h ago", "yesterday", "Sep 30": when a save was written.</summary>
+        public static string SavedWhen(string utc, DateTime nowUtc)
+        {
+            if (string.IsNullOrEmpty(utc) || !DateTime.TryParse(utc, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var t)) return "";
+            var ago = nowUtc - t;
+            if (ago.TotalMinutes < 1) return "just now";
+            if (ago.TotalMinutes < 60) return $"{(int)ago.TotalMinutes} min ago";
+            if (ago.TotalHours < 24 && t.Date == nowUtc.Date) return $"{(int)ago.TotalHours} h ago";
+            return When(utc, nowUtc);
+        }
+
+        /// <summary>"4 trails · 2 lifts".</summary>
+        public static string Counts(SaveSummary s) =>
+            $"{s.Trails} {(s.Trails == 1 ? "trail" : "trails")} · {s.Lifts} {(s.Lifts == 1 ? "lift" : "lifts")}";
 
         public const string NewerVersion = "Made by a newer version of Mountain Planner. Update the game to open it.";
         public const string Measuring = "…";

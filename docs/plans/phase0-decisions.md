@@ -360,6 +360,20 @@ the plan and all four recommendations.
 | DD3 | **Heads and tails are stored as points only;** what they attach to (a lift end or a trail within 30 ft) is derived each time the network is rebuilt (TR-05, SH-05) |
 | DD4 | **Format:** Domain owns the document's shape (version 1) and its canonical bytes, used for goldens and equality; task 04 picks the save file's encoding and freezes it |
 
+## Phase 3 task 04, save file: decided 2026-10-16
+
+**Context:** the save file. Plan: [p3-04-plan.md](p3-04-plan.md). The owner approved the plan and all six
+recommendations.
+
+| # | Decision |
+|---|---|
+| SV1 | **Several named saves per area, plus one Autosave slot;** autosave never overwrites a named save |
+| SV2 | **Autosave every 10 minutes** by default, only when something changed (Off, 5, 10, 15 or 30 in Settings › Gameplay); Exit and Quit ask "Save before leaving?" when there are unsaved changes |
+| SV3 | **Task 05 defines the delta and clearing tile types** engine-free in `Domain/Edits`; the save writes them byte for byte |
+| SV4 | **The save freezes as v1 only after task 05's tile types are on main** |
+| SV5 | **The Load Area save list is mocked up first,** in its own section of ui-layout.html |
+| SV6 | **Frozen JSON files are written with `File.Replace`,** so a crash never leaves a format without its file |
+
 ## Phase 3 task 05, terrain edit pipeline: decided 2026-10-16
 
 **Context:** height and clearing edits over the immutable package. Plan: [p3-05-plan.md](p3-05-plan.md). The owner

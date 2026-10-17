@@ -20,7 +20,7 @@ namespace MountainPlanner.UI.Flow
     {
         public const int KeepSeconds = 15;
         /// <summary>The pages' order, for opening one directly (the menu's Controls).</summary>
-        public const int InterfacePage = 0, UnitsPage = 1, GraphicsPage = 2, DisplayPage = 3, ControlsPage = 4, DataPage = 5;
+        public const int InterfacePage = 0, UnitsPage = 1, GameplayPage = 2, GraphicsPage = 3, DisplayPage = 4, ControlsPage = 5, DataPage = 6;
 
         /// <summary>Data › Library folder › Open: show the folder.</summary>
         public event Action LibraryOpenChosen;
@@ -78,6 +78,7 @@ namespace MountainPlanner.UI.Flow
             for (int i = 0; i <= KeepSeconds; i++) _countdown[i] = $"Going back to the old display settings in {i} s.";
             BuildInterface();
             BuildUnits();
+            BuildGameplay();
             BuildGraphics();
             BuildDisplay();
             BuildControls();
@@ -192,7 +193,7 @@ namespace MountainPlanner.UI.Flow
             if (_pages[_page].name == "settings-data") DataShown?.Invoke();
         }
 
-        /// <summary>The page shown (0–5).</summary>
+        /// <summary>The page shown (0–6).</summary>
         public int Page => _page;
 
         // ---------- the pages ----------
@@ -219,6 +220,17 @@ namespace MountainPlanner.UI.Flow
                     () => FlowUnits.Imperial ? 1 : 0, i => FlowUnits.Set(i == 1, Remember)));
             var note = Note(page, "");
             _refresh.Add(() => note.text = $"{KeyBindings.Caption(GameAction.Units)} switches units in the game too.");
+        }
+
+        /// <summary>Gameplay (task P3-04): only Autosave so far, the mockup's first row.</summary>
+        void BuildGameplay()
+        {
+            var page = AddPage("gameplay", "Gameplay");
+            var choices = GameplayPreferences.AutosaveChoices;
+            Row(page, "Autosave", "Saves in the background when there are changes, into the area's Autosave slot; your named saves are never overwritten.",
+                Step("autosave-down", "autosave-value", "autosave-up", () => Array.IndexOf(choices, GameplayPreferences.AutosaveMinutes), () => choices.Length,
+                     i => choices[i] == 0 ? "Off" : $"Every {choices[i]} minutes", i => GameplayPreferences.SetAutosave(choices[i], Remember),
+                     "Less often", "More often"));
         }
 
         void BuildGraphics()
@@ -727,6 +739,7 @@ namespace MountainPlanner.UI.Flow
             CameraOptions.SetInvertZoom(false, Remember);
             CameraOptions.SetSpeed(ZoomSpeed.Normal, Remember);
             KeyBindings.ResetAll(Remember);
+            GameplayPreferences.SetAutosave(GameplayPreferences.AutosaveDefault, Remember);   // task P3-04
             if (UiDisplay.Current != 1 || UiDisplay.Size != new Vector2Int(Screen.currentResolution.width, Screen.currentResolution.height))
                 ChangeDisplay(() => UiDisplay.Set(1));   // borderless full screen, asked to keep
             Refresh();

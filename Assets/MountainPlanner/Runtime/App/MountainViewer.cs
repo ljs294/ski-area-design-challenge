@@ -727,7 +727,7 @@ namespace MountainPlanner.App
         void DrawDeveloperPanel(Rect at)
         {
             const float row = 30, label = 130;
-            var box = new Rect(at.x, at.y, at.width, row * 7 + 16);
+            var box = new Rect(at.x, at.y, at.width, row * (SampleDesignChosen != null ? 8 : 7) + 16);
             GUI.Box(box, GUIContent.none);
             float y = box.y + 8, x0 = box.x + 10 + label, w = 110;
             var caption = new GUIStyle(GUI.skin.label) { fontSize = 14 };
@@ -780,7 +780,17 @@ namespace MountainPlanner.App
             Caption("Saved views");
             if (Button(0, "Home")) HomeView();
             if (_landmarks.Count > 0 && Button(1, _landmarks[0].Name.Length > 14 ? _landmarks[0].Name.Substring(0, 13) + "…" : _landmarks[0].Name)) FlyToLandmark();
+
+            if (SampleDesignChosen != null)   // task P3-04: something to save before the drawing tools exist
+            {
+                y += row;
+                Caption("Design");
+                if (GUI.Button(new Rect(x0, y, 2 * w + 6, row - 4), "Add sample design")) SampleDesignChosen();
+            }
         }
+
+        /// <summary>Set by the app flow (task P3-04): the developer panel's Add sample design, a lift and a planned trail.</summary>
+        public static Action SampleDesignChosen;
 
         void DrawLandmarkLabels()
         {
